@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://apache.org"
+         xmlns:xsi="http://w3.org"
+         xsi:schemaLocation="http://apache.org http://apache.org">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- 請根據你的專案自訂以下三行資訊 -->
+    <groupId>com.example</groupId>
+    <artifactId>selenium-demo</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <!-- 強制 Maven 語法編譯與執行都使用 Java 11 -->
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- 建議搭配 WebDriverManager（免手動下載 chromedriver 驅動程式） -->
+        <dependency>
+            <groupId>io.github.bonigarcia</groupId>
+            <artifactId>webdrivermanager</artifactId>
+            <version>5.9.2</version>
+        </dependency>
+
+        <!-- 單元測試框架（選用，編寫測試用例建議加上） -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- 適用於 Java 11 的 Selenium 4 核心套件 -->
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-java</artifactId>
+            <version>4.16.1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.lgooddatepicker</groupId>
+            <artifactId>LGoodDatePicker</artifactId>
+            <version>11.2.1</version>
+        </dependency>
+
+    </dependencies>
+
+</project>

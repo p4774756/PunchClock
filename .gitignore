@@ -1,0 +1,71 @@
+# =========================================================================
+# Java 核心編譯產物
+# =========================================================================
+*.class
+*.log
+*.ctxt
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# =========================================================================
+# 建構工具 (Build Tools)
+# =========================================================================
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.next
+pom.xml.note
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# =========================================================================
+# 整合開發環境 (IDEs) & 編輯器
+# =========================================================================
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+out/
+
+# Eclipse
+.metadata/
+.classpath
+.project
+.settings/
+*.launch
+bin/
+
+# NetBeans
+**/nbproject/private/
+**/nbproject/Android-properties.properties
+**/nbproject/maven-pom-*.xhtml
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# Visual Studio Code
+.vscode/
+
+# =========================================================================
+# 系統與環境變數檔案 (包含敏感資訊)
+# =========================================================================
+.env
+.env.local
+.DS_Store
+Thumbs.db
