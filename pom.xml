@@ -17,19 +17,11 @@
     </properties>
 
     <dependencies>
-        <!-- 建議搭配 WebDriverManager（免手動下載 chromedriver 驅動程式） -->
+        <!-- Playwright 網頁自動化套件 -->
         <dependency>
-            <groupId>io.github.bonigarcia</groupId>
-            <artifactId>webdrivermanager</artifactId>
-            <version>5.9.2</version>
-        </dependency>
-
-        <!-- 單元測試框架（選用，編寫測試用例建議加上） -->
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <version>5.10.2</version>
-            <scope>test</scope>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>1.49.0</version>
         </dependency>
 
         <dependency>
@@ -38,16 +30,18 @@
             <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
-        <!-- 適用於 Java 11 的 Selenium 4 核心套件 -->
-        <dependency>
-            <groupId>org.seleniumhq.selenium</groupId>
-            <artifactId>selenium-java</artifactId>
-            <version>4.16.1</version>
-        </dependency>
+
         <dependency>
             <groupId>com.github.lgooddatepicker</groupId>
             <artifactId>LGoodDatePicker</artifactId>
             <version>11.2.1</version>
+        </dependency>
+
+        <!-- Discord Bot (JDA) -->
+        <dependency>
+            <groupId>net.dv8tion</groupId>
+            <artifactId>JDA</artifactId>
+            <version>5.2.1</version>
         </dependency>
 
     </dependencies>

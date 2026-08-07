@@ -99,4 +99,11 @@ public class SchedulerService {
             countdownTimer.stop();
         }
     }
+
+    /**
+     * 檢查當前是否正在排程中
+     */
+    public boolean isScheduled() {
+        return scheduler != null && !scheduler.isShutdown();
+    }
 }
