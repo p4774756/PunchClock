@@ -37,11 +37,11 @@
             <version>11.2.1</version>
         </dependency>
 
-        <!-- Discord Bot (JDA) -->
+        <!-- SLF4J Logger Provider (消除 SLF4J 警告訊息) -->
         <dependency>
-            <groupId>net.dv8tion</groupId>
-            <artifactId>JDA</artifactId>
-            <version>5.2.1</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>2.0.16</version>
         </dependency>
 
     </dependencies>
