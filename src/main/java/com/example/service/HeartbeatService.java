@@ -1,36 +1,45 @@
 package com.example.service;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.WebSocket;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
- * 專責與 ping-pong-server (Render 雲端服務) 進行心跳 (Heartbeat) 存活回報
+ * 專責與 ping-pong-server 進行 WebSocket 雙向通訊與存活回報
  */
 public class HeartbeatService {
 
     private final HttpClient httpClient;
-    private ScheduledExecutorService heartbeatScheduler;
+    private ScheduledExecutorService scheduler;
 
+    private WebSocket webSocket;
     private String serverUrl = "";
     private String clientId = "company-worker";
     private String currentStatus = "ONLINE";
     private String scheduledTime = null;
-    private boolean isHeartbeatActive = false;
+    private boolean isServiceActive = false;
+    private boolean isConnected = false;
+
+    private Runnable remoteTriggerHandler;
 
     public HeartbeatService() {
         HttpClient.Builder builder = HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_1_1)
-            .followRedirects(HttpClient.Redirect.ALWAYS)
-            .connectTimeout(Duration.ofSeconds(8));
+                .version(HttpClient.Version.HTTP_1_1)
+                .followRedirects(HttpClient.Redirect.ALWAYS)
+                .connectTimeout(Duration.ofSeconds(8));
 
-        // 在這裡為 HttpClient 注入繞過 SSL 的設定
         try {
             TrustManager[] trustAllCerts = new TrustManager[]{
                 new X509TrustManager() {
@@ -42,13 +51,7 @@ public class HeartbeatService {
 
             SSLContext sc = SSLContext.getInstance("TLS");
             sc.init(null, trustAllCerts, new java.security.SecureRandom());
-            
-            // 將 SSLContext 設定進去
             builder.sslContext(sc);
-            
-            // 提示：Java 11 HttpClient 的 Hostname 驗證預設會跟隨 SSLContext，
-            // 如果執行後仍有問題，可透過系統參數強制關閉：System.setProperty("jdk.internal.httpclient.disableHostnameVerification", "true");
-            
         } catch (Exception e) {
             System.err.println("初始化 SSL 繞過失敗: " + e.getMessage());
         }
@@ -56,8 +59,12 @@ public class HeartbeatService {
         this.httpClient = builder.build();
     }
 
+    public void setRemoteTriggerHandler(Runnable remoteTriggerHandler) {
+        this.remoteTriggerHandler = remoteTriggerHandler;
+    }
+
     /**
-     * 測試與伺服器的連線
+     * 測試與伺服器的 HTTP Ping 連線
      */
     public void testConnection(String serverUrl, Consumer<String> logger, Consumer<Boolean> onResult) {
         if (serverUrl == null || serverUrl.isBlank()) {
@@ -98,64 +105,194 @@ public class HeartbeatService {
     }
 
     /**
-     * 啟動定期心跳服務 (每 60 秒發送一次)
+     * 啟動 WebSocket 長連線與定期 Ping
      */
     public void startHeartbeat(String serverUrl, Consumer<String> logger, Consumer<Boolean> statusCallback) {
-        stopHeartbeat(); // 先安全清理舊排程
+        stopHeartbeat(); // 安全清理舊連線
 
         if (serverUrl == null || serverUrl.isBlank()) {
-            log(logger, "⚠️ [心跳服務] 伺服器網址為空，未開啟心跳回報。");
+            log(logger, "⚠️ [WebSocket 服務] 伺服器網址為空，未開啟連線。");
             return;
         }
 
         this.serverUrl = formatServerUrl(serverUrl);
-        this.isHeartbeatActive = true;
+        this.isServiceActive = true;
 
-        log(logger, "💚 [心跳服務] 已啟動！目標伺服器：" + this.serverUrl + " (週期：60 秒)");
+        String wsUrl = toWebSocketUri(this.serverUrl, clientId);
+        log(logger, "🔌 [WebSocket 服務] 啟動長連線，連線至：" + wsUrl);
 
-        heartbeatScheduler = Executors.newSingleThreadScheduledExecutor();
-        heartbeatScheduler.scheduleAtFixedRate(() -> sendHeartbeat(logger, statusCallback), 0, 60, TimeUnit.SECONDS);
+        scheduler = Executors.newScheduledThreadPool(2);
+
+        // 嘗試建立 WebSocket 連線
+        connectWebSocket(wsUrl, logger, statusCallback);
+
+        // 每 15 秒檢查一次連線並發送 PING / 心跳
+        scheduler.scheduleAtFixedRate(() -> {
+            if (!isServiceActive) return;
+
+            if (webSocket == null || !isConnected) {
+                log(logger, "🔄 [WebSocket] 連線中斷，嘗試重新連線至：" + wsUrl + "...");
+                connectWebSocket(wsUrl, logger, statusCallback);
+            } else {
+                sendPing(logger);
+            }
+        }, 15, 15, TimeUnit.SECONDS);
+    }
+
+    private void connectWebSocket(String wsUrl, Consumer<String> logger, Consumer<Boolean> statusCallback) {
+        try {
+            httpClient.newWebSocketBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .buildAsync(URI.create(wsUrl), new WebSocket.Listener() {
+                        private final StringBuilder messageBuffer = new StringBuilder();
+
+                        @Override
+                        public void onOpen(WebSocket ws) {
+                            webSocket = ws;
+                            isConnected = true;
+                            log(logger, "💚 [WebSocket] 已成功連線至伺服器！雙向控制已就緒。");
+                            if (statusCallback != null) statusCallback.accept(true);
+                            sendPing(logger);
+                            ws.request(1);
+                        }
+
+                        @Override
+                        public CompletionStage<?> onText(WebSocket ws, CharSequence data, boolean last) {
+                            messageBuffer.append(data);
+                            if (last) {
+                                String fullMessage = messageBuffer.toString();
+                                messageBuffer.setLength(0);
+                                handleIncomingMessage(fullMessage, logger);
+                            }
+                            ws.request(1);
+                            return null;
+                        }
+
+                        @Override
+                        public CompletionStage<?> onClose(WebSocket ws, int statusCode, String reason) {
+                            isConnected = false;
+                            webSocket = null;
+                            log(logger, "🔴 [WebSocket] 連線關閉 (" + statusCode + ": " + reason + ")");
+                            if (statusCallback != null) statusCallback.accept(false);
+                            return null;
+                        }
+
+                        @Override
+                        public void onError(WebSocket ws, Throwable error) {
+                            isConnected = false;
+                            webSocket = null;
+                            log(logger, "❌ [WebSocket 錯誤] " + error.getMessage());
+                            if (statusCallback != null) statusCallback.accept(false);
+                        }
+                    });
+        } catch (Exception ex) {
+            isConnected = false;
+            webSocket = null;
+            log(logger, "❌ [WebSocket 連線異常] " + ex.getMessage());
+            if (statusCallback != null) statusCallback.accept(false);
+        }
+    }
+
+    public interface RemoteScheduleHandler {
+        void onSchedule(String scheduledTime, String targetUrl, String buttonId);
+    }
+
+    private RemoteScheduleHandler remoteScheduleHandler;
+    private Runnable remoteCancelHandler;
+
+    public void setRemoteScheduleHandler(RemoteScheduleHandler handler) {
+        this.remoteScheduleHandler = handler;
+    }
+
+    public void setRemoteCancelHandler(Runnable handler) {
+        this.remoteCancelHandler = handler;
+    }
+
+    private void handleIncomingMessage(String message, Consumer<String> logger) {
+        log(logger, "📩 [WebSocket 收到訊息] " + message);
+        if (message.contains("\"type\":\"TRIGGER_CHECKIN\"")) {
+            log(logger, "🚀 [遠端指令] 收到來自 Web 控制台的打卡指令！");
+            if (remoteTriggerHandler != null) {
+                remoteTriggerHandler.run();
+            }
+        } else if (message.contains("\"type\":\"CANCEL_SCHEDULE\"")) {
+            log(logger, "🛑 [遠端指令] 收到來自 Web 控制台的取消排程指令！");
+            if (remoteCancelHandler != null) {
+                remoteCancelHandler.run();
+            }
+        } else if (message.contains("\"type\":\"START_SCHEDULE\"")) {
+            log(logger, "🔔 [遠端指令] 收到來自 Web 控制台的設定排程指令！");
+            String scheduledTime = extractJsonValue(message, "scheduledTime");
+            String targetUrl = extractJsonValue(message, "targetUrl");
+            String buttonId = extractJsonValue(message, "buttonId");
+            if (remoteScheduleHandler != null) {
+                remoteScheduleHandler.onSchedule(scheduledTime, targetUrl, buttonId);
+            }
+        }
+    }
+
+    private String extractJsonValue(String json, String key) {
+        String searchKey = "\"" + key + "\":\"";
+        int start = json.indexOf(searchKey);
+        if (start == -1) return "";
+        start += searchKey.length();
+        int end = json.indexOf("\"", start);
+        if (end == -1) return "";
+        return json.substring(start, end);
+    }
+
+    public interface TaskDetailsProvider {
+        String getTargetUrl();
+        String getButtonId();
+    }
+
+    private TaskDetailsProvider taskDetailsProvider;
+
+    public void setTaskDetailsProvider(TaskDetailsProvider taskDetailsProvider) {
+        this.taskDetailsProvider = taskDetailsProvider;
+    }
+
+    private void sendPing(Consumer<String> logger) {
+        if (webSocket != null && isConnected) {
+            String targetUrl = (taskDetailsProvider != null) ? taskDetailsProvider.getTargetUrl() : "";
+            String buttonId = (taskDetailsProvider != null) ? taskDetailsProvider.getButtonId() : "";
+
+            String payload = String.format(
+                    "{\"type\":\"PING\",\"clientId\":\"%s\",\"status\":\"%s\",\"scheduledTime\":%s,\"targetUrl\":\"%s\",\"buttonId\":\"%s\"}",
+                    escapeJson(clientId),
+                    escapeJson(currentStatus),
+                    scheduledTime == null ? "null" : "\"" + escapeJson(scheduledTime) + "\"",
+                    escapeJson(targetUrl),
+                    escapeJson(buttonId)
+            );
+            webSocket.sendText(payload, true);
+        }
     }
 
     /**
-     * 發送單次心跳
+     * 回傳打卡執行結果至 WebSocket 伺服器
+     */
+    public void sendCheckinResult(boolean success, String message) {
+        if (webSocket != null && isConnected) {
+            String payload = String.format(
+                    "{\"type\":\"CHECKIN_RESULT\",\"clientId\":\"%s\",\"success\":%b,\"message\":\"%s\"}",
+                    escapeJson(clientId),
+                    success,
+                    escapeJson(message)
+            );
+            webSocket.sendText(payload, true);
+        }
+    }
+
+    /**
+     * 手動發送心跳 / 狀態更新
      */
     public void sendHeartbeat(Consumer<String> logger, Consumer<Boolean> statusCallback) {
-        if (!isHeartbeatActive || serverUrl.isBlank()) return;
-
-        String endpoint = serverUrl + "/api/heartbeat";
-        String payload = String.format(
-                "{\"clientId\":\"%s\",\"status\":\"%s\",\"scheduledTime\":%s}",
-                escapeJson(clientId),
-                escapeJson(currentStatus),
-                scheduledTime == null ? "null" : "\"" + escapeJson(scheduledTime) + "\""
-        );
-
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(endpoint))
-                    .header("Content-Type", "application/json")
-                    .timeout(Duration.ofSeconds(8))
-                    .POST(HttpRequest.BodyPublishers.ofString(payload))
-                    .build();
-
-            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .thenAccept(response -> {
-                        if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                            if (statusCallback != null) statusCallback.accept(true);
-                        } else {
-                            log(logger, "⚠️ [心跳回報] 失敗，HTTP 狀態碼：" + response.statusCode());
-                            if (statusCallback != null) statusCallback.accept(false);
-                        }
-                    })
-                    .exceptionally(ex -> {
-                        log(logger, "❌ [心跳回報] 連線發生異常：" + ex.getMessage());
-                        if (statusCallback != null) statusCallback.accept(false);
-                        return null;
-                    });
-        } catch (Exception ex) {
-            log(logger, "❌ [心跳回報] 請求發送錯誤：" + ex.getMessage());
-            if (statusCallback != null) statusCallback.accept(false);
+        if (webSocket != null && isConnected) {
+            sendPing(logger);
+            if (statusCallback != null) statusCallback.accept(true);
+        } else if (statusCallback != null) {
+            statusCallback.accept(false);
         }
     }
 
@@ -168,13 +305,40 @@ public class HeartbeatService {
     }
 
     /**
-     * 停止心跳服務
+     * 停止心跳與 WebSocket 服務
      */
     public void stopHeartbeat() {
-        this.isHeartbeatActive = false;
-        if (heartbeatScheduler != null && !heartbeatScheduler.isShutdown()) {
-            heartbeatScheduler.shutdownNow();
+        this.isServiceActive = false;
+        this.isConnected = false;
+
+        if (webSocket != null) {
+            try {
+                webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "App closing");
+            } catch (Exception ignored) {}
+            webSocket = null;
         }
+
+        if (scheduler != null && !scheduler.isShutdown()) {
+            scheduler.shutdownNow();
+        }
+    }
+
+    private String toWebSocketUri(String serverUrl, String clientId) {
+        String trimmed = serverUrl.trim();
+        if (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        String wsUrl;
+        if (trimmed.startsWith("https://")) {
+            wsUrl = "wss://" + trimmed.substring(8);
+        } else if (trimmed.startsWith("http://")) {
+            wsUrl = "ws://" + trimmed.substring(7);
+        } else if (trimmed.startsWith("wss://") || trimmed.startsWith("ws://")) {
+            wsUrl = trimmed;
+        } else {
+            wsUrl = "ws://" + trimmed;
+        }
+        return wsUrl + "/ws/client?clientId=" + clientId;
     }
 
     private String formatServerUrl(String url) {
@@ -199,3 +363,4 @@ public class HeartbeatService {
         }
     }
 }
+

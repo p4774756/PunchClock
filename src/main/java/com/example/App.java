@@ -41,6 +41,19 @@ public class App extends JFrame {
         this.schedulerService = new SchedulerService();
         this.automationService = new AutomationService();
         this.heartbeatService = new HeartbeatService();
+        this.heartbeatService.setRemoteTriggerHandler(this::handleRemoteTriggerCommand);
+        this.heartbeatService.setRemoteScheduleHandler(this::handleRemoteScheduleCommand);
+        this.heartbeatService.setRemoteCancelHandler(this::handleRemoteCancelCommand);
+        this.heartbeatService.setTaskDetailsProvider(new HeartbeatService.TaskDetailsProvider() {
+            @Override
+            public String getTargetUrl() {
+                return urlTextField.getText().trim();
+            }
+            @Override
+            public String getButtonId() {
+                return buttonIdTextField.getText().trim();
+            }
+        });
 
         // --- 1. 初始化 UI 視窗設定 ---
         setTitle("圖形日曆排程自動打卡控制台");
@@ -67,6 +80,23 @@ public class App extends JFrame {
         buttonIdPanel.add(new JLabel("🔘 打卡按鈕 ID / Selector："), BorderLayout.WEST);
         buttonIdTextField = new JTextField("check_in");
         buttonIdPanel.add(buttonIdTextField, BorderLayout.CENTER);
+
+        // 綁定輸入即時同步至後台的 DocumentListener
+        javax.swing.event.DocumentListener realTimeSyncListener = new javax.swing.event.DocumentListener() {
+            @Override
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { sync(); }
+            @Override
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { sync(); }
+            @Override
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { sync(); }
+
+            private void sync() {
+                heartbeatService.sendHeartbeat(null, null);
+            }
+        };
+
+        urlTextField.getDocument().addDocumentListener(realTimeSyncListener);
+        buttonIdTextField.getDocument().addDocumentListener(realTimeSyncListener);
 
         // Server 心跳服務網址設定列
         JPanel serverPanel = new JPanel(new BorderLayout(5, 5));
@@ -166,10 +196,10 @@ public class App extends JFrame {
             heartbeatService.startHeartbeat(serverUrl, this::appendLog, isOk -> {
                 SwingUtilities.invokeLater(() -> {
                     if (isOk) {
-                        heartbeatStatusLabel.setText("💚 心跳正常");
+                        heartbeatStatusLabel.setText("💚 WebSocket 已連線");
                         heartbeatStatusLabel.setForeground(new Color(34, 197, 94));
                     } else {
-                        heartbeatStatusLabel.setText("🔴 連線失敗");
+                        heartbeatStatusLabel.setText("🔴 WebSocket 斷開");
                         heartbeatStatusLabel.setForeground(new Color(239, 68, 68));
                     }
                 });
@@ -186,16 +216,87 @@ public class App extends JFrame {
         heartbeatService.testConnection(serverUrl, this::appendLog, isOk -> {
             SwingUtilities.invokeLater(() -> {
                 if (isOk) {
-                    heartbeatStatusLabel.setText("💚 心跳正常");
+                    heartbeatStatusLabel.setText("💚 WebSocket 已連線");
                     heartbeatStatusLabel.setForeground(new Color(34, 197, 94));
                     JOptionPane.showMessageDialog(this, "✅ 成功連線至 ping-pong-server！", "測試成功", JOptionPane.INFORMATION_MESSAGE);
                     startHeartbeatService();
                 } else {
-                    heartbeatStatusLabel.setText("🔴 連線失敗");
+                    heartbeatStatusLabel.setText("🔴 WebSocket 斷開");
                     heartbeatStatusLabel.setForeground(new Color(239, 68, 68));
                     JOptionPane.showMessageDialog(this, "❌ 無法連線至指定 Server，請確認網址或 Server 狀態！", "測試失敗", JOptionPane.ERROR_MESSAGE);
                 }
             });
+        });
+    }
+
+    private void handleRemoteTriggerCommand() {
+        appendLog("🚀 【遠端觸發】收到來自 Web 控制台的打卡觸發指令！準備執行...");
+        String targetUrl = urlTextField.getText().trim();
+        String buttonId = buttonIdTextField.getText().trim();
+
+        if (targetUrl.isEmpty() || buttonId.isEmpty()) {
+            heartbeatService.sendCheckinResult(false, "失敗：目標網址或按鈕 ID 未填寫");
+            appendLog("❌ 【遠端打卡失敗】目標網址或按鈕 ID 未填寫！");
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                heartbeatService.updateTaskStatus("CHECKING_IN", "REMOTE_TRIGGER");
+                automationService.executeCheckIn(targetUrl, buttonId, this::appendLog);
+                heartbeatService.sendCheckinResult(true, "✅ 遠端觸發打卡已成功執行完成！");
+                heartbeatService.updateTaskStatus("ONLINE", null);
+            } catch (Exception ex) {
+                heartbeatService.sendCheckinResult(false, "❌ 打卡異常：" + ex.getMessage());
+                heartbeatService.updateTaskStatus("ONLINE", null);
+            }
+        }).start();
+    }
+
+    private void handleRemoteCancelCommand() {
+        SwingUtilities.invokeLater(() -> {
+            cancelSchedule();
+            appendLog("🛑 【遠端指令】已成功由 Web 控制台取消排程打卡。");
+            heartbeatService.sendCheckinResult(true, "🛑 已成功由遠端 Web 控制台取消排程打卡任務！");
+        });
+    }
+
+    private void handleRemoteScheduleCommand(String scheduledTimeStr, String targetUrl, String buttonId) {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                if (targetUrl != null && !targetUrl.isBlank()) {
+                    urlTextField.setText(targetUrl.trim());
+                }
+                if (buttonId != null && !buttonId.isBlank()) {
+                    buttonIdTextField.setText(buttonId.trim());
+                }
+
+                // 時間格式：YYYY-MM-DD HH:mm
+                String[] parts = scheduledTimeStr.trim().split(" ");
+                if (parts.length < 2) {
+                    heartbeatService.sendCheckinResult(false, "❌ 失敗：排程時間格式錯誤 (需為 YYYY-MM-DD HH:mm)");
+                    return;
+                }
+
+                LocalDate date = LocalDate.parse(parts[0]);
+                String[] timeParts = parts[1].split(":");
+                int hour = Integer.parseInt(timeParts[0]);
+                int minute = Integer.parseInt(timeParts[1]);
+
+                datePicker.setDate(date);
+                hourCombo.setSelectedItem(String.format("%02d", hour));
+                minuteCombo.setSelectedItem(String.format("%02d", minute));
+
+                boolean success = executeStartSchedule(date, hour, minute, urlTextField.getText().trim(), buttonIdTextField.getText().trim());
+                if (success) {
+                    appendLog("🔔 【遠端指令】已成功由 Web 控制台啟動排程 (預定時間：" + scheduledTimeStr + ")");
+                    heartbeatService.sendCheckinResult(true, "🔔 已成功由遠端 Web 控制台啟動排程打卡 (目標時間：" + scheduledTimeStr + ")！");
+                } else {
+                    heartbeatService.sendCheckinResult(false, "❌ 遠端啟動排程失敗：選擇的時間已經過去！");
+                }
+            } catch (Exception ex) {
+                heartbeatService.sendCheckinResult(false, "❌ 遠端設定排程失敗：" + ex.getMessage());
+            }
         });
     }
 
@@ -242,7 +343,11 @@ public class App extends JFrame {
                 () -> {
                     heartbeatService.updateTaskStatus("CHECKING_IN", formattedTargetTime);
                     heartbeatService.sendHeartbeat(this::appendLog, null);
-                    automationService.executeCheckIn(targetUrl, buttonId, this::appendLog);
+                    try {
+                        automationService.executeCheckIn(targetUrl, buttonId, this::appendLog);
+                    } catch (Exception ex) {
+                        appendLog("❌ 排程打卡失敗：" + ex.getMessage());
+                    }
                     heartbeatService.updateTaskStatus("ONLINE", null);
                     heartbeatService.sendHeartbeat(this::appendLog, null);
                 },

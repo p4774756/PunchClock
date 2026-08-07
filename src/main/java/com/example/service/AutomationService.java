@@ -20,8 +20,8 @@ public class AutomationService {
      * @param buttonId   打卡按鈕的 HTML Element ID 或 Selector
      * @param logger     日誌輸出 Callback
      */
-    public void executeCheckIn(String targetUrl, String buttonId, Consumer<String> logger) {
-        log(logger, "⏰ 【觸發】排程時間已到，啟動 Playwright 瀏覽器...");
+    public boolean executeCheckIn(String targetUrl, String buttonId, Consumer<String> logger) {
+        log(logger, "⏰ 【觸發】啟動 Playwright 瀏覽器...");
 
         try (Playwright playwright = Playwright.create()) {
             BrowserType.LaunchOptions launchOptions = new BrowserType.LaunchOptions()
@@ -46,10 +46,12 @@ public class AutomationService {
 
             page.waitForTimeout(5000);
             browser.close();
-            log(logger, "瀏覽器已關閉，指定日期打卡任務結束。");
+            log(logger, "瀏覽器已關閉，打卡任務結束。");
+            return true;
         } catch (Exception ex) {
             String errorMsg = "❌ 打卡過程中發生錯誤：" + ex.getMessage();
             log(logger, errorMsg);
+            throw new RuntimeException(errorMsg, ex);
         }
     }
 
