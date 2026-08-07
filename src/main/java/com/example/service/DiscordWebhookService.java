@@ -16,6 +16,8 @@ public class DiscordWebhookService {
 
     public DiscordWebhookService() {
         this.httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .followRedirects(HttpClient.Redirect.ALWAYS)
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
     }
@@ -56,6 +58,7 @@ public class DiscordWebhookService {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(webhookUrl.trim()))
                     .header("Content-Type", "application/json")
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
                     .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                     .build();
 
