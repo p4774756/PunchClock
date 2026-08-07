@@ -25,9 +25,10 @@ public class AutomationService {
 
         try (Playwright playwright = Playwright.create()) {
             BrowserType.LaunchOptions launchOptions = new BrowserType.LaunchOptions()
-                    .setHeadless(false);
+                    .setHeadless(false)
+                    .setChannel("msedge");
 
-            log(logger, "啟動 Chromium 瀏覽器...");
+            log(logger, "啟動 Microsoft Edge 瀏覽器...");
             Browser browser = playwright.chromium().launch(launchOptions);
             BrowserContext context = browser.newContext();
             Page page = context.newPage();
