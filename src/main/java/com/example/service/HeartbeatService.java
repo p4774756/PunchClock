@@ -25,11 +25,35 @@ public class HeartbeatService {
     private boolean isHeartbeatActive = false;
 
     public HeartbeatService() {
-        this.httpClient = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .followRedirects(HttpClient.Redirect.ALWAYS)
-                .connectTimeout(Duration.ofSeconds(8))
-                .build();
+        HttpClient.Builder builder = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .followRedirects(HttpClient.Redirect.ALWAYS)
+            .connectTimeout(Duration.ofSeconds(8));
+
+        // 在這裡為 HttpClient 注入繞過 SSL 的設定
+        try {
+            TrustManager[] trustAllCerts = new TrustManager[]{
+                new X509TrustManager() {
+                    public X509Certificate[] getAcceptedIssuers() { return null; }
+                    public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+                    public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+                }
+            };
+
+            SSLContext sc = SSLContext.getInstance("TLS");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            
+            // 將 SSLContext 設定進去
+            builder.sslContext(sc);
+            
+            // 提示：Java 11 HttpClient 的 Hostname 驗證預設會跟隨 SSLContext，
+            // 如果執行後仍有問題，可透過系統參數強制關閉：System.setProperty("jdk.internal.httpclient.disableHostnameVerification", "true");
+            
+        } catch (Exception e) {
+            System.err.println("初始化 SSL 繞過失敗: " + e.getMessage());
+        }
+
+        this.httpClient = builder.build();
     }
 
     /**
