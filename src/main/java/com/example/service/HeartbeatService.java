@@ -63,6 +63,21 @@ public class HeartbeatService {
         this.remoteTriggerHandler = remoteTriggerHandler;
     }
 
+    public String getClientId() {
+        return clientId;
+    }
+
+    public void setClientId(String newClientId) {
+        if (newClientId != null && !newClientId.trim().isEmpty() && !this.clientId.equals(newClientId.trim())) {
+            this.clientId = newClientId.trim();
+            if (isConnected && webSocket != null) {
+                try {
+                    webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "ClientId Changed");
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
     /**
      * 測試與伺服器的 HTTP Ping 連線
      */

@@ -26,6 +26,7 @@ public class App extends JFrame {
     private JTextField urlTextField;
     private JTextField buttonIdTextField;
     private JTextField serverUrlTextField;
+    private JTextField clientIdTextField;
     private JButton testServerButton;
     private JLabel heartbeatStatusLabel;
 
@@ -159,6 +160,31 @@ public class App extends JFrame {
         buttonPanel.add(cancelScheduleButton);
         buttonPanel.add(clearLogButton);
 
+        // 裝置 / Worker ID 設定列
+        JPanel clientIdPanel = new JPanel(new BorderLayout(5, 5));
+        clientIdPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 5, 0));
+        clientIdPanel.add(new JLabel("🆔 裝置 / Worker ID："), BorderLayout.WEST);
+        clientIdTextField = new JTextField(heartbeatService.getClientId());
+        clientIdTextField.setToolTipText("設定此台打卡裝置在雲端控制台顯示的名稱 (例如: company-worker-1, pc-office)");
+        clientIdPanel.add(clientIdTextField, BorderLayout.CENTER);
+
+        clientIdTextField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            @Override
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            @Override
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
+            @Override
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
+
+            private void update() {
+                String newId = clientIdTextField.getText().trim();
+                if (!newId.isEmpty()) {
+                    heartbeatService.setClientId(newId);
+                }
+            }
+        });
+
+        topPanel.add(clientIdPanel);
         topPanel.add(urlPanel);
         topPanel.add(buttonIdPanel);
         topPanel.add(serverPanel);
