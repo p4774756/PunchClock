@@ -27,6 +27,7 @@ public class App extends JFrame {
     private JTextField buttonIdTextField;
     private JTextField serverUrlTextField;
     private JTextField clientIdTextField;
+    private JCheckBox enableServerCheckBox;
     private JButton testServerButton;
     private JLabel heartbeatStatusLabel;
 
@@ -99,10 +100,18 @@ public class App extends JFrame {
         urlTextField.getDocument().addDocumentListener(realTimeSyncListener);
         buttonIdTextField.getDocument().addDocumentListener(realTimeSyncListener);
 
-        // Server 心跳服務網址設定列
+        // Server 心跳服務網址與連線開關設定列
         JPanel serverPanel = new JPanel(new BorderLayout(5, 5));
         serverPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 5, 0));
-        serverPanel.add(new JLabel("📡 ping-pong-server 網址："), BorderLayout.WEST);
+
+        enableServerCheckBox = new JCheckBox("啟用雲端長連線", true);
+        enableServerCheckBox.setFont(new Font("微軟正黑體", Font.BOLD, 12));
+
+        JPanel serverLabelAndCheck = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
+        serverLabelAndCheck.add(new JLabel("📡 Server 網址："));
+        serverLabelAndCheck.add(enableServerCheckBox);
+
+        serverPanel.add(serverLabelAndCheck, BorderLayout.WEST);
         serverUrlTextField = new JTextField("http://localhost:3000");
         serverUrlTextField.setToolTipText("輸入部署至 Render 的 ping-pong-server 網址 (如 https://xxx.onrender.com)");
         serverPanel.add(serverUrlTextField, BorderLayout.CENTER);
@@ -115,6 +124,22 @@ public class App extends JFrame {
         serverActionPanel.add(heartbeatStatusLabel);
         serverActionPanel.add(testServerButton);
         serverPanel.add(serverActionPanel, BorderLayout.EAST);
+
+        enableServerCheckBox.addActionListener(e -> {
+            boolean enabled = enableServerCheckBox.isSelected();
+            serverUrlTextField.setEnabled(enabled);
+            testServerButton.setEnabled(enabled);
+
+            if (enabled) {
+                appendLog("🟢 已勾選啟用雲端後台連線，啟動長連線中...");
+                startHeartbeatService();
+            } else {
+                appendLog("🔴 已取消勾選，斷開雲端後台註冊連線（本機獨立運作模式）。");
+                heartbeatService.stopHeartbeat();
+                heartbeatStatusLabel.setText("⚪ 未連線 (已停用)");
+                heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
+            }
+        });
 
         // 日期與時間選擇列
         JPanel timePanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 5));
@@ -217,10 +242,18 @@ public class App extends JFrame {
     }
 
     private void startHeartbeatService() {
+        if (enableServerCheckBox != null && !enableServerCheckBox.isSelected()) {
+            return;
+        }
         String serverUrl = serverUrlTextField.getText().trim();
         if (!serverUrl.isEmpty()) {
             heartbeatService.startHeartbeat(serverUrl, this::appendLog, isOk -> {
                 SwingUtilities.invokeLater(() -> {
+                    if (enableServerCheckBox != null && !enableServerCheckBox.isSelected()) {
+                        heartbeatStatusLabel.setText("⚪ 未連線 (已停用)");
+                        heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
+                        return;
+                    }
                     if (isOk) {
                         heartbeatStatusLabel.setText("💚 WebSocket 已連線");
                         heartbeatStatusLabel.setForeground(new Color(34, 197, 94));
