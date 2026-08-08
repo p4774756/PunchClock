@@ -165,10 +165,17 @@ public class App extends JFrame {
         JPanel timeSelectionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
 
         DatePickerSettings dateSettings = new DatePickerSettings();
-        dateSettings.setAllowKeyboardEditing(false);
+        dateSettings.setAllowKeyboardEditing(true);
         datePicker = new DatePicker(dateSettings);
         datePicker.setDateToToday();
         dateSettings.setDateRangeLimits(LocalDate.now(), LocalDate.MAX);
+        datePicker.getComponentToggleCalendarButton().setVisible(false);
+        datePicker.getComponentDateTextField().addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                datePicker.openPopup();
+            }
+        });
         timeSelectionPanel.add(datePicker);
 
         LocalDateTime now = LocalDateTime.now();
@@ -413,11 +420,16 @@ public class App extends JFrame {
                     heartbeatService.updateTaskStatus("CHECKING_IN", formattedTargetTime);
                     heartbeatService.sendHeartbeat(this::appendLog, null);
                     try {
-                        automationService.executeCheckIn(targetUrl, buttonId, this::appendLog);
+                        boolean ok = automationService.executeCheckIn(targetUrl, buttonId, this::appendLog);
+                        if (ok) {
+                            heartbeatService.updateTaskStatus("SUCCESS", null, "✅ 打卡成功完成！");
+                        } else {
+                            heartbeatService.updateTaskStatus("FAILED", null, "❌ 打卡失敗");
+                        }
                     } catch (Exception ex) {
                         appendLog("❌ 排程打卡失敗：" + ex.getMessage());
+                        heartbeatService.updateTaskStatus("FAILED", null, "❌ 打卡失敗：" + ex.getMessage());
                     }
-                    heartbeatService.updateTaskStatus("ONLINE", null);
                     heartbeatService.sendHeartbeat(this::appendLog, null);
                 },
                 titleText -> SwingUtilities.invokeLater(() -> setTitle(titleText)),

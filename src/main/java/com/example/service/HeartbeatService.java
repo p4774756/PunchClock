@@ -27,6 +27,7 @@ public class HeartbeatService {
     private String clientId = "company-worker";
     private String currentStatus = "ONLINE";
     private String scheduledTime = null;
+    private String message = null;
     private boolean isServiceActive = false;
 
     public HeartbeatService() {
@@ -153,10 +154,11 @@ public class HeartbeatService {
 
         String endpoint = serverUrl + "/api/heartbeat";
         String jsonBody = String.format(
-                "{\"clientId\":\"%s\",\"status\":\"%s\",\"scheduledTime\":%s}",
+                "{\"clientId\":\"%s\",\"status\":\"%s\",\"scheduledTime\":%s,\"message\":%s}",
                 escapeJson(clientId),
                 escapeJson(currentStatus),
-                scheduledTime == null ? "null" : "\"" + escapeJson(scheduledTime) + "\""
+                scheduledTime == null ? "null" : "\"" + escapeJson(scheduledTime) + "\"",
+                message == null ? "null" : "\"" + escapeJson(message) + "\""
         );
 
         try {
@@ -199,8 +201,13 @@ public class HeartbeatService {
     }
 
     public void updateTaskStatus(String status, String scheduledTime) {
+        updateTaskStatus(status, scheduledTime, null);
+    }
+
+    public void updateTaskStatus(String status, String scheduledTime, String message) {
         this.currentStatus = status;
         this.scheduledTime = scheduledTime;
+        this.message = message;
     }
 
     public void stopHeartbeat() {
