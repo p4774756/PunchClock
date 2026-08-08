@@ -29,7 +29,7 @@ public class App extends JFrame {
     private JTextField urlTextField;
     private JTextField buttonIdTextField;
     private JTextField serverUrlTextField;
-    private JTextField clientIdTextField;
+    private JComboBox<String> clientIdCombo;
     private JCheckBox enableServerCheckBox;
     private JButton testServerButton;
     private JLabel heartbeatStatusLabel;
@@ -51,6 +51,7 @@ public class App extends JFrame {
             public String getTargetUrl() {
                 return urlTextField.getText().trim();
             }
+
             @Override
             public String getButtonId() {
                 return buttonIdTextField.getText().trim();
@@ -83,44 +84,67 @@ public class App extends JFrame {
         gbc.insets = new Insets(5, 8, 5, 8);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        // Row 0: 裝置 ID
-        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.0;
+        // Row 0: 裝置 ID (下拉選單)
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 0.0;
         JLabel clientIdLabel = new JLabel("🆔 裝置 ID / Worker ID：");
         clientIdLabel.setFont(mainFont);
         serverGroup.add(clientIdLabel, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 0; gbc.weightx = 1.0; gbc.gridwidth = 2;
-        clientIdTextField = new JTextField(heartbeatService.getClientId());
-        clientIdTextField.setFont(mainFont);
-        clientIdTextField.setToolTipText("設定此台打卡裝置在雲端控制台顯示的名稱 (例如: company-worker-1, pc-office)");
-        serverGroup.add(clientIdTextField, gbc);
+        gbc.gridx = 1;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
+        gbc.gridwidth = 2;
+        String[] workerOptions = new String[] { "company-worker", "company-worker2", "company-worker3",
+                "company-worker4" };
+        clientIdCombo = new JComboBox<>(workerOptions);
+        clientIdCombo.setFont(mainFont);
+        clientIdCombo.setToolTipText("選擇或設定此台打卡裝置在雲端控制台顯示的名稱");
+        serverGroup.add(clientIdCombo, gbc);
 
         // Row 1: Server 網址
-        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        gbc.weightx = 0.0;
+        gbc.gridwidth = 1;
         JLabel serverUrlLabel = new JLabel("📡 Server 雲端網址：");
         serverUrlLabel.setFont(mainFont);
         serverGroup.add(serverUrlLabel, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 1; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        gbc.gridx = 1;
+        gbc.gridy = 1;
+        gbc.weightx = 1.0;
+        gbc.gridwidth = 2;
         serverUrlTextField = new JTextField("http://localhost:3000");
         serverUrlTextField.setFont(mainFont);
         serverUrlTextField.setToolTipText("輸入部署至 Render 的 ping-pong-server 網址");
+        serverUrlTextField.setEnabled(false);
         serverGroup.add(serverUrlTextField, gbc);
 
-        // Row 2: 開關 + 狀態 + 測試連線按鈕
-        gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.0; gbc.gridwidth = 1;
-        enableServerCheckBox = new JCheckBox("啟用雲端單向狀態回報", true);
+        // Row 2: 開關 + 狀態 + 測試連線按鈕 (預設關閉)
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        gbc.weightx = 0.0;
+        gbc.gridwidth = 1;
+        enableServerCheckBox = new JCheckBox("啟用雲端單向狀態回報", false);
         enableServerCheckBox.setFont(boldFont);
         serverGroup.add(enableServerCheckBox, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 2; gbc.weightx = 1.0;
-        heartbeatStatusLabel = new JLabel("⚪ 未連線", SwingConstants.LEFT);
+        gbc.gridx = 1;
+        gbc.gridy = 2;
+        gbc.weightx = 1.0;
+        heartbeatStatusLabel = new JLabel("⚪ 未連線 (已停用)", SwingConstants.LEFT);
         heartbeatStatusLabel.setFont(boldFont);
+        heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
         serverGroup.add(heartbeatStatusLabel, gbc);
 
-        gbc.gridx = 2; gbc.gridy = 2; gbc.weightx = 0.0;
+        gbc.gridx = 2;
+        gbc.gridy = 2;
+        gbc.weightx = 0.0;
         testServerButton = new JButton("🧪 測試 Server 連線");
         testServerButton.setFont(mainFont);
+        testServerButton.setEnabled(false);
         testServerButton.addActionListener(e -> testServerConnection());
         serverGroup.add(testServerButton, gbc);
 
@@ -134,34 +158,52 @@ public class App extends JFrame {
         taskGroup.setLayout(new GridBagLayout());
 
         // Row 0: 打卡網址
-        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 0.0;
+        gbc.gridwidth = 1;
         JLabel urlLabel = new JLabel("🔗 目標打卡網址：");
         urlLabel.setFont(mainFont);
         taskGroup.add(urlLabel, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 0; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        gbc.gridx = 1;
+        gbc.gridy = 0;
+        gbc.weightx = 1.0;
+        gbc.gridwidth = 2;
         urlTextField = new JTextField("https://tw.yahoo.com");
         urlTextField.setFont(mainFont);
         taskGroup.add(urlTextField, gbc);
 
         // Row 1: 按鈕 ID
-        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        gbc.weightx = 0.0;
+        gbc.gridwidth = 1;
         JLabel buttonIdLabel = new JLabel("🔘 打卡按鈕 ID / Selector：");
         buttonIdLabel.setFont(mainFont);
         taskGroup.add(buttonIdLabel, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 1; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        gbc.gridx = 1;
+        gbc.gridy = 1;
+        gbc.weightx = 1.0;
+        gbc.gridwidth = 2;
         buttonIdTextField = new JTextField("check_in");
         buttonIdTextField.setFont(mainFont);
         taskGroup.add(buttonIdTextField, gbc);
 
         // Row 2: 排程時間選擇
-        gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        gbc.weightx = 0.0;
+        gbc.gridwidth = 1;
         JLabel timeLabel = new JLabel("📆 預定打卡時間：");
         timeLabel.setFont(mainFont);
         taskGroup.add(timeLabel, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 2; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        gbc.gridx = 1;
+        gbc.gridy = 2;
+        gbc.weightx = 1.0;
+        gbc.gridwidth = 2;
         JPanel timeSelectionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
 
         DatePickerSettings dateSettings = new DatePickerSettings();
@@ -180,7 +222,8 @@ public class App extends JFrame {
 
         LocalDateTime now = LocalDateTime.now();
         String[] hours = new String[24];
-        for (int i = 0; i < 24; i++) hours[i] = String.format("%02d", i);
+        for (int i = 0; i < 24; i++)
+            hours[i] = String.format("%02d", i);
         hourCombo = new JComboBox<>(hours);
         hourCombo.setFont(mainFont);
         hourCombo.setSelectedIndex(now.getHour());
@@ -188,7 +231,8 @@ public class App extends JFrame {
         timeSelectionPanel.add(new JLabel("時"));
 
         String[] minutes = new String[60];
-        for (int i = 0; i < 60; i++) minutes[i] = String.format("%02d", i);
+        for (int i = 0; i < 60; i++)
+            minutes[i] = String.format("%02d", i);
         minuteCombo = new JComboBox<>(minutes);
         minuteCombo.setFont(mainFont);
         minuteCombo.setSelectedIndex(now.getMinute());
@@ -252,11 +296,19 @@ public class App extends JFrame {
         // ----------------------------------------------------
         javax.swing.event.DocumentListener realTimeSyncListener = new javax.swing.event.DocumentListener() {
             @Override
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { sync(); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                sync();
+            }
+
             @Override
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { sync(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                sync();
+            }
+
             @Override
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { sync(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                sync();
+            }
 
             private void sync() {
                 heartbeatService.sendHeartbeat(null, null);
@@ -266,19 +318,10 @@ public class App extends JFrame {
         urlTextField.getDocument().addDocumentListener(realTimeSyncListener);
         buttonIdTextField.getDocument().addDocumentListener(realTimeSyncListener);
 
-        clientIdTextField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            @Override
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
-            @Override
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
-            @Override
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
-
-            private void update() {
-                String newId = clientIdTextField.getText().trim();
-                if (!newId.isEmpty()) {
-                    heartbeatService.setClientId(newId);
-                }
+        clientIdCombo.addActionListener(e -> {
+            String selected = (String) clientIdCombo.getSelectedItem();
+            if (selected != null && !selected.trim().isEmpty()) {
+                heartbeatService.setClientId(selected.trim());
             }
         });
 
@@ -321,8 +364,7 @@ public class App extends JFrame {
                 TitledBorder.LEFT,
                 TitledBorder.TOP,
                 titleFont,
-                new Color(30, 41, 59)
-        );
+                new Color(30, 41, 59));
         panel.setBorder(new CompoundBorder(titledBorder, new EmptyBorder(6, 10, 8, 10)));
         return panel;
     }
@@ -363,18 +405,18 @@ public class App extends JFrame {
                 if (isOk) {
                     heartbeatStatusLabel.setText("💚 HTTP POST 正常");
                     heartbeatStatusLabel.setForeground(new Color(34, 197, 94));
-                    JOptionPane.showMessageDialog(this, "✅ 成功連線至 ping-pong-server！", "測試成功", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(this, "✅ 成功連線至 ping-pong-server！", "測試成功",
+                            JOptionPane.INFORMATION_MESSAGE);
                     startHeartbeatService();
                 } else {
                     heartbeatStatusLabel.setText("🔴 HTTP POST 異常");
                     heartbeatStatusLabel.setForeground(new Color(239, 68, 68));
-                    JOptionPane.showMessageDialog(this, "❌ 無法連線至指定 Server，請確認網址或 Server 狀態！", "測試失敗", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(this, "❌ 無法連線至指定 Server，請確認網址或 Server 狀態！", "測試失敗",
+                            JOptionPane.ERROR_MESSAGE);
                 }
             });
         });
     }
-
-
 
     private void startSchedule() {
         String targetUrl = urlTextField.getText().trim();
@@ -405,7 +447,8 @@ public class App extends JFrame {
         }
     }
 
-    private boolean executeStartSchedule(LocalDate selectedDate, int hour, int minute, String targetUrl, String buttonId) {
+    private boolean executeStartSchedule(LocalDate selectedDate, int hour, int minute, String targetUrl,
+            String buttonId) {
         LocalDateTime targetTime = selectedDate.atTime(hour, minute, 0);
 
         appendLog(String.format("【排程】設定成功！目標網址：%s，按鈕 ID/Selector：%s", targetUrl, buttonId));
@@ -428,7 +471,8 @@ public class App extends JFrame {
                         }
                     } catch (Exception ex) {
                         appendLog("❌ 排程打卡失敗：" + ex.getMessage());
-                        heartbeatService.updateTaskStatus("FAILED", null, "❌ 打卡失敗：" + ex.getMessage());
+                        String cleanMsg = sanitizeErrorMessage(ex.getMessage());
+                        heartbeatService.updateTaskStatus("FAILED", null, "❌ " + cleanMsg);
                     }
                     heartbeatService.sendHeartbeat(this::appendLog, null);
                 },
@@ -437,8 +481,7 @@ public class App extends JFrame {
                 () -> {
                     SwingUtilities.invokeLater(() -> setTitle("圖形日曆排程自動打卡控制台"));
                     toggleUiComponents(true);
-                }
-        );
+                });
 
         if (scheduled) {
             toggleUiComponents(false);
@@ -484,11 +527,31 @@ public class App extends JFrame {
         System.out.println(logMessage);
     }
 
+    private String sanitizeErrorMessage(String rawMsg) {
+        if (rawMsg == null) return "打卡異常";
+        // 清除所有 HTTP/HTTPS 網址
+        String sanitized = rawMsg.replaceAll("https?://[^\\s\"'>]+", "[隱私保護網址]");
+        // 若為 Playwright 逾時錯誤，顯示簡短說明
+        if (sanitized.contains("Timeout") && sanitized.contains("exceeded")) {
+            return "打卡失敗：網頁連線或按鈕點擊逾時 (Timeout 30s)";
+        }
+        // 切斷 Call log 及過長堆疊
+        int callLogIdx = sanitized.indexOf("Call log:");
+        if (callLogIdx != -1) {
+            sanitized = sanitized.substring(0, callLogIdx).trim();
+        }
+        if (sanitized.length() > 60) {
+            sanitized = sanitized.substring(0, 60) + "...";
+        }
+        return sanitized;
+    }
+
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             try {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
             App app = new App();
             app.setVisible(true);
         });
