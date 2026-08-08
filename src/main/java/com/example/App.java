@@ -119,7 +119,6 @@ public class App extends JFrame {
         serverUrlTextField = new JTextField("http://localhost:3000");
         serverUrlTextField.setFont(mainFont);
         serverUrlTextField.setToolTipText("輸入部署至 Render 的 ping-pong-server 網址");
-        serverUrlTextField.setEnabled(false);
         serverGroup.add(serverUrlTextField, gbc);
 
         // Row 2: 開關 + 狀態 + 測試連線按鈕 (預設關閉)
@@ -144,7 +143,6 @@ public class App extends JFrame {
         gbc.weightx = 0.0;
         testServerButton = new JButton("🧪 測試 Server 連線");
         testServerButton.setFont(mainFont);
-        testServerButton.setEnabled(false);
         testServerButton.addActionListener(e -> testServerConnection());
         serverGroup.add(testServerButton, gbc);
 
@@ -211,12 +209,26 @@ public class App extends JFrame {
         datePicker = new DatePicker(dateSettings);
         datePicker.setDateToToday();
         dateSettings.setDateRangeLimits(LocalDate.now(), LocalDate.MAX);
-        datePicker.getComponentToggleCalendarButton().setVisible(false);
+        JButton toggleBtn = datePicker.getComponentToggleCalendarButton();
+        toggleBtn.setText("");
+        toggleBtn.setPreferredSize(new Dimension(0, 0));
+        toggleBtn.setMinimumSize(new Dimension(0, 0));
+        toggleBtn.setMaximumSize(new Dimension(0, 0));
+        toggleBtn.setBorder(null);
+        toggleBtn.setOpaque(false);
+        toggleBtn.setContentAreaFilled(false);
+        toggleBtn.setBorderPainted(false);
+        toggleBtn.setFocusable(false);
+
         datePicker.getComponentDateTextField().addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
-                datePicker.openPopup();
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                SwingUtilities.invokeLater(() -> datePicker.openPopup());
             }
+        });
+
+        datePicker.addDateChangeListener(event -> {
+            SwingUtilities.invokeLater(() -> datePicker.closePopup());
         });
         timeSelectionPanel.add(datePicker);
 
@@ -327,8 +339,6 @@ public class App extends JFrame {
 
         enableServerCheckBox.addActionListener(e -> {
             boolean enabled = enableServerCheckBox.isSelected();
-            serverUrlTextField.setEnabled(enabled);
-            testServerButton.setEnabled(enabled);
 
             if (enabled) {
                 appendLog("🟢 已勾選啟用雲端狀態回報，啟動單向心跳中...");
