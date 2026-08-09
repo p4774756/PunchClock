@@ -29,6 +29,11 @@ public class HeartbeatService {
     private String scheduledTime = null;
     private String message = null;
     private boolean isServiceActive = false;
+    private Consumer<String> commandListener;
+
+    public void setCommandListener(Consumer<String> commandListener) {
+        this.commandListener = commandListener;
+    }
 
     public HeartbeatService() {
         HttpClient.Builder builder = HttpClient.newBuilder()
@@ -173,6 +178,13 @@ public class HeartbeatService {
                     .thenAccept(response -> {
                         if (response.statusCode() == 200) {
                             if (statusCallback != null) statusCallback.accept(true);
+                            String body = response.body();
+                            if (body != null && commandListener != null) {
+                                if (body.contains("\"action\":\"CANCEL_SCHEDULE\"")) {
+                                    log(logger, "🛑 [HTTP 心跳] 收到伺服器取消排程指令 (CANCEL_SCHEDULE)");
+                                    commandListener.accept("CANCEL_SCHEDULE");
+                                }
+                            }
                         } else {
                             log(logger, "⚠️ [HTTP POST 心跳] 伺服器回應異常，狀態碼：" + response.statusCode());
                             if (statusCallback != null) statusCallback.accept(false);

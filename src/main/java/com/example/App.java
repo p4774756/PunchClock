@@ -58,6 +58,15 @@ public class App extends JFrame {
             }
         });
 
+        this.heartbeatService.setCommandListener(command -> {
+            if ("CANCEL_SCHEDULE".equalsIgnoreCase(command)) {
+                SwingUtilities.invokeLater(() -> {
+                    cancelSchedule();
+                    appendLog("🛑 【遠端指令】收到網頁後台取消排程指令，已完成取消。");
+                });
+            }
+        });
+
         // --- 1. 初始化 UI 視窗設定 ---
         setTitle("圖形日曆排程自動打卡控制台");
         setSize(720, 680);
