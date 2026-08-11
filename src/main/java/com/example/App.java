@@ -481,17 +481,33 @@ public class App extends JFrame {
                 () -> {
                     heartbeatService.updateTaskStatus("CHECKING_IN", formattedTargetTime);
                     heartbeatService.sendHeartbeat(this::appendLog, null);
+
+                    LocalDateTime triggerTime = LocalDateTime.now();
+                    String triggerTimeStr = triggerTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                    long startTimeMs = System.currentTimeMillis();
+
                     try {
                         boolean ok = automationService.executeCheckIn(targetUrl, buttonId, this::appendLog);
+                        long durationMs = System.currentTimeMillis() - startTimeMs;
+                        double durationSec = durationMs / 1000.0;
+                        String finishTimeStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
                         if (ok) {
-                            heartbeatService.updateTaskStatus("SUCCESS", null, "✅ 打卡成功完成！");
+                            String msg = String.format("✅ 打卡成功！(觸發: %s, 完成: %s, 耗時: %.1f秒)", triggerTimeStr, finishTimeStr, durationSec);
+                            appendLog("🎉 " + msg);
+                            heartbeatService.updateTaskStatus("SUCCESS", null, msg);
                         } else {
-                            heartbeatService.updateTaskStatus("FAILED", null, "❌ 打卡失敗");
+                            String msg = String.format("❌ 打卡失敗 (觸發: %s, 耗時: %.1f秒)", triggerTimeStr, durationSec);
+                            appendLog(msg);
+                            heartbeatService.updateTaskStatus("FAILED", null, msg);
                         }
                     } catch (Exception ex) {
-                        appendLog("❌ 排程打卡失敗：" + ex.getMessage());
+                        long durationMs = System.currentTimeMillis() - startTimeMs;
+                        double durationSec = durationMs / 1000.0;
                         String cleanMsg = sanitizeErrorMessage(ex.getMessage());
-                        heartbeatService.updateTaskStatus("FAILED", null, "❌ " + cleanMsg);
+                        String msg = String.format("❌ 打卡失敗：%s (觸發: %s, 耗時: %.1f秒)", cleanMsg, triggerTimeStr, durationSec);
+                        appendLog(msg);
+                        heartbeatService.updateTaskStatus("FAILED", null, msg);
                     }
                     heartbeatService.sendHeartbeat(this::appendLog, null);
                 },
