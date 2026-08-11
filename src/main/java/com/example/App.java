@@ -261,6 +261,12 @@ public class App extends JFrame {
         timeSelectionPanel.add(minuteCombo);
         timeSelectionPanel.add(new JLabel("分"));
 
+        gbc.gridx = 1;
+        gbc.gridy = 2;
+        gbc.weightx = 1.0;
+        gbc.gridwidth = 2;
+        taskGroup.add(timeSelectionPanel, gbc);
+
         // Row 3: 瀏覽器選擇
         gbc.gridx = 0;
         gbc.gridy = 3;
