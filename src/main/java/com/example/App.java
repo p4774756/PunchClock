@@ -37,6 +37,7 @@ public class App extends JFrame {
     private DatePicker datePicker;
     private JComboBox<String> hourCombo;
     private JComboBox<String> minuteCombo;
+    private JComboBox<String> browserCombo;
 
     private final SchedulerService schedulerService;
     private final AutomationService automationService;
@@ -260,7 +261,28 @@ public class App extends JFrame {
         timeSelectionPanel.add(minuteCombo);
         timeSelectionPanel.add(new JLabel("分"));
 
-        taskGroup.add(timeSelectionPanel, gbc);
+        // Row 3: 瀏覽器選擇
+        gbc.gridx = 0;
+        gbc.gridy = 3;
+        gbc.weightx = 0.0;
+        gbc.gridwidth = 1;
+        JLabel browserLabel = new JLabel("🌐 執行瀏覽器：");
+        browserLabel.setFont(mainFont);
+        taskGroup.add(browserLabel, gbc);
+
+        gbc.gridx = 1;
+        gbc.gridy = 3;
+        gbc.weightx = 1.0;
+        gbc.gridwidth = 2;
+        browserCombo = new JComboBox<>(new String[] {
+            "Microsoft Edge (本機已安裝)",
+            "Google Chrome (本機已安裝)",
+            "內建 Chromium 瀏覽器",
+            "內建 Firefox 瀏覽器",
+            "內建 WebKit (Safari核心)"
+        });
+        browserCombo.setFont(mainFont);
+        taskGroup.add(browserCombo, gbc);
 
         mainContentPanel.add(taskGroup);
         mainContentPanel.add(Box.createVerticalStrut(10));
@@ -486,8 +508,24 @@ public class App extends JFrame {
                     String triggerTimeStr = triggerTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
                     long startTimeMs = System.currentTimeMillis();
 
+                    String selectedBrowserStr = (String) browserCombo.getSelectedItem();
+                    String browserType = "msedge";
+                    if (selectedBrowserStr != null) {
+                        if (selectedBrowserStr.contains("Chrome")) {
+                            browserType = "chrome";
+                        } else if (selectedBrowserStr.contains("Edge")) {
+                            browserType = "msedge";
+                        } else if (selectedBrowserStr.contains("Firefox")) {
+                            browserType = "firefox";
+                        } else if (selectedBrowserStr.contains("WebKit")) {
+                            browserType = "webkit";
+                        } else if (selectedBrowserStr.contains("Chromium")) {
+                            browserType = "chromium";
+                        }
+                    }
+
                     try {
-                        boolean ok = automationService.executeCheckIn(targetUrl, buttonId, this::appendLog);
+                        boolean ok = automationService.executeCheckIn(targetUrl, buttonId, browserType, this::appendLog);
                         long durationMs = System.currentTimeMillis() - startTimeMs;
                         double durationSec = durationMs / 1000.0;
                         String finishTimeStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
@@ -547,6 +585,7 @@ public class App extends JFrame {
             urlTextField.setEnabled(enabled);
             buttonIdTextField.setEnabled(enabled);
             serverUrlTextField.setEnabled(enabled);
+            browserCombo.setEnabled(enabled);
         });
     }
 
