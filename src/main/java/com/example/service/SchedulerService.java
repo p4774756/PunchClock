@@ -159,8 +159,25 @@ public class SchedulerService {
         }
     }
 
+    /**
+     * 刪除所有任務紀錄
+     */
+    public void removeAllTasks() {
+        cancelAllTasks();
+        tasksMap.clear();
+    }
+
     public List<CheckInTask> getAllTasks() {
-        return new ArrayList<>(tasksMap.values());
+        List<CheckInTask> list = new ArrayList<>(tasksMap.values());
+        list.sort((t1, t2) -> {
+            LocalDateTime time1 = t1.getActualTriggerTime() != null ? t1.getActualTriggerTime() : t1.getTargetTime();
+            LocalDateTime time2 = t2.getActualTriggerTime() != null ? t2.getActualTriggerTime() : t2.getTargetTime();
+            if (time1 != null && time2 != null) {
+                return time1.compareTo(time2);
+            }
+            return 0;
+        });
+        return list;
     }
 
     public CheckInTask getTask(String taskId) {

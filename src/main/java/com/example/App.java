@@ -16,9 +16,11 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -31,6 +33,7 @@ public class App extends JFrame {
     private JButton deleteTaskButton;
     private JButton executeNowButton;
     private JButton cancelAllButton;
+    private JButton deleteAllButton;
     private JButton clearLogButton;
 
     // Presets
@@ -53,6 +56,17 @@ public class App extends JFrame {
     private JComboBox<String> hourCombo;
     private JComboBox<String> minuteCombo;
     private JComboBox<String> browserCombo;
+
+    private JCheckBox monCheckBox;
+    private JCheckBox tueCheckBox;
+    private JCheckBox wedCheckBox;
+    private JCheckBox thuCheckBox;
+    private JCheckBox friCheckBox;
+    private JCheckBox satCheckBox;
+    private JCheckBox sunCheckBox;
+    private JButton selectWorkdaysButton;
+    private JButton clearWorkdaysButton;
+    private JButton batchAddButton;
 
     private JTable taskTable;
     private DefaultTableModel tableModel;
@@ -267,13 +281,59 @@ public class App extends JFrame {
 
         taskGroupBody.add(timeSelectionPanel, gbc);
 
-        // Row 5: 瀏覽器與新增按鈕
+        // Row 5: 批量星期選擇
         gbc.gridx = 0; gbc.gridy = 5; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JLabel weekdayLabel = new JLabel("🗓️ 批量星期選擇：");
+        weekdayLabel.setFont(mainFont);
+        taskGroupBody.add(weekdayLabel, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 5; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        JPanel weekdayPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+
+        monCheckBox = new JCheckBox("週一", true);
+        tueCheckBox = new JCheckBox("週二", true);
+        wedCheckBox = new JCheckBox("週三", true);
+        thuCheckBox = new JCheckBox("週四", true);
+        friCheckBox = new JCheckBox("週五", true);
+        satCheckBox = new JCheckBox("週六", false);
+        sunCheckBox = new JCheckBox("週日", false);
+
+        monCheckBox.setFont(boldFont);
+        tueCheckBox.setFont(boldFont);
+        wedCheckBox.setFont(boldFont);
+        thuCheckBox.setFont(boldFont);
+        friCheckBox.setFont(boldFont);
+        satCheckBox.setFont(mainFont);
+        sunCheckBox.setFont(mainFont);
+
+        selectWorkdaysButton = new JButton("全選週一~週五");
+        clearWorkdaysButton = new JButton("清除選取");
+        selectWorkdaysButton.setFont(mainFont);
+        clearWorkdaysButton.setFont(mainFont);
+
+        selectWorkdaysButton.addActionListener(e -> setWorkdaysSelected(true));
+        clearWorkdaysButton.addActionListener(e -> setWorkdaysSelected(false));
+
+        weekdayPanel.add(monCheckBox);
+        weekdayPanel.add(tueCheckBox);
+        weekdayPanel.add(wedCheckBox);
+        weekdayPanel.add(thuCheckBox);
+        weekdayPanel.add(friCheckBox);
+        weekdayPanel.add(satCheckBox);
+        weekdayPanel.add(sunCheckBox);
+        weekdayPanel.add(Box.createHorizontalStrut(6));
+        weekdayPanel.add(selectWorkdaysButton);
+        weekdayPanel.add(clearWorkdaysButton);
+
+        taskGroupBody.add(weekdayPanel, gbc);
+
+        // Row 6: 瀏覽器與新增按鈕
+        gbc.gridx = 0; gbc.gridy = 6; gbc.weightx = 0.0; gbc.gridwidth = 1;
         JLabel browserLabel = new JLabel("🌐 執行瀏覽器：");
         browserLabel.setFont(mainFont);
         taskGroupBody.add(browserLabel, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 5; gbc.weightx = 1.0; gbc.gridwidth = 1;
+        gbc.gridx = 1; gbc.gridy = 6; gbc.weightx = 1.0; gbc.gridwidth = 1;
         browserCombo = new JComboBox<>(new String[]{
                 "Microsoft Edge (本機已安裝)",
                 "Google Chrome (本機已安裝)",
@@ -284,13 +344,24 @@ public class App extends JFrame {
         browserCombo.setFont(mainFont);
         taskGroupBody.add(browserCombo, gbc);
 
-        gbc.gridx = 2; gbc.gridy = 5; gbc.weightx = 0.0; gbc.gridwidth = 1;
-        addTaskButton = new JButton("➕ 新增/排定任務");
+        gbc.gridx = 2; gbc.gridy = 6; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JPanel actionButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+
+        addTaskButton = new JButton("➕ 新增單日任務");
+        batchAddButton = new JButton("🗓️ 批量排定 (週一~週五)");
+
         addTaskButton.setFont(boldFont);
-        addTaskButton.setBackground(new Color(37, 99, 235));
-        addTaskButton.setForeground(Color.BLACK);
-        addTaskButton.setPreferredSize(new Dimension(140, 32));
-        taskGroupBody.add(addTaskButton, gbc);
+        batchAddButton.setFont(boldFont);
+
+        addTaskButton.setPreferredSize(new Dimension(130, 32));
+        batchAddButton.setPreferredSize(new Dimension(170, 32));
+
+        batchAddButton.setBackground(new Color(16, 185, 129));
+        batchAddButton.setForeground(Color.BLACK);
+
+        actionButtonPanel.add(addTaskButton);
+        actionButtonPanel.add(batchAddButton);
+        taskGroupBody.add(actionButtonPanel, gbc);
 
         JPanel taskGroupPanel = createCollapsibleGroupPanel("⚙️ 打卡任務設定與快捷模板", taskGroupBody, boldFont, false);
         mainContentPanel.add(taskGroupPanel);
@@ -342,16 +413,21 @@ public class App extends JFrame {
         cancelTaskButton = new JButton("🛑 取消選擇任務");
         deleteTaskButton = new JButton("🗑️ 刪除選擇任務");
         cancelAllButton = new JButton("🛑 全部取消");
+        deleteAllButton = new JButton("🗑️ 全部刪除");
 
         executeNowButton.setFont(boldFont);
         cancelTaskButton.setFont(boldFont);
         deleteTaskButton.setFont(boldFont);
         cancelAllButton.setFont(boldFont);
+        deleteAllButton.setFont(boldFont);
+
+        deleteAllButton.setForeground(new Color(225, 29, 72)); // 醒目紅色標示
 
         tableControlPanel.add(executeNowButton);
         tableControlPanel.add(cancelTaskButton);
         tableControlPanel.add(deleteTaskButton);
         tableControlPanel.add(cancelAllButton);
+        tableControlPanel.add(deleteAllButton);
         tableGroup.add(tableControlPanel, BorderLayout.SOUTH);
 
         mainContentPanel.add(tableGroup);
@@ -398,6 +474,7 @@ public class App extends JFrame {
         presetTest3MinButton.addActionListener(e -> applyTestPreset(3));
 
         addTaskButton.addActionListener(e -> addNewTaskFromForm());
+        batchAddButton.addActionListener(e -> addBatchTasksFromForm());
         cancelTaskButton.addActionListener(e -> cancelSelectedTask());
         deleteTaskButton.addActionListener(e -> deleteSelectedTask());
         executeNowButton.addActionListener(e -> executeSelectedTaskNow());
@@ -406,6 +483,19 @@ public class App extends JFrame {
             refreshTaskTable();
             heartbeatService.sendHeartbeat(null, null);
             appendLog("🛑 已取消所有排定之打卡任務。");
+        });
+        deleteAllButton.addActionListener(e -> {
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "確定要清空並刪除列表中【所有】打卡任務嗎？",
+                    "刪除全部確認",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+            if (confirm == JOptionPane.YES_OPTION) {
+                schedulerService.removeAllTasks();
+                refreshTaskTable();
+                heartbeatService.sendHeartbeat(null, null);
+                appendLog("🗑️ 已成功刪除並清空所有打卡任務紀錄。");
+            }
         });
 
         enableServerCheckBox.addActionListener(e -> {
@@ -439,13 +529,24 @@ public class App extends JFrame {
         startHeartbeatService();
     }
 
+    private void setWorkdaysSelected(boolean select) {
+        monCheckBox.setSelected(select);
+        tueCheckBox.setSelected(select);
+        wedCheckBox.setSelected(select);
+        thuCheckBox.setSelected(select);
+        friCheckBox.setSelected(select);
+        satCheckBox.setSelected(false);
+        sunCheckBox.setSelected(false);
+    }
+
     private void applyPreset(String taskName, int targetHour, int targetMin, boolean useRandom) {
         taskNameTextField.setText(taskName);
         datePicker.setDateToToday();
         hourCombo.setSelectedIndex(targetHour);
         minuteCombo.setSelectedIndex(targetMin);
         randomOffsetCheckBox.setSelected(useRandom);
-        appendLog(String.format("💡 已載入預設模板【%s】(時間 %02d:%02d, 隨機浮動: %s)", taskName, targetHour, targetMin, useRandom ? "開啟" : "關閉"));
+        setWorkdaysSelected(true);
+        appendLog(String.format("💡 已載入預設模板【%s】(時間 %02d:%02d, 自動勾選週一~週五, 隨機浮動: %s)", taskName, targetHour, targetMin, useRandom ? "開啟" : "關閉"));
     }
 
     private void applyTestPreset(int minutesFromNow) {
@@ -457,6 +558,94 @@ public class App extends JFrame {
         randomOffsetCheckBox.setSelected(false); // 測試預設不啟用隨機時間
         appendLog(String.format("⚡ 已載入測試快捷：當前時間 +%d 分鐘 (%02d:%02d)，自動關閉隨機時間以利精準測試！",
                 minutesFromNow, testTime.getHour(), testTime.getMinute()));
+    }
+
+    private void addBatchTasksFromForm() {
+        String name = taskNameTextField.getText().trim();
+        if (name.isEmpty()) name = "打卡任務";
+
+        String targetUrl = urlTextField.getText().trim();
+        if (targetUrl.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "請輸入目標打卡網址！", "提示", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String buttonId = buttonIdTextField.getText().trim();
+        if (buttonId.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "請輸入打卡按鈕 Selector！", "提示", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int hour = Integer.parseInt((String) hourCombo.getSelectedItem());
+        int minute = Integer.parseInt((String) minuteCombo.getSelectedItem());
+        boolean useRandom = randomOffsetCheckBox.isSelected();
+        String selectedBrowserStr = (String) browserCombo.getSelectedItem();
+        String browserType = parseBrowserType(selectedBrowserStr);
+
+        List<DayOfWeek> selectedDays = new ArrayList<>();
+        if (monCheckBox.isSelected()) selectedDays.add(DayOfWeek.MONDAY);
+        if (tueCheckBox.isSelected()) selectedDays.add(DayOfWeek.TUESDAY);
+        if (wedCheckBox.isSelected()) selectedDays.add(DayOfWeek.WEDNESDAY);
+        if (thuCheckBox.isSelected()) selectedDays.add(DayOfWeek.THURSDAY);
+        if (friCheckBox.isSelected()) selectedDays.add(DayOfWeek.FRIDAY);
+        if (satCheckBox.isSelected()) selectedDays.add(DayOfWeek.SATURDAY);
+        if (sunCheckBox.isSelected()) selectedDays.add(DayOfWeek.SUNDAY);
+
+        if (selectedDays.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "請先勾選至少一個星期（例如 週一~週五）！", "提示", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDateTime now = LocalDateTime.now();
+        int addedCount = 0;
+
+        for (DayOfWeek dayOfWeek : selectedDays) {
+            LocalDate targetDate = today;
+            while (targetDate.getDayOfWeek() != dayOfWeek) {
+                targetDate = targetDate.plusDays(1);
+            }
+
+            LocalDateTime targetTime = targetDate.atTime(hour, minute, 0);
+            if (targetTime.isBefore(now.plusSeconds(5))) {
+                targetDate = targetDate.plusWeeks(1);
+                targetTime = targetDate.atTime(hour, minute, 0);
+            }
+
+            String dayName = getDayOfWeekName(dayOfWeek);
+            String taskFullName = name + " (" + dayName + ")";
+
+            CheckInTask task = new CheckInTask(taskFullName, targetUrl, buttonId, targetTime, useRandom, browserType);
+            boolean scheduled = schedulerService.scheduleTask(task,
+                    t -> SwingUtilities.invokeLater(this::refreshTaskTable),
+                    this::appendLog,
+                    this::executeCheckInForTask);
+            if (scheduled) {
+                addedCount++;
+            }
+        }
+
+        if (addedCount > 0) {
+            refreshTaskTable();
+            heartbeatService.sendHeartbeat(this::appendLog, null);
+            appendLog("🗓️ 【批量排定】成功一次排定 " + addedCount + " 個工作日打卡任務 (含隨機時間浮動)！");
+            JOptionPane.showMessageDialog(this, "成功一次排定 " + addedCount + " 個星期的打卡任務！", "批量成功", JOptionPane.INFORMATION_MESSAGE);
+        } else {
+            JOptionPane.showMessageDialog(this, "無法排定任務，可能是選擇的時間已過！", "提示", JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    private String getDayOfWeekName(DayOfWeek day) {
+        switch (day) {
+            case MONDAY: return "週一";
+            case TUESDAY: return "週二";
+            case WEDNESDAY: return "週三";
+            case THURSDAY: return "週四";
+            case FRIDAY: return "週五";
+            case SATURDAY: return "週六";
+            case SUNDAY: return "週日";
+            default: return "";
+        }
     }
 
     private void addNewTaskFromForm() {
@@ -596,9 +785,20 @@ public class App extends JFrame {
 
     private void refreshTaskTable() {
         SwingUtilities.invokeLater(() -> {
+            int selectedRow = taskTable.getSelectedRow();
+            String selectedTaskId = (selectedRow >= 0 && selectedRow < tableModel.getRowCount())
+                    ? (String) tableModel.getValueAt(selectedRow, 0)
+                    : null;
+
             tableModel.setRowCount(0);
             List<CheckInTask> tasks = schedulerService.getAllTasks();
-            for (CheckInTask t : tasks) {
+            int restoreRow = -1;
+
+            for (int i = 0; i < tasks.size(); i++) {
+                CheckInTask t = tasks.get(i);
+                if (selectedTaskId != null && selectedTaskId.equals(t.getId())) {
+                    restoreRow = i;
+                }
                 String statusStr = parseStatusBadge(t.getStatus());
                 String offsetStr = t.isUseRandomOffset()
                         ? String.format("%s (%s%ds)", t.getFormattedActualTime(), t.getRandomOffsetSeconds() >= 0 ? "+" : "", t.getRandomOffsetSeconds())
@@ -614,6 +814,10 @@ public class App extends JFrame {
                         statusStr,
                         t.getResultMessage()
                 });
+            }
+
+            if (restoreRow >= 0 && restoreRow < taskTable.getRowCount()) {
+                taskTable.setRowSelectionInterval(restoreRow, restoreRow);
             }
         });
     }
