@@ -1,5 +1,7 @@
 package com.example.service;
 
+import com.example.model.CheckInTask;
+
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
@@ -9,14 +11,16 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
- * 專責與 ping-pong-server 進行單向 HTTP POST 存活與狀態上報
- * （完全無 WebSocket，無任何被控或反向連線風險）
+ * 專責與 ping-pong-server 進行單向 HTTP POST 存活與多任務狀態上報
  */
 public class HeartbeatService {
 
@@ -26,13 +30,18 @@ public class HeartbeatService {
     private String serverUrl = "";
     private String clientId = "company-worker";
     private String currentStatus = "ONLINE";
-    private String scheduledTime = null;
     private String message = null;
     private boolean isServiceActive = false;
+
+    private Supplier<List<CheckInTask>> tasksProvider;
     private Consumer<String> commandListener;
 
     public void setCommandListener(Consumer<String> commandListener) {
         this.commandListener = commandListener;
+    }
+
+    public void setTasksProvider(Supplier<List<CheckInTask>> tasksProvider) {
+        this.tasksProvider = tasksProvider;
     }
 
     public HeartbeatService() {
@@ -68,17 +77,6 @@ public class HeartbeatService {
         if (newClientId != null && !newClientId.trim().isEmpty()) {
             this.clientId = newClientId.trim();
         }
-    }
-
-    public interface TaskDetailsProvider {
-        String getTargetUrl();
-        String getButtonId();
-    }
-
-    private TaskDetailsProvider taskDetailsProvider;
-
-    public void setTaskDetailsProvider(TaskDetailsProvider taskDetailsProvider) {
-        this.taskDetailsProvider = taskDetailsProvider;
     }
 
     /**
@@ -126,7 +124,7 @@ public class HeartbeatService {
      * 啟動定期單向 HTTP POST 心跳
      */
     public void startHeartbeat(String serverUrl, Consumer<String> logger, Consumer<Boolean> statusCallback) {
-        stopHeartbeat(); // 清理舊任務
+        stopHeartbeat();
 
         if (serverUrl == null || serverUrl.isBlank()) {
             log(logger, "⚠️ [HTTP POST 服務] 伺服器網址為空，未開啟連線。");
@@ -141,10 +139,8 @@ public class HeartbeatService {
 
         scheduler = Executors.newScheduledThreadPool(1);
 
-        // 立即執行一次上報
         sendPostHeartbeat(logger, statusCallback);
 
-        // 每 15 秒定期單向 HTTP POST 上報
         scheduler.scheduleAtFixedRate(() -> {
             if (!isServiceActive) return;
             sendPostHeartbeat(logger, statusCallback);
@@ -158,12 +154,34 @@ public class HeartbeatService {
         if (!isServiceActive || serverUrl.isBlank()) return;
 
         String endpoint = serverUrl + "/api/heartbeat";
+        List<CheckInTask> tasks = tasksProvider != null ? tasksProvider.get() : Collections.emptyList();
+
+        StringBuilder tasksJson = new StringBuilder("[");
+        for (int i = 0; i < tasks.size(); i++) {
+            CheckInTask t = tasks.get(i);
+            tasksJson.append(String.format(
+                    "{\"id\":\"%s\",\"name\":\"%s\",\"targetUrl\":\"%s\",\"buttonId\":\"%s\",\"targetTime\":\"%s\",\"actualTime\":\"%s\",\"useRandomOffset\":%b,\"browserType\":\"%s\",\"status\":\"%s\",\"message\":\"%s\"}",
+                    escapeJson(t.getId()),
+                    escapeJson(t.getName()),
+                    escapeJson(t.getTargetUrl()),
+                    escapeJson(t.getButtonId()),
+                    escapeJson(t.getFormattedTargetTime()),
+                    escapeJson(t.getFormattedActualTime()),
+                    t.isUseRandomOffset(),
+                    escapeJson(t.getBrowserType()),
+                    escapeJson(t.getStatus()),
+                    escapeJson(t.getResultMessage())
+            ));
+            if (i < tasks.size() - 1) tasksJson.append(",");
+        }
+        tasksJson.append("]");
+
         String jsonBody = String.format(
-                "{\"clientId\":\"%s\",\"status\":\"%s\",\"scheduledTime\":%s,\"message\":%s}",
+                "{\"clientId\":\"%s\",\"status\":\"%s\",\"message\":%s,\"tasks\":%s}",
                 escapeJson(clientId),
                 escapeJson(currentStatus),
-                scheduledTime == null ? "null" : "\"" + escapeJson(scheduledTime) + "\"",
-                message == null ? "null" : "\"" + escapeJson(message) + "\""
+                message == null ? "null" : "\"" + escapeJson(message) + "\"",
+                tasksJson.toString()
         );
 
         try {
@@ -183,6 +201,15 @@ public class HeartbeatService {
                                 if (body.contains("\"action\":\"CANCEL_SCHEDULE\"")) {
                                     log(logger, "🛑 [HTTP 心跳] 收到伺服器取消排程指令 (CANCEL_SCHEDULE)");
                                     commandListener.accept("CANCEL_SCHEDULE");
+                                } else if (body.contains("\"action\":\"CANCEL_TASK:")) {
+                                    int idx = body.indexOf("\"action\":\"CANCEL_TASK:");
+                                    String sub = body.substring(idx + 10);
+                                    int end = sub.indexOf("\"");
+                                    if (end != -1) {
+                                        String cmd = sub.substring(0, end);
+                                        log(logger, "🛑 [HTTP 心跳] 收到伺服器取消特定任務指令 (" + cmd + ")");
+                                        commandListener.accept(cmd);
+                                    }
                                 }
                             }
                         } else {
@@ -205,20 +232,8 @@ public class HeartbeatService {
         sendPostHeartbeat(logger, statusCallback);
     }
 
-    /**
-     * 回傳打卡狀態與結果至伺服器
-     */
-    public void sendCheckinResult(boolean success, String message) {
-        sendPostHeartbeat(null, null);
-    }
-
-    public void updateTaskStatus(String status, String scheduledTime) {
-        updateTaskStatus(status, scheduledTime, null);
-    }
-
-    public void updateTaskStatus(String status, String scheduledTime, String message) {
+    public void updateStatus(String status, String message) {
         this.currentStatus = status;
-        this.scheduledTime = scheduledTime;
         this.message = message;
     }
 

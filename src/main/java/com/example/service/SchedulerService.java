@@ -1,109 +1,196 @@
 package com.example.service;
 
+import com.example.model.CheckInTask;
+
 import javax.swing.Timer;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.*;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
- * 專責處理排程計時與動態倒數服務
+ * 專責處理多任務排程計時與動態倒數服務
  */
 public class SchedulerService {
 
-    private ScheduledExecutorService scheduler;
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4);
+    private final Map<String, ScheduledFuture<?>> futuresMap = new ConcurrentHashMap<>();
+    private final Map<String, CheckInTask> tasksMap = new ConcurrentHashMap<>();
     private Timer countdownTimer;
-    private long currentDelaySeconds = 0;
 
     /**
-     * 啟動排程任務
+     * 啟動/新增排程任務
      *
-     * @param targetTime        目標觸發時間
-     * @param task              預定執行的任務
-     * @param countdownCallback 每秒倒數 Callback (提供格式化的倒數標題)
-     * @param logConsumer       日誌輸出 Callback
-     * @param onComplete        任務完成時的 Callback
-     * @return 是否成功啟動排程
+     * @param task          打卡任務物件
+     * @param taskConsumer  任務更新 Callback
+     * @param logConsumer   日誌輸出 Callback
+     * @param executeAction 觸發執行的動作 BiConsumer(CheckInTask, Runnable onComplete)
+     * @return 是否成功排定任務
      */
-    public boolean startSchedule(LocalDateTime targetTime,
-                                 Runnable task,
-                                 Consumer<String> countdownCallback,
-                                 Consumer<String> logConsumer,
-                                 Runnable onComplete) {
-        cancelSchedule(); // 先防禦性清理舊任務
+    public boolean scheduleTask(CheckInTask task,
+                                Consumer<CheckInTask> taskConsumer,
+                                Consumer<String> logConsumer,
+                                BiConsumer<CheckInTask, Runnable> executeAction) {
+        cancelTask(task.getId()); // 防禦性清理舊同名任務
 
         LocalDateTime now = LocalDateTime.now();
-        long delayInSeconds = Duration.between(now, targetTime).getSeconds();
+        LocalDateTime targetTime = task.getTargetTime();
 
-        if (delayInSeconds <= 0) {
-            if (logConsumer != null) {
-                logConsumer.accept("❌ 錯誤：選擇的時間已經過去了！");
-            }
+        if (targetTime == null) {
+            if (logConsumer != null) logConsumer.accept("❌ 錯誤：任務設定時間無效！");
             return false;
         }
 
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-        if (logConsumer != null) {
-            logConsumer.accept(String.format("【排程】設定成功！目標打卡時間為：%s", targetTime.format(formatter)));
+        // 計算隨機時間偏移 (-300秒 ~ +300秒)
+        int randomOffsetSec = 0;
+        if (task.isUseRandomOffset()) {
+            randomOffsetSec = ThreadLocalRandom.current().nextInt(-300, 301);
+        }
+        task.setRandomOffsetSeconds(randomOffsetSec);
+        LocalDateTime actualTriggerTime = targetTime.plusSeconds(randomOffsetSec);
+        task.setActualTriggerTime(actualTriggerTime);
+
+        long delayInSeconds = Duration.between(now, actualTriggerTime).getSeconds();
+
+        if (delayInSeconds <= 0) {
+            // 若因為負向隨機偏移導致時間變為過去，補正為至少 2 秒後觸發，或是直接提示時間已過
+            if (delayInSeconds < -30) {
+                if (logConsumer != null) {
+                    logConsumer.accept(String.format("❌ 錯誤：任務【%s】設定時間 (%s) 加上隨機偏移後已過去！",
+                            task.getName(), actualTriggerTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))));
+                }
+                task.setStatus("FAILED");
+                task.setResultMessage("設定時間加上隨機偏移已為過去時間");
+                if (taskConsumer != null) taskConsumer.accept(task);
+                return false;
+            }
+            delayInSeconds = 2;
+            actualTriggerTime = now.plusSeconds(2);
+            task.setActualTriggerTime(actualTriggerTime);
         }
 
-        currentDelaySeconds = delayInSeconds;
+        task.setStatus("SCHEDULED");
+        tasksMap.put(task.getId(), task);
+        if (taskConsumer != null) taskConsumer.accept(task);
 
-        countdownTimer = new Timer(1000, event -> {
-            currentDelaySeconds--;
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        String offsetDesc = task.isUseRandomOffset()
+                ? String.format(" (🎲 含隨機偏移 %s%d秒)", randomOffsetSec >= 0 ? "+" : "", randomOffsetSec)
+                : " (⚡ 測試模式/精準時間)";
 
-            if (currentDelaySeconds <= 0) {
-                countdownTimer.stop();
-                if (countdownCallback != null) {
-                    countdownCallback.accept("圖形日曆排程自動打卡控制台 - 任務執行中");
-                }
-            } else {
-                long days = currentDelaySeconds / (24 * 3600);
-                long hours = (currentDelaySeconds % (24 * 3600)) / 3600;
-                long minutes = (currentDelaySeconds % 3600) / 60;
-                long seconds = currentDelaySeconds % 60;
+        if (logConsumer != null) {
+            logConsumer.accept(String.format("📌 【排程設定】任務【%s】排定成功！原定：%s，預計實際觸發：%s%s",
+                    task.getName(),
+                    targetTime.format(fmt),
+                    actualTriggerTime.format(fmt),
+                    offsetDesc));
+        }
 
-                String titleText = String.format("⏳ 倒數計時：%d天 %d時 %d分 %d秒", days, hours, minutes, seconds);
-                if (countdownCallback != null) {
-                    countdownCallback.accept(titleText);
-                }
-            }
-        });
-        countdownTimer.start();
-
-        scheduler = Executors.newSingleThreadScheduledExecutor();
-        scheduler.schedule(() -> {
+        ScheduledFuture<?> future = scheduler.schedule(() -> {
             try {
-                task.run();
-            } finally {
-                if (onComplete != null) {
-                    onComplete.run();
+                task.setStatus("CHECKING_IN");
+                if (taskConsumer != null) taskConsumer.accept(task);
+
+                if (logConsumer != null) {
+                    logConsumer.accept(String.format("⏳ 【觸發執行】任務【%s】開始進行自動打卡...", task.getName()));
                 }
+
+                CountDownLatch latch = new CountDownLatch(1);
+                executeAction.accept(task, latch::countDown);
+                latch.await(3, TimeUnit.MINUTES);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                task.setStatus("CANCELLED");
+                task.setResultMessage("任務排程已取消");
+                if (taskConsumer != null) taskConsumer.accept(task);
+            } finally {
+                futuresMap.remove(task.getId());
+                if (!"SUCCESS".equals(task.getStatus()) && !"FAILED".equals(task.getStatus()) && !"CANCELLED".equals(task.getStatus())) {
+                    task.setStatus("SUCCESS");
+                }
+                if (taskConsumer != null) taskConsumer.accept(task);
             }
         }, delayInSeconds, TimeUnit.SECONDS);
 
+        futuresMap.put(task.getId(), future);
+        ensureCountdownTimer(taskConsumer);
         return true;
     }
 
     /**
-     * 取消定時排程與倒數
+     * 取消單一打卡任務
      */
-    public void cancelSchedule() {
-        if (scheduler != null && !scheduler.isShutdown()) {
-            scheduler.shutdownNow();
+    public boolean cancelTask(String taskId) {
+        ScheduledFuture<?> future = futuresMap.remove(taskId);
+        CheckInTask task = tasksMap.get(taskId);
+        boolean cancelled = false;
+
+        if (future != null && !future.isDone()) {
+            future.cancel(true);
+            cancelled = true;
         }
-        if (countdownTimer != null && countdownTimer.isRunning()) {
-            countdownTimer.stop();
+
+        if (task != null) {
+            task.setStatus("CANCELLED");
+            task.setResultMessage("使用者手動取消");
         }
+        return cancelled;
     }
 
     /**
-     * 檢查當前是否正在排程中
+     * 刪除任務紀錄
      */
-    public boolean isScheduled() {
-        return scheduler != null && !scheduler.isShutdown();
+    public void removeTask(String taskId) {
+        cancelTask(taskId);
+        tasksMap.remove(taskId);
+    }
+
+    /**
+     * 取消所有排程任務
+     */
+    public void cancelAllTasks() {
+        for (String taskId : new ArrayList<>(futuresMap.keySet())) {
+            cancelTask(taskId);
+        }
+    }
+
+    public List<CheckInTask> getAllTasks() {
+        return new ArrayList<>(tasksMap.values());
+    }
+
+    public CheckInTask getTask(String taskId) {
+        return tasksMap.get(taskId);
+    }
+
+    private synchronized void ensureCountdownTimer(Consumer<CheckInTask> taskConsumer) {
+        if (countdownTimer == null) {
+            countdownTimer = new Timer(1000, e -> {
+                boolean hasActive = false;
+                for (CheckInTask t : tasksMap.values()) {
+                    if ("SCHEDULED".equals(t.getStatus()) || "CHECKING_IN".equals(t.getStatus())) {
+                        hasActive = true;
+                        break;
+                    }
+                }
+                if (hasActive && taskConsumer != null) {
+                    // 觸發 Table 重繪 countdown 狀態
+                    taskConsumer.accept(null);
+                }
+            });
+            countdownTimer.start();
+        }
+    }
+
+    public void shutdown() {
+        cancelAllTasks();
+        if (countdownTimer != null && countdownTimer.isRunning()) {
+            countdownTimer.stop();
+        }
+        scheduler.shutdownNow();
     }
 }
