@@ -120,15 +120,24 @@ public class App extends JFrame {
         tabs.addTab("📋 打卡任務", tasksTab);
         tabs.addTab("🖥️ 雲端設定", cloudTab);
         tabs.setSelectedIndex(0);
-        add(tabs, BorderLayout.CENTER);
 
         JPanel logPanel = PanelFactory.createLogPanel(logRefs, boldFont);
         logPanel.setBorder(new CompoundBorder(new EmptyBorder(0, 12, 10, 12), logPanel.getBorder()));
-        add(logPanel, BorderLayout.SOUTH);
+        logPanel.setMinimumSize(new Dimension(400, 90));
+        tabs.setMinimumSize(new Dimension(400, 220));
+
+        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tabs, logPanel);
+        split.setResizeWeight(0.72);
+        split.setContinuousLayout(true);
+        split.setOneTouchExpandable(true);
+        split.setDividerSize(8);
+        split.setBorder(null);
+        add(split, BorderLayout.CENTER);
 
         setMinimumSize(new Dimension(1180, 740));
         setSize(1280, 840);
         setLocationRelativeTo(null);
+        SwingUtilities.invokeLater(() -> split.setDividerLocation(0.72));
     }
 
     private void bindEventListeners() {
