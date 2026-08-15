@@ -22,6 +22,8 @@ public class ConfigPersistenceService {
         public String clientId = "company-worker";
         public String heartbeatToken = "clickclick-dev-secret";
         public boolean enableServer = false;
+        /** 信任所有 SSL 憑證（僅本機除錯；預設關閉） */
+        public boolean trustAllSsl = false;
     }
 
     private final Gson gson;

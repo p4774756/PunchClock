@@ -69,19 +69,25 @@ public class PanelFactory {
         refs.heartbeatTokenField.setFont(mainFont);
         panel.add(refs.heartbeatTokenField, gbc);
 
-        // Row 3: 啟用 checkbox + 狀態 + 測試按鈕
+        // Row 3: 啟用 checkbox + SSL 除錯 + 狀態 + 測試按鈕
         gbc.gridx = 0; gbc.gridy = 3; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JPanel enableRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         refs.enableServerCheckBox = new JCheckBox("啟用雲端單向狀態回報", false);
         refs.enableServerCheckBox.setFont(boldFont);
-        panel.add(refs.enableServerCheckBox, gbc);
+        refs.trustAllSslCheckBox = new JCheckBox("信任所有 SSL（除錯）", false);
+        refs.trustAllSslCheckBox.setFont(mainFont);
+        refs.trustAllSslCheckBox.setToolTipText("預設關閉。僅在本機遇到自簽憑證時再開啟，正式環境請勿勾選。");
+        enableRow.add(refs.enableServerCheckBox);
+        enableRow.add(refs.trustAllSslCheckBox);
+        panel.add(enableRow, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 3; gbc.weightx = 1.0;
+        gbc.gridx = 1; gbc.gridy = 3; gbc.weightx = 1.0; gbc.gridwidth = 1;
         refs.heartbeatStatusLabel = new JLabel("⚪ 未連線 (已停用)", SwingConstants.LEFT);
         refs.heartbeatStatusLabel.setFont(boldFont);
         refs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
         panel.add(refs.heartbeatStatusLabel, gbc);
 
-        gbc.gridx = 2; gbc.gridy = 3; gbc.weightx = 0.0;
+        gbc.gridx = 2; gbc.gridy = 3; gbc.weightx = 0.0; gbc.gridwidth = 1;
         refs.testServerButton = new JButton("🧪 測試 Server 連線");
         refs.testServerButton.setFont(mainFont);
         panel.add(refs.testServerButton, gbc);
@@ -95,6 +101,7 @@ public class PanelFactory {
         public JTextField serverUrlTextField;
         public JPasswordField heartbeatTokenField;
         public JCheckBox enableServerCheckBox;
+        public JCheckBox trustAllSslCheckBox;
         public JLabel heartbeatStatusLabel;
         public JButton testServerButton;
     }

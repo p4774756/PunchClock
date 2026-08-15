@@ -31,7 +31,7 @@ import java.util.function.Supplier;
  */
 public class HeartbeatService {
 
-    private final HttpClient httpClient;
+    private volatile HttpClient httpClient;
     private final Gson gson = new Gson();
     private ScheduledExecutorService scheduler;
 
@@ -41,6 +41,7 @@ public class HeartbeatService {
     private String currentStatus = "ONLINE";
     private String message = null;
     private boolean isServiceActive = false;
+    private boolean trustAllSsl = false;
 
     private Supplier<List<CheckInTask>> tasksProvider;
     private Consumer<String> commandListener;
@@ -54,28 +55,48 @@ public class HeartbeatService {
     }
 
     public HeartbeatService() {
+        this.httpClient = buildHttpClient(false);
+    }
+
+    /**
+     * 是否信任所有 SSL 憑證（僅建議本機除錯；預設 false）
+     */
+    public synchronized void setTrustAllSsl(boolean trustAllSsl) {
+        if (this.trustAllSsl == trustAllSsl && httpClient != null) {
+            return;
+        }
+        this.trustAllSsl = trustAllSsl;
+        this.httpClient = buildHttpClient(trustAllSsl);
+    }
+
+    public boolean isTrustAllSsl() {
+        return trustAllSsl;
+    }
+
+    private static HttpClient buildHttpClient(boolean trustAllSsl) {
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .followRedirects(HttpClient.Redirect.ALWAYS)
                 .connectTimeout(Duration.ofSeconds(8));
 
-        try {
-            TrustManager[] trustAllCerts = new TrustManager[]{
-                new X509TrustManager() {
-                    public X509Certificate[] getAcceptedIssuers() { return null; }
-                    public void checkClientTrusted(X509Certificate[] certs, String authType) {}
-                    public void checkServerTrusted(X509Certificate[] certs, String authType) {}
-                }
-            };
-
-            SSLContext sc = SSLContext.getInstance("TLS");
-            sc.init(null, trustAllCerts, new java.security.SecureRandom());
-            builder.sslContext(sc);
-        } catch (Exception e) {
-            System.err.println("初始化 SSL 繞過失敗: " + e.getMessage());
+        if (trustAllSsl) {
+            try {
+                TrustManager[] trustAllCerts = new TrustManager[]{
+                    new X509TrustManager() {
+                        public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+                        public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+                        public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+                    }
+                };
+                SSLContext sc = SSLContext.getInstance("TLS");
+                sc.init(null, trustAllCerts, new java.security.SecureRandom());
+                builder.sslContext(sc);
+            } catch (Exception e) {
+                System.err.println("初始化 SSL 繞過失敗: " + e.getMessage());
+            }
         }
 
-        this.httpClient = builder.build();
+        return builder.build();
     }
 
     public String getClientId() {
@@ -150,7 +171,8 @@ public class HeartbeatService {
         this.isServiceActive = true;
 
         String endpoint = this.serverUrl + "/api/heartbeat";
-        log(logger, "🔌 [HTTP POST 服務] 啟動單向心跳上報 (純 HTTP POST)：" + endpoint);
+        log(logger, "🔌 [HTTP POST 服務] 啟動單向心跳上報 (純 HTTP POST)：" + endpoint
+                + (trustAllSsl ? " [SSL 信任全部憑證]" : ""));
 
         scheduler = Executors.newScheduledThreadPool(1);
 
@@ -171,7 +193,6 @@ public class HeartbeatService {
         String endpoint = serverUrl + "/api/heartbeat";
         List<CheckInTask> tasks = tasksProvider != null ? tasksProvider.get() : Collections.emptyList();
 
-        // 使用 Gson 安全序列化 JSON
         List<Map<String, Object>> tasksList = new ArrayList<>();
         for (CheckInTask t : tasks) {
             Map<String, Object> taskMap = new LinkedHashMap<>();
@@ -267,7 +288,7 @@ public class HeartbeatService {
                 }
             }
         } catch (Exception ex) {
-            // 回應非 JSON 或格式異常時靜默忽略（正常心跳回應可能無 action）
+            // 回應非 JSON 或格式異常時靜默忽略
         }
     }
 
