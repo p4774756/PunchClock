@@ -84,8 +84,8 @@ public class App extends JFrame {
 
     private void initUI() {
         setTitle("圖形日曆多任務排程自動打卡控制台 (含隨機浮動打卡)");
-        setSize(860, 840);
-        setMinimumSize(new Dimension(820, 760));
+        setSize(920, 880);
+        setMinimumSize(new Dimension(880, 780));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout(10, 10));
@@ -132,32 +132,21 @@ public class App extends JFrame {
         formRefs.addTaskButton.addActionListener(e -> addNewTaskFromForm());
         formRefs.batchAddButton.addActionListener(e -> addBatchTasksFromForm());
         formRefs.selectWorkdaysButton.addActionListener(e -> setWorkdaysSelected(true));
-        formRefs.clearWorkdaysButton.addActionListener(e -> setWorkdaysSelected(false));
+        formRefs.deselectWorkdaysButton.addActionListener(e -> deselectWeekdays1to5());
+        formRefs.clearWorkdaysButton.addActionListener(e -> clearAllWeekdaySelection());
 
         // 任務列表操作
-        tableRefs.cancelTaskButton.addActionListener(e -> cancelSelectedTask());
-        tableRefs.deleteTaskButton.addActionListener(e -> deleteSelectedTask());
-        tableRefs.executeNowButton.addActionListener(e -> executeSelectedTaskNow());
-        tableRefs.editTaskButton.addActionListener(e -> editSelectedTask());
-        tableRefs.reuseTaskButton.addActionListener(e -> reuseSelectedTask());
-        tableRefs.cancelAllButton.addActionListener(e -> {
-            schedulerService.cancelAllTasks();
-            onTaskStateChanged();
-            heartbeatService.sendHeartbeat(null, null);
-            appendLog("🛑 已取消所有排定之打卡任務。");
-        });
-        tableRefs.deleteAllButton.addActionListener(e -> {
-            int confirm = JOptionPane.showConfirmDialog(this,
-                    "確定要清空並刪除列表中【所有】打卡任務嗎？", "刪除全部確認",
-                    JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-            if (confirm == JOptionPane.YES_OPTION) {
-                schedulerService.removeAllTasks();
-                onTaskStateChanged();
-                heartbeatService.sendHeartbeat(null, null);
-                appendLog("🗑️ 已成功刪除並清空所有打卡任務紀錄。");
+        tableRefs.selectAllTasksButton.addActionListener(e -> {
+            if (tableRefs.taskTable.getRowCount() > 0) {
+                tableRefs.taskTable.selectAll();
             }
         });
-
+        tableRefs.clearTaskSelectionButton.addActionListener(e -> tableRefs.taskTable.clearSelection());
+        tableRefs.cancelTaskButton.addActionListener(e -> cancelSelectedTasks());
+        tableRefs.deleteTaskButton.addActionListener(e -> deleteSelectedTasks());
+        tableRefs.executeNowButton.addActionListener(e -> executeSelectedTasksNow());
+        tableRefs.editTaskButton.addActionListener(e -> editSelectedTask());
+        tableRefs.reuseTaskButton.addActionListener(e -> reuseSelectedTask());
         // 雲端設定
         serverRefs.enableServerCheckBox.addActionListener(e -> {
             boolean enabled = serverRefs.enableServerCheckBox.isSelected();
@@ -172,11 +161,13 @@ public class App extends JFrame {
             }
             saveCloudConfig();
         });
-        serverRefs.clientIdCombo.addActionListener(e -> {
-            String selected = (String) serverRefs.clientIdCombo.getSelectedItem();
-            if (selected != null && !selected.trim().isEmpty()) {
-                heartbeatService.setClientId(selected.trim());
-                saveCloudConfig();
+        serverRefs.clientIdCombo.addActionListener(e -> applyClientIdFromUI(true));
+        // 可編輯 Combo：輸入後失焦也要套用
+        java.awt.Component editor = serverRefs.clientIdCombo.getEditor().getEditorComponent();
+        editor.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override
+            public void focusLost(java.awt.event.FocusEvent e) {
+                applyClientIdFromUI(true);
             }
         });
         serverRefs.testServerButton.addActionListener(e -> testServerConnection());
@@ -204,6 +195,7 @@ public class App extends JFrame {
                 serverRefs.serverUrlTextField.setText(config.serverUrl);
             }
             if (serverRefs.clientIdCombo != null && config.clientId != null) {
+                ensureClientIdOption(config.clientId);
                 serverRefs.clientIdCombo.setSelectedItem(config.clientId);
                 heartbeatService.setClientId(config.clientId);
             }
@@ -217,6 +209,32 @@ public class App extends JFrame {
         } finally {
             suppressConfigSave = false;
         }
+    }
+
+    private void applyClientIdFromUI(boolean persist) {
+        if (serverRefs.clientIdCombo == null) return;
+        Object item = serverRefs.clientIdCombo.getSelectedItem();
+        if (item == null) return;
+        String clientId = item.toString().trim();
+        if (clientId.isEmpty()) return;
+
+        ensureClientIdOption(clientId);
+        heartbeatService.setClientId(clientId);
+        if (persist) {
+            saveCloudConfig();
+        }
+    }
+
+    /** 若自訂 Worker ID 不在預設清單中，加入選項以便下次下拉可見 */
+    private void ensureClientIdOption(String clientId) {
+        if (clientId == null || clientId.isBlank() || serverRefs.clientIdCombo == null) return;
+        javax.swing.ComboBoxModel<String> model = serverRefs.clientIdCombo.getModel();
+        for (int i = 0; i < model.getSize(); i++) {
+            if (clientId.equals(model.getElementAt(i))) {
+                return;
+            }
+        }
+        serverRefs.clientIdCombo.addItem(clientId);
     }
 
     private void saveCloudConfig() {
@@ -268,6 +286,26 @@ public class App extends JFrame {
         formRefs.wedCheckBox.setSelected(select);
         formRefs.thuCheckBox.setSelected(select);
         formRefs.friCheckBox.setSelected(select);
+        formRefs.satCheckBox.setSelected(false);
+        formRefs.sunCheckBox.setSelected(false);
+    }
+
+    /** 只取消週一~週五，週六日維持原樣 */
+    private void deselectWeekdays1to5() {
+        formRefs.monCheckBox.setSelected(false);
+        formRefs.tueCheckBox.setSelected(false);
+        formRefs.wedCheckBox.setSelected(false);
+        formRefs.thuCheckBox.setSelected(false);
+        formRefs.friCheckBox.setSelected(false);
+    }
+
+    /** 清除全部星期（含週末） */
+    private void clearAllWeekdaySelection() {
+        formRefs.monCheckBox.setSelected(false);
+        formRefs.tueCheckBox.setSelected(false);
+        formRefs.wedCheckBox.setSelected(false);
+        formRefs.thuCheckBox.setSelected(false);
+        formRefs.friCheckBox.setSelected(false);
         formRefs.satCheckBox.setSelected(false);
         formRefs.sunCheckBox.setSelected(false);
     }
@@ -460,53 +498,91 @@ public class App extends JFrame {
 
     // ==================== 任務列表操作 ====================
 
-    private void cancelSelectedTask() {
-        int selectedRow = tableRefs.taskTable.getSelectedRow();
-        if (selectedRow == -1) {
+    private List<String> getSelectedTaskIds() {
+        List<String> ids = new ArrayList<>();
+        int[] rows = tableRefs.taskTable.getSelectedRows();
+        for (int row : rows) {
+            if (row >= 0 && row < tableRefs.tableModel.getRowCount()) {
+                Object id = tableRefs.tableModel.getValueAt(row, 0);
+                if (id != null) {
+                    ids.add(id.toString());
+                }
+            }
+        }
+        return ids;
+    }
+
+    private void cancelSelectedTasks() {
+        List<String> taskIds = getSelectedTaskIds();
+        if (taskIds.isEmpty()) {
             JOptionPane.showMessageDialog(this, "請先選取列表中要取消的任務！", "提示", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        String taskId = (String) tableRefs.tableModel.getValueAt(selectedRow, 0);
-        boolean ok = schedulerService.cancelTask(taskId);
+        int cancelled = 0;
+        for (String taskId : taskIds) {
+            if (schedulerService.cancelTask(taskId)) {
+                cancelled++;
+                appendLog("🛑 已取消任務 ID [" + taskId + "]");
+            } else {
+                appendLog("⚠️ 任務 ID [" + taskId + "] 不存在或已結束");
+            }
+        }
         onTaskStateChanged();
         heartbeatService.sendHeartbeat(null, null);
-        appendLog(ok ? "🛑 已取消任務 ID [" + taskId + "]" : "⚠️ 任務 ID [" + taskId + "] 不存在或已結束");
+        appendLog(String.format("🛑 已處理取消選取任務：成功 %d / 共 %d 筆", cancelled, taskIds.size()));
     }
 
-    private void deleteSelectedTask() {
-        int selectedRow = tableRefs.taskTable.getSelectedRow();
-        if (selectedRow == -1) {
+    private void deleteSelectedTasks() {
+        List<String> taskIds = getSelectedTaskIds();
+        if (taskIds.isEmpty()) {
             JOptionPane.showMessageDialog(this, "請先選取列表中要刪除的任務！", "提示", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        String taskId = (String) tableRefs.tableModel.getValueAt(selectedRow, 0);
-        schedulerService.removeTask(taskId);
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "確定要刪除選取的 " + taskIds.size() + " 筆任務紀錄嗎？", "刪除確認",
+                JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        for (String taskId : taskIds) {
+            schedulerService.removeTask(taskId);
+            appendLog("🗑️ 已移除任務紀錄 ID [" + taskId + "]");
+        }
         onTaskStateChanged();
         heartbeatService.sendHeartbeat(null, null);
-        appendLog("🗑️ 已移除任務紀錄 ID [" + taskId + "]");
+        appendLog("🗑️ 已刪除選取任務共 " + taskIds.size() + " 筆");
     }
 
-    private void executeSelectedTaskNow() {
-        int selectedRow = tableRefs.taskTable.getSelectedRow();
-        if (selectedRow == -1) {
+    private void executeSelectedTasksNow() {
+        List<String> taskIds = getSelectedTaskIds();
+        if (taskIds.isEmpty()) {
             JOptionPane.showMessageDialog(this, "請先選取列表中要立即執行的任務！", "提示", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        String taskId = (String) tableRefs.tableModel.getValueAt(selectedRow, 0);
-        CheckInTask task = schedulerService.getTask(taskId);
-        if (task != null) {
-            appendLog("⚡ 【立即執行】觸發任務【" + task.getName() + "】進行打卡...");
-            new Thread(() -> executeCheckInForTask(task, null)).start();
+        int started = 0;
+        for (String taskId : taskIds) {
+            CheckInTask task = schedulerService.getTask(taskId);
+            if (task != null) {
+                appendLog("⚡ 【立即執行】觸發任務【" + task.getName() + "】進行打卡...");
+                new Thread(() -> executeCheckInForTask(task, null)).start();
+                started++;
+            }
+        }
+        if (started == 0) {
+            JOptionPane.showMessageDialog(this, "選取的任務皆無法執行！", "提示", JOptionPane.WARNING_MESSAGE);
         }
     }
 
     private void editSelectedTask() {
-        int selectedRow = tableRefs.taskTable.getSelectedRow();
-        if (selectedRow == -1) {
+        List<String> taskIds = getSelectedTaskIds();
+        if (taskIds.isEmpty()) {
             JOptionPane.showMessageDialog(this, "請先選取列表中要編輯的任務！", "提示", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        String taskId = (String) tableRefs.tableModel.getValueAt(selectedRow, 0);
+        if (taskIds.size() > 1) {
+            JOptionPane.showMessageDialog(this, "編輯任務一次只能選取 1 筆！", "提示", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        String taskId = taskIds.get(0);
         CheckInTask task = schedulerService.getTask(taskId);
         if (task == null) {
             JOptionPane.showMessageDialog(this, "找不到該任務！", "錯誤", JOptionPane.ERROR_MESSAGE);
@@ -545,12 +621,16 @@ public class App extends JFrame {
     }
 
     private void reuseSelectedTask() {
-        int selectedRow = tableRefs.taskTable.getSelectedRow();
-        if (selectedRow == -1) {
+        List<String> taskIds = getSelectedTaskIds();
+        if (taskIds.isEmpty()) {
             JOptionPane.showMessageDialog(this, "請先選取列表中要重新排定的任務！", "提示", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        String taskId = (String) tableRefs.tableModel.getValueAt(selectedRow, 0);
+        if (taskIds.size() > 1) {
+            JOptionPane.showMessageDialog(this, "重新排定一次只能選取 1 筆！", "提示", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        String taskId = taskIds.get(0);
         CheckInTask task = schedulerService.getTask(taskId);
         if (task == null) {
             JOptionPane.showMessageDialog(this, "找不到該任務！", "錯誤", JOptionPane.ERROR_MESSAGE);
@@ -586,18 +666,16 @@ public class App extends JFrame {
             DefaultTableModel model = tableRefs.tableModel;
             JTable table = tableRefs.taskTable;
 
-            int selectedRow = table.getSelectedRow();
-            String selectedTaskId = (selectedRow >= 0 && selectedRow < model.getRowCount())
-                    ? (String) model.getValueAt(selectedRow, 0) : null;
+            java.util.Set<String> selectedTaskIds = new java.util.HashSet<>(getSelectedTaskIds());
 
             model.setRowCount(0);
             List<CheckInTask> tasks = schedulerService.getAllTasks();
-            int restoreRow = -1;
+            List<Integer> restoreRows = new ArrayList<>();
 
             for (int i = 0; i < tasks.size(); i++) {
                 CheckInTask t = tasks.get(i);
-                if (selectedTaskId != null && selectedTaskId.equals(t.getId())) {
-                    restoreRow = i;
+                if (selectedTaskIds.contains(t.getId())) {
+                    restoreRows.add(i);
                 }
                 String statusStr = t.getStatus().getBadge();
                 String offsetStr = t.isUseRandomOffset()
@@ -611,8 +689,11 @@ public class App extends JFrame {
                 });
             }
 
-            if (restoreRow >= 0 && restoreRow < table.getRowCount()) {
-                table.setRowSelectionInterval(restoreRow, restoreRow);
+            table.clearSelection();
+            for (int row : restoreRows) {
+                if (row >= 0 && row < table.getRowCount()) {
+                    table.addRowSelectionInterval(row, row);
+                }
             }
         });
     }

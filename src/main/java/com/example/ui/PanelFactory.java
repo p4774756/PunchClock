@@ -40,7 +40,9 @@ public class PanelFactory {
         gbc.gridx = 1; gbc.gridy = 0; gbc.weightx = 1.0; gbc.gridwidth = 2;
         String[] workerOptions = { "company-worker", "company-worker2", "company-worker3", "company-worker4" };
         refs.clientIdCombo = new JComboBox<>(workerOptions);
+        refs.clientIdCombo.setEditable(true);
         refs.clientIdCombo.setFont(mainFont);
+        refs.clientIdCombo.setToolTipText("可下拉選擇預設值，或直接輸入自訂 Worker ID");
         panel.add(refs.clientIdCombo, gbc);
 
         // Row 1: Server 網址
@@ -237,8 +239,10 @@ public class PanelFactory {
         refs.sunCheckBox.setFont(mainFont);
 
         refs.selectWorkdaysButton = new JButton("全選週一~週五");
+        refs.deselectWorkdaysButton = new JButton("取消全選1~5");
         refs.clearWorkdaysButton = new JButton("清除選取");
         refs.selectWorkdaysButton.setFont(mainFont);
+        refs.deselectWorkdaysButton.setFont(mainFont);
         refs.clearWorkdaysButton.setFont(mainFont);
 
         weekdayPanel.add(refs.monCheckBox);
@@ -250,6 +254,7 @@ public class PanelFactory {
         weekdayPanel.add(refs.sunCheckBox);
         weekdayPanel.add(Box.createHorizontalStrut(6));
         weekdayPanel.add(refs.selectWorkdaysButton);
+        weekdayPanel.add(refs.deselectWorkdaysButton);
         weekdayPanel.add(refs.clearWorkdaysButton);
         panel.add(weekdayPanel, gbc);
 
@@ -292,7 +297,7 @@ public class PanelFactory {
         public JComboBox<String> hourCombo, minuteCombo, browserCombo;
         public JCheckBox randomOffsetCheckBox;
         public JCheckBox monCheckBox, tueCheckBox, wedCheckBox, thuCheckBox, friCheckBox, satCheckBox, sunCheckBox;
-        public JButton selectWorkdaysButton, clearWorkdaysButton;
+        public JButton selectWorkdaysButton, deselectWorkdaysButton, clearWorkdaysButton;
         public JButton addTaskButton, batchAddButton;
     }
 
@@ -318,7 +323,8 @@ public class PanelFactory {
         refs.taskTable.setRowHeight(24);
         refs.taskTable.getTableHeader().setFont(boldFont);
         refs.taskTable.getTableHeader().setBackground(new Color(241, 245, 249));
-        refs.taskTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        refs.taskTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        refs.taskTable.setToolTipText("可多選：Cmd/Ctrl+點選 或 Shift+範圍選取");
 
         int[] widths = {60, 100, 130, 140, 150, 100, 90, 150};
         for (int i = 0; i < widths.length; i++) {
@@ -334,31 +340,49 @@ public class PanelFactory {
         tableScrollPane.setPreferredSize(new Dimension(780, 110));
         tableGroup.add(tableScrollPane, BorderLayout.CENTER);
 
-        // 操作按鈕列
-        JPanel tableControlPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        refs.executeNowButton = new JButton("⚡ 立即執行選擇任務");
-        refs.editTaskButton = new JButton("✏️ 編輯任務");
-        refs.reuseTaskButton = new JButton("🔄 重新排定");
-        refs.cancelTaskButton = new JButton("🛑 取消選擇任務");
-        refs.deleteTaskButton = new JButton("🗑️ 刪除選擇任務");
-        refs.cancelAllButton = new JButton("🛑 全部取消");
-        refs.deleteAllButton = new JButton("🗑️ 全部刪除");
+        // 操作按鈕列（精簡：多選後再操作，不再另設「全部取消/刪除」）
+        JPanel tableControlPanel = new JPanel();
+        tableControlPanel.setLayout(new BoxLayout(tableControlPanel, BoxLayout.Y_AXIS));
 
-        for (JButton btn : new JButton[]{refs.executeNowButton, refs.editTaskButton, refs.reuseTaskButton,
-                refs.cancelTaskButton, refs.deleteTaskButton, refs.cancelAllButton, refs.deleteAllButton}) {
+        JPanel selectionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
+        refs.selectAllTasksButton = new JButton("☑️ 全選");
+        refs.clearTaskSelectionButton = new JButton("⬜ 取消選取");
+        refs.selectAllTasksButton.setToolTipText("選取列表中全部任務（可用 Cmd/Ctrl+點選 多選）");
+        refs.clearTaskSelectionButton.setToolTipText("清除目前選取");
+        selectionRow.add(refs.selectAllTasksButton);
+        selectionRow.add(refs.clearTaskSelectionButton);
+
+        JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
+        refs.executeNowButton = new JButton("⚡ 立即執行");
+        refs.editTaskButton = new JButton("✏️ 編輯");
+        refs.reuseTaskButton = new JButton("🔄 重新排定");
+        refs.cancelTaskButton = new JButton("🛑 取消");
+        refs.deleteTaskButton = new JButton("🗑️ 刪除");
+
+        refs.executeNowButton.setToolTipText("立即執行選取的任務（可多選）");
+        refs.editTaskButton.setToolTipText("編輯等待中的任務（一次 1 筆）");
+        refs.reuseTaskButton.setToolTipText("用已結束的任務當模板，建立新排程（一次 1 筆）");
+        refs.cancelTaskButton.setToolTipText("取消選取任務的排程（可多選；要全部取消請先按全選）");
+        refs.deleteTaskButton.setToolTipText("刪除選取任務紀錄（可多選；要全部刪除請先按全選）");
+
+        for (JButton btn : new JButton[]{
+                refs.selectAllTasksButton, refs.clearTaskSelectionButton,
+                refs.executeNowButton, refs.editTaskButton, refs.reuseTaskButton,
+                refs.cancelTaskButton, refs.deleteTaskButton}) {
             btn.setFont(boldFont);
         }
         refs.editTaskButton.setForeground(new Color(37, 99, 235));
         refs.reuseTaskButton.setForeground(new Color(16, 185, 129));
-        refs.deleteAllButton.setForeground(new Color(225, 29, 72));
+        refs.deleteTaskButton.setForeground(new Color(225, 29, 72));
 
-        tableControlPanel.add(refs.executeNowButton);
-        tableControlPanel.add(refs.editTaskButton);
-        tableControlPanel.add(refs.reuseTaskButton);
-        tableControlPanel.add(refs.cancelTaskButton);
-        tableControlPanel.add(refs.deleteTaskButton);
-        tableControlPanel.add(refs.cancelAllButton);
-        tableControlPanel.add(refs.deleteAllButton);
+        actionRow.add(refs.executeNowButton);
+        actionRow.add(refs.editTaskButton);
+        actionRow.add(refs.reuseTaskButton);
+        actionRow.add(refs.cancelTaskButton);
+        actionRow.add(refs.deleteTaskButton);
+
+        tableControlPanel.add(selectionRow);
+        tableControlPanel.add(actionRow);
         tableGroup.add(tableControlPanel, BorderLayout.SOUTH);
 
         return tableGroup;
@@ -368,8 +392,9 @@ public class PanelFactory {
     public static class TaskTableRefs {
         public JTable taskTable;
         public DefaultTableModel tableModel;
+        public JButton selectAllTasksButton, clearTaskSelectionButton;
         public JButton executeNowButton, editTaskButton, reuseTaskButton;
-        public JButton cancelTaskButton, deleteTaskButton, cancelAllButton, deleteAllButton;
+        public JButton cancelTaskButton, deleteTaskButton;
     }
 
     // ==================== 分組 4: 系統日誌 ====================
