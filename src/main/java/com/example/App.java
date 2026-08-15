@@ -12,6 +12,7 @@ import com.example.ui.PanelFactory.*;
 import com.example.ui.TaskController;
 
 import javax.swing.*;
+import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
@@ -84,42 +85,50 @@ public class App extends JFrame {
     }
 
     private void initUI() {
-        setTitle("圖形日曆多任務排程自動打卡控制台 (含隨機浮動打卡)");
-        setSize(920, 880);
-        setMinimumSize(new Dimension(880, 780));
+        setTitle("上班打卡工具");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLocationRelativeTo(null);
         setLayout(new BorderLayout(10, 10));
 
         Font mainFont = new Font("微軟正黑體", Font.PLAIN, 13);
         Font boldFont = new Font("微軟正黑體", Font.BOLD, 13);
 
-        JPanel mainContentPanel = new JPanel();
-        mainContentPanel.setLayout(new BoxLayout(mainContentPanel, BoxLayout.Y_AXIS));
-        mainContentPanel.setBorder(new EmptyBorder(10, 12, 6, 12));
+        // 分頁：打卡任務（預設） / 雲端設定；日誌固定底部
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.setFont(boldFont);
+        tabs.setBorder(new EmptyBorder(8, 12, 0, 12));
 
-        // 分組 1: 雲端服務設定
-        JPanel serverBody = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont);
-        JPanel serverGroup = PanelFactory.createCollapsibleGroupPanel("🖥️ 雲端服務與裝置設定", serverBody, boldFont, false);
-        mainContentPanel.add(serverGroup);
-        mainContentPanel.add(Box.createVerticalStrut(6));
-
-        // 分組 2: 任務設定表單
         JPanel taskFormBody = PanelFactory.createTaskFormBody(formRefs, mainFont, boldFont);
-        JPanel taskFormGroup = PanelFactory.createCollapsibleGroupPanel("⚙️ 打卡任務設定與快捷模板", taskFormBody, boldFont, false);
-        mainContentPanel.add(taskFormGroup);
-        mainContentPanel.add(Box.createVerticalStrut(6));
+        JPanel taskFormGroup = PanelFactory.createCollapsibleGroupPanel(
+                "⚙️ 打卡任務設定", taskFormBody, boldFont, false);
 
-        // 分組 3: 任務列表
         JPanel tableGroup = PanelFactory.createTaskTablePanel(tableRefs, mainFont, boldFont);
-        mainContentPanel.add(tableGroup);
-        mainContentPanel.add(Box.createVerticalStrut(6));
 
-        add(mainContentPanel, BorderLayout.NORTH);
+        JPanel tasksTab = new JPanel(new BorderLayout(0, 8));
+        tasksTab.setBorder(new EmptyBorder(8, 4, 8, 4));
+        tasksTab.add(taskFormGroup, BorderLayout.NORTH);
+        tasksTab.add(tableGroup, BorderLayout.CENTER);
 
-        // 分組 4: 系統日誌
+        JPanel serverBody = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont);
+        JPanel serverGroup = PanelFactory.createGroupPanel("🖥️ 雲端服務與裝置設定", boldFont);
+        serverGroup.setLayout(new BorderLayout());
+        serverGroup.add(serverBody, BorderLayout.NORTH);
+
+        JPanel cloudTab = new JPanel(new BorderLayout());
+        cloudTab.setBorder(new EmptyBorder(8, 4, 8, 4));
+        cloudTab.add(serverGroup, BorderLayout.NORTH);
+
+        tabs.addTab("📋 打卡任務", tasksTab);
+        tabs.addTab("🖥️ 雲端設定", cloudTab);
+        tabs.setSelectedIndex(0);
+        add(tabs, BorderLayout.CENTER);
+
         JPanel logPanel = PanelFactory.createLogPanel(logRefs, boldFont);
-        add(logPanel, BorderLayout.CENTER);
+        logPanel.setBorder(new CompoundBorder(new EmptyBorder(0, 12, 10, 12), logPanel.getBorder()));
+        add(logPanel, BorderLayout.SOUTH);
+
+        setMinimumSize(new Dimension(1180, 740));
+        setSize(1280, 840);
+        setLocationRelativeTo(null);
     }
 
     private void bindEventListeners() {
@@ -133,7 +142,6 @@ public class App extends JFrame {
         formRefs.addTaskButton.addActionListener(e -> taskController.addNewTaskFromForm());
         formRefs.batchAddButton.addActionListener(e -> taskController.addBatchTasksFromForm());
         formRefs.selectWorkdaysButton.addActionListener(e -> taskController.setWorkdaysSelected(true));
-        formRefs.deselectWorkdaysButton.addActionListener(e -> taskController.deselectWeekdays1to5());
         formRefs.clearWorkdaysButton.addActionListener(e -> taskController.clearAllWeekdaySelection());
 
         // 任務列表操作

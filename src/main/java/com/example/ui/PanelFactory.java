@@ -117,73 +117,47 @@ public class PanelFactory {
         gbc.insets = new Insets(4, 6, 4, 6);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        // Row 0: 快捷模板按鈕
+        // Row 0: 任務名稱
         gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.0; gbc.gridwidth = 1;
-        JLabel presetsLabel = new JLabel("⚡ 快捷一鍵帶入：");
-        presetsLabel.setFont(boldFont);
-        panel.add(presetsLabel, gbc);
-
-        gbc.gridx = 1; gbc.gridy = 0; gbc.weightx = 1.0; gbc.gridwidth = 2;
-        JPanel presetPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        refs.presetWorkInButton = new JButton("📅 預設上班 (09:00)");
-        refs.presetWorkOutButton = new JButton("📅 預設下班 (18:00)");
-        refs.presetTest1MinButton = new JButton("⚡ +1分測試 (精準)");
-        refs.presetTest3MinButton = new JButton("⚡ +3分測試 (精準)");
-        for (JButton btn : new JButton[]{refs.presetWorkInButton, refs.presetWorkOutButton,
-                refs.presetTest1MinButton, refs.presetTest3MinButton}) {
-            btn.setFont(mainFont);
-        }
-        refs.presetWorkInButton.setToolTipText("快速填入上班 09:00，並自動開啟前後 ±5 分鐘隨機時間");
-        refs.presetWorkOutButton.setToolTipText("快速填入下班 18:00，並自動開啟前後 ±5 分鐘隨機時間");
-        refs.presetTest1MinButton.setToolTipText("快速填入當前時間 +1 分鐘，並自動關閉隨機時間（精準打卡）");
-        refs.presetTest3MinButton.setToolTipText("快速填入當前時間 +3 分鐘，並自動關閉隨機時間（精準打卡）");
-        presetPanel.add(refs.presetWorkInButton);
-        presetPanel.add(refs.presetWorkOutButton);
-        presetPanel.add(refs.presetTest1MinButton);
-        presetPanel.add(refs.presetTest3MinButton);
-        panel.add(presetPanel, gbc);
-
-        // Row 1: 任務名稱
-        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.0; gbc.gridwidth = 1;
         JLabel nameLabel = new JLabel("📝 任務名稱：");
         nameLabel.setFont(mainFont);
         panel.add(nameLabel, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 1; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        gbc.gridx = 1; gbc.gridy = 0; gbc.weightx = 1.0; gbc.gridwidth = 2;
         refs.taskNameTextField = new JTextField("上班打卡");
         refs.taskNameTextField.setFont(mainFont);
         panel.add(refs.taskNameTextField, gbc);
 
-        // Row 2: 打卡網址
-        gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        // Row 1: 打卡網址
+        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.0; gbc.gridwidth = 1;
         JLabel urlLabel = new JLabel("🔗 目標打卡網址：");
         urlLabel.setFont(mainFont);
         panel.add(urlLabel, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 2; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        gbc.gridx = 1; gbc.gridy = 1; gbc.weightx = 1.0; gbc.gridwidth = 2;
         refs.urlTextField = new JTextField("https://tw.yahoo.com");
         refs.urlTextField.setFont(mainFont);
         panel.add(refs.urlTextField, gbc);
 
-        // Row 3: 按鈕 Selector
-        gbc.gridx = 0; gbc.gridy = 3; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        // Row 2: 按鈕 Selector
+        gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.0; gbc.gridwidth = 1;
         JLabel buttonIdLabel = new JLabel("🔘 打卡按鈕 Selector：");
         buttonIdLabel.setFont(mainFont);
         panel.add(buttonIdLabel, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 3; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        gbc.gridx = 1; gbc.gridy = 2; gbc.weightx = 1.0; gbc.gridwidth = 2;
         refs.buttonIdTextField = new JTextField("check_in");
         refs.buttonIdTextField.setFont(mainFont);
         panel.add(refs.buttonIdTextField, gbc);
 
-        // Row 4: 排程時間
-        gbc.gridx = 0; gbc.gridy = 4; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        // Row 3: 排程時間 + 快捷帶入（同一列）
+        gbc.gridx = 0; gbc.gridy = 3; gbc.weightx = 0.0; gbc.gridwidth = 1;
         JLabel timeLabel = new JLabel("📆 預定打卡時間：");
         timeLabel.setFont(mainFont);
         panel.add(timeLabel, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 4; gbc.weightx = 1.0; gbc.gridwidth = 2;
-        JPanel timeSelectionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        gbc.gridx = 1; gbc.gridy = 3; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        JPanel timeSelectionPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 6, 4));
 
         DatePickerSettings dateSettings = new DatePickerSettings();
         dateSettings.setAllowKeyboardEditing(true);
@@ -218,21 +192,44 @@ public class PanelFactory {
         timeSelectionPanel.add(refs.minuteCombo);
         timeSelectionPanel.add(new JLabel("分"));
 
-        refs.randomOffsetCheckBox = new JCheckBox("🎲 啟用前後 ±5 分鐘隨機打卡", true);
+        refs.randomOffsetCheckBox = new JCheckBox("±5 分隨機", true);
         refs.randomOffsetCheckBox.setFont(boldFont);
         refs.randomOffsetCheckBox.setForeground(new Color(147, 51, 234));
+        refs.randomOffsetCheckBox.setToolTipText("啟用前後 ±5 分鐘隨機打卡");
         timeSelectionPanel.add(refs.randomOffsetCheckBox);
+
+        timeSelectionPanel.add(Box.createHorizontalStrut(4));
+        JSeparator timeSep = new JSeparator(SwingConstants.VERTICAL);
+        timeSep.setPreferredSize(new Dimension(8, 22));
+        timeSelectionPanel.add(timeSep);
+
+        refs.presetWorkInButton = new JButton("上班 09:00");
+        refs.presetWorkOutButton = new JButton("下班 18:00");
+        refs.presetTest1MinButton = new JButton("+1分");
+        refs.presetTest3MinButton = new JButton("+3分");
+        for (JButton btn : new JButton[]{refs.presetWorkInButton, refs.presetWorkOutButton,
+                refs.presetTest1MinButton, refs.presetTest3MinButton}) {
+            btn.setFont(mainFont);
+        }
+        refs.presetWorkInButton.setToolTipText("快速填入上班 09:00，並開啟 ±5 分鐘隨機");
+        refs.presetWorkOutButton.setToolTipText("快速填入下班 18:00，並開啟 ±5 分鐘隨機");
+        refs.presetTest1MinButton.setToolTipText("當前時間 +1 分鐘，關閉隨機（精準）");
+        refs.presetTest3MinButton.setToolTipText("當前時間 +3 分鐘，關閉隨機（精準）");
+        timeSelectionPanel.add(refs.presetWorkInButton);
+        timeSelectionPanel.add(refs.presetWorkOutButton);
+        timeSelectionPanel.add(refs.presetTest1MinButton);
+        timeSelectionPanel.add(refs.presetTest3MinButton);
 
         panel.add(timeSelectionPanel, gbc);
 
-        // Row 5: 批量星期選擇
-        gbc.gridx = 0; gbc.gridy = 5; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        // Row 4: 批量星期選擇
+        gbc.gridx = 0; gbc.gridy = 4; gbc.weightx = 0.0; gbc.gridwidth = 1;
         JLabel weekdayLabel = new JLabel("🗓️ 批量星期選擇：");
         weekdayLabel.setFont(mainFont);
         panel.add(weekdayLabel, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 5; gbc.weightx = 1.0; gbc.gridwidth = 2;
-        JPanel weekdayPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        gbc.gridx = 1; gbc.gridy = 4; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        JPanel weekdayPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 4, 4));
         refs.monCheckBox = new JCheckBox("週一", true);
         refs.tueCheckBox = new JCheckBox("週二", true);
         refs.wedCheckBox = new JCheckBox("週三", true);
@@ -248,10 +245,8 @@ public class PanelFactory {
         refs.sunCheckBox.setFont(mainFont);
 
         refs.selectWorkdaysButton = new JButton("全選週一~週五");
-        refs.deselectWorkdaysButton = new JButton("取消全選1~5");
         refs.clearWorkdaysButton = new JButton("清除選取");
         refs.selectWorkdaysButton.setFont(mainFont);
-        refs.deselectWorkdaysButton.setFont(mainFont);
         refs.clearWorkdaysButton.setFont(mainFont);
 
         weekdayPanel.add(refs.monCheckBox);
@@ -263,17 +258,16 @@ public class PanelFactory {
         weekdayPanel.add(refs.sunCheckBox);
         weekdayPanel.add(Box.createHorizontalStrut(6));
         weekdayPanel.add(refs.selectWorkdaysButton);
-        weekdayPanel.add(refs.deselectWorkdaysButton);
         weekdayPanel.add(refs.clearWorkdaysButton);
         panel.add(weekdayPanel, gbc);
 
-        // Row 6: 瀏覽器 + 操作按鈕
-        gbc.gridx = 0; gbc.gridy = 6; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        // Row 5: 瀏覽器（佔滿剩餘寬度，避免把右側按鈕擠出框外）
+        gbc.gridx = 0; gbc.gridy = 5; gbc.weightx = 0.0; gbc.gridwidth = 1;
         JLabel browserLabel = new JLabel("🌐 執行瀏覽器：");
         browserLabel.setFont(mainFont);
         panel.add(browserLabel, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 6; gbc.weightx = 1.0; gbc.gridwidth = 1;
+        gbc.gridx = 1; gbc.gridy = 5; gbc.weightx = 1.0; gbc.gridwidth = 2;
         refs.browserCombo = new JComboBox<>(new String[]{
                 "Microsoft Edge (本機已安裝)", "Google Chrome (本機已安裝)",
                 "內建 Chromium 瀏覽器", "內建 Firefox 瀏覽器", "內建 WebKit (Safari核心)"
@@ -281,14 +275,13 @@ public class PanelFactory {
         refs.browserCombo.setFont(mainFont);
         panel.add(refs.browserCombo, gbc);
 
-        gbc.gridx = 2; gbc.gridy = 6; gbc.weightx = 0.0; gbc.gridwidth = 1;
-        JPanel actionButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        // Row 6: 新增／批量按鈕獨立一列，靠右對齊
+        gbc.gridx = 0; gbc.gridy = 6; gbc.weightx = 1.0; gbc.gridwidth = 3;
+        JPanel actionButtonPanel = new JPanel(new WrapLayout(FlowLayout.RIGHT, 6, 4));
         refs.addTaskButton = new JButton("➕ 新增單日任務");
         refs.batchAddButton = new JButton("🗓️ 批量排定 (週一~週五)");
         refs.addTaskButton.setFont(boldFont);
         refs.batchAddButton.setFont(boldFont);
-        refs.addTaskButton.setPreferredSize(new Dimension(130, 32));
-        refs.batchAddButton.setPreferredSize(new Dimension(170, 32));
         refs.batchAddButton.setBackground(new Color(16, 185, 129));
         refs.batchAddButton.setForeground(Color.BLACK);
         actionButtonPanel.add(refs.addTaskButton);
@@ -306,7 +299,7 @@ public class PanelFactory {
         public JComboBox<String> hourCombo, minuteCombo, browserCombo;
         public JCheckBox randomOffsetCheckBox;
         public JCheckBox monCheckBox, tueCheckBox, wedCheckBox, thuCheckBox, friCheckBox, satCheckBox, sunCheckBox;
-        public JButton selectWorkdaysButton, deselectWorkdaysButton, clearWorkdaysButton;
+        public JButton selectWorkdaysButton, clearWorkdaysButton;
         public JButton addTaskButton, batchAddButton;
     }
 
@@ -348,7 +341,10 @@ public class PanelFactory {
         refs.taskTable.setRowSorter(sorter);
         refs.rowSorter = sorter;
 
-        int[] widths = {60, 100, 130, 140, 150, 100, 90, 150};
+        refs.taskTable.setAutoResizeMode(JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS);
+        refs.taskTable.setFillsViewportHeight(true);
+
+        int[] widths = {80, 120, 160, 170, 240, 110, 80, 200};
         for (int i = 0; i < widths.length; i++) {
             refs.taskTable.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
         }
@@ -359,22 +355,17 @@ public class PanelFactory {
         refs.taskTable.getColumnModel().getColumn(6).setCellRenderer(centerRenderer);
 
         JScrollPane tableScrollPane = new JScrollPane(refs.taskTable);
-        tableScrollPane.setPreferredSize(new Dimension(780, 110));
+        tableScrollPane.setPreferredSize(new Dimension(1180, 180));
         tableGroup.add(tableScrollPane, BorderLayout.CENTER);
 
-        // 操作按鈕列（精簡：多選後再操作，不再另設「全部取消/刪除」）
-        JPanel tableControlPanel = new JPanel();
-        tableControlPanel.setLayout(new BoxLayout(tableControlPanel, BoxLayout.Y_AXIS));
+        // 操作列：可換行，避免視窗不夠寬時被裁切
+        JPanel tableControlPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 8, 4));
 
-        JPanel selectionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
         refs.selectAllTasksButton = new JButton("☑️ 全選");
         refs.clearTaskSelectionButton = new JButton("⬜ 取消選取");
         refs.selectAllTasksButton.setToolTipText("選取列表中全部任務（可用 Cmd/Ctrl+點選 多選）");
         refs.clearTaskSelectionButton.setToolTipText("清除目前選取");
-        selectionRow.add(refs.selectAllTasksButton);
-        selectionRow.add(refs.clearTaskSelectionButton);
 
-        JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
         refs.executeNowButton = new JButton("⚡ 立即執行");
         refs.editTaskButton = new JButton("✏️ 編輯");
         refs.reuseTaskButton = new JButton("🔄 重新排定");
@@ -397,14 +388,17 @@ public class PanelFactory {
         refs.reuseTaskButton.setForeground(new Color(16, 185, 129));
         refs.deleteTaskButton.setForeground(new Color(225, 29, 72));
 
-        actionRow.add(refs.executeNowButton);
-        actionRow.add(refs.editTaskButton);
-        actionRow.add(refs.reuseTaskButton);
-        actionRow.add(refs.cancelTaskButton);
-        actionRow.add(refs.deleteTaskButton);
+        JSeparator controlSep = new JSeparator(SwingConstants.VERTICAL);
+        controlSep.setPreferredSize(new Dimension(8, 22));
 
-        tableControlPanel.add(selectionRow);
-        tableControlPanel.add(actionRow);
+        tableControlPanel.add(refs.selectAllTasksButton);
+        tableControlPanel.add(refs.clearTaskSelectionButton);
+        tableControlPanel.add(controlSep);
+        tableControlPanel.add(refs.executeNowButton);
+        tableControlPanel.add(refs.editTaskButton);
+        tableControlPanel.add(refs.reuseTaskButton);
+        tableControlPanel.add(refs.cancelTaskButton);
+        tableControlPanel.add(refs.deleteTaskButton);
         tableGroup.add(tableControlPanel, BorderLayout.SOUTH);
 
         return tableGroup;
@@ -451,7 +445,7 @@ public class PanelFactory {
         refs.logTextArea.setMargin(new Insets(6, 8, 6, 8));
 
         JScrollPane scrollPane = new JScrollPane(refs.logTextArea);
-        scrollPane.setPreferredSize(new Dimension(780, 180));
+        scrollPane.setPreferredSize(new Dimension(780, 140));
         scrollPane.setBorder(BorderFactory.createLineBorder(new Color(226, 232, 240)));
         logPanel.add(scrollPane, BorderLayout.CENTER);
 
@@ -512,6 +506,11 @@ public class PanelFactory {
                 SwingUtilities.invokeLater(() -> {
                     outerPanel.revalidate();
                     outerPanel.repaint();
+                    Container parent = outerPanel.getParent();
+                    if (parent != null) {
+                        parent.revalidate();
+                        parent.repaint();
+                    }
                     Window win = SwingUtilities.getWindowAncestor(outerPanel);
                     if (win != null) {
                         win.revalidate();

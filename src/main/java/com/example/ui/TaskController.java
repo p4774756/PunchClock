@@ -63,15 +63,6 @@ public class TaskController {
         formRefs.sunCheckBox.setSelected(false);
     }
 
-    /** 只取消週一~週五，週六日維持原樣 */
-    public void deselectWeekdays1to5() {
-        formRefs.monCheckBox.setSelected(false);
-        formRefs.tueCheckBox.setSelected(false);
-        formRefs.wedCheckBox.setSelected(false);
-        formRefs.thuCheckBox.setSelected(false);
-        formRefs.friCheckBox.setSelected(false);
-    }
-
     /** 清除全部星期（含週末） */
     public void clearAllWeekdaySelection() {
         formRefs.monCheckBox.setSelected(false);
