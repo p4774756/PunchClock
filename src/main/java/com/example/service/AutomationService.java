@@ -10,8 +10,13 @@ import java.util.function.Consumer;
 
 /**
  * 專責處理 Playwright 瀏覽器控制與打卡點擊邏輯
+ * Playwright instance 採 lazy-init 重用策略，避免重複啟動 Node.js 程序
  */
 public class AutomationService {
+
+    private Playwright playwright;
+    private Browser cachedBrowser;
+    private String cachedBrowserType;
 
     /**
      * 執行自動打卡任務
@@ -21,40 +26,13 @@ public class AutomationService {
      * @param browserChoice 選擇使用的瀏覽器類型 (chrome, msedge, chromium, firefox, webkit)
      * @param logger        日誌輸出 Callback
      */
-    public boolean executeCheckIn(String targetUrl, String buttonId, String browserChoice, Consumer<String> logger) {
+    public synchronized boolean executeCheckIn(String targetUrl, String buttonId, String browserChoice, Consumer<String> logger) {
         log(logger, "⏰ 【觸發】準備啟動自動化瀏覽器 (選擇: " + (browserChoice != null ? browserChoice : "msedge") + ")...");
 
-        try (Playwright playwright = Playwright.create()) {
-            BrowserType.LaunchOptions launchOptions = new BrowserType.LaunchOptions().setHeadless(false);
-            Browser browser;
+        try {
+            ensurePlaywright(logger);
             String choice = (browserChoice == null) ? "msedge" : browserChoice.trim().toLowerCase();
-
-            switch (choice) {
-                case "chrome":
-                    log(logger, "🚀 啟動 本機 Google Chrome 瀏覽器...");
-                    launchOptions.setChannel("chrome");
-                    browser = playwright.chromium().launch(launchOptions);
-                    break;
-                case "firefox":
-                    log(logger, "🚀 啟動 內建 Firefox 瀏覽器...");
-                    browser = playwright.firefox().launch(launchOptions);
-                    break;
-                case "webkit":
-                    log(logger, "🚀 啟動 內建 WebKit (Safari核心) 瀏覽器...");
-                    browser = playwright.webkit().launch(launchOptions);
-                    break;
-                case "chromium":
-                    log(logger, "🚀 啟動 內建 Chromium 瀏覽器...");
-                    browser = playwright.chromium().launch(launchOptions);
-                    break;
-                case "msedge":
-                case "edge":
-                default:
-                    log(logger, "🚀 啟動 本機 Microsoft Edge 瀏覽器...");
-                    launchOptions.setChannel("msedge");
-                    browser = playwright.chromium().launch(launchOptions);
-                    break;
-            }
+            Browser browser = getOrCreateBrowser(choice, logger);
 
             BrowserContext context = browser.newContext();
             Page page = context.newPage();
@@ -71,13 +49,95 @@ public class AutomationService {
             log(logger, "✅ 已成功點擊打卡按鈕！");
 
             page.waitForTimeout(5000);
-            browser.close();
-            log(logger, "瀏覽器已關閉，打卡任務結束。");
+            context.close();
+            log(logger, "瀏覽器分頁已關閉，打卡任務結束。");
             return true;
         } catch (Exception ex) {
+            // 發生錯誤時清理快取，下次重新建立
+            closeCachedBrowser();
             String errorMsg = "❌ 打卡過程中發生錯誤：" + ex.getMessage();
             log(logger, errorMsg);
             throw new RuntimeException(errorMsg, ex);
+        }
+    }
+
+    /**
+     * Lazy-init Playwright instance（重用，避免重複啟動 Node.js 程序）
+     */
+    private void ensurePlaywright(Consumer<String> logger) {
+        if (playwright == null) {
+            log(logger, "🔧 首次初始化 Playwright 引擎...");
+            playwright = Playwright.create();
+        }
+    }
+
+    /**
+     * 取得或建立瀏覽器實例。若瀏覽器類型相同則重用已啟動的瀏覽器。
+     */
+    private Browser getOrCreateBrowser(String choice, Consumer<String> logger) {
+        // 若瀏覽器類型不同或已關閉，需重新建立
+        if (cachedBrowser != null && cachedBrowser.isConnected() && choice.equals(cachedBrowserType)) {
+            log(logger, "♻️ 重用已啟動的瀏覽器...");
+            return cachedBrowser;
+        }
+
+        closeCachedBrowser();
+
+        BrowserType.LaunchOptions launchOptions = new BrowserType.LaunchOptions().setHeadless(false);
+
+        switch (choice) {
+            case "chrome":
+                log(logger, "🚀 啟動 本機 Google Chrome 瀏覽器...");
+                launchOptions.setChannel("chrome");
+                cachedBrowser = playwright.chromium().launch(launchOptions);
+                break;
+            case "firefox":
+                log(logger, "🚀 啟動 內建 Firefox 瀏覽器...");
+                cachedBrowser = playwright.firefox().launch(launchOptions);
+                break;
+            case "webkit":
+                log(logger, "🚀 啟動 內建 WebKit (Safari核心) 瀏覽器...");
+                cachedBrowser = playwright.webkit().launch(launchOptions);
+                break;
+            case "chromium":
+                log(logger, "🚀 啟動 內建 Chromium 瀏覽器...");
+                cachedBrowser = playwright.chromium().launch(launchOptions);
+                break;
+            case "msedge":
+            case "edge":
+            default:
+                log(logger, "🚀 啟動 本機 Microsoft Edge 瀏覽器...");
+                launchOptions.setChannel("msedge");
+                cachedBrowser = playwright.chromium().launch(launchOptions);
+                break;
+        }
+
+        cachedBrowserType = choice;
+        return cachedBrowser;
+    }
+
+    private void closeCachedBrowser() {
+        if (cachedBrowser != null) {
+            try {
+                if (cachedBrowser.isConnected()) {
+                    cachedBrowser.close();
+                }
+            } catch (Exception ignored) {}
+            cachedBrowser = null;
+            cachedBrowserType = null;
+        }
+    }
+
+    /**
+     * 關閉所有 Playwright 資源（應用程式關閉時呼叫）
+     */
+    public synchronized void shutdown() {
+        closeCachedBrowser();
+        if (playwright != null) {
+            try {
+                playwright.close();
+            } catch (Exception ignored) {}
+            playwright = null;
         }
     }
 
@@ -87,4 +147,3 @@ public class AutomationService {
         }
     }
 }
-

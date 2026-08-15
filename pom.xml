@@ -6,7 +6,7 @@
 
     <!-- 請根據你的專案自訂以下三行資訊 -->
     <groupId>com.example</groupId>
-    <artifactId>selenium-demo</artifactId>
+    <artifactId>clickClick</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
@@ -35,6 +35,13 @@
             <groupId>com.github.lgooddatepicker</groupId>
             <artifactId>LGoodDatePicker</artifactId>
             <version>11.2.1</version>
+        </dependency>
+
+        <!-- Gson JSON 序列化/反序列化 -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.11.0</version>
         </dependency>
 
         <!-- SLF4J Logger Provider (消除 SLF4J 警告訊息) -->

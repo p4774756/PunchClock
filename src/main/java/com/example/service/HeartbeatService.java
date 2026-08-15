@@ -2,6 +2,10 @@ package com.example.service;
 
 import com.example.model.CheckInTask;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
@@ -11,8 +15,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +32,7 @@ import java.util.function.Supplier;
 public class HeartbeatService {
 
     private final HttpClient httpClient;
+    private final Gson gson = new Gson();
     private ScheduledExecutorService scheduler;
 
     private String serverUrl = "";
@@ -156,33 +164,30 @@ public class HeartbeatService {
         String endpoint = serverUrl + "/api/heartbeat";
         List<CheckInTask> tasks = tasksProvider != null ? tasksProvider.get() : Collections.emptyList();
 
-        StringBuilder tasksJson = new StringBuilder("[");
-        for (int i = 0; i < tasks.size(); i++) {
-            CheckInTask t = tasks.get(i);
-            tasksJson.append(String.format(
-                    "{\"id\":\"%s\",\"name\":\"%s\",\"targetUrl\":\"%s\",\"buttonId\":\"%s\",\"targetTime\":\"%s\",\"actualTime\":\"%s\",\"useRandomOffset\":%b,\"browserType\":\"%s\",\"status\":\"%s\",\"message\":\"%s\"}",
-                    escapeJson(t.getId()),
-                    escapeJson(t.getName()),
-                    escapeJson(t.getTargetUrl()),
-                    escapeJson(t.getButtonId()),
-                    escapeJson(t.getFormattedTargetTime()),
-                    escapeJson(t.getFormattedActualTime()),
-                    t.isUseRandomOffset(),
-                    escapeJson(t.getBrowserType()),
-                    escapeJson(t.getStatus()),
-                    escapeJson(t.getResultMessage())
-            ));
-            if (i < tasks.size() - 1) tasksJson.append(",");
+        // 使用 Gson 安全序列化 JSON
+        List<Map<String, Object>> tasksList = new ArrayList<>();
+        for (CheckInTask t : tasks) {
+            Map<String, Object> taskMap = new LinkedHashMap<>();
+            taskMap.put("id", t.getId());
+            taskMap.put("name", t.getName());
+            taskMap.put("targetUrl", t.getTargetUrl());
+            taskMap.put("buttonId", t.getButtonId());
+            taskMap.put("targetTime", t.getFormattedTargetTime());
+            taskMap.put("actualTime", t.getFormattedActualTime());
+            taskMap.put("useRandomOffset", t.isUseRandomOffset());
+            taskMap.put("browserType", t.getBrowserType());
+            taskMap.put("status", t.getStatus() != null ? t.getStatus().name() : "PENDING");
+            taskMap.put("message", t.getResultMessage());
+            tasksList.add(taskMap);
         }
-        tasksJson.append("]");
 
-        String jsonBody = String.format(
-                "{\"clientId\":\"%s\",\"status\":\"%s\",\"message\":%s,\"tasks\":%s}",
-                escapeJson(clientId),
-                escapeJson(currentStatus),
-                message == null ? "null" : "\"" + escapeJson(message) + "\"",
-                tasksJson.toString()
-        );
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("clientId", clientId);
+        payload.put("status", currentStatus);
+        payload.put("message", message);
+        payload.put("tasks", tasksList);
+
+        String jsonBody = gson.toJson(payload);
 
         try {
             HttpRequest request = HttpRequest.newBuilder()
@@ -196,22 +201,7 @@ public class HeartbeatService {
                     .thenAccept(response -> {
                         if (response.statusCode() == 200) {
                             if (statusCallback != null) statusCallback.accept(true);
-                            String body = response.body();
-                            if (body != null && commandListener != null) {
-                                if (body.contains("\"action\":\"CANCEL_SCHEDULE\"")) {
-                                    log(logger, "🛑 [HTTP 心跳] 收到伺服器取消排程指令 (CANCEL_SCHEDULE)");
-                                    commandListener.accept("CANCEL_SCHEDULE");
-                                } else if (body.contains("\"action\":\"CANCEL_TASK:")) {
-                                    int idx = body.indexOf("\"action\":\"CANCEL_TASK:");
-                                    String sub = body.substring(idx + 10);
-                                    int end = sub.indexOf("\"");
-                                    if (end != -1) {
-                                        String cmd = sub.substring(0, end);
-                                        log(logger, "🛑 [HTTP 心跳] 收到伺服器取消特定任務指令 (" + cmd + ")");
-                                        commandListener.accept(cmd);
-                                    }
-                                }
-                            }
+                            parseServerCommand(response.body(), logger);
                         } else {
                             log(logger, "⚠️ [HTTP POST 心跳] 伺服器回應異常，狀態碼：" + response.statusCode());
                             if (statusCallback != null) statusCallback.accept(false);
@@ -225,6 +215,29 @@ public class HeartbeatService {
         } catch (Exception ex) {
             log(logger, "❌ [HTTP POST 發送異常] " + ex.getMessage());
             if (statusCallback != null) statusCallback.accept(false);
+        }
+    }
+
+    /**
+     * 使用 Gson 安全解析伺服器回應中的指令
+     */
+    private void parseServerCommand(String body, Consumer<String> logger) {
+        if (body == null || body.isBlank() || commandListener == null) return;
+
+        try {
+            JsonObject json = JsonParser.parseString(body).getAsJsonObject();
+            if (!json.has("action")) return;
+
+            String action = json.get("action").getAsString();
+            if ("CANCEL_SCHEDULE".equals(action)) {
+                log(logger, "🛑 [HTTP 心跳] 收到伺服器取消排程指令 (CANCEL_SCHEDULE)");
+                commandListener.accept("CANCEL_SCHEDULE");
+            } else if (action.startsWith("CANCEL_TASK:")) {
+                log(logger, "🛑 [HTTP 心跳] 收到伺服器取消特定任務指令 (" + action + ")");
+                commandListener.accept(action);
+            }
+        } catch (Exception ex) {
+            // 回應非 JSON 或格式異常時靜默忽略（正常心跳回應可能無 action）
         }
     }
 
@@ -250,14 +263,6 @@ public class HeartbeatService {
             return trimmed.substring(0, trimmed.length() - 1);
         }
         return trimmed;
-    }
-
-    private String escapeJson(String input) {
-        if (input == null) return "";
-        return input.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "");
     }
 
     private void log(Consumer<String> logger, String message) {

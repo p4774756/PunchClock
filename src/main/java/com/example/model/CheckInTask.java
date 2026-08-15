@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
+import static com.example.model.TaskStatus.*;
+
 /**
  * 打卡任務資料模型
  */
@@ -17,12 +19,12 @@ public class CheckInTask {
     private int randomOffsetSeconds;
     private LocalDateTime actualTriggerTime;
     private String browserType;
-    private String status; // PENDING, SCHEDULED, CHECKING_IN, SUCCESS, FAILED, CANCELLED
+    private TaskStatus status;
     private String resultMessage;
 
     public CheckInTask() {
         this.id = UUID.randomUUID().toString().substring(0, 8);
-        this.status = "PENDING";
+        this.status = PENDING;
         this.useRandomOffset = true;
         this.browserType = "msedge";
         this.resultMessage = "";
@@ -36,7 +38,7 @@ public class CheckInTask {
         this.targetTime = targetTime;
         this.useRandomOffset = useRandomOffset;
         this.browserType = browserType;
-        this.status = "PENDING";
+        this.status = PENDING;
         this.resultMessage = "";
     }
 
@@ -112,11 +114,11 @@ public class CheckInTask {
         this.browserType = browserType;
     }
 
-    public String getStatus() {
+    public TaskStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(TaskStatus status) {
         this.status = status;
     }
 

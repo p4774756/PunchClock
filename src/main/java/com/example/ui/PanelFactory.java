@@ -1,0 +1,480 @@
+package com.example.ui;
+
+import com.github.lgooddatepicker.components.DatePicker;
+import com.github.lgooddatepicker.components.DatePickerSettings;
+
+import javax.swing.*;
+import javax.swing.border.CompoundBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.TitledBorder;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+/**
+ * UI 面板工廠 — 負責建構各區塊的 Swing 面板
+ * 將 UI 佈局邏輯從 App 主類別中抽離，減少構造函式臃腫度
+ */
+public class PanelFactory {
+
+    // ==================== 分組 1: 雲端服務與裝置設定 ====================
+
+    /**
+     * 建立雲端服務設定面板的內容
+     * 回傳建構好的 JPanel，呼叫端需透過 refs 參數取得各元件的引用
+     */
+    public static JPanel createServerConfigBody(ServerConfigRefs refs, Font mainFont, Font boldFont) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(4, 6, 4, 6);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        // Row 0: 裝置 ID
+        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JLabel clientIdLabel = new JLabel("🆔 裝置 ID / Worker ID：");
+        clientIdLabel.setFont(mainFont);
+        panel.add(clientIdLabel, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 0; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        String[] workerOptions = { "company-worker", "company-worker2", "company-worker3", "company-worker4" };
+        refs.clientIdCombo = new JComboBox<>(workerOptions);
+        refs.clientIdCombo.setFont(mainFont);
+        panel.add(refs.clientIdCombo, gbc);
+
+        // Row 1: Server 網址
+        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JLabel serverUrlLabel = new JLabel("📡 Server 雲端網址：");
+        serverUrlLabel.setFont(mainFont);
+        panel.add(serverUrlLabel, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 1; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        refs.serverUrlTextField = new JTextField("http://localhost:3000");
+        refs.serverUrlTextField.setFont(mainFont);
+        panel.add(refs.serverUrlTextField, gbc);
+
+        // Row 2: 啟用 checkbox + 狀態 + 測試按鈕
+        gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        refs.enableServerCheckBox = new JCheckBox("啟用雲端單向狀態回報", false);
+        refs.enableServerCheckBox.setFont(boldFont);
+        panel.add(refs.enableServerCheckBox, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 2; gbc.weightx = 1.0;
+        refs.heartbeatStatusLabel = new JLabel("⚪ 未連線 (已停用)", SwingConstants.LEFT);
+        refs.heartbeatStatusLabel.setFont(boldFont);
+        refs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
+        panel.add(refs.heartbeatStatusLabel, gbc);
+
+        gbc.gridx = 2; gbc.gridy = 2; gbc.weightx = 0.0;
+        refs.testServerButton = new JButton("🧪 測試 Server 連線");
+        refs.testServerButton.setFont(mainFont);
+        panel.add(refs.testServerButton, gbc);
+
+        return panel;
+    }
+
+    /** 雲端設定面板的元件引用容器 */
+    public static class ServerConfigRefs {
+        public JComboBox<String> clientIdCombo;
+        public JTextField serverUrlTextField;
+        public JCheckBox enableServerCheckBox;
+        public JLabel heartbeatStatusLabel;
+        public JButton testServerButton;
+    }
+
+    // ==================== 分組 2: 任務設定表單 ====================
+
+    /**
+     * 建立任務設定表單面板的內容
+     */
+    public static JPanel createTaskFormBody(TaskFormRefs refs, Font mainFont, Font boldFont) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(4, 6, 4, 6);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        // Row 0: 快捷模板按鈕
+        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JLabel presetsLabel = new JLabel("⚡ 快捷一鍵帶入：");
+        presetsLabel.setFont(boldFont);
+        panel.add(presetsLabel, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 0; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        JPanel presetPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        refs.presetWorkInButton = new JButton("📅 預設上班 (09:00)");
+        refs.presetWorkOutButton = new JButton("📅 預設下班 (18:00)");
+        refs.presetTest1MinButton = new JButton("⚡ +1分測試 (精準)");
+        refs.presetTest3MinButton = new JButton("⚡ +3分測試 (精準)");
+        for (JButton btn : new JButton[]{refs.presetWorkInButton, refs.presetWorkOutButton,
+                refs.presetTest1MinButton, refs.presetTest3MinButton}) {
+            btn.setFont(mainFont);
+        }
+        refs.presetWorkInButton.setToolTipText("快速填入上班 09:00，並自動開啟前後 ±5 分鐘隨機時間");
+        refs.presetWorkOutButton.setToolTipText("快速填入下班 18:00，並自動開啟前後 ±5 分鐘隨機時間");
+        refs.presetTest1MinButton.setToolTipText("快速填入當前時間 +1 分鐘，並自動關閉隨機時間（精準打卡）");
+        refs.presetTest3MinButton.setToolTipText("快速填入當前時間 +3 分鐘，並自動關閉隨機時間（精準打卡）");
+        presetPanel.add(refs.presetWorkInButton);
+        presetPanel.add(refs.presetWorkOutButton);
+        presetPanel.add(refs.presetTest1MinButton);
+        presetPanel.add(refs.presetTest3MinButton);
+        panel.add(presetPanel, gbc);
+
+        // Row 1: 任務名稱
+        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JLabel nameLabel = new JLabel("📝 任務名稱：");
+        nameLabel.setFont(mainFont);
+        panel.add(nameLabel, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 1; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        refs.taskNameTextField = new JTextField("上班打卡");
+        refs.taskNameTextField.setFont(mainFont);
+        panel.add(refs.taskNameTextField, gbc);
+
+        // Row 2: 打卡網址
+        gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JLabel urlLabel = new JLabel("🔗 目標打卡網址：");
+        urlLabel.setFont(mainFont);
+        panel.add(urlLabel, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 2; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        refs.urlTextField = new JTextField("https://tw.yahoo.com");
+        refs.urlTextField.setFont(mainFont);
+        panel.add(refs.urlTextField, gbc);
+
+        // Row 3: 按鈕 Selector
+        gbc.gridx = 0; gbc.gridy = 3; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JLabel buttonIdLabel = new JLabel("🔘 打卡按鈕 Selector：");
+        buttonIdLabel.setFont(mainFont);
+        panel.add(buttonIdLabel, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 3; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        refs.buttonIdTextField = new JTextField("check_in");
+        refs.buttonIdTextField.setFont(mainFont);
+        panel.add(refs.buttonIdTextField, gbc);
+
+        // Row 4: 排程時間
+        gbc.gridx = 0; gbc.gridy = 4; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JLabel timeLabel = new JLabel("📆 預定打卡時間：");
+        timeLabel.setFont(mainFont);
+        panel.add(timeLabel, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 4; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        JPanel timeSelectionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+
+        DatePickerSettings dateSettings = new DatePickerSettings();
+        dateSettings.setAllowKeyboardEditing(true);
+        refs.datePicker = new DatePicker(dateSettings);
+        refs.datePicker.setDateToToday();
+        dateSettings.setDateRangeLimits(LocalDate.now(), LocalDate.MAX);
+        JButton toggleBtn = refs.datePicker.getComponentToggleCalendarButton();
+        toggleBtn.setPreferredSize(new Dimension(0, 0));
+        toggleBtn.setBorder(null);
+        refs.datePicker.getComponentDateTextField().addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                SwingUtilities.invokeLater(refs.datePicker::openPopup);
+            }
+        });
+        timeSelectionPanel.add(refs.datePicker);
+
+        LocalDateTime now = LocalDateTime.now();
+        String[] hours = new String[24];
+        for (int i = 0; i < 24; i++) hours[i] = String.format("%02d", i);
+        refs.hourCombo = new JComboBox<>(hours);
+        refs.hourCombo.setFont(mainFont);
+        refs.hourCombo.setSelectedIndex(now.getHour());
+        timeSelectionPanel.add(refs.hourCombo);
+        timeSelectionPanel.add(new JLabel("時"));
+
+        String[] minutes = new String[60];
+        for (int i = 0; i < 60; i++) minutes[i] = String.format("%02d", i);
+        refs.minuteCombo = new JComboBox<>(minutes);
+        refs.minuteCombo.setFont(mainFont);
+        refs.minuteCombo.setSelectedIndex(now.getMinute());
+        timeSelectionPanel.add(refs.minuteCombo);
+        timeSelectionPanel.add(new JLabel("分"));
+
+        refs.randomOffsetCheckBox = new JCheckBox("🎲 啟用前後 ±5 分鐘隨機打卡", true);
+        refs.randomOffsetCheckBox.setFont(boldFont);
+        refs.randomOffsetCheckBox.setForeground(new Color(147, 51, 234));
+        timeSelectionPanel.add(refs.randomOffsetCheckBox);
+
+        panel.add(timeSelectionPanel, gbc);
+
+        // Row 5: 批量星期選擇
+        gbc.gridx = 0; gbc.gridy = 5; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JLabel weekdayLabel = new JLabel("🗓️ 批量星期選擇：");
+        weekdayLabel.setFont(mainFont);
+        panel.add(weekdayLabel, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 5; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        JPanel weekdayPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        refs.monCheckBox = new JCheckBox("週一", true);
+        refs.tueCheckBox = new JCheckBox("週二", true);
+        refs.wedCheckBox = new JCheckBox("週三", true);
+        refs.thuCheckBox = new JCheckBox("週四", true);
+        refs.friCheckBox = new JCheckBox("週五", true);
+        refs.satCheckBox = new JCheckBox("週六", false);
+        refs.sunCheckBox = new JCheckBox("週日", false);
+
+        JCheckBox[] weekdayBoxes = {refs.monCheckBox, refs.tueCheckBox, refs.wedCheckBox,
+                refs.thuCheckBox, refs.friCheckBox};
+        for (JCheckBox cb : weekdayBoxes) cb.setFont(boldFont);
+        refs.satCheckBox.setFont(mainFont);
+        refs.sunCheckBox.setFont(mainFont);
+
+        refs.selectWorkdaysButton = new JButton("全選週一~週五");
+        refs.clearWorkdaysButton = new JButton("清除選取");
+        refs.selectWorkdaysButton.setFont(mainFont);
+        refs.clearWorkdaysButton.setFont(mainFont);
+
+        weekdayPanel.add(refs.monCheckBox);
+        weekdayPanel.add(refs.tueCheckBox);
+        weekdayPanel.add(refs.wedCheckBox);
+        weekdayPanel.add(refs.thuCheckBox);
+        weekdayPanel.add(refs.friCheckBox);
+        weekdayPanel.add(refs.satCheckBox);
+        weekdayPanel.add(refs.sunCheckBox);
+        weekdayPanel.add(Box.createHorizontalStrut(6));
+        weekdayPanel.add(refs.selectWorkdaysButton);
+        weekdayPanel.add(refs.clearWorkdaysButton);
+        panel.add(weekdayPanel, gbc);
+
+        // Row 6: 瀏覽器 + 操作按鈕
+        gbc.gridx = 0; gbc.gridy = 6; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JLabel browserLabel = new JLabel("🌐 執行瀏覽器：");
+        browserLabel.setFont(mainFont);
+        panel.add(browserLabel, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 6; gbc.weightx = 1.0; gbc.gridwidth = 1;
+        refs.browserCombo = new JComboBox<>(new String[]{
+                "Microsoft Edge (本機已安裝)", "Google Chrome (本機已安裝)",
+                "內建 Chromium 瀏覽器", "內建 Firefox 瀏覽器", "內建 WebKit (Safari核心)"
+        });
+        refs.browserCombo.setFont(mainFont);
+        panel.add(refs.browserCombo, gbc);
+
+        gbc.gridx = 2; gbc.gridy = 6; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JPanel actionButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        refs.addTaskButton = new JButton("➕ 新增單日任務");
+        refs.batchAddButton = new JButton("🗓️ 批量排定 (週一~週五)");
+        refs.addTaskButton.setFont(boldFont);
+        refs.batchAddButton.setFont(boldFont);
+        refs.addTaskButton.setPreferredSize(new Dimension(130, 32));
+        refs.batchAddButton.setPreferredSize(new Dimension(170, 32));
+        refs.batchAddButton.setBackground(new Color(16, 185, 129));
+        refs.batchAddButton.setForeground(Color.BLACK);
+        actionButtonPanel.add(refs.addTaskButton);
+        actionButtonPanel.add(refs.batchAddButton);
+        panel.add(actionButtonPanel, gbc);
+
+        return panel;
+    }
+
+    /** 任務設定表單的元件引用容器 */
+    public static class TaskFormRefs {
+        public JButton presetWorkInButton, presetWorkOutButton, presetTest1MinButton, presetTest3MinButton;
+        public JTextField taskNameTextField, urlTextField, buttonIdTextField;
+        public DatePicker datePicker;
+        public JComboBox<String> hourCombo, minuteCombo, browserCombo;
+        public JCheckBox randomOffsetCheckBox;
+        public JCheckBox monCheckBox, tueCheckBox, wedCheckBox, thuCheckBox, friCheckBox, satCheckBox, sunCheckBox;
+        public JButton selectWorkdaysButton, clearWorkdaysButton;
+        public JButton addTaskButton, batchAddButton;
+    }
+
+    // ==================== 分組 3: 任務列表 ====================
+
+    /**
+     * 建立任務列表面板
+     */
+    public static JPanel createTaskTablePanel(TaskTableRefs refs, Font mainFont, Font boldFont) {
+        JPanel tableGroup = createGroupPanel("📋 排定打卡任務列表 (Task Schedule Table)", boldFont);
+        tableGroup.setLayout(new BorderLayout(0, 6));
+
+        String[] columnNames = {"ID", "任務名稱", "預定時間", "實際觸發 (隨機)", "網址", "瀏覽器", "狀態", "訊息/結果"};
+        refs.tableModel = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        refs.taskTable = new JTable(refs.tableModel);
+        refs.taskTable.setFont(mainFont);
+        refs.taskTable.setRowHeight(24);
+        refs.taskTable.getTableHeader().setFont(boldFont);
+        refs.taskTable.getTableHeader().setBackground(new Color(241, 245, 249));
+        refs.taskTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+
+        int[] widths = {60, 100, 130, 140, 150, 100, 90, 150};
+        for (int i = 0; i < widths.length; i++) {
+            refs.taskTable.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
+        }
+
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(JLabel.CENTER);
+        refs.taskTable.getColumnModel().getColumn(0).setCellRenderer(centerRenderer);
+        refs.taskTable.getColumnModel().getColumn(6).setCellRenderer(centerRenderer);
+
+        JScrollPane tableScrollPane = new JScrollPane(refs.taskTable);
+        tableScrollPane.setPreferredSize(new Dimension(780, 110));
+        tableGroup.add(tableScrollPane, BorderLayout.CENTER);
+
+        // 操作按鈕列
+        JPanel tableControlPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        refs.executeNowButton = new JButton("⚡ 立即執行選擇任務");
+        refs.editTaskButton = new JButton("✏️ 編輯任務");
+        refs.reuseTaskButton = new JButton("🔄 重新排定");
+        refs.cancelTaskButton = new JButton("🛑 取消選擇任務");
+        refs.deleteTaskButton = new JButton("🗑️ 刪除選擇任務");
+        refs.cancelAllButton = new JButton("🛑 全部取消");
+        refs.deleteAllButton = new JButton("🗑️ 全部刪除");
+
+        for (JButton btn : new JButton[]{refs.executeNowButton, refs.editTaskButton, refs.reuseTaskButton,
+                refs.cancelTaskButton, refs.deleteTaskButton, refs.cancelAllButton, refs.deleteAllButton}) {
+            btn.setFont(boldFont);
+        }
+        refs.editTaskButton.setForeground(new Color(37, 99, 235));
+        refs.reuseTaskButton.setForeground(new Color(16, 185, 129));
+        refs.deleteAllButton.setForeground(new Color(225, 29, 72));
+
+        tableControlPanel.add(refs.executeNowButton);
+        tableControlPanel.add(refs.editTaskButton);
+        tableControlPanel.add(refs.reuseTaskButton);
+        tableControlPanel.add(refs.cancelTaskButton);
+        tableControlPanel.add(refs.deleteTaskButton);
+        tableControlPanel.add(refs.cancelAllButton);
+        tableControlPanel.add(refs.deleteAllButton);
+        tableGroup.add(tableControlPanel, BorderLayout.SOUTH);
+
+        return tableGroup;
+    }
+
+    /** 任務列表面板的元件引用容器 */
+    public static class TaskTableRefs {
+        public JTable taskTable;
+        public DefaultTableModel tableModel;
+        public JButton executeNowButton, editTaskButton, reuseTaskButton;
+        public JButton cancelTaskButton, deleteTaskButton, cancelAllButton, deleteAllButton;
+    }
+
+    // ==================== 分組 4: 系統日誌 ====================
+
+    /**
+     * 建立系統日誌面板
+     */
+    public static JPanel createLogPanel(LogPanelRefs refs, Font boldFont) {
+        JPanel logPanel = createGroupPanel("📜 系統日誌 (Console Log)", boldFont);
+        logPanel.setLayout(new BorderLayout(0, 4));
+
+        refs.logTextArea = new JTextArea();
+        refs.logTextArea.setEditable(false);
+        refs.logTextArea.setLineWrap(true);
+        refs.logTextArea.setWrapStyleWord(true);
+        refs.logTextArea.setBackground(new Color(15, 23, 42));
+        refs.logTextArea.setForeground(new Color(56, 189, 248));
+        refs.logTextArea.setCaretColor(Color.WHITE);
+        refs.logTextArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+        refs.logTextArea.setMargin(new Insets(6, 8, 6, 8));
+
+        JScrollPane scrollPane = new JScrollPane(refs.logTextArea);
+        scrollPane.setPreferredSize(new Dimension(780, 180));
+        scrollPane.setBorder(BorderFactory.createLineBorder(new Color(226, 232, 240)));
+        logPanel.add(scrollPane, BorderLayout.CENTER);
+
+        JPanel logActionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        refs.clearLogButton = new JButton("🗑️ 清除 Log");
+        refs.clearLogButton.setFont(boldFont);
+        refs.clearLogButton.addActionListener(e -> refs.logTextArea.setText(""));
+        logActionPanel.add(refs.clearLogButton);
+        logPanel.add(logActionPanel, BorderLayout.SOUTH);
+
+        return logPanel;
+    }
+
+    /** 日誌面板的元件引用容器 */
+    public static class LogPanelRefs {
+        public JTextArea logTextArea;
+        public JButton clearLogButton;
+    }
+
+    // ==================== 共用元件 ====================
+
+    /**
+     * 建立可折疊的分組面板
+     */
+    public static JPanel createCollapsibleGroupPanel(String title, JPanel contentPanel, Font titleFont, boolean startCollapsed) {
+        JPanel outerPanel = new JPanel(new BorderLayout(0, 2));
+
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        headerPanel.setBackground(new Color(241, 245, 249));
+        headerPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(203, 213, 225), 1, true),
+                new EmptyBorder(5, 10, 5, 10)
+        ));
+
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(titleFont);
+        titleLabel.setForeground(new Color(30, 41, 59));
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+
+        JLabel toggleLabel = new JLabel(startCollapsed ? "► 點擊展開設定" : "▼ 點擊折疊收起");
+        toggleLabel.setFont(new Font("微軟正黑體", Font.BOLD, 12));
+        toggleLabel.setForeground(new Color(37, 99, 235));
+        headerPanel.add(toggleLabel, BorderLayout.EAST);
+
+        contentPanel.setBorder(new EmptyBorder(6, 8, 6, 8));
+
+        if (startCollapsed) {
+            contentPanel.setVisible(false);
+        }
+
+        headerPanel.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                boolean visible = !contentPanel.isVisible();
+                contentPanel.setVisible(visible);
+                toggleLabel.setText(visible ? "▼ 點擊折疊收起" : "► 點擊展開設定");
+                SwingUtilities.invokeLater(() -> {
+                    outerPanel.revalidate();
+                    outerPanel.repaint();
+                    Window win = SwingUtilities.getWindowAncestor(outerPanel);
+                    if (win != null) {
+                        win.revalidate();
+                        win.repaint();
+                    }
+                });
+            }
+
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                headerPanel.setBackground(new Color(226, 232, 240));
+            }
+
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                headerPanel.setBackground(new Color(241, 245, 249));
+            }
+        });
+
+        outerPanel.add(headerPanel, BorderLayout.NORTH);
+        outerPanel.add(contentPanel, BorderLayout.CENTER);
+        return outerPanel;
+    }
+
+    /**
+     * 建立帶標題框線的分組面板
+     */
+    public static JPanel createGroupPanel(String title, Font titleFont) {
+        JPanel panel = new JPanel();
+        TitledBorder titledBorder = BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(new Color(203, 213, 225), 1, true),
+                title, TitledBorder.LEFT, TitledBorder.TOP,
+                titleFont, new Color(30, 41, 59));
+        panel.setBorder(new CompoundBorder(titledBorder, new EmptyBorder(4, 8, 6, 8)));
+        return panel;
+    }
+}

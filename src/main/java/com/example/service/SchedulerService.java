@@ -1,6 +1,7 @@
 package com.example.service;
 
 import com.example.model.CheckInTask;
+import com.example.model.TaskStatus;
 
 import javax.swing.Timer;
 import java.time.Duration;
@@ -64,7 +65,7 @@ public class SchedulerService {
                     logConsumer.accept(String.format("❌ 錯誤：任務【%s】設定時間 (%s) 加上隨機偏移後已過去！",
                             task.getName(), actualTriggerTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))));
                 }
-                task.setStatus("FAILED");
+                task.setStatus(TaskStatus.FAILED);
                 task.setResultMessage("設定時間加上隨機偏移已為過去時間");
                 if (taskConsumer != null) taskConsumer.accept(task);
                 return false;
@@ -74,7 +75,7 @@ public class SchedulerService {
             task.setActualTriggerTime(actualTriggerTime);
         }
 
-        task.setStatus("SCHEDULED");
+        task.setStatus(TaskStatus.SCHEDULED);
         tasksMap.put(task.getId(), task);
         if (taskConsumer != null) taskConsumer.accept(task);
 
@@ -93,7 +94,7 @@ public class SchedulerService {
 
         ScheduledFuture<?> future = scheduler.schedule(() -> {
             try {
-                task.setStatus("CHECKING_IN");
+                task.setStatus(TaskStatus.CHECKING_IN);
                 if (taskConsumer != null) taskConsumer.accept(task);
 
                 if (logConsumer != null) {
@@ -105,13 +106,14 @@ public class SchedulerService {
                 latch.await(3, TimeUnit.MINUTES);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                task.setStatus("CANCELLED");
+                task.setStatus(TaskStatus.CANCELLED);
                 task.setResultMessage("任務排程已取消");
                 if (taskConsumer != null) taskConsumer.accept(task);
             } finally {
                 futuresMap.remove(task.getId());
-                if (!"SUCCESS".equals(task.getStatus()) && !"FAILED".equals(task.getStatus()) && !"CANCELLED".equals(task.getStatus())) {
-                    task.setStatus("SUCCESS");
+                if (task.getStatus() != TaskStatus.SUCCESS && task.getStatus() != TaskStatus.FAILED && task.getStatus() != TaskStatus.CANCELLED) {
+                    task.setStatus(TaskStatus.FAILED);
+                    task.setResultMessage("任務執行異常：未回報最終結果");
                 }
                 if (taskConsumer != null) taskConsumer.accept(task);
             }
@@ -136,7 +138,7 @@ public class SchedulerService {
         }
 
         if (task != null) {
-            task.setStatus("CANCELLED");
+            task.setStatus(TaskStatus.CANCELLED);
             task.setResultMessage("使用者手動取消");
         }
         return cancelled;
@@ -184,12 +186,21 @@ public class SchedulerService {
         return tasksMap.get(taskId);
     }
 
+    /**
+     * 僅將任務紀錄加入列表（不排程），用於載入歷史紀錄
+     */
+    public void addTaskRecord(CheckInTask task) {
+        if (task != null && task.getId() != null) {
+            tasksMap.put(task.getId(), task);
+        }
+    }
+
     private synchronized void ensureCountdownTimer(Consumer<CheckInTask> taskConsumer) {
         if (countdownTimer == null) {
             countdownTimer = new Timer(1000, e -> {
                 boolean hasActive = false;
                 for (CheckInTask t : tasksMap.values()) {
-                    if ("SCHEDULED".equals(t.getStatus()) || "CHECKING_IN".equals(t.getStatus())) {
+                    if (t.getStatus() == TaskStatus.SCHEDULED || t.getStatus() == TaskStatus.CHECKING_IN) {
                         hasActive = true;
                         break;
                     }
@@ -197,6 +208,10 @@ public class SchedulerService {
                 if (hasActive && taskConsumer != null) {
                     // 觸發 Table 重繪 countdown 狀態
                     taskConsumer.accept(null);
+                } else if (!hasActive) {
+                    // 沒有活躍任務時停止 Timer 避免空轉浪費 CPU
+                    countdownTimer.stop();
+                    countdownTimer = null;
                 }
             });
             countdownTimer.start();
