@@ -60,6 +60,7 @@ public class App extends JFrame {
         loadPersistedCloudConfig();
         startHeartbeatService();
         loadPersistedTasks();
+        appendLog("📦 桌面端版本 v" + AppVersion.VERSION);
     }
 
     // ==================== 初始化 ====================
@@ -85,7 +86,7 @@ public class App extends JFrame {
     }
 
     private void initUI() {
-        setTitle("上班打卡工具");
+        setTitle("上班打卡工具  v" + AppVersion.VERSION);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout(10, 10));
 

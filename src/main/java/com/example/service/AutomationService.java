@@ -5,6 +5,8 @@ import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.TimeoutError;
+import com.microsoft.playwright.options.WaitForSelectorState;
 
 import java.util.function.Consumer;
 
@@ -13,6 +15,10 @@ import java.util.function.Consumer;
  * Playwright instance 採 lazy-init 重用策略，避免重複啟動 Node.js 程序
  */
 public class AutomationService {
+
+    private static final int NAVIGATE_TIMEOUT_MS = 30_000;
+    private static final int SELECTOR_TIMEOUT_MS = 15_000;
+    private static final int CLICK_TIMEOUT_MS = 5_000;
 
     private Playwright playwright;
     private Browser cachedBrowser;
@@ -29,35 +35,54 @@ public class AutomationService {
     public synchronized boolean executeCheckIn(String targetUrl, String buttonId, String browserChoice, Consumer<String> logger) {
         log(logger, "⏰ 【觸發】準備啟動自動化瀏覽器 (選擇: " + (browserChoice != null ? browserChoice : "msedge") + ")...");
 
+        BrowserContext context = null;
         try {
             ensurePlaywright(logger);
             String choice = (browserChoice == null) ? "msedge" : browserChoice.trim().toLowerCase();
             Browser browser = getOrCreateBrowser(choice, logger);
 
-            BrowserContext context = browser.newContext();
+            context = browser.newContext();
             Page page = context.newPage();
 
             log(logger, "網頁導向中：" + targetUrl);
-            page.navigate(targetUrl);
+            page.navigate(targetUrl, new Page.NavigateOptions().setTimeout(NAVIGATE_TIMEOUT_MS));
 
-            String selector = (buttonId.startsWith("#") || buttonId.startsWith(".") || buttonId.contains("["))
-                    ? buttonId
-                    : "#" + buttonId;
+            String selector = (buttonId == null) ? "" : buttonId.trim();
+            if (selector.isEmpty()) {
+                log(logger, "❌ 未設定打卡按鈕 Selector");
+                return false;
+            }
+            if (!(selector.startsWith("#") || selector.startsWith(".") || selector.contains("["))) {
+                selector = "#" + selector;
+            }
 
-            log(logger, "準備尋找並點擊打卡按鈕 (Selector: " + selector + ")...");
-            page.click(selector);
+            log(logger, "等待打卡按鈕出現（最多 " + (SELECTOR_TIMEOUT_MS / 1000) + " 秒，Selector: " + selector + "）...");
+            try {
+                page.waitForSelector(selector, new Page.WaitForSelectorOptions()
+                        .setState(WaitForSelectorState.VISIBLE)
+                        .setTimeout(SELECTOR_TIMEOUT_MS));
+            } catch (TimeoutError timeoutError) {
+                log(logger, "❌ 逾時：找不到可見的打卡按鈕（" + selector + "）");
+                return false;
+            }
+
+            page.click(selector, new Page.ClickOptions().setTimeout(CLICK_TIMEOUT_MS));
             log(logger, "✅ 已成功點擊打卡按鈕！");
 
             page.waitForTimeout(5000);
-            context.close();
             log(logger, "瀏覽器分頁已關閉，打卡任務結束。");
             return true;
         } catch (Exception ex) {
-            // 發生錯誤時清理快取，下次重新建立
             closeCachedBrowser();
             String errorMsg = "❌ 打卡過程中發生錯誤：" + ex.getMessage();
             log(logger, errorMsg);
             throw new RuntimeException(errorMsg, ex);
+        } finally {
+            if (context != null) {
+                try {
+                    context.close();
+                } catch (Exception ignored) {}
+            }
         }
     }
 

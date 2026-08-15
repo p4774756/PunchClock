@@ -1,5 +1,6 @@
 package com.example.service;
 
+import com.example.AppVersion;
 import com.example.model.CheckInTask;
 
 import com.google.gson.Gson;
@@ -213,6 +214,7 @@ public class HeartbeatService {
         payload.put("clientId", clientId);
         payload.put("status", currentStatus);
         payload.put("message", message);
+        payload.put("appVersion", AppVersion.VERSION);
         payload.put("tasks", tasksList);
 
         String jsonBody = gson.toJson(payload);
