@@ -37,7 +37,9 @@ java -jar target/clickClick-standalone.jar
 
 3. **雲端連線（選用）**
    - 啟用後定期向 [ping-pong-server](../ping-pong-server/) 回報狀態
-   - 可從 Web 控制台遠端取消排程
+   - 心跳 Token 需與伺服器 `HEARTBEAT_SECRET` 一致（本機預設 `clickclick-dev-secret`）
+   - 可從 Web 控制台遠端取消全部或單一任務（HTTP 心跳取回指令，約 15 秒內生效）
+   - 不支援遠端建立排程；請在本機操作
 
 ## 任務持久化
 
@@ -45,6 +47,12 @@ java -jar target/clickClick-standalone.jar
 
 ```
 ~/.clickClick/tasks.json
+```
+
+雲端連線設定（Server URL、Client ID、Token、是否啟用）儲存於：
+
+```
+~/.clickClick/config.json
 ```
 
 程式關閉或重啟時自動讀寫。已過期但未執行的排程任務會標記為「取消」。
@@ -61,7 +69,8 @@ src/main/java/com/example/
 │   ├── AutomationService.java    # Playwright 自動打卡
 │   ├── SchedulerService.java     # 排程管理
 │   ├── HeartbeatService.java     # 雲端心跳回報
-│   └── TaskPersistenceService.java # 本地 JSON 持久化
+│   ├── TaskPersistenceService.java # 本地 JSON 任務持久化
+│   └── ConfigPersistenceService.java # 雲端設定持久化
 └── ui/
     ├── PanelFactory.java         # UI 面板建構
     └── TaskEditDialog.java       # 任務編輯對話框

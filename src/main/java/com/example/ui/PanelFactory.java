@@ -54,19 +54,30 @@ public class PanelFactory {
         refs.serverUrlTextField.setFont(mainFont);
         panel.add(refs.serverUrlTextField, gbc);
 
-        // Row 2: 啟用 checkbox + 狀態 + 測試按鈕
+        // Row 2: 心跳 Token
         gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.0; gbc.gridwidth = 1;
+        JLabel tokenLabel = new JLabel("🔑 心跳 Token：");
+        tokenLabel.setFont(mainFont);
+        panel.add(tokenLabel, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 2; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        refs.heartbeatTokenField = new JPasswordField("clickclick-dev-secret");
+        refs.heartbeatTokenField.setFont(mainFont);
+        panel.add(refs.heartbeatTokenField, gbc);
+
+        // Row 3: 啟用 checkbox + 狀態 + 測試按鈕
+        gbc.gridx = 0; gbc.gridy = 3; gbc.weightx = 0.0; gbc.gridwidth = 1;
         refs.enableServerCheckBox = new JCheckBox("啟用雲端單向狀態回報", false);
         refs.enableServerCheckBox.setFont(boldFont);
         panel.add(refs.enableServerCheckBox, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 2; gbc.weightx = 1.0;
+        gbc.gridx = 1; gbc.gridy = 3; gbc.weightx = 1.0;
         refs.heartbeatStatusLabel = new JLabel("⚪ 未連線 (已停用)", SwingConstants.LEFT);
         refs.heartbeatStatusLabel.setFont(boldFont);
         refs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
         panel.add(refs.heartbeatStatusLabel, gbc);
 
-        gbc.gridx = 2; gbc.gridy = 2; gbc.weightx = 0.0;
+        gbc.gridx = 2; gbc.gridy = 3; gbc.weightx = 0.0;
         refs.testServerButton = new JButton("🧪 測試 Server 連線");
         refs.testServerButton.setFont(mainFont);
         panel.add(refs.testServerButton, gbc);
@@ -78,6 +89,7 @@ public class PanelFactory {
     public static class ServerConfigRefs {
         public JComboBox<String> clientIdCombo;
         public JTextField serverUrlTextField;
+        public JPasswordField heartbeatTokenField;
         public JCheckBox enableServerCheckBox;
         public JLabel heartbeatStatusLabel;
         public JButton testServerButton;

@@ -3,6 +3,7 @@ package com.example;
 import com.example.model.CheckInTask;
 import com.example.model.TaskStatus;
 import com.example.service.AutomationService;
+import com.example.service.ConfigPersistenceService;
 import com.example.service.HeartbeatService;
 import com.example.service.SchedulerService;
 import com.example.service.TaskPersistenceService;
@@ -40,17 +41,21 @@ public class App extends JFrame {
     private final AutomationService automationService;
     private final HeartbeatService heartbeatService;
     private final TaskPersistenceService persistenceService;
+    private final ConfigPersistenceService configPersistenceService;
+    private boolean suppressConfigSave = false;
 
     public App() {
         this.schedulerService = new SchedulerService();
         this.automationService = new AutomationService();
         this.heartbeatService = new HeartbeatService();
         this.persistenceService = new TaskPersistenceService();
+        this.configPersistenceService = new ConfigPersistenceService();
 
         initHeartbeatService();
         initUI();
         bindEventListeners();
 
+        loadPersistedCloudConfig();
         startHeartbeatService();
         loadPersistedTasks();
     }
@@ -165,11 +170,13 @@ public class App extends JFrame {
                 serverRefs.heartbeatStatusLabel.setText("⚪ 未連線 (已停用)");
                 serverRefs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
             }
+            saveCloudConfig();
         });
         serverRefs.clientIdCombo.addActionListener(e -> {
             String selected = (String) serverRefs.clientIdCombo.getSelectedItem();
             if (selected != null && !selected.trim().isEmpty()) {
                 heartbeatService.setClientId(selected.trim());
+                saveCloudConfig();
             }
         });
         serverRefs.testServerButton.addActionListener(e -> testServerConnection());
@@ -178,12 +185,53 @@ public class App extends JFrame {
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
+                saveCloudConfig();
                 persistenceService.saveTasks(schedulerService.getAllTasks(), null);
                 heartbeatService.stopHeartbeat();
                 schedulerService.shutdown();
                 automationService.shutdown();
             }
         });
+    }
+
+    // ==================== 雲端設定持久化 ====================
+
+    private void loadPersistedCloudConfig() {
+        suppressConfigSave = true;
+        try {
+            ConfigPersistenceService.CloudConfig config = configPersistenceService.loadConfig(this::appendLog);
+            if (serverRefs.serverUrlTextField != null && config.serverUrl != null) {
+                serverRefs.serverUrlTextField.setText(config.serverUrl);
+            }
+            if (serverRefs.clientIdCombo != null && config.clientId != null) {
+                serverRefs.clientIdCombo.setSelectedItem(config.clientId);
+                heartbeatService.setClientId(config.clientId);
+            }
+            if (serverRefs.heartbeatTokenField != null && config.heartbeatToken != null) {
+                serverRefs.heartbeatTokenField.setText(config.heartbeatToken);
+                heartbeatService.setHeartbeatToken(config.heartbeatToken);
+            }
+            if (serverRefs.enableServerCheckBox != null) {
+                serverRefs.enableServerCheckBox.setSelected(config.enableServer);
+            }
+        } finally {
+            suppressConfigSave = false;
+        }
+    }
+
+    private void saveCloudConfig() {
+        if (suppressConfigSave || serverRefs.serverUrlTextField == null) return;
+
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.serverUrl = serverRefs.serverUrlTextField.getText().trim();
+        Object clientItem = serverRefs.clientIdCombo.getSelectedItem();
+        config.clientId = clientItem != null ? clientItem.toString().trim() : "company-worker";
+        if (serverRefs.heartbeatTokenField != null) {
+            config.heartbeatToken = new String(serverRefs.heartbeatTokenField.getPassword());
+        }
+        config.enableServer = serverRefs.enableServerCheckBox != null
+                && serverRefs.enableServerCheckBox.isSelected();
+        configPersistenceService.saveConfig(config, null);
     }
 
     // ==================== 任務持久化 ====================
@@ -480,6 +528,8 @@ public class App extends JFrame {
             task.setBrowserType(result.browserType);
             task.setStatus(TaskStatus.PENDING);
             task.setResultMessage("");
+            task.setActualTriggerTime(null);
+            task.setRandomOffsetSeconds(0);
 
             boolean scheduled = schedulerService.scheduleTask(task,
                     t -> SwingUtilities.invokeLater(this::onTaskStateChanged),
@@ -569,10 +619,21 @@ public class App extends JFrame {
 
     // ==================== 心跳服務 ====================
 
+    private void applyHeartbeatTokenFromUI() {
+        if (serverRefs.heartbeatTokenField != null) {
+            char[] tokenChars = serverRefs.heartbeatTokenField.getPassword();
+            if (tokenChars.length > 0) {
+                heartbeatService.setHeartbeatToken(new String(tokenChars));
+            }
+        }
+    }
+
     private void startHeartbeatService() {
         if (serverRefs.enableServerCheckBox != null && !serverRefs.enableServerCheckBox.isSelected()) return;
         String serverUrl = serverRefs.serverUrlTextField.getText().trim();
         if (!serverUrl.isEmpty()) {
+            applyHeartbeatTokenFromUI();
+            saveCloudConfig();
             heartbeatService.startHeartbeat(serverUrl, this::appendLog, isOk -> {
                 SwingUtilities.invokeLater(() -> {
                     if (serverRefs.enableServerCheckBox != null && !serverRefs.enableServerCheckBox.isSelected()) {
@@ -598,9 +659,11 @@ public class App extends JFrame {
             JOptionPane.showMessageDialog(this, "請先輸入有效的 ping-pong-server 網址！", "提示", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        applyHeartbeatTokenFromUI();
         heartbeatService.testConnection(serverUrl, this::appendLog, isOk -> {
             SwingUtilities.invokeLater(() -> {
                 if (isOk) {
+                    saveCloudConfig();
                     serverRefs.heartbeatStatusLabel.setText("💚 HTTP POST 正常");
                     serverRefs.heartbeatStatusLabel.setForeground(new Color(34, 197, 94));
                     JOptionPane.showMessageDialog(this, "✅ 成功連線至 ping-pong-server！", "測試成功", JOptionPane.INFORMATION_MESSAGE);

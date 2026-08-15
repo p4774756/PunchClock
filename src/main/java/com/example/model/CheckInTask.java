@@ -106,6 +106,13 @@ public class CheckInTask {
         this.actualTriggerTime = actualTriggerTime;
     }
 
+    /**
+     * 是否已計算過實際觸發時間（含隨機偏移），用於重啟後還原排程
+     */
+    public boolean hasComputedSchedule() {
+        return actualTriggerTime != null;
+    }
+
     public String getBrowserType() {
         return browserType;
     }

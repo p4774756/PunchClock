@@ -37,6 +37,7 @@ public class HeartbeatService {
 
     private String serverUrl = "";
     private String clientId = "company-worker";
+    private String heartbeatToken = "clickclick-dev-secret";
     private String currentStatus = "ONLINE";
     private String message = null;
     private boolean isServiceActive = false;
@@ -84,6 +85,12 @@ public class HeartbeatService {
     public void setClientId(String newClientId) {
         if (newClientId != null && !newClientId.trim().isEmpty()) {
             this.clientId = newClientId.trim();
+        }
+    }
+
+    public void setHeartbeatToken(String token) {
+        if (token != null && !token.trim().isEmpty()) {
+            this.heartbeatToken = token.trim();
         }
     }
 
@@ -193,6 +200,7 @@ public class HeartbeatService {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(endpoint))
                     .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + heartbeatToken)
                     .timeout(Duration.ofSeconds(8))
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
@@ -220,21 +228,43 @@ public class HeartbeatService {
 
     /**
      * 使用 Gson 安全解析伺服器回應中的指令
+     * 協定：優先讀取 actions[]，並相容舊版單一 action 欄位
      */
     private void parseServerCommand(String body, Consumer<String> logger) {
         if (body == null || body.isBlank() || commandListener == null) return;
 
         try {
             JsonObject json = JsonParser.parseString(body).getAsJsonObject();
-            if (!json.has("action")) return;
+            java.util.LinkedHashSet<String> actions = new java.util.LinkedHashSet<>();
 
-            String action = json.get("action").getAsString();
-            if ("CANCEL_SCHEDULE".equals(action)) {
-                log(logger, "🛑 [HTTP 心跳] 收到伺服器取消排程指令 (CANCEL_SCHEDULE)");
-                commandListener.accept("CANCEL_SCHEDULE");
-            } else if (action.startsWith("CANCEL_TASK:")) {
-                log(logger, "🛑 [HTTP 心跳] 收到伺服器取消特定任務指令 (" + action + ")");
-                commandListener.accept(action);
+            if (json.has("actions") && json.get("actions").isJsonArray()) {
+                for (com.google.gson.JsonElement el : json.getAsJsonArray("actions")) {
+                    if (el != null && el.isJsonPrimitive()) {
+                        String a = el.getAsString();
+                        if (a != null && !a.isBlank() && !"NONE".equalsIgnoreCase(a)) {
+                            actions.add(a.trim());
+                        }
+                    }
+                }
+            }
+
+            if (json.has("action") && json.get("action").isJsonPrimitive()) {
+                String action = json.get("action").getAsString();
+                if (action != null && !action.isBlank() && !"NONE".equalsIgnoreCase(action)) {
+                    actions.add(action.trim());
+                }
+            }
+
+            for (String action : actions) {
+                if ("CANCEL_SCHEDULE".equals(action)) {
+                    log(logger, "🛑 [HTTP 心跳] 收到伺服器取消排程指令 (CANCEL_SCHEDULE)");
+                    commandListener.accept("CANCEL_SCHEDULE");
+                } else if (action.startsWith("CANCEL_TASK:")) {
+                    log(logger, "🛑 [HTTP 心跳] 收到伺服器取消特定任務指令 (" + action + ")");
+                    commandListener.accept(action);
+                } else {
+                    log(logger, "⚠️ [HTTP 心跳] 收到未支援的遠端指令: " + action);
+                }
             }
         } catch (Exception ex) {
             // 回應非 JSON 或格式異常時靜默忽略（正常心跳回應可能無 action）

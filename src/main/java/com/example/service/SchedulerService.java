@@ -47,14 +47,24 @@ public class SchedulerService {
             return false;
         }
 
-        // 計算隨機時間偏移 (-300秒 ~ +300秒)
-        int randomOffsetSec = 0;
-        if (task.isUseRandomOffset()) {
+        // 若已有計算過的觸發時間（例如從持久化還原），直接沿用，避免重啟後重骰隨機偏移
+        int randomOffsetSec;
+        LocalDateTime actualTriggerTime;
+
+        if (task.hasComputedSchedule()) {
+            randomOffsetSec = task.getRandomOffsetSeconds();
+            actualTriggerTime = task.getActualTriggerTime();
+        } else if (task.isUseRandomOffset()) {
             randomOffsetSec = ThreadLocalRandom.current().nextInt(-300, 301);
+            actualTriggerTime = targetTime.plusSeconds(randomOffsetSec);
+            task.setRandomOffsetSeconds(randomOffsetSec);
+            task.setActualTriggerTime(actualTriggerTime);
+        } else {
+            randomOffsetSec = 0;
+            actualTriggerTime = targetTime;
+            task.setRandomOffsetSeconds(0);
+            task.setActualTriggerTime(actualTriggerTime);
         }
-        task.setRandomOffsetSeconds(randomOffsetSec);
-        LocalDateTime actualTriggerTime = targetTime.plusSeconds(randomOffsetSec);
-        task.setActualTriggerTime(actualTriggerTime);
 
         long delayInSeconds = Duration.between(now, actualTriggerTime).getSeconds();
 

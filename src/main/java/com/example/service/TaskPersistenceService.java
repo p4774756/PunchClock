@@ -35,20 +35,29 @@ public class TaskPersistenceService {
     private final Path savePath;
 
     public TaskPersistenceService() {
+        this(defaultTasksPath());
+    }
+
+    /** 供單元測試注入自訂路徑 */
+    public TaskPersistenceService(Path savePath) {
         this.gson = new GsonBuilder()
                 .setPrettyPrinting()
                 .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeAdapter())
                 .create();
-
-        // 儲存在使用者家目錄下 ~/.clickClick/tasks.json
-        String userHome = System.getProperty("user.home", ".");
-        Path dir = Paths.get(userHome, SAVE_DIR);
+        this.savePath = savePath;
         try {
-            Files.createDirectories(dir);
+            Path parent = savePath.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
         } catch (IOException e) {
-            System.err.println("⚠️ 無法建立儲存目錄: " + dir);
+            System.err.println("⚠️ 無法建立儲存目錄: " + savePath.getParent());
         }
-        this.savePath = dir.resolve(SAVE_FILE);
+    }
+
+    private static Path defaultTasksPath() {
+        String userHome = System.getProperty("user.home", ".");
+        return Paths.get(userHome, SAVE_DIR, SAVE_FILE);
     }
 
     /**
