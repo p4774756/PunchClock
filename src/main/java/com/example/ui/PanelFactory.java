@@ -9,9 +9,11 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 
 /**
  * UI 面板工廠 — 負責建構各區塊的 Swing 面板
@@ -307,7 +309,7 @@ public class PanelFactory {
      * 建立任務列表面板
      */
     public static JPanel createTaskTablePanel(TaskTableRefs refs, Font mainFont, Font boldFont) {
-        JPanel tableGroup = createGroupPanel("📋 排定打卡任務列表 (Task Schedule Table)", boldFont);
+        JPanel tableGroup = createGroupPanel("📋 排定打卡任務列表（點欄位標題可排序）", boldFont);
         tableGroup.setLayout(new BorderLayout(0, 6));
 
         String[] columnNames = {"ID", "任務名稱", "預定時間", "實際觸發 (隨機)", "網址", "瀏覽器", "狀態", "訊息/結果"};
@@ -324,7 +326,20 @@ public class PanelFactory {
         refs.taskTable.getTableHeader().setFont(boldFont);
         refs.taskTable.getTableHeader().setBackground(new Color(241, 245, 249));
         refs.taskTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
-        refs.taskTable.setToolTipText("可多選：Cmd/Ctrl+點選 或 Shift+範圍選取");
+        refs.taskTable.setToolTipText("可多選：Cmd/Ctrl+點選 或 Shift+範圍選取；點欄位標題可排序");
+        refs.taskTable.getTableHeader().setToolTipText("點擊欄位標題排序（再點一次切換升/降冪）");
+
+        // 點擊欄位標題排序
+        TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(refs.tableModel);
+        Comparator<String> timeComparator = (a, b) -> {
+            String left = extractTimePrefix(a);
+            String right = extractTimePrefix(b);
+            return left.compareTo(right);
+        };
+        sorter.setComparator(2, timeComparator); // 預定時間
+        sorter.setComparator(3, timeComparator); // 實際觸發
+        refs.taskTable.setRowSorter(sorter);
+        refs.rowSorter = sorter;
 
         int[] widths = {60, 100, 130, 140, 150, 100, 90, 150};
         for (int i = 0; i < widths.length; i++) {
@@ -360,8 +375,8 @@ public class PanelFactory {
         refs.deleteTaskButton = new JButton("🗑️ 刪除");
 
         refs.executeNowButton.setToolTipText("立即執行選取的任務（可多選）");
-        refs.editTaskButton.setToolTipText("編輯等待中的任務（一次 1 筆）");
-        refs.reuseTaskButton.setToolTipText("用已結束的任務當模板，建立新排程（一次 1 筆）");
+        refs.editTaskButton.setToolTipText("編輯任務設定（任何狀態皆可，一次 1 筆）");
+        refs.reuseTaskButton.setToolTipText("時間仍在未來時，將同一筆任務再次改為等待中");
         refs.cancelTaskButton.setToolTipText("取消選取任務的排程（可多選；要全部取消請先按全選）");
         refs.deleteTaskButton.setToolTipText("刪除選取任務紀錄（可多選；要全部刪除請先按全選）");
 
@@ -392,9 +407,21 @@ public class PanelFactory {
     public static class TaskTableRefs {
         public JTable taskTable;
         public DefaultTableModel tableModel;
+        public TableRowSorter<DefaultTableModel> rowSorter;
         public JButton selectAllTasksButton, clearTaskSelectionButton;
         public JButton executeNowButton, editTaskButton, reuseTaskButton;
         public JButton cancelTaskButton, deleteTaskButton;
+    }
+
+    /** 從「yyyy-MM-dd HH:mm:ss …」字串取出時間前綴以便排序 */
+    private static String extractTimePrefix(String value) {
+        if (value == null || value.isBlank()) return "";
+        String trimmed = value.trim();
+        // 取前 19 碼時間部分（若有）
+        if (trimmed.length() >= 19 && trimmed.charAt(4) == '-' && trimmed.charAt(10) == ' ') {
+            return trimmed.substring(0, 19);
+        }
+        return trimmed;
     }
 
     // ==================== 分組 4: 系統日誌 ====================

@@ -500,10 +500,12 @@ public class App extends JFrame {
 
     private List<String> getSelectedTaskIds() {
         List<String> ids = new ArrayList<>();
-        int[] rows = tableRefs.taskTable.getSelectedRows();
-        for (int row : rows) {
-            if (row >= 0 && row < tableRefs.tableModel.getRowCount()) {
-                Object id = tableRefs.tableModel.getValueAt(row, 0);
+        JTable table = tableRefs.taskTable;
+        int[] viewRows = table.getSelectedRows();
+        for (int viewRow : viewRows) {
+            int modelRow = table.convertRowIndexToModel(viewRow);
+            if (modelRow >= 0 && modelRow < tableRefs.tableModel.getRowCount()) {
+                Object id = tableRefs.tableModel.getValueAt(modelRow, 0);
                 if (id != null) {
                     ids.add(id.toString());
                 }
@@ -588,38 +590,46 @@ public class App extends JFrame {
             JOptionPane.showMessageDialog(this, "找不到該任務！", "錯誤", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        if (task.getStatus() != TaskStatus.SCHEDULED) {
-            JOptionPane.showMessageDialog(this, "只有狀態為【⏳ 等待中】的任務才可編輯！\n若要重新使用已完成的任務，請使用【🔄 重新排定】按鈕。", "提示", JOptionPane.WARNING_MESSAGE);
+        if (task.getStatus() == TaskStatus.CHECKING_IN) {
+            JOptionPane.showMessageDialog(this, "任務正在執行中，請稍後再編輯。", "提示", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
         TaskEditDialog.Result result = new TaskEditDialog(this, task, false).showDialog();
-        if (result != null) {
-            schedulerService.cancelTask(task.getId());
-            task.setName(result.name);
-            task.setTargetUrl(result.targetUrl);
-            task.setButtonId(result.buttonId);
-            task.setTargetTime(result.targetTime);
-            task.setUseRandomOffset(result.useRandomOffset);
-            task.setBrowserType(result.browserType);
-            task.setStatus(TaskStatus.PENDING);
-            task.setResultMessage("");
-            task.setActualTriggerTime(null);
-            task.setRandomOffsetSeconds(0);
+        if (result == null) return;
 
-            boolean scheduled = schedulerService.scheduleTask(task,
-                    t -> SwingUtilities.invokeLater(this::onTaskStateChanged),
-                    this::appendLog, this::executeCheckInForTask);
-            if (scheduled) {
-                onTaskStateChanged();
-                heartbeatService.sendHeartbeat(this::appendLog, null);
-                appendLog(String.format("✏️ 【編輯完成】任務【%s】已更新排程設定", result.name));
-            } else {
-                JOptionPane.showMessageDialog(this, "無法排定任務，可能是選擇的時間已過！", "時間錯誤", JOptionPane.ERROR_MESSAGE);
-            }
+        // 先取消既有排程（若有），再套用新設定
+        schedulerService.cancelTask(task.getId());
+        task.setName(result.name);
+        task.setTargetUrl(result.targetUrl);
+        task.setButtonId(result.buttonId);
+        task.setTargetTime(result.targetTime);
+        task.setUseRandomOffset(result.useRandomOffset);
+        task.setBrowserType(result.browserType);
+        task.setResultMessage("");
+        task.setActualTriggerTime(null);
+        task.setRandomOffsetSeconds(0);
+        task.setStatus(TaskStatus.PENDING);
+
+        boolean scheduled = schedulerService.scheduleTask(task,
+                t -> SwingUtilities.invokeLater(this::onTaskStateChanged),
+                this::appendLog, this::executeCheckInForTask);
+        onTaskStateChanged();
+        heartbeatService.sendHeartbeat(this::appendLog, null);
+
+        if (scheduled) {
+            appendLog(String.format("✏️ 【編輯完成】任務【%s】已更新，狀態：等待中", result.name));
+        } else {
+            appendLog(String.format("✏️ 【編輯完成】任務【%s】已更新設定（時間已過，未排入等待）", result.name));
+            JOptionPane.showMessageDialog(this,
+                    "設定已儲存，但排程時間已過，無法進入「等待中」。\n若要再排程，請編輯成未來時間，再按「重新排定」。",
+                    "已儲存", JOptionPane.INFORMATION_MESSAGE);
         }
     }
 
+    /**
+     * 重新排定：同一筆任務，若觸發時間仍在未來，再次進入「等待中」。
+     */
     private void reuseSelectedTask() {
         List<String> taskIds = getSelectedTaskIds();
         if (taskIds.isEmpty()) {
@@ -636,26 +646,43 @@ public class App extends JFrame {
             JOptionPane.showMessageDialog(this, "找不到該任務！", "錯誤", JOptionPane.ERROR_MESSAGE);
             return;
         }
+
         TaskStatus status = task.getStatus();
-        if (status == TaskStatus.SCHEDULED || status == TaskStatus.CHECKING_IN) {
-            JOptionPane.showMessageDialog(this, "該任務仍在排程中或執行中，無需重新排定！\n若要修改設定，請使用【✏️ 編輯任務】按鈕。", "提示", JOptionPane.WARNING_MESSAGE);
+        if (status == TaskStatus.SCHEDULED) {
+            JOptionPane.showMessageDialog(this, "該任務已在等待中，無需重新排定。\n若要改設定，請使用【編輯】。", "提示", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        if (status == TaskStatus.CHECKING_IN) {
+            JOptionPane.showMessageDialog(this, "任務正在執行中，無法重新排定。", "提示", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        TaskEditDialog.Result result = new TaskEditDialog(this, task, true).showDialog();
-        if (result != null) {
-            CheckInTask newTask = new CheckInTask(result.name, result.targetUrl, result.buttonId,
-                    result.targetTime, result.useRandomOffset, result.browserType);
-            boolean scheduled = schedulerService.scheduleTask(newTask,
-                    t -> SwingUtilities.invokeLater(this::onTaskStateChanged),
-                    this::appendLog, this::executeCheckInForTask);
-            if (scheduled) {
-                onTaskStateChanged();
-                heartbeatService.sendHeartbeat(this::appendLog, null);
-                appendLog(String.format("🔄 【重新排定】已根據任務【%s】建立新排程任務【%s】", task.getName(), result.name));
-            } else {
-                JOptionPane.showMessageDialog(this, "無法排定任務，可能是選擇的時間已過！", "時間錯誤", JOptionPane.ERROR_MESSAGE);
-            }
+        LocalDateTime triggerTime = task.hasComputedSchedule()
+                ? task.getActualTriggerTime()
+                : task.getTargetTime();
+        if (triggerTime == null) {
+            JOptionPane.showMessageDialog(this, "任務沒有有效的排程時間，請先用【編輯】設定時間。", "提示", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (!triggerTime.isAfter(LocalDateTime.now())) {
+            JOptionPane.showMessageDialog(this,
+                    "觸發時間已過，無法重新排定成等待中。\n請先用【編輯】改成未來時間。",
+                    "時間已過", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        task.setResultMessage("");
+        // 保留既有 actualTriggerTime / offset，讓排程沿用同一觸發點
+        boolean scheduled = schedulerService.scheduleTask(task,
+                t -> SwingUtilities.invokeLater(this::onTaskStateChanged),
+                this::appendLog, this::executeCheckInForTask);
+        if (scheduled) {
+            onTaskStateChanged();
+            heartbeatService.sendHeartbeat(this::appendLog, null);
+            appendLog(String.format("🔄 【重新排定】任務【%s】已再次進入等待中（觸發：%s）",
+                    task.getName(), task.getFormattedActualTime()));
+        } else {
+            JOptionPane.showMessageDialog(this, "無法重新排定，請確認時間是否仍在未來。", "時間錯誤", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -690,9 +717,12 @@ public class App extends JFrame {
             }
 
             table.clearSelection();
-            for (int row : restoreRows) {
-                if (row >= 0 && row < table.getRowCount()) {
-                    table.addRowSelectionInterval(row, row);
+            for (int modelRow : restoreRows) {
+                if (modelRow >= 0 && modelRow < model.getRowCount()) {
+                    int viewRow = table.convertRowIndexToView(modelRow);
+                    if (viewRow >= 0) {
+                        table.addRowSelectionInterval(viewRow, viewRow);
+                    }
                 }
             }
         });
