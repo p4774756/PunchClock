@@ -475,6 +475,7 @@ public class TaskController {
 
                 model.addRow(new Object[]{
                         t.getId(), t.getName(), t.getFormattedTargetTime(), offsetStr,
+                        t.getCountdownLabel(),
                         t.getTargetUrl(), formatBrowserName(t.getBrowserType()),
                         statusStr, t.getResultMessage()
                 });
@@ -490,6 +491,27 @@ public class TaskController {
                 }
             }
         });
+    }
+
+    /** 只更新倒數欄，避免每秒整表重建造成選取閃爍 */
+    public void refreshCountdowns() {
+        DefaultTableModel model = tableRefs.tableModel;
+        if (model == null) return;
+        java.util.Map<String, CheckInTask> byId = new java.util.HashMap<>();
+        for (CheckInTask t : schedulerService.getAllTasks()) {
+            byId.put(t.getId(), t);
+        }
+        for (int r = 0; r < model.getRowCount(); r++) {
+            Object idObj = model.getValueAt(r, 0);
+            if (idObj == null) continue;
+            CheckInTask t = byId.get(idObj.toString());
+            if (t == null) continue;
+            String next = t.getCountdownLabel();
+            Object current = model.getValueAt(r, 4);
+            if (!next.equals(current)) {
+                model.setValueAt(next, r, 4);
+            }
+        }
     }
 
     // ==================== 工具方法 ====================

@@ -1,5 +1,6 @@
 package com.example.model;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
@@ -145,5 +146,28 @@ public class CheckInTask {
     public String getFormattedActualTime() {
         if (getActualTriggerTime() == null) return "";
         return getActualTriggerTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
+
+    /** 等待中任務距離實際觸發的倒數；其他狀態顯示「—」 */
+    public String getCountdownLabel() {
+        return formatCountdown(status, getActualTriggerTime(), LocalDateTime.now());
+    }
+
+    static String formatCountdown(TaskStatus status, LocalDateTime trigger, LocalDateTime now) {
+        if (status != SCHEDULED || trigger == null || now == null) {
+            return "—";
+        }
+        long seconds = Duration.between(now, trigger).getSeconds();
+        if (seconds <= 0) {
+            return "即將觸發";
+        }
+        long days = seconds / 86400;
+        long hours = (seconds % 86400) / 3600;
+        long minutes = (seconds % 3600) / 60;
+        long secs = seconds % 60;
+        if (days > 0) {
+            return String.format("%d天 %02d:%02d:%02d", days, hours, minutes, secs);
+        }
+        return String.format("%02d:%02d:%02d", hours, minutes, secs);
     }
 }

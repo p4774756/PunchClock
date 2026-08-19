@@ -41,6 +41,7 @@ public class App extends JFrame {
     private final ConfigPersistenceService configPersistenceService;
     private TaskController taskController;
     private boolean suppressConfigSave = false;
+    private Timer countdownTimer;
 
     public App() {
         this.schedulerService = new SchedulerService();
@@ -60,6 +61,12 @@ public class App extends JFrame {
         loadPersistedCloudConfig();
         startHeartbeatService();
         loadPersistedTasks();
+        countdownTimer = new Timer(1000, e -> {
+            if (taskController != null) {
+                taskController.refreshCountdowns();
+            }
+        });
+        countdownTimer.start();
         appendLog("📦 桌面端版本 v" + AppVersion.VERSION);
     }
 
@@ -208,6 +215,9 @@ public class App extends JFrame {
                 saveCloudConfig();
                 persistenceService.saveTasks(schedulerService.getAllTasks(), null);
                 heartbeatService.stopHeartbeat();
+                if (countdownTimer != null) {
+                    countdownTimer.stop();
+                }
                 schedulerService.shutdown();
                 automationService.shutdown();
             }
@@ -360,14 +370,18 @@ public class App extends JFrame {
             SwingUtilities.invokeLater(() -> {
                 if (isOk) {
                     saveCloudConfig();
-                    serverRefs.heartbeatStatusLabel.setText("💚 HTTP POST 正常");
+                    serverRefs.heartbeatStatusLabel.setText("💚 GET /ping 成功");
                     serverRefs.heartbeatStatusLabel.setForeground(new Color(34, 197, 94));
-                    JOptionPane.showMessageDialog(this, "✅ 成功連線至 ping-pong-server！", "測試成功", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(this,
+                            "✅ Server 可連線（GET /ping 成功）。\n這只確認伺服器在線，不含心跳 Token。\n心跳上報仍是 POST /api/heartbeat。",
+                            "測試成功", JOptionPane.INFORMATION_MESSAGE);
                     startHeartbeatService();
                 } else {
-                    serverRefs.heartbeatStatusLabel.setText("🔴 HTTP POST 異常");
+                    serverRefs.heartbeatStatusLabel.setText("🔴 GET /ping 失敗");
                     serverRefs.heartbeatStatusLabel.setForeground(new Color(239, 68, 68));
-                    JOptionPane.showMessageDialog(this, "❌ 無法連線至指定 Server，請確認網址或 Server 狀態！", "測試失敗", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(this,
+                            "❌ GET /ping 失敗，請確認網址或 Server 狀態。",
+                            "測試失敗", JOptionPane.ERROR_MESSAGE);
                 }
             });
         });
