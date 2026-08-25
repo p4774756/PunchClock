@@ -10,7 +10,6 @@ import com.example.ui.PanelFactory.TaskTableRefs;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -19,7 +18,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * 任務表單與列表操作：快捷模板、新增/批量、選取操作、表格刷新與打卡執行。
+ * 任務表單與列表操作：快捷模板、新增、選取操作、表格刷新與打卡執行。
  */
 public class TaskController {
 
@@ -53,27 +52,6 @@ public class TaskController {
 
     // ==================== 表單操作 ====================
 
-    public void setWorkdaysSelected(boolean select) {
-        formRefs.monCheckBox.setSelected(select);
-        formRefs.tueCheckBox.setSelected(select);
-        formRefs.wedCheckBox.setSelected(select);
-        formRefs.thuCheckBox.setSelected(select);
-        formRefs.friCheckBox.setSelected(select);
-        formRefs.satCheckBox.setSelected(false);
-        formRefs.sunCheckBox.setSelected(false);
-    }
-
-    /** 清除全部星期（含週末） */
-    public void clearAllWeekdaySelection() {
-        formRefs.monCheckBox.setSelected(false);
-        formRefs.tueCheckBox.setSelected(false);
-        formRefs.wedCheckBox.setSelected(false);
-        formRefs.thuCheckBox.setSelected(false);
-        formRefs.friCheckBox.setSelected(false);
-        formRefs.satCheckBox.setSelected(false);
-        formRefs.sunCheckBox.setSelected(false);
-    }
-
     public void applyPreset(String taskName, int targetHour, int targetMin, boolean useRandom) {
         formRefs.taskNameTextField.setText(taskName);
         formRefs.datePicker.setDateToToday();
@@ -84,15 +62,36 @@ public class TaskController {
                 taskName, targetHour, targetMin, useRandom ? "開啟" : "關閉"));
     }
 
-    public void applyTestPreset(int minutesFromNow) {
-        LocalDateTime testTime = LocalDateTime.now().plusMinutes(minutesFromNow);
-        formRefs.taskNameTextField.setText("⚡ 測試打卡 (+" + minutesFromNow + "分)");
-        formRefs.datePicker.setDate(testTime.toLocalDate());
-        formRefs.hourCombo.setSelectedIndex(testTime.getHour());
-        formRefs.minuteCombo.setSelectedIndex(testTime.getMinute());
+    public void applyTestPreset(int minutesToAdd) {
+        LocalDateTime newTime = readFormDateTime().plusMinutes(minutesToAdd);
+        setFormDateTime(newTime);
         formRefs.randomOffsetCheckBox.setSelected(false);
-        appendLog.accept(String.format("⚡ 已載入測試快捷：當前時間 +%d 分鐘 (%02d:%02d)，自動關閉隨機時間以利精準測試！",
-                minutesFromNow, testTime.getHour(), testTime.getMinute()));
+        appendLog.accept(String.format("⚡ 已在目前設定時間上加 %d 分鐘 → %s（可連續點擊累加）",
+                minutesToAdd, newTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))));
+    }
+
+    public void applyCurrentTimePreset() {
+        LocalDateTime now = LocalDateTime.now().withSecond(0).withNano(0);
+        setFormDateTime(now);
+        formRefs.randomOffsetCheckBox.setSelected(false);
+        appendLog.accept(String.format("🕐 已帶入現在時間 %s，關閉隨機（精準）",
+                now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))));
+    }
+
+    private LocalDateTime readFormDateTime() {
+        LocalDate date = formRefs.datePicker.getDate();
+        if (date == null) {
+            date = LocalDate.now();
+        }
+        int hour = Integer.parseInt((String) formRefs.hourCombo.getSelectedItem());
+        int minute = Integer.parseInt((String) formRefs.minuteCombo.getSelectedItem());
+        return date.atTime(hour, minute, 0);
+    }
+
+    private void setFormDateTime(LocalDateTime dateTime) {
+        formRefs.datePicker.setDate(dateTime.toLocalDate());
+        formRefs.hourCombo.setSelectedIndex(dateTime.getHour());
+        formRefs.minuteCombo.setSelectedIndex(dateTime.getMinute());
     }
 
     // ==================== 任務管理 ====================
@@ -143,81 +142,6 @@ public class TaskController {
         } else {
             onTaskStateChanged.run();
             heartbeatService.sendHeartbeat(appendLog, null);
-        }
-    }
-
-    public void addBatchTasksFromForm() {
-        String name = formRefs.taskNameTextField.getText().trim();
-        if (name.isEmpty()) name = "打卡任務";
-
-        String targetUrl = formRefs.urlTextField.getText().trim();
-        if (targetUrl.isEmpty()) {
-            JOptionPane.showMessageDialog(owner, "請輸入目標打卡網址！", "提示", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        String buttonId = formRefs.buttonIdTextField.getText().trim();
-        if (buttonId.isEmpty()) {
-            JOptionPane.showMessageDialog(owner, "請輸入打卡按鈕 Selector！", "提示", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        int hour = Integer.parseInt((String) formRefs.hourCombo.getSelectedItem());
-        int minute = Integer.parseInt((String) formRefs.minuteCombo.getSelectedItem());
-        boolean useRandom = formRefs.randomOffsetCheckBox.isSelected();
-        String browserType = TaskEditDialog.parseBrowserType((String) formRefs.browserCombo.getSelectedItem());
-
-        List<DayOfWeek> selectedDays = new ArrayList<>();
-        if (formRefs.monCheckBox.isSelected()) selectedDays.add(DayOfWeek.MONDAY);
-        if (formRefs.tueCheckBox.isSelected()) selectedDays.add(DayOfWeek.TUESDAY);
-        if (formRefs.wedCheckBox.isSelected()) selectedDays.add(DayOfWeek.WEDNESDAY);
-        if (formRefs.thuCheckBox.isSelected()) selectedDays.add(DayOfWeek.THURSDAY);
-        if (formRefs.friCheckBox.isSelected()) selectedDays.add(DayOfWeek.FRIDAY);
-        if (formRefs.satCheckBox.isSelected()) selectedDays.add(DayOfWeek.SATURDAY);
-        if (formRefs.sunCheckBox.isSelected()) selectedDays.add(DayOfWeek.SUNDAY);
-
-        if (selectedDays.isEmpty()) {
-            JOptionPane.showMessageDialog(owner, "請先勾選至少一個星期（例如 週一~週五）！", "提示", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        LocalDate baseDate = formRefs.datePicker.getDate();
-        if (baseDate == null) baseDate = LocalDate.now();
-        LocalDateTime now = LocalDateTime.now();
-        int addedCount = 0;
-
-        for (DayOfWeek dayOfWeek : selectedDays) {
-            LocalDate targetDate = baseDate;
-            while (targetDate.getDayOfWeek() != dayOfWeek) {
-                targetDate = targetDate.plusDays(1);
-            }
-            if (targetDate.isBefore(LocalDate.now())) {
-                targetDate = targetDate.plusWeeks(1);
-            }
-
-            LocalDateTime targetTime = targetDate.atTime(hour, minute, 0);
-            if (targetTime.isBefore(now.plusSeconds(5))) {
-                targetDate = targetDate.plusWeeks(1);
-                targetTime = targetDate.atTime(hour, minute, 0);
-            }
-
-            String dayName = getDayOfWeekName(dayOfWeek);
-            String taskFullName = name + " (" + dayName + ")";
-
-            CheckInTask task = new CheckInTask(taskFullName, targetUrl, buttonId, targetTime, useRandom, browserType);
-            boolean scheduled = schedulerService.scheduleTask(task,
-                    t -> SwingUtilities.invokeLater(onTaskStateChanged),
-                    appendLog, this::executeCheckInForTask);
-            if (scheduled) addedCount++;
-        }
-
-        if (addedCount > 0) {
-            onTaskStateChanged.run();
-            heartbeatService.sendHeartbeat(appendLog, null);
-            appendLog.accept("🗓️ 【批量排定】成功一次排定 " + addedCount + " 個工作日打卡任務 (含隨機時間浮動)！");
-            JOptionPane.showMessageDialog(owner, "成功一次排定 " + addedCount + " 個星期的打卡任務！", "批量成功", JOptionPane.INFORMATION_MESSAGE);
-        } else {
-            JOptionPane.showMessageDialog(owner, "無法排定任務，可能是選擇的時間已過！", "提示", JOptionPane.WARNING_MESSAGE);
         }
     }
 
@@ -515,19 +439,6 @@ public class TaskController {
     }
 
     // ==================== 工具方法 ====================
-
-    private String getDayOfWeekName(DayOfWeek day) {
-        switch (day) {
-            case MONDAY: return "週一";
-            case TUESDAY: return "週二";
-            case WEDNESDAY: return "週三";
-            case THURSDAY: return "週四";
-            case FRIDAY: return "週五";
-            case SATURDAY: return "週六";
-            case SUNDAY: return "週日";
-            default: return "";
-        }
-    }
 
     private String formatBrowserName(String browserType) {
         if (browserType == null) return "Edge";

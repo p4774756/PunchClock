@@ -142,8 +142,8 @@ public class App extends JFrame {
         split.setBorder(null);
         add(split, BorderLayout.CENTER);
 
-        setMinimumSize(new Dimension(1180, 740));
-        setSize(1280, 840);
+        setMinimumSize(new Dimension(960, 680));
+        setSize(1100, 780);
         setLocationRelativeTo(null);
         SwingUtilities.invokeLater(() -> split.setDividerLocation(0.72));
     }
@@ -152,14 +152,12 @@ public class App extends JFrame {
         // 快捷模板
         formRefs.presetWorkInButton.addActionListener(e -> taskController.applyPreset("上班打卡", 9, 0, true));
         formRefs.presetWorkOutButton.addActionListener(e -> taskController.applyPreset("下班打卡", 18, 0, true));
+        formRefs.presetNowButton.addActionListener(e -> taskController.applyCurrentTimePreset());
         formRefs.presetTest1MinButton.addActionListener(e -> taskController.applyTestPreset(1));
         formRefs.presetTest3MinButton.addActionListener(e -> taskController.applyTestPreset(3));
 
         // 表單操作
         formRefs.addTaskButton.addActionListener(e -> taskController.addNewTaskFromForm());
-        formRefs.batchAddButton.addActionListener(e -> taskController.addBatchTasksFromForm());
-        formRefs.selectWorkdaysButton.addActionListener(e -> taskController.setWorkdaysSelected(true));
-        formRefs.clearWorkdaysButton.addActionListener(e -> taskController.clearAllWeekdaySelection());
 
         // 任務列表操作
         tableRefs.selectAllTasksButton.addActionListener(e -> {
