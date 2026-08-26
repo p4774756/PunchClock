@@ -193,7 +193,7 @@ public class TaskController {
         for (int viewRow : viewRows) {
             int modelRow = table.convertRowIndexToModel(viewRow);
             if (modelRow >= 0 && modelRow < tableRefs.tableModel.getRowCount()) {
-                Object id = tableRefs.tableModel.getValueAt(modelRow, 0);
+                Object id = tableRefs.tableModel.getValueAt(modelRow, 1);
                 if (id != null) {
                     ids.add(id.toString());
                 }
@@ -398,10 +398,11 @@ public class TaskController {
                         : t.getFormattedActualTime() + " (精準)";
 
                 model.addRow(new Object[]{
+                        statusStr,
                         t.getId(), t.getName(), t.getFormattedTargetTime(), offsetStr,
                         t.getCountdownLabel(),
                         t.getTargetUrl(), formatBrowserName(t.getBrowserType()),
-                        statusStr, t.getResultMessage()
+                        t.getResultMessage()
                 });
             }
 
@@ -426,14 +427,14 @@ public class TaskController {
             byId.put(t.getId(), t);
         }
         for (int r = 0; r < model.getRowCount(); r++) {
-            Object idObj = model.getValueAt(r, 0);
+            Object idObj = model.getValueAt(r, 1);
             if (idObj == null) continue;
             CheckInTask t = byId.get(idObj.toString());
             if (t == null) continue;
             String next = t.getCountdownLabel();
-            Object current = model.getValueAt(r, 4);
+            Object current = model.getValueAt(r, 5);
             if (!next.equals(current)) {
-                model.setValueAt(next, r, 4);
+                model.setValueAt(next, r, 5);
             }
         }
     }

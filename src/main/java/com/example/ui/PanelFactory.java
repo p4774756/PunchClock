@@ -264,7 +264,7 @@ public class PanelFactory {
         JPanel tableGroup = createGroupPanel("📋 排定打卡任務列表（點欄位標題可排序）", boldFont);
         tableGroup.setLayout(new BorderLayout(0, 6));
 
-        String[] columnNames = {"ID", "任務名稱", "預定時間", "實際觸發 (隨機)", "倒數", "網址", "瀏覽器", "狀態", "訊息/結果"};
+        String[] columnNames = {"狀態", "ID", "任務名稱", "預定時間", "實際觸發 (隨機)", "倒數", "網址", "瀏覽器", "訊息/結果"};
         refs.tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -288,15 +288,15 @@ public class PanelFactory {
             String right = extractTimePrefix(b);
             return left.compareTo(right);
         };
-        sorter.setComparator(2, timeComparator); // 預定時間
-        sorter.setComparator(3, timeComparator); // 實際觸發
+        sorter.setComparator(3, timeComparator); // 預定時間
+        sorter.setComparator(4, timeComparator); // 實際觸發
         refs.taskTable.setRowSorter(sorter);
         refs.rowSorter = sorter;
 
         refs.taskTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         refs.taskTable.setFillsViewportHeight(true);
 
-        int[] widths = {80, 120, 160, 170, 110, 240, 110, 80, 200};
+        int[] widths = {80, 80, 120, 160, 170, 110, 240, 110, 200};
         for (int i = 0; i < widths.length; i++) {
             refs.taskTable.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
             refs.taskTable.getColumnModel().getColumn(i).setMinWidth(widths[i]);
@@ -304,9 +304,9 @@ public class PanelFactory {
 
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(JLabel.CENTER);
-        refs.taskTable.getColumnModel().getColumn(0).setCellRenderer(centerRenderer);
-        refs.taskTable.getColumnModel().getColumn(4).setCellRenderer(centerRenderer);
-        refs.taskTable.getColumnModel().getColumn(7).setCellRenderer(centerRenderer);
+        refs.taskTable.getColumnModel().getColumn(0).setCellRenderer(centerRenderer); // 狀態
+        refs.taskTable.getColumnModel().getColumn(1).setCellRenderer(centerRenderer); // ID
+        refs.taskTable.getColumnModel().getColumn(5).setCellRenderer(centerRenderer); // 倒數
 
         JScrollPane tableScrollPane = new JScrollPane(refs.taskTable);
         tableScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
