@@ -100,6 +100,8 @@ public class App extends JFrame {
         Font mainFont = new Font("微軟正黑體", Font.PLAIN, 13);
         Font boldFont = new Font("微軟正黑體", Font.BOLD, 13);
 
+        add(createDailyProverbBanner(mainFont, boldFont), BorderLayout.NORTH);
+
         // 分頁：打卡任務（預設） / 雲端設定；日誌固定底部
         JTabbedPane tabs = new JTabbedPane();
         tabs.setFont(boldFont);
@@ -146,6 +148,45 @@ public class App extends JFrame {
         setSize(1100, 780);
         setLocationRelativeTo(null);
         SwingUtilities.invokeLater(() -> split.setDividerLocation(0.72));
+    }
+
+    private JPanel createDailyProverbBanner(Font mainFont, Font boldFont) {
+        DailyProverb.Entry proverb = DailyProverb.forToday();
+
+        JPanel banner = new JPanel(new BorderLayout(0, 2));
+        banner.setBorder(new CompoundBorder(
+                new EmptyBorder(10, 12, 0, 12),
+                new CompoundBorder(
+                        BorderFactory.createMatteBorder(0, 3, 0, 0, new Color(12, 107, 107)),
+                        new EmptyBorder(8, 12, 8, 12)
+                )
+        ));
+        banner.setBackground(new Color(255, 252, 246));
+        banner.setOpaque(true);
+
+        JLabel kicker = new JLabel("今日諺語 · " + proverb.date);
+        kicker.setFont(new Font(mainFont.getName(), Font.BOLD, 11));
+        kicker.setForeground(new Color(74, 85, 104));
+
+        JLabel en = new JLabel(proverb.en);
+        en.setFont(new Font(boldFont.getName(), Font.BOLD, 14));
+        en.setForeground(new Color(26, 35, 50));
+
+        JLabel zh = new JLabel(proverb.zh);
+        zh.setFont(mainFont);
+        zh.setForeground(new Color(74, 85, 104));
+
+        JPanel textCol = new JPanel();
+        textCol.setLayout(new BoxLayout(textCol, BoxLayout.Y_AXIS));
+        textCol.setOpaque(false);
+        textCol.add(kicker);
+        textCol.add(Box.createVerticalStrut(3));
+        textCol.add(en);
+        textCol.add(Box.createVerticalStrut(2));
+        textCol.add(zh);
+
+        banner.add(textCol, BorderLayout.CENTER);
+        return banner;
     }
 
     private void bindEventListeners() {
