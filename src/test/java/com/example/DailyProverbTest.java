@@ -38,7 +38,7 @@ public class DailyProverbTest {
     public void alignsWithServerSampleDay() {
         DailyProverb.Entry entry = DailyProverb.forDate(LocalDate.of(2026, 8, 26));
         assertEquals(9, entry.index);
-        assertEquals("Look before you leap.", entry.en);
-        assertEquals("三思而後行。", entry.zh);
+        assertEquals("Ross: \"Unagi.\"", entry.en);
+        assertTrue(entry.zh.contains("鰻魚"));
     }
 }

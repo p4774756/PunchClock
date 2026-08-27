@@ -1,7 +1,6 @@
 package com.example;
 
-import com.example.model.CheckInTask;
-import com.example.model.TaskStatus;
+import com.example.service.SpeechService;
 import com.example.service.AutomationService;
 import com.example.service.ConfigPersistenceService;
 import com.example.service.HeartbeatService;
@@ -9,37 +8,33 @@ import com.example.service.SchedulerService;
 import com.example.service.TaskPersistenceService;
 import com.example.ui.PanelFactory;
 import com.example.ui.PanelFactory.*;
-import com.example.ui.TaskController;
+import com.example.ui.SlotController;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
+import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 
 /**
- * 圖形介面主視窗 - 多任務與隨機時間打卡版
- * 負責組裝 UI 面板、綁定事件、協調 Service 層
+ * 圖形介面主視窗 - 上班 / 下班雙槽位打卡
  */
 public class App extends JFrame {
 
-    // --- UI 元件引用（透過 PanelFactory Refs 取得） ---
     private final ServerConfigRefs serverRefs = new ServerConfigRefs();
-    private final TaskFormRefs formRefs = new TaskFormRefs();
-    private final TaskTableRefs tableRefs = new TaskTableRefs();
+    private final SlotPanelRefs slotRefs = new SlotPanelRefs();
     private final LogPanelRefs logRefs = new LogPanelRefs();
 
-    // --- Service 層 ---
     private final SchedulerService schedulerService;
     private final AutomationService automationService;
     private final HeartbeatService heartbeatService;
     private final TaskPersistenceService persistenceService;
     private final ConfigPersistenceService configPersistenceService;
-    private TaskController taskController;
+    private SlotController slotController;
     private boolean suppressConfigSave = false;
     private Timer countdownTimer;
 
@@ -52,25 +47,21 @@ public class App extends JFrame {
 
         initHeartbeatService();
         initUI();
-        taskController = new TaskController(
-                this, formRefs, tableRefs,
+        slotController = new SlotController(
+                this, slotRefs,
                 schedulerService, automationService, heartbeatService,
-                this::appendLog, this::onTaskStateChanged);
-        bindEventListeners();
+                persistenceService, configPersistenceService,
+                this::appendLog, this::onSlotStateChanged);
+        slotController.bindUi();
 
-        loadPersistedCloudConfig();
+        loadPersistedConfig();
         startHeartbeatService();
-        loadPersistedTasks();
-        countdownTimer = new Timer(1000, e -> {
-            if (taskController != null) {
-                taskController.refreshCountdowns();
-            }
-        });
+        slotController.initializeFromPersistence();
+
+        countdownTimer = new Timer(1000, e -> slotController.refreshCountdowns());
         countdownTimer.start();
         appendLog("📦 桌面端版本 v" + AppVersion.VERSION);
     }
-
-    // ==================== 初始化 ====================
 
     private void initHeartbeatService() {
         heartbeatService.setTasksProvider(schedulerService::getAllTasks);
@@ -78,14 +69,14 @@ public class App extends JFrame {
             if ("CANCEL_SCHEDULE".equalsIgnoreCase(command)) {
                 SwingUtilities.invokeLater(() -> {
                     schedulerService.cancelAllTasks();
-                    onTaskStateChanged();
+                    onSlotStateChanged();
                     appendLog("🛑 【遠端指令】收到網頁後台取消所有排程指令。");
                 });
             } else if (command.startsWith("CANCEL_TASK:")) {
                 String taskId = command.substring("CANCEL_TASK:".length()).trim();
                 SwingUtilities.invokeLater(() -> {
                     schedulerService.cancelTask(taskId);
-                    onTaskStateChanged();
+                    onSlotStateChanged();
                     appendLog("🛑 【遠端指令】收到網頁後台取消任務 [" + taskId + "] 指令。");
                 });
             }
@@ -102,21 +93,18 @@ public class App extends JFrame {
 
         add(createDailyProverbBanner(mainFont, boldFont), BorderLayout.NORTH);
 
-        // 分頁：打卡任務（預設） / 雲端設定；日誌固定底部
         JTabbedPane tabs = new JTabbedPane();
         tabs.setFont(boldFont);
+        tabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac")) {
+            tabs.setUI(new BasicTabbedPaneUI());
+        }
         tabs.setBorder(new EmptyBorder(8, 12, 0, 12));
 
-        JPanel taskFormBody = PanelFactory.createTaskFormBody(formRefs, mainFont, boldFont);
-        JPanel taskFormGroup = PanelFactory.createCollapsibleGroupPanel(
-                "⚙️ 打卡任務設定", taskFormBody, boldFont, false);
-
-        JPanel tableGroup = PanelFactory.createTaskTablePanel(tableRefs, mainFont, boldFont);
-
-        JPanel tasksTab = new JPanel(new BorderLayout(0, 8));
+        JPanel slotPanel = PanelFactory.createSlotPanel(slotRefs, mainFont, boldFont);
+        JPanel tasksTab = new JPanel(new BorderLayout());
         tasksTab.setBorder(new EmptyBorder(8, 4, 8, 4));
-        tasksTab.add(taskFormGroup, BorderLayout.NORTH);
-        tasksTab.add(tableGroup, BorderLayout.CENTER);
+        tasksTab.add(slotPanel, BorderLayout.NORTH);
 
         JPanel serverBody = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont);
         JPanel serverGroup = PanelFactory.createGroupPanel("🖥️ 雲端服務與裝置設定", boldFont);
@@ -144,10 +132,12 @@ public class App extends JFrame {
         split.setBorder(null);
         add(split, BorderLayout.CENTER);
 
-        setMinimumSize(new Dimension(960, 680));
+        setMinimumSize(new Dimension(720, 560));
         setSize(1100, 780);
         setLocationRelativeTo(null);
         SwingUtilities.invokeLater(() -> split.setDividerLocation(0.72));
+
+        bindCloudEventListeners();
     }
 
     private JPanel createDailyProverbBanner(Font mainFont, Font boldFont) {
@@ -164,7 +154,7 @@ public class App extends JFrame {
         banner.setBackground(new Color(255, 252, 246));
         banner.setOpaque(true);
 
-        JLabel kicker = new JLabel("今日諺語 · " + proverb.date);
+        JLabel kicker = new JLabel("今日六人行 · " + proverb.date);
         kicker.setFont(new Font(mainFont.getName(), Font.BOLD, 11));
         kicker.setForeground(new Color(74, 85, 104));
 
@@ -185,34 +175,17 @@ public class App extends JFrame {
         textCol.add(Box.createVerticalStrut(2));
         textCol.add(zh);
 
+        JButton speakButton = new JButton("🔊 發音");
+        speakButton.setFont(mainFont);
+        speakButton.setToolTipText("朗讀今日英文台詞");
+        speakButton.addActionListener(e -> SpeechService.speakEnglish(proverb.en, this::appendLog));
+
         banner.add(textCol, BorderLayout.CENTER);
+        banner.add(speakButton, BorderLayout.EAST);
         return banner;
     }
 
-    private void bindEventListeners() {
-        // 快捷模板
-        formRefs.presetWorkInButton.addActionListener(e -> taskController.applyPreset("上班打卡", 9, 0, true));
-        formRefs.presetWorkOutButton.addActionListener(e -> taskController.applyPreset("下班打卡", 18, 0, true));
-        formRefs.presetNowButton.addActionListener(e -> taskController.applyCurrentTimePreset());
-        formRefs.presetTest1MinButton.addActionListener(e -> taskController.applyTestPreset(1));
-        formRefs.presetTest3MinButton.addActionListener(e -> taskController.applyTestPreset(3));
-
-        // 表單操作
-        formRefs.addTaskButton.addActionListener(e -> taskController.addNewTaskFromForm());
-
-        // 任務列表操作
-        tableRefs.selectAllTasksButton.addActionListener(e -> {
-            if (tableRefs.taskTable.getRowCount() > 0) {
-                tableRefs.taskTable.selectAll();
-            }
-        });
-        tableRefs.clearTaskSelectionButton.addActionListener(e -> tableRefs.taskTable.clearSelection());
-        tableRefs.cancelTaskButton.addActionListener(e -> taskController.cancelSelectedTasks());
-        tableRefs.deleteTaskButton.addActionListener(e -> taskController.deleteSelectedTasks());
-        tableRefs.executeNowButton.addActionListener(e -> taskController.executeSelectedTasksNow());
-        tableRefs.editTaskButton.addActionListener(e -> taskController.editSelectedTask());
-        tableRefs.reuseTaskButton.addActionListener(e -> taskController.reuseSelectedTask());
-        // 雲端設定
+    private void bindCloudEventListeners() {
         serverRefs.enableServerCheckBox.addActionListener(e -> {
             boolean enabled = serverRefs.enableServerCheckBox.isSelected();
             if (enabled) {
@@ -227,7 +200,6 @@ public class App extends JFrame {
             saveCloudConfig();
         });
         serverRefs.clientIdCombo.addActionListener(e -> applyClientIdFromUI(true));
-        // 可編輯 Combo：輸入後失焦也要套用
         java.awt.Component editor = serverRefs.clientIdCombo.getEditor().getEditorComponent();
         editor.addFocusListener(new java.awt.event.FocusAdapter() {
             @Override
@@ -247,12 +219,13 @@ public class App extends JFrame {
             });
         }
 
-        // 視窗關閉
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
                 saveCloudConfig();
-                persistenceService.saveTasks(schedulerService.getAllTasks(), null);
+                if (slotController != null) {
+                    slotController.persistTasks();
+                }
                 heartbeatService.stopHeartbeat();
                 if (countdownTimer != null) {
                     countdownTimer.stop();
@@ -263,33 +236,36 @@ public class App extends JFrame {
         });
     }
 
-    // ==================== 雲端設定持久化 ====================
-
-    private void loadPersistedCloudConfig() {
+    private void loadPersistedConfig() {
         suppressConfigSave = true;
         try {
             ConfigPersistenceService.CloudConfig config = configPersistenceService.loadConfig(this::appendLog);
-            if (serverRefs.serverUrlTextField != null && config.serverUrl != null) {
-                serverRefs.serverUrlTextField.setText(config.serverUrl);
-            }
-            if (serverRefs.clientIdCombo != null && config.clientId != null) {
-                ensureClientIdOption(config.clientId);
-                serverRefs.clientIdCombo.setSelectedItem(config.clientId);
-                heartbeatService.setClientId(config.clientId);
-            }
-            if (serverRefs.heartbeatTokenField != null && config.heartbeatToken != null) {
-                serverRefs.heartbeatTokenField.setText(config.heartbeatToken);
-                heartbeatService.setHeartbeatToken(config.heartbeatToken);
-            }
-            if (serverRefs.enableServerCheckBox != null) {
-                serverRefs.enableServerCheckBox.setSelected(config.enableServer);
-            }
-            if (serverRefs.trustAllSslCheckBox != null) {
-                serverRefs.trustAllSslCheckBox.setSelected(config.trustAllSsl);
-                heartbeatService.setTrustAllSsl(config.trustAllSsl);
-            }
+            applyServerConfig(config);
+            slotController.loadConfigToUi(config);
         } finally {
             suppressConfigSave = false;
+        }
+    }
+
+    private void applyServerConfig(ConfigPersistenceService.CloudConfig config) {
+        if (serverRefs.serverUrlTextField != null && config.serverUrl != null) {
+            serverRefs.serverUrlTextField.setText(config.serverUrl);
+        }
+        if (serverRefs.clientIdCombo != null && config.clientId != null) {
+            ensureClientIdOption(config.clientId);
+            serverRefs.clientIdCombo.setSelectedItem(config.clientId);
+            heartbeatService.setClientId(config.clientId);
+        }
+        if (serverRefs.heartbeatTokenField != null && config.heartbeatToken != null) {
+            serverRefs.heartbeatTokenField.setText(config.heartbeatToken);
+            heartbeatService.setHeartbeatToken(config.heartbeatToken);
+        }
+        if (serverRefs.enableServerCheckBox != null) {
+            serverRefs.enableServerCheckBox.setSelected(config.enableServer);
+        }
+        if (serverRefs.trustAllSslCheckBox != null) {
+            serverRefs.trustAllSslCheckBox.setSelected(config.trustAllSsl);
+            heartbeatService.setTrustAllSsl(config.trustAllSsl);
         }
     }
 
@@ -307,7 +283,6 @@ public class App extends JFrame {
         }
     }
 
-    /** 若自訂 Worker ID 不在預設清單中，加入選項以便下次下拉可見 */
     private void ensureClientIdOption(String clientId) {
         if (clientId == null || clientId.isBlank() || serverRefs.clientIdCombo == null) return;
         javax.swing.ComboBoxModel<String> model = serverRefs.clientIdCombo.getModel();
@@ -320,9 +295,9 @@ public class App extends JFrame {
     }
 
     private void saveCloudConfig() {
-        if (suppressConfigSave || serverRefs.serverUrlTextField == null) return;
+        if (suppressConfigSave || serverRefs.serverUrlTextField == null || slotController == null) return;
 
-        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        ConfigPersistenceService.CloudConfig config = slotController.readConfigFromUi();
         config.serverUrl = serverRefs.serverUrlTextField.getText().trim();
         Object clientItem = serverRefs.clientIdCombo.getSelectedItem();
         config.clientId = clientItem != null ? clientItem.toString().trim() : "company-worker";
@@ -336,33 +311,10 @@ public class App extends JFrame {
         configPersistenceService.saveConfig(config, null);
     }
 
-    // ==================== 任務持久化 ====================
-
-    private void loadPersistedTasks() {
-        List<CheckInTask> loaded = persistenceService.loadTasks(this::appendLog);
-        int rescheduled = 0;
-        for (CheckInTask task : loaded) {
-            if (task.getStatus() == TaskStatus.SCHEDULED) {
-                boolean ok = schedulerService.scheduleTask(task,
-                        t -> SwingUtilities.invokeLater(this::onTaskStateChanged),
-                        this::appendLog, taskController::executeCheckInForTask);
-                if (ok) rescheduled++;
-            } else {
-                schedulerService.addTaskRecord(task);
-            }
-        }
-        if (rescheduled > 0) {
-            appendLog(String.format("✅ 已自動重新排定 %d 個尚未過期的任務", rescheduled));
-        }
-        taskController.refreshTaskTable();
+    private void onSlotStateChanged() {
+        slotController.refreshSlotCards();
+        slotController.persistTasks();
     }
-
-    private void onTaskStateChanged() {
-        taskController.refreshTaskTable();
-        persistenceService.saveTasks(schedulerService.getAllTasks(), null);
-    }
-
-    // ==================== 心跳服務 ====================
 
     private void applyHeartbeatTokenFromUI() {
         if (serverRefs.heartbeatTokenField != null) {
@@ -426,8 +378,6 @@ public class App extends JFrame {
         });
     }
 
-    // ==================== 工具方法 ====================
-
     private void appendLog(String message) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         String timestamp = LocalDateTime.now().format(formatter);
@@ -438,8 +388,6 @@ public class App extends JFrame {
         });
         System.out.println(logMessage);
     }
-
-    // ==================== Main ====================
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {

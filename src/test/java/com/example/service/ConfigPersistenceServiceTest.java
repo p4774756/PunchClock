@@ -35,6 +35,9 @@ public class ConfigPersistenceServiceTest {
         assertEquals("company-worker", config.clientId);
         assertEquals("clickclick-dev-secret", config.heartbeatToken);
         assertFalse(config.enableServer);
+        assertEquals(9, config.workIn.hour);
+        assertEquals(18, config.workOut.hour);
+        assertTrue(config.weekdaysOnly);
     }
 
     @Test
@@ -44,6 +47,16 @@ public class ConfigPersistenceServiceTest {
         config.clientId = "company-worker2";
         config.heartbeatToken = "prod-secret";
         config.enableServer = true;
+        config.targetUrl = "https://example.com/checkin";
+        config.buttonId = "#btn";
+        config.browserChoice = "Google Chrome (本機已安裝)";
+        config.weekdaysOnly = false;
+        config.workIn.enabled = true;
+        config.workIn.hour = 8;
+        config.workIn.minute = 30;
+        config.workOut.enabled = false;
+        config.workOut.hour = 17;
+        config.workOut.minute = 45;
 
         configService.saveConfig(config, null);
         assertTrue(Files.exists(configFile));
@@ -53,15 +66,29 @@ public class ConfigPersistenceServiceTest {
         assertEquals("company-worker2", loaded.clientId);
         assertEquals("prod-secret", loaded.heartbeatToken);
         assertTrue(loaded.enableServer);
+        assertEquals("https://example.com/checkin", loaded.targetUrl);
+        assertEquals("#btn", loaded.buttonId);
+        assertEquals("Google Chrome (本機已安裝)", loaded.browserChoice);
+        assertFalse(loaded.weekdaysOnly);
+        assertEquals(8, loaded.workIn.hour);
+        assertEquals(30, loaded.workIn.minute);
+        assertFalse(loaded.workOut.enabled);
+        assertEquals(17, loaded.workOut.hour);
+        assertEquals(45, loaded.workOut.minute);
     }
 
     @Test
     public void loadConfig_fillsBlankFieldsWithDefaults() throws Exception {
-        Files.writeString(configFile, "{\"serverUrl\":\"\",\"clientId\":\"\",\"heartbeatToken\":\"\",\"enableServer\":true}");
+        Files.writeString(configFile, "{\"serverUrl\":\"\",\"clientId\":\"\",\"heartbeatToken\":\"\",\"enableServer\":true,\"targetUrl\":\"\",\"buttonId\":\"\",\"browserChoice\":\"\"}");
         ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
         assertEquals("http://localhost:3000", loaded.serverUrl);
         assertEquals("company-worker", loaded.clientId);
         assertEquals("clickclick-dev-secret", loaded.heartbeatToken);
         assertTrue(loaded.enableServer);
+        assertEquals("https://www.msn.com/zh-tw", loaded.targetUrl);
+        assertEquals("finance", loaded.buttonId);
+        assertEquals("Microsoft Edge (本機已安裝)", loaded.browserChoice);
+        assertEquals(9, loaded.workIn.hour);
+        assertEquals(18, loaded.workOut.hour);
     }
 }

@@ -95,8 +95,14 @@ public class SchedulerService {
                 : " (⚡ 測試模式/精準時間)";
 
         if (logConsumer != null) {
-            logConsumer.accept(String.format("📌 【排程設定】任務【%s】排定成功！原定：%s，預計實際觸發：%s%s",
+            String url = task.getTargetUrl() != null ? task.getTargetUrl() : "—";
+            String selector = task.getButtonId() != null && !task.getButtonId().isBlank()
+                    ? task.getButtonId().trim() : "—";
+            logConsumer.accept(String.format(
+                    "📌 【排程設定】任務【%s】排定成功！網址：%s，Selector：%s，原定：%s，預計實際觸發：%s%s",
                     task.getName(),
+                    url,
+                    selector,
                     targetTime.format(fmt),
                     actualTriggerTime.format(fmt),
                     offsetDesc));
