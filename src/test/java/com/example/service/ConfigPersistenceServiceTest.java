@@ -50,7 +50,7 @@ public class ConfigPersistenceServiceTest {
         config.targetUrl = "https://example.com/checkin";
         config.buttonId = "#btn";
         config.browserChoice = "Google Chrome (本機已安裝)";
-        config.weekdaysOnly = false;
+        config.weekdaysOnly = false; // 寫入舊值也會在 load 時被正規化為 true
         config.workIn.enabled = true;
         config.workIn.hour = 8;
         config.workIn.minute = 30;
@@ -69,7 +69,7 @@ public class ConfigPersistenceServiceTest {
         assertEquals("https://example.com/checkin", loaded.targetUrl);
         assertEquals("#btn", loaded.buttonId);
         assertEquals("Google Chrome (本機已安裝)", loaded.browserChoice);
-        assertFalse(loaded.weekdaysOnly);
+        assertTrue(loaded.weekdaysOnly);
         assertEquals(8, loaded.workIn.hour);
         assertEquals(30, loaded.workIn.minute);
         assertFalse(loaded.workOut.enabled);

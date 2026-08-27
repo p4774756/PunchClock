@@ -117,47 +117,6 @@ public class HeartbeatService {
     }
 
     /**
-     * 測試與伺服器的 HTTP Ping 連線
-     */
-    public void testConnection(String serverUrl, Consumer<String> logger, Consumer<Boolean> onResult) {
-        if (serverUrl == null || serverUrl.isBlank()) {
-            if (logger != null) logger.accept("⚠️ 請先輸入有效的 ping-pong-server 網址！");
-            if (onResult != null) onResult.accept(false);
-            return;
-        }
-
-        String targetPingUrl = formatServerUrl(serverUrl) + "/ping";
-        log(logger, "📡 [Server 連線測試] 發送 HTTP GET Ping 至：" + targetPingUrl);
-
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(targetPingUrl))
-                    .timeout(Duration.ofSeconds(8))
-                    .GET()
-                    .build();
-
-            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .thenAccept(response -> {
-                        if (response.statusCode() == 200) {
-                            log(logger, "✅ [Server 連線測試] 成功！伺服器回應 200 OK。");
-                            if (onResult != null) onResult.accept(true);
-                        } else {
-                            log(logger, "⚠️ [Server 連線測試] 回應異常，HTTP 狀態碼：" + response.statusCode());
-                            if (onResult != null) onResult.accept(false);
-                        }
-                    })
-                    .exceptionally(ex -> {
-                        log(logger, "❌ [Server 連線測試] 無法連線至伺服器：" + ex.getMessage());
-                        if (onResult != null) onResult.accept(false);
-                        return null;
-                    });
-        } catch (Exception ex) {
-            log(logger, "❌ [Server 連線測試] 網址格式錯誤：" + ex.getMessage());
-            if (onResult != null) onResult.accept(false);
-        }
-    }
-
-    /**
      * 啟動定期單向 HTTP POST 心跳
      */
     public void startHeartbeat(String serverUrl, Consumer<String> logger, Consumer<Boolean> statusCallback) {

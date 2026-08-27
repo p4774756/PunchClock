@@ -64,6 +64,7 @@ public class SlotController {
         bindSlotCard(slotRefs.workIn, WorkSlot.Kind.WORK_IN);
         bindSlotCard(slotRefs.workOut, WorkSlot.Kind.WORK_OUT);
         bindSharedSettingsListeners();
+        slotRefs.executeNowButton.addActionListener(e -> executeNowShared());
     }
 
     public void loadConfigToUi(CloudConfig loaded) {
@@ -75,7 +76,6 @@ public class SlotController {
             slotRefs.urlTextField.setText(config.targetUrl);
             slotRefs.buttonIdTextField.setText(config.buttonId);
             slotRefs.browserCombo.setSelectedItem(config.browserChoice);
-            slotRefs.weekdaysOnlyCheckBox.setSelected(config.weekdaysOnly);
         } finally {
             suppressUiSave = false;
         }
@@ -88,7 +88,7 @@ public class SlotController {
         config.buttonId = slotRefs.buttonIdTextField.getText().trim();
         Object browser = slotRefs.browserCombo.getSelectedItem();
         config.browserChoice = browser != null ? browser.toString() : config.browserChoice;
-        config.weekdaysOnly = slotRefs.weekdaysOnlyCheckBox.isSelected();
+        config.weekdaysOnly = true; // 上班工具固定跳過週末
         return config;
     }
 
@@ -137,11 +137,22 @@ public class SlotController {
 
     private void bindSlotCard(PanelFactory.SlotCardRefs refs, WorkSlot.Kind kind) {
         java.awt.event.ActionListener change = e -> onSlotSettingsChanged(kind);
-        refs.enabledCheckBox.addActionListener(change);
+        refs.enabledCheckBox.addActionListener(e -> {
+            syncSlotEditorsEnabled(refs);
+            change.actionPerformed(e);
+        });
         refs.hourCombo.addActionListener(change);
         refs.minuteCombo.addActionListener(change);
         refs.randomOffsetCheckBox.addActionListener(change);
-        refs.executeNowButton.addActionListener(e -> executeNow(kind));
+        syncSlotEditorsEnabled(refs);
+    }
+
+    /** 啟用中鎖定時分／隨機偏移，避免誤改正在排程的設定 */
+    private void syncSlotEditorsEnabled(PanelFactory.SlotCardRefs refs) {
+        boolean editable = !refs.enabledCheckBox.isSelected();
+        refs.hourCombo.setEnabled(editable);
+        refs.minuteCombo.setEnabled(editable);
+        refs.randomOffsetCheckBox.setEnabled(editable);
     }
 
     private void bindSharedSettingsListeners() {
@@ -164,7 +175,6 @@ public class SlotController {
         slotRefs.urlTextField.getDocument().addDocumentListener(textSave);
         slotRefs.buttonIdTextField.getDocument().addDocumentListener(textSave);
         slotRefs.browserCombo.addActionListener(e -> onSharedSettingsChanged());
-        slotRefs.weekdaysOnlyCheckBox.addActionListener(e -> onSharedSettingsChanged());
     }
 
     private void onSlotSettingsChanged(WorkSlot.Kind kind) {
@@ -283,13 +293,23 @@ public class SlotController {
                 SlotScheduleHelper.nextTriggerTime(slot.hour, slot.minute, config.weekdaysOnly, LocalDateTime.now()));
     }
 
+    private void executeNowShared() {
+        readConfigFromUi();
+        // 共用設定執行一次即可；結果寫入目前啟用中的槽位（優先上班）
+        WorkSlot.Kind kind = config.workIn.enabled
+                ? WorkSlot.Kind.WORK_IN
+                : (config.workOut.enabled ? WorkSlot.Kind.WORK_OUT : WorkSlot.Kind.WORK_IN);
+        executeNow(kind);
+    }
+
     private void executeNow(WorkSlot.Kind kind) {
         CheckInTask task = schedulerService.getTask(kind.id);
         if (task == null) {
             JOptionPane.showMessageDialog(owner, "找不到【" + kind.displayName + "】槽位。", "提示", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        appendLog.accept("⚡ 【立即執行】" + kind.displayName);
+        SlotScheduleHelper.applySharedSettings(task, config);
+        appendLog.accept("⚡ 【立即執行】使用共用設定（結果記入【" + kind.displayName + "】）");
         new Thread(() -> executeCheckInForTask(task, null)).start();
     }
 
@@ -384,6 +404,7 @@ public class SlotController {
         refs.hourCombo.setSelectedIndex(clamp(slot.hour, 0, 23));
         refs.minuteCombo.setSelectedIndex(clamp(slot.minute, 0, 59));
         refs.randomOffsetCheckBox.setSelected(slot.useRandomOffset);
+        syncSlotEditorsEnabled(refs);
     }
 
     private void readSlotFromUi(PanelFactory.SlotCardRefs refs, SlotSettings slot) {

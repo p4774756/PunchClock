@@ -55,14 +55,11 @@ public class PanelFactory {
         refs.enableServerCheckBox.setToolTipText("開啟後定期回報本機執行狀態到雲端 Dashboard");
         refs.trustAllSslCheckBox = new JCheckBox("信任所有 SSL（除錯）", false);
         refs.trustAllSslCheckBox.setFont(mainFont);
-        refs.trustAllSslCheckBox.setToolTipText("預設關閉。僅在本機遇到自簽憑證時再開啟，正式環境請勿勾選。");
+        refs.trustAllSslCheckBox.setToolTipText("預設關閉。啟用雲端時會鎖定；需先取消雲端才能修改。僅本機自簽憑證除錯用。");
         refs.heartbeatStatusLabel = new JLabel("⚪ 未連線 (已停用)", SwingConstants.LEFT);
         refs.heartbeatStatusLabel.setFont(boldFont);
         refs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
         refs.heartbeatStatusLabel.setBorder(new EmptyBorder(0, 12, 0, 12));
-        refs.testServerButton = new JButton("🧪 測試 Server 連線");
-        refs.testServerButton.setFont(mainFont);
-        refs.testServerButton.setToolTipText("發送 GET /ping，只確認伺服器是否在線，不驗證心跳 Token。");
 
         panel.add(formRow(clientIdLabel, refs.clientIdCombo, tokenLabel, refs.heartbeatTokenField));
         panel.add(Box.createVerticalStrut(4));
@@ -71,8 +68,7 @@ public class PanelFactory {
         panel.add(formRow(
                 refs.enableServerCheckBox,
                 refs.trustAllSslCheckBox,
-                refs.heartbeatStatusLabel,
-                refs.testServerButton));
+                refs.heartbeatStatusLabel));
 
         return panel;
     }
@@ -85,7 +81,48 @@ public class PanelFactory {
         public JCheckBox enableServerCheckBox;
         public JCheckBox trustAllSslCheckBox;
         public JLabel heartbeatStatusLabel;
-        public JButton testServerButton;
+    }
+
+    // ==================== 說明 ====================
+
+    public static JPanel createHelpPanel(Font mainFont, Font boldFont) {
+        JPanel root = new JPanel(new BorderLayout());
+        root.setBorder(new EmptyBorder(8, 4, 8, 4));
+
+        JTextArea text = new JTextArea(helpText());
+        text.setEditable(false);
+        text.setLineWrap(false);
+        text.setFont(new Font("Menlo", Font.PLAIN, 12));
+        text.setBackground(new Color(248, 250, 252));
+        text.setForeground(new Color(30, 41, 59));
+        text.setMargin(new Insets(10, 12, 10, 12));
+        text.setCaretPosition(0);
+
+        JScrollPane scroll = new JScrollPane(text);
+        scroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+
+        JPanel group = createGroupPanel("📖 Ping / Pong 測試", boldFont);
+        group.setLayout(new BorderLayout());
+        group.add(scroll, BorderLayout.CENTER);
+        root.add(group, BorderLayout.CENTER);
+        return root;
+    }
+
+    private static String helpText() {
+        return ""
+                + "Ping / Pong 連線測試（不需 Token）\n"
+                + "────────────────────────────────\n"
+                + "把網址換成「雲端設定」裡的 Server 雲端網址即可。\n"
+                + "\n"
+                + "# 正式 Server\n"
+                + "curl -sS \"https://ping-pong-server-jbot.onrender.com/ping\"\n"
+                + "\n"
+                + "# 本機\n"
+                + "curl -sS \"http://localhost:3000/ping\"\n"
+                + "\n"
+                + "# 預期回應類似：\n"
+                + "# {\"message\":\"pong\",\"timestamp\":\"...\"}\n";
     }
 
     // ==================== 分組 2: 雙槽位打卡 ====================
@@ -103,7 +140,7 @@ public class PanelFactory {
         refs.urlTextField.setToolTipText("打卡頁面的完整網址，程式會自動開啟此頁面");
         refs.buttonIdTextField = new JTextField("finance");
         refs.buttonIdTextField.setFont(mainFont);
-        refs.buttonIdTextField.setColumns(12);
+        refs.buttonIdTextField.setColumns(8);
         refs.buttonIdTextField.setToolTipText("要點擊的按鈕 CSS Selector 或 id，例如 #finance");
         refs.browserCombo = new JComboBox<>(new String[]{
                 "Microsoft Edge (本機已安裝)", "Google Chrome (本機已安裝)",
@@ -112,9 +149,14 @@ public class PanelFactory {
         refs.browserCombo.setFont(mainFont);
         refs.browserCombo.setPrototypeDisplayValue("Microsoft Edge (本機已安裝)");
         refs.browserCombo.setToolTipText("選擇執行打卡時使用的瀏覽器");
-        refs.weekdaysOnlyCheckBox = new JCheckBox("僅週一至週五排程", true);
-        refs.weekdaysOnlyCheckBox.setFont(mainFont);
-        refs.weekdaysOnlyCheckBox.setToolTipText("勾選後週六、週日不排程，自動跳到下個工作日");
+        refs.executeNowButton = new JButton("⚡ 立即執行");
+        refs.executeNowButton.setFont(boldFont);
+        refs.executeNowButton.setToolTipText("使用目前共用設定，立即執行一次打卡測試");
+        refs.executeNowButton.setMargin(new Insets(4, 12, 4, 12));
+        Dimension execBtnSize = new Dimension(110, 28);
+        refs.executeNowButton.setPreferredSize(execBtnSize);
+        refs.executeNowButton.setMinimumSize(execBtnSize);
+        refs.executeNowButton.setMaximumSize(execBtnSize);
 
         lockFieldHeight(refs.urlTextField);
         lockFieldHeight(refs.buttonIdTextField);
@@ -122,10 +164,8 @@ public class PanelFactory {
 
         sharedContent.add(formRowStretch(new JLabel("🔗 目標打卡網址："), refs.urlTextField));
         sharedContent.add(Box.createVerticalStrut(4));
-        sharedContent.add(formRow(
-                new JLabel("🔘 Selector："), refs.buttonIdTextField,
-                new JLabel("🌐 瀏覽器："), refs.browserCombo,
-                refs.weekdaysOnlyCheckBox));
+        sharedContent.add(selectorBrowserActionRow(
+                refs.buttonIdTextField, refs.browserCombo, refs.executeNowButton));
 
         JPanel shared = createCollapsibleGroupPanel("🔗 共用打卡設定", sharedContent, boldFont, false);
 
@@ -172,7 +212,7 @@ public class PanelFactory {
 
         refs.enabledCheckBox = new JCheckBox("啟用", true);
         refs.enabledCheckBox.setFont(boldFont);
-        refs.enabledCheckBox.setToolTipText("取消勾選可停止自動排程；修改設定會自動儲存並重新排程");
+        refs.enabledCheckBox.setToolTipText("勾選後開始自動排程，並鎖定時分設定；取消勾選後才能修改時間");
 
         String[] hours = new String[24];
         for (int i = 0; i < 24; i++) hours[i] = String.format("%02d", i);
@@ -196,29 +236,20 @@ public class PanelFactory {
         sgbc.gridx = 0;
         sgbc.gridy = 0;
         sgbc.gridwidth = 1;
-        settings.add(refs.enabledCheckBox, sgbc);
-        sgbc.gridx = 1;
-        sgbc.gridwidth = 1;
-        sgbc.weightx = 1.0;
-        sgbc.fill = GridBagConstraints.HORIZONTAL;
-        settings.add(new JPanel(), sgbc);
         sgbc.weightx = 0.0;
         sgbc.fill = GridBagConstraints.NONE;
-
-        sgbc.gridwidth = 1;
-        sgbc.gridy = 1;
-        sgbc.gridx = 0;
-        settings.add(refs.hourCombo, sgbc);
+        settings.add(refs.enabledCheckBox, sgbc);
         sgbc.gridx = 1;
-        settings.add(new JLabel("時"), sgbc);
+        settings.add(refs.hourCombo, sgbc);
         sgbc.gridx = 2;
-        settings.add(refs.minuteCombo, sgbc);
+        settings.add(new JLabel("時"), sgbc);
         sgbc.gridx = 3;
-        settings.add(new JLabel("分"), sgbc);
+        settings.add(refs.minuteCombo, sgbc);
         sgbc.gridx = 4;
-        settings.add(refs.randomOffsetCheckBox, sgbc);
-
+        settings.add(new JLabel("分"), sgbc);
         sgbc.gridx = 5;
+        settings.add(refs.randomOffsetCheckBox, sgbc);
+        sgbc.gridx = 6;
         sgbc.weightx = 1.0;
         sgbc.fill = GridBagConstraints.HORIZONTAL;
         settings.add(new JPanel(), sgbc);
@@ -250,18 +281,6 @@ public class PanelFactory {
         mgbc.gridx = 1;
         statusGrid.add(createMetricCell("結果", refs.resultLabel, mainFont), mgbc);
 
-        JPanel actions = new JPanel();
-        actions.setLayout(new BoxLayout(actions, BoxLayout.Y_AXIS));
-        refs.executeNowButton = new JButton("⚡ 立即執行");
-        refs.executeNowButton.setFont(boldFont);
-        refs.executeNowButton.setToolTipText("略過排程，立即執行一次打卡");
-        refs.executeNowButton.setMargin(new Insets(8, 16, 8, 16));
-        Dimension actionBtnSize = new Dimension(120, 36);
-        refs.executeNowButton.setPreferredSize(actionBtnSize);
-        refs.executeNowButton.setMinimumSize(actionBtnSize);
-        refs.executeNowButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        actions.add(refs.executeNowButton);
-
         JPanel mainCol = new JPanel();
         mainCol.setLayout(new BoxLayout(mainCol, BoxLayout.Y_AXIS));
         mainCol.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -272,11 +291,7 @@ public class PanelFactory {
         mainCol.add(Box.createVerticalStrut(4));
         mainCol.add(statusGrid);
 
-        JPanel body = new JPanel(new BorderLayout(8, 0));
-        body.add(mainCol, BorderLayout.CENTER);
-        body.add(actions, BorderLayout.EAST);
-
-        refs.panel.add(body, BorderLayout.NORTH);
+        refs.panel.add(mainCol, BorderLayout.NORTH);
         return refs;
     }
 
@@ -316,7 +331,7 @@ public class PanelFactory {
         public JTextField urlTextField;
         public JTextField buttonIdTextField;
         public JComboBox<String> browserCombo;
-        public JCheckBox weekdaysOnlyCheckBox;
+        public JButton executeNowButton;
     }
 
     public static class SlotCardRefs {
@@ -329,7 +344,6 @@ public class PanelFactory {
         public JLabel countdownLabel;
         public JLabel triggerLabel;
         public JLabel resultLabel;
-        public JButton executeNowButton;
     }
 
     // ==================== 分組 3: 系統日誌 ====================
@@ -352,7 +366,7 @@ public class PanelFactory {
         refs.logTextArea.setMargin(new Insets(6, 8, 6, 8));
 
         JScrollPane scrollPane = new JScrollPane(refs.logTextArea);
-        scrollPane.setPreferredSize(new Dimension(780, 140));
+        scrollPane.setPreferredSize(new Dimension(780, 240));
         scrollPane.setBorder(BorderFactory.createLineBorder(new Color(226, 232, 240)));
         logPanel.add(scrollPane, BorderLayout.CENTER);
 
@@ -380,8 +394,53 @@ public class PanelFactory {
         for (Component component : components) {
             row.add(component);
         }
-        int h = Math.max(row.getPreferredSize().height, 28);
+        int h = Math.max(row.getPreferredSize().height, 36);
         row.setMinimumSize(new Dimension(0, h));
+        row.setPreferredSize(new Dimension(row.getPreferredSize().width, h));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
+        return row;
+    }
+
+    /** Selector + 瀏覽器 + 立即執行同一列；窄視窗也不擠掉下拉選單 */
+    private static JPanel selectorBrowserActionRow(
+            JComponent selectorField, JComponent browserCombo, JButton executeButton) {
+        Dimension browserSize = browserCombo.getPreferredSize();
+        browserCombo.setPreferredSize(browserSize);
+        browserCombo.setMinimumSize(browserSize);
+        browserCombo.setMaximumSize(browserSize);
+
+        Dimension selectorSize = selectorField.getPreferredSize();
+        selectorField.setPreferredSize(selectorSize);
+        selectorField.setMinimumSize(new Dimension(Math.min(80, selectorSize.width), selectorSize.height));
+        selectorField.setMaximumSize(new Dimension(140, selectorSize.height));
+
+        JPanel row = new JPanel(new GridBagLayout());
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridy = 0;
+        gbc.insets = new Insets(2, 4, 2, 4);
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
+
+        gbc.gridx = 0;
+        row.add(new JLabel("🔘 Selector："), gbc);
+        gbc.gridx = 1;
+        row.add(selectorField, gbc);
+        gbc.gridx = 2;
+        row.add(new JLabel("🌐 瀏覽器："), gbc);
+        gbc.gridx = 3;
+        row.add(browserCombo, gbc);
+        gbc.gridx = 4;
+        row.add(executeButton, gbc);
+        gbc.gridx = 5;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        row.add(new JPanel(), gbc);
+
+        int h = Math.max(36, row.getPreferredSize().height);
+        row.setMinimumSize(new Dimension(0, h));
+        row.setPreferredSize(new Dimension(row.getPreferredSize().width, h));
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
         return row;
     }

@@ -37,6 +37,7 @@ public class App extends JFrame {
     private SlotController slotController;
     private boolean suppressConfigSave = false;
     private Timer countdownTimer;
+    private JSplitPane mainSplit;
 
     public App() {
         this.schedulerService = new SchedulerService();
@@ -117,6 +118,7 @@ public class App extends JFrame {
 
         tabs.addTab("📋 打卡任務", tasksTab);
         tabs.addTab("🖥️ 雲端設定", cloudTab);
+        tabs.addTab("📡 ping/pong", PanelFactory.createHelpPanel(mainFont, boldFont));
         tabs.setSelectedIndex(0);
 
         JPanel logPanel = PanelFactory.createLogPanel(logRefs, boldFont);
@@ -125,7 +127,8 @@ public class App extends JFrame {
         tabs.setMinimumSize(new Dimension(400, 220));
 
         JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tabs, logPanel);
-        split.setResizeWeight(0.72);
+        this.mainSplit = split;
+        split.setResizeWeight(0.55);
         split.setContinuousLayout(true);
         split.setOneTouchExpandable(true);
         split.setDividerSize(8);
@@ -133,11 +136,81 @@ public class App extends JFrame {
         add(split, BorderLayout.CENTER);
 
         setMinimumSize(new Dimension(720, 560));
-        setSize(1100, 780);
+        setSize(720, 780);
         setLocationRelativeTo(null);
-        SwingUtilities.invokeLater(() -> split.setDividerLocation(0.72));
 
+        bindWindowLayoutPersistence(split);
         bindCloudEventListeners();
+    }
+
+    private void bindWindowLayoutPersistence(JSplitPane split) {
+        addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent e) {
+                rememberWindowLayout();
+            }
+
+            @Override
+            public void componentMoved(java.awt.event.ComponentEvent e) {
+                rememberWindowLayout();
+            }
+        });
+        split.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, evt -> rememberWindowLayout());
+    }
+
+    private void rememberWindowLayout() {
+        if (suppressConfigSave || slotController == null || !isDisplayable()) return;
+        captureWindowLayoutInto(slotController.getConfig());
+    }
+
+    private void captureWindowLayoutInto(ConfigPersistenceService.CloudConfig config) {
+        if (config == null) return;
+        config.windowWidth = getWidth();
+        config.windowHeight = getHeight();
+        Point loc = getLocation();
+        config.windowX = loc.x;
+        config.windowY = loc.y;
+        if (mainSplit != null) {
+            int divider = mainSplit.getDividerLocation();
+            if (divider > 0) {
+                config.splitDividerLocation = divider;
+            }
+        }
+    }
+
+    private void applyWindowLayout(ConfigPersistenceService.CloudConfig config) {
+        Dimension min = getMinimumSize();
+        int width = config.windowWidth > 0 ? Math.max(config.windowWidth, min.width) : 720;
+        int height = config.windowHeight > 0 ? Math.max(config.windowHeight, min.height) : 780;
+        setSize(width, height);
+
+        if (config.windowX >= 0 && config.windowY >= 0 && isLocationOnScreen(config.windowX, config.windowY, width, height)) {
+            setLocation(config.windowX, config.windowY);
+        } else {
+            setLocationRelativeTo(null);
+        }
+
+        final int savedDivider = config.splitDividerLocation;
+        SwingUtilities.invokeLater(() -> {
+            if (mainSplit == null) return;
+            if (savedDivider > 0) {
+                int max = Math.max(1, mainSplit.getHeight() - mainSplit.getDividerSize());
+                mainSplit.setDividerLocation(Math.min(savedDivider, max));
+            } else {
+                mainSplit.setDividerLocation(0.55);
+            }
+        });
+    }
+
+    private static boolean isLocationOnScreen(int x, int y, int width, int height) {
+        Rectangle windowBounds = new Rectangle(x, y, Math.max(width, 1), Math.max(height, 1));
+        for (java.awt.GraphicsDevice device : java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+            Rectangle screen = device.getDefaultConfiguration().getBounds();
+            if (screen.intersects(windowBounds)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private JPanel createDailyProverbBanner(Font mainFont, Font boldFont) {
@@ -188,6 +261,7 @@ public class App extends JFrame {
     private void bindCloudEventListeners() {
         serverRefs.enableServerCheckBox.addActionListener(e -> {
             boolean enabled = serverRefs.enableServerCheckBox.isSelected();
+            syncTrustSslEnabled();
             if (enabled) {
                 appendLog("🟢 已勾選啟用雲端狀態回報，啟動單向心跳中...");
                 startHeartbeatService();
@@ -207,7 +281,6 @@ public class App extends JFrame {
                 applyClientIdFromUI(true);
             }
         });
-        serverRefs.testServerButton.addActionListener(e -> testServerConnection());
         if (serverRefs.trustAllSslCheckBox != null) {
             serverRefs.trustAllSslCheckBox.addActionListener(e -> {
                 boolean trust = serverRefs.trustAllSslCheckBox.isSelected();
@@ -242,6 +315,7 @@ public class App extends JFrame {
             ConfigPersistenceService.CloudConfig config = configPersistenceService.loadConfig(this::appendLog);
             applyServerConfig(config);
             slotController.loadConfigToUi(config);
+            applyWindowLayout(config);
         } finally {
             suppressConfigSave = false;
         }
@@ -267,6 +341,14 @@ public class App extends JFrame {
             serverRefs.trustAllSslCheckBox.setSelected(config.trustAllSsl);
             heartbeatService.setTrustAllSsl(config.trustAllSsl);
         }
+        syncTrustSslEnabled();
+    }
+
+    /** 啟用雲端時鎖定 SSL 除錯選項，避免執行中誤改 */
+    private void syncTrustSslEnabled() {
+        if (serverRefs.trustAllSslCheckBox == null || serverRefs.enableServerCheckBox == null) return;
+        boolean cloudOn = serverRefs.enableServerCheckBox.isSelected();
+        serverRefs.trustAllSslCheckBox.setEnabled(!cloudOn);
     }
 
     private void applyClientIdFromUI(boolean persist) {
@@ -308,6 +390,7 @@ public class App extends JFrame {
                 && serverRefs.enableServerCheckBox.isSelected();
         config.trustAllSsl = serverRefs.trustAllSslCheckBox != null
                 && serverRefs.trustAllSslCheckBox.isSelected();
+        captureWindowLayoutInto(config);
         configPersistenceService.saveConfig(config, null);
     }
 
@@ -348,34 +431,6 @@ public class App extends JFrame {
                 });
             });
         }
-    }
-
-    private void testServerConnection() {
-        String serverUrl = serverRefs.serverUrlTextField.getText().trim();
-        if (serverUrl.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "請先輸入有效的 ping-pong-server 網址！", "提示", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        applyHeartbeatTokenFromUI();
-        heartbeatService.testConnection(serverUrl, this::appendLog, isOk -> {
-            SwingUtilities.invokeLater(() -> {
-                if (isOk) {
-                    saveCloudConfig();
-                    serverRefs.heartbeatStatusLabel.setText("💚 GET /ping 成功");
-                    serverRefs.heartbeatStatusLabel.setForeground(new Color(34, 197, 94));
-                    JOptionPane.showMessageDialog(this,
-                            "✅ Server 可連線（GET /ping 成功）。\n這只確認伺服器在線，不含心跳 Token。\n心跳上報仍是 POST /api/heartbeat。",
-                            "測試成功", JOptionPane.INFORMATION_MESSAGE);
-                    startHeartbeatService();
-                } else {
-                    serverRefs.heartbeatStatusLabel.setText("🔴 GET /ping 失敗");
-                    serverRefs.heartbeatStatusLabel.setForeground(new Color(239, 68, 68));
-                    JOptionPane.showMessageDialog(this,
-                            "❌ GET /ping 失敗，請確認網址或 Server 狀態。",
-                            "測試失敗", JOptionPane.ERROR_MESSAGE);
-                }
-            });
-        });
     }
 
     private void appendLog(String message) {

@@ -40,6 +40,13 @@ public class ConfigPersistenceService {
 
         public SlotSettings workIn = defaultWorkIn();
         public SlotSettings workOut = defaultWorkOut();
+
+        /** 視窗／分割線（0 或負值表示使用預設） */
+        public int windowWidth = 0;
+        public int windowHeight = 0;
+        public int windowX = -1;
+        public int windowY = -1;
+        public int splitDividerLocation = -1;
     }
 
     private static SlotSettings defaultWorkIn() {
@@ -138,6 +145,7 @@ public class ConfigPersistenceService {
         if (config.browserChoice == null || config.browserChoice.isBlank()) {
             config.browserChoice = "Microsoft Edge (本機已安裝)";
         }
+        config.weekdaysOnly = true; // 上班工具固定週一至週五排程
         if (config.workIn == null) {
             config.workIn = defaultWorkIn();
         }
