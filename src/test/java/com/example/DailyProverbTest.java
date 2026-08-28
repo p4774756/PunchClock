@@ -25,6 +25,8 @@ public class DailyProverbTest {
         DailyProverb.Entry entry = DailyProverb.forToday();
         assertFalse(entry.en.trim().isEmpty());
         assertFalse(entry.zh.trim().isEmpty());
+        assertFalse(entry.context.trim().isEmpty());
+        assertTrue(entry.context.matches("^S\\d+E\\d+ · .+"));
         assertTrue(entry.index >= 0);
         assertTrue(entry.index < DailyProverb.proverbCount());
     }
@@ -40,5 +42,6 @@ public class DailyProverbTest {
         assertEquals(9, entry.index);
         assertEquals("Ross: \"Unagi.\"", entry.en);
         assertTrue(entry.zh.contains("鰻魚"));
+        assertTrue(entry.context.contains("S6E17"));
     }
 }

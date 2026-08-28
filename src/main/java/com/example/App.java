@@ -247,6 +247,10 @@ public class App extends JFrame {
         en.setFont(new Font(boldFont.getName(), Font.BOLD, 14));
         en.setForeground(new Color(26, 35, 50));
 
+        JLabel ctx = new JLabel(proverb.context);
+        ctx.setFont(new Font(mainFont.getName(), Font.BOLD, 11));
+        ctx.setForeground(new Color(9, 101, 151));
+
         JLabel zh = new JLabel(proverb.zh);
         zh.setFont(mainFont);
         zh.setForeground(new Color(74, 85, 104));
@@ -257,6 +261,8 @@ public class App extends JFrame {
         textCol.add(kicker);
         textCol.add(Box.createVerticalStrut(3));
         textCol.add(en);
+        textCol.add(Box.createVerticalStrut(2));
+        textCol.add(ctx);
         textCol.add(Box.createVerticalStrut(2));
         textCol.add(zh);
 
