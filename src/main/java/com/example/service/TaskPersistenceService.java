@@ -101,6 +101,12 @@ public class TaskPersistenceService {
                     if (triggerTime != null && triggerTime.isBefore(now)) {
                         task.setStatus(TaskStatus.CANCELLED);
                         task.setResultMessage("應用程式重啟，排程已過期");
+                        if (logger != null) {
+                            logger.accept(String.format(
+                                    "🛑 【%s】啟動時發現排程已過期，標記為已取消（原定 %s）",
+                                    task.getName() != null ? task.getName() : task.getId(),
+                                    triggerTime.format(FMT)));
+                        }
                     }
                 }
             }

@@ -37,7 +37,7 @@ public class SchedulerService {
                                 Consumer<CheckInTask> taskConsumer,
                                 Consumer<String> logConsumer,
                                 BiConsumer<CheckInTask, Runnable> executeAction) {
-        cancelTask(task.getId()); // 防禦性清理舊同名任務
+        stopTimer(task.getId()); // 清掉舊計時器，不要標成「已取消」
 
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime targetTime = task.getTargetTime();
@@ -141,9 +141,26 @@ public class SchedulerService {
     }
 
     /**
+     * 只停止計時器，不改任務狀態（給重排程用）。
+     */
+    public void stopTimer(String taskId) {
+        ScheduledFuture<?> future = futuresMap.remove(taskId);
+        if (future != null && !future.isDone()) {
+            future.cancel(true);
+        }
+    }
+
+    /**
      * 取消單一打卡任務
      */
     public boolean cancelTask(String taskId) {
+        return cancelTask(taskId, "來源未標示的取消");
+    }
+
+    /**
+     * 取消單一打卡任務，並寫入原因（會出現在後台任務訊息與日誌）。
+     */
+    public boolean cancelTask(String taskId, String reason) {
         ScheduledFuture<?> future = futuresMap.remove(taskId);
         CheckInTask task = tasksMap.get(taskId);
         boolean cancelled = false;
@@ -155,7 +172,7 @@ public class SchedulerService {
 
         if (task != null) {
             task.setStatus(TaskStatus.CANCELLED);
-            task.setResultMessage("使用者手動取消");
+            task.setResultMessage(reason != null && !reason.isBlank() ? reason : "來源未標示的取消");
         }
         return cancelled;
     }
@@ -164,7 +181,7 @@ public class SchedulerService {
      * 刪除任務紀錄
      */
     public void removeTask(String taskId) {
-        cancelTask(taskId);
+        cancelTask(taskId, "任務已刪除");
         tasksMap.remove(taskId);
     }
 
@@ -172,8 +189,17 @@ public class SchedulerService {
      * 取消所有排程任務
      */
     public void cancelAllTasks() {
-        for (String taskId : new ArrayList<>(futuresMap.keySet())) {
-            cancelTask(taskId);
+        cancelAllTasks("來源未標示的取消");
+    }
+
+    public void cancelAllTasks(String reason) {
+        for (String taskId : new ArrayList<>(tasksMap.keySet())) {
+            CheckInTask task = tasksMap.get(taskId);
+            if (task == null) continue;
+            TaskStatus status = task.getStatus();
+            if (status == TaskStatus.SCHEDULED || status == TaskStatus.CHECKING_IN || futuresMap.containsKey(taskId)) {
+                cancelTask(taskId, reason);
+            }
         }
     }
 
@@ -235,7 +261,7 @@ public class SchedulerService {
     }
 
     public void shutdown() {
-        cancelAllTasks();
+        cancelAllTasks("應用程式關閉");
         if (countdownTimer != null && countdownTimer.isRunning()) {
             countdownTimer.stop();
         }

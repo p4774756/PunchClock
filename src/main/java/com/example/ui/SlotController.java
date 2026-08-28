@@ -120,6 +120,18 @@ public class SlotController {
         if (scheduled > 0) {
             appendLog.accept(String.format("✅ 已排程 %d 個打卡槽位", scheduled));
         }
+        for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
+            CheckInTask t = schedulerService.getTask(kind.id);
+            if (t == null) continue;
+            if (t.getStatus() == TaskStatus.SCHEDULED) {
+                appendLog.accept(String.format("📌 【%s】下次觸發：%s", kind.displayName, t.getFormattedActualTime()));
+            } else {
+                String extra = t.getResultMessage() != null && !t.getResultMessage().isBlank()
+                        ? "（" + t.getResultMessage() + "）" : "";
+                appendLog.accept(String.format("ℹ️ 【%s】目前狀態：%s%s",
+                        kind.displayName, t.getStatus().getDisplayName(), extra));
+            }
+        }
         refreshSlotCards();
         persistTasks();
     }
@@ -225,11 +237,11 @@ public class SlotController {
 
         if (!slot.enabled) {
             if (task.getStatus() == TaskStatus.SCHEDULED || task.getStatus() == TaskStatus.CHECKING_IN) {
-                schedulerService.cancelTask(kind.id);
+                schedulerService.cancelTask(kind.id, "槽位已停用");
                 task.setResultMessage("槽位已停用");
             }
             if (logChanges) {
-                appendLog.accept("⏸️ 【" + kind.displayName + "】已停用");
+                appendLog.accept("⏸️ 【" + kind.displayName + "】已停用，排程已取消");
             }
             onSlotStateChanged.run();
             return false;
@@ -265,7 +277,7 @@ public class SlotController {
 
     private void resetTaskForSchedule(
             CheckInTask task, WorkSlot.Kind kind, SlotSettings slot, LocalDateTime targetTime) {
-        schedulerService.cancelTask(kind.id);
+        schedulerService.stopTimer(kind.id);
         task.setName(kind.displayName);
         task.setTargetTime(targetTime);
         SlotScheduleHelper.applySharedSettings(task, config);

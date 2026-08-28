@@ -101,9 +101,31 @@ public class SchedulerServiceTest {
 
         assertTrue(schedulerService.cancelTask(task.getId()));
         assertEquals(TaskStatus.CANCELLED, task.getStatus());
+        assertEquals("來源未標示的取消", task.getResultMessage());
 
         Thread.sleep(4000);
         assertFalse("Task should not execute after cancel", executed.get());
+    }
+
+    @Test
+    public void cancelTask_recordsCustomReason() {
+        LocalDateTime target = LocalDateTime.now().plusHours(1);
+        CheckInTask task = new CheckInTask("下班打卡", "http://example.com", "#btn", target, false, "msedge");
+        schedulerService.scheduleTask(task, t -> {}, msg -> {}, (t, done) -> done.run());
+
+        assertTrue(schedulerService.cancelTask(task.getId(), "網頁後台遠端取消"));
+        assertEquals(TaskStatus.CANCELLED, task.getStatus());
+        assertEquals("網頁後台遠端取消", task.getResultMessage());
+    }
+
+    @Test
+    public void stopTimer_doesNotMarkCancelled() {
+        LocalDateTime target = LocalDateTime.now().plusHours(1);
+        CheckInTask task = new CheckInTask("上班打卡", "http://example.com", "#btn", target, false, "msedge");
+        schedulerService.scheduleTask(task, t -> {}, msg -> {}, (t, done) -> done.run());
+
+        schedulerService.stopTimer(task.getId());
+        assertEquals(TaskStatus.SCHEDULED, task.getStatus());
     }
 
     @Test
