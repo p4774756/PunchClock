@@ -129,6 +129,19 @@ public class SchedulerServiceTest {
     }
 
     @Test
+    public void cancelTask_doesNotOverwriteSuccess() {
+        LocalDateTime target = LocalDateTime.now().plusHours(1);
+        CheckInTask task = new CheckInTask("下班打卡", "http://example.com", "#btn", target, false, "msedge");
+        schedulerService.addTaskRecord(task);
+        task.setStatus(TaskStatus.SUCCESS);
+        task.setResultMessage("打卡成功");
+
+        schedulerService.cancelTask(task.getId(), "槽位已停用");
+        assertEquals(TaskStatus.SUCCESS, task.getStatus());
+        assertEquals("打卡成功", task.getResultMessage());
+    }
+
+    @Test
     public void scheduleTask_executesAtScheduledTime() throws Exception {
         LocalDateTime target = LocalDateTime.now().plusSeconds(2);
         CheckInTask task = new CheckInTask("test", "http://example.com", "#btn", target, false, "msedge");

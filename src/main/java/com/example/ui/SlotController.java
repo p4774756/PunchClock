@@ -364,7 +364,8 @@ public class SlotController {
         if (kind != null) {
             SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
             if (slot.enabled) {
-                scheduleSlot(kind, false);
+                // 等排程執行緒跑完再重排，避免 stopTimer 中斷同一條執行緒
+                SwingUtilities.invokeLater(() -> scheduleSlot(kind, false));
             }
         }
         onSlotStateChanged.run();

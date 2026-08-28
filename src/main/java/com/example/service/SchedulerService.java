@@ -37,7 +37,7 @@ public class SchedulerService {
                                 Consumer<CheckInTask> taskConsumer,
                                 Consumer<String> logConsumer,
                                 BiConsumer<CheckInTask, Runnable> executeAction) {
-        stopTimer(task.getId()); // 清掉舊計時器，不要標成「已取消」
+        stopTimer(task.getId()); // 只取消尚未觸發的計時器，不中斷執行中的打卡
 
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime targetTime = task.getTargetTime();
@@ -122,9 +122,12 @@ public class SchedulerService {
                 latch.await(3, TimeUnit.MINUTES);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                task.setStatus(TaskStatus.CANCELLED);
-                task.setResultMessage("任務排程已取消");
-                if (taskConsumer != null) taskConsumer.accept(task);
+                // 打卡可能已在 executeAction 內完成；勿覆蓋 SUCCESS / FAILED
+                if (task.getStatus() != TaskStatus.SUCCESS && task.getStatus() != TaskStatus.FAILED) {
+                    task.setStatus(TaskStatus.CANCELLED);
+                    task.setResultMessage("任務排程已取消");
+                    if (taskConsumer != null) taskConsumer.accept(task);
+                }
             } finally {
                 futuresMap.remove(task.getId());
                 if (task.getStatus() != TaskStatus.SUCCESS && task.getStatus() != TaskStatus.FAILED && task.getStatus() != TaskStatus.CANCELLED) {
@@ -141,12 +144,13 @@ public class SchedulerService {
     }
 
     /**
-     * 只停止計時器，不改任務狀態（給重排程用）。
+     * 只停止「尚未觸發」的計時器，不改任務狀態（給重排程用）。
+     * 使用 cancel(false)，避免中斷正在執行的打卡執行緒。
      */
     public void stopTimer(String taskId) {
         ScheduledFuture<?> future = futuresMap.remove(taskId);
         if (future != null && !future.isDone()) {
-            future.cancel(true);
+            future.cancel(false);
         }
     }
 
@@ -171,6 +175,10 @@ public class SchedulerService {
         }
 
         if (task != null) {
+            TaskStatus current = task.getStatus();
+            if (current == TaskStatus.SUCCESS || current == TaskStatus.FAILED) {
+                return cancelled;
+            }
             task.setStatus(TaskStatus.CANCELLED);
             task.setResultMessage(reason != null && !reason.isBlank() ? reason : "來源未標示的取消");
         }
