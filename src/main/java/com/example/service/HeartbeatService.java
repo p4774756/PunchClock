@@ -123,7 +123,7 @@ public class HeartbeatService {
         stopHeartbeat();
 
         if (serverUrl == null || serverUrl.isBlank()) {
-            log(logger, "⚠️ [HTTP POST 服務] 伺服器網址為空，未開啟連線。");
+            log(logger, "[警告] [HTTP POST 服務] 伺服器網址為空，未開啟連線。");
             return;
         }
 
@@ -131,7 +131,7 @@ public class HeartbeatService {
         this.isServiceActive = true;
 
         String endpoint = this.serverUrl + "/api/heartbeat";
-        log(logger, "🔌 [HTTP POST 服務] 啟動單向心跳上報 (純 HTTP POST)：" + endpoint
+        log(logger, "[連線] [HTTP POST 服務] 啟動單向心跳上報 (純 HTTP POST)：" + endpoint
                 + (trustAllSsl ? " [SSL 信任全部憑證]" : ""));
 
         scheduler = Executors.newScheduledThreadPool(1);
@@ -193,17 +193,17 @@ public class HeartbeatService {
                             if (statusCallback != null) statusCallback.accept(true);
                             parseServerCommand(response.body(), logger);
                         } else {
-                            log(logger, "⚠️ [HTTP POST 心跳] 伺服器回應異常，狀態碼：" + response.statusCode());
+                            log(logger, "[警告] [HTTP POST 心跳] 伺服器回應異常，狀態碼：" + response.statusCode());
                             if (statusCallback != null) statusCallback.accept(false);
                         }
                     })
                     .exceptionally(ex -> {
-                        log(logger, "❌ [HTTP POST 心跳失敗] " + ex.getMessage());
+                        log(logger, "[失敗] [HTTP POST 心跳失敗] " + ex.getMessage());
                         if (statusCallback != null) statusCallback.accept(false);
                         return null;
                     });
         } catch (Exception ex) {
-            log(logger, "❌ [HTTP POST 發送異常] " + ex.getMessage());
+            log(logger, "[失敗] [HTTP POST 發送異常] " + ex.getMessage());
             if (statusCallback != null) statusCallback.accept(false);
         }
     }
@@ -239,13 +239,13 @@ public class HeartbeatService {
 
             for (String action : actions) {
                 if ("CANCEL_SCHEDULE".equals(action)) {
-                    log(logger, "🛑 [HTTP 心跳] 收到伺服器取消排程指令 (CANCEL_SCHEDULE)");
+                    log(logger, "[取消] [HTTP 心跳] 收到伺服器取消排程指令 (CANCEL_SCHEDULE)");
                     commandListener.accept("CANCEL_SCHEDULE");
                 } else if (action.startsWith("CANCEL_TASK:")) {
-                    log(logger, "🛑 [HTTP 心跳] 收到伺服器取消特定任務指令 (" + action + ")");
+                    log(logger, "[取消] [HTTP 心跳] 收到伺服器取消特定任務指令 (" + action + ")");
                     commandListener.accept(action);
                 } else {
-                    log(logger, "⚠️ [HTTP 心跳] 收到未支援的遠端指令: " + action);
+                    log(logger, "[警告] [HTTP 心跳] 收到未支援的遠端指令: " + action);
                 }
             }
         } catch (Exception ex) {

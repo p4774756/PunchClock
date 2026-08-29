@@ -43,11 +43,11 @@ public class PanelFactory {
         lockFieldHeight(refs.heartbeatTokenField);
         lockFieldHeight(refs.serverUrlTextField);
 
-        JLabel clientIdLabel = new JLabel("🆔 裝置 ID / Worker ID：");
+        JLabel clientIdLabel = new JLabel("裝置 ID / Worker ID：");
         clientIdLabel.setFont(mainFont);
-        JLabel tokenLabel = new JLabel("🔑 心跳 Token：");
+        JLabel tokenLabel = new JLabel("心跳 Token：");
         tokenLabel.setFont(mainFont);
-        JLabel serverUrlLabel = new JLabel("📡 Server 雲端網址：");
+        JLabel serverUrlLabel = new JLabel("Server 雲端網址：");
         serverUrlLabel.setFont(mainFont);
 
         refs.enableServerCheckBox = new JCheckBox("啟用雲端單向狀態回報", false);
@@ -56,7 +56,7 @@ public class PanelFactory {
         refs.trustAllSslCheckBox = new JCheckBox("信任所有 SSL（除錯）", false);
         refs.trustAllSslCheckBox.setFont(mainFont);
         refs.trustAllSslCheckBox.setToolTipText("預設關閉。啟用雲端時會鎖定；需先取消雲端才能修改。僅本機自簽憑證除錯用。");
-        refs.heartbeatStatusLabel = new JLabel("⚪ 未連線 (已停用)", SwingConstants.LEFT);
+        refs.heartbeatStatusLabel = new JLabel("[離線] 未連線 (已停用)", SwingConstants.LEFT);
         refs.heartbeatStatusLabel.setFont(boldFont);
         refs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
         refs.heartbeatStatusLabel.setBorder(new EmptyBorder(0, 12, 0, 12));
@@ -102,7 +102,7 @@ public class PanelFactory {
         scroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
         scroll.getVerticalScrollBar().setUnitIncrement(16);
 
-        JPanel group = createGroupPanel("📖 Ping / Pong 測試", boldFont);
+        JPanel group = createGroupPanel("Ping / Pong 測試", boldFont);
         group.setLayout(new BorderLayout());
         group.add(scroll, BorderLayout.CENTER);
         root.add(group, BorderLayout.CENTER);
@@ -149,7 +149,7 @@ public class PanelFactory {
         refs.browserCombo.setFont(mainFont);
         refs.browserCombo.setPrototypeDisplayValue("Microsoft Edge (本機已安裝)");
         refs.browserCombo.setToolTipText("選擇執行打卡時使用的瀏覽器");
-        refs.executeNowButton = new JButton("⚡ 立即執行");
+        refs.executeNowButton = new JButton("立即執行");
         refs.executeNowButton.setFont(boldFont);
         refs.executeNowButton.setToolTipText("使用目前共用設定，立即執行一次打卡測試");
         refs.executeNowButton.setMargin(new Insets(4, 12, 4, 12));
@@ -162,15 +162,15 @@ public class PanelFactory {
         lockFieldHeight(refs.buttonIdTextField);
         lockFieldHeight(refs.browserCombo);
 
-        sharedContent.add(formRowStretch(new JLabel("🔗 目標打卡網址："), refs.urlTextField));
+        sharedContent.add(formRowStretch(new JLabel("目標打卡網址："), refs.urlTextField));
         sharedContent.add(Box.createVerticalStrut(4));
         sharedContent.add(selectorBrowserActionRow(
                 refs.buttonIdTextField, refs.browserCombo, refs.executeNowButton));
 
-        JPanel shared = createCollapsibleGroupPanel("🔗 共用打卡設定", sharedContent, boldFont, false);
+        JPanel shared = createCollapsibleGroupPanel("共用打卡設定", sharedContent, boldFont, false);
 
-        refs.workIn = createSlotCard("🌅 上班打卡", mainFont, boldFont);
-        refs.workOut = createSlotCard("🌇 下班打卡", mainFont, boldFont);
+        refs.workIn = createSlotCard("上班打卡", mainFont, boldFont);
+        refs.workOut = createSlotCard("下班打卡", mainFont, boldFont);
 
         JPanel slotRow = new JPanel(new GridBagLayout());
         GridBagConstraints slotGbc = new GridBagConstraints();
@@ -352,7 +352,7 @@ public class PanelFactory {
      * 建立系統日誌面板
      */
     public static JPanel createLogPanel(LogPanelRefs refs, Font boldFont) {
-        JPanel logPanel = createGroupPanel("📜 系統日誌 (Console Log)", boldFont);
+        JPanel logPanel = createGroupPanel("系統日誌 (Console Log)", boldFont);
         logPanel.setLayout(new BorderLayout(0, 4));
 
         refs.logTextArea = new JTextArea();
@@ -371,7 +371,7 @@ public class PanelFactory {
         logPanel.add(scrollPane, BorderLayout.CENTER);
 
         JPanel logActionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        refs.clearLogButton = new JButton("🗑️ 清除 Log");
+        refs.clearLogButton = new JButton("清除 Log");
         refs.clearLogButton.setFont(boldFont);
         refs.clearLogButton.setToolTipText("清空下方日誌內容");
         refs.clearLogButton.addActionListener(e -> refs.logTextArea.setText(""));
@@ -424,11 +424,11 @@ public class PanelFactory {
         gbc.weightx = 0;
 
         gbc.gridx = 0;
-        row.add(new JLabel("🔘 Selector："), gbc);
+        row.add(new JLabel("Selector："), gbc);
         gbc.gridx = 1;
         row.add(selectorField, gbc);
         gbc.gridx = 2;
-        row.add(new JLabel("🌐 瀏覽器："), gbc);
+        row.add(new JLabel("瀏覽器："), gbc);
         gbc.gridx = 3;
         row.add(browserCombo, gbc);
         gbc.gridx = 4;

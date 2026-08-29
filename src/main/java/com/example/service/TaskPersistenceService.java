@@ -51,7 +51,7 @@ public class TaskPersistenceService {
                 Files.createDirectories(parent);
             }
         } catch (IOException e) {
-            System.err.println("⚠️ 無法建立儲存目錄: " + savePath.getParent());
+            System.err.println("[警告] 無法建立儲存目錄: " + savePath.getParent());
         }
     }
 
@@ -69,7 +69,7 @@ public class TaskPersistenceService {
             Files.writeString(savePath, json);
         } catch (IOException e) {
             if (logger != null) {
-                logger.accept("⚠️ 儲存任務失敗: " + e.getMessage());
+                logger.accept("[警告] 儲存任務失敗: " + e.getMessage());
             }
         }
     }
@@ -103,7 +103,7 @@ public class TaskPersistenceService {
                         task.setResultMessage("應用程式重啟，排程已過期");
                         if (logger != null) {
                             logger.accept(String.format(
-                                    "🛑 【%s】啟動時發現排程已過期，標記為已取消（原定 %s）",
+                                    "[取消] 【%s】啟動時發現排程已過期，標記為已取消（原定 %s）",
                                     task.getName() != null ? task.getName() : task.getId(),
                                     triggerTime.format(FMT)));
                         }
@@ -112,12 +112,12 @@ public class TaskPersistenceService {
             }
 
             if (logger != null) {
-                logger.accept(String.format("📂 已從本地載入 %d 筆歷史任務紀錄", tasks.size()));
+                logger.accept(String.format("[載入] 已從本地載入 %d 筆歷史任務紀錄", tasks.size()));
             }
             return tasks;
         } catch (Exception e) {
             if (logger != null) {
-                logger.accept("⚠️ 載入任務失敗: " + e.getMessage());
+                logger.accept("[警告] 載入任務失敗: " + e.getMessage());
             }
             return new ArrayList<>();
         }

@@ -80,7 +80,7 @@ public class ConfigPersistenceService {
                 Files.createDirectories(parent);
             }
         } catch (IOException e) {
-            System.err.println("⚠️ 無法建立設定目錄: " + savePath.getParent());
+            System.err.println("[警告] 無法建立設定目錄: " + savePath.getParent());
         }
     }
 
@@ -95,7 +95,7 @@ public class ConfigPersistenceService {
             Files.writeString(savePath, gson.toJson(config));
         } catch (IOException e) {
             if (logger != null) {
-                logger.accept("⚠️ 儲存雲端設定失敗: " + e.getMessage());
+                logger.accept("[警告] 儲存雲端設定失敗: " + e.getMessage());
             }
         }
     }
@@ -115,12 +115,12 @@ public class ConfigPersistenceService {
             }
             normalize(config);
             if (logger != null) {
-                logger.accept("⚙️ 已載入本地設定");
+                logger.accept("[設定] 已載入本地設定");
             }
             return config;
         } catch (Exception e) {
             if (logger != null) {
-                logger.accept("⚠️ 載入設定失敗: " + e.getMessage());
+                logger.accept("[警告] 載入設定失敗: " + e.getMessage());
             }
             return new CloudConfig();
         }

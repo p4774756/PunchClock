@@ -73,7 +73,7 @@
         <p>測試按鈕的 HTML Element ID 為 <code>check_in</code></p>
         
         <!-- 目標打卡按鈕 -->
-        <button id="check_in" class="btn-checkin" onclick="handleCheckIn()">👉 點我打卡 (ID: check_in)</button>
+        <button id="check_in" class="btn-checkin" onclick="handleCheckIn()">點我打卡 (ID: check_in)</button>
         
         <div id="status" class="status-box">
             狀態：等待點擊中...
@@ -87,10 +87,10 @@
             const now = new Date().toLocaleTimeString();
 
             btn.classList.add('success');
-            btn.innerHTML = '🎉 打卡成功！';
+            btn.innerHTML = '[成功] 打卡成功！';
             status.style.borderColor = '#22c55e';
             status.style.color = '#4ade80';
-            status.innerHTML = `✅ 已於 ${now} 成功觸發點擊打卡！`;
+            status.innerHTML = `[成功] 已於 ${now} 成功觸發點擊打卡！`;
         }
     </script>
 </body>

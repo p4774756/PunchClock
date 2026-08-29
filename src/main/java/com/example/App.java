@@ -62,7 +62,7 @@ public class App extends JFrame {
 
         countdownTimer = new Timer(1000, e -> slotController.refreshCountdowns());
         countdownTimer.start();
-        appendLog("📦 桌面端版本 v" + AppVersion.VERSION);
+        appendLog("[資訊] 桌面端版本 v" + AppVersion.VERSION);
     }
 
     private void initHeartbeatService() {
@@ -72,7 +72,7 @@ public class App extends JFrame {
                 SwingUtilities.invokeLater(() -> {
                     schedulerService.cancelAllTasks("網頁後台遠端取消全部任務");
                     onSlotStateChanged();
-                    appendLog("🛑 【遠端指令】收到網頁後台【取消全部任務】，已停止所有等待中的排程。");
+                    appendLog("[取消] 【遠端指令】收到網頁後台【取消全部任務】，已停止所有等待中的排程。");
                     heartbeatService.sendHeartbeat(this::appendLog, null);
                 });
             } else if (command.startsWith("CANCEL_TASK:")) {
@@ -85,7 +85,7 @@ public class App extends JFrame {
                     boolean timerStopped = schedulerService.cancelTask(taskId, "網頁後台遠端取消");
                     onSlotStateChanged();
                     appendLog(String.format(
-                            "🛑 【遠端指令】取消【%s】(%s)，取消前狀態：%s，計時器：%s",
+                            "[取消] 【遠端指令】取消【%s】(%s)，取消前狀態：%s，計時器：%s",
                             name,
                             taskId,
                             prev,
@@ -120,7 +120,7 @@ public class App extends JFrame {
         tasksTab.add(slotPanel, BorderLayout.NORTH);
 
         JPanel serverBody = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont);
-        JPanel serverGroup = PanelFactory.createGroupPanel("🖥️ 雲端服務與裝置設定", boldFont);
+        JPanel serverGroup = PanelFactory.createGroupPanel("雲端服務與裝置設定", boldFont);
         serverGroup.setLayout(new BorderLayout());
         serverGroup.add(serverBody, BorderLayout.NORTH);
 
@@ -128,9 +128,9 @@ public class App extends JFrame {
         cloudTab.setBorder(new EmptyBorder(8, 4, 8, 4));
         cloudTab.add(serverGroup, BorderLayout.NORTH);
 
-        tabs.addTab("📋 打卡任務", tasksTab);
-        tabs.addTab("🖥️ 雲端設定", cloudTab);
-        tabs.addTab("📡 ping/pong", PanelFactory.createHelpPanel(mainFont, boldFont));
+        tabs.addTab("打卡任務", tasksTab);
+        tabs.addTab("雲端設定", cloudTab);
+        tabs.addTab("ping/pong", PanelFactory.createHelpPanel(mainFont, boldFont));
         tabs.setSelectedIndex(0);
 
         JPanel logPanel = PanelFactory.createLogPanel(logRefs, boldFont);
@@ -266,7 +266,7 @@ public class App extends JFrame {
         textCol.add(Box.createVerticalStrut(2));
         textCol.add(zh);
 
-        JButton speakButton = new JButton("🔊 發音");
+        JButton speakButton = new JButton("發音");
         speakButton.setFont(mainFont);
         speakButton.setToolTipText("朗讀今日英文台詞");
         speakButton.addActionListener(e -> SpeechService.speakEnglish(proverb.en, this::appendLog));
@@ -281,12 +281,12 @@ public class App extends JFrame {
             boolean enabled = serverRefs.enableServerCheckBox.isSelected();
             syncTrustSslEnabled();
             if (enabled) {
-                appendLog("🟢 已勾選啟用雲端狀態回報，啟動單向心跳中...");
+                appendLog("[連線] 已勾選啟用雲端狀態回報，啟動單向心跳中...");
                 startHeartbeatService();
             } else {
-                appendLog("🔴 已取消勾選，斷開雲端狀態回報（本機獨立運作模式）。");
+                appendLog("[離線] 已取消勾選，斷開雲端狀態回報（本機獨立運作模式）。");
                 heartbeatService.stopHeartbeat();
-                serverRefs.heartbeatStatusLabel.setText("⚪ 未連線 (已停用)");
+                serverRefs.heartbeatStatusLabel.setText("[離線] 未連線 (已停用)");
                 serverRefs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
             }
             saveCloudConfig();
@@ -304,8 +304,8 @@ public class App extends JFrame {
                 boolean trust = serverRefs.trustAllSslCheckBox.isSelected();
                 heartbeatService.setTrustAllSsl(trust);
                 appendLog(trust
-                        ? "⚠️ 已啟用「信任所有 SSL」（僅建議本機除錯）"
-                        : "🔒 已關閉「信任所有 SSL」，使用系統憑證驗證");
+                        ? "[警告] 已啟用「信任所有 SSL」（僅建議本機除錯）"
+                        : "[安全] 已關閉「信任所有 SSL」，使用系統憑證驗證");
                 saveCloudConfig();
             });
         }
@@ -435,15 +435,15 @@ public class App extends JFrame {
             heartbeatService.startHeartbeat(serverUrl, this::appendLog, isOk -> {
                 SwingUtilities.invokeLater(() -> {
                     if (serverRefs.enableServerCheckBox != null && !serverRefs.enableServerCheckBox.isSelected()) {
-                        serverRefs.heartbeatStatusLabel.setText("⚪ 未連線 (已停用)");
+                        serverRefs.heartbeatStatusLabel.setText("[離線] 未連線 (已停用)");
                         serverRefs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
                         return;
                     }
                     if (isOk) {
-                        serverRefs.heartbeatStatusLabel.setText("💚 HTTP POST 正常");
+                        serverRefs.heartbeatStatusLabel.setText("[正常] HTTP POST 正常");
                         serverRefs.heartbeatStatusLabel.setForeground(new Color(34, 197, 94));
                     } else {
-                        serverRefs.heartbeatStatusLabel.setText("🔴 HTTP POST 異常");
+                        serverRefs.heartbeatStatusLabel.setText("[異常] HTTP POST 異常");
                         serverRefs.heartbeatStatusLabel.setForeground(new Color(239, 68, 68));
                     }
                 });

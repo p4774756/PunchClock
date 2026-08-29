@@ -48,7 +48,7 @@ public class TaskEditDialog extends JDialog {
      * @param isReuse    true=重新排定（建立新任務），false=編輯現有任務
      */
     public TaskEditDialog(JFrame owner, CheckInTask sourceTask, boolean isReuse) {
-        super(owner, isReuse ? "🔄 重新排定任務" : "✏️ 編輯任務", true);
+        super(owner, isReuse ? "重新排定任務" : "編輯任務", true);
         setSize(520, 420);
         setLocationRelativeTo(owner);
         setLayout(new BorderLayout(10, 10));
@@ -65,7 +65,7 @@ public class TaskEditDialog extends JDialog {
 
         // 任務名稱
         gc.gridx = 0; gc.gridy = 0; gc.weightx = 0.0;
-        JLabel dlgNameLabel = new JLabel("📝 任務名稱：");
+        JLabel dlgNameLabel = new JLabel("任務名稱：");
         dlgNameLabel.setFont(dialogFont);
         formPanel.add(dlgNameLabel, gc);
 
@@ -76,7 +76,7 @@ public class TaskEditDialog extends JDialog {
 
         // 目標網址
         gc.gridx = 0; gc.gridy = 1; gc.weightx = 0.0;
-        JLabel dlgUrlLabel = new JLabel("🔗 目標網址：");
+        JLabel dlgUrlLabel = new JLabel("目標網址：");
         dlgUrlLabel.setFont(dialogFont);
         formPanel.add(dlgUrlLabel, gc);
 
@@ -87,7 +87,7 @@ public class TaskEditDialog extends JDialog {
 
         // 按鈕 Selector
         gc.gridx = 0; gc.gridy = 2; gc.weightx = 0.0;
-        JLabel dlgBtnLabel = new JLabel("🔘 按鈕 Selector：");
+        JLabel dlgBtnLabel = new JLabel("按鈕 Selector：");
         dlgBtnLabel.setFont(dialogFont);
         formPanel.add(dlgBtnLabel, gc);
 
@@ -98,7 +98,7 @@ public class TaskEditDialog extends JDialog {
 
         // 排程日期
         gc.gridx = 0; gc.gridy = 3; gc.weightx = 0.0;
-        JLabel dlgDateLabel = new JLabel("📆 排程日期：");
+        JLabel dlgDateLabel = new JLabel("排程日期：");
         dlgDateLabel.setFont(dialogFont);
         formPanel.add(dlgDateLabel, gc);
 
@@ -156,7 +156,7 @@ public class TaskEditDialog extends JDialog {
 
         // 隨機偏移
         gc.gridx = 0; gc.gridy = 5; gc.weightx = 0.0;
-        JLabel dlgRandomLabel = new JLabel("🎲 隨機偏移：");
+        JLabel dlgRandomLabel = new JLabel("隨機偏移：");
         dlgRandomLabel.setFont(dialogFont);
         formPanel.add(dlgRandomLabel, gc);
 
@@ -168,7 +168,7 @@ public class TaskEditDialog extends JDialog {
 
         // 瀏覽器
         gc.gridx = 0; gc.gridy = 6; gc.weightx = 0.0;
-        JLabel dlgBrowserLabel = new JLabel("🌐 瀏覽器：");
+        JLabel dlgBrowserLabel = new JLabel("瀏覽器：");
         dlgBrowserLabel.setFont(dialogFont);
         formPanel.add(dlgBrowserLabel, gc);
 
@@ -194,7 +194,7 @@ public class TaskEditDialog extends JDialog {
 
         // 底部按鈕
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 8));
-        JButton confirmButton = new JButton(isReuse ? "🔄 確認排定" : "✅ 儲存變更");
+        JButton confirmButton = new JButton(isReuse ? "確認排定" : "儲存變更");
         JButton cancelButton = new JButton("取消");
         confirmButton.setFont(dialogBoldFont);
         cancelButton.setFont(dialogFont);

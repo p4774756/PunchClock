@@ -118,17 +118,17 @@ public class SlotController {
             }
         }
         if (scheduled > 0) {
-            appendLog.accept(String.format("✅ 已排程 %d 個打卡槽位", scheduled));
+            appendLog.accept(String.format("[成功] 已排程 %d 個打卡槽位", scheduled));
         }
         for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
             CheckInTask t = schedulerService.getTask(kind.id);
             if (t == null) continue;
             if (t.getStatus() == TaskStatus.SCHEDULED) {
-                appendLog.accept(String.format("📌 【%s】下次觸發：%s", kind.displayName, t.getFormattedActualTime()));
+                appendLog.accept(String.format("[排程] 【%s】下次觸發：%s", kind.displayName, t.getFormattedActualTime()));
             } else {
                 String extra = t.getResultMessage() != null && !t.getResultMessage().isBlank()
                         ? "（" + t.getResultMessage() + "）" : "";
-                appendLog.accept(String.format("ℹ️ 【%s】目前狀態：%s%s",
+                appendLog.accept(String.format("[資訊] 【%s】目前狀態：%s%s",
                         kind.displayName, t.getStatus().getDisplayName(), extra));
             }
         }
@@ -219,7 +219,7 @@ public class SlotController {
             }
         }
         if (logSummary) {
-            appendLog.accept(String.format("📌 已更新排程：%d 個槽位啟用中", scheduled));
+            appendLog.accept(String.format("[排程] 已更新排程：%d 個槽位啟用中", scheduled));
         }
         refreshSlotCards();
         persistTasks();
@@ -241,7 +241,7 @@ public class SlotController {
                 task.setResultMessage("槽位已停用");
             }
             if (logChanges) {
-                appendLog.accept("⏸️ 【" + kind.displayName + "】已停用，排程已取消");
+                appendLog.accept("[停用] 【" + kind.displayName + "】已停用，排程已取消");
             }
             onSlotStateChanged.run();
             return false;
@@ -321,7 +321,7 @@ public class SlotController {
             return;
         }
         SlotScheduleHelper.applySharedSettings(task, config);
-        appendLog.accept("⚡ 【立即執行】使用共用設定（結果記入【" + kind.displayName + "】）");
+        appendLog.accept("[執行] 【立即執行】使用共用設定（結果記入【" + kind.displayName + "】）");
         new Thread(() -> executeCheckInForTask(task, null)).start();
     }
 
@@ -337,22 +337,22 @@ public class SlotController {
             String finishTimeStr = LocalDateTime.now().format(FMT);
 
             if (ok) {
-                String msg = String.format("✅ 打卡成功！(觸發: %s, 完成: %s, 耗時: %.1f秒)", triggerTimeStr, finishTimeStr, durationSec);
+                String msg = String.format("[成功] 打卡成功！(觸發: %s, 完成: %s, 耗時: %.1f秒)", triggerTimeStr, finishTimeStr, durationSec);
                 task.setStatus(TaskStatus.SUCCESS);
                 task.setResultMessage(msg);
-                appendLog.accept("🎉 【" + task.getName() + "】" + msg);
+                appendLog.accept("[成功] 【" + task.getName() + "】" + msg);
             } else {
-                String msg = String.format("❌ 打卡失敗 (觸發: %s, 耗時: %.1f秒)", triggerTimeStr, durationSec);
+                String msg = String.format("[失敗] 打卡失敗 (觸發: %s, 耗時: %.1f秒)", triggerTimeStr, durationSec);
                 task.setStatus(TaskStatus.FAILED);
                 task.setResultMessage(msg);
-                appendLog.accept("❌ 【" + task.getName() + "】" + msg);
+                appendLog.accept("[失敗] 【" + task.getName() + "】" + msg);
             }
         } catch (Exception ex) {
             double durationSec = (System.currentTimeMillis() - startTimeMs) / 1000.0;
-            String msg = String.format("❌ 打卡失敗：%s (觸發: %s, 耗時: %.1f秒)", sanitizeErrorMessage(ex.getMessage()), triggerTimeStr, durationSec);
+            String msg = String.format("[失敗] 打卡失敗：%s (觸發: %s, 耗時: %.1f秒)", sanitizeErrorMessage(ex.getMessage()), triggerTimeStr, durationSec);
             task.setStatus(TaskStatus.FAILED);
             task.setResultMessage(msg);
-            appendLog.accept("❌ 【" + task.getName() + "】" + msg);
+            appendLog.accept("[失敗] 【" + task.getName() + "】" + msg);
         } finally {
             onSlotTaskFinished(task);
             if (onComplete != null) onComplete.run();

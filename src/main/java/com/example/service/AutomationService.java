@@ -49,7 +49,7 @@ public class AutomationService {
 
             String selector = (buttonId == null) ? "" : buttonId.trim();
             if (selector.isEmpty()) {
-                log(logger, "❌ 未設定打卡按鈕 Selector");
+                log(logger, "[失敗] 未設定打卡按鈕 Selector");
                 return false;
             }
             if (!(selector.startsWith("#") || selector.startsWith(".") || selector.contains("["))) {
@@ -62,19 +62,19 @@ public class AutomationService {
                         .setState(WaitForSelectorState.VISIBLE)
                         .setTimeout(SELECTOR_TIMEOUT_MS));
             } catch (TimeoutError timeoutError) {
-                log(logger, "❌ 逾時：找不到可見的打卡按鈕（" + selector + "）");
+                log(logger, "[失敗] 逾時：找不到可見的打卡按鈕（" + selector + "）");
                 return false;
             }
 
             page.click(selector, new Page.ClickOptions().setTimeout(CLICK_TIMEOUT_MS));
-            log(logger, "✅ 已成功點擊打卡按鈕！");
+            log(logger, "[成功] 已成功點擊打卡按鈕！");
 
             page.waitForTimeout(5000);
             log(logger, "瀏覽器分頁已關閉，打卡任務結束。");
             return true;
         } catch (Exception ex) {
             closeCachedBrowser();
-            String errorMsg = "❌ 打卡過程中發生錯誤：" + ex.getMessage();
+            String errorMsg = "[失敗] 打卡過程中發生錯誤：" + ex.getMessage();
             log(logger, errorMsg);
             throw new RuntimeException(errorMsg, ex);
         } finally {
@@ -91,7 +91,7 @@ public class AutomationService {
      */
     private void ensurePlaywright(Consumer<String> logger) {
         if (playwright == null) {
-            log(logger, "🔧 首次初始化 Playwright 引擎...");
+            log(logger, "[初始化] 首次初始化 Playwright 引擎...");
             playwright = Playwright.create();
         }
     }
@@ -102,7 +102,7 @@ public class AutomationService {
     private Browser getOrCreateBrowser(String choice, Consumer<String> logger) {
         // 若瀏覽器類型不同或已關閉，需重新建立
         if (cachedBrowser != null && cachedBrowser.isConnected() && choice.equals(cachedBrowserType)) {
-            log(logger, "♻️ 重用已啟動的瀏覽器...");
+            log(logger, "[重用] 重用已啟動的瀏覽器...");
             return cachedBrowser;
         }
 
@@ -112,26 +112,26 @@ public class AutomationService {
 
         switch (choice) {
             case "chrome":
-                log(logger, "🚀 啟動 本機 Google Chrome 瀏覽器...");
+                log(logger, "[執行] 啟動 本機 Google Chrome 瀏覽器...");
                 launchOptions.setChannel("chrome");
                 cachedBrowser = playwright.chromium().launch(launchOptions);
                 break;
             case "firefox":
-                log(logger, "🚀 啟動 內建 Firefox 瀏覽器...");
+                log(logger, "[執行] 啟動 內建 Firefox 瀏覽器...");
                 cachedBrowser = playwright.firefox().launch(launchOptions);
                 break;
             case "webkit":
-                log(logger, "🚀 啟動 內建 WebKit (Safari核心) 瀏覽器...");
+                log(logger, "[執行] 啟動 內建 WebKit (Safari核心) 瀏覽器...");
                 cachedBrowser = playwright.webkit().launch(launchOptions);
                 break;
             case "chromium":
-                log(logger, "🚀 啟動 內建 Chromium 瀏覽器...");
+                log(logger, "[執行] 啟動 內建 Chromium 瀏覽器...");
                 cachedBrowser = playwright.chromium().launch(launchOptions);
                 break;
             case "msedge":
             case "edge":
             default:
-                log(logger, "🚀 啟動 本機 Microsoft Edge 瀏覽器...");
+                log(logger, "[執行] 啟動 本機 Microsoft Edge 瀏覽器...");
                 launchOptions.setChannel("msedge");
                 cachedBrowser = playwright.chromium().launch(launchOptions);
                 break;

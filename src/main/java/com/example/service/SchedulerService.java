@@ -43,7 +43,7 @@ public class SchedulerService {
         LocalDateTime targetTime = task.getTargetTime();
 
         if (targetTime == null) {
-            if (logConsumer != null) logConsumer.accept("❌ 錯誤：任務設定時間無效！");
+            if (logConsumer != null) logConsumer.accept("[失敗] 錯誤：任務設定時間無效！");
             return false;
         }
 
@@ -72,7 +72,7 @@ public class SchedulerService {
             // 若因為負向隨機偏移導致時間變為過去，補正為至少 2 秒後觸發，或是直接提示時間已過
             if (delayInSeconds < -30) {
                 if (logConsumer != null) {
-                    logConsumer.accept(String.format("❌ 錯誤：任務【%s】設定時間 (%s) 加上隨機偏移後已過去！",
+                    logConsumer.accept(String.format("[失敗] 錯誤：任務【%s】設定時間 (%s) 加上隨機偏移後已過去！",
                             task.getName(), actualTriggerTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))));
                 }
                 task.setStatus(TaskStatus.FAILED);
@@ -91,15 +91,15 @@ public class SchedulerService {
 
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         String offsetDesc = task.isUseRandomOffset()
-                ? String.format(" (🎲 含隨機偏移 %s%d秒)", randomOffsetSec >= 0 ? "+" : "", randomOffsetSec)
-                : " (⚡ 測試模式/精準時間)";
+                ? String.format(" (隨機偏移 %s%d秒)", randomOffsetSec >= 0 ? "+" : "", randomOffsetSec)
+                : " (精準時間)";
 
         if (logConsumer != null) {
             String url = task.getTargetUrl() != null ? task.getTargetUrl() : "—";
             String selector = task.getButtonId() != null && !task.getButtonId().isBlank()
                     ? task.getButtonId().trim() : "—";
             logConsumer.accept(String.format(
-                    "📌 【排程設定】任務【%s】排定成功！網址：%s，Selector：%s，原定：%s，預計實際觸發：%s%s",
+                    "[排程] 【排程設定】任務【%s】排定成功！網址：%s，Selector：%s，原定：%s，預計實際觸發：%s%s",
                     task.getName(),
                     url,
                     selector,
@@ -114,7 +114,7 @@ public class SchedulerService {
                 if (taskConsumer != null) taskConsumer.accept(task);
 
                 if (logConsumer != null) {
-                    logConsumer.accept(String.format("⏳ 【觸發執行】任務【%s】開始進行自動打卡...", task.getName()));
+                    logConsumer.accept(String.format("[執行] 【觸發執行】任務【%s】開始進行自動打卡...", task.getName()));
                 }
 
                 CountDownLatch latch = new CountDownLatch(1);

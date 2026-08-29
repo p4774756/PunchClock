@@ -28,7 +28,7 @@ public final class SpeechService {
     public static void speakEnglish(String quoteLine, Consumer<String> logger) {
         String text = toSpeakableEnglish(quoteLine);
         if (text.isEmpty()) {
-            log(logger, "⚠️ 沒有可朗讀的英文台詞");
+            log(logger, "[警告] 沒有可朗讀的英文台詞");
             return;
         }
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
@@ -41,9 +41,9 @@ public final class SpeechService {
                 } else {
                     speakLinux(text);
                 }
-                log(logger, "🔊 已朗讀：" + text);
+                log(logger, "[朗讀] 已朗讀：" + text);
             } catch (Exception ex) {
-                log(logger, "⚠️ 朗讀失敗：" + ex.getMessage());
+                log(logger, "[警告] 朗讀失敗：" + ex.getMessage());
             }
         }, "speech-synth");
         speaker.setDaemon(true);
