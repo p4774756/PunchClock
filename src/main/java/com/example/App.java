@@ -153,7 +153,7 @@ public class App extends JFrame {
 
         tabs.addTab("打卡任務", tasksTab);
         tabs.addTab("雲端設定", cloudTab);
-        tabs.addTab("同事互動", peerTab);
+        tabs.addTab("戳", peerTab);
         tabs.addTab("ping/pong", PanelFactory.createHelpPanel(mainFont, boldFont));
         tabs.setSelectedIndex(0);
 
