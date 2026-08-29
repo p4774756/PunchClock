@@ -5,6 +5,7 @@ import com.example.service.SpeechService;
 import com.example.service.AutomationService;
 import com.example.service.ConfigPersistenceService;
 import com.example.service.HeartbeatService;
+import com.example.service.HeartbeatService.PeerInfo;
 import com.example.service.SchedulerService;
 import com.example.service.TaskPersistenceService;
 import com.example.ui.PanelFactory;
@@ -27,6 +28,7 @@ import java.time.format.DateTimeFormatter;
 public class App extends JFrame {
 
     private final ServerConfigRefs serverRefs = new ServerConfigRefs();
+    private final PeerInteractionRefs peerRefs = new PeerInteractionRefs();
     private final SlotPanelRefs slotRefs = new SlotPanelRefs();
     private final LogPanelRefs logRefs = new LogPanelRefs();
 
@@ -67,6 +69,7 @@ public class App extends JFrame {
 
     private void initHeartbeatService() {
         heartbeatService.setTasksProvider(schedulerService::getAllTasks);
+        heartbeatService.setPeersListener(peers -> SwingUtilities.invokeLater(() -> updatePeerTable(peers)));
         heartbeatService.setCommandListener(command -> {
             if ("CANCEL_SCHEDULE".equalsIgnoreCase(command)) {
                 SwingUtilities.invokeLater(() -> {
@@ -92,6 +95,16 @@ public class App extends JFrame {
                             timerStopped ? "已停止" : "當時沒有在跑（可能已執行完、已過期，或本來就不是等待中）"));
                     heartbeatService.sendHeartbeat(this::appendLog, null);
                 });
+            } else if (command.startsWith("MSG|")) {
+                String[] parts = command.split("\\|", 3);
+                if (parts.length >= 3) {
+                    String fromId = parts[1];
+                    String text = parts[2];
+                    SwingUtilities.invokeLater(() -> showPeerMessage(fromId, text));
+                }
+            } else if (command.startsWith("POKE|")) {
+                String fromId = command.length() > 5 ? command.substring(5) : "同事";
+                SwingUtilities.invokeLater(() -> showPeerPoke(fromId));
             }
         });
     }
@@ -128,8 +141,19 @@ public class App extends JFrame {
         cloudTab.setBorder(new EmptyBorder(8, 4, 8, 4));
         cloudTab.add(serverGroup, BorderLayout.NORTH);
 
+        JPanel peerBody = PanelFactory.createPeerInteractionPanel(peerRefs, mainFont, boldFont);
+        JPanel peerGroup = PanelFactory.createGroupPanel("同事互動", boldFont);
+        peerGroup.setLayout(new BorderLayout());
+        peerGroup.add(peerBody, BorderLayout.NORTH);
+        bindPeerInteractionListeners();
+
+        JPanel peerTab = new JPanel(new BorderLayout());
+        peerTab.setBorder(new EmptyBorder(8, 4, 8, 4));
+        peerTab.add(peerGroup, BorderLayout.NORTH);
+
         tabs.addTab("打卡任務", tasksTab);
         tabs.addTab("雲端設定", cloudTab);
+        tabs.addTab("同事互動", peerTab);
         tabs.addTab("ping/pong", PanelFactory.createHelpPanel(mainFont, boldFont));
         tabs.setSelectedIndex(0);
 
@@ -274,6 +298,105 @@ public class App extends JFrame {
         banner.add(textCol, BorderLayout.CENTER);
         banner.add(speakButton, BorderLayout.EAST);
         return banner;
+    }
+
+    private void bindPeerInteractionListeners() {
+        if (peerRefs.sendMessageButton != null) {
+            peerRefs.sendMessageButton.addActionListener(e -> sendMessageToSelectedPeer());
+        }
+        if (peerRefs.pokeButton != null) {
+            peerRefs.pokeButton.addActionListener(e -> pokeSelectedPeer());
+        }
+        if (peerRefs.messageField != null) {
+            peerRefs.messageField.addActionListener(e -> sendMessageToSelectedPeer());
+        }
+    }
+
+    private String getSelectedPeerClientId() {
+        if (peerRefs.peerTable == null) return null;
+        int row = peerRefs.peerTable.getSelectedRow();
+        if (row < 0) return null;
+        Object value = peerRefs.peerTableModel.getValueAt(row, 0);
+        return value != null ? value.toString() : null;
+    }
+
+    private void sendMessageToSelectedPeer() {
+        String toClientId = getSelectedPeerClientId();
+        if (toClientId == null) {
+            appendLog("[警告] [同事互動] 請先在列表中選擇一位同事");
+            return;
+        }
+        String text = peerRefs.messageField != null ? peerRefs.messageField.getText() : "";
+        heartbeatService.sendPeerMessage(toClientId, text, this::appendLog, ok -> {
+            if (ok && peerRefs.messageField != null) {
+                SwingUtilities.invokeLater(() -> peerRefs.messageField.setText(""));
+            }
+        });
+    }
+
+    private void pokeSelectedPeer() {
+        String toClientId = getSelectedPeerClientId();
+        if (toClientId == null) {
+            appendLog("[警告] [同事互動] 請先在列表中選擇一位同事");
+            return;
+        }
+        heartbeatService.sendPeerPoke(toClientId, this::appendLog, null);
+    }
+
+    private void updatePeerTable(java.util.List<PeerInfo> peers) {
+        if (peerRefs.peerTableModel == null) return;
+
+        String selectedId = getSelectedPeerClientId();
+        peerRefs.peerTableModel.setRowCount(0);
+        int onlineCount = 0;
+        for (PeerInfo peer : peers) {
+            boolean online = "ONLINE".equalsIgnoreCase(peer.status);
+            if (online) onlineCount++;
+            String statusLabel = online ? "在線" : "離線";
+            peerRefs.peerTableModel.addRow(new Object[]{
+                    peer.clientId,
+                    statusLabel,
+                    peer.scheduledCount,
+                    peer.appVersion.isBlank() ? "—" : peer.appVersion
+            });
+        }
+
+        if (peerRefs.peerStatusLabel != null) {
+            if (peers.isEmpty()) {
+                peerRefs.peerStatusLabel.setText("目前沒有其他裝置（請確認同事也已啟用雲端回報且 Client ID 不同）");
+            } else {
+                peerRefs.peerStatusLabel.setText("共 " + peers.size() + " 位同事 · " + onlineCount + " 位在線");
+            }
+        }
+
+        if (selectedId != null && peerRefs.peerTable != null) {
+            for (int i = 0; i < peerRefs.peerTableModel.getRowCount(); i++) {
+                if (selectedId.equals(peerRefs.peerTableModel.getValueAt(i, 0))) {
+                    peerRefs.peerTable.setRowSelectionInterval(i, i);
+                    break;
+                }
+            }
+        }
+    }
+
+    private void showPeerMessage(String fromId, String text) {
+        appendLog("[訊息] 【同事互動】來自【" + fromId + "】：" + text);
+        Toolkit.getDefaultToolkit().beep();
+        JOptionPane.showMessageDialog(
+                this,
+                text,
+                "同事訊息 · " + fromId,
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void showPeerPoke(String fromId) {
+        appendLog("[通知] 【同事互動】【" + fromId + "】戳了你！");
+        Toolkit.getDefaultToolkit().beep();
+        JOptionPane.showMessageDialog(
+                this,
+                "【" + fromId + "】戳了你，快看一下打卡狀態吧！",
+                "同事戳你",
+                JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void bindCloudEventListeners() {

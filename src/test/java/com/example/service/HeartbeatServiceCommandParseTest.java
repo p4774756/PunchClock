@@ -47,4 +47,48 @@ public class HeartbeatServiceCommandParseTest {
 
         assertNull(received.get());
     }
+
+    @Test
+    public void parseServerCommand_supportsPeerMessageAndPoke() throws Exception {
+        HeartbeatService service = new HeartbeatService();
+        List<String> received = new ArrayList<>();
+        service.setCommandListener(received::add);
+
+        Method method = HeartbeatService.class.getDeclaredMethod(
+                "parseServerCommand", String.class, Consumer.class);
+        method.setAccessible(true);
+
+        String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("記得打卡".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String body = "{"
+                + "\"actions\":[\"MSG|worker-a|" + encoded + "\",\"POKE|worker-b\"]"
+                + "}";
+        method.invoke(service, body, (Consumer<String>) msg -> {});
+
+        assertEquals(2, received.size());
+        assertTrue(received.contains("MSG|worker-a|記得打卡"));
+        assertTrue(received.contains("POKE|worker-b"));
+    }
+
+    @Test
+    public void parseServerCommand_parsesPeersArray() throws Exception {
+        HeartbeatService service = new HeartbeatService();
+        List<HeartbeatService.PeerInfo> peers = new ArrayList<>();
+        service.setPeersListener(peers::addAll);
+
+        Method method = HeartbeatService.class.getDeclaredMethod(
+                "parseServerCommand", String.class, Consumer.class);
+        method.setAccessible(true);
+        String body = "{"
+                + "\"peers\":[{\"clientId\":\"worker-b\",\"status\":\"ONLINE\","
+                + "\"appVersion\":\"1.0.0\",\"taskCount\":2,\"scheduledCount\":1,"
+                + "\"lastSeen\":\"2026-08-29T10:00:00.000Z\"}]"
+                + "}";
+        method.invoke(service, body, (Consumer<String>) msg -> {});
+
+        assertEquals(1, peers.size());
+        assertEquals("worker-b", peers.get(0).clientId);
+        assertEquals("ONLINE", peers.get(0).status);
+        assertEquals(1, peers.get(0).scheduledCount);
+    }
 }

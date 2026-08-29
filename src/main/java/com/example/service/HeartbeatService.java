@@ -14,9 +14,11 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,6 +34,26 @@ import java.util.function.Supplier;
  */
 public class HeartbeatService {
 
+    /** 線上同事摘要（由心跳回應 peers[] 解析） */
+    public static final class PeerInfo {
+        public final String clientId;
+        public final String status;
+        public final String appVersion;
+        public final int taskCount;
+        public final int scheduledCount;
+        public final String lastSeen;
+
+        public PeerInfo(String clientId, String status, String appVersion,
+                        int taskCount, int scheduledCount, String lastSeen) {
+            this.clientId = clientId;
+            this.status = status != null ? status : "UNKNOWN";
+            this.appVersion = appVersion != null ? appVersion : "";
+            this.taskCount = taskCount;
+            this.scheduledCount = scheduledCount;
+            this.lastSeen = lastSeen != null ? lastSeen : "";
+        }
+    }
+
     private volatile HttpClient httpClient;
     private final Gson gson = new Gson();
     private ScheduledExecutorService scheduler;
@@ -46,9 +68,14 @@ public class HeartbeatService {
 
     private Supplier<List<CheckInTask>> tasksProvider;
     private Consumer<String> commandListener;
+    private Consumer<List<PeerInfo>> peersListener;
 
     public void setCommandListener(Consumer<String> commandListener) {
         this.commandListener = commandListener;
+    }
+
+    public void setPeersListener(Consumer<List<PeerInfo>> peersListener) {
+        this.peersListener = peersListener;
     }
 
     public void setTasksProvider(Supplier<List<CheckInTask>> tasksProvider) {
@@ -191,7 +218,7 @@ public class HeartbeatService {
                     .thenAccept(response -> {
                         if (response.statusCode() == 200) {
                             if (statusCallback != null) statusCallback.accept(true);
-                            parseServerCommand(response.body(), logger);
+                            parseHeartbeatResponse(response.body(), logger);
                         } else {
                             log(logger, "[警告] [HTTP POST 心跳] 伺服器回應異常，狀態碼：" + response.statusCode());
                             if (statusCallback != null) statusCallback.accept(false);
@@ -209,48 +236,189 @@ public class HeartbeatService {
     }
 
     /**
-     * 使用 Gson 安全解析伺服器回應中的指令
-     * 協定：優先讀取 actions[]，並相容舊版單一 action 欄位
+     * 使用 Gson 安全解析伺服器回應中的指令與同事列表
+     * 協定：優先讀取 actions[]，並相容舊版單一 action 欄位；peers[] 為其他連線裝置
      */
-    private void parseServerCommand(String body, Consumer<String> logger) {
-        if (body == null || body.isBlank() || commandListener == null) return;
+    private void parseHeartbeatResponse(String body, Consumer<String> logger) {
+        if (body == null || body.isBlank()) return;
 
         try {
             JsonObject json = JsonParser.parseString(body).getAsJsonObject();
-            java.util.LinkedHashSet<String> actions = new java.util.LinkedHashSet<>();
-
-            if (json.has("actions") && json.get("actions").isJsonArray()) {
-                for (com.google.gson.JsonElement el : json.getAsJsonArray("actions")) {
-                    if (el != null && el.isJsonPrimitive()) {
-                        String a = el.getAsString();
-                        if (a != null && !a.isBlank() && !"NONE".equalsIgnoreCase(a)) {
-                            actions.add(a.trim());
-                        }
-                    }
-                }
-            }
-
-            if (json.has("action") && json.get("action").isJsonPrimitive()) {
-                String action = json.get("action").getAsString();
-                if (action != null && !action.isBlank() && !"NONE".equalsIgnoreCase(action)) {
-                    actions.add(action.trim());
-                }
-            }
-
-            for (String action : actions) {
-                if ("CANCEL_SCHEDULE".equals(action)) {
-                    log(logger, "[取消] [HTTP 心跳] 收到伺服器取消排程指令 (CANCEL_SCHEDULE)");
-                    commandListener.accept("CANCEL_SCHEDULE");
-                } else if (action.startsWith("CANCEL_TASK:")) {
-                    log(logger, "[取消] [HTTP 心跳] 收到伺服器取消特定任務指令 (" + action + ")");
-                    commandListener.accept(action);
-                } else {
-                    log(logger, "[警告] [HTTP 心跳] 收到未支援的遠端指令: " + action);
-                }
-            }
+            parseServerActions(json, logger);
+            parseServerPeers(json);
         } catch (Exception ex) {
             // 回應非 JSON 或格式異常時靜默忽略
         }
+    }
+
+    private void parseServerActions(JsonObject json, Consumer<String> logger) {
+        if (commandListener == null) return;
+
+        java.util.LinkedHashSet<String> actions = new java.util.LinkedHashSet<>();
+
+        if (json.has("actions") && json.get("actions").isJsonArray()) {
+            for (com.google.gson.JsonElement el : json.getAsJsonArray("actions")) {
+                if (el != null && el.isJsonPrimitive()) {
+                    String a = el.getAsString();
+                    if (a != null && !a.isBlank() && !"NONE".equalsIgnoreCase(a)) {
+                        actions.add(a.trim());
+                    }
+                }
+            }
+        }
+
+        if (json.has("action") && json.get("action").isJsonPrimitive()) {
+            String action = json.get("action").getAsString();
+            if (action != null && !action.isBlank() && !"NONE".equalsIgnoreCase(action)) {
+                actions.add(action.trim());
+            }
+        }
+
+        for (String action : actions) {
+            dispatchServerAction(action, logger);
+        }
+    }
+
+    private void dispatchServerAction(String action, Consumer<String> logger) {
+        if ("CANCEL_SCHEDULE".equals(action)) {
+            log(logger, "[取消] [HTTP 心跳] 收到伺服器取消排程指令 (CANCEL_SCHEDULE)");
+            commandListener.accept("CANCEL_SCHEDULE");
+        } else if (action.startsWith("CANCEL_TASK:")) {
+            log(logger, "[取消] [HTTP 心跳] 收到伺服器取消特定任務指令 (" + action + ")");
+            commandListener.accept(action);
+        } else if (action.startsWith("MSG|")) {
+            String[] parts = action.split("\\|", 3);
+            if (parts.length >= 3) {
+                String fromId = parts[1];
+                String text = decodePeerPayload(parts[2]);
+                log(logger, "[訊息] [同事互動] 收到來自【" + fromId + "】的訊息");
+                commandListener.accept("MSG|" + fromId + "|" + text);
+            }
+        } else if (action.startsWith("POKE|")) {
+            String fromId = action.length() > 5 ? action.substring(5) : "未知";
+            log(logger, "[通知] [同事互動] 【" + fromId + "】戳了你");
+            commandListener.accept(action);
+        } else {
+            log(logger, "[警告] [HTTP 心跳] 收到未支援的遠端指令: " + action);
+        }
+    }
+
+    private void parseServerPeers(JsonObject json) {
+        if (peersListener == null || !json.has("peers") || !json.get("peers").isJsonArray()) {
+            return;
+        }
+        List<PeerInfo> peers = new ArrayList<>();
+        for (com.google.gson.JsonElement el : json.getAsJsonArray("peers")) {
+            if (el == null || !el.isJsonObject()) continue;
+            JsonObject p = el.getAsJsonObject();
+            String id = p.has("clientId") ? p.get("clientId").getAsString() : "";
+            if (id.isBlank()) continue;
+            String status = p.has("status") ? p.get("status").getAsString() : "UNKNOWN";
+            String appVersion = p.has("appVersion") ? p.get("appVersion").getAsString() : "";
+            int taskCount = p.has("taskCount") ? p.get("taskCount").getAsInt() : 0;
+            int scheduledCount = p.has("scheduledCount") ? p.get("scheduledCount").getAsInt() : 0;
+            String lastSeen = p.has("lastSeen") ? p.get("lastSeen").getAsString() : "";
+            peers.add(new PeerInfo(id, status, appVersion, taskCount, scheduledCount, lastSeen));
+        }
+        peersListener.accept(peers);
+    }
+
+    private static String decodePeerPayload(String base64url) {
+        if (base64url == null || base64url.isBlank()) return "";
+        try {
+            byte[] decoded = Base64.getUrlDecoder().decode(base64url);
+            return new String(decoded, StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException ex) {
+            return base64url;
+        }
+    }
+
+    /**
+     * 傳送訊息給同事（經伺服器中繼）
+     */
+    public void sendPeerMessage(String toClientId, String text, Consumer<String> logger, Consumer<Boolean> callback) {
+        if (!isServiceActive || serverUrl.isBlank()) {
+            log(logger, "[警告] [同事互動] 雲端未連線，無法傳送訊息");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+        if (toClientId == null || toClientId.isBlank()) {
+            log(logger, "[警告] [同事互動] 請選擇收件同事");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+        if (text == null || text.trim().isEmpty()) {
+            log(logger, "[警告] [同事互動] 訊息不可為空");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("fromClientId", clientId);
+        payload.put("toClientId", toClientId.trim());
+        payload.put("text", text.trim());
+        postPeerApi("/api/peer/message", payload, logger, callback, "傳送訊息");
+    }
+
+    /**
+     * 戳一下同事（經伺服器中繼）
+     */
+    public void sendPeerPoke(String toClientId, Consumer<String> logger, Consumer<Boolean> callback) {
+        if (!isServiceActive || serverUrl.isBlank()) {
+            log(logger, "[警告] [同事互動] 雲端未連線，無法戳同事");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+        if (toClientId == null || toClientId.isBlank()) {
+            log(logger, "[警告] [同事互動] 請選擇同事");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("fromClientId", clientId);
+        payload.put("toClientId", toClientId.trim());
+        postPeerApi("/api/peer/poke", payload, logger, callback, "戳一下");
+    }
+
+    private void postPeerApi(String path, Map<String, Object> payload,
+                             Consumer<String> logger, Consumer<Boolean> callback, String actionLabel) {
+        String endpoint = serverUrl + path;
+        String jsonBody = gson.toJson(payload);
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(endpoint))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + heartbeatToken)
+                    .timeout(Duration.ofSeconds(8))
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .thenAccept(response -> {
+                        boolean ok = response.statusCode() == 200;
+                        if (ok) {
+                            log(logger, "[成功] [同事互動] " + actionLabel + "已送出");
+                        } else {
+                            log(logger, "[失敗] [同事互動] " + actionLabel + "失敗，狀態碼：" + response.statusCode());
+                        }
+                        if (callback != null) callback.accept(ok);
+                    })
+                    .exceptionally(ex -> {
+                        log(logger, "[失敗] [同事互動] " + actionLabel + "異常：" + ex.getMessage());
+                        if (callback != null) callback.accept(false);
+                        return null;
+                    });
+        } catch (Exception ex) {
+            log(logger, "[失敗] [同事互動] " + actionLabel + "異常：" + ex.getMessage());
+            if (callback != null) callback.accept(false);
+        }
+    }
+
+    /** @deprecated 僅供測試反射呼叫；請使用 parseHeartbeatResponse */
+    @SuppressWarnings("unused")
+    private void parseServerCommand(String body, Consumer<String> logger) {
+        parseHeartbeatResponse(body, logger);
     }
 
     public void sendHeartbeat(Consumer<String> logger, Consumer<Boolean> statusCallback) {

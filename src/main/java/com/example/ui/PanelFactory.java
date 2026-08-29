@@ -83,6 +83,84 @@ public class PanelFactory {
         public JLabel heartbeatStatusLabel;
     }
 
+    // ==================== 同事互動 ====================
+
+    public static JPanel createPeerInteractionPanel(PeerInteractionRefs refs, Font mainFont, Font boldFont) {
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        panel.setBorder(new EmptyBorder(4, 0, 0, 0));
+
+        JLabel hint = new JLabel("顯示同一伺服器上的其他裝置（每 15 秒隨心跳更新）");
+        hint.setFont(mainFont);
+        hint.setForeground(new Color(100, 116, 139));
+
+        refs.peerTableModel = new javax.swing.table.DefaultTableModel(
+                new Object[]{"裝置 ID", "狀態", "等待任務", "版本"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        refs.peerTable = new JTable(refs.peerTableModel);
+        refs.peerTable.setFont(mainFont);
+        refs.peerTable.setRowHeight(28);
+        refs.peerTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        refs.peerTable.getTableHeader().setFont(boldFont);
+
+        JScrollPane tableScroll = new JScrollPane(refs.peerTable);
+        tableScroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
+        tableScroll.setPreferredSize(new Dimension(400, 180));
+
+        refs.peerStatusLabel = new JLabel("尚未取得同事列表（請先啟用雲端狀態回報）");
+        refs.peerStatusLabel.setFont(mainFont);
+        refs.peerStatusLabel.setForeground(new Color(100, 116, 139));
+
+        refs.messageField = new JTextField();
+        refs.messageField.setFont(mainFont);
+        refs.messageField.setToolTipText("輸入要傳給選中同事的訊息（最多 500 字）");
+
+        refs.sendMessageButton = new JButton("傳送訊息");
+        refs.sendMessageButton.setFont(boldFont);
+
+        refs.pokeButton = new JButton("戳一下");
+        refs.pokeButton.setFont(boldFont);
+        refs.pokeButton.setToolTipText("發送輕量提醒給選中的同事");
+
+        JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        actionRow.setOpaque(false);
+        actionRow.add(new JLabel("訊息："));
+        actionRow.getComponent(0).setFont(mainFont);
+        actionRow.add(refs.messageField);
+        refs.messageField.setPreferredSize(new Dimension(280, 28));
+        actionRow.add(refs.sendMessageButton);
+        actionRow.add(refs.pokeButton);
+
+        JPanel north = new JPanel();
+        north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
+        north.setOpaque(false);
+        north.add(hint);
+        north.add(Box.createVerticalStrut(6));
+        north.add(refs.peerStatusLabel);
+
+        JPanel center = new JPanel(new BorderLayout(0, 8));
+        center.setOpaque(false);
+        center.add(tableScroll, BorderLayout.CENTER);
+        center.add(actionRow, BorderLayout.SOUTH);
+
+        panel.add(north, BorderLayout.NORTH);
+        panel.add(center, BorderLayout.CENTER);
+        return panel;
+    }
+
+    /** 同事互動面板的元件引用容器 */
+    public static class PeerInteractionRefs {
+        public JTable peerTable;
+        public javax.swing.table.DefaultTableModel peerTableModel;
+        public JTextField messageField;
+        public JButton sendMessageButton;
+        public JButton pokeButton;
+        public JLabel peerStatusLabel;
+    }
+
     // ==================== 說明 ====================
 
     public static JPanel createHelpPanel(Font mainFont, Font boldFont) {
