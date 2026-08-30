@@ -208,14 +208,13 @@ public class SlotController {
     }
 
     private void bindSlotCard(PanelFactory.SlotCardRefs refs, WorkSlot.Kind kind) {
-        java.awt.event.ActionListener change = e -> onSlotSettingsChanged(kind);
         refs.enabledCheckBox.addActionListener(e -> {
             syncSlotEditorsEnabled(refs);
-            change.actionPerformed(e);
+            onEnableChanged(kind);
         });
-        refs.hourCombo.addActionListener(change);
-        refs.minuteCombo.addActionListener(change);
-        refs.randomOffsetCheckBox.addActionListener(change);
+        refs.hourCombo.addActionListener(e -> onSlotTimingChanged(kind));
+        refs.minuteCombo.addActionListener(e -> onSlotTimingChanged(kind));
+        refs.randomOffsetCheckBox.addActionListener(e -> onSlotTimingChanged(kind));
         syncSlotEditorsEnabled(refs);
     }
 
@@ -249,11 +248,62 @@ public class SlotController {
         slotRefs.browserCombo.addActionListener(e -> onSharedSettingsChanged());
     }
 
-    private void onSlotSettingsChanged(WorkSlot.Kind kind) {
+    private void onEnableChanged(WorkSlot.Kind kind) {
         if (suppressUiSave) return;
         readConfigFromUi();
         saveConfig();
-        scheduleSlot(kind, true);
+        SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
+        if (!slot.enabled) {
+            scheduleSlot(kind, true);
+            heartbeatService.sendHeartbeat(appendLog, null);
+            return;
+        }
+        CheckInTask task = schedulerService.getTask(kind.id);
+        if (task != null && task.getStatus() == TaskStatus.CANCELLED) {
+            rescheduleEnabledSlot(kind);
+        } else {
+            scheduleSlot(kind, true);
+        }
+        heartbeatService.sendHeartbeat(appendLog, null);
+    }
+
+    /** 已取消的槽位僅儲存時分設定，不自動重排（需重新勾選「啟用」才會排程） */
+    private void onSlotTimingChanged(WorkSlot.Kind kind) {
+        if (suppressUiSave) return;
+        readConfigFromUi();
+        saveConfig();
+        SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
+        if (!slot.enabled) {
+            return;
+        }
+        CheckInTask task = schedulerService.getTask(kind.id);
+        if (task != null && task.getStatus() == TaskStatus.CANCELLED) {
+            return;
+        }
+        if (scheduleSlot(kind, true)) {
+            heartbeatService.sendHeartbeat(appendLog, null);
+        }
+    }
+
+    private void rescheduleEnabledSlot(WorkSlot.Kind kind) {
+        SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
+        CheckInTask task = schedulerService.getTask(kind.id);
+        if (task == null) {
+            scheduleSlot(kind, true);
+            return;
+        }
+        LocalDateTime nextTime = SlotScheduleHelper.nextTriggerTime(
+                slot.hour, slot.minute, config.weekdaysOnly, LocalDateTime.now());
+        resetTaskForSchedule(task, kind, slot, nextTime);
+        boolean ok = schedulerService.scheduleTask(
+                task,
+                t -> SwingUtilities.invokeLater(onSlotStateChanged),
+                appendLog,
+                this::executeCheckInForTask);
+        onSlotStateChanged.run();
+        if (ok) {
+            appendLog.accept(String.format("[排程] 【%s】已重新啟用並排程", kind.displayName));
+        }
     }
 
     private void onSharedSettingsChanged() {
@@ -311,7 +361,7 @@ public class SlotController {
             return false;
         }
 
-        if (task.getStatus() == TaskStatus.CANCELLED && !logChanges) {
+        if (task.getStatus() == TaskStatus.CANCELLED) {
             return false;
         }
 

@@ -42,8 +42,8 @@
           clearTaskCancelPending(clientId, t.id);
         }
       }
-      const hasScheduled = (tasks || []).some((t) => t.status === 'SCHEDULED');
-      if (!hasScheduled) {
+      const hasActive = (tasks || []).some((t) => t.status === 'SCHEDULED' || t.status === 'CHECKING_IN');
+      if (!hasActive) {
         clearCancelAllPending(clientId);
       }
     }
@@ -109,21 +109,20 @@
       return text.includes('遠端取消全部') || text.includes('取消全部任務');
     }
 
-    /** 取消全部後若伺服器狀態不同步，依已確認的任務補齊其餘槽位並解除「取消中…」 */
+    /** 取消全部等待中：若桌面端已重新排程則解除；不再把 SCHEDULED 強制改為已取消 */
     function reconcileCancelAllClientState(c) {
       if (!c || !pendingCancelAllClients.has(c.clientId)) return;
       const tasks = Array.isArray(c.tasks) ? c.tasks : [];
+      const hasActive = tasks.some((t) => t.status === 'SCHEDULED' || t.status === 'CHECKING_IN');
+      if (hasActive) {
+        clearCancelAllPending(c.clientId);
+        for (let i = 0; i < tasks.length; i++) {
+          clearTaskCancelPending(c.clientId, tasks[i].id);
+        }
+        return;
+      }
       const cancelAllAck = tasks.some((t) => t.status === 'CANCELLED' && isCancelAllAckMessage(t.message));
       if (!cancelAllAck) return;
-
-      for (let i = 0; i < tasks.length; i++) {
-        if (tasks[i].status === 'SCHEDULED') {
-          tasks[i] = Object.assign({}, tasks[i], {
-            status: 'CANCELLED',
-            message: tasks[i].message || '網頁後台遠端取消全部任務'
-          });
-        }
-      }
       clearCancelAllPending(c.clientId);
       for (let i = 0; i < tasks.length; i++) {
         clearTaskCancelPending(c.clientId, tasks[i].id);
