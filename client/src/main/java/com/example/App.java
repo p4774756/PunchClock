@@ -382,7 +382,7 @@ public class App extends JFrame {
     private void bindCloudEventListeners() {
         serverRefs.enableServerCheckBox.addActionListener(e -> {
             boolean enabled = serverRefs.enableServerCheckBox.isSelected();
-            syncTrustSslEnabled();
+            syncCloudConnectionFieldsEnabled();
             if (enabled) {
                 appendLog("[連線] 已勾選啟用雲端狀態回報，啟動單向心跳中...");
                 startHeartbeatService();
@@ -462,14 +462,31 @@ public class App extends JFrame {
             serverRefs.trustAllSslCheckBox.setSelected(config.trustAllSsl);
             heartbeatService.setTrustAllSsl(config.trustAllSsl);
         }
-        syncTrustSslEnabled();
+        syncCloudConnectionFieldsEnabled();
     }
 
-    /** 啟用雲端時鎖定 SSL 除錯選項，避免執行中誤改 */
-    private void syncTrustSslEnabled() {
-        if (serverRefs.trustAllSslCheckBox == null || serverRefs.enableServerCheckBox == null) return;
+    /** 雲端連線中鎖定連線參數，避免執行中誤改（與打卡槽位「啟用時鎖定時分」相同邏輯） */
+    private void syncCloudConnectionFieldsEnabled() {
+        if (serverRefs.enableServerCheckBox == null) return;
         boolean cloudOn = serverRefs.enableServerCheckBox.isSelected();
-        serverRefs.trustAllSslCheckBox.setEnabled(!cloudOn);
+        if (serverRefs.clientIdCombo != null) {
+            serverRefs.clientIdCombo.setEnabled(!cloudOn);
+            if (serverRefs.clientIdCombo.isEditable()) {
+                java.awt.Component editor = serverRefs.clientIdCombo.getEditor().getEditorComponent();
+                if (editor != null) {
+                    editor.setEnabled(!cloudOn);
+                }
+            }
+        }
+        if (serverRefs.heartbeatTokenField != null) {
+            serverRefs.heartbeatTokenField.setEnabled(!cloudOn);
+        }
+        if (serverRefs.serverUrlTextField != null) {
+            serverRefs.serverUrlTextField.setEnabled(!cloudOn);
+        }
+        if (serverRefs.trustAllSslCheckBox != null) {
+            serverRefs.trustAllSslCheckBox.setEnabled(!cloudOn);
+        }
     }
 
     private void applyClientIdFromUI(boolean persist) {
@@ -548,6 +565,7 @@ public class App extends JFrame {
                     } else {
                         serverRefs.heartbeatStatusLabel.setText("[異常] HTTP POST 異常");
                         serverRefs.heartbeatStatusLabel.setForeground(new Color(239, 68, 68));
+                        appendLog("[提示] 若為 401，請先取消「啟用雲端」→ 修改 Token / 網址 → 再重新勾選");
                     }
                 });
             });

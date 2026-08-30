@@ -27,17 +27,17 @@ public class PanelFactory {
         refs.clientIdCombo.setEditable(true);
         refs.clientIdCombo.setFont(mainFont);
         refs.clientIdCombo.setPrototypeDisplayValue("company-worker4");
-        refs.clientIdCombo.setToolTipText("可下拉選擇預設值，或直接輸入自訂 Worker ID");
+        refs.clientIdCombo.setToolTipText("可下拉選擇預設值，或直接輸入自訂 Worker ID；雲端連線中會鎖定，請先取消「啟用雲端」再修改");
 
         refs.heartbeatTokenField = new JPasswordField("punchclock-dev-secret");
         refs.heartbeatTokenField.setFont(mainFont);
         refs.heartbeatTokenField.setColumns(18);
-        refs.heartbeatTokenField.setToolTipText("與伺服器約定的認證 Token，需與後端設定一致");
+        refs.heartbeatTokenField.setToolTipText("與伺服器約定的認證 Token，需與後端設定一致；雲端連線中會鎖定，請先取消「啟用雲端」再修改");
 
         refs.serverUrlTextField = new JTextField("http://localhost:3000");
         refs.serverUrlTextField.setFont(mainFont);
         refs.serverUrlTextField.setColumns(48);
-        refs.serverUrlTextField.setToolTipText("心跳伺服器網址，例如 https://xxx.onrender.com");
+        refs.serverUrlTextField.setToolTipText("心跳伺服器網址，例如 https://xxx.onrender.com；雲端連線中會鎖定，請先取消「啟用雲端」再修改");
 
         lockFieldHeight(refs.clientIdCombo);
         lockFieldHeight(refs.heartbeatTokenField);

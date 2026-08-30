@@ -111,6 +111,17 @@
       return (tasks || []).some((t) => t.status === 'SCHEDULED' || t.status === 'CHECKING_IN');
     }
 
+    function countScheduledTasks(tasks) {
+      return (tasks || []).filter((t) => t.status === 'SCHEDULED').length;
+    }
+
+    function buildDeviceHeadBadgeText(isConnected, transportLabel, tasks) {
+      if (!isConnected) return '離線';
+      const total = (tasks || []).length;
+      const scheduled = countScheduledTasks(tasks);
+      return '在線 · ' + transportLabel + ' · ' + total + ' 任務 · ' + scheduled + ' 排程';
+    }
+
     function buildCancelAllButtonHtml(clientId, isConnected, tasks) {
       if (pendingCancelAllClients.has(clientId)) {
         return '<button class="btn btn-danger btn-pending" data-role="cancel-all" disabled title="已送出取消全部指令，等候桌面端心跳確認">取消中…</button>';
@@ -153,20 +164,28 @@
       return text.includes('遠端取消全部') || text.includes('取消全部任務');
     }
 
-    /** 取消全部等待中：若桌面端已重新排程則解除；不再把 SCHEDULED 強制改為已取消 */
+    function syncPendingCancelAllFromEventLog(c) {
+      if (!c || !pendingCancelAllClients.has(c.clientId)) return;
+      const events = Array.isArray(c.eventLog) ? c.eventLog : [];
+      const tasks = Array.isArray(c.tasks) ? c.tasks : [];
+      const allCancelled = tasks.length > 0 && tasks.every((t) => t.status === 'CANCELLED');
+      const logAck = events.some((e) => {
+        const text = String(e.text || '');
+        return text.includes('取消全部') && (text.includes('→ 已取消') || text.includes('已停止'));
+      });
+      if (!allCancelled && !logAck) return;
+      clearCancelAllPending(c.clientId);
+      for (let i = 0; i < tasks.length; i++) {
+        clearTaskCancelPending(c.clientId, tasks[i].id);
+      }
+    }
+
+    /** 取消全部等待中：任務仍顯示等待屬正常，等桌面端心跳回報後才解除「取消中…」 */
     function reconcileCancelAllClientState(c) {
       if (!c || !pendingCancelAllClients.has(c.clientId)) return;
       const tasks = Array.isArray(c.tasks) ? c.tasks : [];
       const hasActive = tasks.some((t) => t.status === 'SCHEDULED' || t.status === 'CHECKING_IN');
-      if (hasActive) {
-        clearCancelAllPending(c.clientId);
-        for (let i = 0; i < tasks.length; i++) {
-          clearTaskCancelPending(c.clientId, tasks[i].id);
-        }
-        return;
-      }
-      const cancelAllAck = tasks.some((t) => t.status === 'CANCELLED' && isCancelAllAckMessage(t.message));
-      if (!cancelAllAck) return;
+      if (hasActive) return;
       clearCancelAllPending(c.clientId);
       for (let i = 0; i < tasks.length; i++) {
         clearTaskCancelPending(c.clientId, tasks[i].id);
@@ -268,6 +287,7 @@
       for (let i = 0; i < clientData.length; i++) {
         reconcileCancelAllClientState(clientData[i]);
         syncPendingFromEventLog(clientData[i]);
+        syncPendingCancelAllFromEventLog(clientData[i]);
         syncCancelPendingFromTasks(clientData[i].clientId, clientData[i].tasks || []);
       }
       syncClientLogs(clientData);
@@ -306,9 +326,7 @@
       const isConnected = c.status !== 'OFFLINE';
       const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
       const transportLabel = c.transport === 'http' ? 'HTTP' : (c.transport || '-');
-      const badgeText = isConnected
-        ? ('在線 · ' + transportLabel + ' · ' + tasks.length + ' 任務')
-        : '離線';
+      const badgeText = buildDeviceHeadBadgeText(isConnected, transportLabel, tasks);
 
       const headChip = root.querySelector('.device-head-right .chip');
       if (headChip) {
@@ -333,6 +351,7 @@
 
       const taskListHost = root.querySelector('[data-role="task-list"]');
       syncPendingFromEventLog(c);
+      syncPendingCancelAllFromEventLog(c);
       syncCancelPendingFromTasks(c.clientId, tasks);
       if (taskListHost) {
         patchTaskListHost(c, isConnected, taskListHost);
@@ -623,9 +642,7 @@
 
         const badgeClass = isConnected ? 'chip-online' : 'chip-offline';
         const transportLabel = c.transport === 'http' ? 'HTTP' : (c.transport || '-');
-        const badgeText = isConnected
-          ? ('在線 · ' + transportLabel + ' · ' + tasks.length + ' 任務')
-          : '離線';
+        const badgeText = buildDeviceHeadBadgeText(isConnected, transportLabel, tasks);
 
         const logLines = visibleLogLines(c);
         const logContent = logLines.length > 0
@@ -710,8 +727,8 @@
     }
 
     function remoteCancelTask(clientId, taskId) {
-      if (!confirm('確定要取消設備【' + clientId + '】的任務【' + taskId + '】嗎？')) return;
       if (isTaskCancelPending(clientId, taskId)) return;
+      if (!confirm('確定要取消設備【' + clientId + '】的任務【' + taskId + '】嗎？')) return;
 
       markTaskCancelPending(clientId, taskId);
       refreshTaskCancelUi(clientId, taskId);
@@ -734,11 +751,11 @@
     }
 
     async function remoteCancelSchedule(clientId) {
+      if (pendingCancelAllClients.has(clientId)) return;
       const c = clientData.find((x) => x.clientId === clientId);
       const tasks = c && Array.isArray(c.tasks) ? c.tasks : [];
       if (!hasCancellableTasks(tasks)) return;
       if (!confirm('確定要對設備【' + clientId + '】發送【取消全部排程】嗎？')) return;
-      if (pendingCancelAllClients.has(clientId)) return;
 
       markCancelAllPending(clientId);
       refreshCancelAllUi(clientId);
