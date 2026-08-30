@@ -47,7 +47,9 @@ public class ClientStoreTest {
         Map<String, Object> clean = store.sanitizeClientForApi(dirty);
         assertEquals("https://se***.example/***", clean.get("targetUrl"));
         assertEquals("#btn-checkin", clean.get("buttonId"));
-        assertEquals("#a", ((List<Map<String, Object>>) clean.get("tasks")).get(0).get("buttonId"));
+        Object firstTask = ((List<?>) clean.get("tasks")).get(0);
+        assertTrue(firstTask instanceof Map);
+        assertEquals("#a", ((Map<?, ?>) firstTask).get("buttonId"));
     }
 
     @Test
