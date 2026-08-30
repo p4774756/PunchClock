@@ -29,7 +29,7 @@ import java.util.Map;
 @SuppressWarnings("unchecked")
 public final class ServerApp {
 
-    private static final String SERVER_VERSION = "1.4.0";
+    private static final String SERVER_VERSION = "1.5.0";
     private static final Type MAP_TYPE = new TypeToken<Map<String, Object>>() {
     }.getType();
 
