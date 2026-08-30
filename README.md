@@ -1,63 +1,105 @@
 # clickClick
 
-圖形化多任務排程自動打卡桌面工具。
+自動化上班打卡系統，由桌面端排程工具與遠端監控伺服器組成。
 
-## 前置需求
+## 架構
 
-- **JDK 11+**
-- **Maven 3.6+**
-- 本機已安裝 **Microsoft Edge** 或 **Google Chrome**（若選用本機瀏覽器模式）
+```
+┌─────────────────┐   HTTP 心跳 + Bearer    ┌──────────────────┐   REST 取消指令   ┌─────────────┐
+│  clickClick     │ ─────────────────────► │  server          │ ◄─────────────── │  Web 控制台  │
+│  (Java 桌面端)   │ ◄── action / actions ── │  (Node.js 伺服器)  │ ── WS 狀態推送 ─► │  (瀏覽器)    │
+└────────┬────────┘                        └──────────────────┘                   └─────────────┘
+         │ Playwright
+         ▼
+   打卡網站 (自動點擊)
+```
 
-## 建置與執行
+**通訊協定：** Worker 統一走 HTTP 心跳；Dashboard 用 REST 下指令、WebSocket 只推狀態。詳見 [`server/README.md`](server/README.md)。
+
+遠端僅支援「取消全部 / 取消單一任務」；排程請在桌面端本機建立。
+
+| 子目錄 | 說明 | 技術 |
+|--------|------|------|
+| `src/` | 桌面端：排程、自動打卡、任務管理 | Java 11、Swing、Playwright |
+| [`server/`](server/) | 伺服器：心跳接收、Web 監控、遠端控制 | Node.js、Express、WebSocket |
+
+## 快速開始
+
+### 1. 啟動伺服器
 
 ```bash
-# 編譯並執行測試
-mvn test
+cd server
+npm install
+node index.js
+```
 
-# 打包 standalone JAR
+伺服器預設監聽 `http://localhost:3000`。開啟瀏覽器登入 Web 控制台（預設密碼：`secret`）。
+
+### 2. 啟動桌面端
+
+**前置需求：** JDK 11+、Maven 3.6+
+
+```bash
 mvn package
-
-# 執行
 java -jar target/clickClick-standalone.jar
 ```
 
-打包產物：`target/clickClick-standalone.jar`（含所有依賴，可直接分發）。
+首次執行 Playwright 會自動下載瀏覽器驅動，請確保網路暢通。
 
-## 使用方式
+### 3. 連線設定
 
-1. **設定打卡任務**
-   - 輸入目標網址與按鈕 Selector（CSS selector 或 element ID）
-   - 選擇日期、時間，可啟用 ±5 分鐘隨機浮動
-   - 使用快捷模板快速建立「上班 09:00」「下班 18:00」任務
-   - 勾選週一至週五後點「批量新增」一次建立整週排程
+在桌面端「雲端服務與裝置設定」區塊：
 
-2. **管理任務**
-   - 編輯（任何狀態）、重新排定（時間仍在未來 → 等待中）、立即執行、取消或刪除任務
-   - 重啟程式後，未過期的排程任務會自動恢復
+1. 勾選「啟用雲端狀態回報」
+2. 填入 Server 網址，例如 `http://localhost:3000`
+3. 設定 Client ID（預設 `company-worker`）
+4. 填入心跳 Token（需與伺服器 `HEARTBEAT_SECRET` 一致，本機預設 `clickclick-dev-secret`）
+5. 點擊「測試連線」確認成功
 
-3. **雲端連線（選用）**
-   - 啟用後定期向 [ping-pong-server](../ping-pong-server/) 回報狀態
-   - 心跳 Token 需與伺服器 `HEARTBEAT_SECRET` 一致（本機預設 `clickclick-dev-secret`）
-   - 可從 Web 控制台遠端取消全部或單一任務（HTTP 心跳取回指令，約 15 秒內生效）
-   - 不支援遠端建立排程；請在本機操作
+## 主要功能
 
-## 任務持久化
+### 桌面端
 
-任務紀錄儲存於：
+- 多任務排程（支援單次新增、批量建立週一至週五）
+- 隨機時間浮動（±5 分鐘，避免固定時間打卡）
+- 任務編輯、重新排定、立即執行
+- 本地任務持久化（`~/.clickClick/tasks.json`）
+- 支援 Edge、Chrome、Chromium、Firefox、WebKit
 
+### server
+
+- 即時顯示所有連線裝置狀態
+- 遠端取消排程 / 取消單一任務
+- 3 分鐘無心跳自動判定離線
+- 登入保護（5 次失敗鎖定 15 分鐘）
+
+## 部署建議
+
+將 `server/` 部署至雲端（如 Render、Railway、VPS），桌面端填入對應的 HTTPS 網址即可。部署時將 root directory 設為 `server`。
+
+**環境變數：**
+
+| 變數 | 說明 | 預設值 |
+|------|------|--------|
+| `PORT` | 伺服器監聽埠 | `3000` |
+| `HEARTBEAT_SECRET` | 心跳 API Bearer token | `clickclick-dev-secret` |
+| `ADMIN_PASSWORD` | Web 控制台管理員密碼 | `secret` |
+
+桌面端雲端設定另有「信任所有 SSL（除錯）」開關，**預設關閉**；僅本機自簽憑證除錯時再開。
+
+生產環境請務必修改 `HEARTBEAT_SECRET` 與 `ADMIN_PASSWORD`。
+
+## 開發
+
+```bash
+# 桌面端測試
+mvn test
+
+# 伺服器測試
+cd server && npm test
 ```
-~/.clickClick/tasks.json
-```
 
-雲端連線設定（Server URL、Client ID、Token、是否啟用）儲存於：
-
-```
-~/.clickClick/config.json
-```
-
-程式關閉或重啟時自動讀寫。已過期但未執行的排程任務會標記為「取消」。
-
-## 專案結構
+## 專案結構（桌面端）
 
 ```
 src/main/java/com/example/

@@ -30,7 +30,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * 專責與 ping-pong-server 進行單向 HTTP POST 存活與多任務狀態上報
+ * 專責與 server 進行單向 HTTP POST 存活與多任務狀態上報
  */
 public class HeartbeatService {
 

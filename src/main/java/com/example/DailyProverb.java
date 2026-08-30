@@ -6,7 +6,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
 /**
- * 每日一則六人行經典台詞（依 Asia/Taipei 日期穩定挑選，與 ping-pong-server 對齊）。
+ * 每日一則六人行經典台詞（依 Asia/Taipei 日期穩定挑選，與 server 對齊）。
  */
 public final class DailyProverb {
 
