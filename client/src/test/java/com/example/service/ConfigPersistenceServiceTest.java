@@ -17,7 +17,7 @@ public class ConfigPersistenceServiceTest {
 
     @Before
     public void setUp() throws Exception {
-        tempDir = Files.createTempDirectory("clickclick-config-test");
+        tempDir = Files.createTempDirectory("punchclock-config-test");
         configFile = tempDir.resolve("config.json");
         configService = new ConfigPersistenceService(configFile);
     }
@@ -33,7 +33,7 @@ public class ConfigPersistenceServiceTest {
         ConfigPersistenceService.CloudConfig config = configService.loadConfig(null);
         assertEquals("http://localhost:3000", config.serverUrl);
         assertEquals("company-worker", config.clientId);
-        assertEquals("clickclick-dev-secret", config.heartbeatToken);
+        assertEquals("punchclock-dev-secret", config.heartbeatToken);
         assertFalse(config.enableServer);
         assertEquals(9, config.workIn.hour);
         assertEquals(18, config.workOut.hour);
@@ -83,7 +83,7 @@ public class ConfigPersistenceServiceTest {
         ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
         assertEquals("http://localhost:3000", loaded.serverUrl);
         assertEquals("company-worker", loaded.clientId);
-        assertEquals("clickclick-dev-secret", loaded.heartbeatToken);
+        assertEquals("punchclock-dev-secret", loaded.heartbeatToken);
         assertTrue(loaded.enableServer);
         assertEquals("https://www.msn.com/zh-tw", loaded.targetUrl);
         assertEquals("finance", loaded.buttonId);

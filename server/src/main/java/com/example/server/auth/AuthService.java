@@ -20,8 +20,8 @@ public final class AuthService {
 
     public AuthService() {
         adminPassword = envOrDefault("ADMIN_PASSWORD", "secret");
-        heartbeatSecret = envOrDefault("HEARTBEAT_SECRET", "clickclick-dev-secret");
-        authCookieValue = sha256HexPrefix("clickclick-admin:" + adminPassword, 32);
+        heartbeatSecret = envOrDefault("HEARTBEAT_SECRET", "punchclock-dev-secret");
+        authCookieValue = sha256HexPrefix("punchclock-admin:" + adminPassword, 32);
     }
 
     public String authCookieValue() {

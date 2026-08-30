@@ -1,12 +1,12 @@
 # server
 
-clickClick 遠端監控與指令中繼伺服器（Java + Javalin）。
+PunchClock 遠端監控與指令中繼伺服器（Java + Javalin）。
 
 ## 通訊協定（HTTP-primary）
 
 ```
 ┌──────────────┐  POST /api/heartbeat + Bearer   ┌──────────────────┐
-│  clickClick  │ ───────────────────────────────► │ server           │
+│  PunchClock  │ ───────────────────────────────► │ server           │
 │  (Worker)    │ ◄──── action / actions[] ─────── │ (Javalin)        │
 └──────────────┘                                  └────────┬─────────┘
                                                            │
@@ -30,10 +30,10 @@ clickClick 遠端監控與指令中繼伺服器（Java + Javalin）。
 ```bash
 # 從 repo 根目錄
 mvn -pl server -am package -DskipTests
-java -jar server/target/clickClick-server.jar
+java -jar server/target/punchclock-server.jar
 
 # 或指定密鑰
-HEARTBEAT_SECRET=your-secret ADMIN_PASSWORD=your-admin-pass java -jar server/target/clickClick-server.jar
+HEARTBEAT_SECRET=your-secret ADMIN_PASSWORD=your-admin-pass java -jar server/target/punchclock-server.jar
 ```
 
 ## Render 部署

@@ -1,4 +1,4 @@
-# Build from monorepo root (clickClick/). Render: Dockerfile Path = server/Dockerfile
+# Build from monorepo root (PunchClock/). Render: Dockerfile Path = server/Dockerfile
 FROM maven:3.9-eclipse-temurin-11 AS build
 WORKDIR /app
 
@@ -14,7 +14,7 @@ RUN mvn -pl server -am package -DskipTests
 FROM eclipse-temurin:11-jre-jammy
 WORKDIR /app
 
-COPY --from=build /app/server/target/clickClick-server.jar app.jar
+COPY --from=build /app/server/target/punchclock-server.jar app.jar
 
 ENV PORT=3000
 EXPOSE 3000

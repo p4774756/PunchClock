@@ -23,7 +23,7 @@ public class TaskPersistenceServiceTest {
 
     @Before
     public void setUp() throws Exception {
-        tempDir = Files.createTempDirectory("clickclick-tasks-test");
+        tempDir = Files.createTempDirectory("punchclock-tasks-test");
         tasksFile = tempDir.resolve("tasks.json");
         persistenceService = new TaskPersistenceService(tasksFile);
     }

@@ -1,4 +1,4 @@
-# clickClick
+# PunchClock
 
 自動化上班打卡系統，由桌面端排程工具與遠端監控伺服器組成。
 
@@ -6,7 +6,7 @@
 
 ```
 ┌─────────────────┐   HTTP 心跳 + Bearer    ┌──────────────────┐   REST 取消指令   ┌─────────────┐
-│  clickClick     │ ─────────────────────► │  server          │ ◄─────────────── │  Web 控制台  │
+│  PunchClock     │ ─────────────────────► │  server          │ ◄─────────────── │  Web 控制台  │
 │  (Java 桌面端)   │ ◄── action / actions ── │  (Javalin 伺服器)  │ ── WS 狀態推送 ─► │  (瀏覽器)    │
 └────────┬────────┘                        └──────────────────┘                   └─────────────┘
          │ Playwright
@@ -30,7 +30,7 @@
 
 ```bash
 mvn -pl server -am package -DskipTests
-java -jar server/target/clickClick-server.jar
+java -jar server/target/punchclock-server.jar
 ```
 
 伺服器預設監聽 `http://localhost:3000`。開啟瀏覽器登入 Web 控制台（預設密碼：`secret`）。
@@ -41,7 +41,7 @@ java -jar server/target/clickClick-server.jar
 
 ```bash
 mvn -pl client -am package -DskipTests
-java -jar client/target/clickClick-standalone.jar
+java -jar client/target/punchclock-standalone.jar
 ```
 
 首次執行 Playwright 會自動下載瀏覽器驅動，請確保網路暢通。
@@ -53,7 +53,7 @@ java -jar client/target/clickClick-standalone.jar
 1. 勾選「啟用雲端狀態回報」
 2. 填入 Server 網址，例如 `http://localhost:3000`
 3. 設定 Client ID（預設 `company-worker`）
-4. 填入心跳 Token（需與伺服器 `HEARTBEAT_SECRET` 一致，本機預設 `clickclick-dev-secret`）
+4. 填入心跳 Token（需與伺服器 `HEARTBEAT_SECRET` 一致，本機預設 `punchclock-dev-secret`）
 5. 點擊「測試連線」確認成功
 
 ## 主要功能
@@ -63,7 +63,7 @@ java -jar client/target/clickClick-standalone.jar
 - 多任務排程（支援單次新增、批量建立週一至週五）
 - 隨機時間浮動（±5 分鐘，避免固定時間打卡）
 - 任務編輯、重新排定、立即執行
-- 本地任務持久化（`~/.clickClick/tasks.json`）
+- 本地任務持久化（`~/.punchclock/tasks.json`）
 - 支援 Edge、Chrome、Chromium、Firefox、WebKit
 
 ### server
@@ -92,7 +92,7 @@ java -jar client/target/clickClick-standalone.jar
 | 變數 | 說明 | 預設值 |
 |------|------|--------|
 | `PORT` | 伺服器監聽埠 | `3000` |
-| `HEARTBEAT_SECRET` | 心跳 API Bearer token | `clickclick-dev-secret` |
+| `HEARTBEAT_SECRET` | 心跳 API Bearer token | `punchclock-dev-secret` |
 | `ADMIN_PASSWORD` | Web 控制台管理員密碼 | `secret` |
 
 生產環境請務必修改 `HEARTBEAT_SECRET` 與 `ADMIN_PASSWORD`。

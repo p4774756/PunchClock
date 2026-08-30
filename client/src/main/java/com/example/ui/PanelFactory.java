@@ -29,7 +29,7 @@ public class PanelFactory {
         refs.clientIdCombo.setPrototypeDisplayValue("company-worker4");
         refs.clientIdCombo.setToolTipText("可下拉選擇預設值，或直接輸入自訂 Worker ID");
 
-        refs.heartbeatTokenField = new JPasswordField("clickclick-dev-secret");
+        refs.heartbeatTokenField = new JPasswordField("punchclock-dev-secret");
         refs.heartbeatTokenField.setFont(mainFont);
         refs.heartbeatTokenField.setColumns(18);
         refs.heartbeatTokenField.setToolTipText("與伺服器約定的認證 Token，需與後端設定一致");
@@ -194,7 +194,7 @@ public class PanelFactory {
                 + "把網址換成「雲端設定」裡的 Server 雲端網址即可。\n"
                 + "\n"
                 + "# 正式 Server\n"
-                + "curl -sS \"https://ping-pong-server-jbot.onrender.com/ping\"\n"
+                + "curl -sS \"https://your-punchclock-server.onrender.com/ping\"\n"
                 + "\n"
                 + "# 本機\n"
                 + "curl -sS \"http://localhost:3000/ping\"\n"

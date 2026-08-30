@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.example</groupId>
-    <artifactId>clickClick-parent</artifactId>
+    <artifactId>punchclock-parent</artifactId>
     <version>1.4.0</version>
     <packaging>pom</packaging>
 
@@ -28,7 +28,7 @@
         <dependencies>
             <dependency>
                 <groupId>com.example</groupId>
-                <artifactId>clickClick-shared</artifactId>
+                <artifactId>punchclock-shared</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

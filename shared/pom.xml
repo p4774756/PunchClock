@@ -6,11 +6,11 @@
 
     <parent>
         <groupId>com.example</groupId>
-        <artifactId>clickClick-parent</artifactId>
+        <artifactId>punchclock-parent</artifactId>
         <version>1.4.0</version>
     </parent>
 
-    <artifactId>clickClick-shared</artifactId>
+    <artifactId>punchclock-shared</artifactId>
 
     <dependencies>
         <dependency>

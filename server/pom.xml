@@ -6,16 +6,16 @@
 
     <parent>
         <groupId>com.example</groupId>
-        <artifactId>clickClick-parent</artifactId>
+        <artifactId>punchclock-parent</artifactId>
         <version>1.4.0</version>
     </parent>
 
-    <artifactId>clickClick-server</artifactId>
+    <artifactId>punchclock-server</artifactId>
 
     <dependencies>
         <dependency>
             <groupId>com.example</groupId>
-            <artifactId>clickClick-shared</artifactId>
+            <artifactId>punchclock-shared</artifactId>
         </dependency>
 
         <dependency>
@@ -48,7 +48,7 @@
     </dependencies>
 
     <build>
-        <finalName>clickClick-server</finalName>
+        <finalName>punchclock-server</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

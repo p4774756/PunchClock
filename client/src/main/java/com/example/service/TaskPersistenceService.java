@@ -27,7 +27,7 @@ import java.util.function.Consumer;
  */
 public class TaskPersistenceService {
 
-    private static final String SAVE_DIR = ".clickClick";
+    private static final String SAVE_DIR = ".punchclock";
     private static final String SAVE_FILE = "tasks.json";
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 

@@ -10,11 +10,11 @@ import java.nio.file.Paths;
 import java.util.function.Consumer;
 
 /**
- * 雲端連線與打卡槽位設定持久化（~/.clickClick/config.json）
+ * 雲端連線與打卡槽位設定持久化（~/.punchclock/config.json）
  */
 public class ConfigPersistenceService {
 
-    private static final String SAVE_DIR = ".clickClick";
+    private static final String SAVE_DIR = ".punchclock";
     private static final String SAVE_FILE = "config.json";
 
     public static class SlotSettings {
@@ -27,7 +27,7 @@ public class ConfigPersistenceService {
     public static class CloudConfig {
         public String serverUrl = "http://localhost:3000";
         public String clientId = "company-worker";
-        public String heartbeatToken = "clickclick-dev-secret";
+        public String heartbeatToken = "punchclock-dev-secret";
         public boolean enableServer = false;
         /** 信任所有 SSL 憑證（僅本機除錯；預設關閉） */
         public boolean trustAllSsl = false;
@@ -134,7 +134,7 @@ public class ConfigPersistenceService {
             config.clientId = "company-worker";
         }
         if (config.heartbeatToken == null || config.heartbeatToken.isBlank()) {
-            config.heartbeatToken = "clickclick-dev-secret";
+            config.heartbeatToken = "punchclock-dev-secret";
         }
         if (config.targetUrl == null || config.targetUrl.isBlank()) {
             config.targetUrl = "https://www.msn.com/zh-tw";

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ping-pong-server
+    name: punchclock-server
     runtime: docker
     dockerfilePath: ./server/Dockerfile
     dockerContext: .

@@ -60,7 +60,7 @@ public class HeartbeatService {
 
     private String serverUrl = "";
     private String clientId = "company-worker";
-    private String heartbeatToken = "clickclick-dev-secret";
+    private String heartbeatToken = "punchclock-dev-secret";
     private String currentStatus = "ONLINE";
     private String message = null;
     private boolean isServiceActive = false;
