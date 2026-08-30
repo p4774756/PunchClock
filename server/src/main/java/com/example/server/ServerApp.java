@@ -169,8 +169,19 @@ public final class ServerApp {
         List<Map<String, Object>> tasks = tasksFromBody(body.get("tasks"));
 
         Map<String, Object> existing = clientStore.getOrCreateClient(clientId);
+        long incomingSeq = numberFrom(body.get("heartbeatSeq"));
+        long storedSeq = numberFrom(existing.get("heartbeatSeq"));
         List<String> drainedActions = clientStore.drainPendingActions(existing);
-        String actionToSend = drainedActions.isEmpty() ? "NONE" : drainedActions.get(0);
+
+        boolean staleHeartbeat = incomingSeq > 0 && storedSeq > 0 && incomingSeq < storedSeq;
+        if (staleHeartbeat) {
+            Map<String, Object> clientInfo = new LinkedHashMap<>(existing);
+            clientInfo.put("lastSeen", Instant.now().toString());
+            clientStore.setClient(clientId, clientInfo);
+            writeHeartbeatResponse(ctx, drainedActions, clientId);
+            return;
+        }
+
         List<Map<String, Object>> effectiveTasks = tasks.isEmpty() ? clientStore.getTasks(existing) : tasks;
 
         if (!drainedActions.isEmpty()) {
@@ -187,6 +198,9 @@ public final class ServerApp {
         clientInfo.put("lastSeen", Instant.now().toString());
         clientInfo.put("transport", "http");
         clientInfo.put("clientIp", IpResolver.clientIp(ctx));
+        if (incomingSeq > 0) {
+            clientInfo.put("heartbeatSeq", incomingSeq);
+        }
         clientInfo.remove("pendingActions");
         clientInfo.remove("pendingAction");
         clientInfo.remove("pendingActionTime");
@@ -199,6 +213,11 @@ public final class ServerApp {
 
         broadcaster.broadcast(statusUpdatePayload());
 
+        writeHeartbeatResponse(ctx, drainedActions, clientId);
+    }
+
+    private void writeHeartbeatResponse(Context ctx, List<String> drainedActions, String clientId) {
+        String actionToSend = drainedActions.isEmpty() ? "NONE" : drainedActions.get(0);
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("success", true);
         response.put("message", "Heartbeat acknowledged");
@@ -376,5 +395,19 @@ public final class ServerApp {
 
     private static String stringOrNull(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private static long numberFrom(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value == null) {
+            return 0L;
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (NumberFormatException ex) {
+            return 0L;
+        }
     }
 }

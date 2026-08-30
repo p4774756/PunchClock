@@ -63,12 +63,18 @@
       return '<button class="btn btn-ghost-danger" onclick="remoteCancelTask(\'' + clientId + '\', \'' + taskId + '\')">取消</button>';
     }
 
+    function hasCancellableTasks(tasks) {
+      return (tasks || []).some((t) => t.status === 'SCHEDULED' || t.status === 'CHECKING_IN');
+    }
+
     function buildCancelAllButtonHtml(clientId, isConnected, tasks) {
       if (pendingCancelAllClients.has(clientId)) {
         return '<button class="btn btn-danger btn-pending" data-role="cancel-all" disabled title="已送出取消全部指令，等候桌面端心跳確認">取消中…</button>';
       }
-      const disabled = (!isConnected || tasks.length === 0) ? 'disabled' : '';
-      return '<button class="btn btn-danger" data-role="cancel-all" onclick="remoteCancelSchedule(\'' + clientId + '\')" ' + disabled + '>取消全部任務</button>';
+      const canCancel = isConnected && hasCancellableTasks(tasks);
+      const disabled = canCancel ? '' : 'disabled';
+      const title = canCancel ? '' : ' title="目前沒有等待中或執行中的任務可取消"';
+      return '<button class="btn btn-danger" data-role="cancel-all" onclick="remoteCancelSchedule(\'' + clientId + '\')"' + title + ' ' + disabled + '>取消全部任務</button>';
     }
 
     function refreshTaskCancelUi(clientId, taskId) {
@@ -95,6 +101,32 @@
       const taskListHost = root.querySelector('[data-role="task-list"]');
       if (taskListHost) {
         patchTaskListHost(c, c.status !== 'OFFLINE', taskListHost);
+      }
+    }
+
+    function isCancelAllAckMessage(message) {
+      const text = String(message || '');
+      return text.includes('遠端取消全部') || text.includes('取消全部任務');
+    }
+
+    /** 取消全部後若伺服器狀態不同步，依已確認的任務補齊其餘槽位並解除「取消中…」 */
+    function reconcileCancelAllClientState(c) {
+      if (!c || !pendingCancelAllClients.has(c.clientId)) return;
+      const tasks = Array.isArray(c.tasks) ? c.tasks : [];
+      const cancelAllAck = tasks.some((t) => t.status === 'CANCELLED' && isCancelAllAckMessage(t.message));
+      if (!cancelAllAck) return;
+
+      for (let i = 0; i < tasks.length; i++) {
+        if (tasks[i].status === 'SCHEDULED') {
+          tasks[i] = Object.assign({}, tasks[i], {
+            status: 'CANCELLED',
+            message: tasks[i].message || '網頁後台遠端取消全部任務'
+          });
+        }
+      }
+      clearCancelAllPending(c.clientId);
+      for (let i = 0; i < tasks.length; i++) {
+        clearTaskCancelPending(c.clientId, tasks[i].id);
       }
     }
 
@@ -190,6 +222,9 @@
 
     function applyClientSnapshot(clients, forceRender) {
       clientData = clients || [];
+      for (let i = 0; i < clientData.length; i++) {
+        reconcileCancelAllClientState(clientData[i]);
+      }
       syncClientLogs(clientData);
 
       const structFp = clientsStructureFingerprint(clientData);
@@ -654,6 +689,9 @@
     }
 
     async function remoteCancelSchedule(clientId) {
+      const c = clientData.find((x) => x.clientId === clientId);
+      const tasks = c && Array.isArray(c.tasks) ? c.tasks : [];
+      if (!hasCancellableTasks(tasks)) return;
       if (!confirm('確定要對設備【' + clientId + '】發送【取消全部排程】嗎？')) return;
       if (pendingCancelAllClients.has(clientId)) return;
 

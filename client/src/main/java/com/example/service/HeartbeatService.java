@@ -72,6 +72,7 @@ public class HeartbeatService {
     private Consumer<List<PeerInfo>> peersListener;
     private final AtomicBoolean heartbeatInFlight = new AtomicBoolean(false);
     private final AtomicBoolean heartbeatPending = new AtomicBoolean(false);
+    private final java.util.concurrent.atomic.AtomicLong heartbeatSeq = new java.util.concurrent.atomic.AtomicLong(0);
 
     public void setCommandListener(Consumer<String> commandListener) {
         this.commandListener = commandListener;
@@ -210,6 +211,7 @@ public class HeartbeatService {
         payload.put("message", message);
         payload.put("appVersion", AppVersion.VERSION);
         payload.put("tasks", tasksList);
+        payload.put("heartbeatSeq", heartbeatSeq.incrementAndGet());
 
         String jsonBody = gson.toJson(payload);
 
