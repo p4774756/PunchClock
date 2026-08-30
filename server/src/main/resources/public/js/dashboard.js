@@ -52,6 +52,22 @@
       return text.includes('遠端取消') || text.includes('槽位已停用') || text.includes('取消全部');
     }
 
+    function eventTimeMs(e) {
+      if (!e || !e.time) return NaN;
+      return Date.parse(e.time);
+    }
+
+    /** 僅認可「本次取消請求」之後寫入的狀態轉換，避免舊日誌誤判為已確認 */
+    function isTaskCancelAckEvent(e, task, pendingAt) {
+      const text = String(e.text || '');
+      if (!text.includes('→ 已取消')) return false;
+      const label = task.name || task.id || '';
+      if (!text.includes(label) && !text.includes(task.id)) return false;
+      if (pendingAt == null) return true;
+      const eventMs = eventTimeMs(e);
+      return !Number.isNaN(eventMs) && eventMs >= pendingAt;
+    }
+
     function syncPendingFromEventLog(c) {
       if (!c) return;
       const events = Array.isArray(c.eventLog) ? c.eventLog : [];
@@ -59,16 +75,9 @@
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
         if (!isTaskCancelPending(c.clientId, task.id)) continue;
-        const label = task.name || task.id || '';
-        const confirmed = events.some((e) => {
-          const text = String(e.text || '');
-          return text.includes('→ 已取消') && (text.includes(label) || text.includes(task.id));
-        });
+        const pendingAt = pendingSince.get(cancelPendingKey(c.clientId, task.id));
+        const confirmed = events.some((e) => isTaskCancelAckEvent(e, task, pendingAt));
         if (confirmed) {
-          if (task.status === 'SCHEDULED' || task.status === 'CHECKING_IN') {
-            task.status = 'CANCELLED';
-            if (!task.message) task.message = '網頁後台遠端取消';
-          }
           clearTaskCancelPending(c.clientId, task.id);
         }
       }
@@ -169,9 +178,13 @@
       const events = Array.isArray(c.eventLog) ? c.eventLog : [];
       const tasks = Array.isArray(c.tasks) ? c.tasks : [];
       const allCancelled = tasks.length > 0 && tasks.every((t) => t.status === 'CANCELLED');
+      const pendingAt = pendingSince.get(c.clientId + '|*');
       const logAck = events.some((e) => {
         const text = String(e.text || '');
-        return text.includes('取消全部') && (text.includes('→ 已取消') || text.includes('已停止'));
+        if (!text.includes('取消全部') || !(text.includes('→ 已取消') || text.includes('已停止'))) return false;
+        if (pendingAt == null) return true;
+        const eventMs = eventTimeMs(e);
+        return !Number.isNaN(eventMs) && eventMs >= pendingAt;
       });
       if (!allCancelled && !logAck) return;
       clearCancelAllPending(c.clientId);
@@ -566,7 +579,7 @@
     }
 
     function patchTaskCard(card, c, t, isConnected) {
-      if (t.status !== 'SCHEDULED') {
+      if (isTerminalTaskStatus(t.status) || isRemoteCancelMessage(t.message)) {
         clearTaskCancelPending(c.clientId, t.id);
       }
 

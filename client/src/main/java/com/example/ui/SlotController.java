@@ -192,13 +192,26 @@ public class SlotController {
     }
 
     private void disableSlotInUi(WorkSlot.Kind kind) {
+        setSlotEnabledProgrammatically(kind, false);
+    }
+
+    /** 程式變更「啟用」時不觸發 onEnableChanged，避免遠端取消後又被誤判為重新啟用 */
+    private void setSlotEnabledProgrammatically(WorkSlot.Kind kind, boolean enabled) {
         SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
-        slot.enabled = false;
+        slot.enabled = enabled;
+        PanelFactory.SlotCardRefs refs = refsFor(kind);
+        java.awt.event.ActionListener[] listeners = refs.enabledCheckBox.getActionListeners();
+        for (java.awt.event.ActionListener listener : listeners) {
+            refs.enabledCheckBox.removeActionListener(listener);
+        }
         suppressUiSave = true;
         try {
-            applySlotToUi(refsFor(kind), slot);
+            applySlotToUi(refs, slot);
         } finally {
             suppressUiSave = false;
+            for (java.awt.event.ActionListener listener : listeners) {
+                refs.enabledCheckBox.addActionListener(listener);
+            }
         }
         configPersistenceService.saveConfig(config, appendLog);
     }
