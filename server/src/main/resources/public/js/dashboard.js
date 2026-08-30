@@ -9,6 +9,8 @@
     let lastLogFingerprints = {};
     const pendingTaskCancels = new Set();
     const pendingCancelAllClients = new Set();
+    const pendingSince = new Map();
+    const PENDING_CANCEL_MAX_MS = 45000;
 
     function cancelPendingKey(clientId, taskId) {
       return clientId + '|' + taskId;
@@ -20,30 +22,74 @@
     }
 
     function markTaskCancelPending(clientId, taskId) {
-      pendingTaskCancels.add(cancelPendingKey(clientId, taskId));
+      const key = cancelPendingKey(clientId, taskId);
+      pendingTaskCancels.add(key);
+      pendingSince.set(key, Date.now());
     }
 
     function clearTaskCancelPending(clientId, taskId) {
-      pendingTaskCancels.delete(cancelPendingKey(clientId, taskId));
+      const key = cancelPendingKey(clientId, taskId);
+      pendingTaskCancels.delete(key);
+      pendingSince.delete(key);
     }
 
     function markCancelAllPending(clientId) {
       pendingCancelAllClients.add(clientId);
+      pendingSince.set(clientId + '|*', Date.now());
     }
 
     function clearCancelAllPending(clientId) {
       pendingCancelAllClients.delete(clientId);
+      pendingSince.delete(clientId + '|*');
+    }
+
+    function isTerminalTaskStatus(status) {
+      return status === 'CANCELLED' || status === 'SUCCESS' || status === 'FAILED';
+    }
+
+    function isRemoteCancelMessage(message) {
+      const text = String(message || '');
+      return text.includes('遠端取消') || text.includes('槽位已停用') || text.includes('取消全部');
+    }
+
+    function syncPendingFromEventLog(c) {
+      if (!c) return;
+      const events = Array.isArray(c.eventLog) ? c.eventLog : [];
+      const tasks = Array.isArray(c.tasks) ? c.tasks : [];
+      for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i];
+        if (!isTaskCancelPending(c.clientId, task.id)) continue;
+        const label = task.name || task.id || '';
+        const confirmed = events.some((e) => {
+          const text = String(e.text || '');
+          return text.includes('→ 已取消') && (text.includes(label) || text.includes(task.id));
+        });
+        if (confirmed) {
+          if (task.status === 'SCHEDULED' || task.status === 'CHECKING_IN') {
+            task.status = 'CANCELLED';
+            if (!task.message) task.message = '網頁後台遠端取消';
+          }
+          clearTaskCancelPending(c.clientId, task.id);
+        }
+      }
     }
 
     function syncCancelPendingFromTasks(clientId, tasks) {
+      const now = Date.now();
       for (let i = 0; i < (tasks || []).length; i++) {
         const t = tasks[i];
-        if (t.status !== 'SCHEDULED') {
+        const key = cancelPendingKey(clientId, t.id);
+        const pendingAt = pendingSince.get(key);
+        const timedOut = pendingAt != null && (now - pendingAt) > PENDING_CANCEL_MAX_MS;
+        if (isTerminalTaskStatus(t.status) || isRemoteCancelMessage(t.message) || timedOut) {
           clearTaskCancelPending(clientId, t.id);
         }
       }
+      const allKey = clientId + '|*';
+      const allPendingAt = pendingSince.get(allKey);
+      const allTimedOut = allPendingAt != null && (now - allPendingAt) > PENDING_CANCEL_MAX_MS;
       const hasActive = (tasks || []).some((t) => t.status === 'SCHEDULED' || t.status === 'CHECKING_IN');
-      if (!hasActive) {
+      if (!hasActive || allTimedOut) {
         clearCancelAllPending(clientId);
       }
     }
@@ -57,9 +103,7 @@
 
     function buildCancelButtonHtml(clientId, taskId, isConnected, taskStatus) {
       if (!isConnected || taskStatus !== 'SCHEDULED') return '';
-      if (isTaskCancelPending(clientId, taskId)) {
-        return '<button class="btn btn-ghost-danger btn-pending" disabled title="已送出取消指令，等候桌面端心跳確認">取消中…</button>';
-      }
+      if (isTaskCancelPending(clientId, taskId)) return '';
       return '<button class="btn btn-ghost-danger" onclick="remoteCancelTask(\'' + clientId + '\', \'' + taskId + '\')">取消</button>';
     }
 
@@ -223,6 +267,8 @@
       clientData = clients || [];
       for (let i = 0; i < clientData.length; i++) {
         reconcileCancelAllClientState(clientData[i]);
+        syncPendingFromEventLog(clientData[i]);
+        syncCancelPendingFromTasks(clientData[i].clientId, clientData[i].tasks || []);
       }
       syncClientLogs(clientData);
 
@@ -286,6 +332,8 @@
       }
 
       const taskListHost = root.querySelector('[data-role="task-list"]');
+      syncPendingFromEventLog(c);
+      syncCancelPendingFromTasks(c.clientId, tasks);
       if (taskListHost) {
         patchTaskListHost(c, isConnected, taskListHost);
       }
@@ -297,8 +345,6 @@
       } else if (cancelAllBtn) {
         cancelAllBtn.disabled = !isConnected || tasks.length === 0;
       }
-
-      syncCancelPendingFromTasks(c.clientId, tasks);
 
       updateClientLogBox(c);
     }
