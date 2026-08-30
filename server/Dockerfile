@@ -5,6 +5,7 @@ WORKDIR /app
 COPY pom.xml .
 COPY shared/pom.xml shared/pom.xml
 COPY shared/src shared/src
+COPY client/pom.xml client/pom.xml
 COPY server/pom.xml server/pom.xml
 COPY server/src server/src
 
