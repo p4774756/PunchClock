@@ -1,6 +1,5 @@
 package com.example;
 
-import com.example.model.CheckInTask;
 import com.example.service.SpeechService;
 import com.example.service.AutomationService;
 import com.example.service.ConfigPersistenceService;
@@ -72,29 +71,10 @@ public class App extends JFrame {
         heartbeatService.setPeersListener(peers -> SwingUtilities.invokeLater(() -> updatePeerTable(peers)));
         heartbeatService.setCommandListener(command -> {
             if ("CANCEL_SCHEDULE".equalsIgnoreCase(command)) {
-                SwingUtilities.invokeLater(() -> {
-                    schedulerService.cancelAllTasks("網頁後台遠端取消全部任務");
-                    onSlotStateChanged();
-                    appendLog("[取消] 【遠端指令】收到網頁後台【取消全部任務】，已停止所有等待中的排程。");
-                    heartbeatService.sendHeartbeat(this::appendLog, null);
-                });
+                SwingUtilities.invokeLater(slotController::handleRemoteCancelAll);
             } else if (command.startsWith("CANCEL_TASK:")) {
                 String taskId = command.substring("CANCEL_TASK:".length()).trim();
-                SwingUtilities.invokeLater(() -> {
-                    CheckInTask task = schedulerService.getTask(taskId);
-                    String name = task != null && task.getName() != null ? task.getName() : taskId;
-                    String prev = task != null && task.getStatus() != null
-                            ? task.getStatus().getDisplayName() : "未知";
-                    boolean timerStopped = schedulerService.cancelTask(taskId, "網頁後台遠端取消");
-                    onSlotStateChanged();
-                    appendLog(String.format(
-                            "[取消] 【遠端指令】取消【%s】(%s)，取消前狀態：%s，計時器：%s",
-                            name,
-                            taskId,
-                            prev,
-                            timerStopped ? "已停止" : "當時沒有在跑（可能已執行完、已過期，或本來就不是等待中）"));
-                    heartbeatService.sendHeartbeat(this::appendLog, null);
-                });
+                SwingUtilities.invokeLater(() -> slotController.handleRemoteCancelTask(taskId));
             } else if (command.startsWith("MSG|")) {
                 String[] parts = command.split("\\|", 3);
                 if (parts.length >= 3) {

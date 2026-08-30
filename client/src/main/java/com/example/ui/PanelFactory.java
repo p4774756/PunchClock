@@ -250,18 +250,9 @@ public class PanelFactory {
         refs.workIn = createSlotCard("上班打卡", mainFont, boldFont);
         refs.workOut = createSlotCard("下班打卡", mainFont, boldFont);
 
-        JPanel slotRow = new JPanel(new GridBagLayout());
-        GridBagConstraints slotGbc = new GridBagConstraints();
-        slotGbc.gridy = 0;
-        slotGbc.fill = GridBagConstraints.BOTH;
-        slotGbc.weightx = 1.0;
-        slotGbc.weighty = 0.0;
-        slotGbc.insets = new Insets(0, 0, 0, 4);
-        slotGbc.gridx = 0;
-        slotRow.add(refs.workIn.panel, slotGbc);
-        slotGbc.gridx = 1;
-        slotGbc.insets = new Insets(0, 4, 0, 0);
-        slotRow.add(refs.workOut.panel, slotGbc);
+        JPanel slotRow = new JPanel(new GridLayout(1, 2, 8, 0));
+        slotRow.add(refs.workIn.panel);
+        slotRow.add(refs.workOut.panel);
 
         GridBagConstraints rootGbc = new GridBagConstraints();
         rootGbc.gridx = 0;
@@ -298,6 +289,7 @@ public class PanelFactory {
         refs.hourCombo.setFont(mainFont);
         refs.hourCombo.setPrototypeDisplayValue("00");
         refs.hourCombo.setToolTipText("預定打卡的小時（00–23）");
+        lockComboSize(refs.hourCombo);
 
         String[] minutes = new String[60];
         for (int i = 0; i < 60; i++) minutes[i] = String.format("%02d", i);
@@ -305,6 +297,7 @@ public class PanelFactory {
         refs.minuteCombo.setFont(mainFont);
         refs.minuteCombo.setPrototypeDisplayValue("00");
         refs.minuteCombo.setToolTipText("預定打卡的分鐘（00–59）");
+        lockComboSize(refs.minuteCombo);
 
         refs.randomOffsetCheckBox = new JCheckBox("±5 分隨機", true);
         refs.randomOffsetCheckBox.setFont(mainFont);
@@ -359,23 +352,18 @@ public class PanelFactory {
         mgbc.gridx = 1;
         statusGrid.add(createMetricCell("結果", refs.resultLabel, mainFont), mgbc);
 
-        JPanel mainCol = new JPanel();
-        mainCol.setLayout(new BoxLayout(mainCol, BoxLayout.Y_AXIS));
-        mainCol.setAlignmentX(Component.LEFT_ALIGNMENT);
-        settings.setAlignmentX(Component.LEFT_ALIGNMENT);
-        statusGrid.setAlignmentX(Component.LEFT_ALIGNMENT);
-        statusGrid.setMaximumSize(new Dimension(Integer.MAX_VALUE, Short.MAX_VALUE));
-        mainCol.add(settings);
-        mainCol.add(Box.createVerticalStrut(4));
-        mainCol.add(statusGrid);
+        JPanel mainCol = new JPanel(new BorderLayout(0, 4));
+        mainCol.add(settings, BorderLayout.NORTH);
+        mainCol.add(statusGrid, BorderLayout.CENTER);
 
-        refs.panel.add(mainCol, BorderLayout.NORTH);
+        refs.panel.add(mainCol, BorderLayout.CENTER);
         return refs;
     }
 
     private static JLabel createSlotMetricLabel(Font font, String text) {
         JLabel label = new JLabel(text);
         label.setFont(font);
+        label.setHorizontalAlignment(SwingConstants.LEFT);
         return label;
     }
 
@@ -535,6 +523,14 @@ public class PanelFactory {
         row.setPreferredSize(new Dimension(400, h));
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
         return row;
+    }
+
+    /** 鎖定下拉選單尺寸，避免窄欄位擠壓時分選單 */
+    private static void lockComboSize(JComboBox<?> combo) {
+        Dimension size = combo.getPreferredSize();
+        combo.setMinimumSize(size);
+        combo.setPreferredSize(size);
+        combo.setMaximumSize(size);
     }
 
     /** 只鎖定高度，寬度交給版面配置 */

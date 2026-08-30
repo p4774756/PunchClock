@@ -147,6 +147,66 @@ public class SlotController {
         refreshSlotCards();
     }
 
+    /**
+     * 網頁後台取消單一任務：停止計時並取消「啟用」，避免仍顯示為開啟而自動重排。
+     */
+    public void handleRemoteCancelTask(String taskId) {
+        WorkSlot.Kind kind = WorkSlot.Kind.fromId(taskId);
+        CheckInTask task = schedulerService.getTask(taskId);
+        String name = task != null && task.getName() != null ? task.getName() : taskId;
+        String prev = task != null && task.getStatus() != null
+                ? task.getStatus().getDisplayName() : "未知";
+        boolean timerStopped = schedulerService.cancelTask(taskId, "網頁後台遠端取消");
+
+        if (kind != null) {
+            disableSlotInUi(kind);
+            appendLog.accept(String.format(
+                    "[取消] 【遠端指令】取消【%s】(%s)，取消前狀態：%s，計時器：%s，已取消「啟用」",
+                    name,
+                    taskId,
+                    prev,
+                    timerStopped ? "已停止" : "當時沒有在跑（可能已執行完、已過期，或本來就不是等待中）"));
+        } else {
+            appendLog.accept(String.format(
+                    "[取消] 【遠端指令】取消【%s】(%s)，取消前狀態：%s，計時器：%s",
+                    name,
+                    taskId,
+                    prev,
+                    timerStopped ? "已停止" : "當時沒有在跑（可能已執行完、已過期，或本來就不是等待中）"));
+        }
+
+        onSlotStateChanged.run();
+        heartbeatService.sendHeartbeat(appendLog, null);
+    }
+
+    /**
+     * 網頁後台取消全部任務：停止所有計時並取消兩槽位的「啟用」。
+     */
+    public void handleRemoteCancelAll() {
+        schedulerService.cancelAllTasks("網頁後台遠端取消全部任務");
+        disableSlotInUi(WorkSlot.Kind.WORK_IN);
+        disableSlotInUi(WorkSlot.Kind.WORK_OUT);
+        onSlotStateChanged.run();
+        appendLog.accept("[取消] 【遠端指令】收到網頁後台【取消全部任務】，已停止所有等待中的排程，並取消「啟用」。");
+        heartbeatService.sendHeartbeat(appendLog, null);
+    }
+
+    private void disableSlotInUi(WorkSlot.Kind kind) {
+        SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
+        slot.enabled = false;
+        suppressUiSave = true;
+        try {
+            applySlotToUi(refsFor(kind), slot);
+        } finally {
+            suppressUiSave = false;
+        }
+        configPersistenceService.saveConfig(config, appendLog);
+    }
+
+    private PanelFactory.SlotCardRefs refsFor(WorkSlot.Kind kind) {
+        return kind == WorkSlot.Kind.WORK_IN ? slotRefs.workIn : slotRefs.workOut;
+    }
+
     private void bindSlotCard(PanelFactory.SlotCardRefs refs, WorkSlot.Kind kind) {
         java.awt.event.ActionListener change = e -> onSlotSettingsChanged(kind);
         refs.enabledCheckBox.addActionListener(e -> {
@@ -248,6 +308,10 @@ public class SlotController {
         }
 
         if (task.getStatus() == TaskStatus.CHECKING_IN) {
+            return false;
+        }
+
+        if (task.getStatus() == TaskStatus.CANCELLED && !logChanges) {
             return false;
         }
 
@@ -402,13 +466,19 @@ public class SlotController {
         setWrappedMetricLabel(refs.resultLabel, task.getResultMessage());
     }
 
+    private static final int METRIC_LABEL_MAX_CHARS = 36;
+
     private void setWrappedMetricLabel(JLabel label, String text) {
         if (text == null || text.isBlank()) {
             label.setText("—");
             label.setToolTipText(null);
             return;
         }
-        label.setText(text);
+        if (text.length() > METRIC_LABEL_MAX_CHARS) {
+            label.setText(text.substring(0, METRIC_LABEL_MAX_CHARS - 1) + "…");
+        } else {
+            label.setText(text);
+        }
         label.setToolTipText(text);
     }
 

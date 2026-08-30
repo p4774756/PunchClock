@@ -573,6 +573,18 @@
 
     .btn-ghost-danger:hover { background: var(--bad-bg); }
 
+    .btn-pending,
+    .chip-pending {
+      opacity: 0.85;
+      cursor: wait;
+    }
+
+    .chip-pending {
+      background: var(--bad-bg);
+      color: var(--bad);
+      border: 1px solid rgba(198, 40, 40, 0.35);
+    }
+
     .action-row { margin-top: 0.65rem; }
 
     .log-head {

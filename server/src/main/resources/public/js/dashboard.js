@@ -7,6 +7,96 @@
     let lastStructureFingerprint = '';
     let lastContentFingerprint = '';
     let lastLogFingerprints = {};
+    const pendingTaskCancels = new Set();
+    const pendingCancelAllClients = new Set();
+
+    function cancelPendingKey(clientId, taskId) {
+      return clientId + '|' + taskId;
+    }
+
+    function isTaskCancelPending(clientId, taskId) {
+      return pendingTaskCancels.has(cancelPendingKey(clientId, taskId))
+        || pendingCancelAllClients.has(clientId);
+    }
+
+    function markTaskCancelPending(clientId, taskId) {
+      pendingTaskCancels.add(cancelPendingKey(clientId, taskId));
+    }
+
+    function clearTaskCancelPending(clientId, taskId) {
+      pendingTaskCancels.delete(cancelPendingKey(clientId, taskId));
+    }
+
+    function markCancelAllPending(clientId) {
+      pendingCancelAllClients.add(clientId);
+    }
+
+    function clearCancelAllPending(clientId) {
+      pendingCancelAllClients.delete(clientId);
+    }
+
+    function syncCancelPendingFromTasks(clientId, tasks) {
+      for (let i = 0; i < (tasks || []).length; i++) {
+        const t = tasks[i];
+        if (t.status !== 'SCHEDULED') {
+          clearTaskCancelPending(clientId, t.id);
+        }
+      }
+      const hasScheduled = (tasks || []).some((t) => t.status === 'SCHEDULED');
+      if (!hasScheduled) {
+        clearCancelAllPending(clientId);
+      }
+    }
+
+    function buildTaskStatusBadgeHtml(status, clientId, taskId) {
+      if (status === 'SCHEDULED' && isTaskCancelPending(clientId, taskId)) {
+        return '<span class="chip chip-pending" title="已送出取消指令，等候桌面端心跳確認">取消中…</span>';
+      }
+      return getStatusBadgeHtml(status);
+    }
+
+    function buildCancelButtonHtml(clientId, taskId, isConnected, taskStatus) {
+      if (!isConnected || taskStatus !== 'SCHEDULED') return '';
+      if (isTaskCancelPending(clientId, taskId)) {
+        return '<button class="btn btn-ghost-danger btn-pending" disabled title="已送出取消指令，等候桌面端心跳確認">取消中…</button>';
+      }
+      return '<button class="btn btn-ghost-danger" onclick="remoteCancelTask(\'' + clientId + '\', \'' + taskId + '\')">取消</button>';
+    }
+
+    function buildCancelAllButtonHtml(clientId, isConnected, tasks) {
+      if (pendingCancelAllClients.has(clientId)) {
+        return '<button class="btn btn-danger btn-pending" data-role="cancel-all" disabled title="已送出取消全部指令，等候桌面端心跳確認">取消中…</button>';
+      }
+      const disabled = (!isConnected || tasks.length === 0) ? 'disabled' : '';
+      return '<button class="btn btn-danger" data-role="cancel-all" onclick="remoteCancelSchedule(\'' + clientId + '\')" ' + disabled + '>取消全部任務</button>';
+    }
+
+    function refreshTaskCancelUi(clientId, taskId) {
+      const root = deviceEl(clientId);
+      if (!root) return;
+      const c = clientData.find((x) => x.clientId === clientId);
+      if (!c) return;
+      const t = (c.tasks || []).find((x) => x.id === taskId);
+      if (!t) return;
+      const card = root.querySelector('.task-card[data-task-id="' + taskId + '"]');
+      if (card) patchTaskCard(card, c, t, c.status !== 'OFFLINE');
+    }
+
+    function refreshCancelAllUi(clientId) {
+      const root = deviceEl(clientId);
+      if (!root) return;
+      const c = clientData.find((x) => x.clientId === clientId);
+      if (!c) return;
+      const tasks = Array.isArray(c.tasks) ? c.tasks : [];
+      const actionRow = root.querySelector('.action-row');
+      if (actionRow) {
+        actionRow.innerHTML = buildCancelAllButtonHtml(clientId, c.status !== 'OFFLINE', tasks);
+      }
+      const taskListHost = root.querySelector('[data-role="task-list"]');
+      if (taskListHost) {
+        patchTaskListHost(c, c.status !== 'OFFLINE', taskListHost);
+      }
+    }
 
     /** 裝置 / 任務 id 變了才需要整頁重建 */
     function clientsStructureFingerprint(clients) {
@@ -167,9 +257,14 @@
       }
 
       const cancelAllBtn = root.querySelector('[data-role="cancel-all"]');
-      if (cancelAllBtn) {
+      const actionRow = root.querySelector('.action-row');
+      if (actionRow) {
+        actionRow.innerHTML = buildCancelAllButtonHtml(c.clientId, isConnected, tasks);
+      } else if (cancelAllBtn) {
         cancelAllBtn.disabled = !isConnected || tasks.length === 0;
       }
+
+      syncCancelPendingFromTasks(c.clientId, tasks);
 
       updateClientLogBox(c);
     }
@@ -333,10 +428,8 @@
     }
 
     function buildTaskCardHtml(c, t, isConnected) {
-      const statusBadge = getStatusBadgeHtml(t.status);
-      const cancelBtn = (t.status === 'SCHEDULED' && isConnected)
-        ? ('<button class="btn btn-ghost-danger" onclick="remoteCancelTask(\'' + c.clientId + '\', \'' + t.id + '\')">取消</button>')
-        : '';
+      const statusBadge = buildTaskStatusBadgeHtml(t.status, c.clientId, t.id);
+      const cancelBtn = buildCancelButtonHtml(c.clientId, t.id, isConnected, t.status);
       const offsetLabel = t.useRandomOffset ? ' ±' : '';
       const actualTimeStr = (t.actualTime || t.targetTime || '-') + offsetLabel;
       const countdown = countdownLabel(t.status, t.actualTime || t.targetTime);
@@ -374,6 +467,10 @@
     }
 
     function patchTaskCard(card, c, t, isConnected) {
+      if (t.status !== 'SCHEDULED') {
+        clearTaskCancelPending(c.clientId, t.id);
+      }
+
       const offsetLabel = t.useRandomOffset ? ' ±' : '';
       const actualTimeStr = (t.actualTime || t.targetTime || '-') + offsetLabel;
       const countdown = countdownLabel(t.status, t.actualTime || t.targetTime);
@@ -386,10 +483,8 @@
       if (actions) {
         actions.innerHTML =
           '<span class="task-countdown" data-status="' + escapeHtml(t.status || '') + '" data-actual-time="' + escapeHtml(countdownAttr) + '">' + escapeHtml(countdown) + '</span>' +
-          getStatusBadgeHtml(t.status) +
-          ((t.status === 'SCHEDULED' && isConnected)
-            ? ('<button class="btn btn-ghost-danger" onclick="remoteCancelTask(\'' + c.clientId + '\', \'' + t.id + '\')">取消</button>')
-            : '');
+          buildTaskStatusBadgeHtml(t.status, c.clientId, t.id) +
+          buildCancelButtonHtml(c.clientId, t.id, isConnected, t.status);
       }
 
       const timeSet = card.querySelector('.time-set');
@@ -462,7 +557,7 @@
         const deleteBtnHtml = isConnected ? '' : (
           '<button class="btn btn-ghost-danger" onclick="deleteClient(\'' + c.clientId + '\')" title="移除離線設備紀錄">移除</button>'
         );
-        const cancelAllAttr = (!isConnected || tasks.length === 0) ? 'disabled' : '';
+        const cancelAllBtnHtml = buildCancelAllButtonHtml(c.clientId, isConnected, tasks);
         const foldText = isCollapsed ? '展開' : '收合';
         const bodyClass = isCollapsed ? 'collapsed' : '';
         const statusColor = getStatusColor(c.status);
@@ -491,7 +586,7 @@
               '<div class="section-label">任務清單</div>' +
               '<div class="task-list" data-role="task-list" data-task-ids="' + escapeHtml(tasks.map((t) => t.id).join('|')) + '">' + tasksInnerHtml + '</div>' +
               '<div class="action-row">' +
-                '<button class="btn btn-danger" data-role="cancel-all" onclick="remoteCancelSchedule(\'' + c.clientId + '\')" ' + cancelAllAttr + '>取消全部任務</button>' +
+                cancelAllBtnHtml +
               '</div>' +
             '</div>' +
             '<div>' +
@@ -536,30 +631,48 @@
 
     function remoteCancelTask(clientId, taskId) {
       if (!confirm('確定要取消設備【' + clientId + '】的任務【' + taskId + '】嗎？')) return;
+      if (isTaskCancelPending(clientId, taskId)) return;
+
+      markTaskCancelPending(clientId, taskId);
+      refreshTaskCancelUi(clientId, taskId);
       appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在發送取消任務指令 (' + taskId + ')…');
       fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-task/' + encodeURIComponent(taskId), { method: 'POST' })
         .then(res => res.json())
         .then(data => {
           if (data.success) {
-            appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 瀏覽器已送出取消請求，等候心跳確認');
+            appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已送出取消請求，等候桌面端心跳確認（按鈕已顯示「取消中…」）');
           } else {
+            clearTaskCancelPending(clientId, taskId);
+            refreshTaskCancelUi(clientId, taskId);
             alert(data.message || '取消任務失敗');
           }
-        }).catch(err => console.error(err));
+        }).catch(err => {
+          clearTaskCancelPending(clientId, taskId);
+          refreshTaskCancelUi(clientId, taskId);
+          console.error(err);
+        });
     }
 
     async function remoteCancelSchedule(clientId) {
       if (!confirm('確定要對設備【' + clientId + '】發送【取消全部排程】嗎？')) return;
+      if (pendingCancelAllClients.has(clientId)) return;
+
+      markCancelAllPending(clientId);
+      refreshCancelAllUi(clientId);
       appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在發送取消全部排程…');
       try {
         const res = await fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-schedule', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-          appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 瀏覽器已送出取消全部請求，等候心跳確認');
+          appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已送出取消全部請求，等候桌面端心跳確認（按鈕已顯示「取消中…」）');
         } else {
+          clearCancelAllPending(clientId);
+          refreshCancelAllUi(clientId);
           alert(data.message || '指令發送失敗');
         }
       } catch (e) {
+        clearCancelAllPending(clientId);
+        refreshCancelAllUi(clientId);
         console.error('Remote cancel error', e);
       }
     }

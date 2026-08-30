@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -69,6 +70,8 @@ public class HeartbeatService {
     private Supplier<List<CheckInTask>> tasksProvider;
     private Consumer<String> commandListener;
     private Consumer<List<PeerInfo>> peersListener;
+    private final AtomicBoolean heartbeatInFlight = new AtomicBoolean(false);
+    private final AtomicBoolean heartbeatPending = new AtomicBoolean(false);
 
     public void setCommandListener(Consumer<String> commandListener) {
         this.commandListener = commandListener;
@@ -177,6 +180,11 @@ public class HeartbeatService {
     public void sendPostHeartbeat(Consumer<String> logger, Consumer<Boolean> statusCallback) {
         if (!isServiceActive || serverUrl.isBlank()) return;
 
+        if (!heartbeatInFlight.compareAndSet(false, true)) {
+            heartbeatPending.set(true);
+            return;
+        }
+
         String endpoint = serverUrl + "/api/heartbeat";
         List<CheckInTask> tasks = tasksProvider != null ? tasksProvider.get() : Collections.emptyList();
 
@@ -215,23 +223,33 @@ public class HeartbeatService {
                     .build();
 
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .thenAccept(response -> {
-                        if (response.statusCode() == 200) {
-                            if (statusCallback != null) statusCallback.accept(true);
-                            parseHeartbeatResponse(response.body(), logger);
-                        } else {
-                            log(logger, "[警告] [HTTP POST 心跳] 伺服器回應異常，狀態碼：" + response.statusCode());
-                            if (statusCallback != null) statusCallback.accept(false);
+                    .whenComplete((response, ex) -> {
+                        try {
+                            if (ex != null) {
+                                log(logger, "[失敗] [HTTP POST 心跳失敗] " + ex.getMessage());
+                                if (statusCallback != null) statusCallback.accept(false);
+                            } else if (response.statusCode() == 200) {
+                                if (statusCallback != null) statusCallback.accept(true);
+                                parseHeartbeatResponse(response.body(), logger);
+                            } else {
+                                log(logger, "[警告] [HTTP POST 心跳] 伺服器回應異常，狀態碼：" + response.statusCode());
+                                if (statusCallback != null) statusCallback.accept(false);
+                            }
+                        } finally {
+                            finishHeartbeatSend(logger, statusCallback);
                         }
-                    })
-                    .exceptionally(ex -> {
-                        log(logger, "[失敗] [HTTP POST 心跳失敗] " + ex.getMessage());
-                        if (statusCallback != null) statusCallback.accept(false);
-                        return null;
                     });
         } catch (Exception ex) {
             log(logger, "[失敗] [HTTP POST 發送異常] " + ex.getMessage());
             if (statusCallback != null) statusCallback.accept(false);
+            finishHeartbeatSend(logger, statusCallback);
+        }
+    }
+
+    private void finishHeartbeatSend(Consumer<String> logger, Consumer<Boolean> statusCallback) {
+        heartbeatInFlight.set(false);
+        if (heartbeatPending.getAndSet(false)) {
+            sendPostHeartbeat(logger, statusCallback);
         }
     }
 
@@ -265,9 +283,7 @@ public class HeartbeatService {
                     }
                 }
             }
-        }
-
-        if (json.has("action") && json.get("action").isJsonPrimitive()) {
+        } else if (json.has("action") && json.get("action").isJsonPrimitive()) {
             String action = json.get("action").getAsString();
             if (action != null && !action.isBlank() && !"NONE".equalsIgnoreCase(action)) {
                 actions.add(action.trim());
@@ -432,6 +448,8 @@ public class HeartbeatService {
 
     public void stopHeartbeat() {
         this.isServiceActive = false;
+        heartbeatInFlight.set(false);
+        heartbeatPending.set(false);
         if (scheduler != null && !scheduler.isShutdown()) {
             scheduler.shutdownNow();
         }
