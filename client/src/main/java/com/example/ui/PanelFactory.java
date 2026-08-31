@@ -529,9 +529,27 @@ public class PanelFactory {
         return row;
     }
 
-    /** 與 JTextField 同列時，避免 macOS Aqua ComboBox 視覺偏高 */
+    /** 與 JTextField 同列時，避免 macOS Aqua ComboBox 視覺偏高，同時保留較自然的外觀 */
     private static void useTextFieldAlignedCombo(JComboBox<?> combo) {
-        combo.setUI(new BasicComboBoxUI());
+        combo.setOpaque(true);
+        combo.setBackground(Color.WHITE);
+        combo.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(203, 213, 225)),
+                BorderFactory.createEmptyBorder(0, 6, 0, 4)));
+        combo.setUI(new BasicComboBoxUI() {
+            @Override
+            protected JButton createArrowButton() {
+                JButton button = new JButton("\u25BE");
+                button.setFont(UiFonts.latinPlain(11));
+                button.setFocusable(false);
+                button.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, new Color(226, 232, 240)));
+                button.setContentAreaFilled(true);
+                button.setBackground(new Color(248, 250, 252));
+                button.setForeground(new Color(51, 65, 85));
+                button.setMargin(new Insets(0, 0, 0, 0));
+                return button;
+            }
+        });
     }
 
     private static void lockComponentSize(JComponent component, Dimension size) {
