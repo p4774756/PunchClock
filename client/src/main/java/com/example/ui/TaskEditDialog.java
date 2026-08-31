@@ -7,8 +7,6 @@ import com.github.lgooddatepicker.components.DatePickerSettings;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseMotionAdapter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -289,29 +287,6 @@ public class TaskEditDialog extends JDialog {
             combo.setToolTipText(selected != null ? browserTooltip(selected.toString()) : null);
         };
         combo.addActionListener(e -> refreshTooltip.run());
-        combo.addMouseMotionListener(new MouseMotionAdapter() {
-            @Override
-            public void mouseMoved(MouseEvent e) {
-                if (!(combo.getUI() instanceof javax.swing.plaf.basic.BasicComboBoxUI)) {
-                    refreshTooltip.run();
-                    return;
-                }
-                javax.swing.plaf.basic.ComboPopup popup =
-                        ((javax.swing.plaf.basic.BasicComboBoxUI) combo.getUI()).getPopup();
-                if (!combo.isPopupVisible() || popup == null) {
-                    refreshTooltip.run();
-                    return;
-                }
-                javax.swing.JList<?> list = popup.getList();
-                java.awt.Point p = javax.swing.SwingUtilities.convertPoint(combo, e.getPoint(), list);
-                int index = list.locationToIndex(p);
-                if (index >= 0) {
-                    combo.setToolTipText(browserTooltip(String.valueOf(list.getModel().getElementAt(index))));
-                } else {
-                    refreshTooltip.run();
-                }
-            }
-        });
         refreshTooltip.run();
     }
 
