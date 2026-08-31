@@ -309,12 +309,12 @@ public class HeartbeatService {
             if (parts.length >= 3) {
                 String fromId = parts[1];
                 String text = decodePeerPayload(parts[2]);
-                log(logger, "[訊息] [同事互動] 收到來自【" + fromId + "】的訊息");
+                log(logger, "[訊息] [戳] 收到來自【" + fromId + "】的訊息");
                 commandListener.accept("MSG|" + fromId + "|" + text);
             }
         } else if (action.startsWith("POKE|")) {
             String fromId = action.length() > 5 ? action.substring(5) : "未知";
-            log(logger, "[通知] [同事互動] 【" + fromId + "】戳了你");
+            log(logger, "[通知] [戳] 【" + fromId + "】戳了你");
             commandListener.accept(action);
         } else {
             log(logger, "[警告] [HTTP 心跳] 收到未支援的遠端指令: " + action);
@@ -356,17 +356,17 @@ public class HeartbeatService {
      */
     public void sendPeerMessage(String toClientId, String text, Consumer<String> logger, Consumer<Boolean> callback) {
         if (!isServiceActive || serverUrl.isBlank()) {
-            log(logger, "[警告] [同事互動] 雲端未連線，無法傳送訊息");
+            log(logger, "[警告] [戳] 雲端未連線，無法傳送訊息");
             if (callback != null) callback.accept(false);
             return;
         }
         if (toClientId == null || toClientId.isBlank()) {
-            log(logger, "[警告] [同事互動] 請選擇收件同事");
+            log(logger, "[警告] [戳] 請選擇收件同事");
             if (callback != null) callback.accept(false);
             return;
         }
         if (text == null || text.trim().isEmpty()) {
-            log(logger, "[警告] [同事互動] 訊息不可為空");
+            log(logger, "[警告] [戳] 訊息不可為空");
             if (callback != null) callback.accept(false);
             return;
         }
@@ -383,12 +383,12 @@ public class HeartbeatService {
      */
     public void sendPeerPoke(String toClientId, Consumer<String> logger, Consumer<Boolean> callback) {
         if (!isServiceActive || serverUrl.isBlank()) {
-            log(logger, "[警告] [同事互動] 雲端未連線，無法戳同事");
+            log(logger, "[警告] [戳] 雲端未連線，無法戳同事");
             if (callback != null) callback.accept(false);
             return;
         }
         if (toClientId == null || toClientId.isBlank()) {
-            log(logger, "[警告] [同事互動] 請選擇同事");
+            log(logger, "[警告] [戳] 請選擇同事");
             if (callback != null) callback.accept(false);
             return;
         }
@@ -416,19 +416,19 @@ public class HeartbeatService {
                     .thenAccept(response -> {
                         boolean ok = response.statusCode() == 200;
                         if (ok) {
-                            log(logger, "[成功] [同事互動] " + actionLabel + "已送出");
+                            log(logger, "[成功] [戳] " + actionLabel + "已送出");
                         } else {
-                            log(logger, "[失敗] [同事互動] " + actionLabel + "失敗，狀態碼：" + response.statusCode());
+                            log(logger, "[失敗] [戳] " + actionLabel + "失敗，狀態碼：" + response.statusCode());
                         }
                         if (callback != null) callback.accept(ok);
                     })
                     .exceptionally(ex -> {
-                        log(logger, "[失敗] [同事互動] " + actionLabel + "異常：" + ex.getMessage());
+                        log(logger, "[失敗] [戳] " + actionLabel + "異常：" + ex.getMessage());
                         if (callback != null) callback.accept(false);
                         return null;
                     });
         } catch (Exception ex) {
-            log(logger, "[失敗] [同事互動] " + actionLabel + "異常：" + ex.getMessage());
+            log(logger, "[失敗] [戳] " + actionLabel + "異常：" + ex.getMessage());
             if (callback != null) callback.accept(false);
         }
     }

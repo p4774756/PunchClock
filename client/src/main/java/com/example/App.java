@@ -1,5 +1,6 @@
 package com.example;
 
+import com.example.model.TaskStatus;
 import com.example.service.SpeechService;
 import com.example.service.AutomationService;
 import com.example.service.ConfigPersistenceService;
@@ -7,6 +8,7 @@ import com.example.service.HeartbeatService;
 import com.example.service.HeartbeatService.PeerInfo;
 import com.example.service.SchedulerService;
 import com.example.service.TaskPersistenceService;
+import com.example.ui.UiFonts;
 import com.example.ui.PanelFactory;
 import com.example.ui.PanelFactory.*;
 import com.example.ui.SlotController;
@@ -26,6 +28,8 @@ import java.time.format.DateTimeFormatter;
  */
 public class App extends JFrame {
 
+    private static final String SELF_PEER_SUFFIX = "（本機）";
+
     private final ServerConfigRefs serverRefs = new ServerConfigRefs();
     private final PeerInteractionRefs peerRefs = new PeerInteractionRefs();
     private final SlotPanelRefs slotRefs = new SlotPanelRefs();
@@ -40,6 +44,7 @@ public class App extends JFrame {
     private boolean suppressConfigSave = false;
     private Timer countdownTimer;
     private JSplitPane mainSplit;
+    private JTabbedPane mainTabs;
 
     public App() {
         this.schedulerService = new SchedulerService();
@@ -94,25 +99,25 @@ public class App extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout(10, 10));
 
-        Font mainFont = new Font("微軟正黑體", Font.PLAIN, 13);
-        Font boldFont = new Font("微軟正黑體", Font.BOLD, 13);
+        Font mainFont = UiFonts.chinesePlain(13);
+        Font boldFont = UiFonts.chineseBold(13);
+        Font fieldFont = UiFonts.latinPlain(13);
 
         add(createDailyProverbBanner(mainFont, boldFont), BorderLayout.NORTH);
 
         JTabbedPane tabs = new JTabbedPane();
-        tabs.setFont(boldFont);
-        tabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
-        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac")) {
-            tabs.setUI(new BasicTabbedPaneUI());
-        }
+        this.mainTabs = tabs;
+        tabs.setFont(UiFonts.latinBold(13));
+        tabs.setTabLayoutPolicy(JTabbedPane.WRAP_TAB_LAYOUT);
+        tabs.setUI(new BasicTabbedPaneUI());
         tabs.setBorder(new EmptyBorder(8, 12, 0, 12));
 
-        JPanel slotPanel = PanelFactory.createSlotPanel(slotRefs, mainFont, boldFont);
+        JPanel slotPanel = PanelFactory.createSlotPanel(slotRefs, mainFont, boldFont, fieldFont);
         JPanel tasksTab = new JPanel(new BorderLayout());
         tasksTab.setBorder(new EmptyBorder(8, 4, 8, 4));
         tasksTab.add(slotPanel, BorderLayout.NORTH);
 
-        JPanel serverBody = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont);
+        JPanel serverBody = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont, fieldFont);
         JPanel serverGroup = PanelFactory.createGroupPanel("雲端服務與裝置設定", boldFont);
         serverGroup.setLayout(new BorderLayout());
         serverGroup.add(serverBody, BorderLayout.NORTH);
@@ -122,10 +127,17 @@ public class App extends JFrame {
         cloudTab.add(serverGroup, BorderLayout.NORTH);
 
         JPanel peerBody = PanelFactory.createPeerInteractionPanel(peerRefs, mainFont, boldFont);
-        JPanel peerGroup = PanelFactory.createGroupPanel("同事互動", boldFont);
+        JPanel peerGroup = PanelFactory.createGroupPanel(PanelFactory.PEER_TAB_LABEL, boldFont);
         peerGroup.setLayout(new BorderLayout());
         peerGroup.add(peerBody, BorderLayout.NORTH);
         bindPeerInteractionListeners();
+        if (peerRefs.openCloudSettingsButton != null) {
+            peerRefs.openCloudSettingsButton.addActionListener(e -> {
+                if (mainTabs != null) {
+                    mainTabs.setSelectedIndex(1);
+                }
+            });
+        }
 
         JPanel peerTab = new JPanel(new BorderLayout());
         peerTab.setBorder(new EmptyBorder(8, 4, 8, 4));
@@ -133,11 +145,15 @@ public class App extends JFrame {
 
         tabs.addTab("打卡任務", tasksTab);
         tabs.addTab("雲端設定", cloudTab);
-        tabs.addTab("戳", peerTab);
-        tabs.addTab("ping/pong", PanelFactory.createHelpPanel(mainFont, boldFont));
+        tabs.addTab(PanelFactory.PEER_TAB_LABEL, peerTab);
+        tabs.addTab("Ping/Pong", PanelFactory.createHelpPanel(mainFont, boldFont, fieldFont));
+        tabs.setToolTipTextAt(0, "設定打卡網址、時間，立即測試");
+        tabs.setToolTipTextAt(1, "雲端心跳、Client ID、Token");
+        tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下");
+        tabs.setToolTipTextAt(3, "用 curl 測試 Server 的 /ping API 是否回 pong");
         tabs.setSelectedIndex(0);
 
-        JPanel logPanel = PanelFactory.createLogPanel(logRefs, boldFont);
+        JPanel logPanel = PanelFactory.createLogPanel(logRefs, mainFont, boldFont);
         logPanel.setBorder(new CompoundBorder(new EmptyBorder(0, 12, 10, 12), logPanel.getBorder()));
         logPanel.setMinimumSize(new Dimension(400, 90));
         tabs.setMinimumSize(new Dimension(400, 220));
@@ -297,13 +313,17 @@ public class App extends JFrame {
         int row = peerRefs.peerTable.getSelectedRow();
         if (row < 0) return null;
         Object value = peerRefs.peerTableModel.getValueAt(row, 0);
-        return value != null ? value.toString() : null;
+        return parsePeerRowId(value != null ? value.toString() : null);
     }
 
     private void sendMessageToSelectedPeer() {
         String toClientId = getSelectedPeerClientId();
         if (toClientId == null) {
-            appendLog("[警告] [同事互動] 請先在列表中選擇一位同事");
+            appendLog("[警告] [戳] 請先在列表中選擇一位同事");
+            return;
+        }
+        if (isSelfClientId(toClientId)) {
+            appendLog("[警告] [戳] 無法傳送訊息給本機");
             return;
         }
         String text = peerRefs.messageField != null ? peerRefs.messageField.getText() : "";
@@ -317,21 +337,43 @@ public class App extends JFrame {
     private void pokeSelectedPeer() {
         String toClientId = getSelectedPeerClientId();
         if (toClientId == null) {
-            appendLog("[警告] [同事互動] 請先在列表中選擇一位同事");
+            appendLog("[警告] [戳] 請先在列表中選擇一位同事");
+            return;
+        }
+        if (isSelfClientId(toClientId)) {
+            appendLog("[警告] [戳] 無法戳本機");
             return;
         }
         heartbeatService.sendPeerPoke(toClientId, this::appendLog, null);
     }
 
     private void updatePeerTable(java.util.List<PeerInfo> peers) {
-        if (peerRefs.peerTableModel == null) return;
+        if (peerRefs.peerTableModel == null || !isCloudEnabled()) {
+            return;
+        }
 
         String selectedId = getSelectedPeerClientId();
+        String myClientId = heartbeatService.getClientId();
         peerRefs.peerTableModel.setRowCount(0);
         int onlineCount = 0;
+        int deviceCount = 0;
+
+        peerRefs.peerTableModel.addRow(new Object[]{
+                formatPeerRowId(myClientId, true),
+                "在線",
+                countLocalScheduledTasks(),
+                AppVersion.VERSION
+        });
+        onlineCount++;
+        deviceCount++;
+
         for (PeerInfo peer : peers) {
+            if (myClientId.equals(peer.clientId)) {
+                continue;
+            }
             boolean online = "ONLINE".equalsIgnoreCase(peer.status);
             if (online) onlineCount++;
+            deviceCount++;
             String statusLabel = online ? "在線" : "離線";
             peerRefs.peerTableModel.addRow(new Object[]{
                     peer.clientId,
@@ -342,16 +384,22 @@ public class App extends JFrame {
         }
 
         if (peerRefs.peerStatusLabel != null) {
-            if (peers.isEmpty()) {
-                peerRefs.peerStatusLabel.setText("目前沒有其他裝置（請確認同事也已啟用雲端回報且 Client ID 不同）");
-            } else {
-                peerRefs.peerStatusLabel.setText("共 " + peers.size() + " 位同事 · " + onlineCount + " 位在線");
-            }
+            peerRefs.peerStatusLabel.setText("共 " + deviceCount + " 台裝置 · " + onlineCount + " 位在線");
+            peerRefs.peerStatusLabel.setForeground(new Color(100, 116, 139));
+        }
+        setPeerInteractionEnabled(true);
+        if (peerRefs.openCloudSettingsButton != null) {
+            peerRefs.openCloudSettingsButton.setVisible(false);
+        }
+        if (peerRefs.peerHintLabel != null) {
+            peerRefs.peerHintLabel.setText(
+                    "顯示同一伺服器上的裝置（含本機標示，每 15 秒隨心跳更新）");
         }
 
         if (selectedId != null && peerRefs.peerTable != null) {
             for (int i = 0; i < peerRefs.peerTableModel.getRowCount(); i++) {
-                if (selectedId.equals(peerRefs.peerTableModel.getValueAt(i, 0))) {
+                String rowId = parsePeerRowId(String.valueOf(peerRefs.peerTableModel.getValueAt(i, 0)));
+                if (selectedId.equals(rowId)) {
                     peerRefs.peerTable.setRowSelectionInterval(i, i);
                     break;
                 }
@@ -359,8 +407,104 @@ public class App extends JFrame {
         }
     }
 
+    private boolean isCloudEnabled() {
+        return serverRefs.enableServerCheckBox != null && serverRefs.enableServerCheckBox.isSelected();
+    }
+
+    private void refreshPeerInteractionState() {
+        if (!isCloudEnabled()) {
+            showOfflinePeerView();
+            return;
+        }
+        setPeerInteractionEnabled(true);
+        if (peerRefs.openCloudSettingsButton != null) {
+            peerRefs.openCloudSettingsButton.setVisible(false);
+        }
+        if (peerRefs.peerHintLabel != null) {
+            peerRefs.peerHintLabel.setText(
+                    "顯示同一伺服器上的裝置（含本機標示，每 15 秒隨心跳更新）");
+        }
+        showPeerWaitingView();
+    }
+
+    private void showOfflinePeerView() {
+        populateSelfOnlyPeerTable("本機");
+        if (peerRefs.peerHintLabel != null) {
+            peerRefs.peerHintLabel.setText(
+                    "雲端未啟用時僅顯示本機；至「雲端設定」勾選「啟用雲端單向狀態回報」後，可查看同事並互動");
+        }
+        if (peerRefs.peerStatusLabel != null) {
+            peerRefs.peerStatusLabel.setText("雲端未啟用 · 本機獨立運作");
+            peerRefs.peerStatusLabel.setForeground(new Color(100, 116, 139));
+        }
+        setPeerInteractionEnabled(false);
+        if (peerRefs.openCloudSettingsButton != null) {
+            peerRefs.openCloudSettingsButton.setVisible(true);
+        }
+        if (peerRefs.peerTable != null) {
+            peerRefs.peerTable.clearSelection();
+        }
+    }
+
+    private void showPeerWaitingView() {
+        populateSelfOnlyPeerTable("在線");
+        if (peerRefs.peerStatusLabel != null) {
+            peerRefs.peerStatusLabel.setText("連線中…（等待伺服器回傳同事列表）");
+            peerRefs.peerStatusLabel.setForeground(new Color(100, 116, 139));
+        }
+    }
+
+    private void populateSelfOnlyPeerTable(String selfStatusLabel) {
+        if (peerRefs.peerTableModel == null) {
+            return;
+        }
+        peerRefs.peerTableModel.setRowCount(0);
+        peerRefs.peerTableModel.addRow(new Object[]{
+                formatPeerRowId(heartbeatService.getClientId(), true),
+                selfStatusLabel,
+                countLocalScheduledTasks(),
+                AppVersion.VERSION
+        });
+    }
+
+    private void setPeerInteractionEnabled(boolean enabled) {
+        if (peerRefs.messageField != null) {
+            peerRefs.messageField.setEnabled(enabled);
+        }
+        if (peerRefs.sendMessageButton != null) {
+            peerRefs.sendMessageButton.setEnabled(enabled);
+        }
+        if (peerRefs.pokeButton != null) {
+            peerRefs.pokeButton.setEnabled(enabled);
+        }
+    }
+
+    private String formatPeerRowId(String clientId, boolean self) {
+        return self ? clientId + SELF_PEER_SUFFIX : clientId;
+    }
+
+    private String parsePeerRowId(String displayId) {
+        if (displayId == null) {
+            return null;
+        }
+        if (displayId.endsWith(SELF_PEER_SUFFIX)) {
+            return displayId.substring(0, displayId.length() - SELF_PEER_SUFFIX.length());
+        }
+        return displayId;
+    }
+
+    private boolean isSelfClientId(String clientId) {
+        return clientId != null && clientId.equals(heartbeatService.getClientId());
+    }
+
+    private int countLocalScheduledTasks() {
+        return (int) schedulerService.getAllTasks().stream()
+                .filter(t -> t.getStatus() == TaskStatus.SCHEDULED)
+                .count();
+    }
+
     private void showPeerMessage(String fromId, String text) {
-        appendLog("[訊息] 【同事互動】來自【" + fromId + "】：" + text);
+        appendLog("[訊息] 【戳】來自【" + fromId + "】：" + text);
         Toolkit.getDefaultToolkit().beep();
         JOptionPane.showMessageDialog(
                 this,
@@ -370,7 +514,7 @@ public class App extends JFrame {
     }
 
     private void showPeerPoke(String fromId) {
-        appendLog("[通知] 【同事互動】【" + fromId + "】戳了你！");
+        appendLog("[通知] 【戳】【" + fromId + "】戳了你！");
         Toolkit.getDefaultToolkit().beep();
         JOptionPane.showMessageDialog(
                 this,
@@ -385,12 +529,14 @@ public class App extends JFrame {
             syncCloudConnectionFieldsEnabled();
             if (enabled) {
                 appendLog("[連線] 已勾選啟用雲端狀態回報，啟動單向心跳中...");
+                refreshPeerInteractionState();
                 startHeartbeatService();
             } else {
                 appendLog("[離線] 已取消勾選，斷開雲端狀態回報（本機獨立運作模式）。");
                 heartbeatService.stopHeartbeat();
                 serverRefs.heartbeatStatusLabel.setText("[離線] 未連線 (已停用)");
                 serverRefs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
+                refreshPeerInteractionState();
             }
             saveCloudConfig();
         });
@@ -463,6 +609,7 @@ public class App extends JFrame {
             heartbeatService.setTrustAllSsl(config.trustAllSsl);
         }
         syncCloudConnectionFieldsEnabled();
+        refreshPeerInteractionState();
     }
 
     /** 雲端連線中鎖定連線參數，避免執行中誤改（與打卡槽位「啟用時鎖定時分」相同邏輯） */
@@ -498,6 +645,9 @@ public class App extends JFrame {
 
         ensureClientIdOption(clientId);
         heartbeatService.setClientId(clientId);
+        if (!isCloudEnabled()) {
+            refreshPeerInteractionState();
+        }
         if (persist) {
             saveCloudConfig();
         }
@@ -535,6 +685,9 @@ public class App extends JFrame {
     private void onSlotStateChanged() {
         slotController.refreshSlotCards();
         slotController.persistTasks();
+        if (!isCloudEnabled()) {
+            refreshPeerInteractionState();
+        }
     }
 
     private void applyHeartbeatTokenFromUI() {

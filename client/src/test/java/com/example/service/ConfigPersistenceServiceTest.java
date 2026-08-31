@@ -1,5 +1,6 @@
 package com.example.service;
 
+import com.example.ui.TaskEditDialog;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -68,7 +69,7 @@ public class ConfigPersistenceServiceTest {
         assertTrue(loaded.enableServer);
         assertEquals("https://example.com/checkin", loaded.targetUrl);
         assertEquals("#btn", loaded.buttonId);
-        assertEquals("Google Chrome (本機已安裝)", loaded.browserChoice);
+        assertEquals(TaskEditDialog.BROWSER_OPTIONS[1], loaded.browserChoice);
         assertTrue(loaded.weekdaysOnly);
         assertEquals(8, loaded.workIn.hour);
         assertEquals(30, loaded.workIn.minute);
@@ -87,7 +88,7 @@ public class ConfigPersistenceServiceTest {
         assertTrue(loaded.enableServer);
         assertEquals("https://www.msn.com/zh-tw", loaded.targetUrl);
         assertEquals("finance", loaded.buttonId);
-        assertEquals("Microsoft Edge (本機已安裝)", loaded.browserChoice);
+        assertEquals(TaskEditDialog.BROWSER_OPTIONS[0], loaded.browserChoice);
         assertEquals(9, loaded.workIn.hour);
         assertEquals(18, loaded.workOut.hour);
     }

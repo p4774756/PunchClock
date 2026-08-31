@@ -1,5 +1,6 @@
 package com.example.service;
 
+import com.example.ui.TaskEditDialog;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -35,7 +36,7 @@ public class ConfigPersistenceService {
         /** 共用打卡設定 */
         public String targetUrl = "https://www.msn.com/zh-tw";
         public String buttonId = "finance";
-        public String browserChoice = "Microsoft Edge (本機已安裝)";
+        public String browserChoice = TaskEditDialog.BROWSER_OPTIONS[0];
         public boolean weekdaysOnly = true;
 
         public SlotSettings workIn = defaultWorkIn();
@@ -143,7 +144,9 @@ public class ConfigPersistenceService {
             config.buttonId = "finance";
         }
         if (config.browserChoice == null || config.browserChoice.isBlank()) {
-            config.browserChoice = "Microsoft Edge (本機已安裝)";
+            config.browserChoice = TaskEditDialog.BROWSER_OPTIONS[0];
+        } else {
+            config.browserChoice = TaskEditDialog.normalizeBrowserChoice(config.browserChoice);
         }
         config.weekdaysOnly = true; // 上班工具固定週一至週五排程
         if (config.workIn == null) {

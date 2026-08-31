@@ -7,6 +7,8 @@ import com.github.lgooddatepicker.components.DatePickerSettings;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -53,8 +55,9 @@ public class TaskEditDialog extends JDialog {
         setLocationRelativeTo(owner);
         setLayout(new BorderLayout(10, 10));
 
-        Font dialogFont = new Font("微軟正黑體", Font.PLAIN, 13);
-        Font dialogBoldFont = new Font("微軟正黑體", Font.BOLD, 13);
+        Font dialogFont = UiFonts.chinesePlain(13);
+        Font dialogBoldFont = UiFonts.chineseBold(13);
+        Font dialogFieldFont = UiFonts.latinPlain(13);
 
         JPanel formPanel = new JPanel(new GridBagLayout());
         formPanel.setBorder(new EmptyBorder(12, 16, 8, 16));
@@ -82,7 +85,7 @@ public class TaskEditDialog extends JDialog {
 
         gc.gridx = 1; gc.gridy = 1; gc.weightx = 1.0;
         JTextField dlgUrlField = new JTextField(sourceTask.getTargetUrl());
-        dlgUrlField.setFont(dialogFont);
+        dlgUrlField.setFont(dialogFieldFont);
         formPanel.add(dlgUrlField, gc);
 
         // 按鈕 Selector
@@ -93,7 +96,7 @@ public class TaskEditDialog extends JDialog {
 
         gc.gridx = 1; gc.gridy = 2; gc.weightx = 1.0;
         JTextField dlgBtnField = new JTextField(sourceTask.getButtonId());
-        dlgBtnField.setFont(dialogFont);
+        dlgBtnField.setFont(dialogFieldFont);
         formPanel.add(dlgBtnField, gc);
 
         // 排程日期
@@ -173,15 +176,10 @@ public class TaskEditDialog extends JDialog {
         formPanel.add(dlgBrowserLabel, gc);
 
         gc.gridx = 1; gc.gridy = 6; gc.weightx = 1.0;
-        String[] browserOptions = {
-                "Microsoft Edge (本機已安裝)",
-                "Google Chrome (本機已安裝)",
-                "內建 Chromium 瀏覽器",
-                "內建 Firefox 瀏覽器",
-                "內建 WebKit (Safari核心)"
-        };
+        String[] browserOptions = BROWSER_OPTIONS;
         JComboBox<String> dlgBrowserCombo = new JComboBox<>(browserOptions);
         dlgBrowserCombo.setFont(dialogFont);
+        TaskEditDialog.attachBrowserTooltips(dlgBrowserCombo);
         String bt = sourceTask.getBrowserType();
         if ("chrome".equals(bt)) dlgBrowserCombo.setSelectedIndex(1);
         else if ("msedge".equals(bt)) dlgBrowserCombo.setSelectedIndex(0);
@@ -251,6 +249,90 @@ public class TaskEditDialog extends JDialog {
     /**
      * 將 UI 瀏覽器顯示名稱轉換為內部代碼
      */
+    public static final String[] BROWSER_OPTIONS = {
+            "Edge（本機）",
+            "Chrome（本機）",
+            "Chromium（內建）",
+            "Firefox（內建）",
+            "WebKit（內建）"
+    };
+
+    public static String browserTooltip(String choice) {
+        switch (parseBrowserType(choice)) {
+            case "chrome":
+                return "開啟電腦已安裝的 Google Chrome，可沿用書籤、Cookie 與登入狀態。";
+            case "chromium":
+                return "由打卡工具啟動內附的 Chromium，獨立視窗，不影響平常使用的瀏覽器。";
+            case "firefox":
+                return "由打卡工具啟動內附的 Firefox，獨立視窗，不影響平常使用的瀏覽器。";
+            case "webkit":
+                return "由打卡工具啟動內附的 WebKit（Safari 核心），獨立視窗，主要供 macOS 測試。";
+            default:
+                return "開啟電腦已安裝的 Microsoft Edge，可沿用書籤、Cookie 與登入狀態。";
+        }
+    }
+
+    public static void attachBrowserTooltips(JComboBox<String> combo) {
+        combo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                    boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value != null) {
+                    setToolTipText(browserTooltip(value.toString()));
+                }
+                return this;
+            }
+        });
+        Runnable refreshTooltip = () -> {
+            Object selected = combo.getSelectedItem();
+            combo.setToolTipText(selected != null ? browserTooltip(selected.toString()) : null);
+        };
+        combo.addActionListener(e -> refreshTooltip.run());
+        combo.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                if (!(combo.getUI() instanceof javax.swing.plaf.basic.BasicComboBoxUI)) {
+                    refreshTooltip.run();
+                    return;
+                }
+                javax.swing.plaf.basic.ComboPopup popup =
+                        ((javax.swing.plaf.basic.BasicComboBoxUI) combo.getUI()).getPopup();
+                if (!combo.isPopupVisible() || popup == null) {
+                    refreshTooltip.run();
+                    return;
+                }
+                javax.swing.JList<?> list = popup.getList();
+                java.awt.Point p = javax.swing.SwingUtilities.convertPoint(combo, e.getPoint(), list);
+                int index = list.locationToIndex(p);
+                if (index >= 0) {
+                    combo.setToolTipText(browserTooltip(String.valueOf(list.getModel().getElementAt(index))));
+                } else {
+                    refreshTooltip.run();
+                }
+            }
+        });
+        refreshTooltip.run();
+    }
+
+    public static String normalizeBrowserChoice(String choice) {
+        if (choice == null || choice.isBlank()) {
+            return BROWSER_OPTIONS[0];
+        }
+        switch (parseBrowserType(choice)) {
+            case "chrome":
+                return BROWSER_OPTIONS[1];
+            case "chromium":
+                return BROWSER_OPTIONS[2];
+            case "firefox":
+                return BROWSER_OPTIONS[3];
+            case "webkit":
+                return BROWSER_OPTIONS[4];
+            default:
+                return BROWSER_OPTIONS[0];
+        }
+    }
+
     public static String parseBrowserType(String selectedBrowserStr) {
         if (selectedBrowserStr == null) return "msedge";
         if (selectedBrowserStr.contains("Chrome")) return "chrome";

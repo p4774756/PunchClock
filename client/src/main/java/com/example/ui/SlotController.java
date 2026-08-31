@@ -568,7 +568,20 @@ public class SlotController {
         if (rawMsg == null) return "打卡異常";
         String sanitized = rawMsg.replaceAll("https?://[^\\s\"'>]+", "[隱私保護網址]");
         if (sanitized.contains("Timeout") && sanitized.contains("exceeded")) {
-            return "打卡失敗：網頁連線或按鈕點擊逾時 (Timeout 30s)";
+            return "網頁連線或按鈕點擊逾時 (Timeout 45s)";
+        }
+        if (sanitized.contains("網頁載入逾時")) {
+            int start = sanitized.indexOf(']');
+            return start >= 0 ? sanitized.substring(start + 1).trim() : sanitized;
+        }
+        if (sanitized.startsWith("[失敗]")) {
+            sanitized = sanitized.substring(4).trim();
+        }
+        if (sanitized.startsWith("打卡失敗：")) {
+            sanitized = sanitized.substring(5).trim();
+        }
+        if (sanitized.startsWith("打卡過程中發生錯誤：")) {
+            sanitized = sanitized.substring(10).trim();
         }
         int callLogIdx = sanitized.indexOf("Call log:");
         if (callLogIdx != -1) {

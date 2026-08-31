@@ -7,6 +7,7 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.TimeoutError;
 import com.microsoft.playwright.options.WaitForSelectorState;
+import com.microsoft.playwright.options.WaitUntilState;
 
 import java.util.function.Consumer;
 
@@ -16,9 +17,14 @@ import java.util.function.Consumer;
  */
 public class AutomationService {
 
-    private static final int NAVIGATE_TIMEOUT_MS = 30_000;
+    private static final int NAVIGATE_TIMEOUT_MS = 45_000;
     private static final int SELECTOR_TIMEOUT_MS = 15_000;
     private static final int CLICK_TIMEOUT_MS = 5_000;
+    private static final int HIGHLIGHT_DURATION_MS = 10_000;
+    private static final int LAYOUT_STABLE_MS = 700;
+    private static final int LAYOUT_STABLE_POLL_MS = 150;
+    private static final int LAYOUT_STABLE_MAX_MS = 8_000;
+    private static final int HIGHLIGHT_TRACK_INTERVAL_MS = 120;
 
     private Playwright playwright;
     private Browser cachedBrowser;
@@ -45,7 +51,9 @@ public class AutomationService {
             Page page = context.newPage();
 
             log(logger, "網頁導向中：" + targetUrl);
-            page.navigate(targetUrl, new Page.NavigateOptions().setTimeout(NAVIGATE_TIMEOUT_MS));
+            page.navigate(targetUrl, new Page.NavigateOptions()
+                    .setTimeout(NAVIGATE_TIMEOUT_MS)
+                    .setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
 
             String selector = (buttonId == null) ? "" : buttonId.trim();
             if (selector.isEmpty()) {
@@ -66,6 +74,13 @@ public class AutomationService {
                 return false;
             }
 
+            log(logger, "等待頁面版面穩定（避免廣告載入推挤偏移）...");
+            waitForLayoutStable(page, selector);
+
+            log(logger, "標注目標按鈕（漫畫集中線＋紅框 " + (HIGHLIGHT_DURATION_MS / 1000) + " 秒後點擊，並持續追蹤位置）...");
+            HighlightRenderer.runSequence(page, selector, HIGHLIGHT_DURATION_MS, HIGHLIGHT_TRACK_INTERVAL_MS);
+            HighlightRenderer.remove(page, selector);
+
             page.click(selector, new Page.ClickOptions().setTimeout(CLICK_TIMEOUT_MS));
             log(logger, "[成功] 已成功點擊打卡按鈕！");
 
@@ -74,7 +89,7 @@ public class AutomationService {
             return true;
         } catch (Exception ex) {
             closeCachedBrowser();
-            String errorMsg = "[失敗] 打卡過程中發生錯誤：" + ex.getMessage();
+            String errorMsg = formatUserError(ex);
             log(logger, errorMsg);
             throw new RuntimeException(errorMsg, ex);
         } finally {
@@ -84,6 +99,11 @@ public class AutomationService {
                 } catch (Exception ignored) {}
             }
         }
+    }
+
+    private void waitForLayoutStable(Page page, String selector) {
+        HighlightRenderer.waitForLayoutStable(page, selector,
+                LAYOUT_STABLE_MS, LAYOUT_STABLE_POLL_MS, LAYOUT_STABLE_MAX_MS);
     }
 
     /**
@@ -164,6 +184,21 @@ public class AutomationService {
             } catch (Exception ignored) {}
             playwright = null;
         }
+    }
+
+    private String formatUserError(Exception ex) {
+        String raw = ex.getMessage();
+        if (ex instanceof TimeoutError || (raw != null && raw.contains("Timeout") && raw.contains("exceeded"))) {
+            return "[失敗] 網頁載入逾時（" + (NAVIGATE_TIMEOUT_MS / 1000)
+                    + " 秒）。廣告多的網站可改選 Edge / Chrome（本機）。";
+        }
+        if (raw != null && raw.contains("Call log:")) {
+            raw = raw.substring(0, raw.indexOf("Call log:")).trim();
+        }
+        if (raw != null && raw.length() > 100) {
+            raw = raw.substring(0, 100) + "...";
+        }
+        return "[失敗] 打卡過程中發生錯誤：" + (raw != null ? raw : ex.getClass().getSimpleName());
     }
 
     private void log(Consumer<String> logger, String message) {

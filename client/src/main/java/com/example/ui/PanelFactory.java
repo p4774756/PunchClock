@@ -4,6 +4,7 @@ import javax.swing.*;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
+import javax.swing.plaf.basic.BasicComboBoxUI;
 import java.awt.*;
 
 /**
@@ -12,13 +13,16 @@ import java.awt.*;
  */
 public class PanelFactory {
 
+    /** 裝置互動分頁／面板標題 */
+    public static final String PEER_TAB_LABEL = "(o´・ω・`)σ)Д`)";
+
     // ==================== 分組 1: 雲端服務與裝置設定 ====================
 
     /**
      * 建立雲端服務設定面板的內容
      * 回傳建構好的 JPanel，呼叫端需透過 refs 參數取得各元件的引用
      */
-    public static JPanel createServerConfigBody(ServerConfigRefs refs, Font mainFont, Font boldFont) {
+    public static JPanel createServerConfigBody(ServerConfigRefs refs, Font mainFont, Font boldFont, Font fieldFont) {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 
@@ -30,12 +34,12 @@ public class PanelFactory {
         refs.clientIdCombo.setToolTipText("可下拉選擇預設值，或直接輸入自訂 Worker ID；雲端連線中會鎖定，請先取消「啟用雲端」再修改");
 
         refs.heartbeatTokenField = new JPasswordField("punchclock-dev-secret");
-        refs.heartbeatTokenField.setFont(mainFont);
+        refs.heartbeatTokenField.setFont(fieldFont);
         refs.heartbeatTokenField.setColumns(18);
         refs.heartbeatTokenField.setToolTipText("與伺服器約定的認證 Token，需與後端設定一致；雲端連線中會鎖定，請先取消「啟用雲端」再修改");
 
         refs.serverUrlTextField = new JTextField("http://localhost:3000");
-        refs.serverUrlTextField.setFont(mainFont);
+        refs.serverUrlTextField.setFont(fieldFont);
         refs.serverUrlTextField.setColumns(48);
         refs.serverUrlTextField.setToolTipText("心跳伺服器網址，例如 https://xxx.onrender.com；雲端連線中會鎖定，請先取消「啟用雲端」再修改");
 
@@ -83,15 +87,16 @@ public class PanelFactory {
         public JLabel heartbeatStatusLabel;
     }
 
-    // ==================== 同事互動 ====================
+    // ==================== 裝置互動 ====================
 
     public static JPanel createPeerInteractionPanel(PeerInteractionRefs refs, Font mainFont, Font boldFont) {
         JPanel panel = new JPanel(new BorderLayout(8, 8));
         panel.setBorder(new EmptyBorder(4, 0, 0, 0));
 
-        JLabel hint = new JLabel("顯示同一伺服器上的其他裝置（每 15 秒隨心跳更新）");
+        JLabel hint = new JLabel("顯示同一伺服器上的裝置（含本機標示，每 15 秒隨心跳更新）");
         hint.setFont(mainFont);
         hint.setForeground(new Color(100, 116, 139));
+        refs.peerHintLabel = hint;
 
         refs.peerTableModel = new javax.swing.table.DefaultTableModel(
                 new Object[]{"裝置 ID", "狀態", "等待任務", "版本"}, 0) {
@@ -109,10 +114,16 @@ public class PanelFactory {
         JScrollPane tableScroll = new JScrollPane(refs.peerTable);
         tableScroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
         tableScroll.setPreferredSize(new Dimension(400, 180));
+        refs.peerTableScroll = tableScroll;
 
         refs.peerStatusLabel = new JLabel("尚未取得同事列表（請先啟用雲端狀態回報）");
         refs.peerStatusLabel.setFont(mainFont);
         refs.peerStatusLabel.setForeground(new Color(100, 116, 139));
+
+        refs.openCloudSettingsButton = new JButton("前往雲端設定");
+        refs.openCloudSettingsButton.setFont(boldFont);
+        refs.openCloudSettingsButton.setToolTipText("切換至「雲端設定」分頁以啟用連線");
+        refs.openCloudSettingsButton.setVisible(false);
 
         refs.messageField = new JTextField();
         refs.messageField.setFont(mainFont);
@@ -140,6 +151,8 @@ public class PanelFactory {
         north.add(hint);
         north.add(Box.createVerticalStrut(6));
         north.add(refs.peerStatusLabel);
+        north.add(Box.createVerticalStrut(6));
+        north.add(refs.openCloudSettingsButton);
 
         JPanel center = new JPanel(new BorderLayout(0, 8));
         center.setOpaque(false);
@@ -151,19 +164,22 @@ public class PanelFactory {
         return panel;
     }
 
-    /** 同事互動面板的元件引用容器 */
+    /** 裝置互動面板元件引用容器 */
     public static class PeerInteractionRefs {
         public JTable peerTable;
         public javax.swing.table.DefaultTableModel peerTableModel;
+        public JScrollPane peerTableScroll;
         public JTextField messageField;
         public JButton sendMessageButton;
         public JButton pokeButton;
+        public JButton openCloudSettingsButton;
+        public JLabel peerHintLabel;
         public JLabel peerStatusLabel;
     }
 
     // ==================== 說明 ====================
 
-    public static JPanel createHelpPanel(Font mainFont, Font boldFont) {
+    public static JPanel createHelpPanel(Font mainFont, Font boldFont, Font fieldFont) {
         JPanel root = new JPanel(new BorderLayout());
         root.setBorder(new EmptyBorder(8, 4, 8, 4));
 
@@ -180,8 +196,15 @@ public class PanelFactory {
         scroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
         scroll.getVerticalScrollBar().setUnitIncrement(16);
 
-        JPanel group = createGroupPanel("Ping / Pong 測試", boldFont);
-        group.setLayout(new BorderLayout());
+        JPanel group = new JPanel(new BorderLayout());
+        group.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(203, 213, 225), 1, true),
+                new EmptyBorder(4, 8, 6, 8)));
+        JLabel titleLabel = new JLabel("Ping/Pong 連線測試");
+        titleLabel.setFont(boldFont);
+        titleLabel.setForeground(new Color(30, 41, 59));
+        titleLabel.setBorder(new EmptyBorder(0, 4, 6, 0));
+        group.add(titleLabel, BorderLayout.NORTH);
         group.add(scroll, BorderLayout.CENTER);
         root.add(group, BorderLayout.CENTER);
         return root;
@@ -205,7 +228,7 @@ public class PanelFactory {
 
     // ==================== 分組 2: 雙槽位打卡 ====================
 
-    public static JPanel createSlotPanel(SlotPanelRefs refs, Font mainFont, Font boldFont) {
+    public static JPanel createSlotPanel(SlotPanelRefs refs, Font mainFont, Font boldFont, Font fieldFont) {
         JPanel root = new JPanel(new GridBagLayout());
         root.setBorder(new EmptyBorder(2, 2, 4, 2));
 
@@ -213,36 +236,25 @@ public class PanelFactory {
         sharedContent.setLayout(new BoxLayout(sharedContent, BoxLayout.Y_AXIS));
 
         refs.urlTextField = new JTextField("https://www.msn.com/zh-tw");
-        refs.urlTextField.setFont(mainFont);
+        refs.urlTextField.setFont(fieldFont);
         refs.urlTextField.setColumns(56);
         refs.urlTextField.setToolTipText("打卡頁面的完整網址，程式會自動開啟此頁面");
         refs.buttonIdTextField = new JTextField("finance");
-        refs.buttonIdTextField.setFont(mainFont);
+        refs.buttonIdTextField.setFont(fieldFont);
         refs.buttonIdTextField.setColumns(8);
         refs.buttonIdTextField.setToolTipText("要點擊的按鈕 CSS Selector 或 id，例如 #finance");
-        refs.browserCombo = new JComboBox<>(new String[]{
-                "Microsoft Edge (本機已安裝)", "Google Chrome (本機已安裝)",
-                "內建 Chromium 瀏覽器", "內建 Firefox 瀏覽器", "內建 WebKit (Safari核心)"
-        });
-        refs.browserCombo.setFont(mainFont);
-        refs.browserCombo.setPrototypeDisplayValue("Microsoft Edge (本機已安裝)");
-        refs.browserCombo.setToolTipText("選擇執行打卡時使用的瀏覽器");
+        refs.browserCombo = new JComboBox<>(TaskEditDialog.BROWSER_OPTIONS);
+        refs.browserCombo.setFont(fieldFont);
+        refs.browserCombo.setPrototypeDisplayValue("Chromium（內建）");
+        TaskEditDialog.attachBrowserTooltips(refs.browserCombo);
         refs.executeNowButton = new JButton("立即執行");
         refs.executeNowButton.setFont(boldFont);
         refs.executeNowButton.setToolTipText("使用目前共用設定，立即執行一次打卡測試");
-        refs.executeNowButton.setMargin(new Insets(4, 12, 4, 12));
-        Dimension execBtnSize = new Dimension(110, 28);
-        refs.executeNowButton.setPreferredSize(execBtnSize);
-        refs.executeNowButton.setMinimumSize(execBtnSize);
-        refs.executeNowButton.setMaximumSize(execBtnSize);
 
         lockFieldHeight(refs.urlTextField);
-        lockFieldHeight(refs.buttonIdTextField);
-        lockFieldHeight(refs.browserCombo);
-
-        sharedContent.add(formRowStretch(new JLabel("目標打卡網址："), refs.urlTextField));
+        sharedContent.add(formRowStretch(labeled(mainFont, "目標打卡網址："), refs.urlTextField));
         sharedContent.add(Box.createVerticalStrut(4));
-        sharedContent.add(selectorBrowserActionRow(
+        sharedContent.add(selectorBrowserActionRow(mainFont, fieldFont,
                 refs.buttonIdTextField, refs.browserCombo, refs.executeNowButton));
 
         JPanel shared = createCollapsibleGroupPanel("共用打卡設定", sharedContent, boldFont, false);
@@ -276,8 +288,8 @@ public class PanelFactory {
 
         JPanel settings = new JPanel(new GridBagLayout());
         GridBagConstraints sgbc = new GridBagConstraints();
-        sgbc.anchor = GridBagConstraints.WEST;
-        sgbc.insets = new Insets(1, 0, 1, 3);
+        sgbc.anchor = GridBagConstraints.CENTER;
+        sgbc.insets = new Insets(0, 0, 0, 4);
 
         refs.enabledCheckBox = new JCheckBox("啟用", true);
         refs.enabledCheckBox.setFont(boldFont);
@@ -313,11 +325,15 @@ public class PanelFactory {
         sgbc.gridx = 1;
         settings.add(refs.hourCombo, sgbc);
         sgbc.gridx = 2;
-        settings.add(new JLabel("時"), sgbc);
+        JLabel hourUnit = new JLabel("時");
+        hourUnit.setFont(mainFont);
+        settings.add(hourUnit, sgbc);
         sgbc.gridx = 3;
         settings.add(refs.minuteCombo, sgbc);
         sgbc.gridx = 4;
-        settings.add(new JLabel("分"), sgbc);
+        JLabel minUnit = new JLabel("分");
+        minUnit.setFont(mainFont);
+        settings.add(minUnit, sgbc);
         sgbc.gridx = 5;
         settings.add(refs.randomOffsetCheckBox, sgbc);
         sgbc.gridx = 6;
@@ -417,7 +433,7 @@ public class PanelFactory {
     /**
      * 建立系統日誌面板
      */
-    public static JPanel createLogPanel(LogPanelRefs refs, Font boldFont) {
+    public static JPanel createLogPanel(LogPanelRefs refs, Font mainFont, Font boldFont) {
         JPanel logPanel = createGroupPanel("系統日誌 (Console Log)", boldFont);
         logPanel.setLayout(new BorderLayout(0, 4));
 
@@ -428,7 +444,7 @@ public class PanelFactory {
         refs.logTextArea.setBackground(new Color(15, 23, 42));
         refs.logTextArea.setForeground(new Color(56, 189, 248));
         refs.logTextArea.setCaretColor(Color.WHITE);
-        refs.logTextArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+        refs.logTextArea.setFont(UiFonts.latinPlain(12));
         refs.logTextArea.setMargin(new Insets(6, 8, 6, 8));
 
         JScrollPane scrollPane = new JScrollPane(refs.logTextArea);
@@ -467,48 +483,61 @@ public class PanelFactory {
         return row;
     }
 
-    /** Selector + 瀏覽器 + 立即執行同一列；窄視窗也不擠掉下拉選單 */
+    /** Selector + 瀏覽器 + 立即執行同一列；macOS 原生 ComboBox 需 BasicComboBoxUI 才與 JTextField 對齊 */
     private static JPanel selectorBrowserActionRow(
-            JComponent selectorField, JComponent browserCombo, JButton executeButton) {
-        Dimension browserSize = browserCombo.getPreferredSize();
-        browserCombo.setPreferredSize(browserSize);
-        browserCombo.setMinimumSize(browserSize);
-        browserCombo.setMaximumSize(browserSize);
+            Font labelFont, Font fieldFont,
+            JComponent selectorField, JComboBox<?> browserCombo, JButton executeButton) {
+        final int rowH = 28;
+        final int gap = 8;
 
-        Dimension selectorSize = selectorField.getPreferredSize();
-        selectorField.setPreferredSize(selectorSize);
-        selectorField.setMinimumSize(new Dimension(Math.min(80, selectorSize.width), selectorSize.height));
-        selectorField.setMaximumSize(new Dimension(140, selectorSize.height));
+        selectorField.setFont(fieldFont);
+        browserCombo.setFont(fieldFont);
+        useTextFieldAlignedCombo(browserCombo);
 
-        JPanel row = new JPanel(new GridBagLayout());
+        Dimension selectorDim = new Dimension(96, rowH);
+        lockComponentSize(selectorField, selectorDim);
+
+        int browserW = Math.max(browserCombo.getPreferredSize().width, 148);
+        lockComponentSize(browserCombo, new Dimension(browserW, rowH));
+
+        Dimension btnDim = new Dimension(96, rowH);
+        lockComponentSize(executeButton, btnDim);
+        executeButton.setMargin(new Insets(0, 8, 0, 8));
+
+        JLabel selectorLabel = labeled(labelFont, "Selector：");
+        JLabel browserLabel = labeled(labelFont, "瀏覽器：");
+
+        FlowLayout flow = new FlowLayout(FlowLayout.LEFT, gap, 0);
+        flow.setAlignOnBaseline(true);
+        JPanel content = new JPanel(flow);
+        content.setOpaque(false);
+        content.add(selectorLabel);
+        content.add(selectorField);
+        content.add(browserLabel);
+        content.add(browserCombo);
+        content.add(executeButton);
+
+        JPanel row = new JPanel(new BorderLayout());
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridy = 0;
-        gbc.insets = new Insets(2, 4, 2, 4);
-        gbc.anchor = GridBagConstraints.WEST;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.weightx = 0;
+        row.setOpaque(false);
+        row.add(content, BorderLayout.WEST);
 
-        gbc.gridx = 0;
-        row.add(new JLabel("Selector："), gbc);
-        gbc.gridx = 1;
-        row.add(selectorField, gbc);
-        gbc.gridx = 2;
-        row.add(new JLabel("瀏覽器："), gbc);
-        gbc.gridx = 3;
-        row.add(browserCombo, gbc);
-        gbc.gridx = 4;
-        row.add(executeButton, gbc);
-        gbc.gridx = 5;
-        gbc.weightx = 1.0;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        row.add(new JPanel(), gbc);
-
-        int h = Math.max(36, row.getPreferredSize().height);
+        int h = rowH + 4;
         row.setMinimumSize(new Dimension(0, h));
         row.setPreferredSize(new Dimension(row.getPreferredSize().width, h));
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
         return row;
+    }
+
+    /** 與 JTextField 同列時，避免 macOS Aqua ComboBox 視覺偏高 */
+    private static void useTextFieldAlignedCombo(JComboBox<?> combo) {
+        combo.setUI(new BasicComboBoxUI());
+    }
+
+    private static void lockComponentSize(JComponent component, Dimension size) {
+        component.setPreferredSize(size);
+        component.setMinimumSize(size);
+        component.setMaximumSize(size);
     }
 
     /** 標籤 + 可拉寬輸入欄（網址列） */
@@ -542,6 +571,12 @@ public class PanelFactory {
         field.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
     }
 
+    private static JLabel labeled(Font font, String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(font);
+        return label;
+    }
+
     // ==================== 共用元件 ====================
 
     /**
@@ -564,7 +599,7 @@ public class PanelFactory {
         headerPanel.add(titleLabel, BorderLayout.WEST);
 
         JLabel toggleLabel = new JLabel(startCollapsed ? "► 點擊展開設定" : "▼ 點擊折疊收起");
-        toggleLabel.setFont(new Font("微軟正黑體", Font.BOLD, 12));
+        toggleLabel.setFont(UiFonts.chineseBold(12));
         toggleLabel.setForeground(new Color(37, 99, 235));
         headerPanel.add(toggleLabel, BorderLayout.EAST);
 

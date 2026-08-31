@@ -41,7 +41,7 @@ java -jar server/target/punchclock-server.jar
 
 ```bash
 mvn -pl client -am package -DskipTests
-java -jar client/target/punchclock-standalone.jar
+java -jar client/target/punchclock-client-standalone.jar
 ```
 
 首次執行 Playwright 會自動下載瀏覽器驅動，請確保網路暢通。
