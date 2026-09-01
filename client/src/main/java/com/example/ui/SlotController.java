@@ -37,6 +37,7 @@ public class SlotController {
 
     private CloudConfig config;
     private boolean suppressUiSave;
+    private boolean historyMenusBound;
 
     public SlotController(
             JFrame owner,
@@ -65,6 +66,7 @@ public class SlotController {
         bindSlotCard(slotRefs.workOut, WorkSlot.Kind.WORK_OUT);
         bindSharedSettingsListeners();
         slotRefs.executeNowButton.addActionListener(e -> executeNowShared());
+        refreshSharedSettingsActions();
     }
 
     public void loadConfigToUi(CloudConfig loaded) {
@@ -73,19 +75,30 @@ public class SlotController {
             config = loaded;
             applySlotToUi(slotRefs.workIn, config.workIn);
             applySlotToUi(slotRefs.workOut, config.workOut);
-            slotRefs.urlTextField.setText(config.targetUrl);
-            slotRefs.buttonIdTextField.setText(config.buttonId);
+            RecentValuesHelper.applyHistory(slotRefs.urlCombo, config.recentTargetUrls, config.targetUrl);
+            RecentValuesHelper.applyHistory(slotRefs.buttonIdCombo, config.recentButtonIds, config.buttonId);
             slotRefs.browserCombo.setSelectedItem(config.browserChoice);
+            bindHistoryMenusIfNeeded();
+            refreshSharedSettingsActions();
         } finally {
             suppressUiSave = false;
         }
     }
 
+    private void bindHistoryMenusIfNeeded() {
+        if (historyMenusBound) {
+            return;
+        }
+        RecentValuesHelper.bindHistoryMenu(slotRefs.urlCombo, config.recentTargetUrls, this::saveConfigAfterHistoryEdit);
+        RecentValuesHelper.bindHistoryMenu(slotRefs.buttonIdCombo, config.recentButtonIds, this::saveConfigAfterHistoryEdit);
+        historyMenusBound = true;
+    }
+
     public CloudConfig readConfigFromUi() {
         readSlotFromUi(slotRefs.workIn, config.workIn);
         readSlotFromUi(slotRefs.workOut, config.workOut);
-        config.targetUrl = slotRefs.urlTextField.getText().trim();
-        config.buttonId = slotRefs.buttonIdTextField.getText().trim();
+        config.targetUrl = RecentValuesHelper.getValue(slotRefs.urlCombo);
+        config.buttonId = RecentValuesHelper.getValue(slotRefs.buttonIdCombo);
         Object browser = slotRefs.browserCombo.getSelectedItem();
         config.browserChoice = browser != null ? browser.toString() : config.browserChoice;
         config.weekdaysOnly = true; // 上班工具固定跳過週末
@@ -94,7 +107,10 @@ public class SlotController {
 
     public void saveConfig() {
         if (suppressUiSave) return;
-        configPersistenceService.saveConfig(readConfigFromUi(), null);
+        readConfigFromUi();
+        ConfigPersistenceService.pushRecent(config.recentTargetUrls, config.targetUrl);
+        ConfigPersistenceService.pushRecent(config.recentButtonIds, config.buttonId);
+        configPersistenceService.saveConfig(config, null);
     }
 
     public CloudConfig getConfig() {
@@ -110,6 +126,18 @@ public class SlotController {
 
         schedulerService.addTaskRecord(workIn);
         schedulerService.addTaskRecord(workOut);
+
+        readConfigFromUi();
+        for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
+            SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
+            if (slot.enabled && !isSharedSettingsReady()) {
+                slot.enabled = false;
+                applySlotToUi(refsFor(kind), slot);
+                appendLog.accept(String.format(
+                        "[警告] 【%s】打卡網址或 Selector 未設定，已取消「啟用」", kind.displayName));
+            }
+        }
+        saveConfig();
 
         int scheduled = 0;
         for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
@@ -240,37 +268,37 @@ public class SlotController {
     }
 
     private void bindSharedSettingsListeners() {
-        javax.swing.event.DocumentListener textSave = new javax.swing.event.DocumentListener() {
-            @Override
-            public void insertUpdate(javax.swing.event.DocumentEvent e) {
-                onSharedSettingsChanged();
-            }
-
-            @Override
-            public void removeUpdate(javax.swing.event.DocumentEvent e) {
-                onSharedSettingsChanged();
-            }
-
-            @Override
-            public void changedUpdate(javax.swing.event.DocumentEvent e) {
-                onSharedSettingsChanged();
-            }
-        };
-        slotRefs.urlTextField.getDocument().addDocumentListener(textSave);
-        slotRefs.buttonIdTextField.getDocument().addDocumentListener(textSave);
+        Runnable onSharedChanged = this::onSharedSettingsChanged;
+        RecentValuesHelper.attachTextChangeListener(slotRefs.urlCombo, onSharedChanged);
+        RecentValuesHelper.attachTextChangeListener(slotRefs.buttonIdCombo, onSharedChanged);
         slotRefs.browserCombo.addActionListener(e -> onSharedSettingsChanged());
+    }
+
+    private void saveConfigAfterHistoryEdit() {
+        if (suppressUiSave) return;
+        readConfigFromUi();
+        configPersistenceService.saveConfig(config, null);
+        refreshSharedSettingsActions();
     }
 
     private void onEnableChanged(WorkSlot.Kind kind) {
         if (suppressUiSave) return;
         readConfigFromUi();
-        saveConfig();
         SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
+        if (slot.enabled && !isSharedSettingsReady()) {
+            revertSlotEnable(kind);
+            showSharedSettingsRequiredMessage();
+            refreshSharedSettingsActions();
+            return;
+        }
+        saveConfig();
         if (!slot.enabled) {
             scheduleSlot(kind, true);
             heartbeatService.sendHeartbeat(appendLog, null);
+            refreshSharedSettingsActions();
             return;
         }
+        snapshotSharedSettingsToTask(kind);
         CheckInTask task = schedulerService.getTask(kind.id);
         if (task != null && task.getStatus() == TaskStatus.CANCELLED) {
             rescheduleEnabledSlot(kind);
@@ -278,6 +306,50 @@ public class SlotController {
             scheduleSlot(kind, true);
         }
         heartbeatService.sendHeartbeat(appendLog, null);
+        refreshSharedSettingsActions();
+    }
+
+    private boolean isSharedSettingsReady() {
+        String url = RecentValuesHelper.getValue(slotRefs.urlCombo);
+        String buttonId = RecentValuesHelper.getValue(slotRefs.buttonIdCombo);
+        return !url.isBlank() && !buttonId.isBlank();
+    }
+
+    private void showSharedSettingsRequiredMessage() {
+        UiFonts.showWarning(owner, "請先設定打卡網址與 Selector！", "提示");
+    }
+
+    private void revertSlotEnable(WorkSlot.Kind kind) {
+        SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
+        slot.enabled = false;
+        PanelFactory.SlotCardRefs refs = refsFor(kind);
+        suppressUiSave = true;
+        try {
+            refs.enabledCheckBox.setSelected(false);
+            syncSlotEditorsEnabled(refs);
+        } finally {
+            suppressUiSave = false;
+        }
+    }
+
+    private void refreshSharedSettingsActions() {
+        boolean ready = isSharedSettingsReady();
+        slotRefs.executeNowButton.setEnabled(ready);
+        slotRefs.executeNowButton.setToolTipText(ready
+                ? "使用上方共用設定立即測試，不會變更已啟用槽位的鎖定設定"
+                : "請先設定打卡網址與 Selector");
+    }
+
+    /** 啟用當下將上方共用設定寫入該槽位任務（之後改共用欄位不會影響已啟用槽位） */
+    private void snapshotSharedSettingsToTask(WorkSlot.Kind kind) {
+        CheckInTask task = schedulerService.getTask(kind.id);
+        if (task == null) {
+            return;
+        }
+        SlotScheduleHelper.applySharedSettings(task, config);
+        appendLog.accept(String.format(
+                "[鎖定] 【%s】已鎖定網址：%s，Selector：%s",
+                kind.displayName, task.getTargetUrl(), task.getButtonId()));
     }
 
     /** 已取消的槽位僅儲存時分設定，不自動重排（需重新勾選「啟用」才會排程） */
@@ -305,6 +377,7 @@ public class SlotController {
             scheduleSlot(kind, true);
             return;
         }
+        snapshotSharedSettingsToTask(kind);
         LocalDateTime nextTime = SlotScheduleHelper.nextTriggerTime(
                 slot.hour, slot.minute, config.weekdaysOnly, LocalDateTime.now());
         resetTaskForSchedule(task, kind, slot, nextTime);
@@ -323,12 +396,7 @@ public class SlotController {
         if (suppressUiSave) return;
         readConfigFromUi();
         saveConfig();
-        for (CheckInTask task : schedulerService.getAllTasks()) {
-            if (WorkSlot.isSlotId(task.getId())) {
-                SlotScheduleHelper.applySharedSettings(task, config);
-            }
-        }
-        persistTasks();
+        refreshSharedSettingsActions();
         refreshSlotCards();
     }
 
@@ -407,7 +475,6 @@ public class SlotController {
         schedulerService.stopTimer(kind.id);
         task.setName(kind.displayName);
         task.setTargetTime(targetTime);
-        SlotScheduleHelper.applySharedSettings(task, config);
         SlotScheduleHelper.applySlotSettings(task, slot);
         task.setActualTriggerTime(null);
         task.setRandomOffsetSeconds(0);
@@ -434,6 +501,11 @@ public class SlotController {
 
     private void executeNowShared() {
         readConfigFromUi();
+        if (!isSharedSettingsReady()) {
+            showSharedSettingsRequiredMessage();
+            refreshSharedSettingsActions();
+            return;
+        }
         // 共用設定執行一次即可；結果寫入目前啟用中的槽位（優先上班）
         WorkSlot.Kind kind = config.workIn.enabled
                 ? WorkSlot.Kind.WORK_IN
@@ -442,24 +514,32 @@ public class SlotController {
     }
 
     private void executeNow(WorkSlot.Kind kind) {
+        readConfigFromUi();
         CheckInTask task = schedulerService.getTask(kind.id);
         if (task == null) {
             JOptionPane.showMessageDialog(owner, "找不到【" + kind.displayName + "】槽位。", "提示", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        SlotScheduleHelper.applySharedSettings(task, config);
-        appendLog.accept("[執行] 【立即執行】使用共用設定（結果記入【" + kind.displayName + "】）");
-        new Thread(() -> executeCheckInForTask(task, null)).start();
+        String url = config.targetUrl;
+        String buttonId = config.buttonId;
+        String browser = TaskEditDialog.parseBrowserType(config.browserChoice);
+        appendLog.accept("[執行] 【立即執行】使用上方共用設定（不變更已鎖定排程，結果記入【" + kind.displayName + "】）");
+        new Thread(() -> executeCheckInForTask(task, url, buttonId, browser, null)).start();
     }
 
     public void executeCheckInForTask(CheckInTask task, Runnable onComplete) {
+        executeCheckInForTask(task, task.getTargetUrl(), task.getButtonId(), task.getBrowserType(), onComplete);
+    }
+
+    private void executeCheckInForTask(
+            CheckInTask task, String targetUrl, String buttonId, String browserType, Runnable onComplete) {
         LocalDateTime triggerTime = LocalDateTime.now();
         String triggerTimeStr = triggerTime.format(FMT);
         long startTimeMs = System.currentTimeMillis();
 
         try {
             boolean ok = automationService.executeCheckIn(
-                    task.getTargetUrl(), task.getButtonId(), task.getBrowserType(), appendLog);
+                    targetUrl, buttonId, browserType, appendLog);
             double durationSec = (System.currentTimeMillis() - startTimeMs) / 1000.0;
             String finishTimeStr = LocalDateTime.now().format(FMT);
 
@@ -507,11 +587,13 @@ public class SlotController {
 
     private void refreshCard(PanelFactory.SlotCardRefs refs, WorkSlot.Kind kind) {
         CheckInTask task = schedulerService.getTask(kind.id);
+        SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
         if (task == null) {
             setWrappedMetricLabel(refs.statusLabel, null);
             setWrappedMetricLabel(refs.countdownLabel, null);
             setWrappedMetricLabel(refs.triggerLabel, null);
             setWrappedMetricLabel(refs.resultLabel, null);
+            setWrappedMetricLabel(refs.lockedSettingsLabel, null);
             return;
         }
         setWrappedMetricLabel(refs.statusLabel, task.getStatus().getBadge());
@@ -527,9 +609,86 @@ public class SlotController {
             setWrappedMetricLabel(refs.triggerLabel, "—");
         }
         setWrappedMetricLabel(refs.resultLabel, task.getResultMessage());
+        refreshLockedSettingsLabel(refs, task, slot);
     }
 
     private static final int METRIC_LABEL_MAX_CHARS = 36;
+    private static final int LOCKED_SUMMARY_MAX_CHARS = 56;
+
+    private void refreshLockedSettingsLabel(PanelFactory.SlotCardRefs refs, CheckInTask task, SlotSettings slot) {
+        if (!slot.enabled) {
+            refs.lockedSettingsLabel.setText("—");
+            refs.lockedSettingsLabel.setToolTipText("未啟用；下次勾選「啟用」時會鎖定上方共用設定");
+            return;
+        }
+        String url = nullToDash(task.getTargetUrl());
+        String selector = nullToDash(task.getButtonId());
+        if ("—".equals(url) && "—".equals(selector)) {
+            setWrappedMetricLabel(refs.lockedSettingsLabel, null);
+            return;
+        }
+        String summary = formatLockedSummary(url, selector);
+        setMetricLabelWithTooltip(refs.lockedSettingsLabel, summary, buildLockedSettingsTooltip(task));
+    }
+
+    private static String formatLockedSummary(String url, String selector) {
+        if ("—".equals(selector)) {
+            return truncateForDisplay(url, LOCKED_SUMMARY_MAX_CHARS);
+        }
+        if ("—".equals(url)) {
+            return selector;
+        }
+        String suffix = "｜" + selector;
+        if (url.length() + suffix.length() <= LOCKED_SUMMARY_MAX_CHARS) {
+            return url + suffix;
+        }
+        int urlBudget = LOCKED_SUMMARY_MAX_CHARS - suffix.length() - 1;
+        if (urlBudget < 6) {
+            return truncateForDisplay(selector, LOCKED_SUMMARY_MAX_CHARS);
+        }
+        return url.substring(0, urlBudget) + "…" + suffix;
+    }
+
+    private String buildLockedSettingsTooltip(CheckInTask task) {
+        String url = nullToDash(task.getTargetUrl());
+        String selector = nullToDash(task.getButtonId());
+        String browser = nullToDash(task.getBrowserType());
+        String draftUrl = config.targetUrl;
+        String draftSelector = config.buttonId;
+        StringBuilder tooltip = new StringBuilder();
+        tooltip.append("網址：").append(url)
+                .append("\nSelector：").append(selector)
+                .append("\n瀏覽器：").append(browser);
+        boolean draftDiffers = (draftUrl != null && !draftUrl.isBlank() && !draftUrl.equals(task.getTargetUrl()))
+                || (draftSelector != null && !draftSelector.isBlank() && !draftSelector.equals(task.getButtonId()));
+        if (draftDiffers) {
+            tooltip.append("\n\n上方欄位目前：").append(nullToDash(draftUrl))
+                    .append("｜").append(nullToDash(draftSelector))
+                    .append("\n（與鎖定值不同，需取消啟用後再啟用才會更新）");
+        } else {
+            tooltip.append("\n\n啟用時鎖定，改上方共用欄位不影響此槽位");
+        }
+        return tooltip.toString();
+    }
+
+    private static String truncateForDisplay(String text, int maxChars) {
+        if (text == null || text.isBlank()) {
+            return "—";
+        }
+        if (text.length() <= maxChars) {
+            return text;
+        }
+        return text.substring(0, maxChars - 1) + "…";
+    }
+
+    private void setMetricLabelWithTooltip(JLabel label, String displayText, String tooltip) {
+        label.setText(displayText);
+        label.setToolTipText(tooltip);
+    }
+
+    private static String nullToDash(String value) {
+        return value == null || value.isBlank() ? "—" : value;
+    }
 
     private void setWrappedMetricLabel(JLabel label, String text) {
         if (text == null || text.isBlank()) {

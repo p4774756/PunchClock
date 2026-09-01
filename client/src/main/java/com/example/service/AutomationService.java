@@ -12,8 +12,8 @@ import com.microsoft.playwright.options.WaitUntilState;
 import java.util.function.Consumer;
 
 /**
- * 專責處理 Playwright 瀏覽器控制與打卡點擊邏輯
- * Playwright instance 採 lazy-init 重用策略，避免重複啟動 Node.js 程序
+ * 專責處理 Playwright 瀏覽器控制與打卡點擊邏輯。
+ * 每次打卡結束後關閉瀏覽器與 Playwright，避免視窗殘留。
  */
 public class AutomationService {
 
@@ -85,10 +85,9 @@ public class AutomationService {
             log(logger, "[成功] 已成功點擊打卡按鈕！");
 
             page.waitForTimeout(5000);
-            log(logger, "瀏覽器分頁已關閉，打卡任務結束。");
+            log(logger, "瀏覽器已關閉，打卡任務結束。");
             return true;
         } catch (Exception ex) {
-            closeCachedBrowser();
             String errorMsg = formatUserError(ex);
             log(logger, errorMsg);
             throw new RuntimeException(errorMsg, ex);
@@ -98,6 +97,8 @@ public class AutomationService {
                     context.close();
                 } catch (Exception ignored) {}
             }
+            closeCachedBrowser();
+            closePlaywright();
         }
     }
 
@@ -107,7 +108,7 @@ public class AutomationService {
     }
 
     /**
-     * Lazy-init Playwright instance（重用，避免重複啟動 Node.js 程序）
+     * Lazy-init Playwright instance（每次 executeCheckIn 結束後會關閉，下次執行再建立）
      */
     private void ensurePlaywright(Consumer<String> logger) {
         if (playwright == null) {
@@ -117,15 +118,9 @@ public class AutomationService {
     }
 
     /**
-     * 取得或建立瀏覽器實例。若瀏覽器類型相同則重用已啟動的瀏覽器。
+     * 建立瀏覽器實例（每次 executeCheckIn 結束後會關閉，下次執行再建立）
      */
     private Browser getOrCreateBrowser(String choice, Consumer<String> logger) {
-        // 若瀏覽器類型不同或已關閉，需重新建立
-        if (cachedBrowser != null && cachedBrowser.isConnected() && choice.equals(cachedBrowserType)) {
-            log(logger, "[重用] 重用已啟動的瀏覽器...");
-            return cachedBrowser;
-        }
-
         closeCachedBrowser();
 
         BrowserType.LaunchOptions launchOptions = new BrowserType.LaunchOptions().setHeadless(false);
@@ -173,17 +168,21 @@ public class AutomationService {
         }
     }
 
-    /**
-     * 關閉所有 Playwright 資源（應用程式關閉時呼叫）
-     */
-    public synchronized void shutdown() {
-        closeCachedBrowser();
+    private void closePlaywright() {
         if (playwright != null) {
             try {
                 playwright.close();
             } catch (Exception ignored) {}
             playwright = null;
         }
+    }
+
+    /**
+     * 關閉所有 Playwright 資源（應用程式關閉時呼叫）
+     */
+    public synchronized void shutdown() {
+        closeCachedBrowser();
+        closePlaywright();
     }
 
     private String formatUserError(Exception ex) {

@@ -11,6 +11,7 @@ import com.example.service.TaskPersistenceService;
 import com.example.ui.UiFonts;
 import com.example.ui.PanelFactory;
 import com.example.ui.PanelFactory.*;
+import com.example.ui.RecentValuesHelper;
 import com.example.ui.SlotController;
 
 import javax.swing.*;
@@ -45,6 +46,7 @@ public class App extends JFrame {
     private Timer countdownTimer;
     private JSplitPane mainSplit;
     private JTabbedPane mainTabs;
+    private boolean serverHistoryMenuBound;
 
     public App() {
         this.schedulerService = new SchedulerService();
@@ -558,6 +560,16 @@ public class App extends JFrame {
                 saveCloudConfig();
             });
         }
+        if (serverRefs.serverUrlCombo != null) {
+            RecentValuesHelper.attachTextChangeListener(serverRefs.serverUrlCombo, this::saveCloudConfig);
+            java.awt.Component serverEditor = serverRefs.serverUrlCombo.getEditor().getEditorComponent();
+            serverEditor.addFocusListener(new java.awt.event.FocusAdapter() {
+                @Override
+                public void focusLost(java.awt.event.FocusEvent e) {
+                    saveCloudConfig();
+                }
+            });
+        }
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -589,8 +601,13 @@ public class App extends JFrame {
     }
 
     private void applyServerConfig(ConfigPersistenceService.CloudConfig config) {
-        if (serverRefs.serverUrlTextField != null && config.serverUrl != null) {
-            serverRefs.serverUrlTextField.setText(config.serverUrl);
+        if (serverRefs.serverUrlCombo != null && config.serverUrl != null) {
+            RecentValuesHelper.applyHistory(serverRefs.serverUrlCombo, config.recentServerUrls, config.serverUrl);
+            if (!serverHistoryMenuBound) {
+                RecentValuesHelper.bindHistoryMenu(
+                        serverRefs.serverUrlCombo, config.recentServerUrls, this::saveCloudConfig);
+                serverHistoryMenuBound = true;
+            }
         }
         if (serverRefs.clientIdCombo != null && config.clientId != null) {
             ensureClientIdOption(config.clientId);
@@ -628,8 +645,8 @@ public class App extends JFrame {
         if (serverRefs.heartbeatTokenField != null) {
             serverRefs.heartbeatTokenField.setEnabled(!cloudOn);
         }
-        if (serverRefs.serverUrlTextField != null) {
-            serverRefs.serverUrlTextField.setEnabled(!cloudOn);
+        if (serverRefs.serverUrlCombo != null) {
+            RecentValuesHelper.setEnabled(serverRefs.serverUrlCombo, !cloudOn);
         }
         if (serverRefs.trustAllSslCheckBox != null) {
             serverRefs.trustAllSslCheckBox.setEnabled(!cloudOn);
@@ -665,10 +682,11 @@ public class App extends JFrame {
     }
 
     private void saveCloudConfig() {
-        if (suppressConfigSave || serverRefs.serverUrlTextField == null || slotController == null) return;
+        if (suppressConfigSave || serverRefs.serverUrlCombo == null || slotController == null) return;
 
         ConfigPersistenceService.CloudConfig config = slotController.readConfigFromUi();
-        config.serverUrl = serverRefs.serverUrlTextField.getText().trim();
+        config.serverUrl = RecentValuesHelper.getValue(serverRefs.serverUrlCombo);
+        ConfigPersistenceService.pushRecent(config.recentServerUrls, config.serverUrl);
         Object clientItem = serverRefs.clientIdCombo.getSelectedItem();
         config.clientId = clientItem != null ? clientItem.toString().trim() : "company-worker";
         if (serverRefs.heartbeatTokenField != null) {
@@ -701,7 +719,7 @@ public class App extends JFrame {
 
     private void startHeartbeatService() {
         if (serverRefs.enableServerCheckBox != null && !serverRefs.enableServerCheckBox.isSelected()) return;
-        String serverUrl = serverRefs.serverUrlTextField.getText().trim();
+        String serverUrl = RecentValuesHelper.getValue(serverRefs.serverUrlCombo);
         if (!serverUrl.isEmpty()) {
             applyHeartbeatTokenFromUI();
             saveCloudConfig();

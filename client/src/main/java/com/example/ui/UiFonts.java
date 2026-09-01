@@ -1,5 +1,6 @@
 package com.example.ui;
 
+import javax.swing.JOptionPane;
 import java.awt.Font;
 import java.util.Locale;
 
@@ -35,5 +36,21 @@ public final class UiFonts {
 
     public static Font latinBold(int size) {
         return new Font(Font.SANS_SERIF, Font.BOLD, size);
+    }
+
+    /** macOS 原生 JOptionPane 混中英時 Latin 字可能不顯示，改用明確字型的 HTML 訊息 */
+    public static void showWarning(java.awt.Component parent, String message, String title) {
+        String html = "<html><body style='font-family:\"PingFang TC\",\"Helvetica Neue\",sans-serif;"
+                + "font-size:13pt;width:320px'>"
+                + escapeHtml(message)
+                + "</body></html>";
+        JOptionPane.showMessageDialog(parent, html, title, JOptionPane.WARNING_MESSAGE);
+    }
+
+    private static String escapeHtml(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 }

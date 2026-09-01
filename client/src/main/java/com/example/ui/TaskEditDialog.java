@@ -204,19 +204,19 @@ public class TaskEditDialog extends JDialog {
 
             String newUrl = dlgUrlField.getText().trim();
             if (newUrl.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "請輸入目標打卡網址！", "提示", JOptionPane.WARNING_MESSAGE);
+                UiFonts.showWarning(this, "請輸入目標打卡網址！", "提示");
                 return;
             }
 
             String newBtnId = dlgBtnField.getText().trim();
             if (newBtnId.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "請輸入打卡按鈕 Selector！", "提示", JOptionPane.WARNING_MESSAGE);
+                UiFonts.showWarning(this, "請輸入打卡按鈕 Selector！", "提示");
                 return;
             }
 
             LocalDate newDate = dlgDatePicker.getDate();
             if (newDate == null) {
-                JOptionPane.showMessageDialog(this, "請選擇有效的日期！", "提示", JOptionPane.WARNING_MESSAGE);
+                UiFonts.showWarning(this, "請選擇有效的日期！", "提示");
                 return;
             }
 

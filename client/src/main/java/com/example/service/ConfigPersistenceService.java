@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -17,6 +19,7 @@ public class ConfigPersistenceService {
 
     private static final String SAVE_DIR = ".punchclock";
     private static final String SAVE_FILE = "config.json";
+    public static final int MAX_RECENT_VALUES = 10;
 
     public static class SlotSettings {
         public boolean enabled = true;
@@ -36,6 +39,9 @@ public class ConfigPersistenceService {
         /** 共用打卡設定 */
         public String targetUrl = "https://www.msn.com/zh-tw";
         public String buttonId = "finance";
+        public List<String> recentTargetUrls = new ArrayList<>();
+        public List<String> recentButtonIds = new ArrayList<>();
+        public List<String> recentServerUrls = new ArrayList<>();
         public String browserChoice = TaskEditDialog.BROWSER_OPTIONS[0];
         public boolean weekdaysOnly = true;
 
@@ -103,12 +109,16 @@ public class ConfigPersistenceService {
 
     public CloudConfig loadConfig(Consumer<String> logger) {
         if (!Files.exists(savePath)) {
-            return new CloudConfig();
+            CloudConfig config = new CloudConfig();
+            normalize(config);
+            return config;
         }
         try {
             String json = Files.readString(savePath);
             if (json == null || json.isBlank()) {
-                return new CloudConfig();
+                CloudConfig config = new CloudConfig();
+                normalize(config);
+                return config;
             }
             CloudConfig config = gson.fromJson(json, CloudConfig.class);
             if (config == null) {
@@ -143,6 +153,18 @@ public class ConfigPersistenceService {
         if (config.buttonId == null || config.buttonId.isBlank()) {
             config.buttonId = "finance";
         }
+        if (config.recentTargetUrls == null) {
+            config.recentTargetUrls = new ArrayList<>();
+        }
+        if (config.recentButtonIds == null) {
+            config.recentButtonIds = new ArrayList<>();
+        }
+        if (config.recentServerUrls == null) {
+            config.recentServerUrls = new ArrayList<>();
+        }
+        seedRecentIfMissing(config.recentTargetUrls, config.targetUrl);
+        seedRecentIfMissing(config.recentButtonIds, config.buttonId);
+        seedRecentIfMissing(config.recentServerUrls, config.serverUrl);
         if (config.browserChoice == null || config.browserChoice.isBlank()) {
             config.browserChoice = TaskEditDialog.BROWSER_OPTIONS[0];
         } else {
@@ -165,6 +187,35 @@ public class ConfigPersistenceService {
         }
         if (slot.minute < 0 || slot.minute > 59) {
             slot.minute = defaults.minute;
+        }
+    }
+
+    public static void pushRecent(List<String> list, String value) {
+        pushRecent(list, value, MAX_RECENT_VALUES);
+    }
+
+    public static void pushRecent(List<String> list, String value, int max) {
+        if (list == null || value == null || value.isBlank()) {
+            return;
+        }
+        String trimmed = value.trim();
+        list.removeIf(trimmed::equals);
+        list.add(0, trimmed);
+        while (list.size() > max) {
+            list.remove(list.size() - 1);
+        }
+    }
+
+    private static void seedRecentIfMissing(List<String> list, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        String trimmed = value.trim();
+        if (!list.contains(trimmed)) {
+            list.add(0, trimmed);
+        }
+        while (list.size() > MAX_RECENT_VALUES) {
+            list.remove(list.size() - 1);
         }
     }
 

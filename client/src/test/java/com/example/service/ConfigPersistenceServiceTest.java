@@ -92,4 +92,51 @@ public class ConfigPersistenceServiceTest {
         assertEquals(9, loaded.workIn.hour);
         assertEquals(18, loaded.workOut.hour);
     }
+
+    @Test
+    public void pushRecent_deduplicatesAndCapsSize() {
+        java.util.List<String> list = new java.util.ArrayList<>();
+        ConfigPersistenceService.pushRecent(list, "a");
+        ConfigPersistenceService.pushRecent(list, "b");
+        ConfigPersistenceService.pushRecent(list, "a");
+        assertEquals(2, list.size());
+        assertEquals("a", list.get(0));
+        assertEquals("b", list.get(1));
+
+        for (int i = 0; i < 15; i++) {
+            ConfigPersistenceService.pushRecent(list, "v" + i);
+        }
+        assertEquals(ConfigPersistenceService.MAX_RECENT_VALUES, list.size());
+        assertEquals("v14", list.get(0));
+    }
+
+    @Test
+    public void saveAndLoad_persistsRecentLists() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.targetUrl = "https://example.com/checkin";
+        config.buttonId = "#btn";
+        config.serverUrl = "https://example.com";
+        config.recentTargetUrls.add("https://old.example/a");
+        config.recentTargetUrls.add("https://example.com/checkin");
+        config.recentButtonIds.add("#old");
+        config.recentServerUrls.add("http://localhost:3000");
+
+        configService.saveConfig(config, null);
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+
+        assertEquals(2, loaded.recentTargetUrls.size());
+        assertTrue(loaded.recentTargetUrls.contains("https://example.com/checkin"));
+        assertEquals("#btn", loaded.buttonId);
+        assertTrue(loaded.recentServerUrls.contains("http://localhost:3000"));
+        assertTrue(loaded.recentServerUrls.contains("https://example.com"));
+    }
+
+    @Test
+    public void loadConfig_seedsRecentFromCurrentValues() {
+        ConfigPersistenceService.CloudConfig config = configService.loadConfig(null);
+        assertFalse(config.recentTargetUrls.isEmpty());
+        assertTrue(config.recentTargetUrls.contains(config.targetUrl));
+        assertTrue(config.recentButtonIds.contains(config.buttonId));
+        assertTrue(config.recentServerUrls.contains(config.serverUrl));
+    }
 }

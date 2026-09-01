@@ -38,14 +38,14 @@ public class PanelFactory {
         refs.heartbeatTokenField.setColumns(18);
         refs.heartbeatTokenField.setToolTipText("與伺服器約定的認證 Token，需與後端設定一致；雲端連線中會鎖定，請先取消「啟用雲端」再修改");
 
-        refs.serverUrlTextField = new JTextField("http://localhost:3000");
-        refs.serverUrlTextField.setFont(fieldFont);
-        refs.serverUrlTextField.setColumns(48);
-        refs.serverUrlTextField.setToolTipText("心跳伺服器網址，例如 https://xxx.onrender.com；雲端連線中會鎖定，請先取消「啟用雲端」再修改");
+        refs.serverUrlCombo = RecentValuesHelper.createCombo(
+                fieldFont, "http://localhost:3000",
+                "心跳伺服器網址，例如 https://xxx.onrender.com；雲端連線中會鎖定，請先取消「啟用雲端」再修改");
+        refs.serverUrlCombo.setPrototypeDisplayValue("http://localhost:3000");
 
         lockFieldHeight(refs.clientIdCombo);
         lockFieldHeight(refs.heartbeatTokenField);
-        lockFieldHeight(refs.serverUrlTextField);
+        lockFieldHeight(refs.serverUrlCombo);
 
         JLabel clientIdLabel = new JLabel("裝置 ID / Worker ID：");
         clientIdLabel.setFont(mainFont);
@@ -67,7 +67,7 @@ public class PanelFactory {
 
         panel.add(formRow(clientIdLabel, refs.clientIdCombo, tokenLabel, refs.heartbeatTokenField));
         panel.add(Box.createVerticalStrut(4));
-        panel.add(formRowStretch(serverUrlLabel, refs.serverUrlTextField));
+        panel.add(formRowStretch(serverUrlLabel, refs.serverUrlCombo));
         panel.add(Box.createVerticalStrut(4));
         panel.add(formRow(
                 refs.enableServerCheckBox,
@@ -80,7 +80,7 @@ public class PanelFactory {
     /** 雲端設定面板的元件引用容器 */
     public static class ServerConfigRefs {
         public JComboBox<String> clientIdCombo;
-        public JTextField serverUrlTextField;
+        public JComboBox<String> serverUrlCombo;
         public JPasswordField heartbeatTokenField;
         public JCheckBox enableServerCheckBox;
         public JCheckBox trustAllSslCheckBox;
@@ -235,27 +235,27 @@ public class PanelFactory {
         JPanel sharedContent = new JPanel();
         sharedContent.setLayout(new BoxLayout(sharedContent, BoxLayout.Y_AXIS));
 
-        refs.urlTextField = new JTextField("https://www.msn.com/zh-tw");
-        refs.urlTextField.setFont(fieldFont);
-        refs.urlTextField.setColumns(56);
-        refs.urlTextField.setToolTipText("打卡頁面的完整網址，程式會自動開啟此頁面");
-        refs.buttonIdTextField = new JTextField("finance");
-        refs.buttonIdTextField.setFont(fieldFont);
-        refs.buttonIdTextField.setColumns(8);
-        refs.buttonIdTextField.setToolTipText("要點擊的按鈕 CSS Selector 或 id，例如 #finance");
+        refs.urlCombo = RecentValuesHelper.createCombo(
+                fieldFont, "https://www.msn.com/zh-tw",
+                "打卡頁面的完整網址；已啟用槽位會使用啟用當下鎖定的值，此欄位供下次啟用或「立即執行」");
+        refs.urlCombo.setPrototypeDisplayValue("https://www.msn.com/zh-tw");
+        refs.buttonIdCombo = RecentValuesHelper.createCombo(
+                fieldFont, "finance",
+                "要點擊的按鈕 CSS Selector 或 id；已啟用槽位使用啟用當下鎖定的值");
+        refs.buttonIdCombo.setPrototypeDisplayValue("#finance");
         refs.browserCombo = new JComboBox<>(TaskEditDialog.BROWSER_OPTIONS);
         refs.browserCombo.setFont(fieldFont);
         refs.browserCombo.setPrototypeDisplayValue("Chromium（內建）");
         TaskEditDialog.attachBrowserTooltips(refs.browserCombo);
         refs.executeNowButton = new JButton("立即執行");
         refs.executeNowButton.setFont(boldFont);
-        refs.executeNowButton.setToolTipText("使用目前共用設定，立即執行一次打卡測試");
+        refs.executeNowButton.setToolTipText("使用上方共用設定立即測試，不會變更已啟用槽位的鎖定設定");
 
-        lockFieldHeight(refs.urlTextField);
-        sharedContent.add(formRowStretch(labeled(mainFont, "目標打卡網址："), refs.urlTextField));
+        lockFieldHeight(refs.urlCombo);
+        sharedContent.add(formRowStretch(labeled(mainFont, "目標打卡網址："), refs.urlCombo));
         sharedContent.add(Box.createVerticalStrut(4));
         sharedContent.add(selectorBrowserActionRow(mainFont, fieldFont,
-                refs.buttonIdTextField, refs.browserCombo, refs.executeNowButton));
+                refs.buttonIdCombo, refs.browserCombo, refs.executeNowButton));
 
         JPanel shared = createCollapsibleGroupPanel("共用打卡設定", sharedContent, boldFont, false);
 
@@ -293,7 +293,7 @@ public class PanelFactory {
 
         refs.enabledCheckBox = new JCheckBox("啟用", true);
         refs.enabledCheckBox.setFont(boldFont);
-        refs.enabledCheckBox.setToolTipText("勾選後開始自動排程，並鎖定時分設定；取消勾選後才能修改時間");
+        refs.enabledCheckBox.setToolTipText("勾選後開始自動排程，並鎖定時分與打卡網址／Selector；取消勾選後才能修改時間");
 
         String[] hours = new String[24];
         for (int i = 0; i < 24; i++) hours[i] = String.format("%02d", i);
@@ -347,6 +347,7 @@ public class PanelFactory {
         refs.countdownLabel = createSlotMetricLabel(mainFont, "—");
         refs.triggerLabel = createSlotMetricLabel(mainFont, "—");
         refs.resultLabel = createSlotMetricLabel(mainFont, "—");
+        refs.lockedSettingsLabel = createSlotMetricLabel(mainFont, "—");
 
         JPanel statusGrid = new JPanel(new GridBagLayout());
         GridBagConstraints mgbc = new GridBagConstraints();
@@ -367,6 +368,13 @@ public class PanelFactory {
         statusGrid.add(createMetricCell("預計觸發", refs.triggerLabel, mainFont), mgbc);
         mgbc.gridx = 1;
         statusGrid.add(createMetricCell("結果", refs.resultLabel, mainFont), mgbc);
+        mgbc.gridy = 2;
+        mgbc.gridx = 0;
+        mgbc.gridwidth = 2;
+        mgbc.weightx = 1.0;
+        statusGrid.add(createMetricCell("鎖定設定", refs.lockedSettingsLabel, mainFont), mgbc);
+        mgbc.gridwidth = 1;
+        mgbc.weightx = 0.5;
 
         JPanel mainCol = new JPanel(new BorderLayout(0, 4));
         mainCol.add(settings, BorderLayout.NORTH);
@@ -410,8 +418,8 @@ public class PanelFactory {
     public static class SlotPanelRefs {
         public SlotCardRefs workIn;
         public SlotCardRefs workOut;
-        public JTextField urlTextField;
-        public JTextField buttonIdTextField;
+        public JComboBox<String> urlCombo;
+        public JComboBox<String> buttonIdCombo;
         public JComboBox<String> browserCombo;
         public JButton executeNowButton;
     }
@@ -426,6 +434,7 @@ public class PanelFactory {
         public JLabel countdownLabel;
         public JLabel triggerLabel;
         public JLabel resultLabel;
+        public JLabel lockedSettingsLabel;
     }
 
     // ==================== 分組 3: 系統日誌 ====================
@@ -491,6 +500,10 @@ public class PanelFactory {
         final int gap = 8;
 
         selectorField.setFont(fieldFont);
+        browserCombo.setFont(fieldFont);
+        if (!(selectorField instanceof JComboBox)) {
+            selectorField.setFont(fieldFont);
+        }
         browserCombo.setFont(fieldFont);
         useTextFieldAlignedCombo(browserCombo);
 
