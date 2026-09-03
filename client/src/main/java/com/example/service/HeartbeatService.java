@@ -376,11 +376,13 @@ public class HeartbeatService {
             return;
         }
 
+        String trimmed = text.trim();
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("fromClientId", clientId);
         payload.put("toClientId", toClientId.trim());
-        payload.put("text", text.trim());
-        postPeerApi("/api/peer/message", payload, logger, callback, "傳送訊息");
+        payload.put("text", trimmed);
+        postPeerApi("/api/peer/message", payload, logger, callback,
+                "訊息給【" + toClientId.trim() + "】：" + trimmed);
     }
 
     /**
@@ -401,7 +403,8 @@ public class HeartbeatService {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("fromClientId", clientId);
         payload.put("toClientId", toClientId.trim());
-        postPeerApi("/api/peer/poke", payload, logger, callback, "戳一下");
+        postPeerApi("/api/peer/poke", payload, logger, callback,
+                "戳一下給【" + toClientId.trim() + "】");
     }
 
     private void postPeerApi(String path, Map<String, Object> payload,
@@ -421,19 +424,19 @@ public class HeartbeatService {
                     .thenAccept(response -> {
                         boolean ok = response.statusCode() == 200;
                         if (ok) {
-                            log(logger, "[成功] [戳] " + actionLabel + "已送出");
+                            log(logger, "[成功] [戳] 已送出" + actionLabel);
                         } else {
-                            log(logger, "[失敗] [戳] " + actionLabel + "失敗，狀態碼：" + response.statusCode());
+                            log(logger, "[失敗] [戳] 送出" + actionLabel + "失敗，狀態碼：" + response.statusCode());
                         }
                         if (callback != null) callback.accept(ok);
                     })
                     .exceptionally(ex -> {
-                        log(logger, "[失敗] [戳] " + actionLabel + "異常：" + ex.getMessage());
+                        log(logger, "[失敗] [戳] 送出" + actionLabel + "異常：" + ex.getMessage());
                         if (callback != null) callback.accept(false);
                         return null;
                     });
         } catch (Exception ex) {
-            log(logger, "[失敗] [戳] " + actionLabel + "異常：" + ex.getMessage());
+            log(logger, "[失敗] [戳] 送出" + actionLabel + "異常：" + ex.getMessage());
             if (callback != null) callback.accept(false);
         }
     }

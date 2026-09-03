@@ -47,6 +47,8 @@ public class App extends JFrame {
     private JSplitPane mainSplit;
     private JTabbedPane mainTabs;
     private boolean serverHistoryMenuBound;
+    private Image appIconImage;
+    private Icon dialogAppIcon;
 
     public App() {
         this.schedulerService = new SchedulerService();
@@ -107,21 +109,37 @@ public class App extends JFrame {
     }
 
     private void applyAppIcon() {
-        Image icon = loadAppIcon();
-        if (icon == null) {
+        appIconImage = loadAppIcon();
+        if (appIconImage == null) {
             return;
         }
-        setIconImage(icon);
+        setIconImage(appIconImage);
+        Image scaled = appIconImage.getScaledInstance(48, 48, Image.SCALE_SMOOTH);
+        dialogAppIcon = new ImageIcon(scaled);
         try {
             if (Taskbar.isTaskbarSupported()) {
                 Taskbar taskbar = Taskbar.getTaskbar();
                 if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
-                    taskbar.setIconImage(icon);
+                    taskbar.setIconImage(appIconImage);
                 }
             }
         } catch (Exception ignored) {
             // 部分平台／權限下無法設定 Dock icon
         }
+    }
+
+    private Icon dialogAppIcon() {
+        if (dialogAppIcon != null) {
+            return dialogAppIcon;
+        }
+        if (appIconImage == null) {
+            appIconImage = loadAppIcon();
+        }
+        if (appIconImage == null) {
+            return null;
+        }
+        dialogAppIcon = new ImageIcon(appIconImage.getScaledInstance(48, 48, Image.SCALE_SMOOTH));
+        return dialogAppIcon;
     }
 
     private static Image loadAppIcon() {
@@ -552,7 +570,8 @@ public class App extends JFrame {
                 this,
                 timeLabel + "\n\n" + text,
                 "同事訊息 · " + fromId,
-                JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.PLAIN_MESSAGE,
+                dialogAppIcon());
     }
 
     private void showPeerPoke(String fromId, Long sentAtMs) {
@@ -563,7 +582,8 @@ public class App extends JFrame {
                 this,
                 timeLabel + "\n\n【" + fromId + "】戳了你，快看一下打卡狀態吧！",
                 "同事戳你",
-                JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.PLAIN_MESSAGE,
+                dialogAppIcon());
     }
 
     private static Long parseEpochMillis(String raw) {
