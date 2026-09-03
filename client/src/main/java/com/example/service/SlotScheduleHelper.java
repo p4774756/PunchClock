@@ -30,6 +30,17 @@ public final class SlotScheduleHelper {
         return candidate;
     }
 
+    /**
+     * 今日該時段已打過卡時使用：即使現在還早於設定的時分（例如隨機提前），
+     * 也不再排今天同一槽位，避免成功後又立刻重打。
+     */
+    public static LocalDateTime nextTriggerTimeAfterTodaysSlot(
+            int hour, int minute, boolean weekdaysOnly, LocalDateTime now) {
+        LocalDateTime nominal = now.toLocalDate().atTime(hour, minute, 0);
+        LocalDateTime after = now.isAfter(nominal) ? now : nominal;
+        return nextTriggerTime(hour, minute, weekdaysOnly, after);
+    }
+
     public static boolean isWeekend(LocalDate date) {
         DayOfWeek day = date.getDayOfWeek();
         return day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY;

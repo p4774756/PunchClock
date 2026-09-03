@@ -418,6 +418,10 @@ public class SlotController {
     }
 
     private boolean scheduleSlot(WorkSlot.Kind kind, boolean logChanges) {
+        return scheduleSlot(kind, logChanges, false);
+    }
+
+    private boolean scheduleSlot(WorkSlot.Kind kind, boolean logChanges, boolean skipRemainingTodayWindow) {
         SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
         CheckInTask task = schedulerService.getTask(kind.id);
         if (task == null) {
@@ -446,7 +450,10 @@ public class SlotController {
             return false;
         }
 
-        LocalDateTime nextTime = resolveNextScheduleTime(kind, task, slot);
+        LocalDateTime nextTime = skipRemainingTodayWindow
+                ? SlotScheduleHelper.nextTriggerTimeAfterTodaysSlot(
+                        slot.hour, slot.minute, config.weekdaysOnly, LocalDateTime.now())
+                : resolveNextScheduleTime(kind, task, slot);
         resetTaskForSchedule(task, kind, slot, nextTime);
 
         boolean ok = schedulerService.scheduleTask(
@@ -524,15 +531,16 @@ public class SlotController {
         String buttonId = config.buttonId;
         String browser = TaskEditDialog.parseBrowserType(config.browserChoice);
         appendLog.accept("[執行] 【立即執行】使用上方共用設定（不變更已鎖定排程，結果記入【" + kind.displayName + "】）");
-        new Thread(() -> executeCheckInForTask(task, url, buttonId, browser, null)).start();
+        new Thread(() -> executeCheckInForTask(task, url, buttonId, browser, null, false)).start();
     }
 
     public void executeCheckInForTask(CheckInTask task, Runnable onComplete) {
-        executeCheckInForTask(task, task.getTargetUrl(), task.getButtonId(), task.getBrowserType(), onComplete);
+        executeCheckInForTask(task, task.getTargetUrl(), task.getButtonId(), task.getBrowserType(), onComplete, true);
     }
 
     private void executeCheckInForTask(
-            CheckInTask task, String targetUrl, String buttonId, String browserType, Runnable onComplete) {
+            CheckInTask task, String targetUrl, String buttonId, String browserType,
+            Runnable onComplete, boolean fromScheduler) {
         LocalDateTime triggerTime = LocalDateTime.now();
         String triggerTimeStr = triggerTime.format(FMT);
         long startTimeMs = System.currentTimeMillis();
@@ -561,18 +569,20 @@ public class SlotController {
             task.setResultMessage(msg);
             appendLog.accept("[失敗] 【" + task.getName() + "】" + msg);
         } finally {
-            onSlotTaskFinished(task);
+            onSlotTaskFinished(task, fromScheduler);
             if (onComplete != null) onComplete.run();
         }
     }
 
-    private void onSlotTaskFinished(CheckInTask task) {
+    private void onSlotTaskFinished(CheckInTask task, boolean fromScheduler) {
         WorkSlot.Kind kind = WorkSlot.Kind.fromId(task.getId());
         if (kind != null) {
             SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
             if (slot.enabled) {
+                // 排程成功打卡後略過今天剩餘時段；立即執行不消耗今日排程
+                boolean skipRemainingToday = fromScheduler && task.getStatus() == TaskStatus.SUCCESS;
                 // 等排程執行緒跑完再重排，避免 stopTimer 中斷同一條執行緒
-                SwingUtilities.invokeLater(() -> scheduleSlot(kind, false));
+                SwingUtilities.invokeLater(() -> scheduleSlot(kind, skipRemainingToday, skipRemainingToday));
             }
         }
         onSlotStateChanged.run();

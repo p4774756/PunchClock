@@ -61,13 +61,32 @@ public class HeartbeatServiceCommandParseTest {
         String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
                 .encodeToString("記得打卡".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         String body = "{"
-                + "\"actions\":[\"MSG|worker-a|" + encoded + "\",\"POKE|worker-b\"]"
+                + "\"actions\":[\"MSG|worker-a|" + encoded + "|1693728000000\",\"POKE|worker-b\"]"
                 + "}";
         method.invoke(service, body, (Consumer<String>) msg -> {});
 
         assertEquals(2, received.size());
-        assertTrue(received.contains("MSG|worker-a|記得打卡"));
+        assertTrue(received.contains("MSG|worker-a|1693728000000|記得打卡"));
         assertTrue(received.contains("POKE|worker-b"));
+    }
+
+    @Test
+    public void parseServerCommand_peerMessageWithoutTimestamp_stillWorks() throws Exception {
+        HeartbeatService service = new HeartbeatService();
+        List<String> received = new ArrayList<>();
+        service.setCommandListener(received::add);
+
+        Method method = HeartbeatService.class.getDeclaredMethod(
+                "parseServerCommand", String.class, Consumer.class);
+        method.setAccessible(true);
+
+        String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("hi".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        method.invoke(service, "{\"actions\":[\"MSG|worker-a|" + encoded + "\"]}",
+                (Consumer<String>) msg -> {});
+
+        assertEquals(1, received.size());
+        assertEquals("MSG|worker-a||hi", received.get(0));
     }
 
     @Test

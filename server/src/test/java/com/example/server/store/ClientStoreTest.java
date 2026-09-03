@@ -72,6 +72,23 @@ public class ClientStoreTest {
     }
 
     @Test
+    public void peerMessageActionIncludesSentTimestamp() {
+        long before = System.currentTimeMillis();
+        assertTrue(store.queuePeerMessage("b", "a", "hello").ok);
+        Map<String, Object> existing = store.getOrCreateClient("b");
+        List<String> drained = store.drainPendingActions(existing);
+        assertEquals(1, drained.size());
+        String action = drained.get(0);
+        String[] parts = action.split("\\|", 4);
+        assertEquals(4, parts.length);
+        assertEquals("MSG", parts[0]);
+        assertEquals("a", parts[1]);
+        long sentAt = Long.parseLong(parts[3]);
+        assertTrue(sentAt >= before);
+        assertTrue(sentAt <= System.currentTimeMillis() + 1000);
+    }
+
+    @Test
     public void peerSnapshotExcludesSelf() {
         store.getOrCreateClient("a");
         store.getOrCreateClient("b");

@@ -305,12 +305,14 @@ public class HeartbeatService {
             log(logger, "[取消] [HTTP 心跳] 收到伺服器取消特定任務指令 (" + action + ")");
             commandListener.accept(action);
         } else if (action.startsWith("MSG|")) {
-            String[] parts = action.split("\\|", 3);
+            // MSG|fromId|base64text 或 MSG|fromId|base64text|epochMs
+            String[] parts = action.split("\\|", 4);
             if (parts.length >= 3) {
                 String fromId = parts[1];
                 String text = decodePeerPayload(parts[2]);
+                String sentAtMs = parts.length >= 4 ? parts[3].trim() : "";
                 log(logger, "[訊息] [戳] 收到來自【" + fromId + "】的訊息");
-                commandListener.accept("MSG|" + fromId + "|" + text);
+                commandListener.accept("MSG|" + fromId + "|" + sentAtMs + "|" + text);
             }
         } else if (action.startsWith("POKE|")) {
             String fromId = action.length() > 5 ? action.substring(5) : "未知";

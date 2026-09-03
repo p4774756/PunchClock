@@ -56,6 +56,7 @@ public class App extends JFrame {
         this.configPersistenceService = new ConfigPersistenceService();
 
         initHeartbeatService();
+        applyAppIcon();
         initUI();
         slotController = new SlotController(
                 this, slotRefs,
@@ -83,17 +84,52 @@ public class App extends JFrame {
                 String taskId = command.substring("CANCEL_TASK:".length()).trim();
                 SwingUtilities.invokeLater(() -> slotController.handleRemoteCancelTask(taskId));
             } else if (command.startsWith("MSG|")) {
-                String[] parts = command.split("\\|", 3);
-                if (parts.length >= 3) {
+                // MSG|fromId|sentAtMs|text（sentAtMs 可為空；text 可含 |）
+                String[] parts = command.split("\\|", 4);
+                if (parts.length >= 4) {
+                    String fromId = parts[1];
+                    Long sentAtMs = parseEpochMillis(parts[2]);
+                    String text = parts[3];
+                    SwingUtilities.invokeLater(() -> showPeerMessage(fromId, text, sentAtMs));
+                } else if (parts.length >= 3) {
                     String fromId = parts[1];
                     String text = parts[2];
-                    SwingUtilities.invokeLater(() -> showPeerMessage(fromId, text));
+                    SwingUtilities.invokeLater(() -> showPeerMessage(fromId, text, null));
                 }
             } else if (command.startsWith("POKE|")) {
                 String fromId = command.length() > 5 ? command.substring(5) : "同事";
                 SwingUtilities.invokeLater(() -> showPeerPoke(fromId));
             }
         });
+    }
+
+    private void applyAppIcon() {
+        Image icon = loadAppIcon();
+        if (icon == null) {
+            return;
+        }
+        setIconImage(icon);
+        try {
+            if (Taskbar.isTaskbarSupported()) {
+                Taskbar taskbar = Taskbar.getTaskbar();
+                if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
+                    taskbar.setIconImage(icon);
+                }
+            }
+        } catch (Exception ignored) {
+            // 部分平台／權限下無法設定 Dock icon
+        }
+    }
+
+    private static Image loadAppIcon() {
+        try (java.io.InputStream in = App.class.getResourceAsStream("/app-icon.png")) {
+            if (in == null) {
+                return null;
+            }
+            return javax.imageio.ImageIO.read(in);
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private void initUI() {
@@ -505,12 +541,13 @@ public class App extends JFrame {
                 .count();
     }
 
-    private void showPeerMessage(String fromId, String text) {
-        appendLog("[訊息] 【戳】來自【" + fromId + "】：" + text);
+    private void showPeerMessage(String fromId, String text, Long sentAtMs) {
+        String timeLabel = formatPeerMessageTime(sentAtMs);
+        appendLog("[訊息] 【戳】來自【" + fromId + "】（" + timeLabel + "）：" + text);
         Toolkit.getDefaultToolkit().beep();
         JOptionPane.showMessageDialog(
                 this,
-                text,
+                text + "\n\n時間：" + timeLabel,
                 "同事訊息 · " + fromId,
                 JOptionPane.INFORMATION_MESSAGE);
     }
@@ -523,6 +560,26 @@ public class App extends JFrame {
                 "【" + fromId + "】戳了你，快看一下打卡狀態吧！",
                 "同事戳你",
                 JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private static Long parseEpochMillis(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(raw.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private static String formatPeerMessageTime(Long epochMs) {
+        LocalDateTime time = (epochMs != null && epochMs > 0)
+                ? java.time.LocalDateTime.ofInstant(
+                        java.time.Instant.ofEpochMilli(epochMs),
+                        java.time.ZoneId.systemDefault())
+                : LocalDateTime.now();
+        return time.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 
     private void bindCloudEventListeners() {
@@ -755,6 +812,18 @@ public class App extends JFrame {
     }
 
     public static void main(String[] args) {
+        // macOS：盡早設定 Dock icon（需在建立視窗前）
+        Image dockIcon = loadAppIcon();
+        if (dockIcon != null) {
+            try {
+                if (Taskbar.isTaskbarSupported()) {
+                    Taskbar taskbar = Taskbar.getTaskbar();
+                    if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
+                        taskbar.setIconImage(dockIcon);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
         SwingUtilities.invokeLater(() -> {
             try {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());

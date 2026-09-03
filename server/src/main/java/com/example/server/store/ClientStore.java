@@ -315,7 +315,7 @@ public final class ClientStore {
 
     private static String encodePeerMessage(String fromClientId, String text) {
         String payload = Base64.getUrlEncoder().withoutPadding().encodeToString(text.getBytes(StandardCharsets.UTF_8));
-        return "MSG|" + fromClientId + "|" + payload;
+        return "MSG|" + fromClientId + "|" + payload + "|" + System.currentTimeMillis();
     }
 
     private static String encodePeerPoke(String fromClientId) {
