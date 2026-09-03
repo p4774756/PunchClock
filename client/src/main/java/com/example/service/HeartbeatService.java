@@ -315,9 +315,12 @@ public class HeartbeatService {
                 commandListener.accept("MSG|" + fromId + "|" + sentAtMs + "|" + text);
             }
         } else if (action.startsWith("POKE|")) {
-            String fromId = action.length() > 5 ? action.substring(5) : "未知";
+            // POKE|fromId 或 POKE|fromId|epochMs
+            String[] parts = action.split("\\|", 3);
+            String fromId = parts.length > 1 && !parts[1].isBlank() ? parts[1] : "未知";
+            String sentAtMs = parts.length >= 3 ? parts[2].trim() : "";
             log(logger, "[通知] [戳] 【" + fromId + "】戳了你");
-            commandListener.accept(action);
+            commandListener.accept("POKE|" + fromId + "|" + sentAtMs);
         } else {
             log(logger, "[警告] [HTTP 心跳] 收到未支援的遠端指令: " + action);
         }

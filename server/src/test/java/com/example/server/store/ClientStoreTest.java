@@ -89,6 +89,22 @@ public class ClientStoreTest {
     }
 
     @Test
+    public void peerPokeActionIncludesSentTimestamp() {
+        long before = System.currentTimeMillis();
+        assertTrue(store.queuePeerPoke("b", "a").ok);
+        Map<String, Object> existing = store.getOrCreateClient("b");
+        List<String> drained = store.drainPendingActions(existing);
+        assertEquals(1, drained.size());
+        String[] parts = drained.get(0).split("\\|", 3);
+        assertEquals(3, parts.length);
+        assertEquals("POKE", parts[0]);
+        assertEquals("a", parts[1]);
+        long sentAt = Long.parseLong(parts[2]);
+        assertTrue(sentAt >= before);
+        assertTrue(sentAt <= System.currentTimeMillis() + 1000);
+    }
+
+    @Test
     public void peerSnapshotExcludesSelf() {
         store.getOrCreateClient("a");
         store.getOrCreateClient("b");

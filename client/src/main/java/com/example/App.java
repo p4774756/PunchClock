@@ -97,8 +97,11 @@ public class App extends JFrame {
                     SwingUtilities.invokeLater(() -> showPeerMessage(fromId, text, null));
                 }
             } else if (command.startsWith("POKE|")) {
-                String fromId = command.length() > 5 ? command.substring(5) : "同事";
-                SwingUtilities.invokeLater(() -> showPeerPoke(fromId));
+                // POKE|fromId|sentAtMs（sentAtMs 可為空）
+                String[] parts = command.split("\\|", 3);
+                String fromId = parts.length > 1 && !parts[1].isBlank() ? parts[1] : "同事";
+                Long sentAtMs = parts.length >= 3 ? parseEpochMillis(parts[2]) : null;
+                SwingUtilities.invokeLater(() -> showPeerPoke(fromId, sentAtMs));
             }
         });
     }
@@ -543,21 +546,22 @@ public class App extends JFrame {
 
     private void showPeerMessage(String fromId, String text, Long sentAtMs) {
         String timeLabel = formatPeerMessageTime(sentAtMs);
-        appendLog("[訊息] 【戳】來自【" + fromId + "】（" + timeLabel + "）：" + text);
+        appendLog("[訊息] 【戳】（" + timeLabel + "）來自【" + fromId + "】：" + text);
         Toolkit.getDefaultToolkit().beep();
         JOptionPane.showMessageDialog(
                 this,
-                text + "\n\n時間：" + timeLabel,
+                timeLabel + "\n\n" + text,
                 "同事訊息 · " + fromId,
                 JOptionPane.INFORMATION_MESSAGE);
     }
 
-    private void showPeerPoke(String fromId) {
-        appendLog("[通知] 【戳】【" + fromId + "】戳了你！");
+    private void showPeerPoke(String fromId, Long sentAtMs) {
+        String timeLabel = formatPeerMessageTime(sentAtMs);
+        appendLog("[通知] 【戳】（" + timeLabel + "）【" + fromId + "】戳了你！");
         Toolkit.getDefaultToolkit().beep();
         JOptionPane.showMessageDialog(
                 this,
-                "【" + fromId + "】戳了你，快看一下打卡狀態吧！",
+                timeLabel + "\n\n【" + fromId + "】戳了你，快看一下打卡狀態吧！",
                 "同事戳你",
                 JOptionPane.INFORMATION_MESSAGE);
     }

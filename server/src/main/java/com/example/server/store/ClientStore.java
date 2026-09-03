@@ -319,7 +319,7 @@ public final class ClientStore {
     }
 
     private static String encodePeerPoke(String fromClientId) {
-        return "POKE|" + fromClientId;
+        return "POKE|" + fromClientId + "|" + System.currentTimeMillis();
     }
 
     private static String findTaskName(Map<String, Object> client, String taskId) {

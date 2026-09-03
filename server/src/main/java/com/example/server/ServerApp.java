@@ -173,11 +173,14 @@ public final class ServerApp {
         long storedSeq = numberFrom(existing.get("heartbeatSeq"));
         List<String> drainedActions = clientStore.drainPendingActions(existing);
 
-        boolean staleHeartbeat = incomingSeq > 0 && storedSeq > 0 && incomingSeq < storedSeq;
-        if (staleHeartbeat) {
+        // 僅擋「同階段亂序晚到」；客戶端重啟後 seq 會重數，不可當成過期而拒收
+        if (isOutOfOrderStaleHeartbeat(incomingSeq, storedSeq)) {
             Map<String, Object> clientInfo = new LinkedHashMap<>(existing);
             clientInfo.put("lastSeen", Instant.now().toString());
+            // 有心跳就視為在線，避免停在 OFFLINE 卻任務永遠不同步
+            clientInfo.put("status", "OFFLINE".equals(status) ? "ONLINE" : status);
             clientStore.setClient(clientId, clientInfo);
+            broadcaster.broadcast(statusUpdatePayload());
             writeHeartbeatResponse(ctx, drainedActions, clientId);
             return;
         }
@@ -409,5 +412,21 @@ public final class ServerApp {
         } catch (NumberFormatException ex) {
             return 0L;
         }
+    }
+
+    /**
+     * 判斷是否為同階段亂序晚到的舊心跳。
+     * 客戶端重啟後 heartbeatSeq 會從 1 重數，此時應接受並覆蓋，否則會一直停在過期狀態：
+     * 後台顯示離線／任務不同步，但桌面端仍以為連線正常。
+     */
+    static boolean isOutOfOrderStaleHeartbeat(long incomingSeq, long storedSeq) {
+        if (incomingSeq <= 0 || storedSeq <= 0 || incomingSeq >= storedSeq) {
+            return false;
+        }
+        // 重啟特徵：seq 回到開頭，或大幅倒退（遠超過短時間內的亂序差距）
+        if (incomingSeq <= 10 || (storedSeq - incomingSeq) > 20) {
+            return false;
+        }
+        return true;
     }
 }
