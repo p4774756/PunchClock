@@ -14,9 +14,11 @@ import java.util.List;
 public final class WindowShake {
 
     /** 水平位移序列（像素），最後一格回到原點。 */
-    static final int[] OFFSETS_X = {14, -14, 12, -12, 10, -10, 8, -8, 5, -5, 3, -3, 0};
+    static final int[] OFFSETS_X = {
+            22, -22, 20, -20, 18, -18, 14, -14, 10, -10, 6, -6, 3, -3, 0
+    };
 
-    static final int FRAME_DELAY_MS = 28;
+    static final int FRAME_DELAY_MS = 32;
 
     private WindowShake() {
     }
