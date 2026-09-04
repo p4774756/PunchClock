@@ -125,6 +125,29 @@ public class PanelFactory {
         refs.openCloudSettingsButton.setToolTipText("切換至「雲端設定」分頁以啟用連線");
         refs.openCloudSettingsButton.setVisible(false);
 
+        refs.avatarPreview = new JLabel();
+        refs.avatarPreview.setPreferredSize(new Dimension(44, 44));
+        refs.avatarPreview.setMinimumSize(new Dimension(44, 44));
+        refs.avatarPreview.setToolTipText("傳送訊息或戳一下時，對方對話框會顯示這張大頭照");
+
+        refs.chooseAvatarButton = new JButton("選擇大頭照");
+        refs.chooseAvatarButton.setFont(boldFont);
+        refs.chooseAvatarButton.setToolTipText("從本機選一張照片，對方收到訊息／戳一下時會看到");
+
+        refs.clearAvatarButton = new JButton("還原預設");
+        refs.clearAvatarButton.setFont(mainFont);
+        refs.clearAvatarButton.setToolTipText("改回使用 App 圖示");
+
+        JPanel avatarRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        avatarRow.setOpaque(false);
+        JLabel avatarLabel = new JLabel("大頭照：");
+        avatarLabel.setFont(mainFont);
+        avatarRow.add(avatarLabel);
+        avatarRow.add(refs.avatarPreview);
+        avatarRow.add(refs.chooseAvatarButton);
+        avatarRow.add(refs.clearAvatarButton);
+        refs.avatarRow = avatarRow;
+
         refs.messageField = new JTextField();
         refs.messageField.setFont(mainFont);
         refs.messageField.setToolTipText("輸入要傳給選中同事的訊息（最多 500 字）");
@@ -153,6 +176,8 @@ public class PanelFactory {
         north.add(refs.peerStatusLabel);
         north.add(Box.createVerticalStrut(6));
         north.add(refs.openCloudSettingsButton);
+        north.add(Box.createVerticalStrut(8));
+        north.add(avatarRow);
 
         JPanel center = new JPanel(new BorderLayout(0, 8));
         center.setOpaque(false);
@@ -175,6 +200,10 @@ public class PanelFactory {
         public JButton openCloudSettingsButton;
         public JLabel peerHintLabel;
         public JLabel peerStatusLabel;
+        public JLabel avatarPreview;
+        public JButton chooseAvatarButton;
+        public JButton clearAvatarButton;
+        public JPanel avatarRow;
     }
 
     // ==================== 說明 ====================

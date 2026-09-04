@@ -204,6 +204,14 @@ public final class ServerApp {
         if (incomingSeq > 0) {
             clientInfo.put("heartbeatSeq", incomingSeq);
         }
+        if (body.containsKey("avatar")) {
+            String avatar = ClientStore.sanitizeAvatar(body.get("avatar"));
+            if (avatar.isEmpty()) {
+                clientInfo.remove("avatar");
+            } else {
+                clientInfo.put("avatar", avatar);
+            }
+        }
         clientInfo.remove("pendingActions");
         clientInfo.remove("pendingAction");
         clientInfo.remove("pendingActionTime");
@@ -243,7 +251,8 @@ public final class ServerApp {
         PeerResult result = clientStore.queuePeerMessage(
                 stringOrNull(body.get("toClientId")),
                 stringOrNull(body.get("fromClientId")),
-                stringOrNull(body.get("text"))
+                stringOrNull(body.get("text")),
+                stringOrNull(body.get("avatar"))
         );
         if (!result.ok) {
             ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", result.message));
@@ -264,7 +273,8 @@ public final class ServerApp {
         }
         PeerResult result = clientStore.queuePeerPoke(
                 stringOrNull(body.get("toClientId")),
-                stringOrNull(body.get("fromClientId"))
+                stringOrNull(body.get("fromClientId")),
+                stringOrNull(body.get("avatar"))
         );
         if (!result.ok) {
             ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", result.message));
