@@ -98,6 +98,10 @@ public final class ClientStore {
     }
 
     public PeerResult queuePeerMessage(String toClientId, String fromClientId, String text) {
+        return queuePeerMessage(toClientId, fromClientId, text, null);
+    }
+
+    public PeerResult queuePeerMessage(String toClientId, String fromClientId, String text, String avatar) {
         String trimmed = text == null ? "" : text.trim();
         if (toClientId == null || toClientId.isEmpty() || fromClientId == null || fromClientId.isEmpty() || trimmed.isEmpty()) {
             return PeerResult.fail("缺少收件人或訊息內容");
@@ -108,24 +112,36 @@ public final class ClientStore {
         if (trimmed.length() > PEER_MESSAGE_MAX_LEN) {
             return PeerResult.fail("訊息長度不可超過 " + PEER_MESSAGE_MAX_LEN + " 字");
         }
-        String action = encodePeerMessage(fromClientId, trimmed);
-        queueClientAction(toClientId, action);
         Map<String, Object> sender = getOrCreateClient(fromClientId);
+        String encodedAvatar = firstNonEmptyAvatar(avatar, sender.get("avatar"));
+        if (!encodedAvatar.isEmpty()) {
+            sender.put("avatar", encodedAvatar);
+        }
+        String action = encodePeerMessage(fromClientId, trimmed, encodedAvatar);
+        queueClientAction(toClientId, action);
         appendClientEvent(sender, "已傳送訊息給【" + toClientId + "】（等待對方心跳收取）");
         clients.put(fromClientId, sender);
         return PeerResult.ok("訊息已排入佇列，對方約 15 秒內收到");
     }
 
     public PeerResult queuePeerPoke(String toClientId, String fromClientId) {
+        return queuePeerPoke(toClientId, fromClientId, null);
+    }
+
+    public PeerResult queuePeerPoke(String toClientId, String fromClientId, String avatar) {
         if (toClientId == null || toClientId.isEmpty() || fromClientId == null || fromClientId.isEmpty()) {
             return PeerResult.fail("缺少收件人或發送者");
         }
         if (toClientId.equals(fromClientId)) {
             return PeerResult.fail("不能戳自己");
         }
-        String action = encodePeerPoke(fromClientId);
-        queueClientAction(toClientId, action);
         Map<String, Object> sender = getOrCreateClient(fromClientId);
+        String encodedAvatar = firstNonEmptyAvatar(avatar, sender.get("avatar"));
+        if (!encodedAvatar.isEmpty()) {
+            sender.put("avatar", encodedAvatar);
+        }
+        String action = encodePeerPoke(fromClientId, encodedAvatar);
+        queueClientAction(toClientId, action);
         appendClientEvent(sender, "已戳【" + toClientId + "】（等待對方心跳收取）");
         clients.put(fromClientId, sender);
         return PeerResult.ok("戳一下已排入佇列，對方約 15 秒內收到");
@@ -177,6 +193,10 @@ public final class ClientStore {
             peer.put("taskCount", tasks.size());
             peer.put("scheduledCount", tasks.stream().filter(t -> "SCHEDULED".equals(String.valueOf(t.get("status")))).count());
             peer.put("lastSeen", c.get("lastSeen"));
+            String avatar = sanitizeAvatar(c.get("avatar"));
+            if (!avatar.isEmpty()) {
+                peer.put("avatar", avatar);
+            }
             peers.add(peer);
         }
         peers.sort(Comparator.comparing(m -> String.valueOf(m.get("clientId"))));
@@ -295,6 +315,7 @@ public final class ClientStore {
         if (copy.containsKey("targetUrl")) {
             copy.put("targetUrl", maskTargetUrl(String.valueOf(copy.get("targetUrl"))));
         }
+        copy.remove("avatar");
         if (copy.get("tasks") instanceof List) {
             List<Map<String, Object>> tasks = new ArrayList<>();
             for (Object item : (List<?>) copy.get("tasks")) {
@@ -313,13 +334,50 @@ public final class ClientStore {
         return copy;
     }
 
-    private static String encodePeerMessage(String fromClientId, String text) {
+    private static String encodePeerMessage(String fromClientId, String text, String avatar) {
         String payload = Base64.getUrlEncoder().withoutPadding().encodeToString(text.getBytes(StandardCharsets.UTF_8));
-        return "MSG|" + fromClientId + "|" + payload + "|" + System.currentTimeMillis();
+        String action = "MSG|" + fromClientId + "|" + payload + "|" + System.currentTimeMillis();
+        if (avatar != null && !avatar.isEmpty()) {
+            action += "|" + avatar;
+        }
+        return action;
     }
 
-    private static String encodePeerPoke(String fromClientId) {
-        return "POKE|" + fromClientId + "|" + System.currentTimeMillis();
+    private static String encodePeerPoke(String fromClientId, String avatar) {
+        String action = "POKE|" + fromClientId + "|" + System.currentTimeMillis();
+        if (avatar != null && !avatar.isEmpty()) {
+            action += "|" + avatar;
+        }
+        return action;
+    }
+
+    public static String sanitizeAvatar(Object raw) {
+        if (raw == null) {
+            return "";
+        }
+        String value = String.valueOf(raw).trim();
+        if (value.isEmpty() || value.length() > 60_000) {
+            return "";
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            boolean ok = (c >= 'A' && c <= 'Z')
+                    || (c >= 'a' && c <= 'z')
+                    || (c >= '0' && c <= '9')
+                    || c == '-' || c == '_';
+            if (!ok) {
+                return "";
+            }
+        }
+        return value;
+    }
+
+    private static String firstNonEmptyAvatar(String preferred, Object stored) {
+        String fromRequest = sanitizeAvatar(preferred);
+        if (!fromRequest.isEmpty()) {
+            return fromRequest;
+        }
+        return sanitizeAvatar(stored);
     }
 
     private static String findTaskName(Map<String, Object> client, String taskId) {
