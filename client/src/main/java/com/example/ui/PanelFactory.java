@@ -134,7 +134,7 @@ public class PanelFactory {
 
         refs.pokeButton = new JButton("戳一下");
         refs.pokeButton.setFont(boldFont);
-        refs.pokeButton.setToolTipText("發送輕量提醒給選中的同事");
+        refs.pokeButton.setToolTipText("發送輕量提醒：對方桌面端會鳴叫、視窗晃動並跳出通知（約 15 秒內隨心跳送達）");
 
         JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         actionRow.setOpaque(false);

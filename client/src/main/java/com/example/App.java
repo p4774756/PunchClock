@@ -13,6 +13,7 @@ import com.example.ui.PanelFactory;
 import com.example.ui.PanelFactory.*;
 import com.example.ui.RecentValuesHelper;
 import com.example.ui.SlotController;
+import com.example.ui.WindowShake;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
@@ -578,12 +579,18 @@ public class App extends JFrame {
         String timeLabel = formatPeerMessageTime(sentAtMs);
         appendLog("[通知] 【戳】（" + timeLabel + "）【" + fromId + "】戳了你！");
         Toolkit.getDefaultToolkit().beep();
-        JOptionPane.showMessageDialog(
-                this,
-                timeLabel + "\n\n【" + fromId + "】戳了你，快看一下打卡狀態吧！",
-                "同事戳你",
-                JOptionPane.PLAIN_MESSAGE,
-                dialogAppIcon());
+        WindowShake.bringToFront(this);
+        boolean previousSuppress = suppressConfigSave;
+        suppressConfigSave = true;
+        WindowShake.shake(this, () -> {
+            suppressConfigSave = previousSuppress;
+            JOptionPane.showMessageDialog(
+                    this,
+                    timeLabel + "\n\n【" + fromId + "】戳了你，視窗晃了一下！快看一下打卡狀態吧！",
+                    "同事戳你",
+                    JOptionPane.PLAIN_MESSAGE,
+                    dialogAppIcon());
+        });
     }
 
     private static Long parseEpochMillis(String raw) {
