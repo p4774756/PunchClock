@@ -1,9 +1,13 @@
 package com.example.server;
 
 import com.example.DailyProverb;
+import com.example.PeerFileRules;
 import com.example.server.auth.AuthService;
 import com.example.server.store.ClientStore;
 import com.example.server.store.ClientStore.PeerResult;
+import com.example.server.store.FileOfferStore;
+import com.example.server.store.FileOfferStore.GetResult;
+import com.example.server.store.FileOfferStore.PutResult;
 import com.example.server.util.HtmlEscape;
 import com.example.server.util.IpResolver;
 import com.example.server.web.DashboardBroadcaster;
@@ -12,13 +16,16 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import io.javalin.Javalin;
+import io.javalin.config.SizeUnit;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
+import io.javalin.http.UploadedFile;
 import io.javalin.http.staticfiles.Location;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -35,6 +42,7 @@ public final class ServerApp {
 
     private final AuthService authService = new AuthService();
     private final ClientStore clientStore = new ClientStore();
+    private final FileOfferStore fileOfferStore = new FileOfferStore();
     private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
     private final DashboardBroadcaster broadcaster = new DashboardBroadcaster(gson);
 
@@ -43,7 +51,7 @@ public final class ServerApp {
         new ServerApp().start(port);
     }
 
-    public void start(int port) {
+    public Javalin start(int port) {
         clientStore.startOfflineMonitor(broadcaster::broadcast);
 
         Javalin app = Javalin.create(config -> {
@@ -58,17 +66,26 @@ public final class ServerApp {
                 sf.location = Location.CLASSPATH;
             });
             config.showJavalinBanner = false;
+            long maxRequest = PeerFileRules.MAX_BYTES + 256_000L;
+            config.http.maxRequestSize = maxRequest;
+            config.jetty.multipartConfig.maxFileSize(PeerFileRules.MAX_BYTES, SizeUnit.BYTES);
+            config.jetty.multipartConfig.maxTotalRequestSize(maxRequest, SizeUnit.BYTES);
+            config.jetty.multipartConfig.maxInMemoryFileSize((int) PeerFileRules.MAX_BYTES, SizeUnit.BYTES);
         });
 
         registerRoutes(app);
         registerWebSocket(app);
 
         app.start(port);
-        System.out.println("Server v" + SERVER_VERSION + " listening on port " + port);
-        System.out.println("- Web Dashboard: http://localhost:" + port + " (login required)");
+        int boundPort = app.port();
+        System.out.println("Server v" + SERVER_VERSION + " listening on port " + boundPort);
+        System.out.println("- Web Dashboard: http://localhost:" + boundPort + " (login required)");
         System.out.println("- Heartbeat API: POST /api/heartbeat (Bearer token required)");
         System.out.println("- Protocol: HTTP heartbeat for workers; Dashboard WS for status push only");
+        System.out.println("- Peer file: POST /api/peer/file  GET /api/peer/file/{fileId} (max "
+                + PeerFileRules.MAX_SIZE_LABEL + ")");
         System.out.println("- Admin password: " + (System.getenv("ADMIN_PASSWORD") != null ? "from ADMIN_PASSWORD env" : "default (secret)"));
+        return app;
     }
 
     private void registerRoutes(Javalin app) {
@@ -83,6 +100,8 @@ public final class ServerApp {
         app.post("/api/heartbeat", this::heartbeat);
         app.post("/api/peer/message", this::peerMessage);
         app.post("/api/peer/poke", this::peerPoke);
+        app.post("/api/peer/file", this::peerFileUpload);
+        app.get("/api/peer/file/{fileId}", this::peerFileDownload);
         app.get("/api/status", this::status);
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
         app.post("/api/clients/{clientId}/cancel-task/{taskId}", this::cancelTask);
@@ -282,6 +301,121 @@ public final class ServerApp {
         }
         broadcaster.broadcast(statusUpdatePayload());
         ctx.json(Map.of("success", true, "message", result.message));
+    }
+
+    private void peerFileUpload(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        UploadedFile uploaded;
+        try {
+            uploaded = ctx.uploadedFile("file");
+        } catch (Exception ex) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "無法讀取上傳檔案"));
+            return;
+        }
+        if (uploaded == null) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請選擇要傳送的檔案"));
+            return;
+        }
+        byte[] bytes;
+        try (InputStream in = uploaded.content()) {
+            bytes = in.readAllBytes();
+        } catch (IOException ex) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "讀取檔案失敗"));
+            return;
+        }
+        String filename = firstNonEmptyForm(
+                ctx.formParam("filename"),
+                uploaded.filename()
+        );
+        PutResult stored = fileOfferStore.put(
+                stringOrNull(ctx.formParam("fromClientId")),
+                stringOrNull(ctx.formParam("toClientId")),
+                filename,
+                bytes
+        );
+        if (!stored.ok) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", stored.message));
+            return;
+        }
+        PeerResult queued = clientStore.queuePeerFile(
+                stored.offer.toClientId,
+                stored.offer.fromClientId,
+                stored.offer
+        );
+        if (!queued.ok) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", queued.message));
+            return;
+        }
+        broadcaster.broadcast(statusUpdatePayload());
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("success", true);
+        response.put("message", queued.message);
+        response.put("fileId", stored.offer.fileId);
+        response.put("filename", stored.offer.filename);
+        response.put("size", stored.offer.size());
+        ctx.json(response);
+    }
+
+    private void peerFileDownload(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        GetResult result = fileOfferStore.getForRecipient(
+                ctx.pathParam("fileId"),
+                firstNonEmptyForm(ctx.queryParam("clientId"), ctx.header("X-PunchClock-Client"))
+        );
+        if (result.status == GetResult.Status.FORBIDDEN) {
+            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", result.message));
+            return;
+        }
+        if (result.status != GetResult.Status.OK || result.offer == null) {
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", result.message));
+            return;
+        }
+        FileOfferStore.Offer offer = result.offer;
+        ctx.contentType(offer.mime);
+        ctx.header("Content-Disposition", contentDisposition(offer.filename));
+        ctx.header("X-PunchClock-Filename", PeerFileRules.encodeName(offer.filename));
+        ctx.result(offer.bytes);
+    }
+
+    private static String contentDisposition(String filename) {
+        String safe = filename == null ? "download" : filename.replace("\"", "").replace("\r", "").replace("\n", "");
+        String encoded = URLEncoder.encode(safe, StandardCharsets.UTF_8).replace("+", "%20");
+        return "attachment; filename=\"" + asciiFilename(safe) + "\"; filename*=UTF-8''" + encoded;
+    }
+
+    private static String asciiFilename(String filename) {
+        if (filename == null || filename.isEmpty()) {
+            return "download";
+        }
+        StringBuilder sb = new StringBuilder(filename.length());
+        for (int i = 0; i < filename.length(); i++) {
+            char c = filename.charAt(i);
+            if (c >= 0x20 && c < 0x7f && c != '"' && c != '\\') {
+                sb.append(c);
+            } else {
+                sb.append('_');
+            }
+        }
+        String ascii = sb.toString().trim();
+        return ascii.isEmpty() ? "download" : ascii;
+    }
+
+    private static String firstNonEmptyForm(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 
     private void status(Context ctx) {
