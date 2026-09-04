@@ -1,15 +1,21 @@
 package com.example.ui;
 
-import javax.swing.Timer;
+import java.awt.Component;
 import java.awt.Frame;
 import java.awt.Point;
+import java.awt.Toolkit;
 import java.awt.Window;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import javax.swing.JComponent;
+import javax.swing.RootPaneContainer;
 
 /**
  * 同事「戳一下」時的視窗晃動（類似即時通訊軟體的視窗震動）。
+ *
+ * <p>同時移動頂層視窗與內部 layered pane。部分 Linux 視窗管理員會忽略或合併
+ * 連續的 {@code setLocation}，內部平移仍能讓使用者看到晃動。</p>
  */
 public final class WindowShake {
 
@@ -73,7 +79,7 @@ public final class WindowShake {
     }
 
     /**
-     * 在 EDT 以 Timer 播放晃動；結束後還原座標並執行 {@code onDone}。
+     * 在呼叫執行緒（應為 EDT）同步播放晃動；結束後還原座標並執行 {@code onDone}。
      * 最大化或尚未顯示的視窗會跳過動畫，直接回呼。
      */
     public static void shake(Window window, Runnable onDone) {
@@ -81,27 +87,47 @@ public final class WindowShake {
             complete(onDone);
             return;
         }
-        Point origin = window.getLocation();
-        List<Point> path = shakePath(origin);
-        Timer timer = new Timer(FRAME_DELAY_MS, null);
-        final int[] index = {0};
-        timer.addActionListener(e -> {
-            if (!window.isDisplayable()) {
-                timer.stop();
-                complete(onDone);
-                return;
+
+        Point windowOrigin = window.getLocation();
+        Component inner = innerLayer(window);
+        Point innerOrigin = inner != null ? inner.getLocation() : null;
+
+        try {
+            for (int dx : OFFSETS_X) {
+                window.setLocation(windowOrigin.x + dx, windowOrigin.y);
+                if (inner != null && innerOrigin != null) {
+                    inner.setLocation(innerOrigin.x + dx, innerOrigin.y);
+                    inner.repaint();
+                }
+                window.repaint();
+                Toolkit.getDefaultToolkit().sync();
+                sleepQuietly(FRAME_DELAY_MS);
             }
-            if (index[0] >= path.size()) {
-                timer.stop();
-                window.setLocation(origin);
-                complete(onDone);
-                return;
+        } finally {
+            if (window.isDisplayable()) {
+                window.setLocation(windowOrigin);
             }
-            Point next = path.get(index[0]);
-            window.setLocation(next.x, next.y);
-            index[0]++;
-        });
-        timer.start();
+            if (inner != null && innerOrigin != null && inner.isDisplayable()) {
+                inner.setLocation(innerOrigin);
+            }
+        }
+        complete(onDone);
+    }
+
+    private static Component innerLayer(Window window) {
+        if (!(window instanceof RootPaneContainer)) {
+            return null;
+        }
+        JComponent layered = ((RootPaneContainer) window).getLayeredPane();
+        return layered;
+    }
+
+    private static void sleepQuietly(int millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static void complete(Runnable onDone) {

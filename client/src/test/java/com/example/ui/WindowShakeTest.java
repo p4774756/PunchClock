@@ -76,8 +76,8 @@ public class WindowShakeTest {
             Point origin = frame.getLocation();
             javax.swing.SwingUtilities.invokeAndWait(() ->
                     WindowShake.shake(frame, done::countDown));
-            assertTrue("shake animation should finish",
-                    done.await(3, java.util.concurrent.TimeUnit.SECONDS));
+            assertTrue("shake should finish synchronously on EDT",
+                    done.await(1, java.util.concurrent.TimeUnit.SECONDS));
             assertEquals(origin, frame.getLocation());
         } finally {
             frame.dispose();
