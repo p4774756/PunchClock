@@ -66,8 +66,8 @@ public class HeartbeatServiceCommandParseTest {
         method.invoke(service, body, (Consumer<String>) msg -> {});
 
         assertEquals(2, received.size());
-        assertTrue(received.contains("MSG|worker-a|1693728000000|記得打卡"));
-        assertTrue(received.contains("POKE|worker-b|1693728001000"));
+        assertTrue(received.contains("MSG|worker-a|1693728000000||記得打卡"));
+        assertTrue(received.contains("POKE|worker-b|1693728001000|"));
     }
 
     @Test
@@ -82,7 +82,7 @@ public class HeartbeatServiceCommandParseTest {
         method.invoke(service, "{\"actions\":[\"POKE|worker-b\"]}", (Consumer<String>) msg -> {});
 
         assertEquals(1, received.size());
-        assertEquals("POKE|worker-b|", received.get(0));
+        assertEquals("POKE|worker-b||", received.get(0));
     }
 
     @Test
@@ -101,7 +101,7 @@ public class HeartbeatServiceCommandParseTest {
                 (Consumer<String>) msg -> {});
 
         assertEquals(1, received.size());
-        assertEquals("MSG|worker-a||hi", received.get(0));
+        assertEquals("MSG|worker-a|||hi", received.get(0));
     }
 
     @Test
@@ -124,5 +124,27 @@ public class HeartbeatServiceCommandParseTest {
         assertEquals("worker-b", peers.get(0).clientId);
         assertEquals("ONLINE", peers.get(0).status);
         assertEquals(1, peers.get(0).scheduledCount);
+    }
+
+    @Test
+    public void parseServerCommand_forwardsPeerAvatar() throws Exception {
+        HeartbeatService service = new HeartbeatService();
+        List<String> received = new ArrayList<>();
+        service.setCommandListener(received::add);
+
+        Method method = HeartbeatService.class.getDeclaredMethod(
+                "parseServerCommand", String.class, Consumer.class);
+        method.setAccessible(true);
+
+        String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("記得打卡".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        method.invoke(service,
+                "{\"actions\":[\"MSG|worker-a|" + encoded + "|1693728000000|abcXYZ012\","
+                        + "\"POKE|worker-b|1693728001000|abcXYZ012\"]}",
+                (Consumer<String>) msg -> {});
+
+        assertEquals(2, received.size());
+        assertTrue(received.contains("MSG|worker-a|1693728000000|abcXYZ012|記得打卡"));
+        assertTrue(received.contains("POKE|worker-b|1693728001000|abcXYZ012"));
     }
 }

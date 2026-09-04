@@ -105,6 +105,52 @@ public class ClientStoreTest {
     }
 
     @Test
+    public void peerMessageActionIncludesAvatarWhenProvided() {
+        assertTrue(store.queuePeerMessage("b", "a", "hello", "abcXYZ012-_").ok);
+        List<String> drained = store.drainPendingActions(store.getOrCreateClient("b"));
+        assertEquals(1, drained.size());
+        String[] parts = drained.get(0).split("\\|", 5);
+        assertEquals("MSG", parts[0]);
+        assertEquals("a", parts[1]);
+        assertEquals("abcXYZ012-_", parts[4]);
+        assertEquals("abcXYZ012-_", store.getOrCreateClient("a").get("avatar"));
+    }
+
+    @Test
+    public void peerPokeActionIncludesAvatarWhenProvided() {
+        assertTrue(store.queuePeerPoke("b", "a", "abcXYZ012").ok);
+        String[] parts = store.drainPendingActions(store.getOrCreateClient("b")).get(0).split("\\|", 4);
+        assertEquals("POKE", parts[0]);
+        assertEquals("a", parts[1]);
+        assertEquals("abcXYZ012", parts[3]);
+    }
+
+    @Test
+    public void sanitizeAvatarRejectsUnsafePayload() {
+        assertEquals("", ClientStore.sanitizeAvatar("has/slash"));
+        assertEquals("", ClientStore.sanitizeAvatar(""));
+        assertEquals("ok_1-2", ClientStore.sanitizeAvatar("ok_1-2"));
+    }
+
+    @Test
+    public void sanitizeClientForApiStripsAvatar() {
+        Map<String, Object> dirty = new LinkedHashMap<>();
+        dirty.put("clientId", "worker-a");
+        dirty.put("avatar", "abcXYZ012");
+        Map<String, Object> clean = store.sanitizeClientForApi(dirty);
+        assertFalse(clean.containsKey("avatar"));
+    }
+
+    @Test
+    public void peerSnapshotIncludesAvatar() {
+        Map<String, Object> client = store.getOrCreateClient("b");
+        client.put("avatar", "abcXYZ012");
+        store.setClient("b", client);
+        store.getOrCreateClient("a");
+        assertEquals("abcXYZ012", store.peerSnapshot("a").get(0).get("avatar"));
+    }
+
+    @Test
     public void peerSnapshotExcludesSelf() {
         store.getOrCreateClient("a");
         store.getOrCreateClient("b");

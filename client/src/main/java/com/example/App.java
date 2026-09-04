@@ -6,6 +6,7 @@ import com.example.service.AutomationService;
 import com.example.service.ConfigPersistenceService;
 import com.example.service.HeartbeatService;
 import com.example.service.HeartbeatService.PeerInfo;
+import com.example.service.PeerAvatar;
 import com.example.service.SchedulerService;
 import com.example.service.TaskPersistenceService;
 import com.example.ui.UiFonts;
@@ -22,6 +23,7 @@ import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -87,24 +89,31 @@ public class App extends JFrame {
                 String taskId = command.substring("CANCEL_TASK:".length()).trim();
                 SwingUtilities.invokeLater(() -> slotController.handleRemoteCancelTask(taskId));
             } else if (command.startsWith("MSG|")) {
-                // MSG|fromId|sentAtMs|text（sentAtMs 可為空；text 可含 |）
-                String[] parts = command.split("\\|", 4);
-                if (parts.length >= 4) {
+                // MSG|fromId|sentAtMs|avatar|text（sentAtMs／avatar 可為空；text 可含 |）
+                String[] parts = command.split("\\|", 5);
+                if (parts.length >= 5) {
+                    String fromId = parts[1];
+                    Long sentAtMs = parseEpochMillis(parts[2]);
+                    String avatar = parts[3];
+                    String text = parts[4];
+                    SwingUtilities.invokeLater(() -> showPeerMessage(fromId, text, sentAtMs, avatar));
+                } else if (parts.length >= 4) {
                     String fromId = parts[1];
                     Long sentAtMs = parseEpochMillis(parts[2]);
                     String text = parts[3];
-                    SwingUtilities.invokeLater(() -> showPeerMessage(fromId, text, sentAtMs));
+                    SwingUtilities.invokeLater(() -> showPeerMessage(fromId, text, sentAtMs, ""));
                 } else if (parts.length >= 3) {
                     String fromId = parts[1];
                     String text = parts[2];
-                    SwingUtilities.invokeLater(() -> showPeerMessage(fromId, text, null));
+                    SwingUtilities.invokeLater(() -> showPeerMessage(fromId, text, null, ""));
                 }
             } else if (command.startsWith("POKE|")) {
-                // POKE|fromId|sentAtMs（sentAtMs 可為空）
-                String[] parts = command.split("\\|", 3);
+                // POKE|fromId|sentAtMs|avatar（sentAtMs／avatar 可為空）
+                String[] parts = command.split("\\|", 4);
                 String fromId = parts.length > 1 && !parts[1].isBlank() ? parts[1] : "同事";
                 Long sentAtMs = parts.length >= 3 ? parseEpochMillis(parts[2]) : null;
-                SwingUtilities.invokeLater(() -> showPeerPoke(fromId, sentAtMs));
+                String avatar = parts.length >= 4 ? parts[3] : "";
+                SwingUtilities.invokeLater(() -> showPeerPoke(fromId, sentAtMs, avatar));
             }
         });
     }
@@ -366,6 +375,12 @@ public class App extends JFrame {
         if (peerRefs.messageField != null) {
             peerRefs.messageField.addActionListener(e -> sendMessageToSelectedPeer());
         }
+        if (peerRefs.chooseAvatarButton != null) {
+            peerRefs.chooseAvatarButton.addActionListener(e -> choosePeerAvatar());
+        }
+        if (peerRefs.clearAvatarButton != null) {
+            peerRefs.clearAvatarButton.addActionListener(e -> clearPeerAvatar());
+        }
     }
 
     private String getSelectedPeerClientId() {
@@ -563,7 +578,7 @@ public class App extends JFrame {
                 .count();
     }
 
-    private void showPeerMessage(String fromId, String text, Long sentAtMs) {
+    private void showPeerMessage(String fromId, String text, Long sentAtMs, String avatar) {
         String timeLabel = formatPeerMessageTime(sentAtMs);
         appendLog("[訊息] 【戳】（" + timeLabel + "）來自【" + fromId + "】：" + text);
         Toolkit.getDefaultToolkit().beep();
@@ -572,10 +587,10 @@ public class App extends JFrame {
                 timeLabel + "\n\n" + text,
                 "同事訊息 · " + fromId,
                 JOptionPane.PLAIN_MESSAGE,
-                dialogAppIcon());
+                peerDialogIcon(avatar));
     }
 
-    private void showPeerPoke(String fromId, Long sentAtMs) {
+    private void showPeerPoke(String fromId, Long sentAtMs, String avatar) {
         String timeLabel = formatPeerMessageTime(sentAtMs);
         appendLog("[通知] 【戳】（" + timeLabel + "）【" + fromId + "】戳了你！");
         Toolkit.getDefaultToolkit().beep();
@@ -589,8 +604,78 @@ public class App extends JFrame {
                     timeLabel + "\n\n【" + fromId + "】戳了你，視窗晃了一下！快看一下打卡狀態吧！",
                     "同事戳你",
                     JOptionPane.PLAIN_MESSAGE,
-                    dialogAppIcon());
+                    peerDialogIcon(avatar));
         });
+    }
+
+    private Icon peerDialogIcon(String avatarEncoded) {
+        return PeerAvatar.dialogIcon(avatarEncoded, appIconImage);
+    }
+
+    private Path avatarFile() {
+        return PeerAvatar.fileBeside(configPersistenceService.getSavePath());
+    }
+
+    private void applyAvatarFromConfig(ConfigPersistenceService.CloudConfig config) {
+        String encoded = "";
+        if (config != null && config.customAvatar) {
+            encoded = PeerAvatar.loadEncoded(avatarFile());
+            if (encoded.isEmpty()) {
+                config.customAvatar = false;
+            }
+        }
+        heartbeatService.setAvatarEncoded(encoded);
+        refreshAvatarPreview(encoded);
+    }
+
+    private void refreshAvatarPreview(String encoded) {
+        if (peerRefs.avatarPreview == null) {
+            return;
+        }
+        peerRefs.avatarPreview.setIcon(PeerAvatar.previewIcon(
+                encoded, appIconImage, PeerAvatar.PREVIEW_SIZE));
+        if (peerRefs.clearAvatarButton != null) {
+            peerRefs.clearAvatarButton.setEnabled(encoded != null && !encoded.isBlank());
+        }
+    }
+
+    private void choosePeerAvatar() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("選擇大頭照");
+        chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                "圖片檔 (JPG / PNG / GIF)", "jpg", "jpeg", "png", "gif"));
+        int result = chooser.showOpenDialog(this);
+        if (result != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
+            return;
+        }
+        try {
+            String encoded = PeerAvatar.importImage(chooser.getSelectedFile().toPath(), avatarFile());
+            heartbeatService.setAvatarEncoded(encoded);
+            if (slotController != null && slotController.getConfig() != null) {
+                slotController.getConfig().customAvatar = true;
+            }
+            refreshAvatarPreview(encoded);
+            saveCloudConfig();
+            appendLog("[設定] 已更新訊息大頭照，對方下次收到訊息／戳一下時會看到");
+        } catch (Exception ex) {
+            appendLog("[失敗] 無法使用這張大頭照：" + ex.getMessage());
+            JOptionPane.showMessageDialog(
+                    this,
+                    "無法讀取這張圖片，請改選 JPG、PNG 或 GIF。",
+                    "大頭照",
+                    JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    private void clearPeerAvatar() {
+        PeerAvatar.deleteFile(avatarFile());
+        heartbeatService.setAvatarEncoded("");
+        if (slotController != null && slotController.getConfig() != null) {
+            slotController.getConfig().customAvatar = false;
+        }
+        refreshAvatarPreview("");
+        saveCloudConfig();
+        appendLog("[設定] 已還原預設大頭照（App 圖示）");
     }
 
     private static Long parseEpochMillis(String raw) {
@@ -683,6 +768,7 @@ public class App extends JFrame {
             applyServerConfig(config);
             slotController.loadConfigToUi(config);
             applyWindowLayout(config);
+            applyAvatarFromConfig(config);
         } finally {
             suppressConfigSave = false;
         }

@@ -66,6 +66,7 @@ public class HeartbeatService {
     private String message = null;
     private boolean isServiceActive = false;
     private boolean trustAllSsl = false;
+    private volatile String avatarEncoded = "";
 
     private Supplier<List<CheckInTask>> tasksProvider;
     private Consumer<String> commandListener;
@@ -147,6 +148,14 @@ public class HeartbeatService {
         }
     }
 
+    public void setAvatarEncoded(String encoded) {
+        this.avatarEncoded = encoded != null ? encoded.trim() : "";
+    }
+
+    public String getAvatarEncoded() {
+        return avatarEncoded;
+    }
+
     /**
      * 啟動定期單向 HTTP POST 心跳
      */
@@ -212,6 +221,7 @@ public class HeartbeatService {
         payload.put("appVersion", AppVersion.VERSION);
         payload.put("tasks", tasksList);
         payload.put("heartbeatSeq", heartbeatSeq.incrementAndGet());
+        payload.put("avatar", avatarEncoded == null ? "" : avatarEncoded);
 
         String jsonBody = gson.toJson(payload);
 
@@ -305,22 +315,26 @@ public class HeartbeatService {
             log(logger, "[取消] [HTTP 心跳] 收到伺服器取消特定任務指令 (" + action + ")");
             commandListener.accept(action);
         } else if (action.startsWith("MSG|")) {
-            // MSG|fromId|base64text 或 MSG|fromId|base64text|epochMs
-            String[] parts = action.split("\\|", 4);
+            // MSG|fromId|base64text
+            // MSG|fromId|base64text|epochMs
+            // MSG|fromId|base64text|epochMs|avatar
+            String[] parts = action.split("\\|", 5);
             if (parts.length >= 3) {
                 String fromId = parts[1];
                 String text = decodePeerPayload(parts[2]);
                 String sentAtMs = parts.length >= 4 ? parts[3].trim() : "";
+                String avatar = parts.length >= 5 ? parts[4].trim() : "";
                 log(logger, "[訊息] [戳] 收到來自【" + fromId + "】的訊息");
-                commandListener.accept("MSG|" + fromId + "|" + sentAtMs + "|" + text);
+                commandListener.accept("MSG|" + fromId + "|" + sentAtMs + "|" + avatar + "|" + text);
             }
         } else if (action.startsWith("POKE|")) {
-            // POKE|fromId 或 POKE|fromId|epochMs
-            String[] parts = action.split("\\|", 3);
+            // POKE|fromId 或 POKE|fromId|epochMs 或 POKE|fromId|epochMs|avatar
+            String[] parts = action.split("\\|", 4);
             String fromId = parts.length > 1 && !parts[1].isBlank() ? parts[1] : "未知";
             String sentAtMs = parts.length >= 3 ? parts[2].trim() : "";
+            String avatar = parts.length >= 4 ? parts[3].trim() : "";
             log(logger, "[通知] [戳] 【" + fromId + "】戳了你");
-            commandListener.accept("POKE|" + fromId + "|" + sentAtMs);
+            commandListener.accept("POKE|" + fromId + "|" + sentAtMs + "|" + avatar);
         } else {
             log(logger, "[警告] [HTTP 心跳] 收到未支援的遠端指令: " + action);
         }
@@ -381,6 +395,9 @@ public class HeartbeatService {
         payload.put("fromClientId", clientId);
         payload.put("toClientId", toClientId.trim());
         payload.put("text", trimmed);
+        if (avatarEncoded != null && !avatarEncoded.isBlank()) {
+            payload.put("avatar", avatarEncoded);
+        }
         postPeerApi("/api/peer/message", payload, logger, callback,
                 "訊息給【" + toClientId.trim() + "】：" + trimmed);
     }
@@ -403,6 +420,9 @@ public class HeartbeatService {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("fromClientId", clientId);
         payload.put("toClientId", toClientId.trim());
+        if (avatarEncoded != null && !avatarEncoded.isBlank()) {
+            payload.put("avatar", avatarEncoded);
+        }
         postPeerApi("/api/peer/poke", payload, logger, callback,
                 "戳一下給【" + toClientId.trim() + "】");
     }

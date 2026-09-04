@@ -54,6 +54,9 @@ public class ConfigPersistenceService {
         public int windowX = -1;
         public int windowY = -1;
         public int splitDividerLocation = -1;
+
+        /** 是否使用 ~/.punchclock/avatar.jpg 作為訊息／戳一下大頭照 */
+        public boolean customAvatar = false;
     }
 
     private static SlotSettings defaultWorkIn() {

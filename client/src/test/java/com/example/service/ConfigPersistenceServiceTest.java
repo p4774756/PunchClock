@@ -132,6 +132,15 @@ public class ConfigPersistenceServiceTest {
     }
 
     @Test
+    public void saveAndLoad_persistsCustomAvatarFlag() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.customAvatar = true;
+        configService.saveConfig(config, null);
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertTrue(loaded.customAvatar);
+    }
+
+    @Test
     public void loadConfig_seedsRecentFromCurrentValues() {
         ConfigPersistenceService.CloudConfig config = configService.loadConfig(null);
         assertFalse(config.recentTargetUrls.isEmpty());
