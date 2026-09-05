@@ -1,5 +1,6 @@
 package com.example.server.store;
 
+import com.example.PeerFileRules;
 import com.google.gson.Gson;
 
 import java.net.URI;
@@ -64,6 +65,10 @@ public final class ClientStore {
     }
 
     public void queueClientAction(String clientId, String action) {
+        queueClientAction(clientId, action, PENDING_ACTION_TTL_MS);
+    }
+
+    public void queueClientAction(String clientId, String action, long ttlMs) {
         Map<String, Object> existing = getOrCreateClient(clientId);
         List<Map<String, Object>> pending = pendingActions(existing);
         if (existing.containsKey("pendingAction")) {
@@ -77,6 +82,9 @@ public final class ClientStore {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("action", action);
         item.put("time", System.currentTimeMillis());
+        if (ttlMs > 0 && ttlMs != PENDING_ACTION_TTL_MS) {
+            item.put("ttlMs", ttlMs);
+        }
         pending.add(item);
         existing.put("pendingActions", pending);
 
@@ -93,6 +101,13 @@ public final class ClientStore {
         } else if (action != null && action.startsWith("POKE|")) {
             String fromId = action.length() > "POKE|".length() ? action.substring("POKE|".length()) : "未知";
             appendClientEvent(existing, "同事【" + fromId + "】戳了你（等待桌面端下次心跳收取）");
+        } else if (action != null && action.startsWith("FILE|")) {
+            String[] parts = action.split("\\|", 5);
+            String fromId = parts.length > 1 ? parts[1] : "未知";
+            String filename = parts.length > 3 ? PeerFileRules.decodeName(parts[3]) : "";
+            appendClientEvent(existing, "同事【" + fromId + "】傳來檔案"
+                    + (filename.isEmpty() ? "" : "「" + filename + "」")
+                    + "（等待桌面端下次心跳收取）");
         }
         clients.put(clientId, existing);
     }
@@ -147,6 +162,24 @@ public final class ClientStore {
         return PeerResult.ok("戳一下已排入佇列，對方約 15 秒內收到");
     }
 
+    public PeerResult queuePeerFile(String toClientId, String fromClientId, FileOfferStore.Offer offer) {
+        if (offer == null || offer.fileId == null || offer.fileId.isEmpty()) {
+            return PeerResult.fail("缺少檔案");
+        }
+        if (toClientId == null || toClientId.isEmpty() || fromClientId == null || fromClientId.isEmpty()) {
+            return PeerResult.fail("缺少收件人或發送者");
+        }
+        if (toClientId.equals(fromClientId)) {
+            return PeerResult.fail("不能傳送檔案給自己");
+        }
+        String action = encodePeerFile(offer);
+        queueClientAction(toClientId, action, FileOfferStore.FILE_ACTION_TTL_MS);
+        Map<String, Object> sender = getOrCreateClient(fromClientId);
+        appendClientEvent(sender, "已傳送檔案「" + offer.filename + "」給【" + toClientId + "】（等待對方心跳收取）");
+        clients.put(fromClientId, sender);
+        return PeerResult.ok("檔案已排入佇列，對方約 15 秒內收到通知");
+    }
+
     public List<String> drainPendingActions(Map<String, Object> existing) {
         long now = System.currentTimeMillis();
         List<String> actions = new ArrayList<>();
@@ -162,7 +195,14 @@ public final class ClientStore {
                 continue;
             }
             long time = toLong(item.get("time"));
-            if (now - time < PENDING_ACTION_TTL_MS) {
+            long ttl = PENDING_ACTION_TTL_MS;
+            if (item.containsKey("ttlMs")) {
+                long custom = toLong(item.get("ttlMs"));
+                if (custom > 0) {
+                    ttl = custom;
+                }
+            }
+            if (now - time < ttl) {
                 actions.add(String.valueOf(item.get("action")));
             }
         }
@@ -349,6 +389,15 @@ public final class ClientStore {
             action += "|" + avatar;
         }
         return action;
+    }
+
+    static String encodePeerFile(FileOfferStore.Offer offer) {
+        return "FILE|" + offer.fromClientId
+                + "|" + offer.fileId
+                + "|" + PeerFileRules.encodeName(offer.filename)
+                + "|" + offer.size()
+                + "|" + offer.mime
+                + "|" + System.currentTimeMillis();
     }
 
     public static String sanitizeAvatar(Object raw) {

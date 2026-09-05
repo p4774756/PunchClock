@@ -159,6 +159,11 @@ public class PanelFactory {
         refs.pokeButton.setFont(boldFont);
         refs.pokeButton.setToolTipText("發送輕量提醒：對方桌面端會鳴叫、視窗晃動並跳出通知（約 15 秒內隨心跳送達）");
 
+        refs.sendFileButton = new JButton("傳送檔案");
+        refs.sendFileButton.setFont(boldFont);
+        refs.sendFileButton.setToolTipText("傳送檔案給選中同事（" + com.example.PeerFileRules.allowedTypesHint()
+                + "；對方約 15 秒內收到通知後自行儲存）");
+
         JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         actionRow.setOpaque(false);
         actionRow.add(new JLabel("訊息："));
@@ -167,6 +172,7 @@ public class PanelFactory {
         refs.messageField.setPreferredSize(new Dimension(280, 28));
         actionRow.add(refs.sendMessageButton);
         actionRow.add(refs.pokeButton);
+        actionRow.add(refs.sendFileButton);
 
         JPanel north = new JPanel();
         north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
@@ -197,6 +203,7 @@ public class PanelFactory {
         public JTextField messageField;
         public JButton sendMessageButton;
         public JButton pokeButton;
+        public JButton sendFileButton;
         public JButton openCloudSettingsButton;
         public JLabel peerHintLabel;
         public JLabel peerStatusLabel;
