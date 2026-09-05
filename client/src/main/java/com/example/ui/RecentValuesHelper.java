@@ -238,8 +238,7 @@ public final class RecentValuesHelper {
 
         private int hoverDeleteIndex = -1;
 
-        @SuppressWarnings("unchecked")
-        DeletableHistoryComboPopup(JComboBox combo) {
+        DeletableHistoryComboPopup(JComboBox<Object> combo) {
             super(combo);
         }
 
@@ -252,8 +251,8 @@ public final class RecentValuesHelper {
         }
 
         @Override
-        protected JList createList() {
-            JList list = super.createList();
+        protected JList<Object> createList() {
+            JList<Object> list = super.createList();
             list.putClientProperty("recentValues.popup", this);
             list.setFixedCellHeight(POPUP_ROW_HEIGHT);
             list.setCellRenderer(new DeleteHistoryListCellRenderer());
@@ -330,7 +329,7 @@ public final class RecentValuesHelper {
             setPreferredSize(size);
         }
 
-        private void updateHoverDeleteIndex(JList list, MouseEvent e) {
+        private void updateHoverDeleteIndex(JList<?> list, MouseEvent e) {
             int index = list.locationToIndex(e.getPoint());
             int next = isDeleteHit(list, index, e.getPoint()) ? index : -1;
             if (next != hoverDeleteIndex) {
@@ -340,7 +339,7 @@ public final class RecentValuesHelper {
             }
         }
 
-        private boolean handleDeleteClick(JList list, MouseEvent e) {
+        private boolean handleDeleteClick(JList<?> list, MouseEvent e) {
             int index = list.locationToIndex(e.getPoint());
             if (!isDeleteHit(list, index, e.getPoint())) {
                 return false;
@@ -350,7 +349,7 @@ public final class RecentValuesHelper {
             return true;
         }
 
-        private boolean isDeleteHit(JList list, int index, Point point) {
+        private boolean isDeleteHit(JList<?> list, int index, Point point) {
             if (index < 0) {
                 return false;
             }

@@ -51,7 +51,6 @@ public class App extends JFrame {
     private JTabbedPane mainTabs;
     private boolean serverHistoryMenuBound;
     private Image appIconImage;
-    private Icon dialogAppIcon;
 
     public App() {
         this.schedulerService = new SchedulerService();
@@ -124,8 +123,6 @@ public class App extends JFrame {
             return;
         }
         setIconImage(appIconImage);
-        Image scaled = appIconImage.getScaledInstance(48, 48, Image.SCALE_SMOOTH);
-        dialogAppIcon = new ImageIcon(scaled);
         try {
             if (Taskbar.isTaskbarSupported()) {
                 Taskbar taskbar = Taskbar.getTaskbar();
@@ -136,20 +133,6 @@ public class App extends JFrame {
         } catch (Exception ignored) {
             // 部分平台／權限下無法設定 Dock icon
         }
-    }
-
-    private Icon dialogAppIcon() {
-        if (dialogAppIcon != null) {
-            return dialogAppIcon;
-        }
-        if (appIconImage == null) {
-            appIconImage = loadAppIcon();
-        }
-        if (appIconImage == null) {
-            return null;
-        }
-        dialogAppIcon = new ImageIcon(appIconImage.getScaledInstance(48, 48, Image.SCALE_SMOOTH));
-        return dialogAppIcon;
     }
 
     private static Image loadAppIcon() {

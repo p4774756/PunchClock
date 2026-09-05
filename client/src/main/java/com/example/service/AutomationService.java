@@ -28,8 +28,6 @@ public class AutomationService {
 
     private Playwright playwright;
     private Browser cachedBrowser;
-    private String cachedBrowserType;
-
     /**
      * 執行自動打卡任務
      *
@@ -152,7 +150,6 @@ public class AutomationService {
                 break;
         }
 
-        cachedBrowserType = choice;
         return cachedBrowser;
     }
 
@@ -164,7 +161,6 @@ public class AutomationService {
                 }
             } catch (Exception ignored) {}
             cachedBrowser = null;
-            cachedBrowserType = null;
         }
     }
 
