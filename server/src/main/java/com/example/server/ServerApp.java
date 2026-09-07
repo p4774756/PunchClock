@@ -237,10 +237,6 @@ public final class ServerApp {
 
         clientStore.setClient(clientId, clientInfo);
 
-        if ("SUCCESS".equals(status) || "FAILED".equals(status)) {
-            System.out.println("[Checkin Report] 設備 " + clientId + " 上報打卡結果 (" + status + "): " + message);
-        }
-
         broadcaster.broadcast(statusUpdatePayload());
 
         writeHeartbeatResponse(ctx, drainedActions, clientId);

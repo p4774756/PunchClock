@@ -202,4 +202,52 @@ public class ClientStoreTest {
         pending.get(0).put("time", System.currentTimeMillis() - ClientStore.PENDING_ACTION_TTL_MS - 1);
         assertTrue(store.drainPendingActions(existing).isEmpty());
     }
+
+    @Test
+    public void lastResultIsLoggedWhenTaskAlreadyRescheduled() {
+        Map<String, Object> existing = store.getOrCreateClient("worker-a");
+        Map<String, Object> scheduled = new LinkedHashMap<>();
+        scheduled.put("id", "work-out");
+        scheduled.put("name", "下班打卡");
+        scheduled.put("status", "SCHEDULED");
+        scheduled.put("message", "");
+        existing.put("tasks", new ArrayList<>(List.of(scheduled)));
+
+        Map<String, Object> next = new LinkedHashMap<>(scheduled);
+        next.put("lastResultStatus", "SUCCESS");
+        next.put("lastResultMessage", "[成功] 打卡成功");
+
+        store.logTaskTransitions(existing, List.of(next));
+        List<?> events = (List<?>) existing.get("eventLog");
+        assertEquals(1, events.size());
+        assertTrue(String.valueOf(((Map<?, ?>) events.get(0)).get("text")).contains("回報打卡結果：成功"));
+
+        existing.put("tasks", new ArrayList<>(List.of(next)));
+        store.logTaskTransitions(existing, List.of(next));
+        assertEquals(1, ((List<?>) existing.get("eventLog")).size());
+    }
+
+    @Test
+    public void lastResultIsNotLoggedAgainWhenCurrentStatusAlreadyShowsIt() {
+        Map<String, Object> existing = store.getOrCreateClient("worker-a");
+        Map<String, Object> checking = new LinkedHashMap<>();
+        checking.put("id", "work-out");
+        checking.put("name", "下班打卡");
+        checking.put("status", "CHECKING_IN");
+        existing.put("tasks", new ArrayList<>(List.of(checking)));
+
+        Map<String, Object> success = new LinkedHashMap<>();
+        success.put("id", "work-out");
+        success.put("name", "下班打卡");
+        success.put("status", "SUCCESS");
+        success.put("message", "[成功] 打卡成功");
+        success.put("lastResultStatus", "SUCCESS");
+        success.put("lastResultMessage", "[成功] 打卡成功");
+
+        store.logTaskTransitions(existing, List.of(success));
+        List<?> events = (List<?>) existing.get("eventLog");
+        assertEquals(1, events.size());
+        assertTrue(String.valueOf(((Map<?, ?>) events.get(0)).get("text")).contains("→ 成功"));
+        assertFalse(String.valueOf(((Map<?, ?>) events.get(0)).get("text")).contains("回報打卡結果"));
+    }
 }

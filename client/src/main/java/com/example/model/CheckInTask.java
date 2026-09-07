@@ -22,6 +22,8 @@ public class CheckInTask {
     private String browserType;
     private TaskStatus status;
     private String resultMessage;
+    private TaskStatus lastResultStatus;
+    private String lastResultMessage;
 
     public CheckInTask() {
         this.id = UUID.randomUUID().toString().substring(0, 8);
@@ -136,6 +138,41 @@ public class CheckInTask {
 
     public void setResultMessage(String resultMessage) {
         this.resultMessage = resultMessage;
+    }
+
+    /**
+     * 記住這次打卡成功／失敗。槽位重排後 status 會變回等待中，
+     * 但心跳仍帶這份結果，避免 timeout 後後台以為沒打卡。
+     */
+    public void rememberLastResult() {
+        if (status == SUCCESS || status == FAILED) {
+            lastResultStatus = status;
+            lastResultMessage = resultMessage != null ? resultMessage : "";
+        }
+    }
+
+    public TaskStatus getLastResultStatus() {
+        return lastResultStatus;
+    }
+
+    public void setLastResultStatus(TaskStatus lastResultStatus) {
+        this.lastResultStatus = lastResultStatus;
+    }
+
+    public String getLastResultMessage() {
+        return lastResultMessage != null ? lastResultMessage : "";
+    }
+
+    public void setLastResultMessage(String lastResultMessage) {
+        this.lastResultMessage = lastResultMessage;
+    }
+
+    /** 卡片結果列：當次訊息優先，重排後改顯示上次打卡結果 */
+    public String getDisplayResultMessage() {
+        if (resultMessage != null && !resultMessage.isBlank()) {
+            return resultMessage;
+        }
+        return getLastResultMessage();
     }
 
     public String getFormattedTargetTime() {

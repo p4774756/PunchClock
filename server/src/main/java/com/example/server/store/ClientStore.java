@@ -284,6 +284,7 @@ public final class ClientStore {
                 String when = firstNonEmpty(t.get("actualTime"), t.get("targetTime"));
                 appendClientEvent(existing, "任務【" + name + "】上報狀態：" + taskStatusLabel(t.get("status"))
                         + (when.isEmpty() ? "" : "（" + when + "）"));
+                logLastResultIfChanged(existing, null, t, name);
                 continue;
             }
             String prevStatus = String.valueOf(prev.get("status"));
@@ -293,7 +294,41 @@ public final class ClientStore {
                 appendClientEvent(existing, "任務【" + name + "】" + taskStatusLabel(prev.get("status"))
                         + " → " + taskStatusLabel(t.get("status")) + detail);
             }
+            logLastResultIfChanged(existing, prev, t, name);
         }
+    }
+
+    /**
+     * 槽位重排後 status 會變回等待中，打卡結果改看 lastResult。
+     * 內容沒變就不記，避免每 15 秒心跳重複刷事件。
+     */
+    private void logLastResultIfChanged(
+            Map<String, Object> existing,
+            Map<String, Object> prev,
+            Map<String, Object> next,
+            String name) {
+        String lastStatus = firstNonEmpty(next.get("lastResultStatus"));
+        if (!"SUCCESS".equals(lastStatus) && !"FAILED".equals(lastStatus)) {
+            return;
+        }
+        String lastMessage = next.get("lastResultMessage") != null
+                ? String.valueOf(next.get("lastResultMessage")) : "";
+        String prevKey = "";
+        if (prev != null) {
+            prevKey = firstNonEmpty(prev.get("lastResultStatus")) + "\0"
+                    + (prev.get("lastResultMessage") != null ? String.valueOf(prev.get("lastResultMessage")) : "");
+        }
+        String nextKey = lastStatus + "\0" + lastMessage;
+        if (prevKey.equals(nextKey)) {
+            return;
+        }
+        if (lastStatus.equals(String.valueOf(next.get("status")))) {
+            return;
+        }
+        String detail = lastMessage.isEmpty() ? "" : "；原因：" + lastMessage;
+        appendClientEvent(existing, "任務【" + name + "】回報打卡結果：" + taskStatusLabel(lastStatus) + detail);
+        String clientId = String.valueOf(existing.getOrDefault("clientId", ""));
+        System.out.println("[Checkin Report] 設備 " + clientId + " 上報打卡結果 (" + lastStatus + "): " + lastMessage);
     }
 
     public List<Map<String, Object>> getTasks(Map<String, Object> client) {
@@ -357,21 +392,27 @@ public final class ClientStore {
         }
         copy.remove("avatar");
         if (copy.get("tasks") instanceof List) {
-            List<Map<String, Object>> tasks = new ArrayList<>();
-            for (Object item : (List<?>) copy.get("tasks")) {
-                if (!(item instanceof Map)) {
-                    tasks.add((Map<String, Object>) item);
-                    continue;
-                }
-                Map<String, Object> task = deepCopy((Map<String, Object>) item);
-                if (task.containsKey("targetUrl")) {
-                    task.put("targetUrl", maskTargetUrl(String.valueOf(task.get("targetUrl"))));
-                }
-                tasks.add(task);
-            }
-            copy.put("tasks", tasks);
+            copy.put("tasks", sanitizeTaskList(copy.get("tasks")));
         }
         return copy;
+    }
+
+    private List<Map<String, Object>> sanitizeTaskList(Object raw) {
+        List<Map<String, Object>> tasks = new ArrayList<>();
+        if (!(raw instanceof List)) {
+            return tasks;
+        }
+        for (Object item : (List<?>) raw) {
+            if (!(item instanceof Map)) {
+                continue;
+            }
+            Map<String, Object> task = deepCopy((Map<String, Object>) item);
+            if (task.containsKey("targetUrl")) {
+                task.put("targetUrl", maskTargetUrl(String.valueOf(task.get("targetUrl"))));
+            }
+            tasks.add(task);
+        }
+        return tasks;
     }
 
     private static String encodePeerMessage(String fromClientId, String text, String avatar) {

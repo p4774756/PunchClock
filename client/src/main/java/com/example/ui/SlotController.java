@@ -555,11 +555,13 @@ public class SlotController {
                 String msg = String.format("[成功] 打卡成功！(觸發: %s, 完成: %s, 耗時: %.1f秒)", triggerTimeStr, finishTimeStr, durationSec);
                 task.setStatus(TaskStatus.SUCCESS);
                 task.setResultMessage(msg);
+                task.rememberLastResult();
                 appendLog.accept("[成功] 【" + task.getName() + "】" + msg);
             } else {
                 String msg = String.format("[失敗] 打卡失敗 (觸發: %s, 耗時: %.1f秒)", triggerTimeStr, durationSec);
                 task.setStatus(TaskStatus.FAILED);
                 task.setResultMessage(msg);
+                task.rememberLastResult();
                 appendLog.accept("[失敗] 【" + task.getName() + "】" + msg);
             }
         } catch (Exception ex) {
@@ -567,6 +569,7 @@ public class SlotController {
             String msg = String.format("[失敗] 打卡失敗：%s (觸發: %s, 耗時: %.1f秒)", sanitizeErrorMessage(ex.getMessage()), triggerTimeStr, durationSec);
             task.setStatus(TaskStatus.FAILED);
             task.setResultMessage(msg);
+            task.rememberLastResult();
             appendLog.accept("[失敗] 【" + task.getName() + "】" + msg);
         } finally {
             onSlotTaskFinished(task, fromScheduler);
@@ -618,7 +621,7 @@ public class SlotController {
         } else {
             setWrappedMetricLabel(refs.triggerLabel, "—");
         }
-        setWrappedMetricLabel(refs.resultLabel, task.getResultMessage());
+        setWrappedMetricLabel(refs.resultLabel, task.getDisplayResultMessage());
         refreshLockedSettingsLabel(refs, task, slot);
     }
 

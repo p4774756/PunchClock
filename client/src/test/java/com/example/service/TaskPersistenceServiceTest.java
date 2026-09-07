@@ -70,6 +70,13 @@ public class TaskPersistenceServiceTest {
         assertEquals("chrome", restored.getBrowserType());
         assertEquals(TaskStatus.SUCCESS, restored.getStatus());
         assertEquals("ok", restored.getResultMessage());
+        restored.rememberLastResult();
+        restored.setStatus(TaskStatus.SCHEDULED);
+        restored.setResultMessage("");
+        persistenceService.saveTasks(Collections.singletonList(restored), null);
+        CheckInTask afterReschedule = persistenceService.loadTasks(null).get(0);
+        assertEquals(TaskStatus.SUCCESS, afterReschedule.getLastResultStatus());
+        assertEquals("ok", afterReschedule.getLastResultMessage());
     }
 
     @Test

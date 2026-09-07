@@ -3,7 +3,6 @@ package com.example.service;
 import com.example.AppVersion;
 import com.example.PeerFileRules;
 import com.example.model.CheckInTask;
-
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -36,9 +35,13 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * 專責與 server 進行單向 HTTP POST 存活與多任務狀態上報
+ * 專責與 server 進行單向 HTTP POST 存活與多任務狀態上報。
+ * 打卡結果存在任務的 lastResult 欄位，跟著一般心跳送；timeout 就等下次 15 秒心跳再帶一次。
  */
 public class HeartbeatService {
+
+    static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
 
     /** 線上同事摘要（由心跳回應 peers[] 解析） */
     public static final class PeerInfo {
@@ -115,7 +118,7 @@ public class HeartbeatService {
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .followRedirects(HttpClient.Redirect.ALWAYS)
-                .connectTimeout(Duration.ofSeconds(8));
+                .connectTimeout(CONNECT_TIMEOUT);
 
         if (trustAllSsl) {
             try {
@@ -205,18 +208,7 @@ public class HeartbeatService {
 
         List<Map<String, Object>> tasksList = new ArrayList<>();
         for (CheckInTask t : tasks) {
-            Map<String, Object> taskMap = new LinkedHashMap<>();
-            taskMap.put("id", t.getId());
-            taskMap.put("name", t.getName());
-            taskMap.put("targetUrl", t.getTargetUrl());
-            taskMap.put("buttonId", t.getButtonId());
-            taskMap.put("targetTime", t.getFormattedTargetTime());
-            taskMap.put("actualTime", t.getFormattedActualTime());
-            taskMap.put("useRandomOffset", t.isUseRandomOffset());
-            taskMap.put("browserType", t.getBrowserType());
-            taskMap.put("status", t.getStatus() != null ? t.getStatus().name() : "PENDING");
-            taskMap.put("message", t.getResultMessage());
-            tasksList.add(taskMap);
+            tasksList.add(toTaskPayload(t));
         }
 
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -235,7 +227,7 @@ public class HeartbeatService {
                     .uri(URI.create(endpoint))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + heartbeatToken)
-                    .timeout(Duration.ofSeconds(8))
+                    .timeout(REQUEST_TIMEOUT)
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
@@ -261,6 +253,25 @@ public class HeartbeatService {
             if (statusCallback != null) statusCallback.accept(false);
             finishHeartbeatSend(logger, statusCallback);
         }
+    }
+
+    static Map<String, Object> toTaskPayload(CheckInTask t) {
+        Map<String, Object> taskMap = new LinkedHashMap<>();
+        taskMap.put("id", t.getId());
+        taskMap.put("name", t.getName());
+        taskMap.put("targetUrl", t.getTargetUrl());
+        taskMap.put("buttonId", t.getButtonId());
+        taskMap.put("targetTime", t.getFormattedTargetTime());
+        taskMap.put("actualTime", t.getFormattedActualTime());
+        taskMap.put("useRandomOffset", t.isUseRandomOffset());
+        taskMap.put("browserType", t.getBrowserType());
+        taskMap.put("status", t.getStatus() != null ? t.getStatus().name() : "PENDING");
+        taskMap.put("message", t.getResultMessage());
+        if (t.getLastResultStatus() != null) {
+            taskMap.put("lastResultStatus", t.getLastResultStatus().name());
+            taskMap.put("lastResultMessage", t.getLastResultMessage());
+        }
+        return taskMap;
     }
 
     private void finishHeartbeatSend(Consumer<String> logger, Consumer<Boolean> statusCallback) {
@@ -658,7 +669,7 @@ public class HeartbeatService {
                     .uri(URI.create(endpoint))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + heartbeatToken)
-                    .timeout(Duration.ofSeconds(8))
+                    .timeout(REQUEST_TIMEOUT)
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
