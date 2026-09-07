@@ -116,10 +116,10 @@ public class App extends JFrame {
                 String avatar = parts.length >= 4 ? parts[3] : "";
                 SwingUtilities.invokeLater(() -> showPeerPoke(fromId, sentAtMs, avatar));
             } else if (command.startsWith("FILE|")) {
-                // FILE|fromId|fileId|size|mime|sentAtMs|filename（filename 可含 |）
+                // FILE|base64fromId|fileId|size|mime|sentAtMs|filename（filename 可含 |）
                 String[] parts = command.split("\\|", 7);
                 if (parts.length >= 7) {
-                    String fromId = parts[1];
+                    String fromId = PeerFileRules.decodeName(parts[1]);
                     String fileId = parts[2];
                     long size = parseLongOrZero(parts[3]);
                     Long sentAtMs = parseEpochMillis(parts[5]);
@@ -672,13 +672,15 @@ public class App extends JFrame {
         }
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("儲存同事傳來的檔案");
-        chooser.setSelectedFile(new java.io.File(safeName));
+        Path downloadDir = PeerFileRules.defaultDownloadDirectory();
+        chooser.setCurrentDirectory(downloadDir.toFile());
+        chooser.setSelectedFile(downloadDir.resolve(safeName).toFile());
         int save = chooser.showSaveDialog(this);
         if (save != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
             appendLog("[檔案] 已取消儲存「" + safeName + "」");
             return;
         }
-        Path dest = chooser.getSelectedFile().toPath();
+        Path dest = PeerFileRules.resolveSavePath(chooser.getSelectedFile().toPath(), safeName);
         if (Files.exists(dest)) {
             int overwrite = JOptionPane.showConfirmDialog(
                     this,
@@ -691,7 +693,14 @@ public class App extends JFrame {
                 return;
             }
         }
-        heartbeatService.downloadPeerFile(fileId, dest, this::appendLog, ok ->
+        StringBuilder failDetail = new StringBuilder();
+        heartbeatService.downloadPeerFile(fileId, dest, msg -> {
+            appendLog(msg);
+            if (msg != null && (msg.contains("[失敗]") || msg.contains("[警告]"))) {
+                failDetail.setLength(0);
+                failDetail.append(msg);
+            }
+        }, ok ->
                 SwingUtilities.invokeLater(() -> {
                     if (ok) {
                         JOptionPane.showMessageDialog(
@@ -700,9 +709,12 @@ public class App extends JFrame {
                                 "檔案已儲存",
                                 JOptionPane.INFORMATION_MESSAGE);
                     } else {
+                        String detail = failDetail.toString().trim();
                         JOptionPane.showMessageDialog(
                                 this,
-                                "下載失敗。檔案可能已過期，或對方尚未連上同一伺服器。",
+                                detail.isEmpty()
+                                        ? "下載失敗。檔案可能已過期，或對方尚未連上同一伺服器。"
+                                        : "下載失敗。\n\n" + detail,
                                 "下載檔案",
                                 JOptionPane.WARNING_MESSAGE);
                     }

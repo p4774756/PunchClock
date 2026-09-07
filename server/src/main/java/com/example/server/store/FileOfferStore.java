@@ -31,8 +31,8 @@ public final class FileOfferStore {
 
     public PutResult put(String fromClientId, String toClientId, String rawFilename, byte[] bytes) {
         purgeExpired();
-        String from = trimToEmpty(fromClientId);
-        String to = trimToEmpty(toClientId);
+        String from = PeerFileRules.normalizeClientId(fromClientId);
+        String to = PeerFileRules.normalizeClientId(toClientId);
         if (from.isEmpty() || to.isEmpty()) {
             return PutResult.fail("缺少收件人或發送者");
         }
@@ -70,7 +70,7 @@ public final class FileOfferStore {
     public GetResult getForRecipient(String fileId, String requesterClientId) {
         purgeExpired();
         String id = trimToEmpty(fileId);
-        String requester = trimToEmpty(requesterClientId);
+        String requester = PeerFileRules.normalizeClientId(requesterClientId);
         if (id.isEmpty() || requester.isEmpty()) {
             return GetResult.notFound("找不到檔案");
         }

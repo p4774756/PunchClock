@@ -67,6 +67,20 @@ public class FileOfferStoreTest {
     }
 
     @Test
+    public void get_matchesMacNfdAndWindowsNfcClientIds() {
+        String nfd = java.text.Normalizer.normalize("café-mac", java.text.Normalizer.Form.NFD);
+        String nfc = java.text.Normalizer.normalize("café-mac", java.text.Normalizer.Form.NFC);
+        assertFalse(nfd.equals(nfc));
+        FileOfferStore.PutResult put = store.put("win", nfd, "a.txt", "p".getBytes(StandardCharsets.UTF_8));
+        assertTrue(put.ok);
+        assertEquals(nfc, put.offer.toClientId);
+        assertEquals(FileOfferStore.GetResult.Status.OK,
+                store.getForRecipient(put.offer.fileId, nfc).status);
+        assertEquals(FileOfferStore.GetResult.Status.OK,
+                store.getForRecipient(put.offer.fileId, nfd).status);
+    }
+
+    @Test
     public void sanitizeUsesBasenameOnly() {
         FileOfferStore.PutResult put = store.put("a", "b", "../../etc/passwd.txt",
                 "p".getBytes(StandardCharsets.UTF_8));
