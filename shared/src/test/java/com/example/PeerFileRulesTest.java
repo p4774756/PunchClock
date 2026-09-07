@@ -2,6 +2,8 @@ package com.example;
 
 import org.junit.Test;
 
+import java.nio.file.Path;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -46,6 +48,23 @@ public class PeerFileRulesTest {
     public void encodeName_roundTripsUnicode() {
         String name = "備忘錄 1.txt";
         assertEquals(name, PeerFileRules.decodeName(PeerFileRules.encodeName(name)));
+    }
+
+    @Test
+    public void normalizeClientId_unifiesMacNfdAndWindowsNfc() {
+        String nfc = java.text.Normalizer.normalize("café-worker", java.text.Normalizer.Form.NFC);
+        String nfd = java.text.Normalizer.normalize("café-worker", java.text.Normalizer.Form.NFD);
+        assertFalse(nfc.equals(nfd));
+        assertEquals(nfc, PeerFileRules.normalizeClientId(nfd));
+        assertEquals(nfc, PeerFileRules.normalizeClientId("  " + nfc + "\uFEFF"));
+    }
+
+    @Test
+    public void resolveSavePath_makesRelativeNamesAbsoluteUnderDownloads() {
+        Path dest = PeerFileRules.resolveSavePath(Path.of("notes.txt"), "notes.txt");
+        assertTrue(dest.isAbsolute());
+        assertEquals("notes.txt", dest.getFileName().toString());
+        assertEquals(PeerFileRules.defaultDownloadDirectory(), dest.getParent());
     }
 
     @Test

@@ -23,6 +23,8 @@ public class HeartbeatServicePeerFileTest {
     private HeartbeatService service;
     private final AtomicReference<byte[]> posted = new AtomicReference<>();
     private final AtomicReference<String> downloadQuery = new AtomicReference<>();
+    private final AtomicReference<String> downloadAuth = new AtomicReference<>();
+    private final AtomicReference<String> downloadClientHeader = new AtomicReference<>();
 
     @Before
     public void setUp() throws Exception {
@@ -46,10 +48,18 @@ public class HeartbeatServicePeerFileTest {
                 exchange.sendResponseHeaders(200, body.length);
                 exchange.getResponseBody().write(body);
             } else {
+                String path = exchange.getRequestURI().getPath();
+                downloadAuth.set(exchange.getRequestHeaders().getFirst("Authorization"));
+                downloadClientHeader.set(exchange.getRequestHeaders().getFirst("X-PunchClock-Client"));
                 downloadQuery.set(exchange.getRequestURI().getRawQuery());
-                byte[] body = "saved".getBytes(StandardCharsets.UTF_8);
-                exchange.sendResponseHeaders(200, body.length);
-                exchange.getResponseBody().write(body);
+                if (!path.endsWith("/data")) {
+                    exchange.getResponseHeaders().add("Location", path + "/data");
+                    exchange.sendResponseHeaders(302, -1);
+                } else {
+                    byte[] body = "saved".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, body.length);
+                    exchange.getResponseBody().write(body);
+                }
             }
             exchange.close();
         });
@@ -124,5 +134,26 @@ public class HeartbeatServicePeerFileTest {
         assertTrue(ok.get());
         assertEquals("saved", Files.readString(dest));
         assertTrue(downloadQuery.get().contains("clientId=worker-a"));
+        assertEquals("Bearer punchclock-dev-secret", downloadAuth.get());
+    }
+
+    @Test
+    public void downloadPeerFile_chineseClientIdUsesAsciiHeader() throws Exception {
+        service.setClientId("王小明");
+        Path dest = Files.createTempFile("peer-download-zh-", ".txt");
+        Files.deleteIfExists(dest);
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicBoolean ok = new AtomicBoolean(false);
+        service.downloadPeerFile("abc123", dest, msg -> {}, success -> {
+            ok.set(Boolean.TRUE.equals(success));
+            done.countDown();
+        });
+        assertTrue(done.await(8, TimeUnit.SECONDS));
+        assertTrue(ok.get());
+        assertTrue(downloadQuery.get().contains("clientId="));
+        assertTrue(downloadQuery.get().contains("%E7%8E%8B") || downloadQuery.get().contains("王小明"));
+        String header = downloadClientHeader.get();
+        assertTrue(header != null && header.chars().allMatch(c -> c >= 0x20 && c <= 0x7e));
+        assertEquals("saved", Files.readString(dest));
     }
 }

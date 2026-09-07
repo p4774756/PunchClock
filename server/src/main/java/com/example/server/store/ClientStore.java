@@ -44,9 +44,10 @@ public final class ClientStore {
     }
 
     public Map<String, Object> getOrCreateClient(String clientId) {
-        return clients.computeIfAbsent(clientId, id -> {
+        String id = PeerFileRules.normalizeClientId(clientId);
+        return clients.computeIfAbsent(id, key -> {
             Map<String, Object> client = new LinkedHashMap<>();
-            client.put("clientId", id);
+            client.put("clientId", key);
             client.put("status", "ONLINE");
             client.put("tasks", new ArrayList<Map<String, Object>>());
             client.put("lastSeen", Instant.now().toString());
@@ -57,11 +58,15 @@ public final class ClientStore {
     }
 
     public void setClient(String clientId, Map<String, Object> clientInfo) {
-        clients.put(clientId, clientInfo);
+        String id = PeerFileRules.normalizeClientId(clientId);
+        if (clientInfo != null) {
+            clientInfo.put("clientId", id);
+        }
+        clients.put(id, clientInfo);
     }
 
     public boolean deleteClient(String clientId) {
-        return clients.remove(clientId) != null;
+        return clients.remove(PeerFileRules.normalizeClientId(clientId)) != null;
     }
 
     public void queueClientAction(String clientId, String action) {
@@ -214,13 +219,14 @@ public final class ClientStore {
 
     public List<Map<String, Object>> peerSnapshot(String excludeClientId) {
         long now = System.currentTimeMillis();
+        String exclude = PeerFileRules.normalizeClientId(excludeClientId);
         List<Map<String, Object>> peers = new ArrayList<>();
         for (Map<String, Object> c : clients.values()) {
             if (c == null || c.get("clientId") == null) {
                 continue;
             }
             String clientId = String.valueOf(c.get("clientId"));
-            if (clientId.equals(excludeClientId)) {
+            if (clientId.equals(exclude)) {
                 continue;
             }
             long lastSeenMs = parseInstantMillis(c.get("lastSeen"));

@@ -117,7 +117,7 @@ public class HeartbeatService {
     private static HttpClient buildHttpClient(boolean trustAllSsl) {
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
-                .followRedirects(HttpClient.Redirect.ALWAYS)
+                .followRedirects(HttpClient.Redirect.NEVER)
                 .connectTimeout(CONNECT_TIMEOUT);
 
         if (trustAllSsl) {
@@ -145,8 +145,9 @@ public class HeartbeatService {
     }
 
     public void setClientId(String newClientId) {
-        if (newClientId != null && !newClientId.trim().isEmpty()) {
-            this.clientId = newClientId.trim();
+        String normalized = PeerFileRules.normalizeClientId(newClientId);
+        if (!normalized.isEmpty()) {
+            this.clientId = normalized;
         }
     }
 
@@ -352,18 +353,19 @@ public class HeartbeatService {
             log(logger, "[通知] [戳] 【" + fromId + "】戳了你");
             commandListener.accept("POKE|" + fromId + "|" + sentAtMs + "|" + avatar);
         } else if (action.startsWith("FILE|")) {
-            // FILE|fromId|fileId|base64name|size|mime|epochMs
-            String[] parts = action.split("\\|", 7);
-            if (parts.length >= 6) {
-                String fromId = parts[1];
-                String fileId = parts[2];
-                String filename = PeerFileRules.decodeName(parts[3]);
-                String size = parts[4];
-                String mime = parts[5];
-                String sentAtMs = parts.length >= 7 ? parts[6].trim() : "";
+            // FILE|fromId|fileId|base64name|size|mime|epochMs（fromId 可含 |）
+            String[] parts = splitPeerFileAction(action);
+            if (parts.length == 6) {
+                String fromId = parts[0];
+                String fileId = parts[1];
+                String filename = PeerFileRules.decodeName(parts[2]);
+                String size = parts[3];
+                String mime = parts[4];
+                String sentAtMs = parts[5];
                 log(logger, "[檔案] 收到來自【" + fromId + "】的檔案：" + filename);
                 commandListener.accept(
-                        "FILE|" + fromId + "|" + fileId + "|" + size + "|" + mime + "|" + sentAtMs + "|" + filename);
+                        "FILE|" + PeerFileRules.encodeName(fromId) + "|" + fileId + "|" + size
+                                + "|" + mime + "|" + sentAtMs + "|" + filename);
             }
         } else {
             log(logger, "[警告] [HTTP 心跳] 收到未支援的遠端指令: " + action);
@@ -504,9 +506,9 @@ public class HeartbeatService {
 
         String mime = PeerFileRules.mimeFor(filename);
         String boundary = "PunchClockFile" + UUID.randomUUID().toString().replace("-", "");
-        byte[] body = buildMultipart(boundary, Map.of(
+        byte[] body = buildMultipart(boundary, orderedFields(
                 "fromClientId", clientId,
-                "toClientId", toClientId.trim(),
+                "toClientId", PeerFileRules.normalizeClientId(toClientId),
                 "filename", filename
         ), filename, mime, bytes);
 
@@ -560,17 +562,12 @@ public class HeartbeatService {
             return;
         }
 
+        Path dest = PeerFileRules.resolveSavePath(destination, destination.getFileName() != null
+                ? destination.getFileName().toString() : "download");
         String endpoint = serverUrl + "/api/peer/file/" + urlEncode(fileId.trim())
                 + "?clientId=" + urlEncode(clientId);
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(endpoint))
-                    .header("Authorization", "Bearer " + heartbeatToken)
-                    .header("X-PunchClock-Client", clientId)
-                    .timeout(Duration.ofSeconds(60))
-                    .GET()
-                    .build();
-            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
+            sendGetPreservingAuth(URI.create(endpoint), logger)
                     .thenAccept(response -> {
                         if (response.statusCode() != 200) {
                             String serverMessage = extractJsonMessage(
@@ -581,12 +578,12 @@ public class HeartbeatService {
                             return;
                         }
                         try {
-                            Path parent = destination.getParent();
+                            Path parent = dest.getParent();
                             if (parent != null) {
                                 Files.createDirectories(parent);
                             }
-                            Files.write(destination, response.body());
-                            log(logger, "[成功] [檔案] 已儲存：" + destination.toAbsolutePath()
+                            Files.write(dest, response.body());
+                            log(logger, "[成功] [檔案] 已儲存：" + dest.toAbsolutePath()
                                     + "（" + PeerFileRules.formatSize(response.body().length) + "）");
                             if (callback != null) callback.accept(true);
                         } catch (Exception ex) {
@@ -595,7 +592,8 @@ public class HeartbeatService {
                         }
                     })
                     .exceptionally(ex -> {
-                        log(logger, "[失敗] [檔案] 下載異常：" + ex.getMessage());
+                        Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                        log(logger, "[失敗] [檔案] 下載異常：" + cause.getMessage());
                         if (callback != null) callback.accept(false);
                         return null;
                     });
@@ -603,6 +601,112 @@ public class HeartbeatService {
             log(logger, "[失敗] [檔案] 下載異常：" + ex.getMessage());
             if (callback != null) callback.accept(false);
         }
+    }
+
+    private HttpRequest buildDownloadRequest(URI uri) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(uri)
+                .header("Authorization", "Bearer " + heartbeatToken)
+                .timeout(Duration.ofSeconds(60))
+                .GET();
+        // JDK 17+（Mac 常見）不接受非 ASCII header；Worker ID 只放 URL-safe 編碼。
+        String encodedClient = urlEncode(clientId);
+        if (isAsciiHeaderValue(encodedClient)) {
+            builder.header("X-PunchClock-Client", encodedClient);
+        }
+        return builder.build();
+    }
+
+    private java.util.concurrent.CompletableFuture<HttpResponse<byte[]>> sendGetPreservingAuth(
+            URI uri, Consumer<String> logger) {
+        return httpClient.sendAsync(buildDownloadRequest(uri), HttpResponse.BodyHandlers.ofByteArray())
+                .thenCompose(response -> {
+                    int code = response.statusCode();
+                    if (code < 300 || code >= 400) {
+                        return java.util.concurrent.CompletableFuture.completedFuture(response);
+                    }
+                    String location = response.headers().firstValue("Location").orElse("").trim();
+                    if (location.isEmpty()) {
+                        return java.util.concurrent.CompletableFuture.completedFuture(response);
+                    }
+                    URI next;
+                    try {
+                        next = uri.resolve(location);
+                        if ((next.getRawQuery() == null || next.getRawQuery().isEmpty())
+                                && uri.getRawQuery() != null && !uri.getRawQuery().isEmpty()) {
+                            String rebuilt = next.getScheme() + "://" + next.getRawAuthority()
+                                    + next.getRawPath() + "?" + uri.getRawQuery();
+                            if (next.getRawFragment() != null) {
+                                rebuilt += "#" + next.getRawFragment();
+                            }
+                            next = URI.create(rebuilt);
+                        }
+                    } catch (Exception ex) {
+                        return java.util.concurrent.CompletableFuture.completedFuture(response);
+                    }
+                    if (!sameOrigin(uri, next)) {
+                        log(logger, "[警告] [檔案] 下載轉址跨網域，已中止：" + next);
+                        return java.util.concurrent.CompletableFuture.completedFuture(response);
+                    }
+                    return httpClient.sendAsync(buildDownloadRequest(next), HttpResponse.BodyHandlers.ofByteArray());
+                });
+    }
+
+    private static boolean sameOrigin(URI from, URI to) {
+        if (from == null || to == null || to.getHost() == null) {
+            return false;
+        }
+        String fromHost = from.getHost() == null ? "" : from.getHost();
+        if (!fromHost.equalsIgnoreCase(to.getHost())) {
+            return false;
+        }
+        return effectivePort(from) == effectivePort(to)
+                && java.util.Objects.equals(from.getScheme(), to.getScheme());
+    }
+
+    private static int effectivePort(URI uri) {
+        if (uri.getPort() > 0) {
+            return uri.getPort();
+        }
+        return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+    }
+
+    private static boolean isAsciiHeaderValue(String value) {
+        if (value == null) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c < 0x20 || c > 0x7e) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static String[] splitPeerFileAction(String action) {
+        if (action == null || !action.startsWith("FILE|")) {
+            return new String[0];
+        }
+        String[] parts = action.split("\\|", -1);
+        if (parts.length < 7) {
+            return new String[0];
+        }
+        String sentAtMs = parts[parts.length - 1].trim();
+        String mime = parts[parts.length - 2];
+        String size = parts[parts.length - 3];
+        String encodedName = parts[parts.length - 4];
+        String fileId = parts[parts.length - 5];
+        String fromId = String.join("|", java.util.Arrays.copyOfRange(parts, 1, parts.length - 5));
+        return new String[]{fromId, fileId, encodedName, size, mime, sentAtMs};
+    }
+
+    private static Map<String, String> orderedFields(String... keyValues) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        for (int i = 0; i + 1 < keyValues.length; i += 2) {
+            fields.put(keyValues[i], keyValues[i + 1]);
+        }
+        return fields;
     }
 
     private static byte[] buildMultipart(String boundary, Map<String, String> fields,
@@ -616,15 +720,18 @@ public class HeartbeatService {
                 out.write(("Content-Disposition: form-data; name=\"" + field.getKey() + "\"")
                         .getBytes(StandardCharsets.UTF_8));
                 out.write(crlf);
+                out.write("Content-Type: text/plain; charset=UTF-8".getBytes(StandardCharsets.UTF_8));
+                out.write(crlf);
                 out.write(crlf);
                 out.write(field.getValue().getBytes(StandardCharsets.UTF_8));
                 out.write(crlf);
             }
             out.write(("--" + boundary).getBytes(StandardCharsets.UTF_8));
             out.write(crlf);
-            String asciiName = filename.replace("\"", "");
-            out.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + asciiName + "\"")
-                    .getBytes(StandardCharsets.UTF_8));
+            String asciiName = asciiMultipartFilename(filename);
+            String encodedName = urlEncode(filename == null ? "" : filename).replace("+", "%20");
+            out.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + asciiName
+                    + "\"; filename*=UTF-8''" + encodedName).getBytes(StandardCharsets.UTF_8));
             out.write(crlf);
             out.write(("Content-Type: " + (mime == null || mime.isBlank() ? "application/octet-stream" : mime))
                     .getBytes(StandardCharsets.UTF_8));
@@ -638,6 +745,23 @@ public class HeartbeatService {
         } catch (java.io.IOException ex) {
             throw new IllegalStateException("無法組裝上傳內容", ex);
         }
+    }
+
+    private static String asciiMultipartFilename(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return "download";
+        }
+        StringBuilder sb = new StringBuilder(filename.length());
+        for (int i = 0; i < filename.length(); i++) {
+            char c = filename.charAt(i);
+            if (c >= 0x20 && c < 0x7f && c != '"' && c != '\\') {
+                sb.append(c);
+            } else {
+                sb.append('_');
+            }
+        }
+        String ascii = sb.toString().trim();
+        return ascii.isEmpty() ? "download" : ascii;
     }
 
     private static String extractJsonMessage(String body) {

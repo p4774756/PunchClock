@@ -62,6 +62,31 @@ public class ServerAppPeerFileTest {
         assertEquals(200, download.statusCode());
         assertEquals("peer-file-body", new String(download.body(), StandardCharsets.UTF_8));
         assertTrue(download.headers().firstValue("Content-Disposition").orElse("").contains("filename"));
+        assertEquals("application/octet-stream",
+                download.headers().firstValue("Content-Type").orElse("").split(";")[0].trim());
+    }
+
+    @Test
+    public void unicodeRecipientCanDownloadEvenWhenNormalizationDiffers() throws Exception {
+        String nfd = java.text.Normalizer.normalize("café-mac", java.text.Normalizer.Form.NFD);
+        String nfc = java.text.Normalizer.normalize("café-mac", java.text.Normalizer.Form.NFC);
+        byte[] payload = "from-windows".getBytes(StandardCharsets.UTF_8);
+        HttpResponse<String> upload = postFile("win-pc", nfd, "notes.txt", payload);
+        assertEquals(200, upload.statusCode());
+        String fileId = JsonParser.parseString(upload.body()).getAsJsonObject().get("fileId").getAsString();
+
+        HttpResponse<byte[]> download = download(fileId, nfc);
+        assertEquals(200, download.statusCode());
+        assertEquals("from-windows", new String(download.body(), StandardCharsets.UTF_8));
+
+        HttpResponse<byte[]> encodedHeader = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/peer/file/" + fileId))
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .header("X-PunchClock-Client",
+                                java.net.URLEncoder.encode(nfc, StandardCharsets.UTF_8))
+                        .GET().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, encodedHeader.statusCode());
     }
 
     @Test
@@ -112,8 +137,9 @@ public class ServerAppPeerFileTest {
     }
 
     private HttpResponse<byte[]> download(String fileId, String clientId) throws Exception {
+        String encoded = java.net.URLEncoder.encode(clientId, StandardCharsets.UTF_8);
         HttpRequest request = HttpRequest.newBuilder(
-                        URI.create(base + "/api/peer/file/" + fileId + "?clientId=" + clientId))
+                        URI.create(base + "/api/peer/file/" + fileId + "?clientId=" + encoded))
                 .header("Authorization", "Bearer " + TOKEN)
                 .timeout(Duration.ofSeconds(5))
                 .GET()

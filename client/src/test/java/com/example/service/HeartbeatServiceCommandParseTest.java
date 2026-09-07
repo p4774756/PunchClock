@@ -1,5 +1,6 @@
 package com.example.service;
 
+import com.example.PeerFileRules;
 import org.junit.Test;
 
 import java.lang.reflect.Method;
@@ -165,6 +166,27 @@ public class HeartbeatServiceCommandParseTest {
                 (Consumer<String>) msg -> {});
 
         assertEquals(1, received.size());
-        assertEquals("FILE|worker-a|abc123|12|text/plain|1693728000000|備忘.txt", received.get(0));
+        assertEquals("FILE|" + PeerFileRules.encodeName("worker-a")
+                + "|abc123|12|text/plain|1693728000000|備忘.txt", received.get(0));
+    }
+
+    @Test
+    public void parseServerCommand_peerFileFromIdMayContainPipe() throws Exception {
+        HeartbeatService service = new HeartbeatService();
+        List<String> received = new ArrayList<>();
+        service.setCommandListener(received::add);
+
+        Method method = HeartbeatService.class.getDeclaredMethod(
+                "parseServerCommand", String.class, Consumer.class);
+        method.setAccessible(true);
+
+        String encoded = PeerFileRules.encodeName("notes.txt");
+        method.invoke(service,
+                "{\"actions\":[\"FILE|WIN|LAB|fileid99|" + encoded + "|4|text/plain|1693728000000\"]}",
+                (Consumer<String>) msg -> {});
+
+        assertEquals(1, received.size());
+        assertEquals("FILE|" + PeerFileRules.encodeName("WIN|LAB")
+                + "|fileid99|4|text/plain|1693728000000|notes.txt", received.get(0));
     }
 }

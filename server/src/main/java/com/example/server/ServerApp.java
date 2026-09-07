@@ -25,7 +25,6 @@ import io.javalin.http.staticfiles.Location;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -362,7 +361,9 @@ public final class ServerApp {
         }
         GetResult result = fileOfferStore.getForRecipient(
                 ctx.pathParam("fileId"),
-                firstNonEmptyForm(ctx.queryParam("clientId"), ctx.header("X-PunchClock-Client"))
+                firstNonEmptyForm(
+                        ctx.queryParam("clientId"),
+                        decodeHeaderClientId(ctx.header("X-PunchClock-Client")))
         );
         if (result.status == GetResult.Status.FORBIDDEN) {
             ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", result.message));
@@ -373,16 +374,19 @@ public final class ServerApp {
             return;
         }
         FileOfferStore.Offer offer = result.offer;
-        ctx.contentType(offer.mime);
+        ctx.contentType("application/octet-stream");
         ctx.header("Content-Disposition", contentDisposition(offer.filename));
         ctx.header("X-PunchClock-Filename", PeerFileRules.encodeName(offer.filename));
+        ctx.header("X-PunchClock-Mime", offer.mime == null || offer.mime.isBlank()
+                ? "application/octet-stream" : offer.mime);
+        ctx.header("X-Content-Type-Options", "nosniff");
         ctx.result(offer.bytes);
     }
 
     private static String contentDisposition(String filename) {
         String safe = filename == null ? "download" : filename.replace("\"", "").replace("\r", "").replace("\n", "");
-        String encoded = URLEncoder.encode(safe, StandardCharsets.UTF_8).replace("+", "%20");
-        return "attachment; filename=\"" + asciiFilename(safe) + "\"; filename*=UTF-8''" + encoded;
+        // 只放 ASCII filename，避免部分 JDK HttpClient 解析 filename* 失敗而整份下載作廢。
+        return "attachment; filename=\"" + asciiFilename(safe) + "\"";
     }
 
     private static String asciiFilename(String filename) {
@@ -412,6 +416,17 @@ public final class ServerApp {
             }
         }
         return "";
+    }
+
+    private static String decodeHeaderClientId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        try {
+            return java.net.URLDecoder.decode(raw.trim(), StandardCharsets.UTF_8);
+        } catch (Exception ex) {
+            return raw.trim();
+        }
     }
 
     private void status(Context ctx) {

@@ -1,6 +1,9 @@
 package com.example;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.text.Normalizer;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Map;
@@ -120,5 +123,47 @@ public final class PeerFileRules {
         } catch (IllegalArgumentException ex) {
             return encoded;
         }
+    }
+
+    /**
+     * Worker ID 在 Mac（常見 NFD）與 Windows（常見 NFC）會是「看起來一樣、位元組不同」的字串。
+     * 下載時必須與上傳時寫入的 toClientId 完全相等，否則伺服器會當成無權限／找不到檔案。
+     */
+    public static String normalizeClientId(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String trimmed = raw.replace("\uFEFF", "").trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        return Normalizer.normalize(trimmed, Normalizer.Form.NFC);
+    }
+
+    /** Mac 從 Finder 啟動時 cwd 常是「/」，相對檔名寫不進去；預設改存使用者下載資料夾。 */
+    public static Path defaultDownloadDirectory() {
+        Path home = Path.of(System.getProperty("user.home", "."));
+        Path downloads = home.resolve("Downloads");
+        try {
+            if (Files.isDirectory(downloads)) {
+                return downloads.toAbsolutePath().normalize();
+            }
+        } catch (Exception ignored) {
+            // 權限或雲端碟掛載異常時退回家目錄
+        }
+        return home.toAbsolutePath().normalize();
+    }
+
+    public static Path resolveSavePath(Path selected, String fallbackName) {
+        String name = sanitizeFilename(fallbackName);
+        if (name.isEmpty()) {
+            name = "download";
+        }
+        Path path = selected != null ? selected : Path.of(name);
+        if (!path.isAbsolute()) {
+            Path fileName = path.getFileName();
+            path = defaultDownloadDirectory().resolve(fileName != null ? fileName : Path.of(name));
+        }
+        return path.toAbsolutePath().normalize();
     }
 }
