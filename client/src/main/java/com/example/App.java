@@ -1,6 +1,7 @@
 package com.example;
 
 import com.example.model.TaskStatus;
+import com.example.PeerFileRules;
 import com.example.service.SpeechService;
 import com.example.service.AutomationService;
 import com.example.service.ConfigPersistenceService;
@@ -23,6 +24,7 @@ import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -113,6 +115,18 @@ public class App extends JFrame {
                 Long sentAtMs = parts.length >= 3 ? parseEpochMillis(parts[2]) : null;
                 String avatar = parts.length >= 4 ? parts[3] : "";
                 SwingUtilities.invokeLater(() -> showPeerPoke(fromId, sentAtMs, avatar));
+            } else if (command.startsWith("FILE|")) {
+                // FILE|fromId|fileId|size|mime|sentAtMs|filename（filename 可含 |）
+                String[] parts = command.split("\\|", 7);
+                if (parts.length >= 7) {
+                    String fromId = parts[1];
+                    String fileId = parts[2];
+                    long size = parseLongOrZero(parts[3]);
+                    Long sentAtMs = parseEpochMillis(parts[5]);
+                    String filename = parts[6];
+                    SwingUtilities.invokeLater(() ->
+                            showPeerFileOffer(fromId, fileId, filename, size, sentAtMs));
+                }
             }
         });
     }
@@ -201,7 +215,7 @@ public class App extends JFrame {
         tabs.addTab("Ping/Pong", PanelFactory.createHelpPanel(mainFont, boldFont, fieldFont));
         tabs.setToolTipTextAt(0, "設定打卡網址、時間，立即測試");
         tabs.setToolTipTextAt(1, "雲端心跳、Client ID、Token");
-        tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下");
+        tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案");
         tabs.setToolTipTextAt(3, "用 curl 測試 Server 的 /ping API 是否回 pong");
         tabs.setSelectedIndex(0);
 
@@ -355,6 +369,9 @@ public class App extends JFrame {
         if (peerRefs.pokeButton != null) {
             peerRefs.pokeButton.addActionListener(e -> pokeSelectedPeer());
         }
+        if (peerRefs.sendFileButton != null) {
+            peerRefs.sendFileButton.addActionListener(e -> sendFileToSelectedPeer());
+        }
         if (peerRefs.messageField != null) {
             peerRefs.messageField.addActionListener(e -> sendMessageToSelectedPeer());
         }
@@ -403,6 +420,44 @@ public class App extends JFrame {
             return;
         }
         heartbeatService.sendPeerPoke(toClientId, this::appendLog, null);
+    }
+
+    private void sendFileToSelectedPeer() {
+        String toClientId = getSelectedPeerClientId();
+        if (toClientId == null) {
+            appendLog("[警告] [檔案] 請先在列表中選擇一位同事");
+            return;
+        }
+        if (isSelfClientId(toClientId)) {
+            appendLog("[警告] [檔案] 無法傳送檔案給本機");
+            return;
+        }
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("選擇要傳送的檔案");
+        chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                "可傳送的檔案（" + PeerFileRules.MAX_SIZE_LABEL + " 內）",
+                PeerFileRules.ALLOWED_EXTENSIONS.toArray(new String[0])));
+        int result = chooser.showOpenDialog(this);
+        if (result != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
+            return;
+        }
+        Path file = chooser.getSelectedFile().toPath();
+        if (peerRefs.sendFileButton != null) {
+            peerRefs.sendFileButton.setEnabled(false);
+        }
+        heartbeatService.sendPeerFile(toClientId, file, this::appendLog, ok ->
+                SwingUtilities.invokeLater(() -> {
+                    if (peerRefs.sendFileButton != null) {
+                        peerRefs.sendFileButton.setEnabled(isCloudEnabled());
+                    }
+                    if (!ok) {
+                        JOptionPane.showMessageDialog(
+                                this,
+                                "檔案沒有送出。請確認類型為 " + PeerFileRules.allowedTypesHint() + "。",
+                                "傳送檔案",
+                                JOptionPane.WARNING_MESSAGE);
+                    }
+                }));
     }
 
     private void updatePeerTable(java.util.List<PeerInfo> peers) {
@@ -535,6 +590,9 @@ public class App extends JFrame {
         if (peerRefs.pokeButton != null) {
             peerRefs.pokeButton.setEnabled(enabled);
         }
+        if (peerRefs.sendFileButton != null) {
+            peerRefs.sendFileButton.setEnabled(enabled);
+        }
     }
 
     private String formatPeerRowId(String clientId, boolean self) {
@@ -589,6 +647,66 @@ public class App extends JFrame {
                     JOptionPane.PLAIN_MESSAGE,
                     peerDialogIcon(avatar));
         });
+    }
+
+    private void showPeerFileOffer(String fromId, String fileId, String filename, long size, Long sentAtMs) {
+        String timeLabel = formatPeerMessageTime(sentAtMs);
+        String safeName = PeerFileRules.sanitizeFilename(filename);
+        if (safeName.isEmpty()) {
+            safeName = "download";
+        }
+        String sizeLabel = PeerFileRules.formatSize(Math.max(0, size));
+        appendLog("[檔案] （" + timeLabel + "）【" + fromId + "】傳來「" + safeName + "」（" + sizeLabel + "）");
+        Toolkit.getDefaultToolkit().beep();
+        WindowShake.bringToFront(this);
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                timeLabel + "\n\n【" + fromId + "】傳來檔案：\n" + safeName + "（" + sizeLabel + "）\n\n"
+                        + "要儲存到本機嗎？檔案會在伺服器上保留約 10 分鐘。",
+                "同事傳來檔案 · " + fromId,
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE);
+        if (choice != JOptionPane.YES_OPTION) {
+            appendLog("[檔案] 已略過「" + safeName + "」");
+            return;
+        }
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("儲存同事傳來的檔案");
+        chooser.setSelectedFile(new java.io.File(safeName));
+        int save = chooser.showSaveDialog(this);
+        if (save != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
+            appendLog("[檔案] 已取消儲存「" + safeName + "」");
+            return;
+        }
+        Path dest = chooser.getSelectedFile().toPath();
+        if (Files.exists(dest)) {
+            int overwrite = JOptionPane.showConfirmDialog(
+                    this,
+                    "檔案已存在，要覆蓋嗎？\n" + dest.toAbsolutePath(),
+                    "儲存檔案",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+            if (overwrite != JOptionPane.YES_OPTION) {
+                appendLog("[檔案] 已取消覆蓋「" + dest.getFileName() + "」");
+                return;
+            }
+        }
+        heartbeatService.downloadPeerFile(fileId, dest, this::appendLog, ok ->
+                SwingUtilities.invokeLater(() -> {
+                    if (ok) {
+                        JOptionPane.showMessageDialog(
+                                this,
+                                "已儲存：\n" + dest.toAbsolutePath(),
+                                "檔案已儲存",
+                                JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(
+                                this,
+                                "下載失敗。檔案可能已過期，或對方尚未連上同一伺服器。",
+                                "下載檔案",
+                                JOptionPane.WARNING_MESSAGE);
+                    }
+                }));
     }
 
     private Icon peerDialogIcon(String avatarEncoded) {
@@ -669,6 +787,17 @@ public class App extends JFrame {
             return Long.parseLong(raw.trim());
         } catch (NumberFormatException ex) {
             return null;
+        }
+    }
+
+    private static long parseLongOrZero(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return 0L;
+        }
+        try {
+            return Long.parseLong(raw.trim());
+        } catch (NumberFormatException ex) {
+            return 0L;
         }
     }
 

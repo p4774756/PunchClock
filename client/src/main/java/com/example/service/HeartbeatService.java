@@ -1,6 +1,7 @@
 package com.example.service;
 
 import com.example.AppVersion;
+import com.example.PeerFileRules;
 import com.example.model.CheckInTask;
 
 import com.google.gson.Gson;
@@ -11,10 +12,13 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -23,6 +27,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -335,6 +340,20 @@ public class HeartbeatService {
             String avatar = parts.length >= 4 ? parts[3].trim() : "";
             log(logger, "[通知] [戳] 【" + fromId + "】戳了你");
             commandListener.accept("POKE|" + fromId + "|" + sentAtMs + "|" + avatar);
+        } else if (action.startsWith("FILE|")) {
+            // FILE|fromId|fileId|base64name|size|mime|epochMs
+            String[] parts = action.split("\\|", 7);
+            if (parts.length >= 6) {
+                String fromId = parts[1];
+                String fileId = parts[2];
+                String filename = PeerFileRules.decodeName(parts[3]);
+                String size = parts[4];
+                String mime = parts[5];
+                String sentAtMs = parts.length >= 7 ? parts[6].trim() : "";
+                log(logger, "[檔案] 收到來自【" + fromId + "】的檔案：" + filename);
+                commandListener.accept(
+                        "FILE|" + fromId + "|" + fileId + "|" + size + "|" + mime + "|" + sentAtMs + "|" + filename);
+            }
         } else {
             log(logger, "[警告] [HTTP 心跳] 收到未支援的遠端指令: " + action);
         }
@@ -425,6 +444,209 @@ public class HeartbeatService {
         }
         postPeerApi("/api/peer/poke", payload, logger, callback,
                 "戳一下給【" + toClientId.trim() + "】");
+    }
+
+    /**
+     * 傳送檔案給同事（經伺服器暫存，對方心跳收到通知後再下載）。
+     */
+    public void sendPeerFile(String toClientId, Path file, Consumer<String> logger, Consumer<Boolean> callback) {
+        if (!isServiceActive || serverUrl.isBlank()) {
+            log(logger, "[警告] [檔案] 雲端未連線，無法傳送檔案");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+        if (toClientId == null || toClientId.isBlank()) {
+            log(logger, "[警告] [檔案] 請選擇收件同事");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+        if (file == null || !Files.isRegularFile(file)) {
+            log(logger, "[警告] [檔案] 找不到要傳送的檔案");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+
+        String filename = PeerFileRules.sanitizeFilename(
+                file.getFileName() != null ? file.getFileName().toString() : "");
+        if (filename.isEmpty() || !PeerFileRules.isAllowedFilename(filename)) {
+            log(logger, "[警告] [檔案] 不支援的檔案類型，請改傳 " + PeerFileRules.allowedTypesHint());
+            if (callback != null) callback.accept(false);
+            return;
+        }
+
+        byte[] bytes;
+        try {
+            long size = Files.size(file);
+            if (!PeerFileRules.isAllowedSize(size)) {
+                log(logger, size <= 0
+                        ? "[警告] [檔案] 檔案不可為空"
+                        : "[警告] [檔案] 檔案不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
+                if (callback != null) callback.accept(false);
+                return;
+            }
+            bytes = Files.readAllBytes(file);
+        } catch (Exception ex) {
+            log(logger, "[失敗] [檔案] 讀取檔案失敗：" + ex.getMessage());
+            if (callback != null) callback.accept(false);
+            return;
+        }
+
+        String mime = PeerFileRules.mimeFor(filename);
+        String boundary = "PunchClockFile" + UUID.randomUUID().toString().replace("-", "");
+        byte[] body = buildMultipart(boundary, Map.of(
+                "fromClientId", clientId,
+                "toClientId", toClientId.trim(),
+                "filename", filename
+        ), filename, mime, bytes);
+
+        String endpoint = serverUrl + "/api/peer/file";
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(endpoint))
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .header("Authorization", "Bearer " + heartbeatToken)
+                    .timeout(Duration.ofSeconds(60))
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(body))
+                    .build();
+            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .thenAccept(response -> {
+                        boolean ok = response.statusCode() == 200;
+                        if (ok) {
+                            log(logger, "[成功] [檔案] 已送出「" + filename + "」給【" + toClientId.trim()
+                                    + "】（" + PeerFileRules.formatSize(bytes.length) + "）");
+                        } else {
+                            String serverMessage = extractJsonMessage(response.body());
+                            log(logger, "[失敗] [檔案] 送出「" + filename + "」失敗，狀態碼："
+                                    + response.statusCode()
+                                    + (serverMessage.isEmpty() ? "" : "，" + serverMessage));
+                        }
+                        if (callback != null) callback.accept(ok);
+                    })
+                    .exceptionally(ex -> {
+                        log(logger, "[失敗] [檔案] 送出「" + filename + "」異常：" + ex.getMessage());
+                        if (callback != null) callback.accept(false);
+                        return null;
+                    });
+        } catch (Exception ex) {
+            log(logger, "[失敗] [檔案] 送出「" + filename + "」異常：" + ex.getMessage());
+            if (callback != null) callback.accept(false);
+        }
+    }
+
+    /**
+     * 下載同事傳來的檔案（需為收件人）。
+     */
+    public void downloadPeerFile(String fileId, Path destination,
+                                 Consumer<String> logger, Consumer<Boolean> callback) {
+        if (!isServiceActive || serverUrl.isBlank()) {
+            log(logger, "[警告] [檔案] 雲端未連線，無法下載");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+        if (fileId == null || fileId.isBlank() || destination == null) {
+            log(logger, "[警告] [檔案] 缺少檔案編號或儲存路徑");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+
+        String endpoint = serverUrl + "/api/peer/file/" + urlEncode(fileId.trim())
+                + "?clientId=" + urlEncode(clientId);
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(endpoint))
+                    .header("Authorization", "Bearer " + heartbeatToken)
+                    .header("X-PunchClock-Client", clientId)
+                    .timeout(Duration.ofSeconds(60))
+                    .GET()
+                    .build();
+            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
+                    .thenAccept(response -> {
+                        if (response.statusCode() != 200) {
+                            String serverMessage = extractJsonMessage(
+                                    new String(response.body(), StandardCharsets.UTF_8));
+                            log(logger, "[失敗] [檔案] 下載失敗，狀態碼：" + response.statusCode()
+                                    + (serverMessage.isEmpty() ? "" : "，" + serverMessage));
+                            if (callback != null) callback.accept(false);
+                            return;
+                        }
+                        try {
+                            Path parent = destination.getParent();
+                            if (parent != null) {
+                                Files.createDirectories(parent);
+                            }
+                            Files.write(destination, response.body());
+                            log(logger, "[成功] [檔案] 已儲存：" + destination.toAbsolutePath()
+                                    + "（" + PeerFileRules.formatSize(response.body().length) + "）");
+                            if (callback != null) callback.accept(true);
+                        } catch (Exception ex) {
+                            log(logger, "[失敗] [檔案] 寫入本機失敗：" + ex.getMessage());
+                            if (callback != null) callback.accept(false);
+                        }
+                    })
+                    .exceptionally(ex -> {
+                        log(logger, "[失敗] [檔案] 下載異常：" + ex.getMessage());
+                        if (callback != null) callback.accept(false);
+                        return null;
+                    });
+        } catch (Exception ex) {
+            log(logger, "[失敗] [檔案] 下載異常：" + ex.getMessage());
+            if (callback != null) callback.accept(false);
+        }
+    }
+
+    private static byte[] buildMultipart(String boundary, Map<String, String> fields,
+                                         String filename, String mime, byte[] fileBytes) {
+        try {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] crlf = "\r\n".getBytes(StandardCharsets.UTF_8);
+            for (Map.Entry<String, String> field : fields.entrySet()) {
+                out.write(("--" + boundary).getBytes(StandardCharsets.UTF_8));
+                out.write(crlf);
+                out.write(("Content-Disposition: form-data; name=\"" + field.getKey() + "\"")
+                        .getBytes(StandardCharsets.UTF_8));
+                out.write(crlf);
+                out.write(crlf);
+                out.write(field.getValue().getBytes(StandardCharsets.UTF_8));
+                out.write(crlf);
+            }
+            out.write(("--" + boundary).getBytes(StandardCharsets.UTF_8));
+            out.write(crlf);
+            String asciiName = filename.replace("\"", "");
+            out.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + asciiName + "\"")
+                    .getBytes(StandardCharsets.UTF_8));
+            out.write(crlf);
+            out.write(("Content-Type: " + (mime == null || mime.isBlank() ? "application/octet-stream" : mime))
+                    .getBytes(StandardCharsets.UTF_8));
+            out.write(crlf);
+            out.write(crlf);
+            out.write(fileBytes);
+            out.write(crlf);
+            out.write(("--" + boundary + "--").getBytes(StandardCharsets.UTF_8));
+            out.write(crlf);
+            return out.toByteArray();
+        } catch (java.io.IOException ex) {
+            throw new IllegalStateException("無法組裝上傳內容", ex);
+        }
+    }
+
+    private static String extractJsonMessage(String body) {
+        if (body == null || body.isBlank()) {
+            return "";
+        }
+        try {
+            JsonObject json = JsonParser.parseString(body).getAsJsonObject();
+            if (json.has("message") && json.get("message").isJsonPrimitive()) {
+                String message = json.get("message").getAsString();
+                return message != null ? message.trim() : "";
+            }
+        } catch (Exception ignored) {
+            // 非 JSON 錯誤頁時忽略
+        }
+        return "";
+    }
+
+    private static String urlEncode(String value) {
+        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
     }
 
     private void postPeerApi(String path, Map<String, Object> payload,

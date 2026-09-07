@@ -1,5 +1,6 @@
 package com.example.server.store;
 
+import com.example.PeerFileRules;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -156,5 +157,49 @@ public class ClientStoreTest {
         store.getOrCreateClient("b");
         assertEquals(1, store.peerSnapshot("a").size());
         assertEquals("b", store.peerSnapshot("a").get(0).get("clientId"));
+    }
+
+    @Test
+    public void peerFileCannotTargetSelf() {
+        FileOfferStore files = new FileOfferStore();
+        FileOfferStore.PutResult stored = files.put("a", "b", "notes.txt", "hi".getBytes());
+        assertTrue(stored.ok);
+        ClientStore.PeerResult result = store.queuePeerFile("a", "a", stored.offer);
+        assertFalse(result.ok);
+        assertEquals("不能傳送檔案給自己", result.message);
+    }
+
+    @Test
+    public void peerFileActionIncludesMetadataAndUsesLongerTtl() {
+        FileOfferStore files = new FileOfferStore();
+        FileOfferStore.PutResult stored = files.put("a", "b", "備忘.txt", "hi".getBytes());
+        assertTrue(store.queuePeerFile("b", "a", stored.offer).ok);
+        Map<String, Object> existing = store.getOrCreateClient("b");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> pending = (List<Map<String, Object>>) existing.get("pendingActions");
+        assertEquals(1, pending.size());
+        assertEquals(FileOfferStore.FILE_ACTION_TTL_MS, ((Number) pending.get(0).get("ttlMs")).longValue());
+        pending.get(0).put("time", System.currentTimeMillis() - 60_000L);
+
+        List<String> drained = store.drainPendingActions(existing);
+        assertEquals(1, drained.size());
+        String action = drained.get(0);
+        String[] parts = action.split("\\|", 7);
+        assertEquals("FILE", parts[0]);
+        assertEquals("a", parts[1]);
+        assertEquals(stored.offer.fileId, parts[2]);
+        assertEquals("備忘.txt", PeerFileRules.decodeName(parts[3]));
+        assertEquals("2", parts[4]);
+        assertEquals("text/plain", parts[5]);
+    }
+
+    @Test
+    public void regularPendingActionExpiresAfterDefaultTtl() {
+        store.queueClientAction("b", "POKE|a|" + System.currentTimeMillis());
+        Map<String, Object> existing = store.getOrCreateClient("b");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> pending = (List<Map<String, Object>>) existing.get("pendingActions");
+        pending.get(0).put("time", System.currentTimeMillis() - ClientStore.PENDING_ACTION_TTL_MS - 1);
+        assertTrue(store.drainPendingActions(existing).isEmpty());
     }
 }

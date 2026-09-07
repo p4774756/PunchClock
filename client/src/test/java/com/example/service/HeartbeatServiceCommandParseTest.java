@@ -147,4 +147,24 @@ public class HeartbeatServiceCommandParseTest {
         assertTrue(received.contains("MSG|worker-a|1693728000000|abcXYZ012|記得打卡"));
         assertTrue(received.contains("POKE|worker-b|1693728001000|abcXYZ012"));
     }
+
+    @Test
+    public void parseServerCommand_forwardsPeerFileOffer() throws Exception {
+        HeartbeatService service = new HeartbeatService();
+        List<String> received = new ArrayList<>();
+        service.setCommandListener(received::add);
+
+        Method method = HeartbeatService.class.getDeclaredMethod(
+                "parseServerCommand", String.class, Consumer.class);
+        method.setAccessible(true);
+
+        String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("備忘.txt".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        method.invoke(service,
+                "{\"actions\":[\"FILE|worker-a|abc123|" + encoded + "|12|text/plain|1693728000000\"]}",
+                (Consumer<String>) msg -> {});
+
+        assertEquals(1, received.size());
+        assertEquals("FILE|worker-a|abc123|12|text/plain|1693728000000|備忘.txt", received.get(0));
+    }
 }
