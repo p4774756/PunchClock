@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -37,6 +38,18 @@ public class SchedulerService {
                                 Consumer<CheckInTask> taskConsumer,
                                 Consumer<String> logConsumer,
                                 BiConsumer<CheckInTask, Runnable> executeAction) {
+        return scheduleTask(task, taskConsumer, logConsumer, executeAction, null);
+    }
+
+    /**
+     * @param afterExecute 本次排程執行結束後呼叫（在 finally 判定完狀態之後）。
+     *                     槽位重排應走這裡，避免與「未回報最終結果」判定互踩。
+     */
+    public boolean scheduleTask(CheckInTask task,
+                                Consumer<CheckInTask> taskConsumer,
+                                Consumer<String> logConsumer,
+                                BiConsumer<CheckInTask, Runnable> executeAction,
+                                Consumer<CheckInTask> afterExecute) {
         stopTimer(task.getId()); // 只取消尚未觸發的計時器，不中斷執行中的打卡
 
         LocalDateTime now = LocalDateTime.now();
@@ -108,6 +121,7 @@ public class SchedulerService {
                     offsetDesc));
         }
 
+        AtomicReference<ScheduledFuture<?>> futureRef = new AtomicReference<>();
         ScheduledFuture<?> future = scheduler.schedule(() -> {
             try {
                 task.setStatus(TaskStatus.CHECKING_IN);
@@ -129,14 +143,23 @@ public class SchedulerService {
                     if (taskConsumer != null) taskConsumer.accept(task);
                 }
             } finally {
-                futuresMap.remove(task.getId());
-                if (task.getStatus() != TaskStatus.SUCCESS && task.getStatus() != TaskStatus.FAILED && task.getStatus() != TaskStatus.CANCELLED) {
+                ScheduledFuture<?> self = futureRef.get();
+                if (self != null) {
+                    // 只移除自己這次的 future；槽位若已重排，不要把明天的計時器從 map 刪掉
+                    futuresMap.remove(task.getId(), self);
+                }
+                // 只有仍停在「執行中」才算沒回報。打卡成功後若已重排成等待中，不可蓋成失敗。
+                if (task.getStatus() == TaskStatus.CHECKING_IN) {
                     task.setStatus(TaskStatus.FAILED);
                     task.setResultMessage("任務執行異常：未回報最終結果");
+                }
+                if (afterExecute != null) {
+                    afterExecute.accept(task);
                 }
                 if (taskConsumer != null) taskConsumer.accept(task);
             }
         }, delayInSeconds, TimeUnit.SECONDS);
+        futureRef.set(future);
 
         futuresMap.put(task.getId(), future);
         ensureCountdownTimer(taskConsumer);
