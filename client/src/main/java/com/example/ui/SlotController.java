@@ -385,7 +385,8 @@ public class SlotController {
                 task,
                 t -> SwingUtilities.invokeLater(onSlotStateChanged),
                 appendLog,
-                this::executeCheckInForTask);
+                this::executeCheckInForTask,
+                t -> SwingUtilities.invokeLater(() -> rescheduleSlotAfterRun(t)));
         onSlotStateChanged.run();
         if (ok) {
             appendLog.accept(String.format("[排程] 【%s】已重新啟用並排程", kind.displayName));
@@ -460,7 +461,8 @@ public class SlotController {
                 task,
                 t -> SwingUtilities.invokeLater(onSlotStateChanged),
                 logChanges ? appendLog : null,
-                this::executeCheckInForTask);
+                this::executeCheckInForTask,
+                t -> SwingUtilities.invokeLater(() -> rescheduleSlotAfterRun(t)));
         onSlotStateChanged.run();
         return ok;
     }
@@ -572,26 +574,45 @@ public class SlotController {
             task.rememberLastResult();
             appendLog.accept("[失敗] 【" + task.getName() + "】" + msg);
         } finally {
-            onSlotTaskFinished(task, fromScheduler);
             if (onComplete != null) onComplete.run();
+            onSlotTaskFinished(task, fromScheduler);
         }
     }
 
     private void onSlotTaskFinished(CheckInTask task, boolean fromScheduler) {
         WorkSlot.Kind kind = WorkSlot.Kind.fromId(task.getId());
-        if (kind != null) {
+        if (kind != null && !fromScheduler) {
             SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
             if (slot.enabled) {
-                // 排程成功打卡後略過今天剩餘時段；立即執行不消耗今日排程
-                boolean skipRemainingToday = fromScheduler && task.getStatus() == TaskStatus.SUCCESS;
-                // 等排程執行緒跑完再重排，避免 stopTimer 中斷同一條執行緒
-                SwingUtilities.invokeLater(() -> scheduleSlot(kind, skipRemainingToday, skipRemainingToday));
+                // 立即執行不消耗今日排程；排程觸發的重排改等排程執行緒 finally 之後
+                SwingUtilities.invokeLater(() -> scheduleSlot(kind, false, false));
             }
         }
         onSlotStateChanged.run();
         persistTasks();
         refreshSlotCards();
         heartbeatService.sendHeartbeat(appendLog, null);
+    }
+
+    /**
+     * 排程執行結束後再重排。若在 executeAction 內就重排，排程 finally 會把已改成
+     * 「等待中」的明天任務誤標成「未回報最終結果」。
+     */
+    private void rescheduleSlotAfterRun(CheckInTask task) {
+        WorkSlot.Kind kind = WorkSlot.Kind.fromId(task.getId());
+        if (kind == null) {
+            return;
+        }
+        SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
+        if (!slot.enabled) {
+            return;
+        }
+        TaskStatus status = task.getStatus();
+        if (status != TaskStatus.SUCCESS && status != TaskStatus.FAILED) {
+            return;
+        }
+        boolean skipRemainingToday = status == TaskStatus.SUCCESS;
+        scheduleSlot(kind, skipRemainingToday, skipRemainingToday);
     }
 
     public void persistTasks() {

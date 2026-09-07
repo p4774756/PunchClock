@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.*;
 
@@ -155,5 +156,130 @@ public class SchedulerServiceTest {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals(TaskStatus.SUCCESS, task.getStatus());
+    }
+
+    @Test
+    public void scheduleTask_marksFailedWhenExecuteActionDoesNotReportResult() throws Exception {
+        LocalDateTime target = LocalDateTime.now().plusSeconds(1);
+        CheckInTask task = new CheckInTask("下班打卡", "http://example.com", "#btn", target, false, "msedge");
+        CountDownLatch failed = new CountDownLatch(1);
+
+        schedulerService.scheduleTask(task, t -> {
+            if (t != null && t.getStatus() == TaskStatus.FAILED) {
+                failed.countDown();
+            }
+        }, msg -> {}, (t, done) -> done.run());
+
+        assertTrue(failed.await(5, TimeUnit.SECONDS));
+        assertEquals("任務執行異常：未回報最終結果", task.getResultMessage());
+    }
+
+    @Test
+    public void scheduleTask_doesNotFailWhenRescheduledDuringExecution() throws Exception {
+        LocalDateTime target = LocalDateTime.now().plusSeconds(1);
+        CheckInTask task = new CheckInTask("下班打卡", "http://example.com", "#btn", target, false, "msedge");
+        CountDownLatch executed = new CountDownLatch(1);
+
+        schedulerService.scheduleTask(task, t -> {}, msg -> {}, (t, done) -> {
+            t.setStatus(TaskStatus.SUCCESS);
+            t.setResultMessage("[成功] 打卡成功");
+            t.rememberLastResult();
+            t.setStatus(TaskStatus.SCHEDULED);
+            t.setResultMessage("");
+            t.setTargetTime(LocalDateTime.now().plusDays(1).withHour(18).withMinute(5).withSecond(0).withNano(0));
+            t.setActualTriggerTime(t.getTargetTime());
+            done.run();
+            executed.countDown();
+        });
+
+        assertTrue(executed.await(5, TimeUnit.SECONDS));
+        Thread.sleep(300);
+        assertEquals(TaskStatus.SCHEDULED, task.getStatus());
+        assertEquals("", task.getResultMessage());
+        assertEquals(TaskStatus.SUCCESS, task.getLastResultStatus());
+        assertEquals("[成功] 打卡成功", task.getLastResultMessage());
+    }
+
+    @Test
+    public void scheduleTask_doesNotOverwritePendingResetForNextDay() throws Exception {
+        LocalDateTime target = LocalDateTime.now().plusSeconds(1);
+        CheckInTask task = new CheckInTask("下班打卡", "http://example.com", "#btn", target, false, "msedge");
+        CountDownLatch ran = new CountDownLatch(1);
+
+        schedulerService.scheduleTask(task, t -> {}, msg -> {}, (t, done) -> {
+            t.setStatus(TaskStatus.SUCCESS);
+            t.setResultMessage("[成功] 打卡成功");
+            t.rememberLastResult();
+            t.setStatus(TaskStatus.PENDING);
+            t.setResultMessage("");
+            done.run();
+            ran.countDown();
+        });
+
+        assertTrue(ran.await(5, TimeUnit.SECONDS));
+        Thread.sleep(300);
+        assertEquals(TaskStatus.PENDING, task.getStatus());
+        assertEquals(TaskStatus.SUCCESS, task.getLastResultStatus());
+        assertNotEquals("任務執行異常：未回報最終結果", task.getResultMessage());
+    }
+
+    @Test
+    public void scheduleTask_keepsReplacementFutureAfterRescheduleDuringRun() throws Exception {
+        LocalDateTime target = LocalDateTime.now().plusSeconds(1);
+        CheckInTask task = new CheckInTask("下班打卡", "http://example.com", "#btn", target, false, "msedge");
+        task.setId("work-out");
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch replacementArmed = new CountDownLatch(1);
+        CountDownLatch secondRan = new CountDownLatch(1);
+
+        schedulerService.scheduleTask(task, t -> {}, msg -> {}, (t, done) -> {
+            firstStarted.countDown();
+            try {
+                assertTrue(replacementArmed.await(5, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            t.setStatus(TaskStatus.SUCCESS);
+            t.setResultMessage("[成功] 打卡成功");
+            t.rememberLastResult();
+            t.setStatus(TaskStatus.SCHEDULED);
+            done.run();
+        });
+
+        assertTrue(firstStarted.await(5, TimeUnit.SECONDS));
+        task.setUseRandomOffset(false);
+        task.setTargetTime(LocalDateTime.now().plusSeconds(1));
+        task.setActualTriggerTime(null);
+        task.setRandomOffsetSeconds(0);
+        boolean ok = schedulerService.scheduleTask(task, t -> {}, msg -> {}, (t, done) -> {
+            secondRan.countDown();
+            t.setStatus(TaskStatus.SUCCESS);
+            done.run();
+        });
+        assertTrue(ok);
+        replacementArmed.countDown();
+
+        assertTrue("Replacement schedule should still fire", secondRan.await(5, TimeUnit.SECONDS));
+        assertNotEquals("任務執行異常：未回報最終結果", task.getResultMessage());
+    }
+
+    @Test
+    public void scheduleTask_afterExecuteSeesSuccessBeforeReschedule() throws Exception {
+        LocalDateTime target = LocalDateTime.now().plusSeconds(1);
+        CheckInTask task = new CheckInTask("test", "http://example.com", "#btn", target, false, "msedge");
+        CountDownLatch after = new CountDownLatch(1);
+        AtomicReference<TaskStatus> seen = new AtomicReference<>();
+
+        schedulerService.scheduleTask(task, t -> {}, msg -> {}, (t, done) -> {
+            t.setStatus(TaskStatus.SUCCESS);
+            t.setResultMessage("ok");
+            done.run();
+        }, t -> {
+            seen.set(t.getStatus());
+            after.countDown();
+        });
+
+        assertTrue(after.await(5, TimeUnit.SECONDS));
+        assertEquals(TaskStatus.SUCCESS, seen.get());
     }
 }
