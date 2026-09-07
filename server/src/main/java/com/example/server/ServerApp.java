@@ -167,6 +167,7 @@ public final class ServerApp {
         String message = stringOrDefault(body.get("message"), "");
         String appVersion = stringOrDefault(body.get("appVersion"), "");
         List<Map<String, Object>> tasks = tasksFromBody(body.get("tasks"));
+        List<Map<String, Object>> checkinReports = tasksFromBody(body.get("checkinReports"));
 
         Map<String, Object> existing = clientStore.getOrCreateClient(clientId);
         long incomingSeq = numberFrom(body.get("heartbeatSeq"));
@@ -175,6 +176,8 @@ public final class ServerApp {
 
         // 僅擋「同階段亂序晚到」；客戶端重啟後 seq 會重數，不可當成過期而拒收
         if (isOutOfOrderStaleHeartbeat(incomingSeq, storedSeq)) {
+            // 對照已存任務，避免晚到的成功結果被當成「畫面上已有」而丟掉
+            clientStore.applyCheckinReports(existing, checkinReports, clientStore.getTasks(existing));
             Map<String, Object> clientInfo = new LinkedHashMap<>(existing);
             clientInfo.put("lastSeen", Instant.now().toString());
             // 有心跳就視為在線，避免停在 OFFLINE 卻任務永遠不同步
@@ -184,6 +187,8 @@ public final class ServerApp {
             writeHeartbeatResponse(ctx, drainedActions, clientId);
             return;
         }
+
+        clientStore.applyCheckinReports(existing, checkinReports, tasks);
 
         List<Map<String, Object>> effectiveTasks = tasks.isEmpty() ? clientStore.getTasks(existing) : tasks;
 
@@ -217,10 +222,6 @@ public final class ServerApp {
         clientInfo.remove("pendingActionTime");
 
         clientStore.setClient(clientId, clientInfo);
-
-        if ("SUCCESS".equals(status) || "FAILED".equals(status)) {
-            System.out.println("[Checkin Report] 設備 " + clientId + " 上報打卡結果 (" + status + "): " + message);
-        }
 
         broadcaster.broadcast(statusUpdatePayload());
 

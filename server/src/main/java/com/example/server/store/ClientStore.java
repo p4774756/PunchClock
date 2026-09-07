@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -227,6 +228,81 @@ public final class ClientStore {
         }
     }
 
+    /**
+     * 收下桌面端待確認的打卡結果。即使目前任務已重排成等待中，仍寫入事件紀錄。
+     * 以 reportId 去重，避免 timeout 重試造成重複日誌。
+     *
+     * @return 新寫入事件的筆數
+     */
+    public int applyCheckinReports(
+            Map<String, Object> existing,
+            List<Map<String, Object>> reports,
+            List<Map<String, Object>> currentTasks) {
+        if (existing == null || reports == null || reports.isEmpty()) {
+            return 0;
+        }
+        LinkedHashSet<String> acked = ackedCheckinReportIds(existing);
+        Map<String, Map<String, Object>> currentById = new LinkedHashMap<>();
+        if (currentTasks != null) {
+            for (Map<String, Object> task : currentTasks) {
+                if (task != null && task.get("id") != null) {
+                    currentById.put(String.valueOf(task.get("id")), task);
+                }
+            }
+        }
+
+        int newlyLogged = 0;
+        String clientId = String.valueOf(existing.getOrDefault("clientId", ""));
+        List<Map<String, Object>> storedReports = new ArrayList<>();
+        for (Map<String, Object> report : reports) {
+            if (report == null) {
+                continue;
+            }
+            String reportId = firstNonEmpty(report.get("reportId"));
+            String taskId = firstNonEmpty(report.get("id"));
+            String status = firstNonEmpty(report.get("status"));
+            String message = report.get("message") != null ? String.valueOf(report.get("message")) : "";
+            if (reportId.isEmpty()) {
+                reportId = taskId + "|" + status + "|" + Integer.toUnsignedString(message.hashCode());
+            }
+            storedReports.add(report);
+            if (acked.contains(reportId)) {
+                continue;
+            }
+            acked.add(reportId);
+
+            boolean alreadyVisible = false;
+            Map<String, Object> current = currentById.get(taskId);
+            if (current != null) {
+                String currentStatus = String.valueOf(current.get("status"));
+                String currentMessage = current.get("message") != null ? String.valueOf(current.get("message")) : "";
+                alreadyVisible = status.equals(currentStatus) && message.equals(currentMessage);
+            }
+
+            if (!alreadyVisible && ("SUCCESS".equals(status) || "FAILED".equals(status))) {
+                String name = firstNonEmpty(report.get("name"), taskId);
+                String detail = message.isEmpty() ? "" : "；原因：" + message;
+                appendClientEvent(existing, "任務【" + name + "】回報打卡結果："
+                        + taskStatusLabel(status) + detail);
+                newlyLogged++;
+            }
+            if ("SUCCESS".equals(status) || "FAILED".equals(status)) {
+                System.out.println("[Checkin Report] 設備 " + clientId
+                        + " 上報打卡結果 (" + status + "): " + message);
+            }
+        }
+
+        while (acked.size() > 200) {
+            String oldest = acked.iterator().next();
+            acked.remove(oldest);
+        }
+        existing.put("ackedCheckinReportIds", new ArrayList<>(acked));
+        if (!storedReports.isEmpty()) {
+            existing.put("lastCheckinReports", storedReports);
+        }
+        return newlyLogged;
+    }
+
     public void logTaskTransitions(Map<String, Object> existing, List<Map<String, Object>> nextTasks) {
         Map<String, Map<String, Object>> prevById = new LinkedHashMap<>();
         for (Map<String, Object> t : tasks(existing)) {
@@ -316,22 +392,45 @@ public final class ClientStore {
             copy.put("targetUrl", maskTargetUrl(String.valueOf(copy.get("targetUrl"))));
         }
         copy.remove("avatar");
+        copy.remove("ackedCheckinReportIds");
         if (copy.get("tasks") instanceof List) {
-            List<Map<String, Object>> tasks = new ArrayList<>();
-            for (Object item : (List<?>) copy.get("tasks")) {
-                if (!(item instanceof Map)) {
-                    tasks.add((Map<String, Object>) item);
-                    continue;
-                }
-                Map<String, Object> task = deepCopy((Map<String, Object>) item);
-                if (task.containsKey("targetUrl")) {
-                    task.put("targetUrl", maskTargetUrl(String.valueOf(task.get("targetUrl"))));
-                }
-                tasks.add(task);
-            }
-            copy.put("tasks", tasks);
+            copy.put("tasks", sanitizeTaskList(copy.get("tasks")));
+        }
+        if (copy.get("lastCheckinReports") instanceof List) {
+            copy.put("lastCheckinReports", sanitizeTaskList(copy.get("lastCheckinReports")));
         }
         return copy;
+    }
+
+    private List<Map<String, Object>> sanitizeTaskList(Object raw) {
+        List<Map<String, Object>> tasks = new ArrayList<>();
+        if (!(raw instanceof List)) {
+            return tasks;
+        }
+        for (Object item : (List<?>) raw) {
+            if (!(item instanceof Map)) {
+                continue;
+            }
+            Map<String, Object> task = deepCopy((Map<String, Object>) item);
+            if (task.containsKey("targetUrl")) {
+                task.put("targetUrl", maskTargetUrl(String.valueOf(task.get("targetUrl"))));
+            }
+            tasks.add(task);
+        }
+        return tasks;
+    }
+
+    private static LinkedHashSet<String> ackedCheckinReportIds(Map<String, Object> client) {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        Object raw = client.get("ackedCheckinReportIds");
+        if (raw instanceof List) {
+            for (Object item : (List<?>) raw) {
+                if (item != null) {
+                    ids.add(String.valueOf(item));
+                }
+            }
+        }
+        return ids;
     }
 
     private static String encodePeerMessage(String fromClientId, String text, String avatar) {

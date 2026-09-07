@@ -575,6 +575,8 @@ public class SlotController {
     }
 
     private void onSlotTaskFinished(CheckInTask task, boolean fromScheduler) {
+        // 先快照打卡結果，再重排槽位。否則心跳 timeout 時，下一次上報只剩「等待中」，結果會送不回去。
+        heartbeatService.captureTerminalCheckinReports();
         WorkSlot.Kind kind = WorkSlot.Kind.fromId(task.getId());
         if (kind != null) {
             SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);

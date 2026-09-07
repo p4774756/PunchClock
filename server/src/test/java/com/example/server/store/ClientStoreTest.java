@@ -157,4 +157,70 @@ public class ClientStoreTest {
         assertEquals(1, store.peerSnapshot("a").size());
         assertEquals("b", store.peerSnapshot("a").get(0).get("clientId"));
     }
+
+    @Test
+    public void applyCheckinReportsLogsWhenCurrentTaskAlreadyRescheduled() {
+        Map<String, Object> existing = store.getOrCreateClient("worker-a");
+        Map<String, Object> scheduled = new LinkedHashMap<>();
+        scheduled.put("id", "work-in");
+        scheduled.put("name", "上班打卡");
+        scheduled.put("status", "SCHEDULED");
+        scheduled.put("message", "");
+        existing.put("tasks", new ArrayList<>(List.of(scheduled)));
+
+        Map<String, Object> report = new LinkedHashMap<>();
+        report.put("id", "work-in");
+        report.put("name", "上班打卡");
+        report.put("status", "SUCCESS");
+        report.put("message", "[成功] 打卡成功");
+        report.put("reportId", "work-in|SUCCESS|1");
+
+        int logged = store.applyCheckinReports(existing, List.of(report), store.getTasks(existing));
+        assertEquals(1, logged);
+        List<?> events = (List<?>) existing.get("eventLog");
+        assertEquals(1, events.size());
+        assertTrue(String.valueOf(((Map<?, ?>) events.get(0)).get("text")).contains("回報打卡結果：成功"));
+
+        assertEquals(0, store.applyCheckinReports(existing, List.of(report), store.getTasks(existing)));
+        assertEquals(1, ((List<?>) existing.get("eventLog")).size());
+    }
+
+    @Test
+    public void applyCheckinReportsSkipsDuplicateWhenCurrentTaskAlreadyShowsResult() {
+        Map<String, Object> existing = store.getOrCreateClient("worker-a");
+        Map<String, Object> success = new LinkedHashMap<>();
+        success.put("id", "work-in");
+        success.put("name", "上班打卡");
+        success.put("status", "SUCCESS");
+        success.put("message", "[成功] 打卡成功");
+        existing.put("tasks", new ArrayList<>(List.of(success)));
+
+        Map<String, Object> report = new LinkedHashMap<>();
+        report.put("id", "work-in");
+        report.put("name", "上班打卡");
+        report.put("status", "SUCCESS");
+        report.put("message", "[成功] 打卡成功");
+        report.put("reportId", "work-in|SUCCESS|1");
+
+        assertEquals(0, store.applyCheckinReports(existing, List.of(report), store.getTasks(existing)));
+        assertTrue(existing.get("eventLog") == null || ((List<?>) existing.get("eventLog")).isEmpty());
+        assertTrue(((List<?>) existing.get("ackedCheckinReportIds")).contains("work-in|SUCCESS|1"));
+    }
+
+    @Test
+    public void sanitizeClientForApiStripsAckedReportIdsAndMasksLastCheckinUrl() {
+        Map<String, Object> dirty = new LinkedHashMap<>();
+        dirty.put("clientId", "worker-a");
+        dirty.put("ackedCheckinReportIds", List.of("work-in|SUCCESS|1"));
+        Map<String, Object> report = new LinkedHashMap<>();
+        report.put("id", "work-in");
+        report.put("targetUrl", "https://secret.example/checkin");
+        report.put("status", "SUCCESS");
+        dirty.put("lastCheckinReports", new ArrayList<>(List.of(report)));
+
+        Map<String, Object> clean = store.sanitizeClientForApi(dirty);
+        assertFalse(clean.containsKey("ackedCheckinReportIds"));
+        Object first = ((List<?>) clean.get("lastCheckinReports")).get(0);
+        assertEquals("https://se***.example/***", ((Map<?, ?>) first).get("targetUrl"));
+    }
 }

@@ -2,6 +2,7 @@ package com.example.service;
 
 import com.example.AppVersion;
 import com.example.model.CheckInTask;
+import com.example.model.TaskStatus;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -23,6 +24,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -31,9 +33,15 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * 專責與 server 進行單向 HTTP POST 存活與多任務狀態上報
+ * 專責與 server 進行單向 HTTP POST 存活與多任務狀態上報。
+ * 打卡成功／失敗會另外排入 {@code checkinReports}，直到伺服器 HTTP 200 才清除，
+ * 避免公司網路 timeout 或打卡後立刻重排導致結果送不回去。
  */
 public class HeartbeatService {
+
+    static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
+    static final long DEFAULT_CHECKIN_RETRY_DELAY_MS = 3_000L;
 
     /** 線上同事摘要（由心跳回應 peers[] 解析） */
     public static final class PeerInfo {
@@ -73,7 +81,11 @@ public class HeartbeatService {
     private Consumer<List<PeerInfo>> peersListener;
     private final AtomicBoolean heartbeatInFlight = new AtomicBoolean(false);
     private final AtomicBoolean heartbeatPending = new AtomicBoolean(false);
+    private final AtomicBoolean checkinRetryScheduled = new AtomicBoolean(false);
     private final java.util.concurrent.atomic.AtomicLong heartbeatSeq = new java.util.concurrent.atomic.AtomicLong(0);
+    private final Map<String, Map<String, Object>> pendingCheckinReports = new ConcurrentHashMap<>();
+    private volatile Duration requestTimeout = REQUEST_TIMEOUT;
+    private volatile long checkinRetryDelayMs = DEFAULT_CHECKIN_RETRY_DELAY_MS;
 
     public void setCommandListener(Consumer<String> commandListener) {
         this.commandListener = commandListener;
@@ -110,7 +122,7 @@ public class HeartbeatService {
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .followRedirects(HttpClient.Redirect.ALWAYS)
-                .connectTimeout(Duration.ofSeconds(8));
+                .connectTimeout(CONNECT_TIMEOUT);
 
         if (trustAllSsl) {
             try {
@@ -185,9 +197,11 @@ public class HeartbeatService {
     }
 
     /**
-     * 發送單向 HTTP POST 心跳請求
+     * 發送單向 HTTP POST 心跳請求。
+     * 會先快照 SUCCESS／FAILED，即使目前已有心跳在途或稍後槽位已重排，仍會重試上報。
      */
     public void sendPostHeartbeat(Consumer<String> logger, Consumer<Boolean> statusCallback) {
+        captureTerminalCheckinReports();
         if (!isServiceActive || serverUrl.isBlank()) return;
 
         if (!heartbeatInFlight.compareAndSet(false, true)) {
@@ -200,19 +214,10 @@ public class HeartbeatService {
 
         List<Map<String, Object>> tasksList = new ArrayList<>();
         for (CheckInTask t : tasks) {
-            Map<String, Object> taskMap = new LinkedHashMap<>();
-            taskMap.put("id", t.getId());
-            taskMap.put("name", t.getName());
-            taskMap.put("targetUrl", t.getTargetUrl());
-            taskMap.put("buttonId", t.getButtonId());
-            taskMap.put("targetTime", t.getFormattedTargetTime());
-            taskMap.put("actualTime", t.getFormattedActualTime());
-            taskMap.put("useRandomOffset", t.isUseRandomOffset());
-            taskMap.put("browserType", t.getBrowserType());
-            taskMap.put("status", t.getStatus() != null ? t.getStatus().name() : "PENDING");
-            taskMap.put("message", t.getResultMessage());
-            tasksList.add(taskMap);
+            tasksList.add(toTaskPayload(t));
         }
+
+        List<Map<String, Object>> reportsToSend = new ArrayList<>(pendingCheckinReports.values());
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("clientId", clientId);
@@ -222,6 +227,9 @@ public class HeartbeatService {
         payload.put("tasks", tasksList);
         payload.put("heartbeatSeq", heartbeatSeq.incrementAndGet());
         payload.put("avatar", avatarEncoded == null ? "" : avatarEncoded);
+        if (!reportsToSend.isEmpty()) {
+            payload.put("checkinReports", reportsToSend);
+        }
 
         String jsonBody = gson.toJson(payload);
 
@@ -230,7 +238,7 @@ public class HeartbeatService {
                     .uri(URI.create(endpoint))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + heartbeatToken)
-                    .timeout(Duration.ofSeconds(8))
+                    .timeout(requestTimeout)
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
@@ -238,13 +246,21 @@ public class HeartbeatService {
                     .whenComplete((response, ex) -> {
                         try {
                             if (ex != null) {
-                                log(logger, "[失敗] [HTTP POST 心跳失敗] " + ex.getMessage());
+                                String extra = reportsToSend.isEmpty()
+                                        ? ""
+                                        : "；打卡結果尚未送達，將自動重試上報";
+                                log(logger, "[失敗] [HTTP POST 心跳失敗] " + ex.getMessage() + extra);
                                 if (statusCallback != null) statusCallback.accept(false);
                             } else if (response.statusCode() == 200) {
+                                ackCheckinReports(reportsToSend);
                                 if (statusCallback != null) statusCallback.accept(true);
                                 parseHeartbeatResponse(response.body(), logger);
                             } else {
-                                log(logger, "[警告] [HTTP POST 心跳] 伺服器回應異常，狀態碼：" + response.statusCode());
+                                String extra = reportsToSend.isEmpty()
+                                        ? ""
+                                        : "；打卡結果尚未送達，將自動重試上報";
+                                log(logger, "[警告] [HTTP POST 心跳] 伺服器回應異常，狀態碼："
+                                        + response.statusCode() + extra);
                                 if (statusCallback != null) statusCallback.accept(false);
                             }
                         } finally {
@@ -258,10 +274,103 @@ public class HeartbeatService {
         }
     }
 
+    /**
+     * 把目前任務裡的成功／失敗結果排入待送佇列。雲端未連線時也會先記住，之後連上再送。
+     * 打卡完成當下就要呼叫，必須早於槽位重排，否則結果會被清掉。
+     */
+    public void captureTerminalCheckinReports() {
+        List<CheckInTask> tasks = tasksProvider != null ? tasksProvider.get() : Collections.emptyList();
+        for (CheckInTask task : tasks) {
+            if (task == null || task.getId() == null) {
+                continue;
+            }
+            TaskStatus status = task.getStatus();
+            if (status != TaskStatus.SUCCESS && status != TaskStatus.FAILED) {
+                continue;
+            }
+            Map<String, Object> snapshot = toTaskPayload(task);
+            String reportId = checkinReportId(task);
+            snapshot.put("reportId", reportId);
+            pendingCheckinReports.put(reportId, snapshot);
+        }
+    }
+
+    static String checkinReportId(CheckInTask task) {
+        String message = task.getResultMessage() != null ? task.getResultMessage() : "";
+        String status = task.getStatus() != null ? task.getStatus().name() : "UNKNOWN";
+        return task.getId() + "|" + status + "|" + Integer.toUnsignedString(message.hashCode());
+    }
+
+    static Map<String, Object> toTaskPayload(CheckInTask t) {
+        Map<String, Object> taskMap = new LinkedHashMap<>();
+        taskMap.put("id", t.getId());
+        taskMap.put("name", t.getName());
+        taskMap.put("targetUrl", t.getTargetUrl());
+        taskMap.put("buttonId", t.getButtonId());
+        taskMap.put("targetTime", t.getFormattedTargetTime());
+        taskMap.put("actualTime", t.getFormattedActualTime());
+        taskMap.put("useRandomOffset", t.isUseRandomOffset());
+        taskMap.put("browserType", t.getBrowserType());
+        taskMap.put("status", t.getStatus() != null ? t.getStatus().name() : "PENDING");
+        taskMap.put("message", t.getResultMessage());
+        return taskMap;
+    }
+
+    void ackCheckinReports(List<Map<String, Object>> reportsToSend) {
+        if (reportsToSend == null) {
+            return;
+        }
+        for (Map<String, Object> report : reportsToSend) {
+            if (report == null || report.get("reportId") == null) {
+                continue;
+            }
+            pendingCheckinReports.remove(String.valueOf(report.get("reportId")));
+        }
+    }
+
+    List<Map<String, Object>> pendingCheckinReportsSnapshot() {
+        return new ArrayList<>(pendingCheckinReports.values());
+    }
+
+    void setRequestTimeout(Duration timeout) {
+        if (timeout != null && !timeout.isNegative() && !timeout.isZero()) {
+            this.requestTimeout = timeout;
+        }
+    }
+
+    void setCheckinRetryDelayMs(long delayMs) {
+        if (delayMs >= 0) {
+            this.checkinRetryDelayMs = delayMs;
+        }
+    }
+
     private void finishHeartbeatSend(Consumer<String> logger, Consumer<Boolean> statusCallback) {
         heartbeatInFlight.set(false);
         if (heartbeatPending.getAndSet(false)) {
             sendPostHeartbeat(logger, statusCallback);
+            return;
+        }
+        scheduleCheckinRetryIfNeeded(logger, statusCallback);
+    }
+
+    private void scheduleCheckinRetryIfNeeded(Consumer<String> logger, Consumer<Boolean> statusCallback) {
+        if (!isServiceActive || pendingCheckinReports.isEmpty()
+                || scheduler == null || scheduler.isShutdown()) {
+            return;
+        }
+        if (!checkinRetryScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            scheduler.schedule(() -> {
+                checkinRetryScheduled.set(false);
+                if (isServiceActive && !pendingCheckinReports.isEmpty()) {
+                    log(logger, "[重試] [HTTP POST] 打卡結果尚未送達伺服器，正在重試上報");
+                    sendPostHeartbeat(logger, statusCallback);
+                }
+            }, checkinRetryDelayMs, TimeUnit.MILLISECONDS);
+        } catch (Exception ex) {
+            checkinRetryScheduled.set(false);
         }
     }
 
@@ -436,7 +545,7 @@ public class HeartbeatService {
                     .uri(URI.create(endpoint))
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + heartbeatToken)
-                    .timeout(Duration.ofSeconds(8))
+                    .timeout(requestTimeout)
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
@@ -480,6 +589,7 @@ public class HeartbeatService {
         this.isServiceActive = false;
         heartbeatInFlight.set(false);
         heartbeatPending.set(false);
+        checkinRetryScheduled.set(false);
         if (scheduler != null && !scheduler.isShutdown()) {
             scheduler.shutdownNow();
         }
