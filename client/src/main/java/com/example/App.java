@@ -260,7 +260,7 @@ public class App extends JFrame {
             }
             applyWindowTransparency(percent, false);
             if (!windowChrome.transparencySlider.getValueIsAdjusting()) {
-                rememberWindowLayout();
+                saveCloudConfig();
             }
         });
     }
