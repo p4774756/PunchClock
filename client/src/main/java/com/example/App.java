@@ -15,6 +15,8 @@ import com.example.ui.PanelFactory;
 import com.example.ui.PanelFactory.*;
 import com.example.ui.RecentValuesHelper;
 import com.example.ui.SlotController;
+import com.example.ui.WindowChrome;
+import com.example.ui.WindowOpacity;
 import com.example.ui.WindowShake;
 
 import javax.swing.*;
@@ -53,6 +55,8 @@ public class App extends JFrame {
     private JTabbedPane mainTabs;
     private boolean serverHistoryMenuBound;
     private Image appIconImage;
+    private WindowChrome.Controls windowChrome;
+    private boolean loggedOpacityUnsupported;
 
     public App() {
         this.schedulerService = new SchedulerService();
@@ -163,13 +167,17 @@ public class App extends JFrame {
     private void initUI() {
         setTitle("上班打卡工具  v" + AppVersion.VERSION);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLayout(new BorderLayout(10, 10));
 
         Font mainFont = UiFonts.chinesePlain(13);
         Font boldFont = UiFonts.chineseBold(13);
         Font fieldFont = UiFonts.latinPlain(13);
 
-        add(createDailyProverbBanner(mainFont, boldFont), BorderLayout.NORTH);
+        windowChrome = WindowChrome.install(
+                this, getTitle(), appIconImage, boldFont, mainFont);
+        bindWindowTransparencySlider();
+        JPanel content = WindowChrome.bodyOf(this);
+
+        content.add(createDailyProverbBanner(mainFont, boldFont), BorderLayout.NORTH);
 
         JTabbedPane tabs = new JTabbedPane();
         this.mainTabs = tabs;
@@ -231,14 +239,64 @@ public class App extends JFrame {
         split.setOneTouchExpandable(true);
         split.setDividerSize(8);
         split.setBorder(null);
-        add(split, BorderLayout.CENTER);
+        content.add(split, BorderLayout.CENTER);
 
-        setMinimumSize(new Dimension(720, 560));
+        setMinimumSize(new Dimension(720, 590));
         setSize(720, 780);
         setLocationRelativeTo(null);
 
         bindWindowLayoutPersistence(split);
         bindCloudEventListeners();
+    }
+
+    private void bindWindowTransparencySlider() {
+        if (windowChrome == null || windowChrome.transparencySlider == null) {
+            return;
+        }
+        windowChrome.transparencySlider.addChangeListener(e -> {
+            int percent = windowChrome.transparencySlider.getValue();
+            if (windowChrome.transparencyValueLabel != null) {
+                windowChrome.transparencyValueLabel.setText(WindowOpacity.formatPercentLabel(percent));
+            }
+            applyWindowTransparency(percent, false);
+            if (!windowChrome.transparencySlider.getValueIsAdjusting()) {
+                rememberWindowLayout();
+            }
+        });
+    }
+
+    private void applyWindowTransparencyFromConfig(ConfigPersistenceService.CloudConfig config) {
+        int percent = config == null
+                ? 0
+                : ConfigPersistenceService.clampWindowTransparencyPercent(config.windowTransparencyPercent);
+        if (windowChrome != null && windowChrome.transparencySlider != null) {
+            boolean previous = suppressConfigSave;
+            suppressConfigSave = true;
+            try {
+                windowChrome.transparencySlider.setValue(percent);
+            } finally {
+                suppressConfigSave = previous;
+            }
+        }
+        applyWindowTransparency(percent, false);
+    }
+
+    private void applyWindowTransparency(int percent, boolean persist) {
+        if (suppressConfigSave && persist) {
+            return;
+        }
+        int clamped = WindowOpacity.clampTransparencyPercent(percent);
+        if (slotController != null && slotController.getConfig() != null) {
+            slotController.getConfig().windowTransparencyPercent = clamped;
+        }
+        boolean applied = WindowOpacity.applyTransparencyPercent(this, clamped);
+        if (!applied && clamped > 0 && !loggedOpacityUnsupported) {
+            loggedOpacityUnsupported = true;
+            appendLog("[警告] 此系統不支援視窗透明（需桌面合成器）。已記住設定，換到支援的環境後會生效。");
+        }
+        if (persist) {
+            rememberWindowLayout();
+        }
     }
 
     private void bindWindowLayoutPersistence(JSplitPane split) {
@@ -268,6 +326,9 @@ public class App extends JFrame {
         Point loc = getLocation();
         config.windowX = loc.x;
         config.windowY = loc.y;
+        if (windowChrome != null && windowChrome.transparencySlider != null) {
+            config.windowTransparencyPercent = windowChrome.transparencySlider.getValue();
+        }
         if (mainSplit != null) {
             int divider = mainSplit.getDividerLocation();
             if (divider > 0) {
@@ -870,6 +931,13 @@ public class App extends JFrame {
 
         addWindowListener(new WindowAdapter() {
             @Override
+            public void windowOpened(WindowEvent e) {
+                if (slotController != null && slotController.getConfig() != null) {
+                    applyWindowTransparency(slotController.getConfig().windowTransparencyPercent, false);
+                }
+            }
+
+            @Override
             public void windowClosing(WindowEvent e) {
                 saveCloudConfig();
                 if (slotController != null) {
@@ -892,6 +960,7 @@ public class App extends JFrame {
             applyServerConfig(config);
             slotController.loadConfigToUi(config);
             applyWindowLayout(config);
+            applyWindowTransparencyFromConfig(config);
             applyAvatarFromConfig(config);
         } finally {
             suppressConfigSave = false;

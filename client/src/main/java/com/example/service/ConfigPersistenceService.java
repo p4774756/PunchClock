@@ -20,6 +20,8 @@ public class ConfigPersistenceService {
     private static final String SAVE_DIR = ".punchclock";
     private static final String SAVE_FILE = "config.json";
     public static final int MAX_RECENT_VALUES = 10;
+    /** 視窗透明度上限（再高會點不到控制項）；0 表示完全不透明。 */
+    public static final int MAX_WINDOW_TRANSPARENCY_PERCENT = 60;
 
     public static class SlotSettings {
         public boolean enabled = true;
@@ -54,6 +56,11 @@ public class ConfigPersistenceService {
         public int windowX = -1;
         public int windowY = -1;
         public int splitDividerLocation = -1;
+        /**
+         * 視窗透明度百分比：0 為不透明，最高 {@link #MAX_WINDOW_TRANSPARENCY_PERCENT}。
+         * 實際不透明度為 100% 減去此值（最透明仍保留 40%）。
+         */
+        public int windowTransparencyPercent = 0;
 
         /** 是否使用 ~/.punchclock/avatar.jpg 作為訊息／戳一下大頭照 */
         public boolean customAvatar = false;
@@ -182,6 +189,17 @@ public class ConfigPersistenceService {
         }
         normalizeSlot(config.workIn, defaultWorkIn());
         normalizeSlot(config.workOut, defaultWorkOut());
+        config.windowTransparencyPercent = clampWindowTransparencyPercent(config.windowTransparencyPercent);
+    }
+
+    public static int clampWindowTransparencyPercent(int percent) {
+        if (percent < 0) {
+            return 0;
+        }
+        if (percent > MAX_WINDOW_TRANSPARENCY_PERCENT) {
+            return MAX_WINDOW_TRANSPARENCY_PERCENT;
+        }
+        return percent;
     }
 
     private static void normalizeSlot(SlotSettings slot, SlotSettings defaults) {
