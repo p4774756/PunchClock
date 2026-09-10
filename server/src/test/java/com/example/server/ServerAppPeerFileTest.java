@@ -113,13 +113,23 @@ public class ServerAppPeerFileTest {
         assertEquals(400, self.statusCode());
     }
 
+    @Test
+    public void uploadAcceptsFileLargerThanFormerFiveMegLimit() throws Exception {
+        byte[] sixMb = new byte[6 * 1024 * 1024];
+        HttpResponse<String> txt = postFile("worker-a", "worker-b", "big.txt", sixMb);
+        assertEquals(200, txt.statusCode());
+        JsonObject body = JsonParser.parseString(txt.body()).getAsJsonObject();
+        assertTrue(body.get("success").getAsBoolean());
+        assertEquals(sixMb.length, body.get("size").getAsInt());
+    }
+
     private HttpResponse<String> postFile(String from, String to, String filename, byte[] bytes) throws Exception {
         String boundary = "TestBoundary" + UUID.randomUUID().toString().replace("-", "");
         byte[] body = multipart(boundary, from, to, filename, bytes);
         HttpRequest request = HttpRequest.newBuilder(URI.create(base + "/api/peer/file"))
                 .header("Authorization", "Bearer " + TOKEN)
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .timeout(Duration.ofSeconds(10))
+                .timeout(Duration.ofSeconds(30))
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body))
                 .build();
         return http.send(request, HttpResponse.BodyHandlers.ofString());

@@ -121,6 +121,21 @@ public class HeartbeatServicePeerFileTest {
     }
 
     @Test
+    public void sendPeerFile_acceptsFileLargerThanFormerFiveMegLimit() throws Exception {
+        Path src = Files.createTempFile("peer-upload-", ".txt");
+        Files.write(src, new byte[6 * 1024 * 1024]);
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicBoolean ok = new AtomicBoolean(false);
+        service.sendPeerFile("worker-b", src, msg -> {}, success -> {
+            ok.set(Boolean.TRUE.equals(success));
+            done.countDown();
+        });
+        assertTrue(done.await(15, TimeUnit.SECONDS));
+        assertTrue(ok.get());
+        assertTrue(posted.get() != null && posted.get().length > 6 * 1024 * 1024);
+    }
+
+    @Test
     public void downloadPeerFile_writesBytesForRecipient() throws Exception {
         Path dest = Files.createTempFile("peer-download-", ".txt");
         Files.deleteIfExists(dest);

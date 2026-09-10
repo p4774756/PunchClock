@@ -42,6 +42,8 @@ public class HeartbeatService {
 
     static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
     static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
+    /** 單檔 50 MB 在較慢網路上需要比舊的 60 秒更長的逾時。 */
+    static final Duration FILE_TRANSFER_TIMEOUT = Duration.ofMinutes(5);
 
     /** 線上同事摘要（由心跳回應 peers[] 解析） */
     public static final class PeerInfo {
@@ -518,7 +520,7 @@ public class HeartbeatService {
                     .uri(URI.create(endpoint))
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                     .header("Authorization", "Bearer " + heartbeatToken)
-                    .timeout(Duration.ofSeconds(60))
+                    .timeout(FILE_TRANSFER_TIMEOUT)
                     .POST(HttpRequest.BodyPublishers.ofByteArray(body))
                     .build();
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
@@ -607,7 +609,7 @@ public class HeartbeatService {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(uri)
                 .header("Authorization", "Bearer " + heartbeatToken)
-                .timeout(Duration.ofSeconds(60))
+                .timeout(FILE_TRANSFER_TIMEOUT)
                 .GET();
         // JDK 17+（Mac 常見）不接受非 ASCII header；Worker ID 只放 URL-safe 編碼。
         String encodedClient = urlEncode(clientId);

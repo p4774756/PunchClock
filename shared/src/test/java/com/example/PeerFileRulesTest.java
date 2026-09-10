@@ -38,8 +38,11 @@ public class PeerFileRulesTest {
 
     @Test
     public void isAllowedSize_rejectsEmptyAndOverMax() {
+        assertEquals(50L * 1024 * 1024, PeerFileRules.MAX_BYTES);
+        assertEquals("50 MB", PeerFileRules.MAX_SIZE_LABEL);
         assertFalse(PeerFileRules.isAllowedSize(0));
         assertTrue(PeerFileRules.isAllowedSize(1));
+        assertTrue(PeerFileRules.isAllowedSize(6L * 1024 * 1024));
         assertTrue(PeerFileRules.isAllowedSize(PeerFileRules.MAX_BYTES));
         assertFalse(PeerFileRules.isAllowedSize(PeerFileRules.MAX_BYTES + 1));
     }
