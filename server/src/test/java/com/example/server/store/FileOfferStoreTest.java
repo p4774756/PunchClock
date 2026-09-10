@@ -49,6 +49,15 @@ public class FileOfferStoreTest {
     }
 
     @Test
+    public void put_acceptsFileLargerThanFormerFiveMegLimit() {
+        assertTrue(FileOfferStore.MAX_TOTAL_BYTES >= PeerFileRules.MAX_BYTES);
+        byte[] sixMb = new byte[6 * 1024 * 1024];
+        FileOfferStore.PutResult put = store.put("a", "b", "notes.txt", sixMb);
+        assertTrue(put.ok);
+        assertEquals(sixMb.length, put.offer.size());
+    }
+
+    @Test
     public void get_forbidsNonRecipientAndMissingId() {
         FileOfferStore.PutResult put = store.put("a", "b", "a.pdf", "p".getBytes(StandardCharsets.UTF_8));
         assertEquals(FileOfferStore.GetResult.Status.FORBIDDEN,

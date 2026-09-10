@@ -14,8 +14,8 @@ import java.util.Set;
  */
 public final class PeerFileRules {
 
-    public static final long MAX_BYTES = 5L * 1024 * 1024;
-    public static final String MAX_SIZE_LABEL = "5 MB";
+    public static final long MAX_BYTES = 50L * 1024 * 1024;
+    public static final String MAX_SIZE_LABEL = "50 MB";
 
     public static final Set<String> ALLOWED_EXTENSIONS = Set.of(
             "pdf", "png", "jpg", "jpeg", "gif", "webp",
