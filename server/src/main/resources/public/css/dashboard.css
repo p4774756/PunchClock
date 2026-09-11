@@ -134,6 +134,96 @@
       color: var(--text-muted);
     }
 
+    .server-health {
+      margin: 0.85rem auto 0;
+      width: min(960px, 100%);
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 0.5rem;
+    }
+
+    .health-card {
+      background: var(--white);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      padding: 0.55rem 0.65rem;
+      text-align: left;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .health-label {
+      display: block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 0.15rem;
+    }
+
+    .health-card strong {
+      display: block;
+      font-size: 0.82rem;
+      color: var(--text-dark);
+      word-break: break-word;
+    }
+
+    .file-transfers {
+      background: var(--white);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem 1rem;
+      margin-bottom: 0.75rem;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .file-transfers-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 0.65rem;
+    }
+
+    .file-transfers-hint {
+      margin: 0.25rem 0 0;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .file-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .file-table th,
+    .file-table td {
+      text-align: left;
+      padding: 0.45rem 0.4rem;
+      border-bottom: 1px solid var(--line-soft);
+      vertical-align: middle;
+    }
+
+    .file-table th {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .file-table td.file-actions {
+      white-space: nowrap;
+    }
+
+    .file-table .btn {
+      padding: 0.22rem 0.55rem;
+      font-size: 0.72rem;
+      margin-left: 0.25rem;
+    }
+
+    @media (max-width: 860px) {
+      .server-health { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .file-table { display: block; overflow-x: auto; }
+    }
+
     /* ── 主內容 ── */
     .shell {
       width: min(960px, calc(100% - 2rem));

@@ -64,6 +64,13 @@ public class ServerAppPeerFileTest {
         assertTrue(download.headers().firstValue("Content-Disposition").orElse("").contains("filename"));
         assertEquals("application/octet-stream",
                 download.headers().firstValue("Content-Type").orElse("").split(";")[0].trim());
+
+        HttpResponse<String> hbAfter = heartbeat("worker-b");
+        JsonObject hbAfterJson = JsonParser.parseString(hbAfter.body()).getAsJsonObject();
+        assertTrue(hbAfterJson.has("files"));
+        assertEquals(1, hbAfterJson.getAsJsonArray("files").size());
+        assertEquals("downloaded", hbAfterJson.getAsJsonArray("files").get(0).getAsJsonObject()
+                .get("status").getAsString());
     }
 
     @Test
@@ -90,27 +97,79 @@ public class ServerAppPeerFileTest {
     }
 
     @Test
-    public void senderCannotDownloadAndUnknownTypeIsRejected() throws Exception {
+    public void senderCanRedownloadAndUnknownExtensionIsAccepted() throws Exception {
         HttpResponse<String> upload = postFile("worker-a", "worker-b", "ok.txt",
                 "x".getBytes(StandardCharsets.UTF_8));
         assertEquals(200, upload.statusCode());
         String fileId = JsonParser.parseString(upload.body()).getAsJsonObject().get("fileId").getAsString();
 
-        assertEquals(403, download(fileId, "worker-a").statusCode());
+        assertEquals(200, download(fileId, "worker-a").statusCode());
         assertEquals(401, http.send(
                 HttpRequest.newBuilder(URI.create(base + "/api/peer/file/" + fileId + "?clientId=worker-b"))
                         .GET().timeout(Duration.ofSeconds(5)).build(),
                 HttpResponse.BodyHandlers.ofByteArray()).statusCode());
+        assertEquals(403, download(fileId, "worker-c").statusCode());
 
         HttpResponse<String> exe = postFile("worker-a", "worker-b", "payload.exe",
                 "MZ".getBytes(StandardCharsets.UTF_8));
-        assertEquals(400, exe.statusCode());
-        assertTrue(JsonParser.parseString(exe.body()).getAsJsonObject().get("message").getAsString()
-                .contains("不支援"));
+        assertEquals(200, exe.statusCode());
+        assertTrue(JsonParser.parseString(exe.body()).getAsJsonObject().get("success").getAsBoolean());
 
         HttpResponse<String> self = postFile("worker-a", "worker-a", "ok.txt",
                 "x".getBytes(StandardCharsets.UTF_8));
         assertEquals(400, self.statusCode());
+    }
+
+    @Test
+    public void adminCanListDownloadAndDeleteFiles() throws Exception {
+        HttpResponse<String> upload = postFile("worker-a", "worker-b", "notes.bin",
+                "bin-body".getBytes(StandardCharsets.UTF_8));
+        assertEquals(200, upload.statusCode());
+        String fileId = JsonParser.parseString(upload.body()).getAsJsonObject().get("fileId").getAsString();
+        String cookie = adminCookie();
+
+        HttpResponse<String> status = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/status"))
+                        .header("Cookie", cookie)
+                        .GET().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, status.statusCode());
+        JsonObject payload = JsonParser.parseString(status.body()).getAsJsonObject();
+        assertTrue(payload.has("files"));
+        assertTrue(payload.has("serverHealth"));
+        assertEquals(fileId, payload.getAsJsonArray("files").get(0).getAsJsonObject().get("fileId").getAsString());
+        assertTrue(payload.getAsJsonObject("serverHealth").get("heapUsedBytes").getAsLong() > 0);
+        assertEquals(1, payload.getAsJsonObject("serverHealth").get("fileOfferCount").getAsInt());
+
+        HttpResponse<byte[]> adminDownload = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/peer/file/" + fileId))
+                        .header("Cookie", cookie)
+                        .GET().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, adminDownload.statusCode());
+        assertEquals("bin-body", new String(adminDownload.body(), StandardCharsets.UTF_8));
+
+        HttpResponse<String> deleted = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/peer/file/" + fileId))
+                        .header("Cookie", cookie)
+                        .DELETE().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, deleted.statusCode());
+        assertEquals(404, download(fileId, "worker-b").statusCode());
+    }
+
+    @Test
+    public void workerCanDeleteOwnOffer() throws Exception {
+        HttpResponse<String> upload = postFile("worker-a", "worker-b", "temp.txt",
+                "z".getBytes(StandardCharsets.UTF_8));
+        String fileId = JsonParser.parseString(upload.body()).getAsJsonObject().get("fileId").getAsString();
+        HttpResponse<String> deleted = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/peer/file/" + fileId + "?clientId=worker-a"))
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .DELETE().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, deleted.statusCode());
+        assertEquals(404, download(fileId, "worker-b").statusCode());
     }
 
     @Test
@@ -155,6 +214,23 @@ public class ServerAppPeerFileTest {
                 .GET()
                 .build();
         return http.send(request, HttpResponse.BodyHandlers.ofByteArray());
+    }
+
+    private String adminCookie() throws Exception {
+        HttpResponse<String> login = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/login"))
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .timeout(Duration.ofSeconds(5))
+                        .POST(HttpRequest.BodyPublishers.ofString("password=secret"))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+        String setCookie = login.headers().firstValue("set-cookie")
+                .orElse(login.headers().firstValue("Set-Cookie").orElse(""));
+        assertTrue("login should set auth cookie, status=" + login.statusCode() + " cookie=" + setCookie,
+                setCookie.contains("auth="));
+        int start = setCookie.indexOf("auth=");
+        int end = setCookie.indexOf(';', start);
+        return end > start ? setCookie.substring(start, end) : setCookie.substring(start);
     }
 
     private static byte[] multipart(String boundary, String from, String to, String filename, byte[] bytes)

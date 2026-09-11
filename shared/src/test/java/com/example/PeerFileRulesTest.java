@@ -20,13 +20,16 @@ public class PeerFileRulesTest {
     }
 
     @Test
-    public void isAllowedFilename_acceptsAllowlistOnly() {
+    public void isAllowedFilename_acceptsAnyExtensionIncludingNone() {
         assertTrue(PeerFileRules.isAllowedFilename("a.pdf"));
-        assertTrue(PeerFileRules.isAllowedFilename("b.PNG"));
-        assertTrue(PeerFileRules.isAllowedFilename("c.jpeg"));
-        assertFalse(PeerFileRules.isAllowedFilename("payload.exe"));
-        assertFalse(PeerFileRules.isAllowedFilename("noext"));
-        assertFalse(PeerFileRules.isAllowedFilename("ok.txt.exe"));
+        assertTrue(PeerFileRules.isAllowedFilename("payload.exe"));
+        assertTrue(PeerFileRules.isAllowedFilename("noext"));
+        assertTrue(PeerFileRules.isAllowedFilename("ok.txt.exe"));
+        assertTrue(PeerFileRules.isAllowedFilename("archive.7z"));
+        assertFalse(PeerFileRules.isAllowedFilename(".."));
+        assertFalse(PeerFileRules.isAllowedFilename(""));
+        assertEquals("folder", PeerFileRules.normalizeKind("FOLDER"));
+        assertEquals("file", PeerFileRules.normalizeKind("bin"));
     }
 
     @Test
@@ -75,5 +78,15 @@ public class PeerFileRulesTest {
         assertEquals("12 B", PeerFileRules.formatSize(12));
         assertEquals("1.0 KB", PeerFileRules.formatSize(1024));
         assertEquals("1.5 MB", PeerFileRules.formatSize((long) (1.5 * 1024 * 1024)));
+    }
+
+    @Test
+    public void formatRemaining_usesHoursMinutesSeconds() {
+        assertEquals("已過期", PeerFileRules.formatRemaining(0));
+        assertEquals("12 秒", PeerFileRules.formatRemaining(12_000));
+        assertEquals("2 分 5 秒", PeerFileRules.formatRemaining((2 * 60 + 5) * 1000L));
+        assertEquals("1 時 3 分", PeerFileRules.formatRemaining((63 * 60) * 1000L));
+        assertEquals("6 小時", PeerFileRules.OFFER_TTL_LABEL);
+        assertEquals(6L * 60 * 60 * 1000, PeerFileRules.OFFER_TTL_MS);
     }
 }

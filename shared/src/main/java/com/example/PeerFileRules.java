@@ -7,7 +7,6 @@ import java.text.Normalizer;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 同事互傳檔案的共用規則（桌面端與伺服器必須一致）。
@@ -16,11 +15,12 @@ public final class PeerFileRules {
 
     public static final long MAX_BYTES = 50L * 1024 * 1024;
     public static final String MAX_SIZE_LABEL = "50 MB";
+    /** 伺服器暫存可下載／手動清除的時間。 */
+    public static final long OFFER_TTL_MS = 6L * 60L * 60L * 1000L;
+    public static final String OFFER_TTL_LABEL = "6 小時";
 
-    public static final Set<String> ALLOWED_EXTENSIONS = Set.of(
-            "pdf", "png", "jpg", "jpeg", "gif", "webp",
-            "txt", "csv", "md", "json", "zip"
-    );
+    public static final String KIND_FILE = "file";
+    public static final String KIND_FOLDER = "folder";
 
     private static final Map<String, String> MIME_BY_EXT = Map.ofEntries(
             Map.entry("pdf", "application/pdf"),
@@ -82,8 +82,17 @@ public final class PeerFileRules {
         return name.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 
+    /** 任意副檔名皆可；僅拒絕淨化後為空或保留名稱的檔名。 */
     public static boolean isAllowedFilename(String filename) {
-        return ALLOWED_EXTENSIONS.contains(extensionOf(filename));
+        return !sanitizeFilename(filename).isEmpty();
+    }
+
+    public static String normalizeKind(String raw) {
+        return KIND_FOLDER.equalsIgnoreCase(raw == null ? "" : raw.trim()) ? KIND_FOLDER : KIND_FILE;
+    }
+
+    public static boolean isFolderKind(String kind) {
+        return KIND_FOLDER.equals(normalizeKind(kind));
     }
 
     public static String mimeFor(String filename) {
@@ -106,7 +115,24 @@ public final class PeerFileRules {
     }
 
     public static String allowedTypesHint() {
-        return "PDF、PNG、JPG、GIF、WEBP、TXT、CSV、MD、JSON、ZIP（最大 " + MAX_SIZE_LABEL + "）";
+        return "任意檔案或資料夾（壓縮後最大 " + MAX_SIZE_LABEL + "，伺服器保留 " + OFFER_TTL_LABEL + "）";
+    }
+
+    public static String formatRemaining(long remainingMs) {
+        if (remainingMs <= 0) {
+            return "已過期";
+        }
+        long totalSec = remainingMs / 1000L;
+        long hours = totalSec / 3600L;
+        long minutes = (totalSec % 3600L) / 60L;
+        long seconds = totalSec % 60L;
+        if (hours > 0) {
+            return hours + " 時 " + minutes + " 分";
+        }
+        if (minutes > 0) {
+            return minutes + " 分 " + seconds + " 秒";
+        }
+        return seconds + " 秒";
     }
 
     public static String encodeName(String filename) {

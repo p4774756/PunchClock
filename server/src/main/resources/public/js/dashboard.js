@@ -11,6 +11,8 @@
     const pendingCancelAllClients = new Set();
     const pendingSince = new Map();
     const PENDING_CANCEL_MAX_MS = 45000;
+    let fileData = [];
+    let serverHealth = null;
 
     function cancelPendingKey(clientId, taskId) {
       return clientId + '|' + taskId;
@@ -484,6 +486,8 @@
           const data = JSON.parse(event.data);
           if (data.type === 'STATUS_UPDATE') {
             applyClientSnapshot(data.clients || []);
+            applyFileSnapshot(data.files || []);
+            applyServerHealth(data.serverHealth || null);
           } else if (data.type === 'CHECKIN_RESULT') {
             appendLog(data.clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 收到回覆: ' + data.message);
           }
@@ -495,11 +499,206 @@
       ws.onclose = () => setTimeout(connectWebSocket, 3000);
     }
 
+    function formatBytes(bytes) {
+      const n = Number(bytes) || 0;
+      if (n < 1024) return n + ' B';
+      if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+      if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+      return (n / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+    }
+
+    function formatUptime(ms) {
+      const totalSec = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+      const hours = Math.floor(totalSec / 3600);
+      const minutes = Math.floor((totalSec % 3600) / 60);
+      if (hours > 48) return Math.floor(hours / 24) + ' 天 ' + (hours % 24) + ' 時';
+      if (hours > 0) return hours + ' 時 ' + minutes + ' 分';
+      return minutes + ' 分 ' + (totalSec % 60) + ' 秒';
+    }
+
+    function formatRemainingMs(ms) {
+      const remaining = Number(ms);
+      if (!Number.isFinite(remaining) || remaining <= 0) return '已過期';
+      const totalSec = Math.floor(remaining / 1000);
+      const hours = Math.floor(totalSec / 3600);
+      const minutes = Math.floor((totalSec % 3600) / 60);
+      const seconds = totalSec % 60;
+      if (hours > 0) return hours + ' 時 ' + minutes + ' 分';
+      if (minutes > 0) return minutes + ' 分 ' + seconds + ' 秒';
+      return seconds + ' 秒';
+    }
+
+    function remainingFromFile(file) {
+      if (!file) return 0;
+      if (file.expiresAtMs) return Number(file.expiresAtMs) - Date.now();
+      return Number(file.remainingMs) || 0;
+    }
+
+    function fileStatusLabel(file) {
+      if (remainingFromFile(file) <= 0) return '已過期';
+      if ((file.downloadCount || 0) > 0 || file.status === 'downloaded') {
+        return '已下載（仍可再下）';
+      }
+      return '等待收取';
+    }
+
+    function applyServerHealth(health) {
+      serverHealth = health || null;
+      const cpu = document.getElementById('healthCpu');
+      const load = document.getElementById('healthLoad');
+      const heap = document.getElementById('healthHeap');
+      const osMem = document.getElementById('healthOsMem');
+      const files = document.getElementById('healthFiles');
+      const uptime = document.getElementById('healthUptime');
+      if (!cpu) return;
+      if (!serverHealth) {
+        cpu.textContent = '無法取得';
+        return;
+      }
+      const processCpu = serverHealth.processCpuPercent;
+      const systemCpu = serverHealth.systemCpuPercent;
+      cpu.textContent = processCpu == null
+        ? (systemCpu == null ? '取樣中' : systemCpu.toFixed(1) + '% 系統')
+        : processCpu.toFixed(1) + '%' + (systemCpu == null ? '' : '（系統 ' + systemCpu.toFixed(1) + '%）');
+      const loadAvg = Number(serverHealth.loadAverage);
+      load.textContent = (!Number.isFinite(loadAvg) || loadAvg < 0)
+        ? (serverHealth.cpuCount || 1) + ' 核'
+        : loadAvg.toFixed(2) + ' / ' + (serverHealth.cpuCount || 1) + ' 核';
+      heap.textContent = formatBytes(serverHealth.heapUsedBytes) + ' / ' + formatBytes(serverHealth.heapMaxBytes);
+      if (serverHealth.osTotalMemoryBytes) {
+        const used = Number(serverHealth.osTotalMemoryBytes) - Number(serverHealth.osFreeMemoryBytes || 0);
+        osMem.textContent = formatBytes(used) + ' / ' + formatBytes(serverHealth.osTotalMemoryBytes);
+      } else {
+        osMem.textContent = '—';
+      }
+      files.textContent = (serverHealth.fileOfferCount || 0) + ' 筆 · '
+        + formatBytes(serverHealth.fileOfferBytes || 0);
+      uptime.textContent = formatUptime(serverHealth.uptimeMs || serverHealth.jvmUptimeMs || 0);
+    }
+
+    function applyFileSnapshot(files) {
+      fileData = Array.isArray(files) ? files.slice() : [];
+      renderFileTransfers();
+    }
+
+    function renderFileTransfers() {
+      const host = document.getElementById('fileTransferList');
+      if (!host) return;
+      if (!fileData.length) {
+        host.innerHTML = '<p class="empty-tasks">目前沒有暫存檔案</p>';
+        return;
+      }
+      let rows = '';
+      for (let i = 0; i < fileData.length; i++) {
+        const f = fileData[i];
+        const kindLabel = f.kind === 'folder' ? '資料夾' : '檔案';
+        rows += '<tr data-file-id="' + escapeHtml(f.fileId || '') + '">'
+          + '<td>' + escapeHtml(kindLabel) + '</td>'
+          + '<td>' + escapeHtml(f.filename || '') + '</td>'
+          + '<td>' + escapeHtml((f.fromClientId || '') + ' → ' + (f.toClientId || '')) + '</td>'
+          + '<td>' + escapeHtml(formatBytes(f.size)) + '</td>'
+          + '<td>' + escapeHtml(fileStatusLabel(f)) + '</td>'
+          + '<td class="file-remaining" data-expires="' + escapeHtml(String(f.expiresAtMs || '')) + '">'
+            + escapeHtml(formatRemainingMs(remainingFromFile(f))) + '</td>'
+          + '<td class="file-actions">'
+            + '<button type="button" class="btn btn-ghost" data-role="download-file" data-file-id="'
+              + escapeHtml(f.fileId || '') + '" data-filename="' + escapeHtml(f.filename || 'download') + '">下載</button>'
+            + '<button type="button" class="btn btn-ghost-danger" data-role="delete-file" data-file-id="'
+              + escapeHtml(f.fileId || '') + '">清除</button>'
+          + '</td></tr>';
+      }
+      host.innerHTML = '<table class="file-table"><thead><tr>'
+        + '<th>類型</th><th>檔名</th><th>傳送</th><th>大小</th><th>狀態</th><th>剩餘</th><th></th>'
+        + '</tr></thead><tbody>' + rows + '</tbody></table>';
+    }
+
+    function updateFileRemainings() {
+      const nodes = document.querySelectorAll('.file-remaining');
+      for (let i = 0; i < nodes.length; i++) {
+        const expires = Number(nodes[i].getAttribute('data-expires'));
+        nodes[i].textContent = formatRemainingMs(expires - Date.now());
+      }
+    }
+
+    function bindFileTransferActions() {
+      const list = document.getElementById('fileTransferList');
+      if (list) {
+        list.addEventListener('click', (event) => {
+          const btn = event.target.closest('button');
+          if (!btn) return;
+          const fileId = btn.getAttribute('data-file-id');
+          if (btn.getAttribute('data-role') === 'download-file') {
+            downloadAdminFile(fileId, btn.getAttribute('data-filename') || 'download');
+          } else if (btn.getAttribute('data-role') === 'delete-file') {
+            deleteAdminFile(fileId);
+          }
+        });
+      }
+      const clearAll = document.getElementById('clearAllFilesBtn');
+      if (clearAll) {
+        clearAll.addEventListener('click', clearAllAdminFiles);
+      }
+    }
+
+    async function downloadAdminFile(fileId, filename) {
+      if (!fileId) return;
+      try {
+        const res = await fetch('/api/peer/file/' + encodeURIComponent(fileId), { credentials: 'same-origin' });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.message || '下載失敗');
+          return;
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename || 'download';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        alert('下載失敗');
+      }
+    }
+
+    async function deleteAdminFile(fileId) {
+      if (!fileId || !confirm('確定要清除這份暫存檔嗎？清除後雙方都無法再下載。')) return;
+      try {
+        const res = await fetch('/api/peer/file/' + encodeURIComponent(fileId), {
+          method: 'DELETE',
+          credentials: 'same-origin'
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+          alert(data.message || '清除失敗');
+        }
+      } catch (e) {
+        alert('清除失敗');
+      }
+    }
+
+    async function clearAllAdminFiles() {
+      if (!confirm('確定要清除全部傳檔暫存嗎？')) return;
+      try {
+        const res = await fetch('/api/peer/files', { method: 'DELETE', credentials: 'same-origin' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+          alert(data.message || '清除失敗');
+        }
+      } catch (e) {
+        alert('清除失敗');
+      }
+    }
+
     async function fetchStatus() {
       try {
         const res = await fetch('/api/status');
         const data = await res.json();
         applyClientSnapshot(data.clients || []);
+        applyFileSnapshot(data.files || []);
+        applyServerHealth(data.serverHealth || null);
       } catch (e) {}
     }
 
@@ -840,9 +1039,11 @@
 
     fetchStatus();
     connectWebSocket();
+    bindFileTransferActions();
     setInterval(() => {
       updateHeartbeatMetrics();
       updateCountdowns();
+      updateFileRemainings();
     }, 1000);
     setInterval(async () => {
       if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -850,6 +1051,8 @@
           const res = await fetch('/api/status');
           const data = await res.json();
           applyClientSnapshot(data.clients || []);
+          applyFileSnapshot(data.files || []);
+          applyServerHealth(data.serverHealth || null);
         } catch (e) {}
       }
     }, 5000);

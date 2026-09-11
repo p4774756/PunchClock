@@ -189,4 +189,26 @@ public class HeartbeatServiceCommandParseTest {
         assertEquals("FILE|" + PeerFileRules.encodeName("WIN|LAB")
                 + "|fileid99|4|text/plain|1693728000000|notes.txt", received.get(0));
     }
+
+    @Test
+    public void parseServerCommand_parsesFilesArray() throws Exception {
+        HeartbeatService service = new HeartbeatService();
+        List<HeartbeatService.PeerFileInfo> files = new ArrayList<>();
+        service.setFilesListener(files::addAll);
+
+        Method method = HeartbeatService.class.getDeclaredMethod(
+                "parseServerCommand", String.class, Consumer.class);
+        method.setAccessible(true);
+        method.invoke(service,
+                "{\"files\":[{\"fileId\":\"abc123\",\"fromClientId\":\"a\",\"toClientId\":\"b\","
+                        + "\"filename\":\"notes.exe\",\"kind\":\"file\",\"status\":\"waiting\","
+                        + "\"size\":12,\"createdAtMs\":1,\"expiresAtMs\":2,\"downloadCount\":0}]}",
+                (Consumer<String>) msg -> {});
+
+        assertEquals(1, files.size());
+        assertEquals("abc123", files.get(0).fileId);
+        assertEquals("notes.exe", files.get(0).filename);
+        assertEquals("waiting", files.get(0).status);
+        assertEquals(12, files.get(0).size);
+    }
 }

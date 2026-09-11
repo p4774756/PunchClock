@@ -25,6 +25,7 @@ public class HeartbeatServicePeerFileTest {
     private final AtomicReference<String> downloadQuery = new AtomicReference<>();
     private final AtomicReference<String> downloadAuth = new AtomicReference<>();
     private final AtomicReference<String> downloadClientHeader = new AtomicReference<>();
+    private final AtomicReference<String> downloadMethod = new AtomicReference<>();
 
     @Before
     public void setUp() throws Exception {
@@ -44,6 +45,14 @@ public class HeartbeatServicePeerFileTest {
                 posted.set(requestBody);
                 byte[] body = ("{\"success\":true,\"fileId\":\"abc123\",\"filename\":\"notes.txt\","
                         + "\"size\":5,\"message\":\"ok\"}").getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            } else if ("DELETE".equalsIgnoreCase(exchange.getRequestMethod())) {
+                downloadMethod.set("DELETE");
+                downloadAuth.set(exchange.getRequestHeaders().getFirst("Authorization"));
+                downloadQuery.set(exchange.getRequestURI().getRawQuery());
+                byte[] body = "{\"success\":true,\"message\":\"已清除\"}".getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, body.length);
                 exchange.getResponseBody().write(body);
@@ -107,17 +116,36 @@ public class HeartbeatServicePeerFileTest {
     }
 
     @Test
-    public void sendPeerFile_rejectsDisallowedType() throws Exception {
+    public void sendPeerFile_acceptsAnyExtension() throws Exception {
         Path src = Files.createTempFile("peer-upload-", ".exe");
         Files.writeString(src, "MZ");
         CountDownLatch done = new CountDownLatch(1);
-        AtomicBoolean ok = new AtomicBoolean(true);
+        AtomicBoolean ok = new AtomicBoolean(false);
         service.sendPeerFile("worker-b", src, msg -> {}, success -> {
             ok.set(Boolean.TRUE.equals(success));
             done.countDown();
         });
-        assertTrue(done.await(3, TimeUnit.SECONDS));
-        assertTrue(!ok.get());
+        assertTrue(done.await(8, TimeUnit.SECONDS));
+        assertTrue(ok.get());
+        String postedBody = new String(posted.get(), StandardCharsets.UTF_8);
+        assertTrue(postedBody.contains("payload") || postedBody.contains("MZ") || postedBody.contains("filename"));
+    }
+
+    @Test
+    public void sendPeerFile_packsDirectoryAsZip() throws Exception {
+        Path dir = Files.createTempDirectory("peer-folder-");
+        Files.writeString(dir.resolve("inside.txt"), "folder-body");
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicBoolean ok = new AtomicBoolean(false);
+        service.sendPeerFile("worker-b", dir, msg -> {}, success -> {
+            ok.set(Boolean.TRUE.equals(success));
+            done.countDown();
+        });
+        assertTrue(done.await(8, TimeUnit.SECONDS));
+        assertTrue(ok.get());
+        String postedBody = new String(posted.get(), StandardCharsets.ISO_8859_1);
+        assertTrue(postedBody.contains("kind"));
+        assertTrue(postedBody.contains("folder") || postedBody.contains("PK"));
     }
 
     @Test
@@ -170,5 +198,19 @@ public class HeartbeatServicePeerFileTest {
         String header = downloadClientHeader.get();
         assertTrue(header != null && header.chars().allMatch(c -> c >= 0x20 && c <= 0x7e));
         assertEquals("saved", Files.readString(dest));
+    }
+
+    @Test
+    public void deletePeerFile_sendsDeleteForOwner() throws Exception {
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicBoolean ok = new AtomicBoolean(false);
+        service.deletePeerFile("abc123", msg -> {}, success -> {
+            ok.set(Boolean.TRUE.equals(success));
+            done.countDown();
+        });
+        assertTrue(done.await(8, TimeUnit.SECONDS));
+        assertTrue(ok.get());
+        assertEquals("DELETE", downloadMethod.get());
+        assertTrue(downloadQuery.get().contains("clientId=worker-a"));
     }
 }

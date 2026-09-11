@@ -159,10 +159,11 @@ public class PanelFactory {
         refs.pokeButton.setFont(boldFont);
         refs.pokeButton.setToolTipText("發送輕量提醒：對方桌面端會鳴叫、視窗晃動並跳出通知（約 15 秒內隨心跳送達）");
 
-        refs.sendFileButton = new JButton("傳送檔案");
+        refs.sendFileButton = new JButton("傳送檔案／資料夾");
         refs.sendFileButton.setFont(boldFont);
-        refs.sendFileButton.setToolTipText("傳送檔案給選中同事（" + com.example.PeerFileRules.allowedTypesHint()
-                + "；對方約 15 秒內收到通知後自行儲存）");
+        refs.sendFileButton.setToolTipText("傳送任意副檔名的檔案，或整個資料夾（資料夾會壓成 ZIP；"
+                + com.example.PeerFileRules.allowedTypesHint()
+                + "。過期前可在下方紀錄重複下載或手動清除）");
 
         JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         actionRow.setOpaque(false);
@@ -173,6 +174,56 @@ public class PanelFactory {
         actionRow.add(refs.sendMessageButton);
         actionRow.add(refs.pokeButton);
         actionRow.add(refs.sendFileButton);
+
+        refs.fileTableModel = new javax.swing.table.DefaultTableModel(
+                new Object[]{"方向", "檔名", "對象", "大小", "狀態", "剩餘"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        refs.fileTable = new JTable(refs.fileTableModel);
+        refs.fileTable.setFont(mainFont);
+        refs.fileTable.setRowHeight(26);
+        refs.fileTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        refs.fileTable.getTableHeader().setFont(boldFont);
+        refs.fileTable.setToolTipText("過期前可下載；選取一筆後按「下載」或「清除」");
+
+        JScrollPane fileScroll = new JScrollPane(refs.fileTable);
+        fileScroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
+        fileScroll.setPreferredSize(new Dimension(400, 120));
+        refs.fileTableScroll = fileScroll;
+
+        refs.fileStatusLabel = new JLabel("傳檔紀錄：尚未連線");
+        refs.fileStatusLabel.setFont(mainFont);
+        refs.fileStatusLabel.setForeground(new Color(100, 116, 139));
+
+        refs.downloadFileButton = new JButton("下載");
+        refs.downloadFileButton.setFont(boldFont);
+        refs.downloadFileButton.setToolTipText("將選取的暫存檔存到本機（過期前可重複下載）");
+        refs.clearFileButton = new JButton("清除");
+        refs.clearFileButton.setFont(mainFont);
+        refs.clearFileButton.setToolTipText("從伺服器刪除這份暫存，之後無法再下載");
+
+        JPanel fileActionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        fileActionRow.setOpaque(false);
+        fileActionRow.add(refs.fileStatusLabel);
+        fileActionRow.add(refs.downloadFileButton);
+        fileActionRow.add(refs.clearFileButton);
+
+        JPanel fileSection = new JPanel(new BorderLayout(0, 4));
+        fileSection.setOpaque(false);
+        JLabel fileTitle = new JLabel("傳檔紀錄（保留 " + com.example.PeerFileRules.OFFER_TTL_LABEL + "，過期前可下載／手動清除）");
+        fileTitle.setFont(boldFont);
+        fileTitle.setForeground(new Color(30, 41, 59));
+        fileSection.add(fileTitle, BorderLayout.NORTH);
+        fileSection.add(fileScroll, BorderLayout.CENTER);
+        fileSection.add(fileActionRow, BorderLayout.SOUTH);
+
+        JPanel south = new JPanel(new BorderLayout(0, 8));
+        south.setOpaque(false);
+        south.add(actionRow, BorderLayout.NORTH);
+        south.add(fileSection, BorderLayout.CENTER);
 
         JPanel north = new JPanel();
         north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
@@ -188,7 +239,7 @@ public class PanelFactory {
         JPanel center = new JPanel(new BorderLayout(0, 8));
         center.setOpaque(false);
         center.add(tableScroll, BorderLayout.CENTER);
-        center.add(actionRow, BorderLayout.SOUTH);
+        center.add(south, BorderLayout.SOUTH);
 
         panel.add(north, BorderLayout.NORTH);
         panel.add(center, BorderLayout.CENTER);
@@ -204,6 +255,12 @@ public class PanelFactory {
         public JButton sendMessageButton;
         public JButton pokeButton;
         public JButton sendFileButton;
+        public JButton downloadFileButton;
+        public JButton clearFileButton;
+        public JTable fileTable;
+        public javax.swing.table.DefaultTableModel fileTableModel;
+        public JScrollPane fileTableScroll;
+        public JLabel fileStatusLabel;
         public JButton openCloudSettingsButton;
         public JLabel peerHintLabel;
         public JLabel peerStatusLabel;

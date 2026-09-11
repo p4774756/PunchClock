@@ -2,6 +2,7 @@ package com.example.service;
 
 import com.example.AppVersion;
 import com.example.PeerFileRules;
+import com.example.PeerFolderPacker;
 import com.example.model.CheckInTask;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -65,6 +66,41 @@ public class HeartbeatService {
         }
     }
 
+    /** 傳檔紀錄摘要（由心跳回應 files[] 解析） */
+    public static final class PeerFileInfo {
+        public final String fileId;
+        public final String fromClientId;
+        public final String toClientId;
+        public final String filename;
+        public final String mime;
+        public final String kind;
+        public final String status;
+        public final long size;
+        public final long createdAtMs;
+        public final long expiresAtMs;
+        public final int downloadCount;
+
+        public PeerFileInfo(String fileId, String fromClientId, String toClientId,
+                            String filename, String mime, String kind, String status,
+                            long size, long createdAtMs, long expiresAtMs, int downloadCount) {
+            this.fileId = fileId != null ? fileId : "";
+            this.fromClientId = fromClientId != null ? fromClientId : "";
+            this.toClientId = toClientId != null ? toClientId : "";
+            this.filename = filename != null ? filename : "";
+            this.mime = mime != null ? mime : "";
+            this.kind = kind != null ? kind : PeerFileRules.KIND_FILE;
+            this.status = status != null ? status : "waiting";
+            this.size = size;
+            this.createdAtMs = createdAtMs;
+            this.expiresAtMs = expiresAtMs;
+            this.downloadCount = downloadCount;
+        }
+
+        public boolean isFolder() {
+            return PeerFileRules.isFolderKind(kind);
+        }
+    }
+
     private volatile HttpClient httpClient;
     private final Gson gson = new Gson();
     private ScheduledExecutorService scheduler;
@@ -81,6 +117,7 @@ public class HeartbeatService {
     private Supplier<List<CheckInTask>> tasksProvider;
     private Consumer<String> commandListener;
     private Consumer<List<PeerInfo>> peersListener;
+    private Consumer<List<PeerFileInfo>> filesListener;
     private final AtomicBoolean heartbeatInFlight = new AtomicBoolean(false);
     private final AtomicBoolean heartbeatPending = new AtomicBoolean(false);
     private final java.util.concurrent.atomic.AtomicLong heartbeatSeq = new java.util.concurrent.atomic.AtomicLong(0);
@@ -91,6 +128,10 @@ public class HeartbeatService {
 
     public void setPeersListener(Consumer<List<PeerInfo>> peersListener) {
         this.peersListener = peersListener;
+    }
+
+    public void setFilesListener(Consumer<List<PeerFileInfo>> filesListener) {
+        this.filesListener = filesListener;
     }
 
     public void setTasksProvider(Supplier<List<CheckInTask>> tasksProvider) {
@@ -295,6 +336,7 @@ public class HeartbeatService {
             JsonObject json = JsonParser.parseString(body).getAsJsonObject();
             parseServerActions(json, logger);
             parseServerPeers(json);
+            parseServerFiles(json);
         } catch (Exception ex) {
             // 回應非 JSON 或格式異常時靜默忽略
         }
@@ -394,6 +436,55 @@ public class HeartbeatService {
         peersListener.accept(peers);
     }
 
+    private void parseServerFiles(JsonObject json) {
+        if (filesListener == null || !json.has("files") || !json.get("files").isJsonArray()) {
+            return;
+        }
+        List<PeerFileInfo> files = new ArrayList<>();
+        for (com.google.gson.JsonElement el : json.getAsJsonArray("files")) {
+            if (el == null || !el.isJsonObject()) continue;
+            JsonObject f = el.getAsJsonObject();
+            String fileId = jsonString(f, "fileId");
+            if (fileId.isBlank()) continue;
+            files.add(new PeerFileInfo(
+                    fileId,
+                    jsonString(f, "fromClientId"),
+                    jsonString(f, "toClientId"),
+                    jsonString(f, "filename"),
+                    jsonString(f, "mime"),
+                    jsonString(f, "kind"),
+                    jsonString(f, "status"),
+                    jsonLong(f, "size"),
+                    jsonLong(f, "createdAtMs"),
+                    jsonLong(f, "expiresAtMs"),
+                    (int) jsonLong(f, "downloadCount")
+            ));
+        }
+        filesListener.accept(files);
+    }
+
+    private static String jsonString(JsonObject obj, String key) {
+        if (obj == null || !obj.has(key) || obj.get(key).isJsonNull()) {
+            return "";
+        }
+        try {
+            return obj.get(key).getAsString();
+        } catch (Exception ex) {
+            return String.valueOf(obj.get(key));
+        }
+    }
+
+    private static long jsonLong(JsonObject obj, String key) {
+        if (obj == null || !obj.has(key) || obj.get(key).isJsonNull()) {
+            return 0L;
+        }
+        try {
+            return obj.get(key).getAsLong();
+        } catch (Exception ex) {
+            return 0L;
+        }
+    }
+
     private static String decodePeerPayload(String base64url) {
         if (base64url == null || base64url.isBlank()) return "";
         try {
@@ -462,7 +553,7 @@ public class HeartbeatService {
     }
 
     /**
-     * 傳送檔案給同事（經伺服器暫存，對方心跳收到通知後再下載）。
+     * 傳送檔案或資料夾給同事（資料夾會先壓成 ZIP；經伺服器暫存，對方心跳收到通知後再下載）。
      */
     public void sendPeerFile(String toClientId, Path file, Consumer<String> logger, Consumer<Boolean> callback) {
         if (!isServiceActive || serverUrl.isBlank()) {
@@ -475,43 +566,63 @@ public class HeartbeatService {
             if (callback != null) callback.accept(false);
             return;
         }
-        if (file == null || !Files.isRegularFile(file)) {
+        if (file == null) {
             log(logger, "[警告] [檔案] 找不到要傳送的檔案");
             if (callback != null) callback.accept(false);
             return;
         }
 
-        String filename = PeerFileRules.sanitizeFilename(
-                file.getFileName() != null ? file.getFileName().toString() : "");
-        if (filename.isEmpty() || !PeerFileRules.isAllowedFilename(filename)) {
-            log(logger, "[警告] [檔案] 不支援的檔案類型，請改傳 " + PeerFileRules.allowedTypesHint());
-            if (callback != null) callback.accept(false);
-            return;
-        }
-
+        String filename;
         byte[] bytes;
+        String kind = PeerFileRules.KIND_FILE;
         try {
-            long size = Files.size(file);
-            if (!PeerFileRules.isAllowedSize(size)) {
-                log(logger, size <= 0
-                        ? "[警告] [檔案] 檔案不可為空"
-                        : "[警告] [檔案] 檔案不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
+            if (Files.isDirectory(file)) {
+                PeerFolderPacker.PackResult packed = PeerFolderPacker.pack(file);
+                if (!packed.ok) {
+                    log(logger, "[警告] [檔案] " + packed.message);
+                    if (callback != null) callback.accept(false);
+                    return;
+                }
+                filename = packed.filename;
+                bytes = packed.bytes;
+                kind = PeerFileRules.KIND_FOLDER;
+                log(logger, "[檔案] 正在傳送資料夾「" + file.getFileName() + "」（壓縮 "
+                        + PeerFileRules.formatSize(bytes.length) + "）");
+            } else if (Files.isRegularFile(file)) {
+                filename = PeerFileRules.sanitizeFilename(
+                        file.getFileName() != null ? file.getFileName().toString() : "");
+                if (filename.isEmpty()) {
+                    log(logger, "[警告] [檔案] 檔名無效");
+                    if (callback != null) callback.accept(false);
+                    return;
+                }
+                long size = Files.size(file);
+                if (!PeerFileRules.isAllowedSize(size)) {
+                    log(logger, size <= 0
+                            ? "[警告] [檔案] 檔案不可為空"
+                            : "[警告] [檔案] 檔案不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
+                    if (callback != null) callback.accept(false);
+                    return;
+                }
+                bytes = Files.readAllBytes(file);
+            } else {
+                log(logger, "[警告] [檔案] 找不到要傳送的檔案");
                 if (callback != null) callback.accept(false);
                 return;
             }
-            bytes = Files.readAllBytes(file);
         } catch (Exception ex) {
             log(logger, "[失敗] [檔案] 讀取檔案失敗：" + ex.getMessage());
             if (callback != null) callback.accept(false);
             return;
         }
 
-        String mime = PeerFileRules.mimeFor(filename);
+        String mime = PeerFileRules.isFolderKind(kind) ? "application/zip" : PeerFileRules.mimeFor(filename);
         String boundary = "PunchClockFile" + UUID.randomUUID().toString().replace("-", "");
         byte[] body = buildMultipart(boundary, orderedFields(
                 "fromClientId", clientId,
                 "toClientId", PeerFileRules.normalizeClientId(toClientId),
-                "filename", filename
+                "filename", filename,
+                "kind", kind
         ), filename, mime, bytes);
 
         String endpoint = serverUrl + "/api/peer/file";
@@ -528,7 +639,8 @@ public class HeartbeatService {
                         boolean ok = response.statusCode() == 200;
                         if (ok) {
                             log(logger, "[成功] [檔案] 已送出「" + filename + "」給【" + toClientId.trim()
-                                    + "】（" + PeerFileRules.formatSize(bytes.length) + "）");
+                                    + "】（" + PeerFileRules.formatSize(bytes.length)
+                                    + "，保留 " + PeerFileRules.OFFER_TTL_LABEL + "）");
                         } else {
                             String serverMessage = extractJsonMessage(response.body());
                             log(logger, "[失敗] [檔案] 送出「" + filename + "」失敗，狀態碼："
@@ -549,7 +661,7 @@ public class HeartbeatService {
     }
 
     /**
-     * 下載同事傳來的檔案（需為收件人）。
+     * 下載同事傳來的檔案（收件人或發送者在過期前皆可）。
      */
     public void downloadPeerFile(String fileId, Path destination,
                                  Consumer<String> logger, Consumer<Boolean> callback) {
@@ -601,6 +713,55 @@ public class HeartbeatService {
                     });
         } catch (Exception ex) {
             log(logger, "[失敗] [檔案] 下載異常：" + ex.getMessage());
+            if (callback != null) callback.accept(false);
+        }
+    }
+
+    /**
+     * 手動清除伺服器上的暫存檔（發送者或收件人）。
+     */
+    public void deletePeerFile(String fileId, Consumer<String> logger, Consumer<Boolean> callback) {
+        if (!isServiceActive || serverUrl.isBlank()) {
+            log(logger, "[警告] [檔案] 雲端未連線，無法清除");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+        if (fileId == null || fileId.isBlank()) {
+            log(logger, "[警告] [檔案] 缺少檔案編號");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+        String endpoint = serverUrl + "/api/peer/file/" + urlEncode(fileId.trim())
+                + "?clientId=" + urlEncode(clientId);
+        try {
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
+                    .uri(URI.create(endpoint))
+                    .header("Authorization", "Bearer " + heartbeatToken)
+                    .timeout(REQUEST_TIMEOUT)
+                    .DELETE();
+            String encodedClient = urlEncode(clientId);
+            if (isAsciiHeaderValue(encodedClient)) {
+                builder.header("X-PunchClock-Client", encodedClient);
+            }
+            httpClient.sendAsync(builder.build(), HttpResponse.BodyHandlers.ofString())
+                    .thenAccept(response -> {
+                        boolean ok = response.statusCode() == 200;
+                        String serverMessage = extractJsonMessage(response.body());
+                        if (ok) {
+                            log(logger, "[成功] [檔案] " + (serverMessage.isEmpty() ? "已清除暫存檔" : serverMessage));
+                        } else {
+                            log(logger, "[失敗] [檔案] 清除失敗，狀態碼：" + response.statusCode()
+                                    + (serverMessage.isEmpty() ? "" : "，" + serverMessage));
+                        }
+                        if (callback != null) callback.accept(ok);
+                    })
+                    .exceptionally(ex -> {
+                        log(logger, "[失敗] [檔案] 清除異常：" + ex.getMessage());
+                        if (callback != null) callback.accept(false);
+                        return null;
+                    });
+        } catch (Exception ex) {
+            log(logger, "[失敗] [檔案] 清除異常：" + ex.getMessage());
             if (callback != null) callback.accept(false);
         }
     }
