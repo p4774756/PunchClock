@@ -64,6 +64,7 @@ java -jar client/target/punchclock-client-standalone.jar
 - 隨機時間浮動（±5 分鐘，避免固定時間打卡）
 - 任務編輯、重新排定、立即執行
 - 本地任務持久化（`~/.punchclock/tasks.json`）
+- 視窗透明度（標題列滑桿，設定會寫入 `~/.punchclock/config.json`）
 - 支援 Edge、Chrome、Chromium、Firefox、WebKit
 
 ### server

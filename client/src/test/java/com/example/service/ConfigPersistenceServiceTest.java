@@ -141,6 +141,32 @@ public class ConfigPersistenceServiceTest {
     }
 
     @Test
+    public void saveAndLoad_persistsWindowTransparencyPercent() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.windowTransparencyPercent = 25;
+        configService.saveConfig(config, null);
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertEquals(25, loaded.windowTransparencyPercent);
+    }
+
+    @Test
+    public void loadConfig_clampsWindowTransparencyPercent() throws Exception {
+        Files.writeString(configFile, "{\"windowTransparencyPercent\":95}");
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertEquals(ConfigPersistenceService.MAX_WINDOW_TRANSPARENCY_PERCENT, loaded.windowTransparencyPercent);
+
+        Files.writeString(configFile, "{\"windowTransparencyPercent\":-4}");
+        loaded = configService.loadConfig(null);
+        assertEquals(0, loaded.windowTransparencyPercent);
+    }
+
+    @Test
+    public void loadConfig_missingTransparencyDefaultsToOpaque() {
+        ConfigPersistenceService.CloudConfig config = configService.loadConfig(null);
+        assertEquals(0, config.windowTransparencyPercent);
+    }
+
+    @Test
     public void loadConfig_seedsRecentFromCurrentValues() {
         ConfigPersistenceService.CloudConfig config = configService.loadConfig(null);
         assertFalse(config.recentTargetUrls.isEmpty());
