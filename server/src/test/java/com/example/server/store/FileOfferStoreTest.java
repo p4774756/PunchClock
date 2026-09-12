@@ -5,6 +5,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -36,13 +38,15 @@ public class FileOfferStoreTest {
         FileOfferStore.GetResult get = store.getForRecipient(put.offer.fileId, "b");
         assertEquals(FileOfferStore.GetResult.Status.OK, get.status);
         assertArrayEquals(payload, get.offer.bytes);
+        assertEquals(1, get.offer.downloadCount());
     }
 
     @Test
-    public void put_rejectsSelfEmptyUnsupportedAndOversize() {
+    public void put_rejectsSelfEmptyAndOversizeButAllowsAnyExtension() {
         byte[] ok = "x".getBytes(StandardCharsets.UTF_8);
         assertFalse(store.put("a", "a", "notes.txt", ok).ok);
-        assertFalse(store.put("a", "b", "notes.exe", ok).ok);
+        assertTrue(store.put("a", "b", "notes.exe", ok).ok);
+        assertTrue(store.put("a", "c", "noext", ok).ok);
         assertFalse(store.put("a", "b", "notes.txt", new byte[0]).ok);
         assertFalse(store.put("a", "b", "notes.txt", new byte[(int) PeerFileRules.MAX_BYTES + 1]).ok);
         assertFalse(store.put("", "b", "notes.txt", ok).ok);
@@ -58,12 +62,17 @@ public class FileOfferStoreTest {
     }
 
     @Test
-    public void get_forbidsNonRecipientAndMissingId() {
+    public void get_allowsSenderAndForbidsThirdParty() {
         FileOfferStore.PutResult put = store.put("a", "b", "a.pdf", "p".getBytes(StandardCharsets.UTF_8));
+        assertEquals(FileOfferStore.GetResult.Status.OK,
+                store.getForDownload(put.offer.fileId, "a", false).status);
+        assertEquals(0, put.offer.downloadCount());
         assertEquals(FileOfferStore.GetResult.Status.FORBIDDEN,
-                store.getForRecipient(put.offer.fileId, "a").status);
+                store.getForDownload(put.offer.fileId, "c", false).status);
         assertEquals(FileOfferStore.GetResult.Status.NOT_FOUND,
                 store.getForRecipient("missing", "b").status);
+        assertEquals(FileOfferStore.GetResult.Status.OK,
+                store.getForDownload(put.offer.fileId, "ignored", true).status);
     }
 
     @Test
@@ -73,6 +82,13 @@ public class FileOfferStoreTest {
         assertEquals(FileOfferStore.GetResult.Status.NOT_FOUND,
                 store.getForRecipient(put.offer.fileId, "b").status);
         assertEquals(0, store.size());
+    }
+
+    @Test
+    public void ttlIsSixHours() {
+        assertEquals(PeerFileRules.OFFER_TTL_MS, FileOfferStore.TTL_MS);
+        assertEquals(6L * 60L * 60L * 1000L, FileOfferStore.TTL_MS);
+        assertEquals(FileOfferStore.TTL_MS, FileOfferStore.FILE_ACTION_TTL_MS);
     }
 
     @Test
@@ -95,5 +111,39 @@ public class FileOfferStoreTest {
                 "p".getBytes(StandardCharsets.UTF_8));
         assertTrue(put.ok);
         assertEquals("passwd.txt", put.offer.filename);
+    }
+
+    @Test
+    public void snapshotAndDelete_areVisibleUntilCleared() {
+        FileOfferStore.PutResult put = store.put("a", "b", "notes.exe", "hi".getBytes(StandardCharsets.UTF_8),
+                PeerFileRules.KIND_FILE);
+        assertTrue(put.ok);
+        List<Map<String, Object>> all = store.publicSnapshot();
+        assertEquals(1, all.size());
+        assertEquals("waiting", all.get(0).get("status"));
+        assertEquals("notes.exe", all.get(0).get("filename"));
+        assertEquals(put.offer.fileId, store.snapshotForClient("b").get(0).get("fileId"));
+        assertEquals(1, store.snapshotForClient("a").size());
+        assertEquals(0, store.snapshotForClient("c").size());
+
+        store.getForRecipient(put.offer.fileId, "b");
+        assertEquals("downloaded", store.publicSnapshot().get(0).get("status"));
+
+        FileOfferStore.DeleteResult third = store.delete(put.offer.fileId, "c", false);
+        assertEquals(FileOfferStore.DeleteResult.Status.FORBIDDEN, third.status);
+        assertEquals(1, store.size());
+
+        FileOfferStore.DeleteResult cleared = store.delete(put.offer.fileId, "a", false);
+        assertEquals(FileOfferStore.DeleteResult.Status.OK, cleared.status);
+        assertEquals(0, store.size());
+    }
+
+    @Test
+    public void folderKind_usesZipMime() {
+        FileOfferStore.PutResult put = store.put("a", "b", "專案.zip", "zip".getBytes(StandardCharsets.UTF_8),
+                "folder");
+        assertTrue(put.ok);
+        assertEquals(PeerFileRules.KIND_FOLDER, put.offer.kind);
+        assertEquals("application/zip", put.offer.mime);
     }
 }

@@ -3,9 +3,11 @@ package com.example.server;
 import com.example.DailyProverb;
 import com.example.PeerFileRules;
 import com.example.server.auth.AuthService;
+import com.example.server.health.ServerHealth;
 import com.example.server.store.ClientStore;
 import com.example.server.store.ClientStore.PeerResult;
 import com.example.server.store.FileOfferStore;
+import com.example.server.store.FileOfferStore.DeleteResult;
 import com.example.server.store.FileOfferStore.GetResult;
 import com.example.server.store.FileOfferStore.PutResult;
 import com.example.server.util.HtmlEscape;
@@ -35,13 +37,14 @@ import java.util.Map;
 @SuppressWarnings("unchecked")
 public final class ServerApp {
 
-    private static final String SERVER_VERSION = "1.7.0";
+    private static final String SERVER_VERSION = "1.8.0";
     private static final Type MAP_TYPE = new TypeToken<Map<String, Object>>() {
     }.getType();
 
     private final AuthService authService = new AuthService();
     private final ClientStore clientStore = new ClientStore();
     private final FileOfferStore fileOfferStore = new FileOfferStore();
+    private final ServerHealth serverHealth = new ServerHealth();
     private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
     private final DashboardBroadcaster broadcaster = new DashboardBroadcaster(gson);
 
@@ -81,8 +84,8 @@ public final class ServerApp {
         System.out.println("- Web Dashboard: http://localhost:" + boundPort + " (login required)");
         System.out.println("- Heartbeat API: POST /api/heartbeat (Bearer token required)");
         System.out.println("- Protocol: HTTP heartbeat for workers; Dashboard WS for status push only");
-        System.out.println("- Peer file: POST /api/peer/file  GET /api/peer/file/{fileId} (max "
-                + PeerFileRules.MAX_SIZE_LABEL + ")");
+        System.out.println("- Peer file: POST /api/peer/file  GET/DELETE /api/peer/file/{fileId} (max "
+                + PeerFileRules.MAX_SIZE_LABEL + ", keep " + PeerFileRules.OFFER_TTL_LABEL + ")");
         System.out.println("- Admin password: " + (System.getenv("ADMIN_PASSWORD") != null ? "from ADMIN_PASSWORD env" : "default (secret)"));
         return app;
     }
@@ -101,6 +104,8 @@ public final class ServerApp {
         app.post("/api/peer/poke", this::peerPoke);
         app.post("/api/peer/file", this::peerFileUpload);
         app.get("/api/peer/file/{fileId}", this::peerFileDownload);
+        app.delete("/api/peer/file/{fileId}", this::peerFileDelete);
+        app.delete("/api/peer/files", this::peerFileDeleteAll);
         app.get("/api/status", this::status);
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
         app.post("/api/clients/{clientId}/cancel-task/{taskId}", this::cancelTask);
@@ -249,6 +254,7 @@ public final class ServerApp {
         response.put("action", actionToSend);
         response.put("actions", drainedActions);
         response.put("peers", clientStore.peerSnapshot(clientId));
+        response.put("files", fileOfferStore.snapshotForClient(clientId));
         response.put("ackTimestamp", Instant.now().toString());
         ctx.json(response);
     }
@@ -329,7 +335,8 @@ public final class ServerApp {
                 stringOrNull(ctx.formParam("fromClientId")),
                 stringOrNull(ctx.formParam("toClientId")),
                 filename,
-                bytes
+                bytes,
+                ctx.formParam("kind")
         );
         if (!stored.ok) {
             ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", stored.message));
@@ -351,19 +358,24 @@ public final class ServerApp {
         response.put("fileId", stored.offer.fileId);
         response.put("filename", stored.offer.filename);
         response.put("size", stored.offer.size());
+        response.put("kind", stored.offer.kind);
+        response.put("expiresAtMs", stored.offer.createdAtMs + FileOfferStore.TTL_MS);
         ctx.json(response);
     }
 
     private void peerFileDownload(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
+        boolean admin = authService.isAuth(ctx);
+        boolean worker = authService.isHeartbeatAuthorized(ctx);
+        if (!admin && !worker) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
             return;
         }
-        GetResult result = fileOfferStore.getForRecipient(
+        GetResult result = fileOfferStore.getForDownload(
                 ctx.pathParam("fileId"),
                 firstNonEmptyForm(
                         ctx.queryParam("clientId"),
-                        decodeHeaderClientId(ctx.header("X-PunchClock-Client")))
+                        decodeHeaderClientId(ctx.header("X-PunchClock-Client"))),
+                admin
         );
         if (result.status == GetResult.Status.FORBIDDEN) {
             ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", result.message));
@@ -377,10 +389,50 @@ public final class ServerApp {
         ctx.contentType("application/octet-stream");
         ctx.header("Content-Disposition", contentDisposition(offer.filename));
         ctx.header("X-PunchClock-Filename", PeerFileRules.encodeName(offer.filename));
+        ctx.header("X-PunchClock-Kind", offer.kind);
         ctx.header("X-PunchClock-Mime", offer.mime == null || offer.mime.isBlank()
                 ? "application/octet-stream" : offer.mime);
         ctx.header("X-Content-Type-Options", "nosniff");
         ctx.result(offer.bytes);
+        if (admin || worker) {
+            broadcaster.broadcast(statusUpdatePayload());
+        }
+    }
+
+    private void peerFileDelete(Context ctx) {
+        boolean admin = authService.isAuth(ctx);
+        boolean worker = authService.isHeartbeatAuthorized(ctx);
+        if (!admin && !worker) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        DeleteResult result = fileOfferStore.delete(
+                ctx.pathParam("fileId"),
+                firstNonEmptyForm(
+                        ctx.queryParam("clientId"),
+                        decodeHeaderClientId(ctx.header("X-PunchClock-Client"))),
+                admin
+        );
+        if (result.status == DeleteResult.Status.FORBIDDEN) {
+            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", result.message));
+            return;
+        }
+        if (result.status != DeleteResult.Status.OK) {
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", result.message));
+            return;
+        }
+        broadcaster.broadcast(statusUpdatePayload());
+        ctx.json(Map.of("success", true, "message", result.message));
+    }
+
+    private void peerFileDeleteAll(Context ctx) {
+        if (!authService.isAuth(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
+            return;
+        }
+        int removed = fileOfferStore.deleteAll();
+        broadcaster.broadcast(statusUpdatePayload());
+        ctx.json(Map.of("success", true, "message", "已清除 " + removed + " 筆暫存檔案", "removed", removed));
     }
 
     private static String contentDisposition(String filename) {
@@ -439,6 +491,8 @@ public final class ServerApp {
         payload.put("serverVersion", SERVER_VERSION);
         payload.put("totalClients", clientStore.clients().size());
         payload.put("clients", clientStore.publicClientsSnapshot());
+        payload.put("files", fileOfferStore.publicSnapshot());
+        payload.put("serverHealth", serverHealth.snapshot(fileOfferStore));
         ctx.json(payload);
     }
 
@@ -495,6 +549,8 @@ public final class ServerApp {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "STATUS_UPDATE");
         payload.put("clients", clientStore.publicClientsSnapshot());
+        payload.put("files", fileOfferStore.publicSnapshot());
+        payload.put("serverHealth", serverHealth.snapshot(fileOfferStore));
         return payload;
     }
 

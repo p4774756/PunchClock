@@ -5,6 +5,7 @@ import com.example.service.SpeechService;
 import com.example.service.AutomationService;
 import com.example.service.ConfigPersistenceService;
 import com.example.service.HeartbeatService;
+import com.example.service.HeartbeatService.PeerFileInfo;
 import com.example.service.HeartbeatService.PeerInfo;
 import com.example.service.PeerAvatar;
 import com.example.service.SchedulerService;
@@ -29,6 +30,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 圖形介面主視窗 - 上班 / 下班雙槽位打卡
@@ -54,6 +57,7 @@ public class App extends JFrame {
     private JTabbedPane mainTabs;
     private boolean serverHistoryMenuBound;
     private Image appIconImage;
+    private final List<PeerFileInfo> peerFiles = new ArrayList<>();
     private WindowChrome.Controls windowChrome;
     private boolean loggedOpacityUnsupported;
 
@@ -78,7 +82,10 @@ public class App extends JFrame {
         startHeartbeatService();
         slotController.initializeFromPersistence();
 
-        countdownTimer = new Timer(1000, e -> slotController.refreshCountdowns());
+        countdownTimer = new Timer(1000, e -> {
+            slotController.refreshCountdowns();
+            refreshPeerFileRemainings();
+        });
         countdownTimer.start();
         appendLog("[資訊] 桌面端版本 v" + AppVersion.VERSION);
     }
@@ -86,6 +93,7 @@ public class App extends JFrame {
     private void initHeartbeatService() {
         heartbeatService.setTasksProvider(schedulerService::getAllTasks);
         heartbeatService.setPeersListener(peers -> SwingUtilities.invokeLater(() -> updatePeerTable(peers)));
+        heartbeatService.setFilesListener(files -> SwingUtilities.invokeLater(() -> updatePeerFileTable(files)));
         heartbeatService.setCommandListener(command -> {
             if ("CANCEL_SCHEDULE".equalsIgnoreCase(command)) {
                 SwingUtilities.invokeLater(slotController::handleRemoteCancelAll);
@@ -202,7 +210,7 @@ public class App extends JFrame {
         JPanel peerBody = PanelFactory.createPeerInteractionPanel(peerRefs, mainFont, boldFont);
         JPanel peerGroup = PanelFactory.createGroupPanel(PanelFactory.PEER_TAB_LABEL, boldFont);
         peerGroup.setLayout(new BorderLayout());
-        peerGroup.add(peerBody, BorderLayout.NORTH);
+        peerGroup.add(peerBody, BorderLayout.CENTER);
         bindPeerInteractionListeners();
         if (peerRefs.openCloudSettingsButton != null) {
             peerRefs.openCloudSettingsButton.addActionListener(e -> {
@@ -214,7 +222,7 @@ public class App extends JFrame {
 
         JPanel peerTab = new JPanel(new BorderLayout());
         peerTab.setBorder(new EmptyBorder(8, 4, 8, 4));
-        peerTab.add(peerGroup, BorderLayout.NORTH);
+        peerTab.add(peerGroup, BorderLayout.CENTER);
 
         tabs.addTab("打卡任務", tasksTab);
         tabs.addTab("雲端設定", cloudTab);
@@ -222,7 +230,7 @@ public class App extends JFrame {
         tabs.addTab("Ping/Pong", PanelFactory.createHelpPanel(mainFont, boldFont, fieldFont));
         tabs.setToolTipTextAt(0, "設定打卡網址、時間，立即測試");
         tabs.setToolTipTextAt(1, "雲端心跳、Client ID、Token");
-        tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案");
+        tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案／資料夾與傳檔狀態");
         tabs.setToolTipTextAt(3, "用 curl 測試 Server 的 /ping API 是否回 pong");
         tabs.setSelectedIndex(0);
 
@@ -432,6 +440,22 @@ public class App extends JFrame {
         if (peerRefs.sendFileButton != null) {
             peerRefs.sendFileButton.addActionListener(e -> sendFileToSelectedPeer());
         }
+        if (peerRefs.downloadFileButton != null) {
+            peerRefs.downloadFileButton.addActionListener(e -> downloadSelectedPeerFile());
+        }
+        if (peerRefs.clearFileButton != null) {
+            peerRefs.clearFileButton.addActionListener(e -> clearSelectedPeerFile());
+        }
+        if (peerRefs.fileTable != null) {
+            peerRefs.fileTable.addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseClicked(java.awt.event.MouseEvent e) {
+                    if (e.getClickCount() == 2) {
+                        downloadSelectedPeerFile();
+                    }
+                }
+            });
+        }
         if (peerRefs.messageField != null) {
             peerRefs.messageField.addActionListener(e -> sendMessageToSelectedPeer());
         }
@@ -493,10 +517,9 @@ public class App extends JFrame {
             return;
         }
         JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("選擇要傳送的檔案");
-        chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
-                "可傳送的檔案（" + PeerFileRules.MAX_SIZE_LABEL + " 內）",
-                PeerFileRules.ALLOWED_EXTENSIONS.toArray(new String[0])));
+        chooser.setDialogTitle("選擇要傳送的檔案或資料夾");
+        chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+        chooser.setAcceptAllFileFilterUsed(true);
         int result = chooser.showOpenDialog(this);
         if (result != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
             return;
@@ -513,7 +536,8 @@ public class App extends JFrame {
                     if (!ok) {
                         JOptionPane.showMessageDialog(
                                 this,
-                                "檔案沒有送出。請確認類型為 " + PeerFileRules.allowedTypesHint() + "。",
+                                "沒有送出。請確認內容不超過 " + PeerFileRules.MAX_SIZE_LABEL
+                                        + "（資料夾會先壓縮），且已連上同一伺服器。",
                                 "傳送檔案",
                                 JOptionPane.WARNING_MESSAGE);
                     }
@@ -617,6 +641,8 @@ public class App extends JFrame {
         if (peerRefs.peerTable != null) {
             peerRefs.peerTable.clearSelection();
         }
+        peerFiles.clear();
+        renderPeerFileTable();
     }
 
     private void showPeerWaitingView() {
@@ -652,6 +678,12 @@ public class App extends JFrame {
         }
         if (peerRefs.sendFileButton != null) {
             peerRefs.sendFileButton.setEnabled(enabled);
+        }
+        if (peerRefs.downloadFileButton != null) {
+            peerRefs.downloadFileButton.setEnabled(enabled);
+        }
+        if (peerRefs.clearFileButton != null) {
+            peerRefs.clearFileButton.setEnabled(enabled);
         }
     }
 
@@ -722,13 +754,132 @@ public class App extends JFrame {
         int choice = JOptionPane.showConfirmDialog(
                 this,
                 timeLabel + "\n\n【" + fromId + "】傳來檔案：\n" + safeName + "（" + sizeLabel + "）\n\n"
-                        + "要儲存到本機嗎？檔案會在伺服器上保留約 10 分鐘。",
+                        + "要儲存到本機嗎？檔案會在伺服器上保留約 " + PeerFileRules.OFFER_TTL_LABEL
+                        + "，期間可在「傳檔紀錄」重複下載或手動清除。",
                 "同事傳來檔案 · " + fromId,
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.QUESTION_MESSAGE);
         if (choice != JOptionPane.YES_OPTION) {
             appendLog("[檔案] 已略過「" + safeName + "」");
             return;
+        }
+        promptSavePeerFile(fileId, safeName);
+    }
+
+    private void updatePeerFileTable(List<PeerFileInfo> files) {
+        peerFiles.clear();
+        if (files != null) {
+            peerFiles.addAll(files);
+        }
+        renderPeerFileTable();
+    }
+
+    private void renderPeerFileTable() {
+        if (peerRefs.fileTableModel == null) {
+            return;
+        }
+        int selected = peerRefs.fileTable != null ? peerRefs.fileTable.getSelectedRow() : -1;
+        String selectedId = getPeerFileIdAt(selected);
+        peerRefs.fileTableModel.setRowCount(0);
+        String myId = heartbeatService.getClientId();
+        for (PeerFileInfo file : peerFiles) {
+            boolean incoming = myId.equals(file.toClientId);
+            String direction = incoming ? "收到" : "送出";
+            String counterpart = incoming ? file.fromClientId : file.toClientId;
+            String kindPrefix = file.isFolder() ? "[資料夾] " : "";
+            String status = file.downloadCount > 0 ? "已下載（仍可再下）" : "等待收取";
+            peerRefs.fileTableModel.addRow(new Object[]{
+                    direction,
+                    kindPrefix + file.filename,
+                    counterpart,
+                    PeerFileRules.formatSize(file.size),
+                    status,
+                    remainingLabel(file.expiresAtMs)
+            });
+        }
+        if (peerRefs.fileStatusLabel != null) {
+            peerRefs.fileStatusLabel.setText(peerFiles.isEmpty()
+                    ? "傳檔紀錄：目前沒有暫存檔"
+                    : "傳檔紀錄：" + peerFiles.size() + " 筆（保留 " + PeerFileRules.OFFER_TTL_LABEL + "）");
+        }
+        if (selectedId != null && peerRefs.fileTable != null) {
+            for (int i = 0; i < peerFiles.size(); i++) {
+                if (selectedId.equals(peerFiles.get(i).fileId)) {
+                    peerRefs.fileTable.setRowSelectionInterval(i, i);
+                    break;
+                }
+            }
+        }
+    }
+
+    private void refreshPeerFileRemainings() {
+        if (peerRefs.fileTableModel == null || peerFiles.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < peerFiles.size() && i < peerRefs.fileTableModel.getRowCount(); i++) {
+            peerRefs.fileTableModel.setValueAt(remainingLabel(peerFiles.get(i).expiresAtMs), i, 5);
+        }
+    }
+
+    private static String remainingLabel(long expiresAtMs) {
+        return PeerFileRules.formatRemaining(expiresAtMs - System.currentTimeMillis());
+    }
+
+    private String getPeerFileIdAt(int row) {
+        if (row < 0 || row >= peerFiles.size()) {
+            return null;
+        }
+        return peerFiles.get(row).fileId;
+    }
+
+    private PeerFileInfo getSelectedPeerFile() {
+        if (peerRefs.fileTable == null) {
+            return null;
+        }
+        int row = peerRefs.fileTable.getSelectedRow();
+        if (row < 0 || row >= peerFiles.size()) {
+            return null;
+        }
+        return peerFiles.get(row);
+    }
+
+    private void downloadSelectedPeerFile() {
+        PeerFileInfo file = getSelectedPeerFile();
+        if (file == null) {
+            appendLog("[警告] [檔案] 請先在傳檔紀錄中選擇一筆");
+            return;
+        }
+        promptSavePeerFile(file.fileId, file.filename);
+    }
+
+    private void clearSelectedPeerFile() {
+        PeerFileInfo file = getSelectedPeerFile();
+        if (file == null) {
+            appendLog("[警告] [檔案] 請先在傳檔紀錄中選擇一筆");
+            return;
+        }
+        int confirm = JOptionPane.showConfirmDialog(
+                this,
+                "確定要從伺服器清除「" + file.filename + "」嗎？清除後無法再下載。",
+                "清除暫存檔",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+        heartbeatService.deletePeerFile(file.fileId, this::appendLog, ok ->
+                SwingUtilities.invokeLater(() -> {
+                    if (ok) {
+                        peerFiles.removeIf(item -> file.fileId.equals(item.fileId));
+                        renderPeerFileTable();
+                    }
+                }));
+    }
+
+    private void promptSavePeerFile(String fileId, String filename) {
+        String safeName = PeerFileRules.sanitizeFilename(filename);
+        if (safeName.isEmpty()) {
+            safeName = "download";
         }
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("儲存同事傳來的檔案");

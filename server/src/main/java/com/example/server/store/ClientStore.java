@@ -182,7 +182,7 @@ public final class ClientStore {
         Map<String, Object> sender = getOrCreateClient(fromClientId);
         appendClientEvent(sender, "已傳送檔案「" + offer.filename + "」給【" + toClientId + "】（等待對方心跳收取）");
         clients.put(fromClientId, sender);
-        return PeerResult.ok("檔案已排入佇列，對方約 15 秒內收到通知");
+        return PeerResult.ok("檔案已排入佇列，對方約 15 秒內收到通知，暫存保留 " + PeerFileRules.OFFER_TTL_LABEL);
     }
 
     public List<String> drainPendingActions(Map<String, Object> existing) {

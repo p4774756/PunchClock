@@ -21,7 +21,7 @@ PunchClock 遠端監控與指令中繼伺服器（Java + Javalin）。
 |------|------|------|
 | Worker（桌面端） | HTTP `POST /api/heartbeat` | 上報任務狀態；收取遠端指令 |
 | Dashboard | REST `/api/clients/...` | 下達取消排程 / 取消任務 / 刪除紀錄 |
-| Dashboard | REST `GET /api/status` | 裝置狀態（**需登入**） |
+| Dashboard | REST `GET /api/status` | 裝置狀態、傳檔列表、伺服器 CPU／記憶體（**需登入**） |
 | Dashboard | Web 頁面 `/` | **需登入** |
 | Dashboard | WebSocket `/ws/dashboard` | **需登入**；僅推送 `STATUS_UPDATE` |
 

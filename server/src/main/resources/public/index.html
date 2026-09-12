@@ -26,7 +26,15 @@
   <div class="site-banner">
     <div class="site-banner-inner">
       <h1 class="header-title">遠端打卡監控控制台</h1>
-      <p class="header-sub">即時同步桌面端心跳、排程任務與系統日誌</p>
+      <p class="header-sub">即時同步桌面端心跳、排程任務、傳檔狀態與伺服器負載</p>
+      <div class="server-health" id="serverHealth" aria-label="伺服器運行狀態">
+        <div class="health-card"><span class="health-label">CPU</span><strong id="healthCpu">載入中</strong></div>
+        <div class="health-card"><span class="health-label">處理器負載</span><strong id="healthLoad">—</strong></div>
+        <div class="health-card"><span class="health-label">JVM 記憶體</span><strong id="healthHeap">—</strong></div>
+        <div class="health-card"><span class="health-label">系統記憶體</span><strong id="healthOsMem">—</strong></div>
+        <div class="health-card"><span class="health-label">傳檔暫存</span><strong id="healthFiles">—</strong></div>
+        <div class="health-card"><span class="health-label">運行時間</span><strong id="healthUptime">—</strong></div>
+      </div>
     </div>
   </div>
 
@@ -42,6 +50,18 @@
     </aside>
 
     <div class="content-panel">
+      <section class="file-transfers" id="fileTransfers" aria-label="傳檔狀態">
+        <div class="file-transfers-head">
+          <div>
+            <div class="section-label" style="margin:0;border:0;padding:0">傳檔狀態</div>
+            <p class="file-transfers-hint">過期前可重複下載，也可手動清除。資料夾以 ZIP 傳送。</p>
+          </div>
+          <button type="button" class="btn btn-ghost-danger" id="clearAllFilesBtn">清除全部暫存</button>
+        </div>
+        <div id="fileTransferList">
+          <p class="empty-tasks">目前沒有暫存檔案</p>
+        </div>
+      </section>
       <main id="clientContainer">
         <div class="empty-state"><p>連線狀態載入中…</p><p>正在同步裝置心跳</p></div>
       </main>

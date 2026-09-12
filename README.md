@@ -66,11 +66,14 @@ java -jar client/target/punchclock-client-standalone.jar
 - 本地任務持久化（`~/.punchclock/tasks.json`）
 - 視窗透明度（標題列滑桿，設定會寫入 `~/.punchclock/config.json`）
 - 支援 Edge、Chrome、Chromium、Firefox、WebKit
+- 同事傳檔：任意副檔名、可傳資料夾（自動壓 ZIP）、傳檔紀錄可在過期前重複下載或手動清除
 
 ### server
 
 - 即時顯示所有連線裝置狀態
 - 遠端取消排程 / 取消單一任務
+- 傳檔狀態（等待收取／已下載）、過期前可下載、可手動清除；暫存保留 6 小時
+- 伺服器運行狀態（CPU、JVM／系統記憶體、傳檔暫存用量）
 - 3 分鐘無心跳自動判定離線
 - 登入保護（5 次失敗鎖定 15 分鐘）
 
