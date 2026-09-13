@@ -272,6 +272,9 @@ public final class NetworkToolsPanel extends JPanel {
         proxyHostField.setToolTipText("公司 HTTP Proxy 主機，例如 proxy.company.com 或 10.0.0.1");
         proxyPortSpinner.setFont(fieldFont);
         proxyPortSpinner.setToolTipText("常見 8080、3128、8888");
+        JSpinner.NumberEditor portEditor = new JSpinner.NumberEditor(proxyPortSpinner, "#");
+        portEditor.getTextField().setFont(fieldFont);
+        proxyPortSpinner.setEditor(portEditor);
         Dimension portSize = new Dimension(80, 26);
         proxyPortSpinner.setPreferredSize(portSize);
         proxyPortSpinner.setMaximumSize(portSize);
