@@ -11,6 +11,7 @@ import com.example.service.PeerAvatar;
 import com.example.service.SchedulerService;
 import com.example.service.TaskPersistenceService;
 import com.example.ui.UiFonts;
+import com.example.ui.NetworkToolsPanel;
 import com.example.ui.PanelFactory;
 import com.example.ui.PanelFactory.*;
 import com.example.ui.RecentValuesHelper;
@@ -55,6 +56,7 @@ public class App extends JFrame {
     private Timer countdownTimer;
     private JSplitPane mainSplit;
     private JTabbedPane mainTabs;
+    private NetworkToolsPanel networkToolsPanel;
     private boolean serverHistoryMenuBound;
     private Image appIconImage;
     private final List<PeerFileInfo> peerFiles = new ArrayList<>();
@@ -224,14 +226,24 @@ public class App extends JFrame {
         peerTab.setBorder(new EmptyBorder(8, 4, 8, 4));
         peerTab.add(peerGroup, BorderLayout.CENTER);
 
+        networkToolsPanel = new NetworkToolsPanel(
+                mainFont, boldFont, fieldFont,
+                () -> RecentValuesHelper.getValue(serverRefs.serverUrlCombo),
+                () -> serverRefs.trustAllSslCheckBox != null && serverRefs.trustAllSslCheckBox.isSelected(),
+                heartbeatService::refreshHttpClient,
+                this::saveCloudConfig,
+                this::appendLog);
+
         tabs.addTab("打卡任務", tasksTab);
         tabs.addTab("雲端設定", cloudTab);
         tabs.addTab(PanelFactory.PEER_TAB_LABEL, peerTab);
+        tabs.addTab(NetworkToolsPanel.TAB_LABEL, networkToolsPanel);
         tabs.addTab("Ping/Pong", PanelFactory.createHelpPanel(mainFont, boldFont, fieldFont));
         tabs.setToolTipTextAt(0, "設定打卡網址、時間，立即測試");
         tabs.setToolTipTextAt(1, "雲端心跳、Client ID、Token");
         tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案／資料夾與傳檔狀態");
-        tabs.setToolTipTextAt(3, "用 curl 測試 Server 的 /ping API 是否回 pong");
+        tabs.setToolTipTextAt(3, "Proxy、DNS、TCP、HTTP、Ping；公司封閉網路除錯");
+        tabs.setToolTipTextAt(4, "用 curl 測試 Server 的 /ping API 是否回 pong");
         tabs.setSelectedIndex(0);
 
         JPanel logPanel = PanelFactory.createLogPanel(logRefs, mainFont, boldFont);
@@ -1112,6 +1124,7 @@ public class App extends JFrame {
             applyWindowLayout(config);
             applyWindowTransparencyFromConfig(config);
             applyAvatarFromConfig(config);
+            applyNetworkToolsConfig(config);
         } finally {
             suppressConfigSave = false;
         }
@@ -1213,8 +1226,28 @@ public class App extends JFrame {
                 && serverRefs.enableServerCheckBox.isSelected();
         config.trustAllSsl = serverRefs.trustAllSslCheckBox != null
                 && serverRefs.trustAllSslCheckBox.isSelected();
+        captureNetworkToolsInto(config);
         captureWindowLayoutInto(config);
         configPersistenceService.saveConfig(config, null);
+    }
+
+    private void applyNetworkToolsConfig(ConfigPersistenceService.CloudConfig config) {
+        if (networkToolsPanel == null || config == null) {
+            return;
+        }
+        networkToolsPanel.applySettings(
+                config.networkTestUrl, config.networkProxyHost,
+                config.networkProxyPort, config.networkProxyMode);
+    }
+
+    private void captureNetworkToolsInto(ConfigPersistenceService.CloudConfig config) {
+        if (networkToolsPanel == null || config == null) {
+            return;
+        }
+        config.networkTestUrl = networkToolsPanel.getTestUrl();
+        config.networkProxyHost = networkToolsPanel.getProxyHost();
+        config.networkProxyPort = networkToolsPanel.getProxyPort();
+        config.networkProxyMode = networkToolsPanel.getProxyMode();
     }
 
     private void onSlotStateChanged() {

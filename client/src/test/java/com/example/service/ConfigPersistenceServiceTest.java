@@ -167,6 +167,32 @@ public class ConfigPersistenceServiceTest {
     }
 
     @Test
+    public void saveAndLoad_persistsNetworkToolsSettings() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.networkTestUrl = "https://example.com/ping";
+        config.networkProxyHost = "proxy.company.com";
+        config.networkProxyPort = 3128;
+        config.networkProxyMode = "custom";
+        configService.saveConfig(config, null);
+
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertEquals("https://example.com/ping", loaded.networkTestUrl);
+        assertEquals("proxy.company.com", loaded.networkProxyHost);
+        assertEquals(3128, loaded.networkProxyPort);
+        assertEquals("CUSTOM", loaded.networkProxyMode);
+    }
+
+    @Test
+    public void loadConfig_normalizesNetworkToolsDefaults() throws Exception {
+        Files.writeString(configFile, "{\"networkTestUrl\":\"\",\"networkProxyPort\":0,\"networkProxyMode\":\"nope\"}");
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertEquals("https://www.google.com", loaded.networkTestUrl);
+        assertEquals("", loaded.networkProxyHost);
+        assertEquals(8080, loaded.networkProxyPort);
+        assertEquals("SYSTEM", loaded.networkProxyMode);
+    }
+
+    @Test
     public void loadConfig_seedsRecentFromCurrentValues() {
         ConfigPersistenceService.CloudConfig config = configService.loadConfig(null);
         assertFalse(config.recentTargetUrls.isEmpty());

@@ -67,6 +67,7 @@ java -jar client/target/punchclock-client-standalone.jar
 - 視窗透明度（標題列滑桿，設定會寫入 `~/.punchclock/config.json`）
 - 支援 Edge、Chrome、Chromium、Firefox、WebKit
 - 同事傳檔：任意副檔名、可傳資料夾（自動壓 ZIP）、傳檔紀錄可在過期前重複下載或手動清除
+- 網路測試分頁：掃描 Windows／Mac 的 Proxy 與環境變數，並做 DNS／TCP／HTTP／Ping；公司封閉網路可填 Proxy 後對照直連測試
 
 ### server
 
