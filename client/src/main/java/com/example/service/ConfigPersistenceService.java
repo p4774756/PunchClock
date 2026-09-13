@@ -64,6 +64,12 @@ public class ConfigPersistenceService {
 
         /** 是否使用 ~/.punchclock/avatar.jpg 作為訊息／戳一下大頭照 */
         public boolean customAvatar = false;
+
+        /** 網路測試分頁（公司 Proxy／封閉網路除錯） */
+        public String networkTestUrl = "https://www.google.com";
+        public String networkProxyHost = "";
+        public int networkProxyPort = 8080;
+        public String networkProxyMode = "SYSTEM";
     }
 
     private static SlotSettings defaultWorkIn() {
@@ -190,6 +196,14 @@ public class ConfigPersistenceService {
         normalizeSlot(config.workIn, defaultWorkIn());
         normalizeSlot(config.workOut, defaultWorkOut());
         config.windowTransparencyPercent = clampWindowTransparencyPercent(config.windowTransparencyPercent);
+        if (config.networkTestUrl == null || config.networkTestUrl.isBlank()) {
+            config.networkTestUrl = "https://www.google.com";
+        }
+        if (config.networkProxyHost == null) {
+            config.networkProxyHost = "";
+        }
+        config.networkProxyPort = NetworkProbeService.clampProxyPort(config.networkProxyPort);
+        config.networkProxyMode = NetworkProbeService.normalizeProxyMode(config.networkProxyMode);
     }
 
     public static int clampWindowTransparencyPercent(int percent) {

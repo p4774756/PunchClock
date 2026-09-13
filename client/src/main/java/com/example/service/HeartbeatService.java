@@ -153,6 +153,11 @@ public class HeartbeatService {
         this.httpClient = buildHttpClient(trustAllSsl);
     }
 
+    /** 套用 JVM Proxy 屬性後重建客戶端，讓後續心跳走新的 ProxySelector。 */
+    public synchronized void refreshHttpClient() {
+        this.httpClient = buildHttpClient(trustAllSsl);
+    }
+
     public boolean isTrustAllSsl() {
         return trustAllSsl;
     }
