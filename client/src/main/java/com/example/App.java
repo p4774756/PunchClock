@@ -528,7 +528,7 @@ public class App extends JFrame {
             appendLog("[警告] [檔案] 無法傳送檔案給本機");
             return;
         }
-        JFileChooser chooser = new JFileChooser();
+        JFileChooser chooser = UiFonts.fileChooser();
         chooser.setDialogTitle("選擇要傳送的檔案或資料夾");
         chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
         chooser.setAcceptAllFileFilterUsed(true);
@@ -546,12 +546,11 @@ public class App extends JFrame {
                         peerRefs.sendFileButton.setEnabled(isCloudEnabled());
                     }
                     if (!ok) {
-                        JOptionPane.showMessageDialog(
+                        UiFonts.showWarning(
                                 this,
                                 "沒有送出。請確認內容不超過 " + PeerFileRules.MAX_SIZE_LABEL
                                         + "（資料夾會先壓縮），且已連上同一伺服器。",
-                                "傳送檔案",
-                                JOptionPane.WARNING_MESSAGE);
+                                "傳送檔案");
                     }
                 }));
     }
@@ -727,7 +726,7 @@ public class App extends JFrame {
         String timeLabel = formatPeerMessageTime(sentAtMs);
         appendLog("[訊息] 【戳】（" + timeLabel + "）來自【" + fromId + "】：" + text);
         Toolkit.getDefaultToolkit().beep();
-        JOptionPane.showMessageDialog(
+        UiFonts.showMessage(
                 this,
                 timeLabel + "\n\n" + text,
                 "同事訊息 · " + fromId,
@@ -744,7 +743,7 @@ public class App extends JFrame {
         suppressConfigSave = true;
         WindowShake.shake(this, () -> {
             suppressConfigSave = previousSuppress;
-            JOptionPane.showMessageDialog(
+            UiFonts.showMessage(
                     this,
                     timeLabel + "\n\n【" + fromId + "】戳了你，視窗晃了一下！快看一下打卡狀態吧！",
                     "同事戳你",
@@ -763,7 +762,7 @@ public class App extends JFrame {
         appendLog("[檔案] （" + timeLabel + "）【" + fromId + "】傳來「" + safeName + "」（" + sizeLabel + "）");
         Toolkit.getDefaultToolkit().beep();
         WindowShake.bringToFront(this);
-        int choice = JOptionPane.showConfirmDialog(
+        int choice = UiFonts.showConfirm(
                 this,
                 timeLabel + "\n\n【" + fromId + "】傳來檔案：\n" + safeName + "（" + sizeLabel + "）\n\n"
                         + "要儲存到本機嗎？檔案會在伺服器上保留約 " + PeerFileRules.OFFER_TTL_LABEL
@@ -870,7 +869,7 @@ public class App extends JFrame {
             appendLog("[警告] [檔案] 請先在傳檔紀錄中選擇一筆");
             return;
         }
-        int confirm = JOptionPane.showConfirmDialog(
+        int confirm = UiFonts.showConfirm(
                 this,
                 "確定要從伺服器清除「" + file.filename + "」嗎？清除後無法再下載。",
                 "清除暫存檔",
@@ -893,7 +892,7 @@ public class App extends JFrame {
         if (safeName.isEmpty()) {
             safeName = "download";
         }
-        JFileChooser chooser = new JFileChooser();
+        JFileChooser chooser = UiFonts.fileChooser();
         chooser.setDialogTitle("儲存同事傳來的檔案");
         Path downloadDir = PeerFileRules.defaultDownloadDirectory();
         chooser.setCurrentDirectory(downloadDir.toFile());
@@ -905,7 +904,7 @@ public class App extends JFrame {
         }
         Path dest = PeerFileRules.resolveSavePath(chooser.getSelectedFile().toPath(), safeName);
         if (Files.exists(dest)) {
-            int overwrite = JOptionPane.showConfirmDialog(
+            int overwrite = UiFonts.showConfirm(
                     this,
                     "檔案已存在，要覆蓋嗎？\n" + dest.toAbsolutePath(),
                     "儲存檔案",
@@ -926,20 +925,19 @@ public class App extends JFrame {
         }, ok ->
                 SwingUtilities.invokeLater(() -> {
                     if (ok) {
-                        JOptionPane.showMessageDialog(
+                        UiFonts.showMessage(
                                 this,
                                 "已儲存：\n" + dest.toAbsolutePath(),
                                 "檔案已儲存",
                                 JOptionPane.INFORMATION_MESSAGE);
                     } else {
                         String detail = failDetail.toString().trim();
-                        JOptionPane.showMessageDialog(
+                        UiFonts.showWarning(
                                 this,
                                 detail.isEmpty()
                                         ? "下載失敗。檔案可能已過期，或對方尚未連上同一伺服器。"
                                         : "下載失敗。\n\n" + detail,
-                                "下載檔案",
-                                JOptionPane.WARNING_MESSAGE);
+                                "下載檔案");
                     }
                 }));
     }
@@ -976,7 +974,7 @@ public class App extends JFrame {
     }
 
     private void choosePeerAvatar() {
-        JFileChooser chooser = new JFileChooser();
+        JFileChooser chooser = UiFonts.fileChooser();
         chooser.setDialogTitle("選擇大頭照");
         chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
                 "圖片檔 (JPG / PNG / GIF)", "jpg", "jpeg", "png", "gif"));
@@ -995,11 +993,10 @@ public class App extends JFrame {
             appendLog("[設定] 已更新訊息大頭照，對方下次收到訊息／戳一下時會看到");
         } catch (Exception ex) {
             appendLog("[失敗] 無法使用這張大頭照：" + ex.getMessage());
-            JOptionPane.showMessageDialog(
+            UiFonts.showWarning(
                     this,
                     "無法讀取這張圖片，請改選 JPG、PNG 或 GIF。",
-                    "大頭照",
-                    JOptionPane.WARNING_MESSAGE);
+                    "大頭照");
         }
     }
 

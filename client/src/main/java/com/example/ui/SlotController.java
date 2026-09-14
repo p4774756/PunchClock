@@ -526,7 +526,7 @@ public class SlotController {
         readConfigFromUi();
         CheckInTask task = schedulerService.getTask(kind.id);
         if (task == null) {
-            JOptionPane.showMessageDialog(owner, "找不到【" + kind.displayName + "】槽位。", "提示", JOptionPane.WARNING_MESSAGE);
+            UiFonts.showWarning(owner, "找不到【" + kind.displayName + "】槽位。", "提示");
             return;
         }
         String url = config.targetUrl;
