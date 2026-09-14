@@ -13,6 +13,8 @@
     const PENDING_CANCEL_MAX_MS = 45000;
     let fileData = [];
     let serverHealth = null;
+    let healthHistorySamples = [];
+    let healthHistoryTimer = null;
 
     function cancelPendingKey(clientId, taskId) {
       return clientId + '|' + taskId;
@@ -488,6 +490,7 @@
             applyClientSnapshot(data.clients || []);
             applyFileSnapshot(data.files || []);
             applyServerHealth(data.serverHealth || null);
+            appendLiveHealthPoint(data.serverHealth || null);
           } else if (data.type === 'CHECKIN_RESULT') {
             appendLog(data.clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 收到回覆: ' + data.message);
           }
@@ -574,6 +577,156 @@
       files.textContent = (serverHealth.fileOfferCount || 0) + ' 筆 · '
         + formatBytes(serverHealth.fileOfferBytes || 0);
       uptime.textContent = formatUptime(serverHealth.uptimeMs || serverHealth.jvmUptimeMs || 0);
+    }
+
+    function applyHealthHistory(summary) {
+      const samples = summary && Array.isArray(summary.samples) ? summary.samples : [];
+      healthHistorySamples = samples.slice();
+      drawHealthHistoryChart();
+    }
+
+    function appendLiveHealthPoint(health) {
+      if (!health) return;
+      const atMs = Date.now();
+      const last = healthHistorySamples.length
+        ? healthHistorySamples[healthHistorySamples.length - 1]
+        : null;
+      if (last && atMs - Number(last.atMs || 0) < 45000) {
+        return;
+      }
+      const osTotal = Number(health.osTotalMemoryBytes || 0);
+      const osFree = Number(health.osFreeMemoryBytes || 0);
+      healthHistorySamples.push({
+        atMs: atMs,
+        processCpuPercent: health.processCpuPercent,
+        systemCpuPercent: health.systemCpuPercent,
+        loadAverage: health.loadAverage,
+        heapUsedBytes: health.heapUsedBytes,
+        heapMaxBytes: health.heapMaxBytes,
+        osTotalMemoryBytes: health.osTotalMemoryBytes,
+        osUsedMemoryBytes: osTotal > 0 ? Math.max(0, osTotal - osFree) : null,
+        fileOfferBytes: health.fileOfferBytes,
+        fileOfferCount: health.fileOfferCount
+      });
+      const cutoff = Date.now() - (3 * 24 * 60 * 60 * 1000);
+      healthHistorySamples = healthHistorySamples.filter(s => Number(s.atMs || 0) >= cutoff);
+      drawHealthHistoryChart();
+    }
+
+    function numOrNull(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function percentOf(used, max) {
+      const u = numOrNull(used);
+      const m = numOrNull(max);
+      if (u == null || m == null || m <= 0) return null;
+      return Math.max(0, Math.min(100, (u / m) * 100));
+    }
+
+    function drawHealthHistoryChart() {
+      const canvas = document.getElementById('healthHistoryChart');
+      const empty = document.getElementById('healthHistoryEmpty');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const dpr = window.devicePixelRatio || 1;
+      const cssWidth = canvas.clientWidth || 960;
+      const cssHeight = 220;
+      canvas.width = Math.floor(cssWidth * dpr);
+      canvas.height = Math.floor(cssHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+      const points = healthHistorySamples
+        .map(s => ({
+          atMs: Number(s.atMs || 0),
+          cpu: numOrNull(s.processCpuPercent != null ? s.processCpuPercent : s.systemCpuPercent),
+          heap: percentOf(s.heapUsedBytes, s.heapMaxBytes),
+          os: percentOf(s.osUsedMemoryBytes, s.osTotalMemoryBytes)
+        }))
+        .filter(p => p.atMs > 0)
+        .sort((a, b) => a.atMs - b.atMs);
+
+      if (empty) {
+        empty.classList.toggle('is-hidden', points.length >= 2);
+      }
+      if (points.length < 2) {
+        return;
+      }
+
+      const pad = { top: 12, right: 14, bottom: 28, left: 36 };
+      const plotW = cssWidth - pad.left - pad.right;
+      const plotH = cssHeight - pad.top - pad.bottom;
+      const minT = points[0].atMs;
+      const maxT = points[points.length - 1].atMs;
+      const span = Math.max(1, maxT - minT);
+
+      function xOf(atMs) {
+        return pad.left + ((atMs - minT) / span) * plotW;
+      }
+      function yOf(pct) {
+        return pad.top + (1 - Math.max(0, Math.min(100, pct)) / 100) * plotH;
+      }
+
+      ctx.strokeStyle = 'rgba(9, 101, 151, 0.12)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++) {
+        const y = pad.top + (plotH * i) / 4;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(pad.left + plotW, y);
+        ctx.stroke();
+        ctx.fillStyle = '#64748b';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(String(100 - i * 25), pad.left - 6, y + 3);
+      }
+
+      function drawSeries(key, color) {
+        ctx.beginPath();
+        let started = false;
+        for (let i = 0; i < points.length; i++) {
+          const v = points[i][key];
+          if (v == null) {
+            started = false;
+            continue;
+          }
+          const x = xOf(points[i].atMs);
+          const y = yOf(v);
+          if (!started) {
+            ctx.moveTo(x, y);
+            started = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      drawSeries('cpu', '#096597');
+      drawSeries('heap', '#c45c26');
+      drawSeries('os', '#2e7d32');
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(formatChartTime(minT), pad.left, cssHeight - 8);
+      ctx.textAlign = 'right';
+      ctx.fillText(formatChartTime(maxT), pad.left + plotW, cssHeight - 8);
+    }
+
+    function formatChartTime(ms) {
+      const d = new Date(ms);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mi = String(d.getMinutes()).padStart(2, '0');
+      return mm + '/' + dd + ' ' + hh + ':' + mi;
     }
 
     function applyFileSnapshot(files) {
@@ -699,6 +852,16 @@
         applyClientSnapshot(data.clients || []);
         applyFileSnapshot(data.files || []);
         applyServerHealth(data.serverHealth || null);
+        applyHealthHistory(data.healthHistory || null);
+      } catch (e) {}
+    }
+
+    async function refreshHealthHistory() {
+      try {
+        const res = await fetch('/api/health/history');
+        if (!res.ok) return;
+        const data = await res.json();
+        applyHealthHistory(data);
       } catch (e) {}
     }
 
@@ -1040,6 +1203,8 @@
     fetchStatus();
     connectWebSocket();
     bindFileTransferActions();
+    window.addEventListener('resize', drawHealthHistoryChart);
+    healthHistoryTimer = setInterval(refreshHealthHistory, 60000);
     setInterval(() => {
       updateHeartbeatMetrics();
       updateCountdowns();
@@ -1053,6 +1218,7 @@
           applyClientSnapshot(data.clients || []);
           applyFileSnapshot(data.files || []);
           applyServerHealth(data.serverHealth || null);
+          applyHealthHistory(data.healthHistory || null);
         } catch (e) {}
       }
     }, 5000);

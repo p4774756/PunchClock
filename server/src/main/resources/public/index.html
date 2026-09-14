@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PunchClock · 遠端打卡監控</title>
+  <title>莫卡咖啡 · 遠端打卡監控</title>
   <link rel="stylesheet" href="/css/dashboard.css">
 </head>
 <body>
   <nav class="site-navbar" aria-label="主選單">
     <div class="site-navbar-inner">
       <div class="navbar-brand">
-        <div class="brand-logo" aria-hidden="true">P<em>C</em></div>
+        <div class="brand-logo" aria-hidden="true">M<em>C</em></div>
         <div class="navbar-brand-text">
-          PunchClock 打卡工具
+          莫卡咖啡
           <small>Remote Check-in Monitor · v{{SERVER_VERSION}}</small>
         </div>
       </div>
@@ -35,6 +35,21 @@
         <div class="health-card"><span class="health-label">傳檔暫存</span><strong id="healthFiles">—</strong></div>
         <div class="health-card"><span class="health-label">運行時間</span><strong id="healthUptime">—</strong></div>
       </div>
+      <section class="health-history" aria-label="系統監控歷史">
+        <div class="health-history-head">
+          <div>
+            <div class="section-label" style="margin:0;border:0;padding:0">系統監控曲線</div>
+            <p class="health-history-hint">每分鐘取樣，保留約 3 天（重啟後若本機有存檔會還原）</p>
+          </div>
+          <div class="health-legend" aria-hidden="true">
+            <span><i class="swatch swatch-cpu"></i>CPU %</span>
+            <span><i class="swatch swatch-heap"></i>JVM 記憶體 %</span>
+            <span><i class="swatch swatch-os"></i>系統記憶體 %</span>
+          </div>
+        </div>
+        <canvas id="healthHistoryChart" width="960" height="220" role="img" aria-label="CPU 與記憶體歷史曲線"></canvas>
+        <p class="health-history-empty" id="healthHistoryEmpty">尚無歷史資料，稍候一分鐘後會開始繪製</p>
+      </section>
     </div>
   </div>
 
@@ -69,7 +84,7 @@
   </div>
 
   <footer class="site-footer">
-    PunchClock 管理後台 · 樣式參考臺北市校務行政系統入口
+    莫卡咖啡 管理後台 · 樣式參考臺北市校務行政系統入口
   </footer>
 
   <script src="/js/dashboard.js"></script>

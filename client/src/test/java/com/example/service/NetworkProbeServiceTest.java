@@ -17,6 +17,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class NetworkProbeServiceTest {
@@ -239,11 +241,16 @@ public class NetworkProbeServiceTest {
                 Map.of(), props);
 
         NetworkProbeService.JvmProxyApplyResult custom =
-                service.applyJvmProxy(NetworkProbeService.MODE_CUSTOM, "proxy.company.com", 8080);
+                service.applyJvmProxy(NetworkProbeService.MODE_CUSTOM, "proxy.company.com", 8080,
+                        "alice", "secret");
         assertTrue(custom.applied);
         assertEquals("proxy.company.com", props.getProperty("https.proxyHost"));
         assertEquals("8080", props.getProperty("https.proxyPort"));
         assertEquals("false", props.getProperty("java.net.useSystemProxies"));
+        assertEquals("alice", props.getProperty("http.proxyUser"));
+        assertEquals("secret", props.getProperty("http.proxyPassword"));
+        assertEquals("", props.getProperty("jdk.http.auth.tunneling.disabledSchemes"));
+        assertNotNull(java.net.Authenticator.getDefault());
 
         NetworkProbeService.JvmProxyApplyResult system =
                 service.applyJvmProxy(NetworkProbeService.MODE_SYSTEM, "", 8080);
@@ -251,12 +258,15 @@ public class NetworkProbeServiceTest {
         assertTrue(system.summary.contains("useSystemProxies"));
         assertEquals("true", props.getProperty("java.net.useSystemProxies"));
         assertFalse(props.containsKey("https.proxyHost"));
+        assertFalse(props.containsKey("http.proxyUser"));
+        assertNull(java.net.Authenticator.getDefault());
 
         NetworkProbeService.JvmProxyApplyResult direct =
                 service.applyJvmProxy(NetworkProbeService.MODE_DIRECT, "", 8080);
         assertTrue(direct.applied);
         assertEquals("false", props.getProperty("java.net.useSystemProxies"));
         assertFalse(props.containsKey("http.proxyHost"));
+        assertNull(java.net.Authenticator.getDefault());
     }
 
     @Test

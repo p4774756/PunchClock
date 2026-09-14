@@ -3,8 +3,10 @@ package com.example.service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Authenticator;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.PasswordAuthentication;
 import java.net.Proxy;
 import java.net.ProxySelector;
 import java.net.Socket;
@@ -382,6 +384,11 @@ public class NetworkProbeService {
     }
 
     public ProbeResult httpGet(String target, String proxyMode, String proxyHost, int proxyPort) {
+        return httpGet(target, proxyMode, proxyHost, proxyPort, "", "");
+    }
+
+    public ProbeResult httpGet(String target, String proxyMode, String proxyHost, int proxyPort,
+                               String proxyUser, String proxyPassword) {
         long start = System.nanoTime();
         URI uri;
         try {
@@ -390,13 +397,22 @@ public class NetworkProbeService {
             return new ProbeResult(false, "HTTP GET", ex.getMessage(), elapsedMs(start));
         }
         String mode = normalizeProxyMode(proxyMode);
+        String user = normalizeCredential(proxyUser);
+        boolean hasAuth = !user.isEmpty();
         try {
-            HttpClient client = HttpClient.newBuilder()
+            if (hasAuth) {
+                enableProxyBasicAuthSchemes();
+            }
+            HttpClient.Builder builder = HttpClient.newBuilder()
                     .version(HttpClient.Version.HTTP_1_1)
                     .followRedirects(HttpClient.Redirect.NORMAL)
                     .connectTimeout(DEFAULT_TIMEOUT)
-                    .proxy(selectorFor(mode, proxyHost, proxyPort))
-                    .build();
+                    .proxy(selectorFor(mode, proxyHost, proxyPort));
+            Authenticator authenticator = proxyAuthenticator(user, proxyPassword);
+            if (authenticator != null) {
+                builder.authenticator(authenticator);
+            }
+            HttpClient client = builder.build();
             HttpRequest request = HttpRequest.newBuilder(uri)
                     .timeout(DEFAULT_TIMEOUT)
                     .header("User-Agent", "PunchClock-NetworkProbe")
@@ -408,13 +424,20 @@ public class NetworkProbeService {
             sb.append(uri).append("\n");
             sb.append("HTTP ").append(response.statusCode()).append("\n");
             sb.append("Proxy 模式：").append(modeLabel(mode)).append("\n");
+            if (hasAuth) {
+                sb.append("Proxy 帳號：").append(user).append("\n");
+            }
             copyHeader(sb, response, "server");
             copyHeader(sb, response, "via");
             copyHeader(sb, response, "x-cache");
             copyHeader(sb, response, "location");
             copyHeader(sb, response, "content-type");
             if (response.statusCode() == 407) {
-                sb.append("Proxy 要求認證（此工具目前不送帳密；請改用系統登入或 PAC）\n");
+                if (hasAuth) {
+                    sb.append("Proxy 仍回 407：帳密可能不對，或公司要求 NTLM／Kerberos（此 App 僅送 Basic）\n");
+                } else {
+                    sb.append("Proxy 要求認證：請填帳號密碼後再測，或改用系統已登入的 Proxy／PAC\n");
+                }
             }
             if (!preview.isBlank()) {
                 sb.append("內容預覽：\n").append(preview);
@@ -425,6 +448,9 @@ public class NetworkProbeService {
             String extra = "";
             if (mode.equals(MODE_CUSTOM)) {
                 extra = "\n目前走自訂 Proxy " + proxyHost + ":" + clampProxyPort(proxyPort);
+                if (hasAuth) {
+                    extra += "（有帶帳號）";
+                }
             } else if (mode.equals(MODE_DIRECT)) {
                 extra = "\n目前為直連（略過系統 Proxy）";
             }
@@ -471,12 +497,21 @@ public class NetworkProbeService {
     }
 
     public String diagnose(String target, String proxyMode, String proxyHost, int proxyPort, String cloudServerUrl) {
+        return diagnose(target, proxyMode, proxyHost, proxyPort, "", "", cloudServerUrl);
+    }
+
+    public String diagnose(String target, String proxyMode, String proxyHost, int proxyPort,
+                           String proxyUser, String proxyPassword, String cloudServerUrl) {
         StringBuilder sb = new StringBuilder();
         sb.append("一鍵診斷  ").append(Instant.now()).append("\n");
         sb.append("目標：").append(target).append("\n");
         sb.append("Proxy：").append(modeLabel(normalizeProxyMode(proxyMode)));
         if (MODE_CUSTOM.equals(normalizeProxyMode(proxyMode))) {
             sb.append("  ").append(proxyHost).append(":").append(clampProxyPort(proxyPort));
+        }
+        String user = normalizeCredential(proxyUser);
+        if (!user.isEmpty()) {
+            sb.append("  帳號=").append(user);
         }
         sb.append("\n");
         sb.append("═".repeat(32)).append("\n\n");
@@ -490,7 +525,7 @@ public class NetworkProbeService {
         ProbeResult tcp = tcpConnect(target, 443);
         sb.append("【TCP】\n").append(tcp.format()).append("\n\n");
 
-        ProbeResult http = httpGet(target, proxyMode, proxyHost, proxyPort);
+        ProbeResult http = httpGet(target, proxyMode, proxyHost, proxyPort, proxyUser, proxyPassword);
         sb.append("【HTTP】\n").append(http.format()).append("\n\n");
 
         ProbeResult ping = icmpPing(target);
@@ -498,7 +533,7 @@ public class NetworkProbeService {
 
         if (cloudServerUrl != null && !cloudServerUrl.isBlank()) {
             String pingUrl = joinUrl(cloudServerUrl.trim(), "/ping");
-            ProbeResult server = httpGet(pingUrl, proxyMode, proxyHost, proxyPort);
+            ProbeResult server = httpGet(pingUrl, proxyMode, proxyHost, proxyPort, proxyUser, proxyPassword);
             sb.append("【雲端 Server /ping】\n").append(server.format()).append("\n\n");
         }
 
@@ -574,18 +609,30 @@ public class NetworkProbeService {
     }
 
     public JvmProxyApplyResult applyJvmProxy(String proxyMode, String proxyHost, int proxyPort) {
+        return applyJvmProxy(proxyMode, proxyHost, proxyPort, "", "");
+    }
+
+    public JvmProxyApplyResult applyJvmProxy(String proxyMode, String proxyHost, int proxyPort,
+                                             String proxyUser, String proxyPassword) {
         String mode = normalizeProxyMode(proxyMode);
         if (MODE_DIRECT.equals(mode)) {
             clearJvmProxyProperties();
             systemProperties.setProperty("java.net.useSystemProxies", "false");
+            clearInstalledProxyCredentials();
             return new JvmProxyApplyResult(true,
                     "已清除 JVM Proxy，改為直連。對已建立的連線可能要停用再啟用「雲端狀態回報」。");
         }
         if (MODE_SYSTEM.equals(mode)) {
             clearJvmProxyHostProperties();
             systemProperties.setProperty("java.net.useSystemProxies", "true");
+            // 系統 Proxy 仍可用本分頁帳密（若公司 Proxy 要 Basic）
+            installProxyCredentials(proxyUser, proxyPassword);
+            String authNote = normalizeCredential(proxyUser).isEmpty()
+                    ? ""
+                    : " 已安裝 Proxy 帳號（Basic）。";
             return new JvmProxyApplyResult(true,
-                    "已設定 java.net.useSystemProxies=true。此屬性通常必須在啟動 JVM 時就存在才有效；若還是沒走 Proxy，請用啟動參數或改「自訂 HTTP Proxy」。");
+                    "已設定 java.net.useSystemProxies=true。" + authNote
+                            + "此屬性通常必須在啟動 JVM 時就存在才有效；若還是沒走 Proxy，請用啟動參數或改「自訂 HTTP Proxy」。");
         }
         if (!isSafeHost(proxyHost)) {
             return new JvmProxyApplyResult(false, "Proxy 主機無效");
@@ -597,8 +644,11 @@ public class NetworkProbeService {
         systemProperties.setProperty("https.proxyPort", String.valueOf(port));
         systemProperties.setProperty("http.nonProxyHosts", "localhost|127.0.0.1|*.local");
         systemProperties.setProperty("java.net.useSystemProxies", "false");
+        installProxyCredentials(proxyUser, proxyPassword);
+        String user = normalizeCredential(proxyUser);
+        String authNote = user.isEmpty() ? "" : "（帳號 " + user + "）";
         return new JvmProxyApplyResult(true,
-                "已套用 JVM HTTP/HTTPS Proxy " + proxyHost.trim() + ":" + port
+                "已套用 JVM HTTP/HTTPS Proxy " + proxyHost.trim() + ":" + port + authNote
                         + "。請停用再啟用「雲端狀態回報」讓心跳改走新設定。Playwright 打卡瀏覽器不會自動跟著改。");
     }
 
@@ -657,7 +707,7 @@ public class NetworkProbeService {
         }
         if (!http.ok) {
             if (http.detail.contains("407")) {
-                lines.add("HTTP 407：Proxy 要帳密。此 App 的 Java HttpClient 不送 Proxy 帳密，請用系統登入過的 Proxy 或 PAC。");
+                lines.add("HTTP 407：Proxy 要帳密。請在網路測試填帳號密碼後再測／套用；若仍失敗，公司可能要求 NTLM／Kerberos（此 App 僅 Basic）。");
             } else if (http.detail.toLowerCase(Locale.ROOT).contains("pkix")
                     || http.detail.toLowerCase(Locale.ROOT).contains("ssl")
                     || http.detail.toLowerCase(Locale.ROOT).contains("certificate")) {
@@ -727,6 +777,62 @@ public class NetworkProbeService {
         systemProperties.remove("https.proxyPort");
         systemProperties.remove("socksProxyHost");
         systemProperties.remove("socksProxyPort");
+        systemProperties.remove("http.proxyUser");
+        systemProperties.remove("http.proxyPassword");
+        systemProperties.remove("https.proxyUser");
+        systemProperties.remove("https.proxyPassword");
+    }
+
+    static String normalizeCredential(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    static Authenticator proxyAuthenticator(String proxyUser, String proxyPassword) {
+        String user = normalizeCredential(proxyUser);
+        if (user.isEmpty()) {
+            return null;
+        }
+        char[] password = proxyPassword != null ? proxyPassword.toCharArray() : new char[0];
+        return new Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+                if (getRequestorType() == RequestorType.PROXY) {
+                    return new PasswordAuthentication(user, password);
+                }
+                return null;
+            }
+        };
+    }
+
+    private void installProxyCredentials(String proxyUser, String proxyPassword) {
+        String user = normalizeCredential(proxyUser);
+        if (user.isEmpty()) {
+            clearInstalledProxyCredentials();
+            return;
+        }
+        String password = proxyPassword != null ? proxyPassword : "";
+        systemProperties.setProperty("http.proxyUser", user);
+        systemProperties.setProperty("http.proxyPassword", password);
+        systemProperties.setProperty("https.proxyUser", user);
+        systemProperties.setProperty("https.proxyPassword", password);
+        enableProxyBasicAuthSchemes();
+        Authenticator.setDefault(proxyAuthenticator(user, password));
+    }
+
+    private void clearInstalledProxyCredentials() {
+        systemProperties.remove("http.proxyUser");
+        systemProperties.remove("http.proxyPassword");
+        systemProperties.remove("https.proxyUser");
+        systemProperties.remove("https.proxyPassword");
+        Authenticator.setDefault(null);
+    }
+
+    /**
+     * JDK 預設常關閉 HTTPS CONNECT 的 Basic，導致帳密填了仍 407。
+     */
+    private void enableProxyBasicAuthSchemes() {
+        systemProperties.setProperty("jdk.http.auth.tunneling.disabledSchemes", "");
+        systemProperties.setProperty("jdk.http.auth.proxying.disabledSchemes", "");
     }
 
     private String getenvIgnoreCase(String key) {

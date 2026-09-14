@@ -26,11 +26,14 @@ public class NetworkToolsPanelTest {
         ));
         NetworkToolsPanel panel = holder[0];
         SwingUtilities.invokeAndWait(() ->
-                panel.applySettings("https://example.com/ping", "10.1.2.3", 3128, "CUSTOM"));
+                panel.applySettings("https://example.com/ping", "10.1.2.3", 3128, "CUSTOM",
+                        "alice", "p@ss"));
         assertEquals("https://example.com/ping", panel.getTestUrl());
         assertEquals("10.1.2.3", panel.getProxyHost());
         assertEquals(3128, panel.getProxyPort());
         assertEquals("CUSTOM", panel.getProxyMode());
+        assertEquals("alice", panel.getProxyUser());
+        assertEquals("p@ss", panel.getProxyPassword());
         assertTrue(NetworkToolsPanel.TAB_LABEL.contains("網路"));
     }
 }

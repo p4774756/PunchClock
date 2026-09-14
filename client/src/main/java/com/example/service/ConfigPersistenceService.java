@@ -70,6 +70,9 @@ public class ConfigPersistenceService {
         public String networkProxyHost = "";
         public int networkProxyPort = 8080;
         public String networkProxyMode = "SYSTEM";
+        /** Proxy 帳密（明文寫入 config.json；僅本機使用） */
+        public String networkProxyUser = "";
+        public String networkProxyPassword = "";
     }
 
     private static SlotSettings defaultWorkIn() {
@@ -204,6 +207,12 @@ public class ConfigPersistenceService {
         }
         config.networkProxyPort = NetworkProbeService.clampProxyPort(config.networkProxyPort);
         config.networkProxyMode = NetworkProbeService.normalizeProxyMode(config.networkProxyMode);
+        if (config.networkProxyUser == null) {
+            config.networkProxyUser = "";
+        }
+        if (config.networkProxyPassword == null) {
+            config.networkProxyPassword = "";
+        }
     }
 
     public static int clampWindowTransparencyPercent(int percent) {

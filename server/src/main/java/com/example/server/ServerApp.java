@@ -3,6 +3,7 @@ package com.example.server;
 import com.example.DailyProverb;
 import com.example.PeerFileRules;
 import com.example.server.auth.AuthService;
+import com.example.server.health.HealthHistoryStore;
 import com.example.server.health.ServerHealth;
 import com.example.server.store.ClientStore;
 import com.example.server.store.ClientStore.PeerResult;
@@ -45,6 +46,7 @@ public final class ServerApp {
     private final ClientStore clientStore = new ClientStore();
     private final FileOfferStore fileOfferStore = new FileOfferStore();
     private final ServerHealth serverHealth = new ServerHealth();
+    private final HealthHistoryStore healthHistoryStore = new HealthHistoryStore();
     private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
     private final DashboardBroadcaster broadcaster = new DashboardBroadcaster(gson);
 
@@ -55,6 +57,7 @@ public final class ServerApp {
 
     public Javalin start(int port) {
         clientStore.startOfflineMonitor(broadcaster::broadcast);
+        healthHistoryStore.start(() -> serverHealth.snapshot(fileOfferStore));
 
         Javalin app = Javalin.create(config -> {
             config.staticFiles.add(sf -> {
@@ -86,6 +89,7 @@ public final class ServerApp {
         System.out.println("- Protocol: HTTP heartbeat for workers; Dashboard WS for status push only");
         System.out.println("- Peer file: POST /api/peer/file  GET/DELETE /api/peer/file/{fileId} (max "
                 + PeerFileRules.MAX_SIZE_LABEL + ", keep " + PeerFileRules.OFFER_TTL_LABEL + ")");
+        System.out.println("- Health history: GET /api/health/history (login, keep 3 days)");
         System.out.println("- Admin password: " + (System.getenv("ADMIN_PASSWORD") != null ? "from ADMIN_PASSWORD env" : "default (secret)"));
         return app;
     }
@@ -107,6 +111,7 @@ public final class ServerApp {
         app.delete("/api/peer/file/{fileId}", this::peerFileDelete);
         app.delete("/api/peer/files", this::peerFileDeleteAll);
         app.get("/api/status", this::status);
+        app.get("/api/health/history", this::healthHistory);
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
         app.post("/api/clients/{clientId}/cancel-task/{taskId}", this::cancelTask);
         app.delete("/api/clients/{clientId}", this::deleteClient);
@@ -493,7 +498,16 @@ public final class ServerApp {
         payload.put("clients", clientStore.publicClientsSnapshot());
         payload.put("files", fileOfferStore.publicSnapshot());
         payload.put("serverHealth", serverHealth.snapshot(fileOfferStore));
+        payload.put("healthHistory", healthHistoryStore.summary());
         ctx.json(payload);
+    }
+
+    private void healthHistory(Context ctx) {
+        if (!authService.isAuth(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
+            return;
+        }
+        ctx.json(healthHistoryStore.summary());
     }
 
     private void cancelSchedule(Context ctx) {

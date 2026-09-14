@@ -173,6 +173,8 @@ public class ConfigPersistenceServiceTest {
         config.networkProxyHost = "proxy.company.com";
         config.networkProxyPort = 3128;
         config.networkProxyMode = "custom";
+        config.networkProxyUser = "corp\\alice";
+        config.networkProxyPassword = "s3cret";
         configService.saveConfig(config, null);
 
         ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
@@ -180,6 +182,8 @@ public class ConfigPersistenceServiceTest {
         assertEquals("proxy.company.com", loaded.networkProxyHost);
         assertEquals(3128, loaded.networkProxyPort);
         assertEquals("CUSTOM", loaded.networkProxyMode);
+        assertEquals("corp\\alice", loaded.networkProxyUser);
+        assertEquals("s3cret", loaded.networkProxyPassword);
     }
 
     @Test
@@ -190,6 +194,8 @@ public class ConfigPersistenceServiceTest {
         assertEquals("", loaded.networkProxyHost);
         assertEquals(8080, loaded.networkProxyPort);
         assertEquals("SYSTEM", loaded.networkProxyMode);
+        assertEquals("", loaded.networkProxyUser);
+        assertEquals("", loaded.networkProxyPassword);
     }
 
     @Test

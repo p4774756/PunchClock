@@ -9,6 +9,7 @@ import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTextArea;
@@ -65,6 +66,8 @@ public final class NetworkToolsPanel extends JPanel {
     private final JSpinner proxyPortSpinner =
             new JSpinner(new SpinnerNumberModel(NetworkProbeService.DEFAULT_PROXY_PORT, 1, 65535, 1));
     private final JComboBox<String> proxyModeCombo = new JComboBox<>(MODE_LABELS);
+    private final JTextField proxyUserField = new JTextField();
+    private final JPasswordField proxyPasswordField = new JPasswordField();
     private final JLabel statusLabel = new JLabel("就緒");
     private final java.util.List<JButton> actionButtons = new java.util.ArrayList<>();
     private boolean busy;
@@ -131,7 +134,21 @@ public final class NetworkToolsPanel extends JPanel {
         return MODE_VALUES[index];
     }
 
+    public String getProxyUser() {
+        return proxyUserField.getText() != null ? proxyUserField.getText().trim() : "";
+    }
+
+    public String getProxyPassword() {
+        char[] chars = proxyPasswordField.getPassword();
+        return chars != null ? new String(chars) : "";
+    }
+
     public void applySettings(String testUrl, String proxyHost, int proxyPort, String proxyMode) {
+        applySettings(testUrl, proxyHost, proxyPort, proxyMode, "", "");
+    }
+
+    public void applySettings(String testUrl, String proxyHost, int proxyPort, String proxyMode,
+                              String proxyUser, String proxyPassword) {
         if (testUrl != null && !testUrl.isBlank()) {
             targetCombo.setSelectedItem(testUrl.trim());
         }
@@ -144,6 +161,8 @@ public final class NetworkToolsPanel extends JPanel {
                 break;
             }
         }
+        proxyUserField.setText(proxyUser != null ? proxyUser : "");
+        proxyPasswordField.setText(proxyPassword != null ? proxyPassword : "");
         refreshCheatSheet();
     }
 
@@ -151,6 +170,7 @@ public final class NetworkToolsPanel extends JPanel {
         JTextArea hint = new JTextArea(
                 "公司封閉網路通常要走 Proxy；Windows 公司機與自己的 Mac 設定位置不同。"
                         + " Java 心跳不會自動讀 HTTP_PROXY。先掃描環境，再用直連／自訂 Proxy 各測一次 HTTP。"
+                        + " 若 Proxy 要帳密可填下方欄位（會寫入 ~/.punchclock/config.json）。"
                         + " ICMP Ping 常被防火牆丟掉，失敗不代表出不了網。");
         hint.setEditable(false);
         hint.setOpaque(false);
@@ -162,7 +182,7 @@ public final class NetworkToolsPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setAlignmentX(LEFT_ALIGNMENT);
         panel.add(hint, BorderLayout.CENTER);
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 72));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 88));
         return panel;
     }
 
@@ -202,6 +222,7 @@ public final class NetworkToolsPanel extends JPanel {
 
         JPanel targetRow = labeledRow(mainFont, "目標：", targetCombo);
         JPanel proxyRow = proxyRow(mainFont, fieldFont);
+        JPanel authRow = proxyAuthRow(mainFont, fieldFont);
 
         JPanel quick = new JPanel(new WrapLayout(WrapLayout.LEFT, 6, 4));
         quick.setAlignmentX(LEFT_ALIGNMENT);
@@ -256,6 +277,7 @@ public final class NetworkToolsPanel extends JPanel {
         group.add(targetRow);
         group.add(Box.createVerticalStrut(4));
         group.add(proxyRow);
+        group.add(authRow);
         group.add(quick);
         group.add(actions);
         group.add(statusLabel);
@@ -303,6 +325,44 @@ public final class NetworkToolsPanel extends JPanel {
         proxyPortSpinner.addChangeListener(e -> {
             persistQuietly();
             refreshCheatSheet();
+        });
+        return row;
+    }
+
+    private JPanel proxyAuthRow(Font mainFont, Font fieldFont) {
+        proxyUserField.setFont(fieldFont);
+        proxyUserField.setColumns(12);
+        proxyUserField.setToolTipText("Proxy 帳號（選填）；寫入 config.json");
+        proxyPasswordField.setFont(fieldFont);
+        proxyPasswordField.setColumns(12);
+        proxyPasswordField.setToolTipText("Proxy 密碼（選填，明文存 config.json）；僅送 Basic");
+
+        JLabel userLabel = new JLabel("帳號：");
+        userLabel.setFont(mainFont);
+        JLabel passLabel = new JLabel("密碼：");
+        passLabel.setFont(mainFont);
+
+        JPanel row = new JPanel(new WrapLayout(WrapLayout.LEFT, 8, 4));
+        row.setAlignmentX(LEFT_ALIGNMENT);
+        row.add(userLabel);
+        row.add(proxyUserField);
+        row.add(passLabel);
+        row.add(proxyPasswordField);
+
+        proxyUserField.addActionListener(e -> persistQuietly());
+        proxyPasswordField.addActionListener(e -> persistQuietly());
+        // 失焦也存，避免只改密碼沒按 Enter
+        proxyUserField.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override
+            public void focusLost(java.awt.event.FocusEvent e) {
+                persistQuietly();
+            }
+        });
+        proxyPasswordField.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override
+            public void focusLost(java.awt.event.FocusEvent e) {
+                persistQuietly();
+            }
         });
         return row;
     }
@@ -363,7 +423,9 @@ public final class NetworkToolsPanel extends JPanel {
     }
 
     private void runHttp() {
-        showResult("HTTP GET", probeService.httpGet(getTestUrl(), getProxyMode(), getProxyHost(), getProxyPort()).format());
+        showResult("HTTP GET", probeService.httpGet(
+                getTestUrl(), getProxyMode(), getProxyHost(), getProxyPort(),
+                getProxyUser(), getProxyPassword()).format());
     }
 
     private void runPing() {
@@ -372,7 +434,9 @@ public final class NetworkToolsPanel extends JPanel {
 
     private void runDiagnose() {
         String cloud = cloudServerUrl != null ? cloudServerUrl.get() : "";
-        String report = probeService.diagnose(getTestUrl(), getProxyMode(), getProxyHost(), getProxyPort(), cloud);
+        String report = probeService.diagnose(
+                getTestUrl(), getProxyMode(), getProxyHost(), getProxyPort(),
+                getProxyUser(), getProxyPassword(), cloud);
         if (trustAllSsl != null && trustAllSsl.getAsBoolean()) {
             report = report + "\n\n目前已啟用「信任所有 SSL（除錯）」。";
         }
@@ -387,7 +451,9 @@ public final class NetworkToolsPanel extends JPanel {
 
     private void applyJvmProxy() {
         NetworkProbeService.JvmProxyApplyResult result =
-                probeService.applyJvmProxy(getProxyMode(), getProxyHost(), getProxyPort());
+                probeService.applyJvmProxy(
+                        getProxyMode(), getProxyHost(), getProxyPort(),
+                        getProxyUser(), getProxyPassword());
         if (refreshHeartbeatClient != null && result.applied) {
             refreshHeartbeatClient.run();
         }

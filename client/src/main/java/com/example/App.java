@@ -174,7 +174,7 @@ public class App extends JFrame {
     }
 
     private void initUI() {
-        setTitle("上班打卡工具  v" + AppVersion.VERSION);
+        setTitle("莫卡咖啡  v" + AppVersion.VERSION);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         Font mainFont = UiFonts.chinesePlain(13);
@@ -185,8 +185,6 @@ public class App extends JFrame {
                 this, getTitle(), appIconImage, boldFont, mainFont);
         bindWindowTransparencySlider();
         JPanel content = WindowChrome.bodyOf(this);
-
-        content.add(createDailyProverbBanner(mainFont, boldFont), BorderLayout.NORTH);
 
         JTabbedPane tabs = new JTabbedPane();
         this.mainTabs = tabs;
@@ -234,16 +232,22 @@ public class App extends JFrame {
                 this::saveCloudConfig,
                 this::appendLog);
 
+        JPanel englishTab = new JPanel(new BorderLayout());
+        englishTab.setBorder(new EmptyBorder(8, 4, 8, 4));
+        englishTab.add(createDailyProverbBanner(mainFont, boldFont), BorderLayout.NORTH);
+
         tabs.addTab("打卡任務", tasksTab);
         tabs.addTab("雲端設定", cloudTab);
         tabs.addTab(PanelFactory.PEER_TAB_LABEL, peerTab);
         tabs.addTab(NetworkToolsPanel.TAB_LABEL, networkToolsPanel);
+        tabs.addTab("英文學習", englishTab);
         tabs.addTab("Ping/Pong", PanelFactory.createHelpPanel(mainFont, boldFont, fieldFont));
         tabs.setToolTipTextAt(0, "設定打卡網址、時間，立即測試");
         tabs.setToolTipTextAt(1, "雲端心跳、Client ID、Token");
         tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案／資料夾與傳檔狀態");
         tabs.setToolTipTextAt(3, "Proxy、DNS、TCP、HTTP、Ping；公司封閉網路除錯");
-        tabs.setToolTipTextAt(4, "用 curl 測試 Server 的 /ping API 是否回 pong");
+        tabs.setToolTipTextAt(4, "每日六人行經典台詞與發音");
+        tabs.setToolTipTextAt(5, "用 curl 測試 Server 的 /ping API 是否回 pong");
         tabs.setSelectedIndex(0);
 
         JPanel logPanel = PanelFactory.createLogPanel(logRefs, mainFont, boldFont);
@@ -394,14 +398,8 @@ public class App extends JFrame {
     private JPanel createDailyProverbBanner(Font mainFont, Font boldFont) {
         DailyProverb.Entry proverb = DailyProverb.forToday();
 
-        JPanel banner = new JPanel(new BorderLayout(0, 2));
-        banner.setBorder(new CompoundBorder(
-                new EmptyBorder(10, 12, 0, 12),
-                new CompoundBorder(
-                        BorderFactory.createMatteBorder(0, 3, 0, 0, new Color(12, 107, 107)),
-                        new EmptyBorder(8, 12, 8, 12)
-                )
-        ));
+        JPanel banner = PanelFactory.createGroupPanel("今日六人行", boldFont);
+        banner.setLayout(new BorderLayout(12, 0));
         banner.setBackground(new Color(255, 252, 246));
         banner.setOpaque(true);
 
@@ -1234,7 +1232,8 @@ public class App extends JFrame {
         }
         networkToolsPanel.applySettings(
                 config.networkTestUrl, config.networkProxyHost,
-                config.networkProxyPort, config.networkProxyMode);
+                config.networkProxyPort, config.networkProxyMode,
+                config.networkProxyUser, config.networkProxyPassword);
     }
 
     private void captureNetworkToolsInto(ConfigPersistenceService.CloudConfig config) {
@@ -1245,6 +1244,8 @@ public class App extends JFrame {
         config.networkProxyHost = networkToolsPanel.getProxyHost();
         config.networkProxyPort = networkToolsPanel.getProxyPort();
         config.networkProxyMode = networkToolsPanel.getProxyMode();
+        config.networkProxyUser = networkToolsPanel.getProxyUser();
+        config.networkProxyPassword = networkToolsPanel.getProxyPassword();
     }
 
     private void onSlotStateChanged() {
