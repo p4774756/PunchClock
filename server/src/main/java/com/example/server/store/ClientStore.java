@@ -24,7 +24,7 @@ public final class ClientStore {
     public static final long HEARTBEAT_TIMEOUT_MS = 3L * 60L * 1000L;
     public static final long PENDING_ACTION_TTL_MS = 30_000L;
     private static final int EVENT_LOG_MAX = 50;
-    private static final int PEER_MESSAGE_MAX_LEN = 500;
+    private static final int PEER_MESSAGE_MAX_LEN = 10_000;
 
     private static final Map<String, String> TASK_STATUS_LABEL = Map.of(
             "PENDING", "待命中",

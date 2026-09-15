@@ -150,7 +150,7 @@ public class PanelFactory {
 
         refs.messageField = new JTextField();
         refs.messageField.setFont(mainFont);
-        refs.messageField.setToolTipText("輸入要傳給選中同事的訊息（最多 500 字）");
+        refs.messageField.setToolTipText("輸入要傳給選中同事的訊息（最多 10000 字）");
 
         refs.sendMessageButton = new JButton("傳送訊息");
         refs.sendMessageButton.setFont(boldFont);
