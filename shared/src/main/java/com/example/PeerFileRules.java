@@ -13,8 +13,8 @@ import java.util.Map;
  */
 public final class PeerFileRules {
 
-    public static final long MAX_BYTES = 50L * 1024 * 1024;
-    public static final String MAX_SIZE_LABEL = "50 MB";
+    public static final long MAX_BYTES = 100L * 1024 * 1024;
+    public static final String MAX_SIZE_LABEL = "100 MB";
     /** 伺服器暫存可下載／手動清除的時間。 */
     public static final long OFFER_TTL_MS = 6L * 60L * 60L * 1000L;
     public static final String OFFER_TTL_LABEL = "6 小時";

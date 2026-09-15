@@ -43,8 +43,8 @@ public class HeartbeatService {
 
     static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
     static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
-    /** 單檔 50 MB 在較慢網路上需要比舊的 60 秒更長的逾時。 */
-    static final Duration FILE_TRANSFER_TIMEOUT = Duration.ofMinutes(5);
+    /** 單檔 100 MB 在較慢網路上需要比一般心跳更長的逾時。 */
+    static final Duration FILE_TRANSFER_TIMEOUT = Duration.ofMinutes(10);
 
     /** 線上同事摘要（由心跳回應 peers[] 解析） */
     public static final class PeerInfo {
