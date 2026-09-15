@@ -26,6 +26,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -666,12 +667,12 @@ public class HeartbeatService {
                         if (callback != null) callback.accept(ok);
                     })
                     .exceptionally(ex -> {
-                        log(logger, "[失敗] [檔案] 送出「" + filename + "」異常：" + ex.getMessage());
+                        log(logger, "[失敗] [檔案] 送出「" + filename + "」異常：" + describeTransferFailure(ex));
                         if (callback != null) callback.accept(false);
                         return null;
                     });
         } catch (Exception ex) {
-            log(logger, "[失敗] [檔案] 送出「" + filename + "」異常：" + ex.getMessage());
+            log(logger, "[失敗] [檔案] 送出「" + filename + "」異常：" + describeTransferFailure(ex));
             if (callback != null) callback.accept(false);
         }
     }
@@ -943,6 +944,22 @@ public class HeartbeatService {
         }
         String ascii = sb.toString().trim();
         return ascii.isEmpty() ? "download" : ascii;
+    }
+
+    static String describeTransferFailure(Throwable ex) {
+        Throwable t = ex;
+        while (t != null && t.getCause() != null && t.getCause() != t) {
+            t = t.getCause();
+        }
+        String msg = t == null || t.getMessage() == null || t.getMessage().isBlank()
+                ? String.valueOf(ex)
+                : t.getMessage().trim();
+        String lower = msg.toLowerCase(Locale.ROOT);
+        if (lower.contains("header parser received no bytes") || lower.contains("received no bytes")) {
+            return "連線在伺服器回應前被關閉（常見：雲端記憶體不足崩潰、服務重啟或上傳中斷）。請看 Render log。"
+                    + " 原始錯誤：" + msg;
+        }
+        return msg;
     }
 
     private static String extractJsonMessage(String body) {
