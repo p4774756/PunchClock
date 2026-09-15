@@ -76,7 +76,8 @@ public final class ServerApp {
             config.http.maxRequestSize = maxRequest;
             config.jetty.multipartConfig.maxFileSize(PeerFileRules.MAX_BYTES, SizeUnit.BYTES);
             config.jetty.multipartConfig.maxTotalRequestSize(maxRequest, SizeUnit.BYTES);
-            config.jetty.multipartConfig.maxInMemoryFileSize((int) PeerFileRules.MAX_BYTES, SizeUnit.BYTES);
+            // 超過 1MB 的 part 寫到暫存檔，避免與 FileOfferStore 同時在 heap 各留一份 100MB。
+            config.jetty.multipartConfig.maxInMemoryFileSize(1, SizeUnit.MB);
         });
 
         registerRoutes(app);
@@ -92,6 +93,7 @@ public final class ServerApp {
                 + PeerFileRules.MAX_SIZE_LABEL + ", keep " + PeerFileRules.OFFER_TTL_LABEL + ")");
         System.out.println("- Health history: GET /api/health/history (login, keep 3 days)");
         System.out.println("- Admin password: " + (System.getenv("ADMIN_PASSWORD") != null ? "from ADMIN_PASSWORD env" : "default (secret)"));
+        System.out.println("- JVM heap max: " + (Runtime.getRuntime().maxMemory() / (1024L * 1024L)) + " MB");
         return app;
     }
 
@@ -316,23 +318,21 @@ public final class ServerApp {
             return;
         }
         UploadedFile uploaded;
+        byte[] bytes;
         try {
             uploaded = ctx.uploadedFile("file");
-        } catch (Exception ex) {
+            if (uploaded == null) {
+                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請選擇要傳送的檔案"));
+                return;
+            }
+            try (InputStream in = uploaded.content()) {
+                bytes = in.readAllBytes();
+            }
+        } catch (Throwable ex) {
             String message = uploadedFileErrorMessage(ex);
             System.err.println("[peer-file] " + message);
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", message));
-            return;
-        }
-        if (uploaded == null) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請選擇要傳送的檔案"));
-            return;
-        }
-        byte[] bytes;
-        try (InputStream in = uploaded.content()) {
-            bytes = in.readAllBytes();
-        } catch (IOException ex) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "讀取檔案失敗"));
+            HttpStatus status = isMemoryError(ex) ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_REQUEST;
+            ctx.status(status).json(Map.of("success", false, "message", message));
             return;
         }
         String filename = firstNonEmptyForm(
@@ -478,7 +478,27 @@ public final class ServerApp {
         return "";
     }
 
-    static String uploadedFileErrorMessage(Exception ex) {
+    static boolean isMemoryError(Throwable ex) {
+        for (Throwable t = ex; t != null; t = t.getCause()) {
+            if (t instanceof OutOfMemoryError) {
+                return true;
+            }
+            String message = t.getMessage();
+            if (message == null || message.isBlank()) {
+                continue;
+            }
+            String lower = message.toLowerCase(Locale.ROOT);
+            if (lower.contains("java heap space") || lower.contains("outofmemory")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static String uploadedFileErrorMessage(Throwable ex) {
+        if (isMemoryError(ex)) {
+            return "伺服器記憶體不足，無法接收此檔案。請稍後再試，或先清除傳檔暫存。";
+        }
         String detail = ex == null || ex.getMessage() == null || ex.getMessage().isBlank()
                 ? (ex == null ? "unknown" : ex.getClass().getSimpleName())
                 : ex.getMessage().trim();

@@ -615,6 +615,10 @@ public class HeartbeatService {
                 if (callback != null) callback.accept(false);
                 return;
             }
+        } catch (OutOfMemoryError ex) {
+            log(logger, "[失敗] [檔案] 本機記憶體不足，無法處理這麼大的檔案");
+            if (callback != null) callback.accept(false);
+            return;
         } catch (Exception ex) {
             log(logger, "[失敗] [檔案] 讀取檔案失敗：" + ex.getMessage());
             if (callback != null) callback.accept(false);
@@ -623,12 +627,19 @@ public class HeartbeatService {
 
         String mime = PeerFileRules.isFolderKind(kind) ? "application/zip" : PeerFileRules.mimeFor(filename);
         String boundary = "PunchClockFile" + UUID.randomUUID().toString().replace("-", "");
-        byte[] body = buildMultipart(boundary, orderedFields(
-                "fromClientId", clientId,
-                "toClientId", PeerFileRules.normalizeClientId(toClientId),
-                "filename", filename,
-                "kind", kind
-        ), filename, mime, bytes);
+        byte[] body;
+        try {
+            body = buildMultipart(boundary, orderedFields(
+                    "fromClientId", clientId,
+                    "toClientId", PeerFileRules.normalizeClientId(toClientId),
+                    "filename", filename,
+                    "kind", kind
+            ), filename, mime, bytes);
+        } catch (OutOfMemoryError ex) {
+            log(logger, "[失敗] [檔案] 本機記憶體不足，無法組裝上傳內容");
+            if (callback != null) callback.accept(false);
+            return;
+        }
 
         String endpoint = serverUrl + "/api/peer/file";
         try {
@@ -880,7 +891,9 @@ public class HeartbeatService {
     private static byte[] buildMultipart(String boundary, Map<String, String> fields,
                                          String filename, String mime, byte[] fileBytes) {
         try {
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            int headersGuess = 2048;
+            int capacity = fileBytes == null ? headersGuess : fileBytes.length + headersGuess;
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(Math.max(headersGuess, capacity));
             byte[] crlf = "\r\n".getBytes(StandardCharsets.UTF_8);
             for (Map.Entry<String, String> field : fields.entrySet()) {
                 out.write(("--" + boundary).getBytes(StandardCharsets.UTF_8));

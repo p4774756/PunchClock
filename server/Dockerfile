@@ -17,6 +17,8 @@ WORKDIR /app
 COPY --from=build /app/server/target/punchclock-server.jar app.jar
 
 ENV PORT=3000
+# 容器預設 MaxRAMPercentage=25%，512MB 機器 heap 約 128MB，單檔 100MB 會 OOM。
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0"
 EXPOSE 3000
 
 CMD ["java", "-jar", "app.jar"]

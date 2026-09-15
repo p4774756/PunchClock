@@ -191,6 +191,13 @@ public class ServerAppPeerFileTest {
         assertTrue(message.contains("max filesize"));
     }
 
+    @Test
+    public void uploadedFileErrorMessage_explainsOutOfMemory() {
+        String message = ServerApp.uploadedFileErrorMessage(new OutOfMemoryError("Java heap space"));
+        assertTrue(message.contains("記憶體不足"));
+        assertTrue(ServerApp.isMemoryError(new IllegalStateException("Java heap space")));
+    }
+
     private HttpResponse<String> postFile(String from, String to, String filename, byte[] bytes) throws Exception {
         String boundary = "TestBoundary" + UUID.randomUUID().toString().replace("-", "");
         byte[] body = multipart(boundary, from, to, filename, bytes);

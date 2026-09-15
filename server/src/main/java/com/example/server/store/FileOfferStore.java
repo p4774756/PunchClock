@@ -18,8 +18,8 @@ public final class FileOfferStore {
 
     public static final long TTL_MS = PeerFileRules.OFFER_TTL_MS;
     public static final long FILE_ACTION_TTL_MS = PeerFileRules.OFFER_TTL_MS;
-    /** 全體暫存約為單檔上限的 4 倍。 */
-    public static final long MAX_TOTAL_BYTES = PeerFileRules.MAX_BYTES * 4;
+    /** 全體暫存約為單檔上限的 2 倍，避免小記憶體雲端把 100MB 檔再疊多份而 OOM。 */
+    public static final long MAX_TOTAL_BYTES = PeerFileRules.MAX_BYTES * 2;
     public static final int MAX_OFFERS = 64;
 
     private final ConcurrentHashMap<String, Offer> offers = new ConcurrentHashMap<>();
