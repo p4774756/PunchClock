@@ -182,6 +182,15 @@ public class ServerAppPeerFileTest {
         assertEquals(sixMb.length, body.get("size").getAsInt());
     }
 
+    @Test
+    public void uploadedFileErrorMessage_explainsSizeLimit() {
+        String message = ServerApp.uploadedFileErrorMessage(
+                new IllegalStateException("Multipart Mime part file exceeds max filesize"));
+        assertTrue(message.contains(PeerFileRules.MAX_SIZE_LABEL));
+        assertTrue(message.contains("上限"));
+        assertTrue(message.contains("max filesize"));
+    }
+
     private HttpResponse<String> postFile(String from, String to, String filename, byte[] bytes) throws Exception {
         String boundary = "TestBoundary" + UUID.randomUUID().toString().replace("-", "");
         byte[] body = multipart(boundary, from, to, filename, bytes);

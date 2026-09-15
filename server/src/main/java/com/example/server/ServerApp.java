@@ -33,6 +33,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @SuppressWarnings("unchecked")
@@ -318,7 +319,9 @@ public final class ServerApp {
         try {
             uploaded = ctx.uploadedFile("file");
         } catch (Exception ex) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "無法讀取上傳檔案"));
+            String message = uploadedFileErrorMessage(ex);
+            System.err.println("[peer-file] " + message);
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", message));
             return;
         }
         if (uploaded == null) {
@@ -473,6 +476,20 @@ public final class ServerApp {
             }
         }
         return "";
+    }
+
+    static String uploadedFileErrorMessage(Exception ex) {
+        String detail = ex == null || ex.getMessage() == null || ex.getMessage().isBlank()
+                ? (ex == null ? "unknown" : ex.getClass().getSimpleName())
+                : ex.getMessage().trim();
+        String lower = detail.toLowerCase(Locale.ROOT);
+        if (lower.contains("size") || lower.contains("large") || lower.contains("limit")
+                || lower.contains("exceed") || lower.contains("max")) {
+            return "上傳超過伺服器目前上限（" + PeerFileRules.MAX_SIZE_LABEL
+                    + "）。請確認雲端已部署並重啟新版。"
+                    + "（" + detail + "）";
+        }
+        return "無法讀取上傳檔案：" + detail;
     }
 
     private static String decodeHeaderClientId(String raw) {
