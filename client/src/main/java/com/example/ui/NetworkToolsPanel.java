@@ -37,8 +37,9 @@ public final class NetworkToolsPanel extends JPanel {
 
     private static final Color MUTED = new Color(100, 116, 139);
     private static final Color TITLE = new Color(30, 41, 59);
-    private static final Color BORDER = new Color(203, 213, 225);
-    private static final Color SURFACE = new Color(248, 250, 252);
+    private static final Color BORDER = new Color(203, 213, 225, 160);
+    /** 半透明底，讓自訂背景圖能透出 */
+    private static final Color SURFACE = new Color(248, 250, 252, 140);
 
     private static final String[] MODE_LABELS = {
             NetworkProbeService.modeLabel(NetworkProbeService.MODE_SYSTEM),
@@ -85,12 +86,14 @@ public final class NetworkToolsPanel extends JPanel {
         this.logger = logger;
 
         setLayout(new BorderLayout());
+        setOpaque(false);
         setBorder(new EmptyBorder(8, 4, 8, 4));
 
         targetCombo = RecentValuesHelper.createCombo(fieldFont, "https://www.google.com",
                 "要測試的網址或主機；可填 https://host、host:443 或雲端 Server");
 
         JPanel body = new JPanel();
+        body.setOpaque(false);
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.add(hintPanel(mainFont));
         body.add(Box.createVerticalStrut(8));
@@ -101,7 +104,9 @@ public final class NetworkToolsPanel extends JPanel {
         body.add(cheatSheetPanel(boldFont));
 
         JScrollPane scroll = new JScrollPane(body);
-        scroll.setBorder(BorderFactory.createLineBorder(BORDER));
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         scroll.getHorizontalScrollBar().setUnitIncrement(16);
         add(scroll, BorderLayout.CENTER);
@@ -180,6 +185,7 @@ public final class NetworkToolsPanel extends JPanel {
         hint.setForeground(MUTED);
         hint.setBorder(null);
         JPanel panel = new JPanel(new BorderLayout());
+        panel.setOpaque(false);
         panel.setAlignmentX(LEFT_ALIGNMENT);
         panel.add(hint, BorderLayout.CENTER);
         panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 88));
@@ -204,6 +210,7 @@ public final class NetworkToolsPanel extends JPanel {
         });
 
         JPanel north = new JPanel(new BorderLayout());
+        north.setOpaque(false);
         JLabel osHint = new JLabel("Windows：netsh winhttp　·　macOS：scutil --proxy");
         osHint.setFont(mainFont);
         osHint.setForeground(MUTED);
@@ -307,6 +314,7 @@ public final class NetworkToolsPanel extends JPanel {
         portLabel.setFont(mainFont);
 
         JPanel row = new JPanel(new WrapLayout(WrapLayout.LEFT, 8, 4));
+        row.setOpaque(false);
         row.setAlignmentX(LEFT_ALIGNMENT);
         row.add(proxyModeCombo);
         row.add(hostLabel);
@@ -343,6 +351,7 @@ public final class NetworkToolsPanel extends JPanel {
         passLabel.setFont(mainFont);
 
         JPanel row = new JPanel(new WrapLayout(WrapLayout.LEFT, 8, 4));
+        row.setOpaque(false);
         row.setAlignmentX(LEFT_ALIGNMENT);
         row.add(userLabel);
         row.add(proxyUserField);
@@ -378,6 +387,7 @@ public final class NetworkToolsPanel extends JPanel {
 
     private JPanel labeledRow(Font labelFont, String label, java.awt.Component field) {
         JPanel row = new JPanel(new BorderLayout(8, 4));
+        row.setOpaque(false);
         row.setAlignmentX(LEFT_ALIGNMENT);
         JLabel jLabel = new JLabel(label);
         jLabel.setFont(labelFont);
@@ -542,6 +552,7 @@ public final class NetworkToolsPanel extends JPanel {
         area.setEditable(false);
         area.setLineWrap(false);
         area.setFont(font);
+        area.setOpaque(true);
         area.setBackground(SURFACE);
         area.setForeground(TITLE);
         area.setRows(rows);
@@ -551,6 +562,8 @@ public final class NetworkToolsPanel extends JPanel {
 
     private static JScrollPane wrapArea(JTextArea area, int height) {
         JScrollPane scroll = new JScrollPane(area);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
         scroll.setBorder(BorderFactory.createLineBorder(BORDER));
         scroll.setAlignmentX(LEFT_ALIGNMENT);
         scroll.setPreferredSize(new Dimension(640, height));

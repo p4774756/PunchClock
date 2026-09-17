@@ -3,6 +3,7 @@ package com.example;
 import com.example.model.TaskStatus;
 import com.example.service.SpeechService;
 import com.example.service.AutomationService;
+import com.example.service.CheckInHistoryService;
 import com.example.service.ConfigPersistenceService;
 import com.example.service.HeartbeatService;
 import com.example.service.HeartbeatService.PeerFileInfo;
@@ -10,6 +11,7 @@ import com.example.service.HeartbeatService.PeerInfo;
 import com.example.service.PeerAvatar;
 import com.example.service.SchedulerService;
 import com.example.service.TaskPersistenceService;
+import com.example.service.WindowBackground;
 import com.example.ui.UiFonts;
 import com.example.ui.NetworkToolsPanel;
 import com.example.ui.PanelFactory;
@@ -27,6 +29,7 @@ import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -44,12 +47,14 @@ public class App extends JFrame {
     private final ServerConfigRefs serverRefs = new ServerConfigRefs();
     private final PeerInteractionRefs peerRefs = new PeerInteractionRefs();
     private final SlotPanelRefs slotRefs = new SlotPanelRefs();
+    private final CheckInHistoryRefs historyRefs = new CheckInHistoryRefs();
     private final LogPanelRefs logRefs = new LogPanelRefs();
 
     private final SchedulerService schedulerService;
     private final AutomationService automationService;
     private final HeartbeatService heartbeatService;
     private final TaskPersistenceService persistenceService;
+    private final CheckInHistoryService historyService;
     private final ConfigPersistenceService configPersistenceService;
     private SlotController slotController;
     private boolean suppressConfigSave = false;
@@ -68,15 +73,16 @@ public class App extends JFrame {
         this.automationService = new AutomationService();
         this.heartbeatService = new HeartbeatService();
         this.persistenceService = new TaskPersistenceService();
+        this.historyService = new CheckInHistoryService();
         this.configPersistenceService = new ConfigPersistenceService();
 
         initHeartbeatService();
         applyAppIcon();
         initUI();
         slotController = new SlotController(
-                this, slotRefs,
+                this, slotRefs, historyRefs,
                 schedulerService, automationService, heartbeatService,
-                persistenceService, configPersistenceService,
+                persistenceService, historyService, configPersistenceService,
                 this::appendLog, this::onSlotStateChanged);
         slotController.bindUi();
 
@@ -194,9 +200,12 @@ public class App extends JFrame {
         tabs.setBorder(new EmptyBorder(8, 12, 0, 12));
 
         JPanel slotPanel = PanelFactory.createSlotPanel(slotRefs, mainFont, boldFont, fieldFont);
-        JPanel tasksTab = new JPanel(new BorderLayout());
+        JPanel historyPanel = PanelFactory.createCheckInHistoryPanel(historyRefs, mainFont, boldFont);
+        JPanel tasksTab = new JPanel(new BorderLayout(0, 6));
+        tasksTab.setOpaque(false);
         tasksTab.setBorder(new EmptyBorder(8, 4, 8, 4));
         tasksTab.add(slotPanel, BorderLayout.NORTH);
+        tasksTab.add(historyPanel, BorderLayout.CENTER);
 
         JPanel serverBody = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont, fieldFont);
         JPanel serverGroup = PanelFactory.createGroupPanel("雲端服務與裝置設定", boldFont);
@@ -204,6 +213,7 @@ public class App extends JFrame {
         serverGroup.add(serverBody, BorderLayout.NORTH);
 
         JPanel cloudTab = new JPanel(new BorderLayout());
+        cloudTab.setOpaque(false);
         cloudTab.setBorder(new EmptyBorder(8, 4, 8, 4));
         cloudTab.add(serverGroup, BorderLayout.NORTH);
 
@@ -221,6 +231,7 @@ public class App extends JFrame {
         }
 
         JPanel peerTab = new JPanel(new BorderLayout());
+        peerTab.setOpaque(false);
         peerTab.setBorder(new EmptyBorder(8, 4, 8, 4));
         peerTab.add(peerGroup, BorderLayout.CENTER);
 
@@ -231,8 +242,10 @@ public class App extends JFrame {
                 heartbeatService::refreshHttpClient,
                 this::saveCloudConfig,
                 this::appendLog);
+        networkToolsPanel.setOpaque(false);
 
         JPanel englishTab = new JPanel(new BorderLayout());
+        englishTab.setOpaque(false);
         englishTab.setBorder(new EmptyBorder(8, 4, 8, 4));
         englishTab.add(createDailyProverbBanner(mainFont, boldFont), BorderLayout.NORTH);
 
@@ -241,9 +254,13 @@ public class App extends JFrame {
         tabs.addTab(PanelFactory.PEER_TAB_LABEL, peerTab);
         tabs.addTab(NetworkToolsPanel.TAB_LABEL, networkToolsPanel);
         tabs.addTab("英文學習", englishTab);
-        tabs.addTab("Ping/Pong", PanelFactory.createHelpPanel(mainFont, boldFont, fieldFont));
+        JPanel helpPanel = PanelFactory.createHelpPanel(mainFont, boldFont, fieldFont);
+        helpPanel.setOpaque(false);
+        tabs.addTab("Ping/Pong", helpPanel);
+        tabs.setOpaque(false);
+        tabs.setBackground(new Color(0, 0, 0, 0));
         tabs.setToolTipTextAt(0, "設定打卡網址、時間，立即測試");
-        tabs.setToolTipTextAt(1, "雲端心跳、Client ID、Token");
+        tabs.setToolTipTextAt(1, "雲端心跳、Client ID、Token；可選程式背景圖與模糊／透明度");
         tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案／資料夾與傳檔狀態");
         tabs.setToolTipTextAt(3, "Proxy、DNS、TCP、HTTP、Ping；公司封閉網路除錯");
         tabs.setToolTipTextAt(4, "每日六人行經典台詞與發音");
@@ -257,12 +274,15 @@ public class App extends JFrame {
 
         JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tabs, logPanel);
         this.mainSplit = split;
+        split.setOpaque(false);
         split.setResizeWeight(0.55);
         split.setContinuousLayout(true);
         split.setOneTouchExpandable(true);
         split.setDividerSize(8);
         split.setBorder(null);
         content.add(split, BorderLayout.CENTER);
+
+        bindBackgroundControls();
 
         setMinimumSize(new Dimension(720, 590));
         setSize(720, 780);
@@ -1009,6 +1029,173 @@ public class App extends JFrame {
         appendLog("[設定] 已還原預設大頭照（App 圖示）");
     }
 
+    private Path backgroundFile() {
+        return WindowBackground.fileBeside(configPersistenceService.getSavePath());
+    }
+
+    private BufferedImage currentBackgroundImage;
+
+    private void bindBackgroundControls() {
+        if (serverRefs.chooseBackgroundButton != null) {
+            serverRefs.chooseBackgroundButton.addActionListener(e -> chooseWindowBackground());
+        }
+        if (serverRefs.clearBackgroundButton != null) {
+            serverRefs.clearBackgroundButton.addActionListener(e -> clearWindowBackground());
+        }
+        if (serverRefs.backgroundBlurSlider != null) {
+            serverRefs.backgroundBlurSlider.addChangeListener(e -> {
+                int blur = serverRefs.backgroundBlurSlider.getValue();
+                if (serverRefs.backgroundBlurValueLabel != null) {
+                    serverRefs.backgroundBlurValueLabel.setText(blur + "%");
+                }
+                if (!serverRefs.backgroundBlurSlider.getValueIsAdjusting()) {
+                    applyBackgroundEffectsFromUi(true);
+                }
+            });
+        }
+        if (serverRefs.backgroundOpacitySlider != null) {
+            serverRefs.backgroundOpacitySlider.addChangeListener(e -> {
+                int opacity = serverRefs.backgroundOpacitySlider.getValue();
+                if (serverRefs.backgroundOpacityValueLabel != null) {
+                    serverRefs.backgroundOpacityValueLabel.setText(opacity + "%");
+                }
+                applyBackgroundEffectsFromUi(!serverRefs.backgroundOpacitySlider.getValueIsAdjusting());
+            });
+        }
+    }
+
+    private void applyBackgroundFromConfig(ConfigPersistenceService.CloudConfig config) {
+        BufferedImage image = null;
+        int blur = 0;
+        int opacity = WindowBackground.DEFAULT_OPACITY_PERCENT;
+        if (config != null) {
+            blur = WindowBackground.clampBlurPercent(config.backgroundBlurPercent);
+            opacity = WindowBackground.clampOpacityPercent(config.backgroundOpacityPercent);
+            if (config.customBackground) {
+                image = WindowBackground.load(backgroundFile());
+                if (image == null) {
+                    config.customBackground = false;
+                }
+            }
+        }
+        syncBackgroundSliders(blur, opacity);
+        applyWindowBackground(image, blur, opacity);
+    }
+
+    private void syncBackgroundSliders(int blur, int opacity) {
+        if (serverRefs.backgroundBlurSlider != null) {
+            serverRefs.backgroundBlurSlider.setValue(blur);
+        }
+        if (serverRefs.backgroundBlurValueLabel != null) {
+            serverRefs.backgroundBlurValueLabel.setText(blur + "%");
+        }
+        if (serverRefs.backgroundOpacitySlider != null) {
+            serverRefs.backgroundOpacitySlider.setValue(opacity);
+        }
+        if (serverRefs.backgroundOpacityValueLabel != null) {
+            serverRefs.backgroundOpacityValueLabel.setText(opacity + "%");
+        }
+    }
+
+    private int currentBackgroundBlurPercent() {
+        if (serverRefs.backgroundBlurSlider != null) {
+            return WindowBackground.clampBlurPercent(serverRefs.backgroundBlurSlider.getValue());
+        }
+        if (slotController != null && slotController.getConfig() != null) {
+            return WindowBackground.clampBlurPercent(slotController.getConfig().backgroundBlurPercent);
+        }
+        return 0;
+    }
+
+    private int currentBackgroundOpacityPercent() {
+        if (serverRefs.backgroundOpacitySlider != null) {
+            return WindowBackground.clampOpacityPercent(serverRefs.backgroundOpacitySlider.getValue());
+        }
+        if (slotController != null && slotController.getConfig() != null) {
+            return WindowBackground.clampOpacityPercent(slotController.getConfig().backgroundOpacityPercent);
+        }
+        return WindowBackground.DEFAULT_OPACITY_PERCENT;
+    }
+
+    private void applyBackgroundEffectsFromUi(boolean persist) {
+        int blur = currentBackgroundBlurPercent();
+        int opacity = currentBackgroundOpacityPercent();
+        if (slotController != null && slotController.getConfig() != null) {
+            slotController.getConfig().backgroundBlurPercent = blur;
+            slotController.getConfig().backgroundOpacityPercent = opacity;
+        }
+        if (currentBackgroundImage != null) {
+            WindowChrome.setWallpaperEffects(this, blur, opacity);
+            if (serverRefs.backgroundPreview != null) {
+                serverRefs.backgroundPreview.setIcon(
+                        WindowBackground.previewIcon(WindowBackground.applyEffects(currentBackgroundImage, blur)));
+            }
+            repaint();
+        }
+        if (persist && !suppressConfigSave) {
+            saveCloudConfig();
+        }
+    }
+
+    private void applyWindowBackground(BufferedImage image) {
+        applyWindowBackground(image, currentBackgroundBlurPercent(), currentBackgroundOpacityPercent());
+    }
+
+    private void applyWindowBackground(BufferedImage image, int blur, int opacity) {
+        currentBackgroundImage = image;
+        blur = WindowBackground.clampBlurPercent(blur);
+        opacity = WindowBackground.clampOpacityPercent(opacity);
+        WindowChrome.setWallpaper(this, image, blur, opacity);
+        if (serverRefs.backgroundPreview != null) {
+            Image previewSource = image == null ? null : WindowBackground.applyEffects(image, blur);
+            serverRefs.backgroundPreview.setIcon(WindowBackground.previewIcon(previewSource));
+        }
+        if (serverRefs.clearBackgroundButton != null) {
+            serverRefs.clearBackgroundButton.setEnabled(image != null);
+        }
+        PanelFactory.setBackgroundEffectControlsEnabled(serverRefs, image != null);
+        repaint();
+    }
+
+    private void chooseWindowBackground() {
+        JFileChooser chooser = UiFonts.fileChooser();
+        chooser.setDialogTitle("選擇程式背景");
+        chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                "圖片檔 (JPG / PNG / GIF)", "jpg", "jpeg", "png", "gif"));
+        int result = chooser.showOpenDialog(this);
+        if (result != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
+            return;
+        }
+        try {
+            BufferedImage image = WindowBackground.importImage(
+                    chooser.getSelectedFile().toPath(), backgroundFile());
+            if (slotController != null && slotController.getConfig() != null) {
+                slotController.getConfig().customBackground = true;
+                slotController.getConfig().backgroundBlurPercent = currentBackgroundBlurPercent();
+                slotController.getConfig().backgroundOpacityPercent = currentBackgroundOpacityPercent();
+            }
+            applyWindowBackground(image);
+            saveCloudConfig();
+            appendLog("[設定] 已更新程式背景圖");
+        } catch (Exception ex) {
+            appendLog("[失敗] 無法使用這張背景圖：" + ex.getMessage());
+            UiFonts.showWarning(
+                    this,
+                    "無法讀取這張圖片，請改選 JPG、PNG 或 GIF。",
+                    "程式背景");
+        }
+    }
+
+    private void clearWindowBackground() {
+        WindowBackground.deleteFile(backgroundFile());
+        if (slotController != null && slotController.getConfig() != null) {
+            slotController.getConfig().customBackground = false;
+        }
+        applyWindowBackground(null);
+        saveCloudConfig();
+        appendLog("[設定] 已還原預設程式背景");
+    }
+
     private static Long parseEpochMillis(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
@@ -1119,6 +1306,7 @@ public class App extends JFrame {
             applyWindowLayout(config);
             applyWindowTransparencyFromConfig(config);
             applyAvatarFromConfig(config);
+            applyBackgroundFromConfig(config);
             applyNetworkToolsConfig(config);
         } finally {
             suppressConfigSave = false;
@@ -1221,6 +1409,8 @@ public class App extends JFrame {
                 && serverRefs.enableServerCheckBox.isSelected();
         config.trustAllSsl = serverRefs.trustAllSslCheckBox != null
                 && serverRefs.trustAllSslCheckBox.isSelected();
+        config.backgroundBlurPercent = currentBackgroundBlurPercent();
+        config.backgroundOpacityPercent = currentBackgroundOpacityPercent();
         captureNetworkToolsInto(config);
         captureWindowLayoutInto(config);
         configPersistenceService.saveConfig(config, null);

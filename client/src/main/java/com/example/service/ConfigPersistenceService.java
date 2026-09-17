@@ -65,6 +65,13 @@ public class ConfigPersistenceService {
         /** 是否使用 ~/.punchclock/avatar.jpg 作為訊息／戳一下大頭照 */
         public boolean customAvatar = false;
 
+        /** 是否使用 ~/.punchclock/background.jpg 作為程式視窗背景 */
+        public boolean customBackground = false;
+        /** 背景圖模糊 0–100（0 為清晰） */
+        public int backgroundBlurPercent = 0;
+        /** 背景圖不透明度 0–100（100 為最清楚） */
+        public int backgroundOpacityPercent = WindowBackground.DEFAULT_OPACITY_PERCENT;
+
         /** 網路測試分頁（公司 Proxy／封閉網路除錯） */
         public String networkTestUrl = "https://www.google.com";
         public String networkProxyHost = "";
@@ -199,6 +206,8 @@ public class ConfigPersistenceService {
         normalizeSlot(config.workIn, defaultWorkIn());
         normalizeSlot(config.workOut, defaultWorkOut());
         config.windowTransparencyPercent = clampWindowTransparencyPercent(config.windowTransparencyPercent);
+        config.backgroundBlurPercent = WindowBackground.clampBlurPercent(config.backgroundBlurPercent);
+        config.backgroundOpacityPercent = WindowBackground.clampOpacityPercent(config.backgroundOpacityPercent);
         if (config.networkTestUrl == null || config.networkTestUrl.isBlank()) {
             config.networkTestUrl = "https://www.google.com";
         }

@@ -11,6 +11,7 @@ import javax.swing.SwingConstants;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
+import java.awt.AlphaComposite;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -19,6 +20,7 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Insets;
 import java.awt.Point;
@@ -26,6 +28,7 @@ import java.awt.Rectangle;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
+import java.awt.image.BufferedImage;
 
 /**
  * 自訂標題列與邊緣縮放，讓桌面端可以調整視窗透明度。
@@ -85,7 +88,7 @@ public final class WindowChrome {
         JPanel titleBar = createTitleBar(frame, title, icon, titleFont, controlFont, slider, valueLabel);
         ResizeSupport resize = new ResizeSupport(frame);
 
-        JPanel outer = new JPanel(new BorderLayout());
+        WallpaperPanel outer = new WallpaperPanel();
         outer.setBackground(BAR_BG);
         applyWindowBorder(outer, false);
         outer.add(titleBar, BorderLayout.NORTH);
@@ -105,6 +108,7 @@ public final class WindowChrome {
         });
 
         frame.getRootPane().putClientProperty("punchclock.body", body);
+        frame.getRootPane().putClientProperty("punchclock.outer", outer);
         return new Controls(slider, valueLabel);
     }
 
@@ -115,6 +119,102 @@ public final class WindowChrome {
             return (JPanel) inner;
         }
         throw new IllegalStateException("WindowChrome.install must run first");
+    }
+
+    /** 設定／清除視窗背景圖（cover 縮放）；{@code null} 還原預設底色。 */
+    public static void setWallpaper(JFrame frame, Image wallpaper) {
+        setWallpaper(frame, wallpaper, 0, com.example.service.WindowBackground.DEFAULT_OPACITY_PERCENT);
+    }
+
+    public static void setWallpaper(JFrame frame, Image wallpaper, int blurPercent, int opacityPercent) {
+        if (frame == null) {
+            return;
+        }
+        Object outer = frame.getRootPane().getClientProperty("punchclock.outer");
+        if (outer instanceof WallpaperPanel) {
+            ((WallpaperPanel) outer).setWallpaper(wallpaper, blurPercent, opacityPercent);
+        }
+    }
+
+    public static void setWallpaperEffects(JFrame frame, int blurPercent, int opacityPercent) {
+        if (frame == null) {
+            return;
+        }
+        Object outer = frame.getRootPane().getClientProperty("punchclock.outer");
+        if (outer instanceof WallpaperPanel) {
+            ((WallpaperPanel) outer).setEffects(blurPercent, opacityPercent);
+        }
+    }
+
+    private static final class WallpaperPanel extends JPanel {
+        private Image source;
+        private Image painted;
+        private int blurPercent;
+        private int opacityPercent = com.example.service.WindowBackground.DEFAULT_OPACITY_PERCENT;
+
+        WallpaperPanel() {
+            super(new BorderLayout());
+            setOpaque(true);
+        }
+
+        void setWallpaper(Image image, int blurPercent, int opacityPercent) {
+            this.source = image;
+            this.blurPercent = com.example.service.WindowBackground.clampBlurPercent(blurPercent);
+            this.opacityPercent = com.example.service.WindowBackground.clampOpacityPercent(opacityPercent);
+            rebuildPainted();
+            setOpaque(image == null);
+            if (image == null) {
+                setBackground(BAR_BG);
+            }
+            revalidate();
+            repaint();
+        }
+
+        void setEffects(int blurPercent, int opacityPercent) {
+            int nextBlur = com.example.service.WindowBackground.clampBlurPercent(blurPercent);
+            int nextOpacity = com.example.service.WindowBackground.clampOpacityPercent(opacityPercent);
+            boolean blurChanged = nextBlur != this.blurPercent;
+            this.blurPercent = nextBlur;
+            this.opacityPercent = nextOpacity;
+            if (blurChanged) {
+                rebuildPainted();
+            }
+            repaint();
+        }
+
+        private void rebuildPainted() {
+            if (source == null) {
+                painted = null;
+                return;
+            }
+            BufferedImage base;
+            if (source instanceof BufferedImage) {
+                base = (BufferedImage) source;
+            } else {
+                int w = Math.max(1, source.getWidth(null));
+                int h = Math.max(1, source.getHeight(null));
+                base = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+                Graphics2D g = base.createGraphics();
+                g.setColor(Color.WHITE);
+                g.fillRect(0, 0, w, h);
+                g.drawImage(source, 0, 0, null);
+                g.dispose();
+            }
+            painted = com.example.service.WindowBackground.applyEffects(base, blurPercent);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setColor(BAR_BG);
+            g2.fillRect(0, 0, getWidth(), getHeight());
+            if (painted != null) {
+                float alpha = opacityPercent / 100f;
+                g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+                com.example.service.WindowBackground.paintCover(g2, painted, getWidth(), getHeight());
+            }
+            g2.dispose();
+        }
     }
 
     static void applyWindowBorder(JComponent outer, boolean maximized) {

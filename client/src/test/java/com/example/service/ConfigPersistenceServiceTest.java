@@ -141,6 +141,19 @@ public class ConfigPersistenceServiceTest {
     }
 
     @Test
+    public void saveAndLoad_persistsCustomBackgroundFlag() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.customBackground = true;
+        config.backgroundBlurPercent = 40;
+        config.backgroundOpacityPercent = 60;
+        configService.saveConfig(config, null);
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertTrue(loaded.customBackground);
+        assertEquals(40, loaded.backgroundBlurPercent);
+        assertEquals(60, loaded.backgroundOpacityPercent);
+    }
+
+    @Test
     public void saveAndLoad_persistsWindowTransparencyPercent() {
         ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
         config.windowTransparencyPercent = 25;

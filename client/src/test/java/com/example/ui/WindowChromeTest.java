@@ -36,6 +36,7 @@ public class WindowChromeTest {
             JPanel body = WindowChrome.bodyOf(holder[0]);
             assertNotNull(body);
             assertTrue(holder[0].isUndecorated());
+            WindowChrome.setWallpaper(holder[0], null);
         } finally {
             SwingUtilities.invokeAndWait(() -> holder[0].dispose());
         }

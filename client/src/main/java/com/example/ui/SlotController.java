@@ -1,9 +1,11 @@
 package com.example.ui;
 
+import com.example.model.CheckInHistoryEntry;
 import com.example.model.CheckInTask;
 import com.example.model.TaskStatus;
 import com.example.model.WorkSlot;
 import com.example.service.AutomationService;
+import com.example.service.CheckInHistoryService;
 import com.example.service.ConfigPersistenceService;
 import com.example.service.ConfigPersistenceService.CloudConfig;
 import com.example.service.ConfigPersistenceService.SlotSettings;
@@ -27,10 +29,12 @@ public class SlotController {
 
     private final JFrame owner;
     private final PanelFactory.SlotPanelRefs slotRefs;
+    private final PanelFactory.CheckInHistoryRefs historyRefs;
     private final SchedulerService schedulerService;
     private final AutomationService automationService;
     private final HeartbeatService heartbeatService;
     private final TaskPersistenceService persistenceService;
+    private final CheckInHistoryService historyService;
     private final ConfigPersistenceService configPersistenceService;
     private final Consumer<String> appendLog;
     private final Runnable onSlotStateChanged;
@@ -42,19 +46,23 @@ public class SlotController {
     public SlotController(
             JFrame owner,
             PanelFactory.SlotPanelRefs slotRefs,
+            PanelFactory.CheckInHistoryRefs historyRefs,
             SchedulerService schedulerService,
             AutomationService automationService,
             HeartbeatService heartbeatService,
             TaskPersistenceService persistenceService,
+            CheckInHistoryService historyService,
             ConfigPersistenceService configPersistenceService,
             Consumer<String> appendLog,
             Runnable onSlotStateChanged) {
         this.owner = owner;
         this.slotRefs = slotRefs;
+        this.historyRefs = historyRefs;
         this.schedulerService = schedulerService;
         this.automationService = automationService;
         this.heartbeatService = heartbeatService;
         this.persistenceService = persistenceService;
+        this.historyService = historyService;
         this.configPersistenceService = configPersistenceService;
         this.appendLog = appendLog;
         this.onSlotStateChanged = onSlotStateChanged;
@@ -66,7 +74,11 @@ public class SlotController {
         bindSlotCard(slotRefs.workOut, WorkSlot.Kind.WORK_OUT);
         bindSharedSettingsListeners();
         slotRefs.executeNowButton.addActionListener(e -> executeNowShared());
+        if (historyRefs != null && historyRefs.clearButton != null) {
+            historyRefs.clearButton.addActionListener(e -> clearCheckInHistory());
+        }
         refreshSharedSettingsActions();
+        refreshHistoryList();
     }
 
     public void loadConfigToUi(CloudConfig loaded) {
@@ -580,6 +592,9 @@ public class SlotController {
     }
 
     private void onSlotTaskFinished(CheckInTask task, boolean fromScheduler) {
+        if (historyService != null) {
+            historyService.record(task, fromScheduler);
+        }
         WorkSlot.Kind kind = WorkSlot.Kind.fromId(task.getId());
         if (kind != null && !fromScheduler) {
             SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
@@ -591,7 +606,51 @@ public class SlotController {
         onSlotStateChanged.run();
         persistTasks();
         refreshSlotCards();
+        refreshHistoryList();
         heartbeatService.sendHeartbeat(appendLog, null);
+    }
+
+    public void refreshHistoryList() {
+        if (historyRefs == null || historyRefs.listModel == null || historyService == null) {
+            return;
+        }
+        Runnable update = () -> {
+            historyRefs.listModel.clear();
+            List<CheckInHistoryEntry> recent = historyService.getRecent();
+            for (CheckInHistoryEntry entry : recent) {
+                historyRefs.listModel.addElement(entry.toDisplayLine());
+            }
+            boolean empty = recent.isEmpty();
+            if (historyRefs.emptyLabel != null) {
+                historyRefs.emptyLabel.setVisible(empty);
+            }
+            if (historyRefs.clearButton != null) {
+                historyRefs.clearButton.setEnabled(!empty);
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            update.run();
+        } else {
+            SwingUtilities.invokeLater(update);
+        }
+    }
+
+    private void clearCheckInHistory() {
+        if (historyService == null) {
+            return;
+        }
+        int confirm = UiFonts.showConfirm(
+                owner,
+                "確定清除本機打卡歷史紀錄？\n（不會影響目前排程）",
+                "清除打卡記錄",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE);
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+        historyService.clear(appendLog);
+        refreshHistoryList();
+        appendLog.accept("[資訊] 已清除打卡歷史紀錄");
     }
 
     /**
