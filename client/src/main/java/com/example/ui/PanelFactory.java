@@ -212,6 +212,7 @@ public class PanelFactory {
         refs.peerTable.setRowHeight(28);
         refs.peerTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         refs.peerTable.getTableHeader().setFont(boldFont);
+        installSelfPeerRowRenderer(refs.peerTable, mainFont, boldFont);
 
         JScrollPane tableScroll = new JScrollPane(refs.peerTable);
         tableScroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
@@ -346,6 +347,55 @@ public class PanelFactory {
         panel.add(north, BorderLayout.NORTH);
         panel.add(center, BorderLayout.CENTER);
         return panel;
+    }
+
+    /** 本機列淡藍底＋粗體，與其他裝置稍作區隔（選取列仍用系統選取色） */
+    private static void installSelfPeerRowRenderer(JTable table, Font mainFont, Font boldFont) {
+        Color selfBg = new Color(219, 234, 254);
+        Color selfFg = new Color(30, 64, 175);
+        Color selfSelectedBg = new Color(147, 197, 253);
+        javax.swing.table.DefaultTableCellRenderer renderer = new javax.swing.table.DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(
+                    JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                Component c = super.getTableCellRendererComponent(tbl, value, isSelected, hasFocus, row, column);
+                boolean self = isSelfPeerRow(tbl, row);
+                if (c instanceof JLabel) {
+                    JLabel label = (JLabel) c;
+                    label.setFont(self && column == 0 ? boldFont : mainFont);
+                    label.setBorder(self && column == 0
+                            ? new EmptyBorder(0, 6, 0, 4)
+                            : new EmptyBorder(0, 4, 0, 4));
+                }
+                if (isSelected) {
+                    if (self) {
+                        c.setBackground(selfSelectedBg);
+                        c.setForeground(selfFg);
+                    }
+                } else if (self) {
+                    c.setBackground(selfBg);
+                    c.setForeground(selfFg);
+                } else {
+                    c.setBackground(tbl.getBackground());
+                    c.setForeground(tbl.getForeground());
+                }
+                if (c instanceof JComponent) {
+                    ((JComponent) c).setOpaque(true);
+                }
+                return c;
+            }
+        };
+        for (int col = 0; col < table.getColumnModel().getColumnCount(); col++) {
+            table.getColumnModel().getColumn(col).setCellRenderer(renderer);
+        }
+    }
+
+    private static boolean isSelfPeerRow(JTable table, int row) {
+        if (table == null || row < 0 || row >= table.getRowCount()) {
+            return false;
+        }
+        Object id = table.getValueAt(row, 0);
+        return id != null && String.valueOf(id).contains("（本機）");
     }
 
     /** 裝置互動面板元件引用容器 */

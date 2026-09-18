@@ -134,6 +134,88 @@
       color: var(--text-muted);
     }
 
+    /* ── 後台分頁 ── */
+    .dash-tabs-wrap {
+      width: min(960px, calc(100% - 2rem));
+      margin: 0 auto 0.75rem;
+    }
+
+    .dash-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      padding: 0.25rem;
+      background: var(--white);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+    }
+
+    .dash-tab {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 0.55rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .dash-tab:hover {
+      background: var(--blue-soft);
+      color: var(--blue-deep);
+    }
+
+    .dash-tab.is-active {
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .dash-tab:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
+    }
+
+    .dash-panel[hidden] {
+      display: none !important;
+    }
+
+    .content-panel-full {
+      width: 100%;
+    }
+
+    .system-status {
+      background: var(--white);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem 1rem;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .system-status-head {
+      margin-bottom: 0.75rem;
+    }
+
+    .system-status-hint {
+      margin: 0.25rem 0 0;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .system-status .server-health {
+      margin: 0 0 1rem;
+      width: 100%;
+    }
+
+    .system-status .health-history {
+      margin: 0;
+    }
+
     .server-health {
       margin: 0.85rem auto 0;
       width: min(960px, 100%);
@@ -241,7 +323,7 @@
       border: 1px solid var(--line-soft);
       border-radius: var(--radius);
       padding: 0.85rem 1rem 1rem;
-      margin-bottom: 0.75rem;
+      margin-bottom: 0;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
     }
 
@@ -520,6 +602,8 @@
       .metrics { grid-template-columns: 1fr; }
       .site-navbar-inner { flex-wrap: wrap; }
       .shell { width: calc(100% - 1.25rem); }
+      .dash-tabs-wrap { width: calc(100% - 1.25rem); }
+      .dash-tab { flex: 1 1 auto; text-align: center; }
       .device-head,
       .device-body { padding-left: 0.85rem; padding-right: 0.85rem; }
       .device-head { flex-wrap: wrap; }

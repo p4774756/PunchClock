@@ -626,6 +626,10 @@
     }
 
     function drawHealthHistoryChart() {
+      const systemPanel = document.getElementById('panel-system');
+      if (systemPanel && systemPanel.hasAttribute('hidden')) {
+        return;
+      }
       const canvas = document.getElementById('healthHistoryChart');
       const empty = document.getElementById('healthHistoryEmpty');
       if (!canvas) return;
@@ -1200,6 +1204,49 @@
       speakBtn.addEventListener('click', speakDailyProverb);
     }
 
+    function switchDashTab(tabId) {
+      const tabs = document.querySelectorAll('.dash-tab');
+      const panels = document.querySelectorAll('.dash-panel');
+      if (!tabs.length || !panels.length) return;
+      const next = tabId || 'devices';
+      tabs.forEach(tab => {
+        const active = tab.getAttribute('data-tab') === next;
+        tab.classList.toggle('is-active', active);
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      panels.forEach(panel => {
+        const active = panel.id === 'panel-' + next;
+        panel.classList.toggle('is-active', active);
+        if (active) {
+          panel.removeAttribute('hidden');
+        } else {
+          panel.setAttribute('hidden', '');
+        }
+      });
+      try {
+        window.sessionStorage.setItem('punchclock.dashTab', next);
+      } catch (e) {}
+      if (next === 'system') {
+        window.requestAnimationFrame(() => drawHealthHistoryChart());
+      }
+    }
+
+    function bindDashTabs() {
+      const tabs = document.querySelectorAll('.dash-tab');
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => switchDashTab(tab.getAttribute('data-tab')));
+      });
+      let initial = 'devices';
+      try {
+        const saved = window.sessionStorage.getItem('punchclock.dashTab');
+        if (saved === 'devices' || saved === 'files' || saved === 'system') {
+          initial = saved;
+        }
+      } catch (e) {}
+      switchDashTab(initial);
+    }
+
+    bindDashTabs();
     fetchStatus();
     connectWebSocket();
     bindFileTransferActions();

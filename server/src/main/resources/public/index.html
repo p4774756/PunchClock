@@ -27,33 +27,21 @@
     <div class="site-banner-inner">
       <h1 class="header-title">遠端打卡監控控制台</h1>
       <p class="header-sub">即時同步桌面端心跳、排程任務、傳檔狀態與伺服器負載</p>
-      <div class="server-health" id="serverHealth" aria-label="伺服器運行狀態">
-        <div class="health-card"><span class="health-label">CPU</span><strong id="healthCpu">載入中</strong></div>
-        <div class="health-card"><span class="health-label">處理器負載</span><strong id="healthLoad">—</strong></div>
-        <div class="health-card"><span class="health-label">JVM 記憶體</span><strong id="healthHeap">—</strong></div>
-        <div class="health-card"><span class="health-label">系統記憶體</span><strong id="healthOsMem">—</strong></div>
-        <div class="health-card"><span class="health-label">傳檔暫存</span><strong id="healthFiles">—</strong></div>
-        <div class="health-card"><span class="health-label">運行時間</span><strong id="healthUptime">—</strong></div>
-      </div>
-      <section class="health-history" aria-label="系統監控歷史">
-        <div class="health-history-head">
-          <div>
-            <div class="section-label" style="margin:0;border:0;padding:0">系統監控曲線</div>
-            <p class="health-history-hint">每分鐘取樣，保留約 3 天（重啟後若本機有存檔會還原）</p>
-          </div>
-          <div class="health-legend" aria-hidden="true">
-            <span><i class="swatch swatch-cpu"></i>CPU %</span>
-            <span><i class="swatch swatch-heap"></i>JVM 記憶體 %</span>
-            <span><i class="swatch swatch-os"></i>系統記憶體 %</span>
-          </div>
-        </div>
-        <canvas id="healthHistoryChart" width="960" height="220" role="img" aria-label="CPU 與記憶體歷史曲線"></canvas>
-        <p class="health-history-empty" id="healthHistoryEmpty">尚無歷史資料，稍候一分鐘後會開始繪製</p>
-      </section>
     </div>
   </div>
 
-  <div class="shell">
+  <div class="dash-tabs-wrap">
+    <div class="dash-tabs" role="tablist" aria-label="後台分頁">
+      <button type="button" class="dash-tab is-active" role="tab" id="tab-devices"
+              aria-selected="true" aria-controls="panel-devices" data-tab="devices">裝置監控</button>
+      <button type="button" class="dash-tab" role="tab" id="tab-files"
+              aria-selected="false" aria-controls="panel-files" data-tab="files">傳檔狀態</button>
+      <button type="button" class="dash-tab" role="tab" id="tab-system"
+              aria-selected="false" aria-controls="panel-system" data-tab="system">系統狀態</button>
+    </div>
+  </div>
+
+  <div class="shell dash-panel is-active" id="panel-devices" role="tabpanel" aria-labelledby="tab-devices">
     <aside class="daily-proverb" aria-label="今日六人行經典台詞">
       <div class="proverb-head">
         <div class="proverb-kicker">今日六人行 · {{DAILY_PROVERB_DATE}}</div>
@@ -65,6 +53,14 @@
     </aside>
 
     <div class="content-panel">
+      <main id="clientContainer">
+        <div class="empty-state"><p>連線狀態載入中…</p><p>正在同步裝置心跳</p></div>
+      </main>
+    </div>
+  </div>
+
+  <div class="shell dash-panel" id="panel-files" role="tabpanel" aria-labelledby="tab-files" hidden>
+    <div class="content-panel content-panel-full">
       <section class="file-transfers" id="fileTransfers" aria-label="傳檔狀態">
         <div class="file-transfers-head">
           <div>
@@ -77,9 +73,40 @@
           <p class="empty-tasks">目前沒有暫存檔案</p>
         </div>
       </section>
-      <main id="clientContainer">
-        <div class="empty-state"><p>連線狀態載入中…</p><p>正在同步裝置心跳</p></div>
-      </main>
+    </div>
+  </div>
+
+  <div class="shell dash-panel" id="panel-system" role="tabpanel" aria-labelledby="tab-system" hidden>
+    <div class="content-panel content-panel-full">
+      <section class="system-status" aria-label="系統狀態">
+        <div class="system-status-head">
+          <div class="section-label" style="margin:0;border:0;padding:0">伺服器運行狀態</div>
+          <p class="system-status-hint">即時負載與資源用量；曲線每分鐘取樣，保留約 3 天</p>
+        </div>
+        <div class="server-health" id="serverHealth" aria-label="伺服器運行狀態">
+          <div class="health-card"><span class="health-label">CPU</span><strong id="healthCpu">載入中</strong></div>
+          <div class="health-card"><span class="health-label">處理器負載</span><strong id="healthLoad">—</strong></div>
+          <div class="health-card"><span class="health-label">JVM 記憶體</span><strong id="healthHeap">—</strong></div>
+          <div class="health-card"><span class="health-label">系統記憶體</span><strong id="healthOsMem">—</strong></div>
+          <div class="health-card"><span class="health-label">傳檔暫存</span><strong id="healthFiles">—</strong></div>
+          <div class="health-card"><span class="health-label">運行時間</span><strong id="healthUptime">—</strong></div>
+        </div>
+        <section class="health-history" aria-label="系統監控歷史">
+          <div class="health-history-head">
+            <div>
+              <div class="section-label" style="margin:0;border:0;padding:0">系統監控曲線</div>
+              <p class="health-history-hint">每分鐘取樣，保留約 3 天（重啟後若本機有存檔會還原）</p>
+            </div>
+            <div class="health-legend" aria-hidden="true">
+              <span><i class="swatch swatch-cpu"></i>CPU %</span>
+              <span><i class="swatch swatch-heap"></i>JVM 記憶體 %</span>
+              <span><i class="swatch swatch-os"></i>系統記憶體 %</span>
+            </div>
+          </div>
+          <canvas id="healthHistoryChart" width="960" height="220" role="img" aria-label="CPU 與記憶體歷史曲線"></canvas>
+          <p class="health-history-empty" id="healthHistoryEmpty">尚無歷史資料，稍候一分鐘後會開始繪製</p>
+        </section>
+      </section>
     </div>
   </div>
 
