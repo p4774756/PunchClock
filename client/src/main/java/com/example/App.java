@@ -13,6 +13,7 @@ import com.example.service.SchedulerService;
 import com.example.service.TaskPersistenceService;
 import com.example.service.WindowBackground;
 import com.example.ui.UiFonts;
+import com.example.ui.TransferProgressDialog;
 import com.example.ui.NetworkToolsPanel;
 import com.example.ui.PanelFactory;
 import com.example.ui.PanelFactory.*;
@@ -558,8 +559,14 @@ public class App extends JFrame {
         if (peerRefs.sendFileButton != null) {
             peerRefs.sendFileButton.setEnabled(false);
         }
-        heartbeatService.sendPeerFile(toClientId, file, this::appendLog, ok ->
+        TransferProgressDialog progress = TransferProgressDialog.open(this, "傳送檔案");
+        String displayName = file.getFileName() != null ? file.getFileName().toString() : "檔案";
+        progress.setStatus(Files.isDirectory(file)
+                ? "正在壓縮並上傳「" + displayName + "」…"
+                : "正在上傳「" + displayName + "」…");
+        heartbeatService.sendPeerFile(toClientId, file, this::appendLog, progress::setProgress, ok ->
                 SwingUtilities.invokeLater(() -> {
+                    progress.close();
                     if (peerRefs.sendFileButton != null) {
                         peerRefs.sendFileButton.setEnabled(isCloudEnabled());
                     }
@@ -744,7 +751,7 @@ public class App extends JFrame {
         String timeLabel = formatPeerMessageTime(sentAtMs);
         appendLog("[訊息] 【戳】（" + timeLabel + "）來自【" + fromId + "】：" + text);
         Toolkit.getDefaultToolkit().beep();
-        UiFonts.showMessage(
+        UiFonts.showCopyableMessage(
                 this,
                 timeLabel + "\n\n" + text,
                 "同事訊息 · " + fromId,
@@ -934,14 +941,17 @@ public class App extends JFrame {
             }
         }
         StringBuilder failDetail = new StringBuilder();
+        TransferProgressDialog progress = TransferProgressDialog.open(this, "下載檔案");
+        progress.setStatus("正在下載「" + safeName + "」…");
         heartbeatService.downloadPeerFile(fileId, dest, msg -> {
             appendLog(msg);
             if (msg != null && (msg.contains("[失敗]") || msg.contains("[警告]"))) {
                 failDetail.setLength(0);
                 failDetail.append(msg);
             }
-        }, ok ->
+        }, progress::setProgress, ok ->
                 SwingUtilities.invokeLater(() -> {
+                    progress.close();
                     if (ok) {
                         UiFonts.showMessage(
                                 this,

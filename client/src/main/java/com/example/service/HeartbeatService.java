@@ -562,6 +562,11 @@ public class HeartbeatService {
      * 傳送檔案或資料夾給同事（資料夾會先壓成 ZIP；經伺服器暫存，對方心跳收到通知後再下載）。
      */
     public void sendPeerFile(String toClientId, Path file, Consumer<String> logger, Consumer<Boolean> callback) {
+        sendPeerFile(toClientId, file, logger, null, callback);
+    }
+
+    public void sendPeerFile(String toClientId, Path file, Consumer<String> logger,
+                             TransferIo.Progress progress, Consumer<Boolean> callback) {
         if (!isServiceActive || serverUrl.isBlank()) {
             log(logger, "[警告] [檔案] 雲端未連線，無法傳送檔案");
             if (callback != null) callback.accept(false);
@@ -631,13 +636,18 @@ public class HeartbeatService {
                     "kind", kind
             ), filename, mime, contentPath);
 
+            long uploadBytes = Files.size(multipartTemp);
+            TransferIo.Progress uploadProgress = TransferIo.throttle(progress);
+            if (uploadProgress != null) {
+                uploadProgress.onProgress(0L, uploadBytes);
+            }
             String endpoint = serverUrl + "/api/peer/file";
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(endpoint))
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                     .header("Authorization", "Bearer " + heartbeatToken)
                     .timeout(FILE_TRANSFER_TIMEOUT)
-                    .POST(HttpRequest.BodyPublishers.ofFile(multipartTemp))
+                    .POST(TransferIo.ofFile(multipartTemp, uploadProgress))
                     .build();
 
             final String sentName = filename;
@@ -695,6 +705,12 @@ public class HeartbeatService {
      */
     public void downloadPeerFile(String fileId, Path destination,
                                  Consumer<String> logger, Consumer<Boolean> callback) {
+        downloadPeerFile(fileId, destination, logger, null, callback);
+    }
+
+    public void downloadPeerFile(String fileId, Path destination,
+                                 Consumer<String> logger, TransferIo.Progress progress,
+                                 Consumer<Boolean> callback) {
         if (!isServiceActive || serverUrl.isBlank()) {
             log(logger, "[警告] [檔案] 雲端未連線，無法下載");
             if (callback != null) callback.accept(false);
@@ -717,10 +733,11 @@ public class HeartbeatService {
             }
             Path part = dest.resolveSibling(dest.getFileName().toString() + ".part");
             deleteQuietly(part);
-            sendGetToFile(URI.create(endpoint), part, logger)
-                    .thenAccept(response -> {
+            TransferIo.Progress downloadProgress = TransferIo.throttle(progress);
+            downloadToFile(URI.create(endpoint), part, logger, downloadProgress)
+                    .thenAccept(statusCode -> {
                         try {
-                            if (response.statusCode() != 200) {
+                            if (statusCode != 200) {
                                 String serverMessage = "";
                                 try {
                                     if (Files.isRegularFile(part) && Files.size(part) < 64 * 1024) {
@@ -731,7 +748,7 @@ public class HeartbeatService {
                                     // ignore
                                 }
                                 deleteQuietly(part);
-                                log(logger, "[失敗] [檔案] 下載失敗，狀態碼：" + response.statusCode()
+                                log(logger, "[失敗] [檔案] 下載失敗，狀態碼：" + statusCode
                                         + (serverMessage.isEmpty() ? "" : "，" + serverMessage));
                                 if (callback != null) callback.accept(false);
                                 return;
@@ -823,39 +840,52 @@ public class HeartbeatService {
         return builder.build();
     }
 
-    private java.util.concurrent.CompletableFuture<HttpResponse<Path>> sendGetToFile(
-            URI uri, Path dest, Consumer<String> logger) {
-        return httpClient.sendAsync(buildDownloadRequest(uri), HttpResponse.BodyHandlers.ofFile(dest))
+    private java.util.concurrent.CompletableFuture<Integer> downloadToFile(
+            URI uri, Path dest, Consumer<String> logger, TransferIo.Progress progress) {
+        return httpClient.sendAsync(buildDownloadRequest(uri), HttpResponse.BodyHandlers.ofInputStream())
                 .thenCompose(response -> {
                     int code = response.statusCode();
-                    if (code < 300 || code >= 400) {
-                        return java.util.concurrent.CompletableFuture.completedFuture(response);
-                    }
-                    String location = response.headers().firstValue("Location").orElse("").trim();
-                    if (location.isEmpty()) {
-                        return java.util.concurrent.CompletableFuture.completedFuture(response);
-                    }
-                    URI next;
-                    try {
-                        next = uri.resolve(location);
-                        if ((next.getRawQuery() == null || next.getRawQuery().isEmpty())
-                                && uri.getRawQuery() != null && !uri.getRawQuery().isEmpty()) {
-                            String rebuilt = next.getScheme() + "://" + next.getRawAuthority()
-                                    + next.getRawPath() + "?" + uri.getRawQuery();
-                            if (next.getRawFragment() != null) {
-                                rebuilt += "#" + next.getRawFragment();
-                            }
-                            next = URI.create(rebuilt);
+                    if (code >= 300 && code < 400) {
+                        String location = response.headers().firstValue("Location").orElse("").trim();
+                        try {
+                            response.body().close();
+                        } catch (Exception ignored) {
+                            // ignore
                         }
+                        if (location.isEmpty()) {
+                            return java.util.concurrent.CompletableFuture.completedFuture(code);
+                        }
+                        URI next;
+                        try {
+                            next = uri.resolve(location);
+                            if ((next.getRawQuery() == null || next.getRawQuery().isEmpty())
+                                    && uri.getRawQuery() != null && !uri.getRawQuery().isEmpty()) {
+                                String rebuilt = next.getScheme() + "://" + next.getRawAuthority()
+                                        + next.getRawPath() + "?" + uri.getRawQuery();
+                                if (next.getRawFragment() != null) {
+                                    rebuilt += "#" + next.getRawFragment();
+                                }
+                                next = URI.create(rebuilt);
+                            }
+                        } catch (Exception ex) {
+                            return java.util.concurrent.CompletableFuture.completedFuture(code);
+                        }
+                        if (!sameOrigin(uri, next)) {
+                            log(logger, "[警告] [檔案] 下載轉址跨網域，已中止：" + next);
+                            return java.util.concurrent.CompletableFuture.completedFuture(code);
+                        }
+                        deleteQuietly(dest);
+                        return downloadToFile(next, dest, logger, progress);
+                    }
+                    try (java.io.InputStream in = response.body();
+                         java.io.OutputStream out = Files.newOutputStream(dest)) {
+                        long total = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
+                        TransferIo.copy(in, out, total, progress);
                     } catch (Exception ex) {
-                        return java.util.concurrent.CompletableFuture.completedFuture(response);
+                        deleteQuietly(dest);
+                        return java.util.concurrent.CompletableFuture.failedFuture(ex);
                     }
-                    if (!sameOrigin(uri, next)) {
-                        log(logger, "[警告] [檔案] 下載轉址跨網域，已中止：" + next);
-                        return java.util.concurrent.CompletableFuture.completedFuture(response);
-                    }
-                    deleteQuietly(dest);
-                    return httpClient.sendAsync(buildDownloadRequest(next), HttpResponse.BodyHandlers.ofFile(dest));
+                    return java.util.concurrent.CompletableFuture.completedFuture(code);
                 });
     }
 
