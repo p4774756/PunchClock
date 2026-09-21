@@ -53,9 +53,13 @@ public class HealthHistoryStoreTest {
         snap.put("osFreeMemoryBytes", 400L);
         snap.put("heapUsedBytes", 50L);
         snap.put("heapMaxBytes", 200L);
+        snap.put("diskUsableBytes", 700L);
+        snap.put("diskTotalBytes", 1000L);
         Map<String, Object> point = HealthHistoryStore.toSample(snap, 123L);
         assertEquals(123L, ((Number) point.get("atMs")).longValue());
         assertEquals(600L, ((Number) point.get("osUsedMemoryBytes")).longValue());
+        assertEquals(700L, ((Number) point.get("diskUsableBytes")).longValue());
+        assertEquals(1000L, ((Number) point.get("diskTotalBytes")).longValue());
     }
 
     private static Map<String, Object> sample(double cpu, long heapUsed, long heapMax) {

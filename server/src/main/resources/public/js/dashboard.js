@@ -552,6 +552,7 @@
       const heap = document.getElementById('healthHeap');
       const osMem = document.getElementById('healthOsMem');
       const files = document.getElementById('healthFiles');
+      const disk = document.getElementById('healthDisk');
       const uptime = document.getElementById('healthUptime');
       if (!cpu) return;
       if (!serverHealth) {
@@ -576,6 +577,18 @@
       }
       files.textContent = (serverHealth.fileOfferCount || 0) + ' 筆 · '
         + formatBytes(serverHealth.fileOfferBytes || 0);
+      if (disk) {
+        if (serverHealth.diskUsableBytes != null && serverHealth.diskTotalBytes) {
+          disk.textContent = formatBytes(serverHealth.diskUsableBytes)
+            + ' 可用 / ' + formatBytes(serverHealth.diskTotalBytes);
+          disk.title = serverHealth.diskPath
+            ? ('路徑：' + serverHealth.diskPath)
+            : '';
+        } else {
+          disk.textContent = '—';
+          disk.title = '';
+        }
+      }
       uptime.textContent = formatUptime(serverHealth.uptimeMs || serverHealth.jvmUptimeMs || 0);
     }
 
@@ -606,7 +619,9 @@
         osTotalMemoryBytes: health.osTotalMemoryBytes,
         osUsedMemoryBytes: osTotal > 0 ? Math.max(0, osTotal - osFree) : null,
         fileOfferBytes: health.fileOfferBytes,
-        fileOfferCount: health.fileOfferCount
+        fileOfferCount: health.fileOfferCount,
+        diskUsableBytes: health.diskUsableBytes,
+        diskTotalBytes: health.diskTotalBytes
       });
       const cutoff = Date.now() - (3 * 24 * 60 * 60 * 1000);
       healthHistorySamples = healthHistorySamples.filter(s => Number(s.atMs || 0) >= cutoff);

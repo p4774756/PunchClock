@@ -137,6 +137,8 @@ public final class HealthHistoryStore {
         }
         point.put("fileOfferBytes", asLong(snapshot.get("fileOfferBytes")));
         point.put("fileOfferCount", asLong(snapshot.get("fileOfferCount")));
+        point.put("diskUsableBytes", asLong(snapshot.get("diskUsableBytes")));
+        point.put("diskTotalBytes", asLong(snapshot.get("diskTotalBytes")));
         return point;
     }
 

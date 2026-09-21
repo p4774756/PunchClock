@@ -6,6 +6,10 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -42,6 +46,7 @@ public final class ServerHealth {
         map.put("threadCount", ManagementFactory.getThreadMXBean().getThreadCount());
 
         applySunOsMetrics(os, map);
+        applyDiskMetrics(map);
 
         if (files != null) {
             map.put("fileOfferCount", files.size());
@@ -50,6 +55,32 @@ public final class ServerHealth {
             map.put("fileOfferTtlMs", FileOfferStore.TTL_MS);
         }
         return map;
+    }
+
+    /**
+     * 量測 {@code java.io.tmpdir} 所在檔案系統（multipart／未來落地暫存多寫這裡）。
+     */
+    static void applyDiskMetrics(Map<String, Object> map) {
+        Path path = tempDirPath();
+        map.put("diskPath", path.toString());
+        try {
+            FileStore store = Files.getFileStore(path);
+            long total = store.getTotalSpace();
+            long usable = store.getUsableSpace();
+            long unallocated = store.getUnallocatedSpace();
+            map.put("diskTotalBytes", total > 0 ? total : null);
+            map.put("diskUsableBytes", usable >= 0 ? usable : null);
+            map.put("diskUnallocatedBytes", unallocated >= 0 ? unallocated : null);
+        } catch (Exception ex) {
+            map.put("diskTotalBytes", null);
+            map.put("diskUsableBytes", null);
+            map.put("diskUnallocatedBytes", null);
+        }
+    }
+
+    static Path tempDirPath() {
+        String tmp = System.getProperty("java.io.tmpdir", ".");
+        return Paths.get(tmp).toAbsolutePath().normalize();
     }
 
     private static void applySunOsMetrics(OperatingSystemMXBean os, Map<String, Object> map) {

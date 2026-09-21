@@ -22,6 +22,12 @@ public class ServerHealthTest {
         assertEqualsLong(1, snap.get("fileOfferCount"));
         assertTrue(((Number) snap.get("fileOfferBytes")).longValue() >= 2);
         assertTrue(((Number) snap.get("uptimeMs")).longValue() >= 0);
+        assertNotNull(snap.get("diskPath"));
+        assertTrue(String.valueOf(snap.get("diskPath")).length() > 0);
+        assertTrue(((Number) snap.get("diskTotalBytes")).longValue() > 0);
+        assertTrue(((Number) snap.get("diskUsableBytes")).longValue() >= 0);
+        assertTrue(((Number) snap.get("diskUsableBytes")).longValue()
+                <= ((Number) snap.get("diskTotalBytes")).longValue());
     }
 
     @Test
