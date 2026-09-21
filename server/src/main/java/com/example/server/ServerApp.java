@@ -76,7 +76,7 @@ public final class ServerApp {
             config.http.maxRequestSize = maxRequest;
             config.jetty.multipartConfig.maxFileSize(PeerFileRules.MAX_BYTES, SizeUnit.BYTES);
             config.jetty.multipartConfig.maxTotalRequestSize(maxRequest, SizeUnit.BYTES);
-            // 超過 1MB 的 part 寫到暫存檔，避免與 FileOfferStore 同時在 heap 各留一份 100MB。
+            // 超過 1MB 的 part 寫到暫存檔，再串流落地到 FileOfferStore，避免整檔進 heap。
             config.jetty.multipartConfig.maxInMemoryFileSize(1, SizeUnit.MB);
         });
 
@@ -318,15 +318,26 @@ public final class ServerApp {
             return;
         }
         UploadedFile uploaded;
-        byte[] bytes;
+        PutResult stored;
         try {
             uploaded = ctx.uploadedFile("file");
             if (uploaded == null) {
                 ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請選擇要傳送的檔案"));
                 return;
             }
+            String filename = firstNonEmptyForm(
+                    ctx.formParam("filename"),
+                    uploaded.filename()
+            );
             try (InputStream in = uploaded.content()) {
-                bytes = in.readAllBytes();
+                stored = fileOfferStore.put(
+                        stringOrNull(ctx.formParam("fromClientId")),
+                        stringOrNull(ctx.formParam("toClientId")),
+                        filename,
+                        in,
+                        uploaded.size(),
+                        ctx.formParam("kind")
+                );
             }
         } catch (Throwable ex) {
             String message = uploadedFileErrorMessage(ex);
@@ -335,17 +346,6 @@ public final class ServerApp {
             ctx.status(status).json(Map.of("success", false, "message", message));
             return;
         }
-        String filename = firstNonEmptyForm(
-                ctx.formParam("filename"),
-                uploaded.filename()
-        );
-        PutResult stored = fileOfferStore.put(
-                stringOrNull(ctx.formParam("fromClientId")),
-                stringOrNull(ctx.formParam("toClientId")),
-                filename,
-                bytes,
-                ctx.formParam("kind")
-        );
         if (!stored.ok) {
             ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", stored.message));
             return;
@@ -394,14 +394,22 @@ public final class ServerApp {
             return;
         }
         FileOfferStore.Offer offer = result.offer;
+        InputStream stream;
+        try {
+            stream = offer.openStream();
+        } catch (Exception ex) {
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "檔案不存在或已過期"));
+            return;
+        }
         ctx.contentType("application/octet-stream");
         ctx.header("Content-Disposition", contentDisposition(offer.filename));
+        ctx.header("Content-Length", String.valueOf(offer.size()));
         ctx.header("X-PunchClock-Filename", PeerFileRules.encodeName(offer.filename));
         ctx.header("X-PunchClock-Kind", offer.kind);
         ctx.header("X-PunchClock-Mime", offer.mime == null || offer.mime.isBlank()
                 ? "application/octet-stream" : offer.mime);
         ctx.header("X-Content-Type-Options", "nosniff");
-        ctx.result(offer.bytes);
+        ctx.result(stream);
         if (admin || worker) {
             broadcaster.broadcast(statusUpdatePayload());
         }

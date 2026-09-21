@@ -10,6 +10,7 @@ import java.util.zip.ZipInputStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class PeerFolderPackerTest {
@@ -27,12 +28,13 @@ public class PeerFolderPackerTest {
         assertTrue(packed.ok);
         assertTrue(packed.filename.endsWith(".zip"));
         assertTrue(packed.entryCount >= 3);
-        assertTrue(packed.bytes.length > 0);
+        assertTrue(packed.size > 0);
+        assertNotNull(packed.path);
 
         boolean sawReadme = false;
         boolean sawBin = false;
         boolean sawEmptyDir = false;
-        try (ZipInputStream in = new ZipInputStream(new java.io.ByteArrayInputStream(packed.bytes))) {
+        try (ZipInputStream in = new ZipInputStream(Files.newInputStream(packed.path))) {
             ZipEntry entry;
             while ((entry = in.getNextEntry()) != null) {
                 String name = entry.getName().replace('\\', '/');
@@ -47,6 +49,8 @@ public class PeerFolderPackerTest {
                     sawEmptyDir = true;
                 }
             }
+        } finally {
+            packed.deleteQuietly();
         }
         assertTrue(sawReadme);
         assertTrue(sawBin);

@@ -2,6 +2,13 @@ package com.example.server.store;
 
 import com.example.PeerFileRules;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -12,25 +19,51 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongSupplier;
 
 /**
- * 同事互傳檔案的記憶體暫存。過期前可重複下載，也可手動清除。
+ * 同事互傳檔案的磁碟暫存（串流寫入／讀出）。過期前可重複下載，也可手動清除。
  */
 public final class FileOfferStore {
 
     public static final long TTL_MS = PeerFileRules.OFFER_TTL_MS;
     public static final long FILE_ACTION_TTL_MS = PeerFileRules.OFFER_TTL_MS;
-    /** 全體暫存約為單檔上限的 2 倍，避免小記憶體雲端把 100MB 檔再疊多份而 OOM。 */
+    /** 全體暫存約為單檔上限的 2 倍，避免暫存堆積佔滿磁碟。 */
     public static final long MAX_TOTAL_BYTES = PeerFileRules.MAX_BYTES * 2;
     public static final int MAX_OFFERS = 64;
 
     private final ConcurrentHashMap<String, Offer> offers = new ConcurrentHashMap<>();
+    private final Path storageDir;
     private final LongSupplier clock;
 
     public FileOfferStore() {
-        this(System::currentTimeMillis);
+        this(defaultStorageDir(), System::currentTimeMillis);
+    }
+
+    public FileOfferStore(Path storageDir) {
+        this(storageDir, System::currentTimeMillis);
     }
 
     FileOfferStore(LongSupplier clock) {
+        this(defaultStorageDir(), clock);
+    }
+
+    FileOfferStore(Path storageDir, LongSupplier clock) {
+        this.storageDir = storageDir != null
+                ? storageDir.toAbsolutePath().normalize()
+                : defaultStorageDir();
         this.clock = clock != null ? clock : System::currentTimeMillis;
+        try {
+            Files.createDirectories(this.storageDir);
+        } catch (IOException ex) {
+            throw new IllegalStateException("無法建立傳檔暫存目錄：" + this.storageDir, ex);
+        }
+    }
+
+    public static Path defaultStorageDir() {
+        String override = System.getenv("PEER_FILE_STORAGE_DIR");
+        if (override != null && !override.isBlank()) {
+            return Paths.get(override.trim()).toAbsolutePath().normalize();
+        }
+        return Paths.get(System.getProperty("java.io.tmpdir", "."), "punchclock-peer-files")
+                .toAbsolutePath().normalize();
     }
 
     public PutResult put(String fromClientId, String toClientId, String rawFilename, byte[] bytes) {
@@ -38,6 +71,15 @@ public final class FileOfferStore {
     }
 
     public PutResult put(String fromClientId, String toClientId, String rawFilename, byte[] bytes, String kind) {
+        if (bytes == null || bytes.length == 0) {
+            return PutResult.fail("檔案不可為空");
+        }
+        return put(fromClientId, toClientId, rawFilename,
+                new ByteArrayInputStream(bytes), bytes.length, kind);
+    }
+
+    public PutResult put(String fromClientId, String toClientId, String rawFilename,
+                         InputStream content, long knownSize, String kind) {
         purgeExpired();
         String from = PeerFileRules.normalizeClientId(fromClientId);
         String to = PeerFileRules.normalizeClientId(toClientId);
@@ -51,17 +93,41 @@ public final class FileOfferStore {
         if (filename.isEmpty() || !PeerFileRules.isAllowedFilename(filename)) {
             return PutResult.fail("檔名無效");
         }
-        if (bytes == null || bytes.length == 0) {
+        if (content == null) {
             return PutResult.fail("檔案不可為空");
         }
-        if (bytes.length > PeerFileRules.MAX_BYTES) {
+        if (knownSize <= 0) {
+            return PutResult.fail("檔案不可為空");
+        }
+        if (knownSize > PeerFileRules.MAX_BYTES) {
             return PutResult.fail("檔案不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
         }
-        if (offers.size() >= MAX_OFFERS || totalBytes() + bytes.length > MAX_TOTAL_BYTES) {
+        if (offers.size() >= MAX_OFFERS || totalBytes() + knownSize > MAX_TOTAL_BYTES) {
             return PutResult.fail("伺服器暫存已滿，請先清除舊檔或稍後再試");
         }
 
         String fileId = UUID.randomUUID().toString().replace("-", "");
+        Path dest = storageDir.resolve(fileId);
+        long written;
+        try {
+            written = copyLimited(content, dest, PeerFileRules.MAX_BYTES);
+        } catch (SizeLimitExceededException ex) {
+            deleteQuietly(dest);
+            return PutResult.fail("檔案不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
+        } catch (IOException ex) {
+            deleteQuietly(dest);
+            return PutResult.fail("無法寫入暫存檔："
+                    + (ex.getMessage() == null ? "IO 錯誤" : ex.getMessage()));
+        }
+        if (written <= 0) {
+            deleteQuietly(dest);
+            return PutResult.fail("檔案不可為空");
+        }
+        if (written > PeerFileRules.MAX_BYTES) {
+            deleteQuietly(dest);
+            return PutResult.fail("檔案不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
+        }
+
         String normalizedKind = PeerFileRules.normalizeKind(kind);
         String mime = PeerFileRules.isFolderKind(normalizedKind)
                 ? "application/zip"
@@ -73,7 +139,8 @@ public final class FileOfferStore {
                 filename,
                 mime,
                 normalizedKind,
-                bytes,
+                dest,
+                written,
                 clock.getAsLong()
         );
         offers.put(fileId, offer);
@@ -91,7 +158,10 @@ public final class FileOfferStore {
             return GetResult.notFound("找不到檔案");
         }
         Offer offer = offers.get(id);
-        if (offer == null) {
+        if (offer == null || !offer.exists()) {
+            if (offer != null) {
+                removeOffer(id);
+            }
             return GetResult.notFound("檔案不存在或已過期");
         }
         if (admin) {
@@ -128,14 +198,16 @@ public final class FileOfferStore {
                 return DeleteResult.forbidden("無權清除此檔案");
             }
         }
-        offers.remove(id);
+        removeOffer(id);
         return DeleteResult.ok(offer.filename);
     }
 
     public int deleteAll() {
         purgeExpired();
         int removed = offers.size();
-        offers.clear();
+        for (String id : new ArrayList<>(offers.keySet())) {
+            removeOffer(id);
+        }
         return removed;
     }
 
@@ -147,11 +219,15 @@ public final class FileOfferStore {
     public long totalBytes() {
         long total = 0;
         for (Offer offer : offers.values()) {
-            if (offer != null && offer.bytes != null) {
-                total += offer.bytes.length;
+            if (offer != null) {
+                total += offer.size();
             }
         }
         return total;
+    }
+
+    public Path storageDir() {
+        return storageDir;
     }
 
     public List<Map<String, Object>> publicSnapshot() {
@@ -186,10 +262,21 @@ public final class FileOfferStore {
         long now = clock.getAsLong();
         Iterator<Map.Entry<String, Offer>> it = offers.entrySet().iterator();
         while (it.hasNext()) {
-            Offer offer = it.next().getValue();
+            Map.Entry<String, Offer> entry = it.next();
+            Offer offer = entry.getValue();
             if (offer == null || now - offer.createdAtMs > TTL_MS) {
                 it.remove();
+                if (offer != null) {
+                    offer.deleteQuietly();
+                }
             }
+        }
+    }
+
+    private void removeOffer(String id) {
+        Offer offer = offers.remove(id);
+        if (offer != null) {
+            offer.deleteQuietly();
         }
     }
 
@@ -214,6 +301,33 @@ public final class FileOfferStore {
         return map;
     }
 
+    private static long copyLimited(InputStream in, Path dest, long maxBytes) throws IOException {
+        long written = 0L;
+        byte[] buf = new byte[64 * 1024];
+        try (OutputStream out = Files.newOutputStream(dest)) {
+            int n;
+            while ((n = in.read(buf)) >= 0) {
+                written += n;
+                if (written > maxBytes) {
+                    throw new SizeLimitExceededException();
+                }
+                out.write(buf, 0, n);
+            }
+        }
+        return written;
+    }
+
+    private static void deleteQuietly(Path path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (Exception ignored) {
+            // best-effort
+        }
+    }
+
     private static long numberOrZero(Object value) {
         if (value instanceof Number) {
             return ((Number) value).longValue();
@@ -225,6 +339,9 @@ public final class FileOfferStore {
         return value == null ? "" : value.trim();
     }
 
+    private static final class SizeLimitExceededException extends IOException {
+    }
+
     public static final class Offer {
         public final String fileId;
         public final String fromClientId;
@@ -232,25 +349,47 @@ public final class FileOfferStore {
         public final String filename;
         public final String mime;
         public final String kind;
-        public final byte[] bytes;
+        public final Path path;
+        public final long sizeBytes;
         public final long createdAtMs;
         private int downloadCount;
         private long lastDownloadedAtMs;
 
         Offer(String fileId, String fromClientId, String toClientId,
-              String filename, String mime, String kind, byte[] bytes, long createdAtMs) {
+              String filename, String mime, String kind, Path path, long sizeBytes, long createdAtMs) {
             this.fileId = fileId;
             this.fromClientId = fromClientId;
             this.toClientId = toClientId;
             this.filename = filename;
             this.mime = mime;
             this.kind = kind == null || kind.isBlank() ? PeerFileRules.KIND_FILE : kind;
-            this.bytes = bytes;
+            this.path = path;
+            this.sizeBytes = sizeBytes;
             this.createdAtMs = createdAtMs;
         }
 
-        public int size() {
-            return bytes == null ? 0 : bytes.length;
+        public long size() {
+            return sizeBytes;
+        }
+
+        public boolean exists() {
+            try {
+                return path != null && Files.isRegularFile(path);
+            } catch (Exception ex) {
+                return false;
+            }
+        }
+
+        public InputStream openStream() throws IOException {
+            return Files.newInputStream(path);
+        }
+
+        public byte[] readAllBytes() throws IOException {
+            return Files.readAllBytes(path);
+        }
+
+        void deleteQuietly() {
+            FileOfferStore.deleteQuietly(path);
         }
 
         public synchronized void markDownloaded(long nowMs) {

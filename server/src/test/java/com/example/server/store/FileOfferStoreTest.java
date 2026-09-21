@@ -1,13 +1,19 @@
 package com.example.server.store;
 
 import com.example.PeerFileRules;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -18,26 +24,47 @@ import static org.junit.Assert.assertTrue;
 public class FileOfferStoreTest {
 
     private AtomicLong now;
+    private Path storageDir;
     private FileOfferStore store;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         now = new AtomicLong(1_700_000_000_000L);
-        store = new FileOfferStore(now::get);
+        storageDir = Files.createTempDirectory("peer-offer-");
+        store = new FileOfferStore(storageDir, now::get);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        if (store != null) {
+            store.deleteAll();
+        }
+        if (storageDir != null && Files.isDirectory(storageDir)) {
+            try (Stream<Path> walk = Files.walk(storageDir)) {
+                walk.sorted(Comparator.reverseOrder()).forEach(path -> {
+                    try {
+                        Files.deleteIfExists(path);
+                    } catch (Exception ignored) {
+                        // cleanup best-effort
+                    }
+                });
+            }
+        }
     }
 
     @Test
-    public void putAndGet_roundTripsBytesForRecipient() {
+    public void putAndGet_roundTripsBytesForRecipient() throws Exception {
         byte[] payload = "hello file".getBytes(StandardCharsets.UTF_8);
         FileOfferStore.PutResult put = store.put("a", "b", "notes.txt", payload);
         assertTrue(put.ok);
         assertNotNull(put.offer);
         assertEquals("notes.txt", put.offer.filename);
         assertEquals("text/plain", put.offer.mime);
+        assertTrue(Files.isRegularFile(put.offer.path));
 
         FileOfferStore.GetResult get = store.getForRecipient(put.offer.fileId, "b");
         assertEquals(FileOfferStore.GetResult.Status.OK, get.status);
-        assertArrayEquals(payload, get.offer.bytes);
+        assertArrayEquals(payload, get.offer.readAllBytes());
         assertEquals(1, get.offer.downloadCount());
     }
 
@@ -48,7 +75,9 @@ public class FileOfferStoreTest {
         assertTrue(store.put("a", "b", "notes.exe", ok).ok);
         assertTrue(store.put("a", "c", "noext", ok).ok);
         assertFalse(store.put("a", "b", "notes.txt", new byte[0]).ok);
-        assertFalse(store.put("a", "b", "notes.txt", new byte[(int) PeerFileRules.MAX_BYTES + 1]).ok);
+        assertFalse(store.put("a", "b", "notes.txt",
+                new ByteArrayInputStream(new byte[]{1}), PeerFileRules.MAX_BYTES + 1,
+                PeerFileRules.KIND_FILE).ok);
         assertFalse(store.put("", "b", "notes.txt", ok).ok);
     }
 
@@ -78,10 +107,12 @@ public class FileOfferStoreTest {
     @Test
     public void expiredOfferIsRemoved() {
         FileOfferStore.PutResult put = store.put("a", "b", "a.txt", "p".getBytes(StandardCharsets.UTF_8));
+        Path path = put.offer.path;
         now.addAndGet(FileOfferStore.TTL_MS + 1);
         assertEquals(FileOfferStore.GetResult.Status.NOT_FOUND,
                 store.getForRecipient(put.offer.fileId, "b").status);
         assertEquals(0, store.size());
+        assertFalse(Files.exists(path));
     }
 
     @Test
@@ -118,6 +149,7 @@ public class FileOfferStoreTest {
         FileOfferStore.PutResult put = store.put("a", "b", "notes.exe", "hi".getBytes(StandardCharsets.UTF_8),
                 PeerFileRules.KIND_FILE);
         assertTrue(put.ok);
+        Path path = put.offer.path;
         List<Map<String, Object>> all = store.publicSnapshot();
         assertEquals(1, all.size());
         assertEquals("waiting", all.get(0).get("status"));
@@ -136,6 +168,7 @@ public class FileOfferStoreTest {
         FileOfferStore.DeleteResult cleared = store.delete(put.offer.fileId, "a", false);
         assertEquals(FileOfferStore.DeleteResult.Status.OK, cleared.status);
         assertEquals(0, store.size());
+        assertFalse(Files.exists(path));
     }
 
     @Test

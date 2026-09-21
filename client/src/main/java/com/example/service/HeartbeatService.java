@@ -44,8 +44,8 @@ public class HeartbeatService {
 
     static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
     static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
-    /** 單檔 100 MB 在較慢網路上需要比一般心跳更長的逾時。 */
-    static final Duration FILE_TRANSFER_TIMEOUT = Duration.ofMinutes(10);
+    /** 單檔可達 300 MB，較慢網路需要比一般心跳更長的逾時。 */
+    static final Duration FILE_TRANSFER_TIMEOUT = Duration.ofMinutes(30);
 
     /** 線上同事摘要（由心跳回應 peers[] 解析） */
     public static final class PeerInfo {
@@ -579,21 +579,25 @@ public class HeartbeatService {
         }
 
         String filename;
-        byte[] bytes;
+        Path contentPath;
+        long contentSize;
         String kind = PeerFileRules.KIND_FILE;
+        PeerFolderPacker.PackResult packed = null;
+        Path multipartTemp = null;
         try {
             if (Files.isDirectory(file)) {
-                PeerFolderPacker.PackResult packed = PeerFolderPacker.pack(file);
+                packed = PeerFolderPacker.pack(file);
                 if (!packed.ok) {
                     log(logger, "[警告] [檔案] " + packed.message);
                     if (callback != null) callback.accept(false);
                     return;
                 }
                 filename = packed.filename;
-                bytes = packed.bytes;
+                contentPath = packed.path;
+                contentSize = packed.size;
                 kind = PeerFileRules.KIND_FOLDER;
                 log(logger, "[檔案] 正在傳送資料夾「" + file.getFileName() + "」（壓縮 "
-                        + PeerFileRules.formatSize(bytes.length) + "）");
+                        + PeerFileRules.formatSize(contentSize) + "）");
             } else if (Files.isRegularFile(file)) {
                 filename = PeerFileRules.sanitizeFilename(
                         file.getFileName() != null ? file.getFileName().toString() : "");
@@ -602,77 +606,86 @@ public class HeartbeatService {
                     if (callback != null) callback.accept(false);
                     return;
                 }
-                long size = Files.size(file);
-                if (!PeerFileRules.isAllowedSize(size)) {
-                    log(logger, size <= 0
+                contentSize = Files.size(file);
+                if (!PeerFileRules.isAllowedSize(contentSize)) {
+                    log(logger, contentSize <= 0
                             ? "[警告] [檔案] 檔案不可為空"
                             : "[警告] [檔案] 檔案不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
                     if (callback != null) callback.accept(false);
                     return;
                 }
-                bytes = Files.readAllBytes(file);
+                contentPath = file;
             } else {
                 log(logger, "[警告] [檔案] 找不到要傳送的檔案");
                 if (callback != null) callback.accept(false);
                 return;
             }
-        } catch (OutOfMemoryError ex) {
-            log(logger, "[失敗] [檔案] 本機記憶體不足，無法處理這麼大的檔案");
-            if (callback != null) callback.accept(false);
-            return;
-        } catch (Exception ex) {
-            log(logger, "[失敗] [檔案] 讀取檔案失敗：" + ex.getMessage());
-            if (callback != null) callback.accept(false);
-            return;
-        }
 
-        String mime = PeerFileRules.isFolderKind(kind) ? "application/zip" : PeerFileRules.mimeFor(filename);
-        String boundary = "PunchClockFile" + UUID.randomUUID().toString().replace("-", "");
-        byte[] body;
-        try {
-            body = buildMultipart(boundary, orderedFields(
+            String mime = PeerFileRules.isFolderKind(kind) ? "application/zip" : PeerFileRules.mimeFor(filename);
+            String boundary = "PunchClockFile" + UUID.randomUUID().toString().replace("-", "");
+            multipartTemp = Files.createTempFile("punchclock-upload-", ".multipart");
+            writeMultipart(multipartTemp, boundary, orderedFields(
                     "fromClientId", clientId,
                     "toClientId", PeerFileRules.normalizeClientId(toClientId),
                     "filename", filename,
                     "kind", kind
-            ), filename, mime, bytes);
-        } catch (OutOfMemoryError ex) {
-            log(logger, "[失敗] [檔案] 本機記憶體不足，無法組裝上傳內容");
-            if (callback != null) callback.accept(false);
-            return;
-        }
+            ), filename, mime, contentPath);
 
-        String endpoint = serverUrl + "/api/peer/file";
-        try {
+            String endpoint = serverUrl + "/api/peer/file";
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(endpoint))
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                     .header("Authorization", "Bearer " + heartbeatToken)
                     .timeout(FILE_TRANSFER_TIMEOUT)
-                    .POST(HttpRequest.BodyPublishers.ofByteArray(body))
+                    .POST(HttpRequest.BodyPublishers.ofFile(multipartTemp))
                     .build();
+
+            final String sentName = filename;
+            final long sentSize = contentSize;
+            final Path cleanupMultipart = multipartTemp;
+            final PeerFolderPacker.PackResult cleanupPacked = packed;
+            multipartTemp = null;
+            packed = null;
+
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .whenComplete((response, error) -> {
+                        deleteQuietly(cleanupMultipart);
+                        if (cleanupPacked != null) {
+                            cleanupPacked.deleteQuietly();
+                        }
+                    })
                     .thenAccept(response -> {
                         boolean ok = response.statusCode() == 200;
                         if (ok) {
-                            log(logger, "[成功] [檔案] 已送出「" + filename + "」給【" + toClientId.trim()
-                                    + "】（" + PeerFileRules.formatSize(bytes.length)
+                            log(logger, "[成功] [檔案] 已送出「" + sentName + "」給【" + toClientId.trim()
+                                    + "】（" + PeerFileRules.formatSize(sentSize)
                                     + "，保留 " + PeerFileRules.OFFER_TTL_LABEL + "）");
                         } else {
                             String serverMessage = extractJsonMessage(response.body());
-                            log(logger, "[失敗] [檔案] 送出「" + filename + "」失敗，狀態碼："
+                            log(logger, "[失敗] [檔案] 送出「" + sentName + "」失敗，狀態碼："
                                     + response.statusCode()
                                     + (serverMessage.isEmpty() ? "" : "，" + serverMessage));
                         }
                         if (callback != null) callback.accept(ok);
                     })
                     .exceptionally(ex -> {
-                        log(logger, "[失敗] [檔案] 送出「" + filename + "」異常：" + describeTransferFailure(ex));
+                        log(logger, "[失敗] [檔案] 送出「" + sentName + "」異常：" + describeTransferFailure(ex));
                         if (callback != null) callback.accept(false);
                         return null;
                     });
+        } catch (OutOfMemoryError ex) {
+            deleteQuietly(multipartTemp);
+            if (packed != null) {
+                packed.deleteQuietly();
+            }
+            log(logger, "[失敗] [檔案] 本機記憶體不足，無法處理這麼大的檔案");
+            if (callback != null) callback.accept(false);
         } catch (Exception ex) {
-            log(logger, "[失敗] [檔案] 送出「" + filename + "」異常：" + describeTransferFailure(ex));
+            deleteQuietly(multipartTemp);
+            if (packed != null) {
+                packed.deleteQuietly();
+            }
+            log(logger, "[失敗] [檔案] 送出異常：" + describeTransferFailure(ex));
             if (callback != null) callback.accept(false);
         }
     }
@@ -698,31 +711,44 @@ public class HeartbeatService {
         String endpoint = serverUrl + "/api/peer/file/" + urlEncode(fileId.trim())
                 + "?clientId=" + urlEncode(clientId);
         try {
-            sendGetPreservingAuth(URI.create(endpoint), logger)
+            Path parent = dest.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Path part = dest.resolveSibling(dest.getFileName().toString() + ".part");
+            deleteQuietly(part);
+            sendGetToFile(URI.create(endpoint), part, logger)
                     .thenAccept(response -> {
-                        if (response.statusCode() != 200) {
-                            String serverMessage = extractJsonMessage(
-                                    new String(response.body(), StandardCharsets.UTF_8));
-                            log(logger, "[失敗] [檔案] 下載失敗，狀態碼：" + response.statusCode()
-                                    + (serverMessage.isEmpty() ? "" : "，" + serverMessage));
-                            if (callback != null) callback.accept(false);
-                            return;
-                        }
                         try {
-                            Path parent = dest.getParent();
-                            if (parent != null) {
-                                Files.createDirectories(parent);
+                            if (response.statusCode() != 200) {
+                                String serverMessage = "";
+                                try {
+                                    if (Files.isRegularFile(part) && Files.size(part) < 64 * 1024) {
+                                        serverMessage = extractJsonMessage(
+                                                Files.readString(part, StandardCharsets.UTF_8));
+                                    }
+                                } catch (Exception ignored) {
+                                    // ignore
+                                }
+                                deleteQuietly(part);
+                                log(logger, "[失敗] [檔案] 下載失敗，狀態碼：" + response.statusCode()
+                                        + (serverMessage.isEmpty() ? "" : "，" + serverMessage));
+                                if (callback != null) callback.accept(false);
+                                return;
                             }
-                            Files.write(dest, response.body());
+                            Files.move(part, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                            long size = Files.size(dest);
                             log(logger, "[成功] [檔案] 已儲存：" + dest.toAbsolutePath()
-                                    + "（" + PeerFileRules.formatSize(response.body().length) + "）");
+                                    + "（" + PeerFileRules.formatSize(size) + "）");
                             if (callback != null) callback.accept(true);
                         } catch (Exception ex) {
+                            deleteQuietly(part);
                             log(logger, "[失敗] [檔案] 寫入本機失敗：" + ex.getMessage());
                             if (callback != null) callback.accept(false);
                         }
                     })
                     .exceptionally(ex -> {
+                        deleteQuietly(part);
                         Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                         log(logger, "[失敗] [檔案] 下載異常：" + cause.getMessage());
                         if (callback != null) callback.accept(false);
@@ -797,9 +823,9 @@ public class HeartbeatService {
         return builder.build();
     }
 
-    private java.util.concurrent.CompletableFuture<HttpResponse<byte[]>> sendGetPreservingAuth(
-            URI uri, Consumer<String> logger) {
-        return httpClient.sendAsync(buildDownloadRequest(uri), HttpResponse.BodyHandlers.ofByteArray())
+    private java.util.concurrent.CompletableFuture<HttpResponse<Path>> sendGetToFile(
+            URI uri, Path dest, Consumer<String> logger) {
+        return httpClient.sendAsync(buildDownloadRequest(uri), HttpResponse.BodyHandlers.ofFile(dest))
                 .thenCompose(response -> {
                     int code = response.statusCode();
                     if (code < 300 || code >= 400) {
@@ -828,7 +854,8 @@ public class HeartbeatService {
                         log(logger, "[警告] [檔案] 下載轉址跨網域，已中止：" + next);
                         return java.util.concurrent.CompletableFuture.completedFuture(response);
                     }
-                    return httpClient.sendAsync(buildDownloadRequest(next), HttpResponse.BodyHandlers.ofByteArray());
+                    deleteQuietly(dest);
+                    return httpClient.sendAsync(buildDownloadRequest(next), HttpResponse.BodyHandlers.ofFile(dest));
                 });
     }
 
@@ -889,13 +916,11 @@ public class HeartbeatService {
         return fields;
     }
 
-    private static byte[] buildMultipart(String boundary, Map<String, String> fields,
-                                         String filename, String mime, byte[] fileBytes) {
-        try {
-            int headersGuess = 2048;
-            int capacity = fileBytes == null ? headersGuess : fileBytes.length + headersGuess;
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(Math.max(headersGuess, capacity));
-            byte[] crlf = "\r\n".getBytes(StandardCharsets.UTF_8);
+    private static void writeMultipart(Path dest, String boundary, Map<String, String> fields,
+                                       String filename, String mime, Path fileContent)
+            throws java.io.IOException {
+        byte[] crlf = "\r\n".getBytes(StandardCharsets.UTF_8);
+        try (java.io.OutputStream out = Files.newOutputStream(dest)) {
             for (Map.Entry<String, String> field : fields.entrySet()) {
                 out.write(("--" + boundary).getBytes(StandardCharsets.UTF_8));
                 out.write(crlf);
@@ -919,13 +944,21 @@ public class HeartbeatService {
                     .getBytes(StandardCharsets.UTF_8));
             out.write(crlf);
             out.write(crlf);
-            out.write(fileBytes);
+            Files.copy(fileContent, out);
             out.write(crlf);
             out.write(("--" + boundary + "--").getBytes(StandardCharsets.UTF_8));
             out.write(crlf);
-            return out.toByteArray();
-        } catch (java.io.IOException ex) {
-            throw new IllegalStateException("無法組裝上傳內容", ex);
+        }
+    }
+
+    private static void deleteQuietly(Path path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (Exception ignored) {
+            // best-effort
         }
     }
 

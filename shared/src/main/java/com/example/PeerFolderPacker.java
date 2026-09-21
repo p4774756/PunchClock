@@ -1,19 +1,20 @@
 package com.example;
 
-import java.io.ByteArrayOutputStream;
+import java.io.FilterOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.EnumSet;
-import java.nio.file.FileVisitOption;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 /**
- * 將資料夾壓成單一 ZIP，方便走既有單檔暫存通道。
+ * 將資料夾壓成單一 ZIP（寫到暫存檔），方便走既有單檔暫存通道。
  */
 public final class PeerFolderPacker {
 
@@ -35,9 +36,18 @@ public final class PeerFolderPacker {
         }
         String zipName = folderName.endsWith(".zip") ? folderName : folderName + ".zip";
 
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        Path zipPath;
+        try {
+            zipPath = Files.createTempFile("punchclock-folder-", ".zip");
+        } catch (IOException ex) {
+            return PackResult.fail("無法建立壓縮暫存檔："
+                    + (ex.getMessage() == null ? "IO 錯誤" : ex.getMessage()));
+        }
+
         Counter counter = new Counter();
-        try (ZipOutputStream zip = new ZipOutputStream(buffer)) {
+        try (OutputStream fileOut = Files.newOutputStream(zipPath);
+             CountingOutputStream counted = new CountingOutputStream(fileOut);
+             ZipOutputStream zip = new ZipOutputStream(counted)) {
             final String zipRoot = folderName;
             Files.walkFileTree(root, EnumSet.noneOf(FileVisitOption.class), MAX_DEPTH,
                     new SimpleFileVisitor<Path>() {
@@ -77,7 +87,7 @@ public final class PeerFolderPacker {
                             Files.copy(file, zip);
                             zip.closeEntry();
                             counter.value++;
-                            if (buffer.size() > PeerFileRules.MAX_BYTES) {
+                            if (counted.count > PeerFileRules.MAX_BYTES) {
                                 throw new PackLimitException("壓縮後不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
                             }
                             return FileVisitResult.CONTINUE;
@@ -89,19 +99,29 @@ public final class PeerFolderPacker {
                         }
                     });
         } catch (PackLimitException ex) {
+            deleteQuietly(zipPath);
             return PackResult.fail(ex.getMessage());
         } catch (IOException ex) {
+            deleteQuietly(zipPath);
             return PackResult.fail("壓縮資料夾失敗：" + (ex.getMessage() == null ? "IO 錯誤" : ex.getMessage()));
         }
 
-        byte[] bytes = buffer.toByteArray();
-        if (bytes.length == 0) {
+        long size;
+        try {
+            size = Files.size(zipPath);
+        } catch (IOException ex) {
+            deleteQuietly(zipPath);
+            return PackResult.fail("無法讀取壓縮檔大小");
+        }
+        if (size <= 0) {
+            deleteQuietly(zipPath);
             return PackResult.fail("資料夾是空的，沒有可傳送的內容");
         }
-        if (!PeerFileRules.isAllowedSize(bytes.length)) {
+        if (!PeerFileRules.isAllowedSize(size)) {
+            deleteQuietly(zipPath);
             return PackResult.fail("壓縮後不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
         }
-        return PackResult.ok(zipName, bytes, counter.value);
+        return PackResult.ok(zipName, zipPath, size, counter.value);
     }
 
     private static void addDirectoryEntry(ZipOutputStream zip, String entryName, Counter counter)
@@ -137,6 +157,17 @@ public final class PeerFolderPacker {
         return sb.toString().replace('\\', '/');
     }
 
+    static void deleteQuietly(Path path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (Exception ignored) {
+            // best-effort cleanup
+        }
+    }
+
     private static final class Counter {
         int value;
     }
@@ -147,27 +178,54 @@ public final class PeerFolderPacker {
         }
     }
 
+    private static final class CountingOutputStream extends FilterOutputStream {
+        private long count;
+
+        CountingOutputStream(OutputStream out) {
+            super(out);
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            out.write(b);
+            count++;
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            out.write(b, off, len);
+            count += len;
+        }
+    }
+
     public static final class PackResult {
         public final boolean ok;
         public final String message;
         public final String filename;
-        public final byte[] bytes;
+        /** 成功時為暫存 ZIP 路徑；呼叫端用完後應 {@link #deleteQuietly()}。 */
+        public final Path path;
+        public final long size;
         public final int entryCount;
 
-        private PackResult(boolean ok, String message, String filename, byte[] bytes, int entryCount) {
+        private PackResult(boolean ok, String message, String filename, Path path, long size, int entryCount) {
             this.ok = ok;
             this.message = message;
             this.filename = filename;
-            this.bytes = bytes;
+            this.path = path;
+            this.size = size;
             this.entryCount = entryCount;
         }
 
-        public static PackResult ok(String filename, byte[] bytes, int entryCount) {
-            return new PackResult(true, "ok", filename, bytes, entryCount);
+        public static PackResult ok(String filename, Path path, long size, int entryCount) {
+            return new PackResult(true, "ok", filename, path, size, entryCount);
         }
 
         public static PackResult fail(String message) {
-            return new PackResult(false, message, "", new byte[0], 0);
+            return new PackResult(false, message, "", null, 0L, 0);
+        }
+
+        public void deleteQuietly() {
+            PeerFolderPacker.deleteQuietly(path);
         }
     }
 }
