@@ -382,12 +382,19 @@
         patchTaskListHost(c, isConnected, taskListHost);
       }
 
-      const cancelAllBtn = root.querySelector('[data-role="cancel-all"]');
       const actionRow = root.querySelector('.action-row');
       if (actionRow) {
-        actionRow.innerHTML = buildCancelAllButtonHtml(c.clientId, isConnected, tasks);
-      } else if (cancelAllBtn) {
-        cancelAllBtn.disabled = !isConnected || tasks.length === 0;
+        actionRow.innerHTML = buildSendMessageButtonHtml(c.clientId, isConnected)
+            + buildCancelAllButtonHtml(c.clientId, isConnected, tasks);
+      } else {
+        const cancelAllBtn = root.querySelector('[data-role="cancel-all"]');
+        if (cancelAllBtn) {
+          cancelAllBtn.disabled = !isConnected || tasks.length === 0;
+        }
+        const sendMsgBtn = root.querySelector('[data-role="send-message"]');
+        if (sendMsgBtn) {
+          sendMsgBtn.disabled = !isConnected;
+        }
       }
 
       updateClientLogBox(c);
