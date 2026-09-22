@@ -250,4 +250,37 @@ public class ClientStoreTest {
         assertTrue(String.valueOf(((Map<?, ?>) events.get(0)).get("text")).contains("→ 成功"));
         assertFalse(String.valueOf(((Map<?, ?>) events.get(0)).get("text")).contains("回報執行結果"));
     }
+
+    @Test
+    public void adminMessageQueuesWithoutCreatingAdminClient() {
+        assertTrue(store.queueAdminMessage("worker-a", "請確認排程").ok);
+        assertFalse(store.clients().containsKey(ClientStore.ADMIN_FROM_ID));
+
+        Map<String, Object> target = store.getOrCreateClient("worker-a");
+        List<?> events = (List<?>) target.get("eventLog");
+        assertFalse(events.isEmpty());
+        assertTrue(String.valueOf(((Map<?, ?>) events.get(events.size() - 1)).get("text"))
+                .contains("後台已傳送訊息"));
+
+        List<String> drained = store.drainPendingActions(target);
+        assertEquals(1, drained.size());
+        String[] parts = drained.get(0).split("\\|", 4);
+        assertEquals("MSG", parts[0]);
+        assertEquals(ClientStore.ADMIN_FROM_ID, parts[1]);
+        String decoded = new String(
+                java.util.Base64.getUrlDecoder().decode(parts[2]),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals("請確認排程", decoded);
+    }
+
+    @Test
+    public void adminMessageRejectsBlankAndTooLong() {
+        assertFalse(store.queueAdminMessage("worker-a", "  ").ok);
+        assertFalse(store.queueAdminMessage("", "hello").ok);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 10_001; i++) {
+            sb.append('a');
+        }
+        assertFalse(store.queueAdminMessage("worker-a", sb.toString()).ok);
+    }
 }

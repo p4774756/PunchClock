@@ -25,6 +25,8 @@ public final class ClientStore {
     public static final long PENDING_ACTION_TTL_MS = 30_000L;
     private static final int EVENT_LOG_MAX = 50;
     private static final int PEER_MESSAGE_MAX_LEN = 10_000;
+    /** 管理後台傳訊息時的寄件者 ID（不建立假裝置） */
+    public static final String ADMIN_FROM_ID = "後台";
 
     private static final Map<String, String> TASK_STATUS_LABEL = Map.of(
             "PENDING", "待命中",
@@ -102,7 +104,11 @@ public final class ClientStore {
         } else if (action != null && action.startsWith("MSG|")) {
             String[] parts = action.split("\\|", 3);
             String fromId = parts.length > 1 ? parts[1] : "未知";
-            appendClientEvent(existing, "同事【" + fromId + "】傳來訊息（等待桌面端下次心跳收取）");
+            if (ADMIN_FROM_ID.equals(fromId)) {
+                appendClientEvent(existing, "後台已傳送訊息（等待桌面端下次心跳收取）");
+            } else {
+                appendClientEvent(existing, "同事【" + fromId + "】傳來訊息（等待桌面端下次心跳收取）");
+            }
         } else if (action != null && action.startsWith("POKE|")) {
             String fromId = action.length() > "POKE|".length() ? action.substring("POKE|".length()) : "未知";
             appendClientEvent(existing, "同事【" + fromId + "】戳了你（等待桌面端下次心跳收取）");
@@ -119,6 +125,24 @@ public final class ClientStore {
 
     public PeerResult queuePeerMessage(String toClientId, String fromClientId, String text) {
         return queuePeerMessage(toClientId, fromClientId, text, null);
+    }
+
+    /**
+     * 管理後台傳訊息給桌面端。寄件者固定為 {@link #ADMIN_FROM_ID}，不建立後台假裝置。
+     */
+    public PeerResult queueAdminMessage(String toClientId, String text) {
+        String trimmed = text == null ? "" : text.trim();
+        if (toClientId == null || toClientId.isEmpty() || trimmed.isEmpty()) {
+            return PeerResult.fail("缺少收件人或訊息內容");
+        }
+        if (trimmed.length() > PEER_MESSAGE_MAX_LEN) {
+            return PeerResult.fail("訊息長度不可超過 " + PEER_MESSAGE_MAX_LEN + " 字");
+        }
+        // 確保目標存在於列表；不為「後台」建立 client
+        getOrCreateClient(toClientId);
+        String action = encodePeerMessage(ADMIN_FROM_ID, trimmed, "");
+        queueClientAction(toClientId, action);
+        return PeerResult.ok("訊息已排入佇列，對方約 15 秒內收到");
     }
 
     public PeerResult queuePeerMessage(String toClientId, String fromClientId, String text, String avatar) {

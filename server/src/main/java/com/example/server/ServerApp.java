@@ -114,6 +114,7 @@ public final class ServerApp {
         app.get("/api/health/history", this::healthHistory);
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
         app.post("/api/clients/{clientId}/cancel-task/{taskId}", this::cancelTask);
+        app.post("/api/clients/{clientId}/message", this::adminMessage);
         app.delete("/api/clients/{clientId}", this::deleteClient);
         app.get("/", this::dashboard);
         app.get("/index.html", ctx -> ctx.redirect(authService.isAuth(ctx) ? "/" : "/login"));
@@ -573,6 +574,25 @@ public final class ServerApp {
         clientStore.queueClientAction(clientId, "CANCEL_TASK:" + taskId);
         broadcaster.broadcast(statusUpdatePayload());
         ctx.json(Map.of("success", true, "message", "已成功將【取消任務 " + taskId + "】指令派送至 " + clientId + " 佇列"));
+    }
+
+    private void adminMessage(Context ctx) {
+        if (!authService.isAuth(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
+            return;
+        }
+        String clientId = ctx.pathParam("clientId");
+        Map<String, Object> body = gson.fromJson(ctx.body(), MAP_TYPE);
+        if (body == null) {
+            body = Map.of();
+        }
+        PeerResult result = clientStore.queueAdminMessage(clientId, stringOrNull(body.get("text")));
+        if (!result.ok) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", result.message));
+            return;
+        }
+        broadcaster.broadcast(statusUpdatePayload());
+        ctx.json(Map.of("success", true, "message", result.message));
     }
 
     private void deleteClient(Context ctx) {

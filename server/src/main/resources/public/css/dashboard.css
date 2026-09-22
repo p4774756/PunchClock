@@ -766,7 +766,13 @@
       border: 1px solid rgba(198, 40, 40, 0.35);
     }
 
-    .action-row { margin-top: 0.65rem; }
+    .action-row {
+      margin-top: 0.65rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      align-items: center;
+    }
 
     .log-head {
       display: flex;

@@ -145,6 +145,12 @@
       return '<button class="btn btn-danger" data-role="cancel-all" onclick="remoteCancelSchedule(\'' + clientId + '\')"' + title + ' ' + disabled + '>取消全部任務</button>';
     }
 
+    function buildSendMessageButtonHtml(clientId, isConnected) {
+      const disabled = isConnected ? '' : 'disabled';
+      const title = isConnected ? '傳訊息給此桌面端（下次心跳收取）' : ' title="裝置離線時無法傳送"';
+      return '<button class="btn btn-ghost" data-role="send-message" onclick="remoteSendMessage(\'' + clientId + '\')"' + title + ' ' + disabled + '>傳訊息</button>';
+    }
+
     function refreshTaskCancelUi(clientId, taskId) {
       const root = deviceEl(clientId);
       if (!root) return;
@@ -164,7 +170,9 @@
       const tasks = Array.isArray(c.tasks) ? c.tasks : [];
       const actionRow = root.querySelector('.action-row');
       if (actionRow) {
-        actionRow.innerHTML = buildCancelAllButtonHtml(clientId, c.status !== 'OFFLINE', tasks);
+        const isConnected = c.status !== 'OFFLINE';
+        actionRow.innerHTML = buildSendMessageButtonHtml(clientId, isConnected)
+            + buildCancelAllButtonHtml(clientId, isConnected, tasks);
       }
       const taskListHost = root.querySelector('[data-role="task-list"]');
       if (taskListHost) {
@@ -1049,6 +1057,7 @@
           '<button class="btn btn-ghost-danger" onclick="deleteClient(\'' + c.clientId + '\')" title="移除離線設備紀錄">移除</button>'
         );
         const cancelAllBtnHtml = buildCancelAllButtonHtml(c.clientId, isConnected, tasks);
+        const sendMsgBtnHtml = buildSendMessageButtonHtml(c.clientId, isConnected);
         const foldText = isCollapsed ? '展開' : '收合';
         const bodyClass = isCollapsed ? 'collapsed' : '';
         const statusColor = getStatusColor(c.status);
@@ -1077,6 +1086,7 @@
               '<div class="section-label">任務清單</div>' +
               '<div class="task-list" data-role="task-list" data-task-ids="' + escapeHtml(tasks.map((t) => t.id).join('|')) + '">' + tasksInnerHtml + '</div>' +
               '<div class="action-row">' +
+                sendMsgBtnHtml +
                 cancelAllBtnHtml +
               '</div>' +
             '</div>' +
@@ -1168,6 +1178,38 @@
         clearCancelAllPending(clientId);
         refreshCancelAllUi(clientId);
         console.error('Remote cancel error', e);
+      }
+    }
+
+    async function remoteSendMessage(clientId) {
+      const c = clientData.find((x) => x.clientId === clientId);
+      if (!c || c.status === 'OFFLINE') {
+        alert('裝置離線，無法傳送訊息');
+        return;
+      }
+      const text = window.prompt('傳訊息給【' + clientId + '】（對方約 15 秒內收到）');
+      if (text == null) return;
+      const trimmed = String(text).trim();
+      if (!trimmed) {
+        alert('訊息不可為空');
+        return;
+      }
+      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在傳送訊息…');
+      try {
+        const res = await fetch('/api/clients/' + encodeURIComponent(clientId) + '/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: trimmed })
+        });
+        const data = await res.json();
+        if (data.success) {
+          appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已送出訊息，等候桌面端心跳收取');
+        } else {
+          alert(data.message || '傳送失敗');
+        }
+      } catch (e) {
+        console.error('Remote message error', e);
+        alert('傳送失敗');
       }
     }
 
