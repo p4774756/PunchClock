@@ -603,8 +603,8 @@ public class NetworkProbeService {
                 .append(" -jar punchclock-client-standalone.jar\n\n");
         sb.append("# 或嘗試使用作業系統 Proxy（需啟動時就加，Windows 公司機常用）\n");
         sb.append("java -Djava.net.useSystemProxies=true -jar punchclock-client-standalone.jar\n\n");
-        sb.append("打卡用的 Playwright 瀏覽器不一定跟隨 JVM Proxy；");
-        sb.append("若自動打卡打不開網頁，請在系統或瀏覽器設定 Proxy，或設定 HTTP_PROXY 環境變數後重開 App。");
+        sb.append("自動執行用的 Playwright 瀏覽器不一定跟隨 JVM Proxy；");
+        sb.append("若排程任務打不開網頁，請在系統或瀏覽器設定 Proxy，或設定 HTTP_PROXY 環境變數後重開 App。");
         return sb.toString();
     }
 
@@ -649,7 +649,7 @@ public class NetworkProbeService {
         String authNote = user.isEmpty() ? "" : "（帳號 " + user + "）";
         return new JvmProxyApplyResult(true,
                 "已套用 JVM HTTP/HTTPS Proxy " + proxyHost.trim() + ":" + port + authNote
-                        + "。請停用再啟用「雲端狀態回報」讓心跳改走新設定。Playwright 打卡瀏覽器不會自動跟著改。");
+                        + "。請停用再啟用「雲端狀態回報」讓心跳改走新設定。Playwright 瀏覽器不會自動跟著改。");
     }
 
     public static String joinUrl(String base, String path) {

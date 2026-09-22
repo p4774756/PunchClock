@@ -332,9 +332,9 @@ public final class ClientStore {
             return;
         }
         String detail = lastMessage.isEmpty() ? "" : "；原因：" + lastMessage;
-        appendClientEvent(existing, "任務【" + name + "】回報打卡結果：" + taskStatusLabel(lastStatus) + detail);
+        appendClientEvent(existing, "任務【" + name + "】回報執行結果：" + taskStatusLabel(lastStatus) + detail);
         String clientId = String.valueOf(existing.getOrDefault("clientId", ""));
-        System.out.println("[Checkin Report] 設備 " + clientId + " 上報打卡結果 (" + lastStatus + "): " + lastMessage);
+        System.out.println("[Task Report] 設備 " + clientId + " 上報執行結果 (" + lastStatus + "): " + lastMessage);
     }
 
     public List<Map<String, Object>> getTasks(Map<String, Object> client) {

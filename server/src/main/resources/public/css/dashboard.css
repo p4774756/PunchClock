@@ -451,69 +451,6 @@
       color: #fff;
     }
 
-    /* ── 六人行區塊 ── */
-    .daily-proverb {
-      padding: 1rem 1.15rem;
-      border: 1px solid var(--line-soft);
-      border-radius: var(--radius);
-      background: var(--white);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-    }
-
-    .proverb-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 0.35rem;
-    }
-
-    .btn-speak {
-      font-family: var(--sans);
-      font-size: 0.75rem;
-      font-weight: 700;
-      color: var(--blue);
-      background: var(--blue-soft);
-      border: 1px solid rgba(9, 101, 151, 0.25);
-      border-radius: var(--radius-pill);
-      padding: 0.35rem 0.75rem;
-      cursor: pointer;
-      flex-shrink: 0;
-      transition: background 0.15s;
-    }
-
-    .btn-speak:hover {
-      background: rgba(9, 101, 151, 0.16);
-    }
-
-    .proverb-kicker {
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: var(--text-muted);
-    }
-
-    .proverb-en {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: 700;
-      line-height: 1.45;
-      color: var(--text-dark);
-      quotes: none;
-    }
-
-    .proverb-context {
-      margin: 0.35rem 0 0;
-      font-size: 0.8rem;
-      font-weight: 700;
-      color: var(--blue);
-    }
-
-    .proverb-zh {
-      margin: 0.35rem 0 0;
-      font-size: 0.88rem;
-      color: var(--text-muted);
-    }
-
     /* ── 裝置卡片（eschool 灰底內白卡） ── */
     .content-panel {
       background: var(--cream);

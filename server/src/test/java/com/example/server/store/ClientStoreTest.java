@@ -220,7 +220,7 @@ public class ClientStoreTest {
         store.logTaskTransitions(existing, List.of(next));
         List<?> events = (List<?>) existing.get("eventLog");
         assertEquals(1, events.size());
-        assertTrue(String.valueOf(((Map<?, ?>) events.get(0)).get("text")).contains("回報打卡結果：成功"));
+        assertTrue(String.valueOf(((Map<?, ?>) events.get(0)).get("text")).contains("回報執行結果：成功"));
 
         existing.put("tasks", new ArrayList<>(List.of(next)));
         store.logTaskTransitions(existing, List.of(next));
@@ -248,6 +248,6 @@ public class ClientStoreTest {
         List<?> events = (List<?>) existing.get("eventLog");
         assertEquals(1, events.size());
         assertTrue(String.valueOf(((Map<?, ?>) events.get(0)).get("text")).contains("→ 成功"));
-        assertFalse(String.valueOf(((Map<?, ?>) events.get(0)).get("text")).contains("回報打卡結果"));
+        assertFalse(String.valueOf(((Map<?, ?>) events.get(0)).get("text")).contains("回報執行結果"));
     }
 }

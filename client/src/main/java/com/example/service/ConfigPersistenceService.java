@@ -56,6 +56,8 @@ public class ConfigPersistenceService {
         public int windowX = -1;
         public int windowY = -1;
         public int splitDividerLocation = -1;
+        /** 上次開啟的主分頁 index（負值表示使用預設） */
+        public int selectedTabIndex = -1;
         /**
          * 視窗透明度百分比：0 為不透明，最高 {@link #MAX_WINDOW_TRANSPARENCY_PERCENT}。
          * 實際不透明度為 100% 減去此值（最透明仍保留 40%）。
@@ -80,6 +82,8 @@ public class ConfigPersistenceService {
         /** Proxy 帳密（明文寫入 config.json；僅本機使用） */
         public String networkProxyUser = "";
         public String networkProxyPassword = "";
+        /** Ping/Pong 說明／測試區分隔線（≤0 表示使用預設） */
+        public int networkSplitDividerLocation = -1;
     }
 
     private static SlotSettings defaultWorkIn() {

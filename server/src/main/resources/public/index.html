@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>莫卡咖啡 · 遠端打卡監控</title>
+  <title>莫卡咖啡 · 遠端監控</title>
   <link rel="stylesheet" href="/css/dashboard.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
         <div class="brand-logo" aria-hidden="true">M<em>C</em></div>
         <div class="navbar-brand-text">
           莫卡咖啡
-          <small>Remote Check-in Monitor · v{{SERVER_VERSION}}</small>
+          <small>Remote Ops Monitor · v{{SERVER_VERSION}}</small>
         </div>
       </div>
       <div class="top-actions">
@@ -25,7 +25,7 @@
 
   <div class="site-banner">
     <div class="site-banner-inner">
-      <h1 class="header-title">遠端打卡監控控制台</h1>
+      <h1 class="header-title">遠端營運監控控制台</h1>
       <p class="header-sub">即時同步桌面端心跳、排程任務、傳檔狀態與伺服器負載</p>
     </div>
   </div>
@@ -42,17 +42,7 @@
   </div>
 
   <div class="shell dash-panel is-active" id="panel-devices" role="tabpanel" aria-labelledby="tab-devices">
-    <aside class="daily-proverb" aria-label="今日六人行經典台詞">
-      <div class="proverb-head">
-        <div class="proverb-kicker">今日六人行 · {{DAILY_PROVERB_DATE}}</div>
-        <button type="button" class="btn-speak" id="speakProverbBtn" aria-label="朗讀英文台詞">發音</button>
-      </div>
-      <blockquote class="proverb-en">{{DAILY_PROVERB_EN}}</blockquote>
-      <p class="proverb-context">{{DAILY_PROVERB_CONTEXT}}</p>
-      <p class="proverb-zh">{{DAILY_PROVERB_ZH}}</p>
-    </aside>
-
-    <div class="content-panel">
+    <div class="content-panel content-panel-full">
       <main id="clientContainer">
         <div class="empty-state"><p>連線狀態載入中…</p><p>正在同步裝置心跳</p></div>
       </main>

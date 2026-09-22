@@ -188,6 +188,8 @@ public class ConfigPersistenceServiceTest {
         config.networkProxyMode = "custom";
         config.networkProxyUser = "corp\\alice";
         config.networkProxyPassword = "s3cret";
+        config.networkSplitDividerLocation = 220;
+        config.selectedTabIndex = 3;
         configService.saveConfig(config, null);
 
         ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
@@ -197,6 +199,8 @@ public class ConfigPersistenceServiceTest {
         assertEquals("CUSTOM", loaded.networkProxyMode);
         assertEquals("corp\\alice", loaded.networkProxyUser);
         assertEquals("s3cret", loaded.networkProxyPassword);
+        assertEquals(220, loaded.networkSplitDividerLocation);
+        assertEquals(3, loaded.selectedTabIndex);
     }
 
     @Test

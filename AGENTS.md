@@ -18,7 +18,7 @@ Web Dashboard  --REST 取消指令-->  server  --WS STATUS_UPDATE-->  Dashboard
 |------|------|------|
 | `client/` | 排程、UI、自動打卡、心跳、傳檔、網路工具 | `com.example.App` |
 | `server/` | 心跳、Dashboard、peer 訊息／傳檔、取消指令 | `com.example.server.ServerApp` |
-| `shared/` | 跨端共用（如 `DailyProverb`） | — |
+| `shared/` | 跨端共用（如 `PeerFileRules`） | — |
 
 **Client 常見包：**
 

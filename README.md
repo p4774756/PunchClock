@@ -22,7 +22,7 @@
 |------|------|------|
 | [`client/`](client/) | 桌面端：排程、自動打卡、任務管理 | Java 11、Swing、Playwright |
 | [`server/`](server/) | 伺服器：心跳接收、Web 監控、遠端控制 | Java 11、Javalin、WebSocket |
-| [`shared/`](shared/) | 共用程式（`DailyProverb` 等） | Java 11 |
+| [`shared/`](shared/) | 共用程式（`PeerFileRules` 等） | Java 11 |
 
 ## 快速開始
 

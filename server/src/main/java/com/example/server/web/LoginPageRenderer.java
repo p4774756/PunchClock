@@ -28,7 +28,7 @@ public final class LoginPageRenderer {
                 + "  </nav>\n"
                 + "\n"
                 + "  <div class=\"site-banner\">\n"
-                + "    <h1 class=\"header-title\">遠端打卡監控控制台</h1>\n"
+                + "    <h1 class=\"header-title\">遠端營運監控控制台</h1>\n"
                 + "    <p class=\"header-sub\">管理員登入</p>\n"
                 + "  </div>\n"
                 + "\n"

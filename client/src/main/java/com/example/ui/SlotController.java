@@ -146,7 +146,7 @@ public class SlotController {
                 slot.enabled = false;
                 applySlotToUi(refsFor(kind), slot);
                 appendLog.accept(String.format(
-                        "[警告] 【%s】打卡網址或 Selector 未設定，已取消「啟用」", kind.displayName));
+                        "[警告] 【%s】目標網址或 Selector 未設定，已取消「啟用」", kind.displayName));
             }
         }
         saveConfig();
@@ -158,7 +158,7 @@ public class SlotController {
             }
         }
         if (scheduled > 0) {
-            appendLog.accept(String.format("[成功] 已排程 %d 個打卡槽位", scheduled));
+            appendLog.accept(String.format("[成功] 已排程 %d 個任務槽位", scheduled));
         }
         for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
             CheckInTask t = schedulerService.getTask(kind.id);
@@ -328,7 +328,7 @@ public class SlotController {
     }
 
     private void showSharedSettingsRequiredMessage() {
-        UiFonts.showWarning(owner, "請先設定打卡網址與 Selector！", "提示");
+        UiFonts.showWarning(owner, "請先設定目標網址與 Selector！", "提示");
     }
 
     private void revertSlotEnable(WorkSlot.Kind kind) {
@@ -349,7 +349,7 @@ public class SlotController {
         slotRefs.executeNowButton.setEnabled(ready);
         slotRefs.executeNowButton.setToolTipText(ready
                 ? "使用上方共用設定立即測試，不會變更已啟用槽位的鎖定設定"
-                : "請先設定打卡網址與 Selector");
+                : "請先設定目標網址與 Selector");
     }
 
     /** 啟用當下將上方共用設定寫入該槽位任務（之後改共用欄位不會影響已啟用槽位） */
@@ -566,13 +566,13 @@ public class SlotController {
             String finishTimeStr = LocalDateTime.now().format(FMT);
 
             if (ok) {
-                String msg = String.format("[成功] 打卡成功！(觸發: %s, 完成: %s, 耗時: %.1f秒)", triggerTimeStr, finishTimeStr, durationSec);
+                String msg = String.format("[成功] 執行成功！(觸發: %s, 完成: %s, 耗時: %.1f秒)", triggerTimeStr, finishTimeStr, durationSec);
                 task.setStatus(TaskStatus.SUCCESS);
                 task.setResultMessage(msg);
                 task.rememberLastResult();
                 appendLog.accept("[成功] 【" + task.getName() + "】" + msg);
             } else {
-                String msg = String.format("[失敗] 打卡失敗 (觸發: %s, 耗時: %.1f秒)", triggerTimeStr, durationSec);
+                String msg = String.format("[失敗] 執行失敗 (觸發: %s, 耗時: %.1f秒)", triggerTimeStr, durationSec);
                 task.setStatus(TaskStatus.FAILED);
                 task.setResultMessage(msg);
                 task.rememberLastResult();
@@ -580,7 +580,7 @@ public class SlotController {
             }
         } catch (Exception ex) {
             double durationSec = (System.currentTimeMillis() - startTimeMs) / 1000.0;
-            String msg = String.format("[失敗] 打卡失敗：%s (觸發: %s, 耗時: %.1f秒)", sanitizeErrorMessage(ex.getMessage()), triggerTimeStr, durationSec);
+            String msg = String.format("[失敗] 執行失敗：%s (觸發: %s, 耗時: %.1f秒)", sanitizeErrorMessage(ex.getMessage()), triggerTimeStr, durationSec);
             task.setStatus(TaskStatus.FAILED);
             task.setResultMessage(msg);
             task.rememberLastResult();
@@ -641,8 +641,8 @@ public class SlotController {
         }
         int confirm = UiFonts.showConfirm(
                 owner,
-                "確定清除本機打卡歷史紀錄？\n（不會影響目前排程）",
-                "清除打卡記錄",
+                "確定清除本機執行歷史紀錄？\n（不會影響目前排程）",
+                "清除執行記錄",
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.QUESTION_MESSAGE);
         if (confirm != JOptionPane.YES_OPTION) {
@@ -650,7 +650,7 @@ public class SlotController {
         }
         historyService.clear(appendLog);
         refreshHistoryList();
-        appendLog.accept("[資訊] 已清除打卡歷史紀錄");
+        appendLog.accept("[資訊] 已清除執行歷史紀錄");
     }
 
     /**
@@ -817,7 +817,7 @@ public class SlotController {
     }
 
     private String sanitizeErrorMessage(String rawMsg) {
-        if (rawMsg == null) return "打卡異常";
+        if (rawMsg == null) return "執行異常";
         String sanitized = rawMsg.replaceAll("https?://[^\\s\"'>]+", "[隱私保護網址]");
         if (sanitized.contains("Timeout") && sanitized.contains("exceeded")) {
             return "網頁連線或按鈕點擊逾時 (Timeout 45s)";
@@ -829,8 +829,11 @@ public class SlotController {
         if (sanitized.startsWith("[失敗]")) {
             sanitized = sanitized.substring(4).trim();
         }
-        if (sanitized.startsWith("打卡失敗：")) {
+        if (sanitized.startsWith("執行失敗：") || sanitized.startsWith("打卡失敗：")) {
             sanitized = sanitized.substring(5).trim();
+        }
+        if (sanitized.startsWith("執行過程中發生錯誤：")) {
+            sanitized = sanitized.substring(10).trim();
         }
         if (sanitized.startsWith("打卡過程中發生錯誤：")) {
             sanitized = sanitized.substring(10).trim();

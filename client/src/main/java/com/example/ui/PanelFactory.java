@@ -195,7 +195,7 @@ public class PanelFactory {
         panel.setOpaque(false);
         panel.setBorder(new EmptyBorder(4, 0, 0, 0));
 
-        JLabel hint = new JLabel("顯示同一伺服器上的裝置（含本機標示，每 15 秒隨心跳更新）");
+        JLabel hint = new JLabel("只顯示同一伺服器上的好友（不含本機，每 15 秒隨心跳更新）");
         hint.setFont(mainFont);
         hint.setForeground(new Color(100, 116, 139));
         refs.peerHintLabel = hint;
@@ -219,7 +219,7 @@ public class PanelFactory {
         tableScroll.setPreferredSize(new Dimension(400, 180));
         refs.peerTableScroll = tableScroll;
 
-        refs.peerStatusLabel = new JLabel("尚未取得同事列表（請先啟用雲端狀態回報）");
+        refs.peerStatusLabel = new JLabel("尚未取得好友列表（請先啟用雲端狀態回報）");
         refs.peerStatusLabel.setFont(mainFont);
         refs.peerStatusLabel.setForeground(new Color(100, 116, 139));
 
@@ -422,55 +422,6 @@ public class PanelFactory {
         public JPanel avatarRow;
     }
 
-    // ==================== 說明 ====================
-
-    public static JPanel createHelpPanel(Font mainFont, Font boldFont, Font fieldFont) {
-        JPanel root = new JPanel(new BorderLayout());
-        root.setBorder(new EmptyBorder(8, 4, 8, 4));
-
-        JTextArea text = new JTextArea(helpText());
-        text.setEditable(false);
-        text.setLineWrap(false);
-        text.setFont(new Font("Menlo", Font.PLAIN, 12));
-        text.setBackground(new Color(248, 250, 252));
-        text.setForeground(new Color(30, 41, 59));
-        text.setMargin(new Insets(10, 12, 10, 12));
-        text.setCaretPosition(0);
-
-        JScrollPane scroll = new JScrollPane(text);
-        scroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
-        scroll.getVerticalScrollBar().setUnitIncrement(16);
-
-        JPanel group = new JPanel(new BorderLayout());
-        group.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(203, 213, 225), 1, true),
-                new EmptyBorder(4, 8, 6, 8)));
-        JLabel titleLabel = new JLabel("Ping/Pong 連線測試");
-        titleLabel.setFont(boldFont);
-        titleLabel.setForeground(new Color(30, 41, 59));
-        titleLabel.setBorder(new EmptyBorder(0, 4, 6, 0));
-        group.add(titleLabel, BorderLayout.NORTH);
-        group.add(scroll, BorderLayout.CENTER);
-        root.add(group, BorderLayout.CENTER);
-        return root;
-    }
-
-    private static String helpText() {
-        return ""
-                + "Ping / Pong 連線測試（不需 Token）\n"
-                + "────────────────────────────────\n"
-                + "把網址換成「雲端設定」裡的 Server 雲端網址即可。\n"
-                + "\n"
-                + "# 正式 Server\n"
-                + "curl -sS \"https://your-punchclock-server.onrender.com/ping\"\n"
-                + "\n"
-                + "# 本機\n"
-                + "curl -sS \"http://localhost:3000/ping\"\n"
-                + "\n"
-                + "# 預期回應類似：\n"
-                + "# {\"message\":\"pong\",\"timestamp\":\"...\"}\n";
-    }
-
     // ==================== 分組 2: 雙槽位打卡 ====================
 
     public static JPanel createSlotPanel(SlotPanelRefs refs, Font mainFont, Font boldFont, Font fieldFont) {
@@ -484,7 +435,7 @@ public class PanelFactory {
 
         refs.urlCombo = RecentValuesHelper.createCombo(
                 fieldFont, "https://www.msn.com/zh-tw",
-                "打卡頁面的完整網址；已啟用槽位會使用啟用當下鎖定的值，此欄位供下次啟用或「立即執行」");
+                "目標頁面的完整網址；已啟用槽位會使用啟用當下鎖定的值，此欄位供下次啟用或「立即執行」");
         refs.urlCombo.setPrototypeDisplayValue("https://www.msn.com/zh-tw");
         refs.buttonIdCombo = RecentValuesHelper.createCombo(
                 fieldFont, "finance",
@@ -499,15 +450,15 @@ public class PanelFactory {
         refs.executeNowButton.setToolTipText("使用上方共用設定立即測試，不會變更已啟用槽位的鎖定設定");
 
         lockFieldHeight(refs.urlCombo);
-        sharedContent.add(formRowStretch(labeled(mainFont, "目標打卡網址："), refs.urlCombo));
+        sharedContent.add(formRowStretch(labeled(mainFont, "目標網址："), refs.urlCombo));
         sharedContent.add(Box.createVerticalStrut(4));
         sharedContent.add(selectorBrowserActionRow(mainFont, fieldFont,
                 refs.buttonIdCombo, refs.browserCombo, refs.executeNowButton));
 
-        JPanel shared = createCollapsibleGroupPanel("共用打卡設定", sharedContent, boldFont, false);
+        JPanel shared = createCollapsibleGroupPanel("共用排程設定", sharedContent, boldFont, false);
 
-        refs.workIn = createSlotCard("上班打卡", mainFont, boldFont);
-        refs.workOut = createSlotCard("下班打卡", mainFont, boldFont);
+        refs.workIn = createSlotCard("上班排程", mainFont, boldFont);
+        refs.workOut = createSlotCard("下班排程", mainFont, boldFont);
 
         JPanel slotRow = new JPanel(new GridLayout(1, 2, 8, 0));
         slotRow.setOpaque(false);
@@ -535,7 +486,7 @@ public class PanelFactory {
     public static JPanel createCheckInHistoryPanel(
             CheckInHistoryRefs refs, Font mainFont, Font boldFont) {
         JPanel panel = createGroupPanel(
-                "打卡記錄（最近 " + CheckInHistoryService.MAX_ENTRIES + " 筆）", boldFont);
+                "執行記錄（最近 " + CheckInHistoryService.MAX_ENTRIES + " 筆）", boldFont);
         panel.setLayout(new BorderLayout(0, 4));
 
         refs.listModel = new DefaultListModel<>();
@@ -548,21 +499,28 @@ public class PanelFactory {
         refs.historyList.setBackground(new Color(0, 0, 0, 0));
         refs.historyList.setForeground(new Color(30, 41, 59));
         refs.historyList.setBorder(new EmptyBorder(4, 6, 4, 6));
-        refs.historyList.setToolTipText("本機最近打卡成功／失敗紀錄（不含取消）");
+        refs.historyList.setToolTipText("本機最近排程成功／失敗紀錄（不含取消）");
         refs.historyList.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(
                     JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                 Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                boolean latest = index == 0;
                 if (c instanceof JComponent) {
-                    ((JComponent) c).setOpaque(isSelected);
+                    ((JComponent) c).setOpaque(isSelected || latest);
                 }
                 if (isSelected) {
                     c.setBackground(new Color(59, 130, 246, 170));
                     c.setForeground(Color.WHITE);
+                } else if (latest) {
+                    // 最新一筆：淺藍底＋深藍字，方便一眼辨識
+                    c.setBackground(new Color(219, 234, 254));
+                    c.setForeground(new Color(30, 64, 175));
+                    c.setFont(list.getFont().deriveFont(Font.BOLD));
                 } else {
                     c.setBackground(new Color(0, 0, 0, 0));
                     c.setForeground(new Color(30, 41, 59));
+                    c.setFont(list.getFont());
                 }
                 return c;
             }
@@ -575,7 +533,7 @@ public class PanelFactory {
         scroll.getVerticalScrollBar().setUnitIncrement(16);
         panel.add(scroll, BorderLayout.CENTER);
 
-        refs.emptyLabel = new JLabel("尚無打卡紀錄；排程或「立即執行」完成後會顯示在此", SwingConstants.CENTER);
+        refs.emptyLabel = new JLabel("尚無執行紀錄；排程或「立即執行」完成後會顯示在此", SwingConstants.CENTER);
         refs.emptyLabel.setFont(mainFont);
         refs.emptyLabel.setForeground(new Color(100, 116, 139));
 
@@ -586,7 +544,7 @@ public class PanelFactory {
         actions.setOpaque(false);
         refs.clearButton = new JButton("清除紀錄");
         refs.clearButton.setFont(boldFont);
-        refs.clearButton.setToolTipText("清空本機打卡歷史（不影響目前排程）");
+        refs.clearButton.setToolTipText("清空本機執行歷史（不影響目前排程）");
         actions.add(refs.clearButton);
         south.add(actions, BorderLayout.EAST);
         panel.add(south, BorderLayout.SOUTH);
@@ -615,14 +573,14 @@ public class PanelFactory {
         refs.enabledCheckBox = new JCheckBox("啟用", true);
         refs.enabledCheckBox.setOpaque(false);
         refs.enabledCheckBox.setFont(boldFont);
-        refs.enabledCheckBox.setToolTipText("勾選後開始自動排程，並鎖定時分與打卡網址／Selector；取消勾選後才能修改時間");
+        refs.enabledCheckBox.setToolTipText("勾選後開始自動排程，並鎖定時分與目標網址／Selector；取消勾選後才能修改時間");
 
         String[] hours = new String[24];
         for (int i = 0; i < 24; i++) hours[i] = String.format("%02d", i);
         refs.hourCombo = new JComboBox<>(hours);
         refs.hourCombo.setFont(mainFont);
         refs.hourCombo.setPrototypeDisplayValue("00");
-        refs.hourCombo.setToolTipText("預定打卡的小時（00–23）");
+        refs.hourCombo.setToolTipText("預定執行的小時（00–23）");
         lockComboSize(refs.hourCombo);
 
         String[] minutes = new String[60];
@@ -630,14 +588,14 @@ public class PanelFactory {
         refs.minuteCombo = new JComboBox<>(minutes);
         refs.minuteCombo.setFont(mainFont);
         refs.minuteCombo.setPrototypeDisplayValue("00");
-        refs.minuteCombo.setToolTipText("預定打卡的分鐘（00–59）");
+        refs.minuteCombo.setToolTipText("預定執行的分鐘（00–59）");
         lockComboSize(refs.minuteCombo);
 
         refs.randomOffsetCheckBox = new JCheckBox("±5 分隨機", true);
         refs.randomOffsetCheckBox.setOpaque(false);
         refs.randomOffsetCheckBox.setFont(mainFont);
         refs.randomOffsetCheckBox.setForeground(new Color(147, 51, 234));
-        refs.randomOffsetCheckBox.setToolTipText("在設定時間前後隨機 ±5 分鐘，避免每天固定同一秒打卡");
+        refs.randomOffsetCheckBox.setToolTipText("在設定時間前後隨機 ±5 分鐘，避免每天固定同一秒執行");
 
         sgbc.gridx = 0;
         sgbc.gridy = 0;

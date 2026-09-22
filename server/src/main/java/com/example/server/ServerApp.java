@@ -1,6 +1,5 @@
 package com.example.server;
 
-import com.example.DailyProverb;
 import com.example.PeerFileRules;
 import com.example.server.auth.AuthService;
 import com.example.server.health.HealthHistoryStore;
@@ -11,7 +10,6 @@ import com.example.server.store.FileOfferStore;
 import com.example.server.store.FileOfferStore.DeleteResult;
 import com.example.server.store.FileOfferStore.GetResult;
 import com.example.server.store.FileOfferStore.PutResult;
-import com.example.server.util.HtmlEscape;
 import com.example.server.util.IpResolver;
 import com.example.server.web.DashboardBroadcaster;
 import com.example.server.web.LoginPageRenderer;
@@ -101,7 +99,6 @@ public final class ServerApp {
         app.get("/login", this::loginGet);
         app.post("/login", this::loginPost);
         app.get("/logout", this::logout);
-        app.get("/api/daily-proverb", ctx -> ctx.json(toProverbMap(DailyProverb.forToday())));
         app.get("/ping", ctx -> ctx.json(Map.of(
                 "message", "pong",
                 "timestamp", Instant.now().toString()
@@ -594,13 +591,8 @@ public final class ServerApp {
             ctx.redirect("/login");
             return;
         }
-        DailyProverb.Entry proverb = DailyProverb.forToday();
         String html = readResource("/public/index.html")
-                .replace("{{SERVER_VERSION}}", SERVER_VERSION)
-                .replace("{{DAILY_PROVERB_EN}}", HtmlEscape.escape(proverb.en))
-                .replace("{{DAILY_PROVERB_ZH}}", HtmlEscape.escape(proverb.zh))
-                .replace("{{DAILY_PROVERB_CONTEXT}}", HtmlEscape.escape(proverb.context))
-                .replace("{{DAILY_PROVERB_DATE}}", HtmlEscape.escape(proverb.date));
+                .replace("{{SERVER_VERSION}}", SERVER_VERSION);
         ctx.html(html);
     }
 
@@ -611,16 +603,6 @@ public final class ServerApp {
         payload.put("files", fileOfferStore.publicSnapshot());
         payload.put("serverHealth", serverHealth.snapshot(fileOfferStore));
         return payload;
-    }
-
-    private static Map<String, Object> toProverbMap(DailyProverb.Entry entry) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("date", entry.date);
-        map.put("en", entry.en);
-        map.put("zh", entry.zh);
-        map.put("context", entry.context);
-        map.put("index", entry.index);
-        return map;
     }
 
     private static Map<String, Object> unauthorized() {

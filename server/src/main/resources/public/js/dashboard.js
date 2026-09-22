@@ -440,7 +440,7 @@
         if (prevStateKey !== undefined && prevStateKey !== currentStateKey) {
           const timeStr = new Date().toLocaleTimeString('zh-TW');
           if (c.status === 'CHECKING_IN') {
-            appendLog(c.clientId, '[' + timeStr + '] 正在執行自動打卡…');
+            appendLog(c.clientId, '[' + timeStr + '] 正在執行排程任務…');
           } else if (c.message && c.message.trim() !== '') {
             appendLog(c.clientId, '[' + timeStr + '] ' + c.message);
           }
@@ -930,7 +930,7 @@
 
       return '<article class="task-card" data-task-id="' + escapeHtml(t.id || '') + '">' +
         '<div class="task-card-top">' +
-          '<strong class="task-card-name">' + escapeHtml(t.name || '打卡任務') + '</strong>' +
+          '<strong class="task-card-name">' + escapeHtml(t.name || '排程任務') + '</strong>' +
           '<div class="task-card-actions">' +
             '<span class="task-countdown" data-status="' + escapeHtml(t.status || '') + '" data-actual-time="' + countdownAttr + '">' + escapeHtml(countdown) + '</span>' +
             statusBadge + cancelBtn +
@@ -970,7 +970,7 @@
       const countdownAttr = t.actualTime || t.targetTime || '';
 
       const nameEl = card.querySelector('.task-card-name');
-      if (nameEl) nameEl.textContent = t.name || '打卡任務';
+      if (nameEl) nameEl.textContent = t.name || '排程任務';
 
       const actions = card.querySelector('.task-card-actions');
       if (actions) {
@@ -1023,7 +1023,7 @@
     function renderClients() {
       const container = document.getElementById('clientContainer');
       if (!clientData || clientData.length === 0) {
-        container.innerHTML = '<div class="empty-state"><p>尚無打卡裝置連線</p><p>請啟動桌面端並啟用雲端狀態回報</p></div>';
+        container.innerHTML = '<div class="empty-state"><p>尚無裝置連線</p><p>請啟動桌面端並啟用雲端狀態回報</p></div>';
         return;
       }
 
@@ -1184,39 +1184,6 @@
         box.innerHTML = clientLogs[clientId].map(escapeHtml).join('<br>');
         box.scrollTop = box.scrollHeight;
       }
-    }
-
-    function toSpeakableEnglish(line) {
-      if (!line) return '';
-      let text = String(line).trim();
-      const colon = text.indexOf(':');
-      if (colon >= 0 && colon < text.length - 1) {
-        text = text.slice(colon + 1).trim();
-      }
-      if (text.length >= 2 && text.startsWith('"') && text.endsWith('"')) {
-        text = text.slice(1, -1);
-      }
-      return text.trim();
-    }
-
-    function speakDailyProverb() {
-      const quote = document.querySelector('.proverb-en');
-      const text = toSpeakableEnglish(quote ? quote.textContent : '');
-      if (!text) return;
-      if (!('speechSynthesis' in window)) {
-        window.alert('此瀏覽器不支援語音合成');
-        return;
-      }
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US';
-      utterance.rate = 0.95;
-      window.speechSynthesis.speak(utterance);
-    }
-
-    const speakBtn = document.getElementById('speakProverbBtn');
-    if (speakBtn) {
-      speakBtn.addEventListener('click', speakDailyProverb);
     }
 
     function switchDashTab(tabId) {

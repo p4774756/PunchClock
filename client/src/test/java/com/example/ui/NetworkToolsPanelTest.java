@@ -34,6 +34,12 @@ public class NetworkToolsPanelTest {
         assertEquals("CUSTOM", panel.getProxyMode());
         assertEquals("alice", panel.getProxyUser());
         assertEquals("p@ss", panel.getProxyPassword());
-        assertTrue(NetworkToolsPanel.TAB_LABEL.contains("網路"));
+        assertTrue(NetworkToolsPanel.TAB_LABEL.contains("Ping"));
+        assertTrue(NetworkToolsPanel.TAB_LABEL.contains("Pong"));
+
+        SwingUtilities.invokeAndWait(() -> panel.applySplitDividerLocation(180));
+        // 允許 layout 後再讀；headless 下高度可能為 0，至少 API 可呼叫
+        int divider = panel.getSplitDividerLocation();
+        assertTrue(divider == -1 || divider > 0);
     }
 }

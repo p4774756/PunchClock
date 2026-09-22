@@ -162,7 +162,7 @@ public class TaskEditDialog extends JDialog {
         formPanel.add(dlgRandomLabel, gc);
 
         gc.gridx = 1; gc.gridy = 5; gc.weightx = 1.0;
-        JCheckBox dlgRandomCheckBox = new JCheckBox("啟用前後 ±5 分鐘隨機打卡", sourceTask.isUseRandomOffset());
+        JCheckBox dlgRandomCheckBox = new JCheckBox("啟用前後 ±5 分鐘隨機執行", sourceTask.isUseRandomOffset());
         dlgRandomCheckBox.setFont(dialogBoldFont);
         dlgRandomCheckBox.setForeground(new Color(147, 51, 234));
         formPanel.add(dlgRandomCheckBox, gc);
@@ -200,17 +200,17 @@ public class TaskEditDialog extends JDialog {
         cancelButton.addActionListener(e -> dispose());
         confirmButton.addActionListener(e -> {
             String newName = dlgNameField.getText().trim();
-            if (newName.isEmpty()) newName = "打卡任務";
+            if (newName.isEmpty()) newName = "排程任務";
 
             String newUrl = dlgUrlField.getText().trim();
             if (newUrl.isEmpty()) {
-                UiFonts.showWarning(this, "請輸入目標打卡網址！", "提示");
+                UiFonts.showWarning(this, "請輸入目標網址！", "提示");
                 return;
             }
 
             String newBtnId = dlgBtnField.getText().trim();
             if (newBtnId.isEmpty()) {
-                UiFonts.showWarning(this, "請輸入打卡按鈕 Selector！", "提示");
+                UiFonts.showWarning(this, "請輸入目標按鈕 Selector！", "提示");
                 return;
             }
 
@@ -260,11 +260,11 @@ public class TaskEditDialog extends JDialog {
             case "chrome":
                 return "開啟電腦已安裝的 Google Chrome，可沿用書籤、Cookie 與登入狀態。";
             case "chromium":
-                return "由打卡工具啟動內附的 Chromium，獨立視窗，不影響平常使用的瀏覽器。";
+                return "由本工具啟動內附的 Chromium，獨立視窗，不影響平常使用的瀏覽器。";
             case "firefox":
-                return "由打卡工具啟動內附的 Firefox，獨立視窗，不影響平常使用的瀏覽器。";
+                return "由本工具啟動內附的 Firefox，獨立視窗，不影響平常使用的瀏覽器。";
             case "webkit":
-                return "由打卡工具啟動內附的 WebKit（Safari 核心），獨立視窗，主要供 macOS 測試。";
+                return "由本工具啟動內附的 WebKit（Safari 核心），獨立視窗，主要供 macOS 測試。";
             default:
                 return "開啟電腦已安裝的 Microsoft Edge，可沿用書籤、Cookie 與登入狀態。";
         }

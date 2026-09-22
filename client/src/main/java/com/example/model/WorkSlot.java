@@ -7,8 +7,8 @@ public final class WorkSlot {
 
     public static final String WORK_IN_ID = "work-in";
     public static final String WORK_OUT_ID = "work-out";
-    public static final String WORK_IN_NAME = "上班打卡";
-    public static final String WORK_OUT_NAME = "下班打卡";
+    public static final String WORK_IN_NAME = "上班排程";
+    public static final String WORK_OUT_NAME = "下班排程";
 
     public enum Kind {
         WORK_IN(WORK_IN_ID, WORK_IN_NAME),

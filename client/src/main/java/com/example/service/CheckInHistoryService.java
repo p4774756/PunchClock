@@ -47,7 +47,7 @@ public class CheckInHistoryService {
                 Files.createDirectories(parent);
             }
         } catch (IOException e) {
-            System.err.println("[警告] 無法建立打卡歷史目錄: " + savePath.getParent());
+            System.err.println("[警告] 無法建立執行歷史目錄: " + savePath.getParent());
         }
         load();
     }
@@ -118,7 +118,7 @@ public class CheckInHistoryService {
             }
             trimToMax();
         } catch (Exception e) {
-            System.err.println("[警告] 載入打卡歷史失敗: " + e.getMessage());
+            System.err.println("[警告] 載入執行歷史失敗: " + e.getMessage());
         }
     }
 
@@ -128,7 +128,7 @@ public class CheckInHistoryService {
             Files.writeString(savePath, json);
         } catch (IOException e) {
             if (logger != null) {
-                logger.accept("[警告] 儲存打卡歷史失敗: " + e.getMessage());
+                logger.accept("[警告] 儲存執行歷史失敗: " + e.getMessage());
             }
         }
     }

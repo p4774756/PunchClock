@@ -55,20 +55,20 @@ public class AutomationService {
 
             String selector = (buttonId == null) ? "" : buttonId.trim();
             if (selector.isEmpty()) {
-                log(logger, "[失敗] 未設定打卡按鈕 Selector");
+                log(logger, "[失敗] 未設定目標按鈕 Selector");
                 return false;
             }
             if (!(selector.startsWith("#") || selector.startsWith(".") || selector.contains("["))) {
                 selector = "#" + selector;
             }
 
-            log(logger, "等待打卡按鈕出現（最多 " + (SELECTOR_TIMEOUT_MS / 1000) + " 秒，Selector: " + selector + "）...");
+            log(logger, "等待目標按鈕出現（最多 " + (SELECTOR_TIMEOUT_MS / 1000) + " 秒，Selector: " + selector + "）...");
             try {
                 page.waitForSelector(selector, new Page.WaitForSelectorOptions()
                         .setState(WaitForSelectorState.VISIBLE)
                         .setTimeout(SELECTOR_TIMEOUT_MS));
             } catch (TimeoutError timeoutError) {
-                log(logger, "[失敗] 逾時：找不到可見的打卡按鈕（" + selector + "）");
+                log(logger, "[失敗] 逾時：找不到可見的目標按鈕（" + selector + "）");
                 return false;
             }
 
@@ -80,10 +80,10 @@ public class AutomationService {
             HighlightRenderer.remove(page, selector);
 
             page.click(selector, new Page.ClickOptions().setTimeout(CLICK_TIMEOUT_MS));
-            log(logger, "[成功] 已成功點擊打卡按鈕！");
+            log(logger, "[成功] 已成功點擊目標按鈕！");
 
             page.waitForTimeout(5000);
-            log(logger, "瀏覽器已關閉，打卡任務結束。");
+            log(logger, "瀏覽器已關閉，排程任務結束。");
             return true;
         } catch (Exception ex) {
             String errorMsg = formatUserError(ex);
@@ -193,7 +193,7 @@ public class AutomationService {
         if (raw != null && raw.length() > 100) {
             raw = raw.substring(0, 100) + "...";
         }
-        return "[失敗] 打卡過程中發生錯誤：" + (raw != null ? raw : ex.getClass().getSimpleName());
+        return "[失敗] 執行過程中發生錯誤：" + (raw != null ? raw : ex.getClass().getSimpleName());
     }
 
     private void log(Consumer<String> logger, String message) {

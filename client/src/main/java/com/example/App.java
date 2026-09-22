@@ -1,7 +1,5 @@
 package com.example;
 
-import com.example.model.TaskStatus;
-import com.example.service.SpeechService;
 import com.example.service.AutomationService;
 import com.example.service.CheckInHistoryService;
 import com.example.service.ConfigPersistenceService;
@@ -245,27 +243,17 @@ public class App extends JFrame {
                 this::appendLog);
         networkToolsPanel.setOpaque(false);
 
-        JPanel englishTab = new JPanel(new BorderLayout());
-        englishTab.setOpaque(false);
-        englishTab.setBorder(new EmptyBorder(8, 4, 8, 4));
-        englishTab.add(createDailyProverbBanner(mainFont, boldFont), BorderLayout.NORTH);
-
-        tabs.addTab("打卡任務", tasksTab);
+        tabs.addTab("排程任務", tasksTab);
         tabs.addTab("雲端設定", cloudTab);
         tabs.addTab(PanelFactory.PEER_TAB_LABEL, peerTab);
         tabs.addTab(NetworkToolsPanel.TAB_LABEL, networkToolsPanel);
-        tabs.addTab("英文學習", englishTab);
-        JPanel helpPanel = PanelFactory.createHelpPanel(mainFont, boldFont, fieldFont);
-        helpPanel.setOpaque(false);
-        tabs.addTab("Ping/Pong", helpPanel);
         tabs.setOpaque(false);
         tabs.setBackground(new Color(0, 0, 0, 0));
-        tabs.setToolTipTextAt(0, "設定打卡網址、時間，立即測試");
+        tabs.setToolTipTextAt(0, "設定目標網址、時間，立即測試");
         tabs.setToolTipTextAt(1, "雲端心跳、Client ID、Token；可選程式背景圖與模糊／透明度");
         tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案／資料夾與傳檔狀態");
-        tabs.setToolTipTextAt(3, "Proxy、DNS、TCP、HTTP、Ping；公司封閉網路除錯");
-        tabs.setToolTipTextAt(4, "每日六人行經典台詞與發音");
-        tabs.setToolTipTextAt(5, "用 curl 測試 Server 的 /ping API 是否回 pong");
+        tabs.setToolTipTextAt(3, "測試 Server GET /ping（Ping/Pong）");
+        tabs.addChangeListener(e -> rememberWindowLayout());
         tabs.setSelectedIndex(0);
 
         JPanel logPanel = PanelFactory.createLogPanel(logRefs, mainFont, boldFont);
@@ -379,6 +367,12 @@ public class App extends JFrame {
                 config.splitDividerLocation = divider;
             }
         }
+        if (mainTabs != null) {
+            int tab = mainTabs.getSelectedIndex();
+            if (tab >= 0) {
+                config.selectedTabIndex = tab;
+            }
+        }
     }
 
     private void applyWindowLayout(ConfigPersistenceService.CloudConfig config) {
@@ -391,6 +385,11 @@ public class App extends JFrame {
             setLocation(config.windowX, config.windowY);
         } else {
             setLocationRelativeTo(null);
+        }
+
+        if (mainTabs != null && config.selectedTabIndex >= 0
+                && config.selectedTabIndex < mainTabs.getTabCount()) {
+            mainTabs.setSelectedIndex(config.selectedTabIndex);
         }
 
         final int savedDivider = config.splitDividerLocation;
@@ -414,51 +413,6 @@ public class App extends JFrame {
             }
         }
         return false;
-    }
-
-    private JPanel createDailyProverbBanner(Font mainFont, Font boldFont) {
-        DailyProverb.Entry proverb = DailyProverb.forToday();
-
-        JPanel banner = PanelFactory.createGroupPanel("今日六人行", boldFont);
-        banner.setLayout(new BorderLayout(12, 0));
-        banner.setBackground(new Color(255, 252, 246));
-        banner.setOpaque(true);
-
-        JLabel kicker = new JLabel("今日六人行 · " + proverb.date);
-        kicker.setFont(new Font(mainFont.getName(), Font.BOLD, 11));
-        kicker.setForeground(new Color(74, 85, 104));
-
-        JLabel en = new JLabel(proverb.en);
-        en.setFont(new Font(boldFont.getName(), Font.BOLD, 14));
-        en.setForeground(new Color(26, 35, 50));
-
-        JLabel ctx = new JLabel(proverb.context);
-        ctx.setFont(new Font(mainFont.getName(), Font.BOLD, 11));
-        ctx.setForeground(new Color(9, 101, 151));
-
-        JLabel zh = new JLabel(proverb.zh);
-        zh.setFont(mainFont);
-        zh.setForeground(new Color(74, 85, 104));
-
-        JPanel textCol = new JPanel();
-        textCol.setLayout(new BoxLayout(textCol, BoxLayout.Y_AXIS));
-        textCol.setOpaque(false);
-        textCol.add(kicker);
-        textCol.add(Box.createVerticalStrut(3));
-        textCol.add(en);
-        textCol.add(Box.createVerticalStrut(2));
-        textCol.add(ctx);
-        textCol.add(Box.createVerticalStrut(2));
-        textCol.add(zh);
-
-        JButton speakButton = new JButton("發音");
-        speakButton.setFont(mainFont);
-        speakButton.setToolTipText("朗讀今日英文台詞");
-        speakButton.addActionListener(e -> SpeechService.speakEnglish(proverb.en, this::appendLog));
-
-        banner.add(textCol, BorderLayout.CENTER);
-        banner.add(speakButton, BorderLayout.EAST);
-        return banner;
     }
 
     private void bindPeerInteractionListeners() {
@@ -589,16 +543,7 @@ public class App extends JFrame {
         String myClientId = heartbeatService.getClientId();
         peerRefs.peerTableModel.setRowCount(0);
         int onlineCount = 0;
-        int deviceCount = 0;
-
-        peerRefs.peerTableModel.addRow(new Object[]{
-                formatPeerRowId(myClientId, true),
-                "在線",
-                countLocalScheduledTasks(),
-                AppVersion.VERSION
-        });
-        onlineCount++;
-        deviceCount++;
+        int friendCount = 0;
 
         for (PeerInfo peer : peers) {
             if (myClientId.equals(peer.clientId)) {
@@ -606,7 +551,7 @@ public class App extends JFrame {
             }
             boolean online = "ONLINE".equalsIgnoreCase(peer.status);
             if (online) onlineCount++;
-            deviceCount++;
+            friendCount++;
             String statusLabel = online ? "在線" : "離線";
             peerRefs.peerTableModel.addRow(new Object[]{
                     peer.clientId,
@@ -617,7 +562,9 @@ public class App extends JFrame {
         }
 
         if (peerRefs.peerStatusLabel != null) {
-            peerRefs.peerStatusLabel.setText("共 " + deviceCount + " 台裝置 · " + onlineCount + " 位在線");
+            peerRefs.peerStatusLabel.setText(friendCount == 0
+                    ? "目前沒有其他好友在同一伺服器"
+                    : "共 " + friendCount + " 位好友 · " + onlineCount + " 位在線");
             peerRefs.peerStatusLabel.setForeground(new Color(100, 116, 139));
         }
         setPeerInteractionEnabled(true);
@@ -626,7 +573,7 @@ public class App extends JFrame {
         }
         if (peerRefs.peerHintLabel != null) {
             peerRefs.peerHintLabel.setText(
-                    "顯示同一伺服器上的裝置（含本機標示，每 15 秒隨心跳更新）");
+                    "只顯示同一伺服器上的好友（不含本機，每 15 秒隨心跳更新）");
         }
 
         if (selectedId != null && peerRefs.peerTable != null) {
@@ -655,16 +602,16 @@ public class App extends JFrame {
         }
         if (peerRefs.peerHintLabel != null) {
             peerRefs.peerHintLabel.setText(
-                    "顯示同一伺服器上的裝置（含本機標示，每 15 秒隨心跳更新）");
+                    "只顯示同一伺服器上的好友（不含本機，每 15 秒隨心跳更新）");
         }
         showPeerWaitingView();
     }
 
     private void showOfflinePeerView() {
-        populateSelfOnlyPeerTable("本機");
+        clearPeerTable();
         if (peerRefs.peerHintLabel != null) {
             peerRefs.peerHintLabel.setText(
-                    "雲端未啟用時僅顯示本機；至「雲端設定」勾選「啟用雲端單向狀態回報」後，可查看同事並互動");
+                    "雲端未啟用；至「雲端設定」勾選「啟用雲端單向狀態回報」後，可查看好友並互動");
         }
         if (peerRefs.peerStatusLabel != null) {
             peerRefs.peerStatusLabel.setText("雲端未啟用 · 本機獨立運作");
@@ -682,24 +629,18 @@ public class App extends JFrame {
     }
 
     private void showPeerWaitingView() {
-        populateSelfOnlyPeerTable("在線");
+        clearPeerTable();
         if (peerRefs.peerStatusLabel != null) {
-            peerRefs.peerStatusLabel.setText("連線中…（等待伺服器回傳同事列表）");
+            peerRefs.peerStatusLabel.setText("連線中…（等待伺服器回傳好友列表）");
             peerRefs.peerStatusLabel.setForeground(new Color(100, 116, 139));
         }
     }
 
-    private void populateSelfOnlyPeerTable(String selfStatusLabel) {
+    private void clearPeerTable() {
         if (peerRefs.peerTableModel == null) {
             return;
         }
         peerRefs.peerTableModel.setRowCount(0);
-        peerRefs.peerTableModel.addRow(new Object[]{
-                formatPeerRowId(heartbeatService.getClientId(), true),
-                selfStatusLabel,
-                countLocalScheduledTasks(),
-                AppVersion.VERSION
-        });
     }
 
     private void setPeerInteractionEnabled(boolean enabled) {
@@ -723,10 +664,6 @@ public class App extends JFrame {
         }
     }
 
-    private String formatPeerRowId(String clientId, boolean self) {
-        return self ? clientId + SELF_PEER_SUFFIX : clientId;
-    }
-
     private String parsePeerRowId(String displayId) {
         if (displayId == null) {
             return null;
@@ -739,12 +676,6 @@ public class App extends JFrame {
 
     private boolean isSelfClientId(String clientId) {
         return clientId != null && clientId.equals(heartbeatService.getClientId());
-    }
-
-    private int countLocalScheduledTasks() {
-        return (int) schedulerService.getAllTasks().stream()
-                .filter(t -> t.getStatus() == TaskStatus.SCHEDULED)
-                .count();
     }
 
     private void showPeerMessage(String fromId, String text, Long sentAtMs, String avatar) {
@@ -770,7 +701,7 @@ public class App extends JFrame {
             suppressConfigSave = previousSuppress;
             UiFonts.showMessage(
                     this,
-                    timeLabel + "\n\n【" + fromId + "】戳了你，視窗晃了一下！快看一下打卡狀態吧！",
+                    timeLabel + "\n\n【" + fromId + "】戳了你，視窗晃了一下！快看一下排程狀態吧！",
                     "同事戳你",
                     JOptionPane.PLAIN_MESSAGE,
                     peerDialogIcon(avatar));
@@ -1434,6 +1365,7 @@ public class App extends JFrame {
                 config.networkTestUrl, config.networkProxyHost,
                 config.networkProxyPort, config.networkProxyMode,
                 config.networkProxyUser, config.networkProxyPassword);
+        networkToolsPanel.applySplitDividerLocation(config.networkSplitDividerLocation);
     }
 
     private void captureNetworkToolsInto(ConfigPersistenceService.CloudConfig config) {
@@ -1446,6 +1378,10 @@ public class App extends JFrame {
         config.networkProxyMode = networkToolsPanel.getProxyMode();
         config.networkProxyUser = networkToolsPanel.getProxyUser();
         config.networkProxyPassword = networkToolsPanel.getProxyPassword();
+        int divider = networkToolsPanel.getSplitDividerLocation();
+        if (divider > 0) {
+            config.networkSplitDividerLocation = divider;
+        }
     }
 
     private void onSlotStateChanged() {

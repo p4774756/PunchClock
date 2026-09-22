@@ -12,6 +12,7 @@ import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -25,6 +26,7 @@ import java.awt.Image;
 import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
@@ -273,9 +275,10 @@ public final class WindowChrome {
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         buttons.setOpaque(false);
-        JButton min = chromeButton("—", "最小化", controlFont, false);
-        JButton max = chromeButton("□", "最大化", controlFont, false);
-        JButton close = chromeButton("×", "關閉", controlFont, true);
+        // Mac Aqua L&F 會把按鈕文字擠成「...」；改成自繪圖示，不依賴字元。
+        JButton min = chromeButton(ChromeGlyph.MINIMIZE, "最小化", false);
+        JButton max = chromeButton(ChromeGlyph.MAXIMIZE, "最大化", false);
+        JButton close = chromeButton(ChromeGlyph.CLOSE, "關閉", true);
         min.addActionListener(e -> frame.setExtendedState(frame.getExtendedState() | Frame.ICONIFIED));
         max.addActionListener(e -> toggleMaximize(frame));
         close.addActionListener(e -> frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING)));
@@ -299,9 +302,61 @@ public final class WindowChrome {
         return bar;
     }
 
-    private static JButton chromeButton(String text, String tooltip, Font font, boolean close) {
-        JButton button = new JButton(text);
-        button.setFont(font);
+    private enum ChromeGlyph {
+        MINIMIZE,
+        MAXIMIZE,
+        CLOSE
+    }
+
+    private static JButton chromeButton(ChromeGlyph glyph, String tooltip, boolean close) {
+        JButton button = new JButton() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                try {
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(getBackground());
+                    g2.fillRect(0, 0, getWidth(), getHeight());
+                    g2.setColor(getForeground());
+                    g2.setStroke(new BasicStroke(1.7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    int cx = getWidth() / 2;
+                    int cy = getHeight() / 2;
+                    switch (glyph) {
+                        case MINIMIZE:
+                            g2.drawLine(cx - 5, cy, cx + 5, cy);
+                            break;
+                        case MAXIMIZE:
+                            g2.drawRect(cx - 5, cy - 5, 10, 10);
+                            break;
+                        case CLOSE:
+                            g2.drawLine(cx - 4, cy - 4, cx + 4, cy + 4);
+                            g2.drawLine(cx + 4, cy - 4, cx - 4, cy + 4);
+                            break;
+                        default:
+                            break;
+                    }
+                } finally {
+                    g2.dispose();
+                }
+            }
+
+            @Override
+            public Dimension getPreferredSize() {
+                return new Dimension(40, 26);
+            }
+
+            @Override
+            public Dimension getMinimumSize() {
+                return getPreferredSize();
+            }
+
+            @Override
+            public Dimension getMaximumSize() {
+                return getPreferredSize();
+            }
+        };
+        button.setText("");
+        button.setIcon(null);
         button.setToolTipText(tooltip);
         button.setFocusable(false);
         button.setBorderPainted(false);
@@ -309,7 +364,7 @@ public final class WindowChrome {
         button.setOpaque(true);
         button.setBackground(BAR_BG);
         button.setForeground(TITLE_FG);
-        button.setPreferredSize(new Dimension(40, 26));
+        button.setBorder(BorderFactory.createEmptyBorder());
         button.setMargin(new Insets(0, 0, 0, 0));
         button.addMouseListener(new MouseAdapter() {
             @Override
@@ -320,12 +375,14 @@ public final class WindowChrome {
                 } else {
                     button.setBackground(BUTTON_HOVER);
                 }
+                button.repaint();
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
                 button.setBackground(BAR_BG);
                 button.setForeground(TITLE_FG);
+                button.repaint();
             }
         });
         return button;

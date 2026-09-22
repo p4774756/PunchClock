@@ -128,7 +128,7 @@ public class SchedulerService {
                 if (taskConsumer != null) taskConsumer.accept(task);
 
                 if (logConsumer != null) {
-                    logConsumer.accept(String.format("[執行] 【觸發執行】任務【%s】開始進行自動打卡...", task.getName()));
+                    logConsumer.accept(String.format("[執行] 【觸發執行】任務【%s】開始進行自動執行...", task.getName()));
                 }
 
                 CountDownLatch latch = new CountDownLatch(1);

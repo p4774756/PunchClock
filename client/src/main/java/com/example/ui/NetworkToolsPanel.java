@@ -9,12 +9,9 @@ import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
-import javax.swing.JSpinner;
+import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
-import javax.swing.JTextField;
-import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import java.awt.BorderLayout;
@@ -24,53 +21,43 @@ import java.awt.Font;
 import java.awt.Insets;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * 桌面端「網路測試」分頁：給公司封閉網路／Proxy 環境（Windows）與私人 Mac 使用。
+ * 桌面端「Ping/Pong」分頁：對 Server {@code GET /ping} 做簡單連線測試。
  */
 public final class NetworkToolsPanel extends JPanel {
 
-    public static final String TAB_LABEL = "網路測試";
+    public static final String TAB_LABEL = "Ping/Pong";
 
     private static final Color MUTED = new Color(100, 116, 139);
     private static final Color TITLE = new Color(30, 41, 59);
     private static final Color BORDER = new Color(203, 213, 225, 160);
-    /** 半透明底，讓自訂背景圖能透出 */
     private static final Color SURFACE = new Color(248, 250, 252, 140);
-
-    private static final String[] MODE_LABELS = {
-            NetworkProbeService.modeLabel(NetworkProbeService.MODE_SYSTEM),
-            NetworkProbeService.modeLabel(NetworkProbeService.MODE_DIRECT),
-            NetworkProbeService.modeLabel(NetworkProbeService.MODE_CUSTOM)
-    };
-    private static final String[] MODE_VALUES = {
-            NetworkProbeService.MODE_SYSTEM,
-            NetworkProbeService.MODE_DIRECT,
-            NetworkProbeService.MODE_CUSTOM
-    };
 
     private final NetworkProbeService probeService = new NetworkProbeService();
     private final Supplier<String> cloudServerUrl;
     private final BooleanSupplier trustAllSsl;
-    private final Runnable refreshHeartbeatClient;
     private final Runnable persistSettings;
     private final Consumer<String> logger;
 
-    private final JTextArea environmentArea = new JTextArea();
-    private final JTextArea resultArea = new JTextArea();
-    private final JTextArea cheatSheetArea = new JTextArea();
     private final JComboBox<String> targetCombo;
-    private final JTextField proxyHostField = new JTextField();
-    private final JSpinner proxyPortSpinner =
-            new JSpinner(new SpinnerNumberModel(NetworkProbeService.DEFAULT_PROXY_PORT, 1, 65535, 1));
-    private final JComboBox<String> proxyModeCombo = new JComboBox<>(MODE_LABELS);
-    private final JTextField proxyUserField = new JTextField();
-    private final JPasswordField proxyPasswordField = new JPasswordField();
+    private final JTextArea helpArea = new JTextArea();
+    private final JTextArea resultArea = new JTextArea();
     private final JLabel statusLabel = new JLabel("就緒");
-    private final java.util.List<JButton> actionButtons = new java.util.ArrayList<>();
+    private final List<JButton> actionButtons = new ArrayList<>();
+    private JSplitPane splitPane;
+
+    /** 舊設定仍寫入 config，此分頁不再顯示 Proxy UI。 */
+    private String proxyHost = "";
+    private int proxyPort = NetworkProbeService.DEFAULT_PROXY_PORT;
+    private String proxyMode = NetworkProbeService.MODE_SYSTEM;
+    private String proxyUser = "";
+    private String proxyPassword = "";
     private boolean busy;
 
     public NetworkToolsPanel(Font mainFont, Font boldFont, Font fieldFont,
@@ -81,7 +68,6 @@ public final class NetworkToolsPanel extends JPanel {
                              Consumer<String> logger) {
         this.cloudServerUrl = cloudServerUrl;
         this.trustAllSsl = trustAllSsl;
-        this.refreshHeartbeatClient = refreshHeartbeatClient;
         this.persistSettings = persistSettings;
         this.logger = logger;
 
@@ -89,30 +75,95 @@ public final class NetworkToolsPanel extends JPanel {
         setOpaque(false);
         setBorder(new EmptyBorder(8, 4, 8, 4));
 
-        targetCombo = RecentValuesHelper.createCombo(fieldFont, "https://www.google.com",
-                "要測試的網址或主機；可填 https://host、host:443 或雲端 Server");
+        targetCombo = RecentValuesHelper.createCombo(fieldFont, "http://localhost:3000/ping",
+                "Server /ping 網址；可用「帶入雲端 Server」一鍵帶入");
 
-        JPanel body = new JPanel();
-        body.setOpaque(false);
-        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-        body.add(hintPanel(mainFont));
-        body.add(Box.createVerticalStrut(8));
-        body.add(environmentPanel(mainFont, boldFont));
-        body.add(Box.createVerticalStrut(8));
-        body.add(probePanel(mainFont, boldFont, fieldFont));
-        body.add(Box.createVerticalStrut(8));
-        body.add(cheatSheetPanel(boldFont));
+        JPanel help = helpPanel(boldFont);
+        JPanel test = testPanel(mainFont, boldFont);
+        help.setMinimumSize(new Dimension(200, 80));
+        test.setMinimumSize(new Dimension(200, 160));
 
-        JScrollPane scroll = new JScrollPane(body);
-        scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
-        scroll.setBorder(BorderFactory.createEmptyBorder());
-        scroll.getVerticalScrollBar().setUnitIncrement(16);
-        scroll.getHorizontalScrollBar().setUnitIncrement(16);
-        add(scroll, BorderLayout.CENTER);
+        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, help, test);
+        this.splitPane = split;
+        split.setOpaque(false);
+        split.setResizeWeight(0.35);
+        split.setContinuousLayout(true);
+        split.setOneTouchExpandable(true);
+        split.setDividerSize(8);
+        split.setBorder(null);
+        split.setDividerLocation(160);
+        add(split, BorderLayout.CENTER);
 
-        refreshEnvironment();
-        refreshCheatSheet();
+        refreshHelp();
+    }
+
+    private JPanel helpPanel(Font boldFont) {
+        JPanel group = PanelFactory.createGroupPanel("說明（Server /ping）", boldFont);
+        group.setLayout(new BorderLayout(0, 4));
+        configureArea(helpArea, UiFonts.latinPlain(12), 8);
+        group.add(wrapArea(helpArea), BorderLayout.CENTER);
+        return group;
+    }
+
+    private JPanel testPanel(Font mainFont, Font boldFont) {
+        JPanel group = PanelFactory.createGroupPanel("連線測試", boldFont);
+        group.setLayout(new BorderLayout(0, 4));
+
+        JPanel north = new JPanel();
+        north.setOpaque(false);
+        north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
+
+        JPanel targetRow = new JPanel(new BorderLayout(8, 4));
+        targetRow.setOpaque(false);
+        targetRow.setAlignmentX(LEFT_ALIGNMENT);
+        JLabel targetLabel = new JLabel("目標：");
+        targetLabel.setFont(mainFont);
+        targetRow.add(targetLabel, BorderLayout.WEST);
+        targetRow.add(targetCombo, BorderLayout.CENTER);
+        targetRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+
+        JPanel actions = new JPanel(new WrapLayout(WrapLayout.LEFT, 6, 4));
+        actions.setOpaque(false);
+        actions.setAlignmentX(LEFT_ALIGNMENT);
+
+        actions.add(actionButton(mainFont, "帶入雲端 Server",
+                "使用「雲端設定」裡的 Server 網址加上 /ping", e -> fillCloudPingUrl()));
+        actions.add(actionButton(boldFont, "測試 Ping/Pong",
+                "對目標發 HTTP GET，預期回應 message=pong", e -> runPingPong()));
+        actions.add(actionButton(mainFont, "複製 curl",
+                "複製目前目標的 curl 指令", e -> copyText(buildCurlSnippet())));
+        actions.add(actionButton(mainFont, "複製結果",
+                "複製下方測試輸出", e -> copyText(resultArea.getText())));
+
+        statusLabel.setFont(mainFont);
+        statusLabel.setForeground(MUTED);
+        statusLabel.setAlignmentX(LEFT_ALIGNMENT);
+
+        north.add(targetRow);
+        north.add(Box.createVerticalStrut(4));
+        north.add(actions);
+        north.add(statusLabel);
+
+        configureArea(resultArea, UiFonts.latinPlain(12), 12);
+        group.add(north, BorderLayout.NORTH);
+        group.add(wrapArea(resultArea), BorderLayout.CENTER);
+
+        targetCombo.addActionListener(e -> {
+            persistQuietly();
+            refreshHelp();
+        });
+        return group;
+    }
+
+    private JButton actionButton(Font font, String label, String tooltip,
+                                 java.awt.event.ActionListener listener) {
+        JButton button = new JButton(label);
+        button.setFont(font);
+        button.setToolTipText(tooltip);
+        button.setMargin(new Insets(2, 10, 2, 10));
+        button.addActionListener(listener);
+        actionButtons.add(button);
+        return button;
     }
 
     public String getTestUrl() {
@@ -120,32 +171,49 @@ public final class NetworkToolsPanel extends JPanel {
     }
 
     public String getProxyHost() {
-        return proxyHostField.getText() != null ? proxyHostField.getText().trim() : "";
+        return proxyHost != null ? proxyHost : "";
     }
 
     public int getProxyPort() {
-        Object value = proxyPortSpinner.getValue();
-        if (value instanceof Number) {
-            return NetworkProbeService.clampProxyPort(((Number) value).intValue());
-        }
-        return NetworkProbeService.DEFAULT_PROXY_PORT;
+        return NetworkProbeService.clampProxyPort(proxyPort);
     }
 
     public String getProxyMode() {
-        int index = proxyModeCombo.getSelectedIndex();
-        if (index < 0 || index >= MODE_VALUES.length) {
-            return NetworkProbeService.MODE_SYSTEM;
-        }
-        return MODE_VALUES[index];
+        return NetworkProbeService.normalizeProxyMode(proxyMode);
     }
 
     public String getProxyUser() {
-        return proxyUserField.getText() != null ? proxyUserField.getText().trim() : "";
+        return proxyUser != null ? proxyUser : "";
     }
 
     public String getProxyPassword() {
-        char[] chars = proxyPasswordField.getPassword();
-        return chars != null ? new String(chars) : "";
+        return proxyPassword != null ? proxyPassword : "";
+    }
+
+    public int getSplitDividerLocation() {
+        if (splitPane == null) {
+            return -1;
+        }
+        int divider = splitPane.getDividerLocation();
+        return divider > 0 ? divider : -1;
+    }
+
+    public void applySplitDividerLocation(int dividerLocation) {
+        if (splitPane == null) {
+            return;
+        }
+        final int saved = dividerLocation;
+        SwingUtilities.invokeLater(() -> {
+            if (splitPane == null) {
+                return;
+            }
+            if (saved > 0) {
+                int max = Math.max(1, splitPane.getHeight() - splitPane.getDividerSize());
+                splitPane.setDividerLocation(Math.min(saved, max));
+            } else {
+                splitPane.setDividerLocation(160);
+            }
+        });
     }
 
     public void applySettings(String testUrl, String proxyHost, int proxyPort, String proxyMode) {
@@ -156,360 +224,99 @@ public final class NetworkToolsPanel extends JPanel {
                               String proxyUser, String proxyPassword) {
         if (testUrl != null && !testUrl.isBlank()) {
             targetCombo.setSelectedItem(testUrl.trim());
+        } else {
+            fillCloudPingUrlQuiet();
         }
-        proxyHostField.setText(proxyHost != null ? proxyHost : "");
-        proxyPortSpinner.setValue(NetworkProbeService.clampProxyPort(proxyPort));
-        String mode = NetworkProbeService.normalizeProxyMode(proxyMode);
-        for (int i = 0; i < MODE_VALUES.length; i++) {
-            if (MODE_VALUES[i].equals(mode)) {
-                proxyModeCombo.setSelectedIndex(i);
-                break;
-            }
+        this.proxyHost = proxyHost != null ? proxyHost : "";
+        this.proxyPort = NetworkProbeService.clampProxyPort(proxyPort);
+        this.proxyMode = NetworkProbeService.normalizeProxyMode(proxyMode);
+        this.proxyUser = proxyUser != null ? proxyUser : "";
+        this.proxyPassword = proxyPassword != null ? proxyPassword : "";
+        refreshHelp();
+    }
+
+    private void fillCloudPingUrl() {
+        String base = cloudServerUrl != null ? cloudServerUrl.get() : "";
+        if (base == null || base.isBlank()) {
+            setStatus("請先到「雲端設定」填 Server 網址");
+            return;
         }
-        proxyUserField.setText(proxyUser != null ? proxyUser : "");
-        proxyPasswordField.setText(proxyPassword != null ? proxyPassword : "");
-        refreshCheatSheet();
+        targetCombo.setSelectedItem(NetworkProbeService.joinUrl(base.trim(), "/ping"));
+        persistQuietly();
+        refreshHelp();
+        setStatus("已帶入雲端 /ping");
     }
 
-    private JPanel hintPanel(Font mainFont) {
-        JTextArea hint = new JTextArea(
-                "公司封閉網路通常要走 Proxy；Windows 公司機與自己的 Mac 設定位置不同。"
-                        + " Java 心跳不會自動讀 HTTP_PROXY。先掃描環境，再用直連／自訂 Proxy 各測一次 HTTP。"
-                        + " 若 Proxy 要帳密可填下方欄位（會寫入 ~/.punchclock/config.json）。"
-                        + " ICMP Ping 常被防火牆丟掉，失敗不代表出不了網。");
-        hint.setEditable(false);
-        hint.setOpaque(false);
-        hint.setLineWrap(true);
-        hint.setWrapStyleWord(true);
-        hint.setFont(mainFont);
-        hint.setForeground(MUTED);
-        hint.setBorder(null);
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setOpaque(false);
-        panel.setAlignmentX(LEFT_ALIGNMENT);
-        panel.add(hint, BorderLayout.CENTER);
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 88));
-        return panel;
-    }
-
-    private JPanel environmentPanel(Font mainFont, Font boldFont) {
-        JPanel group = PanelFactory.createGroupPanel("本機環境（OS / Proxy）", boldFont);
-        group.setLayout(new BorderLayout(0, 6));
-        group.setAlignmentX(LEFT_ALIGNMENT);
-
-        configureArea(environmentArea, mainFont, 9);
-        JScrollPane scroll = wrapArea(environmentArea, 150);
-
-        JButton refresh = actionButton(boldFont, "重新掃描環境",
-                "讀取環境變數、JVM Proxy 屬性，以及 Windows netsh / Mac scutil");
-        refresh.addActionListener(e -> {
-            persistQuietly();
-            refreshEnvironment();
-            refreshCheatSheet();
-            appendLog("[網路測試] 已重新掃描本機環境");
-        });
-
-        JPanel north = new JPanel(new BorderLayout());
-        north.setOpaque(false);
-        JLabel osHint = new JLabel("Windows：netsh winhttp　·　macOS：scutil --proxy");
-        osHint.setFont(mainFont);
-        osHint.setForeground(MUTED);
-        north.add(osHint, BorderLayout.WEST);
-        north.add(refresh, BorderLayout.EAST);
-
-        group.add(north, BorderLayout.NORTH);
-        group.add(scroll, BorderLayout.CENTER);
-        return group;
-    }
-
-    private JPanel probePanel(Font mainFont, Font boldFont, Font fieldFont) {
-        JPanel group = PanelFactory.createGroupPanel("連線測試", boldFont);
-        group.setLayout(new BoxLayout(group, BoxLayout.Y_AXIS));
-        group.setAlignmentX(LEFT_ALIGNMENT);
-
-        JPanel targetRow = labeledRow(mainFont, "目標：", targetCombo);
-        JPanel proxyRow = proxyRow(mainFont, fieldFont);
-        JPanel authRow = proxyAuthRow(mainFont, fieldFont);
-
-        JPanel quick = new JPanel(new WrapLayout(WrapLayout.LEFT, 6, 4));
-        quick.setAlignmentX(LEFT_ALIGNMENT);
-        quick.setOpaque(false);
-        quick.add(quickButton(mainFont, "Google", "https://www.google.com"));
-        quick.add(quickButton(mainFont, "NeverSSL", "http://neverssl.com"));
-        quick.add(quickButton(mainFont, "Cloudflare 1.1.1.1", "https://1.1.1.1"));
-        JButton cloudBtn = new JButton("雲端 Server /ping");
-        cloudBtn.setFont(mainFont);
-        cloudBtn.setToolTipText("使用「雲端設定」裡的 Server 網址加上 /ping");
-        cloudBtn.addActionListener(e -> {
-            String base = cloudServerUrl != null ? cloudServerUrl.get() : "";
-            if (base == null || base.isBlank()) {
-                setStatus("請先到「雲端設定」填 Server 網址");
-                return;
-            }
+    private void fillCloudPingUrlQuiet() {
+        String base = cloudServerUrl != null ? cloudServerUrl.get() : "";
+        if (base != null && !base.isBlank()) {
             targetCombo.setSelectedItem(NetworkProbeService.joinUrl(base.trim(), "/ping"));
-            persistQuietly();
-            refreshCheatSheet();
-        });
-        quick.add(cloudBtn);
-
-        JPanel actions = new JPanel(new WrapLayout(WrapLayout.LEFT, 6, 4));
-        actions.setAlignmentX(LEFT_ALIGNMENT);
-        actions.setOpaque(false);
-        actions.add(probeButton(boldFont, "DNS", "名稱解析", this::runDns));
-        actions.add(probeButton(boldFont, "TCP", "連線目標埠（網址預設 443）", this::runTcp));
-        actions.add(probeButton(boldFont, "HTTP GET", "用目前 Proxy 模式發 GET", this::runHttp));
-        actions.add(probeButton(boldFont, "Ping", "ICMP；公司網路常封鎖", this::runPing));
-        actions.add(probeButton(boldFont, "一鍵診斷", "環境 + DNS + TCP + HTTP + Ping + 雲端 /ping", this::runDiagnose));
-        actions.add(probeButton(boldFont, "套用到本程式", "寫入 JVM Proxy 屬性（心跳連線）", this::applyJvmProxy));
-
-        JButton copy = actionButton(mainFont, "複製結果", "複製下方測試輸出");
-        copy.addActionListener(e -> copyText(resultArea.getText()));
-        JButton copyCheat = actionButton(mainFont, "複製指令", "複製目前 OS 的指令備忘");
-        copyCheat.addActionListener(e -> copyText(cheatSheetArea.getText()));
-        actions.add(copy);
-        actions.add(copyCheat);
-
-        statusLabel.setFont(mainFont);
-        statusLabel.setForeground(MUTED);
-        statusLabel.setAlignmentX(LEFT_ALIGNMENT);
-
-        configureArea(resultArea, fieldFont, 14);
-        JScrollPane resultScroll = wrapArea(resultArea, 220);
-
-        targetCombo.addActionListener(e -> {
-            persistQuietly();
-            refreshCheatSheet();
-        });
-
-        group.add(targetRow);
-        group.add(Box.createVerticalStrut(4));
-        group.add(proxyRow);
-        group.add(authRow);
-        group.add(quick);
-        group.add(actions);
-        group.add(statusLabel);
-        group.add(Box.createVerticalStrut(4));
-        group.add(resultScroll);
-        return group;
-    }
-
-    private JPanel proxyRow(Font mainFont, Font fieldFont) {
-        proxyModeCombo.setFont(mainFont);
-        proxyModeCombo.setToolTipText("系統：跟隨 JVM／OS；直連：略過 Proxy；自訂：填右邊主機與埠");
-        proxyHostField.setFont(fieldFont);
-        proxyHostField.setColumns(16);
-        proxyHostField.setToolTipText("公司 HTTP Proxy 主機，例如 proxy.company.com 或 10.0.0.1");
-        proxyPortSpinner.setFont(fieldFont);
-        proxyPortSpinner.setToolTipText("常見 8080、3128、8888");
-        JSpinner.NumberEditor portEditor = new JSpinner.NumberEditor(proxyPortSpinner, "#");
-        portEditor.getTextField().setFont(fieldFont);
-        proxyPortSpinner.setEditor(portEditor);
-        Dimension portSize = new Dimension(80, 26);
-        proxyPortSpinner.setPreferredSize(portSize);
-        proxyPortSpinner.setMaximumSize(portSize);
-
-        JLabel hostLabel = new JLabel("Proxy 主機：");
-        hostLabel.setFont(mainFont);
-        JLabel portLabel = new JLabel("埠：");
-        portLabel.setFont(mainFont);
-
-        JPanel row = new JPanel(new WrapLayout(WrapLayout.LEFT, 8, 4));
-        row.setOpaque(false);
-        row.setAlignmentX(LEFT_ALIGNMENT);
-        row.add(proxyModeCombo);
-        row.add(hostLabel);
-        row.add(proxyHostField);
-        row.add(portLabel);
-        row.add(proxyPortSpinner);
-
-        proxyModeCombo.addActionListener(e -> {
-            persistQuietly();
-            refreshCheatSheet();
-        });
-        proxyHostField.addActionListener(e -> {
-            persistQuietly();
-            refreshCheatSheet();
-        });
-        proxyPortSpinner.addChangeListener(e -> {
-            persistQuietly();
-            refreshCheatSheet();
-        });
-        return row;
-    }
-
-    private JPanel proxyAuthRow(Font mainFont, Font fieldFont) {
-        proxyUserField.setFont(fieldFont);
-        proxyUserField.setColumns(12);
-        proxyUserField.setToolTipText("Proxy 帳號（選填）；寫入 config.json");
-        proxyPasswordField.setFont(fieldFont);
-        proxyPasswordField.setColumns(12);
-        proxyPasswordField.setToolTipText("Proxy 密碼（選填，明文存 config.json）；僅送 Basic");
-
-        JLabel userLabel = new JLabel("帳號：");
-        userLabel.setFont(mainFont);
-        JLabel passLabel = new JLabel("密碼：");
-        passLabel.setFont(mainFont);
-
-        JPanel row = new JPanel(new WrapLayout(WrapLayout.LEFT, 8, 4));
-        row.setOpaque(false);
-        row.setAlignmentX(LEFT_ALIGNMENT);
-        row.add(userLabel);
-        row.add(proxyUserField);
-        row.add(passLabel);
-        row.add(proxyPasswordField);
-
-        proxyUserField.addActionListener(e -> persistQuietly());
-        proxyPasswordField.addActionListener(e -> persistQuietly());
-        // 失焦也存，避免只改密碼沒按 Enter
-        proxyUserField.addFocusListener(new java.awt.event.FocusAdapter() {
-            @Override
-            public void focusLost(java.awt.event.FocusEvent e) {
-                persistQuietly();
-            }
-        });
-        proxyPasswordField.addFocusListener(new java.awt.event.FocusAdapter() {
-            @Override
-            public void focusLost(java.awt.event.FocusEvent e) {
-                persistQuietly();
-            }
-        });
-        return row;
-    }
-
-    private JPanel cheatSheetPanel(Font boldFont) {
-        JPanel group = PanelFactory.createGroupPanel("Windows / Mac 指令備忘", boldFont);
-        group.setLayout(new BorderLayout(0, 4));
-        group.setAlignmentX(LEFT_ALIGNMENT);
-        configureArea(cheatSheetArea, UiFonts.latinPlain(12), 14);
-        group.add(wrapArea(cheatSheetArea, 200), BorderLayout.CENTER);
-        return group;
-    }
-
-    private JPanel labeledRow(Font labelFont, String label, java.awt.Component field) {
-        JPanel row = new JPanel(new BorderLayout(8, 4));
-        row.setOpaque(false);
-        row.setAlignmentX(LEFT_ALIGNMENT);
-        JLabel jLabel = new JLabel(label);
-        jLabel.setFont(labelFont);
-        row.add(jLabel, BorderLayout.WEST);
-        row.add(field, BorderLayout.CENTER);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        return row;
-    }
-
-    private JButton quickButton(Font font, String label, String url) {
-        JButton button = new JButton(label);
-        button.setFont(font);
-        button.setMargin(new Insets(2, 8, 2, 8));
-        button.addActionListener(e -> {
-            targetCombo.setSelectedItem(url);
-            persistQuietly();
-            refreshCheatSheet();
-        });
-        return button;
-    }
-
-    private JButton probeButton(Font font, String label, String tooltip, Runnable action) {
-        JButton button = actionButton(font, label, tooltip);
-        button.addActionListener(e -> runOffEdt(label, action));
-        actionButtons.add(button);
-        return button;
-    }
-
-    private JButton actionButton(Font font, String label, String tooltip) {
-        JButton button = new JButton(label);
-        button.setFont(font);
-        button.setToolTipText(tooltip);
-        button.setMargin(new Insets(2, 10, 2, 10));
-        return button;
-    }
-
-    private void runDns() {
-        showResult("DNS", probeService.dnsLookup(getTestUrl()).format());
-    }
-
-    private void runTcp() {
-        showResult("TCP", probeService.tcpConnect(getTestUrl(), 443).format());
-    }
-
-    private void runHttp() {
-        showResult("HTTP GET", probeService.httpGet(
-                getTestUrl(), getProxyMode(), getProxyHost(), getProxyPort(),
-                getProxyUser(), getProxyPassword()).format());
-    }
-
-    private void runPing() {
-        showResult("Ping", probeService.icmpPing(getTestUrl()).format());
-    }
-
-    private void runDiagnose() {
-        String cloud = cloudServerUrl != null ? cloudServerUrl.get() : "";
-        String report = probeService.diagnose(
-                getTestUrl(), getProxyMode(), getProxyHost(), getProxyPort(),
-                getProxyUser(), getProxyPassword(), cloud);
-        if (trustAllSsl != null && trustAllSsl.getAsBoolean()) {
-            report = report + "\n\n目前已啟用「信任所有 SSL（除錯）」。";
         }
-        final String output = report;
-        SwingUtilities.invokeLater(() -> {
-            resultArea.setText(output);
-            resultArea.setCaretPosition(0);
-            setStatus("一鍵診斷完成");
-        });
-        appendLog("[網路測試] 一鍵診斷完成");
     }
 
-    private void applyJvmProxy() {
-        NetworkProbeService.JvmProxyApplyResult result =
-                probeService.applyJvmProxy(
-                        getProxyMode(), getProxyHost(), getProxyPort(),
-                        getProxyUser(), getProxyPassword());
-        if (refreshHeartbeatClient != null && result.applied) {
-            refreshHeartbeatClient.run();
-        }
-        showResult("套用 JVM Proxy", result.summary);
-        appendLog("[網路測試] " + result.summary);
-    }
-
-    private void runOffEdt(String label, Runnable action) {
+    private void runPingPong() {
         if (busy) {
             return;
         }
         persistQuietly();
         setBusy(true);
-        setStatus("執行中：" + label);
-        Thread thread = new Thread(() -> {
+        setStatus("執行中：Ping/Pong");
+        final String url = getTestUrl();
+        new Thread(() -> {
             try {
-                action.run();
-            } catch (Exception ex) {
-                showResult(label, "發生錯誤：" + ex.getMessage());
+                NetworkProbeService.ProbeResult result = probeService.httpGet(
+                        url, getProxyMode(), getProxyHost(), getProxyPort(),
+                        getProxyUser(), getProxyPassword());
+                String output = result.format();
+                if (trustAllSsl != null && trustAllSsl.getAsBoolean()) {
+                    output = output + "\n\n目前已啟用「信任所有 SSL（除錯）」。";
+                }
+                if (result.ok && output.toLowerCase().contains("pong")) {
+                    output = output + "\n\n✓ Server 有回應 pong（/ping 正常）";
+                }
+                final String text = output;
+                final boolean ok = result.ok;
+                SwingUtilities.invokeLater(() -> {
+                    resultArea.setText(text);
+                    resultArea.setCaretPosition(0);
+                    setStatus(ok ? "Ping/Pong 成功" : "Ping/Pong 失敗");
+                    appendLog("[Ping/Pong] " + (ok ? "成功" : "失敗") + " → " + url);
+                });
             } finally {
                 SwingUtilities.invokeLater(() -> setBusy(false));
             }
-        }, "network-tools-" + label);
-        thread.setDaemon(true);
-        thread.start();
+        }, "ping-pong-probe").start();
     }
 
-    private void showResult(String title, String text) {
-        SwingUtilities.invokeLater(() -> {
-            resultArea.setText(text);
-            resultArea.setCaretPosition(0);
-            setStatus(title + " 完成");
-        });
-        appendLog("[網路測試] " + title + " 完成");
+    private void refreshHelp() {
+        String cloud = cloudServerUrl != null ? cloudServerUrl.get() : "";
+        String example = (cloud != null && !cloud.isBlank())
+                ? NetworkProbeService.joinUrl(cloud.trim(), "/ping")
+                : "http://localhost:3000/ping";
+        String current = getTestUrl();
+        if (current == null || current.isBlank()) {
+            current = example;
+        }
+        helpArea.setText(""
+                + "Server 提供 GET /ping（不需 Token），用來確認桌面端能不能連上雲端。\n"
+                + "\n"
+                + "預期回應類似：\n"
+                + "  {\"message\":\"pong\",\"timestamp\":\"...\"}\n"
+                + "\n"
+                + "curl 範例：\n"
+                + "  curl \"" + current + "\"\n"
+                + "\n"
+                + "本機預設：\n"
+                + "  curl \"http://localhost:3000/ping\"\n");
+        helpArea.setCaretPosition(0);
     }
 
-    private void refreshEnvironment() {
-        NetworkProbeService.EnvironmentSnapshot snapshot = probeService.snapshotEnvironment();
-        environmentArea.setText(snapshot.format());
-        environmentArea.setCaretPosition(0);
-        setStatus("環境已更新（" + snapshot.os.name() + "）");
-    }
-
-    private void refreshCheatSheet() {
-        cheatSheetArea.setText(probeService.buildCheatSheet(getTestUrl(), getProxyHost(), getProxyPort()));
-        cheatSheetArea.setCaretPosition(0);
+    private String buildCurlSnippet() {
+        String url = getTestUrl();
+        if (url == null || url.isBlank()) {
+            url = "http://localhost:3000/ping";
+        }
+        return "curl \"" + url + "\"";
     }
 
     private void persistQuietly() {
@@ -560,14 +367,13 @@ public final class NetworkToolsPanel extends JPanel {
         area.setCaretPosition(0);
     }
 
-    private static JScrollPane wrapArea(JTextArea area, int height) {
+    private static JScrollPane wrapArea(JTextArea area) {
         JScrollPane scroll = new JScrollPane(area);
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
         scroll.setBorder(BorderFactory.createLineBorder(BORDER));
-        scroll.setAlignmentX(LEFT_ALIGNMENT);
-        scroll.setPreferredSize(new Dimension(640, height));
-        scroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        scroll.getHorizontalScrollBar().setUnitIncrement(16);
         return scroll;
     }
 }
