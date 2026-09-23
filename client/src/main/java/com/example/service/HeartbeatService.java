@@ -562,11 +562,21 @@ public class HeartbeatService {
      * 傳送檔案或資料夾給同事（資料夾會先壓成 ZIP；經伺服器暫存，對方心跳收到通知後再下載）。
      */
     public void sendPeerFile(String toClientId, Path file, Consumer<String> logger, Consumer<Boolean> callback) {
-        sendPeerFile(toClientId, file, logger, null, callback);
+        sendPeerFile(toClientId, file, logger, null, null, callback);
     }
 
     public void sendPeerFile(String toClientId, Path file, Consumer<String> logger,
                              TransferIo.Progress progress, Consumer<Boolean> callback) {
+        sendPeerFile(toClientId, file, logger, progress, null, callback);
+    }
+
+    /**
+     * @param progress     位元組進度（準備複製／實際上傳）
+     * @param statusUpdate 階段文字（壓縮／準備／上傳）；可為 null
+     */
+    public void sendPeerFile(String toClientId, Path file, Consumer<String> logger,
+                             TransferIo.Progress progress, Consumer<String> statusUpdate,
+                             Consumer<Boolean> callback) {
         if (!isServiceActive || serverUrl.isBlank()) {
             log(logger, "[警告] [檔案] 雲端未連線，無法傳送檔案");
             if (callback != null) callback.accept(false);
@@ -583,6 +593,16 @@ public class HeartbeatService {
             return;
         }
 
+        final String targetId = toClientId.trim();
+        Thread worker = new Thread(() -> sendPeerFileOnWorker(targetId, file, logger, progress, statusUpdate, callback),
+                "peer-file-upload");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private void sendPeerFileOnWorker(String toClientId, Path file, Consumer<String> logger,
+                                      TransferIo.Progress progress, Consumer<String> statusUpdate,
+                                      Consumer<Boolean> callback) {
         String filename;
         Path contentPath;
         long contentSize;
@@ -591,6 +611,11 @@ public class HeartbeatService {
         Path multipartTemp = null;
         try {
             if (Files.isDirectory(file)) {
+                notifyStatus(statusUpdate, "正在壓縮資料夾「"
+                        + (file.getFileName() != null ? file.getFileName() : "") + "」…");
+                if (progress != null) {
+                    progress.onProgress(0L, 0L);
+                }
                 packed = PeerFolderPacker.pack(file);
                 if (!packed.ok) {
                     log(logger, "[警告] [檔案] " + packed.message);
@@ -629,14 +654,18 @@ public class HeartbeatService {
             String mime = PeerFileRules.isFolderKind(kind) ? "application/zip" : PeerFileRules.mimeFor(filename);
             String boundary = "PunchClockFile" + UUID.randomUUID().toString().replace("-", "");
             multipartTemp = Files.createTempFile("punchclock-upload-", ".multipart");
+            notifyStatus(statusUpdate, "正在準備上傳「" + filename + "」（"
+                    + PeerFileRules.formatSize(contentSize) + "）…");
+            TransferIo.Progress prepareProgress = TransferIo.throttle(progress);
             writeMultipart(multipartTemp, boundary, orderedFields(
                     "fromClientId", clientId,
                     "toClientId", PeerFileRules.normalizeClientId(toClientId),
                     "filename", filename,
                     "kind", kind
-            ), filename, mime, contentPath);
+            ), filename, mime, contentPath, prepareProgress);
 
             long uploadBytes = Files.size(multipartTemp);
+            notifyStatus(statusUpdate, "正在上傳「" + filename + "」到伺服器…");
             TransferIo.Progress uploadProgress = TransferIo.throttle(progress);
             if (uploadProgress != null) {
                 uploadProgress.onProgress(0L, uploadBytes);
@@ -667,7 +696,11 @@ public class HeartbeatService {
                     .thenAccept(response -> {
                         boolean ok = response.statusCode() == 200;
                         if (ok) {
-                            log(logger, "[成功] [檔案] 已送出「" + sentName + "」給【" + toClientId.trim()
+                            if (progress != null) {
+                                progress.onProgress(uploadBytes, uploadBytes);
+                            }
+                            notifyStatus(statusUpdate, "上傳完成");
+                            log(logger, "[成功] [檔案] 已送出「" + sentName + "」給【" + toClientId
                                     + "】（" + PeerFileRules.formatSize(sentSize)
                                     + "，保留 " + PeerFileRules.OFFER_TTL_LABEL + "）");
                         } else {
@@ -697,6 +730,12 @@ public class HeartbeatService {
             }
             log(logger, "[失敗] [檔案] 送出異常：" + describeTransferFailure(ex));
             if (callback != null) callback.accept(false);
+        }
+    }
+
+    private static void notifyStatus(Consumer<String> statusUpdate, String text) {
+        if (statusUpdate != null && text != null) {
+            statusUpdate.accept(text);
         }
     }
 
@@ -949,8 +988,17 @@ public class HeartbeatService {
     private static void writeMultipart(Path dest, String boundary, Map<String, String> fields,
                                        String filename, String mime, Path fileContent)
             throws java.io.IOException {
+        writeMultipart(dest, boundary, fields, filename, mime, fileContent, null);
+    }
+
+    private static void writeMultipart(Path dest, String boundary, Map<String, String> fields,
+                                       String filename, String mime, Path fileContent,
+                                       TransferIo.Progress progress)
+            throws java.io.IOException {
         byte[] crlf = "\r\n".getBytes(StandardCharsets.UTF_8);
-        try (java.io.OutputStream out = Files.newOutputStream(dest)) {
+        long contentSize = Files.size(fileContent);
+        try (java.io.OutputStream out = Files.newOutputStream(dest);
+             java.io.InputStream in = Files.newInputStream(fileContent)) {
             for (Map.Entry<String, String> field : fields.entrySet()) {
                 out.write(("--" + boundary).getBytes(StandardCharsets.UTF_8));
                 out.write(crlf);
@@ -974,7 +1022,7 @@ public class HeartbeatService {
                     .getBytes(StandardCharsets.UTF_8));
             out.write(crlf);
             out.write(crlf);
-            Files.copy(fileContent, out);
+            TransferIo.copy(in, out, contentSize, progress);
             out.write(crlf);
             out.write(("--" + boundary + "--").getBytes(StandardCharsets.UTF_8));
             out.write(crlf);

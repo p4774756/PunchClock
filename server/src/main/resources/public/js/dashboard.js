@@ -1260,6 +1260,13 @@
       if (next === 'system') {
         window.requestAnimationFrame(() => drawHealthHistoryChart());
       }
+      if (window.PunchClockFlappy) {
+        if (next === 'flappy') {
+          window.PunchClockFlappy.activate();
+        } else {
+          window.PunchClockFlappy.deactivate();
+        }
+      }
     }
 
     function bindDashTabs() {
@@ -1270,7 +1277,7 @@
       let initial = 'devices';
       try {
         const saved = window.sessionStorage.getItem('punchclock.dashTab');
-        if (saved === 'devices' || saved === 'files' || saved === 'system') {
+        if (saved === 'devices' || saved === 'files' || saved === 'system' || saved === 'flappy') {
           initial = saved;
         }
       } catch (e) {}

@@ -17,8 +17,8 @@ import java.util.function.BiConsumer;
 public final class TransferIo {
 
     private static final int BUFFER_SIZE = 64 * 1024;
-    /** 約每 256KB 或完成時回報一次，避免 UI 過頻。 */
-    private static final long REPORT_EVERY = 256L * 1024L;
+    /** 約每 64KB 或完成時回報一次，上傳進度較好跟手。 */
+    private static final long REPORT_EVERY = 64L * 1024L;
 
     private TransferIo() {
     }

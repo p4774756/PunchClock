@@ -515,11 +515,18 @@ public class App extends JFrame {
         }
         TransferProgressDialog progress = TransferProgressDialog.open(this, "傳送檔案");
         String displayName = file.getFileName() != null ? file.getFileName().toString() : "檔案";
-        progress.setStatus(Files.isDirectory(file)
-                ? "正在壓縮並上傳「" + displayName + "」…"
-                : "正在上傳「" + displayName + "」…");
-        heartbeatService.sendPeerFile(toClientId, file, this::appendLog, progress::setProgress, ok ->
-                SwingUtilities.invokeLater(() -> {
+        if (Files.isDirectory(file)) {
+            progress.setPreparing("正在壓縮資料夾「" + displayName + "」…");
+        } else {
+            progress.setPreparing("正在準備上傳「" + displayName + "」…");
+        }
+        heartbeatService.sendPeerFile(
+                toClientId,
+                file,
+                this::appendLog,
+                progress::setProgress,
+                progress::setStatus,
+                ok -> SwingUtilities.invokeLater(() -> {
                     progress.close();
                     if (peerRefs.sendFileButton != null) {
                         peerRefs.sendFileButton.setEnabled(isCloudEnabled());

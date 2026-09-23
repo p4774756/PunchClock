@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>莫卡咖啡 · 遠端監控</title>
   <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="/css/flappy.css">
 </head>
 <body>
   <nav class="site-navbar" aria-label="主選單">
@@ -38,6 +39,8 @@
               aria-selected="false" aria-controls="panel-files" data-tab="files">傳檔狀態</button>
       <button type="button" class="dash-tab" role="tab" id="tab-system"
               aria-selected="false" aria-controls="panel-system" data-tab="system">系統狀態</button>
+      <button type="button" class="dash-tab" role="tab" id="tab-flappy"
+              aria-selected="false" aria-controls="panel-flappy" data-tab="flappy">飛杯摩卡</button>
     </div>
   </div>
 
@@ -101,10 +104,39 @@
     </div>
   </div>
 
+  <div class="shell dash-panel" id="panel-flappy" role="tabpanel" aria-labelledby="tab-flappy" hidden>
+    <div class="content-panel content-panel-full">
+      <section class="flappy-game" aria-label="飛杯摩卡">
+        <div class="flappy-head">
+          <div>
+            <div class="section-label" style="margin:0;border:0;padding:0">飛杯摩卡</div>
+            <p class="flappy-hint">點擊畫面或按空白鍵讓咖啡杯起飛，穿過柱子得分。切換分頁會自動暫停。</p>
+          </div>
+          <div class="flappy-scores" aria-live="polite">
+            <span>分數 <strong id="flappyScore">0</strong></span>
+            <span>最高 <strong id="flappyBest">0</strong></span>
+          </div>
+        </div>
+        <div class="flappy-stage">
+          <canvas id="flappyCanvas" width="480" height="640" tabindex="0"
+                  role="img" aria-label="飛杯摩卡遊戲畫面，點擊或按空白鍵起飛"></canvas>
+          <div class="flappy-overlay" id="flappyOverlay">
+            <p class="flappy-overlay-title" id="flappyOverlayTitle">飛杯摩卡</p>
+            <p class="flappy-overlay-sub" id="flappyOverlaySub">點擊或按空白鍵開始</p>
+          </div>
+        </div>
+        <div class="flappy-actions">
+          <button type="button" class="btn btn-danger" id="flappyRestartBtn">再來一杯</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
   <footer class="site-footer">
     莫卡咖啡 管理後台 · 樣式參考臺北市校務行政系統入口
   </footer>
 
   <script src="/js/dashboard.js"></script>
+  <script src="/js/flappy.js"></script>
 </body>
 </html>

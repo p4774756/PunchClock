@@ -52,7 +52,7 @@ public class TransferIoTest {
         assertTrue(afterFirst >= 1);
         throttled.onProgress(200, 1_000_000);
         assertEquals(afterFirst, reports.get());
-        throttled.onProgress(afterFirst == 1 ? 300_000 : 600_000, 1_000_000);
+        throttled.onProgress(afterFirst == 1 ? 100_000 : 200_000, 1_000_000);
         assertTrue(reports.get() > afterFirst);
         throttled.onProgress(1_000_000, 1_000_000);
         assertTrue(reports.get() >= 3);
