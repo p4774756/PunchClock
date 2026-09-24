@@ -217,11 +217,13 @@
       }
     }
 
-    /** 裝置 / 任務 id 變了才需要整頁重建 */
+    /** 裝置 / 任務 id / app 版本變了才需要整頁重建 */
     function clientsStructureFingerprint(clients) {
       return JSON.stringify((clients || []).map((c) => ({
         id: c.clientId,
         offline: c.status === 'OFFLINE',
+        appVersion: c.appVersion || '',
+        appReleaseTime: c.appReleaseTime || '',
         tasks: (c.tasks || []).map((t) => t.id).sort()
       })));
     }
@@ -763,6 +765,17 @@
       return mm + '/' + dd + ' ' + hh + ':' + mi;
     }
 
+    function buildAppVersionHintHtml(c) {
+      if (!c.appVersion) return '';
+      const releaseMs = Date.parse(c.appReleaseTime || '');
+      if (!Number.isFinite(releaseMs)) {
+        return '<span class="fold-hint" title="舊版 app 未回報版本時間">v' + escapeHtml(c.appVersion) + '</span>';
+      }
+      const full = new Date(releaseMs).toLocaleString('zh-TW', { hour12: false });
+      return '<span class="fold-hint" title="app 版本時間（最後一次 commit）' + escapeHtml(full) + '">v'
+        + escapeHtml(c.appVersion) + ' · ' + formatChartTime(releaseMs) + '</span>';
+    }
+
     function applyFileSnapshot(files) {
       fileData = Array.isArray(files) ? files.slice() : [];
       renderFileTransfers();
@@ -1075,7 +1088,7 @@
           '<div class="device-head" onclick="toggleCollapse(\'' + c.clientId + '\')">' +
             '<div class="device-id">' +
               '<strong>' + escapeHtml(c.clientId) + '</strong>' +
-              (c.appVersion ? '<span class="fold-hint">v' + escapeHtml(c.appVersion) + '</span>' : '') +
+              buildAppVersionHintHtml(c) +
               '<span class="fold-hint">' + foldText + '</span>' +
             '</div>' +
             '<div class="device-head-right" onclick="event.stopPropagation()">' +

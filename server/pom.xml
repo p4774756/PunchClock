@@ -49,6 +49,23 @@
 
     <build>
         <finalName>punchclock-server</finalName>
+        <resources>
+            <!-- 只 filter 版本檔；public/ 的 JS 有 ${...} 字面，不可整包 filter -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>server-build.properties</exclude>
+                </excludes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>server-build.properties</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

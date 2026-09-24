@@ -94,7 +94,7 @@ public class App extends JFrame {
             refreshPeerFileRemainings();
         });
         countdownTimer.start();
-        appendLog("[資訊] 桌面端版本 v" + AppVersion.VERSION);
+        appendLog("[資訊] 桌面端版本 " + AppVersion.displayLabel());
     }
 
     private void initHeartbeatService() {
@@ -179,7 +179,7 @@ public class App extends JFrame {
     }
 
     private void initUI() {
-        setTitle("莫卡咖啡  v" + AppVersion.VERSION);
+        setTitle("莫卡咖啡  " + AppVersion.displayLabel());
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         Font mainFont = UiFonts.chinesePlain(13);

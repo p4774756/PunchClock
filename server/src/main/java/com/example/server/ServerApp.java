@@ -1,5 +1,6 @@
 package com.example.server;
 
+import com.example.BuildInfo;
 import com.example.PeerFileRules;
 import com.example.server.auth.AuthService;
 import com.example.server.health.HealthHistoryStore;
@@ -37,7 +38,8 @@ import java.util.Map;
 @SuppressWarnings("unchecked")
 public final class ServerApp {
 
-    private static final String SERVER_VERSION = "1.8.0";
+    private static final BuildInfo BUILD_INFO = BuildInfo.load(ServerApp.class, "/server-build.properties");
+    private static final String SERVER_VERSION = BUILD_INFO.version();
     private static final Type MAP_TYPE = new TypeToken<Map<String, Object>>() {
     }.getType();
 
@@ -83,7 +85,8 @@ public final class ServerApp {
 
         app.start(port);
         int boundPort = app.port();
-        System.out.println("Server v" + SERVER_VERSION + " listening on port " + boundPort);
+        System.out.println("Server v" + SERVER_VERSION + " listening on port " + boundPort
+                + " (built " + serverBuildLabel() + ")");
         System.out.println("- Web Dashboard: http://localhost:" + boundPort + " (login required)");
         System.out.println("- Heartbeat API: POST /api/heartbeat (Bearer token required)");
         System.out.println("- Protocol: HTTP heartbeat for workers; Dashboard WS for status push only");
@@ -101,7 +104,9 @@ public final class ServerApp {
         app.get("/logout", this::logout);
         app.get("/ping", ctx -> ctx.json(Map.of(
                 "message", "pong",
-                "timestamp", Instant.now().toString()
+                "timestamp", Instant.now().toString(),
+                "version", SERVER_VERSION,
+                "buildTime", BUILD_INFO.buildTimeIso()
         )));
         app.post("/api/heartbeat", this::heartbeat);
         app.post("/api/peer/message", this::peerMessage);
@@ -195,6 +200,7 @@ public final class ServerApp {
         String status = stringOrDefault(body.get("status"), "ONLINE");
         String message = stringOrDefault(body.get("message"), "");
         String appVersion = stringOrDefault(body.get("appVersion"), "");
+        String appReleaseTime = stringOrDefault(body.get("appReleaseTime"), "");
         List<Map<String, Object>> tasks = tasksFromBody(body.get("tasks"));
 
         Map<String, Object> existing = clientStore.getOrCreateClient(clientId);
@@ -227,6 +233,10 @@ public final class ServerApp {
         clientInfo.put("tasks", effectiveTasks);
         clientInfo.put("message", message.isEmpty() ? stringOrDefault(existing.get("message"), "") : message);
         clientInfo.put("appVersion", appVersion.isEmpty() ? stringOrDefault(existing.get("appVersion"), "") : appVersion);
+        if (!appVersion.isEmpty()) {
+            // 舊版 app 不送 appReleaseTime，跟著版號一起更新，避免殘留上一個版本的時間
+            clientInfo.put("appReleaseTime", appReleaseTime);
+        }
         clientInfo.put("lastSeen", Instant.now().toString());
         clientInfo.put("transport", "http");
         clientInfo.put("clientIp", IpResolver.clientIp(ctx));
@@ -539,6 +549,7 @@ public final class ServerApp {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("serverTimestamp", Instant.now().toString());
         payload.put("serverVersion", SERVER_VERSION);
+        payload.put("serverBuildTime", BUILD_INFO.buildTimeIso());
         payload.put("totalClients", clientStore.clients().size());
         payload.put("clients", clientStore.publicClientsSnapshot());
         payload.put("files", fileOfferStore.publicSnapshot());
@@ -614,8 +625,15 @@ public final class ServerApp {
             return;
         }
         String html = readResource("/public/index.html")
-                .replace("{{SERVER_VERSION}}", SERVER_VERSION);
+                .replace("{{SERVER_VERSION}}", SERVER_VERSION)
+                .replace("{{SERVER_BUILD_TIME}}", serverBuildLabel());
         ctx.html(html);
+    }
+
+    /** Render 容器是 UTC，後台固定以台北時間顯示。 */
+    private static String serverBuildLabel() {
+        String label = BUILD_INFO.buildTimeLabel(BuildInfo.TAIPEI);
+        return label.isEmpty() ? "開發版" : label;
     }
 
     private Map<String, Object> statusUpdatePayload() {

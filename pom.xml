@@ -22,6 +22,9 @@
         <junit.version>4.13.2</junit.version>
         <gson.version>2.11.0</gson.version>
         <javalin.version>6.4.0</javalin.version>
+        <!-- maven.build.timestamp 為 UTC；resources filtering 要透過自訂屬性才讀得到 -->
+        <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
+        <punchclock.buildTime>${maven.build.timestamp}</punchclock.buildTime>
     </properties>
 
     <dependencyManagement>

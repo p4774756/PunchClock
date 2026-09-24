@@ -266,6 +266,7 @@ public class HeartbeatService {
         payload.put("status", currentStatus);
         payload.put("message", message);
         payload.put("appVersion", AppVersion.VERSION);
+        payload.put("appReleaseTime", AppVersion.RELEASE_TIME_ISO);
         payload.put("tasks", tasksList);
         payload.put("heartbeatSeq", heartbeatSeq.incrementAndGet());
         payload.put("avatar", avatarEncoded == null ? "" : avatarEncoded);
