@@ -16,7 +16,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.UUID;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class ServerAppPeerFileTest {
@@ -170,6 +172,30 @@ public class ServerAppPeerFileTest {
                 HttpResponse.BodyHandlers.ofString());
         assertEquals(200, deleted.statusCode());
         assertEquals(404, download(fileId, "worker-b").statusCode());
+    }
+
+    @Test
+    public void downloadIsNotGzippedEvenWhenProxyAcceptsGzip() throws Exception {
+        StringBuilder md = new StringBuilder();
+        while (md.length() < 4800) {
+            md.append("## 打卡紀錄 08:59 上班、18:01 下班，狀態 OK\n");
+        }
+        byte[] payload = md.toString().getBytes(StandardCharsets.UTF_8);
+        HttpResponse<String> upload = postFile("worker-a", "worker-b", "notes.md", payload);
+        assertEquals(200, upload.statusCode());
+        String fileId = JsonParser.parseString(upload.body()).getAsJsonObject().get("fileId").getAsString();
+
+        HttpResponse<byte[]> download = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/peer/file/" + fileId + "?clientId=worker-b"))
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .header("Accept-Encoding", "gzip")
+                        .GET().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, download.statusCode());
+        assertFalse(download.headers().firstValue("Content-Encoding").isPresent());
+        assertEquals(String.valueOf(payload.length),
+                download.headers().firstValue("Content-Length").orElse(""));
+        assertArrayEquals(payload, download.body());
     }
 
     @Test

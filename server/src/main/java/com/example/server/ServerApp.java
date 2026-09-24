@@ -399,6 +399,8 @@ public final class ServerApp {
             ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "檔案不存在或已過期"));
             return;
         }
+        // Javalin 預設 gzip 不會更新手動設定的 Content-Length；Render 代理會帶 gzip，長度不符就回 502。
+        ctx.minSizeForCompression(Integer.MAX_VALUE);
         ctx.contentType("application/octet-stream");
         ctx.header("Content-Disposition", contentDisposition(offer.filename));
         ctx.header("Content-Length", String.valueOf(offer.size()));
