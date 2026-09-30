@@ -84,6 +84,10 @@ public class ConfigPersistenceService {
         public String networkProxyPassword = "";
         /** Ping/Pong 說明／測試區分隔線（≤0 表示使用預設） */
         public int networkSplitDividerLocation = -1;
+
+        /** 中繼 Proxy：讓同事透過你連到 Server */
+        public boolean relayEnabled = false;
+        public int relayPort = 8888;
     }
 
     private static SlotSettings defaultWorkIn() {
@@ -226,6 +230,7 @@ public class ConfigPersistenceService {
         if (config.networkProxyPassword == null) {
             config.networkProxyPassword = "";
         }
+        config.relayPort = RelayProxyService.clampPort(config.relayPort);
     }
 
     public static int clampWindowTransparencyPercent(int percent) {
