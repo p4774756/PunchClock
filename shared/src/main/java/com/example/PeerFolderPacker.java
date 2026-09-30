@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.EnumSet;
+import java.util.function.BooleanSupplier;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -25,6 +26,11 @@ public final class PeerFolderPacker {
     }
 
     public static PackResult pack(Path folder) {
+        return pack(folder, null);
+    }
+
+    /** @param cancelled 回傳 true 時中止壓縮並刪除暫存檔；可為 null */
+    public static PackResult pack(Path folder, BooleanSupplier cancelled) {
         if (folder == null || !Files.isDirectory(folder)) {
             return PackResult.fail("請選擇要傳送的資料夾");
         }
@@ -46,7 +52,7 @@ public final class PeerFolderPacker {
 
         Counter counter = new Counter();
         try (OutputStream fileOut = Files.newOutputStream(zipPath);
-             CountingOutputStream counted = new CountingOutputStream(fileOut);
+             CountingOutputStream counted = new CountingOutputStream(fileOut, cancelled);
              ZipOutputStream zip = new ZipOutputStream(counted)) {
             final String zipRoot = folderName;
             Files.walkFileTree(root, EnumSet.noneOf(FileVisitOption.class), MAX_DEPTH,
@@ -57,6 +63,7 @@ public final class PeerFolderPacker {
                             if (dir == null) {
                                 return FileVisitResult.CONTINUE;
                             }
+                            counted.checkCancelled();
                             if (!dir.equals(root) && Files.isSymbolicLink(dir)) {
                                 return FileVisitResult.SKIP_SUBTREE;
                             }
@@ -74,6 +81,7 @@ public final class PeerFolderPacker {
                                     || attrs == null || !attrs.isRegularFile()) {
                                 return FileVisitResult.CONTINUE;
                             }
+                            counted.checkCancelled();
                             String entryName = zipPath(zipRoot, root, file, false);
                             if (entryName.isEmpty()) {
                                 return FileVisitResult.CONTINUE;
@@ -101,6 +109,9 @@ public final class PeerFolderPacker {
         } catch (PackLimitException ex) {
             deleteQuietly(zipPath);
             return PackResult.fail(ex.getMessage());
+        } catch (PackCancelledException ex) {
+            deleteQuietly(zipPath);
+            return PackResult.cancelled();
         } catch (IOException ex) {
             deleteQuietly(zipPath);
             return PackResult.fail("壓縮資料夾失敗：" + (ex.getMessage() == null ? "IO 錯誤" : ex.getMessage()));
@@ -178,21 +189,37 @@ public final class PeerFolderPacker {
         }
     }
 
+    private static final class PackCancelledException extends IOException {
+        PackCancelledException() {
+            super("已取消");
+        }
+    }
+
     private static final class CountingOutputStream extends FilterOutputStream {
+        private final BooleanSupplier cancelled;
         private long count;
 
-        CountingOutputStream(OutputStream out) {
+        CountingOutputStream(OutputStream out, BooleanSupplier cancelled) {
             super(out);
+            this.cancelled = cancelled;
+        }
+
+        void checkCancelled() throws PackCancelledException {
+            if (cancelled != null && cancelled.getAsBoolean()) {
+                throw new PackCancelledException();
+            }
         }
 
         @Override
         public void write(int b) throws IOException {
+            checkCancelled();
             out.write(b);
             count++;
         }
 
         @Override
         public void write(byte[] b, int off, int len) throws IOException {
+            checkCancelled();
             out.write(b, off, len);
             count += len;
         }
@@ -200,6 +227,7 @@ public final class PeerFolderPacker {
 
     public static final class PackResult {
         public final boolean ok;
+        public final boolean cancelled;
         public final String message;
         public final String filename;
         /** 成功時為暫存 ZIP 路徑；呼叫端用完後應 {@link #deleteQuietly()}。 */
@@ -207,8 +235,10 @@ public final class PeerFolderPacker {
         public final long size;
         public final int entryCount;
 
-        private PackResult(boolean ok, String message, String filename, Path path, long size, int entryCount) {
+        private PackResult(boolean ok, boolean cancelled, String message, String filename, Path path,
+                           long size, int entryCount) {
             this.ok = ok;
+            this.cancelled = cancelled;
             this.message = message;
             this.filename = filename;
             this.path = path;
@@ -217,11 +247,15 @@ public final class PeerFolderPacker {
         }
 
         public static PackResult ok(String filename, Path path, long size, int entryCount) {
-            return new PackResult(true, "ok", filename, path, size, entryCount);
+            return new PackResult(true, false, "ok", filename, path, size, entryCount);
         }
 
         public static PackResult fail(String message) {
-            return new PackResult(false, message, "", null, 0L, 0);
+            return new PackResult(false, false, message, "", null, 0L, 0);
+        }
+
+        public static PackResult cancelled() {
+            return new PackResult(false, true, "已取消壓縮", "", null, 0L, 0);
         }
 
         public void deleteQuietly() {

@@ -15,6 +15,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class HeartbeatServicePeerFileTest {
@@ -64,6 +66,18 @@ public class HeartbeatServicePeerFileTest {
                 if (!path.endsWith("/data")) {
                     exchange.getResponseHeaders().add("Location", path + "/data");
                     exchange.sendResponseHeaders(302, -1);
+                } else if (path.contains("/slow/")) {
+                    byte[] chunk = new byte[128 * 1024];
+                    exchange.sendResponseHeaders(200, chunk.length * 200L);
+                    try {
+                        for (int i = 0; i < 200; i++) {
+                            exchange.getResponseBody().write(chunk);
+                            exchange.getResponseBody().flush();
+                            Thread.sleep(50);
+                        }
+                    } catch (Exception ignored) {
+                        // client aborted
+                    }
                 } else {
                     byte[] body = "saved".getBytes(StandardCharsets.UTF_8);
                     exchange.sendResponseHeaders(200, body.length);
@@ -198,6 +212,74 @@ public class HeartbeatServicePeerFileTest {
         String header = downloadClientHeader.get();
         assertTrue(header != null && header.chars().allMatch(c -> c >= 0x20 && c <= 0x7e));
         assertEquals("saved", Files.readString(dest));
+    }
+
+    @Test
+    public void sendPeerFile_cancelledBeforeUploadDoesNotPost() throws Exception {
+        Path src = Files.createTempFile("peer-upload-cancel-", ".bin");
+        Files.write(src, new byte[2 * 1024 * 1024]);
+        TransferCancel cancel = new TransferCancel();
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicBoolean ok = new AtomicBoolean(true);
+        AtomicReference<String> lastLog = new AtomicReference<>("");
+        service.sendPeerFile("worker-b", src, lastLog::set, null, status -> {
+            if (status.contains("正在上傳")) {
+                cancel.cancel();
+            }
+        }, cancel, success -> {
+            ok.set(Boolean.TRUE.equals(success));
+            done.countDown();
+        });
+        assertTrue(done.await(8, TimeUnit.SECONDS));
+        assertFalse(ok.get());
+        assertTrue(lastLog.get().contains("[取消]"));
+        assertNull(posted.get());
+    }
+
+    @Test
+    public void sendPeerFile_cancelledWhilePackingFolder() throws Exception {
+        Path dir = Files.createTempDirectory("peer-folder-cancel-");
+        Files.writeString(dir.resolve("inside.txt"), "folder-body");
+        TransferCancel cancel = new TransferCancel();
+        cancel.cancel();
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicBoolean ok = new AtomicBoolean(true);
+        AtomicReference<String> lastLog = new AtomicReference<>("");
+        service.sendPeerFile("worker-b", dir, lastLog::set, null, null, cancel, success -> {
+            ok.set(Boolean.TRUE.equals(success));
+            done.countDown();
+        });
+        assertTrue(done.await(8, TimeUnit.SECONDS));
+        assertFalse(ok.get());
+        assertTrue(lastLog.get().contains("[取消]"));
+        assertNull(posted.get());
+    }
+
+    @Test
+    public void downloadPeerFile_cancelMidStreamRemovesPartFile() throws Exception {
+        Path dir = Files.createTempDirectory("peer-download-cancel-");
+        Path dest = dir.resolve("big.bin");
+        TransferCancel cancel = new TransferCancel();
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicBoolean ok = new AtomicBoolean(true);
+        AtomicReference<String> lastLog = new AtomicReference<>("");
+        long started = System.nanoTime();
+        service.downloadPeerFile("slow", dest, lastLog::set, (transferred, total) -> {
+            if (transferred > 0) {
+                cancel.cancel();
+            }
+        }, cancel, success -> {
+            ok.set(Boolean.TRUE.equals(success));
+            done.countDown();
+        });
+        assertTrue(done.await(8, TimeUnit.SECONDS));
+        assertTrue("cancel should not wait for the full 10s body",
+                System.nanoTime() - started < TimeUnit.SECONDS.toNanos(6));
+        assertFalse(ok.get());
+        assertTrue(lastLog.get().contains("[取消]"));
+        assertFalse(Files.exists(dest));
+        Thread.sleep(300);
+        assertFalse(Files.exists(dir.resolve("big.bin.part")));
     }
 
     @Test

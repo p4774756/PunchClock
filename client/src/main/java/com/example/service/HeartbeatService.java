@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -578,6 +579,15 @@ public class HeartbeatService {
     public void sendPeerFile(String toClientId, Path file, Consumer<String> logger,
                              TransferIo.Progress progress, Consumer<String> statusUpdate,
                              Consumer<Boolean> callback) {
+        sendPeerFile(toClientId, file, logger, progress, statusUpdate, null, callback);
+    }
+
+    /**
+     * @param cancel 可為 null；取消後 callback 收到 false，並寫一行 [取消] 日誌
+     */
+    public void sendPeerFile(String toClientId, Path file, Consumer<String> logger,
+                             TransferIo.Progress progress, Consumer<String> statusUpdate,
+                             TransferCancel cancel, Consumer<Boolean> callback) {
         if (!isServiceActive || serverUrl.isBlank()) {
             log(logger, "[警告] [檔案] 雲端未連線，無法傳送檔案");
             if (callback != null) callback.accept(false);
@@ -595,29 +605,34 @@ public class HeartbeatService {
         }
 
         final String targetId = toClientId.trim();
-        Thread worker = new Thread(() -> sendPeerFileOnWorker(targetId, file, logger, progress, statusUpdate, callback),
-                "peer-file-upload");
+        final TransferCancel token = cancel != null ? cancel : new TransferCancel();
+        Thread worker = new Thread(() -> sendPeerFileOnWorker(targetId, file, logger, progress, statusUpdate,
+                token, callback), "peer-file-upload");
         worker.setDaemon(true);
         worker.start();
     }
 
     private void sendPeerFileOnWorker(String toClientId, Path file, Consumer<String> logger,
                                       TransferIo.Progress progress, Consumer<String> statusUpdate,
-                                      Consumer<Boolean> callback) {
+                                      TransferCancel cancel, Consumer<Boolean> callback) {
         String filename;
         Path contentPath;
         long contentSize;
         String kind = PeerFileRules.KIND_FILE;
         PeerFolderPacker.PackResult packed = null;
         Path multipartTemp = null;
+        String displayName = file.getFileName() != null ? file.getFileName().toString() : "檔案";
         try {
+            cancel.throwIfCancelled();
             if (Files.isDirectory(file)) {
-                notifyStatus(statusUpdate, "正在壓縮資料夾「"
-                        + (file.getFileName() != null ? file.getFileName() : "") + "」…");
+                notifyStatus(statusUpdate, "正在壓縮資料夾「" + displayName + "」…");
                 if (progress != null) {
                     progress.onProgress(0L, 0L);
                 }
-                packed = PeerFolderPacker.pack(file);
+                packed = PeerFolderPacker.pack(file, cancel::isCancelled);
+                if (packed.cancelled) {
+                    throw new TransferIo.CancelledException();
+                }
                 if (!packed.ok) {
                     log(logger, "[警告] [檔案] " + packed.message);
                     if (callback != null) callback.accept(false);
@@ -663,7 +678,8 @@ public class HeartbeatService {
                     "toClientId", PeerFileRules.normalizeClientId(toClientId),
                     "filename", filename,
                     "kind", kind
-            ), filename, mime, contentPath, prepareProgress);
+            ), filename, mime, contentPath, prepareProgress, cancel);
+            cancel.throwIfCancelled();
 
             long uploadBytes = Files.size(multipartTemp);
             notifyStatus(statusUpdate, "正在上傳「" + filename + "」到伺服器…");
@@ -677,7 +693,7 @@ public class HeartbeatService {
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                     .header("Authorization", "Bearer " + heartbeatToken)
                     .timeout(FILE_TRANSFER_TIMEOUT)
-                    .POST(TransferIo.ofFile(multipartTemp, uploadProgress))
+                    .POST(TransferIo.ofFile(multipartTemp, uploadProgress, cancel))
                     .build();
 
             final String sentName = filename;
@@ -687,7 +703,10 @@ public class HeartbeatService {
             multipartTemp = null;
             packed = null;
 
-            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+            CompletableFuture<HttpResponse<String>> upload =
+                    httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+            cancel.cancelOnCancel(upload);
+            upload
                     .whenComplete((response, error) -> {
                         deleteQuietly(cleanupMultipart);
                         if (cleanupPacked != null) {
@@ -713,7 +732,11 @@ public class HeartbeatService {
                         if (callback != null) callback.accept(ok);
                     })
                     .exceptionally(ex -> {
-                        log(logger, "[失敗] [檔案] 送出「" + sentName + "」異常：" + describeTransferFailure(ex));
+                        if (cancel.isCancelled()) {
+                            log(logger, "[取消] [檔案] 已取消傳送「" + sentName + "」");
+                        } else {
+                            log(logger, "[失敗] [檔案] 送出「" + sentName + "」異常：" + describeTransferFailure(ex));
+                        }
                         if (callback != null) callback.accept(false);
                         return null;
                     });
@@ -729,7 +752,11 @@ public class HeartbeatService {
             if (packed != null) {
                 packed.deleteQuietly();
             }
-            log(logger, "[失敗] [檔案] 送出異常：" + describeTransferFailure(ex));
+            if (cancel.isCancelled()) {
+                log(logger, "[取消] [檔案] 已取消傳送「" + displayName + "」");
+            } else {
+                log(logger, "[失敗] [檔案] 送出異常：" + describeTransferFailure(ex));
+            }
             if (callback != null) callback.accept(false);
         }
     }
@@ -751,6 +778,15 @@ public class HeartbeatService {
     public void downloadPeerFile(String fileId, Path destination,
                                  Consumer<String> logger, TransferIo.Progress progress,
                                  Consumer<Boolean> callback) {
+        downloadPeerFile(fileId, destination, logger, progress, null, callback);
+    }
+
+    /**
+     * @param cancel 可為 null；取消後刪除 .part、callback 收到 false，並寫一行 [取消] 日誌
+     */
+    public void downloadPeerFile(String fileId, Path destination,
+                                 Consumer<String> logger, TransferIo.Progress progress,
+                                 TransferCancel cancel, Consumer<Boolean> callback) {
         if (!isServiceActive || serverUrl.isBlank()) {
             log(logger, "[警告] [檔案] 雲端未連線，無法下載");
             if (callback != null) callback.accept(false);
@@ -766,6 +802,8 @@ public class HeartbeatService {
                 ? destination.getFileName().toString() : "download");
         String endpoint = serverUrl + "/api/peer/file/" + urlEncode(fileId.trim())
                 + "?clientId=" + urlEncode(clientId);
+        final TransferCancel token = cancel != null ? cancel : new TransferCancel();
+        final String savedName = dest.getFileName() != null ? dest.getFileName().toString() : "檔案";
         try {
             Path parent = dest.getParent();
             if (parent != null) {
@@ -774,9 +812,18 @@ public class HeartbeatService {
             Path part = dest.resolveSibling(dest.getFileName().toString() + ".part");
             deleteQuietly(part);
             TransferIo.Progress downloadProgress = TransferIo.throttle(progress);
-            downloadToFile(URI.create(endpoint), part, logger, downloadProgress)
+            CompletableFuture<Integer> download =
+                    downloadToFile(URI.create(endpoint), part, logger, downloadProgress, token);
+            token.cancelOnCancel(download);
+            download
                     .thenAccept(statusCode -> {
                         try {
+                            if (token.isCancelled()) {
+                                deleteQuietly(part);
+                                log(logger, "[取消] [檔案] 已取消下載「" + savedName + "」");
+                                if (callback != null) callback.accept(false);
+                                return;
+                            }
                             if (statusCode != 200) {
                                 String serverMessage = "";
                                 try {
@@ -806,8 +853,12 @@ public class HeartbeatService {
                     })
                     .exceptionally(ex -> {
                         deleteQuietly(part);
-                        Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                        log(logger, "[失敗] [檔案] 下載異常：" + cause.getMessage());
+                        if (token.isCancelled()) {
+                            log(logger, "[取消] [檔案] 已取消下載「" + savedName + "」");
+                        } else {
+                            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                            log(logger, "[失敗] [檔案] 下載異常：" + cause.getMessage());
+                        }
                         if (callback != null) callback.accept(false);
                         return null;
                     });
@@ -881,8 +932,14 @@ public class HeartbeatService {
     }
 
     private java.util.concurrent.CompletableFuture<Integer> downloadToFile(
-            URI uri, Path dest, Consumer<String> logger, TransferIo.Progress progress) {
-        return httpClient.sendAsync(buildDownloadRequest(uri), HttpResponse.BodyHandlers.ofInputStream())
+            URI uri, Path dest, Consumer<String> logger, TransferIo.Progress progress, TransferCancel cancel) {
+        if (cancel.isCancelled()) {
+            return CompletableFuture.failedFuture(new TransferIo.CancelledException());
+        }
+        CompletableFuture<HttpResponse<java.io.InputStream>> request =
+                httpClient.sendAsync(buildDownloadRequest(uri), HttpResponse.BodyHandlers.ofInputStream());
+        cancel.cancelOnCancel(request);
+        return request
                 .thenCompose(response -> {
                     int code = response.statusCode();
                     if (code >= 300 && code < 400) {
@@ -915,15 +972,19 @@ public class HeartbeatService {
                             return java.util.concurrent.CompletableFuture.completedFuture(code);
                         }
                         deleteQuietly(dest);
-                        return downloadToFile(next, dest, logger, progress);
+                        return downloadToFile(next, dest, logger, progress, cancel);
                     }
                     try (java.io.InputStream in = response.body();
                          java.io.OutputStream out = Files.newOutputStream(dest)) {
                         long total = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
-                        TransferIo.copy(in, out, total, progress);
+                        TransferIo.copy(in, out, total, progress, cancel);
                     } catch (Exception ex) {
                         deleteQuietly(dest);
                         return java.util.concurrent.CompletableFuture.failedFuture(ex);
+                    }
+                    if (cancel.isCancelled()) {
+                        deleteQuietly(dest);
+                        return CompletableFuture.failedFuture(new TransferIo.CancelledException());
                     }
                     return java.util.concurrent.CompletableFuture.completedFuture(code);
                 });
@@ -989,12 +1050,12 @@ public class HeartbeatService {
     private static void writeMultipart(Path dest, String boundary, Map<String, String> fields,
                                        String filename, String mime, Path fileContent)
             throws java.io.IOException {
-        writeMultipart(dest, boundary, fields, filename, mime, fileContent, null);
+        writeMultipart(dest, boundary, fields, filename, mime, fileContent, null, null);
     }
 
     private static void writeMultipart(Path dest, String boundary, Map<String, String> fields,
                                        String filename, String mime, Path fileContent,
-                                       TransferIo.Progress progress)
+                                       TransferIo.Progress progress, TransferCancel cancel)
             throws java.io.IOException {
         byte[] crlf = "\r\n".getBytes(StandardCharsets.UTF_8);
         long contentSize = Files.size(fileContent);
@@ -1023,7 +1084,7 @@ public class HeartbeatService {
                     .getBytes(StandardCharsets.UTF_8));
             out.write(crlf);
             out.write(crlf);
-            TransferIo.copy(in, out, contentSize, progress);
+            TransferIo.copy(in, out, contentSize, progress, cancel);
             out.write(crlf);
             out.write(("--" + boundary + "--").getBytes(StandardCharsets.UTF_8));
             out.write(crlf);

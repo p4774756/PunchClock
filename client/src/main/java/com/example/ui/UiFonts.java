@@ -87,8 +87,16 @@ public final class UiFonts {
      */
     public static void showCopyableMessage(
             Component parent, String message, String title, int messageType, Icon icon) {
+        showCopyableMessage(parent, message, message, title, messageType, icon);
+    }
+
+    /**
+     * @param copyText 按「複製文字」時放進剪貼簿的內容（可與顯示文字不同，例如不含時間）
+     */
+    public static void showCopyableMessage(
+            Component parent, String message, String copyText, String title, int messageType, Icon icon) {
         JOptionPane.showMessageDialog(
-                parent, buildCopyablePanel(message), title, messageType, icon);
+                parent, buildCopyablePanel(message, copyText), title, messageType, icon);
     }
 
     public static int showConfirm(
@@ -117,7 +125,12 @@ public final class UiFonts {
     }
 
     static JPanel buildCopyablePanel(String message) {
+        return buildCopyablePanel(message, message);
+    }
+
+    static JPanel buildCopyablePanel(String message, String copyText) {
         String text = message == null ? "" : message;
+        String clipboardText = copyText == null ? "" : copyText;
         JTextArea area = new JTextArea(text);
         area.setFont(chinesePlain(13));
         area.setEditable(false);
@@ -138,7 +151,7 @@ public final class UiFonts {
         copyButton.setFont(chinesePlain(12));
         copyButton.addActionListener(e -> {
             Toolkit.getDefaultToolkit().getSystemClipboard()
-                    .setContents(new StringSelection(text), null);
+                    .setContents(new StringSelection(clipboardText), null);
             copyButton.setText("已複製");
         });
 

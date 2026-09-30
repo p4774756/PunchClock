@@ -58,6 +58,16 @@ public class PeerFolderPackerTest {
     }
 
     @Test
+    public void pack_stopsWhenCancelled() throws Exception {
+        Path root = Files.createTempDirectory("peer-folder-cancel-");
+        Files.write(root.resolve("big.bin"), new byte[1024 * 1024]);
+
+        PeerFolderPacker.PackResult packed = PeerFolderPacker.pack(root, () -> true);
+        assertFalse(packed.ok);
+        assertTrue(packed.cancelled);
+    }
+
+    @Test
     public void pack_rejectsMissingPath() {
         PeerFolderPacker.PackResult packed = PeerFolderPacker.pack(Path.of("definitely-missing-folder-xyz"));
         assertFalse(packed.ok);

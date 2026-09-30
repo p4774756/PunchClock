@@ -9,6 +9,7 @@ import com.example.service.HeartbeatService.PeerInfo;
 import com.example.service.PeerAvatar;
 import com.example.service.SchedulerService;
 import com.example.service.TaskPersistenceService;
+import com.example.service.TransferCancel;
 import com.example.service.WindowBackground;
 import com.example.ui.UiFonts;
 import com.example.ui.TransferProgressDialog;
@@ -514,6 +515,8 @@ public class App extends JFrame {
             peerRefs.sendFileButton.setEnabled(false);
         }
         TransferProgressDialog progress = TransferProgressDialog.open(this, "傳送檔案");
+        TransferCancel cancel = new TransferCancel();
+        progress.setOnCancel(cancel::cancel);
         String displayName = file.getFileName() != null ? file.getFileName().toString() : "檔案";
         if (Files.isDirectory(file)) {
             progress.setPreparing("正在壓縮資料夾「" + displayName + "」…");
@@ -526,12 +529,13 @@ public class App extends JFrame {
                 this::appendLog,
                 progress::setProgress,
                 progress::setStatus,
+                cancel,
                 ok -> SwingUtilities.invokeLater(() -> {
                     progress.close();
                     if (peerRefs.sendFileButton != null) {
                         peerRefs.sendFileButton.setEnabled(isCloudEnabled());
                     }
-                    if (!ok) {
+                    if (!ok && !cancel.isCancelled()) {
                         UiFonts.showWarning(
                                 this,
                                 "沒有送出。請確認內容不超過 " + PeerFileRules.MAX_SIZE_LABEL
@@ -692,6 +696,7 @@ public class App extends JFrame {
         UiFonts.showCopyableMessage(
                 this,
                 timeLabel + "\n\n" + text,
+                text,
                 "同事訊息 · " + fromId,
                 JOptionPane.PLAIN_MESSAGE,
                 peerDialogIcon(avatar));
@@ -880,6 +885,8 @@ public class App extends JFrame {
         }
         StringBuilder failDetail = new StringBuilder();
         TransferProgressDialog progress = TransferProgressDialog.open(this, "下載檔案");
+        TransferCancel cancel = new TransferCancel();
+        progress.setOnCancel(cancel::cancel);
         progress.setStatus("正在下載「" + safeName + "」…");
         heartbeatService.downloadPeerFile(fileId, dest, msg -> {
             appendLog(msg);
@@ -887,7 +894,7 @@ public class App extends JFrame {
                 failDetail.setLength(0);
                 failDetail.append(msg);
             }
-        }, progress::setProgress, ok ->
+        }, progress::setProgress, cancel, ok ->
                 SwingUtilities.invokeLater(() -> {
                     progress.close();
                     if (ok) {
@@ -896,7 +903,7 @@ public class App extends JFrame {
                                 "已儲存：\n" + dest.toAbsolutePath(),
                                 "檔案已儲存",
                                 JOptionPane.INFORMATION_MESSAGE);
-                    } else {
+                    } else if (!cancel.isCancelled()) {
                         String detail = failDetail.toString().trim();
                         UiFonts.showWarning(
                                 this,

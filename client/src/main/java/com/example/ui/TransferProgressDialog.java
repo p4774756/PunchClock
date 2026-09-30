@@ -3,6 +3,7 @@ package com.example.ui;
 import com.example.PeerFileRules;
 
 import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -19,6 +20,8 @@ import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.Window;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 /**
  * 傳檔用非模態進度視窗（上傳／下載皆可）。
@@ -34,6 +37,9 @@ public final class TransferProgressDialog {
     private final JLabel statusLabel;
     private final JLabel detailLabel;
     private final JProgressBar bar;
+    private final JButton cancelButton;
+    private volatile Runnable cancelAction;
+    private volatile boolean cancelling;
 
     private TransferProgressDialog(Window owner, String title) {
         dialog = new JDialog(owner, title, Dialog.ModalityType.MODELESS);
@@ -43,12 +49,26 @@ public final class TransferProgressDialog {
         detailLabel = new JLabel(" ");
         detailLabel.setFont(UiFonts.chinesePlain(12));
         bar = createProgressBar();
+        cancelButton = new JButton("取消");
+        cancelButton.setFont(UiFonts.chinesePlain(12));
+        cancelButton.setEnabled(false);
+        cancelButton.addActionListener(e -> requestCancel());
+        dialog.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                requestCancel();
+            }
+        });
+
+        javax.swing.JPanel bottom = new javax.swing.JPanel(new BorderLayout(12, 0));
+        bottom.add(detailLabel, BorderLayout.CENTER);
+        bottom.add(cancelButton, BorderLayout.EAST);
 
         javax.swing.JPanel panel = new javax.swing.JPanel(new BorderLayout(0, 8));
         panel.setBorder(BorderFactory.createEmptyBorder(16, 18, 16, 18));
         panel.add(statusLabel, BorderLayout.NORTH);
         panel.add(bar, BorderLayout.CENTER);
-        panel.add(detailLabel, BorderLayout.SOUTH);
+        panel.add(bottom, BorderLayout.SOUTH);
         dialog.setContentPane(panel);
         dialog.pack();
         dialog.setResizable(false);
@@ -84,9 +104,26 @@ public final class TransferProgressDialog {
         return dialog;
     }
 
+    /** 設定按「取消」或關閉視窗時要做的事；未設定則取消鈕停用。 */
+    public void setOnCancel(Runnable action) {
+        cancelAction = action;
+        SwingUtilities.invokeLater(() -> cancelButton.setEnabled(action != null && !cancelling));
+    }
+
+    private void requestCancel() {
+        Runnable action = cancelAction;
+        if (action == null || cancelling) {
+            return;
+        }
+        cancelling = true;
+        cancelButton.setEnabled(false);
+        statusLabel.setText("正在取消…");
+        action.run();
+    }
+
     public void setStatus(String status) {
         SwingUtilities.invokeLater(() -> {
-            if (status != null && !status.isBlank()) {
+            if (!cancelling && status != null && !status.isBlank()) {
                 statusLabel.setText(status);
             }
         });
@@ -116,7 +153,7 @@ public final class TransferProgressDialog {
     /** 準備階段：不定進度＋說明文字。 */
     public void setPreparing(String status) {
         SwingUtilities.invokeLater(() -> {
-            if (status != null && !status.isBlank()) {
+            if (!cancelling && status != null && !status.isBlank()) {
                 statusLabel.setText(status);
             }
             bar.setIndeterminate(true);

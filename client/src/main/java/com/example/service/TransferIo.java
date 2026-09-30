@@ -28,13 +28,35 @@ public final class TransferIo {
         void onProgress(long transferred, long total);
     }
 
+    /** 使用者取消傳檔。 */
+    public static final class CancelledException extends IOException {
+        public CancelledException() {
+            super("已取消");
+        }
+    }
+
     public static void copy(InputStream in, OutputStream out, long total, Progress progress)
             throws IOException {
+        copy(in, out, total, progress, null);
+    }
+
+    public static void copy(InputStream in, OutputStream out, long total, Progress progress,
+                            TransferCancel cancel) throws IOException {
         byte[] buf = new byte[BUFFER_SIZE];
         long transferred = 0L;
         long lastReported = -REPORT_EVERY;
         int n;
-        while ((n = in.read(buf)) >= 0) {
+        while (true) {
+            if (cancel != null) {
+                cancel.throwIfCancelled();
+            }
+            n = in.read(buf);
+            if (n < 0) {
+                break;
+            }
+            if (cancel != null) {
+                cancel.throwIfCancelled();
+            }
             out.write(buf, 0, n);
             transferred += n;
             if (progress != null && (transferred - lastReported >= REPORT_EVERY || n == 0)) {
@@ -48,6 +70,12 @@ public final class TransferIo {
     }
 
     public static HttpRequest.BodyPublisher ofFile(Path path, Progress progress) throws IOException {
+        return ofFile(path, progress, null);
+    }
+
+    /** 取消時以 {@link CancelledException} 結束 body，HttpClient 會中止這次請求。 */
+    public static HttpRequest.BodyPublisher ofFile(Path path, Progress progress, TransferCancel cancel)
+            throws IOException {
         long size = Files.size(path);
         return new HttpRequest.BodyPublisher() {
             @Override
@@ -60,7 +88,11 @@ public final class TransferIo {
                 if (subscriber == null) {
                     throw new NullPointerException("subscriber");
                 }
-                subscriber.onSubscribe(new FileSubscription(path, size, progress, subscriber));
+                FileSubscription subscription = new FileSubscription(path, size, progress, cancel, subscriber);
+                subscriber.onSubscribe(subscription);
+                if (cancel != null) {
+                    cancel.onCancel(subscription::abort);
+                }
             }
         };
     }
@@ -96,6 +128,7 @@ public final class TransferIo {
         private final Path path;
         private final long total;
         private final Progress progress;
+        private final TransferCancel cancel;
         private final Flow.Subscriber<? super ByteBuffer> subscriber;
         private final AtomicBoolean cancelled = new AtomicBoolean(false);
         private final Object lock = new Object();
@@ -104,12 +137,19 @@ public final class TransferIo {
         private long demand;
         private boolean completed;
 
-        FileSubscription(Path path, long total, Progress progress,
+        FileSubscription(Path path, long total, Progress progress, TransferCancel cancel,
                          Flow.Subscriber<? super ByteBuffer> subscriber) {
             this.path = path;
             this.total = total;
             this.progress = progress;
+            this.cancel = cancel;
             this.subscriber = subscriber;
+        }
+
+        void abort() {
+            synchronized (lock) {
+                fail(new CancelledException());
+            }
         }
 
         @Override
@@ -138,6 +178,10 @@ public final class TransferIo {
 
         private void drain() {
             while (demand > 0 && !cancelled.get() && !completed) {
+                if (cancel != null && cancel.isCancelled()) {
+                    fail(new CancelledException());
+                    return;
+                }
                 try {
                     if (in == null) {
                         in = Files.newInputStream(path);
