@@ -103,6 +103,9 @@ public class HeartbeatService {
         }
     }
 
+    /** 即時直傳的結果；伺服器或對方不支援時，呼叫端可改用伺服器暫存。 */
+    public enum RelayOutcome { DELIVERED, FAILED, CANCELLED, UNSUPPORTED_SERVER, RECIPIENT_UNAVAILABLE }
+
     private volatile HttpClient httpClient;
     private final Gson gson = new Gson();
     private ScheduledExecutorService scheduler;
@@ -280,6 +283,7 @@ public class HeartbeatService {
         payload.put("tasks", tasksList);
         payload.put("heartbeatSeq", heartbeatSeq.incrementAndGet());
         payload.put("avatar", avatarEncoded == null ? "" : avatarEncoded);
+        payload.put("capabilities", List.of(PeerFileRules.CAPABILITY_RELAY));
 
         String jsonBody = gson.toJson(payload);
 
@@ -427,6 +431,16 @@ public class HeartbeatService {
                 commandListener.accept(
                         "FILE|" + PeerFileRules.encodeName(fromId) + "|" + fileId + "|" + size
                                 + "|" + mime + "|" + sentAtMs + "|" + filename);
+            }
+        } else if (action.startsWith("RELAY|")) {
+            // RELAY|base64fromId|relayId|base64name|size|kind|epochMs
+            String[] parts = action.split("\\|", -1);
+            if (parts.length == 7 && !parts[2].isBlank()) {
+                String fromId = PeerFileRules.decodeName(parts[1]);
+                String filename = PeerFileRules.decodeName(parts[3]);
+                log(logger, "[檔案] 【" + fromId + "】要直傳檔案給你：" + filename);
+                commandListener.accept("RELAY|" + parts[1] + "|" + parts[2] + "|" + parts[4]
+                        + "|" + PeerFileRules.normalizeKind(parts[5]) + "|" + parts[6] + "|" + filename);
             }
         } else {
             log(logger, "[警告] [HTTP 心跳] 收到未支援的遠端指令: " + action);
@@ -627,54 +641,21 @@ public class HeartbeatService {
         String filename;
         Path contentPath;
         long contentSize;
-        String kind = PeerFileRules.KIND_FILE;
+        String kind;
         PeerFolderPacker.PackResult packed = null;
         Path multipartTemp = null;
         String displayName = file.getFileName() != null ? file.getFileName().toString() : "檔案";
         try {
-            cancel.throwIfCancelled();
-            if (Files.isDirectory(file)) {
-                notifyStatus(statusUpdate, "正在壓縮資料夾「" + displayName + "」…");
-                if (progress != null) {
-                    progress.onProgress(0L, 0L);
-                }
-                packed = PeerFolderPacker.pack(file, cancel::isCancelled);
-                if (packed.cancelled) {
-                    throw new TransferIo.CancelledException();
-                }
-                if (!packed.ok) {
-                    log(logger, "[警告] [檔案] " + packed.message);
-                    if (callback != null) callback.accept(false);
-                    return;
-                }
-                filename = packed.filename;
-                contentPath = packed.path;
-                contentSize = packed.size;
-                kind = PeerFileRules.KIND_FOLDER;
-                log(logger, "[檔案] 正在傳送資料夾「" + file.getFileName() + "」（壓縮 "
-                        + PeerFileRules.formatSize(contentSize) + "）");
-            } else if (Files.isRegularFile(file)) {
-                filename = PeerFileRules.sanitizeFilename(
-                        file.getFileName() != null ? file.getFileName().toString() : "");
-                if (filename.isEmpty()) {
-                    log(logger, "[警告] [檔案] 檔名無效");
-                    if (callback != null) callback.accept(false);
-                    return;
-                }
-                contentSize = Files.size(file);
-                if (!PeerFileRules.isAllowedSize(contentSize)) {
-                    log(logger, contentSize <= 0
-                            ? "[警告] [檔案] 檔案不可為空"
-                            : "[警告] [檔案] 檔案不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
-                    if (callback != null) callback.accept(false);
-                    return;
-                }
-                contentPath = file;
-            } else {
-                log(logger, "[警告] [檔案] 找不到要傳送的檔案");
+            Outgoing outgoing = prepareOutgoing(file, logger, progress, statusUpdate, cancel);
+            if (outgoing == null) {
                 if (callback != null) callback.accept(false);
                 return;
             }
+            filename = outgoing.filename;
+            contentPath = outgoing.path;
+            contentSize = outgoing.size;
+            kind = outgoing.kind;
+            packed = outgoing.packed;
 
             notifyStatus(statusUpdate, "正在上傳「" + filename + "」到伺服器…（"
                     + PeerFileRules.formatSize(contentSize) + "，分段續傳）");
@@ -793,6 +774,201 @@ public class HeartbeatService {
             }
             if (callback != null) callback.accept(false);
         }
+    }
+
+    /** 要送出的內容：一般檔案直接用原檔；資料夾先壓成暫存 ZIP（用完要 {@link #cleanup()}）。 */
+    private static final class Outgoing {
+        final String filename;
+        final Path path;
+        final long size;
+        final String kind;
+        final PeerFolderPacker.PackResult packed;
+
+        Outgoing(String filename, Path path, long size, String kind, PeerFolderPacker.PackResult packed) {
+            this.filename = filename;
+            this.path = path;
+            this.size = size;
+            this.kind = kind;
+            this.packed = packed;
+        }
+
+        void cleanup() {
+            if (packed != null) {
+                packed.deleteQuietly();
+            }
+        }
+    }
+
+    /** @return null 表示不能傳送（原因已寫入日誌） */
+    private Outgoing prepareOutgoing(Path file, Consumer<String> logger, TransferIo.Progress progress,
+                                     Consumer<String> statusUpdate, TransferCancel cancel)
+            throws java.io.IOException {
+        cancel.throwIfCancelled();
+        String displayName = file.getFileName() != null ? file.getFileName().toString() : "檔案";
+        if (Files.isDirectory(file)) {
+            notifyStatus(statusUpdate, "正在壓縮資料夾「" + displayName + "」…");
+            if (progress != null) {
+                progress.onProgress(0L, 0L);
+            }
+            PeerFolderPacker.PackResult packed = PeerFolderPacker.pack(file, cancel::isCancelled);
+            if (packed.cancelled) {
+                throw new TransferIo.CancelledException();
+            }
+            if (!packed.ok) {
+                log(logger, "[警告] [檔案] " + packed.message);
+                return null;
+            }
+            log(logger, "[檔案] 正在傳送資料夾「" + file.getFileName() + "」（壓縮 "
+                    + PeerFileRules.formatSize(packed.size) + "）");
+            return new Outgoing(packed.filename, packed.path, packed.size, PeerFileRules.KIND_FOLDER, packed);
+        }
+        if (Files.isRegularFile(file)) {
+            String filename = PeerFileRules.sanitizeFilename(displayName);
+            if (filename.isEmpty()) {
+                log(logger, "[警告] [檔案] 檔名無效");
+                return null;
+            }
+            long size = Files.size(file);
+            if (!PeerFileRules.isAllowedSize(size)) {
+                log(logger, size <= 0
+                        ? "[警告] [檔案] 檔案不可為空"
+                        : "[警告] [檔案] 檔案不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
+                return null;
+            }
+            return new Outgoing(filename, file, size, PeerFileRules.KIND_FILE, null);
+        }
+        log(logger, "[警告] [檔案] 找不到要傳送的檔案");
+        return null;
+    }
+
+    /**
+     * 即時直傳給在線同事：伺服器只在記憶體轉手，不留檔。對方需在
+     * {@link PeerFileRules#RELAY_ACCEPT_TIMEOUT_LABEL} 內按下接收，且雙方都要保持在線直到傳完。
+     *
+     * @param callback 收到 {@link RelayOutcome#UNSUPPORTED_SERVER}／{@link RelayOutcome#RECIPIENT_UNAVAILABLE}
+     *                 時可改用 {@link #sendPeerFile} 伺服器暫存
+     */
+    public void sendPeerFileRelay(String toClientId, Path file, Consumer<String> logger,
+                                  TransferIo.Progress progress, Consumer<String> statusUpdate,
+                                  TransferCancel cancel, Consumer<RelayOutcome> callback) {
+        Consumer<RelayOutcome> done = outcome -> {
+            if (callback != null) callback.accept(outcome);
+        };
+        if (!isServiceActive || serverUrl.isBlank()) {
+            log(logger, "[警告] [檔案] 雲端未連線，無法直傳");
+            done.accept(RelayOutcome.FAILED);
+            return;
+        }
+        if (toClientId == null || toClientId.isBlank() || file == null) {
+            log(logger, "[警告] [檔案] 缺少收件同事或檔案");
+            done.accept(RelayOutcome.FAILED);
+            return;
+        }
+        final String targetId = toClientId.trim();
+        final TransferCancel token = cancel != null ? cancel : new TransferCancel();
+        Thread worker = new Thread(() -> {
+            String displayName = file.getFileName() != null ? file.getFileName().toString() : "檔案";
+            Outgoing outgoing = null;
+            try {
+                outgoing = prepareOutgoing(file, logger, progress, statusUpdate, token);
+                if (outgoing == null) {
+                    done.accept(RelayOutcome.FAILED);
+                    return;
+                }
+                RelayTransfer.SendResult result = new RelayTransfer(
+                        () -> httpClient, serverUrl, heartbeatToken, clientId, logger, statusUpdate)
+                        .send(targetId, outgoing.path, outgoing.size, outgoing.filename, outgoing.kind,
+                                TransferIo.throttle(progress), token);
+                switch (result.status) {
+                    case DELIVERED:
+                        notifyStatus(statusUpdate, "對方已收到");
+                        log(logger, "[成功] [檔案] 已直傳「" + outgoing.filename + "」給【" + targetId
+                                + "】（" + PeerFileRules.formatSize(outgoing.size) + "，伺服器未留檔）");
+                        done.accept(RelayOutcome.DELIVERED);
+                        break;
+                    case UNSUPPORTED_SERVER:
+                        log(logger, "[提示] [檔案] 伺服器尚未支援直傳（請更新雲端）");
+                        done.accept(RelayOutcome.UNSUPPORTED_SERVER);
+                        break;
+                    case RECIPIENT_UNAVAILABLE:
+                        log(logger, "[提示] [檔案] 無法直傳給【" + targetId + "】：" + result.message);
+                        done.accept(RelayOutcome.RECIPIENT_UNAVAILABLE);
+                        break;
+                    default:
+                        log(logger, "[失敗] [檔案] 直傳「" + outgoing.filename + "」失敗：" + result.message);
+                        done.accept(RelayOutcome.FAILED);
+                        break;
+                }
+            } catch (TransferIo.CancelledException ex) {
+                log(logger, "[取消] [檔案] 已取消直傳「" + displayName + "」");
+                done.accept(RelayOutcome.CANCELLED);
+            } catch (OutOfMemoryError ex) {
+                log(logger, "[失敗] [檔案] 本機記憶體不足，無法處理這麼大的檔案");
+                done.accept(RelayOutcome.FAILED);
+            } catch (Exception ex) {
+                log(logger, "[失敗] [檔案] 直傳異常：" + describeTransferFailure(ex));
+                done.accept(RelayOutcome.FAILED);
+            } finally {
+                if (outgoing != null) {
+                    outgoing.cleanup();
+                }
+            }
+        }, "peer-relay-send");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    /**
+     * 接收同事的即時直傳，寫到 destination（先寫 .part，收齊才改名）。
+     */
+    public void receivePeerRelay(String relayId, Path destination, Consumer<String> logger,
+                                 TransferIo.Progress progress, Consumer<String> statusUpdate,
+                                 TransferCancel cancel, Consumer<Boolean> callback) {
+        if (!isServiceActive || serverUrl.isBlank()) {
+            log(logger, "[警告] [檔案] 雲端未連線，無法接收直傳");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+        if (relayId == null || relayId.isBlank() || destination == null) {
+            log(logger, "[警告] [檔案] 缺少直傳編號或儲存路徑");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+        Path dest = PeerFileRules.resolveSavePath(destination, destination.getFileName() != null
+                ? destination.getFileName().toString() : "download");
+        final TransferCancel token = cancel != null ? cancel : new TransferCancel();
+        final String savedName = dest.getFileName() != null ? dest.getFileName().toString() : "檔案";
+        Thread worker = new Thread(() -> {
+            boolean ok = false;
+            try {
+                RelayTransfer.ReceiveResult result = new RelayTransfer(
+                        () -> httpClient, serverUrl, heartbeatToken, clientId, logger, statusUpdate)
+                        .receive(relayId.trim(), dest, TransferIo.throttle(progress), token);
+                if (result.ok) {
+                    log(logger, "[成功] [檔案] 已直傳儲存：" + dest.toAbsolutePath()
+                            + "（" + PeerFileRules.formatSize(Files.size(dest)) + "）");
+                    ok = true;
+                } else {
+                    log(logger, "[失敗] [檔案] 接收直傳「" + savedName + "」失敗：" + result.message);
+                }
+            } catch (TransferIo.CancelledException ex) {
+                log(logger, "[取消] [檔案] 已取消接收「" + savedName + "」");
+            } catch (Exception ex) {
+                log(logger, "[失敗] [檔案] 接收直傳異常：" + describeTransferFailure(ex));
+            }
+            if (callback != null) callback.accept(ok);
+        }, "peer-relay-receive");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    /** 拒收同事的直傳（傳送端會立刻收到「對方拒絕接收」）。 */
+    public void declinePeerRelay(String relayId, Consumer<String> logger) {
+        if (!isServiceActive || serverUrl.isBlank() || relayId == null || relayId.isBlank()) {
+            return;
+        }
+        new RelayTransfer(() -> httpClient, serverUrl, heartbeatToken, clientId, logger, null)
+                .cancelQuietly(relayId.trim());
     }
 
     private static void notifyStatus(Consumer<String> statusUpdate, String text) {

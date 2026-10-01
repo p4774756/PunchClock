@@ -191,6 +191,26 @@ public class HeartbeatServiceCommandParseTest {
     }
 
     @Test
+    public void parseServerCommand_forwardsPeerRelayOffer() throws Exception {
+        HeartbeatService service = new HeartbeatService();
+        List<String> received = new ArrayList<>();
+        service.setCommandListener(received::add);
+
+        Method method = HeartbeatService.class.getDeclaredMethod(
+                "parseServerCommand", String.class, Consumer.class);
+        method.setAccessible(true);
+
+        String from = PeerFileRules.encodeName("WIN|LAB");
+        String name = PeerFileRules.encodeName("報告|v2.zip");
+        method.invoke(service,
+                "{\"actions\":[\"RELAY|" + from + "|relay42|" + name + "|2048|folder|1693728000000\"]}",
+                (Consumer<String>) msg -> {});
+
+        assertEquals(1, received.size());
+        assertEquals("RELAY|" + from + "|relay42|2048|folder|1693728000000|報告|v2.zip", received.get(0));
+    }
+
+    @Test
     public void parseServerCommand_parsesFilesArray() throws Exception {
         HeartbeatService service = new HeartbeatService();
         List<HeartbeatService.PeerFileInfo> files = new ArrayList<>();

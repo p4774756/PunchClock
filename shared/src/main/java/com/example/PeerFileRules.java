@@ -24,6 +24,20 @@ public final class PeerFileRules {
     /** 分段上傳閒置超過此時間，伺服器丟棄未完成的暫存。 */
     public static final long UPLOAD_IDLE_TTL_MS = 30L * 60L * 1000L;
 
+    /** 即時直傳：雙方同時在線，伺服器只在記憶體轉手、不寫磁碟。 */
+    public static final int RELAY_CHUNK_BYTES = 4 * 1024 * 1024;
+    /** 伺服器每筆直傳最多暫放幾段；傳送端上傳下一段時，接收端可同時下載前一段。 */
+    public static final int RELAY_WINDOW_CHUNKS = 2;
+    /** 收件人需在此時間內按下接收，否則伺服器取消這筆直傳。 */
+    public static final long RELAY_ACCEPT_TIMEOUT_MS = 3L * 60L * 1000L;
+    public static final String RELAY_ACCEPT_TIMEOUT_LABEL = "3 分鐘";
+    /** 傳輸中任一方超過此時間沒有任何請求，伺服器中止並釋放記憶體。 */
+    public static final long RELAY_IDLE_TIMEOUT_MS = 3L * 60L * 1000L;
+    /** 長輪詢單次最久等待；需短於公司 Proxy／Render 的閒置逾時。 */
+    public static final long RELAY_LONG_POLL_MS = 20L * 1000L;
+    /** 心跳 capabilities[] 中代表「支援即時直傳」的值。 */
+    public static final String CAPABILITY_RELAY = "relay";
+
     public static final String KIND_FILE = "file";
     public static final String KIND_FOLDER = "folder";
 

@@ -12,6 +12,7 @@ import com.example.server.store.FileOfferStore.DeleteResult;
 import com.example.server.store.FileOfferStore.GetResult;
 import com.example.server.store.FileOfferStore.PutResult;
 import com.example.server.store.FileOfferStore.UploadResult;
+import com.example.server.store.RelayStore;
 import com.example.server.util.IpResolver;
 import com.example.server.web.DashboardBroadcaster;
 import com.example.server.web.LoginPageRenderer;
@@ -43,10 +44,13 @@ public final class ServerApp {
     private static final String SERVER_VERSION = BUILD_INFO.version();
     private static final Type MAP_TYPE = new TypeToken<Map<String, Object>>() {
     }.getType();
+    /** 直傳只對最近 1 分鐘內有心跳的收件人發起（心跳每 15 秒一次）。 */
+    static final long RELAY_RECIPIENT_FRESH_MS = 60_000L;
 
     private final AuthService authService = new AuthService();
     private final ClientStore clientStore = new ClientStore();
     private final FileOfferStore fileOfferStore = new FileOfferStore();
+    private final RelayStore relayStore = new RelayStore();
     private final ServerHealth serverHealth = new ServerHealth();
     private final HealthHistoryStore healthHistoryStore = new HealthHistoryStore();
     private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
@@ -59,7 +63,7 @@ public final class ServerApp {
 
     public Javalin start(int port) {
         clientStore.startOfflineMonitor(broadcaster::broadcast);
-        healthHistoryStore.start(() -> serverHealth.snapshot(fileOfferStore));
+        healthHistoryStore.start(() -> serverHealth.snapshot(fileOfferStore, relayStore));
 
         Javalin app = Javalin.create(config -> {
             config.staticFiles.add(sf -> {
@@ -93,6 +97,7 @@ public final class ServerApp {
         System.out.println("- Protocol: HTTP heartbeat for workers; Dashboard WS for status push only");
         System.out.println("- Peer file: POST /api/peer/file  GET/DELETE /api/peer/file/{fileId} (max "
                 + PeerFileRules.MAX_SIZE_LABEL + ", keep " + PeerFileRules.OFFER_TTL_LABEL + ")");
+        System.out.println("- Peer relay: /api/peer/relay (both online, in-memory only, no disk)");
         System.out.println("- Health history: GET /api/health/history (login, keep 3 days)");
         System.out.println("- Admin password: " + (System.getenv("ADMIN_PASSWORD") != null ? "from ADMIN_PASSWORD env" : "default (secret)"));
         System.out.println("- JVM heap max: " + (Runtime.getRuntime().maxMemory() / (1024L * 1024L)) + " MB");
@@ -121,6 +126,13 @@ public final class ServerApp {
         app.get("/api/peer/file/{fileId}", this::peerFileDownload);
         app.delete("/api/peer/file/{fileId}", this::peerFileDelete);
         app.delete("/api/peer/files", this::peerFileDeleteAll);
+        app.post("/api/peer/relay", this::relayBegin);
+        app.get("/api/peer/relay/{relayId}", this::relayStatus);
+        app.delete("/api/peer/relay/{relayId}", this::relayCancel);
+        app.post("/api/peer/relay/{relayId}/accept", this::relayAccept);
+        app.put("/api/peer/relay/{relayId}/chunk", this::relayPush);
+        app.get("/api/peer/relay/{relayId}/chunk", this::relayTake);
+        app.post("/api/peer/relay/{relayId}/complete", this::relayComplete);
         app.get("/api/status", this::status);
         app.get("/api/health/history", this::healthHistory);
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
@@ -257,6 +269,7 @@ public final class ServerApp {
                 clientInfo.put("avatar", avatar);
             }
         }
+        ClientStore.applyCapabilities(clientInfo, body);
         clientInfo.remove("pendingActions");
         clientInfo.remove("pendingAction");
         clientInfo.remove("pendingActionTime");
@@ -605,6 +618,209 @@ public final class ServerApp {
         ctx.json(Map.of("success", true, "message", "已清除 " + removed + " 筆暫存檔案", "removed", removed));
     }
 
+    private void relayBegin(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        Map<String, Object> body;
+        try {
+            body = gson.fromJson(ctx.body(), MAP_TYPE);
+        } catch (Exception ex) {
+            body = null;
+        }
+        if (body == null) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請求格式錯誤"));
+            return;
+        }
+        String to = PeerFileRules.normalizeClientId(stringOrNull(body.get("toClientId")));
+        if (!to.isEmpty() && !clientStore.isRecentlySeen(to, RELAY_RECIPIENT_FRESH_MS)) {
+            ctx.status(HttpStatus.CONFLICT).json(Map.of("success", false, "code", "RECIPIENT_OFFLINE",
+                    "message", "對方目前不在線，無法直傳"));
+            return;
+        }
+        if (!to.isEmpty() && !clientStore.hasCapability(to, PeerFileRules.CAPABILITY_RELAY)) {
+            ctx.status(HttpStatus.CONFLICT).json(Map.of("success", false, "code", "RECIPIENT_UNSUPPORTED",
+                    "message", "對方的桌面端版本不支援直傳"));
+            return;
+        }
+        Object rawSize = body.get("size");
+        long size = rawSize instanceof Number ? ((Number) rawSize).longValue() : -1L;
+        RelayStore.Result result = relayStore.begin(
+                stringOrNull(body.get("fromClientId")),
+                to,
+                stringOrNull(body.get("filename")),
+                stringOrNull(body.get("kind")),
+                size);
+        if (result.ok()) {
+            PeerResult queued = clientStore.queuePeerRelay(result.toClientId, result.fromClientId,
+                    result.relayId, result.filename, result.size, result.kind);
+            if (!queued.ok) {
+                relayStore.cancel(result.relayId, result.fromClientId);
+                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", queued.message));
+                return;
+            }
+            broadcaster.broadcast(statusUpdatePayload());
+            respondRelay(ctx, result, result.fromClientId, queued.message);
+            return;
+        }
+        respondRelay(ctx, result, stringOrNull(body.get("fromClientId")), null);
+    }
+
+    private void relayStatus(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        String requester = uploadRequester(ctx);
+        long since = longQueryParam(ctx, "since", 0L);
+        long waitMs = relayWaitMs(ctx);
+        respondRelay(ctx, relayStore.await(ctx.pathParam("relayId"), requester, since, waitMs), requester, null);
+    }
+
+    private void relayAccept(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        String requester = uploadRequester(ctx);
+        RelayStore.Result result = relayStore.accept(ctx.pathParam("relayId"), requester);
+        if (result.ok()) {
+            broadcaster.broadcast(statusUpdatePayload());
+        }
+        respondRelay(ctx, result, requester, null);
+    }
+
+    private void relayPush(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        long offset = longQueryParam(ctx, "offset", -1L);
+        if (offset < 0) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "缺少 offset"));
+            return;
+        }
+        if (ctx.req().getContentLengthLong() > RelayStore.MAX_CHUNK_BYTES) {
+            ctx.status(HttpStatus.CONTENT_TOO_LARGE).json(Map.of("success", false, "message", "分段超過上限"));
+            return;
+        }
+        String requester = uploadRequester(ctx);
+        RelayStore.Result result;
+        try (InputStream in = ctx.bodyInputStream()) {
+            result = relayStore.push(ctx.pathParam("relayId"), requester, offset, in);
+        } catch (IOException ex) {
+            result = relayStore.await(ctx.pathParam("relayId"), requester, Long.MAX_VALUE, 0L);
+        }
+        respondRelay(ctx, result, requester, null);
+    }
+
+    private void relayTake(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        long offset = longQueryParam(ctx, "offset", -1L);
+        if (offset < 0) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "缺少 offset"));
+            return;
+        }
+        String requester = uploadRequester(ctx);
+        RelayStore.ChunkResult chunk = relayStore.take(ctx.pathParam("relayId"), requester, offset, relayWaitMs(ctx));
+        if (chunk.status == RelayStore.ChunkResult.Status.NO_DATA) {
+            ctx.status(HttpStatus.NO_CONTENT);
+            return;
+        }
+        if (chunk.status != RelayStore.ChunkResult.Status.DATA) {
+            respondRelay(ctx, chunk.result, requester, null);
+            return;
+        }
+        // 同 peerFileDownload：手動 Content-Length 時不可讓 Javalin 再 gzip。
+        ctx.minSizeForCompression(Integer.MAX_VALUE);
+        ctx.contentType("application/octet-stream");
+        ctx.header("Content-Length", String.valueOf(chunk.data.length));
+        ctx.header("X-Relay-Offset", String.valueOf(chunk.offset));
+        ctx.header("X-Content-Type-Options", "nosniff");
+        ctx.result(chunk.data);
+    }
+
+    private void relayComplete(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        String requester = uploadRequester(ctx);
+        RelayStore.Result result = relayStore.complete(ctx.pathParam("relayId"), requester);
+        if (result.ok()) {
+            broadcaster.broadcast(statusUpdatePayload());
+        }
+        respondRelay(ctx, result, requester, null);
+    }
+
+    private void relayCancel(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        String requester = uploadRequester(ctx);
+        RelayStore.Result result = relayStore.cancel(ctx.pathParam("relayId"), requester);
+        if (result.ok()) {
+            broadcaster.broadcast(statusUpdatePayload());
+        }
+        respondRelay(ctx, result, requester, null);
+    }
+
+    private static void respondRelay(Context ctx, RelayStore.Result result, String requester, String messageOverride) {
+        HttpStatus status;
+        switch (result.status) {
+            case OK:
+                status = HttpStatus.OK;
+                break;
+            case CONFLICT:
+                status = HttpStatus.CONFLICT;
+                break;
+            case NOT_FOUND:
+                status = HttpStatus.NOT_FOUND;
+                break;
+            case FORBIDDEN:
+                status = HttpStatus.FORBIDDEN;
+                break;
+            case GONE:
+                status = HttpStatus.GONE;
+                break;
+            case BUSY:
+                status = HttpStatus.SERVICE_UNAVAILABLE;
+                break;
+            default:
+                status = HttpStatus.BAD_REQUEST;
+                break;
+        }
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("success", result.ok());
+        response.put("message", messageOverride != null ? messageOverride : result.message);
+        if (result.status == RelayStore.Result.Status.BUSY) {
+            response.put("code", "BUSY");
+        }
+        response.putAll(result.view(requester));
+        ctx.status(status).json(response);
+    }
+
+    private static long relayWaitMs(Context ctx) {
+        return Math.max(0L, Math.min(PeerFileRules.RELAY_LONG_POLL_MS, longQueryParam(ctx, "wait", 0L)));
+    }
+
+    private static long longQueryParam(Context ctx, String name, long fallback) {
+        String raw = ctx.queryParam(name);
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Long.parseLong(raw.trim());
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
+    }
+
     private static String contentDisposition(String filename) {
         String safe = filename == null ? "download" : filename.replace("\"", "").replace("\r", "").replace("\n", "");
         // 只放 ASCII filename，避免部分 JDK HttpClient 解析 filename* 失敗而整份下載作廢。
@@ -697,7 +913,7 @@ public final class ServerApp {
         payload.put("totalClients", clientStore.clients().size());
         payload.put("clients", clientStore.publicClientsSnapshot());
         payload.put("files", fileOfferStore.publicSnapshot());
-        payload.put("serverHealth", serverHealth.snapshot(fileOfferStore));
+        payload.put("serverHealth", serverHealth.snapshot(fileOfferStore, relayStore));
         payload.put("healthHistory", healthHistoryStore.summary());
         ctx.json(payload);
     }
@@ -785,7 +1001,7 @@ public final class ServerApp {
         payload.put("type", "STATUS_UPDATE");
         payload.put("clients", clientStore.publicClientsSnapshot());
         payload.put("files", fileOfferStore.publicSnapshot());
-        payload.put("serverHealth", serverHealth.snapshot(fileOfferStore));
+        payload.put("serverHealth", serverHealth.snapshot(fileOfferStore, relayStore));
         return payload;
     }
 

@@ -1,6 +1,7 @@
 package com.example.server.health;
 
 import com.example.server.store.FileOfferStore;
+import com.example.server.store.RelayStore;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
@@ -21,6 +22,10 @@ public final class ServerHealth {
     private final long startedAtMs = System.currentTimeMillis();
 
     public Map<String, Object> snapshot(FileOfferStore files) {
+        return snapshot(files, null);
+    }
+
+    public Map<String, Object> snapshot(FileOfferStore files, RelayStore relays) {
         Map<String, Object> map = new LinkedHashMap<>();
         Runtime runtime = Runtime.getRuntime();
         RuntimeMXBean runtimeMx = ManagementFactory.getRuntimeMXBean();
@@ -53,6 +58,10 @@ public final class ServerHealth {
             map.put("fileOfferBytes", files.totalBytes());
             map.put("fileOfferMaxBytes", FileOfferStore.MAX_TOTAL_BYTES);
             map.put("fileOfferTtlMs", FileOfferStore.TTL_MS);
+        }
+        if (relays != null) {
+            map.put("relayActiveCount", relays.activeCount());
+            map.put("relayBufferedBytes", relays.bufferedBytes());
         }
         return map;
     }

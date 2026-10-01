@@ -119,6 +119,13 @@ public final class ClientStore {
             appendClientEvent(existing, "同事【" + fromId + "】傳來檔案"
                     + (filename.isEmpty() ? "" : "「" + filename + "」")
                     + "（等待桌面端下次心跳收取）");
+        } else if (action != null && action.startsWith("RELAY|")) {
+            String[] parts = action.split("\\|", -1);
+            String fromId = parts.length > 1 ? PeerFileRules.decodeName(parts[1]) : "未知";
+            String filename = parts.length > 3 ? PeerFileRules.decodeName(parts[3]) : "";
+            appendClientEvent(existing, "同事【" + fromId + "】要直傳檔案"
+                    + (filename.isEmpty() ? "" : "「" + filename + "」")
+                    + "（等待桌面端接收，伺服器不暫存）");
         }
         clients.put(clientId, existing);
     }
@@ -207,6 +214,84 @@ public final class ClientStore {
         appendClientEvent(sender, "已傳送檔案「" + offer.filename + "」給【" + toClientId + "】（等待對方心跳收取）");
         clients.put(fromClientId, sender);
         return PeerResult.ok("檔案已排入佇列，對方約 15 秒內收到通知，暫存保留 " + PeerFileRules.OFFER_TTL_LABEL);
+    }
+
+    /** 通知收件人有一筆即時直傳等待接收（檔案本身不經伺服器暫存）。 */
+    public PeerResult queuePeerRelay(String toClientId, String fromClientId, String relayId,
+                                     String filename, long size, String kind) {
+        if (relayId == null || relayId.isEmpty()) {
+            return PeerResult.fail("缺少直傳編號");
+        }
+        if (toClientId == null || toClientId.isEmpty() || fromClientId == null || fromClientId.isEmpty()) {
+            return PeerResult.fail("缺少收件人或發送者");
+        }
+        if (toClientId.equals(fromClientId)) {
+            return PeerResult.fail("不能傳送檔案給自己");
+        }
+        String action = encodePeerRelay(fromClientId, relayId, filename, size, kind);
+        queueClientAction(toClientId, action, PeerFileRules.RELAY_ACCEPT_TIMEOUT_MS);
+        Map<String, Object> sender = getOrCreateClient(fromClientId);
+        appendClientEvent(sender, "要直傳檔案「" + filename + "」給【" + toClientId + "】（等待對方接收）");
+        clients.put(PeerFileRules.normalizeClientId(fromClientId), sender);
+        return PeerResult.ok("已通知對方，約 15 秒內會跳出接收提示");
+    }
+
+    /** 最近 withinMs 內是否有心跳；直傳只對剛剛還在線的收件人發起，避免傳送端空等。 */
+    public boolean isRecentlySeen(String clientId, long withinMs) {
+        Map<String, Object> client = clients.get(PeerFileRules.normalizeClientId(clientId));
+        if (client == null) {
+            return false;
+        }
+        long lastSeenMs = parseInstantMillis(client.get("lastSeen"));
+        return lastSeenMs >= 0 && System.currentTimeMillis() - lastSeenMs <= withinMs;
+    }
+
+    /** 桌面端在心跳 capabilities[] 宣告的功能（舊版不送，視為都不支援）。 */
+    public boolean hasCapability(String clientId, String capability) {
+        Map<String, Object> client = clients.get(PeerFileRules.normalizeClientId(clientId));
+        if (client == null || capability == null) {
+            return false;
+        }
+        Object value = client.get("capabilities");
+        if (!(value instanceof List)) {
+            return false;
+        }
+        for (Object item : (List<?>) value) {
+            if (item != null && capability.equals(String.valueOf(item))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static List<String> sanitizeCapabilities(Object raw) {
+        List<String> list = new ArrayList<>();
+        if (!(raw instanceof List)) {
+            return list;
+        }
+        for (Object item : (List<?>) raw) {
+            if (item == null) {
+                continue;
+            }
+            String value = String.valueOf(item).trim();
+            if (!value.isEmpty() && value.length() <= 32 && !list.contains(value) && list.size() < 16) {
+                list.add(value);
+            }
+        }
+        return list;
+    }
+
+    /** 心跳帶 capabilities[] 就覆蓋；沒帶（舊版桌面端）就清掉，避免降版後仍被當成支援。 */
+    public static void applyCapabilities(Map<String, Object> clientInfo, Map<String, Object> heartbeatBody) {
+        if (clientInfo == null) {
+            return;
+        }
+        List<String> caps = heartbeatBody != null ? sanitizeCapabilities(heartbeatBody.get("capabilities")) : List.of();
+        if (caps.isEmpty()) {
+            clientInfo.remove("capabilities");
+        } else {
+            clientInfo.put("capabilities", caps);
+        }
     }
 
     public List<String> drainPendingActions(Map<String, Object> existing) {
@@ -468,6 +553,16 @@ public final class ClientStore {
                 + "|" + PeerFileRules.encodeName(offer.filename)
                 + "|" + offer.size()
                 + "|" + offer.mime
+                + "|" + System.currentTimeMillis();
+    }
+
+    /** RELAY|base64fromId|relayId|base64name|size|kind|epochMs（fromId 編碼後不會含 |） */
+    static String encodePeerRelay(String fromClientId, String relayId, String filename, long size, String kind) {
+        return "RELAY|" + PeerFileRules.encodeName(fromClientId)
+                + "|" + relayId
+                + "|" + PeerFileRules.encodeName(filename)
+                + "|" + size
+                + "|" + PeerFileRules.normalizeKind(kind)
                 + "|" + System.currentTimeMillis();
     }
 

@@ -593,7 +593,11 @@
         osMem.textContent = '—';
       }
       files.textContent = (serverHealth.fileOfferCount || 0) + ' 筆 · '
-        + formatBytes(serverHealth.fileOfferBytes || 0);
+        + formatBytes(serverHealth.fileOfferBytes || 0)
+        + (serverHealth.relayActiveCount ? '（直傳中 ' + serverHealth.relayActiveCount + ' 筆）' : '');
+      files.title = serverHealth.relayActiveCount
+        ? '直傳只在記憶體轉手，目前暫放 ' + formatBytes(serverHealth.relayBufferedBytes || 0)
+        : '';
       if (disk) {
         if (serverHealth.diskUsableBytes != null && serverHealth.diskTotalBytes) {
           disk.textContent = formatBytes(serverHealth.diskUsableBytes)
