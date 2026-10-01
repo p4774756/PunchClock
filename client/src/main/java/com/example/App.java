@@ -7,6 +7,7 @@ import com.example.service.HeartbeatService;
 import com.example.service.HeartbeatService.PeerFileInfo;
 import com.example.service.HeartbeatService.PeerInfo;
 import com.example.service.PeerAvatar;
+import com.example.service.RelayProxyService;
 import com.example.service.SchedulerService;
 import com.example.service.TaskPersistenceService;
 import com.example.service.TransferCancel;
@@ -53,6 +54,7 @@ public class App extends JFrame {
     private final SchedulerService schedulerService;
     private final AutomationService automationService;
     private final HeartbeatService heartbeatService;
+    private final RelayProxyService relayProxyService;
     private final TaskPersistenceService persistenceService;
     private final CheckInHistoryService historyService;
     private final ConfigPersistenceService configPersistenceService;
@@ -72,6 +74,7 @@ public class App extends JFrame {
         this.schedulerService = new SchedulerService();
         this.automationService = new AutomationService();
         this.heartbeatService = new HeartbeatService();
+        this.relayProxyService = new RelayProxyService();
         this.persistenceService = new TaskPersistenceService();
         this.historyService = new CheckInHistoryService();
         this.configPersistenceService = new ConfigPersistenceService();
@@ -1228,6 +1231,8 @@ public class App extends JFrame {
             });
         }
 
+        bindRelayProxyListeners();
+
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowOpened(WindowEvent e) {
@@ -1243,6 +1248,7 @@ public class App extends JFrame {
                     slotController.persistTasks();
                 }
                 heartbeatService.stopHeartbeat();
+                relayProxyService.stop();
                 if (countdownTimer != null) {
                     countdownTimer.stop();
                 }
@@ -1250,6 +1256,113 @@ public class App extends JFrame {
                 automationService.shutdown();
             }
         });
+    }
+
+    private void bindRelayProxyListeners() {
+        if (serverRefs.relayEnabledCheckBox == null) {
+            return;
+        }
+        serverRefs.relayEnabledCheckBox.addActionListener(e -> {
+            boolean enabled = serverRefs.relayEnabledCheckBox.isSelected();
+            if (enabled) {
+                startRelayProxy();
+            } else {
+                stopRelayProxy();
+            }
+            saveCloudConfig();
+        });
+        if (serverRefs.relayPortSpinner != null) {
+            serverRefs.relayPortSpinner.addChangeListener(e -> {
+                if (relayProxyService.isRunning()) {
+                    startRelayProxy();
+                }
+                saveCloudConfig();
+            });
+        }
+    }
+
+    private void startRelayProxy() {
+        String serverUrl = RecentValuesHelper.getValue(serverRefs.serverUrlCombo);
+        if (serverUrl == null || serverUrl.isBlank()) {
+            appendLog("[中繼] 請先設定 Server 雲端網址");
+            serverRefs.relayEnabledCheckBox.setSelected(false);
+            updateRelayStatusLabel(false);
+            return;
+        }
+        int port = RelayProxyService.DEFAULT_PORT;
+        if (serverRefs.relayPortSpinner != null) {
+            Object val = serverRefs.relayPortSpinner.getValue();
+            if (val instanceof Number) {
+                port = ((Number) val).intValue();
+            }
+        }
+        String token = "";
+        if (serverRefs.heartbeatTokenField != null) {
+            token = new String(serverRefs.heartbeatTokenField.getPassword());
+        }
+        boolean ok = relayProxyService.start(port, serverUrl, token, this::appendLog);
+        updateRelayStatusLabel(ok);
+        if (ok) {
+            updateRelayHelpWithIp();
+        } else {
+            serverRefs.relayEnabledCheckBox.setSelected(false);
+        }
+    }
+
+    private void stopRelayProxy() {
+        relayProxyService.stop();
+        updateRelayStatusLabel(false);
+    }
+
+    private void updateRelayStatusLabel(boolean running) {
+        if (serverRefs.relayStatusLabel == null) {
+            return;
+        }
+        if (running) {
+            int port = relayProxyService.getPort();
+            serverRefs.relayStatusLabel.setText("執行中 (埠 " + port + ")");
+            serverRefs.relayStatusLabel.setForeground(new Color(34, 197, 94));
+        } else {
+            serverRefs.relayStatusLabel.setText("未啟動");
+            serverRefs.relayStatusLabel.setForeground(new Color(100, 116, 139));
+        }
+    }
+
+    private void updateRelayHelpWithIp() {
+        if (serverRefs.relayHelpArea == null) {
+            return;
+        }
+        int port = relayProxyService.getPort();
+        String localIps = getLocalIpAddresses();
+        String target = relayProxyService.getTargetServerUrl();
+        serverRefs.relayHelpArea.setText(""
+                + "中繼 Proxy 已啟動！\n"
+                + "你的區網 IP：" + localIps + "\n"
+                + "同事的「Server 雲端網址」請改成：http://<你的IP>:" + port + "\n"
+                + "轉發目標：" + target);
+    }
+
+    private static String getLocalIpAddresses() {
+        try {
+            java.util.List<String> ips = new java.util.ArrayList<>();
+            java.util.Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
+            while (interfaces != null && interfaces.hasMoreElements()) {
+                java.net.NetworkInterface ni = interfaces.nextElement();
+                if (ni.isLoopback() || !ni.isUp()) {
+                    continue;
+                }
+                java.util.Enumeration<java.net.InetAddress> addresses = ni.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    java.net.InetAddress addr = addresses.nextElement();
+                    if (addr instanceof java.net.Inet4Address && !addr.isLoopbackAddress()) {
+                        ips.add(addr.getHostAddress());
+                    }
+                }
+            }
+            return ips.isEmpty() ? "未知" : String.join(", ", ips);
+        } catch (Exception ex) {
+            return "未知";
+        }
     }
 
     private void loadPersistedConfig() {
@@ -1293,8 +1406,21 @@ public class App extends JFrame {
             serverRefs.trustAllSslCheckBox.setSelected(config.trustAllSsl);
             heartbeatService.setTrustAllSsl(config.trustAllSsl);
         }
+        applyRelayConfig(config);
         syncCloudConnectionFieldsEnabled();
         refreshPeerInteractionState();
+    }
+
+    private void applyRelayConfig(ConfigPersistenceService.CloudConfig config) {
+        if (serverRefs.relayPortSpinner != null) {
+            serverRefs.relayPortSpinner.setValue(config.relayPort);
+        }
+        if (serverRefs.relayEnabledCheckBox != null) {
+            serverRefs.relayEnabledCheckBox.setSelected(config.relayEnabled);
+            if (config.relayEnabled) {
+                SwingUtilities.invokeLater(this::startRelayProxy);
+            }
+        }
     }
 
     /** 雲端連線中鎖定連線參數，避免執行中誤改（與打卡槽位「啟用時鎖定時分」相同邏輯） */
@@ -1366,9 +1492,21 @@ public class App extends JFrame {
                 && serverRefs.trustAllSslCheckBox.isSelected();
         config.backgroundBlurPercent = currentBackgroundBlurPercent();
         config.backgroundOpacityPercent = currentBackgroundOpacityPercent();
+        captureRelayConfigInto(config);
         captureNetworkToolsInto(config);
         captureWindowLayoutInto(config);
         configPersistenceService.saveConfig(config, null);
+    }
+
+    private void captureRelayConfigInto(ConfigPersistenceService.CloudConfig config) {
+        config.relayEnabled = serverRefs.relayEnabledCheckBox != null
+                && serverRefs.relayEnabledCheckBox.isSelected();
+        if (serverRefs.relayPortSpinner != null) {
+            Object val = serverRefs.relayPortSpinner.getValue();
+            if (val instanceof Number) {
+                config.relayPort = ((Number) val).intValue();
+            }
+        }
     }
 
     private void applyNetworkToolsConfig(ConfigPersistenceService.CloudConfig config) {

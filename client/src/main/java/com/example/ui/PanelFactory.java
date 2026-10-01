@@ -79,8 +79,74 @@ public class PanelFactory {
                 refs.heartbeatStatusLabel));
         panel.add(Box.createVerticalStrut(8));
         panel.add(backgroundRow(refs, mainFont, boldFont));
+        panel.add(Box.createVerticalStrut(8));
+        panel.add(relayProxyRow(refs, mainFont, boldFont));
 
         return panel;
+    }
+
+    private static JPanel relayProxyRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
+        JPanel column = new JPanel();
+        column.setOpaque(false);
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+        column.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        top.setOpaque(false);
+
+        refs.relayEnabledCheckBox = new JCheckBox("啟用中繼 Proxy", false);
+        refs.relayEnabledCheckBox.setFont(boldFont);
+        refs.relayEnabledCheckBox.setOpaque(false);
+        refs.relayEnabledCheckBox.setToolTipText("讓區網內連不到 Server 的同事，把 Server 網址設成你的 IP，透過你連到雲端");
+
+        JLabel portLabel = new JLabel("埠號：");
+        portLabel.setFont(mainFont);
+
+        refs.relayPortSpinner = new JSpinner(new SpinnerNumberModel(8888, 1024, 65535, 1));
+        refs.relayPortSpinner.setFont(mainFont);
+        refs.relayPortSpinner.setToolTipText("中繼服務監聽的埠號（預設 8888）");
+        JComponent editor = refs.relayPortSpinner.getEditor();
+        if (editor instanceof JSpinner.DefaultEditor) {
+            ((JSpinner.DefaultEditor) editor).getTextField().setColumns(5);
+        }
+
+        refs.relayStatusLabel = new JLabel("未啟動");
+        refs.relayStatusLabel.setFont(mainFont);
+        refs.relayStatusLabel.setForeground(new Color(100, 116, 139));
+
+        top.add(refs.relayEnabledCheckBox);
+        top.add(portLabel);
+        top.add(refs.relayPortSpinner);
+        top.add(refs.relayStatusLabel);
+
+        refs.relayHelpArea = new JTextArea();
+        refs.relayHelpArea.setEditable(false);
+        refs.relayHelpArea.setLineWrap(true);
+        refs.relayHelpArea.setWrapStyleWord(true);
+        refs.relayHelpArea.setFont(UiFonts.chinesePlain(12));
+        refs.relayHelpArea.setOpaque(true);
+        refs.relayHelpArea.setBackground(new Color(248, 250, 252, 140));
+        refs.relayHelpArea.setForeground(new Color(71, 85, 105));
+        refs.relayHelpArea.setMargin(new java.awt.Insets(6, 8, 6, 8));
+        refs.relayHelpArea.setRows(4);
+        refs.relayHelpArea.setText(""
+                + "同事連不到 Server，但你可以？試試中繼 Proxy！\n"
+                + "啟用後，同事把「Server 雲端網址」改成 http://你的IP:8888\n"
+                + "你的 App 會幫同事把請求轉發到真正的 Server。");
+
+        JScrollPane helpScroll = new JScrollPane(refs.relayHelpArea);
+        helpScroll.setOpaque(false);
+        helpScroll.getViewport().setOpaque(false);
+        helpScroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225, 160)));
+        helpScroll.setPreferredSize(new Dimension(400, 72));
+
+        top.setAlignmentX(Component.LEFT_ALIGNMENT);
+        helpScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+        column.add(top);
+        column.add(Box.createVerticalStrut(4));
+        column.add(helpScroll);
+
+        return column;
     }
 
     private static JPanel backgroundRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
@@ -186,6 +252,11 @@ public class PanelFactory {
         public JLabel backgroundBlurValueLabel;
         public JSlider backgroundOpacitySlider;
         public JLabel backgroundOpacityValueLabel;
+        // 中繼 Proxy
+        public JCheckBox relayEnabledCheckBox;
+        public JSpinner relayPortSpinner;
+        public JLabel relayStatusLabel;
+        public JTextArea relayHelpArea;
     }
 
     // ==================== 裝置互動 ====================
