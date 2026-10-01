@@ -39,6 +39,8 @@
               aria-selected="false" aria-controls="panel-files" data-tab="files">傳檔狀態</button>
       <button type="button" class="dash-tab" role="tab" id="tab-system"
               aria-selected="false" aria-controls="panel-system" data-tab="system">系統狀態</button>
+      <button type="button" class="dash-tab" role="tab" id="tab-photos"
+              aria-selected="false" aria-controls="panel-photos" data-tab="photos">照片展示</button>
       <button type="button" class="dash-tab" role="tab" id="tab-flappy"
               aria-selected="false" aria-controls="panel-flappy" data-tab="flappy">飛杯摩卡</button>
     </div>
@@ -100,6 +102,29 @@
           <canvas id="healthHistoryChart" width="960" height="220" role="img" aria-label="CPU 與記憶體歷史曲線"></canvas>
           <p class="health-history-empty" id="healthHistoryEmpty">尚無歷史資料，稍候一分鐘後會開始繪製</p>
         </section>
+      </section>
+    </div>
+  </div>
+
+  <div class="shell dash-panel" id="panel-photos" role="tabpanel" aria-labelledby="tab-photos" hidden>
+    <div class="content-panel content-panel-full">
+      <section class="photo-gallery" aria-label="照片展示">
+        <div class="photo-gallery-head">
+          <div>
+            <div class="section-label" style="margin:0;border:0;padding:0">照片展示</div>
+            <p class="photo-gallery-hint">開會展示用，上傳的照片會暫存在伺服器記憶體（重啟後清空）</p>
+          </div>
+          <div class="photo-actions">
+            <label class="btn btn-ghost" for="photoUploadInput">
+              <input type="file" id="photoUploadInput" accept="image/*" multiple hidden>
+              選擇照片
+            </label>
+            <button type="button" class="btn btn-ghost-danger" id="clearAllPhotosBtn">清除全部</button>
+          </div>
+        </div>
+        <div class="photo-grid" id="photoGrid">
+          <p class="empty-tasks">尚無照片，點擊「選擇照片」上傳</p>
+        </div>
       </section>
     </div>
   </div>
