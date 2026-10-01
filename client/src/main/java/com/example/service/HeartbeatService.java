@@ -171,23 +171,32 @@ public class HeartbeatService {
                 .connectTimeout(CONNECT_TIMEOUT);
 
         if (trustAllSsl) {
-            try {
-                TrustManager[] trustAllCerts = new TrustManager[]{
-                    new X509TrustManager() {
-                        public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
-                        public void checkClientTrusted(X509Certificate[] certs, String authType) {}
-                        public void checkServerTrusted(X509Certificate[] certs, String authType) {}
-                    }
-                };
-                SSLContext sc = SSLContext.getInstance("TLS");
-                sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            SSLContext sc = trustAllSslContext();
+            if (sc != null) {
                 builder.sslContext(sc);
-            } catch (Exception e) {
-                System.err.println("初始化 SSL 繞過失敗: " + e.getMessage());
             }
         }
 
         return builder.build();
+    }
+
+    /** 不驗證憑證的 SSLContext（公司 SSL 攔截除錯用）；初始化失敗回 null。 */
+    static SSLContext trustAllSslContext() {
+        try {
+            TrustManager[] trustAllCerts = new TrustManager[]{
+                new X509TrustManager() {
+                    public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+                    public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+                    public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+                }
+            };
+            SSLContext sc = SSLContext.getInstance("TLS");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            return sc;
+        } catch (Exception e) {
+            System.err.println("初始化 SSL 繞過失敗: " + e.getMessage());
+            return null;
+        }
     }
 
     public String getClientId() {

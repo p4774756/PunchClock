@@ -16,6 +16,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -29,6 +31,9 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
 
 /**
  * 封閉網路／Proxy 除錯用探測：DNS、TCP、HTTP、Ping、本機 Proxy 設定。
@@ -170,6 +175,7 @@ public class NetworkProbeService {
     private final CommandRunner commandRunner;
     private final Map<String, String> environment;
     private final Properties systemProperties;
+    private volatile boolean trustAllSsl = false;
 
     public NetworkProbeService() {
         this(NetworkProbeService::runProcess, System.getenv(), System.getProperties());
@@ -179,6 +185,15 @@ public class NetworkProbeService {
         this.commandRunner = commandRunner;
         this.environment = environment != null ? environment : Collections.emptyMap();
         this.systemProperties = systemProperties != null ? systemProperties : new Properties();
+    }
+
+    /** 與心跳共用「信任所有 SSL」：HTTP GET 才能穿過公司 SSL 攔截看到實際回應。 */
+    public void setTrustAllSsl(boolean trustAllSsl) {
+        this.trustAllSsl = trustAllSsl;
+    }
+
+    public boolean isTrustAllSsl() {
+        return trustAllSsl;
     }
 
     public static OsFamily detectOs() {
@@ -408,6 +423,12 @@ public class NetworkProbeService {
                     .followRedirects(HttpClient.Redirect.NORMAL)
                     .connectTimeout(DEFAULT_TIMEOUT)
                     .proxy(selectorFor(mode, proxyHost, proxyPort));
+            if (trustAllSsl) {
+                SSLContext sc = HeartbeatService.trustAllSslContext();
+                if (sc != null) {
+                    builder.sslContext(sc);
+                }
+            }
             Authenticator authenticator = proxyAuthenticator(user, proxyPassword);
             if (authenticator != null) {
                 builder.authenticator(authenticator);
@@ -432,6 +453,7 @@ public class NetworkProbeService {
             copyHeader(sb, response, "x-cache");
             copyHeader(sb, response, "location");
             copyHeader(sb, response, "content-type");
+            appendCertificateInfo(sb, response);
             if (response.statusCode() == 407) {
                 if (hasAuth) {
                     sb.append("Proxy 仍回 407：帳密可能不對，或公司要求 NTLM／Kerberos（此 App 僅送 Basic）\n");
@@ -455,6 +477,23 @@ public class NetworkProbeService {
                 extra = "\n目前為直連（略過系統 Proxy）";
             }
             return new ProbeResult(false, "HTTP GET " + uri.getHost(), explain(ex) + extra, elapsedMs(start));
+        }
+    }
+
+    /** 簽發者若是公司防火牆／Proxy 而非公開 CA，代表連線被 SSL 攔截。 */
+    private static void appendCertificateInfo(StringBuilder sb, HttpResponse<?> response) {
+        try {
+            SSLSession session = response.sslSession().orElse(null);
+            if (session == null) {
+                return;
+            }
+            Certificate[] chain = session.getPeerCertificates();
+            if (chain.length > 0 && chain[0] instanceof X509Certificate) {
+                X509Certificate leaf = (X509Certificate) chain[0];
+                sb.append("憑證主體：").append(leaf.getSubjectX500Principal().getName()).append("\n");
+                sb.append("憑證簽發者：").append(leaf.getIssuerX500Principal().getName()).append("\n");
+            }
+        } catch (Exception ignored) {
         }
     }
 

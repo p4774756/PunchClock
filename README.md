@@ -48,13 +48,27 @@ java -jar client/target/punchclock-client-standalone.jar
 
 ### 3. 連線設定
 
-在桌面端「雲端服務與裝置設定」區塊：
+在桌面端「雲端設定」分頁：
 
-1. 勾選「啟用雲端狀態回報」
+1. 勾選「啟用雲端單向狀態回報」
 2. 填入 Server 網址，例如 `http://localhost:3000`
 3. 設定 Client ID（預設 `company-worker`）
 4. 填入心跳 Token（需與伺服器 `HEARTBEAT_SECRET` 一致，本機預設 `punchclock-dev-secret`）
 5. 點擊「測試連線」確認成功
+
+### 4. 公司受限網路
+
+- **SSL 攔截（PKIX 錯誤）：** 公司網路若會解開 HTTPS 重新簽章，Java 會出現 `PKIX path building failed`。勾選「信任所有 SSL（除錯）」可略過憑證驗證，心跳與中繼 Proxy 共用此設定（啟用雲端時會鎖定，需先取消雲端才能修改）。僅建議在已知有 SSL 攔截的環境使用。
+- **判斷哪條路線被擋：** 「Ping/Pong」分頁可對任意網址做 HTTP GET，「連線方式」切換「系統 Proxy／直連」對照結果；結果會列出憑證簽發者，簽發者不是公開 CA 代表連線被 SSL 攔截。
+- **需要 Proxy：** 心跳與中繼預設不讀系統 Proxy；公司要求走 Proxy 時，啟動加 `-Djava.net.useSystemProxies=true`，或 `-Dhttps.proxyHost=主機 -Dhttps.proxyPort=埠`。
+- **中繼 Proxy：** 同事連不到雲端、但你可以時，在「雲端設定」勾選「啟用中繼 Proxy」（預設埠 `8888`），同事把 Server 網址改成 `http://你的IP:8888`，請求會經由你的電腦轉發到雲端。
+- **建置時抓不到 `git-commit-id-maven-plugin`：** 這個 plugin 只用來在 app 顯示最後一次 commit 時間，抓不到時改用建置時間。VS Code／Eclipse 會自動略過；命令列加 `-P '!git-commit-time'`：
+
+  ```bash
+  mvn -pl client -am package -DskipTests -P '!git-commit-time'
+  ```
+
+  或在網路正常的電腦打包好 `punchclock-client-standalone.jar` 再帶過去執行。
 
 ## 主要功能
 
@@ -67,7 +81,8 @@ java -jar client/target/punchclock-client-standalone.jar
 - 視窗透明度（標題列滑桿，設定會寫入 `~/.punchclock/config.json`）
 - 支援 Edge、Chrome、Chromium、Firefox、WebKit
 - 同事傳檔：任意副檔名、可傳資料夾（自動壓 ZIP）、傳檔紀錄可在過期前重複下載或手動清除
-- 網路測試分頁：掃描 Windows／Mac 的 Proxy 與環境變數，並做 DNS／TCP／HTTP／Ping；公司封閉網路可填 Proxy 後對照直連測試
+- 「Ping/Pong」連線測試分頁：對 Server `/ping` 或任意網址做 HTTP GET，可切換系統 Proxy／直連，並顯示憑證簽發者（判斷公司 SSL 攔截）
+- 中繼 Proxy：讓區網內連不到雲端的同事透過你的電腦轉發心跳等請求
 
 ### server
 

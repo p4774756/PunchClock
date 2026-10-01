@@ -16,7 +16,7 @@ Web Dashboard  --REST 取消指令-->  server  --WS STATUS_UPDATE-->  Dashboard
 
 | 路徑 | 職責 | 入口 |
 |------|------|------|
-| `client/` | 排程、UI、自動打卡、心跳、傳檔、網路工具 | `com.example.App` |
+| `client/` | 排程、UI、自動打卡、心跳、傳檔、網路工具、中繼 Proxy | `com.example.App` |
 | `server/` | 心跳、Dashboard、peer 訊息／傳檔、取消指令 | `com.example.server.ServerApp` |
 | `shared/` | 跨端共用（如 `PeerFileRules`） | — |
 
@@ -66,6 +66,9 @@ java -jar server/target/punchclock-server.jar
 mvn test
 mvn -pl client -am test
 mvn -pl server -am test
+
+# 受限網路抓不到 git-commit-id plugin（IDE 透過 m2e.version 自動略過）
+mvn -pl client -am package -DskipTests -P '!git-commit-time'
 ```
 
 VS Code／Cursor：`.vscode/launch.json` 有 `App`（桌面端）、`ServerApp`（伺服器）。
@@ -99,14 +102,16 @@ VS Code／Cursor：`.vscode/launch.json` 有 `App`（桌面端）、`ServerApp`�
 | 自動打卡流程 | `AutomationService`、`SchedulerService` |
 | 雲端心跳／遠端取消 | `HeartbeatService`（client）、`ServerApp.heartbeat` |
 | 字型／對話框 | `UiFonts` |
-| 網路／Proxy 探測 | `NetworkToolsPanel`、`NetworkProbeService` |
+| 網路／Proxy 探測（UI 分頁標籤「Ping/Pong」） | `NetworkToolsPanel`、`NetworkProbeService` |
+| 中繼 Proxy（同事經你的電腦轉發到雲端） | `RelayProxyService`、`App.startRelayProxy`；「信任所有 SSL」與 Proxy 刷新需同步套用到心跳與中繼 |
 | 傳檔 | client 傳檔 UI + `FileOfferStore`、`/api/peer/file*` |
 | Dashboard | `server/.../resources/public/` + `DashboardBroadcaster` |
 
 ## 近期方向（方便對齊歷史）
 
 - `UiFonts` 統一對話框／選檔（取代散落的 `JOptionPane`）
-- 網路工具分頁（Proxy／封閉網路探測）
+- 網路工具分頁（UI 標籤「Ping/Pong」：HTTP GET 連線測試，可切換系統 Proxy／直連、顯示憑證簽發者）
+- 中繼 Proxy 與公司 SSL 攔截（「信任所有 SSL」心跳與中繼共用）
 - 同事傳檔（任意類型、資料夾 ZIP、狀態與 TTL）
 
 有衝突時以程式與測試為準，再對照 README。

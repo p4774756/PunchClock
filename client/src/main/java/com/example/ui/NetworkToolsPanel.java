@@ -46,13 +46,16 @@ public final class NetworkToolsPanel extends JPanel {
     private final Consumer<String> logger;
 
     private final JComboBox<String> targetCombo;
+    private final JComboBox<String> modeCombo = new JComboBox<>();
+    private final List<String> modeValues = new ArrayList<>();
+    private boolean updatingModeCombo;
     private final JTextArea helpArea = new JTextArea();
     private final JTextArea resultArea = new JTextArea();
     private final JLabel statusLabel = new JLabel("就緒");
     private final List<JButton> actionButtons = new ArrayList<>();
     private JSplitPane splitPane;
 
-    /** 舊設定仍寫入 config，此分頁不再顯示 Proxy UI。 */
+    /** Proxy 主機／帳密沿用 config，此分頁只提供連線方式切換。 */
     private String proxyHost = "";
     private int proxyPort = NetworkProbeService.DEFAULT_PROXY_PORT;
     private String proxyMode = NetworkProbeService.MODE_SYSTEM;
@@ -125,6 +128,24 @@ public final class NetworkToolsPanel extends JPanel {
         JPanel actions = new JPanel(new WrapLayout(WrapLayout.LEFT, 6, 4));
         actions.setOpaque(false);
         actions.setAlignmentX(LEFT_ALIGNMENT);
+
+        JLabel modeLabel = new JLabel("連線方式：");
+        modeLabel.setFont(mainFont);
+        modeCombo.setFont(mainFont);
+        modeCombo.setToolTipText("系統 Proxy＝跟 Edge／Chrome 一樣走公司 Proxy；直連＝略過 Proxy，跟心跳預設相同");
+        modeCombo.addActionListener(e -> {
+            if (updatingModeCombo) {
+                return;
+            }
+            int index = modeCombo.getSelectedIndex();
+            if (index >= 0 && index < modeValues.size()) {
+                proxyMode = modeValues.get(index);
+                persistQuietly();
+            }
+        });
+        rebuildModeCombo();
+        actions.add(modeLabel);
+        actions.add(modeCombo);
 
         actions.add(actionButton(mainFont, "帶入雲端 Server",
                 "使用「雲端設定」裡的 Server 網址加上 /ping", e -> fillCloudPingUrl()));
@@ -232,7 +253,36 @@ public final class NetworkToolsPanel extends JPanel {
         this.proxyMode = NetworkProbeService.normalizeProxyMode(proxyMode);
         this.proxyUser = proxyUser != null ? proxyUser : "";
         this.proxyPassword = proxyPassword != null ? proxyPassword : "";
+        rebuildModeCombo();
         refreshHelp();
+    }
+
+    private void rebuildModeCombo() {
+        updatingModeCombo = true;
+        try {
+            modeCombo.removeAllItems();
+            modeValues.clear();
+            addModeOption(NetworkProbeService.MODE_SYSTEM, NetworkProbeService.modeLabel(NetworkProbeService.MODE_SYSTEM));
+            addModeOption(NetworkProbeService.MODE_DIRECT, NetworkProbeService.modeLabel(NetworkProbeService.MODE_DIRECT));
+            if (!getProxyHost().isBlank()) {
+                addModeOption(NetworkProbeService.MODE_CUSTOM,
+                        NetworkProbeService.modeLabel(NetworkProbeService.MODE_CUSTOM)
+                                + " " + getProxyHost().trim() + ":" + getProxyPort());
+            }
+            int index = modeValues.indexOf(getProxyMode());
+            if (index < 0) {
+                index = 0;
+            }
+            modeCombo.setSelectedIndex(index);
+            proxyMode = modeValues.get(index);
+        } finally {
+            updatingModeCombo = false;
+        }
+    }
+
+    private void addModeOption(String mode, String label) {
+        modeValues.add(mode);
+        modeCombo.addItem(label);
     }
 
     private void fillCloudPingUrl() {
@@ -262,6 +312,7 @@ public final class NetworkToolsPanel extends JPanel {
         setBusy(true);
         setStatus("執行中：Ping/Pong");
         final String url = getTestUrl();
+        probeService.setTrustAllSsl(trustAllSsl != null && trustAllSsl.getAsBoolean());
         new Thread(() -> {
             try {
                 NetworkProbeService.ProbeResult result = probeService.httpGet(
@@ -330,6 +381,7 @@ public final class NetworkToolsPanel extends JPanel {
         for (JButton button : actionButtons) {
             button.setEnabled(!value);
         }
+        modeCombo.setEnabled(!value);
         if (!value && statusLabel.getText() != null && statusLabel.getText().startsWith("執行中")) {
             setStatus("就緒");
         }
