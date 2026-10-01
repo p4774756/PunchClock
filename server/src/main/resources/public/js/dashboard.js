@@ -1294,17 +1294,161 @@
       let initial = 'devices';
       try {
         const saved = window.sessionStorage.getItem('punchclock.dashTab');
-        if (saved === 'devices' || saved === 'files' || saved === 'system' || saved === 'flappy') {
+        if (saved === 'devices' || saved === 'files' || saved === 'system' || saved === 'photos' || saved === 'flappy') {
           initial = saved;
         }
       } catch (e) {}
       switchDashTab(initial);
     }
 
+    let photoData = [];
+
+    function renderPhotoGrid() {
+      const grid = document.getElementById('photoGrid');
+      if (!grid) return;
+      if (!photoData.length) {
+        grid.innerHTML = '<p class="empty-tasks">尚無照片，點擊「選擇照片」上傳</p>';
+        return;
+      }
+      let html = '';
+      for (let i = 0; i < photoData.length; i++) {
+        const p = photoData[i];
+        html += '<div class="photo-card" data-photo-id="' + escapeHtml(p.id) + '">'
+          + '<img src="' + escapeHtml(p.dataUrl) + '" alt="' + escapeHtml(p.filename) + '" onclick="openLightbox(\'' + escapeHtml(p.id) + '\')" />'
+          + '<div class="photo-card-actions">'
+          + '<button type="button" class="btn btn-ghost-danger" onclick="deletePhoto(\'' + escapeHtml(p.id) + '\')">刪除</button>'
+          + '</div>'
+          + '<div class="photo-card-info"><span class="photo-card-name">' + escapeHtml(p.filename) + '</span></div>'
+          + '</div>';
+      }
+      grid.innerHTML = html;
+    }
+
+    async function fetchPhotos() {
+      try {
+        const res = await fetch('/api/photos', { credentials: 'same-origin' });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.photos)) {
+          photoData = data.photos;
+          renderPhotoGrid();
+        }
+      } catch (e) {
+        console.error('Fetch photos error', e);
+      }
+    }
+
+    async function uploadPhoto(file) {
+      const form = new FormData();
+      form.append('file', file);
+      try {
+        const res = await fetch('/api/photos', {
+          method: 'POST',
+          body: form,
+          credentials: 'same-origin'
+        });
+        const data = await res.json();
+        if (data.success && data.photo) {
+          photoData.push(data.photo);
+          renderPhotoGrid();
+        } else {
+          alert(data.message || '上傳失敗');
+        }
+      } catch (e) {
+        alert('上傳失敗');
+      }
+    }
+
+    async function deletePhoto(photoId) {
+      if (!confirm('確定要刪除這張照片嗎？')) return;
+      try {
+        const res = await fetch('/api/photos/' + encodeURIComponent(photoId), {
+          method: 'DELETE',
+          credentials: 'same-origin'
+        });
+        const data = await res.json();
+        if (data.success) {
+          photoData = photoData.filter(p => p.id !== photoId);
+          renderPhotoGrid();
+          closeLightbox();
+        } else {
+          alert(data.message || '刪除失敗');
+        }
+      } catch (e) {
+        alert('刪除失敗');
+      }
+    }
+
+    async function clearAllPhotos() {
+      if (!confirm('確定要清除全部照片嗎？')) return;
+      try {
+        const res = await fetch('/api/photos', { method: 'DELETE', credentials: 'same-origin' });
+        const data = await res.json();
+        if (data.success) {
+          photoData = [];
+          renderPhotoGrid();
+        } else {
+          alert(data.message || '清除失敗');
+        }
+      } catch (e) {
+        alert('清除失敗');
+      }
+    }
+
+    function openLightbox(photoId) {
+      const photo = photoData.find(p => p.id === photoId);
+      if (!photo) return;
+      let lightbox = document.getElementById('photoLightbox');
+      if (!lightbox) {
+        lightbox = document.createElement('div');
+        lightbox.id = 'photoLightbox';
+        lightbox.className = 'photo-lightbox is-hidden';
+        lightbox.innerHTML = '<button type="button" class="photo-lightbox-close" onclick="closeLightbox()">×</button>'
+          + '<img id="lightboxImage" src="" alt="" />';
+        lightbox.addEventListener('click', function(e) {
+          if (e.target === lightbox) closeLightbox();
+        });
+        document.body.appendChild(lightbox);
+      }
+      const img = document.getElementById('lightboxImage');
+      img.src = photo.dataUrl;
+      img.alt = photo.filename;
+      lightbox.classList.remove('is-hidden');
+    }
+
+    function closeLightbox() {
+      const lightbox = document.getElementById('photoLightbox');
+      if (lightbox) {
+        lightbox.classList.add('is-hidden');
+      }
+    }
+
+    function bindPhotoActions() {
+      const input = document.getElementById('photoUploadInput');
+      if (input) {
+        input.addEventListener('change', function() {
+          const files = this.files;
+          if (!files || !files.length) return;
+          for (let i = 0; i < files.length; i++) {
+            uploadPhoto(files[i]);
+          }
+          this.value = '';
+        });
+      }
+      const clearBtn = document.getElementById('clearAllPhotosBtn');
+      if (clearBtn) {
+        clearBtn.addEventListener('click', clearAllPhotos);
+      }
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeLightbox();
+      });
+    }
+
     bindDashTabs();
     fetchStatus();
+    fetchPhotos();
     connectWebSocket();
     bindFileTransferActions();
+    bindPhotoActions();
     window.addEventListener('resize', drawHealthHistoryChart);
     healthHistoryTimer = setInterval(refreshHealthHistory, 60000);
     setInterval(() => {
