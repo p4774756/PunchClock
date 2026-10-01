@@ -119,7 +119,9 @@ public final class TransferIo {
 
             @Override
             public void onProgress(long transferred, long total) {
-                if (transferred - lastReported >= REPORT_EVERY || (total > 0 && transferred >= total)) {
+                if (transferred < lastReported
+                        || transferred - lastReported >= REPORT_EVERY
+                        || (total > 0 && transferred >= total)) {
                     lastReported = transferred;
                     progress.onProgress(transferred, total);
                 }
