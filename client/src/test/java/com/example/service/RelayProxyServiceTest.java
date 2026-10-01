@@ -46,6 +46,16 @@ public class RelayProxyServiceTest {
     }
 
     @Test
+    public void trustAllSslDefaultsOffAndCanToggle() {
+        RelayProxyService service = new RelayProxyService();
+        assertFalse(service.isTrustAllSsl());
+        service.setTrustAllSsl(true);
+        assertTrue(service.isTrustAllSsl());
+        service.setTrustAllSsl(false);
+        assertFalse(service.isTrustAllSsl());
+    }
+
+    @Test
     public void serviceTrimsTrailingSlash() {
         RelayProxyService service = new RelayProxyService();
         service.start(9998, "http://localhost:3000/", "token", null);

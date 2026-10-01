@@ -242,7 +242,10 @@ public class App extends JFrame {
                 mainFont, boldFont, fieldFont,
                 () -> RecentValuesHelper.getValue(serverRefs.serverUrlCombo),
                 () -> serverRefs.trustAllSslCheckBox != null && serverRefs.trustAllSslCheckBox.isSelected(),
-                heartbeatService::refreshHttpClient,
+                () -> {
+                    heartbeatService.refreshHttpClient();
+                    relayProxyService.refreshHttpClient();
+                },
                 this::saveCloudConfig,
                 this::appendLog);
         networkToolsPanel.setOpaque(false);
@@ -1214,6 +1217,7 @@ public class App extends JFrame {
             serverRefs.trustAllSslCheckBox.addActionListener(e -> {
                 boolean trust = serverRefs.trustAllSslCheckBox.isSelected();
                 heartbeatService.setTrustAllSsl(trust);
+                relayProxyService.setTrustAllSsl(trust);
                 appendLog(trust
                         ? "[警告] 已啟用「信任所有 SSL」（僅建議本機除錯）"
                         : "[安全] 已關閉「信任所有 SSL」，使用系統憑證驗證");
@@ -1405,6 +1409,7 @@ public class App extends JFrame {
         if (serverRefs.trustAllSslCheckBox != null) {
             serverRefs.trustAllSslCheckBox.setSelected(config.trustAllSsl);
             heartbeatService.setTrustAllSsl(config.trustAllSsl);
+            relayProxyService.setTrustAllSsl(config.trustAllSsl);
         }
         applyRelayConfig(config);
         syncCloudConnectionFieldsEnabled();

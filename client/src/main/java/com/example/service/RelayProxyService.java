@@ -40,14 +40,14 @@ public class RelayProxyService {
     public static final int MIN_PORT = 1024;
     public static final int MAX_PORT = 65535;
 
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(10);
     private static final int THREAD_POOL_SIZE = 8;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private HttpServer server;
     private ExecutorService executor;
-    private HttpClient httpClient;
+    private volatile HttpClient httpClient;
+    private boolean trustAllSsl = false;
 
     private String targetServerUrl = "";
     private String heartbeatToken = "";
@@ -55,10 +55,25 @@ public class RelayProxyService {
     private Consumer<String> logger;
 
     public RelayProxyService() {
-        this.httpClient = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .connectTimeout(CONNECT_TIMEOUT)
-                .build();
+        this.httpClient = HeartbeatService.buildHttpClient(false);
+    }
+
+    /** 與心跳共用「信任所有 SSL」設定；公司網路做 SSL 攔截時轉發才不會 PKIX 失敗。 */
+    public synchronized void setTrustAllSsl(boolean trustAllSsl) {
+        if (this.trustAllSsl == trustAllSsl) {
+            return;
+        }
+        this.trustAllSsl = trustAllSsl;
+        this.httpClient = HeartbeatService.buildHttpClient(trustAllSsl);
+    }
+
+    public boolean isTrustAllSsl() {
+        return trustAllSsl;
+    }
+
+    /** 套用 JVM Proxy 屬性後重建客戶端，讓後續轉發走新的 ProxySelector。 */
+    public synchronized void refreshHttpClient() {
+        this.httpClient = HeartbeatService.buildHttpClient(trustAllSsl);
     }
 
     public boolean isRunning() {
@@ -110,7 +125,7 @@ public class RelayProxyService {
 
             log("[中繼] 已啟動本機中繼 Proxy");
             log("[中繼] 監聽：0.0.0.0:" + this.port);
-            log("[中繼] 目標：" + this.targetServerUrl);
+            log("[中繼] 目標：" + this.targetServerUrl + (trustAllSsl ? " [SSL 信任全部憑證]" : ""));
             log("[中繼] 同事請把 Server 網址設成 http://你的IP:" + this.port);
 
             return true;

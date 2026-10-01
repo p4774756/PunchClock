@@ -164,7 +164,7 @@ public class HeartbeatService {
         return trustAllSsl;
     }
 
-    private static HttpClient buildHttpClient(boolean trustAllSsl) {
+    static HttpClient buildHttpClient(boolean trustAllSsl) {
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .followRedirects(HttpClient.Redirect.NEVER)
