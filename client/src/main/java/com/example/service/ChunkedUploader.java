@@ -161,7 +161,7 @@ final class ChunkedUploader {
 
         try {
             while (true) {
-                Result failure = sendChunks(session, content, size, progress, cancel);
+                Result failure = sendChunks(session, content, size, filename, progress, cancel);
                 if (failure != null) {
                     return failure;
                 }
@@ -195,12 +195,14 @@ final class ChunkedUploader {
     }
 
     /** @return null 表示這輪分段都送完；否則為失敗結果 */
-    private Result sendChunks(Session session, Path content, long size,
+    private Result sendChunks(Session session, Path content, long size, String filename,
                               TransferIo.Progress progress, TransferCancel cancel) throws IOException {
         while (session.offset < size) {
             cancel.throwIfCancelled();
             long base = session.offset;
             long length = Math.min(chunkBytes, size - base);
+            String chunk = chunkLabel(base, size, chunkBytes);
+            notifyStatus("正在上傳「" + filename + "」" + chunk);
             TransferIo.Progress chunkProgress = progress == null
                     ? null : (transferred, total) -> progress.onProgress(base + transferred, size);
             String error;
@@ -241,11 +243,10 @@ final class ChunkedUploader {
                 return Result.failed("連續 " + session.failures + " 次中斷，已放棄（" + error + "）");
             }
             long delayMs = retryDelay(session.failures);
-            log("[重試] [檔案] 上傳在 " + PeerFileRules.formatSize(base) + " / "
-                    + PeerFileRules.formatSize(size) + " 中斷（" + error + "），"
-                    + (delayMs / 1000L) + " 秒後續傳（第 " + session.failures + " 次）");
-            notifyStatus("連線中斷，" + (delayMs / 1000L) + " 秒後續傳（已傳 "
-                    + PeerFileRules.formatSize(base) + " / " + PeerFileRules.formatSize(size) + "）…");
+            log("[重試] [檔案] " + chunk + "中斷（已傳 " + PeerFileRules.formatSize(base) + " / "
+                    + PeerFileRules.formatSize(size) + "，" + error + "），"
+                    + (delayMs / 1000L) + " 秒後續傳（第 " + session.failures + " 次重試）");
+            notifyStatus(chunk + "中斷，" + (delayMs / 1000L) + " 秒後續傳…");
             sleepCancellable(delayMs, cancel);
             try {
                 Reply status = send(controlRequest(session.uploadId, "", "GET"), cancel);
@@ -262,9 +263,17 @@ final class ChunkedUploader {
             } catch (IOException ignored) {
                 // 查不到進度就照原位移重送；位移不對時伺服器會回 409 告知正確位置
             }
-            notifyStatus("正在續傳…");
         }
         return null;
+    }
+
+    /**
+     * 「第 n / m 段」：續傳時位移可能不在段落邊界上，以位移所在的段落計算，最多到 m。
+     */
+    static String chunkLabel(long offset, long size, int chunkBytes) {
+        long total = Math.max(1L, (size + chunkBytes - 1) / chunkBytes);
+        long index = Math.min(total, Math.max(0L, offset) / chunkBytes + 1);
+        return "第 " + index + " / " + total + " 段";
     }
 
     /** 伺服器遺失上傳工作（多半是重啟）：重新登記並從頭傳。 */

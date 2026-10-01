@@ -37,6 +37,7 @@ public class ChunkedUploaderTest {
     private final AtomicInteger deletes = new AtomicInteger();
     private final AtomicLong lastOffset = new AtomicLong(-1);
     private final List<String> logs = new CopyOnWriteArrayList<>();
+    private final List<String> statuses = new CopyOnWriteArrayList<>();
     /** 第幾次 PUT（從 1 起算）只收一半就回 503。 */
     private volatile int failPutNumber = -1;
     /** 第幾次 PUT 回 404（模擬伺服器重啟遺失進度）。 */
@@ -127,7 +128,7 @@ public class ChunkedUploaderTest {
     private ChunkedUploader uploader() {
         HttpClient client = HttpClient.newHttpClient();
         return new ChunkedUploader(() -> client, base, "token", "worker-a", CHUNK, FAST_RETRY,
-                logs::add, null);
+                logs::add, statuses::add);
     }
 
     private static Path sample(int size) throws IOException {
@@ -150,6 +151,20 @@ public class ChunkedUploaderTest {
         assertEquals(4, puts.get());
         assertArrayEquals(Files.readAllBytes(file), stored.toByteArray());
         assertEquals(3500, lastProgress.get());
+        assertEquals(List.of(
+                "正在上傳「a.bin」第 1 / 4 段",
+                "正在上傳「a.bin」第 2 / 4 段",
+                "正在上傳「a.bin」第 3 / 4 段",
+                "正在上傳「a.bin」第 4 / 4 段"), statuses);
+    }
+
+    @Test
+    public void chunkLabel_countsByOffsetAndCapsAtTotal() {
+        assertEquals("第 1 / 35 段", ChunkedUploader.chunkLabel(0, 280L * 1024 * 1024, 8 * 1024 * 1024));
+        assertEquals("第 23 / 35 段",
+                ChunkedUploader.chunkLabel(22L * 8 * 1024 * 1024 + 5, 280L * 1024 * 1024, 8 * 1024 * 1024));
+        assertEquals("第 1 / 1 段", ChunkedUploader.chunkLabel(0, 10, 1000));
+        assertEquals("第 4 / 4 段", ChunkedUploader.chunkLabel(3999, 3500, 1000));
     }
 
     @Test
@@ -161,7 +176,8 @@ public class ChunkedUploaderTest {
         assertTrue(result.message, result.ok);
         assertArrayEquals(Files.readAllBytes(file), stored.toByteArray());
         assertEquals(1, begins.get());
-        assertTrue(logs.stream().anyMatch(line -> line.contains("[重試]")));
+        assertTrue(logs.stream().anyMatch(line -> line.contains("[重試]") && line.contains("第 2 / 4 段中斷")));
+        assertTrue(statuses.stream().anyMatch(s -> s.startsWith("第 2 / 4 段中斷")));
     }
 
     @Test
