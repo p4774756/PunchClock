@@ -11,6 +11,7 @@ import com.example.server.store.FileOfferStore;
 import com.example.server.store.FileOfferStore.DeleteResult;
 import com.example.server.store.FileOfferStore.GetResult;
 import com.example.server.store.FileOfferStore.PutResult;
+import com.example.server.store.FileOfferStore.UploadResult;
 import com.example.server.util.IpResolver;
 import com.example.server.web.DashboardBroadcaster;
 import com.example.server.web.LoginPageRenderer;
@@ -112,6 +113,11 @@ public final class ServerApp {
         app.post("/api/peer/message", this::peerMessage);
         app.post("/api/peer/poke", this::peerPoke);
         app.post("/api/peer/file", this::peerFileUpload);
+        app.post("/api/peer/upload", this::peerUploadBegin);
+        app.put("/api/peer/upload/{uploadId}", this::peerUploadChunk);
+        app.get("/api/peer/upload/{uploadId}", this::peerUploadStatus);
+        app.post("/api/peer/upload/{uploadId}/complete", this::peerUploadComplete);
+        app.delete("/api/peer/upload/{uploadId}", this::peerUploadAbort);
         app.get("/api/peer/file/{fileId}", this::peerFileDownload);
         app.delete("/api/peer/file/{fileId}", this::peerFileDelete);
         app.delete("/api/peer/files", this::peerFileDeleteAll);
@@ -377,6 +383,144 @@ public final class ServerApp {
         response.put("kind", stored.offer.kind);
         response.put("expiresAtMs", stored.offer.createdAtMs + FileOfferStore.TTL_MS);
         ctx.json(response);
+    }
+
+    private void peerUploadBegin(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        Map<String, Object> body;
+        try {
+            body = gson.fromJson(ctx.body(), MAP_TYPE);
+        } catch (Exception ex) {
+            body = null;
+        }
+        if (body == null) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請求格式錯誤"));
+            return;
+        }
+        Object rawSize = body.get("size");
+        long size = rawSize instanceof Number ? ((Number) rawSize).longValue() : -1L;
+        UploadResult result = fileOfferStore.beginUpload(
+                stringOrNull(body.get("fromClientId")),
+                stringOrNull(body.get("toClientId")),
+                stringOrNull(body.get("filename")),
+                stringOrNull(body.get("kind")),
+                size
+        );
+        respondUpload(ctx, result);
+    }
+
+    private void peerUploadChunk(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        long offset;
+        try {
+            offset = Long.parseLong(firstNonEmptyForm(ctx.queryParam("offset")).trim());
+        } catch (NumberFormatException ex) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "缺少 offset"));
+            return;
+        }
+        long declared = ctx.req().getContentLengthLong();
+        if (declared > PeerFileRules.MAX_UPLOAD_CHUNK_BYTES) {
+            ctx.status(HttpStatus.CONTENT_TOO_LARGE).json(Map.of("success", false, "message", "分段超過上限"));
+            return;
+        }
+        UploadResult result;
+        try (InputStream in = ctx.bodyInputStream()) {
+            result = fileOfferStore.appendChunk(ctx.pathParam("uploadId"), uploadRequester(ctx), offset, in);
+        } catch (IOException ex) {
+            result = fileOfferStore.uploadStatus(ctx.pathParam("uploadId"), uploadRequester(ctx));
+        }
+        respondUpload(ctx, result);
+    }
+
+    private void peerUploadStatus(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        respondUpload(ctx, fileOfferStore.uploadStatus(ctx.pathParam("uploadId"), uploadRequester(ctx)));
+    }
+
+    private void peerUploadComplete(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        UploadResult result = fileOfferStore.completeUpload(ctx.pathParam("uploadId"), uploadRequester(ctx));
+        if (!result.ok() || result.offer == null) {
+            respondUpload(ctx, result);
+            return;
+        }
+        FileOfferStore.Offer offer = result.offer;
+        String message = result.message;
+        if (!result.alreadyCompleted) {
+            PeerResult queued = clientStore.queuePeerFile(offer.toClientId, offer.fromClientId, offer);
+            if (!queued.ok) {
+                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", queued.message));
+                return;
+            }
+            message = queued.message;
+            broadcaster.broadcast(statusUpdatePayload());
+        }
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("success", true);
+        response.put("message", message);
+        response.put("fileId", offer.fileId);
+        response.put("filename", offer.filename);
+        response.put("size", offer.size());
+        response.put("kind", offer.kind);
+        response.put("expiresAtMs", offer.createdAtMs + FileOfferStore.TTL_MS);
+        ctx.json(response);
+    }
+
+    private void peerUploadAbort(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        respondUpload(ctx, fileOfferStore.abortUpload(ctx.pathParam("uploadId"), uploadRequester(ctx)));
+    }
+
+    private static String uploadRequester(Context ctx) {
+        return firstNonEmptyForm(
+                ctx.queryParam("clientId"),
+                decodeHeaderClientId(ctx.header("X-PunchClock-Client")));
+    }
+
+    private static void respondUpload(Context ctx, UploadResult result) {
+        HttpStatus status;
+        switch (result.status) {
+            case OK:
+                status = HttpStatus.OK;
+                break;
+            case CONFLICT:
+                status = HttpStatus.CONFLICT;
+                break;
+            case NOT_FOUND:
+                status = HttpStatus.NOT_FOUND;
+                break;
+            case FORBIDDEN:
+                status = HttpStatus.FORBIDDEN;
+                break;
+            default:
+                status = HttpStatus.BAD_REQUEST;
+                break;
+        }
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("success", result.ok());
+        response.put("message", result.message);
+        if (!result.uploadId.isEmpty()) {
+            response.put("uploadId", result.uploadId);
+            response.put("received", result.received);
+            response.put("size", result.size);
+            response.put("chunkSize", PeerFileRules.UPLOAD_CHUNK_BYTES);
+        }
+        ctx.status(status).json(response);
     }
 
     private void peerFileDownload(Context ctx) {

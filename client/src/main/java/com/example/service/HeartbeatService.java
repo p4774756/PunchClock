@@ -676,6 +676,31 @@ public class HeartbeatService {
                 return;
             }
 
+            notifyStatus(statusUpdate, "正在上傳「" + filename + "」到伺服器…（"
+                    + PeerFileRules.formatSize(contentSize) + "，分段續傳）");
+            TransferIo.Progress chunkedProgress = TransferIo.throttle(progress);
+            chunkedProgress.onProgress(0L, contentSize);
+            ChunkedUploader.Result chunked = new ChunkedUploader(
+                    () -> httpClient, serverUrl, heartbeatToken, clientId, logger, statusUpdate)
+                    .upload(toClientId, contentPath, contentSize, filename, kind, chunkedProgress, cancel);
+            if (!chunked.unsupported) {
+                if (packed != null) {
+                    packed.deleteQuietly();
+                    packed = null;
+                }
+                if (chunked.ok) {
+                    notifyStatus(statusUpdate, "上傳完成");
+                    log(logger, "[成功] [檔案] 已送出「" + filename + "」給【" + toClientId
+                            + "】（" + PeerFileRules.formatSize(contentSize)
+                            + "，保留 " + PeerFileRules.OFFER_TTL_LABEL + "）");
+                } else {
+                    log(logger, "[失敗] [檔案] 送出「" + filename + "」失敗：" + chunked.message);
+                }
+                if (callback != null) callback.accept(chunked.ok);
+                return;
+            }
+            log(logger, "[提示] [檔案] 伺服器尚未支援分段上傳（請更新雲端），改用整檔上傳");
+
             String mime = PeerFileRules.isFolderKind(kind) ? "application/zip" : PeerFileRules.mimeFor(filename);
             String boundary = "PunchClockFile" + UUID.randomUUID().toString().replace("-", "");
             multipartTemp = Files.createTempFile("punchclock-upload-", ".multipart");

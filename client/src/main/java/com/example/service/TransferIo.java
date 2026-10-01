@@ -5,8 +5,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.http.HttpRequest;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -76,11 +79,19 @@ public final class TransferIo {
     /** 取消時以 {@link CancelledException} 結束 body，HttpClient 會中止這次請求。 */
     public static HttpRequest.BodyPublisher ofFile(Path path, Progress progress, TransferCancel cancel)
             throws IOException {
-        long size = Files.size(path);
+        return ofFileRange(path, 0L, Files.size(path), progress, cancel);
+    }
+
+    /** 只送出檔案中 [offset, offset + length) 這段（分段上傳用）；進度以這段為單位回報。 */
+    public static HttpRequest.BodyPublisher ofFileRange(Path path, long offset, long length,
+                                                        Progress progress, TransferCancel cancel) {
+        if (offset < 0 || length < 0) {
+            throw new IllegalArgumentException("offset/length must not be negative");
+        }
         return new HttpRequest.BodyPublisher() {
             @Override
             public long contentLength() {
-                return size;
+                return length;
             }
 
             @Override
@@ -88,7 +99,8 @@ public final class TransferIo {
                 if (subscriber == null) {
                     throw new NullPointerException("subscriber");
                 }
-                FileSubscription subscription = new FileSubscription(path, size, progress, cancel, subscriber);
+                FileSubscription subscription =
+                        new FileSubscription(path, offset, length, progress, cancel, subscriber);
                 subscriber.onSubscribe(subscription);
                 if (cancel != null) {
                     cancel.onCancel(subscription::abort);
@@ -126,6 +138,7 @@ public final class TransferIo {
 
     private static final class FileSubscription implements Flow.Subscription {
         private final Path path;
+        private final long offset;
         private final long total;
         private final Progress progress;
         private final TransferCancel cancel;
@@ -137,9 +150,10 @@ public final class TransferIo {
         private long demand;
         private boolean completed;
 
-        FileSubscription(Path path, long total, Progress progress, TransferCancel cancel,
+        FileSubscription(Path path, long offset, long total, Progress progress, TransferCancel cancel,
                          Flow.Subscriber<? super ByteBuffer> subscriber) {
             this.path = path;
+            this.offset = offset;
             this.total = total;
             this.progress = progress;
             this.cancel = cancel;
@@ -184,13 +198,16 @@ public final class TransferIo {
                 }
                 try {
                     if (in == null) {
-                        in = Files.newInputStream(path);
+                        SeekableByteChannel channel = Files.newByteChannel(path, StandardOpenOption.READ);
+                        channel.position(offset);
+                        in = Channels.newInputStream(channel);
                         if (progress != null) {
                             progress.onProgress(0L, total);
                         }
                     }
-                    byte[] buf = new byte[BUFFER_SIZE];
-                    int read = in.read(buf);
+                    long remaining = total - transferred;
+                    byte[] buf = new byte[(int) Math.min(BUFFER_SIZE, Math.max(remaining, 1L))];
+                    int read = remaining <= 0 ? -1 : in.read(buf);
                     if (read < 0) {
                         completed = true;
                         closeQuietly();

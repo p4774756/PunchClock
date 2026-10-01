@@ -172,6 +172,116 @@ public class FileOfferStoreTest {
     }
 
     @Test
+    public void chunkedUpload_appendsInOrderAndCompletesIntoOffer() throws Exception {
+        byte[] payload = "hello-chunked-world".getBytes(StandardCharsets.UTF_8);
+        FileOfferStore.UploadResult begun = store.beginUpload("a", "b", "notes.txt", "file", payload.length);
+        assertTrue(begun.ok());
+        String id = begun.uploadId;
+
+        FileOfferStore.UploadResult first = store.appendChunk(id, "a", 0,
+                new ByteArrayInputStream(payload, 0, 6));
+        assertTrue(first.ok());
+        assertEquals(6, first.received);
+
+        FileOfferStore.UploadResult wrongOffset = store.appendChunk(id, "a", 0,
+                new ByteArrayInputStream(payload, 0, 6));
+        assertEquals(FileOfferStore.UploadResult.Status.CONFLICT, wrongOffset.status);
+        assertEquals(6, wrongOffset.received);
+
+        FileOfferStore.UploadResult early = store.completeUpload(id, "a");
+        assertEquals(FileOfferStore.UploadResult.Status.CONFLICT, early.status);
+
+        assertTrue(store.appendChunk(id, "a", 6,
+                new ByteArrayInputStream(payload, 6, payload.length - 6)).ok());
+        assertEquals(payload.length, store.uploadStatus(id, "a").received);
+
+        FileOfferStore.UploadResult done = store.completeUpload(id, "a");
+        assertTrue(done.ok());
+        assertFalse(done.alreadyCompleted);
+        assertNotNull(done.offer);
+        assertEquals("text/plain", done.offer.mime);
+        assertArrayEquals(payload, done.offer.readAllBytes());
+        assertEquals(1, store.size());
+
+        FileOfferStore.UploadResult again = store.completeUpload(id, "a");
+        assertTrue(again.ok());
+        assertTrue(again.alreadyCompleted);
+        assertEquals(done.offer.fileId, again.offer.fileId);
+        assertEquals(1, store.size());
+        assertEquals(0, store.activeUploadCount());
+    }
+
+    @Test
+    public void chunkedUpload_rejectsOtherRequesterAndOversizeChunk() {
+        FileOfferStore.UploadResult begun = store.beginUpload("a", "b", "x.bin", "file", 4);
+        assertTrue(begun.ok());
+        assertEquals(FileOfferStore.UploadResult.Status.FORBIDDEN,
+                store.appendChunk(begun.uploadId, "c", 0, new ByteArrayInputStream(new byte[2])).status);
+        FileOfferStore.UploadResult tooMuch = store.appendChunk(begun.uploadId, "a", 0,
+                new ByteArrayInputStream(new byte[5]));
+        assertEquals(FileOfferStore.UploadResult.Status.FAILED, tooMuch.status);
+        assertEquals(0, store.uploadStatus(begun.uploadId, "a").received);
+        assertEquals(FileOfferStore.UploadResult.Status.NOT_FOUND,
+                store.appendChunk("missing", "a", 0, new ByteArrayInputStream(new byte[1])).status);
+        assertFalse(store.beginUpload("a", "a", "x.bin", "file", 4).ok());
+        assertFalse(store.beginUpload("a", "b", "x.bin", "file", PeerFileRules.MAX_BYTES + 1).ok());
+    }
+
+    @Test
+    public void chunkedUpload_keepsBytesThatLandedBeforeDisconnect() {
+        FileOfferStore.UploadResult begun = store.beginUpload("a", "b", "x.bin", "file", 10);
+        java.io.InputStream broken = new java.io.InputStream() {
+            private int sent;
+
+            @Override
+            public int read() throws java.io.IOException {
+                if (sent >= 4) {
+                    throw new java.io.IOException("connection reset");
+                }
+                sent++;
+                return 7;
+            }
+        };
+        FileOfferStore.UploadResult result = store.appendChunk(begun.uploadId, "a", 0, broken);
+        assertEquals(FileOfferStore.UploadResult.Status.FAILED, result.status);
+        assertEquals(4, store.uploadStatus(begun.uploadId, "a").received);
+        assertTrue(store.appendChunk(begun.uploadId, "a", 4, new ByteArrayInputStream(new byte[6])).ok());
+        assertTrue(store.completeUpload(begun.uploadId, "a").ok());
+    }
+
+    @Test
+    public void chunkedUpload_reservesCapacityAndExpiresWhenIdle() throws Exception {
+        assertEquals(PeerFileRules.MAX_BYTES * 2, FileOfferStore.MAX_TOTAL_BYTES);
+        FileOfferStore.UploadResult big = store.beginUpload("a", "b", "big.zip", "folder", PeerFileRules.MAX_BYTES);
+        FileOfferStore.UploadResult big2 = store.beginUpload("a", "c", "big2.zip", "folder", PeerFileRules.MAX_BYTES);
+        assertTrue(big.ok());
+        assertTrue(big2.ok());
+        assertFalse(store.beginUpload("a", "b", "more.bin", "file", 1).ok());
+        assertFalse(store.put("a", "b", "small.txt", new byte[]{1}).ok);
+
+        now.addAndGet(FileOfferStore.UPLOAD_IDLE_TTL_MS + 1);
+        assertEquals(FileOfferStore.UploadResult.Status.NOT_FOUND,
+                store.uploadStatus(big.uploadId, "a").status);
+        assertEquals(0, store.activeUploadCount());
+        try (Stream<Path> files = Files.list(storageDir)) {
+            assertEquals(0, files.count());
+        }
+        assertTrue(store.beginUpload("a", "b", "more.bin", "file", 1).ok());
+    }
+
+    @Test
+    public void chunkedUpload_abortDeletesPartFile() throws Exception {
+        FileOfferStore.UploadResult begun = store.beginUpload("a", "b", "x.bin", "file", 10);
+        store.appendChunk(begun.uploadId, "a", 0, new ByteArrayInputStream(new byte[3]));
+        assertTrue(store.abortUpload(begun.uploadId, "a").ok());
+        assertEquals(FileOfferStore.UploadResult.Status.NOT_FOUND,
+                store.uploadStatus(begun.uploadId, "a").status);
+        try (Stream<Path> files = Files.list(storageDir)) {
+            assertEquals(0, files.count());
+        }
+    }
+
+    @Test
     public void folderKind_usesZipMime() {
         FileOfferStore.PutResult put = store.put("a", "b", "專案.zip", "zip".getBytes(StandardCharsets.UTF_8),
                 "folder");

@@ -6,9 +6,13 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.FileChannel;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -28,8 +32,10 @@ public final class FileOfferStore {
     /** 全體暫存約為單檔上限的 2 倍，避免暫存堆積佔滿磁碟。 */
     public static final long MAX_TOTAL_BYTES = PeerFileRules.MAX_BYTES * 2;
     public static final int MAX_OFFERS = 64;
+    public static final long UPLOAD_IDLE_TTL_MS = PeerFileRules.UPLOAD_IDLE_TTL_MS;
 
     private final ConcurrentHashMap<String, Offer> offers = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Upload> uploads = new ConcurrentHashMap<>();
     private final Path storageDir;
     private final LongSupplier clock;
 
@@ -83,26 +89,15 @@ public final class FileOfferStore {
         purgeExpired();
         String from = PeerFileRules.normalizeClientId(fromClientId);
         String to = PeerFileRules.normalizeClientId(toClientId);
-        if (from.isEmpty() || to.isEmpty()) {
-            return PutResult.fail("缺少收件人或發送者");
-        }
-        if (from.equals(to)) {
-            return PutResult.fail("不能傳送檔案給自己");
-        }
         String filename = PeerFileRules.sanitizeFilename(rawFilename);
-        if (filename.isEmpty() || !PeerFileRules.isAllowedFilename(filename)) {
-            return PutResult.fail("檔名無效");
-        }
         if (content == null) {
             return PutResult.fail("檔案不可為空");
         }
-        if (knownSize <= 0) {
-            return PutResult.fail("檔案不可為空");
+        String invalid = validateOffer(from, to, filename, knownSize);
+        if (invalid != null) {
+            return PutResult.fail(invalid);
         }
-        if (knownSize > PeerFileRules.MAX_BYTES) {
-            return PutResult.fail("檔案不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
-        }
-        if (offers.size() >= MAX_OFFERS || totalBytes() + knownSize > MAX_TOTAL_BYTES) {
+        if (!hasCapacityFor(knownSize)) {
             return PutResult.fail("伺服器暫存已滿，請先清除舊檔或稍後再試");
         }
 
@@ -145,6 +140,194 @@ public final class FileOfferStore {
         );
         offers.put(fileId, offer);
         return PutResult.ok(offer);
+    }
+
+    /**
+     * 分段上傳：先登記大小並預留暫存額度，之後每段直接接在暫存檔尾端（磁碟只寫一次）。
+     */
+    public UploadResult beginUpload(String fromClientId, String toClientId, String rawFilename,
+                                    String kind, long declaredSize) {
+        purgeExpired();
+        String from = PeerFileRules.normalizeClientId(fromClientId);
+        String to = PeerFileRules.normalizeClientId(toClientId);
+        String filename = PeerFileRules.sanitizeFilename(rawFilename);
+        String invalid = validateOffer(from, to, filename, declaredSize);
+        if (invalid != null) {
+            return UploadResult.failed(invalid);
+        }
+        String uploadId = UUID.randomUUID().toString().replace("-", "");
+        Path partPath = storageDir.resolve(uploadId + ".part");
+        synchronized (uploads) {
+            if (!hasCapacityFor(declaredSize)) {
+                return UploadResult.failed("伺服器暫存已滿，請先清除舊檔或稍後再試");
+            }
+            try {
+                Files.createFile(partPath);
+            } catch (IOException ex) {
+                return UploadResult.failed("無法建立暫存檔："
+                        + (ex.getMessage() == null ? "IO 錯誤" : ex.getMessage()));
+            }
+            Upload upload = new Upload(uploadId, from, to, filename,
+                    PeerFileRules.normalizeKind(kind), declaredSize, partPath, clock.getAsLong());
+            uploads.put(uploadId, upload);
+            return UploadResult.ok(upload);
+        }
+    }
+
+    public UploadResult appendChunk(String uploadId, String requesterClientId, long offset, InputStream content) {
+        purgeExpired();
+        UploadResult lookup = findUpload(uploadId, requesterClientId);
+        if (lookup.status != UploadResult.Status.OK) {
+            return lookup;
+        }
+        Upload upload = lookup.upload;
+        synchronized (upload) {
+            if (upload.completedOffer != null) {
+                return UploadResult.ok(upload);
+            }
+            if (!uploads.containsKey(upload.uploadId)) {
+                return UploadResult.notFound("上傳工作不存在或已過期");
+            }
+            if (offset != upload.received) {
+                return UploadResult.conflict(upload, "位移不符，伺服器目前已收到 " + upload.received + " bytes");
+            }
+            if (content == null) {
+                return UploadResult.failed("分段內容為空");
+            }
+            upload.lastActivityMs = clock.getAsLong();
+            long limit = Math.min(PeerFileRules.MAX_UPLOAD_CHUNK_BYTES, upload.size - upload.received);
+            long before = upload.received;
+            try (OutputStream out = Files.newOutputStream(upload.partPath, StandardOpenOption.APPEND)) {
+                long written = copyInto(content, out, limit);
+                upload.received = before + written;
+            } catch (SizeLimitExceededException ex) {
+                truncateQuietly(upload.partPath, before);
+                upload.received = before;
+                return UploadResult.failed("分段超過上限或超出宣告大小");
+            } catch (IOException ex) {
+                // 連線中途斷掉：已落地的位元組保留，客戶端查詢進度後從這裡續傳。
+                upload.received = Math.min(upload.size, sizeOrZero(upload.partPath));
+                upload.lastActivityMs = clock.getAsLong();
+                return UploadResult.failed("分段中斷："
+                        + (ex.getMessage() == null ? "IO 錯誤" : ex.getMessage()));
+            }
+            upload.lastActivityMs = clock.getAsLong();
+            return UploadResult.ok(upload);
+        }
+    }
+
+    public UploadResult uploadStatus(String uploadId, String requesterClientId) {
+        purgeExpired();
+        return findUpload(uploadId, requesterClientId);
+    }
+
+    /**
+     * 收齊後轉成一般暫存檔。重複呼叫（例如上次回應在路上遺失）會回同一份檔案，並標記 alreadyCompleted。
+     */
+    public UploadResult completeUpload(String uploadId, String requesterClientId) {
+        purgeExpired();
+        UploadResult lookup = findUpload(uploadId, requesterClientId);
+        if (lookup.status != UploadResult.Status.OK) {
+            return lookup;
+        }
+        Upload upload = lookup.upload;
+        synchronized (upload) {
+            if (upload.completedOffer != null) {
+                return UploadResult.completed(upload, true);
+            }
+            if (upload.received != upload.size || sizeOrZero(upload.partPath) != upload.size) {
+                return UploadResult.conflict(upload, "檔案尚未傳完（"
+                        + PeerFileRules.formatSize(upload.received) + " / "
+                        + PeerFileRules.formatSize(upload.size) + "）");
+            }
+            String fileId = UUID.randomUUID().toString().replace("-", "");
+            Path dest = storageDir.resolve(fileId);
+            try {
+                moveIntoPlace(upload.partPath, dest);
+            } catch (IOException ex) {
+                return UploadResult.failed("無法寫入暫存檔："
+                        + (ex.getMessage() == null ? "IO 錯誤" : ex.getMessage()));
+            }
+            String mime = PeerFileRules.isFolderKind(upload.kind)
+                    ? "application/zip"
+                    : PeerFileRules.mimeFor(upload.filename);
+            Offer offer = new Offer(fileId, upload.fromClientId, upload.toClientId, upload.filename,
+                    mime, upload.kind, dest, upload.size, clock.getAsLong());
+            offers.put(fileId, offer);
+            upload.completedOffer = offer;
+            upload.lastActivityMs = clock.getAsLong();
+            return UploadResult.completed(upload, false);
+        }
+    }
+
+    public UploadResult abortUpload(String uploadId, String requesterClientId) {
+        purgeExpired();
+        UploadResult lookup = findUpload(uploadId, requesterClientId);
+        if (lookup.status != UploadResult.Status.OK) {
+            return lookup;
+        }
+        Upload upload = lookup.upload;
+        synchronized (upload) {
+            uploads.remove(upload.uploadId);
+            if (upload.completedOffer == null) {
+                deleteQuietly(upload.partPath);
+            }
+        }
+        return UploadResult.ok(upload);
+    }
+
+    public int activeUploadCount() {
+        int count = 0;
+        for (Upload upload : uploads.values()) {
+            if (upload != null && upload.completedOffer == null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private UploadResult findUpload(String uploadId, String requesterClientId) {
+        String id = trimToEmpty(uploadId);
+        Upload upload = id.isEmpty() ? null : uploads.get(id);
+        if (upload == null) {
+            return UploadResult.notFound("上傳工作不存在或已過期");
+        }
+        String requester = PeerFileRules.normalizeClientId(requesterClientId);
+        if (!requester.equals(upload.fromClientId)) {
+            return UploadResult.forbidden("無權操作此上傳");
+        }
+        return UploadResult.ok(upload);
+    }
+
+    private static String validateOffer(String from, String to, String filename, long size) {
+        if (from.isEmpty() || to.isEmpty()) {
+            return "缺少收件人或發送者";
+        }
+        if (from.equals(to)) {
+            return "不能傳送檔案給自己";
+        }
+        if (filename.isEmpty() || !PeerFileRules.isAllowedFilename(filename)) {
+            return "檔名無效";
+        }
+        if (size <= 0) {
+            return "檔案不可為空";
+        }
+        if (size > PeerFileRules.MAX_BYTES) {
+            return "檔案不可超過 " + PeerFileRules.MAX_SIZE_LABEL;
+        }
+        return null;
+    }
+
+    /** 已存檔案加上進行中的分段上傳（以宣告大小預留）。 */
+    private boolean hasCapacityFor(long size) {
+        long reserved = 0L;
+        for (Upload upload : uploads.values()) {
+            if (upload != null && upload.completedOffer == null) {
+                reserved += upload.size;
+            }
+        }
+        return offers.size() + activeUploadCount() < MAX_OFFERS
+                && totalBytes() + reserved + size <= MAX_TOTAL_BYTES;
     }
 
     public GetResult getForRecipient(String fileId, String requesterClientId) {
@@ -271,6 +454,16 @@ public final class FileOfferStore {
                 }
             }
         }
+        Iterator<Map.Entry<String, Upload>> uploadIt = uploads.entrySet().iterator();
+        while (uploadIt.hasNext()) {
+            Upload upload = uploadIt.next().getValue();
+            if (upload == null || now - upload.lastActivityMs > UPLOAD_IDLE_TTL_MS) {
+                uploadIt.remove();
+                if (upload != null && upload.completedOffer == null) {
+                    deleteQuietly(upload.partPath);
+                }
+            }
+        }
     }
 
     private void removeOffer(String id) {
@@ -302,19 +495,47 @@ public final class FileOfferStore {
     }
 
     private static long copyLimited(InputStream in, Path dest, long maxBytes) throws IOException {
+        try (OutputStream out = Files.newOutputStream(dest)) {
+            return copyInto(in, out, maxBytes);
+        }
+    }
+
+    private static long copyInto(InputStream in, OutputStream out, long maxBytes) throws IOException {
         long written = 0L;
         byte[] buf = new byte[64 * 1024];
-        try (OutputStream out = Files.newOutputStream(dest)) {
-            int n;
-            while ((n = in.read(buf)) >= 0) {
-                written += n;
-                if (written > maxBytes) {
-                    throw new SizeLimitExceededException();
-                }
-                out.write(buf, 0, n);
+        int n;
+        while ((n = in.read(buf)) >= 0) {
+            written += n;
+            if (written > maxBytes) {
+                throw new SizeLimitExceededException();
             }
+            out.write(buf, 0, n);
         }
         return written;
+    }
+
+    private static void moveIntoPlace(Path from, Path to) throws IOException {
+        try {
+            Files.move(from, to, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException ex) {
+            Files.move(from, to, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private static void truncateQuietly(Path path, long size) {
+        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
+            channel.truncate(size);
+        } catch (Exception ignored) {
+            // best-effort
+        }
+    }
+
+    private static long sizeOrZero(Path path) {
+        try {
+            return Files.size(path);
+        } catch (Exception ex) {
+            return 0L;
+        }
     }
 
     private static void deleteQuietly(Path path) {
@@ -403,6 +624,86 @@ public final class FileOfferStore {
 
         public synchronized long lastDownloadedAtMs() {
             return lastDownloadedAtMs;
+        }
+    }
+
+    static final class Upload {
+        final String uploadId;
+        final String fromClientId;
+        final String toClientId;
+        final String filename;
+        final String kind;
+        final long size;
+        final Path partPath;
+        long received;
+        long lastActivityMs;
+        Offer completedOffer;
+
+        Upload(String uploadId, String fromClientId, String toClientId, String filename,
+               String kind, long size, Path partPath, long nowMs) {
+            this.uploadId = uploadId;
+            this.fromClientId = fromClientId;
+            this.toClientId = toClientId;
+            this.filename = filename;
+            this.kind = kind;
+            this.size = size;
+            this.partPath = partPath;
+            this.lastActivityMs = nowMs;
+        }
+    }
+
+    public static final class UploadResult {
+        public enum Status { OK, CONFLICT, NOT_FOUND, FORBIDDEN, FAILED }
+
+        public final Status status;
+        public final String message;
+        public final String uploadId;
+        public final long received;
+        public final long size;
+        /** 只有 completeUpload 成功時才有值。 */
+        public final Offer offer;
+        public final boolean alreadyCompleted;
+        final Upload upload;
+
+        private UploadResult(Status status, String message, Upload upload, Offer offer, boolean alreadyCompleted) {
+            this.status = status;
+            this.message = message;
+            this.upload = upload;
+            this.uploadId = upload != null ? upload.uploadId : "";
+            this.received = upload != null ? upload.received : 0L;
+            this.size = upload != null ? upload.size : 0L;
+            this.offer = offer;
+            this.alreadyCompleted = alreadyCompleted;
+        }
+
+        public boolean ok() {
+            return status == Status.OK;
+        }
+
+        static UploadResult ok(Upload upload) {
+            return new UploadResult(Status.OK, "ok", upload, null, false);
+        }
+
+        static UploadResult completed(Upload upload, boolean alreadyCompleted) {
+            return new UploadResult(Status.OK,
+                    "檔案已排入佇列，對方約 15 秒內收到通知，暫存保留 " + PeerFileRules.OFFER_TTL_LABEL,
+                    upload, upload.completedOffer, alreadyCompleted);
+        }
+
+        static UploadResult conflict(Upload upload, String message) {
+            return new UploadResult(Status.CONFLICT, message, upload, null, false);
+        }
+
+        static UploadResult notFound(String message) {
+            return new UploadResult(Status.NOT_FOUND, message, null, null, false);
+        }
+
+        static UploadResult forbidden(String message) {
+            return new UploadResult(Status.FORBIDDEN, message, null, null, false);
+        }
+
+        static UploadResult failed(String message) {
+            return new UploadResult(Status.FAILED, message, null, null, false);
         }
     }
 

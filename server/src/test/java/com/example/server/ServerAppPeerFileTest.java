@@ -209,6 +209,71 @@ public class ServerAppPeerFileTest {
     }
 
     @Test
+    public void chunkedUploadResumesAfterOffsetMismatchAndQueuesOnce() throws Exception {
+        byte[] payload = new byte[300_000];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) (i % 251);
+        }
+        HttpResponse<String> begin = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/peer/upload"))
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .header("Content-Type", "application/json")
+                        .timeout(Duration.ofSeconds(5))
+                        .POST(HttpRequest.BodyPublishers.ofString(
+                                "{\"fromClientId\":\"worker-a\",\"toClientId\":\"worker-b\","
+                                        + "\"filename\":\"大檔.zip\",\"kind\":\"folder\",\"size\":" + payload.length + "}"))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, begin.statusCode());
+        String uploadId = JsonParser.parseString(begin.body()).getAsJsonObject().get("uploadId").getAsString();
+
+        assertEquals(200, putChunk(uploadId, 0, java.util.Arrays.copyOfRange(payload, 0, 100_000)).statusCode());
+        HttpResponse<String> mismatch = putChunk(uploadId, 0, java.util.Arrays.copyOfRange(payload, 0, 100_000));
+        assertEquals(409, mismatch.statusCode());
+        assertEquals(100_000L, JsonParser.parseString(mismatch.body()).getAsJsonObject().get("received").getAsLong());
+        assertEquals(403, http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/peer/upload/" + uploadId + "?clientId=worker-c"))
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .GET().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.ofString()).statusCode());
+
+        HttpResponse<String> status = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/peer/upload/" + uploadId + "?clientId=worker-a"))
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .GET().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(100_000L, JsonParser.parseString(status.body()).getAsJsonObject().get("received").getAsLong());
+
+        assertEquals(200, putChunk(uploadId, 100_000,
+                java.util.Arrays.copyOfRange(payload, 100_000, payload.length)).statusCode());
+
+        HttpResponse<String> done = complete(uploadId);
+        assertEquals(200, done.statusCode());
+        JsonObject doneJson = JsonParser.parseString(done.body()).getAsJsonObject();
+        assertTrue(doneJson.get("success").getAsBoolean());
+        assertEquals("folder", doneJson.get("kind").getAsString());
+        String fileId = doneJson.get("fileId").getAsString();
+
+        HttpResponse<String> repeated = complete(uploadId);
+        assertEquals(200, repeated.statusCode());
+        assertEquals(fileId, JsonParser.parseString(repeated.body()).getAsJsonObject().get("fileId").getAsString());
+
+        JsonObject hb = JsonParser.parseString(heartbeat("worker-b").body()).getAsJsonObject();
+        assertEquals(1, hb.getAsJsonArray("actions").size());
+        assertTrue(hb.getAsJsonArray("actions").get(0).getAsString().startsWith("FILE|worker-a|" + fileId + "|"));
+
+        HttpResponse<byte[]> download = download(fileId, "worker-b");
+        assertEquals(200, download.statusCode());
+        assertArrayEquals(payload, download.body());
+    }
+
+    @Test
+    public void chunkedUploadUnknownIdIsNotFound() throws Exception {
+        assertEquals(404, putChunk("missing", 0, new byte[]{1}).statusCode());
+        assertEquals(404, complete("missing").statusCode());
+    }
+
+    @Test
     public void uploadedFileErrorMessage_explainsSizeLimit() {
         String message = ServerApp.uploadedFileErrorMessage(
                 new IllegalStateException("Multipart Mime part file exceeds max filesize"));
@@ -234,6 +299,28 @@ public class ServerAppPeerFileTest {
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body))
                 .build();
         return http.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> putChunk(String uploadId, long offset, byte[] bytes) throws Exception {
+        return http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/peer/upload/" + uploadId
+                                + "?clientId=worker-a&offset=" + offset))
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .header("Content-Type", "application/octet-stream")
+                        .timeout(Duration.ofSeconds(10))
+                        .PUT(HttpRequest.BodyPublishers.ofByteArray(bytes))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> complete(String uploadId) throws Exception {
+        return http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/peer/upload/" + uploadId + "/complete?clientId=worker-a"))
+                        .header("Authorization", "Bearer " + TOKEN)
+                        .timeout(Duration.ofSeconds(10))
+                        .POST(HttpRequest.BodyPublishers.noBody())
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
     }
 
     private HttpResponse<String> heartbeat(String clientId) throws Exception {

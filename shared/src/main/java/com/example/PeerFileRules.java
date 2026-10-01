@@ -18,6 +18,11 @@ public final class PeerFileRules {
     /** 伺服器暫存可下載／手動清除的時間。 */
     public static final long OFFER_TTL_MS = 6L * 60L * 60L * 1000L;
     public static final String OFFER_TTL_LABEL = "6 小時";
+    /** 分段上傳：桌面端每段大小；伺服器單段上限稍寬，容許未來調整。 */
+    public static final int UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024;
+    public static final int MAX_UPLOAD_CHUNK_BYTES = 16 * 1024 * 1024;
+    /** 分段上傳閒置超過此時間，伺服器丟棄未完成的暫存。 */
+    public static final long UPLOAD_IDLE_TTL_MS = 30L * 60L * 1000L;
 
     public static final String KIND_FILE = "file";
     public static final String KIND_FOLDER = "folder";
