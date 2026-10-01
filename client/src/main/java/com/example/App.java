@@ -8,6 +8,7 @@ import com.example.service.HeartbeatService.PeerFileInfo;
 import com.example.service.HeartbeatService.PeerInfo;
 import com.example.service.PeerAvatar;
 import com.example.service.RelayProxyService;
+import com.example.service.WebBrowserService;
 import com.example.service.SchedulerService;
 import com.example.service.TaskPersistenceService;
 import com.example.service.TransferCancel;
@@ -15,6 +16,7 @@ import com.example.service.WindowBackground;
 import com.example.ui.UiFonts;
 import com.example.ui.TransferProgressDialog;
 import com.example.ui.NetworkToolsPanel;
+import com.example.ui.BrowsePanel;
 import com.example.ui.PanelFactory;
 import com.example.ui.PanelFactory.*;
 import com.example.ui.RecentValuesHelper;
@@ -55,6 +57,7 @@ public class App extends JFrame {
     private final AutomationService automationService;
     private final HeartbeatService heartbeatService;
     private final RelayProxyService relayProxyService;
+    private final WebBrowserService webBrowserService;
     private final TaskPersistenceService persistenceService;
     private final CheckInHistoryService historyService;
     private final ConfigPersistenceService configPersistenceService;
@@ -64,6 +67,7 @@ public class App extends JFrame {
     private JSplitPane mainSplit;
     private JTabbedPane mainTabs;
     private NetworkToolsPanel networkToolsPanel;
+    private BrowsePanel browsePanel;
     private boolean serverHistoryMenuBound;
     private Image appIconImage;
     private final List<PeerFileInfo> peerFiles = new ArrayList<>();
@@ -75,6 +79,7 @@ public class App extends JFrame {
         this.automationService = new AutomationService();
         this.heartbeatService = new HeartbeatService();
         this.relayProxyService = new RelayProxyService();
+        this.webBrowserService = new WebBrowserService();
         this.persistenceService = new TaskPersistenceService();
         this.historyService = new CheckInHistoryService();
         this.configPersistenceService = new ConfigPersistenceService();
@@ -250,16 +255,25 @@ public class App extends JFrame {
                 this::appendLog);
         networkToolsPanel.setOpaque(false);
 
+        browsePanel = new BrowsePanel(
+                mainFont, boldFont, fieldFont,
+                webBrowserService,
+                () -> serverRefs.trustAllSslCheckBox != null && serverRefs.trustAllSslCheckBox.isSelected(),
+                this::saveCloudConfig,
+                this::appendLog);
+
         tabs.addTab("排程任務", tasksTab);
         tabs.addTab("雲端設定", cloudTab);
         tabs.addTab(PanelFactory.PEER_TAB_LABEL, peerTab);
         tabs.addTab(NetworkToolsPanel.TAB_LABEL, networkToolsPanel);
+        tabs.addTab(BrowsePanel.TAB_LABEL, browsePanel);
         tabs.setOpaque(false);
         tabs.setBackground(new Color(0, 0, 0, 0));
         tabs.setToolTipTextAt(0, "設定目標網址、時間，立即測試");
         tabs.setToolTipTextAt(1, "雲端心跳、Client ID、Token；可選程式背景圖與模糊／透明度");
         tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案／資料夾與傳檔狀態");
         tabs.setToolTipTextAt(3, "測試 Server GET /ping（Ping/Pong）");
+        tabs.setToolTipTextAt(4, "用內建 Chromium 開網頁，可略過公司 Proxy 直連");
         tabs.addChangeListener(e -> rememberWindowLayout());
         tabs.setSelectedIndex(0);
 
@@ -1253,6 +1267,7 @@ public class App extends JFrame {
                 }
                 heartbeatService.stopHeartbeat();
                 relayProxyService.stop();
+                webBrowserService.shutdown();
                 if (countdownTimer != null) {
                     countdownTimer.stop();
                 }
@@ -1380,6 +1395,10 @@ public class App extends JFrame {
             applyAvatarFromConfig(config);
             applyBackgroundFromConfig(config);
             applyNetworkToolsConfig(config);
+            if (browsePanel != null) {
+                browsePanel.applySettings(config.browseUrl, config.recentBrowseUrls,
+                        config.browseDirect, this::saveCloudConfig);
+            }
         } finally {
             suppressConfigSave = false;
         }
@@ -1499,6 +1518,11 @@ public class App extends JFrame {
         config.backgroundOpacityPercent = currentBackgroundOpacityPercent();
         captureRelayConfigInto(config);
         captureNetworkToolsInto(config);
+        if (browsePanel != null) {
+            config.browseUrl = browsePanel.getUrl();
+            config.browseDirect = browsePanel.isDirect();
+            ConfigPersistenceService.pushRecent(config.recentBrowseUrls, config.browseUrl);
+        }
         captureWindowLayoutInto(config);
         configPersistenceService.saveConfig(config, null);
     }

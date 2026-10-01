@@ -88,6 +88,11 @@ public class ConfigPersistenceService {
         /** 中繼 Proxy：讓同事透過你連到 Server */
         public boolean relayEnabled = false;
         public int relayPort = 8888;
+
+        /** 「瀏覽」分頁（Playwright 內建 Chromium） */
+        public String browseUrl = "https://www.google.com.tw";
+        public List<String> recentBrowseUrls = new ArrayList<>();
+        public boolean browseDirect = true;
     }
 
     private static SlotSettings defaultWorkIn() {
@@ -231,6 +236,13 @@ public class ConfigPersistenceService {
             config.networkProxyPassword = "";
         }
         config.relayPort = RelayProxyService.clampPort(config.relayPort);
+        if (config.browseUrl == null || config.browseUrl.isBlank()) {
+            config.browseUrl = "https://www.google.com.tw";
+        }
+        if (config.recentBrowseUrls == null) {
+            config.recentBrowseUrls = new ArrayList<>();
+        }
+        seedRecentIfMissing(config.recentBrowseUrls, config.browseUrl);
     }
 
     public static int clampWindowTransparencyPercent(int percent) {
