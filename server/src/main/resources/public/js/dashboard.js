@@ -1394,25 +1394,65 @@
       }
     }
 
+    let currentLightboxIndex = -1;
+
     function openLightbox(photoId) {
-      const photo = photoData.find(p => p.id === photoId);
-      if (!photo) return;
+      const index = photoData.findIndex(p => p.id === photoId);
+      if (index < 0) return;
+      currentLightboxIndex = index;
       let lightbox = document.getElementById('photoLightbox');
       if (!lightbox) {
         lightbox = document.createElement('div');
         lightbox.id = 'photoLightbox';
         lightbox.className = 'photo-lightbox is-hidden';
         lightbox.innerHTML = '<button type="button" class="photo-lightbox-close" onclick="closeLightbox()">×</button>'
-          + '<img id="lightboxImage" src="" alt="" />';
+          + '<button type="button" class="photo-lightbox-nav photo-lightbox-prev" onclick="lightboxPrev()">‹</button>'
+          + '<img id="lightboxImage" src="" alt="" />'
+          + '<button type="button" class="photo-lightbox-nav photo-lightbox-next" onclick="lightboxNext()">›</button>'
+          + '<div class="photo-lightbox-counter" id="lightboxCounter"></div>';
         lightbox.addEventListener('click', function(e) {
           if (e.target === lightbox) closeLightbox();
         });
         document.body.appendChild(lightbox);
       }
-      const img = document.getElementById('lightboxImage');
-      img.src = photo.dataUrl;
-      img.alt = photo.filename;
+      updateLightboxImage();
       lightbox.classList.remove('is-hidden');
+    }
+
+    function updateLightboxImage() {
+      if (currentLightboxIndex < 0 || currentLightboxIndex >= photoData.length) return;
+      const photo = photoData[currentLightboxIndex];
+      const img = document.getElementById('lightboxImage');
+      const counter = document.getElementById('lightboxCounter');
+      if (img) {
+        img.src = photo.dataUrl;
+        img.alt = photo.filename;
+      }
+      if (counter) {
+        counter.textContent = (currentLightboxIndex + 1) + ' / ' + photoData.length;
+      }
+      updateLightboxNavVisibility();
+    }
+
+    function updateLightboxNavVisibility() {
+      const prevBtn = document.querySelector('.photo-lightbox-prev');
+      const nextBtn = document.querySelector('.photo-lightbox-next');
+      if (prevBtn) prevBtn.style.visibility = currentLightboxIndex > 0 ? 'visible' : 'hidden';
+      if (nextBtn) nextBtn.style.visibility = currentLightboxIndex < photoData.length - 1 ? 'visible' : 'hidden';
+    }
+
+    function lightboxPrev() {
+      if (currentLightboxIndex > 0) {
+        currentLightboxIndex--;
+        updateLightboxImage();
+      }
+    }
+
+    function lightboxNext() {
+      if (currentLightboxIndex < photoData.length - 1) {
+        currentLightboxIndex++;
+        updateLightboxImage();
+      }
     }
 
     function closeLightbox() {
@@ -1420,6 +1460,7 @@
       if (lightbox) {
         lightbox.classList.add('is-hidden');
       }
+      currentLightboxIndex = -1;
     }
 
     function bindPhotoActions() {
@@ -1440,6 +1481,8 @@
       }
       document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft') lightboxPrev();
+        if (e.key === 'ArrowRight') lightboxNext();
       });
     }
 

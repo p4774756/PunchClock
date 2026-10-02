@@ -453,10 +453,62 @@
       background: #fff;
     }
 
+    .photo-lightbox-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255, 255, 255, 0.85);
+      border: none;
+      font-size: 2.5rem;
+      width: 3rem;
+      height: 4rem;
+      border-radius: var(--radius);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-dark);
+      transition: background 0.15s, transform 0.15s;
+      user-select: none;
+    }
+
+    .photo-lightbox-nav:hover {
+      background: #fff;
+      transform: translateY(-50%) scale(1.05);
+    }
+
+    .photo-lightbox-prev {
+      left: 1rem;
+    }
+
+    .photo-lightbox-next {
+      right: 1rem;
+    }
+
+    .photo-lightbox-counter {
+      position: absolute;
+      bottom: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      color: #fff;
+      padding: 0.4rem 1rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
     @media (max-width: 600px) {
       .photo-grid {
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
       }
+      .photo-lightbox-nav {
+        width: 2.5rem;
+        height: 3rem;
+        font-size: 2rem;
+      }
+      .photo-lightbox-prev { left: 0.5rem; }
+      .photo-lightbox-next { right: 0.5rem; }
     }
 
     .file-transfers {
