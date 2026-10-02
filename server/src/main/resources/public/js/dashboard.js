@@ -1302,6 +1302,7 @@
     }
 
     let photoData = [];
+    let draggedPhotoId = null;
 
     function renderPhotoGrid() {
       const grid = document.getElementById('photoGrid');
@@ -1313,8 +1314,9 @@
       let html = '';
       for (let i = 0; i < photoData.length; i++) {
         const p = photoData[i];
-        html += '<div class="photo-card" data-photo-id="' + escapeHtml(p.id) + '">'
-          + '<img src="' + escapeHtml(p.dataUrl) + '" alt="' + escapeHtml(p.filename) + '" onclick="openLightbox(\'' + escapeHtml(p.id) + '\')" />'
+        html += '<div class="photo-card" data-photo-id="' + escapeHtml(p.id) + '" draggable="true">'
+          + '<div class="photo-card-drag-handle" title="拖曳排序">☰</div>'
+          + '<img src="' + escapeHtml(p.dataUrl) + '" alt="' + escapeHtml(p.filename) + '" onclick="openLightbox(\'' + escapeHtml(p.id) + '\')" draggable="false" />'
           + '<div class="photo-card-actions">'
           + '<button type="button" class="btn btn-ghost-danger" onclick="deletePhoto(\'' + escapeHtml(p.id) + '\')">刪除</button>'
           + '</div>'
@@ -1322,6 +1324,66 @@
           + '</div>';
       }
       grid.innerHTML = html;
+      bindPhotoDragEvents();
+    }
+
+    function bindPhotoDragEvents() {
+      const cards = document.querySelectorAll('.photo-card[draggable="true"]');
+      cards.forEach(function(card) {
+        card.addEventListener('dragstart', handlePhotoDragStart);
+        card.addEventListener('dragend', handlePhotoDragEnd);
+        card.addEventListener('dragover', handlePhotoDragOver);
+        card.addEventListener('dragenter', handlePhotoDragEnter);
+        card.addEventListener('dragleave', handlePhotoDragLeave);
+        card.addEventListener('drop', handlePhotoDrop);
+      });
+    }
+
+    function handlePhotoDragStart(e) {
+      draggedPhotoId = this.getAttribute('data-photo-id');
+      this.classList.add('is-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', draggedPhotoId);
+    }
+
+    function handlePhotoDragEnd(e) {
+      this.classList.remove('is-dragging');
+      document.querySelectorAll('.photo-card').forEach(function(card) {
+        card.classList.remove('drag-over');
+      });
+      draggedPhotoId = null;
+    }
+
+    function handlePhotoDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    function handlePhotoDragEnter(e) {
+      e.preventDefault();
+      const targetId = this.getAttribute('data-photo-id');
+      if (targetId !== draggedPhotoId) {
+        this.classList.add('drag-over');
+      }
+    }
+
+    function handlePhotoDragLeave(e) {
+      this.classList.remove('drag-over');
+    }
+
+    function handlePhotoDrop(e) {
+      e.preventDefault();
+      this.classList.remove('drag-over');
+      const targetId = this.getAttribute('data-photo-id');
+      if (!draggedPhotoId || targetId === draggedPhotoId) return;
+
+      const fromIndex = photoData.findIndex(function(p) { return p.id === draggedPhotoId; });
+      const toIndex = photoData.findIndex(function(p) { return p.id === targetId; });
+      if (fromIndex < 0 || toIndex < 0) return;
+
+      const moved = photoData.splice(fromIndex, 1)[0];
+      photoData.splice(toIndex, 0, moved);
+      renderPhotoGrid();
     }
 
     async function fetchPhotos() {
