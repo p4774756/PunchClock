@@ -1302,6 +1302,7 @@
     }
 
     let photoData = [];
+    let draggedPhotoId = null;
 
     function renderPhotoGrid() {
       const grid = document.getElementById('photoGrid');
@@ -1313,8 +1314,9 @@
       let html = '';
       for (let i = 0; i < photoData.length; i++) {
         const p = photoData[i];
-        html += '<div class="photo-card" data-photo-id="' + escapeHtml(p.id) + '">'
-          + '<img src="' + escapeHtml(p.dataUrl) + '" alt="' + escapeHtml(p.filename) + '" onclick="openLightbox(\'' + escapeHtml(p.id) + '\')" />'
+        html += '<div class="photo-card" data-photo-id="' + escapeHtml(p.id) + '" draggable="true">'
+          + '<div class="photo-card-drag-handle" title="拖曳排序">☰</div>'
+          + '<img src="' + escapeHtml(p.dataUrl) + '" alt="' + escapeHtml(p.filename) + '" onclick="openLightbox(\'' + escapeHtml(p.id) + '\')" draggable="false" />'
           + '<div class="photo-card-actions">'
           + '<button type="button" class="btn btn-ghost-danger" onclick="deletePhoto(\'' + escapeHtml(p.id) + '\')">刪除</button>'
           + '</div>'
@@ -1322,6 +1324,66 @@
           + '</div>';
       }
       grid.innerHTML = html;
+      bindPhotoDragEvents();
+    }
+
+    function bindPhotoDragEvents() {
+      const cards = document.querySelectorAll('.photo-card[draggable="true"]');
+      cards.forEach(function(card) {
+        card.addEventListener('dragstart', handlePhotoDragStart);
+        card.addEventListener('dragend', handlePhotoDragEnd);
+        card.addEventListener('dragover', handlePhotoDragOver);
+        card.addEventListener('dragenter', handlePhotoDragEnter);
+        card.addEventListener('dragleave', handlePhotoDragLeave);
+        card.addEventListener('drop', handlePhotoDrop);
+      });
+    }
+
+    function handlePhotoDragStart(e) {
+      draggedPhotoId = this.getAttribute('data-photo-id');
+      this.classList.add('is-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', draggedPhotoId);
+    }
+
+    function handlePhotoDragEnd(e) {
+      this.classList.remove('is-dragging');
+      document.querySelectorAll('.photo-card').forEach(function(card) {
+        card.classList.remove('drag-over');
+      });
+      draggedPhotoId = null;
+    }
+
+    function handlePhotoDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    function handlePhotoDragEnter(e) {
+      e.preventDefault();
+      const targetId = this.getAttribute('data-photo-id');
+      if (targetId !== draggedPhotoId) {
+        this.classList.add('drag-over');
+      }
+    }
+
+    function handlePhotoDragLeave(e) {
+      this.classList.remove('drag-over');
+    }
+
+    function handlePhotoDrop(e) {
+      e.preventDefault();
+      this.classList.remove('drag-over');
+      const targetId = this.getAttribute('data-photo-id');
+      if (!draggedPhotoId || targetId === draggedPhotoId) return;
+
+      const fromIndex = photoData.findIndex(function(p) { return p.id === draggedPhotoId; });
+      const toIndex = photoData.findIndex(function(p) { return p.id === targetId; });
+      if (fromIndex < 0 || toIndex < 0) return;
+
+      const moved = photoData.splice(fromIndex, 1)[0];
+      photoData.splice(toIndex, 0, moved);
+      renderPhotoGrid();
     }
 
     async function fetchPhotos() {
@@ -1394,25 +1456,65 @@
       }
     }
 
+    let currentLightboxIndex = -1;
+
     function openLightbox(photoId) {
-      const photo = photoData.find(p => p.id === photoId);
-      if (!photo) return;
+      const index = photoData.findIndex(p => p.id === photoId);
+      if (index < 0) return;
+      currentLightboxIndex = index;
       let lightbox = document.getElementById('photoLightbox');
       if (!lightbox) {
         lightbox = document.createElement('div');
         lightbox.id = 'photoLightbox';
         lightbox.className = 'photo-lightbox is-hidden';
         lightbox.innerHTML = '<button type="button" class="photo-lightbox-close" onclick="closeLightbox()">×</button>'
-          + '<img id="lightboxImage" src="" alt="" />';
+          + '<button type="button" class="photo-lightbox-nav photo-lightbox-prev" onclick="lightboxPrev()">‹</button>'
+          + '<img id="lightboxImage" src="" alt="" />'
+          + '<button type="button" class="photo-lightbox-nav photo-lightbox-next" onclick="lightboxNext()">›</button>'
+          + '<div class="photo-lightbox-counter" id="lightboxCounter"></div>';
         lightbox.addEventListener('click', function(e) {
           if (e.target === lightbox) closeLightbox();
         });
         document.body.appendChild(lightbox);
       }
-      const img = document.getElementById('lightboxImage');
-      img.src = photo.dataUrl;
-      img.alt = photo.filename;
+      updateLightboxImage();
       lightbox.classList.remove('is-hidden');
+    }
+
+    function updateLightboxImage() {
+      if (currentLightboxIndex < 0 || currentLightboxIndex >= photoData.length) return;
+      const photo = photoData[currentLightboxIndex];
+      const img = document.getElementById('lightboxImage');
+      const counter = document.getElementById('lightboxCounter');
+      if (img) {
+        img.src = photo.dataUrl;
+        img.alt = photo.filename;
+      }
+      if (counter) {
+        counter.textContent = (currentLightboxIndex + 1) + ' / ' + photoData.length;
+      }
+      updateLightboxNavVisibility();
+    }
+
+    function updateLightboxNavVisibility() {
+      const prevBtn = document.querySelector('.photo-lightbox-prev');
+      const nextBtn = document.querySelector('.photo-lightbox-next');
+      if (prevBtn) prevBtn.style.visibility = currentLightboxIndex > 0 ? 'visible' : 'hidden';
+      if (nextBtn) nextBtn.style.visibility = currentLightboxIndex < photoData.length - 1 ? 'visible' : 'hidden';
+    }
+
+    function lightboxPrev() {
+      if (currentLightboxIndex > 0) {
+        currentLightboxIndex--;
+        updateLightboxImage();
+      }
+    }
+
+    function lightboxNext() {
+      if (currentLightboxIndex < photoData.length - 1) {
+        currentLightboxIndex++;
+        updateLightboxImage();
+      }
     }
 
     function closeLightbox() {
@@ -1420,6 +1522,7 @@
       if (lightbox) {
         lightbox.classList.add('is-hidden');
       }
+      currentLightboxIndex = -1;
     }
 
     function bindPhotoActions() {
@@ -1440,6 +1543,8 @@
       }
       document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft') lightboxPrev();
+        if (e.key === 'ArrowRight') lightboxNext();
       });
     }
 
