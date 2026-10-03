@@ -22,4 +22,8 @@ ENV PORT=3000
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=50.0"
 EXPOSE 3000
 
+# Render Persistent Disk 掛載點（需在 Render Dashboard 設定 1GB disk 掛載到 /var/data）
+# 照片與傳檔會自動使用此目錄；本地開發時若目錄不存在則 fallback 到 tmpdir／記憶體
+VOLUME ["/var/data"]
+
 CMD ["java", "-jar", "app.jar"]

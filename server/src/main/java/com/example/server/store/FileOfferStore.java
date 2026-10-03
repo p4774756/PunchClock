@@ -68,6 +68,10 @@ public final class FileOfferStore {
         if (override != null && !override.isBlank()) {
             return Paths.get(override.trim()).toAbsolutePath().normalize();
         }
+        Path persistent = Paths.get("/var/data/files");
+        if (Files.isDirectory(persistent.getParent())) {
+            return persistent.toAbsolutePath().normalize();
+        }
         return Paths.get(System.getProperty("java.io.tmpdir", "."), "punchclock-peer-files")
                 .toAbsolutePath().normalize();
     }
