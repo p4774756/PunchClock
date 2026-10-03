@@ -26,30 +26,30 @@
 
   <div class="site-banner">
     <div class="site-banner-inner">
-      <h1 class="header-title">遠端營運監控控制台</h1>
-      <p class="header-sub">即時同步桌面端心跳、排程任務、傳檔狀態與伺服器負載</p>
+      <h1 class="header-title">Bubble Tea Lovers</h1>
+      <p class="header-sub">每一杯珍珠奶茶，都是生活的小確幸</p>
     </div>
   </div>
 
   <div class="dash-tabs-wrap">
     <div class="dash-tabs" role="tablist" aria-label="後台分頁">
       <button type="button" class="dash-tab is-active" role="tab" id="tab-devices"
-              aria-selected="true" aria-controls="panel-devices" data-tab="devices">裝置監控</button>
+              aria-selected="true" aria-controls="panel-devices" data-tab="devices">日常紀錄</button>
       <button type="button" class="dash-tab" role="tab" id="tab-files"
-              aria-selected="false" aria-controls="panel-files" data-tab="files">傳檔狀態</button>
+              aria-selected="false" aria-controls="panel-files" data-tab="files">小物寄放</button>
       <button type="button" class="dash-tab" role="tab" id="tab-system"
-              aria-selected="false" aria-controls="panel-system" data-tab="system">系統狀態</button>
+              aria-selected="false" aria-controls="panel-system" data-tab="system">店內近況</button>
       <button type="button" class="dash-tab" role="tab" id="tab-photos"
-              aria-selected="false" aria-controls="panel-photos" data-tab="photos">照片展示</button>
+              aria-selected="false" aria-controls="panel-photos" data-tab="photos">牆上風景</button>
       <button type="button" class="dash-tab" role="tab" id="tab-flappy"
-              aria-selected="false" aria-controls="panel-flappy" data-tab="flappy">飛杯摩卡</button>
+              aria-selected="false" aria-controls="panel-flappy" data-tab="flappy">珍珠彈跳</button>
     </div>
   </div>
 
   <div class="shell dash-panel is-active" id="panel-devices" role="tabpanel" aria-labelledby="tab-devices">
     <div class="content-panel content-panel-full">
       <main id="clientContainer">
-        <div class="empty-state"><p>連線狀態載入中…</p><p>正在同步裝置心跳</p></div>
+        <div class="empty-state"><p>稍等一下喔…</p><p>正在沖泡今日份的紀錄</p></div>
       </main>
     </div>
   </div>
@@ -59,13 +59,13 @@
       <section class="file-transfers" id="fileTransfers" aria-label="傳檔狀態">
         <div class="file-transfers-head">
           <div>
-            <div class="section-label" style="margin:0;border:0;padding:0">傳檔狀態</div>
-            <p class="file-transfers-hint">過期前可重複下載，也可手動清除。資料夾以 ZIP 傳送。</p>
+            <div class="section-label" style="margin:0;border:0;padding:0">小物寄放區</div>
+            <p class="file-transfers-hint">暫時寄放的東西，過期前都可以領回去。資料夾會打包成一袋。</p>
           </div>
-          <button type="button" class="btn btn-ghost-danger" id="clearAllFilesBtn">清除全部暫存</button>
+          <button type="button" class="btn btn-ghost-danger" id="clearAllFilesBtn">全部清掉</button>
         </div>
         <div id="fileTransferList">
-          <p class="empty-tasks">目前沒有暫存檔案</p>
+          <p class="empty-tasks">目前沒有東西寄放喔</p>
         </div>
       </section>
     </div>
@@ -75,32 +75,32 @@
     <div class="content-panel content-panel-full">
       <section class="system-status" aria-label="系統狀態">
         <div class="system-status-head">
-          <div class="section-label" style="margin:0;border:0;padding:0">伺服器運行狀態</div>
-          <p class="system-status-hint">即時負載與資源用量；曲線每分鐘取樣，保留約 3 天</p>
+          <div class="section-label" style="margin:0;border:0;padding:0">店內近況</div>
+          <p class="system-status-hint">看看這間小店現在忙不忙；每分鐘記一筆，大約存三天</p>
         </div>
-        <div class="server-health" id="serverHealth" aria-label="伺服器運行狀態">
-          <div class="health-card"><span class="health-label">CPU</span><strong id="healthCpu">載入中</strong></div>
-          <div class="health-card"><span class="health-label">處理器負載</span><strong id="healthLoad">—</strong></div>
-          <div class="health-card"><span class="health-label">JVM 記憶體</span><strong id="healthHeap">—</strong></div>
-          <div class="health-card"><span class="health-label">系統記憶體</span><strong id="healthOsMem">—</strong></div>
-          <div class="health-card"><span class="health-label">傳檔暫存</span><strong id="healthFiles">—</strong></div>
-          <div class="health-card"><span class="health-label">暫存磁碟</span><strong id="healthDisk" title="">—</strong></div>
-          <div class="health-card"><span class="health-label">運行時間</span><strong id="healthUptime">—</strong></div>
+        <div class="server-health" id="serverHealth" aria-label="店內近況">
+          <div class="health-card"><span class="health-label">忙碌程度</span><strong id="healthCpu">載入中</strong></div>
+          <div class="health-card"><span class="health-label">手沖壓力</span><strong id="healthLoad">—</strong></div>
+          <div class="health-card"><span class="health-label">吧台容量</span><strong id="healthHeap">—</strong></div>
+          <div class="health-card"><span class="health-label">整體空間</span><strong id="healthOsMem">—</strong></div>
+          <div class="health-card"><span class="health-label">寄物櫃</span><strong id="healthFiles">—</strong></div>
+          <div class="health-card"><span class="health-label">倉庫剩餘</span><strong id="healthDisk" title="">—</strong></div>
+          <div class="health-card"><span class="health-label">開店至今</span><strong id="healthUptime">—</strong></div>
         </div>
-        <section class="health-history" aria-label="系統監控歷史">
+        <section class="health-history" aria-label="營業曲線">
           <div class="health-history-head">
             <div>
-              <div class="section-label" style="margin:0;border:0;padding:0">系統監控曲線</div>
-              <p class="health-history-hint">每分鐘取樣，保留約 3 天（重啟後若本機有存檔會還原）</p>
+              <div class="section-label" style="margin:0;border:0;padding:0">營業曲線</div>
+              <p class="health-history-hint">每分鐘畫一筆，大約存三天（關店後若有備份會自動還原）</p>
             </div>
             <div class="health-legend" aria-hidden="true">
-              <span><i class="swatch swatch-cpu"></i>CPU %</span>
-              <span><i class="swatch swatch-heap"></i>JVM 記憶體 %</span>
-              <span><i class="swatch swatch-os"></i>系統記憶體 %</span>
+              <span><i class="swatch swatch-cpu"></i>忙碌度</span>
+              <span><i class="swatch swatch-heap"></i>吧台用量</span>
+              <span><i class="swatch swatch-os"></i>整體空間</span>
             </div>
           </div>
-          <canvas id="healthHistoryChart" width="960" height="220" role="img" aria-label="CPU 與記憶體歷史曲線"></canvas>
-          <p class="health-history-empty" id="healthHistoryEmpty">尚無歷史資料，稍候一分鐘後會開始繪製</p>
+          <canvas id="healthHistoryChart" width="960" height="220" role="img" aria-label="營業曲線"></canvas>
+          <p class="health-history-empty" id="healthHistoryEmpty">還沒有資料，等一分鐘就會開始畫囉</p>
         </section>
       </section>
     </div>
@@ -108,22 +108,22 @@
 
   <div class="shell dash-panel" id="panel-photos" role="tabpanel" aria-labelledby="tab-photos" hidden>
     <div class="content-panel content-panel-full">
-      <section class="photo-gallery" aria-label="照片展示">
+      <section class="photo-gallery" aria-label="牆上風景">
         <div class="photo-gallery-head">
           <div>
-            <div class="section-label" style="margin:0;border:0;padding:0">照片展示</div>
-            <p class="photo-gallery-hint">開會展示用，上傳的照片會暫存在伺服器記憶體（重啟後清空）</p>
+            <div class="section-label" style="margin:0;border:0;padding:0">牆上風景</div>
+            <p class="photo-gallery-hint">把喜歡的照片貼在牆上吧，關店後會自動清空</p>
           </div>
           <div class="photo-actions">
             <label class="btn btn-ghost" for="photoUploadInput">
               <input type="file" id="photoUploadInput" accept="image/*" multiple hidden>
-              選擇照片
+              選張照片
             </label>
-            <button type="button" class="btn btn-ghost-danger" id="clearAllPhotosBtn">清除全部</button>
+            <button type="button" class="btn btn-ghost-danger" id="clearAllPhotosBtn">全部撕掉</button>
           </div>
         </div>
         <div class="photo-grid" id="photoGrid">
-          <p class="empty-tasks">尚無照片，點擊「選擇照片」上傳</p>
+          <p class="empty-tasks">牆上空空的，點「選張照片」貼一張吧</p>
         </div>
       </section>
     </div>
@@ -131,11 +131,11 @@
 
   <div class="shell dash-panel" id="panel-flappy" role="tabpanel" aria-labelledby="tab-flappy" hidden>
     <div class="content-panel content-panel-full">
-      <section class="flappy-game" aria-label="飛杯摩卡">
+      <section class="flappy-game" aria-label="珍珠彈跳">
         <div class="flappy-head">
           <div>
-            <div class="section-label" style="margin:0;border:0;padding:0">飛杯摩卡</div>
-            <p class="flappy-hint">點擊畫面或按空白鍵讓咖啡杯起飛，穿過柱子得分。切換分頁會自動暫停。</p>
+            <div class="section-label" style="margin:0;border:0;padding:0">珍珠彈跳</div>
+            <p class="flappy-hint">點一下或按空白鍵讓珍珠跳起來，小心別撞到吸管！換頁會自動暫停。</p>
           </div>
           <div class="flappy-scores" aria-live="polite">
             <span>分數 <strong id="flappyScore">0</strong></span>
@@ -146,19 +146,19 @@
           <canvas id="flappyCanvas" width="480" height="640" tabindex="0"
                   role="img" aria-label="飛杯摩卡遊戲畫面，點擊或按空白鍵起飛"></canvas>
           <div class="flappy-overlay" id="flappyOverlay">
-            <p class="flappy-overlay-title" id="flappyOverlayTitle">飛杯摩卡</p>
-            <p class="flappy-overlay-sub" id="flappyOverlaySub">點擊或按空白鍵開始</p>
+            <p class="flappy-overlay-title" id="flappyOverlayTitle">珍珠彈跳</p>
+            <p class="flappy-overlay-sub" id="flappyOverlaySub">點一下開始彈跳</p>
           </div>
         </div>
         <div class="flappy-actions">
-          <button type="button" class="btn btn-danger" id="flappyRestartBtn">再來一杯</button>
+          <button type="button" class="btn btn-danger" id="flappyRestartBtn">再跳一次</button>
         </div>
       </section>
     </div>
   </div>
 
   <footer class="site-footer">
-    莫卡咖啡 管理後台 · 樣式參考臺北市校務行政系統入口
+    莫卡咖啡 · Sip slowly, live fully ☕🧋
   </footer>
 
   <script src="/js/dashboard.js"></script>
