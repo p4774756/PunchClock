@@ -68,7 +68,7 @@
     setScore(0);
     state = 'ready';
     if (!keepOverlay) {
-      setOverlay(true, '飛杯摩卡', '點擊或按空白鍵開始');
+      setOverlay(true, '珍珠彈跳', '點一下開始彈跳');
     }
     draw();
   }
@@ -111,7 +111,7 @@
   function die() {
     if (state !== 'playing') return;
     state = 'dead';
-    setOverlay(true, '濺出咖啡了', '分數 ' + score + ' · 點擊再飛');
+    setOverlay(true, '嗚嗚掉了', '得分 ' + score + ' · 再跳一次');
   }
 
   function pipeSpeed() {
@@ -336,9 +336,9 @@
   function activate() {
     active = true;
     if (state === 'ready') {
-      setOverlay(true, '飛杯摩卡', '點擊或按空白鍵開始');
+      setOverlay(true, '珍珠彈跳', '點一下開始彈跳');
     } else if (state === 'dead') {
-      setOverlay(true, '濺出咖啡了', '分數 ' + score + ' · 點擊再飛');
+      setOverlay(true, '嗚嗚掉了', '得分 ' + score + ' · 再跳一次');
     } else if (state === 'playing') {
       setOverlay(false);
     }
@@ -352,7 +352,7 @@
     stopLoop();
     if (state === 'playing') {
       // soft-pause: freeze mid-flight until tab returns
-      setOverlay(true, '暫停中', '回到此分頁繼續');
+      setOverlay(true, '等你回來', '切回來繼續彈跳');
     }
   }
 
@@ -390,7 +390,7 @@
 
   document.addEventListener('visibilitychange', function () {
     if (document.hidden && active && state === 'playing') {
-      setOverlay(true, '暫停中', '回到頁面繼續');
+      setOverlay(true, '等你回來', '回到頁面繼續彈跳');
       stopLoop();
     } else if (!document.hidden && active) {
       if (state === 'playing') setOverlay(false);
