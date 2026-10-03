@@ -1017,7 +1017,7 @@ public final class ServerApp {
                     "id", result.photo.id,
                     "filename", result.photo.filename,
                     "mimeType", result.photo.mimeType,
-                    "dataUrl", "data:" + result.photo.mimeType + ";base64," + result.photo.base64Data,
+                    "dataUrl", "data:" + result.photo.mimeType + ";base64," + result.photo.base64Data(),
                     "size", result.photo.size,
                     "createdAtMs", result.photo.createdAtMs
             ));
