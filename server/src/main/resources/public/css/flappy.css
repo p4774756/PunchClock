@@ -96,13 +96,6 @@
       text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
     }
 
-    .flappy-actions {
-      margin-top: 0.75rem;
-      display: flex;
-      justify-content: center;
-      gap: 0.5rem;
-    }
-
     @media (max-width: 560px) {
       .flappy-head { flex-direction: column; }
       .flappy-overlay-title { font-size: 1.15rem; }
