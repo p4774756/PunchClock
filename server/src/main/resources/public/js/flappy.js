@@ -19,7 +19,6 @@
   const overlay = document.getElementById('flappyOverlay');
   const overlayTitle = document.getElementById('flappyOverlayTitle');
   const overlaySub = document.getElementById('flappyOverlaySub');
-  const restartBtn = document.getElementById('flappyRestartBtn');
 
   let best = 0;
   try {
@@ -379,14 +378,6 @@
       flap();
     }
   });
-
-  if (restartBtn) {
-    restartBtn.addEventListener('click', function () {
-      if (!active) return;
-      resetRound(false);
-      canvas.focus({ preventScroll: true });
-    });
-  }
 
   document.addEventListener('visibilitychange', function () {
     if (document.hidden && active && state === 'playing') {
