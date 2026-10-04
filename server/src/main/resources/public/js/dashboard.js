@@ -132,7 +132,7 @@
       if (!isConnected) return '離線';
       const total = (tasks || []).length;
       const scheduled = countScheduledTasks(tasks);
-      return '在線 · ' + transportLabel + ' · ' + total + ' 任務 · ' + scheduled + ' 排程';
+      return '上線中 · ' + transportLabel + ' · ' + total + ' 杯待處理 · ' + scheduled + ' 杯等沖泡';
     }
 
     function buildCancelAllButtonHtml(clientId, isConnected, tasks) {
@@ -141,13 +141,13 @@
       }
       const canCancel = isConnected && hasCancellableTasks(tasks);
       const disabled = canCancel ? '' : 'disabled';
-      const title = canCancel ? '' : ' title="目前沒有等待中或執行中的任務可取消"';
-      return '<button class="btn btn-danger" data-role="cancel-all" onclick="remoteCancelSchedule(\'' + clientId + '\')"' + title + ' ' + disabled + '>取消全部任務</button>';
+      const title = canCancel ? '' : ' title="目前沒有排隊中的訂單可以取消喔"';
+      return '<button class="btn btn-danger" data-role="cancel-all" onclick="remoteCancelSchedule(\'' + clientId + '\')"' + title + ' ' + disabled + '>全部取消</button>';
     }
 
     function buildSendMessageButtonHtml(clientId, isConnected) {
       const disabled = isConnected ? '' : 'disabled';
-      const title = isConnected ? '傳訊息給此桌面端（下次心跳收取）' : ' title="裝置離線時無法傳送"';
+      const title = isConnected ? '傳個小紙條給他（等下會收到）' : ' title="對方不在線上，沒辦法傳喔"';
       return '<button class="btn btn-ghost" data-role="send-message" onclick="remoteSendMessage(\'' + clientId + '\')"' + title + ' ' + disabled + '>傳訊息</button>';
     }
 
@@ -457,13 +457,13 @@
         if (prevStateKey !== undefined && prevStateKey !== currentStateKey) {
           const timeStr = new Date().toLocaleTimeString('zh-TW');
           if (c.status === 'CHECKING_IN') {
-            appendLog(c.clientId, '[' + timeStr + '] 正在執行排程任務…');
+            appendLog(c.clientId, '[' + timeStr + '] 訂單製作中…');
           } else if (c.message && c.message.trim() !== '') {
             appendLog(c.clientId, '[' + timeStr + '] ' + c.message);
           }
           (c.tasks || []).forEach((t) => {
             if (!t) return;
-            appendLog(c.clientId, '[' + timeStr + '] 任務【' + (t.name || t.id) + '】目前：' + taskStatusLabel(t.status));
+            appendLog(c.clientId, '[' + timeStr + '] 訂單【' + (t.name || t.id) + '】狀態：' + taskStatusLabel(t.status));
           });
         } else if (prevStateKey === undefined) {
           if (c.message && c.message.trim() !== '') {
@@ -962,7 +962,7 @@
 
       return '<article class="task-card" data-task-id="' + escapeHtml(t.id || '') + '">' +
         '<div class="task-card-top">' +
-          '<strong class="task-card-name">' + escapeHtml(t.name || '排程任務') + '</strong>' +
+          '<strong class="task-card-name">' + escapeHtml(t.name || '待處理訂單') + '</strong>' +
           '<div class="task-card-actions">' +
             '<span class="task-countdown" data-status="' + escapeHtml(t.status || '') + '" data-actual-time="' + countdownAttr + '">' + escapeHtml(countdown) + '</span>' +
             statusBadge + cancelBtn +
@@ -981,7 +981,7 @@
     function buildTaskListInnerHtml(c, isConnected) {
       const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
       if (tasks.length === 0) {
-        return '<p class="empty-tasks">目前無排定任務，請在本機桌面端設定</p>';
+        return '<p class="empty-tasks">目前沒有待處理的訂單，去店裡點杯吧</p>';
       }
       tasks.sort((a, b) => (a.actualTime || a.targetTime || '').localeCompare(b.actualTime || b.targetTime || ''));
       let cardsHtml = '';
@@ -1002,7 +1002,7 @@
       const countdownAttr = t.actualTime || t.targetTime || '';
 
       const nameEl = card.querySelector('.task-card-name');
-      if (nameEl) nameEl.textContent = t.name || '排程任務';
+      if (nameEl) nameEl.textContent = t.name || '待處理訂單';
 
       const actions = card.querySelector('.task-card-actions');
       if (actions) {
@@ -1036,7 +1036,7 @@
       const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
       if (tasks.length === 0) {
         host.removeAttribute('data-task-ids');
-        host.innerHTML = '<p class="empty-tasks">目前無排定任務，請在本機桌面端設定</p>';
+        host.innerHTML = '<p class="empty-tasks">目前沒有待處理的訂單，去店裡點杯吧</p>';
         return;
       }
       tasks.sort((a, b) => (a.actualTime || a.targetTime || '').localeCompare(b.actualTime || b.targetTime || ''));
@@ -1102,12 +1102,12 @@
           '</div>' +
           '<div class="device-body ' + bodyClass + '">' +
             '<div class="metrics">' +
-              '<div class="metric"><span class="metric-label">最後心跳</span><span class="metric-value heartbeat-value" data-client-id="' + escapeHtml(c.clientId) + '">' + formatHeartbeat(c.lastSeen) + '</span></div>' +
-              '<div class="metric"><span class="metric-label">排定任務</span><span class="metric-value" data-role="task-count">' + tasks.length + ' 筆</span></div>' +
-              '<div class="metric"><span class="metric-label">最新訊息</span><span class="metric-value" data-role="latest-message" style="color:' + statusColor + ';font-size:0.88rem;">' + safeMsg + '</span></div>' +
+              '<div class="metric"><span class="metric-label">上次打卡</span><span class="metric-value heartbeat-value" data-client-id="' + escapeHtml(c.clientId) + '">' + formatHeartbeat(c.lastSeen) + '</span></div>' +
+              '<div class="metric"><span class="metric-label">待做訂單</span><span class="metric-value" data-role="task-count">' + tasks.length + ' 杯</span></div>' +
+              '<div class="metric"><span class="metric-label">最新動態</span><span class="metric-value" data-role="latest-message" style="color:' + statusColor + ';font-size:0.88rem;">' + safeMsg + '</span></div>' +
             '</div>' +
             '<div>' +
-              '<div class="section-label">任務清單</div>' +
+              '<div class="section-label">訂單列表</div>' +
               '<div class="task-list" data-role="task-list" data-task-ids="' + escapeHtml(tasks.map((t) => t.id).join('|')) + '">' + tasksInnerHtml + '</div>' +
               '<div class="action-row">' +
                 sendMsgBtnHtml +
@@ -1116,8 +1116,8 @@
             '</div>' +
             '<div>' +
               '<div class="log-head">' +
-                '<div class="section-label" style="margin:0">系統日誌</div>' +
-                '<button class="btn btn-ghost" onclick="clearClientLog(\'' + c.clientId + '\')">清除</button>' +
+                '<div class="section-label" style="margin:0">店內小記</div>' +
+                '<button class="btn btn-ghost" onclick="clearClientLog(\'' + c.clientId + '\')">擦掉</button>' +
               '</div>' +
               '<div class="log-box" id="log-' + c.clientId + '">' + logContent + '</div>' +
             '</div>' +
@@ -1138,7 +1138,7 @@
       clientLogs[clientId] = [];
       const c = clientData.find((x) => x.clientId === clientId);
       logSkipCount[clientId] = (c && Array.isArray(c.eventLog)) ? c.eventLog.length : 0;
-      lastLogFingerprints[clientId] = '[' + new Date().toLocaleTimeString('zh-TW') + '] 日誌已清除';
+      lastLogFingerprints[clientId] = '[' + new Date().toLocaleTimeString('zh-TW') + '] 小記已擦掉';
       const box = document.getElementById('log-' + clientId);
       if (box) {
         box.innerHTML = escapeHtml(lastLogFingerprints[clientId]);
@@ -1146,7 +1146,7 @@
     }
 
     function deleteClient(clientId) {
-      if (confirm('確定要移除設備【' + clientId + '】的紀錄嗎？')) {
+      if (confirm('確定要把【' + clientId + '】從名單上移除嗎？')) {
         fetch('/api/clients/' + encodeURIComponent(clientId), { method: 'DELETE' })
           .then(res => res.json())
           .then(data => { if (!data.success) alert(data.message || '刪除失敗'); })
@@ -1156,20 +1156,20 @@
 
     function remoteCancelTask(clientId, taskId) {
       if (isTaskCancelPending(clientId, taskId)) return;
-      if (!confirm('確定要取消設備【' + clientId + '】的任務【' + taskId + '】嗎？')) return;
+      if (!confirm('確定要取消【' + clientId + '】的訂單【' + taskId + '】嗎？')) return;
 
       markTaskCancelPending(clientId, taskId);
       refreshTaskCancelUi(clientId, taskId);
-      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在發送取消任務指令 (' + taskId + ')…');
+      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在幫你取消訂單 (' + taskId + ')…');
       fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-task/' + encodeURIComponent(taskId), { method: 'POST' })
         .then(res => res.json())
         .then(data => {
           if (data.success) {
-            appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已送出取消請求，等候桌面端心跳確認（按鈕已顯示「取消中…」）');
+            appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已送出取消囉，等對方收到就會處理');
           } else {
             clearTaskCancelPending(clientId, taskId);
             refreshTaskCancelUi(clientId, taskId);
-            alert(data.message || '取消任務失敗');
+            alert(data.message || '訂單取消失敗了');
           }
         }).catch(err => {
           clearTaskCancelPending(clientId, taskId);
@@ -1183,16 +1183,16 @@
       const c = clientData.find((x) => x.clientId === clientId);
       const tasks = c && Array.isArray(c.tasks) ? c.tasks : [];
       if (!hasCancellableTasks(tasks)) return;
-      if (!confirm('確定要對設備【' + clientId + '】發送【取消全部排程】嗎？')) return;
+      if (!confirm('確定要把【' + clientId + '】的訂單全部取消嗎？')) return;
 
       markCancelAllPending(clientId);
       refreshCancelAllUi(clientId);
-      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在發送取消全部排程…');
+      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在取消全部訂單…');
       try {
         const res = await fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-schedule', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-          appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已送出取消全部請求，等候桌面端心跳確認（按鈕已顯示「取消中…」）');
+          appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已送出取消囉，等對方收到就會全部取消');
         } else {
           clearCancelAllPending(clientId);
           refreshCancelAllUi(clientId);
@@ -1227,7 +1227,7 @@
         });
         const data = await res.json();
         if (data.success) {
-          appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已送出訊息，等候桌面端心跳收取');
+          appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 紙條已丟出去囉，對方等下會收到');
         } else {
           alert(data.message || '傳送失敗');
         }
