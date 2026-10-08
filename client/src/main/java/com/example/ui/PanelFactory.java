@@ -349,6 +349,35 @@ public class PanelFactory {
         actionRow.add(refs.pokeButton);
         actionRow.add(refs.sendFileButton);
 
+        refs.attachImageButton = new JButton("附加圖片");
+        refs.attachImageButton.setFont(mainFont);
+        refs.attachImageButton.setToolTipText("選一張圖片，和文字一起傳給對方（會自動縮小壓縮）");
+        refs.pasteImageButton = new JButton("貼上圖片");
+        refs.pasteImageButton.setFont(mainFont);
+        refs.pasteImageButton.setToolTipText("貼上剪貼簿裡的截圖或圖片");
+        refs.clearImageButton = new JButton("移除圖片");
+        refs.clearImageButton.setFont(mainFont);
+        refs.clearImageButton.setEnabled(false);
+        refs.attachedImageLabel = new JLabel("（未附圖片，可只傳圖片不輸入文字）");
+        refs.attachedImageLabel.setFont(mainFont);
+        refs.attachedImageLabel.setForeground(new Color(100, 116, 139));
+
+        JPanel imageRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        imageRow.setOpaque(false);
+        imageRow.add(refs.attachImageButton);
+        imageRow.add(refs.pasteImageButton);
+        imageRow.add(refs.clearImageButton);
+        imageRow.add(refs.attachedImageLabel);
+
+        JPanel messageRows = new JPanel();
+        messageRows.setLayout(new BoxLayout(messageRows, BoxLayout.Y_AXIS));
+        messageRows.setOpaque(false);
+        actionRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        imageRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        messageRows.add(actionRow);
+        messageRows.add(Box.createVerticalStrut(4));
+        messageRows.add(imageRow);
+
         refs.fileTableModel = new javax.swing.table.DefaultTableModel(
                 new Object[]{"方向", "檔名", "對象", "大小", "狀態", "剩餘"}, 0) {
             @Override
@@ -396,7 +425,7 @@ public class PanelFactory {
 
         JPanel south = new JPanel(new BorderLayout(0, 8));
         south.setOpaque(false);
-        south.add(actionRow, BorderLayout.NORTH);
+        south.add(messageRows, BorderLayout.NORTH);
         south.add(fileSection, BorderLayout.CENTER);
 
         JPanel north = new JPanel();
@@ -478,6 +507,10 @@ public class PanelFactory {
         public JButton sendMessageButton;
         public JButton pokeButton;
         public JButton sendFileButton;
+        public JButton attachImageButton;
+        public JButton pasteImageButton;
+        public JButton clearImageButton;
+        public JLabel attachedImageLabel;
         public JButton downloadFileButton;
         public JButton clearFileButton;
         public JTable fileTable;
@@ -528,6 +561,14 @@ public class PanelFactory {
 
         JPanel shared = createCollapsibleGroupPanel("共用排程設定", sharedContent, boldFont, false);
 
+        refs.skipDatesButton = new JButton("跳過日期");
+        refs.skipDatesButton.setFont(boldFont);
+        refs.skipDatesButton.setToolTipText("指定日期不打卡；上班與下班共用，時分維持原設定");
+
+        JPanel skipRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        skipRow.setOpaque(false);
+        skipRow.add(refs.skipDatesButton);
+
         refs.workIn = createSlotCard("上班排程", mainFont, boldFont);
         refs.workOut = createSlotCard("下班排程", mainFont, boldFont);
 
@@ -546,6 +587,8 @@ public class PanelFactory {
         root.add(shared, rootGbc);
         rootGbc.gridy = 1;
         rootGbc.insets = new Insets(0, 0, 4, 0);
+        root.add(skipRow, rootGbc);
+        rootGbc.gridy = 2;
         root.add(slotRow, rootGbc);
 
         return root;
@@ -777,6 +820,7 @@ public class PanelFactory {
         public JComboBox<String> buttonIdCombo;
         public JComboBox<String> browserCombo;
         public JButton executeNowButton;
+        public JButton skipDatesButton;
     }
 
     public static class SlotCardRefs {

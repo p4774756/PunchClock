@@ -7,6 +7,7 @@ import com.example.service.HeartbeatService;
 import com.example.service.HeartbeatService.PeerFileInfo;
 import com.example.service.HeartbeatService.PeerInfo;
 import com.example.service.PeerAvatar;
+import com.example.service.PeerImage;
 import com.example.service.RelayProxyService;
 import com.example.service.WebBrowserService;
 import com.example.service.SchedulerService;
@@ -72,6 +73,8 @@ public class App extends JFrame {
     private BrowsePanel browsePanel;
     private boolean serverHistoryMenuBound;
     private Image appIconImage;
+    /** 訊息欄附加的圖片（Base64 URL JPEG），空字串表示沒有 */
+    private String attachedImageEncoded = "";
     private final List<PeerFileInfo> peerFiles = new ArrayList<>();
     /** 最近一次心跳回報為在線的同事；決定傳檔走直傳還是伺服器暫存。 */
     private final Set<String> onlinePeerIds = new HashSet<>();
@@ -138,6 +141,17 @@ public class App extends JFrame {
                     String fromId = parts[1];
                     String text = parts[2];
                     SwingUtilities.invokeLater(() -> showPeerMessage(fromId, text, null, ""));
+                }
+            } else if (command.startsWith("MSGI|")) {
+                // MSGI|fromId|sentAtMs|avatar|image|text（avatar／text 可為空；text 可含 |）
+                String[] parts = command.split("\\|", 6);
+                if (parts.length >= 5) {
+                    String fromId = parts[1];
+                    Long sentAtMs = parseEpochMillis(parts[2]);
+                    String avatar = parts[3];
+                    String image = parts[4];
+                    String text = parts.length >= 6 ? parts[5] : "";
+                    SwingUtilities.invokeLater(() -> showPeerImageMessage(fromId, text, image, sentAtMs, avatar));
                 }
             } else if (command.startsWith("POKE|")) {
                 // POKE|fromId|sentAtMs|avatar（sentAtMs／avatar 可為空）
@@ -482,6 +496,15 @@ public class App extends JFrame {
         if (peerRefs.messageField != null) {
             peerRefs.messageField.addActionListener(e -> sendMessageToSelectedPeer());
         }
+        if (peerRefs.attachImageButton != null) {
+            peerRefs.attachImageButton.addActionListener(e -> chooseMessageImage());
+        }
+        if (peerRefs.pasteImageButton != null) {
+            peerRefs.pasteImageButton.addActionListener(e -> pasteMessageImage());
+        }
+        if (peerRefs.clearImageButton != null) {
+            peerRefs.clearImageButton.addActionListener(e -> setAttachedImage("", null));
+        }
         if (peerRefs.chooseAvatarButton != null) {
             peerRefs.chooseAvatarButton.addActionListener(e -> choosePeerAvatar());
         }
@@ -509,11 +532,88 @@ public class App extends JFrame {
             return;
         }
         String text = peerRefs.messageField != null ? peerRefs.messageField.getText() : "";
-        heartbeatService.sendPeerMessage(toClientId, text, this::appendLog, ok -> {
-            if (ok && peerRefs.messageField != null) {
-                SwingUtilities.invokeLater(() -> peerRefs.messageField.setText(""));
+        String image = attachedImageEncoded;
+        heartbeatService.sendPeerMessage(toClientId, text, image, this::appendLog, ok -> {
+            if (ok) {
+                SwingUtilities.invokeLater(() -> {
+                    if (peerRefs.messageField != null) {
+                        peerRefs.messageField.setText("");
+                    }
+                    setAttachedImage("", null);
+                });
             }
         });
+    }
+
+    private void chooseMessageImage() {
+        JFileChooser chooser = UiFonts.fileChooser();
+        chooser.setDialogTitle("選擇要附加的圖片");
+        chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                "圖片檔 (JPG / PNG / GIF)", "jpg", "jpeg", "png", "gif"));
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
+            return;
+        }
+        Path file = chooser.getSelectedFile().toPath();
+        encodeMessageImageAsync(() -> PeerImage.encodeFile(file), file.getFileName().toString());
+    }
+
+    private void pasteMessageImage() {
+        Image pasted = null;
+        try {
+            java.awt.datatransfer.Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            if (clipboard.isDataFlavorAvailable(java.awt.datatransfer.DataFlavor.imageFlavor)) {
+                Object data = clipboard.getData(java.awt.datatransfer.DataFlavor.imageFlavor);
+                if (data instanceof Image) {
+                    pasted = (Image) data;
+                }
+            }
+        } catch (Exception ex) {
+            appendLog("[警告] 讀取剪貼簿失敗：" + ex.getMessage());
+        }
+        if (pasted == null) {
+            UiFonts.showWarning(this, "剪貼簿裡沒有圖片，請先複製截圖或圖片。", "貼上圖片");
+            return;
+        }
+        Image source = pasted;
+        encodeMessageImageAsync(() -> PeerImage.encode(source), "剪貼簿圖片");
+    }
+
+    private interface ImageEncoder {
+        String encode() throws Exception;
+    }
+
+    private void encodeMessageImageAsync(ImageEncoder encoder, String label) {
+        new javax.swing.SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                return encoder.encode();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    setAttachedImage(get(), label);
+                } catch (Exception ex) {
+                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                    appendLog("[失敗] 無法附加圖片：" + cause.getMessage());
+                    UiFonts.showWarning(App.this,
+                            "無法使用這張圖片：" + cause.getMessage(), "附加圖片");
+                }
+            }
+        }.execute();
+    }
+
+    private void setAttachedImage(String encoded, String label) {
+        attachedImageEncoded = encoded == null ? "" : encoded;
+        boolean has = !attachedImageEncoded.isEmpty();
+        if (peerRefs.clearImageButton != null) {
+            peerRefs.clearImageButton.setEnabled(has);
+        }
+        if (peerRefs.attachedImageLabel != null) {
+            peerRefs.attachedImageLabel.setText(has
+                    ? "已附圖片：" + label + "（約 " + PeerFileRules.formatSize(attachedImageEncoded.length() * 3L / 4L) + "）"
+                    : "（未附圖片，可只傳圖片不輸入文字）");
+        }
     }
 
     private void pokeSelectedPeer() {
@@ -796,6 +896,12 @@ public class App extends JFrame {
         if (peerRefs.pokeButton != null) {
             peerRefs.pokeButton.setEnabled(enabled);
         }
+        if (peerRefs.attachImageButton != null) {
+            peerRefs.attachImageButton.setEnabled(enabled);
+        }
+        if (peerRefs.pasteImageButton != null) {
+            peerRefs.pasteImageButton.setEnabled(enabled);
+        }
         if (peerRefs.sendFileButton != null) {
             peerRefs.sendFileButton.setEnabled(enabled);
         }
@@ -832,6 +938,27 @@ public class App extends JFrame {
                 "同事訊息 · " + fromId,
                 JOptionPane.PLAIN_MESSAGE,
                 peerDialogIcon(avatar));
+    }
+
+    private void showPeerImageMessage(String fromId, String text, String imageEncoded, Long sentAtMs, String avatar) {
+        String timeLabel = formatPeerMessageTime(sentAtMs);
+        String safeText = text == null ? "" : text;
+        appendLog("[訊息] 【戳】（" + timeLabel + "）來自【" + fromId + "】（含圖片）："
+                + (safeText.isEmpty() ? "（僅圖片）" : safeText));
+        Toolkit.getDefaultToolkit().beep();
+        BufferedImage image = PeerImage.decode(imageEncoded);
+        String shown = timeLabel + (safeText.isEmpty() ? "" : "\n\n" + safeText);
+        if (image == null) {
+            shown += "\n\n（圖片無法顯示）";
+        }
+        UiFonts.showCopyableMessageWithImage(
+                this,
+                shown,
+                safeText,
+                "同事訊息 · " + fromId,
+                JOptionPane.PLAIN_MESSAGE,
+                peerDialogIcon(avatar),
+                image);
     }
 
     private void showPeerPoke(String fromId, Long sentAtMs, String avatar) {

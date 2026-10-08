@@ -25,6 +25,8 @@ public final class ClientStore {
     public static final long PENDING_ACTION_TTL_MS = 30_000L;
     private static final int EVENT_LOG_MAX = 50;
     private static final int PEER_MESSAGE_MAX_LEN = 10_000;
+    /** 訊息附圖（Base64 URL）字元上限，約 0.9 MB 的 JPEG */
+    public static final int PEER_IMAGE_MAX_CHARS = 1_200_000;
     /** 管理後台傳訊息時的寄件者 ID（不建立假裝置） */
     public static final String ADMIN_FROM_ID = "後台";
 
@@ -109,6 +111,10 @@ public final class ClientStore {
             } else {
                 appendClientEvent(existing, "同事【" + fromId + "】傳來訊息（等待桌面端下次心跳收取）");
             }
+        } else if (action != null && action.startsWith("MSGI|")) {
+            String[] parts = action.split("\\|", 3);
+            String fromId = parts.length > 1 ? parts[1] : "未知";
+            appendClientEvent(existing, "同事【" + fromId + "】傳來圖片訊息（等待桌面端下次心跳收取）");
         } else if (action != null && action.startsWith("POKE|")) {
             String fromId = action.length() > "POKE|".length() ? action.substring("POKE|".length()) : "未知";
             appendClientEvent(existing, "同事【" + fromId + "】戳了你（等待桌面端下次心跳收取）");
@@ -153,8 +159,22 @@ public final class ClientStore {
     }
 
     public PeerResult queuePeerMessage(String toClientId, String fromClientId, String text, String avatar) {
+        return queuePeerMessage(toClientId, fromClientId, text, avatar, null);
+    }
+
+    /**
+     * @param image Base64 URL 編碼的 JPEG；有圖時文字可為空
+     */
+    public PeerResult queuePeerMessage(
+            String toClientId, String fromClientId, String text, String avatar, String image) {
         String trimmed = text == null ? "" : text.trim();
-        if (toClientId == null || toClientId.isEmpty() || fromClientId == null || fromClientId.isEmpty() || trimmed.isEmpty()) {
+        String cleanImage = sanitizeImage(image);
+        boolean imageRejected = image != null && !image.trim().isEmpty() && cleanImage.isEmpty();
+        if (imageRejected) {
+            return PeerResult.fail("圖片格式不正確或超過大小上限");
+        }
+        if (toClientId == null || toClientId.isEmpty() || fromClientId == null || fromClientId.isEmpty()
+                || (trimmed.isEmpty() && cleanImage.isEmpty())) {
             return PeerResult.fail("缺少收件人或訊息內容");
         }
         if (toClientId.equals(fromClientId)) {
@@ -168,9 +188,12 @@ public final class ClientStore {
         if (!encodedAvatar.isEmpty()) {
             sender.put("avatar", encodedAvatar);
         }
-        String action = encodePeerMessage(fromClientId, trimmed, encodedAvatar);
+        String action = cleanImage.isEmpty()
+                ? encodePeerMessage(fromClientId, trimmed, encodedAvatar)
+                : encodePeerImageMessage(fromClientId, trimmed, encodedAvatar, cleanImage);
         queueClientAction(toClientId, action);
-        appendClientEvent(sender, "已傳送訊息給【" + toClientId + "】（等待對方心跳收取）");
+        appendClientEvent(sender, (cleanImage.isEmpty() ? "已傳送訊息給【" : "已傳送圖片訊息給【")
+                + toClientId + "】（等待對方心跳收取）");
         clients.put(fromClientId, sender);
         return PeerResult.ok("訊息已排入佇列，對方約 15 秒內收到");
     }
@@ -506,6 +529,10 @@ public final class ClientStore {
             copy.put("targetUrl", maskTargetUrl(String.valueOf(copy.get("targetUrl"))));
         }
         copy.remove("avatar");
+        // 待送指令可能夾帶大頭照／訊息圖片，不要推給 Dashboard
+        copy.remove("pendingActions");
+        copy.remove("pendingAction");
+        copy.remove("pendingActionTime");
         if (copy.get("tasks") instanceof List) {
             copy.put("tasks", sanitizeTaskList(copy.get("tasks")));
         }
@@ -537,6 +564,35 @@ public final class ClientStore {
             action += "|" + avatar;
         }
         return action;
+    }
+
+    /** MSGI|fromId|base64text|epochMs|avatar|image（avatar 可為空；text 可為空） */
+    private static String encodePeerImageMessage(String fromClientId, String text, String avatar, String image) {
+        String payload = Base64.getUrlEncoder().withoutPadding().encodeToString(text.getBytes(StandardCharsets.UTF_8));
+        return "MSGI|" + fromClientId + "|" + payload + "|" + System.currentTimeMillis()
+                + "|" + (avatar == null ? "" : avatar) + "|" + image;
+    }
+
+    /** 訊息圖片只接受 Base64 URL 字元且不超過 {@link #PEER_IMAGE_MAX_CHARS}；不合格回傳空字串。 */
+    public static String sanitizeImage(Object raw) {
+        if (raw == null) {
+            return "";
+        }
+        String value = String.valueOf(raw).trim();
+        if (value.isEmpty() || value.length() > PEER_IMAGE_MAX_CHARS) {
+            return "";
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            boolean ok = (c >= 'A' && c <= 'Z')
+                    || (c >= 'a' && c <= 'z')
+                    || (c >= '0' && c <= '9')
+                    || c == '-' || c == '_';
+            if (!ok) {
+                return "";
+            }
+        }
+        return value;
     }
 
     private static String encodePeerPoke(String fromClientId, String avatar) {

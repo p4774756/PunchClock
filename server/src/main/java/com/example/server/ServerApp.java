@@ -313,7 +313,8 @@ public final class ServerApp {
                 stringOrNull(body.get("toClientId")),
                 stringOrNull(body.get("fromClientId")),
                 stringOrNull(body.get("text")),
-                stringOrNull(body.get("avatar"))
+                stringOrNull(body.get("avatar")),
+                stringOrNull(body.get("image"))
         );
         if (!result.ok) {
             ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", result.message));

@@ -3,7 +3,9 @@ package com.example.ui;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.imageio.ImageIO;
 import javax.swing.Icon;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
@@ -18,8 +20,12 @@ import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Image;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 import java.util.Locale;
 
 /**
@@ -97,6 +103,85 @@ public final class UiFonts {
             Component parent, String message, String copyText, String title, int messageType, Icon icon) {
         JOptionPane.showMessageDialog(
                 parent, buildCopyablePanel(message, copyText), title, messageType, icon);
+    }
+
+    /**
+     * 同事圖文訊息：上方顯示縮圖（可另存原圖），下方是可複製的文字。
+     *
+     * @param copyText 空白時只顯示 message（純圖片、沒有文字可複製）
+     */
+    public static void showCopyableMessageWithImage(
+            Component parent, String message, String copyText, String title, int messageType,
+            Icon icon, BufferedImage image) {
+        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        panel.setOpaque(false);
+
+        if (image != null) {
+            JLabel imageLabel = new JLabel(new ImageIcon(fitForDisplay(image, 420, 320)));
+            imageLabel.setHorizontalAlignment(JLabel.CENTER);
+            imageLabel.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
+
+            JButton saveButton = new JButton("另存圖片");
+            saveButton.setFont(chinesePlain(12));
+            saveButton.addActionListener(e -> saveImageWithDialog(parent, image));
+            JPanel saveRow = new JPanel(new BorderLayout());
+            saveRow.setOpaque(false);
+            saveRow.add(saveButton, BorderLayout.EAST);
+
+            JPanel imageBox = new JPanel(new BorderLayout(0, 4));
+            imageBox.setOpaque(false);
+            imageBox.add(imageLabel, BorderLayout.CENTER);
+            imageBox.add(saveRow, BorderLayout.SOUTH);
+            panel.add(imageBox, BorderLayout.NORTH);
+        }
+
+        if (copyText != null && !copyText.isBlank()) {
+            panel.add(buildCopyablePanel(message, copyText), BorderLayout.CENTER);
+        } else {
+            JLabel label = new JLabel(message == null ? "" : message);
+            label.setFont(chinesePlain(13));
+            panel.add(label, BorderLayout.CENTER);
+        }
+        JOptionPane.showMessageDialog(parent, panel, title, messageType, icon);
+    }
+
+    private static Image fitForDisplay(BufferedImage image, int maxW, int maxH) {
+        int w = image.getWidth();
+        int h = image.getHeight();
+        double ratio = Math.min(1.0, Math.min((double) maxW / w, (double) maxH / h));
+        if (ratio >= 1.0) {
+            return image;
+        }
+        return image.getScaledInstance(
+                Math.max(1, (int) Math.round(w * ratio)),
+                Math.max(1, (int) Math.round(h * ratio)),
+                Image.SCALE_SMOOTH);
+    }
+
+    private static void saveImageWithDialog(Component parent, BufferedImage image) {
+        JFileChooser chooser = fileChooser();
+        chooser.setDialogTitle("另存圖片");
+        chooser.setSelectedFile(new File("image.jpg"));
+        if (chooser.showSaveDialog(parent) != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
+            return;
+        }
+        File target = chooser.getSelectedFile();
+        if (!target.getName().toLowerCase(Locale.ROOT).endsWith(".jpg")
+                && !target.getName().toLowerCase(Locale.ROOT).endsWith(".jpeg")) {
+            target = new File(target.getParentFile(), target.getName() + ".jpg");
+        }
+        if (target.exists()
+                && showConfirm(parent, "檔案已存在，要覆蓋嗎？\n" + target.getName(), "另存圖片",
+                JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE) != JOptionPane.YES_OPTION) {
+            return;
+        }
+        try {
+            if (!ImageIO.write(image, "jpg", target)) {
+                showWarning(parent, "無法儲存圖片。", "另存圖片");
+            }
+        } catch (IOException ex) {
+            showWarning(parent, "無法儲存圖片：" + ex.getMessage(), "另存圖片");
+        }
     }
 
     public static int showConfirm(

@@ -7,6 +7,9 @@ import org.junit.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -39,6 +42,8 @@ public class ConfigPersistenceServiceTest {
         assertEquals(9, config.workIn.hour);
         assertEquals(18, config.workOut.hour);
         assertTrue(config.weekdaysOnly);
+        assertNotNull(config.skipDates);
+        assertTrue(config.skipDates.isEmpty());
     }
 
     @Test
@@ -222,5 +227,22 @@ public class ConfigPersistenceServiceTest {
         assertTrue(config.recentTargetUrls.contains(config.targetUrl));
         assertTrue(config.recentButtonIds.contains(config.buttonId));
         assertTrue(config.recentServerUrls.contains(config.serverUrl));
+    }
+
+    @Test
+    public void normalizeSkipDates_dropsPastDuplicatesAndInvalid() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.skipDates = new ArrayList<>(List.of(
+                "2026-10-07", "2026-10-05", "2026-10-05", "2026-10-01", "bad", " 2026-10-06 "));
+        ConfigPersistenceService.normalizeSkipDates(config, LocalDate.of(2026, 10, 5));
+        assertEquals(List.of("2026-10-05", "2026-10-06", "2026-10-07"), config.skipDates);
+    }
+
+    @Test
+    public void loadConfig_prunesSkipDatesBeforeToday() throws Exception {
+        String yesterday = LocalDate.now().minusDays(1).toString();
+        Files.writeString(configFile, "{\"skipDates\":[\"" + yesterday + "\",\"2099-01-01\",\"nope\"]}");
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertEquals(List.of("2099-01-01"), loaded.skipDates);
     }
 }

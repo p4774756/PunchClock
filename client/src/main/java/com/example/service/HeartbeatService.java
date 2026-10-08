@@ -409,6 +409,19 @@ public class HeartbeatService {
                 log(logger, "[訊息] [戳] 收到來自【" + fromId + "】的訊息");
                 commandListener.accept("MSG|" + fromId + "|" + sentAtMs + "|" + avatar + "|" + text);
             }
+        } else if (action.startsWith("MSGI|")) {
+            // MSGI|fromId|base64text|epochMs|avatar|image（avatar／text 可為空）
+            String[] parts = action.split("\\|", 6);
+            if (parts.length == 6) {
+                String fromId = parts[1];
+                String text = decodePeerPayload(parts[2]);
+                String sentAtMs = parts[3].trim();
+                String avatar = parts[4].trim();
+                String image = parts[5].trim();
+                log(logger, "[訊息] [戳] 收到來自【" + fromId + "】的圖片訊息");
+                // 對 App：MSGI|fromId|sentAtMs|avatar|image|text（text 放最後，可含 |）
+                commandListener.accept("MSGI|" + fromId + "|" + sentAtMs + "|" + avatar + "|" + image + "|" + text);
+            }
         } else if (action.startsWith("POKE|")) {
             // POKE|fromId 或 POKE|fromId|epochMs 或 POKE|fromId|epochMs|avatar
             String[] parts = action.split("\\|", 4);
@@ -530,6 +543,15 @@ public class HeartbeatService {
      * 傳送訊息給同事（經伺服器中繼）
      */
     public void sendPeerMessage(String toClientId, String text, Consumer<String> logger, Consumer<Boolean> callback) {
+        sendPeerMessage(toClientId, text, null, logger, callback);
+    }
+
+    /**
+     * @param imageEncoded {@link PeerImage#encodeFile} 產生的 Base64 URL JPEG；有圖時文字可為空
+     */
+    public void sendPeerMessage(String toClientId, String text, String imageEncoded,
+                                Consumer<String> logger, Consumer<Boolean> callback) {
+        boolean hasImage = imageEncoded != null && !imageEncoded.isBlank();
         if (!isServiceActive || serverUrl.isBlank()) {
             log(logger, "[警告] [戳] 雲端未連線，無法傳送訊息");
             if (callback != null) callback.accept(false);
@@ -540,13 +562,13 @@ public class HeartbeatService {
             if (callback != null) callback.accept(false);
             return;
         }
-        if (text == null || text.trim().isEmpty()) {
+        if (!hasImage && (text == null || text.trim().isEmpty())) {
             log(logger, "[警告] [戳] 訊息不可為空");
             if (callback != null) callback.accept(false);
             return;
         }
 
-        String trimmed = text.trim();
+        String trimmed = text == null ? "" : text.trim();
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("fromClientId", clientId);
         payload.put("toClientId", toClientId.trim());
@@ -554,8 +576,11 @@ public class HeartbeatService {
         if (avatarEncoded != null && !avatarEncoded.isBlank()) {
             payload.put("avatar", avatarEncoded);
         }
+        if (hasImage) {
+            payload.put("image", imageEncoded.trim());
+        }
         postPeerApi("/api/peer/message", payload, logger, callback,
-                "訊息給【" + toClientId.trim() + "】：" + trimmed);
+                (hasImage ? "圖片訊息給【" : "訊息給【") + toClientId.trim() + "】：" + (trimmed.isEmpty() ? "（僅圖片）" : trimmed));
     }
 
     /**

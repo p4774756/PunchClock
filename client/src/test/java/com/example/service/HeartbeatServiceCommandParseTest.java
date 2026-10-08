@@ -150,6 +150,28 @@ public class HeartbeatServiceCommandParseTest {
     }
 
     @Test
+    public void parseServerCommand_forwardsPeerImageMessage() throws Exception {
+        HeartbeatService service = new HeartbeatService();
+        List<String> received = new ArrayList<>();
+        service.setCommandListener(received::add);
+
+        Method method = HeartbeatService.class.getDeclaredMethod(
+                "parseServerCommand", String.class, Consumer.class);
+        method.setAccessible(true);
+
+        String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("看這張|圖".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        method.invoke(service,
+                "{\"actions\":[\"MSGI|worker-a|" + encoded + "|1693728000000|abcXYZ012|imgABC-_\","
+                        + "\"MSGI|worker-b||1693728001000||imgOnly\"]}",
+                (Consumer<String>) msg -> {});
+
+        assertEquals(2, received.size());
+        assertEquals("MSGI|worker-a|1693728000000|abcXYZ012|imgABC-_|看這張|圖", received.get(0));
+        assertEquals("MSGI|worker-b|1693728001000||imgOnly|", received.get(1));
+    }
+
+    @Test
     public void parseServerCommand_forwardsPeerFileOffer() throws Exception {
         HeartbeatService service = new HeartbeatService();
         List<String> received = new ArrayList<>();

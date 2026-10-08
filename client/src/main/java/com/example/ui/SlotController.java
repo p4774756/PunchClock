@@ -15,8 +15,11 @@ import com.example.service.SlotScheduleHelper;
 import com.example.service.TaskPersistenceService;
 
 import javax.swing.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -74,6 +77,8 @@ public class SlotController {
         bindSlotCard(slotRefs.workOut, WorkSlot.Kind.WORK_OUT);
         bindSharedSettingsListeners();
         slotRefs.executeNowButton.addActionListener(e -> executeNowShared());
+        slotRefs.skipDatesButton.addActionListener(e -> editSkipDates());
+        refreshSkipDatesButton();
         if (historyRefs != null && historyRefs.clearButton != null) {
             historyRefs.clearButton.addActionListener(e -> clearCheckInHistory());
         }
@@ -92,6 +97,7 @@ public class SlotController {
             slotRefs.browserCombo.setSelectedItem(config.browserChoice);
             bindHistoryMenusIfNeeded();
             refreshSharedSettingsActions();
+            refreshSkipDatesButton();
         } finally {
             suppressUiSave = false;
         }
@@ -178,6 +184,8 @@ public class SlotController {
 
     public void refreshSlotCards() {
         SwingUtilities.invokeLater(() -> {
+            pruneExpiredSkipDates();
+            refreshSkipDatesButton();
             refreshCard(slotRefs.workIn, WorkSlot.Kind.WORK_IN);
             refreshCard(slotRefs.workOut, WorkSlot.Kind.WORK_OUT);
         });
@@ -390,8 +398,7 @@ public class SlotController {
             return;
         }
         snapshotSharedSettingsToTask(kind);
-        LocalDateTime nextTime = SlotScheduleHelper.nextTriggerTime(
-                slot.hour, slot.minute, config.weekdaysOnly, LocalDateTime.now());
+        LocalDateTime nextTime = nextSlotTime(slot.hour, slot.minute, LocalDateTime.now());
         resetTaskForSchedule(task, kind, slot, nextTime);
         boolean ok = schedulerService.scheduleTask(
                 task,
@@ -431,15 +438,20 @@ public class SlotController {
     }
 
     private boolean scheduleSlot(WorkSlot.Kind kind, boolean logChanges) {
-        return scheduleSlot(kind, logChanges, false);
+        return scheduleSlot(kind, logChanges, false, false);
     }
 
     private boolean scheduleSlot(WorkSlot.Kind kind, boolean logChanges, boolean skipRemainingTodayWindow) {
+        return scheduleSlot(kind, logChanges, skipRemainingTodayWindow, false);
+    }
+
+    private boolean scheduleSlot(
+            WorkSlot.Kind kind, boolean logChanges, boolean skipRemainingTodayWindow, boolean forceRecompute) {
         SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
         CheckInTask task = schedulerService.getTask(kind.id);
         if (task == null) {
             task = SlotScheduleHelper.buildTask(kind, config,
-                    SlotScheduleHelper.nextTriggerTime(slot.hour, slot.minute, config.weekdaysOnly, LocalDateTime.now()));
+                    nextSlotTime(slot.hour, slot.minute, LocalDateTime.now()));
             schedulerService.addTaskRecord(task);
         }
 
@@ -464,9 +476,10 @@ public class SlotController {
         }
 
         LocalDateTime nextTime = skipRemainingTodayWindow
-                ? SlotScheduleHelper.nextTriggerTimeAfterTodaysSlot(
-                        slot.hour, slot.minute, config.weekdaysOnly, LocalDateTime.now())
-                : resolveNextScheduleTime(kind, task, slot);
+                ? nextSlotTimeAfterToday(slot.hour, slot.minute)
+                : (forceRecompute
+                        ? nextSlotTime(slot.hour, slot.minute, LocalDateTime.now())
+                        : resolveNextScheduleTime(kind, task, slot));
         resetTaskForSchedule(task, kind, slot, nextTime);
 
         boolean ok = schedulerService.scheduleTask(
@@ -481,14 +494,32 @@ public class SlotController {
 
     private LocalDateTime resolveNextScheduleTime(WorkSlot.Kind kind, CheckInTask task, SlotSettings slot) {
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime natural = nextSlotTime(slot.hour, slot.minute, now);
         if (task.getStatus() == TaskStatus.SCHEDULED && task.hasComputedSchedule()) {
             LocalDateTime trigger = task.getActualTriggerTime();
-            if (trigger != null && trigger.isAfter(now)) {
+            // 觸發日仍是下一個可打卡日就沿用；跳過日期增減使日期對不上時，改算下一個時分。
+            if (trigger != null && trigger.isAfter(now)
+                    && !SlotScheduleHelper.isBlockedDay(trigger.toLocalDate(), config.weekdaysOnly, activeSkipDates())
+                    && !trigger.toLocalDate().isAfter(natural.toLocalDate())) {
                 task.setTargetTime(trigger.withSecond(0).withNano(0));
                 return task.getTargetTime();
             }
         }
-        return SlotScheduleHelper.nextTriggerTime(slot.hour, slot.minute, config.weekdaysOnly, now);
+        return natural;
+    }
+
+    private LocalDateTime nextSlotTime(int hour, int minute, LocalDateTime after) {
+        return SlotScheduleHelper.nextTriggerTime(
+                hour, minute, config.weekdaysOnly, after, activeSkipDates());
+    }
+
+    private LocalDateTime nextSlotTimeAfterToday(int hour, int minute) {
+        return SlotScheduleHelper.nextTriggerTimeAfterTodaysSlot(
+                hour, minute, config.weekdaysOnly, LocalDateTime.now(), activeSkipDates());
+    }
+
+    private Collection<LocalDate> activeSkipDates() {
+        return ConfigPersistenceService.skipDates(config);
     }
 
     private void resetTaskForSchedule(
@@ -517,7 +548,73 @@ public class SlotController {
         }
         SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
         return SlotScheduleHelper.buildTask(kind, config,
-                SlotScheduleHelper.nextTriggerTime(slot.hour, slot.minute, config.weekdaysOnly, LocalDateTime.now()));
+                nextSlotTime(slot.hour, slot.minute, LocalDateTime.now()));
+    }
+
+    private void editSkipDates() {
+        ConfigPersistenceService.normalizeSkipDates(config, LocalDate.now());
+        List<LocalDate> current = ConfigPersistenceService.skipDates(config);
+        List<LocalDate> edited = SkipDatesDialog.showDialog(owner, current);
+        if (edited == null || edited.equals(current)) {
+            refreshSkipDatesButton();
+            return;
+        }
+        config.skipDates = new ArrayList<>();
+        for (LocalDate date : edited) {
+            config.skipDates.add(date.toString());
+        }
+        ConfigPersistenceService.normalizeSkipDates(config, LocalDate.now());
+        saveConfig();
+        refreshSkipDatesButton();
+
+        int updated = 0;
+        for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
+            SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
+            if (!slot.enabled) {
+                continue;
+            }
+            CheckInTask task = schedulerService.getTask(kind.id);
+            if (task != null && (task.getStatus() == TaskStatus.CANCELLED
+                    || task.getStatus() == TaskStatus.CHECKING_IN)) {
+                continue;
+            }
+            LocalDateTime next = nextSlotTime(slot.hour, slot.minute, LocalDateTime.now());
+            if (task != null && task.getStatus() == TaskStatus.SCHEDULED && task.getActualTriggerTime() != null
+                    && task.getActualTriggerTime().isAfter(LocalDateTime.now())
+                    && task.getActualTriggerTime().toLocalDate().equals(next.toLocalDate())) {
+                continue;
+            }
+            if (scheduleSlot(kind, true, false, true)) {
+                updated++;
+            }
+        }
+        if (config.skipDates.isEmpty()) {
+            appendLog.accept(String.format("[排程] 已清除跳過日期，重新排程 %d 個槽位", updated));
+        } else {
+            appendLog.accept(String.format(
+                    "[排程] 跳過日期：%s，重新排程 %d 個槽位",
+                    String.join("、", config.skipDates), updated));
+        }
+        refreshSlotCards();
+        persistTasks();
+        heartbeatService.sendHeartbeat(appendLog, null);
+    }
+
+    private void pruneExpiredSkipDates() {
+        int before = config.skipDates == null ? 0 : config.skipDates.size();
+        ConfigPersistenceService.normalizeSkipDates(config, LocalDate.now());
+        if (config.skipDates.size() != before) {
+            configPersistenceService.saveConfig(config, null);
+            appendLog.accept("[排程] 已移除過期的跳過日期");
+        }
+    }
+
+    private void refreshSkipDatesButton() {
+        if (slotRefs.skipDatesButton == null) {
+            return;
+        }
+        int count = config.skipDates == null ? 0 : config.skipDates.size();
+        slotRefs.skipDatesButton.setText(count <= 0 ? "跳過日期" : "跳過日期 (" + count + ")");
     }
 
     private void executeNowShared() {

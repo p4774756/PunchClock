@@ -8,8 +8,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 
 /**
@@ -46,6 +49,11 @@ public class ConfigPersistenceService {
         public List<String> recentServerUrls = new ArrayList<>();
         public String browserChoice = TaskEditDialog.BROWSER_OPTIONS[0];
         public boolean weekdaysOnly = true;
+        /**
+         * 上班／下班共用的跳過日期（yyyy-MM-dd）。這些日子不排程，時分維持原設定。
+         * 早於今天的日期會在載入或重算時清掉。
+         */
+        public List<String> skipDates = new ArrayList<>();
 
         public SlotSettings workIn = defaultWorkIn();
         public SlotSettings workOut = defaultWorkOut();
@@ -210,6 +218,7 @@ public class ConfigPersistenceService {
             config.browserChoice = TaskEditDialog.normalizeBrowserChoice(config.browserChoice);
         }
         config.weekdaysOnly = true; // 上班工具固定週一至週五排程
+        normalizeSkipDates(config, LocalDate.now());
         if (config.workIn == null) {
             config.workIn = defaultWorkIn();
         }
@@ -253,6 +262,50 @@ public class ConfigPersistenceService {
             return MAX_WINDOW_TRANSPARENCY_PERCENT;
         }
         return percent;
+    }
+
+    /**
+     * 跳過日期正規化：去掉空白與無法解析的值、去掉今天以前的日期、去重並由舊到新排序。
+     */
+    public static void normalizeSkipDates(CloudConfig config, LocalDate today) {
+        TreeSet<LocalDate> kept = new TreeSet<>();
+        if (config.skipDates != null) {
+            for (String value : config.skipDates) {
+                LocalDate date = parseSkipDate(value);
+                if (date != null && !date.isBefore(today)) {
+                    kept.add(date);
+                }
+            }
+        }
+        config.skipDates = new ArrayList<>();
+        for (LocalDate date : kept) {
+            config.skipDates.add(date.toString());
+        }
+    }
+
+    public static List<LocalDate> skipDates(CloudConfig config) {
+        List<LocalDate> dates = new ArrayList<>();
+        if (config == null || config.skipDates == null) {
+            return dates;
+        }
+        for (String value : config.skipDates) {
+            LocalDate date = parseSkipDate(value);
+            if (date != null) {
+                dates.add(date);
+            }
+        }
+        return dates;
+    }
+
+    private static LocalDate parseSkipDate(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value.trim());
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 
     private static void normalizeSlot(SlotSettings slot, SlotSettings defaults) {

@@ -118,6 +118,48 @@ public class ClientStoreTest {
     }
 
     @Test
+    public void peerMessageWithImageUsesMsgiAction() {
+        assertTrue(store.queuePeerMessage("b", "a", "看圖", "avatarX", "imgABC-_").ok);
+        List<String> drained = store.drainPendingActions(store.getOrCreateClient("b"));
+        assertEquals(1, drained.size());
+        String[] parts = drained.get(0).split("\\|", 6);
+        assertEquals(6, parts.length);
+        assertEquals("MSGI", parts[0]);
+        assertEquals("a", parts[1]);
+        assertEquals("看圖", new String(
+                java.util.Base64.getUrlDecoder().decode(parts[2]),
+                java.nio.charset.StandardCharsets.UTF_8));
+        assertEquals("avatarX", parts[4]);
+        assertEquals("imgABC-_", parts[5]);
+    }
+
+    @Test
+    public void peerMessageAllowsImageWithoutText() {
+        assertTrue(store.queuePeerMessage("b", "a", "", null, "imgABC").ok);
+        List<String> drained = store.drainPendingActions(store.getOrCreateClient("b"));
+        String[] parts = drained.get(0).split("\\|", 6);
+        assertEquals("MSGI", parts[0]);
+        assertEquals("", parts[2]);
+        assertEquals("", parts[4]);
+        assertEquals("imgABC", parts[5]);
+    }
+
+    @Test
+    public void peerMessageRejectsBadOrOversizedImage() {
+        assertFalse(store.queuePeerMessage("b", "a", "hi", null, "has/slash").ok);
+        String tooBig = "A".repeat(ClientStore.PEER_IMAGE_MAX_CHARS + 1);
+        assertFalse(store.queuePeerMessage("b", "a", "hi", null, tooBig).ok);
+        assertFalse(store.queuePeerMessage("b", "a", "", null, null).ok);
+    }
+
+    @Test
+    public void sanitizeClientForApiStripsPendingActions() {
+        store.queuePeerMessage("b", "a", "hi", null, "imgABC");
+        Map<String, Object> clean = store.sanitizeClientForApi(store.getOrCreateClient("b"));
+        assertFalse(clean.containsKey("pendingActions"));
+    }
+
+    @Test
     public void peerPokeActionIncludesAvatarWhenProvided() {
         assertTrue(store.queuePeerPoke("b", "a", "abcXYZ012").ok);
         String[] parts = store.drainPendingActions(store.getOrCreateClient("b")).get(0).split("\\|", 4);
