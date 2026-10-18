@@ -58,11 +58,12 @@ public class ConfigPersistenceService {
         public SlotSettings workIn = defaultWorkIn();
         public SlotSettings workOut = defaultWorkOut();
 
-        /** 視窗／分割線（0 或負值表示使用預設） */
+        /** 視窗位置與大小（0 或負值表示使用預設） */
         public int windowWidth = 0;
         public int windowHeight = 0;
         public int windowX = -1;
         public int windowY = -1;
+        /** 舊版主視窗上下分割線；系統日誌改為分頁後不再使用，保留以免舊 config 遺失欄位。 */
         public int splitDividerLocation = -1;
         /** 上次開啟的主分頁 index（負值表示使用預設） */
         public int selectedTabIndex = -1;

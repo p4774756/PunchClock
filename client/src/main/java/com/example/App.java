@@ -27,7 +27,6 @@ import com.example.ui.WindowOpacity;
 import com.example.ui.WindowShake;
 
 import javax.swing.*;
-import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
@@ -67,7 +66,6 @@ public class App extends JFrame {
     private SlotController slotController;
     private boolean suppressConfigSave = false;
     private Timer countdownTimer;
-    private JSplitPane mainSplit;
     private JTabbedPane mainTabs;
     private NetworkToolsPanel networkToolsPanel;
     private BrowsePanel browsePanel;
@@ -236,7 +234,7 @@ public class App extends JFrame {
         tabs.setFont(UiFonts.latinBold(13));
         tabs.setTabLayoutPolicy(JTabbedPane.WRAP_TAB_LAYOUT);
         tabs.setUI(new BasicTabbedPaneUI());
-        tabs.setBorder(new EmptyBorder(8, 12, 0, 12));
+        tabs.setBorder(new EmptyBorder(8, 12, 10, 12));
 
         JPanel slotPanel = PanelFactory.createSlotPanel(slotRefs, mainFont, boldFont, fieldFont);
         JPanel historyPanel = PanelFactory.createCheckInHistoryPanel(historyRefs, mainFont, boldFont);
@@ -293,11 +291,18 @@ public class App extends JFrame {
                 this::saveCloudConfig,
                 this::appendLog);
 
+        JPanel logPanel = PanelFactory.createLogPanel(logRefs, mainFont, boldFont);
+        JPanel logTab = new JPanel(new BorderLayout());
+        logTab.setOpaque(false);
+        logTab.setBorder(new EmptyBorder(8, 4, 8, 4));
+        logTab.add(logPanel, BorderLayout.CENTER);
+
         tabs.addTab("排程任務", tasksTab);
         tabs.addTab("雲端設定", cloudTab);
         tabs.addTab(PanelFactory.PEER_TAB_LABEL, peerTab);
         tabs.addTab(NetworkToolsPanel.TAB_LABEL, networkToolsPanel);
         tabs.addTab(BrowsePanel.TAB_LABEL, browsePanel);
+        tabs.addTab("系統日誌", logTab);
         tabs.setOpaque(false);
         tabs.setBackground(new Color(0, 0, 0, 0));
         tabs.setToolTipTextAt(0, "設定目標網址、時間，立即測試");
@@ -305,23 +310,11 @@ public class App extends JFrame {
         tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案／資料夾與傳檔狀態");
         tabs.setToolTipTextAt(3, "測試 Server GET /ping（Ping/Pong）");
         tabs.setToolTipTextAt(4, "用內建 Chromium 開網頁，可略過公司 Proxy 直連");
+        tabs.setToolTipTextAt(5, "查看與清除系統日誌");
         tabs.addChangeListener(e -> rememberWindowLayout());
         tabs.setSelectedIndex(0);
 
-        JPanel logPanel = PanelFactory.createLogPanel(logRefs, mainFont, boldFont);
-        logPanel.setBorder(new CompoundBorder(new EmptyBorder(0, 12, 10, 12), logPanel.getBorder()));
-        logPanel.setMinimumSize(new Dimension(400, 90));
-        tabs.setMinimumSize(new Dimension(400, 220));
-
-        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tabs, logPanel);
-        this.mainSplit = split;
-        split.setOpaque(false);
-        split.setResizeWeight(0.55);
-        split.setContinuousLayout(true);
-        split.setOneTouchExpandable(true);
-        split.setDividerSize(8);
-        split.setBorder(null);
-        content.add(split, BorderLayout.CENTER);
+        content.add(tabs, BorderLayout.CENTER);
 
         bindBackgroundControls();
 
@@ -329,7 +322,7 @@ public class App extends JFrame {
         setSize(720, 780);
         setLocationRelativeTo(null);
 
-        bindWindowLayoutPersistence(split);
+        bindWindowLayoutPersistence();
         bindCloudEventListeners();
     }
 
@@ -383,7 +376,7 @@ public class App extends JFrame {
         }
     }
 
-    private void bindWindowLayoutPersistence(JSplitPane split) {
+    private void bindWindowLayoutPersistence() {
         addComponentListener(new java.awt.event.ComponentAdapter() {
             @Override
             public void componentResized(java.awt.event.ComponentEvent e) {
@@ -395,7 +388,6 @@ public class App extends JFrame {
                 rememberWindowLayout();
             }
         });
-        split.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, evt -> rememberWindowLayout());
     }
 
     private void rememberWindowLayout() {
@@ -412,12 +404,6 @@ public class App extends JFrame {
         config.windowY = loc.y;
         if (windowChrome != null && windowChrome.transparencySlider != null) {
             config.windowTransparencyPercent = windowChrome.transparencySlider.getValue();
-        }
-        if (mainSplit != null) {
-            int divider = mainSplit.getDividerLocation();
-            if (divider > 0) {
-                config.splitDividerLocation = divider;
-            }
         }
         if (mainTabs != null) {
             int tab = mainTabs.getSelectedIndex();
@@ -443,17 +429,6 @@ public class App extends JFrame {
                 && config.selectedTabIndex < mainTabs.getTabCount()) {
             mainTabs.setSelectedIndex(config.selectedTabIndex);
         }
-
-        final int savedDivider = config.splitDividerLocation;
-        SwingUtilities.invokeLater(() -> {
-            if (mainSplit == null) return;
-            if (savedDivider > 0) {
-                int max = Math.max(1, mainSplit.getHeight() - mainSplit.getDividerSize());
-                mainSplit.setDividerLocation(Math.min(savedDivider, max));
-            } else {
-                mainSplit.setDividerLocation(0.55);
-            }
-        });
     }
 
     private static boolean isLocationOnScreen(int x, int y, int width, int height) {

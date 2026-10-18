@@ -856,14 +856,13 @@ public class PanelFactory {
         refs.logTextArea.setMargin(new Insets(6, 8, 6, 8));
 
         JScrollPane scrollPane = new JScrollPane(refs.logTextArea);
-        scrollPane.setPreferredSize(new Dimension(780, 240));
         scrollPane.setBorder(BorderFactory.createLineBorder(new Color(226, 232, 240)));
         logPanel.add(scrollPane, BorderLayout.CENTER);
 
         JPanel logActionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         refs.clearLogButton = new JButton("清除 Log");
         refs.clearLogButton.setFont(boldFont);
-        refs.clearLogButton.setToolTipText("清空下方日誌內容");
+        refs.clearLogButton.setToolTipText("清空日誌內容");
         refs.clearLogButton.addActionListener(e -> refs.logTextArea.setText(""));
         logActionPanel.add(refs.clearLogButton);
         logPanel.add(logActionPanel, BorderLayout.SOUTH);
