@@ -1,5 +1,6 @@
 package com.example.service;
 
+import com.example.BuildInfo;
 import com.example.ui.TaskEditDialog;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -97,6 +98,9 @@ public class ConfigPersistenceService {
         /** 中繼 Proxy：讓同事透過你連到 Server */
         public boolean relayEnabled = false;
         public int relayPort = 8888;
+
+        /** 使用者對這一版桌面端按過「否」；摘要相同就不再問。 */
+        public String ignoredUpdateDigest = "";
 
         /** 「瀏覽」分頁（Playwright 內建 Chromium） */
         public String browseUrl = "https://www.google.com.tw";
@@ -246,6 +250,7 @@ public class ConfigPersistenceService {
             config.networkProxyPassword = "";
         }
         config.relayPort = RelayProxyService.clampPort(config.relayPort);
+        config.ignoredUpdateDigest = BuildInfo.normalizeDigest(config.ignoredUpdateDigest);
         if (config.browseUrl == null || config.browseUrl.isBlank()) {
             config.browseUrl = "https://www.google.com.tw";
         }

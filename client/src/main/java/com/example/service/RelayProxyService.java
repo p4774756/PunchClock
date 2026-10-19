@@ -235,17 +235,25 @@ public class RelayProxyService {
                         builder.method(method, HttpRequest.BodyPublishers.noBody());
                 }
 
-                HttpResponse<byte[]> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
-
-                copyResponseHeaders(response, exchange);
-                byte[] responseBody = response.body();
-
-                exchange.sendResponseHeaders(response.statusCode(), responseBody.length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(responseBody);
+                HttpResponse<InputStream> response = httpClient.send(
+                        builder.build(), HttpResponse.BodyHandlers.ofInputStream());
+                try (InputStream in = response.body()) {
+                    copyResponseHeaders(response, exchange);
+                    long length = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
+                    exchange.sendResponseHeaders(response.statusCode(), length);
+                    long copied = 0;
+                    if (length != 0) {
+                        byte[] buf = new byte[8192];
+                        try (OutputStream os = exchange.getResponseBody()) {
+                            int n;
+                            while ((n = in.read(buf)) >= 0) {
+                                os.write(buf, 0, n);
+                                copied += n;
+                            }
+                        }
+                    }
+                    log("[中繼] " + clientIp + " ← " + response.statusCode() + " (" + copied + " bytes)");
                 }
-
-                log("[中繼] " + clientIp + " ← " + response.statusCode() + " (" + responseBody.length + " bytes)");
 
             } catch (Exception ex) {
                 log("[中繼] 轉發失敗：" + ex.getMessage());
@@ -285,7 +293,7 @@ public class RelayProxyService {
             }
         }
 
-        private void copyResponseHeaders(HttpResponse<byte[]> response, HttpExchange exchange) {
+        private void copyResponseHeaders(HttpResponse<?> response, HttpExchange exchange) {
             for (var entry : response.headers().map().entrySet()) {
                 String key = entry.getKey();
                 if (key == null || key.startsWith(":") || key.equalsIgnoreCase("transfer-encoding")

@@ -4,6 +4,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Properties;
 
 /**
@@ -20,35 +21,53 @@ public final class BuildInfo {
     private final String version;
     private final Instant buildTime;
     private final Instant commitTime;
+    /** client／shared 原始碼摘要；沒有打包進 jar 時為空字串。 */
+    private final String sourceDigest;
 
-    private BuildInfo(String version, Instant buildTime, Instant commitTime) {
+    private BuildInfo(String version, Instant buildTime, Instant commitTime, String sourceDigest) {
         this.version = version;
         this.buildTime = buildTime;
         this.commitTime = commitTime;
+        this.sourceDigest = sourceDigest == null ? "" : sourceDigest;
     }
 
     public static BuildInfo load(Class<?> anchor, String resource) {
         try (InputStream in = anchor.getResourceAsStream(resource)) {
             if (in == null) {
-                return new BuildInfo(DEV_VERSION, null, null);
+                return new BuildInfo(DEV_VERSION, null, null, "");
             }
             Properties props = new Properties();
             props.load(in);
             return fromProperties(props);
         } catch (Exception e) {
-            return new BuildInfo(DEV_VERSION, null, null);
+            return new BuildInfo(DEV_VERSION, null, null, "");
         }
     }
 
-    static BuildInfo fromProperties(Properties props) {
+    public static BuildInfo fromProperties(Properties props) {
         String version = filtered(props.getProperty("version"));
         return new BuildInfo(version.isEmpty() ? DEV_VERSION : version,
                 parseInstant(filtered(props.getProperty("buildTime"))),
-                parseInstant(filtered(props.getProperty("commitTime"))));
+                parseInstant(filtered(props.getProperty("commitTime"))),
+                normalizeDigest(props.getProperty("sourceDigest")));
+    }
+
+    /** 64 位小寫 hex；佔位符或格式不符時為空字串。 */
+    public static String normalizeDigest(String raw) {
+        String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        if (value.isEmpty() || value.contains("${") || !value.matches("[0-9a-f]{64}")) {
+            return "";
+        }
+        return value;
     }
 
     public String version() {
         return version;
+    }
+
+    /** client／shared 原始碼 SHA-256；未知時為空字串。 */
+    public String sourceDigest() {
+        return sourceDigest;
     }
 
     /** ISO-8601 UTC，例如 {@code 2026-09-24T07:58:00Z}；未知時為空字串。 */

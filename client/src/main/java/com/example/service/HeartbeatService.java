@@ -1,6 +1,8 @@
 package com.example.service;
 
 import com.example.AppVersion;
+import com.example.BuildInfo;
+import com.example.ClientUpdatePolicy;
 import com.example.PeerFileRules;
 import com.example.PeerFolderPacker;
 import com.example.model.CheckInTask;
@@ -11,6 +13,7 @@ import com.google.gson.JsonParser;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -103,6 +106,23 @@ public class HeartbeatService {
         }
     }
 
+    /** 心跳回應裡的桌面端更新通知。path 只接受伺服器上的固定下載路徑。 */
+    public static final class UpdateNotice {
+        public final String version;
+        public final String sourceDigest;
+        public final String sha256;
+        public final long size;
+        public final String path;
+
+        public UpdateNotice(String version, String sourceDigest, String sha256, long size, String path) {
+            this.version = version == null ? "" : version;
+            this.sourceDigest = sourceDigest == null ? "" : sourceDigest;
+            this.sha256 = sha256 == null ? "" : sha256;
+            this.size = size;
+            this.path = path == null ? "" : path;
+        }
+    }
+
     /** 即時直傳的結果；伺服器或對方不支援時，呼叫端可改用伺服器暫存。 */
     public enum RelayOutcome { DELIVERED, FAILED, CANCELLED, UNSUPPORTED_SERVER, RECIPIENT_UNAVAILABLE }
 
@@ -123,6 +143,7 @@ public class HeartbeatService {
     private Consumer<String> commandListener;
     private Consumer<List<PeerInfo>> peersListener;
     private Consumer<List<PeerFileInfo>> filesListener;
+    private Consumer<UpdateNotice> updateListener;
     private final AtomicBoolean heartbeatInFlight = new AtomicBoolean(false);
     private final AtomicBoolean heartbeatPending = new AtomicBoolean(false);
     private final java.util.concurrent.atomic.AtomicLong heartbeatSeq = new java.util.concurrent.atomic.AtomicLong(0);
@@ -137,6 +158,10 @@ public class HeartbeatService {
 
     public void setFilesListener(Consumer<List<PeerFileInfo>> filesListener) {
         this.filesListener = filesListener;
+    }
+
+    public void setUpdateListener(Consumer<UpdateNotice> updateListener) {
+        this.updateListener = updateListener;
     }
 
     public void setTasksProvider(Supplier<List<CheckInTask>> tasksProvider) {
@@ -280,6 +305,7 @@ public class HeartbeatService {
         payload.put("message", message);
         payload.put("appVersion", AppVersion.VERSION);
         payload.put("appReleaseTime", AppVersion.RELEASE_TIME_ISO);
+        payload.put("appSourceDigest", AppVersion.SOURCE_DIGEST);
         payload.put("tasks", tasksList);
         payload.put("heartbeatSeq", heartbeatSeq.incrementAndGet());
         payload.put("avatar", avatarEncoded == null ? "" : avatarEncoded);
@@ -358,6 +384,7 @@ public class HeartbeatService {
             parseServerActions(json, logger);
             parseServerPeers(json);
             parseServerFiles(json);
+            parseServerUpdate(json);
         } catch (Exception ex) {
             // 回應非 JSON 或格式異常時靜默忽略
         }
@@ -478,6 +505,44 @@ public class HeartbeatService {
             peers.add(new PeerInfo(id, status, appVersion, taskCount, scheduledCount, lastSeen));
         }
         peersListener.accept(peers);
+    }
+
+    private void parseServerUpdate(JsonObject json) {
+        if (updateListener == null) {
+            return;
+        }
+        UpdateNotice notice = updateNoticeFrom(json);
+        if (notice != null) {
+            updateListener.accept(notice);
+        }
+    }
+
+    /** 供測試與 {@link #parseHeartbeatResponse} 共用。格式不符時回 null。 */
+    public static UpdateNotice parseUpdateNotice(String body) {
+        if (body == null || body.isBlank()) {
+            return null;
+        }
+        try {
+            return updateNoticeFrom(JsonParser.parseString(body).getAsJsonObject());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static UpdateNotice updateNoticeFrom(JsonObject json) {
+        if (json == null || !json.has("update") || !json.get("update").isJsonObject()) {
+            return null;
+        }
+        JsonObject update = json.getAsJsonObject("update");
+        String version = jsonString(update, "version");
+        String digest = BuildInfo.normalizeDigest(jsonString(update, "sourceDigest"));
+        String sha256 = BuildInfo.normalizeDigest(jsonString(update, "sha256"));
+        String path = jsonString(update, "path");
+        long size = jsonLong(update, "size");
+        if (digest.isEmpty() || sha256.isEmpty() || size <= 0 || !ClientUpdatePolicy.JAR_PATH.equals(path)) {
+            return null;
+        }
+        return new UpdateNotice(version, digest, sha256, size, path);
     }
 
     private void parseServerFiles(JsonObject json) {
@@ -1324,6 +1389,41 @@ public class HeartbeatService {
             out.write(("--" + boundary + "--").getBytes(StandardCharsets.UTF_8));
             out.write(crlf);
         }
+    }
+
+    /**
+     * 下載伺服器附帶的桌面端 jar 到 {@code ~/.punchclock/updates/}。
+     * 使用與心跳相同的 HttpClient（含信任所有 SSL）。
+     */
+    public Path downloadClientUpdate(String path) throws IOException, InterruptedException {
+        if (!isServiceActive || serverUrl.isBlank()) {
+            throw new IOException("雲端未連線");
+        }
+        if (!ClientUpdatePolicy.JAR_PATH.equals(path)) {
+            throw new IOException("更新路徑無效");
+        }
+        Path dir = ClientUpdateInstaller.updateDir();
+        Files.createDirectories(dir);
+        Path part = dir.resolve("punchclock-client-next.jar.part");
+        Path dest = dir.resolve("punchclock-client-next.jar");
+        deleteQuietly(part);
+        URI uri = URI.create(serverUrl + path);
+        HttpResponse<java.io.InputStream> response = httpClient.send(
+                buildDownloadRequest(uri), HttpResponse.BodyHandlers.ofInputStream());
+        try (java.io.InputStream in = response.body()) {
+            if (response.statusCode() != 200) {
+                throw new IOException("下載失敗，狀態碼：" + response.statusCode());
+            }
+            Files.copy(in, part, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException ex) {
+            deleteQuietly(part);
+            throw ex;
+        } catch (RuntimeException ex) {
+            deleteQuietly(part);
+            throw ex;
+        }
+        Files.move(part, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        return dest;
     }
 
     private static void deleteQuietly(Path path) {

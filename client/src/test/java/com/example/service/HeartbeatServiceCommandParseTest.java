@@ -253,4 +253,23 @@ public class HeartbeatServiceCommandParseTest {
         assertEquals("waiting", files.get(0).status);
         assertEquals(12, files.get(0).size);
     }
+
+    @Test
+    public void parseUpdateNotice_requiresDigestHashSizeAndFixedPath() {
+        String digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        String sha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        String body = "{\"update\":{\"version\":\"1.8.0\",\"sourceDigest\":\"" + digest
+                + "\",\"sha256\":\"" + sha + "\",\"size\":12,\"path\":\"/api/client-release/jar\"}}";
+        HeartbeatService.UpdateNotice notice = HeartbeatService.parseUpdateNotice(body);
+        assertNotNull(notice);
+        assertEquals("1.8.0", notice.version);
+        assertEquals(digest, notice.sourceDigest);
+        assertEquals(sha, notice.sha256);
+        assertEquals(12L, notice.size);
+
+        assertNull(HeartbeatService.parseUpdateNotice(
+                "{\"update\":{\"version\":\"1.8.0\",\"sourceDigest\":\"" + digest
+                        + "\",\"sha256\":\"" + sha + "\",\"size\":12,\"path\":\"https://evil.example/jar\"}}"));
+        assertNull(HeartbeatService.parseUpdateNotice("{\"success\":true}"));
+    }
 }

@@ -10,6 +10,8 @@ public final class AppVersion {
     public static final String VERSION = INFO.version();
     /** 最後一次 commit 時間（沒有 .git 時為建置時間），ISO-8601 UTC；IDE 直接跑時為空字串。 */
     public static final String RELEASE_TIME_ISO = INFO.releaseTimeIso();
+    /** client／shared 原始碼摘要；IDE 直接跑或未經過打包時為空字串。 */
+    public static final String SOURCE_DIGEST = INFO.sourceDigest();
 
     /** 例如 {@code v1.8.0（提交 2026-09-24 15:53）}；沒有時間就只顯示版號。 */
     public static String displayLabel() {

@@ -64,6 +64,19 @@ public class BuildInfoTest {
     }
 
     @Test
+    public void sourceDigestKeepsLowerHexAndDropsPlaceholders() {
+        Properties props = new Properties();
+        props.setProperty("version", "1.8.0");
+        props.setProperty("sourceDigest", "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789");
+        assertEquals("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+                BuildInfo.fromProperties(props).sourceDigest());
+
+        props.setProperty("sourceDigest", "${punchclock.sourceDigest}");
+        assertEquals("", BuildInfo.fromProperties(props).sourceDigest());
+        assertEquals("", BuildInfo.normalizeDigest("not-a-digest"));
+    }
+
+    @Test
     public void missingResourceFallsBackToDev() {
         BuildInfo info = BuildInfo.load(BuildInfoTest.class, "/no-such-build.properties");
         assertEquals(BuildInfo.DEV_VERSION, info.version());

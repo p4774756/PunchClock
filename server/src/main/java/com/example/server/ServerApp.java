@@ -1,6 +1,7 @@
 package com.example.server;
 
 import com.example.BuildInfo;
+import com.example.ClientUpdatePolicy;
 import com.example.PeerFileRules;
 import com.example.server.auth.AuthService;
 import com.example.server.health.HealthHistoryStore;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -57,6 +59,15 @@ public final class ServerApp {
     private final HealthHistoryStore healthHistoryStore = new HealthHistoryStore();
     private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
     private final DashboardBroadcaster broadcaster = new DashboardBroadcaster(gson);
+    private final ClientRelease clientRelease;
+
+    public ServerApp() {
+        this(ClientRelease.discover());
+    }
+
+    ServerApp(ClientRelease clientRelease) {
+        this.clientRelease = clientRelease == null ? ClientRelease.NONE : clientRelease;
+    }
 
     public static void main(String[] args) {
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "3000"));
@@ -101,6 +112,13 @@ public final class ServerApp {
                 + PeerFileRules.MAX_SIZE_LABEL + ", keep " + PeerFileRules.OFFER_TTL_LABEL + ")");
         System.out.println("- Peer relay: /api/peer/relay (both online, in-memory only, no disk)");
         System.out.println("- Health history: GET /api/health/history (login, keep 3 days)");
+        if (clientRelease.isAvailable()) {
+            System.out.println("- Client release: v" + clientRelease.version()
+                    + " " + clientRelease.sourceDigest().substring(0, 8)
+                    + " (" + clientRelease.size() + " bytes)");
+        } else {
+            System.out.println("- Client release: none");
+        }
         System.out.println("- Admin password: " + (System.getenv("ADMIN_PASSWORD") != null ? "from ADMIN_PASSWORD env" : "default (secret)"));
         System.out.println("- JVM heap max: " + (Runtime.getRuntime().maxMemory() / (1024L * 1024L)) + " MB");
         return app;
@@ -117,6 +135,7 @@ public final class ServerApp {
                 "buildTime", BUILD_INFO.buildTimeIso()
         )));
         app.post("/api/heartbeat", this::heartbeat);
+        app.get("/api/client-release/jar", this::clientReleaseJar);
         app.post("/api/peer/message", this::peerMessage);
         app.post("/api/peer/poke", this::peerPoke);
         app.post("/api/peer/file", this::peerFileUpload);
@@ -225,6 +244,7 @@ public final class ServerApp {
         String message = stringOrDefault(body.get("message"), "");
         String appVersion = stringOrDefault(body.get("appVersion"), "");
         String appReleaseTime = stringOrDefault(body.get("appReleaseTime"), "");
+        String appSourceDigest = stringOrDefault(body.get("appSourceDigest"), "");
         List<Map<String, Object>> tasks = tasksFromBody(body.get("tasks"));
 
         Map<String, Object> existing = clientStore.getOrCreateClient(clientId);
@@ -240,7 +260,7 @@ public final class ServerApp {
             clientInfo.put("status", "OFFLINE".equals(status) ? "ONLINE" : status);
             clientStore.setClient(clientId, clientInfo);
             broadcaster.broadcast(statusUpdatePayload());
-            writeHeartbeatResponse(ctx, drainedActions, clientId);
+            writeHeartbeatResponse(ctx, drainedActions, clientId, appVersion, appSourceDigest);
             return;
         }
 
@@ -260,6 +280,7 @@ public final class ServerApp {
         if (!appVersion.isEmpty()) {
             // 舊版 app 不送 appReleaseTime，跟著版號一起更新，避免殘留上一個版本的時間
             clientInfo.put("appReleaseTime", appReleaseTime);
+            clientInfo.put("appSourceDigest", appSourceDigest);
         }
         clientInfo.put("lastSeen", Instant.now().toString());
         clientInfo.put("transport", "http");
@@ -284,10 +305,11 @@ public final class ServerApp {
 
         broadcaster.broadcast(statusUpdatePayload());
 
-        writeHeartbeatResponse(ctx, drainedActions, clientId);
+        writeHeartbeatResponse(ctx, drainedActions, clientId, appVersion, appSourceDigest);
     }
 
-    private void writeHeartbeatResponse(Context ctx, List<String> drainedActions, String clientId) {
+    private void writeHeartbeatResponse(Context ctx, List<String> drainedActions, String clientId,
+                                        String appVersion, String appSourceDigest) {
         String actionToSend = drainedActions.isEmpty() ? "NONE" : drainedActions.get(0);
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("success", true);
@@ -297,7 +319,41 @@ public final class ServerApp {
         response.put("peers", clientStore.peerSnapshot(clientId));
         response.put("files", fileOfferStore.snapshotForClient(clientId));
         response.put("ackTimestamp", Instant.now().toString());
+        if (clientRelease.isAvailable()
+                && ClientUpdatePolicy.shouldOffer(appVersion, appSourceDigest, clientRelease.sourceDigest())) {
+            Map<String, Object> update = new LinkedHashMap<>();
+            update.put("version", clientRelease.version());
+            update.put("sourceDigest", clientRelease.sourceDigest());
+            update.put("sha256", clientRelease.sha256());
+            update.put("size", clientRelease.size());
+            update.put("path", ClientUpdatePolicy.JAR_PATH);
+            response.put("update", update);
+        }
         ctx.json(response);
+    }
+
+    private void clientReleaseJar(Context ctx) {
+        if (!authService.isHeartbeatAuthorized(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        if (!clientRelease.isAvailable()) {
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "沒有可下載的桌面端"));
+            return;
+        }
+        InputStream stream;
+        try {
+            stream = Files.newInputStream(clientRelease.jar());
+        } catch (IOException ex) {
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "桌面端檔案不存在"));
+            return;
+        }
+        ctx.minSizeForCompression(Integer.MAX_VALUE);
+        ctx.contentType("application/java-archive");
+        ctx.header("Content-Length", String.valueOf(clientRelease.size()));
+        ctx.header("ETag", "\"" + clientRelease.sha256() + "\"");
+        ctx.header("X-Content-Type-Options", "nosniff");
+        ctx.result(stream);
     }
 
     private void peerMessage(Context ctx) {

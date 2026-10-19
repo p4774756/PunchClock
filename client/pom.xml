@@ -85,6 +85,35 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>client-source-digest</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <!-- 把 client／shared 原始碼摘要寫進 Maven 屬性，供 version.properties filtering。 -->
+                            <exportAntProperties>true</exportAntProperties>
+                            <target>
+                                <exec executable="${java.home}/bin/java"
+                                      outputproperty="punchclock.sourceDigest"
+                                      failonerror="false"
+                                      failifexecutionfails="false">
+                                    <arg value="-cp"/>
+                                    <arg value="${project.basedir}/../shared/target/classes"/>
+                                    <arg value="com.example.SourceDigest"/>
+                                    <arg value="${project.basedir}/.."/>
+                                </exec>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>3.5.1</version>
                 <executions>

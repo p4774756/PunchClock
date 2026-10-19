@@ -1,9 +1,14 @@
 package com.example;
 
+import com.example.model.CheckInTask;
+import com.example.model.TaskStatus;
 import com.example.service.AutomationService;
 import com.example.service.CheckInHistoryService;
+import com.example.service.ClientUpdateCoordinator;
+import com.example.service.ClientUpdateInstaller;
 import com.example.service.ConfigPersistenceService;
 import com.example.service.HeartbeatService;
+import com.example.service.HeartbeatService.UpdateNotice;
 import com.example.service.HeartbeatService.PeerFileInfo;
 import com.example.service.HeartbeatService.PeerInfo;
 import com.example.service.PeerAvatar;
@@ -78,6 +83,9 @@ public class App extends JFrame {
     private final Set<String> onlinePeerIds = new HashSet<>();
     private WindowChrome.Controls windowChrome;
     private boolean loggedOpacityUnsupported;
+    private ClientUpdateCoordinator updateCoordinator;
+    /** 使用者按過「否」的桌面端原始碼摘要。 */
+    private String ignoredUpdateDigest = "";
 
     public App() {
         this.schedulerService = new SchedulerService();
@@ -115,6 +123,9 @@ public class App extends JFrame {
         heartbeatService.setTasksProvider(schedulerService::getAllTasks);
         heartbeatService.setPeersListener(peers -> SwingUtilities.invokeLater(() -> updatePeerTable(peers)));
         heartbeatService.setFilesListener(files -> SwingUtilities.invokeLater(() -> updatePeerFileTable(files)));
+        updateCoordinator = new ClientUpdateCoordinator(updateActions());
+        heartbeatService.setUpdateListener(notice ->
+                SwingUtilities.invokeLater(() -> updateCoordinator.handle(notice)));
         heartbeatService.setCommandListener(command -> {
             if ("CANCEL_SCHEDULE".equalsIgnoreCase(command)) {
                 SwingUtilities.invokeLater(slotController::handleRemoteCancelAll);
@@ -1716,6 +1727,7 @@ public class App extends JFrame {
             relayProxyService.setTrustAllSsl(config.trustAllSsl);
         }
         applyRelayConfig(config);
+        ignoredUpdateDigest = config.ignoredUpdateDigest == null ? "" : config.ignoredUpdateDigest;
         syncCloudConnectionFieldsEnabled();
         refreshPeerInteractionState();
     }
@@ -1809,7 +1821,122 @@ public class App extends JFrame {
             ConfigPersistenceService.pushRecent(config.recentBrowseUrls, config.browseUrl);
         }
         captureWindowLayoutInto(config);
+        config.ignoredUpdateDigest = ignoredUpdateDigest;
         configPersistenceService.saveConfig(config, null);
+    }
+
+    private ClientUpdateCoordinator.Actions updateActions() {
+        return new ClientUpdateCoordinator.Actions() {
+            @Override
+            public String localDigest() {
+                return AppVersion.SOURCE_DIGEST;
+            }
+
+            @Override
+            public String ignoredDigest() {
+                return ignoredUpdateDigest;
+            }
+
+            @Override
+            public boolean checkingIn() {
+                return isCheckInRunning();
+            }
+
+            @Override
+            public void rememberIgnored(String digest) {
+                rememberIgnoredUpdate(digest);
+            }
+
+            @Override
+            public boolean confirm(String message) {
+                int choice = UiFonts.showConfirm(
+                        App.this, message, "程式更新",
+                        JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+                return choice == JOptionPane.YES_OPTION;
+            }
+
+            @Override
+            public void log(String line) {
+                appendLog(line);
+            }
+
+            @Override
+            public void warn(String message) {
+                showUpdateWarning(message);
+            }
+
+            @Override
+            public Path download(UpdateNotice notice) throws Exception {
+                return heartbeatService.downloadClientUpdate(notice.path);
+            }
+
+            @Override
+            public boolean canInstall() {
+                return ClientUpdateInstaller.runningJar() != null;
+            }
+
+            @Override
+            public void install(Path jar) throws Exception {
+                ClientUpdateInstaller.relaunch(jar, ClientUpdateInstaller.runningJar());
+            }
+
+            @Override
+            public void restart() {
+                restartAfterUpdate();
+            }
+        };
+    }
+
+    private boolean isCheckInRunning() {
+        for (CheckInTask task : schedulerService.getAllTasks()) {
+            if (task.getStatus() == TaskStatus.CHECKING_IN) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void rememberIgnoredUpdate(String digest) {
+        ignoredUpdateDigest = digest == null ? "" : digest;
+        if (slotController != null && slotController.getConfig() != null) {
+            slotController.getConfig().ignoredUpdateDigest = ignoredUpdateDigest;
+        }
+        saveCloudConfig();
+    }
+
+    private void showUpdateWarning(String message) {
+        Runnable show = () -> UiFonts.showWarning(this, message, "程式更新");
+        if (SwingUtilities.isEventDispatchThread()) {
+            show.run();
+            return;
+        }
+        try {
+            SwingUtilities.invokeAndWait(show);
+        } catch (Exception ex) {
+            appendLog("[更新] " + message);
+        }
+    }
+
+    private void restartAfterUpdate() {
+        Runnable exit = () -> {
+            try {
+                saveCloudConfig();
+                if (slotController != null) {
+                    slotController.persistTasks();
+                }
+                heartbeatService.stopHeartbeat();
+                relayProxyService.stop();
+                webBrowserService.shutdown();
+            } catch (Exception ex) {
+                appendLog("[更新] 關閉前提示：" + ex.getMessage());
+            }
+            System.exit(0);
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            exit.run();
+        } else {
+            SwingUtilities.invokeLater(exit);
+        }
     }
 
     private void captureRelayConfigInto(ConfigPersistenceService.CloudConfig config) {

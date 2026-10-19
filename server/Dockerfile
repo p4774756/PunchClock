@@ -6,15 +6,23 @@ COPY pom.xml .
 COPY shared/pom.xml shared/pom.xml
 COPY shared/src shared/src
 COPY client/pom.xml client/pom.xml
+COPY client/src client/src
 COPY server/pom.xml server/pom.xml
 COPY server/src server/src
 
-RUN mvn -pl server -am package -DskipTests
+# 同時打包桌面端，image 內帶著這次 commit 的 client jar，心跳才能通知更新。
+# 略過 git-commit-id：建置環境不一定有 .git，更新比對用的是原始碼摘要。
+RUN mvn -pl client,server -am package -DskipTests -P '!git-commit-time' \
+    && mkdir -p /tmp/client-release \
+    && cd /tmp/client-release \
+    && jar xf /app/client/target/punchclock-client-standalone.jar version.properties \
+    && grep -E '^sourceDigest=[0-9a-f]{64}$' version.properties
 
 FROM eclipse-temurin:11-jre-jammy
 WORKDIR /app
 
 COPY --from=build /app/server/target/punchclock-server.jar app.jar
+COPY --from=build /app/client/target/punchclock-client-standalone.jar client/punchclock-client-standalone.jar
 
 ENV PORT=3000
 # 512MB 機器：heap 約 256MB，其餘留給 metaspace／執行緒／寫檔時的 page cache，避免整個容器被 OOM kill。
