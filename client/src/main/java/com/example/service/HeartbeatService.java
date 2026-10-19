@@ -1348,12 +1348,6 @@ public class HeartbeatService {
     }
 
     private static void writeMultipart(Path dest, String boundary, Map<String, String> fields,
-                                       String filename, String mime, Path fileContent)
-            throws java.io.IOException {
-        writeMultipart(dest, boundary, fields, filename, mime, fileContent, null, null);
-    }
-
-    private static void writeMultipart(Path dest, String boundary, Map<String, String> fields,
                                        String filename, String mime, Path fileContent,
                                        TransferIo.Progress progress, TransferCancel cancel)
             throws java.io.IOException {
