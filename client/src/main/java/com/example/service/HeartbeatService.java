@@ -1390,6 +1390,16 @@ public class HeartbeatService {
      * 使用與心跳相同的 HttpClient（含信任所有 SSL）。
      */
     public Path downloadClientUpdate(String path) throws IOException, InterruptedException {
+        return downloadClientUpdate(path, 0L, null, null);
+    }
+
+    /**
+     * @param expectedSize 心跳 {@code update.size}；回應沒有 Content-Length 時用來算百分比，未知傳 0
+     * @param progress     已下載／總長度；可為 null
+     * @param cancel       使用者取消時以 {@link TransferIo.CancelledException} 結束；可為 null
+     */
+    public Path downloadClientUpdate(String path, long expectedSize, TransferIo.Progress progress,
+                                     TransferCancel cancel) throws IOException, InterruptedException {
         if (!isServiceActive || serverUrl.isBlank()) {
             throw new IOException("雲端未連線");
         }
@@ -1402,13 +1412,49 @@ public class HeartbeatService {
         Path dest = dir.resolve("punchclock-client-next.jar");
         deleteQuietly(part);
         URI uri = URI.create(serverUrl + path);
-        HttpResponse<java.io.InputStream> response = httpClient.send(
+        if (cancel != null) {
+            cancel.throwIfCancelled();
+        }
+        java.util.concurrent.CompletableFuture<HttpResponse<java.io.InputStream>> request = httpClient.sendAsync(
                 buildDownloadRequest(uri), HttpResponse.BodyHandlers.ofInputStream());
+        if (cancel != null) {
+            cancel.cancelOnCancel(request);
+        }
+        HttpResponse<java.io.InputStream> response;
+        try {
+            response = request.get();
+        } catch (java.util.concurrent.CancellationException ex) {
+            throw new TransferIo.CancelledException();
+        } catch (java.util.concurrent.ExecutionException ex) {
+            Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+            throw cause instanceof IOException ? (IOException) cause : new IOException(cause);
+        }
         try (java.io.InputStream in = response.body()) {
             if (response.statusCode() != 200) {
                 throw new IOException("下載失敗，狀態碼：" + response.statusCode());
             }
-            Files.copy(in, part, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            long total = response.headers().firstValueAsLong("Content-Length").orElse(expectedSize);
+            if (total <= 0) {
+                total = expectedSize;
+            }
+            if (cancel != null) {
+                // 正在等資料時 read 不會自己醒來，取消時直接關掉串流
+                cancel.onCancel(() -> {
+                    try {
+                        in.close();
+                    } catch (Exception ignored) {
+                        // best-effort
+                    }
+                });
+            }
+            try (java.io.OutputStream out = Files.newOutputStream(part)) {
+                TransferIo.copy(in, out, total, progress, cancel);
+            } catch (IOException ex) {
+                if (cancel != null && cancel.isCancelled() && !(ex instanceof TransferIo.CancelledException)) {
+                    throw new TransferIo.CancelledException();
+                }
+                throw ex;
+            }
         } catch (IOException ex) {
             deleteQuietly(part);
             throw ex;

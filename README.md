@@ -88,7 +88,7 @@ java -jar client/target/punchclock-client-standalone.jar
 ### 桌面端自動更新
 
 - **運作方式：** 桌面端每次心跳會帶上版本與原始碼摘要（`client/src/main`、`shared/src/main` 與兩個 `pom.xml` 的 SHA-256）。伺服器 Docker image 內附同一次 commit 打包的 `punchclock-client-standalone.jar`；摘要不同時，心跳回應會帶 `update`，桌面端詢問使用者。
-- **使用者選「是」：** 下載到 `~/.punchclock/updates/`，校驗大小與 SHA-256 後，由 `apply-update.bat`／`apply-update.sh` 等程式結束、換掉原本的 jar 並重新啟動；設定與排程保留。
+- **使用者選「是」：** 跳出「程式更新」小視窗顯示下載進度（已下載／總大小、百分比），可按「取消」中止（不會記為忽略，下次心跳會再詢問）。下載到 `~/.punchclock/updates/`，校驗大小與 SHA-256 後，由 `apply-update.bat`／`apply-update.sh` 等程式結束、換掉原本的 jar 並重新啟動；設定與排程保留。
 - **使用者選「否」：** 該版摘要記在 `~/.punchclock/config.json` 的 `ignoredUpdateDigest`，不再詢問；想重測請清空這個欄位。
 - **打卡執行中**不會詢問，下一次心跳再問。
 - **限制：** 必須以 `java -jar punchclock-client-standalone.jar` 啟動；IDE（`dev` 版本、沒有摘要）不會收到更新通知，也無法就地換檔。jar 所在資料夾要有寫入權限。更新失敗時看 `~/.punchclock/updates/apply-update.log`。

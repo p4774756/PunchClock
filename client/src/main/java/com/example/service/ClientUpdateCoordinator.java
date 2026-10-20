@@ -114,6 +114,8 @@ public final class ClientUpdateCoordinator {
             relaunched = true;
             actions.log("[更新] 下載完成，即將重新啟動");
             actions.restart();
+        } catch (TransferIo.CancelledException ex) {
+            actions.log("[更新] 已取消下載，下次心跳會再詢問");
         } catch (Exception ex) {
             String message = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
             actions.warn("更新失敗：" + message);

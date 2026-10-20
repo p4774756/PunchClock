@@ -18,6 +18,7 @@ import com.example.service.WebBrowserService;
 import com.example.service.SchedulerService;
 import com.example.service.TaskPersistenceService;
 import com.example.service.TransferCancel;
+import com.example.service.TransferIo;
 import com.example.service.WindowBackground;
 import com.example.ui.UiFonts;
 import com.example.ui.TransferProgressDialog;
@@ -1867,7 +1868,7 @@ public class App extends JFrame {
 
             @Override
             public Path download(UpdateNotice notice) throws Exception {
-                return heartbeatService.downloadClientUpdate(notice.path);
+                return downloadClientUpdateWithProgress(notice);
             }
 
             @Override
@@ -1885,6 +1886,30 @@ public class App extends JFrame {
                 restartAfterUpdate();
             }
         };
+    }
+
+    /** 在背景執行緒呼叫：開小進度視窗（可取消），下載完關閉。 */
+    private Path downloadClientUpdateWithProgress(UpdateNotice notice) throws Exception {
+        String label = notice.version == null || notice.version.isBlank() ? "新版本" : "v" + notice.version;
+        TransferCancel cancel = new TransferCancel();
+        TransferProgressDialog[] holder = new TransferProgressDialog[1];
+        Runnable open = () -> {
+            holder[0] = TransferProgressDialog.open(this, "程式更新");
+            holder[0].setOnCancel(cancel::cancel);
+            holder[0].setStatus("正在下載桌面端 " + label + "…");
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            open.run();
+        } else {
+            SwingUtilities.invokeAndWait(open);
+        }
+        TransferProgressDialog progress = holder[0];
+        try {
+            return heartbeatService.downloadClientUpdate(
+                    notice.path, notice.size, TransferIo.throttle(progress::setProgress), cancel);
+        } finally {
+            progress.close();
+        }
     }
 
     private boolean isCheckInRunning() {

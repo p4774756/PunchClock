@@ -86,6 +86,30 @@ public class ClientUpdateCoordinatorTest {
         assertTrue(actions.warnings.stream().anyMatch(line -> line.contains("校驗失敗")));
     }
 
+    @Test
+    public void cancelledDownloadDoesNotRestartOrWarnAndAsksAgainLater() throws Exception {
+        FakeActions actions = new FakeActions();
+        actions.accept = true;
+        actions.canInstall = true;
+        actions.cancelDownload = true;
+        Path jar = sampleJar(actions);
+        ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
+
+        coordinator.handle(notice(OTHER, jar));
+
+        assertTrue(actions.installed.isEmpty());
+        assertFalse(actions.restarted);
+        assertTrue(actions.warnings.isEmpty());
+        assertEquals("", actions.ignored);
+        assertTrue(actions.logs.stream().anyMatch(line -> line.contains("已取消下載")));
+
+        actions.cancelDownload = false;
+        actions.confirmed = false;
+        coordinator.handle(notice(OTHER, jar));
+        assertTrue(actions.confirmed);
+        assertTrue(actions.restarted);
+    }
+
     private static UpdateNotice notice(String digest, Path jar) {
         String sha = LOCAL;
         long size = 1;
@@ -114,6 +138,7 @@ public class ClientUpdateCoordinatorTest {
         boolean checkingIn;
         boolean accept = true;
         boolean canInstall;
+        boolean cancelDownload;
         boolean confirmed;
         boolean restarted;
         Path jar;
@@ -158,7 +183,10 @@ public class ClientUpdateCoordinatorTest {
         }
 
         @Override
-        public Path download(UpdateNotice notice) {
+        public Path download(UpdateNotice notice) throws TransferIo.CancelledException {
+            if (cancelDownload) {
+                throw new TransferIo.CancelledException();
+            }
             return jar;
         }
 
