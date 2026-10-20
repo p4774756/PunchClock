@@ -167,6 +167,36 @@ public class RelayProxyService {
         }
     }
 
+    /**
+     * JDK 的 ConnectException 等常沒有訊息（{@code getMessage()} 為 null），
+     * 改成「類別名稱（訊息）← 原因…」，才看得出是連線失敗、DNS、逾時還是 SSL。
+     */
+    static String describeFailure(Throwable ex) {
+        if (ex == null) {
+            return "未知錯誤";
+        }
+        StringBuilder sb = new StringBuilder();
+        Throwable t = ex;
+        int depth = 0;
+        while (t != null && depth < 5) {
+            if (depth > 0) {
+                sb.append(" ← ");
+            }
+            sb.append(t.getClass().getSimpleName());
+            String msg = t.getMessage();
+            if (msg != null && !msg.isBlank()) {
+                sb.append('（').append(msg.trim()).append('）');
+            }
+            Throwable next = t.getCause();
+            if (next == t) {
+                break;
+            }
+            t = next;
+            depth++;
+        }
+        return sb.toString();
+    }
+
     public static int clampPort(int port) {
         if (port < MIN_PORT) {
             return DEFAULT_PORT;
@@ -256,8 +286,9 @@ public class RelayProxyService {
                 }
 
             } catch (Exception ex) {
-                log("[中繼] 轉發失敗：" + ex.getMessage());
-                sendError(exchange, 502, "中繼失敗：" + ex.getMessage());
+                String detail = describeFailure(ex);
+                log("[中繼] 轉發失敗：" + detail + "（目標：" + targetUrl + "）");
+                sendError(exchange, 502, "中繼失敗：" + detail);
             }
         }
 

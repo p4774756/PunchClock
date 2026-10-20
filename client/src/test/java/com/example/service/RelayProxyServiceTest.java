@@ -16,6 +16,13 @@ public class RelayProxyServiceTest {
     }
 
     @Test
+    public void describeFailureShowsClassWhenMessageIsNull() {
+        assertEquals("ConnectException", RelayProxyService.describeFailure(new java.net.ConnectException()));
+        assertEquals("IOException（boom） ← ConnectException",
+                RelayProxyService.describeFailure(new java.io.IOException("boom", new java.net.ConnectException())));
+    }
+
+    @Test
     public void clampPortAcceptsValidPorts() {
         assertEquals(1024, RelayProxyService.clampPort(1024));
         assertEquals(8888, RelayProxyService.clampPort(8888));
