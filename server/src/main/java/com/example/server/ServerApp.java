@@ -260,7 +260,7 @@ public final class ServerApp {
             clientInfo.put("status", "OFFLINE".equals(status) ? "ONLINE" : status);
             clientStore.setClient(clientId, clientInfo);
             broadcaster.broadcast(statusUpdatePayload());
-            writeHeartbeatResponse(ctx, drainedActions, clientId, appVersion, appSourceDigest);
+            writeHeartbeatResponse(ctx, drainedActions, clientId, appVersion, appReleaseTime, appSourceDigest);
             return;
         }
 
@@ -305,11 +305,11 @@ public final class ServerApp {
 
         broadcaster.broadcast(statusUpdatePayload());
 
-        writeHeartbeatResponse(ctx, drainedActions, clientId, appVersion, appSourceDigest);
+        writeHeartbeatResponse(ctx, drainedActions, clientId, appVersion, appReleaseTime, appSourceDigest);
     }
 
     private void writeHeartbeatResponse(Context ctx, List<String> drainedActions, String clientId,
-                                        String appVersion, String appSourceDigest) {
+                                        String appVersion, String appReleaseTime, String appSourceDigest) {
         String actionToSend = drainedActions.isEmpty() ? "NONE" : drainedActions.get(0);
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("success", true);
@@ -320,10 +320,12 @@ public final class ServerApp {
         response.put("files", fileOfferStore.snapshotForClient(clientId));
         response.put("ackTimestamp", Instant.now().toString());
         if (clientRelease.isAvailable()
-                && ClientUpdatePolicy.shouldOffer(appVersion, appSourceDigest, clientRelease.sourceDigest())) {
+                && ClientUpdatePolicy.shouldOffer(appVersion, appSourceDigest, appReleaseTime,
+                        clientRelease.sourceDigest(), clientRelease.releaseTime())) {
             Map<String, Object> update = new LinkedHashMap<>();
             update.put("version", clientRelease.version());
             update.put("sourceDigest", clientRelease.sourceDigest());
+            update.put("releaseTime", clientRelease.releaseTime());
             update.put("sha256", clientRelease.sha256());
             update.put("size", clientRelease.size());
             update.put("path", ClientUpdatePolicy.JAR_PATH);

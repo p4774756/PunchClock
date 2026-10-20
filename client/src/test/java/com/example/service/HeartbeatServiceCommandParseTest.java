@@ -266,6 +266,12 @@ public class HeartbeatServiceCommandParseTest {
         assertEquals(digest, notice.sourceDigest);
         assertEquals(sha, notice.sha256);
         assertEquals(12L, notice.size);
+        assertEquals("舊 server 沒帶 releaseTime", "", notice.releaseTime);
+
+        String withTime = "{\"update\":{\"version\":\"1.8.0\",\"sourceDigest\":\"" + digest
+                + "\",\"releaseTime\":\"2026-10-20T07:58:00Z\",\"sha256\":\"" + sha
+                + "\",\"size\":12,\"path\":\"/api/client-release/jar\"}}";
+        assertEquals("2026-10-20T07:58:00Z", HeartbeatService.parseUpdateNotice(withTime).releaseTime);
 
         assertNull(HeartbeatService.parseUpdateNotice(
                 "{\"update\":{\"version\":\"1.8.0\",\"sourceDigest\":\"" + digest

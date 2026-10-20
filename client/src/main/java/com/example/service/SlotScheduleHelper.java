@@ -1,6 +1,7 @@
 package com.example.service;
 
 import com.example.model.CheckInTask;
+import com.example.model.TaskStatus;
 import com.example.model.WorkSlot;
 import com.example.ui.TaskEditDialog;
 
@@ -15,6 +16,16 @@ import java.util.Collection;
 public final class SlotScheduleHelper {
 
     private SlotScheduleHelper() {
+    }
+
+    /**
+     * 任務是不是「載入時發現排程已過期」才被標成已取消的（見 {@link TaskPersistenceService}）。
+     * 這種不是使用者或遠端主動取消，槽位仍啟用的話應該排到下一個時間，錯過的那次不補打。
+     */
+    public static boolean isExpiredOnRestart(CheckInTask task) {
+        return task != null
+                && task.getStatus() == TaskStatus.CANCELLED
+                && TaskPersistenceService.EXPIRED_ON_RESTART_MESSAGE.equals(task.getResultMessage());
     }
 
     public static LocalDateTime nextTriggerTime(int hour, int minute, boolean weekdaysOnly, LocalDateTime after) {

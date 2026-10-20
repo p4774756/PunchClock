@@ -1,13 +1,12 @@
 package com.example;
 
-import com.example.model.CheckInTask;
-import com.example.model.TaskStatus;
 import com.example.service.AutomationService;
 import com.example.service.CheckInHistoryService;
 import com.example.service.ClientUpdateCoordinator;
 import com.example.service.ClientUpdateInstaller;
 import com.example.service.ConfigPersistenceService;
 import com.example.service.HeartbeatService;
+import com.example.service.UpdateIdlePolicy;
 import com.example.service.HeartbeatService.UpdateNotice;
 import com.example.service.HeartbeatService.PeerFileInfo;
 import com.example.service.HeartbeatService.PeerInfo;
@@ -1549,6 +1548,14 @@ public class App extends JFrame {
                 saveCloudConfig();
             });
         }
+        if (serverRefs.autoUpdateCheckBox != null) {
+            serverRefs.autoUpdateCheckBox.addActionListener(e -> {
+                appendLog(serverRefs.autoUpdateCheckBox.isSelected()
+                        ? "[更新] 已開啟「有新版時閒置自動更新」"
+                        : "[更新] 已關閉自動更新，有新版時會先詢問");
+                saveCloudConfig();
+            });
+        }
         if (serverRefs.serverUrlCombo != null) {
             RecentValuesHelper.attachTextChangeListener(serverRefs.serverUrlCombo, this::saveCloudConfig);
             java.awt.Component serverEditor = serverRefs.serverUrlCombo.getEditor().getEditorComponent();
@@ -1741,6 +1748,9 @@ public class App extends JFrame {
             heartbeatService.setTrustAllSsl(config.trustAllSsl);
             relayProxyService.setTrustAllSsl(config.trustAllSsl);
         }
+        if (serverRefs.autoUpdateCheckBox != null) {
+            serverRefs.autoUpdateCheckBox.setSelected(config.autoApplyUpdate);
+        }
         applyRelayConfig(config);
         ignoredUpdateDigest = config.ignoredUpdateDigest == null ? "" : config.ignoredUpdateDigest;
         syncCloudConnectionFieldsEnabled();
@@ -1826,6 +1836,7 @@ public class App extends JFrame {
                 && serverRefs.enableServerCheckBox.isSelected();
         config.trustAllSsl = serverRefs.trustAllSslCheckBox != null
                 && serverRefs.trustAllSslCheckBox.isSelected();
+        config.autoApplyUpdate = isAutoUpdateEnabled();
         config.backgroundBlurPercent = currentBackgroundBlurPercent();
         config.backgroundOpacityPercent = currentBackgroundOpacityPercent();
         captureRelayConfigInto(config);
@@ -1848,13 +1859,23 @@ public class App extends JFrame {
             }
 
             @Override
+            public String localLabel() {
+                return AppVersion.buildLabel();
+            }
+
+            @Override
             public String ignoredDigest() {
                 return ignoredUpdateDigest;
             }
 
             @Override
-            public boolean checkingIn() {
-                return isCheckInRunning();
+            public boolean idle() {
+                return isIdleForUpdate();
+            }
+
+            @Override
+            public boolean autoUpdate() {
+                return isAutoUpdateEnabled();
             }
 
             @Override
@@ -1926,13 +1947,14 @@ public class App extends JFrame {
         }
     }
 
-    private boolean isCheckInRunning() {
-        for (CheckInTask task : schedulerService.getAllTasks()) {
-            if (task.getStatus() == TaskStatus.CHECKING_IN) {
-                return true;
-            }
-        }
-        return false;
+    /** 沒有打卡執行中、10 分鐘內沒有排程、沒有傳檔進度視窗：才適合自動重啟更新。 */
+    private boolean isIdleForUpdate() {
+        return UpdateIdlePolicy.isIdle(schedulerService.getAllTasks(), LocalDateTime.now())
+                && !TransferProgressDialog.isAnyActive();
+    }
+
+    private boolean isAutoUpdateEnabled() {
+        return serverRefs.autoUpdateCheckBox == null || serverRefs.autoUpdateCheckBox.isSelected();
     }
 
     private void rememberIgnoredUpdate(String digest) {

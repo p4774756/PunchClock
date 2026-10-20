@@ -27,6 +27,9 @@ import java.util.function.Consumer;
  */
 public class TaskPersistenceService {
 
+    /** 載入時發現排程時間已過（程式關閉或重啟期間錯過）而標成已取消的原因文字。 */
+    public static final String EXPIRED_ON_RESTART_MESSAGE = "應用程式重啟，排程已過期";
+
     private static final String SAVE_DIR = ".punchclock";
     private static final String SAVE_FILE = "tasks.json";
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -100,7 +103,7 @@ public class TaskPersistenceService {
                     LocalDateTime triggerTime = task.getActualTriggerTime();
                     if (triggerTime != null && triggerTime.isBefore(now)) {
                         task.setStatus(TaskStatus.CANCELLED);
-                        task.setResultMessage("應用程式重啟，排程已過期");
+                        task.setResultMessage(EXPIRED_ON_RESTART_MESSAGE);
                         if (logger != null) {
                             logger.accept(String.format(
                                     "[取消] 【%s】啟動時發現排程已過期，標記為已取消（原定 %s）",

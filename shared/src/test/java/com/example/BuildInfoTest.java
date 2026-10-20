@@ -25,6 +25,46 @@ public class BuildInfoTest {
     }
 
     @Test
+    public void buildLabelShowsVersionAndShortSourceDigest() {
+        String digest = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90";
+        assertEquals("v2.0.2 · a1b2c3d", BuildInfo.buildLabel("2.0.2", digest));
+        assertEquals("v2.0.2 · a1b2c3d", BuildInfo.buildLabel("2.0.2", digest.toUpperCase()));
+        assertEquals("沒有摘要就只顯示版號", "v2.0.2", BuildInfo.buildLabel("2.0.2", ""));
+        assertEquals("v2.0.2", BuildInfo.buildLabel("2.0.2", "${sourceDigest}"));
+        assertEquals("新版本 · a1b2c3d", BuildInfo.buildLabel("", digest));
+        assertEquals("a1b2c3d", BuildInfo.shortDigest(digest));
+        assertEquals("", BuildInfo.shortDigest("zzz"));
+
+        Properties props = new Properties();
+        props.setProperty("version", "2.0.2");
+        props.setProperty("sourceDigest", digest);
+        assertEquals("v2.0.2 · a1b2c3d", BuildInfo.fromProperties(props).buildLabel());
+    }
+
+    @Test
+    public void sameSourceGivesSameLabelRegardlessOfBuildTime() {
+        String digest = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90";
+        Properties first = new Properties();
+        first.setProperty("version", "2.0.2");
+        first.setProperty("sourceDigest", digest);
+        first.setProperty("buildTime", "2026-10-20T07:58:00Z");
+        Properties second = new Properties();
+        second.setProperty("version", "2.0.2");
+        second.setProperty("sourceDigest", digest);
+        second.setProperty("buildTime", "2026-10-21T01:00:00Z");
+
+        assertEquals(BuildInfo.fromProperties(first).buildLabel(), BuildInfo.fromProperties(second).buildLabel());
+    }
+
+    @Test
+    public void labelFromIsoFormatsInZoneAndToleratesGarbage() {
+        assertEquals("2026-09-24 15:58", BuildInfo.labelFromIso("2026-09-24T07:58:00Z", BuildInfo.TAIPEI));
+        assertEquals("", BuildInfo.labelFromIso("", BuildInfo.TAIPEI));
+        assertEquals("", BuildInfo.labelFromIso(null, BuildInfo.TAIPEI));
+        assertEquals("", BuildInfo.labelFromIso("not-a-time", BuildInfo.TAIPEI));
+    }
+
+    @Test
     public void releaseTimePrefersCommitTime() {
         Properties props = new Properties();
         props.setProperty("version", "1.8.0");

@@ -61,6 +61,7 @@ public class ServerAppClientUpdateTest {
         JsonObject update = different.getAsJsonObject("update");
         assertEquals("1.8.0", update.get("version").getAsString());
         assertEquals(RELEASE, update.get("sourceDigest").getAsString());
+        assertEquals("2026-10-20T07:58:00Z", update.get("releaseTime").getAsString());
         assertEquals(release.sha256(), update.get("sha256").getAsString());
         assertEquals(release.size(), update.get("size").getAsLong());
         assertEquals(ClientUpdatePolicy.JAR_PATH, update.get("path").getAsString());
@@ -96,9 +97,22 @@ public class ServerAppClientUpdateTest {
         }
     }
 
+    @Test
+    public void heartbeatDoesNotOfferOlderReleaseToNewerClient() throws Exception {
+        // server 上的版本是 2026-10-20T07:58:00Z
+        assertFalse(heartbeat("1.8.0", OTHER, "2026-10-21T00:00:00Z").has("update"));
+        assertTrue(heartbeat("1.8.0", OTHER, "2026-10-19T00:00:00Z").has("update"));
+        assertTrue("沒送時間就只看摘要", heartbeat("1.8.0", OTHER, "").has("update"));
+    }
+
     private JsonObject heartbeat(String version, String digest) throws Exception {
+        return heartbeat(version, digest, "");
+    }
+
+    private JsonObject heartbeat(String version, String digest, String releaseTime) throws Exception {
         String json = "{\"clientId\":\"worker-update\",\"status\":\"ONLINE\",\"tasks\":[],\"heartbeatSeq\":1,"
-                + "\"appVersion\":\"" + version + "\",\"appSourceDigest\":\"" + digest + "\"}";
+                + "\"appVersion\":\"" + version + "\",\"appReleaseTime\":\"" + releaseTime
+                + "\",\"appSourceDigest\":\"" + digest + "\"}";
         HttpResponse<String> hb = http.send(
                 HttpRequest.newBuilder(URI.create(base + "/api/heartbeat"))
                         .header("Authorization", "Bearer " + TOKEN)
@@ -114,6 +128,7 @@ public class ServerAppClientUpdateTest {
         Properties props = new Properties();
         props.setProperty("version", "1.8.0");
         props.setProperty("sourceDigest", RELEASE);
+        props.setProperty("buildTime", "2026-10-20T07:58:00Z");
         try (OutputStream out = Files.newOutputStream(path);
              JarOutputStream jos = new JarOutputStream(out)) {
             jos.putNextEntry(new JarEntry("version.properties"));

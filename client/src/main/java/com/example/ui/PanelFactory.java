@@ -64,6 +64,11 @@ public class PanelFactory {
         refs.trustAllSslCheckBox = new JCheckBox("信任所有 SSL（除錯）", false);
         refs.trustAllSslCheckBox.setFont(mainFont);
         refs.trustAllSslCheckBox.setToolTipText("預設關閉。啟用雲端時會鎖定；需先取消雲端才能修改。僅本機自簽憑證除錯用。");
+        refs.autoUpdateCheckBox = new JCheckBox("有新版時閒置自動更新", true);
+        refs.autoUpdateCheckBox.setFont(mainFont);
+        refs.autoUpdateCheckBox.setToolTipText(
+                "伺服器有不同的桌面端時，在沒有打卡執行中、10 分鐘內沒有排程、沒有傳檔時自動下載並重啟（排程與設定會保留）。"
+                        + "關閉則改為跳出詢問。");
         refs.heartbeatStatusLabel = new JLabel("[離線] 未連線 (已停用)", SwingConstants.LEFT);
         refs.heartbeatStatusLabel.setFont(boldFont);
         refs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
@@ -77,6 +82,7 @@ public class PanelFactory {
                 refs.enableServerCheckBox,
                 refs.trustAllSslCheckBox,
                 refs.heartbeatStatusLabel));
+        panel.add(formRow(refs.autoUpdateCheckBox));
         panel.add(Box.createVerticalStrut(8));
         panel.add(backgroundRow(refs, mainFont, boldFont));
         panel.add(Box.createVerticalStrut(8));
@@ -244,6 +250,7 @@ public class PanelFactory {
         public JPasswordField heartbeatTokenField;
         public JCheckBox enableServerCheckBox;
         public JCheckBox trustAllSslCheckBox;
+        public JCheckBox autoUpdateCheckBox;
         public JLabel heartbeatStatusLabel;
         public JLabel backgroundPreview;
         public JButton chooseBackgroundButton;

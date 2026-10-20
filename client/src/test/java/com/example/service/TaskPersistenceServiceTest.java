@@ -107,6 +107,27 @@ public class TaskPersistenceServiceTest {
         assertEquals(TaskStatus.CANCELLED, expiredLoaded.getStatus());
         assertTrue(expiredLoaded.getResultMessage().contains("過期"));
         assertEquals(TaskStatus.SCHEDULED, futureLoaded.getStatus());
+
+        assertTrue("載入時過期取消的要能被辨識，槽位才能自動排下一次",
+                SlotScheduleHelper.isExpiredOnRestart(expiredLoaded));
+        assertFalse(SlotScheduleHelper.isExpiredOnRestart(futureLoaded));
+    }
+
+    @Test
+    public void isExpiredOnRestart_ignoresUserOrRemoteCancellations() {
+        CheckInTask userCancelled = new CheckInTask("手動取消", "https://example.com", "#btn",
+                LocalDateTime.now().plusHours(1), false, "msedge");
+        userCancelled.setStatus(TaskStatus.CANCELLED);
+        userCancelled.setResultMessage("槽位已停用");
+        assertFalse(SlotScheduleHelper.isExpiredOnRestart(userCancelled));
+
+        CheckInTask remote = new CheckInTask("遠端取消", "https://example.com", "#btn",
+                LocalDateTime.now().plusHours(1), false, "msedge");
+        remote.setStatus(TaskStatus.CANCELLED);
+        remote.setResultMessage("來源未標示的取消");
+        assertFalse(SlotScheduleHelper.isExpiredOnRestart(remote));
+
+        assertFalse(SlotScheduleHelper.isExpiredOnRestart(null));
     }
 
     @Test

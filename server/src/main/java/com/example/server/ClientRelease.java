@@ -17,17 +17,20 @@ import java.util.jar.JarFile;
  */
 public final class ClientRelease {
 
-    public static final ClientRelease NONE = new ClientRelease("", "", "", 0L, null);
+    public static final ClientRelease NONE = new ClientRelease("", "", "", "", 0L, null);
 
     private final String version;
     private final String sourceDigest;
+    /** 這份 jar 的建置（或 commit）時間，ISO-8601 UTC；未知為空字串。 */
+    private final String releaseTime;
     private final String sha256;
     private final long size;
     private final Path jar;
 
-    private ClientRelease(String version, String sourceDigest, String sha256, long size, Path jar) {
+    private ClientRelease(String version, String sourceDigest, String releaseTime, String sha256, long size, Path jar) {
         this.version = version == null ? "" : version;
         this.sourceDigest = sourceDigest == null ? "" : sourceDigest;
+        this.releaseTime = releaseTime == null ? "" : releaseTime;
         this.sha256 = sha256 == null ? "" : sha256;
         this.size = size;
         this.jar = jar;
@@ -61,7 +64,8 @@ public final class ClientRelease {
         }
         BuildInfo info = BuildInfo.fromProperties(props);
         String hash = ClientUpdatePolicy.sha256(path);
-        return new ClientRelease(info.version(), info.sourceDigest(), hash, Files.size(path), path);
+        return new ClientRelease(info.version(), info.sourceDigest(), info.releaseTimeIso(), hash,
+                Files.size(path), path);
     }
 
     public boolean isAvailable() {
@@ -79,6 +83,10 @@ public final class ClientRelease {
 
     public String sourceDigest() {
         return sourceDigest;
+    }
+
+    public String releaseTime() {
+        return releaseTime;
     }
 
     public String sha256() {

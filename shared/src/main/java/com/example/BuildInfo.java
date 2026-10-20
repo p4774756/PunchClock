@@ -70,6 +70,34 @@ public final class BuildInfo {
         return sourceDigest;
     }
 
+    /** 建置編號長度：取原始碼摘要前幾碼，同樣的程式碼在任何環境打包都一樣。 */
+    public static final int SHORT_DIGEST_LENGTH = 7;
+
+    /** 摘要前 7 碼；摘要不合法或未知時為空字串。 */
+    public static String shortDigest(String digest) {
+        String normalized = normalizeDigest(digest);
+        return normalized.isEmpty() ? "" : normalized.substring(0, SHORT_DIGEST_LENGTH);
+    }
+
+    /**
+     * 給人看的版本標示，例如 {@code v2.0.2 · a1b2c3d}。
+     * 更新比對靠原始碼摘要，版號不一定每次都改，所以一併顯示建置編號才分得出兩份程式的差別。
+     */
+    public static String buildLabel(String version, String digest) {
+        String base = version == null || version.isBlank() ? "新版本" : "v" + version.trim();
+        String shortId = shortDigest(digest);
+        return shortId.isEmpty() ? base : base + " · " + shortId;
+    }
+
+    public String buildLabel() {
+        return buildLabel(version, sourceDigest);
+    }
+
+    /** ISO-8601 時間轉成本地顯示格式；空字串或格式不符回空字串。 */
+    public static String labelFromIso(String iso, ZoneId zone) {
+        return label(parseInstant(iso == null ? "" : iso.trim()), zone);
+    }
+
     /** ISO-8601 UTC，例如 {@code 2026-09-24T07:58:00Z}；未知時為空字串。 */
     public String buildTimeIso() {
         return iso(buildTime);

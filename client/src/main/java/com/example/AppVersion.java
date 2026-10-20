@@ -13,13 +13,18 @@ public final class AppVersion {
     /** client／shared 原始碼摘要；IDE 直接跑或未經過打包時為空字串。 */
     public static final String SOURCE_DIGEST = INFO.sourceDigest();
 
-    /** 例如 {@code v1.8.0（提交 2026-09-24 15:53）}；沒有時間就只顯示版號。 */
+    /** 例如 {@code v1.8.0 · a1b2c3d}（版號 + 原始碼摘要前 7 碼）；沒有摘要就只有版號。 */
+    public static String buildLabel() {
+        return INFO.buildLabel();
+    }
+
+    /** 例如 {@code v1.8.0 · a1b2c3d（提交 2026-09-24 15:53）}；沒有時間就不附時間。 */
     public static String displayLabel() {
         String time = INFO.releaseTimeLabel(ZoneId.systemDefault());
         if (time.isEmpty()) {
-            return "v" + VERSION;
+            return buildLabel();
         }
-        return "v" + VERSION + "（" + (INFO.hasCommitTime() ? "提交 " : "建置 ") + time + "）";
+        return buildLabel() + "（" + (INFO.hasCommitTime() ? "提交 " : "建置 ") + time + "）";
     }
 
     private AppVersion() {}

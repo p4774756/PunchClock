@@ -157,6 +157,23 @@ public class SlotController {
         }
         saveConfig();
 
+        // 程式關閉／重啟（含更新重啟）期間錯過的排程：載入時被標成「已過期取消」，
+        // 槽位仍啟用就排到下一個時間，否則整個槽位會從此不再排程。錯過的那次不補打。
+        for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
+            SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
+            CheckInTask expired = schedulerService.getTask(kind.id);
+            if (slot.enabled && SlotScheduleHelper.isExpiredOnRestart(expired)) {
+                String missed = expired.getActualTriggerTime() != null
+                        ? expired.getActualTriggerTime().format(
+                                java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm"))
+                        : "未知時間";
+                expired.setStatus(TaskStatus.PENDING);
+                expired.setResultMessage("");
+                appendLog.accept(String.format(
+                        "[排程] 【%s】程式重啟時錯過了原定的 %s，不補打，改排下一次", kind.displayName, missed));
+            }
+        }
+
         int scheduled = 0;
         for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
             if (scheduleSlot(kind, false)) {

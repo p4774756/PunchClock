@@ -110,13 +110,21 @@ public class HeartbeatService {
     public static final class UpdateNotice {
         public final String version;
         public final String sourceDigest;
+        /** 伺服器上那份桌面端的建置（或 commit）時間，ISO-8601 UTC；沒帶為空字串。 */
+        public final String releaseTime;
         public final String sha256;
         public final long size;
         public final String path;
 
         public UpdateNotice(String version, String sourceDigest, String sha256, long size, String path) {
+            this(version, sourceDigest, "", sha256, size, path);
+        }
+
+        public UpdateNotice(String version, String sourceDigest, String releaseTime, String sha256,
+                            long size, String path) {
             this.version = version == null ? "" : version;
             this.sourceDigest = sourceDigest == null ? "" : sourceDigest;
+            this.releaseTime = releaseTime == null ? "" : releaseTime;
             this.sha256 = sha256 == null ? "" : sha256;
             this.size = size;
             this.path = path == null ? "" : path;
@@ -542,7 +550,7 @@ public class HeartbeatService {
         if (digest.isEmpty() || sha256.isEmpty() || size <= 0 || !ClientUpdatePolicy.JAR_PATH.equals(path)) {
             return null;
         }
-        return new UpdateNotice(version, digest, sha256, size, path);
+        return new UpdateNotice(version, digest, jsonString(update, "releaseTime"), sha256, size, path);
     }
 
     private void parseServerFiles(JsonObject json) {

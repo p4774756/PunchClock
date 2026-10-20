@@ -101,6 +101,8 @@ public class ConfigPersistenceService {
 
         /** 使用者對這一版桌面端按過「否」；摘要相同就不再問。 */
         public String ignoredUpdateDigest = "";
+        /** 有新版時，閒置自動下載並重啟更新（預設開啟；關閉則改為詢問） */
+        public boolean autoApplyUpdate = true;
 
         /** 「瀏覽」分頁（Playwright 內建 Chromium） */
         public String browseUrl = "https://www.google.com.tw";

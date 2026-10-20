@@ -33,6 +33,10 @@ public final class TransferProgressDialog {
     private static final Color FILL = new Color(37, 99, 235);
     private static final Color BORDER = new Color(148, 163, 184);
 
+    /** 目前開著的傳檔／更新進度視窗；自動重啟更新前用來確認沒有傳檔進行中。 */
+    private static final java.util.List<TransferProgressDialog> OPEN =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+
     private final JDialog dialog;
     private final JLabel statusLabel;
     private final JLabel detailLabel;
@@ -99,6 +103,7 @@ public final class TransferProgressDialog {
             owner = new JFrame();
         }
         TransferProgressDialog dialog = new TransferProgressDialog(owner, title);
+        OPEN.add(dialog);
         dialog.dialog.setVisible(true);
         dialog.dialog.toFront();
         return dialog;
@@ -163,7 +168,18 @@ public final class TransferProgressDialog {
         });
     }
 
+    /** 是否有進度視窗正顯示中（傳送、接收、下載任一種）。 */
+    public static boolean isAnyActive() {
+        for (TransferProgressDialog open : OPEN) {
+            if (open.dialog.isShowing()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void close() {
+        OPEN.remove(this);
         SwingUtilities.invokeLater(() -> {
             dialog.setVisible(false);
             dialog.dispose();
