@@ -481,7 +481,18 @@ public class App extends JFrame {
             });
         }
         if (peerRefs.messageField != null) {
-            peerRefs.messageField.addActionListener(e -> sendMessageToSelectedPeer());
+            // Enter 送出、Shift+Enter 換行（JTextArea 預設 Enter 會換行，要自己接管）
+            javax.swing.InputMap inputMap = peerRefs.messageField.getInputMap(javax.swing.JComponent.WHEN_FOCUSED);
+            javax.swing.ActionMap actionMap = peerRefs.messageField.getActionMap();
+            inputMap.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ENTER, 0), "sendPeerMessage");
+            inputMap.put(javax.swing.KeyStroke.getKeyStroke(
+                    java.awt.event.KeyEvent.VK_ENTER, java.awt.event.InputEvent.SHIFT_DOWN_MASK), "insert-break");
+            actionMap.put("sendPeerMessage", new javax.swing.AbstractAction() {
+                @Override
+                public void actionPerformed(java.awt.event.ActionEvent e) {
+                    sendMessageToSelectedPeer();
+                }
+            });
         }
         if (peerRefs.attachImageButton != null) {
             peerRefs.attachImageButton.addActionListener(e -> chooseMessageImage());
@@ -876,6 +887,9 @@ public class App extends JFrame {
     private void setPeerInteractionEnabled(boolean enabled) {
         if (peerRefs.messageField != null) {
             peerRefs.messageField.setEnabled(enabled);
+        }
+        if (peerRefs.messageScroll != null) {
+            peerRefs.messageScroll.setEnabled(enabled);
         }
         if (peerRefs.sendMessageButton != null) {
             peerRefs.sendMessageButton.setEnabled(enabled);

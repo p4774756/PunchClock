@@ -322,9 +322,17 @@ public class PanelFactory {
         avatarRow.add(refs.clearAvatarButton);
         refs.avatarRow = avatarRow;
 
-        refs.messageField = new JTextField();
+        refs.messageField = new JTextArea(2, 24);
         refs.messageField.setFont(mainFont);
-        refs.messageField.setToolTipText("輸入要傳給選中同事的訊息（最多 10000 字）");
+        refs.messageField.setLineWrap(true);
+        refs.messageField.setWrapStyleWord(true);
+        refs.messageField.setToolTipText("輸入要傳給選中同事的訊息（最多 10000 字）。Enter 送出，Shift+Enter 換行");
+        JScrollPane messageScroll = new JScrollPane(refs.messageField,
+                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        messageScroll.setPreferredSize(new Dimension(280, 52));
+        messageScroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
+        refs.messageScroll = messageScroll;
 
         refs.sendMessageButton = new JButton("傳送訊息");
         refs.sendMessageButton.setFont(boldFont);
@@ -343,8 +351,7 @@ public class PanelFactory {
         actionRow.setOpaque(false);
         actionRow.add(new JLabel("訊息："));
         actionRow.getComponent(0).setFont(mainFont);
-        actionRow.add(refs.messageField);
-        refs.messageField.setPreferredSize(new Dimension(280, 28));
+        actionRow.add(refs.messageScroll);
         actionRow.add(refs.sendMessageButton);
         actionRow.add(refs.pokeButton);
         actionRow.add(refs.sendFileButton);
@@ -503,7 +510,9 @@ public class PanelFactory {
         public JTable peerTable;
         public javax.swing.table.DefaultTableModel peerTableModel;
         public JScrollPane peerTableScroll;
-        public JTextField messageField;
+        public JTextArea messageField;
+        /** 訊息輸入區的捲動容器（版面上放這個，不是 messageField 本身） */
+        public JScrollPane messageScroll;
         public JButton sendMessageButton;
         public JButton pokeButton;
         public JButton sendFileButton;
