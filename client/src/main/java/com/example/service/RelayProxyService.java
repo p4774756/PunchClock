@@ -269,12 +269,19 @@ public class RelayProxyService {
                         builder.build(), HttpResponse.BodyHandlers.ofInputStream());
                 try (InputStream in = response.body()) {
                     copyResponseHeaders(response, exchange);
-                    long length = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
-                    exchange.sendResponseHeaders(response.statusCode(), length);
+                    int status = response.statusCode();
+                    long declared = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
+                    boolean noBody = "HEAD".equalsIgnoreCase(method) || status == 204 || status == 304
+                            || (status >= 100 && status < 200) || declared == 0;
+                    // HttpExchange：-1 = 沒有 body；0 = chunked（長度未知）；>0 = 固定長度。
+                    // 上游用 chunked（沒有 Content-Length，例如心跳回應較大時）一定要走 chunked，
+                    // 傳 -1 會讓 body 被丟掉並使後續寫入失敗（StreamClosedException）。
+                    long sendLength = noBody ? -1L : (declared > 0 ? declared : 0L);
+                    exchange.sendResponseHeaders(status, sendLength);
                     long copied = 0;
-                    if (length != 0) {
-                        byte[] buf = new byte[8192];
-                        try (OutputStream os = exchange.getResponseBody()) {
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        if (!noBody) {
+                            byte[] buf = new byte[8192];
                             int n;
                             while ((n = in.read(buf)) >= 0) {
                                 os.write(buf, 0, n);

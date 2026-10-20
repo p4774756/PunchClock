@@ -62,6 +62,79 @@ public class RelayProxyServiceTest {
         assertFalse(service.isTrustAllSsl());
     }
 
+    /** 上游用 chunked（沒有 Content-Length）回應，例如心跳回應較大時；中繼不能因此失敗。 */
+    @Test
+    public void relaysChunkedResponseWithoutContentLength() throws Exception {
+        byte[] payload = new byte[200 * 1024];
+        java.util.Arrays.fill(payload, (byte) 'x');
+        com.sun.net.httpserver.HttpServer upstream =
+                com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        upstream.createContext("/", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            exchange.sendResponseHeaders(200, 0); // 0 = chunked
+            try (java.io.OutputStream os = exchange.getResponseBody()) {
+                os.write(payload);
+            }
+        });
+        upstream.start();
+        RelayProxyService service = new RelayProxyService();
+        java.util.List<String> logs = new java.util.concurrent.CopyOnWriteArrayList<>();
+        try {
+            int relayPort = freePort();
+            assertTrue(service.start(relayPort,
+                    "http://127.0.0.1:" + upstream.getAddress().getPort(), "token", logs::add));
+            java.net.http.HttpResponse<byte[]> response = java.net.http.HttpClient.newHttpClient().send(
+                    java.net.http.HttpRequest.newBuilder()
+                            .uri(java.net.URI.create("http://127.0.0.1:" + relayPort + "/api/heartbeat"))
+                            .POST(java.net.http.HttpRequest.BodyPublishers.ofString("{}"))
+                            .build(),
+                    java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+            assertEquals(200, response.statusCode());
+            assertEquals(payload.length, response.body().length);
+            assertTrue(logs.toString(), logs.stream().noneMatch(line -> line.contains("轉發失敗")));
+        } finally {
+            service.stop();
+            upstream.stop(0);
+        }
+    }
+
+    /** 上游回 204 或 Content-Length: 0 時，中繼要把回應結束掉，不能讓呼叫端一直等。 */
+    @Test
+    public void relaysEmptyResponseAndFinishesIt() throws Exception {
+        com.sun.net.httpserver.HttpServer upstream =
+                com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        upstream.createContext("/", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+        });
+        upstream.start();
+        RelayProxyService service = new RelayProxyService();
+        try {
+            int relayPort = freePort();
+            assertTrue(service.start(relayPort,
+                    "http://127.0.0.1:" + upstream.getAddress().getPort(), "token", null));
+            java.net.http.HttpResponse<byte[]> response = java.net.http.HttpClient.newHttpClient().send(
+                    java.net.http.HttpRequest.newBuilder()
+                            .uri(java.net.URI.create("http://127.0.0.1:" + relayPort + "/x"))
+                            .timeout(java.time.Duration.ofSeconds(5))
+                            .POST(java.net.http.HttpRequest.BodyPublishers.ofString("{}"))
+                            .build(),
+                    java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+            assertEquals(204, response.statusCode());
+            assertEquals(0, response.body().length);
+        } finally {
+            service.stop();
+            upstream.stop(0);
+        }
+    }
+
+    private static int freePort() throws java.io.IOException {
+        try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
+    }
+
     @Test
     public void serviceTrimsTrailingSlash() {
         RelayProxyService service = new RelayProxyService();
