@@ -82,6 +82,7 @@ VS Code／Cursor：`.vscode/launch.json` 有 `App`（桌面端）、`ServerApp`�
 | `POST /api/clients/{id}/cancel-task/{taskId}` | 取消單一任務 |
 | `GET /api/status`、`/`、`/ws/dashboard` | Dashboard（需登入）；WS **只推** `STATUS_UPDATE` |
 | `/api/peer/*` | 同事訊息、poke、傳檔（暫存約 6 小時） |
+| `GET /api/client-release/jar` + Bearer | 下載伺服器附帶的桌面端 jar；心跳回應的 `update` 表示摘要不同 |
 
 3 分鐘無心跳視為離線。細節見 `server/README.md`。
 
@@ -104,6 +105,7 @@ VS Code／Cursor：`.vscode/launch.json` 有 `App`（桌面端）、`ServerApp`�
 | 字型／對話框 | `UiFonts` |
 | 網路／Proxy 探測（UI 分頁標籤「Ping/Pong」） | `NetworkToolsPanel`、`NetworkProbeService` |
 | 中繼 Proxy（同事經你的電腦轉發到雲端） | `RelayProxyService`、`App.startRelayProxy`；「信任所有 SSL」與 Proxy 刷新需同步套用到心跳與中繼 |
+| 桌面端自動更新 | `ClientUpdateCoordinator`、`ClientUpdateInstaller`、`HeartbeatService.parseUpdateNotice`、`ClientRelease`、`ClientUpdatePolicy`、`SourceDigest`；僅 `java -jar` 啟動才能就地更新 |
 | 傳檔 | client 傳檔 UI + `FileOfferStore`、`/api/peer/file*` |
 | Dashboard | `server/.../resources/public/` + `DashboardBroadcaster` |
 

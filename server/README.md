@@ -25,6 +25,23 @@ PunchClock 遠端監控與指令中繼伺服器（Java + Javalin）。
 | Dashboard | Web 頁面 `/` | **需登入** |
 | Dashboard | WebSocket `/ws/dashboard` | **需登入**；僅推送 `STATUS_UPDATE` |
 
+## 桌面端自動更新
+
+| 項目 | 說明 |
+|------|------|
+| 心跳請求 | 桌面端帶 `appVersion`、`appSourceDigest` |
+| 心跳回應 | 摘要與伺服器附帶的 jar 不同（且 client 非 `dev`、有送摘要）時帶 `update`：`version`、`sourceDigest`、`sha256`、`size`、`path` |
+| 下載 | `GET /api/client-release/jar` + Bearer（同心跳密鑰）；沒有可用 jar 時 404 |
+| jar 來源 | 環境變數 `CLIENT_JAR_PATH`；否則 `/app/client/punchclock-client-standalone.jar`（Docker image 內，由 `server/Dockerfile` 一併打包 client） |
+
+啟動 log 會顯示 `Client release: v… xxxxxxxx (… bytes)`，顯示 `none` 代表沒有可發布的 jar（沒有更新通知）。本機測試：
+
+```bash
+CLIENT_JAR_PATH=/path/to/punchclock-client-standalone.jar java -jar server/target/punchclock-server.jar
+```
+
+桌面端流程見根目錄 [`README.md`](../README.md)「桌面端自動更新」。
+
 ## 本機啟動
 
 ```bash
