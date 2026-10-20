@@ -75,6 +75,12 @@ public final class PeerImage {
         }
     }
 
+    /** 解碼後縮成縮圖（最長邊不超過 maxEdge）；解不出來回傳 null。 */
+    public static BufferedImage decodeThumbnail(String encoded, int maxEdge) {
+        BufferedImage full = decode(encoded);
+        return full == null ? null : scaleToFit(full, Math.max(1, maxEdge));
+    }
+
     /** 以最長邊不超過 maxEdge 等比縮小（不放大）。 */
     static BufferedImage scaleToFit(BufferedImage src, int maxEdge) {
         int w = src.getWidth();

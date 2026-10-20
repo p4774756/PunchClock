@@ -73,4 +73,57 @@ public class PeerFolderPackerTest {
         assertFalse(packed.ok);
         assertTrue(packed.message.contains("資料夾"));
     }
+
+    @Test
+    public void packMany_putsFilesAndFoldersIntoOneZip() throws Exception {
+        Path base = Files.createTempDirectory("peer-many-");
+        Path report = base.resolve("報告.txt");
+        Files.writeString(report, "report");
+        Path dirA = Files.createDirectories(base.resolve("a").resolve("photos"));
+        Files.writeString(dirA.resolve("x.txt"), "in folder");
+        Path sameName = Files.createDirectories(base.resolve("b")).resolve("報告.txt");
+        Files.writeString(sameName, "second");
+
+        PeerFolderPacker.PackResult packed = PeerFolderPacker.packMany(
+                java.util.Arrays.asList(report, dirA, sameName), null);
+        assertTrue(packed.message, packed.ok);
+        assertEquals("報告等3個項目.zip", packed.filename);
+
+        java.util.Map<String, String> entries = new java.util.LinkedHashMap<>();
+        try (ZipInputStream in = new ZipInputStream(Files.newInputStream(packed.path))) {
+            ZipEntry entry;
+            while ((entry = in.getNextEntry()) != null) {
+                entries.put(entry.getName(),
+                        entry.isDirectory() ? "" : new String(in.readAllBytes(), StandardCharsets.UTF_8));
+            }
+        } finally {
+            packed.deleteQuietly();
+        }
+        assertEquals("report", entries.get("報告.txt"));
+        assertEquals("in folder", entries.get("photos/x.txt"));
+        assertEquals("同名檔案要自動改名，不能互相覆蓋", "second", entries.get("報告 (2).txt"));
+    }
+
+    @Test
+    public void packMany_rejectsEmptyAndMissing() {
+        assertFalse(PeerFolderPacker.packMany(java.util.Collections.emptyList(), null).ok);
+        assertFalse(PeerFolderPacker.packMany(null, null).ok);
+        PeerFolderPacker.PackResult missing = PeerFolderPacker.packMany(
+                java.util.Collections.singletonList(Path.of("definitely-missing-xyz")), null);
+        assertFalse(missing.ok);
+        assertTrue(missing.message.contains("找不到"));
+    }
+
+    @Test
+    public void packMany_stopsWhenCancelled() throws Exception {
+        Path file = Files.createTempFile("peer-many-cancel-", ".bin");
+        Files.write(file, new byte[1024 * 1024]);
+        try {
+            PeerFolderPacker.PackResult packed = PeerFolderPacker.packMany(
+                    java.util.Collections.singletonList(file), () -> true);
+            assertTrue(packed.cancelled);
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
 }

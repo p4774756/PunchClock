@@ -329,68 +329,17 @@ public class PanelFactory {
         avatarRow.add(refs.clearAvatarButton);
         refs.avatarRow = avatarRow;
 
-        refs.messageField = new JTextArea(2, 24);
-        refs.messageField.setFont(mainFont);
-        refs.messageField.setLineWrap(true);
-        refs.messageField.setWrapStyleWord(true);
-        refs.messageField.setToolTipText("輸入要傳給選中同事的訊息（最多 10000 字）。Enter 送出，Shift+Enter 換行");
-        JScrollPane messageScroll = new JScrollPane(refs.messageField,
-                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        messageScroll.setPreferredSize(new Dimension(280, 52));
-        messageScroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
-        refs.messageScroll = messageScroll;
-
-        refs.sendMessageButton = new JButton("傳送訊息");
-        refs.sendMessageButton.setFont(boldFont);
-
-        refs.pokeButton = new JButton("戳一下");
-        refs.pokeButton.setFont(boldFont);
-        refs.pokeButton.setToolTipText("發送輕量提醒：對方桌面端會鳴叫、視窗晃動並跳出通知（約 15 秒內隨心跳送達）");
-
-        refs.sendFileButton = new JButton("傳送檔案／資料夾");
-        refs.sendFileButton.setFont(boldFont);
-        refs.sendFileButton.setToolTipText("傳送任意副檔名的檔案，或整個資料夾（資料夾會壓成 ZIP；"
-                + com.example.PeerFileRules.allowedTypesHint()
-                + "。過期前可在下方紀錄重複下載或手動清除）");
-
-        JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        actionRow.setOpaque(false);
-        actionRow.add(new JLabel("訊息："));
-        actionRow.getComponent(0).setFont(mainFont);
-        actionRow.add(refs.messageScroll);
-        actionRow.add(refs.sendMessageButton);
-        actionRow.add(refs.pokeButton);
-        actionRow.add(refs.sendFileButton);
-
-        refs.attachImageButton = new JButton("附加圖片");
-        refs.attachImageButton.setFont(mainFont);
-        refs.attachImageButton.setToolTipText("選一張圖片，和文字一起傳給對方（會自動縮小壓縮）");
-        refs.pasteImageButton = new JButton("貼上圖片");
-        refs.pasteImageButton.setFont(mainFont);
-        refs.pasteImageButton.setToolTipText("貼上剪貼簿裡的截圖或圖片");
-        refs.clearImageButton = new JButton("移除圖片");
-        refs.clearImageButton.setFont(mainFont);
-        refs.clearImageButton.setEnabled(false);
-        refs.attachedImageLabel = new JLabel("（未附圖片，可只傳圖片不輸入文字）");
-        refs.attachedImageLabel.setFont(mainFont);
-        refs.attachedImageLabel.setForeground(new Color(100, 116, 139));
-
-        JPanel imageRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        imageRow.setOpaque(false);
-        imageRow.add(refs.attachImageButton);
-        imageRow.add(refs.pasteImageButton);
-        imageRow.add(refs.clearImageButton);
-        imageRow.add(refs.attachedImageLabel);
-
-        JPanel messageRows = new JPanel();
-        messageRows.setLayout(new BoxLayout(messageRows, BoxLayout.Y_AXIS));
-        messageRows.setOpaque(false);
-        actionRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        imageRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        messageRows.add(actionRow);
-        messageRows.add(Box.createVerticalStrut(4));
-        messageRows.add(imageRow);
+        refs.openChatButton = new JButton("開啟聊天");
+        refs.openChatButton.setFont(boldFont);
+        refs.openChatButton.setToolTipText("和選取的好友開一個小聊天視窗，可傳訊息、圖片、檔案或戳一下（雙擊好友也可以）");
+        refs.openChatButton.setEnabled(false);
+        JLabel chatHint = new JLabel("雙擊好友，或選取後按「開啟聊天」");
+        chatHint.setFont(mainFont);
+        chatHint.setForeground(new Color(100, 116, 139));
+        JPanel chatRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        chatRow.setOpaque(false);
+        chatRow.add(refs.openChatButton);
+        chatRow.add(chatHint);
 
         refs.fileTableModel = new javax.swing.table.DefaultTableModel(
                 new Object[]{"方向", "檔名", "對象", "大小", "狀態", "剩餘"}, 0) {
@@ -439,7 +388,7 @@ public class PanelFactory {
 
         JPanel south = new JPanel(new BorderLayout(0, 8));
         south.setOpaque(false);
-        south.add(messageRows, BorderLayout.NORTH);
+        south.add(chatRow, BorderLayout.NORTH);
         south.add(fileSection, BorderLayout.CENTER);
 
         JPanel north = new JPanel();
@@ -517,16 +466,7 @@ public class PanelFactory {
         public JTable peerTable;
         public javax.swing.table.DefaultTableModel peerTableModel;
         public JScrollPane peerTableScroll;
-        public JTextArea messageField;
-        /** 訊息輸入區的捲動容器（版面上放這個，不是 messageField 本身） */
-        public JScrollPane messageScroll;
-        public JButton sendMessageButton;
-        public JButton pokeButton;
-        public JButton sendFileButton;
-        public JButton attachImageButton;
-        public JButton pasteImageButton;
-        public JButton clearImageButton;
-        public JLabel attachedImageLabel;
+        public JButton openChatButton;
         public JButton downloadFileButton;
         public JButton clearFileButton;
         public JTable fileTable;

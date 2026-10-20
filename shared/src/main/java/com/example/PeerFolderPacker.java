@@ -41,7 +41,61 @@ public final class PeerFolderPacker {
             folderName = "folder";
         }
         String zipName = folderName.endsWith(".zip") ? folderName : folderName + ".zip";
+        return packItems(java.util.Collections.singletonList(new Item(root, folderName)), zipName, false, cancelled);
+    }
 
+    /**
+     * 把多個檔案／資料夾打包成同一個 ZIP（每個項目放在 ZIP 內以自己的名稱為頂層，同名會自動加 (2)）。
+     * ZIP 檔名為「第一個項目名稱等 N 個項目.zip」。
+     */
+    public static PackResult packMany(java.util.List<Path> sources, BooleanSupplier cancelled) {
+        if (sources == null || sources.isEmpty()) {
+            return PackResult.fail("請選擇要傳送的檔案或資料夾");
+        }
+        java.util.List<Item> items = new java.util.ArrayList<>();
+        java.util.Set<String> used = new java.util.HashSet<>();
+        for (Path source : sources) {
+            if (source == null || !(Files.isRegularFile(source) || Files.isDirectory(source))) {
+                return PackResult.fail("找不到要傳送的項目：" + (source == null ? "" : source.getFileName()));
+            }
+            Path root = source.toAbsolutePath().normalize();
+            String name = PeerFileRules.sanitizeFilename(
+                    root.getFileName() != null ? root.getFileName().toString() : "item");
+            if (name.isEmpty()) {
+                name = "item";
+            }
+            items.add(new Item(root, uniqueName(name, used)));
+        }
+        String first = items.get(0).name;
+        if (Files.isRegularFile(items.get(0).root)) {
+            int dot = first.lastIndexOf('.');
+            if (dot > 0) {
+                first = first.substring(0, dot);
+            }
+        }
+        String zipName = PeerFileRules.sanitizeFilename(first + "等" + items.size() + "個項目.zip");
+        if (zipName.isEmpty()) {
+            zipName = "items.zip";
+        }
+        return packItems(items, zipName, true, cancelled);
+    }
+
+    private static String uniqueName(String name, java.util.Set<String> used) {
+        String candidate = name;
+        int dot = name.lastIndexOf('.');
+        String stem = dot > 0 ? name.substring(0, dot) : name;
+        String ext = dot > 0 ? name.substring(dot) : "";
+        int n = 2;
+        while (!used.add(candidate.toLowerCase(java.util.Locale.ROOT))) {
+            candidate = stem + " (" + n++ + ")" + ext;
+        }
+        return candidate;
+    }
+
+    private static PackResult packItems(java.util.List<Item> items, String zipName, boolean many,
+                                        BooleanSupplier cancelled) {
+        final String tooMany = many ? "項目檔案過多（最多 " + MAX_ENTRIES + " 個）"
+                : "資料夾檔案過多（最多 " + MAX_ENTRIES + " 個）";
         Path zipPath;
         try {
             zipPath = Files.createTempFile("punchclock-folder-", ".zip");
@@ -54,58 +108,14 @@ public final class PeerFolderPacker {
         try (OutputStream fileOut = Files.newOutputStream(zipPath);
              CountingOutputStream counted = new CountingOutputStream(fileOut, cancelled);
              ZipOutputStream zip = new ZipOutputStream(counted)) {
-            final String zipRoot = folderName;
-            Files.walkFileTree(root, EnumSet.noneOf(FileVisitOption.class), MAX_DEPTH,
-                    new SimpleFileVisitor<Path>() {
-                        @Override
-                        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
-                                throws IOException {
-                            if (dir == null) {
-                                return FileVisitResult.CONTINUE;
-                            }
-                            counted.checkCancelled();
-                            if (!dir.equals(root) && Files.isSymbolicLink(dir)) {
-                                return FileVisitResult.SKIP_SUBTREE;
-                            }
-                            String entryName = zipPath(zipRoot, root, dir, true);
-                            if (!entryName.isEmpty()) {
-                                addDirectoryEntry(zip, entryName, counter);
-                            }
-                            return FileVisitResult.CONTINUE;
-                        }
-
-                        @Override
-                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-                                throws IOException {
-                            if (file == null || Files.isSymbolicLink(file)
-                                    || attrs == null || !attrs.isRegularFile()) {
-                                return FileVisitResult.CONTINUE;
-                            }
-                            counted.checkCancelled();
-                            String entryName = zipPath(zipRoot, root, file, false);
-                            if (entryName.isEmpty()) {
-                                return FileVisitResult.CONTINUE;
-                            }
-                            if (counter.value >= MAX_ENTRIES) {
-                                throw new PackLimitException("資料夾檔案過多（最多 " + MAX_ENTRIES + " 個）");
-                            }
-                            ZipEntry entry = new ZipEntry(entryName);
-                            entry.setTime(attrs.lastModifiedTime().toMillis());
-                            zip.putNextEntry(entry);
-                            Files.copy(file, zip);
-                            zip.closeEntry();
-                            counter.value++;
-                            if (counted.count > PeerFileRules.MAX_BYTES) {
-                                throw new PackLimitException("壓縮後不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
-                            }
-                            return FileVisitResult.CONTINUE;
-                        }
-
-                        @Override
-                        public FileVisitResult visitFileFailed(Path file, IOException exc) {
-                            return FileVisitResult.CONTINUE;
-                        }
-                    });
+            for (Item item : items) {
+                if (Files.isRegularFile(item.root)) {
+                    counted.checkCancelled();
+                    addFile(zip, counted, counter, item.root, item.name, tooMany);
+                } else {
+                    addTree(zip, counted, counter, item.root, item.name, tooMany);
+                }
+            }
         } catch (PackLimitException ex) {
             deleteQuietly(zipPath);
             return PackResult.fail(ex.getMessage());
@@ -114,7 +124,8 @@ public final class PeerFolderPacker {
             return PackResult.cancelled();
         } catch (IOException ex) {
             deleteQuietly(zipPath);
-            return PackResult.fail("壓縮資料夾失敗：" + (ex.getMessage() == null ? "IO 錯誤" : ex.getMessage()));
+            return PackResult.fail((many ? "壓縮失敗：" : "壓縮資料夾失敗：")
+                    + (ex.getMessage() == null ? "IO 錯誤" : ex.getMessage()));
         }
 
         long size;
@@ -126,7 +137,7 @@ public final class PeerFolderPacker {
         }
         if (size <= 0) {
             deleteQuietly(zipPath);
-            return PackResult.fail("資料夾是空的，沒有可傳送的內容");
+            return PackResult.fail(many ? "選取的內容是空的，沒有可傳送的內容" : "資料夾是空的，沒有可傳送的內容");
         }
         if (!PeerFileRules.isAllowedSize(size)) {
             deleteQuietly(zipPath);
@@ -135,10 +146,80 @@ public final class PeerFolderPacker {
         return PackResult.ok(zipName, zipPath, size, counter.value);
     }
 
-    private static void addDirectoryEntry(ZipOutputStream zip, String entryName, Counter counter)
+    private static void addFile(ZipOutputStream zip, CountingOutputStream counted, Counter counter,
+                                Path file, String entryName, String tooMany) throws IOException {
+        if (counter.value >= MAX_ENTRIES) {
+            throw new PackLimitException(tooMany);
+        }
+        ZipEntry entry = new ZipEntry(entryName);
+        entry.setTime(Files.getLastModifiedTime(file).toMillis());
+        zip.putNextEntry(entry);
+        Files.copy(file, zip);
+        zip.closeEntry();
+        counter.value++;
+        if (counted.count > PeerFileRules.MAX_BYTES) {
+            throw new PackLimitException("壓縮後不可超過 " + PeerFileRules.MAX_SIZE_LABEL);
+        }
+    }
+
+    private static void addTree(ZipOutputStream zip, CountingOutputStream counted, Counter counter,
+                                Path root, String zipRoot, String tooMany) throws IOException {
+        Files.walkFileTree(root, EnumSet.noneOf(FileVisitOption.class), MAX_DEPTH,
+                new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
+                            throws IOException {
+                        if (dir == null) {
+                            return FileVisitResult.CONTINUE;
+                        }
+                        counted.checkCancelled();
+                        if (!dir.equals(root) && Files.isSymbolicLink(dir)) {
+                            return FileVisitResult.SKIP_SUBTREE;
+                        }
+                        String entryName = zipPath(zipRoot, root, dir, true);
+                        if (!entryName.isEmpty()) {
+                            addDirectoryEntry(zip, entryName, counter, tooMany);
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                            throws IOException {
+                        if (file == null || Files.isSymbolicLink(file)
+                                || attrs == null || !attrs.isRegularFile()) {
+                            return FileVisitResult.CONTINUE;
+                        }
+                        counted.checkCancelled();
+                        String entryName = zipPath(zipRoot, root, file, false);
+                        if (entryName.isEmpty()) {
+                            return FileVisitResult.CONTINUE;
+                        }
+                        addFile(zip, counted, counter, file, entryName, tooMany);
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+    }
+
+    private static final class Item {
+        final Path root;
+        final String name;
+
+        Item(Path root, String name) {
+            this.root = root;
+            this.name = name;
+        }
+    }
+
+    private static void addDirectoryEntry(ZipOutputStream zip, String entryName, Counter counter, String tooMany)
             throws IOException {
         if (counter.value >= MAX_ENTRIES) {
-            throw new PackLimitException("資料夾檔案過多（最多 " + MAX_ENTRIES + " 個）");
+            throw new PackLimitException(tooMany);
         }
         String name = entryName.endsWith("/") ? entryName : entryName + "/";
         zip.putNextEntry(new ZipEntry(name));

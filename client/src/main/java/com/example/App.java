@@ -11,7 +11,7 @@ import com.example.service.HeartbeatService.UpdateNotice;
 import com.example.service.HeartbeatService.PeerFileInfo;
 import com.example.service.HeartbeatService.PeerInfo;
 import com.example.service.PeerAvatar;
-import com.example.service.PeerImage;
+import com.example.service.PeerChatStore;
 import com.example.service.RelayProxyService;
 import com.example.service.WebBrowserService;
 import com.example.service.SchedulerService;
@@ -19,6 +19,7 @@ import com.example.service.TaskPersistenceService;
 import com.example.service.TransferCancel;
 import com.example.service.TransferIo;
 import com.example.service.WindowBackground;
+import com.example.ui.PeerChatWindow;
 import com.example.ui.UiFonts;
 import com.example.ui.TransferProgressDialog;
 import com.example.ui.NetworkToolsPanel;
@@ -43,9 +44,13 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * 圖形介面主視窗 - 上班 / 下班雙槽位打卡
@@ -76,8 +81,15 @@ public class App extends JFrame {
     private BrowsePanel browsePanel;
     private boolean serverHistoryMenuBound;
     private Image appIconImage;
-    /** 訊息欄附加的圖片（Base64 URL JPEG），空字串表示沒有 */
-    private String attachedImageEncoded = "";
+    /** 後台（管理頁）傳來的訊息寄件者代號，只能收不能回；與伺服器 ClientStore.ADMIN_FROM_ID 一致。 */
+    private static final String ADMIN_PEER_ID = "後台";
+    /** 同事聊天紀錄（只存記憶體）。 */
+    private final PeerChatStore chatStore = new PeerChatStore();
+    private final Map<String, PeerChatWindow> chatWindows = new LinkedHashMap<>();
+    /** 最近一次從該同事收到訊息時附帶的大頭照。 */
+    private final Map<String, String> peerAvatars = new HashMap<>();
+    private boolean peerInteractionEnabled = true;
+    private boolean peerFileBusy;
     private final List<PeerFileInfo> peerFiles = new ArrayList<>();
     /** 最近一次心跳回報為在線的同事；決定傳檔走直傳還是伺服器暫存。 */
     private final Set<String> onlinePeerIds = new HashSet<>();
@@ -454,14 +466,23 @@ public class App extends JFrame {
     }
 
     private void bindPeerInteractionListeners() {
-        if (peerRefs.sendMessageButton != null) {
-            peerRefs.sendMessageButton.addActionListener(e -> sendMessageToSelectedPeer());
+        if (peerRefs.openChatButton != null) {
+            peerRefs.openChatButton.addActionListener(e -> openChatWithSelectedPeer());
         }
-        if (peerRefs.pokeButton != null) {
-            peerRefs.pokeButton.addActionListener(e -> pokeSelectedPeer());
-        }
-        if (peerRefs.sendFileButton != null) {
-            peerRefs.sendFileButton.addActionListener(e -> sendFileToSelectedPeer());
+        if (peerRefs.peerTable != null) {
+            peerRefs.peerTable.addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseClicked(java.awt.event.MouseEvent e) {
+                    if (e.getClickCount() == 2 && peerRefs.peerTable.rowAtPoint(e.getPoint()) >= 0) {
+                        openChatWithSelectedPeer();
+                    }
+                }
+            });
+            peerRefs.peerTable.getSelectionModel().addListSelectionListener(e -> {
+                if (!e.getValueIsAdjusting()) {
+                    refreshOpenChatButton();
+                }
+            });
         }
         if (peerRefs.downloadFileButton != null) {
             peerRefs.downloadFileButton.addActionListener(e -> downloadSelectedPeerFile());
@@ -479,29 +500,6 @@ public class App extends JFrame {
                 }
             });
         }
-        if (peerRefs.messageField != null) {
-            // Enter 送出、Shift+Enter 換行（JTextArea 預設 Enter 會換行，要自己接管）
-            javax.swing.InputMap inputMap = peerRefs.messageField.getInputMap(javax.swing.JComponent.WHEN_FOCUSED);
-            javax.swing.ActionMap actionMap = peerRefs.messageField.getActionMap();
-            inputMap.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ENTER, 0), "sendPeerMessage");
-            inputMap.put(javax.swing.KeyStroke.getKeyStroke(
-                    java.awt.event.KeyEvent.VK_ENTER, java.awt.event.InputEvent.SHIFT_DOWN_MASK), "insert-break");
-            actionMap.put("sendPeerMessage", new javax.swing.AbstractAction() {
-                @Override
-                public void actionPerformed(java.awt.event.ActionEvent e) {
-                    sendMessageToSelectedPeer();
-                }
-            });
-        }
-        if (peerRefs.attachImageButton != null) {
-            peerRefs.attachImageButton.addActionListener(e -> chooseMessageImage());
-        }
-        if (peerRefs.pasteImageButton != null) {
-            peerRefs.pasteImageButton.addActionListener(e -> pasteMessageImage());
-        }
-        if (peerRefs.clearImageButton != null) {
-            peerRefs.clearImageButton.addActionListener(e -> setAttachedImage("", null));
-        }
         if (peerRefs.chooseAvatarButton != null) {
             peerRefs.chooseAvatarButton.addActionListener(e -> choosePeerAvatar());
         }
@@ -518,118 +516,144 @@ public class App extends JFrame {
         return parsePeerRowId(value != null ? value.toString() : null);
     }
 
-    private void sendMessageToSelectedPeer() {
-        String toClientId = getSelectedPeerClientId();
-        if (toClientId == null) {
-            appendLog("[警告] [戳] 請先在列表中選擇一位同事");
+    private void openChatWithSelectedPeer() {
+        String peerId = getSelectedPeerClientId();
+        if (peerId == null) {
+            appendLog("[警告] [聊天] 請先在列表中選擇一位同事");
             return;
         }
-        if (isSelfClientId(toClientId)) {
-            appendLog("[警告] [戳] 無法傳送訊息給本機");
+        if (isSelfClientId(peerId)) {
+            appendLog("[警告] [聊天] 無法和本機聊天");
             return;
         }
-        String text = peerRefs.messageField != null ? peerRefs.messageField.getText() : "";
-        String image = attachedImageEncoded;
-        heartbeatService.sendPeerMessage(toClientId, text, image, this::appendLog, ok -> {
-            if (ok) {
-                SwingUtilities.invokeLater(() -> {
-                    if (peerRefs.messageField != null) {
-                        peerRefs.messageField.setText("");
-                    }
-                    setAttachedImage("", null);
-                });
-            }
-        });
+        ensureChatWindow(peerId).showAndFocus();
     }
 
-    private void chooseMessageImage() {
-        JFileChooser chooser = UiFonts.fileChooser();
-        chooser.setDialogTitle("選擇要附加的圖片");
-        chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
-                "圖片檔 (JPG / PNG / GIF)", "jpg", "jpeg", "png", "gif"));
-        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
+    private void refreshOpenChatButton() {
+        if (peerRefs.openChatButton == null) {
             return;
         }
-        Path file = chooser.getSelectedFile().toPath();
-        encodeMessageImageAsync(() -> PeerImage.encodeFile(file), file.getFileName().toString());
+        String selected = getSelectedPeerClientId();
+        peerRefs.openChatButton.setEnabled(peerInteractionEnabled && selected != null && !isSelfClientId(selected));
     }
 
-    private void pasteMessageImage() {
-        Image pasted = null;
-        try {
-            java.awt.datatransfer.Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-            if (clipboard.isDataFlavorAvailable(java.awt.datatransfer.DataFlavor.imageFlavor)) {
-                Object data = clipboard.getData(java.awt.datatransfer.DataFlavor.imageFlavor);
-                if (data instanceof Image) {
-                    pasted = (Image) data;
-                }
-            }
-        } catch (Exception ex) {
-            appendLog("[警告] 讀取剪貼簿失敗：" + ex.getMessage());
+    private PeerChatWindow ensureChatWindow(String peerId) {
+        PeerChatWindow existing = chatWindows.get(peerId);
+        if (existing != null) {
+            return existing;
         }
-        if (pasted == null) {
-            UiFonts.showWarning(this, "剪貼簿裡沒有圖片，請先複製截圖或圖片。", "貼上圖片");
+        PeerChatWindow window = new PeerChatWindow(peerId, chatHost, appIconImage,
+                chatStore.entries(peerId), ADMIN_PEER_ID.equals(peerId));
+        window.setPeerOnline(onlinePeerIds.contains(peerId));
+        window.setInteractionEnabled(isCloudEnabled() && peerInteractionEnabled);
+        window.setFileBusy(peerFileBusy);
+        String avatar = peerAvatars.get(peerId);
+        if (avatar != null && !avatar.isBlank()) {
+            window.setPeerAvatar(avatar);
+        }
+        window.setLocationRelativeTo(this);
+        int offset = 28 * chatWindows.size();
+        java.awt.Point origin = window.getLocation();
+        window.setLocation(origin.x + offset, origin.y + offset);
+        chatWindows.put(peerId, window);
+        return window;
+    }
+
+    /** 把一筆紀錄補到已開著的視窗（沒開視窗就只留在紀錄裡）。 */
+    private void chatAppend(String peerId, PeerChatStore.Entry entry) {
+        PeerChatWindow window = chatWindows.get(peerId);
+        if (window != null) {
+            window.append(entry);
+        }
+    }
+
+    private void chatNote(String peerId, String text) {
+        if (peerId == null || peerId.isBlank()) {
             return;
         }
-        Image source = pasted;
-        encodeMessageImageAsync(() -> PeerImage.encode(source), "剪貼簿圖片");
+        chatAppend(peerId, chatStore.addNote(peerId, text, null));
     }
 
-    private interface ImageEncoder {
-        String encode() throws Exception;
-    }
-
-    private void encodeMessageImageAsync(ImageEncoder encoder, String label) {
-        new javax.swing.SwingWorker<String, Void>() {
-            @Override
-            protected String doInBackground() throws Exception {
-                return encoder.encode();
-            }
-
-            @Override
-            protected void done() {
-                try {
-                    setAttachedImage(get(), label);
-                } catch (Exception ex) {
-                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                    appendLog("[失敗] 無法附加圖片：" + cause.getMessage());
-                    UiFonts.showWarning(App.this,
-                            "無法使用這張圖片：" + cause.getMessage(), "附加圖片");
-                }
-            }
-        }.execute();
-    }
-
-    private void setAttachedImage(String encoded, String label) {
-        attachedImageEncoded = encoded == null ? "" : encoded;
-        boolean has = !attachedImageEncoded.isEmpty();
-        if (peerRefs.clearImageButton != null) {
-            peerRefs.clearImageButton.setEnabled(has);
-        }
-        if (peerRefs.attachedImageLabel != null) {
-            peerRefs.attachedImageLabel.setText(has
-                    ? "已附圖片：" + label + "（約 " + PeerFileRules.formatSize(attachedImageEncoded.length() * 3L / 4L) + "）"
-                    : "（未附圖片，可只傳圖片不輸入文字）");
-        }
-    }
-
-    private void pokeSelectedPeer() {
-        String toClientId = getSelectedPeerClientId();
-        if (toClientId == null) {
-            appendLog("[警告] [戳] 請先在列表中選擇一位同事");
+    private void rememberPeerAvatar(String peerId, String avatar) {
+        if (avatar == null || avatar.isBlank()) {
             return;
         }
-        if (isSelfClientId(toClientId)) {
-            appendLog("[警告] [戳] 無法戳本機");
-            return;
+        peerAvatars.put(peerId, avatar);
+        PeerChatWindow window = chatWindows.get(peerId);
+        if (window != null) {
+            window.setPeerAvatar(avatar);
         }
-        heartbeatService.sendPeerPoke(toClientId, this::appendLog, null);
     }
 
-    private void sendFileToSelectedPeer() {
-        String toClientId = getSelectedPeerClientId();
-        if (toClientId == null) {
-            appendLog("[警告] [檔案] 請先在列表中選擇一位同事");
+    /** 收到同事的訊息：記進紀錄、響一聲，並開出（或帶到前面）對應的聊天視窗。 */
+    private void receiveChatMessage(String fromId, String text, String imageEncoded, Long sentAtMs, String avatar) {
+        rememberPeerAvatar(fromId, avatar);
+        PeerChatStore.Entry entry = chatStore.addMessage(fromId, false, text, imageEncoded, sentAtMs);
+        Toolkit.getDefaultToolkit().beep();
+        PeerChatWindow existing = chatWindows.get(fromId);
+        if (existing == null) {
+            ensureChatWindow(fromId).showAndFocus();
+        } else {
+            existing.append(entry);
+            existing.showAndFocus();
+        }
+    }
+
+    private final PeerChatWindow.Host chatHost = new PeerChatWindow.Host() {
+        @Override
+        public boolean canSend(String peerId) {
+            return isCloudEnabled() && peerId != null && !ADMIN_PEER_ID.equals(peerId) && !isSelfClientId(peerId);
+        }
+
+        @Override
+        public void sendMessage(String peerId, String text, String imageEncoded, Consumer<Boolean> done) {
+            heartbeatService.sendPeerMessage(peerId, text, imageEncoded, App.this::appendLog, ok ->
+                    SwingUtilities.invokeLater(() -> {
+                        boolean sent = Boolean.TRUE.equals(ok);
+                        if (sent) {
+                            chatAppend(peerId, chatStore.addMessage(peerId, true, text, imageEncoded, null));
+                        } else {
+                            chatNote(peerId, "訊息沒有送出，請確認雲端連線");
+                        }
+                        done.accept(sent);
+                    }));
+        }
+
+        @Override
+        public void poke(String peerId) {
+            heartbeatService.sendPeerPoke(peerId, App.this::appendLog, ok ->
+                    SwingUtilities.invokeLater(() -> {
+                        if (Boolean.TRUE.equals(ok)) {
+                            chatAppend(peerId, chatStore.addPoke(peerId, true, null));
+                        } else {
+                            chatNote(peerId, "戳一下沒有送出，請確認雲端連線");
+                        }
+                    }));
+        }
+
+        @Override
+        public void sendFiles(String peerId) {
+            sendFilesToPeer(peerId);
+        }
+
+        @Override
+        public void chatClosed(PeerChatWindow window) {
+            chatWindows.remove(window.peerId(), window);
+        }
+    };
+
+    private void refreshChatWindows() {
+        boolean cloud = isCloudEnabled() && peerInteractionEnabled;
+        for (PeerChatWindow window : chatWindows.values()) {
+            window.setInteractionEnabled(cloud);
+            window.setPeerOnline(onlinePeerIds.contains(window.peerId()));
+            window.setFileBusy(peerFileBusy);
+        }
+    }
+
+    private void sendFilesToPeer(String toClientId) {
+        if (toClientId == null || toClientId.isBlank()) {
+            appendLog("[警告] [檔案] 請先選擇一位同事");
             return;
         }
         if (isSelfClientId(toClientId)) {
@@ -637,18 +661,29 @@ public class App extends JFrame {
             return;
         }
         JFileChooser chooser = UiFonts.fileChooser();
-        chooser.setDialogTitle("選擇要傳送的檔案或資料夾");
+        chooser.setDialogTitle("選擇要傳送的檔案或資料夾（可多選，多個項目會打包成一個 ZIP）");
         chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+        chooser.setMultiSelectionEnabled(true);
         chooser.setAcceptAllFileFilterUsed(true);
         int result = chooser.showOpenDialog(this);
-        if (result != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
+        if (result != JFileChooser.APPROVE_OPTION) {
             return;
         }
-        Path file = chooser.getSelectedFile().toPath();
+        java.io.File[] picked = chooser.getSelectedFiles();
+        if (picked == null || picked.length == 0) {
+            picked = chooser.getSelectedFile() != null ? new java.io.File[]{chooser.getSelectedFile()} : new java.io.File[0];
+        }
+        java.util.List<Path> files = new java.util.ArrayList<>();
+        for (java.io.File f : picked) {
+            files.add(f.toPath());
+        }
+        if (files.isEmpty()) {
+            return;
+        }
         if (onlinePeerIds.contains(toClientId)) {
-            startRelaySend(toClientId, file);
+            startRelaySend(toClientId, files);
         } else if (confirmStoredFallback(toClientId, "【" + toClientId + "】目前不在線，無法直傳。")) {
-            startStoredSend(toClientId, file);
+            startStoredSend(toClientId, files);
         }
     }
 
@@ -668,25 +703,26 @@ public class App extends JFrame {
     }
 
     private void setSendFileBusy(boolean busy) {
-        if (peerRefs.sendFileButton != null) {
-            peerRefs.sendFileButton.setEnabled(!busy && isCloudEnabled());
-        }
+        peerFileBusy = busy;
+        refreshChatWindows();
     }
 
     /** 對方在線：即時直傳，伺服器只在記憶體轉手、不留檔。 */
-    private void startRelaySend(String toClientId, Path file) {
+    private void startRelaySend(String toClientId, java.util.List<Path> files) {
         setSendFileBusy(true);
         TransferProgressDialog progress = TransferProgressDialog.open(this, "直傳檔案");
         TransferCancel cancel = new TransferCancel();
         progress.setOnCancel(cancel::cancel);
-        String displayName = file.getFileName() != null ? file.getFileName().toString() : "檔案";
-        progress.setPreparing(Files.isDirectory(file)
+        String displayName = HeartbeatService.displayNameOf(files);
+        progress.setPreparing(files.size() > 1
+                ? "正在壓縮 " + files.size() + " 個項目…"
+                : Files.isDirectory(files.get(0))
                 ? "正在壓縮資料夾「" + displayName + "」…"
                 : "正在通知【" + toClientId + "】…");
         StringBuilder failDetail = new StringBuilder();
         heartbeatService.sendPeerFileRelay(
                 toClientId,
-                file,
+                files,
                 msg -> {
                     appendLog(msg);
                     if (msg != null && msg.contains("[失敗]")) {
@@ -702,6 +738,7 @@ public class App extends JFrame {
                     setSendFileBusy(false);
                     switch (outcome) {
                         case DELIVERED:
+                            chatNote(toClientId, "已直傳「" + displayName + "」");
                             UiFonts.showMessage(
                                     this,
                                     "「" + displayName + "」已直傳給【" + toClientId + "】。\n伺服器沒有保留這個檔案。",
@@ -710,13 +747,13 @@ public class App extends JFrame {
                             break;
                         case UNSUPPORTED_SERVER:
                             if (confirmStoredFallback(toClientId, "伺服器尚未支援直傳（需更新雲端）。")) {
-                                startStoredSend(toClientId, file);
+                                startStoredSend(toClientId, files);
                             }
                             break;
                         case RECIPIENT_UNAVAILABLE:
                             if (confirmStoredFallback(toClientId,
                                     "【" + toClientId + "】目前無法直傳（剛離線，或桌面端版本較舊）。")) {
-                                startStoredSend(toClientId, file);
+                                startStoredSend(toClientId, files);
                             }
                             break;
                         case FAILED:
@@ -734,30 +771,32 @@ public class App extends JFrame {
     }
 
     /** 經伺服器暫存（保留 {@link PeerFileRules#OFFER_TTL_LABEL}），對方離線也能稍後下載。 */
-    private void startStoredSend(String toClientId, Path file) {
-        if (peerRefs.sendFileButton != null) {
-            peerRefs.sendFileButton.setEnabled(false);
-        }
+    private void startStoredSend(String toClientId, java.util.List<Path> files) {
+        setSendFileBusy(true);
         TransferProgressDialog progress = TransferProgressDialog.open(this, "傳送檔案");
         TransferCancel cancel = new TransferCancel();
         progress.setOnCancel(cancel::cancel);
-        String displayName = file.getFileName() != null ? file.getFileName().toString() : "檔案";
-        if (Files.isDirectory(file)) {
+        String displayName = HeartbeatService.displayNameOf(files);
+        if (files.size() > 1) {
+            progress.setPreparing("正在壓縮 " + files.size() + " 個項目…");
+        } else if (Files.isDirectory(files.get(0))) {
             progress.setPreparing("正在壓縮資料夾「" + displayName + "」…");
         } else {
             progress.setPreparing("正在準備上傳「" + displayName + "」…");
         }
         heartbeatService.sendPeerFile(
                 toClientId,
-                file,
+                files,
                 this::appendLog,
                 progress::setProgress,
                 progress::setStatus,
                 cancel,
                 ok -> SwingUtilities.invokeLater(() -> {
                     progress.close();
-                    if (peerRefs.sendFileButton != null) {
-                        peerRefs.sendFileButton.setEnabled(isCloudEnabled());
+                    setSendFileBusy(false);
+                    if (ok) {
+                        chatNote(toClientId, "已送出「" + displayName + "」（伺服器暫存 "
+                                + PeerFileRules.OFFER_TTL_LABEL + "，對方可下載）");
                     }
                     if (!ok && !cancel.isCancelled()) {
                         UiFonts.showWarning(
@@ -884,33 +923,15 @@ public class App extends JFrame {
     }
 
     private void setPeerInteractionEnabled(boolean enabled) {
-        if (peerRefs.messageField != null) {
-            peerRefs.messageField.setEnabled(enabled);
-        }
-        if (peerRefs.messageScroll != null) {
-            peerRefs.messageScroll.setEnabled(enabled);
-        }
-        if (peerRefs.sendMessageButton != null) {
-            peerRefs.sendMessageButton.setEnabled(enabled);
-        }
-        if (peerRefs.pokeButton != null) {
-            peerRefs.pokeButton.setEnabled(enabled);
-        }
-        if (peerRefs.attachImageButton != null) {
-            peerRefs.attachImageButton.setEnabled(enabled);
-        }
-        if (peerRefs.pasteImageButton != null) {
-            peerRefs.pasteImageButton.setEnabled(enabled);
-        }
-        if (peerRefs.sendFileButton != null) {
-            peerRefs.sendFileButton.setEnabled(enabled);
-        }
+        peerInteractionEnabled = enabled;
         if (peerRefs.downloadFileButton != null) {
             peerRefs.downloadFileButton.setEnabled(enabled);
         }
         if (peerRefs.clearFileButton != null) {
             peerRefs.clearFileButton.setEnabled(enabled);
         }
+        refreshOpenChatButton();
+        refreshChatWindows();
     }
 
     private String parsePeerRowId(String displayId) {
@@ -930,14 +951,7 @@ public class App extends JFrame {
     private void showPeerMessage(String fromId, String text, Long sentAtMs, String avatar) {
         String timeLabel = formatPeerMessageTime(sentAtMs);
         appendLog("[訊息] 【戳】（" + timeLabel + "）來自【" + fromId + "】：" + text);
-        Toolkit.getDefaultToolkit().beep();
-        UiFonts.showCopyableMessage(
-                this,
-                timeLabel + "\n\n" + text,
-                text,
-                "同事訊息 · " + fromId,
-                JOptionPane.PLAIN_MESSAGE,
-                peerDialogIcon(avatar));
+        receiveChatMessage(fromId, text, "", sentAtMs, avatar);
     }
 
     private void showPeerImageMessage(String fromId, String text, String imageEncoded, Long sentAtMs, String avatar) {
@@ -945,37 +959,25 @@ public class App extends JFrame {
         String safeText = text == null ? "" : text;
         appendLog("[訊息] 【戳】（" + timeLabel + "）來自【" + fromId + "】（含圖片）："
                 + (safeText.isEmpty() ? "（僅圖片）" : safeText));
-        Toolkit.getDefaultToolkit().beep();
-        BufferedImage image = PeerImage.decode(imageEncoded);
-        String shown = timeLabel + (safeText.isEmpty() ? "" : "\n\n" + safeText);
-        if (image == null) {
-            shown += "\n\n（圖片無法顯示）";
-        }
-        UiFonts.showCopyableMessageWithImage(
-                this,
-                shown,
-                safeText,
-                "同事訊息 · " + fromId,
-                JOptionPane.PLAIN_MESSAGE,
-                peerDialogIcon(avatar),
-                image);
+        receiveChatMessage(fromId, safeText, imageEncoded, sentAtMs, avatar);
     }
 
     private void showPeerPoke(String fromId, Long sentAtMs, String avatar) {
         String timeLabel = formatPeerMessageTime(sentAtMs);
         appendLog("[通知] 【戳】（" + timeLabel + "）【" + fromId + "】戳了你！");
+        rememberPeerAvatar(fromId, avatar);
+        PeerChatStore.Entry entry = chatStore.addPoke(fromId, false, sentAtMs);
+        PeerChatWindow existing = chatWindows.get(fromId);
+        if (existing != null) {
+            existing.append(entry);
+        }
         Toolkit.getDefaultToolkit().beep();
         WindowShake.bringToFront(this);
         boolean previousSuppress = suppressConfigSave;
         suppressConfigSave = true;
         WindowShake.shake(this, () -> {
             suppressConfigSave = previousSuppress;
-            UiFonts.showMessage(
-                    this,
-                    timeLabel + "\n\n【" + fromId + "】戳了你，視窗晃了一下！快看一下排程狀態吧！",
-                    "同事戳你",
-                    JOptionPane.PLAIN_MESSAGE,
-                    peerDialogIcon(avatar));
+            ensureChatWindow(fromId).showAndFocus();
         });
     }
 
@@ -987,6 +989,7 @@ public class App extends JFrame {
         }
         String sizeLabel = PeerFileRules.formatSize(Math.max(0, size));
         appendLog("[檔案] （" + timeLabel + "）【" + fromId + "】傳來「" + safeName + "」（" + sizeLabel + "）");
+        chatNote(fromId, "對方傳來「" + safeName + "」（" + sizeLabel + "）");
         Toolkit.getDefaultToolkit().beep();
         WindowShake.bringToFront(this);
         int choice = UiFonts.showConfirm(
@@ -1123,6 +1126,7 @@ public class App extends JFrame {
         }
         String sizeLabel = PeerFileRules.formatSize(Math.max(0, size));
         appendLog("[檔案] （" + timeLabel + "）【" + fromId + "】要直傳「" + safeName + "」（" + sizeLabel + "）");
+        chatNote(fromId, "對方要直傳「" + safeName + "」（" + sizeLabel + "）");
         Toolkit.getDefaultToolkit().beep();
         WindowShake.bringToFront(this);
         int choice = UiFonts.showConfirm(
@@ -1243,10 +1247,6 @@ public class App extends JFrame {
                                 "下載檔案");
                     }
                 }));
-    }
-
-    private Icon peerDialogIcon(String avatarEncoded) {
-        return PeerAvatar.dialogIcon(avatarEncoded, appIconImage);
     }
 
     private Path avatarFile() {
@@ -2093,6 +2093,8 @@ public class App extends JFrame {
     }
 
     public static void main(String[] args) {
+        // macOS：改走 Metal 繪圖管線，避免預設 OpenGL 下字零星消失（必須在 AWT 初始化前）
+        com.example.ui.MacGraphicsWorkaround.apply();
         // macOS：盡早設定 Dock icon（需在建立視窗前）
         Image dockIcon = loadAppIcon();
         if (dockIcon != null) {

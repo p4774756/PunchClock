@@ -56,6 +56,21 @@ public class PeerImageTest {
     }
 
     @Test
+    public void decodeThumbnail_fitsLongestEdgeAndKeepsRatio() throws Exception {
+        String encoded = PeerImage.encode(new BufferedImage(800, 400, BufferedImage.TYPE_INT_RGB));
+        BufferedImage thumb = PeerImage.decodeThumbnail(encoded, 64);
+        assertNotNull(thumb);
+        assertEquals(64, thumb.getWidth());
+        assertEquals(32, thumb.getHeight());
+
+        BufferedImage small = PeerImage.decodeThumbnail(PeerImage.encode(new BufferedImage(40, 20, BufferedImage.TYPE_INT_RGB)), 64);
+        assertEquals("不放大", 40, small.getWidth());
+
+        assertNull(PeerImage.decodeThumbnail("not-an-image", 64));
+        assertNull(PeerImage.decodeThumbnail("", 64));
+    }
+
+    @Test
     public void decode_rejectsGarbage() {
         assertNull(PeerImage.decode(""));
         assertNull(PeerImage.decode(null));

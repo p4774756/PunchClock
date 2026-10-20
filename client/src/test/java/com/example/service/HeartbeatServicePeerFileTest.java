@@ -163,6 +163,35 @@ public class HeartbeatServicePeerFileTest {
     }
 
     @Test
+    public void sendPeerFile_packsMultipleSelectionsIntoOneZip() throws Exception {
+        Path dir = Files.createTempDirectory("peer-multi-");
+        Path first = dir.resolve("first-note.txt");
+        Path second = dir.resolve("second-note.txt");
+        Files.writeString(first, "one");
+        Files.writeString(second, "two");
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicBoolean ok = new AtomicBoolean(false);
+        service.sendPeerFile("worker-b", java.util.Arrays.asList(first, second), msg -> {}, null, null, null,
+                success -> {
+                    ok.set(Boolean.TRUE.equals(success));
+                    done.countDown();
+                });
+        assertTrue(done.await(8, TimeUnit.SECONDS));
+        assertTrue(ok.get());
+        String postedBody = new String(posted.get(), StandardCharsets.ISO_8859_1);
+        assertTrue(postedBody.contains("folder"));
+        assertTrue(postedBody.contains("first-note.txt") && postedBody.contains("second-note.txt"));
+    }
+
+    @Test
+    public void displayNameOf_describesSingleAndMultipleSelections() {
+        assertEquals("a.txt", HeartbeatService.displayNameOf(java.util.Collections.singletonList(Path.of("/tmp/a.txt"))));
+        assertEquals("3 個項目", HeartbeatService.displayNameOf(
+                java.util.Arrays.asList(Path.of("a"), Path.of("b"), Path.of("c"))));
+        assertEquals("檔案", HeartbeatService.displayNameOf(java.util.Collections.emptyList()));
+    }
+
+    @Test
     public void sendPeerFile_acceptsFileLargerThanFormerFiveMegLimit() throws Exception {
         Path src = Files.createTempFile("peer-upload-", ".txt");
         Files.write(src, new byte[6 * 1024 * 1024]);

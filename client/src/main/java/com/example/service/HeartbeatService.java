@@ -709,6 +709,14 @@ public class HeartbeatService {
     public void sendPeerFile(String toClientId, Path file, Consumer<String> logger,
                              TransferIo.Progress progress, Consumer<String> statusUpdate,
                              TransferCancel cancel, Consumer<Boolean> callback) {
+        sendPeerFile(toClientId, file == null ? null : Collections.singletonList(file), logger, progress,
+                statusUpdate, cancel, callback);
+    }
+
+    /** 多個檔案／資料夾會先打包成同一個 ZIP 再上傳；只有一個項目時行為與單檔相同。 */
+    public void sendPeerFile(String toClientId, List<Path> files, Consumer<String> logger,
+                             TransferIo.Progress progress, Consumer<String> statusUpdate,
+                             TransferCancel cancel, Consumer<Boolean> callback) {
         if (!isServiceActive || serverUrl.isBlank()) {
             log(logger, "[警告] [檔案] 雲端未連線，無法傳送檔案");
             if (callback != null) callback.accept(false);
@@ -719,7 +727,7 @@ public class HeartbeatService {
             if (callback != null) callback.accept(false);
             return;
         }
-        if (file == null) {
+        if (files == null || files.isEmpty() || files.contains(null)) {
             log(logger, "[警告] [檔案] 找不到要傳送的檔案");
             if (callback != null) callback.accept(false);
             return;
@@ -727,13 +735,14 @@ public class HeartbeatService {
 
         final String targetId = toClientId.trim();
         final TransferCancel token = cancel != null ? cancel : new TransferCancel();
-        Thread worker = new Thread(() -> sendPeerFileOnWorker(targetId, file, logger, progress, statusUpdate,
+        final List<Path> sources = new ArrayList<>(files);
+        Thread worker = new Thread(() -> sendPeerFileOnWorker(targetId, sources, logger, progress, statusUpdate,
                 token, callback), "peer-file-upload");
         worker.setDaemon(true);
         worker.start();
     }
 
-    private void sendPeerFileOnWorker(String toClientId, Path file, Consumer<String> logger,
+    private void sendPeerFileOnWorker(String toClientId, List<Path> files, Consumer<String> logger,
                                       TransferIo.Progress progress, Consumer<String> statusUpdate,
                                       TransferCancel cancel, Consumer<Boolean> callback) {
         String filename;
@@ -742,9 +751,9 @@ public class HeartbeatService {
         String kind;
         PeerFolderPacker.PackResult packed = null;
         Path multipartTemp = null;
-        String displayName = file.getFileName() != null ? file.getFileName().toString() : "檔案";
+        String displayName = displayNameOf(files);
         try {
-            Outgoing outgoing = prepareOutgoing(file, logger, progress, statusUpdate, cancel);
+            Outgoing outgoing = prepareOutgoing(files, logger, progress, statusUpdate, cancel);
             if (outgoing == null) {
                 if (callback != null) callback.accept(false);
                 return;
@@ -897,9 +906,44 @@ public class HeartbeatService {
         }
     }
 
+    public static String displayNameOf(List<Path> files) {
+        if (files == null || files.isEmpty()) {
+            return "檔案";
+        }
+        if (files.size() > 1) {
+            return files.size() + " 個項目";
+        }
+        Path only = files.get(0);
+        return only != null && only.getFileName() != null ? only.getFileName().toString() : "檔案";
+    }
+
     /** @return null 表示不能傳送（原因已寫入日誌） */
-    private Outgoing prepareOutgoing(Path file, Consumer<String> logger, TransferIo.Progress progress,
+    private Outgoing prepareOutgoing(List<Path> files, Consumer<String> logger, TransferIo.Progress progress,
                                      Consumer<String> statusUpdate, TransferCancel cancel)
+            throws java.io.IOException {
+        if (files.size() > 1) {
+            cancel.throwIfCancelled();
+            notifyStatus(statusUpdate, "正在壓縮 " + files.size() + " 個項目…");
+            if (progress != null) {
+                progress.onProgress(0L, 0L);
+            }
+            PeerFolderPacker.PackResult packed = PeerFolderPacker.packMany(files, cancel::isCancelled);
+            if (packed.cancelled) {
+                throw new TransferIo.CancelledException();
+            }
+            if (!packed.ok) {
+                log(logger, "[警告] [檔案] " + packed.message);
+                return null;
+            }
+            log(logger, "[檔案] 正在傳送 " + files.size() + " 個項目（打包成「" + packed.filename + "」，壓縮 "
+                    + PeerFileRules.formatSize(packed.size) + "）");
+            return new Outgoing(packed.filename, packed.path, packed.size, PeerFileRules.KIND_FOLDER, packed);
+        }
+        return prepareSingleOutgoing(files.get(0), logger, progress, statusUpdate, cancel);
+    }
+
+    private Outgoing prepareSingleOutgoing(Path file, Consumer<String> logger, TransferIo.Progress progress,
+                                           Consumer<String> statusUpdate, TransferCancel cancel)
             throws java.io.IOException {
         cancel.throwIfCancelled();
         String displayName = file.getFileName() != null ? file.getFileName().toString() : "檔案";
@@ -949,6 +993,14 @@ public class HeartbeatService {
     public void sendPeerFileRelay(String toClientId, Path file, Consumer<String> logger,
                                   TransferIo.Progress progress, Consumer<String> statusUpdate,
                                   TransferCancel cancel, Consumer<RelayOutcome> callback) {
+        sendPeerFileRelay(toClientId, file == null ? null : Collections.singletonList(file), logger, progress,
+                statusUpdate, cancel, callback);
+    }
+
+    /** 多個檔案／資料夾會先打包成同一個 ZIP 再直傳。 */
+    public void sendPeerFileRelay(String toClientId, List<Path> files, Consumer<String> logger,
+                                  TransferIo.Progress progress, Consumer<String> statusUpdate,
+                                  TransferCancel cancel, Consumer<RelayOutcome> callback) {
         Consumer<RelayOutcome> done = outcome -> {
             if (callback != null) callback.accept(outcome);
         };
@@ -957,18 +1009,20 @@ public class HeartbeatService {
             done.accept(RelayOutcome.FAILED);
             return;
         }
-        if (toClientId == null || toClientId.isBlank() || file == null) {
+        if (toClientId == null || toClientId.isBlank() || files == null || files.isEmpty()
+                || files.contains(null)) {
             log(logger, "[警告] [檔案] 缺少收件同事或檔案");
             done.accept(RelayOutcome.FAILED);
             return;
         }
         final String targetId = toClientId.trim();
         final TransferCancel token = cancel != null ? cancel : new TransferCancel();
+        final List<Path> sources = new ArrayList<>(files);
         Thread worker = new Thread(() -> {
-            String displayName = file.getFileName() != null ? file.getFileName().toString() : "檔案";
+            String displayName = displayNameOf(sources);
             Outgoing outgoing = null;
             try {
-                outgoing = prepareOutgoing(file, logger, progress, statusUpdate, token);
+                outgoing = prepareOutgoing(sources, logger, progress, statusUpdate, token);
                 if (outgoing == null) {
                     done.accept(RelayOutcome.FAILED);
                     return;
