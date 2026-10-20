@@ -341,6 +341,36 @@ public class PanelFactory {
         chatRow.add(refs.openChatButton);
         chatRow.add(chatHint);
 
+        refs.deskChatButton = new JButton("跟後台說話");
+        refs.deskChatButton.setFont(boldFont);
+        refs.deskChatButton.setToolTipText("開一個小視窗，用文字和網頁後台聊天（約 15 秒內送達）");
+        refs.deskChatButton.setEnabled(false);
+        refs.groupChatCombo = new JComboBox<>();
+        refs.groupChatCombo.setFont(mainFont);
+        refs.groupChatCombo.setPrototypeDisplayValue("群組名稱群組名稱");
+        refs.groupChatCombo.setEnabled(false);
+        refs.groupChatCombo.addItem("尚無群組");
+        refs.openGroupChatButton = new JButton("開啟群組");
+        refs.openGroupChatButton.setFont(boldFont);
+        refs.openGroupChatButton.setToolTipText("和後台建立的群組開一個文字視窗");
+        refs.openGroupChatButton.setEnabled(false);
+        JPanel deskRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        deskRow.setOpaque(false);
+        JLabel deskLabel = new JLabel("後台：");
+        deskLabel.setFont(mainFont);
+        deskRow.add(deskLabel);
+        deskRow.add(refs.deskChatButton);
+        deskRow.add(refs.groupChatCombo);
+        deskRow.add(refs.openGroupChatButton);
+
+        JPanel chatBlock = new JPanel();
+        chatBlock.setLayout(new BoxLayout(chatBlock, BoxLayout.Y_AXIS));
+        chatBlock.setOpaque(false);
+        chatRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        deskRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        chatBlock.add(chatRow);
+        chatBlock.add(deskRow);
+
         refs.fileTableModel = new javax.swing.table.DefaultTableModel(
                 new Object[]{"方向", "檔名", "對象", "大小", "狀態", "剩餘"}, 0) {
             @Override
@@ -388,7 +418,7 @@ public class PanelFactory {
 
         JPanel south = new JPanel(new BorderLayout(0, 8));
         south.setOpaque(false);
-        south.add(chatRow, BorderLayout.NORTH);
+        south.add(chatBlock, BorderLayout.NORTH);
         south.add(fileSection, BorderLayout.CENTER);
 
         JPanel north = new JPanel();
@@ -467,6 +497,9 @@ public class PanelFactory {
         public javax.swing.table.DefaultTableModel peerTableModel;
         public JScrollPane peerTableScroll;
         public JButton openChatButton;
+        public JButton deskChatButton;
+        public JComboBox<Object> groupChatCombo;
+        public JButton openGroupChatButton;
         public JButton downloadFileButton;
         public JButton clearFileButton;
         public JTable fileTable;

@@ -6,6 +6,7 @@ import com.example.PeerFileRules;
 import com.example.server.auth.AuthService;
 import com.example.server.health.HealthHistoryStore;
 import com.example.server.health.ServerHealth;
+import com.example.server.store.ChatStore;
 import com.example.server.store.ClientStore;
 import com.example.server.store.ClientStore.PeerResult;
 import com.example.server.store.FileOfferStore;
@@ -52,6 +53,7 @@ public final class ServerApp {
 
     private final AuthService authService = new AuthService();
     private final ClientStore clientStore = new ClientStore();
+    private final ChatStore chatStore = new ChatStore();
     private final FileOfferStore fileOfferStore = new FileOfferStore();
     private final PhotoStore photoStore = new PhotoStore();
     private final RelayStore relayStore = new RelayStore();
@@ -111,6 +113,7 @@ public final class ServerApp {
         System.out.println("- Peer file: POST /api/peer/file  GET/DELETE /api/peer/file/{fileId} (max "
                 + PeerFileRules.MAX_SIZE_LABEL + ", keep " + PeerFileRules.OFFER_TTL_LABEL + ")");
         System.out.println("- Peer relay: /api/peer/relay (both online, in-memory only, no disk)");
+        System.out.println("- Chat: /api/chat (admin session + worker Bearer, in-memory)");
         System.out.println("- Health history: GET /api/health/history (login, keep 3 days)");
         if (clientRelease.isAvailable()) {
             System.out.println("- Client release: v" + clientRelease.version()
@@ -159,6 +162,11 @@ public final class ServerApp {
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
         app.post("/api/clients/{clientId}/cancel-task/{taskId}", this::cancelTask);
         app.post("/api/clients/{clientId}/message", this::adminMessage);
+        app.get("/api/chat", this::chatSnapshot);
+        app.post("/api/chat/send", this::chatSend);
+        app.post("/api/chat/groups", this::chatCreateGroup);
+        app.post("/api/chat/groups/{groupId}", this::chatUpdateGroup);
+        app.delete("/api/chat/groups/{groupId}", this::chatDeleteGroup);
         app.delete("/api/clients/{clientId}", this::deleteClient);
         app.post("/api/photos", this::photoUpload);
         app.get("/api/photos", this::photoList);
@@ -318,6 +326,7 @@ public final class ServerApp {
         response.put("actions", drainedActions);
         response.put("peers", clientStore.peerSnapshot(clientId));
         response.put("files", fileOfferStore.snapshotForClient(clientId));
+        response.put("chatRooms", chatStore.clientRooms(clientId));
         response.put("ackTimestamp", Instant.now().toString());
         if (clientRelease.isAvailable()
                 && ClientUpdatePolicy.shouldOffer(appVersion, appSourceDigest, appReleaseTime,
@@ -1031,6 +1040,121 @@ public final class ServerApp {
         }
         broadcaster.broadcast(statusUpdatePayload());
         ctx.json(Map.of("success", true, "message", result.message));
+    }
+
+    private void chatSnapshot(Context ctx) {
+        if (!authService.isAuth(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
+            return;
+        }
+        ctx.json(Map.of("success", true, "rooms", chatStore.snapshot()));
+    }
+
+    private void chatSend(Context ctx) {
+        boolean admin = authService.isAuth(ctx);
+        boolean worker = authService.isHeartbeatAuthorized(ctx);
+        if (!admin && !worker) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            return;
+        }
+        Map<String, Object> body = gson.fromJson(ctx.body(), MAP_TYPE);
+        if (body == null) {
+            body = Map.of();
+        }
+        ChatStore.Outcome outcome = admin
+                ? chatStore.sendFromAdmin(
+                        stringOrNull(body.get("roomId")),
+                        stringOrNull(body.get("nick")),
+                        stringOrNull(body.get("text")))
+                : chatStore.sendFromClient(
+                        stringOrNull(body.get("fromClientId")),
+                        stringOrNull(body.get("roomId")),
+                        stringOrNull(body.get("text")));
+        if (!outcome.ok) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", outcome.message));
+            return;
+        }
+        deliverChat(outcome);
+        ctx.json(Map.of("success", true, "message", outcome.message, "rooms", chatStore.snapshot()));
+    }
+
+    private void chatCreateGroup(Context ctx) {
+        if (!requireAdmin(ctx)) {
+            return;
+        }
+        Map<String, Object> body = jsonBody(ctx);
+        ChatStore.Outcome outcome = chatStore.createGroup(
+                stringOrNull(body.get("name")), stringList(body.get("members")));
+        finishChatMutation(ctx, outcome);
+    }
+
+    private void chatUpdateGroup(Context ctx) {
+        if (!requireAdmin(ctx)) {
+            return;
+        }
+        Map<String, Object> body = jsonBody(ctx);
+        ChatStore.Outcome outcome = chatStore.updateGroup(
+                ctx.pathParam("groupId"), stringOrNull(body.get("name")), stringList(body.get("members")));
+        finishChatMutation(ctx, outcome);
+    }
+
+    private void chatDeleteGroup(Context ctx) {
+        if (!requireAdmin(ctx)) {
+            return;
+        }
+        ChatStore.Outcome outcome = chatStore.deleteGroup(ctx.pathParam("groupId"));
+        finishChatMutation(ctx, outcome);
+    }
+
+    private boolean requireAdmin(Context ctx) {
+        if (authService.isAuth(ctx)) {
+            return true;
+        }
+        ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
+        return false;
+    }
+
+    private Map<String, Object> jsonBody(Context ctx) {
+        Map<String, Object> body = gson.fromJson(ctx.body(), MAP_TYPE);
+        return body == null ? Map.of() : body;
+    }
+
+    private void finishChatMutation(Context ctx, ChatStore.Outcome outcome) {
+        if (!outcome.ok) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", outcome.message));
+            return;
+        }
+        deliverChat(outcome);
+        ctx.json(Map.of("success", true, "message", outcome.message, "rooms", chatStore.snapshot()));
+    }
+
+    private void deliverChat(ChatStore.Outcome outcome) {
+        if (outcome.action != null && !outcome.action.isEmpty()) {
+            for (String clientId : outcome.targets) {
+                clientStore.queueClientAction(clientId, outcome.action, ChatStore.DELIVERY_TTL_MS);
+            }
+        }
+        broadcaster.broadcast(chatSnapshotPayload());
+        broadcaster.broadcast(statusUpdatePayload());
+    }
+
+    private Map<String, Object> chatSnapshotPayload() {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("type", "CHAT_SNAPSHOT");
+        payload.put("rooms", chatStore.snapshot());
+        return payload;
+    }
+
+    private static List<String> stringList(Object raw) {
+        List<String> list = new ArrayList<>();
+        if (raw instanceof List) {
+            for (Object item : (List<?>) raw) {
+                if (item != null) {
+                    list.add(String.valueOf(item));
+                }
+            }
+        }
+        return list;
     }
 
     private void deleteClient(Context ctx) {

@@ -27,8 +27,10 @@ public class PeerChatTranscriptTest {
         t.append(store.addMessage("John Wick", false, "你好\n第二行", "", 1_000L));
         t.append(store.addMessage("John Wick", true, "收到", "", 2_000L));
 
+        t.append(store.addMessage("John Wick", false, "店長說", "", 1_500L, "小王"));
         String shown = text(t);
         assertTrue(shown, shown.contains("John Wick"));
+        assertTrue(shown, shown.contains("小王"));
         assertTrue(shown.contains("你好\n第二行"));
         assertTrue(shown.contains("我"));
         assertTrue(shown.contains("收到"));

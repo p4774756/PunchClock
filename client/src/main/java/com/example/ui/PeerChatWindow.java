@@ -81,6 +81,7 @@ public class PeerChatWindow extends JFrame {
     private final JLabel imageThumb;
     private final JLabel imageLabel;
     private final JLabel statusLabel;
+    private final JLabel nameLabel;
     private final JLabel avatarLabel;
     private final JPanel imageRow;
 
@@ -90,14 +91,24 @@ public class PeerChatWindow extends JFrame {
     private boolean sending;
     private boolean peerOnline;
     private boolean readOnly;
+    private final boolean textOnly;
 
     public PeerChatWindow(String peerId, Host host, Image appIcon, List<PeerChatStore.Entry> history,
                           boolean readOnly) {
+        this(peerId, host, appIcon, history, readOnly, false);
+    }
+
+    /**
+     * @param textOnly 後台／群組對話只傳文字，不顯示圖片、戳一下、傳檔
+     */
+    public PeerChatWindow(String peerId, Host host, Image appIcon, List<PeerChatStore.Entry> history,
+                          boolean readOnly, boolean textOnly) {
         super("聊天 · " + peerId);
         this.peerId = peerId;
         this.host = host;
         this.appIcon = appIcon;
         this.readOnly = readOnly;
+        this.textOnly = textOnly;
         if (appIcon != null) {
             setIconImage(appIcon);
         }
@@ -108,7 +119,7 @@ public class PeerChatWindow extends JFrame {
 
         // 上方：頭像＋名稱＋狀態
         avatarLabel = new JLabel(PeerAvatar.previewIcon("", appIcon, 36));
-        JLabel nameLabel = new JLabel(peerId);
+        nameLabel = new JLabel(peerId);
         nameLabel.setFont(UiFonts.chineseBold(15));
         statusLabel = new JLabel(" ");
         statusLabel.setFont(UiFonts.chinesePlain(12));
@@ -191,7 +202,9 @@ public class PeerChatWindow extends JFrame {
         tools.add(fileButton);
         JPanel buttons = new JPanel(new BorderLayout(8, 0));
         buttons.setBorder(new EmptyBorder(6, 12, 10, 12));
-        buttons.add(tools, BorderLayout.CENTER);
+        if (!textOnly) {
+            buttons.add(tools, BorderLayout.CENTER);
+        }
         buttons.add(sendButton, BorderLayout.EAST);
 
         JPanel inputBox = new JPanel(new BorderLayout());
@@ -203,7 +216,9 @@ public class PeerChatWindow extends JFrame {
         imageRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         inputBox.setAlignmentX(Component.LEFT_ALIGNMENT);
         buttons.setAlignmentX(Component.LEFT_ALIGNMENT);
-        south.add(imageRow);
+        if (!textOnly) {
+            south.add(imageRow);
+        }
         south.add(inputBox);
         south.add(buttons);
 
@@ -230,6 +245,13 @@ public class PeerChatWindow extends JFrame {
 
     public String peerId() {
         return peerId;
+    }
+
+    /** 視窗標題與上方名稱。後台私訊固定叫「後台」，群組用群組名稱。 */
+    public void setHeading(String heading) {
+        String label = heading == null || heading.isBlank() ? peerId : heading.trim();
+        setTitle("聊天 · " + label);
+        nameLabel.setText(label);
     }
 
     /** 新訊息進來或自己送出後追加一筆。 */
@@ -268,6 +290,16 @@ public class PeerChatWindow extends JFrame {
     }
 
     private void refreshStatus() {
+        if (textOnly) {
+            if (!interactionEnabled) {
+                statusLabel.setText("雲端未啟用，無法傳送");
+                statusLabel.setForeground(new Color(185, 28, 28));
+            } else {
+                statusLabel.setText("文字對話，約 15 秒內送達");
+                statusLabel.setForeground(new Color(100, 116, 139));
+            }
+            return;
+        }
         if (readOnly) {
             statusLabel.setText("後台訊息，無法回覆");
             statusLabel.setForeground(new Color(100, 116, 139));
@@ -287,11 +319,12 @@ public class PeerChatWindow extends JFrame {
         boolean canType = interactionEnabled && !readOnly;
         input.setEnabled(canType);
         sendButton.setEnabled(canType && !sending);
-        attachButton.setEnabled(canType);
-        pasteButton.setEnabled(canType);
-        clearImageButton.setEnabled(canType && !attachedImage.isEmpty());
-        pokeButton.setEnabled(canType);
-        fileButton.setEnabled(canType && !fileBusy);
+        boolean extras = canType && !textOnly;
+        attachButton.setEnabled(extras);
+        pasteButton.setEnabled(extras);
+        clearImageButton.setEnabled(extras && !attachedImage.isEmpty());
+        pokeButton.setEnabled(extras);
+        fileButton.setEnabled(extras && !fileBusy);
     }
 
     private void bindInputKeys() {

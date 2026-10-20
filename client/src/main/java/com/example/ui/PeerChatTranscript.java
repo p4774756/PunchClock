@@ -76,7 +76,7 @@ public class PeerChatTranscript extends JTextPane {
                         style(NOTE_COLOR, fontSize - 2, false));
             } else {
                 align = entry.outgoing ? StyleConstants.ALIGN_RIGHT : StyleConstants.ALIGN_LEFT;
-                String who = entry.outgoing ? "我" : peerId;
+                String who = entry.outgoing ? "我" : (entry.speaker.isEmpty() ? peerId : entry.speaker);
                 insert(doc, who + "  " + formatTime(entry.timeMs, ZoneId.systemDefault()) + "\n",
                         style(entry.outgoing ? SELF_COLOR : PEER_COLOR, fontSize - 2, true));
                 if (entry.kind == PeerChatStore.Kind.POKE) {

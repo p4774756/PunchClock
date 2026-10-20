@@ -32,14 +32,21 @@ public final class PeerChatStore {
         /** Base64 URL JPEG；沒有圖片是空字串 */
         public final String imageEncoded;
         public final long timeMs;
+        /** 顯示名稱；空字串時對話區改用 peerId */
+        public final String speaker;
 
         Entry(String peerId, boolean outgoing, Kind kind, String text, String imageEncoded, long timeMs) {
+            this(peerId, outgoing, kind, text, imageEncoded, timeMs, "");
+        }
+
+        Entry(String peerId, boolean outgoing, Kind kind, String text, String imageEncoded, long timeMs, String speaker) {
             this.peerId = peerId;
             this.outgoing = outgoing;
             this.kind = kind;
             this.text = text == null ? "" : text;
             this.imageEncoded = imageEncoded == null ? "" : imageEncoded;
             this.timeMs = timeMs;
+            this.speaker = speaker == null ? "" : speaker;
         }
 
         public boolean hasImage() {
@@ -51,7 +58,12 @@ public final class PeerChatStore {
 
     public synchronized Entry addMessage(String peerId, boolean outgoing, String text, String imageEncoded,
                                          Long timeMs) {
-        return add(new Entry(peerId, outgoing, Kind.MESSAGE, text, imageEncoded, resolve(timeMs)));
+        return addMessage(peerId, outgoing, text, imageEncoded, timeMs, "");
+    }
+
+    public synchronized Entry addMessage(String peerId, boolean outgoing, String text, String imageEncoded,
+                                         Long timeMs, String speaker) {
+        return add(new Entry(peerId, outgoing, Kind.MESSAGE, text, imageEncoded, resolve(timeMs), speaker));
     }
 
     public synchronized Entry addPoke(String peerId, boolean outgoing, Long timeMs) {

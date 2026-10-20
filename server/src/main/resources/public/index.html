@@ -35,6 +35,8 @@
     <div class="dash-tabs" role="tablist" aria-label="後台分頁">
       <button type="button" class="dash-tab is-active" role="tab" id="tab-devices"
               aria-selected="true" aria-controls="panel-devices" data-tab="devices">日常紀錄</button>
+      <button type="button" class="dash-tab" role="tab" id="tab-chat"
+              aria-selected="false" aria-controls="panel-chat" data-tab="chat">櫃台聊聊<span id="chatTabBadge" class="chat-tab-badge" hidden></span></button>
       <button type="button" class="dash-tab" role="tab" id="tab-files"
               aria-selected="false" aria-controls="panel-files" data-tab="files">小物寄放</button>
       <button type="button" class="dash-tab" role="tab" id="tab-system"
@@ -51,6 +53,58 @@
       <main id="clientContainer">
         <div class="empty-state"><p>稍等一下喔…</p><p>正在沖泡今日份的紀錄</p></div>
       </main>
+    </div>
+  </div>
+
+  <div class="shell dash-panel" id="panel-chat" role="tabpanel" aria-labelledby="tab-chat" hidden>
+    <div class="content-panel content-panel-full">
+      <section class="chat-desk" aria-label="櫃台聊聊">
+        <div class="chat-layout">
+          <aside class="chat-side">
+            <div class="chat-nick">
+              <label for="chatNick">我的暱稱</label>
+              <input id="chatNick" maxlength="24" placeholder="後台" autocomplete="nickname">
+              <p class="chat-hint">只存在這台瀏覽器，對方視窗會看到這個名字。</p>
+            </div>
+            <div class="chat-room-block">
+              <div class="section-label">私訊</div>
+              <div id="chatDmList" class="chat-room-list"></div>
+            </div>
+            <div class="chat-room-block">
+              <div class="section-label">群組</div>
+              <div id="chatGroupList" class="chat-room-list"></div>
+              <button type="button" class="btn btn-ghost" id="chatNewGroupBtn">新群組</button>
+              <div id="chatCreateBox" class="chat-create" hidden>
+                <input id="chatCreateName" maxlength="40" placeholder="群組名稱">
+                <div id="chatCreateMembers" class="chat-members"></div>
+                <div class="chat-create-actions">
+                  <button type="button" class="btn btn-primary" id="chatCreateSubmit">建立</button>
+                  <button type="button" class="btn btn-ghost" id="chatCreateCancel">取消</button>
+                </div>
+              </div>
+            </div>
+          </aside>
+          <section class="chat-thread">
+            <div class="chat-thread-head">
+              <strong id="chatThreadTitle">選一個對話</strong>
+              <p id="chatThreadHint" class="chat-hint">私訊約 15 秒內送到對方桌面。對方若超過 6 小時沒上線，桌面端不會補收，這裡仍看得到。</p>
+            </div>
+            <div id="chatGroupEditor" class="chat-editor" hidden>
+              <input id="chatGroupName" maxlength="40" aria-label="群組名稱">
+              <div id="chatMemberBox" class="chat-members"></div>
+              <div class="chat-create-actions">
+                <button type="button" class="btn btn-ghost" id="chatSaveGroup">儲存成員</button>
+                <button type="button" class="btn btn-ghost-danger" id="chatDeleteGroup">解散群組</button>
+              </div>
+            </div>
+            <div id="chatLog" class="chat-log" aria-live="polite"></div>
+            <form id="chatComposer" class="chat-composer">
+              <textarea id="chatInput" rows="3" maxlength="10000" placeholder="輸入訊息，Enter 送出，Shift+Enter 換行"></textarea>
+              <button type="submit" class="btn btn-primary" id="chatSendBtn">傳送</button>
+            </form>
+          </section>
+        </div>
+      </section>
     </div>
   </div>
 

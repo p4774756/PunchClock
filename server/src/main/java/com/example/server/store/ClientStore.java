@@ -132,6 +132,8 @@ public final class ClientStore {
             appendClientEvent(existing, "同事【" + fromId + "】要直傳檔案"
                     + (filename.isEmpty() ? "" : "「" + filename + "」")
                     + "（等待桌面端接收，伺服器不暫存）");
+        } else if (action != null && action.startsWith("ROOM|")) {
+            appendClientEvent(existing, "聊天訊息已排入（等待桌面端下次心跳收取）");
         }
         clients.put(clientId, existing);
     }

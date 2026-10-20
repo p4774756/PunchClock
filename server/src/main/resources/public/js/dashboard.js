@@ -330,6 +330,7 @@
         lastStructureFingerprint = structFp;
         lastContentFingerprint = contentFp;
         renderClients();
+        renderChatLists();
         return;
       }
 
@@ -338,6 +339,7 @@
         patchAllClients();
       }
       updateHeartbeatMetrics();
+      renderChatLists();
     }
 
     function patchAllClients() {
@@ -508,6 +510,8 @@
             applyFileSnapshot(data.files || []);
             applyServerHealth(data.serverHealth || null);
             appendLiveHealthPoint(data.serverHealth || null);
+          } else if (data.type === 'CHAT_SNAPSHOT') {
+            applyChatSnapshot(data.rooms || []);
           } else if (data.type === 'CHECKIN_RESULT') {
             appendLog(data.clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 收到回覆: ' + data.message);
           }
@@ -1211,29 +1215,20 @@
         alert('裝置離線，無法傳送訊息');
         return;
       }
-      const text = window.prompt('傳訊息給【' + clientId + '】（對方約 15 秒內收到）');
+      const text = window.prompt('傳訊息給【' + clientId + '】（對方約 15 秒內收到，可在「櫃台聊聊」回看）');
       if (text == null) return;
       const trimmed = String(text).trim();
       if (!trimmed) {
         alert('訊息不可為空');
         return;
       }
+      const roomId = 'dm:' + clientId;
       appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在傳送訊息…');
-      try {
-        const res = await fetch('/api/clients/' + encodeURIComponent(clientId) + '/message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: trimmed })
-        });
-        const data = await res.json();
-        if (data.success) {
-          appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 紙條已丟出去囉，對方等下會收到');
-        } else {
-          alert(data.message || '傳送失敗');
-        }
-      } catch (e) {
-        console.error('Remote message error', e);
-        alert('傳送失敗');
+      const ok = await postChat({ roomId: roomId, text: trimmed, nick: chatNick() });
+      if (ok) {
+        appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 紙條已丟出去囉，對方等下會收到');
+        selectChat(roomId);
+        switchDashTab('chat');
       }
     }
 
@@ -1277,6 +1272,10 @@
       if (next === 'system') {
         window.requestAnimationFrame(() => drawHealthHistoryChart());
       }
+      if (next === 'chat') {
+        markActiveChatSeen();
+        renderChat();
+      }
       if (window.PunchClockFlappy) {
         if (next === 'flappy') {
           window.PunchClockFlappy.activate();
@@ -1294,7 +1293,7 @@
       let initial = 'devices';
       try {
         const saved = window.sessionStorage.getItem('punchclock.dashTab');
-        if (saved === 'devices' || saved === 'files' || saved === 'system' || saved === 'photos' || saved === 'flappy') {
+        if (saved === 'devices' || saved === 'chat' || saved === 'files' || saved === 'system' || saved === 'photos' || saved === 'flappy') {
           initial = saved;
         }
       } catch (e) {}
@@ -1548,6 +1547,377 @@
       });
     }
 
+    const CHAT_NICK_KEY = 'punchclock.adminNick';
+    let chatRooms = [];
+    let activeChatId = '';
+    let seenChat = {};
+    let chatReady = false;
+    let chatEditorDirty = false;
+
+    function chatNick() {
+      const input = document.getElementById('chatNick');
+      const typed = input ? String(input.value || '').trim() : '';
+      if (typed) return typed.slice(0, 24);
+      try {
+        return String(window.localStorage.getItem(CHAT_NICK_KEY) || '').trim().slice(0, 24);
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function chatRoomById(roomId) {
+      return chatRooms.find((room) => room && room.id === roomId) || null;
+    }
+
+    function lastChatMessageId(room) {
+      const messages = room && Array.isArray(room.messages) ? room.messages : [];
+      if (!messages.length) return 0;
+      return Number(messages[messages.length - 1].id) || 0;
+    }
+
+    function chatPanelOpen() {
+      const panel = document.getElementById('panel-chat');
+      return !!(panel && !panel.hasAttribute('hidden'));
+    }
+
+    function isChatUnread(room) {
+      if (!room) return false;
+      const last = lastChatMessageId(room);
+      const seen = Number(seenChat[room.id] || 0);
+      if (last <= seen) return false;
+      return !(chatPanelOpen() && room.id === activeChatId);
+    }
+
+    function markActiveChatSeen() {
+      if (!activeChatId) return;
+      const room = chatRoomById(activeChatId);
+      if (room) seenChat[room.id] = lastChatMessageId(room);
+    }
+
+    function applyChatSnapshot(rooms) {
+      chatRooms = Array.isArray(rooms) ? rooms : [];
+      if (!chatReady) {
+        chatRooms.forEach((room) => {
+          seenChat[room.id] = lastChatMessageId(room);
+        });
+        chatReady = true;
+      }
+      if (activeChatId && activeChatId.indexOf('g:') === 0 && !chatRoomById(activeChatId)) {
+        activeChatId = '';
+        chatEditorDirty = false;
+      }
+      if (chatPanelOpen() && activeChatId) markActiveChatSeen();
+      renderChat();
+    }
+
+    function dmChatTargets() {
+      const ids = [];
+      const seen = {};
+      (clientData || []).forEach((client) => {
+        if (client && client.clientId && !seen[client.clientId]) {
+          seen[client.clientId] = true;
+          ids.push(client.clientId);
+        }
+      });
+      chatRooms.forEach((room) => {
+        if (room && room.kind === 'dm' && room.id && room.id.indexOf('dm:') === 0) {
+          const id = room.id.slice(3);
+          if (id && !seen[id]) {
+            seen[id] = true;
+            ids.push(id);
+          }
+        }
+      });
+      ids.sort();
+      return ids;
+    }
+
+    function renderChatLists() {
+      const dmBox = document.getElementById('chatDmList');
+      const groupBox = document.getElementById('chatGroupList');
+      if (!dmBox || !groupBox) return;
+      const targets = dmChatTargets();
+      dmBox.innerHTML = targets.length
+        ? targets.map((id) => chatRoomButton('dm:' + id, id)).join('')
+        : '<p class="chat-empty">還沒有裝置</p>';
+      const groups = chatRooms.filter((room) => room && room.kind === 'group');
+      groupBox.innerHTML = groups.length
+        ? groups.map((room) => chatRoomButton(room.id, room.name || room.id)).join('')
+        : '<p class="chat-empty">還沒有群組</p>';
+      dmBox.querySelectorAll('[data-room]').forEach((btn) => {
+        btn.addEventListener('click', () => selectChat(btn.getAttribute('data-room')));
+      });
+      groupBox.querySelectorAll('[data-room]').forEach((btn) => {
+        btn.addEventListener('click', () => selectChat(btn.getAttribute('data-room')));
+      });
+      updateChatBadge();
+    }
+
+    function chatRoomButton(roomId, label) {
+      const room = chatRoomById(roomId);
+      const active = roomId === activeChatId ? ' is-active' : '';
+      const dot = isChatUnread(room) ? '<i class="chat-room-dot" aria-label="有新訊息"></i>' : '';
+      return '<button type="button" class="chat-room' + active + '" data-room="'
+        + escapeHtml(roomId) + '"><span>' + escapeHtml(label) + '</span>' + dot + '</button>';
+    }
+
+    function updateChatBadge() {
+      const badge = document.getElementById('chatTabBadge');
+      if (!badge) return;
+      let count = 0;
+      chatRooms.forEach((room) => {
+        if (isChatUnread(room)) count++;
+      });
+      if (count > 0) {
+        badge.hidden = false;
+        badge.textContent = String(count);
+      } else {
+        badge.hidden = true;
+        badge.textContent = '';
+      }
+    }
+
+    function selectChat(roomId) {
+      activeChatId = roomId || '';
+      chatEditorDirty = false;
+      markActiveChatSeen();
+      renderChat();
+      const input = document.getElementById('chatInput');
+      if (input && chatPanelOpen()) input.focus();
+    }
+
+    function renderChat() {
+      renderChatLists();
+      renderChatThread();
+      if (!chatEditorDirty) renderChatEditor();
+    }
+
+    function renderChatThread() {
+      const title = document.getElementById('chatThreadTitle');
+      const log = document.getElementById('chatLog');
+      if (!title || !log) return;
+      if (!activeChatId) {
+        title.textContent = '選一個對話';
+        log.innerHTML = '<p class="chat-empty">左邊選一位同事，或建立群組。</p>';
+        return;
+      }
+      const room = chatRoomById(activeChatId);
+      if (activeChatId.indexOf('dm:') === 0) {
+        title.textContent = '私訊 · ' + activeChatId.slice(3);
+      } else if (room) {
+        title.textContent = '群組 · ' + (room.name || room.id);
+      } else {
+        title.textContent = '群組';
+      }
+      const messages = room && Array.isArray(room.messages) ? room.messages : [];
+      if (!messages.length) {
+        log.innerHTML = '<p class="chat-empty">還沒有訊息。傳一句就會開出對方的聊天視窗。</p>';
+        return;
+      }
+      const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+      log.innerHTML = messages.map((msg) => {
+        const mine = !!msg.fromAdmin;
+        const when = formatChatTime(msg.timeMs);
+        const who = msg.nick || msg.fromId || '';
+        return '<div class="chat-line' + (mine ? ' mine' : '') + '">'
+          + '<div class="chat-meta">' + escapeHtml(who) + ' · ' + escapeHtml(when) + '</div>'
+          + '<div class="chat-bubble">' + escapeHtml(msg.text || '') + '</div></div>';
+      }).join('');
+      if (nearBottom || chatPanelOpen()) log.scrollTop = log.scrollHeight;
+    }
+
+    function formatChatTime(ms) {
+      const n = Number(ms);
+      if (!n) return '';
+      const date = new Date(n);
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toLocaleString('zh-TW', { hour12: false });
+    }
+
+    function renderChatEditor() {
+      const editor = document.getElementById('chatGroupEditor');
+      if (!editor) return;
+      const room = chatRoomById(activeChatId);
+      if (!room || room.kind !== 'group') {
+        editor.hidden = true;
+        return;
+      }
+      editor.hidden = false;
+      const nameInput = document.getElementById('chatGroupName');
+      if (nameInput && document.activeElement !== nameInput) nameInput.value = room.name || '';
+      const box = document.getElementById('chatMemberBox');
+      if (!box) return;
+      const members = Array.isArray(room.members) ? room.members : [];
+      box.innerHTML = memberChecks(members);
+    }
+
+    function memberChecks(selected) {
+      const ids = dmChatTargets();
+      const chosen = {};
+      (selected || []).forEach((id) => { chosen[id] = true; });
+      if (!ids.length) return '<p class="chat-empty">目前沒有可加入的裝置</p>';
+      return ids.map((id) => {
+        return '<label><input type="checkbox" value="' + escapeHtml(id) + '"'
+          + (chosen[id] ? ' checked' : '') + '> ' + escapeHtml(id) + '</label>';
+      }).join('');
+    }
+
+    function checkedMemberIds(box) {
+      if (!box) return [];
+      return Array.prototype.map.call(box.querySelectorAll('input[type="checkbox"]:checked'), (input) => input.value);
+    }
+
+    async function postChat(body) {
+      try {
+        const res = await fetch('/api/chat/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          alert(data.message || '傳送失敗');
+          return false;
+        }
+        if (data.rooms) applyChatSnapshot(data.rooms);
+        return true;
+      } catch (e) {
+        console.error('chat send', e);
+        alert('傳送失敗');
+        return false;
+      }
+    }
+
+    async function mutateChat(url, method, body) {
+      try {
+        const res = await fetch(url, {
+          method: method,
+          headers: { 'Content-Type': 'application/json' },
+          body: body ? JSON.stringify(body) : undefined
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          alert(data.message || '沒有完成');
+          return null;
+        }
+        if (data.rooms) applyChatSnapshot(data.rooms);
+        return data;
+      } catch (e) {
+        console.error('chat', e);
+        alert('沒有完成');
+        return null;
+      }
+    }
+
+    function bindChat() {
+      const nick = document.getElementById('chatNick');
+      if (nick) {
+        try {
+          nick.value = window.localStorage.getItem(CHAT_NICK_KEY) || '';
+        } catch (e) {}
+        nick.addEventListener('change', () => {
+          try { window.localStorage.setItem(CHAT_NICK_KEY, nick.value.trim()); } catch (e) {}
+        });
+      }
+      const composer = document.getElementById('chatComposer');
+      const input = document.getElementById('chatInput');
+      if (composer) {
+        composer.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          if (!activeChatId) {
+            alert('請先選一位同事或一個群組');
+            return;
+          }
+          const text = input ? input.value.trim() : '';
+          if (!text) return;
+          const ok = await postChat({ roomId: activeChatId, text: text, nick: chatNick() });
+          if (ok && input) input.value = '';
+        });
+      }
+      if (input) {
+        input.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            if (composer) composer.requestSubmit ? composer.requestSubmit() : composer.dispatchEvent(new Event('submit'));
+          }
+        });
+      }
+      const createBtn = document.getElementById('chatNewGroupBtn');
+      const createBox = document.getElementById('chatCreateBox');
+      const cancelCreate = document.getElementById('chatCreateCancel');
+      if (createBtn && createBox) {
+        createBtn.addEventListener('click', () => {
+          createBox.hidden = false;
+          const members = document.getElementById('chatCreateMembers');
+          if (members) members.innerHTML = memberChecks([]);
+          const name = document.getElementById('chatCreateName');
+          if (name) name.focus();
+        });
+      }
+      if (cancelCreate && createBox) {
+        cancelCreate.addEventListener('click', () => { createBox.hidden = true; });
+      }
+      const createSubmit = document.getElementById('chatCreateSubmit');
+      if (createSubmit) {
+        createSubmit.addEventListener('click', async () => {
+          const name = document.getElementById('chatCreateName');
+          const members = checkedMemberIds(document.getElementById('chatCreateMembers'));
+          const data = await mutateChat('/api/chat/groups', 'POST', {
+            name: name ? name.value : '',
+            members: members
+          });
+          if (!data) return;
+          if (name) name.value = '';
+          if (createBox) createBox.hidden = true;
+          const created = (data.rooms || []).filter((room) => room.kind === 'group').pop();
+          if (created) selectChat(created.id);
+        });
+      }
+      const memberBox = document.getElementById('chatMemberBox');
+      if (memberBox) {
+        memberBox.addEventListener('change', () => { chatEditorDirty = true; });
+      }
+      const nameInput = document.getElementById('chatGroupName');
+      if (nameInput) {
+        nameInput.addEventListener('input', () => { chatEditorDirty = true; });
+      }
+      const saveBtn = document.getElementById('chatSaveGroup');
+      if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+          if (!activeChatId || activeChatId.indexOf('g:') !== 0) return;
+          const data = await mutateChat('/api/chat/groups/' + encodeURIComponent(activeChatId), 'POST', {
+            name: nameInput ? nameInput.value : '',
+            members: checkedMemberIds(memberBox)
+          });
+          if (data) chatEditorDirty = false;
+        });
+      }
+      const deleteBtn = document.getElementById('chatDeleteGroup');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', async () => {
+          if (!activeChatId || activeChatId.indexOf('g:') !== 0) return;
+          if (!confirm('確定解散這個群組？對話會從後台消失。')) return;
+          const data = await mutateChat('/api/chat/groups/' + encodeURIComponent(activeChatId), 'DELETE');
+          if (data) {
+            activeChatId = '';
+            chatEditorDirty = false;
+            renderChat();
+          }
+        });
+      }
+    }
+
+    async function fetchChat() {
+      try {
+        const res = await fetch('/api/chat');
+        if (!res.ok) return;
+        const data = await res.json();
+        applyChatSnapshot(data.rooms || []);
+      } catch (e) {}
+    }
+
+    bindChat();
+    fetchChat();
     bindDashTabs();
     fetchStatus();
     fetchPhotos();

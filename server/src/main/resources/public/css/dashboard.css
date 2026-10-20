@@ -1054,3 +1054,213 @@
       font-size: 0.75rem;
       color: var(--text-muted);
     }
+
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+      border-color: var(--blue);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--blue-deep);
+      border-color: var(--blue-deep);
+    }
+
+    .chat-tab-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.1rem;
+      margin-left: 0.35rem;
+      padding: 0 0.3rem;
+      border-radius: 999px;
+      background: var(--orange);
+      color: #fff;
+      font-size: 0.72rem;
+      line-height: 1.2rem;
+    }
+
+    .dash-tab.is-active .chat-tab-badge {
+      background: #fff;
+      color: var(--orange);
+    }
+
+    .chat-layout {
+      display: grid;
+      grid-template-columns: 230px 1fr;
+      gap: 0.75rem;
+      min-height: 540px;
+    }
+
+    .chat-side,
+    .chat-thread {
+      background: var(--white);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      padding: 0.85rem;
+    }
+
+    .chat-thread {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .chat-nick label,
+    .chat-thread-head strong {
+      display: block;
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+
+    .chat-nick input,
+    .chat-create input,
+    .chat-editor input,
+    .chat-composer textarea {
+      width: 100%;
+      margin-top: 0.35rem;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.88rem;
+      color: var(--text-dark);
+      background: var(--white);
+    }
+
+    .chat-hint {
+      margin-top: 0.35rem;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      line-height: 1.45;
+    }
+
+    .chat-room-block { margin-top: 0.9rem; }
+
+    .chat-room-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      margin: 0.35rem 0 0.5rem;
+    }
+
+    .chat-room {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.4rem;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.86rem;
+      padding: 0.4rem 0.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .chat-room:hover { background: var(--blue-soft); }
+
+    .chat-room.is-active {
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .chat-room-dot {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: var(--orange);
+      flex: none;
+    }
+
+    .chat-create,
+    .chat-editor {
+      margin-top: 0.55rem;
+      padding-top: 0.55rem;
+      border-top: 1px solid var(--line-soft);
+    }
+
+    .chat-members {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      max-height: 140px;
+      overflow: auto;
+      margin-top: 0.4rem;
+      font-size: 0.82rem;
+    }
+
+    .chat-members label {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .chat-create-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.45rem;
+    }
+
+    .chat-log {
+      flex: 1;
+      min-height: 260px;
+      margin-top: 0.6rem;
+      padding: 0.75rem;
+      overflow: auto;
+      background: var(--surface-alt);
+      border-radius: 6px;
+    }
+
+    .chat-line { margin-bottom: 0.7rem; }
+
+    .chat-line.mine { text-align: right; }
+
+    .chat-meta {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-bottom: 0.15rem;
+    }
+
+    .chat-bubble {
+      display: inline-block;
+      max-width: 85%;
+      padding: 0.4rem 0.65rem;
+      border-radius: 8px;
+      background: var(--white);
+      border: 1px solid var(--line-soft);
+      text-align: left;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .chat-line.mine .chat-bubble {
+      background: var(--blue-soft);
+      border-color: transparent;
+    }
+
+    .chat-composer {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-end;
+      margin-top: 0.6rem;
+    }
+
+    .chat-composer textarea {
+      flex: 1;
+      resize: vertical;
+      min-height: 4.2rem;
+    }
+
+    .chat-empty {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 720px) {
+      .chat-layout { grid-template-columns: 1fr; }
+    }

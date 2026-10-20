@@ -2,6 +2,7 @@ package com.example.service;
 
 import com.example.AppVersion;
 import com.example.BuildInfo;
+import com.example.ChatProtocol;
 import com.example.ClientUpdatePolicy;
 import com.example.PeerFileRules;
 import com.example.PeerFolderPacker;
@@ -68,6 +69,19 @@ public class HeartbeatService {
             this.taskCount = taskCount;
             this.scheduledCount = scheduledCount;
             this.lastSeen = lastSeen != null ? lastSeen : "";
+        }
+    }
+
+    /** 後台把這台桌面端加進去的群組（心跳回應 chatRooms[]） */
+    public static final class ChatRoomInfo {
+        public final String id;
+        public final String name;
+        public final String kind;
+
+        public ChatRoomInfo(String id, String name, String kind) {
+            this.id = id == null ? "" : id;
+            this.name = name == null || name.isBlank() ? this.id : name;
+            this.kind = kind == null ? "" : kind;
         }
     }
 
@@ -151,6 +165,8 @@ public class HeartbeatService {
     private Consumer<String> commandListener;
     private Consumer<List<PeerInfo>> peersListener;
     private Consumer<List<PeerFileInfo>> filesListener;
+    private Consumer<List<ChatRoomInfo>> chatRoomsListener;
+    private Consumer<ChatProtocol.RoomMessage> roomMessageListener;
     private Consumer<UpdateNotice> updateListener;
     private final AtomicBoolean heartbeatInFlight = new AtomicBoolean(false);
     private final AtomicBoolean heartbeatPending = new AtomicBoolean(false);
@@ -166,6 +182,14 @@ public class HeartbeatService {
 
     public void setFilesListener(Consumer<List<PeerFileInfo>> filesListener) {
         this.filesListener = filesListener;
+    }
+
+    public void setChatRoomsListener(Consumer<List<ChatRoomInfo>> chatRoomsListener) {
+        this.chatRoomsListener = chatRoomsListener;
+    }
+
+    public void setRoomMessageListener(Consumer<ChatProtocol.RoomMessage> roomMessageListener) {
+        this.roomMessageListener = roomMessageListener;
     }
 
     public void setUpdateListener(Consumer<UpdateNotice> updateListener) {
@@ -392,6 +416,7 @@ public class HeartbeatService {
             parseServerActions(json, logger);
             parseServerPeers(json);
             parseServerFiles(json);
+            parseServerChatRooms(json);
             parseServerUpdate(json);
         } catch (Exception ex) {
             // 回應非 JSON 或格式異常時靜默忽略
@@ -399,7 +424,7 @@ public class HeartbeatService {
     }
 
     private void parseServerActions(JsonObject json, Consumer<String> logger) {
-        if (commandListener == null) return;
+        if (commandListener == null && roomMessageListener == null) return;
 
         java.util.LinkedHashSet<String> actions = new java.util.LinkedHashSet<>();
 
@@ -420,7 +445,17 @@ public class HeartbeatService {
         }
 
         for (String action : actions) {
-            dispatchServerAction(action, logger);
+            if (action.startsWith(ChatProtocol.PREFIX)) {
+                ChatProtocol.RoomMessage message = ChatProtocol.decodeRoom(action);
+                if (message != null && roomMessageListener != null) {
+                    log(logger, "[訊息] [聊天] 來自【" + message.nick + "】");
+                    roomMessageListener.accept(message);
+                }
+                continue;
+            }
+            if (commandListener != null) {
+                dispatchServerAction(action, logger);
+            }
         }
     }
 
@@ -513,6 +548,25 @@ public class HeartbeatService {
             peers.add(new PeerInfo(id, status, appVersion, taskCount, scheduledCount, lastSeen));
         }
         peersListener.accept(peers);
+    }
+
+    private void parseServerChatRooms(JsonObject json) {
+        if (chatRoomsListener == null || !json.has("chatRooms") || !json.get("chatRooms").isJsonArray()) {
+            return;
+        }
+        List<ChatRoomInfo> rooms = new ArrayList<>();
+        for (com.google.gson.JsonElement el : json.getAsJsonArray("chatRooms")) {
+            if (el == null || !el.isJsonObject()) {
+                continue;
+            }
+            JsonObject room = el.getAsJsonObject();
+            String id = jsonString(room, "id");
+            if (!ChatProtocol.isGroupRoom(id)) {
+                continue;
+            }
+            rooms.add(new ChatRoomInfo(id, jsonString(room, "name"), jsonString(room, "kind")));
+        }
+        chatRoomsListener.accept(rooms);
     }
 
     private void parseServerUpdate(JsonObject json) {
@@ -654,6 +708,31 @@ public class HeartbeatService {
         }
         postPeerApi("/api/peer/message", payload, logger, callback,
                 (hasImage ? "圖片訊息給【" : "訊息給【") + toClientId.trim() + "】：" + (trimmed.isEmpty() ? "（僅圖片）" : trimmed));
+    }
+
+    /** 傳文字給後台私訊或已加入的群組。 */
+    public void sendRoomMessage(String roomId, String text, Consumer<String> logger, Consumer<Boolean> callback) {
+        if (!isServiceActive || serverUrl.isBlank()) {
+            log(logger, "[警告] [聊天] 雲端未連線，無法傳送訊息");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+        if (!ChatProtocol.isDeskRoom(roomId)) {
+            log(logger, "[警告] [聊天] 找不到這段對話");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+        String trimmed = text == null ? "" : text.trim();
+        if (trimmed.isEmpty()) {
+            log(logger, "[警告] [聊天] 訊息不可為空");
+            if (callback != null) callback.accept(false);
+            return;
+        }
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("fromClientId", clientId);
+        payload.put("roomId", roomId);
+        payload.put("text", trimmed);
+        postPeerApi("/api/chat/send", payload, logger, callback, "訊息到【" + roomId + "】：" + trimmed);
     }
 
     /**

@@ -86,6 +86,8 @@ public class App extends JFrame {
     /** 同事聊天紀錄（只存記憶體）。 */
     private final PeerChatStore chatStore = new PeerChatStore();
     private final Map<String, PeerChatWindow> chatWindows = new LinkedHashMap<>();
+    /** 後台把本機加進去的群組，隨心跳更新。 */
+    private List<HeartbeatService.ChatRoomInfo> deskRooms = List.of();
     /** 最近一次從該同事收到訊息時附帶的大頭照。 */
     private final Map<String, String> peerAvatars = new HashMap<>();
     private boolean peerInteractionEnabled = true;
@@ -138,6 +140,10 @@ public class App extends JFrame {
         updateCoordinator = new ClientUpdateCoordinator(updateActions());
         heartbeatService.setUpdateListener(notice ->
                 SwingUtilities.invokeLater(() -> updateCoordinator.handle(notice)));
+        heartbeatService.setRoomMessageListener(message ->
+                SwingUtilities.invokeLater(() -> showRoomMessage(message)));
+        heartbeatService.setChatRoomsListener(rooms ->
+                SwingUtilities.invokeLater(() -> updateDeskRooms(rooms)));
         heartbeatService.setCommandListener(command -> {
             if ("CANCEL_SCHEDULE".equalsIgnoreCase(command)) {
                 SwingUtilities.invokeLater(slotController::handleRemoteCancelAll);
@@ -469,6 +475,12 @@ public class App extends JFrame {
         if (peerRefs.openChatButton != null) {
             peerRefs.openChatButton.addActionListener(e -> openChatWithSelectedPeer());
         }
+        if (peerRefs.deskChatButton != null) {
+            peerRefs.deskChatButton.addActionListener(e -> openDeskChat());
+        }
+        if (peerRefs.openGroupChatButton != null) {
+            peerRefs.openGroupChatButton.addActionListener(e -> openGroupChat());
+        }
         if (peerRefs.peerTable != null) {
             peerRefs.peerTable.addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
@@ -535,6 +547,26 @@ public class App extends JFrame {
         }
         String selected = getSelectedPeerClientId();
         peerRefs.openChatButton.setEnabled(peerInteractionEnabled && selected != null && !isSelfClientId(selected));
+        if (peerRefs.deskChatButton != null) {
+            peerRefs.deskChatButton.setEnabled(peerInteractionEnabled);
+        }
+        refreshGroupChatControls();
+    }
+
+    private void refreshGroupChatControls() {
+        if (peerRefs.groupChatCombo == null || peerRefs.openGroupChatButton == null) {
+            return;
+        }
+        boolean hasGroup = false;
+        for (int i = 0; i < peerRefs.groupChatCombo.getItemCount(); i++) {
+            Object item = peerRefs.groupChatCombo.getItemAt(i);
+            if (item instanceof DeskRoomItem && !((DeskRoomItem) item).id.isEmpty()) {
+                hasGroup = true;
+                break;
+            }
+        }
+        peerRefs.groupChatCombo.setEnabled(peerInteractionEnabled && hasGroup);
+        peerRefs.openGroupChatButton.setEnabled(peerInteractionEnabled && hasGroup);
     }
 
     private PeerChatWindow ensureChatWindow(String peerId) {
@@ -557,6 +589,122 @@ public class App extends JFrame {
         window.setLocation(origin.x + offset, origin.y + offset);
         chatWindows.put(peerId, window);
         return window;
+    }
+
+    private PeerChatWindow ensureDeskWindow(String roomId, String heading) {
+        PeerChatWindow existing = chatWindows.get(roomId);
+        if (existing != null) {
+            existing.setHeading(heading);
+            return existing;
+        }
+        PeerChatWindow window = new PeerChatWindow(roomId, chatHost, appIconImage,
+                chatStore.entries(roomId), false, true);
+        window.setHeading(heading);
+        window.setInteractionEnabled(isCloudEnabled() && peerInteractionEnabled);
+        window.setLocationRelativeTo(this);
+        int offset = 28 * chatWindows.size();
+        java.awt.Point origin = window.getLocation();
+        window.setLocation(origin.x + offset, origin.y + offset);
+        chatWindows.put(roomId, window);
+        return window;
+    }
+
+    private void openDeskChat() {
+        String clientId = heartbeatService.getClientId();
+        if (clientId == null || clientId.isBlank()) {
+            appendLog("[警告] [聊天] 尚未設定本機 Client ID");
+            return;
+        }
+        if (!isCloudEnabled()) {
+            appendLog("[警告] [聊天] 請先啟用雲端狀態回報");
+            return;
+        }
+        ensureDeskWindow(ChatProtocol.dmRoomId(clientId), "後台").showAndFocus();
+    }
+
+    private void openGroupChat() {
+        if (peerRefs.groupChatCombo == null) {
+            return;
+        }
+        Object selected = peerRefs.groupChatCombo.getSelectedItem();
+        if (!(selected instanceof DeskRoomItem) || ((DeskRoomItem) selected).id.isEmpty()) {
+            appendLog("[警告] [聊天] 尚未加入任何群組");
+            return;
+        }
+        if (!isCloudEnabled()) {
+            appendLog("[警告] [聊天] 請先啟用雲端狀態回報");
+            return;
+        }
+        DeskRoomItem room = (DeskRoomItem) selected;
+        ensureDeskWindow(room.id, room.name).showAndFocus();
+    }
+
+    private void updateDeskRooms(List<HeartbeatService.ChatRoomInfo> rooms) {
+        deskRooms = rooms == null ? List.of() : rooms;
+        if (peerRefs.groupChatCombo == null) {
+            return;
+        }
+        String selectedId = "";
+        Object selected = peerRefs.groupChatCombo.getSelectedItem();
+        if (selected instanceof DeskRoomItem) {
+            selectedId = ((DeskRoomItem) selected).id;
+        }
+        peerRefs.groupChatCombo.removeAllItems();
+        int selectIndex = 0;
+        if (deskRooms.isEmpty()) {
+            peerRefs.groupChatCombo.addItem(new DeskRoomItem("", "尚無群組"));
+        } else {
+            for (int i = 0; i < deskRooms.size(); i++) {
+                HeartbeatService.ChatRoomInfo room = deskRooms.get(i);
+                peerRefs.groupChatCombo.addItem(new DeskRoomItem(room.id, room.name));
+                if (room.id.equals(selectedId)) {
+                    selectIndex = i;
+                }
+            }
+            peerRefs.groupChatCombo.setSelectedIndex(selectIndex);
+        }
+        refreshGroupChatControls();
+    }
+
+    private void showRoomMessage(ChatProtocol.RoomMessage message) {
+        if (message == null || !ChatProtocol.isDeskRoom(message.roomId)) {
+            return;
+        }
+        if (message.fromId.equals(heartbeatService.getClientId())) {
+            return;
+        }
+        String speaker = message.nick == null || message.nick.isBlank() ? message.fromId : message.nick;
+        String timeLabel = formatPeerMessageTime(message.timeMs);
+        appendLog("[訊息] 【聊天】（" + timeLabel + "）【" + speaker + "】：" + message.text);
+        PeerChatStore.Entry entry = chatStore.addMessage(
+                message.roomId, false, message.text, "", message.timeMs, speaker);
+        String heading = ChatProtocol.isGroupRoom(message.roomId)
+                ? (message.roomName == null || message.roomName.isBlank() ? "群組" : message.roomName)
+                : "後台";
+        Toolkit.getDefaultToolkit().beep();
+        PeerChatWindow existing = chatWindows.get(message.roomId);
+        if (existing == null) {
+            ensureDeskWindow(message.roomId, heading).showAndFocus();
+        } else {
+            existing.setHeading(heading);
+            existing.append(entry);
+            existing.showAndFocus();
+        }
+    }
+
+    private static final class DeskRoomItem {
+        final String id;
+        final String name;
+
+        DeskRoomItem(String id, String name) {
+            this.id = id == null ? "" : id;
+            this.name = name == null || name.isBlank() ? this.id : name;
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
     }
 
     /** 把一筆紀錄補到已開著的視窗（沒開視窗就只留在紀錄裡）。 */
@@ -602,11 +750,32 @@ public class App extends JFrame {
     private final PeerChatWindow.Host chatHost = new PeerChatWindow.Host() {
         @Override
         public boolean canSend(String peerId) {
+            if (ChatProtocol.isDeskRoom(peerId)) {
+                return isCloudEnabled();
+            }
             return isCloudEnabled() && peerId != null && !ADMIN_PEER_ID.equals(peerId) && !isSelfClientId(peerId);
         }
 
         @Override
         public void sendMessage(String peerId, String text, String imageEncoded, Consumer<Boolean> done) {
+            if (ChatProtocol.isDeskRoom(peerId)) {
+                if (imageEncoded != null && !imageEncoded.isBlank()) {
+                    chatNote(peerId, "後台對話只傳文字");
+                    done.accept(false);
+                    return;
+                }
+                heartbeatService.sendRoomMessage(peerId, text, App.this::appendLog, ok ->
+                        SwingUtilities.invokeLater(() -> {
+                            boolean sent = Boolean.TRUE.equals(ok);
+                            if (sent) {
+                                chatAppend(peerId, chatStore.addMessage(peerId, true, text, "", null));
+                            } else {
+                                chatNote(peerId, "訊息沒有送出，請確認雲端連線或是否仍在群組裡");
+                            }
+                            done.accept(sent);
+                        }));
+                return;
+            }
             heartbeatService.sendPeerMessage(peerId, text, imageEncoded, App.this::appendLog, ok ->
                     SwingUtilities.invokeLater(() -> {
                         boolean sent = Boolean.TRUE.equals(ok);
@@ -621,6 +790,10 @@ public class App extends JFrame {
 
         @Override
         public void poke(String peerId) {
+            if (ChatProtocol.isDeskRoom(peerId)) {
+                chatNote(peerId, "後台對話只傳文字");
+                return;
+            }
             heartbeatService.sendPeerPoke(peerId, App.this::appendLog, ok ->
                     SwingUtilities.invokeLater(() -> {
                         if (Boolean.TRUE.equals(ok)) {
@@ -633,6 +806,10 @@ public class App extends JFrame {
 
         @Override
         public void sendFiles(String peerId) {
+            if (ChatProtocol.isDeskRoom(peerId)) {
+                chatNote(peerId, "後台對話只傳文字");
+                return;
+            }
             sendFilesToPeer(peerId);
         }
 

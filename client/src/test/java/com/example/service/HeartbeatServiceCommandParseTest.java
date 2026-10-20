@@ -1,5 +1,6 @@
 package com.example.service;
 
+import com.example.ChatProtocol;
 import com.example.PeerFileRules;
 import org.junit.Test;
 
@@ -277,5 +278,33 @@ public class HeartbeatServiceCommandParseTest {
                 "{\"update\":{\"version\":\"1.8.0\",\"sourceDigest\":\"" + digest
                         + "\",\"sha256\":\"" + sha + "\",\"size\":12,\"path\":\"https://evil.example/jar\"}}"));
         assertNull(HeartbeatService.parseUpdateNotice("{\"success\":true}"));
+    }
+
+    @Test
+    public void parseServerCommand_supportsRoomMessageAndChatRooms() throws Exception {
+        HeartbeatService service = new HeartbeatService();
+        List<ChatProtocol.RoomMessage> rooms = new ArrayList<>();
+        List<HeartbeatService.ChatRoomInfo> listed = new ArrayList<>();
+        service.setRoomMessageListener(rooms::add);
+        service.setChatRoomsListener(listed::addAll);
+
+        Method method = HeartbeatService.class.getDeclaredMethod(
+                "parseServerCommand", String.class, Consumer.class);
+        method.setAccessible(true);
+
+        String action = ChatProtocol.encodeRoom("g:abcd1234", "早班", "後台", "小王", 1693728000000L, "集合|一下");
+        String body = "{\"actions\":[\"" + action + "\"],\"chatRooms\":["
+                + "{\"id\":\"g:abcd1234\",\"name\":\"早班\",\"kind\":\"group\"},"
+                + "{\"id\":\"dm:worker-a\",\"name\":\"worker-a\",\"kind\":\"dm\"}]}";
+        method.invoke(service, body, (Consumer<String>) msg -> {});
+
+        assertEquals(1, rooms.size());
+        assertEquals("g:abcd1234", rooms.get(0).roomId);
+        assertEquals("早班", rooms.get(0).roomName);
+        assertEquals("小王", rooms.get(0).nick);
+        assertEquals("集合|一下", rooms.get(0).text);
+        assertEquals(1, listed.size());
+        assertEquals("g:abcd1234", listed.get(0).id);
+        assertEquals("早班", listed.get(0).name);
     }
 }
