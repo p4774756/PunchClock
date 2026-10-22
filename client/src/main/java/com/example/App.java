@@ -805,12 +805,12 @@ public class App extends JFrame {
         }
 
         @Override
-        public void sendFiles(String peerId) {
+        public void sendFiles(String peerId, java.awt.Component owner) {
             if (ChatProtocol.isDeskRoom(peerId)) {
                 chatNote(peerId, "後台對話只傳文字");
                 return;
             }
-            sendFilesToPeer(peerId);
+            sendFilesToPeer(peerId, owner);
         }
 
         @Override
@@ -828,7 +828,10 @@ public class App extends JFrame {
         }
     }
 
-    private void sendFilesToPeer(String toClientId) {
+    private void sendFilesToPeer(String toClientId, java.awt.Component owner) {
+        if (owner == null) {
+            owner = this;
+        }
         if (toClientId == null || toClientId.isBlank()) {
             appendLog("[警告] [檔案] 請先選擇一位同事");
             return;
@@ -842,7 +845,7 @@ public class App extends JFrame {
         chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
         chooser.setMultiSelectionEnabled(true);
         chooser.setAcceptAllFileFilterUsed(true);
-        int result = chooser.showOpenDialog(this);
+        int result = chooser.showOpenDialog(owner);
         if (result != JFileChooser.APPROVE_OPTION) {
             return;
         }
@@ -858,15 +861,15 @@ public class App extends JFrame {
             return;
         }
         if (onlinePeerIds.contains(toClientId)) {
-            startRelaySend(toClientId, files);
-        } else if (confirmStoredFallback(toClientId, "【" + toClientId + "】目前不在線，無法直傳。")) {
-            startStoredSend(toClientId, files);
+            startRelaySend(toClientId, files, owner);
+        } else if (confirmStoredFallback(toClientId, "【" + toClientId + "】目前不在線，無法直傳。", owner)) {
+            startStoredSend(toClientId, files, owner);
         }
     }
 
-    private boolean confirmStoredFallback(String toClientId, String reason) {
+    private boolean confirmStoredFallback(String toClientId, String reason, java.awt.Component owner) {
         int choice = UiFonts.showConfirm(
-                this,
+                owner,
                 reason + "\n\n要改用伺服器暫存嗎？檔案會上傳到伺服器保留約 " + PeerFileRules.OFFER_TTL_LABEL
                         + "，對方上線後再下載。",
                 "傳送檔案",
@@ -885,9 +888,9 @@ public class App extends JFrame {
     }
 
     /** 對方在線：即時直傳，伺服器只在記憶體轉手、不留檔。 */
-    private void startRelaySend(String toClientId, java.util.List<Path> files) {
+    private void startRelaySend(String toClientId, java.util.List<Path> files, java.awt.Component owner) {
         setSendFileBusy(true);
-        TransferProgressDialog progress = TransferProgressDialog.open(this, "直傳檔案");
+        TransferProgressDialog progress = TransferProgressDialog.open(owner, "直傳檔案");
         TransferCancel cancel = new TransferCancel();
         progress.setOnCancel(cancel::cancel);
         String displayName = HeartbeatService.displayNameOf(files);
@@ -917,26 +920,26 @@ public class App extends JFrame {
                         case DELIVERED:
                             chatNote(toClientId, "已直傳「" + displayName + "」");
                             UiFonts.showMessage(
-                                    this,
+                                    owner,
                                     "「" + displayName + "」已直傳給【" + toClientId + "】。\n伺服器沒有保留這個檔案。",
                                     "傳送檔案",
                                     JOptionPane.INFORMATION_MESSAGE);
                             break;
                         case UNSUPPORTED_SERVER:
-                            if (confirmStoredFallback(toClientId, "伺服器尚未支援直傳（需更新雲端）。")) {
-                                startStoredSend(toClientId, files);
+                            if (confirmStoredFallback(toClientId, "伺服器尚未支援直傳（需更新雲端）。", owner)) {
+                                startStoredSend(toClientId, files, owner);
                             }
                             break;
                         case RECIPIENT_UNAVAILABLE:
                             if (confirmStoredFallback(toClientId,
-                                    "【" + toClientId + "】目前無法直傳（剛離線，或桌面端版本較舊）。")) {
-                                startStoredSend(toClientId, files);
+                                    "【" + toClientId + "】目前無法直傳（剛離線，或桌面端版本較舊）。", owner)) {
+                                startStoredSend(toClientId, files, owner);
                             }
                             break;
                         case FAILED:
                             String detail = failDetail.toString().trim();
                             UiFonts.showWarning(
-                                    this,
+                                    owner,
                                     "直傳沒有完成。對方可能拒收、逾時未接收，或連線中斷。"
                                             + (detail.isEmpty() ? "" : "\n\n" + detail),
                                     "傳送檔案");
@@ -948,9 +951,9 @@ public class App extends JFrame {
     }
 
     /** 經伺服器暫存（保留 {@link PeerFileRules#OFFER_TTL_LABEL}），對方離線也能稍後下載。 */
-    private void startStoredSend(String toClientId, java.util.List<Path> files) {
+    private void startStoredSend(String toClientId, java.util.List<Path> files, java.awt.Component owner) {
         setSendFileBusy(true);
-        TransferProgressDialog progress = TransferProgressDialog.open(this, "傳送檔案");
+        TransferProgressDialog progress = TransferProgressDialog.open(owner, "傳送檔案");
         TransferCancel cancel = new TransferCancel();
         progress.setOnCancel(cancel::cancel);
         String displayName = HeartbeatService.displayNameOf(files);
@@ -977,7 +980,7 @@ public class App extends JFrame {
                     }
                     if (!ok && !cancel.isCancelled()) {
                         UiFonts.showWarning(
-                                this,
+                                owner,
                                 "沒有送出。請確認內容不超過 " + PeerFileRules.MAX_SIZE_LABEL
                                         + "（資料夾會先壓縮），且已連上同一伺服器。",
                                 "傳送檔案");
@@ -2052,7 +2055,8 @@ public class App extends JFrame {
 
             @Override
             public boolean autoUpdate() {
-                return isAutoUpdateEnabled();
+                // IDE 啟動會被換成 jar 啟動，開發者可能不想被換掉，所以一律先詢問
+                return isAutoUpdateEnabled() && ClientUpdateInstaller.runningJar() != null;
             }
 
             @Override
@@ -2062,6 +2066,10 @@ public class App extends JFrame {
 
             @Override
             public boolean confirm(String message) {
+                if (ClientUpdateInstaller.runningJar() == null) {
+                    message += "\n\n目前是從 IDE 啟動：更新後會改用下載的 jar 重新啟動，\n"
+                            + "之後請執行 " + ClientUpdateInstaller.defaultJar() + "，就能自動更新。";
+                }
                 int choice = UiFonts.showConfirm(
                         App.this, message, "程式更新",
                         JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
@@ -2085,12 +2093,12 @@ public class App extends JFrame {
 
             @Override
             public boolean canInstall() {
-                return ClientUpdateInstaller.runningJar() != null;
+                return ClientUpdateInstaller.installTarget() != null;
             }
 
             @Override
             public void install(Path jar) throws Exception {
-                ClientUpdateInstaller.relaunch(jar, ClientUpdateInstaller.runningJar());
+                ClientUpdateInstaller.relaunch(jar, ClientUpdateInstaller.installTarget());
             }
 
             @Override

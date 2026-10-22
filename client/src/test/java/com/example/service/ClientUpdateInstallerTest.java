@@ -2,6 +2,7 @@ package com.example.service;
 
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -26,5 +27,12 @@ public class ClientUpdateInstallerTest {
     @Test
     public void unitTestsAreNotRunningFromTheShadedJar() {
         assertNull(ClientUpdateInstaller.runningJar());
+    }
+
+    @Test
+    public void ideLaunchInstallsToDefaultJarUnderPunchclockDir() {
+        assertEquals(ClientUpdateInstaller.defaultJar(), ClientUpdateInstaller.installTarget());
+        assertEquals("punchclock-client-standalone.jar", ClientUpdateInstaller.defaultJar().getFileName().toString());
+        assertEquals(".punchclock", ClientUpdateInstaller.defaultJar().getParent().getFileName().toString());
     }
 }

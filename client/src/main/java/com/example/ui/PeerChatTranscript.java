@@ -5,11 +5,16 @@ import com.example.service.PeerImage;
 
 import javax.swing.ImageIcon;
 import javax.swing.JTextPane;
+import javax.swing.text.AbstractDocument;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.Element;
+import javax.swing.text.LabelView;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
+import javax.swing.text.StyledEditorKit;
+import javax.swing.text.ViewFactory;
 import java.awt.Color;
 import java.awt.Point;
 import java.awt.event.MouseAdapter;
@@ -43,6 +48,15 @@ public class PeerChatTranscript extends JTextPane {
         this.peerId = peerId == null ? "" : peerId;
         this.fontFamily = fontFamily;
         this.fontSize = fontSize;
+        setEditorKit(new StyledEditorKit() {
+            @Override
+            public ViewFactory getViewFactory() {
+                final ViewFactory base = super.getViewFactory();
+                return elem -> AbstractDocument.ContentElementName.equals(elem.getName())
+                        ? new WrapLabelView(elem)
+                        : base.create(elem);
+            }
+        });
         setEditable(false);
         setOpaque(true);
         setBackground(Color.WHITE);
@@ -158,6 +172,32 @@ public class PeerChatTranscript extends JTextPane {
         StyleConstants.setBold(attrs, bold);
         StyleConstants.setForeground(attrs, color);
         return attrs;
+    }
+
+    /** 長字串（URL、token）沒有空白也能在任意字元換行，且不撐大版面寬度。 */
+    private static final class WrapLabelView extends LabelView {
+        WrapLabelView(Element elem) {
+            super(elem);
+        }
+
+        @Override
+        public int getBreakWeight(int axis, float pos, float len) {
+            if (axis == X_AXIS) {
+                checkPainter();
+                int p0 = getStartOffset();
+                int p1 = getGlyphPainter().getBoundedPosition(this, p0, pos, len);
+                if (p1 == p0) {
+                    return BadBreakWeight;
+                }
+                return p1 == getEndOffset() ? GoodBreakWeight : ExcellentBreakWeight;
+            }
+            return super.getBreakWeight(axis, pos, len);
+        }
+
+        @Override
+        public float getMinimumSpan(int axis) {
+            return axis == X_AXIS ? 0 : super.getMinimumSpan(axis);
+        }
     }
 
     /** 今天只顯示時間，其他日期加上月日。 */

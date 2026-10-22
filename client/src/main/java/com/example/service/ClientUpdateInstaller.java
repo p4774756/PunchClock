@@ -36,16 +36,33 @@ public final class ClientUpdateInstaller {
         return null;
     }
 
+    /**
+     * 不是用 jar 啟動（例如 IDE）時，更新後的 jar 放這裡：下載後改用 {@code java -jar} 啟動它，
+     * 之後就能像一般 jar 一樣自動更新。
+     */
+    public static Path defaultJar() {
+        return Path.of(System.getProperty("user.home", "."), ".punchclock", "punchclock-client-standalone.jar");
+    }
+
+    /** 更新要覆蓋的 jar：jar 啟動時是自己，IDE 啟動時是 {@link #defaultJar()}。 */
+    public static Path installTarget() {
+        Path running = runningJar();
+        return running != null ? running : defaultJar();
+    }
+
     public static void relaunch(Path downloadedJar, Path targetJar) throws IOException {
         if (downloadedJar == null || !Files.isRegularFile(downloadedJar)) {
             throw new IOException("下載的 jar 不存在");
         }
-        if (targetJar == null || !Files.isRegularFile(targetJar)) {
-            throw new IOException("找不到目前的 jar");
+        if (targetJar == null) {
+            throw new IOException("找不到要更新的 jar");
         }
         Path parent = targetJar.getParent();
-        if (parent != null && !Files.isWritable(parent)) {
-            throw new IOException("無法寫入 " + parent);
+        if (parent != null) {
+            Files.createDirectories(parent);
+            if (!Files.isWritable(parent)) {
+                throw new IOException("無法寫入 " + parent);
+            }
         }
         Path dir = updateDir();
         Files.createDirectories(dir);

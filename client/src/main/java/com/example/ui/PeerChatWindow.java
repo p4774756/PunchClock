@@ -60,7 +60,8 @@ public class PeerChatWindow extends JFrame {
 
         void poke(String peerId);
 
-        void sendFiles(String peerId);
+        /** @param owner 選檔、進度、提示對話框要掛在哪個視窗上（聊天視窗），才不會讓主視窗蓋住聊天視窗。 */
+        void sendFiles(String peerId, Component owner);
 
         void chatClosed(PeerChatWindow window);
     }
@@ -162,7 +163,24 @@ public class PeerChatWindow extends JFrame {
         imageRow.add(clearImageButton, BorderLayout.EAST);
         imageRow.setVisible(false);
 
-        input = new JTextArea(3, 24);
+        input = new JTextArea(3, 24) {
+            @Override
+            protected void paintComponent(java.awt.Graphics g) {
+                super.paintComponent(g);
+                // 空白時顯示灰字提示，一開始就知道怎麼送出、怎麼換行
+                if (getDocument().getLength() == 0) {
+                    java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
+                    g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+                            java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                    g2.setColor(new Color(148, 163, 184));
+                    g2.setFont(getFont());
+                    java.awt.Insets in = getInsets();
+                    g2.drawString("Enter 送出，Shift+Enter 換行",
+                            in.left, in.top + g2.getFontMetrics().getAscent());
+                    g2.dispose();
+                }
+            }
+        };
         input.setFont(plain);
         input.setLineWrap(true);
         input.setWrapStyleWord(true);
@@ -188,7 +206,7 @@ public class PeerChatWindow extends JFrame {
         fileButton = new JButton("傳檔案");
         fileButton.setFont(plain);
         fileButton.setToolTipText("傳檔案或整個資料夾；可一次多選，多個項目會壓成一個 ZIP");
-        fileButton.addActionListener(e -> host.sendFiles(peerId));
+        fileButton.addActionListener(e -> host.sendFiles(peerId, this));
         sendButton = new JButton("傳送");
         sendButton.setFont(bold);
         sendButton.addActionListener(e -> send());
