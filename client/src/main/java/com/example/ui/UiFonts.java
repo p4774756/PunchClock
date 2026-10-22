@@ -161,7 +161,9 @@ public final class UiFonts {
     private static void saveImageWithDialog(Component parent, BufferedImage image) {
         JFileChooser chooser = fileChooser();
         chooser.setDialogTitle("另存圖片");
-        chooser.setSelectedFile(new File("image.jpg"));
+        String stamp = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        chooser.setSelectedFile(new File("image-" + stamp + ".jpg"));
         if (chooser.showSaveDialog(parent) != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
             return;
         }
