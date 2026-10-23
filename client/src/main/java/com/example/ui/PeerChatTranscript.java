@@ -1,5 +1,6 @@
 package com.example.ui;
 
+import com.example.ChatProtocol;
 import com.example.service.PeerChatStore;
 import com.example.service.PeerImage;
 
@@ -24,6 +25,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -101,7 +103,7 @@ public class PeerChatTranscript extends JTextPane {
                         insert(doc, entry.text + "\n", style(Color.BLACK, fontSize, false));
                     }
                     if (entry.hasImage()) {
-                        insertImage(doc, entry.imageEncoded);
+                        insertImages(doc, entry.imageEncoded);
                     }
                 }
             }
@@ -123,17 +125,31 @@ public class PeerChatTranscript extends JTextPane {
         setText("");
     }
 
+    private void insertImages(StyledDocument doc, String encodedField) throws BadLocationException {
+        List<String> images = ChatProtocol.splitPeerImages(encodedField);
+        if (images == null) {
+            insert(doc, "（圖片無法顯示）\n", style(NOTE_COLOR, fontSize, false));
+            return;
+        }
+        for (int i = 0; i < images.size(); i++) {
+            if (i > 0) {
+                insert(doc, " ", style(Color.BLACK, fontSize, false));
+            }
+            insertImage(doc, images.get(i));
+        }
+        insert(doc, "\n", style(Color.BLACK, fontSize, false));
+    }
+
     private void insertImage(StyledDocument doc, String encoded) throws BadLocationException {
         BufferedImage thumb = PeerImage.decodeThumbnail(encoded, THUMB_EDGE);
         if (thumb == null) {
-            insert(doc, "（圖片無法顯示）\n", style(NOTE_COLOR, fontSize, false));
+            insert(doc, "（圖片無法顯示）", style(NOTE_COLOR, fontSize, false));
             return;
         }
         SimpleAttributeSet attrs = new SimpleAttributeSet();
         StyleConstants.setIcon(attrs, new ImageIcon(thumb));
         attrs.addAttribute(IMAGE_ATTR, encoded);
         doc.insertString(doc.getLength(), " ", attrs);
-        doc.insertString(doc.getLength(), "\n", style(Color.BLACK, fontSize, false));
     }
 
     private void openImageAt(Point point) {

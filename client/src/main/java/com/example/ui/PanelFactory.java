@@ -8,6 +8,7 @@ import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.plaf.basic.BasicComboBoxUI;
+import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
 
 /**
@@ -19,18 +20,16 @@ public class PanelFactory {
     /** 裝置互動分頁／面板標題 */
     public static final String PEER_TAB_LABEL = "(o´・ω・`)σ)Д`)";
 
+    /** 設定分頁的「連線」子分頁；雲端欄位在這一頁。 */
+    public static final int SETTINGS_CONNECTION_TAB = 0;
+
     // ==================== 分組 1: 設定 ====================
 
     /**
-     * 可捲動的設定頁：雲端連線、程式更新、程式背景、中繼 Proxy，各段有小標題與分割線。
+     * 設定頁的三個子分頁：連線（雲端連線與程式更新）、外觀、中繼。
      * 呼叫端需透過 refs 取得元件引用。
      */
-    public static JScrollPane createServerConfigBody(ServerConfigRefs refs, Font mainFont, Font boldFont, Font fieldFont) {
-        JPanel panel = new JPanel();
-        panel.setOpaque(false);
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setBorder(new EmptyBorder(4, 4, 12, 8));
-
+    public static JTabbedPane createServerConfigBody(ServerConfigRefs refs, Font mainFont, Font boldFont, Font fieldFont) {
         String[] workerOptions = { "company-worker", "company-worker2", "company-worker3", "company-worker4" };
         refs.clientIdCombo = new JComboBox<>(workerOptions);
         refs.clientIdCombo.setEditable(true);
@@ -97,22 +96,39 @@ public class PanelFactory {
         updates.setLayout(new BoxLayout(updates, BoxLayout.Y_AXIS));
         updates.add(formRow(refs.checkForUpdatesCheckBox, refs.autoUpdateCheckBox));
 
-        panel.add(settingsSection("雲端連線", boldFont, cloud));
-        panel.add(settingsSection("程式更新", boldFont, updates));
-        panel.add(settingsSection("程式背景", boldFont, backgroundRow(refs, mainFont, boldFont)));
-        panel.add(settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont)));
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.setFont(UiFonts.chineseBold(13));
+        tabs.setTabLayoutPolicy(JTabbedPane.WRAP_TAB_LAYOUT);
+        tabs.setUI(new BasicTabbedPaneUI());
+        tabs.setOpaque(false);
+        tabs.setBackground(new Color(0, 0, 0, 0));
+        tabs.addTab("連線", settingsPage(
+                settingsSection("雲端連線", boldFont, cloud),
+                settingsSection("程式更新", boldFont, updates)));
+        tabs.addTab("外觀", settingsPage(
+                settingsSection("程式背景", boldFont, backgroundRow(refs, mainFont, boldFont))));
+        tabs.addTab("中繼", settingsPage(
+                settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont))));
+        tabs.setToolTipTextAt(SETTINGS_CONNECTION_TAB, "雲端連線與程式更新");
+        tabs.setToolTipTextAt(1, "程式背景圖、模糊與透明度");
+        tabs.setToolTipTextAt(2, "讓區網內的同事經由這台電腦連到雲端");
+        tabs.setSelectedIndex(SETTINGS_CONNECTION_TAB);
+        return tabs;
+    }
 
-        JPanel top = new JPanel(new BorderLayout());
-        top.setOpaque(false);
-        top.add(panel, BorderLayout.NORTH);
-
-        JScrollPane scroll = new JScrollPane(top);
-        scroll.setBorder(null);
-        scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
-        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        scroll.getVerticalScrollBar().setUnitIncrement(16);
-        return scroll;
+    /** 子分頁內容貼在上方，下方留白，背景圖才透得出來。 */
+    private static JPanel settingsPage(JComponent... sections) {
+        JPanel stack = new JPanel();
+        stack.setOpaque(false);
+        stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
+        stack.setBorder(new EmptyBorder(4, 4, 12, 8));
+        for (JComponent section : sections) {
+            stack.add(section);
+        }
+        JPanel page = new JPanel(new BorderLayout());
+        page.setOpaque(false);
+        page.add(stack, BorderLayout.NORTH);
+        return page;
     }
 
     /** 小標題加一條分割線，下面接該段的控制項。 */
@@ -352,7 +368,7 @@ public class PanelFactory {
 
         refs.openCloudSettingsButton = new JButton("前往設定");
         refs.openCloudSettingsButton.setFont(boldFont);
-        refs.openCloudSettingsButton.setToolTipText("切換至「設定」分頁以啟用連線");
+        refs.openCloudSettingsButton.setToolTipText("切換至「設定」的「連線」子分頁以啟用連線");
         refs.openCloudSettingsButton.setVisible(false);
 
         refs.avatarPreview = new JLabel();
@@ -564,7 +580,7 @@ public class PanelFactory {
         public JPanel avatarRow;
     }
 
-    // ==================== 分組 2: 雙槽位打卡 ====================
+    // ==================== 分組 2: 上班排程 ====================
 
     public static JPanel createSlotPanel(SlotPanelRefs refs, Font mainFont, Font boldFont, Font fieldFont) {
         JPanel root = new JPanel(new GridBagLayout());
@@ -601,19 +617,13 @@ public class PanelFactory {
 
         refs.skipDatesButton = new JButton("跳過日期");
         refs.skipDatesButton.setFont(boldFont);
-        refs.skipDatesButton.setToolTipText("指定日期不打卡；上班與下班共用，時分維持原設定");
+        refs.skipDatesButton.setToolTipText("指定日期不打卡；時分維持原設定");
 
         JPanel skipRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         skipRow.setOpaque(false);
         skipRow.add(refs.skipDatesButton);
 
         refs.workIn = createSlotCard("上班排程", mainFont, boldFont);
-        refs.workOut = createSlotCard("下班排程", mainFont, boldFont);
-
-        JPanel slotRow = new JPanel(new GridLayout(1, 2, 8, 0));
-        slotRow.setOpaque(false);
-        slotRow.add(refs.workIn.panel);
-        slotRow.add(refs.workOut.panel);
 
         GridBagConstraints rootGbc = new GridBagConstraints();
         rootGbc.gridx = 0;
@@ -627,13 +637,13 @@ public class PanelFactory {
         rootGbc.insets = new Insets(0, 0, 4, 0);
         root.add(skipRow, rootGbc);
         rootGbc.gridy = 2;
-        root.add(slotRow, rootGbc);
+        root.add(refs.workIn.panel, rootGbc);
 
         return root;
     }
 
     /**
-     * 打卡歷史簡易列表（最近 5～10 筆），放在雙槽位下方空白區。
+     * 打卡歷史簡易列表（最近 5～10 筆），放在排程卡片下方。
      */
     public static JPanel createCheckInHistoryPanel(
             CheckInHistoryRefs refs, Font mainFont, Font boldFont) {
@@ -772,7 +782,9 @@ public class PanelFactory {
         sgbc.gridx = 6;
         sgbc.weightx = 1.0;
         sgbc.fill = GridBagConstraints.HORIZONTAL;
-        settings.add(new JPanel(), sgbc);
+        JPanel timeSpacer = new JPanel();
+        timeSpacer.setOpaque(false);
+        settings.add(timeSpacer, sgbc);
         sgbc.weightx = 0.0;
         sgbc.fill = GridBagConstraints.NONE;
 
@@ -787,28 +799,25 @@ public class PanelFactory {
         GridBagConstraints mgbc = new GridBagConstraints();
         mgbc.anchor = GridBagConstraints.WEST;
         mgbc.fill = GridBagConstraints.HORIZONTAL;
-        mgbc.insets = new Insets(2, 0, 2, 6);
-        mgbc.weightx = 0.5;
+        mgbc.insets = new Insets(2, 0, 2, 10);
+        mgbc.weightx = 0.25;
         mgbc.gridy = 0;
-        mgbc.gridx = 0;
         mgbc.gridwidth = 1;
+        mgbc.gridx = 0;
         statusGrid.add(createMetricCell("狀態", refs.statusLabel, mainFont), mgbc);
         mgbc.gridx = 1;
         statusGrid.add(createMetricCell("倒數", refs.countdownLabel, mainFont), mgbc);
+        mgbc.gridx = 2;
+        statusGrid.add(createMetricCell("預計觸發", refs.triggerLabel, mainFont), mgbc);
+        mgbc.gridx = 3;
+        mgbc.insets = new Insets(2, 0, 2, 0);
+        statusGrid.add(createMetricCell("結果", refs.resultLabel, mainFont), mgbc);
         mgbc.gridy = 1;
         mgbc.gridx = 0;
-        mgbc.gridwidth = 1;
-        mgbc.weightx = 0.5;
-        statusGrid.add(createMetricCell("預計觸發", refs.triggerLabel, mainFont), mgbc);
-        mgbc.gridx = 1;
-        statusGrid.add(createMetricCell("結果", refs.resultLabel, mainFont), mgbc);
-        mgbc.gridy = 2;
-        mgbc.gridx = 0;
-        mgbc.gridwidth = 2;
+        mgbc.gridwidth = 4;
         mgbc.weightx = 1.0;
+        mgbc.insets = new Insets(2, 0, 2, 0);
         statusGrid.add(createMetricCell("鎖定設定", refs.lockedSettingsLabel, mainFont), mgbc);
-        mgbc.gridwidth = 1;
-        mgbc.weightx = 0.5;
 
         JPanel mainCol = new JPanel(new BorderLayout(0, 4));
         mainCol.setOpaque(false);
@@ -853,7 +862,6 @@ public class PanelFactory {
 
     public static class SlotPanelRefs {
         public SlotCardRefs workIn;
-        public SlotCardRefs workOut;
         public JComboBox<String> urlCombo;
         public JComboBox<String> buttonIdCombo;
         public JComboBox<String> browserCombo;

@@ -11,6 +11,7 @@ import javax.swing.SwingConstants;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
+import javax.swing.plaf.basic.BasicSliderUI;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
@@ -77,8 +78,10 @@ public final class WindowChrome {
         slider.setPaintTicks(false);
         slider.setPaintLabels(false);
         slider.setMajorTickSpacing(20);
-        slider.setPreferredSize(new Dimension(140, 22));
-        slider.setMinimumSize(new Dimension(100, 22));
+        // 不用系統 Aqua 滑桿：它的圓鈕會畫出元件底邊，被標題列裁成只剩一點。
+        slider.setUI(new TitleBarSliderUI(slider));
+        slider.setPreferredSize(new Dimension(140, TitleBarSliderUI.HEIGHT));
+        slider.setMinimumSize(new Dimension(100, TitleBarSliderUI.HEIGHT));
         slider.setToolTipText("向右越透明，方便同時看到後面的畫面。最透明仍保留 40% 不透明度，以免點不到。");
 
         JLabel valueLabel = new JLabel(WindowOpacity.formatPercentLabel(0));
@@ -242,7 +245,8 @@ public final class WindowChrome {
         bar.setBorder(new CompoundBorder(
                 BorderFactory.createMatteBorder(0, 0, 1, 0, BAR_BORDER),
                 new EmptyBorder(4, 8, 4, 4)));
-        bar.setPreferredSize(new Dimension(720, 36));
+        int barHeight = TitleBarSliderUI.HEIGHT + 4 + 4 + 1;
+        bar.setPreferredSize(new Dimension(720, barHeight));
 
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         left.setOpaque(false);
@@ -598,6 +602,67 @@ public final class WindowChrome {
                     return Cursor.getPredefinedCursor(Cursor.SE_RESIZE_CURSOR);
                 default:
                     return Cursor.getDefaultCursor();
+            }
+        }
+    }
+
+    /**
+     * 標題列用的細滑桿。圓鈕完全畫在元件裡面，不會被標題列底邊裁掉。
+     */
+    private static final class TitleBarSliderUI extends BasicSliderUI {
+        static final int HEIGHT = 26;
+        private static final int THUMB = 16;
+
+        TitleBarSliderUI(JSlider slider) {
+            super(slider);
+        }
+
+        @Override
+        protected Dimension getThumbSize() {
+            return new Dimension(THUMB, THUMB);
+        }
+
+        @Override
+        public void paintFocus(Graphics g) {
+        }
+
+        @Override
+        public void paintTrack(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int cy = thumbRect.y + thumbRect.height / 2;
+                int trackH = 4;
+                int y = cy - trackH / 2;
+                int x = trackRect.x;
+                int w = Math.max(0, trackRect.width);
+                g2.setColor(new Color(203, 213, 225));
+                g2.fillRoundRect(x, y, w, trackH, trackH, trackH);
+                int filled = thumbRect.x + thumbRect.width / 2 - x;
+                if (filled > 0 && w > 0) {
+                    g2.setColor(new Color(100, 116, 139));
+                    g2.fillRoundRect(x, y, Math.min(filled, w), trackH, trackH, trackH);
+                }
+            } finally {
+                g2.dispose();
+            }
+        }
+
+        @Override
+        public void paintThumb(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                int size = Math.min(thumbRect.width, thumbRect.height) - 1;
+                int x = thumbRect.x;
+                int y = thumbRect.y;
+                g2.setColor(Color.WHITE);
+                g2.fillOval(x, y, size, size);
+                g2.setColor(new Color(71, 85, 105));
+                g2.setStroke(new BasicStroke(1.4f));
+                g2.drawOval(x, y, size, size);
+            } finally {
+                g2.dispose();
             }
         }
     }

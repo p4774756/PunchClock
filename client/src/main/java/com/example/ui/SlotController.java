@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * 上班 / 下班雙槽位排程控制器。
+ * 上班排程控制器。
  */
 public class SlotController {
 
@@ -74,7 +74,6 @@ public class SlotController {
 
     public void bindUi() {
         bindSlotCard(slotRefs.workIn, WorkSlot.Kind.WORK_IN);
-        bindSlotCard(slotRefs.workOut, WorkSlot.Kind.WORK_OUT);
         bindSharedSettingsListeners();
         slotRefs.executeNowButton.addActionListener(e -> executeNowShared());
         slotRefs.skipDatesButton.addActionListener(e -> editSkipDates());
@@ -91,7 +90,6 @@ public class SlotController {
         try {
             config = loaded;
             applySlotToUi(slotRefs.workIn, config.workIn);
-            applySlotToUi(slotRefs.workOut, config.workOut);
             RecentValuesHelper.applyHistory(slotRefs.urlCombo, config.recentTargetUrls, config.targetUrl);
             RecentValuesHelper.applyHistory(slotRefs.buttonIdCombo, config.recentButtonIds, config.buttonId);
             slotRefs.browserCombo.setSelectedItem(config.browserChoice);
@@ -114,7 +112,6 @@ public class SlotController {
 
     public CloudConfig readConfigFromUi() {
         readSlotFromUi(slotRefs.workIn, config.workIn);
-        readSlotFromUi(slotRefs.workOut, config.workOut);
         config.targetUrl = RecentValuesHelper.getValue(slotRefs.urlCombo);
         config.buttonId = RecentValuesHelper.getValue(slotRefs.buttonIdCombo);
         Object browser = slotRefs.browserCombo.getSelectedItem();
@@ -140,59 +137,43 @@ public class SlotController {
         schedulerService.removeAllTasks();
 
         CheckInTask workIn = findOrMigrate(loaded, WorkSlot.Kind.WORK_IN);
-        CheckInTask workOut = findOrMigrate(loaded, WorkSlot.Kind.WORK_OUT);
-
         schedulerService.addTaskRecord(workIn);
-        schedulerService.addTaskRecord(workOut);
 
         readConfigFromUi();
-        for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
-            SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
-            if (slot.enabled && !isSharedSettingsReady()) {
-                slot.enabled = false;
-                applySlotToUi(refsFor(kind), slot);
-                appendLog.accept(String.format(
-                        "[警告] 【%s】目標網址或 Selector 未設定，已取消「啟用」", kind.displayName));
-            }
+        if (!isSharedSettingsReady() && config.workIn.enabled) {
+            config.workIn.enabled = false;
+            applySlotToUi(slotRefs.workIn, config.workIn);
+            appendLog.accept("[警告] 【上班排程】目標網址或 Selector 未設定，已取消「啟用」");
         }
         saveConfig();
 
         // 程式關閉／重啟（含更新重啟）期間錯過的排程：載入時被標成「已過期取消」，
         // 槽位仍啟用就排到下一個時間，否則整個槽位會從此不再排程。錯過的那次不補打。
-        for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
-            SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
-            CheckInTask expired = schedulerService.getTask(kind.id);
-            if (slot.enabled && SlotScheduleHelper.isExpiredOnRestart(expired)) {
-                String missed = expired.getActualTriggerTime() != null
-                        ? expired.getActualTriggerTime().format(
-                                java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm"))
-                        : "未知時間";
-                expired.setStatus(TaskStatus.PENDING);
-                expired.setResultMessage("");
-                appendLog.accept(String.format(
-                        "[排程] 【%s】程式重啟時錯過了原定的 %s，不補打，改排下一次", kind.displayName, missed));
-            }
+        SlotSettings slot = config.workIn;
+        CheckInTask expired = schedulerService.getTask(WorkSlot.Kind.WORK_IN.id);
+        if (slot.enabled && SlotScheduleHelper.isExpiredOnRestart(expired)) {
+            String missed = expired.getActualTriggerTime() != null
+                    ? expired.getActualTriggerTime().format(
+                            java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm"))
+                    : "未知時間";
+            expired.setStatus(TaskStatus.PENDING);
+            expired.setResultMessage("");
+            appendLog.accept(String.format(
+                    "[排程] 【上班排程】程式重啟時錯過了原定的 %s，不補打，改排下一次", missed));
         }
 
-        int scheduled = 0;
-        for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
-            if (scheduleSlot(kind, false)) {
-                scheduled++;
-            }
+        if (scheduleSlot(WorkSlot.Kind.WORK_IN, false)) {
+            appendLog.accept("[成功] 已排程上班任務");
         }
-        if (scheduled > 0) {
-            appendLog.accept(String.format("[成功] 已排程 %d 個任務槽位", scheduled));
-        }
-        for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
-            CheckInTask t = schedulerService.getTask(kind.id);
-            if (t == null) continue;
-            if (t.getStatus() == TaskStatus.SCHEDULED) {
-                appendLog.accept(String.format("[排程] 【%s】下次觸發：%s", kind.displayName, t.getFormattedActualTime()));
+        CheckInTask scheduledTask = schedulerService.getTask(WorkSlot.Kind.WORK_IN.id);
+        if (scheduledTask != null) {
+            if (scheduledTask.getStatus() == TaskStatus.SCHEDULED) {
+                appendLog.accept(String.format("[排程] 【上班排程】下次觸發：%s", scheduledTask.getFormattedActualTime()));
             } else {
-                String extra = t.getResultMessage() != null && !t.getResultMessage().isBlank()
-                        ? "（" + t.getResultMessage() + "）" : "";
-                appendLog.accept(String.format("[資訊] 【%s】目前狀態：%s%s",
-                        kind.displayName, t.getStatus().getDisplayName(), extra));
+                String extra = scheduledTask.getResultMessage() != null && !scheduledTask.getResultMessage().isBlank()
+                        ? "（" + scheduledTask.getResultMessage() + "）" : "";
+                appendLog.accept(String.format("[資訊] 【上班排程】目前狀態：%s%s",
+                        scheduledTask.getStatus().getDisplayName(), extra));
             }
         }
         refreshSlotCards();
@@ -204,7 +185,6 @@ public class SlotController {
             pruneExpiredSkipDates();
             refreshSkipDatesButton();
             refreshCard(slotRefs.workIn, WorkSlot.Kind.WORK_IN);
-            refreshCard(slotRefs.workOut, WorkSlot.Kind.WORK_OUT);
         });
     }
 
@@ -245,12 +225,11 @@ public class SlotController {
     }
 
     /**
-     * 網頁後台取消全部任務：停止所有計時並取消兩槽位的「啟用」。
+     * 網頁後台取消全部任務：停止計時並取消上班排程的「啟用」。
      */
     public void handleRemoteCancelAll() {
         schedulerService.cancelAllTasks("網頁後台遠端取消全部任務");
         disableSlotInUi(WorkSlot.Kind.WORK_IN);
-        disableSlotInUi(WorkSlot.Kind.WORK_OUT);
         onSlotStateChanged.run();
         appendLog.accept("[取消] 【遠端指令】收到網頁後台【取消全部任務】，已停止所有等待中的排程，並取消「啟用」。");
         heartbeatService.sendHeartbeat(appendLog, null);
@@ -265,6 +244,10 @@ public class SlotController {
         SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
         slot.enabled = enabled;
         PanelFactory.SlotCardRefs refs = refsFor(kind);
+        if (refs == null) {
+            configPersistenceService.saveConfig(config, appendLog);
+            return;
+        }
         java.awt.event.ActionListener[] listeners = refs.enabledCheckBox.getActionListeners();
         for (java.awt.event.ActionListener listener : listeners) {
             refs.enabledCheckBox.removeActionListener(listener);
@@ -282,7 +265,10 @@ public class SlotController {
     }
 
     private PanelFactory.SlotCardRefs refsFor(WorkSlot.Kind kind) {
-        return kind == WorkSlot.Kind.WORK_IN ? slotRefs.workIn : slotRefs.workOut;
+        if (kind == WorkSlot.Kind.WORK_IN) {
+            return slotRefs.workIn;
+        }
+        return null;
     }
 
     private void bindSlotCard(PanelFactory.SlotCardRefs refs, WorkSlot.Kind kind) {
@@ -440,14 +426,9 @@ public class SlotController {
     public void scheduleAllEnabledSlots(boolean logSummary) {
         readConfigFromUi();
         saveConfig();
-        int scheduled = 0;
-        for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
-            if (scheduleSlot(kind, true)) {
-                scheduled++;
-            }
-        }
+        boolean scheduled = scheduleSlot(WorkSlot.Kind.WORK_IN, true);
         if (logSummary) {
-            appendLog.accept(String.format("[排程] 已更新排程：%d 個槽位啟用中", scheduled));
+            appendLog.accept(scheduled ? "[排程] 上班排程啟用中" : "[排程] 上班排程未啟用");
         }
         refreshSlotCards();
         persistTasks();
@@ -464,6 +445,9 @@ public class SlotController {
 
     private boolean scheduleSlot(
             WorkSlot.Kind kind, boolean logChanges, boolean skipRemainingTodayWindow, boolean forceRecompute) {
+        if (kind != WorkSlot.Kind.WORK_IN) {
+            return false;
+        }
         SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
         CheckInTask task = schedulerService.getTask(kind.id);
         if (task == null) {
@@ -585,23 +569,18 @@ public class SlotController {
         refreshSkipDatesButton();
 
         int updated = 0;
-        for (WorkSlot.Kind kind : WorkSlot.Kind.values()) {
-            SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
-            if (!slot.enabled) {
-                continue;
-            }
+        WorkSlot.Kind kind = WorkSlot.Kind.WORK_IN;
+        SlotSettings slot = config.workIn;
+        if (slot.enabled) {
             CheckInTask task = schedulerService.getTask(kind.id);
-            if (task != null && (task.getStatus() == TaskStatus.CANCELLED
-                    || task.getStatus() == TaskStatus.CHECKING_IN)) {
-                continue;
-            }
+            boolean skip = task != null && (task.getStatus() == TaskStatus.CANCELLED
+                    || task.getStatus() == TaskStatus.CHECKING_IN);
             LocalDateTime next = nextSlotTime(slot.hour, slot.minute, LocalDateTime.now());
-            if (task != null && task.getStatus() == TaskStatus.SCHEDULED && task.getActualTriggerTime() != null
+            boolean already = task != null && task.getStatus() == TaskStatus.SCHEDULED
+                    && task.getActualTriggerTime() != null
                     && task.getActualTriggerTime().isAfter(LocalDateTime.now())
-                    && task.getActualTriggerTime().toLocalDate().equals(next.toLocalDate())) {
-                continue;
-            }
-            if (scheduleSlot(kind, true, false, true)) {
+                    && task.getActualTriggerTime().toLocalDate().equals(next.toLocalDate());
+            if (!skip && !already && scheduleSlot(kind, true, false, true)) {
                 updated++;
             }
         }
@@ -641,11 +620,7 @@ public class SlotController {
             refreshSharedSettingsActions();
             return;
         }
-        // 共用設定執行一次即可；結果寫入目前啟用中的槽位（優先上班）
-        WorkSlot.Kind kind = config.workIn.enabled
-                ? WorkSlot.Kind.WORK_IN
-                : (config.workOut.enabled ? WorkSlot.Kind.WORK_OUT : WorkSlot.Kind.WORK_IN);
-        executeNow(kind);
+        executeNow(WorkSlot.Kind.WORK_IN);
     }
 
     private void executeNow(WorkSlot.Kind kind) {

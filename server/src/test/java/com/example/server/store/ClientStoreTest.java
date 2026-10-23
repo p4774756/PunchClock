@@ -145,6 +145,15 @@ public class ClientStoreTest {
     }
 
     @Test
+    public void peerMessageAcceptsSeveralImagesInOneField() {
+        assertTrue(store.queuePeerMessage("b", "a", "兩張", null, "imgA,imgB").ok);
+        String[] parts = store.drainPendingActions(store.getOrCreateClient("b")).get(0).split("\\|", 6);
+        assertEquals("imgA,imgB", parts[5]);
+        assertFalse(store.queuePeerMessage("b", "a", "hi", null, "imgA,,imgB").ok);
+        assertFalse(store.queuePeerMessage("b", "a", "hi", null, "A,B,C,D,E,F,G").ok);
+    }
+
+    @Test
     public void peerMessageRejectsBadOrOversizedImage() {
         assertFalse(store.queuePeerMessage("b", "a", "hi", null, "has/slash").ok);
         String tooBig = "A".repeat(ClientStore.PEER_IMAGE_MAX_CHARS + 1);

@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 編輯上班／下班共用的跳過日期。取消時回傳 null。
+ * 編輯不上班打卡的日期。取消時回傳 null。
  * <p>
  * 日期用年月日下拉，不用 LGoodDatePicker。Mac 上那個月曆彈出層會疊字，
  * 日期欄也會畫成「年 月9日」。
@@ -38,7 +38,7 @@ public class SkipDatesDialog extends JDialog {
         Font fieldFont = UiFonts.latinPlain(13);
         LocalDate today = LocalDate.now();
 
-        JLabel hint = new JLabel("這些日期不打卡，上班與下班一起跳過。時分維持原設定。");
+        JLabel hint = new JLabel("這些日期不打卡。時分維持原設定。");
         hint.setFont(font);
         hint.setBorder(new EmptyBorder(8, 12, 0, 12));
         add(hint, BorderLayout.NORTH);

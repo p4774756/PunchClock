@@ -1,5 +1,6 @@
 package com.example.ui;
 
+import com.example.ChatProtocol;
 import com.example.PeerFileRules;
 import com.example.service.PeerAvatar;
 import com.example.service.PeerChatStore;
@@ -29,7 +30,9 @@ import javax.swing.text.DefaultEditorKit;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.awt.Image;
 import java.awt.Toolkit;
@@ -38,16 +41,20 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
 /**
  * 和單一同事的小聊天視窗：對話紀錄（只存記憶體）、輸入框（Enter 送出、Shift+Enter 換行）、
- * 附圖／貼上圖片、戳一下、傳檔案。
+ * 附圖（Ctrl+V／⌘V 可貼多張）、戳一下、傳檔案。
  */
 public class PeerChatWindow extends JFrame {
 
@@ -77,16 +84,15 @@ public class PeerChatWindow extends JFrame {
     private final JButton pokeButton;
     private final JButton fileButton;
     private final JButton attachButton;
-    private final JButton pasteButton;
     private final JButton clearImageButton;
-    private final JLabel imageThumb;
+    private final JPanel imageThumbs;
     private final JLabel imageLabel;
     private final JLabel statusLabel;
     private final JLabel nameLabel;
     private final JLabel avatarLabel;
     private final JPanel imageRow;
 
-    private String attachedImage = "";
+    private final List<String> attachedImages = new ArrayList<>();
     private boolean interactionEnabled = true;
     private boolean fileBusy;
     private boolean sending;
@@ -147,18 +153,18 @@ public class PeerChatWindow extends JFrame {
         transcriptScroll.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, new Color(203, 213, 225)));
 
         // 下方：附圖列、輸入框、按鈕
-        imageThumb = new JLabel();
-        imageThumb.setHorizontalAlignment(SwingConstants.CENTER);
-        imageThumb.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
+        imageThumbs = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        imageThumbs.setOpaque(false);
         imageLabel = new JLabel();
         imageLabel.setFont(plain);
         imageLabel.setForeground(new Color(100, 116, 139));
         clearImageButton = new JButton("移除圖片");
         clearImageButton.setFont(plain);
-        clearImageButton.addActionListener(e -> setAttachedImage("", null));
+        clearImageButton.setToolTipText("拿掉這則訊息已附的全部圖片");
+        clearImageButton.addActionListener(e -> clearAttachedImages());
         imageRow = new JPanel(new BorderLayout(8, 0));
         imageRow.setBorder(new EmptyBorder(6, 12, 0, 12));
-        imageRow.add(imageThumb, BorderLayout.WEST);
+        imageRow.add(imageThumbs, BorderLayout.WEST);
         imageRow.add(imageLabel, BorderLayout.CENTER);
         imageRow.add(clearImageButton, BorderLayout.EAST);
         imageRow.setVisible(false);
@@ -175,8 +181,16 @@ public class PeerChatWindow extends JFrame {
                     g2.setColor(new Color(148, 163, 184));
                     g2.setFont(getFont());
                     java.awt.Insets in = getInsets();
-                    g2.drawString("Enter 送出，Shift+Enter 換行",
-                            in.left, in.top + g2.getFontMetrics().getAscent());
+                    String[] hint = {
+                            "Enter 送出，Shift+Enter 換行",
+                            "Ctrl+V 或 ⌘V 貼上圖片，可多張"
+                    };
+                    int y = in.top + g2.getFontMetrics().getAscent();
+                    int line = g2.getFontMetrics().getHeight();
+                    for (String lineText : hint) {
+                        g2.drawString(lineText, in.left, y);
+                        y += line;
+                    }
                     g2.dispose();
                 }
             }
@@ -184,7 +198,8 @@ public class PeerChatWindow extends JFrame {
         input.setFont(plain);
         input.setLineWrap(true);
         input.setWrapStyleWord(true);
-        input.setToolTipText("Enter 送出，Shift+Enter 換行；可直接貼上截圖（最多 " + MAX_TEXT_CHARS + " 字）");
+        input.setToolTipText("Enter 送出，Shift+Enter 換行；Ctrl+V 或 ⌘V 可貼多張截圖（最多 "
+                + MAX_TEXT_CHARS + " 字，一則最多 " + ChatProtocol.MAX_PEER_IMAGES + " 張）");
         bindInputKeys();
         JScrollPane inputScroll = new JScrollPane(input,
                 ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
@@ -193,12 +208,8 @@ public class PeerChatWindow extends JFrame {
 
         attachButton = new JButton("附加圖片");
         attachButton.setFont(plain);
-        attachButton.setToolTipText("選一張圖片，和文字一起傳給對方（會自動縮小壓縮）");
+        attachButton.setToolTipText("選一張或多張圖片，和文字一起傳給對方（會自動縮小壓縮）");
         attachButton.addActionListener(e -> chooseImage());
-        pasteButton = new JButton("貼上圖片");
-        pasteButton.setFont(plain);
-        pasteButton.setToolTipText("貼上剪貼簿裡的截圖或圖片");
-        pasteButton.addActionListener(e -> pasteImageFromClipboard(true));
         pokeButton = new JButton("戳一下");
         pokeButton.setFont(plain);
         pokeButton.setToolTipText("對方桌面端會鳴叫、視窗晃動（約 15 秒內隨心跳送達）");
@@ -212,10 +223,9 @@ public class PeerChatWindow extends JFrame {
         sendButton.addActionListener(e -> send());
 
         // GridLayout：視窗再窄按鈕也只會一起變窄，不會像 FlowLayout 那樣把最後一顆換行後被裁掉
-        JPanel tools = new JPanel(new GridLayout(1, 4, 6, 0));
+        JPanel tools = new JPanel(new GridLayout(1, 3, 6, 0));
         tools.setOpaque(false);
         tools.add(attachButton);
-        tools.add(pasteButton);
         tools.add(pokeButton);
         tools.add(fileButton);
         JPanel buttons = new JPanel(new BorderLayout(8, 0));
@@ -256,7 +266,7 @@ public class PeerChatWindow extends JFrame {
             }
         });
 
-        setAttachedImage("", null);
+        clearAttachedImages();
         refreshEnabled();
         refreshStatus();
     }
@@ -339,8 +349,7 @@ public class PeerChatWindow extends JFrame {
         sendButton.setEnabled(canType && !sending);
         boolean extras = canType && !textOnly;
         attachButton.setEnabled(extras);
-        pasteButton.setEnabled(extras);
-        clearImageButton.setEnabled(extras && !attachedImage.isEmpty());
+        clearImageButton.setEnabled(extras && !attachedImages.isEmpty());
         pokeButton.setEnabled(extras);
         fileButton.setEnabled(extras && !fileBusy);
     }
@@ -350,6 +359,10 @@ public class PeerChatWindow extends JFrame {
         javax.swing.ActionMap actionMap = input.getActionMap();
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "sendChatMessage");
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, InputEvent.SHIFT_DOWN_MASK), "insert-break");
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.CTRL_DOWN_MASK),
+                DefaultEditorKit.pasteAction);
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.META_DOWN_MASK),
+                DefaultEditorKit.pasteAction);
         actionMap.put("sendChatMessage", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -362,7 +375,7 @@ public class PeerChatWindow extends JFrame {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (clipboardHasImageOnly()) {
-                    pasteImageFromClipboard(false);
+                    pasteImageFromClipboard();
                 } else if (defaultPaste != null) {
                     defaultPaste.actionPerformed(e);
                 }
@@ -375,7 +388,7 @@ public class PeerChatWindow extends JFrame {
             return;
         }
         String text = input.getText().trim();
-        if (text.isEmpty() && attachedImage.isEmpty()) {
+        if (text.isEmpty() && attachedImages.isEmpty()) {
             return;
         }
         if (text.length() > MAX_TEXT_CHARS) {
@@ -385,12 +398,12 @@ public class PeerChatWindow extends JFrame {
         }
         sending = true;
         refreshEnabled();
-        String image = attachedImage;
+        String image = ChatProtocol.joinPeerImages(attachedImages);
         host.sendMessage(peerId, text, image, ok -> SwingUtilities.invokeLater(() -> {
             sending = false;
             if (ok) {
                 input.setText("");
-                setAttachedImage("", null);
+                clearAttachedImages();
             }
             refreshEnabled();
             input.requestFocusInWindow();
@@ -401,14 +414,68 @@ public class PeerChatWindow extends JFrame {
 
     private void chooseImage() {
         JFileChooser chooser = UiFonts.fileChooser();
-        chooser.setDialogTitle("選擇要附加的圖片");
+        chooser.setDialogTitle("選擇要附加的圖片（可多選）");
+        chooser.setMultiSelectionEnabled(true);
         chooser.setFileFilter(new FileNameExtensionFilter(
                 "圖片檔 (JPG / PNG / GIF)", "jpg", "jpeg", "png", "gif"));
-        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
             return;
         }
-        Path file = chooser.getSelectedFile().toPath();
-        encodeAsync(() -> PeerImage.encodeFile(file), file.getFileName().toString());
+        File[] picked = chooser.getSelectedFiles();
+        if (picked == null || picked.length == 0) {
+            if (chooser.getSelectedFile() == null) {
+                return;
+            }
+            picked = new File[]{chooser.getSelectedFile()};
+        }
+        List<Path> files = new ArrayList<>();
+        for (File file : picked) {
+            if (file != null) {
+                files.add(file.toPath());
+            }
+        }
+        if (files.isEmpty()) {
+            return;
+        }
+        new SwingWorker<List<EncodedPick>, Void>() {
+            @Override
+            protected List<EncodedPick> doInBackground() {
+                List<EncodedPick> encoded = new ArrayList<>();
+                for (Path file : files) {
+                    String name = file.getFileName() == null ? "圖片" : file.getFileName().toString();
+                    try {
+                        encoded.add(new EncodedPick(PeerImage.encodeFile(file), name, null));
+                    } catch (Exception ex) {
+                        encoded.add(new EncodedPick(null, name, ex.getMessage()));
+                    }
+                }
+                return encoded;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    StringBuilder problems = new StringBuilder();
+                    for (EncodedPick item : get()) {
+                        if (item.error != null) {
+                            problems.append(item.label).append("：").append(item.error).append('\n');
+                            continue;
+                        }
+                        String reject = addAttachedImage(item.encoded);
+                        if (reject != null) {
+                            problems.append(item.label).append("：").append(reject).append('\n');
+                        }
+                    }
+                    if (problems.length() > 0) {
+                        UiFonts.showWarning(PeerChatWindow.this, problems.toString().trim(), "附加圖片");
+                    }
+                } catch (Exception ex) {
+                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                    UiFonts.showWarning(PeerChatWindow.this,
+                            "無法使用這些圖片：" + cause.getMessage(), "附加圖片");
+                }
+            }
+        }.execute();
     }
 
     private boolean clipboardHasImageOnly() {
@@ -421,7 +488,7 @@ public class PeerChatWindow extends JFrame {
         }
     }
 
-    private void pasteImageFromClipboard(boolean warnWhenMissing) {
+    private void pasteImageFromClipboard() {
         Image pasted = null;
         try {
             Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
@@ -435,9 +502,6 @@ public class PeerChatWindow extends JFrame {
             // 讀不到就當作沒有圖片
         }
         if (pasted == null) {
-            if (warnWhenMissing) {
-                UiFonts.showWarning(this, "剪貼簿裡沒有圖片，請先複製截圖或圖片。", "貼上圖片");
-            }
             return;
         }
         Image source = pasted;
@@ -458,7 +522,10 @@ public class PeerChatWindow extends JFrame {
             @Override
             protected void done() {
                 try {
-                    setAttachedImage(get(), label);
+                    String reject = addAttachedImage(get());
+                    if (reject != null) {
+                        UiFonts.showWarning(PeerChatWindow.this, label + "：" + reject, "附加圖片");
+                    }
                 } catch (Exception ex) {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                     UiFonts.showWarning(PeerChatWindow.this,
@@ -468,23 +535,71 @@ public class PeerChatWindow extends JFrame {
         }.execute();
     }
 
-    private void setAttachedImage(String encoded, String label) {
-        attachedImage = encoded == null ? "" : encoded;
-        boolean has = !attachedImage.isEmpty();
-        BufferedImage thumb = has ? PeerImage.decodeThumbnail(attachedImage, 48) : null;
-        imageThumb.setIcon(thumb == null ? null : new ImageIcon(thumb));
-        imageLabel.setText(has
-                ? "已附圖片：" + label + "（約 " + PeerFileRules.formatSize(attachedImage.length() * 3L / 4L) + "）"
-                : "");
-        imageLabel.setToolTipText(has ? imageLabel.getText() : null);
-        imageRow.setVisible(has);
-        clearImageButton.setEnabled(has && interactionEnabled && !readOnly);
-        revalidate();
-        repaint();
+    /** 附上一張。成功回傳 null，放不下時回傳原因。 */
+    private String addAttachedImage(String encoded) {
+        String reject = ChatProtocol.rejectExtraPeerImage(attachedImages, encoded);
+        if (reject != null) {
+            return reject;
+        }
+        attachedImages.add(encoded);
+        refreshAttachedImages();
+        return null;
     }
 
-    /** 測試與診斷用：目前附的圖片（Base64 URL），沒有是空字串。 */
+    private void clearAttachedImages() {
+        attachedImages.clear();
+        refreshAttachedImages();
+    }
+
+    private void refreshAttachedImages() {
+        imageThumbs.removeAll();
+        long bytes = 0;
+        for (String encoded : attachedImages) {
+            bytes += encoded.length() * 3L / 4L;
+            JLabel thumb = new JLabel();
+            thumb.setHorizontalAlignment(SwingConstants.CENTER);
+            thumb.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
+            thumb.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            thumb.setToolTipText("點一下移除此圖");
+            BufferedImage preview = PeerImage.decodeThumbnail(encoded, 48);
+            if (preview != null) {
+                thumb.setIcon(new ImageIcon(preview));
+            }
+            thumb.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    attachedImages.remove(encoded);
+                    refreshAttachedImages();
+                }
+            });
+            imageThumbs.add(thumb);
+        }
+        boolean has = !attachedImages.isEmpty();
+        String summary = has
+                ? "已附 " + attachedImages.size() + " 張圖片（約 " + PeerFileRules.formatSize(bytes) + "）"
+                : "";
+        imageLabel.setText(summary);
+        imageLabel.setToolTipText(has ? summary : null);
+        imageRow.setVisible(has);
+        clearImageButton.setEnabled(has && interactionEnabled && !readOnly && !textOnly);
+        imageRow.revalidate();
+        imageRow.repaint();
+    }
+
+    /** 測試與診斷用：目前附的圖片（多張以逗號串起），沒有是空字串。 */
     String attachedImage() {
-        return attachedImage;
+        return ChatProtocol.joinPeerImages(attachedImages);
+    }
+
+    private static final class EncodedPick {
+        final String encoded;
+        final String label;
+        final String error;
+
+        EncodedPick(String encoded, String label, String error) {
+            this.encoded = encoded;
+            this.label = label;
+            this.error = error;
+        }
     }
 }

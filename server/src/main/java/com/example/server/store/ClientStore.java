@@ -1,5 +1,6 @@
 package com.example.server.store;
 
+import com.example.ChatProtocol;
 import com.example.PeerFileRules;
 import com.google.gson.Gson;
 
@@ -25,8 +26,8 @@ public final class ClientStore {
     public static final long PENDING_ACTION_TTL_MS = 30_000L;
     private static final int EVENT_LOG_MAX = 50;
     private static final int PEER_MESSAGE_MAX_LEN = 10_000;
-    /** 訊息附圖（Base64 URL）字元上限，約 0.9 MB 的 JPEG */
-    public static final int PEER_IMAGE_MAX_CHARS = 1_200_000;
+    /** 一則訊息全部附圖的 Base64 字元上限（含分隔逗號），約 0.9 MB 的 JPEG */
+    public static final int PEER_IMAGE_MAX_CHARS = ChatProtocol.MAX_PEER_IMAGE_CHARS;
     /** 管理後台傳訊息時的寄件者 ID（不建立假裝置） */
     public static final String ADMIN_FROM_ID = "後台";
 
@@ -165,7 +166,7 @@ public final class ClientStore {
     }
 
     /**
-     * @param image Base64 URL 編碼的 JPEG；有圖時文字可為空
+     * @param image Base64 URL 編碼的 JPEG；多張以逗號串起。有圖時文字可為空
      */
     public PeerResult queuePeerMessage(
             String toClientId, String fromClientId, String text, String avatar, String image) {
@@ -575,7 +576,7 @@ public final class ClientStore {
                 + "|" + (avatar == null ? "" : avatar) + "|" + image;
     }
 
-    /** 訊息圖片只接受 Base64 URL 字元且不超過 {@link #PEER_IMAGE_MAX_CHARS}；不合格回傳空字串。 */
+    /** 一則訊息的圖片欄位：單張或多張（逗號分隔）皆可。不合格回傳空字串。 */
     public static String sanitizeImage(Object raw) {
         if (raw == null) {
             return "";
@@ -584,15 +585,8 @@ public final class ClientStore {
         if (value.isEmpty() || value.length() > PEER_IMAGE_MAX_CHARS) {
             return "";
         }
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            boolean ok = (c >= 'A' && c <= 'Z')
-                    || (c >= 'a' && c <= 'z')
-                    || (c >= '0' && c <= '9')
-                    || c == '-' || c == '_';
-            if (!ok) {
-                return "";
-            }
+        if (ChatProtocol.splitPeerImages(value) == null) {
+            return "";
         }
         return value;
     }

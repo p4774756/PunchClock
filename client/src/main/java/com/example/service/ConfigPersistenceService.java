@@ -51,12 +51,13 @@ public class ConfigPersistenceService {
         public String browserChoice = TaskEditDialog.BROWSER_OPTIONS[0];
         public boolean weekdaysOnly = true;
         /**
-         * 上班／下班共用的跳過日期（yyyy-MM-dd）。這些日子不排程，時分維持原設定。
+         * 不上班打卡的日期（yyyy-MM-dd）。這些日子不排程，時分維持原設定。
          * 早於今天的日期會在載入或重算時清掉。
          */
         public List<String> skipDates = new ArrayList<>();
 
         public SlotSettings workIn = defaultWorkIn();
+        /** 舊版下班排程。介面已移除，載入時會關掉，避免背景繼續打卡。 */
         public SlotSettings workOut = defaultWorkOut();
 
         /** 視窗位置與大小（0 或負值表示使用預設） */
@@ -220,6 +221,7 @@ public class ConfigPersistenceService {
         }
         normalizeSlot(config.workIn, defaultWorkIn());
         normalizeSlot(config.workOut, defaultWorkOut());
+        config.workOut.enabled = false;
         config.windowTransparencyPercent = clampWindowTransparencyPercent(config.windowTransparencyPercent);
         config.backgroundBlurPercent = WindowBackground.clampBlurPercent(config.backgroundBlurPercent);
         config.backgroundOpacityPercent = WindowBackground.clampOpacityPercent(config.backgroundOpacityPercent);

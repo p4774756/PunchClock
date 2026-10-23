@@ -33,6 +33,11 @@ final class PeerMessageClient {
     void sendPeerMessage(String toClientId, String text, String imageEncoded,
                                 Consumer<String> logger, Consumer<Boolean> callback) {
         boolean hasImage = imageEncoded != null && !imageEncoded.isBlank();
+        int imageCount = 0;
+        if (hasImage) {
+            java.util.List<String> images = ChatProtocol.splitPeerImages(imageEncoded);
+            imageCount = images == null ? 1 : images.size();
+        }
         if (!endpoint.active() || endpoint.url().isBlank()) {
             endpoint.log(logger, "[警告] [戳] 雲端未連線，無法傳送訊息");
             if (callback != null) callback.accept(false);
@@ -61,7 +66,8 @@ final class PeerMessageClient {
             payload.put("image", imageEncoded.trim());
         }
         postPeerApi("/api/peer/message", payload, logger, callback,
-                (hasImage ? "圖片訊息給【" : "訊息給【") + toClientId.trim() + "】：" + (trimmed.isEmpty() ? "（僅圖片）" : trimmed));
+                (imageCount > 1 ? imageCount + " 張圖片給【" : hasImage ? "圖片訊息給【" : "訊息給【")
+                        + toClientId.trim() + "】：" + (trimmed.isEmpty() ? "（僅圖片）" : trimmed));
     }
 
     /** 傳文字給後台私訊或已加入的群組。 */

@@ -50,7 +50,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * 圖形介面主視窗 - 上班 / 下班雙槽位打卡
+ * 圖形介面主視窗 - 上班排程打卡
  */
 public class App extends JFrame {
 
@@ -266,11 +266,11 @@ public class App extends JFrame {
         tasksTab.add(slotPanel, BorderLayout.NORTH);
         tasksTab.add(historyPanel, BorderLayout.CENTER);
 
-        JScrollPane settingsBody = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont, fieldFont);
+        JTabbedPane settingsTabs = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont, fieldFont);
         JPanel settingsTab = new JPanel(new BorderLayout());
         settingsTab.setOpaque(false);
         settingsTab.setBorder(new EmptyBorder(4, 4, 4, 4));
-        settingsTab.add(settingsBody, BorderLayout.CENTER);
+        settingsTab.add(settingsTabs, BorderLayout.CENTER);
 
         JPanel peerBody = PanelFactory.createPeerInteractionPanel(peerRefs, mainFont, boldFont);
         JPanel peerGroup = PanelFactory.createGroupPanel(PanelFactory.PEER_TAB_LABEL, boldFont);
@@ -279,6 +279,7 @@ public class App extends JFrame {
         bindPeerInteractionListeners();
         if (peerRefs.openCloudSettingsButton != null) {
             peerRefs.openCloudSettingsButton.addActionListener(e -> {
+                settingsTabs.setSelectedIndex(PanelFactory.SETTINGS_CONNECTION_TAB);
                 if (mainTabs != null) {
                     mainTabs.setSelectedIndex(1);
                 }
@@ -1104,7 +1105,10 @@ public class App extends JFrame {
     private void showPeerImageMessage(String fromId, String text, String imageEncoded, Long sentAtMs, String avatar) {
         String timeLabel = formatPeerMessageTime(sentAtMs);
         String safeText = text == null ? "" : text;
-        appendLog("[訊息] 【戳】（" + timeLabel + "）來自【" + fromId + "】（含圖片）："
+        java.util.List<String> images = ChatProtocol.splitPeerImages(imageEncoded);
+        int count = images == null ? 1 : images.size();
+        appendLog("[訊息] 【戳】（" + timeLabel + "）來自【" + fromId + "】（含"
+                + (count > 1 ? " " + count + " 張圖片" : "圖片") + "）："
                 + (safeText.isEmpty() ? "（僅圖片）" : safeText));
         receiveChatMessage(fromId, safeText, imageEncoded, sentAtMs, avatar);
     }
