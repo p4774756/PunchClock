@@ -8,30 +8,26 @@ import com.example.server.health.HealthHistoryStore;
 import com.example.server.health.ServerHealth;
 import com.example.server.store.ChatStore;
 import com.example.server.store.ClientStore;
-import com.example.server.store.ClientStore.PeerResult;
 import com.example.server.store.FileOfferStore;
-import com.example.server.store.FileOfferStore.DeleteResult;
-import com.example.server.store.FileOfferStore.GetResult;
-import com.example.server.store.FileOfferStore.PutResult;
-import com.example.server.store.FileOfferStore.UploadResult;
-import com.example.server.store.PhotoStore;
 import com.example.server.store.RelayStore;
 import com.example.server.util.IpResolver;
+import com.example.server.web.ChatRoutes;
 import com.example.server.web.DashboardBroadcaster;
+import com.example.server.web.PeerFileRoutes;
+import com.example.server.web.PhotoRoutes;
+import com.example.server.web.RelayRoutes;
+import com.example.server.web.RouteSupport;
 import com.example.server.web.LoginPageRenderer;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.reflect.TypeToken;
 import io.javalin.Javalin;
 import io.javalin.config.SizeUnit;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
-import io.javalin.http.UploadedFile;
 import io.javalin.http.staticfiles.Location;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
@@ -46,21 +42,23 @@ public final class ServerApp {
 
     private static final BuildInfo BUILD_INFO = BuildInfo.load(ServerApp.class, "/server-build.properties");
     private static final String SERVER_VERSION = BUILD_INFO.version();
-    private static final Type MAP_TYPE = new TypeToken<Map<String, Object>>() {
-    }.getType();
-    /** 直傳只對最近 1 分鐘內有心跳的收件人發起（心跳每 15 秒一次）。 */
-    static final long RELAY_RECIPIENT_FRESH_MS = 60_000L;
 
     private final AuthService authService = new AuthService();
     private final ClientStore clientStore = new ClientStore();
     private final ChatStore chatStore = new ChatStore();
     private final FileOfferStore fileOfferStore = new FileOfferStore();
-    private final PhotoStore photoStore = new PhotoStore();
     private final RelayStore relayStore = new RelayStore();
     private final ServerHealth serverHealth = new ServerHealth();
     private final HealthHistoryStore healthHistoryStore = new HealthHistoryStore();
     private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
     private final DashboardBroadcaster broadcaster = new DashboardBroadcaster(gson);
+    private final PeerFileRoutes peerFileRoutes = new PeerFileRoutes(
+            authService, clientStore, fileOfferStore, gson, broadcaster, this::statusUpdatePayload);
+    private final RelayRoutes relayRoutes = new RelayRoutes(
+            authService, clientStore, relayStore, gson, broadcaster, this::statusUpdatePayload);
+    private final ChatRoutes chatRoutes = new ChatRoutes(
+            authService, clientStore, chatStore, gson, broadcaster, this::statusUpdatePayload);
+    private final PhotoRoutes photoRoutes = new PhotoRoutes(authService);
     private final ClientRelease clientRelease;
 
     public ServerApp() {
@@ -139,39 +137,15 @@ public final class ServerApp {
         )));
         app.post("/api/heartbeat", this::heartbeat);
         app.get("/api/client-release/jar", this::clientReleaseJar);
-        app.post("/api/peer/message", this::peerMessage);
-        app.post("/api/peer/poke", this::peerPoke);
-        app.post("/api/peer/file", this::peerFileUpload);
-        app.post("/api/peer/upload", this::peerUploadBegin);
-        app.put("/api/peer/upload/{uploadId}", this::peerUploadChunk);
-        app.get("/api/peer/upload/{uploadId}", this::peerUploadStatus);
-        app.post("/api/peer/upload/{uploadId}/complete", this::peerUploadComplete);
-        app.delete("/api/peer/upload/{uploadId}", this::peerUploadAbort);
-        app.get("/api/peer/file/{fileId}", this::peerFileDownload);
-        app.delete("/api/peer/file/{fileId}", this::peerFileDelete);
-        app.delete("/api/peer/files", this::peerFileDeleteAll);
-        app.post("/api/peer/relay", this::relayBegin);
-        app.get("/api/peer/relay/{relayId}", this::relayStatus);
-        app.delete("/api/peer/relay/{relayId}", this::relayCancel);
-        app.post("/api/peer/relay/{relayId}/accept", this::relayAccept);
-        app.put("/api/peer/relay/{relayId}/chunk", this::relayPush);
-        app.get("/api/peer/relay/{relayId}/chunk", this::relayTake);
-        app.post("/api/peer/relay/{relayId}/complete", this::relayComplete);
+        peerFileRoutes.register(app);
+        relayRoutes.register(app);
+        chatRoutes.register(app);
+        photoRoutes.register(app);
         app.get("/api/status", this::status);
         app.get("/api/health/history", this::healthHistory);
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
         app.post("/api/clients/{clientId}/cancel-task/{taskId}", this::cancelTask);
-        app.post("/api/clients/{clientId}/message", this::adminMessage);
-        app.get("/api/chat", this::chatSnapshot);
-        app.post("/api/chat/send", this::chatSend);
-        app.post("/api/chat/groups", this::chatCreateGroup);
-        app.post("/api/chat/groups/{groupId}", this::chatUpdateGroup);
-        app.delete("/api/chat/groups/{groupId}", this::chatDeleteGroup);
         app.delete("/api/clients/{clientId}", this::deleteClient);
-        app.post("/api/photos", this::photoUpload);
-        app.get("/api/photos", this::photoList);
-        app.delete("/api/photos/{photoId}", this::photoDelete);
-        app.delete("/api/photos", this::photoDeleteAll);
         app.get("/", this::dashboard);
         app.get("/index.html", ctx -> ctx.redirect(authService.isAuth(ctx) ? "/" : "/login"));
     }
@@ -243,21 +217,21 @@ public final class ServerApp {
             return;
         }
 
-        Map<String, Object> body = gson.fromJson(ctx.body(), MAP_TYPE);
+        Map<String, Object> body = gson.fromJson(ctx.body(), RouteSupport.MAP_TYPE);
         if (body == null) {
             body = new LinkedHashMap<>();
         }
-        String clientId = stringOrDefault(body.get("clientId"), "company-worker");
-        String status = stringOrDefault(body.get("status"), "ONLINE");
-        String message = stringOrDefault(body.get("message"), "");
-        String appVersion = stringOrDefault(body.get("appVersion"), "");
-        String appReleaseTime = stringOrDefault(body.get("appReleaseTime"), "");
-        String appSourceDigest = stringOrDefault(body.get("appSourceDigest"), "");
-        List<Map<String, Object>> tasks = tasksFromBody(body.get("tasks"));
+        String clientId = RouteSupport.stringOrDefault(body.get("clientId"), "company-worker");
+        String status = RouteSupport.stringOrDefault(body.get("status"), "ONLINE");
+        String message = RouteSupport.stringOrDefault(body.get("message"), "");
+        String appVersion = RouteSupport.stringOrDefault(body.get("appVersion"), "");
+        String appReleaseTime = RouteSupport.stringOrDefault(body.get("appReleaseTime"), "");
+        String appSourceDigest = RouteSupport.stringOrDefault(body.get("appSourceDigest"), "");
+        List<Map<String, Object>> tasks = RouteSupport.tasksFromBody(body.get("tasks"));
 
         Map<String, Object> existing = clientStore.getOrCreateClient(clientId);
-        long incomingSeq = numberFrom(body.get("heartbeatSeq"));
-        long storedSeq = numberFrom(existing.get("heartbeatSeq"));
+        long incomingSeq = RouteSupport.numberFrom(body.get("heartbeatSeq"));
+        long storedSeq = RouteSupport.numberFrom(existing.get("heartbeatSeq"));
         List<String> drainedActions = clientStore.drainPendingActions(existing);
 
         // 僅擋「同階段亂序晚到」；客戶端重啟後 seq 會重數，不可當成過期而拒收
@@ -283,8 +257,8 @@ public final class ServerApp {
         clientInfo.put("clientId", clientId);
         clientInfo.put("status", "OFFLINE".equals(status) ? "ONLINE" : status);
         clientInfo.put("tasks", effectiveTasks);
-        clientInfo.put("message", message.isEmpty() ? stringOrDefault(existing.get("message"), "") : message);
-        clientInfo.put("appVersion", appVersion.isEmpty() ? stringOrDefault(existing.get("appVersion"), "") : appVersion);
+        clientInfo.put("message", message.isEmpty() ? RouteSupport.stringOrDefault(existing.get("message"), "") : message);
+        clientInfo.put("appVersion", appVersion.isEmpty() ? RouteSupport.stringOrDefault(existing.get("appVersion"), "") : appVersion);
         if (!appVersion.isEmpty()) {
             // 舊版 app 不送 appReleaseTime，跟著版號一起更新，避免殘留上一個版本的時間
             clientInfo.put("appReleaseTime", appReleaseTime);
@@ -345,7 +319,7 @@ public final class ServerApp {
 
     private void clientReleaseJar(Context ctx) {
         if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
+            ctx.status(HttpStatus.UNAUTHORIZED).json(RouteSupport.unauthorized());
             return;
         }
         if (!clientRelease.isAvailable()) {
@@ -367,570 +341,13 @@ public final class ServerApp {
         ctx.result(stream);
     }
 
-    private void peerMessage(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        Map<String, Object> body = gson.fromJson(ctx.body(), MAP_TYPE);
-        if (body == null) {
-            body = Map.of();
-        }
-        PeerResult result = clientStore.queuePeerMessage(
-                stringOrNull(body.get("toClientId")),
-                stringOrNull(body.get("fromClientId")),
-                stringOrNull(body.get("text")),
-                stringOrNull(body.get("avatar")),
-                stringOrNull(body.get("image"))
-        );
-        if (!result.ok) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", result.message));
-            return;
-        }
-        broadcaster.broadcast(statusUpdatePayload());
-        ctx.json(Map.of("success", true, "message", result.message));
-    }
 
-    private void peerPoke(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        Map<String, Object> body = gson.fromJson(ctx.body(), MAP_TYPE);
-        if (body == null) {
-            body = Map.of();
-        }
-        PeerResult result = clientStore.queuePeerPoke(
-                stringOrNull(body.get("toClientId")),
-                stringOrNull(body.get("fromClientId")),
-                stringOrNull(body.get("avatar"))
-        );
-        if (!result.ok) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", result.message));
-            return;
-        }
-        broadcaster.broadcast(statusUpdatePayload());
-        ctx.json(Map.of("success", true, "message", result.message));
-    }
 
-    private void peerFileUpload(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        UploadedFile uploaded;
-        PutResult stored;
-        try {
-            uploaded = ctx.uploadedFile("file");
-            if (uploaded == null) {
-                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請選擇要傳送的檔案"));
-                return;
-            }
-            String filename = firstNonEmptyForm(
-                    ctx.formParam("filename"),
-                    uploaded.filename()
-            );
-            try (InputStream in = uploaded.content()) {
-                stored = fileOfferStore.put(
-                        stringOrNull(ctx.formParam("fromClientId")),
-                        stringOrNull(ctx.formParam("toClientId")),
-                        filename,
-                        in,
-                        uploaded.size(),
-                        ctx.formParam("kind")
-                );
-            }
-        } catch (Throwable ex) {
-            String message = uploadedFileErrorMessage(ex);
-            System.err.println("[peer-file] " + message);
-            HttpStatus status = isMemoryError(ex) ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_REQUEST;
-            ctx.status(status).json(Map.of("success", false, "message", message));
-            return;
-        }
-        if (!stored.ok) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", stored.message));
-            return;
-        }
-        PeerResult queued = clientStore.queuePeerFile(
-                stored.offer.toClientId,
-                stored.offer.fromClientId,
-                stored.offer
-        );
-        if (!queued.ok) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", queued.message));
-            return;
-        }
-        broadcaster.broadcast(statusUpdatePayload());
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("success", true);
-        response.put("message", queued.message);
-        response.put("fileId", stored.offer.fileId);
-        response.put("filename", stored.offer.filename);
-        response.put("size", stored.offer.size());
-        response.put("kind", stored.offer.kind);
-        response.put("expiresAtMs", stored.offer.createdAtMs + FileOfferStore.TTL_MS);
-        ctx.json(response);
-    }
 
-    private void peerUploadBegin(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        Map<String, Object> body;
-        try {
-            body = gson.fromJson(ctx.body(), MAP_TYPE);
-        } catch (Exception ex) {
-            body = null;
-        }
-        if (body == null) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請求格式錯誤"));
-            return;
-        }
-        Object rawSize = body.get("size");
-        long size = rawSize instanceof Number ? ((Number) rawSize).longValue() : -1L;
-        UploadResult result = fileOfferStore.beginUpload(
-                stringOrNull(body.get("fromClientId")),
-                stringOrNull(body.get("toClientId")),
-                stringOrNull(body.get("filename")),
-                stringOrNull(body.get("kind")),
-                size
-        );
-        respondUpload(ctx, result);
-    }
 
-    private void peerUploadChunk(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        long offset;
-        try {
-            offset = Long.parseLong(firstNonEmptyForm(ctx.queryParam("offset")).trim());
-        } catch (NumberFormatException ex) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "缺少 offset"));
-            return;
-        }
-        long declared = ctx.req().getContentLengthLong();
-        if (declared > PeerFileRules.MAX_UPLOAD_CHUNK_BYTES) {
-            ctx.status(HttpStatus.CONTENT_TOO_LARGE).json(Map.of("success", false, "message", "分段超過上限"));
-            return;
-        }
-        UploadResult result;
-        try (InputStream in = ctx.bodyInputStream()) {
-            result = fileOfferStore.appendChunk(ctx.pathParam("uploadId"), uploadRequester(ctx), offset, in);
-        } catch (IOException ex) {
-            result = fileOfferStore.uploadStatus(ctx.pathParam("uploadId"), uploadRequester(ctx));
-        }
-        respondUpload(ctx, result);
-    }
 
-    private void peerUploadStatus(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        respondUpload(ctx, fileOfferStore.uploadStatus(ctx.pathParam("uploadId"), uploadRequester(ctx)));
-    }
 
-    private void peerUploadComplete(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        UploadResult result = fileOfferStore.completeUpload(ctx.pathParam("uploadId"), uploadRequester(ctx));
-        if (!result.ok() || result.offer == null) {
-            respondUpload(ctx, result);
-            return;
-        }
-        FileOfferStore.Offer offer = result.offer;
-        String message = result.message;
-        if (!result.alreadyCompleted) {
-            PeerResult queued = clientStore.queuePeerFile(offer.toClientId, offer.fromClientId, offer);
-            if (!queued.ok) {
-                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", queued.message));
-                return;
-            }
-            message = queued.message;
-            broadcaster.broadcast(statusUpdatePayload());
-        }
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("success", true);
-        response.put("message", message);
-        response.put("fileId", offer.fileId);
-        response.put("filename", offer.filename);
-        response.put("size", offer.size());
-        response.put("kind", offer.kind);
-        response.put("expiresAtMs", offer.createdAtMs + FileOfferStore.TTL_MS);
-        ctx.json(response);
-    }
-
-    private void peerUploadAbort(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        respondUpload(ctx, fileOfferStore.abortUpload(ctx.pathParam("uploadId"), uploadRequester(ctx)));
-    }
-
-    private static String uploadRequester(Context ctx) {
-        return firstNonEmptyForm(
-                ctx.queryParam("clientId"),
-                decodeHeaderClientId(ctx.header("X-PunchClock-Client")));
-    }
-
-    private static void respondUpload(Context ctx, UploadResult result) {
-        HttpStatus status;
-        switch (result.status) {
-            case OK:
-                status = HttpStatus.OK;
-                break;
-            case CONFLICT:
-                status = HttpStatus.CONFLICT;
-                break;
-            case NOT_FOUND:
-                status = HttpStatus.NOT_FOUND;
-                break;
-            case FORBIDDEN:
-                status = HttpStatus.FORBIDDEN;
-                break;
-            default:
-                status = HttpStatus.BAD_REQUEST;
-                break;
-        }
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("success", result.ok());
-        response.put("message", result.message);
-        if (!result.uploadId.isEmpty()) {
-            response.put("uploadId", result.uploadId);
-            response.put("received", result.received);
-            response.put("size", result.size);
-            response.put("chunkSize", PeerFileRules.UPLOAD_CHUNK_BYTES);
-        }
-        ctx.status(status).json(response);
-    }
-
-    private void peerFileDownload(Context ctx) {
-        boolean admin = authService.isAuth(ctx);
-        boolean worker = authService.isHeartbeatAuthorized(ctx);
-        if (!admin && !worker) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        GetResult result = fileOfferStore.getForDownload(
-                ctx.pathParam("fileId"),
-                firstNonEmptyForm(
-                        ctx.queryParam("clientId"),
-                        decodeHeaderClientId(ctx.header("X-PunchClock-Client"))),
-                admin
-        );
-        if (result.status == GetResult.Status.FORBIDDEN) {
-            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", result.message));
-            return;
-        }
-        if (result.status != GetResult.Status.OK || result.offer == null) {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", result.message));
-            return;
-        }
-        FileOfferStore.Offer offer = result.offer;
-        InputStream stream;
-        try {
-            stream = offer.openStream();
-        } catch (Exception ex) {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "檔案不存在或已過期"));
-            return;
-        }
-        // Javalin 預設 gzip 不會更新手動設定的 Content-Length；Render 代理會帶 gzip，長度不符就回 502。
-        ctx.minSizeForCompression(Integer.MAX_VALUE);
-        ctx.contentType("application/octet-stream");
-        ctx.header("Content-Disposition", contentDisposition(offer.filename));
-        ctx.header("Content-Length", String.valueOf(offer.size()));
-        ctx.header("X-PunchClock-Filename", PeerFileRules.encodeName(offer.filename));
-        ctx.header("X-PunchClock-Kind", offer.kind);
-        ctx.header("X-PunchClock-Mime", offer.mime == null || offer.mime.isBlank()
-                ? "application/octet-stream" : offer.mime);
-        ctx.header("X-Content-Type-Options", "nosniff");
-        ctx.result(stream);
-        if (admin || worker) {
-            broadcaster.broadcast(statusUpdatePayload());
-        }
-    }
-
-    private void peerFileDelete(Context ctx) {
-        boolean admin = authService.isAuth(ctx);
-        boolean worker = authService.isHeartbeatAuthorized(ctx);
-        if (!admin && !worker) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        DeleteResult result = fileOfferStore.delete(
-                ctx.pathParam("fileId"),
-                firstNonEmptyForm(
-                        ctx.queryParam("clientId"),
-                        decodeHeaderClientId(ctx.header("X-PunchClock-Client"))),
-                admin
-        );
-        if (result.status == DeleteResult.Status.FORBIDDEN) {
-            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", result.message));
-            return;
-        }
-        if (result.status != DeleteResult.Status.OK) {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", result.message));
-            return;
-        }
-        broadcaster.broadcast(statusUpdatePayload());
-        ctx.json(Map.of("success", true, "message", result.message));
-    }
-
-    private void peerFileDeleteAll(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
-            return;
-        }
-        int removed = fileOfferStore.deleteAll();
-        broadcaster.broadcast(statusUpdatePayload());
-        ctx.json(Map.of("success", true, "message", "已清除 " + removed + " 筆暫存檔案", "removed", removed));
-    }
-
-    private void relayBegin(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        Map<String, Object> body;
-        try {
-            body = gson.fromJson(ctx.body(), MAP_TYPE);
-        } catch (Exception ex) {
-            body = null;
-        }
-        if (body == null) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請求格式錯誤"));
-            return;
-        }
-        String to = PeerFileRules.normalizeClientId(stringOrNull(body.get("toClientId")));
-        if (!to.isEmpty() && !clientStore.isRecentlySeen(to, RELAY_RECIPIENT_FRESH_MS)) {
-            ctx.status(HttpStatus.CONFLICT).json(Map.of("success", false, "code", "RECIPIENT_OFFLINE",
-                    "message", "對方目前不在線，無法直傳"));
-            return;
-        }
-        if (!to.isEmpty() && !clientStore.hasCapability(to, PeerFileRules.CAPABILITY_RELAY)) {
-            ctx.status(HttpStatus.CONFLICT).json(Map.of("success", false, "code", "RECIPIENT_UNSUPPORTED",
-                    "message", "對方的桌面端版本不支援直傳"));
-            return;
-        }
-        Object rawSize = body.get("size");
-        long size = rawSize instanceof Number ? ((Number) rawSize).longValue() : -1L;
-        RelayStore.Result result = relayStore.begin(
-                stringOrNull(body.get("fromClientId")),
-                to,
-                stringOrNull(body.get("filename")),
-                stringOrNull(body.get("kind")),
-                size);
-        if (result.ok()) {
-            PeerResult queued = clientStore.queuePeerRelay(result.toClientId, result.fromClientId,
-                    result.relayId, result.filename, result.size, result.kind);
-            if (!queued.ok) {
-                relayStore.cancel(result.relayId, result.fromClientId);
-                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", queued.message));
-                return;
-            }
-            broadcaster.broadcast(statusUpdatePayload());
-            respondRelay(ctx, result, result.fromClientId, queued.message);
-            return;
-        }
-        respondRelay(ctx, result, stringOrNull(body.get("fromClientId")), null);
-    }
-
-    private void relayStatus(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        String requester = uploadRequester(ctx);
-        long since = longQueryParam(ctx, "since", 0L);
-        long waitMs = relayWaitMs(ctx);
-        respondRelay(ctx, relayStore.await(ctx.pathParam("relayId"), requester, since, waitMs), requester, null);
-    }
-
-    private void relayAccept(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        String requester = uploadRequester(ctx);
-        RelayStore.Result result = relayStore.accept(ctx.pathParam("relayId"), requester);
-        if (result.ok()) {
-            broadcaster.broadcast(statusUpdatePayload());
-        }
-        respondRelay(ctx, result, requester, null);
-    }
-
-    private void relayPush(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        long offset = longQueryParam(ctx, "offset", -1L);
-        if (offset < 0) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "缺少 offset"));
-            return;
-        }
-        if (ctx.req().getContentLengthLong() > RelayStore.MAX_CHUNK_BYTES) {
-            ctx.status(HttpStatus.CONTENT_TOO_LARGE).json(Map.of("success", false, "message", "分段超過上限"));
-            return;
-        }
-        String requester = uploadRequester(ctx);
-        RelayStore.Result result;
-        try (InputStream in = ctx.bodyInputStream()) {
-            result = relayStore.push(ctx.pathParam("relayId"), requester, offset, in);
-        } catch (IOException ex) {
-            result = relayStore.await(ctx.pathParam("relayId"), requester, Long.MAX_VALUE, 0L);
-        }
-        respondRelay(ctx, result, requester, null);
-    }
-
-    private void relayTake(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        long offset = longQueryParam(ctx, "offset", -1L);
-        if (offset < 0) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "缺少 offset"));
-            return;
-        }
-        String requester = uploadRequester(ctx);
-        RelayStore.ChunkResult chunk = relayStore.take(ctx.pathParam("relayId"), requester, offset, relayWaitMs(ctx));
-        if (chunk.status == RelayStore.ChunkResult.Status.NO_DATA) {
-            ctx.status(HttpStatus.NO_CONTENT);
-            return;
-        }
-        if (chunk.status != RelayStore.ChunkResult.Status.DATA) {
-            respondRelay(ctx, chunk.result, requester, null);
-            return;
-        }
-        // 同 peerFileDownload：手動 Content-Length 時不可讓 Javalin 再 gzip。
-        ctx.minSizeForCompression(Integer.MAX_VALUE);
-        ctx.contentType("application/octet-stream");
-        ctx.header("Content-Length", String.valueOf(chunk.data.length));
-        ctx.header("X-Relay-Offset", String.valueOf(chunk.offset));
-        ctx.header("X-Content-Type-Options", "nosniff");
-        ctx.result(chunk.data);
-    }
-
-    private void relayComplete(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        String requester = uploadRequester(ctx);
-        RelayStore.Result result = relayStore.complete(ctx.pathParam("relayId"), requester);
-        if (result.ok()) {
-            broadcaster.broadcast(statusUpdatePayload());
-        }
-        respondRelay(ctx, result, requester, null);
-    }
-
-    private void relayCancel(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        String requester = uploadRequester(ctx);
-        RelayStore.Result result = relayStore.cancel(ctx.pathParam("relayId"), requester);
-        if (result.ok()) {
-            broadcaster.broadcast(statusUpdatePayload());
-        }
-        respondRelay(ctx, result, requester, null);
-    }
-
-    private static void respondRelay(Context ctx, RelayStore.Result result, String requester, String messageOverride) {
-        HttpStatus status;
-        switch (result.status) {
-            case OK:
-                status = HttpStatus.OK;
-                break;
-            case CONFLICT:
-                status = HttpStatus.CONFLICT;
-                break;
-            case NOT_FOUND:
-                status = HttpStatus.NOT_FOUND;
-                break;
-            case FORBIDDEN:
-                status = HttpStatus.FORBIDDEN;
-                break;
-            case GONE:
-                status = HttpStatus.GONE;
-                break;
-            case BUSY:
-                status = HttpStatus.SERVICE_UNAVAILABLE;
-                break;
-            default:
-                status = HttpStatus.BAD_REQUEST;
-                break;
-        }
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("success", result.ok());
-        response.put("message", messageOverride != null ? messageOverride : result.message);
-        if (result.status == RelayStore.Result.Status.BUSY) {
-            response.put("code", "BUSY");
-        }
-        response.putAll(result.view(requester));
-        ctx.status(status).json(response);
-    }
-
-    private static long relayWaitMs(Context ctx) {
-        return Math.max(0L, Math.min(PeerFileRules.RELAY_LONG_POLL_MS, longQueryParam(ctx, "wait", 0L)));
-    }
-
-    private static long longQueryParam(Context ctx, String name, long fallback) {
-        String raw = ctx.queryParam(name);
-        if (raw == null || raw.isBlank()) {
-            return fallback;
-        }
-        try {
-            return Long.parseLong(raw.trim());
-        } catch (NumberFormatException ex) {
-            return fallback;
-        }
-    }
-
-    private static String contentDisposition(String filename) {
-        String safe = filename == null ? "download" : filename.replace("\"", "").replace("\r", "").replace("\n", "");
-        // 只放 ASCII filename，避免部分 JDK HttpClient 解析 filename* 失敗而整份下載作廢。
-        return "attachment; filename=\"" + asciiFilename(safe) + "\"";
-    }
-
-    private static String asciiFilename(String filename) {
-        if (filename == null || filename.isEmpty()) {
-            return "download";
-        }
-        StringBuilder sb = new StringBuilder(filename.length());
-        for (int i = 0; i < filename.length(); i++) {
-            char c = filename.charAt(i);
-            if (c >= 0x20 && c < 0x7f && c != '"' && c != '\\') {
-                sb.append(c);
-            } else {
-                sb.append('_');
-            }
-        }
-        String ascii = sb.toString().trim();
-        return ascii.isEmpty() ? "download" : ascii;
-    }
-
-    private static String firstNonEmptyForm(String... values) {
-        if (values == null) {
-            return "";
-        }
-        for (String value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return "";
-    }
-
-    static boolean isMemoryError(Throwable ex) {
+    public static boolean isMemoryError(Throwable ex) {
         for (Throwable t = ex; t != null; t = t.getCause()) {
             if (t instanceof OutOfMemoryError) {
                 return true;
@@ -947,7 +364,7 @@ public final class ServerApp {
         return false;
     }
 
-    static String uploadedFileErrorMessage(Throwable ex) {
+    public static String uploadedFileErrorMessage(Throwable ex) {
         if (isMemoryError(ex)) {
             return "伺服器記憶體不足，無法接收此檔案。請稍後再試，或先清除傳檔暫存。";
         }
@@ -964,16 +381,6 @@ public final class ServerApp {
         return "無法讀取上傳檔案：" + detail;
     }
 
-    private static String decodeHeaderClientId(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return "";
-        }
-        try {
-            return java.net.URLDecoder.decode(raw.trim(), StandardCharsets.UTF_8);
-        } catch (Exception ex) {
-            return raw.trim();
-        }
-    }
 
     private void status(Context ctx) {
         if (!authService.isAuth(ctx)) {
@@ -1023,140 +430,6 @@ public final class ServerApp {
         ctx.json(Map.of("success", true, "message", "已成功將【取消任務 " + taskId + "】指令派送至 " + clientId + " 佇列"));
     }
 
-    private void adminMessage(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
-            return;
-        }
-        String clientId = ctx.pathParam("clientId");
-        Map<String, Object> body = gson.fromJson(ctx.body(), MAP_TYPE);
-        if (body == null) {
-            body = Map.of();
-        }
-        PeerResult result = clientStore.queueAdminMessage(clientId, stringOrNull(body.get("text")));
-        if (!result.ok) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", result.message));
-            return;
-        }
-        broadcaster.broadcast(statusUpdatePayload());
-        ctx.json(Map.of("success", true, "message", result.message));
-    }
-
-    private void chatSnapshot(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
-            return;
-        }
-        ctx.json(Map.of("success", true, "rooms", chatStore.snapshot()));
-    }
-
-    private void chatSend(Context ctx) {
-        boolean admin = authService.isAuth(ctx);
-        boolean worker = authService.isHeartbeatAuthorized(ctx);
-        if (!admin && !worker) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(unauthorized());
-            return;
-        }
-        Map<String, Object> body = gson.fromJson(ctx.body(), MAP_TYPE);
-        if (body == null) {
-            body = Map.of();
-        }
-        ChatStore.Outcome outcome = admin
-                ? chatStore.sendFromAdmin(
-                        stringOrNull(body.get("roomId")),
-                        stringOrNull(body.get("nick")),
-                        stringOrNull(body.get("text")))
-                : chatStore.sendFromClient(
-                        stringOrNull(body.get("fromClientId")),
-                        stringOrNull(body.get("roomId")),
-                        stringOrNull(body.get("text")));
-        if (!outcome.ok) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", outcome.message));
-            return;
-        }
-        deliverChat(outcome);
-        ctx.json(Map.of("success", true, "message", outcome.message, "rooms", chatStore.snapshot()));
-    }
-
-    private void chatCreateGroup(Context ctx) {
-        if (!requireAdmin(ctx)) {
-            return;
-        }
-        Map<String, Object> body = jsonBody(ctx);
-        ChatStore.Outcome outcome = chatStore.createGroup(
-                stringOrNull(body.get("name")), stringList(body.get("members")));
-        finishChatMutation(ctx, outcome);
-    }
-
-    private void chatUpdateGroup(Context ctx) {
-        if (!requireAdmin(ctx)) {
-            return;
-        }
-        Map<String, Object> body = jsonBody(ctx);
-        ChatStore.Outcome outcome = chatStore.updateGroup(
-                ctx.pathParam("groupId"), stringOrNull(body.get("name")), stringList(body.get("members")));
-        finishChatMutation(ctx, outcome);
-    }
-
-    private void chatDeleteGroup(Context ctx) {
-        if (!requireAdmin(ctx)) {
-            return;
-        }
-        ChatStore.Outcome outcome = chatStore.deleteGroup(ctx.pathParam("groupId"));
-        finishChatMutation(ctx, outcome);
-    }
-
-    private boolean requireAdmin(Context ctx) {
-        if (authService.isAuth(ctx)) {
-            return true;
-        }
-        ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
-        return false;
-    }
-
-    private Map<String, Object> jsonBody(Context ctx) {
-        Map<String, Object> body = gson.fromJson(ctx.body(), MAP_TYPE);
-        return body == null ? Map.of() : body;
-    }
-
-    private void finishChatMutation(Context ctx, ChatStore.Outcome outcome) {
-        if (!outcome.ok) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", outcome.message));
-            return;
-        }
-        deliverChat(outcome);
-        ctx.json(Map.of("success", true, "message", outcome.message, "rooms", chatStore.snapshot()));
-    }
-
-    private void deliverChat(ChatStore.Outcome outcome) {
-        if (outcome.action != null && !outcome.action.isEmpty()) {
-            for (String clientId : outcome.targets) {
-                clientStore.queueClientAction(clientId, outcome.action, ChatStore.DELIVERY_TTL_MS);
-            }
-        }
-        broadcaster.broadcast(chatSnapshotPayload());
-        broadcaster.broadcast(statusUpdatePayload());
-    }
-
-    private Map<String, Object> chatSnapshotPayload() {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("type", "CHAT_SNAPSHOT");
-        payload.put("rooms", chatStore.snapshot());
-        return payload;
-    }
-
-    private static List<String> stringList(Object raw) {
-        List<String> list = new ArrayList<>();
-        if (raw instanceof List) {
-            for (Object item : (List<?>) raw) {
-                if (item != null) {
-                    list.add(String.valueOf(item));
-                }
-            }
-        }
-        return list;
-    }
-
     private void deleteClient(Context ctx) {
         if (!authService.isAuth(ctx)) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
@@ -1168,77 +441,6 @@ public final class ServerApp {
         ctx.json(Map.of("success", true, "message", "已移除設備紀錄：" + clientId));
     }
 
-    private void photoUpload(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
-            return;
-        }
-        UploadedFile uploaded;
-        try {
-            uploaded = ctx.uploadedFile("file");
-            if (uploaded == null) {
-                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請選擇要上傳的照片"));
-                return;
-            }
-            byte[] data;
-            try (InputStream in = uploaded.content()) {
-                data = in.readAllBytes();
-            }
-            PhotoStore.UploadResult result = photoStore.upload(
-                    uploaded.filename(),
-                    uploaded.contentType(),
-                    data
-            );
-            if (!result.ok) {
-                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", result.message));
-                return;
-            }
-            Map<String, Object> response = new LinkedHashMap<>();
-            response.put("success", true);
-            response.put("message", result.message);
-            response.put("photo", Map.of(
-                    "id", result.photo.id,
-                    "filename", result.photo.filename,
-                    "mimeType", result.photo.mimeType,
-                    "dataUrl", "data:" + result.photo.mimeType + ";base64," + result.photo.base64Data(),
-                    "size", result.photo.size,
-                    "createdAtMs", result.photo.createdAtMs
-            ));
-            ctx.json(response);
-        } catch (Exception ex) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "上傳失敗：" + ex.getMessage()));
-        }
-    }
-
-    private void photoList(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
-            return;
-        }
-        ctx.json(Map.of("success", true, "photos", photoStore.snapshot()));
-    }
-
-    private void photoDelete(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
-            return;
-        }
-        String photoId = ctx.pathParam("photoId");
-        if (photoStore.delete(photoId)) {
-            ctx.json(Map.of("success", true, "message", "已刪除照片"));
-        } else {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到該照片"));
-        }
-    }
-
-    private void photoDeleteAll(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
-            return;
-        }
-        int removed = photoStore.deleteAll();
-        ctx.json(Map.of("success", true, "message", "已清除 " + removed + " 張照片", "removed", removed));
-    }
 
     private void dashboard(Context ctx) {
         if (!authService.isAuth(ctx)) {
@@ -1266,9 +468,6 @@ public final class ServerApp {
         return payload;
     }
 
-    private static Map<String, Object> unauthorized() {
-        return Map.of("success", false, "message", "Unauthorized: invalid or missing heartbeat token");
-    }
 
     private void setAuthCookie(Context ctx, String value) {
         ctx.cookie("auth", value, 60 * 60 * 24);
@@ -1289,43 +488,6 @@ public final class ServerApp {
         }
     }
 
-    private static List<Map<String, Object>> tasksFromBody(Object raw) {
-        List<Map<String, Object>> tasks = new ArrayList<>();
-        if (raw instanceof List) {
-            for (Object item : (List<?>) raw) {
-                if (item instanceof Map) {
-                    tasks.add((Map<String, Object>) item);
-                }
-            }
-        }
-        return tasks;
-    }
-
-    private static String stringOrDefault(Object value, String defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        }
-        String text = String.valueOf(value);
-        return text.isEmpty() ? defaultValue : text;
-    }
-
-    private static String stringOrNull(Object value) {
-        return value == null ? null : String.valueOf(value);
-    }
-
-    private static long numberFrom(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
-        }
-        if (value == null) {
-            return 0L;
-        }
-        try {
-            return Long.parseLong(String.valueOf(value));
-        } catch (NumberFormatException ex) {
-            return 0L;
-        }
-    }
 
     /**
      * 判斷是否為同階段亂序晚到的舊心跳。

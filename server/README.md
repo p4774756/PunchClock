@@ -1,82 +1,47 @@
 # server
 
-PunchClock 遠端監控與指令中繼伺服器（Java + Javalin）。
+PunchClock 遠端監控與指令中繼（Java + Javalin）。怎麼啟動、Render 部署、環境變數見根目錄 [`README.md`](../README.md)。
 
-## 通訊協定（HTTP-primary）
+Worker 走 HTTP 心跳。Dashboard 用 REST 下指令，WebSocket 只推 `STATUS_UPDATE`。3 分鐘無心跳視為離線。
 
-```
-┌──────────────┐  POST /api/heartbeat + Bearer   ┌──────────────────┐
-│  PunchClock  │ ───────────────────────────────► │ server           │
-│  (Worker)    │ ◄──── action / actions[] ─────── │ (Javalin)        │
-└──────────────┘                                  └────────┬─────────┘
-                                                           │
-                     REST 下指令（取消任務）                 │ WS 推送狀態
-                                                           ▼
-                                                  ┌──────────────────┐
-                                                  │  Web Dashboard   │
-                                                  └──────────────────┘
-```
+## 路由
 
-| 角色 | 通道 | 用途 |
-|------|------|------|
-| Worker（桌面端） | HTTP `POST /api/heartbeat` | 上報任務狀態；收取遠端指令 |
-| Dashboard | REST `/api/clients/...` | 下達取消排程 / 取消任務 / 刪除紀錄 |
-| Dashboard | REST `GET /api/status` | 裝置狀態、傳檔列表、伺服器 CPU／記憶體（**需登入**） |
-| Dashboard | Web 頁面 `/` | **需登入** |
-| Dashboard | WebSocket `/ws/dashboard` | **需登入**；僅推送 `STATUS_UPDATE` |
+實作在 `ServerApp.registerRoutes`，以及 `web` 套件的 `PeerFileRoutes`、`RelayRoutes`、`ChatRoutes`、`PhotoRoutes`。
 
-## 桌面端自動更新
+| 方法與路徑 | 誰可以呼叫 | 用途 |
+|------------|------------|------|
+| `GET /login`、`POST /login`、`GET /logout` | 瀏覽器 | 控制台登入 |
+| `GET /`、`GET /index.html` | 已登入 | 控制台頁面 |
+| `GET /ping` | 任何人 | 存活與版號 |
+| `GET /api/status` | 已登入 | 裝置、傳檔、CPU／記憶體 |
+| `GET /api/health/history` | 已登入 | 監控取樣（約 3 天） |
+| `WS /ws/dashboard` | 已登入 | 只推 `STATUS_UPDATE` |
+| `POST /api/heartbeat` | Bearer | 上報狀態；回應 `action`／`actions[]`、peers、files、chatRooms、`update` |
+| `GET /api/client-release/jar` | Bearer | 下載伺服器附帶的桌面端 jar |
+| `POST /api/clients/{id}/cancel-schedule` | 已登入 | 取消全部排程 |
+| `POST /api/clients/{id}/cancel-task/{taskId}` | 已登入 | 取消單一任務 |
+| `DELETE /api/clients/{id}` | 已登入 | 刪除裝置紀錄 |
+| `POST /api/peer/message`、`POST /api/peer/poke` | Bearer | 同事訊息、戳一下 |
+| `POST /api/clients/{id}/message` | 已登入 | 後台傳話給某台桌面端 |
+| `POST /api/peer/file` | Bearer | 整檔上傳（舊路徑；新客戶端改走分段） |
+| `POST /api/peer/upload`、`PUT /api/peer/upload/{id}`、`GET`、`POST .../complete`、`DELETE` | Bearer | 分段上傳 |
+| `GET /api/peer/file/{fileId}`、`DELETE /api/peer/file/{fileId}` | Bearer 或已登入 | 下載或清除一筆暫存（約 6 小時） |
+| `DELETE /api/peer/files` | 已登入 | 清除全部傳檔暫存 |
+| `POST /api/peer/relay` 與 `/api/peer/relay/{id}/...` | Bearer | 直傳。雙方都要在線，只在記憶體轉手 |
+| `GET /api/chat`、`POST /api/chat/send` | 已登入；送出亦接受 Bearer | 攤前喊話 |
+| `POST /api/chat/groups`、`POST /api/chat/groups/{id}`、`DELETE /api/chat/groups/{id}` | 已登入 | 建立、修改、解散群組 |
+| `POST /api/photos`、`GET /api/photos`、`DELETE /api/photos/{id}`、`DELETE /api/photos` | 已登入 | 菜單牆 |
 
-| 項目 | 說明 |
-|------|------|
-| 心跳請求 | 桌面端帶 `appVersion`、`appSourceDigest` |
-| 心跳回應 | 摘要與伺服器附帶的 jar 不同（且 client 非 `dev`、有送摘要）時帶 `update`：`version`、`sourceDigest`、`sha256`、`size`、`path` |
-| 下載 | `GET /api/client-release/jar` + Bearer（同心跳密鑰）；沒有可用 jar 時 404 |
-| jar 來源 | 環境變數 `CLIENT_JAR_PATH`；否則 `/app/client/punchclock-client-standalone.jar`（Docker image 內，由 `server/Dockerfile` 一併打包 client） |
+聊天只在記憶體，重啟後清空。照片預設也是；設定 `PHOTO_STORAGE_DIR` 後改存磁碟。直傳不寫磁碟。
 
-啟動 log 會顯示 `Client release: v… xxxxxxxx (… bytes)`，顯示 `none` 代表沒有可發布的 jar（沒有更新通知）。本機測試：
+## 桌面端 jar
 
-```bash
-CLIENT_JAR_PATH=/path/to/punchclock-client-standalone.jar java -jar server/target/punchclock-server.jar
-```
+心跳帶 `appVersion`、`appReleaseTime`、`appSourceDigest`。摘要與伺服器上的 jar 不同，且客戶端不是 `dev`、有送摘要時，回應帶 `update`（`version`、`sourceDigest`、`releaseTime`、`sha256`、`size`、`path`）。
 
-桌面端流程見根目錄 [`README.md`](../README.md)「桌面端自動更新」。
-
-## 本機啟動
-
-```bash
-# 從 repo 根目錄
-mvn -pl server -am package -DskipTests
-java -jar server/target/punchclock-server.jar
-
-# 或指定密鑰
-HEARTBEAT_SECRET=your-secret ADMIN_PASSWORD=your-admin-pass java -jar server/target/punchclock-server.jar
-```
-
-## Render 部署
-
-Render **不支援 Java native runtime**，請用 **Docker**：
-
-| 欄位 | 值 |
-|------|-----|
-| Language / Runtime | **Docker** |
-| Root Directory | （留空，使用 repo 根目錄） |
-| Dockerfile Path | `server/Dockerfile` |
-| Docker Context | `.` |
-| Build / Start Command | （留空，由 Dockerfile 處理） |
-
-或使用 repo 根目錄的 [`render.yaml`](../render.yaml) 建立 Blueprint。
-
-| 變數 | 必填 | 說明 |
-|------|------|------|
-| `HEARTBEAT_SECRET` | 建議 | 與桌面端心跳 Token 一致 |
-| `ADMIN_PASSWORD` | 建議 | Web 控制台登入密碼 |
-| `PORT` | 不用設 | Render 自動注入 |
+jar 來自 `CLIENT_JAR_PATH`，否則是 Docker image 裡的 `/app/client/punchclock-client-standalone.jar`。沒有可發布的 jar 時，啟動 log 顯示 `Client release: none`，心跳不帶 `update`。桌面端怎麼套用更新見根目錄 README「桌面端自動更新」。
 
 ## 測試
 
 ```bash
 mvn -pl server -am test
 ```
-
-靜態前端（`src/main/resources/public/`）沿用原 Dashboard HTML/CSS/JS，API 路徑與 Node 版相容。

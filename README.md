@@ -79,8 +79,9 @@ java -jar client/target/punchclock-client-standalone.jar
 - 本地任務持久化（`~/.punchclock/tasks.json`）
 - 視窗透明度（標題列滑桿，設定會寫入 `~/.punchclock/config.json`）
 - 支援 Edge、Chrome、Chromium、Firefox、WebKit
-- 同事傳檔：任意副檔名、可傳資料夾（自動壓 ZIP）、傳檔紀錄可在過期前重複下載或手動清除
+- 同事傳檔：任意副檔名、可傳資料夾（自動壓 ZIP）、傳檔紀錄可在過期前重複下載或手動清除。兩邊都在線時可改走直傳，檔案只在伺服器記憶體轉手，不寫入磁碟
 - 中繼 Proxy：讓區網內連不到雲端的同事透過你的電腦轉發心跳等請求
+- 跟同事或後台聊天（含群組）。對話在伺服器重啟後清空
 - 自動更新：伺服器附帶最新的桌面端 jar，心跳發現原始碼摘要不同時詢問是否更新（詳見下方「桌面端自動更新」）
 
 ### 桌面端自動更新
@@ -108,6 +109,17 @@ java -jar client/target/punchclock-client-standalone.jar
 - 3 分鐘無心跳自動判定離線
 - 登入保護（5 次失敗鎖定 15 分鐘）
 
+### Web 控制台分頁
+
+| 分頁 | 內容 |
+|------|------|
+| 點餐單 | 裝置狀態、遠端取消排程或單一任務 |
+| 攤前喊話 | 跟桌面端私訊或群組。只放伺服器記憶體，重啟後清空 |
+| 外帶袋 | 傳檔暫存，約 6 小時；過期前可下載，也可手動清除 |
+| 爐火狀況 | CPU、JVM／系統記憶體、傳檔暫存用量。每分鐘取樣，保留約 3 天，寫在 `~/.punchclock/server-health-history.json` |
+| 菜單牆 | 照片。預設只放記憶體，重啟後清空；設定 `PHOTO_STORAGE_DIR` 後改存該目錄 |
+| 珍珠跳跳 | 瀏覽器小遊戲，最高分留在這台瀏覽器 |
+
 ## 部署建議
 
 將 server 部署至雲端（如 Render、Railway、VPS），桌面端填入對應的 HTTPS 網址即可。
@@ -129,6 +141,8 @@ java -jar client/target/punchclock-client-standalone.jar
 | `PORT` | 伺服器監聽埠 | `3000` |
 | `HEARTBEAT_SECRET` | 心跳 API Bearer token | `punchclock-dev-secret` |
 | `ADMIN_PASSWORD` | Web 控制台管理員密碼 | `secret` |
+| `CLIENT_JAR_PATH` | 覆寫可發布的桌面端 jar；沒設時用 Docker image 裡的那份 | （空） |
+| `PHOTO_STORAGE_DIR` | 菜單牆照片目錄。沒設時照片只在記憶體，重啟後清空 | （空） |
 
 生產環境請務必修改 `HEARTBEAT_SECRET` 與 `ADMIN_PASSWORD`。
 
