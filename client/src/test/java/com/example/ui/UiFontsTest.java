@@ -10,31 +10,27 @@ import static org.junit.Assert.assertTrue;
 public class UiFontsTest {
 
     @Test
-    public void htmlMessageKeepsLatinDigitsAndEscapesMarkup() {
-        String html = UiFonts.toHtmlMessage(
+    public void messageBodyKeepsLatinDigitsAndNewlines() {
+        javax.swing.JTextArea area = UiFonts.messageBody(
                 "2026-09-11 09:27:49\n【John Wick】傳來 eapp-backend.zip（16.3 MB）");
 
-        assertTrue(html.contains("Helvetica Neue"));
-        assertTrue(html.contains("2026-09-11 09:27:49"));
-        assertTrue(html.contains("John Wick"));
-        assertTrue(html.contains("16.3 MB"));
-        assertTrue(html.contains("<br>"));
-        assertFalse(html.contains("\n"));
+        assertEquals("2026-09-11 09:27:49\n【John Wick】傳來 eapp-backend.zip（16.3 MB）", area.getText());
+        assertFalse(area.getText().contains("<html"));
+        assertFalse(area.isEditable());
+        assertFalse(area.isFocusable());
+        assertEquals(420, area.getPreferredSize().width);
     }
 
     @Test
-    public void htmlMessageEscapesTags() {
-        String html = UiFonts.toHtmlMessage("<script>alert(1)</script>");
-        assertTrue(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
-        assertFalse(html.contains("<script>alert"));
+    public void messageBodyShowsMarkupAsText() {
+        javax.swing.JTextArea area = UiFonts.messageBody("<script>alert(1)</script>");
+        assertEquals("<script>alert(1)</script>", area.getText());
     }
 
     @Test
-    public void htmlMessageTreatsNullAsEmpty() {
-        String html = UiFonts.toHtmlMessage(null);
-        assertTrue(html.startsWith("<html>"));
-        assertTrue(html.contains("</body></html>"));
-        assertEquals(-1, html.indexOf("null"));
+    public void messageBodyTreatsNullAsEmpty() {
+        javax.swing.JTextArea area = UiFonts.messageBody(null);
+        assertEquals("", area.getText());
     }
 
     @Test

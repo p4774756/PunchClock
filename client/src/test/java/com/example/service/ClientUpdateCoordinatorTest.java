@@ -23,6 +23,26 @@ public class ClientUpdateCoordinatorTest {
     private static final String OTHER = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
     @Test
+    public void checkDisabledIgnoresNoticeUntilTurnedBackOn() throws Exception {
+        FakeActions actions = new FakeActions();
+        actions.checkForUpdates = false;
+        actions.auto = true;
+        actions.canInstall = true;
+        Path jar = sampleJar(actions);
+        ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
+
+        coordinator.handle(notice(OTHER, jar));
+        assertFalse(actions.confirmed);
+        assertEquals(0, actions.downloads.get());
+        assertTrue(actions.logs.isEmpty());
+
+        actions.checkForUpdates = true;
+        coordinator.handle(notice(OTHER, jar));
+        assertEquals(1, actions.installed.size());
+        assertTrue(actions.restarted);
+    }
+
+    @Test
     public void skipsIgnoredBusyAndSameDigest() throws Exception {
         FakeActions actions = new FakeActions();
         actions.local = LOCAL;
@@ -262,6 +282,7 @@ public class ClientUpdateCoordinatorTest {
         final Deque<Boolean> idleSequence = new ArrayDeque<>();
         boolean idleDefault = true;
         boolean auto;
+        boolean checkForUpdates = true;
         boolean accept = true;
         boolean canInstall;
         boolean cancelDownload;
@@ -293,6 +314,11 @@ public class ClientUpdateCoordinatorTest {
         public boolean idle() {
             Boolean next = idleSequence.poll();
             return next != null ? next : idleDefault;
+        }
+
+        @Override
+        public boolean checkForUpdates() {
+            return checkForUpdates;
         }
 
         @Override

@@ -22,8 +22,8 @@ Web Dashboard  --REST 取消指令-->  server  --WS STATUS_UPDATE-->  Dashboard
 
 **Client 常見包：**
 
-- `com.example.ui` — Swing（`PanelFactory`、`SlotController`、`UiFonts`、`NetworkToolsPanel`…）
-- `com.example.service` — 排程、自動化、心跳、持久化、網路探測
+- `com.example.ui` — Swing（`PanelFactory`、`SlotController`、`UiFonts`…）
+- `com.example.service` — 排程、自動化、心跳、持久化、中繼 Proxy
 - `com.example.model` — `CheckInTask`、`WorkSlot`、`TaskStatus`
 
 **Server 常見包：**
@@ -103,8 +103,7 @@ VS Code／Cursor：`.vscode/launch.json` 有 `App`（桌面端）、`ServerApp`�
 | 自動打卡流程 | `AutomationService`、`SchedulerService` |
 | 雲端心跳／遠端取消 | `HeartbeatService`（client）、`ServerApp.heartbeat` |
 | 字型／對話框 | `UiFonts` |
-| 網路／Proxy 探測（UI 分頁標籤「Ping/Pong」） | `NetworkToolsPanel`、`NetworkProbeService` |
-| 中繼 Proxy（同事經你的電腦轉發到雲端） | `RelayProxyService`、`App.startRelayProxy`；「信任所有 SSL」與 Proxy 刷新需同步套用到心跳與中繼 |
+| 中繼 Proxy（同事經你的電腦轉發到雲端） | `RelayProxyService`、`App.startRelayProxy`；「信任所有 SSL」套用到心跳與中繼 |
 | 桌面端自動更新 | `ClientUpdateCoordinator`、`ClientUpdateInstaller`、`HeartbeatService.parseUpdateNotice`、`ClientRelease`、`ClientUpdatePolicy`、`SourceDigest`；僅 `java -jar` 啟動才能就地更新 |
 | 傳檔 | client 傳檔 UI + `FileOfferStore`、`/api/peer/file*` |
 | Dashboard | `server/.../resources/public/` + `DashboardBroadcaster` |
@@ -112,7 +111,6 @@ VS Code／Cursor：`.vscode/launch.json` 有 `App`（桌面端）、`ServerApp`�
 ## 近期方向（方便對齊歷史）
 
 - `UiFonts` 統一對話框／選檔（取代散落的 `JOptionPane`）
-- 網路工具分頁（UI 標籤「Ping/Pong」：HTTP GET 連線測試，可切換系統 Proxy／直連、顯示憑證簽發者）
 - 中繼 Proxy 與公司 SSL 攔截（「信任所有 SSL」心跳與中繼共用）
 - 同事傳檔（任意類型、資料夾 ZIP、狀態與 TTL）
 

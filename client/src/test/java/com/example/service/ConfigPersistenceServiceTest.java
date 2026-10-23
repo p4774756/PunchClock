@@ -42,6 +42,8 @@ public class ConfigPersistenceServiceTest {
         assertEquals(9, config.workIn.hour);
         assertEquals(18, config.workOut.hour);
         assertTrue(config.weekdaysOnly);
+        assertTrue(config.checkForUpdates);
+        assertTrue(config.autoApplyUpdate);
         assertNotNull(config.skipDates);
         assertTrue(config.skipDates.isEmpty());
     }
@@ -96,6 +98,15 @@ public class ConfigPersistenceServiceTest {
         assertEquals(TaskEditDialog.BROWSER_OPTIONS[0], loaded.browserChoice);
         assertEquals(9, loaded.workIn.hour);
         assertEquals(18, loaded.workOut.hour);
+        assertTrue("舊設定沒有這個欄位時仍要檢查更新", loaded.checkForUpdates);
+    }
+
+    @Test
+    public void saveAndLoad_checkForUpdatesOff() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.checkForUpdates = false;
+        configService.saveConfig(config, null);
+        assertFalse(configService.loadConfig(null).checkForUpdates);
     }
 
     @Test
@@ -185,39 +196,13 @@ public class ConfigPersistenceServiceTest {
     }
 
     @Test
-    public void saveAndLoad_persistsNetworkToolsSettings() {
+    public void saveAndLoad_persistsSelectedTabIndex() {
         ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
-        config.networkTestUrl = "https://example.com/ping";
-        config.networkProxyHost = "proxy.company.com";
-        config.networkProxyPort = 3128;
-        config.networkProxyMode = "custom";
-        config.networkProxyUser = "corp\\alice";
-        config.networkProxyPassword = "s3cret";
-        config.networkSplitDividerLocation = 220;
-        config.selectedTabIndex = 3;
+        config.selectedTabIndex = 2;
         configService.saveConfig(config, null);
 
         ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
-        assertEquals("https://example.com/ping", loaded.networkTestUrl);
-        assertEquals("proxy.company.com", loaded.networkProxyHost);
-        assertEquals(3128, loaded.networkProxyPort);
-        assertEquals("CUSTOM", loaded.networkProxyMode);
-        assertEquals("corp\\alice", loaded.networkProxyUser);
-        assertEquals("s3cret", loaded.networkProxyPassword);
-        assertEquals(220, loaded.networkSplitDividerLocation);
-        assertEquals(3, loaded.selectedTabIndex);
-    }
-
-    @Test
-    public void loadConfig_normalizesNetworkToolsDefaults() throws Exception {
-        Files.writeString(configFile, "{\"networkTestUrl\":\"\",\"networkProxyPort\":0,\"networkProxyMode\":\"nope\"}");
-        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
-        assertEquals("https://www.google.com", loaded.networkTestUrl);
-        assertEquals("", loaded.networkProxyHost);
-        assertEquals(8080, loaded.networkProxyPort);
-        assertEquals("SYSTEM", loaded.networkProxyMode);
-        assertEquals("", loaded.networkProxyUser);
-        assertEquals("", loaded.networkProxyPassword);
+        assertEquals(2, loaded.selectedTabIndex);
     }
 
     @Test

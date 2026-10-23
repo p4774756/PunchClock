@@ -84,30 +84,16 @@ public class ConfigPersistenceService {
         /** 背景圖不透明度 0–100（100 為最清楚） */
         public int backgroundOpacityPercent = WindowBackground.DEFAULT_OPACITY_PERCENT;
 
-        /** 網路測試分頁（公司 Proxy／封閉網路除錯） */
-        public String networkTestUrl = "https://www.google.com";
-        public String networkProxyHost = "";
-        public int networkProxyPort = 8080;
-        public String networkProxyMode = "SYSTEM";
-        /** Proxy 帳密（明文寫入 config.json；僅本機使用） */
-        public String networkProxyUser = "";
-        public String networkProxyPassword = "";
-        /** Ping/Pong 說明／測試區分隔線（≤0 表示使用預設） */
-        public int networkSplitDividerLocation = -1;
-
         /** 中繼 Proxy：讓同事透過你連到 Server */
         public boolean relayEnabled = false;
         public int relayPort = 8888;
 
         /** 使用者對這一版桌面端按過「否」；摘要相同就不再問。 */
         public String ignoredUpdateDigest = "";
+        /** 心跳時是否處理伺服器上的新版（預設開啟；關閉則忽略更新通知） */
+        public boolean checkForUpdates = true;
         /** 有新版時，閒置自動下載並重啟更新（預設開啟；關閉則改為詢問） */
         public boolean autoApplyUpdate = true;
-
-        /** 「瀏覽」分頁（Playwright 內建 Chromium） */
-        public String browseUrl = "https://www.google.com.tw";
-        public List<String> recentBrowseUrls = new ArrayList<>();
-        public boolean browseDirect = true;
     }
 
     private static SlotSettings defaultWorkIn() {
@@ -156,7 +142,7 @@ public class ConfigPersistenceService {
             Files.writeString(savePath, gson.toJson(config));
         } catch (IOException e) {
             if (logger != null) {
-                logger.accept("[警告] 儲存雲端設定失敗: " + e.getMessage());
+                logger.accept("[警告] 儲存設定失敗: " + e.getMessage());
             }
         }
     }
@@ -237,29 +223,8 @@ public class ConfigPersistenceService {
         config.windowTransparencyPercent = clampWindowTransparencyPercent(config.windowTransparencyPercent);
         config.backgroundBlurPercent = WindowBackground.clampBlurPercent(config.backgroundBlurPercent);
         config.backgroundOpacityPercent = WindowBackground.clampOpacityPercent(config.backgroundOpacityPercent);
-        if (config.networkTestUrl == null || config.networkTestUrl.isBlank()) {
-            config.networkTestUrl = "https://www.google.com";
-        }
-        if (config.networkProxyHost == null) {
-            config.networkProxyHost = "";
-        }
-        config.networkProxyPort = NetworkProbeService.clampProxyPort(config.networkProxyPort);
-        config.networkProxyMode = NetworkProbeService.normalizeProxyMode(config.networkProxyMode);
-        if (config.networkProxyUser == null) {
-            config.networkProxyUser = "";
-        }
-        if (config.networkProxyPassword == null) {
-            config.networkProxyPassword = "";
-        }
         config.relayPort = RelayProxyService.clampPort(config.relayPort);
         config.ignoredUpdateDigest = BuildInfo.normalizeDigest(config.ignoredUpdateDigest);
-        if (config.browseUrl == null || config.browseUrl.isBlank()) {
-            config.browseUrl = "https://www.google.com.tw";
-        }
-        if (config.recentBrowseUrls == null) {
-            config.recentBrowseUrls = new ArrayList<>();
-        }
-        seedRecentIfMissing(config.recentBrowseUrls, config.browseUrl);
     }
 
     public static int clampWindowTransparencyPercent(int percent) {

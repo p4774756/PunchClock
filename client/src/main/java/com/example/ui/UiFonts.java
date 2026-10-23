@@ -37,8 +37,8 @@ import java.util.Locale;
  */
 public final class UiFonts {
 
-    private static final String DIALOG_CSS_FONT =
-            "\"Helvetica Neue\",\"PingFang TC\",\"Lucida Grande\",sans-serif";
+    /** 對話框訊息寬度，跟以往 HTML 訊息的 420px 對齊。 */
+    private static final int MESSAGE_WIDTH = 420;
 
     private UiFonts() {
     }
@@ -80,12 +80,12 @@ public final class UiFonts {
     }
 
     public static void showMessage(Component parent, String message, String title, int messageType) {
-        JOptionPane.showMessageDialog(parent, toHtmlMessage(message), title, messageType);
+        JOptionPane.showMessageDialog(parent, messageBody(message), title, messageType);
     }
 
     public static void showMessage(
             Component parent, String message, String title, int messageType, Icon icon) {
-        JOptionPane.showMessageDialog(parent, toHtmlMessage(message), title, messageType, icon);
+        JOptionPane.showMessageDialog(parent, messageBody(message), title, messageType, icon);
     }
 
     /**
@@ -189,7 +189,7 @@ public final class UiFonts {
     public static int showConfirm(
             Component parent, String message, String title, int optionType, int messageType) {
         return JOptionPane.showConfirmDialog(
-                parent, toHtmlMessage(message), title, optionType, messageType);
+                parent, messageBody(message), title, optionType, messageType);
     }
 
     /**
@@ -260,11 +260,24 @@ public final class UiFonts {
         return panel;
     }
 
-    static String toHtmlMessage(String message) {
-        return "<html><body style='font-family:" + DIALOG_CSS_FONT + ";"
-                + "font-size:13pt;width:420px'>"
-                + escapeHtml(message).replace("\r\n", "<br>").replace("\n", "<br>")
-                + "</body></html>";
+    /**
+     * 純文字訊息。macOS Aqua 把 JOptionPane 的 HTML（CSS font-family）拿去畫時，
+     * 會漏掉一部分英數，例如「IDE」「jar」和路徑裡的字母，版號也會整段空白。
+     */
+    static JTextArea messageBody(String message) {
+        JTextArea area = new JTextArea(message == null ? "" : message);
+        area.setFont(chinesePlain(13));
+        area.setEditable(false);
+        area.setOpaque(false);
+        area.setFocusable(false);
+        area.setRequestFocusEnabled(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setBorder(BorderFactory.createEmptyBorder());
+        area.setSize(MESSAGE_WIDTH, Short.MAX_VALUE);
+        int height = Math.max(area.getFontMetrics(area.getFont()).getHeight(), area.getPreferredSize().height);
+        area.setPreferredSize(new Dimension(MESSAGE_WIDTH, height));
+        return area;
     }
 
     private static void applyFontTree(Component component, Font font) {
@@ -276,10 +289,4 @@ public final class UiFonts {
         }
     }
 
-    private static String escapeHtml(String text) {
-        if (text == null) {
-            return "";
-        }
-        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-    }
 }

@@ -48,7 +48,7 @@ java -jar client/target/punchclock-client-standalone.jar
 
 ### 3. 連線設定
 
-在桌面端「雲端設定」分頁：
+在桌面端「設定」分頁：
 
 1. 勾選「啟用雲端單向狀態回報」
 2. 填入 Server 網址，例如 `http://localhost:3000`
@@ -59,9 +59,8 @@ java -jar client/target/punchclock-client-standalone.jar
 ### 4. 公司受限網路
 
 - **SSL 攔截（PKIX 錯誤）：** 公司網路若會解開 HTTPS 重新簽章，Java 會出現 `PKIX path building failed`。勾選「信任所有 SSL（除錯）」可略過憑證驗證，心跳與中繼 Proxy 共用此設定（啟用雲端時會鎖定，需先取消雲端才能修改）。僅建議在已知有 SSL 攔截的環境使用。
-- **判斷哪條路線被擋：** 「Ping/Pong」分頁可對任意網址做 HTTP GET，「連線方式」切換「系統 Proxy／直連」對照結果；結果會列出憑證簽發者，簽發者不是公開 CA 代表連線被 SSL 攔截。
 - **需要 Proxy：** 心跳與中繼預設不讀系統 Proxy；公司要求走 Proxy 時，啟動加 `-Djava.net.useSystemProxies=true`，或 `-Dhttps.proxyHost=主機 -Dhttps.proxyPort=埠`。
-- **中繼 Proxy：** 同事連不到雲端、但你可以時，在「雲端設定」勾選「啟用中繼 Proxy」（預設埠 `8888`），同事把 Server 網址改成 `http://你的IP:8888`，請求會經由你的電腦轉發到雲端。
+- **中繼 Proxy：** 同事連不到雲端、但你可以時，在「設定」勾選「啟用中繼 Proxy」（預設埠 `8888`），同事把 Server 網址改成 `http://你的IP:8888`，請求會經由你的電腦轉發到雲端。
 - **建置時抓不到 `git-commit-id-maven-plugin`：** 這個 plugin 只用來在 app 顯示最後一次 commit 時間，抓不到時改用建置時間。VS Code／Eclipse 會自動略過；命令列加 `-P '!git-commit-time'`：
 
   ```bash
@@ -81,17 +80,16 @@ java -jar client/target/punchclock-client-standalone.jar
 - 視窗透明度（標題列滑桿，設定會寫入 `~/.punchclock/config.json`）
 - 支援 Edge、Chrome、Chromium、Firefox、WebKit
 - 同事傳檔：任意副檔名、可傳資料夾（自動壓 ZIP）、傳檔紀錄可在過期前重複下載或手動清除
-- 「Ping/Pong」連線測試分頁：對 Server `/ping` 或任意網址做 HTTP GET，可切換系統 Proxy／直連，並顯示憑證簽發者（判斷公司 SSL 攔截）
 - 中繼 Proxy：讓區網內連不到雲端的同事透過你的電腦轉發心跳等請求
 - 自動更新：伺服器附帶最新的桌面端 jar，心跳發現原始碼摘要不同時詢問是否更新（詳見下方「桌面端自動更新」）
 
 ### 桌面端自動更新
 
-- **運作方式：** 桌面端每次心跳會帶上版本與原始碼摘要（`client/src/main`、`shared/src/main` 與兩個 `pom.xml` 的 SHA-256）。伺服器 Docker image 內附同一次 commit 打包的 `punchclock-client-standalone.jar`；摘要不同時，心跳回應會帶 `update`，桌面端詢問使用者。
+- **運作方式：** 桌面端每次心跳會帶上版本與原始碼摘要（`client/src/main`、`shared/src/main` 與兩個 `pom.xml` 的 SHA-256）。伺服器 Docker image 內附同一次 commit 打包的 `punchclock-client-standalone.jar`；摘要不同時，心跳回應會帶 `update`。「設定」裡的「自動檢查更新」預設開啟，關閉後忽略這則通知，不詢問、不下載（「有新版時閒置自動更新」會一併鎖住）。開啟時，再由「有新版時閒置自動更新」決定閒置直接安裝，或先詢問使用者。
 - **使用者選「是」：** 跳出「程式更新」小視窗顯示下載進度（已下載／總大小、百分比），可按「取消」中止（不會記為忽略，下次心跳會再詢問）。下載到 `~/.punchclock/updates/`，校驗大小與 SHA-256 後，由 `apply-update.bat`／`apply-update.sh` 等程式結束、換掉原本的 jar 並重新啟動；設定與排程保留。
 - **使用者選「否」：** 該版摘要記在 `~/.punchclock/config.json` 的 `ignoredUpdateDigest`，不再詢問；想重測請清空這個欄位。
 - **打卡執行中**不會詢問，下一次心跳再問。
-- **限制：** 必須以 `java -jar punchclock-client-standalone.jar` 啟動；IDE（`dev` 版本、沒有摘要）不會收到更新通知，也無法就地換檔。jar 所在資料夾要有寫入權限。更新失敗時看 `~/.punchclock/updates/apply-update.log`。
+- **限制：** 以 `java -jar punchclock-client-standalone.jar` 啟動時，覆蓋正在跑的 jar 再重開；jar 所在資料夾要有寫入權限。IDE 直接跑（版本 `dev`、沒有原始碼摘要）不會收到更新通知。若 classpath 上已是打包過、摘要有值的程式，會先詢問（不自動更新）；同意後把 jar 寫到 `~/.punchclock/punchclock-client-standalone.jar`，結束後用 `java -jar` 啟動它，之後請執行那份 jar。更新失敗時看 `~/.punchclock/updates/apply-update.log`。
 - **發版：** 只要改了 `client/src/main`、`shared/src/main` 或 client／shared 的 `pom.xml`，摘要就會變；部署 server（Render 會重新打包 client）後，已連線的桌面端就會收到更新通知。只改 `server/` 不會觸發。建議同時進版號（四個 `pom.xml` 的 `<version>` 一起改）。
 - **本機測試：** 打包兩版 client jar，伺服器以 `CLIENT_JAR_PATH=<新版 jar>` 啟動，再用舊版 jar 連線。啟動 log 出現 `Client release: v… xxxxxxxx` 代表伺服器已載入可發布的 jar。
 

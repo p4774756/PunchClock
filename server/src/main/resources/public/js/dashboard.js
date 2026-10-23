@@ -132,7 +132,7 @@
       if (!isConnected) return '離線';
       const total = (tasks || []).length;
       const scheduled = countScheduledTasks(tasks);
-      return '上線中 · ' + transportLabel + ' · ' + total + ' 杯待處理 · ' + scheduled + ' 杯等沖泡';
+      return '出攤中 · ' + transportLabel + ' · ' + total + ' 份待炸 · ' + scheduled + ' 份在排隊';
     }
 
     function buildCancelAllButtonHtml(clientId, isConnected, tasks) {
@@ -141,14 +141,16 @@
       }
       const canCancel = isConnected && hasCancellableTasks(tasks);
       const disabled = canCancel ? '' : 'disabled';
-      const title = canCancel ? '' : ' title="目前沒有排隊中的訂單可以取消喔"';
+      const title = canCancel ? '' : ' title="現在沒有在炸的可以取消"';
       return '<button class="btn btn-danger" data-role="cancel-all" onclick="remoteCancelSchedule(\'' + clientId + '\')"' + title + ' ' + disabled + '>全部取消</button>';
     }
 
     function buildSendMessageButtonHtml(clientId, isConnected) {
       const disabled = isConnected ? '' : 'disabled';
-      const title = isConnected ? '傳個小紙條給他（等下會收到）' : ' title="對方不在線上，沒辦法傳喔"';
-      return '<button class="btn btn-ghost" data-role="send-message" onclick="remoteSendMessage(\'' + clientId + '\')"' + title + ' ' + disabled + '>傳訊息</button>';
+      const title = isConnected
+        ? ' title="喊一聲，等下就送到"'
+        : ' title="對方不在攤上，沒辦法喊"';
+      return '<button class="btn btn-ghost" data-role="send-message" onclick="remoteSendMessage(\'' + clientId + '\')"' + title + ' ' + disabled + '>喊一聲</button>';
     }
 
     function refreshTaskCancelUi(clientId, taskId) {
@@ -370,7 +372,7 @@
       }
 
       const taskCountEl = root.querySelector('.metric-value[data-role="task-count"]');
-      if (taskCountEl) taskCountEl.textContent = tasks.length + ' 筆';
+      if (taskCountEl) taskCountEl.textContent = tasks.length + ' 份';
 
       const msgEl = root.querySelector('.metric-value[data-role="latest-message"]');
       if (msgEl) {
@@ -459,13 +461,13 @@
         if (prevStateKey !== undefined && prevStateKey !== currentStateKey) {
           const timeStr = new Date().toLocaleTimeString('zh-TW');
           if (c.status === 'CHECKING_IN') {
-            appendLog(c.clientId, '[' + timeStr + '] 訂單製作中…');
+            appendLog(c.clientId, '[' + timeStr + '] 正在下鍋…');
           } else if (c.message && c.message.trim() !== '') {
             appendLog(c.clientId, '[' + timeStr + '] ' + c.message);
           }
           (c.tasks || []).forEach((t) => {
             if (!t) return;
-            appendLog(c.clientId, '[' + timeStr + '] 訂單【' + (t.name || t.id) + '】狀態：' + taskStatusLabel(t.status));
+            appendLog(c.clientId, '[' + timeStr + '] 這份【' + (t.name || t.id) + '】狀態：' + taskStatusLabel(t.status));
           });
         } else if (prevStateKey === undefined) {
           if (c.message && c.message.trim() !== '') {
@@ -793,7 +795,7 @@
       const host = document.getElementById('fileTransferList');
       if (!host) return;
       if (!fileData.length) {
-        host.innerHTML = '<p class="empty-tasks">目前沒有暫存檔案</p>';
+        host.innerHTML = '<p class="empty-tasks">袋子是空的</p>';
         return;
       }
       let rows = '';
@@ -872,7 +874,7 @@
     }
 
     async function deleteAdminFile(fileId) {
-      if (!fileId || !confirm('確定要清除這份暫存檔嗎？清除後雙方都無法再下載。')) return;
+      if (!fileId || !confirm('確定要把這袋拿掉嗎？拿掉之後兩邊都領不回去。')) return;
       try {
         const res = await fetch('/api/peer/file/' + encodeURIComponent(fileId), {
           method: 'DELETE',
@@ -888,7 +890,7 @@
     }
 
     async function clearAllAdminFiles() {
-      if (!confirm('確定要清除全部傳檔暫存嗎？')) return;
+      if (!confirm('確定要把外帶袋全部倒掉嗎？')) return;
       try {
         const res = await fetch('/api/peer/files', { method: 'DELETE', credentials: 'same-origin' });
         const data = await res.json().catch(() => ({}));
@@ -966,7 +968,7 @@
 
       return '<article class="task-card" data-task-id="' + escapeHtml(t.id || '') + '">' +
         '<div class="task-card-top">' +
-          '<strong class="task-card-name">' + escapeHtml(t.name || '待處理訂單') + '</strong>' +
+          '<strong class="task-card-name">' + escapeHtml(t.name || '這一份') + '</strong>' +
           '<div class="task-card-actions">' +
             '<span class="task-countdown" data-status="' + escapeHtml(t.status || '') + '" data-actual-time="' + countdownAttr + '">' + escapeHtml(countdown) + '</span>' +
             statusBadge + cancelBtn +
@@ -985,7 +987,7 @@
     function buildTaskListInnerHtml(c, isConnected) {
       const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
       if (tasks.length === 0) {
-        return '<p class="empty-tasks">目前沒有待處理的訂單，去店裡點杯吧</p>';
+        return '<p class="empty-tasks">攤上現在沒有單，等下一份</p>';
       }
       tasks.sort((a, b) => (a.actualTime || a.targetTime || '').localeCompare(b.actualTime || b.targetTime || ''));
       let cardsHtml = '';
@@ -1006,7 +1008,7 @@
       const countdownAttr = t.actualTime || t.targetTime || '';
 
       const nameEl = card.querySelector('.task-card-name');
-      if (nameEl) nameEl.textContent = t.name || '待處理訂單';
+      if (nameEl) nameEl.textContent = t.name || '這一份';
 
       const actions = card.querySelector('.task-card-actions');
       if (actions) {
@@ -1040,7 +1042,7 @@
       const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
       if (tasks.length === 0) {
         host.removeAttribute('data-task-ids');
-        host.innerHTML = '<p class="empty-tasks">目前沒有待處理的訂單，去店裡點杯吧</p>';
+        host.innerHTML = '<p class="empty-tasks">攤上現在沒有單，等下一份</p>';
         return;
       }
       tasks.sort((a, b) => (a.actualTime || a.targetTime || '').localeCompare(b.actualTime || b.targetTime || ''));
@@ -1059,7 +1061,7 @@
     function renderClients() {
       const container = document.getElementById('clientContainer');
       if (!clientData || clientData.length === 0) {
-        container.innerHTML = '<div class="empty-state"><p>尚無裝置連線</p><p>請啟動桌面端並啟用雲端狀態回報</p></div>';
+        container.innerHTML = '<div class="empty-state"><p>還沒有攤車連上來</p><p>請打開桌面端，並勾選雲端狀態回報</p></div>';
         return;
       }
 
@@ -1107,11 +1109,11 @@
           '<div class="device-body ' + bodyClass + '">' +
             '<div class="metrics">' +
               '<div class="metric"><span class="metric-label">上次打卡</span><span class="metric-value heartbeat-value" data-client-id="' + escapeHtml(c.clientId) + '">' + formatHeartbeat(c.lastSeen) + '</span></div>' +
-              '<div class="metric"><span class="metric-label">待做訂單</span><span class="metric-value" data-role="task-count">' + tasks.length + ' 杯</span></div>' +
+              '<div class="metric"><span class="metric-label">待炸</span><span class="metric-value" data-role="task-count">' + tasks.length + ' 份</span></div>' +
               '<div class="metric"><span class="metric-label">最新動態</span><span class="metric-value" data-role="latest-message" style="color:' + statusColor + ';font-size:0.88rem;">' + safeMsg + '</span></div>' +
             '</div>' +
             '<div>' +
-              '<div class="section-label">訂單列表</div>' +
+              '<div class="section-label">點餐單</div>' +
               '<div class="task-list" data-role="task-list" data-task-ids="' + escapeHtml(tasks.map((t) => t.id).join('|')) + '">' + tasksInnerHtml + '</div>' +
               '<div class="action-row">' +
                 sendMsgBtnHtml +
@@ -1120,7 +1122,7 @@
             '</div>' +
             '<div>' +
               '<div class="log-head">' +
-                '<div class="section-label" style="margin:0">店內小記</div>' +
+                '<div class="section-label" style="margin:0">攤前筆記</div>' +
                 '<button class="btn btn-ghost" onclick="clearClientLog(\'' + c.clientId + '\')">擦掉</button>' +
               '</div>' +
               '<div class="log-box" id="log-' + c.clientId + '">' + logContent + '</div>' +
@@ -1142,7 +1144,7 @@
       clientLogs[clientId] = [];
       const c = clientData.find((x) => x.clientId === clientId);
       logSkipCount[clientId] = (c && Array.isArray(c.eventLog)) ? c.eventLog.length : 0;
-      lastLogFingerprints[clientId] = '[' + new Date().toLocaleTimeString('zh-TW') + '] 小記已擦掉';
+      lastLogFingerprints[clientId] = '[' + new Date().toLocaleTimeString('zh-TW') + '] 筆記擦掉了';
       const box = document.getElementById('log-' + clientId);
       if (box) {
         box.innerHTML = escapeHtml(lastLogFingerprints[clientId]);
@@ -1150,7 +1152,7 @@
     }
 
     function deleteClient(clientId) {
-      if (confirm('確定要把【' + clientId + '】從名單上移除嗎？')) {
+      if (confirm('確定要把【' + clientId + '】從攤位名單拿掉嗎？')) {
         fetch('/api/clients/' + encodeURIComponent(clientId), { method: 'DELETE' })
           .then(res => res.json())
           .then(data => { if (!data.success) alert(data.message || '刪除失敗'); })
@@ -1160,11 +1162,11 @@
 
     function remoteCancelTask(clientId, taskId) {
       if (isTaskCancelPending(clientId, taskId)) return;
-      if (!confirm('確定要取消【' + clientId + '】的訂單【' + taskId + '】嗎？')) return;
+      if (!confirm('確定要取消【' + clientId + '】的這份【' + taskId + '】嗎？')) return;
 
       markTaskCancelPending(clientId, taskId);
       refreshTaskCancelUi(clientId, taskId);
-      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在幫你取消訂單 (' + taskId + ')…');
+      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在把這份單抽掉 (' + taskId + ')…');
       fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-task/' + encodeURIComponent(taskId), { method: 'POST' })
         .then(res => res.json())
         .then(data => {
@@ -1173,7 +1175,7 @@
           } else {
             clearTaskCancelPending(clientId, taskId);
             refreshTaskCancelUi(clientId, taskId);
-            alert(data.message || '訂單取消失敗了');
+            alert(data.message || '這份單沒取消成');
           }
         }).catch(err => {
           clearTaskCancelPending(clientId, taskId);
@@ -1187,11 +1189,11 @@
       const c = clientData.find((x) => x.clientId === clientId);
       const tasks = c && Array.isArray(c.tasks) ? c.tasks : [];
       if (!hasCancellableTasks(tasks)) return;
-      if (!confirm('確定要把【' + clientId + '】的訂單全部取消嗎？')) return;
+      if (!confirm('確定要把【' + clientId + '】的單全部抽掉嗎？')) return;
 
       markCancelAllPending(clientId);
       refreshCancelAllUi(clientId);
-      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在取消全部訂單…');
+      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在把全部的單抽掉…');
       try {
         const res = await fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-schedule', { method: 'POST' });
         const data = await res.json();
@@ -1212,10 +1214,10 @@
     async function remoteSendMessage(clientId) {
       const c = clientData.find((x) => x.clientId === clientId);
       if (!c || c.status === 'OFFLINE') {
-        alert('裝置離線，無法傳送訊息');
+        alert('攤車收了，沒辦法喊');
         return;
       }
-      const text = window.prompt('傳訊息給【' + clientId + '】（對方約 15 秒內收到，可在「櫃台聊聊」回看）');
+      const text = window.prompt('喊給【' + clientId + '】（大約 15 秒內聽到，可在「攤前喊話」回看）');
       if (text == null) return;
       const trimmed = String(text).trim();
       if (!trimmed) {
@@ -1226,7 +1228,7 @@
       appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在傳送訊息…');
       const ok = await postChat({ roomId: roomId, text: trimmed, nick: chatNick() });
       if (ok) {
-        appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 紙條已丟出去囉，對方等下會收到');
+        appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已經喊出去了，對方等下會聽到');
         selectChat(roomId);
         switchDashTab('chat');
       }
@@ -1307,7 +1309,7 @@
       const grid = document.getElementById('photoGrid');
       if (!grid) return;
       if (!photoData.length) {
-        grid.innerHTML = '<p class="empty-tasks">尚無照片，點擊「選擇照片」上傳</p>';
+        grid.innerHTML = '<p class="empty-tasks">牆上還沒貼，按「選張照片」貼一張</p>';
         return;
       }
       let html = '';
@@ -1420,7 +1422,7 @@
     }
 
     async function deletePhoto(photoId) {
-      if (!confirm('確定要刪除這張照片嗎？')) return;
+      if (!confirm('確定要把這張從菜單牆上撕掉嗎？')) return;
       try {
         const res = await fetch('/api/photos/' + encodeURIComponent(photoId), {
           method: 'DELETE',
@@ -1440,7 +1442,7 @@
     }
 
     async function clearAllPhotos() {
-      if (!confirm('確定要清除全部照片嗎？')) return;
+      if (!confirm('確定要把菜單牆整面撕掉嗎？')) return;
       try {
         const res = await fetch('/api/photos', { method: 'DELETE', credentials: 'same-origin' });
         const data = await res.json();
@@ -1639,11 +1641,11 @@
       const targets = dmChatTargets();
       dmBox.innerHTML = targets.length
         ? targets.map((id) => chatRoomButton('dm:' + id, id)).join('')
-        : '<p class="chat-empty">還沒有裝置</p>';
+        : '<p class="chat-empty">還沒有攤車</p>';
       const groups = chatRooms.filter((room) => room && room.kind === 'group');
       groupBox.innerHTML = groups.length
         ? groups.map((room) => chatRoomButton(room.id, room.name || room.id)).join('')
-        : '<p class="chat-empty">還沒有群組</p>';
+        : '<p class="chat-empty">還沒有揪團</p>';
       dmBox.querySelectorAll('[data-room]').forEach((btn) => {
         btn.addEventListener('click', () => selectChat(btn.getAttribute('data-room')));
       });
@@ -1697,21 +1699,21 @@
       const log = document.getElementById('chatLog');
       if (!title || !log) return;
       if (!activeChatId) {
-        title.textContent = '選一個對話';
-        log.innerHTML = '<p class="chat-empty">左邊選一位同事，或建立群組。</p>';
+        title.textContent = '先挑一位';
+        log.innerHTML = '<p class="chat-empty">左邊挑一位，或開一桌。</p>';
         return;
       }
       const room = chatRoomById(activeChatId);
       if (activeChatId.indexOf('dm:') === 0) {
-        title.textContent = '私訊 · ' + activeChatId.slice(3);
+        title.textContent = '跟攤喊 · ' + activeChatId.slice(3);
       } else if (room) {
-        title.textContent = '群組 · ' + (room.name || room.id);
+        title.textContent = '揪團 · ' + (room.name || room.id);
       } else {
-        title.textContent = '群組';
+        title.textContent = '揪團';
       }
       const messages = room && Array.isArray(room.messages) ? room.messages : [];
       if (!messages.length) {
-        log.innerHTML = '<p class="chat-empty">還沒有訊息。傳一句就會開出對方的聊天視窗。</p>';
+        log.innerHTML = '<p class="chat-empty">還沒喊過。喊一句，對方桌上就會開窗。</p>';
         return;
       }
       const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;

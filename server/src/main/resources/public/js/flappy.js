@@ -67,7 +67,7 @@
     setScore(0);
     state = 'ready';
     if (!keepOverlay) {
-      setOverlay(true, '珍珠彈跳', '點一下開始彈跳');
+      setOverlay(true, '珍珠跳跳', '點一下，珍珠就跳');
     }
     draw();
   }
@@ -110,7 +110,7 @@
   function die() {
     if (state !== 'playing') return;
     state = 'dead';
-    setOverlay(true, '嗚嗚掉了', '得分 ' + score + ' · 再跳一次');
+    setOverlay(true, '掉進油鍋了', '得分 ' + score + ' · 再跳一次');
   }
 
   function pipeSpeed() {
@@ -335,9 +335,9 @@
   function activate() {
     active = true;
     if (state === 'ready') {
-      setOverlay(true, '珍珠彈跳', '點一下開始彈跳');
+      setOverlay(true, '珍珠跳跳', '點一下，珍珠就跳');
     } else if (state === 'dead') {
-      setOverlay(true, '嗚嗚掉了', '得分 ' + score + ' · 再跳一次');
+      setOverlay(true, '掉進油鍋了', '得分 ' + score + ' · 再跳一次');
     } else if (state === 'playing') {
       setOverlay(false);
     }
@@ -351,7 +351,7 @@
     stopLoop();
     if (state === 'playing') {
       // soft-pause: freeze mid-flight until tab returns
-      setOverlay(true, '等你回來', '切回來繼續彈跳');
+      setOverlay(true, '等你回來', '回來繼續跳');
     }
   }
 
@@ -381,7 +381,7 @@
 
   document.addEventListener('visibilitychange', function () {
     if (document.hidden && active && state === 'playing') {
-      setOverlay(true, '等你回來', '回到頁面繼續彈跳');
+      setOverlay(true, '等你回來', '回到攤位繼續跳');
       stopLoop();
     } else if (!document.hidden && active) {
       if (state === 'playing') setOverlay(false);

@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * 收到心跳的更新通知後處理桌面端更新。
  * <ul>
+ *   <li>關閉檢查：忽略心跳裡的更新通知，不記錄、不詢問、不下載。</li>
  *   <li>自動模式（預設）：閒置時直接背景下載、校驗、換檔重開，不打擾使用者。</li>
  *   <li>手動模式：先詢問，同意才下載；同一版按過「否」不再問。</li>
  * </ul>
@@ -35,6 +36,9 @@ public final class ClientUpdateCoordinator {
 
         /** 閒置：沒有打卡執行中、近期沒有排程、沒有傳檔進行中。 */
         boolean idle();
+
+        /** 是否處理心跳裡的更新通知。關閉時 {@link #handle} 直接返回。 */
+        boolean checkForUpdates();
 
         /** 是否自動更新（不詢問）。 */
         boolean autoUpdate();
@@ -89,7 +93,7 @@ public final class ClientUpdateCoordinator {
     }
 
     public void handle(UpdateNotice notice) {
-        if (notice == null) {
+        if (notice == null || !actions.checkForUpdates()) {
             return;
         }
         String digest = notice.sourceDigest;

@@ -13,7 +13,6 @@ import com.example.service.HeartbeatService.PeerInfo;
 import com.example.service.PeerAvatar;
 import com.example.service.PeerChatStore;
 import com.example.service.RelayProxyService;
-import com.example.service.WebBrowserService;
 import com.example.service.SchedulerService;
 import com.example.service.TaskPersistenceService;
 import com.example.service.TransferCancel;
@@ -22,8 +21,6 @@ import com.example.service.WindowBackground;
 import com.example.ui.PeerChatWindow;
 import com.example.ui.UiFonts;
 import com.example.ui.TransferProgressDialog;
-import com.example.ui.NetworkToolsPanel;
-import com.example.ui.BrowsePanel;
 import com.example.ui.PanelFactory;
 import com.example.ui.PanelFactory.*;
 import com.example.ui.RecentValuesHelper;
@@ -69,7 +66,6 @@ public class App extends JFrame {
     private final AutomationService automationService;
     private final HeartbeatService heartbeatService;
     private final RelayProxyService relayProxyService;
-    private final WebBrowserService webBrowserService;
     private final TaskPersistenceService persistenceService;
     private final CheckInHistoryService historyService;
     private final ConfigPersistenceService configPersistenceService;
@@ -77,8 +73,6 @@ public class App extends JFrame {
     private boolean suppressConfigSave = false;
     private Timer countdownTimer;
     private JTabbedPane mainTabs;
-    private NetworkToolsPanel networkToolsPanel;
-    private BrowsePanel browsePanel;
     private boolean serverHistoryMenuBound;
     private Image appIconImage;
     /** 後台（管理頁）傳來的訊息寄件者代號，只能收不能回；與伺服器 ClientStore.ADMIN_FROM_ID 一致。 */
@@ -106,7 +100,6 @@ public class App extends JFrame {
         this.automationService = new AutomationService();
         this.heartbeatService = new HeartbeatService();
         this.relayProxyService = new RelayProxyService();
-        this.webBrowserService = new WebBrowserService();
         this.persistenceService = new TaskPersistenceService();
         this.historyService = new CheckInHistoryService();
         this.configPersistenceService = new ConfigPersistenceService();
@@ -273,15 +266,11 @@ public class App extends JFrame {
         tasksTab.add(slotPanel, BorderLayout.NORTH);
         tasksTab.add(historyPanel, BorderLayout.CENTER);
 
-        JPanel serverBody = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont, fieldFont);
-        JPanel serverGroup = PanelFactory.createGroupPanel("雲端服務與裝置設定", boldFont);
-        serverGroup.setLayout(new BorderLayout());
-        serverGroup.add(serverBody, BorderLayout.NORTH);
-
-        JPanel cloudTab = new JPanel(new BorderLayout());
-        cloudTab.setOpaque(false);
-        cloudTab.setBorder(new EmptyBorder(8, 4, 8, 4));
-        cloudTab.add(serverGroup, BorderLayout.NORTH);
+        JScrollPane settingsBody = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont, fieldFont);
+        JPanel settingsTab = new JPanel(new BorderLayout());
+        settingsTab.setOpaque(false);
+        settingsTab.setBorder(new EmptyBorder(4, 4, 4, 4));
+        settingsTab.add(settingsBody, BorderLayout.CENTER);
 
         JPanel peerBody = PanelFactory.createPeerInteractionPanel(peerRefs, mainFont, boldFont);
         JPanel peerGroup = PanelFactory.createGroupPanel(PanelFactory.PEER_TAB_LABEL, boldFont);
@@ -301,25 +290,6 @@ public class App extends JFrame {
         peerTab.setBorder(new EmptyBorder(8, 4, 8, 4));
         peerTab.add(peerGroup, BorderLayout.CENTER);
 
-        networkToolsPanel = new NetworkToolsPanel(
-                mainFont, boldFont, fieldFont,
-                () -> RecentValuesHelper.getValue(serverRefs.serverUrlCombo),
-                () -> serverRefs.trustAllSslCheckBox != null && serverRefs.trustAllSslCheckBox.isSelected(),
-                () -> {
-                    heartbeatService.refreshHttpClient();
-                    relayProxyService.refreshHttpClient();
-                },
-                this::saveCloudConfig,
-                this::appendLog);
-        networkToolsPanel.setOpaque(false);
-
-        browsePanel = new BrowsePanel(
-                mainFont, boldFont, fieldFont,
-                webBrowserService,
-                () -> serverRefs.trustAllSslCheckBox != null && serverRefs.trustAllSslCheckBox.isSelected(),
-                this::saveCloudConfig,
-                this::appendLog);
-
         JPanel logPanel = PanelFactory.createLogPanel(logRefs, mainFont, boldFont);
         JPanel logTab = new JPanel(new BorderLayout());
         logTab.setOpaque(false);
@@ -327,19 +297,15 @@ public class App extends JFrame {
         logTab.add(logPanel, BorderLayout.CENTER);
 
         tabs.addTab("排程任務", tasksTab);
-        tabs.addTab("雲端設定", cloudTab);
+        tabs.addTab("設定", settingsTab);
         tabs.addTab(PanelFactory.PEER_TAB_LABEL, peerTab);
-        tabs.addTab(NetworkToolsPanel.TAB_LABEL, networkToolsPanel);
-        tabs.addTab(BrowsePanel.TAB_LABEL, browsePanel);
         tabs.addTab("系統日誌", logTab);
         tabs.setOpaque(false);
         tabs.setBackground(new Color(0, 0, 0, 0));
         tabs.setToolTipTextAt(0, "設定目標網址、時間，立即測試");
-        tabs.setToolTipTextAt(1, "雲端心跳、Client ID、Token；可選程式背景圖與模糊／透明度");
+        tabs.setToolTipTextAt(1, "雲端連線、程式更新、背景圖與中繼 Proxy");
         tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案／資料夾與傳檔狀態");
-        tabs.setToolTipTextAt(3, "測試 Server GET /ping（Ping/Pong）");
-        tabs.setToolTipTextAt(4, "用內建 Chromium 開網頁，可略過公司 Proxy 直連");
-        tabs.setToolTipTextAt(5, "查看與清除系統日誌");
+        tabs.setToolTipTextAt(3, "查看與清除系統日誌");
         tabs.addChangeListener(e -> rememberWindowLayout());
         tabs.setSelectedIndex(0);
 
@@ -454,9 +420,10 @@ public class App extends JFrame {
             setLocationRelativeTo(null);
         }
 
-        if (mainTabs != null && config.selectedTabIndex >= 0
-                && config.selectedTabIndex < mainTabs.getTabCount()) {
-            mainTabs.setSelectedIndex(config.selectedTabIndex);
+        if (mainTabs != null && config.selectedTabIndex >= 0 && mainTabs.getTabCount() > 0) {
+            // 舊版在「系統日誌」前面還有 Ping/Pong、瀏覽；超出現有分頁時仍開最後一頁。
+            int index = Math.min(config.selectedTabIndex, mainTabs.getTabCount() - 1);
+            mainTabs.setSelectedIndex(index);
         }
     }
 
@@ -1070,7 +1037,7 @@ public class App extends JFrame {
         onlinePeerIds.clear();
         if (peerRefs.peerHintLabel != null) {
             peerRefs.peerHintLabel.setText(
-                    "雲端未啟用；至「雲端設定」勾選「啟用雲端單向狀態回報」後，可查看好友並互動");
+                    "雲端未啟用；至「設定」勾選「啟用雲端單向狀態回報」後，可查看好友並互動");
         }
         if (peerRefs.peerStatusLabel != null) {
             peerRefs.peerStatusLabel.setText("雲端未啟用 · 本機獨立運作");
@@ -1728,6 +1695,15 @@ public class App extends JFrame {
                 saveCloudConfig();
             });
         }
+        if (serverRefs.checkForUpdatesCheckBox != null) {
+            serverRefs.checkForUpdatesCheckBox.addActionListener(e -> {
+                appendLog(serverRefs.checkForUpdatesCheckBox.isSelected()
+                        ? "[更新] 已開啟自動檢查更新"
+                        : "[更新] 已關閉自動檢查更新，不再處理新版通知");
+                syncUpdateCheckControls();
+                saveCloudConfig();
+            });
+        }
         if (serverRefs.autoUpdateCheckBox != null) {
             serverRefs.autoUpdateCheckBox.addActionListener(e -> {
                 appendLog(serverRefs.autoUpdateCheckBox.isSelected()
@@ -1765,7 +1741,6 @@ public class App extends JFrame {
                 }
                 heartbeatService.stopHeartbeat();
                 relayProxyService.stop();
-                webBrowserService.shutdown();
                 if (countdownTimer != null) {
                     countdownTimer.stop();
                 }
@@ -1892,11 +1867,6 @@ public class App extends JFrame {
             applyWindowTransparencyFromConfig(config);
             applyAvatarFromConfig(config);
             applyBackgroundFromConfig(config);
-            applyNetworkToolsConfig(config);
-            if (browsePanel != null) {
-                browsePanel.applySettings(config.browseUrl, config.recentBrowseUrls,
-                        config.browseDirect, this::saveCloudConfig);
-            }
         } finally {
             suppressConfigSave = false;
         }
@@ -1928,9 +1898,13 @@ public class App extends JFrame {
             heartbeatService.setTrustAllSsl(config.trustAllSsl);
             relayProxyService.setTrustAllSsl(config.trustAllSsl);
         }
+        if (serverRefs.checkForUpdatesCheckBox != null) {
+            serverRefs.checkForUpdatesCheckBox.setSelected(config.checkForUpdates);
+        }
         if (serverRefs.autoUpdateCheckBox != null) {
             serverRefs.autoUpdateCheckBox.setSelected(config.autoApplyUpdate);
         }
+        syncUpdateCheckControls();
         applyRelayConfig(config);
         ignoredUpdateDigest = config.ignoredUpdateDigest == null ? "" : config.ignoredUpdateDigest;
         syncCloudConnectionFieldsEnabled();
@@ -2017,15 +1991,10 @@ public class App extends JFrame {
         config.trustAllSsl = serverRefs.trustAllSslCheckBox != null
                 && serverRefs.trustAllSslCheckBox.isSelected();
         config.autoApplyUpdate = isAutoUpdateEnabled();
+        config.checkForUpdates = isCheckForUpdatesEnabled();
         config.backgroundBlurPercent = currentBackgroundBlurPercent();
         config.backgroundOpacityPercent = currentBackgroundOpacityPercent();
         captureRelayConfigInto(config);
-        captureNetworkToolsInto(config);
-        if (browsePanel != null) {
-            config.browseUrl = browsePanel.getUrl();
-            config.browseDirect = browsePanel.isDirect();
-            ConfigPersistenceService.pushRecent(config.recentBrowseUrls, config.browseUrl);
-        }
         captureWindowLayoutInto(config);
         config.ignoredUpdateDigest = ignoredUpdateDigest;
         configPersistenceService.saveConfig(config, null);
@@ -2051,6 +2020,11 @@ public class App extends JFrame {
             @Override
             public boolean idle() {
                 return isIdleForUpdate();
+            }
+
+            @Override
+            public boolean checkForUpdates() {
+                return isCheckForUpdatesEnabled();
             }
 
             @Override
@@ -2138,6 +2112,18 @@ public class App extends JFrame {
                 && !TransferProgressDialog.isAnyActive();
     }
 
+    private boolean isCheckForUpdatesEnabled() {
+        return serverRefs.checkForUpdatesCheckBox == null || serverRefs.checkForUpdatesCheckBox.isSelected();
+    }
+
+    /** 沒勾自動檢查時，「閒置自動更新」沒有作用，先鎖起來。 */
+    private void syncUpdateCheckControls() {
+        if (serverRefs.autoUpdateCheckBox == null || serverRefs.checkForUpdatesCheckBox == null) {
+            return;
+        }
+        serverRefs.autoUpdateCheckBox.setEnabled(serverRefs.checkForUpdatesCheckBox.isSelected());
+    }
+
     private boolean isAutoUpdateEnabled() {
         return serverRefs.autoUpdateCheckBox == null || serverRefs.autoUpdateCheckBox.isSelected();
     }
@@ -2172,7 +2158,6 @@ public class App extends JFrame {
                 }
                 heartbeatService.stopHeartbeat();
                 relayProxyService.stop();
-                webBrowserService.shutdown();
             } catch (Exception ex) {
                 appendLog("[更新] 關閉前提示：" + ex.getMessage());
             }
@@ -2193,33 +2178,6 @@ public class App extends JFrame {
             if (val instanceof Number) {
                 config.relayPort = ((Number) val).intValue();
             }
-        }
-    }
-
-    private void applyNetworkToolsConfig(ConfigPersistenceService.CloudConfig config) {
-        if (networkToolsPanel == null || config == null) {
-            return;
-        }
-        networkToolsPanel.applySettings(
-                config.networkTestUrl, config.networkProxyHost,
-                config.networkProxyPort, config.networkProxyMode,
-                config.networkProxyUser, config.networkProxyPassword);
-        networkToolsPanel.applySplitDividerLocation(config.networkSplitDividerLocation);
-    }
-
-    private void captureNetworkToolsInto(ConfigPersistenceService.CloudConfig config) {
-        if (networkToolsPanel == null || config == null) {
-            return;
-        }
-        config.networkTestUrl = networkToolsPanel.getTestUrl();
-        config.networkProxyHost = networkToolsPanel.getProxyHost();
-        config.networkProxyPort = networkToolsPanel.getProxyPort();
-        config.networkProxyMode = networkToolsPanel.getProxyMode();
-        config.networkProxyUser = networkToolsPanel.getProxyUser();
-        config.networkProxyPassword = networkToolsPanel.getProxyPassword();
-        int divider = networkToolsPanel.getSplitDividerLocation();
-        if (divider > 0) {
-            config.networkSplitDividerLocation = divider;
         }
     }
 

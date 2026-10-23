@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>莫卡咖啡 · 遠端監控</title>
+  <title>莫卡咖啡 · 夜市後台</title>
   <link rel="stylesheet" href="/css/dashboard.css">
   <link rel="stylesheet" href="/css/flappy.css">
 </head>
@@ -14,11 +14,11 @@
         <div class="brand-logo" aria-hidden="true">M<em>C</em></div>
         <div class="navbar-brand-text">
           莫卡咖啡
-          <small>Remote Ops Monitor · v{{SERVER_VERSION}} · 建置 {{SERVER_BUILD_TIME}}</small>
+          <small>夜市攤車 · v{{SERVER_VERSION}} · 出攤 {{SERVER_BUILD_TIME}}</small>
         </div>
       </div>
       <div class="top-actions">
-        <span class="chip chip-admin">管理員</span>
+        <span class="chip chip-admin">攤主</span>
         <a href="/logout" class="btn-logout">登出</a>
       </div>
     </div>
@@ -26,56 +26,56 @@
 
   <div class="site-banner">
     <div class="site-banner-inner">
-      <h1 class="header-title">Bubble Tea Lovers</h1>
-      <p class="header-sub">每一杯珍珠奶茶，都是生活的小確幸</p>
+      <h1 class="header-title">台灣小吃攤</h1>
+      <p class="header-sub">雞排、鹽酥雞、臭豆腐、蔥抓餅，熱騰騰剛剛出爐</p>
     </div>
   </div>
 
   <div class="dash-tabs-wrap">
     <div class="dash-tabs" role="tablist" aria-label="後台分頁">
       <button type="button" class="dash-tab is-active" role="tab" id="tab-devices"
-              aria-selected="true" aria-controls="panel-devices" data-tab="devices">日常紀錄</button>
+              aria-selected="true" aria-controls="panel-devices" data-tab="devices">點餐單</button>
       <button type="button" class="dash-tab" role="tab" id="tab-chat"
-              aria-selected="false" aria-controls="panel-chat" data-tab="chat">櫃台聊聊<span id="chatTabBadge" class="chat-tab-badge" hidden></span></button>
+              aria-selected="false" aria-controls="panel-chat" data-tab="chat">攤前喊話<span id="chatTabBadge" class="chat-tab-badge" hidden></span></button>
       <button type="button" class="dash-tab" role="tab" id="tab-files"
-              aria-selected="false" aria-controls="panel-files" data-tab="files">小物寄放</button>
+              aria-selected="false" aria-controls="panel-files" data-tab="files">外帶袋</button>
       <button type="button" class="dash-tab" role="tab" id="tab-system"
-              aria-selected="false" aria-controls="panel-system" data-tab="system">店內近況</button>
+              aria-selected="false" aria-controls="panel-system" data-tab="system">爐火狀況</button>
       <button type="button" class="dash-tab" role="tab" id="tab-photos"
-              aria-selected="false" aria-controls="panel-photos" data-tab="photos">牆上風景</button>
+              aria-selected="false" aria-controls="panel-photos" data-tab="photos">菜單牆</button>
       <button type="button" class="dash-tab" role="tab" id="tab-flappy"
-              aria-selected="false" aria-controls="panel-flappy" data-tab="flappy">珍珠彈跳</button>
+              aria-selected="false" aria-controls="panel-flappy" data-tab="flappy">珍珠跳跳</button>
     </div>
   </div>
 
   <div class="shell dash-panel is-active" id="panel-devices" role="tabpanel" aria-labelledby="tab-devices">
     <div class="content-panel content-panel-full">
       <main id="clientContainer">
-        <div class="empty-state"><p>稍等一下喔…</p><p>正在沖泡今日份的紀錄</p></div>
+        <div class="empty-state"><p>鍋子還在熱…</p><p>今日的單子正在排上攤</p></div>
       </main>
     </div>
   </div>
 
   <div class="shell dash-panel" id="panel-chat" role="tabpanel" aria-labelledby="tab-chat" hidden>
     <div class="content-panel content-panel-full">
-      <section class="chat-desk" aria-label="櫃台聊聊">
+      <section class="chat-desk" aria-label="攤前喊話">
         <div class="chat-layout">
           <aside class="chat-side">
             <div class="chat-nick">
               <label for="chatNick">我的暱稱</label>
-              <input id="chatNick" maxlength="24" placeholder="後台" autocomplete="nickname">
-              <p class="chat-hint">只存在這台瀏覽器，對方視窗會看到這個名字。</p>
+              <input id="chatNick" maxlength="24" placeholder="攤主" autocomplete="nickname">
+              <p class="chat-hint">只存在這台瀏覽器，對方會聽到這個名字。</p>
             </div>
             <div class="chat-room-block">
-              <div class="section-label">私訊</div>
+              <div class="section-label">跟攤喊</div>
               <div id="chatDmList" class="chat-room-list"></div>
             </div>
             <div class="chat-room-block">
-              <div class="section-label">群組</div>
+              <div class="section-label">揪團</div>
               <div id="chatGroupList" class="chat-room-list"></div>
-              <button type="button" class="btn btn-ghost" id="chatNewGroupBtn">新群組</button>
+              <button type="button" class="btn btn-ghost" id="chatNewGroupBtn">開一桌</button>
               <div id="chatCreateBox" class="chat-create" hidden>
-                <input id="chatCreateName" maxlength="40" placeholder="群組名稱">
+                <input id="chatCreateName" maxlength="40" placeholder="這桌叫什麼，例如滷味團">
                 <div id="chatCreateMembers" class="chat-members"></div>
                 <div class="chat-create-actions">
                   <button type="button" class="btn btn-primary" id="chatCreateSubmit">建立</button>
@@ -86,21 +86,21 @@
           </aside>
           <section class="chat-thread">
             <div class="chat-thread-head">
-              <strong id="chatThreadTitle">選一個對話</strong>
-              <p id="chatThreadHint" class="chat-hint">私訊約 15 秒內送到對方桌面。對方若超過 6 小時沒上線，桌面端不會補收，這裡仍看得到。</p>
+              <strong id="chatThreadTitle">先挑一位</strong>
+              <p id="chatThreadHint" class="chat-hint">喊話大約 15 秒送到對方桌上。超過 6 小時沒來收攤，桌面端不會補聽，這裡還留著。</p>
             </div>
             <div id="chatGroupEditor" class="chat-editor" hidden>
               <input id="chatGroupName" maxlength="40" aria-label="群組名稱">
               <div id="chatMemberBox" class="chat-members"></div>
               <div class="chat-create-actions">
-                <button type="button" class="btn btn-ghost" id="chatSaveGroup">儲存成員</button>
-                <button type="button" class="btn btn-ghost-danger" id="chatDeleteGroup">解散群組</button>
+                <button type="button" class="btn btn-ghost" id="chatSaveGroup">存這桌</button>
+                <button type="button" class="btn btn-ghost-danger" id="chatDeleteGroup">散攤</button>
               </div>
             </div>
             <div id="chatLog" class="chat-log" aria-live="polite"></div>
             <form id="chatComposer" class="chat-composer">
-              <textarea id="chatInput" rows="3" maxlength="10000" placeholder="輸入訊息，Enter 送出，Shift+Enter 換行"></textarea>
-              <button type="submit" class="btn btn-primary" id="chatSendBtn">傳送</button>
+              <textarea id="chatInput" rows="3" maxlength="10000" placeholder="喊一句，Enter 送出，Shift+Enter 換行"></textarea>
+              <button type="submit" class="btn btn-primary" id="chatSendBtn">喊出去</button>
             </form>
           </section>
         </div>
@@ -110,16 +110,16 @@
 
   <div class="shell dash-panel" id="panel-files" role="tabpanel" aria-labelledby="tab-files" hidden>
     <div class="content-panel content-panel-full">
-      <section class="file-transfers" id="fileTransfers" aria-label="傳檔狀態">
+      <section class="file-transfers" id="fileTransfers" aria-label="外帶袋">
         <div class="file-transfers-head">
           <div>
-            <div class="section-label" style="margin:0;border:0;padding:0">小物寄放區</div>
-            <p class="file-transfers-hint">暫時寄放的東西，過期前都可以領回去。資料夾會打包成一袋。</p>
+            <div class="section-label" style="margin:0;border:0;padding:0">外帶袋</div>
+            <p class="file-transfers-hint">先放在袋子裡，過期前都還拿得到。資料夾會捆成一袋。</p>
           </div>
-          <button type="button" class="btn btn-ghost-danger" id="clearAllFilesBtn">全部清掉</button>
+          <button type="button" class="btn btn-ghost-danger" id="clearAllFilesBtn">整袋倒掉</button>
         </div>
         <div id="fileTransferList">
-          <p class="empty-tasks">目前沒有東西寄放喔</p>
+          <p class="empty-tasks">袋子是空的</p>
         </div>
       </section>
     </div>
@@ -129,32 +129,32 @@
     <div class="content-panel content-panel-full">
       <section class="system-status" aria-label="系統狀態">
         <div class="system-status-head">
-          <div class="section-label" style="margin:0;border:0;padding:0">店內近況</div>
-          <p class="system-status-hint">看看這間小店現在忙不忙；每分鐘記一筆，大約存三天</p>
+          <div class="section-label" style="margin:0;border:0;padding:0">爐火狀況</div>
+          <p class="system-status-hint">看看油鍋現在旺不旺；每分鐘記一筆，大約留三天</p>
         </div>
-        <div class="server-health" id="serverHealth" aria-label="店內近況">
-          <div class="health-card"><span class="health-label">忙碌程度</span><strong id="healthCpu">載入中</strong></div>
-          <div class="health-card"><span class="health-label">手沖壓力</span><strong id="healthLoad">—</strong></div>
-          <div class="health-card"><span class="health-label">吧台容量</span><strong id="healthHeap">—</strong></div>
-          <div class="health-card"><span class="health-label">整體空間</span><strong id="healthOsMem">—</strong></div>
-          <div class="health-card"><span class="health-label">寄物櫃</span><strong id="healthFiles">—</strong></div>
-          <div class="health-card"><span class="health-label">倉庫剩餘</span><strong id="healthDisk" title="">—</strong></div>
-          <div class="health-card"><span class="health-label">開店至今</span><strong id="healthUptime">—</strong></div>
+        <div class="server-health" id="serverHealth" aria-label="爐火狀況">
+          <div class="health-card"><span class="health-label">油溫</span><strong id="healthCpu">載入中</strong></div>
+          <div class="health-card"><span class="health-label">排隊人潮</span><strong id="healthLoad">—</strong></div>
+          <div class="health-card"><span class="health-label">備料盆</span><strong id="healthHeap">—</strong></div>
+          <div class="health-card"><span class="health-label">攤位空間</span><strong id="healthOsMem">—</strong></div>
+          <div class="health-card"><span class="health-label">外帶袋</span><strong id="healthFiles">—</strong></div>
+          <div class="health-card"><span class="health-label">冰箱剩餘</span><strong id="healthDisk" title="">—</strong></div>
+          <div class="health-card"><span class="health-label">出攤至今</span><strong id="healthUptime">—</strong></div>
         </div>
-        <section class="health-history" aria-label="營業曲線">
+        <section class="health-history" aria-label="人潮曲線">
           <div class="health-history-head">
             <div>
-              <div class="section-label" style="margin:0;border:0;padding:0">營業曲線</div>
-              <p class="health-history-hint">每分鐘畫一筆，大約存三天（關店後若有備份會自動還原）</p>
+              <div class="section-label" style="margin:0;border:0;padding:0">人潮曲線</div>
+              <p class="health-history-hint">每分鐘畫一筆，大約留三天（收攤後若有備份會自動還原）</p>
             </div>
             <div class="health-legend" aria-hidden="true">
-              <span><i class="swatch swatch-cpu"></i>忙碌度</span>
-              <span><i class="swatch swatch-heap"></i>吧台用量</span>
-              <span><i class="swatch swatch-os"></i>整體空間</span>
+              <span><i class="swatch swatch-cpu"></i>油溫</span>
+              <span><i class="swatch swatch-heap"></i>備料</span>
+              <span><i class="swatch swatch-os"></i>攤位</span>
             </div>
           </div>
-          <canvas id="healthHistoryChart" width="960" height="220" role="img" aria-label="營業曲線"></canvas>
-          <p class="health-history-empty" id="healthHistoryEmpty">還沒有資料，等一分鐘就會開始畫囉</p>
+          <canvas id="healthHistoryChart" width="960" height="220" role="img" aria-label="人潮曲線"></canvas>
+          <p class="health-history-empty" id="healthHistoryEmpty">還沒有紀錄，等一分鐘就開始畫</p>
         </section>
       </section>
     </div>
@@ -162,22 +162,22 @@
 
   <div class="shell dash-panel" id="panel-photos" role="tabpanel" aria-labelledby="tab-photos" hidden>
     <div class="content-panel content-panel-full">
-      <section class="photo-gallery" aria-label="牆上風景">
+      <section class="photo-gallery" aria-label="菜單牆">
         <div class="photo-gallery-head">
           <div>
-            <div class="section-label" style="margin:0;border:0;padding:0">牆上風景</div>
-            <p class="photo-gallery-hint">把喜歡的照片貼在牆上吧（重啟後保留）</p>
+            <div class="section-label" style="margin:0;border:0;padding:0">菜單牆</div>
+            <p class="photo-gallery-hint">把今天的照片貼在菜單旁邊（收攤重開還在）</p>
           </div>
           <div class="photo-actions">
             <label class="btn btn-ghost" for="photoUploadInput">
               <input type="file" id="photoUploadInput" accept="image/*" multiple hidden>
               選張照片
             </label>
-            <button type="button" class="btn btn-ghost-danger" id="clearAllPhotosBtn">全部撕掉</button>
+            <button type="button" class="btn btn-ghost-danger" id="clearAllPhotosBtn">整面撕掉</button>
           </div>
         </div>
         <div class="photo-grid" id="photoGrid">
-          <p class="empty-tasks">牆上空空的，點「選張照片」貼一張吧</p>
+          <p class="empty-tasks">牆上還沒貼，按「選張照片」貼一張</p>
         </div>
       </section>
     </div>
@@ -185,11 +185,11 @@
 
   <div class="shell dash-panel" id="panel-flappy" role="tabpanel" aria-labelledby="tab-flappy" hidden>
     <div class="content-panel content-panel-full">
-      <section class="flappy-game" aria-label="珍珠彈跳">
+      <section class="flappy-game" aria-label="珍珠跳跳">
         <div class="flappy-head">
           <div>
-            <div class="section-label" style="margin:0;border:0;padding:0">珍珠彈跳</div>
-            <p class="flappy-hint">點一下或按空白鍵讓珍珠跳起來，小心別撞到吸管！換頁會自動暫停。</p>
+            <div class="section-label" style="margin:0;border:0;padding:0">珍珠跳跳</div>
+            <p class="flappy-hint">點一下或按空白鍵讓珍珠跳過吸管。換去別頁會先暫停。</p>
           </div>
           <div class="flappy-scores" aria-live="polite">
             <span>分數 <strong id="flappyScore">0</strong></span>
@@ -198,10 +198,10 @@
         </div>
         <div class="flappy-stage">
           <canvas id="flappyCanvas" width="480" height="640" tabindex="0"
-                  role="img" aria-label="飛杯摩卡遊戲畫面，點擊或按空白鍵起飛"></canvas>
+                  role="img" aria-label="珍珠跳跳，點一下或按空白鍵讓珍珠跳起來"></canvas>
           <div class="flappy-overlay" id="flappyOverlay">
-            <p class="flappy-overlay-title" id="flappyOverlayTitle">珍珠彈跳</p>
-            <p class="flappy-overlay-sub" id="flappyOverlaySub">點一下開始彈跳</p>
+            <p class="flappy-overlay-title" id="flappyOverlayTitle">珍珠跳跳</p>
+            <p class="flappy-overlay-sub" id="flappyOverlaySub">點一下，珍珠就跳</p>
           </div>
         </div>
       </section>
@@ -209,7 +209,7 @@
   </div>
 
   <footer class="site-footer">
-    莫卡咖啡 · Sip slowly, live fully ☕🧋
+    莫卡咖啡 · 熱騰騰，慢慢吃 🍢
   </footer>
 
   <script src="/js/dashboard.js"></script>

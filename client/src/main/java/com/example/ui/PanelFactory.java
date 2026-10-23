@@ -19,16 +19,17 @@ public class PanelFactory {
     /** 裝置互動分頁／面板標題 */
     public static final String PEER_TAB_LABEL = "(o´・ω・`)σ)Д`)";
 
-    // ==================== 分組 1: 雲端服務與裝置設定 ====================
+    // ==================== 分組 1: 設定 ====================
 
     /**
-     * 建立雲端服務設定面板的內容
-     * 回傳建構好的 JPanel，呼叫端需透過 refs 參數取得各元件的引用
+     * 可捲動的設定頁：雲端連線、程式更新、程式背景、中繼 Proxy，各段有小標題與分割線。
+     * 呼叫端需透過 refs 取得元件引用。
      */
-    public static JPanel createServerConfigBody(ServerConfigRefs refs, Font mainFont, Font boldFont, Font fieldFont) {
+    public static JScrollPane createServerConfigBody(ServerConfigRefs refs, Font mainFont, Font boldFont, Font fieldFont) {
         JPanel panel = new JPanel();
         panel.setOpaque(false);
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(new EmptyBorder(4, 4, 12, 8));
 
         String[] workerOptions = { "company-worker", "company-worker2", "company-worker3", "company-worker4" };
         refs.clientIdCombo = new JComboBox<>(workerOptions);
@@ -64,31 +65,81 @@ public class PanelFactory {
         refs.trustAllSslCheckBox = new JCheckBox("信任所有 SSL（除錯）", false);
         refs.trustAllSslCheckBox.setFont(mainFont);
         refs.trustAllSslCheckBox.setToolTipText("預設關閉。啟用雲端時會鎖定；需先取消雲端才能修改。僅本機自簽憑證除錯用。");
+        refs.checkForUpdatesCheckBox = new JCheckBox("自動檢查更新", true);
+        refs.checkForUpdatesCheckBox.setFont(mainFont);
+        refs.checkForUpdatesCheckBox.setToolTipText(
+                "關閉後，心跳不再處理伺服器上的新版，也不會下載或詢問。"
+                        + "開啟後，再由「有新版時閒置自動更新」決定直接安裝或先詢問。");
         refs.autoUpdateCheckBox = new JCheckBox("有新版時閒置自動更新", true);
         refs.autoUpdateCheckBox.setFont(mainFont);
         refs.autoUpdateCheckBox.setToolTipText(
                 "伺服器有不同的桌面端時，在沒有打卡執行中、10 分鐘內沒有排程、沒有傳檔時自動下載並重啟（排程與設定會保留）。"
-                        + "關閉則改為跳出詢問。");
+                        + "關閉則改為跳出詢問。需先開啟「自動檢查更新」。");
         refs.heartbeatStatusLabel = new JLabel("[離線] 未連線 (已停用)", SwingConstants.LEFT);
         refs.heartbeatStatusLabel.setFont(boldFont);
         refs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
         refs.heartbeatStatusLabel.setBorder(new EmptyBorder(0, 12, 0, 12));
 
-        panel.add(formRow(clientIdLabel, refs.clientIdCombo, tokenLabel, refs.heartbeatTokenField));
-        panel.add(Box.createVerticalStrut(4));
-        panel.add(formRowStretch(serverUrlLabel, refs.serverUrlCombo));
-        panel.add(Box.createVerticalStrut(4));
-        panel.add(formRow(
+        JPanel cloud = new JPanel();
+        cloud.setOpaque(false);
+        cloud.setLayout(new BoxLayout(cloud, BoxLayout.Y_AXIS));
+        cloud.add(formRow(clientIdLabel, refs.clientIdCombo, tokenLabel, refs.heartbeatTokenField));
+        cloud.add(Box.createVerticalStrut(4));
+        cloud.add(formRowStretch(serverUrlLabel, refs.serverUrlCombo));
+        cloud.add(Box.createVerticalStrut(4));
+        cloud.add(formRow(
                 refs.enableServerCheckBox,
                 refs.trustAllSslCheckBox,
                 refs.heartbeatStatusLabel));
-        panel.add(formRow(refs.autoUpdateCheckBox));
-        panel.add(Box.createVerticalStrut(8));
-        panel.add(backgroundRow(refs, mainFont, boldFont));
-        panel.add(Box.createVerticalStrut(8));
-        panel.add(relayProxyRow(refs, mainFont, boldFont));
 
-        return panel;
+        JPanel updates = new JPanel();
+        updates.setOpaque(false);
+        updates.setLayout(new BoxLayout(updates, BoxLayout.Y_AXIS));
+        updates.add(formRow(refs.checkForUpdatesCheckBox, refs.autoUpdateCheckBox));
+
+        panel.add(settingsSection("雲端連線", boldFont, cloud));
+        panel.add(settingsSection("程式更新", boldFont, updates));
+        panel.add(settingsSection("程式背景", boldFont, backgroundRow(refs, mainFont, boldFont)));
+        panel.add(settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont)));
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        top.add(panel, BorderLayout.NORTH);
+
+        JScrollPane scroll = new JScrollPane(top);
+        scroll.setBorder(null);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        return scroll;
+    }
+
+    /** 小標題加一條分割線，下面接該段的控制項。 */
+    private static JPanel settingsSection(String title, Font titleFont, JComponent body) {
+        JPanel section = new JPanel();
+        section.setOpaque(false);
+        section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
+        section.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.setBorder(new EmptyBorder(2, 2, 14, 2));
+
+        JLabel heading = new JLabel(title);
+        heading.setFont(titleFont);
+        heading.setForeground(new Color(30, 41, 59));
+        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JSeparator line = new JSeparator();
+        line.setForeground(new Color(203, 213, 225));
+        line.setAlignmentX(Component.LEFT_ALIGNMENT);
+        line.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+
+        body.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.add(heading);
+        section.add(Box.createVerticalStrut(4));
+        section.add(line);
+        section.add(Box.createVerticalStrut(8));
+        section.add(body);
+        return section;
     }
 
     private static JPanel relayProxyRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
@@ -173,9 +224,6 @@ public class PanelFactory {
 
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         top.setOpaque(false);
-        JLabel label = new JLabel("程式背景：");
-        label.setFont(mainFont);
-        top.add(label);
         top.add(refs.backgroundPreview);
         top.add(refs.chooseBackgroundButton);
         top.add(refs.clearBackgroundButton);
@@ -243,13 +291,14 @@ public class PanelFactory {
         }
     }
 
-    /** 雲端設定面板的元件引用容器 */
+    /** 設定分頁的元件引用容器 */
     public static class ServerConfigRefs {
         public JComboBox<String> clientIdCombo;
         public JComboBox<String> serverUrlCombo;
         public JPasswordField heartbeatTokenField;
         public JCheckBox enableServerCheckBox;
         public JCheckBox trustAllSslCheckBox;
+        public JCheckBox checkForUpdatesCheckBox;
         public JCheckBox autoUpdateCheckBox;
         public JLabel heartbeatStatusLabel;
         public JLabel backgroundPreview;
@@ -301,9 +350,9 @@ public class PanelFactory {
         refs.peerStatusLabel.setFont(mainFont);
         refs.peerStatusLabel.setForeground(new Color(100, 116, 139));
 
-        refs.openCloudSettingsButton = new JButton("前往雲端設定");
+        refs.openCloudSettingsButton = new JButton("前往設定");
         refs.openCloudSettingsButton.setFont(boldFont);
-        refs.openCloudSettingsButton.setToolTipText("切換至「雲端設定」分頁以啟用連線");
+        refs.openCloudSettingsButton.setToolTipText("切換至「設定」分頁以啟用連線");
         refs.openCloudSettingsButton.setVisible(false);
 
         refs.avatarPreview = new JLabel();

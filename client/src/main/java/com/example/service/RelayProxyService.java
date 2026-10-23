@@ -71,11 +71,6 @@ public class RelayProxyService {
         return trustAllSsl;
     }
 
-    /** 套用 JVM Proxy 屬性後重建客戶端，讓後續轉發走新的 ProxySelector。 */
-    public synchronized void refreshHttpClient() {
-        this.httpClient = HeartbeatService.buildHttpClient(trustAllSsl);
-    }
-
     public boolean isRunning() {
         return running.get();
     }
