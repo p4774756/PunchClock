@@ -613,7 +613,7 @@ public class PanelFactory {
 
         lockFieldHeight(refs.urlCombo);
         sharedContent.add(formRowStretch(labeled(mainFont, "目標網址："), refs.urlCombo));
-        sharedContent.add(Box.createVerticalStrut(10));
+        sharedContent.add(Box.createVerticalStrut(14));
         sharedContent.add(selectorBrowserActionRow(mainFont, fieldFont,
                 refs.buttonIdCombo, refs.browserCombo, refs.executeNowButton));
 
@@ -633,12 +633,12 @@ public class PanelFactory {
         rootGbc.gridx = 0;
         rootGbc.weightx = 1.0;
         rootGbc.fill = GridBagConstraints.HORIZONTAL;
-        rootGbc.insets = new Insets(0, 0, 6, 0);
+        rootGbc.insets = new Insets(0, 0, 12, 0);
 
         rootGbc.gridy = 0;
         root.add(shared, rootGbc);
         rootGbc.gridy = 1;
-        rootGbc.insets = new Insets(0, 0, 4, 0);
+        rootGbc.insets = new Insets(4, 0, 12, 0);
         root.add(skipRow, rootGbc);
         rootGbc.gridy = 2;
         root.add(refs.workIn.panel, rootGbc);
@@ -653,7 +653,7 @@ public class PanelFactory {
             CheckInHistoryRefs refs, Font mainFont, Font boldFont) {
         JPanel panel = createGroupPanel(
                 "執行記錄（最近 " + CheckInHistoryService.MAX_ENTRIES + " 筆）", boldFont);
-        panel.setLayout(new BorderLayout(0, 4));
+        panel.setLayout(new BorderLayout(0, 10));
 
         refs.listModel = new DefaultListModel<>();
         refs.historyList = new JList<>(refs.listModel);
@@ -704,6 +704,7 @@ public class PanelFactory {
 
         JPanel south = new JPanel(new BorderLayout());
         south.setOpaque(false);
+        south.setBorder(new EmptyBorder(6, 0, 4, 0));
         south.add(refs.emptyLabel, BorderLayout.CENTER);
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         actions.setOpaque(false);
@@ -733,7 +734,7 @@ public class PanelFactory {
         settings.setOpaque(false);
         GridBagConstraints sgbc = new GridBagConstraints();
         sgbc.anchor = GridBagConstraints.CENTER;
-        sgbc.insets = new Insets(0, 0, 0, 4);
+        sgbc.insets = new Insets(4, 2, 4, 8);
 
         refs.enabledCheckBox = new JCheckBox("啟用", true);
         refs.enabledCheckBox.setOpaque(false);
@@ -822,7 +823,7 @@ public class PanelFactory {
         mgbc.insets = new Insets(2, 0, 2, 0);
         statusGrid.add(createMetricCell("鎖定設定", refs.lockedSettingsLabel, mainFont), mgbc);
 
-        JPanel mainCol = new JPanel(new BorderLayout(0, 4));
+        JPanel mainCol = new JPanel(new BorderLayout(0, 12));
         mainCol.setOpaque(false);
         mainCol.add(settings, BorderLayout.NORTH);
         mainCol.add(statusGrid, BorderLayout.CENTER);
@@ -859,7 +860,7 @@ public class PanelFactory {
                 BorderFactory.createLineBorder(NightTheme.EDGE, 1, true),
                 title, TitledBorder.LEFT, TitledBorder.TOP,
                 titleFont, NightTheme.INK);
-        panel.setBorder(new CompoundBorder(titledBorder, new EmptyBorder(8, 10, 10, 10)));
+        panel.setBorder(new CompoundBorder(titledBorder, new EmptyBorder(12, 12, 16, 12)));
         return panel;
     }
 
@@ -1138,7 +1139,7 @@ public class PanelFactory {
                 BorderFactory.createLineBorder(NightTheme.EDGE, 1, true),
                 title, TitledBorder.LEFT, TitledBorder.TOP,
                 titleFont, NightTheme.INK);
-        panel.setBorder(new CompoundBorder(titledBorder, new EmptyBorder(8, 12, 10, 12)));
+        panel.setBorder(new CompoundBorder(titledBorder, new EmptyBorder(8, 12, 16, 12)));
         return panel;
     }
 

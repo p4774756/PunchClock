@@ -413,7 +413,7 @@ public final class AnimeShell extends JPanel {
 
     private void paintBust(Graphics2D g, java.awt.Rectangle nav) {
         bust = new java.awt.Rectangle();
-        if (cast == null) {
+        if (holdingHome || cast == null) {
             return;
         }
         int top = nav.y + 78 + NAV.length * 48 + 8;

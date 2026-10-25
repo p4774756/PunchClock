@@ -265,13 +265,13 @@ public class App extends JFrame {
 
         JPanel slotPanel = PanelFactory.createSlotPanel(slotRefs, mainFont, boldFont, fieldFont);
         JPanel historyPanel = PanelFactory.createCheckInHistoryPanel(historyRefs, mainFont, boldFont);
-        JPanel tasksBody = new JPanel(new BorderLayout(0, 6));
+        JPanel tasksBody = new JPanel(new BorderLayout(0, 14));
         tasksBody.setOpaque(false);
         tasksBody.add(slotPanel, BorderLayout.NORTH);
         tasksBody.add(historyPanel, BorderLayout.CENTER);
         JPanel tasksTab = new JPanel(new BorderLayout(0, 6));
         tasksTab.setOpaque(false);
-        tasksTab.setBorder(new EmptyBorder(8, 4, 8, 4));
+        tasksTab.setBorder(new EmptyBorder(12, 8, 28, 8));
         tasksTab.add(tasksBody, BorderLayout.CENTER);
 
         JTabbedPane settingsTabs = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont, fieldFont);

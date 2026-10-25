@@ -18,6 +18,7 @@ import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.plaf.basic.BasicButtonUI;
+import javax.swing.plaf.basic.BasicScrollBarUI;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
 import javax.swing.text.JTextComponent;
@@ -87,6 +88,10 @@ public final class NightTheme {
         UIManager.put("TableHeader.foreground", INK);
         UIManager.put("ScrollPane.background", PANEL);
         UIManager.put("Viewport.background", PANEL);
+        UIManager.put("ScrollBarUI", NightScrollBarUI.class.getName());
+        UIManager.put("ScrollBar.background", new Color(32, 24, 58));
+        UIManager.put("ScrollBar.thumb", new Color(206, 150, 198));
+        UIManager.put("ScrollBar.track", new Color(32, 24, 58));
         UIManager.put("TabbedPane.background", HEADER);
         UIManager.put("TabbedPane.foreground", INK);
         UIManager.put("TabbedPane.selected", new Color(72, 56, 122));
@@ -118,8 +123,10 @@ public final class NightTheme {
         scroll.setBackground(PANEL);
         scroll.getViewport().setOpaque(true);
         scroll.getViewport().setBackground(PANEL);
-        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scroll.getVerticalScrollBar().setUnitIncrement(18);
+        installBars(scroll);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
         return scroll;
     }
 
@@ -328,9 +335,19 @@ public final class NightTheme {
         scroll.setBackground(PANEL);
         scroll.getViewport().setOpaque(true);
         scroll.getViewport().setBackground(PANEL);
+        installBars(scroll);
         if (scroll.getBorder() != null) {
             scroll.setBorder(BorderFactory.createLineBorder(EDGE));
         }
+    }
+
+    private static void installBars(JScrollPane scroll) {
+        scroll.getVerticalScrollBar().setUI(new NightScrollBarUI());
+        scroll.getHorizontalScrollBar().setUI(new NightScrollBarUI());
+        scroll.getVerticalScrollBar().setPreferredSize(new Dimension(12, 0));
+        scroll.getHorizontalScrollBar().setPreferredSize(new Dimension(0, 12));
+        scroll.getVerticalScrollBar().setUnitIncrement(18);
+        scroll.getHorizontalScrollBar().setUnitIncrement(18);
     }
 
     private static void styleLabel(JLabel label) {
@@ -435,13 +452,72 @@ public final class NightTheme {
 
         @Override
         public boolean getScrollableTracksViewportWidth() {
-            return true;
+            Container parent = getParent();
+            return parent != null && parent.getWidth() > 0 && getPreferredSize().width <= parent.getWidth();
         }
 
         @Override
         public boolean getScrollableTracksViewportHeight() {
             Container parent = getParent();
             return parent != null && getPreferredSize().height <= parent.getHeight();
+        }
+    }
+
+    /** 捲軸：深紫軌道、粉紫滑塊。給 UIManager 用，所以要 public。 */
+    public static final class NightScrollBarUI extends BasicScrollBarUI {
+        private static final Color TRACK = new Color(32, 24, 58);
+        private static final Color THUMB = new Color(206, 150, 198);
+        private static final Color THUMB_HOT = new Color(255, 170, 204);
+
+        @Override
+        protected void configureScrollBarColors() {
+            thumbColor = THUMB;
+            trackColor = TRACK;
+            thumbHighlightColor = THUMB;
+            thumbLightShadowColor = THUMB;
+            thumbDarkShadowColor = THUMB;
+            trackHighlightColor = TRACK;
+        }
+
+        @Override
+        protected JButton createDecreaseButton(int orientation) {
+            return emptyButton();
+        }
+
+        @Override
+        protected JButton createIncreaseButton(int orientation) {
+            return emptyButton();
+        }
+
+        @Override
+        protected void paintTrack(Graphics g, JComponent c, Rectangle trackBounds) {
+            g.setColor(TRACK);
+            g.fillRect(trackBounds.x, trackBounds.y, trackBounds.width, trackBounds.height);
+        }
+
+        @Override
+        protected void paintThumb(Graphics g, JComponent c, Rectangle thumbBounds) {
+            if (thumbBounds.isEmpty() || !scrollbar.isEnabled()) {
+                return;
+            }
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(isDragging || isThumbRollover() ? THUMB_HOT : THUMB);
+            int arc = Math.min(10, Math.min(thumbBounds.width, thumbBounds.height));
+            g2.fillRoundRect(thumbBounds.x + 2, thumbBounds.y + 2,
+                    Math.max(1, thumbBounds.width - 4), Math.max(1, thumbBounds.height - 4), arc, arc);
+            g2.dispose();
+        }
+
+        private static JButton emptyButton() {
+            JButton button = new JButton();
+            button.setPreferredSize(new Dimension(0, 0));
+            button.setMinimumSize(new Dimension(0, 0));
+            button.setMaximumSize(new Dimension(0, 0));
+            button.setFocusable(false);
+            button.setOpaque(false);
+            button.setBorder(BorderFactory.createEmptyBorder());
+            return button;
         }
     }
 }

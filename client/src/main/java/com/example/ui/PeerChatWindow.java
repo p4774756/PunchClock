@@ -270,6 +270,7 @@ public class PeerChatWindow extends JFrame {
         clearAttachedImages();
         refreshEnabled();
         refreshStatus();
+    }
 
     public String peerId() {
         return peerId;
@@ -321,7 +322,6 @@ public class PeerChatWindow extends JFrame {
         if (textOnly) {
             if (!interactionEnabled) {
                 statusLabel.setText("雲端未啟用，無法傳送");
-                statusLabel.setForeground(new Color(185, 28, 28));
                 statusLabel.setForeground(new Color(255, 150, 150));
             } else {
                 statusLabel.setText("文字對話，約 15 秒內送達");
@@ -341,6 +341,7 @@ public class PeerChatWindow extends JFrame {
         } else {
             statusLabel.setText("離線（對方上線後才收得到）");
             statusLabel.setForeground(NightTheme.MUTED);
+        }
     }
 
     private void refreshEnabled() {
