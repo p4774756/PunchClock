@@ -26,8 +26,11 @@ import com.example.ui.PanelFactory;
 import com.example.ui.PanelFactory.*;
 import com.example.ui.RecentValuesHelper;
 import com.example.ui.SlotController;
+import com.example.model.CheckInHistoryEntry;
+import com.example.model.CheckInTask;
 import com.example.ui.hud.AnimeCast;
 import com.example.ui.hud.AnimeShell;
+import com.example.ui.hud.HomeBrief;
 import com.example.ui.WindowChrome;
 import com.example.ui.WindowOpacity;
 import com.example.ui.WindowShake;
@@ -41,6 +44,7 @@ import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -93,6 +97,8 @@ public class App extends JFrame {
     private final List<PeerFileInfo> peerFiles = new ArrayList<>();
     /** 最近一次心跳回報為在線的同事；決定傳檔走直傳還是伺服器暫存。 */
     private final Set<String> onlinePeerIds = new HashSet<>();
+    /** 最近一次心跳看到的其他好友，首頁「最近在線」用。 */
+    private List<PeerInfo> latestPeers = List.of();
     private WindowChrome.Controls windowChrome;
     private boolean loggedOpacityUnsupported;
     private ClientUpdateCoordinator updateCoordinator;
@@ -321,6 +327,29 @@ public class App extends JFrame {
         AnimeShell.hideTabStrip(tabs);
         tabs.setBorder(new EmptyBorder(8, 8, 8, 8));
         shell = new AnimeShell(schedulerService, tabs);
+        shell.setHomeActions(new AnimeShell.HomeActions() {
+            @Override
+            public HomeBrief read() {
+                return buildHomeBrief();
+            }
+
+            @Override
+            public void runTask() {
+                if (slotController != null) {
+                    slotController.promptExecuteNow();
+                }
+            }
+
+            @Override
+            public void openChat() {
+                shell.openTab(2);
+            }
+
+            @Override
+            public void sendFile() {
+                promptSendFile();
+            }
+        });
         tabs.addChangeListener(e -> {
             if (shell != null) {
                 shell.followTab();
@@ -815,6 +844,108 @@ public class App extends JFrame {
         }
     }
 
+    private HomeBrief buildHomeBrief() {
+        String recentName = "還沒有好友";
+        String recentState = "";
+        PeerInfo recent = mostRecentPeer();
+        if (recent != null) {
+            recentName = recent.clientId;
+            recentState = "ONLINE".equalsIgnoreCase(recent.status) ? "在線" : "離線";
+        } else if (!isCloudEnabled()) {
+            recentName = "雲端未啟用";
+        }
+        boolean cloud = isCloudEnabled();
+        String cloudLabel = "未啟用";
+        if (cloud) {
+            String text = serverRefs.heartbeatStatusLabel == null ? "" : serverRefs.heartbeatStatusLabel.getText();
+            if (text != null && text.contains("正常")) {
+                cloudLabel = "已連上";
+            } else if (text != null && text.contains("異常")) {
+                cloudLabel = "連線異常";
+            } else if (text != null && text.contains("離線")) {
+                cloudLabel = "未連線";
+            } else {
+                cloudLabel = "連線中";
+            }
+        }
+        List<CheckInTask> tasks = schedulerService == null ? List.of() : schedulerService.getAllTasks();
+        List<CheckInHistoryEntry> history = historyService == null ? List.of() : historyService.getRecent();
+        return HomeBrief.collect(
+                tasks, history, onlinePeerIds.size(), recentName, recentState, cloud, cloudLabel);
+    }
+
+    private PeerInfo mostRecentPeer() {
+        PeerInfo bestOnline = null;
+        long bestOnlineAt = Long.MIN_VALUE;
+        PeerInfo bestAny = null;
+        long bestAnyAt = Long.MIN_VALUE;
+        for (PeerInfo peer : latestPeers) {
+            if (peer == null) {
+                continue;
+            }
+            long seenAt = peerSeenAt(peer);
+            if (bestAny == null || seenAt >= bestAnyAt) {
+                bestAny = peer;
+                bestAnyAt = seenAt;
+            }
+            if ("ONLINE".equalsIgnoreCase(peer.status) && (bestOnline == null || seenAt >= bestOnlineAt)) {
+                bestOnline = peer;
+                bestOnlineAt = seenAt;
+            }
+        }
+        return bestOnline != null ? bestOnline : bestAny;
+    }
+
+    private static long peerSeenAt(PeerInfo peer) {
+        if (peer.lastSeen == null || peer.lastSeen.isBlank()) {
+            return Long.MIN_VALUE;
+        }
+        try {
+            return Instant.parse(peer.lastSeen).toEpochMilli();
+        } catch (RuntimeException ex) {
+            return Long.MIN_VALUE;
+        }
+    }
+
+    private void promptSendFile() {
+        if (!isCloudEnabled()) {
+            UiFonts.showMessage(this, "請先到設定啟用雲端，才能傳檔。", "傳送檔案", JOptionPane.INFORMATION_MESSAGE);
+            shell.openTab(2);
+            return;
+        }
+        String selected = getSelectedPeerClientId();
+        if (selected != null && !isSelfClientId(selected)) {
+            sendFilesToPeer(selected, this);
+            return;
+        }
+        List<String> ids = new ArrayList<>();
+        for (PeerInfo peer : latestPeers) {
+            if (peer != null && "ONLINE".equalsIgnoreCase(peer.status)) {
+                ids.add(peer.clientId);
+            }
+        }
+        if (ids.isEmpty()) {
+            for (PeerInfo peer : latestPeers) {
+                if (peer != null && peer.clientId != null && !peer.clientId.isBlank()) {
+                    ids.add(peer.clientId);
+                }
+            }
+        }
+        if (ids.isEmpty()) {
+            UiFonts.showMessage(this, "目前沒有可傳送的好友。", "傳送檔案", JOptionPane.INFORMATION_MESSAGE);
+            shell.openTab(2);
+            return;
+        }
+        if (ids.size() == 1) {
+            sendFilesToPeer(ids.get(0), this);
+            return;
+        }
+        int choice = UiFonts.showChoice(this, "要傳給哪一位好友？", "傳送檔案", ids.toArray(new String[0]));
+        if (choice >= 0 && choice < ids.size()) {
+            sendFilesToPeer(ids.get(choice), this);
+        }
+    }
+
     private void sendFilesToPeer(String toClientId, java.awt.Component owner) {
         if (owner == null) {
             owner = this;
@@ -905,6 +1036,7 @@ public class App extends JFrame {
                     setSendFileBusy(false);
                     switch (outcome) {
                         case DELIVERED:
+                            celebrateTransfer();
                             chatNote(toClientId, "已直傳「" + displayName + "」");
                             UiFonts.showMessage(
                                     owner,
@@ -962,6 +1094,7 @@ public class App extends JFrame {
                     progress.close();
                     setSendFileBusy(false);
                     if (ok) {
+                        celebrateTransfer();
                         chatNote(toClientId, "已送出「" + displayName + "」（伺服器暫存 "
                                 + PeerFileRules.OFFER_TTL_LABEL + "，對方可下載）");
                     }
@@ -986,11 +1119,13 @@ public class App extends JFrame {
         onlinePeerIds.clear();
         int onlineCount = 0;
         int friendCount = 0;
+        List<PeerInfo> seenPeers = new ArrayList<>();
 
         for (PeerInfo peer : peers) {
             if (myClientId.equals(peer.clientId)) {
                 continue;
             }
+            seenPeers.add(peer);
             boolean online = "ONLINE".equalsIgnoreCase(peer.status);
             if (online) {
                 onlineCount++;
@@ -1004,6 +1139,10 @@ public class App extends JFrame {
                     peer.scheduledCount,
                     peer.appVersion.isBlank() ? "—" : peer.appVersion
             });
+        }
+        latestPeers = seenPeers;
+        if (peerRefs.peerTable != null) {
+            peerRefs.peerTable.putClientProperty("peer.avatars", peerAvatars);
         }
 
         if (peerRefs.peerStatusLabel != null) {
@@ -1055,6 +1194,7 @@ public class App extends JFrame {
     private void showOfflinePeerView() {
         clearPeerTable();
         onlinePeerIds.clear();
+        latestPeers = List.of();
         if (peerRefs.peerHintLabel != null) {
             peerRefs.peerHintLabel.setText(
                     "雲端未啟用；至「設定」勾選「啟用雲端單向狀態回報」後，可查看好友並互動");
@@ -1113,6 +1253,13 @@ public class App extends JFrame {
 
     private boolean isSelfClientId(String clientId) {
         return clientId != null && clientId.equals(heartbeatService.getClientId());
+    }
+
+    /** 傳檔完成時笑一下。進度更新不要呼叫。 */
+    private void celebrateTransfer() {
+        if (shell != null) {
+            shell.play(AnimeCast.SMILE);
+        }
     }
 
     private void showPeerMessage(String fromId, String text, Long sentAtMs, String avatar) {
@@ -1342,6 +1489,7 @@ public class App extends JFrame {
                 SwingUtilities.invokeLater(() -> {
                     progress.close();
                     if (ok) {
+                        celebrateTransfer();
                         UiFonts.showMessage(
                                 this,
                                 "已儲存：\n" + dest.toAbsolutePath(),
@@ -1411,6 +1559,7 @@ public class App extends JFrame {
                 SwingUtilities.invokeLater(() -> {
                     progress.close();
                     if (ok) {
+                        celebrateTransfer();
                         UiFonts.showMessage(
                                 this,
                                 "已儲存：\n" + dest.toAbsolutePath(),

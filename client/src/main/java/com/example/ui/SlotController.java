@@ -632,6 +632,58 @@ public class SlotController {
         slotRefs.skipDatesButton.setText(count <= 0 ? "跳過日期" : "跳過日期 (" + count + ")");
     }
 
+    /** 先讓使用者選一個還沒在跑、也沒取消的任務，再走原本的立即執行。 */
+    public void promptExecuteNow() {
+        readConfigFromUi();
+        List<CheckInTask> runnable = new ArrayList<>();
+        for (CheckInTask task : schedulerService.getAllTasks()) {
+            if (task == null || task.getStatus() == null) {
+                continue;
+            }
+            TaskStatus status = task.getStatus();
+            if (status == TaskStatus.CHECKING_IN) {
+                continue;
+            }
+            runnable.add(task);
+        }
+        if (runnable.isEmpty()) {
+            UiFonts.showMessage(owner, "目前沒有可執行的任務。可以先到排程任務啟用一個。", "執行任務",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        String[] labels = new String[runnable.size()];
+        for (int i = 0; i < runnable.size(); i++) {
+            CheckInTask task = runnable.get(i);
+            String name = WorkSlot.screenText(task.getName());
+            if (name == null || name.isBlank()) {
+                name = "任務";
+            }
+            if (task.getStatus() == TaskStatus.CANCELLED) {
+                name = name + "（已取消）";
+            }
+            labels[i] = name;
+        }
+        int choice = UiFonts.showChoice(
+                owner,
+                "要現在執行哪一個？這會用目前的共用設定，不會改掉已鎖定的排程。",
+                "執行任務",
+                labels);
+        if (choice < 0 || choice >= runnable.size()) {
+            return;
+        }
+        CheckInTask task = runnable.get(choice);
+        WorkSlot.Kind kind = WorkSlot.Kind.fromId(task.getId());
+        if (kind != null) {
+            if (!isSharedSettingsReady()) {
+                showSharedSettingsRequiredMessage();
+                return;
+            }
+            executeNow(kind);
+            return;
+        }
+        executeCheckInForTask(task, null);
+    }
+
     private void executeNowShared() {
         readConfigFromUi();
         if (!isSharedSettingsReady()) {

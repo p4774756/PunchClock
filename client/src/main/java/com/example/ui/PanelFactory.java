@@ -2,6 +2,7 @@ package com.example.ui;
 
 import com.example.model.WorkSlot;
 import com.example.service.CheckInHistoryService;
+import com.example.service.PeerAvatar;
 import com.example.service.WindowBackground;
 
 import javax.swing.*;
@@ -11,6 +12,7 @@ import javax.swing.border.TitledBorder;
 import javax.swing.plaf.basic.BasicComboBoxUI;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
+import java.awt.image.BufferedImage;
 
 /**
  * UI 面板工廠 — 負責建構各區塊的 Swing 面板
@@ -353,7 +355,7 @@ public class PanelFactory {
         };
         refs.peerTable = new JTable(refs.peerTableModel);
         refs.peerTable.setFont(mainFont);
-        refs.peerTable.setRowHeight(32);
+        refs.peerTable.setRowHeight(44);
         refs.peerTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         refs.peerTable.getTableHeader().setFont(boldFont);
         installSelfPeerRowRenderer(refs.peerTable, mainFont, boldFont);
@@ -508,35 +510,34 @@ public class PanelFactory {
         return panel;
     }
 
-    /** 本機列淡藍底＋粗體，與其他裝置稍作區隔（選取列仍用系統選取色） */
+    /** 好友列：圓形頭像、在線點、滑過變色。裝置 ID 仍放在第一欄的文字，選取邏輯不變。 */
     private static void installSelfPeerRowRenderer(JTable table, Font mainFont, Font boldFont) {
         Color selfBg = new Color(78, 58, 128);
-        Color selfFg = NightTheme.INK;
-        Color selfSelectedBg = NightTheme.SELECT;
+        Color hoverBg = new Color(72, 56, 122);
+        java.util.Map<String, Icon> faces = new java.util.HashMap<>();
         javax.swing.table.DefaultTableCellRenderer renderer = new javax.swing.table.DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(
                     JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
                 Component c = super.getTableCellRendererComponent(tbl, value, isSelected, hasFocus, row, column);
                 boolean self = isSelfPeerRow(tbl, row);
+                boolean hover = !isSelected && row == hoverRow(tbl);
                 if (c instanceof JLabel) {
                     JLabel label = (JLabel) c;
                     label.setFont(self && column == 0 ? boldFont : mainFont);
-                    label.setBorder(self && column == 0
-                            ? new EmptyBorder(0, 6, 0, 4)
-                            : new EmptyBorder(0, 4, 0, 4));
+                    label.setBorder(new EmptyBorder(4, column == 0 ? 8 : 6, 4, 4));
+                    label.setIcon(column == 0 ? friendFace(tbl, row, faces) : null);
+                    label.setIconTextGap(8);
                 }
                 if (isSelected) {
-                    if (self) {
-                        c.setBackground(selfSelectedBg);
-                        c.setForeground(NightTheme.PINK_INK);
-                    } else {
-                        c.setBackground(NightTheme.SELECT);
-                        c.setForeground(NightTheme.PINK_INK);
-                    }
+                    c.setBackground(NightTheme.SELECT);
+                    c.setForeground(NightTheme.PINK_INK);
+                } else if (hover) {
+                    c.setBackground(hoverBg);
+                    c.setForeground(NightTheme.INK);
                 } else if (self) {
                     c.setBackground(selfBg);
-                    c.setForeground(selfFg);
+                    c.setForeground(NightTheme.INK);
                 } else {
                     c.setBackground(tbl.getBackground());
                     c.setForeground(tbl.getForeground());
@@ -550,6 +551,125 @@ public class PanelFactory {
         for (int col = 0; col < table.getColumnModel().getColumnCount(); col++) {
             table.getColumnModel().getColumn(col).setCellRenderer(renderer);
         }
+        if (table.getClientProperty("peer.hoverInstalled") == null) {
+            table.putClientProperty("peer.hoverInstalled", Boolean.TRUE);
+            table.putClientProperty("peer.hover", Integer.valueOf(-1));
+            java.awt.event.MouseAdapter hover = new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseMoved(java.awt.event.MouseEvent e) {
+                    setHover(table, table.rowAtPoint(e.getPoint()));
+                }
+
+                @Override
+                public void mouseExited(java.awt.event.MouseEvent e) {
+                    setHover(table, -1);
+                }
+            };
+            table.addMouseMotionListener(hover);
+            table.addMouseListener(hover);
+        }
+    }
+
+    private static void setHover(JTable table, int row) {
+        Object previous = table.getClientProperty("peer.hover");
+        if (previous instanceof Integer && ((Integer) previous).intValue() == row) {
+            return;
+        }
+        table.putClientProperty("peer.hover", Integer.valueOf(row));
+        table.repaint();
+    }
+
+    private static int hoverRow(JTable table) {
+        Object value = table.getClientProperty("peer.hover");
+        return value instanceof Integer ? ((Integer) value).intValue() : -1;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Icon friendFace(JTable table, int row, java.util.Map<String, Icon> faces) {
+        Object idValue = table.getValueAt(row, 0);
+        String id = idValue == null ? "" : String.valueOf(idValue);
+        boolean online = false;
+        if (table.getColumnCount() > 1) {
+            Object status = table.getValueAt(row, 1);
+            online = status != null && "在線".equals(String.valueOf(status));
+        }
+        String encoded = "";
+        Object stored = table.getClientProperty("peer.avatars");
+        if (stored instanceof java.util.Map) {
+            Object found = ((java.util.Map<String, String>) stored).get(peerIdOf(id));
+            if (found != null) {
+                encoded = String.valueOf(found);
+            }
+        }
+        String key = peerIdOf(id) + "|" + online + "|" + encoded.hashCode();
+        Icon cached = faces.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        Icon created = friendFaceIcon(id, encoded, online);
+        faces.put(key, created);
+        return created;
+    }
+
+    private static String peerIdOf(String displayId) {
+        String suffix = "（本機）";
+        if (displayId.endsWith(suffix)) {
+            return displayId.substring(0, displayId.length() - suffix.length());
+        }
+        return displayId;
+    }
+
+    private static Icon friendFaceIcon(String id, String encoded, boolean online) {
+        int size = 28;
+        BufferedImage face = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = face.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            Icon photo = encoded == null || encoded.isBlank() ? null : PeerAvatar.previewIcon(encoded, null, size);
+            if (photo != null && PeerAvatar.decode(encoded) != null) {
+                photo.paintIcon(null, g, 0, 0);
+            } else {
+                g.setColor(faceColor(id));
+                g.fillOval(1, 1, size - 2, size - 2);
+                g.setColor(NightTheme.INK);
+                g.setFont(UiFonts.chineseBold(13));
+                String letter = faceLetter(id);
+                FontMetrics metrics = g.getFontMetrics();
+                int x = (size - metrics.stringWidth(letter)) / 2;
+                int y = (size - metrics.getHeight()) / 2 + metrics.getAscent();
+                g.drawString(letter, x, y);
+            }
+            g.setColor(new Color(28, 20, 48));
+            g.fillOval(size - 11, size - 11, 10, 10);
+            g.setColor(online ? new Color(120, 210, 150) : new Color(120, 108, 148));
+            g.fillOval(size - 9, size - 9, 6, 6);
+        } finally {
+            g.dispose();
+        }
+        return new ImageIcon(face);
+    }
+
+    private static Color faceColor(String id) {
+        int n = Math.floorMod(id.hashCode(), 4);
+        if (n == 0) {
+            return new Color(186, 112, 164);
+        }
+        if (n == 1) {
+            return new Color(132, 104, 196);
+        }
+        if (n == 2) {
+            return new Color(206, 132, 168);
+        }
+        return new Color(112, 92, 176);
+    }
+
+    private static String faceLetter(String id) {
+        String clean = peerIdOf(id).trim();
+        if (clean.isEmpty()) {
+            return "?";
+        }
+        int point = clean.codePointAt(0);
+        return new String(Character.toChars(Character.toUpperCase(point)));
     }
 
     private static boolean isSelfPeerRow(JTable table, int row) {

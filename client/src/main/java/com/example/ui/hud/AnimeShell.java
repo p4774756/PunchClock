@@ -2,7 +2,6 @@ package com.example.ui.hud;
 
 import com.example.model.CheckInTask;
 import com.example.model.TaskStatus;
-import com.example.model.WorkSlot;
 import com.example.service.SchedulerService;
 import com.example.ui.UiFonts;
 
@@ -13,7 +12,6 @@ import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.Color;
 import java.awt.Cursor;
-import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -22,9 +20,16 @@ import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 打卡程式的外框：房間背景、左側導覽、首頁角色。
@@ -45,16 +50,20 @@ public final class AnimeShell extends JPanel {
     private final SchedulerService scheduler;
     private final AnimeCast cast = AnimeCast.load();
     private final HeroMotion hero = new HeroMotion();
+    private final HomeBoard board = new HomeBoard();
     private final BufferedImage room = loadRoom();
     private final Timer timer;
+    private final boolean reducedMotion = reducedMotion();
+    private final Map<String, TaskStatus> seenTasks = new HashMap<>();
+    private HomeActions homeActions;
     private boolean holdingHome = true;
     private boolean useRoom = true;
     private int hot = -1;
-    private TaskStatus seen;
     private java.awt.Rectangle character = new java.awt.Rectangle();
     private java.awt.Rectangle bust = new java.awt.Rectangle();
     private int paintedFrame = -1;
     private long paintedSecond = -1;
+    private long paintedBreath = -1;
 
     public AnimeShell(SchedulerService scheduler, JTabbedPane tabs) {
         super(null);
@@ -92,16 +101,21 @@ public final class AnimeShell extends JPanel {
             hero.tick(0.04);
             noticeStatus();
             int frame = hero.frame();
-            long second = System.currentTimeMillis() / 1000L;
+            long now = System.currentTimeMillis();
+            long second = now / 1000L;
             boolean countdown = holdingHome && second != paintedSecond;
-            if (frame != paintedFrame || countdown) {
+            boolean breathe = holdingHome && !reducedMotion && now / 200L != paintedBreath;
+            if (frame != paintedFrame || countdown || breathe) {
                 paintedFrame = frame;
                 paintedSecond = second;
+                paintedBreath = now / 200L;
                 if (countdown) {
                     repaint();
                 } else {
                     if (!character.isEmpty()) {
-                        repaint(character);
+                        java.awt.Rectangle dirty = new java.awt.Rectangle(character);
+                        dirty.grow(2, 6);
+                        repaint(dirty);
                     }
                     if (!bust.isEmpty()) {
                         repaint(bust);
@@ -165,6 +179,22 @@ public final class AnimeShell extends JPanel {
         repaint();
     }
 
+    /** 首頁卡片要的真實資料，以及三個快捷按鈕。沒有設定時卡片顯示空狀態。 */
+    public void setHomeActions(HomeActions actions) {
+        this.homeActions = actions;
+        repaint();
+    }
+
+    public interface HomeActions {
+        HomeBrief read();
+
+        void runTask();
+
+        void openChat();
+
+        void sendFile();
+    }
+
     public static void hideTabStrip(JTabbedPane tabs) {
         tabs.setUI(new BasicTabbedPaneUI() {
             @Override
@@ -214,34 +244,49 @@ public final class AnimeShell extends JPanel {
         }
         if (id == 20) {
             hero.play(AnimeCast.WAVE, 1.8);
+            board.sayClick();
+            repaint();
+            return;
+        }
+        if (homeActions == null) {
+            return;
+        }
+        if (id == HomeBoard.SCHEDULE) {
+            openTab(0);
+        } else if (id == HomeBoard.FRIENDS || id == HomeBoard.CHAT) {
+            homeActions.openChat();
+        } else if (id == HomeBoard.RUN) {
+            homeActions.runTask();
+        } else if (id == HomeBoard.FILE) {
+            homeActions.sendFile();
         }
     }
 
     private void noticeStatus() {
-        TaskStatus next = null;
+        Set<String> live = new HashSet<>();
         for (CheckInTask task : tasks()) {
-            if (task.getStatus() == TaskStatus.CHECKING_IN) {
-                next = TaskStatus.CHECKING_IN;
-                break;
+            if (task.getId() == null || task.getStatus() == null) {
+                continue;
             }
-        }
-        if (next == null) {
-            for (CheckInTask task : tasks()) {
-                if (task.getStatus() == TaskStatus.SUCCESS) {
-                    next = TaskStatus.SUCCESS;
-                    break;
-                }
+            live.add(task.getId());
+            TaskStatus status = task.getStatus();
+            TaskStatus previous = seenTasks.put(task.getId(), status);
+            if (previous == null || previous == status) {
+                continue;
             }
-        }
-        if (next != seen) {
-            TaskStatus previous = seen;
-            seen = next;
-            if (next == TaskStatus.CHECKING_IN) {
+            if (status == TaskStatus.CHECKING_IN) {
                 hero.play(AnimeCast.SMILE, 2.4);
-            } else if (previous == TaskStatus.CHECKING_IN && next == TaskStatus.SUCCESS) {
-                hero.play(AnimeCast.SMILE, 1.8);
+            } else if (status == TaskStatus.SUCCESS) {
+                hero.play(AnimeCast.SMILE, 2.0);
+                board.say("完成啦！做得很好 ♡");
+                repaint();
+            } else if (status == TaskStatus.FAILED) {
+                hero.play(AnimeCast.REACT, 2.0);
+                board.say("好像遇到一點問題，要不要查看日誌？");
+                repaint();
             }
         }
+        seenTasks.keySet().retainAll(live);
     }
 
     private int hit(int x, int y) {
@@ -249,6 +294,12 @@ public final class AnimeShell extends JPanel {
         for (int i = 0; i < NAV.length; i++) {
             if (navRow(nav, i).contains(x, y)) {
                 return i;
+            }
+        }
+        if (holdingHome) {
+            int home = board.hit(x, y);
+            if (home >= 0) {
+                return home;
             }
         }
         if (character.contains(x, y) || bust.contains(x, y)) {
@@ -294,92 +345,39 @@ public final class AnimeShell extends JPanel {
     }
 
     private void paintHome(Graphics2D g, java.awt.Rectangle area) {
-        int cardW = Math.min(420, Math.max(220, area.width * 46 / 100));
-        java.awt.Rectangle card = new java.awt.Rectangle(area.x, area.y, cardW, Math.min(area.height, 360));
-        panel(g, card);
-        g.setFont(UiFonts.chineseBold(16));
-        g.setColor(INK);
-        g.drawString("排程任務", card.x + 16, card.y + 32);
-        List<CheckInTask> rows = tasks();
-        if (rows.isEmpty()) {
-            g.setFont(UiFonts.chinesePlain(14));
-            g.setColor(MUTED);
-            g.drawString("還沒有排程。", card.x + 16, card.y + 64);
-        }
-        CheckInTask next = null;
-        int shown = 0;
-        for (CheckInTask task : rows) {
-            if (shown >= 4) {
-                break;
-            }
-            int y = card.y + 52 + shown * 58;
-            g.setColor(new Color(255, 255, 255, 28));
-            g.fillRoundRect(card.x + 12, y, card.width - 24, 50, 12, 12);
-            g.setFont(UiFonts.chinesePlain(14));
-            g.setColor(INK);
-            String name = task.getName() == null || task.getName().isBlank()
-                    ? "任務" : WorkSlot.screenText(task.getName());
-            g.drawString(name, card.x + 24, y + 22);
-            g.setFont(UiFonts.chinesePlain(12));
-            g.setColor(MUTED);
-            String detail = task.getStatus() == null ? "" : task.getStatus().getDisplayName();
-            String countdown = task.getCountdownLabel();
-            if (countdown != null && !"—".equals(countdown)) {
-                detail = detail + "  " + countdown;
-            }
-            g.drawString(detail, card.x + 24, y + 40);
-            if (next == null && task.getStatus() == TaskStatus.SCHEDULED) {
-                next = task;
-            }
-            if (next == null && task.getStatus() == TaskStatus.CHECKING_IN) {
-                next = task;
-            }
-            shown++;
-        }
-        if (next == null && !rows.isEmpty()) {
-            next = rows.get(0);
-        }
-        java.awt.Rectangle hero = new java.awt.Rectangle(area.x + cardW + 12, area.y, Math.max(0, area.width - cardW - 12), area.height);
-        paintCharacter(g, hero, next);
+        HomeBrief brief = homeActions == null ? HomeBrief.empty() : homeActions.read();
+        board.layout(area);
+        board.paint(g, brief, hot);
+        paintCharacter(g, board.stage);
+        board.paintBubble(g, character);
     }
 
-    private void paintCharacter(Graphics2D g, java.awt.Rectangle area, CheckInTask next) {
-        if (cast == null || area.width < 40) {
+    private void paintCharacter(Graphics2D g, java.awt.Rectangle area) {
+        if (cast == null || area.width < 40 || area.height < 80) {
             character = new java.awt.Rectangle();
             return;
         }
-        int height = Math.max(1, area.height - 96);
+        int bottom = board.reminder.height > 0 ? board.reminder.y - 8 : area.y + area.height - 8;
+        int available = Math.max(1, bottom - area.y);
+        int maxWidth = area.width >= 300 ? area.width - 168 : area.width;
+        int height = available;
         int width = height * cast.frameWidth() / Math.max(1, cast.frameHeight());
-        if (width > area.width) {
-            width = area.width;
+        if (width > maxWidth) {
+            width = Math.max(1, maxWidth);
             height = width * cast.frameHeight() / Math.max(1, cast.frameWidth());
         }
+        int breathe = 0;
+        if (!reducedMotion) {
+            double wave = Math.sin(System.currentTimeMillis() / 4000.0 * Math.PI * 2.0);
+            breathe = (int) Math.round(wave * 2.0);
+        }
         int x = area.x + area.width - width;
-        int y = area.y + area.height - height - 8;
+        int y = bottom - height - breathe;
+        if (y < area.y) {
+            y = area.y;
+        }
         character = new java.awt.Rectangle(x, y, width, height);
         cast.draw(g, hero.frame(), x, y, width, height);
-        int boxW = Math.min(280, Math.max(0, area.width - 16));
-        java.awt.Rectangle box = new java.awt.Rectangle(area.x + 8, area.y + area.height - 86, boxW, 74);
-        if (boxW < 80) {
-            return;
-        }
-        panel(g, box);
-        g.setFont(UiFonts.chinesePlain(12));
-        g.setColor(MUTED);
-        g.drawString("下一個任務", box.x + 14, box.y + 22);
-        g.setFont(UiFonts.chineseBold(15));
-        g.setColor(INK);
-        String title = next == null || next.getName() == null || next.getName().isBlank()
-                ? (next == null ? "還沒排程" : "任務")
-                : WorkSlot.screenText(next.getName());
-        g.drawString(fit(g, title, box.width - 28), box.x + 14, box.y + 44);
-        g.setFont(UiFonts.chinesePlain(13));
-        g.setColor(PINK);
-        String when = next == null ? "到排程任務裡設定" : next.getCountdownLabel();
-        if (next != null && (when == null || "—".equals(when))) {
-            when = next.getStatus() == null ? "" : next.getStatus().getDisplayName();
-        }
-        g.drawString(fit(g, when == null ? "" : when, box.width - 28), box.x + 14, box.y + 64);
     }
 
     private void paintRoom(Graphics2D g) {
@@ -452,16 +450,24 @@ public final class AnimeShell extends JPanel {
         g.drawRoundRect(rect.x, rect.y, rect.width - 1, rect.height - 1, 18, 18);
     }
 
-    private static String fit(Graphics2D g, String text, int width) {
-        FontMetrics metrics = g.getFontMetrics();
-        if (text == null || metrics.stringWidth(text) <= width) {
-            return text == null ? "" : text;
+    private static boolean reducedMotion() {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        if (!os.contains("mac")) {
+            return false;
         }
-        String trimmed = text;
-        while (trimmed.length() > 1 && metrics.stringWidth(trimmed + "…") > width) {
-            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        try {
+            Process process = new ProcessBuilder("defaults", "read", "com.apple.universalaccess", "reduceMotion")
+                    .redirectErrorStream(true)
+                    .start();
+            if (!process.waitFor(200, TimeUnit.MILLISECONDS)) {
+                process.destroy();
+                return false;
+            }
+            String text = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            return "1".equals(text);
+        } catch (Exception ex) {
+            return false;
         }
-        return trimmed + "…";
     }
 
     private static BufferedImage loadRoom() {

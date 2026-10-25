@@ -192,6 +192,28 @@ public final class UiFonts {
                 parent, messageBody(message), title, optionType, messageType);
     }
 
+    /** 讓使用者點一個選項。關掉視窗時回傳 -1。 */
+    public static int showChoice(Component parent, String message, String title, String[] options) {
+        if (options == null || options.length == 0) {
+            return -1;
+        }
+        Object[] buttons = new Object[options.length];
+        for (int i = 0; i < options.length; i++) {
+            JButton button = new JButton(options[i] == null ? "" : options[i]);
+            button.setFont(chinesePlain(13));
+            buttons[i] = button;
+        }
+        return JOptionPane.showOptionDialog(
+                parent,
+                messageBody(message),
+                title,
+                JOptionPane.DEFAULT_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                buttons,
+                buttons[0]);
+    }
+
     /**
      * macOS 原生選檔面板會把 Downloads 畫成「D wnlo ads」；改走 Metal，由 Swing 自己畫。
      */
