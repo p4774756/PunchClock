@@ -157,7 +157,7 @@ public class PeerChatWindow extends JFrame {
         imageThumbs.setOpaque(false);
         imageLabel = new JLabel();
         imageLabel.setFont(plain);
-        imageLabel.setForeground(new Color(100, 116, 139));
+        imageLabel.setForeground(NightTheme.MUTED);
         clearImageButton = new JButton("移除圖片");
         clearImageButton.setFont(plain);
         clearImageButton.setToolTipText("拿掉這則訊息已附的全部圖片");
@@ -178,7 +178,7 @@ public class PeerChatWindow extends JFrame {
                     java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
                     g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
                             java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-                    g2.setColor(new Color(148, 163, 184));
+                    g2.setColor(NightTheme.MUTED);
                     g2.setFont(getFont());
                     java.awt.Insets in = getInsets();
                     String[] hint = {
@@ -266,10 +266,10 @@ public class PeerChatWindow extends JFrame {
             }
         });
 
+        NightTheme.apply(getContentPane());
         clearAttachedImages();
         refreshEnabled();
         refreshStatus();
-    }
 
     public String peerId() {
         return peerId;
@@ -322,25 +322,25 @@ public class PeerChatWindow extends JFrame {
             if (!interactionEnabled) {
                 statusLabel.setText("雲端未啟用，無法傳送");
                 statusLabel.setForeground(new Color(185, 28, 28));
+                statusLabel.setForeground(new Color(255, 150, 150));
             } else {
                 statusLabel.setText("文字對話，約 15 秒內送達");
-                statusLabel.setForeground(new Color(100, 116, 139));
+                statusLabel.setForeground(NightTheme.MUTED);
             }
             return;
         }
         if (readOnly) {
             statusLabel.setText("後台訊息，無法回覆");
-            statusLabel.setForeground(new Color(100, 116, 139));
+            statusLabel.setForeground(NightTheme.MUTED);
         } else if (!interactionEnabled) {
             statusLabel.setText("雲端未啟用，無法傳送");
-            statusLabel.setForeground(new Color(185, 28, 28));
+            statusLabel.setForeground(new Color(255, 150, 150));
         } else if (peerOnline) {
             statusLabel.setText("在線");
-            statusLabel.setForeground(new Color(21, 128, 61));
+            statusLabel.setForeground(new Color(140, 230, 170));
         } else {
             statusLabel.setText("離線（對方上線後才收得到）");
-            statusLabel.setForeground(new Color(100, 116, 139));
-        }
+            statusLabel.setForeground(NightTheme.MUTED);
     }
 
     private void refreshEnabled() {

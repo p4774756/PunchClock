@@ -234,6 +234,7 @@ public class TaskEditDialog extends JDialog {
         buttonPanel.add(cancelButton);
         buttonPanel.add(confirmButton);
         add(buttonPanel, BorderLayout.SOUTH);
+        NightTheme.apply(getContentPane());
     }
 
     /**

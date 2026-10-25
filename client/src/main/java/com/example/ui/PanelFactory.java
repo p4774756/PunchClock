@@ -1,5 +1,6 @@
 package com.example.ui;
 
+import com.example.model.WorkSlot;
 import com.example.service.CheckInHistoryService;
 import com.example.service.WindowBackground;
 
@@ -18,7 +19,7 @@ import java.awt.*;
 public class PanelFactory {
 
     /** 裝置互動分頁／面板標題 */
-    public static final String PEER_TAB_LABEL = "(o´・ω・`)σ)Д`)";
+    public static final String PEER_TAB_LABEL = "好友與傳檔";
 
     /** 設定分頁的「連線」子分頁；雲端欄位在這一頁。 */
     public static final int SETTINGS_CONNECTION_TAB = 0;
@@ -72,20 +73,20 @@ public class PanelFactory {
         refs.autoUpdateCheckBox = new JCheckBox("有新版時閒置自動更新", true);
         refs.autoUpdateCheckBox.setFont(mainFont);
         refs.autoUpdateCheckBox.setToolTipText(
-                "伺服器有不同的桌面端時，在沒有打卡執行中、10 分鐘內沒有排程、沒有傳檔時自動下載並重啟（排程與設定會保留）。"
+                "伺服器有不同的桌面端時，在沒有任務執行中、10 分鐘內沒有排程、沒有傳檔時自動下載並重啟（排程與設定會保留）。"
                         + "關閉則改為跳出詢問。需先開啟「自動檢查更新」。");
         refs.heartbeatStatusLabel = new JLabel("[離線] 未連線 (已停用)", SwingConstants.LEFT);
         refs.heartbeatStatusLabel.setFont(boldFont);
-        refs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
+        refs.heartbeatStatusLabel.setForeground(NightTheme.MUTED);
         refs.heartbeatStatusLabel.setBorder(new EmptyBorder(0, 12, 0, 12));
 
         JPanel cloud = new JPanel();
         cloud.setOpaque(false);
         cloud.setLayout(new BoxLayout(cloud, BoxLayout.Y_AXIS));
         cloud.add(formRow(clientIdLabel, refs.clientIdCombo, tokenLabel, refs.heartbeatTokenField));
-        cloud.add(Box.createVerticalStrut(4));
+        cloud.add(Box.createVerticalStrut(10));
         cloud.add(formRowStretch(serverUrlLabel, refs.serverUrlCombo));
-        cloud.add(Box.createVerticalStrut(4));
+        cloud.add(Box.createVerticalStrut(10));
         cloud.add(formRow(
                 refs.enableServerCheckBox,
                 refs.trustAllSslCheckBox,
@@ -137,15 +138,15 @@ public class PanelFactory {
         section.setOpaque(false);
         section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
         section.setAlignmentX(Component.LEFT_ALIGNMENT);
-        section.setBorder(new EmptyBorder(2, 2, 14, 2));
+        section.setBorder(new EmptyBorder(4, 2, 18, 2));
 
         JLabel heading = new JLabel(title);
         heading.setFont(titleFont);
-        heading.setForeground(new Color(30, 41, 59));
+        heading.setForeground(NightTheme.INK);
         heading.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JSeparator line = new JSeparator();
-        line.setForeground(new Color(203, 213, 225));
+        line.setForeground(NightTheme.EDGE);
         line.setAlignmentX(Component.LEFT_ALIGNMENT);
         line.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
 
@@ -185,7 +186,7 @@ public class PanelFactory {
 
         refs.relayStatusLabel = new JLabel("未啟動");
         refs.relayStatusLabel.setFont(mainFont);
-        refs.relayStatusLabel.setForeground(new Color(100, 116, 139));
+        refs.relayStatusLabel.setForeground(NightTheme.MUTED);
 
         top.add(refs.relayEnabledCheckBox);
         top.add(portLabel);
@@ -199,7 +200,7 @@ public class PanelFactory {
         refs.relayHelpArea.setFont(UiFonts.chinesePlain(12));
         refs.relayHelpArea.setOpaque(true);
         refs.relayHelpArea.setBackground(new Color(248, 250, 252, 140));
-        refs.relayHelpArea.setForeground(new Color(71, 85, 105));
+        refs.relayHelpArea.setForeground(NightTheme.MUTED);
         refs.relayHelpArea.setMargin(new java.awt.Insets(6, 8, 6, 8));
         refs.relayHelpArea.setRows(4);
         refs.relayHelpArea.setText(""
@@ -251,7 +252,7 @@ public class PanelFactory {
         refs.backgroundBlurSlider.setToolTipText("背景圖模糊程度；向右越糊，方便閱讀前景文字");
         refs.backgroundBlurValueLabel = new JLabel("0%");
         refs.backgroundBlurValueLabel.setFont(mainFont);
-        refs.backgroundBlurValueLabel.setForeground(new Color(100, 116, 139));
+        refs.backgroundBlurValueLabel.setForeground(NightTheme.MUTED);
         refs.backgroundBlurValueLabel.setPreferredSize(new Dimension(40, 22));
 
         refs.backgroundOpacitySlider = new JSlider(0, WindowBackground.MAX_OPACITY_PERCENT,
@@ -262,7 +263,7 @@ public class PanelFactory {
         refs.backgroundOpacitySlider.setToolTipText("背景圖不透明度；向右越清楚，向左越淡");
         refs.backgroundOpacityValueLabel = new JLabel(WindowBackground.DEFAULT_OPACITY_PERCENT + "%");
         refs.backgroundOpacityValueLabel.setFont(mainFont);
-        refs.backgroundOpacityValueLabel.setForeground(new Color(100, 116, 139));
+        refs.backgroundOpacityValueLabel.setForeground(NightTheme.MUTED);
         refs.backgroundOpacityValueLabel.setPreferredSize(new Dimension(40, 22));
 
         JPanel blurRow = sliderRow(mainFont, "模糊：", refs.backgroundBlurSlider, refs.backgroundBlurValueLabel);
@@ -340,7 +341,7 @@ public class PanelFactory {
 
         JLabel hint = new JLabel("只顯示同一伺服器上的好友（不含本機，每 15 秒隨心跳更新）");
         hint.setFont(mainFont);
-        hint.setForeground(new Color(100, 116, 139));
+        hint.setForeground(NightTheme.MUTED);
         refs.peerHintLabel = hint;
 
         refs.peerTableModel = new javax.swing.table.DefaultTableModel(
@@ -352,7 +353,7 @@ public class PanelFactory {
         };
         refs.peerTable = new JTable(refs.peerTableModel);
         refs.peerTable.setFont(mainFont);
-        refs.peerTable.setRowHeight(28);
+        refs.peerTable.setRowHeight(32);
         refs.peerTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         refs.peerTable.getTableHeader().setFont(boldFont);
         installSelfPeerRowRenderer(refs.peerTable, mainFont, boldFont);
@@ -364,7 +365,7 @@ public class PanelFactory {
 
         refs.peerStatusLabel = new JLabel("尚未取得好友列表（請先啟用雲端狀態回報）");
         refs.peerStatusLabel.setFont(mainFont);
-        refs.peerStatusLabel.setForeground(new Color(100, 116, 139));
+        refs.peerStatusLabel.setForeground(NightTheme.MUTED);
 
         refs.openCloudSettingsButton = new JButton("前往設定");
         refs.openCloudSettingsButton.setFont(boldFont);
@@ -400,7 +401,7 @@ public class PanelFactory {
         refs.openChatButton.setEnabled(false);
         JLabel chatHint = new JLabel("雙擊好友，或選取後按「開啟聊天」");
         chatHint.setFont(mainFont);
-        chatHint.setForeground(new Color(100, 116, 139));
+        chatHint.setForeground(NightTheme.MUTED);
         JPanel chatRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         chatRow.setOpaque(false);
         chatRow.add(refs.openChatButton);
@@ -445,7 +446,7 @@ public class PanelFactory {
         };
         refs.fileTable = new JTable(refs.fileTableModel);
         refs.fileTable.setFont(mainFont);
-        refs.fileTable.setRowHeight(26);
+        refs.fileTable.setRowHeight(32);
         refs.fileTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         refs.fileTable.getTableHeader().setFont(boldFont);
         refs.fileTable.setToolTipText("過期前可下載；選取一筆後按「下載」或「清除」");
@@ -457,7 +458,7 @@ public class PanelFactory {
 
         refs.fileStatusLabel = new JLabel("傳檔紀錄：尚未連線");
         refs.fileStatusLabel.setFont(mainFont);
-        refs.fileStatusLabel.setForeground(new Color(100, 116, 139));
+        refs.fileStatusLabel.setForeground(NightTheme.MUTED);
 
         refs.downloadFileButton = new JButton("下載");
         refs.downloadFileButton.setFont(boldFont);
@@ -476,7 +477,7 @@ public class PanelFactory {
         fileSection.setOpaque(false);
         JLabel fileTitle = new JLabel("傳檔紀錄（保留 " + com.example.PeerFileRules.OFFER_TTL_LABEL + "，過期前可下載／手動清除）");
         fileTitle.setFont(boldFont);
-        fileTitle.setForeground(new Color(30, 41, 59));
+        fileTitle.setForeground(NightTheme.INK);
         fileSection.add(fileTitle, BorderLayout.NORTH);
         fileSection.add(fileScroll, BorderLayout.CENTER);
         fileSection.add(fileActionRow, BorderLayout.SOUTH);
@@ -509,9 +510,9 @@ public class PanelFactory {
 
     /** 本機列淡藍底＋粗體，與其他裝置稍作區隔（選取列仍用系統選取色） */
     private static void installSelfPeerRowRenderer(JTable table, Font mainFont, Font boldFont) {
-        Color selfBg = new Color(219, 234, 254);
-        Color selfFg = new Color(30, 64, 175);
-        Color selfSelectedBg = new Color(147, 197, 253);
+        Color selfBg = new Color(78, 58, 128);
+        Color selfFg = NightTheme.INK;
+        Color selfSelectedBg = NightTheme.SELECT;
         javax.swing.table.DefaultTableCellRenderer renderer = new javax.swing.table.DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(
@@ -528,7 +529,10 @@ public class PanelFactory {
                 if (isSelected) {
                     if (self) {
                         c.setBackground(selfSelectedBg);
-                        c.setForeground(selfFg);
+                        c.setForeground(NightTheme.PINK_INK);
+                    } else {
+                        c.setBackground(NightTheme.SELECT);
+                        c.setForeground(NightTheme.PINK_INK);
                     }
                 } else if (self) {
                     c.setBackground(selfBg);
@@ -609,7 +613,7 @@ public class PanelFactory {
 
         lockFieldHeight(refs.urlCombo);
         sharedContent.add(formRowStretch(labeled(mainFont, "目標網址："), refs.urlCombo));
-        sharedContent.add(Box.createVerticalStrut(4));
+        sharedContent.add(Box.createVerticalStrut(10));
         sharedContent.add(selectorBrowserActionRow(mainFont, fieldFont,
                 refs.buttonIdCombo, refs.browserCombo, refs.executeNowButton));
 
@@ -617,13 +621,13 @@ public class PanelFactory {
 
         refs.skipDatesButton = new JButton("跳過日期");
         refs.skipDatesButton.setFont(boldFont);
-        refs.skipDatesButton.setToolTipText("指定日期不打卡；時分維持原設定");
+        refs.skipDatesButton.setToolTipText("指定日期不執行；時分維持原設定");
 
         JPanel skipRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         skipRow.setOpaque(false);
         skipRow.add(refs.skipDatesButton);
 
-        refs.workIn = createSlotCard("上班排程", mainFont, boldFont);
+        refs.workIn = createSlotCard(WorkSlot.WORK_IN_NAME, mainFont, boldFont);
 
         GridBagConstraints rootGbc = new GridBagConstraints();
         rootGbc.gridx = 0;
@@ -656,10 +660,10 @@ public class PanelFactory {
         refs.historyList.setFont(mainFont);
         refs.historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         refs.historyList.setVisibleRowCount(6);
-        refs.historyList.setFixedCellHeight(22);
+        refs.historyList.setFixedCellHeight(28);
         refs.historyList.setOpaque(false);
         refs.historyList.setBackground(new Color(0, 0, 0, 0));
-        refs.historyList.setForeground(new Color(30, 41, 59));
+        refs.historyList.setForeground(NightTheme.INK);
         refs.historyList.setBorder(new EmptyBorder(4, 6, 4, 6));
         refs.historyList.setToolTipText("本機最近排程成功／失敗紀錄（不含取消）");
         refs.historyList.setCellRenderer(new DefaultListCellRenderer() {
@@ -672,16 +676,15 @@ public class PanelFactory {
                     ((JComponent) c).setOpaque(isSelected || latest);
                 }
                 if (isSelected) {
-                    c.setBackground(new Color(59, 130, 246, 170));
-                    c.setForeground(Color.WHITE);
+                    c.setBackground(NightTheme.SELECT);
+                    c.setForeground(NightTheme.PINK_INK);
                 } else if (latest) {
-                    // 最新一筆：淺藍底＋深藍字，方便一眼辨識
-                    c.setBackground(new Color(219, 234, 254));
-                    c.setForeground(new Color(30, 64, 175));
+                    c.setBackground(new Color(78, 58, 128));
+                    c.setForeground(NightTheme.INK);
                     c.setFont(list.getFont().deriveFont(Font.BOLD));
                 } else {
-                    c.setBackground(new Color(0, 0, 0, 0));
-                    c.setForeground(new Color(30, 41, 59));
+                    c.setBackground(NightTheme.FIELD);
+                    c.setForeground(NightTheme.INK);
                     c.setFont(list.getFont());
                 }
                 return c;
@@ -697,7 +700,7 @@ public class PanelFactory {
 
         refs.emptyLabel = new JLabel("尚無執行紀錄；排程或「立即執行」完成後會顯示在此", SwingConstants.CENTER);
         refs.emptyLabel.setFont(mainFont);
-        refs.emptyLabel.setForeground(new Color(100, 116, 139));
+        refs.emptyLabel.setForeground(NightTheme.MUTED);
 
         JPanel south = new JPanel(new BorderLayout());
         south.setOpaque(false);
@@ -756,7 +759,7 @@ public class PanelFactory {
         refs.randomOffsetCheckBox = new JCheckBox("±5 分隨機", true);
         refs.randomOffsetCheckBox.setOpaque(false);
         refs.randomOffsetCheckBox.setFont(mainFont);
-        refs.randomOffsetCheckBox.setForeground(new Color(147, 51, 234));
+        refs.randomOffsetCheckBox.setForeground(NightTheme.PINK);
         refs.randomOffsetCheckBox.setToolTipText("在設定時間前後隨機 ±5 分鐘，避免每天固定同一秒執行");
 
         sgbc.gridx = 0;
@@ -799,7 +802,7 @@ public class PanelFactory {
         GridBagConstraints mgbc = new GridBagConstraints();
         mgbc.anchor = GridBagConstraints.WEST;
         mgbc.fill = GridBagConstraints.HORIZONTAL;
-        mgbc.insets = new Insets(2, 0, 2, 10);
+        mgbc.insets = new Insets(6, 0, 6, 12);
         mgbc.weightx = 0.25;
         mgbc.gridy = 0;
         mgbc.gridwidth = 1;
@@ -841,9 +844,9 @@ public class PanelFactory {
         cell.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel titleLabel = new JLabel(title);
         titleLabel.setHorizontalAlignment(SwingConstants.LEFT);
-        titleLabel.setFont(new Font(font.getName(), Font.BOLD, 10));
-        titleLabel.setForeground(new Color(100, 116, 139));
-        value.setFont(new Font(font.getName(), Font.PLAIN, 12));
+        titleLabel.setFont(new Font(font.getName(), Font.BOLD, 12));
+        titleLabel.setForeground(NightTheme.MUTED);
+        value.setFont(new Font(font.getName(), Font.PLAIN, 13));
         value.setHorizontalAlignment(SwingConstants.LEFT);
         cell.add(titleLabel, BorderLayout.NORTH);
         cell.add(value, BorderLayout.CENTER);
@@ -853,10 +856,10 @@ public class PanelFactory {
     private static JPanel createCompactGroupPanel(String title, Font titleFont) {
         JPanel panel = translucentPanel();
         TitledBorder titledBorder = BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(new Color(203, 213, 225), 1, true),
+                BorderFactory.createLineBorder(NightTheme.EDGE, 1, true),
                 title, TitledBorder.LEFT, TitledBorder.TOP,
-                titleFont, new Color(30, 41, 59));
-        panel.setBorder(new CompoundBorder(titledBorder, new EmptyBorder(2, 6, 4, 6)));
+                titleFont, NightTheme.INK);
+        panel.setBorder(new CompoundBorder(titledBorder, new EmptyBorder(8, 10, 10, 10)));
         return panel;
     }
 
@@ -1065,24 +1068,24 @@ public class PanelFactory {
 
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        headerPanel.setBackground(new Color(241, 245, 249));
+        headerPanel.setBackground(NightTheme.HEADER);
         headerPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(203, 213, 225), 1, true),
-                new EmptyBorder(5, 10, 5, 10)
+                BorderFactory.createLineBorder(NightTheme.EDGE, 1, true),
+                new EmptyBorder(8, 12, 8, 12)
         ));
 
         JLabel titleLabel = new JLabel(title);
         titleLabel.setFont(titleFont);
-        titleLabel.setForeground(new Color(30, 41, 59));
+        titleLabel.setForeground(NightTheme.INK);
         headerPanel.add(titleLabel, BorderLayout.WEST);
 
         JLabel toggleLabel = new JLabel(startCollapsed ? "► 點擊展開設定" : "▼ 點擊折疊收起");
         toggleLabel.setFont(UiFonts.chineseBold(12));
-        toggleLabel.setForeground(new Color(37, 99, 235));
+        toggleLabel.setForeground(NightTheme.PINK);
         headerPanel.add(toggleLabel, BorderLayout.EAST);
 
         contentPanel.setOpaque(false);
-        contentPanel.setBorder(new EmptyBorder(6, 8, 6, 8));
+        contentPanel.setBorder(new EmptyBorder(10, 12, 10, 12));
 
         if (startCollapsed) {
             contentPanel.setVisible(false);
@@ -1112,12 +1115,12 @@ public class PanelFactory {
 
             @Override
             public void mouseEntered(java.awt.event.MouseEvent e) {
-                headerPanel.setBackground(new Color(226, 232, 240));
+                headerPanel.setBackground(new Color(72, 56, 122));
             }
 
             @Override
             public void mouseExited(java.awt.event.MouseEvent e) {
-                headerPanel.setBackground(new Color(241, 245, 249));
+                headerPanel.setBackground(NightTheme.HEADER);
             }
         });
 
@@ -1132,10 +1135,10 @@ public class PanelFactory {
     public static JPanel createGroupPanel(String title, Font titleFont) {
         JPanel panel = translucentPanel();
         TitledBorder titledBorder = BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(new Color(203, 213, 225), 1, true),
+                BorderFactory.createLineBorder(NightTheme.EDGE, 1, true),
                 title, TitledBorder.LEFT, TitledBorder.TOP,
-                titleFont, new Color(30, 41, 59));
-        panel.setBorder(new CompoundBorder(titledBorder, new EmptyBorder(4, 8, 6, 8)));
+                titleFont, NightTheme.INK);
+        panel.setBorder(new CompoundBorder(titledBorder, new EmptyBorder(8, 12, 10, 12)));
         return panel;
     }
 
@@ -1152,7 +1155,7 @@ public class PanelFactory {
             }
         };
         panel.setOpaque(false);
-        panel.setBackground(new Color(248, 250, 252, 110));
+        panel.setBackground(NightTheme.PANEL);
         return panel;
     }
 }

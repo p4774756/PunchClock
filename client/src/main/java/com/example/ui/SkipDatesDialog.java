@@ -38,7 +38,7 @@ public class SkipDatesDialog extends JDialog {
         Font fieldFont = UiFonts.latinPlain(13);
         LocalDate today = LocalDate.now();
 
-        JLabel hint = new JLabel("這些日期不打卡。時分維持原設定。");
+        JLabel hint = new JLabel("這些日期不執行。時分維持原設定。");
         hint.setFont(font);
         hint.setBorder(new EmptyBorder(8, 12, 0, 12));
         add(hint, BorderLayout.NORTH);
@@ -134,6 +134,7 @@ public class SkipDatesDialog extends JDialog {
         add(buttons, BorderLayout.SOUTH);
 
         getRootPane().setDefaultButton(addButton);
+        NightTheme.apply(getContentPane());
         pack();
         setMinimumSize(getSize());
         setLocationRelativeTo(owner);

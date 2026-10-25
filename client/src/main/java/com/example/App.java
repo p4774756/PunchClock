@@ -21,10 +21,13 @@ import com.example.service.WindowBackground;
 import com.example.ui.PeerChatWindow;
 import com.example.ui.UiFonts;
 import com.example.ui.TransferProgressDialog;
+import com.example.ui.NightTheme;
 import com.example.ui.PanelFactory;
 import com.example.ui.PanelFactory.*;
 import com.example.ui.RecentValuesHelper;
 import com.example.ui.SlotController;
+import com.example.ui.hud.AnimeCast;
+import com.example.ui.hud.AnimeShell;
 import com.example.ui.WindowChrome;
 import com.example.ui.WindowOpacity;
 import com.example.ui.WindowShake;
@@ -70,6 +73,7 @@ public class App extends JFrame {
     private final CheckInHistoryService historyService;
     private final ConfigPersistenceService configPersistenceService;
     private SlotController slotController;
+    private AnimeShell shell;
     private boolean suppressConfigSave = false;
     private Timer countdownTimer;
     private JTabbedPane mainTabs;
@@ -239,12 +243,13 @@ public class App extends JFrame {
     }
 
     private void initUI() {
-        setTitle("莫卡咖啡  " + AppVersion.displayLabel());
+        setTitle("洋流  " + AppVersion.displayLabel());
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         Font mainFont = UiFonts.chinesePlain(13);
         Font boldFont = UiFonts.chineseBold(13);
         Font fieldFont = UiFonts.latinPlain(13);
+        NightTheme.installLook();
 
         windowChrome = WindowChrome.install(
                 this, getTitle(), appIconImage, boldFont, mainFont);
@@ -260,11 +265,14 @@ public class App extends JFrame {
 
         JPanel slotPanel = PanelFactory.createSlotPanel(slotRefs, mainFont, boldFont, fieldFont);
         JPanel historyPanel = PanelFactory.createCheckInHistoryPanel(historyRefs, mainFont, boldFont);
+        JPanel tasksBody = new JPanel(new BorderLayout(0, 6));
+        tasksBody.setOpaque(false);
+        tasksBody.add(slotPanel, BorderLayout.NORTH);
+        tasksBody.add(historyPanel, BorderLayout.CENTER);
         JPanel tasksTab = new JPanel(new BorderLayout(0, 6));
         tasksTab.setOpaque(false);
         tasksTab.setBorder(new EmptyBorder(8, 4, 8, 4));
-        tasksTab.add(slotPanel, BorderLayout.NORTH);
-        tasksTab.add(historyPanel, BorderLayout.CENTER);
+        tasksTab.add(tasksBody, BorderLayout.CENTER);
 
         JTabbedPane settingsTabs = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont, fieldFont);
         JPanel settingsTab = new JPanel(new BorderLayout());
@@ -280,7 +288,9 @@ public class App extends JFrame {
         if (peerRefs.openCloudSettingsButton != null) {
             peerRefs.openCloudSettingsButton.addActionListener(e -> {
                 settingsTabs.setSelectedIndex(PanelFactory.SETTINGS_CONNECTION_TAB);
-                if (mainTabs != null) {
+                if (shell != null) {
+                    shell.openTab(1);
+                } else if (mainTabs != null) {
                     mainTabs.setSelectedIndex(1);
                 }
             });
@@ -297,9 +307,10 @@ public class App extends JFrame {
         logTab.setBorder(new EmptyBorder(8, 4, 8, 4));
         logTab.add(logPanel, BorderLayout.CENTER);
 
-        tabs.addTab("排程任務", tasksTab);
-        tabs.addTab("設定", settingsTab);
-        tabs.addTab(PanelFactory.PEER_TAB_LABEL, peerTab);
+        tabs.addTab("排程任務", NightTheme.page(tasksTab));
+        tabs.addTab("設定", NightTheme.page(settingsTab));
+        tabs.addTab(PanelFactory.PEER_TAB_LABEL, NightTheme.page(peerTab));
+        NightTheme.apply(logTab);
         tabs.addTab("系統日誌", logTab);
         tabs.setOpaque(false);
         tabs.setBackground(new Color(0, 0, 0, 0));
@@ -307,15 +318,23 @@ public class App extends JFrame {
         tabs.setToolTipTextAt(1, "雲端連線、程式更新、背景圖與中繼 Proxy");
         tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案／資料夾與傳檔狀態");
         tabs.setToolTipTextAt(3, "查看與清除系統日誌");
-        tabs.addChangeListener(e -> rememberWindowLayout());
+        AnimeShell.hideTabStrip(tabs);
+        tabs.setBorder(new EmptyBorder(8, 8, 8, 8));
+        shell = new AnimeShell(schedulerService, tabs);
+        tabs.addChangeListener(e -> {
+            if (shell != null) {
+                shell.followTab();
+            }
+            rememberWindowLayout();
+        });
         tabs.setSelectedIndex(0);
 
-        content.add(tabs, BorderLayout.CENTER);
+        content.add(shell, BorderLayout.CENTER);
 
         bindBackgroundControls();
 
-        setMinimumSize(new Dimension(720, 590));
-        setSize(720, 780);
+        setMinimumSize(new Dimension(980, 680));
+        setSize(1180, 800);
         setLocationRelativeTo(null);
 
         bindWindowLayoutPersistence();
@@ -411,8 +430,8 @@ public class App extends JFrame {
 
     private void applyWindowLayout(ConfigPersistenceService.CloudConfig config) {
         Dimension min = getMinimumSize();
-        int width = config.windowWidth > 0 ? Math.max(config.windowWidth, min.width) : 720;
-        int height = config.windowHeight > 0 ? Math.max(config.windowHeight, min.height) : 780;
+        int width = config.windowWidth > 0 ? Math.max(config.windowWidth, min.width) : 1180;
+        int height = config.windowHeight > 0 ? Math.max(config.windowHeight, min.height) : 800;
         setSize(width, height);
 
         if (config.windowX >= 0 && config.windowY >= 0 && isLocationOnScreen(config.windowX, config.windowY, width, height)) {
@@ -991,7 +1010,7 @@ public class App extends JFrame {
             peerRefs.peerStatusLabel.setText(friendCount == 0
                     ? "目前沒有其他好友在同一伺服器"
                     : "共 " + friendCount + " 位好友 · " + onlineCount + " 位在線");
-            peerRefs.peerStatusLabel.setForeground(new Color(100, 116, 139));
+            peerRefs.peerStatusLabel.setForeground(NightTheme.MUTED);
         }
         setPeerInteractionEnabled(true);
         if (peerRefs.openCloudSettingsButton != null) {
@@ -1042,7 +1061,7 @@ public class App extends JFrame {
         }
         if (peerRefs.peerStatusLabel != null) {
             peerRefs.peerStatusLabel.setText("雲端未啟用 · 本機獨立運作");
-            peerRefs.peerStatusLabel.setForeground(new Color(100, 116, 139));
+            peerRefs.peerStatusLabel.setForeground(NightTheme.MUTED);
         }
         setPeerInteractionEnabled(false);
         if (peerRefs.openCloudSettingsButton != null) {
@@ -1059,7 +1078,7 @@ public class App extends JFrame {
         clearPeerTable();
         if (peerRefs.peerStatusLabel != null) {
             peerRefs.peerStatusLabel.setText("連線中…（等待伺服器回傳好友列表）");
-            peerRefs.peerStatusLabel.setForeground(new Color(100, 116, 139));
+            peerRefs.peerStatusLabel.setForeground(NightTheme.MUTED);
         }
     }
 
@@ -1099,6 +1118,9 @@ public class App extends JFrame {
     private void showPeerMessage(String fromId, String text, Long sentAtMs, String avatar) {
         String timeLabel = formatPeerMessageTime(sentAtMs);
         appendLog("[訊息] 【戳】（" + timeLabel + "）來自【" + fromId + "】：" + text);
+        if (shell != null) {
+            shell.play(AnimeCast.REACT);
+        }
         receiveChatMessage(fromId, text, "", sentAtMs, avatar);
     }
 
@@ -1110,12 +1132,18 @@ public class App extends JFrame {
         appendLog("[訊息] 【戳】（" + timeLabel + "）來自【" + fromId + "】（含"
                 + (count > 1 ? " " + count + " 張圖片" : "圖片") + "）："
                 + (safeText.isEmpty() ? "（僅圖片）" : safeText));
+        if (shell != null) {
+            shell.play(AnimeCast.REACT);
+        }
         receiveChatMessage(fromId, safeText, imageEncoded, sentAtMs, avatar);
     }
 
     private void showPeerPoke(String fromId, Long sentAtMs, String avatar) {
         String timeLabel = formatPeerMessageTime(sentAtMs);
         appendLog("[通知] 【戳】（" + timeLabel + "）【" + fromId + "】戳了你！");
+        if (shell != null) {
+            shell.play(AnimeCast.WAVE);
+        }
         rememberPeerAvatar(fromId, avatar);
         PeerChatStore.Entry entry = chatStore.addPoke(fromId, false, sentAtMs);
         PeerChatWindow existing = chatWindows.get(fromId);
@@ -1582,6 +1610,9 @@ public class App extends JFrame {
         blur = WindowBackground.clampBlurPercent(blur);
         opacity = WindowBackground.clampOpacityPercent(opacity);
         WindowChrome.setWallpaper(this, image, blur, opacity);
+        if (shell != null) {
+            shell.setUseRoom(image == null);
+        }
         if (serverRefs.backgroundPreview != null) {
             Image previewSource = image == null ? null : WindowBackground.applyEffects(image, blur);
             serverRefs.backgroundPreview.setIcon(WindowBackground.previewIcon(previewSource));
@@ -1675,7 +1706,7 @@ public class App extends JFrame {
                 appendLog("[離線] 已取消勾選，斷開雲端狀態回報（本機獨立運作模式）。");
                 heartbeatService.stopHeartbeat();
                 serverRefs.heartbeatStatusLabel.setText("[離線] 未連線 (已停用)");
-                serverRefs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
+                serverRefs.heartbeatStatusLabel.setForeground(NightTheme.MUTED);
                 refreshPeerInteractionState();
             }
             saveCloudConfig();
@@ -1820,7 +1851,7 @@ public class App extends JFrame {
             serverRefs.relayStatusLabel.setForeground(new Color(34, 197, 94));
         } else {
             serverRefs.relayStatusLabel.setText("未啟動");
-            serverRefs.relayStatusLabel.setForeground(new Color(100, 116, 139));
+            serverRefs.relayStatusLabel.setForeground(NightTheme.MUTED);
         }
     }
 
@@ -2212,7 +2243,7 @@ public class App extends JFrame {
                 SwingUtilities.invokeLater(() -> {
                     if (serverRefs.enableServerCheckBox != null && !serverRefs.enableServerCheckBox.isSelected()) {
                         serverRefs.heartbeatStatusLabel.setText("[離線] 未連線 (已停用)");
-                        serverRefs.heartbeatStatusLabel.setForeground(new Color(100, 116, 139));
+                        serverRefs.heartbeatStatusLabel.setForeground(NightTheme.MUTED);
                         return;
                     }
                     if (isOk) {

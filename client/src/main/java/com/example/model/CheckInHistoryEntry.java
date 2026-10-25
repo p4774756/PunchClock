@@ -90,6 +90,6 @@ public class CheckInHistoryEntry {
             detail = detail.substring(0, 79) + "…";
         }
         return String.format("%s  ｜  %s  ｜  %s  ｜  %s  ｜  %s",
-                getAt(), getSlotName(), badge, source, detail);
+                getAt(), WorkSlot.screenText(getSlotName()), badge, source, WorkSlot.screenText(detail));
     }
 }

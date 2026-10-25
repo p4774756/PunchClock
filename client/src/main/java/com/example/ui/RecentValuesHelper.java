@@ -391,7 +391,7 @@ public final class RecentValuesHelper {
                 int markWidth = fm.stringWidth(mark);
                 int x = getWidth() - DELETE_HIT_WIDTH + (DELETE_HIT_WIDTH - markWidth) / 2;
                 int y = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
-                g2.setColor(deleteHover ? new Color(220, 38, 38) : new Color(100, 116, 139));
+                g2.setColor(deleteHover ? new Color(255, 122, 168) : NightTheme.MUTED);
                 g2.drawString(mark, x, y);
             } finally {
                 g2.dispose();

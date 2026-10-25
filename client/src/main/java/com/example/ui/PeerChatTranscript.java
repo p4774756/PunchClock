@@ -36,10 +36,11 @@ public class PeerChatTranscript extends JTextPane {
     static final int THUMB_EDGE = 320;
     private static final String IMAGE_ATTR = "peerImage";
 
-    private static final Color SELF_COLOR = new Color(30, 64, 175);
-    private static final Color PEER_COLOR = new Color(21, 128, 61);
-    private static final Color POKE_COLOR = new Color(194, 65, 12);
-    private static final Color NOTE_COLOR = new Color(100, 116, 139);
+    private static final Color SELF_COLOR = new Color(255, 176, 206);
+    private static final Color PEER_COLOR = new Color(150, 230, 186);
+    private static final Color POKE_COLOR = new Color(255, 176, 128);
+    private static final Color NOTE_COLOR = NightTheme.MUTED;
+    private static final Color BODY_COLOR = NightTheme.INK;
 
     private final String peerId;
     private final String fontFamily;
@@ -100,7 +101,7 @@ public class PeerChatTranscript extends JTextPane {
                             style(POKE_COLOR, fontSize, false));
                 } else {
                     if (!entry.text.isEmpty()) {
-                        insert(doc, entry.text + "\n", style(Color.BLACK, fontSize, false));
+                        insert(doc, entry.text + "\n", style(BODY_COLOR, fontSize, false));
                     }
                     if (entry.hasImage()) {
                         insertImages(doc, entry.imageEncoded);
@@ -133,11 +134,11 @@ public class PeerChatTranscript extends JTextPane {
         }
         for (int i = 0; i < images.size(); i++) {
             if (i > 0) {
-                insert(doc, " ", style(Color.BLACK, fontSize, false));
+                insert(doc, " ", style(BODY_COLOR, fontSize, false));
             }
             insertImage(doc, images.get(i));
         }
-        insert(doc, "\n", style(Color.BLACK, fontSize, false));
+        insert(doc, "\n", style(BODY_COLOR, fontSize, false));
     }
 
     private void insertImage(StyledDocument doc, String encoded) throws BadLocationException {

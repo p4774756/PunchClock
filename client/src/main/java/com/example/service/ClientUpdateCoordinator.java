@@ -125,7 +125,7 @@ public final class ClientUpdateCoordinator {
             throw ex;
         }
         if (!actions.idle()) {
-            actions.log("[更新] 打卡執行中或排程將至，這次先不更新");
+            actions.log("[更新] 任務執行中或排程將至，這次先不更新");
             busy.set(false);
             return;
         }
@@ -197,7 +197,7 @@ public final class ClientUpdateCoordinator {
                 return false;
             }
             if (!announced) {
-                actions.log("[更新] 新版已下載，但目前有打卡執行中或排程將至，等閒置後再重新啟動");
+                actions.log("[更新] 新版已下載，但目前有任務執行中或排程將至，等閒置後再重新啟動");
                 announced = true;
             }
             sleeper.sleep(idlePollMs);

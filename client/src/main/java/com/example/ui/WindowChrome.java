@@ -40,12 +40,12 @@ import java.awt.image.BufferedImage;
  */
 public final class WindowChrome {
 
-    private static final Color BAR_BG = new Color(241, 245, 249);
-    private static final Color BAR_BORDER = new Color(203, 213, 225);
-    private static final Color TITLE_FG = new Color(30, 41, 59);
-    private static final Color MUTED_FG = new Color(100, 116, 139);
+    private static final Color BAR_BG = new Color(42, 32, 72);
+    private static final Color BAR_BORDER = new Color(98, 78, 140);
+    private static final Color TITLE_FG = new Color(255, 250, 255);
+    private static final Color MUTED_FG = new Color(214, 204, 232);
     private static final Color CLOSE_HOVER = new Color(239, 68, 68);
-    private static final Color BUTTON_HOVER = new Color(226, 232, 240);
+    private static final Color BUTTON_HOVER = new Color(82, 64, 124);
     private static final int GRIP = 6;
 
     private WindowChrome() {
@@ -636,11 +636,11 @@ public final class WindowChrome {
                 int y = cy - trackH / 2;
                 int x = trackRect.x;
                 int w = Math.max(0, trackRect.width);
-                g2.setColor(new Color(203, 213, 225));
+                g2.setColor(new Color(98, 78, 140));
                 g2.fillRoundRect(x, y, w, trackH, trackH, trackH);
                 int filled = thumbRect.x + thumbRect.width / 2 - x;
                 if (filled > 0 && w > 0) {
-                    g2.setColor(new Color(100, 116, 139));
+                    g2.setColor(new Color(255, 122, 168));
                     g2.fillRoundRect(x, y, Math.min(filled, w), trackH, trackH, trackH);
                 }
             } finally {
@@ -658,7 +658,7 @@ public final class WindowChrome {
                 int y = thumbRect.y;
                 g2.setColor(Color.WHITE);
                 g2.fillOval(x, y, size, size);
-                g2.setColor(new Color(71, 85, 105));
+                g2.setColor(new Color(255, 122, 168));
                 g2.setStroke(new BasicStroke(1.4f));
                 g2.drawOval(x, y, size, size);
             } finally {
