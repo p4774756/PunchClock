@@ -12,10 +12,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,7 +26,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * 開會展示用照片暫存。
+ * 飲品牆：照片與筆記。
  * <p>
  * 支援兩種模式：
  * <ul>
@@ -37,10 +40,14 @@ public final class PhotoStore {
     private static final Logger LOG = Logger.getLogger(PhotoStore.class.getName());
     private static final long MAX_PHOTO_BYTES = 10 * 1024 * 1024L;
     private static final int MAX_PHOTOS = 50;
+    private static final int MAX_NOTE_CHARS = 4000;
+    private static final int MAX_LINK_CHARS = 2000;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Type INDEX_TYPE = new TypeToken<List<PhotoMeta>>() {}.getType();
+    private static final Type NOTE_INDEX_TYPE = new TypeToken<List<NoteMeta>>() {}.getType();
 
     private final ConcurrentHashMap<String, Photo> photos = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Note> notes = new ConcurrentHashMap<>();
     private final Path storageDir;
 
     public PhotoStore() {
@@ -53,6 +60,7 @@ public final class PhotoStore {
             try {
                 Files.createDirectories(this.storageDir);
                 loadFromDisk();
+                loadNotes();
             } catch (IOException ex) {
                 LOG.log(Level.WARNING, "無法初始化照片儲存目錄：" + this.storageDir, ex);
             }
@@ -151,6 +159,40 @@ public final class PhotoStore {
         }
     }
 
+    public static final class Note {
+        public final String id;
+        public final String text;
+        public final String link;
+        public final long createdAtMs;
+
+        Note(String id, String text, String link, long createdAtMs) {
+            this.id = id;
+            this.text = text;
+            this.link = link == null ? "" : link;
+            this.createdAtMs = createdAtMs;
+        }
+    }
+
+    public static final class NoteResult {
+        public final boolean ok;
+        public final String message;
+        public final Note note;
+
+        private NoteResult(boolean ok, String message, Note note) {
+            this.ok = ok;
+            this.message = message;
+            this.note = note;
+        }
+
+        static NoteResult success(Note note) {
+            return new NoteResult(true, "已貼上牆", note);
+        }
+
+        static NoteResult fail(String message) {
+            return new NoteResult(false, message, null);
+        }
+    }
+
     public UploadResult upload(String filename, String mimeType, byte[] data) {
         if (filename == null || filename.isBlank()) {
             return UploadResult.fail("檔名不可為空");
@@ -161,8 +203,8 @@ public final class PhotoStore {
         if (data.length > MAX_PHOTO_BYTES) {
             return UploadResult.fail("單張照片不可超過 10 MB");
         }
-        if (photos.size() >= MAX_PHOTOS) {
-            return UploadResult.fail("已達上限 " + MAX_PHOTOS + " 張，請先清除部分照片");
+        if (wallSize() >= MAX_PHOTOS) {
+            return UploadResult.fail("已達上限 " + MAX_PHOTOS + " 張，請先清掉一些");
         }
         if (mimeType == null || mimeType.isBlank()) {
             mimeType = guessMimeType(filename);
@@ -197,6 +239,30 @@ public final class PhotoStore {
         return UploadResult.success(photo);
     }
 
+    public NoteResult addNote(String text, String link) {
+        String body = text == null ? "" : text.trim();
+        if (body.isEmpty()) {
+            return NoteResult.fail("請寫一點內容");
+        }
+        if (body.length() > MAX_NOTE_CHARS) {
+            return NoteResult.fail("一篇最多 " + MAX_NOTE_CHARS + " 字");
+        }
+        String normalized;
+        try {
+            normalized = normalizeLink(link);
+        } catch (IllegalArgumentException ex) {
+            return NoteResult.fail(ex.getMessage());
+        }
+        if (wallSize() >= MAX_PHOTOS) {
+            return NoteResult.fail("已達上限 " + MAX_PHOTOS + " 張，請先清掉一些");
+        }
+        String id = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        Note note = new Note(id, body, normalized, System.currentTimeMillis());
+        notes.put(id, note);
+        saveNotes();
+        return NoteResult.success(note);
+    }
+
     public boolean delete(String photoId) {
         Photo removed = photos.remove(photoId);
         if (removed != null) {
@@ -206,17 +272,23 @@ public final class PhotoStore {
             }
             return true;
         }
+        if (notes.remove(photoId) != null) {
+            saveNotes();
+            return true;
+        }
         return false;
     }
 
     public int deleteAll() {
-        int count = photos.size();
+        int count = wallSize();
         for (Photo p : photos.values()) {
             p.deleteFile();
         }
         photos.clear();
+        notes.clear();
         if (storageDir != null) {
             saveIndex();
+            saveNotes();
         }
         return count;
     }
@@ -230,6 +302,7 @@ public final class PhotoStore {
         for (Photo p : photos.values()) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", p.id);
+            item.put("kind", "photo");
             item.put("filename", p.filename);
             item.put("mimeType", p.mimeType);
             item.put("dataUrl", "data:" + p.mimeType + ";base64," + p.base64Data());
@@ -237,11 +310,29 @@ public final class PhotoStore {
             item.put("createdAtMs", p.createdAtMs);
             result.add(item);
         }
+        for (Note note : notes.values()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", note.id);
+            item.put("kind", "note");
+            item.put("text", note.text);
+            item.put("link", note.link);
+            item.put("createdAtMs", note.createdAtMs);
+            result.add(item);
+        }
+        result.sort(Comparator.comparingLong(item -> ((Number) item.get("createdAtMs")).longValue()));
         return result;
     }
 
     public int count() {
-        return photos.size();
+        return wallSize();
+    }
+
+    public Note getNote(String noteId) {
+        return notes.get(noteId);
+    }
+
+    private int wallSize() {
+        return photos.size() + notes.size();
     }
 
     private void loadFromDisk() {
@@ -298,6 +389,84 @@ public final class PhotoStore {
         }
     }
 
+    private void loadNotes() {
+        if (storageDir == null) {
+            return;
+        }
+        Path indexFile = storageDir.resolve("notes.json");
+        if (!Files.isRegularFile(indexFile)) {
+            return;
+        }
+        try (InputStream in = Files.newInputStream(indexFile)) {
+            String json = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            List<NoteMeta> metas = GSON.fromJson(json, NOTE_INDEX_TYPE);
+            if (metas == null) {
+                return;
+            }
+            int loaded = 0;
+            for (NoteMeta meta : metas) {
+                if (meta == null || meta.id == null || meta.id.isBlank() || meta.text == null || meta.text.isBlank()) {
+                    continue;
+                }
+                notes.put(meta.id, new Note(meta.id, meta.text, meta.link == null ? "" : meta.link, meta.createdAtMs));
+                loaded++;
+            }
+            LOG.info("從磁碟載入 " + loaded + " 則筆記");
+        } catch (Exception ex) {
+            LOG.log(Level.WARNING, "無法載入筆記：" + indexFile, ex);
+        }
+    }
+
+    private void saveNotes() {
+        if (storageDir == null) {
+            return;
+        }
+        List<NoteMeta> metas = new ArrayList<>();
+        for (Note note : notes.values()) {
+            metas.add(new NoteMeta(note.id, note.text, note.link, note.createdAtMs));
+        }
+        Path indexFile = storageDir.resolve("notes.json");
+        try (OutputStream out = Files.newOutputStream(indexFile)) {
+            out.write(GSON.toJson(metas).getBytes(StandardCharsets.UTF_8));
+        } catch (IOException ex) {
+            LOG.log(Level.WARNING, "無法儲存筆記：" + indexFile, ex);
+        }
+    }
+
+    static String normalizeLink(String link) {
+        String raw = link == null ? "" : link.trim();
+        if (raw.isEmpty()) {
+            return "";
+        }
+        if (raw.length() > MAX_LINK_CHARS) {
+            throw new IllegalArgumentException("連結太長");
+        }
+        if (raw.chars().anyMatch(Character::isWhitespace)) {
+            throw new IllegalArgumentException("連結不能含空白");
+        }
+        String lower = raw.toLowerCase(Locale.ROOT);
+        if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+            if (raw.contains(":")) {
+                throw new IllegalArgumentException("只接受 http 或 https 連結");
+            }
+            raw = "https://" + raw;
+        }
+        URI uri;
+        try {
+            uri = URI.create(raw);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("連結格式不對");
+        }
+        String scheme = uri.getScheme();
+        if (scheme == null
+                || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))
+                || uri.getHost() == null
+                || uri.getHost().isBlank()) {
+            throw new IllegalArgumentException("連結格式不對");
+        }
+        return uri.toString();
+    }
+
     private static String sanitizeFilename(String filename) {
         if (filename == null) {
             return "photo";
@@ -349,6 +518,20 @@ public final class PhotoStore {
             this.fileId = fileId;
             this.filename = filename;
             this.mimeType = mimeType;
+            this.createdAtMs = createdAtMs;
+        }
+    }
+
+    private static final class NoteMeta {
+        String id;
+        String text;
+        String link;
+        long createdAtMs;
+
+        NoteMeta(String id, String text, String link, long createdAtMs) {
+            this.id = id;
+            this.text = text;
+            this.link = link;
             this.createdAtMs = createdAtMs;
         }
     }

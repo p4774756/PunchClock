@@ -147,6 +147,55 @@ public class PhotoStoreTest {
     }
 
     @Test
+    public void addNoteStoresTextAndNormalizesLink() {
+        PhotoStore.NoteResult result = store.addNote("下午報告用\nhttps://example.com/slides", "example.com/doc");
+        assertTrue(result.ok);
+        assertEquals("下午報告用\nhttps://example.com/slides", result.note.text);
+        assertEquals("https://example.com/doc", result.note.link);
+        assertEquals(1, store.count());
+
+        List<Map<String, Object>> snapshot = store.snapshot();
+        assertEquals("note", snapshot.get(0).get("kind"));
+        assertEquals("https://example.com/doc", snapshot.get(0).get("link"));
+    }
+
+    @Test
+    public void addNoteRejectsEmptyTextAndBadLink() {
+        PhotoStore.NoteResult empty = store.addNote("   ", "");
+        assertFalse(empty.ok);
+        assertEquals("請寫一點內容", empty.message);
+
+        PhotoStore.NoteResult script = store.addNote("看這個", "javascript:alert(1)");
+        assertFalse(script.ok);
+        assertEquals(0, store.count());
+    }
+
+    @Test
+    public void notesPersistAcrossRestartsAndDelete() {
+        PhotoStore.NoteResult result = store.addNote("記得帶投影筆", "https://example.com");
+        assertTrue(result.ok);
+        String id = result.note.id;
+
+        PhotoStore reloaded = new PhotoStore(storageDir);
+        assertNotNull(reloaded.getNote(id));
+        assertEquals("記得帶投影筆", reloaded.getNote(id).text);
+
+        assertTrue(reloaded.delete(id));
+        PhotoStore afterDelete = new PhotoStore(storageDir);
+        assertNull(afterDelete.getNote(id));
+        assertEquals(0, afterDelete.count());
+    }
+
+    @Test
+    public void deleteAllRemovesNotesToo() {
+        store.upload("a.jpg", "image/jpeg", createTestJpeg(20));
+        store.addNote("一句話", "");
+        assertEquals(2, store.deleteAll());
+        assertEquals(0, store.count());
+        assertEquals(0, new PhotoStore(storageDir).count());
+    }
+
+    @Test
     public void maxPhotosEnforced() {
         for (int i = 0; i < 50; i++) {
             PhotoStore.UploadResult result = store.upload("photo" + i + ".jpg", "image/jpeg", createTestJpeg(10));

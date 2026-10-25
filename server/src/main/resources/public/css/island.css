@@ -1,0 +1,238 @@
+body.island-body {
+  overflow: hidden;
+  height: 100vh;
+  background: #cfe7ee;
+}
+
+body.island-body .site-navbar {
+  position: relative;
+  z-index: 6;
+}
+
+#islandStage {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: #cfe7ee;
+}
+
+#islandStage.is-fallback {
+  background:
+    radial-gradient(circle at 50% 42%, #8eae6a 0 18%, #c6a36a 19% 24%, #7eb8c9 25% 100%);
+}
+
+#islandCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+#islandLabels {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.island-label,
+.island-mark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: inherit;
+}
+
+.island-label {
+  pointer-events: auto;
+  border: 0;
+  background: rgba(255, 248, 244, 0.95);
+  color: #211d1d;
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.03em;
+  border-radius: 999px;
+  padding: 0.38rem 0.8rem;
+  box-shadow: 0 8px 18px rgba(33, 29, 29, 0.14);
+  cursor: pointer;
+}
+
+.island-label:hover,
+.island-label:focus-visible {
+  background: #fff;
+  outline: 2px solid #ea5420;
+  outline-offset: 2px;
+}
+
+.island-label.is-active {
+  background: #211d1d;
+  color: #fff;
+}
+
+.island-mark {
+  pointer-events: none;
+  color: #ea5420;
+  background: rgba(255, 248, 244, 0.94);
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  padding: 0.22rem 0.55rem;
+  border-radius: 8px;
+}
+
+.island-tools {
+  position: fixed;
+  z-index: 6;
+  top: 5.2rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.island-tool,
+.island-list button {
+  font-family: inherit;
+}
+
+.island-tool {
+  border: 0;
+  background: rgba(255, 248, 244, 0.96);
+  color: #211d1d;
+  font-weight: 700;
+  font-size: 0.82rem;
+  border-radius: 14px;
+  min-width: 4.4rem;
+  padding: 0.7rem 0.55rem;
+  box-shadow: 0 8px 18px rgba(33, 29, 29, 0.12);
+  cursor: pointer;
+}
+
+.island-tool:hover,
+.island-tool:focus-visible,
+.island-list button:focus-visible {
+  outline: 2px solid #ea5420;
+  outline-offset: 2px;
+}
+
+.island-list {
+  position: fixed;
+  z-index: 6;
+  top: 5.2rem;
+  right: 6.2rem;
+  width: min(260px, calc(100vw - 7.5rem));
+  background: rgba(255, 248, 244, 0.97);
+  border-radius: 16px;
+  padding: 0.75rem;
+  box-shadow: 0 12px 32px rgba(33, 29, 29, 0.16);
+}
+
+.island-list[hidden] {
+  display: none !important;
+}
+
+.island-list-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #ea5420;
+}
+
+.island-list button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #211d1d;
+  text-align: left;
+  font-weight: 700;
+  font-size: 0.92rem;
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+  cursor: pointer;
+}
+
+.island-list button small {
+  font-weight: 500;
+  font-size: 0.72rem;
+  color: #717171;
+}
+
+.island-list button:hover,
+.island-list button.is-active {
+  background: rgba(234, 84, 32, 0.1);
+}
+
+.island-sheet {
+  position: fixed;
+  z-index: 8;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: min(74vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: var(--cream);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -14px 40px rgba(33, 29, 29, 0.2);
+}
+
+.island-sheet[hidden] {
+  display: none !important;
+}
+
+body.island-sheet-open #islandLabels,
+body.island-sheet-open .island-tools,
+body.island-sheet-open .island-list {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.island-sheet-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.95rem 1rem 0.35rem;
+}
+
+.island-sheet-grip {
+  position: absolute;
+  left: 50%;
+  top: 0.42rem;
+  width: 2.6rem;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: #c9caca;
+  transform: translateX(-50%);
+}
+
+.island-sheet-bar strong {
+  font-size: 1rem;
+  color: var(--text-dark);
+}
+
+.island-sheet-body {
+  overflow: auto;
+  flex: 1;
+  padding-bottom: 1.25rem;
+}
+
+.island-sheet-body .shell {
+  padding-bottom: 0.5rem;
+}
+
+.chat-tab-badge[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 700px) {
+  .island-tools { top: 4.6rem; right: 0.55rem; }
+  .island-list { right: 0.55rem; top: auto; bottom: 0.75rem; width: min(280px, calc(100vw - 1.1rem)); }
+  .island-sheet { height: 78vh; }
+  .island-tool { min-width: 3.6rem; padding: 0.55rem 0.4rem; }
+}

@@ -4,7 +4,7 @@
 
 ## 架構
 
-```
+```text
 ┌─────────────────┐   HTTP 心跳 + Bearer    ┌──────────────────┐   REST 取消指令   ┌─────────────┐
 │  PunchClock     │ ─────────────────────► │  server          │ ◄─────────────── │  Web 控制台  │
 │  (Java 桌面端)   │ ◄── action / actions ── │  (Javalin 伺服器)  │ ── WS 狀態推送 ─► │  (瀏覽器)    │
@@ -19,7 +19,7 @@
 遠端僅支援「取消全部 / 取消單一任務」；排程請在桌面端本機建立。
 
 | 模組 | 說明 | 技術 |
-|------|------|------|
+| ------ | ------ | ------ |
 | [`client/`](client/) | 桌面端：排程、自動打卡、任務管理 | Java 11、Swing、Playwright |
 | [`server/`](server/) | 伺服器：心跳接收、Web 監控、遠端控制 | Java 11、Javalin、WebSocket |
 | [`shared/`](shared/) | 共用程式（`PeerFileRules` 等） | Java 11 |
@@ -109,16 +109,17 @@ java -jar client/target/punchclock-client-standalone.jar
 - 3 分鐘無心跳自動判定離線
 - 登入保護（5 次失敗鎖定 15 分鐘）
 
-### Web 控制台分頁
+### Web 控制台
 
-| 分頁 | 內容 |
-|------|------|
-| 點餐單 | 裝置狀態、遠端取消排程或單一任務 |
-| 攤前喊話 | 跟桌面端私訊或群組。只放伺服器記憶體，重啟後清空 |
-| 外帶袋 | 傳檔暫存，約 6 小時；過期前可下載，也可手動清除 |
-| 爐火狀況 | CPU、JVM／系統記憶體、傳檔暫存用量。每分鐘取樣，保留約 3 天，寫在 `~/.punchclock/server-health-history.json` |
-| 菜單牆 | 照片。預設只放記憶體，重啟後清空；設定 `PHOTO_STORAGE_DIR` 後改存該目錄 |
-| 珍珠跳跳 | 瀏覽器小遊戲，最高分留在這台瀏覽器 |
+後台是一座手搖店島。點島上的區域，或用右上角「清單」，打開對應面板。
+
+| 區域 | 內容 |
+| ------ | ------ |
+| 點單 | 裝置狀態、遠端取消排程或單一任務 |
+| 店內廣播 | 跟桌面端私訊或群組。只放伺服器記憶體，重啟後清空 |
+| 外帶架 | 傳檔暫存，約 6 小時；過期前可下載，也可手動清除 |
+| 製茶機 | CPU、JVM／系統記憶體、傳檔暫存用量。每分鐘取樣，保留約 3 天，寫在 `~/.punchclock/server-health-history.json` |
+| 飲品牆 | 照片、筆記與連結。預設只放記憶體，重啟後清空；設定 `PHOTO_STORAGE_DIR` 後改存該目錄 |
 
 ## 部署建議
 
@@ -127,7 +128,7 @@ java -jar client/target/punchclock-client-standalone.jar
 **Render（Docker）：**
 
 | 欄位 | 值 |
-|------|-----|
+| ------ | ----- |
 | Runtime | **Docker**（不是 Node） |
 | Dockerfile Path | `server/Dockerfile` |
 | Root Directory | （留空） |
@@ -137,12 +138,12 @@ java -jar client/target/punchclock-client-standalone.jar
 **環境變數：**
 
 | 變數 | 說明 | 預設值 |
-|------|------|--------|
+| ------ | ------ | -------- |
 | `PORT` | 伺服器監聽埠 | `3000` |
 | `HEARTBEAT_SECRET` | 心跳 API Bearer token | `punchclock-dev-secret` |
 | `ADMIN_PASSWORD` | Web 控制台管理員密碼 | `secret` |
 | `CLIENT_JAR_PATH` | 覆寫可發布的桌面端 jar；沒設時用 Docker image 裡的那份 | （空） |
-| `PHOTO_STORAGE_DIR` | 菜單牆照片目錄。沒設時照片只在記憶體，重啟後清空 | （空） |
+| `PHOTO_STORAGE_DIR` | 飲品牆目錄。沒設時照片和筆記只在記憶體，重啟後清空 | （空） |
 
 生產環境請務必修改 `HEARTBEAT_SECRET` 與 `ADMIN_PASSWORD`。
 

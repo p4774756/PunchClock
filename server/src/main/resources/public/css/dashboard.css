@@ -348,6 +348,85 @@
       align-items: center;
     }
 
+    .note-composer {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      margin-bottom: 0.85rem;
+      padding: 0.75rem 0.8rem;
+      background: #fff6df;
+      border: 1px solid #ead7a2;
+      border-radius: var(--radius);
+    }
+
+    .note-composer-label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--blue);
+    }
+
+    .note-composer textarea,
+    .note-composer input {
+      width: 100%;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem;
+      font-family: inherit;
+      font-size: 0.88rem;
+      color: var(--text-dark);
+      background: #fff;
+    }
+
+    .note-composer textarea {
+      resize: vertical;
+      min-height: 4.2rem;
+      line-height: 1.5;
+    }
+
+    .note-composer-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .note-composer-row input {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .photo-card.note-card {
+      aspect-ratio: auto;
+      min-height: 9rem;
+      display: flex;
+      flex-direction: column;
+      padding: 1.7rem 0.8rem 0.7rem;
+      background: #fff6df;
+      border-color: #ead7a2;
+      cursor: default;
+    }
+
+    .note-card-body {
+      flex: 1;
+      font-size: 0.9rem;
+      line-height: 1.55;
+      color: var(--text-dark);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .note-card-body a,
+    .note-card-link {
+      color: var(--blue);
+      word-break: break-all;
+    }
+
+    .note-card-link {
+      display: inline-block;
+      margin-top: 0.65rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
     .photo-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

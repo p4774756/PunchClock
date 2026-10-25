@@ -88,7 +88,7 @@ public final class RouteSupport {
             return "";
         }
         try {
-            return java.net.URLDecoder.decode(raw.trim(), StandardCharsets.UTF_8);
+            return URLDecoder.decode(raw.trim(), StandardCharsets.UTF_8);
         } catch (Exception ex) {
             return raw.trim();
         }

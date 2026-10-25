@@ -11,7 +11,7 @@ import java.io.InputStream;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** 菜單牆照片。 */
+/** 飲品牆：照片與筆記。 */
 public final class PhotoRoutes {
 
     private final AuthService authService;
@@ -23,9 +23,15 @@ public final class PhotoRoutes {
 
     public void register(Javalin app) {
         app.post("/api/photos", this::photoUpload);
+        app.post("/api/photos/notes", this::noteCreate);
         app.get("/api/photos", this::photoList);
         app.delete("/api/photos/{photoId}", this::photoDelete);
         app.delete("/api/photos", this::photoDeleteAll);
+    }
+
+    public static final class NoteBody {
+        public String text;
+        public String link;
     }
 
     private void photoUpload(Context ctx) {
@@ -85,7 +91,7 @@ public final class PhotoRoutes {
         }
         String photoId = ctx.pathParam("photoId");
         if (photoStore.delete(photoId)) {
-            ctx.json(Map.of("success", true, "message", "已刪除照片"));
+            ctx.json(Map.of("success", true, "message", "已從飲品牆拿下來"));
         } else {
             ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到該照片"));
         }
@@ -97,6 +103,40 @@ public final class PhotoRoutes {
             return;
         }
         int removed = photoStore.deleteAll();
-        ctx.json(Map.of("success", true, "message", "已清除 " + removed + " 張照片", "removed", removed));
+        ctx.json(Map.of("success", true, "message", "已清掉 " + removed + " 張", "removed", removed));
+    }
+
+    private void noteCreate(Context ctx) {
+        if (!authService.isAuth(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
+            return;
+        }
+        NoteBody body;
+        try {
+            body = ctx.bodyAsClass(NoteBody.class);
+        } catch (Exception ex) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請寫一點內容"));
+            return;
+        }
+        if (body == null) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請寫一點內容"));
+            return;
+        }
+        PhotoStore.NoteResult result = photoStore.addNote(body.text, body.link);
+        if (!result.ok) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", result.message));
+            return;
+        }
+        Map<String, Object> note = new LinkedHashMap<>();
+        note.put("id", result.note.id);
+        note.put("kind", "note");
+        note.put("text", result.note.text);
+        note.put("link", result.note.link);
+        note.put("createdAtMs", result.note.createdAtMs);
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("success", true);
+        response.put("message", result.message);
+        response.put("note", note);
+        ctx.json(response);
     }
 }

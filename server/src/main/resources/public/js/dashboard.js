@@ -132,7 +132,7 @@
       if (!isConnected) return '離線';
       const total = (tasks || []).length;
       const scheduled = countScheduledTasks(tasks);
-      return '出攤中 · ' + transportLabel + ' · ' + total + ' 份待炸 · ' + scheduled + ' 份在排隊';
+      return '營業中 · ' + transportLabel + ' · ' + total + ' 杯待做 · ' + scheduled + ' 杯在排隊';
     }
 
     function buildCancelAllButtonHtml(clientId, isConnected, tasks) {
@@ -141,16 +141,16 @@
       }
       const canCancel = isConnected && hasCancellableTasks(tasks);
       const disabled = canCancel ? '' : 'disabled';
-      const title = canCancel ? '' : ' title="現在沒有在炸的可以取消"';
+      const title = canCancel ? '' : ' title="現在沒有在做的可以取消"';
       return '<button class="btn btn-danger" data-role="cancel-all" onclick="remoteCancelSchedule(\'' + clientId + '\')"' + title + ' ' + disabled + '>全部取消</button>';
     }
 
     function buildSendMessageButtonHtml(clientId, isConnected) {
       const disabled = isConnected ? '' : 'disabled';
       const title = isConnected
-        ? ' title="喊一聲，等下就送到"'
-        : ' title="對方不在攤上，沒辦法喊"';
-      return '<button class="btn btn-ghost" data-role="send-message" onclick="remoteSendMessage(\'' + clientId + '\')"' + title + ' ' + disabled + '>喊一聲</button>';
+        ? ' title="叫一聲，等下就送到"'
+        : ' title="對方不在店裡，沒辦法叫"';
+      return '<button class="btn btn-ghost" data-role="send-message" onclick="remoteSendMessage(\'' + clientId + '\')"' + title + ' ' + disabled + '>叫一聲</button>';
     }
 
     function refreshTaskCancelUi(clientId, taskId) {
@@ -372,7 +372,7 @@
       }
 
       const taskCountEl = root.querySelector('.metric-value[data-role="task-count"]');
-      if (taskCountEl) taskCountEl.textContent = tasks.length + ' 份';
+      if (taskCountEl) taskCountEl.textContent = tasks.length + ' 杯';
 
       const msgEl = root.querySelector('.metric-value[data-role="latest-message"]');
       if (msgEl) {
@@ -461,13 +461,13 @@
         if (prevStateKey !== undefined && prevStateKey !== currentStateKey) {
           const timeStr = new Date().toLocaleTimeString('zh-TW');
           if (c.status === 'CHECKING_IN') {
-            appendLog(c.clientId, '[' + timeStr + '] 正在下鍋…');
+            appendLog(c.clientId, '[' + timeStr + '] 正在做…');
           } else if (c.message && c.message.trim() !== '') {
             appendLog(c.clientId, '[' + timeStr + '] ' + c.message);
           }
           (c.tasks || []).forEach((t) => {
             if (!t) return;
-            appendLog(c.clientId, '[' + timeStr + '] 這份【' + (t.name || t.id) + '】狀態：' + taskStatusLabel(t.status));
+            appendLog(c.clientId, '[' + timeStr + '] 這杯【' + (t.name || t.id) + '】狀態：' + taskStatusLabel(t.status));
           });
         } else if (prevStateKey === undefined) {
           if (c.message && c.message.trim() !== '') {
@@ -795,7 +795,7 @@
       const host = document.getElementById('fileTransferList');
       if (!host) return;
       if (!fileData.length) {
-        host.innerHTML = '<p class="empty-tasks">袋子是空的</p>';
+        host.innerHTML = '<p class="empty-tasks">架子是空的</p>';
         return;
       }
       let rows = '';
@@ -890,7 +890,7 @@
     }
 
     async function clearAllAdminFiles() {
-      if (!confirm('確定要把外帶袋全部倒掉嗎？')) return;
+      if (!confirm('確定要把外帶架全部清掉嗎？')) return;
       try {
         const res = await fetch('/api/peer/files', { method: 'DELETE', credentials: 'same-origin' });
         const data = await res.json().catch(() => ({}));
@@ -968,7 +968,7 @@
 
       return '<article class="task-card" data-task-id="' + escapeHtml(t.id || '') + '">' +
         '<div class="task-card-top">' +
-          '<strong class="task-card-name">' + escapeHtml(t.name || '這一份') + '</strong>' +
+          '<strong class="task-card-name">' + escapeHtml(t.name || '這一杯') + '</strong>' +
           '<div class="task-card-actions">' +
             '<span class="task-countdown" data-status="' + escapeHtml(t.status || '') + '" data-actual-time="' + countdownAttr + '">' + escapeHtml(countdown) + '</span>' +
             statusBadge + cancelBtn +
@@ -987,7 +987,7 @@
     function buildTaskListInnerHtml(c, isConnected) {
       const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
       if (tasks.length === 0) {
-        return '<p class="empty-tasks">攤上現在沒有單，等下一份</p>';
+        return '<p class="empty-tasks">櫃檯現在沒有單，等下一杯</p>';
       }
       tasks.sort((a, b) => (a.actualTime || a.targetTime || '').localeCompare(b.actualTime || b.targetTime || ''));
       let cardsHtml = '';
@@ -1008,7 +1008,7 @@
       const countdownAttr = t.actualTime || t.targetTime || '';
 
       const nameEl = card.querySelector('.task-card-name');
-      if (nameEl) nameEl.textContent = t.name || '這一份';
+      if (nameEl) nameEl.textContent = t.name || '這一杯';
 
       const actions = card.querySelector('.task-card-actions');
       if (actions) {
@@ -1042,7 +1042,7 @@
       const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
       if (tasks.length === 0) {
         host.removeAttribute('data-task-ids');
-        host.innerHTML = '<p class="empty-tasks">攤上現在沒有單，等下一份</p>';
+        host.innerHTML = '<p class="empty-tasks">櫃檯現在沒有單，等下一杯</p>';
         return;
       }
       tasks.sort((a, b) => (a.actualTime || a.targetTime || '').localeCompare(b.actualTime || b.targetTime || ''));
@@ -1061,7 +1061,7 @@
     function renderClients() {
       const container = document.getElementById('clientContainer');
       if (!clientData || clientData.length === 0) {
-        container.innerHTML = '<div class="empty-state"><p>還沒有攤車連上來</p><p>請打開桌面端，並勾選雲端狀態回報</p></div>';
+        container.innerHTML = '<div class="empty-state"><p>還沒有門市連上來</p><p>請打開桌面端，並勾選雲端狀態回報</p></div>';
         return;
       }
 
@@ -1109,11 +1109,11 @@
           '<div class="device-body ' + bodyClass + '">' +
             '<div class="metrics">' +
               '<div class="metric"><span class="metric-label">上次打卡</span><span class="metric-value heartbeat-value" data-client-id="' + escapeHtml(c.clientId) + '">' + formatHeartbeat(c.lastSeen) + '</span></div>' +
-              '<div class="metric"><span class="metric-label">待炸</span><span class="metric-value" data-role="task-count">' + tasks.length + ' 份</span></div>' +
+              '<div class="metric"><span class="metric-label">待做</span><span class="metric-value" data-role="task-count">' + tasks.length + ' 杯</span></div>' +
               '<div class="metric"><span class="metric-label">最新動態</span><span class="metric-value" data-role="latest-message" style="color:' + statusColor + ';font-size:0.88rem;">' + safeMsg + '</span></div>' +
             '</div>' +
             '<div>' +
-              '<div class="section-label">點餐單</div>' +
+              '<div class="section-label">點單</div>' +
               '<div class="task-list" data-role="task-list" data-task-ids="' + escapeHtml(tasks.map((t) => t.id).join('|')) + '">' + tasksInnerHtml + '</div>' +
               '<div class="action-row">' +
                 sendMsgBtnHtml +
@@ -1122,7 +1122,7 @@
             '</div>' +
             '<div>' +
               '<div class="log-head">' +
-                '<div class="section-label" style="margin:0">攤前筆記</div>' +
+                '<div class="section-label" style="margin:0">店內筆記</div>' +
                 '<button class="btn btn-ghost" onclick="clearClientLog(\'' + c.clientId + '\')">擦掉</button>' +
               '</div>' +
               '<div class="log-box" id="log-' + c.clientId + '">' + logContent + '</div>' +
@@ -1152,7 +1152,7 @@
     }
 
     function deleteClient(clientId) {
-      if (confirm('確定要把【' + clientId + '】從攤位名單拿掉嗎？')) {
+      if (confirm('確定要把【' + clientId + '】從門市名單拿掉嗎？')) {
         fetch('/api/clients/' + encodeURIComponent(clientId), { method: 'DELETE' })
           .then(res => res.json())
           .then(data => { if (!data.success) alert(data.message || '刪除失敗'); })
@@ -1162,11 +1162,11 @@
 
     function remoteCancelTask(clientId, taskId) {
       if (isTaskCancelPending(clientId, taskId)) return;
-      if (!confirm('確定要取消【' + clientId + '】的這份【' + taskId + '】嗎？')) return;
+      if (!confirm('確定要取消【' + clientId + '】的這杯【' + taskId + '】嗎？')) return;
 
       markTaskCancelPending(clientId, taskId);
       refreshTaskCancelUi(clientId, taskId);
-      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在把這份單抽掉 (' + taskId + ')…');
+      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在把這杯抽掉 (' + taskId + ')…');
       fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-task/' + encodeURIComponent(taskId), { method: 'POST' })
         .then(res => res.json())
         .then(data => {
@@ -1175,7 +1175,7 @@
           } else {
             clearTaskCancelPending(clientId, taskId);
             refreshTaskCancelUi(clientId, taskId);
-            alert(data.message || '這份單沒取消成');
+            alert(data.message || '這杯沒取消成');
           }
         }).catch(err => {
           clearTaskCancelPending(clientId, taskId);
@@ -1214,10 +1214,10 @@
     async function remoteSendMessage(clientId) {
       const c = clientData.find((x) => x.clientId === clientId);
       if (!c || c.status === 'OFFLINE') {
-        alert('攤車收了，沒辦法喊');
+        alert('門市打烊了，沒辦法叫');
         return;
       }
-      const text = window.prompt('喊給【' + clientId + '】（大約 15 秒內聽到，可在「攤前喊話」回看）');
+      const text = window.prompt('叫給【' + clientId + '】（大約 15 秒內聽到，可在「店內廣播」回看）');
       if (text == null) return;
       const trimmed = String(text).trim();
       if (!trimmed) {
@@ -1228,7 +1228,7 @@
       appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在傳送訊息…');
       const ok = await postChat({ roomId: roomId, text: trimmed, nick: chatNick() });
       if (ok) {
-        appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已經喊出去了，對方等下會聽到');
+        appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已經叫出去了，對方等下會聽到');
         selectChat(roomId);
         switchDashTab('chat');
       }
@@ -1249,24 +1249,42 @@
       }
     }
 
+    const ISLAND_ZONES = ['devices', 'chat', 'files', 'system', 'photos'];
+
     function switchDashTab(tabId) {
-      const tabs = document.querySelectorAll('.dash-tab');
       const panels = document.querySelectorAll('.dash-panel');
-      if (!tabs.length || !panels.length) return;
-      const next = tabId || 'devices';
-      tabs.forEach(tab => {
-        const active = tab.getAttribute('data-tab') === next;
-        tab.classList.toggle('is-active', active);
-        tab.setAttribute('aria-selected', active ? 'true' : 'false');
-      });
+      if (!panels.length) return;
+      const next = ISLAND_ZONES.indexOf(tabId) >= 0 ? tabId : '';
       panels.forEach(panel => {
-        const active = panel.id === 'panel-' + next;
+        const active = next !== '' && panel.id === 'panel-' + next;
         panel.classList.toggle('is-active', active);
         if (active) {
           panel.removeAttribute('hidden');
         } else {
           panel.setAttribute('hidden', '');
         }
+      });
+      const sheet = document.getElementById('islandSheet');
+      const title = document.getElementById('islandSheetTitle');
+      if (sheet) {
+        if (next) {
+          sheet.hidden = false;
+          const panel = document.getElementById('panel-' + next);
+          if (title) title.textContent = panel ? (panel.getAttribute('data-label') || next) : next;
+        } else {
+          sheet.hidden = true;
+        }
+      }
+      const list = document.getElementById('islandList');
+      const listBtn = document.getElementById('islandListBtn');
+      if (list && next) {
+        list.hidden = true;
+        if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
+      }
+      document.querySelectorAll('.island-label, .island-list button[data-tab]').forEach(btn => {
+        const active = btn.getAttribute('data-tab') === next;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
       try {
         window.sessionStorage.setItem('punchclock.dashTab', next);
@@ -1278,26 +1296,21 @@
         markActiveChatSeen();
         renderChat();
       }
-      if (window.PunchClockFlappy) {
-        if (next === 'flappy') {
-          window.PunchClockFlappy.activate();
-        } else {
-          window.PunchClockFlappy.deactivate();
-        }
+      document.body.classList.toggle('island-sheet-open', !!next);
+      if (window.PunchClockIsland) {
+        if (next) window.PunchClockIsland.focus(next);
+        else window.PunchClockIsland.reset();
       }
     }
 
     function bindDashTabs() {
-      const tabs = document.querySelectorAll('.dash-tab');
-      tabs.forEach(tab => {
-        tab.addEventListener('click', () => switchDashTab(tab.getAttribute('data-tab')));
+      document.querySelectorAll('[data-tab]').forEach(el => {
+        el.addEventListener('click', () => switchDashTab(el.getAttribute('data-tab')));
       });
-      let initial = 'devices';
+      let initial = '';
       try {
         const saved = window.sessionStorage.getItem('punchclock.dashTab');
-        if (saved === 'devices' || saved === 'chat' || saved === 'files' || saved === 'system' || saved === 'photos' || saved === 'flappy') {
-          initial = saved;
-        }
+        if (ISLAND_ZONES.indexOf(saved) >= 0) initial = saved;
       } catch (e) {}
       switchDashTab(initial);
     }
@@ -1309,20 +1322,31 @@
       const grid = document.getElementById('photoGrid');
       if (!grid) return;
       if (!photoData.length) {
-        grid.innerHTML = '<p class="empty-tasks">牆上還沒貼，按「選張照片」貼一張</p>';
+        grid.innerHTML = '<p class="empty-tasks">牆上還沒貼。可以選張照片，或在上面寫一張。</p>';
         return;
       }
       let html = '';
       for (let i = 0; i < photoData.length; i++) {
         const p = photoData[i];
-        html += '<div class="photo-card" data-photo-id="' + escapeHtml(p.id) + '" draggable="true">'
-          + '<div class="photo-card-drag-handle" title="拖曳排序">☰</div>'
-          + '<img src="' + escapeHtml(p.dataUrl) + '" alt="' + escapeHtml(p.filename) + '" onclick="openLightbox(\'' + escapeHtml(p.id) + '\')" draggable="false" />'
-          + '<div class="photo-card-actions">'
-          + '<button type="button" class="btn btn-ghost-danger" onclick="deletePhoto(\'' + escapeHtml(p.id) + '\')">刪除</button>'
-          + '</div>'
-          + '<div class="photo-card-info"><span class="photo-card-name">' + escapeHtml(p.filename) + '</span></div>'
-          + '</div>';
+        if (isWallNote(p)) {
+          html += '<article class="photo-card note-card" data-photo-id="' + escapeHtml(p.id) + '" draggable="true">'
+            + '<div class="photo-card-drag-handle" title="拖曳排序">☰</div>'
+            + '<div class="note-card-body">' + linkifyNote(p.text) + '</div>'
+            + (p.link ? '<a class="note-card-link" href="' + escapeHtml(p.link) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(p.link) + '</a>' : '')
+            + '<div class="photo-card-actions">'
+            + '<button type="button" class="btn btn-ghost-danger" onclick="deletePhoto(\'' + escapeHtml(p.id) + '\')">拿下來</button>'
+            + '</div>'
+            + '</article>';
+        } else {
+          html += '<div class="photo-card" data-photo-id="' + escapeHtml(p.id) + '" draggable="true">'
+            + '<div class="photo-card-drag-handle" title="拖曳排序">☰</div>'
+            + '<img src="' + escapeHtml(p.dataUrl) + '" alt="' + escapeHtml(p.filename) + '" onclick="openLightbox(\'' + escapeHtml(p.id) + '\')" draggable="false" />'
+            + '<div class="photo-card-actions">'
+            + '<button type="button" class="btn btn-ghost-danger" onclick="deletePhoto(\'' + escapeHtml(p.id) + '\')">刪除</button>'
+            + '</div>'
+            + '<div class="photo-card-info"><span class="photo-card-name">' + escapeHtml(p.filename) + '</span></div>'
+            + '</div>';
+        }
       }
       grid.innerHTML = html;
       bindPhotoDragEvents();
@@ -1421,8 +1445,64 @@
       }
     }
 
+    function isWallNote(item) {
+      return !!(item && item.kind === 'note');
+    }
+
+    function linkifyNote(text) {
+      const src = String(text || '');
+      const re = /https?:\/\/[^\s<]+/g;
+      let html = '';
+      let last = 0;
+      let match;
+      while ((match = re.exec(src))) {
+        html += escapeHtml(src.slice(last, match.index));
+        let url = match[0];
+        let extra = '';
+        const trail = url.match(/[),.\]]+$/);
+        if (trail) {
+          extra = trail[0];
+          url = url.slice(0, -extra.length);
+        }
+        html += '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(url) + '</a>';
+        html += escapeHtml(extra);
+        last = match.index + match[0].length;
+      }
+      html += escapeHtml(src.slice(last));
+      return html;
+    }
+
+    async function submitNote(event) {
+      event.preventDefault();
+      const textEl = document.getElementById('noteText');
+      const linkEl = document.getElementById('noteLink');
+      const text = textEl ? textEl.value : '';
+      const link = linkEl ? linkEl.value : '';
+      try {
+        const res = await fetch('/api/photos/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ text: text, link: link })
+        });
+        const data = await res.json();
+        if (data.success && data.note) {
+          photoData.push(data.note);
+          if (textEl) textEl.value = '';
+          if (linkEl) linkEl.value = '';
+          renderPhotoGrid();
+        } else {
+          alert(data.message || '沒貼上');
+        }
+      } catch (e) {
+        alert('沒貼上');
+      }
+    }
+
     async function deletePhoto(photoId) {
-      if (!confirm('確定要把這張從菜單牆上撕掉嗎？')) return;
+      const item = photoData.find(p => p.id === photoId);
+      const label = isWallNote(item) ? '這張筆記' : '這張照片';
+      if (!confirm('確定要把' + label + '從飲品牆上拿下來嗎？')) return;
       try {
         const res = await fetch('/api/photos/' + encodeURIComponent(photoId), {
           method: 'DELETE',
@@ -1442,7 +1522,7 @@
     }
 
     async function clearAllPhotos() {
-      if (!confirm('確定要把菜單牆整面撕掉嗎？')) return;
+      if (!confirm('確定要把飲品牆整面清掉嗎？照片和筆記都會拿下來。')) return;
       try {
         const res = await fetch('/api/photos', { method: 'DELETE', credentials: 'same-origin' });
         const data = await res.json();
@@ -1460,7 +1540,7 @@
     let currentLightboxIndex = -1;
 
     function openLightbox(photoId) {
-      const index = photoData.findIndex(p => p.id === photoId);
+      const index = photoData.findIndex(p => p.id === photoId && !isWallNote(p));
       if (index < 0) return;
       currentLightboxIndex = index;
       let lightbox = document.getElementById('photoLightbox');
@@ -1488,8 +1568,13 @@
       const img = document.getElementById('lightboxImage');
       const counter = document.getElementById('lightboxCounter');
       if (img) {
-        img.src = photo.dataUrl;
-        img.alt = photo.filename;
+        if (isWallNote(photo)) {
+          img.removeAttribute('src');
+          img.alt = '';
+        } else {
+          img.src = photo.dataUrl;
+          img.alt = photo.filename || '';
+        }
       }
       if (counter) {
         counter.textContent = (currentLightboxIndex + 1) + ' / ' + photoData.length;
@@ -1500,20 +1585,29 @@
     function updateLightboxNavVisibility() {
       const prevBtn = document.querySelector('.photo-lightbox-prev');
       const nextBtn = document.querySelector('.photo-lightbox-next');
-      if (prevBtn) prevBtn.style.visibility = currentLightboxIndex > 0 ? 'visible' : 'hidden';
-      if (nextBtn) nextBtn.style.visibility = currentLightboxIndex < photoData.length - 1 ? 'visible' : 'hidden';
+      if (prevBtn) prevBtn.style.visibility = nearestPhotoIndex(currentLightboxIndex, -1) >= 0 ? 'visible' : 'hidden';
+      if (nextBtn) nextBtn.style.visibility = nearestPhotoIndex(currentLightboxIndex, 1) >= 0 ? 'visible' : 'hidden';
+    }
+
+    function nearestPhotoIndex(from, step) {
+      for (let i = from + step; i >= 0 && i < photoData.length; i += step) {
+        if (!isWallNote(photoData[i])) return i;
+      }
+      return -1;
     }
 
     function lightboxPrev() {
-      if (currentLightboxIndex > 0) {
-        currentLightboxIndex--;
+      const next = nearestPhotoIndex(currentLightboxIndex, -1);
+      if (next >= 0) {
+        currentLightboxIndex = next;
         updateLightboxImage();
       }
     }
 
     function lightboxNext() {
-      if (currentLightboxIndex < photoData.length - 1) {
-        currentLightboxIndex++;
+      const next = nearestPhotoIndex(currentLightboxIndex, 1);
+      if (next >= 0) {
+        currentLightboxIndex = next;
         updateLightboxImage();
       }
     }
@@ -1542,7 +1636,15 @@
       if (clearBtn) {
         clearBtn.addEventListener('click', clearAllPhotos);
       }
+      const noteForm = document.getElementById('noteComposer');
+      if (noteForm) {
+        noteForm.addEventListener('submit', submitNote);
+      }
       document.addEventListener('keydown', function(e) {
+        const lightbox = document.getElementById('photoLightbox');
+        if (!lightbox || lightbox.classList.contains('is-hidden')) return;
+        const tag = e.target && e.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
         if (e.key === 'Escape') closeLightbox();
         if (e.key === 'ArrowLeft') lightboxPrev();
         if (e.key === 'ArrowRight') lightboxNext();
@@ -1641,11 +1743,11 @@
       const targets = dmChatTargets();
       dmBox.innerHTML = targets.length
         ? targets.map((id) => chatRoomButton('dm:' + id, id)).join('')
-        : '<p class="chat-empty">還沒有攤車</p>';
+        : '<p class="chat-empty">還沒有門市</p>';
       const groups = chatRooms.filter((room) => room && room.kind === 'group');
       groupBox.innerHTML = groups.length
         ? groups.map((room) => chatRoomButton(room.id, room.name || room.id)).join('')
-        : '<p class="chat-empty">還沒有揪團</p>';
+        : '<p class="chat-empty">還沒有群組</p>';
       dmBox.querySelectorAll('[data-room]').forEach((btn) => {
         btn.addEventListener('click', () => selectChat(btn.getAttribute('data-room')));
       });
@@ -1664,19 +1766,21 @@
     }
 
     function updateChatBadge() {
-      const badge = document.getElementById('chatTabBadge');
-      if (!badge) return;
+      const badges = document.querySelectorAll('.chat-tab-badge');
+      if (!badges.length) return;
       let count = 0;
       chatRooms.forEach((room) => {
         if (isChatUnread(room)) count++;
       });
-      if (count > 0) {
-        badge.hidden = false;
-        badge.textContent = String(count);
-      } else {
-        badge.hidden = true;
-        badge.textContent = '';
-      }
+      badges.forEach((badge) => {
+        if (count > 0) {
+          badge.hidden = false;
+          badge.textContent = String(count);
+        } else {
+          badge.hidden = true;
+          badge.textContent = '';
+        }
+      });
     }
 
     function selectChat(roomId) {
@@ -1700,20 +1804,20 @@
       if (!title || !log) return;
       if (!activeChatId) {
         title.textContent = '先挑一位';
-        log.innerHTML = '<p class="chat-empty">左邊挑一位，或開一桌。</p>';
+        log.innerHTML = '<p class="chat-empty">左邊挑一位，或開一個群。</p>';
         return;
       }
       const room = chatRoomById(activeChatId);
       if (activeChatId.indexOf('dm:') === 0) {
-        title.textContent = '跟攤喊 · ' + activeChatId.slice(3);
+        title.textContent = '跟店講 · ' + activeChatId.slice(3);
       } else if (room) {
-        title.textContent = '揪團 · ' + (room.name || room.id);
+        title.textContent = '群組 · ' + (room.name || room.id);
       } else {
-        title.textContent = '揪團';
+        title.textContent = '群組';
       }
       const messages = room && Array.isArray(room.messages) ? room.messages : [];
       if (!messages.length) {
-        log.innerHTML = '<p class="chat-empty">還沒喊過。喊一句，對方桌上就會開窗。</p>';
+        log.innerHTML = '<p class="chat-empty">還沒講過。講一句，對方櫃檯就會開窗。</p>';
         return;
       }
       const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
