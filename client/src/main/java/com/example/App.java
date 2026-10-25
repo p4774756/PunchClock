@@ -99,6 +99,10 @@ public class App extends JFrame {
     private final Set<String> onlinePeerIds = new HashSet<>();
     /** 最近一次心跳看到的其他好友，首頁「最近在線」用。 */
     private List<PeerInfo> latestPeers = List.of();
+    /** 首頁好友卡的大頭照。同一張編碼不重複解碼。 */
+    private String cachedAvatarId = "";
+    private String cachedAvatarEncoded = "";
+    private BufferedImage cachedAvatar;
     private WindowChrome.Controls windowChrome;
     private boolean loggedOpacityUnsupported;
     private ClientUpdateCoordinator updateCoordinator;
@@ -848,9 +852,13 @@ public class App extends JFrame {
         String recentName = "還沒有好友";
         String recentState = "";
         PeerInfo recent = mostRecentPeer();
+        BufferedImage recentFace = null;
+        boolean recentKnown = false;
         if (recent != null) {
             recentName = recent.clientId;
             recentState = "ONLINE".equalsIgnoreCase(recent.status) ? "在線" : "離線";
+            recentFace = recentFace(recent);
+            recentKnown = true;
         } else if (!isCloudEnabled()) {
             recentName = "雲端未啟用";
         }
@@ -871,7 +879,22 @@ public class App extends JFrame {
         List<CheckInTask> tasks = schedulerService == null ? List.of() : schedulerService.getAllTasks();
         List<CheckInHistoryEntry> history = historyService == null ? List.of() : historyService.getRecent();
         return HomeBrief.collect(
-                tasks, history, onlinePeerIds.size(), recentName, recentState, cloud, cloudLabel);
+                tasks, history, onlinePeerIds.size(), recentName, recentState,
+                recentFace, recentKnown, cloud, cloudLabel);
+    }
+
+    private BufferedImage recentFace(PeerInfo recent) {
+        if (recent == null || recent.clientId == null) {
+            return null;
+        }
+        String encoded = peerAvatars.getOrDefault(recent.clientId, "");
+        if (recent.clientId.equals(cachedAvatarId) && encoded.equals(cachedAvatarEncoded)) {
+            return cachedAvatar;
+        }
+        cachedAvatarId = recent.clientId;
+        cachedAvatarEncoded = encoded;
+        cachedAvatar = PeerAvatar.decode(encoded);
+        return cachedAvatar;
     }
 
     private PeerInfo mostRecentPeer() {

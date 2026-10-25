@@ -2,10 +2,15 @@ package com.example.ui.hud;
 
 import com.example.ui.UiFonts;
 
+import java.awt.AlphaComposite;
 import java.awt.Color;
+import java.awt.Composite;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.Rectangle;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Path2D;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,11 +29,15 @@ final class HomeBoard {
     static final int FILE = 34;
 
     private static final Color INK = new Color(255, 252, 255);
-    private static final Color MUTED = new Color(226, 218, 242);
-    private static final Color PINK = new Color(255, 122, 168);
-    private static final Color PINK_INK = new Color(48, 18, 36);
+    private static final Color MUTED = new Color(209, 193, 225);
+    private static final Color PINK = new Color(244, 109, 167);
+    private static final Color GREEN = new Color(117, 214, 162);
+    private static final Color ERROR = new Color(255, 118, 139);
     private static final Color PANEL = new Color(54, 42, 96, 228);
-    private static final Color PANEL_EDGE = new Color(214, 198, 255, 150);
+    private static final Color PANEL_EDGE = new Color(142, 116, 178, 170);
+    private static final Color SOFT = new Color(65, 46, 103, 209);
+    private static final Color SOFT_HOT = new Color(86, 59, 124, 240);
+    private static final int FADE_MS = 240;
     private static final String[] CLICK_LINES = {
             "嘿嘿，找我有事嗎？",
             "我一直都在這裡喔～",
@@ -39,6 +48,7 @@ final class HomeBoard {
 
     final Rectangle schedule = new Rectangle();
     final Rectangle friends = new Rectangle();
+    final Rectangle actions = new Rectangle();
     final Rectangle run = new Rectangle();
     final Rectangle chat = new Rectangle();
     final Rectangle file = new Rectangle();
@@ -48,10 +58,15 @@ final class HomeBoard {
     private String line;
     private long lineUntil;
     private int lastClick = -1;
+    private boolean reducedMotion;
+    private String shown;
+    private String outgoing;
+    private long fadeStart;
 
     void layout(Rectangle area) {
         schedule.setBounds(0, 0, 0, 0);
         friends.setBounds(0, 0, 0, 0);
+        actions.setBounds(0, 0, 0, 0);
         run.setBounds(0, 0, 0, 0);
         chat.setBounds(0, 0, 0, 0);
         file.setBounds(0, 0, 0, 0);
@@ -64,19 +79,19 @@ final class HomeBoard {
         boolean stacked = area.width < 640;
         int infoW = stacked ? area.width : Math.min(400, Math.max(250, area.width * 40 / 100));
         int infoH = stacked ? Math.min(area.height - 160, Math.max(210, area.height * 46 / 100)) : area.height;
-        int scheduleH = Math.min(188, Math.max(132, infoH * 46 / 100));
-        int friendH = Math.min(132, Math.max(96, infoH * 30 / 100));
-        int actionH = 58;
+        int scheduleH = 92;
+        int friendH = 124;
+        int actionH = 122;
         int used = scheduleH + friendH + actionH + gap * 2;
         if (used > infoH) {
             int overflow = used - infoH;
-            int scheduleCut = Math.min(Math.max(0, scheduleH - 112), overflow);
-            scheduleH -= scheduleCut;
-            overflow -= scheduleCut;
-            friendH = Math.max(84, friendH - overflow);
-            if (scheduleH + friendH + actionH + gap * 2 > infoH) {
-                actionH = Math.max(44, infoH - scheduleH - friendH - gap * 2);
-            }
+            int cut = Math.min(overflow, Math.max(0, scheduleH - 84));
+            scheduleH -= cut;
+            overflow -= cut;
+            cut = Math.min(overflow, Math.max(0, friendH - 100));
+            friendH -= cut;
+            overflow -= cut;
+            actionH = Math.max(90, actionH - overflow);
         }
         int x = area.x;
         int y = area.y;
@@ -84,12 +99,19 @@ final class HomeBoard {
         y += scheduleH + gap;
         friends.setBounds(x, y, infoW, friendH);
         y += friendH + gap;
-        int buttons = 3;
-        int buttonGap = 8;
-        int buttonW = Math.max(40, (infoW - buttonGap * (buttons - 1)) / buttons);
-        run.setBounds(x, y, buttonW, actionH);
-        chat.setBounds(x + buttonW + buttonGap, y, buttonW, actionH);
-        file.setBounds(x + (buttonW + buttonGap) * 2, y, Math.max(40, infoW - (buttonW + buttonGap) * 2), actionH);
+        actions.setBounds(x, y, infoW, actionH);
+        int pad = 12;
+        int buttonGap = 10;
+        int buttonH = Math.min(72, Math.max(48, actionH - 46));
+        int buttonY = y + actionH - 12 - buttonH;
+        if (buttonY < y + 34) {
+            buttonY = y + 34;
+        }
+        int buttonW = Math.max(36, (infoW - pad * 2 - buttonGap * 2) / 3);
+        run.setBounds(x + pad, buttonY, buttonW, buttonH);
+        chat.setBounds(x + pad + buttonW + buttonGap, buttonY, buttonW, buttonH);
+        file.setBounds(x + pad + (buttonW + buttonGap) * 2, buttonY,
+                Math.max(36, infoW - pad * 2 - (buttonW + buttonGap) * 2), buttonH);
         if (stacked) {
             int top = y + actionH + gap;
             stage.setBounds(area.x, top, area.width, Math.max(0, area.y + area.height - top));
@@ -122,6 +144,22 @@ final class HomeBoard {
         return -1;
     }
 
+    void setReducedMotion(boolean reducedMotion) {
+        this.reducedMotion = reducedMotion;
+    }
+
+    /** 台詞切換的那一小段需要重畫，平時不必。 */
+    boolean animating() {
+        syncLine();
+        if (outgoing == null) {
+            return false;
+        }
+        if (System.currentTimeMillis() - fadeStart >= FADE_MS) {
+            outgoing = null;
+        }
+        return true;
+    }
+
     void say(String text) {
         line = text;
         lineUntil = System.currentTimeMillis() + 5600L;
@@ -140,9 +178,7 @@ final class HomeBoard {
         HomeBrief data = brief == null ? HomeBrief.empty() : brief;
         paintSchedule(g, data, hot == SCHEDULE);
         paintFriends(g, data, hot == FRIENDS);
-        paintButton(g, run, "執行任務", hot == RUN);
-        paintButton(g, chat, "開啟聊天", hot == CHAT);
-        paintButton(g, file, "傳送檔案", hot == FILE);
+        paintActions(g, hot);
         paintReminder(g, data);
     }
 
@@ -150,7 +186,12 @@ final class HomeBoard {
         if (stage.width < 80 || character == null || character.width < 40) {
             return;
         }
-        String text = currentLine();
+        syncLine();
+        String text = bubbleText();
+        float alpha = bubbleAlpha();
+        if (text == null || text.isEmpty() || alpha < 0.04f) {
+            return;
+        }
         g.setFont(UiFonts.chinesePlain(14));
         int lane = Math.max(0, character.x - stage.x - 16);
         int maxW = lane >= 120
@@ -165,29 +206,70 @@ final class HomeBoard {
             boxW = Math.max(boxW, metrics.stringWidth(row) + 28);
         }
         boxW = Math.min(maxW, boxW);
-        int x = character.x - boxW - 10;
+        int x = character.x - boxW - 14;
         int y = character.y + Math.max(8, character.height / 8);
+        boolean above = false;
         if (x < stage.x + 4) {
             x = stage.x + 8;
-            y = character.y - boxH - 8;
+            y = character.y - boxH - 14;
+            above = true;
             if (y < stage.y) {
                 y = stage.y;
+                above = false;
             }
         }
         if (reminder.width > 0 && y + boxH > reminder.y - 6 && x < reminder.x + reminder.width) {
             y = Math.max(stage.y, reminder.y - boxH - 8);
         }
+        Composite previous = g.getComposite();
+        if (alpha < 0.99f) {
+            g.setComposite(AlphaComposite.SrcOver.derive(alpha));
+        }
         Rectangle box = new Rectangle(x, y, boxW, boxH);
-        panel(g, box);
+        paintBubbleShape(g, box, above);
         g.setColor(INK);
         int textY = box.y + 8 + metrics.getAscent();
         for (String row : rows) {
             g.drawString(row, box.x + 14, textY);
             textY += block;
         }
+        g.setComposite(previous);
     }
 
-    private String currentLine() {
+    private void syncLine() {
+        String target = activeLine();
+        if (reducedMotion || shown == null) {
+            shown = target;
+            outgoing = null;
+            return;
+        }
+        if (!target.equals(shown)) {
+            outgoing = shown;
+            shown = target;
+            fadeStart = System.currentTimeMillis();
+        }
+    }
+
+    private String bubbleText() {
+        if (outgoing != null && System.currentTimeMillis() - fadeStart < FADE_MS / 2) {
+            return outgoing;
+        }
+        return shown == null ? activeLine() : shown;
+    }
+
+    private float bubbleAlpha() {
+        if (reducedMotion || outgoing == null) {
+            return 1f;
+        }
+        float t = (System.currentTimeMillis() - fadeStart) / (float) FADE_MS;
+        if (t >= 1f) {
+            outgoing = null;
+            return 1f;
+        }
+        return t < 0.5f ? 1f - t * 2f : (t - 0.5f) * 2f;
+    }
+
+    private String activeLine() {
         if (line != null && System.currentTimeMillis() < lineUntil) {
             return line;
         }
@@ -204,6 +286,45 @@ final class HomeBoard {
         return "已經很晚了，記得早點休息喔 ♡";
     }
 
+    private static void paintBubbleShape(Graphics2D g, Rectangle box, boolean above) {
+        g.setColor(new Color(16, 10, 32, 50));
+        g.fillRoundRect(box.x + 2, box.y + 3, box.width, box.height, 16, 16);
+        g.setColor(PANEL);
+        g.fillRoundRect(box.x, box.y, box.width, box.height, 16, 16);
+        Path2D tail = new Path2D.Float();
+        int coverX;
+        int coverY;
+        int coverW;
+        int coverH;
+        if (above) {
+            int mid = box.x + box.width / 2;
+            tail.moveTo(mid - 6, box.y + box.height - 2);
+            tail.lineTo(mid, box.y + box.height + 7);
+            tail.lineTo(mid + 6, box.y + box.height - 2);
+            tail.closePath();
+            coverX = mid - 5;
+            coverY = box.y + box.height - 3;
+            coverW = 10;
+            coverH = 4;
+        } else {
+            int mid = box.y + box.height / 2;
+            tail.moveTo(box.x + box.width - 2, mid - 6);
+            tail.lineTo(box.x + box.width + 7, mid);
+            tail.lineTo(box.x + box.width - 2, mid + 6);
+            tail.closePath();
+            coverX = box.x + box.width - 4;
+            coverY = mid - 5;
+            coverW = 4;
+            coverH = 10;
+        }
+        g.fill(tail);
+        g.setColor(PANEL_EDGE);
+        g.drawRoundRect(box.x, box.y, box.width - 1, box.height - 1, 16, 16);
+        g.draw(tail);
+        g.setColor(PANEL);
+        g.fillRect(coverX, coverY, coverW, coverH);
+    }
+
     private void paintSchedule(Graphics2D g, HomeBrief brief, boolean hover) {
         if (schedule.width < 40) {
             return;
@@ -215,23 +336,20 @@ final class HomeBoard {
         }
         g.setFont(UiFonts.chineseBold(16));
         g.setColor(INK);
-        g.drawString("今日排程", schedule.x + 16, schedule.y + 28);
+        g.drawString("今日排程", schedule.x + 16, schedule.y + 26);
         if (!brief.hasWork()) {
             g.setFont(UiFonts.chinesePlain(14));
             g.setColor(MUTED);
-            g.drawString("今天還沒有排程。", schedule.x + 16, schedule.y + 58);
-            g.drawString("到排程任務裡設定一個吧。", schedule.x + 16, schedule.y + 80);
+            g.drawString("今天還沒有排程。", schedule.x + 16, schedule.y + 56);
+            g.drawString("到排程任務裡設定一個吧。", schedule.x + 16, schedule.y + 78);
             return;
         }
-        g.setFont(UiFonts.chinesePlain(13));
-        g.setColor(MUTED);
-        String counts = "完成 " + brief.done + "    待執行 " + brief.waiting + "    失敗 " + brief.failed;
-        if (brief.cancelled > 0) {
-            counts = counts + "    取消 " + brief.cancelled;
+        int baseline = paintCounts(g, brief);
+        if (schedule.height < 90) {
+            return;
         }
-        g.drawString(fit(g, counts, schedule.width - 32), schedule.x + 16, schedule.y + 52);
         int barX = schedule.x + 16;
-        int barY = schedule.y + 64;
+        int barY = Math.min(schedule.y + schedule.height - 18, baseline + 14);
         int barW = Math.max(20, schedule.width - 32);
         g.setColor(new Color(32, 24, 58));
         g.fillRoundRect(barX, barY, barW, 8, 8, 8);
@@ -241,25 +359,43 @@ final class HomeBoard {
             g.setColor(PINK);
             g.fillRoundRect(barX, barY, Math.min(barW, fill), 8, 8, 8);
         }
-        if (schedule.height < 128) {
-            return;
+    }
+
+    private int paintCounts(Graphics2D g, HomeBrief brief) {
+        String[] labels = {"完成", "待執行", "失敗", "取消"};
+        int[] values = {brief.done, brief.waiting, brief.failed, brief.cancelled};
+        Color[] colors = {GREEN, PINK, ERROR, MUTED};
+        int gap = 16;
+        int[] widths = new int[4];
+        int total = 0;
+        g.setFont(UiFonts.chinesePlain(13));
+        FontMetrics plain = g.getFontMetrics();
+        g.setFont(UiFonts.chineseBold(13));
+        FontMetrics bold = g.getFontMetrics();
+        for (int i = 0; i < 4; i++) {
+            widths[i] = plain.stringWidth(labels[i]) + bold.stringWidth(" " + values[i]);
+            total += widths[i];
         }
-        g.setFont(UiFonts.chinesePlain(12));
-        g.setColor(MUTED);
-        g.drawString("下一個", schedule.x + 16, schedule.y + 94);
-        g.setFont(UiFonts.chineseBold(15));
-        g.setColor(INK);
-        String title = brief.nextName == null ? "今天沒有待執行的任務" : brief.nextName;
-        g.drawString(fit(g, title, schedule.width - 32), schedule.x + 16, schedule.y + 116);
-        if (brief.nextName != null && schedule.height >= 148) {
-            g.setFont(UiFonts.chinesePlain(13));
-            g.setColor(PINK);
-            String when = brief.nextTime;
-            if (brief.nextLeft != null && !brief.nextLeft.isBlank()) {
-                when = when + "    " + brief.nextLeft;
+        total += gap * 3;
+        int max = schedule.width - 32;
+        boolean wrap = total > max;
+        int x = schedule.x + 16;
+        int y = schedule.y + 52;
+        for (int i = 0; i < 4; i++) {
+            if (wrap && i == 2) {
+                x = schedule.x + 16;
+                y += 20;
             }
-            g.drawString(fit(g, when, schedule.width - 32), schedule.x + 16, schedule.y + 138);
+            g.setFont(UiFonts.chinesePlain(13));
+            g.setColor(MUTED);
+            g.drawString(labels[i], x, y);
+            int labelW = g.getFontMetrics().stringWidth(labels[i]);
+            g.setFont(UiFonts.chineseBold(13));
+            g.setColor(colors[i]);
+            g.drawString(" " + values[i], x + labelW, y);
+            x += widths[i] + gap;
         }
+        return y;
     }
 
     private void paintFriends(Graphics2D g, HomeBrief brief, boolean hover) {
@@ -273,19 +409,85 @@ final class HomeBoard {
         }
         g.setFont(UiFonts.chineseBold(16));
         g.setColor(INK);
-        g.drawString("好友動態", friends.x + 16, friends.y + 28);
+        g.drawString("好友動態", friends.x + 16, friends.y + 26);
         g.setFont(UiFonts.chinesePlain(13));
-        g.setColor(MUTED);
-        g.drawString("在線 " + brief.onlineFriends, friends.x + 16, friends.y + 54);
-        String recent = brief.recentFriend;
-        if (brief.recentState != null && !brief.recentState.isBlank()) {
-            recent = recent + "  " + brief.recentState;
+        String online = "在線 " + brief.onlineFriends;
+        int onlineW = g.getFontMetrics().stringWidth(online);
+        g.setColor(brief.onlineFriends > 0 ? GREEN : MUTED);
+        g.drawString(online, friends.x + friends.width - 16 - onlineW, friends.y + 26);
+        if (brief.recentKnown && friends.height >= 96) {
+            int size = 28;
+            int ax = friends.x + 16;
+            int ay = friends.y + 42;
+            paintFace(g, brief, ax, ay, size);
+            int textX = ax + size + 10;
+            int textW = Math.max(20, friends.width - (textX - friends.x) - 16);
+            g.setFont(UiFonts.chineseBold(14));
+            g.setColor(INK);
+            g.drawString(fit(g, brief.recentFriend, textW), textX, ay + 13);
+            g.setFont(UiFonts.chinesePlain(12));
+            g.setColor("在線".equals(brief.recentState) ? GREEN : MUTED);
+            g.drawString(fit(g, brief.recentState == null ? "" : brief.recentState, textW), textX, ay + 28);
+        } else {
+            g.setFont(UiFonts.chinesePlain(13));
+            g.setColor(MUTED);
+            g.drawString(fit(g, brief.recentFriend, friends.width - 32), friends.x + 16, friends.y + 54);
         }
-        g.drawString(fit(g, "最近  " + recent, friends.width - 32), friends.x + 16, friends.y + 76);
-        if (friends.height >= 100) {
+        if (friends.height >= 112) {
+            g.setFont(UiFonts.chinesePlain(13));
             g.setColor(brief.cloudOn ? PINK : MUTED);
-            g.drawString(fit(g, "連線  " + brief.cloudLabel, friends.width - 32), friends.x + 16, friends.y + 98);
+            g.drawString(fit(g, "連線  " + brief.cloudLabel, friends.width - 32), friends.x + 16, friends.y + friends.height - 16);
         }
+    }
+
+    private static void paintFace(Graphics2D g, HomeBrief brief, int x, int y, int size) {
+        Image face = brief.recentFace;
+        if (face != null) {
+            java.awt.Shape old = g.getClip();
+            g.clip(new Ellipse2D.Float(x + 1, y + 1, size - 2, size - 2));
+            g.drawImage(face, x, y, size, size, null);
+            g.setClip(old);
+        } else {
+            g.setColor(faceColor(brief.recentFriend));
+            g.fillOval(x + 1, y + 1, size - 2, size - 2);
+            g.setColor(INK);
+            g.setFont(UiFonts.chineseBold(13));
+            String letter = faceLetter(brief.recentFriend);
+            FontMetrics metrics = g.getFontMetrics();
+            int tx = x + (size - metrics.stringWidth(letter)) / 2;
+            int ty = y + (size - metrics.getHeight()) / 2 + metrics.getAscent();
+            g.drawString(letter, tx, ty);
+        }
+        boolean online = "在線".equals(brief.recentState);
+        g.setColor(new Color(28, 20, 48));
+        g.fillOval(x + size - 11, y + size - 11, 10, 10);
+        g.setColor(online ? GREEN : new Color(120, 108, 148));
+        g.fillOval(x + size - 9, y + size - 9, 6, 6);
+    }
+
+    private static Color faceColor(String id) {
+        int n = Math.floorMod(id == null ? 0 : id.hashCode(), 4);
+        if (n == 0) {
+            return new Color(186, 112, 164);
+        }
+        if (n == 1) {
+            return new Color(132, 104, 196);
+        }
+        if (n == 2) {
+            return new Color(206, 132, 168);
+        }
+        return new Color(112, 92, 176);
+    }
+
+    private static String faceLetter(String id) {
+        if (id == null) {
+            return "?";
+        }
+        String clean = id.trim();
+        if (clean.isEmpty()) {
+            return "?";
+        }
+        return clean.substring(0, clean.offsetByCodePoints(0, 1));
     }
 
     private void paintReminder(Graphics2D g, HomeBrief brief) {
@@ -302,26 +504,51 @@ final class HomeBoard {
         g.drawString(fit(g, title, reminder.width - 28), reminder.x + 14, reminder.y + 44);
         g.setFont(UiFonts.chinesePlain(13));
         g.setColor(PINK);
-        String when = brief.nextName == null ? "到排程任務裡設定" : brief.nextLeft;
-        if (brief.nextName != null && (when == null || when.isBlank())) {
+        String when;
+        if (brief.nextName == null) {
+            when = "到排程任務裡設定";
+        } else if (brief.nextTime != null && !brief.nextTime.isBlank()) {
             when = brief.nextTime;
+        } else if ("執行中".equals(brief.nextLeft)) {
+            when = "執行中";
+        } else {
+            when = "時間未定";
         }
-        g.drawString(fit(g, when == null ? "" : when, reminder.width - 28), reminder.x + 14, reminder.y + 64);
+        g.drawString(fit(g, when, reminder.width - 28), reminder.x + 14, reminder.y + 64);
     }
 
-    private static void paintButton(Graphics2D g, Rectangle box, String text, boolean hover) {
-        if (box.width < 36 || box.height < 28) {
+    private void paintActions(Graphics2D g, int hot) {
+        if (actions.width < 80) {
             return;
         }
-        g.setColor(hover ? new Color(255, 154, 190) : PINK);
-        g.fillRoundRect(box.x, box.y, box.width, box.height, 14, 14);
-        g.setFont(UiFonts.chineseBold(13));
-        g.setColor(PINK_INK);
+        panel(g, actions);
+        g.setFont(UiFonts.chineseBold(16));
+        g.setColor(INK);
+        g.drawString("快捷操作", actions.x + 16, actions.y + 26);
+        paintAction(g, run, "執行任務", hot == RUN, "play");
+        paintAction(g, chat, "開啟聊天", hot == CHAT, "chat");
+        paintAction(g, file, "傳送檔案", hot == FILE, "send-file");
+    }
+
+    private static void paintAction(Graphics2D g, Rectangle box, String text, boolean hover, String icon) {
+        if (box.width < 36 || box.height < 36) {
+            return;
+        }
+        g.setColor(hover ? SOFT_HOT : SOFT);
+        g.fillRoundRect(box.x, box.y, box.width, box.height, 12, 12);
+        g.setColor(hover ? PINK : PANEL_EDGE);
+        g.drawRoundRect(box.x, box.y, box.width - 1, box.height - 1, 12, 12);
+        int iconSize = Math.min(22, Math.max(16, box.height - 36));
+        int iconX = box.x + (box.width - iconSize) / 2;
+        int iconY = box.y + Math.max(8, (box.height - 18 - iconSize) / 2);
+        KitIcon.draw(g, icon, iconX, iconY, iconSize, PINK);
+        g.setFont(UiFonts.chinesePlain(13));
+        g.setColor(INK);
         FontMetrics metrics = g.getFontMetrics();
-        String shown = fit(g, text, box.width - 12);
-        int tx = box.x + Math.max(6, (box.width - metrics.stringWidth(shown)) / 2);
-        int ty = box.y + (box.height - metrics.getHeight()) / 2 + metrics.getAscent();
-        g.drawString(shown, tx, ty);
+        String label = fit(g, text, box.width - 8);
+        int tx = box.x + Math.max(4, (box.width - metrics.stringWidth(label)) / 2);
+        int ty = box.y + box.height - 12;
+        g.drawString(label, tx, ty);
     }
 
     private static void panel(Graphics2D g, Rectangle rect) {

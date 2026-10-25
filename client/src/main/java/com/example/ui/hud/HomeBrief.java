@@ -5,6 +5,7 @@ import com.example.model.CheckInTask;
 import com.example.model.TaskStatus;
 import com.example.model.WorkSlot;
 
+import java.awt.Image;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -28,6 +29,9 @@ public final class HomeBrief {
     public final int onlineFriends;
     public final String recentFriend;
     public final String recentState;
+    /** 有照片才有圖；沒有就畫名稱首字。不是好友時為 null。 */
+    public final Image recentFace;
+    public final boolean recentKnown;
     public final boolean cloudOn;
     public final String cloudLabel;
 
@@ -35,6 +39,7 @@ public final class HomeBrief {
             int done, int waiting, int failed, int cancelled,
             String nextName, String nextTime, String nextLeft,
             int onlineFriends, String recentFriend, String recentState,
+            Image recentFace, boolean recentKnown,
             boolean cloudOn, String cloudLabel) {
         this.done = done;
         this.waiting = waiting;
@@ -46,6 +51,8 @@ public final class HomeBrief {
         this.onlineFriends = onlineFriends;
         this.recentFriend = recentFriend;
         this.recentState = recentState;
+        this.recentFace = recentFace;
+        this.recentKnown = recentKnown;
         this.cloudOn = cloudOn;
         this.cloudLabel = cloudLabel;
     }
@@ -59,7 +66,7 @@ public final class HomeBrief {
     }
 
     public static HomeBrief empty() {
-        return new HomeBrief(0, 0, 0, 0, null, "", "", 0, "還沒有好友", "", false, "未啟用");
+        return new HomeBrief(0, 0, 0, 0, null, "", "", 0, "還沒有好友", "", null, false, false, "未啟用");
     }
 
     /**
@@ -72,6 +79,8 @@ public final class HomeBrief {
             int onlineFriends,
             String recentFriend,
             String recentState,
+            Image recentFace,
+            boolean recentKnown,
             boolean cloudOn,
             String cloudLabel) {
         LocalDate today = LocalDate.now();
@@ -146,6 +155,8 @@ public final class HomeBrief {
                 Math.max(0, onlineFriends),
                 recentFriend == null || recentFriend.isBlank() ? "還沒有好友" : recentFriend,
                 recentState == null ? "" : recentState,
+                recentFace,
+                recentKnown && recentFriend != null && !recentFriend.isBlank(),
                 cloudOn,
                 cloudLabel == null || cloudLabel.isBlank() ? (cloudOn ? "連線中" : "未啟用") : cloudLabel);
     }

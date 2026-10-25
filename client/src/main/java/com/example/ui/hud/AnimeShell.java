@@ -70,6 +70,7 @@ public final class AnimeShell extends JPanel {
         this.scheduler = scheduler;
         this.tabs = tabs;
         setOpaque(true);
+        board.setReducedMotion(reducedMotion);
         tabs.setVisible(false);
         add(tabs);
         MouseAdapter mouse = new MouseAdapter() {
@@ -105,11 +106,12 @@ public final class AnimeShell extends JPanel {
             long second = now / 1000L;
             boolean countdown = holdingHome && second != paintedSecond;
             boolean breathe = holdingHome && !reducedMotion && now / 200L != paintedBreath;
-            if (frame != paintedFrame || countdown || breathe) {
+            boolean fade = holdingHome && board.animating();
+            if (frame != paintedFrame || countdown || breathe || fade) {
                 paintedFrame = frame;
                 paintedSecond = second;
                 paintedBreath = now / 200L;
-                if (countdown) {
+                if (countdown || fade) {
                     repaint();
                 } else {
                     if (!character.isEmpty()) {
@@ -282,7 +284,7 @@ public final class AnimeShell extends JPanel {
                 repaint();
             } else if (status == TaskStatus.FAILED) {
                 hero.play(AnimeCast.REACT, 2.0);
-                board.say("好像遇到一點問題，要不要查看日誌？");
+                board.say("好像遇到問題了，要不要查看日誌？");
                 repaint();
             }
         }
