@@ -36,15 +36,18 @@ function boot() {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xcfe7ee);
-  scene.fog = new THREE.Fog(0xcfe7ee, 24, 52);
+  scene.fog = new THREE.Fog(0xcfe7ee, 32, 96);
 
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 180);
   const clock = new THREE.Clock();
   const materials = new Map();
   const anchors = {};
   const rings = {};
   const pickables = [];
   const bobs = [];
+  const walkers = [];
+  const clouds = [];
+  const orbits = [];
   let shaker = null;
 
   function mat(color) {
@@ -89,7 +92,7 @@ function boot() {
   scene.add(sun);
 
   const water = new THREE.Mesh(
-    new THREE.CircleGeometry(48, 28),
+    new THREE.CircleGeometry(72, 36),
     mat(0x7eb8c9)
   );
   water.rotation.x = -Math.PI / 2;
@@ -140,6 +143,213 @@ function boot() {
   umbrella(sideIsle, 0, -0.7, 0, 0xea5420);
   const farIsle = islet(-12.4, -6.2, 1.35);
   bush(farIsle, 0, -0.45, 0, 0.7, 0x6f9658);
+
+  const trunkGeo = new THREE.CylinderGeometry(0.08, 0.1, 0.7, 5);
+  const crownGeo = new THREE.ConeGeometry(0.55, 0.9, 6);
+  function tree(parent, x, y, z, scale) {
+    const trunk = new THREE.Mesh(trunkGeo, mat(0xc6a36a));
+    trunk.position.set(x, y + 0.35 * scale, z);
+    trunk.scale.setScalar(scale);
+    const crown = new THREE.Mesh(crownGeo, mat(0x6f9658));
+    crown.position.set(x, y + 0.95 * scale, z);
+    crown.scale.setScalar(scale);
+    parent.add(trunk, crown);
+  }
+
+  const midIsle = islet(22, -16, 2.2);
+  tree(midIsle, 0.35, -0.72, -0.15, 1.5);
+  umbrella(midIsle, -0.7, -0.7, 0.35, 0xf6d56b);
+  const northIsle = islet(-20, 18, 1.9);
+  tree(northIsle, -0.15, -0.7, 0.1, 1.7);
+  tree(northIsle, 0.7, -0.72, -0.35, 1.1);
+
+  const hillGeo = new THREE.ConeGeometry(1, 1, 6);
+  [
+    [40, 16, 8, 4.4, 0x8fa888],
+    [52, -6, 10, 6.2, 0x9bb0c4],
+    [24, -46, 9, 4.2, 0x7f9a68],
+    [-30, -50, 11, 6.4, 0xa7b7c6],
+    [-56, -8, 9, 5.2, 0x8ea0b0],
+    [-42, 30, 10, 5.6, 0x86a06e],
+    [-6, 54, 8, 3.8, 0x9bb0c4],
+    [20, 48, 7, 3.4, 0x7f9a68],
+    [58, 26, 6, 3.1, 0xa8c0cc],
+    [26, -18, 6.5, 3.4, 0x7f9a68],
+    [-24, -22, 7.5, 3.8, 0x8ea888],
+    [-26, 10, 6, 3.1, 0x9bb0c4],
+    [16, 24, 6.2, 2.8, 0x86a06e]
+  ].forEach(([x, z, radius, height, color]) => {
+    const hill = new THREE.Mesh(hillGeo, mat(color));
+    hill.scale.set(radius, height, radius);
+    hill.position.set(x, -1.7 + height * 0.22, z);
+    scene.add(hill);
+  });
+
+  const puffGeo = new THREE.SphereGeometry(1, 5, 4);
+  function cloud(x, y, z, scale, drift) {
+    const group = new THREE.Group();
+    [[0, 0, 0, 1], [0.9, 0.12, 0.05, 0.72], [-0.8, 0.05, -0.08, 0.62]].forEach(([px, py, pz, s]) => {
+      const puff = new THREE.Mesh(puffGeo, mat(0xfffaf6));
+      puff.position.set(px, py, pz);
+      puff.scale.setScalar(s);
+      group.add(puff);
+    });
+    group.position.set(x, y, z);
+    group.scale.setScalar(scale);
+    group.userData.origin = x;
+    group.userData.drift = drift;
+    scene.add(group);
+    clouds.push(group);
+  }
+  cloud(-6, 6.2, -16, 1.8, 0.16);
+  cloud(-16, 9.5, -18, 1.7, 0.15);
+  cloud(8, 11, 14, 1.3, 0.22);
+  cloud(24, 8.6, -8, 1.1, 0.18);
+  cloud(-28, 10.2, 10, 1.45, 0.12);
+
+  const headGeo = new THREE.SphereGeometry(0.16, 6, 5);
+  const hairGeo = new THREE.SphereGeometry(0.155, 5, 4);
+  const bodyGeo = new THREE.CylinderGeometry(0.13, 0.16, 0.38, 5);
+  function ringPath(radius, steps, turn) {
+    const path = [];
+    for (let i = 0; i < steps; i++) {
+      const angle = turn + (i / steps) * Math.PI * 2;
+      path.push([Math.cos(angle) * radius, Math.sin(angle) * radius]);
+    }
+    return path;
+  }
+  function addWalker(shirt, path, speed) {
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(bodyGeo, mat(shirt));
+    body.position.y = 0.28;
+    const head = new THREE.Mesh(headGeo, mat(0xf3d2b2));
+    head.position.y = 0.62;
+    const hair = new THREE.Mesh(hairGeo, mat(0x3f3434));
+    hair.position.set(0, 0.7, 0);
+    hair.scale.set(1, 0.55, 1);
+    group.add(body, head, hair);
+    scene.add(group);
+    walkers.push({ obj: group, path: path, speed: speed, offset: Math.random() });
+  }
+  addWalker(0xf48fb1, ringPath(5.7, 8, 0.4), 0.045);
+  addWalker(0x8ecae6, ringPath(4.5, 8, 2.2), -0.034);
+  addWalker(0xfff8f1, [[-6.1, 1.1], [-5.1, 2.7], [-3.7, 2.1], [-4.5, 0.5]], 0.07);
+
+  function addOrbit(group, radius, height, speed, bob, center, span) {
+    scene.add(group);
+    orbits.push({
+      obj: group,
+      radius: radius,
+      height: height,
+      speed: speed,
+      bob: bob,
+      center: center,
+      span: span
+    });
+  }
+
+  const ufo = new THREE.Group();
+  const ufoSpin = new THREE.Group();
+  const ufoDisc = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.4, 0.22, 8), mat(0xd5dde4));
+  ufoSpin.add(ufoDisc);
+  for (let i = 0; i < 6; i++) {
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.12), mat(i % 2 ? 0xea5420 : 0xf6d56b));
+    const lampAngle = (i / 6) * Math.PI * 2;
+    lamp.position.set(Math.cos(lampAngle) * 1.05, -0.08, Math.sin(lampAngle) * 1.05);
+    ufoSpin.add(lamp);
+  }
+  const ufoDome = new THREE.Mesh(new THREE.SphereGeometry(0.48, 6, 5), mat(0x9fd4e0));
+  ufoDome.position.y = 0.24;
+  ufoDome.scale.y = 0.65;
+  const ufoBeam = new THREE.Mesh(
+    new THREE.ConeGeometry(0.42, 1.05, 6),
+    new THREE.MeshLambertMaterial({ color: 0xf6d56b, transparent: true, opacity: 0.4, flatShading: true })
+  );
+  ufoBeam.position.y = -0.62;
+  ufoBeam.rotation.x = Math.PI;
+  ufo.add(ufoSpin, ufoDome, ufoBeam);
+  ufo.userData.spin = ufoSpin;
+  ufo.scale.setScalar(1.7);
+  addOrbit(ufo, 20, 5.1, 0.35, 0.25, -1.4, 0.4);
+
+  const dragon = new THREE.Group();
+  const dragonSeg = new THREE.SphereGeometry(0.36, 6, 5);
+  const dragonParts = [];
+  for (let i = 0; i < 6; i++) {
+    const seg = new THREE.Mesh(dragonSeg, mat(i % 2 ? 0xf6d56b : 0x2f8a62));
+    seg.scale.set(1 - i * 0.08, 0.7, 1.2);
+    seg.position.z = 0.35 - i * 0.4;
+    seg.userData.phase = i * 0.65;
+    dragon.add(seg);
+    dragonParts.push(seg);
+  }
+  const dragonHead = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.34, 0.52), mat(0x2f8a62));
+  dragonHead.position.set(0, 0.1, 0.72);
+  const dragonSnout = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.16, 0.28), mat(0xf6d56b));
+  dragonSnout.position.set(0, 0.02, 1.05);
+  const hornGeo = new THREE.ConeGeometry(0.06, 0.32, 4);
+  const hornL = new THREE.Mesh(hornGeo, mat(0xf6d56b));
+  hornL.position.set(-0.14, 0.38, 0.62);
+  hornL.rotation.x = -0.5;
+  const hornR = hornL.clone();
+  hornR.position.x = 0.14;
+  const wingGeo = new THREE.BoxGeometry(1.25, 0.06, 0.62);
+  const wingL = new THREE.Mesh(wingGeo, mat(0xea5420));
+  wingL.position.set(-0.78, 0.18, 0.05);
+  const wingR = new THREE.Mesh(wingGeo, mat(0xea5420));
+  wingR.position.set(0.78, 0.18, 0.05);
+  dragon.add(dragonHead, dragonSnout, hornL, hornR, wingL, wingR);
+  dragon.userData.parts = dragonParts;
+  dragon.userData.wings = [wingL, wingR];
+  dragon.scale.setScalar(2.4);
+  addOrbit(dragon, 24, 6.3, 0.22, 0.3, -2.0, 0.35);
+
+  const immortal = new THREE.Group();
+  const sword = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.045, 1.85), mat(0xe7eef2));
+  sword.position.z = 0.2;
+  const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.07, 0.1), mat(0xf6d56b));
+  hilt.position.z = -0.68;
+  const robe = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.5, 5), mat(0x8ecae6));
+  robe.position.set(0, 0.32, -0.15);
+  const flyerBody = new THREE.Mesh(bodyGeo, mat(0xfff8f1));
+  flyerBody.position.set(0, 0.36, -0.15);
+  const flyerHead = new THREE.Mesh(headGeo, mat(0xf3d2b2));
+  flyerHead.position.set(0, 0.7, -0.15);
+  const flyerHair = new THREE.Mesh(hairGeo, mat(0x3f3434));
+  flyerHair.position.set(0, 0.78, -0.12);
+  flyerHair.scale.set(1, 0.75, 1.25);
+  const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 0.85), mat(0xf48fb1));
+  ribbon.position.set(0, 0.42, -0.75);
+  immortal.add(sword, hilt, robe, flyerBody, flyerHead, flyerHair, ribbon);
+  immortal.userData.ribbon = ribbon;
+  immortal.scale.setScalar(2.3);
+  addOrbit(immortal, 18, 4.7, 0.3, 0.18, -0.95, 0.35);
+
+  function makeFish(color, scale) {
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 6, 5), mat(color));
+    body.scale.set(0.65, 0.5, 1.35);
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.42, 4), mat(color));
+    tail.rotation.x = Math.PI / 2;
+    tail.position.z = -0.62;
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.26, 0.2), mat(0xf6d56b));
+    fin.position.y = 0.22;
+    group.add(body, tail, fin);
+    group.scale.setScalar(scale);
+    return group;
+  }
+  addOrbit(makeFish(0xf48fb1, 1.35), 11.4, -1.02, 0.45, 0.18, -2.5, 0.35);
+  addOrbit(makeFish(0xf6d56b, 1.1), 12.2, -1.08, 0.38, 0.14, -0.7, 0.4);
+
+  const whale = new THREE.Group();
+  const whaleBody = new THREE.Mesh(new THREE.SphereGeometry(1, 6, 5), mat(0x4d6d8a));
+  whaleBody.scale.set(0.65, 0.42, 1.55);
+  const whaleTail = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, 0.32), mat(0x3d5c76));
+  whaleTail.position.z = -1.5;
+  whale.add(whaleBody, whaleTail);
+  whale.userData.tail = whaleTail;
+  whale.scale.setScalar(1.7);
+  addOrbit(whale, 16, -1.05, 0.2, 0.14, -2.2, 0.25);
 
   const rockGeo = new THREE.SphereGeometry(0.55, 5, 4);
   [[9.2, 2.2, 0.7], [-8.6, 4.4, 0.5], [4.8, -8.2, 0.85]].forEach(([x, z, s]) => {
@@ -305,7 +515,9 @@ function boot() {
   function resize() {
     const width = stage.clientWidth || window.innerWidth;
     const height = stage.clientHeight || window.innerHeight;
-    camera.aspect = width / Math.max(height, 1);
+    const aspect = width / Math.max(height, 1);
+    camera.aspect = aspect;
+    camera.fov = aspect < 0.85 ? 58 : 42;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height, false);
   }
@@ -371,7 +583,7 @@ function boot() {
     lastX = event.clientX;
     lastY = event.clientY;
     targetTheta -= dx * 0.005;
-    targetPhi = Math.min(1.28, Math.max(0.42, targetPhi + dy * 0.004));
+    targetPhi = Math.min(1.28, Math.max(0.42, targetPhi - dy * 0.004));
   });
   canvas.addEventListener('pointerup', (event) => {
     dragging = false;
@@ -396,12 +608,51 @@ function boot() {
     theta += (targetTheta - theta) * k;
     phi += (targetPhi - phi) * k;
     placeCamera();
+    const t = clock.getElapsedTime();
+    walkers.forEach((walker) => {
+      const along = reduced ? walker.offset : walker.offset + t * walker.speed;
+      const count = walker.path.length;
+      const scaled = ((along % 1) + 1) % 1 * count;
+      const index = Math.floor(scaled) % count;
+      const blend = scaled - Math.floor(scaled);
+      const from = walker.path[index];
+      const to = walker.path[(index + 1) % count];
+      const dx = to[0] - from[0];
+      const dz = to[1] - from[1];
+      const facing = walker.speed < 0 ? -1 : 1;
+      walker.obj.position.set(from[0] + dx * blend, 0, from[1] + dz * blend);
+      if (dx || dz) walker.obj.rotation.y = Math.atan2(dx * facing, dz * facing);
+    });
+    orbits.forEach((item) => {
+      const swing = reduced ? 0 : Math.sin(t * item.speed);
+      const angle = item.center + swing * item.span;
+      const dir = Math.cos(t * item.speed) >= 0 ? 1 : -1;
+      item.obj.position.set(
+        Math.cos(angle) * item.radius,
+        item.height + Math.sin(t * 1.3 + item.center) * item.bob,
+        Math.sin(angle) * item.radius
+      );
+      item.obj.rotation.y = Math.atan2(-Math.sin(angle) * dir, Math.cos(angle) * dir);
+    });
     if (!reduced) {
-      const t = clock.getElapsedTime();
       bobs.forEach((bob) => {
         bob.obj.position.y = bob.base + Math.sin(t * 1.7 + bob.phase) * 0.035;
       });
       if (shaker) shaker.rotation.y = t * 1.5;
+      clouds.forEach((cloud) => {
+        cloud.position.x = cloud.userData.origin + Math.sin(t * cloud.userData.drift) * 6;
+      });
+      if (ufo.userData.spin) ufo.userData.spin.rotation.y = t * 1.6;
+      if (dragon.userData.parts) {
+        dragon.userData.parts.forEach((seg) => {
+          seg.position.x = Math.sin(t * 2.4 + seg.userData.phase) * 0.18;
+        });
+        const flap = Math.sin(t * 4.5) * 0.45;
+        dragon.userData.wings[0].rotation.z = flap;
+        dragon.userData.wings[1].rotation.z = -flap;
+      }
+      if (immortal.userData.ribbon) immortal.userData.ribbon.rotation.x = Math.sin(t * 3) * 0.35;
+      if (whale.userData.tail) whale.userData.tail.rotation.y = Math.sin(t * 2) * 0.35;
     }
     renderer.render(scene, camera);
     placeLabels();
