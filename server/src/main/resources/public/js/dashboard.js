@@ -1317,6 +1317,7 @@
 
     let photoData = [];
     let draggedPhotoId = null;
+    let editingNoteId = '';
 
     function renderPhotoGrid() {
       const grid = document.getElementById('photoGrid');
@@ -1329,14 +1330,27 @@
       for (let i = 0; i < photoData.length; i++) {
         const p = photoData[i];
         if (isWallNote(p)) {
-          html += '<article class="photo-card note-card" data-photo-id="' + escapeHtml(p.id) + '" draggable="true">'
-            + '<div class="photo-card-drag-handle" title="拖曳排序">☰</div>'
-            + '<div class="note-card-body">' + linkifyNote(p.text) + '</div>'
-            + (p.link ? '<a class="note-card-link" href="' + escapeHtml(p.link) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(p.link) + '</a>' : '')
-            + '<div class="photo-card-actions">'
-            + '<button type="button" class="btn btn-ghost-danger" onclick="deletePhoto(\'' + escapeHtml(p.id) + '\')">拿下來</button>'
-            + '</div>'
-            + '</article>';
+          const editing = p.id === editingNoteId;
+          html += '<article class="photo-card note-card' + (editing ? ' is-editing' : '') + '" data-photo-id="' + escapeHtml(p.id) + '" draggable="' + (editing ? 'false' : 'true') + '">';
+          if (editing) {
+            html += '<form class="note-edit" onsubmit="saveNoteEdit(event, \'' + escapeHtml(p.id) + '\')">'
+              + '<textarea id="noteEditText" rows="4" maxlength="4000">' + escapeHtml(p.text) + '</textarea>'
+              + '<input id="noteEditLink" type="text" maxlength="2000" value="' + escapeHtml(p.link || '') + '" placeholder="另外附一條連結，可空白" autocomplete="off" spellcheck="false">'
+              + '<div class="note-edit-actions">'
+              + '<button type="button" class="btn btn-ghost" onclick="cancelNoteEdit()">取消</button>'
+              + '<button type="submit" class="btn btn-primary">存起來</button>'
+              + '</div>'
+              + '</form>';
+          } else {
+            html += '<div class="photo-card-drag-handle" title="拖曳排序">☰</div>'
+              + '<div class="note-card-body">' + linkifyNote(p.text) + '</div>'
+              + (p.link ? '<a class="note-card-link" href="' + escapeHtml(p.link) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(p.link) + '</a>' : '')
+              + '<div class="photo-card-actions">'
+              + '<button type="button" class="btn btn-ghost" onclick="editNote(\'' + escapeHtml(p.id) + '\')">改一下</button>'
+              + '<button type="button" class="btn btn-ghost-danger" onclick="deletePhoto(\'' + escapeHtml(p.id) + '\')">拿下來</button>'
+              + '</div>';
+          }
+          html += '</article>';
         } else {
           html += '<div class="photo-card" data-photo-id="' + escapeHtml(p.id) + '" draggable="true">'
             + '<div class="photo-card-drag-handle" title="拖曳排序">☰</div>'
@@ -1470,6 +1484,51 @@
       }
       html += escapeHtml(src.slice(last));
       return html;
+    }
+
+    function editNote(noteId) {
+      editingNoteId = noteId;
+      renderPhotoGrid();
+      const area = document.getElementById('noteEditText');
+      if (area) {
+        area.focus();
+        const end = area.value.length;
+        area.setSelectionRange(end, end);
+      }
+    }
+
+    function cancelNoteEdit() {
+      editingNoteId = '';
+      renderPhotoGrid();
+    }
+
+    async function saveNoteEdit(event, noteId) {
+      event.preventDefault();
+      const form = event.target;
+      const textEl = form.querySelector('textarea');
+      const linkEl = form.querySelector('input');
+      try {
+        const res = await fetch('/api/photos/notes/' + encodeURIComponent(noteId), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            text: textEl ? textEl.value : '',
+            link: linkEl ? linkEl.value : ''
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.note) {
+          const index = photoData.findIndex(function(p) { return p.id === noteId; });
+          if (index >= 0) photoData[index] = data.note;
+          editingNoteId = '';
+          renderPhotoGrid();
+        } else {
+          alert(data.message || '沒改成');
+        }
+      } catch (e) {
+        alert('沒改成');
+      }
     }
 
     async function submitNote(event) {

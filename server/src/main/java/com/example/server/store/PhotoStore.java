@@ -188,6 +188,10 @@ public final class PhotoStore {
             return new NoteResult(true, "已貼上牆", note);
         }
 
+        static NoteResult updated(Note note) {
+            return new NoteResult(true, "已改好", note);
+        }
+
         static NoteResult fail(String message) {
             return new NoteResult(false, message, null);
         }
@@ -261,6 +265,30 @@ public final class PhotoStore {
         notes.put(id, note);
         saveNotes();
         return NoteResult.success(note);
+    }
+
+    public NoteResult updateNote(String id, String text, String link) {
+        Note existing = id == null ? null : notes.get(id);
+        if (existing == null) {
+            return NoteResult.fail("找不到這張筆記");
+        }
+        String body = text == null ? "" : text.trim();
+        if (body.isEmpty()) {
+            return NoteResult.fail("請寫一點內容");
+        }
+        if (body.length() > MAX_NOTE_CHARS) {
+            return NoteResult.fail("一篇最多 " + MAX_NOTE_CHARS + " 字");
+        }
+        String normalized;
+        try {
+            normalized = normalizeLink(link);
+        } catch (IllegalArgumentException ex) {
+            return NoteResult.fail(ex.getMessage());
+        }
+        Note note = new Note(existing.id, body, normalized, existing.createdAtMs);
+        notes.put(existing.id, note);
+        saveNotes();
+        return NoteResult.updated(note);
     }
 
     public boolean delete(String photoId) {

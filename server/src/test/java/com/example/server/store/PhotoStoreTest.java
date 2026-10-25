@@ -171,6 +171,31 @@ public class PhotoStoreTest {
     }
 
     @Test
+    public void updateNoteRewritesTextAndKeepsPlace() {
+        PhotoStore.NoteResult created = store.addNote("舊的", "example.com/old");
+        assertTrue(created.ok);
+        long createdAt = created.note.createdAtMs;
+
+        PhotoStore.NoteResult updated = store.updateNote(created.note.id, "改過的句子", "");
+        assertTrue(updated.ok);
+        assertEquals("已改好", updated.message);
+        assertEquals("改過的句子", updated.note.text);
+        assertEquals("", updated.note.link);
+        assertEquals(createdAt, updated.note.createdAtMs);
+        assertEquals(1, store.count());
+
+        PhotoStore reloaded = new PhotoStore(storageDir);
+        assertEquals("改過的句子", reloaded.getNote(created.note.id).text);
+        assertEquals("", reloaded.getNote(created.note.id).link);
+
+        PhotoStore.NoteResult missing = store.updateNote("missing", "還在", "");
+        assertFalse(missing.ok);
+        PhotoStore.NoteResult blank = store.updateNote(created.note.id, "  ", "javascript:alert(1)");
+        assertFalse(blank.ok);
+        assertEquals("改過的句子", store.getNote(created.note.id).text);
+    }
+
+    @Test
     public void notesPersistAcrossRestartsAndDelete() {
         PhotoStore.NoteResult result = store.addNote("記得帶投影筆", "https://example.com");
         assertTrue(result.ok);

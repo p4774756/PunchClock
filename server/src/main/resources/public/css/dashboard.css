@@ -427,6 +427,41 @@
       font-weight: 700;
     }
 
+    .photo-card.note-card.is-editing {
+      padding-top: 0.7rem;
+      cursor: text;
+    }
+
+    .note-edit {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .note-edit textarea,
+    .note-edit input {
+      width: 100%;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      padding: 0.45rem 0.55rem;
+      font-family: inherit;
+      font-size: 0.88rem;
+      color: var(--text-dark);
+      background: #fff;
+    }
+
+    .note-edit textarea {
+      resize: vertical;
+      min-height: 5.5rem;
+      line-height: 1.5;
+    }
+
+    .note-edit-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.35rem;
+    }
+
     .photo-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

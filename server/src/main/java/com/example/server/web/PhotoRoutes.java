@@ -24,6 +24,7 @@ public final class PhotoRoutes {
     public void register(Javalin app) {
         app.post("/api/photos", this::photoUpload);
         app.post("/api/photos/notes", this::noteCreate);
+        app.put("/api/photos/notes/{noteId}", this::noteUpdate);
         app.get("/api/photos", this::photoList);
         app.delete("/api/photos/{photoId}", this::photoDelete);
         app.delete("/api/photos", this::photoDeleteAll);
@@ -122,9 +123,34 @@ public final class PhotoRoutes {
             ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請寫一點內容"));
             return;
         }
-        PhotoStore.NoteResult result = photoStore.addNote(body.text, body.link);
+        writeNoteResult(ctx, photoStore.addNote(body.text, body.link));
+    }
+
+    private void noteUpdate(Context ctx) {
+        if (!authService.isAuth(ctx)) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
+            return;
+        }
+        NoteBody body;
+        try {
+            body = ctx.bodyAsClass(NoteBody.class);
+        } catch (Exception ex) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請寫一點內容"));
+            return;
+        }
+        if (body == null) {
+            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請寫一點內容"));
+            return;
+        }
+        writeNoteResult(ctx, photoStore.updateNote(ctx.pathParam("noteId"), body.text, body.link));
+    }
+
+    private static void writeNoteResult(Context ctx, PhotoStore.NoteResult result) {
         if (!result.ok) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", result.message));
+            HttpStatus status = "找不到這張筆記".equals(result.message)
+                    ? HttpStatus.NOT_FOUND
+                    : HttpStatus.BAD_REQUEST;
+            ctx.status(status).json(Map.of("success", false, "message", result.message));
             return;
         }
         Map<String, Object> note = new LinkedHashMap<>();
