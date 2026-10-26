@@ -318,6 +318,7 @@ public class PanelFactory {
 
         JPanel avatarRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         avatarRow.setOpaque(false);
+        avatarRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel avatarLabel = new JLabel("大頭照：");
         avatarLabel.setFont(mainFont);
         avatarRow.add(avatarLabel);
@@ -332,9 +333,8 @@ public class PanelFactory {
         refs.clientIdCombo.setFont(mainFont);
         refs.clientIdCombo.setPrototypeDisplayValue("company-worker4");
         refs.clientIdCombo.setToolTipText("好友看到的本機名稱。可下拉選擇或自行輸入；雲端連線中會鎖定，請先到設定取消「啟用雲端」再修改");
-        lockFieldHeight(refs.clientIdCombo);
-        Dimension idSize = refs.clientIdCombo.getPreferredSize();
-        refs.clientIdCombo.setPreferredSize(new Dimension(Math.max(200, idSize.width), Math.max(26, idSize.height)));
+        // 只設 preferred 時，旁邊的說明會把欄位擠回最小寬度，暱稱開頭會被裁掉。
+        lockComponentSize(refs.clientIdCombo, new Dimension(280, 28));
         JPanel hintBlock = new JPanel();
         hintBlock.setOpaque(false);
         hintBlock.setLayout(new BoxLayout(hintBlock, BoxLayout.Y_AXIS));
@@ -349,7 +349,7 @@ public class PanelFactory {
         GridBagConstraints idGbc = new GridBagConstraints();
         idGbc.gridy = 0;
         idGbc.anchor = GridBagConstraints.WEST;
-        idGbc.insets = new Insets(0, 0, 0, 8);
+        idGbc.insets = new Insets(0, 8, 0, 8);
         idGbc.gridx = 0;
         JLabel idLabel = new JLabel("裝置 ID：");
         idLabel.setFont(mainFont);
