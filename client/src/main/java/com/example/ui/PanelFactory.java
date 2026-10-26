@@ -5,10 +5,7 @@ import com.example.service.CheckInHistoryService;
 import com.example.service.PeerAvatar;
 
 import javax.swing.*;
-import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
-import javax.swing.border.TitledBorder;
-import javax.swing.plaf.basic.BasicComboBoxUI;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -36,11 +33,13 @@ public class PanelFactory {
         refs.heartbeatTokenField.setFont(fieldFont);
         refs.heartbeatTokenField.setColumns(18);
         refs.heartbeatTokenField.setToolTipText("與伺服器約定的認證 Token，需與後端設定一致；雲端連線中會鎖定，請先取消「啟用雲端」再修改");
+        CandyTextField.install(refs.heartbeatTokenField, true);
 
         refs.serverUrlCombo = RecentValuesHelper.createCombo(
                 fieldFont, "http://localhost:3000",
                 "心跳伺服器網址，例如 https://xxx.onrender.com；雲端連線中會鎖定，請先取消「啟用雲端」再修改");
         refs.serverUrlCombo.setPrototypeDisplayValue("http://localhost:3000");
+        CandyComboBox.dress(refs.serverUrlCombo);
 
         lockFieldHeight(refs.heartbeatTokenField);
         lockFieldHeight(refs.serverUrlCombo);
@@ -50,18 +49,18 @@ public class PanelFactory {
         JLabel serverUrlLabel = new JLabel("Server 雲端網址：");
         serverUrlLabel.setFont(mainFont);
 
-        refs.enableServerCheckBox = new JCheckBox("啟用雲端單向狀態回報", false);
+        refs.enableServerCheckBox = new CandyCheckBox("啟用雲端單向狀態回報", false);
         refs.enableServerCheckBox.setFont(boldFont);
         refs.enableServerCheckBox.setToolTipText("開啟後定期回報本機執行狀態到雲端 Dashboard");
-        refs.trustAllSslCheckBox = new JCheckBox("信任所有 SSL（除錯）", false);
+        refs.trustAllSslCheckBox = new CandyCheckBox("信任所有 SSL（除錯）", false);
         refs.trustAllSslCheckBox.setFont(mainFont);
         refs.trustAllSslCheckBox.setToolTipText("預設關閉。啟用雲端時會鎖定；需先取消雲端才能修改。僅本機自簽憑證除錯用。");
-        refs.checkForUpdatesCheckBox = new JCheckBox("自動檢查更新", true);
+        refs.checkForUpdatesCheckBox = new CandyCheckBox("自動檢查更新", true);
         refs.checkForUpdatesCheckBox.setFont(mainFont);
         refs.checkForUpdatesCheckBox.setToolTipText(
                 "關閉後，心跳不再處理伺服器上的新版，也不會下載或詢問。"
                         + "開啟後，再由「有新版時閒置自動更新」決定直接安裝或先詢問。");
-        refs.autoUpdateCheckBox = new JCheckBox("有新版時閒置自動更新", true);
+        refs.autoUpdateCheckBox = new CandyCheckBox("有新版時閒置自動更新", true);
         refs.autoUpdateCheckBox.setFont(mainFont);
         refs.autoUpdateCheckBox.setToolTipText(
                 "伺服器有不同的桌面端時，在沒有任務執行中、10 分鐘內沒有排程、沒有傳檔時自動下載並重啟（排程與設定會保留）。"
@@ -111,7 +110,12 @@ public class PanelFactory {
         stack.setOpaque(false);
         stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
         stack.setBorder(new EmptyBorder(4, 4, 12, 8));
+        boolean first = true;
         for (JComponent section : sections) {
+            if (!first) {
+                stack.add(Box.createVerticalStrut(12));
+            }
+            first = false;
             stack.add(section);
         }
         JPanel page = new JPanel(new BorderLayout());
@@ -120,30 +124,13 @@ public class PanelFactory {
         return page;
     }
 
-    /** 小標題加一條分割線，下面接該段的控制項。 */
+    /** 設定區的圓角卡片。標題畫在框上，內容貼在標題下面。 */
     private static JPanel settingsSection(String title, Font titleFont, JComponent body) {
-        JPanel section = new JPanel();
-        section.setOpaque(false);
-        section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
+        CandyPanel section = new CandyPanel(title, titleFont);
+        section.setLayout(new BorderLayout());
         section.setAlignmentX(Component.LEFT_ALIGNMENT);
-        section.setBorder(new EmptyBorder(4, 2, 18, 2));
-
-        JLabel heading = new JLabel(title);
-        heading.setFont(titleFont);
-        heading.setForeground(NightTheme.INK);
-        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JSeparator line = new JSeparator();
-        line.setForeground(NightTheme.EDGE);
-        line.setAlignmentX(Component.LEFT_ALIGNMENT);
-        line.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
-
         body.setAlignmentX(Component.LEFT_ALIGNMENT);
-        section.add(heading);
-        section.add(Box.createVerticalStrut(4));
-        section.add(line);
-        section.add(Box.createVerticalStrut(8));
-        section.add(body);
+        section.add(body, BorderLayout.CENTER);
         return section;
     }
 
@@ -156,9 +143,8 @@ public class PanelFactory {
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         top.setOpaque(false);
 
-        refs.relayEnabledCheckBox = new JCheckBox("啟用中繼 Proxy", false);
+        refs.relayEnabledCheckBox = new CandyCheckBox("啟用中繼 Proxy", false);
         refs.relayEnabledCheckBox.setFont(boldFont);
-        refs.relayEnabledCheckBox.setOpaque(false);
         refs.relayEnabledCheckBox.setToolTipText("讓區網內連不到 Server 的同事，把 Server 網址設成你的 IP，透過你連到雲端");
 
         JLabel portLabel = new JLabel("埠號：");
@@ -169,7 +155,9 @@ public class PanelFactory {
         refs.relayPortSpinner.setToolTipText("中繼服務監聽的埠號（預設 8888）");
         JComponent editor = refs.relayPortSpinner.getEditor();
         if (editor instanceof JSpinner.DefaultEditor) {
-            ((JSpinner.DefaultEditor) editor).getTextField().setColumns(5);
+            JTextField portField = ((JSpinner.DefaultEditor) editor).getTextField();
+            portField.setColumns(5);
+            CandyTextField.install(portField, true);
         }
 
         refs.relayStatusLabel = new JLabel("未啟動");
@@ -186,11 +174,8 @@ public class PanelFactory {
         refs.relayHelpArea.setLineWrap(true);
         refs.relayHelpArea.setWrapStyleWord(true);
         refs.relayHelpArea.setFont(UiFonts.chinesePlain(12));
-        refs.relayHelpArea.setOpaque(true);
-        refs.relayHelpArea.setBackground(new Color(248, 250, 252, 140));
+        CandyTextField.dressArea(refs.relayHelpArea);
         refs.relayHelpArea.setForeground(NightTheme.MUTED);
-        refs.relayHelpArea.setMargin(new java.awt.Insets(6, 8, 6, 8));
-        refs.relayHelpArea.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225, 160)));
         refs.relayHelpArea.setText(""
                 + "同事連不到 Server，但你可以？試試中繼 Proxy！\n"
                 + "啟用後，同事把「Server 雲端網址」改成 http://你的IP:8888\n"
@@ -288,8 +273,8 @@ public class PanelFactory {
         installSelfPeerRowRenderer(refs.peerTable, mainFont, boldFont);
 
         JScrollPane tableScroll = new JScrollPane(refs.peerTable);
-        tableScroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
         tableScroll.setPreferredSize(new Dimension(400, 180));
+        markCandyScroll(tableScroll);
         refs.peerTableScroll = tableScroll;
 
         refs.peerStatusLabel = new JLabel("尚未取得好友列表（請先啟用雲端狀態回報）");
@@ -297,9 +282,8 @@ public class PanelFactory {
         refs.peerStatusLabel.setForeground(NightTheme.MUTED);
         refs.peerStatusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        refs.openCloudSettingsButton = new JButton("前往設定");
-        refs.openCloudSettingsButton.setFont(boldFont);
-        refs.openCloudSettingsButton.setToolTipText("切換至「設定」的「連線」子分頁以啟用連線");
+        refs.openCloudSettingsButton = candyButton(
+                "前往設定", CandyButton.Variant.PRIMARY, boldFont, "切換至「設定」的「連線」子分頁以啟用連線");
         refs.openCloudSettingsButton.setVisible(false);
         refs.openCloudSettingsButton.setAlignmentX(Component.LEFT_ALIGNMENT);
 
@@ -308,13 +292,11 @@ public class PanelFactory {
         refs.avatarPreview.setMinimumSize(new Dimension(44, 44));
         refs.avatarPreview.setToolTipText("傳送訊息或戳一下時，對方對話框會顯示這張大頭照");
 
-        refs.chooseAvatarButton = new JButton("選擇大頭照");
-        refs.chooseAvatarButton.setFont(boldFont);
-        refs.chooseAvatarButton.setToolTipText("從本機選一張照片，對方收到訊息／戳一下時會看到");
+        refs.chooseAvatarButton = candyButton(
+                "選擇大頭照", CandyButton.Variant.SECONDARY, boldFont, "從本機選一張照片，對方收到訊息／戳一下時會看到");
 
-        refs.clearAvatarButton = new JButton("還原預設");
-        refs.clearAvatarButton.setFont(mainFont);
-        refs.clearAvatarButton.setToolTipText("改回使用 App 圖示");
+        refs.clearAvatarButton = candyButton(
+                "還原預設", CandyButton.Variant.SECONDARY, mainFont, "改回使用 App 圖示");
 
         JPanel avatarRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         avatarRow.setOpaque(false);
@@ -333,8 +315,14 @@ public class PanelFactory {
         refs.clientIdCombo.setFont(mainFont);
         refs.clientIdCombo.setPrototypeDisplayValue("company-worker4");
         refs.clientIdCombo.setToolTipText("好友看到的本機名稱。可下拉選擇或自行輸入；雲端連線中會鎖定，請先到設定取消「啟用雲端」再修改");
+        CandyComboBox.install(refs.clientIdCombo);
+        Component idEditor = refs.clientIdCombo.getEditor().getEditorComponent();
+        if (idEditor != null) {
+            idEditor.setFont(mainFont);
+        }
         // 只設 preferred 時，旁邊的說明會把欄位擠回最小寬度，暱稱開頭會被裁掉。
-        lockComponentSize(refs.clientIdCombo, new Dimension(280, 28));
+        int idHeight = Math.max(refs.clientIdCombo.getPreferredSize().height, 30);
+        lockComponentSize(refs.clientIdCombo, new Dimension(280, idHeight));
         JPanel hintBlock = new JPanel();
         hintBlock.setOpaque(false);
         hintBlock.setLayout(new BoxLayout(hintBlock, BoxLayout.Y_AXIS));
@@ -363,16 +351,15 @@ public class PanelFactory {
         idGbc.insets = new Insets(0, 0, 0, 0);
         idRow.add(hintBlock, idGbc);
 
-        refs.openChatButton = new JButton("開啟聊天");
-        refs.openChatButton.setFont(boldFont);
-        refs.openChatButton.setToolTipText("和選取的好友開一個小聊天視窗，可傳訊息、圖片、檔案或戳一下（雙擊好友也可以）");
+        refs.openChatButton = candyButton(
+                "開啟聊天", CandyButton.Variant.PRIMARY, boldFont,
+                "和選取的好友開一個小聊天視窗，可傳訊息、圖片、檔案或戳一下（雙擊好友也可以）");
         refs.openChatButton.setEnabled(false);
         JLabel chatHint = new JLabel("雙擊好友，或選取後按「開啟聊天」");
         chatHint.setFont(mainFont);
         chatHint.setForeground(NightTheme.MUTED);
-        refs.deskChatButton = new JButton("跟後台說話");
-        refs.deskChatButton.setFont(boldFont);
-        refs.deskChatButton.setToolTipText("開一個小視窗，用文字和網頁後台聊天（約 15 秒內送達）");
+        refs.deskChatButton = candyButton(
+                "跟後台說話", CandyButton.Variant.SECONDARY, boldFont, "開一個小視窗，用文字和網頁後台聊天（約 15 秒內送達）");
         refs.deskChatButton.setEnabled(false);
         JPanel chatRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         chatRow.setOpaque(false);
@@ -395,20 +382,18 @@ public class PanelFactory {
         refs.fileTable.setToolTipText("過期前可下載；選取一筆後按「下載」或「清除」");
 
         JScrollPane fileScroll = new JScrollPane(refs.fileTable);
-        fileScroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
         fileScroll.setPreferredSize(new Dimension(400, 120));
+        markCandyScroll(fileScroll);
         refs.fileTableScroll = fileScroll;
 
         refs.fileStatusLabel = new JLabel("傳檔紀錄：尚未連線");
         refs.fileStatusLabel.setFont(mainFont);
         refs.fileStatusLabel.setForeground(NightTheme.MUTED);
 
-        refs.downloadFileButton = new JButton("下載");
-        refs.downloadFileButton.setFont(boldFont);
-        refs.downloadFileButton.setToolTipText("將選取的暫存檔存到本機（過期前可重複下載）");
-        refs.clearFileButton = new JButton("清除");
-        refs.clearFileButton.setFont(mainFont);
-        refs.clearFileButton.setToolTipText("從伺服器刪除這份暫存，之後無法再下載");
+        refs.downloadFileButton = candyButton(
+                "下載", CandyButton.Variant.PRIMARY, boldFont, "將選取的暫存檔存到本機（過期前可重複下載）");
+        refs.clearFileButton = candyButton(
+                "清除", CandyButton.Variant.DANGER, mainFont, "從伺服器刪除這份暫存，之後無法再下載");
 
         JPanel fileActionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         fileActionRow.setOpaque(false);
@@ -449,8 +434,8 @@ public class PanelFactory {
 
     /** 好友列：圓形頭像、在線點、滑過變色。裝置 ID 仍放在第一欄的文字，選取邏輯不變。 */
     private static void installSelfPeerRowRenderer(JTable table, Font mainFont, Font boldFont) {
-        Color selfBg = new Color(78, 58, 128);
-        Color hoverBg = new Color(72, 56, 122);
+        Color selfBg = CandyTheme.ROW_LATEST;
+        Color hoverBg = CandyTheme.ROW_HOT;
         java.util.Map<String, Icon> faces = new java.util.HashMap<>();
         javax.swing.table.DefaultTableCellRenderer renderer = new javax.swing.table.DefaultTableCellRenderer() {
             @Override
@@ -467,20 +452,23 @@ public class PanelFactory {
                     label.setIconTextGap(8);
                 }
                 if (isSelected) {
-                    c.setBackground(NightTheme.SELECT);
-                    c.setForeground(NightTheme.PINK_INK);
+                    c.setBackground(CandyTheme.ROW_SELECT);
+                    c.setForeground(CandyTheme.INK);
                 } else if (hover) {
                     c.setBackground(hoverBg);
-                    c.setForeground(NightTheme.INK);
+                    c.setForeground(CandyTheme.INK);
                 } else if (self) {
                     c.setBackground(selfBg);
-                    c.setForeground(NightTheme.INK);
+                    c.setForeground(CandyTheme.INK);
                 } else {
-                    c.setBackground(tbl.getBackground());
-                    c.setForeground(tbl.getForeground());
+                    c.setBackground(row % 2 == 0 ? CandyTheme.ROW : CandyTheme.ROW_ALT);
+                    c.setForeground(CandyTheme.INK);
                 }
                 if (c instanceof JComponent) {
-                    ((JComponent) c).setOpaque(true);
+                    JComponent widget = (JComponent) c;
+                    widget.setOpaque(true);
+                    String tip = value == null ? null : String.valueOf(value);
+                    widget.setToolTipText(tip == null || tip.isEmpty() ? null : tip);
                 }
                 return c;
             }
@@ -654,16 +642,19 @@ public class PanelFactory {
         refs.urlCombo = RecentValuesHelper.createCombo(
                 fieldFont, "https://www.msn.com/zh-tw",
                 "目標頁面的完整網址；已啟用槽位會使用啟用當下鎖定的值，此欄位供下次啟用或「立即執行」");
+        CandyComboBox.dress(refs.urlCombo);
         refs.urlCombo.setPrototypeDisplayValue("https://www.msn.com/zh-tw");
         refs.buttonIdCombo = RecentValuesHelper.createCombo(
                 fieldFont, "finance",
                 "要點擊的按鈕 CSS Selector 或 id；已啟用槽位使用啟用當下鎖定的值");
+        CandyComboBox.dress(refs.buttonIdCombo);
         refs.buttonIdCombo.setPrototypeDisplayValue("#finance");
         refs.browserCombo = new JComboBox<>(TaskEditDialog.BROWSER_OPTIONS);
         refs.browserCombo.setFont(fieldFont);
         refs.browserCombo.setPrototypeDisplayValue("Chromium（內建）");
+        CandyComboBox.install(refs.browserCombo);
         TaskEditDialog.attachBrowserTooltips(refs.browserCombo);
-        refs.executeNowButton = new JButton("立即執行");
+        refs.executeNowButton = new CandyButton("立即執行", CandyButton.Variant.PRIMARY, CandyButton.Size.MEDIUM);
         refs.executeNowButton.setFont(boldFont);
         refs.executeNowButton.setToolTipText("使用上方共用設定立即測試，不會變更已啟用槽位的鎖定設定");
 
@@ -675,7 +666,7 @@ public class PanelFactory {
 
         JPanel shared = createCollapsibleGroupPanel("共用排程設定", sharedContent, boldFont, false);
 
-        refs.skipDatesButton = new JButton("跳過日期");
+        refs.skipDatesButton = new CandyButton("跳過日期", CandyButton.Variant.SECONDARY, CandyButton.Size.MEDIUM);
         refs.skipDatesButton.setFont(boldFont);
         refs.skipDatesButton.setToolTipText("指定日期不執行；時分維持原設定");
 
@@ -707,54 +698,19 @@ public class PanelFactory {
      */
     public static JPanel createCheckInHistoryPanel(
             CheckInHistoryRefs refs, Font mainFont, Font boldFont) {
-        JPanel panel = createGroupPanel(
+        JPanel panel = new CandyPanel(
                 "執行記錄（最近 " + CheckInHistoryService.MAX_ENTRIES + " 筆）", boldFont);
         panel.setLayout(new BorderLayout(0, 10));
 
         refs.listModel = new DefaultListModel<>();
-        refs.historyList = new JList<>(refs.listModel);
+        refs.historyList = new CandyHistoryColumns.View(refs.listModel);
         refs.historyList.setFont(mainFont);
-        refs.historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         refs.historyList.setVisibleRowCount(6);
-        refs.historyList.setFixedCellHeight(28);
-        refs.historyList.setOpaque(false);
-        refs.historyList.setBackground(new Color(0, 0, 0, 0));
-        refs.historyList.setForeground(NightTheme.INK);
-        refs.historyList.setBorder(new EmptyBorder(4, 6, 4, 6));
         refs.historyList.setToolTipText("本機最近排程成功／失敗紀錄（不含取消）");
-        refs.historyList.setCellRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(
-                    JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                boolean latest = index == 0;
-                if (c instanceof JComponent) {
-                    ((JComponent) c).setOpaque(isSelected || latest);
-                }
-                if (isSelected) {
-                    c.setBackground(NightTheme.SELECT);
-                    c.setForeground(NightTheme.PINK_INK);
-                } else if (latest) {
-                    c.setBackground(new Color(78, 58, 128));
-                    c.setForeground(NightTheme.INK);
-                    c.setFont(list.getFont().deriveFont(Font.BOLD));
-                } else {
-                    c.setBackground(NightTheme.FIELD);
-                    c.setForeground(NightTheme.INK);
-                    c.setFont(list.getFont());
-                }
-                return c;
-            }
-        });
 
         JScrollPane scroll = new JScrollPane(refs.historyList);
-        scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
-        scroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225, 160)));
-        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        scroll.getHorizontalScrollBar().setUnitIncrement(16);
-        // 列文字很長時只在這塊左右捲，不要把整頁撐寬、撐高。
+        CandyHistoryColumns.attach(scroll, boldFont);
+        // 欄位在格子裡省略，完整內容在提示。不要為了長字把整頁撐寬。
         scroll.setPreferredSize(new Dimension(120, refs.historyList.getFixedCellHeight() * 2));
         scroll.setMinimumSize(new Dimension(80, refs.historyList.getFixedCellHeight() * 2));
         panel.add(scroll, BorderLayout.CENTER);
@@ -769,7 +725,7 @@ public class PanelFactory {
         south.add(refs.emptyLabel, BorderLayout.CENTER);
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         actions.setOpaque(false);
-        refs.clearButton = new JButton("清除紀錄");
+        refs.clearButton = new CandyButton("清除紀錄", CandyButton.Variant.DANGER, CandyButton.Size.MEDIUM);
         refs.clearButton.setFont(boldFont);
         refs.clearButton.setToolTipText("清空本機執行歷史（不影響目前排程）");
         actions.add(refs.clearButton);
@@ -788,13 +744,10 @@ public class PanelFactory {
 
     private static SlotCardRefs createSlotCard(String title, Font mainFont, Font boldFont) {
         SlotCardRefs refs = new SlotCardRefs();
-        refs.panel = translucentPanel();
+        refs.panel = new CandyPanel();
         refs.panel.setLayout(new BorderLayout(0, 4));
-        refs.panel.setBorder(new CompoundBorder(
-                BorderFactory.createLineBorder(NightTheme.EDGE, 1, true),
-                new EmptyBorder(12, 12, 16, 12)));
 
-        refs.nameField = new JTextField(title, 16);
+        refs.nameField = new CandyTextField(title, 16);
         refs.nameField.setFont(boldFont);
         refs.nameField.setToolTipText("這個排程的名稱。改完後，本機和後台的任務卡都會顯示這個名字。最多 24 個字。");
         lockFieldHeight(refs.nameField);
@@ -820,8 +773,7 @@ public class PanelFactory {
         sgbc.anchor = GridBagConstraints.CENTER;
         sgbc.insets = new Insets(4, 2, 4, 8);
 
-        refs.enabledCheckBox = new JCheckBox("啟用", true);
-        refs.enabledCheckBox.setOpaque(false);
+        refs.enabledCheckBox = new CandyCheckBox("啟用", true);
         refs.enabledCheckBox.setFont(boldFont);
         refs.enabledCheckBox.setToolTipText("勾選後開始自動排程，並鎖定時分與目標網址／Selector；取消勾選後才能修改時間");
 
@@ -831,7 +783,8 @@ public class PanelFactory {
         refs.hourCombo.setFont(mainFont);
         refs.hourCombo.setPrototypeDisplayValue("00");
         refs.hourCombo.setToolTipText("預定執行的小時（00–23）");
-        lockComboSize(refs.hourCombo);
+        CandyComboBox.install(refs.hourCombo);
+        lockComboSize(refs.hourCombo, 84);
 
         String[] minutes = new String[60];
         for (int i = 0; i < 60; i++) minutes[i] = String.format("%02d", i);
@@ -839,12 +792,11 @@ public class PanelFactory {
         refs.minuteCombo.setFont(mainFont);
         refs.minuteCombo.setPrototypeDisplayValue("00");
         refs.minuteCombo.setToolTipText("預定執行的分鐘（00–59）");
-        lockComboSize(refs.minuteCombo);
+        CandyComboBox.install(refs.minuteCombo);
+        lockComboSize(refs.minuteCombo, 84);
 
-        refs.randomOffsetCheckBox = new JCheckBox("±5 分隨機", true);
-        refs.randomOffsetCheckBox.setOpaque(false);
+        refs.randomOffsetCheckBox = new CandyCheckBox("±5 分隨機", true);
         refs.randomOffsetCheckBox.setFont(mainFont);
-        refs.randomOffsetCheckBox.setForeground(NightTheme.PINK);
         refs.randomOffsetCheckBox.setToolTipText("在設定時間前後隨機 ±5 分鐘，避免每天固定同一秒執行");
 
         sgbc.gridx = 0;
@@ -986,20 +938,16 @@ public class PanelFactory {
         refs.logTextArea.setEditable(false);
         refs.logTextArea.setLineWrap(true);
         refs.logTextArea.setWrapStyleWord(true);
-        refs.logTextArea.setBackground(new Color(15, 23, 42));
-        refs.logTextArea.setForeground(new Color(56, 189, 248));
-        refs.logTextArea.setCaretColor(Color.WHITE);
         refs.logTextArea.setFont(UiFonts.latinPlain(12));
-        refs.logTextArea.setMargin(new Insets(6, 8, 6, 8));
+        CandyTextField.dressArea(refs.logTextArea);
 
         JScrollPane scrollPane = new JScrollPane(refs.logTextArea);
-        scrollPane.setBorder(BorderFactory.createLineBorder(new Color(226, 232, 240)));
+        markCandyScroll(scrollPane);
         logPanel.add(scrollPane, BorderLayout.CENTER);
 
         JPanel logActionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        refs.clearLogButton = new JButton("清除 Log");
-        refs.clearLogButton.setFont(boldFont);
-        refs.clearLogButton.setToolTipText("清空日誌內容");
+        logActionPanel.setOpaque(false);
+        refs.clearLogButton = candyButton("清除 Log", CandyButton.Variant.DANGER, boldFont, "清空日誌內容");
         refs.clearLogButton.addActionListener(e -> refs.logTextArea.setText(""));
         logActionPanel.add(refs.clearLogButton);
         logPanel.add(logActionPanel, BorderLayout.SOUTH);
@@ -1028,7 +976,7 @@ public class PanelFactory {
         return row;
     }
 
-    /** Selector + 瀏覽器 + 立即執行同一列；macOS 原生 ComboBox 需 BasicComboBoxUI 才與 JTextField 對齊 */
+    /** Selector + 瀏覽器 + 立即執行同一列。下拉已套上糖果外皮，這裡只鎖定寬高。 */
     private static JPanel selectorBrowserActionRow(
             Font labelFont, Font fieldFont,
             JComponent selectorField, JComboBox<?> browserCombo, JButton executeButton) {
@@ -1037,20 +985,17 @@ public class PanelFactory {
 
         selectorField.setFont(fieldFont);
         browserCombo.setFont(fieldFont);
-        if (!(selectorField instanceof JComboBox)) {
-            selectorField.setFont(fieldFont);
-        }
-        browserCombo.setFont(fieldFont);
-        useTextFieldAlignedCombo(browserCombo);
-
-        Dimension selectorDim = new Dimension(240, rowH);
-        lockComponentSize(selectorField, selectorDim);
+        int fieldH = Math.max(rowH, selectorField.getPreferredSize().height);
+        fieldH = Math.max(fieldH, browserCombo.getPreferredSize().height);
+        lockComponentSize(selectorField, new Dimension(240, fieldH));
 
         int browserW = Math.max(browserCombo.getPreferredSize().width, 148);
-        lockComponentSize(browserCombo, new Dimension(browserW, rowH));
+        lockComponentSize(browserCombo, new Dimension(browserW, fieldH));
 
-        Dimension btnDim = new Dimension(96, rowH);
-        lockComponentSize(executeButton, btnDim);
+        Dimension buttonPref = executeButton.getPreferredSize();
+        int buttonW = Math.max(buttonPref.width, 96);
+        int buttonH = executeButton instanceof CandyButton ? buttonPref.height : rowH;
+        lockComponentSize(executeButton, new Dimension(buttonW, buttonH));
         executeButton.setMargin(new Insets(0, 8, 0, 8));
 
         JLabel selectorLabel = labeled(labelFont, "Selector：");
@@ -1071,34 +1016,11 @@ public class PanelFactory {
         row.setOpaque(false);
         row.add(content, BorderLayout.WEST);
 
-        int h = rowH + 4;
+        int h = Math.max(rowH + 4, content.getPreferredSize().height);
         row.setMinimumSize(new Dimension(0, h));
         row.setPreferredSize(new Dimension(row.getPreferredSize().width, h));
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
         return row;
-    }
-
-    /** 與 JTextField 同列時，避免 macOS Aqua ComboBox 視覺偏高，同時保留較自然的外觀 */
-    private static void useTextFieldAlignedCombo(JComboBox<?> combo) {
-        combo.setOpaque(true);
-        combo.setBackground(Color.WHITE);
-        combo.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(203, 213, 225)),
-                BorderFactory.createEmptyBorder(0, 6, 0, 4)));
-        combo.setUI(new BasicComboBoxUI() {
-            @Override
-            protected JButton createArrowButton() {
-                JButton button = new JButton("\u25BE");
-                button.setFont(UiFonts.latinPlain(11));
-                button.setFocusable(false);
-                button.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, new Color(226, 232, 240)));
-                button.setContentAreaFilled(true);
-                button.setBackground(new Color(248, 250, 252));
-                button.setForeground(new Color(51, 65, 85));
-                button.setMargin(new Insets(0, 0, 0, 0));
-                return button;
-            }
-        });
     }
 
     private static void lockComponentSize(JComponent component, Dimension size) {
@@ -1122,9 +1044,10 @@ public class PanelFactory {
         return row;
     }
 
-    /** 鎖定下拉選單尺寸，避免窄欄位擠壓時分選單 */
-    private static void lockComboSize(JComboBox<?> combo) {
+    /** 鎖定下拉選單尺寸，避免窄欄位擠壓時分選單。中文數字需要比「00」的測量值更寬。 */
+    private static void lockComboSize(JComboBox<?> combo, int minWidth) {
         Dimension size = combo.getPreferredSize();
+        size = new Dimension(Math.max(size.width, minWidth), Math.max(size.height, 30));
         combo.setMinimumSize(size);
         combo.setPreferredSize(size);
         combo.setMaximumSize(size);
@@ -1151,14 +1074,15 @@ public class PanelFactory {
      * 建立可折疊的分組面板
      */
     public static JPanel createCollapsibleGroupPanel(String title, JPanel contentPanel, Font titleFont, boolean startCollapsed) {
-        JPanel outerPanel = translucentPanel();
+        JPanel outerPanel = new CandyPanel(12, 12, 12, 12);
         outerPanel.setLayout(new BorderLayout(0, 2));
 
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        headerPanel.setBackground(NightTheme.HEADER);
+        headerPanel.setOpaque(true);
+        headerPanel.setBackground(CandyTheme.HEADER);
         headerPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(NightTheme.EDGE, 1, true),
+                BorderFactory.createMatteBorder(0, 0, 1, 0, CandyTheme.EDGE),
                 new EmptyBorder(8, 12, 8, 12)
         ));
 
@@ -1203,12 +1127,12 @@ public class PanelFactory {
 
             @Override
             public void mouseEntered(java.awt.event.MouseEvent e) {
-                headerPanel.setBackground(new Color(72, 56, 122));
+                headerPanel.setBackground(CandyTheme.HEADER_HOT);
             }
 
             @Override
             public void mouseExited(java.awt.event.MouseEvent e) {
-                headerPanel.setBackground(NightTheme.HEADER);
+                headerPanel.setBackground(CandyTheme.HEADER);
             }
         });
 
@@ -1218,32 +1142,25 @@ public class PanelFactory {
     }
 
     /**
-     * 建立帶標題框線的分組面板
+     * 建立帶標題的圓角分組面板。
      */
     public static JPanel createGroupPanel(String title, Font titleFont) {
-        JPanel panel = translucentPanel();
-        TitledBorder titledBorder = BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(NightTheme.EDGE, 1, true),
-                title, TitledBorder.LEFT, TitledBorder.TOP,
-                titleFont, NightTheme.INK);
-        panel.setBorder(new CompoundBorder(titledBorder, new EmptyBorder(8, 12, 16, 12)));
+        CandyPanel panel = new CandyPanel(title, titleFont);
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
         return panel;
     }
 
-    /** 半透明底，讓自訂背景圖能透出一點，同時維持區塊可讀性 */
-    private static JPanel translucentPanel() {
-        JPanel panel = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setColor(getBackground());
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        panel.setOpaque(false);
-        panel.setBackground(NightTheme.PANEL);
-        return panel;
+    private static CandyButton candyButton(String text, CandyButton.Variant variant, Font font, String tip) {
+        CandyButton button = new CandyButton(text, variant, CandyButton.Size.SMALL);
+        button.setFont(font);
+        button.setToolTipText(tip);
+        return button;
+    }
+
+    private static void markCandyScroll(JScrollPane scroll) {
+        scroll.putClientProperty(CandyScrollBar.MARK, Boolean.TRUE);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        scroll.setBorder(BorderFactory.createLineBorder(CandyTheme.EDGE));
     }
 }

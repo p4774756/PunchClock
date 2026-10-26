@@ -2,6 +2,7 @@ package com.example.ui.game;
 
 import com.example.game.GameRuleException;
 import com.example.game.SlotMachine;
+import com.example.ui.CandyButton;
 import com.example.ui.NightTheme;
 import com.example.ui.UiFonts;
 
@@ -33,8 +34,8 @@ final class SlotGamePanel extends JPanel {
     private final JLabel balance;
     private final JSpinner bet = GameForms.betSpinner(UiFonts.latinPlain(13));
     private final JTextArea message = GameForms.message(UiFonts.chinesePlain(13));
-    private final JButton spin = new JButton("開始");
-    private final JButton back = new JButton("返回");
+    private final JButton spin = new CandyButton("開始", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
+    private final JButton back = new CandyButton("返回", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
     private final JButton[] chips = chipButtons();
     private final Reels reels = new Reels();
     private final Timer timer;
@@ -180,7 +181,8 @@ final class SlotGamePanel extends JPanel {
         JButton[] buttons = new JButton[amounts.length];
         for (int i = 0; i < amounts.length; i++) {
             int amount = amounts[i];
-            JButton button = new JButton(Integer.toString(amount));
+            JButton button = new CandyButton(
+                    Integer.toString(amount), CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
             button.setFont(UiFonts.latinPlain(13));
             button.addActionListener(e -> {
                 if (amount > host.wallet().balance()) {

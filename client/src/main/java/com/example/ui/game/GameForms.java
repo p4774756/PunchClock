@@ -1,11 +1,14 @@
 package com.example.ui.game;
 
 import com.example.game.GameRuleException;
+import com.example.ui.CandyTextField;
 import com.example.ui.NightTheme;
 import com.example.ui.UiFonts;
 
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JSpinner;
+import javax.swing.JTextField;
 import javax.swing.JTextArea;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.border.EmptyBorder;
@@ -31,6 +34,12 @@ final class GameForms {
     static JSpinner betSpinner(Font font) {
         JSpinner spinner = new JSpinner(new SpinnerNumberModel(100, 1, 1_000_000, 10));
         spinner.setFont(font);
+        JComponent editor = spinner.getEditor();
+        if (editor instanceof JSpinner.DefaultEditor) {
+            JTextField field = ((JSpinner.DefaultEditor) editor).getTextField();
+            field.setFont(font);
+            CandyTextField.install(field, true);
+        }
         return spinner;
     }
 
@@ -62,6 +71,7 @@ final class GameForms {
         area.setWrapStyleWord(true);
         area.setEditable(false);
         area.setOpaque(false);
+        area.putClientProperty(CandyTextField.MARK, Boolean.TRUE);
         area.setForeground(NightTheme.INK);
         area.setBorder(new EmptyBorder(0, 0, 0, 0));
         return area;

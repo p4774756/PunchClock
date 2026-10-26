@@ -29,9 +29,9 @@ import java.awt.event.WindowEvent;
  */
 public final class TransferProgressDialog {
 
-    private static final Color TRACK = new Color(226, 232, 240);
-    private static final Color FILL = new Color(37, 99, 235);
-    private static final Color BORDER = new Color(148, 163, 184);
+    private static final Color TRACK = new Color(0x2C, 0x20, 0x4C);
+    private static final Color FILL = new Color(0xFF, 0x78, 0xB5);
+    private static final Color BORDER = new Color(0x92, 0x75, 0xBD);
 
     /** 目前開著的傳檔／更新進度視窗；自動重啟更新前用來確認沒有傳檔進行中。 */
     private static final java.util.List<TransferProgressDialog> OPEN =
@@ -53,7 +53,7 @@ public final class TransferProgressDialog {
         detailLabel = new JLabel(" ");
         detailLabel.setFont(UiFonts.chinesePlain(12));
         bar = createProgressBar();
-        cancelButton = new JButton("取消");
+        cancelButton = new CandyButton("取消", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         cancelButton.setFont(UiFonts.chinesePlain(12));
         cancelButton.setEnabled(false);
         cancelButton.addActionListener(e -> requestCancel());
@@ -74,6 +74,7 @@ public final class TransferProgressDialog {
         panel.add(bar, BorderLayout.CENTER);
         panel.add(bottom, BorderLayout.SOUTH);
         dialog.setContentPane(panel);
+        NightTheme.apply(panel);
         dialog.pack();
         dialog.setResizable(false);
         dialog.setLocationRelativeTo(owner);

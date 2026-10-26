@@ -192,6 +192,15 @@ public final class RecentValuesHelper {
             }
 
             @Override
+            public void paint(Graphics g, JComponent c) {
+                if (Boolean.TRUE.equals(comboBox.getClientProperty(CandyComboBox.MARK))) {
+                    CandyComboBox.paintChrome(comboBox, g);
+                    return;
+                }
+                super.paint(g, c);
+            }
+
+            @Override
             protected ComboPopup createPopup() {
                 return new DeletableHistoryComboPopup(comboBox);
             }
@@ -303,6 +312,19 @@ public final class RecentValuesHelper {
         }
 
         private void configurePopupSize() {
+            boolean candy = Boolean.TRUE.equals(comboBox.getClientProperty(CandyComboBox.MARK));
+            if (candy) {
+                list.putClientProperty(CandyComboBox.MARK, Boolean.TRUE);
+                list.setBackground(CandyTheme.FIELD);
+                list.setForeground(CandyTheme.INK);
+                list.setSelectionBackground(CandyTheme.ROW_SELECT);
+                list.setSelectionForeground(CandyTheme.INK);
+                list.setFont(comboBox.getFont());
+                setBackground(CandyTheme.FIELD);
+                scroller.setBackground(CandyTheme.FIELD);
+                scroller.getViewport().setBackground(CandyTheme.FIELD);
+                CandyScrollBar.install(scroller);
+            }
             int itemCount = comboBox.getItemCount();
             if (itemCount <= 0) {
                 return;
@@ -325,7 +347,10 @@ public final class RecentValuesHelper {
             scroller.setPreferredSize(size);
             scroller.setMinimumSize(size);
             scroller.setMaximumSize(new Dimension(popupWidth, height));
-            scroller.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
+            scroller.setBorder(BorderFactory.createLineBorder(
+                    Boolean.TRUE.equals(comboBox.getClientProperty(CandyComboBox.MARK))
+                            ? CandyTheme.EDGE
+                            : new Color(203, 213, 225)));
             setPreferredSize(size);
         }
 
@@ -367,6 +392,11 @@ public final class RecentValuesHelper {
             setFont(UiFonts.latinPlain(13));
             setOpaque(true);
             setBorder(BorderFactory.createEmptyBorder(0, 10, 0, DELETE_HIT_WIDTH));
+            if (Boolean.TRUE.equals(list.getClientProperty(CandyComboBox.MARK))) {
+                setFont(list.getFont());
+                setBackground(isSelected ? CandyTheme.ROW_SELECT : CandyTheme.FIELD);
+                setForeground(CandyTheme.INK);
+            }
 
             int totalWidth = list.getFixedCellWidth() > 0 ? list.getFixedCellWidth() : POPUP_MIN_WIDTH;
             int textMax = Math.max(60, totalWidth - DELETE_HIT_WIDTH - 16);

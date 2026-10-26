@@ -61,7 +61,7 @@ public class SkipDatesDialog extends JDialog {
         yearCombo.addActionListener(e -> refreshDays(selectedDay()));
         monthCombo.addActionListener(e -> refreshDays(selectedDay()));
 
-        JButton addButton = new JButton("加入");
+        JButton addButton = new CandyButton("加入", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
         addButton.setFont(bold);
         addButton.addActionListener(e -> addSelectedDate());
 
@@ -91,6 +91,10 @@ public class SkipDatesDialog extends JDialog {
         dateList.setFont(font);
         dateList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         dateList.setVisibleRowCount(6);
+        dateList.setBackground(CandyTheme.ROW);
+        dateList.setForeground(CandyTheme.INK);
+        dateList.setSelectionBackground(CandyTheme.ROW_SELECT);
+        dateList.setSelectionForeground(CandyTheme.INK);
         dateList.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(
@@ -100,13 +104,15 @@ public class SkipDatesDialog extends JDialog {
             }
         });
         JScrollPane scroll = new JScrollPane(dateList);
+        scroll.putClientProperty(CandyScrollBar.MARK, Boolean.TRUE);
+        scroll.setBorder(BorderFactory.createLineBorder(CandyTheme.EDGE));
         scroll.setPreferredSize(new Dimension(380, 150));
         center.add(scroll, BorderLayout.CENTER);
 
-        JButton removeButton = new JButton("移除");
+        JButton removeButton = new CandyButton("移除", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         removeButton.setFont(bold);
         removeButton.addActionListener(e -> removeSelected());
-        JButton clearButton = new JButton("清除全部");
+        JButton clearButton = new CandyButton("清除全部", CandyButton.Variant.DANGER, CandyButton.Size.SMALL);
         clearButton.setFont(bold);
         clearButton.addActionListener(e -> clearAll());
 
@@ -117,13 +123,13 @@ public class SkipDatesDialog extends JDialog {
         center.add(listActions, BorderLayout.SOUTH);
         add(center, BorderLayout.CENTER);
 
-        JButton okButton = new JButton("完成");
+        JButton okButton = new CandyButton("完成", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
         okButton.setFont(bold);
         okButton.addActionListener(e -> {
             confirmed = true;
             dispose();
         });
-        JButton cancelButton = new JButton("取消");
+        JButton cancelButton = new CandyButton("取消", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         cancelButton.setFont(font);
         cancelButton.addActionListener(e -> dispose());
 
@@ -277,6 +283,7 @@ public class SkipDatesDialog extends JDialog {
             }
         });
         combo.setSelectedItem(selected);
+        CandyComboBox.install(combo);
         combo.setPrototypeDisplayValue(pad2 ? 31 : 2099);
         Dimension size = combo.getPreferredSize();
         combo.setMinimumSize(size);

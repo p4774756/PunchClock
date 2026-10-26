@@ -150,7 +150,8 @@ public class PeerChatWindow extends JFrame {
         JScrollPane transcriptScroll = new JScrollPane(transcript,
                 ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
                 ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        transcriptScroll.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, new Color(203, 213, 225)));
+        transcriptScroll.putClientProperty(CandyScrollBar.MARK, Boolean.TRUE);
+        transcriptScroll.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, CandyTheme.EDGE));
 
         // 下方：附圖列、輸入框、按鈕
         imageThumbs = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
@@ -158,7 +159,7 @@ public class PeerChatWindow extends JFrame {
         imageLabel = new JLabel();
         imageLabel.setFont(plain);
         imageLabel.setForeground(NightTheme.MUTED);
-        clearImageButton = new JButton("移除圖片");
+        clearImageButton = new CandyButton("移除圖片", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         clearImageButton.setFont(plain);
         clearImageButton.setToolTipText("拿掉這則訊息已附的全部圖片");
         clearImageButton.addActionListener(e -> clearAttachedImages());
@@ -201,24 +202,26 @@ public class PeerChatWindow extends JFrame {
         input.setToolTipText("Enter 送出，Shift+Enter 換行；Ctrl+V 或 ⌘V 可貼多張截圖（最多 "
                 + MAX_TEXT_CHARS + " 字，一則最多 " + ChatProtocol.MAX_PEER_IMAGES + " 張）");
         bindInputKeys();
+        CandyTextField.dressArea(input);
         JScrollPane inputScroll = new JScrollPane(input,
                 ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
                 ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        inputScroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
+        inputScroll.putClientProperty(CandyScrollBar.MARK, Boolean.TRUE);
+        inputScroll.setBorder(BorderFactory.createLineBorder(CandyTheme.EDGE));
 
-        attachButton = new JButton("附加圖片");
+        attachButton = new CandyButton("附加圖片", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         attachButton.setFont(plain);
         attachButton.setToolTipText("選一張或多張圖片，和文字一起傳給對方（會自動縮小壓縮）");
         attachButton.addActionListener(e -> chooseImage());
-        pokeButton = new JButton("戳一下");
+        pokeButton = new CandyButton("戳一下", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         pokeButton.setFont(plain);
         pokeButton.setToolTipText("對方桌面端會鳴叫、視窗晃動（約 15 秒內隨心跳送達）");
         pokeButton.addActionListener(e -> host.poke(peerId));
-        fileButton = new JButton("傳檔案");
+        fileButton = new CandyButton("傳檔案", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         fileButton.setFont(plain);
         fileButton.setToolTipText("傳檔案或整個資料夾；可一次多選，多個項目會壓成一個 ZIP");
         fileButton.addActionListener(e -> host.sendFiles(peerId, this));
-        sendButton = new JButton("傳送");
+        sendButton = new CandyButton("傳送", CandyButton.Variant.PRIMARY, CandyButton.Size.MEDIUM);
         sendButton.setFont(bold);
         sendButton.addActionListener(e -> send());
 

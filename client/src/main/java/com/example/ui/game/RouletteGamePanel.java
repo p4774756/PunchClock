@@ -2,6 +2,7 @@ package com.example.ui.game;
 
 import com.example.game.GameRuleException;
 import com.example.game.Roulette;
+import com.example.ui.CandyButton;
 import com.example.ui.UiFonts;
 
 import javax.swing.JButton;
@@ -34,8 +35,8 @@ final class RouletteGamePanel extends JPanel {
     private final JLabel balance;
     private final JSpinner bet = GameForms.betSpinner(UiFonts.latinPlain(13));
     private final JTextArea message = GameForms.message(UiFonts.chinesePlain(13));
-    private final JButton spin = new JButton("旋轉");
-    private final JButton back = new JButton("返回");
+    private final JButton spin = new CandyButton("旋轉", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
+    private final JButton back = new CandyButton("返回", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
     private final JButton[] kinds = new JButton[Roulette.BetKind.values().length];
     private final Wheel wheel = new Wheel();
     private final Timer timer;
@@ -80,7 +81,7 @@ final class RouletteGamePanel extends JPanel {
         Roulette.BetKind[] values = Roulette.BetKind.values();
         for (int i = 0; i < values.length; i++) {
             Roulette.BetKind kind = values[i];
-            JButton button = new JButton(kind.label);
+            JButton button = new CandyButton(kind.label, CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
             button.setFont(host.mainFont());
             button.addActionListener(e -> choose(kind));
             kinds[i] = button;

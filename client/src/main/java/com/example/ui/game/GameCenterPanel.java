@@ -4,12 +4,18 @@ import com.example.game.GameRecord;
 import com.example.game.GameRuleException;
 import com.example.game.GameStore;
 import com.example.game.GameWallet;
+import com.example.ui.CandyButton;
+import com.example.ui.CandyPanel;
+import com.example.ui.CandyScrollBar;
+import com.example.ui.CandyTheme;
 import com.example.ui.NightTheme;
 import com.example.ui.UiFonts;
 
 import javax.swing.BorderFactory;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
@@ -125,7 +131,8 @@ public final class GameCenterPanel extends JPanel implements GameHost {
         private final JLabel balance = GameForms.balanceLabel(boldFont);
         private final JTextArea notice = GameForms.message(mainFont);
         private final DefaultListModel<String> records = new DefaultListModel<>();
-        private final JButton reset = new JButton("重置點數");
+        private final JButton reset = new CandyButton(
+                "重置點數", CandyButton.Variant.DANGER, CandyButton.Size.SMALL);
 
         private Hub() {
             super(new BorderLayout(0, 10));
@@ -160,12 +167,34 @@ public final class GameCenterPanel extends JPanel implements GameHost {
 
             JList<String> list = new JList<>(records);
             list.setFont(mainFont);
-            list.setBackground(NightTheme.FIELD);
-            list.setForeground(NightTheme.INK);
-            list.setSelectionBackground(NightTheme.SELECT);
-            list.setSelectionForeground(NightTheme.PINK_INK);
+            list.setOpaque(true);
+            list.setBackground(CandyTheme.ROW);
+            list.setForeground(CandyTheme.INK);
+            list.setSelectionBackground(CandyTheme.ROW_SELECT);
+            list.setSelectionForeground(CandyTheme.INK);
+            list.setFixedCellHeight(28);
+            list.setCellRenderer(new DefaultListCellRenderer() {
+                @Override
+                public java.awt.Component getListCellRendererComponent(
+                        JList<?> source, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                    java.awt.Component cell = super.getListCellRendererComponent(
+                            source, value, index, isSelected, false);
+                    cell.setForeground(CandyTheme.INK);
+                    cell.setBackground(isSelected
+                            ? CandyTheme.ROW_SELECT
+                            : (index % 2 == 0 ? CandyTheme.ROW : CandyTheme.ROW_ALT));
+                    if (cell instanceof JComponent) {
+                        JComponent widget = (JComponent) cell;
+                        widget.setOpaque(true);
+                        String tip = value == null ? null : String.valueOf(value);
+                        widget.setToolTipText(tip);
+                    }
+                    return cell;
+                }
+            });
             JScrollPane scroll = new JScrollPane(list);
-            scroll.setBorder(BorderFactory.createLineBorder(NightTheme.EDGE));
+            scroll.putClientProperty(CandyScrollBar.MARK, Boolean.TRUE);
+            scroll.setBorder(BorderFactory.createLineBorder(CandyTheme.EDGE));
             scroll.setPreferredSize(new Dimension(200, 132));
             JPanel history = new JPanel(new BorderLayout(0, 4));
             history.setOpaque(false);
@@ -201,15 +230,13 @@ public final class GameCenterPanel extends JPanel implements GameHost {
         }
 
         private JPanel entry(String name, Color accent, String blurb, String card) {
-            JPanel panel = new JPanel(new BorderLayout(0, 6));
-            panel.setOpaque(true);
-            panel.setBackground(NightTheme.HEADER);
-            panel.setBorder(new EmptyBorder(12, 12, 12, 12));
+            CandyPanel panel = new CandyPanel();
+            panel.setLayout(new BorderLayout(0, 6));
             JLabel label = new JLabel(name);
             label.setFont(boldFont);
             label.setForeground(accent);
             JTextArea text = GameForms.note(blurb, mainFont, 3);
-            JButton open = new JButton("進入");
+            JButton open = new CandyButton("進入", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
             open.setFont(boldFont);
             open.addActionListener(e -> open(card));
             panel.add(label, BorderLayout.NORTH);

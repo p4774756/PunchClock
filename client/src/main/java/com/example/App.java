@@ -315,16 +315,16 @@ public class App extends JFrame {
         logTab.setBorder(new EmptyBorder(8, 4, 8, 4));
         logTab.add(logPanel, BorderLayout.CENTER);
 
-        tabs.addTab("排程任務", NightTheme.page(tasksTab));
-        tabs.addTab("設定", NightTheme.page(settingsTab));
-        tabs.addTab(PanelFactory.PEER_TAB_LABEL, NightTheme.page(peerTab));
+        tabs.addTab("排程任務", NightTheme.page(tasksTab, true));
+        tabs.addTab("設定", NightTheme.page(settingsTab, true));
+        tabs.addTab(PanelFactory.PEER_TAB_LABEL, NightTheme.page(peerTab, true));
         NightTheme.apply(logTab);
         tabs.addTab("系統日誌", logTab);
         JPanel gameTab = new JPanel(new BorderLayout());
         gameTab.setOpaque(false);
         gameTab.setBorder(new EmptyBorder(8, 8, 8, 8));
         gameTab.add(new GameCenterPanel(new GameStore(), mainFont, boldFont), BorderLayout.CENTER);
-        tabs.addTab("遊戲中心", NightTheme.page(gameTab));
+        tabs.addTab("遊戲中心", NightTheme.page(gameTab, true));
         tabs.setOpaque(false);
         tabs.setBackground(new Color(0, 0, 0, 0));
         tabs.setToolTipTextAt(0, "設定目標網址、時間，立即測試");

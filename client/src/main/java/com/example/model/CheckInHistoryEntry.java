@@ -81,15 +81,18 @@ public class CheckInHistoryEntry {
         }
     }
 
+    /** 列表五欄之間的分隔。畫面改畫成直欄後，提示仍用這一整行，所以內容不截斷。 */
+    public static final String DISPLAY_SEPARATOR = "  ｜  ";
+
     /** 列表列顯示文字 */
     public String toDisplayLine() {
         String badge = statusEnum().getBadge();
         String source = immediate ? "立即執行" : "排程";
-        String detail = getMessage();
-        if (detail.length() > 80) {
-            detail = detail.substring(0, 79) + "…";
-        }
-        return String.format("%s  ｜  %s  ｜  %s  ｜  %s  ｜  %s",
-                getAt(), WorkSlot.screenText(getSlotName()), badge, source, WorkSlot.screenText(detail));
+        return String.join(DISPLAY_SEPARATOR,
+                getAt(),
+                WorkSlot.screenText(getSlotName()),
+                badge,
+                source,
+                WorkSlot.screenText(getMessage()));
     }
 }

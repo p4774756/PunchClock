@@ -2,6 +2,7 @@ package com.example.ui.game;
 
 import com.example.game.Blackjack;
 import com.example.game.GameRuleException;
+import com.example.ui.CandyButton;
 import com.example.ui.UiFonts;
 
 import javax.swing.JButton;
@@ -30,10 +31,10 @@ final class BlackjackGamePanel extends JPanel {
     private final JLabel balance;
     private final JSpinner bet = GameForms.betSpinner(UiFonts.latinPlain(13));
     private final JTextArea message = GameForms.message(UiFonts.chinesePlain(13));
-    private final JButton deal = new JButton("發牌");
-    private final JButton hit = new JButton("補牌");
-    private final JButton stand = new JButton("停牌");
-    private final JButton back = new JButton("返回");
+    private final JButton deal = new CandyButton("發牌", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
+    private final JButton hit = new CandyButton("補牌", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+    private final JButton stand = new CandyButton("停牌", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+    private final JButton back = new CandyButton("返回", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
     private final Table table = new Table();
     private Blackjack hand;
 

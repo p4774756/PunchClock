@@ -6,6 +6,7 @@ import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.FontMetrics;
+import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Rectangle;
@@ -36,8 +37,7 @@ final class HomeBoard {
     private static final Color ERROR = new Color(255, 118, 139);
     private static final Color PANEL = new Color(54, 42, 96, 228);
     private static final Color PANEL_EDGE = new Color(142, 116, 178, 170);
-    private static final Color SOFT = new Color(65, 46, 103, 209);
-    private static final Color SOFT_HOT = new Color(86, 59, 124, 240);
+    private static final Color CANDY_INK = new Color(0x3A, 0x18, 0x28);
     private static final int FADE_MS = 240;
     private static final String[] CLICK_LINES = {
             "嘿嘿，找我有事嗎？",
@@ -550,24 +550,31 @@ final class HomeBoard {
         if (box.width < 36 || box.height < 36) {
             return;
         }
-        g.setColor(hover ? SOFT_HOT : SOFT);
-        g.fillRoundRect(box.x, box.y, box.width, box.height, 12, 12);
-        g.setColor(hover ? PINK : PANEL_EDGE);
-        g.drawRoundRect(box.x, box.y, box.width - 1, box.height - 1, 12, 12);
+        int arc = 14;
+        int lip = 3;
+        g.setColor(hover ? new Color(0xB8, 0x44, 0x82) : new Color(0x67, 0x50, 0x9C));
+        g.fillRoundRect(box.x, box.y + lip, box.width, box.height - lip, arc, arc);
+        g.setPaint(new GradientPaint(
+                box.x, box.y, hover ? new Color(0xFF, 0xC0, 0xDE) : new Color(0xD4, 0xC4, 0xFF),
+                box.x, box.y + box.height - lip, hover ? new Color(0xFF, 0x78, 0xB5) : new Color(0x97, 0x74, 0xE5)));
+        g.fillRoundRect(box.x, box.y, box.width, box.height - lip, arc, arc);
+        g.setColor(new Color(255, 255, 255, 90));
+        g.fillRoundRect(box.x + 5, box.y + 2, Math.max(4, box.width - 10),
+                Math.max(4, (box.height - lip) / 3), arc, arc);
         int iconSize = Math.min(22, Math.max(16, box.height - 36));
         int iconX = box.x + (box.width - iconSize) / 2;
         int iconY = box.y + Math.max(8, (box.height - 18 - iconSize) / 2);
         if ("game".equals(icon)) {
-            drawGameIcon(g, iconX, iconY, iconSize, PINK);
+            drawGameIcon(g, iconX, iconY, iconSize, CANDY_INK);
         } else {
-            KitIcon.draw(g, icon, iconX, iconY, iconSize, PINK);
+            KitIcon.draw(g, icon, iconX, iconY, iconSize, CANDY_INK);
         }
         g.setFont(UiFonts.chinesePlain(13));
-        g.setColor(INK);
+        g.setColor(CANDY_INK);
         FontMetrics metrics = g.getFontMetrics();
         String label = fit(g, text, box.width - 8);
         int tx = box.x + Math.max(4, (box.width - metrics.stringWidth(label)) / 2);
-        int ty = box.y + box.height - 12;
+        int ty = box.y + box.height - 14;
         g.drawString(label, tx, ty);
     }
 

@@ -116,6 +116,13 @@ public final class NightTheme {
      * 高度夠時撐滿；放不下時才往下捲，避免欄位被裁掉。
      */
     public static JComponent page(JComponent body) {
+        return page(body, false);
+    }
+
+    /**
+     * @param candyBars 主分頁用糖果捲軸。傳 false 時維持原本的捲軸。
+     */
+    public static JComponent page(JComponent body, boolean candyBars) {
         apply(body);
         PageBody fill = new PageBody(body);
         JScrollPane scroll = new JScrollPane(fill);
@@ -126,6 +133,9 @@ public final class NightTheme {
         scroll.getViewport().setBackground(PANEL);
         scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scroll.getVerticalScrollBar().setUnitIncrement(18);
+        if (candyBars) {
+            scroll.putClientProperty(CandyScrollBar.MARK, Boolean.TRUE);
+        }
         installBars(scroll);
         scroll.setBorder(BorderFactory.createEmptyBorder());
         return scroll;
@@ -191,7 +201,8 @@ public final class NightTheme {
     }
 
     private static void styleButton(JButton button) {
-        if (Boolean.TRUE.equals(button.getClientProperty("night.button"))) {
+        if (Boolean.TRUE.equals(button.getClientProperty(CandyButton.MARK))
+                || Boolean.TRUE.equals(button.getClientProperty("night.button"))) {
             return;
         }
         button.putClientProperty("night.button", Boolean.TRUE);
@@ -221,6 +232,10 @@ public final class NightTheme {
     }
 
     private static void styleFieldButton(JButton button) {
+        if (Boolean.TRUE.equals(button.getClientProperty(CandyComboBox.ARROW))
+                || Boolean.TRUE.equals(button.getClientProperty(CandyButton.MARK))) {
+            return;
+        }
         button.setContentAreaFilled(true);
         button.setOpaque(true);
         button.setBackground(FIELD);
@@ -229,6 +244,9 @@ public final class NightTheme {
     }
 
     private static void styleText(JTextComponent field) {
+        if (Boolean.TRUE.equals(field.getClientProperty(CandyTextField.MARK))) {
+            return;
+        }
         Color background = field.getBackground();
         Color foreground = field.getForeground();
         if (background != null && luminance(background) < 80 && isSemantic(foreground)) {
@@ -250,6 +268,9 @@ public final class NightTheme {
     }
 
     private static void styleCombo(JComboBox<?> combo) {
+        if (Boolean.TRUE.equals(combo.getClientProperty(CandyComboBox.MARK))) {
+            return;
+        }
         combo.setOpaque(true);
         combo.setBackground(FIELD);
         combo.setForeground(INK);
@@ -289,11 +310,11 @@ public final class NightTheme {
 
     private static void styleTable(JTable table) {
         table.setOpaque(true);
-        table.setBackground(FIELD);
-        table.setForeground(INK);
-        table.setSelectionBackground(SELECT);
-        table.setSelectionForeground(PINK_INK);
-        table.setGridColor(EDGE);
+        table.setBackground(CandyTheme.ROW);
+        table.setForeground(CandyTheme.INK);
+        table.setSelectionBackground(CandyTheme.ROW_SELECT);
+        table.setSelectionForeground(CandyTheme.INK);
+        table.setGridColor(CandyTheme.EDGE);
         table.setRowHeight(Math.max(table.getRowHeight(), 30));
         table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
             @Override
@@ -301,10 +322,15 @@ public final class NightTheme {
                     JTable source, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
                 Component cell = super.getTableCellRendererComponent(
                         source, value, isSelected, hasFocus, row, column);
-                cell.setBackground(isSelected ? SELECT : source.getBackground());
-                cell.setForeground(isSelected ? PINK_INK : source.getForeground());
+                cell.setBackground(isSelected
+                        ? CandyTheme.ROW_SELECT
+                        : (row % 2 == 0 ? CandyTheme.ROW : CandyTheme.ROW_ALT));
+                cell.setForeground(CandyTheme.INK);
                 if (cell instanceof JComponent) {
-                    ((JComponent) cell).setOpaque(true);
+                    JComponent widget = (JComponent) cell;
+                    widget.setOpaque(true);
+                    String tip = value == null ? null : String.valueOf(value);
+                    widget.setToolTipText(tip == null || tip.isEmpty() ? null : tip);
                 }
                 return cell;
             }
@@ -312,8 +338,8 @@ public final class NightTheme {
         JTableHeader header = table.getTableHeader();
         if (header != null) {
             header.setOpaque(true);
-            header.setBackground(HEADER);
-            header.setForeground(INK);
+            header.setBackground(CandyTheme.HEADER);
+            header.setForeground(CandyTheme.INK);
             header.setUI(new javax.swing.plaf.basic.BasicTableHeaderUI());
             header.setDefaultRenderer(new DefaultTableCellRenderer() {
                 @Override
@@ -322,8 +348,8 @@ public final class NightTheme {
                     JLabel label = (JLabel) super.getTableCellRendererComponent(
                             source, value, isSelected, hasFocus, row, column);
                     label.setOpaque(true);
-                    label.setBackground(HEADER);
-                    label.setForeground(INK);
+                    label.setBackground(CandyTheme.HEADER);
+                    label.setForeground(CandyTheme.INK);
                     label.setBorder(new EmptyBorder(6, 8, 6, 8));
                     return label;
                 }
@@ -332,6 +358,12 @@ public final class NightTheme {
     }
 
     private static void styleScroll(JScrollPane scroll) {
+        if (Boolean.TRUE.equals(scroll.getClientProperty(CandyScrollBar.MARK))) {
+            scroll.setOpaque(false);
+            scroll.getViewport().setOpaque(false);
+            installBars(scroll);
+            return;
+        }
         scroll.setOpaque(true);
         scroll.setBackground(PANEL);
         scroll.getViewport().setOpaque(true);
@@ -343,6 +375,10 @@ public final class NightTheme {
     }
 
     private static void installBars(JScrollPane scroll) {
+        if (Boolean.TRUE.equals(scroll.getClientProperty(CandyScrollBar.MARK))) {
+            CandyScrollBar.install(scroll);
+            return;
+        }
         scroll.getVerticalScrollBar().setUI(new NightScrollBarUI());
         scroll.getHorizontalScrollBar().setUI(new NightScrollBarUI());
         scroll.getVerticalScrollBar().setPreferredSize(new Dimension(12, 0));
@@ -360,6 +396,10 @@ public final class NightTheme {
     }
 
     private static void stylePanel(JPanel panel) {
+        if (Boolean.TRUE.equals(panel.getClientProperty(CandyPanel.MARK))
+                || javax.swing.SwingUtilities.getAncestorOfClass(CandyPanel.class, panel) != null) {
+            return;
+        }
         Color background = panel.getBackground();
         if (!panel.isOpaque() || background == null || background.getAlpha() < 250 || isLight(background)) {
             panel.setOpaque(true);
