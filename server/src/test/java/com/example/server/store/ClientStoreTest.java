@@ -51,6 +51,14 @@ public class ClientStoreTest {
         Object firstTask = ((List<?>) clean.get("tasks")).get(0);
         assertTrue(firstTask instanceof Map);
         assertEquals("#a", ((Map<?, ?>) firstTask).get("buttonId"));
+        assertEquals("未命名任務", ((Map<?, ?>) firstTask).get("name"));
+    }
+
+    @Test
+    public void displayTaskName_keepsCustomNameAndTrims() {
+        assertEquals("早班", ClientStore.displayTaskName("  早班  "));
+        assertEquals("未命名任務", ClientStore.displayTaskName("   "));
+        assertEquals("123456789012345678901234", ClientStore.displayTaskName("12345678901234567890123456789"));
     }
 
     @Test

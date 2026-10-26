@@ -73,7 +73,6 @@ public final class AnimeHomeDemo extends JFrame {
         private int nav = 0;
         private int hot = -1;
         private int selectedTask;
-        private double phase;
         private double remaining = 85 * 60 + 12;
         private String bubble;
         private double bubbleLeft;
@@ -150,7 +149,6 @@ public final class AnimeHomeDemo extends JFrame {
         }
 
         private void tick(double dt) {
-            phase += dt;
             hero.tick(dt);
             if (remaining > 0) {
                 remaining = Math.max(0, remaining - dt);

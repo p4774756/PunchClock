@@ -39,7 +39,6 @@ public final class AnimeShell extends JPanel {
 
     private static final Color INK = new Color(255, 252, 255);
     private static final Color MUTED = new Color(226, 218, 242);
-    private static final Color PINK = new Color(255, 122, 168);
     private static final Color PANEL = new Color(54, 42, 96, 228);
     private static final Color PANEL_EDGE = new Color(214, 198, 255, 150);
     private static final String[] NAV = {"首頁", "排程任務", "好友與傳檔", "設定", "日誌"};
@@ -194,6 +193,9 @@ public final class AnimeShell extends JPanel {
 
         void openChat();
 
+        /** 打開卡片上那位好友的聊天視窗。沒有對象時改去好友頁。 */
+        void openRecentFriend();
+
         void sendFile();
     }
 
@@ -255,7 +257,9 @@ public final class AnimeShell extends JPanel {
         }
         if (id == HomeBoard.SCHEDULE) {
             openTab(0);
-        } else if (id == HomeBoard.FRIENDS || id == HomeBoard.CHAT) {
+        } else if (id == HomeBoard.FRIENDS) {
+            homeActions.openRecentFriend();
+        } else if (id == HomeBoard.CHAT) {
             homeActions.openChat();
         } else if (id == HomeBoard.RUN) {
             homeActions.runTask();

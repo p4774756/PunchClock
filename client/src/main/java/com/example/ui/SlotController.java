@@ -15,6 +15,8 @@ import com.example.service.SlotScheduleHelper;
 import com.example.service.TaskPersistenceService;
 
 import javax.swing.*;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -144,7 +146,7 @@ public class SlotController {
         if (!isSharedSettingsReady() && config.workIn.enabled) {
             config.workIn.enabled = false;
             applySlotToUi(slotRefs.workIn, config.workIn);
-            appendLog.accept("[警告] 【" + WorkSlot.WORK_IN_NAME + "】目標網址或 Selector 未設定，已取消「啟用」");
+            appendLog.accept("[警告] 【" + slotLabel(WorkSlot.Kind.WORK_IN) + "】目標網址或 Selector 未設定，已取消「啟用」");
         }
         saveConfig();
 
@@ -160,7 +162,7 @@ public class SlotController {
             expired.setStatus(TaskStatus.PENDING);
             expired.setResultMessage("");
             appendLog.accept(String.format(
-                    "[排程] 【" + WorkSlot.WORK_IN_NAME + "】程式重啟時錯過了原定的 %s，不補執行，改排下一次", missed));
+                    "[排程] 【" + slotLabel(WorkSlot.Kind.WORK_IN) + "】程式重啟時錯過了原定的 %s，不補執行，改排下一次", missed));
         }
 
         if (scheduleSlot(WorkSlot.Kind.WORK_IN, false)) {
@@ -169,11 +171,12 @@ public class SlotController {
         CheckInTask scheduledTask = schedulerService.getTask(WorkSlot.Kind.WORK_IN.id);
         if (scheduledTask != null) {
             if (scheduledTask.getStatus() == TaskStatus.SCHEDULED) {
-                appendLog.accept(String.format("[排程] 【" + WorkSlot.WORK_IN_NAME + "】下次觸發：%s", scheduledTask.getFormattedActualTime()));
+                appendLog.accept(String.format("[排程] 【%s】下次觸發：%s", slotLabel(WorkSlot.Kind.WORK_IN), scheduledTask.getFormattedActualTime()));
             } else {
                 String extra = scheduledTask.getResultMessage() != null && !scheduledTask.getResultMessage().isBlank()
                         ? "（" + scheduledTask.getResultMessage() + "）" : "";
-                appendLog.accept(String.format("[資訊] 【" + WorkSlot.WORK_IN_NAME + "】目前狀態：%s%s",
+                appendLog.accept(String.format("[資訊] 【%s】目前狀態：%s%s",
+                        slotLabel(WorkSlot.Kind.WORK_IN),
                         scheduledTask.getStatus().getDisplayName(), WorkSlot.screenText(extra)));
             }
         }
@@ -286,6 +289,15 @@ public class SlotController {
         refs.hourCombo.addActionListener(e -> onSlotTimingChanged(kind));
         refs.minuteCombo.addActionListener(e -> onSlotTimingChanged(kind));
         refs.randomOffsetCheckBox.addActionListener(e -> onSlotTimingChanged(kind));
+        if (refs.nameField != null) {
+            refs.nameField.addActionListener(e -> commitSlotName(kind));
+            refs.nameField.addFocusListener(new FocusAdapter() {
+                @Override
+                public void focusLost(FocusEvent e) {
+                    commitSlotName(kind);
+                }
+            });
+        }
         syncSlotEditorsEnabled(refs);
     }
 
@@ -379,7 +391,7 @@ public class SlotController {
         SlotScheduleHelper.applySharedSettings(task, config);
         appendLog.accept(String.format(
                 "[鎖定] 【%s】已鎖定網址：%s，Selector：%s",
-                kind.displayName, task.getTargetUrl(), task.getButtonId()));
+                slotLabel(kind), task.getTargetUrl(), task.getButtonId()));
     }
 
     /** 已取消的槽位僅儲存時分設定，不自動重排（需重新勾選「啟用」才會排程） */
@@ -418,7 +430,7 @@ public class SlotController {
                 t -> SwingUtilities.invokeLater(() -> rescheduleSlotAfterRun(t)));
         onSlotStateChanged.run();
         if (ok) {
-            appendLog.accept(String.format("[排程] 【%s】已重新啟用並排程", kind.displayName));
+            appendLog.accept(String.format("[排程] 【%s】已重新啟用並排程", slotLabel(kind)));
         }
     }
 
@@ -435,7 +447,8 @@ public class SlotController {
         saveConfig();
         boolean scheduled = scheduleSlot(WorkSlot.Kind.WORK_IN, true);
         if (logSummary) {
-            appendLog.accept(scheduled ? "[排程] " + WorkSlot.WORK_IN_NAME + "啟用中" : "[排程] " + WorkSlot.WORK_IN_NAME + "未啟用");
+            String label = slotLabel(WorkSlot.Kind.WORK_IN);
+            appendLog.accept(scheduled ? "[排程] " + label + "啟用中" : "[排程] " + label + "未啟用");
         }
         refreshSlotCards();
         persistTasks();
@@ -469,7 +482,7 @@ public class SlotController {
                 task.setResultMessage("槽位已停用");
             }
             if (logChanges) {
-                appendLog.accept("[停用] 【" + kind.displayName + "】已停用，排程已取消");
+                appendLog.accept("[停用] 【" + slotLabel(kind) + "】已停用，排程已取消");
             }
             onSlotStateChanged.run();
             return false;
@@ -533,7 +546,7 @@ public class SlotController {
     private void resetTaskForSchedule(
             CheckInTask task, WorkSlot.Kind kind, SlotSettings slot, LocalDateTime targetTime) {
         schedulerService.stopTimer(kind.id);
-        task.setName(kind.displayName);
+        task.setName(WorkSlot.normalizeName(kind, task.getName()));
         task.setTargetTime(targetTime);
         SlotScheduleHelper.applySlotSettings(task, slot);
         task.setActualTriggerTime(null);
@@ -545,30 +558,20 @@ public class SlotController {
     private CheckInTask findOrMigrate(List<CheckInTask> loaded, WorkSlot.Kind kind) {
         for (CheckInTask task : loaded) {
             if (kind.id.equals(task.getId())) {
-                task.setName(kind.displayName);
+                task.setName(WorkSlot.normalizeName(kind, task.getName()));
                 return task;
             }
         }
         for (CheckInTask task : loaded) {
-            if (kind.displayName.equals(task.getName()) || legacySlotName(kind, task.getName())) {
+            if (kind.displayName.equals(task.getName()) || WorkSlot.isLegacyName(kind, task.getName())) {
                 task.setId(kind.id);
-                task.setName(kind.displayName);
+                task.setName(WorkSlot.normalizeName(kind, task.getName()));
                 return task;
             }
         }
         SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
         return SlotScheduleHelper.buildTask(kind, config,
                 nextSlotTime(slot.hour, slot.minute, LocalDateTime.now()));
-    }
-
-    private static boolean legacySlotName(WorkSlot.Kind kind, String name) {
-        if (name == null) {
-            return false;
-        }
-        if (kind == WorkSlot.Kind.WORK_IN) {
-            return "上班排程".equals(name) || "上班打卡".equals(name);
-        }
-        return "下班排程".equals(name) || "下班打卡".equals(name);
     }
 
     private void editSkipDates() {
@@ -632,7 +635,7 @@ public class SlotController {
         slotRefs.skipDatesButton.setText(count <= 0 ? "跳過日期" : "跳過日期 (" + count + ")");
     }
 
-    /** 先讓使用者選一個還沒在跑、也沒取消的任務，再走原本的立即執行。 */
+    /** 現在就跑一次。只有一個任務時直接確認；多個才讓使用者挑。不改原本的排程時間。 */
     public void promptExecuteNow() {
         readConfigFromUi();
         List<CheckInTask> runnable = new ArrayList<>();
@@ -653,25 +656,53 @@ public class SlotController {
         }
         String[] labels = new String[runnable.size()];
         for (int i = 0; i < runnable.size(); i++) {
-            CheckInTask task = runnable.get(i);
-            String name = WorkSlot.screenText(task.getName());
-            if (name == null || name.isBlank()) {
-                name = "任務";
+            labels[i] = runnableLabel(runnable.get(i));
+        }
+        if (runnable.size() == 1) {
+            CheckInTask only = runnable.get(0);
+            String when = clockLabel(only);
+            String message = when.isEmpty()
+                    ? "現在就跑一次「" + labels[0] + "」？\n只會馬上執行，原本的排程時間不會改。"
+                    : "現在就跑一次「" + labels[0] + "」？\n只會馬上執行，" + when + " 的排程不會改。";
+            int confirm = UiFonts.showConfirm(
+                    owner, message, "執行任務", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+            if (confirm != JOptionPane.YES_OPTION) {
+                return;
             }
-            if (task.getStatus() == TaskStatus.CANCELLED) {
-                name = name + "（已取消）";
-            }
-            labels[i] = name;
+            runChosenNow(only);
+            return;
         }
         int choice = UiFonts.showChoice(
                 owner,
-                "要現在執行哪一個？這會用目前的共用設定，不會改掉已鎖定的排程。",
+                "要現在立刻跑哪一個？只會馬上執行一次，原本的排程時間不會改。",
                 "執行任務",
                 labels);
         if (choice < 0 || choice >= runnable.size()) {
             return;
         }
-        CheckInTask task = runnable.get(choice);
+        runChosenNow(runnable.get(choice));
+    }
+
+    private static String runnableLabel(CheckInTask task) {
+        String name = WorkSlot.screenText(task.getName());
+        if (name == null || name.isBlank()) {
+            name = "任務";
+        }
+        if (task.getStatus() == TaskStatus.CANCELLED) {
+            name = name + "（已取消）";
+        }
+        return name;
+    }
+
+    private static String clockLabel(CheckInTask task) {
+        LocalDateTime when = task.getActualTriggerTime();
+        if (when == null) {
+            return "";
+        }
+        return when.format(DateTimeFormatter.ofPattern("HH:mm"));
+    }
+
+    private void runChosenNow(CheckInTask task) {
         WorkSlot.Kind kind = WorkSlot.Kind.fromId(task.getId());
         if (kind != null) {
             if (!isSharedSettingsReady()) {
@@ -698,13 +729,13 @@ public class SlotController {
         readConfigFromUi();
         CheckInTask task = schedulerService.getTask(kind.id);
         if (task == null) {
-            UiFonts.showWarning(owner, "找不到【" + kind.displayName + "】槽位。", "提示");
+            UiFonts.showWarning(owner, "找不到【" + slotLabel(kind) + "】槽位。", "提示");
             return;
         }
         String url = config.targetUrl;
         String buttonId = config.buttonId;
         String browser = TaskEditDialog.parseBrowserType(config.browserChoice);
-        appendLog.accept("[執行] 【立即執行】使用上方共用設定（不變更已鎖定排程，結果記入【" + kind.displayName + "】）");
+        appendLog.accept("[執行] 【立即執行】使用上方共用設定（不變更已鎖定排程，結果記入【" + slotLabel(kind) + "】）");
         new Thread(() -> executeCheckInForTask(task, url, buttonId, browser, null, false)).start();
     }
 
@@ -884,6 +915,7 @@ public class SlotController {
         CheckInTask task = schedulerService.getTask(kind.id);
         SlotSettings slot = SlotScheduleHelper.settingsFor(kind, config);
         if (task == null) {
+            showSlotName(refs, null, kind);
             setWrappedMetricLabel(refs.statusLabel, null);
             setWrappedMetricLabel(refs.countdownLabel, null);
             setWrappedMetricLabel(refs.triggerLabel, null);
@@ -905,6 +937,45 @@ public class SlotController {
         }
         setWrappedMetricLabel(refs.resultLabel, WorkSlot.screenText(task.getDisplayResultMessage()));
         refreshLockedSettingsLabel(refs, task, slot);
+        showSlotName(refs, task, kind);
+    }
+
+    private void showSlotName(PanelFactory.SlotCardRefs refs, CheckInTask task, WorkSlot.Kind kind) {
+        if (refs.nameField == null || refs.nameField.isFocusOwner()) {
+            return;
+        }
+        String name = WorkSlot.normalizeName(kind, task == null ? null : task.getName());
+        if (!name.equals(refs.nameField.getText())) {
+            refs.nameField.setText(name);
+        }
+    }
+
+    private void commitSlotName(WorkSlot.Kind kind) {
+        if (suppressUiSave) {
+            return;
+        }
+        PanelFactory.SlotCardRefs refs = refsFor(kind);
+        if (refs == null || refs.nameField == null) {
+            return;
+        }
+        String next = WorkSlot.normalizeName(kind, refs.nameField.getText());
+        if (!next.equals(refs.nameField.getText())) {
+            refs.nameField.setText(next);
+        }
+        CheckInTask task = schedulerService.getTask(kind.id);
+        if (task == null || next.equals(task.getName())) {
+            return;
+        }
+        task.setName(next);
+        persistTasks();
+        appendLog.accept("[排程] 任務名稱已改為「" + next + "」");
+        onSlotStateChanged.run();
+        heartbeatService.sendHeartbeat(appendLog, null);
+    }
+
+    private String slotLabel(WorkSlot.Kind kind) {
+        CheckInTask task = schedulerService.getTask(kind.id);
+        return WorkSlot.normalizeName(kind, task == null ? null : task.getName());
     }
 
     private static final int METRIC_LABEL_MAX_CHARS = 36;

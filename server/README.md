@@ -28,8 +28,7 @@ Worker 走 HTTP 心跳。Dashboard 用 REST 下指令，WebSocket 只推 `STATUS
 | `GET /api/peer/file/{fileId}`、`DELETE /api/peer/file/{fileId}` | Bearer 或已登入 | 下載或清除一筆暫存（約 6 小時） |
 | `DELETE /api/peer/files` | 已登入 | 清除全部傳檔暫存 |
 | `POST /api/peer/relay` 與 `/api/peer/relay/{id}/...` | Bearer | 直傳。雙方都要在線，只在記憶體轉手 |
-| `GET /api/chat`、`POST /api/chat/send` | 已登入；送出亦接受 Bearer | 店內廣播 |
-| `POST /api/chat/groups`、`POST /api/chat/groups/{id}`、`DELETE /api/chat/groups/{id}` | 已登入 | 建立、修改、解散群組 |
+| `GET /api/chat`、`POST /api/chat/send` | 已登入；送出亦接受 Bearer | 跟某台桌面端一對一說話 |
 | `POST /api/photos`、`GET /api/photos`、`DELETE /api/photos/{id}`、`DELETE /api/photos`、`POST /api/photos/notes`、`PUT /api/photos/notes/{id}` | 已登入 | 飲品牆照片與筆記 |
 
 聊天只在記憶體，重啟後清空。飲品牆的照片和筆記預設也是；設定 `PHOTO_STORAGE_DIR` 後改存磁碟。直傳不寫磁碟。

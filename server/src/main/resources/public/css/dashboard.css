@@ -1228,8 +1228,6 @@
     }
 
     .chat-nick input,
-    .chat-create input:not([type="checkbox"]),
-    .chat-editor input:not([type="checkbox"]),
     .chat-composer textarea {
       width: 100%;
       margin-top: 0.35rem;
@@ -1288,43 +1286,6 @@
       border-radius: 50%;
       background: var(--orange);
       flex: none;
-    }
-
-    .chat-create,
-    .chat-editor {
-      margin-top: 0.55rem;
-      padding-top: 0.55rem;
-      border-top: 1px solid var(--line-soft);
-    }
-
-    .chat-members {
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-      max-height: 140px;
-      overflow: auto;
-      margin-top: 0.4rem;
-      font-size: 0.82rem;
-    }
-
-    .chat-members label {
-      display: flex;
-      align-items: center;
-      flex-shrink: 0;
-      gap: 0.35rem;
-    }
-
-    .chat-members input[type="checkbox"] {
-      width: auto;
-      margin: 0;
-      flex-shrink: 0;
-    }
-
-    .chat-create-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-      margin-top: 0.45rem;
     }
 
     .chat-log {

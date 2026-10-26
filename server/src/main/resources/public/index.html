@@ -80,32 +80,11 @@
                   <div class="section-label">跟店講</div>
                   <div id="chatDmList" class="chat-room-list"></div>
                 </div>
-                <div class="chat-room-block">
-                  <div class="section-label">群組</div>
-                  <div id="chatGroupList" class="chat-room-list"></div>
-                  <button type="button" class="btn btn-ghost" id="chatNewGroupBtn">開一個群</button>
-                  <div id="chatCreateBox" class="chat-create" hidden>
-                    <input id="chatCreateName" maxlength="40" placeholder="這個群叫什麼，例如早班">
-                    <div id="chatCreateMembers" class="chat-members"></div>
-                    <div class="chat-create-actions">
-                      <button type="button" class="btn btn-primary" id="chatCreateSubmit">建立</button>
-                      <button type="button" class="btn btn-ghost" id="chatCreateCancel">取消</button>
-                    </div>
-                  </div>
-                </div>
               </aside>
               <section class="chat-thread">
                 <div class="chat-thread-head">
                   <strong id="chatThreadTitle">先挑一位</strong>
                   <p id="chatThreadHint" class="chat-hint">廣播大約 15 秒送到對方櫃檯。超過 6 小時沒來打烊，桌面端不會補聽，這裡還留著。</p>
-                </div>
-                <div id="chatGroupEditor" class="chat-editor" hidden>
-                  <input id="chatGroupName" maxlength="40" aria-label="群組名稱">
-                  <div id="chatMemberBox" class="chat-members"></div>
-                  <div class="chat-create-actions">
-                    <button type="button" class="btn btn-ghost" id="chatSaveGroup">存這個群</button>
-                    <button type="button" class="btn btn-ghost-danger" id="chatDeleteGroup">解散</button>
-                  </div>
                 </div>
                 <div id="chatLog" class="chat-log" aria-live="polite"></div>
                 <form id="chatComposer" class="chat-composer">

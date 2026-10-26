@@ -9,6 +9,8 @@ public final class WorkSlot {
     public static final String WORK_OUT_ID = "work-out";
     public static final String WORK_IN_NAME = "每日排程";
     public static final String WORK_OUT_NAME = "備用排程";
+    /** 自訂任務名稱最長字數。後台任務卡也用這個上限。 */
+    public static final int MAX_NAME_CHARS = 24;
 
     public enum Kind {
         WORK_IN(WORK_IN_ID, WORK_IN_NAME),
@@ -34,6 +36,34 @@ public final class WorkSlot {
 
     public static boolean isSlotId(String id) {
         return WORK_IN_ID.equals(id) || WORK_OUT_ID.equals(id);
+    }
+
+    /**
+     * 空白或舊的上下班名稱回到預設；其餘保留使用者輸入的名稱。
+     */
+    public static String normalizeName(Kind kind, String raw) {
+        String fallback = kind != null ? kind.displayName : WORK_IN_NAME;
+        if (raw == null) {
+            return fallback;
+        }
+        String name = raw.replace('\r', ' ').replace('\n', ' ').trim();
+        if (name.length() > MAX_NAME_CHARS) {
+            name = name.substring(0, MAX_NAME_CHARS).trim();
+        }
+        if (name.isEmpty() || isLegacyName(kind, name)) {
+            return fallback;
+        }
+        return name;
+    }
+
+    public static boolean isLegacyName(Kind kind, String name) {
+        if (name == null) {
+            return false;
+        }
+        if (kind == Kind.WORK_OUT) {
+            return "下班排程".equals(name) || "下班打卡".equals(name);
+        }
+        return "上班排程".equals(name) || "上班打卡".equals(name);
     }
 
     /** 畫面上不要出現打卡、上下班這類字。舊紀錄也一併換成現在的說法。 */

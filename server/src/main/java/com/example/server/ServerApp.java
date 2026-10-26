@@ -226,6 +226,7 @@ public final class ServerApp {
         String appReleaseTime = RouteSupport.stringOrDefault(body.get("appReleaseTime"), "");
         String appSourceDigest = RouteSupport.stringOrDefault(body.get("appSourceDigest"), "");
         List<Map<String, Object>> tasks = RouteSupport.tasksFromBody(body.get("tasks"));
+        ClientStore.normalizeReportedTaskNames(tasks);
 
         Map<String, Object> existing = clientStore.getOrCreateClient(clientId);
         long incomingSeq = RouteSupport.numberFrom(body.get("heartbeatSeq"));

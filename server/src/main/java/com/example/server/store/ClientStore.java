@@ -419,7 +419,7 @@ public final class ClientStore {
             if (t == null || t.get("id") == null) {
                 continue;
             }
-            String name = t.get("name") != null ? String.valueOf(t.get("name")) : String.valueOf(t.get("id"));
+            String name = displayTaskName(t.get("name") != null ? t.get("name") : t.get("id"));
             Map<String, Object> prev = prevById.get(String.valueOf(t.get("id")));
             if (prev == null) {
                 String when = firstNonEmpty(t.get("actualTime"), t.get("targetTime"));
@@ -555,6 +555,7 @@ public final class ClientStore {
             if (task.containsKey("targetUrl")) {
                 task.put("targetUrl", maskTargetUrl(String.valueOf(task.get("targetUrl"))));
             }
+            task.put("name", displayTaskName(task.get("name")));
             tasks.add(task);
         }
         return tasks;
@@ -647,10 +648,31 @@ public final class ClientStore {
         return sanitizeAvatar(stored);
     }
 
+    /** 心跳上報的任務名稱：去掉換行、最長 24 字，空白時給後台一個可讀名稱。 */
+    public static void normalizeReportedTaskNames(List<Map<String, Object>> tasks) {
+        if (tasks == null) {
+            return;
+        }
+        for (Map<String, Object> task : tasks) {
+            if (task == null) {
+                continue;
+            }
+            task.put("name", displayTaskName(task.get("name")));
+        }
+    }
+
+    public static String displayTaskName(Object raw) {
+        String name = raw == null ? "" : String.valueOf(raw).replace('\r', ' ').replace('\n', ' ').trim();
+        if (name.length() > 24) {
+            name = name.substring(0, 24).trim();
+        }
+        return name.isEmpty() ? "未命名任務" : name;
+    }
+
     private static String findTaskName(Map<String, Object> client, String taskId) {
         for (Map<String, Object> t : tasks(client)) {
             if (t != null && taskId.equals(String.valueOf(t.get("id")))) {
-                return t.get("name") != null ? String.valueOf(t.get("name")) : taskId;
+                return displayTaskName(t.get("name") != null ? t.get("name") : taskId);
             }
         }
         return taskId;

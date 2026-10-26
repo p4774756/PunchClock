@@ -52,9 +52,10 @@ java -jar client/target/punchclock-client-standalone.jar
 
 1. 勾選「啟用雲端單向狀態回報」
 2. 填入 Server 網址，例如 `http://localhost:3000`
-3. 設定 Client ID（預設 `company-worker`）
-4. 填入心跳 Token（需與伺服器 `HEARTBEAT_SECRET` 一致，本機預設 `punchclock-dev-secret`）
-5. 點擊「測試連線」確認成功
+3. 填入心跳 Token（需與伺服器 `HEARTBEAT_SECRET` 一致，本機預設 `punchclock-dev-secret`）
+4. 點擊「測試連線」確認成功
+
+裝置 ID（預設 `company-worker`）在「好友與傳檔」。
 
 ### 4. 公司受限網路
 
@@ -69,11 +70,21 @@ java -jar client/target/punchclock-client-standalone.jar
 
   或在網路正常的電腦打包好 `punchclock-client-standalone.jar` 再帶過去執行。
 
+## 操作畫面
+
+桌面端目前的樣子。視窗標題是「洋流」。
+
+| 首頁 | 排程任務 |
+| ------ | ------ |
+| ![首頁：今日排程、好友動態與快捷操作](docs/screenshots/home.png) | ![排程任務：自訂名稱、Selector 與執行記錄](docs/screenshots/schedule.png) |
+| 好友與傳檔 | 設定 |
+| ![好友與傳檔：裝置 ID、好友與傳檔紀錄](docs/screenshots/friends.png) | ![設定：雲端連線與程式更新](docs/screenshots/settings.png) |
+
 ## 主要功能
 
 ### 桌面端
 
-- 多任務排程（支援單次新增、批量建立週一至週五）
+- 多任務排程（支援單次新增、批量建立週一至週五）。排程名稱可自訂，後台任務卡顯示同一個名字
 - 隨機時間浮動（±5 分鐘，避免固定時間打卡）
 - 任務編輯、重新排定、立即執行
 - 本地任務持久化（`~/.punchclock/tasks.json`）
@@ -81,7 +92,7 @@ java -jar client/target/punchclock-client-standalone.jar
 - 支援 Edge、Chrome、Chromium、Firefox、WebKit
 - 同事傳檔：任意副檔名、可傳資料夾（自動壓 ZIP）、傳檔紀錄可在過期前重複下載或手動清除。兩邊都在線時可改走直傳，檔案只在伺服器記憶體轉手，不寫入磁碟
 - 中繼 Proxy：讓區網內連不到雲端的同事透過你的電腦轉發心跳等請求
-- 跟同事或後台聊天（含群組）。對話在伺服器重啟後清空
+- 跟同事一對一聊天，或跟後台說話。對話在伺服器重啟後清空
 - 自動更新：伺服器附帶最新的桌面端 jar，心跳發現原始碼摘要不同時詢問是否更新（詳見下方「桌面端自動更新」）
 
 ### 桌面端自動更新
@@ -116,7 +127,7 @@ java -jar client/target/punchclock-client-standalone.jar
 | 區域 | 內容 |
 | ------ | ------ |
 | 點單 | 裝置狀態、遠端取消排程或單一任務 |
-| 店內廣播 | 跟桌面端私訊或群組。只放伺服器記憶體，重啟後清空 |
+| 店內廣播 | 跟桌面端一對一說話。只放伺服器記憶體，重啟後清空 |
 | 外帶架 | 傳檔暫存，約 6 小時；過期前可下載，也可手動清除 |
 | 製茶機 | CPU、JVM／系統記憶體、傳檔暫存用量。每分鐘取樣，保留約 3 天，寫在 `~/.punchclock/server-health-history.json` |
 | 飲品牆 | 照片、筆記與連結。預設只放記憶體，重啟後清空；設定 `PHOTO_STORAGE_DIR` 後改存該目錄 |

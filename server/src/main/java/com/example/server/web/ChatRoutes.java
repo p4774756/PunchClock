@@ -40,9 +40,6 @@ public final class ChatRoutes {
         app.post("/api/clients/{clientId}/message", this::adminMessage);
         app.get("/api/chat", this::chatSnapshot);
         app.post("/api/chat/send", this::chatSend);
-        app.post("/api/chat/groups", this::chatCreateGroup);
-        app.post("/api/chat/groups/{groupId}", this::chatUpdateGroup);
-        app.delete("/api/chat/groups/{groupId}", this::chatDeleteGroup);
     }
 
     private void peerMessage(Context ctx) {
@@ -138,56 +135,6 @@ public final class ChatRoutes {
                         RouteSupport.stringOrNull(body.get("fromClientId")),
                         RouteSupport.stringOrNull(body.get("roomId")),
                         RouteSupport.stringOrNull(body.get("text")));
-        if (!outcome.ok) {
-            ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", outcome.message));
-            return;
-        }
-        deliverChat(outcome);
-        ctx.json(Map.of("success", true, "message", outcome.message, "rooms", chatStore.snapshot()));
-    }
-
-    private void chatCreateGroup(Context ctx) {
-        if (!requireAdmin(ctx)) {
-            return;
-        }
-        Map<String, Object> body = jsonBody(ctx);
-        ChatStore.Outcome outcome = chatStore.createGroup(
-                RouteSupport.stringOrNull(body.get("name")), RouteSupport.stringList(body.get("members")));
-        finishChatMutation(ctx, outcome);
-    }
-
-    private void chatUpdateGroup(Context ctx) {
-        if (!requireAdmin(ctx)) {
-            return;
-        }
-        Map<String, Object> body = jsonBody(ctx);
-        ChatStore.Outcome outcome = chatStore.updateGroup(
-                ctx.pathParam("groupId"), RouteSupport.stringOrNull(body.get("name")), RouteSupport.stringList(body.get("members")));
-        finishChatMutation(ctx, outcome);
-    }
-
-    private void chatDeleteGroup(Context ctx) {
-        if (!requireAdmin(ctx)) {
-            return;
-        }
-        ChatStore.Outcome outcome = chatStore.deleteGroup(ctx.pathParam("groupId"));
-        finishChatMutation(ctx, outcome);
-    }
-
-    private boolean requireAdmin(Context ctx) {
-        if (authService.isAuth(ctx)) {
-            return true;
-        }
-        ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
-        return false;
-    }
-
-    private Map<String, Object> jsonBody(Context ctx) {
-        Map<String, Object> body = gson.fromJson(ctx.body(), RouteSupport.MAP_TYPE);
-        return body == null ? Map.of() : body;
-    }
-
-    private void finishChatMutation(Context ctx, ChatStore.Outcome outcome) {
         if (!outcome.ok) {
             ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", outcome.message));
             return;

@@ -10,7 +10,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -123,13 +122,6 @@ public final class ChatStore {
             Room room = ensureDm(clientId);
             return append(room, ChatProtocol.ADMIN_ID, display, true, body, "");
         }
-        if (ChatProtocol.isGroupRoom(roomId)) {
-            Room room = rooms.get(roomId);
-            if (room == null || !ChatProtocol.KIND_GROUP.equals(room.kind)) {
-                return Outcome.fail("找不到這個群組");
-            }
-            return append(room, ChatProtocol.ADMIN_ID, display, true, body, "");
-        }
         return Outcome.fail("找不到這段對話");
     }
 
@@ -150,64 +142,7 @@ public final class ChatStore {
             Room room = ensureDm(fromId);
             return append(room, fromId, fromId, false, body, fromId);
         }
-        if (ChatProtocol.isGroupRoom(roomId)) {
-            Room room = rooms.get(roomId);
-            if (room == null || !ChatProtocol.KIND_GROUP.equals(room.kind)) {
-                return Outcome.fail("找不到這個群組");
-            }
-            if (!room.members.contains(fromId)) {
-                return Outcome.fail("你不在這個群組");
-            }
-            return append(room, fromId, fromId, false, body, fromId);
-        }
         return Outcome.fail("找不到這段對話");
-    }
-
-    public synchronized Outcome createGroup(String name, List<String> members) {
-        String cleanName = ChatProtocol.sanitizeGroupName(name);
-        if (cleanName.isEmpty()) {
-            return Outcome.fail("請填群組名稱");
-        }
-        List<String> cleanMembers = cleanMembers(members);
-        if (cleanMembers.isEmpty()) {
-            return Outcome.fail("請至少選一位同事");
-        }
-        if (groupCount() >= ChatProtocol.MAX_GROUPS) {
-            return Outcome.fail("群組已達上限 " + ChatProtocol.MAX_GROUPS);
-        }
-        String id = newGroupId();
-        Room room = new Room(id, ChatProtocol.KIND_GROUP, cleanName);
-        room.members.addAll(cleanMembers);
-        rooms.put(id, room);
-        return Outcome.sent("已建立群組", "", List.of());
-    }
-
-    public synchronized Outcome updateGroup(String groupId, String name, List<String> members) {
-        Room room = rooms.get(groupId);
-        if (room == null || !ChatProtocol.KIND_GROUP.equals(room.kind)) {
-            return Outcome.fail("找不到這個群組");
-        }
-        String cleanName = ChatProtocol.sanitizeGroupName(name);
-        if (cleanName.isEmpty()) {
-            return Outcome.fail("請填群組名稱");
-        }
-        List<String> cleanMembers = cleanMembers(members);
-        if (cleanMembers.isEmpty()) {
-            return Outcome.fail("請至少留一位同事");
-        }
-        room.name = cleanName;
-        room.members.clear();
-        room.members.addAll(cleanMembers);
-        return Outcome.sent("已更新群組", "", List.of());
-    }
-
-    public synchronized Outcome deleteGroup(String groupId) {
-        Room room = rooms.get(groupId);
-        if (room == null || !ChatProtocol.KIND_GROUP.equals(room.kind)) {
-            return Outcome.fail("找不到這個群組");
-        }
-        rooms.remove(groupId);
-        return Outcome.sent("已解散群組", "", List.of());
     }
 
     private Outcome append(Room room, String fromId, String nick, boolean fromAdmin, String text, String excludeClientId) {
@@ -237,44 +172,6 @@ public final class ChatStore {
         room.members.add(clientId);
         rooms.put(roomId, room);
         return room;
-    }
-
-    private int groupCount() {
-        int count = 0;
-        for (Room room : rooms.values()) {
-            if (ChatProtocol.KIND_GROUP.equals(room.kind)) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private String newGroupId() {
-        for (int i = 0; i < 8; i++) {
-            String id = ChatProtocol.GROUP_PREFIX + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
-            if (!rooms.containsKey(id)) {
-                return id;
-            }
-        }
-        return ChatProtocol.GROUP_PREFIX + UUID.randomUUID().toString().replace("-", "");
-    }
-
-    private static List<String> cleanMembers(List<String> members) {
-        List<String> clean = new ArrayList<>();
-        if (members == null) {
-            return clean;
-        }
-        for (String raw : members) {
-            String id = PeerFileRules.normalizeClientId(raw);
-            if (id.isEmpty() || ChatProtocol.ADMIN_ID.equals(id) || clean.contains(id)) {
-                continue;
-            }
-            clean.add(id);
-            if (clean.size() >= ChatProtocol.MAX_MEMBERS) {
-                break;
-            }
-        }
-        return clean;
     }
 
     private static String rejectText(String body) {

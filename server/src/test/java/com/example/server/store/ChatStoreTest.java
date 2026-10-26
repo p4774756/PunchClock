@@ -50,49 +50,9 @@ public class ChatStoreTest {
     }
 
     @Test
-    public void groupFansOutExceptSender() {
-        ChatStore store = new ChatStore();
-        ChatStore.Outcome created = store.createGroup("早班", List.of("a", "b", "a", "後台", ""));
-        assertTrue(created.message, created.ok);
-
-        String groupId = store.snapshot().get(0).get("id").toString();
-        ChatStore.Outcome fromA = store.sendFromClient("a", groupId, "早");
-        assertTrue(fromA.ok);
-        assertEquals(List.of("b"), fromA.targets);
-
-        ChatStore.Outcome outsider = store.sendFromClient("c", groupId, "我要進來");
-        assertFalse(outsider.ok);
-
-        ChatStore.Outcome fromDesk = store.sendFromAdmin(groupId, "店長", "集合");
-        assertTrue(fromDesk.ok);
-        assertEquals(List.of("a", "b"), fromDesk.targets);
-
-        List<Map<String, Object>> visible = store.clientRooms("b");
-        assertEquals(1, visible.size());
-        assertEquals("早班", visible.get(0).get("name"));
-        assertTrue(store.clientRooms("c").isEmpty());
-    }
-
-    @Test
-    public void updateAndDeleteGroup() {
-        ChatStore store = new ChatStore();
-        assertTrue(store.createGroup("早班", List.of("a")).ok);
-        String groupId = store.snapshot().get(0).get("id").toString();
-        assertTrue(store.updateGroup(groupId, "晚班", List.of("b", "c")).ok);
-        assertEquals("晚班", store.snapshot().get(0).get("name"));
-        assertEquals(List.of("b", "c"), store.snapshot().get(0).get("members"));
-        assertTrue(store.clientRooms("a").isEmpty());
-        assertTrue(store.deleteGroup(groupId).ok);
-        assertTrue(store.snapshot().isEmpty());
-        assertFalse(store.deleteGroup(groupId).ok);
-    }
-
-    @Test
-    public void rejectsEmptyTextAndBlankGroup() {
+    public void rejectsEmptyText() {
         ChatStore store = new ChatStore();
         assertFalse(store.sendFromAdmin("dm:worker-a", "小王", "  ").ok);
-        assertFalse(store.createGroup("  ", List.of("a")).ok);
-        assertFalse(store.createGroup("早班", List.of()).ok);
     }
 
     @Test

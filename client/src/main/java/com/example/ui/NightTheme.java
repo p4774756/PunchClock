@@ -112,7 +112,8 @@ public final class NightTheme {
     }
 
     /**
-     * 包一層捲動：視窗夠高時內容撐滿，不夠高時往下捲，避免欄位被裁掉。
+     * 包一層捲動。寬度一律跟上視窗，避免差幾個像素就出現橫向捲軸。
+     * 高度夠時撐滿；放不下時才往下捲，避免欄位被裁掉。
      */
     public static JComponent page(JComponent body) {
         apply(body);
@@ -453,7 +454,7 @@ public final class NightTheme {
         @Override
         public boolean getScrollableTracksViewportWidth() {
             Container parent = getParent();
-            return parent != null && parent.getWidth() > 0 && getPreferredSize().width <= parent.getWidth();
+            return parent != null && parent.getWidth() > 0;
         }
 
         @Override

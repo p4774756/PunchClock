@@ -88,8 +88,6 @@ public class App extends JFrame {
     /** 同事聊天紀錄（只存記憶體）。 */
     private final PeerChatStore chatStore = new PeerChatStore();
     private final Map<String, PeerChatWindow> chatWindows = new LinkedHashMap<>();
-    /** 後台把本機加進去的群組，隨心跳更新。 */
-    private List<HeartbeatService.ChatRoomInfo> deskRooms = List.of();
     /** 最近一次從該同事收到訊息時附帶的大頭照。 */
     private final Map<String, String> peerAvatars = new HashMap<>();
     private boolean peerInteractionEnabled = true;
@@ -149,8 +147,6 @@ public class App extends JFrame {
                 SwingUtilities.invokeLater(() -> updateCoordinator.handle(notice)));
         heartbeatService.setRoomMessageListener(message ->
                 SwingUtilities.invokeLater(() -> showRoomMessage(message)));
-        heartbeatService.setChatRoomsListener(rooms ->
-                SwingUtilities.invokeLater(() -> updateDeskRooms(rooms)));
         heartbeatService.setCommandListener(command -> {
             if ("CANCEL_SCHEDULE".equalsIgnoreCase(command)) {
                 SwingUtilities.invokeLater(slotController::handleRemoteCancelAll);
@@ -275,13 +271,13 @@ public class App extends JFrame {
 
         JPanel slotPanel = PanelFactory.createSlotPanel(slotRefs, mainFont, boldFont, fieldFont);
         JPanel historyPanel = PanelFactory.createCheckInHistoryPanel(historyRefs, mainFont, boldFont);
-        JPanel tasksBody = new JPanel(new BorderLayout(0, 14));
+        JPanel tasksBody = new JPanel(new BorderLayout(0, 0));
         tasksBody.setOpaque(false);
         tasksBody.add(slotPanel, BorderLayout.NORTH);
         tasksBody.add(historyPanel, BorderLayout.CENTER);
         JPanel tasksTab = new JPanel(new BorderLayout(0, 6));
         tasksTab.setOpaque(false);
-        tasksTab.setBorder(new EmptyBorder(12, 8, 28, 8));
+        tasksTab.setBorder(new EmptyBorder(8, 8, 8, 8));
         tasksTab.add(tasksBody, BorderLayout.CENTER);
 
         JTabbedPane settingsTabs = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont, fieldFont);
@@ -347,6 +343,11 @@ public class App extends JFrame {
             @Override
             public void openChat() {
                 shell.openTab(2);
+            }
+
+            @Override
+            public void openRecentFriend() {
+                openRecentFriendChat();
             }
 
             @Override
@@ -498,9 +499,6 @@ public class App extends JFrame {
         if (peerRefs.deskChatButton != null) {
             peerRefs.deskChatButton.addActionListener(e -> openDeskChat());
         }
-        if (peerRefs.openGroupChatButton != null) {
-            peerRefs.openGroupChatButton.addActionListener(e -> openGroupChat());
-        }
         if (peerRefs.peerTable != null) {
             peerRefs.peerTable.addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
@@ -570,23 +568,6 @@ public class App extends JFrame {
         if (peerRefs.deskChatButton != null) {
             peerRefs.deskChatButton.setEnabled(peerInteractionEnabled);
         }
-        refreshGroupChatControls();
-    }
-
-    private void refreshGroupChatControls() {
-        if (peerRefs.groupChatCombo == null || peerRefs.openGroupChatButton == null) {
-            return;
-        }
-        boolean hasGroup = false;
-        for (int i = 0; i < peerRefs.groupChatCombo.getItemCount(); i++) {
-            Object item = peerRefs.groupChatCombo.getItemAt(i);
-            if (item instanceof DeskRoomItem && !((DeskRoomItem) item).id.isEmpty()) {
-                hasGroup = true;
-                break;
-            }
-        }
-        peerRefs.groupChatCombo.setEnabled(peerInteractionEnabled && hasGroup);
-        peerRefs.openGroupChatButton.setEnabled(peerInteractionEnabled && hasGroup);
     }
 
     private PeerChatWindow ensureChatWindow(String peerId) {
@@ -642,52 +623,8 @@ public class App extends JFrame {
         ensureDeskWindow(ChatProtocol.dmRoomId(clientId), "後台").showAndFocus();
     }
 
-    private void openGroupChat() {
-        if (peerRefs.groupChatCombo == null) {
-            return;
-        }
-        Object selected = peerRefs.groupChatCombo.getSelectedItem();
-        if (!(selected instanceof DeskRoomItem) || ((DeskRoomItem) selected).id.isEmpty()) {
-            appendLog("[警告] [聊天] 尚未加入任何群組");
-            return;
-        }
-        if (!isCloudEnabled()) {
-            appendLog("[警告] [聊天] 請先啟用雲端狀態回報");
-            return;
-        }
-        DeskRoomItem room = (DeskRoomItem) selected;
-        ensureDeskWindow(room.id, room.name).showAndFocus();
-    }
-
-    private void updateDeskRooms(List<HeartbeatService.ChatRoomInfo> rooms) {
-        deskRooms = rooms == null ? List.of() : rooms;
-        if (peerRefs.groupChatCombo == null) {
-            return;
-        }
-        String selectedId = "";
-        Object selected = peerRefs.groupChatCombo.getSelectedItem();
-        if (selected instanceof DeskRoomItem) {
-            selectedId = ((DeskRoomItem) selected).id;
-        }
-        peerRefs.groupChatCombo.removeAllItems();
-        int selectIndex = 0;
-        if (deskRooms.isEmpty()) {
-            peerRefs.groupChatCombo.addItem(new DeskRoomItem("", "尚無群組"));
-        } else {
-            for (int i = 0; i < deskRooms.size(); i++) {
-                HeartbeatService.ChatRoomInfo room = deskRooms.get(i);
-                peerRefs.groupChatCombo.addItem(new DeskRoomItem(room.id, room.name));
-                if (room.id.equals(selectedId)) {
-                    selectIndex = i;
-                }
-            }
-            peerRefs.groupChatCombo.setSelectedIndex(selectIndex);
-        }
-        refreshGroupChatControls();
-    }
-
     private void showRoomMessage(ChatProtocol.RoomMessage message) {
-        if (message == null || !ChatProtocol.isDeskRoom(message.roomId)) {
+        if (message == null || !ChatProtocol.isDmRoom(message.roomId)) {
             return;
         }
         if (message.fromId.equals(heartbeatService.getClientId())) {
@@ -698,9 +635,7 @@ public class App extends JFrame {
         appendLog("[訊息] 【聊天】（" + timeLabel + "）【" + speaker + "】：" + message.text);
         PeerChatStore.Entry entry = chatStore.addMessage(
                 message.roomId, false, message.text, "", message.timeMs, speaker);
-        String heading = ChatProtocol.isGroupRoom(message.roomId)
-                ? (message.roomName == null || message.roomName.isBlank() ? "群組" : message.roomName)
-                : "後台";
+        String heading = "後台";
         Toolkit.getDefaultToolkit().beep();
         PeerChatWindow existing = chatWindows.get(message.roomId);
         if (existing == null) {
@@ -709,21 +644,6 @@ public class App extends JFrame {
             existing.setHeading(heading);
             existing.append(entry);
             existing.showAndFocus();
-        }
-    }
-
-    private static final class DeskRoomItem {
-        final String id;
-        final String name;
-
-        DeskRoomItem(String id, String name) {
-            this.id = id == null ? "" : id;
-            this.name = name == null || name.isBlank() ? this.id : name;
-        }
-
-        @Override
-        public String toString() {
-            return name;
         }
     }
 
@@ -930,15 +850,19 @@ public class App extends JFrame {
         }
     }
 
+    private void openRecentFriendChat() {
+        PeerInfo recent = mostRecentPeer();
+        if (!isCloudEnabled() || recent == null || recent.clientId == null || recent.clientId.isBlank()) {
+            shell.openTab(2);
+            return;
+        }
+        ensureChatWindow(recent.clientId).showAndFocus();
+    }
+
     private void promptSendFile() {
         if (!isCloudEnabled()) {
             UiFonts.showMessage(this, "請先到設定啟用雲端，才能傳檔。", "傳送檔案", JOptionPane.INFORMATION_MESSAGE);
             shell.openTab(2);
-            return;
-        }
-        String selected = getSelectedPeerClientId();
-        if (selected != null && !isSelfClientId(selected)) {
-            sendFilesToPeer(selected, this);
             return;
         }
         List<String> ids = new ArrayList<>();
@@ -957,10 +881,6 @@ public class App extends JFrame {
         if (ids.isEmpty()) {
             UiFonts.showMessage(this, "目前沒有可傳送的好友。", "傳送檔案", JOptionPane.INFORMATION_MESSAGE);
             shell.openTab(2);
-            return;
-        }
-        if (ids.size() == 1) {
-            sendFilesToPeer(ids.get(0), this);
             return;
         }
         int choice = UiFonts.showChoice(this, "要傳給哪一位好友？", "傳送檔案", ids.toArray(new String[0]));
@@ -982,7 +902,7 @@ public class App extends JFrame {
             return;
         }
         JFileChooser chooser = UiFonts.fileChooser();
-        chooser.setDialogTitle("選擇要傳送的檔案或資料夾（可多選，多個項目會打包成一個 ZIP）");
+        chooser.setDialogTitle("傳送給 " + toClientId + "：選擇檔案或資料夾（可多選，多個項目會打包成一個 ZIP）");
         chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
         chooser.setMultiSelectionEnabled(true);
         chooser.setAcceptAllFileFilterUsed(true);
@@ -1883,8 +1803,8 @@ public class App extends JFrame {
             }
             saveCloudConfig();
         });
-        serverRefs.clientIdCombo.addActionListener(e -> applyClientIdFromUI(true));
-        java.awt.Component editor = serverRefs.clientIdCombo.getEditor().getEditorComponent();
+        peerRefs.clientIdCombo.addActionListener(e -> applyClientIdFromUI(true));
+        java.awt.Component editor = peerRefs.clientIdCombo.getEditor().getEditorComponent();
         editor.addFocusListener(new java.awt.event.FocusAdapter() {
             @Override
             public void focusLost(java.awt.event.FocusEvent e) {
@@ -2039,6 +1959,8 @@ public class App extends JFrame {
                 + "你的區網 IP：" + localIps + "\n"
                 + "同事的「Server 雲端網址」請改成：http://<你的IP>:" + port + "\n"
                 + "轉發目標：" + target);
+        PanelFactory.fitRelayHelp(serverRefs.relayHelpArea);
+        serverRefs.relayHelpArea.revalidate();
     }
 
     private static String getLocalIpAddresses() {
@@ -2088,9 +2010,9 @@ public class App extends JFrame {
                 serverHistoryMenuBound = true;
             }
         }
-        if (serverRefs.clientIdCombo != null && config.clientId != null) {
+        if (peerRefs.clientIdCombo != null && config.clientId != null) {
             ensureClientIdOption(config.clientId);
-            serverRefs.clientIdCombo.setSelectedItem(config.clientId);
+            peerRefs.clientIdCombo.setSelectedItem(config.clientId);
             heartbeatService.setClientId(config.clientId);
         }
         if (serverRefs.heartbeatTokenField != null && config.heartbeatToken != null) {
@@ -2134,10 +2056,10 @@ public class App extends JFrame {
     private void syncCloudConnectionFieldsEnabled() {
         if (serverRefs.enableServerCheckBox == null) return;
         boolean cloudOn = serverRefs.enableServerCheckBox.isSelected();
-        if (serverRefs.clientIdCombo != null) {
-            serverRefs.clientIdCombo.setEnabled(!cloudOn);
-            if (serverRefs.clientIdCombo.isEditable()) {
-                java.awt.Component editor = serverRefs.clientIdCombo.getEditor().getEditorComponent();
+        if (peerRefs.clientIdCombo != null) {
+            peerRefs.clientIdCombo.setEnabled(!cloudOn);
+            if (peerRefs.clientIdCombo.isEditable()) {
+                java.awt.Component editor = peerRefs.clientIdCombo.getEditor().getEditorComponent();
                 if (editor != null) {
                     editor.setEnabled(!cloudOn);
                 }
@@ -2155,8 +2077,8 @@ public class App extends JFrame {
     }
 
     private void applyClientIdFromUI(boolean persist) {
-        if (serverRefs.clientIdCombo == null) return;
-        Object item = serverRefs.clientIdCombo.getSelectedItem();
+        if (peerRefs.clientIdCombo == null) return;
+        Object item = peerRefs.clientIdCombo.getSelectedItem();
         if (item == null) return;
         String clientId = item.toString().trim();
         if (clientId.isEmpty()) return;
@@ -2172,14 +2094,14 @@ public class App extends JFrame {
     }
 
     private void ensureClientIdOption(String clientId) {
-        if (clientId == null || clientId.isBlank() || serverRefs.clientIdCombo == null) return;
-        javax.swing.ComboBoxModel<String> model = serverRefs.clientIdCombo.getModel();
+        if (clientId == null || clientId.isBlank() || peerRefs.clientIdCombo == null) return;
+        javax.swing.ComboBoxModel<String> model = peerRefs.clientIdCombo.getModel();
         for (int i = 0; i < model.getSize(); i++) {
             if (clientId.equals(model.getElementAt(i))) {
                 return;
             }
         }
-        serverRefs.clientIdCombo.addItem(clientId);
+        peerRefs.clientIdCombo.addItem(clientId);
     }
 
     private void saveCloudConfig() {
@@ -2188,7 +2110,7 @@ public class App extends JFrame {
         ConfigPersistenceService.CloudConfig config = slotController.readConfigFromUi();
         config.serverUrl = RecentValuesHelper.getValue(serverRefs.serverUrlCombo);
         ConfigPersistenceService.pushRecent(config.recentServerUrls, config.serverUrl);
-        Object clientItem = serverRefs.clientIdCombo.getSelectedItem();
+        Object clientItem = peerRefs.clientIdCombo.getSelectedItem();
         config.clientId = clientItem != null ? clientItem.toString().trim() : "company-worker";
         if (serverRefs.heartbeatTokenField != null) {
             config.heartbeatToken = new String(serverRefs.heartbeatTokenField.getPassword());

@@ -3,7 +3,6 @@ package com.example.ui;
 import com.example.model.WorkSlot;
 import com.example.service.CheckInHistoryService;
 import com.example.service.PeerAvatar;
-import com.example.service.WindowBackground;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
@@ -29,17 +28,10 @@ public class PanelFactory {
     // ==================== 分組 1: 設定 ====================
 
     /**
-     * 設定頁的三個子分頁：連線（雲端連線與程式更新）、外觀、中繼。
+     * 設定頁的兩個子分頁：連線（雲端連線與程式更新）、中繼。
      * 呼叫端需透過 refs 取得元件引用。
      */
     public static JTabbedPane createServerConfigBody(ServerConfigRefs refs, Font mainFont, Font boldFont, Font fieldFont) {
-        String[] workerOptions = { "company-worker", "company-worker2", "company-worker3", "company-worker4" };
-        refs.clientIdCombo = new JComboBox<>(workerOptions);
-        refs.clientIdCombo.setEditable(true);
-        refs.clientIdCombo.setFont(mainFont);
-        refs.clientIdCombo.setPrototypeDisplayValue("company-worker4");
-        refs.clientIdCombo.setToolTipText("可下拉選擇預設值，或直接輸入自訂 Worker ID；雲端連線中會鎖定，請先取消「啟用雲端」再修改");
-
         refs.heartbeatTokenField = new JPasswordField("punchclock-dev-secret");
         refs.heartbeatTokenField.setFont(fieldFont);
         refs.heartbeatTokenField.setColumns(18);
@@ -50,12 +42,9 @@ public class PanelFactory {
                 "心跳伺服器網址，例如 https://xxx.onrender.com；雲端連線中會鎖定，請先取消「啟用雲端」再修改");
         refs.serverUrlCombo.setPrototypeDisplayValue("http://localhost:3000");
 
-        lockFieldHeight(refs.clientIdCombo);
         lockFieldHeight(refs.heartbeatTokenField);
         lockFieldHeight(refs.serverUrlCombo);
 
-        JLabel clientIdLabel = new JLabel("裝置 ID / Worker ID：");
-        clientIdLabel.setFont(mainFont);
         JLabel tokenLabel = new JLabel("心跳 Token：");
         tokenLabel.setFont(mainFont);
         JLabel serverUrlLabel = new JLabel("Server 雲端網址：");
@@ -85,7 +74,7 @@ public class PanelFactory {
         JPanel cloud = new JPanel();
         cloud.setOpaque(false);
         cloud.setLayout(new BoxLayout(cloud, BoxLayout.Y_AXIS));
-        cloud.add(formRow(clientIdLabel, refs.clientIdCombo, tokenLabel, refs.heartbeatTokenField));
+        cloud.add(formRow(tokenLabel, refs.heartbeatTokenField));
         cloud.add(Box.createVerticalStrut(10));
         cloud.add(formRowStretch(serverUrlLabel, refs.serverUrlCombo));
         cloud.add(Box.createVerticalStrut(10));
@@ -108,13 +97,10 @@ public class PanelFactory {
         tabs.addTab("連線", settingsPage(
                 settingsSection("雲端連線", boldFont, cloud),
                 settingsSection("程式更新", boldFont, updates)));
-        tabs.addTab("外觀", settingsPage(
-                settingsSection("程式背景", boldFont, backgroundRow(refs, mainFont, boldFont))));
         tabs.addTab("中繼", settingsPage(
                 settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont))));
         tabs.setToolTipTextAt(SETTINGS_CONNECTION_TAB, "雲端連線與程式更新");
-        tabs.setToolTipTextAt(1, "程式背景圖、模糊與透明度");
-        tabs.setToolTipTextAt(2, "讓區網內的同事經由這台電腦連到雲端");
+        tabs.setToolTipTextAt(1, "讓區網內的同事經由這台電腦連到雲端");
         tabs.setSelectedIndex(SETTINGS_CONNECTION_TAB);
         return tabs;
     }
@@ -204,98 +190,39 @@ public class PanelFactory {
         refs.relayHelpArea.setBackground(new Color(248, 250, 252, 140));
         refs.relayHelpArea.setForeground(NightTheme.MUTED);
         refs.relayHelpArea.setMargin(new java.awt.Insets(6, 8, 6, 8));
-        refs.relayHelpArea.setRows(4);
+        refs.relayHelpArea.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225, 160)));
         refs.relayHelpArea.setText(""
                 + "同事連不到 Server，但你可以？試試中繼 Proxy！\n"
                 + "啟用後，同事把「Server 雲端網址」改成 http://你的IP:8888\n"
                 + "你的 App 會幫同事把請求轉發到真正的 Server。");
-
-        JScrollPane helpScroll = new JScrollPane(refs.relayHelpArea);
-        helpScroll.setOpaque(false);
-        helpScroll.getViewport().setOpaque(false);
-        helpScroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225, 160)));
-        helpScroll.setPreferredSize(new Dimension(400, 72));
+        fitRelayHelp(refs.relayHelpArea);
 
         top.setAlignmentX(Component.LEFT_ALIGNMENT);
-        helpScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+        refs.relayHelpArea.setAlignmentX(Component.LEFT_ALIGNMENT);
         column.add(top);
         column.add(Box.createVerticalStrut(4));
-        column.add(helpScroll);
+        column.add(refs.relayHelpArea);
 
         return column;
     }
 
-    private static JPanel backgroundRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
-        refs.backgroundPreview = new JLabel();
-        refs.backgroundPreview.setPreferredSize(new Dimension(
-                WindowBackground.PREVIEW_WIDTH, WindowBackground.PREVIEW_HEIGHT));
-        refs.backgroundPreview.setMinimumSize(refs.backgroundPreview.getPreferredSize());
-        refs.backgroundPreview.setToolTipText("程式視窗背景預覽；實際會等比裁切填滿視窗");
-        refs.backgroundPreview.setIcon(WindowBackground.previewIcon(null));
-
-        refs.chooseBackgroundButton = new JButton("選擇背景");
-        refs.chooseBackgroundButton.setFont(boldFont);
-        refs.chooseBackgroundButton.setToolTipText("選擇 JPG／PNG／GIF 作為程式背景");
-        refs.clearBackgroundButton = new JButton("還原預設");
-        refs.clearBackgroundButton.setFont(mainFont);
-        refs.clearBackgroundButton.setToolTipText("清除自訂背景，還原預設底色");
-        refs.clearBackgroundButton.setEnabled(false);
-
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        top.setOpaque(false);
-        top.add(refs.backgroundPreview);
-        top.add(refs.chooseBackgroundButton);
-        top.add(refs.clearBackgroundButton);
-
-        refs.backgroundBlurSlider = new JSlider(0, WindowBackground.MAX_BLUR_PERCENT, 0);
-        refs.backgroundBlurSlider.setOpaque(false);
-        refs.backgroundBlurSlider.setFocusable(false);
-        refs.backgroundBlurSlider.setPreferredSize(new Dimension(160, 22));
-        refs.backgroundBlurSlider.setToolTipText("背景圖模糊程度；向右越糊，方便閱讀前景文字");
-        refs.backgroundBlurValueLabel = new JLabel("0%");
-        refs.backgroundBlurValueLabel.setFont(mainFont);
-        refs.backgroundBlurValueLabel.setForeground(NightTheme.MUTED);
-        refs.backgroundBlurValueLabel.setPreferredSize(new Dimension(40, 22));
-
-        refs.backgroundOpacitySlider = new JSlider(0, WindowBackground.MAX_OPACITY_PERCENT,
-                WindowBackground.DEFAULT_OPACITY_PERCENT);
-        refs.backgroundOpacitySlider.setOpaque(false);
-        refs.backgroundOpacitySlider.setFocusable(false);
-        refs.backgroundOpacitySlider.setPreferredSize(new Dimension(160, 22));
-        refs.backgroundOpacitySlider.setToolTipText("背景圖不透明度；向右越清楚，向左越淡");
-        refs.backgroundOpacityValueLabel = new JLabel(WindowBackground.DEFAULT_OPACITY_PERCENT + "%");
-        refs.backgroundOpacityValueLabel.setFont(mainFont);
-        refs.backgroundOpacityValueLabel.setForeground(NightTheme.MUTED);
-        refs.backgroundOpacityValueLabel.setPreferredSize(new Dimension(40, 22));
-
-        JPanel blurRow = sliderRow(mainFont, "模糊：", refs.backgroundBlurSlider, refs.backgroundBlurValueLabel);
-        JPanel opacityRow = sliderRow(mainFont, "透明度：", refs.backgroundOpacitySlider, refs.backgroundOpacityValueLabel);
-
-        JPanel column = new JPanel();
-        column.setOpaque(false);
-        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
-        column.setAlignmentX(Component.LEFT_ALIGNMENT);
-        top.setAlignmentX(Component.LEFT_ALIGNMENT);
-        blurRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        opacityRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        column.add(top);
-        column.add(Box.createVerticalStrut(4));
-        column.add(blurRow);
-        column.add(Box.createVerticalStrut(2));
-        column.add(opacityRow);
-        setBackgroundEffectControlsEnabled(refs, false);
-        return column;
-    }
-
-    private static JPanel sliderRow(Font font, String title, JSlider slider, JLabel valueLabel) {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        row.setOpaque(false);
-        JLabel label = new JLabel(title);
-        label.setFont(font);
-        row.add(label);
-        row.add(slider);
-        row.add(valueLabel);
-        return row;
+    /** 說明只有幾行，依內容撐高，不另開捲動。 */
+    public static void fitRelayHelp(JTextArea area) {
+        if (area == null) {
+            return;
+        }
+        String text = area.getText();
+        int lines = 1;
+        if (text != null) {
+            for (int i = 0; i < text.length(); i++) {
+                if (text.charAt(i) == '\n') {
+                    lines++;
+                }
+            }
+        }
+        area.setRows(lines);
+        Dimension pref = area.getPreferredSize();
+        area.setMaximumSize(new Dimension(Integer.MAX_VALUE, pref.height));
     }
 
     public static void setBackgroundEffectControlsEnabled(ServerConfigRefs refs, boolean enabled) {
@@ -312,7 +239,6 @@ public class PanelFactory {
 
     /** 設定分頁的元件引用容器 */
     public static class ServerConfigRefs {
-        public JComboBox<String> clientIdCombo;
         public JComboBox<String> serverUrlCombo;
         public JPasswordField heartbeatTokenField;
         public JCheckBox enableServerCheckBox;
@@ -344,6 +270,7 @@ public class PanelFactory {
         JLabel hint = new JLabel("只顯示同一伺服器上的好友（不含本機，每 15 秒隨心跳更新）");
         hint.setFont(mainFont);
         hint.setForeground(NightTheme.MUTED);
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
         refs.peerHintLabel = hint;
 
         refs.peerTableModel = new javax.swing.table.DefaultTableModel(
@@ -368,11 +295,13 @@ public class PanelFactory {
         refs.peerStatusLabel = new JLabel("尚未取得好友列表（請先啟用雲端狀態回報）");
         refs.peerStatusLabel.setFont(mainFont);
         refs.peerStatusLabel.setForeground(NightTheme.MUTED);
+        refs.peerStatusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         refs.openCloudSettingsButton = new JButton("前往設定");
         refs.openCloudSettingsButton.setFont(boldFont);
         refs.openCloudSettingsButton.setToolTipText("切換至「設定」的「連線」子分頁以啟用連線");
         refs.openCloudSettingsButton.setVisible(false);
+        refs.openCloudSettingsButton.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         refs.avatarPreview = new JLabel();
         refs.avatarPreview.setPreferredSize(new Dimension(44, 44));
@@ -397,6 +326,43 @@ public class PanelFactory {
         avatarRow.add(refs.clearAvatarButton);
         refs.avatarRow = avatarRow;
 
+        String[] workerOptions = {"company-worker", "company-worker2", "company-worker3", "company-worker4"};
+        refs.clientIdCombo = new JComboBox<>(workerOptions);
+        refs.clientIdCombo.setEditable(true);
+        refs.clientIdCombo.setFont(mainFont);
+        refs.clientIdCombo.setPrototypeDisplayValue("company-worker4");
+        refs.clientIdCombo.setToolTipText("好友看到的本機名稱。可下拉選擇或自行輸入；雲端連線中會鎖定，請先到設定取消「啟用雲端」再修改");
+        lockFieldHeight(refs.clientIdCombo);
+        Dimension idSize = refs.clientIdCombo.getPreferredSize();
+        refs.clientIdCombo.setPreferredSize(new Dimension(Math.max(200, idSize.width), Math.max(26, idSize.height)));
+        JPanel hintBlock = new JPanel();
+        hintBlock.setOpaque(false);
+        hintBlock.setLayout(new BoxLayout(hintBlock, BoxLayout.Y_AXIS));
+        hintBlock.add(hint);
+        hintBlock.add(Box.createVerticalStrut(2));
+        hintBlock.add(refs.peerStatusLabel);
+        hintBlock.add(refs.openCloudSettingsButton);
+
+        JPanel idRow = new JPanel(new GridBagLayout());
+        idRow.setOpaque(false);
+        idRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        GridBagConstraints idGbc = new GridBagConstraints();
+        idGbc.gridy = 0;
+        idGbc.anchor = GridBagConstraints.WEST;
+        idGbc.insets = new Insets(0, 0, 0, 8);
+        idGbc.gridx = 0;
+        JLabel idLabel = new JLabel("裝置 ID：");
+        idLabel.setFont(mainFont);
+        idRow.add(idLabel, idGbc);
+        idGbc.gridx = 1;
+        idGbc.insets = new Insets(0, 0, 0, 16);
+        idRow.add(refs.clientIdCombo, idGbc);
+        idGbc.gridx = 2;
+        idGbc.weightx = 1.0;
+        idGbc.fill = GridBagConstraints.HORIZONTAL;
+        idGbc.insets = new Insets(0, 0, 0, 0);
+        idRow.add(hintBlock, idGbc);
+
         refs.openChatButton = new JButton("開啟聊天");
         refs.openChatButton.setFont(boldFont);
         refs.openChatButton.setToolTipText("和選取的好友開一個小聊天視窗，可傳訊息、圖片、檔案或戳一下（雙擊好友也可以）");
@@ -404,40 +370,15 @@ public class PanelFactory {
         JLabel chatHint = new JLabel("雙擊好友，或選取後按「開啟聊天」");
         chatHint.setFont(mainFont);
         chatHint.setForeground(NightTheme.MUTED);
-        JPanel chatRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        chatRow.setOpaque(false);
-        chatRow.add(refs.openChatButton);
-        chatRow.add(chatHint);
-
         refs.deskChatButton = new JButton("跟後台說話");
         refs.deskChatButton.setFont(boldFont);
         refs.deskChatButton.setToolTipText("開一個小視窗，用文字和網頁後台聊天（約 15 秒內送達）");
         refs.deskChatButton.setEnabled(false);
-        refs.groupChatCombo = new JComboBox<>();
-        refs.groupChatCombo.setFont(mainFont);
-        refs.groupChatCombo.setPrototypeDisplayValue("群組名稱群組名稱");
-        refs.groupChatCombo.setEnabled(false);
-        refs.groupChatCombo.addItem("尚無群組");
-        refs.openGroupChatButton = new JButton("開啟群組");
-        refs.openGroupChatButton.setFont(boldFont);
-        refs.openGroupChatButton.setToolTipText("和後台建立的群組開一個文字視窗");
-        refs.openGroupChatButton.setEnabled(false);
-        JPanel deskRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        deskRow.setOpaque(false);
-        JLabel deskLabel = new JLabel("後台：");
-        deskLabel.setFont(mainFont);
-        deskRow.add(deskLabel);
-        deskRow.add(refs.deskChatButton);
-        deskRow.add(refs.groupChatCombo);
-        deskRow.add(refs.openGroupChatButton);
-
-        JPanel chatBlock = new JPanel();
-        chatBlock.setLayout(new BoxLayout(chatBlock, BoxLayout.Y_AXIS));
-        chatBlock.setOpaque(false);
-        chatRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        deskRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        chatBlock.add(chatRow);
-        chatBlock.add(deskRow);
+        JPanel chatRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        chatRow.setOpaque(false);
+        chatRow.add(refs.openChatButton);
+        chatRow.add(refs.deskChatButton);
+        chatRow.add(chatHint);
 
         refs.fileTableModel = new javax.swing.table.DefaultTableModel(
                 new Object[]{"方向", "檔名", "對象", "大小", "狀態", "剩餘"}, 0) {
@@ -486,17 +427,13 @@ public class PanelFactory {
 
         JPanel south = new JPanel(new BorderLayout(0, 8));
         south.setOpaque(false);
-        south.add(chatBlock, BorderLayout.NORTH);
+        south.add(chatRow, BorderLayout.NORTH);
         south.add(fileSection, BorderLayout.CENTER);
 
         JPanel north = new JPanel();
         north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
         north.setOpaque(false);
-        north.add(hint);
-        north.add(Box.createVerticalStrut(6));
-        north.add(refs.peerStatusLabel);
-        north.add(Box.createVerticalStrut(6));
-        north.add(refs.openCloudSettingsButton);
+        north.add(idRow);
         north.add(Box.createVerticalStrut(8));
         north.add(avatarRow);
 
@@ -687,8 +624,6 @@ public class PanelFactory {
         public JScrollPane peerTableScroll;
         public JButton openChatButton;
         public JButton deskChatButton;
-        public JComboBox<Object> groupChatCombo;
-        public JButton openGroupChatButton;
         public JButton downloadFileButton;
         public JButton clearFileButton;
         public JTable fileTable;
@@ -698,6 +633,7 @@ public class PanelFactory {
         public JButton openCloudSettingsButton;
         public JLabel peerHintLabel;
         public JLabel peerStatusLabel;
+        public JComboBox<String> clientIdCombo;
         public JLabel avatarPreview;
         public JButton chooseAvatarButton;
         public JButton clearAvatarButton;
@@ -815,7 +751,12 @@ public class PanelFactory {
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
         scroll.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225, 160)));
-        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scroll.getHorizontalScrollBar().setUnitIncrement(16);
+        // 列文字很長時只在這塊左右捲，不要把整頁撐寬、撐高。
+        scroll.setPreferredSize(new Dimension(120, refs.historyList.getFixedCellHeight() * 2));
+        scroll.setMinimumSize(new Dimension(80, refs.historyList.getFixedCellHeight() * 2));
         panel.add(scroll, BorderLayout.CENTER);
 
         refs.emptyLabel = new JLabel("尚無執行紀錄；排程或「立即執行」完成後會顯示在此", SwingConstants.CENTER);
@@ -847,8 +788,31 @@ public class PanelFactory {
 
     private static SlotCardRefs createSlotCard(String title, Font mainFont, Font boldFont) {
         SlotCardRefs refs = new SlotCardRefs();
-        refs.panel = createCompactGroupPanel(title, boldFont);
+        refs.panel = translucentPanel();
         refs.panel.setLayout(new BorderLayout(0, 4));
+        refs.panel.setBorder(new CompoundBorder(
+                BorderFactory.createLineBorder(NightTheme.EDGE, 1, true),
+                new EmptyBorder(12, 12, 16, 12)));
+
+        refs.nameField = new JTextField(title, 16);
+        refs.nameField.setFont(boldFont);
+        refs.nameField.setToolTipText("這個排程的名稱。改完後，本機和後台的任務卡都會顯示這個名字。最多 24 個字。");
+        lockFieldHeight(refs.nameField);
+
+        JLabel nameLabel = new JLabel("名稱");
+        nameLabel.setFont(boldFont);
+        nameLabel.setForeground(NightTheme.INK);
+        JPanel nameRow = new JPanel(new GridBagLayout());
+        nameRow.setOpaque(false);
+        GridBagConstraints nameGbc = new GridBagConstraints();
+        nameGbc.gridx = 0;
+        nameGbc.anchor = GridBagConstraints.WEST;
+        nameGbc.insets = new Insets(0, 0, 0, 8);
+        nameRow.add(nameLabel, nameGbc);
+        nameGbc.gridx = 1;
+        nameGbc.weightx = 1.0;
+        nameGbc.fill = GridBagConstraints.HORIZONTAL;
+        nameRow.add(refs.nameField, nameGbc);
 
         JPanel settings = new JPanel(new GridBagLayout());
         settings.setOpaque(false);
@@ -943,9 +907,21 @@ public class PanelFactory {
         mgbc.insets = new Insets(2, 0, 2, 0);
         statusGrid.add(createMetricCell("鎖定設定", refs.lockedSettingsLabel, mainFont), mgbc);
 
+        nameRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        nameRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, nameRow.getPreferredSize().height));
+        settings.setAlignmentX(Component.LEFT_ALIGNMENT);
+        settings.setMaximumSize(new Dimension(Integer.MAX_VALUE, settings.getPreferredSize().height));
+
+        JPanel heading = new JPanel();
+        heading.setOpaque(false);
+        heading.setLayout(new BoxLayout(heading, BoxLayout.Y_AXIS));
+        heading.add(nameRow);
+        heading.add(Box.createVerticalStrut(8));
+        heading.add(settings);
+
         JPanel mainCol = new JPanel(new BorderLayout(0, 12));
         mainCol.setOpaque(false);
-        mainCol.add(settings, BorderLayout.NORTH);
+        mainCol.add(heading, BorderLayout.NORTH);
         mainCol.add(statusGrid, BorderLayout.CENTER);
 
         refs.panel.add(mainCol, BorderLayout.CENTER);
@@ -974,16 +950,6 @@ public class PanelFactory {
         return cell;
     }
 
-    private static JPanel createCompactGroupPanel(String title, Font titleFont) {
-        JPanel panel = translucentPanel();
-        TitledBorder titledBorder = BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(NightTheme.EDGE, 1, true),
-                title, TitledBorder.LEFT, TitledBorder.TOP,
-                titleFont, NightTheme.INK);
-        panel.setBorder(new CompoundBorder(titledBorder, new EmptyBorder(12, 12, 16, 12)));
-        return panel;
-    }
-
     public static class SlotPanelRefs {
         public SlotCardRefs workIn;
         public JComboBox<String> urlCombo;
@@ -995,6 +961,7 @@ public class PanelFactory {
 
     public static class SlotCardRefs {
         public JPanel panel;
+        public JTextField nameField;
         public JCheckBox enabledCheckBox;
         public JComboBox<String> hourCombo;
         public JComboBox<String> minuteCombo;
@@ -1076,7 +1043,7 @@ public class PanelFactory {
         browserCombo.setFont(fieldFont);
         useTextFieldAlignedCombo(browserCombo);
 
-        Dimension selectorDim = new Dimension(96, rowH);
+        Dimension selectorDim = new Dimension(240, rowH);
         lockComponentSize(selectorField, selectorDim);
 
         int browserW = Math.max(browserCombo.getPreferredSize().width, 148);
