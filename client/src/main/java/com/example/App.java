@@ -767,6 +767,15 @@ public class App extends JFrame {
         }
 
         @Override
+        public void sendDroppedFiles(String peerId, java.awt.Component owner, java.util.List<java.nio.file.Path> files) {
+            if (ChatProtocol.isDeskRoom(peerId)) {
+                chatNote(peerId, "後台對話只傳文字");
+                return;
+            }
+            sendChosenFiles(peerId, files, owner);
+        }
+
+        @Override
         public void chatClosed(PeerChatWindow window) {
             chatWindows.remove(window.peerId(), window);
         }
@@ -931,7 +940,18 @@ public class App extends JFrame {
         for (java.io.File f : picked) {
             files.add(f.toPath());
         }
-        if (files.isEmpty()) {
+        sendChosenFiles(toClientId, files, owner);
+    }
+
+    private void sendChosenFiles(String toClientId, java.util.List<Path> files, java.awt.Component owner) {
+        if (owner == null) {
+            owner = this;
+        }
+        if (toClientId == null || toClientId.isBlank() || files == null || files.isEmpty()) {
+            return;
+        }
+        if (isSelfClientId(toClientId)) {
+            appendLog("[警告] [檔案] 無法傳送檔案給本機");
             return;
         }
         if (onlinePeerIds.contains(toClientId)) {

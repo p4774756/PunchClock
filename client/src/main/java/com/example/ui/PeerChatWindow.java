@@ -38,6 +38,10 @@ import java.awt.Image;
 import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetAdapter;
+import java.awt.dnd.DropTargetDropEvent;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
@@ -69,6 +73,13 @@ public class PeerChatWindow extends JFrame {
 
         /** @param owner 選檔、進度、提示對話框要掛在哪個視窗上（聊天視窗），才不會讓主視窗蓋住聊天視窗。 */
         void sendFiles(String peerId, Component owner);
+
+        /**
+         * 拖進聊天視窗的檔案。預設仍打開選檔視窗；桌面端改直接送出這些路徑，協定不變。
+         */
+        default void sendDroppedFiles(String peerId, Component owner, List<Path> files) {
+            sendFiles(peerId, owner);
+        }
 
         void chatClosed(PeerChatWindow window);
     }
@@ -135,10 +146,14 @@ public class PeerChatWindow extends JFrame {
         names.setOpaque(false);
         names.add(nameLabel);
         names.add(statusLabel);
+        CandyCheckBox developerMode = new CandyCheckBox("開發者", false);
+        developerMode.setFont(plain);
+        developerMode.setToolTipText("程式碼與錯誤訊息改用等寬字，並保留縮排、Tab 與換行");
         JPanel header = new JPanel(new BorderLayout(10, 0));
         header.setBorder(new EmptyBorder(8, 12, 8, 12));
         header.add(avatarLabel, BorderLayout.WEST);
         header.add(names, BorderLayout.CENTER);
+        header.add(developerMode, BorderLayout.EAST);
 
         // 中間：對話區
         transcript = new PeerChatTranscript(peerId, plain.getFamily(), 13);
@@ -197,6 +212,11 @@ public class PeerChatWindow extends JFrame {
             }
         };
         input.setFont(plain);
+        developerMode.addItemListener(e -> {
+            boolean on = developerMode.isSelected();
+            transcript.setDeveloperMode(on);
+            input.setFont(on ? new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 13) : plain);
+        });
         input.setLineWrap(true);
         input.setWrapStyleWord(true);
         input.setToolTipText("Enter 送出，Shift+Enter 換行；Ctrl+V 或 ⌘V 可貼多張截圖（最多 "
@@ -258,6 +278,7 @@ public class PeerChatWindow extends JFrame {
         root.add(transcriptScroll, BorderLayout.CENTER);
         root.add(south, BorderLayout.SOUTH);
         setContentPane(root);
+        installFileDrop(root);
 
         setMinimumSize(new Dimension(500, 440));
         setSize(520, 600);
@@ -356,6 +377,53 @@ public class PeerChatWindow extends JFrame {
         clearImageButton.setEnabled(extras && !attachedImages.isEmpty());
         pokeButton.setEnabled(extras);
         fileButton.setEnabled(extras && !fileBusy);
+    }
+
+    private void installFileDrop(JComponent target) {
+        if (target == null || Boolean.TRUE.equals(target.getClientProperty("chat.fileDrop"))) {
+            return;
+        }
+        target.putClientProperty("chat.fileDrop", Boolean.TRUE);
+        new DropTarget(target, DnDConstants.ACTION_COPY, new DropTargetAdapter() {
+            @Override
+            public void drop(DropTargetDropEvent event) {
+                try {
+                    if (textOnly || !event.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                        event.rejectDrop();
+                        return;
+                    }
+                    event.acceptDrop(DnDConstants.ACTION_COPY);
+                    Object data = event.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
+                    List<Path> paths = new ArrayList<>();
+                    if (data instanceof List) {
+                        for (Object item : (List<?>) data) {
+                            if (item instanceof File) {
+                                paths.add(((File) item).toPath());
+                            }
+                        }
+                    }
+                    event.dropComplete(!paths.isEmpty());
+                    if (!paths.isEmpty()) {
+                        SwingUtilities.invokeLater(() -> host.sendDroppedFiles(peerId, PeerChatWindow.this, paths));
+                    }
+                } catch (Exception ex) {
+                    event.dropComplete(false);
+                }
+            }
+        }, true);
+        target.addContainerListener(new java.awt.event.ContainerAdapter() {
+            @Override
+            public void componentAdded(java.awt.event.ContainerEvent event) {
+                if (event.getChild() instanceof JComponent) {
+                    installFileDrop((JComponent) event.getChild());
+                }
+            }
+        });
+        for (Component child : target.getComponents()) {
+            if (child instanceof JComponent) {
+                installFileDrop((JComponent) child);
+            }
+        }
     }
 
     private void bindInputKeys() {
