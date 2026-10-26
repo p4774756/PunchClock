@@ -27,6 +27,7 @@ final class HomeBoard {
     static final int RUN = 32;
     static final int CHAT = 33;
     static final int FILE = 34;
+    static final int PLAY = 35;
 
     private static final Color INK = new Color(255, 252, 255);
     private static final Color MUTED = new Color(209, 193, 225);
@@ -52,6 +53,7 @@ final class HomeBoard {
     final Rectangle run = new Rectangle();
     final Rectangle chat = new Rectangle();
     final Rectangle file = new Rectangle();
+    final Rectangle play = new Rectangle();
     final Rectangle stage = new Rectangle();
     final Rectangle reminder = new Rectangle();
 
@@ -70,6 +72,7 @@ final class HomeBoard {
         run.setBounds(0, 0, 0, 0);
         chat.setBounds(0, 0, 0, 0);
         file.setBounds(0, 0, 0, 0);
+        play.setBounds(0, 0, 0, 0);
         stage.setBounds(0, 0, 0, 0);
         reminder.setBounds(0, 0, 0, 0);
         if (area == null || area.width < 80 || area.height < 80) {
@@ -107,11 +110,12 @@ final class HomeBoard {
         if (buttonY < y + 34) {
             buttonY = y + 34;
         }
-        int buttonW = Math.max(36, (infoW - pad * 2 - buttonGap * 2) / 3);
+        int buttonW = Math.max(36, (infoW - pad * 2 - buttonGap * 3) / 4);
         run.setBounds(x + pad, buttonY, buttonW, buttonH);
-        chat.setBounds(x + pad + buttonW + buttonGap, buttonY, buttonW, buttonH);
-        file.setBounds(x + pad + (buttonW + buttonGap) * 2, buttonY,
-                Math.max(36, infoW - pad * 2 - (buttonW + buttonGap) * 2), buttonH);
+        chat.setBounds(x + pad + (buttonW + buttonGap), buttonY, buttonW, buttonH);
+        file.setBounds(x + pad + (buttonW + buttonGap) * 2, buttonY, buttonW, buttonH);
+        play.setBounds(x + pad + (buttonW + buttonGap) * 3, buttonY,
+                Math.max(36, infoW - pad * 2 - (buttonW + buttonGap) * 3), buttonH);
         if (stacked) {
             int top = y + actionH + gap;
             stage.setBounds(area.x, top, area.width, Math.max(0, area.y + area.height - top));
@@ -134,6 +138,9 @@ final class HomeBoard {
         }
         if (file.contains(x, y)) {
             return FILE;
+        }
+        if (play.contains(x, y)) {
+            return PLAY;
         }
         if (schedule.contains(x, y)) {
             return SCHEDULE;
@@ -528,6 +535,15 @@ final class HomeBoard {
         paintAction(g, run, "執行任務", hot == RUN, "play");
         paintAction(g, chat, "開啟聊天", hot == CHAT, "chat");
         paintAction(g, file, "傳送檔案", hot == FILE, "send-file");
+        paintAction(g, play, "玩遊戲", hot == PLAY, "game");
+    }
+
+    private static void drawGameIcon(Graphics2D g, int x, int y, int size, Color color) {
+        g.setColor(color);
+        int body = Math.max(8, size - 6);
+        g.drawRoundRect(x + 2, y + 4, body, body - 4, 6, 6);
+        g.fillOval(x + 5, y + size / 2 - 2, 3, 3);
+        g.fillOval(x + size - 10, y + size / 2 - 2, 3, 3);
     }
 
     private static void paintAction(Graphics2D g, Rectangle box, String text, boolean hover, String icon) {
@@ -541,7 +557,11 @@ final class HomeBoard {
         int iconSize = Math.min(22, Math.max(16, box.height - 36));
         int iconX = box.x + (box.width - iconSize) / 2;
         int iconY = box.y + Math.max(8, (box.height - 18 - iconSize) / 2);
-        KitIcon.draw(g, icon, iconX, iconY, iconSize, PINK);
+        if ("game".equals(icon)) {
+            drawGameIcon(g, iconX, iconY, iconSize, PINK);
+        } else {
+            KitIcon.draw(g, icon, iconX, iconY, iconSize, PINK);
+        }
         g.setFont(UiFonts.chinesePlain(13));
         g.setColor(INK);
         FontMetrics metrics = g.getFontMetrics();

@@ -32,7 +32,7 @@
 - UI：Swing（不要引進 JavaFX／其它桌面框架，除非明確要求）
 - 自動化：Playwright（首次執行會下載瀏覽器）
 - 伺服器：Javalin 6；測試：JUnit 4
-- 本機狀態：`~/.punchclock/tasks.json`、`~/.punchclock/config.json`
+- 本機狀態：`~/.punchclock/tasks.json`、`~/.punchclock/config.json`、`~/.punchclock/games.json`（遊戲中心虛擬點數，與排程設定分開）
 - 建置與執行指令、本機預設網址與密鑰見 [`README.md`](README.md)。VS Code／Cursor：`.vscode/launch.json` 有 `App`（桌面端）、`ServerApp`（伺服器）
 
 ## 程式慣例
@@ -60,11 +60,13 @@
 | 傳檔／直傳 | `PeerFileClient`、`PeerFileRoutes`、`RelayRoutes`、`FileOfferStore`、`RelayStore` |
 | 菜單牆照片 | `PhotoRoutes`、`PhotoStore` |
 | Dashboard | `server/.../resources/public/` + `DashboardBroadcaster` |
+| 遊戲中心 | [`docs/game-center.md`](docs/game-center.md)。規則在 `com.example.game`，畫面在 `com.example.ui.game`。不要改 `config.json`／`tasks.json` |
 
 ## 近期方向（方便對齊歷史）
 
 - `UiFonts` 統一對話框／選檔（取代散落的 `JOptionPane`）
 - 中繼 Proxy 與公司 SSL 攔截（「信任所有 SSL」心跳與中繼共用）
 - 同事傳檔（任意類型、資料夾 ZIP、狀態與 TTL）
+- 桌面端遊戲中心（老虎機、21 點、輪盤）。進度與尚未點過的部分見 [`docs/game-center.md`](docs/game-center.md)
 
 有衝突時以程式與測試為準，再對照 README。

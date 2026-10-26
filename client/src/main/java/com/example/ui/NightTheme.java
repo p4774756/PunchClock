@@ -424,6 +424,10 @@ public final class NightTheme {
             int y = (c.getHeight() - metrics.getHeight()) / 2 + metrics.getAscent();
             g2.setColor(button.isEnabled() ? PINK_INK : MUTED);
             g2.drawString(text, x, y);
+            if (button.isEnabled() && button.isFocusOwner()) {
+                g2.setColor(Color.WHITE);
+                g2.drawRoundRect(3, 3, Math.max(0, c.getWidth() - 7), Math.max(0, c.getHeight() - 7), 10, 10);
+            }
             g2.dispose();
         }
     }
