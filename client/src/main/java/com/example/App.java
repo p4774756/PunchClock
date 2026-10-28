@@ -18,6 +18,7 @@ import com.example.service.TaskPersistenceService;
 import com.example.service.TransferCancel;
 import com.example.service.TransferIo;
 import com.example.service.WindowBackground;
+import com.example.ui.FileTransferDialog;
 import com.example.ui.PeerChatWindow;
 import com.example.ui.UiFonts;
 import com.example.ui.TransferProgressDialog;
@@ -887,28 +888,27 @@ public class App extends JFrame {
             shell.openTab(2);
             return;
         }
-        List<String> ids = new ArrayList<>();
+        List<FileTransferDialog.Friend> friends = new ArrayList<>();
         for (PeerInfo peer : latestPeers) {
-            if (peer != null && "ONLINE".equalsIgnoreCase(peer.status)) {
-                ids.add(peer.clientId);
+            if (peer == null || peer.clientId == null || peer.clientId.isBlank() || isSelfClientId(peer.clientId)) {
+                continue;
             }
+            friends.add(new FileTransferDialog.Friend(
+                    peer.clientId,
+                    "ONLINE".equalsIgnoreCase(peer.status),
+                    peer.appVersion,
+                    peerAvatars.getOrDefault(peer.clientId, "")));
         }
-        if (ids.isEmpty()) {
-            for (PeerInfo peer : latestPeers) {
-                if (peer != null && peer.clientId != null && !peer.clientId.isBlank()) {
-                    ids.add(peer.clientId);
-                }
-            }
-        }
-        if (ids.isEmpty()) {
+        if (friends.isEmpty()) {
             UiFonts.showMessage(this, "目前沒有可傳送的好友。", "傳送檔案", JOptionPane.INFORMATION_MESSAGE);
             shell.openTab(2);
             return;
         }
-        int choice = UiFonts.showChoice(this, "要傳給哪一位好友？", "傳送檔案", ids.toArray(new String[0]));
-        if (choice >= 0 && choice < ids.size()) {
-            sendFilesToPeer(ids.get(choice), this);
+        FileTransferDialog.Result picked = FileTransferDialog.show(this, friends);
+        if (picked == null) {
+            return;
         }
+        sendChosenFiles(picked.clientId(), picked.files(), this, picked.note());
     }
 
     private void sendFilesToPeer(String toClientId, java.awt.Component owner) {
@@ -944,6 +944,10 @@ public class App extends JFrame {
     }
 
     private void sendChosenFiles(String toClientId, java.util.List<Path> files, java.awt.Component owner) {
+        sendChosenFiles(toClientId, files, owner, "");
+    }
+
+    private void sendChosenFiles(String toClientId, java.util.List<Path> files, java.awt.Component owner, String note) {
         if (owner == null) {
             owner = this;
         }
@@ -956,9 +960,25 @@ public class App extends JFrame {
         }
         if (onlinePeerIds.contains(toClientId)) {
             startRelaySend(toClientId, files, owner);
+            sendTransferNote(toClientId, note);
         } else if (confirmStoredFallback(toClientId, "【" + toClientId + "】目前不在線，無法直傳。", owner)) {
             startStoredSend(toClientId, files, owner);
+            sendTransferNote(toClientId, note);
         }
+    }
+
+    /** 傳檔視窗的選填訊息走原本的同事訊息，不改檔案協定。 */
+    private void sendTransferNote(String toClientId, String note) {
+        if (note == null || note.isBlank() || toClientId == null || toClientId.isBlank()) {
+            return;
+        }
+        String text = note.trim();
+        heartbeatService.sendPeerMessage(toClientId, text, this::appendLog, ok ->
+                SwingUtilities.invokeLater(() -> {
+                    if (Boolean.TRUE.equals(ok)) {
+                        chatAppend(toClientId, chatStore.addMessage(toClientId, true, text, "", null));
+                    }
+                }));
     }
 
     private boolean confirmStoredFallback(String toClientId, String reason, java.awt.Component owner) {
