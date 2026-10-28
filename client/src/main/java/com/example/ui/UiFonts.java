@@ -9,20 +9,30 @@ import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
+import javax.swing.UIManager;
 import javax.swing.plaf.metal.MetalFileChooserUI;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Toolkit;
+import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -120,13 +130,49 @@ public final class UiFonts {
             JLabel imageLabel = new JLabel(new ImageIcon(fitForDisplay(image, 420, 320)));
             imageLabel.setHorizontalAlignment(JLabel.CENTER);
             imageLabel.setBorder(BorderFactory.createLineBorder(new Color(203, 213, 225)));
+            imageLabel.setToolTipText("按右鍵可複製圖片");
 
+            JMenuItem copyItem = new JMenuItem("複製圖片");
+            copyItem.setFont(chinesePlain(12));
+            copyItem.addActionListener(e -> copyImageToClipboard(image));
+            JMenuItem saveItem = new JMenuItem("另存圖片…");
+            saveItem.setFont(chinesePlain(12));
+            saveItem.addActionListener(e -> saveImageWithDialog(parent, image));
+            JPopupMenu popup = new JPopupMenu();
+            popup.add(copyItem);
+            popup.add(saveItem);
+            imageLabel.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+                    maybeShow(e);
+                }
+
+                @Override
+                public void mouseReleased(MouseEvent e) {
+                    maybeShow(e);
+                }
+
+                private void maybeShow(MouseEvent e) {
+                    if (e.isPopupTrigger()) {
+                        popup.show(e.getComponent(), e.getX(), e.getY());
+                    }
+                }
+            });
+
+            JButton copyButton = new JButton("複製圖片");
+            copyButton.setFont(chinesePlain(12));
+            copyButton.addActionListener(e -> {
+                if (copyImageToClipboard(image)) {
+                    copyButton.setText("已複製");
+                }
+            });
             JButton saveButton = new JButton("另存圖片");
             saveButton.setFont(chinesePlain(12));
             saveButton.addActionListener(e -> saveImageWithDialog(parent, image));
-            JPanel saveRow = new JPanel(new BorderLayout());
+            JPanel saveRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
             saveRow.setOpaque(false);
-            saveRow.add(saveButton, BorderLayout.EAST);
+            saveRow.add(copyButton);
+            saveRow.add(saveButton);
 
             JPanel imageBox = new JPanel(new BorderLayout(0, 4));
             imageBox.setOpaque(false);
@@ -156,6 +202,40 @@ public final class UiFonts {
                 Math.max(1, (int) Math.round(w * ratio)),
                 Math.max(1, (int) Math.round(h * ratio)),
                 Image.SCALE_SMOOTH);
+    }
+
+    private static boolean copyImageToClipboard(BufferedImage image) {
+        try {
+            BufferedImage rgb = new BufferedImage(
+                    image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = rgb.createGraphics();
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, rgb.getWidth(), rgb.getHeight());
+            g.drawImage(image, 0, 0, null);
+            g.dispose();
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new Transferable() {
+                @Override
+                public DataFlavor[] getTransferDataFlavors() {
+                    return new DataFlavor[]{DataFlavor.imageFlavor};
+                }
+
+                @Override
+                public boolean isDataFlavorSupported(DataFlavor flavor) {
+                    return DataFlavor.imageFlavor.equals(flavor);
+                }
+
+                @Override
+                public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException {
+                    if (!isDataFlavorSupported(flavor)) {
+                        throw new UnsupportedFlavorException(flavor);
+                    }
+                    return rgb;
+                }
+            }, null);
+            return true;
+        } catch (RuntimeException ex) {
+            return false;
+        }
     }
 
     private static void saveImageWithDialog(Component parent, BufferedImage image) {
@@ -218,11 +298,61 @@ public final class UiFonts {
      * macOS 原生選檔面板會把 Downloads 畫成「D wnlo ads」；改走 Metal，由 Swing 自己畫。
      */
     public static JFileChooser fileChooser() {
-        JFileChooser chooser = isMac() ? new SwingFileChooser() : new JFileChooser();
         if (isMac()) {
+            JFileChooser chooser = new SwingFileChooser();
             applyFontTree(chooser, latinPlain(13));
+            return chooser;
         }
-        return chooser;
+        return createWithLightDefaults();
+    }
+
+    /**
+     * NightTheme 把 Label／List／ComboBox 前景設成淺色，Windows 原生選檔面板底色是白的，
+     * 檔名、標籤就會變成白底白字。建立選檔面板的當下暫時換回淺色預設，建完再還原。
+     */
+    private static JFileChooser createWithLightDefaults() {
+        Object[][] light = {
+                {"Panel.background", new Color(240, 240, 240)},
+                {"Label.foreground", Color.BLACK},
+                {"CheckBox.foreground", Color.BLACK},
+                {"Button.background", new Color(225, 225, 225)},
+                {"Button.foreground", Color.BLACK},
+                {"TextField.background", Color.WHITE},
+                {"TextField.foreground", Color.BLACK},
+                {"TextField.caretForeground", Color.BLACK},
+                {"TextField.inactiveForeground", new Color(109, 109, 109)},
+                {"ComboBox.background", Color.WHITE},
+                {"ComboBox.foreground", Color.BLACK},
+                {"ComboBox.selectionBackground", new Color(51, 153, 255)},
+                {"ComboBox.selectionForeground", Color.WHITE},
+                {"List.background", Color.WHITE},
+                {"List.foreground", Color.BLACK},
+                {"List.selectionBackground", new Color(51, 153, 255)},
+                {"List.selectionForeground", Color.WHITE},
+                {"Table.background", Color.WHITE},
+                {"Table.foreground", Color.BLACK},
+                {"Table.selectionBackground", new Color(51, 153, 255)},
+                {"Table.selectionForeground", Color.WHITE},
+                {"TableHeader.background", new Color(240, 240, 240)},
+                {"TableHeader.foreground", Color.BLACK},
+                {"ScrollPane.background", new Color(240, 240, 240)},
+                {"Viewport.background", Color.WHITE},
+                {"ToggleButton.foreground", Color.BLACK},
+                {"ToolBar.foreground", Color.BLACK},
+        };
+        Object[] saved = new Object[light.length];
+        for (int i = 0; i < light.length; i++) {
+            String key = (String) light[i][0];
+            saved[i] = UIManager.get(key);
+            UIManager.put(key, light[i][1]);
+        }
+        try {
+            return new JFileChooser();
+        } finally {
+            for (int i = 0; i < light.length; i++) {
+                UIManager.put((String) light[i][0], saved[i]);
+            }
+        }
     }
 
     /** JComponent.setUI 是 protected，只能從子類呼叫。 */
