@@ -231,10 +231,19 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
 
     /** 氣泡標題上的來源。自己送出的顯示本機，對方顯示名稱，名稱和裝置不同時兩個都留。 */
     static String sourceLabel(PeerChatStore.Entry entry, String conversationId) {
-        if (entry == null || entry.kind == PeerChatStore.Kind.NOTE) {
+        if (entry == null) {
             return "";
         }
-        if (entry.outgoing) {
+        boolean outgoing = entry.outgoing;
+        if (entry.kind == PeerChatStore.Kind.NOTE) {
+            FileNotice file = fileNotice(entry.text);
+            if (file == null) {
+                return "";
+            }
+            // 傳檔提示一律記成 outgoing，方向要看文字
+            outgoing = !file.status.startsWith("對方");
+        }
+        if (outgoing) {
             return "本機";
         }
         String device = conversationId == null ? "" : conversationId;
@@ -333,7 +342,11 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             this.entry = entry;
             this.preserved = entry.kind == PeerChatStore.Kind.MESSAGE
                     && (developerMode || preserveLayout(entry.text));
-            if (entry.kind == PeerChatStore.Kind.NOTE || entry.kind == PeerChatStore.Kind.POKE) {
+            FileNotice file = entry.kind == PeerChatStore.Kind.NOTE ? fileNotice(entry.text) : null;
+            if (file != null) {
+                // 傳檔提示：「對方…」靠左，自己這邊（已直傳、已送出）靠右
+                side = file.status.startsWith("對方") ? "left" : "right";
+            } else if (entry.kind == PeerChatStore.Kind.NOTE || entry.kind == PeerChatStore.Kind.POKE) {
                 side = "center";
             } else {
                 side = entry.outgoing ? "right" : "left";

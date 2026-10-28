@@ -277,21 +277,29 @@ public final class UiFonts {
         if (options == null || options.length == 0) {
             return -1;
         }
+        // 選項是 JButton 元件時，JOptionPane 不會幫忙接點擊，要自己設定回傳值並關閉視窗。
+        JOptionPane[] holder = new JOptionPane[1];
         Object[] buttons = new Object[options.length];
         for (int i = 0; i < options.length; i++) {
             JButton button = new JButton(options[i] == null ? "" : options[i]);
             button.setFont(chinesePlain(13));
+            final Integer index = i;
+            button.addActionListener(e -> holder[0].setValue(index));
             buttons[i] = button;
         }
-        return JOptionPane.showOptionDialog(
-                parent,
+        JOptionPane pane = new JOptionPane(
                 messageBody(message),
-                title,
-                JOptionPane.DEFAULT_OPTION,
                 JOptionPane.QUESTION_MESSAGE,
+                JOptionPane.DEFAULT_OPTION,
                 null,
                 buttons,
                 buttons[0]);
+        holder[0] = pane;
+        javax.swing.JDialog dialog = pane.createDialog(parent, title);
+        dialog.setVisible(true);
+        dialog.dispose();
+        Object value = pane.getValue();
+        return value instanceof Integer ? (Integer) value : -1;
     }
 
     /**

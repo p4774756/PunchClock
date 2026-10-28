@@ -54,7 +54,10 @@ public class PeerChatTranscriptTest {
 
             assertEquals("center", t.sideOf("戳了你一下"));
             assertEquals("center", t.sideOf("你戳了對方一下"));
-            assertEquals("center", t.sideOf("已直傳"));
+            assertEquals("right", t.sideOf("已直傳"));
+            assertEquals("本機", PeerChatTranscript.sourceLabel(store.addNote("alice", "已直傳「b.txt」", 4_000L), "alice"));
+            assertEquals("alice", PeerChatTranscript.sourceLabel(store.addNote("alice", "對方傳來「b.txt」", 5_000L), "alice"));
+            assertEquals("", PeerChatTranscript.sourceLabel(store.addNote("alice", "訊息沒有送出", 6_000L), "alice"));
             assertEquals("已直傳「a.txt」", t.bodyOf("已直傳"));
         });
     }
@@ -120,7 +123,7 @@ public class PeerChatTranscriptTest {
             assertEquals("對方傳來", notice.status);
             assertEquals(null, PeerChatTranscript.fileNotice("訊息沒有送出"));
             t.append(store.addNote("alice", "對方傳來「notes.txt」（12 KB）", 2_000L));
-            assertEquals("center", t.sideOf("notes.txt"));
+            assertEquals("left", t.sideOf("notes.txt"));
             assertTrue(treeText(t).contains("檔案  notes.txt"));
             assertTrue(treeText(t).contains("12 KB"));
         });
