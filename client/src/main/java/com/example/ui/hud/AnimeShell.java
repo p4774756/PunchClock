@@ -391,7 +391,11 @@ public final class AnimeShell extends JPanel {
     }
 
     private void paintRoom(Graphics2D g) {
-        if (!useRoom || room == null) {
+        if (!useRoom) {
+            // 使用者自訂背景：讓底下 WindowChrome 畫的背景圖透出來，不要蓋掉。
+            return;
+        }
+        if (room == null) {
             g.setColor(new Color(28, 20, 48));
             g.fillRect(0, 0, getWidth(), getHeight());
             return;

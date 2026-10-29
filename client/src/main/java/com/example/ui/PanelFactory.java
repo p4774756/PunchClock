@@ -3,6 +3,7 @@ package com.example.ui;
 import com.example.model.WorkSlot;
 import com.example.service.CheckInHistoryService;
 import com.example.service.PeerAvatar;
+import com.example.service.WindowBackground;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -96,10 +97,13 @@ public class PanelFactory {
         tabs.addTab("連線", settingsPage(
                 settingsSection("雲端連線", boldFont, cloud),
                 settingsSection("程式更新", boldFont, updates)));
+        tabs.addTab("外觀", settingsPage(
+                settingsSection("程式背景", boldFont, backgroundRow(refs, mainFont, boldFont))));
         tabs.addTab("中繼", settingsPage(
                 settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont))));
         tabs.setToolTipTextAt(SETTINGS_CONNECTION_TAB, "雲端連線與程式更新");
-        tabs.setToolTipTextAt(1, "讓區網內的同事經由這台電腦連到雲端");
+        tabs.setToolTipTextAt(1, "程式背景圖、模糊與透明度");
+        tabs.setToolTipTextAt(2, "讓區網內的同事經由這台電腦連到雲端");
         tabs.setSelectedIndex(SETTINGS_CONNECTION_TAB);
         return tabs;
     }
@@ -189,6 +193,81 @@ public class PanelFactory {
         column.add(refs.relayHelpArea);
 
         return column;
+    }
+
+    private static JPanel backgroundRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
+        refs.backgroundPreview = new JLabel();
+        refs.backgroundPreview.setPreferredSize(new Dimension(
+                WindowBackground.PREVIEW_WIDTH, WindowBackground.PREVIEW_HEIGHT));
+        refs.backgroundPreview.setMinimumSize(refs.backgroundPreview.getPreferredSize());
+        refs.backgroundPreview.setToolTipText("程式視窗背景預覽；實際會等比裁切填滿視窗");
+        refs.backgroundPreview.setIcon(WindowBackground.previewIcon(null));
+
+        CandyButton choose = new CandyButton("選擇背景", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
+        choose.setFont(boldFont);
+        choose.setToolTipText("選擇 JPG／PNG／GIF 作為程式背景");
+        refs.chooseBackgroundButton = choose;
+        CandyButton clear = new CandyButton("還原預設", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+        clear.setFont(mainFont);
+        clear.setToolTipText("清除自訂背景，還原預設底色");
+        clear.setEnabled(false);
+        refs.clearBackgroundButton = clear;
+
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        top.setOpaque(false);
+        top.add(refs.backgroundPreview);
+        top.add(refs.chooseBackgroundButton);
+        top.add(refs.clearBackgroundButton);
+
+        refs.backgroundBlurSlider = new JSlider(0, WindowBackground.MAX_BLUR_PERCENT, 0);
+        refs.backgroundBlurSlider.setOpaque(false);
+        refs.backgroundBlurSlider.setFocusable(false);
+        refs.backgroundBlurSlider.setPreferredSize(new Dimension(160, 22));
+        refs.backgroundBlurSlider.setToolTipText("背景圖模糊程度；向右越糊，方便閱讀前景文字");
+        refs.backgroundBlurValueLabel = new JLabel("0%");
+        refs.backgroundBlurValueLabel.setFont(mainFont);
+        refs.backgroundBlurValueLabel.setForeground(NightTheme.MUTED);
+        refs.backgroundBlurValueLabel.setPreferredSize(new Dimension(40, 22));
+
+        refs.backgroundOpacitySlider = new JSlider(0, WindowBackground.MAX_OPACITY_PERCENT,
+                WindowBackground.DEFAULT_OPACITY_PERCENT);
+        refs.backgroundOpacitySlider.setOpaque(false);
+        refs.backgroundOpacitySlider.setFocusable(false);
+        refs.backgroundOpacitySlider.setPreferredSize(new Dimension(160, 22));
+        refs.backgroundOpacitySlider.setToolTipText("背景圖不透明度；向右越清楚，向左越淡");
+        refs.backgroundOpacityValueLabel = new JLabel(WindowBackground.DEFAULT_OPACITY_PERCENT + "%");
+        refs.backgroundOpacityValueLabel.setFont(mainFont);
+        refs.backgroundOpacityValueLabel.setForeground(NightTheme.MUTED);
+        refs.backgroundOpacityValueLabel.setPreferredSize(new Dimension(40, 22));
+
+        JPanel blurRow = sliderRow(mainFont, "模糊：", refs.backgroundBlurSlider, refs.backgroundBlurValueLabel);
+        JPanel opacityRow = sliderRow(mainFont, "不透明度：", refs.backgroundOpacitySlider, refs.backgroundOpacityValueLabel);
+
+        JPanel column = new JPanel();
+        column.setOpaque(false);
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+        column.setAlignmentX(Component.LEFT_ALIGNMENT);
+        top.setAlignmentX(Component.LEFT_ALIGNMENT);
+        blurRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        opacityRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        column.add(top);
+        column.add(Box.createVerticalStrut(4));
+        column.add(blurRow);
+        column.add(Box.createVerticalStrut(2));
+        column.add(opacityRow);
+        setBackgroundEffectControlsEnabled(refs, false);
+        return column;
+    }
+
+    private static JPanel sliderRow(Font font, String title, JSlider slider, JLabel valueLabel) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        row.setOpaque(false);
+        JLabel label = new JLabel(title);
+        label.setFont(font);
+        row.add(label);
+        row.add(slider);
+        row.add(valueLabel);
+        return row;
     }
 
     /** 說明只有幾行，依內容撐高，不另開捲動。 */
