@@ -18,6 +18,8 @@ import java.util.function.Consumer;
 public class AutomationService {
 
     private static final int NAVIGATE_TIMEOUT_MS = 45_000;
+    private static final int NAVIGATE_MAX_ATTEMPTS = 3;
+    private static final int NAVIGATE_RETRY_DELAY_MS = 5_000;
     private static final int SELECTOR_TIMEOUT_MS = 15_000;
     private static final int CLICK_TIMEOUT_MS = 5_000;
     private static final int HIGHLIGHT_DURATION_MS = 10_000;
@@ -49,9 +51,7 @@ public class AutomationService {
             Page page = context.newPage();
 
             log(logger, "網頁導向中：" + targetUrl);
-            page.navigate(targetUrl, new Page.NavigateOptions()
-                    .setTimeout(NAVIGATE_TIMEOUT_MS)
-                    .setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+            navigateWithRetry(page, targetUrl, logger);
 
             String selector = (buttonId == null) ? "" : buttonId.trim();
             if (selector.isEmpty()) {
@@ -98,6 +98,47 @@ public class AutomationService {
             closeCachedBrowser();
             closePlaywright();
         }
+    }
+
+    /**
+     * 導向目標網址；遇到網路層錯誤（net::ERR_*）或載入逾時時，短暫等待後重試。
+     */
+    private void navigateWithRetry(Page page, String targetUrl, Consumer<String> logger) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                page.navigate(targetUrl, new Page.NavigateOptions()
+                        .setTimeout(NAVIGATE_TIMEOUT_MS)
+                        .setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+                return;
+            } catch (RuntimeException ex) {
+                if (attempt >= NAVIGATE_MAX_ATTEMPTS || !isRetryableNavigateError(ex)) {
+                    throw ex;
+                }
+                log(logger, "[警告] 網頁導向失敗（第 " + attempt + "/" + NAVIGATE_MAX_ATTEMPTS + " 次），"
+                        + (NAVIGATE_RETRY_DELAY_MS / 1000) + " 秒後重試：" + summarize(ex.getMessage()));
+                page.waitForTimeout(NAVIGATE_RETRY_DELAY_MS);
+            }
+        }
+    }
+
+    private static boolean isRetryableNavigateError(Throwable ex) {
+        if (ex instanceof TimeoutError) {
+            return true;
+        }
+        String raw = ex.getMessage();
+        return raw != null && raw.contains("net::ERR_");
+    }
+
+    private static String summarize(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        int idx = raw.indexOf("Call log:");
+        if (idx >= 0) {
+            raw = raw.substring(0, idx);
+        }
+        raw = raw.trim().replace('\n', ' ');
+        return raw.length() > 100 ? raw.substring(0, 100) + "..." : raw;
     }
 
     private void waitForLayoutStable(Page page, String selector) {
@@ -186,6 +227,16 @@ public class AutomationService {
         if (ex instanceof TimeoutError || (raw != null && raw.contains("Timeout") && raw.contains("exceeded"))) {
             return "[失敗] 網頁載入逾時（" + (NAVIGATE_TIMEOUT_MS / 1000)
                     + " 秒）。廣告多的網站可改選 Edge / Chrome（本機）。";
+        }
+        if (raw != null && raw.contains("net::ERR_")) {
+            int start = raw.indexOf("net::ERR_");
+            int end = start;
+            while (end < raw.length() && (Character.isLetterOrDigit(raw.charAt(end))
+                    || raw.charAt(end) == '_' || raw.charAt(end) == ':')) {
+                end++;
+            }
+            return "[失敗] 無法連線到打卡網站（" + raw.substring(start, end)
+                    + "），已重試 " + NAVIGATE_MAX_ATTEMPTS + " 次。請檢查網路／VPN／Proxy 後再試。";
         }
         if (raw != null && raw.contains("Call log:")) {
             raw = raw.substring(0, raw.indexOf("Call log:")).trim();
