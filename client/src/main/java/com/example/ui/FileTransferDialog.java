@@ -73,15 +73,17 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import javax.imageio.ImageIO;
 
 /**
- * 傳送檔案：左側選在線好友，右側挑檔再送出。
+ * 傳送檔案：左側選在線好友（可多選），右側挑檔再送出。
  * <p>
  * 好友只使用呼叫端傳入的真實名單（裝置 ID、在線、版本、大頭照）。
+ * 選了多位時，同一批檔案由呼叫端依序傳給每位。
  * 多個檔案仍走原本的傳送流程（多個項目打包成一個 ZIP），這裡不改傳輸協定。
  * 截圖與貼上圖片會先存成暫存 PNG，再跟一般檔案一樣送出。
  * </p>
@@ -106,7 +108,7 @@ public final class FileTransferDialog extends JDialog {
             new FriendListItem.FitLabel(UiFonts.chinesePlain(12), CandyTheme.DISABLED);
     private final JPanel avatarSlot = new JPanel(new GridBagLayout());
     private final CandyButton switchButton =
-            new CandyButton("切換", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+            new CandyButton("全選", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
     private final CandyButton clearButton =
             new CandyButton("清空", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
     private final CandyButton sendButton = new CandyButton("傳送", CandyButton.Variant.PRIMARY, CandyButton.Size.MEDIUM);
@@ -115,7 +117,8 @@ public final class FileTransferDialog extends JDialog {
     private final JPanel rightPane;
     private final DropZone dropZone = new DropZone();
     private final JScrollPane friendScroll;
-    private Friend selected;
+    /** 已勾選的收件人，依勾選順序排列。 */
+    private final Set<String> selectedIds = new LinkedHashSet<>();
     private Result result;
     private boolean finished;
     private boolean dividerPlaced;
@@ -135,9 +138,9 @@ public final class FileTransferDialog extends JDialog {
         noteField.setName("transfer.note");
         noteField.setFont(UiFonts.chinesePlain(13));
         noteField.setToolTipText("選填。會另外傳一則訊息給對方，不會包進檔案裡。");
+        switchButton.setName("transfer.selectAll");
         switchButton.setFont(UiFonts.chinesePlain(13));
-        switchButton.setToolTipText("回到左側改選好友");
-        switchButton.setEnabled(false);
+        switchButton.setToolTipText("全選目前列表中的在線好友；已全選時再按一次會取消");
         clearButton.setFont(UiFonts.chinesePlain(12));
         clearButton.setToolTipText("清除已選檔案");
         clearButton.setEnabled(false);
@@ -146,7 +149,7 @@ public final class FileTransferDialog extends JDialog {
         sendButton.setToolTipText("多個檔案或資料夾會打包成一個 ZIP 再傳送");
         sendButton.setEnabled(false);
         nameLabel.setFullText("尚未選擇好友");
-        statusLabel.setFullText("請從左側選擇一位在線好友");
+        statusLabel.setFullText("請從左側選擇在線好友（可多選）");
         avatarSlot.setOpaque(false);
 
         friendScroll = scroll(friendColumn, "transfer.friends");
@@ -187,7 +190,7 @@ public final class FileTransferDialog extends JDialog {
                 rebuildFriends();
             }
         });
-        switchButton.addActionListener(e -> focusFriendSearch());
+        switchButton.addActionListener(e -> toggleSelectAllVisible());
         clearButton.addActionListener(e -> clearChosen());
         sendButton.addActionListener(e -> confirmSelection());
         installFileDrop(dropZone);
@@ -360,8 +363,13 @@ public final class FileTransferDialog extends JDialog {
         return ids;
     }
 
+    /** 第一位已選收件人；沒選回傳 null。 */
     String selectedClientId() {
-        return selected == null ? null : selected.clientId;
+        return selectedIds.isEmpty() ? null : selectedIds.iterator().next();
+    }
+
+    List<String> selectedClientIds() {
+        return new ArrayList<>(selectedIds);
     }
 
     List<Path> chosenPaths() {
@@ -381,23 +389,60 @@ public final class FileTransferDialog extends JDialog {
     }
 
     boolean canSend() {
-        return selected != null && selected.online && !files.isEmpty();
+        return !selectedIds.isEmpty() && !files.isEmpty();
     }
 
     void setQuery(String query) {
         search.setText(query == null ? "" : query);
     }
 
+    /** 加入收件人（已選過維持原狀）。離線或不存在的好友不能選，回傳 false。 */
     boolean selectClient(String clientId) {
         Friend friend = find(clientId);
         if (friend == null || !friend.online) {
             return false;
         }
-        selected = friend;
-        refreshFriendSelection();
-        showRecipient(friend);
-        refreshSend();
+        selectedIds.add(friend.clientId);
+        selectionChanged();
         return true;
+    }
+
+    /** 點好友列時使用：已選就取消，沒選就加入。 */
+    boolean toggleClient(String clientId) {
+        Friend friend = find(clientId);
+        if (friend == null || !friend.online) {
+            return false;
+        }
+        if (!selectedIds.remove(friend.clientId)) {
+            selectedIds.add(friend.clientId);
+        }
+        selectionChanged();
+        return true;
+    }
+
+    /** 全選目前列表（受搜尋篩選影響）中的在線好友；已經全選時改為取消這些人。 */
+    void toggleSelectAllVisible() {
+        List<String> targets = new ArrayList<>();
+        for (String id : visibleClientIds()) {
+            Friend friend = find(id);
+            if (friend != null && friend.online) {
+                targets.add(friend.clientId);
+            }
+        }
+        if (targets.isEmpty()) {
+            return;
+        }
+        if (selectedIds.containsAll(targets)) {
+            selectedIds.removeAll(targets);
+        } else {
+            selectedIds.addAll(targets);
+        }
+        selectionChanged();
+    }
+
+    private void selectionChanged() {
+        refreshFriendSelection();
+        showRecipient();
     }
 
     int addPaths(List<Path> paths, boolean notify) {
@@ -470,7 +515,7 @@ public final class FileTransferDialog extends JDialog {
             UiFonts.showWarning(this, "訊息長度不可超過 " + ChatProtocol.MAX_TEXT_CHARS + " 字。", "傳送檔案");
             return null;
         }
-        result = new Result(selected.clientId, chosenPaths(), message);
+        result = new Result(selectedClientIds(), chosenPaths(), message);
         finished = true;
         setVisible(false);
         return result;
@@ -546,7 +591,7 @@ public final class FileTransferDialog extends JDialog {
         if (onlineCount == 1) {
             selectClient(only.clientId);
         } else {
-            showRecipient(null);
+            showRecipient();
         }
     }
 
@@ -564,8 +609,8 @@ public final class FileTransferDialog extends JDialog {
             }
             FriendListItem item = new FriendListItem(
                     friend.clientId, friend.online, friend.appVersion, friend.avatarEncoded);
-            item.setSelected(selected != null && friend.clientId.equals(selected.clientId));
-            item.setOnActivate(() -> selectClient(friend.clientId));
+            item.setSelected(selectedIds.contains(friend.clientId));
+            item.setOnActivate(() -> toggleClient(friend.clientId));
             item.setAlignmentX(Component.LEFT_ALIGNMENT);
             friendColumn.add(item);
             if (item.isItemSelected()) {
@@ -583,6 +628,7 @@ public final class FileTransferDialog extends JDialog {
             friendColumn.add(Box.createVerticalGlue());
         }
         countLabel.setText("好友 (" + shown + ")");
+        refreshSend();
         friendColumn.revalidate();
         friendColumn.repaint();
         if (selectedItem != null) {
@@ -595,26 +641,33 @@ public final class FileTransferDialog extends JDialog {
         for (Component child : friendColumn.getComponents()) {
             if (child instanceof FriendListItem) {
                 FriendListItem item = (FriendListItem) child;
-                item.setSelected(selected != null && item.clientId().equals(selected.clientId));
+                item.setSelected(selectedIds.contains(item.clientId()));
             }
         }
     }
 
-    private void showRecipient(Friend friend) {
+    private void showRecipient() {
         avatarSlot.removeAll();
-        if (friend == null) {
+        if (selectedIds.isEmpty()) {
             nameLabel.setForeground(CandyTheme.MUTED);
             nameLabel.setFullText("尚未選擇好友");
             statusLabel.setForeground(CandyTheme.DISABLED);
-            statusLabel.setFullText("請從左側選擇一位在線好友");
+            statusLabel.setFullText("請從左側選擇在線好友（可多選）");
             avatarSlot.add(FriendListItem.badge("", false, "", 44));
-        } else {
+        } else if (selectedIds.size() == 1) {
+            Friend friend = find(selectedIds.iterator().next());
             nameLabel.setForeground(CandyTheme.INK);
             nameLabel.setFullText(friend.clientId);
             statusLabel.setForeground(friend.online ? new Color(0x8F, 0xE8, 0xB8) : CandyTheme.DISABLED);
             statusLabel.setFullText(FriendListItem.statusLine(friend.online, friend.appVersion));
             avatarSlot.add(FriendListItem.badge(
                     friend.clientId, friend.online, friend.avatarEncoded, 44));
+        } else {
+            nameLabel.setForeground(CandyTheme.INK);
+            nameLabel.setFullText("已選 " + selectedIds.size() + " 位好友");
+            statusLabel.setForeground(new Color(0x8F, 0xE8, 0xB8));
+            statusLabel.setFullText(String.join("、", selectedIds));
+            avatarSlot.add(FriendListItem.badge(String.valueOf(selectedIds.size()), true, "", 44));
         }
         avatarSlot.revalidate();
         avatarSlot.repaint();
@@ -669,18 +722,31 @@ public final class FileTransferDialog extends JDialog {
     private void refreshSend() {
         sendButton.setText(files.isEmpty() ? "傳送" : "傳送 (" + files.size() + ")");
         sendButton.setEnabled(canSend());
-        switchButton.setEnabled(selected != null);
+        boolean anyOnline = false;
+        for (Friend friend : ordered) {
+            if (friend.online) {
+                anyOnline = true;
+                break;
+            }
+        }
+        switchButton.setEnabled(anyOnline);
+        switchButton.setText(allVisibleOnlineSelected() ? "取消全選" : "全選");
         clearButton.setEnabled(!files.isEmpty());
     }
 
-    private void focusFriendSearch() {
-        search.requestFocusInWindow();
-        search.selectAll();
-        for (Component child : friendColumn.getComponents()) {
-            if (child instanceof FriendListItem && ((FriendListItem) child).isItemSelected()) {
-                ((JComponent) child).scrollRectToVisible(new Rectangle(child.getSize()));
+    private boolean allVisibleOnlineSelected() {
+        boolean any = false;
+        for (String id : visibleClientIds()) {
+            Friend friend = find(id);
+            if (friend == null || !friend.online) {
+                continue;
+            }
+            any = true;
+            if (!selectedIds.contains(id)) {
+                return false;
             }
         }
+        return any;
     }
 
     private void chooseFiles() {
@@ -956,7 +1022,7 @@ public final class FileTransferDialog extends JDialog {
         switchWrap.add(switchButton);
         card.add(switchWrap, BorderLayout.EAST);
         block.add(card, BorderLayout.CENTER);
-        showRecipient(null);
+        showRecipient();
         return block;
     }
 
@@ -1745,18 +1811,19 @@ public final class FileTransferDialog extends JDialog {
 
     /** 使用者按傳送後的結果。取消時不會產生。 */
     public static final class Result {
-        private final String clientId;
+        private final List<String> clientIds;
         private final List<Path> files;
         private final String note;
 
-        Result(String clientId, List<Path> files, String note) {
-            this.clientId = clientId;
+        Result(List<String> clientIds, List<Path> files, String note) {
+            this.clientIds = List.copyOf(clientIds);
             this.files = List.copyOf(files);
             this.note = note == null ? "" : note;
         }
 
-        public String clientId() {
-            return clientId;
+        /** 收件人，依勾選順序，至少一位。 */
+        public List<String> clientIds() {
+            return clientIds;
         }
 
         public List<Path> files() {

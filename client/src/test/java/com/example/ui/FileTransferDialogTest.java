@@ -60,6 +60,36 @@ public class FileTransferDialogTest {
     }
 
     @Test
+    public void severalFriendsCanBeToggledAndSelectedTogether() throws Exception {
+        Path dir = Files.createTempDirectory("punchclock-multi");
+        Path file = dir.resolve("a.txt");
+        Files.writeString(file, "hi");
+        try {
+            withDialog(sampleFriends(), dialog -> {
+                assertEquals(1, dialog.addPaths(List.of(file), false));
+                assertTrue(dialog.toggleClient("beta"));
+                assertTrue(dialog.toggleClient("alpha"));
+                assertEquals(List.of("beta", "alpha"), dialog.selectedClientIds());
+                assertFalse(dialog.toggleClient("guest"));
+                assertTrue(dialog.canSend());
+                assertTrue(dialog.toggleClient("beta"));
+                assertEquals(List.of("alpha"), dialog.selectedClientIds());
+                dialog.toggleSelectAllVisible();
+                assertEquals(List.of("alpha", "beta"), dialog.selectedClientIds());
+                dialog.toggleSelectAllVisible();
+                assertTrue(dialog.selectedClientIds().isEmpty());
+                assertFalse(dialog.canSend());
+                dialog.toggleSelectAllVisible();
+                FileTransferDialog.Result picked = dialog.confirmSelection();
+                assertEquals(List.of("alpha", "beta"), picked.clientIds());
+            });
+        } finally {
+            Files.deleteIfExists(file);
+            Files.deleteIfExists(dir);
+        }
+    }
+
+    @Test
     public void oneFriendIsShownAndPreselectedWhenOnline() throws Exception {
         List<FileTransferDialog.Friend> friends = List.of(
                 new FileTransferDialog.Friend("solo", true, "", ""));
@@ -121,7 +151,7 @@ public class FileTransferDialogTest {
                 assertTrue(dialog.removeChosen(file));
                 assertEquals(1, dialog.chosenPaths().size());
                 FileTransferDialog.Result picked = dialog.confirmSelection();
-                assertEquals("beta", picked.clientId());
+                assertEquals(List.of("beta"), picked.clientIds());
                 assertEquals(List.of(dir.toAbsolutePath().normalize()), picked.files());
                 assertEquals("晚點看", picked.note());
                 dialog.clearChosen();

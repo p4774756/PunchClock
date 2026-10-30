@@ -908,7 +908,120 @@ public class App extends JFrame {
         if (picked == null) {
             return;
         }
-        sendChosenFiles(picked.clientId(), picked.files(), this, picked.note());
+        if (picked.clientIds().size() == 1) {
+            sendChosenFiles(picked.clientIds().get(0), picked.files(), this, picked.note());
+        } else {
+            sendChosenFilesToMany(picked.clientIds(), picked.files(), this, picked.note());
+        }
+    }
+
+    private enum SendEnd { OK, FAILED, CANCELLED }
+
+    private static void endSend(java.util.function.Consumer<SendEnd> finished, SendEnd end) {
+        if (finished != null) {
+            finished.accept(end);
+        }
+    }
+
+    /**
+     * 同一批檔案依序傳給多位同事（一次只跑一位，避免進度視窗與忙碌狀態互相打架）。
+     * 每位仍各自壓縮、上傳；全部結束後只彙總提示一次。使用者取消其中一位就停止後面的人。
+     */
+    private void sendChosenFilesToMany(java.util.List<String> clientIds, java.util.List<Path> files,
+                                       java.awt.Component owner, String note) {
+        if (owner == null) {
+            owner = this;
+        }
+        if (clientIds == null || clientIds.isEmpty() || files == null || files.isEmpty()) {
+            return;
+        }
+        java.util.List<String> queue = new ArrayList<>();
+        for (String id : clientIds) {
+            if (id == null || id.isBlank() || queue.contains(id)) {
+                continue;
+            }
+            if (isSelfClientId(id)) {
+                appendLog("[警告] [檔案] 無法傳送檔案給本機");
+                continue;
+            }
+            queue.add(id);
+        }
+        BatchSend batch = new BatchSend(queue, new ArrayList<>(files), owner, note == null ? "" : note);
+        batch.next();
+    }
+
+    /** 多人傳送的進行狀態。所有方法都在 EDT 上執行。 */
+    private final class BatchSend {
+        private final java.util.List<String> queue;
+        private final java.util.List<Path> files;
+        private final java.awt.Component owner;
+        private final String note;
+        private final java.util.List<String> sent = new ArrayList<>();
+        private final java.util.List<String> failed = new ArrayList<>();
+        private int index;
+        private boolean stopped;
+
+        private BatchSend(java.util.List<String> queue, java.util.List<Path> files,
+                          java.awt.Component owner, String note) {
+            this.queue = queue;
+            this.files = files;
+            this.owner = owner;
+            this.note = note;
+        }
+
+        void next() {
+            if (stopped || index >= queue.size()) {
+                summarize();
+                return;
+            }
+            String id = queue.get(index++);
+            java.util.function.Consumer<SendEnd> finished = end -> {
+                if (end == SendEnd.OK) {
+                    sent.add(id);
+                } else if (end == SendEnd.CANCELLED) {
+                    failed.add(id + "（已取消）");
+                    stopped = true;
+                } else {
+                    failed.add(id);
+                }
+                next();
+            };
+            if (onlinePeerIds.contains(id)) {
+                startRelaySend(id, files, owner, finished, true);
+                sendTransferNote(id, note);
+            } else if (confirmStoredFallback(id, "【" + id + "】目前不在線，無法直傳。", owner)) {
+                startStoredSend(id, files, owner, finished, true);
+                sendTransferNote(id, note);
+            } else {
+                failed.add(id + "（略過）");
+                next();
+            }
+        }
+
+        private void summarize() {
+            if (stopped) {
+                for (int i = index; i < queue.size(); i++) {
+                    failed.add(queue.get(i) + "（未傳送）");
+                }
+            }
+            if (sent.isEmpty() && failed.isEmpty()) {
+                return;
+            }
+            if (!sent.isEmpty()) {
+                celebrateTransfer();
+            }
+            StringBuilder text = new StringBuilder();
+            text.append("已傳送給 ").append(sent.size()).append(" 位");
+            if (!sent.isEmpty()) {
+                text.append("：").append(String.join("、", sent));
+            }
+            if (!failed.isEmpty()) {
+                text.append("\n未完成 ").append(failed.size()).append(" 位：").append(String.join("、", failed));
+            }
+            appendLog("[檔案] " + text.toString().replace('\n', ' '));
+            UiFonts.showMessage(owner, text.toString(), "傳送檔案",
+                    failed.isEmpty() ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.WARNING_MESSAGE);
+        }
     }
 
     private void sendFilesToPeer(String toClientId, java.awt.Component owner) {
@@ -1003,6 +1116,15 @@ public class App extends JFrame {
 
     /** 對方在線：即時直傳，伺服器只在記憶體轉手、不留檔。 */
     private void startRelaySend(String toClientId, java.util.List<Path> files, java.awt.Component owner) {
+        startRelaySend(toClientId, files, owner, null, false);
+    }
+
+    /**
+     * @param finished 這位收件人傳送流程全部結束（含改走暫存）後呼叫，可為 null
+     * @param quiet    多人批次傳送時為 true：不跳每人一次的成功訊息，也不在每人完成時放動畫
+     */
+    private void startRelaySend(String toClientId, java.util.List<Path> files, java.awt.Component owner,
+                                java.util.function.Consumer<SendEnd> finished, boolean quiet) {
         setSendFileBusy(true);
         TransferProgressDialog progress = TransferProgressDialog.open(owner, "直傳檔案");
         TransferCancel cancel = new TransferCancel();
@@ -1032,23 +1154,30 @@ public class App extends JFrame {
                     setSendFileBusy(false);
                     switch (outcome) {
                         case DELIVERED:
-                            celebrateTransfer();
                             chatNote(toClientId, "已直傳「" + displayName + "」");
-                            UiFonts.showMessage(
-                                    owner,
-                                    "「" + displayName + "」已直傳給【" + toClientId + "】。\n伺服器沒有保留這個檔案。",
-                                    "傳送檔案",
-                                    JOptionPane.INFORMATION_MESSAGE);
+                            if (!quiet) {
+                                celebrateTransfer();
+                                UiFonts.showMessage(
+                                        owner,
+                                        "「" + displayName + "」已直傳給【" + toClientId + "】。\n伺服器沒有保留這個檔案。",
+                                        "傳送檔案",
+                                        JOptionPane.INFORMATION_MESSAGE);
+                            }
+                            endSend(finished, SendEnd.OK);
                             break;
                         case UNSUPPORTED_SERVER:
                             if (confirmStoredFallback(toClientId, "伺服器尚未支援直傳（需更新雲端）。", owner)) {
-                                startStoredSend(toClientId, files, owner);
+                                startStoredSend(toClientId, files, owner, finished, quiet);
+                            } else {
+                                endSend(finished, SendEnd.FAILED);
                             }
                             break;
                         case RECIPIENT_UNAVAILABLE:
                             if (confirmStoredFallback(toClientId,
                                     "【" + toClientId + "】目前無法直傳（剛離線，或桌面端版本較舊）。", owner)) {
-                                startStoredSend(toClientId, files, owner);
+                                startStoredSend(toClientId, files, owner, finished, quiet);
+                            } else {
+                                endSend(finished, SendEnd.FAILED);
                             }
                             break;
                         case FAILED:
@@ -1058,8 +1187,13 @@ public class App extends JFrame {
                                     "直傳沒有完成。對方可能拒收、逾時未接收，或連線中斷。"
                                             + (detail.isEmpty() ? "" : "\n\n" + detail),
                                     "傳送檔案");
+                            endSend(finished, SendEnd.FAILED);
+                            break;
+                        case CANCELLED:
+                            endSend(finished, SendEnd.CANCELLED);
                             break;
                         default:
+                            endSend(finished, SendEnd.FAILED);
                             break;
                     }
                 }));
@@ -1067,6 +1201,11 @@ public class App extends JFrame {
 
     /** 經伺服器暫存（保留 {@link PeerFileRules#OFFER_TTL_LABEL}），對方離線也能稍後下載。 */
     private void startStoredSend(String toClientId, java.util.List<Path> files, java.awt.Component owner) {
+        startStoredSend(toClientId, files, owner, null, false);
+    }
+
+    private void startStoredSend(String toClientId, java.util.List<Path> files, java.awt.Component owner,
+                                 java.util.function.Consumer<SendEnd> finished, boolean quiet) {
         setSendFileBusy(true);
         TransferProgressDialog progress = TransferProgressDialog.open(owner, "傳送檔案");
         TransferCancel cancel = new TransferCancel();
@@ -1090,7 +1229,9 @@ public class App extends JFrame {
                     progress.close();
                     setSendFileBusy(false);
                     if (ok) {
-                        celebrateTransfer();
+                        if (!quiet) {
+                            celebrateTransfer();
+                        }
                         chatNote(toClientId, "已送出「" + displayName + "」（伺服器暫存 "
                                 + PeerFileRules.OFFER_TTL_LABEL + "，對方可下載）");
                     }
@@ -1101,6 +1242,7 @@ public class App extends JFrame {
                                         + "（資料夾會先壓縮），且已連上同一伺服器。",
                                 "傳送檔案");
                     }
+                    endSend(finished, ok ? SendEnd.OK : cancel.isCancelled() ? SendEnd.CANCELLED : SendEnd.FAILED);
                 }));
     }
 

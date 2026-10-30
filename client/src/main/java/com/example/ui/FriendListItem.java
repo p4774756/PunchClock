@@ -22,6 +22,7 @@ public final class FriendListItem extends JComponent {
 
     public static final int ROW_HEIGHT = 64;
     private static final int AVATAR = 40;
+    private static final int CHECK = 20;
     private static final Color ONLINE_DOT = new Color(0x3D, 0xDC, 0x84);
     private static final Color SELECTED_TOP = new Color(0xF0, 0x7A, 0xB4);
     private static final Color SELECTED_BOTTOM = new Color(0x8D, 0x62, 0xD4);
@@ -170,7 +171,17 @@ public final class FriendListItem extends JComponent {
         paintBadge(g2, 10, ay, AVATAR, clientId, online, avatar, face);
 
         int textX = 10 + AVATAR + 10;
-        int textW = Math.max(0, getWidth() - textX - 12);
+        int textW = Math.max(0, getWidth() - textX - 12 - (selected && online ? CHECK + 6 : 0));
+        if (selected && online) {
+            int cx = getWidth() - 12 - CHECK;
+            int cy = (getHeight() - CHECK) / 2;
+            g2.setColor(Color.WHITE);
+            g2.fillOval(cx, cy, CHECK, CHECK);
+            g2.setColor(SELECTED_BOTTOM);
+            g2.setStroke(new java.awt.BasicStroke(2f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+            g2.drawLine(cx + 6, cy + CHECK / 2, cx + CHECK / 2 - 1, cy + CHECK - 7);
+            g2.drawLine(cx + CHECK / 2 - 1, cy + CHECK - 7, cx + CHECK - 5, cy + 6);
+        }
         g2.setFont(UiFonts.chineseBold(14));
         FontMetrics nameMetrics = g2.getFontMetrics();
         g2.setFont(UiFonts.chinesePlain(12));
