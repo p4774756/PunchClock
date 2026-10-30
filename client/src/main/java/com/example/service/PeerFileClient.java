@@ -78,7 +78,7 @@ final class PeerFileClient {
             if (callback != null) callback.accept(false);
             return;
         }
-        if (files == null || files.isEmpty() || files.contains(null)) {
+        if (files == null || files.isEmpty() || files.stream().anyMatch(java.util.Objects::isNull)) {
             endpoint.log(logger, "[警告] [檔案] 找不到要傳送的檔案");
             if (callback != null) callback.accept(false);
             return;
@@ -350,7 +350,7 @@ final class PeerFileClient {
             return;
         }
         if (toClientId == null || toClientId.isBlank() || files == null || files.isEmpty()
-                || files.contains(null)) {
+                || files.stream().anyMatch(java.util.Objects::isNull)) {
             endpoint.log(logger, "[警告] [檔案] 缺少收件同事或檔案");
             done.accept(HeartbeatService.RelayOutcome.FAILED);
             return;
