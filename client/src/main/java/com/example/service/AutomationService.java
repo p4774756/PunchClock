@@ -47,7 +47,8 @@ public class AutomationService {
             String choice = (browserChoice == null) ? "msedge" : browserChoice.trim().toLowerCase();
             Browser browser = getOrCreateBrowser(choice, logger);
 
-            context = browser.newContext();
+            // 內部測試站常用內部 CA／自簽憑證（且啟用 HSTS），略過憑證錯誤才能自動打卡
+            context = browser.newContext(new Browser.NewContextOptions().setIgnoreHTTPSErrors(true));
             Page page = context.newPage();
 
             log(logger, "網頁導向中：" + targetUrl);
