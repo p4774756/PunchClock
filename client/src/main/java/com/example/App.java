@@ -98,6 +98,8 @@ public class App extends JFrame {
     private final List<PeerFileInfo> peerFiles = new ArrayList<>();
     /** 最近一次心跳回報為在線的同事；決定傳檔走直傳還是伺服器暫存。 */
     private final Set<String> onlinePeerIds = new HashSet<>();
+    /** 標為最愛的好友裝置 ID（存在 config.json）。 */
+    private final Set<String> favoritePeerIds = new HashSet<>();
     /** 最近一次心跳看到的其他好友，首頁「最近在線」用。 */
     private List<PeerInfo> latestPeers = List.of();
     /** 首頁好友卡的大頭照。同一張編碼不重複解碼。 */
@@ -517,7 +519,19 @@ public class App extends JFrame {
             peerRefs.peerTable.addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
                 public void mouseClicked(java.awt.event.MouseEvent e) {
-                    if (e.getClickCount() == 2 && peerRefs.peerTable.rowAtPoint(e.getPoint()) >= 0) {
+                    int row = peerRefs.peerTable.rowAtPoint(e.getPoint());
+                    if (row < 0) {
+                        return;
+                    }
+                    int viewColumn = peerRefs.peerTable.columnAtPoint(e.getPoint());
+                    if (viewColumn >= 0
+                            && peerRefs.peerTable.convertColumnIndexToModel(viewColumn)
+                            == PanelFactory.PEER_FAVORITE_COLUMN) {
+                        Object value = peerRefs.peerTableModel.getValueAt(row, 0);
+                        toggleFavoritePeer(parsePeerRowId(value != null ? value.toString() : null));
+                        return;
+                    }
+                    if (e.getClickCount() == 2) {
                         openChatWithSelectedPeer();
                     }
                 }
@@ -550,6 +564,18 @@ public class App extends JFrame {
         if (peerRefs.clearAvatarButton != null) {
             peerRefs.clearAvatarButton.addActionListener(e -> clearPeerAvatar());
         }
+    }
+
+    /** 加入／取消最愛；好友列表會重排並存檔。 */
+    private void toggleFavoritePeer(String peerId) {
+        if (peerId == null || peerId.isBlank()) {
+            return;
+        }
+        if (!favoritePeerIds.remove(peerId)) {
+            favoritePeerIds.add(peerId);
+        }
+        saveCloudConfig();
+        updatePeerTable(latestPeers);
     }
 
     private String getSelectedPeerClientId() {
@@ -1259,7 +1285,20 @@ public class App extends JFrame {
         int friendCount = 0;
         List<PeerInfo> seenPeers = new ArrayList<>();
 
+        // 最愛排前面；同一組內維持伺服器給的順序
+        List<PeerInfo> ordered = new ArrayList<>();
         for (PeerInfo peer : peers) {
+            if (favoritePeerIds.contains(peer.clientId)) {
+                ordered.add(peer);
+            }
+        }
+        for (PeerInfo peer : peers) {
+            if (!favoritePeerIds.contains(peer.clientId)) {
+                ordered.add(peer);
+            }
+        }
+
+        for (PeerInfo peer : ordered) {
             if (myClientId.equals(peer.clientId)) {
                 continue;
             }
@@ -1275,7 +1314,10 @@ public class App extends JFrame {
                     peer.clientId,
                     statusLabel,
                     peer.scheduledCount,
-                    peer.appVersion.isBlank() ? "—" : peer.appVersion
+                    peer.appVersion.isBlank() ? "—" : peer.appVersion,
+                    favoritePeerIds.contains(peer.clientId)
+                            ? PanelFactory.PEER_FAVORITE_ON
+                            : PanelFactory.PEER_FAVORITE_OFF
             });
         }
         latestPeers = seenPeers;
@@ -2197,6 +2239,14 @@ public class App extends JFrame {
     }
 
     private void applyServerConfig(ConfigPersistenceService.CloudConfig config) {
+        favoritePeerIds.clear();
+        if (config.favoritePeers != null) {
+            for (String id : config.favoritePeers) {
+                if (id != null && !id.isBlank()) {
+                    favoritePeerIds.add(id.trim());
+                }
+            }
+        }
         if (serverRefs.serverUrlCombo != null && config.serverUrl != null) {
             RecentValuesHelper.applyHistory(serverRefs.serverUrlCombo, config.recentServerUrls, config.serverUrl);
             if (!serverHistoryMenuBound) {
@@ -2312,6 +2362,9 @@ public class App extends JFrame {
         captureRelayConfigInto(config);
         captureWindowLayoutInto(config);
         config.ignoredUpdateDigest = ignoredUpdateDigest;
+        List<String> favorites = new ArrayList<>(favoritePeerIds);
+        java.util.Collections.sort(favorites);
+        config.favoritePeers = favorites;
         configPersistenceService.saveConfig(config, null);
     }
 

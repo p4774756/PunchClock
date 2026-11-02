@@ -326,6 +326,12 @@ public class PanelFactory {
 
     // ==================== 裝置互動 ====================
 
+    /** 好友列表「最愛」欄的 model 索引（最後一欄，不影響第 0 欄的裝置 ID）。 */
+    public static final int PEER_FAVORITE_COLUMN = 4;
+    public static final String PEER_FAVORITE_ON = "★";
+    public static final String PEER_FAVORITE_OFF = "☆";
+    private static final Color PEER_FAVORITE_GOLD = new Color(255, 208, 96);
+
     public static JPanel createPeerInteractionPanel(PeerInteractionRefs refs, Font mainFont, Font boldFont) {
         JPanel panel = new JPanel(new BorderLayout(8, 8));
         panel.setOpaque(false);
@@ -338,7 +344,7 @@ public class PanelFactory {
         refs.peerHintLabel = hint;
 
         refs.peerTableModel = new javax.swing.table.DefaultTableModel(
-                new Object[]{"裝置 ID", "狀態", "等待任務", "版本"}, 0) {
+                new Object[]{"裝置 ID", "狀態", "等待任務", "版本", "最愛"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -349,6 +355,10 @@ public class PanelFactory {
         refs.peerTable.setRowHeight(44);
         refs.peerTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         refs.peerTable.getTableHeader().setFont(boldFont);
+        javax.swing.table.TableColumn favoriteColumn =
+                refs.peerTable.getColumnModel().getColumn(PEER_FAVORITE_COLUMN);
+        favoriteColumn.setPreferredWidth(64);
+        favoriteColumn.setMaxWidth(80);
         installSelfPeerRowRenderer(refs.peerTable, mainFont, boldFont);
 
         JScrollPane tableScroll = new JScrollPane(refs.peerTable);
@@ -434,7 +444,7 @@ public class PanelFactory {
                 "開啟聊天", CandyButton.Variant.PRIMARY, boldFont,
                 "和選取的好友開一個小聊天視窗，可傳訊息、圖片、檔案或戳一下（雙擊好友也可以）");
         refs.openChatButton.setEnabled(false);
-        JLabel chatHint = new JLabel("雙擊好友，或選取後按「開啟聊天」");
+        JLabel chatHint = new JLabel("雙擊好友，或選取後按「開啟聊天」；點 ☆ 設為最愛（排最上面）");
         chatHint.setFont(mainFont);
         chatHint.setForeground(NightTheme.MUTED);
         refs.deskChatButton = candyButton(
@@ -523,12 +533,17 @@ public class PanelFactory {
                 Component c = super.getTableCellRendererComponent(tbl, value, isSelected, hasFocus, row, column);
                 boolean self = isSelfPeerRow(tbl, row);
                 boolean hover = !isSelected && row == hoverRow(tbl);
+                boolean favoriteColumn = column == PEER_FAVORITE_COLUMN;
                 if (c instanceof JLabel) {
                     JLabel label = (JLabel) c;
                     label.setFont(self && column == 0 ? boldFont : mainFont);
                     label.setBorder(new EmptyBorder(4, column == 0 ? 8 : 6, 4, 4));
                     label.setIcon(column == 0 ? friendFace(tbl, row, faces) : null);
                     label.setIconTextGap(8);
+                    label.setHorizontalAlignment(favoriteColumn ? SwingConstants.CENTER : SwingConstants.LEADING);
+                    if (favoriteColumn) {
+                        label.setFont(UiFonts.chineseBold(18));
+                    }
                 }
                 if (isSelected) {
                     c.setBackground(CandyTheme.ROW_SELECT);
@@ -547,7 +562,17 @@ public class PanelFactory {
                     JComponent widget = (JComponent) c;
                     widget.setOpaque(true);
                     String tip = value == null ? null : String.valueOf(value);
-                    widget.setToolTipText(tip == null || tip.isEmpty() ? null : tip);
+                    if (favoriteColumn) {
+                        boolean on = PEER_FAVORITE_ON.equals(tip);
+                        widget.setToolTipText(on ? "最愛（點一下取消）" : "點一下加入最愛");
+                        if (on) {
+                            c.setForeground(PEER_FAVORITE_GOLD);
+                        } else if (!isSelected) {
+                            c.setForeground(NightTheme.MUTED);
+                        }
+                    } else {
+                        widget.setToolTipText(tip == null || tip.isEmpty() ? null : tip);
+                    }
                 }
                 return c;
             }
