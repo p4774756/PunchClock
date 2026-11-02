@@ -2247,19 +2247,10 @@ public class App extends JFrame {
         }
     }
 
-    /** 雲端連線中鎖定連線參數，避免執行中誤改（與打卡槽位「啟用時鎖定時分」相同邏輯） */
+    /** 雲端連線中鎖定連線參數，避免執行中誤改（裝置 ID 已移到好友與傳檔頁，不在此鎖定） */
     private void syncCloudConnectionFieldsEnabled() {
         if (serverRefs.enableServerCheckBox == null) return;
         boolean cloudOn = serverRefs.enableServerCheckBox.isSelected();
-        if (peerRefs.clientIdCombo != null) {
-            peerRefs.clientIdCombo.setEnabled(!cloudOn);
-            if (peerRefs.clientIdCombo.isEditable()) {
-                java.awt.Component editor = peerRefs.clientIdCombo.getEditor().getEditorComponent();
-                if (editor != null) {
-                    editor.setEnabled(!cloudOn);
-                }
-            }
-        }
         if (serverRefs.heartbeatTokenField != null) {
             serverRefs.heartbeatTokenField.setEnabled(!cloudOn);
         }

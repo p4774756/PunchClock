@@ -393,7 +393,7 @@ public class PanelFactory {
         refs.clientIdCombo.setEditable(true);
         refs.clientIdCombo.setFont(mainFont);
         refs.clientIdCombo.setPrototypeDisplayValue("company-worker4");
-        refs.clientIdCombo.setToolTipText("好友看到的本機名稱。可下拉選擇或自行輸入；雲端連線中會鎖定，請先到設定取消「啟用雲端」再修改");
+        refs.clientIdCombo.setToolTipText("好友看到的本機名稱。可下拉選擇或自行輸入；雲端連線中也可直接修改");
         CandyComboBox.install(refs.clientIdCombo);
         Component idEditor = refs.clientIdCombo.getEditor().getEditorComponent();
         if (idEditor != null) {
