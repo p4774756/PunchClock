@@ -8,7 +8,6 @@ import com.example.service.ConfigPersistenceService;
 import com.example.service.HeartbeatService;
 import com.example.service.UpdateIdlePolicy;
 import com.example.service.HeartbeatService.UpdateNotice;
-import com.example.service.HeartbeatService.PeerFileInfo;
 import com.example.service.HeartbeatService.PeerInfo;
 import com.example.service.PeerAvatar;
 import com.example.service.PeerChatStore;
@@ -19,6 +18,7 @@ import com.example.service.TransferCancel;
 import com.example.service.TransferIo;
 import com.example.service.WindowBackground;
 import com.example.ui.FileTransferDialog;
+import com.example.ui.MarqueeBar;
 import com.example.ui.PeerChatWindow;
 import com.example.ui.UiFonts;
 import com.example.ui.TransferProgressDialog;
@@ -81,12 +81,13 @@ public class App extends JFrame {
     private final ConfigPersistenceService configPersistenceService;
     private SlotController slotController;
     private AnimeShell shell;
+    private MarqueeBar marqueeBar;
     private boolean suppressConfigSave = false;
     private Timer countdownTimer;
     private JTabbedPane mainTabs;
     private boolean serverHistoryMenuBound;
     private Image appIconImage;
-    /** 後台（管理頁）傳來的訊息寄件者代號，只能收不能回；與伺服器 ClientStore.ADMIN_FROM_ID 一致。 */
+    /** 名為「後台」的寄件者只能收、不能回。 */
     private static final String ADMIN_PEER_ID = "後台";
     /** 同事聊天紀錄（只存記憶體）。 */
     private final PeerChatStore chatStore = new PeerChatStore();
@@ -95,8 +96,7 @@ public class App extends JFrame {
     private final Map<String, String> peerAvatars = new HashMap<>();
     private boolean peerInteractionEnabled = true;
     private boolean peerFileBusy;
-    private final List<PeerFileInfo> peerFiles = new ArrayList<>();
-    /** 最近一次心跳回報為在線的同事；決定傳檔走直傳還是伺服器暫存。 */
+    /** 最近一次心跳回報為在線的同事。傳檔只對這些人直傳。 */
     private final Set<String> onlinePeerIds = new HashSet<>();
     /** 標為最愛的好友裝置 ID（存在 config.json）。 */
     private final Set<String> favoritePeerIds = new HashSet<>();
@@ -135,10 +135,7 @@ public class App extends JFrame {
         startHeartbeatService();
         slotController.initializeFromPersistence();
 
-        countdownTimer = new Timer(1000, e -> {
-            slotController.refreshCountdowns();
-            refreshPeerFileRemainings();
-        });
+        countdownTimer = new Timer(1000, e -> slotController.refreshCountdowns());
         countdownTimer.start();
         appendLog("[資訊] 桌面端版本 " + AppVersion.displayLabel());
     }
@@ -146,12 +143,9 @@ public class App extends JFrame {
     private void initHeartbeatService() {
         heartbeatService.setTasksProvider(schedulerService::getAllTasks);
         heartbeatService.setPeersListener(peers -> SwingUtilities.invokeLater(() -> updatePeerTable(peers)));
-        heartbeatService.setFilesListener(files -> SwingUtilities.invokeLater(() -> updatePeerFileTable(files)));
         updateCoordinator = new ClientUpdateCoordinator(updateActions());
         heartbeatService.setUpdateListener(notice ->
                 SwingUtilities.invokeLater(() -> updateCoordinator.handle(notice)));
-        heartbeatService.setRoomMessageListener(message ->
-                SwingUtilities.invokeLater(() -> showRoomMessage(message)));
         heartbeatService.setCommandListener(command -> {
             if ("CANCEL_SCHEDULE".equalsIgnoreCase(command)) {
                 SwingUtilities.invokeLater(slotController::handleRemoteCancelAll);
@@ -195,18 +189,6 @@ public class App extends JFrame {
                 Long sentAtMs = parts.length >= 3 ? parseEpochMillis(parts[2]) : null;
                 String avatar = parts.length >= 4 ? parts[3] : "";
                 SwingUtilities.invokeLater(() -> showPeerPoke(fromId, sentAtMs, avatar));
-            } else if (command.startsWith("FILE|")) {
-                // FILE|base64fromId|fileId|size|mime|sentAtMs|filename（filename 可含 |）
-                String[] parts = command.split("\\|", 7);
-                if (parts.length >= 7) {
-                    String fromId = PeerFileRules.decodeName(parts[1]);
-                    String fileId = parts[2];
-                    long size = parseLongOrZero(parts[3]);
-                    Long sentAtMs = parseEpochMillis(parts[5]);
-                    String filename = parts[6];
-                    SwingUtilities.invokeLater(() ->
-                            showPeerFileOffer(fromId, fileId, filename, size, sentAtMs));
-                }
             } else if (command.startsWith("RELAY|")) {
                 // RELAY|base64fromId|relayId|size|kind|sentAtMs|filename（filename 可含 |）
                 String[] parts = command.split("\\|", 7);
@@ -379,6 +361,10 @@ public class App extends JFrame {
         });
         tabs.setSelectedIndex(0);
 
+        marqueeBar = new MarqueeBar();
+        heartbeatService.setMarqueeListener(notice -> SwingUtilities.invokeLater(() ->
+                marqueeBar.showNotice(notice.enabled, notice.text)));
+        content.add(marqueeBar, BorderLayout.NORTH);
         content.add(shell, BorderLayout.CENTER);
 
         bindBackgroundControls();
@@ -512,9 +498,6 @@ public class App extends JFrame {
         if (peerRefs.openChatButton != null) {
             peerRefs.openChatButton.addActionListener(e -> openChatWithSelectedPeer());
         }
-        if (peerRefs.deskChatButton != null) {
-            peerRefs.deskChatButton.addActionListener(e -> openDeskChat());
-        }
         if (peerRefs.peerTable != null) {
             peerRefs.peerTable.addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
@@ -539,22 +522,6 @@ public class App extends JFrame {
             peerRefs.peerTable.getSelectionModel().addListSelectionListener(e -> {
                 if (!e.getValueIsAdjusting()) {
                     refreshOpenChatButton();
-                }
-            });
-        }
-        if (peerRefs.downloadFileButton != null) {
-            peerRefs.downloadFileButton.addActionListener(e -> downloadSelectedPeerFile());
-        }
-        if (peerRefs.clearFileButton != null) {
-            peerRefs.clearFileButton.addActionListener(e -> clearSelectedPeerFile());
-        }
-        if (peerRefs.fileTable != null) {
-            peerRefs.fileTable.addMouseListener(new java.awt.event.MouseAdapter() {
-                @Override
-                public void mouseClicked(java.awt.event.MouseEvent e) {
-                    if (e.getClickCount() == 2) {
-                        downloadSelectedPeerFile();
-                    }
                 }
             });
         }
@@ -613,9 +580,6 @@ public class App extends JFrame {
         }
         String selected = getSelectedPeerClientId();
         peerRefs.openChatButton.setEnabled(peerInteractionEnabled && selected != null && !isSelfClientId(selected));
-        if (peerRefs.deskChatButton != null) {
-            peerRefs.deskChatButton.setEnabled(peerInteractionEnabled);
-        }
     }
 
     private PeerChatWindow ensureChatWindow(String peerId) {
@@ -638,61 +602,6 @@ public class App extends JFrame {
         window.setLocation(origin.x + offset, origin.y + offset);
         chatWindows.put(peerId, window);
         return window;
-    }
-
-    private PeerChatWindow ensureDeskWindow(String roomId, String heading) {
-        PeerChatWindow existing = chatWindows.get(roomId);
-        if (existing != null) {
-            existing.setHeading(heading);
-            return existing;
-        }
-        PeerChatWindow window = new PeerChatWindow(roomId, chatHost, appIconImage,
-                chatStore.entries(roomId), false, true);
-        window.setHeading(heading);
-        window.setInteractionEnabled(isCloudEnabled() && peerInteractionEnabled);
-        window.setLocationRelativeTo(this);
-        int offset = 28 * chatWindows.size();
-        java.awt.Point origin = window.getLocation();
-        window.setLocation(origin.x + offset, origin.y + offset);
-        chatWindows.put(roomId, window);
-        return window;
-    }
-
-    private void openDeskChat() {
-        String clientId = heartbeatService.getClientId();
-        if (clientId == null || clientId.isBlank()) {
-            appendLog("[警告] [聊天] 尚未設定本機 Client ID");
-            return;
-        }
-        if (!isCloudEnabled()) {
-            appendLog("[警告] [聊天] 請先啟用雲端狀態回報");
-            return;
-        }
-        ensureDeskWindow(ChatProtocol.dmRoomId(clientId), "後台").showAndFocus();
-    }
-
-    private void showRoomMessage(ChatProtocol.RoomMessage message) {
-        if (message == null || !ChatProtocol.isDmRoom(message.roomId)) {
-            return;
-        }
-        if (message.fromId.equals(heartbeatService.getClientId())) {
-            return;
-        }
-        String speaker = message.nick == null || message.nick.isBlank() ? message.fromId : message.nick;
-        String timeLabel = formatPeerMessageTime(message.timeMs);
-        appendLog("[訊息] 【聊天】（" + timeLabel + "）【" + speaker + "】：" + message.text);
-        PeerChatStore.Entry entry = chatStore.addMessage(
-                message.roomId, false, message.text, "", message.timeMs, speaker);
-        String heading = "後台";
-        Toolkit.getDefaultToolkit().beep();
-        PeerChatWindow existing = chatWindows.get(message.roomId);
-        if (existing == null) {
-            ensureDeskWindow(message.roomId, heading).showAndFocus();
-        } else {
-            existing.setHeading(heading);
-            existing.append(entry);
-            existing.showAndFocus();
-        }
     }
 
     /** 把一筆紀錄補到已開著的視窗（沒開視窗就只留在紀錄裡）。 */
@@ -738,32 +647,11 @@ public class App extends JFrame {
     private final PeerChatWindow.Host chatHost = new PeerChatWindow.Host() {
         @Override
         public boolean canSend(String peerId) {
-            if (ChatProtocol.isDeskRoom(peerId)) {
-                return isCloudEnabled();
-            }
             return isCloudEnabled() && peerId != null && !ADMIN_PEER_ID.equals(peerId) && !isSelfClientId(peerId);
         }
 
         @Override
         public void sendMessage(String peerId, String text, String imageEncoded, Consumer<Boolean> done) {
-            if (ChatProtocol.isDeskRoom(peerId)) {
-                if (imageEncoded != null && !imageEncoded.isBlank()) {
-                    chatNote(peerId, "後台對話只傳文字");
-                    done.accept(false);
-                    return;
-                }
-                heartbeatService.sendRoomMessage(peerId, text, App.this::appendLog, ok ->
-                        SwingUtilities.invokeLater(() -> {
-                            boolean sent = Boolean.TRUE.equals(ok);
-                            if (sent) {
-                                chatAppend(peerId, chatStore.addMessage(peerId, true, text, "", null));
-                            } else {
-                                chatNote(peerId, "訊息沒有送出，請確認雲端連線或是否仍在群組裡");
-                            }
-                            done.accept(sent);
-                        }));
-                return;
-            }
             heartbeatService.sendPeerMessage(peerId, text, imageEncoded, App.this::appendLog, ok ->
                     SwingUtilities.invokeLater(() -> {
                         boolean sent = Boolean.TRUE.equals(ok);
@@ -778,10 +666,6 @@ public class App extends JFrame {
 
         @Override
         public void poke(String peerId) {
-            if (ChatProtocol.isDeskRoom(peerId)) {
-                chatNote(peerId, "後台對話只傳文字");
-                return;
-            }
             heartbeatService.sendPeerPoke(peerId, App.this::appendLog, ok ->
                     SwingUtilities.invokeLater(() -> {
                         if (Boolean.TRUE.equals(ok)) {
@@ -793,21 +677,16 @@ public class App extends JFrame {
         }
 
         @Override
-        public void sendFiles(String peerId, java.awt.Component owner) {
-            if (ChatProtocol.isDeskRoom(peerId)) {
-                chatNote(peerId, "後台對話只傳文字");
-                return;
+        public boolean sendQueuedFiles(String peerId, java.awt.Component owner, java.util.List<java.nio.file.Path> files) {
+            if (peerFileBusy) {
+                UiFonts.showMessage(
+                        owner == null ? App.this : owner,
+                        "還有檔案在傳送，這一批先留在聊天視窗。",
+                        "傳送檔案",
+                        JOptionPane.INFORMATION_MESSAGE);
+                return false;
             }
-            sendFilesToPeer(peerId, owner);
-        }
-
-        @Override
-        public void sendDroppedFiles(String peerId, java.awt.Component owner, java.util.List<java.nio.file.Path> files) {
-            if (ChatProtocol.isDeskRoom(peerId)) {
-                chatNote(peerId, "後台對話只傳文字");
-                return;
-            }
-            sendChosenFiles(peerId, files, owner);
+            return sendChosenFiles(peerId, files == null ? java.util.List.of() : new ArrayList<>(files), owner, "");
         }
 
         @Override
@@ -917,11 +796,52 @@ public class App extends JFrame {
     }
 
     private void promptSendFile() {
+        openTransferDialog(null, this, List.of());
+    }
+
+    /** 首頁與聊天室共用的傳送視窗。preselectId 有在線就先勾選；initialFiles 先放進清單，按傳送才送出。 */
+    private void openTransferDialog(String preselectId, java.awt.Component owner, java.util.List<Path> initialFiles) {
+        if (owner == null) {
+            owner = this;
+        }
+        if (preselectId != null && preselectId.isBlank()) {
+            appendLog("[警告] [檔案] 請先選擇一位同事");
+            return;
+        }
+        if (isSelfClientId(preselectId)) {
+            appendLog("[警告] [檔案] 無法傳送檔案給本機");
+            return;
+        }
         if (!isCloudEnabled()) {
-            UiFonts.showMessage(this, "請先到設定啟用雲端，才能傳檔。", "傳送檔案", JOptionPane.INFORMATION_MESSAGE);
+            UiFonts.showMessage(owner, "請先到設定啟用雲端，才能傳檔。", "傳送檔案", JOptionPane.INFORMATION_MESSAGE);
             shell.openTab(2);
             return;
         }
+        List<FileTransferDialog.Friend> friends = transferFriends();
+        if (preselectId != null && friends.stream().noneMatch(friend -> preselectId.equals(friend.clientId))) {
+            friends.add(new FileTransferDialog.Friend(
+                    preselectId,
+                    onlinePeerIds.contains(preselectId),
+                    "",
+                    peerAvatars.getOrDefault(preselectId, "")));
+        }
+        if (friends.isEmpty()) {
+            UiFonts.showMessage(owner, "目前沒有可傳送的好友。", "傳送檔案", JOptionPane.INFORMATION_MESSAGE);
+            shell.openTab(2);
+            return;
+        }
+        FileTransferDialog.Result picked = FileTransferDialog.show(owner, friends, preselectId, initialFiles);
+        if (picked == null) {
+            return;
+        }
+        if (picked.clientIds().size() == 1) {
+            sendChosenFiles(picked.clientIds().get(0), picked.files(), owner, picked.note());
+        } else {
+            sendChosenFilesToMany(picked.clientIds(), picked.files(), owner, picked.note());
+        }
+    }
+
+    private List<FileTransferDialog.Friend> transferFriends() {
         List<FileTransferDialog.Friend> friends = new ArrayList<>();
         for (PeerInfo peer : latestPeers) {
             if (peer == null || peer.clientId == null || peer.clientId.isBlank() || isSelfClientId(peer.clientId)) {
@@ -933,20 +853,7 @@ public class App extends JFrame {
                     peer.appVersion,
                     peerAvatars.getOrDefault(peer.clientId, "")));
         }
-        if (friends.isEmpty()) {
-            UiFonts.showMessage(this, "目前沒有可傳送的好友。", "傳送檔案", JOptionPane.INFORMATION_MESSAGE);
-            shell.openTab(2);
-            return;
-        }
-        FileTransferDialog.Result picked = FileTransferDialog.show(this, friends);
-        if (picked == null) {
-            return;
-        }
-        if (picked.clientIds().size() == 1) {
-            sendChosenFiles(picked.clientIds().get(0), picked.files(), this, picked.note());
-        } else {
-            sendChosenFilesToMany(picked.clientIds(), picked.files(), this, picked.note());
-        }
+        return friends;
     }
 
     private enum SendEnd { OK, FAILED, CANCELLED }
@@ -1023,11 +930,9 @@ public class App extends JFrame {
             if (onlinePeerIds.contains(id)) {
                 startRelaySend(id, files, owner, finished, true);
                 sendTransferNote(id, note);
-            } else if (confirmStoredFallback(id, "【" + id + "】目前不在線，無法直傳。", owner)) {
-                startStoredSend(id, files, owner, finished, true);
-                sendTransferNote(id, note);
             } else {
-                failed.add(id + "（略過）");
+                appendLog("[檔案] 【" + id + "】目前不在線，無法傳檔");
+                failed.add(id + "（不在線）");
                 next();
             }
         }
@@ -1058,60 +963,29 @@ public class App extends JFrame {
         }
     }
 
-    private void sendFilesToPeer(String toClientId, java.awt.Component owner) {
-        if (owner == null) {
-            owner = this;
-        }
-        if (toClientId == null || toClientId.isBlank()) {
-            appendLog("[警告] [檔案] 請先選擇一位同事");
-            return;
-        }
-        if (isSelfClientId(toClientId)) {
-            appendLog("[警告] [檔案] 無法傳送檔案給本機");
-            return;
-        }
-        JFileChooser chooser = UiFonts.fileChooser();
-        chooser.setDialogTitle("傳送給 " + toClientId + "：選擇檔案或資料夾（可多選，多個項目會打包成一個 ZIP）");
-        chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
-        chooser.setMultiSelectionEnabled(true);
-        chooser.setAcceptAllFileFilterUsed(true);
-        int result = chooser.showOpenDialog(owner);
-        if (result != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-        java.io.File[] picked = chooser.getSelectedFiles();
-        if (picked == null || picked.length == 0) {
-            picked = chooser.getSelectedFile() != null ? new java.io.File[]{chooser.getSelectedFile()} : new java.io.File[0];
-        }
-        java.util.List<Path> files = new java.util.ArrayList<>();
-        for (java.io.File f : picked) {
-            files.add(f.toPath());
-        }
-        sendChosenFiles(toClientId, files, owner);
-    }
-
-    private void sendChosenFiles(String toClientId, java.util.List<Path> files, java.awt.Component owner) {
-        sendChosenFiles(toClientId, files, owner, "");
-    }
-
-    private void sendChosenFiles(String toClientId, java.util.List<Path> files, java.awt.Component owner, String note) {
+    /** @return 已經開始直傳。離線或沒有檔案時為 false。 */
+    private boolean sendChosenFiles(String toClientId, java.util.List<Path> files, java.awt.Component owner, String note) {
         if (owner == null) {
             owner = this;
         }
         if (toClientId == null || toClientId.isBlank() || files == null || files.isEmpty()) {
-            return;
+            return false;
         }
         if (isSelfClientId(toClientId)) {
             appendLog("[警告] [檔案] 無法傳送檔案給本機");
-            return;
+            return false;
         }
-        if (onlinePeerIds.contains(toClientId)) {
-            startRelaySend(toClientId, files, owner);
-            sendTransferNote(toClientId, note);
-        } else if (confirmStoredFallback(toClientId, "【" + toClientId + "】目前不在線，無法直傳。", owner)) {
-            startStoredSend(toClientId, files, owner);
-            sendTransferNote(toClientId, note);
+        if (!onlinePeerIds.contains(toClientId)) {
+            appendLog("[檔案] 【" + toClientId + "】目前不在線，無法傳檔");
+            UiFonts.showWarning(
+                    owner,
+                    "【" + toClientId + "】目前不在線，無法傳檔。\n雙方都要在線才能直傳。",
+                    "傳送檔案");
+            return false;
         }
+        startRelaySend(toClientId, files, owner);
+        sendTransferNote(toClientId, note);
+        return true;
     }
 
     /** 傳檔視窗的選填訊息走原本的同事訊息，不改檔案協定。 */
@@ -1128,21 +1002,6 @@ public class App extends JFrame {
                 }));
     }
 
-    private boolean confirmStoredFallback(String toClientId, String reason, java.awt.Component owner) {
-        int choice = UiFonts.showConfirm(
-                owner,
-                reason + "\n\n要改用伺服器暫存嗎？檔案會上傳到伺服器保留約 " + PeerFileRules.OFFER_TTL_LABEL
-                        + "，對方上線後再下載。",
-                "傳送檔案",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE);
-        if (choice != JOptionPane.YES_OPTION) {
-            appendLog("[檔案] 已取消傳送給【" + toClientId + "】");
-            return false;
-        }
-        return true;
-    }
-
     private void setSendFileBusy(boolean busy) {
         peerFileBusy = busy;
         refreshChatWindows();
@@ -1154,7 +1013,7 @@ public class App extends JFrame {
     }
 
     /**
-     * @param finished 這位收件人傳送流程全部結束（含改走暫存）後呼叫，可為 null
+     * @param finished 這位收件人傳送流程結束後呼叫，可為 null
      * @param quiet    多人批次傳送時為 true：不跳每人一次的成功訊息，也不在每人完成時放動畫
      */
     private void startRelaySend(String toClientId, java.util.List<Path> files, java.awt.Component owner,
@@ -1200,19 +1059,19 @@ public class App extends JFrame {
                             endSend(finished, SendEnd.OK);
                             break;
                         case UNSUPPORTED_SERVER:
-                            if (confirmStoredFallback(toClientId, "伺服器尚未支援直傳（需更新雲端）。", owner)) {
-                                startStoredSend(toClientId, files, owner, finished, quiet);
-                            } else {
-                                endSend(finished, SendEnd.FAILED);
+                            if (!quiet) {
+                                UiFonts.showWarning(owner, "伺服器尚未支援直傳，請更新雲端後再試。", "傳送檔案");
                             }
+                            endSend(finished, SendEnd.FAILED);
                             break;
                         case RECIPIENT_UNAVAILABLE:
-                            if (confirmStoredFallback(toClientId,
-                                    "【" + toClientId + "】目前無法直傳（剛離線，或桌面端版本較舊）。", owner)) {
-                                startStoredSend(toClientId, files, owner, finished, quiet);
-                            } else {
-                                endSend(finished, SendEnd.FAILED);
+                            if (!quiet) {
+                                UiFonts.showWarning(
+                                        owner,
+                                        "【" + toClientId + "】目前無法直傳（剛離線，或桌面端版本較舊）。",
+                                        "傳送檔案");
                             }
+                            endSend(finished, SendEnd.FAILED);
                             break;
                         case FAILED:
                             String detail = failDetail.toString().trim();
@@ -1230,53 +1089,6 @@ public class App extends JFrame {
                             endSend(finished, SendEnd.FAILED);
                             break;
                     }
-                }));
-    }
-
-    /** 經伺服器暫存（保留 {@link PeerFileRules#OFFER_TTL_LABEL}），對方離線也能稍後下載。 */
-    private void startStoredSend(String toClientId, java.util.List<Path> files, java.awt.Component owner) {
-        startStoredSend(toClientId, files, owner, null, false);
-    }
-
-    private void startStoredSend(String toClientId, java.util.List<Path> files, java.awt.Component owner,
-                                 java.util.function.Consumer<SendEnd> finished, boolean quiet) {
-        setSendFileBusy(true);
-        TransferProgressDialog progress = TransferProgressDialog.open(owner, "傳送檔案");
-        TransferCancel cancel = new TransferCancel();
-        progress.setOnCancel(cancel::cancel);
-        String displayName = HeartbeatService.displayNameOf(files);
-        if (files.size() > 1) {
-            progress.setPreparing("正在壓縮 " + files.size() + " 個項目…");
-        } else if (Files.isDirectory(files.get(0))) {
-            progress.setPreparing("正在壓縮資料夾「" + displayName + "」…");
-        } else {
-            progress.setPreparing("正在準備上傳「" + displayName + "」…");
-        }
-        heartbeatService.sendPeerFile(
-                toClientId,
-                files,
-                this::appendLog,
-                progress::setProgress,
-                progress::setStatus,
-                cancel,
-                ok -> SwingUtilities.invokeLater(() -> {
-                    progress.close();
-                    setSendFileBusy(false);
-                    if (ok) {
-                        if (!quiet) {
-                            celebrateTransfer();
-                        }
-                        chatNote(toClientId, "已送出「" + displayName + "」（伺服器暫存 "
-                                + PeerFileRules.OFFER_TTL_LABEL + "，對方可下載）");
-                    }
-                    if (!ok && !cancel.isCancelled()) {
-                        UiFonts.showWarning(
-                                owner,
-                                "沒有送出。請確認內容不超過 " + PeerFileRules.MAX_SIZE_LABEL
-                                        + "（資料夾會先壓縮），且已連上同一伺服器。",
-                                "傳送檔案");
-                    }
-                    endSend(finished, ok ? SendEnd.OK : cancel.isCancelled() ? SendEnd.CANCELLED : SendEnd.FAILED);
                 }));
     }
 
@@ -1398,8 +1210,6 @@ public class App extends JFrame {
         if (peerRefs.peerTable != null) {
             peerRefs.peerTable.clearSelection();
         }
-        peerFiles.clear();
-        renderPeerFileTable();
     }
 
     private void showPeerWaitingView() {
@@ -1419,12 +1229,6 @@ public class App extends JFrame {
 
     private void setPeerInteractionEnabled(boolean enabled) {
         peerInteractionEnabled = enabled;
-        if (peerRefs.downloadFileButton != null) {
-            peerRefs.downloadFileButton.setEnabled(enabled);
-        }
-        if (peerRefs.clearFileButton != null) {
-            peerRefs.clearFileButton.setEnabled(enabled);
-        }
         refreshOpenChatButton();
         refreshChatWindows();
     }
@@ -1493,142 +1297,6 @@ public class App extends JFrame {
         WindowShake.shake(window, null);
     }
 
-    private void showPeerFileOffer(String fromId, String fileId, String filename, long size, Long sentAtMs) {
-        String timeLabel = formatPeerMessageTime(sentAtMs);
-        String safeName = PeerFileRules.sanitizeFilename(filename);
-        if (safeName.isEmpty()) {
-            safeName = "download";
-        }
-        String sizeLabel = PeerFileRules.formatSize(Math.max(0, size));
-        appendLog("[檔案] （" + timeLabel + "）【" + fromId + "】傳來「" + safeName + "」（" + sizeLabel + "）");
-        chatNote(fromId, "對方傳來「" + safeName + "」（" + sizeLabel + "）");
-        Toolkit.getDefaultToolkit().beep();
-        PeerChatWindow window = focusChat(fromId);
-        int choice = UiFonts.showConfirm(
-                window,
-                timeLabel + "\n\n【" + fromId + "】傳來檔案：\n" + safeName + "（" + sizeLabel + "）\n\n"
-                        + "要儲存到本機嗎？檔案會在伺服器上保留約 " + PeerFileRules.OFFER_TTL_LABEL
-                        + "，期間可在「傳檔紀錄」重複下載或手動清除。",
-                "同事傳來檔案 · " + fromId,
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE);
-        if (choice != JOptionPane.YES_OPTION) {
-            appendLog("[檔案] 已略過「" + safeName + "」");
-            return;
-        }
-        promptSavePeerFile(fileId, safeName, window);
-    }
-
-    private void updatePeerFileTable(List<PeerFileInfo> files) {
-        peerFiles.clear();
-        if (files != null) {
-            peerFiles.addAll(files);
-        }
-        renderPeerFileTable();
-    }
-
-    private void renderPeerFileTable() {
-        if (peerRefs.fileTableModel == null) {
-            return;
-        }
-        int selected = peerRefs.fileTable != null ? peerRefs.fileTable.getSelectedRow() : -1;
-        String selectedId = getPeerFileIdAt(selected);
-        peerRefs.fileTableModel.setRowCount(0);
-        String myId = heartbeatService.getClientId();
-        for (PeerFileInfo file : peerFiles) {
-            boolean incoming = myId.equals(file.toClientId);
-            String direction = incoming ? "收到" : "送出";
-            String counterpart = incoming ? file.fromClientId : file.toClientId;
-            String kindPrefix = file.isFolder() ? "[資料夾] " : "";
-            String status = file.downloadCount > 0 ? "已下載（仍可再下）" : "等待收取";
-            peerRefs.fileTableModel.addRow(new Object[]{
-                    direction,
-                    kindPrefix + file.filename,
-                    counterpart,
-                    PeerFileRules.formatSize(file.size),
-                    status,
-                    remainingLabel(file.expiresAtMs)
-            });
-        }
-        if (peerRefs.fileStatusLabel != null) {
-            peerRefs.fileStatusLabel.setText(peerFiles.isEmpty()
-                    ? "傳檔紀錄：目前沒有暫存檔"
-                    : "傳檔紀錄：" + peerFiles.size() + " 筆（保留 " + PeerFileRules.OFFER_TTL_LABEL + "）");
-        }
-        if (selectedId != null && peerRefs.fileTable != null) {
-            for (int i = 0; i < peerFiles.size(); i++) {
-                if (selectedId.equals(peerFiles.get(i).fileId)) {
-                    peerRefs.fileTable.setRowSelectionInterval(i, i);
-                    break;
-                }
-            }
-        }
-    }
-
-    private void refreshPeerFileRemainings() {
-        if (peerRefs.fileTableModel == null || peerFiles.isEmpty()) {
-            return;
-        }
-        for (int i = 0; i < peerFiles.size() && i < peerRefs.fileTableModel.getRowCount(); i++) {
-            peerRefs.fileTableModel.setValueAt(remainingLabel(peerFiles.get(i).expiresAtMs), i, 5);
-        }
-    }
-
-    private static String remainingLabel(long expiresAtMs) {
-        return PeerFileRules.formatRemaining(expiresAtMs - System.currentTimeMillis());
-    }
-
-    private String getPeerFileIdAt(int row) {
-        if (row < 0 || row >= peerFiles.size()) {
-            return null;
-        }
-        return peerFiles.get(row).fileId;
-    }
-
-    private PeerFileInfo getSelectedPeerFile() {
-        if (peerRefs.fileTable == null) {
-            return null;
-        }
-        int row = peerRefs.fileTable.getSelectedRow();
-        if (row < 0 || row >= peerFiles.size()) {
-            return null;
-        }
-        return peerFiles.get(row);
-    }
-
-    private void downloadSelectedPeerFile() {
-        PeerFileInfo file = getSelectedPeerFile();
-        if (file == null) {
-            appendLog("[警告] [檔案] 請先在傳檔紀錄中選擇一筆");
-            return;
-        }
-        promptSavePeerFile(file.fileId, file.filename, this);
-    }
-
-    private void clearSelectedPeerFile() {
-        PeerFileInfo file = getSelectedPeerFile();
-        if (file == null) {
-            appendLog("[警告] [檔案] 請先在傳檔紀錄中選擇一筆");
-            return;
-        }
-        int confirm = UiFonts.showConfirm(
-                this,
-                "確定要從伺服器清除「" + file.filename + "」嗎？清除後無法再下載。",
-                "清除暫存檔",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.WARNING_MESSAGE);
-        if (confirm != JOptionPane.YES_OPTION) {
-            return;
-        }
-        heartbeatService.deletePeerFile(file.fileId, this::appendLog, ok ->
-                SwingUtilities.invokeLater(() -> {
-                    if (ok) {
-                        peerFiles.removeIf(item -> file.fileId.equals(item.fileId));
-                        renderPeerFileTable();
-                    }
-                }));
-    }
-
     private void showPeerRelayOffer(String fromId, String relayId, String filename, long size,
                                     boolean folder, Long sentAtMs) {
         String timeLabel = formatPeerMessageTime(sentAtMs);
@@ -1645,7 +1313,7 @@ public class App extends JFrame {
                 window,
                 timeLabel + "\n\n【" + fromId + "】要直接傳" + (folder ? "資料夾（ZIP）" : "檔案") + "給你：\n"
                         + safeName + "（" + sizeLabel + "）\n\n"
-                        + "直傳不經伺服器暫存，雙方需保持在線直到傳完。\n"
+                        + "雙方需保持在線直到傳完。\n"
                         + "請在 " + PeerFileRules.RELAY_ACCEPT_TIMEOUT_LABEL + " 內決定，要接收嗎？",
                 "同事直傳檔案 · " + fromId,
                 JOptionPane.YES_NO_OPTION,
@@ -1721,48 +1389,6 @@ public class App extends JFrame {
         return dest;
     }
 
-    private void promptSavePeerFile(String fileId, String filename, Component dialogParent) {
-        String safeName = PeerFileRules.sanitizeFilename(filename);
-        if (safeName.isEmpty()) {
-            safeName = "download";
-        }
-        Path dest = choosePeerSavePath(safeName, "儲存同事傳來的檔案", dialogParent);
-        if (dest == null) {
-            return;
-        }
-        StringBuilder failDetail = new StringBuilder();
-        TransferProgressDialog progress = TransferProgressDialog.open(dialogParent, "下載檔案");
-        TransferCancel cancel = new TransferCancel();
-        progress.setOnCancel(cancel::cancel);
-        progress.setStatus("正在下載「" + safeName + "」…");
-        heartbeatService.downloadPeerFile(fileId, dest, msg -> {
-            appendLog(msg);
-            if (msg != null && (msg.contains("[失敗]") || msg.contains("[警告]"))) {
-                failDetail.setLength(0);
-                failDetail.append(msg);
-            }
-        }, progress::setProgress, cancel, ok ->
-                SwingUtilities.invokeLater(() -> {
-                    progress.close();
-                    if (ok) {
-                        celebrateTransfer();
-                        UiFonts.showMessage(
-                                dialogParent,
-                                "已儲存：\n" + dest.toAbsolutePath(),
-                                "檔案已儲存",
-                                JOptionPane.INFORMATION_MESSAGE);
-                    } else if (!cancel.isCancelled()) {
-                        String detail = failDetail.toString().trim();
-                        UiFonts.showWarning(
-                                dialogParent,
-                                detail.isEmpty()
-                                        ? "下載失敗。檔案可能已過期，或對方尚未連上同一伺服器。"
-                                        : "下載失敗。\n\n" + detail,
-                                "下載檔案");
-                    }
-                }));
-    }
-
     private Path avatarFile() {
         return PeerAvatar.fileBeside(configPersistenceService.getSavePath());
     }
@@ -1795,7 +1421,7 @@ public class App extends JFrame {
         chooser.setDialogTitle("選擇大頭照");
         chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
                 "圖片檔 (JPG / PNG / GIF)", "jpg", "jpeg", "png", "gif"));
-        int result = chooser.showOpenDialog(this);
+        int result = UiFonts.showOpenDialog(chooser, this);
         if (result != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
             return;
         }
@@ -1964,7 +1590,7 @@ public class App extends JFrame {
         chooser.setDialogTitle("選擇程式背景");
         chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
                 "圖片檔 (JPG / PNG / GIF)", "jpg", "jpeg", "png", "gif"));
-        int result = chooser.showOpenDialog(this);
+        int result = UiFonts.showOpenDialog(chooser, this);
         if (result != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
             return;
         }
@@ -2239,9 +1865,19 @@ public class App extends JFrame {
             applyWindowTransparencyFromConfig(config);
             applyAvatarFromConfig(config);
             applyBackgroundFromConfig(config);
+            UiFonts.setRememberedOpenDirectory(config.lastOpenDirectory);
         } finally {
             suppressConfigSave = false;
         }
+        UiFonts.setOpenDirectoryListener(this::rememberOpenDirectory);
+    }
+
+    private void rememberOpenDirectory(java.nio.file.Path dir) {
+        if (slotController == null || slotController.getConfig() == null || dir == null) {
+            return;
+        }
+        slotController.getConfig().lastOpenDirectory = dir.toString();
+        saveCloudConfig();
     }
 
     private void applyServerConfig(ConfigPersistenceService.CloudConfig config) {

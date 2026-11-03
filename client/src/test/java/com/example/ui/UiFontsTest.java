@@ -1,10 +1,18 @@
 package com.example.ui;
 
+import org.junit.After;
+import org.junit.Assume;
 import org.junit.Test;
+
+import java.awt.GraphicsEnvironment;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class UiFontsTest {
@@ -52,6 +60,35 @@ public class UiFontsTest {
         }
         assertTrue(sawArea);
         assertTrue(sawCopy);
+    }
+
+    @After
+    public void clearRememberedDirectory() {
+        UiFonts.setOpenDirectoryListener(null);
+        UiFonts.setRememberedOpenDirectory(null);
+    }
+
+    @Test
+    public void fileChooserOpensAtRememberedDirectory() throws Exception {
+        Assume.assumeFalse("headless JVM cannot create a file chooser", GraphicsEnvironment.isHeadless());
+        Path dir = Files.createTempDirectory("punch-chooser");
+        Path missing = dir.resolve("missing");
+        try {
+            AtomicReference<Path> chosen = new AtomicReference<>();
+            UiFonts.setOpenDirectoryListener(chosen::set);
+            UiFonts.rememberOpenDirectory(dir.toFile());
+            assertEquals(dir.toRealPath(), chosen.get().toRealPath());
+
+            javax.swing.JFileChooser chooser = UiFonts.fileChooser();
+            assertEquals(dir.toRealPath(), chooser.getCurrentDirectory().toPath().toRealPath());
+
+            UiFonts.setRememberedOpenDirectory(missing.toString());
+            javax.swing.JFileChooser reset = UiFonts.fileChooser();
+            assertFalse(missing.toAbsolutePath().normalize().equals(
+                    reset.getCurrentDirectory().toPath().toAbsolutePath().normalize()));
+        } finally {
+            Files.deleteIfExists(dir);
+        }
     }
 
     @Test

@@ -1,8 +1,8 @@
 package com.example.service;
 
 import com.example.BuildInfo;
-import com.example.ChatProtocol;
 import com.example.ClientUpdatePolicy;
+import com.example.MarqueeNotice;
 import com.example.PeerFileRules;
 import com.example.ReleaseNotes;
 import com.google.gson.JsonElement;
@@ -15,7 +15,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.function.Consumer;
 
-/** 解析心跳回應裡的指令、同事、傳檔、聊天室與更新通知。 */
+/** 解析心跳回應裡的指令、同事、更新通知與跑馬燈。 */
 final class HeartbeatResponseParser {
 
     private final HeartbeatEvents host;
@@ -31,16 +31,15 @@ final class HeartbeatResponseParser {
             JsonObject json = JsonParser.parseString(body).getAsJsonObject();
             parseServerActions(json, logger);
             parseServerPeers(json);
-            parseServerFiles(json);
-            parseServerChatRooms(json);
             parseServerUpdate(json);
+            parseMarquee(json);
         } catch (Exception ex) {
             // 回應非 JSON 或格式異常時靜默忽略
         }
     }
 
     private void parseServerActions(JsonObject json, Consumer<String> logger) {
-        if (host.commandListener() == null && host.roomMessageListener() == null) return;
+        if (host.commandListener() == null) return;
 
         java.util.LinkedHashSet<String> actions = new java.util.LinkedHashSet<>();
 
@@ -61,17 +60,7 @@ final class HeartbeatResponseParser {
         }
 
         for (String action : actions) {
-            if (action.startsWith(ChatProtocol.PREFIX)) {
-                ChatProtocol.RoomMessage message = ChatProtocol.decodeRoom(action);
-                if (message != null && host.roomMessageListener() != null) {
-                    host.log(logger, "[訊息] [聊天] 來自【" + message.nick + "】");
-                    host.roomMessageListener().accept(message);
-                }
-                continue;
-            }
-            if (host.commandListener() != null) {
-                dispatchServerAction(action, logger);
-            }
+            dispatchServerAction(action, logger);
         }
     }
 
@@ -116,21 +105,6 @@ final class HeartbeatResponseParser {
             String avatar = parts.length >= 4 ? parts[3].trim() : "";
             host.log(logger, "[通知] [戳] 【" + fromId + "】戳了你");
             host.commandListener().accept("POKE|" + fromId + "|" + sentAtMs + "|" + avatar);
-        } else if (action.startsWith("FILE|")) {
-            // FILE|fromId|fileId|base64name|size|mime|epochMs（fromId 可含 |）
-            String[] parts = HeartbeatService.splitPeerFileAction(action);
-            if (parts.length == 6) {
-                String fromId = parts[0];
-                String fileId = parts[1];
-                String filename = PeerFileRules.decodeName(parts[2]);
-                String size = parts[3];
-                String mime = parts[4];
-                String sentAtMs = parts[5];
-                host.log(logger, "[檔案] 收到來自【" + fromId + "】的檔案：" + filename);
-                host.commandListener().accept(
-                        "FILE|" + PeerFileRules.encodeName(fromId) + "|" + fileId + "|" + size
-                                + "|" + mime + "|" + sentAtMs + "|" + filename);
-            }
         } else if (action.startsWith("RELAY|")) {
             // RELAY|base64fromId|relayId|base64name|size|kind|epochMs
             String[] parts = action.split("\\|", -1);
@@ -166,23 +140,21 @@ final class HeartbeatResponseParser {
         host.peersListener().accept(peers);
     }
 
-    private void parseServerChatRooms(JsonObject json) {
-        if (host.chatRoomsListener() == null || !json.has("chatRooms") || !json.get("chatRooms").isJsonArray()) {
+    private void parseMarquee(JsonObject json) {
+        if (host.marqueeListener() == null || !json.has("marquee") || !json.get("marquee").isJsonObject()) {
             return;
         }
-        List<HeartbeatService.ChatRoomInfo> rooms = new ArrayList<>();
-        for (com.google.gson.JsonElement el : json.getAsJsonArray("chatRooms")) {
-            if (el == null || !el.isJsonObject()) {
-                continue;
-            }
-            JsonObject room = el.getAsJsonObject();
-            String id = jsonString(room, "id");
-            if (!ChatProtocol.isGroupRoom(id)) {
-                continue;
-            }
-            rooms.add(new HeartbeatService.ChatRoomInfo(id, jsonString(room, "name"), jsonString(room, "kind")));
+        JsonObject marquee = json.getAsJsonObject("marquee");
+        boolean enabled = false;
+        if (marquee.has("enabled") && marquee.get("enabled").isJsonPrimitive()
+                && marquee.get("enabled").getAsJsonPrimitive().isBoolean()) {
+            enabled = marquee.get("enabled").getAsBoolean();
         }
-        host.chatRoomsListener().accept(rooms);
+        String text = "";
+        if (marquee.has("text") && marquee.get("text").isJsonPrimitive()) {
+            text = marquee.get("text").getAsString();
+        }
+        host.marqueeListener().accept(MarqueeNotice.normalize(enabled, text));
     }
 
     private void parseServerUpdate(JsonObject json) {
@@ -251,33 +223,6 @@ final class HeartbeatResponseParser {
         } catch (Exception ex) {
             return 0;
         }
-    }
-
-    private void parseServerFiles(JsonObject json) {
-        if (host.filesListener() == null || !json.has("files") || !json.get("files").isJsonArray()) {
-            return;
-        }
-        List<HeartbeatService.PeerFileInfo> files = new ArrayList<>();
-        for (com.google.gson.JsonElement el : json.getAsJsonArray("files")) {
-            if (el == null || !el.isJsonObject()) continue;
-            JsonObject f = el.getAsJsonObject();
-            String fileId = jsonString(f, "fileId");
-            if (fileId.isBlank()) continue;
-            files.add(new HeartbeatService.PeerFileInfo(
-                    fileId,
-                    jsonString(f, "fromClientId"),
-                    jsonString(f, "toClientId"),
-                    jsonString(f, "filename"),
-                    jsonString(f, "mime"),
-                    jsonString(f, "kind"),
-                    jsonString(f, "status"),
-                    jsonLong(f, "size"),
-                    jsonLong(f, "createdAtMs"),
-                    jsonLong(f, "expiresAtMs"),
-                    (int) jsonLong(f, "downloadCount")
-            ));
-        }
-        host.filesListener().accept(files);
     }
 
     private static String jsonString(JsonObject obj, String key) {

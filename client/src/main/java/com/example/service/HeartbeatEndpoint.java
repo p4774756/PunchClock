@@ -1,6 +1,6 @@
 package com.example.service;
 
-import com.example.ChatProtocol;
+import com.example.MarqueeNotice;
 
 import java.net.http.HttpClient;
 import java.util.List;
@@ -29,11 +29,7 @@ interface HeartbeatEvents extends HeartbeatEndpoint {
 
     Consumer<List<HeartbeatService.PeerInfo>> peersListener();
 
-    Consumer<List<HeartbeatService.PeerFileInfo>> filesListener();
-
-    Consumer<List<HeartbeatService.ChatRoomInfo>> chatRoomsListener();
-
-    Consumer<ChatProtocol.RoomMessage> roomMessageListener();
-
     Consumer<HeartbeatService.UpdateNotice> updateListener();
+
+    Consumer<MarqueeNotice> marqueeListener();
 }

@@ -1,11 +1,9 @@
 import * as THREE from 'three';
 
-const ZONES = ['devices', 'chat', 'files', 'system', 'photos'];
+const ZONES = ['devices', 'system', 'photos'];
 const POSES = {
   home: { look: [0, 0.55, 0], radius: 17.5, theta: 0.42, phi: 0.98 },
   devices: { look: [0, 0.7, 2.15], radius: 9.2, theta: 0.12, phi: 1.05 },
-  chat: { look: [3.05, 0.85, 1.15], radius: 8.6, theta: 0.72, phi: 1.04 },
-  files: { look: [3.35, 0.75, -1.7], radius: 8.8, theta: 0.95, phi: 1.02 },
   system: { look: [-3.35, 0.95, -0.85], radius: 8.8, theta: -0.55, phi: 1.02 },
   photos: { look: [-0.15, 1.05, -3.45], radius: 9.2, theta: 0.18, phi: 1.0 }
 };
@@ -412,26 +410,6 @@ function boot() {
     addCup(counter, color, x, 0.88, 0.02, i * 0.8);
   });
   tag(counter);
-
-  const speaker = makeZone('chat', 3.15, 1.25);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 1.15, 6), mat(0xf7f1ea));
-  pole.position.y = 0.58;
-  speaker.add(pole);
-  addBox(speaker, 0.62, 0.42, 0.28, 0xea5420, 0, 1.22, 0);
-  addBox(speaker, 0.22, 0.22, 0.06, 0xfff8f1, 0, 1.22, 0.16);
-  tag(speaker);
-
-  const rack = makeZone('files', 3.45, -1.85);
-  addBox(rack, 1.35, 0.08, 0.55, 0xf6e2c4, 0, 0.35, 0);
-  addBox(rack, 1.35, 0.08, 0.55, 0xf6e2c4, 0, 0.95, 0);
-  addBox(rack, 0.08, 1.15, 0.08, 0xc6a36a, -0.6, 0.58, -0.2);
-  addBox(rack, 0.08, 1.15, 0.08, 0xc6a36a, 0.6, 0.58, -0.2);
-  addBox(rack, 0.08, 1.15, 0.08, 0xc6a36a, -0.6, 0.58, 0.2);
-  addBox(rack, 0.08, 1.15, 0.08, 0xc6a36a, 0.6, 0.58, 0.2);
-  addCup(rack, 0xf48fb1, -0.38, 0.39, 0, 0.4);
-  addCup(rack, 0x8ecae6, 0.28, 0.39, 0, 1.2);
-  addCup(rack, 0xf6d56b, -0.05, 0.99, 0, 2.1);
-  tag(rack);
 
   const machine = makeZone('system', -3.45, -1.05);
   addBox(machine, 1.05, 1.45, 0.85, 0xfff8f1, 0, 0.72, 0);

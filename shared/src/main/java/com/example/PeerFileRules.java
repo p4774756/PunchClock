@@ -134,7 +134,7 @@ public final class PeerFileRules {
     }
 
     public static String allowedTypesHint() {
-        return "任意檔案或資料夾（壓縮後最大 " + MAX_SIZE_LABEL + "，伺服器保留 " + OFFER_TTL_LABEL + "）";
+        return "任意檔案或資料夾（壓縮後最大 " + MAX_SIZE_LABEL + "，雙方都要在線）";
     }
 
     public static String formatRemaining(long remainingMs) {

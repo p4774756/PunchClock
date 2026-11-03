@@ -17,6 +17,7 @@ import java.time.Duration;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class ServerAppRelayTest {
@@ -56,7 +57,7 @@ public class ServerAppRelayTest {
         String action = hb.getAsJsonArray("actions").get(0).getAsString();
         assertTrue(action.startsWith("RELAY|" + PeerFileRules.encodeName("worker-a") + "|" + relayId + "|"
                 + PeerFileRules.encodeName("報告.pdf") + "|7|file|"));
-        assertEquals("relay must not show up as a stored file", 0, hb.getAsJsonArray("files").size());
+        assertFalse(hb.has("files"));
 
         assertEquals(200, send("POST", "/api/peer/relay/" + relayId + "/accept?clientId=worker-b", null).statusCode());
         JsonObject senderView = json(send("GET", "/api/peer/relay/" + relayId + "?clientId=worker-a", null).body());

@@ -51,6 +51,7 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,7 +59,7 @@ import java.util.function.Consumer;
 
 /**
  * 和單一同事的小聊天視窗：對話紀錄（只存記憶體）、輸入框（Enter 送出、Shift+Enter 換行）、
- * 附圖（Ctrl+V／⌘V 可貼多張）、戳一下、傳檔案。
+ * 附圖（Ctrl+V／⌘V 可貼多張）、附加檔案（先列出，按傳送才送給這個人）、戳一下。
  */
 public class PeerChatWindow extends JFrame {
 
@@ -71,15 +72,12 @@ public class PeerChatWindow extends JFrame {
 
         void poke(String peerId);
 
-        /** @param owner 選檔、進度、提示對話框要掛在哪個視窗上（聊天視窗），才不會讓主視窗蓋住聊天視窗。 */
-        void sendFiles(String peerId, Component owner);
-
         /**
-         * 拖進聊天視窗的檔案。預設仍打開選檔視窗；桌面端改直接送出這些路徑，協定不變。
+         * 聊天視窗裡已排好的檔案，只送給這一位，不開多人傳送視窗。
+         *
+         * @return 已經開始傳送。沒送出時呼叫端保留清單。
          */
-        default void sendDroppedFiles(String peerId, Component owner, List<Path> files) {
-            sendFiles(peerId, owner);
-        }
+        boolean sendQueuedFiles(String peerId, Component owner, List<Path> files);
 
         void chatClosed(PeerChatWindow window);
     }
@@ -96,14 +94,20 @@ public class PeerChatWindow extends JFrame {
     private final JButton fileButton;
     private final JButton attachButton;
     private final JButton clearImageButton;
+    private final JButton clearFilesButton;
     private final JPanel imageThumbs;
+    private final JPanel fileItems;
+    private final JScrollPane fileScroll;
+    private final JLabel fileSummary;
     private final JLabel imageLabel;
     private final JLabel statusLabel;
     private final JLabel nameLabel;
     private final JLabel avatarLabel;
     private final JPanel imageRow;
+    private final JPanel fileRow;
 
     private final List<String> attachedImages = new ArrayList<>();
+    private final List<Path> pendingFiles = new ArrayList<>();
     private boolean interactionEnabled = true;
     private boolean fileBusy;
     private boolean sending;
@@ -185,6 +189,37 @@ public class PeerChatWindow extends JFrame {
         imageRow.add(clearImageButton, BorderLayout.EAST);
         imageRow.setVisible(false);
 
+        fileItems = new JPanel();
+        fileItems.setLayout(new BoxLayout(fileItems, BoxLayout.Y_AXIS));
+        fileItems.setOpaque(true);
+        fileItems.setBackground(NightTheme.FIELD);
+        fileScroll = new JScrollPane(fileItems,
+                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        fileScroll.putClientProperty(CandyScrollBar.MARK, Boolean.TRUE);
+        fileScroll.setBorder(BorderFactory.createLineBorder(CandyTheme.EDGE));
+        fileScroll.setOpaque(true);
+        fileScroll.setBackground(NightTheme.FIELD);
+        fileScroll.getViewport().setOpaque(true);
+        fileScroll.getViewport().setBackground(NightTheme.FIELD);
+        fileSummary = new JLabel();
+        fileSummary.setFont(plain);
+        fileSummary.setForeground(NightTheme.MUTED);
+        clearFilesButton = new CandyButton("移除檔案", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+        clearFilesButton.setFont(plain);
+        clearFilesButton.setToolTipText("拿掉這批還沒送出的檔案");
+        clearFilesButton.addActionListener(e -> clearPendingFiles());
+        JPanel fileCenter = new JPanel(new BorderLayout(0, 4));
+        fileCenter.setOpaque(false);
+        fileCenter.add(fileScroll, BorderLayout.CENTER);
+        fileCenter.add(fileSummary, BorderLayout.SOUTH);
+        fileRow = new JPanel(new BorderLayout(8, 0));
+        fileRow.setOpaque(false);
+        fileRow.setBorder(new EmptyBorder(6, 12, 0, 12));
+        fileRow.add(fileCenter, BorderLayout.CENTER);
+        fileRow.add(clearFilesButton, BorderLayout.EAST);
+        fileRow.setVisible(false);
+
         input = new JTextArea(3, 24) {
             @Override
             protected void paintComponent(java.awt.Graphics g) {
@@ -199,7 +234,8 @@ public class PeerChatWindow extends JFrame {
                     java.awt.Insets in = getInsets();
                     String[] hint = {
                             "Enter 送出，Shift+Enter 換行",
-                            "Ctrl+V 或 ⌘V 貼上圖片，可多張"
+                            "Ctrl+V 或 ⌘V 貼上圖片，可多張",
+                            "拖曳檔案會先列在這裡"
                     };
                     int y = in.top + g2.getFontMetrics().getAscent();
                     int line = g2.getFontMetrics().getHeight();
@@ -220,7 +256,8 @@ public class PeerChatWindow extends JFrame {
         input.setLineWrap(true);
         input.setWrapStyleWord(true);
         input.setToolTipText("Enter 送出，Shift+Enter 換行；Ctrl+V 或 ⌘V 可貼多張截圖（最多 "
-                + MAX_TEXT_CHARS + " 字，一則最多 " + ChatProtocol.MAX_PEER_IMAGES + " 張）");
+                + MAX_TEXT_CHARS + " 字，一則最多 " + ChatProtocol.MAX_PEER_IMAGES
+                + " 張）。拖曳檔案會先列在這裡，按傳送才送出");
         bindInputKeys();
         CandyTextField.dressArea(input);
         JScrollPane inputScroll = new JScrollPane(input,
@@ -237,10 +274,10 @@ public class PeerChatWindow extends JFrame {
         pokeButton.setFont(plain);
         pokeButton.setToolTipText("對方會響一聲，並彈出聊天視窗晃一下（約 15 秒內隨心跳送達）");
         pokeButton.addActionListener(e -> host.poke(peerId));
-        fileButton = new CandyButton("傳檔案", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+        fileButton = new CandyButton("附加檔案", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         fileButton.setFont(plain);
-        fileButton.setToolTipText("傳檔案或整個資料夾；可一次多選，多個項目會壓成一個 ZIP");
-        fileButton.addActionListener(e -> host.sendFiles(peerId, this));
+        fileButton.setToolTipText("選檔案或資料夾（可多選）。先列在這裡，按傳送才送給這個人；多個項目會打包成一個 ZIP");
+        fileButton.addActionListener(e -> chooseQueuedFiles());
         sendButton = new CandyButton("傳送", CandyButton.Variant.PRIMARY, CandyButton.Size.MEDIUM);
         sendButton.setFont(bold);
         sendButton.addActionListener(e -> send());
@@ -264,10 +301,12 @@ public class PeerChatWindow extends JFrame {
 
         JPanel south = new JPanel();
         south.setLayout(new BoxLayout(south, BoxLayout.Y_AXIS));
+        fileRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         imageRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         inputBox.setAlignmentX(Component.LEFT_ALIGNMENT);
         buttons.setAlignmentX(Component.LEFT_ALIGNMENT);
         if (!textOnly) {
+            south.add(fileRow);
             south.add(imageRow);
         }
         south.add(inputBox);
@@ -292,6 +331,7 @@ public class PeerChatWindow extends JFrame {
 
         NightTheme.apply(getContentPane());
         clearAttachedImages();
+        refreshPendingFiles();
         refreshEnabled();
         refreshStatus();
     }
@@ -375,6 +415,7 @@ public class PeerChatWindow extends JFrame {
         boolean extras = canType && !textOnly;
         attachButton.setEnabled(extras);
         clearImageButton.setEnabled(extras && !attachedImages.isEmpty());
+        clearFilesButton.setEnabled(extras && !pendingFiles.isEmpty());
         pokeButton.setEnabled(extras);
         fileButton.setEnabled(extras && !fileBusy);
     }
@@ -388,7 +429,8 @@ public class PeerChatWindow extends JFrame {
             @Override
             public void drop(DropTargetDropEvent event) {
                 try {
-                    if (textOnly || !event.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                    if (textOnly || readOnly || !interactionEnabled
+                            || !event.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
                         event.rejectDrop();
                         return;
                     }
@@ -404,7 +446,7 @@ public class PeerChatWindow extends JFrame {
                     }
                     event.dropComplete(!paths.isEmpty());
                     if (!paths.isEmpty()) {
-                        SwingUtilities.invokeLater(() -> host.sendDroppedFiles(peerId, PeerChatWindow.this, paths));
+                        SwingUtilities.invokeLater(() -> addPendingFiles(paths));
                     }
                 } catch (Exception ex) {
                     event.dropComplete(false);
@@ -455,17 +497,29 @@ public class PeerChatWindow extends JFrame {
         });
     }
 
-    private void send() {
+    void send() {
         if (!interactionEnabled || readOnly || sending || !host.canSend(peerId)) {
             return;
         }
         String text = input.getText().trim();
-        if (text.isEmpty() && attachedImages.isEmpty()) {
+        boolean hasMessage = !text.isEmpty() || !attachedImages.isEmpty();
+        boolean hasFiles = !pendingFiles.isEmpty();
+        if (!hasMessage && !hasFiles) {
             return;
         }
         if (text.length() > MAX_TEXT_CHARS) {
             UiFonts.showWarning(this, "訊息長度不可超過 " + MAX_TEXT_CHARS + " 字（目前 "
                     + text.length() + " 字）。", "傳送訊息");
+            return;
+        }
+        if (hasFiles) {
+            List<Path> files = new ArrayList<>(pendingFiles);
+            if (host.sendQueuedFiles(peerId, this, files)) {
+                clearPendingFiles();
+            }
+        }
+        if (!hasMessage) {
+            input.requestFocusInWindow();
             return;
         }
         sending = true;
@@ -482,6 +536,127 @@ public class PeerChatWindow extends JFrame {
         }));
     }
 
+    // ==================== 附加檔案 ====================
+
+    private void chooseQueuedFiles() {
+        JFileChooser chooser = UiFonts.fileChooser();
+        chooser.setDialogTitle("選擇要傳送的檔案或資料夾（可多選）");
+        chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+        chooser.setMultiSelectionEnabled(true);
+        chooser.setAcceptAllFileFilterUsed(true);
+        if (UiFonts.showOpenDialog(chooser, this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File[] picked = chooser.getSelectedFiles();
+        if (picked == null || picked.length == 0) {
+            if (chooser.getSelectedFile() == null) {
+                return;
+            }
+            picked = new File[]{chooser.getSelectedFile()};
+        }
+        List<Path> files = new ArrayList<>();
+        for (File file : picked) {
+            if (file != null) {
+                files.add(file.toPath());
+            }
+        }
+        addPendingFiles(files);
+    }
+
+    /** 拖曳或多選進來的檔案先排進清單。不合規則的項目會跳過並說明原因。 */
+    void addPendingFiles(List<Path> incoming) {
+        if (textOnly || readOnly || !interactionEnabled || incoming == null || incoming.isEmpty()) {
+            return;
+        }
+        StringBuilder problems = new StringBuilder();
+        for (Path raw : incoming) {
+            Path path = raw == null ? null : raw.toAbsolutePath().normalize();
+            String label = raw == null || raw.getFileName() == null ? "檔案" : raw.getFileName().toString();
+            String reject = FileTransferDialog.rejection(path);
+            if (reject != null) {
+                problems.append(label).append("：").append(reject).append('\n');
+                continue;
+            }
+            if (containsPending(path)) {
+                continue;
+            }
+            pendingFiles.add(path);
+        }
+        refreshPendingFiles();
+        refreshEnabled();
+        if (problems.length() > 0) {
+            UiFonts.showWarning(this, problems.toString().trim(), "附加檔案");
+        }
+    }
+
+    private boolean containsPending(Path path) {
+        for (Path existing : pendingFiles) {
+            if (existing.equals(path)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void clearPendingFiles() {
+        pendingFiles.clear();
+        refreshPendingFiles();
+        refreshEnabled();
+    }
+
+    private void refreshPendingFiles() {
+        fileItems.removeAll();
+        for (Path path : pendingFiles) {
+            fileItems.add(pendingFileLine(path));
+        }
+        int lines = Math.min(Math.max(pendingFiles.size(), 1), 4);
+        fileScroll.setPreferredSize(new Dimension(280, lines * 26 + 8));
+        boolean many = pendingFiles.size() > 1;
+        fileSummary.setText(many ? "這 " + pendingFiles.size() + " 個項目會打包成一個 ZIP 後傳送" : "");
+        fileSummary.setVisible(many);
+        fileRow.setVisible(!pendingFiles.isEmpty());
+        sendButton.setText(pendingFiles.isEmpty() ? "傳送" : "傳送 (" + pendingFiles.size() + ")");
+        fileRow.revalidate();
+        revalidate();
+        repaint();
+    }
+
+    private JComponent pendingFileLine(Path path) {
+        String name = path.getFileName() == null ? path.toString() : path.getFileName().toString();
+        JLabel line = new JLabel(name + "    " + fileMeta(path));
+        line.setFont(UiFonts.chinesePlain(13));
+        line.setForeground(NightTheme.INK);
+        line.setBorder(new EmptyBorder(3, 8, 3, 8));
+        line.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        line.setToolTipText(path + "（點一下移除）");
+        line.setAlignmentX(Component.LEFT_ALIGNMENT);
+        line.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                pendingFiles.remove(path);
+                refreshPendingFiles();
+                refreshEnabled();
+            }
+        });
+        return line;
+    }
+
+    private static String fileMeta(Path path) {
+        try {
+            if (Files.isDirectory(path)) {
+                return "資料夾";
+            }
+            return PeerFileRules.formatSize(Files.size(path));
+        } catch (Exception ex) {
+            return "檔案";
+        }
+    }
+
+    /** 測試用：目前排好、還沒送出的檔案。 */
+    List<Path> pendingFiles() {
+        return new ArrayList<>(pendingFiles);
+    }
+
     // ==================== 附圖 ====================
 
     private void chooseImage() {
@@ -490,7 +665,7 @@ public class PeerChatWindow extends JFrame {
         chooser.setMultiSelectionEnabled(true);
         chooser.setFileFilter(new FileNameExtensionFilter(
                 "圖片檔 (JPG / PNG / GIF)", "jpg", "jpeg", "png", "gif"));
-        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+        if (UiFonts.showOpenDialog(chooser, this) != JFileChooser.APPROVE_OPTION) {
             return;
         }
         File[] picked = chooser.getSelectedFiles();

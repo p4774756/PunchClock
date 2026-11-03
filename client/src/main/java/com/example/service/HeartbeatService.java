@@ -1,7 +1,7 @@
 package com.example.service;
 
 import com.example.AppVersion;
-import com.example.ChatProtocol;
+import com.example.MarqueeNotice;
 import com.example.PeerFileRules;
 import com.example.model.CheckInTask;
 import com.google.gson.Gson;
@@ -63,54 +63,6 @@ public class HeartbeatService implements HeartbeatEvents {
         }
     }
 
-    /** 後台把這台桌面端加進去的群組（心跳回應 chatRooms[]） */
-    public static final class ChatRoomInfo {
-        public final String id;
-        public final String name;
-        public final String kind;
-
-        public ChatRoomInfo(String id, String name, String kind) {
-            this.id = id == null ? "" : id;
-            this.name = name == null || name.isBlank() ? this.id : name;
-            this.kind = kind == null ? "" : kind;
-        }
-    }
-
-    /** 傳檔紀錄摘要（由心跳回應 files[] 解析） */
-    public static final class PeerFileInfo {
-        public final String fileId;
-        public final String fromClientId;
-        public final String toClientId;
-        public final String filename;
-        public final String mime;
-        public final String kind;
-        public final String status;
-        public final long size;
-        public final long createdAtMs;
-        public final long expiresAtMs;
-        public final int downloadCount;
-
-        public PeerFileInfo(String fileId, String fromClientId, String toClientId,
-                            String filename, String mime, String kind, String status,
-                            long size, long createdAtMs, long expiresAtMs, int downloadCount) {
-            this.fileId = fileId != null ? fileId : "";
-            this.fromClientId = fromClientId != null ? fromClientId : "";
-            this.toClientId = toClientId != null ? toClientId : "";
-            this.filename = filename != null ? filename : "";
-            this.mime = mime != null ? mime : "";
-            this.kind = kind != null ? kind : PeerFileRules.KIND_FILE;
-            this.status = status != null ? status : "waiting";
-            this.size = size;
-            this.createdAtMs = createdAtMs;
-            this.expiresAtMs = expiresAtMs;
-            this.downloadCount = downloadCount;
-        }
-
-        public boolean isFolder() {
-            return PeerFileRules.isFolderKind(kind);
-        }
-    }
-
     /** 心跳回應裡的桌面端更新通知。path 只接受伺服器上的固定下載路徑。 */
     public static final class UpdateNotice {
         public final String version;
@@ -147,7 +99,7 @@ public class HeartbeatService implements HeartbeatEvents {
         }
     }
 
-    /** 即時直傳的結果；伺服器或對方不支援時，呼叫端可改用伺服器暫存。 */
+    /** 即時直傳的結果。對方不在線或伺服器不支援時不會改走暫存。 */
     public enum RelayOutcome { DELIVERED, FAILED, CANCELLED, UNSUPPORTED_SERVER, RECIPIENT_UNAVAILABLE }
 
     private volatile HttpClient httpClient;
@@ -169,10 +121,8 @@ public class HeartbeatService implements HeartbeatEvents {
     private Supplier<List<CheckInTask>> tasksProvider;
     private Consumer<String> commandListener;
     private Consumer<List<PeerInfo>> peersListener;
-    private Consumer<List<PeerFileInfo>> filesListener;
-    private Consumer<List<ChatRoomInfo>> chatRoomsListener;
-    private Consumer<ChatProtocol.RoomMessage> roomMessageListener;
     private Consumer<UpdateNotice> updateListener;
+    private Consumer<MarqueeNotice> marqueeListener;
     private final AtomicBoolean heartbeatInFlight = new AtomicBoolean(false);
     private final AtomicBoolean heartbeatPending = new AtomicBoolean(false);
     private final java.util.concurrent.atomic.AtomicLong heartbeatSeq = new java.util.concurrent.atomic.AtomicLong(0);
@@ -185,20 +135,12 @@ public class HeartbeatService implements HeartbeatEvents {
         this.peersListener = peersListener;
     }
 
-    public void setFilesListener(Consumer<List<PeerFileInfo>> filesListener) {
-        this.filesListener = filesListener;
-    }
-
-    public void setChatRoomsListener(Consumer<List<ChatRoomInfo>> chatRoomsListener) {
-        this.chatRoomsListener = chatRoomsListener;
-    }
-
-    public void setRoomMessageListener(Consumer<ChatProtocol.RoomMessage> roomMessageListener) {
-        this.roomMessageListener = roomMessageListener;
-    }
-
     public void setUpdateListener(Consumer<UpdateNotice> updateListener) {
         this.updateListener = updateListener;
+    }
+
+    public void setMarqueeListener(Consumer<MarqueeNotice> marqueeListener) {
+        this.marqueeListener = marqueeListener;
     }
 
     public void setTasksProvider(Supplier<List<CheckInTask>> tasksProvider) {
@@ -428,25 +370,6 @@ public class HeartbeatService implements HeartbeatEvents {
     }
 
 
-    static String[] splitPeerFileAction(String action) {
-        if (action == null || !action.startsWith("FILE|")) {
-            return new String[0];
-        }
-        String[] parts = action.split("\\|", -1);
-        if (parts.length < 7) {
-            return new String[0];
-        }
-        String sentAtMs = parts[parts.length - 1].trim();
-        String mime = parts[parts.length - 2];
-        String size = parts[parts.length - 3];
-        String encodedName = parts[parts.length - 4];
-        String fileId = parts[parts.length - 5];
-        String fromId = String.join("|", java.util.Arrays.copyOfRange(parts, 1, parts.length - 5));
-        return new String[]{fromId, fileId, encodedName, size, mime, sentAtMs};
-    }
-
-
-
     static String describeTransferFailure(Throwable ex) {
         Throwable t = ex;
         while (t != null && t.getCause() != null && t.getCause() != t) {
@@ -475,39 +398,8 @@ public class HeartbeatService implements HeartbeatEvents {
         peerMessages.sendPeerMessage(toClientId, text, imageEncoded, logger, callback);
     }
 
-    public void sendRoomMessage(String roomId, String text, Consumer<String> logger, Consumer<Boolean> callback) {
-        peerMessages.sendRoomMessage(roomId, text, logger, callback);
-    }
-
     public void sendPeerPoke(String toClientId, Consumer<String> logger, Consumer<Boolean> callback) {
         peerMessages.sendPeerPoke(toClientId, logger, callback);
-    }
-
-    public void sendPeerFile(String toClientId, Path file, Consumer<String> logger, Consumer<Boolean> callback) {
-        peerFiles.sendPeerFile(toClientId, file, logger, callback);
-    }
-
-    public void sendPeerFile(String toClientId, Path file, Consumer<String> logger,
-                             TransferIo.Progress progress, Consumer<Boolean> callback) {
-        peerFiles.sendPeerFile(toClientId, file, logger, progress, callback);
-    }
-
-    public void sendPeerFile(String toClientId, Path file, Consumer<String> logger,
-                             TransferIo.Progress progress, Consumer<String> statusUpdate,
-                             Consumer<Boolean> callback) {
-        peerFiles.sendPeerFile(toClientId, file, logger, progress, statusUpdate, callback);
-    }
-
-    public void sendPeerFile(String toClientId, Path file, Consumer<String> logger,
-                             TransferIo.Progress progress, Consumer<String> statusUpdate,
-                             TransferCancel cancel, Consumer<Boolean> callback) {
-        peerFiles.sendPeerFile(toClientId, file, logger, progress, statusUpdate, cancel, callback);
-    }
-
-    public void sendPeerFile(String toClientId, List<Path> files, Consumer<String> logger,
-                             TransferIo.Progress progress, Consumer<String> statusUpdate,
-                             TransferCancel cancel, Consumer<Boolean> callback) {
-        peerFiles.sendPeerFile(toClientId, files, logger, progress, statusUpdate, cancel, callback);
     }
 
     public void sendPeerFileRelay(String toClientId, Path file, Consumer<String> logger,
@@ -530,27 +422,6 @@ public class HeartbeatService implements HeartbeatEvents {
 
     public void declinePeerRelay(String relayId, Consumer<String> logger) {
         peerFiles.declinePeerRelay(relayId, logger);
-    }
-
-    public void downloadPeerFile(String fileId, Path destination,
-                                 Consumer<String> logger, Consumer<Boolean> callback) {
-        peerFiles.downloadPeerFile(fileId, destination, logger, callback);
-    }
-
-    public void downloadPeerFile(String fileId, Path destination,
-                                 Consumer<String> logger, TransferIo.Progress progress,
-                                 Consumer<Boolean> callback) {
-        peerFiles.downloadPeerFile(fileId, destination, logger, progress, callback);
-    }
-
-    public void downloadPeerFile(String fileId, Path destination,
-                                 Consumer<String> logger, TransferIo.Progress progress,
-                                 TransferCancel cancel, Consumer<Boolean> callback) {
-        peerFiles.downloadPeerFile(fileId, destination, logger, progress, cancel, callback);
-    }
-
-    public void deletePeerFile(String fileId, Consumer<String> logger, Consumer<Boolean> callback) {
-        peerFiles.deletePeerFile(fileId, logger, callback);
     }
 
     public Path downloadClientUpdate(String path) throws IOException, InterruptedException {
@@ -636,23 +507,13 @@ public class HeartbeatService implements HeartbeatEvents {
     }
 
     @Override
-    public Consumer<List<PeerFileInfo>> filesListener() {
-        return filesListener;
-    }
-
-    @Override
-    public Consumer<List<ChatRoomInfo>> chatRoomsListener() {
-        return chatRoomsListener;
-    }
-
-    @Override
-    public Consumer<ChatProtocol.RoomMessage> roomMessageListener() {
-        return roomMessageListener;
-    }
-
-    @Override
     public Consumer<UpdateNotice> updateListener() {
         return updateListener;
+    }
+
+    @Override
+    public Consumer<MarqueeNotice> marqueeListener() {
+        return marqueeListener;
     }
 
     @Override

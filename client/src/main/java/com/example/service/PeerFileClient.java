@@ -3,8 +3,6 @@ package com.example.service;
 import com.example.ClientUpdatePolicy;
 import com.example.PeerFileRules;
 import com.example.PeerFolderPacker;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 import java.io.IOException;
 import java.net.URI;
@@ -16,222 +14,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
-/** 同事傳檔、直傳，以及下載桌面端更新檔。走與心跳相同的 HttpClient。 */
+/** 同事直傳，以及下載桌面端更新檔。走與心跳相同的 HttpClient。 */
 final class PeerFileClient {
 
     private final HeartbeatEndpoint endpoint;
 
     PeerFileClient(HeartbeatEndpoint endpoint) {
         this.endpoint = endpoint;
-    }
-
-    /**
-     * 傳送檔案或資料夾給同事（資料夾會先壓成 ZIP；經伺服器暫存，對方心跳收到通知後再下載）。
-     */
-    void sendPeerFile(String toClientId, Path file, Consumer<String> logger, Consumer<Boolean> callback) {
-        sendPeerFile(toClientId, file, logger, null, null, callback);
-    }
-
-    void sendPeerFile(String toClientId, Path file, Consumer<String> logger,
-                             TransferIo.Progress progress, Consumer<Boolean> callback) {
-        sendPeerFile(toClientId, file, logger, progress, null, callback);
-    }
-
-    /**
-     * @param progress     位元組進度（準備複製／實際上傳）
-     * @param statusUpdate 階段文字（壓縮／準備／上傳）；可為 null
-     */
-    void sendPeerFile(String toClientId, Path file, Consumer<String> logger,
-                             TransferIo.Progress progress, Consumer<String> statusUpdate,
-                             Consumer<Boolean> callback) {
-        sendPeerFile(toClientId, file, logger, progress, statusUpdate, null, callback);
-    }
-
-    /**
-     * @param cancel 可為 null；取消後 callback 收到 false，並寫一行 [取消] 日誌
-     */
-    void sendPeerFile(String toClientId, Path file, Consumer<String> logger,
-                             TransferIo.Progress progress, Consumer<String> statusUpdate,
-                             TransferCancel cancel, Consumer<Boolean> callback) {
-        sendPeerFile(toClientId, file == null ? null : Collections.singletonList(file), logger, progress,
-                statusUpdate, cancel, callback);
-    }
-
-    /** 多個檔案／資料夾會先打包成同一個 ZIP 再上傳；只有一個項目時行為與單檔相同。 */
-    void sendPeerFile(String toClientId, List<Path> files, Consumer<String> logger,
-                             TransferIo.Progress progress, Consumer<String> statusUpdate,
-                             TransferCancel cancel, Consumer<Boolean> callback) {
-        if (!endpoint.active() || endpoint.url().isBlank()) {
-            endpoint.log(logger, "[警告] [檔案] 雲端未連線，無法傳送檔案");
-            if (callback != null) callback.accept(false);
-            return;
-        }
-        if (toClientId == null || toClientId.isBlank()) {
-            endpoint.log(logger, "[警告] [檔案] 請選擇收件同事");
-            if (callback != null) callback.accept(false);
-            return;
-        }
-        if (files == null || files.isEmpty() || files.stream().anyMatch(java.util.Objects::isNull)) {
-            endpoint.log(logger, "[警告] [檔案] 找不到要傳送的檔案");
-            if (callback != null) callback.accept(false);
-            return;
-        }
-
-        final String targetId = toClientId.trim();
-        final TransferCancel token = cancel != null ? cancel : new TransferCancel();
-        final List<Path> sources = new ArrayList<>(files);
-        Thread worker = new Thread(() -> sendPeerFileOnWorker(targetId, sources, logger, progress, statusUpdate,
-                token, callback), "peer-file-upload");
-        worker.setDaemon(true);
-        worker.start();
-    }
-
-    private void sendPeerFileOnWorker(String toClientId, List<Path> files, Consumer<String> logger,
-                                      TransferIo.Progress progress, Consumer<String> statusUpdate,
-                                      TransferCancel cancel, Consumer<Boolean> callback) {
-        String filename;
-        Path contentPath;
-        long contentSize;
-        String kind;
-        PeerFolderPacker.PackResult packed = null;
-        Path multipartTemp = null;
-        String displayName = HeartbeatService.displayNameOf(files);
-        try {
-            Outgoing outgoing = prepareOutgoing(files, logger, progress, statusUpdate, cancel);
-            if (outgoing == null) {
-                if (callback != null) callback.accept(false);
-                return;
-            }
-            filename = outgoing.filename;
-            contentPath = outgoing.path;
-            contentSize = outgoing.size;
-            kind = outgoing.kind;
-            packed = outgoing.packed;
-
-            notifyStatus(statusUpdate, "正在上傳「" + filename + "」到伺服器…（"
-                    + PeerFileRules.formatSize(contentSize) + "，分段續傳）");
-            TransferIo.Progress chunkedProgress = TransferIo.throttle(progress);
-            chunkedProgress.onProgress(0L, contentSize);
-            ChunkedUploader.Result chunked = new ChunkedUploader(
-                    () -> endpoint.client(), endpoint.url(), endpoint.token(), endpoint.workerId(), logger, statusUpdate)
-                    .upload(toClientId, contentPath, contentSize, filename, kind, chunkedProgress, cancel);
-            if (!chunked.unsupported) {
-                if (packed != null) {
-                    packed.deleteQuietly();
-                    packed = null;
-                }
-                if (chunked.ok) {
-                    notifyStatus(statusUpdate, "上傳完成");
-                    endpoint.log(logger, "[成功] [檔案] 已送出「" + filename + "」給【" + toClientId
-                            + "】（" + PeerFileRules.formatSize(contentSize)
-                            + "，保留 " + PeerFileRules.OFFER_TTL_LABEL + "）");
-                } else {
-                    endpoint.log(logger, "[失敗] [檔案] 送出「" + filename + "」失敗：" + chunked.message);
-                }
-                if (callback != null) callback.accept(chunked.ok);
-                return;
-            }
-            endpoint.log(logger, "[提示] [檔案] 伺服器尚未支援分段上傳（請更新雲端），改用整檔上傳");
-
-            String mime = PeerFileRules.isFolderKind(kind) ? "application/zip" : PeerFileRules.mimeFor(filename);
-            String boundary = "PunchClockFile" + UUID.randomUUID().toString().replace("-", "");
-            multipartTemp = Files.createTempFile("punchclock-upload-", ".multipart");
-            notifyStatus(statusUpdate, "正在準備上傳「" + filename + "」（"
-                    + PeerFileRules.formatSize(contentSize) + "）…");
-            TransferIo.Progress prepareProgress = TransferIo.throttle(progress);
-            writeMultipart(multipartTemp, boundary, orderedFields(
-                    "fromClientId", endpoint.workerId(),
-                    "toClientId", PeerFileRules.normalizeClientId(toClientId),
-                    "filename", filename,
-                    "kind", kind
-            ), filename, mime, contentPath, prepareProgress, cancel);
-            cancel.throwIfCancelled();
-
-            long uploadBytes = Files.size(multipartTemp);
-            notifyStatus(statusUpdate, "正在上傳「" + filename + "」到伺服器…");
-            TransferIo.Progress uploadProgress = TransferIo.throttle(progress);
-            if (uploadProgress != null) {
-                uploadProgress.onProgress(0L, uploadBytes);
-            }
-            String target = endpoint.url() + "/api/peer/file";
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(target))
-                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                    .header("Authorization", "Bearer " + endpoint.token())
-                    .timeout(HeartbeatService.FILE_TRANSFER_TIMEOUT)
-                    .POST(TransferIo.ofFile(multipartTemp, uploadProgress, cancel))
-                    .build();
-
-            final String sentName = filename;
-            final long sentSize = contentSize;
-            final Path cleanupMultipart = multipartTemp;
-            final PeerFolderPacker.PackResult cleanupPacked = packed;
-            multipartTemp = null;
-            packed = null;
-
-            CompletableFuture<HttpResponse<String>> upload =
-                    endpoint.client().sendAsync(request, HttpResponse.BodyHandlers.ofString());
-            cancel.cancelOnCancel(upload);
-            upload
-                    .whenComplete((response, error) -> {
-                        deleteQuietly(cleanupMultipart);
-                        if (cleanupPacked != null) {
-                            cleanupPacked.deleteQuietly();
-                        }
-                    })
-                    .thenAccept(response -> {
-                        boolean ok = response.statusCode() == 200;
-                        if (ok) {
-                            if (progress != null) {
-                                progress.onProgress(uploadBytes, uploadBytes);
-                            }
-                            notifyStatus(statusUpdate, "上傳完成");
-                            endpoint.log(logger, "[成功] [檔案] 已送出「" + sentName + "」給【" + toClientId
-                                    + "】（" + PeerFileRules.formatSize(sentSize)
-                                    + "，保留 " + PeerFileRules.OFFER_TTL_LABEL + "）");
-                        } else {
-                            String serverMessage = extractJsonMessage(response.body());
-                            endpoint.log(logger, "[失敗] [檔案] 送出「" + sentName + "」失敗，狀態碼："
-                                    + response.statusCode()
-                                    + (serverMessage.isEmpty() ? "" : "，" + serverMessage));
-                        }
-                        if (callback != null) callback.accept(ok);
-                    })
-                    .exceptionally(ex -> {
-                        if (cancel.isCancelled()) {
-                            endpoint.log(logger, "[取消] [檔案] 已取消傳送「" + sentName + "」");
-                        } else {
-                            endpoint.log(logger, "[失敗] [檔案] 送出「" + sentName + "」異常：" + HeartbeatService.describeTransferFailure(ex));
-                        }
-                        if (callback != null) callback.accept(false);
-                        return null;
-                    });
-        } catch (OutOfMemoryError ex) {
-            deleteQuietly(multipartTemp);
-            if (packed != null) {
-                packed.deleteQuietly();
-            }
-            endpoint.log(logger, "[失敗] [檔案] 本機記憶體不足，無法處理這麼大的檔案");
-            if (callback != null) callback.accept(false);
-        } catch (Exception ex) {
-            deleteQuietly(multipartTemp);
-            if (packed != null) {
-                packed.deleteQuietly();
-            }
-            if (cancel.isCancelled()) {
-                endpoint.log(logger, "[取消] [檔案] 已取消傳送「" + displayName + "」");
-            } else {
-                endpoint.log(logger, "[失敗] [檔案] 送出異常：" + HeartbeatService.describeTransferFailure(ex));
-            }
-            if (callback != null) callback.accept(false);
-        }
     }
 
     /** 要送出的內容：一般檔案直接用原檔；資料夾先壓成暫存 ZIP（用完要 {@link #cleanup()}）。 */
@@ -327,8 +119,7 @@ final class PeerFileClient {
      * 即時直傳給在線同事：伺服器只在記憶體轉手，不留檔。對方需在
      * {@link PeerFileRules#RELAY_ACCEPT_TIMEOUT_LABEL} 內按下接收，且雙方都要保持在線直到傳完。
      *
-     * @param callback 收到 {@link HeartbeatService.RelayOutcome#UNSUPPORTED_SERVER}／{@link HeartbeatService.RelayOutcome#RECIPIENT_UNAVAILABLE}
-     *                 時可改用 {@link #sendPeerFile} 伺服器暫存
+     * @param callback 直傳結果。對方不在線或伺服器不支援時，呼叫端應告知使用者，不會改走伺服器暫存
      */
     void sendPeerFileRelay(String toClientId, Path file, Consumer<String> logger,
                                   TransferIo.Progress progress, Consumer<String> statusUpdate,
@@ -469,156 +260,6 @@ final class PeerFileClient {
         }
     }
 
-    /**
-     * 下載同事傳來的檔案（收件人或發送者在過期前皆可）。
-     */
-    void downloadPeerFile(String fileId, Path destination,
-                                 Consumer<String> logger, Consumer<Boolean> callback) {
-        downloadPeerFile(fileId, destination, logger, null, callback);
-    }
-
-    void downloadPeerFile(String fileId, Path destination,
-                                 Consumer<String> logger, TransferIo.Progress progress,
-                                 Consumer<Boolean> callback) {
-        downloadPeerFile(fileId, destination, logger, progress, null, callback);
-    }
-
-    /**
-     * @param cancel 可為 null；取消後刪除 .part、callback 收到 false，並寫一行 [取消] 日誌
-     */
-    void downloadPeerFile(String fileId, Path destination,
-                                 Consumer<String> logger, TransferIo.Progress progress,
-                                 TransferCancel cancel, Consumer<Boolean> callback) {
-        if (!endpoint.active() || endpoint.url().isBlank()) {
-            endpoint.log(logger, "[警告] [檔案] 雲端未連線，無法下載");
-            if (callback != null) callback.accept(false);
-            return;
-        }
-        if (fileId == null || fileId.isBlank() || destination == null) {
-            endpoint.log(logger, "[警告] [檔案] 缺少檔案編號或儲存路徑");
-            if (callback != null) callback.accept(false);
-            return;
-        }
-
-        Path dest = PeerFileRules.resolveSavePath(destination, destination.getFileName() != null
-                ? destination.getFileName().toString() : "download");
-        String target = endpoint.url() + "/api/peer/file/" + urlEncode(fileId.trim())
-                + "?clientId=" + urlEncode(endpoint.workerId());
-        final TransferCancel token = cancel != null ? cancel : new TransferCancel();
-        final String savedName = dest.getFileName() != null ? dest.getFileName().toString() : "檔案";
-        try {
-            Path parent = dest.getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
-            Path part = dest.resolveSibling(dest.getFileName().toString() + ".part");
-            deleteQuietly(part);
-            TransferIo.Progress downloadProgress = TransferIo.throttle(progress);
-            CompletableFuture<Integer> download =
-                    downloadToFile(URI.create(target), part, logger, downloadProgress, token);
-            token.cancelOnCancel(download);
-            download
-                    .thenAccept(statusCode -> {
-                        try {
-                            if (token.isCancelled()) {
-                                deleteQuietly(part);
-                                endpoint.log(logger, "[取消] [檔案] 已取消下載「" + savedName + "」");
-                                if (callback != null) callback.accept(false);
-                                return;
-                            }
-                            if (statusCode != 200) {
-                                String serverMessage = "";
-                                try {
-                                    if (Files.isRegularFile(part) && Files.size(part) < 64 * 1024) {
-                                        serverMessage = extractJsonMessage(
-                                                Files.readString(part, StandardCharsets.UTF_8));
-                                    }
-                                } catch (Exception ignored) {
-                                    // ignore
-                                }
-                                deleteQuietly(part);
-                                endpoint.log(logger, "[失敗] [檔案] 下載失敗，狀態碼：" + statusCode
-                                        + (serverMessage.isEmpty() ? "" : "，" + serverMessage));
-                                if (callback != null) callback.accept(false);
-                                return;
-                            }
-                            Files.move(part, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                            long size = Files.size(dest);
-                            endpoint.log(logger, "[成功] [檔案] 已儲存：" + dest.toAbsolutePath()
-                                    + "（" + PeerFileRules.formatSize(size) + "）");
-                            if (callback != null) callback.accept(true);
-                        } catch (Exception ex) {
-                            deleteQuietly(part);
-                            endpoint.log(logger, "[失敗] [檔案] 寫入本機失敗：" + ex.getMessage());
-                            if (callback != null) callback.accept(false);
-                        }
-                    })
-                    .exceptionally(ex -> {
-                        deleteQuietly(part);
-                        if (token.isCancelled()) {
-                            endpoint.log(logger, "[取消] [檔案] 已取消下載「" + savedName + "」");
-                        } else {
-                            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                            endpoint.log(logger, "[失敗] [檔案] 下載異常：" + cause.getMessage());
-                        }
-                        if (callback != null) callback.accept(false);
-                        return null;
-                    });
-        } catch (Exception ex) {
-            endpoint.log(logger, "[失敗] [檔案] 下載異常：" + ex.getMessage());
-            if (callback != null) callback.accept(false);
-        }
-    }
-
-    /**
-     * 手動清除伺服器上的暫存檔（發送者或收件人）。
-     */
-    void deletePeerFile(String fileId, Consumer<String> logger, Consumer<Boolean> callback) {
-        if (!endpoint.active() || endpoint.url().isBlank()) {
-            endpoint.log(logger, "[警告] [檔案] 雲端未連線，無法清除");
-            if (callback != null) callback.accept(false);
-            return;
-        }
-        if (fileId == null || fileId.isBlank()) {
-            endpoint.log(logger, "[警告] [檔案] 缺少檔案編號");
-            if (callback != null) callback.accept(false);
-            return;
-        }
-        String target = endpoint.url() + "/api/peer/file/" + urlEncode(fileId.trim())
-                + "?clientId=" + urlEncode(endpoint.workerId());
-        try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(target))
-                    .header("Authorization", "Bearer " + endpoint.token())
-                    .timeout(HeartbeatService.REQUEST_TIMEOUT)
-                    .DELETE();
-            String encodedClient = urlEncode(endpoint.workerId());
-            if (isAsciiHeaderValue(encodedClient)) {
-                builder.header("X-PunchClock-Client", encodedClient);
-            }
-            endpoint.client().sendAsync(builder.build(), HttpResponse.BodyHandlers.ofString())
-                    .thenAccept(response -> {
-                        boolean ok = response.statusCode() == 200;
-                        String serverMessage = extractJsonMessage(response.body());
-                        if (ok) {
-                            endpoint.log(logger, "[成功] [檔案] " + (serverMessage.isEmpty() ? "已清除暫存檔" : serverMessage));
-                        } else {
-                            endpoint.log(logger, "[失敗] [檔案] 清除失敗，狀態碼：" + response.statusCode()
-                                    + (serverMessage.isEmpty() ? "" : "，" + serverMessage));
-                        }
-                        if (callback != null) callback.accept(ok);
-                    })
-                    .exceptionally(ex -> {
-                        endpoint.log(logger, "[失敗] [檔案] 清除異常：" + ex.getMessage());
-                        if (callback != null) callback.accept(false);
-                        return null;
-                    });
-        } catch (Exception ex) {
-            endpoint.log(logger, "[失敗] [檔案] 清除異常：" + ex.getMessage());
-            if (callback != null) callback.accept(false);
-        }
-    }
-
     private HttpRequest buildDownloadRequest(URI uri) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(uri)
@@ -633,84 +274,6 @@ final class PeerFileClient {
         return builder.build();
     }
 
-    private java.util.concurrent.CompletableFuture<Integer> downloadToFile(
-            URI uri, Path dest, Consumer<String> logger, TransferIo.Progress progress, TransferCancel cancel) {
-        if (cancel.isCancelled()) {
-            return CompletableFuture.failedFuture(new TransferIo.CancelledException());
-        }
-        CompletableFuture<HttpResponse<java.io.InputStream>> request =
-                endpoint.client().sendAsync(buildDownloadRequest(uri), HttpResponse.BodyHandlers.ofInputStream());
-        cancel.cancelOnCancel(request);
-        return request
-                .thenCompose(response -> {
-                    int code = response.statusCode();
-                    if (code >= 300 && code < 400) {
-                        String location = response.headers().firstValue("Location").orElse("").trim();
-                        try {
-                            response.body().close();
-                        } catch (Exception ignored) {
-                            // ignore
-                        }
-                        if (location.isEmpty()) {
-                            return java.util.concurrent.CompletableFuture.completedFuture(code);
-                        }
-                        URI next;
-                        try {
-                            next = uri.resolve(location);
-                            if ((next.getRawQuery() == null || next.getRawQuery().isEmpty())
-                                    && uri.getRawQuery() != null && !uri.getRawQuery().isEmpty()) {
-                                String rebuilt = next.getScheme() + "://" + next.getRawAuthority()
-                                        + next.getRawPath() + "?" + uri.getRawQuery();
-                                if (next.getRawFragment() != null) {
-                                    rebuilt += "#" + next.getRawFragment();
-                                }
-                                next = URI.create(rebuilt);
-                            }
-                        } catch (Exception ex) {
-                            return java.util.concurrent.CompletableFuture.completedFuture(code);
-                        }
-                        if (!sameOrigin(uri, next)) {
-                            endpoint.log(logger, "[警告] [檔案] 下載轉址跨網域，已中止：" + next);
-                            return java.util.concurrent.CompletableFuture.completedFuture(code);
-                        }
-                        deleteQuietly(dest);
-                        return downloadToFile(next, dest, logger, progress, cancel);
-                    }
-                    try (java.io.InputStream in = response.body();
-                         java.io.OutputStream out = Files.newOutputStream(dest)) {
-                        long total = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
-                        TransferIo.copy(in, out, total, progress, cancel);
-                    } catch (Exception ex) {
-                        deleteQuietly(dest);
-                        return java.util.concurrent.CompletableFuture.failedFuture(ex);
-                    }
-                    if (cancel.isCancelled()) {
-                        deleteQuietly(dest);
-                        return CompletableFuture.failedFuture(new TransferIo.CancelledException());
-                    }
-                    return java.util.concurrent.CompletableFuture.completedFuture(code);
-                });
-    }
-
-    private static boolean sameOrigin(URI from, URI to) {
-        if (from == null || to == null || to.getHost() == null) {
-            return false;
-        }
-        String fromHost = from.getHost() == null ? "" : from.getHost();
-        if (!fromHost.equalsIgnoreCase(to.getHost())) {
-            return false;
-        }
-        return effectivePort(from) == effectivePort(to)
-                && java.util.Objects.equals(from.getScheme(), to.getScheme());
-    }
-
-    private static int effectivePort(URI uri) {
-        if (uri.getPort() > 0) {
-            return uri.getPort();
-        }
-        return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
-    }
-
     private static boolean isAsciiHeaderValue(String value) {
         if (value == null) {
             return false;
@@ -722,52 +285,6 @@ final class PeerFileClient {
             }
         }
         return true;
-    }
-
-    private static Map<String, String> orderedFields(String... keyValues) {
-        Map<String, String> fields = new LinkedHashMap<>();
-        for (int i = 0; i + 1 < keyValues.length; i += 2) {
-            fields.put(keyValues[i], keyValues[i + 1]);
-        }
-        return fields;
-    }
-
-    private static void writeMultipart(Path dest, String boundary, Map<String, String> fields,
-                                       String filename, String mime, Path fileContent,
-                                       TransferIo.Progress progress, TransferCancel cancel)
-            throws java.io.IOException {
-        byte[] crlf = "\r\n".getBytes(StandardCharsets.UTF_8);
-        long contentSize = Files.size(fileContent);
-        try (java.io.OutputStream out = Files.newOutputStream(dest);
-             java.io.InputStream in = Files.newInputStream(fileContent)) {
-            for (Map.Entry<String, String> field : fields.entrySet()) {
-                out.write(("--" + boundary).getBytes(StandardCharsets.UTF_8));
-                out.write(crlf);
-                out.write(("Content-Disposition: form-data; name=\"" + field.getKey() + "\"")
-                        .getBytes(StandardCharsets.UTF_8));
-                out.write(crlf);
-                out.write("Content-Type: text/plain; charset=UTF-8".getBytes(StandardCharsets.UTF_8));
-                out.write(crlf);
-                out.write(crlf);
-                out.write(field.getValue().getBytes(StandardCharsets.UTF_8));
-                out.write(crlf);
-            }
-            out.write(("--" + boundary).getBytes(StandardCharsets.UTF_8));
-            out.write(crlf);
-            String asciiName = asciiMultipartFilename(filename);
-            String encodedName = urlEncode(filename == null ? "" : filename).replace("+", "%20");
-            out.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + asciiName
-                    + "\"; filename*=UTF-8''" + encodedName).getBytes(StandardCharsets.UTF_8));
-            out.write(crlf);
-            out.write(("Content-Type: " + (mime == null || mime.isBlank() ? "application/octet-stream" : mime))
-                    .getBytes(StandardCharsets.UTF_8));
-            out.write(crlf);
-            out.write(crlf);
-            TransferIo.copy(in, out, contentSize, progress, cancel);
-            out.write(crlf);
-            out.write(("--" + boundary + "--").getBytes(StandardCharsets.UTF_8));
-            out.write(crlf);
-        }
     }
 
     /**
@@ -860,39 +377,6 @@ final class PeerFileClient {
         } catch (Exception ignored) {
             // best-effort
         }
-    }
-
-    private static String asciiMultipartFilename(String filename) {
-        if (filename == null || filename.isBlank()) {
-            return "download";
-        }
-        StringBuilder sb = new StringBuilder(filename.length());
-        for (int i = 0; i < filename.length(); i++) {
-            char c = filename.charAt(i);
-            if (c >= 0x20 && c < 0x7f && c != '"' && c != '\\') {
-                sb.append(c);
-            } else {
-                sb.append('_');
-            }
-        }
-        String ascii = sb.toString().trim();
-        return ascii.isEmpty() ? "download" : ascii;
-    }
-
-    private static String extractJsonMessage(String body) {
-        if (body == null || body.isBlank()) {
-            return "";
-        }
-        try {
-            JsonObject json = JsonParser.parseString(body).getAsJsonObject();
-            if (json.has("message") && json.get("message").isJsonPrimitive()) {
-                String message = json.get("message").getAsString();
-                return message != null ? message.trim() : "";
-            }
-        } catch (Exception ignored) {
-            // 非 JSON 錯誤頁時忽略
-        }
-        return "";
     }
 
     private static String urlEncode(String value) {

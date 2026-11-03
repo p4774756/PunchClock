@@ -11,7 +11,6 @@
     const pendingCancelAllClients = new Set();
     const pendingSince = new Map();
     const PENDING_CANCEL_MAX_MS = 45000;
-    let fileData = [];
     let serverHealth = null;
     let healthHistorySamples = [];
     let healthHistoryTimer = null;
@@ -158,14 +157,6 @@
       return '<button class="btn btn-danger" data-role="cancel-all" onclick="remoteCancelSchedule(\'' + clientId + '\')"' + title + ' ' + disabled + '>全部取消</button>';
     }
 
-    function buildSendMessageButtonHtml(clientId, isConnected) {
-      const disabled = isConnected ? '' : 'disabled';
-      const title = isConnected
-        ? ' title="叫一聲，等下就送到"'
-        : ' title="對方不在店裡，沒辦法叫"';
-      return '<button class="btn btn-ghost" data-role="send-message" onclick="remoteSendMessage(\'' + clientId + '\')"' + title + ' ' + disabled + '>叫一聲</button>';
-    }
-
     function refreshTaskCancelUi(clientId, taskId) {
       const root = deviceEl(clientId);
       if (!root) return;
@@ -186,8 +177,7 @@
       const actionRow = root.querySelector('.action-row');
       if (actionRow) {
         const isConnected = c.status !== 'OFFLINE';
-        actionRow.innerHTML = buildSendMessageButtonHtml(clientId, isConnected)
-            + buildCancelAllButtonHtml(clientId, isConnected, tasks);
+        actionRow.innerHTML = buildCancelAllButtonHtml(clientId, isConnected, tasks);
       }
       const taskListHost = root.querySelector('[data-role="task-list"]');
       if (taskListHost) {
@@ -403,16 +393,11 @@
 
       const actionRow = root.querySelector('.action-row');
       if (actionRow) {
-        actionRow.innerHTML = buildSendMessageButtonHtml(c.clientId, isConnected)
-            + buildCancelAllButtonHtml(c.clientId, isConnected, tasks);
+        actionRow.innerHTML = buildCancelAllButtonHtml(c.clientId, isConnected, tasks);
       } else {
         const cancelAllBtn = root.querySelector('[data-role="cancel-all"]');
         if (cancelAllBtn) {
           cancelAllBtn.disabled = !isConnected || tasks.length === 0;
-        }
-        const sendMsgBtn = root.querySelector('[data-role="send-message"]');
-        if (sendMsgBtn) {
-          sendMsgBtn.disabled = !isConnected;
         }
       }
 
@@ -522,11 +507,8 @@
           const data = JSON.parse(event.data);
           if (data.type === 'STATUS_UPDATE') {
             applyClientSnapshot(data.clients || []);
-            applyFileSnapshot(data.files || []);
             applyServerHealth(data.serverHealth || null);
             appendLiveHealthPoint(data.serverHealth || null);
-          } else if (data.type === 'CHAT_SNAPSHOT') {
-            applyChatSnapshot(data.rooms || []);
           } else if (data.type === 'CHECKIN_RESULT') {
             appendLog(data.clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 收到回覆: ' + data.message);
           }
@@ -555,39 +537,12 @@
       return minutes + ' 分 ' + (totalSec % 60) + ' 秒';
     }
 
-    function formatRemainingMs(ms) {
-      const remaining = Number(ms);
-      if (!Number.isFinite(remaining) || remaining <= 0) return '已過期';
-      const totalSec = Math.floor(remaining / 1000);
-      const hours = Math.floor(totalSec / 3600);
-      const minutes = Math.floor((totalSec % 3600) / 60);
-      const seconds = totalSec % 60;
-      if (hours > 0) return hours + ' 時 ' + minutes + ' 分';
-      if (minutes > 0) return minutes + ' 分 ' + seconds + ' 秒';
-      return seconds + ' 秒';
-    }
-
-    function remainingFromFile(file) {
-      if (!file) return 0;
-      if (file.expiresAtMs) return Number(file.expiresAtMs) - Date.now();
-      return Number(file.remainingMs) || 0;
-    }
-
-    function fileStatusLabel(file) {
-      if (remainingFromFile(file) <= 0) return '已過期';
-      if ((file.downloadCount || 0) > 0 || file.status === 'downloaded') {
-        return '已下載（仍可再下）';
-      }
-      return '等待收取';
-    }
-
     function applyServerHealth(health) {
       serverHealth = health || null;
       const cpu = document.getElementById('healthCpu');
       const load = document.getElementById('healthLoad');
       const heap = document.getElementById('healthHeap');
       const osMem = document.getElementById('healthOsMem');
-      const files = document.getElementById('healthFiles');
       const disk = document.getElementById('healthDisk');
       const uptime = document.getElementById('healthUptime');
       if (!cpu) return;
@@ -611,12 +566,6 @@
       } else {
         osMem.textContent = '—';
       }
-      files.textContent = (serverHealth.fileOfferCount || 0) + ' 筆 · '
-        + formatBytes(serverHealth.fileOfferBytes || 0)
-        + (serverHealth.relayActiveCount ? '（直傳中 ' + serverHealth.relayActiveCount + ' 筆）' : '');
-      files.title = serverHealth.relayActiveCount
-        ? '直傳只在記憶體轉手，目前暫放 ' + formatBytes(serverHealth.relayBufferedBytes || 0)
-        : '';
       if (disk) {
         if (serverHealth.diskUsableBytes != null && serverHealth.diskTotalBytes) {
           disk.textContent = formatBytes(serverHealth.diskUsableBytes)
@@ -658,8 +607,6 @@
         heapMaxBytes: health.heapMaxBytes,
         osTotalMemoryBytes: health.osTotalMemoryBytes,
         osUsedMemoryBytes: osTotal > 0 ? Math.max(0, osTotal - osFree) : null,
-        fileOfferBytes: health.fileOfferBytes,
-        fileOfferCount: health.fileOfferCount,
         diskUsableBytes: health.diskUsableBytes,
         diskTotalBytes: health.diskTotalBytes
       });
@@ -799,128 +746,11 @@
         + escapeHtml(c.appVersion) + ' · ' + formatChartTime(releaseMs) + '</span>';
     }
 
-    function applyFileSnapshot(files) {
-      fileData = Array.isArray(files) ? files.slice() : [];
-      renderFileTransfers();
-    }
-
-    function renderFileTransfers() {
-      const host = document.getElementById('fileTransferList');
-      if (!host) return;
-      if (!fileData.length) {
-        host.innerHTML = '<p class="empty-tasks">架子是空的</p>';
-        return;
-      }
-      let rows = '';
-      for (let i = 0; i < fileData.length; i++) {
-        const f = fileData[i];
-        const kindLabel = f.kind === 'folder' ? '資料夾' : '檔案';
-        rows += '<tr data-file-id="' + escapeHtml(f.fileId || '') + '">'
-          + '<td>' + escapeHtml(kindLabel) + '</td>'
-          + '<td>' + escapeHtml(f.filename || '') + '</td>'
-          + '<td>' + escapeHtml((f.fromClientId || '') + ' → ' + (f.toClientId || '')) + '</td>'
-          + '<td>' + escapeHtml(formatBytes(f.size)) + '</td>'
-          + '<td>' + escapeHtml(fileStatusLabel(f)) + '</td>'
-          + '<td class="file-remaining" data-expires="' + escapeHtml(String(f.expiresAtMs || '')) + '">'
-            + escapeHtml(formatRemainingMs(remainingFromFile(f))) + '</td>'
-          + '<td class="file-actions">'
-            + '<button type="button" class="btn btn-ghost" data-role="download-file" data-file-id="'
-              + escapeHtml(f.fileId || '') + '" data-filename="' + escapeHtml(f.filename || 'download') + '">下載</button>'
-            + '<button type="button" class="btn btn-ghost-danger" data-role="delete-file" data-file-id="'
-              + escapeHtml(f.fileId || '') + '">清除</button>'
-          + '</td></tr>';
-      }
-      host.innerHTML = '<table class="file-table"><thead><tr>'
-        + '<th>類型</th><th>檔名</th><th>傳送</th><th>大小</th><th>狀態</th><th>剩餘</th><th></th>'
-        + '</tr></thead><tbody>' + rows + '</tbody></table>';
-    }
-
-    function updateFileRemainings() {
-      const nodes = document.querySelectorAll('.file-remaining');
-      for (let i = 0; i < nodes.length; i++) {
-        const expires = Number(nodes[i].getAttribute('data-expires'));
-        nodes[i].textContent = formatRemainingMs(expires - Date.now());
-      }
-    }
-
-    function bindFileTransferActions() {
-      const list = document.getElementById('fileTransferList');
-      if (list) {
-        list.addEventListener('click', (event) => {
-          const btn = event.target.closest('button');
-          if (!btn) return;
-          const fileId = btn.getAttribute('data-file-id');
-          if (btn.getAttribute('data-role') === 'download-file') {
-            downloadAdminFile(fileId, btn.getAttribute('data-filename') || 'download');
-          } else if (btn.getAttribute('data-role') === 'delete-file') {
-            deleteAdminFile(fileId);
-          }
-        });
-      }
-      const clearAll = document.getElementById('clearAllFilesBtn');
-      if (clearAll) {
-        clearAll.addEventListener('click', clearAllAdminFiles);
-      }
-    }
-
-    async function downloadAdminFile(fileId, filename) {
-      if (!fileId) return;
-      try {
-        const res = await fetch('/api/peer/file/' + encodeURIComponent(fileId), { credentials: 'same-origin' });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          alert(data.message || '下載失敗');
-          return;
-        }
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename || 'download';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      } catch (e) {
-        alert('下載失敗');
-      }
-    }
-
-    async function deleteAdminFile(fileId) {
-      if (!fileId || !confirm('確定要把這袋拿掉嗎？拿掉之後兩邊都領不回去。')) return;
-      try {
-        const res = await fetch('/api/peer/file/' + encodeURIComponent(fileId), {
-          method: 'DELETE',
-          credentials: 'same-origin'
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.success) {
-          alert(data.message || '清除失敗');
-        }
-      } catch (e) {
-        alert('清除失敗');
-      }
-    }
-
-    async function clearAllAdminFiles() {
-      if (!confirm('確定要把外帶架全部清掉嗎？')) return;
-      try {
-        const res = await fetch('/api/peer/files', { method: 'DELETE', credentials: 'same-origin' });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.success) {
-          alert(data.message || '清除失敗');
-        }
-      } catch (e) {
-        alert('清除失敗');
-      }
-    }
-
     async function fetchStatus() {
       try {
         const res = await fetch('/api/status');
         const data = await res.json();
         applyClientSnapshot(data.clients || []);
-        applyFileSnapshot(data.files || []);
         applyServerHealth(data.serverHealth || null);
         applyHealthHistory(data.healthHistory || null);
       } catch (e) {}
@@ -1100,7 +930,6 @@
           '<button class="btn btn-ghost-danger" onclick="deleteClient(\'' + c.clientId + '\')" title="移除離線設備紀錄">移除</button>'
         );
         const cancelAllBtnHtml = buildCancelAllButtonHtml(c.clientId, isConnected, tasks);
-        const sendMsgBtnHtml = buildSendMessageButtonHtml(c.clientId, isConnected);
         const foldText = isCollapsed ? '展開' : '收合';
         const bodyClass = isCollapsed ? 'collapsed' : '';
         const statusColor = getStatusColor(c.status);
@@ -1129,7 +958,6 @@
               '<div class="section-label">點單</div>' +
               '<div class="task-list" data-role="task-list" data-task-ids="' + escapeHtml(tasks.map((t) => t.id).join('|')) + '">' + tasksInnerHtml + '</div>' +
               '<div class="action-row">' +
-                sendMsgBtnHtml +
                 cancelAllBtnHtml +
               '</div>' +
             '</div>' +
@@ -1224,29 +1052,6 @@
       }
     }
 
-    async function remoteSendMessage(clientId) {
-      const c = clientData.find((x) => x.clientId === clientId);
-      if (!c || c.status === 'OFFLINE') {
-        alert('門市打烊了，沒辦法叫');
-        return;
-      }
-      const text = window.prompt('叫給【' + clientId + '】（大約 15 秒內聽到，可在「店內廣播」回看）');
-      if (text == null) return;
-      const trimmed = String(text).trim();
-      if (!trimmed) {
-        alert('訊息不可為空');
-        return;
-      }
-      const roomId = 'dm:' + clientId;
-      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在傳送訊息…');
-      const ok = await postChat({ roomId: roomId, text: trimmed, nick: chatNick() });
-      if (ok) {
-        appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已經叫出去了，對方等下會聽到');
-        selectChat(roomId);
-        switchDashTab('chat');
-      }
-    }
-
     function appendLog(clientId, text) {
       if (!clientLogs[clientId]) clientLogs[clientId] = [];
       clientLogs[clientId].push(text);
@@ -1262,7 +1067,7 @@
       }
     }
 
-    const ISLAND_ZONES = ['devices', 'chat', 'files', 'system', 'photos'];
+    const ISLAND_ZONES = ['devices', 'system', 'photos'];
 
     function switchDashTab(tabId) {
       const panels = document.querySelectorAll('.dash-panel');
@@ -1304,10 +1109,6 @@
       } catch (e) {}
       if (next === 'system') {
         window.requestAnimationFrame(() => drawHealthHistoryChart());
-      }
-      if (next === 'chat') {
-        markActiveChatSeen();
-        renderChat();
       }
       document.body.classList.toggle('island-sheet-open', !!next);
       if (window.PunchClockIsland) {
@@ -1723,256 +1524,67 @@
       });
     }
 
-    const CHAT_NICK_KEY = 'punchclock.adminNick';
-    let chatRooms = [];
-    let activeChatId = '';
-    let seenChat = {};
-    let chatReady = false;
-
-    function chatNick() {
-      const input = document.getElementById('chatNick');
-      const typed = input ? String(input.value || '').trim() : '';
-      if (typed) return typed.slice(0, 24);
+    async function fetchMarquee() {
+      const text = document.getElementById('marqueeText');
+      const enabled = document.getElementById('marqueeEnabled');
+      if (!text || !enabled) return;
       try {
-        return String(window.localStorage.getItem(CHAT_NICK_KEY) || '').trim().slice(0, 24);
+        const res = await fetch('/api/marquee', { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!data.success) return;
+        enabled.checked = !!data.enabled;
+        text.value = data.text || '';
+        if (data.maxChars) text.maxLength = data.maxChars;
       } catch (e) {
-        return '';
+        console.error('Fetch marquee error', e);
       }
     }
 
-    function chatRoomById(roomId) {
-      return chatRooms.find((room) => room && room.id === roomId) || null;
-    }
-
-    function lastChatMessageId(room) {
-      const messages = room && Array.isArray(room.messages) ? room.messages : [];
-      if (!messages.length) return 0;
-      return Number(messages[messages.length - 1].id) || 0;
-    }
-
-    function chatPanelOpen() {
-      const panel = document.getElementById('panel-chat');
-      return !!(panel && !panel.hasAttribute('hidden'));
-    }
-
-    function isChatUnread(room) {
-      if (!room) return false;
-      const last = lastChatMessageId(room);
-      const seen = Number(seenChat[room.id] || 0);
-      if (last <= seen) return false;
-      return !(chatPanelOpen() && room.id === activeChatId);
-    }
-
-    function markActiveChatSeen() {
-      if (!activeChatId) return;
-      const room = chatRoomById(activeChatId);
-      if (room) seenChat[room.id] = lastChatMessageId(room);
-    }
-
-    function applyChatSnapshot(rooms) {
-      chatRooms = Array.isArray(rooms) ? rooms : [];
-      if (!chatReady) {
-        chatRooms.forEach((room) => {
-          seenChat[room.id] = lastChatMessageId(room);
-        });
-        chatReady = true;
-      }
-      if (activeChatId && activeChatId.indexOf('dm:') !== 0) {
-        activeChatId = '';
-      }
-      if (chatPanelOpen() && activeChatId) markActiveChatSeen();
-      renderChat();
-    }
-
-    function dmChatTargets() {
-      const ids = [];
-      const seen = {};
-      (clientData || []).forEach((client) => {
-        if (client && client.clientId && !seen[client.clientId]) {
-          seen[client.clientId] = true;
-          ids.push(client.clientId);
-        }
-      });
-      chatRooms.forEach((room) => {
-        if (room && room.kind === 'dm' && room.id && room.id.indexOf('dm:') === 0) {
-          const id = room.id.slice(3);
-          if (id && !seen[id]) {
-            seen[id] = true;
-            ids.push(id);
-          }
-        }
-      });
-      ids.sort();
-      return ids;
-    }
-
-    function renderChatLists() {
-      const dmBox = document.getElementById('chatDmList');
-      if (!dmBox) return;
-      const targets = dmChatTargets();
-      dmBox.innerHTML = targets.length
-        ? targets.map((id) => chatRoomButton('dm:' + id, id)).join('')
-        : '<p class="chat-empty">還沒有門市</p>';
-      dmBox.querySelectorAll('[data-room]').forEach((btn) => {
-        btn.addEventListener('click', () => selectChat(btn.getAttribute('data-room')));
-      });
-      updateChatBadge();
-    }
-
-    function chatRoomButton(roomId, label) {
-      const room = chatRoomById(roomId);
-      const active = roomId === activeChatId ? ' is-active' : '';
-      const dot = isChatUnread(room) ? '<i class="chat-room-dot" aria-label="有新訊息"></i>' : '';
-      return '<button type="button" class="chat-room' + active + '" data-room="'
-        + escapeHtml(roomId) + '"><span>' + escapeHtml(label) + '</span>' + dot + '</button>';
-    }
-
-    function updateChatBadge() {
-      const badges = document.querySelectorAll('.chat-tab-badge');
-      if (!badges.length) return;
-      let count = 0;
-      chatRooms.forEach((room) => {
-        if (isChatUnread(room)) count++;
-      });
-      badges.forEach((badge) => {
-        if (count > 0) {
-          badge.hidden = false;
-          badge.textContent = String(count);
-        } else {
-          badge.hidden = true;
-          badge.textContent = '';
-        }
-      });
-    }
-
-    function selectChat(roomId) {
-      activeChatId = roomId || '';
-      markActiveChatSeen();
-      renderChat();
-      const input = document.getElementById('chatInput');
-      if (input && chatPanelOpen()) input.focus();
-    }
-
-    function renderChat() {
-      renderChatLists();
-      renderChatThread();
-    }
-
-    function renderChatThread() {
-      const title = document.getElementById('chatThreadTitle');
-      const log = document.getElementById('chatLog');
-      if (!title || !log) return;
-      if (!activeChatId) {
-        title.textContent = '先挑一位';
-        log.innerHTML = '<p class="chat-empty">左邊挑一位。</p>';
-        return;
-      }
-      const room = chatRoomById(activeChatId);
-      title.textContent = '跟店講 · ' + activeChatId.slice(3);
-      const messages = room && Array.isArray(room.messages) ? room.messages : [];
-      if (!messages.length) {
-        log.innerHTML = '<p class="chat-empty">還沒講過。講一句，對方櫃檯就會開窗。</p>';
-        return;
-      }
-      const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-      log.innerHTML = messages.map((msg) => {
-        const mine = !!msg.fromAdmin;
-        const when = formatChatTime(msg.timeMs);
-        const who = msg.nick || msg.fromId || '';
-        return '<div class="chat-line' + (mine ? ' mine' : '') + '">'
-          + '<div class="chat-meta">' + escapeHtml(who) + ' · ' + escapeHtml(when) + '</div>'
-          + '<div class="chat-bubble">' + escapeHtml(msg.text || '') + '</div></div>';
-      }).join('');
-      if (nearBottom || chatPanelOpen()) log.scrollTop = log.scrollHeight;
-    }
-
-    function formatChatTime(ms) {
-      const n = Number(ms);
-      if (!n) return '';
-      const date = new Date(n);
-      if (Number.isNaN(date.getTime())) return '';
-      return date.toLocaleString('zh-TW', { hour12: false });
-    }
-
-    async function postChat(body) {
+    async function saveMarquee(event) {
+      event.preventDefault();
+      const text = document.getElementById('marqueeText');
+      const enabled = document.getElementById('marqueeEnabled');
+      const status = document.getElementById('marqueeStatus');
+      const button = document.getElementById('marqueeSaveBtn');
+      if (!text || !enabled) return;
+      if (button) button.disabled = true;
       try {
-        const res = await fetch('/api/chat/send', {
-          method: 'POST',
+        const res = await fetch('/api/marquee', {
+          method: 'PUT',
+          credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
+          body: JSON.stringify({ enabled: enabled.checked, text: text.value })
         });
         const data = await res.json();
-        if (!res.ok || !data.success) {
-          alert(data.message || '傳送失敗');
-          return false;
+        if (status) status.textContent = data.message || (data.success ? '已儲存' : '沒有儲存');
+        if (data.success) {
+          enabled.checked = !!data.enabled;
+          text.value = data.text || '';
         }
-        if (data.rooms) applyChatSnapshot(data.rooms);
-        return true;
       } catch (e) {
-        console.error('chat send', e);
-        alert('傳送失敗');
-        return false;
+        if (status) status.textContent = '沒有儲存，請再試一次';
+      } finally {
+        if (button) button.disabled = false;
       }
     }
 
-    function bindChat() {
-      const nick = document.getElementById('chatNick');
-      if (nick) {
-        try {
-          nick.value = window.localStorage.getItem(CHAT_NICK_KEY) || '';
-        } catch (e) {}
-        nick.addEventListener('change', () => {
-          try { window.localStorage.setItem(CHAT_NICK_KEY, nick.value.trim()); } catch (e) {}
-        });
-      }
-      const composer = document.getElementById('chatComposer');
-      const input = document.getElementById('chatInput');
-      if (composer) {
-        composer.addEventListener('submit', async (event) => {
-          event.preventDefault();
-          if (!activeChatId) {
-            alert('請先選一位同事');
-            return;
-          }
-          const text = input ? input.value.trim() : '';
-          if (!text) return;
-          const ok = await postChat({ roomId: activeChatId, text: text, nick: chatNick() });
-          if (ok && input) input.value = '';
-        });
-      }
-      if (input) {
-        input.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault();
-            if (composer) composer.requestSubmit ? composer.requestSubmit() : composer.dispatchEvent(new Event('submit'));
-          }
-        });
-      }
+    function bindMarqueeForm() {
+      const form = document.getElementById('marqueeForm');
+      if (form) form.addEventListener('submit', saveMarquee);
     }
 
-    async function fetchChat() {
-      try {
-        const res = await fetch('/api/chat');
-        if (!res.ok) return;
-        const data = await res.json();
-        applyChatSnapshot(data.rooms || []);
-      } catch (e) {}
-    }
-
-    bindChat();
-    fetchChat();
     bindDashTabs();
     fetchStatus();
     fetchPhotos();
+    fetchMarquee();
+    bindMarqueeForm();
     connectWebSocket();
-    bindFileTransferActions();
     bindPhotoActions();
     window.addEventListener('resize', drawHealthHistoryChart);
     healthHistoryTimer = setInterval(refreshHealthHistory, 60000);
     setInterval(() => {
       updateHeartbeatMetrics();
       updateCountdowns();
-      updateFileRemainings();
     }, 1000);
     setInterval(async () => {
       if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -1980,7 +1592,6 @@
           const res = await fetch('/api/status');
           const data = await res.json();
           applyClientSnapshot(data.clients || []);
-          applyFileSnapshot(data.files || []);
           applyServerHealth(data.serverHealth || null);
           applyHealthHistory(data.healthHistory || null);
         } catch (e) {}

@@ -170,6 +170,23 @@ public class ConfigPersistenceServiceTest {
     }
 
     @Test
+    public void saveAndLoad_persistsLastOpenDirectory() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.lastOpenDirectory = "/tmp/punchclock-downloads";
+        configService.saveConfig(config, null);
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertEquals("/tmp/punchclock-downloads", loaded.lastOpenDirectory);
+    }
+
+    @Test
+    public void normalize_blankLastOpenDirectoryWhenMissing() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.lastOpenDirectory = null;
+        ConfigPersistenceService.normalize(config);
+        assertEquals("", config.lastOpenDirectory);
+    }
+
+    @Test
     public void saveAndLoad_persistsWindowTransparencyPercent() {
         ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
         config.windowTransparencyPercent = 25;

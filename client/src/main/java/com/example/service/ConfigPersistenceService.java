@@ -78,6 +78,9 @@ public class ConfigPersistenceService {
         /** 標為最愛的好友裝置 ID；好友列表會排在最上面。 */
         public List<String> favoritePeers = new ArrayList<>();
 
+        /** 上次選檔的資料夾。下次開啟選檔面板時從這裡開始。 */
+        public String lastOpenDirectory = "";
+
         /** 是否使用 ~/.punchclock/avatar.jpg 作為訊息／戳一下大頭照 */
         public boolean customAvatar = false;
 
@@ -208,6 +211,11 @@ public class ConfigPersistenceService {
         }
         if (config.favoritePeers == null) {
             config.favoritePeers = new ArrayList<>();
+        }
+        if (config.lastOpenDirectory == null) {
+            config.lastOpenDirectory = "";
+        } else {
+            config.lastOpenDirectory = config.lastOpenDirectory.trim();
         }
         seedRecentIfMissing(config.recentTargetUrls, config.targetUrl);
         seedRecentIfMissing(config.recentButtonIds, config.buttonId);

@@ -270,7 +270,6 @@ public class CandyWidgetsTest {
             assertEquals(280, peers.clientIdCombo.getPreferredSize().width);
             assertTrue(peers.clientIdCombo.getPreferredSize().height >= 30);
             assertTrue(peers.openChatButton.getUI().getClass().getName().contains("CandyButton"));
-            assertTrue(peers.clearFileButton.getUI().getClass().getName().contains("CandyButton"));
             assertTrue(Boolean.TRUE.equals(peers.peerTableScroll.getClientProperty(CandyScrollBar.MARK)));
             NightTheme.apply(peer);
             assertTrue(peers.clientIdCombo.getUI().getClass().getName().contains("CandyComboBox"));

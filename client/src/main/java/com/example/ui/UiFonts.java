@@ -36,7 +36,9 @@ import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Locale;
+import java.util.function.Consumer;
 
 /**
  * 跨平台字型與對話框入口。
@@ -49,6 +51,9 @@ public final class UiFonts {
 
     /** 對話框訊息寬度，跟以往 HTML 訊息的 420px 對齊。 */
     private static final int MESSAGE_WIDTH = 420;
+    /** 上次按確定的選檔資料夾。另存新檔若另外指定目錄，不會改到這裡。 */
+    private static File rememberedOpenDirectory;
+    private static Consumer<Path> openDirectoryChosen;
 
     private UiFonts() {
     }
@@ -306,12 +311,56 @@ public final class UiFonts {
      * macOS 原生選檔面板會把 Downloads 畫成「D wnlo ads」；改走 Metal，由 Swing 自己畫。
      */
     public static JFileChooser fileChooser() {
+        JFileChooser chooser;
         if (isMac()) {
-            JFileChooser chooser = new SwingFileChooser();
+            chooser = new SwingFileChooser();
             applyFontTree(chooser, latinPlain(13));
-            return chooser;
+        } else {
+            chooser = createWithLightDefaults();
         }
-        return createWithLightDefaults();
+        if (rememberedOpenDirectory != null && rememberedOpenDirectory.isDirectory()) {
+            chooser.setCurrentDirectory(rememberedOpenDirectory);
+        }
+        return chooser;
+    }
+
+    /**
+     * 下次選檔從這個資料夾開始。空白、不存在或不是資料夾時清掉記憶。
+     */
+    public static void setRememberedOpenDirectory(String path) {
+        if (path == null || path.isBlank()) {
+            rememberedOpenDirectory = null;
+            return;
+        }
+        File dir = new File(path.trim());
+        rememberedOpenDirectory = dir.isDirectory() ? dir : null;
+    }
+
+    /** 選檔按確定後通知，用來寫進本機設定。傳 null 表示不再通知。 */
+    public static void setOpenDirectoryListener(Consumer<Path> listener) {
+        openDirectoryChosen = listener;
+    }
+
+    /**
+     * 開啟選檔面板。按下確定後記住目前資料夾，下次 {@link #fileChooser()} 會從那裡開始。
+     */
+    public static int showOpenDialog(JFileChooser chooser, Component parent) {
+        int result = chooser.showOpenDialog(parent);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            rememberOpenDirectory(chooser.getCurrentDirectory());
+        }
+        return result;
+    }
+
+    static void rememberOpenDirectory(File dir) {
+        if (dir == null || !dir.isDirectory()) {
+            return;
+        }
+        rememberedOpenDirectory = dir;
+        Consumer<Path> listener = openDirectoryChosen;
+        if (listener != null) {
+            listener.accept(dir.toPath());
+        }
     }
 
     /**

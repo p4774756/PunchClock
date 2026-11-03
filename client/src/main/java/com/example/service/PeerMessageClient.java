@@ -10,7 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/** 同事訊息、戳一下，以及後台聊天室文字。 */
+/** 同事訊息與戳一下。 */
 final class PeerMessageClient {
 
     private final HeartbeatEndpoint endpoint;
@@ -68,31 +68,6 @@ final class PeerMessageClient {
         postPeerApi("/api/peer/message", payload, logger, callback,
                 (imageCount > 1 ? imageCount + " 張圖片給【" : hasImage ? "圖片訊息給【" : "訊息給【")
                         + toClientId.trim() + "】：" + (trimmed.isEmpty() ? "（僅圖片）" : trimmed));
-    }
-
-    /** 傳文字給後台私訊或已加入的群組。 */
-    void sendRoomMessage(String roomId, String text, Consumer<String> logger, Consumer<Boolean> callback) {
-        if (!endpoint.active() || endpoint.url().isBlank()) {
-            endpoint.log(logger, "[警告] [聊天] 雲端未連線，無法傳送訊息");
-            if (callback != null) callback.accept(false);
-            return;
-        }
-        if (!ChatProtocol.isDeskRoom(roomId)) {
-            endpoint.log(logger, "[警告] [聊天] 找不到這段對話");
-            if (callback != null) callback.accept(false);
-            return;
-        }
-        String trimmed = text == null ? "" : text.trim();
-        if (trimmed.isEmpty()) {
-            endpoint.log(logger, "[警告] [聊天] 訊息不可為空");
-            if (callback != null) callback.accept(false);
-            return;
-        }
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("fromClientId", endpoint.workerId());
-        payload.put("roomId", roomId);
-        payload.put("text", trimmed);
-        postPeerApi("/api/chat/send", payload, logger, callback, "訊息到【" + roomId + "】：" + trimmed);
     }
 
     /**

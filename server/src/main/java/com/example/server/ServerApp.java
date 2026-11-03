@@ -2,19 +2,19 @@ package com.example.server;
 
 import com.example.BuildInfo;
 import com.example.ClientUpdatePolicy;
+import com.example.MarqueeNotice;
 import com.example.PeerFileRules;
 import com.example.ReleaseNotes;
 import com.example.server.auth.AuthService;
 import com.example.server.health.HealthHistoryStore;
 import com.example.server.health.ServerHealth;
-import com.example.server.store.ChatStore;
 import com.example.server.store.ClientStore;
-import com.example.server.store.FileOfferStore;
+import com.example.server.store.MarqueeStore;
 import com.example.server.store.RelayStore;
 import com.example.server.util.IpResolver;
 import com.example.server.web.ChatRoutes;
 import com.example.server.web.DashboardBroadcaster;
-import com.example.server.web.PeerFileRoutes;
+import com.example.server.web.MarqueeRoutes;
 import com.example.server.web.PhotoRoutes;
 import com.example.server.web.RelayRoutes;
 import com.example.server.web.RouteSupport;
@@ -34,7 +34,6 @@ import java.nio.file.Files;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 public final class ServerApp {
@@ -44,19 +43,17 @@ public final class ServerApp {
 
     private final AuthService authService = new AuthService();
     private final ClientStore clientStore = new ClientStore();
-    private final ChatStore chatStore = new ChatStore();
-    private final FileOfferStore fileOfferStore = new FileOfferStore();
     private final RelayStore relayStore = new RelayStore();
     private final ServerHealth serverHealth = new ServerHealth();
     private final HealthHistoryStore healthHistoryStore = new HealthHistoryStore();
     private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
     private final DashboardBroadcaster broadcaster = new DashboardBroadcaster(gson);
-    private final PeerFileRoutes peerFileRoutes = new PeerFileRoutes(
-            authService, clientStore, fileOfferStore, gson, broadcaster, this::statusUpdatePayload);
     private final RelayRoutes relayRoutes = new RelayRoutes(
             authService, clientStore, relayStore, gson, broadcaster, this::statusUpdatePayload);
     private final ChatRoutes chatRoutes = new ChatRoutes(
-            authService, clientStore, chatStore, gson, broadcaster, this::statusUpdatePayload);
+            authService, clientStore, gson, broadcaster, this::statusUpdatePayload);
+    private final MarqueeStore marqueeStore = new MarqueeStore();
+    private final MarqueeRoutes marqueeRoutes = new MarqueeRoutes(authService, marqueeStore);
     private final PhotoRoutes photoRoutes = new PhotoRoutes(authService);
     private final ClientRelease clientRelease;
 
@@ -75,7 +72,7 @@ public final class ServerApp {
 
     public Javalin start(int port) {
         clientStore.startOfflineMonitor(broadcaster::broadcast);
-        healthHistoryStore.start(() -> serverHealth.snapshot(fileOfferStore, relayStore));
+        healthHistoryStore.start(() -> serverHealth.snapshot(relayStore));
 
         Javalin app = Javalin.create(config -> {
             config.staticFiles.add(sf -> {
@@ -93,7 +90,6 @@ public final class ServerApp {
             config.http.maxRequestSize = maxRequest;
             config.jetty.multipartConfig.maxFileSize(PeerFileRules.MAX_BYTES, SizeUnit.BYTES);
             config.jetty.multipartConfig.maxTotalRequestSize(maxRequest, SizeUnit.BYTES);
-            // 超過 1MB 的 part 寫到暫存檔，再串流落地到 FileOfferStore，避免整檔進 heap。
             config.jetty.multipartConfig.maxInMemoryFileSize(1, SizeUnit.MB);
         });
 
@@ -107,10 +103,8 @@ public final class ServerApp {
         System.out.println("- Web Dashboard: http://localhost:" + boundPort + " (login required)");
         System.out.println("- Heartbeat API: POST /api/heartbeat (Bearer token required)");
         System.out.println("- Protocol: HTTP heartbeat for workers; Dashboard WS for status push only");
-        System.out.println("- Peer file: POST /api/peer/file  GET/DELETE /api/peer/file/{fileId} (max "
-                + PeerFileRules.MAX_SIZE_LABEL + ", keep " + PeerFileRules.OFFER_TTL_LABEL + ")");
-        System.out.println("- Peer relay: /api/peer/relay (both online, in-memory only, no disk)");
-        System.out.println("- Chat: /api/chat (admin session + worker Bearer, in-memory)");
+        System.out.println("- Peer relay: /api/peer/relay (both online, in-memory only, no disk, max "
+                + PeerFileRules.MAX_SIZE_LABEL + ")");
         System.out.println("- Health history: GET /api/health/history (login, keep 3 days)");
         if (clientRelease.isAvailable()) {
             System.out.println("- Client release: v" + clientRelease.version()
@@ -136,10 +130,10 @@ public final class ServerApp {
         )));
         app.post("/api/heartbeat", this::heartbeat);
         app.get("/api/client-release/jar", this::clientReleaseJar);
-        peerFileRoutes.register(app);
         relayRoutes.register(app);
         chatRoutes.register(app);
         photoRoutes.register(app);
+        marqueeRoutes.register(app);
         app.get("/api/status", this::status);
         app.get("/api/health/history", this::healthHistory);
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
@@ -299,9 +293,12 @@ public final class ServerApp {
         response.put("action", actionToSend);
         response.put("actions", drainedActions);
         response.put("peers", clientStore.peerSnapshot(clientId));
-        response.put("files", fileOfferStore.snapshotForClient(clientId));
-        response.put("chatRooms", chatStore.clientRooms(clientId));
         response.put("ackTimestamp", Instant.now().toString());
+        MarqueeNotice marquee = marqueeStore.current();
+        Map<String, Object> marqueeBody = new LinkedHashMap<>();
+        marqueeBody.put("enabled", marquee.enabled);
+        marqueeBody.put("text", marquee.text);
+        response.put("marquee", marqueeBody);
         if (clientRelease.isAvailable()
                 && ClientUpdatePolicy.shouldOffer(appVersion, appSourceDigest, appReleaseTime,
                         clientRelease.sourceDigest(), clientRelease.releaseTime())) {
@@ -354,41 +351,6 @@ public final class ServerApp {
 
 
 
-    public static boolean isMemoryError(Throwable ex) {
-        for (Throwable t = ex; t != null; t = t.getCause()) {
-            if (t instanceof OutOfMemoryError) {
-                return true;
-            }
-            String message = t.getMessage();
-            if (message == null || message.isBlank()) {
-                continue;
-            }
-            String lower = message.toLowerCase(Locale.ROOT);
-            if (lower.contains("java heap space") || lower.contains("outofmemory")) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public static String uploadedFileErrorMessage(Throwable ex) {
-        if (isMemoryError(ex)) {
-            return "伺服器記憶體不足，無法接收此檔案。請稍後再試，或先清除傳檔暫存。";
-        }
-        String detail = ex == null || ex.getMessage() == null || ex.getMessage().isBlank()
-                ? (ex == null ? "unknown" : ex.getClass().getSimpleName())
-                : ex.getMessage().trim();
-        String lower = detail.toLowerCase(Locale.ROOT);
-        if (lower.contains("size") || lower.contains("large") || lower.contains("limit")
-                || lower.contains("exceed") || lower.contains("max")) {
-            return "上傳超過伺服器目前上限（" + PeerFileRules.MAX_SIZE_LABEL
-                    + "）。請確認雲端已部署並重啟新版。"
-                    + "（" + detail + "）";
-        }
-        return "無法讀取上傳檔案：" + detail;
-    }
-
-
     private void status(Context ctx) {
         if (!authService.isAuth(ctx)) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
@@ -400,8 +362,7 @@ public final class ServerApp {
         payload.put("serverBuildTime", BUILD_INFO.buildTimeIso());
         payload.put("totalClients", clientStore.clients().size());
         payload.put("clients", clientStore.publicClientsSnapshot());
-        payload.put("files", fileOfferStore.publicSnapshot());
-        payload.put("serverHealth", serverHealth.snapshot(fileOfferStore, relayStore));
+        payload.put("serverHealth", serverHealth.snapshot(relayStore));
         payload.put("healthHistory", healthHistoryStore.summary());
         ctx.json(payload);
     }
@@ -470,8 +431,7 @@ public final class ServerApp {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "STATUS_UPDATE");
         payload.put("clients", clientStore.publicClientsSnapshot());
-        payload.put("files", fileOfferStore.publicSnapshot());
-        payload.put("serverHealth", serverHealth.snapshot(fileOfferStore, relayStore));
+        payload.put("serverHealth", serverHealth.snapshot(relayStore));
         return payload;
     }
 

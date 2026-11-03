@@ -1,6 +1,6 @@
 package com.example.service;
 
-import com.example.ChatProtocol;
+import com.example.MarqueeNotice;
 import com.example.PeerFileRules;
 import org.junit.Test;
 
@@ -173,47 +173,6 @@ public class HeartbeatServiceCommandParseTest {
     }
 
     @Test
-    public void parseServerCommand_forwardsPeerFileOffer() throws Exception {
-        HeartbeatService service = new HeartbeatService();
-        List<String> received = new ArrayList<>();
-        service.setCommandListener(received::add);
-
-        Method method = HeartbeatService.class.getDeclaredMethod(
-                "parseServerCommand", String.class, Consumer.class);
-        method.setAccessible(true);
-
-        String encoded = java.util.Base64.getUrlEncoder().withoutPadding()
-                .encodeToString("備忘.txt".getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        method.invoke(service,
-                "{\"actions\":[\"FILE|worker-a|abc123|" + encoded + "|12|text/plain|1693728000000\"]}",
-                (Consumer<String>) msg -> {});
-
-        assertEquals(1, received.size());
-        assertEquals("FILE|" + PeerFileRules.encodeName("worker-a")
-                + "|abc123|12|text/plain|1693728000000|備忘.txt", received.get(0));
-    }
-
-    @Test
-    public void parseServerCommand_peerFileFromIdMayContainPipe() throws Exception {
-        HeartbeatService service = new HeartbeatService();
-        List<String> received = new ArrayList<>();
-        service.setCommandListener(received::add);
-
-        Method method = HeartbeatService.class.getDeclaredMethod(
-                "parseServerCommand", String.class, Consumer.class);
-        method.setAccessible(true);
-
-        String encoded = PeerFileRules.encodeName("notes.txt");
-        method.invoke(service,
-                "{\"actions\":[\"FILE|WIN|LAB|fileid99|" + encoded + "|4|text/plain|1693728000000\"]}",
-                (Consumer<String>) msg -> {});
-
-        assertEquals(1, received.size());
-        assertEquals("FILE|" + PeerFileRules.encodeName("WIN|LAB")
-                + "|fileid99|4|text/plain|1693728000000|notes.txt", received.get(0));
-    }
-
-    @Test
     public void parseServerCommand_forwardsPeerRelayOffer() throws Exception {
         HeartbeatService service = new HeartbeatService();
         List<String> received = new ArrayList<>();
@@ -234,25 +193,25 @@ public class HeartbeatServiceCommandParseTest {
     }
 
     @Test
-    public void parseServerCommand_parsesFilesArray() throws Exception {
+    public void parseServerCommand_readsMarqueeAndHidesWhenOff() throws Exception {
         HeartbeatService service = new HeartbeatService();
-        List<HeartbeatService.PeerFileInfo> files = new ArrayList<>();
-        service.setFilesListener(files::addAll);
+        AtomicReference<MarqueeNotice> received = new AtomicReference<>();
+        service.setMarqueeListener(received::set);
 
         Method method = HeartbeatService.class.getDeclaredMethod(
                 "parseServerCommand", String.class, Consumer.class);
         method.setAccessible(true);
         method.invoke(service,
-                "{\"files\":[{\"fileId\":\"abc123\",\"fromClientId\":\"a\",\"toClientId\":\"b\","
-                        + "\"filename\":\"notes.exe\",\"kind\":\"file\",\"status\":\"waiting\","
-                        + "\"size\":12,\"createdAtMs\":1,\"expiresAtMs\":2,\"downloadCount\":0}]}",
+                "{\"marquee\":{\"enabled\":true,\"text\":\"  下午三點\\n集合  \"}}",
                 (Consumer<String>) msg -> {});
+        assertTrue(received.get().enabled);
+        assertEquals("下午三點 集合", received.get().text);
 
-        assertEquals(1, files.size());
-        assertEquals("abc123", files.get(0).fileId);
-        assertEquals("notes.exe", files.get(0).filename);
-        assertEquals("waiting", files.get(0).status);
-        assertEquals(12, files.get(0).size);
+        method.invoke(service,
+                "{\"marquee\":{\"enabled\":false,\"text\":\"下午三點 集合\"}}",
+                (Consumer<String>) msg -> {});
+        assertFalse(received.get().enabled);
+        assertEquals("下午三點 集合", received.get().text);
     }
 
     @Test
@@ -286,33 +245,5 @@ public class HeartbeatServiceCommandParseTest {
                 "{\"update\":{\"version\":\"1.8.0\",\"sourceDigest\":\"" + digest
                         + "\",\"sha256\":\"" + sha + "\",\"size\":12,\"path\":\"https://evil.example/jar\"}}"));
         assertNull(HeartbeatService.parseUpdateNotice("{\"success\":true}"));
-    }
-
-    @Test
-    public void parseServerCommand_supportsRoomMessageAndChatRooms() throws Exception {
-        HeartbeatService service = new HeartbeatService();
-        List<ChatProtocol.RoomMessage> rooms = new ArrayList<>();
-        List<HeartbeatService.ChatRoomInfo> listed = new ArrayList<>();
-        service.setRoomMessageListener(rooms::add);
-        service.setChatRoomsListener(listed::addAll);
-
-        Method method = HeartbeatService.class.getDeclaredMethod(
-                "parseServerCommand", String.class, Consumer.class);
-        method.setAccessible(true);
-
-        String action = ChatProtocol.encodeRoom("g:abcd1234", "早班", "後台", "小王", 1693728000000L, "集合|一下");
-        String body = "{\"actions\":[\"" + action + "\"],\"chatRooms\":["
-                + "{\"id\":\"g:abcd1234\",\"name\":\"早班\",\"kind\":\"group\"},"
-                + "{\"id\":\"dm:worker-a\",\"name\":\"worker-a\",\"kind\":\"dm\"}]}";
-        method.invoke(service, body, (Consumer<String>) msg -> {});
-
-        assertEquals(1, rooms.size());
-        assertEquals("g:abcd1234", rooms.get(0).roomId);
-        assertEquals("早班", rooms.get(0).roomName);
-        assertEquals("小王", rooms.get(0).nick);
-        assertEquals("集合|一下", rooms.get(0).text);
-        assertEquals(1, listed.size());
-        assertEquals("g:abcd1234", listed.get(0).id);
-        assertEquals("早班", listed.get(0).name);
     }
 }

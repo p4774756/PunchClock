@@ -90,6 +90,19 @@ public class FileTransferDialogTest {
     }
 
     @Test
+    public void requestedOnlineFriendIsPreselected() throws Exception {
+        withDialog(sampleFriends(), "beta", dialog -> {
+            assertEquals("beta", dialog.selectedClientId());
+            assertFalse(dialog.canSend());
+        });
+    }
+
+    @Test
+    public void requestedOfflineFriendStaysUnselected() throws Exception {
+        withDialog(sampleFriends(), "guest", dialog -> assertNull(dialog.selectedClientId()));
+    }
+
+    @Test
     public void oneFriendIsShownAndPreselectedWhenOnline() throws Exception {
         List<FileTransferDialog.Friend> friends = List.of(
                 new FileTransferDialog.Friend("solo", true, "", ""));
@@ -228,9 +241,14 @@ public class FileTransferDialogTest {
     }
 
     private static void withDialog(List<FileTransferDialog.Friend> friends, DialogCheck check) throws Exception {
+        withDialog(friends, null, check);
+    }
+
+    private static void withDialog(List<FileTransferDialog.Friend> friends, String preselectId, DialogCheck check)
+            throws Exception {
         Assume.assumeFalse("headless JVM cannot create the transfer dialog", GraphicsEnvironment.isHeadless());
         FileTransferDialog[] holder = new FileTransferDialog[1];
-        SwingUtilities.invokeAndWait(() -> holder[0] = newDialog(friends));
+        SwingUtilities.invokeAndWait(() -> holder[0] = new FileTransferDialog(null, friends, preselectId));
         Exception[] failure = new Exception[1];
         try {
             SwingUtilities.invokeAndWait(() -> {
@@ -249,10 +267,6 @@ public class FileTransferDialogTest {
                 holder[0].dispose();
             });
         }
-    }
-
-    private static FileTransferDialog newDialog(List<FileTransferDialog.Friend> friends) {
-        return new FileTransferDialog(null, friends, null);
     }
 
     private interface DialogCheck {

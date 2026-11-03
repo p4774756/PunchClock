@@ -25,28 +25,24 @@
   </nav>
 
   <div id="islandStage">
-    <canvas id="islandCanvas" role="img" aria-label="手搖店島。點杯子、廣播、外帶架、製茶機或飲品牆，也可以用清單。"></canvas>
+    <canvas id="islandCanvas" role="img" aria-label="手搖店島。點杯子、製茶機或飲品牆，也可以用清單。"></canvas>
   </div>
 
   <div id="islandLabels">
     <div class="island-mark" data-anchor="shop">莫卡手搖</div>
     <button type="button" class="island-label" data-tab="devices" data-anchor="devices">點單</button>
-    <button type="button" class="island-label" data-tab="chat" data-anchor="chat">店內廣播<span class="chat-tab-badge" hidden></span></button>
-    <button type="button" class="island-label" data-tab="files" data-anchor="files">外帶架</button>
     <button type="button" class="island-label" data-tab="system" data-anchor="system">製茶機</button>
     <button type="button" class="island-label" data-tab="photos" data-anchor="photos">飲品牆</button>
   </div>
 
   <div class="island-tools">
     <button type="button" class="island-tool" id="islandHome">全景</button>
-    <button type="button" class="island-tool" id="islandListBtn" aria-expanded="false" aria-controls="islandList">清單<span class="chat-tab-badge" id="chatTabBadge" hidden></span></button>
+    <button type="button" class="island-tool" id="islandListBtn" aria-expanded="false" aria-controls="islandList">清單</button>
   </div>
 
   <aside id="islandList" class="island-list" hidden>
     <p class="island-list-title">店內</p>
     <button type="button" data-tab="devices">點單<small>門市與訂單</small></button>
-    <button type="button" data-tab="chat">店內廣播<span class="chat-tab-badge" hidden></span><small>跟門市說話</small></button>
-    <button type="button" data-tab="files">外帶架<small>暫存的檔案</small></button>
     <button type="button" data-tab="system">製茶機<small>這台伺服器</small></button>
     <button type="button" data-tab="photos">飲品牆<small>照片和筆記</small></button>
   </aside>
@@ -66,57 +62,26 @@
         </div>
       </div>
 
-      <div class="shell dash-panel" id="panel-chat" data-label="店內廣播" role="tabpanel" hidden>
-        <div class="content-panel content-panel-full">
-          <section class="chat-desk" aria-label="店內廣播">
-            <div class="chat-layout">
-              <aside class="chat-side">
-                <div class="chat-nick">
-                  <label for="chatNick">我的暱稱</label>
-                  <input id="chatNick" maxlength="24" placeholder="店長" autocomplete="nickname">
-                  <p class="chat-hint">只存在這台瀏覽器，對方會聽到這個名字。</p>
-                </div>
-                <div class="chat-room-block">
-                  <div class="section-label">跟店講</div>
-                  <div id="chatDmList" class="chat-room-list"></div>
-                </div>
-              </aside>
-              <section class="chat-thread">
-                <div class="chat-thread-head">
-                  <strong id="chatThreadTitle">先挑一位</strong>
-                  <p id="chatThreadHint" class="chat-hint">廣播大約 15 秒送到對方櫃檯。超過 6 小時沒來打烊，桌面端不會補聽，這裡還留著。</p>
-                </div>
-                <div id="chatLog" class="chat-log" aria-live="polite"></div>
-                <form id="chatComposer" class="chat-composer">
-                  <textarea id="chatInput" rows="3" maxlength="10000" placeholder="講一句，Enter 送出，Shift+Enter 換行"></textarea>
-                  <button type="submit" class="btn btn-primary" id="chatSendBtn">送出去</button>
-                </form>
-              </section>
-            </div>
-          </section>
-        </div>
-      </div>
-
-      <div class="shell dash-panel" id="panel-files" data-label="外帶架" role="tabpanel" hidden>
-        <div class="content-panel content-panel-full">
-          <section class="file-transfers" id="fileTransfers" aria-label="外帶架">
-            <div class="file-transfers-head">
-              <div>
-                <div class="section-label" style="margin:0;border:0;padding:0">外帶架</div>
-                <p class="file-transfers-hint">先放在架子上，過期前都還拿得到。資料夾會收成一疊。</p>
-              </div>
-              <button type="button" class="btn btn-ghost-danger" id="clearAllFilesBtn">整架清掉</button>
-            </div>
-            <div id="fileTransferList">
-              <p class="empty-tasks">架子是空的</p>
-            </div>
-          </section>
-        </div>
-      </div>
-
       <div class="shell dash-panel" id="panel-system" data-label="製茶機" role="tabpanel" hidden>
         <div class="content-panel content-panel-full">
           <section class="system-status" aria-label="製茶機">
+            <form id="marqueeForm" class="marquee-admin" aria-label="跑馬燈">
+              <div class="marquee-admin-head">
+                <div>
+                  <div class="section-label" style="margin:0;border:0;padding:0">跑馬燈</div>
+                  <p class="system-status-hint">顯示在每台桌面端最上方。儲存後下一輪心跳才換，大約 15 秒。</p>
+                </div>
+                <label class="marquee-toggle">
+                  <input type="checkbox" id="marqueeEnabled">
+                  開啟
+                </label>
+              </div>
+              <div class="marquee-admin-row">
+                <input id="marqueeText" type="text" maxlength="120" placeholder="例如：下午三點會議室集合" autocomplete="off">
+                <button type="submit" class="btn btn-primary" id="marqueeSaveBtn">儲存</button>
+              </div>
+              <p class="marquee-admin-status" id="marqueeStatus" role="status"></p>
+            </form>
             <div class="system-status-head">
               <div class="section-label" style="margin:0;border:0;padding:0">製茶機</div>
               <p class="system-status-hint">看看製茶機順不順；每分鐘記一筆，大約留三天</p>
@@ -126,7 +91,6 @@
               <div class="health-card"><span class="health-label">排隊</span><strong id="healthLoad">—</strong></div>
               <div class="health-card"><span class="health-label">茶桶</span><strong id="healthHeap">—</strong></div>
               <div class="health-card"><span class="health-label">工作台</span><strong id="healthOsMem">—</strong></div>
-              <div class="health-card"><span class="health-label">外帶杯</span><strong id="healthFiles">—</strong></div>
               <div class="health-card"><span class="health-label">冰箱</span><strong id="healthDisk" title="">—</strong></div>
               <div class="health-card"><span class="health-label">開店至今</span><strong id="healthUptime">—</strong></div>
             </div>

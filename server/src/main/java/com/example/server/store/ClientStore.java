@@ -28,8 +28,6 @@ public final class ClientStore {
     private static final int PEER_MESSAGE_MAX_LEN = 10_000;
     /** 一則訊息全部附圖的 Base64 字元上限（含分隔逗號），約 0.9 MB 的 JPEG */
     public static final int PEER_IMAGE_MAX_CHARS = ChatProtocol.MAX_PEER_IMAGE_CHARS;
-    /** 管理後台傳訊息時的寄件者 ID（不建立假裝置） */
-    public static final String ADMIN_FROM_ID = "後台";
 
     private static final Map<String, String> TASK_STATUS_LABEL = Map.of(
             "PENDING", "待命中",
@@ -107,11 +105,7 @@ public final class ClientStore {
         } else if (action != null && action.startsWith("MSG|")) {
             String[] parts = action.split("\\|", 3);
             String fromId = parts.length > 1 ? parts[1] : "未知";
-            if (ADMIN_FROM_ID.equals(fromId)) {
-                appendClientEvent(existing, "後台已傳送訊息（等待桌面端下次心跳收取）");
-            } else {
-                appendClientEvent(existing, "同事【" + fromId + "】傳來訊息（等待桌面端下次心跳收取）");
-            }
+            appendClientEvent(existing, "同事【" + fromId + "】傳來訊息（等待桌面端下次心跳收取）");
         } else if (action != null && action.startsWith("MSGI|")) {
             String[] parts = action.split("\\|", 3);
             String fromId = parts.length > 1 ? parts[1] : "未知";
@@ -119,13 +113,6 @@ public final class ClientStore {
         } else if (action != null && action.startsWith("POKE|")) {
             String fromId = action.length() > "POKE|".length() ? action.substring("POKE|".length()) : "未知";
             appendClientEvent(existing, "同事【" + fromId + "】戳了你（等待桌面端下次心跳收取）");
-        } else if (action != null && action.startsWith("FILE|")) {
-            String[] parts = action.split("\\|", 5);
-            String fromId = parts.length > 1 ? parts[1] : "未知";
-            String filename = parts.length > 3 ? PeerFileRules.decodeName(parts[3]) : "";
-            appendClientEvent(existing, "同事【" + fromId + "】傳來檔案"
-                    + (filename.isEmpty() ? "" : "「" + filename + "」")
-                    + "（等待桌面端下次心跳收取）");
         } else if (action != null && action.startsWith("RELAY|")) {
             String[] parts = action.split("\\|", -1);
             String fromId = parts.length > 1 ? PeerFileRules.decodeName(parts[1]) : "未知";
@@ -133,32 +120,12 @@ public final class ClientStore {
             appendClientEvent(existing, "同事【" + fromId + "】要直傳檔案"
                     + (filename.isEmpty() ? "" : "「" + filename + "」")
                     + "（等待桌面端接收，伺服器不暫存）");
-        } else if (action != null && action.startsWith("ROOM|")) {
-            appendClientEvent(existing, "聊天訊息已排入（等待桌面端下次心跳收取）");
         }
         clients.put(clientId, existing);
     }
 
     public PeerResult queuePeerMessage(String toClientId, String fromClientId, String text) {
         return queuePeerMessage(toClientId, fromClientId, text, null);
-    }
-
-    /**
-     * 管理後台傳訊息給桌面端。寄件者固定為 {@link #ADMIN_FROM_ID}，不建立後台假裝置。
-     */
-    public PeerResult queueAdminMessage(String toClientId, String text) {
-        String trimmed = text == null ? "" : text.trim();
-        if (toClientId == null || toClientId.isEmpty() || trimmed.isEmpty()) {
-            return PeerResult.fail("缺少收件人或訊息內容");
-        }
-        if (trimmed.length() > PEER_MESSAGE_MAX_LEN) {
-            return PeerResult.fail("訊息長度不可超過 " + PEER_MESSAGE_MAX_LEN + " 字");
-        }
-        // 確保目標存在於列表；不為「後台」建立 client
-        getOrCreateClient(toClientId);
-        String action = encodePeerMessage(ADMIN_FROM_ID, trimmed, "");
-        queueClientAction(toClientId, action);
-        return PeerResult.ok("訊息已排入佇列，對方約 15 秒內收到");
     }
 
     public PeerResult queuePeerMessage(String toClientId, String fromClientId, String text, String avatar) {
@@ -222,24 +189,6 @@ public final class ClientStore {
         appendClientEvent(sender, "已戳【" + toClientId + "】（等待對方心跳收取）");
         clients.put(fromClientId, sender);
         return PeerResult.ok("戳一下已排入佇列，對方約 15 秒內收到");
-    }
-
-    public PeerResult queuePeerFile(String toClientId, String fromClientId, FileOfferStore.Offer offer) {
-        if (offer == null || offer.fileId == null || offer.fileId.isEmpty()) {
-            return PeerResult.fail("缺少檔案");
-        }
-        if (toClientId == null || toClientId.isEmpty() || fromClientId == null || fromClientId.isEmpty()) {
-            return PeerResult.fail("缺少收件人或發送者");
-        }
-        if (toClientId.equals(fromClientId)) {
-            return PeerResult.fail("不能傳送檔案給自己");
-        }
-        String action = encodePeerFile(offer);
-        queueClientAction(toClientId, action, FileOfferStore.FILE_ACTION_TTL_MS);
-        Map<String, Object> sender = getOrCreateClient(fromClientId);
-        appendClientEvent(sender, "已傳送檔案「" + offer.filename + "」給【" + toClientId + "】（等待對方心跳收取）");
-        clients.put(fromClientId, sender);
-        return PeerResult.ok("檔案已排入佇列，對方約 15 秒內收到通知，暫存保留 " + PeerFileRules.OFFER_TTL_LABEL);
     }
 
     /** 通知收件人有一筆即時直傳等待接收（檔案本身不經伺服器暫存）。 */
@@ -598,15 +547,6 @@ public final class ClientStore {
             action += "|" + avatar;
         }
         return action;
-    }
-
-    static String encodePeerFile(FileOfferStore.Offer offer) {
-        return "FILE|" + offer.fromClientId
-                + "|" + offer.fileId
-                + "|" + PeerFileRules.encodeName(offer.filename)
-                + "|" + offer.size()
-                + "|" + offer.mime
-                + "|" + System.currentTimeMillis();
     }
 
     /** RELAY|base64fromId|relayId|base64name|size|kind|epochMs（fromId 編碼後不會含 |） */

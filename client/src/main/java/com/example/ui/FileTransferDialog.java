@@ -31,7 +31,6 @@ import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dialog;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsConfiguration;
@@ -252,10 +251,21 @@ public final class FileTransferDialog extends JDialog {
      * 開視窗。取消、關閉或按 Esc 回傳 null，不會送出檔案。必須在 EDT 呼叫。
      */
     public static Result show(Component parent, List<Friend> friends) {
+        return show(parent, friends, null, null);
+    }
+
+    /**
+     * 開視窗，並先勾選在線的 preselectId。initialFiles 先放進清單，仍要按「傳送」才送出。
+     * 取消、關閉或按 Esc 回傳 null。必須在 EDT 呼叫。
+     */
+    public static Result show(Component parent, List<Friend> friends, String preselectId, List<Path> initialFiles) {
         if (!SwingUtilities.isEventDispatchThread()) {
             throw new IllegalStateException("傳送檔案視窗必須在 EDT 開啟");
         }
-        FileTransferDialog dialog = new FileTransferDialog(ownerWindow(parent), friends, null);
+        FileTransferDialog dialog = new FileTransferDialog(ownerWindow(parent), friends, preselectId);
+        if (initialFiles != null && !initialFiles.isEmpty()) {
+            dialog.addPaths(initialFiles, true);
+        }
         dialog.setVisible(true);
         Result picked = dialog.result;
         dialog.dispose();
@@ -755,7 +765,7 @@ public final class FileTransferDialog extends JDialog {
         chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
         chooser.setMultiSelectionEnabled(true);
         chooser.setAcceptAllFileFilterUsed(true);
-        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+        if (UiFonts.showOpenDialog(chooser, this) != JFileChooser.APPROVE_OPTION) {
             return;
         }
         File[] picked = chooser.getSelectedFiles();

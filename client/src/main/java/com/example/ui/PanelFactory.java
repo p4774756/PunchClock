@@ -447,62 +447,14 @@ public class PanelFactory {
         JLabel chatHint = new JLabel("雙擊好友，或選取後按「開啟聊天」；點 ☆ 設為最愛（排最上面）");
         chatHint.setFont(mainFont);
         chatHint.setForeground(NightTheme.MUTED);
-        refs.deskChatButton = candyButton(
-                "跟後台說話", CandyButton.Variant.SECONDARY, boldFont, "開一個小視窗，用文字和網頁後台聊天（約 15 秒內送達）");
-        refs.deskChatButton.setEnabled(false);
         JPanel chatRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         chatRow.setOpaque(false);
         chatRow.add(refs.openChatButton);
-        chatRow.add(refs.deskChatButton);
         chatRow.add(chatHint);
-
-        refs.fileTableModel = new javax.swing.table.DefaultTableModel(
-                new Object[]{"方向", "檔名", "對象", "大小", "狀態", "剩餘"}, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        refs.fileTable = new JTable(refs.fileTableModel);
-        refs.fileTable.setFont(mainFont);
-        refs.fileTable.setRowHeight(32);
-        refs.fileTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        refs.fileTable.getTableHeader().setFont(boldFont);
-        refs.fileTable.setToolTipText("過期前可下載；選取一筆後按「下載」或「清除」");
-
-        JScrollPane fileScroll = new JScrollPane(refs.fileTable);
-        fileScroll.setPreferredSize(new Dimension(400, 120));
-        markCandyScroll(fileScroll);
-        refs.fileTableScroll = fileScroll;
-
-        refs.fileStatusLabel = new JLabel("傳檔紀錄：尚未連線");
-        refs.fileStatusLabel.setFont(mainFont);
-        refs.fileStatusLabel.setForeground(NightTheme.MUTED);
-
-        refs.downloadFileButton = candyButton(
-                "下載", CandyButton.Variant.PRIMARY, boldFont, "將選取的暫存檔存到本機（過期前可重複下載）");
-        refs.clearFileButton = candyButton(
-                "清除", CandyButton.Variant.DANGER, mainFont, "從伺服器刪除這份暫存，之後無法再下載");
-
-        JPanel fileActionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        fileActionRow.setOpaque(false);
-        fileActionRow.add(refs.fileStatusLabel);
-        fileActionRow.add(refs.downloadFileButton);
-        fileActionRow.add(refs.clearFileButton);
-
-        JPanel fileSection = new JPanel(new BorderLayout(0, 4));
-        fileSection.setOpaque(false);
-        JLabel fileTitle = new JLabel("傳檔紀錄（保留 " + com.example.PeerFileRules.OFFER_TTL_LABEL + "，過期前可下載／手動清除）");
-        fileTitle.setFont(boldFont);
-        fileTitle.setForeground(NightTheme.INK);
-        fileSection.add(fileTitle, BorderLayout.NORTH);
-        fileSection.add(fileScroll, BorderLayout.CENTER);
-        fileSection.add(fileActionRow, BorderLayout.SOUTH);
 
         JPanel south = new JPanel(new BorderLayout(0, 8));
         south.setOpaque(false);
         south.add(chatRow, BorderLayout.NORTH);
-        south.add(fileSection, BorderLayout.CENTER);
 
         JPanel north = new JPanel();
         north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
@@ -715,13 +667,6 @@ public class PanelFactory {
         public javax.swing.table.DefaultTableModel peerTableModel;
         public JScrollPane peerTableScroll;
         public JButton openChatButton;
-        public JButton deskChatButton;
-        public JButton downloadFileButton;
-        public JButton clearFileButton;
-        public JTable fileTable;
-        public javax.swing.table.DefaultTableModel fileTableModel;
-        public JScrollPane fileTableScroll;
-        public JLabel fileStatusLabel;
         public JButton openCloudSettingsButton;
         public JLabel peerHintLabel;
         public JLabel peerStatusLabel;

@@ -1,6 +1,5 @@
 package com.example.server.store;
 
-import com.example.PeerFileRules;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -219,40 +218,6 @@ public class ClientStoreTest {
     }
 
     @Test
-    public void peerFileCannotTargetSelf() {
-        FileOfferStore files = new FileOfferStore();
-        FileOfferStore.PutResult stored = files.put("a", "b", "notes.txt", "hi".getBytes());
-        assertTrue(stored.ok);
-        ClientStore.PeerResult result = store.queuePeerFile("a", "a", stored.offer);
-        assertFalse(result.ok);
-        assertEquals("不能傳送檔案給自己", result.message);
-    }
-
-    @Test
-    public void peerFileActionIncludesMetadataAndUsesLongerTtl() {
-        FileOfferStore files = new FileOfferStore();
-        FileOfferStore.PutResult stored = files.put("a", "b", "備忘.txt", "hi".getBytes());
-        assertTrue(store.queuePeerFile("b", "a", stored.offer).ok);
-        Map<String, Object> existing = store.getOrCreateClient("b");
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> pending = (List<Map<String, Object>>) existing.get("pendingActions");
-        assertEquals(1, pending.size());
-        assertEquals(FileOfferStore.FILE_ACTION_TTL_MS, ((Number) pending.get(0).get("ttlMs")).longValue());
-        pending.get(0).put("time", System.currentTimeMillis() - 60_000L);
-
-        List<String> drained = store.drainPendingActions(existing);
-        assertEquals(1, drained.size());
-        String action = drained.get(0);
-        String[] parts = action.split("\\|", 7);
-        assertEquals("FILE", parts[0]);
-        assertEquals("a", parts[1]);
-        assertEquals(stored.offer.fileId, parts[2]);
-        assertEquals("備忘.txt", PeerFileRules.decodeName(parts[3]));
-        assertEquals("2", parts[4]);
-        assertEquals("text/plain", parts[5]);
-    }
-
-    @Test
     public void regularPendingActionExpiresAfterDefaultTtl() {
         store.queueClientAction("b", "POKE|a|" + System.currentTimeMillis());
         Map<String, Object> existing = store.getOrCreateClient("b");
@@ -308,38 +273,5 @@ public class ClientStoreTest {
         assertEquals(1, events.size());
         assertTrue(String.valueOf(((Map<?, ?>) events.get(0)).get("text")).contains("→ 成功"));
         assertFalse(String.valueOf(((Map<?, ?>) events.get(0)).get("text")).contains("回報執行結果"));
-    }
-
-    @Test
-    public void adminMessageQueuesWithoutCreatingAdminClient() {
-        assertTrue(store.queueAdminMessage("worker-a", "請確認排程").ok);
-        assertFalse(store.clients().containsKey(ClientStore.ADMIN_FROM_ID));
-
-        Map<String, Object> target = store.getOrCreateClient("worker-a");
-        List<?> events = (List<?>) target.get("eventLog");
-        assertFalse(events.isEmpty());
-        assertTrue(String.valueOf(((Map<?, ?>) events.get(events.size() - 1)).get("text"))
-                .contains("後台已傳送訊息"));
-
-        List<String> drained = store.drainPendingActions(target);
-        assertEquals(1, drained.size());
-        String[] parts = drained.get(0).split("\\|", 4);
-        assertEquals("MSG", parts[0]);
-        assertEquals(ClientStore.ADMIN_FROM_ID, parts[1]);
-        String decoded = new String(
-                java.util.Base64.getUrlDecoder().decode(parts[2]),
-                java.nio.charset.StandardCharsets.UTF_8);
-        assertEquals("請確認排程", decoded);
-    }
-
-    @Test
-    public void adminMessageRejectsBlankAndTooLong() {
-        assertFalse(store.queueAdminMessage("worker-a", "  ").ok);
-        assertFalse(store.queueAdminMessage("", "hello").ok);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 10_001; i++) {
-            sb.append('a');
-        }
-        assertFalse(store.queueAdminMessage("worker-a", sb.toString()).ok);
     }
 }
