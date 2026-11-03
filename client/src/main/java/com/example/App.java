@@ -599,6 +599,14 @@ public class App extends JFrame {
         ensureChatWindow(peerId).showAndFocus();
     }
 
+    /** 收到戳一下或傳檔時只把聊天視窗帶到前面，不拉主視窗。 */
+    private PeerChatWindow focusChat(String peerId) {
+        PeerChatWindow window = ensureChatWindow(peerId);
+        WindowShake.bringToFront(window);
+        window.showAndFocus();
+        return window;
+    }
+
     private void refreshOpenChatButton() {
         if (peerRefs.openChatButton == null) {
             return;
@@ -1473,18 +1481,16 @@ public class App extends JFrame {
         }
         rememberPeerAvatar(fromId, avatar);
         PeerChatStore.Entry entry = chatStore.addPoke(fromId, false, sentAtMs);
-        PeerChatWindow existing = chatWindows.get(fromId);
-        if (existing != null) {
-            existing.append(entry);
-        }
         Toolkit.getDefaultToolkit().beep();
-        WindowShake.bringToFront(this);
-        boolean previousSuppress = suppressConfigSave;
-        suppressConfigSave = true;
-        WindowShake.shake(this, () -> {
-            suppressConfigSave = previousSuppress;
-            ensureChatWindow(fromId).showAndFocus();
-        });
+        PeerChatWindow window = chatWindows.get(fromId);
+        if (window == null) {
+            window = ensureChatWindow(fromId);
+        } else {
+            window.append(entry);
+        }
+        WindowShake.bringToFront(window);
+        window.showAndFocus();
+        WindowShake.shake(window, null);
     }
 
     private void showPeerFileOffer(String fromId, String fileId, String filename, long size, Long sentAtMs) {
@@ -1497,9 +1503,9 @@ public class App extends JFrame {
         appendLog("[檔案] （" + timeLabel + "）【" + fromId + "】傳來「" + safeName + "」（" + sizeLabel + "）");
         chatNote(fromId, "對方傳來「" + safeName + "」（" + sizeLabel + "）");
         Toolkit.getDefaultToolkit().beep();
-        WindowShake.bringToFront(this);
+        PeerChatWindow window = focusChat(fromId);
         int choice = UiFonts.showConfirm(
-                this,
+                window,
                 timeLabel + "\n\n【" + fromId + "】傳來檔案：\n" + safeName + "（" + sizeLabel + "）\n\n"
                         + "要儲存到本機嗎？檔案會在伺服器上保留約 " + PeerFileRules.OFFER_TTL_LABEL
                         + "，期間可在「傳檔紀錄」重複下載或手動清除。",
@@ -1510,7 +1516,7 @@ public class App extends JFrame {
             appendLog("[檔案] 已略過「" + safeName + "」");
             return;
         }
-        promptSavePeerFile(fileId, safeName);
+        promptSavePeerFile(fileId, safeName, window);
     }
 
     private void updatePeerFileTable(List<PeerFileInfo> files) {
@@ -1596,7 +1602,7 @@ public class App extends JFrame {
             appendLog("[警告] [檔案] 請先在傳檔紀錄中選擇一筆");
             return;
         }
-        promptSavePeerFile(file.fileId, file.filename);
+        promptSavePeerFile(file.fileId, file.filename, this);
     }
 
     private void clearSelectedPeerFile() {
@@ -1634,9 +1640,9 @@ public class App extends JFrame {
         appendLog("[檔案] （" + timeLabel + "）【" + fromId + "】要直傳「" + safeName + "」（" + sizeLabel + "）");
         chatNote(fromId, "對方要直傳「" + safeName + "」（" + sizeLabel + "）");
         Toolkit.getDefaultToolkit().beep();
-        WindowShake.bringToFront(this);
+        PeerChatWindow window = focusChat(fromId);
         int choice = UiFonts.showConfirm(
-                this,
+                window,
                 timeLabel + "\n\n【" + fromId + "】要直接傳" + (folder ? "資料夾（ZIP）" : "檔案") + "給你：\n"
                         + safeName + "（" + sizeLabel + "）\n\n"
                         + "直傳不經伺服器暫存，雙方需保持在線直到傳完。\n"
@@ -1649,13 +1655,13 @@ public class App extends JFrame {
             appendLog("[檔案] 已拒收「" + safeName + "」");
             return;
         }
-        Path dest = choosePeerSavePath(safeName, "儲存同事直傳的檔案");
+        Path dest = choosePeerSavePath(safeName, "儲存同事直傳的檔案", window);
         if (dest == null) {
             heartbeatService.declinePeerRelay(relayId, this::appendLog);
             return;
         }
         StringBuilder failDetail = new StringBuilder();
-        TransferProgressDialog progress = TransferProgressDialog.open(this, "接收直傳");
+        TransferProgressDialog progress = TransferProgressDialog.open(window, "接收直傳");
         TransferCancel cancel = new TransferCancel();
         progress.setOnCancel(cancel::cancel);
         progress.setPreparing("正在連線，等待【" + fromId + "】送出「" + safeName + "」…");
@@ -1671,14 +1677,14 @@ public class App extends JFrame {
                     if (ok) {
                         celebrateTransfer();
                         UiFonts.showMessage(
-                                this,
+                                window,
                                 "已儲存：\n" + dest.toAbsolutePath(),
                                 "檔案已儲存",
                                 JOptionPane.INFORMATION_MESSAGE);
                     } else if (!cancel.isCancelled()) {
                         String detail = failDetail.toString().trim();
                         UiFonts.showWarning(
-                                this,
+                                window,
                                 detail.isEmpty()
                                         ? "直傳沒有完成。對方可能已取消或離線，請請對方重新傳送。"
                                         : "直傳沒有完成。\n\n" + detail,
@@ -1688,13 +1694,13 @@ public class App extends JFrame {
     }
 
     /** @return null 表示使用者取消（已寫入日誌） */
-    private Path choosePeerSavePath(String safeName, String title) {
+    private Path choosePeerSavePath(String safeName, String title, Component dialogParent) {
         JFileChooser chooser = UiFonts.fileChooser();
         chooser.setDialogTitle(title);
         Path downloadDir = PeerFileRules.defaultDownloadDirectory();
         chooser.setCurrentDirectory(downloadDir.toFile());
         chooser.setSelectedFile(downloadDir.resolve(safeName).toFile());
-        int save = chooser.showSaveDialog(this);
+        int save = chooser.showSaveDialog(dialogParent);
         if (save != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
             appendLog("[檔案] 已取消儲存「" + safeName + "」");
             return null;
@@ -1702,7 +1708,7 @@ public class App extends JFrame {
         Path dest = PeerFileRules.resolveSavePath(chooser.getSelectedFile().toPath(), safeName);
         if (Files.exists(dest)) {
             int overwrite = UiFonts.showConfirm(
-                    this,
+                    dialogParent,
                     "檔案已存在，要覆蓋嗎？\n" + dest.toAbsolutePath(),
                     "儲存檔案",
                     JOptionPane.YES_NO_OPTION,
@@ -1715,17 +1721,17 @@ public class App extends JFrame {
         return dest;
     }
 
-    private void promptSavePeerFile(String fileId, String filename) {
+    private void promptSavePeerFile(String fileId, String filename, Component dialogParent) {
         String safeName = PeerFileRules.sanitizeFilename(filename);
         if (safeName.isEmpty()) {
             safeName = "download";
         }
-        Path dest = choosePeerSavePath(safeName, "儲存同事傳來的檔案");
+        Path dest = choosePeerSavePath(safeName, "儲存同事傳來的檔案", dialogParent);
         if (dest == null) {
             return;
         }
         StringBuilder failDetail = new StringBuilder();
-        TransferProgressDialog progress = TransferProgressDialog.open(this, "下載檔案");
+        TransferProgressDialog progress = TransferProgressDialog.open(dialogParent, "下載檔案");
         TransferCancel cancel = new TransferCancel();
         progress.setOnCancel(cancel::cancel);
         progress.setStatus("正在下載「" + safeName + "」…");
@@ -1741,14 +1747,14 @@ public class App extends JFrame {
                     if (ok) {
                         celebrateTransfer();
                         UiFonts.showMessage(
-                                this,
+                                dialogParent,
                                 "已儲存：\n" + dest.toAbsolutePath(),
                                 "檔案已儲存",
                                 JOptionPane.INFORMATION_MESSAGE);
                     } else if (!cancel.isCancelled()) {
                         String detail = failDetail.toString().trim();
                         UiFonts.showWarning(
-                                this,
+                                dialogParent,
                                 detail.isEmpty()
                                         ? "下載失敗。檔案可能已過期，或對方尚未連上同一伺服器。"
                                         : "下載失敗。\n\n" + detail,

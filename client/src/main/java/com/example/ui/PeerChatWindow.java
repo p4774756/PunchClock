@@ -235,7 +235,7 @@ public class PeerChatWindow extends JFrame {
         attachButton.addActionListener(e -> chooseImage());
         pokeButton = new CandyButton("戳一下", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         pokeButton.setFont(plain);
-        pokeButton.setToolTipText("對方桌面端會鳴叫、視窗晃動（約 15 秒內隨心跳送達）");
+        pokeButton.setToolTipText("對方會響一聲，並彈出聊天視窗晃一下（約 15 秒內隨心跳送達）");
         pokeButton.addActionListener(e -> host.poke(peerId));
         fileButton = new CandyButton("傳檔案", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         fileButton.setFont(plain);
