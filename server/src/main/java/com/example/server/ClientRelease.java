@@ -2,9 +2,11 @@ package com.example.server;
 
 import com.example.BuildInfo;
 import com.example.ClientUpdatePolicy;
+import com.example.ReleaseNotes;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
@@ -17,7 +19,7 @@ import java.util.jar.JarFile;
  */
 public final class ClientRelease {
 
-    public static final ClientRelease NONE = new ClientRelease("", "", "", "", 0L, null);
+    public static final ClientRelease NONE = new ClientRelease("", "", "", "", 0L, null, "");
 
     private final String version;
     private final String sourceDigest;
@@ -26,14 +28,18 @@ public final class ClientRelease {
     private final String sha256;
     private final long size;
     private final Path jar;
+    /** {@code release-notes.txt} 原文；沒有這份檔時為空字串。 */
+    private final String notes;
 
-    private ClientRelease(String version, String sourceDigest, String releaseTime, String sha256, long size, Path jar) {
+    private ClientRelease(String version, String sourceDigest, String releaseTime, String sha256, long size, Path jar,
+                          String notes) {
         this.version = version == null ? "" : version;
         this.sourceDigest = sourceDigest == null ? "" : sourceDigest;
         this.releaseTime = releaseTime == null ? "" : releaseTime;
         this.sha256 = sha256 == null ? "" : sha256;
         this.size = size;
         this.jar = jar;
+        this.notes = notes == null ? "" : notes;
     }
 
     public static ClientRelease discover() {
@@ -53,6 +59,7 @@ public final class ClientRelease {
             throw new IOException("client jar 不存在");
         }
         Properties props = new Properties();
+        String notes = "";
         try (JarFile jarFile = new JarFile(path.toFile())) {
             JarEntry entry = jarFile.getJarEntry("version.properties");
             if (entry == null) {
@@ -61,11 +68,17 @@ public final class ClientRelease {
             try (InputStream in = jarFile.getInputStream(entry)) {
                 props.load(in);
             }
+            JarEntry notesEntry = jarFile.getJarEntry(ReleaseNotes.RESOURCE);
+            if (notesEntry != null) {
+                try (InputStream in = jarFile.getInputStream(notesEntry)) {
+                    notes = new String(in.readNBytes(16 * 1024), StandardCharsets.UTF_8);
+                }
+            }
         }
         BuildInfo info = BuildInfo.fromProperties(props);
         String hash = ClientUpdatePolicy.sha256(path);
         return new ClientRelease(info.version(), info.sourceDigest(), info.releaseTimeIso(), hash,
-                Files.size(path), path);
+                Files.size(path), path, notes);
     }
 
     public boolean isAvailable() {
@@ -99,6 +112,10 @@ public final class ClientRelease {
 
     public Path jar() {
         return jar;
+    }
+
+    public String notes() {
+        return notes;
     }
 
     private static ClientRelease readOrNone(Path path) {

@@ -1,6 +1,7 @@
 package com.example.server;
 
 import com.example.ClientUpdatePolicy;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import io.javalin.Javalin;
@@ -13,9 +14,11 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Properties;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
@@ -105,6 +108,21 @@ public class ServerAppClientUpdateTest {
         assertTrue("沒送時間就只看摘要", heartbeat("1.8.0", OTHER, "").has("update"));
     }
 
+    @Test
+    public void heartbeatListsChangesNewerThanTheClient() throws Exception {
+        JsonObject older = heartbeat("1.8.0", OTHER, "2026-10-19T12:00:00Z");
+        JsonArray changes = older.getAsJsonObject("update").getAsJsonArray("changes");
+        assertEquals(1, changes.size());
+        assertEquals("聊天視窗只晃一下", changes.get(0).getAsString());
+        assertFalse(older.getAsJsonObject("update").has("changesMore"));
+
+        JsonObject sameDay = heartbeat("1.8.0", OTHER, "");
+        JsonArray recent = sameDay.getAsJsonObject("update").getAsJsonArray("changes");
+        assertEquals(2, recent.size());
+        assertEquals("聊天視窗只晃一下", recent.get(0).getAsString());
+        assertEquals("比較舊的修改", recent.get(1).getAsString());
+    }
+
     private JsonObject heartbeat(String version, String digest) throws Exception {
         return heartbeat(version, digest, "");
     }
@@ -133,6 +151,12 @@ public class ServerAppClientUpdateTest {
              JarOutputStream jos = new JarOutputStream(out)) {
             jos.putNextEntry(new JarEntry("version.properties"));
             props.store(jos, "");
+            jos.closeEntry();
+            long newer = Instant.parse("2026-10-20T01:00:00Z").getEpochSecond();
+            long older = Instant.parse("2026-10-18T00:00:00Z").getEpochSecond();
+            String notes = newer + "\t聊天視窗只晃一下\n" + older + "\t比較舊的修改\n";
+            jos.putNextEntry(new JarEntry("release-notes.txt"));
+            jos.write(notes.getBytes(StandardCharsets.UTF_8));
             jos.closeEntry();
         }
     }

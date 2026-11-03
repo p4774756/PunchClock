@@ -120,6 +120,10 @@ public class HeartbeatService implements HeartbeatEvents {
         public final String sha256;
         public final long size;
         public final String path;
+        /** 比目前這份桌面端新的提交說明；舊伺服器沒帶時為空。 */
+        public final List<String> changes;
+        /** {@link #changes} 之外還有幾筆沒列出。 */
+        public final int changesMore;
 
         public UpdateNotice(String version, String sourceDigest, String sha256, long size, String path) {
             this(version, sourceDigest, "", sha256, size, path);
@@ -127,12 +131,19 @@ public class HeartbeatService implements HeartbeatEvents {
 
         public UpdateNotice(String version, String sourceDigest, String releaseTime, String sha256,
                             long size, String path) {
+            this(version, sourceDigest, releaseTime, sha256, size, path, List.of(), 0);
+        }
+
+        public UpdateNotice(String version, String sourceDigest, String releaseTime, String sha256,
+                            long size, String path, List<String> changes, int changesMore) {
             this.version = version == null ? "" : version;
             this.sourceDigest = sourceDigest == null ? "" : sourceDigest;
             this.releaseTime = releaseTime == null ? "" : releaseTime;
             this.sha256 = sha256 == null ? "" : sha256;
             this.size = size;
             this.path = path == null ? "" : path;
+            this.changes = changes == null || changes.isEmpty() ? List.of() : List.copyOf(changes);
+            this.changesMore = Math.max(0, changesMore);
         }
     }
 

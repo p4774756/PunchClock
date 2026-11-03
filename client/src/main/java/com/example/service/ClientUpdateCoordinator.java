@@ -2,6 +2,7 @@ package com.example.service;
 
 import com.example.BuildInfo;
 import com.example.ClientUpdatePolicy;
+import com.example.ReleaseNotes;
 import com.example.service.HeartbeatService.UpdateNotice;
 
 import java.nio.file.Files;
@@ -114,9 +115,13 @@ public final class ClientUpdateCoordinator {
         String remote = BuildInfo.buildLabel(notice.version, digest);
         String time = BuildInfo.labelFromIso(notice.releaseTime, ZoneId.systemDefault());
         String remoteWithTime = time.isEmpty() ? remote : remote + "（建置 " + time + "）";
+        String notes = ReleaseNotes.dialogSection(notice.changes, notice.changesMore);
         try {
             actions.log("[更新] 發現新版桌面端 " + remoteWithTime + "，目前 " + actions.localLabel());
-            if (!auto && !askUser(digest, remoteWithTime)) {
+            if (!notice.changes.isEmpty()) {
+                actions.log("[更新] 這次修改：" + String.join("；", notice.changes));
+            }
+            if (!auto && !askUser(digest, remoteWithTime, notes)) {
                 busy.set(false);
                 return;
             }
@@ -136,13 +141,16 @@ public final class ClientUpdateCoordinator {
     }
 
     /** 手動模式：詢問使用者；按「否」會記住這一版。 */
-    private boolean askUser(String digest, String remoteWithTime) {
-        boolean accepted = actions.confirm(
-                "伺服器上有不同的桌面端：\n"
-                        + "目前：" + actions.localLabel() + "\n"
-                        + "新版：" + remoteWithTime + "\n\n"
-                        + "要下載並重新啟動嗎？\n"
-                        + "設定與排程會保留。選「否」之後不會再問這一版。");
+    private boolean askUser(String digest, String remoteWithTime, String notes) {
+        String message = "伺服器上有不同的桌面端：\n"
+                + "目前：" + actions.localLabel() + "\n"
+                + "新版：" + remoteWithTime;
+        if (notes != null && !notes.isEmpty()) {
+            message += "\n\n" + notes;
+        }
+        message += "\n\n要下載並重新啟動嗎？\n"
+                + "設定與排程會保留。選「否」之後不會再問這一版。";
+        boolean accepted = actions.confirm(message);
         if (!accepted) {
             actions.rememberIgnored(digest);
         }

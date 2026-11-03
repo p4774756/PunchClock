@@ -4,6 +4,8 @@ import com.example.BuildInfo;
 import com.example.ChatProtocol;
 import com.example.ClientUpdatePolicy;
 import com.example.PeerFileRules;
+import com.example.ReleaseNotes;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -218,7 +220,37 @@ final class HeartbeatResponseParser {
         if (digest.isEmpty() || sha256.isEmpty() || size <= 0 || !ClientUpdatePolicy.JAR_PATH.equals(path)) {
             return null;
         }
-        return new HeartbeatService.UpdateNotice(version, digest, jsonString(update, "releaseTime"), sha256, size, path);
+        return new HeartbeatService.UpdateNotice(
+                version, digest, jsonString(update, "releaseTime"), sha256, size, path,
+                jsonChanges(update), jsonInt(update, "changesMore"));
+    }
+
+    private static List<String> jsonChanges(JsonObject update) {
+        List<String> changes = new ArrayList<>();
+        if (update == null || !update.has("changes") || !update.get("changes").isJsonArray()) {
+            return changes;
+        }
+        for (JsonElement element : update.getAsJsonArray("changes")) {
+            if (changes.size() >= ReleaseNotes.MAX_SHOWN || element == null || !element.isJsonPrimitive()) {
+                continue;
+            }
+            String subject = ReleaseNotes.cleanSubject(element.getAsString());
+            if (!subject.isEmpty()) {
+                changes.add(subject);
+            }
+        }
+        return changes;
+    }
+
+    private static int jsonInt(JsonObject obj, String key) {
+        if (obj == null || !obj.has(key) || obj.get(key).isJsonNull()) {
+            return 0;
+        }
+        try {
+            return Math.max(0, obj.get(key).getAsInt());
+        } catch (Exception ex) {
+            return 0;
+        }
     }
 
     private void parseServerFiles(JsonObject json) {

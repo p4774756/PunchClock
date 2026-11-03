@@ -3,6 +3,7 @@ package com.example.server;
 import com.example.BuildInfo;
 import com.example.ClientUpdatePolicy;
 import com.example.PeerFileRules;
+import com.example.ReleaseNotes;
 import com.example.server.auth.AuthService;
 import com.example.server.health.HealthHistoryStore;
 import com.example.server.health.ServerHealth;
@@ -311,6 +312,13 @@ public final class ServerApp {
             update.put("sha256", clientRelease.sha256());
             update.put("size", clientRelease.size());
             update.put("path", ClientUpdatePolicy.JAR_PATH);
+            ReleaseNotes.Selection changes = ReleaseNotes.since(clientRelease.notes(), appReleaseTime);
+            if (!changes.subjects.isEmpty()) {
+                update.put("changes", changes.subjects);
+                if (changes.hidden > 0) {
+                    update.put("changesMore", changes.hidden);
+                }
+            }
             response.put("update", update);
         }
         ctx.json(response);

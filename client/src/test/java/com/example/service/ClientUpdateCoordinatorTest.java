@@ -92,6 +92,24 @@ public class ClientUpdateCoordinatorTest {
     }
 
     @Test
+    public void confirmDialogListsWhatChanged() {
+        FakeActions actions = new FakeActions();
+        actions.accept = false;
+        ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
+
+        coordinator.handle(new UpdateNotice("2.0.2", OTHER, "2026-10-20T07:58:00Z", LOCAL, 1,
+                "/api/client-release/jar",
+                java.util.List.of("聊天視窗只晃一下", "傳檔確認改掛聊天視窗"), 1));
+
+        assertTrue(actions.confirmMessage, actions.confirmMessage.contains("這次修改："));
+        assertTrue(actions.confirmMessage, actions.confirmMessage.contains("· 聊天視窗只晃一下"));
+        assertTrue(actions.confirmMessage, actions.confirmMessage.contains("· 傳檔確認改掛聊天視窗"));
+        assertTrue(actions.confirmMessage, actions.confirmMessage.contains("…還有 1 項"));
+        assertTrue(actions.confirmMessage, actions.confirmMessage.contains("要下載並重新啟動嗎？"));
+        assertTrue(actions.logs.stream().anyMatch(l -> l.contains("這次修改：聊天視窗只晃一下；傳檔確認改掛聊天視窗")));
+    }
+
+    @Test
     public void acceptDownloadsChecksHashAndRestarts() throws Exception {
         FakeActions actions = new FakeActions();
         actions.accept = true;

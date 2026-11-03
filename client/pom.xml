@@ -73,6 +73,13 @@
                     <include>**/*.ico</include>
                 </includes>
             </resource>
+            <resource>
+                <directory>${project.build.directory}/generated-resources</directory>
+                <filtering>false</filtering>
+                <includes>
+                    <include>release-notes.txt</include>
+                </includes>
+            </resource>
         </resources>
         <plugins>
             <plugin>
@@ -106,6 +113,17 @@
                                     <arg value="${project.basedir}/../shared/target/classes"/>
                                     <arg value="com.example.SourceDigest"/>
                                     <arg value="${project.basedir}/.."/>
+                                </exec>
+                                <mkdir dir="${project.build.directory}/generated-resources"/>
+                                <!-- 近期提交說明，供更新詢問視窗顯示。沒有 git 時寫空檔。 -->
+                                <exec executable="${java.home}/bin/java"
+                                      failonerror="false"
+                                      failifexecutionfails="false">
+                                    <arg value="-cp"/>
+                                    <arg value="${project.basedir}/../shared/target/classes"/>
+                                    <arg value="com.example.ReleaseNotes"/>
+                                    <arg value="${project.basedir}/.."/>
+                                    <arg value="${project.build.directory}/generated-resources/release-notes.txt"/>
                                 </exec>
                             </target>
                         </configuration>

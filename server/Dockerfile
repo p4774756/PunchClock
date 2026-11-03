@@ -9,10 +9,15 @@ COPY client/pom.xml client/pom.xml
 COPY client/src client/src
 COPY server/pom.xml server/pom.xml
 COPY server/src server/src
+# 更新說明從這次 commit 的 git log 寫進 client jar。
+COPY .git .git
 
 # 同時打包桌面端，image 內帶著這次 commit 的 client jar，心跳才能通知更新。
-# 略過 git-commit-id：建置環境不一定有 .git，更新比對用的是原始碼摘要。
-RUN mvn -pl client,server -am package -DskipTests -P '!git-commit-time' \
+# 略過 git-commit-id：更新比對用的是原始碼摘要，提交時間只拿來顯示。
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/* \
+    && mvn -pl client,server -am package -DskipTests -P '!git-commit-time' \
     && mkdir -p /tmp/client-release \
     && cd /tmp/client-release \
     && jar xf /app/client/target/punchclock-client-standalone.jar version.properties \

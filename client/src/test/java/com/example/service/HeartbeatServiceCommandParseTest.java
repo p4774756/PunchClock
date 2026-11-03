@@ -273,6 +273,14 @@ public class HeartbeatServiceCommandParseTest {
                 + "\",\"releaseTime\":\"2026-10-20T07:58:00Z\",\"sha256\":\"" + sha
                 + "\",\"size\":12,\"path\":\"/api/client-release/jar\"}}";
         assertEquals("2026-10-20T07:58:00Z", HeartbeatService.parseUpdateNotice(withTime).releaseTime);
+        assertTrue(HeartbeatService.parseUpdateNotice(withTime).changes.isEmpty());
+
+        String withChanges = "{\"update\":{\"version\":\"1.8.0\",\"sourceDigest\":\"" + digest
+                + "\",\"sha256\":\"" + sha + "\",\"size\":12,\"path\":\"/api/client-release/jar\","
+                + "\"changes\":[\"  聊天視窗只晃一下  \",\"\",\"bad\\nline\"],\"changesMore\":2}}";
+        HeartbeatService.UpdateNotice detailed = HeartbeatService.parseUpdateNotice(withChanges);
+        assertEquals(List.of("聊天視窗只晃一下", "bad line"), detailed.changes);
+        assertEquals(2, detailed.changesMore);
 
         assertNull(HeartbeatService.parseUpdateNotice(
                 "{\"update\":{\"version\":\"1.8.0\",\"sourceDigest\":\"" + digest
