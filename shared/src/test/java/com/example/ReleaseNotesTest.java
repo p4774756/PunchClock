@@ -66,6 +66,27 @@ public class ReleaseNotesTest {
     }
 
     @Test
+    public void parseGitHubCommitsKeepsSubjectAndSkipsMerges() {
+        String json = "[{"
+                + "\"sha\":\"abc1234abcd\","
+                + "\"commit\":{"
+                + "\"author\":{\"date\":\"2026-10-21T00:00:00Z\"},"
+                + "\"committer\":{\"date\":\"2026-10-21T00:00:00Z\"},"
+                + "\"message\":\"feat: 聊天視窗\\n\\nbody\"}},"
+                + "{\"sha\":\"def5678abcd\","
+                + "\"commit\":{"
+                + "\"author\":{\"date\":\"2026-10-20T00:00:00Z\"},"
+                + "\"committer\":{\"date\":\"2026-10-20T00:00:00Z\"},"
+                + "\"message\":\"Merge pull request #4 from someone\"}}]";
+        java.util.List<ReleaseNotes.GitHubCommit> commits = ReleaseNotes.parseGitHubCommits(json);
+        assertEquals(1, commits.size());
+        assertEquals("abc1234abcd", commits.get(0).sha);
+        assertEquals("feat: 聊天視窗", commits.get(0).entry.subject);
+        assertEquals(Instant.parse("2026-10-21T00:00:00Z").getEpochSecond(), commits.get(0).entry.epochSeconds);
+        assertTrue(ReleaseNotes.parseGitHubCommits("{\"message\":\"not an array\"}").isEmpty());
+    }
+
+    @Test
     public void collectReadsCommitSubjectsThatTouchTheDesktopSources() throws Exception {
         Assume.assumeTrue(gitAvailable());
         Path base = Path.of("target");
