@@ -2,8 +2,11 @@ package com.example.service;
 
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReadParam;
+import javax.imageio.ImageReader;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageInputStream;
 import javax.imageio.stream.ImageOutputStream;
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -79,6 +82,43 @@ public final class PeerImage {
     public static BufferedImage decodeThumbnail(String encoded, int maxEdge) {
         BufferedImage full = decode(encoded);
         return full == null ? null : scaleToFit(full, Math.max(1, maxEdge));
+    }
+
+    /**
+     * 從圖檔讀一張縮圖（最長邊不超過 maxEdge，不放大）。
+     * 用取樣讀取，避免清單預覽把原圖整張解進記憶體。讀不出來回傳 null。
+     */
+    public static BufferedImage fileThumbnail(Path source, int maxEdge) {
+        if (source == null || maxEdge < 1 || !Files.isRegularFile(source)) {
+            return null;
+        }
+        try (ImageInputStream in = ImageIO.createImageInputStream(source.toFile())) {
+            if (in == null) {
+                return null;
+            }
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(in);
+            if (!readers.hasNext()) {
+                return null;
+            }
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(in, true, true);
+                int width = reader.getWidth(0);
+                int height = reader.getHeight(0);
+                if (width <= 0 || height <= 0) {
+                    return null;
+                }
+                int sample = Math.max(1, Math.max(width, height) / maxEdge);
+                ImageReadParam param = reader.getDefaultReadParam();
+                param.setSourceSubsampling(sample, sample, 0, 0);
+                BufferedImage image = reader.read(0, param);
+                return image == null ? null : scaleToFit(toRgb(image), maxEdge);
+            } finally {
+                reader.dispose();
+            }
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     /** 以最長邊不超過 maxEdge 等比縮小（不放大）。 */

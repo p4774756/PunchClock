@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.swing.JButton;
 import javax.swing.JLabel;
 
 import static org.junit.Assert.assertEquals;
@@ -39,6 +40,32 @@ public class PeerChatWindowTest {
             assertTrue(labelText(window).contains("note.txt"));
             assertTrue(labelText(window).contains("資料夾"));
             assertTrue(labelText(window).contains("打包成一個 ZIP"));
+
+            Path otherDir = Files.createTempDirectory("punch-chat-dup");
+            Path caseDir = Files.createTempDirectory("punch-chat-case");
+            Path sameName = otherDir.resolve("note.txt");
+            Path upperName = caseDir.resolve("NOTE.TXT");
+            Path sameFolder = otherDir.resolve("pics");
+            Files.writeString(sameName, "other");
+            Files.writeString(upperName, "CASE");
+            Files.createDirectory(sameFolder);
+            try {
+                window.addPendingFiles(List.of(sameName, upperName, sameFolder));
+                assertEquals("同名項目要擋下", 2, window.pendingFiles().size());
+            } finally {
+                Files.deleteIfExists(sameName);
+                Files.deleteIfExists(upperName);
+                Files.deleteIfExists(sameFolder);
+                Files.deleteIfExists(otherDir);
+                Files.deleteIfExists(caseDir);
+            }
+
+            removeButtons(window).get(0).doClick();
+            assertEquals(1, window.pendingFiles().size());
+            assertFalse(labelText(window).contains("note.txt"));
+            assertTrue(labelText(window).contains("資料夾"));
+            window.addPendingFiles(List.of(note));
+            assertEquals(2, window.pendingFiles().size());
 
             allowSend[0] = false;
             window.send();
@@ -90,6 +117,16 @@ public class PeerChatWindowTest {
             public void chatClosed(PeerChatWindow window) {
             }
         };
+    }
+
+    private static List<JButton> removeButtons(PeerChatWindow window) {
+        List<JButton> buttons = new ArrayList<>();
+        for (Component component : flatten(window.getContentPane())) {
+            if (component instanceof JButton && "移除此項".equals(((JButton) component).getToolTipText())) {
+                buttons.add((JButton) component);
+            }
+        }
+        return buttons;
     }
 
     private static String labelText(PeerChatWindow window) {

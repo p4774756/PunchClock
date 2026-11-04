@@ -2,9 +2,12 @@ package com.example.service;
 
 import org.junit.Test;
 
+import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Random;
 
@@ -68,6 +71,29 @@ public class PeerImageTest {
 
         assertNull(PeerImage.decodeThumbnail("not-an-image", 64));
         assertNull(PeerImage.decodeThumbnail("", 64));
+    }
+
+    @Test
+    public void fileThumbnail_scalesLongestEdge() throws Exception {
+        Path dir = Files.createTempDirectory("punch-thumb");
+        Path png = dir.resolve("shot.png");
+        BufferedImage source = new BufferedImage(400, 200, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = source.createGraphics();
+        g.setColor(Color.RED);
+        g.fillRect(0, 0, 400, 200);
+        g.dispose();
+        assertTrue(ImageIO.write(source, "png", png.toFile()));
+        try {
+            BufferedImage thumb = PeerImage.fileThumbnail(png, 40);
+            assertNotNull(thumb);
+            assertEquals(40, thumb.getWidth());
+            assertEquals(20, thumb.getHeight());
+            assertNull(PeerImage.fileThumbnail(dir, 40));
+            assertNull(PeerImage.fileThumbnail(null, 40));
+        } finally {
+            Files.deleteIfExists(png);
+            Files.deleteIfExists(dir);
+        }
     }
 
     @Test

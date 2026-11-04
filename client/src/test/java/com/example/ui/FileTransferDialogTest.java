@@ -153,6 +153,16 @@ public class FileTransferDialogTest {
                 assertEquals(2, dialog.addPaths(List.of(file, dir), false));
                 assertEquals(2, dialog.chosenPaths().size());
                 assertEquals(0, dialog.addPaths(List.of(file), false));
+                Path otherDir = Files.createTempDirectory("punchclock-transfer-dup");
+                Path sameName = otherDir.resolve("Main.java");
+                Files.writeString(sameName, "class Other {}\n");
+                try {
+                    assertEquals(0, dialog.addPaths(List.of(sameName), false));
+                    assertEquals(2, dialog.chosenPaths().size());
+                } finally {
+                    Files.deleteIfExists(sameName);
+                    Files.deleteIfExists(otherDir);
+                }
                 assertFalse(dialog.canSend());
                 assertTrue(dialog.selectClient("beta"));
                 assertTrue(dialog.canSend());

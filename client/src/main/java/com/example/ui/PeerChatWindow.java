@@ -27,12 +27,16 @@ import javax.swing.SwingWorker;
 import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.DefaultEditorKit;
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.FlowLayout;
+import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Image;
 import java.awt.Toolkit;
@@ -51,10 +55,12 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.text.Normalizer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Consumer;
 
 /**
@@ -108,6 +114,8 @@ public class PeerChatWindow extends JFrame {
 
     private final List<String> attachedImages = new ArrayList<>();
     private final List<Path> pendingFiles = new ArrayList<>();
+    /** 清單重畫後，舊的縮圖工作就不該再貼上。 */
+    private int filePreviewGeneration;
     private boolean interactionEnabled = true;
     private boolean fileBusy;
     private boolean sending;
@@ -578,15 +586,49 @@ public class PeerChatWindow extends JFrame {
                 continue;
             }
             if (containsPending(path)) {
+                problems.append(label).append("：已經在清單裡\n");
+                continue;
+            }
+            String clash = pendingNameClash(path);
+            if (clash != null) {
+                problems.append(label).append("：").append(clash).append('\n');
                 continue;
             }
             pendingFiles.add(path);
         }
         refreshPendingFiles();
         refreshEnabled();
-        if (problems.length() > 0) {
-            UiFonts.showWarning(this, problems.toString().trim(), "附加檔案");
+        if (problems.length() > 0 && isVisible()) {
+            // 選檔面板關掉的當下立刻開對話框，macOS 有時會把提示吃掉，所以排到下一個事件。
+            String text = problems.toString().trim();
+            SwingUtilities.invokeLater(() -> {
+                if (isDisplayable()) {
+                    toFront();
+                    UiFonts.showWarning(this, text, "附加檔案");
+                }
+            });
         }
+    }
+
+    /** 不同路徑但檔名相同（不分大小寫）時擋下，避免打包進同一個 ZIP 時被改名。 */
+    private String pendingNameClash(Path path) {
+        String incoming = itemName(path);
+        if (incoming.isEmpty()) {
+            return null;
+        }
+        for (Path existing : pendingFiles) {
+            if (incoming.equalsIgnoreCase(itemName(existing))) {
+                return "已經有同名項目";
+            }
+        }
+        return null;
+    }
+
+    private static String itemName(Path path) {
+        if (path == null || path.getFileName() == null) {
+            return "";
+        }
+        return Normalizer.normalize(path.getFileName().toString(), Normalizer.Form.NFC);
     }
 
     private boolean containsPending(Path path) {
@@ -605,12 +647,25 @@ public class PeerChatWindow extends JFrame {
     }
 
     private void refreshPendingFiles() {
+        int generation = ++filePreviewGeneration;
         fileItems.removeAll();
+        int content = 8;
+        int visible = 8;
+        int shown = 0;
         for (Path path : pendingFiles) {
-            fileItems.add(pendingFileLine(path));
+            boolean image = isQueuedImage(path);
+            fileItems.add(pendingFileLine(path, image, generation));
+            int rowHeight = image ? 44 : 32;
+            content += rowHeight;
+            if (shown < 4) {
+                visible += rowHeight;
+                shown++;
+            }
         }
-        int lines = Math.min(Math.max(pendingFiles.size(), 1), 4);
-        fileScroll.setPreferredSize(new Dimension(280, lines * 26 + 8));
+        if (pendingFiles.isEmpty()) {
+            visible = 34;
+        }
+        fileScroll.setPreferredSize(new Dimension(280, Math.min(content, visible)));
         boolean many = pendingFiles.size() > 1;
         fileSummary.setText(many ? "這 " + pendingFiles.size() + " 個項目會打包成一個 ZIP 後傳送" : "");
         fileSummary.setVisible(many);
@@ -621,24 +676,116 @@ public class PeerChatWindow extends JFrame {
         repaint();
     }
 
-    private JComponent pendingFileLine(Path path) {
-        String name = path.getFileName() == null ? path.toString() : path.getFileName().toString();
+    private JComponent pendingFileLine(Path path, boolean image, int generation) {
+        String name = itemName(path);
+        if (name.isEmpty()) {
+            name = path.toString();
+        }
+        int rowHeight = image ? 44 : 32;
+        JPanel row = new JPanel(new BorderLayout(8, 0));
+        row.setOpaque(false);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setBorder(new EmptyBorder(2, 6, 2, 4));
+        row.setPreferredSize(new Dimension(280, rowHeight));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, rowHeight));
+        row.setToolTipText(path.toString());
         JLabel line = new JLabel(name + "    " + fileMeta(path));
         line.setFont(UiFonts.chinesePlain(13));
         line.setForeground(NightTheme.INK);
-        line.setBorder(new EmptyBorder(3, 8, 3, 8));
-        line.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        line.setToolTipText(path + "（點一下移除）");
-        line.setAlignmentX(Component.LEFT_ALIGNMENT);
-        line.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                pendingFiles.remove(path);
-                refreshPendingFiles();
-                refreshEnabled();
-            }
+        if (image) {
+            JLabel thumb = new JLabel();
+            thumb.setPreferredSize(new Dimension(32, 32));
+            thumb.setHorizontalAlignment(SwingConstants.CENTER);
+            JPanel thumbWrap = new JPanel(new GridBagLayout());
+            thumbWrap.setOpaque(false);
+            thumbWrap.add(thumb);
+            row.add(thumbWrap, BorderLayout.WEST);
+            loadFileThumb(path, thumb, generation);
+        }
+        row.add(line, BorderLayout.CENTER);
+        JButton remove = new PendingRemoveButton();
+        remove.addActionListener(e -> {
+            pendingFiles.remove(path);
+            refreshPendingFiles();
+            refreshEnabled();
         });
-        return line;
+        JPanel east = new JPanel(new GridBagLayout());
+        east.setOpaque(false);
+        east.add(remove);
+        row.add(east, BorderLayout.EAST);
+        return row;
+    }
+
+    /** 清單每一列右側的小叉，只拿掉那一個項目。 */
+    private static final class PendingRemoveButton extends JButton {
+        private PendingRemoveButton() {
+            setToolTipText("移除此項");
+            Dimension box = new Dimension(22, 22);
+            setPreferredSize(box);
+            setMinimumSize(box);
+            setMaximumSize(box);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setOpaque(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setRolloverEnabled(true);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = CandyDraw.quality((Graphics2D) g);
+            int s = 16;
+            int x = (getWidth() - s) / 2;
+            int y = (getHeight() - s) / 2;
+            if (getModel().isRollover() || getModel().isPressed()) {
+                g2.setColor(getModel().isPressed() ? CandyTheme.PINK_DEEP : new Color(0x6A, 0x48, 0x88));
+                g2.fillOval(x, y, s, s);
+            }
+            g2.setColor(CandyTheme.INK);
+            g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            int pad = 4;
+            g2.drawLine(x + pad, y + pad, x + s - pad, y + s - pad);
+            g2.drawLine(x + s - pad, y + pad, x + pad, y + s - pad);
+            g2.dispose();
+        }
+    }
+
+    private void loadFileThumb(Path path, JLabel thumb, int generation) {
+        new SwingWorker<BufferedImage, Void>() {
+            @Override
+            protected BufferedImage doInBackground() {
+                return PeerImage.fileThumbnail(path, 32);
+            }
+
+            @Override
+            protected void done() {
+                if (generation != filePreviewGeneration) {
+                    return;
+                }
+                BufferedImage image = null;
+                try {
+                    image = get();
+                } catch (Exception ignored) {
+                    image = null;
+                }
+                if (image != null) {
+                    thumb.setBorder(BorderFactory.createLineBorder(CandyTheme.EDGE));
+                    thumb.setIcon(new ImageIcon(image));
+                    return;
+                }
+                thumb.setVisible(false);
+                if (thumb.getParent() != null) {
+                    thumb.getParent().setVisible(false);
+                }
+            }
+        }.execute();
+    }
+
+    private static boolean isQueuedImage(Path path) {
+        String name = itemName(path).toLowerCase(Locale.ROOT);
+        return name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg")
+                || name.endsWith(".gif") || name.endsWith(".webp") || name.endsWith(".bmp");
     }
 
     private static String fileMeta(Path path) {

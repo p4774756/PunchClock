@@ -2,6 +2,7 @@ package com.example.ui;
 
 import com.example.ChatProtocol;
 import com.example.PeerFileRules;
+import com.example.service.PeerImage;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -68,6 +69,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -122,6 +124,8 @@ public final class FileTransferDialog extends JDialog {
     private boolean finished;
     private boolean dividerPlaced;
     private boolean dropHot;
+    /** 檔案列重畫後，舊的縮圖工作就不該再貼上。 */
+    private int filePreviewGeneration;
     private int tempSerial;
 
     FileTransferDialog(Window owner, List<Friend> friends, String preselectId) {
@@ -473,6 +477,10 @@ public final class FileTransferDialog extends JDialog {
                 problems.add(label + "：已經在清單裡");
                 continue;
             }
+            if (nameClash(stored)) {
+                problems.add(label + "：已經有同名項目");
+                continue;
+            }
             files.add(new Chosen(stored, false));
             added++;
         }
@@ -480,7 +488,13 @@ public final class FileTransferDialog extends JDialog {
             rebuildFiles();
         }
         if (notify && !problems.isEmpty()) {
-            UiFonts.showWarning(this, String.join("\n", problems), "傳送檔案");
+            String text = String.join("\n", problems);
+            SwingUtilities.invokeLater(() -> {
+                if (isDisplayable()) {
+                    toFront();
+                    UiFonts.showWarning(this, text, "傳送檔案");
+                }
+            });
         }
         return added;
     }
@@ -685,6 +699,7 @@ public final class FileTransferDialog extends JDialog {
     }
 
     private void rebuildFiles() {
+        int generation = ++filePreviewGeneration;
         fileColumn.removeAll();
         if (files.isEmpty()) {
             JLabel empty = label("還沒有選擇檔案", UiFonts.chinesePlain(13), CandyTheme.MUTED);
@@ -696,7 +711,7 @@ public final class FileTransferDialog extends JDialog {
                 if (i > 0) {
                     fileColumn.add(Box.createVerticalStrut(6));
                 }
-                fileColumn.add(fileRow(files.get(i)));
+                fileColumn.add(fileRow(files.get(i), generation));
             }
             fileColumn.add(Box.createVerticalGlue());
         }
@@ -707,9 +722,14 @@ public final class FileTransferDialog extends JDialog {
         refreshSend();
     }
 
-    private JComponent fileRow(Chosen chosen) {
+    private JComponent fileRow(Chosen chosen, int generation) {
         FileRow row = new FileRow();
-        row.add(new FileGlyph(chosen.directory ? "資料夾" : kindLabel(chosen.name)), BorderLayout.WEST);
+        String kind = chosen.directory ? "資料夾" : kindLabel(chosen.name);
+        FileGlyph glyph = new FileGlyph(kind);
+        row.add(glyph, BorderLayout.WEST);
+        if ("圖片".equals(kind)) {
+            scheduleFilePreview(chosen.path, glyph, generation);
+        }
         JPanel text = new JPanel(new GridLayout(2, 1));
         text.setOpaque(false);
         text.setBorder(new EmptyBorder(0, 10, 0, 8));
@@ -898,6 +918,11 @@ public final class FileTransferDialog extends JDialog {
         Path stored = canonical(path);
         if (containsPath(stored)) {
             deleteQuiet(path);
+            return;
+        }
+        if (nameClash(stored)) {
+            deleteQuiet(path);
+            UiFonts.showWarning(this, itemName(stored) + "：已經有同名項目", "傳送檔案");
             return;
         }
         files.add(new Chosen(stored, true));
@@ -1142,6 +1167,51 @@ public final class FileTransferDialog extends JDialog {
             }
         }
         return false;
+    }
+
+    /** 不同路徑、檔名相同（不分大小寫）時擋下，避免打包進同一個 ZIP 時被改名。 */
+    private boolean nameClash(Path path) {
+        String incoming = itemName(path);
+        if (incoming.isEmpty()) {
+            return false;
+        }
+        for (Chosen chosen : files) {
+            if (incoming.equalsIgnoreCase(Normalizer.normalize(chosen.name, Normalizer.Form.NFC))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String itemName(Path path) {
+        if (path == null || path.getFileName() == null) {
+            return "";
+        }
+        return Normalizer.normalize(path.getFileName().toString(), Normalizer.Form.NFC);
+    }
+
+    private void scheduleFilePreview(Path path, FileGlyph glyph, int generation) {
+        new SwingWorker<BufferedImage, Void>() {
+            @Override
+            protected BufferedImage doInBackground() {
+                return PeerImage.fileThumbnail(path, 36);
+            }
+
+            @Override
+            protected void done() {
+                if (generation != filePreviewGeneration || !isDisplayable()) {
+                    return;
+                }
+                try {
+                    BufferedImage image = get();
+                    if (image != null) {
+                        glyph.setPreview(image);
+                    }
+                } catch (Exception ignored) {
+                    // 讀不出縮圖就維持種類圖示
+                }
+            }
+        }.execute();
     }
 
     private static JScrollPane scroll(JComponent view, String name) {
@@ -1625,6 +1695,7 @@ public final class FileTransferDialog extends JDialog {
 
     private static final class FileGlyph extends JComponent {
         private final String kind;
+        private BufferedImage preview;
 
         private FileGlyph(String kind) {
             this.kind = kind == null ? "檔案" : kind;
@@ -1635,9 +1706,26 @@ public final class FileTransferDialog extends JDialog {
             setOpaque(false);
         }
 
+        private void setPreview(BufferedImage image) {
+            this.preview = image;
+            repaint();
+        }
+
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = CandyDraw.quality((Graphics2D) g);
+            if (preview != null) {
+                g2.setColor(CandyTheme.FIELD);
+                g2.fillRoundRect(0, 0, 36, 36, 10, 10);
+                java.awt.Shape clip = g2.getClip();
+                g2.setClip(new java.awt.geom.RoundRectangle2D.Float(0, 0, 36, 36, 10, 10));
+                int x = (36 - preview.getWidth()) / 2;
+                int y = (36 - preview.getHeight()) / 2;
+                g2.drawImage(preview, x, y, null);
+                g2.setClip(clip);
+                g2.dispose();
+                return;
+            }
             g2.setColor(glyphFill(kind));
             g2.fillRoundRect(0, 0, 36, 36, 10, 10);
             g2.setColor("圖片".equals(kind) ? CandyTheme.PINK_INK : CandyTheme.NIGHT);
