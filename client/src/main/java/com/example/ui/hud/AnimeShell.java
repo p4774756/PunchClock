@@ -41,9 +41,9 @@ public final class AnimeShell extends JPanel {
     private static final Color MUTED = new Color(226, 218, 242);
     private static final Color PANEL = new Color(54, 42, 96, 228);
     private static final Color PANEL_EDGE = new Color(214, 198, 255, 150);
-    private static final String[] NAV = {"首頁", "排程任務", "好友與傳檔", "遊戲中心", "設定", "日誌"};
-    /** 側邊順序和 JTabbedPane 不同：分頁是排程、設定、好友、日誌、遊戲中心。 */
-    private static final int[] NAV_TO_TAB = {-1, 0, 2, 4, 1, 3};
+    private static final String[] NAV = {"首頁", "排程任務", "好友與傳檔", "設定", "日誌"};
+    /** 側邊順序和 JTabbedPane 不同：分頁是排程、設定、好友、日誌。 */
+    private static final int[] NAV_TO_TAB = {-1, 0, 2, 1, 3};
 
     private final JTabbedPane tabs;
     private final SchedulerService scheduler;
@@ -140,7 +140,7 @@ public final class AnimeShell extends JPanel {
         repaint();
     }
 
-    /** 打開原本的分頁：0 排程、1 設定、2 好友與傳檔、3 日誌、4 遊戲中心。 */
+    /** 打開原本的分頁：0 排程、1 設定、2 好友與傳檔、3 日誌。 */
     public void openTab(int index) {
         holdingHome = false;
         if (index >= 0 && index < tabs.getTabCount() && tabs.getSelectedIndex() != index) {
@@ -197,8 +197,6 @@ public final class AnimeShell extends JPanel {
         void openRecentFriend();
 
         void sendFile();
-
-        void playGame();
     }
 
     public static void hideTabStrip(JTabbedPane tabs) {
@@ -267,8 +265,6 @@ public final class AnimeShell extends JPanel {
             homeActions.runTask();
         } else if (id == HomeBoard.FILE) {
             homeActions.sendFile();
-        } else if (id == HomeBoard.PLAY) {
-            homeActions.playGame();
         }
     }
 

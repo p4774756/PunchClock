@@ -60,6 +60,10 @@ public final class HealthHistoryStore {
         if (override != null && !override.isBlank()) {
             return Paths.get(override.trim());
         }
+        Path disk = Paths.get("/var/data");
+        if (Files.isDirectory(disk)) {
+            return disk.resolve("server-health-history.json");
+        }
         String home = System.getProperty("user.home", ".");
         return Paths.get(home, ".punchclock", "server-health-history.json");
     }

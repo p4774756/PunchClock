@@ -335,7 +335,6 @@
         lastStructureFingerprint = structFp;
         lastContentFingerprint = contentFp;
         renderClients();
-        renderChatLists();
         return;
       }
 
@@ -344,7 +343,6 @@
         patchAllClients();
       }
       updateHeartbeatMetrics();
-      renderChatLists();
     }
 
     function patchAllClients() {
@@ -506,9 +504,9 @@
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'STATUS_UPDATE') {
-            applyClientSnapshot(data.clients || []);
             applyServerHealth(data.serverHealth || null);
             appendLiveHealthPoint(data.serverHealth || null);
+            applyClientSnapshot(data.clients || []);
           } else if (data.type === 'CHECKIN_RESULT') {
             appendLog(data.clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 收到回覆: ' + data.message);
           }
@@ -750,10 +748,12 @@
       try {
         const res = await fetch('/api/status');
         const data = await res.json();
-        applyClientSnapshot(data.clients || []);
         applyServerHealth(data.serverHealth || null);
         applyHealthHistory(data.healthHistory || null);
-      } catch (e) {}
+        applyClientSnapshot(data.clients || []);
+      } catch (e) {
+        console.error('狀態更新失敗', e);
+      }
     }
 
     async function refreshHealthHistory() {
@@ -1591,9 +1591,11 @@
         try {
           const res = await fetch('/api/status');
           const data = await res.json();
-          applyClientSnapshot(data.clients || []);
           applyServerHealth(data.serverHealth || null);
           applyHealthHistory(data.healthHistory || null);
-        } catch (e) {}
+          applyClientSnapshot(data.clients || []);
+        } catch (e) {
+          console.error('狀態更新失敗', e);
+        }
       }
     }, 5000);

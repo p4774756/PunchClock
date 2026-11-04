@@ -79,8 +79,8 @@ java -jar client/target/punchclock-client-standalone.jar
 | ![首頁：今日排程、好友動態與快捷操作](docs/screenshots/home.png) | ![排程任務：自訂名稱、Selector 與執行記錄](docs/screenshots/schedule.png) |
 | 好友與傳檔 | 設定 |
 | ![好友與傳檔：裝置 ID、好友與傳檔紀錄](docs/screenshots/friends.png) | ![設定：雲端連線與程式更新](docs/screenshots/settings.png) |
-| 遊戲中心 | 日誌 |
-| ![遊戲中心：老虎機、21 點與輪盤](docs/screenshots/game.png) | ![日誌：系統日誌](docs/screenshots/log.png) |
+| 日誌 | |
+| ![日誌：系統日誌](docs/screenshots/log.png) | |
 
 ## 主要功能
 
@@ -95,7 +95,6 @@ java -jar client/target/punchclock-client-standalone.jar
 - 同事傳檔：任意副檔名、可傳資料夾（自動壓 ZIP）、傳檔紀錄可在過期前重複下載或手動清除。兩邊都在線時可改走直傳，檔案只在伺服器記憶體轉手，不寫入磁碟
 - 中繼 Proxy：讓區網內連不到雲端的同事透過你的電腦轉發心跳等請求
 - 跟同事一對一聊天，或跟後台說話。對話在伺服器重啟後清空
-- 遊戲中心：本機娛樂點數，內建老虎機、21 點、輪盤。點數存在 `~/.punchclock/games.json`，跟排程設定分開
 - 自動更新：伺服器附帶最新的桌面端 jar，心跳發現原始碼摘要不同時詢問是否更新（詳見下方「桌面端自動更新」）
 
 ### 桌面端自動更新
@@ -132,7 +131,7 @@ java -jar client/target/punchclock-client-standalone.jar
 | 點單 | 裝置狀態、遠端取消排程或單一任務 |
 | 店內廣播 | 跟桌面端一對一說話。只放伺服器記憶體，重啟後清空 |
 | 外帶架 | 傳檔暫存，約 6 小時；過期前可下載，也可手動清除 |
-| 製茶機 | CPU、JVM／系統記憶體、傳檔暫存用量。每分鐘取樣，保留約 3 天，寫在 `~/.punchclock/server-health-history.json` |
+| 製茶機 | CPU、JVM／系統記憶體、磁碟空間。每分鐘取樣，保留約 3 天。有掛載 `/var/data` 時寫在那裡，否則寫在 `~/.punchclock/server-health-history.json` |
 | 飲品牆 | 照片、筆記與連結。預設只放記憶體，重啟後清空；設定 `PHOTO_STORAGE_DIR` 後改存該目錄 |
 
 ## 部署建議

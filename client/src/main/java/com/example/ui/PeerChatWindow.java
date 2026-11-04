@@ -121,6 +121,7 @@ public class PeerChatWindow extends JFrame {
     private boolean sending;
     private boolean peerOnline;
     private boolean readOnly;
+    private boolean closed;
     private final boolean textOnly;
 
     public PeerChatWindow(String peerId, Host host, Image appIcon, List<PeerChatStore.Entry> history,
@@ -281,7 +282,11 @@ public class PeerChatWindow extends JFrame {
         pokeButton = new CandyButton("戳一下", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         pokeButton.setFont(plain);
         pokeButton.setToolTipText("對方會響一聲，並彈出聊天視窗晃一下（約 15 秒內隨心跳送達）");
-        pokeButton.addActionListener(e -> host.poke(peerId));
+        pokeButton.addActionListener(e -> {
+            if (canCompose()) {
+                host.poke(peerId);
+            }
+        });
         fileButton = new CandyButton("附加檔案", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         fileButton.setFont(plain);
         fileButton.setToolTipText("選檔案或資料夾（可多選）。先列在這裡，按傳送才送給這個人；多個項目會打包成一個 ZIP");
@@ -333,6 +338,7 @@ public class PeerChatWindow extends JFrame {
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosed(WindowEvent e) {
+                closed = true;
                 host.chatClosed(PeerChatWindow.this);
             }
         });
@@ -363,6 +369,7 @@ public class PeerChatWindow extends JFrame {
     public void setPeerOnline(boolean online) {
         this.peerOnline = online;
         refreshStatus();
+        refreshEnabled();
     }
 
     public void setPeerAvatar(String encoded) {
@@ -383,11 +390,17 @@ public class PeerChatWindow extends JFrame {
 
     /** 顯示在最上層並讓輸入框取得焦點。 */
     public void showAndFocus() {
-        if (!isVisible()) {
-            setVisible(true);
-        }
-        toFront();
-        input.requestFocusInWindow();
+        // 等這一下點擊結束再開。視窗若蓋在游標上，同一個點擊會打到新視窗；
+        // 主視窗又會立刻搶回前景，看起來就像彈開又關掉。
+        SwingUtilities.invokeLater(() -> {
+            if (closed) {
+                return;
+            }
+            WindowShake.bringToFront(this);
+            if (input.isEnabled() && input.isShowing()) {
+                input.requestFocusInWindow();
+            }
+        });
     }
 
     private void refreshStatus() {
@@ -411,19 +424,26 @@ public class PeerChatWindow extends JFrame {
             statusLabel.setText("在線");
             statusLabel.setForeground(new Color(140, 230, 170));
         } else {
-            statusLabel.setText("離線（對方上線後才收得到）");
-            statusLabel.setForeground(NightTheme.MUTED);
+            statusLabel.setText("離線，上線後才能傳");
+            statusLabel.setForeground(new Color(255, 150, 150));
         }
     }
 
+    /** 同事要在線才送得出文字、圖片、戳一下和檔案。後台文字對話不看在線狀態。 */
+    private boolean canCompose() {
+        return interactionEnabled && !readOnly && (textOnly || peerOnline);
+    }
+
     private void refreshEnabled() {
-        boolean canType = interactionEnabled && !readOnly;
-        input.setEnabled(canType);
+        boolean canType = canCompose();
+        // 離線也留著輸入框，視窗才拿得到焦點；送出仍要對方在線。
+        input.setEnabled(interactionEnabled && !readOnly);
         sendButton.setEnabled(canType && !sending);
         boolean extras = canType && !textOnly;
+        boolean canClear = interactionEnabled && !readOnly && !textOnly;
         attachButton.setEnabled(extras);
-        clearImageButton.setEnabled(extras && !attachedImages.isEmpty());
-        clearFilesButton.setEnabled(extras && !pendingFiles.isEmpty());
+        clearImageButton.setEnabled(canClear && !attachedImages.isEmpty());
+        clearFilesButton.setEnabled(canClear && !pendingFiles.isEmpty());
         pokeButton.setEnabled(extras);
         fileButton.setEnabled(extras && !fileBusy);
     }
@@ -437,7 +457,7 @@ public class PeerChatWindow extends JFrame {
             @Override
             public void drop(DropTargetDropEvent event) {
                 try {
-                    if (textOnly || readOnly || !interactionEnabled
+                    if (!canCompose()
                             || !event.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
                         event.rejectDrop();
                         return;
@@ -496,7 +516,7 @@ public class PeerChatWindow extends JFrame {
         actionMap.put(DefaultEditorKit.pasteAction, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                if (clipboardHasImageOnly()) {
+                if (clipboardHasImageOnly() && canCompose()) {
                     pasteImageFromClipboard();
                 } else if (defaultPaste != null) {
                     defaultPaste.actionPerformed(e);
@@ -506,7 +526,7 @@ public class PeerChatWindow extends JFrame {
     }
 
     void send() {
-        if (!interactionEnabled || readOnly || sending || !host.canSend(peerId)) {
+        if (!canCompose() || sending || !host.canSend(peerId)) {
             return;
         }
         String text = input.getText().trim();
@@ -573,7 +593,7 @@ public class PeerChatWindow extends JFrame {
 
     /** 拖曳或多選進來的檔案先排進清單。不合規則的項目會跳過並說明原因。 */
     void addPendingFiles(List<Path> incoming) {
-        if (textOnly || readOnly || !interactionEnabled || incoming == null || incoming.isEmpty()) {
+        if (!canCompose() || incoming == null || incoming.isEmpty()) {
             return;
         }
         StringBuilder problems = new StringBuilder();
@@ -807,6 +827,9 @@ public class PeerChatWindow extends JFrame {
     // ==================== 附圖 ====================
 
     private void chooseImage() {
+        if (!canCompose()) {
+            return;
+        }
         JFileChooser chooser = UiFonts.fileChooser();
         chooser.setDialogTitle("選擇要附加的圖片（可多選）");
         chooser.setMultiSelectionEnabled(true);

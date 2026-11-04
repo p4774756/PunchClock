@@ -29,8 +29,6 @@ import com.example.ui.RecentValuesHelper;
 import com.example.ui.SlotController;
 import com.example.model.CheckInHistoryEntry;
 import com.example.model.CheckInTask;
-import com.example.game.GameStore;
-import com.example.ui.game.GameCenterPanel;
 import com.example.ui.hud.AnimeCast;
 import com.example.ui.hud.AnimeShell;
 import com.example.ui.hud.HomeBrief;
@@ -305,18 +303,12 @@ public class App extends JFrame {
         tabs.addTab(PanelFactory.PEER_TAB_LABEL, NightTheme.page(peerTab, true));
         NightTheme.apply(logTab);
         tabs.addTab("系統日誌", logTab);
-        JPanel gameTab = new JPanel(new BorderLayout());
-        gameTab.setOpaque(false);
-        gameTab.setBorder(new EmptyBorder(8, 8, 8, 8));
-        gameTab.add(new GameCenterPanel(new GameStore(), mainFont, boldFont), BorderLayout.CENTER);
-        tabs.addTab("遊戲中心", NightTheme.page(gameTab, true));
         tabs.setOpaque(false);
         tabs.setBackground(new Color(0, 0, 0, 0));
         tabs.setToolTipTextAt(0, "設定目標網址、時間，立即測試");
         tabs.setToolTipTextAt(1, "雲端連線、程式更新、背景圖與中繼 Proxy");
         tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案／資料夾與傳檔狀態");
         tabs.setToolTipTextAt(3, "查看與清除系統日誌");
-        tabs.setToolTipTextAt(4, "單機小遊戲，點數只存在這台電腦");
         AnimeShell.hideTabStrip(tabs);
         tabs.setBorder(new EmptyBorder(8, 8, 8, 8));
         shell = new AnimeShell(schedulerService, tabs);
@@ -346,11 +338,6 @@ public class App extends JFrame {
             @Override
             public void sendFile() {
                 promptSendFile();
-            }
-
-            @Override
-            public void playGame() {
-                shell.openTab(4);
             }
         });
         tabs.addChangeListener(e -> {
@@ -652,6 +639,12 @@ public class App extends JFrame {
 
         @Override
         public void sendMessage(String peerId, String text, String imageEncoded, Consumer<Boolean> done) {
+            if (!onlinePeerIds.contains(peerId)) {
+                appendLog("[訊息] 【" + peerId + "】目前不在線，無法傳送");
+                chatNote(peerId, "對方目前離線，上線後才能傳");
+                done.accept(false);
+                return;
+            }
             heartbeatService.sendPeerMessage(peerId, text, imageEncoded, App.this::appendLog, ok ->
                     SwingUtilities.invokeLater(() -> {
                         boolean sent = Boolean.TRUE.equals(ok);
@@ -666,6 +659,11 @@ public class App extends JFrame {
 
         @Override
         public void poke(String peerId) {
+            if (!onlinePeerIds.contains(peerId)) {
+                appendLog("[訊息] 【" + peerId + "】目前不在線，無法戳一下");
+                chatNote(peerId, "對方目前離線，上線後才能戳");
+                return;
+            }
             heartbeatService.sendPeerPoke(peerId, App.this::appendLog, ok ->
                     SwingUtilities.invokeLater(() -> {
                         if (Boolean.TRUE.equals(ok)) {
@@ -1092,6 +1090,40 @@ public class App extends JFrame {
                 }));
     }
 
+    /**
+     * 在線排前面，離線排後面。最愛只在同一組裡排最上面，組內維持原本順序。
+     */
+    static List<PeerInfo> orderPeers(List<PeerInfo> peers, Set<String> favorites) {
+        List<PeerInfo> onlineFavorite = new ArrayList<>();
+        List<PeerInfo> online = new ArrayList<>();
+        List<PeerInfo> offlineFavorite = new ArrayList<>();
+        List<PeerInfo> offline = new ArrayList<>();
+        if (peers != null) {
+            for (PeerInfo peer : peers) {
+                if (peer == null) {
+                    continue;
+                }
+                boolean on = "ONLINE".equalsIgnoreCase(peer.status);
+                boolean favorite = favorites != null && favorites.contains(peer.clientId);
+                if (on && favorite) {
+                    onlineFavorite.add(peer);
+                } else if (on) {
+                    online.add(peer);
+                } else if (favorite) {
+                    offlineFavorite.add(peer);
+                } else {
+                    offline.add(peer);
+                }
+            }
+        }
+        List<PeerInfo> ordered = new ArrayList<>();
+        ordered.addAll(onlineFavorite);
+        ordered.addAll(online);
+        ordered.addAll(offlineFavorite);
+        ordered.addAll(offline);
+        return ordered;
+    }
+
     private void updatePeerTable(java.util.List<PeerInfo> peers) {
         if (peerRefs.peerTableModel == null || !isCloudEnabled()) {
             return;
@@ -1105,18 +1137,7 @@ public class App extends JFrame {
         int friendCount = 0;
         List<PeerInfo> seenPeers = new ArrayList<>();
 
-        // 最愛排前面；同一組內維持伺服器給的順序
-        List<PeerInfo> ordered = new ArrayList<>();
-        for (PeerInfo peer : peers) {
-            if (favoritePeerIds.contains(peer.clientId)) {
-                ordered.add(peer);
-            }
-        }
-        for (PeerInfo peer : peers) {
-            if (!favoritePeerIds.contains(peer.clientId)) {
-                ordered.add(peer);
-            }
-        }
+        List<PeerInfo> ordered = orderPeers(peers, favoritePeerIds);
 
         for (PeerInfo peer : ordered) {
             if (myClientId.equals(peer.clientId)) {

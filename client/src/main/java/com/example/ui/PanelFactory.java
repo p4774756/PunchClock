@@ -444,7 +444,7 @@ public class PanelFactory {
                 "開啟聊天", CandyButton.Variant.PRIMARY, boldFont,
                 "和選取的好友開一個小聊天視窗，可傳訊息、圖片、檔案或戳一下（雙擊好友也可以）");
         refs.openChatButton.setEnabled(false);
-        JLabel chatHint = new JLabel("雙擊好友，或選取後按「開啟聊天」；點 ☆ 設為最愛（排最上面）");
+        JLabel chatHint = new JLabel("雙擊好友，或選取後按「開啟聊天」；離線排下面，☆ 在同一組排最上面");
         chatHint.setFont(mainFont);
         chatHint.setForeground(NightTheme.MUTED);
         JPanel chatRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));

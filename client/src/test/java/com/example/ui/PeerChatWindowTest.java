@@ -35,6 +35,7 @@ public class PeerChatWindowTest {
         boolean[] messageSent = {false};
         PeerChatWindow window = new PeerChatWindow("bob", host(sent, allowSend, messageSent), null, List.of(), false);
         try {
+            window.setPeerOnline(true);
             window.addPendingFiles(List.of(note, again, folder));
             assertEquals(2, window.pendingFiles().size());
             assertTrue(labelText(window).contains("note.txt"));
@@ -77,6 +78,12 @@ public class PeerChatWindowTest {
             assertTrue(window.pendingFiles().isEmpty());
             assertEquals(2, sent.get().size());
             assertFalse(labelText(window).contains("note.txt"));
+
+            window.setPeerOnline(false);
+            window.addPendingFiles(List.of(note));
+            window.send();
+            assertTrue("離線不能把檔案排進去，也不能送出", window.pendingFiles().isEmpty());
+            assertFalse(messageSent[0]);
         } finally {
             window.dispose();
             Files.deleteIfExists(note);
