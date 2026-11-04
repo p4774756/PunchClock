@@ -1,24 +1,27 @@
 body.island-body {
   overflow: hidden;
   height: 100vh;
-  background: #cfe7ee;
+  background: #d8f7f8;
 }
 
-body.island-body .site-navbar {
-  position: relative;
-  z-index: 6;
+body.island-body.is-night {
+  background: #1a3e86;
 }
 
 #islandStage {
   position: fixed;
   inset: 0;
   z-index: 1;
-  background: #cfe7ee;
+  background: #d8f7f8;
+}
+
+body.island-body.is-night #islandStage {
+  background: #1a3e86;
 }
 
 #islandStage.is-fallback {
   background:
-    radial-gradient(circle at 50% 42%, #8eae6a 0 18%, #c6a36a 19% 24%, #7eb8c9 25% 100%);
+    radial-gradient(circle at 50% 46%, #a8d06e 0 16%, #d2a56c 17% 22%, #45c4c6 23% 100%);
 }
 
 #islandCanvas {
@@ -26,6 +29,98 @@ body.island-body .site-navbar {
   width: 100%;
   height: 100%;
   touch-action: none;
+  cursor: grab;
+}
+
+.island-brand {
+  position: fixed;
+  z-index: 6;
+  top: 0.85rem;
+  left: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  max-width: min(340px, calc(100vw - 18rem));
+  padding: 0.5rem 0.95rem 0.5rem 0.5rem;
+  background: rgba(255, 250, 246, 0.96);
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgba(33, 29, 29, 0.12);
+}
+
+.island-brand .brand-logo {
+  width: 2.45rem;
+  height: 2.45rem;
+  border-radius: 10px;
+  font-size: 0.98rem;
+}
+
+.island-brand-text strong {
+  display: block;
+  color: #211d1d;
+  font-size: 0.98rem;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.island-brand-text small {
+  display: block;
+  margin-top: 0.12rem;
+  color: #717171;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+.island-corner {
+  position: fixed;
+  z-index: 6;
+  top: 0.85rem;
+  right: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.island-time {
+  position: fixed;
+  z-index: 6;
+  top: 5.15rem;
+  left: 0.85rem;
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.22rem;
+  background: rgba(255, 250, 246, 0.96);
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(33, 29, 29, 0.12);
+}
+
+.island-time button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #3f3434;
+  cursor: pointer;
+}
+
+.island-time button svg {
+  display: block;
+}
+
+.island-time button[aria-pressed="true"] {
+  background: #211d1d;
+  color: #fff;
+}
+
+.island-time button:hover,
+.island-time button:focus-visible {
+  outline: 2px solid #ea5420;
+  outline-offset: 2px;
 }
 
 #islandLabels {
@@ -36,25 +131,63 @@ body.island-body .site-navbar {
 }
 
 .island-label,
-.island-mark {
+.island-mark,
+.island-note {
   position: absolute;
   left: 0;
   top: 0;
   font-family: inherit;
+  white-space: nowrap;
+}
+
+.island-label,
+.island-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 250, 246, 0.96);
+  color: #211d1d;
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(33, 29, 29, 0.14);
+}
+
+.island-label::before,
+.island-mark::before {
+  content: "";
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: #ea5420;
+  flex: none;
 }
 
 .island-label {
   pointer-events: auto;
   border: 0;
-  background: rgba(255, 248, 244, 0.95);
-  color: #211d1d;
   font-weight: 700;
   font-size: 0.82rem;
   letter-spacing: 0.03em;
-  border-radius: 999px;
-  padding: 0.38rem 0.8rem;
-  box-shadow: 0 8px 18px rgba(33, 29, 29, 0.14);
+  padding: 0.38rem 0.8rem 0.38rem 0.55rem;
   cursor: pointer;
+}
+
+.island-mark {
+  pointer-events: none;
+  font-weight: 800;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  padding: 0.32rem 0.7rem 0.32rem 0.5rem;
+}
+
+.island-note {
+  pointer-events: none;
+  background: rgba(255, 250, 246, 0.92);
+  color: #3f3434;
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  box-shadow: 0 6px 14px rgba(33, 29, 29, 0.12);
 }
 
 .island-label:hover,
@@ -69,43 +202,32 @@ body.island-body .site-navbar {
   color: #fff;
 }
 
-.island-mark {
-  pointer-events: none;
-  color: #ea5420;
-  background: rgba(255, 248, 244, 0.94);
-  font-weight: 800;
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  padding: 0.22rem 0.55rem;
-  border-radius: 8px;
-}
-
-.island-tools {
-  position: fixed;
-  z-index: 6;
-  top: 5.2rem;
-  right: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-
-.island-tool,
-.island-list button {
-  font-family: inherit;
-}
-
 .island-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.5rem;
+  height: 2.5rem;
+  padding: 0 0.85rem;
   border: 0;
-  background: rgba(255, 248, 244, 0.96);
+  border-radius: 14px;
+  background: rgba(255, 250, 246, 0.96);
   color: #211d1d;
+  font-family: inherit;
   font-weight: 700;
   font-size: 0.82rem;
-  border-radius: 14px;
-  min-width: 4.4rem;
-  padding: 0.7rem 0.55rem;
+  text-decoration: none;
   box-shadow: 0 8px 18px rgba(33, 29, 29, 0.12);
   cursor: pointer;
+}
+
+a.island-tool {
+  color: #211d1d;
+}
+
+.island-tool-user {
+  color: #096597;
+  cursor: default;
 }
 
 .island-tool:hover,
@@ -118,10 +240,10 @@ body.island-body .site-navbar {
 .island-list {
   position: fixed;
   z-index: 6;
-  top: 5.2rem;
-  right: 6.2rem;
-  width: min(260px, calc(100vw - 7.5rem));
-  background: rgba(255, 248, 244, 0.97);
+  top: 3.7rem;
+  right: 0.85rem;
+  width: min(260px, calc(100vw - 2rem));
+  background: rgba(255, 250, 246, 0.97);
   border-radius: 16px;
   padding: 0.75rem;
   box-shadow: 0 12px 32px rgba(33, 29, 29, 0.16);
@@ -147,6 +269,7 @@ body.island-body .site-navbar {
   border: 0;
   background: transparent;
   color: #211d1d;
+  font-family: inherit;
   text-align: left;
   font-weight: 700;
   font-size: 0.92rem;
@@ -185,7 +308,9 @@ body.island-body .site-navbar {
 }
 
 body.island-sheet-open #islandLabels,
-body.island-sheet-open .island-tools,
+body.island-sheet-open .island-corner,
+body.island-sheet-open .island-time,
+body.island-sheet-open .island-brand,
 body.island-sheet-open .island-list {
   visibility: hidden;
   pointer-events: none;
@@ -230,9 +355,32 @@ body.island-sheet-open .island-list {
   display: none !important;
 }
 
-@media (max-width: 700px) {
-  .island-tools { top: 4.6rem; right: 0.55rem; }
-  .island-list { right: 0.55rem; top: auto; bottom: 0.75rem; width: min(280px, calc(100vw - 1.1rem)); }
+@media (max-width: 760px) {
+  .island-brand {
+    max-width: calc(100vw - 1.4rem);
+    top: 0.55rem;
+    left: 0.55rem;
+  }
+  .island-brand-text small { display: none; }
+  .island-time { top: 4.5rem; left: 0.55rem; }
+  .island-corner {
+    top: auto;
+    right: 0.55rem;
+    bottom: 0.7rem;
+    left: 0.55rem;
+    justify-content: flex-end;
+  }
+  .island-tool {
+    min-width: 2.8rem;
+    height: 2.25rem;
+    padding: 0 0.6rem;
+    font-size: 0.75rem;
+  }
+  .island-list {
+    top: auto;
+    right: 0.55rem;
+    bottom: 3.6rem;
+    width: min(280px, calc(100vw - 1.1rem));
+  }
   .island-sheet { height: 78vh; }
-  .island-tool { min-width: 3.6rem; padding: 0.55rem 0.4rem; }
 }
