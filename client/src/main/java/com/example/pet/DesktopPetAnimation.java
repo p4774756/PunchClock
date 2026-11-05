@@ -5,13 +5,14 @@ import java.util.Random;
 /**
  * 桌面寵物的動作。不含視窗與計時器，由視窗在 EDT 上逐格呼叫 {@link #tick()}。
  * <p>
- * 喵露待機：呼吸每張 300ms，眨眼每張 150ms。走路、揮手、坐下、睡覺、拖曳還沒有專用影格，
- * 這些狀態仍沿用待機圖。{@link #column()} 與 {@link #row()} 只給素材載入失敗時的像素角色。
+ * 喵露待機：呼吸每張 300ms，眨眼每張 150ms。
+ * 動作優先序是拖曳、揮手、走路、坐下、趴睡、待機，全部由這一個 tick 推進。
+ * 還沒有合格影格的動作由畫面改畫待機。{@link #column()} 與 {@link #row()} 只給待機素材也載入失敗時的像素角色。
  */
 public final class DesktopPetAnimation {
 
     public enum Mode {
-        IDLE, WALK, REACT
+        IDLE, WALK, REACT, SIT, SLEEP
     }
 
     public static final int TICK_MS = 50;
@@ -22,8 +23,11 @@ public final class DesktopPetAnimation {
     public static final int STEP = 2;
     static final int BREATH_HOLD_TICKS = 300 / TICK_MS;
     static final int BLINK_HOLD_TICKS = 150 / TICK_MS;
+    static final int ACTION_HOLD_TICKS = 150 / TICK_MS;
     static final int BLINK_MIN_TICKS = 3000 / TICK_MS;
     static final int BLINK_MAX_TICKS = 7000 / TICK_MS;
+    public static final int SIT_TICKS = 160;
+    public static final int SLEEP_TICKS = 240;
 
     static final String[] PHRASES = {
             "嗨",
@@ -49,6 +53,8 @@ public final class DesktopPetAnimation {
     private int blinkStep;
     private int blinkHold;
     private int ticksUntilBlink;
+    private int carriedTicks;
+    private int idleExits;
 
     public DesktopPetAnimation() {
         this(new Random());
@@ -66,6 +72,7 @@ public final class DesktopPetAnimation {
         }
         updateMilu();
         if (carried) {
+            carriedTicks++;
             updateFrame();
             return;
         }
@@ -73,7 +80,13 @@ public final class DesktopPetAnimation {
         if (mode == Mode.REACT && poseTicks >= REACT_TICKS) {
             enter(Mode.IDLE);
         } else if (mode == Mode.IDLE && poseTicks >= IDLE_TICKS) {
-            enter(Mode.WALK);
+            boolean sit = shouldSit();
+            idleExits++;
+            enter(sit ? Mode.SIT : Mode.WALK);
+        } else if (mode == Mode.SIT && poseTicks >= SIT_TICKS) {
+            enter(shouldSleep() ? Mode.SLEEP : Mode.IDLE);
+        } else if (mode == Mode.SLEEP && poseTicks >= SLEEP_TICKS) {
+            enter(Mode.IDLE);
         } else if (mode == Mode.WALK && poseTicks >= WALK_TICKS) {
             enter(Mode.IDLE);
         }
@@ -93,7 +106,16 @@ public final class DesktopPetAnimation {
     }
 
     public void setCarried(boolean carried) {
+        if (carried && !this.carried) {
+            carriedTicks = 0;
+        }
         this.carried = carried;
+        if (!carried) {
+            enter(Mode.IDLE);
+            blinking = false;
+            blinkStep = 0;
+            blinkHold = 0;
+        }
         updateFrame();
     }
 
@@ -149,6 +171,15 @@ public final class DesktopPetAnimation {
     /** 0 blink_01、1 blink_02、2 blink_01、3 breath_01。 */
     public int miluBlinkStep() {
         return blinkStep;
+    }
+
+    /** 走路、揮手、拖曳共用的影格序號。每張約 150ms。 */
+    public int actionFrame(int count) {
+        if (count <= 1) {
+            return 0;
+        }
+        int ticks = carried ? carriedTicks : poseTicks;
+        return Math.floorMod(ticks / ACTION_HOLD_TICKS, count);
     }
 
     int ticksUntilBlink() {
@@ -212,8 +243,16 @@ public final class DesktopPetAnimation {
         }
     }
 
+    private boolean shouldSit() {
+        return idleExits >= 1 && random.nextInt(2) == 0;
+    }
+
+    private boolean shouldSleep() {
+        return random.nextInt(2) == 0;
+    }
+
     private void updateMilu() {
-        if (carried) {
+        if (carried || mode == Mode.WALK || mode == Mode.REACT) {
             blinking = false;
             blinkStep = 0;
             blinkHold = 0;

@@ -474,6 +474,7 @@ public final class DesktopPetWindow extends JFrame {
         private void paintSprite(Graphics2D g) {
             if (milu != null) {
                 int x = (getWidth() - DesktopPetSpriteLoader.DISPLAY) / 2;
+                // 左右走路各用自己的影格，不在這裡鏡像。
                 DesktopPetSpriteLoader.draw(
                         g, milu.imageFor(animation), x, BUBBLE_SLOT, DesktopPetSpriteLoader.DISPLAY);
                 return;

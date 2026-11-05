@@ -27,6 +27,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -109,7 +110,8 @@ public class DesktopPetTest {
         walker.tick();
         assertEquals(0, walker.stepX());
         walker.setCarried(false);
-        assertEquals(-DesktopPetAnimation.STEP, walker.stepX());
+        assertEquals(Mode.IDLE, walker.mode());
+        assertEquals(0, walker.stepX());
     }
 
     @Test
@@ -276,6 +278,94 @@ public class DesktopPetTest {
     }
 
     @Test
+    public void actionClipsKeepCleanFramesAndFallBackToIdle() throws Exception {
+        assertTrue(DesktopPetSpriteLoader.usable(
+                DesktopPetSpriteLoader.read("/pet/milu/idle/breath_01.png")));
+        String[] clean = {
+                "/pet/milu/walk/left_02.png",
+                "/pet/milu/walk/left_03.png",
+                "/pet/milu/walk/left_04.png",
+                "/pet/milu/walk/right_02.png",
+                "/pet/milu/walk/right_03.png",
+                "/pet/milu/walk/right_04.png",
+                "/pet/milu/wave/01.png",
+                "/pet/milu/wave/02.png",
+                "/pet/milu/wave/03.png"
+        };
+        String[] rejected = {
+                "/pet/milu/walk/left_01.png",
+                "/pet/milu/walk/right_01.png",
+                "/pet/milu/wave/04.png",
+                "/pet/milu/sit/01.png",
+                "/pet/milu/sit/02.png",
+                "/pet/milu/sit/blink_01.png",
+                "/pet/milu/sleep/01.png",
+                "/pet/milu/sleep/02.png",
+                "/pet/milu/drag/01.png",
+                "/pet/milu/drag/02.png"
+        };
+        for (String path : clean) {
+            assertTrue(path, DesktopPetSpriteLoader.usable(DesktopPetSpriteLoader.read(path)));
+        }
+        for (String path : rejected) {
+            assertFalse(path, DesktopPetSpriteLoader.usable(DesktopPetSpriteLoader.read(path)));
+        }
+
+        DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
+        assertNotNull(frames);
+        assertEquals(3, frames.walkLeftCount());
+        assertEquals(3, frames.walkRightCount());
+        assertEquals(3, frames.waveCount());
+        assertEquals(0, frames.sitCount());
+        assertEquals(0, frames.sleepCount());
+        assertEquals(0, frames.dragCount());
+        assertNotSame(frames.walkLeft(0), frames.walkRight(0));
+
+        DesktopPetAnimation walker = new DesktopPetAnimation(new Random(1));
+        walker.forceWalk(-1);
+        assertSame(frames.walkLeft(0), frames.imageFor(walker));
+        for (int i = 0; i < DesktopPetAnimation.ACTION_HOLD_TICKS; i++) {
+            walker.tick();
+        }
+        assertSame(frames.walkLeft(1), frames.imageFor(walker));
+        walker.forceWalk(1);
+        assertSame(frames.walkRight(0), frames.imageFor(walker));
+        walker.poke();
+        assertEquals(Mode.REACT, walker.mode());
+        assertSame(frames.wave(0), frames.imageFor(walker));
+
+        walker.setCarried(true);
+        assertTrue(isMiluIdle(frames, frames.imageFor(walker)));
+        walker.setCarried(false);
+        assertEquals(Mode.IDLE, walker.mode());
+        assertTrue(isMiluIdle(frames, frames.imageFor(walker)));
+
+        DesktopPetAnimation resting = new DesktopPetAnimation(new ZeroRandom());
+        for (int i = 0; i < DesktopPetAnimation.IDLE_TICKS; i++) {
+            resting.tick();
+        }
+        assertEquals(Mode.WALK, resting.mode());
+        for (int i = 0; i < DesktopPetAnimation.WALK_TICKS; i++) {
+            resting.tick();
+        }
+        assertEquals(Mode.IDLE, resting.mode());
+        for (int i = 0; i < DesktopPetAnimation.IDLE_TICKS; i++) {
+            resting.tick();
+        }
+        assertEquals(Mode.SIT, resting.mode());
+        assertEquals(0, resting.stepX());
+        assertTrue(isMiluIdle(frames, frames.imageFor(resting)));
+        for (int i = 0; i < DesktopPetAnimation.SIT_TICKS; i++) {
+            resting.tick();
+        }
+        assertEquals(Mode.SLEEP, resting.mode());
+        assertTrue(isMiluIdle(frames, frames.imageFor(resting)));
+        resting.poke();
+        assertEquals(Mode.REACT, resting.mode());
+        assertSame(frames.wave(0), frames.imageFor(resting));
+    }
+
+    @Test
     public void headlessEnableRemembersTheChoiceWithoutAWindow() {
         Assume.assumeTrue("this assertion is the headless fallback", GraphicsEnvironment.isHeadless());
         MemoryPreferences prefs = new MemoryPreferences();
@@ -340,7 +430,7 @@ public class DesktopPetTest {
                 pet.tickOnce();
                 assertEquals(area.x, pet.getX());
                 assertTrue(pet.animation().facingRight());
-                assertTrue(isMiluIdle(frames, pet.currentImage()));
+                assertSame(frames.walkRight(0), pet.currentImage());
 
                 Point origin = pet.getLocationOnScreen();
                 pet.stage().dispatchEvent(mouse(
@@ -354,6 +444,8 @@ public class DesktopPetTest {
                         0, 1, MouseEvent.BUTTON1));
                 assertNull(pet.animation().bubble());
                 assertTrue(pet.getX() > area.x);
+                assertEquals(Mode.IDLE, pet.animation().mode());
+                assertTrue(isMiluIdle(frames, pet.currentImage()));
 
                 int parked = pet.getX();
                 pet.stage().dispatchEvent(mouse(
@@ -364,7 +456,7 @@ public class DesktopPetTest {
                         pet.getLocationOnScreen().y + 16, 0, 1, MouseEvent.BUTTON1));
                 assertEquals("嗨", pet.animation().bubble());
                 assertTrue(pet.usingMilu());
-                assertTrue(isMiluIdle(frames, pet.currentImage()));
+                assertSame(frames.wave(0), pet.currentImage());
                 pet.tickOnce();
                 assertEquals(parked, pet.getX());
 
@@ -435,6 +527,13 @@ public class DesktopPetTest {
         return new MouseEvent(
                 source, id, System.currentTimeMillis(), modifiers,
                 x, y, xAbs, yAbs, clickCount, false, button);
+    }
+
+    private static final class ZeroRandom extends Random {
+        @Override
+        public int nextInt(int bound) {
+            return 0;
+        }
     }
 
     /** 測試用的記憶體 {@link java.util.prefs.Preferences}，不寫進使用者的偏好檔。 */
