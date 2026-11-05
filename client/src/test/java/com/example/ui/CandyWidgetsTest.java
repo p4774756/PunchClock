@@ -43,6 +43,26 @@ public class CandyWidgetsTest {
     }
 
     @Test
+    public void switchKeepsSelectionAndClick() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            CandySwitch toggle = new CandySwitch();
+            int[] events = {0};
+            toggle.addActionListener(event -> events[0]++);
+            assertFalse(toggle.isSelected());
+            toggle.doClick();
+            assertTrue(toggle.isSelected());
+            assertEquals(1, events[0]);
+            toggle.doClick();
+            assertFalse(toggle.isSelected());
+            assertEquals(2, events[0]);
+            toggle.setEnabled(false);
+            toggle.doClick();
+            assertFalse(toggle.isSelected());
+            assertTrue(toggle.getUI().getClass().getName().contains("CandySwitch"));
+        });
+    }
+
+    @Test
     public void comboKeepsModelAfterThemeApply() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             JComboBox<String> hours = new JComboBox<>(new String[] {"00", "01", "13"});

@@ -9,6 +9,8 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 
 /**
@@ -26,7 +28,7 @@ public class PanelFactory {
     // ==================== 分組 1: 設定 ====================
 
     /**
-     * 設定頁的兩個子分頁：連線（雲端連線與程式更新）、中繼。
+     * 設定頁的子分頁：連線（雲端連線與程式更新）、外觀、中繼。
      * 呼叫端需透過 refs 取得元件引用。
      */
     public static JTabbedPane createServerConfigBody(ServerConfigRefs refs, Font mainFont, Font boldFont, Font fieldFont) {
@@ -98,11 +100,12 @@ public class PanelFactory {
                 settingsSection("雲端連線", boldFont, cloud),
                 settingsSection("程式更新", boldFont, updates)));
         tabs.addTab("外觀", settingsPage(
-                settingsSection("程式背景", boldFont, backgroundRow(refs, mainFont, boldFont))));
+                settingsSection("程式背景", boldFont, backgroundRow(refs, mainFont, boldFont)),
+                settingsSection("桌面寵物", boldFont, desktopPetRow(refs, mainFont, boldFont))));
         tabs.addTab("中繼", settingsPage(
                 settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont))));
         tabs.setToolTipTextAt(SETTINGS_CONNECTION_TAB, "雲端連線與程式更新");
-        tabs.setToolTipTextAt(1, "程式背景圖、模糊與透明度");
+        tabs.setToolTipTextAt(1, "程式背景、桌面寵物、模糊與透明度");
         tabs.setToolTipTextAt(2, "讓區網內的同事經由這台電腦連到雲端");
         tabs.setSelectedIndex(SETTINGS_CONNECTION_TAB);
         return tabs;
@@ -259,6 +262,48 @@ public class PanelFactory {
         return column;
     }
 
+    private static JPanel desktopPetRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
+        refs.desktopPetSwitch = new CandySwitch();
+        refs.desktopPetSwitch.setFont(boldFont);
+        refs.desktopPetSwitch.getAccessibleContext().setAccessibleName("桌面寵物");
+        String tip = "開啟後在桌面顯示小角色。主視窗最小化時仍會留下；關閉程式時一起結束。";
+        refs.desktopPetSwitch.setToolTipText(tip);
+
+        JLabel title = new JLabel("桌面寵物");
+        title.setFont(boldFont);
+        title.setLabelFor(refs.desktopPetSwitch);
+        title.setToolTipText(tip);
+        title.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        title.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (refs.desktopPetSwitch.isEnabled()) {
+                    refs.desktopPetSwitch.doClick();
+                }
+            }
+        });
+
+        JLabel hint = new JLabel("可拖曳移動，點一下會打招呼。主視窗最小化時仍會留在桌面。");
+        hint.setFont(mainFont);
+        hint.setForeground(NightTheme.MUTED);
+
+        JPanel line = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        line.setOpaque(false);
+        line.add(refs.desktopPetSwitch);
+        line.add(title);
+
+        JPanel column = new JPanel();
+        column.setOpaque(false);
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+        column.setAlignmentX(Component.LEFT_ALIGNMENT);
+        line.setAlignmentX(Component.LEFT_ALIGNMENT);
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        column.add(line);
+        column.add(Box.createVerticalStrut(4));
+        column.add(hint);
+        return column;
+    }
+
     private static JPanel sliderRow(Font font, String title, JSlider slider, JLabel valueLabel) {
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         row.setOpaque(false);
@@ -317,6 +362,7 @@ public class PanelFactory {
         public JLabel backgroundBlurValueLabel;
         public JSlider backgroundOpacitySlider;
         public JLabel backgroundOpacityValueLabel;
+        public JToggleButton desktopPetSwitch;
         // 中繼 Proxy
         public JCheckBox relayEnabledCheckBox;
         public JSpinner relayPortSpinner;

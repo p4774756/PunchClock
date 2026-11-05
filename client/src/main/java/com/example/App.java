@@ -17,6 +17,7 @@ import com.example.service.TaskPersistenceService;
 import com.example.service.TransferCancel;
 import com.example.service.TransferIo;
 import com.example.service.WindowBackground;
+import com.example.pet.DesktopPetManager;
 import com.example.ui.FileTransferDialog;
 import com.example.ui.MarqueeBar;
 import com.example.ui.PeerChatWindow;
@@ -105,6 +106,7 @@ public class App extends JFrame {
     private String cachedAvatarEncoded = "";
     private BufferedImage cachedAvatar;
     private WindowChrome.Controls windowChrome;
+    private DesktopPetManager desktopPetManager;
     private boolean loggedOpacityUnsupported;
     private ClientUpdateCoordinator updateCoordinator;
     /** 使用者按過「否」的桌面端原始碼摘要。 */
@@ -306,7 +308,7 @@ public class App extends JFrame {
         tabs.setOpaque(false);
         tabs.setBackground(new Color(0, 0, 0, 0));
         tabs.setToolTipTextAt(0, "設定目標網址、時間，立即測試");
-        tabs.setToolTipTextAt(1, "雲端連線、程式更新、背景圖與中繼 Proxy");
+        tabs.setToolTipTextAt(1, "雲端連線、程式更新、背景、桌面寵物與中繼 Proxy");
         tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案／資料夾與傳檔狀態");
         tabs.setToolTipTextAt(3, "查看與清除系統日誌");
         AnimeShell.hideTabStrip(tabs);
@@ -1741,6 +1743,7 @@ public class App extends JFrame {
         }
 
         bindRelayProxyListeners();
+        bindDesktopPet();
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -1752,6 +1755,9 @@ public class App extends JFrame {
 
             @Override
             public void windowClosing(WindowEvent e) {
+                if (desktopPetManager != null) {
+                    desktopPetManager.shutdown();
+                }
                 saveCloudConfig();
                 if (slotController != null) {
                     slotController.persistTasks();
@@ -1765,6 +1771,31 @@ public class App extends JFrame {
                 automationService.shutdown();
             }
         });
+    }
+
+    private void bindDesktopPet() {
+        if (serverRefs.desktopPetSwitch == null) {
+            return;
+        }
+        try {
+            desktopPetManager = new DesktopPetManager();
+        } catch (RuntimeException ex) {
+            appendLog("[設定] 無法讀取桌面寵物設定");
+            return;
+        }
+        serverRefs.desktopPetSwitch.setSelected(desktopPetManager.savedEnabled());
+        serverRefs.desktopPetSwitch.addActionListener(e -> {
+            boolean on = serverRefs.desktopPetSwitch.isSelected();
+            boolean applied = desktopPetManager.setEnabled(on);
+            if (on && !applied) {
+                appendLog("[設定] 這個環境無法顯示桌面寵物");
+                return;
+            }
+            appendLog(on ? "[設定] 已開啟桌面寵物" : "[設定] 已關閉桌面寵物");
+        });
+        if (serverRefs.desktopPetSwitch.isSelected()) {
+            desktopPetManager.setEnabled(true);
+        }
     }
 
     private void bindRelayProxyListeners() {
