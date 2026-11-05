@@ -282,25 +282,25 @@ public class DesktopPetTest {
         assertTrue(DesktopPetSpriteLoader.usable(
                 DesktopPetSpriteLoader.read("/pet/milu/idle/breath_01.png")));
         String[] clean = {
+                "/pet/milu/walk/left_01.png",
                 "/pet/milu/walk/left_02.png",
                 "/pet/milu/walk/left_03.png",
                 "/pet/milu/walk/left_04.png",
+                "/pet/milu/walk/right_01.png",
                 "/pet/milu/walk/right_02.png",
                 "/pet/milu/walk/right_03.png",
                 "/pet/milu/walk/right_04.png",
                 "/pet/milu/wave/01.png",
                 "/pet/milu/wave/02.png",
-                "/pet/milu/wave/03.png"
-        };
-        String[] rejected = {
-                "/pet/milu/walk/left_01.png",
-                "/pet/milu/walk/right_01.png",
+                "/pet/milu/wave/03.png",
                 "/pet/milu/wave/04.png",
                 "/pet/milu/sit/01.png",
                 "/pet/milu/sit/02.png",
                 "/pet/milu/sit/blink_01.png",
                 "/pet/milu/sleep/01.png",
-                "/pet/milu/sleep/02.png",
+                "/pet/milu/sleep/02.png"
+        };
+        String[] rejected = {
                 "/pet/milu/drag/01.png",
                 "/pet/milu/drag/02.png"
         };
@@ -313,11 +313,11 @@ public class DesktopPetTest {
 
         DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
         assertNotNull(frames);
-        assertEquals(3, frames.walkLeftCount());
-        assertEquals(3, frames.walkRightCount());
-        assertEquals(3, frames.waveCount());
-        assertEquals(0, frames.sitCount());
-        assertEquals(0, frames.sleepCount());
+        assertEquals(4, frames.walkLeftCount());
+        assertEquals(4, frames.walkRightCount());
+        assertEquals(4, frames.waveCount());
+        assertEquals(3, frames.sitCount());
+        assertEquals(2, frames.sleepCount());
         assertEquals(0, frames.dragCount());
         assertNotSame(frames.walkLeft(0), frames.walkRight(0));
 
@@ -354,15 +354,75 @@ public class DesktopPetTest {
         }
         assertEquals(Mode.SIT, resting.mode());
         assertEquals(0, resting.stepX());
-        assertTrue(isMiluIdle(frames, frames.imageFor(resting)));
+        assertSame(frames.sit(0), frames.imageFor(resting));
         for (int i = 0; i < DesktopPetAnimation.SIT_TICKS; i++) {
             resting.tick();
         }
         assertEquals(Mode.SLEEP, resting.mode());
-        assertTrue(isMiluIdle(frames, frames.imageFor(resting)));
+        assertSame(frames.sleep(0), frames.imageFor(resting));
         resting.poke();
         assertEquals(Mode.REACT, resting.mode());
         assertSame(frames.wave(0), frames.imageFor(resting));
+    }
+
+    @Test
+    public void anchorsKeepTheBodyOnOneGroundPoint() {
+        DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
+        assertNotNull(frames);
+        int leftMin = Integer.MAX_VALUE;
+        int leftMax = Integer.MIN_VALUE;
+        int sitShift = 0;
+        for (DesktopPetSpriteLoader.Sprite sprite : frames.allSprites()) {
+            assertEquals(sprite.name, DesktopPetSpriteLoader.ANCHOR_X, sprite.placedX());
+            assertEquals(sprite.name, DesktopPetSpriteLoader.ANCHOR_Y, sprite.placedY());
+            if (sprite.name.startsWith("idle/")) {
+                assertTrue(sprite.name, Math.abs(sprite.offsetX) <= 6);
+                assertEquals(sprite.name, 0, sprite.offsetY);
+            }
+            if (sprite.name.startsWith("walk/left_")) {
+                leftMin = Math.min(leftMin, sprite.offsetX);
+                leftMax = Math.max(leftMax, sprite.offsetX);
+            }
+            if (sprite.name.startsWith("sit/")) {
+                assertTrue(sprite.name, sprite.offsetY >= 30);
+                sitShift++;
+            }
+            if (sprite.name.startsWith("sleep/")) {
+                assertTrue(sprite.name, Math.abs(sprite.offsetX) <= 24);
+                assertTrue(sprite.name, sprite.offsetY >= 30);
+            }
+        }
+        assertTrue(leftMax - leftMin >= 20);
+        assertEquals(3, sitShift);
+
+        DesktopPetAnimation idle = new DesktopPetAnimation(new Random(2));
+        int home = frames.spriteFor(idle).placedX();
+        for (int i = 0; i < 600; i++) {
+            idle.tick();
+            if (idle.mode() != Mode.IDLE) {
+                break;
+            }
+            assertEquals(home, frames.spriteFor(idle).placedX());
+            assertEquals(0, idle.stepX());
+        }
+
+        DesktopPetAnimation walker = new DesktopPetAnimation(new Random(1));
+        walker.forceWalk(-1);
+        int steps = 0;
+        for (int i = 0; i < 4 * 10 * DesktopPetAnimation.ACTION_HOLD_TICKS; i++) {
+            assertEquals(DesktopPetSpriteLoader.ANCHOR_X, frames.spriteFor(walker).placedX());
+            steps += walker.stepX();
+            walker.tick();
+        }
+        assertTrue(steps < 0);
+        walker.forceWalk(1);
+        steps = 0;
+        for (int i = 0; i < 4 * 10 * DesktopPetAnimation.ACTION_HOLD_TICKS; i++) {
+            assertEquals(DesktopPetSpriteLoader.ANCHOR_X, frames.spriteFor(walker).placedX());
+            steps += walker.stepX();
+            walker.tick();
+        }
+        assertTrue(steps > 0);
     }
 
     @Test

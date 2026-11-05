@@ -21,6 +21,36 @@ public final class DesktopPetSpriteLoader {
     public static final int SOURCE = 400;
     public static final double SCALE = 0.5;
     public static final int DISPLAY = 200;
+    /** 畫布上的固定錨點：軀幹水平中心、站立腳底。 */
+    public static final int ANCHOR_X = 200;
+    public static final int ANCHOR_Y = 359;
+
+    /** 一張已對齊的影格。offset 是畫進固定畫布前的源像素修正，不是視窗位移。 */
+    public static final class Sprite {
+        public final BufferedImage image;
+        public final String name;
+        public final int offsetX;
+        public final int offsetY;
+        public final int anchorX;
+        public final int anchorY;
+
+        Sprite(BufferedImage image, String name, int offsetX, int offsetY, int anchorX, int anchorY) {
+            this.image = image;
+            this.name = name;
+            this.offsetX = offsetX;
+            this.offsetY = offsetY;
+            this.anchorX = anchorX;
+            this.anchorY = anchorY;
+        }
+
+        public int placedX() {
+            return anchorX + offsetX;
+        }
+
+        public int placedY() {
+            return anchorY + offsetY;
+        }
+    }
 
     private static final String[] BREATH = {
             "/pet/milu/idle/breath_01.png",
@@ -66,19 +96,19 @@ public final class DesktopPetSpriteLoader {
     }
 
     public static final class Frames {
-        private final BufferedImage[] breath;
-        private final BufferedImage blink1;
-        private final BufferedImage blink2;
-        private final BufferedImage[] walkLeft;
-        private final BufferedImage[] walkRight;
-        private final BufferedImage[] wave;
-        private final BufferedImage[] sit;
-        private final BufferedImage[] sleep;
-        private final BufferedImage[] drag;
+        private final Sprite[] breath;
+        private final Sprite blink1;
+        private final Sprite blink2;
+        private final Sprite[] walkLeft;
+        private final Sprite[] walkRight;
+        private final Sprite[] wave;
+        private final Sprite[] sit;
+        private final Sprite[] sleep;
+        private final Sprite[] drag;
 
-        Frames(BufferedImage[] breath, BufferedImage blink1, BufferedImage blink2,
-                BufferedImage[] walkLeft, BufferedImage[] walkRight, BufferedImage[] wave,
-                BufferedImage[] sit, BufferedImage[] sleep, BufferedImage[] drag) {
+        Frames(Sprite[] breath, Sprite blink1, Sprite blink2,
+                Sprite[] walkLeft, Sprite[] walkRight, Sprite[] wave,
+                Sprite[] sit, Sprite[] sleep, Sprite[] drag) {
             this.breath = breath;
             this.blink1 = blink1;
             this.blink2 = blink2;
@@ -91,15 +121,15 @@ public final class DesktopPetSpriteLoader {
         }
 
         public BufferedImage breath(int index) {
-            return breath[Math.floorMod(index, breath.length)];
+            return breath[Math.floorMod(index, breath.length)].image;
         }
 
         public BufferedImage blink1() {
-            return blink1;
+            return blink1.image;
         }
 
         public BufferedImage blink2() {
-            return blink2;
+            return blink2.image;
         }
 
         public int walkLeftCount() {
@@ -127,15 +157,69 @@ public final class DesktopPetSpriteLoader {
         }
 
         public BufferedImage walkLeft(int index) {
-            return walkLeft[Math.floorMod(index, walkLeft.length)];
+            return walkLeft[Math.floorMod(index, walkLeft.length)].image;
         }
 
         public BufferedImage walkRight(int index) {
-            return walkRight[Math.floorMod(index, walkRight.length)];
+            return walkRight[Math.floorMod(index, walkRight.length)].image;
         }
 
         public BufferedImage wave(int index) {
-            return wave[Math.floorMod(index, wave.length)];
+            return wave[Math.floorMod(index, wave.length)].image;
+        }
+
+        public BufferedImage sit(int index) {
+            return sit[Math.floorMod(index, sit.length)].image;
+        }
+
+        public BufferedImage sleep(int index) {
+            return sleep[Math.floorMod(index, sleep.length)].image;
+        }
+
+        public Sprite spriteFor(DesktopPetAnimation animation) {
+            if (animation.isCarried()) {
+                return clipOrIdleSprite(drag, animation);
+            }
+            DesktopPetAnimation.Mode mode = animation.mode();
+            if (mode == DesktopPetAnimation.Mode.REACT) {
+                return clipOrIdleSprite(wave, animation);
+            }
+            if (mode == DesktopPetAnimation.Mode.WALK) {
+                Sprite[] side = animation.facingRight() ? walkRight : walkLeft;
+                return clipOrIdleSprite(side, animation);
+            }
+            if (mode == DesktopPetAnimation.Mode.SIT) {
+                return clipOrIdleSprite(sit, animation);
+            }
+            if (mode == DesktopPetAnimation.Mode.SLEEP) {
+                return clipOrIdleSprite(sleep, animation);
+            }
+            return idleSprite(animation);
+        }
+
+        Sprite[] allSprites() {
+            List<Sprite> all = new ArrayList<Sprite>();
+            for (Sprite sprite : breath) {
+                all.add(sprite);
+            }
+            all.add(blink1);
+            all.add(blink2);
+            addAll(all, walkLeft);
+            addAll(all, walkRight);
+            addAll(all, wave);
+            addAll(all, sit);
+            addAll(all, sleep);
+            addAll(all, drag);
+            return all.toArray(new Sprite[0]);
+        }
+
+        private static void addAll(List<Sprite> all, Sprite[] sprites) {
+            if (sprites == null) {
+                return;
+            }
+            for (Sprite sprite : sprites) {
+                all.add(sprite);
+            }
         }
 
         /**
@@ -143,34 +227,17 @@ public final class DesktopPetSpriteLoader {
          * 該動作沒有合格影格時，改畫待機呼吸或眨眼。
          */
         BufferedImage imageFor(DesktopPetAnimation animation) {
-            if (animation.isCarried()) {
-                return clipOrIdle(drag, animation);
-            }
-            DesktopPetAnimation.Mode mode = animation.mode();
-            if (mode == DesktopPetAnimation.Mode.REACT) {
-                return clipOrIdle(wave, animation);
-            }
-            if (mode == DesktopPetAnimation.Mode.WALK) {
-                BufferedImage[] side = animation.facingRight() ? walkRight : walkLeft;
-                return clipOrIdle(side, animation);
-            }
-            if (mode == DesktopPetAnimation.Mode.SIT) {
-                return clipOrIdle(sit, animation);
-            }
-            if (mode == DesktopPetAnimation.Mode.SLEEP) {
-                return clipOrIdle(sleep, animation);
-            }
-            return idleImage(animation);
+            return spriteFor(animation).image;
         }
 
-        private BufferedImage clipOrIdle(BufferedImage[] clip, DesktopPetAnimation animation) {
+        private Sprite clipOrIdleSprite(Sprite[] clip, DesktopPetAnimation animation) {
             if (clip == null || clip.length == 0) {
-                return idleImage(animation);
+                return idleSprite(animation);
             }
             return clip[animation.actionFrame(clip.length)];
         }
 
-        private BufferedImage idleImage(DesktopPetAnimation animation) {
+        private Sprite idleSprite(DesktopPetAnimation animation) {
             if (animation.miluBlinking()) {
                 int step = animation.miluBlinkStep();
                 if (step == 1) {
@@ -181,13 +248,13 @@ public final class DesktopPetSpriteLoader {
                 }
                 return blink1;
             }
-            return breath(animation.miluBreathIndex());
+            return breath[Math.floorMod(animation.miluBreathIndex(), breath.length)];
         }
 
         void flush() {
             flushAll(breath);
-            blink1.flush();
-            blink2.flush();
+            blink1.image.flush();
+            blink2.image.flush();
             flushAll(walkLeft);
             flushAll(walkRight);
             flushAll(wave);
@@ -196,13 +263,13 @@ public final class DesktopPetSpriteLoader {
             flushAll(drag);
         }
 
-        private static void flushAll(BufferedImage[] images) {
-            if (images == null) {
+        private static void flushAll(Sprite[] sprites) {
+            if (sprites == null) {
                 return;
             }
-            for (BufferedImage image : images) {
-                if (image != null) {
-                    image.flush();
+            for (Sprite sprite : sprites) {
+                if (sprite != null && sprite.image != null) {
+                    sprite.image.flush();
                 }
             }
         }
@@ -211,13 +278,13 @@ public final class DesktopPetSpriteLoader {
     /** 可在背景執行緒呼叫。失敗時回傳 null。 */
     public static Frames load() {
         try {
-            BufferedImage[] breath = new BufferedImage[BREATH.length];
+            Sprite[] breath = new Sprite[BREATH.length];
             for (int i = 0; i < BREATH.length; i++) {
                 BufferedImage image = read(BREATH[i]);
                 if (!acceptable(image)) {
                     return null;
                 }
-                breath[i] = defringe(image);
+                breath[i] = place(BREATH[i], defringe(image));
             }
             BufferedImage blink1 = read(BLINK_1);
             BufferedImage blink2 = read(BLINK_2);
@@ -226,8 +293,8 @@ public final class DesktopPetSpriteLoader {
             }
             return new Frames(
                     breath,
-                    defringe(blink1),
-                    defringe(blink2),
+                    place(BLINK_1, defringe(blink1)),
+                    place(BLINK_2, defringe(blink2)),
                     loadOptional(WALK_LEFT),
                     loadOptional(WALK_RIGHT),
                     loadOptional(WAVE),
@@ -239,19 +306,76 @@ public final class DesktopPetSpriteLoader {
         }
     }
 
-    private static BufferedImage[] loadOptional(String[] paths) {
-        List<BufferedImage> accepted = new ArrayList<BufferedImage>();
+    private static Sprite[] loadOptional(String[] paths) {
+        List<Sprite> accepted = new ArrayList<Sprite>();
         for (String path : paths) {
             try {
                 BufferedImage image = read(path);
                 if (usable(image)) {
-                    accepted.add(defringe(image));
+                    accepted.add(place(path, defringe(image)));
                 }
             } catch (IOException ex) {
                 // 單張讀取失敗就略過，其他動作照常。
             }
         }
-        return accepted.toArray(new BufferedImage[0]);
+        return accepted.toArray(new Sprite[0]);
+    }
+
+    private static Sprite place(String path, BufferedImage image) {
+        int[] anchor = measureAnchor(image);
+        String name = path;
+        String prefix = "/pet/milu/";
+        if (name.startsWith(prefix)) {
+            name = name.substring(prefix.length());
+        }
+        if (name.endsWith(".png")) {
+            name = name.substring(0, name.length() - 4);
+        }
+        return new Sprite(
+                image,
+                name,
+                ANCHOR_X - anchor[0],
+                ANCHOR_Y - anchor[1],
+                anchor[0],
+                anchor[1]);
+    }
+
+    /**
+     * 站立、揮手、坐下量胸口水平中心與腳底。
+     * 趴睡的身體是橫的，改量貼地那一段的中心，避免把頭部當成軀幹。
+     */
+    static int[] measureAnchor(BufferedImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        int footY = height - 1;
+        for (int y = height - 1; y >= 0; y--) {
+            int run = 0;
+            for (int x = 0; x < width; x++) {
+                if (alphaAt(image, x, y) > 40) {
+                    run++;
+                }
+            }
+            if (run >= 8) {
+                footY = y;
+                break;
+            }
+        }
+        int[] box = contentBounds(image);
+        boolean lying = box[2] >= box[0] && (box[2] - box[0]) > (box[3] - box[1]);
+        int y0 = lying ? Math.max(0, footY - 20) : Math.max(0, footY - 190);
+        int y1 = lying ? footY : Math.max(0, footY - 150);
+        long sum = 0;
+        int count = 0;
+        for (int y = y0; y <= y1; y++) {
+            for (int x = 0; x < width; x++) {
+                if (alphaAt(image, x, y) > 48) {
+                    sum += x;
+                    count++;
+                }
+            }
+        }
+        int anchorX = count == 0 ? ANCHOR_X : (int) Math.round(sum / (double) count);
+        return new int[] {anchorX, footY};
     }
 
     public static void loadAsync(Consumer<Frames> onEdt) {
@@ -424,12 +548,17 @@ public final class DesktopPetSpriteLoader {
     }
 
     static void draw(Graphics2D g, BufferedImage image, int x, int y, int size) {
+        draw(g, image, x, y, size, 0, 0);
+    }
+
+    static void draw(Graphics2D g, BufferedImage image, int x, int y, int size, int offsetX, int offsetY) {
         Graphics2D copy = (Graphics2D) g.create();
         try {
             copy.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
             copy.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
             copy.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION,
                     RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+            copy.translate(offsetX * SCALE, offsetY * SCALE);
             copy.drawImage(image, x, y, size, size, null);
         } finally {
             copy.dispose();

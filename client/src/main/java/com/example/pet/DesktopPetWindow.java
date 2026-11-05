@@ -57,6 +57,7 @@ public final class DesktopPetWindow extends JFrame {
     private DesktopPetSpriteLoader.Frames milu;
     private boolean miluFailed;
     private boolean retired;
+    private boolean debug = Boolean.getBoolean("punchclock.pet.debug");
 
     private Point pressScreen;
     private Point grabOffset;
@@ -148,6 +149,17 @@ public final class DesktopPetWindow extends JFrame {
             return null;
         }
         return milu.imageFor(animation);
+    }
+
+    boolean isDebug() {
+        return debug;
+    }
+
+    /** 右鍵也會切換。預設關閉。 */
+    void setDebug(boolean debug) {
+        requireEdt();
+        this.debug = debug;
+        repaint();
     }
 
     private void acceptFrames(DesktopPetSpriteLoader.Frames frames) {
@@ -282,6 +294,11 @@ public final class DesktopPetWindow extends JFrame {
         return new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    debug = !debug;
+                    repaint();
+                    return;
+                }
                 if (!SwingUtilities.isLeftMouseButton(e)) {
                     return;
                 }
@@ -458,6 +475,9 @@ public final class DesktopPetWindow extends JFrame {
                     paintSprite(g);
                 }
                 paintBubble(g);
+                if (debug && milu != null) {
+                    paintDebug(g);
+                }
             } finally {
                 g.dispose();
             }
@@ -474,9 +494,16 @@ public final class DesktopPetWindow extends JFrame {
         private void paintSprite(Graphics2D g) {
             if (milu != null) {
                 int x = (getWidth() - DesktopPetSpriteLoader.DISPLAY) / 2;
-                // 左右走路各用自己的影格，不在這裡鏡像。
+                DesktopPetSpriteLoader.Sprite spriteFrame = milu.spriteFor(animation);
+                // 左右走路各用自己的影格，不在這裡鏡像。錨點修正只挪圖片，不改視窗座標。
                 DesktopPetSpriteLoader.draw(
-                        g, milu.imageFor(animation), x, BUBBLE_SLOT, DesktopPetSpriteLoader.DISPLAY);
+                        g,
+                        spriteFrame.image,
+                        x,
+                        BUBBLE_SLOT,
+                        DesktopPetSpriteLoader.DISPLAY,
+                        spriteFrame.offsetX,
+                        spriteFrame.offsetY);
                 return;
             }
             int sw = sprite.frameWidth() * SCALE;
@@ -529,6 +556,45 @@ public final class DesktopPetWindow extends JFrame {
                     3);
             g.setColor(CandyTheme.PINK_INK);
             g.drawString(fitted, bx + 8, by + metrics.getAscent() + 4);
+        }
+
+        private void paintDebug(Graphics2D g) {
+            DesktopPetSpriteLoader.Sprite placed = milu.spriteFor(animation);
+            int centerX = (getWidth() - DesktopPetSpriteLoader.DISPLAY) / 2
+                    + (int) Math.round(DesktopPetSpriteLoader.ANCHOR_X * DesktopPetSpriteLoader.SCALE);
+            int groundY = BUBBLE_SLOT
+                    + (int) Math.round(DesktopPetSpriteLoader.ANCHOR_Y * DesktopPetSpriteLoader.SCALE);
+            g.setColor(new Color(255, 64, 96, 220));
+            g.drawLine(centerX, 0, centerX, getHeight());
+            g.drawLine(0, groundY, getWidth(), groundY);
+            g.fillRect(2, 2, 3, 3);
+            String mode = animation.isCarried() ? "拖曳" : modeName(animation.mode());
+            String text = mode + "  " + placed.name
+                    + "  offset " + placed.offsetX + "," + placed.offsetY
+                    + "  視窗 " + DesktopPetWindow.this.getX() + "," + DesktopPetWindow.this.getY();
+            g.setFont(UiFonts.chinesePlain(11));
+            FontMetrics metrics = g.getFontMetrics();
+            int boxW = Math.min(getWidth() - 8, metrics.stringWidth(text) + 8);
+            g.setColor(new Color(20, 16, 28, 210));
+            g.fillRoundRect(4, 8, boxW, metrics.getHeight() + 4, 6, 6);
+            g.setColor(Color.WHITE);
+            g.drawString(text, 8, 8 + metrics.getAscent() + 1);
+        }
+
+        private static String modeName(DesktopPetAnimation.Mode mode) {
+            if (mode == DesktopPetAnimation.Mode.WALK) {
+                return "走路";
+            }
+            if (mode == DesktopPetAnimation.Mode.REACT) {
+                return "揮手";
+            }
+            if (mode == DesktopPetAnimation.Mode.SIT) {
+                return "坐下";
+            }
+            if (mode == DesktopPetAnimation.Mode.SLEEP) {
+                return "睡覺";
+            }
+            return "待機";
         }
     }
 }
