@@ -1328,36 +1328,73 @@ public class App extends JFrame {
     private void showPeerRelayOffer(String fromId, String relayId, String filename, long size,
                                     boolean folder, Long sentAtMs) {
         String timeLabel = formatPeerMessageTime(sentAtMs);
-        String safeName = PeerFileRules.sanitizeFilename(filename);
-        if (safeName.isEmpty()) {
-            safeName = "download";
-        }
+        String sanitized = PeerFileRules.sanitizeFilename(filename);
+        String safeName = sanitized.isEmpty() ? "download" : sanitized;
         String sizeLabel = PeerFileRules.formatSize(Math.max(0, size));
         appendLog("[檔案] （" + timeLabel + "）【" + fromId + "】要直傳「" + safeName + "」（" + sizeLabel + "）");
         chatNote(fromId, "對方要直傳「" + safeName + "」（" + sizeLabel + "）");
         Toolkit.getDefaultToolkit().beep();
         PeerChatWindow window = focusChat(fromId);
-        int choice = UiFonts.showConfirm(
+        notifyPet(DesktopPetEvent.FILE_OFFERED, () -> openPetChat(fromId));
+        UiFonts.showModelessConfirm(
                 window,
                 timeLabel + "\n\n【" + fromId + "】要直接傳" + (folder ? "資料夾（ZIP）" : "檔案") + "給你：\n"
                         + safeName + "（" + sizeLabel + "）\n\n"
                         + "雙方需保持在線直到傳完。\n"
                         + "請在 " + PeerFileRules.RELAY_ACCEPT_TIMEOUT_LABEL + " 內決定，要接收嗎？",
                 "同事直傳檔案 · " + fromId,
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE);
-        if (choice != JOptionPane.YES_OPTION) {
-            heartbeatService.declinePeerRelay(relayId, this::appendLog);
-            appendLog("[檔案] 已拒收「" + safeName + "」");
-            return;
-        }
-        Path dest = choosePeerSavePath(safeName, "儲存同事直傳的檔案", window);
-        if (dest == null) {
-            heartbeatService.declinePeerRelay(relayId, this::appendLog);
-            return;
-        }
+                "接收",
+                "拒收",
+                () -> pickRelaySavePath(fromId, relayId, safeName, window),
+                () -> {
+                    declineRelay(relayId);
+                    appendLog("[檔案] 已拒收「" + safeName + "」");
+                });
+    }
+
+    private void declineRelay(String relayId) {
+        heartbeatService.declinePeerRelay(relayId, this::appendLog);
+    }
+
+    /** 選儲存位置不佔住畫面，喵露可以繼續動。 */
+    private void pickRelaySavePath(String fromId, String relayId, String safeName, Component dialogParent) {
+        JFileChooser chooser = UiFonts.fileChooser();
+        chooser.setDialogTitle("儲存同事直傳的檔案");
+        Path downloadDir = PeerFileRules.defaultDownloadDirectory();
+        chooser.setCurrentDirectory(downloadDir.toFile());
+        chooser.setSelectedFile(downloadDir.resolve(safeName).toFile());
+        UiFonts.showModelessSave(dialogParent, chooser, file -> {
+            if (file == null) {
+                declineRelay(relayId);
+                appendLog("[檔案] 已取消儲存「" + safeName + "」");
+                return;
+            }
+            Path dest = PeerFileRules.resolveSavePath(file.toPath(), safeName);
+            if (Files.exists(dest)) {
+                UiFonts.showModelessConfirm(
+                        dialogParent,
+                        "檔案已存在，要覆蓋嗎？\n" + dest.toAbsolutePath(),
+                        "儲存檔案",
+                        "覆蓋",
+                        "取消",
+                        () -> startRelayReceive(fromId, relayId, safeName, dest, dialogParent),
+                        () -> {
+                            declineRelay(relayId);
+                            appendLog("[檔案] 已取消覆蓋「" + dest.getFileName() + "」");
+                        });
+                return;
+            }
+            startRelayReceive(fromId, relayId, safeName, dest, dialogParent);
+        }, () -> {
+            declineRelay(relayId);
+            appendLog("[檔案] 已取消儲存「" + safeName + "」");
+        });
+    }
+
+    private void startRelayReceive(
+            String fromId, String relayId, String safeName, Path dest, Component dialogParent) {
         StringBuilder failDetail = new StringBuilder();
-        TransferProgressDialog progress = TransferProgressDialog.open(window, "接收直傳");
+        TransferProgressDialog progress = TransferProgressDialog.open(dialogParent, "接收直傳");
         TransferCancel cancel = new TransferCancel();
         progress.setOnCancel(cancel::cancel);
         progress.setPreparing("正在連線，等待【" + fromId + "】送出「" + safeName + "」…");
@@ -1373,49 +1410,20 @@ public class App extends JFrame {
                     if (ok) {
                         celebrateTransfer();
                         notifyPet(DesktopPetEvent.FILE_RECEIVED, () -> openPetChat(fromId));
-                        UiFonts.showMessage(
-                                window,
+                        UiFonts.showModelessMessage(
+                                dialogParent,
                                 "已儲存：\n" + dest.toAbsolutePath(),
-                                "檔案已儲存",
-                                JOptionPane.INFORMATION_MESSAGE);
+                                "檔案已儲存");
                     } else if (!cancel.isCancelled()) {
                         String detail = failDetail.toString().trim();
-                        UiFonts.showWarning(
-                                window,
+                        UiFonts.showModelessMessage(
+                                dialogParent,
                                 detail.isEmpty()
                                         ? "直傳沒有完成。對方可能已取消或離線，請請對方重新傳送。"
                                         : "直傳沒有完成。\n\n" + detail,
                                 "接收直傳");
                     }
                 }));
-    }
-
-    /** @return null 表示使用者取消（已寫入日誌） */
-    private Path choosePeerSavePath(String safeName, String title, Component dialogParent) {
-        JFileChooser chooser = UiFonts.fileChooser();
-        chooser.setDialogTitle(title);
-        Path downloadDir = PeerFileRules.defaultDownloadDirectory();
-        chooser.setCurrentDirectory(downloadDir.toFile());
-        chooser.setSelectedFile(downloadDir.resolve(safeName).toFile());
-        int save = chooser.showSaveDialog(dialogParent);
-        if (save != JFileChooser.APPROVE_OPTION || chooser.getSelectedFile() == null) {
-            appendLog("[檔案] 已取消儲存「" + safeName + "」");
-            return null;
-        }
-        Path dest = PeerFileRules.resolveSavePath(chooser.getSelectedFile().toPath(), safeName);
-        if (Files.exists(dest)) {
-            int overwrite = UiFonts.showConfirm(
-                    dialogParent,
-                    "檔案已存在，要覆蓋嗎？\n" + dest.toAbsolutePath(),
-                    "儲存檔案",
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE);
-            if (overwrite != JOptionPane.YES_OPTION) {
-                appendLog("[檔案] 已取消覆蓋「" + dest.getFileName() + "」");
-                return null;
-            }
-        }
-        return dest;
     }
 
     private Path avatarFile() {

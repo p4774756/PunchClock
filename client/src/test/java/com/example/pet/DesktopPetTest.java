@@ -645,6 +645,7 @@ public class DesktopPetTest {
         held.tick();
         assertNull(held.bubble());
         assertFalse(held.isNotice());
+        assertEquals("有人傳檔案來！", DesktopPetEvent.FILE_OFFERED.phrase());
         assertEquals("檔案收到啦！", DesktopPetEvent.FILE_RECEIVED.phrase());
         assertEquals("成功送達～！", DesktopPetEvent.FILE_SENT.phrase());
         assertEquals("時間到囉～！", DesktopPetEvent.SCHEDULE_REMINDER.phrase());

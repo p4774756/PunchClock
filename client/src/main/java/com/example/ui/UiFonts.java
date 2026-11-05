@@ -7,6 +7,7 @@ import javax.imageio.ImageIO;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JDialog;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -15,9 +16,12 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.plaf.metal.MetalFileChooserUI;
 import java.awt.BorderLayout;
+import java.awt.Dialog;
+import java.awt.Window;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
@@ -33,6 +37,8 @@ import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -275,6 +281,140 @@ public final class UiFonts {
             Component parent, String message, String title, int optionType, int messageType) {
         return JOptionPane.showConfirmDialog(
                 parent, messageBody(message), title, optionType, messageType);
+    }
+
+    /**
+     * 不擋住其他視窗。Mac 上模態對話框會把桌面寵物的計時器停住。
+     */
+    public static void showModelessMessage(Component parent, String message, String title) {
+        JDialog dialog = modelessDialog(parent, title);
+        JPanel body = new JPanel(new BorderLayout(0, 12));
+        body.setBorder(BorderFactory.createEmptyBorder(16, 18, 16, 18));
+        body.add(messageBody(message), BorderLayout.CENTER);
+        JButton close = new JButton("關閉");
+        close.setFont(chinesePlain(13));
+        close.addActionListener(e -> dialog.dispose());
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        actions.setOpaque(false);
+        actions.add(close);
+        body.add(actions, BorderLayout.SOUTH);
+        NightTheme.apply(body);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.setContentPane(body);
+        dialog.pack();
+        dialog.setLocationRelativeTo(ownerOf(parent));
+        dialog.setVisible(true);
+    }
+
+    /** 兩個按鈕都不擋住其他視窗。關掉視窗與按第二個按鈕相同。 */
+    public static void showModelessConfirm(
+            Component parent, String message, String title,
+            String yesText, String noText, Runnable onYes, Runnable onNo) {
+        JDialog dialog = modelessDialog(parent, title);
+        boolean[] answered = {false};
+        Runnable no = () -> {
+            if (answered[0]) {
+                return;
+            }
+            answered[0] = true;
+            dialog.dispose();
+            if (onNo != null) {
+                onNo.run();
+            }
+        };
+        Runnable yes = () -> {
+            if (answered[0]) {
+                return;
+            }
+            answered[0] = true;
+            dialog.dispose();
+            if (onYes != null) {
+                onYes.run();
+            }
+        };
+        JPanel body = new JPanel(new BorderLayout(0, 12));
+        body.setBorder(BorderFactory.createEmptyBorder(16, 18, 16, 18));
+        body.add(messageBody(message), BorderLayout.CENTER);
+        JButton accept = new JButton(yesText == null || yesText.isBlank() ? "確定" : yesText);
+        JButton decline = new JButton(noText == null || noText.isBlank() ? "取消" : noText);
+        accept.setFont(chinesePlain(13));
+        decline.setFont(chinesePlain(13));
+        accept.addActionListener(e -> yes.run());
+        decline.addActionListener(e -> no.run());
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        actions.setOpaque(false);
+        actions.add(decline);
+        actions.add(accept);
+        body.add(actions, BorderLayout.SOUTH);
+        dialog.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                no.run();
+            }
+        });
+        NightTheme.apply(body);
+        dialog.setContentPane(body);
+        dialog.pack();
+        dialog.setLocationRelativeTo(ownerOf(parent));
+        dialog.setVisible(true);
+        dialog.toFront();
+    }
+
+    /** 選檔面板不佔住畫面執行緒，桌面寵物可以繼續動。 */
+    public static void showModelessSave(
+            Component parent, JFileChooser chooser, Consumer<File> onSave, Runnable onCancel) {
+        JDialog dialog = modelessDialog(parent, chooser.getDialogTitle());
+        boolean[] answered = {false};
+        Runnable cancel = () -> {
+            if (answered[0]) {
+                return;
+            }
+            answered[0] = true;
+            dialog.dispose();
+            if (onCancel != null) {
+                onCancel.run();
+            }
+        };
+        chooser.addActionListener(e -> {
+            if (answered[0]) {
+                return;
+            }
+            if (JFileChooser.APPROVE_SELECTION.equals(e.getActionCommand())) {
+                answered[0] = true;
+                File file = chooser.getSelectedFile();
+                dialog.dispose();
+                if (onSave != null) {
+                    onSave.accept(file);
+                }
+                return;
+            }
+            cancel.run();
+        });
+        dialog.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                cancel.run();
+            }
+        });
+        dialog.setResizable(true);
+        dialog.setContentPane(chooser);
+        dialog.pack();
+        dialog.setLocationRelativeTo(ownerOf(parent));
+        dialog.setVisible(true);
+    }
+
+    private static JDialog modelessDialog(Component parent, String title) {
+        JDialog dialog = new JDialog(ownerOf(parent), title == null ? "" : title, Dialog.ModalityType.MODELESS);
+        dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+        dialog.setResizable(false);
+        return dialog;
+    }
+
+    private static Window ownerOf(Component parent) {
+        if (parent instanceof Window) {
+            return (Window) parent;
+        }
+        return parent == null ? null : SwingUtilities.getWindowAncestor(parent);
     }
 
     /** 讓使用者點一個選項。關掉視窗時回傳 -1。 */

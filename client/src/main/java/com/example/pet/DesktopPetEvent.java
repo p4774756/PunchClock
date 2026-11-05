@@ -5,6 +5,7 @@ package com.example.pet;
  */
 public enum DesktopPetEvent {
     MESSAGE_RECEIVED("有新訊息喔～！"),
+    FILE_OFFERED("有人傳檔案來！"),
     FILE_RECEIVED("檔案收到啦！"),
     FILE_SENT("成功送達～！"),
     TASK_COMPLETED("任務完成！"),

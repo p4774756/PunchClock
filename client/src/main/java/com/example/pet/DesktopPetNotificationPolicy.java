@@ -48,6 +48,7 @@ public final class DesktopPetNotificationPolicy {
         switch (event) {
             case MESSAGE_RECEIVED:
                 return settings.notifyMessage();
+            case FILE_OFFERED:
             case FILE_RECEIVED:
             case FILE_SENT:
                 return settings.notifyFile();
