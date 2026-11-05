@@ -301,7 +301,49 @@ public class PanelFactory {
         column.add(line);
         column.add(Box.createVerticalStrut(4));
         column.add(hint);
+        column.add(Box.createVerticalStrut(6));
+        refs.desktopPetNotifyMessage = new CandySwitch();
+        refs.desktopPetNotifyFile = new CandySwitch();
+        refs.desktopPetNotifyTask = new CandySwitch();
+        refs.desktopPetNotifySound = new CandySwitch();
+        refs.desktopPetNotifyMessage.setSelected(true);
+        refs.desktopPetNotifyFile.setSelected(true);
+        refs.desktopPetNotifyTask.setSelected(true);
+        column.add(petOption(refs.desktopPetNotifyMessage, "新訊息提醒",
+                "收到同事訊息時揮手提醒，不顯示訊息內容。", boldFont));
+        column.add(petOption(refs.desktopPetNotifyFile, "檔案傳輸提醒",
+                "檔案送出或收到時揮手提醒。", boldFont));
+        column.add(petOption(refs.desktopPetNotifyTask, "任務與排程提醒",
+                "任務完成或排程時間到時揮手提醒。", boldFont));
+        column.add(petOption(refs.desktopPetNotifySound, "提示音",
+                "提醒真正出現時才響一聲。預設關閉。", boldFont));
         return column;
+    }
+
+    private static JPanel petOption(JToggleButton toggle, String title, String tip, Font font) {
+        toggle.setFont(font);
+        toggle.getAccessibleContext().setAccessibleName(title);
+        toggle.setToolTipText(tip);
+        JLabel label = new JLabel(title);
+        label.setFont(font);
+        label.setLabelFor(toggle);
+        label.setToolTipText(tip);
+        label.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        label.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (toggle.isEnabled()) {
+                    toggle.doClick();
+                }
+            }
+        });
+        JPanel line = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        line.setOpaque(false);
+        line.setAlignmentX(Component.LEFT_ALIGNMENT);
+        line.setBorder(new EmptyBorder(1, 18, 1, 0));
+        line.add(toggle);
+        line.add(label);
+        return line;
     }
 
     private static JPanel sliderRow(Font font, String title, JSlider slider, JLabel valueLabel) {
@@ -363,6 +405,10 @@ public class PanelFactory {
         public JSlider backgroundOpacitySlider;
         public JLabel backgroundOpacityValueLabel;
         public JToggleButton desktopPetSwitch;
+        public JToggleButton desktopPetNotifyMessage;
+        public JToggleButton desktopPetNotifyFile;
+        public JToggleButton desktopPetNotifyTask;
+        public JToggleButton desktopPetNotifySound;
         // 中繼 Proxy
         public JCheckBox relayEnabledCheckBox;
         public JSpinner relayPortSpinner;

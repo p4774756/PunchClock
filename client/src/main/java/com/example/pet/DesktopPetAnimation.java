@@ -20,6 +20,8 @@ public final class DesktopPetAnimation {
     public static final int WALK_TICKS = 110;
     public static final int REACT_TICKS = 28;
     public static final int BUBBLE_TICKS = 40;
+    /** 事件提醒泡泡約 4 秒，落在 3～5 秒。 */
+    public static final int NOTICE_TICKS = 80;
     public static final int STEP = 2;
     static final int BREATH_HOLD_TICKS = 300 / TICK_MS;
     static final int BLINK_HOLD_TICKS = 150 / TICK_MS;
@@ -46,6 +48,7 @@ public final class DesktopPetAnimation {
     private String bubble;
     private int bubbleTicks;
     private int pokes;
+    private boolean notice;
     private final Random random;
     private int miluFrame;
     private int miluHold;
@@ -69,6 +72,7 @@ public final class DesktopPetAnimation {
     public void tick() {
         if (bubbleTicks > 0 && --bubbleTicks == 0) {
             bubble = null;
+            notice = false;
         }
         updateMilu();
         if (carried) {
@@ -98,11 +102,41 @@ public final class DesktopPetAnimation {
         if (carried) {
             return;
         }
+        notice = false;
         bubble = PHRASES[pokes % PHRASES.length];
         pokes++;
         bubbleTicks = BUBBLE_TICKS;
         enter(Mode.REACT);
         updateFrame();
+    }
+
+    /**
+     * 事件提醒：沿用揮手，泡泡只用固定短句。被拖著時不打斷，回傳 false。
+     */
+    public boolean showNotice(String phrase) {
+        if (carried || phrase == null || phrase.isEmpty()) {
+            return false;
+        }
+        notice = true;
+        bubble = phrase;
+        bubbleTicks = NOTICE_TICKS;
+        enter(Mode.REACT);
+        updateFrame();
+        return true;
+    }
+
+    /** 點在提醒泡泡上時收掉這句，不改成打招呼。 */
+    public void dismissNotice() {
+        if (!notice) {
+            return;
+        }
+        notice = false;
+        bubble = null;
+        bubbleTicks = 0;
+    }
+
+    public boolean isNotice() {
+        return notice && bubbleTicks > 0;
     }
 
     public void setCarried(boolean carried) {

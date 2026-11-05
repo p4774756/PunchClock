@@ -22,7 +22,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -45,6 +47,9 @@ public class SlotController {
     private final Runnable onSlotStateChanged;
 
     private CloudConfig config;
+    private Consumer<CheckInTask> taskCompletedListener;
+    private Consumer<CheckInTask> scheduleDueListener;
+    private final Map<String, LocalDateTime> remindedTrigger = new HashMap<>();
     private boolean suppressUiSave;
     private boolean historyMenusBound;
     private ShopStrip shopStrip;
@@ -189,12 +194,21 @@ public class SlotController {
         refreshSlotCards();
     }
 
+    public void setTaskCompletedListener(Consumer<CheckInTask> taskCompletedListener) {
+        this.taskCompletedListener = taskCompletedListener;
+    }
+
+    public void setScheduleDueListener(Consumer<CheckInTask> scheduleDueListener) {
+        this.scheduleDueListener = scheduleDueListener;
+    }
+
     public void refreshSlotCards() {
         SwingUtilities.invokeLater(() -> {
             pruneExpiredSkipDates();
             refreshSkipDatesButton();
             refreshCard(slotRefs.workIn, WorkSlot.Kind.WORK_IN);
             updateShopStrip();
+            remindDueTasks();
         });
     }
 
@@ -762,6 +776,7 @@ public class SlotController {
                 task.setResultMessage(msg);
                 task.rememberLastResult();
                 appendLog.accept("[成功] 【" + task.getName() + "】" + msg);
+                notifyTaskCompleted(task);
             } else {
                 String msg = String.format("[失敗] 執行失敗 (觸發: %s, 耗時: %.1f秒)", triggerTimeStr, durationSec);
                 task.setStatus(TaskStatus.FAILED);
@@ -938,6 +953,57 @@ public class SlotController {
         setWrappedMetricLabel(refs.resultLabel, WorkSlot.screenText(task.getDisplayResultMessage()));
         refreshLockedSettingsLabel(refs, task, slot);
         showSlotName(refs, task, kind);
+    }
+
+    /** 倒數變成「即將觸發」時通知一次。同一個觸發時間不重複。 */
+    private void remindDueTasks() {
+        if (scheduleDueListener == null || schedulerService == null) {
+            return;
+        }
+        List<CheckInTask> tasks = schedulerService.getAllTasks();
+        if (tasks == null) {
+            return;
+        }
+        for (CheckInTask task : tasks) {
+            if (task == null || task.getId() == null) {
+                continue;
+            }
+            if (task.getStatus() != TaskStatus.SCHEDULED) {
+                remindedTrigger.remove(task.getId());
+                continue;
+            }
+            if (!"即將觸發".equals(task.getCountdownLabel())) {
+                continue;
+            }
+            LocalDateTime trigger = task.getActualTriggerTime();
+            if (trigger == null) {
+                if (remindedTrigger.containsKey(task.getId())) {
+                    continue;
+                }
+            } else if (trigger.equals(remindedTrigger.get(task.getId()))) {
+                continue;
+            }
+            remindedTrigger.put(task.getId(), trigger);
+            try {
+                scheduleDueListener.accept(task);
+            } catch (RuntimeException ex) {
+                // 提醒失敗不影響倒數。
+            }
+        }
+    }
+
+    private void notifyTaskCompleted(CheckInTask task) {
+        Consumer<CheckInTask> listener = taskCompletedListener;
+        if (listener == null || task == null) {
+            return;
+        }
+        SwingUtilities.invokeLater(() -> {
+            try {
+                listener.accept(task);
+            } catch (RuntimeException ex) {
+                // 寵物提醒失敗不影響打卡結果。
+            }
+        });
     }
 
     private void showSlotName(PanelFactory.SlotCardRefs refs, CheckInTask task, WorkSlot.Kind kind) {

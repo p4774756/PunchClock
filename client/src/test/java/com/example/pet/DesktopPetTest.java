@@ -48,6 +48,23 @@ public class DesktopPetTest {
         assertEquals(-20, again.x());
         assertEquals(480, again.y());
         assertEquals("true", prefs.get(DesktopPetSettings.KEY_ENABLED, null));
+        assertTrue(again.notifyMessage());
+        assertTrue(again.notifyFile());
+        assertTrue(again.notifyTask());
+        assertFalse(again.notifySound());
+        again.setNotifyMessage(false);
+        again.setNotifyFile(false);
+        again.setNotifyTask(false);
+        again.setNotifySound(true);
+        DesktopPetSettings restored = new DesktopPetSettings(prefs);
+        assertFalse(restored.notifyMessage());
+        assertFalse(restored.notifyFile());
+        assertFalse(restored.notifyTask());
+        assertTrue(restored.notifySound());
+        assertEquals("false", prefs.get(DesktopPetSettings.KEY_NOTIFY_MESSAGE, null));
+        assertEquals("false", prefs.get(DesktopPetSettings.KEY_NOTIFY_FILE, null));
+        assertEquals("false", prefs.get(DesktopPetSettings.KEY_NOTIFY_TASK, null));
+        assertEquals("true", prefs.get(DesktopPetSettings.KEY_NOTIFY_SOUND, null));
 
         again.setEnabled(false);
         assertFalse(new DesktopPetSettings(prefs).isEnabled());
@@ -165,6 +182,14 @@ public class DesktopPetTest {
             assertEquals("桌面寵物", refs.desktopPetSwitch.getAccessibleContext().getAccessibleName());
             assertTrue(refs.desktopPetSwitch.getToolTipText().contains("最小化"));
             assertTrue(tabs.getToolTipTextAt(1).contains("桌面寵物"));
+            assertTrue(refs.desktopPetNotifyMessage.isSelected());
+            assertTrue(refs.desktopPetNotifyFile.isSelected());
+            assertTrue(refs.desktopPetNotifyTask.isSelected());
+            assertFalse(refs.desktopPetNotifySound.isSelected());
+            assertEquals("新訊息提醒", refs.desktopPetNotifyMessage.getAccessibleContext().getAccessibleName());
+            assertEquals("檔案傳輸提醒", refs.desktopPetNotifyFile.getAccessibleContext().getAccessibleName());
+            assertEquals("任務與排程提醒", refs.desktopPetNotifyTask.getAccessibleContext().getAccessibleName());
+            assertEquals("提示音", refs.desktopPetNotifySound.getAccessibleContext().getAccessibleName());
         });
     }
 
@@ -597,6 +622,131 @@ public class DesktopPetTest {
     }
 
     /** 測試用的記憶體 {@link java.util.prefs.Preferences}，不寫進使用者的偏好檔。 */
+    @Test
+    public void noticeUsesWaveAndLastsAboutFourSeconds() {
+        DesktopPetAnimation animation = new DesktopPetAnimation(new Random(1));
+        assertFalse(animation.showNotice(""));
+        assertTrue(animation.showNotice(DesktopPetEvent.MESSAGE_RECEIVED.phrase()));
+        assertEquals(Mode.REACT, animation.mode());
+        assertEquals("有新訊息喔～！", animation.bubble());
+        assertTrue(animation.isNotice());
+        animation.setCarried(true);
+        assertFalse(animation.showNotice(DesktopPetEvent.FILE_RECEIVED.phrase()));
+        assertEquals("有新訊息喔～！", animation.bubble());
+        animation.setCarried(false);
+        assertTrue(animation.isNotice());
+
+        DesktopPetAnimation held = new DesktopPetAnimation(new Random(1));
+        held.showNotice(DesktopPetEvent.TASK_COMPLETED.phrase());
+        for (int i = 0; i < DesktopPetAnimation.NOTICE_TICKS - 1; i++) {
+            held.tick();
+        }
+        assertEquals("任務完成！", held.bubble());
+        held.tick();
+        assertNull(held.bubble());
+        assertFalse(held.isNotice());
+        assertEquals("檔案收到啦！", DesktopPetEvent.FILE_RECEIVED.phrase());
+        assertEquals("成功送達～！", DesktopPetEvent.FILE_SENT.phrase());
+        assertEquals("時間到囉～！", DesktopPetEvent.SCHEDULE_REMINDER.phrase());
+    }
+
+    @Test
+    public void bridgeFiltersCooldownQueueAndDoesNotReplay() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            MemoryPreferences prefs = new MemoryPreferences();
+            DesktopPetSettings settings = new DesktopPetSettings(prefs);
+            settings.setEnabled(true);
+            FakeSurface surface = new FakeSurface();
+            DesktopPetEventBridge bridge = new DesktopPetEventBridge(settings, surface);
+
+            bridge.offerAt(DesktopPetEvent.MESSAGE_RECEIVED, null, 1_000L);
+            assertEquals("有新訊息喔～！", surface.phrase);
+            assertEquals(0, surface.sounds);
+            assertEquals(0, bridge.waitingCount());
+
+            bridge.offerAt(DesktopPetEvent.MESSAGE_RECEIVED, null, 1_500L);
+            assertEquals(1, surface.shows);
+
+            surface.ready = false;
+            bridge.noticeEndedAt(1_600L);
+            bridge.offerAt(DesktopPetEvent.FILE_RECEIVED, null, 2_000L);
+            bridge.offerAt(DesktopPetEvent.FILE_RECEIVED, null, 2_100L);
+            bridge.offerAt(DesktopPetEvent.FILE_SENT, null, 2_200L);
+            bridge.offerAt(DesktopPetEvent.TASK_COMPLETED, null, 2_300L);
+            bridge.offerAt(DesktopPetEvent.SCHEDULE_REMINDER, null, 2_400L);
+            assertEquals(DesktopPetEventBridge.MAX_WAITING, bridge.waitingCount());
+
+            surface.ready = true;
+            bridge.pumpAt(3_000L);
+            assertEquals("檔案收到啦！", surface.phrase);
+            bridge.noticeEndedAt(3_100L);
+            assertEquals("成功送達～！", surface.phrase);
+            bridge.noticeEndedAt(3_200L);
+            assertEquals("任務完成！", surface.phrase);
+            bridge.noticeEndedAt(3_300L);
+            assertEquals(0, bridge.waitingCount());
+
+            settings.setNotifyFile(false);
+            int blocked = surface.shows;
+            bridge.offerAt(DesktopPetEvent.FILE_SENT, null, 8_000L);
+            assertEquals(blocked, surface.shows);
+            settings.setNotifyFile(true);
+
+            settings.setNotifySound(true);
+            int sounds = surface.sounds;
+            bridge.offerAt(DesktopPetEvent.SCHEDULE_REMINDER, null, 8_000L);
+            assertEquals("時間到囉～！", surface.phrase);
+            assertEquals(sounds + 1, surface.sounds);
+            bridge.offerAt(DesktopPetEvent.SCHEDULE_REMINDER, null, 8_100L);
+            assertEquals(sounds + 1, surface.sounds);
+
+            surface.phrase = null;
+            surface.enabled = false;
+            bridge.discard();
+            bridge.offerAt(DesktopPetEvent.MESSAGE_RECEIVED, null, 9_000L);
+            assertNull(surface.phrase);
+            assertEquals(0, bridge.waitingCount());
+            surface.enabled = true;
+            bridge.pumpAt(9_100L);
+            assertNull(surface.phrase);
+            bridge.offerAt(DesktopPetEvent.MESSAGE_RECEIVED, null, 9_200L);
+            assertEquals("有新訊息喔～！", surface.phrase);
+        });
+    }
+
+    private static final class FakeSurface implements DesktopPetEventBridge.Surface {
+        private boolean enabled = true;
+        private boolean ready = true;
+        private String phrase;
+        private int shows;
+        private int sounds;
+
+        @Override
+        public boolean petEnabled() {
+            return enabled;
+        }
+
+        @Override
+        public boolean readyForNotice() {
+            return enabled && ready;
+        }
+
+        @Override
+        public boolean showNotice(String phrase, Runnable open) {
+            this.phrase = phrase;
+            shows++;
+            if (open != null) {
+                open.run();
+            }
+            return true;
+        }
+
+        @Override
+        public void playSound() {
+            sounds++;
+        }
+    }
+
     static final class MemoryPreferences extends AbstractPreferences {
         private final Map<String, String> values = new HashMap<>();
 

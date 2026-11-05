@@ -17,6 +17,7 @@ import com.example.service.TaskPersistenceService;
 import com.example.service.TransferCancel;
 import com.example.service.TransferIo;
 import com.example.service.WindowBackground;
+import com.example.pet.DesktopPetEvent;
 import com.example.pet.DesktopPetManager;
 import com.example.ui.FileTransferDialog;
 import com.example.ui.MarqueeBar;
@@ -948,6 +949,7 @@ public class App extends JFrame {
             }
             if (!sent.isEmpty()) {
                 celebrateTransfer();
+                notifyPet(DesktopPetEvent.FILE_SENT, App.this::showFriendsFromPet);
             }
             StringBuilder text = new StringBuilder();
             text.append("已傳送給 ").append(sent.size()).append(" 位");
@@ -1050,6 +1052,7 @@ public class App extends JFrame {
                             chatNote(toClientId, "已直傳「" + displayName + "」");
                             if (!quiet) {
                                 celebrateTransfer();
+                                notifyPet(DesktopPetEvent.FILE_SENT, () -> focusChat(toClientId));
                                 UiFonts.showMessage(
                                         owner,
                                         "「" + displayName + "」已直傳給【" + toClientId + "】。\n伺服器沒有保留這個檔案。",
@@ -1284,6 +1287,7 @@ public class App extends JFrame {
             shell.play(AnimeCast.REACT);
         }
         receiveChatMessage(fromId, text, "", sentAtMs, avatar);
+        notifyPet(DesktopPetEvent.MESSAGE_RECEIVED, () -> openPetChat(fromId));
     }
 
     private void showPeerImageMessage(String fromId, String text, String imageEncoded, Long sentAtMs, String avatar) {
@@ -1298,6 +1302,7 @@ public class App extends JFrame {
             shell.play(AnimeCast.REACT);
         }
         receiveChatMessage(fromId, safeText, imageEncoded, sentAtMs, avatar);
+        notifyPet(DesktopPetEvent.MESSAGE_RECEIVED, () -> openPetChat(fromId));
     }
 
     private void showPeerPoke(String fromId, Long sentAtMs, String avatar) {
@@ -1367,6 +1372,7 @@ public class App extends JFrame {
                     progress.close();
                     if (ok) {
                         celebrateTransfer();
+                        notifyPet(DesktopPetEvent.FILE_RECEIVED, () -> openPetChat(fromId));
                         UiFonts.showMessage(
                                 window,
                                 "已儲存：\n" + dest.toAbsolutePath(),
@@ -1793,9 +1799,60 @@ public class App extends JFrame {
             }
             appendLog(on ? "[設定] 已開啟桌面寵物" : "[設定] 已關閉桌面寵物");
         });
+        bindPetToggle(serverRefs.desktopPetNotifyMessage, desktopPetManager.settings().notifyMessage(),
+                desktopPetManager.settings()::setNotifyMessage);
+        bindPetToggle(serverRefs.desktopPetNotifyFile, desktopPetManager.settings().notifyFile(),
+                desktopPetManager.settings()::setNotifyFile);
+        bindPetToggle(serverRefs.desktopPetNotifyTask, desktopPetManager.settings().notifyTask(),
+                desktopPetManager.settings()::setNotifyTask);
+        bindPetToggle(serverRefs.desktopPetNotifySound, desktopPetManager.settings().notifySound(),
+                desktopPetManager.settings()::setNotifySound);
+        if (slotController != null) {
+            slotController.setTaskCompletedListener(task ->
+                    notifyPet(DesktopPetEvent.TASK_COMPLETED, this::showScheduleFromPet));
+            slotController.setScheduleDueListener(task ->
+                    notifyPet(DesktopPetEvent.SCHEDULE_REMINDER, this::showScheduleFromPet));
+        }
         if (serverRefs.desktopPetSwitch.isSelected()) {
             desktopPetManager.setEnabled(true);
         }
+    }
+
+    private void bindPetToggle(javax.swing.JToggleButton button, boolean selected,
+                               java.util.function.Consumer<Boolean> save) {
+        if (button == null || save == null) {
+            return;
+        }
+        button.setSelected(selected);
+        button.addActionListener(e -> save.accept(button.isSelected()));
+    }
+
+    private void notifyPet(DesktopPetEvent event, Runnable open) {
+        if (desktopPetManager == null || event == null) {
+            return;
+        }
+        desktopPetManager.onAppEvent(event, open);
+    }
+
+    private void openPetChat(String peerId) {
+        if (peerId == null || peerId.isBlank()) {
+            return;
+        }
+        focusChat(peerId);
+    }
+
+    private void showScheduleFromPet() {
+        if (shell != null) {
+            shell.openTab(0);
+        }
+        WindowShake.bringToFront(this);
+    }
+
+    private void showFriendsFromPet() {
+        if (shell != null) {
+            shell.openTab(2);
+        }
+        WindowShake.bringToFront(this);
     }
 
     private void bindRelayProxyListeners() {

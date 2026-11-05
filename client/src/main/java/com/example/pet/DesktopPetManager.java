@@ -3,6 +3,7 @@ package com.example.pet;
 import javax.swing.SwingUtilities;
 import java.awt.GraphicsEnvironment;
 import java.awt.HeadlessException;
+import java.awt.Toolkit;
 import java.lang.reflect.InvocationTargetException;
 
 /**
@@ -12,6 +13,7 @@ import java.lang.reflect.InvocationTargetException;
 public final class DesktopPetManager {
 
     private final DesktopPetSettings settings;
+    private final DesktopPetEventBridge bridge;
     private DesktopPetWindow window;
     private boolean active;
     private boolean closed;
@@ -25,6 +27,22 @@ public final class DesktopPetManager {
             throw new IllegalArgumentException("settings");
         }
         this.settings = settings;
+        this.bridge = new DesktopPetEventBridge(settings, new PetSurface());
+    }
+
+    public DesktopPetSettings settings() {
+        return settings;
+    }
+
+    /**
+     * 聊天、傳檔、任務完成與排程時間到都從這裡進來。
+     * 總開關關閉時直接丟掉，不影響原本的功能，重新開啟也不補播。
+     */
+    public void onAppEvent(DesktopPetEvent event, Runnable open) {
+        if (closed) {
+            return;
+        }
+        bridge.offer(event, open);
     }
 
     public boolean savedEnabled() {
@@ -59,6 +77,7 @@ public final class DesktopPetManager {
             }
             closed = true;
             active = false;
+            bridge.discard();
             if (window != null) {
                 window.disposePet();
                 window = null;
@@ -92,6 +111,7 @@ public final class DesktopPetManager {
         if (!enabled) {
             settings.setEnabled(false);
             active = false;
+            bridge.discard();
             if (window != null) {
                 window.hidePet();
             }
@@ -108,9 +128,15 @@ public final class DesktopPetManager {
         try {
             if (window == null || !window.isDisplayable()) {
                 window = new DesktopPetWindow(settings);
+                window.setNoticeEnded(bridge::noticeEnded);
+                window.setNoticeReleased(bridge::releaseShowing);
+                window.setNoticePump(bridge::pump);
             }
             window.showPet();
             active = window.isShowing();
+            if (active) {
+                bridge.pump();
+            }
             return active;
         } catch (HeadlessException ex) {
             active = false;
@@ -119,6 +145,48 @@ public final class DesktopPetManager {
             active = false;
             System.err.println("[桌面寵物] 無法顯示：" + ex.getMessage());
             return false;
+        }
+    }
+
+    private void playSound() {
+        Thread worker = new Thread(() -> {
+            try {
+                Toolkit.getDefaultToolkit().beep();
+            } catch (RuntimeException ex) {
+                // 沒有音效裝置時安靜略過。
+            }
+        }, "milu-notice-sound");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private final class PetSurface implements DesktopPetEventBridge.Surface {
+        @Override
+        public boolean petEnabled() {
+            return !closed && settings.isEnabled();
+        }
+
+        @Override
+        public boolean readyForNotice() {
+            return petEnabled()
+                    && window != null
+                    && window.isShowing()
+                    && window.isAnimating()
+                    && !window.carried()
+                    && !window.noticeActive();
+        }
+
+        @Override
+        public boolean showNotice(String phrase, Runnable open) {
+            if (window == null) {
+                return false;
+            }
+            return window.showNotice(phrase, open);
+        }
+
+        @Override
+        public void playSound() {
+            DesktopPetManager.this.playSound();
         }
     }
 }

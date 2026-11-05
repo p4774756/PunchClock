@@ -62,6 +62,11 @@ public final class DesktopPetWindow extends JFrame {
     private Point pressScreen;
     private Point grabOffset;
     private boolean dragging;
+    private Runnable noticeEnded;
+    private Runnable noticeReleased;
+    private Runnable noticePump;
+    private Runnable noticeOpen;
+    private Rectangle bubbleBounds;
 
     DesktopPetWindow(DesktopPetSettings settings) {
         super("桌面寵物");
@@ -240,6 +245,36 @@ public final class DesktopPetWindow extends JFrame {
         return usable(gc);
     }
 
+    void setNoticeEnded(Runnable noticeEnded) {
+        this.noticeEnded = noticeEnded;
+    }
+
+    void setNoticeReleased(Runnable noticeReleased) {
+        this.noticeReleased = noticeReleased;
+    }
+
+    void setNoticePump(Runnable noticePump) {
+        this.noticePump = noticePump;
+    }
+
+    boolean showNotice(String phrase, Runnable open) {
+        requireEdt();
+        if (!animation.showNotice(phrase)) {
+            return false;
+        }
+        noticeOpen = open;
+        repaint();
+        return true;
+    }
+
+    boolean noticeActive() {
+        return animation.isNotice();
+    }
+
+    boolean carried() {
+        return animation.isCarried();
+    }
+
     void tickOnce() {
         requireEdt();
         if (!isAnimating()) {
@@ -258,7 +293,17 @@ public final class DesktopPetWindow extends JFrame {
         if (!isVisible()) {
             return;
         }
+        boolean wasNotice = animation.isNotice();
         animation.tick();
+        if (wasNotice && !animation.isNotice()) {
+            noticeOpen = null;
+            if (noticeEnded != null) {
+                noticeEnded.run();
+            }
+        } else if (!animation.isNotice() && animation.bubble() == null && !animation.isCarried()
+                && noticePump != null) {
+            noticePump.run();
+        }
         int dx = animation.stepX();
         if (dx != 0) {
             Rectangle bounds = usableBounds();
@@ -336,11 +381,35 @@ public final class DesktopPetWindow extends JFrame {
                 if (pressScreen == null || !SwingUtilities.isLeftMouseButton(e)) {
                     return;
                 }
+                boolean wasDrag = dragging;
                 animation.setCarried(false);
-                if (dragging) {
+                if (wasDrag) {
                     Point clamped = clampToScreens(getX(), getY(), getWidth(), getHeight(), screenRects());
                     setLocation(clamped);
                     rememberLocation();
+                    if (noticePump != null) {
+                        noticePump.run();
+                    }
+                } else if (animation.isNotice() && bubbleBounds != null && bubbleBounds.contains(e.getPoint())) {
+                    Runnable open = noticeOpen;
+                    noticeOpen = null;
+                    animation.dismissNotice();
+                    if (noticeEnded != null) {
+                        noticeEnded.run();
+                    }
+                    if (open != null) {
+                        try {
+                            open.run();
+                        } catch (RuntimeException ex) {
+                            System.err.println("[桌面寵物] 無法打開提醒：" + ex.getMessage());
+                        }
+                    }
+                } else if (animation.isNotice()) {
+                    noticeOpen = null;
+                    animation.poke();
+                    if (noticeReleased != null) {
+                        noticeReleased.run();
+                    }
                 } else {
                     animation.poke();
                 }
@@ -527,12 +596,14 @@ public final class DesktopPetWindow extends JFrame {
         private void paintBubble(Graphics2D g) {
             String text = animation.bubble();
             if (text == null || text.isEmpty()) {
+                bubbleBounds = null;
                 return;
             }
             g.setFont(UiFonts.chinesePlain(12));
             FontMetrics metrics = g.getFontMetrics();
             String fitted = CandyTheme.fit(text, metrics, getWidth() - 24);
             if (fitted.isEmpty()) {
+                bubbleBounds = null;
                 return;
             }
             int textWidth = metrics.stringWidth(fitted);
@@ -544,6 +615,7 @@ public final class DesktopPetWindow extends JFrame {
                     : getHeight() - sprite.frameHeight() * SCALE - 12 + animation.bob() - 4;
             int bx = Math.max(4, Math.min(anchorX - bubbleW / 2, getWidth() - bubbleW - 4));
             int by = Math.max(4, anchorY - bubbleH);
+            bubbleBounds = new Rectangle(bx, by, bubbleW, bubbleH + 6);
             g.setColor(CandyTheme.PINK_HI);
             g.fillRoundRect(bx, by, bubbleW, bubbleH, 12, 12);
             g.setColor(CandyTheme.PINK_DEEP);
@@ -580,21 +652,21 @@ public final class DesktopPetWindow extends JFrame {
             g.setColor(Color.WHITE);
             g.drawString(text, 8, 8 + metrics.getAscent() + 1);
         }
+    }
 
-        private static String modeName(DesktopPetAnimation.Mode mode) {
-            if (mode == DesktopPetAnimation.Mode.WALK) {
-                return "走路";
-            }
-            if (mode == DesktopPetAnimation.Mode.REACT) {
-                return "揮手";
-            }
-            if (mode == DesktopPetAnimation.Mode.SIT) {
-                return "坐下";
-            }
-            if (mode == DesktopPetAnimation.Mode.SLEEP) {
-                return "睡覺";
-            }
-            return "待機";
+    private static String modeName(DesktopPetAnimation.Mode mode) {
+        if (mode == DesktopPetAnimation.Mode.WALK) {
+            return "走路";
         }
+        if (mode == DesktopPetAnimation.Mode.REACT) {
+            return "揮手";
+        }
+        if (mode == DesktopPetAnimation.Mode.SIT) {
+            return "坐下";
+        }
+        if (mode == DesktopPetAnimation.Mode.SLEEP) {
+            return "睡覺";
+        }
+        return "待機";
     }
 }
