@@ -4,7 +4,6 @@ import org.junit.Test;
 
 import java.awt.Dimension;
 import java.awt.Insets;
-import java.awt.Point;
 import java.awt.Rectangle;
 
 import static org.junit.Assert.assertEquals;
@@ -15,69 +14,64 @@ public class HomeCharacterLayoutTest {
     private static final Dimension BODY = new Dimension(768, 1024);
 
     @Test
-    public void restoredPoseFollowsThePanelEdges() {
+    public void forearmsRestOnTheTaskCard() {
         Insets overflow = HomeCharacterLayout.overflow(1280, 920, false, true);
         Rectangle canvas = new Rectangle(0, 0, 1280, 920);
         Rectangle panel = new Rectangle(0, overflow.top, 1280 - overflow.right, 920 - overflow.top);
+        Rectangle stage = new Rectangle(panel.x + 460, panel.y + 36, panel.width - 480, panel.height - 60);
         Rectangle controls = new Rectangle(panel.x + panel.width - 140, panel.y + 8, 132, 30);
-        Rectangle reminder = new Rectangle(panel.x + 420, panel.y + panel.height - 110, 260, 74);
         HomeCharacterLayout.Box box = HomeCharacterLayout.place(
-                canvas, panel, 40, reminder, controls, false, BODY, BODY);
+                canvas, panel, 40, stage, controls, false, BODY, BODY);
 
         assertEquals(box.bust, box.sock);
-        Point face = box.face();
-        assertTrue(face.x > panel.x + panel.width / 2);
-        assertTrue(face.x < controls.x);
-        assertTrue(box.bust.y < panel.y);
-        assertEquals(panel.y + 40, box.armTop(), 2);
-        assertTrue(box.ledgeY() > box.armTop());
-        assertTrue(box.fingersY() > box.ledgeY());
-        assertTrue(box.fingersY() < box.soleY());
-        int panelRight = panel.x + panel.width;
-        int peek = box.toeX() - panelRight;
-        assertTrue(peek > 16 && peek <= HomeCharacterLayout.SOCK_PEEK);
-        int hip = box.bust.x + Math.round(box.bust.width * 0.78f);
-        assertTrue(hip < panelRight);
-        assertTrue(box.soleY() <= panel.y + panel.height);
-        Rectangle ledge = HomeCharacterLayout.armLedge(box, panel);
-        assertEquals(box.ledgeY(), ledge.y);
-        assertTrue(ledge.width > 48);
-        assertTrue(ledge.x + ledge.width <= panelRight);
+        assertEquals(box.ledgeY(), box.card.y);
+        assertTrue(box.fingersY() > box.card.y);
+        assertTrue(box.fingersY() < box.card.y + box.card.height);
+        int calf = box.cuffY() - (box.card.y + box.card.height);
+        assertTrue(calf >= 16);
+        assertTrue(calf < box.card.height / 2);
+        assertTrue(box.toeX() <= panel.x + panel.width - 4);
+        assertTrue(box.soleY() <= panel.y + panel.height - 4);
+        assertTrue(box.card.x >= stage.x);
+        assertTrue(box.textRight < box.card.x + box.card.width - 40);
+        assertTrue(box.card.x + Math.round(box.bust.width * 0.02f) < box.toeX());
     }
 
     @Test
-    public void movingThePanelMovesTheCharacterByTheSameAmount() {
+    public void movingThePanelMovesTheCharacterAndCardTogether() {
         Rectangle canvas = new Rectangle(0, 0, 1400, 1000);
         Rectangle panel = new Rectangle(20, 140, 1100, 760);
-        Rectangle reminder = new Rectangle(500, 760, 240, 74);
+        Rectangle stage = new Rectangle(panel.x + 420, panel.y + 40, 640, 680);
         Rectangle controls = new Rectangle(980, 150, 132, 30);
         HomeCharacterLayout.Box first = HomeCharacterLayout.place(
-                canvas, panel, 40, reminder, controls, false, BODY, BODY);
+                canvas, panel, 40, stage, controls, false, BODY, BODY);
         Rectangle shiftedPanel = new Rectangle(panel.x + 35, panel.y, panel.width, panel.height);
-        Rectangle shiftedReminder = new Rectangle(reminder.x + 35, reminder.y + 18, reminder.width, reminder.height);
+        Rectangle shiftedStage = new Rectangle(stage.x + 35, stage.y, stage.width, stage.height);
         Rectangle shiftedControls = new Rectangle(controls.x + 35, controls.y, controls.width, controls.height);
         HomeCharacterLayout.Box second = HomeCharacterLayout.place(
-                canvas, shiftedPanel, 40, shiftedReminder, shiftedControls, false, BODY, BODY);
+                canvas, shiftedPanel, 40, shiftedStage, shiftedControls, false, BODY, BODY);
         assertEquals(first.bust, first.sock);
         assertEquals(second.bust, second.sock);
         assertEquals(35, second.bust.x - first.bust.x);
-        assertEquals(35, second.sock.x - first.sock.x);
+        assertEquals(35, second.card.x - first.card.x);
         assertEquals(0, second.soleY() - first.soleY());
+        assertEquals(0, second.card.y - first.card.y);
     }
 
     @Test
     public void maximizedPoseStaysInsideThePanel() {
         Rectangle canvas = new Rectangle(0, 0, 1440, 900);
         Rectangle panel = new Rectangle(0, 0, 1440, 900);
-        Rectangle reminder = new Rectangle(760, 760, 280, 74);
+        Rectangle stage = new Rectangle(420, 48, 980, 820);
         HomeCharacterLayout.Box box = HomeCharacterLayout.place(
-                canvas, panel, 40, reminder, new Rectangle(1280, 4, 132, 30), true, BODY, BODY);
+                canvas, panel, 40, stage, new Rectangle(1280, 4, 132, 30), true, BODY, BODY);
         assertTrue(box.tucked);
         assertEquals(box.bust, box.sock);
         assertTrue(panel.contains(box.bust));
+        assertTrue(panel.contains(box.card));
+        assertEquals(box.ledgeY(), box.card.y);
         assertTrue(box.toeX() <= panel.x + panel.width);
-        assertTrue(box.armTop() >= 40);
-        assertTrue(box.fingersY() > box.ledgeY());
+        assertTrue(box.cuffY() > box.card.y + box.card.height);
     }
 
     @Test

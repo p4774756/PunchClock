@@ -35,6 +35,8 @@ final class HomeBoard {
     private static final Color GREEN = new Color(117, 214, 162);
     private static final Color ERROR = new Color(255, 118, 139);
     private static final Color PANEL = new Color(54, 42, 96, 228);
+    /** 卡片邊框維持不透明，只有底色半透明。 */
+    private static final Color PANEL_EDGE_SOLID = new Color(142, 116, 178);
     private static final Color PANEL_EDGE = new Color(142, 116, 178, 170);
     private static final Color CANDY_INK = new Color(0x3A, 0x18, 0x28);
     private static final int FADE_MS = 240;
@@ -65,10 +67,13 @@ final class HomeBoard {
     private String shown;
     private String outgoing;
     private long fadeStart;
-    /** 氣泡頂端要低過指尖。座標和這個面板一樣，在外框裡。 */
+    /** 氣泡要畫在卡片下面。座標和這個面板一樣。 */
     private int bubbleFloor;
-    /** 上一幀問候泡泡的高度，卡片跟在它下面。 */
     private int bubbleBlock = 44;
+    /** 角色算好的卡片。layout 會沿用，不再跟著氣泡跑。 */
+    private Rectangle seated;
+    /** 文字右緣，手指從這裡開始。 */
+    private int seatedTextRight = Integer.MAX_VALUE;
 
     void layout(Rectangle area) {
         schedule.setBounds(0, 0, 0, 0);
@@ -126,15 +131,26 @@ final class HomeBoard {
             int left = area.x + infoW + gap;
             stage.setBounds(left, area.y, Math.max(0, area.x + area.width - left), area.height);
         }
-        int boxW = Math.min(280, Math.max(0, stage.width - 16));
-        if (stage.height >= 120 && boxW >= 120) {
-            int top = Math.max(stage.y, bubbleFloor);
-            int cardY = top + bubbleBlock + 12;
-            int maxY = stage.y + stage.height - 82;
-            if (cardY > maxY) {
-                cardY = Math.max(stage.y, maxY);
+        if (seated != null && seated.width >= 100 && seated.height >= 64) {
+            int cardX = Math.max(stage.x, seated.x);
+            int right = Math.min(seated.x + seated.width, stage.x + stage.width);
+            int cardW = right - cardX;
+            if (cardW >= 100) {
+                reminder.setBounds(cardX, seated.y, cardW, seated.height);
             }
-            reminder.setBounds(stage.x + 8, cardY, boxW, 74);
+        }
+    }
+
+    /** 把「下一個任務」放在前臂下面。textRight 之後是手指，字不要畫過去。 */
+    void seatReminder(Rectangle card, int textRight) {
+        seated = card == null || card.width < 80 ? null : new Rectangle(card);
+        seatedTextRight = textRight;
+        if (seated != null && stage.width > 0) {
+            int x = Math.max(stage.x, seated.x);
+            int right = Math.min(seated.x + seated.width, stage.x + stage.width);
+            if (right - x >= 100) {
+                reminder.setBounds(x, seated.y, right - x, seated.height);
+            }
         }
     }
 
@@ -198,7 +214,7 @@ final class HomeBoard {
         paintActions(g, hot);
     }
 
-    /** 問候在指尖下方，尾巴朝上。「下一個任務」排在這個泡泡下面。 */
+    /** 問候在「下一個任務」卡片下面，尾巴朝上。 */
     void paintHomeBubble(Graphics2D g) {
         if (stage.width < 100 || stage.height < 80) {
             return;
@@ -210,7 +226,9 @@ final class HomeBoard {
             return;
         }
         g.setFont(UiFonts.chinesePlain(14));
-        int maxW = Math.min(250, Math.max(120, stage.width - 36));
+        int maxW = reminder.width > 120
+                ? Math.min(220, Math.max(120, reminder.width * 2 / 3))
+                : Math.min(250, Math.max(120, stage.width - 36));
         List<String> rows = wrap(g, text, maxW - 28);
         int block = g.getFontMetrics().getHeight();
         int boxH = 16 + block * rows.size();
@@ -220,11 +238,13 @@ final class HomeBoard {
             boxW = Math.max(boxW, metrics.stringWidth(row) + 28);
         }
         boxW = Math.min(maxW, boxW);
-        int x = stage.x + 16;
-        int y = Math.max(stage.y, bubbleFloor);
+        int x = reminder.width > 0 ? reminder.x + 8 : stage.x + 16;
+        int y = reminder.height > 0
+                ? reminder.y + reminder.height + 10
+                : Math.max(stage.y, bubbleFloor);
         bubbleBlock = boxH;
-        if (reminder.width > 0) {
-            reminder.y = y + boxH + 12;
+        if (y + boxH > stage.y + stage.height - 4) {
+            y = Math.max(stage.y, stage.y + stage.height - boxH - 4);
         }
         Composite previous = g.getComposite();
         if (alpha < 0.99f) {
@@ -562,14 +582,21 @@ final class HomeBoard {
         if (reminder.width < 80) {
             return;
         }
-        panel(g, reminder);
+        panel(g, reminder, PANEL);
+        g.setColor(PANEL_EDGE_SOLID);
+        g.drawRoundRect(reminder.x, reminder.y, reminder.width - 1, reminder.height - 1, 18, 18);
         g.setFont(UiFonts.chinesePlain(12));
         g.setColor(MUTED);
+        int textW = reminder.width - 28;
+        if (seatedTextRight < reminder.x + reminder.width) {
+            textW = Math.min(textW, seatedTextRight - reminder.x - 14);
+        }
+        textW = Math.max(72, textW);
         g.drawString("下一個任務", reminder.x + 14, reminder.y + 22);
         g.setFont(UiFonts.chineseBold(15));
         g.setColor(INK);
         String title = brief.nextName == null ? "還沒排程" : brief.nextName;
-        g.drawString(fit(g, title, reminder.width - 28), reminder.x + 14, reminder.y + 44);
+        g.drawString(fit(g, title, textW), reminder.x + 14, reminder.y + 44);
         g.setFont(UiFonts.chinesePlain(13));
         g.setColor(PINK);
         String when;
@@ -582,7 +609,7 @@ final class HomeBoard {
         } else {
             when = "時間未定";
         }
-        g.drawString(fit(g, when, reminder.width - 28), reminder.x + 14, reminder.y + 64);
+        g.drawString(fit(g, when, textW), reminder.x + 14, reminder.y + 64);
     }
 
     private void paintActions(Graphics2D g, int hot) {
@@ -627,9 +654,13 @@ final class HomeBoard {
     }
 
     private static void panel(Graphics2D g, Rectangle rect) {
+        panel(g, rect, PANEL);
+    }
+
+    private static void panel(Graphics2D g, Rectangle rect, Color fill) {
         g.setColor(new Color(16, 10, 32, 50));
         g.fillRoundRect(rect.x + 2, rect.y + 3, rect.width, rect.height, 18, 18);
-        g.setColor(PANEL);
+        g.setColor(fill);
         g.fillRoundRect(rect.x, rect.y, rect.width, rect.height, 18, 18);
         g.setColor(PANEL_EDGE);
         g.drawRoundRect(rect.x, rect.y, rect.width - 1, rect.height - 1, 18, 18);

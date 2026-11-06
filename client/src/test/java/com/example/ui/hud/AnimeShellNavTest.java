@@ -36,13 +36,13 @@ public class AnimeShellNavTest {
     }
 
     @Test
-    public void reminderSitsUnderTheGreetingOnTheRight() {
+    public void reminderStaysUnderTheArmsOnTheRight() {
         HomeBoard board = new HomeBoard();
-        board.setBubbleFloor(180);
         board.layout(new Rectangle(0, 0, 900, 700));
+        board.seatReminder(new Rectangle(520, 160, 300, 140), 640);
         assertTrue(board.reminder.width >= 120);
         assertTrue(board.reminder.x > board.schedule.x + board.schedule.width - 20);
-        assertTrue(board.reminder.y >= 180);
-        assertTrue(board.reminder.y < 280);
+        assertEquals(160, board.reminder.y);
+        assertEquals(140, board.reminder.height);
     }
 }

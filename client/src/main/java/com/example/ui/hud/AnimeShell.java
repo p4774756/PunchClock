@@ -62,6 +62,8 @@ public final class AnimeShell extends JPanel {
     private boolean useRoom = true;
     private int hot = -1;
     private java.awt.Rectangle bust = new java.awt.Rectangle();
+    private java.awt.image.BufferedImage homeFigure;
+    private java.awt.Rectangle homeFigureBounds;
     private int paintedFrame = -1;
     private long paintedSecond = -1;
     private long paintedBreath = -1;
@@ -155,6 +157,29 @@ public final class AnimeShell extends JPanel {
         hero.play(AnimeCast.WAVE, 1.8);
         board.sayClick();
         repaint();
+    }
+
+    /** 右側放角色和「下一個任務」的區域，座標在這個面板裡。 */
+    java.awt.Rectangle homeStageBounds() {
+        return new java.awt.Rectangle(board.stage);
+    }
+
+    /**
+     * 全身圖和卡片用同一組座標。圖畫在卡片後面，手指由前景層再畫一次。
+     */
+    void presentHomeFigure(
+            java.awt.Rectangle figureInShell,
+            java.awt.Rectangle cardInShell,
+            int textRightInShell,
+            java.awt.image.BufferedImage image) {
+        homeFigure = image;
+        homeFigureBounds = figureInShell == null || figureInShell.width <= 0
+                ? null
+                : new java.awt.Rectangle(figureInShell);
+        if (cardInShell == null || cardInShell.width < 80) {
+            return;
+        }
+        board.seatReminder(cardInShell, textRightInShell);
     }
 
     /** 「下一個任務」卡片，座標在這個面板裡。不在首頁時是空的。 */
@@ -383,8 +408,33 @@ public final class AnimeShell extends JPanel {
         HomeBrief brief = homeActions == null ? HomeBrief.empty() : homeActions.read();
         board.layout(area);
         board.paint(g, brief, hot);
-        board.paintHomeBubble(g);
+        paintHomeFigure(g);
         board.paintReminder(g, brief);
+        board.paintHomeBubble(g);
+    }
+
+    /** 全身畫在半透明卡片後面，屈膝和小腿都留在原圖裡。手指另外畫在卡片前面。 */
+    private void paintHomeFigure(Graphics2D g) {
+        if (homeFigure == null || homeFigureBounds == null || board.stage.width < 40) {
+            return;
+        }
+        java.awt.Shape clip = g.getClip();
+        int x = board.stage.x;
+        int width = Math.max(0, getWidth() - x);
+        g.clipRect(x, 0, width, getHeight());
+        Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(
+                homeFigure,
+                homeFigureBounds.x,
+                homeFigureBounds.y,
+                homeFigureBounds.width,
+                homeFigureBounds.height,
+                null);
+        if (previous != null) {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous);
+        }
+        g.setClip(clip);
     }
 
     private void paintRoom(Graphics2D g) {

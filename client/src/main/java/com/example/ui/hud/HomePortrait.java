@@ -4,7 +4,6 @@ import com.example.ui.WindowChrome;
 
 import javax.swing.JComponent;
 import javax.swing.SwingUtilities;
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Insets;
@@ -14,8 +13,8 @@ import java.awt.RenderingHints;
 import java.awt.Shape;
 
 /**
- * 全身圖畫兩次，兩次用同一個矩形。面板後面的那層露出右框外的一小段襪尖；
- * 面板前面只畫到指尖，讓前臂下緣疊在橫邊上，軀幹和腿仍被面板蓋住。
+ * 全身圖畫在「下一個任務」卡片後面，手指再畫一次蓋在卡片前面。
+ * 兩次用同一個矩形。頭部若超過標題列，也從這個前景層補上。
  */
 public final class HomePortrait implements WindowChrome.FramePortrait {
 
@@ -40,19 +39,15 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
     @Override
     public void paintBehind(Graphics2D g, JComponent canvas, Rectangle panel) {
         place(canvas, panel);
-        if (sock.width > 0) {
-            draw(g, art.sock, sock);
-        }
     }
 
     @Override
     public void paintInFront(Graphics2D g, JComponent canvas, Rectangle panel) {
-        if (!tucked && ledge.width > 0) {
-            paintLedge(g, ledge);
+        if (bust.width <= 0 || art == null) {
+            return;
         }
-        if (bust.width > 0) {
-            drawAboveFingers(g, art.bust, bust);
-        }
+        drawHeadAndArms(g, canvas);
+        drawFingers(g);
     }
 
     @Override
@@ -78,59 +73,102 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
         ledge.setBounds(0, 0, 0, 0);
         tucked = false;
         if (art == null || shell == null || canvas == null || panel == null || !shell.isHoldingHome()) {
+            if (shell != null) {
+                shell.presentHomeFigure(null, null, 0, null);
+            }
             return;
         }
         boolean maximized = WindowChrome.isMaximizedFrame(canvas);
         Rectangle controls = WindowChrome.chromeControls(canvas);
         int titleH = WindowChrome.titleBarHeight(canvas);
-        Dimension bustSize = new Dimension(art.bust.getWidth(), art.bust.getHeight());
-        Dimension sockSize = new Dimension(art.sock.getWidth(), art.sock.getHeight());
+        Dimension bodySize = new Dimension(art.bust.getWidth(), art.bust.getHeight());
         Rectangle canvasBounds = new Rectangle(0, 0, canvas.getWidth(), canvas.getHeight());
+        shell.prepareHomeLayout();
+        Rectangle stage = stageOnCanvas(canvas);
         HomeCharacterLayout.Box box = HomeCharacterLayout.place(
-                canvasBounds, panel, titleH, new Rectangle(), controls, maximized, bustSize, sockSize);
+                canvasBounds, panel, titleH, stage, controls, maximized, bodySize, bodySize);
         bust.setBounds(box.bust);
-        tucked = box.tucked;
-        if (shell.isShowing() && bust.height > 0 && !tucked) {
-            Point inShell = SwingUtilities.convertPoint(canvas, 0, box.fingersY(), shell);
-            shell.dropHomeBubbleBelow(inShell.y + 18);
-            box = HomeCharacterLayout.place(
-                    canvasBounds, panel, titleH, reminderOn(canvas), controls, maximized, bustSize, sockSize);
-            bust.setBounds(box.bust);
-        }
         sock.setBounds(box.sock);
-        ledge.setBounds(HomeCharacterLayout.armLedge(box, panel));
-    }
-
-    private static void paintLedge(Graphics2D g, Rectangle bar) {
-        Object previous = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
-        g.setColor(new Color(18, 8, 36));
-        g.fillRect(bar.x, bar.y, bar.width, bar.height);
-        g.setColor(new Color(132, 104, 176));
-        g.fillRect(bar.x, bar.y, bar.width, 2);
-        if (previous != null) {
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, previous);
+        ledge.setBounds(box.card);
+        tucked = box.tucked;
+        if (!shell.isShowing() || bust.height <= 0) {
+            return;
+        }
+        try {
+            Point origin = SwingUtilities.convertPoint(shell, 0, 0, canvas);
+            Rectangle figure = new Rectangle(
+                    box.bust.x - origin.x, box.bust.y - origin.y, box.bust.width, box.bust.height);
+            Rectangle card = new Rectangle(
+                    box.card.x - origin.x, box.card.y - origin.y, box.card.width, box.card.height);
+            shell.presentHomeFigure(figure, card, box.textRight - origin.x, art.bust);
+            shell.dropHomeBubbleBelow(card.y + card.height + 8);
+        } catch (IllegalArgumentException ex) {
+            shell.presentHomeFigure(null, null, 0, null);
         }
     }
 
-    private Rectangle reminderOn(JComponent canvas) {
-        Rectangle local = shell.homeReminderBounds();
-        if (local.width <= 0 || !shell.isShowing()) {
-            return new Rectangle();
+    private Rectangle stageOnCanvas(JComponent canvas) {
+        Rectangle stage = shell.homeStageBounds();
+        if (stage.width < 80 || !shell.isShowing()) {
+            return null;
         }
-        return SwingUtilities.convertRectangle(shell, local, canvas);
+        try {
+            Point origin = SwingUtilities.convertPoint(shell, stage.x, stage.y, canvas);
+            return new Rectangle(origin.x, origin.y, stage.width, stage.height);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
-    /** 只畫到指尖。指尖以下的軀幹和腿留在面板後面。 */
-    private static void drawAboveFingers(Graphics2D g, java.awt.image.BufferedImage image, Rectangle dest) {
-        int bottom = dest.y + Math.round(dest.height * HomeCharacterLayout.FINGERS_Y);
-        int height = bottom - dest.y;
+    /** 頭和前臂畫在最前面。只有標題列那一段讓過視窗按鈕，袖子維持原圖的外緣。 */
+    private void drawHeadAndArms(Graphics2D g, JComponent canvas) {
+        int bottom = bust.y + Math.round(bust.height * HomeCharacterLayout.LEDGE_Y);
+        if (bottom - bust.y <= 0) {
+            return;
+        }
+        Shape clip = g.getClip();
+        Rectangle controls = WindowChrome.chromeControls(canvas);
+        int split = bust.y;
+        if (controls != null && controls.height > 0) {
+            split = Math.max(bust.y, Math.min(bottom, controls.y + controls.height));
+        }
+        if (controls != null && controls.width > 0 && controls.x > bust.x && split > bust.y + 2) {
+            int right = Math.min(bust.x + bust.width, controls.x - 4);
+            if (right - bust.x >= 8) {
+                g.clipRect(bust.x, bust.y, right - bust.x, split - bust.y);
+                draw(g, art.bust, bust);
+                g.setClip(clip);
+            }
+        } else {
+            split = bust.y;
+        }
+        if (bottom > split) {
+            g.clipRect(bust.x, split, bust.width, bottom - split);
+            draw(g, art.bust, bust);
+            g.setClip(clip);
+        }
+        int sleeveBottom = bust.y + Math.round(bust.height * 0.336f);
+        int sleeveX = bust.x + Math.round(bust.width * 0.60f);
+        if (sleeveBottom > bottom && bust.x + bust.width > sleeveX) {
+            g.clipRect(sleeveX, bottom, bust.x + bust.width - sleeveX, sleeveBottom - bottom);
+            draw(g, art.bust, bust);
+            g.setClip(clip);
+        }
+    }
+
+    /** 卡片頂緣以下只留兩隻手的輪廓，兩手之間和兩側的毛衣不畫。 */
+    private void drawFingers(Graphics2D g) {
+        if (art.fingers == null) {
+            return;
+        }
+        int top = bust.y + Math.round(bust.height * HomeCharacterLayout.LEDGE_Y);
+        int height = bust.y + bust.height - top;
         if (height <= 0) {
             return;
         }
         Shape clip = g.getClip();
-        g.clipRect(dest.x, dest.y, dest.width, height);
-        draw(g, image, dest);
+        g.clipRect(bust.x, top, bust.width, height);
+        draw(g, art.fingers, bust);
         g.setClip(clip);
     }
 
