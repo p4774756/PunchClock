@@ -124,6 +124,10 @@ public final class PhotoStore {
             return "application/pdf".equalsIgnoreCase(mimeType);
         }
 
+        public Path filePath() {
+            return filePath;
+        }
+
         public String base64Data() {
             if (cachedBase64 != null) {
                 return cachedBase64;
@@ -144,6 +148,10 @@ public final class PhotoStore {
             if (filePath != null) {
                 try {
                     Files.deleteIfExists(filePath);
+                } catch (IOException ignored) {
+                }
+                try {
+                    Files.deleteIfExists(previewPath(filePath));
                 } catch (IOException ignored) {
                 }
             }
@@ -286,6 +294,44 @@ public final class PhotoStore {
         return UploadResult.success(photo);
     }
 
+    /** 第一頁縮小圖。還沒做過就現在畫一張存起來，之後直接讀檔。 */
+    public byte[] previewJpeg(String photoId) throws IOException {
+        Photo photo = photoId == null ? null : photos.get(photoId);
+        Path pdf = photo == null ? null : photo.filePath();
+        if (photo == null || !photo.isPdf() || pdf == null || !Files.isRegularFile(pdf)) {
+            return null;
+        }
+        Path preview = previewPath(pdf);
+        if (Files.isRegularFile(preview)) {
+            return Files.readAllBytes(preview);
+        }
+        synchronized (previewLock(photo.id)) {
+            if (Files.isRegularFile(preview)) {
+                return Files.readAllBytes(preview);
+            }
+            byte[] jpeg = PdfPreview.firstPageJpeg(pdf);
+            if (jpeg == null || jpeg.length == 0) {
+                return null;
+            }
+            Files.write(preview, jpeg);
+            return jpeg;
+        }
+    }
+
+    static Path previewPath(Path pdf) {
+        String name = pdf.getFileName().toString();
+        String base = name.toLowerCase(Locale.ROOT).endsWith(".pdf")
+                ? name.substring(0, name.length() - 4)
+                : name;
+        return pdf.resolveSibling(base + ".preview.jpg");
+    }
+
+    private final Map<String, Object> previewLocks = new ConcurrentHashMap<>();
+
+    private Object previewLock(String id) {
+        return previewLocks.computeIfAbsent(id, key -> new Object());
+    }
+
     public InputStream openPdf(String photoId) throws IOException {
         Photo photo = photoId == null ? null : photos.get(photoId);
         if (photo == null || !photo.isPdf() || photo.filePath == null || !Files.isRegularFile(photo.filePath)) {
@@ -304,6 +350,7 @@ public final class PhotoStore {
         if (photo.isPdf()) {
             item.put("kind", "pdf");
             item.put("fileUrl", "/api/photos/" + photo.id + "/file");
+            item.put("previewUrl", "/api/photos/" + photo.id + "/preview");
         } else {
             item.put("kind", "photo");
             item.put("dataUrl", "data:" + photo.mimeType + ";base64," + photo.base64Data());

@@ -88,4 +88,29 @@ public class WindowShakeTest {
     public void bringToFrontNullIsNoOp() {
         WindowShake.bringToFront(null);
     }
+
+    @Test
+    public void bringToFrontKeepsACoveredWindowVisible() throws Exception {
+        Assume.assumeFalse("headless environment cannot show frames",
+                GraphicsEnvironment.isHeadless());
+        javax.swing.JFrame frame = new javax.swing.JFrame("bring-to-front");
+        try {
+            javax.swing.SwingUtilities.invokeAndWait(() -> {
+                frame.setSize(200, 120);
+                frame.setLocation(80, 80);
+                frame.setVisible(true);
+                frame.setExtendedState(Frame.ICONIFIED);
+                WindowShake.bringToFront(frame);
+            });
+            javax.swing.SwingUtilities.invokeAndWait(() -> {
+                assertTrue(frame.isVisible());
+                assertEquals(0, frame.getExtendedState() & Frame.ICONIFIED);
+                if (System.getProperty("os.name", "").startsWith("Mac")) {
+                    assertTrue(WindowShake.activateOwningApplication());
+                }
+            });
+        } finally {
+            javax.swing.SwingUtilities.invokeAndWait(frame::dispose);
+        }
+    }
 }

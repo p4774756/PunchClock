@@ -15,6 +15,7 @@ public final class DesktopPetManager {
     private final DesktopPetSettings settings;
     private final DesktopPetEventBridge bridge;
     private DesktopPetWindow window;
+    private Runnable summonMain;
     private boolean active;
     private boolean closed;
 
@@ -47,6 +48,14 @@ public final class DesktopPetManager {
 
     public boolean savedEnabled() {
         return settings.isEnabled();
+    }
+
+    /** 連點兩下寵物時執行。用來把主視窗叫到前景。 */
+    public void setSummonMain(Runnable summonMain) {
+        this.summonMain = summonMain;
+        if (window != null) {
+            window.setSummonMain(summonMain);
+        }
     }
 
     /**
@@ -131,6 +140,7 @@ public final class DesktopPetManager {
                 window.setNoticeEnded(bridge::noticeEnded);
                 window.setNoticeReleased(bridge::releaseShowing);
                 window.setNoticePump(bridge::pump);
+                window.setSummonMain(summonMain);
             }
             window.showPet();
             active = window.isShowing();

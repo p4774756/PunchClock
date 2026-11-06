@@ -1151,9 +1151,15 @@
       let html = '';
       for (let i = 0; i < photoData.length; i++) {
         const p = photoData[i];
+        const preview = p.previewUrl
+          ? '<img class="pdf-card-preview" src="' + escapeHtml(p.previewUrl) + '" alt=""'
+            + ' onload="this.parentElement.classList.add(\'has-preview\')"'
+            + ' onerror="this.remove()">'
+          : '';
         html += '<div class="photo-card pdf-card" data-photo-id="' + escapeHtml(p.id) + '" draggable="true">'
           + '<div class="photo-card-drag-handle" title="拖曳排序">☰</div>'
           + '<button type="button" class="pdf-card-open" onclick="openLightbox(\'' + escapeHtml(p.id) + '\')">'
+          + preview
           + '<span class="pdf-card-mark">' + slideMark(p.filename) + '</span>'
           + '<span class="pdf-card-name">' + escapeHtml(p.filename) + '</span>'
           + '</button>'

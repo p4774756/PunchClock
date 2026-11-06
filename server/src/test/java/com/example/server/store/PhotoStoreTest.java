@@ -259,6 +259,7 @@ public class PhotoStoreTest {
         Map<String, Object> item = store.describe(saved.photo);
         assertEquals("pdf", item.get("kind"));
         assertEquals("/api/photos/" + saved.photo.id + "/file", item.get("fileUrl"));
+        assertEquals("/api/photos/" + saved.photo.id + "/preview", item.get("previewUrl"));
         assertFalse(item.containsKey("dataUrl"));
 
         store.upload("old.jpg", "image/jpeg", createTestJpeg(40));

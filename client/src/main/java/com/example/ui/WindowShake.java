@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.List;
 import javax.swing.JComponent;
 import javax.swing.RootPaneContainer;
+import javax.swing.SwingUtilities;
 
 /**
  * 同事「戳一下」時的視窗晃動（類似即時通訊軟體的視窗震動）。
@@ -54,12 +55,14 @@ public final class WindowShake {
     }
 
     /**
-     * 將視窗從最小化還原並嘗試搶到前景（部分 Linux 視窗管理員會忽略單純 toFront）。
+     * 將視窗從最小化還原，並把整個程式叫到前景。
+     * macOS 上單純 {@code toFront} 只在程式已經是前景時有用，被其他程式蓋住時不會出現。
      */
     public static void bringToFront(Window window) {
         if (window == null) {
             return;
         }
+        activateOwningApplication();
         if (window instanceof Frame) {
             Frame frame = (Frame) window;
             int state = frame.getExtendedState();
@@ -70,12 +73,51 @@ public final class WindowShake {
         window.setVisible(true);
         window.toFront();
         window.requestFocus();
+        if (MAC) {
+            // 原生啟動是丟給 AppKit 之後才生效，再排一次才拉得過已經在前面的程式。
+            SwingUtilities.invokeLater(() -> raiseAgain(window));
+            return;
+        }
         try {
             window.setAlwaysOnTop(true);
             window.setAlwaysOnTop(false);
         } catch (Exception ignored) {
             // 部分平台不允許 always-on-top
         }
+    }
+
+    private static final boolean MAC = isMac();
+    private static boolean activationUnavailable;
+
+    private static boolean isMac() {
+        String os = System.getProperty("os.name", "");
+        return os.startsWith("Mac") || os.startsWith("Darwin");
+    }
+
+    /**
+     * macOS 不讓背景程式的視窗蓋過目前的前景程式。這支會忽略其他程式，把本程式叫起來。
+     */
+    static boolean activateOwningApplication() {
+        if (!MAC || activationUnavailable) {
+            return false;
+        }
+        try {
+            Class<?> appClass = Class.forName("com.apple.eawt.Application");
+            Object app = appClass.getMethod("getApplication").invoke(null);
+            appClass.getMethod("requestForeground", boolean.class).invoke(app, Boolean.TRUE);
+            return true;
+        } catch (Throwable ex) {
+            activationUnavailable = true;
+            return false;
+        }
+    }
+
+    private static void raiseAgain(Window window) {
+        if (!window.isDisplayable()) {
+            return;
+        }
+        window.toFront();
+        window.requestFocus();
     }
 
     /**

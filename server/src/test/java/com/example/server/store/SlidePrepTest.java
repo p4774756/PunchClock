@@ -123,6 +123,22 @@ public class SlidePrepTest {
         assertFalse(header.contains("\n"));
     }
 
+    @Test
+    public void pdfByteRangeIsASingleSpan() {
+        assertNull(PhotoRoutes.byteSpan(null, 100));
+        assertNull(PhotoRoutes.byteSpan("bytes=0-10,20-30", 100));
+        assertNull(PhotoRoutes.byteSpan("bytes=200-10", 100));
+        PhotoRoutes.ByteSpan open = PhotoRoutes.byteSpan("bytes=0-", 100);
+        assertEquals(0, open.start);
+        assertEquals(99, open.end);
+        PhotoRoutes.ByteSpan middle = PhotoRoutes.byteSpan("bytes=10-19", 100);
+        assertEquals(10, middle.start);
+        assertEquals(19, middle.end);
+        PhotoRoutes.ByteSpan tail = PhotoRoutes.byteSpan("bytes=-20", 100);
+        assertEquals(80, tail.start);
+        assertEquals(99, tail.end);
+    }
+
     private static byte[] samplePdf() {
         return "%PDF-1.4\n%%EOF\n".getBytes(StandardCharsets.US_ASCII);
     }

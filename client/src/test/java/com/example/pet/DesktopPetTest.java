@@ -479,6 +479,29 @@ public class DesktopPetTest {
     }
 
     @Test
+    public void doubleClickSummonsTheMainWindow() throws Exception {
+        Assume.assumeFalse("headless JVM cannot show a pet", GraphicsEnvironment.isHeadless());
+        SwingUtilities.invokeAndWait(() -> {
+            MemoryPreferences prefs = new MemoryPreferences();
+            DesktopPetManager manager = new DesktopPetManager(new DesktopPetSettings(prefs));
+            int[] summons = {0};
+            manager.setSummonMain(() -> summons[0]++);
+            try {
+                assertTrue(manager.setEnabled(true));
+                DesktopPetWindow pet = manager.window();
+                clickPet(pet, 1);
+                assertEquals(0, summons[0]);
+                assertEquals("嗨", pet.animation().bubble());
+                clickPet(pet, 2);
+                assertEquals(1, summons[0]);
+                assertEquals("嗨", pet.animation().bubble());
+            } finally {
+                manager.shutdown();
+            }
+        });
+    }
+
+    @Test
     public void oneWindowSurvivesToggleMinimizeAndPointer() throws Exception {
         Assume.assumeFalse("headless JVM cannot show a pet", GraphicsEnvironment.isHeadless());
         DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
@@ -510,7 +533,9 @@ public class DesktopPetTest {
                 assertTrue(pet.isVisible());
                 assertTrue(manager.isAnimating());
                 assertFalse(pet.getFocusableWindowState());
-                assertEquals(java.awt.Window.Type.UTILITY, pet.getType());
+                assertEquals(DesktopPetWindow.keepsAppInBackground()
+                        ? java.awt.Window.Type.POPUP
+                        : java.awt.Window.Type.UTILITY, pet.getType());
 
                 assertTrue(manager.setEnabled(true));
                 assertSame(pet, manager.window());
@@ -618,6 +643,16 @@ public class DesktopPetTest {
             }
         }
         assertTrue(opaque > 1000);
+    }
+
+    private static void clickPet(DesktopPetWindow pet, int clickCount) {
+        Point origin = pet.getLocationOnScreen();
+        pet.stage().dispatchEvent(mouse(
+                pet.stage(), MouseEvent.MOUSE_PRESSED, 16, 16, origin.x + 16, origin.y + 16,
+                0, clickCount, MouseEvent.BUTTON1));
+        pet.stage().dispatchEvent(mouse(
+                pet.stage(), MouseEvent.MOUSE_RELEASED, 16, 16, origin.x + 16, origin.y + 16,
+                0, clickCount, MouseEvent.BUTTON1));
     }
 
     private static MouseEvent mouse(

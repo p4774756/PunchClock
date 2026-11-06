@@ -1793,6 +1793,7 @@ public class App extends JFrame {
         }
         try {
             desktopPetManager = new DesktopPetManager();
+            desktopPetManager.setSummonMain(() -> WindowShake.bringToFront(this));
         } catch (RuntimeException ex) {
             appendLog("[設定] 無法讀取桌面寵物設定");
             return;

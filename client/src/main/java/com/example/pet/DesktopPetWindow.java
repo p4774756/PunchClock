@@ -34,6 +34,8 @@ import java.awt.geom.RoundRectangle2D;
  * 透明、無邊框的桌面寵物視窗。
  * <p>
  * 不掛在主視窗底下（沒有 owner），主視窗最小化時寵物仍留在桌面。
+ * macOS 用 POPUP：點一下角色或拖曳不會把整個程式叫到前景，被擋住的主視窗留在後面。
+ * 連點兩下角色、或點提醒泡泡，才會把主視窗拉上來。
  * Windows 與 macOS 都先試 per-pixel 透明；系統不支援時改畫圓角底，避免整塊黑底。
  * 監聽器與計時器只在建構時建立一次，顯示與隱藏只開關計時器。
  */
@@ -66,6 +68,7 @@ public final class DesktopPetWindow extends JFrame {
     private Runnable noticeReleased;
     private Runnable noticePump;
     private Runnable noticeOpen;
+    private Runnable summonMain;
     private Rectangle bubbleBounds;
 
     DesktopPetWindow(DesktopPetSettings settings) {
@@ -77,7 +80,9 @@ public final class DesktopPetWindow extends JFrame {
         this.settings = settings;
         setUndecorated(true);
         try {
-            setType(Type.UTILITY);
+            // macOS 的 UTILITY 視窗一被點到，系統就會把整個程式叫到前景。
+            // POPUP 在原生層是不啟動 App 的面板，點一下和拖曳不會把主視窗拉上來。
+            setType(keepsAppInBackground() ? Type.POPUP : Type.UTILITY);
         } catch (RuntimeException ex) {
             // 沒設成工具視窗時，仍是沒有 owner 的獨立視窗。
         }
@@ -257,6 +262,11 @@ public final class DesktopPetWindow extends JFrame {
         this.noticePump = noticePump;
     }
 
+    /** 連點兩下角色時叫主視窗到前景。點一下只打招呼。 */
+    void setSummonMain(Runnable summonMain) {
+        this.summonMain = summonMain;
+    }
+
     boolean showNotice(String phrase, Runnable open) {
         requireEdt();
         if (!animation.showNotice(phrase)) {
@@ -404,6 +414,8 @@ public final class DesktopPetWindow extends JFrame {
                             System.err.println("[桌面寵物] 無法打開提醒：" + ex.getMessage());
                         }
                     }
+                } else if (e.getClickCount() >= 2) {
+                    summonMainWindow();
                 } else if (animation.isNotice()) {
                     noticeOpen = null;
                     animation.poke();
@@ -419,6 +431,23 @@ public final class DesktopPetWindow extends JFrame {
                 repaint();
             }
         };
+    }
+
+    private void summonMainWindow() {
+        if (summonMain == null) {
+            return;
+        }
+        try {
+            summonMain.run();
+        } catch (RuntimeException ex) {
+            System.err.println("[桌面寵物] 無法把主視窗叫到前面：" + ex.getMessage());
+        }
+    }
+
+    /** macOS 點到一般視窗會啟動整個程式。POPUP 才不會把被擋住的主視窗拉上來。 */
+    static boolean keepsAppInBackground() {
+        String os = System.getProperty("os.name", "");
+        return os.startsWith("Mac") || os.startsWith("Darwin");
     }
 
     private boolean tryPerPixelTransparency() {
