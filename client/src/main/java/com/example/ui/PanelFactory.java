@@ -317,7 +317,40 @@ public class PanelFactory {
                 "任務完成或排程時間到時揮手提醒。", boldFont));
         column.add(petOption(refs.desktopPetNotifySound, "提示音",
                 "提醒真正出現時才響一聲。預設關閉。", boldFont));
+        refs.desktopPetSwitch.addItemListener(e -> applyDesktopPetOptionEnabled(refs));
+        applyDesktopPetOptionEnabled(refs);
         return column;
+    }
+
+    /** 總開關關掉時，提醒與提示音不能改，原來的勾選留著。 */
+    private static void applyDesktopPetOptionEnabled(ServerConfigRefs refs) {
+        if (refs == null || refs.desktopPetSwitch == null) {
+            return;
+        }
+        boolean on = refs.desktopPetSwitch.isSelected();
+        setPetOptionEnabled(refs.desktopPetNotifyMessage, on);
+        setPetOptionEnabled(refs.desktopPetNotifyFile, on);
+        setPetOptionEnabled(refs.desktopPetNotifyTask, on);
+        setPetOptionEnabled(refs.desktopPetNotifySound, on);
+    }
+
+    private static void setPetOptionEnabled(JToggleButton toggle, boolean enabled) {
+        if (toggle == null) {
+            return;
+        }
+        toggle.setEnabled(enabled);
+        Container parent = toggle.getParent();
+        if (parent == null) {
+            return;
+        }
+        Cursor cursor = Cursor.getPredefinedCursor(enabled ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR);
+        for (Component child : parent.getComponents()) {
+            if (child == toggle) {
+                continue;
+            }
+            child.setEnabled(enabled);
+            child.setCursor(cursor);
+        }
     }
 
     private static JPanel petOption(JToggleButton toggle, String title, String tip, Font font) {

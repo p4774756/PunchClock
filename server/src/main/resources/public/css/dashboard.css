@@ -359,31 +359,8 @@
       border-radius: var(--radius);
     }
 
-    .marquee-admin-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 0.75rem;
-    }
-
-    .marquee-toggle {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      font-size: 0.88rem;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-
-    .marquee-admin-row {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-    }
-
-    .marquee-admin-row input {
-      flex: 1;
-      min-width: 0;
+    .marquee-admin input[type="text"] {
+      width: 100%;
       border: 1px solid var(--line-soft);
       border-radius: 6px;
       padding: 0.5rem 0.6rem;
@@ -391,6 +368,17 @@
       font-size: 0.88rem;
       color: var(--text-dark);
       background: #fff;
+    }
+
+    .marquee-admin-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .marquee-admin-actions .btn[hidden] {
+      display: none;
     }
 
     .marquee-admin-status {

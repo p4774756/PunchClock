@@ -1415,53 +1415,102 @@
       });
     }
 
+    let marqueeLive = { enabled: false, text: '' };
+    let marqueeSaving = false;
+    let marqueeError = '';
+
+    function renderMarquee() {
+      const text = document.getElementById('marqueeText');
+      const showBtn = document.getElementById('marqueeShowBtn');
+      const hideBtn = document.getElementById('marqueeHideBtn');
+      const status = document.getElementById('marqueeStatus');
+      const draft = text ? text.value.trim() : '';
+      const liveOn = !!(marqueeLive.enabled && marqueeLive.text);
+      const same = draft === marqueeLive.text;
+      if (showBtn) showBtn.disabled = marqueeSaving || !draft || (liveOn && same);
+      if (hideBtn) {
+        hideBtn.hidden = !liveOn;
+        hideBtn.disabled = marqueeSaving;
+      }
+      if (!status) return;
+      if (marqueeError) {
+        status.textContent = marqueeError;
+        return;
+      }
+      if (!liveOn) {
+        status.textContent = '桌面端現在沒有跑馬燈。';
+      } else if (!same) {
+        status.textContent = '這句還沒換上。按換上這句之後，大約 15 秒才會換。';
+      } else {
+        status.textContent = '桌面端正在顯示這句。';
+      }
+    }
+
     async function fetchMarquee() {
       const text = document.getElementById('marqueeText');
-      const enabled = document.getElementById('marqueeEnabled');
-      if (!text || !enabled) return;
+      if (!text) return;
       try {
         const res = await fetch('/api/marquee', { credentials: 'same-origin' });
         const data = await res.json();
         if (!data.success) return;
-        enabled.checked = !!data.enabled;
-        text.value = data.text || '';
+        marqueeLive = { enabled: !!data.enabled, text: data.text || '' };
+        text.value = marqueeLive.text;
         if (data.maxChars) text.maxLength = data.maxChars;
+        marqueeError = '';
+        renderMarquee();
       } catch (e) {
         console.error('Fetch marquee error', e);
       }
     }
 
-    async function saveMarquee(event) {
-      event.preventDefault();
+    async function saveMarquee(wantOn, event) {
+      if (event) event.preventDefault();
       const text = document.getElementById('marqueeText');
-      const enabled = document.getElementById('marqueeEnabled');
       const status = document.getElementById('marqueeStatus');
-      const button = document.getElementById('marqueeSaveBtn');
-      if (!text || !enabled) return;
-      if (button) button.disabled = true;
+      if (!text || marqueeSaving) return;
+      const draft = text.value;
+      if (wantOn && !draft.trim()) {
+        marqueeError = '先寫一句要顯示的話';
+        renderMarquee();
+        return;
+      }
+      const textToSave = wantOn ? draft : (draft.trim() ? draft : marqueeLive.text);
+      marqueeSaving = true;
+      marqueeError = '';
+      renderMarquee();
       try {
         const res = await fetch('/api/marquee', {
           method: 'PUT',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: enabled.checked, text: text.value })
+          body: JSON.stringify({ enabled: wantOn, text: textToSave })
         });
         const data = await res.json();
-        if (status) status.textContent = data.message || (data.success ? '已儲存' : '沒有儲存');
-        if (data.success) {
-          enabled.checked = !!data.enabled;
-          text.value = data.text || '';
+        if (!data.success) {
+          marqueeError = data.message || '沒有儲存';
+          return;
         }
+        marqueeLive = { enabled: !!data.enabled, text: data.text || '' };
+        text.value = marqueeLive.text;
       } catch (e) {
-        if (status) status.textContent = '沒有儲存，請再試一次';
+        marqueeError = '沒有儲存，請再試一次';
+        if (status) status.textContent = marqueeError;
       } finally {
-        if (button) button.disabled = false;
+        marqueeSaving = false;
+        renderMarquee();
       }
     }
 
     function bindMarqueeForm() {
       const form = document.getElementById('marqueeForm');
-      if (form) form.addEventListener('submit', saveMarquee);
+      const text = document.getElementById('marqueeText');
+      const hideBtn = document.getElementById('marqueeHideBtn');
+      if (form) form.addEventListener('submit', event => saveMarquee(true, event));
+      if (hideBtn) hideBtn.addEventListener('click', () => saveMarquee(false));
+      if (text) text.addEventListener('input', () => {
+        marqueeError = '';
+        renderMarquee();
+      });
     }
 
     bindDashTabs();

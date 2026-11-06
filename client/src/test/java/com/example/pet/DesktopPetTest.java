@@ -190,6 +190,20 @@ public class DesktopPetTest {
             assertEquals("檔案傳輸提醒", refs.desktopPetNotifyFile.getAccessibleContext().getAccessibleName());
             assertEquals("任務與排程提醒", refs.desktopPetNotifyTask.getAccessibleContext().getAccessibleName());
             assertEquals("提示音", refs.desktopPetNotifySound.getAccessibleContext().getAccessibleName());
+            assertFalse(refs.desktopPetNotifyMessage.isEnabled());
+            assertFalse(refs.desktopPetNotifyFile.isEnabled());
+            assertFalse(refs.desktopPetNotifyTask.isEnabled());
+            assertFalse(refs.desktopPetNotifySound.isEnabled());
+            refs.desktopPetSwitch.setSelected(true);
+            assertTrue(refs.desktopPetNotifyMessage.isEnabled());
+            assertTrue(refs.desktopPetNotifyFile.isEnabled());
+            assertTrue(refs.desktopPetNotifyTask.isEnabled());
+            assertTrue(refs.desktopPetNotifySound.isEnabled());
+            assertTrue(refs.desktopPetNotifyMessage.isSelected());
+            assertFalse(refs.desktopPetNotifySound.isSelected());
+            refs.desktopPetSwitch.setSelected(false);
+            assertFalse(refs.desktopPetNotifyMessage.isEnabled());
+            assertTrue(refs.desktopPetNotifyMessage.isSelected());
         });
     }
 

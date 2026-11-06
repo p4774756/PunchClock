@@ -71,19 +71,14 @@
         <div class="content-panel content-panel-full">
           <section class="system-status" aria-label="製茶機">
             <form id="marqueeForm" class="marquee-admin" aria-label="跑馬燈">
-              <div class="marquee-admin-head">
-                <div>
-                  <div class="section-label" style="margin:0;border:0;padding:0">跑馬燈</div>
-                  <p class="system-status-hint">顯示在每台桌面端最上方。儲存後下一輪心跳才換，大約 15 秒。</p>
-                </div>
-                <label class="marquee-toggle">
-                  <input type="checkbox" id="marqueeEnabled">
-                  開啟
-                </label>
+              <div>
+                <div class="section-label" style="margin:0;border:0;padding:0">跑馬燈</div>
+                <p class="system-status-hint">顯示在每台桌面端最上方。換上或拿下之後，下一輪心跳才會換，大約 15 秒。</p>
               </div>
-              <div class="marquee-admin-row">
-                <input id="marqueeText" type="text" maxlength="120" placeholder="例如：下午三點會議室集合" autocomplete="off">
-                <button type="submit" class="btn btn-primary" id="marqueeSaveBtn">儲存</button>
+              <input id="marqueeText" type="text" maxlength="120" placeholder="例如：下午三點會議室集合" autocomplete="off">
+              <div class="marquee-admin-actions">
+                <button type="submit" class="btn btn-primary" id="marqueeShowBtn">換上這句</button>
+                <button type="button" class="btn btn-ghost" id="marqueeHideBtn" hidden>先不要顯示</button>
               </div>
               <p class="marquee-admin-status" id="marqueeStatus" role="status"></p>
             </form>
