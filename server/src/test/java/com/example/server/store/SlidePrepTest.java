@@ -46,11 +46,30 @@ public class SlidePrepTest {
 
         SlidePrep.Result empty = prep.prepare("空白.pages", pagesZip(new byte[] {1, 2, 3}));
         assertFalse(empty.ok);
-        assertEquals("這份 Pages 沒有預覽，請先在 Pages 輸出成 PDF 再上傳", empty.message);
+        assertEquals("這份 Pages 沒有預覽", empty.message);
 
         SlidePrep.Result missing = prep.prepare("沒預覽.pages", zipWith("Index/Document.iwa", new byte[] {9}));
         assertFalse(missing.ok);
-        assertTrue(missing.message.contains("沒有預覽"));
+        assertEquals("這份 Pages 沒有預覽", missing.message);
+    }
+
+    @Test
+    public void modernPagesUsesEmbeddedPreviewImage() throws Exception {
+        byte[] jpeg = new byte[] {
+                (byte) 0xff, (byte) 0xd8, (byte) 0xff, (byte) 0xc0, 0x00, 0x0b, 0x08,
+                0x00, 0x02, 0x00, 0x03, 0x03, 0x01, 0x11, 0x00, (byte) 0xff, (byte) 0xd9
+        };
+        SlidePrep prep = new SlidePrep(source -> {
+            throw new AssertionError("預覽圖不該呼叫 PowerPoint 轉檔");
+        });
+        SlidePrep.Result result = prep.prepare("報告.pages", zipWith("preview.jpg", jpeg));
+        assertTrue(result.message, result.ok);
+        assertTrue(SlidePrep.isPdf(result.pdf));
+        assertArrayEquals(new int[] {3, 2, 3}, SlidePrep.jpegInfo(jpeg));
+        String pdf = new String(result.pdf, java.nio.charset.StandardCharsets.ISO_8859_1);
+        assertTrue(pdf.contains("/Width 3"));
+        assertTrue(pdf.contains("/Height 2"));
+        assertTrue(pdf.contains("/Filter /DCTDecode"));
     }
 
     @Test

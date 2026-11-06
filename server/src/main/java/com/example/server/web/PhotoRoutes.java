@@ -14,7 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** 飲品牆：PowerPoint 與 Pages。 */
+/** 飲品牆：PDF、PowerPoint 與 Pages。 */
 public final class PhotoRoutes {
 
     private final AuthService authService;
@@ -50,9 +50,9 @@ public final class PhotoRoutes {
                 data = in.readAllBytes();
             }
             SlidePrep.Kind kind = SlidePrep.classify(uploaded.filename(), uploaded.contentType());
-            if (kind != SlidePrep.Kind.PPT && kind != SlidePrep.Kind.PAGES) {
+            if (kind != SlidePrep.Kind.PDF && kind != SlidePrep.Kind.PPT && kind != SlidePrep.Kind.PAGES) {
                 ctx.status(HttpStatus.BAD_REQUEST).json(Map.of(
-                        "success", false, "message", "只接受 PowerPoint 或 Pages"));
+                        "success", false, "message", "只接受 PDF、PowerPoint 或 Pages"));
                 return;
             }
             if (!photoStore.isPersistent()) {

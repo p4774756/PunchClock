@@ -1134,6 +1134,7 @@
 
     function slideMark(filename) {
       const name = String(filename || '').toLowerCase();
+      if (name.endsWith('.pdf')) return 'PDF';
       if (name.endsWith('.pages')) return 'PAGES';
       if (name.endsWith('.ppt')) return 'PPT';
       if (name.endsWith('.pptx')) return 'PPTX';
@@ -1238,12 +1239,12 @@
     }
 
     function isSlideFile(file) {
-      return /\.(ppt|pptx|pages)$/i.test(String(file && file.name || ''));
+      return /\.(pdf|ppt|pptx|pages)$/i.test(String(file && file.name || ''));
     }
 
     async function uploadPhoto(file) {
       if (!isSlideFile(file)) {
-        alert('只接受 PowerPoint 或 Pages');
+        alert('只接受 PDF、PowerPoint 或 Pages');
         return;
       }
       if (file.size > 60 * 1024 * 1024) {

@@ -3,6 +3,7 @@ package com.example.server.store;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -12,7 +13,7 @@ import java.util.zip.ZipFile;
 
 /**
  * 把飲品牆收到的簡報準備成 PDF。
- * PDF 原樣留下；Pages 取出檔內預覽；PowerPoint 交給 {@link OfficePdfConverter}（同時只轉一份）。
+ * PDF 原樣留下；Pages 取出檔內 PDF，沒有的話用存檔時附的預覽圖；PowerPoint 交給 {@link OfficePdfConverter}（同時只轉一份）。
  */
 public final class SlidePrep {
 
@@ -153,13 +154,17 @@ public final class SlidePrep {
                 && data[4] == '-';
     }
 
+    private static final String NO_PAGES_PREVIEW = "這份 Pages 沒有預覽";
+
     private static Result extractPagesPreview(byte[] data) throws IOException {
         Path tmp = Files.createTempFile("punchclock-pages-", ".pages");
         try {
             Files.write(tmp, data);
             try (ZipFile zip = new ZipFile(tmp.toFile())) {
-                ZipEntry best = null;
-                int bestScore = 0;
+                ZipEntry bestPdf = null;
+                int bestPdfScore = 0;
+                ZipEntry bestImage = null;
+                int bestImageScore = 0;
                 boolean oversized = false;
                 int seen = 0;
                 var entries = zip.entries();
@@ -171,53 +176,66 @@ public final class SlidePrep {
                     if (entry.isDirectory()) {
                         continue;
                     }
-                    int score = previewScore(entry.getName());
-                    if (score < 0) {
+                    String lower = safeZipName(entry.getName());
+                    if (lower == null) {
                         continue;
                     }
                     if (entry.getSize() > PhotoStore.MAX_DOCUMENT_BYTES) {
-                        oversized = true;
+                        if (pdfScore(lower) >= 0 || imageScore(lower) >= 0) {
+                            oversized = true;
+                        }
                         continue;
                     }
-                    if (best == null || score > bestScore) {
-                        best = entry;
-                        bestScore = score;
+                    int pdf = pdfScore(lower);
+                    if (pdf >= 0 && (bestPdf == null || pdf > bestPdfScore)) {
+                        bestPdf = entry;
+                        bestPdfScore = pdf;
+                    }
+                    int image = imageScore(lower);
+                    if (image >= 0 && (bestImage == null || image > bestImageScore)) {
+                        bestImage = entry;
+                        bestImageScore = image;
                     }
                 }
-                if (best == null) {
-                    return Result.fail(oversized
-                            ? "預覽 PDF 超過 60 MB"
-                            : "這份 Pages 沒有預覽，請先在 Pages 輸出成 PDF 再上傳");
-                }
-                try (InputStream in = zip.getInputStream(best)) {
-                    Result preview = acceptPdf(readCapped(in), false);
-                    if (!preview.ok && "這不是 PDF".equals(preview.message)) {
-                        return Result.fail("這份 Pages 沒有預覽，請先在 Pages 輸出成 PDF 再上傳");
+                if (bestPdf != null) {
+                    try (InputStream in = zip.getInputStream(bestPdf)) {
+                        Result preview = acceptPdf(readCapped(in), false);
+                        if (preview.ok) {
+                            return preview;
+                        }
                     }
-                    return preview;
                 }
+                if (bestImage != null) {
+                    try (InputStream in = zip.getInputStream(bestImage)) {
+                        return acceptPdf(jpegToPdf(readCapped(in)), true);
+                    }
+                }
+                return Result.fail(oversized ? "預覽超過 60 MB" : NO_PAGES_PREVIEW);
             } catch (ZipException ex) {
-                return Result.fail("這份 Pages 沒有預覽，請先在 Pages 輸出成 PDF 再上傳");
+                return Result.fail(NO_PAGES_PREVIEW);
             }
         } finally {
             Files.deleteIfExists(tmp);
         }
     }
 
-    private static int previewScore(String name) {
+    private static String safeZipName(String name) {
         if (name == null || name.isBlank()) {
-            return -1;
+            return null;
         }
         String normalized = name.replace('\\', '/');
         if (normalized.startsWith("/") || normalized.indexOf(':') >= 0) {
-            return -1;
+            return null;
         }
         for (String part : normalized.split("/")) {
             if ("..".equals(part)) {
-                return -1;
+                return null;
             }
         }
-        String lower = normalized.toLowerCase(Locale.ROOT);
+        return normalized.toLowerCase(Locale.ROOT);
+    }
+
+    private static int pdfScore(String lower) {
         if (!lower.endsWith(".pdf")) {
             return -1;
         }
@@ -228,6 +246,112 @@ public final class SlidePrep {
             return 80;
         }
         return 10;
+    }
+
+    /** 新版 Pages 單檔只附預覽圖，沒有整份 PDF。優先用整頁的 preview.jpg。 */
+    private static int imageScore(String lower) {
+        if (!(lower.endsWith(".jpg") || lower.endsWith(".jpeg"))) {
+            return -1;
+        }
+        if (lower.equals("preview.jpg") || lower.endsWith("/preview.jpg")) {
+            return 100;
+        }
+        if (lower.equals("preview-web.jpg") || lower.endsWith("/preview-web.jpg")) {
+            return 80;
+        }
+        if (lower.contains("quicklook/") ) {
+            return 60;
+        }
+        if (lower.equals("preview-micro.jpg") || lower.endsWith("/preview-micro.jpg")) {
+            return 20;
+        }
+        return -1;
+    }
+
+    static byte[] jpegToPdf(byte[] jpeg) throws IOException {
+        int[] info = jpegInfo(jpeg);
+        if (info == null) {
+            throw new IOException("預覽圖讀不到");
+        }
+        int width = info[0];
+        int height = info[1];
+        int components = info[2];
+        String colorSpace = components == 1 ? "/DeviceGray" : components == 4 ? "/DeviceCMYK" : "/DeviceRGB";
+        byte[] content = ("q\n" + width + " 0 0 " + height + " 0 0 cm\n/Im Do\nQ\n")
+                .getBytes(StandardCharsets.US_ASCII);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("%PDF-1.4\n".getBytes(StandardCharsets.US_ASCII));
+        int[] offsets = new int[6];
+        offsets[1] = writePdfObject(out, "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+        offsets[2] = writePdfObject(out, "2 0 obj\n<< /Type /Pages /Count 1 /Kids [3 0 R] >>\nendobj\n");
+        offsets[3] = writePdfObject(out, "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "
+                + width + " " + height + "] /Contents 4 0 R /Resources << /XObject << /Im 5 0 R >> >> >>\nendobj\n");
+        offsets[4] = out.size();
+        out.write(("4 0 obj\n<< /Length " + content.length + " >>\nstream\n").getBytes(StandardCharsets.US_ASCII));
+        out.write(content);
+        out.write("endstream\nendobj\n".getBytes(StandardCharsets.US_ASCII));
+        offsets[5] = out.size();
+        out.write(("5 0 obj\n<< /Type /XObject /Subtype /Image /Width " + width + " /Height " + height
+                + " /ColorSpace " + colorSpace + " /BitsPerComponent 8 /Filter /DCTDecode /Length "
+                + jpeg.length + " >>\nstream\n").getBytes(StandardCharsets.US_ASCII));
+        out.write(jpeg);
+        out.write("\nendstream\nendobj\n".getBytes(StandardCharsets.US_ASCII));
+        int xref = out.size();
+        out.write("xref\n0 6\n0000000000 65535 f \n".getBytes(StandardCharsets.US_ASCII));
+        for (int i = 1; i <= 5; i++) {
+            out.write(String.format(Locale.ROOT, "%010d 00000 n \n", offsets[i]).getBytes(StandardCharsets.US_ASCII));
+        }
+        out.write(("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n" + xref + "\n%%EOF\n")
+                .getBytes(StandardCharsets.US_ASCII));
+        return out.toByteArray();
+    }
+
+    private static int writePdfObject(ByteArrayOutputStream out, String object) throws IOException {
+        int offset = out.size();
+        out.write(object.getBytes(StandardCharsets.US_ASCII));
+        return offset;
+    }
+
+    static int[] jpegInfo(byte[] jpeg) {
+        if (jpeg == null || jpeg.length < 4 || (jpeg[0] & 0xff) != 0xff || (jpeg[1] & 0xff) != 0xd8) {
+            return null;
+        }
+        int i = 2;
+        while (i + 9 < jpeg.length) {
+            if ((jpeg[i] & 0xff) != 0xff) {
+                i++;
+                continue;
+            }
+            while (i < jpeg.length && (jpeg[i] & 0xff) == 0xff) {
+                i++;
+            }
+            if (i >= jpeg.length) {
+                return null;
+            }
+            int marker = jpeg[i] & 0xff;
+            i++;
+            if (marker == 0xd9 || marker == 0xda) {
+                return null;
+            }
+            if (i + 1 >= jpeg.length) {
+                return null;
+            }
+            int length = ((jpeg[i] & 0xff) << 8) | (jpeg[i + 1] & 0xff);
+            if (length < 2 || i + length > jpeg.length) {
+                return null;
+            }
+            boolean sof = marker >= 0xc0 && marker <= 0xcf && marker != 0xc4 && marker != 0xc8 && marker != 0xcc;
+            if (sof && length >= 8) {
+                int height = ((jpeg[i + 3] & 0xff) << 8) | (jpeg[i + 4] & 0xff);
+                int width = ((jpeg[i + 5] & 0xff) << 8) | (jpeg[i + 6] & 0xff);
+                int components = jpeg[i + 7] & 0xff;
+                if (width > 0 && height > 0 && components > 0) {
+                    return new int[] { width, height, components };
+                }
+            }
+            i += length;
+        }
+        return null;
     }
 
     private static byte[] readCapped(InputStream in) throws IOException {
