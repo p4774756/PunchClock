@@ -26,7 +26,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * 飲品牆：照片與筆記。
+ * 飲品牆：照片、簡報 PDF 與筆記。
  * <p>
  * 支援兩種模式：
  * <ul>
@@ -39,6 +39,13 @@ public final class PhotoStore {
 
     private static final Logger LOG = Logger.getLogger(PhotoStore.class.getName());
     private static final long MAX_PHOTO_BYTES = 10 * 1024 * 1024L;
+    /** 飲品牆上的 PDF、PowerPoint、Pages。 */
+    public static final long MAX_DOCUMENT_BYTES = 60L * 1024L * 1024L;
+    /**
+     * 單次進站請求上限。要容得下一份 60 MB 簡報，也要大於直傳的一段。
+     * 直傳整檔仍以 {@code PeerFileRules.MAX_BYTES} 為準，一段一段送，不靠這一個上限。
+     */
+    public static final long MAX_INCOMING_REQUEST_BYTES = 64L * 1024L * 1024L;
     private static final int MAX_PHOTOS = 50;
     private static final int MAX_NOTE_CHARS = 4000;
     private static final int MAX_LINK_CHARS = 2000;
@@ -111,6 +118,10 @@ public final class PhotoStore {
             this.createdAtMs = createdAtMs;
             this.filePath = null;
             this.cachedBase64 = base64Data;
+        }
+
+        public boolean isPdf() {
+            return "application/pdf".equalsIgnoreCase(mimeType);
         }
 
         public String base64Data() {
@@ -243,6 +254,63 @@ public final class PhotoStore {
         return UploadResult.success(photo);
     }
 
+    /** 存一份已是 PDF 的簡報。沒有飲品牆目錄時拒絕，避免整份檔留在記憶體。 */
+    public UploadResult savePdf(String filename, byte[] data) {
+        if (filename == null || filename.isBlank()) {
+            return UploadResult.fail("檔名不可為空");
+        }
+        if (data == null || data.length == 0 || !SlidePrep.isPdf(data)) {
+            return UploadResult.fail("這不是 PDF");
+        }
+        if (data.length > MAX_DOCUMENT_BYTES) {
+            return UploadResult.fail("單份簡報不可超過 60 MB");
+        }
+        if (storageDir == null) {
+            return UploadResult.fail("伺服器沒有飲品牆目錄，無法留簡報");
+        }
+        if (slideCount() >= MAX_PHOTOS) {
+            return UploadResult.fail("已達上限 " + MAX_PHOTOS + " 份，請先清掉一些");
+        }
+        String id = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String safeName = sanitizeFilename(filename);
+        Path filePath = storageDir.resolve(id + ".pdf");
+        try {
+            Files.write(filePath, data);
+        } catch (IOException ex) {
+            LOG.log(Level.WARNING, "無法寫入簡報：" + filePath, ex);
+            return UploadResult.fail("無法儲存簡報：" + ex.getMessage());
+        }
+        Photo photo = new Photo(id, safeName, "application/pdf", data.length, System.currentTimeMillis(), filePath);
+        photos.put(id, photo);
+        saveIndex();
+        return UploadResult.success(photo);
+    }
+
+    public InputStream openPdf(String photoId) throws IOException {
+        Photo photo = photoId == null ? null : photos.get(photoId);
+        if (photo == null || !photo.isPdf() || photo.filePath == null || !Files.isRegularFile(photo.filePath)) {
+            return null;
+        }
+        return Files.newInputStream(photo.filePath);
+    }
+
+    public Map<String, Object> describe(Photo photo) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", photo.id);
+        item.put("filename", photo.filename);
+        item.put("mimeType", photo.mimeType);
+        item.put("size", photo.size);
+        item.put("createdAtMs", photo.createdAtMs);
+        if (photo.isPdf()) {
+            item.put("kind", "pdf");
+            item.put("fileUrl", "/api/photos/" + photo.id + "/file");
+        } else {
+            item.put("kind", "photo");
+            item.put("dataUrl", "data:" + photo.mimeType + ";base64," + photo.base64Data());
+        }
+        return item;
+    }
+
     public NoteResult addNote(String text, String link) {
         String body = text == null ? "" : text.trim();
         if (body.isEmpty()) {
@@ -328,15 +396,7 @@ public final class PhotoStore {
     public List<Map<String, Object>> snapshot() {
         List<Map<String, Object>> result = new ArrayList<>();
         for (Photo p : photos.values()) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("id", p.id);
-            item.put("kind", "photo");
-            item.put("filename", p.filename);
-            item.put("mimeType", p.mimeType);
-            item.put("dataUrl", "data:" + p.mimeType + ";base64," + p.base64Data());
-            item.put("size", p.size);
-            item.put("createdAtMs", p.createdAtMs);
-            result.add(item);
+            result.add(describe(p));
         }
         for (Note note : notes.values()) {
             Map<String, Object> item = new LinkedHashMap<>();
@@ -346,6 +406,18 @@ public final class PhotoStore {
             item.put("link", note.link);
             item.put("createdAtMs", note.createdAtMs);
             result.add(item);
+        }
+        result.sort(Comparator.comparingLong(item -> ((Number) item.get("createdAtMs")).longValue()));
+        return result;
+    }
+
+    /** 牆上給人看的只有轉好的簡報，照片和筆記不列出。 */
+    public List<Map<String, Object>> slides() {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Photo photo : photos.values()) {
+            if (photo.isPdf()) {
+                result.add(describe(photo));
+            }
         }
         result.sort(Comparator.comparingLong(item -> ((Number) item.get("createdAtMs")).longValue()));
         return result;
@@ -361,6 +433,16 @@ public final class PhotoStore {
 
     private int wallSize() {
         return photos.size() + notes.size();
+    }
+
+    private int slideCount() {
+        int count = 0;
+        for (Photo photo : photos.values()) {
+            if (photo.isPdf()) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private void loadFromDisk() {

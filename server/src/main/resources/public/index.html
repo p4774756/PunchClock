@@ -49,7 +49,7 @@
     <p class="island-list-title">店內</p>
     <button type="button" data-tab="devices">點單<small>門市與訂單</small></button>
     <button type="button" data-tab="system">製茶機<small>這台伺服器</small></button>
-    <button type="button" data-tab="photos">飲品牆<small>照片和筆記</small></button>
+    <button type="button" data-tab="photos">飲品牆<small>簡報</small></button>
   </aside>
 
   <section id="islandSheet" class="island-sheet" hidden>
@@ -124,26 +124,18 @@
             <div class="photo-gallery-head">
               <div>
                 <div class="section-label" style="margin:0;border:0;padding:0">飲品牆</div>
-                <p class="photo-gallery-hint">照片、筆記、連結都可以貼在這裡（打烊重開還在）</p>
+                <p class="photo-gallery-hint">PowerPoint 和 Pages 可以貼在這裡，點開用瀏覽器翻頁（打烊重開還在）</p>
               </div>
               <div class="photo-actions">
                 <label class="btn btn-ghost" for="photoUploadInput">
-                  <input type="file" id="photoUploadInput" accept="image/*" multiple hidden>
-                  選張照片
+                  <input type="file" id="photoUploadInput" accept=".ppt,.pptx,.pages" multiple hidden>
+                  選一份簡報
                 </label>
                 <button type="button" class="btn btn-ghost-danger" id="clearAllPhotosBtn">整面清掉</button>
               </div>
             </div>
-            <form id="noteComposer" class="note-composer">
-              <label class="note-composer-label" for="noteText">寫一張</label>
-              <textarea id="noteText" rows="3" maxlength="4000" placeholder="寫一句、貼一段報告，網址會變成可以點的連結"></textarea>
-              <div class="note-composer-row">
-                <input id="noteLink" type="text" maxlength="2000" placeholder="另外附一條連結，可空白" autocomplete="off" spellcheck="false">
-                <button type="submit" class="btn btn-primary" id="noteSubmitBtn">貼上牆</button>
-              </div>
-            </form>
             <div class="photo-grid" id="photoGrid">
-              <p class="empty-tasks">牆上還沒貼。可以選張照片，或在上面寫一張。</p>
+              <p class="empty-tasks">牆上還沒有簡報。</p>
             </div>
           </section>
         </div>

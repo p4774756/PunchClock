@@ -1,5 +1,6 @@
 package com.example.server.store;
 
+import com.example.PeerFileRules;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -229,6 +230,65 @@ public class PhotoStoreTest {
         PhotoStore.UploadResult overflow = store.upload("overflow.jpg", "image/jpeg", createTestJpeg(10));
         assertFalse(overflow.ok);
         assertTrue(overflow.message.contains("上限"));
+    }
+
+    @Test
+    public void incomingLimitCoversOneSlideWithoutCappingRelay() {
+        assertEquals(60L * 1024 * 1024, PhotoStore.MAX_DOCUMENT_BYTES);
+        assertEquals(64L * 1024 * 1024, PhotoStore.MAX_INCOMING_REQUEST_BYTES);
+        assertTrue(PhotoStore.MAX_DOCUMENT_BYTES < PhotoStore.MAX_INCOMING_REQUEST_BYTES);
+        assertTrue(PhotoStore.MAX_INCOMING_REQUEST_BYTES >= RelayStore.MAX_CHUNK_BYTES);
+        assertTrue(PhotoStore.MAX_INCOMING_REQUEST_BYTES < PeerFileRules.MAX_BYTES);
+        assertEquals(300L * 1024 * 1024, PeerFileRules.MAX_BYTES);
+    }
+
+    @Test
+    public void savePdfRequiresDiskAndSkipsBase64() throws Exception {
+        byte[] pdf = samplePdf();
+        PhotoStore memory = new PhotoStore(null);
+        PhotoStore.UploadResult refused = memory.savePdf("週會.pages", pdf);
+        assertFalse(refused.ok);
+        assertEquals("伺服器沒有飲品牆目錄，無法留簡報", refused.message);
+
+        PhotoStore.UploadResult saved = store.savePdf("週會.pages", pdf);
+        assertTrue(saved.ok);
+        assertEquals("application/pdf", saved.photo.mimeType);
+        assertEquals("週會.pages", saved.photo.filename);
+        assertTrue(Files.isRegularFile(storageDir.resolve(saved.photo.id + ".pdf")));
+
+        Map<String, Object> item = store.describe(saved.photo);
+        assertEquals("pdf", item.get("kind"));
+        assertEquals("/api/photos/" + saved.photo.id + "/file", item.get("fileUrl"));
+        assertFalse(item.containsKey("dataUrl"));
+
+        store.upload("old.jpg", "image/jpeg", createTestJpeg(40));
+        store.addNote("舊筆記", "https://example.com");
+        List<Map<String, Object>> slides = store.slides();
+        assertEquals(1, slides.size());
+        assertEquals(saved.photo.id, slides.get(0).get("id"));
+
+        PhotoStore reloaded = new PhotoStore(storageDir);
+        PhotoStore.Photo loaded = reloaded.get(saved.photo.id);
+        assertNotNull(loaded);
+        assertTrue(loaded.isPdf());
+        assertEquals(pdf.length, loaded.size);
+        try (java.io.InputStream in = reloaded.openPdf(saved.photo.id)) {
+            assertNotNull(in);
+            assertArrayEquals(pdf, in.readAllBytes());
+        }
+        assertNull(reloaded.openPdf("missing"));
+    }
+
+    @Test
+    public void savePdfRejectsNonPdf() {
+        PhotoStore.UploadResult result = store.savePdf("notes.pdf", "hello".getBytes());
+        assertFalse(result.ok);
+        assertEquals("這不是 PDF", result.message);
+        assertEquals(0, store.count());
+    }
+
+    private static byte[] samplePdf() {
+        return "%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
     }
 
     private static byte[] createTestJpeg(int size) {

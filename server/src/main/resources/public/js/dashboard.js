@@ -1131,50 +1131,35 @@
 
     let photoData = [];
     let draggedPhotoId = null;
-    let editingNoteId = '';
+
+    function slideMark(filename) {
+      const name = String(filename || '').toLowerCase();
+      if (name.endsWith('.pages')) return 'PAGES';
+      if (name.endsWith('.ppt')) return 'PPT';
+      if (name.endsWith('.pptx')) return 'PPTX';
+      return '簡報';
+    }
 
     function renderPhotoGrid() {
       const grid = document.getElementById('photoGrid');
       if (!grid) return;
       if (!photoData.length) {
-        grid.innerHTML = '<p class="empty-tasks">牆上還沒貼。可以選張照片，或在上面寫一張。</p>';
+        grid.innerHTML = '<p class="empty-tasks">牆上還沒有簡報。</p>';
         return;
       }
       let html = '';
       for (let i = 0; i < photoData.length; i++) {
         const p = photoData[i];
-        if (isWallNote(p)) {
-          const editing = p.id === editingNoteId;
-          html += '<article class="photo-card note-card' + (editing ? ' is-editing' : '') + '" data-photo-id="' + escapeHtml(p.id) + '" draggable="' + (editing ? 'false' : 'true') + '">';
-          if (editing) {
-            html += '<form class="note-edit" onsubmit="saveNoteEdit(event, \'' + escapeHtml(p.id) + '\')">'
-              + '<textarea id="noteEditText" rows="4" maxlength="4000">' + escapeHtml(p.text) + '</textarea>'
-              + '<input id="noteEditLink" type="text" maxlength="2000" value="' + escapeHtml(p.link || '') + '" placeholder="另外附一條連結，可空白" autocomplete="off" spellcheck="false">'
-              + '<div class="note-edit-actions">'
-              + '<button type="button" class="btn btn-ghost" onclick="cancelNoteEdit()">取消</button>'
-              + '<button type="submit" class="btn btn-primary">存起來</button>'
-              + '</div>'
-              + '</form>';
-          } else {
-            html += '<div class="photo-card-drag-handle" title="拖曳排序">☰</div>'
-              + '<div class="note-card-body">' + linkifyNote(p.text) + '</div>'
-              + (p.link ? '<a class="note-card-link" href="' + escapeHtml(p.link) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(p.link) + '</a>' : '')
-              + '<div class="photo-card-actions">'
-              + '<button type="button" class="btn btn-ghost" onclick="editNote(\'' + escapeHtml(p.id) + '\')">改一下</button>'
-              + '<button type="button" class="btn btn-ghost-danger" onclick="deletePhoto(\'' + escapeHtml(p.id) + '\')">拿下來</button>'
-              + '</div>';
-          }
-          html += '</article>';
-        } else {
-          html += '<div class="photo-card" data-photo-id="' + escapeHtml(p.id) + '" draggable="true">'
-            + '<div class="photo-card-drag-handle" title="拖曳排序">☰</div>'
-            + '<img src="' + escapeHtml(p.dataUrl) + '" alt="' + escapeHtml(p.filename) + '" onclick="openLightbox(\'' + escapeHtml(p.id) + '\')" draggable="false" />'
-            + '<div class="photo-card-actions">'
-            + '<button type="button" class="btn btn-ghost-danger" onclick="deletePhoto(\'' + escapeHtml(p.id) + '\')">刪除</button>'
-            + '</div>'
-            + '<div class="photo-card-info"><span class="photo-card-name">' + escapeHtml(p.filename) + '</span></div>'
-            + '</div>';
-        }
+        html += '<div class="photo-card pdf-card" data-photo-id="' + escapeHtml(p.id) + '" draggable="true">'
+          + '<div class="photo-card-drag-handle" title="拖曳排序">☰</div>'
+          + '<button type="button" class="pdf-card-open" onclick="openLightbox(\'' + escapeHtml(p.id) + '\')">'
+          + '<span class="pdf-card-mark">' + slideMark(p.filename) + '</span>'
+          + '<span class="pdf-card-name">' + escapeHtml(p.filename) + '</span>'
+          + '</button>'
+          + '<div class="photo-card-actions">'
+          + '<button type="button" class="btn btn-ghost-danger" onclick="deletePhoto(\'' + escapeHtml(p.id) + '\')">拿下來</button>'
+          + '</div>'
+          + '</div>';
       }
       grid.innerHTML = html;
       bindPhotoDragEvents();
@@ -1244,7 +1229,7 @@
         const res = await fetch('/api/photos', { credentials: 'same-origin' });
         const data = await res.json();
         if (data.success && Array.isArray(data.photos)) {
-          photoData = data.photos;
+          photoData = data.photos.filter(function(p) { return p && p.kind === 'pdf'; });
           renderPhotoGrid();
         }
       } catch (e) {
@@ -1252,7 +1237,19 @@
       }
     }
 
+    function isSlideFile(file) {
+      return /\.(ppt|pptx|pages)$/i.test(String(file && file.name || ''));
+    }
+
     async function uploadPhoto(file) {
+      if (!isSlideFile(file)) {
+        alert('只接受 PowerPoint 或 Pages');
+        return;
+      }
+      if (file.size > 60 * 1024 * 1024) {
+        alert((file.name || '這份簡報') + ' 超過 60 MB');
+        return;
+      }
       const form = new FormData();
       form.append('file', file);
       try {
@@ -1273,109 +1270,8 @@
       }
     }
 
-    function isWallNote(item) {
-      return !!(item && item.kind === 'note');
-    }
-
-    function linkifyNote(text) {
-      const src = String(text || '');
-      const re = /https?:\/\/[^\s<]+/g;
-      let html = '';
-      let last = 0;
-      let match;
-      while ((match = re.exec(src))) {
-        html += escapeHtml(src.slice(last, match.index));
-        let url = match[0];
-        let extra = '';
-        const trail = url.match(/[),.\]]+$/);
-        if (trail) {
-          extra = trail[0];
-          url = url.slice(0, -extra.length);
-        }
-        html += '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(url) + '</a>';
-        html += escapeHtml(extra);
-        last = match.index + match[0].length;
-      }
-      html += escapeHtml(src.slice(last));
-      return html;
-    }
-
-    function editNote(noteId) {
-      editingNoteId = noteId;
-      renderPhotoGrid();
-      const area = document.getElementById('noteEditText');
-      if (area) {
-        area.focus();
-        const end = area.value.length;
-        area.setSelectionRange(end, end);
-      }
-    }
-
-    function cancelNoteEdit() {
-      editingNoteId = '';
-      renderPhotoGrid();
-    }
-
-    async function saveNoteEdit(event, noteId) {
-      event.preventDefault();
-      const form = event.target;
-      const textEl = form.querySelector('textarea');
-      const linkEl = form.querySelector('input');
-      try {
-        const res = await fetch('/api/photos/notes/' + encodeURIComponent(noteId), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
-          body: JSON.stringify({
-            text: textEl ? textEl.value : '',
-            link: linkEl ? linkEl.value : ''
-          })
-        });
-        const data = await res.json();
-        if (data.success && data.note) {
-          const index = photoData.findIndex(function(p) { return p.id === noteId; });
-          if (index >= 0) photoData[index] = data.note;
-          editingNoteId = '';
-          renderPhotoGrid();
-        } else {
-          alert(data.message || '沒改成');
-        }
-      } catch (e) {
-        alert('沒改成');
-      }
-    }
-
-    async function submitNote(event) {
-      event.preventDefault();
-      const textEl = document.getElementById('noteText');
-      const linkEl = document.getElementById('noteLink');
-      const text = textEl ? textEl.value : '';
-      const link = linkEl ? linkEl.value : '';
-      try {
-        const res = await fetch('/api/photos/notes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
-          body: JSON.stringify({ text: text, link: link })
-        });
-        const data = await res.json();
-        if (data.success && data.note) {
-          photoData.push(data.note);
-          if (textEl) textEl.value = '';
-          if (linkEl) linkEl.value = '';
-          renderPhotoGrid();
-        } else {
-          alert(data.message || '沒貼上');
-        }
-      } catch (e) {
-        alert('沒貼上');
-      }
-    }
-
     async function deletePhoto(photoId) {
-      const item = photoData.find(p => p.id === photoId);
-      const label = isWallNote(item) ? '這張筆記' : '這張照片';
-      if (!confirm('確定要把' + label + '從飲品牆上拿下來嗎？')) return;
+      if (!confirm('確定要把這份簡報從飲品牆上拿下來嗎？')) return;
       try {
         const res = await fetch('/api/photos/' + encodeURIComponent(photoId), {
           method: 'DELETE',
@@ -1395,7 +1291,7 @@
     }
 
     async function clearAllPhotos() {
-      if (!confirm('確定要把飲品牆整面清掉嗎？照片和筆記都會拿下來。')) return;
+      if (!confirm('確定要把飲品牆上的簡報都拿下來嗎？')) return;
       try {
         const res = await fetch('/api/photos', { method: 'DELETE', credentials: 'same-origin' });
         const data = await res.json();
@@ -1413,7 +1309,7 @@
     let currentLightboxIndex = -1;
 
     function openLightbox(photoId) {
-      const index = photoData.findIndex(p => p.id === photoId && !isWallNote(p));
+      const index = photoData.findIndex(p => p.id === photoId);
       if (index < 0) return;
       currentLightboxIndex = index;
       let lightbox = document.getElementById('photoLightbox');
@@ -1423,7 +1319,7 @@
         lightbox.className = 'photo-lightbox is-hidden';
         lightbox.innerHTML = '<button type="button" class="photo-lightbox-close" onclick="closeLightbox()">×</button>'
           + '<button type="button" class="photo-lightbox-nav photo-lightbox-prev" onclick="lightboxPrev()">‹</button>'
-          + '<img id="lightboxImage" src="" alt="" />'
+          + '<iframe id="lightboxFrame" title="簡報"></iframe>'
           + '<button type="button" class="photo-lightbox-nav photo-lightbox-next" onclick="lightboxNext()">›</button>'
           + '<div class="photo-lightbox-counter" id="lightboxCounter"></div>';
         lightbox.addEventListener('click', function(e) {
@@ -1438,16 +1334,11 @@
     function updateLightboxImage() {
       if (currentLightboxIndex < 0 || currentLightboxIndex >= photoData.length) return;
       const photo = photoData[currentLightboxIndex];
-      const img = document.getElementById('lightboxImage');
+      const frame = document.getElementById('lightboxFrame');
       const counter = document.getElementById('lightboxCounter');
-      if (img) {
-        if (isWallNote(photo)) {
-          img.removeAttribute('src');
-          img.alt = '';
-        } else {
-          img.src = photo.dataUrl;
-          img.alt = photo.filename || '';
-        }
+      if (frame) {
+        frame.title = photo.filename || '簡報';
+        frame.src = photo.fileUrl || '';
       }
       if (counter) {
         counter.textContent = (currentLightboxIndex + 1) + ' / ' + photoData.length;
@@ -1463,10 +1354,8 @@
     }
 
     function nearestPhotoIndex(from, step) {
-      for (let i = from + step; i >= 0 && i < photoData.length; i += step) {
-        if (!isWallNote(photoData[i])) return i;
-      }
-      return -1;
+      const next = from + step;
+      return next >= 0 && next < photoData.length ? next : -1;
     }
 
     function lightboxPrev() {
@@ -1489,6 +1378,8 @@
       const lightbox = document.getElementById('photoLightbox');
       if (lightbox) {
         lightbox.classList.add('is-hidden');
+        const frame = document.getElementById('lightboxFrame');
+        if (frame) frame.removeAttribute('src');
       }
       currentLightboxIndex = -1;
     }
@@ -1499,19 +1390,18 @@
         input.addEventListener('change', function() {
           const files = this.files;
           if (!files || !files.length) return;
-          for (let i = 0; i < files.length; i++) {
-            uploadPhoto(files[i]);
-          }
+          const queue = Array.prototype.slice.call(files);
           this.value = '';
+          (async function() {
+            for (let i = 0; i < queue.length; i++) {
+              await uploadPhoto(queue[i]);
+            }
+          })();
         });
       }
       const clearBtn = document.getElementById('clearAllPhotosBtn');
       if (clearBtn) {
         clearBtn.addEventListener('click', clearAllPhotos);
-      }
-      const noteForm = document.getElementById('noteComposer');
-      if (noteForm) {
-        noteForm.addEventListener('submit', submitNote);
       }
       document.addEventListener('keydown', function(e) {
         const lightbox = document.getElementById('photoLightbox');
