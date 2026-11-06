@@ -63,6 +63,9 @@ public final class DesktopPetWindow extends JFrame {
 
     private Point pressScreen;
     private Point grabOffset;
+    private Point grabInStage;
+    private Point lastDragScreen;
+    private long lastDragNanos;
     private boolean dragging;
     private Runnable noticeEnded;
     private Runnable noticeReleased;
@@ -361,7 +364,12 @@ public final class DesktopPetWindow extends JFrame {
                 pressScreen = e.getLocationOnScreen();
                 Point origin = getLocationOnScreen();
                 grabOffset = new Point(pressScreen.x - origin.x, pressScreen.y - origin.y);
-                animation.setCarried(true);
+                grabInStage = e.getPoint();
+                lastDragScreen = null;
+                if (animation.isSettling()) {
+                    animation.setCarried(false);
+                }
+                animation.setHandDown(true);
                 repaint();
             }
 
@@ -371,8 +379,19 @@ public final class DesktopPetWindow extends JFrame {
                     return;
                 }
                 Point now = e.getLocationOnScreen();
-                if (pressScreen.distance(now) >= DRAG_THRESHOLD) {
+                if (!dragging && pressScreen.distance(now) >= DRAG_THRESHOLD) {
                     dragging = true;
+                    if (animation.isCarried()) {
+                        animation.setCarried(false);
+                    }
+                    animation.setCarried(true);
+                    lastDragScreen = now;
+                    lastDragNanos = System.nanoTime();
+                } else if (dragging && lastDragScreen != null) {
+                    long nanos = System.nanoTime();
+                    animation.noteCarryMotion(now.x - lastDragScreen.x, nanos - lastDragNanos);
+                    lastDragScreen = now;
+                    lastDragNanos = nanos;
                 }
                 if (!dragging) {
                     return;
@@ -384,6 +403,7 @@ public final class DesktopPetWindow extends JFrame {
                         getHeight(),
                         screenRects());
                 setLocation(clamped);
+                repaint();
             }
 
             @Override
@@ -392,8 +412,9 @@ public final class DesktopPetWindow extends JFrame {
                     return;
                 }
                 boolean wasDrag = dragging;
-                animation.setCarried(false);
+                animation.setHandDown(false);
                 if (wasDrag) {
+                    animation.releaseCarry();
                     Point clamped = clampToScreens(getX(), getY(), getWidth(), getHeight(), screenRects());
                     setLocation(clamped);
                     rememberLocation();
@@ -428,9 +449,63 @@ public final class DesktopPetWindow extends JFrame {
                 pressScreen = null;
                 grabOffset = null;
                 dragging = false;
+                if (!wasDrag) {
+                    grabInStage = null;
+                }
                 repaint();
             }
         };
+    }
+
+    /**
+     * 旋轉後的角色圖層要留在視窗裡。繞抓取點縮小到四個角都進得了留白。
+     */
+    static double fitScale(
+            int spriteX, int spriteY, int spriteSize,
+            int pivotX, int pivotY, double radians,
+            int canvasWidth, int canvasHeight, int margin) {
+        if (Math.abs(radians) < 1e-4) {
+            return 1;
+        }
+        if (cornersFit(1, spriteX, spriteY, spriteSize, pivotX, pivotY, radians,
+                canvasWidth, canvasHeight, margin)) {
+            return 1;
+        }
+        double low = 0.45;
+        double high = 1;
+        for (int i = 0; i < 14; i++) {
+            double mid = (low + high) / 2;
+            if (cornersFit(mid, spriteX, spriteY, spriteSize, pivotX, pivotY, radians,
+                    canvasWidth, canvasHeight, margin)) {
+                low = mid;
+            } else {
+                high = mid;
+            }
+        }
+        return low;
+    }
+
+    private static boolean cornersFit(
+            double scale, int spriteX, int spriteY, int spriteSize,
+            int pivotX, int pivotY, double radians,
+            int canvasWidth, int canvasHeight, int margin) {
+        double cos = Math.cos(radians);
+        double sin = Math.sin(radians);
+        int[] xs = {spriteX, spriteX + spriteSize};
+        int[] ys = {spriteY, spriteY + spriteSize};
+        for (int x : xs) {
+            for (int y : ys) {
+                double dx = x - pivotX;
+                double dy = y - pivotY;
+                double rx = pivotX + scale * (dx * cos - dy * sin);
+                double ry = pivotY + scale * (dx * sin + dy * cos);
+                if (rx < margin || ry < margin
+                        || rx > canvasWidth - margin || ry > canvasHeight - margin) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private void summonMainWindow() {
@@ -590,36 +665,61 @@ public final class DesktopPetWindow extends JFrame {
         }
 
         private void paintSprite(Graphics2D g) {
-            if (milu != null) {
-                int x = (getWidth() - DesktopPetSpriteLoader.DISPLAY) / 2;
-                DesktopPetSpriteLoader.Sprite spriteFrame = milu.spriteFor(animation);
-                // 左右走路各用自己的影格，不在這裡鏡像。錨點修正只挪圖片，不改視窗座標。
-                DesktopPetSpriteLoader.draw(
-                        g,
-                        spriteFrame.image,
-                        x,
-                        BUBBLE_SLOT,
-                        DesktopPetSpriteLoader.DISPLAY,
-                        spriteFrame.offsetX,
-                        spriteFrame.offsetY);
-                return;
-            }
-            int sw = sprite.frameWidth() * SCALE;
-            int sh = sprite.frameHeight() * SCALE;
-            int x = (getWidth() - sw) / 2;
-            int y = getHeight() - sh - 12 + animation.bob();
-            Graphics2D copy = (Graphics2D) g.create();
+            Graphics2D layer = tilted(g);
             try {
+                if (milu != null) {
+                    int x = (getWidth() - DesktopPetSpriteLoader.DISPLAY) / 2;
+                    DesktopPetSpriteLoader.Sprite spriteFrame = milu.spriteFor(animation);
+                    // 左右走路各用自己的影格，不在這裡鏡像。錨點修正只挪圖片，不改視窗座標。
+                    DesktopPetSpriteLoader.draw(
+                            layer,
+                            spriteFrame.image,
+                            x,
+                            BUBBLE_SLOT,
+                            DesktopPetSpriteLoader.DISPLAY,
+                            spriteFrame.offsetX,
+                            spriteFrame.offsetY);
+                    return;
+                }
+                int sw = sprite.frameWidth() * SCALE;
+                int sh = sprite.frameHeight() * SCALE;
+                int x = (getWidth() - sw) / 2;
+                int y = getHeight() - sh - 12 + animation.bob();
                 if (animation.facingRight()) {
-                    sprite.draw(copy, animation.column(), animation.row(), x, y, SCALE);
+                    sprite.draw(layer, animation.column(), animation.row(), x, y, SCALE);
                 } else {
-                    copy.translate(x + sw, y);
-                    copy.scale(-1, 1);
-                    sprite.draw(copy, animation.column(), animation.row(), 0, 0, SCALE);
+                    layer.translate(x + sw, y);
+                    layer.scale(-1, 1);
+                    sprite.draw(layer, animation.column(), animation.row(), 0, 0, SCALE);
                 }
             } finally {
-                copy.dispose();
+                if (layer != g) {
+                    layer.dispose();
+                }
             }
+        }
+
+        /** 只轉角色圖層。影子和泡泡留在地面。繞抓取點轉，游標底下的點不會跳。 */
+        private Graphics2D tilted(Graphics2D g) {
+            double radians = Math.toRadians(animation.leanDegrees());
+            if (grabInStage == null || Math.abs(radians) < 1e-4) {
+                return g;
+            }
+            int size = milu != null
+                    ? DesktopPetSpriteLoader.DISPLAY
+                    : sprite.frameWidth() * SCALE;
+            int spriteX = (getWidth() - size) / 2;
+            int spriteY = milu != null ? BUBBLE_SLOT : getHeight() - size - 12 + animation.bob();
+            double scale = fitScale(
+                    spriteX, spriteY, size,
+                    grabInStage.x, grabInStage.y, radians,
+                    getWidth(), getHeight(), 2);
+            Graphics2D layer = (Graphics2D) g.create();
+            layer.translate(grabInStage.x, grabInStage.y);
+            layer.rotate(radians);
+            layer.scale(scale, scale);
+            layer.translate(-grabInStage.x, -grabInStage.y);
+            return layer;
         }
 
         private void paintBubble(Graphics2D g) {
@@ -669,8 +769,9 @@ public final class DesktopPetWindow extends JFrame {
             g.drawLine(centerX, 0, centerX, getHeight());
             g.drawLine(0, groundY, getWidth(), groundY);
             g.fillRect(2, 2, 3, 3);
-            String mode = animation.isCarried() ? "拖曳" : modeName(animation.mode());
-            String text = mode + "  " + placed.name
+            String mode = animation.isSettling() ? "回彈" : animation.isCarried() ? "拖曳" : modeName(animation.mode());
+            String text = mode + "  " + String.format(java.util.Locale.ROOT, "%+.1f°", animation.leanDegrees())
+                    + "  " + placed.name
                     + "  offset " + placed.offsetX + "," + placed.offsetY
                     + "  視窗 " + DesktopPetWindow.this.getX() + "," + DesktopPetWindow.this.getY();
             g.setFont(UiFonts.chinesePlain(11));

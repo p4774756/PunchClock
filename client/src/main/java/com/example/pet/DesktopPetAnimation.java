@@ -30,6 +30,14 @@ public final class DesktopPetAnimation {
     static final int BLINK_MAX_TICKS = 7000 / TICK_MS;
     public static final int SIT_TICKS = 160;
     public static final int SLEEP_TICKS = 240;
+    /** 放開後回彈約 200ms，落在 150–200ms。 */
+    public static final int RELEASE_TICKS = 4;
+    public static final double MAX_LEAN_DEGREES = 10;
+    /** 大約每秒 700 像素就傾到上限。 */
+    static final double SPEED_FOR_FULL_LEAN = 700;
+    static final double SPEED_BLEND = 0.45;
+    static final double SPEED_DECAY = 0.62;
+    static final double LEAN_EASE = 0.5;
 
     static final String[] PHRASES = {
             "嗨",
@@ -58,6 +66,13 @@ public final class DesktopPetAnimation {
     private int ticksUntilBlink;
     private int carriedTicks;
     private int idleExits;
+    private boolean handDown;
+    private boolean settling;
+    private int settleTicks;
+    private double settleFrom;
+    private double lean;
+    private double smoothedSpeed;
+    private boolean speedFresh;
 
     public DesktopPetAnimation() {
         this(new Random());
@@ -74,9 +89,27 @@ public final class DesktopPetAnimation {
             bubble = null;
             notice = false;
         }
+        if (settling) {
+            settleTicks++;
+            double progress = settleTicks / (double) RELEASE_TICKS;
+            if (progress >= 1) {
+                lean = 0;
+                settling = false;
+                setCarried(false);
+                return;
+            }
+            lean = releaseLean(settleFrom, progress);
+            updateFrame();
+            return;
+        }
         updateMilu();
         if (carried) {
             carriedTicks++;
+            if (!speedFresh) {
+                smoothedSpeed *= SPEED_DECAY;
+                leanToward(targetLean(smoothedSpeed));
+            }
+            speedFresh = false;
             updateFrame();
             return;
         }
@@ -142,9 +175,19 @@ public final class DesktopPetAnimation {
     public void setCarried(boolean carried) {
         if (carried && !this.carried) {
             carriedTicks = 0;
+            lean = 0;
+            smoothedSpeed = 0;
+            speedFresh = false;
+            settling = false;
+            settleTicks = 0;
         }
         this.carried = carried;
         if (!carried) {
+            settling = false;
+            settleTicks = 0;
+            lean = 0;
+            smoothedSpeed = 0;
+            speedFresh = false;
             enter(Mode.IDLE);
             blinking = false;
             blinkStep = 0;
@@ -153,13 +196,71 @@ public final class DesktopPetAnimation {
         updateFrame();
     }
 
+    /** 按下但還沒超過拖曳門檻。停住走路，姿勢先留著。 */
+    public void setHandDown(boolean down) {
+        handDown = down;
+    }
+
+    /**
+     * 拖曳中的水平位移。正值往右，圖像往同方向傾，角度不超過 ±10°。
+     * 第一筆在視窗端略過，避免門檻那一下被當成速度。
+     */
+    public void noteCarryMotion(int deltaX, long deltaNanos) {
+        if (!carried || settling || deltaNanos <= 0) {
+            return;
+        }
+        double perSecond = deltaX / (deltaNanos / 1_000_000_000.0);
+        smoothedSpeed = smoothedSpeed * (1 - SPEED_BLEND) + perSecond * SPEED_BLEND;
+        speedFresh = true;
+        leanToward(targetLean(smoothedSpeed));
+    }
+
+    /** 放開。維持被拎起的姿勢，約 200ms 回彈後回待機。 */
+    public void releaseCarry() {
+        if (!carried || settling) {
+            return;
+        }
+        settling = true;
+        settleTicks = 0;
+        settleFrom = lean;
+        smoothedSpeed = 0;
+        speedFresh = false;
+    }
+
+    public boolean isSettling() {
+        return settling;
+    }
+
+    /** 順時針為正。往右拖時為正，身體跟著移動方向倒。 */
+    public double leanDegrees() {
+        return lean;
+    }
+
+    static double targetLean(double pixelsPerSecond) {
+        double degrees = pixelsPerSecond / SPEED_FOR_FULL_LEAN * MAX_LEAN_DEGREES;
+        return Math.max(-MAX_LEAN_DEGREES, Math.min(MAX_LEAN_DEGREES, degrees));
+    }
+
+    static double releaseLean(double startDegrees, double progress) {
+        double u = Math.max(0, Math.min(1, progress));
+        double overshoot = -0.4 * startDegrees;
+        if (u < 0.5) {
+            double t = u / 0.5;
+            double s = t * t * (3 - 2 * t);
+            return startDegrees + (overshoot - startDegrees) * s;
+        }
+        double t = (u - 0.5) / 0.5;
+        double s = t * t * (3 - 2 * t);
+        return overshoot * (1 - s);
+    }
+
     public void turnAround() {
         direction = -direction;
     }
 
     /** 這一格要往右（負值往左）移動的像素。站住或被拖著時為 0。 */
     public int stepX() {
-        if (carried || mode != Mode.WALK) {
+        if (carried || handDown || mode != Mode.WALK) {
             return 0;
         }
         return direction * STEP;
@@ -338,6 +439,13 @@ public final class DesktopPetAnimation {
         miluFrame = 0;
         miluHold = 0;
         resetBlinkDelay();
+    }
+
+    private void leanToward(double target) {
+        lean += (target - lean) * LEAN_EASE;
+        if (Math.abs(lean) < 0.05 && Math.abs(target) < 0.05) {
+            lean = 0;
+        }
     }
 
     private void resetBlinkDelay() {

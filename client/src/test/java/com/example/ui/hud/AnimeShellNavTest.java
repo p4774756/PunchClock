@@ -34,4 +34,15 @@ public class AnimeShellNavTest {
         assertEquals(HomeBoard.CHAT, board.hit(board.chat.x + 2, board.chat.y + 2));
         assertEquals(HomeBoard.FILE, board.hit(board.file.x + 2, board.file.y + 2));
     }
+
+    @Test
+    public void reminderSitsUnderTheGreetingOnTheRight() {
+        HomeBoard board = new HomeBoard();
+        board.setBubbleFloor(180);
+        board.layout(new Rectangle(0, 0, 900, 700));
+        assertTrue(board.reminder.width >= 120);
+        assertTrue(board.reminder.x > board.schedule.x + board.schedule.width - 20);
+        assertTrue(board.reminder.y >= 180);
+        assertTrue(board.reminder.y < 280);
+    }
 }

@@ -4,6 +4,7 @@ import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
+import javax.swing.SwingUtilities;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
@@ -20,9 +21,18 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.Frame;
+import java.awt.LayoutManager;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
+import java.awt.Toolkit;
+import java.awt.IllegalComponentStateException;
 import java.awt.Image;
 import java.awt.Insets;
 import java.awt.Point;
@@ -70,6 +80,7 @@ public final class WindowChrome {
         if (frame.isDisplayable()) {
             throw new IllegalStateException("WindowChrome must be installed before the frame is displayable");
         }
+        MacFrames.install();
         frame.setUndecorated(true);
 
         JSlider slider = new JSlider(WindowOpacity.MIN_TRANSPARENCY_PERCENT, WindowOpacity.MAX_TRANSPARENCY_PERCENT, 0);
@@ -91,30 +102,199 @@ public final class WindowChrome {
         valueLabel.setHorizontalAlignment(SwingConstants.LEFT);
 
         JPanel titleBar = createTitleBar(frame, title, icon, titleFont, controlFont, slider, valueLabel);
+        titleBar.putClientProperty("punchclock.titleBar", Boolean.TRUE);
         ResizeSupport resize = new ResizeSupport(frame);
 
-        WallpaperPanel outer = new WallpaperPanel();
-        outer.setBackground(BAR_BG);
-        applyWindowBorder(outer, false);
-        outer.add(titleBar, BorderLayout.NORTH);
-        resize.attach(outer);
+        WallpaperPanel stage = new WallpaperPanel();
+        stage.setBackground(BAR_BG);
+        applyWindowBorder(stage, false);
+        stage.add(titleBar, BorderLayout.NORTH);
 
         JPanel body = new JPanel(new BorderLayout(10, 10));
         body.setOpaque(false);
         body.setBorder(new EmptyBorder(0, 6, 6, 6));
-        outer.add(body, BorderLayout.CENTER);
+        stage.add(body, BorderLayout.CENTER);
 
-        frame.setContentPane(outer);
+        FrameCanvas canvas = new FrameCanvas(frame, stage);
+        canvas.add(stage);
+        resize.attach(canvas);
+        resize.attach(stage);
+        if (perPixelSupported()) {
+            frame.setBackground(new Color(0, 0, 0, 0));
+        }
+        frame.setContentPane(canvas);
+        JComponent root = frame.getRootPane();
+        root.setOpaque(false);
+        root.setBackground(new Color(0, 0, 0, 0));
+        if (frame.getLayeredPane() instanceof JComponent) {
+            JComponent layered = (JComponent) frame.getLayeredPane();
+            layered.setOpaque(false);
+            layered.setBackground(new Color(0, 0, 0, 0));
+        }
+        PortraitGlass glass = new PortraitGlass(canvas);
+        frame.setGlassPane(glass);
+        glass.setVisible(true);
         frame.addWindowStateListener(e -> {
             boolean maximized = isMaximized(frame);
-            applyWindowBorder(outer, maximized);
+            applyWindowBorder(stage, maximized);
             resize.setEnabled(!maximized);
-            outer.revalidate();
+            if (!maximized && (e.getOldState() & Frame.MAXIMIZED_BOTH) != 0) {
+                Rectangle restore = restoreWindow(frame);
+                if (restore != null) {
+                    frame.setBounds(restore);
+                }
+            }
+            canvas.revalidate();
+            canvas.repaint();
         });
 
-        frame.getRootPane().putClientProperty("punchclock.body", body);
-        frame.getRootPane().putClientProperty("punchclock.outer", outer);
+        root.putClientProperty("punchclock.body", body);
+        root.putClientProperty("punchclock.outer", stage);
+        root.putClientProperty("punchclock.canvas", canvas);
         return new Controls(slider, valueLabel);
+    }
+
+    /**
+     * 首頁角色。襪腳畫在紫色面板後面，上半身畫在前面。
+     * 還原視窗時在面板上方與右側留白，最大化時由實作把角色收進面板。
+     */
+    public interface FramePortrait {
+        Insets overflow(int width, int height, boolean maximized);
+
+        void paintBehind(Graphics2D g, JComponent canvas, Rectangle panel);
+
+        void paintInFront(Graphics2D g, JComponent canvas, Rectangle panel);
+
+        boolean opaqueAt(JComponent canvas, int x, int y);
+
+        void pressed();
+    }
+
+    public static void setFramePortrait(JFrame frame, FramePortrait portrait) {
+        FrameCanvas canvas = canvasOf(frame);
+        if (canvas == null) {
+            return;
+        }
+        canvas.setPortrait(portrait);
+        canvas.revalidate();
+        canvas.repaint();
+    }
+
+    /**
+     * 首頁開關時透明留白會增減。以紫色面板左上角的螢幕座標為錨，
+     * 用新留白重算一次外層視窗，避免每切一頁就再往上移。
+     */
+    public static void relayout(JFrame frame) {
+        FrameCanvas canvas = canvasOf(frame);
+        if (canvas == null) {
+            return;
+        }
+        if (!frame.isShowing() || isMaximized(frame)) {
+            if (isMaximized(frame)) {
+                rememberPageChangeWhileMaximized(frame);
+            }
+            canvas.revalidate();
+            canvas.repaint();
+            return;
+        }
+        Rectangle panel = panelOnScreen(canvas);
+        if (panel == null || panel.width < 80 || panel.height < 80) {
+            canvas.revalidate();
+            canvas.repaint();
+            return;
+        }
+        boolean home = wantsHomeOverflow(canvas);
+        Insets overflow = overflowForPanel(panel.width, panel.height, home);
+        Rectangle next = keepTitleVisible(
+                windowForPanel(panel, overflow, frame.getInsets()),
+                overflow,
+                frame.getInsets(),
+                titleBarHeight(canvas),
+                workArea(frame));
+        Dimension original = rememberedMinimum(frame);
+        frame.setMinimumSize(new Dimension(
+                Math.min(original.width, next.width),
+                Math.min(original.height, next.height)));
+        if (!next.equals(frame.getBounds())) {
+            frame.setBounds(next);
+        }
+        if (frame.getWidth() >= original.width && frame.getHeight() >= original.height) {
+            frame.setMinimumSize(original);
+        }
+        rememberRestored(frame, panel, frame.getBounds());
+        canvas.revalidate();
+        canvas.repaint();
+    }
+
+    public static Rectangle stageBounds(JFrame frame) {
+        FrameCanvas canvas = canvasOf(frame);
+        if (canvas == null) {
+            return new Rectangle();
+        }
+        return canvas.stageBounds();
+    }
+
+    public static boolean isMaximizedFrame(JComponent canvas) {
+        if (canvas instanceof FrameCanvas) {
+            return isMaximized(((FrameCanvas) canvas).frame);
+        }
+        return false;
+    }
+
+    public static Rectangle chromeControls(JComponent canvas) {
+        JComponent buttons = findMarked(canvas, "punchclock.chromeControls");
+        if (buttons == null || buttons.getParent() == null) {
+            return new Rectangle();
+        }
+        return SwingUtilities.convertRectangle(buttons.getParent(), buttons.getBounds(), canvas);
+    }
+
+    public static int titleBarHeight(JComponent canvas) {
+        JComponent bar = findMarked(canvas, "punchclock.titleBar");
+        if (bar == null) {
+            return TitleBarSliderUI.HEIGHT + 9;
+        }
+        return Math.max(1, bar.getHeight());
+    }
+
+    private static FrameCanvas canvasOf(JFrame frame) {
+        if (frame == null) {
+            return null;
+        }
+        Object canvas = frame.getRootPane().getClientProperty("punchclock.canvas");
+        if (canvas instanceof FrameCanvas) {
+            return (FrameCanvas) canvas;
+        }
+        return null;
+    }
+
+    private static JComponent findMarked(Component root, String key) {
+        if (!(root instanceof JComponent)) {
+            return null;
+        }
+        JComponent component = (JComponent) root;
+        if (Boolean.TRUE.equals(component.getClientProperty(key))) {
+            return component;
+        }
+        for (Component child : component.getComponents()) {
+            JComponent found = findMarked(child, key);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private static boolean perPixelSupported() {
+        if (GraphicsEnvironment.isHeadless()) {
+            return false;
+        }
+        try {
+            GraphicsDevice device = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+            return device.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT);
+        } catch (RuntimeException ex) {
+            return false;
+        }
     }
 
     /** 自訂 chrome 安裝後，把原本的主內容放到標題列下方。 */
@@ -240,7 +420,7 @@ public final class WindowChrome {
             Font controlFont,
             JSlider slider,
             JLabel valueLabel) {
-        JPanel bar = new JPanel(new BorderLayout(8, 0));
+        JPanel bar = new JPanel();
         bar.setBackground(BAR_BG);
         bar.setBorder(new CompoundBorder(
                 BorderFactory.createMatteBorder(0, 0, 1, 0, BAR_BORDER),
@@ -248,30 +428,24 @@ public final class WindowChrome {
         int barHeight = TitleBarSliderUI.HEIGHT + 4 + 4 + 1;
         bar.setPreferredSize(new Dimension(720, barHeight));
 
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        left.setOpaque(false);
+        JComponent iconLabel = null;
         if (icon != null) {
-            JLabel iconLabel = new JLabel() {
+            iconLabel = new JComponent() {
                 @Override
                 protected void paintComponent(Graphics g) {
-                    super.paintComponent(g);
-                    g.drawImage(icon, 0, 2, 18, 18, this);
+                    g.drawImage(icon, 0, 0, getWidth(), getHeight(), this);
                 }
             };
-            iconLabel.setPreferredSize(new Dimension(18, 22));
-            left.add(iconLabel);
+            iconLabel.setPreferredSize(new Dimension(18, 18));
         }
-        JLabel titleLabel = new JLabel(title);
-        titleLabel.setFont(titleFont);
-        titleLabel.setForeground(TITLE_FG);
-        left.add(titleLabel);
+        TitleName titleLabel = new TitleName(title, titleFont);
 
         JLabel transparencyLabel = new JLabel("透明度");
         transparencyLabel.setFont(controlFont);
         transparencyLabel.setForeground(MUTED_FG);
         transparencyLabel.setToolTipText(slider.getToolTipText());
 
-        JPanel center = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        JPanel center = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         center.setOpaque(false);
         center.add(transparencyLabel);
         center.add(slider);
@@ -279,6 +453,7 @@ public final class WindowChrome {
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         buttons.setOpaque(false);
+        buttons.putClientProperty("punchclock.chromeControls", Boolean.TRUE);
         // Mac Aqua L&F 會把按鈕文字擠成「...」；改成自繪圖示，不依賴字元。
         JButton min = chromeButton(ChromeGlyph.MINIMIZE, "最小化", false);
         JButton max = chromeButton(ChromeGlyph.MAXIMIZE, "最大化", false);
@@ -290,9 +465,13 @@ public final class WindowChrome {
         buttons.add(max);
         buttons.add(close);
 
-        bar.add(left, BorderLayout.WEST);
-        bar.add(center, BorderLayout.CENTER);
-        bar.add(buttons, BorderLayout.EAST);
+        bar.setLayout(new TitleBarLayout(iconLabel, titleLabel, center, buttons, slider));
+        if (iconLabel != null) {
+            bar.add(iconLabel);
+        }
+        bar.add(titleLabel);
+        bar.add(center);
+        bar.add(buttons);
 
         DragSupport drag = new DragSupport(frame);
         MouseAdapter dragAdapter = drag.adapter();
@@ -300,10 +479,185 @@ public final class WindowChrome {
         bar.addMouseMotionListener(dragAdapter);
         titleLabel.addMouseListener(dragAdapter);
         titleLabel.addMouseMotionListener(dragAdapter);
-        left.addMouseListener(dragAdapter);
-        left.addMouseMotionListener(dragAdapter);
+        if (iconLabel != null) {
+            iconLabel.addMouseListener(dragAdapter);
+            iconLabel.addMouseMotionListener(dragAdapter);
+        }
 
         return bar;
+    }
+
+    /** 主標題保留到版號；commit 與提交時間在放不下時改走 tooltip。 */
+    static String mainTitle(String full) {
+        String text = full == null ? "" : full.trim();
+        int end = text.length();
+        int dot = text.indexOf(" · ");
+        int paren = text.indexOf('（');
+        if (dot >= 0) {
+            end = Math.min(end, dot);
+        }
+        if (paren >= 0) {
+            end = Math.min(end, paren);
+        }
+        return text.substring(0, end).trim().replaceAll(" +", " ");
+    }
+
+    /**
+     * 圖示和標題同一列，依字型行高垂直置中，不換行、不被父層裁掉。
+     */
+    private static final class TitleName extends JComponent {
+        private final String full;
+        private final String main;
+        private String shown;
+
+        TitleName(String fullTitle, Font font) {
+            full = fullTitle == null ? "" : fullTitle.trim();
+            main = mainTitle(full);
+            shown = main;
+            setFont(font);
+            setForeground(TITLE_FG);
+            setOpaque(false);
+            setName("punchclock.titleName");
+            setToolTipText(full.equals(main) ? null : full);
+        }
+
+        String shown() {
+            return shown;
+        }
+
+        String full() {
+            return full;
+        }
+
+        boolean fit(FontMetrics metrics, int available) {
+            int fullW = full.isEmpty() ? 0 : metrics.stringWidth(full);
+            String next = fullW <= available && fullW > 0 ? full : main;
+            if (next.equals(shown)) {
+                return false;
+            }
+            shown = next;
+            setToolTipText(shown.equals(full) ? null : full);
+            return true;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            if (shown.isEmpty() || getWidth() <= 0 || getHeight() <= 0) {
+                return;
+            }
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                g2.setFont(getFont());
+                g2.setColor(getForeground());
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                FontMetrics metrics = g2.getFontMetrics();
+                int baseline = (getHeight() - metrics.getHeight()) / 2 + metrics.getAscent();
+                g2.drawString(shown, 0, baseline);
+            } finally {
+                g2.dispose();
+            }
+        }
+    }
+
+    /**
+     * 標題在左、視窗按鈕在右。透明度滑桿放在中段、角色左側。
+     * 縮窄時先收起 commit，主標題、滑桿和按鈕維持完整可見。
+     */
+    private static final class TitleBarLayout implements LayoutManager {
+        private final JComponent icon;
+        private final TitleName title;
+        private final JComponent sliderGroup;
+        private final JComponent buttons;
+        private final JSlider slider;
+
+        TitleBarLayout(JComponent icon, TitleName title, JComponent sliderGroup, JComponent buttons, JSlider slider) {
+            this.icon = icon;
+            this.title = title;
+            this.sliderGroup = sliderGroup;
+            this.buttons = buttons;
+            this.slider = slider;
+        }
+
+        @Override
+        public void addLayoutComponent(String name, Component comp) {
+        }
+
+        @Override
+        public void removeLayoutComponent(Component comp) {
+        }
+
+        @Override
+        public Dimension preferredLayoutSize(Container parent) {
+            return new Dimension(720, TitleBarSliderUI.HEIGHT + 13);
+        }
+
+        @Override
+        public Dimension minimumLayoutSize(Container parent) {
+            return new Dimension(360, TitleBarSliderUI.HEIGHT + 13);
+        }
+
+        @Override
+        public void layoutContainer(Container parent) {
+            Insets insets = parent.getInsets();
+            int x0 = insets.left;
+            int y0 = insets.top;
+            int innerW = Math.max(0, parent.getWidth() - insets.left - insets.right);
+            int innerH = Math.max(0, parent.getHeight() - insets.top - insets.bottom);
+            int buttonW = buttons.getPreferredSize().width;
+            buttons.setBounds(x0 + innerW - buttonW, y0, buttonW, innerH);
+
+            FontMetrics metrics = title.getFontMetrics(title.getFont());
+            int mainW = title.main.isEmpty() ? 0 : metrics.stringWidth(title.main);
+            int iconW = icon == null ? 0 : 18;
+            int textGap = iconW == 0 ? 0 : 8;
+            int reserved = iconW + textGap + mainW;
+
+            int labelW = 0;
+            int valueW = 0;
+            for (Component child : sliderGroup.getComponents()) {
+                if (child == slider) {
+                    continue;
+                }
+                Dimension pref = child.getPreferredSize();
+                if (labelW == 0) {
+                    labelW = pref.width;
+                } else {
+                    valueW = pref.width;
+                }
+            }
+            int gaps = 6 * 4;
+            int rightLimit = x0 + innerW - buttonW - 8;
+            int leftLimit = x0 + reserved + 8;
+            int room = rightLimit - leftLimit - labelW - valueW - gaps;
+            int track = Math.max(72, Math.min(140, room));
+            if (slider.getPreferredSize().width != track) {
+                slider.setPreferredSize(new Dimension(track, TitleBarSliderUI.HEIGHT));
+            }
+            int groupW = labelW + track + valueW + gaps;
+            int characterLimit = x0 + Math.round(innerW * 0.56f);
+            int left = x0 + Math.max(0, (innerW - groupW) / 2);
+            if (left < leftLimit) {
+                left = leftLimit;
+            }
+            if (characterLimit - groupW >= leftLimit && left + groupW > characterLimit) {
+                left = characterLimit - groupW;
+            }
+            if (left + groupW > rightLimit) {
+                left = Math.max(leftLimit, rightLimit - groupW);
+            }
+            int width = Math.max(40, Math.min(groupW, rightLimit - left));
+            sliderGroup.setBounds(left, y0, width, innerH);
+
+            int textRoom = Math.max(0, left - 8 - (x0 + iconW + textGap));
+            title.fit(metrics, Math.max(textRoom, mainW));
+            int shownW = title.shown.isEmpty() ? 0 : metrics.stringWidth(title.shown);
+            int textW = title.shown.equals(title.main) || textRoom >= shownW ? shownW : Math.min(shownW, textRoom);
+            if (icon != null) {
+                int iconY = y0 + Math.max(0, (innerH - 18) / 2);
+                icon.setBounds(x0, iconY, iconW, 18);
+            }
+            title.setBounds(x0 + iconW + textGap, y0, textW, innerH);
+        }
     }
 
     private enum ChromeGlyph {
@@ -396,8 +750,113 @@ public final class WindowChrome {
         if (isMaximized(frame)) {
             frame.setExtendedState(Frame.NORMAL);
         } else {
+            FrameCanvas canvas = canvasOf(frame);
+            Rectangle panel = panelOnScreen(canvas);
+            if (panel != null) {
+                rememberRestored(frame, panel, frame.getBounds());
+            }
             frame.setExtendedState(Frame.MAXIMIZED_BOTH);
         }
+    }
+
+    /**
+     * 由面板大小反推留白，使 {@link com.example.ui.hud.HomeCharacterLayout#overflow}
+     * 用算出來的外層尺寸會得到同一組留白。
+     */
+    static Insets overflowForPanel(int panelWidth, int panelHeight, boolean home) {
+        if (!home || panelWidth < 80 || panelHeight < 80) {
+            return new Insets(0, 0, 0, 0);
+        }
+        int top = clampedTop(panelHeight);
+        int right = clampedRight(panelWidth);
+        Insets fitted = com.example.ui.hud.HomeCharacterLayout.overflow(
+                panelWidth + right, panelHeight + top, false, true);
+        if (fitted.top != top || fitted.right != right) {
+            top = fitted.top;
+            right = fitted.right;
+            fitted = com.example.ui.hud.HomeCharacterLayout.overflow(
+                    panelWidth + right, panelHeight + top, false, true);
+        }
+        return fitted;
+    }
+
+    private static int clampedTop(int panelHeight) {
+        for (int top = 96; top <= 168; top++) {
+            if ((panelHeight + top) * 18 / 100 == top) {
+                return top;
+            }
+        }
+        return (panelHeight + 168) * 18 / 100 >= 168 ? 168 : 96;
+    }
+
+    private static int clampedRight(int panelWidth) {
+        float scale = com.example.ui.hud.HomeCharacterLayout.SOCK_VISIBLE
+                / (1f + com.example.ui.hud.HomeCharacterLayout.SOCK_VISIBLE);
+        for (int right = 48; right <= 110; right++) {
+            if (Math.round((panelWidth + right) * scale) == right) {
+                return right;
+            }
+        }
+        int raw = Math.round((panelWidth + 110) * scale);
+        return raw >= 110 ? 110 : 48;
+    }
+
+    static Rectangle windowForPanel(Rectangle panel, Insets overflow, Insets frameInsets) {
+        Insets edge = frameInsets == null ? new Insets(0, 0, 0, 0) : frameInsets;
+        Insets margin = overflow == null ? new Insets(0, 0, 0, 0) : overflow;
+        return new Rectangle(
+                panel.x - margin.left - edge.left,
+                panel.y - margin.top - edge.top,
+                panel.width + margin.left + margin.right + edge.left + edge.right,
+                panel.height + margin.top + margin.bottom + edge.top + edge.bottom);
+    }
+
+    /** 只修正到標題列和控制鈕進入工作區，頭可以留在選單列外面。 */
+    static Rectangle keepTitleVisible(
+            Rectangle window, Insets overflow, Insets frameInsets, int titleBarHeight, Rectangle work) {
+        Rectangle next = new Rectangle(window);
+        Insets edge = frameInsets == null ? new Insets(0, 0, 0, 0) : frameInsets;
+        Insets margin = overflow == null ? new Insets(0, 0, 0, 0) : overflow;
+        int panelW = next.width - edge.left - edge.right - margin.left - margin.right;
+        int titleLeft = next.x + edge.left + margin.left;
+        int titleRight = titleLeft + panelW;
+        if (panelW <= work.width) {
+            if (titleRight > work.x + work.width) {
+                next.x -= titleRight - (work.x + work.width);
+            }
+            titleLeft = next.x + edge.left + margin.left;
+            if (titleLeft < work.x) {
+                next.x += work.x - titleLeft;
+            }
+        } else if (titleLeft < work.x) {
+            next.x += work.x - titleLeft;
+        }
+        int titleTop = next.y + edge.top + margin.top;
+        int titleBottom = titleTop + Math.max(1, titleBarHeight);
+        if (titleBottom > work.y + work.height) {
+            next.y -= titleBottom - (work.y + work.height);
+        }
+        titleTop = next.y + edge.top + margin.top;
+        if (titleTop < work.y) {
+            next.y += work.y - titleTop;
+        }
+        return next;
+    }
+
+    static Rectangle workArea(JFrame frame) {
+        GraphicsConfiguration gc = frame.getGraphicsConfiguration();
+        if (gc == null) {
+            gc = GraphicsEnvironment.getLocalGraphicsEnvironment()
+                    .getDefaultScreenDevice()
+                    .getDefaultConfiguration();
+        }
+        Rectangle screen = gc.getBounds();
+        Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+        return new Rectangle(
+                screen.x + insets.left,
+                screen.y + insets.top,
+                Math.max(1, screen.width - insets.left - insets.right),
+                Math.max(1, screen.height - insets.top - insets.bottom));
     }
 
     static boolean isMaximized(JFrame frame) {
@@ -451,15 +910,107 @@ public final class WindowChrome {
                         frame.setExtendedState(Frame.NORMAL);
                         Rectangle restored = frame.getBounds();
                         int x = now.x - restored.width / 2;
-                        frame.setLocation(Math.max(0, x), now.y - 12);
+                        frame.setLocation(Math.max(0, x),
+                                placeY(frame, now.y - 12, restored.width, restored.height));
                         pressOnScreen = now;
                         startBounds = frame.getBounds();
                         return;
                     }
-                    frame.setLocation(startBounds.x + dx, startBounds.y + dy);
+                    frame.setLocation(startBounds.x + dx,
+                            placeY(frame, startBounds.y + dy, startBounds.width, startBounds.height));
                 }
             };
         }
+    }
+
+    /**
+     * 頭可以移出螢幕上緣，紫色面板的上緣停在選單列。
+     */
+    private static int placeY(JFrame frame, int requestedY, int width, int height) {
+        return MacFrames.lowestY(screenTop(frame), overflowTop(frame, width, height), requestedY);
+    }
+
+    private static int screenTop(JFrame frame) {
+        GraphicsConfiguration gc = frame.getGraphicsConfiguration();
+        if (gc == null) {
+            gc = GraphicsEnvironment.getLocalGraphicsEnvironment()
+                    .getDefaultScreenDevice()
+                    .getDefaultConfiguration();
+        }
+        Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+        return gc.getBounds().y + insets.top;
+    }
+
+    private static int overflowTop(JFrame frame, int width, int height) {
+        FrameCanvas canvas = canvasOf(frame);
+        if (canvas == null || canvas.portrait == null || isMaximized(frame)) {
+            return 0;
+        }
+        return Math.max(0, canvas.portrait.overflow(width, height, false).top);
+    }
+
+    private static boolean wantsHomeOverflow(FrameCanvas canvas) {
+        return canvas.portrait != null && canvas.portrait.overflow(800, 800, false).top > 0;
+    }
+
+    private static Rectangle panelOnScreen(FrameCanvas canvas) {
+        if (canvas == null || !canvas.stage.isShowing() || canvas.stage.getWidth() <= 0) {
+            return null;
+        }
+        try {
+            return new Rectangle(canvas.stage.getLocationOnScreen(), canvas.stage.getSize());
+        } catch (IllegalComponentStateException ex) {
+            return null;
+        }
+    }
+
+    private static Dimension rememberedMinimum(JFrame frame) {
+        Object saved = frame.getRootPane().getClientProperty("punchclock.minimum");
+        if (saved instanceof Dimension) {
+            return new Dimension((Dimension) saved);
+        }
+        Dimension current = new Dimension(frame.getMinimumSize());
+        frame.getRootPane().putClientProperty("punchclock.minimum", current);
+        return new Dimension(current);
+    }
+
+    private static void rememberRestored(JFrame frame, Rectangle panel, Rectangle window) {
+        if (frame.getRootPane() == null || panel == null || window == null) {
+            return;
+        }
+        frame.getRootPane().putClientProperty("punchclock.restorePanel", new Rectangle(panel));
+        frame.getRootPane().putClientProperty("punchclock.restoreWindow", new Rectangle(window));
+    }
+
+    private static Rectangle restoreWindow(JFrame frame) {
+        if (frame.getRootPane() == null) {
+            return null;
+        }
+        Object value = frame.getRootPane().getClientProperty("punchclock.restoreWindow");
+        return value instanceof Rectangle ? new Rectangle((Rectangle) value) : null;
+    }
+
+    /** 最大化時不能搬動外層視窗，只更新還原後要用的那一組 bounds。 */
+    private static void rememberPageChangeWhileMaximized(JFrame frame) {
+        if (frame.getRootPane() == null) {
+            return;
+        }
+        Object saved = frame.getRootPane().getClientProperty("punchclock.restorePanel");
+        if (!(saved instanceof Rectangle)) {
+            return;
+        }
+        Rectangle panel = (Rectangle) saved;
+        FrameCanvas canvas = canvasOf(frame);
+        boolean home = canvas != null && wantsHomeOverflow(canvas);
+        Insets overflow = overflowForPanel(panel.width, panel.height, home);
+        int titleH = canvas == null ? TitleBarSliderUI.HEIGHT + 9 : titleBarHeight(canvas);
+        Rectangle next = keepTitleVisible(
+                windowForPanel(panel, overflow, frame.getInsets()),
+                overflow,
+                frame.getInsets(),
+                titleH,
+                workArea(frame));
+        frame.getRootPane().putClientProperty("punchclock.restoreWindow", next);
     }
 
     private static final class ResizeSupport {
@@ -552,6 +1103,13 @@ public final class WindowChrome {
                             next.y = startBounds.y + startBounds.height - min.height;
                         }
                         next.height = min.height;
+                    }
+                    if ((dir & N) != 0) {
+                        int y = placeY(frame, next.y, next.width, next.height);
+                        if (y != next.y) {
+                            next.height -= y - next.y;
+                            next.y = y;
+                        }
                     }
                     frame.setBounds(next);
                 }
@@ -665,5 +1223,108 @@ public final class WindowChrome {
                 g2.dispose();
             }
         }
+    }
+
+    /**
+     * 透明底。紫色面板放在留白之內，角色可以畫到面板外面，視窗一移動就跟著走。
+     */
+    private static final class FrameCanvas extends JPanel {
+        private final JFrame frame;
+        private final WallpaperPanel stage;
+        private FramePortrait portrait;
+
+        FrameCanvas(JFrame frame, WallpaperPanel stage) {
+            super(null);
+            this.frame = frame;
+            this.stage = stage;
+            setOpaque(false);
+        }
+
+        void setPortrait(FramePortrait portrait) {
+            this.portrait = portrait;
+        }
+
+        Rectangle stageBounds() {
+            return stage.getBounds();
+        }
+
+        @Override
+        public void doLayout() {
+            boolean maximized = isMaximized(frame);
+            Insets overflow = portrait == null
+                    ? new Insets(0, 0, 0, 0)
+                    : portrait.overflow(getWidth(), getHeight(), maximized);
+            int x = Math.max(0, overflow.left);
+            int y = Math.max(0, overflow.top);
+            int w = Math.max(0, getWidth() - overflow.left - overflow.right);
+            int h = Math.max(0, getHeight() - overflow.top - overflow.bottom);
+            stage.setBounds(x, y, w, h);
+            stage.doLayout();
+        }
+
+        @Override
+        public void paint(Graphics g) {
+            Graphics2D behind = (Graphics2D) g.create();
+            try {
+                behind.setComposite(AlphaComposite.Src);
+                behind.setColor(new Color(0, 0, 0, 0));
+                behind.fillRect(0, 0, getWidth(), getHeight());
+                behind.setComposite(AlphaComposite.SrcOver);
+                if (portrait != null) {
+                    portrait.paintBehind(behind, this, stage.getBounds());
+                }
+            } finally {
+                behind.dispose();
+            }
+            paintChildren(g);
+            if (portrait != null) {
+                Graphics2D front = (Graphics2D) g.create();
+                try {
+                    portrait.paintInFront(front, this, stage.getBounds());
+                } finally {
+                    front.dispose();
+                }
+            }
+            paintBorder(g);
+        }
+    }
+
+    /**
+     * 只有角色不透明的像素吃掉點擊。標題列、視窗按鈕和縮放邊都穿透。
+     */
+    private static final class PortraitGlass extends JComponent {
+        private final FrameCanvas canvas;
+
+        PortraitGlass(FrameCanvas canvas) {
+            this.canvas = canvas;
+            setOpaque(false);
+            addMouseListener(new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+                    if (!SwingUtilities.isLeftMouseButton(e) || canvas.portrait == null) {
+                        return;
+                    }
+                    canvas.portrait.pressed();
+                }
+            });
+        }
+
+        @Override
+        public boolean contains(int x, int y) {
+            FramePortrait portrait = canvas.portrait;
+            if (portrait == null) {
+                return false;
+            }
+            if (x < GRIP || y < GRIP || x >= getWidth() - GRIP || y >= getHeight() - GRIP) {
+                return false;
+            }
+            Point onCanvas = SwingUtilities.convertPoint(this, x, y, canvas);
+            if (!portrait.opaqueAt(canvas, onCanvas.x, onCanvas.y)) {
+                return false;
+            }
+            Component under = SwingUtilities.getDeepestComponentAt(canvas, onCanvas.x, onCanvas.y);
+            return under == null || under == canvas;
+        }
+
     }
 }

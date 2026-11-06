@@ -4,10 +4,13 @@ import com.example.model.CheckInTask;
 import com.example.model.TaskStatus;
 import com.example.service.SchedulerService;
 import com.example.ui.UiFonts;
+import com.example.ui.WindowChrome;
 
 import javax.imageio.ImageIO;
+import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.Color;
@@ -58,7 +61,6 @@ public final class AnimeShell extends JPanel {
     private boolean holdingHome = true;
     private boolean useRoom = true;
     private int hot = -1;
-    private java.awt.Rectangle character = new java.awt.Rectangle();
     private java.awt.Rectangle bust = new java.awt.Rectangle();
     private int paintedFrame = -1;
     private long paintedSecond = -1;
@@ -110,20 +112,10 @@ public final class AnimeShell extends JPanel {
                 paintedFrame = frame;
                 paintedSecond = second;
                 paintedBreath = now / 200L;
-                if (countdown || fade) {
+                if (countdown || fade || bust.isEmpty()) {
                     repaint();
                 } else {
-                    if (!character.isEmpty()) {
-                        java.awt.Rectangle dirty = new java.awt.Rectangle(character);
-                        dirty.grow(2, 6);
-                        repaint(dirty);
-                    }
-                    if (!bust.isEmpty()) {
-                        repaint(bust);
-                    }
-                    if (character.isEmpty() && bust.isEmpty()) {
-                        repaint();
-                    }
+                    repaint(bust);
                 }
             }
         });
@@ -138,6 +130,7 @@ public final class AnimeShell extends JPanel {
         tabs.setVisible(false);
         revalidate();
         repaint();
+        refreshChrome();
     }
 
     /** 打開原本的分頁：0 排程、1 設定、2 好友與傳檔、3 日誌。 */
@@ -149,6 +142,41 @@ public final class AnimeShell extends JPanel {
         tabs.setVisible(true);
         revalidate();
         repaint();
+        refreshChrome();
+    }
+
+    /** 問候氣泡改畫在這個高度下面，避開垂下來的手指。 */
+    void dropHomeBubbleBelow(int yInShell) {
+        board.setBubbleFloor(yInShell);
+    }
+
+    /** 點到跨在面板外的上半身時，跟點角色一樣打招呼。 */
+    public void greet() {
+        hero.play(AnimeCast.WAVE, 1.8);
+        board.sayClick();
+        repaint();
+    }
+
+    /** 「下一個任務」卡片，座標在這個面板裡。不在首頁時是空的。 */
+    public java.awt.Rectangle homeReminderBounds() {
+        if (!holdingHome) {
+            return new java.awt.Rectangle();
+        }
+        prepareHomeLayout();
+        return new java.awt.Rectangle(board.reminder);
+    }
+
+    public void prepareHomeLayout() {
+        if (holdingHome) {
+            board.layout(contentBounds());
+        }
+    }
+
+    private void refreshChrome() {
+        java.awt.Window window = SwingUtilities.getWindowAncestor(this);
+        if (window instanceof JFrame) {
+            WindowChrome.relayout((JFrame) window);
+        }
     }
 
     private static int navIndexForTab(int tab) {
@@ -167,6 +195,7 @@ public final class AnimeShell extends JPanel {
         tabs.setVisible(true);
         revalidate();
         repaint();
+        refreshChrome();
     }
 
     public void setUseRoom(boolean useRoom) {
@@ -308,7 +337,7 @@ public final class AnimeShell extends JPanel {
                 return home;
             }
         }
-        if (character.contains(x, y) || bust.contains(x, y)) {
+        if (bust.contains(x, y)) {
             return 20;
         }
         return -1;
@@ -354,36 +383,8 @@ public final class AnimeShell extends JPanel {
         HomeBrief brief = homeActions == null ? HomeBrief.empty() : homeActions.read();
         board.layout(area);
         board.paint(g, brief, hot);
-        paintCharacter(g, board.stage);
-        board.paintBubble(g, character);
-    }
-
-    private void paintCharacter(Graphics2D g, java.awt.Rectangle area) {
-        if (cast == null || area.width < 40 || area.height < 80) {
-            character = new java.awt.Rectangle();
-            return;
-        }
-        int bottom = board.reminder.height > 0 ? board.reminder.y - 8 : area.y + area.height - 8;
-        int available = Math.max(1, bottom - area.y);
-        int maxWidth = area.width >= 300 ? area.width - 168 : area.width;
-        int height = available;
-        int width = height * cast.frameWidth() / Math.max(1, cast.frameHeight());
-        if (width > maxWidth) {
-            width = Math.max(1, maxWidth);
-            height = width * cast.frameHeight() / Math.max(1, cast.frameWidth());
-        }
-        int breathe = 0;
-        if (!reducedMotion) {
-            double wave = Math.sin(System.currentTimeMillis() / 4000.0 * Math.PI * 2.0);
-            breathe = (int) Math.round(wave * 2.0);
-        }
-        int x = area.x + area.width - width;
-        int y = bottom - height - breathe;
-        if (y < area.y) {
-            y = area.y;
-        }
-        character = new java.awt.Rectangle(x, y, width, height);
-        cast.draw(g, hero.frame(), x, y, width, height);
+        board.paintHomeBubble(g);
+        board.paintReminder(g, brief);
     }
 
     private void paintRoom(Graphics2D g) {

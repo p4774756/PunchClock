@@ -568,6 +568,12 @@ public class DesktopPetTest {
                         0, 1, MouseEvent.BUTTON1));
                 assertNull(pet.animation().bubble());
                 assertTrue(pet.getX() > area.x);
+                assertTrue(pet.animation().isCarried());
+                for (int i = 0; i < DesktopPetAnimation.RELEASE_TICKS; i++) {
+                    pet.tickOnce();
+                }
+                assertFalse(pet.animation().isCarried());
+                assertEquals(0, pet.animation().leanDegrees(), 0.05);
                 assertEquals(Mode.IDLE, pet.animation().mode());
                 assertTrue(isMiluIdle(frames, pet.currentImage()));
 
@@ -671,6 +677,193 @@ public class DesktopPetTest {
     }
 
     /** 測試用的記憶體 {@link java.util.prefs.Preferences}，不寫進使用者的偏好檔。 */
+    @Test
+    public void carryLeanOpposesMotionThenSpringsUpright() {
+        assertEquals(0, DesktopPetAnimation.targetLean(0), 0.001);
+        assertEquals(DesktopPetAnimation.MAX_LEAN_DEGREES, DesktopPetAnimation.targetLean(4000), 0.001);
+        assertEquals(-DesktopPetAnimation.MAX_LEAN_DEGREES, DesktopPetAnimation.targetLean(-4000), 0.001);
+        assertTrue(DesktopPetAnimation.targetLean(350) > 0);
+        assertTrue(DesktopPetAnimation.targetLean(350) < DesktopPetAnimation.MAX_LEAN_DEGREES);
+
+        DesktopPetAnimation pet = new DesktopPetAnimation(new Random(1));
+        pet.forceWalk(1);
+        pet.setHandDown(true);
+        assertEquals(0, pet.stepX());
+        pet.setHandDown(false);
+        assertEquals(DesktopPetAnimation.STEP, pet.stepX());
+
+        pet.setCarried(true);
+        pet.noteCarryMotion(40, 20_000_000L);
+        assertTrue(pet.leanDegrees() > 0);
+        assertTrue(pet.leanDegrees() <= DesktopPetAnimation.MAX_LEAN_DEGREES);
+        pet.releaseCarry();
+        assertTrue(pet.isSettling());
+        double start = pet.leanDegrees();
+        pet.tick();
+        pet.tick();
+        assertTrue(pet.leanDegrees() * start < 0);
+        assertTrue(pet.isCarried());
+        assertEquals(Mode.WALK, pet.mode());
+
+        DesktopPetAnimation held = new DesktopPetAnimation(new Random(1));
+        held.setCarried(true);
+        held.noteCarryMotion(40, 20_000_000L);
+        double leaning = held.leanDegrees();
+        for (int i = 0; i < 12; i++) {
+            held.tick();
+        }
+        assertTrue(Math.abs(held.leanDegrees()) < Math.abs(leaning));
+        assertTrue(held.isCarried());
+        for (int i = 0; i < DesktopPetAnimation.RELEASE_TICKS; i++) {
+            pet.tick();
+        }
+        assertFalse(pet.isCarried());
+        assertFalse(pet.isSettling());
+        assertEquals(0, pet.leanDegrees(), 0.001);
+        assertEquals(Mode.IDLE, pet.mode());
+        assertEquals(8, DesktopPetAnimation.releaseLean(8, 0), 0.001);
+        assertTrue(DesktopPetAnimation.releaseLean(8, 0.5) < 0);
+        assertEquals(0, DesktopPetAnimation.releaseLean(8, 1), 0.001);
+        double upright = DesktopPetWindow.fitScale(30, 44, 200, 130, 120, 0, 260, 260, 2);
+        assertEquals(1, upright, 0.001);
+        double tiltedScale = DesktopPetWindow.fitScale(
+                30, 44, 200, 40, 50, Math.toRadians(10), 260, 260, 2);
+        assertTrue(tiltedScale < 1);
+        assertTrue(tiltedScale > 0.45);
+    }
+
+    @Test
+    public void dragTracksTheGrabPointAndClickStillPokes() throws Exception {
+        Assume.assumeFalse("headless JVM cannot show a pet", GraphicsEnvironment.isHeadless());
+        DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
+        assertNotNull(frames);
+        SwingUtilities.invokeAndWait(() -> {
+            MemoryPreferences prefs = new MemoryPreferences();
+            DesktopPetSettings settings = new DesktopPetSettings(prefs);
+            DesktopPetManager manager = new DesktopPetManager(settings);
+            try {
+                assertTrue(manager.setEnabled(true));
+                DesktopPetWindow pet = manager.window();
+                pet.useFrames(frames);
+                Rectangle area = pet.usableBounds();
+                int homeX = area.x + Math.max(0, (area.width - pet.getWidth()) / 2);
+                int homeY = area.y + 80;
+                pet.setLocation(homeX, homeY);
+
+                Point origin = pet.getLocationOnScreen();
+                int localX = 90;
+                int localY = 120;
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_PRESSED, localX, localY,
+                        origin.x + localX, origin.y + localY, 0, 1, MouseEvent.BUTTON1));
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_DRAGGED, localX + 2, localY,
+                        origin.x + localX + 2, origin.y + localY,
+                        MouseEvent.BUTTON1_DOWN_MASK, 0, MouseEvent.NOBUTTON));
+                assertFalse(pet.animation().isCarried());
+                assertEquals(homeX, pet.getX());
+                assertEquals(homeY, pet.getY());
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_RELEASED, localX + 2, localY,
+                        origin.x + localX + 2, origin.y + localY, 0, 1, MouseEvent.BUTTON1));
+                assertEquals("嗨", pet.animation().bubble());
+                assertFalse(pet.animation().isCarried());
+                assertEquals(homeX, pet.getX());
+
+                origin = pet.getLocationOnScreen();
+                int pressX = origin.x + localX;
+                int pressY = origin.y + localY;
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_PRESSED, localX, localY,
+                        pressX, pressY, 0, 1, MouseEvent.BUTTON1));
+                int grabX = pressX - pet.getX();
+                int grabY = pressY - pet.getY();
+                double previousLean = 0;
+                for (int step = 1; step <= 8; step++) {
+                    int cursorX = pressX + step * 40;
+                    pet.stage().dispatchEvent(mouse(
+                            pet.stage(), MouseEvent.MOUSE_DRAGGED, localX + step * 40, localY,
+                            cursorX, pressY, MouseEvent.BUTTON1_DOWN_MASK, 0, MouseEvent.NOBUTTON));
+                    assertEquals(cursorX - grabX, pet.getX());
+                    assertEquals(pressY - grabY, pet.getY());
+                    assertTrue(pet.animation().leanDegrees() >= previousLean - 0.2);
+                    assertTrue(pet.animation().leanDegrees() <= DesktopPetAnimation.MAX_LEAN_DEGREES);
+                    previousLean = pet.animation().leanDegrees();
+                }
+                assertTrue(pet.animation().isCarried());
+                assertTrue(pet.animation().leanDegrees() > 1);
+                double rightLean = pet.animation().leanDegrees();
+                for (int step = 1; step <= 8; step++) {
+                    int cursorX = pressX + 320 - step * 40;
+                    pet.stage().dispatchEvent(mouse(
+                            pet.stage(), MouseEvent.MOUSE_DRAGGED, localX, localY,
+                            cursorX, pressY, MouseEvent.BUTTON1_DOWN_MASK, 0, MouseEvent.NOBUTTON));
+                    assertEquals(cursorX - grabX, pet.getX());
+                    assertEquals(pressY - grabY, pet.getY());
+                    assertTrue(pet.animation().leanDegrees() >= -DesktopPetAnimation.MAX_LEAN_DEGREES);
+                }
+                assertTrue(pet.animation().leanDegrees() < rightLean);
+
+                int parkedX = pet.getX();
+                int parkedY = pet.getY();
+                double leaning = pet.animation().leanDegrees();
+                for (int i = 0; i < 8; i++) {
+                    pet.tickOnce();
+                }
+                assertEquals(parkedX, pet.getX());
+                assertEquals(parkedY, pet.getY());
+                assertTrue(pet.animation().isCarried());
+                assertTrue(Math.abs(pet.animation().leanDegrees()) < Math.abs(leaning));
+
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_RELEASED, localX, localY,
+                        pet.getLocationOnScreen().x + localX, pet.getLocationOnScreen().y + localY,
+                        0, 1, MouseEvent.BUTTON1));
+                assertEquals(parkedX, pet.getX());
+                assertEquals(parkedY, pet.getY());
+                assertEquals(parkedX, settings.x());
+                assertEquals(parkedY, settings.y());
+                assertTrue(pet.animation().isSettling());
+                for (int i = 0; i < DesktopPetAnimation.RELEASE_TICKS; i++) {
+                    pet.tickOnce();
+                }
+                assertFalse(pet.animation().isCarried());
+                assertEquals(0, pet.animation().leanDegrees(), 0.05);
+                assertEquals(Mode.IDLE, pet.animation().mode());
+                assertEquals(parkedX, pet.getX());
+                assertEquals(parkedY, pet.getY());
+
+                origin = pet.getLocationOnScreen();
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_PRESSED, localX, localY,
+                        origin.x + localX, origin.y + localY, 0, 1, MouseEvent.BUTTON1));
+                for (int step = 1; step <= 6; step++) {
+                    pet.stage().dispatchEvent(mouse(
+                            pet.stage(), MouseEvent.MOUSE_DRAGGED, localX + step * 50, localY,
+                            origin.x + localX + step * 50, origin.y + localY,
+                            MouseEvent.BUTTON1_DOWN_MASK, 0, MouseEvent.NOBUTTON));
+                }
+                BufferedImage shot = new BufferedImage(pet.getWidth(), pet.getHeight(), BufferedImage.TYPE_INT_ARGB);
+                Graphics2D graphics = shot.createGraphics();
+                pet.stage().paint(graphics);
+                graphics.dispose();
+                assertEquals(0, shot.getRGB(1, 1) >>> 24);
+                int edge = 0;
+                for (int y = 0; y < shot.getHeight(); y++) {
+                    for (int x = 0; x < shot.getWidth(); x++) {
+                        boolean border = x < 2 || y < 2 || x >= shot.getWidth() - 2 || y >= shot.getHeight() - 2;
+                        if (border && ((shot.getRGB(x, y) >>> 24) & 0xff) > 16) {
+                            edge++;
+                        }
+                    }
+                }
+                assertEquals(0, edge);
+            } finally {
+                manager.shutdown();
+            }
+        });
+    }
+
     @Test
     public void noticeUsesWaveAndLastsAboutFourSeconds() {
         DesktopPetAnimation animation = new DesktopPetAnimation(new Random(1));

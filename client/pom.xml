@@ -60,6 +60,7 @@
                     <exclude>**/*.jpeg</exclude>
                     <exclude>**/*.gif</exclude>
                     <exclude>**/*.ico</exclude>
+                    <exclude>**/*.dylib</exclude>
                 </excludes>
             </resource>
             <resource>
@@ -71,6 +72,7 @@
                     <include>**/*.jpeg</include>
                     <include>**/*.gif</include>
                     <include>**/*.ico</include>
+                    <include>**/*.dylib</include>
                 </includes>
             </resource>
             <resource>

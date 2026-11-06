@@ -356,11 +356,13 @@ public class App extends JFrame {
                 marqueeBar.showNotice(notice.enabled, notice.text)));
         content.add(marqueeBar, BorderLayout.NORTH);
         content.add(shell, BorderLayout.CENTER);
+        WindowChrome.setFramePortrait(this, new com.example.ui.hud.HomePortrait(shell));
 
         bindBackgroundControls();
 
-        setMinimumSize(new Dimension(980, 680));
-        setSize(1180, 800);
+        // 上方和右側要留給跨出面板的角色，內層紫色面板仍維持原本能排卡片的大小。
+        setMinimumSize(new Dimension(1100, 820));
+        setSize(1280, 920);
         setLocationRelativeTo(null);
 
         bindWindowLayoutPersistence();
@@ -460,7 +462,8 @@ public class App extends JFrame {
         int height = config.windowHeight > 0 ? Math.max(config.windowHeight, min.height) : 800;
         setSize(width, height);
 
-        if (config.windowX >= 0 && config.windowY >= 0 && isLocationOnScreen(config.windowX, config.windowY, width, height)) {
+        if (config.windowWidth > 0 && config.windowHeight > 0
+                && isLocationOnScreen(config.windowX, config.windowY, width, height)) {
             setLocation(config.windowX, config.windowY);
         } else {
             setLocationRelativeTo(null);

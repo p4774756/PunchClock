@@ -38,6 +38,9 @@ final class HomeBoard {
     private static final Color PANEL_EDGE = new Color(142, 116, 178, 170);
     private static final Color CANDY_INK = new Color(0x3A, 0x18, 0x28);
     private static final int FADE_MS = 240;
+    private static final int TAIL_RIGHT = 0;
+    private static final int TAIL_DOWN = 1;
+    private static final int TAIL_UP = 2;
     private static final String[] CLICK_LINES = {
             "嘿嘿，找我有事嗎？",
             "我一直都在這裡喔～",
@@ -62,6 +65,10 @@ final class HomeBoard {
     private String shown;
     private String outgoing;
     private long fadeStart;
+    /** 氣泡頂端要低過指尖。座標和這個面板一樣，在外框裡。 */
+    private int bubbleFloor;
+    /** 上一幀問候泡泡的高度，卡片跟在它下面。 */
+    private int bubbleBlock = 44;
 
     void layout(Rectangle area) {
         schedule.setBounds(0, 0, 0, 0);
@@ -76,7 +83,7 @@ final class HomeBoard {
             return;
         }
         int gap = 12;
-        boolean stacked = area.width < 640;
+        boolean stacked = area.width < 500;
         int infoW = stacked ? area.width : Math.min(400, Math.max(250, area.width * 40 / 100));
         int infoH = stacked ? Math.min(area.height - 160, Math.max(210, area.height * 46 / 100)) : area.height;
         int scheduleH = 92;
@@ -120,8 +127,14 @@ final class HomeBoard {
             stage.setBounds(left, area.y, Math.max(0, area.x + area.width - left), area.height);
         }
         int boxW = Math.min(280, Math.max(0, stage.width - 16));
-        if (stage.height >= 150 && boxW >= 120) {
-            reminder.setBounds(stage.x + 8, stage.y + stage.height - 86, boxW, 74);
+        if (stage.height >= 120 && boxW >= 120) {
+            int top = Math.max(stage.y, bubbleFloor);
+            int cardY = top + bubbleBlock + 12;
+            int maxY = stage.y + stage.height - 82;
+            if (cardY > maxY) {
+                cardY = Math.max(stage.y, maxY);
+            }
+            reminder.setBounds(stage.x + 8, cardY, boxW, 74);
         }
     }
 
@@ -146,6 +159,10 @@ final class HomeBoard {
 
     void setReducedMotion(boolean reducedMotion) {
         this.reducedMotion = reducedMotion;
+    }
+
+    void setBubbleFloor(int yInShell) {
+        bubbleFloor = Math.max(0, yInShell);
     }
 
     /** 台詞切換的那一小段需要重畫，平時不必。 */
@@ -179,7 +196,48 @@ final class HomeBoard {
         paintSchedule(g, data, hot == SCHEDULE);
         paintFriends(g, data, hot == FRIENDS);
         paintActions(g, hot);
-        paintReminder(g, data);
+    }
+
+    /** 問候在指尖下方，尾巴朝上。「下一個任務」排在這個泡泡下面。 */
+    void paintHomeBubble(Graphics2D g) {
+        if (stage.width < 100 || stage.height < 80) {
+            return;
+        }
+        syncLine();
+        String text = bubbleText();
+        float alpha = bubbleAlpha();
+        if (text == null || text.isEmpty() || alpha < 0.04f) {
+            return;
+        }
+        g.setFont(UiFonts.chinesePlain(14));
+        int maxW = Math.min(250, Math.max(120, stage.width - 36));
+        List<String> rows = wrap(g, text, maxW - 28);
+        int block = g.getFontMetrics().getHeight();
+        int boxH = 16 + block * rows.size();
+        int boxW = 28;
+        FontMetrics metrics = g.getFontMetrics();
+        for (String row : rows) {
+            boxW = Math.max(boxW, metrics.stringWidth(row) + 28);
+        }
+        boxW = Math.min(maxW, boxW);
+        int x = stage.x + 16;
+        int y = Math.max(stage.y, bubbleFloor);
+        bubbleBlock = boxH;
+        if (reminder.width > 0) {
+            reminder.y = y + boxH + 12;
+        }
+        Composite previous = g.getComposite();
+        if (alpha < 0.99f) {
+            g.setComposite(AlphaComposite.SrcOver.derive(alpha));
+        }
+        paintBubbleShape(g, new Rectangle(x, y, boxW, boxH), TAIL_UP);
+        g.setColor(INK);
+        int textY = y + 8 + metrics.getAscent();
+        for (String row : rows) {
+            g.drawString(row, x + 14, textY);
+            textY += block;
+        }
+        g.setComposite(previous);
     }
 
     void paintBubble(Graphics2D g, Rectangle character) {
@@ -226,7 +284,7 @@ final class HomeBoard {
             g.setComposite(AlphaComposite.SrcOver.derive(alpha));
         }
         Rectangle box = new Rectangle(x, y, boxW, boxH);
-        paintBubbleShape(g, box, above);
+        paintBubbleShape(g, box, above ? TAIL_DOWN : TAIL_RIGHT);
         g.setColor(INK);
         int textY = box.y + 8 + metrics.getAscent();
         for (String row : rows) {
@@ -286,7 +344,7 @@ final class HomeBoard {
         return "已經很晚了，記得早點休息喔 ♡";
     }
 
-    private static void paintBubbleShape(Graphics2D g, Rectangle box, boolean above) {
+    private static void paintBubbleShape(Graphics2D g, Rectangle box, int tailDirection) {
         g.setColor(new Color(16, 10, 32, 50));
         g.fillRoundRect(box.x + 2, box.y + 3, box.width, box.height, 16, 16);
         g.setColor(PANEL);
@@ -296,7 +354,7 @@ final class HomeBoard {
         int coverY;
         int coverW;
         int coverH;
-        if (above) {
+        if (tailDirection == TAIL_DOWN) {
             int mid = box.x + box.width / 2;
             tail.moveTo(mid - 6, box.y + box.height - 2);
             tail.lineTo(mid, box.y + box.height + 7);
@@ -304,6 +362,16 @@ final class HomeBoard {
             tail.closePath();
             coverX = mid - 5;
             coverY = box.y + box.height - 3;
+            coverW = 10;
+            coverH = 4;
+        } else if (tailDirection == TAIL_UP) {
+            int mid = box.x + box.width - 28;
+            tail.moveTo(mid - 6, box.y + 2);
+            tail.lineTo(mid, box.y - 7);
+            tail.lineTo(mid + 6, box.y + 2);
+            tail.closePath();
+            coverX = mid - 5;
+            coverY = box.y;
             coverW = 10;
             coverH = 4;
         } else {
@@ -490,7 +558,7 @@ final class HomeBoard {
         return clean.substring(0, clean.offsetByCodePoints(0, 1));
     }
 
-    private void paintReminder(Graphics2D g, HomeBrief brief) {
+    void paintReminder(Graphics2D g, HomeBrief brief) {
         if (reminder.width < 80) {
             return;
         }
