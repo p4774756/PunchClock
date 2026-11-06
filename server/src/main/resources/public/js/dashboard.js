@@ -1248,32 +1248,104 @@
       return /\.(pdf|ppt|pptx|pages)$/i.test(String(file && file.name || ''));
     }
 
-    async function uploadPhoto(file) {
+    let photoUploading = false;
+
+    function showUploadStatus(state) {
+      const box = document.getElementById('photoUploadStatus');
+      const text = document.getElementById('photoUploadStatusText');
+      const pct = document.getElementById('photoUploadStatusPct');
+      const fill = document.getElementById('photoUploadBarFill');
+      const bar = box ? box.querySelector('.photo-upload-bar') : null;
+      if (!box) return;
+      if (!state) {
+        box.hidden = true;
+        return;
+      }
+      box.hidden = false;
+      if (text) text.textContent = state.text || '';
+      const busy = !!state.busy;
+      if (pct) pct.textContent = busy || state.percent == null ? '' : state.percent + '%';
+      if (bar) bar.classList.toggle('is-busy', busy);
+      if (fill) fill.style.width = busy ? '' : ((state.percent || 0) + '%');
+    }
+
+    function setUploadBusy(busy) {
+      photoUploading = busy;
+      const input = document.getElementById('photoUploadInput');
+      const label = document.querySelector('label[for="photoUploadInput"]');
+      const clearBtn = document.getElementById('clearAllPhotosBtn');
+      if (input) input.disabled = busy;
+      if (label) label.classList.toggle('is-disabled', busy);
+      if (clearBtn) clearBtn.disabled = busy;
+    }
+
+    function uploadPhaseText(file, index, total, phase) {
+      const name = (file && file.name) || '這份簡報';
+      const count = total > 1 ? '（' + (index + 1) + '/' + total + '）' : '';
+      if (phase === 'prep') {
+        return '正在整理 ' + name + count + '，轉好才會出現在牆上';
+      }
+      return '正在上傳 ' + name + count;
+    }
+
+    function postSlide(file, onProgress) {
+      return new Promise(function(resolve, reject) {
+        const xhr = new XMLHttpRequest();
+        const form = new FormData();
+        form.append('file', file);
+        xhr.open('POST', '/api/photos');
+        xhr.withCredentials = true;
+        xhr.upload.onprogress = function(ev) {
+          if (!onProgress) return;
+          if (!ev.lengthComputable || ev.total <= 0) {
+            onProgress(null, false);
+            return;
+          }
+          const percent = Math.max(0, Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
+          onProgress(percent, ev.loaded >= ev.total);
+        };
+        xhr.upload.onload = function() {
+          if (onProgress) onProgress(100, true);
+        };
+        xhr.onload = function() {
+          let data = {};
+          try {
+            data = JSON.parse(xhr.responseText || '{}');
+          } catch (err) {
+            data = {};
+          }
+          if (xhr.status >= 200 && xhr.status < 300 && data.success && data.photo) {
+            resolve(data);
+            return;
+          }
+          reject(new Error(data.message || '上傳失敗'));
+        };
+        xhr.onerror = function() {
+          reject(new Error('上傳失敗'));
+        };
+        xhr.send(form);
+      });
+    }
+
+    async function uploadPhoto(file, onPhase) {
       if (!isSlideFile(file)) {
         alert('只接受 PDF、PowerPoint 或 Pages');
-        return;
+        return false;
       }
       if (file.size > 60 * 1024 * 1024) {
         alert((file.name || '這份簡報') + ' 超過 60 MB');
-        return;
+        return false;
       }
-      const form = new FormData();
-      form.append('file', file);
       try {
-        const res = await fetch('/api/photos', {
-          method: 'POST',
-          body: form,
-          credentials: 'same-origin'
+        const data = await postSlide(file, function(percent, sent) {
+          if (onPhase) onPhase(sent ? 'prep' : 'send', percent);
         });
-        const data = await res.json();
-        if (data.success && data.photo) {
-          photoData.push(data.photo);
-          renderPhotoGrid();
-        } else {
-          alert(data.message || '上傳失敗');
-        }
+        photoData.push(data.photo);
+        renderPhotoGrid();
+        return true;
       } catch (e) {
-        alert('上傳失敗');
+        alert((e && e.message) || '上傳失敗');
+        return false;
       }
     }
 
@@ -1396,12 +1468,29 @@
       if (input) {
         input.addEventListener('change', function() {
           const files = this.files;
-          if (!files || !files.length) return;
+          if (!files || !files.length || photoUploading) return;
           const queue = Array.prototype.slice.call(files);
           this.value = '';
           (async function() {
-            for (let i = 0; i < queue.length; i++) {
-              await uploadPhoto(queue[i]);
+            setUploadBusy(true);
+            try {
+              for (let i = 0; i < queue.length; i++) {
+                const file = queue[i];
+                showUploadStatus({
+                  text: uploadPhaseText(file, i, queue.length, 'send'),
+                  percent: 0
+                });
+                await uploadPhoto(file, function(phase, percent) {
+                  showUploadStatus({
+                    text: uploadPhaseText(file, i, queue.length, phase),
+                    percent: percent,
+                    busy: phase === 'prep' || percent == null
+                  });
+                });
+              }
+            } finally {
+              setUploadBusy(false);
+              showUploadStatus(null);
             }
           })();
         });

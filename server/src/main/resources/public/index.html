@@ -129,6 +129,15 @@
                 <button type="button" class="btn btn-ghost-danger" id="clearAllPhotosBtn">整面清掉</button>
               </div>
             </div>
+            <div class="photo-upload-status" id="photoUploadStatus" hidden role="status" aria-live="polite">
+              <div class="photo-upload-status-row">
+                <span id="photoUploadStatusText">正在上傳…</span>
+                <span id="photoUploadStatusPct"></span>
+              </div>
+              <div class="photo-upload-bar" aria-hidden="true">
+                <div class="photo-upload-bar-fill" id="photoUploadBarFill"></div>
+              </div>
+            </div>
             <div class="photo-grid" id="photoGrid">
               <p class="empty-tasks">牆上還沒有簡報。</p>
             </div>
