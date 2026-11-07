@@ -24,13 +24,39 @@ public class CandyTextField extends JTextField {
     private static final String FOCUS_WATCH = "candy.field.focus";
 
     public CandyTextField(String text, int columns) {
-        super(text, columns);
+        super(stripMacPlaceholder(text), columns);
         install(this, true);
     }
 
     @Override
     public void updateUI() {
         install(this, true);
+    }
+
+    /**
+     * macOS 輸入法在點進欄位時會送 U+FFFC。留在文件裡的話，游標停住，後面的字也打不進去。
+     */
+    @Override
+    public void replaceSelection(String content) {
+        String clean = stripMacPlaceholder(content);
+        if ((clean == null || clean.isEmpty()) && content != null && !content.isEmpty()) {
+            return;
+        }
+        super.replaceSelection(clean);
+    }
+
+    static String stripMacPlaceholder(String content) {
+        if (content == null || content.indexOf('\uFFFC') < 0) {
+            return content;
+        }
+        StringBuilder kept = new StringBuilder(content.length());
+        for (int i = 0; i < content.length(); i++) {
+            char c = content.charAt(i);
+            if (c != '\uFFFC') {
+                kept.append(c);
+            }
+        }
+        return kept.toString();
     }
 
     /**
@@ -108,15 +134,42 @@ public class CandyTextField extends JTextField {
 
     static final class FieldUI extends BasicTextFieldUI {
         @Override
+        protected void paintSafely(Graphics g) {
+            // BasicTextUI 只在不透明時才畫背景。圓角欄位是透明的，否則外框不會出現。
+            JTextComponent field = getComponent();
+            if (field != null && chrome(field)) {
+                paintBody(g, field);
+            }
+            super.paintSafely(g);
+        }
+
+        @Override
         protected void paintBackground(Graphics g) {
-            paintBody(g, getComponent());
+            JTextComponent field = getComponent();
+            if (field != null && chrome(field)) {
+                return;
+            }
+            super.paintBackground(g);
         }
     }
 
     static final class PasswordUI extends BasicPasswordFieldUI {
         @Override
+        protected void paintSafely(Graphics g) {
+            JTextComponent field = getComponent();
+            if (field != null && chrome(field)) {
+                paintBody(g, field);
+            }
+            super.paintSafely(g);
+        }
+
+        @Override
         protected void paintBackground(Graphics g) {
-            paintBody(g, getComponent());
+            JTextComponent field = getComponent();
+            if (field != null && chrome(field)) {
+                return;
+            }
+            super.paintBackground(g);
         }
     }
 

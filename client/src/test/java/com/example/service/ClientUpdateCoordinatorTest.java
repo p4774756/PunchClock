@@ -15,6 +15,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class ClientUpdateCoordinatorTest {
@@ -23,209 +25,112 @@ public class ClientUpdateCoordinatorTest {
     private static final String OTHER = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
     @Test
-    public void checkDisabledIgnoresNoticeUntilTurnedBackOn() throws Exception {
-        FakeActions actions = new FakeActions();
-        actions.checkForUpdates = false;
-        actions.auto = true;
-        actions.canInstall = true;
-        Path jar = sampleJar(actions);
-        ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
-
-        coordinator.handle(notice(OTHER, jar));
-        assertFalse(actions.confirmed);
-        assertEquals(0, actions.downloads.get());
-        assertTrue(actions.logs.isEmpty());
-
-        actions.checkForUpdates = true;
-        coordinator.handle(notice(OTHER, jar));
-        assertEquals(1, actions.installed.size());
-        assertTrue(actions.restarted);
-    }
-
-    @Test
-    public void skipsIgnoredBusyAndSameDigest() throws Exception {
+    public void offerIgnoresSameOrEmptyDigestAndDoesNotDownload() throws Exception {
         FakeActions actions = new FakeActions();
         actions.local = LOCAL;
-        actions.ignored = OTHER;
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
 
-        coordinator.handle(notice(OTHER, sampleJar(actions)));
-        assertFalse(actions.confirmed);
+        assertNull(coordinator.offer(null));
+        assertNull(coordinator.offer(notice("", null)));
+        assertNull(coordinator.offer(notice(LOCAL, sampleJar(actions))));
+        assertEquals(0, actions.downloads.get());
+        assertTrue(actions.installed.isEmpty());
+    }
 
-        actions.ignored = "";
+    @Test
+    public void offerReturnsNewerBuildEvenWhenBusy() throws Exception {
+        FakeActions actions = new FakeActions();
+        actions.local = LOCAL;
         actions.idleDefault = false;
-        coordinator.handle(notice(OTHER, sampleJar(actions)));
-        assertFalse(actions.confirmed);
-
-        actions.idleDefault = true;
-        coordinator.handle(notice(LOCAL, sampleJar(actions)));
-        assertFalse(actions.confirmed);
-    }
-
-    @Test
-    public void declineRemembersDigest() {
-        FakeActions actions = new FakeActions();
-        actions.accept = false;
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
+        UpdateNotice notice = notice(OTHER, sampleJar(actions));
 
-        coordinator.handle(notice(OTHER, null));
-        assertEquals(OTHER, actions.ignored);
-        assertFalse(actions.restarted);
-
-        actions.confirmed = false;
-        coordinator.handle(notice(OTHER, null));
-        assertFalse(actions.confirmed);
+        assertSame(notice, coordinator.offer(notice));
+        assertEquals(0, actions.downloads.get());
     }
 
     @Test
-    public void confirmDialogShowsCurrentAndNewBuildWithTime() throws Exception {
-        FakeActions actions = new FakeActions();
-        actions.accept = false;
-        ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
-
-        coordinator.handle(new UpdateNotice("2.0.2", OTHER, "2026-10-20T07:58:00Z", LOCAL, 1,
-                "/api/client-release/jar"));
-
-        assertTrue(actions.confirmMessage, actions.confirmMessage.contains("目前：v2.0.2 · a1b2c3d"));
-        assertTrue(actions.confirmMessage, actions.confirmMessage.contains("新版：v2.0.2 · bbbbbbb（建置 2026-10-"));
-        assertTrue(actions.logs.toString(), actions.logs.stream().anyMatch(l -> l.contains("v2.0.2 · bbbbbbb")));
+    public void describeIncludesBuildTime() {
+        UpdateNotice notice = new UpdateNotice("2.0.2", OTHER, "2026-10-20T07:58:00Z", LOCAL, 1,
+                "/api/client-release/jar");
+        String label = ClientUpdateCoordinator.describe(notice);
+        assertTrue(label, label.startsWith("v2.0.2 · bbbbbbb（建置 2026-10-"));
     }
 
     @Test
-    public void confirmDialogListsWhatChanged() {
+    public void applyDownloadsChecksHashAndRestarts() throws Exception {
         FakeActions actions = new FakeActions();
-        actions.accept = false;
-        ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
-
-        coordinator.handle(new UpdateNotice("2.0.2", OTHER, "2026-10-20T07:58:00Z", LOCAL, 1,
-                "/api/client-release/jar",
-                java.util.List.of("聊天視窗只晃一下", "傳檔確認改掛聊天視窗"), 1));
-
-        assertTrue(actions.confirmMessage, actions.confirmMessage.contains("這次修改："));
-        assertTrue(actions.confirmMessage, actions.confirmMessage.contains("· 聊天視窗只晃一下"));
-        assertTrue(actions.confirmMessage, actions.confirmMessage.contains("· 傳檔確認改掛聊天視窗"));
-        assertTrue(actions.confirmMessage, actions.confirmMessage.contains("…還有 1 項"));
-        assertTrue(actions.confirmMessage, actions.confirmMessage.contains("要下載並重新啟動嗎？"));
-        assertTrue(actions.logs.stream().anyMatch(l -> l.contains("這次修改：聊天視窗只晃一下；傳檔確認改掛聊天視窗")));
-    }
-
-    @Test
-    public void acceptDownloadsChecksHashAndRestarts() throws Exception {
-        FakeActions actions = new FakeActions();
-        actions.accept = true;
         actions.canInstall = true;
         Path jar = sampleJar(actions);
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
 
-        coordinator.handle(notice(OTHER, jar));
+        assertTrue(coordinator.apply(notice(OTHER, jar)));
 
         assertEquals(1, actions.installed.size());
         assertTrue(actions.restarted);
+        assertFalse(actions.finished);
+        assertTrue(actions.phases.contains("正在下載更新…"));
         assertTrue(actions.logs.stream().anyMatch(line -> line.contains("即將重新啟動")));
     }
 
     @Test
-    public void autoModeUpdatesWithoutAskingEvenIfVersionWasIgnoredBefore() throws Exception {
+    public void secondApplyWhileBusyIsIgnored() throws Exception {
         FakeActions actions = new FakeActions();
-        actions.auto = true;
         actions.canInstall = true;
-        actions.ignored = OTHER;
-        Path jar = sampleJar(actions);
-        ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
+        ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, command -> {
+        });
 
-        coordinator.handle(notice(OTHER, jar));
-
-        assertFalse("自動模式不詢問", actions.confirmed);
-        assertEquals(1, actions.installed.size());
-        assertTrue(actions.restarted);
-        assertTrue(actions.logs.stream().anyMatch(l -> l.contains("自動下載並更新")));
-    }
-
-    @Test
-    public void autoModeDoesNothingWhileBusyThenUpdatesOnceIdle() throws Exception {
-        FakeActions actions = new FakeActions();
-        actions.auto = true;
-        actions.canInstall = true;
-        actions.idleDefault = false;
-        Path jar = sampleJar(actions);
-        ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
-
-        coordinator.handle(notice(OTHER, jar));
-        assertEquals("打卡中／排程將至不下載", 0, actions.downloads.get());
-        assertFalse(actions.restarted);
-
-        actions.idleDefault = true;
-        coordinator.handle(notice(OTHER, jar));
-        assertEquals(1, actions.downloads.get());
-        assertTrue(actions.restarted);
-    }
-
-    @Test
-    public void manualModeSkipsWhenBecomesBusyAfterAccepting() throws Exception {
-        FakeActions actions = new FakeActions();
-        actions.accept = true;
-        actions.canInstall = true;
-        actions.idleSequence.add(true);   // 通知當下閒置
-        actions.idleDefault = false;      // 使用者按「是」之前打卡開始了
-        Path jar = sampleJar(actions);
-        ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
-
-        coordinator.handle(notice(OTHER, jar));
-
+        assertTrue(coordinator.apply(notice(OTHER, sampleJar(actions))));
+        assertFalse(coordinator.apply(notice(OTHER, actions.jar)));
         assertEquals(0, actions.downloads.get());
-        assertFalse(actions.restarted);
-        assertTrue(actions.logs.stream().anyMatch(l -> l.contains("這次先不更新")));
     }
 
     @Test
     public void waitsForIdleAfterDownloadBeforeRestarting() throws Exception {
         FakeActions actions = new FakeActions();
-        actions.auto = true;
         actions.canInstall = true;
-        actions.idleSequence.add(true);   // handle：通知當下
-        actions.idleSequence.add(true);   // handle：排入背景前
-        actions.idleSequence.add(false);  // 下載完成時打卡剛好開始
         actions.idleSequence.add(false);
-        actions.idleSequence.add(true);   // 打卡結束
+        actions.idleSequence.add(false);
+        actions.idleSequence.add(true);
         Path jar = sampleJar(actions);
         AtomicInteger sleeps = new AtomicInteger();
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(
                 actions, Runnable::run, millis -> sleeps.incrementAndGet(), 10, 1_000);
 
-        coordinator.handle(notice(OTHER, jar));
+        coordinator.apply(notice(OTHER, jar));
 
         assertEquals("兩次輪詢後才閒置", 2, sleeps.get());
         assertEquals(1, actions.installed.size());
         assertTrue(actions.restarted);
-        assertTrue(actions.logs.stream().anyMatch(l -> l.contains("等閒置後再重新啟動")));
+        assertTrue(actions.phases.contains("等打卡結束後重新啟動"));
+        assertTrue(actions.logs.stream().anyMatch(line -> line.contains("等閒置後再重新啟動")));
     }
 
     @Test
-    public void giveUpWhenNeverIdleAndAllowRetryOnNextHeartbeat() throws Exception {
+    public void giveUpWhenNeverIdleAndAllowRetry() throws Exception {
         FakeActions actions = new FakeActions();
-        actions.auto = true;
         actions.canInstall = true;
-        actions.idleSequence.add(true);
-        actions.idleSequence.add(true);
         actions.idleDefault = false;
         Path jar = sampleJar(actions);
         AtomicInteger sleeps = new AtomicInteger();
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(
                 actions, Runnable::run, millis -> sleeps.incrementAndGet(), 10, 30);
 
-        coordinator.handle(notice(OTHER, jar));
+        coordinator.apply(notice(OTHER, jar));
 
         assertEquals(3, sleeps.get());
         assertTrue(actions.installed.isEmpty());
         assertFalse(actions.restarted);
-        assertTrue(actions.logs.stream().anyMatch(l -> l.contains("等候閒置逾時")));
+        assertTrue(actions.finished);
+        assertTrue(actions.logs.stream().anyMatch(line -> line.contains("等候閒置逾時")));
+        assertTrue(actions.warnings.stream().anyMatch(line -> line.contains("先不重新啟動")));
         assertFalse("下載的檔案要清掉", Files.exists(jar));
 
-        // 下次心跳：busy 旗標已釋放，會重新下載
         actions.jar = null;
         actions.idleDefault = true;
+        actions.finished = false;
         Path again = sampleJar(actions);
-        coordinator.handle(notice(OTHER, again));
+        coordinator.apply(notice(OTHER, again));
         assertEquals(2, actions.downloads.get());
         assertTrue(actions.restarted);
     }
@@ -233,41 +138,39 @@ public class ClientUpdateCoordinatorTest {
     @Test
     public void badHashDoesNotRestart() throws Exception {
         FakeActions actions = new FakeActions();
-        actions.accept = true;
         actions.canInstall = true;
         Path jar = sampleJar(actions);
         UpdateNotice notice = notice(OTHER, jar);
         UpdateNotice bad = new UpdateNotice(notice.version, notice.sourceDigest, LOCAL, notice.size, notice.path);
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
 
-        coordinator.handle(bad);
+        coordinator.apply(bad);
 
         assertTrue(actions.installed.isEmpty());
         assertFalse(actions.restarted);
+        assertTrue(actions.finished);
         assertTrue(actions.warnings.stream().anyMatch(line -> line.contains("校驗失敗")));
     }
 
     @Test
-    public void cancelledDownloadDoesNotRestartOrWarnAndAsksAgainLater() throws Exception {
+    public void cancelledDownloadDoesNotRestartAndCanBeTriedAgain() throws Exception {
         FakeActions actions = new FakeActions();
-        actions.accept = true;
         actions.canInstall = true;
         actions.cancelDownload = true;
         Path jar = sampleJar(actions);
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
 
-        coordinator.handle(notice(OTHER, jar));
+        coordinator.apply(notice(OTHER, jar));
 
         assertTrue(actions.installed.isEmpty());
         assertFalse(actions.restarted);
         assertTrue(actions.warnings.isEmpty());
-        assertEquals("", actions.ignored);
+        assertTrue(actions.finished);
         assertTrue(actions.logs.stream().anyMatch(line -> line.contains("已取消下載")));
 
         actions.cancelDownload = false;
-        actions.confirmed = false;
-        coordinator.handle(notice(OTHER, jar));
-        assertTrue(actions.confirmed);
+        actions.finished = false;
+        coordinator.apply(notice(OTHER, jar));
         assertTrue(actions.restarted);
     }
 
@@ -295,22 +198,18 @@ public class ClientUpdateCoordinatorTest {
 
     private static final class FakeActions implements ClientUpdateCoordinator.Actions {
         String local = "";
-        String ignored = "";
         /** 依序回傳；用完後回傳 idleDefault。 */
         final Deque<Boolean> idleSequence = new ArrayDeque<>();
         boolean idleDefault = true;
-        boolean auto;
-        boolean checkForUpdates = true;
-        boolean accept = true;
         boolean canInstall;
         boolean cancelDownload;
-        boolean confirmed;
-        String confirmMessage = "";
         boolean restarted;
+        boolean finished;
         Path jar;
         final AtomicInteger downloads = new AtomicInteger();
         final List<Path> installed = new ArrayList<>();
         final List<String> logs = new ArrayList<>();
+        final List<String> phases = new ArrayList<>();
         final List<String> warnings = new ArrayList<>();
 
         @Override
@@ -324,41 +223,19 @@ public class ClientUpdateCoordinatorTest {
         }
 
         @Override
-        public String ignoredDigest() {
-            return ignored;
-        }
-
-        @Override
         public boolean idle() {
             Boolean next = idleSequence.poll();
             return next != null ? next : idleDefault;
         }
 
         @Override
-        public boolean checkForUpdates() {
-            return checkForUpdates;
-        }
-
-        @Override
-        public boolean autoUpdate() {
-            return auto;
-        }
-
-        @Override
-        public void rememberIgnored(String digest) {
-            ignored = digest;
-        }
-
-        @Override
-        public boolean confirm(String message) {
-            confirmed = true;
-            confirmMessage = message;
-            return accept;
-        }
-
-        @Override
         public void log(String line) {
             logs.add(line);
+        }
+
+        @Override
+        public void phase(String title) {
+            phases.add(title);
         }
 
         @Override
@@ -388,6 +265,11 @@ public class ClientUpdateCoordinatorTest {
         @Override
         public void restart() {
             restarted = true;
+        }
+
+        @Override
+        public void finished(boolean restarted) {
+            finished = !restarted;
         }
     }
 }

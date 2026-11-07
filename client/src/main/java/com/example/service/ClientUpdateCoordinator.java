@@ -2,7 +2,6 @@ package com.example.service;
 
 import com.example.BuildInfo;
 import com.example.ClientUpdatePolicy;
-import com.example.ReleaseNotes;
 import com.example.service.HeartbeatService.UpdateNotice;
 
 import java.nio.file.Files;
@@ -12,14 +11,10 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 收到心跳的更新通知後處理桌面端更新。
- * <ul>
- *   <li>關閉檢查：忽略心跳裡的更新通知，不記錄、不詢問、不下載。</li>
- *   <li>自動模式（預設）：閒置時直接背景下載、校驗、換檔重開，不打擾使用者。</li>
- *   <li>手動模式：先詢問，同意才下載；同一版按過「否」不再問。</li>
- * </ul>
- * 兩種模式都只在「閒置」時動作：打卡執行中、或最近一次排程快到了（見 {@link UpdateIdlePolicy}）就等下一次心跳。
- * 下載完成、真正重啟前會再確認一次；若這時剛好不閒置，就等到閒置才重啟（有上限，逾時放棄這次、下次心跳再來）。
+ * 桌面端更新。心跳或「檢查更新」只負責發現新版，交給畫面顯示，不跳詢問、也不自己安裝。
+ * 使用者按「現在更新」才下載、校驗、換檔重開。
+ * 下載可以立刻開始；真正重啟前若正在打卡、或十分鐘內有排程，會等到閒置（有上限），
+ * 免得把執行中的打卡砍掉。
  */
 public final class ClientUpdateCoordinator {
 
@@ -33,22 +28,13 @@ public final class ClientUpdateCoordinator {
         /** 目前執行中的版本標示，例如 {@code v2.0.2 · a1b2c3d}。 */
         String localLabel();
 
-        String ignoredDigest();
-
-        /** 閒置：沒有打卡執行中、近期沒有排程、沒有傳檔進行中。 */
+        /** 閒置：沒有打卡執行中、近期沒有排程、沒有傳檔進行中。只在重啟前用。 */
         boolean idle();
 
-        /** 是否處理心跳裡的更新通知。關閉時 {@link #handle} 直接返回。 */
-        boolean checkForUpdates();
-
-        /** 是否自動更新（不詢問）。 */
-        boolean autoUpdate();
-
-        void rememberIgnored(String digest);
-
-        boolean confirm(String message);
-
         void log(String line);
+
+        /** 畫面上的狀態標題，例如「正在下載更新…」。 */
+        void phase(String title);
 
         void warn(String message);
 
@@ -59,6 +45,9 @@ public final class ClientUpdateCoordinator {
         void install(Path jar) throws Exception;
 
         void restart();
+
+        /** 這次升級結束。{@code restarted == false} 時畫面恢復，讓使用者可以再試。 */
+        void finished(boolean restarted);
     }
 
     /** 測試可替換，避免真的睡。 */
@@ -93,73 +82,53 @@ public final class ClientUpdateCoordinator {
         this.idleMaxWaitMs = idleMaxWaitMs;
     }
 
-    public void handle(UpdateNotice notice) {
-        if (notice == null || !actions.checkForUpdates()) {
-            return;
+    /**
+     * 這則通知是不是比本機新。相同、空的、或格式在更早已經被擋下的，回 null。
+     * 不下載、不詢問。
+     */
+    public UpdateNotice offer(UpdateNotice notice) {
+        if (notice == null) {
+            return null;
         }
         String digest = notice.sourceDigest;
-        if (digest.isEmpty() || digest.equals(safe(actions.localDigest()))) {
-            return;
+        if (digest == null || digest.isEmpty() || digest.equals(safe(actions.localDigest()))) {
+            return null;
         }
-        boolean auto = actions.autoUpdate();
-        // 手動模式才有「這一版不再問」；自動模式不詢問，所以不套用。
-        if (!auto && digest.equals(safe(actions.ignoredDigest()))) {
-            return;
+        return notice;
+    }
+
+    /** 例如 {@code v3.0.0 · bbbbbbb（建置 2026-11-07 15:30）}。 */
+    public static String describe(UpdateNotice notice) {
+        if (notice == null) {
+            return "";
         }
-        if (!actions.idle()) {
-            return;
+        String remote = BuildInfo.buildLabel(notice.version, notice.sourceDigest);
+        String time = BuildInfo.labelFromIso(notice.releaseTime, ZoneId.systemDefault());
+        return time.isEmpty() ? remote : remote + "（建置 " + time + "）";
+    }
+
+    /** 使用者按了「現在更新」。已經在下載時回 false。 */
+    public boolean apply(UpdateNotice notice) {
+        if (offer(notice) == null) {
+            return false;
         }
         if (!busy.compareAndSet(false, true)) {
-            return;
+            return false;
         }
-        String remote = BuildInfo.buildLabel(notice.version, digest);
-        String time = BuildInfo.labelFromIso(notice.releaseTime, ZoneId.systemDefault());
-        String remoteWithTime = time.isEmpty() ? remote : remote + "（建置 " + time + "）";
-        String notes = ReleaseNotes.dialogSection(notice.changes, notice.changesMore);
         try {
-            actions.log("[更新] 發現新版桌面端 " + remoteWithTime + "，目前 " + actions.localLabel());
-            if (!notice.changes.isEmpty()) {
-                actions.log("[更新] 這次修改：" + String.join("；", notice.changes));
-            }
-            if (!auto && !askUser(digest, remoteWithTime, notes)) {
-                busy.set(false);
-                return;
-            }
+            actions.log("[更新] 開始下載 " + describe(notice) + "（設定與排程會保留）");
         } catch (RuntimeException ex) {
             busy.set(false);
             throw ex;
         }
-        if (!actions.idle()) {
-            actions.log("[更新] 任務執行中或排程將至，這次先不更新");
-            busy.set(false);
-            return;
-        }
-        if (auto) {
-            actions.log("[更新] 目前閒置，自動下載並更新（設定與排程會保留）");
-        }
         executor.execute(() -> install(notice));
-    }
-
-    /** 手動模式：詢問使用者；按「否」會記住這一版。 */
-    private boolean askUser(String digest, String remoteWithTime, String notes) {
-        String message = "伺服器上有不同的桌面端：\n"
-                + "目前：" + actions.localLabel() + "\n"
-                + "新版：" + remoteWithTime;
-        if (notes != null && !notes.isEmpty()) {
-            message += "\n\n" + notes;
-        }
-        message += "\n\n要下載並重新啟動嗎？\n"
-                + "設定與排程會保留。選「否」之後不會再問這一版。";
-        boolean accepted = actions.confirm(message);
-        if (!accepted) {
-            actions.rememberIgnored(digest);
-        }
-        return accepted;
+        return true;
     }
 
     private void install(UpdateNotice notice) {
         boolean relaunched = false;
         try {
+            actions.phase("正在下載更新…");
             actions.log("[更新] 正在下載…");
             Path jar = actions.download(notice);
             if (jar == null || !Files.isRegularFile(jar)
@@ -174,7 +143,8 @@ public final class ClientUpdateCoordinator {
             }
             // 下載期間可能剛好到了打卡時間：等閒置才重啟，免得砍掉執行中的打卡、或讓排程落在重啟空窗。
             if (!awaitIdle()) {
-                actions.log("[更新] 等候閒置逾時，這次不更新，下次心跳會再嘗試");
+                actions.log("[更新] 等候閒置逾時，這次不更新，下次再按「現在更新」");
+                actions.warn("目前有打卡進行中或排程即將開始，這次先不重新啟動。稍後再按「現在更新」。");
                 Files.deleteIfExists(jar);
                 return;
             }
@@ -183,7 +153,7 @@ public final class ClientUpdateCoordinator {
             actions.log("[更新] 下載完成，即將重新啟動");
             actions.restart();
         } catch (TransferIo.CancelledException ex) {
-            actions.log("[更新] 已取消下載，下次心跳會再嘗試");
+            actions.log("[更新] 已取消下載");
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         } catch (Exception ex) {
@@ -192,6 +162,7 @@ public final class ClientUpdateCoordinator {
         } finally {
             if (!relaunched) {
                 busy.set(false);
+                actions.finished(false);
             }
         }
     }
@@ -205,6 +176,7 @@ public final class ClientUpdateCoordinator {
                 return false;
             }
             if (!announced) {
+                actions.phase("等打卡結束後重新啟動");
                 actions.log("[更新] 新版已下載，但目前有任務執行中或排程將至，等閒置後再重新啟動");
                 announced = true;
             }

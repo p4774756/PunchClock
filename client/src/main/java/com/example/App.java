@@ -113,8 +113,22 @@ public class App extends JFrame {
     private DesktopPetManager desktopPetManager;
     private boolean loggedOpacityUnsupported;
     private ClientUpdateCoordinator updateCoordinator;
-    /** 使用者按過「否」的桌面端原始碼摘要。 */
+    /** 舊版按「否」會寫入。現在不再拿來擋更新，只跟著設定檔留著。 */
     private String ignoredUpdateDigest = "";
+    /** 畫面上目前這筆可升級的版本。 */
+    private UpdateNotice offeredUpdate;
+    /** 按過「檢查更新」，等這次心跳回應。 */
+    private boolean pendingManualCheck;
+    /** 「現在更新」下載或等待重啟中。 */
+    private boolean updateApplying;
+    /** 已經寫進日誌的新版摘要，避免每次心跳都再記一次。 */
+    private String announcedUpdateDigest = "";
+    /** 上次成功問到伺服器版本的時間。失敗的檢查不覆寫。 */
+    private LocalDateTime lastUpdateCheckAt;
+    /** 已寫進設定檔的「上次檢查」分鐘，避免心跳每 15 秒就重存。 */
+    private String lastUpdateCheckMinute = "";
+    private static final DateTimeFormatter UPDATE_CHECK_TIME =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     public App() {
         this.schedulerService = new SchedulerService();
@@ -149,7 +163,7 @@ public class App extends JFrame {
         heartbeatService.setPeersListener(peers -> SwingUtilities.invokeLater(() -> updatePeerTable(peers)));
         updateCoordinator = new ClientUpdateCoordinator(updateActions());
         heartbeatService.setUpdateListener(notice ->
-                SwingUtilities.invokeLater(() -> updateCoordinator.handle(notice)));
+                SwingUtilities.invokeLater(() -> onServerUpdateNotice(notice)));
         heartbeatService.setCommandListener(command -> {
             if ("CANCEL_SCHEDULE".equalsIgnoreCase(command)) {
                 SwingUtilities.invokeLater(slotController::handleRemoteCancelAll);
@@ -1763,19 +1777,17 @@ public class App extends JFrame {
             serverRefs.checkForUpdatesCheckBox.addActionListener(e -> {
                 appendLog(serverRefs.checkForUpdatesCheckBox.isSelected()
                         ? "[更新] 已開啟自動檢查更新"
-                        : "[更新] 已關閉自動檢查更新，不再處理新版通知");
-                syncUpdateCheckControls();
+                        : "[更新] 已關閉自動檢查更新，要看新版請按「檢查更新」");
                 saveCloudConfig();
             });
         }
-        if (serverRefs.autoUpdateCheckBox != null) {
-            serverRefs.autoUpdateCheckBox.addActionListener(e -> {
-                appendLog(serverRefs.autoUpdateCheckBox.isSelected()
-                        ? "[更新] 已開啟「有新版時閒置自動更新」"
-                        : "[更新] 已關閉自動更新，有新版時會先詢問");
-                saveCloudConfig();
-            });
+        if (serverRefs.checkUpdateButton != null) {
+            serverRefs.checkUpdateButton.addActionListener(e -> checkForUpdateNow());
         }
+        if (serverRefs.applyUpdateButton != null) {
+            serverRefs.applyUpdateButton.addActionListener(e -> applyOfferedUpdate());
+        }
+        showUpdateUnchecked();
         if (serverRefs.serverUrlCombo != null) {
             RecentValuesHelper.attachTextChangeListener(serverRefs.serverUrlCombo, this::saveCloudConfig);
             java.awt.Component serverEditor = serverRefs.serverUrlCombo.getEditor().getEditorComponent();
@@ -2066,13 +2078,12 @@ public class App extends JFrame {
         if (serverRefs.checkForUpdatesCheckBox != null) {
             serverRefs.checkForUpdatesCheckBox.setSelected(config.checkForUpdates);
         }
-        if (serverRefs.autoUpdateCheckBox != null) {
-            serverRefs.autoUpdateCheckBox.setSelected(config.autoApplyUpdate);
-        }
-        syncUpdateCheckControls();
         applyRelayConfig(config);
         applyCharacterThemeSelection(config);
         ignoredUpdateDigest = config.ignoredUpdateDigest == null ? "" : config.ignoredUpdateDigest;
+        lastUpdateCheckAt = parseUpdateCheckAt(config.lastUpdateCheckAt);
+        lastUpdateCheckMinute = lastUpdateCheckAt == null ? "" : lastUpdateCheckAt.format(UPDATE_CHECK_TIME);
+        refreshLastCheckLabel();
         syncCloudConnectionFieldsEnabled();
         refreshPeerInteractionState();
     }
@@ -2155,7 +2166,6 @@ public class App extends JFrame {
                 && serverRefs.enableServerCheckBox.isSelected();
         config.trustAllSsl = serverRefs.trustAllSslCheckBox != null
                 && serverRefs.trustAllSslCheckBox.isSelected();
-        config.autoApplyUpdate = isAutoUpdateEnabled();
         config.checkForUpdates = isCheckForUpdatesEnabled();
         if (serverRefs.characterThemeCombo != null && serverRefs.characterThemeCombo.getSelectedItem() != null) {
             config.characterTheme = CharacterTheme.fromLabel(
@@ -2166,6 +2176,9 @@ public class App extends JFrame {
         captureRelayConfigInto(config);
         captureWindowLayoutInto(config);
         config.ignoredUpdateDigest = ignoredUpdateDigest;
+        config.lastUpdateCheckAt = lastUpdateCheckAt == null
+                ? ""
+                : lastUpdateCheckAt.withNano(0).toString();
         List<String> favorites = new ArrayList<>(favoritePeerIds);
         java.util.Collections.sort(favorites);
         config.favoritePeers = favorites;
@@ -2185,46 +2198,18 @@ public class App extends JFrame {
             }
 
             @Override
-            public String ignoredDigest() {
-                return ignoredUpdateDigest;
-            }
-
-            @Override
             public boolean idle() {
                 return isIdleForUpdate();
             }
 
             @Override
-            public boolean checkForUpdates() {
-                return isCheckForUpdatesEnabled();
-            }
-
-            @Override
-            public boolean autoUpdate() {
-                // IDE 啟動會被換成 jar 啟動，開發者可能不想被換掉，所以一律先詢問
-                return isAutoUpdateEnabled() && ClientUpdateInstaller.runningJar() != null;
-            }
-
-            @Override
-            public void rememberIgnored(String digest) {
-                rememberIgnoredUpdate(digest);
-            }
-
-            @Override
-            public boolean confirm(String message) {
-                if (ClientUpdateInstaller.runningJar() == null) {
-                    message += "\n\n目前是從 IDE 啟動：更新後會改用下載的 jar 重新啟動，\n"
-                            + "之後請執行 " + ClientUpdateInstaller.defaultJar() + "，就能自動更新。";
-                }
-                int choice = UiFonts.showConfirm(
-                        App.this, message, "程式更新",
-                        JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-                return choice == JOptionPane.YES_OPTION;
-            }
-
-            @Override
             public void log(String line) {
                 appendLog(line);
+            }
+
+            @Override
+            public void phase(String title) {
+                showUpdatePhase(title);
             }
 
             @Override
@@ -2251,7 +2236,275 @@ public class App extends JFrame {
             public void restart() {
                 restartAfterUpdate();
             }
+
+            @Override
+            public void finished(boolean restarted) {
+                SwingUtilities.invokeLater(() -> finishUpdateApply(restarted));
+            }
         };
+    }
+
+    /** 心跳回應。{@code notice} 為 null 代表伺服器沒有較新的版本。 */
+    private void onServerUpdateNotice(UpdateNotice notice) {
+        boolean manual = pendingManualCheck;
+        pendingManualCheck = false;
+        if (updateApplying) {
+            refreshUpdateButtons();
+            return;
+        }
+        if (!manual && !isCheckForUpdatesEnabled()) {
+            refreshUpdateButtons();
+            return;
+        }
+        applyUpdateNotice(notice, manual);
+    }
+
+    private void applyUpdateNotice(UpdateNotice notice, boolean manual) {
+        rememberUpdateCheck(LocalDateTime.now());
+        UpdateNotice offer = updateCoordinator.offer(notice);
+        if (offer == null) {
+            offeredUpdate = null;
+            showUpToDate(manual);
+        } else {
+            offeredUpdate = offer;
+            showOfferedUpdate();
+            announceOffer(offer);
+        }
+        refreshUpdateButtons();
+    }
+
+    private void checkForUpdateNow() {
+        if (updateApplying || pendingManualCheck) {
+            return;
+        }
+        if (!isCloudEnabled() || !heartbeatService.active()) {
+            showUpdateText("無法檢查", "請先啟用雲端連線，並確認 Server 網址。", NightTheme.PINK);
+            refreshUpdateButtons();
+            return;
+        }
+        pendingManualCheck = true;
+        showUpdateText("正在檢查更新…", "正在詢問伺服器", NightTheme.MUTED);
+        refreshUpdateButtons();
+        heartbeatService.sendHeartbeat(this::appendLog, ok ->
+                SwingUtilities.invokeLater(() -> finishManualUpdateCheck(ok)));
+    }
+
+    private void finishManualUpdateCheck(boolean ok) {
+        if (!pendingManualCheck) {
+            refreshUpdateButtons();
+            return;
+        }
+        pendingManualCheck = false;
+        if (updateApplying) {
+            refreshUpdateButtons();
+            return;
+        }
+        if (!ok) {
+            if (offeredUpdate != null) {
+                showOfferedUpdate();
+                if (serverRefs.updateStatusTitle != null) {
+                    serverRefs.updateStatusTitle.setText("檢查失敗");
+                    serverRefs.updateStatusTitle.setForeground(NightTheme.PINK);
+                }
+            } else {
+                showUpdateText("檢查失敗", "連不上伺服器。請確認雲端網址與 Token。", NightTheme.PINK);
+            }
+            refreshUpdateButtons();
+            return;
+        }
+        applyUpdateNotice(null, true);
+    }
+
+    private void applyOfferedUpdate() {
+        if (offeredUpdate == null || updateApplying || pendingManualCheck) {
+            return;
+        }
+        updateApplying = true;
+        refreshUpdateButtons();
+        if (!updateCoordinator.apply(offeredUpdate)) {
+            updateApplying = false;
+            showOfferedUpdate();
+            refreshUpdateButtons();
+        }
+    }
+
+    private void finishUpdateApply(boolean restarted) {
+        updateApplying = false;
+        if (!restarted && offeredUpdate != null) {
+            showOfferedUpdate();
+        }
+        refreshUpdateButtons();
+    }
+
+    private void showUpdateUnchecked() {
+        showUpdateText("尚未檢查更新",
+                "目前 " + AppVersion.displayLabel() + "\n有新版時會顯示在這裡，由你決定要不要升級。",
+                NightTheme.MUTED);
+        refreshUpdateButtons();
+    }
+
+    private void showUpToDate(boolean announce) {
+        showUpdateText("已是最新版本",
+                "目前 " + AppVersion.displayLabel(),
+                new Color(34, 197, 94));
+        if (announce) {
+            appendLog("[更新] 已是最新版本，目前 " + AppVersion.displayLabel());
+        }
+    }
+
+    private void showOfferedUpdate() {
+        UpdateNotice notice = offeredUpdate;
+        if (notice == null) {
+            return;
+        }
+        StringBuilder detail = new StringBuilder();
+        detail.append("新版 ").append(ClientUpdateCoordinator.describe(notice));
+        detail.append("\n大小 ").append(formatUpdateSize(notice.size));
+        detail.append("\n目前 ").append(AppVersion.displayLabel());
+        String notes = ReleaseNotes.dialogSection(previewChanges(notice), previewChangesHidden(notice));
+        if (!notes.isEmpty()) {
+            detail.append("\n\n").append(notes);
+        }
+        if (ClientUpdateInstaller.runningJar() == null) {
+            detail.append("\n\n目前不是以 jar 啟動，更新後會改執行下載的程式。");
+        }
+        showUpdateText("有可用的更新", detail.toString(), NightTheme.PINK);
+    }
+
+    private void rememberUpdateCheck(LocalDateTime at) {
+        lastUpdateCheckAt = at;
+        refreshLastCheckLabel();
+        String minute = at.format(UPDATE_CHECK_TIME);
+        if (minute.equals(lastUpdateCheckMinute)) {
+            return;
+        }
+        lastUpdateCheckMinute = minute;
+        saveCloudConfig();
+    }
+
+    private void refreshLastCheckLabel() {
+        if (serverRefs.updateCheckedAtLabel == null) {
+            return;
+        }
+        if (lastUpdateCheckAt == null) {
+            serverRefs.updateCheckedAtLabel.setText("尚未檢查過");
+            return;
+        }
+        serverRefs.updateCheckedAtLabel.setText(
+                "上次檢查 " + lastUpdateCheckAt.format(UPDATE_CHECK_TIME));
+    }
+
+    private static LocalDateTime parseUpdateCheckAt(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(raw.trim());
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    /** 設定頁只先列幾筆，避免更新說明把整頁撐太高。 */
+    private static final int UPDATE_NOTES_SHOWN = 4;
+
+    private static List<String> previewChanges(UpdateNotice notice) {
+        if (notice.changes.size() <= UPDATE_NOTES_SHOWN) {
+            return notice.changes;
+        }
+        return notice.changes.subList(0, UPDATE_NOTES_SHOWN);
+    }
+
+    private static int previewChangesHidden(UpdateNotice notice) {
+        return notice.changesMore + Math.max(0, notice.changes.size() - UPDATE_NOTES_SHOWN);
+    }
+
+    private void announceOffer(UpdateNotice notice) {
+        if (notice.sourceDigest.equals(announcedUpdateDigest)) {
+            return;
+        }
+        announcedUpdateDigest = notice.sourceDigest;
+        appendLog("[更新] 發現新版 " + ClientUpdateCoordinator.describe(notice)
+                + "，目前 " + AppVersion.displayLabel() + "。要升級請到設定按「現在更新」");
+        if (!notice.changes.isEmpty()) {
+            appendLog("[更新] 這次修改：" + String.join("；", notice.changes));
+        }
+    }
+
+    private void showUpdatePhase(String title) {
+        Runnable show = () -> {
+            if (serverRefs.updateStatusTitle == null || title == null) {
+                return;
+            }
+            serverRefs.updateStatusTitle.setText(title);
+            serverRefs.updateStatusTitle.setForeground(NightTheme.PINK);
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            show.run();
+        } else {
+            SwingUtilities.invokeLater(show);
+        }
+    }
+
+    private void showUpdateText(String title, String detail, Color titleColor) {
+        if (serverRefs.updateStatusTitle != null) {
+            serverRefs.updateStatusTitle.setText(title == null ? "" : title);
+            serverRefs.updateStatusTitle.setForeground(titleColor == null ? NightTheme.MUTED : titleColor);
+        }
+        if (serverRefs.updateStatusDetail == null) {
+            return;
+        }
+        String text = detail == null ? "" : detail;
+        JTextArea detailArea = serverRefs.updateStatusDetail;
+        if (text.equals(detailArea.getText())) {
+            return;
+        }
+        detailArea.setText(text);
+        fitUpdateDetail(detailArea);
+        detailArea.revalidate();
+    }
+
+    /** 依目前寬度把換行後的高度撐開，長句子才不會被裁掉。 */
+    private static void fitUpdateDetail(JTextArea area) {
+        int width = area.getWidth();
+        if (width < 80 && area.getParent() != null) {
+            width = area.getParent().getWidth() - 24;
+        }
+        if (width < 80) {
+            width = 460;
+        }
+        area.setSize(width, Short.MAX_VALUE);
+        Dimension pref = area.getPreferredSize();
+        int height = Math.max(pref.height, area.getFontMetrics(area.getFont()).getHeight());
+        area.setPreferredSize(new Dimension(width, height));
+        area.setMinimumSize(new Dimension(0, height));
+        area.setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
+    }
+
+    private void refreshUpdateButtons() {
+        boolean busy = pendingManualCheck || updateApplying;
+        if (serverRefs.checkUpdateButton != null) {
+            serverRefs.checkUpdateButton.setEnabled(!busy);
+        }
+        if (serverRefs.applyUpdateButton != null) {
+            boolean available = offeredUpdate != null;
+            boolean wasVisible = serverRefs.applyUpdateButton.isVisible();
+            serverRefs.applyUpdateButton.setVisible(available);
+            serverRefs.applyUpdateButton.setEnabled(available && !busy);
+            if (wasVisible != available && serverRefs.applyUpdateButton.getParent() != null) {
+                serverRefs.applyUpdateButton.getParent().revalidate();
+            }
+        }
+    }
+
+    private static String formatUpdateSize(long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        }
+        if (bytes < 1024 * 1024) {
+            return String.format(java.util.Locale.ROOT, "%.0f KB", bytes / 1024.0);
+        }
+        return String.format(java.util.Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0));
     }
 
     /** 在背景執行緒呼叫：開小進度視窗（可取消），下載完關閉。 */
@@ -2286,26 +2539,6 @@ public class App extends JFrame {
 
     private boolean isCheckForUpdatesEnabled() {
         return serverRefs.checkForUpdatesCheckBox == null || serverRefs.checkForUpdatesCheckBox.isSelected();
-    }
-
-    /** 沒勾自動檢查時，「閒置自動更新」沒有作用，先鎖起來。 */
-    private void syncUpdateCheckControls() {
-        if (serverRefs.autoUpdateCheckBox == null || serverRefs.checkForUpdatesCheckBox == null) {
-            return;
-        }
-        serverRefs.autoUpdateCheckBox.setEnabled(serverRefs.checkForUpdatesCheckBox.isSelected());
-    }
-
-    private boolean isAutoUpdateEnabled() {
-        return serverRefs.autoUpdateCheckBox == null || serverRefs.autoUpdateCheckBox.isSelected();
-    }
-
-    private void rememberIgnoredUpdate(String digest) {
-        ignoredUpdateDigest = digest == null ? "" : digest;
-        if (slotController != null && slotController.getConfig() != null) {
-            slotController.getConfig().ignoredUpdateDigest = ignoredUpdateDigest;
-        }
-        saveCloudConfig();
     }
 
     private void showUpdateWarning(String message) {

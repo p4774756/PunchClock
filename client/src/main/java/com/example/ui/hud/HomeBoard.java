@@ -40,6 +40,60 @@ final class HomeBoard {
     private static final Color PANEL_EDGE = new Color(142, 116, 178, 170);
     private static final Color CANDY_INK = new Color(0x3A, 0x18, 0x28);
     private static final int FADE_MS = 240;
+    /** 同一句閒置台詞停久一點再換，避免泡泡一直閃。 */
+    private static final long IDLE_HOLD_MS = 12_000L;
+    private static final String[] MORNING_LINES = {
+            "早安～今天也一起加油吧！",
+            "新的一天，先看一下今天的排程吧。",
+            "我在這裡，慢慢來就好。",
+            "窗邊的光剛剛好，適合開始。",
+            "先深呼吸一下，我們再出發。",
+            "今天想先做哪一件呢？",
+            "熱飲若還溫著，記得喝一口。",
+            "時間我幫你看著，你專心就好。"
+    };
+    private static final String[] AFTERNOON_LINES = {
+            "忙了一陣子了，要不要休息一下？",
+            "我看著進度，你先忙你的。",
+            "記得喝口水喔。",
+            "午後容易恍神，起來走兩步吧。",
+            "做到這裡，已經很不容易了。",
+            "卡住的話，我們可以換個方式。",
+            "螢幕先放遠一點，眼睛也要休息。",
+            "想說話的時候，點我一下就好。"
+    };
+    private static final String[] EVENING_LINES = {
+            "今天辛苦了～還有事情要忙嗎？",
+            "快告一段落了，再一下下。",
+            "晚上也別忘了自己。",
+            "天色暗了，把燈開亮一點吧。",
+            "今天完成的那些，我都記得。",
+            "剩下的可以留到明天，沒關係。",
+            "要不要先吃點東西，再繼續？",
+            "我陪你把今天收個尾。"
+    };
+    private static final String[] NIGHT_LINES = {
+            "已經很晚了，記得早點休息喔 ♡",
+            "夜深了，我陪你一下就好。",
+            "明天的事，明天再說吧。",
+            "眼睛該休息了，螢幕先放一邊。",
+            "這麼晚還在，辛苦你了。",
+            "睡前把擔心放下，我幫你記著。",
+            "夜很安靜，適合慢慢收工。",
+            "去睡吧，我就留在這裡。"
+    };
+    private static final String[] DONE_LINES = {
+            "完成啦！做得很好 ♡",
+            "漂亮，這次順利過關了。",
+            "我就知道你可以。",
+            "又完成一件，值得拍拍手。"
+    };
+    private static final String[] TROUBLE_LINES = {
+            "好像遇到問題了，要不要查看日誌？",
+            "這次沒過去，我們看一下日誌吧。",
+            "別擔心，原因多半寫在日誌裡。",
+            "咦，卡住了。日誌裡也許有線索。"
+    };
     private static final int TAIL_RIGHT = 0;
     private static final int TAIL_DOWN = 1;
     private static final int TAIL_UP = 2;
@@ -48,7 +102,14 @@ final class HomeBoard {
             "我一直都在這裡喔～",
             "今天也要順順利利！",
             "需要幫忙就叫我吧 ♡",
-            "記得偶爾起來活動一下喔！"
+            "記得偶爾起來活動一下喔！",
+            "嗯？我在聽。",
+            "被你點到，有一點開心。",
+            "肩膀放鬆一點，我看著你。",
+            "不管忙不忙，都可以跟我說說話。",
+            "再點一次，我換一句給你。",
+            "今天的你，看起來也很認真。",
+            "有我在，就不用一個人對著螢幕。"
     };
 
     final Rectangle schedule = new Rectangle();
@@ -63,6 +124,8 @@ final class HomeBoard {
     private String line;
     private long lineUntil;
     private int lastClick = -1;
+    private int idleIndex = -1;
+    private long idleUntil;
     private boolean reducedMotion;
     private String shown;
     private String outgoing;
@@ -165,17 +228,20 @@ final class HomeBoard {
             return;
         }
         int cardW = Math.min(280, Math.max(176, stage.width * 48 / 100));
-        int cardH = Math.min(118, Math.max(86, stage.height * 15 / 100));
+        // 先算完整高度用來對齊頂緣，再縮約 15%（頂緣不動）。
+        int fullH = Math.min(118, Math.max(86, stage.height * 15 / 100));
+        int cardH = Math.max(72, Math.round(fullH * 0.85f));
         int bubbleRoom = 56;
         int x;
         int y;
         if (figure != null && figure.width >= 80 && figure.height >= 80) {
             // 卡片要比角色腰還寬一點，才能蓋住平切線兩側。
             cardW = Math.min(stage.width - 20, Math.max(cardW, figure.width * 78 / 100));
-            // 平切線要落在卡片上半段：重疊不可大於卡片高度，否則切線會掉到卡片下方。
+            // 頂緣對齊方式沿用縮短前高度，再縮高度；重疊封頂以免切口掉出卡片。
             int overlap = Math.min(
-                    Math.max(36, cardH * 42 / 100),
+                    Math.max(36, fullH * 42 / 100),
                     Math.max(36, Math.round(figure.height * 0.14f)));
+            overlap = Math.min(overlap, cardH - 24);
             x = Math.max(stage.x + 8, Math.min(
                     stage.x + stage.width - cardW - 8,
                     figure.x + (figure.width - cardW) / 2));
@@ -263,6 +329,25 @@ final class HomeBoard {
         }
         lastClick = index;
         say(CLICK_LINES[index]);
+    }
+
+    void sayDone() {
+        sayDifferent(DONE_LINES);
+    }
+
+    void sayTrouble() {
+        sayDifferent(TROUBLE_LINES);
+    }
+
+    private void sayDifferent(String[] lines) {
+        if (lines == null || lines.length == 0) {
+            return;
+        }
+        int index = ThreadLocalRandom.current().nextInt(lines.length);
+        if (lines.length > 1 && lines[index].equals(line)) {
+            index = (index + 1) % lines.length;
+        }
+        say(lines[index]);
     }
 
     void paint(Graphics2D g, HomeBrief brief, int hot) {
@@ -416,17 +501,31 @@ final class HomeBoard {
         if (line != null && System.currentTimeMillis() < lineUntil) {
             return line;
         }
-        int hour = LocalTime.now().getHour();
+        String[] pool = idleLines(LocalTime.now().getHour());
+        long now = System.currentTimeMillis();
+        if (now >= idleUntil) {
+            idleIndex = (idleIndex + 1) % pool.length;
+            idleUntil = now + IDLE_HOLD_MS;
+        }
+        int index = idleIndex;
+        if (index < 0) {
+            index = 0;
+        }
+        return pool[index % pool.length];
+    }
+
+    /** 同時段輪流換句。兩個角色共用，不會有人停在同一句。 */
+    private static String[] idleLines(int hour) {
         if (hour >= 5 && hour < 12) {
-            return "早安～今天也一起加油吧！";
+            return MORNING_LINES;
         }
         if (hour >= 12 && hour < 17) {
-            return "忙了一陣子了，要不要休息一下？";
+            return AFTERNOON_LINES;
         }
         if (hour >= 17 && hour < 23) {
-            return "今天辛苦了～還有事情要忙嗎？";
+            return EVENING_LINES;
         }
-        return "已經很晚了，記得早點休息喔 ♡";
+        return NIGHT_LINES;
     }
 
     private static void paintBubbleShape(Graphics2D g, Rectangle box, int tailDirection) {

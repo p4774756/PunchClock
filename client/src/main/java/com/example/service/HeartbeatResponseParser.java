@@ -157,14 +157,12 @@ final class HeartbeatResponseParser {
         host.marqueeListener().accept(MarqueeNotice.normalize(enabled, text));
     }
 
+    /** 每次成功的心跳都通知。沒有新版時傳 null，畫面才知道已經檢查過、目前就是最新。 */
     private void parseServerUpdate(JsonObject json) {
         if (host.updateListener() == null) {
             return;
         }
-        HeartbeatService.UpdateNotice notice = updateNoticeFrom(json);
-        if (notice != null) {
-            host.updateListener().accept(notice);
-        }
+        host.updateListener().accept(updateNoticeFrom(json));
     }
 
     /** 格式不符時回 null。{@link HeartbeatService#parseUpdateNotice} 轉呼叫這裡。 */

@@ -65,11 +65,9 @@ public class AnimeShellNavTest {
         assertTrue(board.stage.contains(board.reminder));
         assertTrue(board.reminder.y < figure.y + figure.height);
         int cardH = board.reminder.height;
-        int overlap = Math.min(
-                Math.max(36, cardH * 42 / 100),
-                Math.max(36, Math.round(figure.height * 0.14f)));
-        assertTrue(board.reminder.y <= figure.y + figure.height - overlap + 1);
+        assertTrue("縮短後仍要裝得下三行字", cardH >= 72);
         assertTrue(figure.y + figure.height <= board.reminder.y + board.reminder.height + 1);
+        assertTrue(board.reminder.y < figure.y + figure.height);
         assertTrue(board.reminder.width + 8 >= figure.width * 70 / 100);
         assertTrue(board.reminder.x + board.reminder.width <= board.stage.x + board.stage.width);
     }

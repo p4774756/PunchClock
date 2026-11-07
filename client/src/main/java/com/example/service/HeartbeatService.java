@@ -125,6 +125,8 @@ public class HeartbeatService implements HeartbeatEvents {
     private Consumer<MarqueeNotice> marqueeListener;
     private final AtomicBoolean heartbeatInFlight = new AtomicBoolean(false);
     private final AtomicBoolean heartbeatPending = new AtomicBoolean(false);
+    /** 上一發還在飛時又有人要送，完成後補一發，並把這些 callback 掛上去。 */
+    private final List<Consumer<Boolean>> queuedHeartbeatCallbacks = new ArrayList<>();
     private final java.util.concurrent.atomic.AtomicLong heartbeatSeq = new java.util.concurrent.atomic.AtomicLong(0);
 
     public void setCommandListener(Consumer<String> commandListener) {
@@ -135,6 +137,7 @@ public class HeartbeatService implements HeartbeatEvents {
         this.peersListener = peersListener;
     }
 
+    /** 每次心跳成功都會呼叫。沒有新版時傳 null。 */
     public void setUpdateListener(Consumer<UpdateNotice> updateListener) {
         this.updateListener = updateListener;
     }
@@ -258,10 +261,18 @@ public class HeartbeatService implements HeartbeatEvents {
      * 發送單向 HTTP POST 心跳請求
      */
     public void sendPostHeartbeat(Consumer<String> logger, Consumer<Boolean> statusCallback) {
-        if (!isServiceActive || serverUrl.isBlank()) return;
+        if (!isServiceActive || serverUrl.isBlank()) {
+            if (statusCallback != null) statusCallback.accept(false);
+            return;
+        }
 
         if (!heartbeatInFlight.compareAndSet(false, true)) {
             heartbeatPending.set(true);
+            if (statusCallback != null) {
+                synchronized (queuedHeartbeatCallbacks) {
+                    queuedHeartbeatCallbacks.add(statusCallback);
+                }
+            }
             return;
         }
 
@@ -303,8 +314,8 @@ public class HeartbeatService implements HeartbeatEvents {
                                 log(logger, "[失敗] [HTTP POST 心跳失敗] " + ex.getMessage());
                                 if (statusCallback != null) statusCallback.accept(false);
                             } else if (response.statusCode() == 200) {
-                                if (statusCallback != null) statusCallback.accept(true);
                                 responses.parse(response.body(), logger);
+                                if (statusCallback != null) statusCallback.accept(true);
                             } else {
                                 log(logger, "[警告] [HTTP POST 心跳] 伺服器回應異常，狀態碼：" + response.statusCode());
                                 if (statusCallback != null) statusCallback.accept(false);
@@ -341,9 +352,25 @@ public class HeartbeatService implements HeartbeatEvents {
 
     private void finishHeartbeatSend(Consumer<String> logger, Consumer<Boolean> statusCallback) {
         heartbeatInFlight.set(false);
-        if (heartbeatPending.getAndSet(false)) {
-            sendPostHeartbeat(logger, statusCallback);
+        List<Consumer<Boolean>> queued;
+        synchronized (queuedHeartbeatCallbacks) {
+            queued = new ArrayList<>(queuedHeartbeatCallbacks);
+            queuedHeartbeatCallbacks.clear();
         }
+        if (!heartbeatPending.getAndSet(false)) {
+            return;
+        }
+        Consumer<Boolean> followUp = statusCallback;
+        if (!queued.isEmpty()) {
+            Consumer<Boolean> earlier = statusCallback;
+            followUp = ok -> {
+                if (earlier != null) earlier.accept(ok);
+                for (Consumer<Boolean> callback : queued) {
+                    callback.accept(ok);
+                }
+            };
+        }
+        sendPostHeartbeat(logger, followUp);
     }
 
     /**
@@ -452,6 +479,14 @@ public class HeartbeatService implements HeartbeatEvents {
         this.isServiceActive = false;
         heartbeatInFlight.set(false);
         heartbeatPending.set(false);
+        List<Consumer<Boolean>> abandoned;
+        synchronized (queuedHeartbeatCallbacks) {
+            abandoned = new ArrayList<>(queuedHeartbeatCallbacks);
+            queuedHeartbeatCallbacks.clear();
+        }
+        for (Consumer<Boolean> callback : abandoned) {
+            callback.accept(false);
+        }
         if (scheduler != null && !scheduler.isShutdown()) {
             scheduler.shutdownNow();
         }

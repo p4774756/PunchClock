@@ -308,6 +308,9 @@ public class SlotController {
             refs.nameField.addFocusListener(new FocusAdapter() {
                 @Override
                 public void focusLost(FocusEvent e) {
+                    if (e.isTemporary()) {
+                        return;
+                    }
                     commitSlotName(kind);
                 }
             });
@@ -1010,7 +1013,12 @@ public class SlotController {
         if (refs.nameField == null || refs.nameField.isFocusOwner()) {
             return;
         }
-        String name = WorkSlot.normalizeName(kind, task == null ? null : task.getName());
+        String raw = task == null ? null : task.getName();
+        String name = WorkSlot.normalizeName(kind, raw);
+        if (task != null && !name.equals(raw)) {
+            task.setName(name);
+            persistTasks();
+        }
         if (!name.equals(refs.nameField.getText())) {
             refs.nameField.setText(name);
         }

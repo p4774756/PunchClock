@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
@@ -96,11 +97,13 @@ public class ConfigPersistenceService {
         public boolean relayEnabled = false;
         public int relayPort = 8888;
 
-        /** 使用者對這一版桌面端按過「否」；摘要相同就不再問。 */
+        /** 舊版按「否」會寫入。現在不再拿來擋更新，只為了舊設定檔還讀得回來。 */
         public String ignoredUpdateDigest = "";
-        /** 心跳時是否處理伺服器上的新版（預設開啟；關閉則忽略更新通知） */
+        /** 心跳時是否在背景檢查新版（預設開啟；關閉則要自己按「檢查更新」） */
         public boolean checkForUpdates = true;
-        /** 有新版時，閒置自動下載並重啟更新（預設開啟；關閉則改為詢問） */
+        /** 上次成功向伺服器確認版本的時間（ISO-8601 本地時間）。尚未檢查為空字串。 */
+        public String lastUpdateCheckAt = "";
+        /** 已停用。以前代表閒置時自動安裝。設定檔仍保留這個欄位。 */
         public boolean autoApplyUpdate = true;
 
         /**
@@ -249,6 +252,19 @@ public class ConfigPersistenceService {
         config.relayPort = RelayProxyService.clampPort(config.relayPort);
         config.ignoredUpdateDigest = BuildInfo.normalizeDigest(config.ignoredUpdateDigest);
         config.characterTheme = CharacterTheme.fromId(config.characterTheme).id();
+        config.lastUpdateCheckAt = normalizeUpdateCheckAt(config.lastUpdateCheckAt);
+    }
+
+    /** 讀不回來的時間清成空字串，避免畫面顯示壞掉的紀錄。 */
+    static String normalizeUpdateCheckAt(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        try {
+            return LocalDateTime.parse(raw.trim()).withNano(0).toString();
+        } catch (DateTimeParseException e) {
+            return "";
+        }
     }
 
     public static int clampWindowTransparencyPercent(int percent) {

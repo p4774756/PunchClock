@@ -13,12 +13,14 @@ import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
+import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -59,10 +61,10 @@ public final class AnimeShell extends JPanel {
     private final boolean reducedMotion = reducedMotion();
     private final Map<String, TaskStatus> seenTasks = new HashMap<>();
     private CharacterTheme theme = CharacterTheme.SWEATER;
-    /** 軌道版「下一個任務」：不透明底，徹底蓋住腰部平切線。 */
-    private static final Color ORBITAL_CARD = new Color(42, 24, 78, 255);
-    /** 場景左緣接到室內背景的漸層。 */
-    private static final Color ORBITAL_FADE = new Color(36, 22, 62);
+    /** 軌道版「下一個任務」：約 85% 不透明，文字／邊框另畫。 */
+    private static final Color ORBITAL_CARD = new Color(42, 24, 78, 217);
+    /** 腰部平切線局部遮罩（不透明，避免透出水平切口）。 */
+    private static final Color ORBITAL_WAIST_MASK = new Color(42, 24, 78, 255);
     private HomeActions homeActions;
     private boolean holdingHome = true;
     private boolean useRoom = true;
@@ -377,11 +379,11 @@ public final class AnimeShell extends JPanel {
                 hero.play(AnimeCast.SMILE, 2.4);
             } else if (status == TaskStatus.SUCCESS) {
                 hero.play(AnimeCast.SMILE, 2.0);
-                board.say("完成啦！做得很好 ♡");
+                board.sayDone();
                 repaint();
             } else if (status == TaskStatus.FAILED) {
                 hero.play(AnimeCast.REACT, 2.0);
-                board.say("好像遇到問題了，要不要查看日誌？");
+                board.sayTrouble();
                 repaint();
             }
         }
@@ -400,7 +402,8 @@ public final class AnimeShell extends JPanel {
             if (home >= 0) {
                 return home;
             }
-            if (theme == CharacterTheme.ORBITAL && board.stage.contains(x, y)) {
+            // 右側舞台（角色、泡泡、空白處）都算打招呼。毛衣女孩的身體不在側欄 bust 裡。
+            if (board.stage.contains(x, y)) {
                 return 20;
             }
         }
@@ -458,56 +461,56 @@ public final class AnimeShell extends JPanel {
             }
         }
         board.paint(g, brief, hot);
-        // 軌道軀幹先畫，卡片才能蓋住腰部平切線。
+        // 軌道軀幹先畫，再局部遮切口，最後半透明卡片蓋上。
         paintHomeFigure(g);
+        paintOrbitalWaistMask(g);
         board.paintReminder(g, brief);
         board.paintHomeBubble(g);
     }
 
-    /** 地球、星空、太空站和窗內預覽都裁在右側舞台，不蓋過左側選單。 */
+    /** 地球、星空、太空站裁在右側舞台；左緣以透明漸層接室內背景。 */
     private void paintOrbitalScene(Graphics2D g) {
         java.awt.image.BufferedImage image = OrbitalAssets.shared().stageImage();
         if (image == null || board.stage.width < 40 || board.stage.height < 40) {
             return;
         }
-        OrbitalAssets.drawCover(
-                g,
-                image,
-                board.stage,
-                OrbitalAssets.shared().stageAnchorX(),
-                OrbitalAssets.shared().stageAnchorY());
-        paintOrbitalSceneFade(g);
-    }
-
-    /** 場景左緣深紫漸層，柔和接到室內背景。 */
-    private void paintOrbitalSceneFade(Graphics2D g) {
-        int fade = Math.max(48, Math.min(140, board.stage.width * 28 / 100));
-        if (fade < 8 || board.stage.height < 8) {
-            return;
+        int w = board.stage.width;
+        int h = board.stage.height;
+        BufferedImage layer = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D lg = layer.createGraphics();
+        try {
+            lg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            OrbitalAssets.drawCover(
+                    lg,
+                    image,
+                    new java.awt.Rectangle(0, 0, w, h),
+                    OrbitalAssets.shared().stageAnchorX(),
+                    OrbitalAssets.shared().stageAnchorY());
+            // 左約 14%：場景 alpha 0→1，只遮 scene 層，室內背景可透出。
+            int fade = Math.max(28, Math.min(140, w * 14 / 100));
+            lg.setComposite(AlphaComposite.DstIn);
+            lg.setPaint(new GradientPaint(
+                    0, 0, new Color(1f, 1f, 1f, 0f),
+                    fade, 0, new Color(1f, 1f, 1f, 1f)));
+            lg.fillRect(0, 0, fade, h);
+        } finally {
+            lg.dispose();
         }
-        GradientPaint paint = new GradientPaint(
-                board.stage.x, board.stage.y,
-                new Color(ORBITAL_FADE.getRed(), ORBITAL_FADE.getGreen(), ORBITAL_FADE.getBlue(), 210),
-                board.stage.x + fade, board.stage.y,
-                new Color(ORBITAL_FADE.getRed(), ORBITAL_FADE.getGreen(), ORBITAL_FADE.getBlue(), 0));
-        java.awt.Paint previous = g.getPaint();
-        g.setPaint(paint);
-        g.fillRect(board.stage.x, board.stage.y, fade, board.stage.height);
-        g.setPaint(previous);
+        g.drawImage(layer, board.stage.x, board.stage.y, null);
     }
 
-    /** 全身畫在卡片後面；軌道版再裁到卡片上緣內，平切線不會露在卡片外。 */
+    /** 全身畫在卡片後面；軌道版再裁到卡片上緣內。 */
     private void paintHomeFigure(Graphics2D g) {
         if (homeFigure == null || homeFigureBounds == null || board.stage.width < 40) {
             return;
         }
-        java.awt.Shape clip = g.getClip();
+        Shape clip = g.getClip();
         int x = board.stage.x;
         int width = Math.max(0, getWidth() - x);
         g.clipRect(x, 0, width, getHeight());
         if (theme == CharacterTheme.ORBITAL && board.reminder.height > 40) {
-            // 底緣藏進卡片上段，卡片不透明時看不出素材平切。
-            int hide = board.reminder.y + Math.max(28, board.reminder.height * 28 / 100);
+            // 底緣藏進卡片上段，半透明卡片再靠腰線遮罩補實。
+            int hide = board.reminder.y + Math.max(24, board.reminder.height * 30 / 100);
             g.clipRect(0, 0, getWidth(), Math.max(0, hide));
         }
         Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
@@ -522,6 +525,34 @@ public final class AnimeShell extends JPanel {
         if (previous != null) {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous);
         }
+        g.setClip(clip);
+    }
+
+    /** 在角色平切線畫一條不透明帶，避免 85% 卡片透出水平切口。 */
+    private void paintOrbitalWaistMask(Graphics2D g) {
+        if (theme != CharacterTheme.ORBITAL
+                || homeFigureBounds == null
+                || board.reminder.height < 40) {
+            return;
+        }
+        int cutY = Math.min(
+                homeFigureBounds.y + homeFigureBounds.height - 1,
+                board.reminder.y + board.reminder.height - 4);
+        if (cutY < board.reminder.y + 4 || cutY > board.reminder.y + board.reminder.height - 4) {
+            return;
+        }
+        int band = Math.max(10, board.reminder.height * 12 / 100);
+        int top = Math.max(board.reminder.y, cutY - band / 2);
+        int bottom = Math.min(board.reminder.y + board.reminder.height, cutY + band / 2 + 1);
+        int left = Math.max(board.reminder.x + 2, homeFigureBounds.x - 6);
+        int right = Math.min(board.reminder.x + board.reminder.width - 2, homeFigureBounds.x + homeFigureBounds.width + 6);
+        if (right - left < 24 || bottom - top < 4) {
+            return;
+        }
+        Shape clip = g.getClip();
+        g.clipRect(board.reminder.x, board.reminder.y, board.reminder.width, board.reminder.height);
+        g.setColor(ORBITAL_WAIST_MASK);
+        g.fillRoundRect(left, top, right - left, bottom - top, 10, 10);
         g.setClip(clip);
     }
 

@@ -46,7 +46,7 @@ public final class WorkSlot {
         if (raw == null) {
             return fallback;
         }
-        String name = raw.replace('\r', ' ').replace('\n', ' ').trim();
+        String name = raw.replace('\r', ' ').replace('\n', ' ').replace("\uFFFC", "").trim();
         if (name.length() > MAX_NAME_CHARS) {
             name = name.substring(0, MAX_NAME_CHARS).trim();
         }

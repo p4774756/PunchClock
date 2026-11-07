@@ -110,6 +110,20 @@ public class ConfigPersistenceServiceTest {
     }
 
     @Test
+    public void saveAndLoad_lastUpdateCheckAt() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.lastUpdateCheckAt = "2026-11-07T19:43:12";
+        configService.saveConfig(config, null);
+        assertEquals("2026-11-07T19:43:12", configService.loadConfig(null).lastUpdateCheckAt);
+    }
+
+    @Test
+    public void loadConfig_dropsUnreadableUpdateCheckAt() throws Exception {
+        Files.writeString(configFile, "{\"lastUpdateCheckAt\":\"昨天\"}");
+        assertEquals("", configService.loadConfig(null).lastUpdateCheckAt);
+    }
+
+    @Test
     public void pushRecent_deduplicatesAndCapsSize() {
         java.util.List<String> list = new java.util.ArrayList<>();
         ConfigPersistenceService.pushRecent(list, "a");

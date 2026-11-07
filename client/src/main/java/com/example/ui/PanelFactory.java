@@ -65,13 +65,7 @@ public class PanelFactory {
         refs.checkForUpdatesCheckBox = new CandyCheckBox("自動檢查更新", true);
         refs.checkForUpdatesCheckBox.setFont(mainFont);
         refs.checkForUpdatesCheckBox.setToolTipText(
-                "關閉後，心跳不再處理伺服器上的新版，也不會下載或詢問。"
-                        + "開啟後，再由「有新版時閒置自動更新」決定直接安裝或先詢問。");
-        refs.autoUpdateCheckBox = new CandyCheckBox("有新版時閒置自動更新", true);
-        refs.autoUpdateCheckBox.setFont(mainFont);
-        refs.autoUpdateCheckBox.setToolTipText(
-                "伺服器有不同的桌面端時，在沒有任務執行中、10 分鐘內沒有排程、沒有傳檔時自動下載並重啟（排程與設定會保留）。"
-                        + "關閉則改為跳出詢問。需先開啟「自動檢查更新」。");
+                "開啟後，雲端連線時會在背景檢查。有新版只顯示在下方，不會跳出視窗。");
         refs.heartbeatStatusLabel = new JLabel("[離線] 未連線 (已停用)", SwingConstants.LEFT);
         refs.heartbeatStatusLabel.setFont(boldFont);
         refs.heartbeatStatusLabel.setForeground(NightTheme.MUTED);
@@ -89,10 +83,58 @@ public class PanelFactory {
                 refs.trustAllSslCheckBox,
                 refs.heartbeatStatusLabel));
 
+        refs.updateStatusTitle = new JLabel("尚未檢查更新");
+        refs.updateStatusTitle.setFont(boldFont);
+        refs.updateStatusTitle.setForeground(NightTheme.MUTED);
+        refs.updateStatusTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        refs.updateStatusTitle.setMaximumSize(new Dimension(Integer.MAX_VALUE,
+                refs.updateStatusTitle.getPreferredSize().height));
+
+        refs.updateCheckedAtLabel = new JLabel("尚未檢查過");
+        refs.updateCheckedAtLabel.setFont(UiFonts.chinesePlain(12));
+        refs.updateCheckedAtLabel.setForeground(NightTheme.MUTED);
+        refs.updateCheckedAtLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        refs.updateCheckedAtLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE,
+                refs.updateCheckedAtLabel.getPreferredSize().height));
+
+        refs.updateStatusDetail = new JTextArea("有新版時會顯示在這裡。");
+        refs.updateStatusDetail.setEditable(false);
+        refs.updateStatusDetail.setFocusable(false);
+        refs.updateStatusDetail.setOpaque(false);
+        refs.updateStatusDetail.setLineWrap(true);
+        refs.updateStatusDetail.setWrapStyleWord(true);
+        refs.updateStatusDetail.setFont(UiFonts.chinesePlain(12));
+        refs.updateStatusDetail.setForeground(NightTheme.MUTED);
+        refs.updateStatusDetail.setBorder(new EmptyBorder(0, 2, 0, 2));
+        refs.updateStatusDetail.setAlignmentX(Component.LEFT_ALIGNMENT);
+        fitRelayHelp(refs.updateStatusDetail);
+
+        refs.checkUpdateButton = candyButton("檢查更新", CandyButton.Variant.SECONDARY, mainFont,
+                "立刻向伺服器問一次有沒有新版本");
+        refs.applyUpdateButton = candyButton("現在更新", CandyButton.Variant.PRIMARY, boldFont,
+                "下載並重新啟動。設定與排程會保留。");
+        refs.applyUpdateButton.setEnabled(false);
+
+        JPanel updateActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        updateActions.setOpaque(false);
+        updateActions.setAlignmentX(Component.LEFT_ALIGNMENT);
+        updateActions.add(refs.checkUpdateButton);
+        updateActions.add(refs.applyUpdateButton);
+        Dimension updateActionsPref = updateActions.getPreferredSize();
+        updateActions.setMaximumSize(new Dimension(Integer.MAX_VALUE, updateActionsPref.height));
+
         JPanel updates = new JPanel();
         updates.setOpaque(false);
         updates.setLayout(new BoxLayout(updates, BoxLayout.Y_AXIS));
-        updates.add(formRow(refs.checkForUpdatesCheckBox, refs.autoUpdateCheckBox));
+        updates.add(formRow(refs.checkForUpdatesCheckBox));
+        updates.add(Box.createVerticalStrut(6));
+        updates.add(refs.updateStatusTitle);
+        updates.add(Box.createVerticalStrut(2));
+        updates.add(refs.updateCheckedAtLabel);
+        updates.add(Box.createVerticalStrut(4));
+        updates.add(refs.updateStatusDetail);
+        updates.add(Box.createVerticalStrut(8));
+        updates.add(updateActions);
 
         JTabbedPane tabs = new JTabbedPane();
         tabs.setFont(UiFonts.chineseBold(13));
@@ -456,7 +498,11 @@ public class PanelFactory {
         public JCheckBox enableServerCheckBox;
         public JCheckBox trustAllSslCheckBox;
         public JCheckBox checkForUpdatesCheckBox;
-        public JCheckBox autoUpdateCheckBox;
+        public JLabel updateStatusTitle;
+        public JLabel updateCheckedAtLabel;
+        public JTextArea updateStatusDetail;
+        public JButton checkUpdateButton;
+        public JButton applyUpdateButton;
         public JLabel heartbeatStatusLabel;
         public JComboBox<String> characterThemeCombo;
         public JLabel backgroundPreview;
@@ -955,25 +1001,18 @@ public class PanelFactory {
         refs.panel = new CandyPanel();
         refs.panel.setLayout(new BorderLayout(0, 4));
 
-        refs.nameField = new CandyTextField(title, 16);
-        refs.nameField.setFont(boldFont);
+        refs.nameField = new CandyTextField(title, 12);
+        refs.nameField.setFont(mainFont);
         refs.nameField.setToolTipText("這個排程的名稱。改完後，本機和後台的任務卡都會顯示這個名字。最多 24 個字。");
-        lockFieldHeight(refs.nameField);
-
-        JLabel nameLabel = new JLabel("名稱");
-        nameLabel.setFont(boldFont);
-        nameLabel.setForeground(NightTheme.INK);
-        JPanel nameRow = new JPanel(new GridBagLayout());
+        int nameHeight = Math.max(30, refs.nameField.getPreferredSize().height);
+        lockComponentSize(refs.nameField, new Dimension(240, nameHeight));
+        JPanel nameRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         nameRow.setOpaque(false);
-        GridBagConstraints nameGbc = new GridBagConstraints();
-        nameGbc.gridx = 0;
-        nameGbc.anchor = GridBagConstraints.WEST;
-        nameGbc.insets = new Insets(0, 0, 0, 8);
-        nameRow.add(nameLabel, nameGbc);
-        nameGbc.gridx = 1;
-        nameGbc.weightx = 1.0;
-        nameGbc.fill = GridBagConstraints.HORIZONTAL;
-        nameRow.add(refs.nameField, nameGbc);
+        nameRow.add(labeled(mainFont, "名稱"));
+        nameRow.add(refs.nameField);
+        nameRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        int nameRowHeight = Math.max(nameHeight, nameRow.getPreferredSize().height);
+        nameRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, nameRowHeight));
 
         JPanel settings = new JPanel(new GridBagLayout());
         settings.setOpaque(false);
@@ -1012,6 +1051,7 @@ public class PanelFactory {
         sgbc.gridwidth = 1;
         sgbc.weightx = 0.0;
         sgbc.fill = GridBagConstraints.NONE;
+        sgbc.anchor = GridBagConstraints.CENTER;
         settings.add(refs.enabledCheckBox, sgbc);
         sgbc.gridx = 1;
         settings.add(refs.hourCombo, sgbc);
@@ -1067,21 +1107,19 @@ public class PanelFactory {
         mgbc.insets = new Insets(2, 0, 2, 0);
         statusGrid.add(createMetricCell("鎖定設定", refs.lockedSettingsLabel, mainFont), mgbc);
 
-        nameRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        nameRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, nameRow.getPreferredSize().height));
         settings.setAlignmentX(Component.LEFT_ALIGNMENT);
         settings.setMaximumSize(new Dimension(Integer.MAX_VALUE, settings.getPreferredSize().height));
-
-        JPanel heading = new JPanel();
-        heading.setOpaque(false);
-        heading.setLayout(new BoxLayout(heading, BoxLayout.Y_AXIS));
-        heading.add(nameRow);
-        heading.add(Box.createVerticalStrut(8));
-        heading.add(settings);
+        nameRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JPanel mainCol = new JPanel(new BorderLayout(0, 12));
         mainCol.setOpaque(false);
-        mainCol.add(heading, BorderLayout.NORTH);
+        JPanel head = new JPanel();
+        head.setOpaque(false);
+        head.setLayout(new BoxLayout(head, BoxLayout.Y_AXIS));
+        head.add(nameRow);
+        head.add(Box.createVerticalStrut(8));
+        head.add(settings);
+        mainCol.add(head, BorderLayout.NORTH);
         mainCol.add(statusGrid, BorderLayout.CENTER);
 
         refs.panel.add(mainCol, BorderLayout.CENTER);
