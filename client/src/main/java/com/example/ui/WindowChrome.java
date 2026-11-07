@@ -527,14 +527,6 @@ public final class WindowChrome {
             setToolTipText(full.equals(main) ? null : full);
         }
 
-        String shown() {
-            return shown;
-        }
-
-        String full() {
-            return full;
-        }
-
         boolean fit(FontMetrics metrics, int available) {
             int fullW = full.isEmpty() ? 0 : metrics.stringWidth(full);
             String next = fullW <= available && fullW > 0 ? full : main;

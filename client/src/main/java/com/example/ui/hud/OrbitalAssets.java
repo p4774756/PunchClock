@@ -13,17 +13,16 @@ import java.io.InputStream;
 /**
  * 軌道觀景窗的可替換素材。缺檔時用窗內預覽，不做出跨框。
  * <p>
- * {@code /hud/orbital/foreground.png}：透明前景。建議 1400×960。
- * 圖高上方 14%（約 y=134）只放跨出頂框的粉髮；圖寬 88% 以右（約 x=1232）只放跨出右框的白手套。
- * 臉的中心約在 (42%, 30%)。面板內最上一段（標題列）留透明，避開標題、透明度滑桿和視窗按鈕。
+ * {@code /hud/orbital/foreground.png}：透明前景。實際約 1024×702。
+ * 等比例放入跨框矩形，頂對齊、右對齊：髮絲越頂框、右手套貼右框，臉留在窗內。
  * <p>
- * {@code /hud/orbital/scene.png}：地球、星空、太空站，不要含跨框的頭髮和手套。建議 1600×1000。
- * 地平線約在 y=620，太空站中心約在 (1240, 220)。裁進右側舞台，對齊點 (0.72, 0.42)。
+ * {@code /hud/orbital/scene.png}：地球、星空、太空站。實際約 1024×640。
+ * 等比例 cover 右側舞台，對齊點偏右上的太空站。
  * <p>
- * {@code /hud/orbital/bust.png}：側欄半身，四個功能頁共用。建議 640×860，透明底。
- * 髮頂約在 y=24，腰部裁切，臉放在水平中央。
+ * {@code /hud/orbital/bust.png}：側欄半身。實際約 609×819，透明底。
+ * 等比例完整顯示臉與髮頂，不裁切填滿。
  * <p>
- * {@code /hud/orbital/preview.jpg}：上述檔案還沒到時的窗內整圖。對齊點 (0.40, 0.34)，裁在舞台內。
+ * {@code /hud/orbital/preview.jpg}：上述檔案還沒到時的窗內整圖。
  */
 final class OrbitalAssets {
 
@@ -32,23 +31,25 @@ final class OrbitalAssets {
     static final String BUST_PATH = "/hud/orbital/bust.png";
     static final String PREVIEW_PATH = "/hud/orbital/preview.jpg";
 
-    /** 只有前景時，右側舞台對準太空站。 */
-    static final float SCENE_ANCHOR_X = 0.72f;
-    static final float SCENE_ANCHOR_Y = 0.42f;
-    /**
-     * 整張原畫的對齊點。原畫是橫幅，右側舞台較高，對準偏左才能同時留下太空站和臉。
-     */
+    /** 場景 cover 時對準太空站。 */
+    static final float SCENE_ANCHOR_X = 0.70f;
+    static final float SCENE_ANCHOR_Y = 0.38f;
     static final float PREVIEW_ANCHOR_X = 0.40f;
     static final float PREVIEW_ANCHOR_Y = 0.34f;
+
+    /** 前景臉部中心（正規化），用來確認縮放後仍在舞台內。 */
+    static final float FACE_X = 0.40f;
+    static final float FACE_Y = 0.38f;
 
     private static final OrbitalAssets SHARED = load();
 
     private final BufferedImage foreground;
     private final BufferedImage scene;
-    private final BufferedImage bust;
     private final BufferedImage preview;
     private final BufferedImage sidebar;
     private final boolean overflow;
+    /** 前景不透明內容右緣（0–1）。手套對齊右框時用這個，而不是整張圖的右邊界。 */
+    private final float contentRight;
 
     private OrbitalAssets(
             BufferedImage foreground,
@@ -57,9 +58,9 @@ final class OrbitalAssets {
             BufferedImage preview) {
         this.foreground = foreground;
         this.scene = scene;
-        this.bust = bust;
         this.preview = preview;
         this.overflow = hasTransparentPixel(foreground);
+        this.contentRight = opaqueRight(foreground);
         BufferedImage source = bust != null ? bust : (preview != null ? preview : foreground);
         this.sidebar = bust != null ? bust : cropBust(source);
     }
@@ -143,6 +144,59 @@ final class OrbitalAssets {
         return false;
     }
 
+    /**
+     * 等比例 contain：整張圖都進 {@code dest}，不放大裁切。
+     * 頂對齊；以不透明右緣（手套）貼齊 {@code dest} 右框。
+     */
+    static Rectangle fitTopRight(BufferedImage image, Rectangle dest) {
+        if (image == null || dest == null || dest.width < 2 || dest.height < 2) {
+            return new Rectangle();
+        }
+        double scale = Math.min(
+                dest.width / (double) image.getWidth(),
+                dest.height / (double) image.getHeight());
+        int dw = Math.max(1, (int) Math.round(image.getWidth() * scale));
+        int dh = Math.max(1, (int) Math.round(image.getHeight() * scale));
+        float right = SHARED != null && image == SHARED.foreground
+                ? SHARED.contentRight
+                : opaqueRight(image);
+        // 讓不透明右緣落在 dest 右框；圖本身可略超出 dest 右側透明邊。
+        int x = dest.x + dest.width - Math.round(dw * right);
+        int y = dest.y;
+        return new Rectangle(x, y, dw, dh);
+    }
+
+    /** 掃描前景不透明像素的最右欄，正規化成 0–1。 */
+    private static float opaqueRight(BufferedImage image) {
+        if (image == null) {
+            return 1f;
+        }
+        int w = image.getWidth();
+        int h = image.getHeight();
+        int stepY = Math.max(1, h / 64);
+        for (int x = w - 1; x >= 0; x--) {
+            for (int y = 0; y < h; y += stepY) {
+                if (((image.getRGB(x, y) >>> 24) & 0xff) >= 40) {
+                    return Math.min(1f, (x + 1) / (float) w);
+                }
+            }
+        }
+        return 1f;
+    }
+
+    static void drawFitted(Graphics2D g, BufferedImage image, Rectangle drawn) {
+        if (g == null || image == null || drawn == null || drawn.width < 2 || drawn.height < 2) {
+            return;
+        }
+        Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(image, drawn.x, drawn.y, drawn.width, drawn.height, null);
+        if (previous != null) {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous);
+        }
+    }
+
+    /** 場景等比例 cover，裁在舞台內；不拉伸變形。 */
     static void drawCover(Graphics2D g, BufferedImage image, Rectangle dest, float anchorX, float anchorY) {
         if (g == null || image == null || dest == null || dest.width < 2 || dest.height < 2) {
             return;

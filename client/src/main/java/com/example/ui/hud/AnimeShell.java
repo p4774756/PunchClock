@@ -15,10 +15,10 @@ import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.Color;
 import java.awt.Cursor;
+import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.geom.RoundRectangle2D;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -59,8 +59,10 @@ public final class AnimeShell extends JPanel {
     private final boolean reducedMotion = reducedMotion();
     private final Map<String, TaskStatus> seenTasks = new HashMap<>();
     private CharacterTheme theme = CharacterTheme.SWEATER;
-    /** 軌道版「下一個任務」：紫底再透一點，場景才透得出來。 */
-    private static final Color ORBITAL_CARD = new Color(72, 46, 128, 150);
+    /** 軌道版「下一個任務」：不透明底，徹底蓋住腰部平切線。 */
+    private static final Color ORBITAL_CARD = new Color(42, 24, 78, 255);
+    /** 場景左緣接到室內背景的漸層。 */
+    private static final Color ORBITAL_FADE = new Color(36, 22, 62);
     private HomeActions homeActions;
     private boolean holdingHome = true;
     private boolean useRoom = true;
@@ -197,6 +199,21 @@ public final class AnimeShell extends JPanel {
         board.seatReminder(cardInShell, textRightInShell);
     }
 
+    /**
+     * 軌道版角色：軀幹畫在殼層（卡片後面），跨框頭髮由畫布前景補上。
+     */
+    void presentOrbitalFigure(java.awt.Rectangle figureInShell) {
+        homeFigure = OrbitalAssets.shared().foreground();
+        homeFigureBounds = figureInShell == null || figureInShell.width <= 0 || homeFigure == null
+                ? null
+                : new java.awt.Rectangle(figureInShell);
+        prepareHomeLayout();
+        board.seatOrbitalReminderAtWaist(homeFigureBounds);
+        if (board.reminder.height > 0) {
+            dropHomeBubbleBelow(board.reminder.y + board.reminder.height + 8);
+        }
+    }
+
     /** 換主題或離開首頁時清掉上一張角色，避免毛衣女孩留在軌道版上。 */
     void releaseHomeFigure() {
         homeFigure = null;
@@ -209,7 +226,7 @@ public final class AnimeShell extends JPanel {
         if (!holdingHome) {
             return new java.awt.Rectangle();
         }
-        prepareHomeLayout();
+        // 繪製途中不要重算 layout，否則腰部卡片會跑掉。
         return new java.awt.Rectangle(board.reminder);
     }
 
@@ -434,9 +451,14 @@ public final class AnimeShell extends JPanel {
         board.layout(area);
         if (theme == CharacterTheme.ORBITAL) {
             paintOrbitalScene(g);
-            board.seatOrbitalReminder();
+            if (homeFigureBounds != null) {
+                board.seatOrbitalReminderAtWaist(homeFigureBounds);
+            } else {
+                board.seatOrbitalReminder();
+            }
         }
         board.paint(g, brief, hot);
+        // 軌道軀幹先畫，卡片才能蓋住腰部平切線。
         paintHomeFigure(g);
         board.paintReminder(g, brief);
         board.paintHomeBubble(g);
@@ -454,9 +476,27 @@ public final class AnimeShell extends JPanel {
                 board.stage,
                 OrbitalAssets.shared().stageAnchorX(),
                 OrbitalAssets.shared().stageAnchorY());
+        paintOrbitalSceneFade(g);
     }
 
-    /** 全身畫在半透明卡片後面，屈膝和小腿都留在原圖裡。手指另外畫在卡片前面。 */
+    /** 場景左緣深紫漸層，柔和接到室內背景。 */
+    private void paintOrbitalSceneFade(Graphics2D g) {
+        int fade = Math.max(48, Math.min(140, board.stage.width * 28 / 100));
+        if (fade < 8 || board.stage.height < 8) {
+            return;
+        }
+        GradientPaint paint = new GradientPaint(
+                board.stage.x, board.stage.y,
+                new Color(ORBITAL_FADE.getRed(), ORBITAL_FADE.getGreen(), ORBITAL_FADE.getBlue(), 210),
+                board.stage.x + fade, board.stage.y,
+                new Color(ORBITAL_FADE.getRed(), ORBITAL_FADE.getGreen(), ORBITAL_FADE.getBlue(), 0));
+        java.awt.Paint previous = g.getPaint();
+        g.setPaint(paint);
+        g.fillRect(board.stage.x, board.stage.y, fade, board.stage.height);
+        g.setPaint(previous);
+    }
+
+    /** 全身畫在卡片後面；軌道版再裁到卡片上緣內，平切線不會露在卡片外。 */
     private void paintHomeFigure(Graphics2D g) {
         if (homeFigure == null || homeFigureBounds == null || board.stage.width < 40) {
             return;
@@ -465,6 +505,11 @@ public final class AnimeShell extends JPanel {
         int x = board.stage.x;
         int width = Math.max(0, getWidth() - x);
         g.clipRect(x, 0, width, getHeight());
+        if (theme == CharacterTheme.ORBITAL && board.reminder.height > 40) {
+            // 底緣藏進卡片上段，卡片不透明時看不出素材平切。
+            int hide = board.reminder.y + Math.max(28, board.reminder.height * 28 / 100);
+            g.clipRect(0, 0, getWidth(), Math.max(0, hide));
+        }
         Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         g.drawImage(
@@ -527,12 +572,10 @@ public final class AnimeShell extends JPanel {
             if (bust.width <= 0) {
                 return;
             }
+            // 透明半身等比例完整顯示臉與髮頂，不裁圓角吃掉髮絲。
             Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            java.awt.Shape clip = g.getClip();
-            g.clip(new RoundRectangle2D.Float(bust.x, bust.y, bust.width, bust.height, 18, 18));
             g.drawImage(portrait, bust.x, bust.y, bust.width, bust.height, null);
-            g.setClip(clip);
             if (previous != null) {
                 g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous);
             }
@@ -555,10 +598,10 @@ public final class AnimeShell extends JPanel {
         if (avail < 72 || imageW < 1 || imageH < 1) {
             return new java.awt.Rectangle();
         }
-        int height = Math.min(avail, 210);
+        int height = Math.min(avail, 240);
         int width = height * imageW / imageH;
-        if (width > nav.width - 20) {
-            width = nav.width - 20;
+        if (width > nav.width - 16) {
+            width = nav.width - 16;
             height = width * imageH / Math.max(1, imageW);
         }
         int x = nav.x + (nav.width - width) / 2;

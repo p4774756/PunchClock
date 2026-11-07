@@ -55,4 +55,22 @@ public class AnimeShellNavTest {
         assertTrue(board.reminder.x > board.actions.x + board.actions.width - 4);
         assertTrue(board.reminder.y > board.stage.y);
     }
+
+    @Test
+    public void orbitalReminderCoversTheWaistCut() {
+        HomeBoard board = new HomeBoard();
+        board.layout(new Rectangle(0, 0, 900, 700));
+        Rectangle figure = new Rectangle(480, 40, 360, 420);
+        board.seatOrbitalReminderAtWaist(figure);
+        assertTrue(board.stage.contains(board.reminder));
+        assertTrue(board.reminder.y < figure.y + figure.height);
+        int cardH = board.reminder.height;
+        int overlap = Math.min(
+                Math.max(36, cardH * 42 / 100),
+                Math.max(36, Math.round(figure.height * 0.14f)));
+        assertTrue(board.reminder.y <= figure.y + figure.height - overlap + 1);
+        assertTrue(figure.y + figure.height <= board.reminder.y + board.reminder.height + 1);
+        assertTrue(board.reminder.width + 8 >= figure.width * 70 / 100);
+        assertTrue(board.reminder.x + board.reminder.width <= board.stage.x + board.stage.width);
+    }
 }

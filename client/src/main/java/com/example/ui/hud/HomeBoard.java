@@ -69,7 +69,6 @@ final class HomeBoard {
     private long fadeStart;
     /** 氣泡要畫在卡片下面。座標和這個面板一樣。 */
     private int bubbleFloor;
-    private int bubbleBlock = 44;
     /** 角色算好的卡片。layout 會沿用，不再跟著氣泡跑。 */
     private Rectangle seated;
     /** 文字右緣，手指從這裡開始。 */
@@ -154,23 +153,50 @@ final class HomeBoard {
 
     /** 軌道版卡片放在右側場景偏下，整張都在舞台裡面。 */
     void seatOrbitalReminder() {
+        seatOrbitalReminderAtWaist(null);
+    }
+
+    /**
+     * 卡片上緣對齊角色腰部平切線並略為蓋住。
+     * {@code figure} 是殼層座標；沒有角色時退回場景偏下位置。
+     */
+    void seatOrbitalReminderAtWaist(Rectangle figure) {
         if (stage.width < 140 || stage.height < 120) {
             return;
         }
-        int cardW = Math.min(260, Math.max(168, stage.width * 46 / 100));
-        int cardH = Math.min(132, Math.max(96, stage.height * 18 / 100));
-        int x = stage.x + stage.width - cardW - 16;
-        int y = stage.y + Math.round(stage.height * 0.56f);
+        int cardW = Math.min(280, Math.max(176, stage.width * 48 / 100));
+        int cardH = Math.min(118, Math.max(86, stage.height * 15 / 100));
+        int bubbleRoom = 56;
+        int x;
+        int y;
+        if (figure != null && figure.width >= 80 && figure.height >= 80) {
+            // 卡片要比角色腰還寬一點，才能蓋住平切線兩側。
+            cardW = Math.min(stage.width - 20, Math.max(cardW, figure.width * 78 / 100));
+            // 平切線要落在卡片上半段：重疊不可大於卡片高度，否則切線會掉到卡片下方。
+            int overlap = Math.min(
+                    Math.max(36, cardH * 42 / 100),
+                    Math.max(36, Math.round(figure.height * 0.14f)));
+            x = Math.max(stage.x + 8, Math.min(
+                    stage.x + stage.width - cardW - 8,
+                    figure.x + (figure.width - cardW) / 2));
+            // 上緣蓋住素材底緣；若角色底在舞台外，仍對齊可見腰線。
+            int waist = Math.min(figure.y + figure.height, stage.y + stage.height - 4);
+            y = waist - overlap;
+        } else {
+            x = stage.x + stage.width - cardW - 16;
+            y = stage.y + Math.round(stage.height * 0.56f);
+        }
         if (x < stage.x + 8) {
             x = stage.x + 8;
         }
-        if (y + cardH > stage.y + stage.height - 12) {
-            y = stage.y + stage.height - 12 - cardH;
+        if (y + cardH + bubbleRoom > stage.y + stage.height - 4) {
+            y = stage.y + stage.height - 4 - bubbleRoom - cardH;
         }
         if (y < stage.y + 8) {
             y = stage.y + 8;
         }
         seatReminder(new Rectangle(x, y, cardW, cardH), x + cardW - 12);
+        setBubbleFloor(y + cardH + 8);
     }
 
     /** 把「下一個任務」放在前臂下面。textRight 之後是手指，字不要畫過去。 */
@@ -258,9 +284,17 @@ final class HomeBoard {
             return;
         }
         g.setFont(UiFonts.chinesePlain(14));
-        int maxW = reminder.width > 120
-                ? Math.min(220, Math.max(120, reminder.width * 2 / 3))
-                : Math.min(250, Math.max(120, stage.width - 36));
+        // 軌道版泡泡加寬到約兩行：太寬會變一行，太窄會變三行以上。
+        int maxW;
+        if (reminderFill != null && reminder.width > 120) {
+            FontMetrics probe = g.getFontMetrics();
+            int natural = probe.stringWidth(text) + 28;
+            maxW = Math.min(Math.max(168, reminder.width - 24), Math.max(150, natural * 58 / 100));
+        } else if (reminder.width > 120) {
+            maxW = Math.min(220, Math.max(120, reminder.width * 2 / 3));
+        } else {
+            maxW = Math.min(250, Math.max(120, stage.width - 36));
+        }
         List<String> rows = wrap(g, text, maxW - 28);
         int block = g.getFontMetrics().getHeight();
         int boxH = 16 + block * rows.size();
@@ -274,7 +308,6 @@ final class HomeBoard {
         int y = reminder.height > 0
                 ? reminder.y + reminder.height + 10
                 : Math.max(stage.y, bubbleFloor);
-        bubbleBlock = boxH;
         if (y + boxH > stage.y + stage.height - 4) {
             y = Math.max(stage.y, stage.y + stage.height - boxH - 4);
         }
