@@ -31,13 +31,14 @@ public class CharacterThemeTest {
 
         portrait.setTheme(CharacterTheme.ORBITAL);
         if (OrbitalAssets.shared().hasOverflow()) {
-            Insets overflow = portrait.overflow(1280, 920, false);
-            assertTrue(overflow.top >= 64);
-            assertTrue(overflow.right >= 48);
             Insets panel = portrait.panelOverflow(1100, 760);
             assertNotNull(panel);
             assertTrue(panel.top >= 64);
             assertTrue(panel.right >= 48);
+            // 外層 = 面板 + 留白時，兩邊算出的留白必須相同，換頁才不會改視窗大小。
+            Insets overflow = portrait.overflow(1100 + panel.right, 760 + panel.top, false);
+            assertEquals(panel.top, overflow.top);
+            assertEquals(panel.right, overflow.right);
         } else {
             assertEquals(new Insets(0, 0, 0, 0), portrait.overflow(1280, 920, false));
             assertEquals(new Insets(0, 0, 0, 0), portrait.panelOverflow(1100, 760));

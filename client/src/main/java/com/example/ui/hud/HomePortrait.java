@@ -42,7 +42,8 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
             if (!OrbitalAssets.shared().hasOverflow()) {
                 return new Insets(0, 0, 0, 0);
             }
-            return OrbitalFrame.margin(maximized, width, height);
+            // 外層尺寸 → 留白，需與 panelOverflow 對齊，否則換頁會改視窗大小閃爍。
+            return OrbitalFrame.forCanvas(width, height, maximized);
         }
         // 留白不跟著換頁收掉。收掉會改透明視窗的大小，macOS 會先閃一幀空白。
         return HomeCharacterLayout.overflow(width, height, maximized, art != null);
@@ -57,7 +58,7 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
             // 只有窗內預覽時不要沿用毛衣女孩留白。
             return new Insets(0, 0, 0, 0);
         }
-        return OrbitalFrame.margin(false, Math.max(panelWidth, 800), Math.max(panelHeight, 800));
+        return OrbitalFrame.forPanel(panelWidth, panelHeight);
     }
 
     @Override

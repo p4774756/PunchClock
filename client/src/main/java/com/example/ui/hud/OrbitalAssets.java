@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * 軌道觀景窗的可替換素材。缺檔時用窗內預覽，不做出跨框。
+ * 軌道觀景窗的可替換素材。缺前景透明圖時不做跨框。
  * <p>
  * {@code /hud/orbital/foreground.png}：透明前景。實際約 1024×702。
  * 等比例放入跨框矩形，頂對齊、右對齊：髮絲越頂框、右手套貼右框，臉留在窗內。
@@ -21,31 +21,21 @@ import java.io.InputStream;
  * <p>
  * {@code /hud/orbital/bust.png}：側欄半身。實際約 609×819，透明底。
  * 等比例完整顯示臉與髮頂，不裁切填滿。
- * <p>
- * {@code /hud/orbital/preview.jpg}：上述檔案還沒到時的窗內整圖。
  */
 final class OrbitalAssets {
 
     static final String FOREGROUND_PATH = "/hud/orbital/foreground.png";
     static final String SCENE_PATH = "/hud/orbital/scene.png";
     static final String BUST_PATH = "/hud/orbital/bust.png";
-    static final String PREVIEW_PATH = "/hud/orbital/preview.jpg";
 
     /** 場景 cover 時對準太空站。 */
     static final float SCENE_ANCHOR_X = 0.70f;
     static final float SCENE_ANCHOR_Y = 0.38f;
-    static final float PREVIEW_ANCHOR_X = 0.40f;
-    static final float PREVIEW_ANCHOR_Y = 0.34f;
-
-    /** 前景臉部中心（正規化），用來確認縮放後仍在舞台內。 */
-    static final float FACE_X = 0.40f;
-    static final float FACE_Y = 0.38f;
 
     private static final OrbitalAssets SHARED = load();
 
     private final BufferedImage foreground;
     private final BufferedImage scene;
-    private final BufferedImage preview;
     private final BufferedImage sidebar;
     private final boolean overflow;
     /** 前景不透明內容右緣（0–1）。手套對齊右框時用這個，而不是整張圖的右邊界。 */
@@ -54,14 +44,12 @@ final class OrbitalAssets {
     private OrbitalAssets(
             BufferedImage foreground,
             BufferedImage scene,
-            BufferedImage bust,
-            BufferedImage preview) {
+            BufferedImage bust) {
         this.foreground = foreground;
         this.scene = scene;
-        this.preview = preview;
         this.overflow = hasTransparentPixel(foreground);
         this.contentRight = opaqueRight(foreground);
-        BufferedImage source = bust != null ? bust : (preview != null ? preview : foreground);
+        BufferedImage source = bust != null ? bust : foreground;
         this.sidebar = bust != null ? bust : cropBust(source);
     }
 
@@ -77,20 +65,17 @@ final class OrbitalAssets {
         return overflow ? foreground : null;
     }
 
-    /** 右側舞台要畫的圖。有透明前景時不再疊上含人物的預覽。 */
+    /** 右側舞台場景；缺檔時為 null。 */
     BufferedImage stageImage() {
-        if (overflow) {
-            return scene;
-        }
-        return preview != null ? preview : scene;
+        return scene;
     }
 
     float stageAnchorX() {
-        return overflow && scene != null ? SCENE_ANCHOR_X : PREVIEW_ANCHOR_X;
+        return SCENE_ANCHOR_X;
     }
 
     float stageAnchorY() {
-        return overflow && scene != null ? SCENE_ANCHOR_Y : PREVIEW_ANCHOR_Y;
+        return SCENE_ANCHOR_Y;
     }
 
     BufferedImage sidebarImage() {
@@ -101,8 +86,7 @@ final class OrbitalAssets {
         return new OrbitalAssets(
                 read(FOREGROUND_PATH),
                 read(SCENE_PATH),
-                read(BUST_PATH),
-                read(PREVIEW_PATH));
+                read(BUST_PATH));
     }
 
     /** 側欄用的半身。原畫的臉在中上段。 */
