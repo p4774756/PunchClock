@@ -192,6 +192,9 @@ public class CandyWidgetsTest {
             NightTheme.apply(scroll.getParent());
             assertTrue(scroll.getVerticalScrollBar().getUI().getClass().getName().contains("CandyScrollBar"));
             assertEquals(line, refs.historyList.getModel().getElementAt(0));
+            int header = scroll.getColumnHeader().getPreferredSize().height;
+            assertTrue(scroll.getPreferredSize().height
+                    >= header + refs.historyList.getFixedCellHeight() * PanelFactory.HISTORY_VISIBLE_ROWS);
         });
     }
 

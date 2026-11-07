@@ -18,6 +18,7 @@ import java.awt.Cursor;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -57,6 +58,9 @@ public final class AnimeShell extends JPanel {
     private final Timer timer;
     private final boolean reducedMotion = reducedMotion();
     private final Map<String, TaskStatus> seenTasks = new HashMap<>();
+    private CharacterTheme theme = CharacterTheme.SWEATER;
+    /** 軌道版「下一個任務」：紫底再透一點，場景才透得出來。 */
+    private static final Color ORBITAL_CARD = new Color(72, 46, 128, 150);
     private HomeActions homeActions;
     private boolean holdingHome = true;
     private boolean useRoom = true;
@@ -127,6 +131,17 @@ public final class AnimeShell extends JPanel {
         return holdingHome;
     }
 
+    public void setCharacterTheme(CharacterTheme theme) {
+        this.theme = theme == null ? CharacterTheme.SWEATER : theme;
+        board.setReminderFill(this.theme == CharacterTheme.ORBITAL ? ORBITAL_CARD : null);
+        if (this.theme == CharacterTheme.ORBITAL) {
+            releaseHomeFigure();
+        }
+        revalidate();
+        repaint();
+        refreshChrome();
+    }
+
     public void showHome() {
         holdingHome = true;
         tabs.setVisible(false);
@@ -180,6 +195,13 @@ public final class AnimeShell extends JPanel {
             return;
         }
         board.seatReminder(cardInShell, textRightInShell);
+    }
+
+    /** 換主題或離開首頁時清掉上一張角色，避免毛衣女孩留在軌道版上。 */
+    void releaseHomeFigure() {
+        homeFigure = null;
+        homeFigureBounds = null;
+        board.clearSeat();
     }
 
     /** 「下一個任務」卡片，座標在這個面板裡。不在首頁時是空的。 */
@@ -361,6 +383,9 @@ public final class AnimeShell extends JPanel {
             if (home >= 0) {
                 return home;
             }
+            if (theme == CharacterTheme.ORBITAL && board.stage.contains(x, y)) {
+                return 20;
+            }
         }
         if (bust.contains(x, y)) {
             return 20;
@@ -407,10 +432,28 @@ public final class AnimeShell extends JPanel {
     private void paintHome(Graphics2D g, java.awt.Rectangle area) {
         HomeBrief brief = homeActions == null ? HomeBrief.empty() : homeActions.read();
         board.layout(area);
+        if (theme == CharacterTheme.ORBITAL) {
+            paintOrbitalScene(g);
+            board.seatOrbitalReminder();
+        }
         board.paint(g, brief, hot);
         paintHomeFigure(g);
         board.paintReminder(g, brief);
         board.paintHomeBubble(g);
+    }
+
+    /** 地球、星空、太空站和窗內預覽都裁在右側舞台，不蓋過左側選單。 */
+    private void paintOrbitalScene(Graphics2D g) {
+        java.awt.image.BufferedImage image = OrbitalAssets.shared().stageImage();
+        if (image == null || board.stage.width < 40 || board.stage.height < 40) {
+            return;
+        }
+        OrbitalAssets.drawCover(
+                g,
+                image,
+                board.stage,
+                OrbitalAssets.shared().stageAnchorX(),
+                OrbitalAssets.shared().stageAnchorY());
     }
 
     /** 全身畫在半透明卡片後面，屈膝和小腿都留在原圖裡。手指另外畫在卡片前面。 */
@@ -472,24 +515,55 @@ public final class AnimeShell extends JPanel {
 
     private void paintBust(Graphics2D g, java.awt.Rectangle nav) {
         bust = new java.awt.Rectangle();
-        if (holdingHome || cast == null) {
+        if (holdingHome) {
             return;
         }
+        if (theme == CharacterTheme.ORBITAL) {
+            java.awt.image.BufferedImage portrait = OrbitalAssets.shared().sidebarImage();
+            if (portrait == null) {
+                return;
+            }
+            bust = bustBox(nav, portrait.getWidth(), portrait.getHeight());
+            if (bust.width <= 0) {
+                return;
+            }
+            Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            java.awt.Shape clip = g.getClip();
+            g.clip(new RoundRectangle2D.Float(bust.x, bust.y, bust.width, bust.height, 18, 18));
+            g.drawImage(portrait, bust.x, bust.y, bust.width, bust.height, null);
+            g.setClip(clip);
+            if (previous != null) {
+                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous);
+            }
+            return;
+        }
+        if (cast == null) {
+            return;
+        }
+        bust = bustBox(nav, cast.frameWidth(), cast.frameHeight());
+        if (bust.width <= 0) {
+            return;
+        }
+        cast.draw(g, hero.frame(), bust.x, bust.y, bust.width, bust.height);
+    }
+
+    /** 側欄底部的小立繪。排程、好友、設定、日誌共用這一個位置。 */
+    private static java.awt.Rectangle bustBox(java.awt.Rectangle nav, int imageW, int imageH) {
         int top = nav.y + 78 + NAV.length * 48 + 8;
         int avail = nav.y + nav.height - top - 8;
-        if (avail < 72) {
-            return;
+        if (avail < 72 || imageW < 1 || imageH < 1) {
+            return new java.awt.Rectangle();
         }
         int height = Math.min(avail, 210);
-        int width = height * cast.frameWidth() / Math.max(1, cast.frameHeight());
+        int width = height * imageW / imageH;
         if (width > nav.width - 20) {
             width = nav.width - 20;
-            height = width * cast.frameHeight() / Math.max(1, cast.frameWidth());
+            height = width * imageH / Math.max(1, imageW);
         }
         int x = nav.x + (nav.width - width) / 2;
         int y = nav.y + nav.height - 8 - height;
-        bust = new java.awt.Rectangle(x, y, width, height);
-        cast.draw(g, hero.frame(), x, y, width, height);
+        return new java.awt.Rectangle(x, y, width, height);
     }
 
     private java.awt.Rectangle navBounds() {

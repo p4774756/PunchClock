@@ -45,4 +45,14 @@ public class AnimeShellNavTest {
         assertEquals(160, board.reminder.y);
         assertEquals(140, board.reminder.height);
     }
+
+    @Test
+    public void orbitalReminderStaysInsideTheStage() {
+        HomeBoard board = new HomeBoard();
+        board.layout(new Rectangle(0, 0, 900, 700));
+        board.seatOrbitalReminder();
+        assertTrue(board.stage.contains(board.reminder));
+        assertTrue(board.reminder.x > board.actions.x + board.actions.width - 4);
+        assertTrue(board.reminder.y > board.stage.y);
+    }
 }

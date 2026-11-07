@@ -168,6 +168,13 @@ public final class WindowChrome {
         boolean opaqueAt(JComponent canvas, int x, int y);
 
         void pressed();
+
+        /**
+         * 由紫色面板尺寸得到留白。回傳 null 時沿用毛衣女孩的既有公式。
+         */
+        default Insets panelOverflow(int panelWidth, int panelHeight) {
+            return null;
+        }
     }
 
     public static void setFramePortrait(JFrame frame, FramePortrait portrait) {
@@ -181,8 +188,8 @@ public final class WindowChrome {
     }
 
     /**
-     * 首頁開關時透明留白會增減。以紫色面板左上角的螢幕座標為錨，
-     * 用新留白重算一次外層視窗，避免每切一頁就再往上移。
+     * 角色留白不跟著換頁收掉，避免透明視窗改大小時先閃一幀空白。
+     * 仍以紫色面板左上角的螢幕座標為錨重算外層視窗，面板才不會自己挪位。
      */
     public static void relayout(JFrame frame) {
         FrameCanvas canvas = canvasOf(frame);
@@ -203,8 +210,7 @@ public final class WindowChrome {
             canvas.repaint();
             return;
         }
-        boolean home = wantsHomeOverflow(canvas);
-        Insets overflow = overflowForPanel(panel.width, panel.height, home);
+        Insets overflow = overflowAround(canvas, panel.width, panel.height);
         Rectangle next = keepTitleVisible(
                 windowForPanel(panel, overflow, frame.getInsets()),
                 overflow,
@@ -760,6 +766,21 @@ public final class WindowChrome {
     }
 
     /**
+     * 角色留白。軌道版若自訂了面板留白就用那一組，否則沿用毛衣女孩公式。
+     * 沒有跨框時留白是 0，視窗縮回紫色面板。
+     */
+    static Insets overflowAround(FrameCanvas canvas, int panelWidth, int panelHeight) {
+        if (canvas == null || !wantsHomeOverflow(canvas)) {
+            return new Insets(0, 0, 0, 0);
+        }
+        Insets custom = canvas.portrait.panelOverflow(panelWidth, panelHeight);
+        if (custom != null) {
+            return custom;
+        }
+        return overflowForPanel(panelWidth, panelHeight, true);
+    }
+
+    /**
      * 由面板大小反推留白，使 {@link com.example.ui.hud.HomeCharacterLayout#overflow}
      * 用算出來的外層尺寸會得到同一組留白。
      */
@@ -1001,8 +1022,7 @@ public final class WindowChrome {
         }
         Rectangle panel = (Rectangle) saved;
         FrameCanvas canvas = canvasOf(frame);
-        boolean home = canvas != null && wantsHomeOverflow(canvas);
-        Insets overflow = overflowForPanel(panel.width, panel.height, home);
+        Insets overflow = overflowAround(canvas, panel.width, panel.height);
         int titleH = canvas == null ? TitleBarSliderUI.HEIGHT + 9 : titleBarHeight(canvas);
         Rectangle next = keepTitleVisible(
                 windowForPanel(panel, overflow, frame.getInsets()),

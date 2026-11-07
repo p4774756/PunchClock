@@ -23,6 +23,9 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
     private final Rectangle bust = new Rectangle();
     private final Rectangle sock = new Rectangle();
     private final Rectangle ledge = new Rectangle();
+    /** 標題列整段不畫軌道前景，避開標題、滑桿和視窗按鈕。 */
+    private final Rectangle titleHole = new Rectangle();
+    private CharacterTheme theme = CharacterTheme.SWEATER;
     private boolean tucked;
 
     public HomePortrait(AnimeShell shell) {
@@ -30,10 +33,32 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
         this.art = HomeCharacterArt.load();
     }
 
+    public void setTheme(CharacterTheme theme) {
+        this.theme = theme == null ? CharacterTheme.SWEATER : theme;
+    }
+
     @Override
     public Insets overflow(int width, int height, boolean maximized) {
-        boolean home = shell == null || shell.isHoldingHome();
-        return HomeCharacterLayout.overflow(width, height, maximized, home && art != null);
+        if (theme == CharacterTheme.ORBITAL) {
+            if (!OrbitalAssets.shared().hasOverflow()) {
+                return new Insets(0, 0, 0, 0);
+            }
+            return OrbitalFrame.margin(maximized, width, height);
+        }
+        // 留白不跟著換頁收掉。收掉會改透明視窗的大小，macOS 會先閃一幀空白。
+        return HomeCharacterLayout.overflow(width, height, maximized, art != null);
+    }
+
+    @Override
+    public Insets panelOverflow(int panelWidth, int panelHeight) {
+        if (theme != CharacterTheme.ORBITAL) {
+            return null;
+        }
+        if (!OrbitalAssets.shared().hasOverflow()) {
+            // 只有窗內預覽時不要沿用毛衣女孩留白。
+            return new Insets(0, 0, 0, 0);
+        }
+        return OrbitalFrame.margin(false, Math.max(panelWidth, 800), Math.max(panelHeight, 800));
     }
 
     @Override
@@ -43,6 +68,10 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
 
     @Override
     public void paintInFront(Graphics2D g, JComponent canvas, Rectangle panel) {
+        if (theme == CharacterTheme.ORBITAL) {
+            drawOrbitalForeground(g);
+            return;
+        }
         if (bust.width <= 0 || art == null) {
             return;
         }
@@ -52,7 +81,13 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
 
     @Override
     public boolean opaqueAt(JComponent canvas, int x, int y) {
-        if (art == null || shell == null || !shell.isHoldingHome() || !bust.contains(x, y)) {
+        if (shell == null || !shell.isHoldingHome() || !bust.contains(x, y)) {
+            return false;
+        }
+        if (theme == CharacterTheme.ORBITAL) {
+            return opaqueForeground(x, y);
+        }
+        if (art == null) {
             return false;
         }
         int imageX = (x - bust.x) * art.bust.getWidth() / Math.max(1, bust.width);
@@ -71,11 +106,20 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
         bust.setBounds(0, 0, 0, 0);
         sock.setBounds(0, 0, 0, 0);
         ledge.setBounds(0, 0, 0, 0);
+        titleHole.setBounds(0, 0, 0, 0);
         tucked = false;
-        if (art == null || shell == null || canvas == null || panel == null || !shell.isHoldingHome()) {
+        if (shell == null || canvas == null || panel == null || !shell.isHoldingHome()) {
             if (shell != null) {
-                shell.presentHomeFigure(null, null, 0, null);
+                shell.releaseHomeFigure();
             }
+            return;
+        }
+        if (theme == CharacterTheme.ORBITAL) {
+            placeOrbital(canvas, panel);
+            return;
+        }
+        if (art == null) {
+            shell.releaseHomeFigure();
             return;
         }
         boolean maximized = WindowChrome.isMaximizedFrame(canvas);
@@ -118,6 +162,60 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
         } catch (IllegalArgumentException ex) {
             return null;
         }
+    }
+
+    /**
+     * 軌道版沒有透明前景時，人物留在殼層裡。有前景時只記下跨框矩形，卡片仍由殼層畫。
+     */
+    private void placeOrbital(JComponent canvas, Rectangle panel) {
+        shell.releaseHomeFigure();
+        int titleH = WindowChrome.titleBarHeight(canvas);
+        titleHole.setBounds(panel.x, panel.y, panel.width, Math.max(1, titleH));
+        if (!OrbitalAssets.shared().hasOverflow()) {
+            return;
+        }
+        shell.prepareHomeLayout();
+        Rectangle stage = stageOnCanvas(canvas);
+        boolean maximized = WindowChrome.isMaximizedFrame(canvas);
+        Rectangle dest = OrbitalFrame.foregroundDest(stage, maximized);
+        if (dest.width > 0) {
+            bust.setBounds(dest);
+        }
+    }
+
+    /** 頭髮畫在面板上方，手套畫在右框外。標題列整段留空。 */
+    private void drawOrbitalForeground(Graphics2D g) {
+        java.awt.image.BufferedImage image = OrbitalAssets.shared().foreground();
+        if (image == null || bust.width <= 0 || titleHole.height <= 0) {
+            return;
+        }
+        Shape clip = g.getClip();
+        int split = titleHole.y;
+        if (bust.y < split) {
+            g.clipRect(bust.x, bust.y, bust.width, split - bust.y);
+            draw(g, image, bust);
+            g.setClip(clip);
+        }
+        int below = titleHole.y + titleHole.height;
+        int bottom = bust.y + bust.height;
+        if (bottom > below) {
+            g.clipRect(bust.x, below, bust.width, bottom - below);
+            draw(g, image, bust);
+            g.setClip(clip);
+        }
+    }
+
+    private boolean opaqueForeground(int x, int y) {
+        java.awt.image.BufferedImage image = OrbitalAssets.shared().foreground();
+        if (image == null || titleHole.contains(x, y)) {
+            return false;
+        }
+        int imageX = (x - bust.x) * image.getWidth() / Math.max(1, bust.width);
+        int imageY = (y - bust.y) * image.getHeight() / Math.max(1, bust.height);
+        if (imageX < 0 || imageY < 0 || imageX >= image.getWidth() || imageY >= image.getHeight()) {
+            return false;
+        }
+        return ((image.getRGB(imageX, imageY) >>> 24) & 0xff) > 24;
     }
 
     /** 頭和前臂畫在最前面。只有標題列那一段讓過視窗按鈕，袖子維持原圖的外緣。 */

@@ -11,6 +11,7 @@ import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Font;
@@ -18,9 +19,11 @@ import java.awt.Frame;
 import java.awt.GraphicsEnvironment;
 import java.awt.Insets;
 import java.awt.Rectangle;
+import java.awt.Robot;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -163,6 +166,108 @@ public class WindowChromeTest {
                 holder[0].dispose();
             });
         }
+    }
+
+    @Test(timeout = 20000)
+    public void homeSwitchKeepsThePanelAndDoesNotFlashTheBackdrop() throws Exception {
+        Assume.assumeFalse("headless JVM cannot show a window", GraphicsEnvironment.isHeadless());
+        JFrame[] backdrop = new JFrame[1];
+        JFrame[] holder = new JFrame[1];
+        AnimeShell[] shell = new AnimeShell[1];
+        SwingUtilities.invokeAndWait(() -> {
+            JFrame red = new JFrame("backdrop");
+            backdrop[0] = red;
+            red.setUndecorated(true);
+            red.getContentPane().setBackground(Color.RED);
+            red.setBounds(0, 0, 1400, 1000);
+            red.setFocusableWindowState(false);
+            red.setVisible(true);
+
+            JFrame frame = new JFrame("洋流 版面切換");
+            holder[0] = frame;
+            WindowChrome.install(frame, "洋流 版面切換", null,
+                    new Font(Font.SANS_SERIF, Font.BOLD, 13),
+                    new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+            JTabbedPane tabs = new JTabbedPane();
+            tabs.addTab("排程", new JPanel());
+            tabs.addTab("設定", new JPanel());
+            shell[0] = new AnimeShell(null, tabs);
+            WindowChrome.bodyOf(frame).add(shell[0]);
+            WindowChrome.setFramePortrait(frame, new HomePortrait(shell[0]));
+            frame.setSize(1100, 760);
+            frame.setLocation(80, 80);
+            frame.setVisible(true);
+            frame.toFront();
+        });
+        try {
+            Thread.sleep(200);
+            Rectangle[] homePanel = new Rectangle[1];
+            SwingUtilities.invokeAndWait(() -> {
+                holder[0].toFront();
+                homePanel[0] = panelOnScreen(holder[0]);
+            });
+            assertTrue(homePanel[0].width > 80);
+            AtomicReference<Color> flash = new AtomicReference<>();
+            sampleSwitch(homePanel[0], flash, () -> shell[0].openTab(0));
+            assertEquals("離開首頁時不該透出背後的紅色", null, flash.get());
+            SwingUtilities.invokeAndWait(() -> holder[0].toFront());
+            Robot robot = new Robot();
+            Color margin = robot.getPixelColor(
+                    homePanel[0].x + homePanel[0].width / 2, homePanel[0].y - 30);
+            assertTrue("其他頁面不該把背景畫出面板 " + margin, isBackdropRed(margin));
+            Color side = robot.getPixelColor(
+                    homePanel[0].x + homePanel[0].width + 24, homePanel[0].y + 80);
+            assertTrue("右側留白不該畫上背景 " + side, isBackdropRed(side));
+            SwingUtilities.invokeAndWait(() -> {
+                Rectangle away = panelOnScreen(holder[0]);
+                assertEquals(homePanel[0].x, away.x);
+                assertEquals(homePanel[0].y, away.y);
+                assertEquals(homePanel[0].width, away.width);
+                assertEquals(homePanel[0].height, away.height);
+            });
+            flash.set(null);
+            sampleSwitch(homePanel[0], flash, () -> shell[0].showHome());
+            SwingUtilities.invokeAndWait(() -> {
+                Rectangle again = panelOnScreen(holder[0]);
+                assertEquals(homePanel[0].x, again.x);
+                assertEquals(homePanel[0].y, again.y);
+            });
+            assertEquals("回到首頁時不該透出背後的紅色", null, flash.get());
+        } finally {
+            SwingUtilities.invokeAndWait(() -> {
+                holder[0].dispose();
+                backdrop[0].dispose();
+            });
+        }
+    }
+
+    private static boolean isBackdropRed(Color color) {
+        return color.getRed() > 220 && color.getGreen() < 70 && color.getBlue() < 70;
+    }
+
+    private static void sampleSwitch(Rectangle panel, AtomicReference<Color> flash, Runnable onEdt)
+            throws Exception {
+        Robot robot = new Robot();
+        int x = panel.x + 48;
+        int y = panel.y + Math.min(120, Math.max(40, panel.height / 3));
+        Thread sampler = new Thread(() -> {
+            long end = System.currentTimeMillis() + 450;
+            while (System.currentTimeMillis() < end) {
+                Color color = robot.getPixelColor(x, y);
+                if (color.getRed() > 220 && color.getGreen() < 70 && color.getBlue() < 70) {
+                    flash.compareAndSet(null, color);
+                }
+            }
+        }, "page-switch-sampler");
+        sampler.start();
+        SwingUtilities.invokeLater(onEdt);
+        sampler.join(1000);
+    }
+
+    private static Rectangle panelOnScreen(JFrame frame) {
+        Rectangle stage = WindowChrome.stageBounds(frame);
+        java.awt.Point origin = frame.getContentPane().getLocationOnScreen();
+        return new Rectangle(origin.x + stage.x, origin.y + stage.y, stage.width, stage.height);
     }
 
     @Test

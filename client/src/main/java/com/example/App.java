@@ -33,7 +33,9 @@ import com.example.model.CheckInHistoryEntry;
 import com.example.model.CheckInTask;
 import com.example.ui.hud.AnimeCast;
 import com.example.ui.hud.AnimeShell;
+import com.example.ui.hud.CharacterTheme;
 import com.example.ui.hud.HomeBrief;
+import com.example.ui.hud.HomePortrait;
 import com.example.ui.WindowChrome;
 import com.example.ui.WindowOpacity;
 import com.example.ui.WindowShake;
@@ -81,6 +83,7 @@ public class App extends JFrame {
     private final ConfigPersistenceService configPersistenceService;
     private SlotController slotController;
     private AnimeShell shell;
+    private HomePortrait homePortrait;
     private MarqueeBar marqueeBar;
     private boolean suppressConfigSave = false;
     private Timer countdownTimer;
@@ -309,7 +312,7 @@ public class App extends JFrame {
         tabs.setOpaque(false);
         tabs.setBackground(new Color(0, 0, 0, 0));
         tabs.setToolTipTextAt(0, "設定目標網址、時間，立即測試");
-        tabs.setToolTipTextAt(1, "雲端連線、程式更新、背景、桌面寵物與中繼 Proxy");
+        tabs.setToolTipTextAt(1, "雲端連線、程式更新、角色、背景、桌面寵物與中繼 Proxy");
         tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案／資料夾與傳檔狀態");
         tabs.setToolTipTextAt(3, "查看與清除系統日誌");
         AnimeShell.hideTabStrip(tabs);
@@ -356,9 +359,11 @@ public class App extends JFrame {
                 marqueeBar.showNotice(notice.enabled, notice.text)));
         content.add(marqueeBar, BorderLayout.NORTH);
         content.add(shell, BorderLayout.CENTER);
-        WindowChrome.setFramePortrait(this, new com.example.ui.hud.HomePortrait(shell));
+        homePortrait = new HomePortrait(shell);
+        WindowChrome.setFramePortrait(this, homePortrait);
 
         bindBackgroundControls();
+        bindCharacterTheme();
 
         // 上方和右側要留給跨出面板的角色，內層紫色面板仍維持原本能排卡片的大小。
         setMinimumSize(new Dimension(1100, 820));
@@ -1500,6 +1505,29 @@ public class App extends JFrame {
 
     private BufferedImage currentBackgroundImage;
 
+    private void bindCharacterTheme() {
+        if (serverRefs.characterThemeCombo == null) {
+            return;
+        }
+        serverRefs.characterThemeCombo.addActionListener(e -> {
+            Object item = serverRefs.characterThemeCombo.getSelectedItem();
+            applyCharacterTheme(CharacterTheme.fromLabel(item == null ? null : item.toString()), true);
+        });
+    }
+
+    private void applyCharacterTheme(CharacterTheme theme, boolean persist) {
+        CharacterTheme next = theme == null ? CharacterTheme.SWEATER : theme;
+        if (homePortrait != null) {
+            homePortrait.setTheme(next);
+        }
+        if (shell != null) {
+            shell.setCharacterTheme(next);
+        }
+        if (persist && !suppressConfigSave) {
+            saveCloudConfig();
+        }
+    }
+
     private void bindBackgroundControls() {
         if (serverRefs.chooseBackgroundButton != null) {
             serverRefs.chooseBackgroundButton.addActionListener(e -> chooseWindowBackground());
@@ -2043,9 +2071,18 @@ public class App extends JFrame {
         }
         syncUpdateCheckControls();
         applyRelayConfig(config);
+        applyCharacterThemeSelection(config);
         ignoredUpdateDigest = config.ignoredUpdateDigest == null ? "" : config.ignoredUpdateDigest;
         syncCloudConnectionFieldsEnabled();
         refreshPeerInteractionState();
+    }
+
+    private void applyCharacterThemeSelection(ConfigPersistenceService.CloudConfig config) {
+        CharacterTheme theme = CharacterTheme.fromId(config == null ? null : config.characterTheme);
+        if (serverRefs.characterThemeCombo != null) {
+            serverRefs.characterThemeCombo.setSelectedItem(theme.label());
+        }
+        applyCharacterTheme(theme, false);
     }
 
     private void applyRelayConfig(ConfigPersistenceService.CloudConfig config) {
@@ -2120,6 +2157,10 @@ public class App extends JFrame {
                 && serverRefs.trustAllSslCheckBox.isSelected();
         config.autoApplyUpdate = isAutoUpdateEnabled();
         config.checkForUpdates = isCheckForUpdatesEnabled();
+        if (serverRefs.characterThemeCombo != null && serverRefs.characterThemeCombo.getSelectedItem() != null) {
+            config.characterTheme = CharacterTheme.fromLabel(
+                    serverRefs.characterThemeCombo.getSelectedItem().toString()).id();
+        }
         config.backgroundBlurPercent = currentBackgroundBlurPercent();
         config.backgroundOpacityPercent = currentBackgroundOpacityPercent();
         captureRelayConfigInto(config);

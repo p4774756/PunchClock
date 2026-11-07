@@ -2,6 +2,7 @@ package com.example.service;
 
 import com.example.BuildInfo;
 import com.example.ui.TaskEditDialog;
+import com.example.ui.hud.CharacterTheme;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -101,6 +102,12 @@ public class ConfigPersistenceService {
         public boolean checkForUpdates = true;
         /** 有新版時，閒置自動下載並重啟更新（預設開啟；關閉則改為詢問） */
         public boolean autoApplyUpdate = true;
+
+        /**
+         * 角色主題 id。{@code sweater} 為原版毛衣女孩，{@code orbital} 為粉髮女駕駛。
+         * 缺欄位或無法辨識時正規化成原版。
+         */
+        public String characterTheme = CharacterTheme.SWEATER.id();
     }
 
     private static SlotSettings defaultWorkIn() {
@@ -241,6 +248,7 @@ public class ConfigPersistenceService {
         config.backgroundOpacityPercent = WindowBackground.clampOpacityPercent(config.backgroundOpacityPercent);
         config.relayPort = RelayProxyService.clampPort(config.relayPort);
         config.ignoredUpdateDigest = BuildInfo.normalizeDigest(config.ignoredUpdateDigest);
+        config.characterTheme = CharacterTheme.fromId(config.characterTheme).id();
     }
 
     public static int clampWindowTransparencyPercent(int percent) {

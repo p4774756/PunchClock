@@ -207,6 +207,29 @@ public class ConfigPersistenceServiceTest {
     }
 
     @Test
+    public void loadConfig_missingCharacterThemeDefaultsToSweater() throws Exception {
+        Files.writeString(configFile, "{\"windowTransparencyPercent\":0}");
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertEquals("sweater", loaded.characterTheme);
+    }
+
+    @Test
+    public void loadConfig_unknownCharacterThemeFallsBackToSweater() throws Exception {
+        Files.writeString(configFile, "{\"characterTheme\":\"pilot-v9\"}");
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertEquals("sweater", loaded.characterTheme);
+    }
+
+    @Test
+    public void saveAndLoad_persistsCharacterTheme() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.characterTheme = "orbital";
+        configService.saveConfig(config, null);
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertEquals("orbital", loaded.characterTheme);
+    }
+
+    @Test
     public void loadConfig_missingTransparencyDefaultsToOpaque() {
         ConfigPersistenceService.CloudConfig config = configService.loadConfig(null);
         assertEquals(0, config.windowTransparencyPercent);

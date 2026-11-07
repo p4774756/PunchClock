@@ -34,7 +34,9 @@ final class MacFrames {
             try {
                 Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (IOException alreadyMapped) {
-                Files.deleteIfExists(tmp);
+                // 舊行程還佔著固定路徑時，改載入這次複製的檔，避免繼續用舊的原生碼。
+                file = dir.resolve("libpunchclock-" + System.nanoTime() + ".dylib");
+                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
             }
             System.load(file.toAbsolutePath().toString());
             allowOverflow();

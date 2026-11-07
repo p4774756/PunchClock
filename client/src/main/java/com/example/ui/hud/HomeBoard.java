@@ -74,6 +74,8 @@ final class HomeBoard {
     private Rectangle seated;
     /** 文字右緣，手指從這裡開始。 */
     private int seatedTextRight = Integer.MAX_VALUE;
+    /** 軌道版「下一個任務」的半透明紫底。null 沿用原版卡片。 */
+    private Color reminderFill;
 
     void layout(Rectangle area) {
         schedule.setBounds(0, 0, 0, 0);
@@ -139,6 +141,36 @@ final class HomeBoard {
                 reminder.setBounds(cardX, seated.y, cardW, seated.height);
             }
         }
+    }
+
+    void clearSeat() {
+        seated = null;
+        seatedTextRight = Integer.MAX_VALUE;
+    }
+
+    void setReminderFill(Color fill) {
+        reminderFill = fill;
+    }
+
+    /** 軌道版卡片放在右側場景偏下，整張都在舞台裡面。 */
+    void seatOrbitalReminder() {
+        if (stage.width < 140 || stage.height < 120) {
+            return;
+        }
+        int cardW = Math.min(260, Math.max(168, stage.width * 46 / 100));
+        int cardH = Math.min(132, Math.max(96, stage.height * 18 / 100));
+        int x = stage.x + stage.width - cardW - 16;
+        int y = stage.y + Math.round(stage.height * 0.56f);
+        if (x < stage.x + 8) {
+            x = stage.x + 8;
+        }
+        if (y + cardH > stage.y + stage.height - 12) {
+            y = stage.y + stage.height - 12 - cardH;
+        }
+        if (y < stage.y + 8) {
+            y = stage.y + 8;
+        }
+        seatReminder(new Rectangle(x, y, cardW, cardH), x + cardW - 12);
     }
 
     /** 把「下一個任務」放在前臂下面。textRight 之後是手指，字不要畫過去。 */
@@ -582,7 +614,7 @@ final class HomeBoard {
         if (reminder.width < 80) {
             return;
         }
-        panel(g, reminder, PANEL);
+        panel(g, reminder, reminderFill == null ? PANEL : reminderFill);
         g.setColor(PANEL_EDGE_SOLID);
         g.drawRoundRect(reminder.x, reminder.y, reminder.width - 1, reminder.height - 1, 18, 18);
         g.setFont(UiFonts.chinesePlain(12));
