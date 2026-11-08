@@ -49,7 +49,7 @@ export const LOCATION:Record<string,{text:string;section:string;classic?:string}
  ST2:{text:'瞳孔直下，眶下緣下約 1 寸。',section:'',classic:'《針灸甲乙經》：目下一寸。'},
  ST3:{text:'鼻孔旁 8 分，瞳孔直下。',section:'',classic:'《針灸甲乙經》：俠鼻孔旁八分，直瞳子。'},
  ST4:{text:'嘴角外側約 0.4 寸。',section:'',classic:'《靈樞·經脈》胃經「還出挾口環唇」。《針灸甲乙經》：俠口旁四分。'},
- ST9:{text:'喉結旁約 1.5 寸。',section:'',classic:'《靈樞·寒熱病》：頸側之動脈人迎，在嬰筋之前。《針灸甲乙經》：頸大脈動應手，俠結喉。'},
+ ST9:{text:'廉泉旁開約 1.5 寸。',section:'',classic:'《靈樞·寒熱病》：頸側之動脈人迎，在嬰筋之前。《針灸甲乙經》：頸大脈動應手，俠結喉。'},
  TE23:{text:'眉毛外端凹陷。',section:'',classic:'《針灸甲乙經》：眉後陷者中。'},
  'EX-HN5':{text:'眉梢與外眼角之間，向後的凹陷。',section:'',classic:'經外奇穴。眼科書與《針灸大成》有這一處。《甲乙經》把「太陽」當作瞳子髎的別名，那個是外眼角旁五分，不是這裡。'},
  GB1:{text:'外眼角旁約 0.5 寸。',section:'',classic:'《針灸甲乙經》：目外去眥五分。一名太陽，一名前關。這裡的太陽是別名，不是顳側的奇穴太陽。'},
