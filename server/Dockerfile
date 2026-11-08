@@ -3,9 +3,7 @@
 FROM node:22-bookworm AS atlas
 WORKDIR /src
 COPY atlas-src/tcm-3d tcm-3d
-COPY atlas-src/tcm-acupoints tcm-acupoints
-RUN cd tcm-3d && npm ci && npm run build -- --base /atlas/tcm-3d/ \
-    && cd /src/tcm-acupoints && npm ci && npm run build -- --base /atlas/acupoints/
+RUN cd tcm-3d && npm ci && npm run build -- --base /atlas/tcm-3d/
 
 FROM maven:3.9-eclipse-temurin-11 AS build
 WORKDIR /app
@@ -37,7 +35,6 @@ WORKDIR /app
 COPY --from=build /app/server/target/punchclock-server.jar app.jar
 COPY --from=build /app/client/target/punchclock-client-standalone.jar client/punchclock-client-standalone.jar
 COPY --from=atlas /src/tcm-3d/dist /app/atlas/tcm-3d
-COPY --from=atlas /src/tcm-acupoints/dist /app/atlas/acupoints
 
 ENV PORT=3000
 ENV ATLAS_ROOT=/app/atlas

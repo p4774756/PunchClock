@@ -29,9 +29,9 @@ public class AtlasRoutesTest {
     @Before
     public void setUp() throws Exception {
         root = Files.createTempDirectory("punchclock-atlas");
-        Path appDir = root.resolve("acupoints");
+        Path appDir = root.resolve("tcm-3d");
         Files.createDirectories(appDir.resolve("models"));
-        Files.writeString(appDir.resolve("index.html"), "<!doctype html><title>穴位圖</title>atlas-ok");
+        Files.writeString(appDir.resolve("index.html"), "<!doctype html><title>中醫人體</title>atlas-ok");
         Files.writeString(appDir.resolve("models").resolve("body.txt"), "model-bytes");
         Files.writeString(root.resolve("secret.txt"), "do-not-leak");
         System.setProperty(AtlasRoutes.ROOT_PROPERTY, root.toString());
@@ -64,7 +64,7 @@ public class AtlasRoutesTest {
 
     @Test
     public void guestsCanOpenTheAtlas() throws Exception {
-        HttpResponse<String> response = send("GET", "/atlas/acupoints/", null);
+        HttpResponse<String> response = send("GET", "/atlas/tcm-3d/", null);
         assertEquals(200, response.statusCode());
         assertTrue(response.body().contains("atlas-ok"));
     }
@@ -72,19 +72,19 @@ public class AtlasRoutesTest {
     @Test
     public void signedInUserCanReadThePageAndANestedFile() throws Exception {
         String cookie = adminCookie();
-        HttpResponse<String> page = send("GET", "/atlas/acupoints/", cookie);
+        HttpResponse<String> page = send("GET", "/atlas/tcm-3d/", cookie);
         assertEquals(200, page.statusCode());
         assertTrue(page.body().contains("atlas-ok"));
         assertTrue(page.headers().firstValue("content-type").orElse("").startsWith("text/html"));
 
-        HttpResponse<String> model = send("GET", "/atlas/acupoints/models/body.txt", cookie);
+        HttpResponse<String> model = send("GET", "/atlas/tcm-3d/models/body.txt", cookie);
         assertEquals(200, model.statusCode());
         assertEquals("model-bytes", model.body());
     }
 
     @Test
     public void pathEscapeDoesNotLeaveTheAppDirectory() throws Exception {
-        HttpResponse<String> response = send("GET", "/atlas/acupoints/../secret.txt", adminCookie());
+        HttpResponse<String> response = send("GET", "/atlas/tcm-3d/../secret.txt", adminCookie());
         assertFalse(response.body().contains("do-not-leak"));
     }
 

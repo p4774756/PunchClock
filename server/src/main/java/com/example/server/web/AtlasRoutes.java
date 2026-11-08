@@ -14,14 +14,8 @@ import java.util.Set;
 public final class AtlasRoutes {
 
     static final String ROOT_PROPERTY = "punchclock.atlas.root";
-    private static final Set<String> APPS = Set.of("tcm-3d", "acupoints");
-    /** 網址上的 app 名稱，對到 atlas-src 裡的目錄。 */
-    private static final Map<String, String> SOURCE_DIRS = Map.of(
-            "tcm-3d", "tcm-3d",
-            "acupoints", "tcm-acupoints");
-    private static final Map<String, String> TITLES = Map.of(
-            "tcm-3d", "經穴推拿",
-            "acupoints", "穴位圖");
+    private static final Set<String> APPS = Set.of("tcm-3d");
+    private static final Map<String, String> TITLES = Map.of("tcm-3d", "中醫人體");
 
     public AtlasRoutes() {
     }
@@ -107,11 +101,7 @@ public final class AtlasRoutes {
     private static Path sourceDist(String appId) {
         Path dir = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
         for (int i = 0; i < 5 && dir != null; i++) {
-            String sourceDir = SOURCE_DIRS.get(appId);
-            if (sourceDir == null) {
-                return null;
-            }
-            Path dist = dir.resolve("atlas-src").resolve(sourceDir).resolve("dist").normalize();
+            Path dist = dir.resolve("atlas-src").resolve(appId).resolve("dist").normalize();
             if (Files.isRegularFile(dist.resolve("index.html"))) {
                 return dist;
             }
