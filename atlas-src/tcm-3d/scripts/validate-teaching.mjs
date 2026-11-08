@@ -396,7 +396,7 @@ try {
     } else anchoredTargets.push({marker, target, pointCode, side});
   }
   await test('十四經全量目錄、篩選、經脈開關及口內例外', () => {
-    assert.equal(POINTS.length,362);assert.equal(new Set(POINTS.map(p=>p.meridianId)).size,14);
+    assert.equal(POINTS.length,364);assert.equal(new Set(POINTS.map(p=>p.meridianId)).size,15);
     assert.equal(POINTS.filter(p=>p.code==='GV24+').length,1);
     assert.equal(anchored.getTarget(state({pointCode:'GV28'})),null);
     const lines=anchored.root.getObjectByName('meridian-paths');assert.equal(lines.children.length,26);

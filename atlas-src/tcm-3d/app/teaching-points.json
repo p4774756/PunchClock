@@ -1172,21 +1172,21 @@
     "meridian": "手陽明大腸經",
     "meridianId": "LI",
     "position": [
-      0.019314896858839303,
-      1.5650938684160125,
-      0.1107532045585137
+      0.013447100296616554,
+      1.5572011470794678,
+      0.08718500286340714
     ],
     "normal": [
-      0.14,
-      -0.4499999999999993,
-      1.1500000000000001
+      0.013447100296616554,
+      -0.00279885292053228,
+      0.06718500286340713
     ],
     "region": "head",
     "midline": false,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依 GB/T 12346 文字定位，對到這具模型的鼻翼、瞳孔線與口唇後貼回皮膚。仍是工程示意，未經逐穴專業審核。",
     "originalPosition": [
       0.02,
       1.625,
@@ -1200,21 +1200,21 @@
     "meridian": "手陽明大腸經",
     "meridianId": "LI",
     "position": [
-      0.021234931618599743,
-      1.5842945867843947,
-      0.10787684274677288
+      0.021067999303340912,
+      1.5606012344360352,
+      0.08132100105285645
     ],
     "normal": [
-      0.154,
-      -0.2499999999999991,
-      1.12
+      0.021067999303340912,
+      -0.019398765563964915,
+      0.06132100105285644
     ],
     "region": "head",
     "midline": false,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0.022,
       1.645,
@@ -1228,21 +1228,21 @@
     "meridian": "足陽明胃經",
     "meridianId": "ST",
     "position": [
-      0.03371494049200605,
-      1.5938947701681252,
-      0.11075777149663292
+      0.028786800801753998,
+      1.591251254081726,
+      0.06832999736070633
     ],
     "normal": [
-      0.24500000000000002,
-      -0.14999999999999902,
-      1.1500000000000001
+      0.028786800801753998,
+      0.011251254081726003,
+      0.048329997360706325
     ],
     "region": "head",
     "midline": false,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0.035,
       1.655,
@@ -1255,19 +1255,19 @@
     "pinyin": "Sibai",
     "meridian": "足陽明胃經",
     "position": [
-      0.035635,
-      1.579496,
-      0.112684
+      0.02747819945216179,
+      1.5656611919403076,
+      0.07709400355815887
     ],
     "normal": [
-      0,
-      0,
-      1
+      0.02747819945216179,
+      -0.014338808059692454,
+      0.05709400355815887
     ],
     "region": "head",
     "midline": false,
     "reviewed": false,
-    "positionProvenance": "現有銅人示意座標經整體尺度轉換，僅供交互驗證，未經過專家定位複核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "source": "https://tcm.jic.io/bronzeman",
     "meridianId": "ST"
   },
@@ -1278,21 +1278,21 @@
     "meridian": "足陽明胃經",
     "meridianId": "ST",
     "position": [
-      0.0365949374757658,
-      1.5650947078324935,
-      0.11075745579682048
+      0.03178559988737106,
+      1.5535411834716797,
+      0.07641799747943878
     ],
     "normal": [
-      0.266,
-      -0.4499999999999993,
-      1.1500000000000001
+      0.03178559988737106,
+      -0.026458816528320384,
+      0.05641799747943878
     ],
     "region": "head",
     "midline": false,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0.038,
       1.625,
@@ -1306,21 +1306,21 @@
     "meridian": "足陽明胃經",
     "meridianId": "ST",
     "position": [
-      0.03851478394787502,
-      1.5458915349227504,
-      0.10786138654425194
+      0.02944999933242798,
+      1.5389212369918823,
+      0.0748089998960495
     ],
     "normal": [
-      0.28,
-      -0.6499999999999995,
-      1.12
+      0.02944999933242798,
+      -0.04107876300811775,
+      0.054808999896049496
     ],
     "region": "head",
     "midline": false,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0.04,
       1.605,
@@ -1446,21 +1446,21 @@
     "meridian": "足陽明胃經",
     "meridianId": "ST",
     "position": [
-      0.030075574593804923,
-      1.5022038916991869,
-      0.07185684604725519
+      0.02682109922170639,
+      1.447141170501709,
+      0.02739899978041649
     ],
     "normal": [
+      0.02682109922170639,
       0,
-      0,
-      1
+      0.04739899978041649
     ],
     "region": "shoulder",
     "midline": false,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0.045,
       1.53,
@@ -4111,21 +4111,21 @@
     "meridian": "手太陽小腸經",
     "meridianId": "SI",
     "position": [
-      0.046194791187507564,
-      1.569891684541823,
-      0.08674214429245854
+      0.046974800527095795,
+      1.5711811780929565,
+      0.0651639997959137
     ],
     "normal": [
-      0.336,
-      -0.40000000000000036,
-      0.8999999999999999
+      0.046974800527095795,
+      -0.008818821907043528,
+      0.04516399979591369
     ],
     "region": "head",
     "midline": false,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0.048,
       1.63,
@@ -4167,21 +4167,21 @@
     "meridian": "足太陽膀胱經",
     "meridianId": "BL",
     "position": [
-      0.017394837573210534,
-      1.6034926431796845,
-      0.10786699932936916
+      0.016889700666069984,
+      1.6052112579345703,
+      0.0701799988746643
     ],
     "normal": [
-      0.126,
-      -0.049999999999998934,
-      1.12
+      0.016889700666069984,
+      0.02521125793457024,
+      0.0501799988746643
     ],
     "region": "head",
     "midline": false,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0.018,
       1.665,
@@ -4195,21 +4195,21 @@
     "meridian": "足太陽膀胱經",
     "meridianId": "BL",
     "position": [
-      0.021234663757345316,
-      1.6226890509851366,
-      0.10112880660214309
+      0.012035699561238289,
+      1.63335120677948,
+      0.08111000061035156
     ],
     "normal": [
-      0.154,
-      0.15000000000000124,
-      1.05
+      0.012035699561238289,
+      0.05335120677947991,
+      0.06111000061035156
     ],
     "region": "head",
     "midline": false,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0.022,
       1.685,
@@ -7993,21 +7993,21 @@
     "meridian": "手少陽三焦經",
     "meridianId": "TE",
     "position": [
-      0.055794350775193804,
-      1.6322825826873386,
-      0.08189604780361757
+      0.04698589816689491,
+      1.6270111799240112,
+      0.069691002368927
     ],
     "normal": [
-      0.406,
-      0.25000000000000133,
-      0.8500000000000001
+      0.04698589816689491,
+      0.04701117992401116,
+      0.049691002368927
     ],
     "region": "head",
     "midline": false,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0.058,
       1.695,
@@ -8021,21 +8021,21 @@
     "meridian": "足少陽膽經",
     "meridianId": "GB",
     "position": [
-      0.05291469730298393,
-      1.613089744261668,
-      0.09441231771231828
+      0.053470201790332794,
+      1.5997711420059204,
+      0.05354699864983559
     ],
     "normal": [
-      0.385,
-      0.050000000000001155,
-      0.98
+      0.053470201790332794,
+      0.01977114200592034,
+      0.03354699864983558
     ],
     "region": "head",
     "midline": false,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0.055,
       1.675,
@@ -8385,21 +8385,21 @@
     "meridian": "足少陽膽經",
     "meridianId": "GB",
     "position": [
-      0.04811415050032279,
-      1.6514784436733378,
-      0.08187508570045192
+      0.028810899704694748,
+      1.6476812362670898,
+      0.07523699849843979
     ],
     "normal": [
-      0.35000000000000003,
-      0.4500000000000015,
-      0.8500000000000001
+      0.028810899704694748,
+      0.06768123626708977,
+      0.055236998498439785
     ],
     "region": "head",
     "midline": false,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0.05,
       1.715,
@@ -10319,20 +10319,20 @@
     "meridianId": "GV",
     "position": [
       0,
-      1.7186375643295442,
-      -0.004731948395533647
+      1.7174311876296997,
+      -0.024362999945878983
     ],
     "normal": [
       0,
-      1.15,
-      -0.05
+      0.13743118762969964,
+      -0.044362999945878986
     ],
     "region": "head",
     "midline": true,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0,
       1.785,
@@ -10403,20 +10403,20 @@
     "meridianId": "GV",
     "position": [
       0,
-      1.6706707881981033,
-      0.07703631442265202
+      1.699451208114624,
+      0.04656299948692322
     ],
     "normal": [
       0,
-      0.6500000000000017,
-      0.8
+      0.11945120811462395,
+      0.026562999486923217
     ],
     "region": "head",
     "midline": true,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0,
       1.735,
@@ -10459,20 +10459,20 @@
     "meridianId": "GV",
     "position": [
       0,
-      1.615,
-      0.075
+      1.630041241645813,
+      0.08176899701356888
     ],
     "normal": [
       0,
-      0,
-      1
+      0.05004124164581292,
+      0.061768997013568874
     ],
     "region": "head",
     "midline": true,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "GB/T 12346—2021 編號；眉間工程種子，未專業審校。"
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。"
   },
   {
     "code": "GV25",
@@ -10482,20 +10482,20 @@
     "meridianId": "GV",
     "position": [
       0,
-      1.5746917240519565,
-      0.12322234439216632
+      1.565621256828308,
+      0.10506000369787216
     ],
     "normal": [
       0,
-      -0.3499999999999992,
-      1.28
+      0.005621256828308052,
+      0.08506000369787216
     ],
     "region": "head",
     "midline": true,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依 GB/T 12346 文字定位，對到這具模型的鼻翼、瞳孔線與口唇後貼回皮膚。仍是工程示意，未經逐穴專業審核。",
     "originalPosition": [
       0,
       1.635,
@@ -10510,20 +10510,20 @@
     "meridianId": "GV",
     "position": [
       0,
-      1.5458885812640606,
-      0.11744642769217707
+      1.5480711460113525,
+      0.09063900262117386
     ],
     "normal": [
       0,
-      -0.6499999999999995,
-      1.22
+      -0.03192885398864753,
+      0.07063900262117385
     ],
     "region": "head",
     "midline": true,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0,
       1.605,
@@ -10538,20 +10538,20 @@
     "meridianId": "GV",
     "position": [
       0,
-      1.526684177389287,
-      0.11550412419735698
+      1.5417711734771729,
+      0.08939599990844727
     ],
     "normal": [
       0,
-      -0.8499999999999996,
-      1.2
+      -0.0182288265228272,
+      0.06939599990844726
     ],
     "region": "head",
     "midline": true,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依 GB/T 12346 文字定位，對到這具模型的鼻翼、瞳孔線與口唇後貼回皮膚。仍是工程示意，未經逐穴專業審核。",
     "originalPosition": [
       0,
       1.585,
@@ -11178,20 +11178,20 @@
     "meridianId": "CV",
     "position": [
       0,
-      1.437249432456094,
-      0.0726619824747211
+      1.3968112468719482,
+      0.058212000876665115
     ],
     "normal": [
       0,
       0,
-      1
+      0.07821200087666512
     ],
     "region": "shoulder",
     "midline": true,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0,
       1.465,
@@ -11206,20 +11206,20 @@
     "meridianId": "CV",
     "position": [
       0,
-      1.5137235613849138,
-      0.08717233526082936
+      1.460211157798767,
+      0.02775000035762787
     ],
     "normal": [
       0,
       0,
-      1
+      0.04775000035762787
     ],
     "region": "shoulder",
     "midline": true,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0,
       1.545,
@@ -11234,24 +11234,70 @@
     "meridianId": "CV",
     "position": [
       0,
-      1.5410871778106643,
-      0.11071931987981525
+      1.5164211988449097,
+      0.08270200341939926
     ],
     "normal": [
       0,
-      -0.6999999999999984,
-      1.1500000000000001
+      -0.0635788011550904,
+      0.06270200341939926
     ],
     "region": "head",
     "midline": true,
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。",
     "originalPosition": [
       0,
       1.6,
       0.115
     ]
+  },
+  {
+    "code": "EX-HN4",
+    "name": "魚腰",
+    "pinyin": "Yuyao",
+    "meridian": "經外奇穴",
+    "meridianId": "EX",
+    "position": [
+      0.031613100320100784,
+      1.6229711771011353,
+      0.07846900075674057
+    ],
+    "normal": [
+      0.031613100320100784,
+      0.04297117710113518,
+      0.058469000756740566
+    ],
+    "region": "head",
+    "midline": false,
+    "reviewed": false,
+    "generated": true,
+    "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。"
+  },
+  {
+    "code": "EX-HN5",
+    "name": "太陽",
+    "pinyin": "Taiyang",
+    "meridian": "經外奇穴",
+    "meridianId": "EX",
+    "position": [
+      0.05569950118660927,
+      1.6199212074279785,
+      0.05104999989271164
+    ],
+    "normal": [
+      0.05569950118660927,
+      0.039921207427978445,
+      0.03104999989271164
+    ],
+    "region": "head",
+    "midline": false,
+    "reviewed": false,
+    "generated": true,
+    "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
+    "positionProvenance": "依文字定位對到這具模型皮膚。未經逐穴專業審核。"
   }
 ]

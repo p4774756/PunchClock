@@ -18,6 +18,7 @@
 @media(max-width:767px){.pain-entry{position:relative;order:1;top:auto;left:auto;transform:none;align-self:center;margin-top:8px;font-size:11px;padding:8px 18px}.pain-relations-panel{font-size:12px}.pain-case-grid button,.pain-controls button{font-size:11px;min-height:36px}.pain-point-group>button{min-height:37px;font-size:12px}.pain-relations-panel>p,.pain-evidence{font-size:11px}}
 @media(min-width:768px) and (max-height:600px){.pain-entry{top:128px}}
 
+.classic-source{margin-top:8px;padding-top:8px;border-top:1px solid #e3e8e2}
 .meridian-controls{padding:8px 0;display:grid;gap:7px;font-size:12px}.meridian-controls select{display:block;width:100%;margin-top:5px;padding:8px;border:1px solid #d8d5cb;border-radius:7px;background:#f8f6ef;color:#3c524b}.meridian-controls small{font-size:10px;line-height:1.5;opacity:.65}.meridian-toggle{display:flex;gap:6px;align-items:center}.meridian-navigation{display:flex;gap:8px;margin:12px 0}.meridian-navigation button{flex:1;padding:7px;border:1px solid #d8d5cb;border-radius:6px;background:transparent;color:inherit}
 
 .meridian-controls{padding:8px 15px;flex-shrink:0}.region-disclosure{padding:3px 15px;flex-shrink:0}.region-disclosure summary{font-size:11px;cursor:pointer;color:#60776a;padding:5px 0}.region-disclosure .section-label{margin-top:8px}.point-list{min-height:85px}.point-list-foot{flex-shrink:0}
