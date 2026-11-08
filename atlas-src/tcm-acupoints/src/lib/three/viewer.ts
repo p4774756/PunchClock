@@ -78,7 +78,7 @@ export class AcupointViewer {
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.domElement.setAttribute(
       "aria-label",
-      "交互式三维经络穴位图。拖拽旋转，滚轮缩放，点击穴位查看详情。",
+      "交互式三維經絡穴位圖。拖拽旋轉，滾輪縮放，點擊穴位查看詳情。",
     );
     this.renderer.domElement.tabIndex = 0;
     container.appendChild(this.renderer.domElement);

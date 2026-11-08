@@ -78,16 +78,16 @@ export function AcupointApp() {
       <header className="topbar">
         <button className="brand" type="button" onClick={() => selectMeridian("li")}>
           <strong>
-            经络穴位图<sup>✦</sup>
+            經絡穴位圖<sup>✦</sup>
           </strong>
-          <em>循经取穴 · 立体明堂</em>
+          <em>循經取穴 · 立體明堂</em>
         </button>
-        <nav className="main-nav" aria-label="主导航">
+        <nav className="main-nav" aria-label="主導航">
           <button type="button" className="active">
             <Compass size={17} /> 探索
           </button>
           <button type="button">
-            <Activity size={17} /> 十四经
+            <Activity size={17} /> 十四經
           </button>
           <button type="button">
             <BookOpen size={17} /> 取穴法
@@ -98,7 +98,7 @@ export function AcupointApp() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索穴位、经络、拼音…"
+            placeholder="搜索穴位、經絡、拼音…"
           />
           {query && (
             <button type="button" className="clear-q" onClick={() => setQuery("")} aria-label="清除">
@@ -109,7 +109,7 @@ export function AcupointApp() {
         <button
           className="mobile-library-trigger"
           onClick={() => setMobileLibrary(true)}
-          aria-label="打开经络列表"
+          aria-label="打開經絡列表"
           type="button"
         >
           <LibraryBig size={20} />
@@ -139,9 +139,9 @@ export function AcupointApp() {
       <div className="workspace">
         <aside className={`organ-library ${mobileLibrary ? "open" : ""}`}>
           <div className="panel-heading">
-            <span>十四经脉</span>
+            <span>十四經脈</span>
             <button
-              aria-label="关闭"
+              aria-label="關閉"
               className="mobile-close"
               onClick={() => setMobileLibrary(false)}
               type="button"
@@ -176,16 +176,16 @@ export function AcupointApp() {
               checked={showBilateral}
               onChange={(e) => setShowBilateral(e.target.checked)}
             />
-            显示双侧穴位
+            顯示雙側穴位
           </label>
           <blockquote>
             <Sparkles size={18} />
             <p>
-              经脉者，
+              經脈者，
               <br />
-              所以能决死生…
+              所以能決死生…
             </p>
-            <em>— 《灵枢·经脉》</em>
+            <em>— 《靈樞·經脈》</em>
           </blockquote>
         </aside>
 
@@ -230,18 +230,18 @@ export function AcupointApp() {
               </p>
               {detail.url && (
                 <a className="lesson-button" data-reveal href={detail.url} target="_blank" rel="noreferrer">
-                  查阅医学百科 <ArrowRight size={16} />
+                  查閱醫學百科 <ArrowRight size={16} />
                 </a>
               )}
               <button className="ghost-btn" data-reveal type="button" onClick={() => setSelected(null)}>
-                返回经络概览
+                返回經絡概覽
               </button>
             </>
           ) : (
             <>
               <div className="info-kicker" data-reveal>
                 <span className="kicker-dot" style={{ background: meridian.accent }} />
-                {meridian.nature}经 · {meridian.element}
+                {meridian.nature}經 · {meridian.element}
               </div>
               <div className="info-title-row" data-reveal>
                 <div>
@@ -261,7 +261,7 @@ export function AcupointApp() {
               <p className="body-text" data-reveal>
                 {meridian.pathHint}
               </p>
-              <h2 data-reveal>本经穴位</h2>
+              <h2 data-reveal>本經穴位</h2>
               <div className="point-grid" data-reveal>
                 {meridian.points
                   .filter((p) => p.side === "right" || p.side === "mid")
@@ -276,7 +276,7 @@ export function AcupointApp() {
                 <Sparkles size={15} />
                 <p>
                   <b>操作提示</b>
-                  拖拽旋转人体，滚轮缩放；点击光点或下方穴位名称即可查看详解。
+                  拖拽旋轉人體，滾輪縮放；點擊光點或下方穴位名稱即可查看詳解。
                 </p>
               </div>
             </>

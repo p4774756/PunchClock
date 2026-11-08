@@ -63,10 +63,10 @@ public class AtlasRoutesTest {
     }
 
     @Test
-    public void guestsAreSentToLogin() throws Exception {
+    public void guestsCanOpenTheAtlas() throws Exception {
         HttpResponse<String> response = send("GET", "/atlas/acupoints/", null);
-        assertEquals(302, response.statusCode());
-        assertEquals("/login", response.headers().firstValue("location").orElse(""));
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("atlas-ok"));
     }
 
     @Test

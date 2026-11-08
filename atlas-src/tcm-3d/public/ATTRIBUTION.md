@@ -28,22 +28,22 @@ Adaptations: translated native meter/Y-up coordinates onto the stage, coincident
 
 This is a reference assembly with whole-body surface and selected organs, including female reproductive anatomy. Its skeleton and muscle coverage is partial. It is not a complete model of every human structure or a single-person scan. Eight placenta/umbilical structures are classified under Pregnancy reference and hidden by default.
 
-## 中医教学台的代码适配
+## 中醫教學臺的代碼適配
 
-头皮取穴展示隐藏独立头发网格（FJ2813），露出原有头皮及其穴位标记；原始模型资产不变。
+頭皮取穴展示隱藏獨立頭髮網格（FJ2813），露出原有頭皮及其穴位標記；原始模型資產不變。
 
-本地中医教学界面基于 ashemag / Human Atlas（MIT）改编。原始代码版权声明和许可全文见 [CODE-LICENSE.txt](CODE-LICENSE.txt)，代码来源：https://github.com/ashemag/human-atlas 。
+本地中醫教學界面基於 ashemag / Human Atlas（MIT）改編。原始代碼版權聲明和許可全文見 [CODE-LICENSE.txt](CODE-LICENSE.txt)，代碼來源：https://github.com/ashemag/human-atlas 。
 
-本项目新增中文界面、穴位工程覆盖层、六种工具几何、肤色/程序纹理、皮肤接触反应示意及教学控制。上述视觉适配没有完成医学逐穴定位校核，也没有改变人体数据的独立 CC BY 4.0 许可。
+本項目新增中文界面、穴位工程覆蓋層、六種工具幾何、膚色/程序紋理、皮膚接觸反應示意及教學控制。上述視覺適配沒有完成醫學逐穴定位校核，也沒有改變人體數據的獨立 CC BY 4.0 許可。
 
-2026-09-07：增加十四经穴目录与分段体表经脉示意。种子坐标来自本项目旧 PressPoints 铜人，经区域参考适配及几何吸附；未经医学逐穴审核。课堂体表移除男性外生殖器区域的原表面及独立阴毛网格，以与边界连接的平滑皮肤曲面替换，并重新计算浮点法线，原始模型资产保持不变；简化区域不用于精细解剖或取穴。龈交仅收录目录，不放置外皮肤标记。
+2026-09-07：增加十四經穴目錄與分段體表經脈示意。種子座標來自本項目舊 PressPoints 銅人，經區域參考適配及幾何吸附；未經醫學逐穴審核。課堂體表移除男性外生殖器區域的原表面及獨立陰毛網格，以與邊界連接的平滑皮膚曲面替換，並重新計算浮點法線，原始模型資產保持不變；簡化區域不用於精細解剖或取穴。齦交僅收錄目錄，不放置外皮膚標記。
 
-## 穴位坐标的来源与权利
+## 穴位座標的來源與權利
 
-十四经穴的三维坐标种子（`data/legacy-meridians.mjs`）由 JIC 在早前的 PressPoints 铜人项目中自行标定：在人体模型表面由人工目测点取，并非从任何第三方穴位数据集、商业素材或开源坐标表复制而来。权利归属 © JIC contributors，随本项目以 MIT 发布。
+十四經穴的三維座標種子（`data/legacy-meridians.mjs`）由 JIC 在早前的 PressPoints 銅人項目中自行標定：在人體模型表面由人工目測點取，並非從任何第三方穴位數據集、商業素材或開源座標表複製而來。權利歸屬 © JIC contributors，隨本項目以 MIT 發佈。
 
-`app/teaching-points.json` 中的最终位置由上述种子经区域参考适配与几何吸附生成，每条记录的 `positionProvenance` 字段说明该点参照了 BodyParts3D 的哪些骨性或肌性标志。参照解剖模型定位这一行为不使 BodyParts3D 的 CC BY 4.0 许可扩展到坐标本身；模型几何文件的许可见本文件开头。
+`app/teaching-points.json` 中的最終位置由上述種子經區域參考適配與幾何吸附生成，每條記錄的 `positionProvenance` 字段說明該點參照了 BodyParts3D 的哪些骨性或肌性標誌。參照解剖模型定位這一行為不使 BodyParts3D 的 CC BY 4.0 許可擴展到座標本身；模型幾何文件的許可見本文件開頭。
 
-穴位名称与编号采用 GB/T 12346—2021（362 穴，含 GV24+ 印堂）。标准文本本身的权利归属发布机构，本项目仅使用其名称与编号体系。
+穴位名稱與編號採用 GB/T 12346—2021（362 穴，含 GV24+ 印堂）。標準文本本身的權利歸屬發佈機構，本項目僅使用其名稱與編號體系。
 
-全部坐标标记 `reviewed: false`，是教学显示用的工程值，未经执业医师逐穴校核，不代表标准取穴精度。复用者请保留这一限制说明。
+全部座標標記 `reviewed: false`，是教學顯示用的工程值，未經執業醫師逐穴校核，不代表標準取穴精度。複用者請保留這一限制說明。

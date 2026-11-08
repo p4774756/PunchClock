@@ -80,7 +80,7 @@ export function installSurfaceToolInput(o:Options){
  return {
   isDragging:()=>drag.pointerId!==null||blocked,
   update:()=>{
-   handle.disabled=!canDrag();handle.title=handle.disabled?'显示皮肤后可移动工具':'按住拖动工具；方向键微调，Shift 加速';
+   handle.disabled=!canDrag();handle.title=handle.disabled?'顯示皮膚後可移動工具':'按住拖動工具；方向鍵微調，Shift 加速';
    if(drag.pointerId===null)return;const s=o.getSimulation();if(s.dragging)seenDragging=true;
    if(!canDrag()||s.tool!==stamp.tool||s.focus!==stamp.focus||o.getState().reset!==stamp.reset||(seenDragging&&!s.dragging)){finish('cancel');return;}
    applyPending();

@@ -9,10 +9,10 @@ let passed = 0;
 const test = (name, run) => {
   run();
   passed++;
-  console.log(`通过：${name}`);
+  console.log(`通過：${name}`);
 };
 
-test('空闲状态及重复结束、取消安全', () => {
+test('空閒狀態及重複結束、取消安全', () => {
   const drag = new ToolDrag();
   assert.equal(drag.pointerId, null);
   assert.equal(drag.moved, false);
@@ -22,7 +22,7 @@ test('空闲状态及重复结束、取消安全', () => {
   assert.equal(drag.cancel(), null);
 });
 
-test('抓住器具偏离接触点的位置，拖动仍保持偏移而不跳点', () => {
+test('抓住器具偏離接觸點的位置，拖動仍保持偏移而不跳點', () => {
   const drag = new ToolDrag();
   assert.equal(drag.begin(7, 120, 75, 100, 100), true);
   assert.equal(drag.move(7, 120, 75), null);
@@ -31,7 +31,7 @@ test('抓住器具偏离接触点的位置，拖动仍保持偏移而不跳点',
   assert.equal(drag.pointerId, 7);
 });
 
-test('3 像素阈值由起始距离计算，小幅来回不累计成拖动', () => {
+test('3 像素閾值由起始距離計算，小幅來回不累計成拖動', () => {
   const drag = new ToolDrag();
   drag.begin(1, 10, 10, 10, 10);
   for (let i = 0; i < 20; i++) {
@@ -43,7 +43,7 @@ test('3 像素阈值由起始距离计算，小幅来回不累计成拖动', () 
   assert.equal(drag.moved, true);
 });
 
-test('对角线跨阈值生效，回到起点仍保持拖动语义', () => {
+test('對角線跨閾值生效，回到起點仍保持拖動語義', () => {
   const drag = new ToolDrag();
   drag.begin(1, 0, 0, 0, 0);
   assert.deepEqual(drag.move(1, 2, 2.5), {x: 2, y: 2.5});
@@ -51,7 +51,7 @@ test('对角线跨阈值生效，回到起点仍保持拖动语义', () => {
   assert.equal(drag.moved, true);
 });
 
-test('同一或第二指不能覆盖拥有者，非拥有者不能移动或结束', () => {
+test('同一或第二指不能覆蓋擁有者，非擁有者不能移動或結束', () => {
   const drag = new ToolDrag();
   assert.equal(drag.begin(4, 20, 30, 10, 10), true);
   assert.equal(drag.begin(4, 100, 100, 100, 100), false);
@@ -63,7 +63,7 @@ test('同一或第二指不能覆盖拥有者，非拥有者不能移动或结�
   assert.deepEqual(drag.move(4, 25, 35), {x: 15, y: 15});
 });
 
-test('结束清理状态，新的手势使用新偏移与新阈值', () => {
+test('結束清理狀態，新的手勢使用新偏移與新閾值', () => {
   const drag = new ToolDrag();
   drag.begin(3, 10, 10, 0, 0);
   drag.move(3, 30, 30);
@@ -76,7 +76,7 @@ test('结束清理状态，新的手势使用新偏移与新阈值', () => {
   assert.deepEqual(drag.move(9, 55, 60), {x: 50, y: 65});
 });
 
-test('取消返回原拥有者，可重复安全且下一次手势恢复', () => {
+test('取消返回原擁有者，可重複安全且下一次手勢恢復', () => {
   const drag = new ToolDrag();
   drag.begin(0, 0, 0, 0, 0);
   drag.move(0, 20, 0);
@@ -88,7 +88,7 @@ test('取消返回原拥有者，可重复安全且下一次手势恢复', () =>
   assert.deepEqual(drag.move(2, 3, 0), {x: 3, y: 0});
 });
 
-test('begin 中每个非有限输入均拒绝，不创建残留拥有者', () => {
+test('begin 中每個非有限輸入均拒絕，不創建殘留擁有者', () => {
   for (const invalid of [NaN, Infinity, -Infinity]) {
     for (let field = 0; field < 5; field++) {
       const drag = new ToolDrag();
@@ -102,7 +102,7 @@ test('begin 中每个非有限输入均拒绝，不创建残留拥有者', () =>
   }
 });
 
-test('move 非有限输入不改变状态，也不能抢占或结束拥有者', () => {
+test('move 非有限輸入不改變狀態，也不能搶佔或結束擁有者', () => {
   const drag = new ToolDrag();
   drag.begin(1, 10, 10, 0, 0);
   for (const invalid of [NaN, Infinity, -Infinity]) {
@@ -117,7 +117,7 @@ test('move 非有限输入不改变状态，也不能抢占或结束拥有者', 
   assert.deepEqual(drag.move(1, 15, 10), {x: 5, y: 0});
 });
 
-test('有限输入相减溢出时拒绝，输出始终保持有限', () => {
+test('有限輸入相減溢出時拒絕，輸出始終保持有限', () => {
   const drag = new ToolDrag();
   assert.equal(drag.begin(1, Number.MAX_VALUE, 0, -Number.MAX_VALUE, 0), false);
   assert.equal(drag.begin(1, 0, 0, Number.MAX_VALUE, 0), true);
@@ -126,4 +126,4 @@ test('有限输入相减溢出时拒绝，输出始终保持有限', () => {
   assert.deepEqual(drag.move(1, -10, 0), {x: Number.MAX_VALUE, y: 0});
 });
 
-console.log(`${passed} 项工具拖动状态检查通过。`);
+console.log(`${passed} 項工具拖動狀態檢查通過。`);

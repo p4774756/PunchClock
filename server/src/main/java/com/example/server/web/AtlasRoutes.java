@@ -1,6 +1,5 @@
 package com.example.server.web;
 
-import com.example.server.auth.AuthService;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 
@@ -11,19 +10,20 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/** 登入後才看得到的經穴圖。檔案在磁碟，不打進 jar。 */
+/** 經穴圖靜態站。不必登入。檔案在磁碟，不打進 jar。 */
 public final class AtlasRoutes {
 
     static final String ROOT_PROPERTY = "punchclock.atlas.root";
     private static final Set<String> APPS = Set.of("tcm-3d", "acupoints");
+    /** 網址上的 app 名稱，對到 atlas-src 裡的目錄。 */
+    private static final Map<String, String> SOURCE_DIRS = Map.of(
+            "tcm-3d", "tcm-3d",
+            "acupoints", "tcm-acupoints");
     private static final Map<String, String> TITLES = Map.of(
             "tcm-3d", "經穴推拿",
             "acupoints", "穴位圖");
 
-    private final AuthService authService;
-
-    public AtlasRoutes(AuthService authService) {
-        this.authService = authService;
+    public AtlasRoutes() {
     }
 
     public void register(Javalin app) {
@@ -33,10 +33,6 @@ public final class AtlasRoutes {
     }
 
     private void serve(Context ctx, String relativePath) throws IOException {
-        if (!authService.isAuth(ctx)) {
-            ctx.redirect("/login");
-            return;
-        }
         String appId = ctx.pathParam("app");
         if (!APPS.contains(appId)) {
             ctx.status(404).html(page("沒有這份經穴圖"));
@@ -111,7 +107,11 @@ public final class AtlasRoutes {
     private static Path sourceDist(String appId) {
         Path dir = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
         for (int i = 0; i < 5 && dir != null; i++) {
-            Path dist = dir.resolve("atlas-src").resolve(appId).resolve("dist").normalize();
+            String sourceDir = SOURCE_DIRS.get(appId);
+            if (sourceDir == null) {
+                return null;
+            }
+            Path dist = dir.resolve("atlas-src").resolve(sourceDir).resolve("dist").normalize();
             if (Files.isRegularFile(dist.resolve("index.html"))) {
                 return dist;
             }

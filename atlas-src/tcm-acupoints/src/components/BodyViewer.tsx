@@ -79,7 +79,7 @@ export function BodyViewer({
       {showLoader && (
         <div className="viewport-loader" role="status">
           <div className="loader-ring" />
-          <p>加载人体模型…</p>
+          <p>加載人體模型…</p>
           <small>{Math.round(progress * 100)}%</small>
         </div>
       )}
@@ -103,24 +103,24 @@ export function BodyViewer({
           type="button"
           className={autoRotate ? "active" : ""}
           onClick={() => onAutoRotate(!autoRotate)}
-          title="自动旋转"
+          title="自動旋轉"
         >
           <Scan size={16} />
-          旋转
+          旋轉
         </button>
-        <button type="button" onClick={() => viewerRef.current?.resetView()} title="复位视角">
+        <button type="button" onClick={() => viewerRef.current?.resetView()} title="復位視角">
           <RotateCcw size={16} />
-          复位
+          復位
         </button>
-        <button type="button" title="滚轮缩放" disabled>
+        <button type="button" title="滾輪縮放" disabled>
           <ZoomIn size={16} />
-          缩放
+          縮放
         </button>
       </div>
 
       <div className="viewport-hint">
         <span className="hint-dot" style={{ background: meridian.accent }} />
-        三维经络标本 · 穴位已吸附体表
+        三維經絡標本 · 穴位已吸附體表
         {label && (
           <em>
             {label.name} · {label.pinyin}

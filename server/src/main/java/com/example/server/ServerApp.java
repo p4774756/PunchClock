@@ -57,7 +57,7 @@ public final class ServerApp {
     private final MarqueeStore marqueeStore = new MarqueeStore();
     private final MarqueeRoutes marqueeRoutes = new MarqueeRoutes(authService, marqueeStore);
     private final PhotoRoutes photoRoutes = new PhotoRoutes(authService);
-    private final AtlasRoutes atlasRoutes = new AtlasRoutes(authService);
+    private final AtlasRoutes atlasRoutes = new AtlasRoutes();
     private final ClientRelease clientRelease;
 
     public ServerApp() {

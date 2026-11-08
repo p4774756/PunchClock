@@ -24,7 +24,7 @@ export function createTeachingOverlay(scene:T.Scene,useBaked=true){
  const trail=Array.from({length:128},()=>{const mesh=new T.Mesh(trailGeometry,trailMaterial);mesh.visible=false;trailRoot.add(mesh);return mesh;});let trailCount=0;const previousStroke=new T.Vector3(Infinity,Infinity,Infinity);
  const axis=new T.Vector3(0,0,1),n=new T.Vector3(),v=new T.Vector3(),origin=new T.Vector3();
  const ray=new T.Raycaster();let anchored=false,lastFocus=-1,lastRelease=0,releaseAt=-1;let skinSurface:T.Mesh|null=null;
- const label=document.createElement('button');label.type='button';label.className='contact-label tool-drag-handle';label.setAttribute('aria-label','移动当前工具');label.title='按住拖动工具；方向键微调位置';label.hidden=true;
+ const label=document.createElement('button');label.type='button';label.className='contact-label tool-drag-handle';label.setAttribute('aria-label','移動當前工具');label.title='按住拖動工具；方向鍵微調位置';label.hidden=true;
  const resolvePoint=(code:string,side:1|-1)=>surface.get(`${code}:${POINT_BY_CODE.get(code)?.midline?1:side}`)??pointTarget(code,side);
  const pain=createPainOverlay(resolvePoint);root.add(pain.root);
  const meridianRoot=new T.Group();meridianRoot.name='meridian-paths';root.add(meridianRoot);
@@ -95,7 +95,7 @@ export function createTeachingOverlay(scene:T.Scene,useBaked=true){
   for(let i=0;i<pulses.length;i++){const m=pulses[i],phase=(s.elapsed*.55+i/3)%1;m.scale.setScalar(s.tool==='needle'?.5+phase:s.tool==='moxa'?1.1+phase*1.5:s.tool==='cup'?1.45+phase*.1:1+phase*1.4);m.position.z=s.tool==='moxa'?.004+phase*.06:.002;m.material.opacity=s.effects&&s.tool==='moxa'&&active>0?(1-phase)*.32*active:0;m.material.color.set(tool.color);}
   stroke.position.x=Math.sin(s.elapsed*1.8)*.009;stroke.scale.set(s.tool==='scraper'?1+.2*Math.sin(s.elapsed*1.8):1,1,1);
   stroke.material.opacity=s.effects&&s.tool==='scraper'&&active>0?.18*active:0;
-  v.copy(contact.position).project(camera);label.hidden=label.hidden||v.z< -1||v.z>1;label.style.left=`${(v.x+1)*width/2+20}px`;label.style.top=`${(1-v.y)*height/2-18}px`;label.textContent=`↔ 移动${tool.name} · ${s.customTarget?'自选部位':s.pain&&!s.pointCode?'痛处':POINTS.find(p=>p.code===s.pointCode)?.name??''}`;label.classList?.toggle('is-dragging',!!s.dragging);
+  v.copy(contact.position).project(camera);label.hidden=label.hidden||v.z< -1||v.z>1;label.style.left=`${(v.x+1)*width/2+20}px`;label.style.top=`${(1-v.y)*height/2-18}px`;label.textContent=`↔ 移動${tool.name} · ${s.customTarget?'自選部位':s.pain&&!s.pointCode?'痛處':POINTS.find(p=>p.code===s.pointCode)?.name??''}`;label.classList?.toggle('is-dragging',!!s.dragging);
   return {target,deform:s.effects&&root.visible?((s.tool==='finger'||s.tool==='stone')?-.006*cycle*active:s.tool==='cup'?.008*active:0):0,activity:s.effects&&root.visible?active:0,mark:s.effects&&root.visible&&s.elapsed>0?s.amplitude:0,color:skinColor,settling:releaseAt>=0&&releaseElapsed<=.85};
  };
  const focus=(s:SimulationState,camera:T.PerspectiveCamera,controls:{target:T.Vector3;update:()=>void},amount:number)=>{

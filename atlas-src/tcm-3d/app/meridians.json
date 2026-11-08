@@ -1,85 +1,85 @@
 [
   {
     "id": "LU",
-    "name": "手太阴肺经",
+    "name": "手太陰肺經",
     "color": "#9dc7e8",
     "count": 11
   },
   {
     "id": "LI",
-    "name": "手阳明大肠经",
+    "name": "手陽明大腸經",
     "color": "#4e8fd1",
     "count": 20
   },
   {
     "id": "ST",
-    "name": "足阳明胃经",
+    "name": "足陽明胃經",
     "color": "#e8c04e",
     "count": 45
   },
   {
     "id": "SP",
-    "name": "足太阴脾经",
+    "name": "足太陰脾經",
     "color": "#e59a3c",
     "count": 21
   },
   {
     "id": "HT",
-    "name": "手少阴心经",
+    "name": "手少陰心經",
     "color": "#d14e4e",
     "count": 9
   },
   {
     "id": "SI",
-    "name": "手太阳小肠经",
+    "name": "手太陽小腸經",
     "color": "#e87fa0",
     "count": 19
   },
   {
     "id": "BL",
-    "name": "足太阳膀胱经",
+    "name": "足太陽膀胱經",
     "color": "#3d6ed1",
     "count": 67
   },
   {
     "id": "KI",
-    "name": "足少阴肾经",
+    "name": "足少陰腎經",
     "color": "#5b4ec9",
     "count": 27
   },
   {
     "id": "PC",
-    "name": "手厥阴心包经",
+    "name": "手厥陰心包經",
     "color": "#c94e8c",
     "count": 9
   },
   {
     "id": "TE",
-    "name": "手少阳三焦经",
+    "name": "手少陽三焦經",
     "color": "#4ec9b8",
     "count": 23
   },
   {
     "id": "GB",
-    "name": "足少阳胆经",
+    "name": "足少陽膽經",
     "color": "#6bbf4e",
     "count": 44
   },
   {
     "id": "LR",
-    "name": "足厥阴肝经",
+    "name": "足厥陰肝經",
     "color": "#8cbf6b",
     "count": 14
   },
   {
     "id": "GV",
-    "name": "督脉",
+    "name": "督脈",
     "color": "#e8e04e",
     "count": 29
   },
   {
     "id": "CV",
-    "name": "任脉",
+    "name": "任脈",
     "color": "#e87f4e",
     "count": 24
   }
