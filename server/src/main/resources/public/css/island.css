@@ -232,7 +232,8 @@ a.island-tool {
 
 .island-tool:hover,
 .island-tool:focus-visible,
-.island-list button:focus-visible {
+.island-list button:focus-visible,
+.island-list a:focus-visible {
   outline: 2px solid #ea5420;
   outline-offset: 2px;
 }
@@ -261,7 +262,12 @@ a.island-tool {
   color: #ea5420;
 }
 
-.island-list button {
+.island-list-title-next {
+  margin-top: 0.7rem;
+}
+
+.island-list button,
+.island-list a {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -271,6 +277,7 @@ a.island-tool {
   color: #211d1d;
   font-family: inherit;
   text-align: left;
+  text-decoration: none;
   font-weight: 700;
   font-size: 0.92rem;
   border-radius: 10px;
@@ -278,14 +285,16 @@ a.island-tool {
   cursor: pointer;
 }
 
-.island-list button small {
+.island-list button small,
+.island-list a small {
   font-weight: 500;
   font-size: 0.72rem;
   color: #717171;
 }
 
 .island-list button:hover,
-.island-list button.is-active {
+.island-list button.is-active,
+.island-list a:hover {
   background: rgba(234, 84, 32, 0.1);
 }
 

@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+import {build} from 'esbuild';
+import * as T from 'three';
+await build({stdin:{contents:"export {createTeachingOverlay} from './app/teaching-overlay';export {softenPelvicSurface} from './app/teaching-skin';",resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'esm',external:['three'],outfile:'.bake-meridians.mjs'});
+globalThis.document={createElement:()=>({style:{},setAttribute(){}})};
+const {createTeachingOverlay,softenPelvicSurface}=await import('../.bake-meridians.mjs');
+const a=JSON.parse(fs.readFileSync('public/models/atlas.json')),p=a.parts.find(p=>p.id==='FJ2810'),b=fs.readFileSync('public/'+a.chunks[p.chunk].url),buffer=b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength);
+const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(new Float32Array(buffer,p.positions,p.vertexCount*3),3));g.setIndex(new T.BufferAttribute(new Uint32Array(buffer,p.indices,p.indexCount),1));
+softenPelvicSurface(g);
+const overlay=createTeachingOverlay(new T.Scene(),false);overlay.anchor(new T.Mesh(g,new T.MeshBasicMaterial()));
+const output=overlay.exportSurface();fs.writeFileSync('app/meridian-surface.json',JSON.stringify(output)+'\n');fs.unlinkSync('.bake-meridians.mjs');console.log('Baked',output.points.length,'surface points;',output.paths.length,'sided paths');

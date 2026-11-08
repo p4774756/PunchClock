@@ -13,6 +13,7 @@ import com.example.server.store.MarqueeStore;
 import com.example.server.store.PhotoStore;
 import com.example.server.store.RelayStore;
 import com.example.server.util.IpResolver;
+import com.example.server.web.AtlasRoutes;
 import com.example.server.web.ChatRoutes;
 import com.example.server.web.DashboardBroadcaster;
 import com.example.server.web.MarqueeRoutes;
@@ -56,6 +57,7 @@ public final class ServerApp {
     private final MarqueeStore marqueeStore = new MarqueeStore();
     private final MarqueeRoutes marqueeRoutes = new MarqueeRoutes(authService, marqueeStore);
     private final PhotoRoutes photoRoutes = new PhotoRoutes(authService);
+    private final AtlasRoutes atlasRoutes = new AtlasRoutes(authService);
     private final ClientRelease clientRelease;
 
     public ServerApp() {
@@ -135,6 +137,7 @@ public final class ServerApp {
         chatRoutes.register(app);
         photoRoutes.register(app);
         marqueeRoutes.register(app);
+        atlasRoutes.register(app);
         app.get("/api/status", this::status);
         app.get("/api/health/history", this::healthHistory);
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
