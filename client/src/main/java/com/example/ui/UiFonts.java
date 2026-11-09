@@ -224,6 +224,9 @@ public final class UiFonts {
             g.fillRect(0, 0, rgb.getWidth(), rgb.getHeight());
             g.drawImage(image, 0, 0, null);
             g.dispose();
+            if (isMac() && MacImageClipboard.copyPng(rgb)) {
+                return true;
+            }
             Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new Transferable() {
                 @Override
                 public DataFlavor[] getTransferDataFlavors() {
