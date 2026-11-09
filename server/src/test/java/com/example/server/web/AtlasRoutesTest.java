@@ -76,10 +76,20 @@ public class AtlasRoutesTest {
         assertEquals(200, page.statusCode());
         assertTrue(page.body().contains("atlas-ok"));
         assertTrue(page.headers().firstValue("content-type").orElse("").startsWith("text/html"));
+        assertTrue(page.headers().firstValue("cache-control").orElse("").contains("must-revalidate"));
 
         HttpResponse<String> model = send("GET", "/atlas/tcm-3d/models/body.txt", cookie);
         assertEquals(200, model.statusCode());
         assertEquals("model-bytes", model.body());
+        assertTrue(model.headers().firstValue("cache-control").orElse("").contains("max-age=300"));
+    }
+
+    @Test
+    public void modelBinGetsLongCache() throws Exception {
+        Files.writeString(root.resolve("tcm-3d").resolve("models").resolve("body-0.bin"), "bin");
+        HttpResponse<String> response = send("GET", "/atlas/tcm-3d/models/body-0.bin", null);
+        assertEquals(200, response.statusCode());
+        assertTrue(response.headers().firstValue("cache-control").orElse("").contains("max-age=604800"));
     }
 
     @Test

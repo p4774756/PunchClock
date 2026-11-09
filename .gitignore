@@ -67,6 +67,8 @@ nbdist/
 # =========================================================================
 node_modules/
 *.tsbuildinfo
+# 未壓縮模型可由 .bin.gz 還原：npm --prefix atlas-src/tcm-3d run inflate-models
+atlas-src/tcm-3d/public/models/body-*.bin
 
 # =========================================================================
 # 系統與環境變數檔案 (包含敏感資訊)

@@ -1,0 +1,32 @@
+name: Atlas
+
+on:
+  push:
+    paths:
+      - 'atlas-src/tcm-3d/**'
+      - '.github/workflows/atlas.yml'
+  pull_request:
+    paths:
+      - 'atlas-src/tcm-3d/**'
+      - '.github/workflows/atlas.yml'
+
+defaults:
+  run:
+    working-directory: atlas-src/tcm-3d
+
+jobs:
+  check:
+    name: check + validate-teaching
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: atlas-src/tcm-3d/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: node scripts/validate-tool-drag.mjs
+      - run: node scripts/validate-teaching.mjs

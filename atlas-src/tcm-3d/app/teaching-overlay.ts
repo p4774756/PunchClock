@@ -2,7 +2,7 @@ import baked from './meridian-surface.json';
 import {createPainOverlay} from './pain-overlay';
 import * as T from 'three';
 import {createInstrument,updateInstrument} from './instruments';
-import {POINTS,POINT_BY_CODE,MERIDIANS,TOOLS,pointTarget,type SimulationState,type SurfaceTarget,type ToolId} from './teaching';
+import {POINTS,POINT_BY_CODE,MERIDIANS,TOOLS,curriculumSet,pointTarget,type SimulationState,type SurfaceTarget,type ToolId} from './teaching';
 
 /** Visual teaching overlay. These surface anchors are unreviewed, never clinical coordinates. */
 export function createTeachingOverlay(scene:T.Scene,useBaked=true){
@@ -24,12 +24,14 @@ export function createTeachingOverlay(scene:T.Scene,useBaked=true){
  const trail=Array.from({length:128},()=>{const mesh=new T.Mesh(trailGeometry,trailMaterial);mesh.visible=false;trailRoot.add(mesh);return mesh;});let trailCount=0;const previousStroke=new T.Vector3(Infinity,Infinity,Infinity);
  const axis=new T.Vector3(0,0,1),n=new T.Vector3(),v=new T.Vector3(),origin=new T.Vector3();
  const ray=new T.Raycaster();let anchored=false,lastFocus=-1,lastRelease=0,releaseAt=-1;let skinSurface:T.Mesh|null=null;
+ let activeCurriculum:ReturnType<typeof curriculumSet>;
  const label=document.createElement('button');label.type='button';label.className='contact-label tool-drag-handle';label.setAttribute('aria-label','移動當前工具');label.title='按住拖動工具；方向鍵微調位置';label.hidden=true;
  const resolvePoint=(code:string,side:1|-1)=>surface.get(`${code}:${POINT_BY_CODE.get(code)?.midline?1:side}`)??pointTarget(code,side);
  const pain=createPainOverlay(resolvePoint);root.add(pain.root);
  const meridianRoot=new T.Group();meridianRoot.name='meridian-paths';root.add(meridianRoot);
  const pointMaterials=new Map(MERIDIANS.map(m=>[m.id,new T.MeshStandardMaterial({color:m.color,roughness:.4})]));
  const getTarget=(s:SimulationState):SurfaceTarget|null=>s.pointCode&&POINT_BY_CODE.get(s.pointCode)?.surfaceUnavailable?null:s.customTarget??(s.pointCode?resolvePoint(s.pointCode,s.side):pain.target(s.pain));
+ const allowedByCurriculum=(code:string)=>!activeCurriculum||activeCurriculum.codes.includes(code);
  const snapTarget=(target:SurfaceTarget,maxDistance=.018):SurfaceTarget=>{
   let best=maxDistance*maxDistance,match:{code:string;side:1|-1;target:SurfaceTarget}|null=null;
   const position=new T.Vector3().fromArray(target.position),normal=new T.Vector3().fromArray(target.normal).normalize();
@@ -39,6 +41,7 @@ export function createTeachingOverlay(scene:T.Scene,useBaked=true){
    const distance=position.distanceToSquared(new T.Vector3().fromArray(candidate.position));
    if(distance>=best)continue;
    const separator=key.lastIndexOf(':'),code=key.slice(0,separator),side=Number(key.slice(separator+1)) as 1|-1;
+   if(!allowedByCurriculum(code))continue;
    best=distance;match={code,side,target:candidate};
   }
   return match?{...match.target,pointCode:match.code,pointSide:match.side}:target;
@@ -80,8 +83,8 @@ export function createTeachingOverlay(scene:T.Scene,useBaked=true){
   anchored=true;
  };
  const update=(s:SimulationState,amount:number,camera:T.Camera,width:number,height:number)=>{
-  root.visible=amount<.002;pain.update(s,root.visible&&s.pickMode!=='anatomy');dots.visible=s.showPoints;meridianRoot.visible=!!s.showMeridians&&s.pickMode!=='anatomy';for(const line of meridianRoot.children)line.visible=!s.meridianFilter||s.meridianFilter==='all'||line.userData.meridian===s.meridianFilter;const target=getTarget(s);contact.visible=!!target;
-  for(const dot of markers){const selected=dot.userData.point===s.pointCode&&(dot.userData.side===s.side||POINT_BY_CODE.get(s.pointCode??'')?.midline);const meridian=POINT_BY_CODE.get(dot.userData.point)!.meridianId;dot.visible=!s.meridianFilter||s.meridianFilter==='all'||meridian===s.meridianFilter;dot.material=selected?activeMat:pointMaterials.get(meridian)??normalMat;dot.scale.setScalar(selected?1.35:1);}
+  activeCurriculum=curriculumSet(s.curriculumSet);root.visible=amount<.002;pain.update(s,root.visible&&s.pickMode!=='anatomy');dots.visible=s.showPoints;meridianRoot.visible=!!s.showMeridians&&s.pickMode!=='anatomy';for(const line of meridianRoot.children)line.visible=!s.meridianFilter||s.meridianFilter==='all'||line.userData.meridian===s.meridianFilter;const target=getTarget(s);contact.visible=!!target;
+  for(const dot of markers){const selected=dot.userData.point===s.pointCode&&(dot.userData.side===s.side||POINT_BY_CODE.get(s.pointCode??'')?.midline);const meridian=POINT_BY_CODE.get(dot.userData.point)!.meridianId;const meridianOk=!s.meridianFilter||s.meridianFilter==='all'||meridian===s.meridianFilter;dot.visible=meridianOk&&allowedByCurriculum(dot.userData.point);dot.material=selected?activeMat:pointMaterials.get(meridian)??normalMat;dot.scale.setScalar(selected?1.35:1);}
   label.hidden=!target||!root.visible;
   if(s.tool!=='scraper'||s.elapsed===0){trailCount=0;previousStroke.set(Infinity,Infinity,Infinity);trail.forEach(mesh=>mesh.visible=false);}
   trailRoot.visible=s.effects&&!!target;trailMaterial.opacity=.10+s.amplitude*.08;

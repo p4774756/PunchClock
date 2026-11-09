@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {PAIN_CASES,painCase,painSeed,type PainSelection} from './pain-relations';
+import {PAIN_CASES,painCase,painRelationCodes,painSeed,type PainSelection} from './pain-relations';
 import type {SimulationState,SurfaceTarget} from './teaching';
 
 export function createPainOverlay(resolvePoint:(code:string,side:1|-1)=>SurfaceTarget){
@@ -18,8 +18,8 @@ export function createPainOverlay(resolvePoint:(code:string,side:1|-1)=>SurfaceT
  const update=(s:SimulationState,visible:boolean)=>{
   const pain=s.pain,t=target(pain),c=painCase(pain?.topic);root.visible=visible&&!!t;if(!t||!pain)return;
   normal.fromArray(t.normal).normalize();marker.position.fromArray(t.position).addScaledVector(normal,.003);marker.quaternion.setFromUnitVectors(axis,normal);marker.scale.setScalar(.7+pain.level*.6);red.opacity=.12+pain.level*.22;
-  const codes=c?[...c.local,...c.distal]:[];
-  dots.forEach((dot,i)=>{const code=codes[i];dot.visible=links[i].visible=!!code&&pain.showLinks;if(!code)return;const dest=resolvePoint(code,pain.side),local=c!.local.includes(code),color=local?'#b58948':'#42779f';dot.material.color.set(color);dot.position.fromArray(dest.position).addScaledVector(v.fromArray(dest.normal),.004);dot.scale.setScalar(code===s.pointCode&&s.side===pain.side?1.6:1);
+  const relations=c?painRelationCodes(c):null;const codes=relations?[...relations.local,...relations.distal]:[];
+  dots.forEach((dot,i)=>{const code=codes[i];dot.visible=links[i].visible=!!code&&pain.showLinks;if(!code)return;const dest=resolvePoint(code,pain.side),local=!!relations?.local.includes(code),color=local?'#b58948':'#42779f';dot.material.color.set(color);dot.position.fromArray(dest.position).addScaledVector(v.fromArray(dest.normal),.004);dot.scale.setScalar(code===s.pointCode&&s.side===pain.side?1.6:1);
    const line=links[i];line.material.color.set(color);line.material.opacity=code===s.pointCode&&s.side===pain.side?(s.running?.8+.2*Math.sin(s.elapsed*3):1):.65;a.copy(marker.position);b.copy(dot.position);mid.copy(a).lerp(b,.5);mid.x+=pain.side*Math.min(.28,a.distanceTo(b)*.35+.045);mid.z+=c!.view==='back'?-.09:.09;const positions=line.geometry.attributes.position,distances=line.geometry.attributes.lineDistance;let distance=0;
    for(let j=0;j<=24;j++){const t=j/24;v.copy(a).multiplyScalar((1-t)*(1-t)).addScaledVector(mid,2*(1-t)*t).addScaledVector(b,t*t);positions.setXYZ(j,v.x,v.y,v.z);if(j)distance+=v.distanceTo(prev);distances.setX(j,distance);prev.copy(v);}positions.needsUpdate=distances.needsUpdate=true;line.geometry.computeBoundingSphere();
   });

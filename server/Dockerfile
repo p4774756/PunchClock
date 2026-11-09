@@ -3,7 +3,7 @@
 FROM node:22-bookworm AS atlas
 WORKDIR /src
 COPY atlas-src/tcm-3d tcm-3d
-RUN cd tcm-3d && npm ci && npm run build -- --base /atlas/tcm-3d/
+RUN cd tcm-3d && npm ci && npm run build:punchclock
 
 FROM maven:3.9-eclipse-temurin-11 AS build
 WORKDIR /app

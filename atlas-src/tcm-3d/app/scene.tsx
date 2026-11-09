@@ -92,7 +92,10 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError,si
   const mats=new Map(SYSTEMS.map(s=>[s.id,materialFor(s.id)]));
   let loaded=0;
   const loadChunk=async(ci:number)=>{
-   const chunk=atlas.chunks[ci],compressed=!!chunk.gzip&&typeof DecompressionStream!=='undefined';const response=await fetch(publicAssetUrl(compressed?chunk.gzip!:chunk.url),{signal:abort.signal});const buffer=await decodeModelResponse(response,chunk.bytes,compressed);if(disposed)return;
+   const chunk=atlas.chunks[ci];
+   // Repo／映像只保留 .bin.gz；瀏覽器需支援 DecompressionStream。
+   if(!chunk.gzip||typeof DecompressionStream==='undefined')throw new Error('此瀏覽器無法解壓人體模型，請改用較新的 Chrome／Safari／Firefox。');
+   const response=await fetch(publicAssetUrl(chunk.gzip),{signal:abort.signal});const buffer=await decodeModelResponse(response,chunk.bytes,true);if(disposed)return;
    const groups=new Map<string,T.BufferGeometry[]>();
    atlas.parts.forEach((p,i)=>{
     // Scalp anchors sit on Skin; the separate hair shell otherwise hides crown points.

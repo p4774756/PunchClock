@@ -11,8 +11,9 @@
 | 路徑 | 職責 | 入口 |
 |------|------|------|
 | `client/` | 排程、UI、自動打卡、心跳、傳檔、網路工具、中繼 Proxy | `com.example.App` |
-| `server/` | 心跳、Dashboard、peer 訊息／傳檔、取消指令 | `com.example.server.ServerApp` |
+| `server/` | 心跳、Dashboard、peer 訊息／傳檔、取消指令、經穴圖靜態站 | `com.example.server.ServerApp` |
 | `shared/` | 跨端共用（`PeerFileRules`、`ChatProtocol`、`ClientUpdatePolicy`） | — |
+| `atlas-src/tcm-3d/` | 中醫 3D 經絡穴道（Vite／Three.js）；本機先 `./scripts/build-atlas.sh`；模型只留 `.bin.gz` | `/atlas/tcm-3d/` |
 
 **Client 常見包：**
 
@@ -60,6 +61,7 @@
 | 傳檔／直傳 | `PeerFileClient`、`PeerFileRoutes`、`RelayRoutes`、`FileOfferStore`、`RelayStore` |
 | 菜單牆照片 | `PhotoRoutes`、`PhotoStore` |
 | Dashboard | `server/.../resources/public/` + `DashboardBroadcaster` |
+| 經穴圖／穴位課堂 | `atlas-src/tcm-3d/`、`AtlasRoutes`、`scripts/build-atlas.sh`；課堂集合在 `app/teaching.ts`；CI：`.github/workflows/atlas.yml` |
 
 ## 近期方向（方便對齊歷史）
 

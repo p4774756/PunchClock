@@ -60,8 +60,25 @@ public final class AtlasRoutes {
         ctx.contentType(contentType(file));
         ctx.header("Content-Length", Long.toString(Files.size(file)));
         ctx.header("X-Content-Type-Options", "nosniff");
-        ctx.header("Cache-Control", "private");
+        ctx.header("Cache-Control", cacheControl(file));
         ctx.result(Files.newInputStream(file));
+    }
+
+    /** HTML 短快取；模型與指紋化靜態檔可長快取，重開頁較快。 */
+    static String cacheControl(Path file) {
+        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (name.endsWith(".html")) {
+            return "private, max-age=0, must-revalidate";
+        }
+        if (name.endsWith(".bin") || name.endsWith(".gz") || name.endsWith(".wasm") || name.endsWith(".glb")
+                || name.endsWith(".woff2") || name.endsWith(".png") || name.endsWith(".jpg")
+                || name.endsWith(".jpeg") || name.endsWith(".webp") || name.endsWith(".svg")) {
+            return "private, max-age=604800, immutable";
+        }
+        if (name.endsWith(".js") || name.endsWith(".mjs") || name.endsWith(".css")) {
+            return "private, max-age=86400";
+        }
+        return "private, max-age=300";
     }
 
     static Path atlasRoot() {
@@ -112,7 +129,7 @@ public final class AtlasRoutes {
 
     private static String notBuilt(String appId) {
         String title = TITLES.getOrDefault(appId, "經穴圖");
-        return page(title + "還沒建置。在 atlas-src 執行建置後重新整理。");
+        return page(title + "還沒建置。在 repo 根目錄執行 ./scripts/build-atlas.sh 後重新整理。");
     }
 
     private static String page(String message) {

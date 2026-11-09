@@ -1,3 +1,4 @@
+/** Needs uncompressed .bin on disk. Prefer `npm run inflate-models` if only .gz is checked in. */
 import fs from 'node:fs';
 import {MeshoptSimplifier} from 'meshoptimizer';
 await MeshoptSimplifier.ready;
@@ -5,7 +6,7 @@ const name=process.argv[2]??'atlas.json',prefix=name.includes('female')?'female'
 const dir=new URL('../public/models/',import.meta.url),manifest=JSON.parse(fs.readFileSync(new URL(name,dir),'utf8'));
 const originals=manifest.chunks.map(c=>c.url.split('/').pop());
 if(manifest.optimized)throw new Error('Already optimized. Re-run the source converter first.');
-const source=manifest.chunks.map(c=>fs.readFileSync(new URL(c.url.split('/').pop(),dir)));
+const source=manifest.chunks.map(c=>{const file=new URL(c.url.split('/').pop(),dir);if(!fs.existsSync(file))throw new Error(`缺少 ${c.url}；先跑 npm run inflate-models`);return fs.readFileSync(file);});
 let chunks=[],segments=[],bytes=0,triangles=0,maxError=0;
 const flush=()=>{if(!bytes)return;const url=`/models/${prefix}-${chunks.length}.bin`;fs.writeFileSync(new URL(url.split('/').pop(),dir),Buffer.concat(segments));chunks.push({url,bytes});segments=[];bytes=0;};
 const append=a=>{const padding=(4-bytes%4)%4;if(padding){segments.push(Buffer.alloc(padding));bytes+=padding;}const offset=bytes;const b=Buffer.from(a.buffer,a.byteOffset,a.byteLength);segments.push(b);bytes+=b.length;return offset;};

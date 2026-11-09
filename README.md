@@ -70,6 +70,25 @@ java -jar client/target/punchclock-client-standalone.jar
 
   或在網路正常的電腦打包好 `punchclock-client-standalone.jar` 再帶過去執行。
 
+### 5. 中醫人體（經絡穴道）
+
+Dashboard「學習 → 中醫人體」連到 `/atlas/tcm-3d/`，靜態站來自 `atlas-src/tcm-3d/`（不必登入）。本機要先建置一次，否則會看到「還沒建置」：
+
+```bash
+./scripts/build-atlas.sh
+```
+
+前置：Node.js ≥ 22。建好後重開或重整 server，開啟：
+
+- 頭頸基準穴：`http://localhost:3000/atlas/tcm-3d/?set=head-neck-21`
+- 常用穴練習：`http://localhost:3000/atlas/tcm-3d/?set=common-10`
+
+也可：`npm --prefix atlas-src/tcm-3d run build:punchclock`。Docker／Render 會在 image 建置時一併編譯。
+
+人體模型只提交 `.bin.gz`（約 31MB）；執行期瀏覽器解壓。若要跑 `optimize-anatomy` 等需未壓縮 `.bin` 的腳本：`npm --prefix atlas-src/tcm-3d run inflate-models`。
+
+改動 `atlas-src/tcm-3d/` 時，GitHub Actions（`Atlas`）會跑 `npm run check`、`validate-tool-drag`、`validate-teaching`。
+
 ## 操作畫面
 
 桌面端目前的樣子。視窗標題是「洋流」。

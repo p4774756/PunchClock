@@ -31,7 +31,7 @@ try {
   const bundlePath = join(temporaryDir, 'entry.mjs');
   const bundle = await build({
     stdin: {
-      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {softenPelvicSurface} from './app/teaching-skin'; export {POINTS,TOOLS,pointTarget,initialSimulation} from './app/teaching'; export {PAIN_CASES,matchPainRegion} from './app/pain-relations';",
+      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {softenPelvicSurface} from './app/teaching-skin'; export {POINTS,TOOLS,pointTarget,initialSimulation,CURRICULUM_SETS,curriculumSet} from './app/teaching'; export {PAIN_CASES,matchPainRegion,preferReviewedCodes,painRelationCodes} from './app/pain-relations';",
       resolveDir: project, sourcefile: 'validate-teaching-entry.ts', loader: 'ts',
     },
     bundle: true, platform: 'node', format: 'esm', target: 'node22',
@@ -45,7 +45,7 @@ try {
       return {className: '', hidden: false, style: {}, dataset: {}, textContent: '', setAttribute() {}, remove() {}};
     }},
   });
-  const {createTeachingOverlay, softenPelvicSurface, POINTS, TOOLS, pointTarget, initialSimulation,PAIN_CASES,matchPainRegion} = await import(pathToFileURL(bundlePath));
+  const {createTeachingOverlay, softenPelvicSurface, POINTS, TOOLS, pointTarget, initialSimulation,CURRICULUM_SETS,curriculumSet,PAIN_CASES,matchPainRegion,preferReviewedCodes,painRelationCodes} = await import(pathToFileURL(bundlePath));
   const camera = new T.PerspectiveCamera(34, 1.6, 0.005, 100);
   camera.position.set(0, 0.85, 4);
   camera.lookAt(0, 0.85, 0);
@@ -67,6 +67,37 @@ try {
     }));
     return JSON.stringify(objects);
   };
+
+  await test('頭頸基準穴課堂集合完整且可篩選體表點', () => {
+    const lesson = curriculumSet('head-neck-21');
+    const practice = curriculumSet('common-10');
+    assert.ok(lesson);
+    assert.ok(practice);
+    assert.equal(lesson.codes.length, 21);
+    assert.equal(practice.codes.length, 10);
+    assert.equal(lesson.status, 'reviewed');
+    assert.equal(practice.status, 'pending');
+    assert.equal(new Set(lesson.codes).size, 21);
+    for (const code of lesson.codes) {
+      const point = POINTS.find(p => p.code === code);
+      assert.ok(point, `缺少基準穴 ${code}`);
+      assert.match(point.positionProvenance, /課堂核對通過/);
+      assert.equal(point.reviewed, true);
+    }
+    for (const code of practice.codes) {
+      const point = POINTS.find(p => p.code === code);
+      assert.ok(point, `缺少常用穴 ${code}`);
+      assert.equal(point.reviewed, false);
+    }
+    assert.equal(CURRICULUM_SETS[0].id, 'head-neck-21');
+    update({curriculumSet: 'head-neck-21', showPoints: true, meridianFilter: 'all'});
+    const visible = overlay.markers.filter(marker => marker.visible);
+    const expected = lesson.codes.map(code => POINTS.find(p => p.code === code)).filter(p => p && !p.surfaceUnavailable)
+      .reduce((total, point) => total + (point.midline ? 1 : 2), 0);
+    assert.equal(visible.length, expected);
+    for (const marker of visible) assert.ok(lesson.codes.includes(marker.userData.point));
+    update({curriculumSet: 'all', showPoints: true, meridianFilter: 'all'});
+  });
 
   await test('穴位數據及左右鏡像、中線單實例', () => {
     assert.equal(new Set(POINTS.map(point => point.code)).size, POINTS.length);
@@ -351,11 +382,12 @@ try {
     assert.equal(contact.visible, false); assert.equal(overlay.label.hidden, true);
   });
 
+  const {loadChunkBuffer} = await import(pathToFileURL(join(project, 'scripts/load-chunk.mjs')));
   const atlas = JSON.parse(await readFile(join(project, 'public/models/atlas.json'), 'utf8'));
   const skinPart = atlas.parts.find(part => part.id === 'FJ2810');
   assert.ok(skinPart, 'atlas 缺少 FJ2810 皮膚網格');
   const chunk = atlas.chunks[skinPart.chunk];
-  const raw = await readFile(join(project, 'public', chunk.url));
+  const raw = loadChunkBuffer(chunk, project);
   const buffer = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
   const geometry = new T.BufferGeometry();
   geometry.setAttribute('position', new T.BufferAttribute(new Float32Array(buffer, skinPart.positions, skinPart.vertexCount * 3), 3));
@@ -436,6 +468,19 @@ try {
     assert.equal(missing.length, 0, `未吸附：${missing.map(item => `${item.code}:${item.side}`).join(', ')}`);
   });
 
+  await test('課堂篩選時工具只吸附基準穴', () => {
+    const lesson = curriculumSet('head-neck-21');
+    anchored.update(state({curriculumSet: 'head-neck-21', showPoints: true, meridianFilter: 'all'}), 0, camera, 1280, 800);
+    const seed = pointTarget('GV20', 1);
+    const snapped = anchored.snapTarget({position: seed.position, normal: seed.normal});
+    assert.equal(snapped.pointCode, 'GV20');
+    const outsider = pointTarget('ST36', 1);
+    const kept = anchored.snapTarget({position: outsider.position, normal: outsider.normal});
+    assert.equal(kept.pointCode, undefined);
+    assert.ok(!lesson.codes.includes('ST36'));
+    anchored.update(state({curriculumSet: 'all', showPoints: true, meridianFilter: 'all'}), 0, camera, 1280, 800);
+  });
+
   await test('工具接近穴位時吸附並返回穴位身份，遠離或反面不誤選', () => {
     for (const {target, pointCode, side} of anchoredTargets) {
       const snapped = anchored.snapTarget({...target});
@@ -505,6 +550,17 @@ try {
   await test('疼痛關聯只使用已收錄且有來源的穴位，局部遠端不重疊',()=>{
     for(const c of PAIN_CASES){assert.ok(c.source.startsWith('https://'));const codes=[...c.local,...c.distal];assert.equal(new Set(codes).size,codes.length);assert.ok(codes.length<=8);for(const code of codes)assert.ok(POINTS.some(p=>p.code===code));}
     assert.equal(matchPainRegion([0,1.05,.1]),null);assert.equal(matchPainRegion([.3,.8,0]),null);assert.equal(matchPainRegion([NaN,1.6,0]),null);assert.equal(matchPainRegion([.04,1.1,-.1]),'back');
+  });
+  await test('疼痛關聯有已校正穴時優先顯示已校正座標',()=>{
+    const head=painRelationCodes(PAIN_CASES.find(c=>c.id==='head'));
+    assert.deepEqual(head.local,['GV20','EX-HN5','GV24+']);
+    assert.ok(head.local.every(code=>POINTS.find(p=>p.code===code).reviewed));
+    assert.deepEqual(preferReviewedCodes(['LI4','GV20']),['GV20']);
+    assert.deepEqual(preferReviewedCodes(['LI4','ST36']),['LI4','ST36']);
+    const neck=painRelationCodes(PAIN_CASES.find(c=>c.id==='neck'));
+    assert.deepEqual(neck.local,['ST9','CV23']);
+    const knee=painRelationCodes(PAIN_CASES.find(c=>c.id==='knee'));
+    assert.equal(knee.local.length+knee.distal.length,7);
   });
   await test('四組疼痛示例的左右八處標記均綁定實際皮膚三角面',()=>{
     for(const c of PAIN_CASES)for(const side of [1,-1]){const pain={topic:c.id,side,target:null,level:.5,showLinks:true};const target=anchored.getTarget(state({pointCode:null,customTarget:null,pain}));assert.ok(Number.isInteger(target.faceIndex));const p=new T.Vector3().fromArray(target.position);readTriangle(target.faceIndex).closestPointToPoint(p,closest);assert.ok(closest.distanceTo(p)<1e-5);assert.equal(Math.sign(target.position[0]),side);}
