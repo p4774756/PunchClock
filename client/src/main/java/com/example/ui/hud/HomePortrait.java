@@ -26,6 +26,10 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
     /** 視窗控制鈕區域：角色不蓋住，點擊仍可穿透。 */
     private final Rectangle controlHole = new Rectangle();
     private CharacterTheme theme = CharacterTheme.SWEATER;
+    /** 跨框前景縮放快取，避免每次整窗重繪都雙線性縮放大幅 PNG。 */
+    private java.awt.image.BufferedImage orbitalOverflowLayer;
+    private int orbitalOverflowW = -1;
+    private int orbitalOverflowH = -1;
 
     public HomePortrait(AnimeShell shell) {
         this.shell = shell;
@@ -34,6 +38,9 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
 
     public void setTheme(CharacterTheme theme) {
         this.theme = theme == null ? CharacterTheme.SWEATER : theme;
+        orbitalOverflowLayer = null;
+        orbitalOverflowW = -1;
+        orbitalOverflowH = -1;
     }
 
     @Override
@@ -238,8 +245,38 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
             area.subtract(new Area(reminder));
         }
         g.setClip(area);
-        OrbitalAssets.drawFitted(g, image, orbitalDrawn);
+        java.awt.image.BufferedImage scaled = scaledOrbitalOverflow(image);
+        if (scaled != null) {
+            g.drawImage(scaled, orbitalDrawn.x, orbitalDrawn.y, null);
+        } else {
+            OrbitalAssets.drawFitted(g, image, orbitalDrawn);
+        }
         g.setClip(previous);
+    }
+
+    private java.awt.image.BufferedImage scaledOrbitalOverflow(java.awt.image.BufferedImage image) {
+        if (image == null || orbitalDrawn.width < 2 || orbitalDrawn.height < 2) {
+            return null;
+        }
+        int w = orbitalDrawn.width;
+        int h = orbitalDrawn.height;
+        if (orbitalOverflowLayer == null || orbitalOverflowW != w || orbitalOverflowH != h) {
+            java.awt.image.BufferedImage layer = new java.awt.image.BufferedImage(
+                    w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            java.awt.Graphics2D lg = layer.createGraphics();
+            try {
+                lg.setRenderingHint(
+                        java.awt.RenderingHints.KEY_INTERPOLATION,
+                        java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                lg.drawImage(image, 0, 0, w, h, null);
+            } finally {
+                lg.dispose();
+            }
+            orbitalOverflowLayer = layer;
+            orbitalOverflowW = w;
+            orbitalOverflowH = h;
+        }
+        return orbitalOverflowLayer;
     }
 
     private Rectangle reminderOnCanvas(JComponent canvas) {

@@ -61,6 +61,15 @@ public final class HomeBrief {
         return done + waiting + failed;
     }
 
+    /** 首頁卡片實際畫出來的內容。倒數秒數不畫，不列入，避免每秒整塊重畫。 */
+    String paintKey() {
+        return done + "|" + waiting + "|" + failed + "|" + cancelled
+                + "|" + nextName + "|" + nextTime + "|" + "執行中".equals(nextLeft)
+                + "|" + onlineFriends + "|" + recentFriend + "|" + recentState
+                + "|" + System.identityHashCode(recentFace) + "|" + recentKnown
+                + "|" + cloudOn + "|" + cloudLabel;
+    }
+
     public boolean hasWork() {
         return activeTotal() > 0 || cancelled > 0 || nextName != null;
     }

@@ -1280,7 +1280,13 @@ public final class WindowChrome {
             try {
                 behind.setComposite(AlphaComposite.Src);
                 behind.setColor(new Color(0, 0, 0, 0));
-                behind.fillRect(0, 0, getWidth(), getHeight());
+                // 只清髒區，避免局部重繪時整窗透明重填造成閃爍。
+                java.awt.Rectangle clip = behind.getClipBounds();
+                if (clip != null) {
+                    behind.fillRect(clip.x, clip.y, clip.width, clip.height);
+                } else {
+                    behind.fillRect(0, 0, getWidth(), getHeight());
+                }
                 behind.setComposite(AlphaComposite.SrcOver);
                 if (portrait != null) {
                     portrait.paintBehind(behind, this, stage.getBounds());

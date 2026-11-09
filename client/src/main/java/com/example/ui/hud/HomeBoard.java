@@ -120,6 +120,7 @@ final class HomeBoard {
     final Rectangle file = new Rectangle();
     final Rectangle stage = new Rectangle();
     final Rectangle reminder = new Rectangle();
+    private final Rectangle lastBubble = new Rectangle();
 
     private String line;
     private long lineUntil;
@@ -278,6 +279,43 @@ final class HomeBoard {
         }
     }
 
+    /** hover 熱區的畫面範圍，給局部重繪用。 */
+    Rectangle hotArea(int id) {
+        if (id == RUN) {
+            return new Rectangle(run);
+        }
+        if (id == CHAT) {
+            return new Rectangle(chat);
+        }
+        if (id == FILE) {
+            return new Rectangle(file);
+        }
+        if (id == SCHEDULE) {
+            return new Rectangle(schedule);
+        }
+        if (id == FRIENDS) {
+            return new Rectangle(friends);
+        }
+        return new Rectangle();
+    }
+
+    /** 台詞淡入淡出要重畫的範圍：上一個泡泡，加上卡片下方可能放新泡泡的那一帶。 */
+    Rectangle bubbleArea() {
+        Rectangle area;
+        if (reminder.height > 0) {
+            int top = reminder.y + reminder.height;
+            area = new Rectangle(stage.x, top, stage.width, Math.max(0, stage.y + stage.height - top));
+        } else {
+            area = new Rectangle(stage);
+        }
+        if (lastBubble.width > 0) {
+            Rectangle last = new Rectangle(lastBubble);
+            last.grow(12, 12);
+            area = area.union(last);
+        }
+        return area;
+    }
+
     int hit(int x, int y) {
         if (run.contains(x, y)) {
             return RUN;
@@ -400,6 +438,7 @@ final class HomeBoard {
         if (alpha < 0.99f) {
             g.setComposite(AlphaComposite.SrcOver.derive(alpha));
         }
+        lastBubble.setBounds(x, y, boxW, boxH);
         paintBubbleShape(g, new Rectangle(x, y, boxW, boxH), TAIL_UP);
         g.setColor(INK);
         int textY = y + 8 + metrics.getAscent();
@@ -454,6 +493,7 @@ final class HomeBoard {
             g.setComposite(AlphaComposite.SrcOver.derive(alpha));
         }
         Rectangle box = new Rectangle(x, y, boxW, boxH);
+        lastBubble.setBounds(box);
         paintBubbleShape(g, box, above ? TAIL_DOWN : TAIL_RIGHT);
         g.setColor(INK);
         int textY = box.y + 8 + metrics.getAscent();
