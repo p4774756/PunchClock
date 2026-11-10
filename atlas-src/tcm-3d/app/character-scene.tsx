@@ -1,5 +1,6 @@
 import {publicAssetUrl} from './public-assets';
-import {ANIME_MODEL_URL,ANIME_POINTS,animePointTarget} from './character-mode';
+import {animeAvatar,avatarPointTarget,type AvatarId} from './avatars';
+import {animeOutfit,type AnimeOutfit,type OutfitId} from './outfits';
 import {useEffect,useRef} from 'react';
 import * as T from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
@@ -13,6 +14,8 @@ import type {SimulationState} from './teaching';
 interface Props{
  state:SceneState;
  simulation:SimulationState;
+ avatarId:AvatarId;
+ outfitId:OutfitId;
  onPoint:(code:string,side:1|-1)=>void;
  onProgress:(n:number)=>void;
  onError:(s:string)=>void;
@@ -24,12 +27,47 @@ const toonGradient=()=>{
  tex.magFilter=T.NearestFilter;tex.minFilter=T.NearestFilter;tex.needsUpdate=true;return tex;
 };
 
-export default function CharacterScene({state,simulation,onPoint,onProgress,onError}:Props){
+const materialLabel=(mat:T.Material,obj:T.Object3D)=>`${mat.name||''} ${obj.name||''}`;
+
+const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
+ root.traverse((obj:T.Object3D)=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  obj.frustumCulled=false;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  for(const mat of mats){
+   const m=mat as T.MeshStandardMaterial;
+   const name=materialLabel(m,obj);
+   const hide=outfit.hideMaterials.some(token=>name.includes(token));
+   m.visible=!hide;
+   if(hide){m.needsUpdate=true;continue;}
+   if(m.map){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
+   if(/HAIR|髪|HairBack/i.test(name)){
+    m.transparent=true;
+    m.opacity=/HairBack|Back/i.test(name)?Math.min(m.opacity??1,.42):Math.min(m.opacity??1,.55);
+    m.depthWrite=false;
+    m.side=T.DoubleSide;
+    m.needsUpdate=true;
+   }else if(outfit.softenMaterials.some(token=>name.includes(token))){
+    m.transparent=true;
+    m.opacity=Math.min(m.opacity??1,.78);
+    m.depthWrite=true;
+    m.needsUpdate=true;
+   }
+  }
+ });
+};
+
+const pointLift=(code:string)=>/^(ST9|CV22|CV23)$/.test(code)?.02:.012;
+
+export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onProgress,onError}:Props){
  const host=useRef<HTMLDivElement>(null);
  const latest=useRef(state);const sim=useRef(simulation);const pointSelect=useRef(onPoint);
  latest.current=state;sim.current=simulation;pointSelect.current=onPoint;
 
  useEffect(()=>{
+  const avatar=animeAvatar(avatarId);
+  const outfit=animeOutfit(outfitId);
+  const points=avatar.points;
   const el=host.current!;let disposed=false,frame=0,dirty=true,ready=false,lastView='',lastReset=-1,lastFocus=-1;
   let renderer:T.WebGLRenderer;
   try{renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});}
@@ -38,7 +76,7 @@ export default function CharacterScene({state,simulation,onPoint,onProgress,onEr
   renderer.setClearColor('#f6efe4');renderer.outputColorSpace=T.SRGBColorSpace;
   renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
   el.appendChild(renderer.domElement);
-  renderer.domElement.setAttribute('aria-label','經絡研習室動漫角色：拖動旋轉，滾輪縮放，點擊穴位標記。');
+  renderer.domElement.setAttribute('aria-label',`${avatar.name}：拖動旋轉，滾輪縮放，點擊穴位標記。`);
 
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(34,1,.005,100),controls=new OrbitControls(camera,renderer.domElement);
   camera.position.set(0,1.45,2.4);controls.target.set(0,1.35,0);
@@ -62,22 +100,18 @@ export default function CharacterScene({state,simulation,onPoint,onProgress,onEr
   const gradient=toonGradient();
   const characterRoot=new T.Group();scene.add(characterRoot);
   const markerRoot=new T.Group();scene.add(markerRoot);
-  // Depth-tested dots: translucent hair／collar keep landmarks readable from the outside,
-  // while back-facing points stay hidden so the rear view does not show facial holes.
   const sphere=new T.SphereGeometry(.0064,16,12);
   const idleMat=new T.MeshBasicMaterial({color:'#2f8f7c',transparent:true,opacity:.94,depthTest:true,depthWrite:false});
   const activeColor='#e2b15a';
   const markers:T.Mesh[]=[];
   const toCamera=new T.Vector3(),outward=new T.Vector3();
-   for(const point of ANIME_POINTS)for(const side of point.midline?[1 as const]:[1 as const,-1 as const]){
-   const target=animePointTarget(point.code,side)!;
+  for(const point of points)for(const side of point.midline?[1 as const]:[1 as const,-1 as const]){
+   const target=avatarPointTarget(avatar,point.code,side)!;
    const dot=new T.Mesh(sphere,idleMat.clone());
    const normal=new T.Vector3().fromArray(target.normal).normalize();
-   // Neck points sit near collar／bow; pull farther out so ST9／CV22 stay readable.
-   const lift=/^(ST9|CV22|CV23)$/.test(point.code)?.02:.012;
    dot.userData={point:point.code,side,normal};
    dot.renderOrder=20;
-   dot.position.fromArray(target.position).addScaledVector(normal,lift);
+   dot.position.fromArray(target.position).addScaledVector(normal,pointLift(point.code));
    markerRoot.add(dot);markers.push(dot);
   }
 
@@ -87,7 +121,6 @@ export default function CharacterScene({state,simulation,onPoint,onProgress,onEr
    const mobile=el.clientWidth<768||(el.clientWidth<=1100&&el.clientHeight<=500);
    const reserved=mobile?210:260;
    const distance=mobile?Math.max(1.55*el.clientHeight/Math.max(160,el.clientHeight-reserved),.9/camera.aspect)/(2*Math.tan(T.MathUtils.degToRad(camera.fov/2))):2.55;
-   // Anime face looks toward -Z, so "front" places the camera on -Z.
    const direction=view==='front'?new T.Vector3(0,.02,-1):view==='back'?new T.Vector3(0,.02,1):view==='side'?new T.Vector3(1,.02,0):new T.Vector3(.42,.08,-1).normalize();
    controls.target.set(0,mobile?1.38:1.32,0);
    camera.position.copy(controls.target).addScaledVector(direction,distance);
@@ -101,45 +134,39 @@ export default function CharacterScene({state,simulation,onPoint,onProgress,onEr
   };
   const observer=new ResizeObserver(resize);observer.observe(el);
 
-  const loader=new GLTFLoader();
-  loader.register(parser=>new VRMLoaderPlugin(parser));
-  loader.load(publicAssetUrl(ANIME_MODEL_URL),(gltf)=>{
-   if(disposed)return;
-   const vrm=gltf.userData.vrm;
-   const model=vrm?.scene??gltf.scene;
-   if(vrm){
-    VRMUtils.removeUnnecessaryVertices(gltf.scene);
-    VRMUtils.combineSkeletons(gltf.scene);
-    // Keep the authored facing used by anime-points.json (face toward -Z). Do not rotateVRM0 here.
-   }
-   model.traverse((obj:T.Object3D)=>{
-    if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
-    obj.frustumCulled=false;
-    const mats=Array.isArray(obj.material)?obj.material:[obj.material];
-    for(const mat of mats){
-     const m=mat as T.MeshStandardMaterial;
-     const name=`${m.name||''} ${obj.name||''}`;
-     if(m.map){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
-     if(/HAIR|髪|HairBack/i.test(name)){
-      // Keep silhouette, but clear ear／temple／nape so TE23・太陽・GB1 stay visible.
-      m.transparent=true;
-      m.opacity=/HairBack|Back/i.test(name)?Math.min(m.opacity??1,.42):Math.min(m.opacity??1,.55);
-      m.depthWrite=false;
-      m.side=T.DoubleSide;
-      m.needsUpdate=true;
-     }else if(/Tops|CLOTH|Accessory/i.test(name)){
-      // Soften collar／bow so 人迎／天突 near the neckline are not buried.
-      m.transparent=true;
-      m.opacity=Math.min(m.opacity??1,.62);
-      m.depthWrite=false;
-      m.needsUpdate=true;
-     }
-    }
-   });
-   characterRoot.add(model);
-   model.updateMatrixWorld(true);
+  if(avatar.modelStatus==='pending'||!avatar.modelUrl){
+   // Keep orbit／view controls alive; page shows the pending-model card.
    ready=true;onProgress(100);fit(latest.current.view);dirty=true;
-  },xhr=>{if(xhr.total)onProgress(Math.min(99,Math.round(xhr.loaded/xhr.total*100)));},()=>{if(!disposed)onError('動漫角色模型載入失敗，請確認 models/anime-assistant.glb 是否存在。');});
+  }else{
+   const loader=new GLTFLoader();
+   loader.register(parser=>new VRMLoaderPlugin(parser));
+   onProgress(8);
+   const modelUrl=avatar.hasOutfits?outfit.modelUrl:avatar.modelUrl;
+   loader.load(publicAssetUrl(modelUrl),(gltf)=>{
+    if(disposed)return;
+    const vrm=gltf.userData.vrm;
+    const model=vrm?.scene??gltf.scene;
+    if(vrm){
+     VRMUtils.removeUnnecessaryVertices(gltf.scene);
+     VRMUtils.combineSkeletons(gltf.scene);
+     // Keep authored facing used by point JSON (face toward -Z). Do not rotateVRM0.
+    }
+    if(avatar.hasOutfits)applyOutfitMaterials(model,outfit);
+    else model.traverse((obj:T.Object3D)=>{
+     if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+     obj.frustumCulled=false;
+     const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+     for(const mat of mats){
+      const m=mat as T.MeshStandardMaterial;
+      if(m.map){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
+     }
+    });
+    characterRoot.clear();
+    characterRoot.add(model);
+    model.updateMatrixWorld(true);
+    ready=true;onProgress(100);fit(latest.current.view);dirty=true;
+   },xhr=>{if(xhr.total)onProgress(Math.min(99,Math.round(xhr.loaded/xhr.total*100)));},()=>{if(!disposed)onError(`${avatar.name} 模型載入失敗，請確認 ${modelUrl} 是否存在。`);});
+  }
 
   const raycaster=new T.Raycaster(),pointer=new T.Vector2(),tap=new PointerTap();
   const down=(e:PointerEvent)=>tap.down(e.pointerId,e.clientX,e.clientY,e.pointerType==='touch'?12:5);
@@ -159,6 +186,8 @@ export default function CharacterScene({state,simulation,onPoint,onProgress,onEr
   renderer.domElement.addEventListener('pointercancel',cancel);
 
   const projected=new T.Vector3();
+  const activeMarker=(code:string|null|undefined,side:1|-1)=>markers.find(m=>m.userData.point===code&&(m.userData.side===side||points.find(p=>p.code===code)?.midline));
+
   const animate=()=>{
    if(disposed)return;frame=requestAnimationFrame(animate);
    const s=latest.current,simState=sim.current;
@@ -166,10 +195,9 @@ export default function CharacterScene({state,simulation,onPoint,onProgress,onEr
    controls.autoRotate=s.rotate;controls.autoRotateSpeed=.55;controls.update();if(controls.autoRotate)dirty=true;
 
    for(const dot of markers){
-    const selected=dot.userData.point===simState.pointCode&&(dot.userData.side===simState.side||ANIME_POINTS.find(p=>p.code===simState.pointCode)?.midline);
+    const selected=dot.userData.point===simState.pointCode&&(dot.userData.side===simState.side||points.find(p=>p.code===simState.pointCode)?.midline);
     const allowed=!simState.curriculumSet||simState.curriculumSet==='all'||simState.curriculumSet==='head-neck-21';
     const facing=outward.copy(dot.userData.normal as T.Vector3).dot(toCamera.copy(camera.position).sub(dot.position).normalize())>.08;
-    // Selected points stay visible even near grazing angles so focus labels do not vanish.
     dot.visible=!!simState.showPoints&&allowed&&!!(facing||selected);
     const mat=dot.material as T.MeshBasicMaterial;
     mat.color.set(selected?activeColor:'#2f8f7c');
@@ -179,11 +207,9 @@ export default function CharacterScene({state,simulation,onPoint,onProgress,onEr
 
    if(simState.focus&&lastFocus!==simState.focus&&ready){
     lastFocus=simState.focus;
-    const target=simState.pointCode?animePointTarget(simState.pointCode,simState.side):null;
+    const target=simState.pointCode?avatarPointTarget(avatar,simState.pointCode,simState.side):null;
     if(target){
      const aim=new T.Vector3().fromArray(target.position);
-     // Outward surface normal points away from skin; place the camera outside along it
-     // (same convention as the anatomy overlay). Negating it was putting face points behind the head.
      const viewDir=new T.Vector3().fromArray(target.normal).normalize();
      if(viewDir.lengthSq()<.01)viewDir.set(0,.08,-1);
      viewDir.add(new T.Vector3(0,.14,0)).normalize();
@@ -193,11 +219,11 @@ export default function CharacterScene({state,simulation,onPoint,onProgress,onEr
     }
    }
 
-   const active=simState.pointCode?animePointTarget(simState.pointCode,simState.side):null;
+   const active=activeMarker(simState.pointCode,simState.side);
    if(active){
-    projected.fromArray(active.position).project(camera);
+    projected.copy(active.position).project(camera);
     const onScreen=projected.z>=-1&&projected.z<=1;
-    label.hidden=!onScreen;label.textContent=ANIME_POINTS.find(p=>p.code===simState.pointCode)?.name??'';
+    label.hidden=!onScreen;label.textContent=points.find(p=>p.code===simState.pointCode)?.name??'';
     label.style.left=`${(projected.x+1)*el.clientWidth/2+14}px`;
     label.style.top=`${(1-projected.y)*el.clientHeight/2-18}px`;
    }else label.hidden=true;
@@ -216,7 +242,7 @@ export default function CharacterScene({state,simulation,onPoint,onProgress,onEr
    scene.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}});
    env.dispose();label.remove();renderer.dispose();renderer.domElement.remove();
   };
- },[]);
+ },[avatarId,outfitId,onProgress,onError]);
 
  return <div className="scene" ref={host}/>;
 }
