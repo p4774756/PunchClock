@@ -39,12 +39,12 @@ const snap=(seed,preferNormal)=>{
 };
 const L=-1;
 const seeds={
- GV20:[0,head.y+.145,head.z+.01],GV23:[0,head.y+.105,head.z-.045],'GV24+':[0,eyeMid.y+.028,eyeMid.z-.02],
+ GV20:[0,head.y+.155,head.z+.025],GV23:[0,eyeMid.y+.105,eyeMid.z-.055],'GV24+':[0,eyeMid.y+.028,eyeMid.z-.02],
  GV26:[0,eyeMid.y-.055,eyeMid.z-.045],CV24:[0,eyeMid.y-.095,eyeMid.z-.02],CV23:[0,neck.y-.01,neck.z-.035],
  CV22:[0,neck.y-.09,neck.z-.055],BL2:[.012*L,eyeMid.y+.03,eyeMid.z-.02],BL1:[.018*L,eyeMid.y+.005,eyeMid.z-.015],
- LI20:[.018*L,eyeMid.y-.04,eyeMid.z-.04],GB14:[.03*L,eyeMid.y+.055,eyeMid.z-.02],'EX-HN4':[.03*L,eyeMid.y+.02,eyeMid.z-.025],
+ LI20:[.018*L,eyeMid.y-.04,eyeMid.z-.04],GB14:[.03*L,eyeMid.y+.055,eyeMid.z-.02],'EX-HN4':[.03*L,eyeMid.y+.036,eyeMid.z-.03],
  ST1:[.028*L,eyeMid.y-.02,eyeMid.z-.02],ST2:[.03*L,eyeMid.y-.035,eyeMid.z-.03],ST3:[.032*L,eyeMid.y-.055,eyeMid.z-.035],
- ST4:[.034*L,eyeMid.y-.075,eyeMid.z-.025],ST9:[.035*L,neck.y-.005,neck.z-.025],TE23:[.055*L,eyeMid.y+.02,eyeMid.z+.005],
+ ST4:[.034*L,eyeMid.y-.075,eyeMid.z-.025],ST9:[.038*L,neck.y-.02,neck.z-.045],TE23:[.055*L,eyeMid.y+.02,eyeMid.z+.005],
  'EX-HN5':[.06*L,eyeMid.y+.01,eyeMid.z+.02],GB1:[.055*L,eyeMid.y-.005,eyeMid.z+.005],SI18:[.05*L,eyeMid.y-.05,eyeMid.z+.01],
 };
 const names={GV20:'百會',GV23:'上星','GV24+':'印堂',GV26:'水溝',CV24:'承漿',CV23:'廉泉',CV22:'天突',BL2:'攢竹',BL1:'睛明',LI20:'迎香',GB14:'陽白','EX-HN4':'魚腰',ST1:'承泣',ST2:'四白',ST3:'巨髎',ST4:'地倉',ST9:'人迎',TE23:'絲竹空','EX-HN5':'太陽',GB1:'瞳子髎',SI18:'顴髎'};

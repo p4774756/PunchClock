@@ -69,13 +69,15 @@ export default function CharacterScene({state,simulation,onPoint,onProgress,onEr
   const activeColor='#e2b15a';
   const markers:T.Mesh[]=[];
   const toCamera=new T.Vector3(),outward=new T.Vector3();
-  for(const point of ANIME_POINTS)for(const side of point.midline?[1 as const]:[1 as const,-1 as const]){
+   for(const point of ANIME_POINTS)for(const side of point.midline?[1 as const]:[1 as const,-1 as const]){
    const target=animePointTarget(point.code,side)!;
    const dot=new T.Mesh(sphere,idleMat.clone());
    const normal=new T.Vector3().fromArray(target.normal).normalize();
+   // Neck points sit near collar／bow; pull farther out so ST9／CV22 stay readable.
+   const lift=/^(ST9|CV22|CV23)$/.test(point.code)?.02:.012;
    dot.userData={point:point.code,side,normal};
    dot.renderOrder=20;
-   dot.position.fromArray(target.position).addScaledVector(normal,.012);
+   dot.position.fromArray(target.position).addScaledVector(normal,lift);
    markerRoot.add(dot);markers.push(dot);
   }
 
@@ -126,10 +128,10 @@ export default function CharacterScene({state,simulation,onPoint,onProgress,onEr
       m.side=T.DoubleSide;
       m.needsUpdate=true;
      }else if(/Tops|CLOTH|Accessory/i.test(name)){
-      // Soften collar／scarf so CV22／ST9 near the neckline are not buried.
+      // Soften collar／bow so 人迎／天突 near the neckline are not buried.
       m.transparent=true;
-      m.opacity=Math.min(m.opacity??1,.78);
-      m.depthWrite=true;
+      m.opacity=Math.min(m.opacity??1,.62);
+      m.depthWrite=false;
       m.needsUpdate=true;
      }
     }
