@@ -62,25 +62,22 @@ export default function CharacterScene({state,simulation,onPoint,onProgress,onEr
   const gradient=toonGradient();
   const characterRoot=new T.Group();scene.add(characterRoot);
   const markerRoot=new T.Group();scene.add(markerRoot);
-  // Larger dots drawn on top of hair／collar so head-neck landmarks stay readable.
+  // Depth-tested dots: translucent hair／collar keep landmarks readable from the outside,
+  // while back-facing points stay hidden so the rear view does not show facial holes.
   const sphere=new T.SphereGeometry(.0064,16,12);
-  const makeMarkerMat=(color:string,emissive:string,emissiveIntensity:number)=> {
-   const mat=new T.MeshBasicMaterial({color,transparent:true,opacity:.96,depthTest:false,depthWrite:false});
-   mat.userData={emissive,emissiveIntensity};return mat;
-  };
-  const idleMat=makeMarkerMat('#2f8f7c','#24463e',0);
+  const idleMat=new T.MeshBasicMaterial({color:'#2f8f7c',transparent:true,opacity:.94,depthTest:true,depthWrite:false});
   const activeColor='#e2b15a';
   const markers:T.Mesh[]=[];
+  const toCamera=new T.Vector3(),outward=new T.Vector3();
   for(const point of ANIME_POINTS)for(const side of point.midline?[1 as const]:[1 as const,-1 as const]){
    const target=animePointTarget(point.code,side)!;
    const dot=new T.Mesh(sphere,idleMat.clone());
-   dot.userData={point:point.code,side};
-   dot.renderOrder=40;
-   // Pull slightly off the skin so ear／jaw／neck markers clear hair strands and collar mesh.
-   dot.position.fromArray(target.position).addScaledVector(new T.Vector3().fromArray(target.normal),.01);
+   const normal=new T.Vector3().fromArray(target.normal).normalize();
+   dot.userData={point:point.code,side,normal};
+   dot.renderOrder=20;
+   dot.position.fromArray(target.position).addScaledVector(normal,.012);
    markerRoot.add(dot);markers.push(dot);
   }
-  markerRoot.renderOrder=40;
 
   const label=document.createElement('div');label.className='contact-label';label.hidden=true;el.appendChild(label);
 
@@ -169,10 +166,12 @@ export default function CharacterScene({state,simulation,onPoint,onProgress,onEr
    for(const dot of markers){
     const selected=dot.userData.point===simState.pointCode&&(dot.userData.side===simState.side||ANIME_POINTS.find(p=>p.code===simState.pointCode)?.midline);
     const allowed=!simState.curriculumSet||simState.curriculumSet==='all'||simState.curriculumSet==='head-neck-21';
-    dot.visible=!!simState.showPoints&&allowed&&(!simState.pointCode||ANIME_POINTS.some(p=>p.code===dot.userData.point));
+    const facing=outward.copy(dot.userData.normal as T.Vector3).dot(toCamera.copy(camera.position).sub(dot.position).normalize())>.08;
+    // Selected points stay visible even near grazing angles so focus labels do not vanish.
+    dot.visible=!!simState.showPoints&&allowed&&!!(facing||selected);
     const mat=dot.material as T.MeshBasicMaterial;
     mat.color.set(selected?activeColor:'#2f8f7c');
-    mat.opacity=selected?.99:.92;
+    mat.opacity=selected?.98:.9;
     dot.scale.setScalar(selected?1.55:1);
    }
 
