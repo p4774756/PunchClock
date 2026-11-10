@@ -3,12 +3,13 @@ package com.example.ui.blackjack;
 import com.example.ui.CandyTheme;
 import com.example.ui.UiFonts;
 
-import javax.swing.JComponent;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -20,9 +21,11 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.RadialGradientPaint;
 import java.awt.Rectangle;
-import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.TexturePaint;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Path2D;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
@@ -30,29 +33,31 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * 綠色牌桌：上方對手、中間牌堆與回合提示、下方自己與操作鈕。結算時在中間彈出結果牌。
- * 只負責畫面，遊戲狀態由 {@code BlackjackWindow} 從 session 讀出來再塞進來。
+ * 金框綠絨牌桌。開局前顯示 {@link WaitingView}，開局後是「對手列／對手手牌／牌堆與回合／自己手牌／自己列」。
+ * 結算時在中間彈出結果牌。只負責畫面，狀態由 {@code BlackjackWindow} 從 session 讀出來再塞進來。
  */
-public final class BlackjackTablePanel extends JPanel {
+public final class BlackjackTablePanel extends JPanel implements CasinoTheme.Scalable {
 
     public enum Result {
         WIN, LOSE, DRAW
     }
 
-    private static final int RIM = 10;
+    private static final String CARD_WAIT = "wait";
+    private static final String CARD_PLAY = "play";
     private static final int POP_MS = 520;
     private static final int CONFETTI_MS = 2600;
-    private static final Color RIM_OUTER = new Color(0xB8, 0x6A, 0x86);
-    private static final Color RIM_INNER = new Color(0xE9, 0xA5, 0xBE);
-    private static final Color FELT_CENTER = new Color(0x4C, 0xB0, 0x86);
-    private static final Color FELT_EDGE = new Color(0x22, 0x6E, 0x50);
 
-    private final PlayerBadge peerBadge = new PlayerBadge("對手");
-    private final PlayerBadge myBadge = new PlayerBadge("你");
+    private final PlayerBadge peerBadge = new PlayerBadge("對手", null);
+    private final PlayerBadge myBadge = new PlayerBadge("你", CasinoAssets.PLAYER_DEFAULT);
     private final HandView peerHand = new HandView(false);
     private final HandView myHand = new HandView(true);
     private final TableCenter center = new TableCenter();
+    private final WaitingView waitingView = new WaitingView();
+    private final CardLayout cards = new CardLayout();
+    private final JPanel play;
     private final TexturePaint felt = feltTexture();
+    private float scale = 1f;
+    private boolean waiting = true;
 
     private Result result;
     private String resultTitle = "";
@@ -61,48 +66,46 @@ public final class BlackjackTablePanel extends JPanel {
     private final List<float[]> confetti = new ArrayList<>();
     private final Timer resultTimer;
 
-    public BlackjackTablePanel(JComponent actions) {
-        super(new GridBagLayout());
+    public BlackjackTablePanel() {
         setOpaque(false);
-        setBorder(new EmptyBorder(RIM + 10, RIM + 14, RIM + 10, RIM + 14));
+        setLayout(cards);
         resultTimer = new Timer(16, e -> tickResult());
         resultTimer.setRepeats(true);
 
+        play = new JPanel(new GridBagLayout());
+        play.setOpaque(false);
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0;
         c.weightx = 1;
         c.fill = GridBagConstraints.HORIZONTAL;
         c.gridy = 0;
-        add(peerBadge, c);
+        play.add(peerBadge, c);
 
         c.gridy = 1;
         c.weighty = 1;
         c.fill = GridBagConstraints.BOTH;
-        c.insets = new Insets(4, 0, 2, 0);
-        add(peerHand, c);
+        play.add(peerHand, c);
 
         c.gridy = 2;
         c.weighty = 0;
         c.fill = GridBagConstraints.HORIZONTAL;
-        c.insets = new Insets(2, 0, 2, 0);
-        add(center, c);
+        play.add(center, c);
 
         c.gridy = 3;
         c.weighty = 1;
         c.fill = GridBagConstraints.BOTH;
-        c.insets = new Insets(2, 0, 4, 0);
-        add(myHand, c);
+        play.add(myHand, c);
 
         c.gridy = 4;
         c.weighty = 0;
         c.fill = GridBagConstraints.HORIZONTAL;
         c.insets = new Insets(0, 0, 0, 0);
-        add(myBadge, c);
+        play.add(myBadge, c);
 
-        c.gridy = 5;
-        c.fill = GridBagConstraints.NONE;
-        c.insets = new Insets(10, 0, 0, 0);
-        add(actions, c);
+        add(waitingView, CARD_WAIT);
+        add(play, CARD_PLAY);
+        cards.show(this, CARD_WAIT);
+        updateBorder();
     }
 
     public PlayerBadge peerBadge() {
@@ -123,6 +126,42 @@ public final class BlackjackTablePanel extends JPanel {
 
     public TableCenter center() {
         return center;
+    }
+
+    public WaitingView waitingView() {
+        return waitingView;
+    }
+
+    /** 切換開局前的等待畫面與牌局畫面。 */
+    public void setWaiting(boolean value) {
+        if (waiting == value) {
+            return;
+        }
+        waiting = value;
+        cards.show(this, value ? CARD_WAIT : CARD_PLAY);
+        repaint();
+    }
+
+    public boolean isWaiting() {
+        return waiting;
+    }
+
+    @Override
+    public void setUiScale(float value) {
+        scale = value;
+        updateBorder();
+        revalidate();
+        repaint();
+    }
+
+    private void updateBorder() {
+        int rim = rim();
+        setBorder(new EmptyBorder(rim + CasinoTheme.px(scale, 4), rim + CasinoTheme.px(scale, 56),
+                rim + CasinoTheme.px(scale, 14), rim + CasinoTheme.px(scale, 56)));
+    }
+
+    private int rim() {
+        return CasinoTheme.px(scale, 18);
     }
 
     public Result result() {
@@ -166,6 +205,120 @@ public final class BlackjackTablePanel extends JPanel {
         super.removeNotify();
     }
 
+    /** 牌桌外形：上緣平直、肩部斜切、下緣大圓角。 */
+    static Shape tableShape(double x, double y, double w, double h, double scale, double inset) {
+        double[][] pts = {
+                {x + w * 0.12, y}, {x + w * 0.88, y}, {x + w, y + h * 0.3},
+                {x + w, y + h}, {x, y + h}, {x, y + h * 0.3}};
+        double[] radii = {44, 44, 70, 150, 150, 70};
+        Path2D path = new Path2D.Double();
+        int n = pts.length;
+        for (int i = 0; i < n; i++) {
+            double[] prev = pts[(i + n - 1) % n];
+            double[] cur = pts[i];
+            double[] next = pts[(i + 1) % n];
+            double r = Math.max(4, radii[i] * scale - inset * 0.6);
+            double[] a = toward(cur, prev, r);
+            double[] b = toward(cur, next, r);
+            if (i == 0) {
+                path.moveTo(a[0], a[1]);
+            } else {
+                path.lineTo(a[0], a[1]);
+            }
+            path.quadTo(cur[0], cur[1], b[0], b[1]);
+        }
+        path.closePath();
+        return path;
+    }
+
+    private static double[] toward(double[] from, double[] to, double distance) {
+        double dx = to[0] - from[0];
+        double dy = to[1] - from[1];
+        double len = Math.max(1e-6, Math.hypot(dx, dy));
+        double t = Math.min(0.45, distance / len);
+        return new double[]{from[0] + dx * t, from[1] + dy * t};
+    }
+
+    @Override
+    protected void paintComponent(Graphics graphics) {
+        Graphics2D g = CasinoTheme.quality((Graphics2D) graphics);
+        int w = getWidth();
+        int h = getHeight();
+        double rim = rim();
+        double sh = CasinoTheme.px(scale, 8);
+        if (CasinoPaint.slice9(g, CasinoAssets.TABLE, 0, 0, w, h, 210, 150, 170, 150, scale)) {
+            double edge = 34 * scale;
+            paintClubs(g, edge, edge, w - edge * 2, h - edge * 2 - 30 * scale);
+            g.dispose();
+            return;
+        }
+
+        g.setColor(new Color(12, 0, 8, 120));
+        g.fill(AffineTransform.getTranslateInstance(0, sh).createTransformedShape(
+                tableShape(2, 2, w - 4, h - 4 - sh, scale, 0)));
+        Shape outer = tableShape(2, 2, w - 4, h - 4 - sh, scale, 0);
+        g.setPaint(CasinoTheme.gold(0, h));
+        g.fill(outer);
+        g.setColor(CasinoTheme.GOLD_DARK);
+        g.setStroke(new BasicStroke(Math.max(1.5f, 2f * scale)));
+        g.draw(outer);
+        Shape bevel = tableShape(2 + rim * 0.35, 2 + rim * 0.35, w - 4 - rim * 0.7, h - 4 - sh - rim * 0.7, scale, rim * 0.35);
+        g.setColor(new Color(255, 248, 210, 150));
+        g.setStroke(new BasicStroke(Math.max(1f, 1.4f * scale)));
+        g.draw(bevel);
+
+        double fx = 2 + rim;
+        double fy = 2 + rim;
+        double fw = w - 4 - rim * 2;
+        double fh = h - 4 - sh - rim * 2;
+        Shape feltShape = tableShape(fx, fy, fw, fh, scale, rim);
+        g.setColor(CasinoTheme.GOLD_DARK);
+        g.setStroke(new BasicStroke(Math.max(2f, 3f * scale)));
+        g.draw(feltShape);
+        float radius = (float) (Math.max(fw, fh) * 0.62);
+        g.setPaint(new RadialGradientPaint(new Point2D.Double(fx + fw / 2, fy + fh * 0.45), radius,
+                new float[]{0f, 0.55f, 1f},
+                new Color[]{CasinoTheme.FELT_LIGHT, CasinoTheme.FELT, CasinoTheme.FELT_DARK}));
+        g.fill(feltShape);
+        g.setPaint(felt);
+        g.fill(feltShape);
+
+        Graphics2D inner = (Graphics2D) g.create();
+        inner.clip(feltShape);
+        inner.setColor(new Color(0, 0, 0, 70));
+        inner.setStroke(new BasicStroke((float) (rim * 0.9)));
+        inner.draw(feltShape);
+        double line = CasinoTheme.px(scale, 18);
+        inner.setColor(new Color(0xE8, 0xC2, 0x6A, 120));
+        inner.setStroke(new BasicStroke(Math.max(1f, 1.5f * scale)));
+        inner.draw(tableShape(fx + line, fy + line, fw - line * 2, fh - line * 2, scale, rim + line));
+        if (!waiting) {
+            inner.setColor(new Color(255, 236, 170, 46));
+            inner.setStroke(new BasicStroke(Math.max(1f, 2f * scale)));
+            double ew = fw * 0.82;
+            double eh = fh * 0.46;
+            inner.draw(new Ellipse2D.Double(fx + (fw - ew) / 2, fy + fh / 2 - eh / 2, ew, eh));
+        } else {
+            inner.setColor(new Color(255, 236, 170, 36));
+            inner.setStroke(new BasicStroke(Math.max(1f, 2f * scale)));
+            double ew = fw * 0.9;
+            double eh = fh * 0.7;
+            inner.draw(new Ellipse2D.Double(fx + (fw - ew) / 2, fy + fh * 0.55 - eh / 2, ew, eh));
+        }
+        paintClubs(inner, fx, fy, fw, fh);
+        inner.dispose();
+        g.dispose();
+    }
+
+    private void paintClubs(Graphics2D g, double fx, double fy, double fw, double fh) {
+        double cs = CasinoTheme.px(scale, 30);
+        double[][] spots = {{0.17, 0.2}, {0.83, 0.2}, {0.1, 0.78}, {0.9, 0.78}};
+        g.setColor(new Color(0x0C, 0x3A, 0x22, 150));
+        for (double[] p : spots) {
+            g.fill(CardPainter.suitShape(3, fx + fw * p[0], fy + fh * p[1], cs));
+        }
+    }
+
     private void seedConfetti() {
         Random random = new Random();
         for (int i = 0; i < 70; i++) {
@@ -194,61 +347,12 @@ public final class BlackjackTablePanel extends JPanel {
     }
 
     @Override
-    protected void paintComponent(Graphics graphics) {
-        Graphics2D g = (Graphics2D) graphics.create();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        int w = getWidth();
-        int h = getHeight();
-        int arc = 42;
-
-        g.setColor(new Color(10, 6, 20, 90));
-        g.fillRoundRect(3, 6, w - 6, h - 6, arc, arc);
-        g.setPaint(new GradientPaint(0, 0, RIM_INNER, 0, h, RIM_OUTER));
-        g.fillRoundRect(0, 0, w - 4, h - 6, arc, arc);
-        g.setColor(new Color(255, 255, 255, 90));
-        g.setStroke(new BasicStroke(2f));
-        g.drawRoundRect(3, 3, w - 11, h - 13, arc - 6, arc - 6);
-
-        int fx = RIM;
-        int fy = RIM;
-        int fw = w - 4 - RIM * 2;
-        int fh = h - 6 - RIM * 2;
-        int farc = arc - RIM;
-        float radius = Math.max(fw, fh) * 0.75f;
-        g.setPaint(new RadialGradientPaint(new Point2D.Float(fx + fw / 2f, fy + fh / 2f), radius,
-                new float[]{0f, 1f}, new Color[]{FELT_CENTER, FELT_EDGE}));
-        g.fillRoundRect(fx, fy, fw, fh, farc, farc);
-        g.setPaint(felt);
-        g.fillRoundRect(fx, fy, fw, fh, farc, farc);
-        g.setColor(new Color(0, 0, 0, 50));
-        g.setStroke(new BasicStroke(3f));
-        g.drawRoundRect(fx + 1, fy + 1, fw - 3, fh - 3, farc, farc);
-
-        g.setColor(new Color(255, 255, 255, 34));
-        g.setStroke(new BasicStroke(2f));
-        int ringW = fw - 70;
-        int ringH = Math.max(60, fh / 3);
-        g.drawRoundRect(fx + 35, fy + (fh - ringH) / 2, ringW, ringH, ringH, ringH);
-
-        int scale = 2;
-        Color soft = new Color(255, 255, 255, 60);
-        PixelArt.draw(g, PixelArt.HEART, fx + 14, fy + 14, scale, soft);
-        PixelArt.draw(g, PixelArt.STAR, fx + fw - 14 - PixelArt.width(PixelArt.STAR) * scale, fy + 14, scale, soft);
-        PixelArt.draw(g, PixelArt.STAR, fx + 14, fy + fh - 14 - PixelArt.height(PixelArt.STAR) * scale, scale, soft);
-        PixelArt.draw(g, PixelArt.HEART, fx + fw - 14 - PixelArt.width(PixelArt.HEART) * scale,
-                fy + fh - 14 - PixelArt.height(PixelArt.HEART) * scale, scale, soft);
-        g.dispose();
-    }
-
-    @Override
     public void paint(Graphics graphics) {
         super.paint(graphics);
         if (result == null) {
             return;
         }
-        Graphics2D g = (Graphics2D) graphics.create();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        Graphics2D g = CasinoTheme.quality((Graphics2D) graphics);
         long elapsed = System.currentTimeMillis() - resultStart;
         paintConfetti(g, elapsed);
         paintBanner(g, elapsed);
@@ -265,22 +369,23 @@ public final class BlackjackTablePanel extends JPanel {
         for (float[] p : confetti) {
             float x = (p[0] + p[3] * t + 0.02f * (float) Math.sin(t * 4 + p[0] * 20)) * getWidth();
             float y = (p[1] + p[2] * t) * getHeight();
-            int size = (int) p[5];
+            int size = Math.round(p[5] * scale);
             g.setColor(CONFETTI_COLORS[(int) p[4]]);
             g.fillRect(Math.round(x), Math.round(y), size, size);
         }
         g.setComposite(AlphaComposite.SrcOver);
     }
 
+    // 結算牌在 C 階段改成定稿樣式；這裡先維持原本的動畫與資訊
     private void paintBanner(Graphics2D g, long elapsed) {
-        Rectangle anchor = center.getBounds();
-        int bw = Math.min(400, getWidth() - 60);
-        int bh = Math.max(84, anchor.height + 8);
+        Rectangle anchor = SwingUtilities.convertRectangle(center.getParent(), center.getBounds(), this);
+        int bw = Math.min(CasinoTheme.px(scale, 460), getWidth() - 60);
+        int bh = Math.max(CasinoTheme.px(scale, 96), anchor.height - CasinoTheme.px(scale, 20));
         int cx = anchor.x + anchor.width / 2;
         int cy = anchor.y + anchor.height / 2;
 
         float t = Math.min(1f, elapsed / (float) POP_MS);
-        float scale = 1f;
+        float pop = 1f;
         float alpha = Math.min(1f, t * 2.2f);
         double angle = 0;
         int dy = 0;
@@ -289,7 +394,7 @@ public final class BlackjackTablePanel extends JPanel {
         String[] icon;
         switch (result) {
             case WIN:
-                scale = 0.55f + 0.45f * easeOutBack(t);
+                pop = 0.55f + 0.45f * easeOutBack(t);
                 top = new Color(0xFF, 0xEA, 0x8F);
                 bottom = new Color(0xFF, 0xB3, 0x5C);
                 icon = PixelArt.TROPHY;
@@ -301,7 +406,7 @@ public final class BlackjackTablePanel extends JPanel {
                 icon = PixelArt.RAIN;
                 break;
             default:
-                scale = 0.8f + 0.2f * easeOut(t);
+                pop = 0.8f + 0.2f * easeOut(t);
                 long wobble = Math.min(elapsed, POP_MS + 900L);
                 angle = 0.06 * Math.sin(wobble / 90.0) * Math.max(0, 1 - wobble / (double) (POP_MS + 900));
                 top = new Color(0xD3, 0xF7, 0xE6);
@@ -313,28 +418,28 @@ public final class BlackjackTablePanel extends JPanel {
         AffineTransform saved = g.getTransform();
         g.translate(cx, cy + dy);
         g.rotate(angle);
-        g.scale(scale, scale);
+        g.scale(pop, pop);
         g.setComposite(AlphaComposite.SrcOver.derive(alpha));
         int x = -bw / 2;
         int y = -bh / 2;
         int arc = 26;
         g.setColor(new Color(0, 0, 0, 80));
         g.fillRoundRect(x + 2, y + 5, bw, bh, arc, arc);
-        g.setColor(Color.WHITE);
-        g.fillRoundRect(x - 3, y - 3, bw + 6, bh + 6, arc + 6, arc + 6);
+        g.setPaint(CasinoTheme.gold(y - 4, y + bh + 4));
+        g.fillRoundRect(x - 4, y - 4, bw + 8, bh + 8, arc + 8, arc + 8);
         g.setPaint(new GradientPaint(0, y, top, 0, y + bh, bottom));
         g.fillRoundRect(x, y, bw, bh, arc, arc);
         g.setColor(new Color(255, 255, 255, 120));
         g.fillRoundRect(x + 10, y + 5, bw - 20, bh / 4, arc / 2, arc / 2);
 
-        int scalePx = 4;
+        int scalePx = Math.max(3, Math.round(4 * scale));
         int iw = PixelArt.width(icon) * scalePx;
         int ih = PixelArt.height(icon) * scalePx;
         int ix = x + 18;
         PixelArt.drawShadowed(g, icon, ix, y + (bh - ih) / 2, scalePx);
 
-        Font titleFont = UiFonts.chineseBold(24);
-        Font detailFont = UiFonts.chinesePlain(13);
+        Font titleFont = CasinoTheme.chinese(true, scale, 28);
+        Font detailFont = UiFonts.chinesePlain(Math.max(12, CasinoTheme.px(scale, 15)));
         g.setFont(titleFont);
         FontMetrics tm = g.getFontMetrics();
         g.setFont(detailFont);
@@ -369,11 +474,20 @@ public final class BlackjackTablePanel extends JPanel {
     }
 
     private static TexturePaint feltTexture() {
-        int size = 6;
+        BufferedImage asset = CasinoAssets.getBuffered(CasinoAssets.FELT_TILE);
+        if (asset != null) {
+            return new TexturePaint(asset, new Rectangle(0, 0, asset.getWidth(), asset.getHeight()));
+        }
+        int size = 64;
         BufferedImage tile = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
-        tile.setRGB(1, 1, new Color(255, 255, 255, 16).getRGB());
-        tile.setRGB(4, 3, new Color(0, 0, 0, 20).getRGB());
-        tile.setRGB(2, 5, new Color(255, 255, 255, 10).getRGB());
+        Random random = new Random(21);
+        for (int i = 0; i < 900; i++) {
+            int x = random.nextInt(size);
+            int y = random.nextInt(size);
+            boolean light = random.nextBoolean();
+            tile.setRGB(x, y, light ? new Color(255, 255, 255, 10 + random.nextInt(12)).getRGB()
+                    : new Color(0, 0, 0, 14 + random.nextInt(16)).getRGB());
+        }
         return new TexturePaint(tile, new Rectangle(0, 0, size, size));
     }
 }

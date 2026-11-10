@@ -16,12 +16,13 @@ import java.util.List;
 /**
  * 一手牌。新增的牌會從牌堆方向滑進來；換成不相干的一手（新局）時整手重發。
  */
-public final class HandView extends JComponent {
+public final class HandView extends JComponent implements CasinoTheme.Scalable {
 
     public static final int DEAL_MS = 340;
     public static final int STAGGER_MS = 150;
-    private static final int MAX_CARD_H = 118;
+    private static final int DESIGN_CARD_H = 134;
     private static final int MIN_CARD_H = 64;
+    private float scale = 1f;
 
     private final boolean deckAbove;
     private final List<Card> cards = new ArrayList<>();
@@ -87,8 +88,19 @@ public final class HandView extends JComponent {
     }
 
     @Override
+    public void setUiScale(float value) {
+        scale = value;
+        revalidate();
+        repaint();
+    }
+
+    private int maxCardH() {
+        return Math.max(MIN_CARD_H, CasinoTheme.px(scale, DESIGN_CARD_H));
+    }
+
+    @Override
     public Dimension getPreferredSize() {
-        return new Dimension(380, MAX_CARD_H + 14);
+        return new Dimension(CasinoTheme.px(scale, 420), maxCardH() + CasinoTheme.px(scale, 8));
     }
 
     @Override
@@ -139,7 +151,7 @@ public final class HandView extends JComponent {
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
 
-        int cardH = Math.max(MIN_CARD_H, Math.min(MAX_CARD_H, getHeight() - 12));
+        int cardH = Math.max(MIN_CARD_H, Math.min(maxCardH(), getHeight() - 6));
         int cardW = (int) Math.round(cardH / CardPainter.RATIO);
         int top = (getHeight() - cardH) / 2;
         int count = cards.isEmpty() ? slots : cards.size();
@@ -147,7 +159,7 @@ public final class HandView extends JComponent {
             g.dispose();
             return;
         }
-        int gap = Math.round(cardW * 0.16f);
+        int gap = Math.round(cardW * 0.06f);
         int step = cardW + gap;
         int total = cardW + step * (count - 1);
         int usable = getWidth() - 16;

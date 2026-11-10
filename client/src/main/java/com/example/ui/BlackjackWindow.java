@@ -4,32 +4,34 @@ import com.example.BlackjackProtocol;
 import com.example.BlackjackRules;
 import com.example.service.BlackjackSession;
 import com.example.service.LunchChallenge;
+import com.example.ui.blackjack.BlackjackScene;
 import com.example.ui.blackjack.BlackjackTablePanel;
+import com.example.ui.blackjack.CasinoButton;
+import com.example.ui.blackjack.CasinoFooter;
+import com.example.ui.blackjack.CasinoHeader;
+import com.example.ui.blackjack.CasinoIcons;
+import com.example.ui.blackjack.CasinoStage;
+import com.example.ui.blackjack.CasinoTheme;
 import com.example.ui.blackjack.HandView;
 import com.example.ui.blackjack.LunchPanel;
-import com.example.ui.blackjack.PixelArt;
 import com.example.ui.blackjack.PlayerBadge;
 
-import javax.swing.JButton;
 import javax.swing.JFrame;
-import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.Timer;
-import javax.swing.border.EmptyBorder;
-import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
 import java.awt.Image;
-import java.awt.RenderingHints;
+import java.awt.Insets;
+import java.awt.Rectangle;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.function.Consumer;
 
 /**
- * 兩人 21 點視窗：牌桌、操作鈕與底部功能列。遊戲規則全在 {@link BlackjackSession}，
+ * 兩人 21 點視窗：賭場牌桌、操作鈕與底部功能列。遊戲規則全在 {@link BlackjackSession}，
  * 這裡只把狀態畫出來、把按鈕動作轉成協定字串交給 {@link Host} 送出。
  */
 public final class BlackjackWindow extends JFrame {
@@ -39,7 +41,7 @@ public final class BlackjackWindow extends JFrame {
 
         void gameClosed(BlackjackWindow window);
 
-        /** 玩家頭像；沒有就回 null，改畫像素小臉。 */
+        /** 玩家頭像；沒有就回 null，改畫預設角色。 */
         default Image avatarOf(String clientId) {
             return null;
         }
@@ -53,31 +55,34 @@ public final class BlackjackWindow extends JFrame {
         }
     }
 
-    private static final Color GOLD = new Color(0xFF, 0xD2, 0x5E);
-    private static final Color MINT = new Color(0xB9, 0xF0, 0xD4);
-    private static final Color BUST = new Color(0xF5, 0x8C, 0xA0);
-    private static final Color WIN_INK = new Color(140, 230, 170);
-    private static final Color LOSE_INK = new Color(255, 160, 170);
+    private static final Color WARN_INK = new Color(0xFF, 0xB4, 0xBE);
+    private static final Color WIN_INK = new Color(0xB6, 0xF2, 0xC4);
+    private static final Color LOSE_INK = new Color(0xFF, 0xC0, 0xC8);
+    private static final int MIN_W = 720;
+    private static final int MIN_H = 680;
 
     private final String peerId;
     private final Host host;
     private BlackjackSession session;
 
+    private final CasinoStage stage;
+    private final CasinoHeader header;
     private final BlackjackTablePanel table;
-    private final JButton acceptButton;
-    private final JButton declineButton;
-    private final JButton hitButton;
-    private final JButton standButton;
-    private final JButton resendButton;
-    private final JButton rematchButton;
-    private final JButton closeButton;
-    private final Chip modeChip;
-    private final JLabel messageLabel;
+    private final CasinoFooter footer;
+    private final CasinoButton acceptButton;
+    private final CasinoButton declineButton;
+    private final CasinoButton hitButton;
+    private final CasinoButton standButton;
+    private final CasinoButton resendButton;
+    private final CasinoButton cancelButton;
+    private final CasinoButton rematchButton;
+    private final CasinoButton closeButton;
     private final LunchPanel lunchPanel;
 
     private BlackjackSession renderedSession;
     private boolean sending;
     private String failedPayload;
+    private boolean cancelledByMe;
     private boolean lunchSending;
     private String lunchRetryText;
     private String lunchWarning;
@@ -95,14 +100,16 @@ public final class BlackjackWindow extends JFrame {
         }
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-        acceptButton = button("接受挑戰", CandyButton.Variant.PRIMARY, CandyButton.Size.LARGE);
-        declineButton = button("婉拒", CandyButton.Variant.SECONDARY, CandyButton.Size.LARGE);
-        hitButton = button("要牌", CandyButton.Variant.PRIMARY, CandyButton.Size.LARGE);
-        standButton = button("停牌", CandyButton.Variant.SECONDARY, CandyButton.Size.LARGE);
-        resendButton = button("重送", CandyButton.Variant.DANGER, CandyButton.Size.SMALL);
-        rematchButton = button("再戰一局", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
-        closeButton = button("關閉", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+        acceptButton = large("接受挑戰", "(Accept)", CasinoIcons.CHECK, CasinoButton.Tone.GREEN);
+        declineButton = large("婉拒", "(Decline)", CasinoIcons.CLOSE, CasinoButton.Tone.RED);
+        hitButton = large("要牌", "(Hit)", CasinoIcons.CARDS, CasinoButton.Tone.GREEN);
+        standButton = large("停牌", "(Stand)", CasinoIcons.HAND, CasinoButton.Tone.RED);
+        resendButton = small("重送", CasinoIcons.SEND, CasinoButton.Tone.RED);
+        cancelButton = small("取消邀請", CasinoIcons.REFRESH, CasinoButton.Tone.PURPLE);
+        rematchButton = small("再戰一局", CasinoIcons.REFRESH, CasinoButton.Tone.PURPLE);
+        closeButton = small("關閉", CasinoIcons.CLOSE, CasinoButton.Tone.PURPLE);
         rematchButton.setToolTipText("開新的一局，牌堆重洗，模式沿用這一局");
+        cancelButton.setToolTipText("收回這次邀請，對方收到後會關閉邀請（約 15 秒）");
         acceptButton.setToolTipText("接受後雙方同時開局");
         hitButton.setToolTipText("再拿一張牌（超過 21 點就爆牌）");
         standButton.setToolTipText("不再拿牌，換對方行動");
@@ -112,6 +119,7 @@ public final class BlackjackWindow extends JFrame {
         declineButton.addActionListener(e -> onDecline());
         hitButton.addActionListener(e -> onHit());
         standButton.addActionListener(e -> onStand());
+        cancelButton.addActionListener(e -> onCancelInvite());
         resendButton.addActionListener(e -> {
             if (failedPayload != null) {
                 send(failedPayload);
@@ -124,63 +132,23 @@ public final class BlackjackWindow extends JFrame {
         });
         closeButton.addActionListener(e -> dispose());
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 14, 0));
+        lunchPanel = new LunchPanel(this::onLunchSubmit);
+        lunchPanel.setVisible(false);
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 34, 0));
         actions.setOpaque(false);
         actions.add(acceptButton);
         actions.add(declineButton);
         actions.add(hitButton);
         actions.add(standButton);
+        actions.add(lunchPanel);
 
-        table = new BlackjackTablePanel(actions);
-
-        modeChip = new Chip();
-        modeChip.setFont(UiFonts.chineseBold(12));
-        messageLabel = new JLabel(" ");
-        messageLabel.setFont(UiFonts.chinesePlain(13));
-        messageLabel.setForeground(CandyTheme.MUTED);
-
-        JPanel info = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        info.setOpaque(false);
-        info.add(modeChip);
-        info.add(messageLabel);
-
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        buttons.setOpaque(false);
-        buttons.add(resendButton);
-        buttons.add(rematchButton);
-        buttons.add(closeButton);
-
-        lunchPanel = new LunchPanel(this::onLunchSubmit);
-        lunchPanel.setVisible(false);
-
-        JPanel bar = new JPanel(new BorderLayout(8, 0));
-        bar.setOpaque(false);
-        bar.add(info, BorderLayout.CENTER);
-        bar.add(buttons, BorderLayout.EAST);
-
-        JPanel footer = new JPanel(new BorderLayout(0, 10));
-        footer.setOpaque(true);
-        footer.setBackground(CandyTheme.PANEL);
-        footer.setBorder(new EmptyBorder(10, 14, 10, 14));
-        footer.add(lunchPanel, BorderLayout.NORTH);
-        footer.add(bar, BorderLayout.CENTER);
-
-        JPanel stage = new JPanel(new BorderLayout());
-        stage.setOpaque(true);
-        stage.setBackground(CandyTheme.NIGHT);
-        stage.setBorder(new EmptyBorder(12, 12, 10, 12));
-        stage.add(table, BorderLayout.CENTER);
-
-        JPanel root = new JPanel(new BorderLayout());
-        root.setOpaque(true);
-        root.setBackground(CandyTheme.NIGHT);
-        root.add(stage, BorderLayout.CENTER);
-        root.add(footer, BorderLayout.SOUTH);
-        setContentPane(root);
-
-        setMinimumSize(new Dimension(480, 600));
-        setSize(560, 700);
-        setLocationByPlatform(true);
+        header = new CasinoHeader();
+        table = new BlackjackTablePanel();
+        footer = new CasinoFooter(resendButton, cancelButton, rematchButton, closeButton);
+        stage = new CasinoStage(header, table, actions, footer);
+        setContentPane(stage);
+        sizeToScreen();
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -204,6 +172,25 @@ public final class BlackjackWindow extends JFrame {
         refresh();
     }
 
+    /** 預設用設計尺寸，但不超過螢幕可用範圍的 90%；最小 720×680。 */
+    private void sizeToScreen() {
+        float scale = 1f;
+        try {
+            Rectangle screen = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+            scale = Math.min(1f, Math.min(screen.width * 0.9f / CasinoTheme.DESIGN_W,
+                    screen.height * 0.9f / CasinoTheme.DESIGN_H));
+        } catch (RuntimeException ignored) {
+            // 無螢幕環境（測試）就用設計尺寸
+        }
+        int w = Math.max(MIN_W, Math.round(CasinoTheme.DESIGN_W * scale));
+        int h = Math.max(MIN_H, Math.round(CasinoTheme.DESIGN_H * scale));
+        stage.setPreferredSize(new Dimension(w, h));
+        pack();
+        Insets insets = getInsets();
+        setMinimumSize(new Dimension(MIN_W + insets.left + insets.right, MIN_H + insets.top + insets.bottom));
+        setLocationByPlatform(true);
+    }
+
     public String peerId() {
         return peerId;
     }
@@ -221,6 +208,7 @@ public final class BlackjackWindow extends JFrame {
         this.session = next;
         failedPayload = null;
         sending = false;
+        cancelledByMe = false;
         lunchSending = false;
         lunchRetryText = null;
         lunchWarning = null;
@@ -317,6 +305,19 @@ public final class BlackjackWindow extends JFrame {
         dispose();
     }
 
+    /** 收回還沒被接受的邀請：沿用既有的中止訊息，視窗留著可以重新邀請。 */
+    private void onCancelInvite() {
+        if (session.phase() != BlackjackSession.Phase.INVITING) {
+            return;
+        }
+        String payload = session.abort();
+        if (payload == null) {
+            return;
+        }
+        cancelledByMe = true;
+        send(payload);
+    }
+
     private void onHit() {
         String payload = session.hit();
         if (payload == null) {
@@ -352,6 +353,7 @@ public final class BlackjackWindow extends JFrame {
 
     private void refresh() {
         BlackjackSession.Phase phase = session.phase();
+        BlackjackScene scene = BlackjackScene.of(session);
         boolean freshSession = session != renderedSession;
         renderedSession = session;
         if (freshSession) {
@@ -359,12 +361,13 @@ public final class BlackjackWindow extends JFrame {
             if (resultDelay != null) {
                 resultDelay.stop();
             }
+            Image peerAvatar = host.avatarOf(peerId);
+            Image myAvatar = host.avatarOf(session.localId());
+            table.peerBadge().setPlayer(peerId, peerAvatar);
+            table.myBadge().setPlayer(session.localId(), myAvatar);
+            table.waitingView().setPlayers(session.localId(), myAvatar, peerId, peerAvatar);
         }
-
-        if (freshSession) {
-            table.peerBadge().setPlayer(peerId, host.avatarOf(peerId));
-            table.myBadge().setPlayer(session.localId(), host.avatarOf(session.localId()));
-        }
+        table.setWaiting(scene.showsWaitingRoom());
         boolean dealt = !session.myHand().isEmpty();
         refreshHands(freshSession, dealt);
         refreshBadge(table.myBadge(), dealt, session.myScore(), session.myStood(),
@@ -374,17 +377,51 @@ public final class BlackjackWindow extends JFrame {
         table.myHand().setDimmed(BlackjackRules.isBust(session.myHand()));
         table.peerHand().setDimmed(BlackjackRules.isBust(session.peerHand()));
         table.center().setDeckLeft(session.deckLeft());
+        refreshWaiting(scene);
         refreshCenter(phase);
         refreshButtons(phase);
-        refreshFooter(phase);
+        refreshHeader();
+        refreshFooter(phase, scene);
         refreshLunch(phase);
         refreshResult(phase);
+        stage.actionsChanged();
+    }
+
+    private void refreshWaiting(BlackjackScene scene) {
+        String challenge = session.isLunch() ? "午餐爭奪戰" : "21 點挑戰";
+        switch (scene) {
+            case WAITING:
+                if (failedPayload != null) {
+                    table.waitingView().setMessage("邀請沒有送出", "請確認雲端連線後按下方「重送」", false);
+                } else {
+                    table.waitingView().setMessage("已向「" + peerId + "」發出" + challenge + "！",
+                            sending ? "邀請傳送中…" : "等待對方接受…（約 15 秒內送達）", true);
+                }
+                break;
+            case INVITED:
+                table.waitingView().setMessage("「" + peerId + "」向你發起" + challenge + "！",
+                        session.isLunch() ? "贏家決定今天午餐・接受後雙方同時開局" : "全明牌比點數・接受後雙方同時開局",
+                        false);
+                break;
+            case CLOSED:
+                if (cancelledByMe) {
+                    table.waitingView().setMessage("已取消邀請",
+                            failedPayload != null ? "取消訊息沒有送出，請按「重送」" : "想再挑戰可以按「重新邀請」", false);
+                } else {
+                    table.waitingView().setMessage(session.status().isEmpty() ? "這次沒有開局" : session.status(),
+                            "想再挑戰可以按「重新邀請」", false);
+                }
+                break;
+            default:
+                break;
+        }
     }
 
     private void refreshLunch(BlackjackSession.Phase phase) {
         LunchChallenge lunch = session.lunch();
         boolean ended = phase == BlackjackSession.Phase.SETTLED || phase == BlackjackSession.Phase.CLOSED;
-        if (lunch == null || !ended || lunch.status() == LunchChallenge.Status.PLAYING) {
+        if (lunch == null || !ended || lunch.status() == LunchChallenge.Status.PLAYING
+                || session.myHand().isEmpty()) {
             lunchPanel.setVisible(false);
             renderedLunch = null;
             return;
@@ -418,9 +455,8 @@ public final class BlackjackWindow extends JFrame {
     private void refreshHands(boolean freshSession, boolean dealt) {
         HandView mine = table.myHand();
         HandView theirs = table.peerHand();
-        int slots = dealt ? 0 : 2;
-        mine.setSlots(slots);
-        theirs.setSlots(slots);
+        mine.setSlots(0);
+        theirs.setSlots(0);
         if (freshSession || !dealt) {
             mine.setCards(java.util.List.of(), false, 0, 0);
             theirs.setCards(java.util.List.of(), false, 0, 0);
@@ -445,15 +481,15 @@ public final class BlackjackWindow extends JFrame {
         badge.setScore(dealt ? score : -1);
         badge.setActive(active);
         if (!dealt) {
-            badge.setTag(null, null);
+            badge.setTag(null);
         } else if (score > 21) {
-            badge.setTag("爆牌！", BUST);
+            badge.setTag(PlayerBadge.Tag.BUST);
         } else if (score == 21) {
-            badge.setTag("21 點！", GOLD);
+            badge.setTag(PlayerBadge.Tag.TWENTY_ONE);
         } else if (stood) {
-            badge.setTag("停牌", CandyTheme.LAVENDER);
+            badge.setTag(PlayerBadge.Tag.STAND);
         } else {
-            badge.setTag(null, null);
+            badge.setTag(null);
         }
     }
 
@@ -462,29 +498,25 @@ public final class BlackjackWindow extends JFrame {
         if (failedPayload != null) {
             status = "送出失敗，請確認雲端連線後按「重送」";
         }
-        table.center().setStatus(status);
         switch (phase) {
-            case INVITING:
-                table.center().setTurn("等待對方接受", CandyTheme.LAVENDER, true);
-                break;
-            case INVITED:
-                table.center().setTurn("收到挑戰！", CandyTheme.PINK_HI, false);
-                break;
             case PLAYING:
+                table.center().setStatus(status);
                 if (sending) {
-                    table.center().setTurn("送出中", MINT, true);
+                    table.center().setTurn("送出中", false, true);
                 } else if (session.myTurn()) {
-                    table.center().setTurn("輪到你！", GOLD, false);
+                    table.center().setTurn("輪到你出牌！", true, false);
                 } else {
-                    table.center().setTurn("對方回合", MINT, true);
+                    table.center().setTurn("等待「" + peerId + "」出牌", false, true);
                 }
                 break;
             case SETTLED:
-                table.center().setTurn("", null, false);
+                table.center().setStatus("");
+                table.center().setTurn("", false, false);
                 break;
             default:
                 boolean decided = session.outcome() != BlackjackSession.Outcome.NONE;
-                table.center().setTurn(decided ? "" : "對戰結束", CandyTheme.MUTED, false);
+                table.center().setStatus(decided ? "" : status);
+                table.center().setTurn(decided ? "" : "對戰結束", false, false);
                 break;
         }
     }
@@ -495,8 +527,8 @@ public final class BlackjackWindow extends JFrame {
         boolean ended = phase == BlackjackSession.Phase.SETTLED || phase == BlackjackSession.Phase.CLOSED;
         acceptButton.setVisible(invited);
         declineButton.setVisible(invited);
-        hitButton.setVisible(!invited && !ended);
-        standButton.setVisible(!invited && !ended);
+        hitButton.setVisible(playing);
+        standButton.setVisible(playing);
         boolean idle = !sending && failedPayload == null;
         acceptButton.setEnabled(idle && session.canAccept());
         declineButton.setEnabled(idle && session.canDecline());
@@ -504,37 +536,50 @@ public final class BlackjackWindow extends JFrame {
         standButton.setEnabled(idle && playing && session.canStand());
         resendButton.setVisible(failedPayload != null);
         resendButton.setEnabled(!sending);
-        rematchButton.setVisible(ended);
-        rematchButton.setEnabled(canRematch());
+        cancelButton.setVisible(phase == BlackjackSession.Phase.INVITING);
+        cancelButton.setEnabled(!sending);
+        LunchChallenge lunch = session.lunch();
+        boolean lunchPending = lunch != null && lunch.status() == LunchChallenge.Status.AWAITING_CHOICE;
+        rematchButton.setText(session.myHand().isEmpty() ? "重新邀請" : "再戰一局");
+        rematchButton.setVisible(ended && !lunchPending);
+        rematchButton.setEnabled(canRematch() && !sending);
     }
 
-    private void refreshFooter(BlackjackSession.Phase phase) {
+    private void refreshHeader() {
         if (session.isLunch()) {
-            modeChip.setIcon(PixelArt.bentoIcon(1));
-            modeChip.setChip("午餐爭奪戰", CandyTheme.PINK_HI);
+            header.setMode(true, "午餐爭奪戰", "贏家決定今天午餐！");
+        } else if (session.downgraded()) {
+            header.setMode(false, "普通對戰", "對方版本不支援午餐");
         } else {
-            modeChip.setIcon(null);
-            modeChip.setChip(session.downgraded() ? "普通對戰（對方版本不支援午餐）" : "普通對戰", CandyTheme.LAVENDER);
+            header.setMode(false, "普通對戰", "最接近 21 點者勝");
         }
+    }
+
+    private void refreshFooter(BlackjackSession.Phase phase, BlackjackScene scene) {
+        footer.setMode(session.isLunch(), session.isLunch() ? "午餐爭奪戰" : "普通對戰");
         String message;
-        Color color = CandyTheme.MUTED;
+        Color color = CasinoTheme.TEXT;
         if (failedPayload != null) {
             message = "動作沒有送出，對方還看不到";
-            color = LOSE_INK;
+            color = WARN_INK;
         } else if (sending) {
             message = "傳送中，約 15 秒內隨心跳送達";
         } else if (phase == BlackjackSession.Phase.SETTLED) {
-            message = resultTitle() + "  你 " + session.myScore() + " ：對方 " + session.peerScore();
+            message = BlackjackScene.resultTitle(session.outcome())
+                    + "  你 " + session.myScore() + " ：對方 " + session.peerScore();
             color = outcomeInk();
         } else if (phase == BlackjackSession.Phase.PLAYING && !session.myTurn()) {
             message = "等待對方出牌（隨心跳約 15 秒）";
-        } else if (phase == BlackjackSession.Phase.CLOSED) {
-            message = session.status();
+        } else if (scene == BlackjackScene.CLOSED || phase == BlackjackSession.Phase.CLOSED) {
+            message = cancelledByMe ? "邀請已取消" : session.status();
+        } else if (session.isLunch()) {
+            message = "雙人對戰・21 點・贏家決定今天午餐";
+        } else if (session.downgraded()) {
+            message = "對方版本不支援午餐，改為普通對戰";
         } else {
-            message = "全明牌，邀請方先要牌，停牌後換人";
+            message = "雙人對戰・21 點・全明牌，邀請方先要牌";
         }
-        messageLabel.setText(message);
-        messageLabel.setForeground(color);
+        footer.setMessage(message, color);
     }
 
     private void refreshResult(BlackjackSession.Phase phase) {
@@ -549,7 +594,7 @@ public final class BlackjackWindow extends JFrame {
         }
         boolean animating = table.myHand().isAnimating() || table.peerHand().isAnimating();
         String detail = resultDetail();
-        String title = resultTitle();
+        String title = BlackjackScene.resultTitle(session.outcome());
         if (resultDelay != null) {
             resultDelay.stop();
         }
@@ -580,19 +625,6 @@ public final class BlackjackWindow extends JFrame {
         }
     }
 
-    private String resultTitle() {
-        switch (session.outcome()) {
-            case WIN:
-                return "YOU WIN!";
-            case LOSE:
-                return "再接再厲！";
-            case DRAW:
-                return "平手！再來一局？";
-            default:
-                return "";
-        }
-    }
-
     private String resultDetail() {
         String score = "你 " + session.myScore() + " 點 ： 對方 " + session.peerScore() + " 點";
         if (!session.isLunch()) {
@@ -615,41 +647,15 @@ public final class BlackjackWindow extends JFrame {
             case LOSE:
                 return LOSE_INK;
             default:
-                return CandyTheme.LAVENDER;
+                return CasinoTheme.PURPLE_LIGHT;
         }
     }
 
-    private static CandyButton button(String text, CandyButton.Variant variant, CandyButton.Size size) {
-        CandyButton button = new CandyButton(text, variant, size);
-        button.setFont(size == CandyButton.Size.LARGE ? UiFonts.chineseBold(15) : UiFonts.chinesePlain(13));
-        return button;
+    private static CasinoButton large(String text, String sub, CasinoIcons icon, CasinoButton.Tone tone) {
+        return new CasinoButton(text, sub, icon, tone, CasinoButton.Kind.LARGE);
     }
 
-    /** 底部的小圓角標籤（目前模式）。 */
-    static final class Chip extends JLabel {
-        private Color fill = CandyTheme.LAVENDER;
-
-        Chip() {
-            setOpaque(false);
-            setForeground(CandyTheme.PINK_INK);
-            setBorder(new EmptyBorder(3, 10, 3, 10));
-        }
-
-        void setChip(String text, Color color) {
-            setText(text);
-            fill = color;
-            repaint();
-        }
-
-        @Override
-        protected void paintComponent(Graphics graphics) {
-            Graphics2D g = (Graphics2D) graphics.create();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g.setColor(fill);
-            int h = getHeight() - 1;
-            g.fillRoundRect(0, 0, getWidth() - 1, h, h, h);
-            g.dispose();
-            super.paintComponent(graphics);
-        }
+    private static CasinoButton small(String text, CasinoIcons icon, CasinoButton.Tone tone) {
+        return new CasinoButton(text, null, icon, tone, CasinoButton.Kind.SMALL);
     }
 }

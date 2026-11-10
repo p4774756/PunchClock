@@ -1,32 +1,30 @@
 package com.example.ui.blackjack;
 
 import com.example.ui.CandyTheme;
-import com.example.ui.UiFonts;
 
 import javax.swing.JComponent;
 import javax.swing.Timer;
-import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
 
 /**
- * 牌桌中間那條：左邊牌堆、中間回合提示與狀態文字、右邊 VS。回合換人時提示會彈一下。
+ * 牌桌中間那條：左邊牌堆、中間「BLACKJACK」與回合橫幅、下方一行狀態。回合換人時橫幅會彈一下。
  */
-public final class TableCenter extends JComponent {
+public final class TableCenter extends JComponent implements CasinoTheme.Scalable {
 
     private static final int POP_MS = 420;
 
     private String status = "";
     private String turn = "";
-    private Color turnColor = CandyTheme.PINK_HI;
+    private boolean highlight;
     private boolean waiting;
     private int deckLeft = 52;
+    private float scale = 1f;
     private long popStart;
     private final Timer timer;
 
@@ -45,13 +43,14 @@ public final class TableCenter extends JComponent {
     }
 
     /**
-     * @param waiting true 時尾端會有跑動的「…」，提示正在等心跳送達
+     * @param highlight 輪到自己時橫幅外圈發光
+     * @param waiting   true 時尾端有跑動的「…」，提示正在等心跳送達
      */
-    public void setTurn(String text, Color color, boolean waiting) {
+    public void setTurn(String text, boolean highlight, boolean waiting) {
         String next = text == null ? "" : text;
         boolean changed = !next.equals(turn);
         turn = next;
-        turnColor = color == null ? CandyTheme.PINK_HI : color;
+        this.highlight = highlight;
         this.waiting = waiting;
         if (changed && !next.isEmpty()) {
             popStart = System.currentTimeMillis();
@@ -63,8 +62,16 @@ public final class TableCenter extends JComponent {
     public void setDeckLeft(int count) {
         if (count != deckLeft) {
             deckLeft = Math.max(0, count);
+            setToolTipText("牌堆剩 " + deckLeft + " 張");
             repaint();
         }
+    }
+
+    @Override
+    public void setUiScale(float value) {
+        scale = value;
+        revalidate();
+        repaint();
     }
 
     @Override
@@ -81,9 +88,10 @@ public final class TableCenter extends JComponent {
 
     private void syncTimer() {
         boolean popping = System.currentTimeMillis() - popStart < POP_MS;
-        if ((waiting || popping) && isDisplayable()) {
+        boolean animate = waiting || popping || highlight;
+        if (animate && isDisplayable()) {
             timer.start();
-        } else if (!waiting && !popping) {
+        } else if (!animate) {
             timer.stop();
         }
     }
@@ -95,95 +103,78 @@ public final class TableCenter extends JComponent {
 
     @Override
     public Dimension getPreferredSize() {
-        return new Dimension(420, 92);
+        return new Dimension(CasinoTheme.px(scale, 640), CasinoTheme.px(scale, 126));
     }
 
     @Override
     public Dimension getMinimumSize() {
-        return new Dimension(260, 76);
+        return getPreferredSize();
     }
 
     @Override
     protected void paintComponent(Graphics graphics) {
-        Graphics2D g = (Graphics2D) graphics.create();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        Graphics2D g = CasinoTheme.quality((Graphics2D) graphics);
         int w = getWidth();
         int h = getHeight();
 
-        g.setColor(new Color(255, 255, 255, 28));
-        g.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
-                1f, new float[]{2f, 7f}, 0f));
-        g.drawLine(18, h / 2, w - 18, h / 2);
-        g.setStroke(new BasicStroke(1f));
-
-        int deckH = Math.min(70, h - 14);
+        int deckH = Math.min(h - CasinoTheme.px(scale, 6), CasinoTheme.px(scale, 118));
         int deckW = (int) Math.round(deckH / CardPainter.RATIO);
-        int deckX = 22;
+        int deckX = CasinoTheme.px(scale, 6);
         int deckY = (h - deckH) / 2;
-        int layers = deckLeft <= 0 ? 0 : Math.min(3, 1 + deckLeft / 16);
+        int layers = deckLeft <= 0 ? 0 : Math.min(5, 1 + deckLeft / 10);
+        int offset = CasinoTheme.px(scale, 4);
         for (int i = layers - 1; i >= 0; i--) {
-            CardPainter.paintBack(g, deckX + i * 3, deckY - i * 3, deckW, deckH);
+            CardPainter.paintBack(g, deckX + i * offset, deckY - i * offset, deckW, deckH);
         }
 
-        int vsSize = Math.min(44, h - 30);
-        int vsX = w - 22 - vsSize;
-        int vsY = (h - vsSize) / 2;
-        g.setColor(new Color(0, 0, 0, 60));
-        g.fillOval(vsX + 1, vsY + 3, vsSize, vsSize);
-        g.setColor(CandyTheme.PINK);
-        g.fillOval(vsX, vsY, vsSize, vsSize);
-        g.setColor(Color.WHITE);
-        g.setStroke(new BasicStroke(2f));
-        g.drawOval(vsX + 2, vsY + 2, vsSize - 4, vsSize - 4);
-        Font vsFont = UiFonts.latinBold(Math.max(12, vsSize * 2 / 5));
-        g.setFont(vsFont);
-        FontMetrics vm = g.getFontMetrics();
-        g.drawString("VS", vsX + (vsSize - vm.stringWidth("VS")) / 2,
-                vsY + (vsSize - vm.getHeight()) / 2 + vm.getAscent());
+        int left = deckX + deckW + layers * offset + CasinoTheme.px(scale, 20);
+        int right = w - left;
+        int mid = w / 2;
+        int room = Math.max(CasinoTheme.px(scale, 120), right - left);
 
-        int textLeft = deckX + deckW + 18;
-        int textRight = vsX - 14;
-        int room = Math.max(40, textRight - textLeft);
-        int mid = textLeft + room / 2;
+        Font title = CasinoTheme.serif(scale, 30, false);
+        FontMetrics tm = g.getFontMetrics(title);
+        int titleBase = tm.getAscent() - CasinoTheme.px(scale, 2);
+        int titleW = tm.stringWidth("BLACKJACK");
+        CasinoTheme.goldText(g, "BLACKJACK", title, mid - titleW / 2f, titleBase, Math.max(1f, scale));
+        double laurelH = tm.getAscent() * 1.2;
+        double laurelGap = CasinoTheme.px(scale, 26);
+        CasinoPaint.laurel(g, mid - titleW / 2.0 - laurelGap, titleBase - tm.getAscent() / 2.6, laurelH, -1);
+        CasinoPaint.laurel(g, mid + titleW / 2.0 + laurelGap, titleBase - tm.getAscent() / 2.6, laurelH, 1);
 
-        Font turnFont = UiFonts.chineseBold(16);
-        Font statusFont = UiFonts.chinesePlain(13);
-        g.setFont(turnFont);
-        FontMetrics tm = g.getFontMetrics();
-        g.setFont(statusFont);
-        FontMetrics sm = g.getFontMetrics();
-        int pillH = tm.getHeight() + 8;
-        int block = (turn.isEmpty() ? 0 : pillH + 6) + sm.getHeight();
-        int top = (h - block) / 2;
-
+        int bannerY = titleBase + CasinoTheme.px(scale, 8);
+        int bannerH = CasinoTheme.px(scale, 50);
+        Font turnFont = CasinoTheme.chinese(true, scale, 24);
+        FontMetrics bm = g.getFontMetrics(turnFont);
         if (!turn.isEmpty()) {
-            String label = turn + (waiting ? dots() : "");
             String sizing = turn + (waiting ? "…" : "");
-            int pillW = Math.min(room, tm.stringWidth(sizing) + 28);
+            int bannerW = Math.min(room, Math.max(CasinoTheme.px(scale, 360), bm.stringWidth(sizing) + bannerH * 2));
             float pop = popScale();
+            float glow = highlight ? 0.55f + 0.45f * (float) Math.sin(System.currentTimeMillis() / 300.0) : 0f;
             AffineTransform saved = g.getTransform();
-            g.translate(mid, top + pillH / 2.0);
+            g.translate(mid, bannerY + bannerH / 2.0);
             g.scale(pop, pop);
-            g.setColor(new Color(0, 0, 0, 70));
-            g.fillRoundRect(-pillW / 2, -pillH / 2 + 2, pillW, pillH, pillH, pillH);
-            g.setColor(turnColor);
-            g.fillRoundRect(-pillW / 2, -pillH / 2, pillW, pillH, pillH, pillH);
-            g.setColor(new Color(255, 255, 255, 110));
-            g.fillRoundRect(-pillW / 2 + 6, -pillH / 2 + 2, pillW - 12, pillH / 3, pillH / 3, pillH / 3);
+            CasinoPaint.banner(g, -bannerW / 2.0, -bannerH / 2.0, bannerW, bannerH, scale, glow);
+            String fitted = CandyTheme.fit(sizing, bm, bannerW - bannerH);
+            String label = waiting && fitted.endsWith("…")
+                    ? fitted.substring(0, fitted.length() - 1) + dots() : fitted;
             g.setFont(turnFont);
-            g.setColor(CardPainter.BLACK);
-            String fitted = CandyTheme.fit(label, tm, pillW - 20);
-            g.drawString(fitted, -tm.stringWidth(CandyTheme.fit(sizing, tm, pillW - 20)) / 2,
-                    -tm.getHeight() / 2 + tm.getAscent());
+            g.setColor(CasinoTheme.INK);
+            g.drawString(label, -bm.stringWidth(fitted) / 2f, bm.getAscent() / 2f - bm.getDescent() / 2f);
             g.setTransform(saved);
-            top += pillH + 6;
         }
 
-        g.setFont(statusFont);
-        g.setColor(new Color(240, 255, 245));
-        String fitted = CandyTheme.fit(status, sm, room);
-        g.drawString(fitted, mid - sm.stringWidth(fitted) / 2, top + sm.getAscent());
+        if (!status.isEmpty()) {
+            Font statusFont = CasinoTheme.chinese(false, scale, 15);
+            FontMetrics sm = g.getFontMetrics(statusFont);
+            String fitted = CandyTheme.fit(status, sm, room);
+            int sy = bannerY + bannerH + CasinoTheme.px(scale, 5) + sm.getAscent();
+            g.setFont(statusFont);
+            g.setColor(new Color(0, 0, 0, 90));
+            g.drawString(fitted, mid - sm.stringWidth(fitted) / 2f, sy + 1);
+            g.setColor(CasinoTheme.TEXT);
+            g.drawString(fitted, mid - sm.stringWidth(fitted) / 2f, sy);
+        }
         g.dispose();
     }
 
@@ -193,11 +184,11 @@ public final class TableCenter extends JComponent {
             return 1f;
         }
         float t = elapsed / (float) POP_MS;
-        return 1f + 0.22f * (float) Math.sin(t * Math.PI) * (1f - t);
+        return 1f + 0.12f * (float) Math.sin(t * Math.PI) * (1f - t);
     }
 
     private String dots() {
         int n = (int) ((System.currentTimeMillis() / 420) % 4);
-        return "...".substring(0, n);
+        return "...".substring(0, n) + "   ".substring(n);
     }
 }

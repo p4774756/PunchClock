@@ -29,8 +29,8 @@ final class CardPainter {
     private static final Color FACE_TOP = Color.WHITE;
     private static final Color FACE_BOTTOM = new Color(0xFF, 0xF4, 0xF9);
     private static final Color FACE_EDGE = new Color(0xE4, 0xD3, 0xEE);
-    private static final Color BACK_TOP = new Color(0xFF, 0x9C, 0xC9);
-    private static final Color BACK_BOTTOM = new Color(0xB4, 0x8C, 0xF0);
+    private static final Color BACK_TOP = new Color(0xC8, 0x1E, 0x34);
+    private static final Color BACK_BOTTOM = new Color(0x86, 0x0C, 0x20);
     private static final Color COURT = new Color(0xFF, 0xF0, 0xC8);
 
     private CardPainter() {
@@ -83,31 +83,44 @@ final class CardPainter {
         }
     }
 
+    /** 紅色牌背：白邊、金色細框、菱格紋與中央金色黑桃。 */
     static void paintBack(Graphics2D g, int x, int y, int w, int h) {
         int arc = arc(w);
         paintShadow(g, x, y, w, h, 1f);
-        g.setColor(Color.WHITE);
+        java.awt.Image art = CasinoAssets.get(CasinoAssets.CARD_BACK);
+        if (art != null) {
+            g.drawImage(art, x, y, w, h, null);
+            return;
+        }
+        g.setColor(new Color(0xFF, 0xF8, 0xEE));
         g.fillRoundRect(x, y, w, h, arc, arc);
-        int inset = Math.max(3, w / 14);
+        int inset = Math.max(3, w / 13);
         int iw = w - inset * 2;
         int ih = h - inset * 2;
-        Shape inner = new RoundRectangle2D.Float(x + inset, y + inset, iw, ih, arc * 0.7f, arc * 0.7f);
+        Shape inner = new RoundRectangle2D.Float(x + inset, y + inset, iw, ih, arc * 0.6f, arc * 0.6f);
         g.setPaint(new GradientPaint(x, y, BACK_TOP, x, y + h, BACK_BOTTOM));
         g.fill(inner);
         Shape clip = g.getClip();
         g.clip(inner);
-        g.setColor(new Color(255, 255, 255, 60));
-        int step = Math.max(6, w / 7);
+        g.setColor(new Color(0x5E, 0x06, 0x14, 120));
+        int step = Math.max(6, w / 6);
         for (int d = -h; d < w + h; d += step) {
             g.drawLine(x + d, y, x + d + h, y + h);
             g.drawLine(x + d + h, y, x + d, y + h);
         }
         g.setClip(clip);
-        int scale = Math.max(2, w / 18);
-        int pw = PixelArt.width(PixelArt.HEART) * scale;
-        int ph = PixelArt.height(PixelArt.HEART) * scale;
-        PixelArt.draw(g, PixelArt.HEART, x + (w - pw) / 2, y + (h - ph) / 2, scale, new Color(255, 255, 255, 220));
-        g.setColor(FACE_EDGE);
+        g.setColor(new Color(0xE9, 0xC0, 0x6A));
+        g.setStroke(new BasicStroke(Math.max(1f, w / 60f)));
+        int frame = inset + Math.max(2, w / 20);
+        g.drawRoundRect(x + frame, y + frame, w - frame * 2, h - frame * 2, arc / 2, arc / 2);
+        double cx = x + w / 2.0;
+        double cy = y + h / 2.0;
+        g.setColor(new Color(0x8E, 0x0C, 0x20));
+        g.fill(new Ellipse2D.Double(cx - w * 0.22, cy - w * 0.22, w * 0.44, w * 0.44));
+        g.setPaint(CasinoTheme.gold((float) (cy - w * 0.16), (float) (cy + w * 0.16)));
+        g.fill(suitShape(0, cx, cy, w * 0.3));
+        g.setStroke(new BasicStroke(1f));
+        g.setColor(new Color(0xD9, 0xC2, 0xA0));
         g.drawRoundRect(x, y, w - 1, h - 1, arc, arc);
     }
 
@@ -148,6 +161,14 @@ final class CardPainter {
         int fw = w - Math.round(w * 0.6f);
         int fh = h - Math.round(h * 0.36f);
         int arc = Math.max(4, fw / 4);
+        java.awt.Image art = CasinoAssets.get(CasinoAssets.courtArt(rank));
+        if (art != null) {
+            int ax = x + Math.round(w * 0.2f);
+            int aw = w - Math.round(w * 0.4f);
+            int ah = Math.round(aw * art.getHeight(null) / (float) Math.max(1, art.getWidth(null)));
+            g.drawImage(art, ax, y + (h - ah) / 2, aw, ah, null);
+            return;
+        }
         g.setColor(COURT);
         g.fillRoundRect(fx, fy, fw, fh, arc, arc);
         g.setColor(new Color(ink.getRed(), ink.getGreen(), ink.getBlue(), 90));
