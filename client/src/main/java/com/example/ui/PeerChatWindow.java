@@ -78,6 +78,9 @@ public class PeerChatWindow extends JFrame {
 
         void poke(String peerId);
 
+        /** 邀請這位同事玩兩人 21 點（經心跳中繼，約 15 秒送達）。 */
+        void inviteBlackjack(String peerId);
+
         /**
          * 聊天視窗裡已排好的檔案，只送給這一位，不開多人傳送視窗。
          *
@@ -97,6 +100,7 @@ public class PeerChatWindow extends JFrame {
     private final JTextArea input;
     private final JButton sendButton;
     private final JButton pokeButton;
+    private final JButton blackjackButton;
     private final JButton fileButton;
     private final JButton attachButton;
     private final JButton clearImageButton;
@@ -287,6 +291,14 @@ public class PeerChatWindow extends JFrame {
                 host.poke(peerId);
             }
         });
+        blackjackButton = new CandyButton("21點", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+        blackjackButton.setFont(plain);
+        blackjackButton.setToolTipText("邀請對方玩兩人 21 點（全明牌、輪流要牌；約 15 秒隨心跳送達）");
+        blackjackButton.addActionListener(e -> {
+            if (canCompose()) {
+                host.inviteBlackjack(peerId);
+            }
+        });
         fileButton = new CandyButton("附加檔案", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         fileButton.setFont(plain);
         fileButton.setToolTipText("選檔案或資料夾（可多選）。先列在這裡，按傳送才送給這個人；多個項目會打包成一個 ZIP");
@@ -296,10 +308,11 @@ public class PeerChatWindow extends JFrame {
         sendButton.addActionListener(e -> send());
 
         // GridLayout：視窗再窄按鈕也只會一起變窄，不會像 FlowLayout 那樣把最後一顆換行後被裁掉
-        JPanel tools = new JPanel(new GridLayout(1, 3, 6, 0));
+        JPanel tools = new JPanel(new GridLayout(1, 4, 6, 0));
         tools.setOpaque(false);
         tools.add(attachButton);
         tools.add(pokeButton);
+        tools.add(blackjackButton);
         tools.add(fileButton);
         JPanel buttons = new JPanel(new BorderLayout(8, 0));
         buttons.setBorder(new EmptyBorder(6, 12, 10, 12));
@@ -445,6 +458,7 @@ public class PeerChatWindow extends JFrame {
         clearImageButton.setEnabled(canClear && !attachedImages.isEmpty());
         clearFilesButton.setEnabled(canClear && !pendingFiles.isEmpty());
         pokeButton.setEnabled(extras);
+        blackjackButton.setEnabled(extras);
         fileButton.setEnabled(extras && !fileBusy);
     }
 

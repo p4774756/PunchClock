@@ -1,0 +1,16 @@
+
+# backtrace
+0   Blender                             0x000000010437e8f7 _Z33BLI_system_backtrace_with_os_infoP7__sFILEPKv + 55
+1   Blender                             0x00000001038e6668 _ZL19sig_handle_crash_fni + 280
+2   libsystem_platform.dylib            0x00007ff80c4525ed _sigtramp + 29
+3   ???                                 0x00007f8944108a38 0x0 + 140227529181752
+4   libc++.1.dylib                      0x00007ff80c3693df _ZNSt3__112basic_stringIcNS_11char_traitsIcEENS_9allocatorIcEEE6assignEPKc + 21
+5   Blender                             0x000000010488c040 _ZN7blender6locale17macos_user_localeEv + 208
+6   Blender                             0x0000000104886c7a _ZN7blender6locale4InfoC2ENS_9StringRefE + 186
+7   Blender                             0x000000010488632d _ZN7blender6locale4initENS_9StringRefERKNS_6VectorINSt3__112basic_stringIcNS3_11char_traitsIcEENS3_9allocatorIcEEEELx4ENS_16GuardedAllocatorEEESD_ + 45
+8   Blender                             0x0000000104885491 _Z12BLT_lang_setPKc + 433
+9   Blender                             0x000000010478d0ea _Z7WM_initP8bContextiPPKc + 234
+10  Blender                             0x00000001038e1c85 main + 773
+11  dyld                                0x00007ff80c0ca418 start + 1896
+
+# Python backtrace
