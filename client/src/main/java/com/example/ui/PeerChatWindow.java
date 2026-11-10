@@ -293,7 +293,7 @@ public class PeerChatWindow extends JFrame {
         });
         blackjackButton = new CandyButton("21點", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         blackjackButton.setFont(plain);
-        blackjackButton.setToolTipText("邀請對方玩兩人 21 點（全明牌、輪流要牌；約 15 秒隨心跳送達）");
+        blackjackButton.setToolTipText("邀請對方玩兩人 21 點：普通對戰或午餐爭奪戰（全明牌；約 15 秒隨心跳送達）");
         blackjackButton.addActionListener(e -> {
             if (canCompose()) {
                 host.inviteBlackjack(peerId);

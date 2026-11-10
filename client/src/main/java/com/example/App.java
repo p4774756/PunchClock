@@ -10,6 +10,7 @@ import com.example.service.UpdateIdlePolicy;
 import com.example.service.HeartbeatService.UpdateNotice;
 import com.example.service.HeartbeatService.PeerInfo;
 import com.example.service.BlackjackSession;
+import com.example.service.LunchChallenge;
 import com.example.service.PeerAvatar;
 import com.example.service.PeerChatStore;
 import com.example.service.RelayProxyService;
@@ -1335,27 +1336,53 @@ public class App extends JFrame {
             return;
         }
         BlackjackWindow existing = blackjackWindows.get(peerId);
-        if (existing != null) {
-            BlackjackSession.Phase phase = existing.session().phase();
-            if (phase == BlackjackSession.Phase.INVITING
-                    || phase == BlackjackSession.Phase.INVITED
-                    || phase == BlackjackSession.Phase.PLAYING) {
-                existing.toFront();
-                existing.requestFocus();
-                return;
-            }
-            existing.dispose();
+        if (existing != null && isBlackjackBusy(existing)) {
+            existing.toFront();
+            existing.requestFocus();
+            return;
         }
-        BlackjackSession session = BlackjackSession.startInvite(heartbeatService.getClientId(), peerId);
-        BlackjackWindow window = openBlackjackWindow(peerId, session);
-        chatNote(peerId, "已邀請對方玩 21 點（等待接受）");
-        appendLog("[21點] 已邀請【" + peerId + "】房間 " + session.roomId());
-        sendBlackjackPayload(peerId, session.invitePayload(), ok -> {
-            if (!Boolean.TRUE.equals(ok)) {
-                chatNote(peerId, "21 點邀請沒有送出，請確認雲端連線");
-                window.dispose();
-            }
-        });
+        Component parent = chatWindows.containsKey(peerId) ? chatWindows.get(peerId) : this;
+        int choice = UiFonts.showChoice(parent,
+                "要和【" + peerId + "】玩哪一種？\n\n"
+                        + "普通對戰：單純比點數。\n"
+                        + "午餐爭奪戰：贏的人決定今天午餐吃什麼，平手再戰。",
+                "21 點",
+                new String[]{"普通對戰", "午餐爭奪戰", "取消"});
+        if (choice != 0 && choice != 1) {
+            return;
+        }
+        BlackjackSession.Mode mode = choice == 1 ? BlackjackSession.Mode.LUNCH : BlackjackSession.Mode.NORMAL;
+        sendBlackjackInvite(peerId, mode, blackjackWindows.get(peerId), false);
+    }
+
+    /** 開新的一局並送出邀請；{@code reuse} 不為 null 時沿用那個已結束的視窗。 */
+    private void sendBlackjackInvite(String peerId, BlackjackSession.Mode mode, BlackjackWindow reuse,
+                                     boolean rematch) {
+        BlackjackSession session = BlackjackSession.startInvite(heartbeatService.getClientId(), peerId, mode);
+        BlackjackWindow window;
+        if (reuse != null && reuse.isDisplayable() && blackjackWindows.get(peerId) == reuse) {
+            window = reuse;
+            window.replaceSession(session);
+            WindowShake.bringToFront(window);
+        } else {
+            window = openBlackjackWindow(peerId, session);
+        }
+        String label = session.isLunch() ? "午餐爭奪戰" : "21 點";
+        chatNote(peerId, (rematch ? "已邀請對方再戰一局 " : "已邀請對方玩 ") + label + "（等待接受）");
+        appendLog("[21點] 已邀請【" + peerId + "】" + label + " 房間 " + session.roomId());
+        window.sendOutgoing(session.invitePayload());
+    }
+
+    private static boolean isBlackjackBusy(BlackjackWindow window) {
+        BlackjackSession.Phase phase = window.session().phase();
+        if (phase == BlackjackSession.Phase.INVITING
+                || phase == BlackjackSession.Phase.INVITED
+                || phase == BlackjackSession.Phase.PLAYING) {
+            return true;
+        }
+        LunchChallenge lunch = window.session().lunch();
+        return phase == BlackjackSession.Phase.SETTLED && lunch != null
+                && lunch.status() == LunchChallenge.Status.AWAITING_CHOICE;
     }
 
     private void handleBlackjackMessage(String fromId, String text, Long sentAtMs, String avatar) {
@@ -1367,26 +1394,40 @@ public class App extends JFrame {
         rememberPeerAvatar(fromId, avatar);
         String timeLabel = formatPeerMessageTime(sentAtMs);
         if (BlackjackProtocol.KIND_INVITE.equals(message.kind)) {
-            BlackjackWindow existing = blackjackWindows.get(fromId);
-            if (existing != null) {
-                BlackjackSession.Phase phase = existing.session().phase();
-                if (phase == BlackjackSession.Phase.INVITING
-                        || phase == BlackjackSession.Phase.INVITED
-                        || phase == BlackjackSession.Phase.PLAYING) {
-                    appendLog("[21點] （" + timeLabel + "）【" + fromId + "】邀請時本機已有對戰，已忽略");
-                    chatNote(fromId, "對方又邀請了 21 點，但目前已有一場進行中");
-                    return;
-                }
-                existing.dispose();
-            }
             if (message.seed == null) {
                 return;
             }
-            BlackjackSession session = BlackjackSession.fromInvite(
-                    heartbeatService.getClientId(), fromId, message.roomId, message.seed);
-            openBlackjackWindow(fromId, session);
-            chatNote(fromId, "對方邀請你玩 21 點");
-            appendLog("[21點] （" + timeLabel + "）【" + fromId + "】邀請 21 點");
+            BlackjackWindow existing = blackjackWindows.get(fromId);
+            if (existing != null && message.roomId.equals(existing.roomId())) {
+                appendLog("[21點] （" + timeLabel + "）重複收到【" + fromId + "】的邀請，已忽略");
+                return;
+            }
+            if (existing != null && isBlackjackBusy(existing)) {
+                // 雙方同時按「再戰」或同時邀請：roomId 較小的那場勝出，兩邊判斷結果一致
+                boolean crossed = existing.session().phase() == BlackjackSession.Phase.INVITING
+                        && message.roomId.compareTo(existing.roomId()) < 0;
+                if (!crossed) {
+                    if (existing.session().phase() == BlackjackSession.Phase.INVITING) {
+                        appendLog("[21點] 和【" + fromId + "】同時發出邀請，保留本機這一場");
+                    } else {
+                        appendLog("[21點] （" + timeLabel + "）【" + fromId + "】邀請時本機已有對戰，已忽略");
+                        chatNote(fromId, "對方又邀請了 21 點，但目前已有一場進行中");
+                    }
+                    return;
+                }
+                appendLog("[21點] 和【" + fromId + "】同時發出邀請，改用對方那一場");
+            }
+            BlackjackSession session = BlackjackSession.fromInvite(heartbeatService.getClientId(), fromId,
+                    message.roomId, message.seed, BlackjackSession.modeOf(message));
+            if (existing != null && existing.isDisplayable()) {
+                existing.replaceSession(session);
+                WindowShake.bringToFront(existing);
+            } else {
+                openBlackjackWindow(fromId, session);
+            }
+            String label = session.isLunch() ? "午餐爭奪戰" : "21 點";
+            chatNote(fromId, "對方邀請你玩 " + label);
+            appendLog("[21點] （" + timeLabel + "）【" + fromId + "】邀請 " + label);
             Toolkit.getDefaultToolkit().beep();
             if (shell != null) {
                 shell.play(AnimeCast.REACT);
@@ -1445,6 +1486,36 @@ public class App extends JFrame {
         @Override
         public void gameClosed(BlackjackWindow window) {
             blackjackWindows.remove(window.peerId(), window);
+        }
+
+        @Override
+        public void rematch(BlackjackWindow window) {
+            String peerId = window.peerId();
+            if (!isCloudEnabled() || !onlinePeerIds.contains(peerId)) {
+                appendLog("[21點] 【" + peerId + "】目前不在線，無法再戰");
+                chatNote(peerId, "對方目前離線，上線後才能再戰");
+                return;
+            }
+            sendBlackjackInvite(peerId, window.session().mode(), window, true);
+        }
+
+        @Override
+        public void lunchDecided(BlackjackWindow window, LunchChallenge lunch) {
+            String text = lunch == null ? "" : lunch.resultText();
+            if (text.isEmpty()) {
+                return;
+            }
+            chatNote(window.peerId(), text);
+            appendLog("[21點] 午餐爭奪戰：【" + lunch.winnerId() + "】決定吃「" + lunch.choice() + "」");
+        }
+
+        @Override
+        public Image avatarOf(String clientId) {
+            String encoded = isSelfClientId(clientId)
+                    ? heartbeatService.getAvatarEncoded()
+                    : peerAvatars.get(clientId);
+            BufferedImage face = PeerAvatar.decode(encoded);
+            return face != null ? face : (isSelfClientId(clientId) ? appIconImage : null);
         }
     };
 
