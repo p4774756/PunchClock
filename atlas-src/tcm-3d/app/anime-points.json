@@ -1,0 +1,368 @@
+{
+  "model": "anime-assistant.glb",
+  "character": "Sendagaya Shino",
+  "license": "CC0 1.0 (VRoid Studio beta sample)",
+  "set": "head-neck-21",
+  "faceAxis": "-Z",
+  "sideConvention": "position.x>0 means anatomical left; anime runtime flips X to -X for left",
+  "note": "頭頸 21 穴依解剖比例與臉部骨骼標誌吸附到角色皮膚；教學示意，非臨床取穴。",
+  "points": [
+    {
+      "code": "GV20",
+      "name": "百會",
+      "midline": true,
+      "position": [
+        0,
+        1.61682,
+        -0.03805
+      ],
+      "normal": [
+        -0.09258,
+        0.97018,
+        -0.22399
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "GV23",
+      "name": "上星",
+      "midline": true,
+      "position": [
+        0,
+        1.52164,
+        -0.09678
+      ],
+      "normal": [
+        -0.23086,
+        -0.05622,
+        -0.97136
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "GV24+",
+      "name": "印堂",
+      "midline": true,
+      "position": [
+        0,
+        1.50928,
+        -0.09463
+      ],
+      "normal": [
+        -0.18507,
+        -0.22871,
+        -0.95574
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "GV26",
+      "name": "水溝",
+      "midline": true,
+      "position": [
+        0,
+        1.42628,
+        -0.09915
+      ],
+      "normal": [
+        -0.31764,
+        -0.12121,
+        -0.94043
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "CV24",
+      "name": "承漿",
+      "midline": true,
+      "position": [
+        0,
+        1.38628,
+        -0.08001
+      ],
+      "normal": [
+        -0.1581,
+        -0.31456,
+        -0.93598
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "CV23",
+      "name": "廉泉",
+      "midline": true,
+      "position": [
+        0,
+        1.33287,
+        -0.02546
+      ],
+      "normal": [
+        -0.24379,
+        0.36426,
+        -0.89882
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "CV22",
+      "name": "天突",
+      "midline": true,
+      "position": [
+        0,
+        1.25287,
+        -0.08942
+      ],
+      "normal": [
+        0.05083,
+        0.45383,
+        -0.88964
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "BL2",
+      "name": "攢竹",
+      "midline": false,
+      "position": [
+        0.01302,
+        1.51128,
+        -0.09252
+      ],
+      "normal": [
+        0.23106,
+        -0.14159,
+        -0.96258
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "BL1",
+      "name": "睛明",
+      "midline": false,
+      "position": [
+        0.01943,
+        1.48628,
+        -0.08441
+      ],
+      "normal": [
+        0.27209,
+        -0.20523,
+        -0.94013
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "LI20",
+      "name": "迎香",
+      "midline": false,
+      "position": [
+        0.01888,
+        1.44128,
+        -0.09099
+      ],
+      "normal": [
+        0.28481,
+        0.0529,
+        -0.95712
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "GB14",
+      "name": "陽白",
+      "midline": false,
+      "position": [
+        0.03237,
+        1.53628,
+        -0.08899
+      ],
+      "normal": [
+        0.31261,
+        -0.06397,
+        -0.94773
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "EX-HN4",
+      "name": "魚腰",
+      "midline": false,
+      "position": [
+        0.03189,
+        1.50128,
+        -0.08438
+      ],
+      "normal": [
+        0.31582,
+        -0.30534,
+        -0.89835
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "ST1",
+      "name": "承泣",
+      "midline": false,
+      "position": [
+        0.0298,
+        1.46128,
+        -0.08021
+      ],
+      "normal": [
+        0.2538,
+        0.54207,
+        -0.80109
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "ST2",
+      "name": "四白",
+      "midline": false,
+      "position": [
+        0.0317,
+        1.44628,
+        -0.08566
+      ],
+      "normal": [
+        0.3332,
+        0.15493,
+        -0.93004
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "ST3",
+      "name": "巨髎",
+      "midline": false,
+      "position": [
+        0.03342,
+        1.42628,
+        -0.08323
+      ],
+      "normal": [
+        0.45608,
+        -0.30621,
+        -0.8356
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "ST4",
+      "name": "地倉",
+      "midline": false,
+      "position": [
+        0.03526,
+        1.40628,
+        -0.0688
+      ],
+      "normal": [
+        0.58776,
+        -0.52227,
+        -0.61787
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "ST9",
+      "name": "人迎",
+      "midline": false,
+      "position": [
+        0.03438,
+        1.33787,
+        0.00216
+      ],
+      "normal": [
+        0.80975,
+        0.05798,
+        -0.5839
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "TE23",
+      "name": "絲竹空",
+      "midline": false,
+      "position": [
+        0.06007,
+        1.50128,
+        -0.07199
+      ],
+      "normal": [
+        0.47596,
+        -0.28663,
+        -0.83145
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "EX-HN5",
+      "name": "太陽",
+      "midline": false,
+      "position": [
+        0.06632,
+        1.49128,
+        -0.06485
+      ],
+      "normal": [
+        0.50728,
+        -0.10704,
+        -0.85511
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "GB1",
+      "name": "瞳子髎",
+      "midline": false,
+      "position": [
+        0.055,
+        1.47628,
+        -0.01665
+      ],
+      "normal": [
+        0.09128,
+        0,
+        -0.99582
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    },
+    {
+      "code": "SI18",
+      "name": "顴髎",
+      "midline": false,
+      "position": [
+        0.05478,
+        1.43128,
+        -0.06898
+      ],
+      "normal": [
+        0.72991,
+        -0.53014,
+        -0.43148
+      ],
+      "reviewed": true,
+      "set": "head-neck-21"
+    }
+  ]
+}

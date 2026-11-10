@@ -38,6 +38,17 @@ This is a reference assembly with whole-body surface and selected organs, includ
 
 2026-09-07：增加十四經穴目錄與分段體表經脈示意。種子座標來自本項目舊 PressPoints 銅人，經區域參考適配及幾何吸附；未經醫學逐穴審核。課堂體表移除男性外生殖器區域的原表面及獨立陰毛網格，以與邊界連接的平滑皮膚曲面替換，並重新計算浮點法線，原始模型資產保持不變；簡化區域不用於精細解剖或取穴。齦交僅收錄目錄，不放置外皮膚標記。
 
+## 動漫研習室角色（CC0）
+
+經絡研習室「動漫角色」視圖使用 VRoid Studio β 版樣本 **Sendagaya Shino**（千駄ヶ谷 しの）。pixiv Inc. 以 [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) 釋出，可自由改編與再發佈。
+
+- 說明：https://vroid.pixiv.help/hc/en-us/articles/360012381793
+- 打包來源（OpenGameArt 鏡像）：https://opengameart.org/content/vroid-studio-cc0-models
+- 本倉庫檔案：`public/models/anime-assistant.glb`（由原 `.vrm` 以 glTF 二進位形式保存）
+- 頭頸 21 穴對應：`app/anime-points.json`（依解剖基準穴比例與臉部／頸部骨骼標誌吸附到角色皮膚；教學示意，非臨床取穴）
+
+若要更換自備角色：將 glTF／GLB 放到 `public/models/anime-assistant.glb`（Y-up、公尺、站立於地面、臉朝 −Z、身高約 1.5–1.7 m；髮型勿遮耳周／下顎／頸前），再執行 `node scripts/bake-anime-points.mjs` 重生穴位，或手修 `app/anime-points.json`。
+
 ## 穴位座標的來源與權利
 
 十四經穴的三維座標種子（`data/legacy-meridians.mjs`）由 JIC 在早前的 PressPoints 銅人項目中自行標定：在人體模型表面由人工目測點取，並非從任何第三方穴位數據集、商業素材或開源座標表複製而來。權利歸屬 © JIC contributors，隨本項目以 MIT 發佈。

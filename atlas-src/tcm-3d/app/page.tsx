@@ -1,12 +1,14 @@
 import {PainPanel} from './pain-panel';
 import {painCase,painRelationCodes,matchPainRegion,type PainTopicId} from './pain-relations';
 import {publicAssetUrl} from './public-assets';
+import {ANIME_DEFAULT_SET,ANIME_SUPPORTED_CODES,animeLessonNote,animeSupportsPoint,type ModelMode} from './character-mode';
 import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState,type CSSProperties,type PointerEvent as ReactPointerEvent} from 'react';
 import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Focus,Info,Layers3,MapPin,Maximize2,MousePointer2,Pause,Play,RotateCcw,RotateCw,Search,SlidersHorizontal,X} from 'lucide-react';
 import {SYSTEMS,type Atlas,type SceneState,type SystemId,type View} from './anatomy';
 import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,LOCATION,POINTS,POINT_BY_CODE,MERIDIANS,pointInCurriculum,REGIONS,STANDARD,SYSTEM_ZH,TOOLS,type CurriculumSetId,type RegionId,type SimulationState,type SurfaceTarget,type ToolId,type ToolDragPhase} from './teaching';
 
 const AnatomyScene=lazy(()=>import('./scene'));
+const CharacterScene=lazy(()=>import('./character-scene'));
 
 const INITIAL_VISIBLE:SystemId[]=['integumentary'];
 const initialScene:SceneState={explode:0,visible:INITIAL_VISIBLE,selected:[],isolate:false,view:'three-quarter',rotate:false,reset:0};
@@ -50,6 +52,7 @@ export default function Home(){
  const [toolsExpanded,setToolsExpanded]=useState(false);
  const [mobilePanel,setMobilePanel]=useState<'library'|'selection'|null>(null);
  const [about,setAbout]=useState(false),[holding,setHolding]=useState(false);
+ const [modelMode,setModelMode]=useState<ModelMode>(()=>launch.set===ANIME_DEFAULT_SET?'anime':'anatomy');
  const [feedback,setFeedback]=useState(()=>{
   const lesson=curriculumSet(launch.set);
   if(lesson)return `課堂：${lesson.name}（${lesson.codes.length} 穴）。可依教材順序上一穴／下一穴。`;
@@ -63,16 +66,20 @@ export default function Home(){
  const point=POINTS.find(p=>p.code===simulation.pointCode);
  const tool=TOOLS.find(t=>t.id===simulation.tool)!;
  const activeLesson=curriculumSet(simulation.curriculumSet);
+ const animeMode=modelMode==='anime';
+ const animePointReady=animeSupportsPoint(simulation.pointCode);
+ const lessonIndex=activeLesson&&simulation.pointCode?activeLesson.codes.indexOf(simulation.pointCode):-1;
+ const lessonProgress=activeLesson&&lessonIndex>=0?{name:activeLesson.shortName,index:lessonIndex+1,total:activeLesson.codes.length}:null;
  const hasTarget=!!point||!!simulation.customTarget||!!simulation.pain?.topic||!!simulation.pain?.target;
- const canPlay=hasTarget&&progress===100&&!error&&state.explode===0&&simulation.pickMode!=='anatomy';
+ const canPlay=!animeMode&&hasTarget&&progress===100&&!error&&state.explode===0&&simulation.pickMode!=='anatomy';
  const location=point?LOCATION[point.code]:null;
  const selectedPart=atlas?.parts.find(p=>p.id===state.selected[0]);
  const results=useMemo(()=>{
   const c=painCase(simulation.pain?.topic),relations=c?painRelationCodes(c):null,codes=relations?[...relations.local,...relations.distal]:null;
   const lesson=curriculumSet(simulation.curriculumSet);
   const ordered=lesson?lesson.codes.map(code=>POINTS.find(p=>p.code===code)!).filter(Boolean):POINTS;
-  return ordered.filter(p=>(!simulation.meridianFilter||simulation.meridianFilter==='all'||p.meridianId===simulation.meridianFilter)&&(!codes||codes.includes(p.code))&&(region==='all'||p.region===region)&&(!query||clean(`${p.code} ${p.name} ${p.pinyin}`).includes(clean(query))));
- },[query,region,simulation.pain?.topic,simulation.meridianFilter,simulation.curriculumSet]);
+  return ordered.filter(p=>(!simulation.meridianFilter||simulation.meridianFilter==='all'||p.meridianId===simulation.meridianFilter)&&(!codes||codes.includes(p.code))&&(region==='all'||p.region===region)&&(!query||clean(`${p.code} ${p.name} ${p.pinyin}`).includes(clean(query)))&&(!animeMode||ANIME_SUPPORTED_CODES.has(p.code)));
+ },[query,region,simulation.pain?.topic,simulation.meridianFilter,simulation.curriculumSet,animeMode]);
  const counts=useMemo(()=>Object.fromEntries(SYSTEMS.map(s=>[s.id,atlas?.parts.filter(p=>p.system===s.id).length??0])),[atlas]);
  const visibleCount=useMemo(()=>atlas?.parts.filter(p=>state.visible.includes(p.system)).length??0,[atlas,state.visible]);
 
@@ -95,7 +102,29 @@ export default function Home(){
  useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){setAbout(false);setMobilePanel(null);pause();}if(event.key==='/'&&!(event.target instanceof HTMLInputElement)&&!(event.target instanceof HTMLTextAreaElement)){event.preventDefault();setLibraryTab('points');setMobilePanel('library');searchInput.current?.focus();}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[pause]);
 
  const prepareFocus=()=>setState(s=>({...s,explode:0,rotate:false,isolate:false,selected:[]}));
- const choosePoint=(code:string,side:1|-1=simulation.side)=>{const next=POINTS.find(p=>p.code===code);if(!next)return;const related=painCase(simulation.pain?.topic);if(related){const relations=painRelationCodes(related);if([...relations.local,...relations.distal].includes(code)&&side===simulation.pain?.side){chooseRelatedPoint(code);return;}}prepareFocus();setHolding(false);heldPointer.current=null;setSimulation(s=>({...s,pointCode:code,side:next.midline?1:side,customTarget:null,dragging:false,running:false,elapsed:0,focus:s.focus+1,pickMode:'point'}));setFeedback(`已選擇${next.name} ${next.code}，可查看定位並選擇演示工具。`);setMobilePanel(null);};
+ const switchModelMode=(mode:ModelMode)=>{
+  if(mode===modelMode)return;
+  pause(mode==='anime'?'已切換到動漫角色研習室。':'已切回解剖模型。');
+  setProgress(mode==='anime'?0:progress);
+  setError('');
+  setModelMode(mode);
+  setLibraryTab('points');
+  setToolsExpanded(false);
+  prepareFocus();
+  setSimulation(s=>{
+   const keepCode=s.pointCode&&(mode==='anatomy'||ANIME_SUPPORTED_CODES.has(s.pointCode))?s.pointCode:mode==='anime'?CURRICULUM_SETS.find(c=>c.id===ANIME_DEFAULT_SET)!.codes[0]:s.pointCode;
+   return {...s,curriculumSet:mode==='anime'?(s.curriculumSet==='head-neck-21'?s.curriculumSet:ANIME_DEFAULT_SET):s.curriculumSet,pointCode:keepCode,customTarget:null,pain:undefined,pickMode:'point',dragging:false,running:false,elapsed:0,focus:s.focus+1,showPoints:true};
+  });
+  setFeedback(mode==='anime'?'動漫角色：頭頸基準穴可點選練習。解剖層、疼痛關聯與工具演示請切回解剖模型。':'解剖模型：完整穴位、圖層與工具演示可用。');
+ };
+ const choosePoint=(code:string,side:1|-1=simulation.side)=>{const next=POINTS.find(p=>p.code===code);if(!next)return;if(animeMode&&!ANIME_SUPPORTED_CODES.has(code)){setFeedback(animeLessonNote(code));setMobilePanel('selection');return;}const related=painCase(simulation.pain?.topic);if(related){const relations=painRelationCodes(related);if([...relations.local,...relations.distal].includes(code)&&side===simulation.pain?.side){chooseRelatedPoint(code);return;}}prepareFocus();setHolding(false);heldPointer.current=null;setSimulation(s=>({...s,pointCode:code,side:next.midline?1:side,customTarget:null,dragging:false,running:false,elapsed:0,focus:s.focus+1,pickMode:'point'}));setFeedback(animeMode?`已選擇${next.name} ${next.code}（動漫角色對應）。`:`已選擇${next.name} ${next.code}，可查看定位並選擇演示工具。`);setMobilePanel(null);};
+ const stepLesson=(dir:-1|1)=>{
+  if(!point)return;
+  const list=activeLesson?activeLesson.codes.map(code=>POINT_BY_CODE.get(code)!).filter(Boolean):POINTS.filter(p=>p.meridianId===point.meridianId);
+  const i=list.findIndex(p=>p.code===point.code);
+  if(i<0){setFeedback(activeLesson?'目前穴位不在此課程組合內，已隱藏序號。':'請先選擇穴位。');return;}
+  choosePoint(list[(i+dir+list.length)%list.length].code);
+ };
  const chooseTool=(id:ToolId)=>{setHolding(false);heldPointer.current=null;setSimulation(s=>({...s,tool:id,dragging:false,running:false,elapsed:0}));setFeedback(`已切換為${TOOLS.find(t=>t.id===id)!.name}，演示回到起點。`);};
  const chooseSide=(side:1|-1)=>{if(point?.midline)return;prepareFocus();setSimulation(s=>({...s,side,dragging:false,running:false,elapsed:0,focus:s.focus+1}));setFeedback(`已切換到患者${side===1?'左':'右'}側。`);};
  const changeMode=(mode:SimulationState['pickMode'])=>{pause();setState(s=>({...s,explode:0,rotate:false,isolate:false,selected:[]}));setSimulation(s=>({...s,pickMode:mode,dragging:false,running:false,elapsed:0,...(mode==='pain'?{pointCode:null,customTarget:null,pain:undefined}:{}),...(mode==='anatomy'?{pain:undefined}:{})}));setFeedback(mode==='pain'?'點選人體痛處，或選擇頭痛、頸部痛、腰痛、膝痛課堂示例。':mode==='anatomy'?'點選可見解剖結構，觀察它與體表的位置關係。':'點擊教學點，或在左側查找穴位。');};
@@ -123,18 +152,27 @@ export default function Home(){
  const selectedTitle=simulation.pickMode==='anatomy'?'解剖結構':point?.name??(simulation.pain?(painCase(simulation.pain.topic)?.name??'自選痛處'):simulation.customTarget?'自選體表位置':'點選人體表面');
  const animationStatus=simulation.dragging?'操作中':simulation.running?'演示中':simulation.elapsed>0?'已暫停':'待演示';
 
- return <main className="studio" style={{'--tool-color':tool.color} as CSSProperties}>
-  <header className="studio-header">
-   <a className="brand" href={HOME_HREF} aria-label={HOME_HREF==='/'?'回店面':'返回中醫首頁'}><span className="brand-mark">經</span><span><span className="brand-name">中醫人體<span className="edition">教學臺</span></span><span className="brand-subtitle">{HOME_HREF==='/'?'PunchClock · 穴位與工具演示':'JIC 中醫 · 穴位與工具演示'}</span></span></a>
-   <div className="header-status"><span className="status-dot"/>工程教學預覽<span className="header-divider"/>成人男性參考模型</div>
-   <button className="source-button" onClick={()=>setAbout(true)}><Info size={16}/><span>來源與許可</span></button>
+ return <main className={`studio rpg-studio ${animeMode?'is-anime':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
+  <header className="studio-header rpg-header">
+   <div className="brand-block">
+    <a className="brand" href={HOME_HREF} aria-label={HOME_HREF==='/'?'返回後台':'返回中醫首頁'}><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室<span className="edition">RPG</span></span><span className="brand-subtitle">中醫人體 · {animeMode?'動漫助教':'解剖銅人'}</span></span></a>
+    <a className="back-home" href={HOME_HREF}>{HOME_HREF==='/'?'返回後台':'返回首頁'}</a>
+   </div>
+   <div className="model-switch" role="group" aria-label="角色與模型">
+    <button type="button" className={animeMode?'selected':''} aria-pressed={animeMode} onClick={()=>switchModelMode('anime')}>動漫角色</button>
+    <button type="button" className={!animeMode?'selected':''} aria-pressed={!animeMode} onClick={()=>switchModelMode('anatomy')}>解剖模型</button>
+   </div>
+   <div className="header-actions">
+    <div className="header-status"><span className="status-dot"/>{animeMode?'頭頸穴練習中':'工程教學預覽'}<span className="header-divider"/>{animeMode?'日系 RPG 助教':'成人男性參考模型'}</div>
+    <button className="source-button" onClick={()=>setAbout(true)}><Info size={16}/><span>來源與許可</span></button>
+   </div>
   </header>
 
   <section className="scene-stage" aria-label="3D 人體教學視窗">
-   {atlas&&<Suspense fallback={null}><AnatomyScene atlas={atlas} state={{...state,inspectorOpen:false}} simulation={simulation} onSelect={onSelect} onPoint={choosePoint} onSurface={onSurface} onToolDrag={onToolDrag} onProgress={onProgress} onError={onError}/></Suspense>}
-   <div className="scene-guide"><span className="guide-cross">+</span><span>成人男性 · 體表參考</span></div>
-   {(progress<100||error)&&<div className={`loading-card ${error?'load-error':''}`} role="status"><span className="loading-symbol">{error?<Info size={23}/>:<Layers3 size={23}/>}</span><strong>{error?'模型暫未就緒':'正在加載人體解剖'}</strong><p>{error||'正在準備真實解剖結構與教學點。'}</p>{!error&&<><div className="load-track"><i style={{width:`${progress}%`}}/></div><small>{progress}%</small></>}{error&&<button className="text-button" onClick={()=>window.location.reload()}>重新加載</button>}</div>}
-   <div className={`scene-mode-hint ${simulation.pickMode==='pain'?'pain-hint':''}`}><span className="tiny-dot"/>{simulation.pain?'紅色：痛處 · 金色：局部 · 藍色：遠端 · 虛線僅表示關聯':simulation.pickMode==='pain'?'點選人體上的痛處，或選擇課堂示例':simulation.pickMode==='anatomy'?'點擊解剖結構，觀察層次關係':'抓住工具移動 · 拖動其他位置旋轉 · 滾動縮放'}</div>
+   {animeMode?<Suspense fallback={null}><CharacterScene state={{...state,inspectorOpen:false}} simulation={simulation} onPoint={choosePoint} onProgress={onProgress} onError={onError}/></Suspense>:atlas&&<Suspense fallback={null}><AnatomyScene atlas={atlas} state={{...state,inspectorOpen:false}} simulation={simulation} onSelect={onSelect} onPoint={choosePoint} onSurface={onSurface} onToolDrag={onToolDrag} onProgress={onProgress} onError={onError}/></Suspense>}
+   <div className="scene-guide"><span className="guide-cross">+</span><span>{animeMode?'動漫助教 · 頭頸基準穴':'成人男性 · 體表參考'}</span></div>
+   {(progress<100||error)&&<div className={`loading-card ${error?'load-error':''}`} role="status"><span className="loading-symbol">{error?<Info size={23}/>:<Layers3 size={23}/>}</span><strong>{error?'模型暫未就緒':animeMode?'正在迎接研習室助教':'正在加載人體解剖'}</strong><p>{error||(animeMode?'載入 CC0 動漫角色與頭頸穴位標記。':'正在準備真實解剖結構與教學點。')}</p>{!error&&<><div className="load-track"><i style={{width:`${progress}%`}}/></div><small>{progress}%</small></>}{error&&<button className="text-button" onClick={()=>window.location.reload()}>重新加載</button>}</div>}
+   <div className={`scene-mode-hint ${simulation.pickMode==='pain'?'pain-hint':''}`}><span className="tiny-dot"/>{animeMode?animePointReady?'點選金色穴位 · 拖動旋轉 · 滾動縮放':animeLessonNote(simulation.pointCode):simulation.pain?'紅色：痛處 · 金色：局部 · 藍色：遠端 · 虛線僅表示關聯':simulation.pickMode==='pain'?'點選人體上的痛處，或選擇課堂示例':simulation.pickMode==='anatomy'?'點擊解剖結構，觀察層次關係':'抓住工具移動 · 拖動其他位置旋轉 · 滾動縮放'}</div>
   </section>
 
   <nav className="camera-bar surface" aria-label="人體視角">
@@ -142,16 +180,18 @@ export default function Home(){
    <span className="control-divider"/><button onClick={fullBody} title="顯示全身"><Maximize2 size={14}/><span>全身</span></button><button onClick={focusTarget} disabled={!hasTarget} title="聚焦當前穴位或痛處"><Focus size={14}/><span>聚焦</span></button><button className={`icon-button ${state.rotate?'selected':''}`} aria-label={state.rotate?'停止旋轉':'自動旋轉'} aria-pressed={state.rotate} onClick={()=>{pause();setState(s=>({...s,rotate:!s.rotate}));setFeedback(state.rotate?'自動旋轉已停止。':'正在自動旋轉人體。');}}><RotateCw size={15}/></button>
   </nav>
 
-  <button className={`pain-entry ${simulation.pain||simulation.pickMode==='pain'?'active':''}`} aria-pressed={!!simulation.pain||simulation.pickMode==='pain'} onClick={()=>{changeMode('pain');setMobilePanel('selection');}}>◎ 疼痛關聯</button>
+  {!animeMode&&<button className={`pain-entry ${simulation.pain||simulation.pickMode==='pain'?'active':''}`} aria-pressed={!!simulation.pain||simulation.pickMode==='pain'} onClick={()=>{changeMode('pain');setMobilePanel('selection');}}>◎ 疼痛關聯</button>}
+  {animeMode&&!animePointReady&&simulation.pointCode&&<button className="pain-entry anime-fallback" onClick={()=>switchModelMode('anatomy')}>此穴需解剖模型 · 點此切換</button>}
 
   <aside className={`library-panel surface ${mobilePanel==='library'?'mobile-expanded':''}`} aria-label="穴位與解剖層">
    <button className="mobile-panel-heading" aria-expanded={mobilePanel==='library'} onClick={()=>setMobilePanel(p=>p==='library'?null:'library')}><span><Layers3 size={16}/>穴位與解剖層</span><ChevronDown size={17}/></button>
    <div className="panel-content">
-    <div className="panel-tabs" role="tablist" aria-label="學習內容"><button role="tab" aria-selected={libraryTab==='points'} className={libraryTab==='points'?'selected':''} onClick={()=>setLibraryTab('points')} id="points-tab" aria-controls="points-panel">穴位<span>{POINTS.length}</span></button><button role="tab" aria-selected={libraryTab==='layers'} className={libraryTab==='layers'?'selected':''} onClick={()=>setLibraryTab('layers')} id="layers-tab" aria-controls="layers-panel">取穴參考<span>15</span></button></div>
+     <div className="panel-tabs" role="tablist" aria-label="學習內容"><button role="tab" aria-selected={libraryTab==='points'} className={libraryTab==='points'?'selected':''} onClick={()=>setLibraryTab('points')} id="points-tab" aria-controls="points-panel">穴位<span>{animeMode?ANIME_SUPPORTED_CODES.size:POINTS.length}</span></button><button role="tab" aria-selected={libraryTab==='layers'} className={libraryTab==='layers'?'selected':''} onClick={()=>{if(animeMode){setFeedback('解剖圖層僅在解剖模型可用。');switchModelMode('anatomy');setLibraryTab('layers');return;}setLibraryTab('layers');}} id="layers-tab" aria-controls="layers-panel">取穴參考<span>15</span></button></div>
     {libraryTab==='points'?<div className="tab-body" id="points-panel" role="tabpanel" aria-labelledby="points-tab">
      <label className="search-box"><Search size={15}/><input ref={searchInput} value={query} onChange={e=>setQuery(e.target.value)} placeholder="穴名、拼音或編號" aria-label="搜索教學穴位"/>{query?<button aria-label="清空搜索" onClick={()=>setQuery('')}><X size={13}/></button>:<kbd>/</kbd>}</label>
-     <div className="curriculum-controls" role="group" aria-label="課堂基準穴">{CURRICULUM_SETS.map(set=><button key={set.id} className={simulation.curriculumSet===set.id?'selected':''} aria-pressed={simulation.curriculumSet===set.id} onClick={()=>{const on=simulation.curriculumSet!==set.id;setRegion('all');setQuery('');prepareFocus();setSimulation(s=>({...s,curriculumSet:on?set.id:'all',meridianFilter:'all',pain:undefined,pointCode:on?set.codes[0]:s.pointCode,side:1,customTarget:null,dragging:false,running:false,elapsed:0,focus:s.focus+1,pickMode:'point'}));setFeedback(on?`課堂：${set.name}。依教材順序校正與演示。`:'已退出課堂篩選，顯示全部穴位。');}}>{set.shortName}<small>{set.codes.length}</small></button>)}{activeLesson&&<button className="curriculum-clear" onClick={()=>{setSimulation(s=>({...s,curriculumSet:'all'}));setFeedback('已退出課堂篩選，顯示全部穴位。');}}>全部穴位</button>}</div>
-     {activeLesson&&<p className="curriculum-note">{activeLesson.lesson}{activeLesson.status==='reviewed'?' · 已課堂核對':' · 座標待核對'}</p>}
+     <div className="curriculum-controls" role="group" aria-label="課堂基準穴">{CURRICULUM_SETS.map(set=><button key={set.id} className={simulation.curriculumSet===set.id?'selected':''} aria-pressed={simulation.curriculumSet===set.id} onClick={()=>{const on=simulation.curriculumSet!==set.id;if(animeMode&&on&&set.id!==ANIME_DEFAULT_SET){setFeedback(`${set.shortName} 尚未完成動漫對應，請在解剖模型練習。`);switchModelMode('anatomy');}setRegion('all');setQuery('');prepareFocus();setSimulation(s=>({...s,curriculumSet:on?set.id:'all',meridianFilter:'all',pain:undefined,pointCode:on?set.codes[0]:s.pointCode,side:1,customTarget:null,dragging:false,running:false,elapsed:0,focus:s.focus+1,pickMode:'point'}));if(!(animeMode&&on&&set.id!==ANIME_DEFAULT_SET))setFeedback(on?`課堂：${set.name}。依教材順序校正與演示。`:'已退出課堂篩選，顯示全部穴位。');}}>{set.shortName}<small>{set.codes.length}</small></button>)}{activeLesson&&!animeMode&&<button className="curriculum-clear" onClick={()=>{setSimulation(s=>({...s,curriculumSet:'all'}));setFeedback('已退出課堂篩選，顯示全部穴位。');}}>全部穴位</button>}</div>
+     {activeLesson&&<p className="curriculum-note">{activeLesson.lesson}{activeLesson.status==='reviewed'?' · 已課堂核對':' · 座標待核對'}{animeMode?' · 動漫視圖僅顯示已對應穴位':''}</p>}
+     {lessonProgress&&<div className="lesson-progress-card" aria-live="polite"><strong>{lessonProgress.name} · 第 {lessonProgress.index}／{lessonProgress.total} 穴</strong><div className="lesson-progress-actions"><button type="button" onClick={()=>stepLesson(-1)}>上一穴</button><button type="button" onClick={()=>stepLesson(1)}>下一穴</button></div></div>}
      <details className="region-disclosure"><summary>按身體區域篩選</summary><div className="section-label">選擇身體區域<button className={region==='all'?'current':''} onClick={()=>{setRegion('all');setFeedback('正在顯示全部教學點。');}}>全部</button></div>
      <div className="region-grid">{REGIONS.map(r=><button className={region===r.id?'selected':''} key={r.id} aria-pressed={region===r.id} onClick={()=>{setRegion(r.id);setQuery('');choosePoint(r.example);}}>{r.name}</button>)}</div>
      </details><div className="meridian-controls"><label>十四經脈<select aria-label="選擇經脈" value={simulation.meridianFilter??'all'} onChange={e=>{setRegion('all');setQuery('');setSimulation(s=>({...s,meridianFilter:e.target.value,pain:undefined}));}}><option value="all">全部經脈 · {POINTS.length} 穴</option>{MERIDIANS.map(m=><option key={m.id} value={m.id}>{m.name} · {m.count} 穴</option>)}</select></label><label className="meridian-toggle"><input type="checkbox" checked={!!simulation.showMeridians} onChange={()=>setSimulation(s=>({...s,showMeridians:!s.showMeridians}))}/>顯示經脈體表連線</label><small>依穴序分段示意；不代表深部循行。奇穴、耳穴另屬其他體系。</small></div>
@@ -171,13 +211,19 @@ export default function Home(){
    <div className="panel-content">
     <div className="selection-eyebrow"><span>當前選擇</span><span className="selection-number">{point?.code??(simulation.pain?'痛處關聯':simulation.customTarget?'體表位置':simulation.pickMode==='pain'?'體表標記':'解剖參考')}</span></div>
     <div className="selection-title"><h1>{selectedTitle}</h1>{point&&<p>{point.pinyin}<span>·</span>{point.meridian}</p>}</div>
-    <div className="mode-control" aria-label="選擇方式">{([{id:'point',label:'選穴',icon:MapPin},{id:'pain',label:'點選痛處',icon:MousePointer2},{id:'anatomy',label:'解剖',icon:Layers3}] as const).map(mode=><button key={mode.id} className={simulation.pickMode===mode.id?'selected':''} aria-pressed={simulation.pickMode===mode.id} onClick={()=>changeMode(mode.id)}><mode.icon size={13}/>{mode.label}</button>)}</div>
+    <div className="mode-control" aria-label="選擇方式">{([{id:'point',label:'選穴',icon:MapPin},{id:'pain',label:'點選痛處',icon:MousePointer2},{id:'anatomy',label:'解剖',icon:Layers3}] as const).map(mode=><button key={mode.id} className={simulation.pickMode===mode.id&&!animeMode?'selected':mode.id==='point'&&animeMode?'selected':''} aria-pressed={animeMode?mode.id==='point':simulation.pickMode===mode.id} onClick={()=>{if(animeMode&&mode.id!=='point'){setFeedback(mode.id==='pain'?'疼痛關聯請切回解剖模型。':'解剖圖層請切回解剖模型。');switchModelMode('anatomy');changeMode(mode.id);return;}changeMode(mode.id);}}><mode.icon size={13}/>{mode.label}</button>)}</div>
+    {animeMode&&<div className="anime-capability-card"><p>動漫角色可練習已對應的頭頸基準穴，並保留正面／側面／背面視角。</p><button type="button" className="outline-button" onClick={()=>switchModelMode('anatomy')}>切回解剖模型使用工具與圖層</button></div>}
     <div className="selection-scroll">
      {(simulation.pain||simulation.pickMode==='pain')&&<PainPanel pain={simulation.pain} selected={simulation.pointCode} onCase={choosePainCase} onPoint={chooseRelatedPoint} onOverview={relationOverview} onClear={clearPain} onUpdate={next=>setSimulation(s=>({...s,pain:s.pain?{...s.pain,...next}:undefined}))}/>}
      {simulation.pickMode==='anatomy'?<div className="location-card"><h2>解剖觀察</h2>{selectedPart?<><p>{SYSTEM_ZH[selectedPart.system]} · 已選結構</p><div className="anatomy-name">{selectedPart.name}</div><button className={`outline-button ${state.isolate?'selected':''}`} onClick={()=>{pause();setState(s=>({...s,isolate:!s.isolate,rotate:false}));setFeedback(state.isolate?'已恢復其他可見結構。':'正在單獨觀察所選解剖結構。');}}>{state.isolate?'恢復其他結構':'單獨觀察此結構'}</button></>:<p>點選人體或拆解後的結構，查看它所屬的解剖系統。</p>}</div>:point?<>
       <div className="side-control"><span>患者側別</span><div><button disabled={point.midline} className={simulation.side===1&&!point.midline?'selected':''} onClick={()=>chooseSide(1)} aria-pressed={simulation.side===1&&!point.midline}>左</button><button disabled={point.midline} className={simulation.side===-1&&!point.midline?'selected':''} onClick={()=>chooseSide(-1)} aria-pressed={simulation.side===-1&&!point.midline}>右</button></div>{point.midline&&<small>正中線</small>}</div>
       <div className="location-card"><h2><span className="section-dash"/>標準定位</h2>{location?<><p>{location.text}</p>{location.curriculum?<p className="curriculum-source">{location.curriculum}</p>:null}{location.classic?<p className="classic-source">{location.classic}</p>:null}{location.section?<a href={STANDARD} target="_blank" rel="noreferrer">國標條款 {location.section}<ArrowUpRight size={12}/></a>:null}<small>“寸”為身體分段比例，不是固定釐米。</small></>:<><p>本穴已收錄至教學目錄。標準定位摘要待逐條核錄，請對照原文學習。</p><a href={point.source||STANDARD} target="_blank" rel="noreferrer">查閱定位來源<ArrowUpRight size={12}/></a></>}</div>
-      <div className="meridian-navigation"><button onClick={()=>{const list=activeLesson?activeLesson.codes.map(code=>POINT_BY_CODE.get(code)!).filter(Boolean):POINTS.filter(p=>p.meridianId===point.meridianId);const i=list.findIndex(p=>p.code===point.code);choosePoint(list[(i-1+list.length)%list.length].code);}}>{activeLesson?'上一組內穴':'上一穴'}</button><button onClick={()=>{const list=activeLesson?activeLesson.codes.map(code=>POINT_BY_CODE.get(code)!).filter(Boolean):POINTS.filter(p=>p.meridianId===point.meridianId);const i=list.findIndex(p=>p.code===point.code);choosePoint(list[(i+1)%list.length].code);}}>{activeLesson?'下一組內穴':'下一穴'}</button></div>{point.surfaceUnavailable&&<p className="review-note">本穴位於口內，當前體表模式僅提供目錄，不顯示皮膚標記或器具。</p>}<div className={`review-note ${point.reviewed?'is-reviewed':''}`}><span className="review-dot"/><span>{point.reviewed?'課堂已核對座標':pointInCurriculum(point.code)?'常用練習穴 · 座標待核對':'模型座標待專業校核'}<small>圖中位置為教學示意。{point.position[1]<.95&&point.position[1]>.73&&Math.abs(point.position[0])<.065?'會陰與外生殖器外形已簡化，此區不用於精細取穴。':''}</small></span></div>
+      <div className="meridian-navigation lesson-nav-block">
+       {lessonProgress&&<span className="lesson-progress-inline">{lessonProgress.name} · 第 {lessonProgress.index}／{lessonProgress.total} 穴</span>}
+       <div className="meridian-navigation-buttons"><button onClick={()=>stepLesson(-1)}>{activeLesson?'上一穴':'上一穴'}</button><button onClick={()=>stepLesson(1)}>{activeLesson?'下一穴':'下一穴'}</button></div>
+      </div>
+      {point.surfaceUnavailable&&<p className="review-note">本穴位於口內，當前體表模式僅提供目錄，不顯示皮膚標記或器具。</p>}
+      <div className={`review-note ${point.reviewed||(animeMode&&animePointReady)?'is-reviewed':''}`}><span className="review-dot"/><span>{animeMode&&animePointReady?'動漫角色已對應並完成檢查':point.reviewed?'課堂已核對座標':pointInCurriculum(point.code)?'常用練習穴 · 座標待核對':'模型座標待專業校核'}<small>{animeMode?'動漫視圖標記為教學示意，比例對照解剖模型。':'圖中位置為教學示意。'}{!animeMode&&point.position[1]<.95&&point.position[1]>.73&&Math.abs(point.position[0])<.065?'會陰與外生殖器外形已簡化，此區不用於精細取穴。':''}</small></span></div>
      </>:simulation.pain||simulation.pickMode==='pain'?null:<div className="pain-card"><div className="pain-target"><MapPin size={23}/>{simulation.customTarget&&<Check size={12}/>}</div><h2>{simulation.customTarget?'當前工具接觸位置':'在人體上點選痛處'}</h2><p>拖動器具或“移動工具”手柄，在皮膚上自由操作；也可點選另一個部位。</p><small>自主教學選擇，不自動推薦療法。</small></div>}
      <div className="tool-summary"><span className="tool-summary-icon"><ToolGlyph tool={tool.id}/></span><div><small>當前工具</small><h2>{tool.name}<span>{tool.effect}</span></h2></div></div><p className="tool-note">{tool.note}</p>
      <div className="amplitude-control"><label htmlFor="amplitude"><span><SlidersHorizontal size={13}/>演示幅度</span><output>{simulation.amplitude<.35?'輕':simulation.amplitude<.7?'中':'強'}</output></label><input id="amplitude" type="range" min="0.15" max="1" step="0.01" value={simulation.amplitude} onChange={e=>{setSimulation(s=>({...s,amplitude:Number(e.target.value)}));setFeedback('已調整動畫幅度，僅改變視覺反饋強弱。');}}/><small>僅調整動畫，不對應實際操作力度。</small></div>
@@ -188,20 +234,26 @@ export default function Home(){
   </aside>
 
   <section className={`tool-dock surface ${toolsExpanded?'tools-open':''}`} aria-label="工具與演示控制">
+   {animeMode?<>
+    <div className="anime-dock-copy"><strong>動漫研習模式</strong><span>穴位點選與視角可用；工具演示請切回解剖模型。</span></div>
+    <button className="play-button anime-switch-btn" type="button" onClick={()=>switchModelMode('anatomy')}>切回解剖模型</button>
+   </>:<>
    <button className="mobile-tools-toggle" aria-expanded={toolsExpanded} aria-controls="tool-palette" onClick={()=>{setToolsExpanded(v=>!v);setMobilePanel(null);}}><ToolGlyph tool={tool.id}/><span>{tool.name}</span><ChevronDown size={14}/></button>
    <div id="tool-palette" className="dock-tools" role="group" aria-label="選擇演示工具">{TOOLS.map(t=><button className={`tool-button ${simulation.tool===t.id?'selected':''}`} key={t.id} aria-pressed={simulation.tool===t.id} onClick={()=>{chooseTool(t.id);setToolsExpanded(false);}} title={t.effect}><ToolGlyph tool={t.id}/><span>{t.name}</span><i/></button>)}</div>
    <div className="dock-separator"/>
    <div className="playback-controls"><button className={`play-button ${simulation.running?'playing':''}`} disabled={!canPlay} onClick={()=>simulation.running?pause():play()}>{simulation.running?<Pause size={15} fill="currentColor"/>:<Play size={15} fill="currentColor"/>}<span>{simulation.running?'暫停':'播放演示'}</span></button><div className="secondary-playback"><button className={`hold-button ${holding?'holding':''}`} disabled={!canPlay} onPointerDown={startHold} onPointerUp={endHold} onPointerCancel={endHold} onLostPointerCapture={()=>{if(heldPointer.current!==null)releaseHold();}} onKeyDown={e=>{if((e.key===' '||e.key==='Enter')&&!e.repeat&&canPlay){e.preventDefault();setHolding(true);play();}}} onKeyUp={e=>{if((e.key===' '||e.key==='Enter')&&holding){e.preventDefault();releaseHold();}}} onBlur={()=>{if(holding)pause();}}>按住演示</button><button className="replay-button" disabled={!canPlay} onClick={()=>play(true)} aria-label="從頭重播演示" title="從頭重播"><RotateCcw size={14}/></button></div></div>
+   </>}
   </section>
 
-  <footer className="studio-footer"><span className="status-message" role="status" aria-live="polite">{feedback}</span><span className="footer-scope">課堂模擬<span>·</span>座標未經專業審校</span></footer>
+  <footer className="studio-footer"><span className="status-message" role="status" aria-live="polite">{feedback}</span><span className="footer-scope">經絡研習室<span>·</span>{animeMode?'動漫對應示意':'課堂模擬'}</span></footer>
   <dialog ref={dialog} className="source-dialog" onCancel={()=>setAbout(false)} onClose={()=>setAbout(false)} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)setAbout(false);}}} aria-labelledby="source-title">
    <div className="dialog-heading"><span className="eyebrow">資料、許可與當前邊界</span><button className="icon-button" onClick={()=>setAbout(false)} aria-label="關閉來源與許可" autoFocus><X size={19}/></button></div>
    <h2 id="source-title">讓每一層，有據可查。</h2><p className="dialog-intro">這是供課堂討論與交互驗證的工程預覽。標準文字、解剖模型與操作動畫分別保留來源和狀態。</p>
    <section><h3>穴位定位</h3><p>以 GB/T 12346—2021《經穴名稱與定位》為主要核查來源。本版收錄十四經脈 362 個經穴名稱（含國標印堂），齦交僅收錄目錄；經脈按穴序作分段體表示意，工程座標尚未經過針灸教師與解剖人員逐穴審核。</p><a href={STANDARD} target="_blank" rel="noreferrer">查閱國家標準正文<ArrowUpRight size={13}/></a></section>
    <section><h3>人體解剖與許可</h3><p>BodyParts3D，© The Database Center for Life Science，採用 CC Attribution 4.0 International 許可。參考成人男性解剖，保留 {atlas?.parts.length.toLocaleString()??'2,234'} 個原始結構；顯示幾何經過網頁簡化、座標轉換與顏色分組。</p><a href="https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html" target="_blank" rel="noreferrer">數據庫許可<ArrowUpRight size={13}/></a><a href="https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html" target="_blank" rel="noreferrer">原始數據與說明<ArrowUpRight size={13}/></a><a href={publicAssetUrl('/ATTRIBUTION.md')} target="_blank" rel="noreferrer">本項目完整署名與改編記錄<ArrowUpRight size={13}/></a></section>
    <section><h3>工具與局部反饋</h3><p>針具接觸、溫熱光場、按壓形變、刮拭軌跡與杯口吸附均為教學視覺示意，不預測療效，也不提供真人操作參數。標記痛處不會自動生成診斷、配穴或治療推薦。</p><a href="https://www.nccih.nih.gov/health/acupuncture-effectiveness-and-safety" target="_blank" rel="noreferrer">NCCIH：針灸資料<ArrowUpRight size={13}/></a><a href="https://www.nccih.nih.gov/health/cupping" target="_blank" rel="noreferrer">NCCIH：拔罐資料<ArrowUpRight size={13}/></a><a href="https://www.mskcc.org/cancer-care/patient-education/acupressure-pain-and-headaches" target="_blank" rel="noreferrer">MSK：指壓資料<ArrowUpRight size={13}/></a><a href="https://www.whsyy.net/view_10591.html" target="_blank" rel="noreferrer">武漢市第三醫院：艾灸資料<ArrowUpRight size={13}/></a><a href="https://yjj.scjgj.fujian.gov.cn/ztzl/kpzl/spyjts/ylqxjj/202008/t20200811_5352550.htm" target="_blank" rel="noreferrer">福建省藥監局：刮痧資料<ArrowUpRight size={13}/></a><a href="https://bowuguan.bucm.edu.cn/kpzl/ysmt/10927.htm" target="_blank" rel="noreferrer">北京中醫藥大學：砭石形制與歷史<ArrowUpRight size={13}/></a></section>
-   <button className="dialog-done" onClick={()=>setAbout(false)}>返回教學臺</button>
+   <section><h3>動漫角色</h3><p>研習室助教採用 VRoid Studio β 版樣本「Sendagaya Shino」，作者 pixiv Inc. 以 CC0 1.0 釋出。頭頸 21 穴另行對應到角色皮膚，僅供課堂點選練習；髮絲半透明以露出耳周與頸側。</p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">CC0 1.0 說明<ArrowUpRight size={13}/></a></section>
+   <button className="dialog-done" onClick={()=>setAbout(false)}>返回研習室</button>
   </dialog>
  </main>;
 }

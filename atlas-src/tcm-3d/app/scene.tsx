@@ -23,19 +23,21 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError,si
   const abort=new AbortController();
   let renderer:T.WebGLRenderer;
   try{renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});}catch{onError('無法啟動 3D 視圖，請使用支持 WebGL 的瀏覽器。');return;}
-  renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<768?1.5:2));renderer.setClearColor('#f2f3f3');renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;el.appendChild(renderer.domElement);
+  renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<768?1.5:2));renderer.setClearColor('#f6efe4');renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;el.appendChild(renderer.domElement);
   renderer.domElement.setAttribute('aria-label','中醫 3D 教學人體：拖動旋轉，滾輪縮放，點擊穴位或標記疼痛部位。');
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(34,1,.005,100),controls=new OrbitControls(camera,renderer.domElement);
   camera.position.set(1.4,1.05,3.6);controls.target.set(0,.85,0);controls.enableDamping=true;controls.dampingFactor=.085;controls.minDistance=.07;controls.maxDistance=40;controls.maxPolarAngle=Math.PI*.96;controls.addEventListener('change',()=>{dirty=true;});
   const pmrem=new T.PMREMGenerator(renderer),room=new RoomEnvironment(),env=pmrem.fromScene(room,.04);scene.environment=env.texture;room.dispose();pmrem.dispose();
-  scene.add(new T.HemisphereLight(0xffffff,0xa7acb2,1.05));
-  const key=new T.DirectionalLight(0xfffaf4,2.3);key.position.set(-2,4,3);scene.add(key);
-  const rim=new T.DirectionalLight(0xe9f0ff,1.8);rim.position.set(2,2,-3);scene.add(rim);
-  const soleFill=new T.DirectionalLight(0xfff4e8,1.8);soleFill.position.set(0,-2,1);scene.add(soleFill);
-  const ground=new T.Mesh(new T.CircleGeometry(30,96),new T.MeshStandardMaterial({color:0xd5d9dc,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.019;scene.add(ground);
-  const platform=new T.Mesh(new T.CylinderGeometry(.68,.7,.028,100),new T.MeshStandardMaterial({color:0xeeeeec,metalness:.12,roughness:.67}));platform.position.y=-.016;scene.add(platform);
-  const ring=new T.Mesh(new T.RingGeometry(.63,.632,128),new T.MeshBasicMaterial({color:0x8c969f,transparent:true,opacity:.4,side:T.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=.001;scene.add(ring);
-  const innerRing=new T.Mesh(new T.RingGeometry(.55,.551,128),new T.MeshBasicMaterial({color:0xa4aeb8,transparent:true,opacity:.16,side:T.DoubleSide}));innerRing.rotation.x=-Math.PI/2;innerRing.position.y=.001;scene.add(innerRing);
+  scene.add(new T.HemisphereLight(0xfff6ea,0xb7cfc4,1.12));
+  const key=new T.DirectionalLight(0xfff3df,2.15);key.position.set(-2,4,3);scene.add(key);
+  const rim=new T.DirectionalLight(0xd7fff4,1.55);rim.position.set(2,2,-3);scene.add(rim);
+  const soleFill=new T.DirectionalLight(0xffe7c8,1.55);soleFill.position.set(0,-2,1);scene.add(soleFill);
+  const ground=new T.Mesh(new T.CircleGeometry(30,96),new T.MeshStandardMaterial({color:0xe8dcc8,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.019;scene.add(ground);
+  const platform=new T.Mesh(new T.CylinderGeometry(.68,.7,.028,100),new T.MeshStandardMaterial({color:0xfff8ef,metalness:.1,roughness:.7}));platform.position.y=-.016;scene.add(platform);
+  const ring=new T.Mesh(new T.RingGeometry(.63,.632,128),new T.MeshBasicMaterial({color:0xc9a45a,transparent:true,opacity:.42,side:T.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=.001;scene.add(ring);
+  const innerRing=new T.Mesh(new T.RingGeometry(.55,.551,128),new T.MeshBasicMaterial({color:0x7bb8a4,transparent:true,opacity:.18,side:T.DoubleSide}));innerRing.rotation.x=-Math.PI/2;innerRing.position.y=.001;scene.add(innerRing);
+  const toonRampData=new Uint8Array([88,88,88,255,162,162,162,255,255,248,240,255]);
+  const toonRamp=new T.DataTexture(toonRampData,3,1,T.RGBAFormat);toonRamp.magFilter=T.NearestFilter;toonRamp.minFilter=T.NearestFilter;toonRamp.needsUpdate=true;
   const teaching=createTeachingOverlay(scene);el.appendChild(teaching.label);
   const effect={target:{value:new T.Vector3(100,100,100)},normal:{value:new T.Vector3(0,0,1)},deform:{value:0},activity:{value:0},mark:{value:0},color:{value:new T.Color('#5c9c91')},tool:{value:0},time:{value:0},tangent:{value:new T.Vector3(1,0,0)},bitangent:{value:new T.Vector3(0,1,0)}};
   let lastSimulation:SimulationState|null=null;
@@ -58,7 +60,10 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError,si
    return best;
   };
   const materialFor=(system:string)=>{
-   const m=new T.MeshStandardMaterial({color:system==='integumentary'?'#cda78e':SYSTEMS.find(s=>s.id===system)?.color??'#aebbb8',metalness:system==='integumentary'?0:.08,roughness:system==='integumentary'?.7:.53,side:T.DoubleSide,transparent:false,opacity:1,depthWrite:true});
+   const skinToon=system==='integumentary';
+   const m=skinToon
+    ?new T.MeshToonMaterial({color:'#e0b396',gradientMap:toonRamp,side:T.DoubleSide,transparent:false,opacity:1,depthWrite:true})
+    :new T.MeshStandardMaterial({color:SYSTEMS.find(s=>s.id===system)?.color??'#aebbb8',metalness:.08,roughness:.53,side:T.DoubleSide,transparent:false,opacity:1,depthWrite:true});
    m.onBeforeCompile=shader=>{
     shader.uniforms.teachTarget=effect.target;shader.uniforms.teachNormal=effect.normal;shader.uniforms.teachDeform=system==='integumentary'?effect.deform:{value:0};shader.uniforms.teachActivity=effect.activity;shader.uniforms.teachMark=effect.mark;shader.uniforms.teachColor=effect.color;shader.uniforms.teachTool=effect.tool;shader.uniforms.teachTime=effect.time;shader.uniforms.teachTangent=effect.tangent;shader.uniforms.teachBitangent=effect.bitangent;
     shader.uniforms.partState={value:partTexture};shader.uniforms.selectionState={value:selectionTexture};shader.uniforms.stateWidth={value:width};
@@ -183,7 +188,7 @@ export default function AnatomyScene({atlas,state,onSelect,onProgress,onError,si
 
   };animate();
   const contextLost=(e:Event)=>{e.preventDefault();onError('設備暫停了 3D 顯示，請重新載入頁面。');};renderer.domElement.addEventListener('webglcontextlost',contextLost);
-  return()=>{disposed=true;abort.abort();cancelAnimationFrame(frame);observer.disconnect();toolInput.dispose();teaching.dispose();controls.dispose();geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());scene.traverse(o=>{if(o instanceof T.Mesh&&!geometries.includes(o.geometry)){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}});env.dispose();partTexture.dispose();selectionTexture.dispose();markerGeometry.dispose();markerMaterial.dispose();hover.remove();teaching.label.remove();renderer.dispose();renderer.domElement.remove();};
+  return()=>{disposed=true;abort.abort();cancelAnimationFrame(frame);observer.disconnect();toolInput.dispose();teaching.dispose();controls.dispose();geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());toonRamp.dispose();scene.traverse(o=>{if(o instanceof T.Mesh&&!geometries.includes(o.geometry)){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}});env.dispose();partTexture.dispose();selectionTexture.dispose();markerGeometry.dispose();markerMaterial.dispose();hover.remove();teaching.label.remove();renderer.dispose();renderer.domElement.remove();};
  },[atlas]);
  return <div className="scene" ref={host}/>;
 }
