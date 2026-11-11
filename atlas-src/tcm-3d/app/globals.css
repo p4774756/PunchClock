@@ -244,19 +244,23 @@
 .rpg-studio .loading-card{border-radius:18px}
 .rpg-studio .dialog-done{background:linear-gradient(180deg,#3aa894,#1f6b5c);border-radius:12px}
 @media(max-width:767px),(max-width:1100px) and (max-height:500px){
-  .rpg-header{min-height:58px;padding:10px 12px;align-items:center}
-  .brand-block{max-width:none;gap:8px}
-  .back-home{min-height:36px;padding:0 10px;font-size:12px}
+  .rpg-header{min-height:58px;padding:10px 12px;align-items:center;gap:8px}
+  .brand-block{max-width:none;gap:8px;flex-wrap:nowrap;min-width:0}
+  .rpg-studio .brand{gap:8px;min-width:0}
+  .rpg-studio .brand-mark{width:32px;height:32px;font-size:22px;border-radius:10px;flex-shrink:0}
+  .rpg-studio .brand-name{font-size:16px;letter-spacing:.04em;gap:6px;white-space:nowrap}
+  .rpg-studio .edition{font-size:8px;padding:2px 6px}
+  .back-home{min-height:36px;padding:0 10px;font-size:12px;white-space:nowrap;flex-shrink:0}
+  .header-actions{flex-shrink:0}
   .header-switch-row{position:absolute;top:calc(62px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:6;width:calc(100% - 24px);max-width:520px;justify-content:center}
   .header-actions .header-status{display:none}
   .rpg-studio .camera-bar{top:calc(108px + env(safe-area-inset-top,0px))}
   .outfit-bar{
-    position:relative;top:auto;left:auto;transform:none;z-index:3;
-    align-self:center;order:2;width:calc(100% - 34px);max-width:410px;margin:8px auto 0;
-    flex-wrap:wrap;justify-content:center;
+    top:calc(160px + env(safe-area-inset-top,0px));z-index:5;
+    flex-wrap:nowrap;justify-content:center;white-space:nowrap;
   }
-  .rpg-studio .pain-entry,.rpg-studio .anime-fallback{top:calc(156px + env(safe-area-inset-top,0px));left:12px}
-  .rpg-studio.is-anime .pain-entry,.rpg-studio.is-anime .anime-fallback{top:calc(156px + env(safe-area-inset-top,0px))}
+  .rpg-studio .pain-entry,.rpg-studio .anime-fallback{top:calc(160px + env(safe-area-inset-top,0px));left:12px}
+  .rpg-studio.is-anime.has-outfit-bar .anime-fallback{top:calc(206px + env(safe-area-inset-top,0px))}
   .lesson-progress-card{margin-inline:12px}
   .anime-dock-copy span{display:none}
   /* Collapsed chips must not stretch from desktop `top` down over the avatar. */
@@ -276,4 +280,6 @@
 }
 @media(max-width:1100px) and (max-height:500px) and (orientation:landscape){
   .header-switch-row{top:calc(8px + env(safe-area-inset-top,0px));left:auto;right:calc(12px + env(safe-area-inset-right,0px));transform:none;width:auto;max-width:min(58vw,420px)}
+  .outfit-bar{top:calc(56px + env(safe-area-inset-top,0px))}
+  .rpg-studio.is-anime.has-outfit-bar .anime-fallback{top:calc(56px + env(safe-area-inset-top,0px))}
 }
