@@ -3,6 +3,7 @@ package com.example.ui.blackjack;
 import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BaseMultiResolutionImage;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -26,6 +27,8 @@ public final class CasinoAssets {
     public static final String LUNCH_EASEL = "deco/lunch-easel.png";
     public static final String CHIPS_LEFT = "deco/chips-left.png";
     public static final String CHIPS_RIGHT = "deco/chips-right.png";
+    public static final String TROPHY = "deco/trophy.png";
+    public static final String CLOCHE = "deco/cloche.png";
     public static final String FELT_TILE = "table/felt-tile.png";
     public static final String TABLE = "table/table.png";
     public static final String CARD_BACK = "card/back.png";
@@ -48,6 +51,7 @@ public final class CasinoAssets {
 
     private static final Map<String, Optional<Image>> CACHE = new HashMap<>();
     private static final Map<String, Double> OPAQUE_RADIUS = new HashMap<>();
+    private static final Map<String, Optional<Rectangle2D>> CONTENT = new HashMap<>();
 
     private CasinoAssets() {
     }
@@ -149,6 +153,37 @@ public final class CasinoAssets {
             }
         }
         return min / half;
+    }
+
+    /**
+     * 素材實際有畫東西的範圍（alpha ≥ 32，略過外圈淡光暈），以 0–1 的比例表示；找不到素材時回 null。
+     * 角色、獎盃這類素材四周留白不一，要讓「看得到的部分」對齊版面時用它。
+     */
+    public static synchronized Rectangle2D contentBounds(String path) {
+        return CONTENT.computeIfAbsent(path, p -> {
+            BufferedImage image = getBuffered(p);
+            if (image == null) {
+                return Optional.<Rectangle2D>empty();
+            }
+            int w = image.getWidth();
+            int h = image.getHeight();
+            int minX = w, minY = h, maxX = -1, maxY = -1;
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    if ((image.getRGB(x, y) >>> 24) >= 32) {
+                        minX = Math.min(minX, x);
+                        minY = Math.min(minY, y);
+                        maxX = Math.max(maxX, x);
+                        maxY = Math.max(maxY, y);
+                    }
+                }
+            }
+            if (maxX < 0) {
+                return Optional.<Rectangle2D>of(new Rectangle2D.Double(0, 0, 1, 1));
+            }
+            return Optional.<Rectangle2D>of(new Rectangle2D.Double((double) minX / w, (double) minY / h,
+                    (double) (maxX - minX + 1) / w, (double) (maxY - minY + 1) / h));
+        }).orElse(null);
     }
 
     /** 直接拿 1x 的 BufferedImage（例如當紋理用）。 */

@@ -1,7 +1,6 @@
 package com.example.ui.blackjack;
 
 import com.example.ui.CandyTheme;
-import com.example.ui.UiFonts;
 
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
@@ -19,6 +18,7 @@ import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Paint;
 import java.awt.RadialGradientPaint;
 import java.awt.Rectangle;
 import java.awt.Shape;
@@ -27,6 +27,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.Point2D;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,13 +35,10 @@ import java.util.Random;
 
 /**
  * 金框綠絨牌桌。開局前顯示 {@link WaitingView}，開局後是「對手列／對手手牌／牌堆與回合／自己手牌／自己列」。
- * 結算時在中間彈出結果牌。只負責畫面，狀態由 {@code BlackjackWindow} 從 session 讀出來再塞進來。
+ * 結算時在中間那條疊上結果面板（上下手牌仍看得到）；午餐爭奪戰結算後中間那條換成 {@link LunchPanel} 公告板。
+ * 只負責畫面，狀態由 {@code BlackjackWindow} 從 session 讀出來再塞進來。
  */
 public final class BlackjackTablePanel extends JPanel implements CasinoTheme.Scalable {
-
-    public enum Result {
-        WIN, LOSE, DRAW
-    }
 
     private static final String CARD_WAIT = "wait";
     private static final String CARD_PLAY = "play";
@@ -52,6 +50,7 @@ public final class BlackjackTablePanel extends JPanel implements CasinoTheme.Sca
     private final HandView peerHand = new HandView(false);
     private final HandView myHand = new HandView(true);
     private final TableCenter center = new TableCenter();
+    private final LunchPanel lunchBoard = new LunchPanel();
     private final WaitingView waitingView = new WaitingView();
     private final CardLayout cards = new CardLayout();
     private final JPanel play;
@@ -59,8 +58,9 @@ public final class BlackjackTablePanel extends JPanel implements CasinoTheme.Sca
     private float scale = 1f;
     private boolean waiting = true;
 
-    private Result result;
-    private String resultTitle = "";
+    private BlackjackScene.Verdict result;
+    private int resultMine;
+    private int resultPeer;
     private String resultDetail = "";
     private long resultStart;
     private final List<float[]> confetti = new ArrayList<>();
@@ -90,6 +90,8 @@ public final class BlackjackTablePanel extends JPanel implements CasinoTheme.Sca
         c.weighty = 0;
         c.fill = GridBagConstraints.HORIZONTAL;
         play.add(center, c);
+        lunchBoard.setVisible(false);
+        play.add(lunchBoard, c);
 
         c.gridy = 3;
         c.weighty = 1;
@@ -132,6 +134,21 @@ public final class BlackjackTablePanel extends JPanel implements CasinoTheme.Sca
         return waitingView;
     }
 
+    public LunchPanel lunchBoard() {
+        return lunchBoard;
+    }
+
+    /** 中間那條換成午餐公告板（或換回牌堆與回合）。公告板顯示時不畫結果面板，結果改由公告板說明。 */
+    public void showLunchBoard(boolean value) {
+        if (lunchBoard.isVisible() == value) {
+            return;
+        }
+        lunchBoard.setVisible(value);
+        center.setVisible(!value);
+        play.revalidate();
+        repaint();
+    }
+
     /** 切換開局前的等待畫面與牌局畫面。 */
     public void setWaiting(boolean value) {
         if (waiting == value) {
@@ -164,24 +181,25 @@ public final class BlackjackTablePanel extends JPanel implements CasinoTheme.Sca
         return CasinoTheme.px(scale, 18);
     }
 
-    public Result result() {
+    public BlackjackScene.Verdict result() {
         return result;
     }
 
     /** 播結果動畫。同一種結果重複呼叫不會重播。 */
-    public void showResult(Result next, String title, String detail) {
-        if (next == null) {
+    public void showResult(BlackjackScene.Verdict next, int myScore, int peerScore, String detail) {
+        if (next == null || next == BlackjackScene.Verdict.NONE) {
             clearResult();
             return;
         }
         boolean replay = next != result;
         result = next;
-        resultTitle = title == null ? "" : title;
+        resultMine = myScore;
+        resultPeer = peerScore;
         resultDetail = detail == null ? "" : detail;
         if (replay) {
             resultStart = System.currentTimeMillis();
             confetti.clear();
-            if (next == Result.WIN) {
+            if (next == BlackjackScene.Verdict.WIN) {
                 seedConfetti();
             }
             resultTimer.start();
@@ -321,7 +339,7 @@ public final class BlackjackTablePanel extends JPanel implements CasinoTheme.Sca
 
     private void seedConfetti() {
         Random random = new Random();
-        for (int i = 0; i < 70; i++) {
+        for (int i = 0; i < 36; i++) {
             confetti.add(new float[]{
                     random.nextFloat(),
                     -random.nextFloat() * 0.5f,
@@ -338,7 +356,7 @@ public final class BlackjackTablePanel extends JPanel implements CasinoTheme.Sca
 
     private void tickResult() {
         long elapsed = System.currentTimeMillis() - resultStart;
-        long limit = result == Result.WIN ? CONFETTI_MS : POP_MS + 900;
+        long limit = result == BlackjackScene.Verdict.WIN ? CONFETTI_MS : POP_MS + 900;
         repaint();
         if (elapsed > limit) {
             resultTimer.stop();
@@ -354,8 +372,10 @@ public final class BlackjackTablePanel extends JPanel implements CasinoTheme.Sca
         }
         Graphics2D g = CasinoTheme.quality((Graphics2D) graphics);
         long elapsed = System.currentTimeMillis() - resultStart;
+        if (!lunchBoard.isVisible()) {
+            paintResult(g, elapsed);
+        }
         paintConfetti(g, elapsed);
-        paintBanner(g, elapsed);
         g.dispose();
     }
 
@@ -376,90 +396,252 @@ public final class BlackjackTablePanel extends JPanel implements CasinoTheme.Sca
         g.setComposite(AlphaComposite.SrcOver);
     }
 
-    // 結算牌在 C 階段改成定稿樣式；這裡先維持原本的動畫與資訊
-    private void paintBanner(Graphics2D g, long elapsed) {
+    /**
+     * 結算面板：疊在中間那條上、只比它略高，上下手牌仍看得到。
+     * 左右是雙方頭像與最終點數，中間是結果大字；勝利有獎盃、桂冠與星光，落敗與爆牌只用沉穩配色，平手左右對稱。
+     */
+    private void paintResult(Graphics2D g, long elapsed) {
         Rectangle anchor = SwingUtilities.convertRectangle(center.getParent(), center.getBounds(), this);
-        int bw = Math.min(CasinoTheme.px(scale, 460), getWidth() - 60);
-        int bh = Math.max(CasinoTheme.px(scale, 96), anchor.height - CasinoTheme.px(scale, 20));
-        int cx = anchor.x + anchor.width / 2;
-        int cy = anchor.y + anchor.height / 2;
+        double s = scale;
+        double bw = Math.min(600 * s, getWidth() - 2 * (rim() + 20 * s));
+        double bh = anchor.height + 24 * s;
+        double cx = anchor.x + anchor.width / 2.0;
+        double cy = anchor.y + anchor.height / 2.0;
+        BlackjackScene.Verdict verdict = result;
 
         float t = Math.min(1f, elapsed / (float) POP_MS);
         float pop = 1f;
-        float alpha = Math.min(1f, t * 2.2f);
         double angle = 0;
-        int dy = 0;
-        Color top;
-        Color bottom;
-        String[] icon;
-        switch (result) {
+        double dy = 0;
+        switch (verdict) {
             case WIN:
-                pop = 0.55f + 0.45f * easeOutBack(t);
-                top = new Color(0xFF, 0xEA, 0x8F);
-                bottom = new Color(0xFF, 0xB3, 0x5C);
-                icon = PixelArt.TROPHY;
+                pop = 0.6f + 0.4f * easeOutBack(t);
                 break;
             case LOSE:
-                dy = Math.round((1f - easeOut(t)) * -36);
-                top = new Color(0xD9, 0xCD, 0xF2);
-                bottom = new Color(0xA2, 0x92, 0xCC);
-                icon = PixelArt.RAIN;
+            case BUST:
+                dy = (1f - easeOut(t)) * -30 * s;
                 break;
             default:
-                pop = 0.8f + 0.2f * easeOut(t);
+                pop = 0.85f + 0.15f * easeOut(t);
                 long wobble = Math.min(elapsed, POP_MS + 900L);
-                angle = 0.06 * Math.sin(wobble / 90.0) * Math.max(0, 1 - wobble / (double) (POP_MS + 900));
-                top = new Color(0xD3, 0xF7, 0xE6);
-                bottom = new Color(0xB7, 0x9A, 0xEF);
-                icon = PixelArt.STAR;
+                angle = 0.04 * Math.sin(wobble / 90.0) * Math.max(0, 1 - wobble / (double) (POP_MS + 900));
                 break;
         }
 
-        AffineTransform saved = g.getTransform();
-        g.translate(cx, cy + dy);
-        g.rotate(angle);
-        g.scale(pop, pop);
-        g.setComposite(AlphaComposite.SrcOver.derive(alpha));
-        int x = -bw / 2;
-        int y = -bh / 2;
-        int arc = 26;
-        g.setColor(new Color(0, 0, 0, 80));
-        g.fillRoundRect(x + 2, y + 5, bw, bh, arc, arc);
-        g.setPaint(CasinoTheme.gold(y - 4, y + bh + 4));
-        g.fillRoundRect(x - 4, y - 4, bw + 8, bh + 8, arc + 8, arc + 8);
-        g.setPaint(new GradientPaint(0, y, top, 0, y + bh, bottom));
-        g.fillRoundRect(x, y, bw, bh, arc, arc);
-        g.setColor(new Color(255, 255, 255, 120));
-        g.fillRoundRect(x + 10, y + 5, bw - 20, bh / 4, arc / 2, arc / 2);
-
-        int scalePx = Math.max(3, Math.round(4 * scale));
-        int iw = PixelArt.width(icon) * scalePx;
-        int ih = PixelArt.height(icon) * scalePx;
-        int ix = x + 18;
-        PixelArt.drawShadowed(g, icon, ix, y + (bh - ih) / 2, scalePx);
-
-        Font titleFont = CasinoTheme.chinese(true, scale, 28);
-        Font detailFont = UiFonts.chinesePlain(Math.max(12, CasinoTheme.px(scale, 15)));
-        g.setFont(titleFont);
-        FontMetrics tm = g.getFontMetrics();
-        g.setFont(detailFont);
-        FontMetrics dm = g.getFontMetrics();
-        int textLeft = ix + iw + 14;
-        int room = x + bw - 16 - textLeft;
-        int block = tm.getHeight() + (resultDetail.isEmpty() ? 0 : dm.getHeight());
-        int ty = y + (bh - block) / 2 + tm.getAscent();
-        g.setFont(titleFont);
-        g.setColor(new Color(0x4A, 0x22, 0x3C));
-        String title = CandyTheme.fit(resultTitle, tm, room);
-        g.drawString(title, textLeft + (room - tm.stringWidth(title)) / 2, ty);
-        if (!resultDetail.isEmpty()) {
-            g.setFont(detailFont);
-            g.setColor(new Color(0x5A, 0x3A, 0x55));
-            String detail = CandyTheme.fit(resultDetail, dm, room);
-            g.drawString(detail, textLeft + (room - dm.stringWidth(detail)) / 2, ty + dm.getHeight() + 2);
+        Graphics2D p = (Graphics2D) g.create();
+        p.translate(cx, cy + dy);
+        p.rotate(angle);
+        p.scale(pop, pop);
+        p.setComposite(AlphaComposite.SrcOver.derive(Math.min(1f, t * 2.2f)));
+        double x = -bw / 2;
+        double y = -bh / 2;
+        double arc = 30 * s;
+        Color[] body = resultColors(verdict);
+        RoundRectangle2D.Double shape = new RoundRectangle2D.Double(x, y, bw, bh, arc, arc);
+        p.setColor(new Color(10, 0, 8, 120));
+        p.fill(new RoundRectangle2D.Double(x + 2 * s, y + 6 * s, bw, bh, arc, arc));
+        p.setPaint(new GradientPaint(0, (float) y, body[0], 0, (float) (y + bh), body[1]));
+        p.fill(shape);
+        if (verdict == BlackjackScene.Verdict.WIN) {
+            p.setPaint(new RadialGradientPaint(new Point2D.Double(0, y + bh * 0.5), (float) (bw * 0.36),
+                    new float[]{0f, 1f}, new Color[]{new Color(255, 214, 120, 110), new Color(255, 214, 120, 0)}));
+            p.fill(shape);
         }
-        g.setTransform(saved);
-        g.setComposite(AlphaComposite.SrcOver);
+        p.setPaint(new GradientPaint(0, (float) y, new Color(255, 255, 255, 46), 0, (float) (y + bh * 0.45),
+                new Color(255, 255, 255, 0)));
+        p.fill(new RoundRectangle2D.Double(x + 6 * s, y + 4 * s, bw - 12 * s, bh * 0.45, arc * 0.8, arc * 0.8));
+        boolean bright = verdict == BlackjackScene.Verdict.WIN || verdict == BlackjackScene.Verdict.DRAW;
+        CasinoTheme.goldFrame(p, shape, (float) ((bright ? 3.4 : 2.4) * s));
+        double inset = 8 * s;
+        p.setColor(new Color(0xE8, 0xC2, 0x6A, bright ? 130 : 80));
+        p.setStroke(new BasicStroke((float) Math.max(1, s)));
+        p.draw(new RoundRectangle2D.Double(x + inset, y + inset, bw - inset * 2, bh - inset * 2, arc * 0.7, arc * 0.7));
+
+        double col = Math.min(124 * s, bw * 0.22);
+        double d = Math.min(68 * s, bh * 0.46);
+        double medalY = y + bh * 0.42;
+        float myGlow = verdict == BlackjackScene.Verdict.WIN ? 0.85f : verdict == BlackjackScene.Verdict.DRAW ? 0.45f : 0f;
+        float peerGlow = verdict == BlackjackScene.Verdict.LOSE || verdict == BlackjackScene.Verdict.BUST ? 0.5f
+                : verdict == BlackjackScene.Verdict.DRAW ? 0.45f : 0f;
+        boolean dimMine = verdict == BlackjackScene.Verdict.LOSE || verdict == BlackjackScene.Verdict.BUST;
+        boolean dimPeer = verdict == BlackjackScene.Verdict.WIN;
+        paintSide(p, x + col / 2 + 8 * s, medalY, d, myBadge, "你", resultMine, myGlow, dimMine);
+        paintSide(p, x + bw - col / 2 - 8 * s, medalY, d, peerBadge, peerBadge.playerName(), resultPeer,
+                peerGlow, dimPeer);
+
+        double left = x + col + 12 * s;
+        double right = x + bw - col - 12 * s;
+        paintVerdictText(p, verdict, left, right, y, bh, elapsed);
+        p.dispose();
+    }
+
+    private static Color[] resultColors(BlackjackScene.Verdict verdict) {
+        switch (verdict) {
+            case WIN:
+                return new Color[]{new Color(0x8E, 0x1A, 0x3C), new Color(0x46, 0x08, 0x1E)};
+            case BUST:
+                return new Color[]{new Color(0x5E, 0x14, 0x2C), new Color(0x2A, 0x06, 0x14)};
+            case DRAW:
+                return new Color[]{new Color(0x56, 0x2C, 0x72), new Color(0x28, 0x10, 0x3C)};
+            default:
+                return new Color[]{CasinoTheme.PLUM, CasinoTheme.PLUM_DARK};
+        }
+    }
+
+    private void paintSide(Graphics2D g, double cx, double cy, double d, PlayerBadge badge, String name, int score,
+                           float glow, boolean dim) {
+        badge.paintMedallion(g, cx, cy, d, glow);
+        if (dim) {
+            g.setColor(new Color(20, 6, 18, 96));
+            g.fill(new Ellipse2D.Double(cx - d / 2, cy - d / 2, d, d));
+        }
+        Font nameFont = CasinoTheme.chinese(true, scale, 14);
+        Font scoreFont = CasinoTheme.latin(scale, 20);
+        FontMetrics nm = g.getFontMetrics(nameFont);
+        FontMetrics sm = g.getFontMetrics(scoreFont);
+        String value = String.valueOf(score);
+        int gap = CasinoTheme.px(scale, 6);
+        String label = CandyTheme.fit(name, nm, (int) (d * 1.5) - sm.stringWidth(value) - gap);
+        double total = nm.stringWidth(label) + gap + sm.stringWidth(value);
+        float base = (float) (cy + d / 2 + 6 * scale + sm.getAscent());
+        float tx = (float) (cx - total / 2);
+        g.setFont(nameFont);
+        g.setColor(CasinoTheme.TEXT_MUTED);
+        g.drawString(label, tx, base);
+        g.setFont(scoreFont);
+        g.setColor(score > 21 ? new Color(0xFF, 0x8A, 0x9A) : CasinoTheme.GOLD_LIGHT);
+        g.drawString(value, tx + nm.stringWidth(label) + gap, base);
+    }
+
+    private void paintVerdictText(Graphics2D g, BlackjackScene.Verdict verdict, double left, double right,
+                                  double y, double bh, long elapsed) {
+        double s = scale;
+        double mid = (left + right) / 2;
+        String title;
+        String tag;
+        Paint fill;
+        Color outline;
+        switch (verdict) {
+            case WIN:
+                title = "勝利！";
+                tag = "YOU WIN";
+                fill = null;
+                outline = CasinoTheme.GOLD_DARK;
+                break;
+            case BUST:
+                title = "爆牌！";
+                tag = "BUST";
+                fill = new GradientPaint(0, (float) y, new Color(0xFF, 0xB0, 0xB8), 0, (float) (y + bh * 0.7),
+                        new Color(0xE8, 0x3A, 0x52));
+                outline = new Color(0x3A, 0x04, 0x12);
+                break;
+            case DRAW:
+                title = "平手";
+                tag = "DRAW";
+                fill = new GradientPaint(0, (float) y, CasinoTheme.CREAM, 0, (float) (y + bh * 0.7),
+                        CasinoTheme.PURPLE_LIGHT);
+                outline = new Color(0x22, 0x0C, 0x36);
+                break;
+            default:
+                title = "落敗";
+                tag = "YOU LOSE";
+                fill = new GradientPaint(0, (float) y, new Color(0xF2, 0xEA, 0xF4), 0, (float) (y + bh * 0.7),
+                        new Color(0xB8, 0xA8, 0xC4));
+                outline = new Color(0x22, 0x0C, 0x20);
+                break;
+        }
+
+        Font tagFont = CasinoTheme.serif(scale, 15, false);
+        FontMetrics tgm = g.getFontMetrics(tagFont);
+        String spaced = String.join(" ", tag.split(""));
+        float tagBase = (float) (y + 16 * s + tgm.getAscent());
+        if (verdict == BlackjackScene.Verdict.BUST) {
+            double tw = tgm.stringWidth(spaced) + 18 * s;
+            double th = tgm.getHeight() + 2 * s;
+            Graphics2D stamp = (Graphics2D) g.create();
+            stamp.rotate(-0.06, mid, tagBase - tgm.getAscent() / 2.0);
+            RoundRectangle2D.Double box = new RoundRectangle2D.Double(mid - tw / 2, tagBase - tgm.getAscent() - 2 * s,
+                    tw, th, 6 * s, 6 * s);
+            stamp.setColor(new Color(0xC4, 0x1E, 0x3A));
+            stamp.fill(box);
+            stamp.setColor(new Color(0xFF, 0xD6, 0xDC));
+            stamp.setStroke(new BasicStroke((float) Math.max(1, 1.4 * s)));
+            stamp.draw(box);
+            stamp.setFont(tagFont);
+            stamp.drawString(spaced, (float) (mid - tgm.stringWidth(spaced) / 2.0), tagBase);
+            stamp.dispose();
+        } else {
+            g.setFont(tagFont);
+            g.setColor(verdict == BlackjackScene.Verdict.WIN ? CasinoTheme.GOLD : CasinoTheme.TEXT_MUTED);
+            g.drawString(spaced, (float) (mid - tgm.stringWidth(spaced) / 2.0), tagBase);
+        }
+
+        Font titleFont = CasinoTheme.titleChinese(title, scale, 42);
+        FontMetrics tm = g.getFontMetrics(titleFont);
+        int titleW = tm.stringWidth(title);
+        double trophyH = verdict == BlackjackScene.Verdict.WIN ? 46 * s : 0;
+        double trophyGap = trophyH > 0 ? 10 * s : 0;
+        double groupW = trophyH * 0.9 + trophyGap + titleW;
+        float titleBase = (float) (y + bh * 0.62);
+        double tx = mid - groupW / 2 + trophyH * 0.9 + trophyGap;
+        if (trophyH > 0) {
+            StandInArt.trophy(g, mid - groupW / 2 + trophyH * 0.45, titleBase + 4 * s, trophyH);
+        }
+        if (fill == null) {
+            CasinoTheme.goldText(g, title, titleFont, (float) tx, titleBase, (float) Math.max(1.5, 2.4 * s));
+        } else {
+            outlinedText(g, title, titleFont, (float) tx, titleBase, fill, outline, (float) Math.max(1.5, 2.2 * s));
+        }
+        double laurelH = tm.getAscent() * 1.15;
+        double groupL = mid - groupW / 2;
+        double groupR = mid + groupW / 2;
+        if (verdict == BlackjackScene.Verdict.WIN) {
+            CasinoPaint.laurel(g, groupL - 22 * s, titleBase - tm.getAscent() * 0.38, laurelH, -1);
+            CasinoPaint.laurel(g, groupR + 22 * s, titleBase - tm.getAscent() * 0.38, laurelH, 1);
+            paintSparkles(g, left, right, y, bh, elapsed);
+        } else if (verdict == BlackjackScene.Verdict.DRAW) {
+            CasinoPaint.diamond(g, groupL - 20 * s, titleBase - tm.getAscent() * 0.38, 6 * s);
+            CasinoPaint.diamond(g, groupR + 20 * s, titleBase - tm.getAscent() * 0.38, 6 * s);
+        }
+
+        if (!resultDetail.isEmpty()) {
+            Font detailFont = CasinoTheme.chinese(false, scale, 15);
+            FontMetrics dm = g.getFontMetrics(detailFont);
+            String detail = CandyTheme.fit(resultDetail, dm, (int) (right - left));
+            float base = (float) (titleBase + dm.getAscent() + 10 * s);
+            g.setFont(detailFont);
+            g.setColor(new Color(0, 0, 0, 100));
+            g.drawString(detail, (float) (mid - dm.stringWidth(detail) / 2.0), base + 1);
+            g.setColor(CasinoTheme.TEXT);
+            g.drawString(detail, (float) (mid - dm.stringWidth(detail) / 2.0), base);
+        }
+    }
+
+    private static void outlinedText(Graphics2D g, String text, Font font, float x, float baseline,
+                                     Paint fill, Color outline, float stroke) {
+        Shape glyphs = new java.awt.font.TextLayout(text, font, g.getFontRenderContext())
+                .getOutline(AffineTransform.getTranslateInstance(x, baseline));
+        g.setColor(new Color(0, 0, 0, 90));
+        g.fill(AffineTransform.getTranslateInstance(0, stroke).createTransformedShape(glyphs));
+        g.setColor(outline);
+        g.setStroke(new BasicStroke(stroke * 2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.draw(glyphs);
+        g.setPaint(fill);
+        g.fill(glyphs);
+        g.setStroke(new BasicStroke(1f));
+    }
+
+    private static final double[][] SPARKLES = {
+            {0.06, 0.22, 1.0}, {0.94, 0.26, 0.8}, {0.16, 0.86, 0.7}, {0.86, 0.84, 1.0}, {0.5, 0.1, 0.6}};
+
+    private void paintSparkles(Graphics2D g, double left, double right, double y, double bh, long elapsed) {
+        for (int i = 0; i < SPARKLES.length; i++) {
+            double[] p = SPARKLES[i];
+            double twinkle = elapsed < CONFETTI_MS ? 0.55 + 0.45 * Math.sin(elapsed / 160.0 + i * 1.7) : 0.85;
+            double r = 7 * scale * p[2] * (0.7 + 0.3 * twinkle);
+            g.setColor(new Color(255, 240, 190, (int) Math.round(230 * twinkle)));
+            g.fill(CasinoPaint.PixelStar.shape(left + (right - left) * p[0], y + bh * p[1], r));
+        }
     }
 
     private static float easeOut(float t) {

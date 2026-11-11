@@ -41,7 +41,11 @@ public final class PlayerBadge extends JComponent implements CasinoTheme.Scalabl
     private String name = "";
     private Image avatar;
     private int score = -1;
+    static final String FINISHED_TEXT = "已結束";
+    private static final Color FINISHED_INK = new Color(0xE8, 0xD8, 0xC0);
+
     private Tag tag;
+    private boolean finished;
     private boolean active;
     private float scale = 1f;
     private Timer pulse;
@@ -62,6 +66,16 @@ public final class PlayerBadge extends JComponent implements CasinoTheme.Scalabl
         repaint();
     }
 
+    String playerName() {
+        return name;
+    }
+
+    /** 用這位玩家的頭像（自訂優先，否則預設角色）畫一個金框圓章，給結算面板用。 */
+    void paintMedallion(Graphics2D g, double cx, double cy, double d, float glow) {
+        Medallion.paint(g, cx, cy, d, avatar,
+                fallbackAsset != null ? fallbackAsset : CasinoAssets.peerDefault(name), name, glow);
+    }
+
     /** 負數代表還沒有點數。 */
     public void setScore(int score) {
         this.score = score;
@@ -69,8 +83,22 @@ public final class PlayerBadge extends JComponent implements CasinoTheme.Scalabl
     }
 
     public void setTag(Tag tag) {
+        setTag(tag, false);
+    }
+
+    /** @param finished 這局已結算：標籤改成扁平的「已結束」類文字，不再像操作鈕 */
+    public void setTag(Tag tag, boolean finished) {
         this.tag = tag;
+        this.finished = finished;
         repaint();
+    }
+
+    /** 目前畫在右側的標籤文字；沒有標籤時為 null。 */
+    String tagText() {
+        if (finished) {
+            return tag == null || tag == Tag.STAND ? FINISHED_TEXT : tag.text;
+        }
+        return tag == null ? null : tag.text;
     }
 
     public void setActive(boolean value) {
@@ -135,7 +163,11 @@ public final class PlayerBadge extends JComponent implements CasinoTheme.Scalabl
 
         int right = getWidth() - CasinoTheme.px(scale, 4);
         int tagW = 0;
-        if (tag != null) {
+        if (finished) {
+            Color accent = tag == Tag.BUST ? new Color(0xFF, 0x9A, 0xAA)
+                    : tag == Tag.TWENTY_ONE ? CasinoTheme.GOLD_LIGHT : FINISHED_INK;
+            tagW = CasinoPaint.flatTag(g, right, cy, tagText(), accent, scale) + CasinoTheme.px(scale, 12);
+        } else if (tag != null) {
             tagW = CasinoPaint.pill(g, right, cy, tag.text, null, tag.fill, tag.asset, tag.icon, scale)
                     + CasinoTheme.px(scale, 12);
         }
@@ -152,8 +184,7 @@ public final class PlayerBadge extends JComponent implements CasinoTheme.Scalabl
         if (active) {
             glow = 0.55f + 0.45f * (float) Math.sin((System.currentTimeMillis() - pulseStart) / 260.0);
         }
-        Medallion.paint(g, mx, cy, d, avatar,
-                fallbackAsset != null ? fallbackAsset : CasinoAssets.peerDefault(name), name, glow);
+        paintMedallion(g, mx, cy, d, glow);
 
         double textX = mx + d / 2 + CasinoTheme.px(scale, 12);
         int room = (int) Math.max(20, plateX + plateW - CasinoTheme.px(scale, 16) - textX);

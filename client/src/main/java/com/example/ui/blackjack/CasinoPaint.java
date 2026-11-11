@@ -11,6 +11,7 @@ import java.awt.Shape;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
 
 /**
@@ -73,6 +74,26 @@ final class CasinoPaint {
             g.setColor(CasinoTheme.GOLD_LIGHT);
             g.drawString(value, (float) (tx + lm.stringWidth(label) + gap), vb);
         }
+        return w;
+    }
+
+    /** 結算後的狀態標籤：扁平、無陰影無圖示，看起來不像可按的鈕；回傳寬度。 */
+    static int flatTag(Graphics2D g, double right, double cy, String label, Color accent, float scale) {
+        Font font = CasinoTheme.chinese(false, scale, 15);
+        FontMetrics fm = g.getFontMetrics(font);
+        int pad = CasinoTheme.px(scale, 14);
+        int w = pad * 2 + fm.stringWidth(label);
+        int h = CasinoTheme.px(scale, 32);
+        RoundRectangle2D.Double shape = new RoundRectangle2D.Double(right - w, cy - h / 2.0, w, h, h, h);
+        g.setColor(new Color(20, 4, 14, 150));
+        g.fill(shape);
+        g.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 170));
+        g.setStroke(new BasicStroke(Math.max(1f, 1.3f * scale)));
+        g.draw(shape);
+        g.setStroke(new BasicStroke(1f));
+        g.setFont(font);
+        g.setColor(accent);
+        g.drawString(label, (float) (right - w + pad), (float) (cy + fm.getAscent() / 2.0 - fm.getDescent() / 2.0));
         return w;
     }
 
@@ -287,6 +308,84 @@ final class CasinoPaint {
         g.drawImage(image, (int) Math.round(cx - width / 2), (int) Math.round(bottom - h),
                 (int) Math.round(width), (int) Math.round(h), null);
         return true;
+    }
+
+    /**
+     * 素材存在就畫素材，讓「看得到的部分」等比塞進 maxW × maxH、底部對齊 (cx, bottom)；回傳是否有畫。
+     * 素材四周的透明留白不算進版面，換圖時尺寸才會跟 Java2D 備援一致。
+     */
+    static boolean assetFit(Graphics2D g, String path, double cx, double bottom, double maxW, double maxH) {
+        Image image = CasinoAssets.get(path);
+        Rectangle2D content = image == null ? null : CasinoAssets.contentBounds(path);
+        if (content == null) {
+            return false;
+        }
+        double iw = image.getWidth(null);
+        double ih = image.getHeight(null);
+        double k = Math.min(maxW / (content.getWidth() * iw), maxH / (content.getHeight() * ih));
+        double dw = iw * k;
+        double dh = ih * k;
+        double x = cx - (content.getX() + content.getWidth() / 2) * dw;
+        double y = bottom - (content.getY() + content.getHeight()) * dh;
+        g.drawImage(image, (int) Math.round(x), (int) Math.round(y), (int) Math.round(dw), (int) Math.round(dh), null);
+        return true;
+    }
+
+    /** 酒紅緞帶（兩端燕尾、金邊），(cx, y) 是緞帶本體上緣中心。 */
+    static void ribbon(Graphics2D g, double cx, double y, double w, double h, float scale) {
+        double tail = h * 0.7;
+        double fold = h * 0.22;
+        for (int side = -1; side <= 1; side += 2) {
+            double edge = cx + side * (w / 2 - h * 0.12);
+            Path2D t = new Path2D.Double();
+            t.moveTo(edge, y + fold);
+            t.lineTo(edge + side * tail, y + fold);
+            t.lineTo(edge + side * (tail - h * 0.3), y + fold + h * 0.5);
+            t.lineTo(edge + side * tail, y + h + fold);
+            t.lineTo(edge, y + h + fold);
+            t.closePath();
+            g.setColor(new Color(0x8A, 0x0E, 0x24));
+            g.fill(t);
+            g.setPaint(CasinoTheme.gold((float) y, (float) (y + h + fold)));
+            g.setStroke(new BasicStroke(Math.max(1f, 1.6f * scale)));
+            g.draw(t);
+        }
+        Path2D body = new Path2D.Double();
+        body.moveTo(cx - w / 2, y);
+        body.quadTo(cx, y - h * 0.16, cx + w / 2, y);
+        body.lineTo(cx + w / 2, y + h);
+        body.quadTo(cx, y + h - h * 0.16, cx - w / 2, y + h);
+        body.closePath();
+        g.setPaint(new GradientPaint(0, (float) y, new Color(0xD8, 0x26, 0x40), 0, (float) (y + h),
+                new Color(0x8E, 0x0C, 0x22)));
+        g.fill(body);
+        CasinoTheme.goldFrame(g, body, Math.max(1.5f, 2.2f * scale));
+    }
+
+    /** 依寬度逐字斷行（不拆 surrogate pair），最多 {@code maxLines} 行；放不下時最後一行以「…」收尾。 */
+    static java.util.List<String> wrap(String text, FontMetrics fm, int width, int maxLines) {
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        String rest = text == null ? "" : text.trim();
+        while (!rest.isEmpty() && lines.size() < maxLines) {
+            if (lines.size() == maxLines - 1 || fm.stringWidth(rest) <= width) {
+                lines.add(com.example.ui.CandyTheme.fit(rest, fm, width));
+                break;
+            }
+            int end = 0;
+            while (end < rest.length()) {
+                int next = rest.offsetByCodePoints(end, 1);
+                if (fm.stringWidth(rest.substring(0, next)) > width) {
+                    break;
+                }
+                end = next;
+            }
+            if (end == 0) {
+                end = rest.offsetByCodePoints(0, 1);
+            }
+            lines.add(rest.substring(0, end));
+            rest = rest.substring(end).trim();
+        }
+        return lines;
     }
 
     /** 五角星形狀。 */

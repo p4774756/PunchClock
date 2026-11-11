@@ -1,5 +1,6 @@
 package com.example.ui.blackjack;
 
+import com.example.BlackjackRules;
 import com.example.service.BlackjackSession;
 import com.example.service.LunchChallenge;
 
@@ -56,6 +57,25 @@ public enum BlackjackScene {
     /** 還沒有牌桌可看（邀請前後）時用等待畫面。 */
     public boolean showsWaitingRoom() {
         return this == WAITING || this == INVITED || this == CLOSED;
+    }
+
+    /** 結算面板要畫的結果。爆牌是「自己爆掉而輸」；對方爆牌時自己是 {@link #WIN}。 */
+    public enum Verdict {
+        WIN, LOSE, BUST, DRAW, NONE
+    }
+
+    /** 依本機實際勝負與手牌判斷，不看狀態文字。 */
+    public static Verdict verdict(BlackjackSession session) {
+        switch (session.outcome()) {
+            case WIN:
+                return Verdict.WIN;
+            case LOSE:
+                return BlackjackRules.isBust(session.myHand()) ? Verdict.BUST : Verdict.LOSE;
+            case DRAW:
+                return Verdict.DRAW;
+            default:
+                return Verdict.NONE;
+        }
     }
 
     /** 結果標題：只依本機實際勝負決定，輸家與平手絕不會拿到勝利字樣。 */

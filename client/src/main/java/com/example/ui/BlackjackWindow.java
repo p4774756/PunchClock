@@ -132,19 +132,17 @@ public final class BlackjackWindow extends JFrame {
         });
         closeButton.addActionListener(e -> dispose());
 
-        lunchPanel = new LunchPanel(this::onLunchSubmit);
-        lunchPanel.setVisible(false);
-
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 34, 0));
         actions.setOpaque(false);
         actions.add(acceptButton);
         actions.add(declineButton);
         actions.add(hitButton);
         actions.add(standButton);
-        actions.add(lunchPanel);
 
         header = new CasinoHeader();
         table = new BlackjackTablePanel();
+        lunchPanel = table.lunchBoard();
+        lunchPanel.onSubmit(this::onLunchSubmit);
         footer = new CasinoFooter(resendButton, cancelButton, rematchButton, closeButton);
         stage = new CasinoStage(header, table, actions, footer);
         setContentPane(stage);
@@ -370,9 +368,10 @@ public final class BlackjackWindow extends JFrame {
         table.setWaiting(scene.showsWaitingRoom());
         boolean dealt = !session.myHand().isEmpty();
         refreshHands(freshSession, dealt);
-        refreshBadge(table.myBadge(), dealt, session.myScore(), session.myStood(),
+        boolean finished = phase == BlackjackSession.Phase.SETTLED || phase == BlackjackSession.Phase.CLOSED;
+        refreshBadge(table.myBadge(), dealt, finished, session.myScore(), session.myStood(),
                 phase == BlackjackSession.Phase.PLAYING && session.myTurn());
-        refreshBadge(table.peerBadge(), dealt, session.peerScore(), session.peerStood(),
+        refreshBadge(table.peerBadge(), dealt, finished, session.peerScore(), session.peerStood(),
                 phase == BlackjackSession.Phase.PLAYING && !session.myTurn() && !session.peerStood());
         table.myHand().setDimmed(BlackjackRules.isBust(session.myHand()));
         table.peerHand().setDimmed(BlackjackRules.isBust(session.peerHand()));
@@ -420,9 +419,10 @@ public final class BlackjackWindow extends JFrame {
     private void refreshLunch(BlackjackSession.Phase phase) {
         LunchChallenge lunch = session.lunch();
         boolean ended = phase == BlackjackSession.Phase.SETTLED || phase == BlackjackSession.Phase.CLOSED;
+        // 平手由結算面板說明（雙方對稱），不另開公告板
         if (lunch == null || !ended || lunch.status() == LunchChallenge.Status.PLAYING
-                || session.myHand().isEmpty()) {
-            lunchPanel.setVisible(false);
+                || lunch.status() == LunchChallenge.Status.DRAW || session.myHand().isEmpty()) {
+            table.showLunchBoard(false);
             renderedLunch = null;
             return;
         }
@@ -443,9 +443,10 @@ public final class BlackjackWindow extends JFrame {
         }
         String winner = lunch.winnerId() == null ? null
                 : lunch.winnerId().equals(session.localId()) ? "你" : "【" + lunch.winnerId() + "】";
-        lunchPanel.show(view, winner, lunch.choice(), lunchSending, lunchRetryText, lunchWarning);
+        String scores = "你 " + session.myScore() + " 點 ： " + peerId + " " + session.peerScore() + " 點";
+        lunchPanel.show(view, winner, lunch.choice(), scores, lunchSending, lunchRetryText, lunchWarning);
         boolean appeared = !lunchPanel.isVisible() || renderedLunch != lunch.status();
-        lunchPanel.setVisible(true);
+        table.showLunchBoard(true);
         renderedLunch = lunch.status();
         if (appeared && view == LunchPanel.View.CHOOSE) {
             lunchPanel.focusInput();
@@ -477,19 +478,20 @@ public final class BlackjackWindow extends JFrame {
         }
     }
 
-    private static void refreshBadge(PlayerBadge badge, boolean dealt, int score, boolean stood, boolean active) {
+    private static void refreshBadge(PlayerBadge badge, boolean dealt, boolean finished, int score, boolean stood,
+                                     boolean active) {
         badge.setScore(dealt ? score : -1);
         badge.setActive(active);
         if (!dealt) {
             badge.setTag(null);
         } else if (score > 21) {
-            badge.setTag(PlayerBadge.Tag.BUST);
+            badge.setTag(PlayerBadge.Tag.BUST, finished);
         } else if (score == 21) {
-            badge.setTag(PlayerBadge.Tag.TWENTY_ONE);
+            badge.setTag(PlayerBadge.Tag.TWENTY_ONE, finished);
         } else if (stood) {
-            badge.setTag(PlayerBadge.Tag.STAND);
+            badge.setTag(PlayerBadge.Tag.STAND, finished);
         } else {
-            badge.setTag(null);
+            badge.setTag(null, finished);
         }
     }
 
@@ -583,60 +585,52 @@ public final class BlackjackWindow extends JFrame {
     }
 
     private void refreshResult(BlackjackSession.Phase phase) {
-        BlackjackTablePanel.Result result = tableResult();
+        BlackjackScene.Verdict result = BlackjackScene.verdict(session);
         boolean ended = phase == BlackjackSession.Phase.SETTLED || phase == BlackjackSession.Phase.CLOSED;
-        if (!ended || result == null) {
+        if (!ended || result == BlackjackScene.Verdict.NONE) {
             table.clearResult();
             return;
         }
+        String detail = resultDetail(result);
+        int mine = session.myScore();
+        int theirs = session.peerScore();
         if (result == table.result()) {
+            table.showResult(result, mine, theirs, detail);
             return;
         }
         boolean animating = table.myHand().isAnimating() || table.peerHand().isAnimating();
-        String detail = resultDetail();
-        String title = BlackjackScene.resultTitle(session.outcome());
         if (resultDelay != null) {
             resultDelay.stop();
         }
         if (!animating) {
-            table.showResult(result, title, detail);
+            table.showResult(result, mine, theirs, detail);
             return;
         }
         BlackjackSession forSession = session;
         resultDelay = new Timer(HandView.DEAL_MS + 120, e -> {
             if (forSession == session && session.outcome() != BlackjackSession.Outcome.NONE) {
-                table.showResult(result, title, detail);
+                table.showResult(result, mine, theirs, detail);
             }
         });
         resultDelay.setRepeats(false);
         resultDelay.start();
     }
 
-    private BlackjackTablePanel.Result tableResult() {
-        switch (session.outcome()) {
-            case WIN:
-                return BlackjackTablePanel.Result.WIN;
-            case LOSE:
-                return BlackjackTablePanel.Result.LOSE;
-            case DRAW:
-                return BlackjackTablePanel.Result.DRAW;
-            default:
-                return null;
+    /** 結算面板中間的說明；點數已畫在頭像下方，這裡只講怎麼分出勝負。 */
+    private String resultDetail(BlackjackScene.Verdict verdict) {
+        boolean peerBust = BlackjackRules.isBust(session.peerHand());
+        if (session.isLunch() && verdict == BlackjackScene.Verdict.DRAW) {
+            return "平手不算，再戰一局決定午餐";
         }
-    }
-
-    private String resultDetail() {
-        String score = "你 " + session.myScore() + " 點 ： 對方 " + session.peerScore() + " 點";
-        if (!session.isLunch()) {
-            return score;
-        }
-        switch (session.outcome()) {
+        switch (verdict) {
             case WIN:
-                return "午餐決定權歸你！  " + score;
+                return peerBust ? "對方爆牌（" + session.peerScore() + " 點），這局你贏了" : "你最接近 21 點，贏下這局";
+            case BUST:
+                return "超過 21 點（" + session.myScore() + " 點），這局算輸";
             case LOSE:
-                return "今天午餐由對方決定  " + score;
+                return "對方更接近 21 點，下一局再扳回來";
             default:
-                return "平手不算，再戰一局決定午餐";
+                return "雙方同為 " + session.myScore() + " 點，不分勝負";
         }
     }
 

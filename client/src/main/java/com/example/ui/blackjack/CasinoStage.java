@@ -223,7 +223,6 @@ public final class CasinoStage extends JPanel {
             double chip = 52 * s;
             CasinoPaint.chipStack(g, t.x + 30 * s, bottom - 14 * s, chip, 6, 0);
             CasinoPaint.chipStack(g, t.x + 82 * s, bottom - 6 * s, chip, 4, 0);
-            CasinoPaint.asset(g, CasinoAssets.WAITER_CAT, t.x + 150 * s, bottom - 10 * s, 190 * s);
             CasinoPaint.asset(g, CasinoAssets.LUNCH_EASEL, t.x + t.width - 120 * s, bottom + 10 * s, 170 * s);
         } else if (!CasinoPaint.asset(g, CasinoAssets.CHIPS_LEFT, t.x + 30 * s, bottom + 30 * s, 120 * s)) {
             double chip = 50 * s;

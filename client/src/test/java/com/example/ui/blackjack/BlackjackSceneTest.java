@@ -98,4 +98,34 @@ public class BlackjackSceneTest {
         assertNotEquals("YOU WIN!", BlackjackScene.resultTitle(BlackjackSession.Outcome.DRAW));
         assertEquals("", BlackjackScene.resultTitle(BlackjackSession.Outcome.NONE));
     }
+
+    @Test
+    public void verdictFollowsOutcomeOnBothSides() {
+        BlackjackSession[] win = standOff(BlackjackSession.Mode.NORMAL, BlackjackSession.Outcome.WIN);
+        assertEquals(BlackjackScene.Verdict.WIN, BlackjackScene.verdict(win[0]));
+        assertEquals(BlackjackScene.Verdict.LOSE, BlackjackScene.verdict(win[1]));
+
+        BlackjackSession[] draw = standOff(BlackjackSession.Mode.NORMAL, BlackjackSession.Outcome.DRAW);
+        assertEquals(BlackjackScene.Verdict.DRAW, BlackjackScene.verdict(draw[0]));
+        assertEquals(BlackjackScene.Verdict.DRAW, BlackjackScene.verdict(draw[1]));
+
+        assertEquals(BlackjackScene.Verdict.NONE, BlackjackScene.verdict(start(BlackjackSession.Mode.NORMAL)[0]));
+    }
+
+    @Test
+    public void bustIsItsOwnVerdictAndPeerSeesWin() {
+        BlackjackSession[] pair = start(BlackjackSession.Mode.NORMAL);
+        for (int i = 0; i < 20 && pair[0].phase() == BlackjackSession.Phase.PLAYING; i++) {
+            if (pair[0].canHit()) {
+                pair[1].applyRemote(BlackjackProtocol.parse(pair[0].hit()));
+            } else if (pair[1].canStand()) {
+                pair[0].applyRemote(BlackjackProtocol.parse(pair[1].stand()));
+            } else {
+                break;
+            }
+        }
+        assertTrue(pair[0].myScore() > 21);
+        assertEquals(BlackjackScene.Verdict.BUST, BlackjackScene.verdict(pair[0]));
+        assertEquals(BlackjackScene.Verdict.WIN, BlackjackScene.verdict(pair[1]));
+    }
 }
