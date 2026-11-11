@@ -1514,8 +1514,7 @@ public class App extends JFrame {
             String encoded = isSelfClientId(clientId)
                     ? heartbeatService.getAvatarEncoded()
                     : peerAvatars.get(clientId);
-            BufferedImage face = PeerAvatar.decode(encoded);
-            return face != null ? face : (isSelfClientId(clientId) ? appIconImage : null);
+            return PeerAvatar.decode(encoded);
         }
     };
 

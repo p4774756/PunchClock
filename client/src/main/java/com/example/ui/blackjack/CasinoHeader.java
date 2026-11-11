@@ -15,6 +15,7 @@ import java.awt.geom.RoundRectangle2D;
 
 /**
  * 視窗上方：中間「21點 Blackjack」標題、右邊目前模式的牌匾。
+ * 標題一律用 Java2D 畫：「點」烙在圖片裡時，出圖字型缺字就會變方框。
  */
 public final class CasinoHeader extends JComponent implements CasinoTheme.Scalable {
 
@@ -57,14 +58,6 @@ public final class CasinoHeader extends JComponent implements CasinoTheme.Scalab
 
     private void paintLogo(Graphics2D g, double cx, int h) {
         double s = scale;
-        Image logo = CasinoAssets.get(CasinoAssets.LOGO);
-        if (logo != null) {
-            double w = 340 * s;
-            double lh = w * logo.getHeight(null) / Math.max(1.0, logo.getWidth(null));
-            g.drawImage(logo, (int) Math.round(cx - w / 2), (int) Math.round(h - lh - 2 * s),
-                    (int) Math.round(w), (int) Math.round(lh), null);
-            return;
-        }
         double ribbonY = h - 64 * s;
         double ribbonW = 270 * s;
         double ribbonH = 50 * s;
@@ -77,9 +70,9 @@ public final class CasinoHeader extends JComponent implements CasinoTheme.Scalab
         CasinoPaint.laurel(g, cx + 172 * s, ribbonY - 6 * s, 76 * s, 1);
 
         paintRibbon(g, cx, ribbonY, ribbonW, ribbonH);
-        Font big = CasinoTheme.chinese(true, scale, 62);
-        FontMetrics bm = g.getFontMetrics(big);
         String title = "21點";
+        Font big = CasinoTheme.titleChinese(title, scale, 62);
+        FontMetrics bm = g.getFontMetrics(big);
         float tw = bm.stringWidth(title);
         CasinoTheme.goldText(g, title, big, (float) (cx - tw / 2), (float) (ribbonY + 6 * s),
                 Math.max(2f, 3f * scale));

@@ -80,6 +80,33 @@ public final class CasinoTheme {
         return FONTS.computeIfAbsent(key, k -> bold ? UiFonts.chineseBold(size) : UiFonts.chinesePlain(size));
     }
 
+    /** 標題大字依序試的繁中字型：Mac、Windows（英文與中文名稱）、Linux。 */
+    private static final String[] TITLE_FAMILIES = {
+            "PingFang TC", "Heiti TC", "Microsoft JhengHei", "微軟正黑體",
+            "Noto Sans CJK TC", "Noto Sans TC", "Source Han Sans TC"};
+    private static final Map<String, String> TITLE_FAMILY = new HashMap<>();
+
+    /** 繁中標題字（例如「21點」）：挑第一個確實裝了、而且能完整畫出 {@code text} 的字型；都沒有才用 Dialog。 */
+    static Font titleChinese(String text, float scale, double design) {
+        int size = Math.max(11, px(scale, design));
+        String family;
+        synchronized (TITLE_FAMILY) {
+            family = TITLE_FAMILY.computeIfAbsent(text, CasinoTheme::titleFamily);
+        }
+        return new Font(family, Font.BOLD, size);
+    }
+
+    private static String titleFamily(String text) {
+        for (String name : TITLE_FAMILIES) {
+            Font font = new Font(name, Font.BOLD, 12);
+            if (!Font.DIALOG.equalsIgnoreCase(font.getFamily(java.util.Locale.ROOT))
+                    && font.canDisplayUpTo(text) == -1) {
+                return name;
+            }
+        }
+        return Font.DIALOG;
+    }
+
     /** 襯線金字（BLACKJACK、VS、Blackjack）。 */
     public static Font serif(float scale, double design, boolean italic) {
         int size = Math.max(11, px(scale, design));

@@ -57,26 +57,7 @@ final class Medallion {
         g.setPaint(new RadialGradientPaint(new Point2D.Double(cx, cy - ir * 0.3), (float) (ir * 1.2),
                 new float[]{0f, 1f}, new Color[]{new Color(0xC8, 0xB2, 0xF4), new Color(0x7A, 0x5C, 0xC4)}));
         g.fill(inner);
-
-        Image art = avatar;
-        if (art == null && fallbackAsset != null) {
-            art = CasinoAssets.get(fallbackAsset);
-        }
-        Graphics2D clip = (Graphics2D) g.create();
-        clip.clip(inner);
-        if (art != null) {
-            int iw = art.getWidth(null);
-            int ih = art.getHeight(null);
-            double side = ir * 2;
-            double fit = Math.max(side / Math.max(1, iw), side / Math.max(1, ih));
-            double dw = iw * fit;
-            double dh = ih * fit;
-            clip.drawImage(art, (int) Math.round(cx - dw / 2), (int) Math.round(cy - dh / 2),
-                    (int) Math.round(dw), (int) Math.round(dh), null);
-        } else {
-            paintCat(clip, cx, cy + ir * 0.12, ir * 1.55, name);
-        }
-        clip.dispose();
+        paintFace(g, inner, cx, cy, ir, avatar, fallbackAsset, name);
 
         g.setColor(new Color(255, 248, 220, 150));
         g.setStroke(new BasicStroke((float) Math.max(1, ring / 3)));
@@ -85,28 +66,41 @@ final class Medallion {
     }
 
     /**
-     * 金框素材（256²）：外圈金邊半徑 120、淡紫內線半徑約 94，圓心在 (128, 125)，下方含陰影。
-     * 素材中央是不透明的深紫底，頭像裁在淡紫內線以內疊上去。
+     * 金框素材（256²）：外圈半徑約 120、內緣半徑 91～96，圓心在 (128, 128)；中央鏤空、不含陰影。
+     * 先畫陰影與紫底，頭像裁成比內緣略大的圓，最後疊上金框蓋住頭像邊緣。
      */
     private static void paintWithRing(Graphics2D g, Image ring, double cx, double cy, double d,
                                       Image avatar, String fallbackAsset, String name) {
+        double r = d / 2;
+        g.setColor(new Color(20, 4, 12, 110));
+        g.fill(new Ellipse2D.Double(cx - r + 1, cy - r + d * 0.04, d, d));
         double size = d * 256 / 240.0;
-        double left = cx - size * 128 / 256.0;
-        double top = cy - size * 125 / 256.0;
-        g.drawImage(ring, (int) Math.round(left), (int) Math.round(top),
-                (int) Math.round(size), (int) Math.round(size), null);
-        double ir = size * 92 / 256.0;
+        double ir = size * 97 / 256.0;
         Ellipse2D inner = new Ellipse2D.Double(cx - ir, cy - ir, ir * 2, ir * 2);
+        g.setPaint(new RadialGradientPaint(new Point2D.Double(cx, cy - ir * 0.3), (float) (ir * 1.2),
+                new float[]{0f, 1f}, new Color[]{new Color(0xC8, 0xB2, 0xF4), new Color(0x7A, 0x5C, 0xC4)}));
+        g.fill(inner);
+        paintFace(g, inner, cx, cy, ir, avatar, fallbackAsset, name);
+        double half = size / 2;
+        g.drawImage(ring, (int) Math.round(cx - half), (int) Math.round(cy - half),
+                (int) Math.round(size), (int) Math.round(size), null);
+    }
+
+    /** 玩家頭像優先；沒有時用預設角色素材，再沒有就畫小貓。 */
+    private static void paintFace(Graphics2D g, Ellipse2D inner, double cx, double cy, double ir,
+                                  Image avatar, String fallbackAsset, String name) {
         Image art = avatar;
+        double zoom = 1;
         if (art == null && fallbackAsset != null) {
             art = CasinoAssets.get(fallbackAsset);
+            zoom = fallbackZoom(fallbackAsset);
         }
         Graphics2D clip = (Graphics2D) g.create();
         clip.clip(inner);
         if (art != null) {
             int iw = art.getWidth(null);
             int ih = art.getHeight(null);
-            double side = ir * 2;
+            double side = ir * 2 * zoom;
             double fit = Math.max(side / Math.max(1, iw), side / Math.max(1, ih));
             double dw = iw * fit;
             double dh = ih * fit;
@@ -116,6 +110,15 @@ final class Medallion {
             paintCat(clip, cx, cy + ir * 0.12, ir * 1.55, name);
         }
         clip.dispose();
+    }
+
+    /**
+     * 預設角色是圓形裁切圖，最外圈有鋸齒與半透明雜邊：依素材實際的不透明半徑放大，只露出乾淨的部分。
+     * 不是圓形裁切（不透明半徑太小）的素材不放大。
+     */
+    private static double fallbackZoom(String path) {
+        double radius = CasinoAssets.opaqueRadius(path);
+        return radius >= 0.8 ? 1 / (radius - 0.01) : 1;
     }
 
     private static void paintCat(Graphics2D g, double cx, double cy, double size, String name) {

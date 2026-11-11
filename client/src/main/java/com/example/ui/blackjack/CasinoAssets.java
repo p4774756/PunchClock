@@ -20,7 +20,6 @@ public final class CasinoAssets {
     public static final String BASE = "/blackjack/";
 
     public static final String ROOM = "bg/room.jpg";
-    public static final String LOGO = "title/logo.png";
     public static final String MODE_PLAQUE = "frame/mode-plaque.png";
     public static final String PLAYER_DEFAULT = "char/player-default.png";
     public static final String WAITER_CAT = "char/waiter-cat.png";
@@ -48,6 +47,7 @@ public final class CasinoAssets {
     }
 
     private static final Map<String, Optional<Image>> CACHE = new HashMap<>();
+    private static final Map<String, Double> OPAQUE_RADIUS = new HashMap<>();
 
     private CasinoAssets() {
     }
@@ -108,6 +108,47 @@ public final class CasinoAssets {
             return new Sprite((BufferedImage) variants.get(0), 1);
         }
         return new Sprite((BufferedImage) image, 1);
+    }
+
+    /**
+     * 圓形素材從中心往外、每個方向都還完全不透明的最小半徑（半邊長 = 1）；1x 與 @2x 取較小者。
+     * 中心就透明時回 0，找不到素材時回 1。
+     */
+    public static synchronized double opaqueRadius(String path) {
+        return OPAQUE_RADIUS.computeIfAbsent(path, p -> {
+            Image image = get(p);
+            if (image == null) {
+                return 1.0;
+            }
+            java.util.List<Image> variants = image instanceof BaseMultiResolutionImage
+                    ? ((BaseMultiResolutionImage) image).getResolutionVariants()
+                    : java.util.Collections.singletonList(image);
+            double min = 1.0;
+            for (Image variant : variants) {
+                if (variant instanceof BufferedImage) {
+                    min = Math.min(min, opaqueRadius((BufferedImage) variant));
+                }
+            }
+            return min;
+        });
+    }
+
+    private static double opaqueRadius(BufferedImage image) {
+        double cx = image.getWidth() / 2.0;
+        double cy = image.getHeight() / 2.0;
+        double half = Math.min(cx, cy);
+        double min = half;
+        for (int deg = 0; deg < 360; deg += 2) {
+            double cos = Math.cos(Math.toRadians(deg));
+            double sin = Math.sin(Math.toRadians(deg));
+            for (double r = 0; r < min; r += 0.5) {
+                if ((image.getRGB((int) (cx + cos * r), (int) (cy + sin * r)) >>> 24) < 250) {
+                    min = r;
+                    break;
+                }
+            }
+        }
+        return min / half;
     }
 
     /** 直接拿 1x 的 BufferedImage（例如當紋理用）。 */
