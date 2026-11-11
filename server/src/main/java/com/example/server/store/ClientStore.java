@@ -10,14 +10,17 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 @SuppressWarnings("unchecked")
 public final class ClientStore {
@@ -39,11 +42,25 @@ public final class ClientStore {
     );
 
     private final Map<String, Map<String, Object>> clients = new ConcurrentHashMap<>();
+    /**
+     * 每台 client 的值是一般 LinkedHashMap，讀寫（含 Dashboard 快照序列化）都要持有這把鎖。
+     * 持鎖期間不可廣播或做 I/O；全站只有這一把，不會互鎖。
+     */
+    private final Object metadataLock = new Object();
+    /** 待送指令與 client 資料分開放，心跳覆寫 client 資料時不會帶走剛排入的指令。key 為正規化後的 clientId。 */
+    private final Map<String, Deque<PendingAction>> pendingQueues = new ConcurrentHashMap<>();
     private final Gson gson = new Gson();
     private ScheduledExecutorService monitor;
 
     public Map<String, Map<String, Object>> clients() {
         return clients;
+    }
+
+    /** 在 client 資料鎖內執行；呼叫端不可在裡面廣播或做網路 I/O。 */
+    public <T> T withMetadataLock(Supplier<T> work) {
+        synchronized (metadataLock) {
+            return work.get();
+        }
     }
 
     public Map<String, Object> getOrCreateClient(String clientId) {
@@ -62,14 +79,20 @@ public final class ClientStore {
 
     public void setClient(String clientId, Map<String, Object> clientInfo) {
         String id = PeerFileRules.normalizeClientId(clientId);
-        if (clientInfo != null) {
-            clientInfo.put("clientId", id);
+        synchronized (metadataLock) {
+            if (clientInfo != null) {
+                clientInfo.put("clientId", id);
+            }
+            clients.put(id, clientInfo);
         }
-        clients.put(id, clientInfo);
     }
 
     public boolean deleteClient(String clientId) {
-        return clients.remove(PeerFileRules.normalizeClientId(clientId)) != null;
+        String id = PeerFileRules.normalizeClientId(clientId);
+        synchronized (metadataLock) {
+            pendingQueues.remove(id);
+            return clients.remove(id) != null;
+        }
     }
 
     public void queueClientAction(String clientId, String action) {
@@ -77,25 +100,20 @@ public final class ClientStore {
     }
 
     public void queueClientAction(String clientId, String action, long ttlMs) {
-        Map<String, Object> existing = getOrCreateClient(clientId);
-        List<Map<String, Object>> pending = pendingActions(existing);
-        if (existing.containsKey("pendingAction")) {
-            Map<String, Object> legacy = new LinkedHashMap<>();
-            legacy.put("action", existing.get("pendingAction"));
-            legacy.put("time", existing.getOrDefault("pendingActionTime", System.currentTimeMillis()));
-            pending.add(legacy);
-            existing.remove("pendingAction");
-            existing.remove("pendingActionTime");
-        }
-        Map<String, Object> item = new LinkedHashMap<>();
-        item.put("action", action);
-        item.put("time", System.currentTimeMillis());
-        if (ttlMs > 0 && ttlMs != PENDING_ACTION_TTL_MS) {
-            item.put("ttlMs", ttlMs);
-        }
-        pending.add(item);
-        existing.put("pendingActions", pending);
+        queueClientAction(clientId, action, ttlMs, System.currentTimeMillis());
+    }
 
+    void queueClientAction(String clientId, String action, long ttlMs, long queuedAtMs) {
+        String id = PeerFileRules.normalizeClientId(clientId);
+        synchronized (metadataLock) {
+            Map<String, Object> existing = getOrCreateClient(id);
+            pendingQueues.computeIfAbsent(id, key -> new ConcurrentLinkedDeque<>())
+                    .addLast(new PendingAction(action, queuedAtMs, ttlMs > 0 ? ttlMs : PENDING_ACTION_TTL_MS));
+            logQueuedAction(existing, action);
+        }
+    }
+
+    private void logQueuedAction(Map<String, Object> existing, String action) {
         if ("CANCEL_SCHEDULE".equals(action)) {
             appendClientEvent(existing, "後台已送出【取消全部任務】指令（等待桌面端下次心跳執行）");
         } else if (action != null && action.startsWith("CANCEL_TASK:")) {
@@ -121,7 +139,6 @@ public final class ClientStore {
                     + (filename.isEmpty() ? "" : "「" + filename + "」")
                     + "（等待桌面端接收，伺服器不暫存）");
         }
-        clients.put(clientId, existing);
     }
 
     public PeerResult queuePeerMessage(String toClientId, String fromClientId, String text) {
@@ -153,18 +170,19 @@ public final class ClientStore {
         if (trimmed.length() > PEER_MESSAGE_MAX_LEN) {
             return PeerResult.fail("訊息長度不可超過 " + PEER_MESSAGE_MAX_LEN + " 字");
         }
-        Map<String, Object> sender = getOrCreateClient(fromClientId);
-        String encodedAvatar = firstNonEmptyAvatar(avatar, sender.get("avatar"));
-        if (!encodedAvatar.isEmpty()) {
-            sender.put("avatar", encodedAvatar);
+        synchronized (metadataLock) {
+            Map<String, Object> sender = getOrCreateClient(fromClientId);
+            String encodedAvatar = firstNonEmptyAvatar(avatar, sender.get("avatar"));
+            if (!encodedAvatar.isEmpty()) {
+                sender.put("avatar", encodedAvatar);
+            }
+            String action = cleanImage.isEmpty()
+                    ? encodePeerMessage(fromClientId, trimmed, encodedAvatar)
+                    : encodePeerImageMessage(fromClientId, trimmed, encodedAvatar, cleanImage);
+            queueClientAction(toClientId, action);
+            appendClientEvent(sender, (cleanImage.isEmpty() ? "已傳送訊息給【" : "已傳送圖片訊息給【")
+                    + toClientId + "】（等待對方心跳收取）");
         }
-        String action = cleanImage.isEmpty()
-                ? encodePeerMessage(fromClientId, trimmed, encodedAvatar)
-                : encodePeerImageMessage(fromClientId, trimmed, encodedAvatar, cleanImage);
-        queueClientAction(toClientId, action);
-        appendClientEvent(sender, (cleanImage.isEmpty() ? "已傳送訊息給【" : "已傳送圖片訊息給【")
-                + toClientId + "】（等待對方心跳收取）");
-        clients.put(fromClientId, sender);
         return PeerResult.ok("訊息已排入佇列，對方約 15 秒內收到");
     }
 
@@ -179,15 +197,16 @@ public final class ClientStore {
         if (toClientId.equals(fromClientId)) {
             return PeerResult.fail("不能戳自己");
         }
-        Map<String, Object> sender = getOrCreateClient(fromClientId);
-        String encodedAvatar = firstNonEmptyAvatar(avatar, sender.get("avatar"));
-        if (!encodedAvatar.isEmpty()) {
-            sender.put("avatar", encodedAvatar);
+        synchronized (metadataLock) {
+            Map<String, Object> sender = getOrCreateClient(fromClientId);
+            String encodedAvatar = firstNonEmptyAvatar(avatar, sender.get("avatar"));
+            if (!encodedAvatar.isEmpty()) {
+                sender.put("avatar", encodedAvatar);
+            }
+            String action = encodePeerPoke(fromClientId, encodedAvatar);
+            queueClientAction(toClientId, action);
+            appendClientEvent(sender, "已戳【" + toClientId + "】（等待對方心跳收取）");
         }
-        String action = encodePeerPoke(fromClientId, encodedAvatar);
-        queueClientAction(toClientId, action);
-        appendClientEvent(sender, "已戳【" + toClientId + "】（等待對方心跳收取）");
-        clients.put(fromClientId, sender);
         return PeerResult.ok("戳一下已排入佇列，對方約 15 秒內收到");
     }
 
@@ -205,29 +224,34 @@ public final class ClientStore {
         }
         String action = encodePeerRelay(fromClientId, relayId, filename, size, kind);
         queueClientAction(toClientId, action, PeerFileRules.RELAY_ACCEPT_TIMEOUT_MS);
-        Map<String, Object> sender = getOrCreateClient(fromClientId);
-        appendClientEvent(sender, "要直傳檔案「" + filename + "」給【" + toClientId + "】（等待對方接收）");
-        clients.put(PeerFileRules.normalizeClientId(fromClientId), sender);
+        appendClientEvent(fromClientId, "要直傳檔案「" + filename + "」給【" + toClientId + "】（等待對方接收）");
         return PeerResult.ok("已通知對方，約 15 秒內會跳出接收提示");
     }
 
     /** 最近 withinMs 內是否有心跳；直傳只對剛剛還在線的收件人發起，避免傳送端空等。 */
     public boolean isRecentlySeen(String clientId, long withinMs) {
-        Map<String, Object> client = clients.get(PeerFileRules.normalizeClientId(clientId));
-        if (client == null) {
-            return false;
+        Object lastSeen;
+        synchronized (metadataLock) {
+            Map<String, Object> client = clients.get(PeerFileRules.normalizeClientId(clientId));
+            if (client == null) {
+                return false;
+            }
+            lastSeen = client.get("lastSeen");
         }
-        long lastSeenMs = parseInstantMillis(client.get("lastSeen"));
+        long lastSeenMs = parseInstantMillis(lastSeen);
         return lastSeenMs >= 0 && System.currentTimeMillis() - lastSeenMs <= withinMs;
     }
 
     /** 桌面端在心跳 capabilities[] 宣告的功能（舊版不送，視為都不支援）。 */
     public boolean hasCapability(String clientId, String capability) {
-        Map<String, Object> client = clients.get(PeerFileRules.normalizeClientId(clientId));
-        if (client == null || capability == null) {
-            return false;
+        Object value;
+        synchronized (metadataLock) {
+            Map<String, Object> client = clients.get(PeerFileRules.normalizeClientId(clientId));
+            if (client == null || capability == null) {
+                return false;
+            }
+            value = client.get("capabilities");
         }
-        Object value = client.get("capabilities");
         if (!(value instanceof List)) {
             return false;
         }
@@ -270,38 +294,58 @@ public final class ClientStore {
     }
 
     public List<String> drainPendingActions(Map<String, Object> existing) {
+        if (existing == null) {
+            return new ArrayList<>();
+        }
+        Object clientId;
+        synchronized (metadataLock) {
+            clientId = existing.get("clientId");
+        }
+        return drainPendingActions(clientId == null ? "" : String.valueOf(clientId));
+    }
+
+    /**
+     * 依排入順序取走並移除這台 client 的待送指令，逾時的直接丟掉。
+     * 與同時排入的指令不會互相覆蓋：沒被這次取到的會留給下一次心跳。
+     * 取走即移除，伺服器不知道回應有沒有真的送到桌面端（至多一次）。
+     */
+    public List<String> drainPendingActions(String clientId) {
+        String id = PeerFileRules.normalizeClientId(clientId);
         long now = System.currentTimeMillis();
         List<String> actions = new ArrayList<>();
-        List<Map<String, Object>> queue = new ArrayList<>(pendingActions(existing));
-        if (existing.containsKey("pendingAction")) {
-            Map<String, Object> legacy = new LinkedHashMap<>();
-            legacy.put("action", existing.get("pendingAction"));
-            legacy.put("time", existing.getOrDefault("pendingActionTime", 0L));
-            queue.add(legacy);
-        }
-        for (Map<String, Object> item : queue) {
-            if (item == null || item.get("action") == null) {
-                continue;
-            }
-            long time = toLong(item.get("time"));
-            long ttl = PENDING_ACTION_TTL_MS;
-            if (item.containsKey("ttlMs")) {
-                long custom = toLong(item.get("ttlMs"));
-                if (custom > 0) {
-                    ttl = custom;
+        Deque<PendingAction> queue = pendingQueues.get(id);
+        if (queue != null) {
+            PendingAction item;
+            while ((item = queue.pollFirst()) != null) {
+                if (item.action != null && now - item.queuedAtMs < item.ttlMs) {
+                    actions.add(item.action);
                 }
             }
-            if (now - time < ttl) {
-                actions.add(String.valueOf(item.get("action")));
+        }
+        synchronized (metadataLock) {
+            Map<String, Object> existing = clients.get(id);
+            if (existing != null && existing.containsKey("pendingAction")) {
+                long time = toLong(existing.getOrDefault("pendingActionTime", 0L));
+                if (now - time < PENDING_ACTION_TTL_MS) {
+                    actions.add(String.valueOf(existing.get("pendingAction")));
+                }
+            }
+            if (existing != null) {
+                existing.remove("pendingActions");
+                existing.remove("pendingAction");
+                existing.remove("pendingActionTime");
             }
         }
-        existing.remove("pendingActions");
-        existing.remove("pendingAction");
-        existing.remove("pendingActionTime");
         return actions;
     }
 
     public List<Map<String, Object>> peerSnapshot(String excludeClientId) {
+        synchronized (metadataLock) {
+            return peerSnapshotLocked(excludeClientId);
+        }
+    }
+
+    private List<Map<String, Object>> peerSnapshotLocked(String excludeClientId) {
         long now = System.currentTimeMillis();
         String exclude = PeerFileRules.normalizeClientId(excludeClientId);
         List<Map<String, Object>> peers = new ArrayList<>();
@@ -334,9 +378,18 @@ public final class ClientStore {
     }
 
     public List<Map<String, Object>> publicClientsSnapshot() {
+        List<Map<String, Object>> copies = new ArrayList<>();
+        synchronized (metadataLock) {
+            for (Map<String, Object> client : clients.values()) {
+                // 大頭照最多數十 KB 且 sanitize 會丟掉，不在鎖內序列化
+                Map<String, Object> shallow = new LinkedHashMap<>(client);
+                shallow.remove("avatar");
+                copies.add(deepCopy(shallow));
+            }
+        }
         List<Map<String, Object>> snapshot = new ArrayList<>();
-        for (Map<String, Object> client : clients.values()) {
-            snapshot.add(sanitizeClientForApi(deepCopy(client)));
+        for (Map<String, Object> copy : copies) {
+            snapshot.add(sanitizeClientForApi(copy));
         }
         return snapshot;
     }
@@ -345,19 +398,34 @@ public final class ClientStore {
         if (client == null || text == null || text.isEmpty()) {
             return;
         }
-        List<Map<String, Object>> eventLog = eventLog(client);
-        Map<String, Object> entry = new LinkedHashMap<>();
-        entry.put("time", Instant.now().toString());
-        entry.put("text", text);
-        eventLog.add(entry);
-        if (eventLog.size() > EVENT_LOG_MAX) {
-            client.put("eventLog", new ArrayList<>(eventLog.subList(eventLog.size() - EVENT_LOG_MAX, eventLog.size())));
-        } else {
-            client.put("eventLog", eventLog);
+        synchronized (metadataLock) {
+            List<Map<String, Object>> eventLog = eventLog(client);
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("time", Instant.now().toString());
+            entry.put("text", text);
+            eventLog.add(entry);
+            if (eventLog.size() > EVENT_LOG_MAX) {
+                client.put("eventLog", new ArrayList<>(eventLog.subList(eventLog.size() - EVENT_LOG_MAX, eventLog.size())));
+            } else {
+                client.put("eventLog", eventLog);
+            }
+        }
+    }
+
+    /** 寫進目前登記中的那份 client 資料（心跳可能剛換過 Map）。 */
+    public void appendClientEvent(String clientId, String text) {
+        synchronized (metadataLock) {
+            appendClientEvent(getOrCreateClient(clientId), text);
         }
     }
 
     public void logTaskTransitions(Map<String, Object> existing, List<Map<String, Object>> nextTasks) {
+        synchronized (metadataLock) {
+            logTaskTransitionsLocked(existing, nextTasks);
+        }
+    }
+
+    private void logTaskTransitionsLocked(Map<String, Object> existing, List<Map<String, Object>> nextTasks) {
         Map<String, Map<String, Object>> prevById = new LinkedHashMap<>();
         for (Map<String, Object> t : tasks(existing)) {
             if (t != null && t.get("id") != null) {
@@ -422,7 +490,9 @@ public final class ClientStore {
     }
 
     public List<Map<String, Object>> getTasks(Map<String, Object> client) {
-        return tasks(client);
+        synchronized (metadataLock) {
+            return tasks(client);
+        }
     }
 
     public void startOfflineMonitor(Consumer<Map<String, Object>> broadcastToDashboards) {
@@ -437,15 +507,17 @@ public final class ClientStore {
         monitor.scheduleAtFixedRate(() -> {
             long now = System.currentTimeMillis();
             boolean changed = false;
-            for (Map.Entry<String, Map<String, Object>> entry : clients.entrySet()) {
-                Map<String, Object> data = entry.getValue();
-                if (!"OFFLINE".equals(String.valueOf(data.get("status")))) {
-                    long lastSeenMs = parseInstantMillis(data.get("lastSeen"));
-                    if (lastSeenMs >= 0 && now - lastSeenMs > HEARTBEAT_TIMEOUT_MS) {
-                        data.put("status", "OFFLINE");
-                        data.put("offlineSince", Instant.now().toString());
-                        changed = true;
-                        System.out.println("[Heartbeat Monitor] 客戶端 " + entry.getKey() + " 已逾時，標記為 離線 (OFFLINE)");
+            synchronized (metadataLock) {
+                for (Map.Entry<String, Map<String, Object>> entry : clients.entrySet()) {
+                    Map<String, Object> data = entry.getValue();
+                    if (!"OFFLINE".equals(String.valueOf(data.get("status")))) {
+                        long lastSeenMs = parseInstantMillis(data.get("lastSeen"));
+                        if (lastSeenMs >= 0 && now - lastSeenMs > HEARTBEAT_TIMEOUT_MS) {
+                            data.put("status", "OFFLINE");
+                            data.put("offlineSince", Instant.now().toString());
+                            changed = true;
+                            System.out.println("[Heartbeat Monitor] 客戶端 " + entry.getKey() + " 已逾時，標記為 離線 (OFFLINE)");
+                        }
                     }
                 }
             }
@@ -625,14 +697,6 @@ public final class ClientStore {
         return TASK_STATUS_LABEL.getOrDefault(String.valueOf(status), String.valueOf(status));
     }
 
-    private static List<Map<String, Object>> pendingActions(Map<String, Object> client) {
-        Object value = client.get("pendingActions");
-        if (value instanceof List) {
-            return new ArrayList<>((List<Map<String, Object>>) value);
-        }
-        return new ArrayList<>();
-    }
-
     private static List<Map<String, Object>> tasks(Map<String, Object> client) {
         Object value = client.get("tasks");
         if (value instanceof List) {
@@ -717,6 +781,18 @@ public final class ClientStore {
 
     private Map<String, Object> deepCopy(Map<String, Object> source) {
         return gson.fromJson(gson.toJson(source), Map.class);
+    }
+
+    private static final class PendingAction {
+        final String action;
+        final long queuedAtMs;
+        final long ttlMs;
+
+        PendingAction(String action, long queuedAtMs, long ttlMs) {
+            this.action = action;
+            this.queuedAtMs = queuedAtMs;
+            this.ttlMs = ttlMs;
+        }
     }
 
     public static final class PeerResult {

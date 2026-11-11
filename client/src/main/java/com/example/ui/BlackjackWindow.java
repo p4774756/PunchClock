@@ -271,16 +271,39 @@ public final class BlackjackWindow extends JFrame {
                 return;
             }
             lunchSending = false;
-            if (Boolean.TRUE.equals(ok) && session.confirmLunchSent(text)) {
-                lunchRetryText = null;
-                refresh();
-                host.lunchDecided(this, session.lunch());
-            } else {
-                lunchRetryText = text;
-                lunchWarning = "沒有送出，對方可能還不知道。請確認雲端連線後按「再送一次」";
-                refresh();
+            switch (settleLunchSend(session, Boolean.TRUE.equals(ok), text)) {
+                case DECIDED:
+                    lunchRetryText = null;
+                    refresh();
+                    host.lunchDecided(this, session.lunch());
+                    break;
+                case ENDED:
+                    lunchRetryText = null;
+                    lunchWarning = null;
+                    refresh();
+                    break;
+                default:
+                    lunchRetryText = text;
+                    lunchWarning = "沒有送出，對方可能還不知道。請確認雲端連線後按「再送一次」";
+                    refresh();
+                    break;
             }
         });
+    }
+
+    enum LunchSendResult { DECIDED, ENDED, RETRY }
+
+    /** 午餐送出的回呼結果；送出期間對方已離開（這場關閉或午餐作廢）時沒有可重送的對象。 */
+    static LunchSendResult settleLunchSend(BlackjackSession session, boolean ok, String text) {
+        if (ok && session.confirmLunchSent(text)) {
+            return LunchSendResult.DECIDED;
+        }
+        LunchChallenge lunch = session.lunch();
+        if (session.phase() != BlackjackSession.Phase.SETTLED || lunch == null
+                || lunch.status() != LunchChallenge.Status.AWAITING_CHOICE) {
+            return LunchSendResult.ENDED;
+        }
+        return LunchSendResult.RETRY;
     }
 
     private void onAccept() {

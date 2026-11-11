@@ -219,12 +219,91 @@ public class ClientStoreTest {
 
     @Test
     public void regularPendingActionExpiresAfterDefaultTtl() {
-        store.queueClientAction("b", "POKE|a|" + System.currentTimeMillis());
-        Map<String, Object> existing = store.getOrCreateClient("b");
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> pending = (List<Map<String, Object>>) existing.get("pendingActions");
-        pending.get(0).put("time", System.currentTimeMillis() - ClientStore.PENDING_ACTION_TTL_MS - 1);
-        assertTrue(store.drainPendingActions(existing).isEmpty());
+        long expiredAt = System.currentTimeMillis() - ClientStore.PENDING_ACTION_TTL_MS - 1;
+        store.queueClientAction("b", "POKE|a|" + expiredAt, ClientStore.PENDING_ACTION_TTL_MS, expiredAt);
+        store.queueClientAction("b", "POKE|a|fresh");
+        assertEquals(List.of("POKE|a|fresh"), store.drainPendingActions(store.getOrCreateClient("b")));
+    }
+
+    @Test
+    public void customTtlOutlivesDefaultTtl() {
+        long queuedAt = System.currentTimeMillis() - ClientStore.PENDING_ACTION_TTL_MS - 1;
+        store.queueClientAction("b", "RELAY|x", ClientStore.PENDING_ACTION_TTL_MS * 4, queuedAt);
+        assertEquals(List.of("RELAY|x"), store.drainPendingActions("b"));
+    }
+
+    @Test
+    public void replacingClientMetadataKeepsQueuedActions() {
+        store.queuePeerMessage("b", "a", "one");
+        Map<String, Object> copy = new LinkedHashMap<>(store.getOrCreateClient("b"));
+        store.queuePeerMessage("b", "a", "two");
+        store.setClient("b", copy);
+        List<String> drained = store.drainPendingActions(store.getOrCreateClient("b"));
+        assertEquals(2, drained.size());
+        assertTrue(store.drainPendingActions("b").isEmpty());
+    }
+
+    @Test
+    public void queueUsesNormalizedClientId() {
+        store.queuePeerMessage(" b ", "a", "hi");
+        store.queueClientAction("\uFEFFb", "CANCEL_SCHEDULE");
+        assertEquals(2, store.drainPendingActions("b").size());
+        assertEquals(List.of("a", "b"), new ArrayList<>(new java.util.TreeSet<>(store.clients().keySet())));
+    }
+
+    @Test(timeout = 20_000)
+    public void concurrentQueueAndDrainKeepEveryActionOnceInOrder() throws Exception {
+        int producers = 6;
+        int perProducer = 2_000;
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicBoolean producing = new java.util.concurrent.atomic.AtomicBoolean(true);
+        List<String> received = java.util.Collections.synchronizedList(new ArrayList<>());
+        List<Thread> threads = new ArrayList<>();
+        for (int p = 0; p < producers; p++) {
+            String from = "p" + p;
+            threads.add(new Thread(() -> {
+                await(start);
+                for (int i = 0; i < perProducer; i++) {
+                    store.queueClientAction("b", from + ":" + i);
+                    store.appendClientEvent(from, "noise");
+                }
+            }));
+        }
+        Thread drainer = new Thread(() -> {
+            await(start);
+            while (producing.get()) {
+                received.addAll(store.drainPendingActions(store.getOrCreateClient("b")));
+                store.setClient("b", new LinkedHashMap<>(store.getOrCreateClient("b")));
+                store.publicClientsSnapshot();
+            }
+        });
+        threads.forEach(Thread::start);
+        drainer.start();
+        start.countDown();
+        for (Thread t : threads) {
+            t.join();
+        }
+        producing.set(false);
+        drainer.join();
+        received.addAll(store.drainPendingActions("b"));
+
+        assertEquals(producers * perProducer, received.size());
+        assertEquals(received.size(), new java.util.HashSet<>(received).size());
+        int[] next = new int[producers];
+        for (String action : received) {
+            String[] parts = action.split(":");
+            int producer = Integer.parseInt(parts[0].substring(1));
+            assertEquals("順序錯亂：" + action, next[producer], Integer.parseInt(parts[1]));
+            next[producer]++;
+        }
+    }
+
+    private static void await(java.util.concurrent.CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @Test

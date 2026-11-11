@@ -227,10 +227,23 @@ public final class ServerApp {
         List<Map<String, Object>> tasks = RouteSupport.tasksFromBody(body.get("tasks"));
         ClientStore.normalizeReportedTaskNames(tasks);
 
+        Map<String, Object> heartbeatBody = body;
+        String clientIp = IpResolver.clientIp(ctx);
+        boolean stale = clientStore.withMetadataLock(() -> recordHeartbeat(
+                heartbeatBody, tasks, clientId, status, message, appVersion, appReleaseTime, appSourceDigest, clientIp));
+
+        broadcaster.broadcast(statusUpdatePayload());
+
+        writeHeartbeatResponse(ctx, clientId, !stale, appVersion, appReleaseTime, appSourceDigest);
+    }
+
+    /** 須在 {@link ClientStore#withMetadataLock} 內呼叫；回傳 true 表示是亂序晚到、只更新了 lastSeen。 */
+    private boolean recordHeartbeat(Map<String, Object> body, List<Map<String, Object>> tasks, String clientId,
+                                    String status, String message, String appVersion, String appReleaseTime,
+                                    String appSourceDigest, String clientIp) {
         Map<String, Object> existing = clientStore.getOrCreateClient(clientId);
         long incomingSeq = RouteSupport.numberFrom(body.get("heartbeatSeq"));
         long storedSeq = RouteSupport.numberFrom(existing.get("heartbeatSeq"));
-        List<String> drainedActions = clientStore.drainPendingActions(existing);
 
         // 僅擋「同階段亂序晚到」；客戶端重啟後 seq 會重數，不可當成過期而拒收
         if (isOutOfOrderStaleHeartbeat(incomingSeq, storedSeq)) {
@@ -239,16 +252,11 @@ public final class ServerApp {
             // 有心跳就視為在線，避免停在 OFFLINE 卻任務永遠不同步
             clientInfo.put("status", "OFFLINE".equals(status) ? "ONLINE" : status);
             clientStore.setClient(clientId, clientInfo);
-            broadcaster.broadcast(statusUpdatePayload());
-            writeHeartbeatResponse(ctx, drainedActions, clientId, appVersion, appReleaseTime, appSourceDigest);
-            return;
+            return true;
         }
 
         List<Map<String, Object>> effectiveTasks = tasks.isEmpty() ? clientStore.getTasks(existing) : tasks;
 
-        if (!drainedActions.isEmpty()) {
-            clientStore.appendClientEvent(existing, "桌面端心跳已取走指令：" + String.join("、", drainedActions));
-        }
         clientStore.logTaskTransitions(existing, effectiveTasks);
 
         Map<String, Object> clientInfo = new LinkedHashMap<>(existing);
@@ -264,7 +272,7 @@ public final class ServerApp {
         }
         clientInfo.put("lastSeen", Instant.now().toString());
         clientInfo.put("transport", "http");
-        clientInfo.put("clientIp", IpResolver.clientIp(ctx));
+        clientInfo.put("clientIp", clientIp);
         if (incomingSeq > 0) {
             clientInfo.put("heartbeatSeq", incomingSeq);
         }
@@ -277,25 +285,17 @@ public final class ServerApp {
             }
         }
         ClientStore.applyCapabilities(clientInfo, body);
-        clientInfo.remove("pendingActions");
-        clientInfo.remove("pendingAction");
-        clientInfo.remove("pendingActionTime");
-
         clientStore.setClient(clientId, clientInfo);
-
-        broadcaster.broadcast(statusUpdatePayload());
-
-        writeHeartbeatResponse(ctx, drainedActions, clientId, appVersion, appReleaseTime, appSourceDigest);
+        return false;
     }
 
-    private void writeHeartbeatResponse(Context ctx, List<String> drainedActions, String clientId,
+    private void writeHeartbeatResponse(Context ctx, String clientId, boolean logDrained,
                                         String appVersion, String appReleaseTime, String appSourceDigest) {
-        String actionToSend = drainedActions.isEmpty() ? "NONE" : drainedActions.get(0);
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("success", true);
         response.put("message", "Heartbeat acknowledged");
-        response.put("action", actionToSend);
-        response.put("actions", drainedActions);
+        response.put("action", "NONE");
+        response.put("actions", List.of());
         response.put("peers", clientStore.peerSnapshot(clientId));
         response.put("ackTimestamp", Instant.now().toString());
         MarqueeNotice marquee = marqueeStore.current();
@@ -321,6 +321,14 @@ public final class ServerApp {
                 }
             }
             response.put("update", update);
+        }
+        // 取走即從佇列移除，之後若回應沒送到桌面端（逾時、斷線）這批指令就遺失；
+        // 所以放在組好其他欄位之後，只剩序列化與寫出這一段無法補救。
+        List<String> drainedActions = clientStore.drainPendingActions(clientId);
+        response.put("action", drainedActions.isEmpty() ? "NONE" : drainedActions.get(0));
+        response.put("actions", drainedActions);
+        if (logDrained && !drainedActions.isEmpty()) {
+            clientStore.appendClientEvent(clientId, "桌面端心跳已取走指令：" + String.join("、", drainedActions));
         }
         ctx.json(response);
     }

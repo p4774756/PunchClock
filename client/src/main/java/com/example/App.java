@@ -9,6 +9,7 @@ import com.example.service.HeartbeatService;
 import com.example.service.UpdateIdlePolicy;
 import com.example.service.HeartbeatService.UpdateNotice;
 import com.example.service.HeartbeatService.PeerInfo;
+import com.example.service.BlackjackInvitePolicy;
 import com.example.service.BlackjackSession;
 import com.example.service.LunchChallenge;
 import com.example.service.PeerAvatar;
@@ -1374,15 +1375,7 @@ public class App extends JFrame {
     }
 
     private static boolean isBlackjackBusy(BlackjackWindow window) {
-        BlackjackSession.Phase phase = window.session().phase();
-        if (phase == BlackjackSession.Phase.INVITING
-                || phase == BlackjackSession.Phase.INVITED
-                || phase == BlackjackSession.Phase.PLAYING) {
-            return true;
-        }
-        LunchChallenge lunch = window.session().lunch();
-        return phase == BlackjackSession.Phase.SETTLED && lunch != null
-                && lunch.status() == LunchChallenge.Status.AWAITING_CHOICE;
+        return BlackjackInvitePolicy.isBusy(window.session());
     }
 
     private void handleBlackjackMessage(String fromId, String text, Long sentAtMs, String avatar) {
@@ -1398,24 +1391,23 @@ public class App extends JFrame {
                 return;
             }
             BlackjackWindow existing = blackjackWindows.get(fromId);
-            if (existing != null && message.roomId.equals(existing.roomId())) {
-                appendLog("[21點] （" + timeLabel + "）重複收到【" + fromId + "】的邀請，已忽略");
-                return;
-            }
-            if (existing != null && isBlackjackBusy(existing)) {
-                // 雙方同時按「再戰」或同時邀請：roomId 較小的那場勝出，兩邊判斷結果一致
-                boolean crossed = existing.session().phase() == BlackjackSession.Phase.INVITING
-                        && message.roomId.compareTo(existing.roomId()) < 0;
-                if (!crossed) {
-                    if (existing.session().phase() == BlackjackSession.Phase.INVITING) {
-                        appendLog("[21點] 和【" + fromId + "】同時發出邀請，保留本機這一場");
-                    } else {
-                        appendLog("[21點] （" + timeLabel + "）【" + fromId + "】邀請時本機已有對戰，已忽略");
-                        chatNote(fromId, "對方又邀請了 21 點，但目前已有一場進行中");
-                    }
+            switch (BlackjackInvitePolicy.onInvite(existing == null ? null : existing.session(), message.roomId)) {
+                case DUPLICATE:
+                    appendLog("[21點] （" + timeLabel + "）重複收到【" + fromId + "】的邀請，已忽略");
                     return;
-                }
-                appendLog("[21點] 和【" + fromId + "】同時發出邀請，改用對方那一場");
+                case KEEP_LOCAL:
+                    appendLog("[21點] 和【" + fromId + "】同時發出邀請，保留本機這一場");
+                    return;
+                case DECLINE_BUSY:
+                    appendLog("[21點] （" + timeLabel + "）【" + fromId + "】邀請時本機已有對戰，已回覆婉拒");
+                    chatNote(fromId, "對方又邀請了 21 點，但目前已有一場進行中");
+                    sendBlackjackPayload(fromId, BlackjackProtocol.decline(message.roomId), null);
+                    return;
+                case SWITCH_TO_PEER:
+                    appendLog("[21點] 和【" + fromId + "】同時發出邀請，改用對方那一場");
+                    break;
+                default:
+                    break;
             }
             BlackjackSession session = BlackjackSession.fromInvite(heartbeatService.getClientId(), fromId,
                     message.roomId, message.seed, BlackjackSession.modeOf(message));

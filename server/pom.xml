@@ -51,6 +51,14 @@
             <artifactId>junit</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- 雙 client 整合測試用真正的桌面端心跳／訊息程式；不會打包進伺服器 jar -->
+        <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>punchclock-client</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
