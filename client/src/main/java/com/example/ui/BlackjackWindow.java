@@ -417,7 +417,7 @@ public final class BlackjackWindow extends JFrame {
                     table.waitingView().setMessage("邀請沒有送出", "請確認雲端連線後按下方「重送」", false);
                 } else {
                     table.waitingView().setMessage("已向「" + peerId + "」發出" + challenge + "！",
-                            sending ? "邀請傳送中…" : "等待對方接受…（約 15 秒內送達）", true);
+                            sending ? "邀請傳送中…" : "等待對手…（約 15 秒內送達）", true);
                 }
                 break;
             case INVITED:
@@ -531,7 +531,8 @@ public final class BlackjackWindow extends JFrame {
                 } else if (session.myTurn()) {
                     table.center().setTurn("輪到你出牌！", true, false);
                 } else {
-                    table.center().setTurn("等待「" + peerId + "」出牌", false, true);
+                    // 僅在真的輪到對手時顯示；結算／自己回合不會走到這裡
+                    table.center().setTurn("等待對手", false, true);
                 }
                 break;
             case SETTLED:
@@ -594,7 +595,7 @@ public final class BlackjackWindow extends JFrame {
                     + "  你 " + session.myScore() + " ：對方 " + session.peerScore();
             color = outcomeInk();
         } else if (phase == BlackjackSession.Phase.PLAYING && !session.myTurn()) {
-            message = "等待對方出牌（隨心跳約 15 秒）";
+            message = "等待對手…（隨心跳約 15 秒）";
         } else if (scene == BlackjackScene.CLOSED || phase == BlackjackSession.Phase.CLOSED) {
             message = cancelledByMe ? "邀請已取消" : session.status();
         } else if (session.isLunch()) {
