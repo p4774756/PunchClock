@@ -4,6 +4,7 @@ import com.example.ui.CandyTheme;
 
 import javax.swing.JComponent;
 import javax.swing.Timer;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -44,7 +45,7 @@ public final class TableCenter extends JComponent implements CasinoTheme.Scalabl
 
     /**
      * @param highlight 輪到自己時橫幅外圈發光
-     * @param waiting   true 時尾端有跑動的「…」，提示正在等心跳送達
+     * @param waiting   true 時尾端有跑動的「…」，並用更醒目配色提示正在等對手／心跳
      */
     public void setTurn(String text, boolean highlight, boolean waiting) {
         String next = text == null ? "" : text;
@@ -143,24 +144,40 @@ public final class TableCenter extends JComponent implements CasinoTheme.Scalabl
         CasinoPaint.laurel(g, mid + titleW / 2.0 + laurelGap, titleBase - tm.getAscent() / 2.6, laurelH, 1);
 
         int bannerY = titleBase + CasinoTheme.px(scale, 8);
-        int bannerH = CasinoTheme.px(scale, 50);
-        Font turnFont = CasinoTheme.chinese(true, scale, 24);
+        int bannerH = CasinoTheme.px(scale, waiting ? 54 : 50);
+        Font turnFont = CasinoTheme.chinese(true, scale, waiting ? 26 : 24);
         FontMetrics bm = g.getFontMetrics(turnFont);
         if (!turn.isEmpty()) {
             String sizing = turn + (waiting ? "…" : "");
-            int bannerW = Math.min(room, Math.max(CasinoTheme.px(scale, 360), bm.stringWidth(sizing) + bannerH * 2));
+            int iconSize = waiting ? CasinoTheme.px(scale, 28) : 0;
+            int iconGap = waiting ? CasinoTheme.px(scale, 10) : 0;
+            int bannerW = Math.min(room, Math.max(CasinoTheme.px(scale, waiting ? 400 : 360),
+                    bm.stringWidth(sizing) + iconSize + iconGap + bannerH * 2));
             float pop = popScale();
             float glow = highlight ? 0.55f + 0.45f * (float) Math.sin(System.currentTimeMillis() / 300.0) : 0f;
             AffineTransform saved = g.getTransform();
             g.translate(mid, bannerY + bannerH / 2.0);
             g.scale(pop, pop);
+            if (waiting && !highlight) {
+                // 等待對手：靜態酒紅外暈，與「輪到你」的金色發光區隔（不新增動畫）
+                g.setColor(new Color(CasinoTheme.WINE.getRed(), CasinoTheme.WINE.getGreen(),
+                        CasinoTheme.WINE.getBlue(), 70));
+                g.setStroke(new BasicStroke(8f * scale, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.draw(CasinoPaint.bannerShape(-bannerW / 2.0, -bannerH / 2.0, bannerW, bannerH));
+            }
             CasinoPaint.banner(g, -bannerW / 2.0, -bannerH / 2.0, bannerW, bannerH, scale, glow);
-            String fitted = CandyTheme.fit(sizing, bm, bannerW - bannerH);
+            String fitted = CandyTheme.fit(sizing, bm, bannerW - bannerH - iconSize - iconGap);
             String label = waiting && fitted.endsWith("…")
                     ? fitted.substring(0, fitted.length() - 1) + dots() : fitted;
+            float textW = bm.stringWidth(label);
+            float blockW = iconSize + iconGap + textW;
+            float tx = -blockW / 2f;
+            if (waiting) {
+                CasinoIcons.HOURGLASS.paint(g, Math.round(tx), Math.round(-iconSize / 2f), iconSize, CasinoTheme.WINE);
+            }
             g.setFont(turnFont);
-            g.setColor(CasinoTheme.INK);
-            g.drawString(label, -bm.stringWidth(fitted) / 2f, bm.getAscent() / 2f - bm.getDescent() / 2f);
+            g.setColor(waiting ? CasinoTheme.WINE_DARK : CasinoTheme.INK);
+            g.drawString(label, tx + iconSize + iconGap, bm.getAscent() / 2f - bm.getDescent() / 2f);
             g.setTransform(saved);
         }
 
