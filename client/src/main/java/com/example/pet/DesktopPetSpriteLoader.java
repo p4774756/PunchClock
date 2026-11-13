@@ -14,7 +14,7 @@ import java.util.function.Consumer;
 /**
  * 讀取喵露 PNG。解圖在背景執行緒，結果回到 EDT。
  * 待機六張缺檔或不合格時回傳 null，呼叫端改畫原本的像素角色。
- * 走路、揮手、坐下、趴睡、拖曳會逐張篩掉裁切、標籤底和分離殘塊，缺的動作改畫待機。
+ * 走路、揮手、坐下、趴睡、拖曳、抓起、掙扎、放下會逐張篩掉裁切、標籤底和分離殘塊，缺的動作改畫待機。
  */
 public final class DesktopPetSpriteLoader {
 
@@ -91,6 +91,21 @@ public final class DesktopPetSpriteLoader {
             "/pet/milu/drag/01.png",
             "/pet/milu/drag/02.png"
     };
+    private static final String[] GRAB = {
+            "/pet/milu/grab/01.png",
+            "/pet/milu/grab/02.png"
+    };
+    private static final String[] STRUGGLE = {
+            "/pet/milu/struggle/01.png",
+            "/pet/milu/struggle/02.png",
+            "/pet/milu/struggle/03.png",
+            "/pet/milu/struggle/04.png"
+    };
+    private static final String[] RELEASE = {
+            "/pet/milu/release/01.png",
+            "/pet/milu/release/02.png",
+            "/pet/milu/release/03.png"
+    };
 
     private DesktopPetSpriteLoader() {
     }
@@ -105,10 +120,14 @@ public final class DesktopPetSpriteLoader {
         private final Sprite[] sit;
         private final Sprite[] sleep;
         private final Sprite[] drag;
+        private final Sprite[] grab;
+        private final Sprite[] struggle;
+        private final Sprite[] release;
 
         Frames(Sprite[] breath, Sprite blink1, Sprite blink2,
                 Sprite[] walkLeft, Sprite[] walkRight, Sprite[] wave,
-                Sprite[] sit, Sprite[] sleep, Sprite[] drag) {
+                Sprite[] sit, Sprite[] sleep, Sprite[] drag,
+                Sprite[] grab, Sprite[] struggle, Sprite[] release) {
             this.breath = breath;
             this.blink1 = blink1;
             this.blink2 = blink2;
@@ -118,6 +137,9 @@ public final class DesktopPetSpriteLoader {
             this.sit = sit;
             this.sleep = sleep;
             this.drag = drag;
+            this.grab = grab;
+            this.struggle = struggle;
+            this.release = release;
         }
 
         public BufferedImage breath(int index) {
@@ -156,6 +178,30 @@ public final class DesktopPetSpriteLoader {
             return drag.length;
         }
 
+        public int grabCount() {
+            return grab.length;
+        }
+
+        public int struggleCount() {
+            return struggle.length;
+        }
+
+        public int releaseCount() {
+            return release.length;
+        }
+
+        public BufferedImage grab(int index) {
+            return grab[Math.floorMod(index, grab.length)].image;
+        }
+
+        public BufferedImage struggle(int index) {
+            return struggle[Math.floorMod(index, struggle.length)].image;
+        }
+
+        public BufferedImage release(int index) {
+            return release[Math.floorMod(index, release.length)].image;
+        }
+
         public BufferedImage walkLeft(int index) {
             return walkLeft[Math.floorMod(index, walkLeft.length)].image;
         }
@@ -177,6 +223,10 @@ public final class DesktopPetSpriteLoader {
         }
 
         public Sprite spriteFor(DesktopPetAnimation animation) {
+            Sprite[] carry = carryClip(animation.carryPhase());
+            if (carry != null && carry.length > 0) {
+                return carry[animation.carryFrame(carry.length)];
+            }
             if (animation.isCarried()) {
                 return clipOrIdleSprite(drag, animation);
             }
@@ -210,7 +260,23 @@ public final class DesktopPetSpriteLoader {
             addAll(all, sit);
             addAll(all, sleep);
             addAll(all, drag);
+            addAll(all, grab);
+            addAll(all, struggle);
+            addAll(all, release);
             return all.toArray(new Sprite[0]);
+        }
+
+        private Sprite[] carryClip(DesktopPetAnimation.CarryPhase phase) {
+            if (phase == DesktopPetAnimation.CarryPhase.GRAB) {
+                return grab;
+            }
+            if (phase == DesktopPetAnimation.CarryPhase.STRUGGLE) {
+                return struggle;
+            }
+            if (phase == DesktopPetAnimation.CarryPhase.RELEASE) {
+                return release;
+            }
+            return null;
         }
 
         private static void addAll(List<Sprite> all, Sprite[] sprites) {
@@ -223,7 +289,7 @@ public final class DesktopPetSpriteLoader {
         }
 
         /**
-         * 顯示優先序：拖曳、揮手、走路、坐下、趴睡、待機。
+         * 顯示優先序：抓起／掙扎／放下、揮手、走路、坐下、趴睡、待機。
          * 該動作沒有合格影格時，改畫待機呼吸或眨眼。
          */
         BufferedImage imageFor(DesktopPetAnimation animation) {
@@ -261,6 +327,9 @@ public final class DesktopPetSpriteLoader {
             flushAll(sit);
             flushAll(sleep);
             flushAll(drag);
+            flushAll(grab);
+            flushAll(struggle);
+            flushAll(release);
         }
 
         private static void flushAll(Sprite[] sprites) {
@@ -291,6 +360,8 @@ public final class DesktopPetSpriteLoader {
             if (!acceptable(blink1) || !acceptable(blink2)) {
                 return null;
             }
+            Sprite[] release = loadOptional(RELEASE);
+            int carryShift = carryOffsetY(release);
             return new Frames(
                     breath,
                     place(BLINK_1, defringe(blink1)),
@@ -300,10 +371,35 @@ public final class DesktopPetSpriteLoader {
                     loadOptional(WAVE),
                     loadOptional(SIT),
                     loadOptional(SLEEP),
-                    loadOptional(DRAG));
+                    loadOptional(DRAG),
+                    withOffsetY(loadOptional(GRAB), carryShift),
+                    withOffsetY(loadOptional(STRUGGLE), carryShift),
+                    withOffsetY(release, carryShift));
         } catch (IOException ex) {
             return null;
         }
+    }
+
+    /**
+     * 抓起、掙扎、放下是同一套畫布，懸空與落地的高度差是畫好的。
+     * 整套共用一個垂直修正：讓放下的腳底落在 {@link #ANCHOR_Y}，懸空影格跟著同量平移，不逐張壓回地面。
+     * 放下影格全部不合格時不平移，保留素材原高度。
+     */
+    static int carryOffsetY(Sprite[] landed) {
+        int ground = -1;
+        for (Sprite sprite : landed) {
+            ground = Math.max(ground, sprite.anchorY);
+        }
+        return ground < 0 ? 0 : ANCHOR_Y - ground;
+    }
+
+    private static Sprite[] withOffsetY(Sprite[] sprites, int offsetY) {
+        Sprite[] shifted = new Sprite[sprites.length];
+        for (int i = 0; i < sprites.length; i++) {
+            Sprite sprite = sprites[i];
+            shifted[i] = new Sprite(sprite.image, sprite.name, sprite.offsetX, offsetY, sprite.anchorX, sprite.anchorY);
+        }
+        return shifted;
     }
 
     private static Sprite[] loadOptional(String[] paths) {

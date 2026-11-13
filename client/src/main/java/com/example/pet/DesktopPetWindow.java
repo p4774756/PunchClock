@@ -769,7 +769,7 @@ public final class DesktopPetWindow extends JFrame {
             g.drawLine(centerX, 0, centerX, getHeight());
             g.drawLine(0, groundY, getWidth(), groundY);
             g.fillRect(2, 2, 3, 3);
-            String mode = animation.isSettling() ? "回彈" : animation.isCarried() ? "拖曳" : modeName(animation.mode());
+            String mode = animation.isCarried() ? carryName(animation.carryPhase()) : modeName(animation.mode());
             String text = mode + "  " + String.format(java.util.Locale.ROOT, "%+.1f°", animation.leanDegrees())
                     + "  " + placed.name
                     + "  offset " + placed.offsetX + "," + placed.offsetY
@@ -782,6 +782,16 @@ public final class DesktopPetWindow extends JFrame {
             g.setColor(Color.WHITE);
             g.drawString(text, 8, 8 + metrics.getAscent() + 1);
         }
+    }
+
+    private static String carryName(DesktopPetAnimation.CarryPhase phase) {
+        if (phase == DesktopPetAnimation.CarryPhase.GRAB) {
+            return "抓起";
+        }
+        if (phase == DesktopPetAnimation.CarryPhase.RELEASE) {
+            return "放下";
+        }
+        return "掙扎";
     }
 
     private static String modeName(DesktopPetAnimation.Mode mode) {

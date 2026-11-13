@@ -1,5 +1,6 @@
 package com.example.pet;
 
+import com.example.pet.DesktopPetAnimation.CarryPhase;
 import com.example.pet.DesktopPetAnimation.Mode;
 import com.example.ui.CandySwitch;
 import com.example.ui.PanelFactory;
@@ -374,7 +375,7 @@ public class DesktopPetTest {
         assertSame(frames.wave(0), frames.imageFor(walker));
 
         walker.setCarried(true);
-        assertTrue(isMiluIdle(frames, frames.imageFor(walker)));
+        assertSame(frames.grab(0), frames.imageFor(walker));
         walker.setCarried(false);
         assertEquals(Mode.IDLE, walker.mode());
         assertTrue(isMiluIdle(frames, frames.imageFor(walker)));
@@ -413,7 +414,11 @@ public class DesktopPetTest {
         int sitShift = 0;
         for (DesktopPetSpriteLoader.Sprite sprite : frames.allSprites()) {
             assertEquals(sprite.name, DesktopPetSpriteLoader.ANCHOR_X, sprite.placedX());
-            assertEquals(sprite.name, DesktopPetSpriteLoader.ANCHOR_Y, sprite.placedY());
+            if (sprite.name.startsWith("grab/") || sprite.name.startsWith("struggle/")) {
+                assertTrue(sprite.name, sprite.placedY() < DesktopPetSpriteLoader.ANCHOR_Y);
+            } else {
+                assertEquals(sprite.name, DesktopPetSpriteLoader.ANCHOR_Y, sprite.placedY());
+            }
             if (sprite.name.startsWith("idle/")) {
                 assertTrue(sprite.name, Math.abs(sprite.offsetX) <= 6);
                 assertEquals(sprite.name, 0, sprite.offsetY);
@@ -699,8 +704,9 @@ public class DesktopPetTest {
         pet.releaseCarry();
         assertTrue(pet.isSettling());
         double start = pet.leanDegrees();
-        pet.tick();
-        pet.tick();
+        for (int i = 0; i < DesktopPetAnimation.RELEASE_TICKS / 2; i++) {
+            pet.tick();
+        }
         assertTrue(pet.leanDegrees() * start < 0);
         assertTrue(pet.isCarried());
         assertEquals(Mode.WALK, pet.mode());
@@ -714,7 +720,7 @@ public class DesktopPetTest {
         }
         assertTrue(Math.abs(held.leanDegrees()) < Math.abs(leaning));
         assertTrue(held.isCarried());
-        for (int i = 0; i < DesktopPetAnimation.RELEASE_TICKS; i++) {
+        for (int i = DesktopPetAnimation.RELEASE_TICKS / 2; i < DesktopPetAnimation.RELEASE_TICKS; i++) {
             pet.tick();
         }
         assertFalse(pet.isCarried());
@@ -858,6 +864,343 @@ public class DesktopPetTest {
                     }
                 }
                 assertEquals(0, edge);
+            } finally {
+                manager.shutdown();
+            }
+        });
+    }
+
+    @Test
+    public void carryGoesGrabStruggleReleaseThenIdle() {
+        DesktopPetAnimation pet = new DesktopPetAnimation(new Random(1));
+        pet.setHandDown(true);
+        pet.tick();
+        assertEquals(CarryPhase.NONE, pet.carryPhase());
+        assertFalse(pet.isCarried());
+        pet.setHandDown(false);
+        pet.poke();
+        assertEquals(CarryPhase.NONE, pet.carryPhase());
+        assertEquals(Mode.REACT, pet.mode());
+
+        pet.forceWalk(1);
+        pet.setCarried(true);
+        assertEquals(CarryPhase.GRAB, pet.carryPhase());
+        assertEquals(0, pet.stepX());
+        int[] grabFrames = new int[DesktopPetAnimation.GRAB_TICKS];
+        for (int i = 0; i < DesktopPetAnimation.GRAB_TICKS; i++) {
+            assertEquals(CarryPhase.GRAB, pet.carryPhase());
+            grabFrames[i] = pet.carryFrame(2);
+            pet.tick();
+        }
+        assertEquals(0, grabFrames[0]);
+        assertEquals(1, grabFrames[DesktopPetAnimation.GRAB_TICKS - 1]);
+        assertEquals(CarryPhase.STRUGGLE, pet.carryPhase());
+
+        // 滑鼠停著不動也要繼續踢腳，而且遠超過待機與走路的時間也不會自己走掉。
+        int ticks = DesktopPetAnimation.IDLE_TICKS + DesktopPetAnimation.WALK_TICKS + 10;
+        boolean[] seen = new boolean[4];
+        for (int i = 0; i < ticks; i++) {
+            assertEquals(CarryPhase.STRUGGLE, pet.carryPhase());
+            assertEquals((i / DesktopPetAnimation.ACTION_HOLD_TICKS) % 4, pet.carryFrame(4));
+            seen[pet.carryFrame(4)] = true;
+            assertEquals(0, pet.stepX());
+            assertTrue(pet.isCarried());
+            pet.tick();
+        }
+        for (boolean frame : seen) {
+            assertTrue(frame);
+        }
+        assertEquals(Mode.WALK, pet.mode());
+
+        int before = pet.carryFrame(4);
+        assertFalse(pet.showNotice(DesktopPetEvent.MESSAGE_RECEIVED.phrase()));
+        assertFalse(pet.isNotice());
+        assertNull(pet.bubble());
+        assertEquals(CarryPhase.STRUGGLE, pet.carryPhase());
+        for (int i = 0; i < DesktopPetAnimation.ACTION_HOLD_TICKS; i++) {
+            pet.tick();
+        }
+        assertEquals((before + 1) % 4, pet.carryFrame(4));
+
+        pet.releaseCarry();
+        assertEquals(CarryPhase.RELEASE, pet.carryPhase());
+        assertTrue(pet.isCarried());
+        assertTrue(pet.isSettling());
+        pet.releaseCarry();
+        int[] releaseFrames = new int[DesktopPetAnimation.RELEASE_TICKS];
+        for (int i = 0; i < DesktopPetAnimation.RELEASE_TICKS; i++) {
+            assertEquals(CarryPhase.RELEASE, pet.carryPhase());
+            assertEquals(0, pet.stepX());
+            assertFalse(pet.showNotice(DesktopPetEvent.FILE_RECEIVED.phrase()));
+            releaseFrames[i] = pet.carryFrame(3);
+            pet.tick();
+        }
+        assertEquals(0, releaseFrames[0]);
+        assertEquals(1, releaseFrames[DesktopPetAnimation.RELEASE_TICKS / 2]);
+        assertEquals(2, releaseFrames[DesktopPetAnimation.RELEASE_TICKS - 1]);
+        assertEquals(CarryPhase.NONE, pet.carryPhase());
+        assertFalse(pet.isCarried());
+        assertFalse(pet.isSettling());
+        assertEquals(Mode.IDLE, pet.mode());
+        assertEquals(0, pet.stepX());
+        assertEquals(0, pet.leanDegrees(), 0.001);
+        assertTrue(pet.showNotice(DesktopPetEvent.FILE_RECEIVED.phrase()));
+    }
+
+    @Test
+    public void earlyReleaseAndRegrabRestartCleanly() {
+        DesktopPetAnimation pet = new DesktopPetAnimation(new Random(1));
+        pet.setCarried(true);
+        pet.tick();
+        assertEquals(CarryPhase.GRAB, pet.carryPhase());
+        pet.releaseCarry();
+        assertEquals(CarryPhase.RELEASE, pet.carryPhase());
+        assertEquals(0, pet.carryFrame(3));
+        for (int i = 0; i < DesktopPetAnimation.RELEASE_TICKS; i++) {
+            pet.tick();
+        }
+        assertEquals(CarryPhase.NONE, pet.carryPhase());
+        assertEquals(Mode.IDLE, pet.mode());
+
+        pet.setCarried(true);
+        for (int i = 0; i < DesktopPetAnimation.GRAB_TICKS + 2; i++) {
+            pet.tick();
+        }
+        pet.noteCarryMotion(60, 20_000_000L);
+        pet.releaseCarry();
+        pet.tick();
+        pet.tick();
+        assertEquals(CarryPhase.RELEASE, pet.carryPhase());
+        assertTrue(pet.isSettling());
+
+        pet.setCarried(true);
+        assertEquals(CarryPhase.GRAB, pet.carryPhase());
+        assertFalse(pet.isSettling());
+        assertTrue(pet.isCarried());
+        assertEquals(0, pet.carryFrame(2));
+        assertEquals(0, pet.leanDegrees(), 0.001);
+        for (int i = 0; i < DesktopPetAnimation.RELEASE_TICKS * 3; i++) {
+            pet.tick();
+            assertTrue(pet.isCarried());
+        }
+        assertEquals(CarryPhase.STRUGGLE, pet.carryPhase());
+
+        pet.releaseCarry();
+        pet.tick();
+        pet.setCarried(false);
+        assertEquals(CarryPhase.NONE, pet.carryPhase());
+        pet.setCarried(true);
+        assertEquals(CarryPhase.GRAB, pet.carryPhase());
+        assertEquals(0, pet.carryFrame(2));
+    }
+
+    @Test
+    public void carryFramesPassChecksAndHoverAboveTheGround() throws Exception {
+        String[] paths = {
+                "/pet/milu/grab/01.png",
+                "/pet/milu/grab/02.png",
+                "/pet/milu/struggle/01.png",
+                "/pet/milu/struggle/02.png",
+                "/pet/milu/struggle/03.png",
+                "/pet/milu/struggle/04.png",
+                "/pet/milu/release/01.png",
+                "/pet/milu/release/02.png",
+                "/pet/milu/release/03.png"
+        };
+        for (String path : paths) {
+            BufferedImage image = DesktopPetSpriteLoader.read(path);
+            assertNotNull(path, image);
+            assertTrue(path, DesktopPetSpriteLoader.acceptable(image));
+            assertTrue(path, DesktopPetSpriteLoader.usable(image));
+        }
+
+        DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
+        assertNotNull(frames);
+        assertEquals(2, frames.grabCount());
+        assertEquals(4, frames.struggleCount());
+        assertEquals(3, frames.releaseCount());
+
+        Integer shared = null;
+        int hoverMin = Integer.MAX_VALUE;
+        int hoverMax = Integer.MIN_VALUE;
+        int carryFrames = 0;
+        for (DesktopPetSpriteLoader.Sprite sprite : frames.allSprites()) {
+            boolean airborne = sprite.name.startsWith("grab/") || sprite.name.startsWith("struggle/");
+            boolean landing = sprite.name.startsWith("release/");
+            if (!airborne && !landing) {
+                continue;
+            }
+            carryFrames++;
+            if (shared == null) {
+                shared = sprite.offsetY;
+            }
+            assertEquals(sprite.name, shared.intValue(), sprite.offsetY);
+            assertEquals(sprite.name, DesktopPetSpriteLoader.ANCHOR_X, sprite.placedX());
+            assertTrue(sprite.name, Math.abs(sprite.offsetX) <= 16);
+            int[] box = DesktopPetSpriteLoader.contentBounds(sprite.image);
+            assertTrue(sprite.name, box[0] + sprite.offsetX > 0);
+            assertTrue(sprite.name, box[1] + sprite.offsetY > 0);
+            assertTrue(sprite.name, box[2] + sprite.offsetX < DesktopPetSpriteLoader.SOURCE - 1);
+            assertTrue(sprite.name, box[3] + sprite.offsetY < DesktopPetSpriteLoader.SOURCE - 1);
+            if (landing) {
+                assertEquals(sprite.name, DesktopPetSpriteLoader.ANCHOR_Y, sprite.placedY());
+            } else {
+                int hover = DesktopPetSpriteLoader.ANCHOR_Y - sprite.placedY();
+                hoverMin = Math.min(hoverMin, hover);
+                hoverMax = Math.max(hoverMax, hover);
+            }
+        }
+        assertEquals(9, carryFrames);
+        assertTrue(hoverMin >= 16);
+        assertTrue(hoverMax <= 40);
+        assertTrue(hoverMax - hoverMin <= 2);
+
+        DesktopPetAnimation pet = new DesktopPetAnimation(new Random(1));
+        pet.setCarried(true);
+        assertSame(frames.grab(0), frames.imageFor(pet));
+        for (int i = 0; i < DesktopPetAnimation.GRAB_TICKS / 2; i++) {
+            pet.tick();
+        }
+        assertSame(frames.grab(1), frames.imageFor(pet));
+        for (int i = DesktopPetAnimation.GRAB_TICKS / 2; i < DesktopPetAnimation.GRAB_TICKS; i++) {
+            pet.tick();
+        }
+        for (int frame = 0; frame < 8; frame++) {
+            assertSame(frames.struggle(frame % 4), frames.imageFor(pet));
+            for (int i = 0; i < DesktopPetAnimation.ACTION_HOLD_TICKS; i++) {
+                pet.tick();
+            }
+        }
+        pet.releaseCarry();
+        assertTrue(pet.isCarried());
+        for (int frame = 0; frame < 3; frame++) {
+            assertSame(frames.release(frame), frames.imageFor(pet));
+            pet.tick();
+            pet.tick();
+        }
+        assertFalse(pet.isCarried());
+        assertTrue(isMiluIdle(frames, frames.imageFor(pet)));
+    }
+
+    @Test
+    public void windowDragPlaysGrabStruggleReleaseWithoutJumping() throws Exception {
+        Assume.assumeFalse("headless JVM cannot show a pet", GraphicsEnvironment.isHeadless());
+        DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
+        assertNotNull(frames);
+        SwingUtilities.invokeAndWait(() -> {
+            MemoryPreferences prefs = new MemoryPreferences();
+            DesktopPetSettings settings = new DesktopPetSettings(prefs);
+            DesktopPetManager manager = new DesktopPetManager(settings);
+            try {
+                assertTrue(manager.setEnabled(true));
+                DesktopPetWindow pet = manager.window();
+                pet.useFrames(frames);
+                Rectangle area = pet.usableBounds();
+                int homeX = area.x + Math.max(0, (area.width - pet.getWidth()) / 2);
+                int homeY = area.y + 80;
+                pet.setLocation(homeX, homeY);
+                int localX = 110;
+                int localY = 130;
+
+                Point origin = pet.getLocationOnScreen();
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_PRESSED, localX, localY,
+                        origin.x + localX, origin.y + localY, 0, 1, MouseEvent.BUTTON1));
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_DRAGGED, localX + 3, localY,
+                        origin.x + localX + 3, origin.y + localY,
+                        MouseEvent.BUTTON1_DOWN_MASK, 0, MouseEvent.NOBUTTON));
+                assertEquals(CarryPhase.NONE, pet.animation().carryPhase());
+                pet.tickOnce();
+                assertEquals(CarryPhase.NONE, pet.animation().carryPhase());
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_RELEASED, localX + 3, localY,
+                        origin.x + localX + 3, origin.y + localY, 0, 1, MouseEvent.BUTTON1));
+                assertEquals(CarryPhase.NONE, pet.animation().carryPhase());
+                assertEquals("嗨", pet.animation().bubble());
+                assertSame(frames.wave(0), pet.currentImage());
+                assertEquals(homeX, pet.getX());
+                assertEquals(homeY, pet.getY());
+
+                origin = pet.getLocationOnScreen();
+                int pressX = origin.x + localX;
+                int pressY = origin.y + localY;
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_PRESSED, localX, localY,
+                        pressX, pressY, 0, 1, MouseEvent.BUTTON1));
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_DRAGGED, localX + 30, localY,
+                        pressX + 30, pressY, MouseEvent.BUTTON1_DOWN_MASK, 0, MouseEvent.NOBUTTON));
+                assertEquals(CarryPhase.GRAB, pet.animation().carryPhase());
+                assertSame(frames.grab(0), pet.currentImage());
+                assertEquals(homeX + 30, pet.getX());
+                assertEquals(homeY, pet.getY());
+
+                int heldX = pet.getX();
+                for (int i = 0; i < DesktopPetAnimation.GRAB_TICKS; i++) {
+                    pet.tickOnce();
+                }
+                assertEquals(CarryPhase.STRUGGLE, pet.animation().carryPhase());
+                for (int frame = 0; frame < 6; frame++) {
+                    assertSame(frames.struggle(frame % 4), pet.currentImage());
+                    for (int i = 0; i < DesktopPetAnimation.ACTION_HOLD_TICKS; i++) {
+                        pet.tickOnce();
+                    }
+                    assertEquals(heldX, pet.getX());
+                    assertEquals(homeY, pet.getY());
+                }
+
+                assertFalse(pet.showNotice(DesktopPetEvent.MESSAGE_RECEIVED.phrase(), null));
+                assertFalse(pet.noticeActive());
+                assertEquals(CarryPhase.STRUGGLE, pet.animation().carryPhase());
+
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_DRAGGED, localX + 90, localY,
+                        pressX + 90, pressY, MouseEvent.BUTTON1_DOWN_MASK, 0, MouseEvent.NOBUTTON));
+                assertEquals(homeX + 90, pet.getX());
+                assertTrue(pet.animation().leanDegrees() > 0);
+                assertEquals(CarryPhase.STRUGGLE, pet.animation().carryPhase());
+
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_RELEASED, localX, localY,
+                        pet.getLocationOnScreen().x + localX, pet.getLocationOnScreen().y + localY,
+                        0, 1, MouseEvent.BUTTON1));
+                assertEquals(CarryPhase.RELEASE, pet.animation().carryPhase());
+                assertSame(frames.release(0), pet.currentImage());
+                assertEquals(homeX + 90, settings.x());
+                pet.tickOnce();
+                pet.tickOnce();
+                assertSame(frames.release(1), pet.currentImage());
+
+                int droppedX = pet.getX();
+                origin = pet.getLocationOnScreen();
+                pressX = origin.x + localX;
+                pressY = origin.y + localY;
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_PRESSED, localX, localY,
+                        pressX, pressY, 0, 1, MouseEvent.BUTTON1));
+                assertEquals(CarryPhase.NONE, pet.animation().carryPhase());
+                assertEquals(droppedX, pet.getX());
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_DRAGGED, localX - 20, localY,
+                        pressX - 20, pressY, MouseEvent.BUTTON1_DOWN_MASK, 0, MouseEvent.NOBUTTON));
+                assertEquals(CarryPhase.GRAB, pet.animation().carryPhase());
+                assertSame(frames.grab(0), pet.currentImage());
+                assertEquals(droppedX - 20, pet.getX());
+                pet.stage().dispatchEvent(mouse(
+                        pet.stage(), MouseEvent.MOUSE_RELEASED, localX, localY,
+                        pressX - 20, pressY, 0, 1, MouseEvent.BUTTON1));
+                assertEquals(CarryPhase.RELEASE, pet.animation().carryPhase());
+                for (int i = 0; i < DesktopPetAnimation.RELEASE_TICKS; i++) {
+                    pet.tickOnce();
+                }
+                assertEquals(CarryPhase.NONE, pet.animation().carryPhase());
+                assertFalse(pet.carried());
+                assertEquals(Mode.IDLE, pet.animation().mode());
+                assertTrue(isMiluIdle(frames, pet.currentImage()));
+                assertEquals(droppedX - 20, pet.getX());
+                assertTrue(pet.showNotice(DesktopPetEvent.MESSAGE_RECEIVED.phrase(), null));
+                assertTrue(pet.noticeActive());
             } finally {
                 manager.shutdown();
             }
