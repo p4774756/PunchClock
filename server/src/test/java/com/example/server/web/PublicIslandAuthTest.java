@@ -81,6 +81,7 @@ public class PublicIslandAuthTest {
         HttpResponse<String> casino = send("GET", "/js/island-casino.js", null);
         assertEquals(200, casino.statusCode());
         assertTrue(casino.body().contains("export function mountCasinoLobby"));
+        assertTrue(casino.body().contains("export function createCasinoController"));
         assertTrue(casino.body().contains("export function chipWalletView"));
 
         HttpResponse<String> css = send("GET", "/css/casino.css", null);

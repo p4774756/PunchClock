@@ -10,7 +10,7 @@ import {
   cameraRelative,
   stepPlayer,
   smoothingFactor,
-  exploreState,
+  createExploreFlow,
   controlsActive,
   playerVisible,
   shouldCaptureMoveKey,
@@ -18,7 +18,7 @@ import {
   shouldShowInteractPrompt,
   shouldTriggerInteractKey
 } from './island-explore.js';
-import { mountCasinoLobby, CASINO_NAME } from './island-casino.js';
+import { createCasinoController, CASINO_NAME } from './island-casino.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 const POSES = {
@@ -36,71 +36,15 @@ const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const stage = document.getElementById('islandStage');
 const canvas = document.getElementById('islandCanvas');
 
-function createCasinoController(hooks) {
-  const lobbyRoot = document.getElementById('casinoLobby');
-  const promptBtn = document.getElementById('islandInteract');
-  const lobby = mountCasinoLobby({
-    root: lobbyRoot,
-    auth: { authenticated: !!window.PUNCHCLOCK_AUTHENTICATED },
-    wallet: null,
-    onChange: (state) => {
-      if (hooks && typeof hooks.onLobbyChange === 'function') hooks.onLobbyChange(state);
-    }
-  });
-
-  function setPromptVisible(visible, label) {
-    if (!promptBtn) return;
-    const show = !!visible;
-    promptBtn.hidden = !show;
-    promptBtn.setAttribute('aria-hidden', show ? 'false' : 'true');
-    if (label) promptBtn.textContent = label;
-  }
-
-  function openLobby() {
-    if (hooks && typeof hooks.beforeOpen === 'function') hooks.beforeOpen();
-    setPromptVisible(false);
-    lobby.open();
-    const back = lobbyRoot && lobbyRoot.querySelector('[data-casino-back]');
-    if (back && typeof back.focus === 'function') {
-      window.requestAnimationFrame(() => back.focus());
-    }
-  }
-
-  function closeLobby() {
-    lobby.close();
-    if (hooks && typeof hooks.afterClose === 'function') hooks.afterClose();
-  }
-
-  if (promptBtn) {
-    promptBtn.addEventListener('click', (event) => {
-      event.preventDefault();
-      openLobby();
-    });
-  }
-
-  document.querySelectorAll('[data-open-casino]').forEach((el) => {
-    el.addEventListener('click', (event) => {
-      event.preventDefault();
-      const list = document.getElementById('islandList');
-      const listBtn = document.getElementById('islandListBtn');
-      if (list) list.hidden = true;
-      if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
-      if (typeof window.switchDashTab === 'function') window.switchDashTab('');
-      openLobby();
-    });
-  });
-
-  return {
-    lobby: lobby,
-    setPromptVisible: setPromptVisible,
-    openLobby: openLobby,
-    closeLobby: closeLobby,
-    isOpen: () => lobby.isOpen()
-  };
-}
-
 function bootCasinoFallback() {
-  const casino = createCasinoController({});
+  const casino = createCasinoController({
+    hooks: {
+      beforeOpen: () => {
+        const sheet = document.getElementById('islandSheet');
+        if (sheet && !sheet.hidden && typeof window.switchDashTab === 'function') window.switchDashTab('');
+      }
+    }
+  });
   window.PunchClockIsland = window.PunchClockIsland || {};
   window.PunchClockIsland.openCasino = () => casino.openLobby();
   window.PunchClockIsland.closeCasino = () => casino.closeLobby();
@@ -1345,17 +1289,43 @@ function boot() {
     return sheetOpen() || !!(list && !list.hidden) || !!(casino && casino.isOpen());
   }
 
-  let mode = exploreState(null, '');
   let exploreSaved = null;
   let casino = null;
 
+  function casinoOpen() {
+    return !!(casino && casino.isOpen());
+  }
+
+  const flow = createExploreFlow({
+    onModeChange: (prev, next) => {
+      mode = next;
+      playerMesh.visible = playerVisible(next);
+      if (prev.exploring !== next.exploring || prev.lobby !== next.lobby) syncExploreUi();
+      else syncInteractPrompt();
+    },
+    clearMoveInput: () => clearMoveInput(),
+    followPlayer: () => {
+      setActive('');
+      followPlayerCamera(false);
+    },
+    showPose: (id) => {
+      applyPose(POSES[id], false);
+      setActive(id);
+    },
+    showHome: () => {
+      applyPose(POSES.home, false);
+      setActive('');
+    },
+    sheetOpen: () => sheetOpen(),
+    lobbyOpen: () => casinoOpen(),
+    closeSheet: () => {
+      if (typeof window.switchDashTab === 'function') window.switchDashTab('');
+    }
+  });
+  let mode = flow.mode;
+
   function dispatchMode(action) {
-    const prev = mode;
-    mode = exploreState(mode, action);
-    if (!controlsActive(mode)) clearMoveInput();
-    playerMesh.visible = playerVisible(mode);
-    if (prev.exploring !== mode.exploring) syncExploreUi();
-    syncInteractPrompt();
+    flow.dispatch(action);
   }
   let playerBob = 0;
   let activeInteract = '';
@@ -1507,22 +1477,12 @@ function boot() {
   function focus(id) {
     const pose = POSES[id];
     if (!pose) return;
-    // 探索中開啟管理面板：暫停移動、鏡頭轉到該區，關閉後回到角色身上。
-    dispatchMode('panelOpen');
-    applyPose(pose, false);
-    setActive(id);
+    // 探索中開啟管理面板：暫停移動、鏡頭轉到該區，關閉後回到角色身上（大廳開著則維持鎖定）。
+    flow.focusPanel(id);
   }
 
   function reset() {
-    if (mode.paused) {
-      dispatchMode('panelClose');
-      setActive('');
-      followPlayerCamera(false);
-      return;
-    }
-    if (mode.exploring) return;
-    applyPose(POSES.home, false);
-    setActive('');
+    flow.resetPanel();
   }
 
   function setMode(next) {
@@ -1704,7 +1664,7 @@ function boot() {
   }
 
   function updatePlayer(dt) {
-    if (!controlsActive(mode) || sheetOpen()) {
+    if (!flow.canMove()) {
       player.moving = false;
       player.vx = 0;
       player.vz = 0;
@@ -1894,7 +1854,7 @@ function boot() {
   }
   if (stickRoot) {
     stickRoot.addEventListener('pointerdown', (event) => {
-      if (!controlsActive(mode)) return;
+      if (!flow.canMove()) return;
       event.preventDefault();
       stickPointerId = event.pointerId;
       if (stickRoot.setPointerCapture) stickRoot.setPointerCapture(event.pointerId);
@@ -1953,26 +1913,9 @@ function boot() {
   if (nightBtn) nightBtn.addEventListener('click', () => setMode('night'));
 
   casino = createCasinoController({
-    beforeOpen: () => {
-      clearMoveInput();
-      dispatchMode('panelOpen');
-      const list = document.getElementById('islandList');
-      const listBtn = document.getElementById('islandListBtn');
-      if (list) list.hidden = true;
-      if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
-      if (sheetOpen() && typeof window.switchDashTab === 'function') window.switchDashTab('');
-    },
-    afterClose: () => {
-      if (mode.exploring) {
-        dispatchMode('panelClose');
-        followPlayerCamera(false);
-      } else {
-        dispatchMode('panelClose');
-      }
-      syncInteractPrompt();
-    },
-    onLobbyChange: () => {
-      syncExploreUi();
+    hooks: {
+      beforeOpen: () => flow.beforeLobbyOpen(),
+      onLobbyChange: (state) => flow.lobbyChanged(state.open)
     }
   });
 

@@ -69,6 +69,7 @@ export function canOpenCasinoLobby(ctx) {
 
 /** 掛載大廳 DOM 事件；回傳 { open, close, isOpen, destroy }。 */
 export function mountCasinoLobby(opts) {
+  const document = (opts && opts.doc) || globalThis.document;
   const root = opts && opts.root;
   const onChange = opts && opts.onChange;
   let state = lobbyState(null, '');
@@ -152,5 +153,80 @@ export function mountCasinoLobby(opts) {
       if (backBtn) backBtn.removeEventListener('click', onBack);
       document.body.classList.remove('casino-lobby-open');
     }
+  };
+}
+
+/**
+ * 島嶼上的大廳控制器：入口提示、清單「進入賭場」、返回按鈕。
+ * hooks.beforeOpen()：開啟前的 UI 整理（鎖移動、關面板）。
+ * hooks.onLobbyChange(state)：大廳每次開／關都只從這裡通知，不論來源是返回按鈕、Escape 或程式呼叫。
+ */
+export function createCasinoController(opts) {
+  const doc = (opts && opts.doc) || globalThis.document;
+  const win = (opts && opts.win) || globalThis.window;
+  const hooks = (opts && opts.hooks) || {};
+  const lobbyRoot = doc.getElementById('casinoLobby');
+  const promptBtn = doc.getElementById('islandInteract');
+  const lobby = mountCasinoLobby({
+    doc: doc,
+    root: lobbyRoot,
+    auth: { authenticated: !!(win && win.PUNCHCLOCK_AUTHENTICATED) },
+    wallet: null,
+    onChange: (state) => {
+      if (typeof hooks.onLobbyChange === 'function') hooks.onLobbyChange(state);
+    }
+  });
+
+  function setPromptVisible(visible, label) {
+    if (!promptBtn) return;
+    const show = !!visible;
+    promptBtn.hidden = !show;
+    promptBtn.setAttribute('aria-hidden', show ? 'false' : 'true');
+    if (label) promptBtn.textContent = label;
+  }
+
+  function hideList() {
+    const list = doc.getElementById('islandList');
+    const listBtn = doc.getElementById('islandListBtn');
+    if (list) list.hidden = true;
+    if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function openLobby() {
+    if (lobby.isOpen()) return;
+    hideList();
+    if (typeof hooks.beforeOpen === 'function') hooks.beforeOpen();
+    setPromptVisible(false);
+    lobby.open();
+    const back = lobbyRoot && lobbyRoot.querySelector('[data-casino-back]');
+    if (back && typeof back.focus === 'function' && win && typeof win.requestAnimationFrame === 'function') {
+      win.requestAnimationFrame(() => back.focus());
+    }
+  }
+
+  function closeLobby() {
+    lobby.close();
+  }
+
+  if (promptBtn) {
+    promptBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      openLobby();
+    });
+  }
+
+  doc.querySelectorAll('[data-open-casino]').forEach((el) => {
+    el.addEventListener('click', (event) => {
+      event.preventDefault();
+      openLobby();
+    });
+  });
+
+  return {
+    lobby: lobby,
+    setPromptVisible: setPromptVisible,
+    openLobby: openLobby,
+    closeLobby: closeLobby,
+    isOpen: () => lobby.isOpen()
   };
 }

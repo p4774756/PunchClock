@@ -170,7 +170,7 @@ test('smoothingFactor：與 FPS 無關，reduced-motion 即時到位', () => {
 
 test('exploreState：全景預設、面板開啟暫停、關閉後恢復', () => {
   const init = X.exploreState(null, '');
-  assert.deepEqual(init, { exploring: false, paused: false });
+  assert.deepEqual(init, { exploring: false, paused: false, lobby: false });
   assert.equal(X.playerVisible(init), false, '全景模式不顯示角色');
   assert.equal(X.controlsActive(init), false);
 
@@ -190,6 +190,21 @@ test('exploreState：全景預設、面板開啟暫停、關閉後恢復', () =>
   const off = X.exploreState(paused, 'exit');
   assert.deepEqual(off, init);
   assert.equal(X.playerVisible(off), false);
+});
+
+test('exploreState：大廳鎖定只能由 lobbyClose 解除', () => {
+  const on = X.exploreState(null, 'enter');
+  const lobby = X.exploreState(on, 'lobbyOpen');
+  assert.equal(X.controlsActive(lobby), false, '大廳開啟時不可移動');
+  assert.equal(X.playerVisible(lobby), true);
+
+  assert.equal(X.controlsActive(X.exploreState(lobby, 'panelClose')), false, '面板 reset 不解除大廳');
+  assert.equal(X.controlsActive(X.exploreState(X.exploreState(lobby, 'panelOpen'), 'panelClose')), false);
+  assert.equal(X.exploreState(lobby, 'enter').lobby, true, 'enter 不改變大廳狀態');
+
+  assert.deepEqual(X.exploreState(lobby, 'lobbyClose'), on);
+  const pausedLobby = X.exploreState(X.exploreState(on, 'panelOpen'), 'lobbyOpen');
+  assert.equal(X.controlsActive(X.exploreState(pausedLobby, 'lobbyClose')), false, '面板仍開著時維持暫停');
 });
 
 test('shouldCaptureMoveKey：焦點與 UI 優先順序', () => {

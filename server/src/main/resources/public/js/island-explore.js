@@ -143,20 +143,82 @@ export function smoothingFactor(lambda, dt, reduced) {
   return 1 - Math.exp(-lambda * dt);
 }
 
-// 探索模式狀態：exploring = 已進入探索；paused = 管理面板開啟中（角色保留但不能動）。
+// 探索模式狀態：exploring = 已進入探索；paused = 管理面板開啟中；lobby = 賭場大廳開啟中。
+// lobby 只由大廳自己的開關改變，面板 panelClose／enter／exit 都不會解除，避免大廳下背景移動。
 export function exploreState(state, action) {
-  const s = state || { exploring: false, paused: false };
+  const s = state || { exploring: false, paused: false, lobby: false };
+  const lobby = !!s.lobby;
   switch (action) {
-    case 'enter': return { exploring: true, paused: false };
-    case 'exit': return { exploring: false, paused: false };
-    case 'panelOpen': return s.exploring ? { exploring: true, paused: true } : s;
-    case 'panelClose': return { exploring: s.exploring, paused: false };
+    case 'enter': return { exploring: true, paused: false, lobby: lobby };
+    case 'exit': return { exploring: false, paused: false, lobby: lobby };
+    case 'panelOpen': return s.exploring ? { exploring: true, paused: true, lobby: lobby } : s;
+    case 'panelClose': return { exploring: !!s.exploring, paused: false, lobby: lobby };
+    case 'lobbyOpen': return { exploring: !!s.exploring, paused: !!s.paused, lobby: true };
+    case 'lobbyClose': return { exploring: !!s.exploring, paused: !!s.paused, lobby: false };
     default: return s;
   }
 }
 
 export function controlsActive(state) {
-  return !!(state && state.exploring && !state.paused);
+  return !!(state && state.exploring && !state.paused && !state.lobby);
+}
+
+/**
+ * 探索模式與管理面板、賭場大廳的協調流程（不依賴 Three.js／DOM）。
+ * ui 回呼：
+ *   onModeChange(prev, next)、clearMoveInput()
+ *   followPlayer()：鏡頭回到角色身上；showPose(id)：鏡頭轉到面板區；showHome()：回全景
+ *   sheetOpen()、lobbyOpen()：目前 DOM 狀態；closeSheet()：關閉管理面板（會回呼 resetPanel）
+ */
+export function createExploreFlow(ui) {
+  const hooks = ui || {};
+  let mode = exploreState(null, '');
+
+  function call(name, a, b) {
+    if (typeof hooks[name] === 'function') return hooks[name](a, b);
+    return undefined;
+  }
+
+  function dispatch(action) {
+    const prev = mode;
+    mode = exploreState(mode, action);
+    if (!controlsActive(mode)) call('clearMoveInput');
+    call('onModeChange', prev, mode);
+    return mode;
+  }
+
+  return {
+    get mode() { return mode; },
+    dispatch: dispatch,
+    canMove() {
+      return controlsActive(mode) && !call('sheetOpen') && !call('lobbyOpen');
+    },
+    focusPanel(id) {
+      dispatch('panelOpen');
+      call('showPose', id);
+    },
+    resetPanel() {
+      if (mode.paused) {
+        dispatch('panelClose');
+        if (controlsActive(mode)) call('followPlayer');
+        return;
+      }
+      if (mode.exploring) return;
+      call('showHome');
+    },
+    // 先鎖住移動，再關面板：面板 reset 只解除 paused，不會解除 lobby。
+    beforeLobbyOpen() {
+      call('clearMoveInput');
+      dispatch('lobbyOpen');
+      if (call('sheetOpen')) call('closeSheet');
+    },
+    // 大廳唯一的狀態轉移入口：返回按鈕、Escape、程式呼叫都經過這裡。
+    lobbyChanged(open) {
+      const wasLobby = mode.lobby;
+      dispatch(open ? 'lobbyOpen' : 'lobbyClose');
+      if (!open && wasLobby && controlsActive(mode)) call('followPlayer');
+    }
+  };
 }
 
 export function playerVisible(state) {
