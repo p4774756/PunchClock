@@ -595,7 +595,7 @@ public final class BlackjackWindow extends JFrame {
                     + "  你 " + session.myScore() + " ：對方 " + session.peerScore();
             color = outcomeInk();
         } else if (phase == BlackjackSession.Phase.PLAYING && !session.myTurn()) {
-            message = "等待對手…（隨心跳約 15 秒）";
+            message = "操作同步可能需約 15 秒";
         } else if (scene == BlackjackScene.CLOSED || phase == BlackjackSession.Phase.CLOSED) {
             message = cancelledByMe ? "邀請已取消" : session.status();
         } else if (session.isLunch()) {
