@@ -51,6 +51,8 @@ public class PublicIslandAuthTest {
         HttpResponse<String> response = send("GET", "/", null);
         assertEquals(200, response.statusCode());
         assertTrue(response.body().contains("id=\"islandCanvas\""));
+        assertTrue(response.body().contains("id=\"islandExplore\""));
+        assertTrue(response.body().contains("id=\"islandJoystick\""));
         assertTrue(response.body().contains("is-guest"));
         assertTrue(response.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
         assertTrue(response.body().contains("登入後可操作"));

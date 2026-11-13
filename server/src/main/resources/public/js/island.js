@@ -1028,6 +1028,167 @@ function boot() {
   ], 0.045, false);
   addWalker(0x1f4d73, [[5.6, 1.15], [7.4, 1.6], [9.1, 1.95]], 0.05, true);
 
+  // Player exploration (Phase 1). Future casino entrances: add { id, x, z, r, onEnter } to INTERACT_ZONES.
+  const INTERACT_ZONES = [];
+  const PLAYER_SPAWN = { x: 2.15, z: 5.55, yaw: Math.PI };
+  const PLAYER_SPEED = 3.35;
+  const PLAYER_RADIUS = 0.28;
+  const EXPLORE_POSE = { radius: 9.2, theta: 0.35, phi: 0.98 };
+  const WALK_ISLAND_R = 8.05;
+  const WALK_RECTS = [
+    { minX: -1.05, maxX: 0.85, minZ: 6.9, maxZ: 8.95 },
+    { minX: 6.2, maxX: 9.55, minZ: 1.15, maxZ: 2.75 }
+  ];
+  const BLOCK_RECTS = [
+    { minX: -2.45, maxX: 2.45, minZ: -2.2, maxZ: 0.95 },
+    { minX: -1.35, maxX: 1.35, minZ: 1.0, maxZ: 1.9 },
+    { minX: -4.85, maxX: -3.2, minZ: -0.85, maxZ: 0.55 },
+    { minX: 3.05, maxX: 5.25, minZ: -0.35, maxZ: 0.7 },
+    { minX: -5.35, maxX: -4.35, minZ: 3.05, maxZ: 4.05 },
+    { minX: 4.05, maxX: 5.05, minZ: 3.0, maxZ: 4.0 },
+    { minX: 1.55, maxX: 2.75, minZ: 4.55, maxZ: 5.2 },
+    { minX: -6.55, maxX: 6.55, minZ: -6.85, maxZ: -6.25 }
+  ];
+  const BLOCK_CIRCLES = [
+    { x: -6.25, z: -5.45, r: 0.85 },
+    { x: -4.5, z: -6.25, r: 0.75 },
+    { x: 5.7, z: -5.65, r: 0.85 },
+    { x: 6.45, z: -3.15, r: 0.7 },
+    { x: -6.55, z: -1.35, r: 0.8 },
+    { x: -6.35, z: 4.55, r: 0.7 },
+    { x: 6.25, z: 5.15, r: 0.65 },
+    { x: 1.7, z: -6.35, r: 0.55 },
+    { x: -1.7, z: -6.45, r: 0.55 },
+    { x: -5.7, z: 5.15, r: 0.45 },
+    { x: 2.55, z: 4.35, r: 0.32 },
+    { x: -2.7, z: -2.55, r: 0.32 },
+    { x: -1.5, z: -2.5, r: 0.4 }
+  ];
+
+  function makePlayerAvatar() {
+    const group = makePerson({
+      shirt: 0x1f4d73,
+      pants: 0x3e4a5a,
+      hair: 0x3a312c,
+      hat: 0xf06a2a,
+      scale: 1.22
+    });
+    addBox(group, 0.22, 0.28, 0.12, 0xf06a2a, 0, 0.52, -0.16);
+    addBox(group, 0.16, 0.08, 0.04, 0xfff7ef, 0, 0.72, 0.12);
+    const beacon = addMesh(group, geo('cyl', [0.08, 0.02, 0.1, 5, 0]), 0xf06a2a, 0, 1.28, 0, {
+      shadow: false,
+      receive: false,
+      glow: 0xffb15a,
+      glowAmount: 0.55
+    });
+    beacon.userData.playerBeacon = true;
+    return group;
+  }
+
+  const playerMesh = makePlayerAvatar();
+  scene.add(playerMesh);
+  const player = {
+    x: PLAYER_SPAWN.x,
+    z: PLAYER_SPAWN.z,
+    yaw: PLAYER_SPAWN.yaw,
+    vx: 0,
+    vz: 0,
+    moving: false,
+    keys: Object.create(null),
+    stickX: 0,
+    stickY: 0,
+    stickActive: false
+  };
+  playerMesh.position.set(player.x, P, player.z);
+  playerMesh.rotation.y = player.yaw;
+
+  function pointInWalkable(x, z) {
+    if (x * x + z * z <= WALK_ISLAND_R * WALK_ISLAND_R) return true;
+    for (let i = 0; i < WALK_RECTS.length; i++) {
+      const r = WALK_RECTS[i];
+      if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return true;
+    }
+    return false;
+  }
+
+  function blockedAt(x, z) {
+    const pad = PLAYER_RADIUS;
+    for (let i = 0; i < BLOCK_RECTS.length; i++) {
+      const r = BLOCK_RECTS[i];
+      if (x + pad >= r.minX && x - pad <= r.maxX && z + pad >= r.minZ && z - pad <= r.maxZ) return true;
+    }
+    for (let i = 0; i < BLOCK_CIRCLES.length; i++) {
+      const c = BLOCK_CIRCLES[i];
+      const dx = x - c.x;
+      const dz = z - c.z;
+      const rr = c.r + pad;
+      if (dx * dx + dz * dz < rr * rr) return true;
+    }
+    return false;
+  }
+
+  function canStand(x, z) {
+    return pointInWalkable(x, z) && !blockedAt(x, z);
+  }
+
+  function tryMovePlayer(nx, nz) {
+    if (canStand(nx, nz)) {
+      player.x = nx;
+      player.z = nz;
+      return;
+    }
+    if (canStand(nx, player.z)) {
+      player.x = nx;
+      return;
+    }
+    if (canStand(player.x, nz)) {
+      player.z = nz;
+    }
+  }
+
+  function clearMoveInput() {
+    Object.keys(player.keys).forEach((key) => {
+      player.keys[key] = false;
+    });
+    player.stickX = 0;
+    player.stickY = 0;
+    player.stickActive = false;
+    player.moving = false;
+    player.vx = 0;
+    player.vz = 0;
+    const knob = document.getElementById('islandJoystickKnob');
+    if (knob) knob.style.transform = 'translate(0px, 0px)';
+  }
+
+  function isTypingTarget(target) {
+    if (!target) return false;
+    const tag = target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (target.isContentEditable) return true;
+    return !!(target.closest && target.closest('input, textarea, select, [contenteditable="true"]'));
+  }
+
+  function moveVectorFromInput() {
+    let x = 0;
+    let z = 0;
+    if (player.keys.KeyW || player.keys.ArrowUp) z -= 1;
+    if (player.keys.KeyS || player.keys.ArrowDown) z += 1;
+    if (player.keys.KeyA || player.keys.ArrowLeft) x -= 1;
+    if (player.keys.KeyD || player.keys.ArrowRight) x += 1;
+    if (player.stickActive) {
+      x += player.stickX;
+      z += player.stickY;
+    }
+    const len = Math.hypot(x, z);
+    if (len < 0.08) return { x: 0, z: 0, moving: false };
+    return { x: x / len, z: z / len, moving: true };
+  }
+
+  let exploring = false;
+  let exploreSaved = null;
+  let playerBob = 0;
+  let activeInteract = '';
+
   const lookAt = new THREE.Vector3();
   const targetLook = new THREE.Vector3();
   let radius = POSES.home.radius;
@@ -1061,10 +1222,13 @@ function boot() {
     const aspect = camera.aspect || 1;
     let dist = radius * 1.07;
     if (aspect < 1.02) dist *= Math.min(1.6, 1.02 / Math.max(aspect, 0.5));
-    const span = Math.sin(phi);
+    const safePhi = exploring ? Math.min(1.12, Math.max(0.72, phi)) : phi;
+    const span = Math.sin(safePhi);
+    let cy = lookAt.y + dist * Math.cos(safePhi);
+    if (exploring) cy = Math.max(G + 1.35, cy);
     camera.position.set(
       lookAt.x + dist * span * Math.sin(theta),
-      lookAt.y + dist * Math.cos(phi),
+      cy,
       lookAt.z + dist * span * Math.cos(theta)
     );
     camera.lookAt(lookAt);
@@ -1078,14 +1242,89 @@ function boot() {
     });
   }
 
+  function syncExploreUi() {
+    const btn = document.getElementById('islandExplore');
+    const stick = document.getElementById('islandJoystick');
+    const hint = document.getElementById('islandExploreHint');
+    document.body.classList.toggle('is-exploring', exploring);
+    if (btn) {
+      btn.setAttribute('aria-pressed', exploring ? 'true' : 'false');
+      btn.setAttribute('aria-label', exploring ? '退出探索模式' : '進入探索模式');
+      btn.textContent = exploring ? '退出' : '探索';
+    }
+    if (stick) stick.hidden = !exploring;
+    if (hint) hint.hidden = !exploring;
+  }
+
+  function setExplore(next, instant) {
+    const want = !!next;
+    if (want === exploring) {
+      syncExploreUi();
+      return;
+    }
+    if (want) {
+      exploreSaved = {
+        look: [targetLook.x, targetLook.y, targetLook.z],
+        radius: targetRadius,
+        theta: targetTheta,
+        phi: targetPhi,
+        active: activeZone
+      };
+      if (!canStand(player.x, player.z)) {
+        player.x = PLAYER_SPAWN.x;
+        player.z = PLAYER_SPAWN.z;
+        player.yaw = PLAYER_SPAWN.yaw;
+      }
+      playerMesh.position.set(player.x, P, player.z);
+      playerMesh.rotation.y = player.yaw;
+      exploring = true;
+      targetLook.set(player.x, G + 1.05, player.z);
+      targetRadius = EXPLORE_POSE.radius;
+      targetTheta = EXPLORE_POSE.theta;
+      targetPhi = EXPLORE_POSE.phi;
+      if (instant || reduced) {
+        lookAt.copy(targetLook);
+        radius = targetRadius;
+        theta = targetTheta;
+        phi = targetPhi;
+        placeCamera();
+      }
+    } else {
+      clearMoveInput();
+      exploring = false;
+      const saved = exploreSaved || POSES.home;
+      exploreSaved = null;
+      applyPose({
+        look: saved.look || POSES.home.look,
+        radius: saved.radius != null ? saved.radius : POSES.home.radius,
+        theta: saved.theta != null ? saved.theta : POSES.home.theta,
+        phi: saved.phi != null ? saved.phi : POSES.home.phi
+      }, !!instant);
+      setActive(saved.active || '');
+    }
+    syncExploreUi();
+  }
+
   function focus(id) {
     const pose = POSES[id];
     if (!pose) return;
+    if (exploring) {
+      clearMoveInput();
+      exploring = false;
+      exploreSaved = null;
+      syncExploreUi();
+    }
     applyPose(pose, false);
     setActive(id);
   }
 
   function reset() {
+    if (exploring) {
+      clearMoveInput();
+      exploring = false;
+      exploreSaved = null;
+      syncExploreUi();
+    }
     applyPose(POSES.home, false);
     setActive('');
   }
@@ -1212,7 +1451,9 @@ function boot() {
     lastX = event.clientX;
     lastY = event.clientY;
     targetTheta -= dx * 0.005;
-    targetPhi = Math.min(1.15, Math.max(0.58, targetPhi - dy * 0.0035));
+    const phiMin = exploring ? 0.72 : 0.58;
+    const phiMax = exploring ? 1.12 : 1.15;
+    targetPhi = Math.min(phiMax, Math.max(phiMin, targetPhi - dy * 0.0035));
   });
   canvas.addEventListener('pointerup', (event) => {
     dragging = false;
@@ -1222,12 +1463,18 @@ function boot() {
       if (zone && typeof window.switchDashTab === 'function') window.switchDashTab(zone);
     }
   });
+  canvas.addEventListener('pointercancel', () => {
+    dragging = false;
+    canvas.style.cursor = 'grab';
+  });
   canvas.addEventListener('pointerleave', () => {
     if (!dragging) canvas.style.cursor = 'grab';
   });
   canvas.addEventListener('wheel', (event) => {
     event.preventDefault();
-    targetRadius = Math.min(52, Math.max(11, targetRadius + event.deltaY * 0.01));
+    const minR = exploring ? 6.5 : 11;
+    const maxR = exploring ? 16 : 52;
+    targetRadius = Math.min(maxR, Math.max(minR, targetRadius + event.deltaY * 0.01));
   }, { passive: false });
 
   function sampleWalker(walker, along) {
@@ -1258,8 +1505,55 @@ function boot() {
     };
   }
 
+  function updatePlayer(dt) {
+    if (!exploring) {
+      player.moving = false;
+      playerMesh.position.set(player.x, P, player.z);
+      playerMesh.rotation.y = player.yaw;
+      return;
+    }
+    const input = moveVectorFromInput();
+    player.moving = input.moving;
+    if (input.moving) {
+      const camSin = Math.sin(theta);
+      const camCos = Math.cos(theta);
+      // Camera-relative: stick forward = toward look direction on XZ
+      const worldX = input.x * camCos + input.z * camSin;
+      const worldZ = -input.x * camSin + input.z * camCos;
+      const step = PLAYER_SPEED * Math.min(dt, 0.05);
+      tryMovePlayer(player.x + worldX * step, player.z + worldZ * step);
+      player.yaw = Math.atan2(worldX, worldZ);
+      player.vx = worldX * PLAYER_SPEED;
+      player.vz = worldZ * PLAYER_SPEED;
+    } else {
+      player.vx = 0;
+      player.vz = 0;
+    }
+    if (!reduced && player.moving) playerBob += dt * 10;
+    else playerBob = 0;
+    const bobY = (!reduced && player.moving) ? Math.sin(playerBob) * 0.035 : 0;
+    playerMesh.position.set(player.x, P + bobY, player.z);
+    playerMesh.rotation.y = player.yaw;
+    targetLook.set(player.x, G + 1.05, player.z);
+    // Phase 2: push { id, x, z, r, onEnter } into INTERACT_ZONES for casino doors / lobby portals.
+    let hitInteract = '';
+    for (let i = 0; i < INTERACT_ZONES.length; i++) {
+      const zone = INTERACT_ZONES[i];
+      const dx = player.x - zone.x;
+      const dz = player.z - zone.z;
+      if (dx * dx + dz * dz <= (zone.r || 1) * (zone.r || 1)) {
+        hitInteract = zone.id || ('zone-' + i);
+        if (hitInteract !== activeInteract && typeof zone.onEnter === 'function') zone.onEnter(player);
+        break;
+      }
+    }
+    activeInteract = hitInteract;
+  }
+
   function frame() {
-    const k = reduced ? 1 : 0.08;
+    const dt = Math.min(0.05, clock.getDelta() || 0);
+    updatePlayer(dt);
+    const k = reduced ? 1 : (exploring ? 0.14 : 0.08);
     lookAt.lerp(targetLook, k);
     radius += (targetRadius - radius) * k;
     let dTheta = targetTheta - theta;
@@ -1322,6 +1616,7 @@ function boot() {
   function stop() {
     running = false;
     window.cancelAnimationFrame(raf);
+    clearMoveInput();
   }
 
   window.addEventListener('resize', resize);
@@ -1329,6 +1624,83 @@ function boot() {
     if (document.hidden) stop();
     else start();
   });
+  window.addEventListener('blur', () => {
+    clearMoveInput();
+  });
+
+  const MOVE_CODES = {
+    KeyW: 1, KeyA: 1, KeyS: 1, KeyD: 1,
+    ArrowUp: 1, ArrowLeft: 1, ArrowDown: 1, ArrowRight: 1
+  };
+
+  window.addEventListener('keydown', (event) => {
+    if (MOVE_CODES[event.code]) {
+      if (isTypingTarget(event.target)) return;
+      if (!exploring) return;
+      player.keys[event.code] = true;
+      if (event.code.indexOf('Arrow') === 0) event.preventDefault();
+      return;
+    }
+    if (event.key !== 'Escape') return;
+    if (isTypingTarget(event.target)) return;
+    const sheet = document.getElementById('islandSheet');
+    if (sheet && !sheet.hidden && typeof window.switchDashTab === 'function') {
+      window.switchDashTab('');
+      return;
+    }
+    if (exploring) setExplore(false, false);
+  });
+  window.addEventListener('keyup', (event) => {
+    if (!MOVE_CODES[event.code]) return;
+    player.keys[event.code] = false;
+  });
+
+  const stickRoot = document.getElementById('islandJoystick');
+  const stickKnob = document.getElementById('islandJoystickKnob');
+  let stickPointerId = null;
+  function setStickFromEvent(event) {
+    if (!stickRoot) return;
+    const rect = stickRoot.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const max = Math.min(rect.width, rect.height) * 0.34;
+    let dx = event.clientX - cx;
+    let dy = event.clientY - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    if (len > max) {
+      dx = dx / len * max;
+      dy = dy / len * max;
+    }
+    player.stickX = dx / max;
+    player.stickY = dy / max;
+    player.stickActive = Math.hypot(player.stickX, player.stickY) > 0.08;
+    if (stickKnob) stickKnob.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+  }
+  function endStick(event) {
+    if (stickPointerId != null && event && event.pointerId !== stickPointerId) return;
+    stickPointerId = null;
+    player.stickX = 0;
+    player.stickY = 0;
+    player.stickActive = false;
+    if (stickKnob) stickKnob.style.transform = 'translate(0px, 0px)';
+  }
+  if (stickRoot) {
+    stickRoot.addEventListener('pointerdown', (event) => {
+      if (!exploring) return;
+      event.preventDefault();
+      stickPointerId = event.pointerId;
+      if (stickRoot.setPointerCapture) stickRoot.setPointerCapture(event.pointerId);
+      setStickFromEvent(event);
+    });
+    stickRoot.addEventListener('pointermove', (event) => {
+      if (stickPointerId !== event.pointerId) return;
+      event.preventDefault();
+      setStickFromEvent(event);
+    });
+    stickRoot.addEventListener('pointerup', endStick);
+    stickRoot.addEventListener('pointercancel', endStick);
+    stickRoot.addEventListener('lostpointercapture', endStick);
+  }
 
   const list = document.getElementById('islandList');
   const listBtn = document.getElementById('islandListBtn');
@@ -1338,10 +1710,17 @@ function boot() {
       listBtn.setAttribute('aria-expanded', list.hidden ? 'false' : 'true');
     });
   }
+  const exploreBtn = document.getElementById('islandExplore');
+  if (exploreBtn) {
+    exploreBtn.addEventListener('click', () => {
+      setExplore(!exploring, false);
+    });
+  }
   const home = document.getElementById('islandHome');
   if (home) {
     home.addEventListener('click', () => {
       if (typeof window.switchDashTab === 'function') window.switchDashTab('');
+      else reset();
       if (list) list.hidden = true;
       if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
     });
@@ -1356,20 +1735,18 @@ function boot() {
   const nightBtn = document.getElementById('islandNight');
   if (dayBtn) dayBtn.addEventListener('click', () => setMode('day'));
   if (nightBtn) nightBtn.addEventListener('click', () => setMode('night'));
-  window.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
-    const tagName = event.target && event.target.tagName;
-    if (tagName === 'INPUT' || tagName === 'TEXTAREA') return;
-    const sheet = document.getElementById('islandSheet');
-    if (sheet && !sheet.hidden && typeof window.switchDashTab === 'function') {
-      window.switchDashTab('');
-    }
-  });
 
-  window.PunchClockIsland = { focus: focus, reset: reset, setMode: setMode };
+  window.PunchClockIsland = {
+    focus: focus,
+    reset: reset,
+    setMode: setMode,
+    setExplore: setExplore,
+    isExploring: () => exploring
+  };
 
   resize();
   applyMix(0);
+  syncExploreUi();
   const open = document.querySelector('.dash-panel.is-active');
   if (open && !open.hasAttribute('hidden')) {
     const id = open.id.replace('panel-', '');
