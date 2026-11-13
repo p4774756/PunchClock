@@ -1,6 +1,7 @@
 package com.example.server.web;
 
 import com.example.server.ServerApp;
+import com.example.server.auth.AdminAuthCookie;
 import io.javalin.Javalin;
 import org.junit.After;
 import org.junit.Before;
@@ -77,13 +78,27 @@ public class PublicIslandAuthTest {
 
     @Test
     public void guestsAreDeniedManagementApis() throws Exception {
-        assertUnauthorized(send("GET", "/api/status", null));
-        assertUnauthorized(send("GET", "/api/health/history", null));
-        assertUnauthorized(send("GET", "/api/photos", null));
-        assertUnauthorized(send("GET", "/api/marquee", null));
-        assertUnauthorized(send("POST", "/api/clients/demo/cancel-schedule", null));
-        assertUnauthorized(send("DELETE", "/api/clients/demo", null));
-        assertUnauthorized(send("PUT", "/api/marquee", null, "{\"enabled\":false,\"text\":\"\"}"));
+        assertDeniedManagement(send("GET", "/api/status", null));
+        assertDeniedManagement(send("GET", "/api/health/history", null));
+        assertDeniedManagement(send("GET", "/api/photos", null));
+        assertDeniedManagement(send("GET", "/api/photos/demo/file", null));
+        assertDeniedManagement(send("GET", "/api/photos/demo/preview", null));
+        assertDeniedManagement(send("DELETE", "/api/photos/demo", null));
+        assertDeniedManagement(send("DELETE", "/api/photos", null));
+        assertDeniedManagement(send("POST", "/api/photos", null));
+        assertDeniedManagement(send("GET", "/api/marquee", null));
+        assertDeniedManagement(send("PUT", "/api/marquee", null, "{\"enabled\":false,\"text\":\"\"}"));
+        assertDeniedManagement(send("POST", "/api/clients/demo/cancel-schedule", null));
+        assertDeniedManagement(send("POST", "/api/clients/demo/cancel-task/t-1", null));
+        assertDeniedManagement(send("DELETE", "/api/clients/demo", null));
+    }
+
+    @Test
+    public void forgedAuthCookieIsDeniedManagementApis() throws Exception {
+        assertDeniedManagement(send("GET", "/api/status", "auth=forged-not-a-real-session"));
+        assertDeniedManagement(send("GET", "/api/photos", "auth=forged-not-a-real-session"));
+        assertDeniedManagement(send("GET", "/api/marquee", "auth=forged-not-a-real-session"));
+        assertDeniedManagement(send("GET", "/api/health/history", "auth=forged-not-a-real-session"));
     }
 
     @Test
@@ -94,12 +109,20 @@ public class PublicIslandAuthTest {
         assertTrue(status.body().contains("\"serverVersion\""));
         assertTrue(status.body().contains("\"clients\""));
 
+        HttpResponse<String> photos = send("GET", "/api/photos", cookie);
+        assertEquals(200, photos.statusCode());
+
+        HttpResponse<String> marquee = send("GET", "/api/marquee", cookie);
+        assertEquals(200, marquee.statusCode());
+        assertTrue(marquee.body().contains("\"enabled\""));
+
         HttpResponse<String> logout = send("GET", "/logout", cookie);
         assertEquals(302, logout.statusCode());
         assertEquals("/", logout.headers().firstValue("location").orElse(""));
 
         // 登出只清瀏覽器 Cookie；未帶 Cookie 的請求應回到訪客權限
-        assertUnauthorized(send("GET", "/api/status", null));
+        assertDeniedManagement(send("GET", "/api/status", null));
+        assertDeniedManagement(send("GET", "/api/photos", null));
         HttpResponse<String> home = send("GET", "/", null);
         assertEquals(200, home.statusCode());
         assertTrue(home.body().contains("is-guest"));
@@ -143,11 +166,20 @@ public class PublicIslandAuthTest {
         assertFalse("guest must not receive dashboard snapshot", leaked.isDone());
     }
 
-    private void assertUnauthorized(HttpResponse<String> response) {
+    private void assertDeniedManagement(HttpResponse<String> response) {
         assertEquals(401, response.statusCode());
         assertTrue(response.body().contains("未登入或權限不足")
                 || response.body().contains("Unauthorized")
                 || response.body().contains("\"success\":false"));
+        assertNoManagementPayload(response.body());
+    }
+
+    private void assertNoManagementPayload(String body) {
+        assertFalse("must not leak client roster", body.contains("\"clients\""));
+        assertFalse("must not leak serverVersion status", body.contains("\"serverVersion\""));
+        assertFalse("must not leak health samples", body.contains("\"samples\""));
+        assertFalse("must not leak photo list payload", body.contains("\"photos\""));
+        assertFalse("must not leak marquee text field as admin payload", body.contains("\"maxChars\""));
     }
 
     private HttpResponse<String> send(String method, String path, String cookie) throws Exception {
@@ -175,18 +207,8 @@ public class PublicIslandAuthTest {
         return http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
 
-    private String adminCookie() throws Exception {
-        HttpResponse<String> login = http.send(
-                HttpRequest.newBuilder(URI.create(base + "/login"))
-                        .header("Content-Type", "application/x-www-form-urlencoded")
-                        .POST(HttpRequest.BodyPublishers.ofString("password=secret"))
-                        .timeout(Duration.ofSeconds(5))
-                        .build(),
-                HttpResponse.BodyHandlers.ofString());
-        String setCookie = login.headers().firstValue("set-cookie").orElse("");
-        int start = setCookie.indexOf("auth=");
-        assertTrue("login should set auth cookie", start >= 0);
-        int end = setCookie.indexOf(';', start);
-        return end > start ? setCookie.substring(start, end) : setCookie.substring(start);
+    /** 與目前程序 ADMIN_PASSWORD 設定對齊的 auth Cookie；不經 /login、不碰明文密碼。 */
+    private String adminCookie() {
+        return AdminAuthCookie.header();
     }
 }

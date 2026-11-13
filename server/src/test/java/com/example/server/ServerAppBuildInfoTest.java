@@ -1,5 +1,6 @@
 package com.example.server;
 
+import com.example.server.auth.AdminAuthCookie;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import io.javalin.Javalin;
@@ -76,17 +77,7 @@ public class ServerAppBuildInfoTest {
         assertEquals("2026-09-24T07:58:00Z", client.get("appReleaseTime").getAsString());
     }
 
-    private String adminCookie() throws Exception {
-        HttpResponse<String> login = http.send(
-                HttpRequest.newBuilder(URI.create(base + "/login"))
-                        .header("Content-Type", "application/x-www-form-urlencoded")
-                        .POST(HttpRequest.BodyPublishers.ofString("password=secret"))
-                        .timeout(Duration.ofSeconds(5)).build(),
-                HttpResponse.BodyHandlers.ofString());
-        String setCookie = login.headers().firstValue("set-cookie").orElse("");
-        int start = setCookie.indexOf("auth=");
-        assertTrue("login should set auth cookie", start >= 0);
-        int end = setCookie.indexOf(';', start);
-        return end > start ? setCookie.substring(start, end) : setCookie.substring(start);
+    private String adminCookie() {
+        return AdminAuthCookie.header();
     }
 }

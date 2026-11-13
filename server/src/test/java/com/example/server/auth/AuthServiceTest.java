@@ -15,4 +15,12 @@ public class AuthServiceTest {
         assertFalse(auth.isAuthFromCookieHeader("auth=wrong"));
         assertFalse(auth.isAuthFromCookieHeader(null));
     }
+
+    @Test
+    public void adminAuthCookieHelperMatchesCurrentAuthService() {
+        AuthService auth = new AuthService();
+        assertTrue(auth.isAuthFromCookieHeader(AdminAuthCookie.header()));
+        assertTrue(AdminAuthCookie.header().startsWith("auth="));
+        assertFalse(AdminAuthCookie.header().contains("password"));
+    }
 }
