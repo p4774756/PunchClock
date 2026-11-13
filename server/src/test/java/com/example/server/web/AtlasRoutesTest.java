@@ -1,6 +1,7 @@
 package com.example.server.web;
 
 import com.example.server.ServerApp;
+import com.example.server.auth.AdminAuthCookie;
 import io.javalin.Javalin;
 import org.junit.After;
 import org.junit.Before;
@@ -116,18 +117,7 @@ public class AtlasRoutesTest {
         return http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
 
-    private String adminCookie() throws Exception {
-        HttpResponse<String> login = http.send(
-                HttpRequest.newBuilder(URI.create(base + "/login"))
-                        .header("Content-Type", "application/x-www-form-urlencoded")
-                        .POST(HttpRequest.BodyPublishers.ofString("password=secret"))
-                        .timeout(Duration.ofSeconds(5))
-                        .build(),
-                HttpResponse.BodyHandlers.ofString());
-        String setCookie = login.headers().firstValue("set-cookie").orElse("");
-        int start = setCookie.indexOf("auth=");
-        assertTrue("login should set auth cookie", start >= 0);
-        int end = setCookie.indexOf(';', start);
-        return end > start ? setCookie.substring(start, end) : setCookie.substring(start);
+    private String adminCookie() {
+        return AdminAuthCookie.header();
     }
 }

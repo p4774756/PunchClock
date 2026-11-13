@@ -103,7 +103,8 @@ public final class ServerApp {
         int boundPort = app.port();
         System.out.println("Server v" + SERVER_VERSION + " listening on port " + boundPort
                 + " (built " + serverBuildLabel() + ")");
-        System.out.println("- Web Dashboard: http://localhost:" + boundPort + " (login required)");
+        System.out.println("- Web Dashboard: http://localhost:" + boundPort
+                + " (public island; management login required)");
         System.out.println("- Heartbeat API: POST /api/heartbeat (Bearer token required)");
         System.out.println("- Protocol: HTTP heartbeat for workers; Dashboard WS for status push only");
         System.out.println("- Peer relay: /api/peer/relay (both online, in-memory only, no disk, max "
@@ -144,7 +145,7 @@ public final class ServerApp {
         app.post("/api/clients/{clientId}/cancel-task/{taskId}", this::cancelTask);
         app.delete("/api/clients/{clientId}", this::deleteClient);
         app.get("/", this::dashboard);
-        app.get("/index.html", ctx -> ctx.redirect(authService.isAuth(ctx) ? "/" : "/login"));
+        app.get("/index.html", ctx -> ctx.redirect("/"));
     }
 
     private void registerWebSocket(Javalin app) {
@@ -202,7 +203,7 @@ public final class ServerApp {
 
     private void logout(Context ctx) {
         clearAuthCookie(ctx);
-        ctx.redirect("/login");
+        ctx.redirect("/");
     }
 
     private void heartbeat(Context ctx) {
@@ -423,13 +424,12 @@ public final class ServerApp {
 
 
     private void dashboard(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.redirect("/login");
-            return;
-        }
+        boolean authenticated = authService.isAuth(ctx);
         String html = readResource("/public/index.html")
                 .replace("{{SERVER_VERSION}}", SERVER_VERSION)
-                .replace("{{SERVER_BUILD_TIME}}", serverBuildLabel());
+                .replace("{{SERVER_BUILD_TIME}}", serverBuildLabel())
+                .replace("{{AUTH_BODY_CLASS}}", authenticated ? "is-authenticated" : "is-guest")
+                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false");
         ctx.html(html);
     }
 

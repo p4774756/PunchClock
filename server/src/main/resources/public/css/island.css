@@ -82,6 +82,34 @@ body.island-body.is-night #islandStage {
   gap: 0.4rem;
 }
 
+body.is-guest [data-auth-only],
+body.is-authenticated [data-guest-only] {
+  display: none !important;
+}
+
+.island-guest-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1.25rem 1.1rem 0.5rem;
+  max-width: 28rem;
+}
+
+.island-guest-gate-lead {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-dark, #211d1d);
+}
+
+.island-guest-gate-hint {
+  margin: 0;
+  color: #717171;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
 .island-time {
   position: fixed;
   z-index: 6;
