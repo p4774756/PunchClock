@@ -53,6 +53,11 @@ public class PublicIslandAuthTest {
         assertTrue(response.body().contains("id=\"islandCanvas\""));
         assertTrue(response.body().contains("id=\"islandExplore\""));
         assertTrue(response.body().contains("id=\"islandJoystick\""));
+        assertTrue(response.body().contains("id=\"casinoLobby\""));
+        assertTrue(response.body().contains("id=\"islandInteract\""));
+        assertTrue(response.body().contains("data-open-casino"));
+        assertTrue(response.body().contains("返回島嶼"));
+        assertTrue(response.body().contains("尚未啟用"));
         assertTrue(response.body().contains("is-guest"));
         assertTrue(response.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
         assertTrue(response.body().contains("登入後可操作"));
@@ -65,11 +70,22 @@ public class PublicIslandAuthTest {
         HttpResponse<String> island = send("GET", "/js/island.js", null);
         assertEquals(200, island.statusCode());
         assertTrue(island.body().contains("from './island-explore.js'"));
+        assertTrue(island.body().contains("from './island-casino.js'"));
 
         HttpResponse<String> logic = send("GET", "/js/island-explore.js", null);
         assertEquals(200, logic.statusCode());
         assertTrue(logic.body().contains("export function canStand"));
         assertTrue(logic.body().contains("export function exploreState"));
+        assertTrue(logic.body().contains("export const CASINO"));
+
+        HttpResponse<String> casino = send("GET", "/js/island-casino.js", null);
+        assertEquals(200, casino.statusCode());
+        assertTrue(casino.body().contains("export function mountCasinoLobby"));
+        assertTrue(casino.body().contains("export function chipWalletView"));
+
+        HttpResponse<String> css = send("GET", "/css/casino.css", null);
+        assertEquals(200, css.statusCode());
+        assertTrue(css.body().contains(".casino-lobby"));
     }
 
     @Test

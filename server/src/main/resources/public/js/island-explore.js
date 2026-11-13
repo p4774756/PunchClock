@@ -10,6 +10,17 @@ export const WALK_RECTS = [
   { minX: -1.05, maxX: 0.85, minZ: 6.9, maxZ: 8.95 },
   { minX: 6.2, maxX: 9.55, minZ: 1.15, maxZ: 2.75 }
 ];
+// 賭場本體（島嶼東南方空地、照片牆以南）；門朝 +Z（廣場），門前不納入碰撞。
+export const CASINO = Object.freeze({
+  id: 'casino',
+  x: 3.55,
+  z: -3.65,
+  w: 2.4,
+  d: 1.9,
+  block: Object.freeze({ minX: 2.35, maxX: 4.75, minZ: -4.65, maxZ: -2.55 }),
+  door: Object.freeze({ x: 3.55, z: -1.95, r: 1.2 })
+});
+
 export const BLOCK_RECTS = [
   { minX: -2.45, maxX: 2.45, minZ: -2.2, maxZ: 0.95 },
   { minX: -1.35, maxX: 1.35, minZ: 1.0, maxZ: 1.9 },
@@ -18,7 +29,8 @@ export const BLOCK_RECTS = [
   { minX: -5.35, maxX: -4.35, minZ: 3.05, maxZ: 4.05 },
   { minX: 4.05, maxX: 5.05, minZ: 3.0, maxZ: 4.0 },
   { minX: 1.55, maxX: 2.75, minZ: 4.55, maxZ: 5.2 },
-  { minX: -6.55, maxX: 6.55, minZ: -6.85, maxZ: -6.25 }
+  { minX: -6.55, maxX: 6.55, minZ: -6.85, maxZ: -6.25 },
+  CASINO.block
 ];
 export const BLOCK_CIRCLES = [
   { x: -6.25, z: -5.45, r: 0.85 },
@@ -35,6 +47,18 @@ export const BLOCK_CIRCLES = [
   { x: -2.7, z: -2.55, r: 0.32 },
   { x: -1.5, z: -2.5, r: 0.4 }
 ];
+
+/** 預設互動區（賭場門口）。場景座標與 CASINO 一致；觸發須由玩家明確操作，不自動傳送。 */
+export const DEFAULT_INTERACT_ZONES = Object.freeze([
+  Object.freeze({
+    id: CASINO.id,
+    x: CASINO.door.x,
+    z: CASINO.door.z,
+    r: CASINO.door.r,
+    label: '進入賭場',
+    action: 'enterCasino'
+  })
+]);
 
 // 每個可行走區域各自內縮半徑：整個角色圓必須完全落在島或碼頭內，不會半身泡水。
 export function isWalkable(x, z, radius = PLAYER_RADIUS) {
@@ -157,4 +181,44 @@ export function shouldCaptureMoveKey(ctx) {
   if (!ctx.active || ctx.uiOpen) return false;
   if (ctx.focus === 'control' && ctx.code.indexOf('Arrow') === 0) return false;
   return true;
+}
+
+/** 回傳目前所在的互動區（距離優先），否則 null。zones: [{ id, x, z, r }] */
+export function hitInteractZone(x, z, zones) {
+  if (!zones || !zones.length) return null;
+  let best = null;
+  let bestDist = Infinity;
+  for (let i = 0; i < zones.length; i++) {
+    const zone = zones[i];
+    if (!zone) continue;
+    const dx = x - zone.x;
+    const dz = z - zone.z;
+    const dist = dx * dx + dz * dz;
+    const r = zone.r == null ? 1 : zone.r;
+    if (dist <= r * r && dist < bestDist) {
+      best = zone;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
+/**
+ * 入口提示是否顯示。須探索中、未暫停、未開面板／大廳，且在互動區內。
+ * 不自動進入——僅決定提示可見性。
+ */
+export function shouldShowInteractPrompt(ctx) {
+  if (!ctx) return false;
+  if (!ctx.exploring || ctx.paused || ctx.uiOpen || ctx.lobbyOpen) return false;
+  return !!(ctx.zoneId);
+}
+
+/** Enter／E 是否觸發目前互動提示（不搶輸入框與其它可聚焦 UI）。 */
+export function shouldTriggerInteractKey(ctx) {
+  if (!ctx || !ctx.promptVisible) return false;
+  if (ctx.typing) return false;
+  if (ctx.focus === 'control') return false;
+  const code = ctx.code || '';
+  const key = ctx.key || '';
+  return code === 'Enter' || code === 'KeyE' || key === 'Enter' || key === 'e' || key === 'E';
 }

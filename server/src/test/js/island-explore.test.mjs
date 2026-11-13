@@ -203,3 +203,74 @@ test('shouldCaptureMoveKey：焦點與 UI 優先順序', () => {
   assert.equal(X.shouldCaptureMoveKey({ ...base, focus: 'control', code: 'KeyW' }), true, 'WASD 在按鈕上仍可移動');
   assert.equal(X.shouldCaptureMoveKey({ ...base, typing: true, code: 'KeyW' }), false);
 });
+
+test('賭場本體是障礙、門口可站立且在互動半徑內', () => {
+  const c = X.CASINO;
+  assert.ok(X.isBlocked((c.block.minX + c.block.maxX) / 2, (c.block.minZ + c.block.maxZ) / 2), '賭場內部不可站');
+  assert.ok(X.canStand(c.door.x, c.door.z), '門口可站立');
+  assert.ok(!X.isBlocked(c.door.x, c.door.z));
+  const zone = X.hitInteractZone(c.door.x, c.door.z, X.DEFAULT_INTERACT_ZONES);
+  assert.ok(zone);
+  assert.equal(zone.id, 'casino');
+  assert.equal(zone.action, 'enterCasino');
+  assert.ok(!X.hitInteractZone(c.door.x, c.door.z + c.door.r + 0.2, X.DEFAULT_INTERACT_ZONES));
+});
+
+test('從出生點可走到賭場門口（不穿模）', () => {
+  // 繞過照片牆東側再西轉進門前走廊（直穿會卡在櫃檯／照片牆）。
+  const waypoints = [
+    { x: 5.15, z: 4.85 },
+    { x: 6.05, z: 1.15 },
+    { x: 5.45, z: -1.95 },
+    { x: X.CASINO.door.x, z: X.CASINO.door.z }
+  ];
+  for (const p of [{ x: X.PLAYER_SPAWN.x, z: X.PLAYER_SPAWN.z }, ...waypoints]) {
+    assert.ok(X.canStand(p.x, p.z), `途經點可站 (${p.x}, ${p.z})`);
+  }
+  let pos = { x: X.PLAYER_SPAWN.x, z: X.PLAYER_SPAWN.z, yaw: 0 };
+  for (const target of waypoints) {
+    let guard = 0;
+    while (Math.hypot(target.x - pos.x, target.z - pos.z) > 0.2 && guard < 1800) {
+      const dx = target.x - pos.x;
+      const dz = target.z - pos.z;
+      const len = Math.hypot(dx, dz) || 1;
+      pos = X.stepPlayer(pos, { x: dx / len, z: dz / len, moving: true }, 0, 1 / 60);
+      assert.ok(X.canStand(pos.x, pos.z), `wp (${target.x},${target.z}) step ${guard} @ (${pos.x.toFixed(2)}, ${pos.z.toFixed(2)})`);
+      guard++;
+    }
+    assert.ok(Math.hypot(target.x - pos.x, target.z - pos.z) <= 0.25, `應靠近途經點 (${target.x}, ${target.z})`);
+  }
+  assert.ok(X.canStand(X.CASINO.door.x, X.CASINO.door.z));
+  assert.ok(X.hitInteractZone(pos.x, pos.z, X.DEFAULT_INTERACT_ZONES));
+});
+
+test('互動提示：僅探索中且未開面板／大廳時顯示', () => {
+  assert.equal(X.shouldShowInteractPrompt({
+    exploring: true, paused: false, uiOpen: false, lobbyOpen: false, zoneId: 'casino'
+  }), true);
+  assert.equal(X.shouldShowInteractPrompt({
+    exploring: true, paused: true, uiOpen: false, lobbyOpen: false, zoneId: 'casino'
+  }), false);
+  assert.equal(X.shouldShowInteractPrompt({
+    exploring: true, paused: false, uiOpen: true, lobbyOpen: false, zoneId: 'casino'
+  }), false);
+  assert.equal(X.shouldShowInteractPrompt({
+    exploring: true, paused: false, uiOpen: false, lobbyOpen: true, zoneId: 'casino'
+  }), false);
+  assert.equal(X.shouldShowInteractPrompt({
+    exploring: false, paused: false, uiOpen: false, lobbyOpen: false, zoneId: 'casino'
+  }), false);
+  assert.equal(X.shouldShowInteractPrompt({
+    exploring: true, paused: false, uiOpen: false, lobbyOpen: false, zoneId: ''
+  }), false);
+});
+
+test('Enter／E 觸發互動：不搶輸入框與其它 UI', () => {
+  const base = { promptVisible: true, typing: false, focus: 'explore', code: 'Enter', key: 'Enter' };
+  assert.equal(X.shouldTriggerInteractKey(base), true);
+  assert.equal(X.shouldTriggerInteractKey({ ...base, code: 'KeyE', key: 'e' }), true);
+  assert.equal(X.shouldTriggerInteractKey({ ...base, promptVisible: false }), false);
+  assert.equal(X.shouldTriggerInteractKey({ ...base, typing: true }), false);
+  assert.equal(X.shouldTriggerInteractKey({ ...base, focus: 'control' }), false);
+  assert.equal(X.shouldTriggerInteractKey({ ...base, code: 'KeyQ', key: 'q' }), false);
+});

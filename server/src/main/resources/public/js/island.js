@@ -3,6 +3,8 @@ import {
   PLAYER_SPAWN,
   PLAYER_SPEED,
   MOVE_CODES,
+  CASINO,
+  DEFAULT_INTERACT_ZONES,
   canStand,
   moveVector,
   cameraRelative,
@@ -11,8 +13,12 @@ import {
   exploreState,
   controlsActive,
   playerVisible,
-  shouldCaptureMoveKey
+  shouldCaptureMoveKey,
+  hitInteractZone,
+  shouldShowInteractPrompt,
+  shouldTriggerInteractKey
 } from './island-explore.js';
+import { mountCasinoLobby, CASINO_NAME } from './island-casino.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 const POSES = {
@@ -29,6 +35,78 @@ const HEX = Math.PI / 6;
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const stage = document.getElementById('islandStage');
 const canvas = document.getElementById('islandCanvas');
+
+function createCasinoController(hooks) {
+  const lobbyRoot = document.getElementById('casinoLobby');
+  const promptBtn = document.getElementById('islandInteract');
+  const lobby = mountCasinoLobby({
+    root: lobbyRoot,
+    auth: { authenticated: !!window.PUNCHCLOCK_AUTHENTICATED },
+    wallet: null,
+    onChange: (state) => {
+      if (hooks && typeof hooks.onLobbyChange === 'function') hooks.onLobbyChange(state);
+    }
+  });
+
+  function setPromptVisible(visible, label) {
+    if (!promptBtn) return;
+    const show = !!visible;
+    promptBtn.hidden = !show;
+    promptBtn.setAttribute('aria-hidden', show ? 'false' : 'true');
+    if (label) promptBtn.textContent = label;
+  }
+
+  function openLobby() {
+    if (hooks && typeof hooks.beforeOpen === 'function') hooks.beforeOpen();
+    setPromptVisible(false);
+    lobby.open();
+    const back = lobbyRoot && lobbyRoot.querySelector('[data-casino-back]');
+    if (back && typeof back.focus === 'function') {
+      window.requestAnimationFrame(() => back.focus());
+    }
+  }
+
+  function closeLobby() {
+    lobby.close();
+    if (hooks && typeof hooks.afterClose === 'function') hooks.afterClose();
+  }
+
+  if (promptBtn) {
+    promptBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      openLobby();
+    });
+  }
+
+  document.querySelectorAll('[data-open-casino]').forEach((el) => {
+    el.addEventListener('click', (event) => {
+      event.preventDefault();
+      const list = document.getElementById('islandList');
+      const listBtn = document.getElementById('islandListBtn');
+      if (list) list.hidden = true;
+      if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
+      if (typeof window.switchDashTab === 'function') window.switchDashTab('');
+      openLobby();
+    });
+  });
+
+  return {
+    lobby: lobby,
+    setPromptVisible: setPromptVisible,
+    openLobby: openLobby,
+    closeLobby: closeLobby,
+    isOpen: () => lobby.isOpen()
+  };
+}
+
+function bootCasinoFallback() {
+  const casino = createCasinoController({});
+  window.PunchClockIsland = window.PunchClockIsland || {};
+  window.PunchClockIsland.openCasino = () => casino.openLobby();
+  window.PunchClockIsland.closeCasino = () => casino.closeLobby();
+  window.PunchClockIsland.isCasinoOpen = () => casino.isOpen();
+}
+
 if (stage && canvas) boot();
 
 function boot() {
@@ -44,6 +122,7 @@ function boot() {
     const listBtn = document.getElementById('islandListBtn');
     if (list) list.hidden = false;
     if (listBtn) listBtn.setAttribute('aria-expanded', 'true');
+    bootCasinoFallback();
     return;
   }
 
@@ -129,7 +208,13 @@ function boot() {
     0xc4844a: 0x8a5a32,
     0xa56b38: 0x6e4528,
     0xf0ddb4: 0x8d7b5c,
-    0xfffaf6: 0xe6ddd4
+    0xfffaf6: 0xe6ddd4,
+    0x5b3a8c: 0x2e1c4c,
+    0x3d2468: 0x1c1234,
+    0xd4a84b: 0x8a6a2e,
+    0xf0d078: 0xb08a40,
+    0x2a1848: 0x140c28,
+    0x7a54b5: 0x3a2860
   };
 
   function nightOf(hex) {
@@ -252,6 +337,25 @@ function boot() {
       g.fillStyle = '#d9cfc4';
       g.fillRect(118, y + 16, 150, 10);
     });
+  });
+  const casinoSignMap = paint(640, 220, (g, w, h) => {
+    g.fillStyle = '#2a1848';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#d4a84b';
+    g.fillRect(0, 0, w, 18);
+    g.fillRect(0, h - 18, w, 18);
+    g.fillStyle = '#f0d078';
+    g.beginPath();
+    g.moveTo(w / 2, 36);
+    g.lineTo(w / 2 + 28, 88);
+    g.lineTo(w / 2 - 28, 88);
+    g.closePath();
+    g.fill();
+    g.fillStyle = '#fff7ef';
+    g.font = '700 92px ' + font;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('CASINO', w / 2, h / 2 + 28);
   });
 
   function picture(parent, w, h, texture, x, y, z, rotY, glowAmount, tiltX) {
@@ -506,6 +610,118 @@ function boot() {
 
   buildShop();
 
+  function buildCasino() {
+    const casino = new THREE.Group();
+    casino.position.set(CASINO.x, 0, CASINO.z);
+    const W = CASINO.w;
+    const D = CASINO.d;
+    const H = 2.15;
+    const T = 0.14;
+    const front = D / 2;
+    const back = -D / 2;
+    const base = G + 0.08;
+    const wallY = base + H / 2;
+    const doorW = 0.72;
+
+    paving(CASINO.x, CASINO.door.z - 0.15, 2.15, 1.55);
+
+    addBox(casino, W + 0.4, 0.12, D + 0.4, 0xd4a84b, 0, G + 0.04, 0);
+    addBox(casino, W - 0.2, 0.08, D - 0.2, 0x3d2468, 0, G + 0.08, 0);
+    addBox(casino, W, H, T, 0x5b3a8c, 0, wallY, back + T / 2);
+    addBox(casino, T, H, D, 0x5b3a8c, -W / 2 + T / 2, wallY, 0);
+    addBox(casino, T, H, D, 0x5b3a8c, W / 2 - T / 2, wallY, 0);
+
+    const side = (W - doorW) / 2;
+    addBox(casino, side, H, T, 0x5b3a8c, -W / 2 + side / 2, wallY, front - T / 2);
+    addBox(casino, side, H, T, 0x5b3a8c, W / 2 - side / 2, wallY, front - T / 2);
+    addBox(casino, doorW + 0.1, 0.42, T, 0x5b3a8c, 0, base + H - 0.21, front - T / 2);
+    addBox(casino, doorW + 0.16, 0.08, T + 0.04, 0xd4a84b, 0, base + H - 0.48, front);
+
+    addBox(casino, 0.1, H, 0.1, 0xd4a84b, -W / 2, wallY, front);
+    addBox(casino, 0.1, H, 0.1, 0xd4a84b, W / 2, wallY, front);
+    addBox(casino, 0.1, H, 0.1, 0xd4a84b, -W / 2, wallY, back);
+    addBox(casino, 0.1, H, 0.1, 0xd4a84b, W / 2, wallY, back);
+
+    const roofY = base + H + 0.12;
+    addBox(casino, W + 0.2, 0.08, D + 0.2, 0x7a54b5, 0, roofY - 0.14, 0);
+    addBox(casino, W + 0.55, 0.28, D + 0.55, 0x2a1848, 0, roofY, 0);
+    addBox(casino, W + 0.7, 0.06, D + 0.7, 0xd4a84b, 0, roofY + 0.16, 0);
+    addMesh(casino, geo('cone', [0.42, 0.55, 6]), 0xd4a84b, 0, roofY + 0.55, 0);
+    addMesh(casino, geo('sph', [0.08, 5, 4]), 0xf0d078, 0, roofY + 0.86, 0, {
+      night: 0xffe2b0,
+      glow: 0xffc56a,
+      glowAmount: 1.1,
+      shadow: false
+    });
+
+    picture(casino, 2.35, 0.78, casinoSignMap, 0, roofY + 0.48, front - 0.12, 0, 0.7, -0.35);
+
+    function casinoWindow(x, y, z, w, h, rotY) {
+      const group = new THREE.Group();
+      group.position.set(x, y, z);
+      group.rotation.y = rotY || 0;
+      addBox(group, w, h, 0.045, 0xf0d078, 0, 0, 0, {
+        night: 0xffd7a4,
+        glow: 0xffb15a,
+        glowAmount: 1.05,
+        shadow: false
+      });
+      addBox(group, w + 0.1, 0.05, 0.08, 0xd4a84b, 0, h / 2 + 0.03, 0.02);
+      addBox(group, w + 0.1, 0.05, 0.08, 0xd4a84b, 0, -h / 2 - 0.03, 0.02);
+      addBox(group, 0.05, h, 0.08, 0xd4a84b, -w / 2 - 0.03, 0, 0.02);
+      addBox(group, 0.05, h, 0.08, 0xd4a84b, w / 2 + 0.03, 0, 0.02);
+      casino.add(group);
+    }
+    const winY = base + 1.15;
+    casinoWindow(W / 2 + 0.02, winY, -0.35, 0.55, 0.62, Math.PI / 2);
+    casinoWindow(W / 2 + 0.02, winY, 0.4, 0.55, 0.62, Math.PI / 2);
+    casinoWindow(-W / 2 - 0.02, winY, 0.05, 0.55, 0.58, -Math.PI / 2);
+    casinoWindow(0, winY + 0.1, back - 0.02, 0.7, 0.5, Math.PI);
+
+    const door = new THREE.Group();
+    door.position.set(0, base + 0.72, front - 0.02);
+    addBox(door, doorW, 1.44, 0.08, 0x3d2468, 0, 0, 0);
+    addBox(door, doorW + 0.1, 0.06, 0.1, 0xd4a84b, 0, 0.74, 0.02);
+    addBox(door, 0.05, 1.44, 0.1, 0xd4a84b, -doorW / 2, 0, 0.02);
+    addBox(door, 0.05, 1.44, 0.1, 0xd4a84b, doorW / 2, 0, 0.02);
+    addBox(door, 0.04, 1.4, 0.04, 0xf0d078, 0, 0, 0.03);
+    addBox(door, 0.28, 0.34, 0.03, 0xfff0c8, -0.16, 0.22, 0.05, {
+      night: 0xffd7a4,
+      glow: 0xffb15a,
+      glowAmount: 0.85,
+      shadow: false
+    });
+    addBox(door, 0.28, 0.34, 0.03, 0xfff0c8, 0.16, 0.22, 0.05, {
+      night: 0xffd7a4,
+      glow: 0xffb15a,
+      glowAmount: 0.85,
+      shadow: false
+    });
+    addBox(door, 0.05, 0.08, 0.05, 0xd4a84b, 0.22, -0.05, 0.06);
+    casino.add(door);
+
+    addBox(casino, 0.9, 0.08, 0.55, 0xd4a84b, 0, base + 0.02, front + 0.35);
+    [-0.55, 0.55].forEach((x) => {
+      addBox(casino, 0.08, 1.35, 0.08, 0xd4a84b, x, G + 0.72, front + 0.55);
+      addMesh(casino, geo('sph', [0.1, 5, 4]), 0xf0d078, x, G + 1.45, front + 0.55, {
+        night: 0xffe2b0,
+        glow: 0xffc56a,
+        glowAmount: 1.2,
+        shadow: false
+      });
+    });
+
+    scene.add(casino);
+    const anchor = new THREE.Object3D();
+    anchor.position.set(0, roofY + 1.05, 0.1);
+    casino.add(anchor);
+    anchors.casino = anchor;
+    lampLight(CASINO.x, base + 1.4, CASINO.z + front + 0.55, 14);
+    lampLight(CASINO.x, roofY + 0.7, CASINO.z, 8);
+  }
+
+  buildCasino();
+
   function makeZone(id, x, z, ringR) {
     const group = new THREE.Group();
     group.position.set(x, 0, z);
@@ -628,6 +844,7 @@ function boot() {
   }
   marker('seating', -4.85, G + 1.85, 3.55);
   marker('dock', -0.1, G + 1.15, 8.15);
+  // anchors.casino 已在 buildCasino 設定
 
   function treeRound(x, z, scale, leaf) {
     const group = new THREE.Group();
@@ -1042,8 +1259,8 @@ function boot() {
   ], 0.045, false);
   addWalker(0x1f4d73, [[5.6, 1.15], [7.4, 1.6], [9.1, 1.95]], 0.05, true);
 
-  // Player exploration (Phase 1). Future casino entrances: add { id, x, z, r, onEnter } to INTERACT_ZONES.
-  const INTERACT_ZONES = [];
+  // Phase 2：賭場門口互動區（座標見 CASINO／DEFAULT_INTERACT_ZONES）；須點按鈕或 Enter／E，不自動傳送。
+  const INTERACT_ZONES = DEFAULT_INTERACT_ZONES.slice();
   const EXPLORE_POSE = { radius: 9.2, theta: 0.35, phi: 0.98 };
   // 鏡頭指數平滑速率（1/秒）；60fps 時約等於舊的每幀 0.08／0.14。
   const CAMERA_LAMBDA = 5;
@@ -1125,11 +1342,12 @@ function boot() {
 
   function islandUiOpen() {
     const list = document.getElementById('islandList');
-    return sheetOpen() || !!(list && !list.hidden);
+    return sheetOpen() || !!(list && !list.hidden) || !!(casino && casino.isOpen());
   }
 
   let mode = exploreState(null, '');
   let exploreSaved = null;
+  let casino = null;
 
   function dispatchMode(action) {
     const prev = mode;
@@ -1137,6 +1355,7 @@ function boot() {
     if (!controlsActive(mode)) clearMoveInput();
     playerMesh.visible = playerVisible(mode);
     if (prev.exploring !== mode.exploring) syncExploreUi();
+    syncInteractPrompt();
   }
   let playerBob = 0;
   let activeInteract = '';
@@ -1206,8 +1425,24 @@ function boot() {
       btn.setAttribute('aria-label', exploring ? '退出探索模式' : '進入探索模式');
       btn.textContent = exploring ? '退出' : '探索';
     }
-    if (stick) stick.hidden = !exploring;
-    if (hint) hint.hidden = !exploring;
+    if (stick) stick.hidden = !exploring || !!(casino && casino.isOpen());
+    if (hint) hint.hidden = !exploring || !!(casino && casino.isOpen());
+    syncInteractPrompt();
+  }
+
+  function syncInteractPrompt() {
+    if (!casino) return false;
+    const zone = hitInteractZone(player.x, player.z, INTERACT_ZONES);
+    activeInteract = zone ? (zone.id || '') : '';
+    const show = shouldShowInteractPrompt({
+      exploring: mode.exploring,
+      paused: mode.paused,
+      uiOpen: sheetOpen() || !!(document.getElementById('islandList') && !document.getElementById('islandList').hidden),
+      lobbyOpen: casino.isOpen(),
+      zoneId: activeInteract
+    });
+    casino.setPromptVisible(show, zone && zone.label ? zone.label : '進入賭場');
+    return show;
   }
 
   function followPlayerCamera(instant) {
@@ -1231,6 +1466,7 @@ function boot() {
       return;
     }
     if (want) {
+      if (casino && casino.isOpen()) casino.closeLobby();
       exploreSaved = {
         look: [targetLook.x, targetLook.y, targetLook.z],
         radius: targetRadius,
@@ -1253,6 +1489,7 @@ function boot() {
         followPlayerCamera(instant);
       }
     } else {
+      if (casino && casino.isOpen()) casino.closeLobby();
       dispatchMode('exit');
       const saved = exploreSaved || POSES.home;
       exploreSaved = null;
@@ -1496,19 +1733,7 @@ function boot() {
     playerMesh.position.set(player.x, P + bobY, player.z);
     playerMesh.rotation.y = player.yaw;
     targetLook.set(player.x, G + 1.05, player.z);
-    // Phase 2: push { id, x, z, r, onEnter } into INTERACT_ZONES for casino doors / lobby portals.
-    let hitInteract = '';
-    for (let i = 0; i < INTERACT_ZONES.length; i++) {
-      const zone = INTERACT_ZONES[i];
-      const dx = player.x - zone.x;
-      const dz = player.z - zone.z;
-      if (dx * dx + dz * dz <= (zone.r || 1) * (zone.r || 1)) {
-        hitInteract = zone.id || ('zone-' + i);
-        if (hitInteract !== activeInteract && typeof zone.onEnter === 'function') zone.onEnter(player);
-        break;
-      }
-    }
-    activeInteract = hitInteract;
+    syncInteractPrompt();
   }
 
   function frame() {
@@ -1604,8 +1829,25 @@ function boot() {
       event.preventDefault();
       return;
     }
+    if (casino && shouldTriggerInteractKey({
+      promptVisible: syncInteractPrompt(),
+      typing: isTypingTarget(event.target),
+      focus: focusKind(event.target),
+      code: event.code,
+      key: event.key
+    })) {
+      // 焦點已在「進入賭場」按鈕時交給按鈕自己的 click／Enter，避免重複開啟。
+      if (event.target && event.target.id === 'islandInteract') return;
+      event.preventDefault();
+      casino.openLobby();
+      return;
+    }
     if (event.key !== 'Escape') return;
     if (isTypingTarget(event.target)) return;
+    if (casino && casino.isOpen()) {
+      casino.closeLobby();
+      return;
+    }
     const sheet = document.getElementById('islandSheet');
     if (sheet && !sheet.hidden && typeof window.switchDashTab === 'function') {
       window.switchDashTab('');
@@ -1674,6 +1916,7 @@ function boot() {
     listBtn.addEventListener('click', () => {
       list.hidden = !list.hidden;
       listBtn.setAttribute('aria-expanded', list.hidden ? 'false' : 'true');
+      syncInteractPrompt();
     });
   }
   const exploreBtn = document.getElementById('islandExplore');
@@ -1709,12 +1952,40 @@ function boot() {
   if (dayBtn) dayBtn.addEventListener('click', () => setMode('day'));
   if (nightBtn) nightBtn.addEventListener('click', () => setMode('night'));
 
+  casino = createCasinoController({
+    beforeOpen: () => {
+      clearMoveInput();
+      dispatchMode('panelOpen');
+      const list = document.getElementById('islandList');
+      const listBtn = document.getElementById('islandListBtn');
+      if (list) list.hidden = true;
+      if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
+      if (sheetOpen() && typeof window.switchDashTab === 'function') window.switchDashTab('');
+    },
+    afterClose: () => {
+      if (mode.exploring) {
+        dispatchMode('panelClose');
+        followPlayerCamera(false);
+      } else {
+        dispatchMode('panelClose');
+      }
+      syncInteractPrompt();
+    },
+    onLobbyChange: () => {
+      syncExploreUi();
+    }
+  });
+
   window.PunchClockIsland = {
     focus: focus,
     reset: reset,
     setMode: setMode,
     setExplore: setExplore,
-    isExploring: () => mode.exploring
+    isExploring: () => mode.exploring,
+    openCasino: () => casino.openLobby(),
+    closeCasino: () => casino.closeLobby(),
+    isCasinoOpen: () => casino.isOpen(),
+    casinoName: CASINO_NAME
   };
 
   resize();
