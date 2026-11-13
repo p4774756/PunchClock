@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -153,7 +154,9 @@ public class RelayTransferTest {
                 throw new RuntimeException(ex);
             }
         });
-        relay.awaitState("ACCEPTED");
+        // ACCEPTED 在 accept 回應送出前就成立；要等收件端真的開始取分段（.part 已建立）才取消
+        relay.awaitFirstTake();
+        assertTrue(Files.exists(dest.resolveSibling("cancel.bin.part")));
         cancel.cancel();
         receiving.get(10, TimeUnit.SECONDS);
 
@@ -171,6 +174,7 @@ public class RelayTransferTest {
     private static final class FakeRelay {
         final Gson gson = new Gson();
         final AtomicInteger failNextTakeWith502 = new AtomicInteger();
+        final CountDownLatch firstTake = new CountDownLatch(1);
         volatile Object[] beginOverride;
         volatile boolean holdPushes;
         volatile String id;
@@ -189,6 +193,10 @@ public class RelayTransferTest {
                 Thread.sleep(10);
             }
             assertTrue("sender never began relay", id != null);
+        }
+
+        void awaitFirstTake() throws InterruptedException {
+            assertTrue("receiver never requested a chunk", firstTake.await(5, TimeUnit.SECONDS));
         }
 
         void awaitState(String expected) throws InterruptedException {
@@ -298,6 +306,7 @@ public class RelayTransferTest {
 
         private void takeChunk(HttpExchange ex, long offset, long wait, Map<String, String> q)
                 throws IOException, InterruptedException {
+            firstTake.countDown();
             if (failNextTakeWith502.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {
                 reply(ex, 502, "{\"message\":\"bad gateway\"}");
                 return;
