@@ -1,4 +1,18 @@
 import * as THREE from 'three';
+import {
+  PLAYER_SPAWN,
+  PLAYER_SPEED,
+  MOVE_CODES,
+  canStand,
+  moveVector,
+  cameraRelative,
+  stepPlayer,
+  smoothingFactor,
+  exploreState,
+  controlsActive,
+  playerVisible,
+  shouldCaptureMoveKey
+} from './island-explore.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 const POSES = {
@@ -1030,40 +1044,10 @@ function boot() {
 
   // Player exploration (Phase 1). Future casino entrances: add { id, x, z, r, onEnter } to INTERACT_ZONES.
   const INTERACT_ZONES = [];
-  const PLAYER_SPAWN = { x: 2.15, z: 5.55, yaw: Math.PI };
-  const PLAYER_SPEED = 3.35;
-  const PLAYER_RADIUS = 0.28;
   const EXPLORE_POSE = { radius: 9.2, theta: 0.35, phi: 0.98 };
-  const WALK_ISLAND_R = 8.05;
-  const WALK_RECTS = [
-    { minX: -1.05, maxX: 0.85, minZ: 6.9, maxZ: 8.95 },
-    { minX: 6.2, maxX: 9.55, minZ: 1.15, maxZ: 2.75 }
-  ];
-  const BLOCK_RECTS = [
-    { minX: -2.45, maxX: 2.45, minZ: -2.2, maxZ: 0.95 },
-    { minX: -1.35, maxX: 1.35, minZ: 1.0, maxZ: 1.9 },
-    { minX: -4.85, maxX: -3.2, minZ: -0.85, maxZ: 0.55 },
-    { minX: 3.05, maxX: 5.25, minZ: -0.35, maxZ: 0.7 },
-    { minX: -5.35, maxX: -4.35, minZ: 3.05, maxZ: 4.05 },
-    { minX: 4.05, maxX: 5.05, minZ: 3.0, maxZ: 4.0 },
-    { minX: 1.55, maxX: 2.75, minZ: 4.55, maxZ: 5.2 },
-    { minX: -6.55, maxX: 6.55, minZ: -6.85, maxZ: -6.25 }
-  ];
-  const BLOCK_CIRCLES = [
-    { x: -6.25, z: -5.45, r: 0.85 },
-    { x: -4.5, z: -6.25, r: 0.75 },
-    { x: 5.7, z: -5.65, r: 0.85 },
-    { x: 6.45, z: -3.15, r: 0.7 },
-    { x: -6.55, z: -1.35, r: 0.8 },
-    { x: -6.35, z: 4.55, r: 0.7 },
-    { x: 6.25, z: 5.15, r: 0.65 },
-    { x: 1.7, z: -6.35, r: 0.55 },
-    { x: -1.7, z: -6.45, r: 0.55 },
-    { x: -5.7, z: 5.15, r: 0.45 },
-    { x: 2.55, z: 4.35, r: 0.32 },
-    { x: -2.7, z: -2.55, r: 0.32 },
-    { x: -1.5, z: -2.5, r: 0.4 }
-  ];
+  // 鏡頭指數平滑速率（1/秒）；60fps 時約等於舊的每幀 0.08／0.14。
+  const CAMERA_LAMBDA = 5;
+  const CAMERA_LAMBDA_EXPLORE = 9;
 
   function makePlayerAvatar() {
     const group = makePerson({
@@ -1101,50 +1085,7 @@ function boot() {
   };
   playerMesh.position.set(player.x, P, player.z);
   playerMesh.rotation.y = player.yaw;
-
-  function pointInWalkable(x, z) {
-    if (x * x + z * z <= WALK_ISLAND_R * WALK_ISLAND_R) return true;
-    for (let i = 0; i < WALK_RECTS.length; i++) {
-      const r = WALK_RECTS[i];
-      if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return true;
-    }
-    return false;
-  }
-
-  function blockedAt(x, z) {
-    const pad = PLAYER_RADIUS;
-    for (let i = 0; i < BLOCK_RECTS.length; i++) {
-      const r = BLOCK_RECTS[i];
-      if (x + pad >= r.minX && x - pad <= r.maxX && z + pad >= r.minZ && z - pad <= r.maxZ) return true;
-    }
-    for (let i = 0; i < BLOCK_CIRCLES.length; i++) {
-      const c = BLOCK_CIRCLES[i];
-      const dx = x - c.x;
-      const dz = z - c.z;
-      const rr = c.r + pad;
-      if (dx * dx + dz * dz < rr * rr) return true;
-    }
-    return false;
-  }
-
-  function canStand(x, z) {
-    return pointInWalkable(x, z) && !blockedAt(x, z);
-  }
-
-  function tryMovePlayer(nx, nz) {
-    if (canStand(nx, nz)) {
-      player.x = nx;
-      player.z = nz;
-      return;
-    }
-    if (canStand(nx, player.z)) {
-      player.x = nx;
-      return;
-    }
-    if (canStand(player.x, nz)) {
-      player.z = nz;
-    }
-  }
+  playerMesh.visible = false;
 
   function clearMoveInput() {
     Object.keys(player.keys).forEach((key) => {
@@ -1168,24 +1109,35 @@ function boot() {
     return !!(target.closest && target.closest('input, textarea, select, [contenteditable="true"]'));
   }
 
-  function moveVectorFromInput() {
-    let x = 0;
-    let z = 0;
-    if (player.keys.KeyW || player.keys.ArrowUp) z -= 1;
-    if (player.keys.KeyS || player.keys.ArrowDown) z += 1;
-    if (player.keys.KeyA || player.keys.ArrowLeft) x -= 1;
-    if (player.keys.KeyD || player.keys.ArrowRight) x += 1;
-    if (player.stickActive) {
-      x += player.stickX;
-      z += player.stickY;
-    }
-    const len = Math.hypot(x, z);
-    if (len < 0.08) return { x: 0, z: 0, moving: false };
-    return { x: x / len, z: z / len, moving: true };
+  // 'explore'：焦點在畫布、探索按鈕、搖桿或頁面本身；'control'：其它可操作的 UI 元件。
+  function focusKind(target) {
+    if (!target || target === document.body || target === document.documentElement || target === window) return 'explore';
+    if (!target.closest) return 'explore';
+    if (target.closest('#islandStage, #islandExplore, #islandJoystick')) return 'explore';
+    if (target.closest('button, a[href], summary, [tabindex], [role="button"], [role="listbox"], [role="menu"], [role="option"], [role="tab"]')) return 'control';
+    return 'explore';
   }
 
-  let exploring = false;
+  function sheetOpen() {
+    const sheet = document.getElementById('islandSheet');
+    return !!(sheet && !sheet.hidden);
+  }
+
+  function islandUiOpen() {
+    const list = document.getElementById('islandList');
+    return sheetOpen() || !!(list && !list.hidden);
+  }
+
+  let mode = exploreState(null, '');
   let exploreSaved = null;
+
+  function dispatchMode(action) {
+    const prev = mode;
+    mode = exploreState(mode, action);
+    if (!controlsActive(mode)) clearMoveInput();
+    playerMesh.visible = playerVisible(mode);
+    if (prev.exploring !== mode.exploring) syncExploreUi();
+  }
   let playerBob = 0;
   let activeInteract = '';
 
@@ -1222,10 +1174,11 @@ function boot() {
     const aspect = camera.aspect || 1;
     let dist = radius * 1.07;
     if (aspect < 1.02) dist *= Math.min(1.6, 1.02 / Math.max(aspect, 0.5));
-    const safePhi = exploring ? Math.min(1.12, Math.max(0.72, phi)) : phi;
+    const followCam = controlsActive(mode);
+    const safePhi = followCam ? Math.min(1.12, Math.max(0.72, phi)) : phi;
     const span = Math.sin(safePhi);
     let cy = lookAt.y + dist * Math.cos(safePhi);
-    if (exploring) cy = Math.max(G + 1.35, cy);
+    if (followCam) cy = Math.max(G + 1.35, cy);
     camera.position.set(
       lookAt.x + dist * span * Math.sin(theta),
       cy,
@@ -1246,6 +1199,7 @@ function boot() {
     const btn = document.getElementById('islandExplore');
     const stick = document.getElementById('islandJoystick');
     const hint = document.getElementById('islandExploreHint');
+    const exploring = mode.exploring;
     document.body.classList.toggle('is-exploring', exploring);
     if (btn) {
       btn.setAttribute('aria-pressed', exploring ? 'true' : 'false');
@@ -1256,9 +1210,23 @@ function boot() {
     if (hint) hint.hidden = !exploring;
   }
 
+  function followPlayerCamera(instant) {
+    targetLook.set(player.x, G + 1.05, player.z);
+    targetRadius = EXPLORE_POSE.radius;
+    targetTheta = EXPLORE_POSE.theta;
+    targetPhi = EXPLORE_POSE.phi;
+    if (instant || reduced) {
+      lookAt.copy(targetLook);
+      radius = targetRadius;
+      theta = targetTheta;
+      phi = targetPhi;
+      placeCamera();
+    }
+  }
+
   function setExplore(next, instant) {
     const want = !!next;
-    if (want === exploring) {
+    if (want === mode.exploring) {
       syncExploreUi();
       return;
     }
@@ -1277,21 +1245,15 @@ function boot() {
       }
       playerMesh.position.set(player.x, P, player.z);
       playerMesh.rotation.y = player.yaw;
-      exploring = true;
-      targetLook.set(player.x, G + 1.05, player.z);
-      targetRadius = EXPLORE_POSE.radius;
-      targetTheta = EXPLORE_POSE.theta;
-      targetPhi = EXPLORE_POSE.phi;
-      if (instant || reduced) {
-        lookAt.copy(targetLook);
-        radius = targetRadius;
-        theta = targetTheta;
-        phi = targetPhi;
-        placeCamera();
+      dispatchMode('enter');
+      if (sheetOpen()) {
+        dispatchMode('panelOpen');
+      } else {
+        setActive('');
+        followPlayerCamera(instant);
       }
     } else {
-      clearMoveInput();
-      exploring = false;
+      dispatchMode('exit');
       const saved = exploreSaved || POSES.home;
       exploreSaved = null;
       applyPose({
@@ -1308,23 +1270,20 @@ function boot() {
   function focus(id) {
     const pose = POSES[id];
     if (!pose) return;
-    if (exploring) {
-      clearMoveInput();
-      exploring = false;
-      exploreSaved = null;
-      syncExploreUi();
-    }
+    // 探索中開啟管理面板：暫停移動、鏡頭轉到該區，關閉後回到角色身上。
+    dispatchMode('panelOpen');
     applyPose(pose, false);
     setActive(id);
   }
 
   function reset() {
-    if (exploring) {
-      clearMoveInput();
-      exploring = false;
-      exploreSaved = null;
-      syncExploreUi();
+    if (mode.paused) {
+      dispatchMode('panelClose');
+      setActive('');
+      followPlayerCamera(false);
+      return;
     }
+    if (mode.exploring) return;
     applyPose(POSES.home, false);
     setActive('');
   }
@@ -1451,8 +1410,9 @@ function boot() {
     lastX = event.clientX;
     lastY = event.clientY;
     targetTheta -= dx * 0.005;
-    const phiMin = exploring ? 0.72 : 0.58;
-    const phiMax = exploring ? 1.12 : 1.15;
+    const followCam = controlsActive(mode);
+    const phiMin = followCam ? 0.72 : 0.58;
+    const phiMax = followCam ? 1.12 : 1.15;
     targetPhi = Math.min(phiMax, Math.max(phiMin, targetPhi - dy * 0.0035));
   });
   canvas.addEventListener('pointerup', (event) => {
@@ -1472,8 +1432,9 @@ function boot() {
   });
   canvas.addEventListener('wheel', (event) => {
     event.preventDefault();
-    const minR = exploring ? 6.5 : 11;
-    const maxR = exploring ? 16 : 52;
+    const followCam = controlsActive(mode);
+    const minR = followCam ? 6.5 : 11;
+    const maxR = followCam ? 16 : 52;
     targetRadius = Math.min(maxR, Math.max(minR, targetRadius + event.deltaY * 0.01));
   }, { passive: false });
 
@@ -1506,25 +1467,25 @@ function boot() {
   }
 
   function updatePlayer(dt) {
-    if (!exploring) {
+    if (!controlsActive(mode) || sheetOpen()) {
       player.moving = false;
+      player.vx = 0;
+      player.vz = 0;
+      playerBob = 0;
       playerMesh.position.set(player.x, P, player.z);
       playerMesh.rotation.y = player.yaw;
       return;
     }
-    const input = moveVectorFromInput();
-    player.moving = input.moving;
-    if (input.moving) {
-      const camSin = Math.sin(theta);
-      const camCos = Math.cos(theta);
-      // Camera-relative: stick forward = toward look direction on XZ
-      const worldX = input.x * camCos + input.z * camSin;
-      const worldZ = -input.x * camSin + input.z * camCos;
-      const step = PLAYER_SPEED * Math.min(dt, 0.05);
-      tryMovePlayer(player.x + worldX * step, player.z + worldZ * step);
-      player.yaw = Math.atan2(worldX, worldZ);
-      player.vx = worldX * PLAYER_SPEED;
-      player.vz = worldZ * PLAYER_SPEED;
+    const input = moveVector(player.keys, { active: player.stickActive, x: player.stickX, y: player.stickY });
+    const next = stepPlayer(player, input, theta, dt);
+    player.moving = next.moving;
+    if (next.moving) {
+      const dir = cameraRelative(input, theta);
+      player.x = next.x;
+      player.z = next.z;
+      player.yaw = next.yaw;
+      player.vx = dir.x * PLAYER_SPEED;
+      player.vz = dir.z * PLAYER_SPEED;
     } else {
       player.vx = 0;
       player.vz = 0;
@@ -1551,9 +1512,9 @@ function boot() {
   }
 
   function frame() {
-    const dt = Math.min(0.05, clock.getDelta() || 0);
+    const dt = Math.min(0.1, clock.getDelta() || 0);
     updatePlayer(dt);
-    const k = reduced ? 1 : (exploring ? 0.14 : 0.08);
+    const k = smoothingFactor(controlsActive(mode) ? CAMERA_LAMBDA_EXPLORE : CAMERA_LAMBDA, dt, reduced);
     lookAt.lerp(targetLook, k);
     radius += (targetRadius - radius) * k;
     let dTheta = targetTheta - theta;
@@ -1564,7 +1525,7 @@ function boot() {
     if (reduced) modeMix = modeTarget;
     else modeMix += (modeTarget - modeMix) * 0.06;
     applyMix(modeMix);
-    const t = clock.getElapsedTime();
+    const t = clock.elapsedTime;
     walkers.forEach((walker) => {
       const along = reduced ? walker.offset : walker.offset + t * Math.abs(walker.speed);
       const step = sampleWalker(walker, walker.pingpong ? along * walker.path.length : along);
@@ -1628,17 +1589,19 @@ function boot() {
     clearMoveInput();
   });
 
-  const MOVE_CODES = {
-    KeyW: 1, KeyA: 1, KeyS: 1, KeyD: 1,
-    ArrowUp: 1, ArrowLeft: 1, ArrowDown: 1, ArrowRight: 1
-  };
-
   window.addEventListener('keydown', (event) => {
     if (MOVE_CODES[event.code]) {
-      if (isTypingTarget(event.target)) return;
-      if (!exploring) return;
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const capture = shouldCaptureMoveKey({
+        code: event.code,
+        typing: isTypingTarget(event.target),
+        active: controlsActive(mode),
+        uiOpen: islandUiOpen(),
+        focus: focusKind(event.target)
+      });
+      if (!capture) return;
       player.keys[event.code] = true;
-      if (event.code.indexOf('Arrow') === 0) event.preventDefault();
+      event.preventDefault();
       return;
     }
     if (event.key !== 'Escape') return;
@@ -1648,7 +1611,10 @@ function boot() {
       window.switchDashTab('');
       return;
     }
-    if (exploring) setExplore(false, false);
+    if (mode.exploring) setExplore(false, false);
+  });
+  document.addEventListener('focusin', (event) => {
+    if (isTypingTarget(event.target) || focusKind(event.target) !== 'explore') clearMoveInput();
   });
   window.addEventListener('keyup', (event) => {
     if (!MOVE_CODES[event.code]) return;
@@ -1686,7 +1652,7 @@ function boot() {
   }
   if (stickRoot) {
     stickRoot.addEventListener('pointerdown', (event) => {
-      if (!exploring) return;
+      if (!controlsActive(mode)) return;
       event.preventDefault();
       stickPointerId = event.pointerId;
       if (stickRoot.setPointerCapture) stickRoot.setPointerCapture(event.pointerId);
@@ -1713,12 +1679,19 @@ function boot() {
   const exploreBtn = document.getElementById('islandExplore');
   if (exploreBtn) {
     exploreBtn.addEventListener('click', () => {
-      setExplore(!exploring, false);
+      const next = !mode.exploring;
+      if (next) {
+        if (sheetOpen() && typeof window.switchDashTab === 'function') window.switchDashTab('');
+        if (list) list.hidden = true;
+        if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
+      }
+      setExplore(next, false);
     });
   }
   const home = document.getElementById('islandHome');
   if (home) {
     home.addEventListener('click', () => {
+      if (mode.exploring) setExplore(false, false);
       if (typeof window.switchDashTab === 'function') window.switchDashTab('');
       else reset();
       if (list) list.hidden = true;
@@ -1741,7 +1714,7 @@ function boot() {
     reset: reset,
     setMode: setMode,
     setExplore: setExplore,
-    isExploring: () => exploring
+    isExploring: () => mode.exploring
   };
 
   resize();

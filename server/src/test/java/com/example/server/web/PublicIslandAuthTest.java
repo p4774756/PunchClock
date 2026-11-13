@@ -61,6 +61,18 @@ public class PublicIslandAuthTest {
     }
 
     @Test
+    public void guestsCanLoadIslandExploreModule() throws Exception {
+        HttpResponse<String> island = send("GET", "/js/island.js", null);
+        assertEquals(200, island.statusCode());
+        assertTrue(island.body().contains("from './island-explore.js'"));
+
+        HttpResponse<String> logic = send("GET", "/js/island-explore.js", null);
+        assertEquals(200, logic.statusCode());
+        assertTrue(logic.body().contains("export function canStand"));
+        assertTrue(logic.body().contains("export function exploreState"));
+    }
+
+    @Test
     public void indexHtmlRedirectsToPublicHome() throws Exception {
         HttpResponse<String> response = send("GET", "/index.html", null);
         assertEquals(302, response.statusCode());
