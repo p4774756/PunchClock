@@ -10,6 +10,17 @@ export const WALK_RECTS = [
   { minX: -1.05, maxX: 0.85, minZ: 6.9, maxZ: 8.95 },
   { minX: 6.2, maxX: 9.55, minZ: 1.15, maxZ: 2.75 }
 ];
+// 賭場本體（島嶼東南方空地、照片牆以南）；門朝 +Z（廣場），門前不納入碰撞。
+export const CASINO = Object.freeze({
+  id: 'casino',
+  x: 3.55,
+  z: -3.65,
+  w: 2.4,
+  d: 1.9,
+  block: Object.freeze({ minX: 2.35, maxX: 4.75, minZ: -4.65, maxZ: -2.55 }),
+  door: Object.freeze({ x: 3.55, z: -1.95, r: 1.2 })
+});
+
 export const BLOCK_RECTS = [
   { minX: -2.45, maxX: 2.45, minZ: -2.2, maxZ: 0.95 },
   { minX: -1.35, maxX: 1.35, minZ: 1.0, maxZ: 1.9 },
@@ -18,7 +29,8 @@ export const BLOCK_RECTS = [
   { minX: -5.35, maxX: -4.35, minZ: 3.05, maxZ: 4.05 },
   { minX: 4.05, maxX: 5.05, minZ: 3.0, maxZ: 4.0 },
   { minX: 1.55, maxX: 2.75, minZ: 4.55, maxZ: 5.2 },
-  { minX: -6.55, maxX: 6.55, minZ: -6.85, maxZ: -6.25 }
+  { minX: -6.55, maxX: 6.55, minZ: -6.85, maxZ: -6.25 },
+  CASINO.block
 ];
 export const BLOCK_CIRCLES = [
   { x: -6.25, z: -5.45, r: 0.85 },
@@ -35,6 +47,18 @@ export const BLOCK_CIRCLES = [
   { x: -2.7, z: -2.55, r: 0.32 },
   { x: -1.5, z: -2.5, r: 0.4 }
 ];
+
+/** 預設互動區（賭場門口）。場景座標與 CASINO 一致；觸發須由玩家明確操作，不自動傳送。 */
+export const DEFAULT_INTERACT_ZONES = Object.freeze([
+  Object.freeze({
+    id: CASINO.id,
+    x: CASINO.door.x,
+    z: CASINO.door.z,
+    r: CASINO.door.r,
+    label: '進入賭場',
+    action: 'enterCasino'
+  })
+]);
 
 // 每個可行走區域各自內縮半徑：整個角色圓必須完全落在島或碼頭內，不會半身泡水。
 export function isWalkable(x, z, radius = PLAYER_RADIUS) {
@@ -119,20 +143,82 @@ export function smoothingFactor(lambda, dt, reduced) {
   return 1 - Math.exp(-lambda * dt);
 }
 
-// 探索模式狀態：exploring = 已進入探索；paused = 管理面板開啟中（角色保留但不能動）。
+// 探索模式狀態：exploring = 已進入探索；paused = 管理面板開啟中；lobby = 賭場大廳開啟中。
+// lobby 只由大廳自己的開關改變，面板 panelClose／enter／exit 都不會解除，避免大廳下背景移動。
 export function exploreState(state, action) {
-  const s = state || { exploring: false, paused: false };
+  const s = state || { exploring: false, paused: false, lobby: false };
+  const lobby = !!s.lobby;
   switch (action) {
-    case 'enter': return { exploring: true, paused: false };
-    case 'exit': return { exploring: false, paused: false };
-    case 'panelOpen': return s.exploring ? { exploring: true, paused: true } : s;
-    case 'panelClose': return { exploring: s.exploring, paused: false };
+    case 'enter': return { exploring: true, paused: false, lobby: lobby };
+    case 'exit': return { exploring: false, paused: false, lobby: lobby };
+    case 'panelOpen': return s.exploring ? { exploring: true, paused: true, lobby: lobby } : s;
+    case 'panelClose': return { exploring: !!s.exploring, paused: false, lobby: lobby };
+    case 'lobbyOpen': return { exploring: !!s.exploring, paused: !!s.paused, lobby: true };
+    case 'lobbyClose': return { exploring: !!s.exploring, paused: !!s.paused, lobby: false };
     default: return s;
   }
 }
 
 export function controlsActive(state) {
-  return !!(state && state.exploring && !state.paused);
+  return !!(state && state.exploring && !state.paused && !state.lobby);
+}
+
+/**
+ * 探索模式與管理面板、賭場大廳的協調流程（不依賴 Three.js／DOM）。
+ * ui 回呼：
+ *   onModeChange(prev, next)、clearMoveInput()
+ *   followPlayer()：鏡頭回到角色身上；showPose(id)：鏡頭轉到面板區；showHome()：回全景
+ *   sheetOpen()、lobbyOpen()：目前 DOM 狀態；closeSheet()：關閉管理面板（會回呼 resetPanel）
+ */
+export function createExploreFlow(ui) {
+  const hooks = ui || {};
+  let mode = exploreState(null, '');
+
+  function call(name, a, b) {
+    if (typeof hooks[name] === 'function') return hooks[name](a, b);
+    return undefined;
+  }
+
+  function dispatch(action) {
+    const prev = mode;
+    mode = exploreState(mode, action);
+    if (!controlsActive(mode)) call('clearMoveInput');
+    call('onModeChange', prev, mode);
+    return mode;
+  }
+
+  return {
+    get mode() { return mode; },
+    dispatch: dispatch,
+    canMove() {
+      return controlsActive(mode) && !call('sheetOpen') && !call('lobbyOpen');
+    },
+    focusPanel(id) {
+      dispatch('panelOpen');
+      call('showPose', id);
+    },
+    resetPanel() {
+      if (mode.paused) {
+        dispatch('panelClose');
+        if (controlsActive(mode)) call('followPlayer');
+        return;
+      }
+      if (mode.exploring) return;
+      call('showHome');
+    },
+    // 先鎖住移動，再關面板：面板 reset 只解除 paused，不會解除 lobby。
+    beforeLobbyOpen() {
+      call('clearMoveInput');
+      dispatch('lobbyOpen');
+      if (call('sheetOpen')) call('closeSheet');
+    },
+    // 大廳唯一的狀態轉移入口：返回按鈕、Escape、程式呼叫都經過這裡。
+    lobbyChanged(open) {
+      const wasLobby = mode.lobby;
+      dispatch(open ? 'lobbyOpen' : 'lobbyClose');
+      if (!open && wasLobby && controlsActive(mode)) call('followPlayer');
+    }
+  };
 }
 
 export function playerVisible(state) {
@@ -157,4 +243,44 @@ export function shouldCaptureMoveKey(ctx) {
   if (!ctx.active || ctx.uiOpen) return false;
   if (ctx.focus === 'control' && ctx.code.indexOf('Arrow') === 0) return false;
   return true;
+}
+
+/** 回傳目前所在的互動區（距離優先），否則 null。zones: [{ id, x, z, r }] */
+export function hitInteractZone(x, z, zones) {
+  if (!zones || !zones.length) return null;
+  let best = null;
+  let bestDist = Infinity;
+  for (let i = 0; i < zones.length; i++) {
+    const zone = zones[i];
+    if (!zone) continue;
+    const dx = x - zone.x;
+    const dz = z - zone.z;
+    const dist = dx * dx + dz * dz;
+    const r = zone.r == null ? 1 : zone.r;
+    if (dist <= r * r && dist < bestDist) {
+      best = zone;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
+/**
+ * 入口提示是否顯示。須探索中、未暫停、未開面板／大廳，且在互動區內。
+ * 不自動進入——僅決定提示可見性。
+ */
+export function shouldShowInteractPrompt(ctx) {
+  if (!ctx) return false;
+  if (!ctx.exploring || ctx.paused || ctx.uiOpen || ctx.lobbyOpen) return false;
+  return !!(ctx.zoneId);
+}
+
+/** Enter／E 是否觸發目前互動提示（不搶輸入框與其它可聚焦 UI）。 */
+export function shouldTriggerInteractKey(ctx) {
+  if (!ctx || !ctx.promptVisible) return false;
+  if (ctx.typing) return false;
+  if (ctx.focus === 'control') return false;
+  const code = ctx.code || '';
+  const key = ctx.key || '';
+  return code === 'Enter' || code === 'KeyE' || key === 'Enter' || key === 'e' || key === 'E';
 }

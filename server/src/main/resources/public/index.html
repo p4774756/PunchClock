@@ -6,6 +6,7 @@
   <title>莫卡手搖 · 飲料店後台</title>
   <link rel="stylesheet" href="/css/dashboard.css">
   <link rel="stylesheet" href="/css/island.css">
+  <link rel="stylesheet" href="/css/casino.css">
 </head>
 <body class="island-body {{AUTH_BODY_CLASS}}">
   <script>window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};</script>
@@ -50,11 +51,14 @@
     <span class="island-explore-hint-touch">用左下角搖桿移動 · 拖曳旋轉鏡頭</span>
   </div>
 
+  <button type="button" class="island-interact" id="islandInteract" hidden aria-hidden="true" aria-label="進入賭場">進入賭場</button>
+
   <div id="islandLabels">
     <div class="island-mark" data-anchor="shop" data-rank="1">莫卡手搖</div>
     <button type="button" class="island-label" data-tab="devices" data-anchor="devices" data-rank="2">點單</button>
     <button type="button" class="island-label" data-tab="system" data-anchor="system" data-rank="2">製茶機</button>
     <button type="button" class="island-label" data-tab="photos" data-anchor="photos" data-rank="2">飲品牆</button>
+    <div class="island-mark island-mark-casino" data-anchor="casino" data-rank="2">賭場</div>
     <div class="island-note" data-anchor="seating" data-rank="4" data-minor="1">候餐</div>
     <div class="island-note" data-anchor="dock" data-rank="4" data-minor="1">碼頭</div>
   </div>
@@ -64,9 +68,36 @@
     <button type="button" data-tab="devices">點單<small>門市與訂單</small></button>
     <button type="button" data-tab="system">製茶機<small>這台伺服器</small></button>
     <button type="button" data-tab="photos">飲品牆<small>簡報</small></button>
+    <p class="island-list-title island-list-title-next">娛樂</p>
+    <button type="button" data-open-casino>賭場大廳<small>訪客可進 · 籌碼尚未啟用</small></button>
     <p class="island-list-title island-list-title-next">學習</p>
     <a href="/atlas/tcm-3d/?set=head-neck-21&amp;code=GV24%2B">中醫人體<small>基準穴 · 頭頸 21</small></a>
   </aside>
+
+  <section id="casinoLobby" class="casino-lobby" hidden aria-hidden="true" aria-label="賭場大廳">
+    <div class="casino-lobby-panel">
+      <header class="casino-lobby-head">
+        <div>
+          <p class="casino-lobby-kicker">Island Casino</p>
+          <h1 class="casino-lobby-title">莫卡賭場</h1>
+          <p class="casino-lobby-sub">大廳預覽 · 尚未開放下注</p>
+        </div>
+        <button type="button" class="btn btn-ghost" data-casino-back aria-label="返回島嶼">返回島嶼</button>
+      </header>
+      <div class="casino-lobby-status" aria-label="玩家狀態">
+        <div class="casino-status-card">
+          <span class="casino-status-label">玩家</span>
+          <strong data-casino-player>訪客</strong>
+        </div>
+        <div class="casino-status-card casino-status-chips" data-enabled="false">
+          <span class="casino-status-label">虛擬籌碼</span>
+          <strong data-casino-chips>虛擬籌碼 · 尚未啟用</strong>
+          <small>佔位顯示，不是真實餘額</small>
+        </div>
+      </div>
+      <div class="casino-game-grid" data-casino-games aria-label="遊戲列表"></div>
+    </div>
+  </section>
 
   <section id="islandSheet" class="island-sheet" hidden>
     <div class="island-sheet-bar">
