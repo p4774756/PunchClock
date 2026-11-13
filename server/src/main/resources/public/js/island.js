@@ -1,4 +1,18 @@
 import * as THREE from 'three';
+import {
+  PLAYER_SPAWN,
+  PLAYER_SPEED,
+  MOVE_CODES,
+  canStand,
+  moveVector,
+  cameraRelative,
+  stepPlayer,
+  smoothingFactor,
+  exploreState,
+  controlsActive,
+  playerVisible,
+  shouldCaptureMoveKey
+} from './island-explore.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 const POSES = {
@@ -1028,6 +1042,105 @@ function boot() {
   ], 0.045, false);
   addWalker(0x1f4d73, [[5.6, 1.15], [7.4, 1.6], [9.1, 1.95]], 0.05, true);
 
+  // Player exploration (Phase 1). Future casino entrances: add { id, x, z, r, onEnter } to INTERACT_ZONES.
+  const INTERACT_ZONES = [];
+  const EXPLORE_POSE = { radius: 9.2, theta: 0.35, phi: 0.98 };
+  // 鏡頭指數平滑速率（1/秒）；60fps 時約等於舊的每幀 0.08／0.14。
+  const CAMERA_LAMBDA = 5;
+  const CAMERA_LAMBDA_EXPLORE = 9;
+
+  function makePlayerAvatar() {
+    const group = makePerson({
+      shirt: 0x1f4d73,
+      pants: 0x3e4a5a,
+      hair: 0x3a312c,
+      hat: 0xf06a2a,
+      scale: 1.22
+    });
+    addBox(group, 0.22, 0.28, 0.12, 0xf06a2a, 0, 0.52, -0.16);
+    addBox(group, 0.16, 0.08, 0.04, 0xfff7ef, 0, 0.72, 0.12);
+    const beacon = addMesh(group, geo('cyl', [0.08, 0.02, 0.1, 5, 0]), 0xf06a2a, 0, 1.28, 0, {
+      shadow: false,
+      receive: false,
+      glow: 0xffb15a,
+      glowAmount: 0.55
+    });
+    beacon.userData.playerBeacon = true;
+    return group;
+  }
+
+  const playerMesh = makePlayerAvatar();
+  scene.add(playerMesh);
+  const player = {
+    x: PLAYER_SPAWN.x,
+    z: PLAYER_SPAWN.z,
+    yaw: PLAYER_SPAWN.yaw,
+    vx: 0,
+    vz: 0,
+    moving: false,
+    keys: Object.create(null),
+    stickX: 0,
+    stickY: 0,
+    stickActive: false
+  };
+  playerMesh.position.set(player.x, P, player.z);
+  playerMesh.rotation.y = player.yaw;
+  playerMesh.visible = false;
+
+  function clearMoveInput() {
+    Object.keys(player.keys).forEach((key) => {
+      player.keys[key] = false;
+    });
+    player.stickX = 0;
+    player.stickY = 0;
+    player.stickActive = false;
+    player.moving = false;
+    player.vx = 0;
+    player.vz = 0;
+    const knob = document.getElementById('islandJoystickKnob');
+    if (knob) knob.style.transform = 'translate(0px, 0px)';
+  }
+
+  function isTypingTarget(target) {
+    if (!target) return false;
+    const tag = target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (target.isContentEditable) return true;
+    return !!(target.closest && target.closest('input, textarea, select, [contenteditable="true"]'));
+  }
+
+  // 'explore'：焦點在畫布、探索按鈕、搖桿或頁面本身；'control'：其它可操作的 UI 元件。
+  function focusKind(target) {
+    if (!target || target === document.body || target === document.documentElement || target === window) return 'explore';
+    if (!target.closest) return 'explore';
+    if (target.closest('#islandStage, #islandExplore, #islandJoystick')) return 'explore';
+    if (target.closest('button, a[href], summary, [tabindex], [role="button"], [role="listbox"], [role="menu"], [role="option"], [role="tab"]')) return 'control';
+    return 'explore';
+  }
+
+  function sheetOpen() {
+    const sheet = document.getElementById('islandSheet');
+    return !!(sheet && !sheet.hidden);
+  }
+
+  function islandUiOpen() {
+    const list = document.getElementById('islandList');
+    return sheetOpen() || !!(list && !list.hidden);
+  }
+
+  let mode = exploreState(null, '');
+  let exploreSaved = null;
+
+  function dispatchMode(action) {
+    const prev = mode;
+    mode = exploreState(mode, action);
+    if (!controlsActive(mode)) clearMoveInput();
+    playerMesh.visible = playerVisible(mode);
+    if (prev.exploring !== mode.exploring) syncExploreUi();
+  }
+  let playerBob = 0;
+  let activeInteract = '';
+
   const lookAt = new THREE.Vector3();
   const targetLook = new THREE.Vector3();
   let radius = POSES.home.radius;
@@ -1061,10 +1174,14 @@ function boot() {
     const aspect = camera.aspect || 1;
     let dist = radius * 1.07;
     if (aspect < 1.02) dist *= Math.min(1.6, 1.02 / Math.max(aspect, 0.5));
-    const span = Math.sin(phi);
+    const followCam = controlsActive(mode);
+    const safePhi = followCam ? Math.min(1.12, Math.max(0.72, phi)) : phi;
+    const span = Math.sin(safePhi);
+    let cy = lookAt.y + dist * Math.cos(safePhi);
+    if (followCam) cy = Math.max(G + 1.35, cy);
     camera.position.set(
       lookAt.x + dist * span * Math.sin(theta),
-      lookAt.y + dist * Math.cos(phi),
+      cy,
       lookAt.z + dist * span * Math.cos(theta)
     );
     camera.lookAt(lookAt);
@@ -1078,14 +1195,95 @@ function boot() {
     });
   }
 
+  function syncExploreUi() {
+    const btn = document.getElementById('islandExplore');
+    const stick = document.getElementById('islandJoystick');
+    const hint = document.getElementById('islandExploreHint');
+    const exploring = mode.exploring;
+    document.body.classList.toggle('is-exploring', exploring);
+    if (btn) {
+      btn.setAttribute('aria-pressed', exploring ? 'true' : 'false');
+      btn.setAttribute('aria-label', exploring ? '退出探索模式' : '進入探索模式');
+      btn.textContent = exploring ? '退出' : '探索';
+    }
+    if (stick) stick.hidden = !exploring;
+    if (hint) hint.hidden = !exploring;
+  }
+
+  function followPlayerCamera(instant) {
+    targetLook.set(player.x, G + 1.05, player.z);
+    targetRadius = EXPLORE_POSE.radius;
+    targetTheta = EXPLORE_POSE.theta;
+    targetPhi = EXPLORE_POSE.phi;
+    if (instant || reduced) {
+      lookAt.copy(targetLook);
+      radius = targetRadius;
+      theta = targetTheta;
+      phi = targetPhi;
+      placeCamera();
+    }
+  }
+
+  function setExplore(next, instant) {
+    const want = !!next;
+    if (want === mode.exploring) {
+      syncExploreUi();
+      return;
+    }
+    if (want) {
+      exploreSaved = {
+        look: [targetLook.x, targetLook.y, targetLook.z],
+        radius: targetRadius,
+        theta: targetTheta,
+        phi: targetPhi,
+        active: activeZone
+      };
+      if (!canStand(player.x, player.z)) {
+        player.x = PLAYER_SPAWN.x;
+        player.z = PLAYER_SPAWN.z;
+        player.yaw = PLAYER_SPAWN.yaw;
+      }
+      playerMesh.position.set(player.x, P, player.z);
+      playerMesh.rotation.y = player.yaw;
+      dispatchMode('enter');
+      if (sheetOpen()) {
+        dispatchMode('panelOpen');
+      } else {
+        setActive('');
+        followPlayerCamera(instant);
+      }
+    } else {
+      dispatchMode('exit');
+      const saved = exploreSaved || POSES.home;
+      exploreSaved = null;
+      applyPose({
+        look: saved.look || POSES.home.look,
+        radius: saved.radius != null ? saved.radius : POSES.home.radius,
+        theta: saved.theta != null ? saved.theta : POSES.home.theta,
+        phi: saved.phi != null ? saved.phi : POSES.home.phi
+      }, !!instant);
+      setActive(saved.active || '');
+    }
+    syncExploreUi();
+  }
+
   function focus(id) {
     const pose = POSES[id];
     if (!pose) return;
+    // 探索中開啟管理面板：暫停移動、鏡頭轉到該區，關閉後回到角色身上。
+    dispatchMode('panelOpen');
     applyPose(pose, false);
     setActive(id);
   }
 
   function reset() {
+    if (mode.paused) {
+      dispatchMode('panelClose');
+      setActive('');
+      followPlayerCamera(false);
+      return;
+    }
+    if (mode.exploring) return;
     applyPose(POSES.home, false);
     setActive('');
   }
@@ -1212,7 +1410,10 @@ function boot() {
     lastX = event.clientX;
     lastY = event.clientY;
     targetTheta -= dx * 0.005;
-    targetPhi = Math.min(1.15, Math.max(0.58, targetPhi - dy * 0.0035));
+    const followCam = controlsActive(mode);
+    const phiMin = followCam ? 0.72 : 0.58;
+    const phiMax = followCam ? 1.12 : 1.15;
+    targetPhi = Math.min(phiMax, Math.max(phiMin, targetPhi - dy * 0.0035));
   });
   canvas.addEventListener('pointerup', (event) => {
     dragging = false;
@@ -1222,12 +1423,19 @@ function boot() {
       if (zone && typeof window.switchDashTab === 'function') window.switchDashTab(zone);
     }
   });
+  canvas.addEventListener('pointercancel', () => {
+    dragging = false;
+    canvas.style.cursor = 'grab';
+  });
   canvas.addEventListener('pointerleave', () => {
     if (!dragging) canvas.style.cursor = 'grab';
   });
   canvas.addEventListener('wheel', (event) => {
     event.preventDefault();
-    targetRadius = Math.min(52, Math.max(11, targetRadius + event.deltaY * 0.01));
+    const followCam = controlsActive(mode);
+    const minR = followCam ? 6.5 : 11;
+    const maxR = followCam ? 16 : 52;
+    targetRadius = Math.min(maxR, Math.max(minR, targetRadius + event.deltaY * 0.01));
   }, { passive: false });
 
   function sampleWalker(walker, along) {
@@ -1258,8 +1466,55 @@ function boot() {
     };
   }
 
+  function updatePlayer(dt) {
+    if (!controlsActive(mode) || sheetOpen()) {
+      player.moving = false;
+      player.vx = 0;
+      player.vz = 0;
+      playerBob = 0;
+      playerMesh.position.set(player.x, P, player.z);
+      playerMesh.rotation.y = player.yaw;
+      return;
+    }
+    const input = moveVector(player.keys, { active: player.stickActive, x: player.stickX, y: player.stickY });
+    const next = stepPlayer(player, input, theta, dt);
+    player.moving = next.moving;
+    if (next.moving) {
+      const dir = cameraRelative(input, theta);
+      player.x = next.x;
+      player.z = next.z;
+      player.yaw = next.yaw;
+      player.vx = dir.x * PLAYER_SPEED;
+      player.vz = dir.z * PLAYER_SPEED;
+    } else {
+      player.vx = 0;
+      player.vz = 0;
+    }
+    if (!reduced && player.moving) playerBob += dt * 10;
+    else playerBob = 0;
+    const bobY = (!reduced && player.moving) ? Math.sin(playerBob) * 0.035 : 0;
+    playerMesh.position.set(player.x, P + bobY, player.z);
+    playerMesh.rotation.y = player.yaw;
+    targetLook.set(player.x, G + 1.05, player.z);
+    // Phase 2: push { id, x, z, r, onEnter } into INTERACT_ZONES for casino doors / lobby portals.
+    let hitInteract = '';
+    for (let i = 0; i < INTERACT_ZONES.length; i++) {
+      const zone = INTERACT_ZONES[i];
+      const dx = player.x - zone.x;
+      const dz = player.z - zone.z;
+      if (dx * dx + dz * dz <= (zone.r || 1) * (zone.r || 1)) {
+        hitInteract = zone.id || ('zone-' + i);
+        if (hitInteract !== activeInteract && typeof zone.onEnter === 'function') zone.onEnter(player);
+        break;
+      }
+    }
+    activeInteract = hitInteract;
+  }
+
   function frame() {
-    const k = reduced ? 1 : 0.08;
+    const dt = Math.min(0.1, clock.getDelta() || 0);
+    updatePlayer(dt);
+    const k = smoothingFactor(controlsActive(mode) ? CAMERA_LAMBDA_EXPLORE : CAMERA_LAMBDA, dt, reduced);
     lookAt.lerp(targetLook, k);
     radius += (targetRadius - radius) * k;
     let dTheta = targetTheta - theta;
@@ -1270,7 +1525,7 @@ function boot() {
     if (reduced) modeMix = modeTarget;
     else modeMix += (modeTarget - modeMix) * 0.06;
     applyMix(modeMix);
-    const t = clock.getElapsedTime();
+    const t = clock.elapsedTime;
     walkers.forEach((walker) => {
       const along = reduced ? walker.offset : walker.offset + t * Math.abs(walker.speed);
       const step = sampleWalker(walker, walker.pingpong ? along * walker.path.length : along);
@@ -1322,6 +1577,7 @@ function boot() {
   function stop() {
     running = false;
     window.cancelAnimationFrame(raf);
+    clearMoveInput();
   }
 
   window.addEventListener('resize', resize);
@@ -1329,6 +1585,88 @@ function boot() {
     if (document.hidden) stop();
     else start();
   });
+  window.addEventListener('blur', () => {
+    clearMoveInput();
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (MOVE_CODES[event.code]) {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      const capture = shouldCaptureMoveKey({
+        code: event.code,
+        typing: isTypingTarget(event.target),
+        active: controlsActive(mode),
+        uiOpen: islandUiOpen(),
+        focus: focusKind(event.target)
+      });
+      if (!capture) return;
+      player.keys[event.code] = true;
+      event.preventDefault();
+      return;
+    }
+    if (event.key !== 'Escape') return;
+    if (isTypingTarget(event.target)) return;
+    const sheet = document.getElementById('islandSheet');
+    if (sheet && !sheet.hidden && typeof window.switchDashTab === 'function') {
+      window.switchDashTab('');
+      return;
+    }
+    if (mode.exploring) setExplore(false, false);
+  });
+  document.addEventListener('focusin', (event) => {
+    if (isTypingTarget(event.target) || focusKind(event.target) !== 'explore') clearMoveInput();
+  });
+  window.addEventListener('keyup', (event) => {
+    if (!MOVE_CODES[event.code]) return;
+    player.keys[event.code] = false;
+  });
+
+  const stickRoot = document.getElementById('islandJoystick');
+  const stickKnob = document.getElementById('islandJoystickKnob');
+  let stickPointerId = null;
+  function setStickFromEvent(event) {
+    if (!stickRoot) return;
+    const rect = stickRoot.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const max = Math.min(rect.width, rect.height) * 0.34;
+    let dx = event.clientX - cx;
+    let dy = event.clientY - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    if (len > max) {
+      dx = dx / len * max;
+      dy = dy / len * max;
+    }
+    player.stickX = dx / max;
+    player.stickY = dy / max;
+    player.stickActive = Math.hypot(player.stickX, player.stickY) > 0.08;
+    if (stickKnob) stickKnob.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+  }
+  function endStick(event) {
+    if (stickPointerId != null && event && event.pointerId !== stickPointerId) return;
+    stickPointerId = null;
+    player.stickX = 0;
+    player.stickY = 0;
+    player.stickActive = false;
+    if (stickKnob) stickKnob.style.transform = 'translate(0px, 0px)';
+  }
+  if (stickRoot) {
+    stickRoot.addEventListener('pointerdown', (event) => {
+      if (!controlsActive(mode)) return;
+      event.preventDefault();
+      stickPointerId = event.pointerId;
+      if (stickRoot.setPointerCapture) stickRoot.setPointerCapture(event.pointerId);
+      setStickFromEvent(event);
+    });
+    stickRoot.addEventListener('pointermove', (event) => {
+      if (stickPointerId !== event.pointerId) return;
+      event.preventDefault();
+      setStickFromEvent(event);
+    });
+    stickRoot.addEventListener('pointerup', endStick);
+    stickRoot.addEventListener('pointercancel', endStick);
+    stickRoot.addEventListener('lostpointercapture', endStick);
+  }
 
   const list = document.getElementById('islandList');
   const listBtn = document.getElementById('islandListBtn');
@@ -1338,10 +1676,24 @@ function boot() {
       listBtn.setAttribute('aria-expanded', list.hidden ? 'false' : 'true');
     });
   }
+  const exploreBtn = document.getElementById('islandExplore');
+  if (exploreBtn) {
+    exploreBtn.addEventListener('click', () => {
+      const next = !mode.exploring;
+      if (next) {
+        if (sheetOpen() && typeof window.switchDashTab === 'function') window.switchDashTab('');
+        if (list) list.hidden = true;
+        if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
+      }
+      setExplore(next, false);
+    });
+  }
   const home = document.getElementById('islandHome');
   if (home) {
     home.addEventListener('click', () => {
+      if (mode.exploring) setExplore(false, false);
       if (typeof window.switchDashTab === 'function') window.switchDashTab('');
+      else reset();
       if (list) list.hidden = true;
       if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
     });
@@ -1356,20 +1708,18 @@ function boot() {
   const nightBtn = document.getElementById('islandNight');
   if (dayBtn) dayBtn.addEventListener('click', () => setMode('day'));
   if (nightBtn) nightBtn.addEventListener('click', () => setMode('night'));
-  window.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
-    const tagName = event.target && event.target.tagName;
-    if (tagName === 'INPUT' || tagName === 'TEXTAREA') return;
-    const sheet = document.getElementById('islandSheet');
-    if (sheet && !sheet.hidden && typeof window.switchDashTab === 'function') {
-      window.switchDashTab('');
-    }
-  });
 
-  window.PunchClockIsland = { focus: focus, reset: reset, setMode: setMode };
+  window.PunchClockIsland = {
+    focus: focus,
+    reset: reset,
+    setMode: setMode,
+    setExplore: setExplore,
+    isExploring: () => mode.exploring
+  };
 
   resize();
   applyMix(0);
+  syncExploreUi();
   const open = document.querySelector('.dash-panel.is-active');
   if (open && !open.hasAttribute('hidden')) {
     const id = open.id.replace('panel-', '');

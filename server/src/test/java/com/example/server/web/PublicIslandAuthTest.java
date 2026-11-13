@@ -51,11 +51,25 @@ public class PublicIslandAuthTest {
         HttpResponse<String> response = send("GET", "/", null);
         assertEquals(200, response.statusCode());
         assertTrue(response.body().contains("id=\"islandCanvas\""));
+        assertTrue(response.body().contains("id=\"islandExplore\""));
+        assertTrue(response.body().contains("id=\"islandJoystick\""));
         assertTrue(response.body().contains("is-guest"));
         assertTrue(response.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
         assertTrue(response.body().contains("登入後可操作"));
         assertTrue(response.body().contains("href=\"/login\""));
         assertFalse(response.body().contains("is-authenticated"));
+    }
+
+    @Test
+    public void guestsCanLoadIslandExploreModule() throws Exception {
+        HttpResponse<String> island = send("GET", "/js/island.js", null);
+        assertEquals(200, island.statusCode());
+        assertTrue(island.body().contains("from './island-explore.js'"));
+
+        HttpResponse<String> logic = send("GET", "/js/island-explore.js", null);
+        assertEquals(200, logic.statusCode());
+        assertTrue(logic.body().contains("export function canStand"));
+        assertTrue(logic.body().contains("export function exploreState"));
     }
 
     @Test

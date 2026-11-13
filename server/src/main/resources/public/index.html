@@ -18,6 +18,7 @@
   </header>
 
   <div class="island-corner" aria-label="操作">
+    <button type="button" class="island-tool" id="islandExplore" aria-pressed="false" aria-label="進入探索模式">探索</button>
     <button type="button" class="island-tool" id="islandHome">全景</button>
     <button type="button" class="island-tool" id="islandListBtn" aria-expanded="false" aria-controls="islandList">清單</button>
     <span class="island-tool island-tool-user" data-auth-only>店長</span>
@@ -35,7 +36,18 @@
   </div>
 
   <div id="islandStage">
-    <canvas id="islandCanvas" role="img" aria-label="手搖店街區。點點單、製茶機或飲品牆，也可以用清單。"></canvas>
+    <canvas id="islandCanvas" role="img" aria-label="手搖店街區。點點單、製茶機或飲品牆，也可以用清單。探索模式可用鍵盤或虛擬搖桿移動。"></canvas>
+  </div>
+
+  <div id="islandJoystick" class="island-joystick" hidden aria-label="移動搖桿" role="application">
+    <div class="island-joystick-base" aria-hidden="true">
+      <div class="island-joystick-knob" id="islandJoystickKnob"></div>
+    </div>
+  </div>
+
+  <div class="island-explore-hint" id="islandExploreHint" hidden>
+    <span class="island-explore-hint-desk">WASD 或方向鍵移動 · 拖曳旋轉鏡頭</span>
+    <span class="island-explore-hint-touch">用左下角搖桿移動 · 拖曳旋轉鏡頭</span>
   </div>
 
   <div id="islandLabels">
