@@ -1068,11 +1068,62 @@
     }
 
     const ISLAND_ZONES = ['devices', 'system', 'photos'];
+    const isAuthenticated = document.body.classList.contains('is-authenticated')
+      || window.PUNCHCLOCK_AUTHENTICATED === true;
+
+    function zoneLabel(tabId) {
+      const panel = document.getElementById('panel-' + tabId);
+      return panel ? (panel.getAttribute('data-label') || tabId) : tabId;
+    }
+
+    function setActiveIslandChrome(next) {
+      const list = document.getElementById('islandList');
+      const listBtn = document.getElementById('islandListBtn');
+      if (list && next) {
+        list.hidden = true;
+        if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
+      }
+      document.querySelectorAll('.island-label, .island-list button[data-tab]').forEach(btn => {
+        const active = btn.getAttribute('data-tab') === next;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      document.body.classList.toggle('island-sheet-open', !!next);
+      if (window.PunchClockIsland) {
+        if (next) window.PunchClockIsland.focus(next);
+        else window.PunchClockIsland.reset();
+      }
+    }
+
+    function showGuestLoginGate(tabId) {
+      const panels = document.querySelectorAll('.dash-panel');
+      panels.forEach(panel => {
+        const active = panel.id === 'panel-guest-gate';
+        panel.classList.toggle('is-active', active);
+        if (active) {
+          panel.removeAttribute('hidden');
+        } else {
+          panel.setAttribute('hidden', '');
+        }
+      });
+      const sheet = document.getElementById('islandSheet');
+      const title = document.getElementById('islandSheetTitle');
+      const hint = document.getElementById('islandGuestGateHint');
+      const label = zoneLabel(tabId);
+      if (sheet) sheet.hidden = false;
+      if (title) title.textContent = label;
+      if (hint) hint.textContent = '登入後可操作「' + label + '」。訪客可繼續逛島嶼與公開導覽。';
+      setActiveIslandChrome(tabId);
+    }
 
     function switchDashTab(tabId) {
       const panels = document.querySelectorAll('.dash-panel');
       if (!panels.length) return;
       const next = ISLAND_ZONES.indexOf(tabId) >= 0 ? tabId : '';
+      if (!isAuthenticated && next) {
+        showGuestLoginGate(next);
+        return;
+      }
       panels.forEach(panel => {
         const active = next !== '' && panel.id === 'panel-' + next;
         panel.classList.toggle('is-active', active);
@@ -1087,34 +1138,20 @@
       if (sheet) {
         if (next) {
           sheet.hidden = false;
-          const panel = document.getElementById('panel-' + next);
-          if (title) title.textContent = panel ? (panel.getAttribute('data-label') || next) : next;
+          if (title) title.textContent = zoneLabel(next);
         } else {
           sheet.hidden = true;
         }
       }
-      const list = document.getElementById('islandList');
-      const listBtn = document.getElementById('islandListBtn');
-      if (list && next) {
-        list.hidden = true;
-        if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
-      }
-      document.querySelectorAll('.island-label, .island-list button[data-tab]').forEach(btn => {
-        const active = btn.getAttribute('data-tab') === next;
-        btn.classList.toggle('is-active', active);
-        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-      });
       try {
-        window.sessionStorage.setItem('punchclock.dashTab', next);
+        if (isAuthenticated) {
+          window.sessionStorage.setItem('punchclock.dashTab', next);
+        }
       } catch (e) {}
-      if (next === 'system') {
+      if (isAuthenticated && next === 'system') {
         window.requestAnimationFrame(() => drawHealthHistoryChart());
       }
-      document.body.classList.toggle('island-sheet-open', !!next);
-      if (window.PunchClockIsland) {
-        if (next) window.PunchClockIsland.focus(next);
-        else window.PunchClockIsland.reset();
-      }
+      setActiveIslandChrome(next);
     }
 
     function bindDashTabs() {
@@ -1122,10 +1159,12 @@
         el.addEventListener('click', () => switchDashTab(el.getAttribute('data-tab')));
       });
       let initial = '';
-      try {
-        const saved = window.sessionStorage.getItem('punchclock.dashTab');
-        if (ISLAND_ZONES.indexOf(saved) >= 0) initial = saved;
-      } catch (e) {}
+      if (isAuthenticated) {
+        try {
+          const saved = window.sessionStorage.getItem('punchclock.dashTab');
+          if (ISLAND_ZONES.indexOf(saved) >= 0) initial = saved;
+        } catch (e) {}
+      }
       switchDashTab(initial);
     }
 
@@ -1609,28 +1648,30 @@
     }
 
     bindDashTabs();
-    fetchStatus();
-    fetchPhotos();
-    fetchMarquee();
-    bindMarqueeForm();
-    connectWebSocket();
-    bindPhotoActions();
-    window.addEventListener('resize', drawHealthHistoryChart);
-    healthHistoryTimer = setInterval(refreshHealthHistory, 60000);
-    setInterval(() => {
-      updateHeartbeatMetrics();
-      updateCountdowns();
-    }, 1000);
-    setInterval(async () => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        try {
-          const res = await fetch('/api/status');
-          const data = await res.json();
-          applyServerHealth(data.serverHealth || null);
-          applyHealthHistory(data.healthHistory || null);
-          applyClientSnapshot(data.clients || []);
-        } catch (e) {
-          console.error('狀態更新失敗', e);
+    if (isAuthenticated) {
+      fetchStatus();
+      fetchPhotos();
+      fetchMarquee();
+      bindMarqueeForm();
+      connectWebSocket();
+      bindPhotoActions();
+      window.addEventListener('resize', drawHealthHistoryChart);
+      healthHistoryTimer = setInterval(refreshHealthHistory, 60000);
+      setInterval(() => {
+        updateHeartbeatMetrics();
+        updateCountdowns();
+      }, 1000);
+      setInterval(async () => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          try {
+            const res = await fetch('/api/status');
+            const data = await res.json();
+            applyServerHealth(data.serverHealth || null);
+            applyHealthHistory(data.healthHistory || null);
+            applyClientSnapshot(data.clients || []);
+          } catch (e) {
+            console.error('狀態更新失敗', e);
+          }
         }
-      }
-    }, 5000);
+      }, 5000);
+    }

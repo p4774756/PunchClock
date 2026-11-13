@@ -7,7 +7,8 @@
   <link rel="stylesheet" href="/css/dashboard.css">
   <link rel="stylesheet" href="/css/island.css">
 </head>
-<body class="island-body">
+<body class="island-body {{AUTH_BODY_CLASS}}">
+  <script>window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};</script>
   <header class="island-brand">
     <div class="brand-logo" aria-hidden="true">M<em>C</em></div>
     <div class="island-brand-text">
@@ -19,8 +20,9 @@
   <div class="island-corner" aria-label="操作">
     <button type="button" class="island-tool" id="islandHome">全景</button>
     <button type="button" class="island-tool" id="islandListBtn" aria-expanded="false" aria-controls="islandList">清單</button>
-    <span class="island-tool island-tool-user">店長</span>
-    <a class="island-tool" href="/logout">登出</a>
+    <span class="island-tool island-tool-user" data-auth-only>店長</span>
+    <a class="island-tool" href="/logout" data-auth-only>登出</a>
+    <a class="island-tool" href="/login" data-guest-only>登入</a>
   </div>
 
   <div class="island-time" role="group" aria-label="日夜切換">
@@ -61,6 +63,16 @@
       <button type="button" class="btn btn-ghost" id="islandSheetClose">關閉</button>
     </div>
     <div class="island-sheet-body">
+      <div class="shell dash-panel" id="panel-guest-gate" data-label="需登入" role="tabpanel" hidden>
+        <div class="content-panel content-panel-full">
+          <section class="island-guest-gate" aria-label="登入後可操作">
+            <p class="island-guest-gate-lead">這是店長功能。</p>
+            <p class="island-guest-gate-hint" id="islandGuestGateHint">登入後可操作點單、製茶機與飲品牆。</p>
+            <a class="btn btn-primary" href="/login">前往登入</a>
+          </section>
+        </div>
+      </div>
+
       <div class="shell dash-panel" id="panel-devices" data-label="點單" role="tabpanel" hidden>
         <div class="content-panel content-panel-full">
           <main id="clientContainer">
