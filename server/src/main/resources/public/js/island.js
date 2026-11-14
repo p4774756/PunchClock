@@ -27,6 +27,15 @@ import {
   poseForIsland
 } from './island-layout.js';
 import { createCasinoController, CASINO_NAME } from './island-casino.js';
+import {
+  MILU_ANIM,
+  createMiluState,
+  createMiluView,
+  isNearWave,
+  miluClipPath,
+  miluStep,
+  screenAxes
+} from './island-milu.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 const POSES = {
@@ -1332,6 +1341,21 @@ function boot() {
   playerMesh.rotation.y = player.yaw;
   playerMesh.visible = false;
 
+  const milu = createMiluView(THREE);
+  scene.add(milu.object);
+  milu.object.visible = false;
+  let miluState = createMiluState();
+  const MILU_NPCS = [
+    { x: 0.15, z: 0.42 },
+    { x: 0.05, z: 2.25 },
+    { x: -0.05, z: 2.9 },
+    { x: 0.12, z: 3.55 },
+    { x: -4.85, z: 4.15 },
+    { x: -4.85, z: 2.95 },
+    { x: 4.55, z: 4.08 },
+    { x: -0.15, z: 8.45 }
+  ];
+
   function clearMoveInput() {
     Object.keys(player.keys).forEach((key) => {
       player.keys[key] = false;
@@ -1383,7 +1407,7 @@ function boot() {
   const flow = createExploreFlow({
     onModeChange: (prev, next) => {
       mode = next;
-      playerMesh.visible = playerVisible(next);
+      syncAvatarVisible();
       if (prev.exploring !== next.exploring || prev.lobby !== next.lobby) syncExploreUi();
       else syncInteractPrompt();
     },
@@ -1748,6 +1772,35 @@ function boot() {
     };
   }
 
+  function miluNpcPoints() {
+    const points = MILU_NPCS.slice();
+    for (let i = 0; i < walkers.length; i++) {
+      points.push({ x: walkers[i].obj.position.x, z: walkers[i].obj.position.z });
+    }
+    return points;
+  }
+
+  function syncAvatarVisible() {
+    const show = playerVisible(mode);
+    const useMilu = show && milu.ready() && !milu.failed();
+    milu.object.visible = useMilu;
+    playerMesh.visible = show && !useMilu;
+  }
+
+  function stepMilu(dt) {
+    const axes = screenAxes(player.vx, player.vz, theta);
+    miluState = miluStep(miluState, dt, {
+      moving: player.moving,
+      screenX: axes.x,
+      screenZ: axes.z,
+      near: isNearWave(player.x, player.z, miluNpcPoints(), INTERACT_ZONES, MILU_ANIM),
+      reduced: reduced
+    });
+    milu.show(miluClipPath(miluState));
+    milu.object.position.set(player.x, P, player.z);
+    syncAvatarVisible();
+  }
+
   function updatePlayer(dt) {
     if (!flow.canMove()) {
       player.moving = false;
@@ -1756,6 +1809,7 @@ function boot() {
       playerBob = 0;
       playerMesh.position.set(player.x, P, player.z);
       playerMesh.rotation.y = player.yaw;
+      stepMilu(dt);
       return;
     }
     const input = moveVector(player.keys, { active: player.stickActive, x: player.stickX, y: player.stickY });
@@ -1777,6 +1831,7 @@ function boot() {
     const bobY = (!reduced && player.moving) ? Math.sin(playerBob) * 0.035 : 0;
     playerMesh.position.set(player.x, P + bobY, player.z);
     playerMesh.rotation.y = player.yaw;
+    stepMilu(dt);
     targetLook.set(player.x, G + 1.05, player.z);
     syncInteractPrompt();
   }
@@ -1792,6 +1847,7 @@ function boot() {
     theta += dTheta * k;
     phi += (targetPhi - phi) * k;
     placeCamera();
+    milu.faceCamera(camera, player.x, player.z);
     if (reduced) modeMix = modeTarget;
     else modeMix += (modeTarget - modeMix) * 0.06;
     applyMix(modeMix);

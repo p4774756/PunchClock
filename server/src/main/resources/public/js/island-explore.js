@@ -18,7 +18,8 @@ import {
 
 export const PLAYER_SPAWN = { x: 2.15, z: 5.55, yaw: Math.PI };
 export const PLAYER_SPEED = 3.35;
-export const PLAYER_RADIUS = 0.28;
+// 看板角色裙擺比舊方塊人稍寬。只放大到仍能沿既有橋面與座位轉角走過，頭髮透明的部分不計入碰撞。
+export const PLAYER_RADIUS = 0.29;
 export const MAX_STEP_DT = 0.05;
 
 export const WALK_ISLAND_R = MAIN_ISLAND.r;

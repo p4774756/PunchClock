@@ -72,6 +72,7 @@ public class PublicIslandAuthTest {
         assertTrue(island.body().contains("from './island-explore.js'"));
         assertTrue(island.body().contains("from './island-layout.js'"));
         assertTrue(island.body().contains("from './island-casino.js'"));
+        assertTrue(island.body().contains("from './island-milu.js'"));
 
         HttpResponse<String> logic = send("GET", "/js/island-explore.js", null);
         assertEquals(200, logic.statusCode());
@@ -94,6 +95,24 @@ public class PublicIslandAuthTest {
         HttpResponse<String> css = send("GET", "/css/casino.css", null);
         assertEquals(200, css.statusCode());
         assertTrue(css.body().contains(".casino-lobby"));
+
+        HttpResponse<String> miluJs = send("GET", "/js/island-milu.js", null);
+        assertEquals(200, miluJs.statusCode());
+        assertTrue(miluJs.body().contains("export function miluStep"));
+
+        HttpRequest spriteReq = HttpRequest.newBuilder(URI.create(base + "/pet/milu/walk/left_01.png"))
+                .timeout(Duration.ofSeconds(5))
+                .GET()
+                .build();
+        HttpResponse<byte[]> sprite = http.send(spriteReq, HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, sprite.statusCode());
+        assertTrue(sprite.headers().firstValue("content-type").orElse("").contains("image/png"));
+        byte[] png = sprite.body();
+        assertTrue(png.length > 8);
+        assertEquals((byte) 0x89, png[0]);
+        assertEquals((byte) 0x50, png[1]);
+        assertEquals((byte) 0x4E, png[2]);
+        assertEquals((byte) 0x47, png[3]);
     }
 
     @Test

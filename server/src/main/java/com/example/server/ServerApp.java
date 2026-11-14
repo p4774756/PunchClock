@@ -88,6 +88,12 @@ public final class ServerApp {
                 sf.directory = "/public/js";
                 sf.location = Location.CLASSPATH;
             });
+            // 探索模式看板角色。圖檔由 Maven 從桌面端 resources 複製，不另存一份。
+            config.staticFiles.add(sf -> {
+                sf.hostedPath = "/pet";
+                sf.directory = "/public/pet";
+                sf.location = Location.CLASSPATH;
+            });
             config.showJavalinBanner = false;
             long maxRequest = PhotoStore.MAX_INCOMING_REQUEST_BYTES;
             config.http.maxRequestSize = maxRequest;
