@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/css/dashboard.css">
   <link rel="stylesheet" href="/css/island.css">
   <link rel="stylesheet" href="/css/casino.css">
+  <link rel="stylesheet" href="/css/graffiti.css">
 </head>
 <body class="island-body {{AUTH_BODY_CLASS}}">
   <script>window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};</script>
@@ -37,7 +38,7 @@
   </div>
 
   <div id="islandStage">
-    <canvas id="islandCanvas" role="img" aria-label="手搖店群島。點點單、製茶機或飲品牆，也可以用清單跳到各島。探索模式可用鍵盤或虛擬搖桿移動。"></canvas>
+    <canvas id="islandCanvas" role="img" aria-label="手搖店群島。點點單、製茶機、飲品牆或塗鴉牆，也可以用清單跳到各島。探索模式可用鍵盤或虛擬搖桿移動。"></canvas>
   </div>
 
   <div id="islandJoystick" class="island-joystick" hidden aria-label="移動搖桿" role="application">
@@ -58,6 +59,7 @@
     <button type="button" class="island-label" data-tab="devices" data-anchor="devices" data-rank="2">點單</button>
     <button type="button" class="island-label" data-tab="system" data-anchor="system" data-rank="2">製茶機</button>
     <button type="button" class="island-label" data-tab="photos" data-anchor="photos" data-rank="2">飲品牆</button>
+    <button type="button" class="island-label" data-open-graffiti data-anchor="graffiti-wall" data-rank="2">塗鴉牆</button>
     <div class="island-mark island-mark-casino" data-anchor="casino" data-rank="2">賭場</div>
     <div class="island-mark" data-anchor="island-casino" data-rank="1">博弈島</div>
     <div class="island-mark" data-anchor="island-tcm" data-rank="1">中醫推拿島</div>
@@ -78,6 +80,7 @@
     <button type="button" data-island="computer">電腦島<small>施工中</small></button>
     <p class="island-list-title island-list-title-next">娛樂</p>
     <button type="button" data-open-casino>賭場大廳<small>訪客可進 · 籌碼尚未啟用</small></button>
+    <button type="button" data-open-graffiti>塗鴉牆<small>訪客可畫 · 留下署名</small></button>
     <p class="island-list-title island-list-title-next">學習</p>
     <a href="/atlas/tcm-3d/?set=head-neck-21&amp;code=GV24%2B">中醫人體<small>基準穴 · 頭頸 21</small></a>
   </aside>
@@ -104,6 +107,46 @@
         </div>
       </div>
       <div class="casino-game-grid" data-casino-games aria-label="遊戲列表"></div>
+    </div>
+  </section>
+
+  <section id="graffitiBoard" class="graffiti-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="塗鴉牆">
+    <div class="graffiti-panel">
+      <header class="graffiti-head">
+        <div>
+          <h2>塗鴉牆</h2>
+          <p>畫一幅小圖，署名可留可不留。送出就貼上，只有站長能拿下來。</p>
+        </div>
+        <button type="button" class="btn btn-ghost" data-graffiti-back aria-label="返回島嶼">返回島嶼</button>
+      </header>
+      <div class="graffiti-studio">
+        <div>
+          <canvas class="graffiti-canvas" data-graffiti-paint width="512" height="256" aria-label="塗鴉畫布"></canvas>
+          <div class="graffiti-tools" role="group" aria-label="畫筆">
+            <button type="button" class="graffiti-swatch" data-graffiti-color="#1f2430" style="background:#1f2430" aria-label="墨色"></button>
+            <button type="button" class="graffiti-swatch" data-graffiti-color="#f06a2a" style="background:#f06a2a" aria-label="橘色"></button>
+            <button type="button" class="graffiti-swatch" data-graffiti-color="#1f4d73" style="background:#1f4d73" aria-label="藍色"></button>
+            <button type="button" class="graffiti-swatch" data-graffiti-color="#f4a0c0" style="background:#f4a0c0" aria-label="粉色"></button>
+            <button type="button" class="graffiti-swatch" data-graffiti-color="#7ec8ea" style="background:#7ec8ea" aria-label="水色"></button>
+            <button type="button" class="graffiti-swatch" data-graffiti-color="#9fd9b4" style="background:#9fd9b4" aria-label="綠色"></button>
+            <button type="button" class="graffiti-swatch" data-graffiti-color="#f6d35a" style="background:#f6d35a" aria-label="黃色"></button>
+            <button type="button" class="graffiti-swatch" data-graffiti-color="#ffffff" style="background:#ffffff" aria-label="白色"></button>
+            <button type="button" class="btn btn-ghost graffiti-brush" data-graffiti-brush="4" aria-label="細筆">細</button>
+            <button type="button" class="btn btn-ghost graffiti-brush" data-graffiti-brush="14" aria-label="中筆">中</button>
+            <button type="button" class="btn btn-ghost graffiti-brush" data-graffiti-brush="28" aria-label="粗筆">粗</button>
+            <button type="button" class="btn btn-ghost" data-graffiti-eraser aria-pressed="false">橡皮擦</button>
+            <button type="button" class="btn btn-ghost" data-graffiti-undo>復原</button>
+            <button type="button" class="btn btn-ghost" data-graffiti-clear>清空</button>
+          </div>
+          <div class="graffiti-sign">
+            <label for="graffitiSignature">署名</label>
+            <input id="graffitiSignature" data-graffiti-signature maxlength="12" autocomplete="nickname" placeholder="路過的旅人" aria-label="署名，選填，最多 12 字">
+            <button type="button" class="btn btn-primary" data-graffiti-submit>貼上牆</button>
+          </div>
+          <p class="graffiti-status" data-graffiti-status role="status"></p>
+        </div>
+        <div class="graffiti-list" data-graffiti-list aria-label="塗鴉列表"></div>
+      </div>
     </div>
   </section>
 

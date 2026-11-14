@@ -56,6 +56,9 @@ public class PublicIslandAuthTest {
         assertTrue(response.body().contains("id=\"casinoLobby\""));
         assertTrue(response.body().contains("id=\"islandInteract\""));
         assertTrue(response.body().contains("data-open-casino"));
+        assertTrue(response.body().contains("id=\"graffitiBoard\""));
+        assertTrue(response.body().contains("data-open-graffiti"));
+        assertTrue(response.body().contains("塗鴉牆"));
         assertTrue(response.body().contains("返回島嶼"));
         assertTrue(response.body().contains("尚未啟用"));
         assertTrue(response.body().contains("is-guest"));
@@ -73,6 +76,7 @@ public class PublicIslandAuthTest {
         assertTrue(island.body().contains("from './island-layout.js'"));
         assertTrue(island.body().contains("from './island-casino.js'"));
         assertTrue(island.body().contains("from './island-milu.js'"));
+        assertTrue(island.body().contains("from './island-graffiti.js'"));
 
         HttpResponse<String> logic = send("GET", "/js/island-explore.js", null);
         assertEquals(200, logic.statusCode());
@@ -96,6 +100,14 @@ public class PublicIslandAuthTest {
         assertEquals(200, css.statusCode());
         assertTrue(css.body().contains(".casino-lobby"));
 
+        HttpResponse<String> graffitiJs = send("GET", "/js/island-graffiti.js", null);
+        assertEquals(200, graffitiJs.statusCode());
+        assertTrue(graffitiJs.body().contains("export function normalizeSignature"));
+
+        HttpResponse<String> graffitiCss = send("GET", "/css/graffiti.css", null);
+        assertEquals(200, graffitiCss.statusCode());
+        assertTrue(graffitiCss.body().contains("touch-action: none"));
+
         HttpResponse<String> miluJs = send("GET", "/js/island-milu.js", null);
         assertEquals(200, miluJs.statusCode());
         assertTrue(miluJs.body().contains("export function miluStep"));
@@ -113,6 +125,28 @@ public class PublicIslandAuthTest {
         assertEquals((byte) 0x50, png[1]);
         assertEquals((byte) 0x4E, png[2]);
         assertEquals((byte) 0x47, png[3]);
+    }
+
+    @Test
+    public void guestsCanReadAndSubmitGraffitiWithoutLogin() throws Exception {
+        HttpResponse<String> list = send("GET", "/api/graffiti", null);
+        assertEquals(200, list.statusCode());
+        assertTrue(list.body().contains("\"items\""));
+        assertNoManagementPayload(list.body());
+
+        HttpRequest post = HttpRequest.newBuilder(URI.create(base + "/api/graffiti"))
+                .timeout(Duration.ofSeconds(5))
+                .header("Content-Type", "text/plain")
+                .POST(HttpRequest.BodyPublishers.ofString("not-a-png", StandardCharsets.UTF_8))
+                .build();
+        HttpResponse<String> rejected = http.send(post, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        assertEquals(400, rejected.statusCode());
+        assertTrue(rejected.body().contains("PNG"));
+        assertFalse(rejected.body().contains("未登入"));
+
+        HttpResponse<String> denied = send("DELETE", "/api/graffiti/missingid", null);
+        assertEquals(401, denied.statusCode());
+        assertTrue(denied.body().contains("未登入或權限不足"));
     }
 
     @Test

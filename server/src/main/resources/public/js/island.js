@@ -27,6 +27,7 @@ import {
   poseForIsland
 } from './island-layout.js';
 import { createCasinoController, CASINO_NAME } from './island-casino.js';
+import { createGraffitiController, wallSlots } from './island-graffiti.js';
 import {
   MILU_ANIM,
   createMiluState,
@@ -62,10 +63,13 @@ function bootCasinoFallback() {
       }
     }
   });
+  const graffiti = createGraffitiController({});
   window.PunchClockIsland = window.PunchClockIsland || {};
   window.PunchClockIsland.openCasino = () => casino.openLobby();
   window.PunchClockIsland.closeCasino = () => casino.closeLobby();
   window.PunchClockIsland.isCasinoOpen = () => casino.isOpen();
+  window.PunchClockIsland.openGraffiti = () => graffiti.open();
+  window.PunchClockIsland.closeGraffiti = () => graffiti.close();
 }
 
 if (stage && canvas) boot();
@@ -855,6 +859,106 @@ function boot() {
   anchors.photos.position.set(0, G + 2.2, 0);
   tag(board);
 
+  const graffitiBuilding = BUILDINGS.find((item) => item.id === 'graffiti-wall');
+  let refreshGraffitiWall = function () {};
+  if (graffitiBuilding) {
+    const wall = makeZone(graffitiBuilding.id, graffitiBuilding.x, graffitiBuilding.z, 1.5);
+    wall.rotation.y = graffitiBuilding.yaw || 0;
+    const faceZ = graffitiBuilding.d / 2;
+    addBox(wall, graffitiBuilding.w + 0.18, 0.16, graffitiBuilding.d + 0.12, 0xc4844a, 0, G + 0.08, 0);
+    addBox(wall, 0.14, 1.72, 0.16, 0xa56b38, -graffitiBuilding.w / 2, G + 0.94, 0);
+    addBox(wall, 0.14, 1.72, 0.16, 0xa56b38, graffitiBuilding.w / 2, G + 0.94, 0);
+    addBox(wall, graffitiBuilding.w + 0.08, 0.12, 0.18, 0xf06a2a, 0, G + 1.78, 0);
+    const boardCanvas = document.createElement('canvas');
+    boardCanvas.width = 1024;
+    boardCanvas.height = 384;
+    const boardTex = new THREE.CanvasTexture(boardCanvas);
+    boardTex.colorSpace = THREE.SRGBColorSpace;
+    boardTex.anisotropy = 8;
+    const boardMat = new THREE.MeshBasicMaterial({ map: boardTex });
+    const artW = graffitiBuilding.w * 0.9;
+    const boardMesh = new THREE.Mesh(new THREE.PlaneGeometry(artW, artW * 384 / 1024), boardMat);
+    boardMesh.position.set(0, G + 0.98, faceZ + 0.02);
+    boardMesh.castShadow = false;
+    boardMesh.receiveShadow = false;
+    wall.add(boardMesh);
+    anchors[graffitiBuilding.id].position.set(0, G + 1.95, faceZ);
+    lampLight(0, G + 1.7, faceZ + 0.8, 9, wall);
+    tag(wall);
+
+    function paintBrick(g, w, h) {
+      g.fillStyle = '#e7b199';
+      g.fillRect(0, 0, w, h);
+      g.strokeStyle = 'rgba(120, 64, 42, 0.45)';
+      g.lineWidth = 4;
+      for (let y = 0; y < h; y += 48) {
+        g.beginPath();
+        g.moveTo(0, y);
+        g.lineTo(w, y);
+        g.stroke();
+        const shift = (y / 48) % 2 ? 64 : 0;
+        for (let x = shift; x < w; x += 128) {
+          g.beginPath();
+          g.moveTo(x, y);
+          g.lineTo(x, Math.min(h, y + 48));
+          g.stroke();
+        }
+      }
+    }
+
+    function drawWall(images) {
+      const g = boardCanvas.getContext('2d');
+      const w = boardCanvas.width;
+      const h = boardCanvas.height;
+      paintBrick(g, w, h);
+      const cols = 4;
+      const rows = 3;
+      const cellW = w / cols;
+      const cellH = h / rows;
+      wallSlots(images, cols * rows).forEach((item, index) => {
+        const img = item && images.lookup ? images.lookup[item.id] : null;
+        if (!img) return;
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+        const pad = 10;
+        g.drawImage(img, col * cellW + pad, row * cellH + pad, cellW - pad * 2, cellH - pad * 2);
+      });
+      boardTex.needsUpdate = true;
+    }
+
+    refreshGraffitiWall = function () {
+      fetch('/api/graffiti?limit=12').then((res) => res.json()).then((body) => {
+        const items = (body && body.items) || [];
+        const lookup = Object.create(null);
+        let pending = 0;
+        items.forEach((item) => {
+          if (!item || !item.id) return;
+          pending += 1;
+          const img = new Image();
+          img.onload = () => {
+            lookup[item.id] = img;
+            pending -= 1;
+            if (pending <= 0) {
+              items.lookup = lookup;
+              drawWall(items);
+            }
+          };
+          img.onerror = () => {
+            pending -= 1;
+            if (pending <= 0) {
+              items.lookup = lookup;
+              drawWall(items);
+            }
+          };
+          img.src = '/api/graffiti/' + encodeURIComponent(item.id) + '.png';
+        });
+        if (!pending) drawWall(items);
+      }).catch(() => drawWall([]));
+    };
+    drawWall([]);
+    refreshGraffitiWall();
+  }
+
   function marker(name, x, y, z) {
     const anchor = new THREE.Object3D();
     anchor.position.set(x, y, z);
@@ -1394,14 +1498,19 @@ function boot() {
 
   function islandUiOpen() {
     const list = document.getElementById('islandList');
-    return sheetOpen() || !!(list && !list.hidden) || !!(casino && casino.isOpen());
+    return sheetOpen() || !!(list && !list.hidden) || casinoOpen() || graffitiOpen();
   }
 
   let exploreSaved = null;
   let casino = null;
+  let graffiti = null;
 
   function casinoOpen() {
     return !!(casino && casino.isOpen());
+  }
+
+  function graffitiOpen() {
+    return !!(graffiti && graffiti.isOpen());
   }
 
   const flow = createExploreFlow({
@@ -1425,7 +1534,7 @@ function boot() {
       setActive('');
     },
     sheetOpen: () => sheetOpen(),
-    lobbyOpen: () => casinoOpen(),
+    lobbyOpen: () => casinoOpen() || graffitiOpen(),
     closeSheet: () => {
       if (typeof window.switchDashTab === 'function') window.switchDashTab('');
     }
@@ -1503,8 +1612,9 @@ function boot() {
       btn.setAttribute('aria-label', exploring ? '退出探索模式' : '進入探索模式');
       btn.textContent = exploring ? '退出' : '探索';
     }
-    if (stick) stick.hidden = !exploring || !!(casino && casino.isOpen());
-    if (hint) hint.hidden = !exploring || !!(casino && casino.isOpen());
+    const overlay = casinoOpen() || graffitiOpen();
+    if (stick) stick.hidden = !exploring || overlay;
+    if (hint) hint.hidden = !exploring || overlay;
     syncInteractPrompt();
   }
 
@@ -1516,7 +1626,7 @@ function boot() {
       exploring: mode.exploring,
       paused: mode.paused,
       uiOpen: sheetOpen() || !!(document.getElementById('islandList') && !document.getElementById('islandList').hidden),
-      lobbyOpen: casino.isOpen(),
+      lobbyOpen: casinoOpen() || graffitiOpen(),
       zoneId: activeInteract
     });
     casino.setPromptVisible(show, zone && zone.label ? zone.label : '進入賭場');
@@ -1726,6 +1836,10 @@ function boot() {
     canvas.style.cursor = 'grab';
     if (!moved) {
       const zone = hitZone(event);
+      if (zone === 'graffiti-wall') {
+        openGraffiti();
+        return;
+      }
       if (zone && typeof window.switchDashTab === 'function') window.switchDashTab(zone);
     }
   });
@@ -1940,10 +2054,16 @@ function boot() {
       // 焦點已在「進入賭場」按鈕時交給按鈕自己的 click／Enter，避免重複開啟。
       if (event.target && event.target.id === 'islandInteract') return;
       event.preventDefault();
-      casino.openLobby();
+      const zone = hitInteractZone(player.x, player.z, INTERACT_ZONES);
+      if (zone && zone.action === 'openGraffiti') openGraffiti();
+      else if (casino) casino.openLobby();
       return;
     }
     if (event.key !== 'Escape') return;
+    if (graffiti && graffiti.isOpen()) {
+      graffiti.close();
+      return;
+    }
     if (isTypingTarget(event.target)) return;
     if (casino && casino.isOpen()) {
       casino.closeLobby();
@@ -2067,10 +2187,37 @@ function boot() {
   if (dayBtn) dayBtn.addEventListener('click', () => setMode('day'));
   if (nightBtn) nightBtn.addEventListener('click', () => setMode('night'));
 
+  function openGraffiti() {
+    if (casino && casino.isOpen()) casino.closeLobby();
+    if (graffiti) graffiti.open();
+  }
+
   casino = createCasinoController({
     hooks: {
-      beforeOpen: () => flow.beforeLobbyOpen(),
-      onLobbyChange: (state) => flow.lobbyChanged(state.open)
+      beforeOpen: () => {
+        if (graffiti && graffiti.isOpen()) graffiti.close();
+        flow.beforeLobbyOpen();
+      },
+      onLobbyChange: (state) => flow.lobbyChanged(state.open),
+      onPrompt: () => {
+        const zone = hitInteractZone(player.x, player.z, INTERACT_ZONES);
+        if (!zone || zone.action !== 'openGraffiti') return false;
+        openGraffiti();
+        return true;
+      }
+    }
+  });
+  graffiti = createGraffitiController({
+    hooks: {
+      onChange: (state) => {
+        if (state.open) {
+          if (casino && casino.isOpen()) casino.closeLobby();
+          flow.beforeLobbyOpen();
+        } else if (!casinoOpen()) {
+          flow.lobbyChanged(false);
+        }
+      },
+      onWallChange: () => refreshGraffitiWall()
     }
   });
 
@@ -2083,6 +2230,9 @@ function boot() {
     openCasino: () => casino.openLobby(),
     closeCasino: () => casino.closeLobby(),
     isCasinoOpen: () => casino.isOpen(),
+    openGraffiti: () => graffiti.open(),
+    closeGraffiti: () => graffiti.close(),
+    isGraffitiOpen: () => graffiti.isOpen(),
     casinoName: CASINO_NAME
   };
 

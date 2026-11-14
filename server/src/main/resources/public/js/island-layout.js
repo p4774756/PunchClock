@@ -228,6 +228,12 @@ const BUILDING_DEFS = [
   { id: 'devices', island: 'main', x: 0, z: 1.42, w: 2.55, d: 0.76, yaw: 0, label: '點單', panel: 'devices', collide: false },
   { id: 'system', island: 'main', x: -4.05, z: -0.15, w: 1.45, d: 1.15, yaw: 0.42, label: '製茶機', panel: 'system', collide: false },
   { id: 'photos', island: 'main', x: 4.15, z: 0.2, w: 2.15, d: 0.7, yaw: 0.62, label: '飲品牆', panel: 'photos', collide: false },
+  // 主島南側空地：全景鏡頭在 +Z，牆面朝南才看得到畫。離三座橋頭、候餐座位和既有步行路線都有一段距離。
+  {
+    id: 'graffiti-wall', island: 'main', x: -4.2, z: 4.55, w: 2.6, d: 0.34, yaw: 0,
+    label: '塗鴉牆', panel: null, frontTrim: 0.12,
+    entry: { r: 1.7, reach: 0.55, label: '在牆上塗鴉', action: 'openGraffiti' }
+  },
   {
     id: 'casino', island: 'casino', x: 16.35, z: -7.4, w: 2.4, d: 1.9, yaw: -Math.PI / 2,
     label: '賭場', panel: null, frontTrim: 0.22,
