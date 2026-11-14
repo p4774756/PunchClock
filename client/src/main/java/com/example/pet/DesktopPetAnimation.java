@@ -7,12 +7,18 @@ import java.util.Random;
  * <p>
  * 喵露待機：呼吸每張 300ms，眨眼每張 150ms。
  * 動作優先序是拖曳、揮手、走路、坐下、趴睡、待機，全部由這一個 tick 推進。
+ * 拖曳另有 {@link CarryPhase}：抓起、掙扎、放下，不混進一般動作的 {@link Mode}。
  * 還沒有合格影格的動作由畫面改畫待機。{@link #column()} 與 {@link #row()} 只給待機素材也載入失敗時的像素角色。
  */
 public final class DesktopPetAnimation {
 
     public enum Mode {
         IDLE, WALK, REACT, SIT, SLEEP
+    }
+
+    /** 被拎著的階段。放下回彈期間仍算被拎著，畫面依階段選圖。 */
+    public enum CarryPhase {
+        NONE, GRAB, STRUGGLE, RELEASE
     }
 
     public static final int TICK_MS = 50;
@@ -30,8 +36,10 @@ public final class DesktopPetAnimation {
     static final int BLINK_MAX_TICKS = 7000 / TICK_MS;
     public static final int SIT_TICKS = 160;
     public static final int SLEEP_TICKS = 240;
-    /** 放開後回彈約 200ms，落在 150–200ms。 */
-    public static final int RELEASE_TICKS = 4;
+    /** 抓起約 200ms，兩張各 100ms，之後進入掙扎。 */
+    public static final int GRAB_TICKS = 4;
+    /** 放開後落地回彈約 300ms，三張各 100ms，結束回待機。 */
+    public static final int RELEASE_TICKS = 6;
     public static final double MAX_LEAN_DEGREES = 10;
     /** 大約每秒 700 像素就傾到上限。 */
     static final double SPEED_FOR_FULL_LEAN = 700;
@@ -65,6 +73,8 @@ public final class DesktopPetAnimation {
     private int blinkHold;
     private int ticksUntilBlink;
     private int carriedTicks;
+    private CarryPhase carryPhase = CarryPhase.NONE;
+    private int phaseTicks;
     private int idleExits;
     private boolean handDown;
     private boolean settling;
@@ -105,6 +115,11 @@ public final class DesktopPetAnimation {
         updateMilu();
         if (carried) {
             carriedTicks++;
+            phaseTicks++;
+            if (carryPhase == CarryPhase.GRAB && phaseTicks >= GRAB_TICKS) {
+                carryPhase = CarryPhase.STRUGGLE;
+                phaseTicks = 0;
+            }
             if (!speedFresh) {
                 smoothedSpeed *= SPEED_DECAY;
                 leanToward(targetLean(smoothedSpeed));
@@ -172,17 +187,22 @@ public final class DesktopPetAnimation {
         return notice && bubbleTicks > 0;
     }
 
+    /** 拎起時從抓起重新開始；放下回彈還沒結束就再被拎起，舊的回彈直接中止。 */
     public void setCarried(boolean carried) {
-        if (carried && !this.carried) {
+        if (carried && (!this.carried || settling)) {
             carriedTicks = 0;
             lean = 0;
             smoothedSpeed = 0;
             speedFresh = false;
             settling = false;
             settleTicks = 0;
+            carryPhase = CarryPhase.GRAB;
+            phaseTicks = 0;
         }
         this.carried = carried;
         if (!carried) {
+            carryPhase = CarryPhase.NONE;
+            phaseTicks = 0;
             settling = false;
             settleTicks = 0;
             lean = 0;
@@ -215,13 +235,15 @@ public final class DesktopPetAnimation {
         leanToward(targetLean(smoothedSpeed));
     }
 
-    /** 放開。維持被拎起的姿勢，約 200ms 回彈後回待機。 */
+    /** 放開。抓起還沒播完也直接落地，約 300ms 回彈後回待機。 */
     public void releaseCarry() {
         if (!carried || settling) {
             return;
         }
         settling = true;
         settleTicks = 0;
+        carryPhase = CarryPhase.RELEASE;
+        phaseTicks = 0;
         settleFrom = lean;
         smoothedSpeed = 0;
         speedFresh = false;
@@ -274,6 +296,10 @@ public final class DesktopPetAnimation {
         return carried;
     }
 
+    public CarryPhase carryPhase() {
+        return carryPhase;
+    }
+
     public boolean facingRight() {
         return direction > 0;
     }
@@ -315,6 +341,26 @@ public final class DesktopPetAnimation {
         }
         int ticks = carried ? carriedTicks : poseTicks;
         return Math.floorMod(ticks / ACTION_HOLD_TICKS, count);
+    }
+
+    /**
+     * 拖曳階段的影格序號。抓起與放下各播一次、停在最後一張；掙扎每張約 150ms 循環。
+     * 不在拖曳階段時回傳 0。
+     */
+    public int carryFrame(int count) {
+        if (count <= 1) {
+            return 0;
+        }
+        if (carryPhase == CarryPhase.GRAB) {
+            return Math.min(count - 1, phaseTicks * count / GRAB_TICKS);
+        }
+        if (carryPhase == CarryPhase.RELEASE) {
+            return Math.min(count - 1, settleTicks * count / RELEASE_TICKS);
+        }
+        if (carryPhase == CarryPhase.STRUGGLE) {
+            return Math.floorMod(phaseTicks / ACTION_HOLD_TICKS, count);
+        }
+        return 0;
     }
 
     int ticksUntilBlink() {
