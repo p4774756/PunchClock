@@ -1,91 +1,60 @@
 // 探索模式純邏輯（不依賴 Three.js／DOM），供 island.js 使用並由 node:test 驗證。
+// 可行走區、障礙與互動區來自 island-layout.js，不在這裡手寫座標。
+
+import {
+  MAIN_ISLAND,
+  ISLANDS,
+  BRIDGES,
+  WALK_PADS,
+  OBSTACLE_CIRCLES,
+  THEME_CIRCLES,
+  BUILDINGS,
+  buildingById,
+  blockRects,
+  interactZones,
+  walkable,
+  blocked
+} from './island-layout.js';
 
 export const PLAYER_SPAWN = { x: 2.15, z: 5.55, yaw: Math.PI };
 export const PLAYER_SPEED = 3.35;
 export const PLAYER_RADIUS = 0.28;
 export const MAX_STEP_DT = 0.05;
 
-export const WALK_ISLAND_R = 8.05;
-export const WALK_RECTS = [
-  { minX: -1.05, maxX: 0.85, minZ: 6.9, maxZ: 8.95 },
-  { minX: 6.2, maxX: 9.55, minZ: 1.15, maxZ: 2.75 }
-];
-// 賭場本體（島嶼東南方空地、照片牆以南）；門朝 +Z（廣場），門前不納入碰撞。
+export const WALK_ISLAND_R = MAIN_ISLAND.r;
+export const WALK_RECTS = WALK_PADS;
+export const BLOCK_RECTS = blockRects();
+export const BLOCK_CIRCLES = OBSTACLE_CIRCLES.concat(THEME_CIRCLES);
+
+const casinoBuilding = buildingById('casino');
+// 賭場已搬到博弈島。門朝橋（本地 +Z 經 yaw 轉到世界座標），門前不納入碰撞。
 export const CASINO = Object.freeze({
-  id: 'casino',
-  x: 3.55,
-  z: -3.65,
-  w: 2.4,
-  d: 1.9,
-  block: Object.freeze({ minX: 2.35, maxX: 4.75, minZ: -4.65, maxZ: -2.55 }),
-  door: Object.freeze({ x: 3.55, z: -1.95, r: 1.2 })
+  id: casinoBuilding.id,
+  x: casinoBuilding.x,
+  z: casinoBuilding.z,
+  w: casinoBuilding.w,
+  d: casinoBuilding.d,
+  yaw: casinoBuilding.yaw,
+  block: casinoBuilding.block,
+  door: Object.freeze({
+    x: casinoBuilding.door.x,
+    z: casinoBuilding.door.z,
+    r: casinoBuilding.entry.r
+  })
 });
 
-export const BLOCK_RECTS = [
-  { minX: -2.45, maxX: 2.45, minZ: -2.2, maxZ: 0.95 },
-  { minX: -1.35, maxX: 1.35, minZ: 1.0, maxZ: 1.9 },
-  { minX: -4.85, maxX: -3.2, minZ: -0.85, maxZ: 0.55 },
-  { minX: 3.05, maxX: 5.25, minZ: -0.35, maxZ: 0.7 },
-  { minX: -5.35, maxX: -4.35, minZ: 3.05, maxZ: 4.05 },
-  { minX: 4.05, maxX: 5.05, minZ: 3.0, maxZ: 4.0 },
-  { minX: 1.55, maxX: 2.75, minZ: 4.55, maxZ: 5.2 },
-  { minX: -6.55, maxX: 6.55, minZ: -6.85, maxZ: -6.25 },
-  CASINO.block
-];
-export const BLOCK_CIRCLES = [
-  { x: -6.25, z: -5.45, r: 0.85 },
-  { x: -4.5, z: -6.25, r: 0.75 },
-  { x: 5.7, z: -5.65, r: 0.85 },
-  { x: 6.45, z: -3.15, r: 0.7 },
-  { x: -6.55, z: -1.35, r: 0.8 },
-  { x: -6.35, z: 4.55, r: 0.7 },
-  { x: 6.25, z: 5.15, r: 0.65 },
-  { x: 1.7, z: -6.35, r: 0.55 },
-  { x: -1.7, z: -6.45, r: 0.55 },
-  { x: -5.7, z: 5.15, r: 0.45 },
-  { x: 2.55, z: 4.35, r: 0.32 },
-  { x: -2.7, z: -2.55, r: 0.32 },
-  { x: -1.5, z: -2.5, r: 0.4 }
-];
+/** 預設互動區由建築 entry 推導。觸發須由玩家明確操作，不自動傳送。 */
+export const DEFAULT_INTERACT_ZONES = interactZones();
 
-/** 預設互動區（賭場門口）。場景座標與 CASINO 一致；觸發須由玩家明確操作，不自動傳送。 */
-export const DEFAULT_INTERACT_ZONES = Object.freeze([
-  Object.freeze({
-    id: CASINO.id,
-    x: CASINO.door.x,
-    z: CASINO.door.z,
-    r: CASINO.door.r,
-    label: '進入賭場',
-    action: 'enterCasino'
-  })
-]);
+export { ISLANDS, BRIDGES, BUILDINGS };
 
-// 每個可行走區域各自內縮半徑：整個角色圓必須完全落在島或碼頭內，不會半身泡水。
+// 每個可行走區域各自內縮半徑：整個角色圓必須完全落在島、碼頭或橋面內。
 export function isWalkable(x, z, radius = PLAYER_RADIUS) {
-  const islandR = WALK_ISLAND_R - radius;
-  if (islandR > 0 && x * x + z * z <= islandR * islandR) return true;
-  for (let i = 0; i < WALK_RECTS.length; i++) {
-    const r = WALK_RECTS[i];
-    if (x >= r.minX + radius && x <= r.maxX - radius && z >= r.minZ + radius && z <= r.maxZ - radius) return true;
-  }
-  return false;
+  return walkable(x, z, radius);
 }
 
 export function isBlocked(x, z, radius = PLAYER_RADIUS) {
-  for (let i = 0; i < BLOCK_RECTS.length; i++) {
-    const r = BLOCK_RECTS[i];
-    const dx = x - Math.max(r.minX, Math.min(x, r.maxX));
-    const dz = z - Math.max(r.minZ, Math.min(z, r.maxZ));
-    if (dx * dx + dz * dz < radius * radius) return true;
-  }
-  for (let i = 0; i < BLOCK_CIRCLES.length; i++) {
-    const c = BLOCK_CIRCLES[i];
-    const dx = x - c.x;
-    const dz = z - c.z;
-    const rr = c.r + radius;
-    if (dx * dx + dz * dz < rr * rr) return true;
-  }
-  return false;
+  return blocked(x, z, radius);
 }
 
 export function canStand(x, z, radius = PLAYER_RADIUS) {

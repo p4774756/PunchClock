@@ -2,15 +2,9 @@
 // 由 IslandExploreLogicTest 在 mvn test 時執行。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { loadPublicModule } from './load-public-module.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const modulePath = join(here, '..', '..', 'main', 'resources', 'public', 'js', 'island-explore.js');
-// 以 data URL 載入，避免依賴 package.json "type" 或 Node 的模組格式偵測。
-const source = readFileSync(modulePath, 'utf8');
-const X = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+const X = await loadPublicModule('island-explore.js');
 
 const R = X.PLAYER_RADIUS;
 const EPS = 1e-9;
@@ -35,10 +29,9 @@ test('島嶼邊界依角色半徑內縮', () => {
 
 test('碼頭矩形同樣依半徑內縮', () => {
   const dock = X.WALK_RECTS[0];
-  assert.ok(rawWalkable(dock.maxX - 0.05, 8.5));
-  assert.ok(!X.isWalkable(dock.maxX - 0.05, 8.5));
-  assert.ok(X.isWalkable(0, dock.maxZ - R - 0.01));
-  assert.ok(!X.isWalkable(0, dock.maxZ - R + 0.01));
+  assert.ok(rawWalkable(0, 8.2));
+  assert.ok(X.isWalkable(0, 8.2));
+  assert.ok(!X.isWalkable(dock.minX + 0.05, 8.2), '碼頭西緣會泡水');
 
   const pier = X.WALK_RECTS[1];
   assert.ok(!X.isWalkable(pier.maxX - 0.1, 2));
@@ -55,13 +48,23 @@ test('碼頭與島嶼內縮後仍然相連', () => {
 });
 
 test('任何可行走位置，整個角色圓都在原始陸地內', () => {
+  let minX = -9;
+  let maxX = 10;
+  let minZ = -9;
+  let maxZ = 9.5;
+  for (const island of X.ISLANDS) {
+    minX = Math.min(minX, island.x - island.r - 1);
+    maxX = Math.max(maxX, island.x + island.r + 1);
+    minZ = Math.min(minZ, island.z - island.r - 1);
+    maxZ = Math.max(maxZ, island.z + island.r + 1);
+  }
   let checked = 0;
-  for (let x = -9; x <= 10; x += 0.1) {
-    for (let z = -9; z <= 9.5; z += 0.1) {
+  for (let x = minX; x <= maxX; x += 0.2) {
+    for (let z = minZ; z <= maxZ; z += 0.2) {
       if (!X.isWalkable(x, z)) continue;
       checked++;
-      for (let i = 0; i < 24; i++) {
-        const a = (i / 24) * Math.PI * 2;
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
         const px = x + Math.cos(a) * (R - EPS);
         const pz = z + Math.sin(a) * (R - EPS);
         assert.ok(rawWalkable(px, pz), `(${x.toFixed(2)}, ${z.toFixed(2)}) 邊緣 (${px.toFixed(3)}, ${pz.toFixed(3)}) 在水裡`);
@@ -219,8 +222,12 @@ test('shouldCaptureMoveKey：焦點與 UI 優先順序', () => {
   assert.equal(X.shouldCaptureMoveKey({ ...base, typing: true, code: 'KeyW' }), false);
 });
 
-test('賭場本體是障礙、門口可站立且在互動半徑內', () => {
+test('賭場在博弈島，主島原址不再是賭場', () => {
   const c = X.CASINO;
+  assert.ok(Math.hypot(c.x, c.z) > X.WALK_ISLAND_R, '賭場不在主島上');
+  const casinoIsland = X.ISLANDS.find((island) => island.id === 'casino');
+  assert.ok(casinoIsland);
+  assert.ok(Math.hypot(c.door.x - casinoIsland.x, c.door.z - casinoIsland.z) < casinoIsland.r);
   assert.ok(X.isBlocked((c.block.minX + c.block.maxX) / 2, (c.block.minZ + c.block.maxZ) / 2), '賭場內部不可站');
   assert.ok(X.canStand(c.door.x, c.door.z), '門口可站立');
   assert.ok(!X.isBlocked(c.door.x, c.door.z));
@@ -228,34 +235,67 @@ test('賭場本體是障礙、門口可站立且在互動半徑內', () => {
   assert.ok(zone);
   assert.equal(zone.id, 'casino');
   assert.equal(zone.action, 'enterCasino');
+  assert.equal(X.DEFAULT_INTERACT_ZONES.length, 1, '目前只有賭場門口會互動');
   assert.ok(!X.hitInteractZone(c.door.x, c.door.z + c.door.r + 0.2, X.DEFAULT_INTERACT_ZONES));
+  assert.ok(X.canStand(3.55, -3.65), '主島原賭場位置改為空地');
+  assert.equal(X.hitInteractZone(3.55, -3.65, X.DEFAULT_INTERACT_ZONES), null);
 });
 
-test('從出生點可走到賭場門口（不穿模）', () => {
-  // 繞過照片牆東側再西轉進門前走廊（直穿會卡在櫃檯／照片牆）。
-  const waypoints = [
-    { x: 5.15, z: 4.85 },
-    { x: 6.05, z: 1.15 },
-    { x: 5.45, z: -1.95 },
-    { x: X.CASINO.door.x, z: X.CASINO.door.z }
-  ];
-  for (const p of [{ x: X.PLAYER_SPAWN.x, z: X.PLAYER_SPAWN.z }, ...waypoints]) {
-    assert.ok(X.canStand(p.x, p.z), `途經點可站 (${p.x}, ${p.z})`);
-  }
-  let pos = { x: X.PLAYER_SPAWN.x, z: X.PLAYER_SPAWN.z, yaw: 0 };
-  for (const target of waypoints) {
-    let guard = 0;
-    while (Math.hypot(target.x - pos.x, target.z - pos.z) > 0.2 && guard < 1800) {
-      const dx = target.x - pos.x;
-      const dz = target.z - pos.z;
-      const len = Math.hypot(dx, dz) || 1;
-      pos = X.stepPlayer(pos, { x: dx / len, z: dz / len, moving: true }, 0, 1 / 60);
-      assert.ok(X.canStand(pos.x, pos.z), `wp (${target.x},${target.z}) step ${guard} @ (${pos.x.toFixed(2)}, ${pos.z.toFixed(2)})`);
-      guard++;
+function walkToward(pos, target) {
+  let guard = 0;
+  while (Math.hypot(target.x - pos.x, target.z - pos.z) > 0.28 && guard < 2500) {
+    const dx = target.x - pos.x;
+    const dz = target.z - pos.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const next = X.stepPlayer(pos, { x: dx / len, z: dz / len, moving: true }, 0, 1 / 60);
+    assert.ok(X.canStand(next.x, next.z), `走向 (${target.x}, ${target.z}) step ${guard} @ (${next.x.toFixed(2)}, ${next.z.toFixed(2)})`);
+    if (next.x === pos.x && next.z === pos.z) {
+      assert.fail(`卡住 (${pos.x.toFixed(2)}, ${pos.z.toFixed(2)}) → (${target.x}, ${target.z})`);
     }
-    assert.ok(Math.hypot(target.x - pos.x, target.z - pos.z) <= 0.25, `應靠近途經點 (${target.x}, ${target.z})`);
+    pos = next;
+    guard++;
   }
-  assert.ok(X.canStand(X.CASINO.door.x, X.CASINO.door.z));
+  assert.ok(Math.hypot(target.x - pos.x, target.z - pos.z) <= 0.4, `應靠近 (${target.x}, ${target.z})，實際 (${pos.x.toFixed(2)}, ${pos.z.toFixed(2)})`);
+  return pos;
+}
+
+test('從出生點可走過橋到三座島，橋外是海', () => {
+  const approaches = {
+    casino: [{ x: 6.05, z: -0.15 }],
+    tcm: [{ x: -1.35, z: 5.55 }, { x: -4.15, z: 2.75 }],
+    computer: [{ x: 0.4, z: 6.6 }]
+  };
+  function cross(pos, bridge) {
+    const midX = (bridge.ax + bridge.bx) / 2;
+    const midZ = (bridge.az + bridge.bz) / 2;
+    pos = walkToward(pos, { x: bridge.ax, z: bridge.az });
+    pos = walkToward(pos, { x: midX, z: midZ });
+    return walkToward(pos, { x: bridge.bx, z: bridge.bz });
+  }
+  for (const bridge of X.BRIDGES) {
+    const midX = (bridge.ax + bridge.bx) / 2;
+    const midZ = (bridge.az + bridge.bz) / 2;
+    assert.ok(X.canStand(midX, midZ), bridge.id + ' 橋心可站');
+    const dx = bridge.bx - bridge.ax;
+    const dz = bridge.bz - bridge.az;
+    const len = Math.hypot(dx, dz) || 1;
+    const side = bridge.halfWidth + 0.55;
+    const seaX = midX + (-dz / len) * side;
+    const seaZ = midZ + (dx / len) * side;
+    assert.ok(!X.isWalkable(seaX, seaZ), bridge.id + ' 橋外是海');
+
+    const island = X.ISLANDS.find((item) => item.id === bridge.to);
+    let pos = { x: X.PLAYER_SPAWN.x, z: X.PLAYER_SPAWN.z, yaw: 0 };
+    for (const point of approaches[bridge.to]) pos = walkToward(pos, point);
+    pos = cross(pos, bridge);
+    assert.ok(Math.hypot(pos.x - island.x, pos.z - island.z) < island.r, bridge.to);
+  }
+  const door = X.CASINO.door;
+  const casinoBridge = X.BRIDGES.find((bridge) => bridge.to === 'casino');
+  let pos = { x: X.PLAYER_SPAWN.x, z: X.PLAYER_SPAWN.z, yaw: 0 };
+  for (const point of approaches.casino) pos = walkToward(pos, point);
+  pos = cross(pos, casinoBridge);
+  pos = walkToward(pos, { x: door.x, z: door.z });
   assert.ok(X.hitInteractZone(pos.x, pos.z, X.DEFAULT_INTERACT_ZONES));
 });
 

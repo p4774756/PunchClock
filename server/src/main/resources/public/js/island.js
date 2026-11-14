@@ -18,11 +18,19 @@ import {
   shouldShowInteractPrompt,
   shouldTriggerInteractKey
 } from './island-explore.js';
+import {
+  ISLANDS,
+  BRIDGES,
+  BUILDINGS,
+  THEME_CIRCLES,
+  PANORAMA,
+  poseForIsland
+} from './island-layout.js';
 import { createCasinoController, CASINO_NAME } from './island-casino.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 const POSES = {
-  home: { look: [0.15, 0.95, 1.35], radius: 28.4, theta: 0.48, phi: 0.93 },
+  home: { look: PANORAMA.look, radius: PANORAMA.radius, theta: PANORAMA.theta, phi: PANORAMA.phi },
   devices: { look: [0.1, 0.9, 1.85], radius: 13.2, theta: 0.22, phi: 1.02 },
   system: { look: [-4.05, 1.0, -0.05], radius: 11.6, theta: -0.35, phi: 1.0 },
   photos: { look: [3.85, 1.05, 0.35], radius: 12.2, theta: 1.25, phi: 0.98 }
@@ -81,9 +89,9 @@ function boot() {
   const skyDay = new THREE.Color(0xd8f7f8);
   const skyNight = new THREE.Color(0x1a3e86);
   scene.background = skyDay.clone();
-  scene.fog = new THREE.Fog(skyDay.clone(), 78, 176);
+  scene.fog = new THREE.Fog(skyDay.clone(), 150, 320);
 
-  const camera = new THREE.PerspectiveCamera(25, 1, 0.4, 340);
+  const camera = new THREE.PerspectiveCamera(25, 1, 0.4, 560);
   const clock = new THREE.Clock();
 
   const hemi = new THREE.HemisphereLight(0xfff8ef, 0xe7d8bc, 0.62);
@@ -92,12 +100,12 @@ function boot() {
   sun.position.set(-9.5, 20.5, 11);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -16;
-  sun.shadow.camera.right = 16;
-  sun.shadow.camera.top = 16;
-  sun.shadow.camera.bottom = -16;
+  sun.shadow.camera.left = -36;
+  sun.shadow.camera.right = 36;
+  sun.shadow.camera.top = 36;
+  sun.shadow.camera.bottom = -36;
   sun.shadow.camera.near = 2;
-  sun.shadow.camera.far = 52;
+  sun.shadow.camera.far = 80;
   sun.shadow.bias = -0.00045;
   sun.shadow.normalBias = 0.032;
   sun.target.position.set(0, 0.4, 0);
@@ -301,6 +309,17 @@ function boot() {
     g.textBaseline = 'middle';
     g.fillText('CASINO', w / 2, h / 2 + 28);
   });
+  const workSignMap = paint(512, 256, (g, w, h) => {
+    g.fillStyle = '#f6d35a';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#3a312c';
+    g.fillRect(0, 0, w, 28);
+    g.fillRect(0, h - 28, w, 28);
+    g.font = '700 108px ' + font;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('施工中', w / 2, h / 2 + 6);
+  });
 
   function picture(parent, w, h, texture, x, y, z, rotY, glowAmount, tiltX) {
     const group = new THREE.Group();
@@ -342,10 +361,10 @@ function boot() {
     return group;
   }
 
-  function lampLight(x, y, z, power) {
+  function lampLight(x, y, z, power, parent) {
     const light = new THREE.PointLight(0xffb066, 0, 8.5, 2);
     light.position.set(x, y, z);
-    scene.add(light);
+    (parent || scene).add(light);
     lampLights.push({ light: light, power: power });
   }
 
@@ -356,8 +375,8 @@ function boot() {
     });
     scene.background.copy(skyDay).lerp(skyNight, t);
     scene.fog.color.copy(scene.background);
-    scene.fog.near = 78 + (40 - 78) * t;
-    scene.fog.far = 176 + (128 - 176) * t;
+    scene.fog.near = 150 + (100 - 150) * t;
+    scene.fog.far = 320 + (240 - 320) * t;
     hemi.color.copy(hemiDay).lerp(hemiNight, t);
     hemi.groundColor.copy(groundDay).lerp(groundNight, t);
     hemi.intensity = 0.62 + (0.38 - 0.62) * t;
@@ -369,7 +388,7 @@ function boot() {
     });
   }
 
-  const water = addMesh(scene, new THREE.CircleGeometry(96, 64), 0x45c4c6, 0, -0.74, 0, {
+  const water = addMesh(scene, new THREE.CircleGeometry(180, 72), 0x45c4c6, 0, -0.74, 0, {
     night: 0x12325f,
     rot: [-Math.PI / 2, 0, 0],
     shadow: false
@@ -389,6 +408,14 @@ function boot() {
   }
 
   layIsland(scene, 9.15);
+
+  ISLANDS.forEach((island) => {
+    if (island.id === 'main') return;
+    const land = new THREE.Group();
+    land.position.set(island.x, 0, island.z);
+    layIsland(land, island.visualR);
+    scene.add(land);
+  });
 
   [
     [-5.4, -4.6, 2.3, 1.7, 0xc5e098],
@@ -557,6 +584,7 @@ function boot() {
   function buildCasino() {
     const casino = new THREE.Group();
     casino.position.set(CASINO.x, 0, CASINO.z);
+    casino.rotation.y = CASINO.yaw || 0;
     const W = CASINO.w;
     const D = CASINO.d;
     const H = 2.15;
@@ -567,7 +595,9 @@ function boot() {
     const wallY = base + H / 2;
     const doorW = 0.72;
 
-    paving(CASINO.x, CASINO.door.z - 0.15, 2.15, 1.55);
+    addBox(casino, 2.15, 0.04, 1.7, 0xe4d2b2, 0, G + 0.012, front + 0.85, { shadow: false });
+    addBox(casino, 1.9, 0.05, 1.45, 0xf4e6cf, 0, G + 0.034, front + 0.85, { shadow: false });
+    addBox(casino, 0.78, 0.025, 1.55, 0x9c2b3a, 0, G + 0.055, front + 0.95, { shadow: false });
 
     addBox(casino, W + 0.4, 0.12, D + 0.4, 0xd4a84b, 0, G + 0.04, 0);
     addBox(casino, W - 0.2, 0.08, D - 0.2, 0x3d2468, 0, G + 0.08, 0);
@@ -660,11 +690,47 @@ function boot() {
     anchor.position.set(0, roofY + 1.05, 0.1);
     casino.add(anchor);
     anchors.casino = anchor;
-    lampLight(CASINO.x, base + 1.4, CASINO.z + front + 0.55, 14);
-    lampLight(CASINO.x, roofY + 0.7, CASINO.z, 8);
+    lampLight(0, base + 1.4, front + 0.55, 14, casino);
+    lampLight(0, roofY + 0.7, 0, 8, casino);
+    lampLight(0, G + 1.15, front + 1.5, 11, casino);
   }
 
   buildCasino();
+
+  function buildSite(building) {
+    const site = new THREE.Group();
+    site.position.set(building.x, 0, building.z);
+    site.rotation.y = building.yaw || 0;
+    const W = building.w;
+    const D = building.d;
+    const front = D / 2;
+    addBox(site, W + 0.7, 0.14, D + 0.7, 0xcfc3b2, 0, G + 0.05, 0);
+    addBox(site, W, 0.08, D, 0xb8884e, 0, G + 0.12, 0);
+    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sz]) => {
+      addBox(site, 0.06, 2.05, 0.06, 0xf0d078, sx * W / 2, G + 1.1, sz * D / 2);
+    });
+    addBox(site, W, 0.05, 0.05, 0xf0d078, 0, G + 2.05, -D / 2);
+    addBox(site, W, 0.05, 0.05, 0xf0d078, 0, G + 2.05, D / 2);
+    addBox(site, 0.05, 0.05, D, 0xf0d078, -W / 2, G + 2.05, 0);
+    addBox(site, 0.05, 0.05, D, 0xf0d078, W / 2, G + 2.05, 0);
+    [[-1, 1], [1, 1]].forEach(([sx]) => {
+      addMesh(site, geo('cone', [0.16, 0.34, 6]), 0xf08a3a, sx * (W / 2 + 0.38), G + 0.2, front + 0.42);
+    });
+    addBox(site, 0.06, 1.15, 0.06, 0xa56b38, -0.52, G + 0.7, front + 0.28);
+    addBox(site, 0.06, 1.15, 0.06, 0xa56b38, 0.52, G + 0.7, front + 0.28);
+    const board = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.28, 0.64),
+      mat(0xffffff, { map: workSignMap, night: 0xfff0dc, glow: 0xffb15a, glowAmount: 0.2 })
+    );
+    board.position.set(0, G + 1.28, front + 0.32);
+    board.castShadow = false;
+    site.add(board);
+    scene.add(site);
+  }
+
+  BUILDINGS.forEach((building) => {
+    if (building.id === 'tcm-site' || building.id === 'computer-site') buildSite(building);
+  });
 
   function makeZone(id, x, z, ringR) {
     const group = new THREE.Group();
@@ -788,7 +854,10 @@ function boot() {
   }
   marker('seating', -4.85, G + 1.85, 3.55);
   marker('dock', -0.1, G + 1.15, 8.15);
-  // anchors.casino 已在 buildCasino 設定
+  ISLANDS.forEach((island) => {
+    if (island.id === 'main') return;
+    marker('island-' + island.id, island.x, G + 2.6, island.z);
+  });
 
   function treeRound(x, z, scale, leaf) {
     const group = new THREE.Group();
@@ -865,6 +934,7 @@ function boot() {
   bed(1.85, 6.35, 1.15, 0.7);
   bed(0, -6.15, 2.4, 0.65);
   bed(-5.7, -5.9, 0.9, 0.55);
+  bed(3.55, -3.65, 1.25, 0.7);
 
   function fence(x1, z1, x2, z2, h) {
     const dx = x2 - x1;
@@ -1011,16 +1081,18 @@ function boot() {
   scene.add(boat);
   bobs.push({ obj: boat, base: -0.62, phase: 0.6, amp: 0.035 });
 
-  function bridge(x1, z1, x2, z2) {
+  function bridge(x1, z1, x2, z2, width) {
+    const deck = width || 1.15;
+    const rail = deck / 2 - 0.06;
     const dx = x2 - x1;
     const dz = z2 - z1;
     const len = Math.hypot(dx, dz) || 0.001;
-    const info = spanDeck(x1, z1, x2, z2, 1.15, 0xc4844a, P);
+    const info = spanDeck(x1, z1, x2, z2, deck, 0xc4844a, P);
     [-1, 1].forEach((side) => {
       addBox(scene, len, 0.05, 0.05, 0xfff7ef,
-        (x1 + x2) / 2 + info.zx * 0.5 * side,
+        (x1 + x2) / 2 + info.zx * rail * side,
         P + 0.38,
-        (z1 + z2) / 2 + info.zz * 0.5 * side,
+        (z1 + z2) / 2 + info.zz * rail * side,
         { rot: [0, info.ry, 0] });
     });
     const posts = Math.max(2, Math.round(len / 1.15));
@@ -1028,27 +1100,17 @@ function boot() {
       const t = i / posts;
       [-1, 1].forEach((side) => {
         addBox(scene, 0.06, 0.46, 0.06, 0xf3e2cc,
-          x1 + dx * t + info.zx * 0.5 * side,
+          x1 + dx * t + info.zx * rail * side,
           P + 0.18,
-          z1 + dz * t + info.zz * 0.5 * side);
+          z1 + dz * t + info.zz * rail * side);
       });
     }
     [0.08, 0.92].forEach((t) => {
       addBox(scene, 0.12, 1.15, 0.12, 0xa56b38, x1 + dx * t, P - 0.5, z1 + dz * t);
     });
   }
-  bridge(6.7, 1.75, 9.35, 2.05);
-
-  const islet = new THREE.Group();
-  islet.position.set(10.9, 0, 2.3);
-  layIsland(islet, 1.65);
-  scene.add(islet);
-  treeRound(10.55, 2.7, 0.68, 0x6fa84e);
-  umbrella(11.35, 1.95, 0xf6d35a, 0.64);
-  bench(11.2, 2.4, -0.8);
-  bush(10.15, 1.75, 0.34, 0x8fbf62);
-  rockAt(12.15, 2.85, 0.28, -0.72);
-  rockAt(9.85, 1.45, 0.24, -0.75);
+  BRIDGES.forEach((span) => bridge(span.ax, span.az, span.bx, span.bz, span.halfWidth * 2));
+  spanDeck(6.4, 1.95, 9.4, 1.95, 1.4, 0xc4844a, P);
 
   function railing(x1, z1, x2, z2) {
     const dx = x2 - x1;
@@ -1078,16 +1140,39 @@ function boot() {
   hill(18, 40, 4.2, 1.7, 0xd7e6ee);
   hill(42, 18, 3.6, 1.5, 0xc9ddd4);
 
-  const isletFar = new THREE.Group();
-  isletFar.position.set(-15.5, 0, 7.2);
-  layIsland(isletFar, 1.7);
-  scene.add(isletFar);
-  treeCone(-15.2, 7.35, 0.7, 0x6fa84e);
-  const isletFar2 = new THREE.Group();
-  isletFar2.position.set(18.5, 0, -13.5);
-  layIsland(isletFar2, 1.45);
-  scene.add(isletFar2);
-  bush(18.4, -13.3, 0.7, 0x7eae58);
+  function palmAt(x, z) {
+    const group = new THREE.Group();
+    group.position.set(x, G, z);
+    addMesh(group, geo('cyl', [0.07, 0.11, 1.55, 5, 0]), 0xc4844a, 0, 0.78, 0);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      const frond = addMesh(group, geo('cone', [0.07, 0.85, 4]), 0x6fa84e, Math.cos(a) * 0.22, 1.55, Math.sin(a) * 0.22);
+      frond.rotation.z = Math.cos(a) * 0.9;
+      frond.rotation.x = Math.sin(a) * 0.9;
+    }
+    scene.add(group);
+  }
+  function bambooAt(x, z) {
+    const group = new THREE.Group();
+    group.position.set(x, G, z);
+    [-0.14, 0.02, 0.16].forEach((dx, i) => {
+      addMesh(group, geo('cyl', [0.035, 0.045, 1.45 + i * 0.28, 5, 0]), 0x7eae58, dx, 0.75, (i - 1) * 0.07);
+    });
+    scene.add(group);
+  }
+  function dishAt(x, z) {
+    const group = new THREE.Group();
+    group.position.set(x, G, z);
+    addBox(group, 0.08, 1.35, 0.08, 0xd5dde4, 0, 0.68, 0);
+    const dish = addMesh(group, geo('cyl', [0.42, 0.1, 0.08, 8, 0]), 0xf3e2cc, 0.16, 1.38, 0);
+    dish.rotation.z = -0.7;
+    scene.add(group);
+  }
+  THEME_CIRCLES.forEach((prop) => {
+    if (prop.id.indexOf('palm') === 0) palmAt(prop.x, prop.z);
+    else if (prop.id === 'bamboo') bambooAt(prop.x, prop.z);
+    else if (prop.id === 'dish') dishAt(prop.x, prop.z);
+  });
 
   function cloud(x, y, z, scale, drift) {
     const group = new THREE.Group();
@@ -1183,7 +1268,6 @@ function boot() {
   placePerson({ shirt: 0xf4a0c0, seated: true }, -4.85, 2.95, 0, 1.6);
   placePerson({ shirt: 0x7ec8ea, seated: true, hair: 0x3a312c }, 4.55, 4.08, Math.PI, 2.4);
   placePerson({ shirt: 0xf6d35a, hair: 0x6b4634, cup: 0xf4a0c0 }, -0.15, 8.45, 0.15, 0.9);
-  placePerson({ shirt: 0x9fd9b4, seated: true, hair: 0x6b4634 }, 11.25, 2.55, -2.2, 1.1);
 
   function addWalker(shirt, path, speed, pingpong) {
     const person = makePerson({ shirt: shirt, hair: speed > 0 ? 0x3a312c : 0x6b4634 });
@@ -1512,11 +1596,12 @@ function boot() {
   function placeLabels() {
     const width = stage.clientWidth || 1;
     const height = stage.clientHeight || 1;
-    const far = targetRadius > 40;
+    const far = targetRadius > 42;
     const nodes = [];
     document.querySelectorAll('[data-anchor]').forEach((el) => {
       const minor = el.hasAttribute('data-minor');
-      if (minor && far) {
+      const rank = Number(el.getAttribute('data-rank') || 3);
+      if (far && (minor || rank >= 2)) {
         el.style.visibility = 'hidden';
         return;
       }
@@ -1538,7 +1623,7 @@ function boot() {
         x: (projected.x * 0.5 + 0.5) * width,
         y: (-projected.y * 0.5 + 0.5) * height,
         minor: minor,
-        rank: Number(el.getAttribute('data-rank') || 3)
+        rank: rank
       });
     });
     nodes.sort((a, b) => a.rank - b.rank);
@@ -1631,7 +1716,7 @@ function boot() {
     event.preventDefault();
     const followCam = controlsActive(mode);
     const minR = followCam ? 6.5 : 11;
-    const maxR = followCam ? 16 : 52;
+    const maxR = followCam ? 16 : 128;
     targetRadius = Math.min(maxR, Math.max(minR, targetRadius + event.deltaY * 0.01));
   }, { passive: false });
 
@@ -1877,6 +1962,20 @@ function boot() {
       list.hidden = !list.hidden;
       listBtn.setAttribute('aria-expanded', list.hidden ? 'false' : 'true');
       syncInteractPrompt();
+    });
+    list.querySelectorAll('[data-island]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const pose = poseForIsland(btn.getAttribute('data-island'));
+        if (!pose) return;
+        if (mode.exploring) setExplore(false, true);
+        if (sheetOpen() && typeof window.switchDashTab === 'function') window.switchDashTab('');
+        if (casino && casino.isOpen()) casino.closeLobby();
+        applyPose(pose, true);
+        setActive('');
+        list.hidden = true;
+        listBtn.setAttribute('aria-expanded', 'false');
+        syncInteractPrompt();
+      });
     });
   }
   const exploreBtn = document.getElementById('islandExplore');
