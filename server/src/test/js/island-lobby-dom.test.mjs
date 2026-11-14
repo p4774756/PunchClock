@@ -178,7 +178,8 @@ test('island.js 的接線與本測試一致', () => {
   assert.match(islandSource, /beforeOpen: \(\) => \{[\s\S]*?flow\.beforeLobbyOpen\(\)/);
   assert.match(islandSource, /onLobbyChange: \(state\) => flow\.lobbyChanged\(state\.open\)/);
   assert.match(islandSource, /onPrompt: \(\) => \{[\s\S]*?openGraffiti\(\)/);
-  assert.match(islandSource, /graffiti\.close\(\);\s*return;\s*\}\s*if \(isTypingTarget\(event\.target\)\) return;\s*if \(casino && casino\.isOpen\(\)\)/);
+  assert.match(islandSource, /roadmap\.close\(\);\s*return;\s*\}\s*if \(graffiti && graffiti\.isOpen\(\)\) \{\s*graffiti\.close\(\);\s*return;\s*\}\s*if \(isTypingTarget\(event\.target\)\) return;\s*if \(casino && casino\.isOpen\(\)\)/);
+  assert.match(islandSource, /onPrompt: \(\) => \{[\s\S]*?openRoadmap\(\)/);
   assert.match(islandSource, /function updatePlayer\(dt\) \{\s*if \(!flow\.canMove\(\)\)/);
   assert.match(islandSource, /pointerdown', \(event\) => \{\s*if \(!flow\.canMove\(\)\)/);
   assert.match(islandSource, /function reset\(\) \{\s*flow\.resetPanel\(\);/);
