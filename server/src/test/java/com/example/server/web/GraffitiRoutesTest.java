@@ -102,6 +102,32 @@ public class GraffitiRoutesTest {
     }
 
     @Test
+    public void forgedForwardedForStillSharesTheRateLimit() throws Exception {
+        String previous = System.getProperty("punchclock.trustProxy");
+        System.clearProperty("punchclock.trustProxy");
+        try {
+            byte[] image = png(512, 256);
+            for (int i = 0; i < 3; i++) {
+                HttpResponse<String> ok = send(
+                        "POST", "/api/graffiti?signature=a", "image/png", image,
+                        "X-Forwarded-For", "10.1.1." + i);
+                assertEquals(201, ok.statusCode());
+            }
+            HttpResponse<String> blocked = send(
+                    "POST", "/api/graffiti?signature=a", "image/png", image,
+                    "X-Forwarded-For", "10.9.9.9");
+            assertEquals(429, blocked.statusCode());
+            assertTrue(blocked.body().contains(GraffitiStore.RATE_MESSAGE));
+        } finally {
+            if (previous == null) {
+                System.clearProperty("punchclock.trustProxy");
+            } else {
+                System.setProperty("punchclock.trustProxy", previous);
+            }
+        }
+    }
+
+    @Test
     public void multipartSubmitStoresSignature() throws Exception {
         byte[] image = png(512, 256);
         String boundary = "----punchclock";

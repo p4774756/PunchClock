@@ -882,7 +882,8 @@ function boot() {
     boardMesh.castShadow = false;
     boardMesh.receiveShadow = false;
     wall.add(boardMesh);
-    anchors[graffitiBuilding.id].position.set(0, G + 1.95, faceZ);
+    // 靠東側、略低於牆頂，避開西側「候餐」。
+    anchors[graffitiBuilding.id].position.set(graffitiBuilding.w * 0.42, G + 1.35, faceZ);
     lampLight(0, G + 1.7, faceZ + 0.8, 9, wall);
     tag(wall);
 

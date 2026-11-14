@@ -2,13 +2,11 @@ package com.example.server.web;
 
 import com.example.server.auth.AuthService;
 import com.example.server.store.GraffitiStore;
-import com.example.server.util.IpResolver;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.UploadedFile;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -97,7 +95,7 @@ public final class GraffitiRoutes {
                 }
                 signature = ctx.formParam("signature");
             } else {
-                raw = readLimited(new ByteArrayInputStream(ctx.bodyAsBytes()));
+                raw = readLimited(ctx.bodyInputStream());
             }
         } catch (IOException ex) {
             ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", GraffitiStore.IMAGE_MESSAGE));
@@ -113,7 +111,7 @@ public final class GraffitiRoutes {
         if (signature == null) {
             signature = ctx.queryParam("signature");
         }
-        GraffitiStore.Result result = store.add(raw, signature, IpResolver.clientIp(ctx), System.currentTimeMillis());
+        GraffitiStore.Result result = store.add(raw, signature, clientIp(ctx), System.currentTimeMillis());
         if (!result.ok) {
             ctx.status(result.status).json(Map.of("success", false, "message", result.message));
             return;
@@ -167,6 +165,21 @@ public final class GraffitiRoutes {
         } catch (NumberFormatException ex) {
             return 24;
         }
+    }
+
+    /** 預設只用連線位址。設 punchclock.trustProxy=true 才採用 X-Forwarded-For。 */
+    static String clientIp(Context ctx) {
+        if (Boolean.getBoolean("punchclock.trustProxy")) {
+            String forwarded = ctx.header("X-Forwarded-For");
+            if (forwarded != null && !forwarded.isEmpty()) {
+                String first = forwarded.split(",")[0].trim();
+                if (!first.isEmpty()) {
+                    return first;
+                }
+            }
+        }
+        String ip = ctx.ip();
+        return ip == null || ip.isBlank() ? "unknown" : ip;
     }
 
     private static byte[] readLimited(InputStream in) throws IOException {

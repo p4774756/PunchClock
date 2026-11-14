@@ -5,13 +5,18 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Iterator;
+import java.util.zip.CRC32;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -30,6 +35,19 @@ public class GraffitiStoreTest {
         GraffitiStore store = newStore();
         GraffitiStore.Result result = store.add("not-a-png".getBytes(StandardCharsets.UTF_8), "小明", "1.1.1.1", 1L);
         assertFalse(result.ok);
+        assertEquals(400, result.status);
+        assertEquals(GraffitiStore.IMAGE_MESSAGE, result.message);
+        assertEquals(0, store.count());
+    }
+
+    @Test
+    public void rejectsSmallFileClaimingHugeDimensionsWithoutDecoding() throws Exception {
+        GraffitiStore store = newStore();
+        byte[] bomb = pngClaiming(46341, 46341);
+        assertTrue(bomb.length < 80);
+        assertTrue("這種標頭不能完整解碼", fullDecodeFails(bomb));
+        GraffitiStore.Result result = store.add(bomb, "小明", "1.1.1.1", 1L);
+        assertFalse("超大標頭應在解碼前被拒絕", result.ok);
         assertEquals(400, result.status);
         assertEquals(GraffitiStore.IMAGE_MESSAGE, result.message);
         assertEquals(0, store.count());
@@ -154,6 +172,64 @@ public class GraffitiStoreTest {
 
     private GraffitiStore newStore() throws Exception {
         return new GraffitiStore(folder.newFolder().toPath());
+    }
+
+    private static boolean fullDecodeFails(byte[] raw) throws Exception {
+        Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("png");
+        ImageReader reader = readers.next();
+        try (ImageInputStream input = ImageIO.createImageInputStream(new ByteArrayInputStream(raw))) {
+            reader.setInput(input, true, true);
+            reader.getWidth(0);
+            reader.read(0);
+            return false;
+        } catch (RuntimeException ex) {
+            return true;
+        } catch (java.io.IOException ex) {
+            String message = ex.getMessage() == null ? "" : ex.getMessage();
+            return message.contains("46341");
+        } finally {
+            reader.dispose();
+        }
+    }
+
+    /** IHDR 宣告超大尺寸，只附一個極小的 IDAT。完整解碼會因尺寸被拒絕。 */
+    private static byte[] pngClaiming(int width, int height) throws Exception {
+        byte[] ihdr = new byte[13];
+        ihdr[0] = (byte) (width >>> 24);
+        ihdr[1] = (byte) (width >>> 16);
+        ihdr[2] = (byte) (width >>> 8);
+        ihdr[3] = (byte) width;
+        ihdr[4] = (byte) (height >>> 24);
+        ihdr[5] = (byte) (height >>> 16);
+        ihdr[6] = (byte) (height >>> 8);
+        ihdr[7] = (byte) height;
+        ihdr[8] = 8;
+        ihdr[9] = 6;
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A});
+        writeChunk(out, "IHDR", ihdr);
+        writeChunk(out, "IDAT", new byte[] {0});
+        writeChunk(out, "IEND", new byte[0]);
+        return out.toByteArray();
+    }
+
+    private static void writeChunk(ByteArrayOutputStream out, String type, byte[] data) {
+        int len = data.length;
+        out.write(len >>> 24);
+        out.write(len >>> 16);
+        out.write(len >>> 8);
+        out.write(len);
+        byte[] kind = type.getBytes(StandardCharsets.US_ASCII);
+        out.write(kind, 0, kind.length);
+        out.write(data, 0, data.length);
+        CRC32 crc = new CRC32();
+        crc.update(kind);
+        crc.update(data);
+        long value = crc.getValue();
+        out.write((int) (value >>> 24));
+        out.write((int) (value >>> 16));
+        out.write((int) (value >>> 8));
+        out.write((int) value);
     }
 
     private static byte[] png(int width, int height) throws Exception {

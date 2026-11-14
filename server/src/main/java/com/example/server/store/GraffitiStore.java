@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -207,12 +209,22 @@ public final class GraffitiStore {
     }
 
     private boolean allow(String ip, long now) {
-        Deque<Long> stamps = recentByIp.computeIfAbsent(ip, key -> new ArrayDeque<>());
-        while (!stamps.isEmpty() && now - stamps.peekFirst() >= RATE_WINDOW_MS) {
-            stamps.removeFirst();
+        Deque<Long> stamps = recentByIp.get(ip);
+        if (stamps != null) {
+            while (!stamps.isEmpty() && now - stamps.peekFirst() >= RATE_WINDOW_MS) {
+                stamps.removeFirst();
+            }
+            if (stamps.isEmpty()) {
+                recentByIp.remove(ip);
+                stamps = null;
+            }
         }
-        if (stamps.size() >= RATE_MAX) {
+        if (stamps != null && stamps.size() >= RATE_MAX) {
             return false;
+        }
+        if (stamps == null) {
+            stamps = new ArrayDeque<>();
+            recentByIp.put(ip, stamps);
         }
         stamps.addLast(now);
         return true;
@@ -283,6 +295,7 @@ public final class GraffitiStore {
         }
     }
 
+    /** 先讀標頭尺寸。不是 512×256 就不解碼，避免超大標頭把記憶體吃滿。 */
     private static BufferedImage decodePng(byte[] raw) {
         if (raw.length < PNG_MAGIC.length) {
             return null;
@@ -292,10 +305,26 @@ public final class GraffitiStore {
                 return null;
             }
         }
-        try {
-            return ImageIO.read(new ByteArrayInputStream(raw));
+        Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("png");
+        if (!readers.hasNext()) {
+            return null;
+        }
+        ImageReader reader = readers.next();
+        try (ImageInputStream input = ImageIO.createImageInputStream(new ByteArrayInputStream(raw))) {
+            if (input == null) {
+                return null;
+            }
+            reader.setInput(input, true, true);
+            int width = reader.getWidth(0);
+            int height = reader.getHeight(0);
+            if (width != WIDTH || height != HEIGHT) {
+                return null;
+            }
+            return reader.read(0);
         } catch (IOException ex) {
             return null;
+        } finally {
+            reader.dispose();
         }
     }
 
