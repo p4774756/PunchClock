@@ -30,6 +30,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class RelayTransferTest {
 
@@ -90,6 +91,7 @@ public class RelayTransferTest {
         assertEquals(payload.length, lastProgress.get());
         RelayTransfer.SendResult sent = sending.get(10, TimeUnit.SECONDS);
         assertEquals(sent.message, RelayTransfer.SendStatus.DELIVERED, sent.status);
+        assertEquals(0, relay.deletes.get());
         assertTrue("window must cap buffered chunks", relay.maxBuffered <= 2);
     }
 
@@ -161,8 +163,88 @@ public class RelayTransferTest {
         receiving.get(10, TimeUnit.SECONDS);
 
         relay.awaitState("CANCELLED");
+        assertEquals(1, relay.deletes.get());
         assertFalse(Files.exists(dest));
         assertFalse(Files.exists(dest.resolveSibling("cancel.bin.part")));
+    }
+
+    @Test
+    public void receiverCancelBeforeAcceptNotifiesServer() throws Exception {
+        Path source = tempDir.resolve("a.bin");
+        Files.write(source, new byte[] {1, 2, 3, 4, 5});
+        CompletableFuture<RelayTransfer.SendResult> sending = CompletableFuture.supplyAsync(() -> {
+            try {
+                return transfer("worker-a").send("worker-b", source, 5, "a.bin", "file", null, new TransferCancel());
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        });
+        relay.awaitBegun();
+
+        TransferCancel cancel = new TransferCancel();
+        cancel.cancel();
+        Path dest = tempDir.resolve("before-accept.bin");
+        try {
+            transfer("worker-b").receive(relay.id, dest, null, cancel);
+            fail("cancel before accept should throw");
+        } catch (TransferIo.CancelledException expected) {
+            // 尚未送出 accept；收件人在接收前取消，伺服器應記為拒收
+        }
+        assertTrue("cancel before accept must DELETE the relay",
+                relay.cancelNotified.await(5, TimeUnit.SECONDS));
+        assertEquals("DECLINED", relay.currentState());
+        assertEquals(1, relay.deletes.get());
+        RelayTransfer.SendResult sent = sending.get(10, TimeUnit.SECONDS);
+        assertEquals(RelayTransfer.SendStatus.FAILED, sent.status);
+        assertEquals("對方拒絕接收", sent.message);
+        assertFalse(Files.exists(dest));
+        assertFalse(Files.exists(dest.resolveSibling("before-accept.bin.part")));
+    }
+
+    @Test
+    public void receiverCancelDuringAcceptNotifiesServer() throws Exception {
+        Path source = tempDir.resolve("a.bin");
+        Files.write(source, new byte[] {1, 2, 3, 4, 5});
+        relay.holdAccept = true;
+        CompletableFuture<RelayTransfer.SendResult> sending = CompletableFuture.supplyAsync(() -> {
+            try {
+                return transfer("worker-a").send("worker-b", source, 5, "a.bin", "file", null, new TransferCancel());
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        });
+        relay.awaitBegun();
+
+        TransferCancel cancel = new TransferCancel();
+        Path dest = tempDir.resolve("during-accept.bin");
+        CompletableFuture<Void> receiving = CompletableFuture.runAsync(() -> {
+            try {
+                transfer("worker-b").receive(relay.id, dest, null, cancel);
+                fail("cancelled during accept should throw");
+            } catch (TransferIo.CancelledException expected) {
+                // accept 尚未回到 receive()，取消仍須通知伺服器
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        });
+        // 伺服器已把直傳標成 ACCEPTED，但 accept 回應還卡在手上
+        assertTrue("accept request did not reach the server",
+                relay.acceptStarted.await(5, TimeUnit.SECONDS));
+        cancel.cancel();
+        try {
+            receiving.get(10, TimeUnit.SECONDS);
+            assertTrue("in-flight accept cancel must DELETE the relay",
+                    relay.cancelNotified.await(5, TimeUnit.SECONDS));
+            assertEquals("CANCELLED", relay.currentState());
+            assertEquals(1, relay.deletes.get());
+            RelayTransfer.SendResult sent = sending.get(10, TimeUnit.SECONDS);
+            assertEquals(RelayTransfer.SendStatus.FAILED, sent.status);
+            assertEquals("直傳已結束（CANCELLED）", sent.message);
+            assertFalse(Files.exists(dest));
+            assertFalse(Files.exists(dest.resolveSibling("during-accept.bin.part")));
+        } finally {
+            relay.releaseAccept.countDown();
+        }
     }
 
     private RelayTransfer transfer(String clientId) {
@@ -174,9 +256,14 @@ public class RelayTransferTest {
     private static final class FakeRelay {
         final Gson gson = new Gson();
         final AtomicInteger failNextTakeWith502 = new AtomicInteger();
+        final AtomicInteger deletes = new AtomicInteger();
         final CountDownLatch firstTake = new CountDownLatch(1);
+        final CountDownLatch acceptStarted = new CountDownLatch(1);
+        final CountDownLatch releaseAccept = new CountDownLatch(1);
+        final CountDownLatch cancelNotified = new CountDownLatch(1);
         volatile Object[] beginOverride;
         volatile boolean holdPushes;
+        volatile boolean holdAccept;
         volatile String id;
         int maxBuffered;
         String state = "";
@@ -197,6 +284,12 @@ public class RelayTransferTest {
 
         void awaitFirstTake() throws InterruptedException {
             assertTrue("receiver never requested a chunk", firstTake.await(5, TimeUnit.SECONDS));
+        }
+
+        String currentState() {
+            synchronized (this) {
+                return state;
+            }
         }
 
         void awaitState(String expected) throws InterruptedException {
@@ -246,6 +339,19 @@ public class RelayTransferTest {
                         state = "ACCEPTED";
                         changed();
                     }
+                    if (holdAccept) {
+                        // 狀態先落地再寫回應，與正式伺服器相同；卡住回應才能取消進行中的 accept
+                        acceptStarted.countDown();
+                        if (!releaseAccept.await(10, TimeUnit.SECONDS)) {
+                            return;
+                        }
+                        try {
+                            replyView(ex, 200, q);
+                        } catch (IOException ignored) {
+                            // 客戶端已中止這次 accept
+                        }
+                        return;
+                    }
                     replyView(ex, 200, q);
                 } else if (rest.endsWith("/complete")) {
                     synchronized (this) {
@@ -277,6 +383,7 @@ public class RelayTransferTest {
                     takeChunk(ex, Long.parseLong(q.get("offset")), Long.parseLong(q.getOrDefault("wait", "0")), q);
                 } else if ("DELETE".equals(method)) {
                     synchronized (this) {
+                        deletes.incrementAndGet();
                         if (!isTerminal()) {
                             boolean recipient = "worker-b".equals(q.get("clientId"));
                             state = recipient && "WAITING".equals(state) ? "DECLINED" : "CANCELLED";
@@ -285,6 +392,7 @@ public class RelayTransferTest {
                             changed();
                         }
                     }
+                    cancelNotified.countDown();
                     replyView(ex, 200, q);
                 } else {
                     long since = Long.parseLong(q.getOrDefault("since", "0"));

@@ -279,8 +279,16 @@ final class RelayTransfer {
      */
     ReceiveResult receive(String relayId, Path dest, TransferIo.Progress progress, TransferCancel cancel)
             throws IOException {
-        Reply accepted = sendWithRetry(() -> post("/api/peer/relay/" + urlEncode(relayId) + "/accept", "", null),
-                cancel);
+        // accept 在下方 try 之外；取消若發生在請求送出前或回應回來前，也要通知伺服器中止。
+        final Reply accepted;
+        try {
+            cancel.throwIfCancelled();
+            accepted = sendWithRetry(() -> post("/api/peer/relay/" + urlEncode(relayId) + "/accept", "", null),
+                    cancel);
+        } catch (TransferIo.CancelledException ex) {
+            cancelQuietly(relayId);
+            throw ex;
+        }
         if (accepted.status != 200) {
             return new ReceiveResult(false, accepted.terminal()
                     ? accepted.endMessage()
