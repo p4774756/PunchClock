@@ -16,12 +16,18 @@ import static org.junit.Assume.assumeTrue;
 public class IslandExploreLogicTest {
 
     private static final String EXPLORE_SCRIPT = "src/test/js/island-explore.test.mjs";
+    private static final String LAYOUT_SCRIPT = "src/test/js/island-layout.test.mjs";
     private static final String CASINO_SCRIPT = "src/test/js/island-casino.test.mjs";
     private static final String LOBBY_DOM_SCRIPT = "src/test/js/island-lobby-dom.test.mjs";
 
     @Test
     public void exploreLogicPassesNodeTests() throws Exception {
         runNodeTest(EXPLORE_SCRIPT, "未安裝 Node.js，略過島嶼探索邏輯測試");
+    }
+
+    @Test
+    public void layoutLogicPassesNodeTests() throws Exception {
+        runNodeTest(LAYOUT_SCRIPT, "未安裝 Node.js，略過群島清單邏輯測試");
     }
 
     @Test

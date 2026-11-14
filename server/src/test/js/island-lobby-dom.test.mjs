@@ -6,12 +6,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { loadPublicModule } from './load-public-module.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const jsDir = join(here, '..', '..', 'main', 'resources', 'public', 'js');
 async function load(name) {
-  const source = readFileSync(join(jsDir, name), 'utf8');
-  return import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+  return loadPublicModule(name);
 }
 const X = await load('island-explore.js');
 const C = await load('island-casino.js');

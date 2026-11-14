@@ -70,6 +70,7 @@ public class PublicIslandAuthTest {
         HttpResponse<String> island = send("GET", "/js/island.js", null);
         assertEquals(200, island.statusCode());
         assertTrue(island.body().contains("from './island-explore.js'"));
+        assertTrue(island.body().contains("from './island-layout.js'"));
         assertTrue(island.body().contains("from './island-casino.js'"));
 
         HttpResponse<String> logic = send("GET", "/js/island-explore.js", null);
@@ -77,6 +78,12 @@ public class PublicIslandAuthTest {
         assertTrue(logic.body().contains("export function canStand"));
         assertTrue(logic.body().contains("export function exploreState"));
         assertTrue(logic.body().contains("export const CASINO"));
+
+        HttpResponse<String> layout = send("GET", "/js/island-layout.js", null);
+        assertEquals(200, layout.statusCode());
+        assertTrue(layout.body().contains("博弈島"));
+        assertTrue(layout.body().contains("中醫推拿島"));
+        assertTrue(layout.body().contains("電腦島"));
 
         HttpResponse<String> casino = send("GET", "/js/island-casino.js", null);
         assertEquals(200, casino.statusCode());

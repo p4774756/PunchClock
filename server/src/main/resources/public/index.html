@@ -37,7 +37,7 @@
   </div>
 
   <div id="islandStage">
-    <canvas id="islandCanvas" role="img" aria-label="手搖店街區。點點單、製茶機或飲品牆，也可以用清單。探索模式可用鍵盤或虛擬搖桿移動。"></canvas>
+    <canvas id="islandCanvas" role="img" aria-label="手搖店群島。點點單、製茶機或飲品牆，也可以用清單跳到各島。探索模式可用鍵盤或虛擬搖桿移動。"></canvas>
   </div>
 
   <div id="islandJoystick" class="island-joystick" hidden aria-label="移動搖桿" role="application">
@@ -59,6 +59,9 @@
     <button type="button" class="island-label" data-tab="system" data-anchor="system" data-rank="2">製茶機</button>
     <button type="button" class="island-label" data-tab="photos" data-anchor="photos" data-rank="2">飲品牆</button>
     <div class="island-mark island-mark-casino" data-anchor="casino" data-rank="2">賭場</div>
+    <div class="island-mark" data-anchor="island-casino" data-rank="1">博弈島</div>
+    <div class="island-mark" data-anchor="island-tcm" data-rank="1">中醫推拿島</div>
+    <div class="island-mark" data-anchor="island-computer" data-rank="1">電腦島</div>
     <div class="island-note" data-anchor="seating" data-rank="4" data-minor="1">候餐</div>
     <div class="island-note" data-anchor="dock" data-rank="4" data-minor="1">碼頭</div>
   </div>
@@ -68,6 +71,11 @@
     <button type="button" data-tab="devices">點單<small>門市與訂單</small></button>
     <button type="button" data-tab="system">製茶機<small>這台伺服器</small></button>
     <button type="button" data-tab="photos">飲品牆<small>簡報</small></button>
+    <p class="island-list-title island-list-title-next">群島</p>
+    <button type="button" data-island="main">手搖店島<small>店面與碼頭</small></button>
+    <button type="button" data-island="casino">博弈島<small>莫卡賭場</small></button>
+    <button type="button" data-island="tcm">中醫推拿島<small>施工中</small></button>
+    <button type="button" data-island="computer">電腦島<small>施工中</small></button>
     <p class="island-list-title island-list-title-next">娛樂</p>
     <button type="button" data-open-casino>賭場大廳<small>訪客可進 · 籌碼尚未啟用</small></button>
     <p class="island-list-title island-list-title-next">學習</p>
