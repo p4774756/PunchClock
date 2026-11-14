@@ -81,6 +81,30 @@
             </resource>
         </resources>
         <plugins>
+            <!-- 桌面端 milu 圖留在 client resources；打包時複製進伺服器靜態目錄，倉庫不放第二份。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-milu-sprites</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.outputDirectory}/public/pet/milu</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/../client/src/main/resources/pet/milu</directory>
+                                    <filtering>false</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
