@@ -1,0 +1,199 @@
+.graffiti-board {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(20, 24, 32, 0.46);
+}
+
+.graffiti-board[hidden] {
+  display: none !important;
+}
+
+.graffiti-panel {
+  width: min(960px, 100%);
+  max-height: min(100%, 940px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #fff7ef;
+  color: #1f2430;
+  border-radius: 18px;
+  padding: 1rem 1.1rem 1.25rem;
+  box-shadow: 0 18px 48px rgba(20, 24, 32, 0.28);
+}
+
+.graffiti-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.graffiti-head h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.graffiti-head p {
+  margin: 0.2rem 0 0;
+  color: #5c6570;
+}
+
+.graffiti-studio {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.8fr);
+  gap: 0.9rem;
+}
+
+.graffiti-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+    linear-gradient(#c98462, #e7b199);
+  background-size: 16px 16px, auto;
+  border-radius: 10px;
+  border: 3px solid #c4844a;
+  cursor: crosshair;
+}
+
+.graffiti-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+  align-items: center;
+}
+
+.graffiti-swatch,
+.graffiti-brush {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  padding: 0;
+}
+
+.graffiti-swatch[aria-pressed="true"],
+.graffiti-brush[aria-pressed="true"],
+.graffiti-tools .btn[aria-pressed="true"] {
+  border-color: #1f2430;
+  box-shadow: 0 0 0 2px #fff7ef, 0 0 0 4px #1f2430;
+}
+
+.graffiti-brush {
+  background: #fff;
+  color: #1f2430;
+  font-size: 0.75rem;
+}
+
+.graffiti-sign {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+  align-items: center;
+}
+
+.graffiti-sign input {
+  flex: 1 1 10rem;
+  min-height: 2.4rem;
+  border-radius: 999px;
+  border: 1px solid #e2d5c6;
+  padding: 0.35rem 0.8rem;
+  font: inherit;
+}
+
+.graffiti-status {
+  min-height: 1.3rem;
+  margin: 0.4rem 0 0;
+  color: #1f4d73;
+}
+
+.graffiti-list {
+  max-height: 28rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding-right: 0.15rem;
+}
+
+.graffiti-card {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+  background: #fff;
+  border-radius: 12px;
+  padding: 0.4rem;
+}
+
+.graffiti-card img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  background: #f3e2cc;
+}
+
+.graffiti-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.graffiti-card-meta strong,
+.graffiti-card-meta time {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graffiti-card-meta time {
+  color: #5c6570;
+  font-size: 0.82rem;
+}
+
+.graffiti-empty {
+  margin: 0;
+  color: #5c6570;
+}
+
+body.graffiti-open .island-interact,
+body.graffiti-open .island-explore-hint,
+body.graffiti-open .island-joystick,
+body.graffiti-open #islandLabels,
+body.graffiti-open .island-list,
+body.graffiti-open .island-corner,
+body.graffiti-open .island-time,
+body.graffiti-open .island-brand {
+  visibility: hidden;
+}
+
+@media (max-width: 760px) {
+  .graffiti-board {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .graffiti-panel {
+    border-radius: 0;
+    max-height: none;
+  }
+
+  .graffiti-studio {
+    grid-template-columns: 1fr;
+  }
+
+  .graffiti-list {
+    max-height: 18rem;
+  }
+}

@@ -211,6 +211,7 @@ export function createCasinoController(opts) {
   if (promptBtn) {
     promptBtn.addEventListener('click', (event) => {
       event.preventDefault();
+      if (typeof hooks.onPrompt === 'function' && hooks.onPrompt() === true) return;
       openLobby();
     });
   }

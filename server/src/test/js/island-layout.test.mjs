@@ -42,9 +42,21 @@ test('建築碰撞與門口由清單推導，主島原有障礙順序不變', ()
   assert.ok(!L.blocked(casino.door.x, casino.door.z, 0.28));
   assert.ok(L.walkable(casino.door.x, casino.door.z, 0.28));
   const zones = L.interactZones();
-  assert.equal(zones.length, 1);
-  assert.equal(zones[0].id, 'casino');
-  assert.equal(zones[0].label, '進入賭場');
+  const casinoZone = zones.find((zone) => zone.id === 'casino');
+  assert.ok(casinoZone);
+  assert.equal(casinoZone.label, '進入賭場');
+  const wall = L.buildingById('graffiti-wall');
+  assert.equal(wall.island, 'main');
+  assert.equal(wall.label, '塗鴉牆');
+  assert.equal(wall.deriveBlock, true);
+  assert.equal(wall.entry.action, 'openGraffiti');
+  assert.equal(wall.entry.label, '在牆上塗鴉');
+  assert.ok(L.blocked(wall.x, wall.z, 0.29), '牆體不可穿越');
+  assert.ok(L.walkable(wall.door.x, wall.door.z, 0.29), '牆前站得到');
+  assert.ok(!L.blocked(wall.door.x, wall.door.z, 0.29));
+  const wallZone = zones.find((zone) => zone.id === 'graffiti-wall');
+  assert.ok(wallZone);
+  assert.ok(Math.hypot(wall.door.x - wall.x, wall.door.z - wall.z) > wall.d / 2);
   for (const id of ['tcm-site', 'computer-site']) {
     const site = L.buildingById(id);
     assert.equal(site.deriveBlock, true);

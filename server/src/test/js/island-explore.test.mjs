@@ -235,7 +235,8 @@ test('賭場在博弈島，主島原址不再是賭場', () => {
   assert.ok(zone);
   assert.equal(zone.id, 'casino');
   assert.equal(zone.action, 'enterCasino');
-  assert.equal(X.DEFAULT_INTERACT_ZONES.length, 1, '目前只有賭場門口會互動');
+  assert.ok(X.DEFAULT_INTERACT_ZONES.some((zone) => zone.action === 'enterCasino'));
+  assert.ok(X.DEFAULT_INTERACT_ZONES.some((zone) => zone.action === 'openGraffiti'));
   assert.ok(!X.hitInteractZone(c.door.x, c.door.z + c.door.r + 0.2, X.DEFAULT_INTERACT_ZONES));
   assert.ok(X.canStand(3.55, -3.65), '主島原賭場位置改為空地');
   assert.equal(X.hitInteractZone(3.55, -3.65, X.DEFAULT_INTERACT_ZONES), null);

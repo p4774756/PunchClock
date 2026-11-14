@@ -9,6 +9,7 @@ import com.example.server.auth.AuthService;
 import com.example.server.health.HealthHistoryStore;
 import com.example.server.health.ServerHealth;
 import com.example.server.store.ClientStore;
+import com.example.server.store.GraffitiStore;
 import com.example.server.store.MarqueeStore;
 import com.example.server.store.PhotoStore;
 import com.example.server.store.RelayStore;
@@ -16,6 +17,7 @@ import com.example.server.util.IpResolver;
 import com.example.server.web.AtlasRoutes;
 import com.example.server.web.ChatRoutes;
 import com.example.server.web.DashboardBroadcaster;
+import com.example.server.web.GraffitiRoutes;
 import com.example.server.web.MarqueeRoutes;
 import com.example.server.web.PhotoRoutes;
 import com.example.server.web.RelayRoutes;
@@ -57,6 +59,8 @@ public final class ServerApp {
     private final MarqueeStore marqueeStore = new MarqueeStore();
     private final MarqueeRoutes marqueeRoutes = new MarqueeRoutes(authService, marqueeStore);
     private final PhotoRoutes photoRoutes = new PhotoRoutes(authService);
+    private final GraffitiStore graffitiStore = new GraffitiStore();
+    private final GraffitiRoutes graffitiRoutes = new GraffitiRoutes(authService, graffitiStore);
     private final AtlasRoutes atlasRoutes = new AtlasRoutes();
     private final ClientRelease clientRelease;
 
@@ -144,6 +148,7 @@ public final class ServerApp {
         chatRoutes.register(app);
         photoRoutes.register(app);
         marqueeRoutes.register(app);
+        graffitiRoutes.register(app);
         atlasRoutes.register(app);
         app.get("/api/status", this::status);
         app.get("/api/health/history", this::healthHistory);

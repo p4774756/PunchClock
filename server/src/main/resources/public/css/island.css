@@ -272,6 +272,8 @@ a.island-tool {
   top: 3.7rem;
   right: 0.85rem;
   width: min(260px, calc(100vw - 2rem));
+  max-height: calc(100vh - 4.8rem);
+  overflow: auto;
   background: rgba(255, 250, 246, 0.97);
   border-radius: 16px;
   padding: 0.75rem;
