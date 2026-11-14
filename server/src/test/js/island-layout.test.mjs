@@ -53,6 +53,35 @@ test('建築碰撞與門口由清單推導，主島原有障礙順序不變', ()
   }
 });
 
+// 不呼叫清單裡的 rotateY，改用 Three.js rotation.y 的公式獨立驗證。
+function threeRotateY(x, z, yaw) {
+  const c = Math.cos(yaw);
+  const s = Math.sin(yaw);
+  return { x: x * c + z * s, z: -x * s + z * c };
+}
+
+test('賭場門用 Three.js 的旋轉落在外觀正面，而且比建築中心更靠近橋頭', () => {
+  const casino = L.buildingById('casino');
+  const bridge = L.BRIDGES.find((item) => item.to === casino.island);
+  const front = threeRotateY(0, 1, casino.yaw);
+  const dx = casino.door.x - casino.x;
+  const dz = casino.door.z - casino.z;
+  const along = dx * front.x + dz * front.z;
+  const lateral = dx * -front.z + dz * front.x;
+  assert.ok(along > casino.d / 2, '門在外觀正面之外');
+  assert.ok(Math.abs(lateral) < 1e-6, '門在正面中線');
+  const doorDist = Math.hypot(casino.door.x - bridge.bx, casino.door.z - bridge.bz);
+  const centerDist = Math.hypot(casino.x - bridge.bx, casino.z - bridge.bz);
+  assert.ok(doorDist < centerDist, '門比建築中心更靠近橋頭');
+
+  const site = L.buildingById('tcm-site');
+  const tcmBridge = L.BRIDGES.find((item) => item.to === site.island);
+  const sign = threeRotateY(0, site.d / 2, site.yaw);
+  const signDist = Math.hypot(site.x + sign.x - tcmBridge.bx, site.z + sign.z - tcmBridge.bz);
+  const siteDist = Math.hypot(site.x - tcmBridge.bx, site.z - tcmBridge.bz);
+  assert.ok(signDist < siteDist, '中醫工地招牌比工地中心更靠近橋頭');
+});
+
 test('主島店面仍在原座標，賭場不在主島', () => {
   const shop = L.buildingById('shop');
   assert.equal(shop.x, 0);

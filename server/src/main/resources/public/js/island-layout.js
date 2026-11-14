@@ -68,10 +68,11 @@ export function poseForIsland(id) {
   };
 }
 
+// 與 Three.js Object3D.rotation.y 相同：本地 +Z 轉到 (sin(yaw), cos(yaw))。
 function rotateY(x, z, yaw) {
   const c = Math.cos(yaw || 0);
   const s = Math.sin(yaw || 0);
-  return { x: x * c - z * s, z: x * s + z * c };
+  return { x: x * c + z * s, z: -x * s + z * c };
 }
 
 /** 橋面中心線。兩端各伸進島內 overlap，接上內縮後的可行走區。 */
@@ -228,12 +229,12 @@ const BUILDING_DEFS = [
   { id: 'system', island: 'main', x: -4.05, z: -0.15, w: 1.45, d: 1.15, yaw: 0.42, label: '製茶機', panel: 'system', collide: false },
   { id: 'photos', island: 'main', x: 4.15, z: 0.2, w: 2.15, d: 0.7, yaw: 0.62, label: '飲品牆', panel: 'photos', collide: false },
   {
-    id: 'casino', island: 'casino', x: 16.35, z: -7.4, w: 2.4, d: 1.9, yaw: Math.PI / 2,
+    id: 'casino', island: 'casino', x: 16.35, z: -7.4, w: 2.4, d: 1.9, yaw: -Math.PI / 2,
     label: '賭場', panel: null, frontTrim: 0.22,
     entry: { r: 1.2, reach: 0.78, label: '進入賭場', action: 'enterCasino' }
   },
   {
-    id: 'tcm-site', island: 'tcm', x: -17.7, z: 1.15, w: 2.2, d: 1.65, yaw: -Math.PI / 2,
+    id: 'tcm-site', island: 'tcm', x: -17.7, z: 1.15, w: 2.2, d: 1.65, yaw: Math.PI / 2,
     label: '施工中', panel: null, frontTrim: 0.18
   },
   {
