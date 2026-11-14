@@ -234,6 +234,12 @@ const BUILDING_DEFS = [
     label: '塗鴉牆', panel: null, frontTrim: 0.12,
     entry: { r: 1.7, reach: 0.55, label: '在牆上塗鴉', action: 'openGraffiti' }
   },
+  // 碼頭東側草地。正面朝北（玩家從店面走來的方向）。不壓碼頭、不壓往電腦島的橋，也不擋南緣步行路線。
+  {
+    id: 'construction-board', island: 'main', x: 2.35, z: 7.15, w: 1.15, d: 0.3, yaw: Math.PI,
+    label: '施工進度', panel: null, frontTrim: 0.1,
+    entry: { r: 0.95, reach: 0.62, label: '看施工進度', action: 'openRoadmap' }
+  },
   {
     id: 'casino', island: 'casino', x: 16.35, z: -7.4, w: 2.4, d: 1.9, yaw: -Math.PI / 2,
     label: '賭場', panel: null, frontTrim: 0.22,
