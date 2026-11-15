@@ -22,6 +22,7 @@ public class IslandExploreLogicTest {
     private static final String MILU_SCRIPT = "src/test/js/island-milu.test.mjs";
     private static final String GRAFFITI_SCRIPT = "src/test/js/island-graffiti.test.mjs";
     private static final String ROADMAP_SCRIPT = "src/test/js/island-roadmap.test.mjs";
+    private static final String INTERIOR_SCRIPT = "src/test/js/island-interior.test.mjs";
 
     @Test
     public void exploreLogicPassesNodeTests() throws Exception {
@@ -56,6 +57,11 @@ public class IslandExploreLogicTest {
     @Test
     public void roadmapLogicPassesNodeTests() throws Exception {
         runNodeTest(ROADMAP_SCRIPT, "未安裝 Node.js，略過施工進度邏輯測試");
+    }
+
+    @Test
+    public void interiorLogicPassesNodeTests() throws Exception {
+        runNodeTest(INTERIOR_SCRIPT, "未安裝 Node.js，略過室內進出邏輯測試");
     }
 
     private void runNodeTest(String scriptPath, String skipMessage) throws Exception {
