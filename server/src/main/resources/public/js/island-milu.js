@@ -101,7 +101,7 @@ function wrapPi(rad) {
   return d;
 }
 
-// 0 朝鏡頭，正角往右，±π 離鏡頭。半寬內才算正面／背面，剛好落在交界算左右。
+// 0 朝鏡頭（screenZ > 0），正角往右，±π 離鏡頭（搖桿往上、W）。半寬內才算正面／背面，剛好落在交界算左右。
 function bucketFacing(angle, half) {
   const a = wrapPi(angle);
   const abs = Math.abs(a);
@@ -115,7 +115,7 @@ function fallbackSide(prior, sx, ax, dead) {
   return sx < 0 ? 'left' : 'right';
 }
 
-// 角度 0 是朝鏡頭（screenZ < 0），π/2 是右。sticky 為 false 時用嚴格 90° 桶（剛起步）。
+// 角度 0 是朝鏡頭（screenZ > 0，鏡頭在角色後方，往上走是離鏡頭），π/2 是右。sticky 為 false 時用嚴格 90° 桶（剛起步）。
 // 走路中要跨過桶邊界再加 faceHysteresis 才換向。前／後圖沒有時退回左／右，水平分量小於 deadzone 則沿用上次側向。
 export function resolveFacing(prev, screenX, screenZ, anim, sticky) {
   const cfg = anim || MILU_ANIM;
@@ -132,7 +132,7 @@ export function resolveFacing(prev, screenX, screenZ, anim, sticky) {
 
   const half = cfgNumber(cfg, 'faceBucket');
   const hyst = cfgNumber(cfg, 'faceHysteresis');
-  const angle = Math.atan2(sx, -sz);
+  const angle = Math.atan2(sx, sz);
   const hold = sticky !== false && prior === prev;
   let facing = prior;
   if (!hold || Math.abs(wrapPi(angle - FACE_CENTER[prior])) > half + hyst) {
