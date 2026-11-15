@@ -38,7 +38,6 @@ import {
   shouldHideIslandLabels
 } from './island-interior.js';
 import {
-  MILU_ANIM,
   createMiluState,
   createMiluView,
   isNearWave,
@@ -2002,14 +2001,16 @@ function boot() {
 
   function stepMilu(dt) {
     const axes = screenAxes(player.vx, player.vz, theta);
+    const anim = milu.anim();
     miluState = miluStep(miluState, dt, {
       moving: player.moving,
       screenX: axes.x,
       screenZ: axes.z,
-      near: isNearWave(player.x, player.z, miluNpcPoints(), INTERACT_ZONES, MILU_ANIM),
-      reduced: reduced
+      near: isNearWave(player.x, player.z, miluNpcPoints(), INTERACT_ZONES, anim),
+      reduced: reduced,
+      anim: anim
     });
-    milu.show(miluClipPath(miluState));
+    milu.show(miluClipPath(miluState, anim));
     milu.object.position.set(player.x, P, player.z);
     syncAvatarVisible();
   }
