@@ -9,8 +9,10 @@ import com.example.server.auth.AuthService;
 import com.example.server.health.HealthHistoryStore;
 import com.example.server.health.ServerHealth;
 import com.example.server.store.ClientStore;
+import com.example.server.store.GithubRoadmapClient;
 import com.example.server.store.GraffitiStore;
 import com.example.server.store.MarqueeStore;
+import com.example.server.store.RoadmapService;
 import com.example.server.store.PhotoStore;
 import com.example.server.store.RelayStore;
 import com.example.server.util.IpResolver;
@@ -21,6 +23,7 @@ import com.example.server.web.GraffitiRoutes;
 import com.example.server.web.MarqueeRoutes;
 import com.example.server.web.PhotoRoutes;
 import com.example.server.web.RelayRoutes;
+import com.example.server.web.RoadmapRoutes;
 import com.example.server.web.RouteSupport;
 import com.example.server.web.LoginPageRenderer;
 import com.google.gson.Gson;
@@ -61,6 +64,7 @@ public final class ServerApp {
     private final PhotoRoutes photoRoutes = new PhotoRoutes(authService);
     private final GraffitiStore graffitiStore = new GraffitiStore();
     private final GraffitiRoutes graffitiRoutes = new GraffitiRoutes(authService, graffitiStore);
+    private final RoadmapRoutes roadmapRoutes = new RoadmapRoutes(new RoadmapService(new GithubRoadmapClient()));
     private final AtlasRoutes atlasRoutes = new AtlasRoutes();
     private final ClientRelease clientRelease;
 
@@ -149,6 +153,7 @@ public final class ServerApp {
         photoRoutes.register(app);
         marqueeRoutes.register(app);
         graffitiRoutes.register(app);
+        roadmapRoutes.register(app);
         atlasRoutes.register(app);
         app.get("/api/status", this::status);
         app.get("/api/health/history", this::healthHistory);

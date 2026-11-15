@@ -57,6 +57,54 @@ test('建築碰撞與門口由清單推導，主島原有障礙順序不變', ()
   const wallZone = zones.find((zone) => zone.id === 'graffiti-wall');
   assert.ok(wallZone);
   assert.ok(Math.hypot(wall.door.x - wall.x, wall.door.z - wall.z) > wall.d / 2);
+  const board = L.buildingById('construction-board');
+  assert.equal(board.island, 'main');
+  assert.equal(board.entry.action, 'openRoadmap');
+  assert.equal(board.entry.label, '看施工進度');
+  assert.ok(L.blocked(board.x, board.z, 0.29), '告示牌不可穿越');
+  assert.ok(L.walkable(board.door.x, board.door.z, 0.29), '牌前站得到');
+  assert.ok(!L.blocked(board.door.x, board.door.z, 0.29));
+  const boardZone = zones.find((zone) => zone.id === 'construction-board');
+  assert.ok(boardZone);
+  const dock = L.WALK_PADS.find((pad) => pad.id === 'dock');
+  assert.ok(board.block.maxX < dock.minX || board.block.minX > dock.maxX
+    || board.block.maxZ < dock.minZ || board.block.minZ > dock.maxZ, '不壓碼頭');
+  const computer = L.BRIDGES.find((bridge) => bridge.to === 'computer');
+  assert.ok(!L.onBridge(board.x, board.z, computer, 0.29));
+  assert.ok(!L.onBridge(board.door.x, board.door.z, computer, 0.29));
+  for (const other of L.BUILDINGS) {
+    if (other.id === board.id) continue;
+    const overlap = board.block.minX < other.block.maxX && board.block.maxX > other.block.minX
+      && board.block.minZ < other.block.maxZ && board.block.maxZ > other.block.minZ;
+    assert.equal(overlap, false, '不和 ' + other.id + ' 重疊');
+  }
+  for (const zone of zones) {
+    if (zone.id === boardZone.id) continue;
+    const gap = Math.hypot(zone.x - boardZone.x, zone.z - boardZone.z);
+    assert.ok(gap >= zone.r + boardZone.r, '互動區不和 ' + zone.id + ' 重疊');
+  }
+  const npc = [
+    [-5.6, 4.7], [-1.8, 6.35], [2.1, 6.4], [5.6, 4.3],
+    [6.05, 1.0], [5.3, -3.3], [1.1, -5.15], [-3.5, -5.05],
+    [-6.15, -1.6], [-6.3, 2.1]
+  ];
+  function hitsBoard(x, z) {
+    const rect = board.block;
+    const dx = x - Math.max(rect.minX, Math.min(x, rect.maxX));
+    const dz = z - Math.max(rect.minZ, Math.min(z, rect.maxZ));
+    return dx * dx + dz * dz < 0.29 * 0.29;
+  }
+  for (let i = 0; i < npc.length; i++) {
+    const from = npc[i];
+    const to = npc[(i + 1) % npc.length];
+    for (let step = 0; step <= 12; step++) {
+      const t = step / 12;
+      const x = from[0] + (to[0] - from[0]) * t;
+      const z = from[1] + (to[1] - from[1]) * t;
+      assert.equal(hitsBoard(x, z), false, 'NPC 路線被告示牌擋住');
+    }
+  }
+  assert.equal(hitsBoard(2.15, 5.55), false, 'milu 出生點可站');
   for (const id of ['tcm-site', 'computer-site']) {
     const site = L.buildingById(id);
     assert.equal(site.deriveBlock, true);

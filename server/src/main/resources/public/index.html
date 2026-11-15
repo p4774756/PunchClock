@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/css/island.css">
   <link rel="stylesheet" href="/css/casino.css">
   <link rel="stylesheet" href="/css/graffiti.css">
+  <link rel="stylesheet" href="/css/roadmap.css">
 </head>
 <body class="island-body {{AUTH_BODY_CLASS}}">
   <script>window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};</script>
@@ -60,6 +61,7 @@
     <button type="button" class="island-label" data-tab="system" data-anchor="system" data-rank="2">製茶機</button>
     <button type="button" class="island-label" data-tab="photos" data-anchor="photos" data-rank="2">飲品牆</button>
     <button type="button" class="island-label" data-open-graffiti data-anchor="graffiti-wall" data-rank="2">塗鴉牆</button>
+    <button type="button" class="island-label" data-open-roadmap data-anchor="construction-board" data-rank="2">施工進度</button>
     <div class="island-mark island-mark-casino" data-anchor="casino" data-rank="2">賭場</div>
     <div class="island-mark" data-anchor="island-casino" data-rank="1">博弈島</div>
     <div class="island-mark" data-anchor="island-tcm" data-rank="1">中醫推拿島</div>
@@ -81,6 +83,7 @@
     <p class="island-list-title island-list-title-next">娛樂</p>
     <button type="button" data-open-casino>賭場大廳<small>訪客可進 · 籌碼尚未啟用</small></button>
     <button type="button" data-open-graffiti>塗鴉牆<small>訪客可畫 · 留下署名</small></button>
+    <button type="button" data-open-roadmap>施工進度<small>群島做到第幾期</small></button>
     <p class="island-list-title island-list-title-next">學習</p>
     <a href="/atlas/tcm-3d/?set=head-neck-21&amp;code=GV24%2B">中醫人體<small>基準穴 · 頭頸 21</small></a>
   </aside>
@@ -147,6 +150,20 @@
         </div>
         <div class="graffiti-list" data-graffiti-list aria-label="塗鴉列表"></div>
       </div>
+    </div>
+  </section>
+
+  <section id="roadmapBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="施工進度">
+    <div class="roadmap-panel">
+      <header class="roadmap-head">
+        <h2>施工進度</h2>
+        <button type="button" class="btn btn-ghost" data-roadmap-back aria-label="返回島嶼">返回島嶼</button>
+      </header>
+      <p class="roadmap-now" data-roadmap-headline>施工進度</p>
+      <p class="roadmap-phase-name" data-roadmap-title></p>
+      <div class="roadmap-list" data-roadmap-list></div>
+      <p class="roadmap-note" data-roadmap-note></p>
+      <a class="roadmap-source" data-roadmap-source href="https://github.com/p4774756/PunchClock/issues/36" target="_blank" rel="noopener noreferrer">資料來源：GitHub #36</a>
     </div>
   </section>
 

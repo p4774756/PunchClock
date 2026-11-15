@@ -58,6 +58,9 @@ public class PublicIslandAuthTest {
         assertTrue(response.body().contains("data-open-casino"));
         assertTrue(response.body().contains("id=\"graffitiBoard\""));
         assertTrue(response.body().contains("data-open-graffiti"));
+        assertTrue(response.body().contains("id=\"roadmapBoard\""));
+        assertTrue(response.body().contains("data-open-roadmap"));
+        assertTrue(response.body().contains("施工進度"));
         assertTrue(response.body().contains("塗鴉牆"));
         assertTrue(response.body().contains("返回島嶼"));
         assertTrue(response.body().contains("尚未啟用"));
@@ -77,6 +80,7 @@ public class PublicIslandAuthTest {
         assertTrue(island.body().contains("from './island-casino.js'"));
         assertTrue(island.body().contains("from './island-milu.js'"));
         assertTrue(island.body().contains("from './island-graffiti.js'"));
+        assertTrue(island.body().contains("from './island-roadmap.js'"));
 
         HttpResponse<String> logic = send("GET", "/js/island-explore.js", null);
         assertEquals(200, logic.statusCode());
@@ -107,6 +111,14 @@ public class PublicIslandAuthTest {
         HttpResponse<String> graffitiCss = send("GET", "/css/graffiti.css", null);
         assertEquals(200, graffitiCss.statusCode());
         assertTrue(graffitiCss.body().contains("touch-action: none"));
+
+        HttpResponse<String> roadmapJs = send("GET", "/js/island-roadmap.js", null);
+        assertEquals(200, roadmapJs.statusCode());
+        assertTrue(roadmapJs.body().contains("export function signCopy"));
+
+        HttpResponse<String> roadmapCss = send("GET", "/css/roadmap.css", null);
+        assertEquals(200, roadmapCss.statusCode());
+        assertTrue(roadmapCss.body().contains(".roadmap-board"));
 
         HttpResponse<String> miluJs = send("GET", "/js/island-milu.js", null);
         assertEquals(200, miluJs.statusCode());
@@ -147,6 +159,18 @@ public class PublicIslandAuthTest {
         HttpResponse<String> denied = send("DELETE", "/api/graffiti/missingid", null);
         assertEquals(401, denied.statusCode());
         assertTrue(denied.body().contains("未登入或權限不足"));
+    }
+
+    @Test
+    public void guestsCanReadRoadmapWithoutLogin() throws Exception {
+        HttpResponse<String> roadmap = send("GET", "/api/roadmap", null);
+        assertEquals(200, roadmap.statusCode());
+        assertTrue(roadmap.body().contains("\"success\""));
+        assertTrue(roadmap.body().contains("\"phases\""));
+        assertTrue(roadmap.body().contains("\"stale\""));
+        assertFalse(roadmap.body().contains("未登入"));
+        assertFalse(roadmap.body().contains("**Phase"));
+        assertFalse(roadmap.body().contains("## 分期"));
     }
 
     @Test

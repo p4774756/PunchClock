@@ -28,6 +28,7 @@ import {
 } from './island-layout.js';
 import { createCasinoController, CASINO_NAME } from './island-casino.js';
 import { createGraffitiController, wallSlots } from './island-graffiti.js';
+import { createRoadmapController, signCopy } from './island-roadmap.js';
 import {
   MILU_ANIM,
   createMiluState,
@@ -64,12 +65,15 @@ function bootCasinoFallback() {
     }
   });
   const graffiti = createGraffitiController({});
+  const roadmap = createRoadmapController({});
   window.PunchClockIsland = window.PunchClockIsland || {};
   window.PunchClockIsland.openCasino = () => casino.openLobby();
   window.PunchClockIsland.closeCasino = () => casino.closeLobby();
   window.PunchClockIsland.isCasinoOpen = () => casino.isOpen();
   window.PunchClockIsland.openGraffiti = () => graffiti.open();
   window.PunchClockIsland.closeGraffiti = () => graffiti.close();
+  window.PunchClockIsland.openRoadmap = () => roadmap.open();
+  window.PunchClockIsland.closeRoadmap = () => roadmap.close();
 }
 
 if (stage && canvas) boot();
@@ -960,6 +964,67 @@ function boot() {
     refreshGraffitiWall();
   }
 
+  let paintRoadmapSign = function () {};
+  const roadmapBuilding = BUILDINGS.find((item) => item.id === 'construction-board');
+  if (roadmapBuilding) {
+    const sign = makeZone(roadmapBuilding.id, roadmapBuilding.x, roadmapBuilding.z, 1.15);
+    sign.rotation.y = roadmapBuilding.yaw || 0;
+    const faceZ = roadmapBuilding.d / 2;
+    addBox(sign, 0.12, 1.42, 0.12, 0xa56b38, -roadmapBuilding.w / 2, G + 0.76, 0);
+    addBox(sign, 0.12, 1.42, 0.12, 0xa56b38, roadmapBuilding.w / 2, G + 0.76, 0);
+    addBox(sign, roadmapBuilding.w + 0.16, 0.1, 0.18, 0xc4844a, 0, G + 0.16, 0);
+    const signCanvas = document.createElement('canvas');
+    signCanvas.width = 640;
+    signCanvas.height = 320;
+    const signTex = new THREE.CanvasTexture(signCanvas);
+    signTex.colorSpace = THREE.SRGBColorSpace;
+    const signMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(roadmapBuilding.w * 0.92, roadmapBuilding.w * 0.46),
+      new THREE.MeshBasicMaterial({ map: signTex })
+    );
+    signMesh.position.set(0, G + 1.05, faceZ + 0.02);
+    sign.add(signMesh);
+    function drawRoadmapSign(copy) {
+      const text = copy || signCopy(null);
+      const g = signCanvas.getContext('2d');
+      const w = signCanvas.width;
+      const h = signCanvas.height;
+      g.fillStyle = '#1a1a1a';
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = '#f6d35a';
+      const band = 22;
+      for (let x = -h; x < w + h; x += band * 2) {
+        g.beginPath();
+        g.moveTo(x, 0);
+        g.lineTo(x + band, 0);
+        g.lineTo(x + band - h, h);
+        g.lineTo(x - h, h);
+        g.closePath();
+        g.fill();
+      }
+      g.fillStyle = '#fff7ef';
+      g.fillRect(26, 26, w - 52, h - 52);
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillStyle = '#1f2430';
+      g.font = '700 52px ' + font;
+      g.fillText(text.headline || '', w / 2, text.title ? h / 2 - 18 : h / 2);
+      if (text.title) {
+        g.font = '700 36px ' + font;
+        g.fillStyle = '#c45a12';
+        g.fillText(text.title, w / 2, h / 2 + 40);
+      }
+      signTex.needsUpdate = true;
+    }
+    drawRoadmapSign(signCopy(null));
+    paintRoadmapSign = drawRoadmapSign;
+    addMesh(sign, geo('cone', [0.14, 0.3, 6]), 0xf08a3a, -0.38, G + 0.18, faceZ + 0.22);
+    addMesh(sign, geo('cone', [0.14, 0.3, 6]), 0xf6d35a, 0.38, G + 0.18, faceZ + 0.22);
+    anchors[roadmapBuilding.id].position.set(0, G + 1.78, faceZ);
+    lampLight(0, G + 1.4, faceZ + 0.55, 9, sign);
+    tag(sign);
+  }
+
   function marker(name, x, y, z) {
     const anchor = new THREE.Object3D();
     anchor.position.set(x, y, z);
@@ -1499,12 +1564,13 @@ function boot() {
 
   function islandUiOpen() {
     const list = document.getElementById('islandList');
-    return sheetOpen() || !!(list && !list.hidden) || casinoOpen() || graffitiOpen();
+    return sheetOpen() || !!(list && !list.hidden) || casinoOpen() || graffitiOpen() || roadmapOpen();
   }
 
   let exploreSaved = null;
   let casino = null;
   let graffiti = null;
+  let roadmap = null;
 
   function casinoOpen() {
     return !!(casino && casino.isOpen());
@@ -1512,6 +1578,10 @@ function boot() {
 
   function graffitiOpen() {
     return !!(graffiti && graffiti.isOpen());
+  }
+
+  function roadmapOpen() {
+    return !!(roadmap && roadmap.isOpen());
   }
 
   const flow = createExploreFlow({
@@ -1627,7 +1697,7 @@ function boot() {
       exploring: mode.exploring,
       paused: mode.paused,
       uiOpen: sheetOpen() || !!(document.getElementById('islandList') && !document.getElementById('islandList').hidden),
-      lobbyOpen: casinoOpen() || graffitiOpen(),
+      lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
       zoneId: activeInteract
     });
     casino.setPromptVisible(show, zone && zone.label ? zone.label : '進入賭場');
@@ -1839,6 +1909,10 @@ function boot() {
       const zone = hitZone(event);
       if (zone === 'graffiti-wall') {
         openGraffiti();
+        return;
+      }
+      if (zone === 'construction-board') {
+        openRoadmap();
         return;
       }
       if (zone && typeof window.switchDashTab === 'function') window.switchDashTab(zone);
@@ -2057,10 +2131,15 @@ function boot() {
       event.preventDefault();
       const zone = hitInteractZone(player.x, player.z, INTERACT_ZONES);
       if (zone && zone.action === 'openGraffiti') openGraffiti();
+      else if (zone && zone.action === 'openRoadmap') openRoadmap();
       else if (casino) casino.openLobby();
       return;
     }
     if (event.key !== 'Escape') return;
+    if (roadmap && roadmap.isOpen()) {
+      roadmap.close();
+      return;
+    }
     if (graffiti && graffiti.isOpen()) {
       graffiti.close();
       return;
@@ -2190,21 +2269,36 @@ function boot() {
 
   function openGraffiti() {
     if (casino && casino.isOpen()) casino.closeLobby();
+    if (roadmap && roadmap.isOpen()) roadmap.close();
     if (graffiti) graffiti.open();
+  }
+
+  function openRoadmap() {
+    if (casino && casino.isOpen()) casino.closeLobby();
+    if (graffiti && graffiti.isOpen()) graffiti.close();
+    if (roadmap) roadmap.open();
   }
 
   casino = createCasinoController({
     hooks: {
       beforeOpen: () => {
         if (graffiti && graffiti.isOpen()) graffiti.close();
+        if (roadmap && roadmap.isOpen()) roadmap.close();
         flow.beforeLobbyOpen();
       },
       onLobbyChange: (state) => flow.lobbyChanged(state.open),
       onPrompt: () => {
         const zone = hitInteractZone(player.x, player.z, INTERACT_ZONES);
-        if (!zone || zone.action !== 'openGraffiti') return false;
-        openGraffiti();
-        return true;
+        if (!zone) return false;
+        if (zone.action === 'openGraffiti') {
+          openGraffiti();
+          return true;
+        }
+        if (zone.action === 'openRoadmap') {
+          openRoadmap();
+          return true;
+        }
+        return false;
       }
     }
   });
@@ -2213,14 +2307,30 @@ function boot() {
       onChange: (state) => {
         if (state.open) {
           if (casino && casino.isOpen()) casino.closeLobby();
+          if (roadmap && roadmap.isOpen()) roadmap.close();
           flow.beforeLobbyOpen();
-        } else if (!casinoOpen()) {
+        } else if (!casinoOpen() && !roadmapOpen()) {
           flow.lobbyChanged(false);
         }
       },
       onWallChange: () => refreshGraffitiWall()
     }
   });
+  roadmap = createRoadmapController({
+    hooks: {
+      onChange: (state) => {
+        if (state.open) {
+          if (casino && casino.isOpen()) casino.closeLobby();
+          if (graffiti && graffiti.isOpen()) graffiti.close();
+          flow.beforeLobbyOpen();
+        } else if (!casinoOpen() && !graffitiOpen()) {
+          flow.lobbyChanged(false);
+        }
+      },
+      onData: (data, copy) => paintRoadmapSign(copy)
+    }
+  });
+  roadmap.refresh();
 
   window.PunchClockIsland = {
     focus: focus,
@@ -2234,6 +2344,9 @@ function boot() {
     openGraffiti: () => graffiti.open(),
     closeGraffiti: () => graffiti.close(),
     isGraffitiOpen: () => graffiti.isOpen(),
+    openRoadmap: () => roadmap.open(),
+    closeRoadmap: () => roadmap.close(),
+    isRoadmapOpen: () => roadmap.isOpen(),
     casinoName: CASINO_NAME
   };
 
