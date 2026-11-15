@@ -184,7 +184,10 @@ export const THEME_CIRCLES = Object.freeze([
   themeCircle('palm-s', 'casino', 1.0, -3.25, 0.34),
   themeCircle('palm-e', 'casino', 3.4, 0.3, 0.34),
   themeCircle('bamboo', 'tcm', 0.35, 2.55, 0.42),
-  themeCircle('dish', 'computer', 2.45, -0.55, 0.4)
+  themeCircle('figure', 'tcm', -0.2, -2.2, 0.46),
+  themeCircle('herb', 'tcm', 1.35, 1.75, 0.32),
+  themeCircle('dish', 'computer', 2.35, -0.15, 0.46),
+  themeCircle('rack', 'computer', -2.05, 0.85, 0.3)
 ]);
 
 export function footprintBlock(building) {
@@ -259,12 +262,14 @@ const BUILDING_DEFS = [
     entry: { r: 1.2, reach: 0.78, label: '進入賭場', action: 'enterCasino' }
   },
   {
-    id: 'tcm-site', island: 'tcm', x: -17.7, z: 1.15, w: 2.2, d: 1.65, yaw: Math.PI / 2,
-    label: '施工中', panel: null, frontTrim: 0.18
+    id: 'tcm-site', island: 'tcm', x: -17.45, z: 1.15, w: 2.3, d: 1.8, yaw: Math.PI / 2,
+    label: '推拿館', panel: null, frontTrim: 0.2,
+    entry: { r: 0.82, reach: 0.78, label: '進入推拿館', action: 'enterTcm' }
   },
   {
-    id: 'computer-site', island: 'computer', x: 0.45, z: 18.05, w: 2.2, d: 1.65, yaw: Math.PI,
-    label: '施工中', panel: null, frontTrim: 0.18
+    id: 'computer-site', island: 'computer', x: 0.45, z: 17.85, w: 2.3, d: 1.8, yaw: Math.PI,
+    label: '研發樓', panel: null, frontTrim: 0.2,
+    entry: { r: 0.82, reach: 0.78, label: '進入研發樓', action: 'enterComputer' }
   }
 ];
 
@@ -297,6 +302,11 @@ export function buildingById(id) {
     if (BUILDINGS[i].id === id) return BUILDINGS[i];
   }
   return null;
+}
+
+// 門位已就緒、室內還沒做。這兩個 action 只顯示「尚未開放」，不可當成進入賭場。
+export function isClosedHall(action) {
+  return action === 'enterTcm' || action === 'enterComputer';
 }
 
 const BLOCK_RECT_LIST = OBSTACLE_RECTS.slice();

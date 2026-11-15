@@ -25,7 +25,8 @@ import {
   BUILDINGS,
   THEME_CIRCLES,
   PANORAMA,
-  poseForIsland
+  poseForIsland,
+  isClosedHall
 } from './island-layout.js';
 import { createCasinoController, CASINO_NAME } from './island-casino.js';
 import { createGraffitiController, wallSlots } from './island-graffiti.js';
@@ -333,16 +334,35 @@ function boot() {
     g.textBaseline = 'middle';
     g.fillText('CASINO', w / 2, h / 2 + 28);
   });
-  const workSignMap = paint(512, 256, (g, w, h) => {
-    g.fillStyle = '#f6d35a';
+  const tcmSignMap = paint(512, 256, (g, w, h) => {
+    g.fillStyle = '#3c1e14';
     g.fillRect(0, 0, w, h);
-    g.fillStyle = '#3a312c';
-    g.fillRect(0, 0, w, 28);
-    g.fillRect(0, h - 28, w, 28);
+    g.fillStyle = '#d4a84b';
+    g.fillRect(0, 0, w, 22);
+    g.fillRect(0, h - 22, w, 22);
     g.font = '700 108px ' + font;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.fillText('施工中', w / 2, h / 2 + 6);
+    g.strokeStyle = '#1a0c08';
+    g.lineWidth = 6;
+    g.strokeText('推拿館', w / 2, h / 2 + 4);
+    g.fillStyle = '#fff7ef';
+    g.fillText('推拿館', w / 2, h / 2 + 4);
+  });
+  const labSignMap = paint(512, 256, (g, w, h) => {
+    g.fillStyle = '#0e1a28';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#7ec8ea';
+    g.fillRect(0, 0, w, 16);
+    g.fillRect(0, h - 16, w, 16);
+    g.font = '700 100px ' + font;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.strokeStyle = '#051018';
+    g.lineWidth = 5;
+    g.strokeText('研發樓', w / 2, h / 2 + 4);
+    g.fillStyle = '#ffffff';
+    g.fillText('研發樓', w / 2, h / 2 + 4);
   });
 
   function picture(parent, w, h, texture, x, y, z, rotY, glowAmount, tiltX) {
@@ -721,39 +741,141 @@ function boot() {
 
   buildCasino();
 
-  function buildSite(building) {
-    const site = new THREE.Group();
-    site.position.set(building.x, 0, building.z);
-    site.rotation.y = building.yaw || 0;
+  function buildHall(building, theme) {
+    const hall = new THREE.Group();
+    hall.position.set(building.x, 0, building.z);
+    hall.rotation.y = building.yaw || 0;
+    const tcm = theme === 'tcm';
     const W = building.w;
     const D = building.d;
+    const H = tcm ? 1.85 : 2.05;
+    const T = 0.12;
     const front = D / 2;
-    addBox(site, W + 0.7, 0.14, D + 0.7, 0xcfc3b2, 0, G + 0.05, 0);
-    addBox(site, W, 0.08, D, 0xb8884e, 0, G + 0.12, 0);
+    const back = -D / 2;
+    const base = G + 0.08;
+    const wallY = base + H / 2;
+    const doorW = 0.62;
+    const wall = tcm ? 0xf3e2cc : 0xd7e6ee;
+    const trim = tcm ? 0x6b3a2a : 0x5d7384;
+    const roof = tcm ? 0x8d3d3a : 0x24384c;
+    const accent = tcm ? 0xd4a84b : 0x7ec8ea;
+    const glow = tcm ? 0xffb15a : 0x7ec8ea;
+
+    addBox(hall, 1.55, 0.04, 1.2, 0xe4d2b2, 0, G + 0.012, front + 0.7, { shadow: false });
+    addBox(hall, 1.3, 0.05, 0.95, 0xf4e6cf, 0, G + 0.034, front + 0.7, { shadow: false });
+    addBox(hall, W + 0.32, 0.12, D + 0.32, trim, 0, G + 0.04, 0);
+    addBox(hall, W - 0.16, 0.08, D - 0.16, tcm ? 0xc4844a : 0x8aa0b0, 0, G + 0.08, 0);
+    addBox(hall, W, H, T, wall, 0, wallY, back + T / 2);
+    addBox(hall, T, H, D, wall, -W / 2 + T / 2, wallY, 0);
+    addBox(hall, T, H, D, wall, W / 2 - T / 2, wallY, 0);
+    const side = (W - doorW) / 2;
+    addBox(hall, side, H, T, wall, -W / 2 + side / 2, wallY, front - T / 2);
+    addBox(hall, side, H, T, wall, W / 2 - side / 2, wallY, front - T / 2);
+    addBox(hall, doorW + 0.08, 0.36, T, wall, 0, base + H - 0.18, front - T / 2);
     [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sz]) => {
-      addBox(site, 0.06, 2.05, 0.06, 0xf0d078, sx * W / 2, G + 1.1, sz * D / 2);
+      addBox(hall, 0.1, H, 0.1, trim, sx * (W / 2), wallY, sz * (D / 2));
     });
-    addBox(site, W, 0.05, 0.05, 0xf0d078, 0, G + 2.05, -D / 2);
-    addBox(site, W, 0.05, 0.05, 0xf0d078, 0, G + 2.05, D / 2);
-    addBox(site, 0.05, 0.05, D, 0xf0d078, -W / 2, G + 2.05, 0);
-    addBox(site, 0.05, 0.05, D, 0xf0d078, W / 2, G + 2.05, 0);
-    [[-1, 1], [1, 1]].forEach(([sx]) => {
-      addMesh(site, geo('cone', [0.16, 0.34, 6]), 0xf08a3a, sx * (W / 2 + 0.38), G + 0.2, front + 0.42);
+
+    const roofY = base + H + 0.08;
+    if (tcm) {
+      addBox(hall, W + 0.12, 0.08, D + 0.12, 0xf3e2cc, 0, roofY - 0.14, 0);
+      addBox(hall, W + 0.62, 0.2, D + 0.48, roof, 0, roofY, 0);
+      addBox(hall, W + 0.16, 0.14, D + 0.1, 0x6e2e2c, 0, roofY + 0.2, 0);
+      addBox(hall, W - 0.2, 0.1, D - 0.15, roof, 0, roofY + 0.32, 0);
+      [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sz]) => {
+        const horn = addMesh(hall, geo('cone', [0.09, 0.26, 5]), accent, sx * (W / 2 + 0.24), roofY + 0.08, sz * (D / 2 + 0.16));
+        horn.rotation.z = sx * -0.7;
+        horn.rotation.x = sz * 0.55;
+      });
+    } else {
+      addBox(hall, W + 0.16, 0.1, D + 0.16, 0x9eb4c4, 0, roofY - 0.1, 0);
+      addBox(hall, W + 0.4, 0.16, D + 0.34, roof, 0, roofY, 0);
+      addBox(hall, W + 0.5, 0.05, D + 0.44, accent, 0, roofY + 0.11, 0, {
+        night: 0xb7e4ff,
+        glow: glow,
+        glowAmount: 0.45,
+        shadow: false
+      });
+      addBox(hall, 0.08, 0.62, 0.08, 0xd5dde4, 0.32, roofY + 0.42, -0.12);
+      addMesh(hall, geo('sph', [0.09, 6, 5]), accent, 0.32, roofY + 0.8, -0.12, {
+        night: 0xd7f4ff,
+        glow: glow,
+        glowAmount: 1.25,
+        shadow: false
+      });
+    }
+
+    picture(hall, tcm ? 1.55 : 1.42, 0.56, tcm ? tcmSignMap : labSignMap, 0, roofY + (tcm ? 0.58 : 0.42), front - 0.06, 0, tcm ? 0.72 : 0.88, tcm ? -0.22 : -0.16);
+
+    function hallWindow(x, y, z, ww, hh, rotY) {
+      const group = new THREE.Group();
+      group.position.set(x, y, z);
+      group.rotation.y = rotY || 0;
+      addBox(group, ww, hh, 0.04, tcm ? 0xfff0c8 : 0xb7e4ff, 0, 0, 0, {
+        night: tcm ? 0xffd7a4 : 0xd7f4ff,
+        glow: glow,
+        glowAmount: tcm ? 0.9 : 1.15,
+        shadow: false
+      });
+      addBox(group, ww + 0.08, 0.045, 0.07, trim, 0, hh / 2 + 0.025, 0.02);
+      addBox(group, ww + 0.08, 0.045, 0.07, trim, 0, -hh / 2 - 0.025, 0.02);
+      addBox(group, 0.045, hh, 0.07, trim, -ww / 2 - 0.025, 0, 0.02);
+      addBox(group, 0.045, hh, 0.07, trim, ww / 2 + 0.025, 0, 0.02);
+      hall.add(group);
+    }
+    const winY = base + 1.02;
+    hallWindow(W / 2 + 0.02, winY, -0.2, 0.46, 0.48, Math.PI / 2);
+    hallWindow(-W / 2 - 0.02, winY, -0.2, 0.46, 0.48, -Math.PI / 2);
+    if (tcm) hallWindow(0, winY + 0.08, back - 0.02, 0.52, 0.38, Math.PI);
+    else hallWindow(0.7, winY, front + 0.02, 0.4, 0.34, 0);
+
+    const door = new THREE.Group();
+    door.position.set(0, base + 0.66, front - 0.02);
+    addBox(door, doorW, 1.32, 0.07, tcm ? 0x8d3d3a : 0x1c3148, 0, 0, 0);
+    addBox(door, doorW + 0.1, 0.05, 0.09, trim, 0, 0.68, 0.02);
+    addBox(door, 0.045, 1.32, 0.09, accent, -doorW / 2, 0, 0.02);
+    addBox(door, 0.045, 1.32, 0.09, accent, doorW / 2, 0, 0.02);
+    addBox(door, 0.28, 0.32, 0.03, tcm ? 0xfff0c8 : 0xb7e4ff, 0, 0.22, 0.05, {
+      night: tcm ? 0xffd7a4 : 0xd7f4ff,
+      glow: glow,
+      glowAmount: 0.85,
+      shadow: false
     });
-    addBox(site, 0.06, 1.15, 0.06, 0xa56b38, -0.52, G + 0.7, front + 0.28);
-    addBox(site, 0.06, 1.15, 0.06, 0xa56b38, 0.52, G + 0.7, front + 0.28);
-    const board = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.28, 0.64),
-      mat(0xffffff, { map: workSignMap, night: 0xfff0dc, glow: 0xffb15a, glowAmount: 0.2 })
-    );
-    board.position.set(0, G + 1.28, front + 0.32);
-    board.castShadow = false;
-    site.add(board);
-    scene.add(site);
+    addBox(door, 0.04, 0.07, 0.04, accent, 0.18, -0.02, 0.06);
+    hall.add(door);
+
+    if (tcm) {
+      addBox(hall, 0.5, 0.62, 0.24, 0x6b3a2a, -0.45, base + 0.36, back + 0.32);
+      addBox(hall, 0.5, 0.04, 0.26, 0xf3e2cc, -0.45, base + 0.68, back + 0.32);
+      addMesh(hall, geo('cyl', [0.06, 0.07, 0.12, 6, 0]), 0x9fd9b4, -0.58, base + 0.78, back + 0.32);
+      addMesh(hall, geo('cyl', [0.05, 0.06, 0.1, 6, 0]), 0xf4a0c0, -0.4, base + 0.76, back + 0.34);
+      [-0.48, 0.48].forEach((x) => {
+        addBox(hall, 0.045, 0.62, 0.045, trim, x, G + 0.36, front + 0.38);
+        addMesh(hall, geo('sph', [0.08, 6, 5]), accent, x, G + 0.74, front + 0.38, {
+          night: 0xffe2b0,
+          glow: 0xffc56a,
+          glowAmount: 1.15,
+          shadow: false
+        });
+      });
+      lampLight(0, base + 1.15, front + 0.4, 12, hall);
+    } else {
+      addBox(hall, 0.05, 0.03, 0.9, 0x3a312c, 0.62, G + 0.055, front + 0.48, { shadow: false });
+      addBox(hall, 0.55, 0.03, 0.05, 0x3a312c, 0.32, G + 0.055, front + 0.12, { shadow: false });
+      lampLight(0, base + 1.2, front + 0.35, 10, hall);
+      lampLight(0.7, winY, front + 0.2, 7, hall);
+    }
+
+    scene.add(hall);
+    const anchor = new THREE.Object3D();
+    anchor.position.set(0, roofY + 1.05, 0.12);
+    hall.add(anchor);
+    anchors[building.id] = anchor;
   }
 
   BUILDINGS.forEach((building) => {
-    if (building.id === 'tcm-site' || building.id === 'computer-site') buildSite(building);
+    if (building.id === 'tcm-site') buildHall(building, 'tcm');
+    else if (building.id === 'computer-site') buildHall(building, 'computer');
   });
 
   function makeZone(id, x, z, ringR) {
@@ -1042,7 +1164,8 @@ function boot() {
   marker('dock', -0.1, G + 1.15, 8.15);
   ISLANDS.forEach((island) => {
     if (island.id === 'main') return;
-    marker('island-' + island.id, island.x, G + 2.6, island.z);
+    const yOff = (island.id === 'tcm' || island.id === 'computer') ? G + 3.65 : G + 2.6;
+    marker('island-' + island.id, island.x, yOff, island.z);
   });
 
   function treeRound(x, z, scale, leaf) {
@@ -1349,15 +1472,78 @@ function boot() {
   function dishAt(x, z) {
     const group = new THREE.Group();
     group.position.set(x, G, z);
-    addBox(group, 0.08, 1.35, 0.08, 0xd5dde4, 0, 0.68, 0);
-    const dish = addMesh(group, geo('cyl', [0.42, 0.1, 0.08, 8, 0]), 0xf3e2cc, 0.16, 1.38, 0);
-    dish.rotation.z = -0.7;
+    addBox(group, 0.5, 0.1, 0.5, 0x5d7384, 0, 0.05, 0);
+    addBox(group, 0.09, 3.15, 0.09, 0xd5dde4, 0, 1.62, 0);
+    const dish = addMesh(group, geo('cyl', [0.42, 0.1, 0.08, 8, 0]), 0xf3e2cc, 0.28, 2.95, 0);
+    dish.rotation.z = -0.85;
+    addMesh(group, geo('sph', [0.1, 6, 5]), 0x7ec8ea, 0, 3.35, 0, {
+      night: 0xd7f4ff,
+      glow: 0x7ec8ea,
+      glowAmount: 1.35,
+      shadow: false
+    });
+    addBox(group, 0.04, 0.03, 0.7, 0x3a312c, 0.16, 0.07, -0.42, { shadow: false });
+    scene.add(group);
+    lampLight(0, 3.2, 0, 7, group);
+  }
+  function figureAt(x, z) {
+    const group = new THREE.Group();
+    group.position.set(x, G, z);
+    const gold = 0xd4a84b;
+    addBox(group, 0.62, 0.12, 0.62, 0x6b3a2a, 0, 0.06, 0);
+    addBox(group, 0.42, 0.1, 0.42, gold, 0, 0.16, 0);
+    addBox(group, 0.11, 1.05, 0.11, gold, -0.1, 0.72, 0);
+    addBox(group, 0.11, 1.05, 0.11, gold, 0.1, 0.72, 0);
+    addBox(group, 0.4, 0.78, 0.2, gold, 0, 1.52, 0);
+    addBox(group, 0.09, 0.62, 0.09, gold, -0.26, 1.58, 0);
+    addBox(group, 0.09, 0.62, 0.09, gold, 0.26, 1.58, 0);
+    addMesh(group, geo('sph', [0.2, 7, 6]), gold, 0, 2.12, 0);
+    [[0, 2.28, 0.12], [0, 1.62, 0.14], [-0.1, 1.38, 0.12], [0.1, 1.38, 0.12]].forEach((point) => {
+      addMesh(group, geo('sph', [0.03, 5, 4]), 0xfff1c4, point[0], point[1], point[2], {
+        night: 0xffe7a8,
+        glow: 0xffd27a,
+        glowAmount: 0.85,
+        shadow: false
+      });
+    });
+    scene.add(group);
+    lampLight(0, 1.3, 0.15, 5, group);
+  }
+  function herbAt(x, z) {
+    const group = new THREE.Group();
+    group.position.set(x, G, z);
+    addBox(group, 0.62, 0.08, 0.42, 0x6b4a32, 0, 0.04, 0);
+    addBox(group, 0.54, 0.06, 0.34, 0x4f8a45, 0, 0.1, 0);
+    [[-0.14, 0.06], [0.04, -0.05], [0.15, 0.07]].forEach((spot, i) => {
+      addMesh(group, geo('cone', [0.07, 0.2 + i * 0.03, 5]), i === 1 ? 0x7eae58 : 0x3f7a3a, spot[0], 0.22, spot[1]);
+    });
+    scene.add(group);
+  }
+  function rackAt(x, z) {
+    const group = new THREE.Group();
+    group.position.set(x, G, z);
+    addBox(group, 0.38, 0.64, 0.26, 0x24384c, 0, 0.36, 0);
+    addBox(group, 0.26, 0.07, 0.02, 0x7ec8ea, 0, 0.5, 0.14, {
+      night: 0xd7f4ff,
+      glow: 0x7ec8ea,
+      glowAmount: 1.1,
+      shadow: false
+    });
+    addBox(group, 0.26, 0.04, 0.02, 0xf06a2a, 0, 0.36, 0.14, {
+      night: 0xffb15a,
+      glow: 0xffb15a,
+      glowAmount: 0.65,
+      shadow: false
+    });
     scene.add(group);
   }
   THEME_CIRCLES.forEach((prop) => {
     if (prop.id.indexOf('palm') === 0) palmAt(prop.x, prop.z);
     else if (prop.id === 'bamboo') bambooAt(prop.x, prop.z);
     else if (prop.id === 'dish') dishAt(prop.x, prop.z);
+    else if (prop.id === 'figure') figureAt(prop.x, prop.z);
+    else if (prop.id === 'herb') herbAt(prop.x, prop.z);
+    else if (prop.id === 'rack') rackAt(prop.x, prop.z);
   });
 
   function cloud(x, y, z, scale, drift) {
@@ -2184,6 +2370,7 @@ function boot() {
       if (zone && zone.action === 'openGraffiti') openGraffiti();
       else if (zone && zone.action === 'openRoadmap') openRoadmap();
       else if (zone && zone.action === 'enterInterior') enterInterior(zone.id);
+      else if (zone && isClosedHall(zone.action)) showInteriorClosed();
       else if (casino) casino.openLobby();
       return;
     }
@@ -2464,6 +2651,28 @@ function boot() {
     if (graffiti) graffiti.open();
   }
 
+  let closedHallTimer = 0;
+  function showInteriorClosed() {
+    const hint = document.getElementById('islandExploreHint');
+    const button = document.getElementById('islandInteract');
+    if (button) {
+      button.textContent = '室內尚未開放';
+      button.setAttribute('aria-label', '室內尚未開放');
+    }
+    if (!hint) return;
+    hint.querySelectorAll('span').forEach((el) => {
+      el.textContent = '室內尚未開放';
+    });
+    if (closedHallTimer) window.clearTimeout(closedHallTimer);
+    closedHallTimer = window.setTimeout(() => {
+      closedHallTimer = 0;
+      const desk = hint.querySelector('.island-explore-hint-desk');
+      const touch = hint.querySelector('.island-explore-hint-touch');
+      if (desk) desk.textContent = 'WASD 或方向鍵移動 · 拖曳旋轉鏡頭';
+      if (touch) touch.textContent = '用左下角搖桿移動 · 拖曳旋轉鏡頭';
+    }, 1800);
+  }
+
   function openRoadmap() {
     if (casino && casino.isOpen()) casino.closeLobby();
     if (graffiti && graffiti.isOpen()) graffiti.close();
@@ -2495,6 +2704,10 @@ function boot() {
         }
         if (zone.action === 'openRoadmap') {
           openRoadmap();
+          return true;
+        }
+        if (isClosedHall(zone.action)) {
+          showInteriorClosed();
           return true;
         }
         return false;

@@ -310,6 +310,19 @@ test('從出生點可走過橋到三座島，橋外是海', () => {
   pos = cross(pos, casinoBridge);
   pos = walkToward(pos, { x: door.x, z: door.z });
   assert.ok(X.hitInteractZone(pos.x, pos.z, X.DEFAULT_INTERACT_ZONES));
+
+  for (const id of ['tcm', 'computer']) {
+    const bridge = X.BRIDGES.find((item) => item.to === id);
+    const hall = X.BUILDINGS.find((item) => item.island === id && item.entry);
+    let at = { x: X.PLAYER_SPAWN.x, z: X.PLAYER_SPAWN.z, yaw: 0 };
+    for (const point of approaches[id]) at = walkToward(at, point);
+    at = cross(at, bridge);
+    at = walkToward(at, { x: hall.door.x, z: hall.door.z });
+    const zone = X.hitInteractZone(at.x, at.z, X.DEFAULT_INTERACT_ZONES);
+    assert.equal(zone.id, hall.id);
+    assert.equal(zone.action === 'enterCasino', false, id + ' 門口不是賭場');
+    assert.equal(X.canStand(hall.door.x, hall.door.z), true);
+  }
 });
 
 test('互動提示：僅探索中且未開面板／大廳時顯示', () => {
