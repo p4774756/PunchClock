@@ -335,27 +335,33 @@ function boot() {
     g.fillText('CASINO', w / 2, h / 2 + 28);
   });
   const tcmSignMap = paint(512, 256, (g, w, h) => {
-    g.fillStyle = '#6b3a2a';
+    g.fillStyle = '#3c1e14';
     g.fillRect(0, 0, w, h);
     g.fillStyle = '#d4a84b';
     g.fillRect(0, 0, w, 22);
     g.fillRect(0, h - 22, w, 22);
-    g.fillStyle = '#fff7ef';
     g.font = '700 108px ' + font;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
+    g.strokeStyle = '#1a0c08';
+    g.lineWidth = 6;
+    g.strokeText('推拿館', w / 2, h / 2 + 4);
+    g.fillStyle = '#fff7ef';
     g.fillText('推拿館', w / 2, h / 2 + 4);
   });
   const labSignMap = paint(512, 256, (g, w, h) => {
-    g.fillStyle = '#1c3148';
+    g.fillStyle = '#0e1a28';
     g.fillRect(0, 0, w, h);
     g.fillStyle = '#7ec8ea';
     g.fillRect(0, 0, w, 16);
     g.fillRect(0, h - 16, w, 16);
-    g.fillStyle = '#e8f6ff';
     g.font = '700 100px ' + font;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
+    g.strokeStyle = '#051018';
+    g.lineWidth = 5;
+    g.strokeText('研發樓', w / 2, h / 2 + 4);
+    g.fillStyle = '#ffffff';
     g.fillText('研發樓', w / 2, h / 2 + 4);
   });
 
@@ -799,7 +805,7 @@ function boot() {
       });
     }
 
-    picture(hall, tcm ? 1.55 : 1.42, 0.56, tcm ? tcmSignMap : labSignMap, 0, roofY + (tcm ? 0.58 : 0.42), front - 0.06, 0, tcm ? 0.4 : 0.8, tcm ? -0.22 : -0.16);
+    picture(hall, tcm ? 1.55 : 1.42, 0.56, tcm ? tcmSignMap : labSignMap, 0, roofY + (tcm ? 0.58 : 0.42), front - 0.06, 0, tcm ? 0.72 : 0.88, tcm ? -0.22 : -0.16);
 
     function hallWindow(x, y, z, ww, hh, rotY) {
       const group = new THREE.Group();
@@ -1158,7 +1164,8 @@ function boot() {
   marker('dock', -0.1, G + 1.15, 8.15);
   ISLANDS.forEach((island) => {
     if (island.id === 'main') return;
-    marker('island-' + island.id, island.x, G + 2.6, island.z);
+    const yOff = (island.id === 'tcm' || island.id === 'computer') ? G + 3.65 : G + 2.6;
+    marker('island-' + island.id, island.x, yOff, island.z);
   });
 
   function treeRound(x, z, scale, leaf) {
