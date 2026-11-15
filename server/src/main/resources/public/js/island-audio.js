@@ -6,11 +6,14 @@
  *
  * tracks 格式：{ main: '/audio/bgm-main.ogg', casino?: '...', tcm?: '...', computer?: '...' }
  * 夜間版本預留：{ main_night: '...', casino_night: '...' }
+ *
+ * iOS Safari 的 HTMLMediaElement.volume 是唯讀，故使用 Web Audio API：
+ * AudioContext + MediaElementAudioSourceNode + GainNode 控制音量與淡入淡出。
+ * 不支援 AudioContext 時退回 element.volume。
  */
 
 const STORAGE_KEY = 'punchclock.island.muted';
-const FADE_DURATION = 1500;
-const FADE_STEP = 30;
+const FADE_DURATION = 1.5;
 
 function safeParse(storage, key, fallback) {
   if (!storage) return fallback;
@@ -32,12 +35,24 @@ function safeSet(storage, key, value) {
   }
 }
 
+function supportsWebAudio() {
+  return typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined';
+}
+
+function createAudioContext() {
+  const Ctor = typeof AudioContext !== 'undefined' ? AudioContext : webkitAudioContext;
+  return new Ctor();
+}
+
 /**
  * 建立島嶼音樂控制器。
  * @param {Object} opts
  * @param {Object<string, string>} opts.tracks - 音軌路徑
  * @param {Storage} [opts.storage] - localStorage 或替代品
  * @param {number} [opts.volume=0.35] - 基礎音量
+ * @param {Function} [opts._createAudio] - 測試用：自訂 Audio 建構
+ * @param {Object} [opts._audioContext] - 測試用：注入假 AudioContext
+ * @param {boolean} [opts._forceElementVolume] - 測試用：強制使用 element.volume
  * @returns {Object} audio controller
  */
 export function createIslandAudio(opts) {
@@ -51,46 +66,94 @@ export function createIslandAudio(opts) {
   let userInteracted = false;
   let awaitingPlay = false;
   let hidden = false;
-  let fadeTimer = null;
   let disposed = false;
+  let playSucceeded = false;
+
+  let ctx = opts._audioContext || null;
+  let gainNode = null;
+  let sourceNode = null;
+  let useWebAudio = !opts._forceElementVolume && (!!opts._audioContext || supportsWebAudio());
+  let webAudioConnected = false;
 
   function createAudio(src) {
     if (opts._createAudio) return opts._createAudio(src);
     const el = new Audio();
     el.src = src;
     el.loop = true;
-    el.volume = 0;
     el.preload = 'auto';
+    if (!useWebAudio) el.volume = 0;
     return el;
   }
 
-  function stopFade() {
-    if (fadeTimer != null) {
-      clearInterval(fadeTimer);
-      fadeTimer = null;
+  function ensureContext() {
+    if (!useWebAudio) return false;
+    if (ctx) return true;
+    try {
+      ctx = createAudioContext();
+      return true;
+    } catch {
+      useWebAudio = false;
+      return false;
     }
   }
 
+  function connectWebAudio() {
+    if (!useWebAudio || !ctx || !audio || webAudioConnected) return;
+    try {
+      if (!gainNode) {
+        gainNode = ctx.createGain();
+        gainNode.gain.setValueAtTime(0, ctx.currentTime);
+        gainNode.connect(ctx.destination);
+      }
+      if (!sourceNode) {
+        sourceNode = ctx.createMediaElementSource(audio);
+        sourceNode.connect(gainNode);
+      }
+      webAudioConnected = true;
+    } catch {
+      useWebAudio = false;
+      if (audio) audio.volume = 0;
+    }
+  }
+
+  function setVolume(vol) {
+    if (useWebAudio && gainNode && ctx) {
+      gainNode.gain.setValueAtTime(vol, ctx.currentTime);
+    } else if (audio) {
+      try { audio.volume = vol; } catch { /* iOS readonly */ }
+    }
+  }
+
+  function getVolume() {
+    if (useWebAudio && gainNode) {
+      return gainNode.gain.value;
+    }
+    return audio ? audio.volume : 0;
+  }
+
   function fadeTo(targetVol, cb) {
-    stopFade();
     if (!audio) {
       if (cb) cb();
       return;
     }
-    const start = audio.volume;
-    const delta = targetVol - start;
-    const steps = Math.max(1, Math.round(FADE_DURATION / FADE_STEP));
-    let step = 0;
-    fadeTimer = setInterval(() => {
-      step += 1;
-      const t = step / steps;
-      const vol = start + delta * t;
-      if (audio) audio.volume = Math.max(0, Math.min(1, vol));
-      if (step >= steps) {
-        stopFade();
-        if (cb) cb();
-      }
-    }, FADE_STEP);
+    if (useWebAudio && gainNode && ctx) {
+      const now = ctx.currentTime;
+      gainNode.gain.cancelScheduledValues(now);
+      gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+      gainNode.gain.linearRampToValueAtTime(targetVol, now + FADE_DURATION);
+      if (cb) setTimeout(cb, FADE_DURATION * 1000 + 50);
+    } else {
+      setVolume(targetVol);
+      if (cb) cb();
+    }
+  }
+
+  function resumeContext() {
+    if (!useWebAudio || !ctx) return Promise.resolve();
+    if (ctx.state === 'suspended') {
+      return ctx.resume().catch(() => {});
+    }
+    return Promise.resolve();
   }
 
   function tryPlay() {
@@ -98,30 +161,39 @@ export function createIslandAudio(opts) {
       awaitingPlay = false;
       return;
     }
-    if (audio.paused) {
-      const p = audio.play();
-      if (p && typeof p.catch === 'function') {
-        p.then(() => {
+    ensureContext();
+    connectWebAudio();
+
+    const doPlay = () => {
+      if (audio.paused) {
+        const p = audio.play();
+        if (p && typeof p.catch === 'function') {
+          p.then(() => {
+            awaitingPlay = false;
+            playSucceeded = true;
+            fadeTo(baseVolume);
+          }).catch(() => {
+            awaitingPlay = true;
+          });
+        } else {
           awaitingPlay = false;
+          playSucceeded = true;
           fadeTo(baseVolume);
-        }).catch(() => {
-          awaitingPlay = true;
-        });
+        }
       } else {
         awaitingPlay = false;
+        playSucceeded = true;
         fadeTo(baseVolume);
       }
-    } else {
-      awaitingPlay = false;
-      fadeTo(baseVolume);
-    }
+    };
+
+    resumeContext().then(doPlay);
   }
 
   function pause() {
-    stopFade();
     if (audio) {
       audio.pause();
-      audio.volume = 0;
+      setVolume(0);
     }
   }
 
@@ -130,6 +202,8 @@ export function createIslandAudio(opts) {
     const src = tracks[id];
     if (!src) return;
     pause();
+    webAudioConnected = false;
+    sourceNode = null;
     audio = createAudio(src);
     currentTrack = id;
   }
@@ -138,7 +212,6 @@ export function createIslandAudio(opts) {
     muted = !!m;
     safeSet(storage, STORAGE_KEY, muted);
     if (muted) {
-      stopFade();
       if (audio && !audio.paused) {
         fadeTo(0, () => pause());
       }
@@ -173,9 +246,14 @@ export function createIslandAudio(opts) {
 
   function dispose() {
     disposed = true;
-    stopFade();
     pause();
+    if (ctx && typeof ctx.close === 'function') {
+      try { ctx.close(); } catch {}
+    }
     audio = null;
+    ctx = null;
+    gainNode = null;
+    sourceNode = null;
   }
 
   function preload() {
@@ -193,7 +271,9 @@ export function createIslandAudio(opts) {
     get muted() { return muted; },
     get interacted() { return userInteracted; },
     get playing() { return audio && !audio.paused; },
+    get playSucceeded() { return playSucceeded; },
     get available() { return checkAvailable(); },
+    get usingWebAudio() { return useWebAudio && !!ctx; },
     setMuted,
     toggleMute() { setMuted(!muted); },
     onUserInteraction,
@@ -202,6 +282,8 @@ export function createIslandAudio(opts) {
     preload,
     dispose,
     _getAudio() { return audio; },
-    _getAwaiting() { return awaitingPlay; }
+    _getAwaiting() { return awaitingPlay; },
+    _getGainNode() { return gainNode; },
+    _getVolume() { return getVolume(); }
   };
 }

@@ -2524,7 +2524,8 @@ function boot() {
     const on = !islandAudio.muted;
     audioBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
     audioBtn.setAttribute('aria-label', on ? '靜音背景音樂' : '開啟背景音樂');
-    audioBtn.textContent = on ? '🔊 音樂' : '🔇 音樂';
+    const iconEl = audioBtn.querySelector('.island-tool-audio-icon');
+    if (iconEl) iconEl.textContent = on ? '🔊' : '🔇';
   }
 
   function showAudioButton() {
@@ -2534,10 +2535,22 @@ function boot() {
     }
   }
 
+  let audioListenersRemoved = false;
   function tryInitAudio() {
     if (!islandAudio.available) return;
     islandAudio.onUserInteraction();
     showAudioButton();
+    if (islandAudio.playSucceeded || islandAudio.muted) {
+      removeAudioListeners();
+    }
+  }
+
+  function removeAudioListeners() {
+    if (audioListenersRemoved) return;
+    audioListenersRemoved = true;
+    document.removeEventListener('pointerdown', tryInitAudio);
+    document.removeEventListener('touchend', tryInitAudio);
+    document.removeEventListener('keydown', tryInitAudio);
   }
 
   islandAudio.preload();
@@ -2551,13 +2564,12 @@ function boot() {
     audioBtn.addEventListener('click', () => {
       islandAudio.toggleMute();
       syncAudioButton();
+      if (islandAudio.muted) removeAudioListeners();
     });
   }
-  if (exploreBtn) {
-    exploreBtn.addEventListener('click', tryInitAudio, { once: true });
-  }
-  document.addEventListener('click', tryInitAudio, { once: true });
-  document.addEventListener('keydown', tryInitAudio, { once: true });
+  document.addEventListener('pointerdown', tryInitAudio);
+  document.addEventListener('touchend', tryInitAudio);
+  document.addEventListener('keydown', tryInitAudio);
 
   function promptZones() {
     if (!rooms.inside()) return INTERACT_ZONES;

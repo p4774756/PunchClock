@@ -280,6 +280,20 @@ a.island-tool {
   color: #717171;
 }
 
+.island-tool-audio .island-tool-audio-text {
+  margin-left: 0.2em;
+}
+
+@media (max-width: 600px) {
+  .island-tool-audio .island-tool-audio-text {
+    display: none;
+  }
+  .island-tool-audio {
+    min-width: 2.5rem;
+    padding: 0 0.5rem;
+  }
+}
+
 .island-tool:hover,
 .island-tool:focus-visible,
 .island-list button:focus-visible,

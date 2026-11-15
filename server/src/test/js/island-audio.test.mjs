@@ -1,4 +1,4 @@
-import { test, describe, mock } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadPublicModule } from './load-public-module.mjs';
 
@@ -57,13 +57,42 @@ function rejectingAudio() {
   };
 }
 
+function fakeAudioContext() {
+  let time = 0;
+  const gainValue = { value: 0 };
+  return {
+    state: 'running',
+    get currentTime() { return time; },
+    _advanceTime(dt) { time += dt; },
+    resume() { return Promise.resolve(); },
+    close() {},
+    createGain() {
+      return {
+        gain: {
+          get value() { return gainValue.value; },
+          set value(v) { gainValue.value = v; },
+          setValueAtTime(v) { gainValue.value = v; },
+          cancelScheduledValues() {},
+          linearRampToValueAtTime(v) { gainValue.value = v; }
+        },
+        connect() {}
+      };
+    },
+    createMediaElementSource() {
+      return { connect() {} };
+    },
+    destination: {}
+  };
+}
+
 describe('island-audio', () => {
   test('muted state persists in storage', () => {
     const storage = fakeStorage();
     const audio = createIslandAudio({
       tracks: { main: '/audio/bgm.ogg' },
       storage,
-      _createAudio: fakeAudio
+      _createAudio: fakeAudio,
+      _forceElementVolume: true
     });
     assert.equal(audio.muted, false);
     audio.setMuted(true);
@@ -72,7 +101,8 @@ describe('island-audio', () => {
     const audio2 = createIslandAudio({
       tracks: { main: '/audio/bgm.ogg' },
       storage,
-      _createAudio: fakeAudio
+      _createAudio: fakeAudio,
+      _forceElementVolume: true
     });
     assert.equal(audio2.muted, true);
   });
@@ -82,7 +112,8 @@ describe('island-audio', () => {
     const audio = createIslandAudio({
       tracks: { main: '/audio/bgm.ogg' },
       storage,
-      _createAudio: fakeAudio
+      _createAudio: fakeAudio,
+      _forceElementVolume: true
     });
     assert.doesNotThrow(() => audio.setMuted(true));
     assert.equal(audio.muted, true);
@@ -99,7 +130,8 @@ describe('island-audio', () => {
         const orig = a.play;
         a.play = () => { playCalled = true; return orig.call(a); };
         return a;
-      }
+      },
+      _forceElementVolume: true
     });
     audio.preload();
     await Promise.resolve();
@@ -117,7 +149,8 @@ describe('island-audio', () => {
         const orig = a.play;
         a.play = () => { playCalled = true; return orig.call(a); };
         return a;
-      }
+      },
+      _forceElementVolume: true
     });
     audio.onUserInteraction();
     await Promise.resolve();
@@ -148,17 +181,68 @@ describe('island-audio', () => {
           },
           pause() { this.paused = true; }
         };
-      }
+      },
+      _forceElementVolume: true
     });
     audio.onUserInteraction();
     await new Promise(r => setTimeout(r, 10));
     assert.equal(attempts, 1, 'first attempt should happen');
     assert.equal(audio._getAwaiting(), true, 'should mark awaiting');
+    assert.equal(audio.playSucceeded, false, 'playSucceeded should be false');
 
     succeed = true;
     audio.onUserInteraction();
     await new Promise(r => setTimeout(r, 10));
     assert.equal(attempts, 2, 'second attempt on next interaction');
+    assert.equal(audio.playSucceeded, true, 'playSucceeded should be true after success');
+  });
+
+  test('multiple interactions until play succeeds', async () => {
+    const storage = fakeStorage();
+    let attempts = 0;
+    let succeedOnAttempt = 3;
+    const audio = createIslandAudio({
+      tracks: { main: '/audio/bgm.ogg' },
+      storage,
+      _createAudio: () => {
+        return {
+          src: '',
+          loop: false,
+          preload: 'auto',
+          volume: 0,
+          paused: true,
+          play() {
+            attempts += 1;
+            if (attempts >= succeedOnAttempt) {
+              this.paused = false;
+              return Promise.resolve();
+            }
+            return Promise.reject(new Error('blocked'));
+          },
+          pause() { this.paused = true; }
+        };
+      },
+      _forceElementVolume: true
+    });
+
+    audio.onUserInteraction();
+    await new Promise(r => setTimeout(r, 10));
+    assert.equal(attempts, 1);
+    assert.equal(audio.playSucceeded, false);
+
+    audio.onUserInteraction();
+    await new Promise(r => setTimeout(r, 10));
+    assert.equal(attempts, 2);
+    assert.equal(audio.playSucceeded, false);
+
+    audio.onUserInteraction();
+    await new Promise(r => setTimeout(r, 10));
+    assert.equal(attempts, 3);
+    assert.equal(audio.playSucceeded, true);
+
+    audio.onUserInteraction();
+    await new Promise(r => setTimeout(r, 10));
+    assert.equal(attempts, 3, 'no more attempts after success');
   });
 
   test('pause on hidden, resume on visible', async () => {
@@ -167,7 +251,8 @@ describe('island-audio', () => {
     const audio = createIslandAudio({
       tracks: { main: '/audio/bgm.ogg' },
       storage,
-      _createAudio: () => fakeA
+      _createAudio: () => fakeA,
+      _forceElementVolume: true
     });
     audio.onUserInteraction();
     await Promise.resolve();
@@ -187,7 +272,8 @@ describe('island-audio', () => {
     const audio = createIslandAudio({
       tracks: { main: '/audio/bgm.ogg' },
       storage,
-      _createAudio: () => fakeA
+      _createAudio: () => fakeA,
+      _forceElementVolume: true
     });
     audio.onUserInteraction();
     await new Promise(r => setTimeout(r, 10));
@@ -205,7 +291,8 @@ describe('island-audio', () => {
   test('available returns false when no tracks', () => {
     const audio = createIslandAudio({
       tracks: {},
-      storage: fakeStorage()
+      storage: fakeStorage(),
+      _forceElementVolume: true
     });
     assert.equal(audio.available, false);
   });
@@ -213,7 +300,8 @@ describe('island-audio', () => {
   test('available returns true when main track exists', () => {
     const audio = createIslandAudio({
       tracks: { main: '/audio/bgm.ogg' },
-      storage: fakeStorage()
+      storage: fakeStorage(),
+      _forceElementVolume: true
     });
     assert.equal(audio.available, true);
   });
@@ -223,7 +311,8 @@ describe('island-audio', () => {
     const audio = createIslandAudio({
       tracks: { main: '/audio/bgm.ogg' },
       storage,
-      _createAudio: fakeAudio
+      _createAudio: fakeAudio,
+      _forceElementVolume: true
     });
     assert.equal(audio.muted, false);
     audio.toggleMute();
@@ -236,9 +325,90 @@ describe('island-audio', () => {
     const audio = createIslandAudio({
       tracks: { main: '/audio/bgm.ogg' },
       storage: null,
-      _createAudio: fakeAudio
+      _createAudio: fakeAudio,
+      _forceElementVolume: true
     });
     assert.doesNotThrow(() => audio.setMuted(true));
     assert.equal(audio.muted, true);
+  });
+
+  describe('Web Audio API', () => {
+    test('uses Web Audio when AudioContext is provided', async () => {
+      const ctx = fakeAudioContext();
+      const fakeA = fakeAudio();
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage: fakeStorage(),
+        _createAudio: () => fakeA,
+        _audioContext: ctx
+      });
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 10));
+      assert.equal(audio.usingWebAudio, true);
+    });
+
+    test('GainNode controls volume instead of element.volume', async () => {
+      const ctx = fakeAudioContext();
+      const fakeA = fakeAudio();
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage: fakeStorage(),
+        volume: 0.35,
+        _createAudio: () => fakeA,
+        _audioContext: ctx
+      });
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 10));
+      const gainNode = audio._getGainNode();
+      assert.ok(gainNode, 'GainNode should be created');
+      assert.equal(audio._getVolume(), 0.35, 'volume should be set via gain');
+    });
+
+    test('falls back to element.volume when _forceElementVolume is true', async () => {
+      const fakeA = fakeAudio();
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage: fakeStorage(),
+        volume: 0.35,
+        _createAudio: () => fakeA,
+        _forceElementVolume: true
+      });
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 10));
+      assert.equal(audio.usingWebAudio, false);
+      assert.equal(fakeA.volume, 0.35);
+    });
+
+    test('Web Audio fade sets gain value', async () => {
+      const ctx = fakeAudioContext();
+      const fakeA = fakeAudio();
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage: fakeStorage(),
+        volume: 0.5,
+        _createAudio: () => fakeA,
+        _audioContext: ctx
+      });
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 10));
+      assert.equal(audio._getVolume(), 0.5, 'gain should be 0.5');
+    });
+
+    test('mute sets gain to 0', async () => {
+      const ctx = fakeAudioContext();
+      const fakeA = fakeAudio();
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage: fakeStorage(),
+        volume: 0.35,
+        _createAudio: () => fakeA,
+        _audioContext: ctx
+      });
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 50));
+      audio.setMuted(true);
+      await new Promise(r => setTimeout(r, 50));
+      assert.equal(audio._getVolume(), 0, 'gain should be 0 when muted');
+    });
   });
 });
