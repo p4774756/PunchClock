@@ -16,7 +16,7 @@ public final class GithubRoadmapClient implements RoadmapService.Fetcher {
 
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(3))
-            .followRedirects(HttpClient.Redirect.NORMAL)
+            .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
     @Override

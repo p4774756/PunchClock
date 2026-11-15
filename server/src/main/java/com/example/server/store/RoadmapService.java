@@ -6,11 +6,13 @@ import java.util.List;
 
 /**
  * 讀 GitHub issue 的分期清單。快取 10 分鐘；失敗時沿用上次成功的結果。
+ * 失敗後 2 分鐘內不再打 GitHub，避免限流時每個訪客都卡住一條請求。
  * 建構時不連線，第一次查詢才打 GitHub，避免啟動被網路卡住。
  */
 public final class RoadmapService {
 
     public static final long TTL_MS = 10L * 60L * 1000L;
+    public static final long FAILURE_BACKOFF_MS = 2L * 60L * 1000L;
     public static final String UNAVAILABLE = "暫時讀不到施工進度";
     public static final String DEFAULT_REPO = "p4774756/PunchClock";
     public static final int DEFAULT_ISSUE = 36;
@@ -48,6 +50,8 @@ public final class RoadmapService {
 
     private RoadmapParser.Document cached;
     private long fetchedAt;
+    private boolean failing;
+    private long lastFailureAt;
 
     public RoadmapService(Fetcher fetcher) {
         this(fetcher, repoProperty(), issueProperty());
@@ -78,18 +82,28 @@ public final class RoadmapService {
         if (cached != null && now - fetchedAt < TTL_MS) {
             return view(false, fetchedAt, cached, null);
         }
+        if (failing && now - lastFailureAt < FAILURE_BACKOFF_MS) {
+            return failedView(lastFailureAt);
+        }
         try {
             String body = fetcher.fetch(repo, issue);
             RoadmapParser.Document parsed = RoadmapParser.parse(body);
             cached = parsed;
             fetchedAt = now;
+            failing = false;
             return view(false, now, parsed, null);
         } catch (RuntimeException | IOException ex) {
-            if (cached != null) {
-                return view(true, fetchedAt, cached, null);
-            }
-            return view(false, now, new RoadmapParser.Document(null, Collections.emptyList(), null), UNAVAILABLE);
+            failing = true;
+            lastFailureAt = now;
+            return failedView(now);
         }
+    }
+
+    private View failedView(long at) {
+        if (cached != null) {
+            return view(true, fetchedAt, cached, null);
+        }
+        return view(false, at, new RoadmapParser.Document(null, Collections.emptyList(), null), UNAVAILABLE);
     }
 
     private View view(boolean stale, long at, RoadmapParser.Document document, String message) {
