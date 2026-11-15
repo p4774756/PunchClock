@@ -446,41 +446,51 @@ export function createMiluView(THREE, options) {
   shadow.renderOrder = 1;
   group.add(shadow);
 
-  const textures = new Map();
+  // shared 是另一隻 milu 已經在載的貼圖表。其他人的分身共用，避免每人各下一份。
+  const shared = options && options.shared;
+  const textures = shared || new Map();
   let pending = 0;
   let failed = false;
   let loaded = false;
   let shown = '';
+  let disposed = false;
 
   function finishOne() {
     pending -= 1;
     if (pending <= 0 && !failed) loaded = true;
   }
 
-  const loader = new THREE.TextureLoader();
-  const groups = collectPaths(anim);
-  const paths = groups.required.concat(groups.optional);
-  const optional = Object.create(null);
-  for (let i = 0; i < groups.optional.length; i++) optional[groups.optional[i]] = true;
-  pending = paths.length;
-  if (!pending) loaded = true;
-  paths.forEach((rel) => {
-    loader.load(baseUrl + rel, (tex) => {
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.magFilter = THREE.LinearFilter;
-      tex.minFilter = THREE.LinearFilter;
-      tex.generateMipmaps = false;
-      textures.set(rel, tex);
-      finishOne();
-    }, undefined, () => {
-      if (optional[rel]) forgetOptionalClip(anim, rel);
-      else failed = true;
-      finishOne();
+  if (!shared) {
+    const loader = new THREE.TextureLoader();
+    const groups = collectPaths(anim);
+    const paths = groups.required.concat(groups.optional);
+    const optional = Object.create(null);
+    for (let i = 0; i < groups.optional.length; i++) optional[groups.optional[i]] = true;
+    pending = paths.length;
+    if (!pending) loaded = true;
+    paths.forEach((rel) => {
+      loader.load(baseUrl + rel, (tex) => {
+        if (disposed) {
+          tex.dispose();
+          finishOne();
+          return;
+        }
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.magFilter = THREE.LinearFilter;
+        tex.minFilter = THREE.LinearFilter;
+        tex.generateMipmaps = false;
+        textures.set(rel, tex);
+        finishOne();
+      }, undefined, () => {
+        if (optional[rel]) forgetOptionalClip(anim, rel);
+        else failed = true;
+        finishOne();
+      });
     });
-  });
+  }
 
   function show(path) {
-    if (!path || failed) return;
+    if (disposed || !path || failed) return;
     const tex = textures.get(path);
     if (!tex || path === shown) return;
     material.map = tex;
@@ -497,12 +507,29 @@ export function createMiluView(THREE, options) {
     group.rotation.z = 0;
   }
 
+  // 共用貼圖留給還在場上的 milu。這隻自己的幾何和材質一定釋放。
+  function dispose() {
+    if (disposed) return;
+    disposed = true;
+    material.map = null;
+    material.dispose();
+    geo.dispose();
+    shadow.geometry.dispose();
+    shadow.material.dispose();
+    if (!shared) {
+      textures.forEach((tex) => tex.dispose());
+      textures.clear();
+    }
+  }
+
   return {
     object: group,
     show: show,
     faceCamera: faceCamera,
     anim: () => anim,
-    ready: () => loaded && !failed && !!material.map,
-    failed: () => failed
+    ready: () => (shared ? !!material.map : loaded) && !failed && !!material.map,
+    failed: () => failed,
+    sharedTextures: () => textures,
+    dispose: dispose
   };
 }

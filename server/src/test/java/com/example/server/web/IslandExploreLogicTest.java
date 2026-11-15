@@ -12,7 +12,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
-/** 執行島嶼探索／賭場／milu／塗鴉牆／晝夜／動畫迴圈 node:test。沒有 Node 時略過。 */
+/** 執行島嶼探索／賭場／milu／塗鴉牆／晝夜／動畫迴圈／在線 node:test。沒有 Node 時略過。 */
 public class IslandExploreLogicTest {
 
     private static final String EXPLORE_SCRIPT = "src/test/js/island-explore.test.mjs";
@@ -25,6 +25,7 @@ public class IslandExploreLogicTest {
     private static final String INTERIOR_SCRIPT = "src/test/js/island-interior.test.mjs";
     private static final String LOOP_SCRIPT = "src/test/js/island-loop.test.mjs";
     private static final String DAYNIGHT_SCRIPT = "src/test/js/island-daynight.test.mjs";
+    private static final String PRESENCE_SCRIPT = "src/test/js/island-presence.test.mjs";
 
     @Test
     public void exploreLogicPassesNodeTests() throws Exception {
@@ -74,6 +75,11 @@ public class IslandExploreLogicTest {
     @Test
     public void dayNightPassesNodeTests() throws Exception {
         runNodeTest(DAYNIGHT_SCRIPT, "未安裝 Node.js，略過晝夜混合測試");
+    }
+
+    @Test
+    public void presencePassesNodeTests() throws Exception {
+        runNodeTest(PRESENCE_SCRIPT, "未安裝 Node.js，略過島上在線邏輯測試");
     }
 
     private void runNodeTest(String scriptPath, String skipMessage) throws Exception {
