@@ -35,9 +35,8 @@ export const MILU_ANIM = Object.freeze({
     idle: Object.freeze({
       breath: Object.freeze(['idle/breath_01.png', 'idle/breath_02.png', 'idle/breath_03.png', 'idle/breath_04.png']),
       blink: Object.freeze(['idle/blink_01.png', 'idle/blink_02.png']),
-      // 背面待機還沒畫時留空，朝背面停下就退回上面的正面呼吸／眨眼。
-      backBreath: Object.freeze([]),
-      backBlink: Object.freeze([])
+      backBreath: Object.freeze(['idle/back_breath_01.png', 'idle/back_breath_02.png', 'idle/back_breath_03.png', 'idle/back_breath_04.png']),
+      backBlink: Object.freeze(['idle/back_blink_01.png', 'idle/back_blink_02.png'])
     }),
     wave: Object.freeze(['wave/01.png', 'wave/02.png', 'wave/03.png', 'wave/04.png'])
   })
