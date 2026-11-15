@@ -23,9 +23,10 @@ describe('BUILDING_GLOW', () => {
     assert.deepStrictEqual(BUILDING_GLOW['tcm-site'].lantern_glow, { color: 0xff7a3a, amount: 1.15 });
   });
 
-  it('computer-site has windows_glow and neon_glow with cyan', () => {
+  it('computer-site has windows_glow, lantern_glow, and neon_glow with cyan', () => {
     assert.ok(BUILDING_GLOW['computer-site']);
     assert.deepStrictEqual(BUILDING_GLOW['computer-site'].windows_glow, { color: 0x7ec8ea, amount: 1.15 });
+    assert.deepStrictEqual(BUILDING_GLOW['computer-site'].lantern_glow, { color: 0x7ec8ea, amount: 0.95 });
     assert.deepStrictEqual(BUILDING_GLOW['computer-site'].neon_glow, { color: 0x3cf0ff, amount: 1.35 });
   });
 });

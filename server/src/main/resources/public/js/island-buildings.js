@@ -160,6 +160,7 @@ export function buildIslandBuildings(ctx) {
         } else {
           obj.material = mat(baseColor, extra);
         }
+        if (oldMat && typeof oldMat.dispose === 'function') oldMat.dispose();
         obj.castShadow = true;
         obj.receiveShadow = true;
       });

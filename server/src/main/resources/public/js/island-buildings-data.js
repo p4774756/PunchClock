@@ -16,6 +16,7 @@ export const BUILDING_GLOW = Object.freeze({
   }),
   'computer-site': Object.freeze({
     windows_glow: { color: 0x7ec8ea, amount: 1.15 },
+    lantern_glow: { color: 0x7ec8ea, amount: 0.95 },
     neon_glow: { color: 0x3cf0ff, amount: 1.35 }
   })
 });
