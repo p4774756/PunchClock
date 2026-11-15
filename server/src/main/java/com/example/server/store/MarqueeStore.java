@@ -9,18 +9,21 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.logging.Logger;
 
-/** 跑馬燈開關與文字。寫在 ~/.punchclock/server-marquee.json，重開伺服器還在。 */
+/** 跑馬燈開關與文字。寫入儲存路徑，重開伺服器還在。 */
 public final class MarqueeStore {
 
+    private static final Logger LOG = Logger.getLogger(MarqueeStore.class.getName());
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
+    private static final Path PERSISTENT_ROOT = Paths.get("/var/data");
 
     private final Path savePath;
     private boolean enabled;
     private String text = "";
 
     public MarqueeStore() {
-        this(defaultPath());
+        this(logPath(defaultPath()));
     }
 
     public MarqueeStore(Path savePath) {
@@ -30,7 +33,22 @@ public final class MarqueeStore {
 
     public static Path defaultPath() {
         String home = System.getProperty("user.home", ".");
-        return Paths.get(home, ".punchclock", "server-marquee.json");
+        return resolvePath(
+                null,
+                System.getenv("MARQUEE_PATH"),
+                Files.isDirectory(PERSISTENT_ROOT),
+                PERSISTENT_ROOT.resolve("server-marquee.json"),
+                Paths.get(home, ".punchclock", "server-marquee.json"));
+    }
+
+    /** 覆寫值 > 環境變數 > 永久磁碟 > 家目錄。空白覆寫與環境變數視為沒有。 */
+    public static Path resolvePath(String override, String env, boolean persistentAvailable, Path persistent, Path home) {
+        return StorageLocation.resolve(override, env, persistentAvailable, persistent, home);
+    }
+
+    private static Path logPath(Path path) {
+        LOG.info("跑馬燈設定：" + path);
+        return path;
     }
 
     public synchronized MarqueeNotice current() {

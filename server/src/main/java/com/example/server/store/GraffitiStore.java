@@ -25,9 +25,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.logging.Logger;
 
-/** 訪客塗鴉。每幅一個 PNG，索引在 ~/.punchclock/graffiti/index.json。寫入先落暫存檔再搬移。 */
+/** 訪客塗鴉。每幅一個 PNG，索引在儲存目錄的 index.json。寫入先落暫存檔再搬移。 */
 public final class GraffitiStore {
+
+    private static final Logger LOG = Logger.getLogger(GraffitiStore.class.getName());
+    private static final Path PERSISTENT_ROOT = Paths.get("/var/data");
 
     public static final int WIDTH = 512;
     public static final int HEIGHT = 256;
@@ -52,7 +56,7 @@ public final class GraffitiStore {
     private final Map<String, Deque<Long>> recentByIp = new LinkedHashMap<>();
 
     public GraffitiStore() {
-        this(defaultDirectory(), MAX_ITEMS);
+        this(logDirectory(defaultDirectory()), MAX_ITEMS);
     }
 
     public GraffitiStore(Path directory) {
@@ -66,12 +70,23 @@ public final class GraffitiStore {
     }
 
     public static Path defaultDirectory() {
-        String override = System.getProperty("punchclock.graffiti.dir");
-        if (override != null && !override.isBlank()) {
-            return Paths.get(override);
-        }
         String home = System.getProperty("user.home", ".");
-        return Paths.get(home, ".punchclock", "graffiti");
+        return resolveDirectory(
+                System.getProperty("punchclock.graffiti.dir"),
+                System.getenv("GRAFFITI_STORAGE_DIR"),
+                Files.isDirectory(PERSISTENT_ROOT),
+                PERSISTENT_ROOT.resolve("graffiti"),
+                Paths.get(home, ".punchclock", "graffiti"));
+    }
+
+    /** 覆寫值 > 環境變數 > 永久磁碟 > 家目錄。空白覆寫與環境變數視為沒有。 */
+    public static Path resolveDirectory(String override, String env, boolean persistentAvailable, Path persistent, Path home) {
+        return StorageLocation.resolve(override, env, persistentAvailable, persistent, home);
+    }
+
+    private static Path logDirectory(Path directory) {
+        LOG.info("塗鴉牆目錄：" + directory);
+        return directory;
     }
 
     public synchronized int count() {

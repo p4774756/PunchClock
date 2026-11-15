@@ -5,6 +5,7 @@ import org.junit.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -31,5 +32,21 @@ public class MarqueeStoreTest {
         } finally {
             Files.deleteIfExists(file);
         }
+    }
+
+    @Test
+    public void pathPrefersOverrideThenEnvThenDiskThenHome() {
+        Path disk = Paths.get("/var/data/server-marquee.json");
+        Path home = Paths.get("/home/dev/.punchclock/server-marquee.json");
+        assertEquals(Paths.get("/custom/marquee.json"),
+                MarqueeStore.resolvePath("/custom/marquee.json", "/from-env.json", true, disk, home));
+        assertEquals(Paths.get("/from-env.json"),
+                MarqueeStore.resolvePath("  ", " /from-env.json ", true, disk, home));
+        assertEquals(Paths.get("/from-env.json"),
+                MarqueeStore.resolvePath(null, "/from-env.json", true, disk, home));
+        assertEquals(disk, MarqueeStore.resolvePath(null, " ", true, disk, home));
+        assertEquals(disk, MarqueeStore.resolvePath(null, null, true, disk, home));
+        assertEquals(home, MarqueeStore.resolvePath(null, null, false, disk, home));
+        assertEquals(home, MarqueeStore.resolvePath(null, null, true, null, home));
     }
 }
