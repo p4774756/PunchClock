@@ -501,4 +501,179 @@ describe('island-audio', () => {
       assert.equal(audio.playSucceeded, true, 'playSucceeded should be true');
     });
   });
+
+  describe('ambience', () => {
+    test('ambience plays alongside music on user interaction', async () => {
+      const storage = fakeStorage();
+      let musicCalled = false;
+      let ambienceCalled = false;
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        ambience: { src: '/audio/ocean.ogg', volume: 0.22 },
+        storage,
+        _createAudio: (src) => {
+          const a = fakeAudio();
+          a.src = src;
+          const orig = a.play;
+          a.play = () => {
+            if (src.indexOf('bgm') !== -1) musicCalled = true;
+            if (src.indexOf('ocean') !== -1) ambienceCalled = true;
+            return orig.call(a);
+          };
+          return a;
+        },
+        _forceElementVolume: true
+      });
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 20));
+      assert.equal(musicCalled, true, 'music should play');
+      assert.equal(ambienceCalled, true, 'ambience should play');
+    });
+
+    test('ambience has its own GainNode', async () => {
+      const ctx = fakeAudioContext();
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        ambience: { src: '/audio/ocean.ogg', volume: 0.22 },
+        storage: fakeStorage(),
+        _createAudio: fakeAudio,
+        _audioContext: ctx
+      });
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 20));
+      const musicGain = audio._getGainNode();
+      const ambienceGain = audio._getAmbienceGainNode();
+      assert.ok(musicGain, 'music gain should exist');
+      assert.ok(ambienceGain, 'ambience gain should exist');
+    });
+
+    test('setMuted(true) pauses both music and ambience', async () => {
+      const storage = fakeStorage();
+      const musicEl = fakeAudio();
+      const ambienceEl = fakeAudio();
+      let call = 0;
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        ambience: { src: '/audio/ocean.ogg', volume: 0.22 },
+        storage,
+        _createAudio: () => {
+          call++;
+          return call === 1 ? musicEl : ambienceEl;
+        },
+        _forceElementVolume: true
+      });
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 20));
+      assert.equal(musicEl.paused, false);
+      assert.equal(ambienceEl.paused, false);
+
+      audio.setMuted(true);
+      await new Promise(r => setTimeout(r, 80));
+      assert.equal(audio.muted, true);
+    });
+
+    test('onVisibilityChange(true) pauses both', async () => {
+      const storage = fakeStorage();
+      const musicEl = fakeAudio();
+      const ambienceEl = fakeAudio();
+      let call = 0;
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        ambience: { src: '/audio/ocean.ogg', volume: 0.22 },
+        storage,
+        _createAudio: () => {
+          call++;
+          return call === 1 ? musicEl : ambienceEl;
+        },
+        _forceElementVolume: true
+      });
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 20));
+
+      audio.onVisibilityChange(true);
+      assert.equal(musicEl.paused, true);
+      assert.equal(ambienceEl.paused, true);
+    });
+
+    test('no ambience when ambience option not provided', async () => {
+      const storage = fakeStorage();
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage,
+        _createAudio: fakeAudio,
+        _forceElementVolume: true
+      });
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 20));
+      assert.equal(audio._getAmbienceAudio(), null, 'no ambience audio when not configured');
+    });
+
+    test('setInsideRoom reduces ambience volume', async () => {
+      const ctx = fakeAudioContext();
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        ambience: { src: '/audio/ocean.ogg', volume: 0.22 },
+        storage: fakeStorage(),
+        _createAudio: fakeAudio,
+        _audioContext: ctx
+      });
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 20));
+      const volOutside = audio._getAmbienceVolume();
+      audio.setInsideRoom(true);
+      await new Promise(r => setTimeout(r, 20));
+      const volInside = audio._getAmbienceVolume();
+      assert.ok(volInside < volOutside, `inside volume ${volInside} should be less than outside ${volOutside}`);
+    });
+
+    test('music success + ambience fail: next interaction retries ambience', async () => {
+      const storage = fakeStorage();
+      let musicAttempts = 0;
+      let ambienceAttempts = 0;
+      let ambienceSucceed = false;
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        ambience: { src: '/audio/ocean.ogg', volume: 0.22 },
+        storage,
+        _createAudio: (src) => {
+          return {
+            src,
+            loop: false,
+            preload: 'auto',
+            volume: 0,
+            paused: true,
+            play() {
+              if (src.indexOf('bgm') !== -1) {
+                musicAttempts++;
+                this.paused = false;
+                return Promise.resolve();
+              }
+              ambienceAttempts++;
+              if (ambienceSucceed) {
+                this.paused = false;
+                return Promise.resolve();
+              }
+              return Promise.reject(new Error('blocked'));
+            },
+            pause() { this.paused = true; }
+          };
+        },
+        _forceElementVolume: true
+      });
+
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 30));
+      assert.equal(musicAttempts, 1, 'music should play once');
+      assert.equal(ambienceAttempts, 1, 'ambience should try once');
+      assert.equal(audio.playSucceeded, true, 'music succeeded');
+      assert.equal(audio.ambiencePlaySucceeded, false, 'ambience failed');
+      assert.equal(audio._getAmbienceAwaiting(), true, 'ambience awaiting retry');
+
+      ambienceSucceed = true;
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 30));
+      assert.equal(ambienceAttempts, 2, 'ambience should retry on next interaction');
+      assert.equal(audio.ambiencePlaySucceeded, true, 'ambience succeeded on retry');
+    });
+  });
 });
