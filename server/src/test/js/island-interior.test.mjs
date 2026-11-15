@@ -114,3 +114,21 @@ test('進入放到室內出生點，離開放到門前並面向離開建物', ()
   assert.equal(L.blocked(room.spawn.x, room.spawn.z, RADIUS), true, '出生點在島上店裡，室內碰撞不能沿用島上的');
   assert.equal(I.interiorCanStand(room.spawn.x, room.spawn.z, room, RADIUS), true);
 });
+
+test('室內原點在鏡頭遠平面外，出生點與碰撞仍是本地座標', () => {
+  const room = I.interiorByBuilding('shop');
+  assert.deepEqual(room.spawn, { x: 0, z: 0.2, yaw: Math.PI });
+  assert.equal(room.floor.minX, -2.35);
+  assert.equal(room.blocks[0].minX, -1.25);
+  assert.equal(I.interiorClearsFarPlane(I.INTERIOR_ORIGIN, I.ISLAND_CAMERA_FAR), true);
+  assert.equal(I.interiorClearsFarPlane({ x: 0, z: -220 }, I.ISLAND_CAMERA_FAR), false);
+  const worldZ = I.INTERIOR_ORIGIN.z + room.spawn.z;
+  assert.ok(Math.abs(worldZ) > I.ISLAND_CAMERA_FAR);
+});
+
+test('島上標籤在室內或轉場中都要隱藏', () => {
+  assert.equal(I.shouldHideIslandLabels(true, false), true);
+  assert.equal(I.shouldHideIslandLabels(false, true), true);
+  assert.equal(I.shouldHideIslandLabels(true, true), true);
+  assert.equal(I.shouldHideIslandLabels(false, false), false);
+});

@@ -133,6 +133,18 @@ export function controlsActive(state) {
   return !!(state && state.exploring && !state.paused && !state.lobby);
 }
 
+// 跟隨角色時戶外最近 6.5；室內把下限降到該房間的預設距離，離開後仍用 6.5。
+// 非跟隨（全景）維持 11–128。delta 是滾輪已經乘上 0.01 的距離變化。
+export function clampOrbitRadius(current, delta, following, indoorMin) {
+  const outdoorFollowMin = 6.5;
+  const minR = following
+    ? (indoorMin == null ? outdoorFollowMin : Math.min(outdoorFollowMin, indoorMin))
+    : 11;
+  const maxR = following ? 16 : 128;
+  const next = (current || 0) + (delta || 0);
+  return Math.min(maxR, Math.max(minR, next));
+}
+
 /**
  * 探索模式與管理面板、賭場大廳的協調流程（不依賴 Three.js／DOM）。
  * ui 回呼：

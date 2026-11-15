@@ -210,6 +210,18 @@ test('exploreState：大廳鎖定只能由 lobbyClose 解除', () => {
   assert.equal(X.controlsActive(X.exploreState(pausedLobby, 'lobbyClose')), false, '面板仍開著時維持暫停');
 });
 
+test('跟隨鏡頭縮放：室內可回到預設距離，離開後下限仍是 6.5', () => {
+  const interiorRadius = 5.2;
+  assert.equal(X.clampOrbitRadius(9.2, -10, true, null), 6.5);
+  assert.equal(X.clampOrbitRadius(5.2, 0, true, null), 6.5);
+  assert.equal(X.clampOrbitRadius(9.2, -4, true, interiorRadius), interiorRadius);
+  assert.equal(X.clampOrbitRadius(8, -1, true, interiorRadius), 7);
+  assert.equal(X.clampOrbitRadius(interiorRadius, -1, true, interiorRadius), interiorRadius);
+  assert.equal(X.clampOrbitRadius(interiorRadius, 100, true, interiorRadius), 16);
+  assert.equal(X.clampOrbitRadius(20, -100, false, interiorRadius), 11);
+  assert.equal(X.clampOrbitRadius(20, 1000, false, null), 128);
+});
+
 test('shouldCaptureMoveKey：焦點與 UI 優先順序', () => {
   const base = { code: 'ArrowUp', typing: false, active: true, uiOpen: false, focus: 'explore' };
   assert.equal(X.shouldCaptureMoveKey(base), true);

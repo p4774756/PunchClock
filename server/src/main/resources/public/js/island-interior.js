@@ -3,7 +3,8 @@
 // 一筆室內對一棟 BUILDINGS：
 //   id、buildingId、spawn {x,z,yaw}、exit {x,z,r,label}、
 //   outside {x,z,yaw}（島上門口外、面向離開建物）、floor、blocks。
-// 座標是室內本地座標，原點由 INTERIOR_ORIGIN 平移到島外，避免和島上碰撞重疊。
+// 座標是室內本地座標。INTERIOR_ORIGIN 只做世界平移，不改出生點與碰撞的相對座標。
+// 原點放在鏡頭遠平面之外，沒有屋頂的房間轉頭才不會看見霧裡的群島。
 //
 // 之後加一棟可進入的建築：
 //   1. BUILDINGS 加上 entry（門不在正面就用 entry.at，不要改其它建築的門）。
@@ -13,7 +14,26 @@
 import { cameraRelative, PLAYER_SPEED, MAX_STEP_DT } from './island-explore.js';
 
 export const ENTER_COOLDOWN_MS = 700;
-export const INTERIOR_ORIGIN = Object.freeze({ x: 0, z: -220 });
+// 與 island.js 的 PerspectiveCamera far、水面圓半徑對齊。跟隨鏡頭最多再往島拉一段。
+export const ISLAND_CAMERA_FAR = 560;
+export const ISLAND_VIEW_REACH = 180;
+export const INTERIOR_CAMERA_PULL = 16;
+export const INTERIOR_ORIGIN = Object.freeze({ x: 0, z: -900 });
+
+/** 室內原點離島夠遠：鏡頭往島拉近後，島上最靠近的點仍在遠平面外。 */
+export function interiorClearsFarPlane(origin, far, reach, pull) {
+  const point = origin || INTERIOR_ORIGIN;
+  const dist = Math.hypot(point.x || 0, point.z || 0);
+  const limit = far == null ? ISLAND_CAMERA_FAR : far;
+  const span = reach == null ? ISLAND_VIEW_REACH : reach;
+  const toward = pull == null ? INTERIOR_CAMERA_PULL : pull;
+  return dist - span - toward > limit;
+}
+
+/** 轉場（interiorBusy）或已在室內時，島上 data-anchor 標籤要藏起來，避免浮在淡出黑幕上。 */
+export function shouldHideIslandLabels(inside, busy) {
+  return !!(inside || busy);
+}
 
 export const INTERIORS = Object.freeze([
   Object.freeze({

@@ -16,7 +16,8 @@ import {
   shouldCaptureMoveKey,
   hitInteractZone,
   shouldShowInteractPrompt,
-  shouldTriggerInteractKey
+  shouldTriggerInteractKey,
+  clampOrbitRadius
 } from './island-explore.js';
 import {
   ISLANDS,
@@ -31,8 +32,10 @@ import { createGraffitiController, wallSlots } from './island-graffiti.js';
 import { createRoadmapController, signCopy } from './island-roadmap.js';
 import {
   INTERIOR_ORIGIN,
+  ISLAND_CAMERA_FAR,
   createInteriorSession,
-  stepInInterior
+  stepInInterior,
+  shouldHideIslandLabels
 } from './island-interior.js';
 import {
   MILU_ANIM,
@@ -113,7 +116,7 @@ function boot() {
   scene.background = skyDay.clone();
   scene.fog = new THREE.Fog(skyDay.clone(), 150, 320);
 
-  const camera = new THREE.PerspectiveCamera(25, 1, 0.4, 560);
+  const camera = new THREE.PerspectiveCamera(25, 1, 0.4, ISLAND_CAMERA_FAR);
   const clock = new THREE.Clock();
 
   const hemi = new THREE.HemisphereLight(0xfff8ef, 0xe7d8bc, 0.62);
@@ -1815,7 +1818,7 @@ function boot() {
   }
 
   function placeLabels() {
-    if (rooms.inside()) {
+    if (shouldHideIslandLabels(rooms.inside(), interiorBusy)) {
       document.querySelectorAll('[data-anchor]').forEach((el) => {
         el.style.visibility = 'hidden';
       });
@@ -1950,9 +1953,8 @@ function boot() {
   canvas.addEventListener('wheel', (event) => {
     event.preventDefault();
     const followCam = controlsActive(mode);
-    const minR = followCam ? 6.5 : 11;
-    const maxR = followCam ? 16 : 128;
-    targetRadius = Math.min(maxR, Math.max(minR, targetRadius + event.deltaY * 0.01));
+    const indoorMin = followCam && rooms.inside() ? INTERIOR_POSE.radius : null;
+    targetRadius = clampOrbitRadius(targetRadius, event.deltaY * 0.01, followCam, indoorMin);
   }, { passive: false });
 
   function sampleWalker(walker, along) {
@@ -2414,6 +2416,7 @@ function boot() {
     interiorBusy = true;
     clearMoveInput();
     closeOverlayPanels();
+    placeLabels();
     await fadeTo(true);
     if (ticket !== interiorGeneration) return;
     try {
@@ -2442,6 +2445,7 @@ function boot() {
     interiorBusy = true;
     clearMoveInput();
     closeOverlayPanels();
+    placeLabels();
     await fadeTo(true);
     if (ticket !== interiorGeneration) return;
     const left = rooms.exit(performance.now());
