@@ -9,3 +9,16 @@
 從原檔 little_cafe.wav（2 分 36 秒、44.1 kHz 立體聲 PCM）截取 19.2–115.2 秒，共 96 秒。
 原檔開頭 19.2 秒是較輕的一次樂段，結尾約 2.4 秒為淡出與靜音，不適合無縫循環；截取的區段在樂句接點對齊，因此沒有另外做淡入淡出。
 再以 ffmpeg 轉成 44.1 kHz 立體聲 OGG Vorbis（-q:a 3）。
+
+檔名：ocean-waves.ogg
+名稱：Sea and river wave sounds（VistulaShort）
+作者：RandomMind
+來源：https://opengameart.org/content/sea-and-river-wave-sounds
+授權：CC0 1.0 Universal（公眾領域貢獻宣告）
+授權條款：https://creativecommons.org/publicdomain/zero/1.0/
+
+修改說明：
+從原檔 VistulaShort.mp3（5 分鐘、44.1 kHz 立體聲、320 kbps）截取 22.7–69.5 秒，共 46.8 秒。
+起點與終點都選在浪聲較小的低谷，並把原檔 69.5–71.5 秒以等功率交叉淡化疊回開頭 2 秒，讓結尾接回開頭時沒有斷點。
+再做 70 Hz 高通濾波去除低頻風噪（循環處理，接縫不受濾波影響），峰值正規化到 -3 dBFS，
+以 ffmpeg 轉成 44.1 kHz 立體聲 OGG Vorbis（-q:a 2）。
