@@ -102,6 +102,12 @@ public final class ServerApp {
                 sf.directory = "/public/pet";
                 sf.location = Location.CLASSPATH;
             });
+            // 島嶼背景音樂
+            config.staticFiles.add(sf -> {
+                sf.hostedPath = "/audio";
+                sf.directory = "/public/audio";
+                sf.location = Location.CLASSPATH;
+            });
             config.showJavalinBanner = false;
             long maxRequest = PhotoStore.MAX_INCOMING_REQUEST_BYTES;
             config.http.maxRequestSize = maxRequest;

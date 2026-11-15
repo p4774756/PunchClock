@@ -272,6 +272,14 @@ a.island-tool {
   cursor: default;
 }
 
+.island-tool-audio[hidden] {
+  display: none !important;
+}
+
+.island-tool-audio[aria-pressed="false"] {
+  color: #717171;
+}
+
 .island-tool:hover,
 .island-tool:focus-visible,
 .island-list button:focus-visible,

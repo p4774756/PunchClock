@@ -46,6 +46,7 @@ import {
   miluStep,
   screenAxes
 } from './island-milu.js';
+import { createIslandAudio } from './island-audio.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 const POSES = {
@@ -2332,6 +2333,7 @@ function boot() {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) stop();
     else start();
+    if (islandAudio) islandAudio.onVisibilityChange(document.hidden);
   });
   window.addEventListener('blur', () => {
     clearMoveInput();
@@ -2509,6 +2511,53 @@ function boot() {
   const nightBtn = document.getElementById('islandNight');
   if (dayBtn) dayBtn.addEventListener('click', () => setMode('day'));
   if (nightBtn) nightBtn.addEventListener('click', () => setMode('night'));
+
+  const islandAudio = createIslandAudio({
+    tracks: { main: '/audio/bgm-main.ogg' },
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    volume: 0.35
+  });
+  const audioBtn = document.getElementById('islandAudio');
+
+  function syncAudioButton() {
+    if (!audioBtn) return;
+    const on = !islandAudio.muted;
+    audioBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    audioBtn.setAttribute('aria-label', on ? '靜音背景音樂' : '開啟背景音樂');
+    audioBtn.textContent = on ? '🔊 音樂' : '🔇 音樂';
+  }
+
+  function showAudioButton() {
+    if (audioBtn && audioBtn.hidden) {
+      audioBtn.hidden = false;
+      syncAudioButton();
+    }
+  }
+
+  function tryInitAudio() {
+    if (!islandAudio.available) return;
+    islandAudio.onUserInteraction();
+    showAudioButton();
+  }
+
+  islandAudio.preload();
+  fetch('/audio/bgm-main.ogg', { method: 'HEAD' })
+    .then((res) => {
+      if (res.ok) showAudioButton();
+    })
+    .catch(() => {});
+
+  if (audioBtn) {
+    audioBtn.addEventListener('click', () => {
+      islandAudio.toggleMute();
+      syncAudioButton();
+    });
+  }
+  if (exploreBtn) {
+    exploreBtn.addEventListener('click', tryInitAudio, { once: true });
+  }
+  document.addEventListener('click', tryInitAudio, { once: true });
+  document.addEventListener('keydown', tryInitAudio, { once: true });
 
   function promptZones() {
     if (!rooms.inside()) return INTERACT_ZONES;
