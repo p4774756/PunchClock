@@ -15,6 +15,7 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.zip.CRC32;
 
@@ -172,6 +173,22 @@ public class GraffitiStoreTest {
 
     private GraffitiStore newStore() throws Exception {
         return new GraffitiStore(folder.newFolder().toPath());
+    }
+
+    @Test
+    public void directoryPrefersOverrideThenEnvThenDiskThenHome() {
+        Path disk = Paths.get("/var/data/graffiti");
+        Path home = Paths.get("/home/dev/.punchclock/graffiti");
+        assertEquals(Paths.get("/custom/graffiti"),
+                GraffitiStore.resolveDirectory("/custom/graffiti", "/from-env", true, disk, home));
+        assertEquals(Paths.get("/from-env"),
+                GraffitiStore.resolveDirectory("  ", " /from-env ", true, disk, home));
+        assertEquals(Paths.get("/from-env"),
+                GraffitiStore.resolveDirectory(null, "/from-env", true, disk, home));
+        assertEquals(disk, GraffitiStore.resolveDirectory(null, " ", true, disk, home));
+        assertEquals(disk, GraffitiStore.resolveDirectory(null, null, true, disk, home));
+        assertEquals(home, GraffitiStore.resolveDirectory(null, null, false, disk, home));
+        assertEquals(home, GraffitiStore.resolveDirectory(null, null, true, null, home));
     }
 
     private static boolean fullDecodeFails(byte[] raw) throws Exception {
