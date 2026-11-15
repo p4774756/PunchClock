@@ -74,6 +74,7 @@ export function createIslandAudio(opts) {
   let sourceNode = null;
   let useWebAudio = !opts._forceElementVolume && (!!opts._audioContext || supportsWebAudio());
   let webAudioConnected = false;
+  let playPending = false;
 
   function createAudio(src) {
     if (opts._createAudio) return opts._createAudio(src);
@@ -148,46 +149,49 @@ export function createIslandAudio(opts) {
     }
   }
 
-  function resumeContext() {
-    if (!useWebAudio || !ctx) return Promise.resolve();
-    if (ctx.state === 'suspended') {
-      return ctx.resume().catch(() => {});
-    }
-    return Promise.resolve();
-  }
-
   function tryPlay() {
     if (disposed || muted || hidden || !audio) {
       awaitingPlay = false;
       return;
     }
+    if (playPending) return;
+    if (!audio.paused) {
+      awaitingPlay = false;
+      playSucceeded = true;
+      fadeTo(baseVolume);
+      return;
+    }
+
     ensureContext();
     connectWebAudio();
 
-    const doPlay = () => {
-      if (audio.paused) {
-        const p = audio.play();
-        if (p && typeof p.catch === 'function') {
-          p.then(() => {
-            awaitingPlay = false;
-            playSucceeded = true;
-            fadeTo(baseVolume);
-          }).catch(() => {
-            awaitingPlay = true;
-          });
-        } else {
-          awaitingPlay = false;
-          playSucceeded = true;
-          fadeTo(baseVolume);
-        }
-      } else {
-        awaitingPlay = false;
-        playSucceeded = true;
-        fadeTo(baseVolume);
-      }
+    playPending = true;
+
+    const resumePromise = (useWebAudio && ctx && ctx.state === 'suspended')
+      ? ctx.resume().catch(() => {})
+      : Promise.resolve();
+
+    const playPromise = audio.play();
+
+    const onSuccess = () => {
+      playPending = false;
+      awaitingPlay = false;
+      playSucceeded = true;
+      fadeTo(baseVolume);
     };
 
-    resumeContext().then(doPlay);
+    const onFailure = () => {
+      playPending = false;
+      awaitingPlay = true;
+    };
+
+    if (playPromise && typeof playPromise.then === 'function') {
+      Promise.all([resumePromise, playPromise])
+        .then(onSuccess)
+        .catch(onFailure);
+    } else {
+      resumePromise.then(onSuccess).catch(onSuccess);
+    }
   }
 
   function pause() {
@@ -284,6 +288,7 @@ export function createIslandAudio(opts) {
     _getAudio() { return audio; },
     _getAwaiting() { return awaitingPlay; },
     _getGainNode() { return gainNode; },
-    _getVolume() { return getVolume(); }
+    _getVolume() { return getVolume(); },
+    _getPlayPending() { return playPending; }
   };
 }

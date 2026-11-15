@@ -255,14 +255,14 @@ describe('island-audio', () => {
       _forceElementVolume: true
     });
     audio.onUserInteraction();
-    await Promise.resolve();
+    await new Promise(r => setTimeout(r, 10));
     assert.equal(fakeA.paused, false, 'should be playing');
 
     audio.onVisibilityChange(true);
     assert.equal(fakeA.paused, true, 'should pause when hidden');
 
     audio.onVisibilityChange(false);
-    await Promise.resolve();
+    await new Promise(r => setTimeout(r, 10));
     assert.equal(fakeA.paused, false, 'should resume when visible');
   });
 
@@ -409,6 +409,96 @@ describe('island-audio', () => {
       audio.setMuted(true);
       await new Promise(r => setTimeout(r, 50));
       assert.equal(audio._getVolume(), 0, 'gain should be 0 when muted');
+    });
+
+    test('play() and ctx.resume() called synchronously within onUserInteraction', () => {
+      let playCalled = false;
+      let resumeCalled = false;
+      const ctx = {
+        state: 'suspended',
+        currentTime: 0,
+        resume() {
+          resumeCalled = true;
+          return Promise.resolve();
+        },
+        close() {},
+        createGain() {
+          return {
+            gain: {
+              value: 0,
+              setValueAtTime() {},
+              cancelScheduledValues() {},
+              linearRampToValueAtTime(v) { this.value = v; }
+            },
+            connect() {}
+          };
+        },
+        createMediaElementSource() {
+          return { connect() {} };
+        },
+        destination: {}
+      };
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage: fakeStorage(),
+        _createAudio: () => ({
+          src: '',
+          loop: false,
+          preload: 'auto',
+          paused: true,
+          play() {
+            playCalled = true;
+            this.paused = false;
+            return Promise.resolve();
+          },
+          pause() { this.paused = true; }
+        }),
+        _audioContext: ctx
+      });
+
+      audio.onUserInteraction();
+
+      assert.equal(playCalled, true, 'play() should be called synchronously');
+      assert.equal(resumeCalled, true, 'ctx.resume() should be called synchronously');
+    });
+
+    test('duplicate interactions while pending only call play() once', async () => {
+      let playCount = 0;
+      let resolvePlay;
+      const playPromise = new Promise(resolve => { resolvePlay = resolve; });
+
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage: fakeStorage(),
+        _createAudio: () => ({
+          src: '',
+          loop: false,
+          preload: 'auto',
+          paused: true,
+          play() {
+            playCount += 1;
+            return playPromise.then(() => { this.paused = false; });
+          },
+          pause() { this.paused = true; }
+        }),
+        _forceElementVolume: true
+      });
+
+      audio.onUserInteraction();
+      assert.equal(playCount, 1, 'first interaction calls play()');
+      assert.equal(audio._getPlayPending(), true, 'should be pending');
+
+      audio.onUserInteraction();
+      assert.equal(playCount, 1, 'second interaction while pending should not call play() again');
+
+      audio.onUserInteraction();
+      assert.equal(playCount, 1, 'third interaction while pending should not call play() again');
+
+      resolvePlay();
+      await new Promise(r => setTimeout(r, 10));
+
+      assert.equal(audio._getPlayPending(), false, 'should no longer be pending');
+      assert.equal(audio.playSucceeded, true, 'playSucceeded should be true');
     });
   });
 });
