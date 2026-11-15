@@ -7,7 +7,8 @@ const {
   waveAmplitudeMax,
   foamRadius,
   foamPhase,
-  foamCycle
+  foamCycle,
+  foamY
 } = await loadPublicModule('island-sea.js');
 
 describe('island-sea wave', () => {
@@ -85,5 +86,15 @@ describe('island-sea foam', () => {
       const r = foamRadius(island.visualR);
       assert.ok(r > island.visualR, `foam radius ${r} should exceed visualR ${island.visualR} for ${island.id}`);
     }
+  });
+
+  test('foam Y is above wave max to avoid z-fighting', () => {
+    const SEA_Y = -0.74;
+    const waveMax = waveAmplitudeMax();
+    const seaHighest = SEA_Y + waveMax;
+    const fY = foamY();
+    assert.ok(fY > seaHighest, `foamY ${fY} should be above sea highest ${seaHighest}`);
+    const sandTop = -0.65;
+    assert.ok(fY < sandTop, `foamY ${fY} should be below sand top ${sandTop}`);
   });
 });

@@ -625,5 +625,55 @@ describe('island-audio', () => {
       const volInside = audio._getAmbienceVolume();
       assert.ok(volInside < volOutside, `inside volume ${volInside} should be less than outside ${volOutside}`);
     });
+
+    test('music success + ambience fail: next interaction retries ambience', async () => {
+      const storage = fakeStorage();
+      let musicAttempts = 0;
+      let ambienceAttempts = 0;
+      let ambienceSucceed = false;
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        ambience: { src: '/audio/ocean.ogg', volume: 0.22 },
+        storage,
+        _createAudio: (src) => {
+          return {
+            src,
+            loop: false,
+            preload: 'auto',
+            volume: 0,
+            paused: true,
+            play() {
+              if (src.indexOf('bgm') !== -1) {
+                musicAttempts++;
+                this.paused = false;
+                return Promise.resolve();
+              }
+              ambienceAttempts++;
+              if (ambienceSucceed) {
+                this.paused = false;
+                return Promise.resolve();
+              }
+              return Promise.reject(new Error('blocked'));
+            },
+            pause() { this.paused = true; }
+          };
+        },
+        _forceElementVolume: true
+      });
+
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 30));
+      assert.equal(musicAttempts, 1, 'music should play once');
+      assert.equal(ambienceAttempts, 1, 'ambience should try once');
+      assert.equal(audio.playSucceeded, true, 'music succeeded');
+      assert.equal(audio.ambiencePlaySucceeded, false, 'ambience failed');
+      assert.equal(audio._getAmbienceAwaiting(), true, 'ambience awaiting retry');
+
+      ambienceSucceed = true;
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 30));
+      assert.equal(ambienceAttempts, 2, 'ambience should retry on next interaction');
+      assert.equal(audio.ambiencePlaySucceeded, true, 'ambience succeeded on retry');
+    });
   });
 });

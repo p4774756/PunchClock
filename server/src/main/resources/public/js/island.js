@@ -183,7 +183,9 @@ function boot() {
   const worldResult = buildIslandWorld({ scene: scene, kit: kit });
   const sea = createIslandSea(THREE, { kit: kit, reduced: reduced });
   scene.add(sea.group);
-  if (worldResult && worldResult.water) worldResult.water.visible = false;
+  if (worldResult && worldResult.water) {
+    worldResult.water.position.y = -0.78;
+  }
 
   const buildings = buildIslandBuildings({
     scene: scene,
@@ -996,7 +998,9 @@ function boot() {
     if (!islandAudio.available) return;
     islandAudio.onUserInteraction();
     showAudioButton();
-    if (islandAudio.playSucceeded || islandAudio.muted) {
+    const musicDone = islandAudio.playSucceeded;
+    const ambienceDone = islandAudio.ambiencePlaySucceeded || !islandAudio._getAmbienceAudio();
+    if ((musicDone && ambienceDone) || islandAudio.muted) {
       removeAudioListeners();
     }
   }

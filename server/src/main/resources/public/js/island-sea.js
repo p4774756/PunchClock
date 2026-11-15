@@ -5,6 +5,7 @@ import { HEX } from './island-kit.js';
 const SEA_Y = -0.74;
 const WAVE_AMP = 0.02;
 const WAVE_AMP_MAX = 0.035;
+const FOAM_Y = SEA_Y + WAVE_AMP_MAX + 0.012;
 
 export function waveHeight(x, z, t, reduced) {
   if (reduced) return 0;
@@ -16,6 +17,10 @@ export function waveHeight(x, z, t, reduced) {
 
 export function waveAmplitudeMax() {
   return WAVE_AMP_MAX;
+}
+
+export function foamY() {
+  return FOAM_Y;
 }
 
 export function foamRadius(visualR) {
@@ -139,7 +144,7 @@ export function createIslandSea(THREE, opts) {
     foamMat.userData.baseOpacity = 0.38;
 
     const foam = new THREE.Mesh(foamGeo, foamMat);
-    foam.position.set(island.x, SEA_Y + 0.015, island.z);
+    foam.position.set(island.x, FOAM_Y, island.z);
     foam.userData.phase = foamPhase(idx);
     foam.userData.baseScale = 1.0;
     group.add(foam);
@@ -166,8 +171,8 @@ export function createIslandSea(THREE, opts) {
     foamMeshes.forEach((foam) => {
       const cycle = foamCycle(elapsed, foam.userData.phase, reduced);
       foam.scale.setScalar(cycle.scale);
-      const brightness = 1.0 - mixValue * 0.35;
-      foam.material.opacity = cycle.alpha * brightness;
+      const nightDim = 1.0 - mixValue * 0.4;
+      foam.material.opacity = cycle.alpha * nightDim * (1.0 - mixValue * 0.6);
     });
   }
 
@@ -177,9 +182,11 @@ export function createIslandSea(THREE, opts) {
 
   function dispose() {
     planeGeo.dispose();
+    if (kit) kit.removeMaterial(seaMat);
     seaMat.dispose();
     foamMeshes.forEach((mesh) => {
       mesh.geometry.dispose();
+      if (kit) kit.removeMaterial(mesh.material);
       mesh.material.dispose();
     });
   }
