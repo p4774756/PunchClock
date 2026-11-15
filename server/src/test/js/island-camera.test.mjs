@@ -10,6 +10,8 @@ const {
   INTERIOR_POSE,
   EXPLORE_PHI_MIN,
   EXPLORE_PHI_MAX,
+  LOOK_UP_PHI_HIGH,
+  exploreLookUpYOffset,
   CAMERA_LAMBDA,
   CAMERA_LAMBDA_EXPLORE
 } = C;
@@ -28,17 +30,22 @@ test('室內姿態已匯出', () => {
 
 test('探索模式仰角範圍允許抬頭看天空', () => {
   assert.ok(EXPLORE_PHI_MIN > 0, 'phi 最小值應為正');
-  assert.ok(EXPLORE_PHI_MIN < 0.4, 'phi 最小值應允許抬頭（約 0.25）');
+  assert.ok(EXPLORE_PHI_MIN >= 0.38 && EXPLORE_PHI_MIN <= 0.45, 'phi 下限應避免過頭');
   assert.ok(EXPLORE_PHI_MAX > 1, 'phi 最大值應允許俯視');
   assert.ok(EXPLORE_PHI_MAX <= 1.2, 'phi 最大值不應過度俯視');
   assert.ok(EXPLORE_PHI_MAX > EXPLORE_PHI_MIN, '最大值應大於最小值');
   assert.ok(EXPLORE_PHI_MAX - EXPLORE_PHI_MIN > 0.5, '範圍應足夠大');
 });
 
-test('探索模式仰角範圍足以仰望天空', () => {
-  assert.ok(EXPLORE_PHI_MIN < 0.55, 'phi 最小值應低於仰望閾值 0.55');
-  const lookUpAmount = (0.55 - EXPLORE_PHI_MIN) * 40;
-  assert.ok(lookUpAmount > 5, `仰望抬升量 ${lookUpAmount.toFixed(1)} 應足夠看到天空`);
+test('exploreLookUpYOffset 漸進抬升、直向加強', () => {
+  assert.equal(exploreLookUpYOffset(LOOK_UP_PHI_HIGH, 1), 0);
+  const floor = exploreLookUpYOffset(EXPLORE_PHI_MIN, 1.6);
+  const portrait = exploreLookUpYOffset(EXPLORE_PHI_MIN, 0.48);
+  const midPhi = (EXPLORE_PHI_MIN + LOOK_UP_PHI_HIGH) * 0.5;
+  const mid = exploreLookUpYOffset(midPhi, 1.6);
+  assert.ok(floor > 5, '抬頭下限應有明顯上抬');
+  assert.ok(portrait > floor, '直向應比橫向多上抬');
+  assert.ok(mid > 2 && mid < floor, '中段應有穩定仰望帶');
 });
 
 test('全景預設 phi 仍在探索俯視上限內', () => {

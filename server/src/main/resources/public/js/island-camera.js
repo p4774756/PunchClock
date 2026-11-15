@@ -6,11 +6,24 @@ export const INTERIOR_POSE = { radius: 5.2, theta: EXPLORE_POSE.theta, phi: 0.82
 // 鏡頭指數平滑速率（1/秒）；60fps 時約等於舊的每幀 0.08／0.14。
 export const CAMERA_LAMBDA = 5;
 export const CAMERA_LAMBDA_EXPLORE = 9;
-// 探索模式仰角範圍（phi）：0.25 可仰望天空，1.12 為俯視極限。
-// phi 是從垂直軸（Y）往下的角度，phi 越小鏡頭越高越往下看。
-// 要仰望天空需要讓鏡頭在角色後方低處往前上看，但仍要避免穿地。
-export const EXPLORE_PHI_MIN = 0.25;
+// 探索模式仰角範圍：phi 愈小愈能抬頭；下限勿過低以免視線過衝。
+export const EXPLORE_PHI_MIN = 0.40;
 export const EXPLORE_PHI_MAX = 1.12;
+export const LOOK_UP_PHI_HIGH = 0.78;
+
+/** 探索模式仰望時視線目標上抬量（Y），FOV 25° 下漸進較穩。aspect<1 為直向加強。 */
+export function exploreLookUpYOffset(safePhi, aspect) {
+  if (safePhi >= LOOK_UP_PHI_HIGH) return 0;
+  const span = LOOK_UP_PHI_HIGH - EXPLORE_PHI_MIN;
+  if (span <= 0) return 0;
+  const t = Math.max(0, Math.min(1, (LOOK_UP_PHI_HIGH - safePhi) / span));
+  const eased = t * t * (3 - 2 * t);
+  let offset = eased * 6.8;
+  const a = aspect == null ? 1 : aspect;
+  if (a < 0.85) offset += eased * 2.4;
+  if (a < 0.68) offset += eased * 1.6;
+  return offset;
+}
 
 export function createPoses(panorama) {
   return {
@@ -51,10 +64,8 @@ export function createCameraRig(THREE, camera, hooks) {
       cy,
       lookAt.z + dist * span * Math.cos(theta)
     );
-    // 仰望天空：當 phi 低於閾值時，將視線目標往上抬，讓鏡頭朝天空看
-    const lookUpThreshold = 0.55;
-    const lookUpY = followCam && safePhi < lookUpThreshold
-      ? lookAt.y + (lookUpThreshold - safePhi) * 40
+    const lookUpY = followCam
+      ? lookAt.y + exploreLookUpYOffset(safePhi, aspect)
       : lookAt.y;
     camera.lookAt(lookAt.x, lookUpY, lookAt.z);
     camera.updateMatrixWorld(true);

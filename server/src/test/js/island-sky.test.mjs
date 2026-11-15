@@ -15,6 +15,7 @@ const {
   nextMeteorDelay,
   meteorDuration,
   createMeteorScheduler,
+  createIslandSky,
   starTwinkle,
   STAR_COUNT,
   METEOR_INTERVAL_MIN,
@@ -25,6 +26,95 @@ const {
   MOON_ELEVATION,
   MOON_AZIMUTH
 } = skyMod;
+
+function mockCanvasElement() {
+  const ctx = {
+    createLinearGradient() {
+      return { addColorStop() {} };
+    },
+    createRadialGradient() {
+      return { addColorStop() {} };
+    },
+    fillRect() {},
+    fillStyle: '',
+    globalCompositeOperation: ''
+  };
+  return { width: 0, height: 0, getContext: () => ctx };
+}
+
+function mockThree() {
+  return {
+    SRGBColorSpace: 'srgb',
+    AdditiveBlending: 2,
+    FrontSide: 0,
+    DoubleSide: 2,
+    Group: class {
+      constructor() {
+        this.children = [];
+        this.position = {
+          x: 0, y: 0, z: 0,
+          set(x, y, z) { this.x = x; this.y = y; this.z = z; }
+        };
+        this.visible = true;
+      }
+      add(c) { this.children.push(c); }
+    },
+    Vector3: class {
+      constructor(x, y, z) { this.x = x; this.y = y; this.z = z; }
+      set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; }
+      normalize() { return this; }
+    },
+    SpriteMaterial: class {
+      constructor(opts) { Object.assign(this, opts); }
+      dispose() {}
+    },
+    Sprite: class {
+      constructor(mat) { this.material = mat; this.scale = { set() {} }; }
+    },
+    CanvasTexture: class {
+      constructor() {}
+      dispose() {}
+    },
+    BufferGeometry: class {
+      constructor() { this.attributes = {}; }
+      setAttribute(name, attr) { this.attributes[name] = attr; }
+      getAttribute(name) { return this.attributes[name]; }
+      dispose() {}
+    },
+    BufferAttribute: class {
+      constructor(array, itemSize) { this.array = array; this.itemSize = itemSize; this.needsUpdate = false; }
+    },
+    ShaderMaterial: class {
+      constructor(opts) { this.uniforms = opts.uniforms; }
+      dispose() {}
+    },
+    Points: class {
+      constructor(geo, mat) { this.geometry = geo; this.material = mat; this.visible = true; this.renderOrder = 0; }
+    },
+    LineBasicMaterial: class {
+      constructor(opts) { Object.assign(this, opts); }
+      dispose() {}
+    },
+    Line: class {
+      constructor(geo, mat) { this.geometry = geo; this.material = mat; this.visible = true; this.renderOrder = 0; }
+    },
+    PlaneGeometry: class { dispose() {} },
+    MeshBasicMaterial: class {
+      constructor(opts) { Object.assign(this, opts); }
+      dispose() {}
+    },
+    Mesh: class {
+      constructor(geo, mat) {
+        this.geometry = geo;
+        this.material = mat;
+        this.position = { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } };
+        this.rotation = { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } };
+        this.visible = true;
+        this.renderOrder = 0;
+      }
+    }
+  };
+}
 
 test('smoothstep 基本行為', () => {
   assert.equal(smoothstep(0, 1, 0), 0);
@@ -197,4 +287,19 @@ test('月亮仰角在 15～30° 範圍（探索模式抬頭可見）', () => {
 
 test('月亮方位角已匯出', () => {
   assert.ok(typeof MOON_AZIMUTH === 'number');
+});
+
+test('createIslandSky 可建立且夜景 update 不會 moonY 遮蔽錯誤', () => {
+  const prevDoc = globalThis.document;
+  globalThis.document = { createElement: (tag) => (tag === 'canvas' ? mockCanvasElement() : {}) };
+  try {
+    const sky = createIslandSky(mockThree(), { reduced: true, sunPos: { x: -9.5, y: 20.5, z: 11 } });
+    assert.ok(sky.group);
+    sky.update(1, 1, null);
+    sky.tick(0.016, 1);
+    sky.setVisible(false);
+    sky.dispose();
+  } finally {
+    globalThis.document = prevDoc;
+  }
 });

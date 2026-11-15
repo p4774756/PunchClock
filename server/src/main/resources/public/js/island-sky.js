@@ -166,10 +166,30 @@ function createStars(THREE, count) {
   };
 }
 
+function createSoftDiscCanvas(inner, outer) {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const cx = size / 2;
+  const grad = ctx.createRadialGradient(cx, cx, size * inner, cx, cx, size * outer);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,0.9)');
+  grad.addColorStop(0.75, 'rgba(255,255,255,0.12)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  return canvas;
+}
+
 function createCelestialBody(THREE, color, size, glowColor) {
   const group = new THREE.Group();
 
+  const bodyTex = new THREE.CanvasTexture(createSoftDiscCanvas(0.02, 0.38));
+  bodyTex.colorSpace = THREE.SRGBColorSpace;
   const bodyMat = new THREE.SpriteMaterial({
+    map: bodyTex,
     color: color,
     transparent: true,
     opacity: 1,
@@ -180,15 +200,19 @@ function createCelestialBody(THREE, color, size, glowColor) {
   body.scale.set(size, size, 1);
   group.add(body);
 
+  const glowTex = new THREE.CanvasTexture(createSoftDiscCanvas(0.08, 0.5));
+  glowTex.colorSpace = THREE.SRGBColorSpace;
   const glowMat = new THREE.SpriteMaterial({
+    map: glowTex,
     color: glowColor,
     transparent: true,
-    opacity: 0.4,
+    opacity: 0.45,
     fog: false,
-    depthWrite: false
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
   });
   const glow = new THREE.Sprite(glowMat);
-  glow.scale.set(size * 2.5, size * 2.5, 1);
+  glow.scale.set(size * 2.4, size * 2.4, 1);
   group.add(glow);
 
   group.renderOrder = -1001;
@@ -199,11 +223,13 @@ function createCelestialBody(THREE, color, size, glowColor) {
     glowMat: glowMat,
     setOpacity(o) {
       bodyMat.opacity = o;
-      glowMat.opacity = o * 0.4;
+      glowMat.opacity = o * 0.45;
     },
     dispose() {
       bodyMat.dispose();
       glowMat.dispose();
+      bodyTex.dispose();
+      glowTex.dispose();
     }
   };
 }
@@ -300,10 +326,10 @@ export function createIslandSky(THREE, opts) {
   // 月亮：低仰角（約 20°），探索模式抬頭時容易看到
   const moonDist = ISLAND_CAMERA_FAR * 0.6;
   const moonX = Math.sin(MOON_AZIMUTH) * Math.cos(MOON_ELEVATION) * moonDist;
-  const moonY = Math.sin(MOON_ELEVATION) * moonDist;
+  const moonPosY = Math.sin(MOON_ELEVATION) * moonDist;
   const moonZ = Math.cos(MOON_AZIMUTH) * Math.cos(MOON_ELEVATION) * moonDist;
   const moonHorizon = 5;
-  const moonBaseY = moonY;
+  const moonBaseY = moonPosY;
   const moon = createCelestialBody(THREE, 0xe8eef8, 15, 0xc8d4f0);
   moon.group.position.set(moonX, moonHorizon, moonZ);
   group.add(moon.group);
