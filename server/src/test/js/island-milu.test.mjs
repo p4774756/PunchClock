@@ -166,7 +166,18 @@ test('方向交界有滯後，來回微幅擺動不會閃幀', () => {
   assert.equal(first.facing, 'front');
 });
 
-test('停下沿用上次朝向；有背面待機才改播那組', () => {
+test('預設 MILU_ANIM 的 backBreath／backBlink 長度與檔名正確', () => {
+  const backBreath = M.MILU_ANIM.clips.idle.backBreath;
+  const backBlink = M.MILU_ANIM.clips.idle.backBlink;
+  assert.equal(backBreath.length, 4);
+  assert.equal(backBreath[0], 'idle/back_breath_01.png');
+  assert.equal(backBreath[3], 'idle/back_breath_04.png');
+  assert.equal(backBlink.length, 2);
+  assert.equal(backBlink[0], 'idle/back_blink_01.png');
+  assert.equal(backBlink[1], 'idle/back_blink_02.png');
+});
+
+test('停下沿用上次朝向；朝背面停下播 back_breath_*', () => {
   let state = walkStep(M.createMiluState(), 0.02, 0, -1);
   state = idleStep(state, 0.02);
   assert.equal(state.mode, 'idle');
@@ -176,8 +187,80 @@ test('停下沿用上次朝向；有背面待機才改播那組', () => {
   state = walkStep(state, 0.02, 0, 1);
   state = idleStep(state, 0.02);
   assert.equal(state.facing, 'back');
-  assert.equal(M.miluClipPath(state).indexOf('idle/breath_'), 0);
+  assert.equal(M.miluClipPath(state).indexOf('idle/back_breath_'), 0);
+});
 
+test('朝背面停下，時間到眨眼播 back_blink_*，播完回到 back_breath_*', () => {
+  const anim = {
+    faceDeadzone: 0.22,
+    blinkEvery: 0.2,
+    fps: { walk: 8, idle: 5, blink: 10, wave: 8 },
+    clips: {
+      walk: {
+        left: ['walk/left_01.png'],
+        right: ['walk/right_01.png'],
+        front: ['walk/front_01.png'],
+        back: ['walk/back_01.png']
+      },
+      idle: {
+        breath: ['idle/breath_01.png'],
+        blink: ['idle/blink_01.png', 'idle/blink_02.png'],
+        backBreath: ['idle/back_breath_01.png', 'idle/back_breath_02.png'],
+        backBlink: ['idle/back_blink_01.png', 'idle/back_blink_02.png']
+      },
+      wave: ['wave/01.png']
+    }
+  };
+  let state = walkStep(M.createMiluState(), 0.02, 0, 1, { anim: anim });
+  state = idleStep(state, 0.02, { anim: anim });
+  assert.equal(state.facing, 'back');
+  assert.equal(M.miluClipPath(state, anim).indexOf('idle/back_breath_'), 0);
+
+  for (let i = 0; i < 5; i++) state = idleStep(state, 0.05, { anim: anim });
+  assert.equal(state.blinking, true);
+  assert.equal(M.miluClipPath(state, anim).indexOf('idle/back_blink_'), 0);
+
+  let guard = 0;
+  while (state.blinking && guard < 10) {
+    state = idleStep(state, 0.1, { anim: anim });
+    guard += 1;
+  }
+  assert.equal(state.blinking, false);
+  assert.equal(M.miluClipPath(state, anim).indexOf('idle/back_breath_'), 0);
+});
+
+test('只有 backBreath、沒有 backBlink 時，不要改播正面眨眼', () => {
+  const anim = {
+    faceDeadzone: 0.22,
+    blinkEvery: 0.1,
+    fps: { walk: 8, idle: 5, blink: 10, wave: 8 },
+    clips: {
+      walk: {
+        left: ['walk/left_01.png'],
+        right: ['walk/right_01.png'],
+        front: ['walk/front_01.png'],
+        back: ['walk/back_01.png']
+      },
+      idle: {
+        breath: ['idle/breath_01.png'],
+        blink: ['idle/blink_01.png', 'idle/blink_02.png'],
+        backBreath: ['idle/back_breath_01.png'],
+        backBlink: []
+      },
+      wave: ['wave/01.png']
+    }
+  };
+  let state = walkStep(M.createMiluState(), 0.02, 0, 1, { anim: anim });
+  state = idleStep(state, 0.02, { anim: anim });
+  assert.equal(state.facing, 'back');
+
+  for (let i = 0; i < 20; i++) state = idleStep(state, 0.05, { anim: anim });
+  assert.equal(state.blinking, false);
+  assert.equal(M.miluClipPath(state, anim).indexOf('idle/back_breath_'), 0);
+  assert.equal(M.miluClipPath(state, anim).indexOf('idle/blink_'), -1);
+});
+
+test('forgetOptionalClip 清掉 backBreath 後退回正面呼吸；清 backBlink 不影響 backBreath', () => {
   const anim = {
     faceDeadzone: 0.22,
     blinkEvery: 3.4,
@@ -192,16 +275,29 @@ test('停下沿用上次朝向；有背面待機才改播那組', () => {
       idle: {
         breath: ['idle/breath_01.png'],
         blink: ['idle/blink_01.png'],
-        backBreath: ['idle/back_breath_01.png'],
+        backBreath: ['idle/back_breath_01.png', 'idle/back_breath_02.png'],
         backBlink: ['idle/back_blink_01.png']
       },
       wave: ['wave/01.png']
     }
   };
+
+  assert.equal(M.forgetOptionalClip(anim, 'idle/back_blink_01.png'), true);
+  assert.equal(anim.clips.idle.backBlink.length, 0);
+  assert.equal(anim.clips.idle.backBreath.length, 2);
+
+  let state = walkStep(M.createMiluState(), 0.02, 0, 1, { anim: anim });
+  state = idleStep(state, 0.02, { anim: anim });
+  assert.equal(state.facing, 'back');
+  assert.equal(M.miluClipPath(state, anim).indexOf('idle/back_breath_'), 0);
+
+  assert.equal(M.forgetOptionalClip(anim, 'idle/back_breath_01.png'), true);
+  assert.equal(anim.clips.idle.backBreath.length, 0);
+
   state = walkStep(M.createMiluState(), 0.02, 0, 1, { anim: anim });
   state = idleStep(state, 0.02, { anim: anim });
   assert.equal(state.facing, 'back');
-  assert.equal(M.miluClipPath(state, anim), 'idle/back_breath_01.png');
+  assert.equal(M.miluClipPath(state, anim).indexOf('idle/breath_'), 0);
 });
 
 test('前後圖載入失敗時清掉該方向並退回左右', () => {
