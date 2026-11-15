@@ -182,7 +182,10 @@ export function createCasinoController(opts) {
     const show = !!visible;
     promptBtn.hidden = !show;
     promptBtn.setAttribute('aria-hidden', show ? 'false' : 'true');
-    if (label) promptBtn.textContent = label;
+    if (label) {
+      promptBtn.textContent = label;
+      promptBtn.setAttribute('aria-label', label);
+    }
   }
 
   function hideList() {

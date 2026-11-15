@@ -5,6 +5,7 @@
 // 加一棟建築：在 BUILDINGS 加 { id, island, x, z, w, d, yaw, label, panel }。
 // 碰撞框預設依寬深與 yaw 產生（門口那一側內縮 frontTrim）。主島舊建築已有 OBSTACLE_RECTS，設 collide: false。
 // 要能互動就加 entry: { r, reach, label, action }，reach 是從建築中心沿門口方向（本地 +Z）往外的額外距離。
+// 門不在正面時改給 entry.at: { x, z }（建築本地座標），worldDoor 就不再用 +Z。
 // 樹、碼頭這類不是建築的碰撞放在 OBSTACLE_RECTS／OBSTACLE_CIRCLES，順序請維持既有主島在前。
 
 export const MAIN_ISLAND_ID = 'main';
@@ -217,14 +218,26 @@ export function footprintBlock(building) {
 }
 
 export function worldDoor(building) {
-  const reach = building.d / 2 + (building.entry && building.entry.reach != null ? building.entry.reach : 0.75);
+  const entry = building.entry;
+  if (entry && entry.at && Number.isFinite(entry.at.x) && Number.isFinite(entry.at.z)) {
+    const p = rotateY(entry.at.x, entry.at.z, building.yaw || 0);
+    return Object.freeze({ x: building.x + p.x, z: building.z + p.z });
+  }
+  const reach = building.d / 2 + (entry && entry.reach != null ? entry.reach : 0.75);
   const p = rotateY(0, reach, building.yaw || 0);
   return Object.freeze({ x: building.x + p.x, z: building.z + p.z });
 }
 
 const BUILDING_DEFS = [
   // 主島碰撞沿用 OBSTACLE_RECTS，這裡只記錄外觀位置，不再推一份框。
-  { id: 'shop', island: 'main', x: 0, z: -0.55, w: 4.75, d: 3.2, yaw: 0, label: '莫卡手搖', panel: null, collide: false },
+  // 西牆已有門。at 是建築本地座標，站在門外草地，不落到南面櫃台。
+  {
+    id: 'shop', island: 'main', x: 0, z: -0.55, w: 4.75, d: 3.2, yaw: 0, label: '莫卡手搖', panel: null, collide: false,
+    entry: {
+      r: 0.55, label: '進入莫卡手搖', action: 'enterInterior',
+      at: { x: -3.09, z: -0.85 }
+    }
+  },
   { id: 'devices', island: 'main', x: 0, z: 1.42, w: 2.55, d: 0.76, yaw: 0, label: '點單', panel: 'devices', collide: false },
   { id: 'system', island: 'main', x: -4.05, z: -0.15, w: 1.45, d: 1.15, yaw: 0.42, label: '製茶機', panel: 'system', collide: false },
   { id: 'photos', island: 'main', x: 4.15, z: 0.2, w: 2.15, d: 0.7, yaw: 0.62, label: '飲品牆', panel: 'photos', collide: false },

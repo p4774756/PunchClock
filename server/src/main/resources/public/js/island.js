@@ -30,6 +30,11 @@ import { createCasinoController, CASINO_NAME } from './island-casino.js';
 import { createGraffitiController, wallSlots } from './island-graffiti.js';
 import { createRoadmapController, signCopy } from './island-roadmap.js';
 import {
+  INTERIOR_ORIGIN,
+  createInteriorSession,
+  stepInInterior
+} from './island-interior.js';
+import {
   MILU_ANIM,
   createMiluState,
   createMiluView,
@@ -1469,6 +1474,8 @@ function boot() {
   // Phase 2：賭場門口互動區（座標見 CASINO／DEFAULT_INTERACT_ZONES）；須點按鈕或 Enter／E，不自動傳送。
   const INTERACT_ZONES = DEFAULT_INTERACT_ZONES.slice();
   const EXPLORE_POSE = { radius: 9.2, theta: 0.35, phi: 0.98 };
+  // 室內比島小很多，沿用探索的俯角但把鏡頭拉近，才看得到沒有屋頂的房間。
+  const INTERIOR_POSE = { radius: 5.2, theta: EXPLORE_POSE.theta, phi: 0.82 };
   // 鏡頭指數平滑速率（1/秒）；60fps 時約等於舊的每幀 0.08／0.14。
   const CAMERA_LAMBDA = 5;
   const CAMERA_LAMBDA_EXPLORE = 9;
@@ -1571,6 +1578,13 @@ function boot() {
   let casino = null;
   let graffiti = null;
   let roadmap = null;
+  const rooms = createInteriorSession();
+  let roomView = null;
+  let interiorBusy = false;
+  let interiorGeneration = 0;
+  const INTERIOR_MODULES = {
+    shop: () => import('./island-shop-interior.js')
+  };
 
   function casinoOpen() {
     return !!(casino && casino.isOpen());
@@ -1691,7 +1705,7 @@ function boot() {
 
   function syncInteractPrompt() {
     if (!casino) return false;
-    const zone = hitInteractZone(player.x, player.z, INTERACT_ZONES);
+    const zone = hitInteractZone(player.x, player.z, promptZones());
     activeInteract = zone ? (zone.id || '') : '';
     const show = shouldShowInteractPrompt({
       exploring: mode.exploring,
@@ -1706,9 +1720,10 @@ function boot() {
 
   function followPlayerCamera(instant) {
     targetLook.set(player.x, G + 1.05, player.z);
-    targetRadius = EXPLORE_POSE.radius;
-    targetTheta = EXPLORE_POSE.theta;
-    targetPhi = EXPLORE_POSE.phi;
+    const pose = rooms.inside() ? INTERIOR_POSE : EXPLORE_POSE;
+    targetRadius = pose.radius;
+    targetTheta = pose.theta;
+    targetPhi = pose.phi;
     if (instant || reduced) {
       lookAt.copy(targetLook);
       radius = targetRadius;
@@ -1748,6 +1763,7 @@ function boot() {
         followPlayerCamera(instant);
       }
     } else {
+      if (rooms.inside()) abortInterior();
       if (casino && casino.isOpen()) casino.closeLobby();
       dispatchMode('exit');
       const saved = exploreSaved || POSES.home;
@@ -1799,6 +1815,12 @@ function boot() {
   }
 
   function placeLabels() {
+    if (rooms.inside()) {
+      document.querySelectorAll('[data-anchor]').forEach((el) => {
+        el.style.visibility = 'hidden';
+      });
+      return;
+    }
     const width = stage.clientWidth || 1;
     const height = stage.clientHeight || 1;
     const far = targetRadius > 42;
@@ -1992,6 +2014,18 @@ function boot() {
 
   function updatePlayer(dt) {
     if (!flow.canMove()) {
+      if (rooms.inside()) rooms.setPaused(true);
+      player.moving = false;
+      player.vx = 0;
+      player.vz = 0;
+      playerBob = 0;
+      playerMesh.position.set(player.x, P, player.z);
+      playerMesh.rotation.y = player.yaw;
+      stepMilu(dt);
+      return;
+    }
+    if (rooms.inside()) rooms.setPaused(false);
+    if (interiorBusy) {
       player.moving = false;
       player.vx = 0;
       player.vz = 0;
@@ -2002,7 +2036,17 @@ function boot() {
       return;
     }
     const input = moveVector(player.keys, { active: player.stickActive, x: player.stickX, y: player.stickY });
-    const next = stepPlayer(player, input, theta, dt);
+    const next = rooms.inside()
+      ? stepInInterior({
+        x: player.x - INTERIOR_ORIGIN.x,
+        z: player.z - INTERIOR_ORIGIN.z,
+        yaw: player.yaw
+      }, input, theta, dt, rooms.room())
+      : stepPlayer(player, input, theta, dt);
+    if (rooms.inside()) {
+      next.x += INTERIOR_ORIGIN.x;
+      next.z += INTERIOR_ORIGIN.z;
+    }
     player.moving = next.moving;
     if (next.moving) {
       const dir = cameraRelative(input, theta);
@@ -2129,9 +2173,14 @@ function boot() {
       // 焦點已在「進入賭場」按鈕時交給按鈕自己的 click／Enter，避免重複開啟。
       if (event.target && event.target.id === 'islandInteract') return;
       event.preventDefault();
-      const zone = hitInteractZone(player.x, player.z, INTERACT_ZONES);
+      const zone = hitInteractZone(player.x, player.z, promptZones());
+      if (rooms.inside()) {
+        if (zone && zone.action === 'exitInterior') leaveInterior();
+        return;
+      }
       if (zone && zone.action === 'openGraffiti') openGraffiti();
       else if (zone && zone.action === 'openRoadmap') openRoadmap();
+      else if (zone && zone.action === 'enterInterior') enterInterior(zone.id);
       else if (casino) casino.openLobby();
       return;
     }
@@ -2152,6 +2201,10 @@ function boot() {
     const sheet = document.getElementById('islandSheet');
     if (sheet && !sheet.hidden && typeof window.switchDashTab === 'function') {
       window.switchDashTab('');
+      return;
+    }
+    if (rooms.inside()) {
+      leaveInterior();
       return;
     }
     if (mode.exploring) setExplore(false, false);
@@ -2267,6 +2320,139 @@ function boot() {
   if (dayBtn) dayBtn.addEventListener('click', () => setMode('day'));
   if (nightBtn) nightBtn.addEventListener('click', () => setMode('night'));
 
+  function promptZones() {
+    if (!rooms.inside()) return INTERACT_ZONES;
+    const exit = rooms.exitZone();
+    if (!exit) return [];
+    return [{
+      id: exit.id,
+      x: exit.x + INTERIOR_ORIGIN.x,
+      z: exit.z + INTERIOR_ORIGIN.z,
+      r: exit.r,
+      label: exit.label,
+      action: exit.action
+    }];
+  }
+
+  function setFade(on) {
+    const el = document.getElementById('islandFade');
+    if (el) el.classList.toggle('is-on', !!on);
+  }
+
+  function fadeTo(on) {
+    setFade(on);
+    if (reduced) return Promise.resolve();
+    return new Promise((resolve) => window.setTimeout(resolve, 280));
+  }
+
+  function closeOverlayPanels() {
+    if (casino && casino.isOpen()) casino.closeLobby();
+    if (graffiti && graffiti.isOpen()) graffiti.close();
+    if (roadmap && roadmap.isOpen()) roadmap.close();
+    if (sheetOpen() && typeof window.switchDashTab === 'function') window.switchDashTab('');
+    const list = document.getElementById('islandList');
+    const listBtn = document.getElementById('islandListBtn');
+    if (list) list.hidden = true;
+    if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function applyPlayerPose(pose, interior) {
+    player.x = pose.x + (interior ? INTERIOR_ORIGIN.x : 0);
+    player.z = pose.z + (interior ? INTERIOR_ORIGIN.z : 0);
+    player.yaw = pose.yaw;
+    player.moving = false;
+    player.vx = 0;
+    player.vz = 0;
+    playerMesh.position.set(player.x, P, player.z);
+    playerMesh.rotation.y = player.yaw;
+    milu.object.position.set(player.x, P, player.z);
+    followPlayerCamera(true);
+  }
+
+  function mountRoom(view) {
+    disposeRoom();
+    roomView = view;
+    view.group.position.set(INTERIOR_ORIGIN.x, 0, INTERIOR_ORIGIN.z);
+    scene.add(view.group);
+    view.materials.forEach((material) => materialList.push(material));
+    if (view.lamp) {
+      view.lamp.light.intensity = view.lamp.power * modeMix;
+      lampLights.push(view.lamp);
+    }
+    applyMix(modeMix);
+  }
+
+  function disposeRoom() {
+    if (!roomView) return;
+    scene.remove(roomView.group);
+    const mats = roomView.materials || [];
+    for (let i = 0; i < mats.length; i++) {
+      const at = materialList.indexOf(mats[i]);
+      if (at >= 0) materialList.splice(at, 1);
+    }
+    if (roomView.lamp) {
+      const at = lampLights.indexOf(roomView.lamp);
+      if (at >= 0) lampLights.splice(at, 1);
+    }
+    roomView.dispose();
+    roomView = null;
+  }
+
+  function abortInterior() {
+    interiorGeneration += 1;
+    const left = rooms.inside() ? rooms.exit(performance.now()) : null;
+    disposeRoom();
+    setFade(false);
+    interiorBusy = false;
+    if (left && left.ok) applyPlayerPose(left.pose, false);
+  }
+
+  async function enterInterior(buildingId) {
+    if (interiorBusy || rooms.inside() || !mode.exploring) return;
+    if (!rooms.canEnter(buildingId, performance.now())) return;
+    const ticket = ++interiorGeneration;
+    interiorBusy = true;
+    clearMoveInput();
+    closeOverlayPanels();
+    await fadeTo(true);
+    if (ticket !== interiorGeneration) return;
+    try {
+      const loader = INTERIOR_MODULES[buildingId];
+      if (!loader) throw new Error('no interior');
+      const mod = await loader();
+      if (ticket !== interiorGeneration) return;
+      mountRoom(mod.createInterior(THREE, { groundY: G }));
+      const entered = rooms.enter(buildingId, performance.now());
+      if (!entered.ok) disposeRoom();
+      else applyPlayerPose(entered.pose, true);
+    } catch (err) {
+      disposeRoom();
+      if (rooms.inside()) rooms.exit(performance.now());
+    }
+    if (ticket !== interiorGeneration) return;
+    await fadeTo(false);
+    if (ticket !== interiorGeneration) return;
+    interiorBusy = false;
+    syncInteractPrompt();
+  }
+
+  async function leaveInterior() {
+    if (interiorBusy || !rooms.inside()) return;
+    const ticket = ++interiorGeneration;
+    interiorBusy = true;
+    clearMoveInput();
+    closeOverlayPanels();
+    await fadeTo(true);
+    if (ticket !== interiorGeneration) return;
+    const left = rooms.exit(performance.now());
+    disposeRoom();
+    if (left.ok) applyPlayerPose(left.pose, false);
+    await fadeTo(false);
+    if (ticket !== interiorGeneration) return;
+    interiorBusy = false;
+    syncInteractPrompt();
+  }
+
   function openGraffiti() {
     if (casino && casino.isOpen()) casino.closeLobby();
     if (roadmap && roadmap.isOpen()) roadmap.close();
@@ -2288,8 +2474,16 @@ function boot() {
       },
       onLobbyChange: (state) => flow.lobbyChanged(state.open),
       onPrompt: () => {
-        const zone = hitInteractZone(player.x, player.z, INTERACT_ZONES);
+        const zone = hitInteractZone(player.x, player.z, promptZones());
         if (!zone) return false;
+        if (zone.action === 'exitInterior') {
+          leaveInterior();
+          return true;
+        }
+        if (zone.action === 'enterInterior') {
+          enterInterior(zone.id);
+          return true;
+        }
         if (zone.action === 'openGraffiti') {
           openGraffiti();
           return true;

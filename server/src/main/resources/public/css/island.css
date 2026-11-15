@@ -24,6 +24,20 @@ body.island-body.is-night #islandStage {
     radial-gradient(circle at 50% 46%, #a8d06e 0 16%, #d2a56c 17% 22%, #45c4c6 23% 100%);
 }
 
+#islandFade {
+  position: absolute;
+  inset: 0;
+  background: #1a2433;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 0.28s ease;
+}
+
+#islandFade.is-on {
+  opacity: 1;
+}
+
 #islandCanvas {
   display: block;
   width: 100%;
@@ -433,7 +447,8 @@ body.island-sheet-open .island-explore-hint {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .island-joystick-knob {
+  .island-joystick-knob,
+  #islandFade {
     transition: none;
   }
 }
