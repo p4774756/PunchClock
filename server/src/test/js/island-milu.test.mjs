@@ -19,6 +19,33 @@ function walkStep(state, dt, screenX, screenZ, extra) {
   }, extra));
 }
 
+function animWithoutDepth() {
+  const clips = M.MILU_ANIM.clips;
+  return {
+    faceDeadzone: M.MILU_ANIM.faceDeadzone,
+    faceBucket: M.MILU_ANIM.faceBucket,
+    faceHysteresis: M.MILU_ANIM.faceHysteresis,
+    blinkEvery: M.MILU_ANIM.blinkEvery,
+    fps: M.MILU_ANIM.fps,
+    clips: {
+      walk: {
+        left: clips.walk.left,
+        right: clips.walk.right,
+        front: [],
+        back: []
+      },
+      idle: clips.idle,
+      wave: clips.wave
+    }
+  };
+}
+
+// 0° 朝鏡頭，90° 往右，180° 離鏡頭，-90° 往左。
+function axesFromDegrees(deg) {
+  const rad = deg * Math.PI / 180;
+  return { x: Math.sin(rad), z: -Math.cos(rad) };
+}
+
 test('畫面軸是 cameraRelative 的反函數', () => {
   const theta = 0.35;
   const right = X.cameraRelative({ x: 1, z: 0 }, theta);
@@ -45,18 +72,161 @@ test('往右走用 right，往左走用 left', () => {
 });
 
 test('水平分量很小時沿用上次朝向', () => {
-  let state = walkStep(M.createMiluState(), 0.02, -1, 0);
+  const anim = animWithoutDepth();
+  let state = walkStep(M.createMiluState(), 0.02, -1, 0, { anim: anim });
   assert.equal(state.facing, 'left');
-  state = walkStep(state, 0.02, 0.1, -0.99);
+  state = walkStep(state, 0.02, 0.1, -0.99, { anim: anim });
   assert.equal(state.facing, 'left');
-  assert.equal(M.resolveFacing('right', 0.05, 0.9), 'right');
+  assert.equal(M.resolveFacing('right', 0.05, 0.9, anim), 'right');
 });
 
 test('沒有前／後圖時垂直移動退回左／右', () => {
-  const state = walkStep(M.createMiluState(), 0.02, 0.05, -1);
+  const anim = animWithoutDepth();
+  const state = walkStep(M.createMiluState(), 0.02, 0.05, -1, { anim: anim });
+  assert.equal(state.facing, 'right');
+  assert.equal(M.miluClipPath(state, anim).indexOf('walk/right_'), 0);
+  assert.equal(M.resolveFacing('left', 0, -1, anim), 'left');
+});
+
+test('朝鏡頭走用 front，離鏡頭走用 back，左右仍用側向圖', () => {
+  assert.equal(M.MILU_ANIM.clips.walk.front.length, 4);
+  assert.equal(M.MILU_ANIM.clips.walk.front[0], 'walk/front_01.png');
+  assert.equal(M.MILU_ANIM.clips.walk.back.length, 4);
+  assert.equal(M.MILU_ANIM.clips.walk.back[0], 'walk/back_01.png');
+
+  let state = walkStep(M.createMiluState(), 0.02, 0, -1);
+  assert.equal(state.facing, 'front');
+  assert.equal(M.miluClipPath(state).indexOf('walk/front_'), 0);
+
+  state = walkStep(state, 0.02, 0, 1);
+  assert.equal(state.facing, 'back');
+  assert.equal(M.miluClipPath(state).indexOf('walk/back_'), 0);
+
+  state = walkStep(state, 0.02, -1, 0);
+  assert.equal(state.facing, 'left');
+  assert.equal(M.miluClipPath(state).indexOf('walk/left_'), 0);
+
+  state = walkStep(state, 0.02, 1, 0);
   assert.equal(state.facing, 'right');
   assert.equal(M.miluClipPath(state).indexOf('walk/right_'), 0);
-  assert.equal(M.resolveFacing('left', 0, -1), 'left');
+});
+
+test('非零 theta 時朝向跟畫面軸，不跟世界軸', () => {
+  const theta = 1.2;
+  const towardWorld = X.cameraRelative({ x: 0, z: -1 }, theta);
+  const towardScreen = M.screenAxes(towardWorld.x, towardWorld.z, theta);
+  let state = walkStep(M.createMiluState(), 0.02, towardScreen.x, towardScreen.z);
+  assert.equal(state.facing, 'front');
+  assert.equal(M.miluClipPath(state).indexOf('walk/front_'), 0);
+
+  const raw = walkStep(M.createMiluState(), 0.02, towardWorld.x, towardWorld.z);
+  assert.notEqual(raw.facing, 'front');
+
+  const awayWorld = X.cameraRelative({ x: 0, z: 1 }, theta);
+  const awayScreen = M.screenAxes(awayWorld.x, awayWorld.z, theta);
+  state = walkStep(state, 0.02, awayScreen.x, awayScreen.z);
+  assert.equal(state.facing, 'back');
+  assert.equal(M.miluClipPath(state).indexOf('walk/back_'), 0);
+
+  const leftWorld = X.cameraRelative({ x: -1, z: 0 }, theta);
+  const leftScreen = M.screenAxes(leftWorld.x, leftWorld.z, theta);
+  state = walkStep(state, 0.02, leftScreen.x, leftScreen.z);
+  assert.equal(state.facing, 'left');
+
+  const rightWorld = X.cameraRelative({ x: 1, z: 0 }, theta);
+  const rightScreen = M.screenAxes(rightWorld.x, rightWorld.z, theta);
+  state = walkStep(state, 0.02, rightScreen.x, rightScreen.z);
+  assert.equal(state.facing, 'right');
+});
+
+test('方向交界有滯後，來回微幅擺動不會閃幀', () => {
+  let state = walkStep(M.createMiluState(), 0.02, 0, -1);
+  assert.equal(state.facing, 'front');
+  [50, 40, 50, 42, 48].forEach((deg) => {
+    const axes = axesFromDegrees(deg);
+    state = walkStep(state, 0.02, axes.x, axes.z);
+    assert.equal(state.facing, 'front');
+  });
+
+  let intoRight = axesFromDegrees(70);
+  state = walkStep(state, 0.02, intoRight.x, intoRight.z);
+  assert.equal(state.facing, 'right');
+  [55, 40, 50].forEach((deg) => {
+    const axes = axesFromDegrees(deg);
+    state = walkStep(state, 0.02, axes.x, axes.z);
+    assert.equal(state.facing, 'right');
+  });
+
+  const intoFront = axesFromDegrees(20);
+  state = walkStep(state, 0.02, intoFront.x, intoFront.z);
+  assert.equal(state.facing, 'front');
+
+  const started = axesFromDegrees(40);
+  const first = walkStep(M.createMiluState(), 0.02, started.x, started.z);
+  assert.equal(first.facing, 'front');
+});
+
+test('停下沿用上次朝向；有背面待機才改播那組', () => {
+  let state = walkStep(M.createMiluState(), 0.02, 0, -1);
+  state = idleStep(state, 0.02);
+  assert.equal(state.mode, 'idle');
+  assert.equal(state.facing, 'front');
+  assert.equal(M.miluClipPath(state).indexOf('idle/breath_'), 0);
+
+  state = walkStep(state, 0.02, 0, 1);
+  state = idleStep(state, 0.02);
+  assert.equal(state.facing, 'back');
+  assert.equal(M.miluClipPath(state).indexOf('idle/breath_'), 0);
+
+  const anim = {
+    faceDeadzone: 0.22,
+    blinkEvery: 3.4,
+    fps: M.MILU_ANIM.fps,
+    clips: {
+      walk: {
+        left: ['walk/left_01.png'],
+        right: ['walk/right_01.png'],
+        front: ['walk/front_01.png'],
+        back: ['walk/back_01.png']
+      },
+      idle: {
+        breath: ['idle/breath_01.png'],
+        blink: ['idle/blink_01.png'],
+        backBreath: ['idle/back_breath_01.png'],
+        backBlink: ['idle/back_blink_01.png']
+      },
+      wave: ['wave/01.png']
+    }
+  };
+  state = walkStep(M.createMiluState(), 0.02, 0, 1, { anim: anim });
+  state = idleStep(state, 0.02, { anim: anim });
+  assert.equal(state.facing, 'back');
+  assert.equal(M.miluClipPath(state, anim), 'idle/back_breath_01.png');
+});
+
+test('前後圖載入失敗時清掉該方向並退回左右', () => {
+  const anim = {
+    faceDeadzone: 0.22,
+    blinkEvery: 3.4,
+    fps: M.MILU_ANIM.fps,
+    clips: {
+      walk: {
+        left: ['walk/left_01.png'],
+        right: ['walk/right_01.png'],
+        front: ['walk/front_01.png', 'walk/front_02.png'],
+        back: ['walk/back_01.png']
+      },
+      idle: { breath: ['idle/breath_01.png'], blink: ['idle/blink_01.png'] }
+    }
+  };
+  assert.equal(M.forgetOptionalClip(anim, 'walk/front_02.png'), true);
+  assert.equal(anim.clips.walk.front.length, 0);
+  assert.equal(anim.clips.walk.back.length, 1);
+  assert.equal(M.forgetOptionalClip(anim, 'walk/left_01.png'), false);
+  assert.equal(M.resolveFacing('front', 0, -1, anim), 'right');
+  const state = walkStep(M.createMiluState(), 0.02, 0, -1, { anim: anim });
+  assert.equal(state.facing, 'right');
+  assert.equal(M.miluClipPath(state, anim), 'walk/right_01.png');
 });
 
 test('補上前／後圖後，垂直分量為主就改用那組', () => {

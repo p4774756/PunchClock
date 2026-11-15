@@ -1,6 +1,14 @@
 // 探索模式 milu 看板：朝向、幀與貼地計算不依賴 Three.js／DOM，供 node:test。
-// 網頁只在移動中換左／右（或之後補上的前／後）；停下播呼吸，偶爾眨眼，靠近 NPC 或互動區揮一次手。
+// 移動時依鏡頭相對方向切正面、背面、左、右；停下沿用上次朝向播待機，偶爾眨眼，靠近 NPC 或互動區揮一次手。
+// 前／後走路與背面待機缺檔或載入失敗時退回左右走與正面待機，不會讓整隻看板失敗。
 // 圖檔沿用桌面端 /pet/milu，由伺服器靜態路徑提供，不在這裡複製第二份。
+
+const FACE_CENTER = Object.freeze({
+  front: 0,
+  right: Math.PI / 2,
+  back: Math.PI,
+  left: -Math.PI / 2
+});
 
 export const MILU_ANIM = Object.freeze({
   // 400×400 透明圖，腳底約在底邊往上 41px（桌面端 ANCHOR_Y 359）。flipY 時圖的底邊是 v=0。
@@ -9,6 +17,9 @@ export const MILU_ANIM = Object.freeze({
   shadowRadius: 0.34,
   alphaTest: 0.5,
   faceDeadzone: 0.22,
+  // 四個 90° 桶的半寬。連續走路時要再超出 faceHysteresis 才換向，避免對角線來回閃幀。
+  faceBucket: Math.PI / 4,
+  faceHysteresis: 12 * Math.PI / 180,
   waveNpcRadius: 1.75,
   waveZoneExtra: 0.55,
   fps: Object.freeze({ walk: 8, idle: 5, blink: 10, wave: 8 }),
@@ -18,12 +29,15 @@ export const MILU_ANIM = Object.freeze({
     walk: Object.freeze({
       left: Object.freeze(['walk/left_01.png', 'walk/left_02.png', 'walk/left_03.png', 'walk/left_04.png']),
       right: Object.freeze(['walk/right_01.png', 'walk/right_02.png', 'walk/right_03.png', 'walk/right_04.png']),
-      front: Object.freeze([]),
-      back: Object.freeze([])
+      front: Object.freeze(['walk/front_01.png', 'walk/front_02.png', 'walk/front_03.png', 'walk/front_04.png']),
+      back: Object.freeze(['walk/back_01.png', 'walk/back_02.png', 'walk/back_03.png', 'walk/back_04.png'])
     }),
     idle: Object.freeze({
       breath: Object.freeze(['idle/breath_01.png', 'idle/breath_02.png', 'idle/breath_03.png', 'idle/breath_04.png']),
-      blink: Object.freeze(['idle/blink_01.png', 'idle/blink_02.png'])
+      blink: Object.freeze(['idle/blink_01.png', 'idle/blink_02.png']),
+      // 背面待機還沒畫時留空，朝背面停下就退回上面的正面呼吸／眨眼。
+      backBreath: Object.freeze([]),
+      backBlink: Object.freeze([])
     }),
     wave: Object.freeze(['wave/01.png', 'wave/02.png', 'wave/03.png', 'wave/04.png'])
   })
@@ -70,24 +84,87 @@ function sideFacing(facing) {
   return facing === 'left' ? 'left' : 'right';
 }
 
-// 水平分量小於 deadzone 時沿用上次朝向。垂直為主且前／後圖存在才改用那組，否則退回左／右。
-export function resolveFacing(prev, screenX, screenZ, anim) {
+function validFacing(facing) {
+  if (facing === 'left' || facing === 'right' || facing === 'front' || facing === 'back') return facing;
+  return 'right';
+}
+
+function cfgNumber(cfg, key) {
+  const value = cfg[key];
+  return value == null ? MILU_ANIM[key] : value;
+}
+
+function wrapPi(rad) {
+  let d = rad;
+  const turn = Math.PI * 2;
+  while (d > Math.PI) d -= turn;
+  while (d < -Math.PI) d += turn;
+  return d;
+}
+
+// 0 朝鏡頭，正角往右，±π 離鏡頭。半寬內才算正面／背面，剛好落在交界算左右。
+function bucketFacing(angle, half) {
+  const a = wrapPi(angle);
+  const abs = Math.abs(a);
+  if (abs < half) return 'front';
+  if (abs > Math.PI - half) return 'back';
+  return a > 0 ? 'right' : 'left';
+}
+
+function fallbackSide(prior, sx, ax, dead) {
+  if (ax < dead) return sideFacing(prior);
+  return sx < 0 ? 'left' : 'right';
+}
+
+// 角度 0 是朝鏡頭（screenZ < 0），π/2 是右。sticky 為 false 時用嚴格 90° 桶（剛起步）。
+// 走路中要跨過桶邊界再加 faceHysteresis 才換向。前／後圖沒有時退回左／右，水平分量小於 deadzone 則沿用上次側向。
+export function resolveFacing(prev, screenX, screenZ, anim, sticky) {
   const cfg = anim || MILU_ANIM;
-  const dead = cfg.faceDeadzone;
   const sx = screenX || 0;
   const sz = screenZ || 0;
   const ax = Math.abs(sx);
   const az = Math.abs(sz);
-  let facing = prev === 'left' || prev === 'right' || prev === 'front' || prev === 'back' ? prev : 'right';
-  if (az > ax) {
-    const vertical = sz < 0 ? 'front' : 'back';
-    if (clipOf(cfg, vertical)) return vertical;
+  const prior = validFacing(prev);
+  const dead = cfgNumber(cfg, 'faceDeadzone');
+  if (!(ax > 1e-8 || az > 1e-8)) {
+    if ((prior === 'front' || prior === 'back') && !clipOf(cfg, prior)) return sideFacing(prior);
+    return prior;
   }
-  if (ax < dead) {
-    if ((facing === 'front' || facing === 'back') && clipOf(cfg, facing)) return facing;
-    return sideFacing(facing);
+
+  const half = cfgNumber(cfg, 'faceBucket');
+  const hyst = cfgNumber(cfg, 'faceHysteresis');
+  const angle = Math.atan2(sx, -sz);
+  const hold = sticky !== false && prior === prev;
+  let facing = prior;
+  if (!hold || Math.abs(wrapPi(angle - FACE_CENTER[prior])) > half + hyst) {
+    facing = bucketFacing(angle, half);
   }
-  return sx < 0 ? 'left' : 'right';
+
+  if (facing === 'front' || facing === 'back') {
+    if (clipOf(cfg, facing)) return facing;
+    return fallbackSide(prior, sx, ax, dead);
+  }
+  if (ax < dead && az <= ax) return sideFacing(prior);
+  return facing;
+}
+
+// 可選的前／後走路與背面待機載入失敗時清掉整組，下一幀就退回左右走或正面待機。
+export function forgetOptionalClip(anim, rel) {
+  const clips = anim && anim.clips;
+  if (!clips || !rel) return false;
+  const walk = clips.walk || {};
+  const idle = clips.idle || {};
+  const lists = [walk.front, walk.back, idle.backBreath, idle.backBlink];
+  for (let i = 0; i < lists.length; i++) {
+    const list = lists[i];
+    if (!list) continue;
+    for (let j = 0; j < list.length; j++) {
+      if (list[j] !== rel) continue;
+      list.length = 0;
+      return true;
+    }
+  }
+  return false;
 }
 
 export function isNearWave(x, z, npcs, zones, anim) {
@@ -124,13 +201,41 @@ function copyState(state) {
   };
 }
 
+function listOrNull(list) {
+  return list && list.length ? list : null;
+}
+
+function backBreathOf(anim) {
+  return listOrNull(anim.clips.idle.backBreath);
+}
+
+function backBlinkOf(anim) {
+  return listOrNull(anim.clips.idle.backBlink);
+}
+
+function idleFrames(anim, state) {
+  if (state.facing === 'back') {
+    const breath = backBreathOf(anim);
+    const blink = backBlinkOf(anim);
+    if (state.blinking && blink) return blink;
+    if (breath) return breath;
+  }
+  if (state.blinking) return anim.clips.idle.blink;
+  return anim.clips.idle.breath;
+}
+
+// 已有背面待機但沒有背面眨眼時，不要改播正面的臉。
+function idleCanBlink(anim, state) {
+  if (state.facing === 'back' && backBreathOf(anim)) return !!backBlinkOf(anim);
+  return !!listOrNull(anim.clips.idle.blink);
+}
+
 function framesFor(anim, state) {
   if (state.mode === 'wave') return anim.clips.wave;
   if (state.mode === 'walk') {
     return clipOf(anim, state.facing) || anim.clips.walk[sideFacing(state.facing)] || [];
   }
-  if (state.blinking) return anim.clips.idle.blink;
-  return anim.clips.idle.breath;
+  return idleFrames(anim, state);
 }
 
 function fpsFor(anim, state) {
@@ -169,7 +274,7 @@ export function miluStep(state, dt, ctx) {
     next.acc = 0;
     next.blinking = false;
   } else if (moving) {
-    const facing = resolveFacing(next.facing, input.screenX, input.screenZ, anim);
+    const facing = resolveFacing(next.facing, input.screenX, input.screenZ, anim, next.mode === 'walk');
     if (next.mode !== 'walk' || facing !== next.facing) {
       next.frame = 0;
       next.acc = 0;
@@ -194,7 +299,7 @@ export function miluStep(state, dt, ctx) {
 
   if (next.mode === 'idle' && !next.blinking) {
     next.blinkAcc += step;
-    if (next.blinkAcc >= anim.blinkEvery) {
+    if (next.blinkAcc >= anim.blinkEvery && idleCanBlink(anim, next)) {
       next.blinking = true;
       next.frame = 0;
       next.acc = 0;
@@ -217,7 +322,7 @@ export function miluStep(state, dt, ctx) {
         next.acc = 0;
         next.blinking = false;
         if (moving) {
-          next.facing = resolveFacing(next.facing, input.screenX, input.screenZ, anim);
+          next.facing = resolveFacing(next.facing, input.screenX, input.screenZ, anim, false);
         }
         break;
       }
@@ -238,32 +343,78 @@ export function miluStep(state, dt, ctx) {
   return next;
 }
 
-function uniquePaths(anim) {
-  const out = [];
+function collectPaths(anim) {
+  const required = [];
+  const optional = [];
   const seen = Object.create(null);
-  function add(list) {
+  function add(list, bucket) {
     if (!list) return;
     for (let i = 0; i < list.length; i++) {
-      if (!list[i] || seen[list[i]]) continue;
-      seen[list[i]] = true;
-      out.push(list[i]);
+      const rel = list[i];
+      if (!rel || seen[rel]) continue;
+      seen[rel] = true;
+      bucket.push(rel);
     }
   }
-  const walk = anim.clips.walk;
-  add(walk.left);
-  add(walk.right);
-  add(walk.front);
-  add(walk.back);
-  add(anim.clips.idle.breath);
-  add(anim.clips.idle.blink);
-  add(anim.clips.wave);
-  return out;
+  const walk = anim.clips.walk || {};
+  const idle = anim.clips.idle || {};
+  add(walk.left, required);
+  add(walk.right, required);
+  add(idle.breath, required);
+  add(idle.blink, required);
+  add(anim.clips.wave, required);
+  add(walk.front, optional);
+  add(walk.back, optional);
+  add(idle.backBreath, optional);
+  add(idle.backBlink, optional);
+  return { required: required, optional: optional };
+}
+
+function copyList(list) {
+  return list && list.length ? list.slice() : [];
+}
+
+// 載入失敗時要改得到幀清單，不能改到凍結的 MILU_ANIM。
+function liveAnimFrom(anim) {
+  const clips = anim.clips || {};
+  const walk = clips.walk || {};
+  const idle = clips.idle || {};
+  return {
+    faceDeadzone: anim.faceDeadzone,
+    faceBucket: anim.faceBucket,
+    faceHysteresis: anim.faceHysteresis,
+    blinkEvery: anim.blinkEvery,
+    fps: anim.fps,
+    footV: anim.footV,
+    height: anim.height,
+    shadowRadius: anim.shadowRadius,
+    alphaTest: anim.alphaTest,
+    waveNpcRadius: anim.waveNpcRadius,
+    waveZoneExtra: anim.waveZoneExtra,
+    baseUrl: anim.baseUrl,
+    clips: {
+      walk: {
+        left: copyList(walk.left),
+        right: copyList(walk.right),
+        front: copyList(walk.front),
+        back: copyList(walk.back)
+      },
+      idle: {
+        breath: copyList(idle.breath),
+        blink: copyList(idle.blink),
+        backBreath: copyList(idle.backBreath),
+        backBlink: copyList(idle.backBlink)
+      },
+      wave: copyList(clips.wave)
+    }
+  };
 }
 
 // THREE 由呼叫端傳入，這個檔本身不 import three，node:test 才能載入純邏輯。
 export function createMiluView(THREE, options) {
-  const anim = (options && options.anim) || MILU_ANIM;
-  const baseUrl = (options && options.baseUrl) || anim.baseUrl;
+  const source = (options && options.anim) || MILU_ANIM;
+  const anim = liveAnimFrom(source);
+  const baseUrl = (options && options.baseUrl) || source.baseUrl || anim.baseUrl;
   const group = new THREE.Group();
   group.name = 'milu';
   const height = anim.height;
@@ -308,7 +459,10 @@ export function createMiluView(THREE, options) {
   }
 
   const loader = new THREE.TextureLoader();
-  const paths = uniquePaths(anim);
+  const groups = collectPaths(anim);
+  const paths = groups.required.concat(groups.optional);
+  const optional = Object.create(null);
+  for (let i = 0; i < groups.optional.length; i++) optional[groups.optional[i]] = true;
   pending = paths.length;
   if (!pending) loaded = true;
   paths.forEach((rel) => {
@@ -320,7 +474,8 @@ export function createMiluView(THREE, options) {
       textures.set(rel, tex);
       finishOne();
     }, undefined, () => {
-      failed = true;
+      if (optional[rel]) forgetOptionalClip(anim, rel);
+      else failed = true;
       finishOne();
     });
   });
@@ -347,6 +502,7 @@ export function createMiluView(THREE, options) {
     object: group,
     show: show,
     faceCamera: faceCamera,
+    anim: () => anim,
     ready: () => loaded && !failed && !!material.map,
     failed: () => failed
   };
