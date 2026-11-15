@@ -20,6 +20,7 @@ import com.example.server.web.AtlasRoutes;
 import com.example.server.web.ChatRoutes;
 import com.example.server.web.DashboardBroadcaster;
 import com.example.server.web.GraffitiRoutes;
+import com.example.server.web.IslandPresenceRoutes;
 import com.example.server.web.MarqueeRoutes;
 import com.example.server.web.PhotoRoutes;
 import com.example.server.web.RelayRoutes;
@@ -64,6 +65,7 @@ public final class ServerApp {
     private final PhotoRoutes photoRoutes = new PhotoRoutes(authService);
     private final GraffitiStore graffitiStore = new GraffitiStore();
     private final GraffitiRoutes graffitiRoutes = new GraffitiRoutes(authService, graffitiStore);
+    private final IslandPresenceRoutes islandPresenceRoutes = new IslandPresenceRoutes();
     private final RoadmapRoutes roadmapRoutes = new RoadmapRoutes(new RoadmapService(new GithubRoadmapClient()));
     private final AtlasRoutes atlasRoutes = new AtlasRoutes();
     private final ClientRelease clientRelease;
@@ -183,6 +185,7 @@ public final class ServerApp {
             });
             ws.onClose(broadcaster::remove);
         });
+        islandPresenceRoutes.register(app);
     }
 
     private void loginGet(Context ctx) {

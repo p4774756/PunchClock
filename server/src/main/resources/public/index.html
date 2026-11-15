@@ -25,6 +25,14 @@
     <button type="button" class="island-tool" id="islandHome">全景</button>
     <button type="button" class="island-tool" id="islandListBtn" aria-expanded="false" aria-controls="islandList">清單</button>
     <button type="button" class="island-tool island-tool-audio" id="islandAudio" aria-pressed="true" aria-label="開啟背景音樂" hidden><span class="island-tool-audio-icon">🔊</span><span class="island-tool-audio-text">音樂</span></button>
+    <div class="island-nick-wrap">
+      <button type="button" class="island-tool" id="islandNickBtn" aria-expanded="false" aria-controls="islandNickPop">暱稱</button>
+      <div class="island-nick" id="islandNickPop" hidden>
+        <input type="text" id="islandNickInput" maxlength="12" autocomplete="nickname" enterkeyhint="done" aria-label="暱稱" spellcheck="false">
+        <button type="button" class="island-tool" id="islandNickSave">儲存</button>
+      </div>
+    </div>
+    <span class="island-tool island-peer-count" id="islandPeerCount" hidden aria-live="polite">島上 1 人</span>
     <span class="island-tool island-tool-user" data-auth-only>店長</span>
     <a class="island-tool" href="/logout" data-auth-only>登出</a>
     <a class="island-tool" href="/login" data-guest-only>登入</a>

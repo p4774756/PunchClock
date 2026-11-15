@@ -41,6 +41,16 @@ import {
   miluStep,
   screenAxes
 } from './island-milu.js';
+import {
+  HIDDEN_DISCONNECT_MS,
+  cleanNick,
+  createIslandPresence,
+  createMotion,
+  loadNick,
+  pushTarget,
+  sampleMotion,
+  shouldSendPos
+} from './island-presence.js';
 import { createIslandAudio } from './island-audio.js';
 import { G, P, createSceneKit } from './island-kit.js';
 import { createDayNight } from './island-daynight.js';
@@ -271,6 +281,12 @@ function boot() {
   scene.add(milu.object);
   milu.object.visible = false;
   let miluState = createMiluState();
+  const peers = new Map();
+  let islandPresence = null;
+  let peerWelcomed = false;
+  let peerScene = 'outdoor';
+  let lastPosSent = null;
+  let peerHideTimer = 0;
   const MILU_NPCS = [
     { x: 0.15, z: 0.42 },
     { x: 0.05, z: 2.25 },
@@ -420,6 +436,7 @@ function boot() {
     if (stick) stick.hidden = !exploring || overlay;
     if (hint) hint.hidden = !exploring || overlay;
     syncInteractPrompt();
+    syncPeerCount();
   }
 
   function syncInteractPrompt() {
@@ -465,6 +482,8 @@ function boot() {
       playerMesh.position.set(player.x, P, player.z);
       playerMesh.rotation.y = player.yaw;
       dispatchMode('enter');
+      peerScene = currentScene();
+      if (islandPresence) islandPresence.connect();
       if (sheetOpen()) {
         dispatchMode('panelOpen');
       } else {
@@ -475,6 +494,11 @@ function boot() {
       if (rooms.inside()) abortInterior();
       if (casino && casino.isOpen()) casino.closeLobby();
       dispatchMode('exit');
+      peerWelcomed = false;
+      peerScene = 'outdoor';
+      lastPosSent = null;
+      clearPeers();
+      if (islandPresence) islandPresence.disconnect();
       const saved = exploreSaved || POSES.home;
       exploreSaved = null;
       applyPose({
@@ -519,11 +543,182 @@ function boot() {
     renderer.setSize(width, height, false);
   }
 
+  function currentScene() {
+    if (casino && casino.isOpen()) return 'casino';
+    if (rooms.inside()) return rooms.buildingId() || 'shop';
+    return 'outdoor';
+  }
+
+  function presencePose() {
+    const sceneName = currentScene();
+    const indoor = sceneName !== 'outdoor' && rooms.inside() && sceneName === rooms.buildingId();
+    return {
+      x: player.x - (indoor ? INTERIOR_ORIGIN.x : 0),
+      z: player.z - (indoor ? INTERIOR_ORIGIN.z : 0),
+      yaw: player.yaw,
+      moving: !!player.moving,
+      scene: sceneName
+    };
+  }
+
+  function peerOffset() {
+    if (rooms.inside() && (!casino || !casino.isOpen())) return INTERIOR_ORIGIN;
+    return { x: 0, z: 0 };
+  }
+
+  function clearPeers() {
+    Array.from(peers.keys()).forEach(despawnPeer);
+  }
+
+  function despawnPeer(id) {
+    const row = peers.get(id);
+    if (!row) return;
+    peers.delete(id);
+    scene.remove(row.view.object);
+    if (row.view.dispose) row.view.dispose();
+    if (row.label && row.label.parentNode) row.label.parentNode.removeChild(row.label);
+  }
+
+  function tintRemote(view) {
+    view.object.traverse((node) => {
+      if (!node.material || !node.material.color || !(node.material.alphaTest > 0)) return;
+      node.material.color.setHex(0xb7d4ff);
+    });
+  }
+
+  function spawnPeer(info) {
+    const view = createMiluView(THREE, { shared: milu.sharedTextures() });
+    tintRemote(view);
+    view.object.visible = false;
+    scene.add(view.object);
+    const label = document.createElement('div');
+    label.className = 'island-peer-name';
+    label.textContent = info.name || '';
+    const host = document.getElementById('islandLabels');
+    if (host) host.appendChild(label);
+    return {
+      view: view,
+      label: label,
+      name: info.name || '',
+      moving: !!info.moving,
+      motion: createMotion(),
+      miluState: createMiluState()
+    };
+  }
+
+  function applyPeerList(list) {
+    const seen = Object.create(null);
+    const now = performance.now();
+    const players = list || [];
+    for (let i = 0; i < players.length; i++) {
+      const info = players[i];
+      if (!info || !info.id) continue;
+      seen[info.id] = true;
+      let row = peers.get(info.id);
+      if (!row) {
+        row = spawnPeer(info);
+        peers.set(info.id, row);
+      }
+      row.name = info.name || '';
+      row.moving = !!info.moving;
+      if (row.label) row.label.textContent = row.name;
+      pushTarget(row.motion, { x: info.x, z: info.z, yaw: info.yaw }, now);
+    }
+    Array.from(peers.keys()).forEach((id) => {
+      if (!seen[id]) despawnPeer(id);
+    });
+    syncPeerCount();
+  }
+
+  function syncPeerCount() {
+    const el = document.getElementById('islandPeerCount');
+    if (!el) return;
+    const show = !!(mode.exploring && peerWelcomed);
+    el.hidden = !show;
+    if (!show) return;
+    el.textContent = '島上 ' + (peers.size + 1) + ' 人';
+  }
+
+  function stepPeers(dt) {
+    const now = performance.now();
+    const off = peerOffset();
+    peers.forEach((row) => {
+      const shown = sampleMotion(row.motion, now, reduced);
+      const x = shown.x + off.x;
+      const z = shown.z + off.z;
+      row.view.object.position.set(x, P, z);
+      const ready = row.view.ready();
+      row.view.object.visible = !!ready;
+      const moving = !!row.moving;
+      const axes = screenAxes(moving ? Math.sin(shown.yaw) : 0, moving ? Math.cos(shown.yaw) : 0, cam.theta);
+      const anim = row.view.anim();
+      row.miluState = miluStep(row.miluState, dt, {
+        moving: moving,
+        screenX: axes.x,
+        screenZ: axes.z,
+        near: false,
+        reduced: reduced,
+        anim: anim
+      });
+      row.view.show(miluClipPath(row.miluState, anim));
+      row.view.faceCamera(camera, x, z);
+    });
+  }
+
+  function syncPresence(now) {
+    if (!islandPresence || !mode.exploring) return;
+    const pose = presencePose();
+    if (pose.scene !== peerScene) {
+      peerScene = pose.scene;
+      clearPeers();
+      lastPosSent = null;
+      syncPeerCount();
+    }
+    if (!shouldSendPos(lastPosSent, pose, now)) return;
+    if (islandPresence.sendPos(pose)) {
+      lastPosSent = {
+        x: pose.x,
+        z: pose.z,
+        yaw: pose.yaw,
+        moving: pose.moving,
+        scene: pose.scene,
+        sentAt: now
+      };
+    }
+  }
+
+  function placePeerLabels() {
+    const width = stage.clientWidth || 1;
+    const height = stage.clientHeight || 1;
+    const off = peerOffset();
+    const now = performance.now();
+    peers.forEach((row) => {
+      const el = row.label;
+      if (!el) return;
+      if (!row.view.object.visible) {
+        el.style.visibility = 'hidden';
+        return;
+      }
+      const shown = sampleMotion(row.motion, now, reduced);
+      projected.set(shown.x + off.x, P + 1.18, shown.z + off.z);
+      projected.project(camera);
+      if (projected.z > 1 || projected.x < -1.08 || projected.x > 1.08 || projected.y < -1.08 || projected.y > 1.08) {
+        el.style.visibility = 'hidden';
+        return;
+      }
+      const x = (projected.x * 0.5 + 0.5) * width;
+      const y = (-projected.y * 0.5 + 0.5) * height;
+      el.style.visibility = 'visible';
+      el.style.transform = 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -120%)';
+    });
+  }
+
   function placeLabels() {
     if (shouldHideIslandLabels(rooms.inside(), interiorBusy)) {
       document.querySelectorAll('[data-anchor]').forEach((el) => {
         el.style.visibility = 'hidden';
       });
+      placePeerLabels();
       return;
     }
     const width = stage.clientWidth || 1;
@@ -585,6 +780,7 @@ function boot() {
       node.el.style.transform = 'translate(' + node.x + 'px, ' + y + 'px) translate(-50%, -120%)';
       placed.push({ x: node.x, y: y, w: w, h: h });
     });
+    placePeerLabels();
   }
 
   function ndc(event) {
@@ -751,8 +947,10 @@ function boot() {
   function frame() {
     const dt = Math.min(0.1, clock.getDelta() || 0);
     updatePlayer(dt);
+    syncPresence(performance.now());
     cam.step(dt);
     milu.faceCamera(camera, player.x, player.z);
+    stepPeers(dt);
     dayNight.step(dt);
     loop.tick(dt, clock.elapsedTime);
     renderer.render(scene, camera);
@@ -774,8 +972,21 @@ function boot() {
 
   window.addEventListener('resize', resize);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) stop();
-    else start();
+    if (document.hidden) {
+      stop();
+      if (peerHideTimer) window.clearTimeout(peerHideTimer);
+      peerHideTimer = window.setTimeout(() => {
+        peerHideTimer = 0;
+        if (document.hidden && islandPresence) islandPresence.disconnect();
+      }, HIDDEN_DISCONNECT_MS);
+    } else {
+      if (peerHideTimer) {
+        window.clearTimeout(peerHideTimer);
+        peerHideTimer = 0;
+      }
+      start();
+      if (mode.exploring && islandPresence) islandPresence.connect();
+    }
     if (islandAudio) islandAudio.onVisibilityChange(document.hidden);
   });
   window.addEventListener('blur', () => {
@@ -1241,6 +1452,63 @@ function boot() {
     }
   });
   roadmap.refresh();
+
+  islandPresence = createIslandPresence({
+    location: window.location,
+    WebSocket: window.WebSocket,
+    storage: window.localStorage,
+    nick: () => loadNick(window.localStorage),
+    scene: () => currentScene(),
+    now: () => Date.now(),
+    onWelcome: (msg) => {
+      peerWelcomed = true;
+      const input = document.getElementById('islandNickInput');
+      if (input && !loadNick(window.localStorage) && document.activeElement !== input) {
+        input.value = msg.name || '';
+      }
+      syncPeerCount();
+    },
+    onPlayers: (state) => {
+      peerWelcomed = !!state.selfId;
+      applyPeerList(state.players);
+    }
+  });
+
+  const nickBtn = document.getElementById('islandNickBtn');
+  const nickPop = document.getElementById('islandNickPop');
+  const nickInput = document.getElementById('islandNickInput');
+  const nickSave = document.getElementById('islandNickSave');
+  if (nickInput) {
+    const storedNick = loadNick(window.localStorage);
+    if (storedNick) nickInput.value = storedNick;
+  }
+  function setNickOpen(open) {
+    if (!nickPop || !nickBtn) return;
+    nickPop.hidden = !open;
+    nickBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open && nickInput) nickInput.focus();
+  }
+  function saveNick() {
+    if (!nickInput || !islandPresence) return;
+    const cleaned = cleanNick(nickInput.value);
+    if (!cleaned) return;
+    nickInput.value = cleaned;
+    islandPresence.rename(cleaned);
+    setNickOpen(false);
+  }
+  if (nickBtn && nickPop) {
+    nickBtn.addEventListener('click', () => setNickOpen(nickPop.hidden));
+  }
+  if (nickSave) nickSave.addEventListener('click', saveNick);
+  if (nickInput) {
+    nickInput.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === 'Enter') saveNick();
+      else setNickOpen(false);
+    });
+  }
 
   window.PunchClockIsland = {
     focus: focus,
