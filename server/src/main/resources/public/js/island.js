@@ -45,6 +45,7 @@ import { createIslandAudio } from './island-audio.js';
 import { G, P, createSceneKit } from './island-kit.js';
 import { createDayNight } from './island-daynight.js';
 import { createUpdateLoop } from './island-loop.js';
+import { createIslandSky } from './island-sky.js';
 import {
   EXPLORE_POSE,
   INTERIOR_POSE,
@@ -224,6 +225,15 @@ function boot() {
     swimmers: swimmers,
     shaker: shaker,
     P: P
+  });
+
+  const sky = createIslandSky(THREE, { reduced: reduced, scene: scene });
+  scene.add(sky.group);
+  dayNight.onMix((t) => {
+    sky.update(t, clock.elapsedTime, camera);
+  });
+  loop.register((dt, elapsed) => {
+    sky.update(dayNight.mix, elapsed, camera);
   });
 
   // Phase 2：賭場門口互動區（座標見 CASINO／DEFAULT_INTERACT_ZONES）；須點按鈕或 Enter／E，不自動傳送。
@@ -1073,6 +1083,7 @@ function boot() {
       view.lamp.light.intensity = view.lamp.power * dayNight.mix;
       kit.addLamp(view.lamp);
     }
+    sky.setVisible(false);
     dayNight.refresh();
   }
 
@@ -1084,6 +1095,7 @@ function boot() {
     if (roomView.lamp) kit.removeLamp(roomView.lamp);
     roomView.dispose();
     roomView = null;
+    sky.setVisible(true);
   }
 
   function abortInterior() {
