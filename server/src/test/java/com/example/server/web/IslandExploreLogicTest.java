@@ -25,6 +25,8 @@ public class IslandExploreLogicTest {
     private static final String INTERIOR_SCRIPT = "src/test/js/island-interior.test.mjs";
     private static final String LOOP_SCRIPT = "src/test/js/island-loop.test.mjs";
     private static final String DAYNIGHT_SCRIPT = "src/test/js/island-daynight.test.mjs";
+    private static final String SKY_SCRIPT = "src/test/js/island-sky.test.mjs";
+    private static final String CAMERA_SCRIPT = "src/test/js/island-camera.test.mjs";
 
     @Test
     public void exploreLogicPassesNodeTests() throws Exception {
@@ -74,6 +76,16 @@ public class IslandExploreLogicTest {
     @Test
     public void dayNightPassesNodeTests() throws Exception {
         runNodeTest(DAYNIGHT_SCRIPT, "未安裝 Node.js，略過晝夜混合測試");
+    }
+
+    @Test
+    public void skyPassesNodeTests() throws Exception {
+        runNodeTest(SKY_SCRIPT, "未安裝 Node.js，略過日月星辰測試");
+    }
+
+    @Test
+    public void cameraPassesNodeTests() throws Exception {
+        runNodeTest(CAMERA_SCRIPT, "未安裝 Node.js，略過鏡頭控制測試");
     }
 
     private void runNodeTest(String scriptPath, String skipMessage) throws Exception {

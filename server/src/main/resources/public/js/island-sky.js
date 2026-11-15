@@ -8,7 +8,12 @@ export const METEOR_INTERVAL_MIN = 8;
 export const METEOR_INTERVAL_MAX = 20;
 export const METEOR_DURATION_MIN = 0.6;
 export const METEOR_DURATION_MAX = 1.0;
-export const MOON_REFLECTION_Y = 0.15;
+// 月光倒影 Y：水面約 -0.74，沙地頂約 -0.65，#71 浪花約 -0.693，倒影要在浪峰之上。
+export const MOON_REFLECTION_Y = -0.69;
+// 月亮仰角（弧度）：約 20°，探索模式抬頭時容易看到。
+export const MOON_ELEVATION = 0.35;
+// 月亮方位角（弧度）：從正 Z 軸順時針，放在探索模式容易看到的方向。
+export const MOON_AZIMUTH = -0.5;
 
 export function smoothstep(edge0, edge1, x) {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
@@ -70,7 +75,7 @@ export function createMeteorScheduler(opts) {
         elapsed: 0,
         duration: meteorDuration(rng),
         angle: rng() * Math.PI * 2,
-        elevation: 0.4 + rng() * 0.35
+        elevation: 0.15 + rng() * 0.25
       };
     }
     return active;
@@ -82,43 +87,83 @@ export function createMeteorScheduler(opts) {
 }
 
 export function starTwinkle(phase, elapsed) {
-  return 0.6 + 0.4 * Math.sin(elapsed * 1.2 + phase);
+  return 0.5 + 0.5 * Math.sin(elapsed * 1.2 + phase);
+}
+
+function createStarVertexShader() {
+  return `
+    attribute float size;
+    attribute float brightness;
+    varying float vBrightness;
+    void main() {
+      vBrightness = brightness;
+      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = size * (1.0 / -mvPosition.z) * 300.0;
+      gl_Position = projectionMatrix * mvPosition;
+    }
+  `;
+}
+
+function createStarFragmentShader() {
+  return `
+    uniform float opacity;
+    varying float vBrightness;
+    void main() {
+      float dist = length(gl_PointCoord - vec2(0.5));
+      if (dist > 0.5) discard;
+      float alpha = smoothstep(0.5, 0.1, dist) * opacity * vBrightness;
+      gl_FragColor = vec4(1.0, 1.0, 0.95, alpha);
+    }
+  `;
 }
 
 function createStars(THREE, count) {
   const positions = new Float32Array(count * 3);
   const phases = new Float32Array(count);
   const sizes = new Float32Array(count);
+  const brightness = new Float32Array(count);
   const radius = ISLAND_CAMERA_FAR * 0.7;
 
   for (let i = 0; i < count; i++) {
     const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(1 - Math.random() * 0.95);
+    // 分布在上半球，但更多集中在可見的仰角範圍（15°～75°）
+    const phi = Math.acos(1 - Math.random() * 0.85);
     const r = radius;
     positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
     positions[i * 3 + 1] = r * Math.cos(phi);
     positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
     phases[i] = Math.random() * Math.PI * 2;
-    sizes[i] = 1.2 + Math.random() * 1.8;
+    sizes[i] = 2.5 + Math.random() * 3.5;
+    brightness[i] = 1.0;
   }
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+  geometry.setAttribute('brightness', new THREE.BufferAttribute(brightness, 1));
 
-  const material = new THREE.PointsMaterial({
-    color: 0xffffff,
-    size: 2,
-    sizeAttenuation: false,
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      opacity: { value: 0 }
+    },
+    vertexShader: createStarVertexShader(),
+    fragmentShader: createStarFragmentShader(),
     transparent: true,
-    opacity: 0,
-    fog: false,
-    depthWrite: false
+    depthWrite: false,
+    fog: false
   });
 
   const points = new THREE.Points(geometry, material);
   points.renderOrder = -1000;
 
-  return { points: points, geometry: geometry, material: material, phases: phases, sizes: sizes };
+  return {
+    points: points,
+    geometry: geometry,
+    material: material,
+    phases: phases,
+    sizes: sizes,
+    brightnessAttr: geometry.getAttribute('brightness')
+  };
 }
 
 function createCelestialBody(THREE, color, size, glowColor) {
@@ -183,10 +228,43 @@ function createMeteor(THREE) {
   return { line: line, geometry: geometry, material: material };
 }
 
+function createReflectionTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // 中間亮、兩側與遠端淡出的柔和漸層
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, 'rgba(200, 220, 255, 0)');
+  gradient.addColorStop(0.2, 'rgba(200, 220, 255, 0.6)');
+  gradient.addColorStop(0.5, 'rgba(220, 235, 255, 0.9)');
+  gradient.addColorStop(0.8, 'rgba(200, 220, 255, 0.5)');
+  gradient.addColorStop(1, 'rgba(180, 200, 240, 0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 橫向淡出
+  const horizGradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+  horizGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  horizGradient.addColorStop(0.3, 'rgba(255, 255, 255, 1)');
+  horizGradient.addColorStop(0.7, 'rgba(255, 255, 255, 1)');
+  horizGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.fillStyle = horizGradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  return canvas;
+}
+
 function createMoonReflection(THREE) {
-  const geometry = new THREE.PlaneGeometry(3, 60);
+  const canvas = createReflectionTexture();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  const geometry = new THREE.PlaneGeometry(2.5, 32);
   const material = new THREE.MeshBasicMaterial({
-    color: 0xd4e8ff,
+    map: texture,
     transparent: true,
     opacity: 0,
     side: THREE.DoubleSide,
@@ -199,7 +277,7 @@ function createMoonReflection(THREE) {
   mesh.position.y = MOON_REFLECTION_Y;
   mesh.renderOrder = -998;
   mesh.visible = false;
-  return { mesh: mesh, geometry: geometry, material: material };
+  return { mesh: mesh, geometry: geometry, material: material, texture: texture };
 }
 
 export function createIslandSky(THREE, opts) {
@@ -213,16 +291,21 @@ export function createIslandSky(THREE, opts) {
   const sunDir = new THREE.Vector3(sunPos.x, sunPos.y, sunPos.z).normalize();
   const sunBaseY = sunDir.y * dist;
 
-  const sun = createCelestialBody(THREE, 0xfffde0, 18, 0xfff5a0);
+  // 太陽：放在 sun.position 方向，抬頭可見
+  const sun = createCelestialBody(THREE, 0xfffde0, 22, 0xfff5a0);
   sun.group.position.set(sunDir.x * dist, sunBaseY, sunDir.z * dist);
   group.add(sun.group);
   disposables.push(sun);
 
-  const moonDir = new THREE.Vector3(0.4, 0.25, -0.88).normalize();
-  const moonBaseY = moonDir.y * dist;
-  const moonHorizon = -5;
-  const moon = createCelestialBody(THREE, 0xe8eef8, 12, 0xc8d4f0);
-  moon.group.position.set(moonDir.x * dist, moonHorizon, moonDir.z * dist);
+  // 月亮：低仰角（約 20°），探索模式抬頭時容易看到
+  const moonDist = ISLAND_CAMERA_FAR * 0.6;
+  const moonX = Math.sin(MOON_AZIMUTH) * Math.cos(MOON_ELEVATION) * moonDist;
+  const moonY = Math.sin(MOON_ELEVATION) * moonDist;
+  const moonZ = Math.cos(MOON_AZIMUTH) * Math.cos(MOON_ELEVATION) * moonDist;
+  const moonHorizon = 5;
+  const moonBaseY = moonY;
+  const moon = createCelestialBody(THREE, 0xe8eef8, 15, 0xc8d4f0);
+  moon.group.position.set(moonX, moonHorizon, moonZ);
   group.add(moon.group);
   disposables.push(moon);
 
@@ -250,13 +333,23 @@ export function createIslandSky(THREE, opts) {
     dispose() {
       reflection.geometry.dispose();
       reflection.material.dispose();
+      reflection.texture.dispose();
     }
   });
 
   const meteorScheduler = createMeteorScheduler({ reduced: reduced });
 
+  // 預先建立的向量，避免每幀 new
+  const meteorDir = new THREE.Vector3();
+
   let currentT = 0;
-  let waveOffset = 0;
+
+  // 月光倒影：錨在開闊海面，沿月亮方向朝島延伸，縮短避免壓到土層。
+  const reflectionAnchorR = 40;
+  const reflectionLen = 32;
+  const moonHorizX = Math.sin(MOON_AZIMUTH);
+  const moonHorizZ = Math.cos(MOON_AZIMUTH);
+  const reflectionRotY = Math.atan2(-moonHorizX, -moonHorizZ);
 
   function updateSun(t) {
     const o = sunOpacity(t);
@@ -272,38 +365,25 @@ export function createIslandSky(THREE, opts) {
     moon.group.visible = o > 0.01;
   }
 
-  function updateStars(t, elapsed) {
+  function updateStarsOpacity(t) {
     const baseOpacity = starOpacity(t);
-    stars.material.opacity = baseOpacity;
+    stars.material.uniforms.opacity.value = baseOpacity;
     stars.points.visible = baseOpacity > 0.01;
+  }
 
-    if (!reduced && baseOpacity > 0) {
-      const sizes = stars.sizes;
-      const phases = stars.phases;
-      const geom = stars.geometry;
-      const posAttr = geom.getAttribute('position');
-      const positions = posAttr.array;
-      const count = phases.length;
+  function updateStarsTwinkle(elapsed) {
+    if (reduced) return;
+    const baseOpacity = stars.material.uniforms.opacity.value;
+    if (baseOpacity <= 0.01) return;
 
-      for (let i = 0; i < count; i++) {
-        const twinkle = starTwinkle(phases[i], elapsed);
-        const scale = sizes[i] * twinkle;
-        const idx = i * 3;
-        const len = Math.sqrt(
-          positions[idx] * positions[idx] +
-          positions[idx + 1] * positions[idx + 1] +
-          positions[idx + 2] * positions[idx + 2]
-        );
-        if (len > 0) {
-          const targetLen = ISLAND_CAMERA_FAR * 0.7 * (0.95 + 0.05 * scale / 3);
-          const factor = targetLen / len;
-          positions[idx] *= factor;
-          positions[idx + 1] *= factor;
-          positions[idx + 2] *= factor;
-        }
-      }
-      posAttr.needsUpdate = true;
+    const phases = stars.phases;
+    const brightnessArr = stars.brightnessAttr.array;
+    const count = phases.length;
+
+    for (let i = 0; i < count; i++) {
+      brightnessArr[i] = starTwinkle(phases[i], elapsed);
     }
+    stars.brightnessAttr.needsUpdate = true;
   }
 
   function updateMeteor(t, dt, elapsed) {
@@ -319,25 +399,26 @@ export function createIslandSky(THREE, opts) {
     const fadeOut = 1 - smoothstep(0.7, 1, progress);
     meteor.material.opacity = fadeIn * fadeOut * 0.9;
 
-    const r = ISLAND_CAMERA_FAR * 0.5;
+    // 流星在抬頭可見的天空範圍生成（仰角 15°～45°）
+    const r = ISLAND_CAMERA_FAR * 0.45;
     const angle = state.angle;
     const elev = state.elevation;
     const startX = r * Math.cos(angle) * Math.cos(elev * Math.PI / 2);
-    const startY = r * Math.sin(elev * Math.PI / 2) * 0.7 + 50;
+    const startY = r * Math.sin(elev * Math.PI / 2) + 40;
     const startZ = r * Math.sin(angle) * Math.cos(elev * Math.PI / 2);
 
-    const speed = 80;
+    const speed = 100;
     const traveled = state.elapsed * speed;
-    const dir = new THREE.Vector3(-Math.cos(angle) * 0.5, -0.7, -Math.sin(angle) * 0.5).normalize();
+    meteorDir.set(-Math.cos(angle) * 0.4, -0.75, -Math.sin(angle) * 0.4).normalize();
 
-    const headX = startX + dir.x * traveled;
-    const headY = startY + dir.y * traveled;
-    const headZ = startZ + dir.z * traveled;
+    const headX = startX + meteorDir.x * traveled;
+    const headY = startY + meteorDir.y * traveled;
+    const headZ = startZ + meteorDir.z * traveled;
 
-    const tailLen = Math.min(traveled, 25);
-    const tailX = headX - dir.x * tailLen;
-    const tailY = headY - dir.y * tailLen;
-    const tailZ = headZ - dir.z * tailLen;
+    const tailLen = Math.min(traveled, 20);
+    const tailX = headX - meteorDir.x * tailLen;
+    const tailY = headY - meteorDir.y * tailLen;
+    const tailZ = headZ - meteorDir.z * tailLen;
 
     const posAttr = meteor.geometry.getAttribute('position');
     posAttr.array[0] = tailX;
@@ -352,29 +433,40 @@ export function createIslandSky(THREE, opts) {
   }
 
   function updateReflection(t, elapsed) {
-    const o = moonOpacity(t) * 0.35;
+    const o = moonOpacity(t) * 0.5;
     reflection.material.opacity = o;
     reflection.mesh.visible = o > 0.01;
 
+    // 設定倒影位置和方向（reduced 模式也要設定）
+    let waveOffset = 0;
     if (!reduced && o > 0.01) {
-      waveOffset = Math.sin(elapsed * 0.4) * 0.4 + Math.sin(elapsed * 0.7) * 0.2;
-      reflection.mesh.position.x = moonDir.x * 30 + waveOffset;
-      reflection.mesh.position.z = moonDir.z * 30;
+      waveOffset = Math.sin(elapsed * 0.4) * 0.3 + Math.sin(elapsed * 0.7) * 0.15;
     }
+    const alongX = -moonHorizX;
+    const alongZ = -moonHorizZ;
+    const alongLen = Math.hypot(alongX, alongZ) || 1;
+    const anchorX = moonHorizX * reflectionAnchorR;
+    const anchorZ = moonHorizZ * reflectionAnchorR;
+    const inset = reflectionLen * 0.38;
+    reflection.mesh.position.x = anchorX + (alongX / alongLen) * inset + waveOffset;
+    reflection.mesh.position.z = anchorZ + (alongZ / alongLen) * inset;
+    reflection.mesh.rotation.z = reflectionRotY;
   }
 
+  // onMix 呼叫：只更新透明度與位置，不重算星星閃爍
   function update(t, elapsed, camera) {
     currentT = t;
     updateSun(t);
     updateMoon(t);
-    updateStars(t, elapsed);
+    updateStarsOpacity(t);
     updateReflection(t, elapsed);
   }
 
+  // loop.register 呼叫：更新動畫（閃爍、流星、倒影波動）
   function tick(dt, elapsed) {
     updateMeteor(currentT, dt, elapsed);
+    updateStarsTwinkle(elapsed);
     if (!reduced) {
-      updateStars(currentT, elapsed);
       updateReflection(currentT, elapsed);
     }
   }
@@ -389,6 +481,8 @@ export function createIslandSky(THREE, opts) {
     }
   }
 
+  // 初始化位置（含 reduced 模式的倒影位置）
+  updateReflection(0, 0);
   update(0, 0, null);
 
   return {

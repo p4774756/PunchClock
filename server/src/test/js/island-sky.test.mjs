@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { loadPublicModule } from './load-public-module.mjs';
 
 const skyMod = await loadPublicModule('island-sky.js');
+const seaMod = await loadPublicModule('island-sea.js');
 const {
   smoothstep,
   starOpacity,
@@ -20,7 +21,9 @@ const {
   METEOR_INTERVAL_MAX,
   METEOR_DURATION_MIN,
   METEOR_DURATION_MAX,
-  MOON_REFLECTION_Y
+  MOON_REFLECTION_Y,
+  MOON_ELEVATION,
+  MOON_AZIMUTH
 } = skyMod;
 
 test('smoothstep 基本行為', () => {
@@ -72,7 +75,7 @@ test('sunY 隨 t 增加而下降', () => {
 
 test('moonY 隨 t 從地平線升至基準高度', () => {
   const baseY = 80;
-  const horizon = -5;
+  const horizon = 5;
   assert.equal(moonY(0, baseY, horizon), horizon);
   assert.ok(moonY(0.5, baseY, horizon) > horizon);
   assert.ok(moonY(1, baseY, horizon) > moonY(0.5, baseY, horizon));
@@ -160,12 +163,12 @@ test('流星排程：正確的時間間隔', () => {
   }
 });
 
-test('starTwinkle 回傳 0.2～1 範圍', () => {
+test('starTwinkle 回傳 0～1 範圍', () => {
   for (let phase = 0; phase < Math.PI * 2; phase += 0.5) {
     for (let elapsed = 0; elapsed < 10; elapsed += 0.5) {
       const twinkle = starTwinkle(phase, elapsed);
-      assert.ok(twinkle >= 0.2 && twinkle <= 1,
-        `twinkle ${twinkle} 應在 0.2～1 範圍`);
+      assert.ok(twinkle >= 0 && twinkle <= 1,
+        `twinkle ${twinkle} 應在 0～1 範圍`);
     }
   }
 });
@@ -176,10 +179,22 @@ test('常數匯出正確', () => {
   assert.equal(METEOR_INTERVAL_MAX, 20);
   assert.equal(METEOR_DURATION_MIN, 0.6);
   assert.equal(METEOR_DURATION_MAX, 1.0);
-  assert.equal(MOON_REFLECTION_Y, 0.15);
+  assert.equal(MOON_REFLECTION_Y, -0.69);
 });
 
-test('月光倒影 Y 高於水面', () => {
-  const waterY = -0.74;
-  assert.ok(MOON_REFLECTION_Y > waterY, '月光倒影應高於水面');
+test('月光倒影 Y 高於浪花、低於沙地', () => {
+  const foamY = seaMod.foamY();
+  const sandTop = -0.65;
+  assert.ok(MOON_REFLECTION_Y > foamY, '月光倒影應高於浪花泡沫');
+  assert.ok(MOON_REFLECTION_Y < sandTop, '月光倒影應低於沙地');
+});
+
+test('月亮仰角在 15～30° 範圍（探索模式抬頭可見）', () => {
+  const elevDeg = MOON_ELEVATION * 180 / Math.PI;
+  assert.ok(elevDeg >= 15 && elevDeg <= 30,
+    `月亮仰角 ${elevDeg}° 應在 15～30° 範圍`);
+});
+
+test('月亮方位角已匯出', () => {
+  assert.ok(typeof MOON_AZIMUTH === 'number');
 });

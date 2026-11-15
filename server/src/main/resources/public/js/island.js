@@ -48,6 +48,8 @@ import { createUpdateLoop } from './island-loop.js';
 import {
   EXPLORE_POSE,
   INTERIOR_POSE,
+  EXPLORE_PHI_MIN,
+  EXPLORE_PHI_MAX,
   createPoses,
   createCameraRig
 } from './island-camera.js';
@@ -56,6 +58,7 @@ import { buildIslandBuildings } from './island-buildings.js';
 import { buildIslandProps, registerSceneMotion } from './island-props.js';
 import { buildIslandPeople } from './island-people.js';
 import { createIslandSky } from './island-sky.js';
+import { createIslandSea } from './island-sea.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 
@@ -180,14 +183,21 @@ function boot() {
     });
   });
 
-  buildIslandWorld({ scene: scene, kit: kit });
+  const worldResult = buildIslandWorld({ scene: scene, kit: kit });
+  const sea = createIslandSea(THREE, { kit: kit, reduced: reduced });
+  scene.add(sea.group);
+  if (worldResult && worldResult.water) {
+    worldResult.water.position.y = -0.78;
+  }
+
   const buildings = buildIslandBuildings({
     scene: scene,
     kit: kit,
     anchors: anchors,
     rings: rings,
     pickables: pickables,
-    steams: steams
+    steams: steams,
+    dayNight: dayNight
   });
   buildIslandProps({
     scene: scene,
@@ -226,6 +236,13 @@ function boot() {
     shaker: shaker,
     P: P
   });
+  loop.register(function updateSea(dt, elapsed) {
+    sea.update(dt, elapsed);
+  });
+  dayNight.onMix((t) => {
+    sea.setMix(t);
+  });
+  dayNight.refresh();
 
   const sky = createIslandSky(THREE, {
     reduced: reduced,
@@ -638,8 +655,9 @@ function boot() {
     lastY = event.clientY;
     cam.targetTheta -= dx * 0.005;
     const followCam = controlsActive(mode);
-    const phiMin = followCam ? 0.72 : 0.58;
-    const phiMax = followCam ? 1.12 : 1.15;
+    // 探索模式允許仰望天空（EXPLORE_PHI_MIN），全景維持原俯視範圍。
+    const phiMin = followCam ? EXPLORE_PHI_MIN : 0.58;
+    const phiMax = followCam ? EXPLORE_PHI_MAX : 1.15;
     cam.targetPhi = Math.min(phiMax, Math.max(phiMin, cam.targetPhi - dy * 0.0035));
   });
   canvas.addEventListener('pointerup', (event) => {
@@ -971,7 +989,8 @@ function boot() {
   const islandAudio = createIslandAudio({
     tracks: { main: '/audio/bgm-main.ogg' },
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    volume: 0.35
+    volume: 0.35,
+    ambience: { src: '/audio/ocean-waves.ogg', volume: 0.22 }
   });
   const audioBtn = document.getElementById('islandAudio');
 
@@ -979,7 +998,7 @@ function boot() {
     if (!audioBtn) return;
     const on = !islandAudio.muted;
     audioBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    audioBtn.setAttribute('aria-label', on ? '靜音背景音樂' : '開啟背景音樂');
+    audioBtn.setAttribute('aria-label', on ? '靜音背景音樂與海浪聲' : '開啟背景音樂與海浪聲');
     const iconEl = audioBtn.querySelector('.island-tool-audio-icon');
     if (iconEl) iconEl.textContent = on ? '🔊' : '🔇';
   }
@@ -996,7 +1015,9 @@ function boot() {
     if (!islandAudio.available) return;
     islandAudio.onUserInteraction();
     showAudioButton();
-    if (islandAudio.playSucceeded || islandAudio.muted) {
+    const musicDone = islandAudio.playSucceeded;
+    const ambienceDone = islandAudio.ambiencePlaySucceeded || !islandAudio._getAmbienceAudio();
+    if ((musicDone && ambienceDone) || islandAudio.muted) {
       removeAudioListeners();
     }
   }
@@ -1088,6 +1109,7 @@ function boot() {
     }
     sky.setVisible(false);
     dayNight.refresh();
+    islandAudio.setInsideRoom(true);
   }
 
   function disposeRoom() {
@@ -1099,6 +1121,7 @@ function boot() {
     roomView.dispose();
     roomView = null;
     sky.setVisible(true);
+    islandAudio.setInsideRoom(false);
   }
 
   function abortInterior() {
