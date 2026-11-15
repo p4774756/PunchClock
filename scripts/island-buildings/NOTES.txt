@@ -27,10 +27,18 @@ PunchClock 島嶼四棟建築 GLB 產生器
 - 根節點 extras：footprint_w、footprint_d、ground_y、door_local、building_id；另有空物件 label_anchor。
 - 門口：賭場、推拿館、研發樓在本地 +Z。莫卡手搖的進門在西牆（本地 -X，door_local ≈ [-2.375, 0, -0.85]），對齊既有 entry.at = { x: -3.09, z: -0.85 }，不要改到 +Z。
 
+概念圖重修（v2）
+--------------
+依概念圖加強細節，佔地、門口、招牌節點與發光材質名稱都沒改：
+- 研發樓：改成三層灰色科技樓，藍光窗格，屋頂衛星碟與機櫃，門口兩側伺服器，前坪 neon_glow 電路紋路。
+- 賭場：拱形燈泡招牌框、圓頂、屋頂燈柱、更明顯的紅毯台階、前庭盆栽棕櫚。
+- 推拿館：重簷屋頂，前庭左側銅像、右側藥圃（牌坊與石燈仍在）。
+- 手搖店：東側菜單／佈告板與戶外傘桌；招牌仍是「莫卡手搖」，西門不變。
+
 壓縮選擇
 --------
-四棟未壓縮合計約 555 KB。用 gzip -9 可壓到約 91 KB；meshopt 反而比較大（約 226 KB）還要多載 MeshoptDecoder。
-因此進 repo 的是未壓縮 GLB，不依賴解碼器。Javalin 6 預設會開 gzip，但 .glb 若被當成 application/octet-stream，有可能不會被壓。建議在 ServerApp 的 /models 靜態目錄加上 mimeTypes.add("model/gltf-binary", "glb")，讓瀏覽器協商 gzip。即使沒壓到，555 KB 也比現有 bgm-main.ogg（約 1.1 MB）小，可以接受。
+四棟未壓縮合計約 760 KB（v2 因重簷與細節比初版 555 KB 大一些）。用 gzip -9 可壓到約 118 KB；meshopt 反而比較大還要多載 MeshoptDecoder。
+因此進 repo 的是未壓縮 GLB，不依賴解碼器。Javalin 6 預設會開 gzip，但 .glb 若被當成 application/octet-stream，有可能不會被壓。建議在 ServerApp 的 /models 靜態目錄加上 mimeTypes.add("model/gltf-binary", "glb")，讓瀏覽器協商 gzip。即使沒壓到，760 KB 也比現有 bgm-main.ogg（約 1.1 MB）小，可以接受。
 
 授權
 ----

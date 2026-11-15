@@ -118,19 +118,44 @@ def build(out_path):
     for sx in (-1, 1):
         b.part('lanterns_glow').sphere('lantern_glow', 0.075, sx * 0.66, -0.86, COL_TOP - 0.25, sz=1.25, seg=8, rings=6)
 
-    # 屋頂
-    Z0, RISE = BEAM_TOP, 0.74
-    EHX, EHY = HX + 0.28, HY + 0.26
-    RHX, RHY = 0.72, 0.035
-    NX, NY, NR = 14, 10, 7
-    rings, nx, ny, nr = b.hip_roof('roof', Z0, RISE, EHX, EHY, RHX, RHY, nx=NX, ny=NY, nr=NR)
-    b.ridge_ornaments(rings, Z0, RISE, RHX, nx, ny, nr)
+    # 重簷屋頂：下簷較寬較矮，上簷較陡，中間一段短牆
+    Z0L, RISE_L = BEAM_TOP, 0.36
+    EHXL, EHYL = HX + 0.38, HY + 0.36
+    RHXL, RHYL = 0.88, 0.44
+    rings_l, nxl, nyl, nrl = b.hip_roof(
+        'roof_lower', Z0L, RISE_L, EHXL, EHYL, RHXL, RHYL,
+        nx=12, ny=8, nr=5, lift=0.16, push=0.08,
+    )
+    zlow = Z0L + RISE_L
+    rid_l = b.part('roof_ridge_lower')
+    rid_l.box('roof_ridge', 2 * RHXL + 0.08, 2 * RHYL + 0.08, 0.06, 0, 0, zlow + 0.03)
+    rid_l.box('gold', 2 * RHXL + 0.04, 2 * RHYL + 0.04, 0.02, 0, 0, zlow + 0.07)
 
-    # 屋頂正面招牌：向後仰，讓遊戲高視角（FOV 25、俯角大）看得到「推拿館」
-    # 放在前坡中上段，略高於瓦面
-    sign_z = Z0 + RISE * 0.62 + 0.18
-    sign_y = -0.42
-    b.tilted_sign(1.15, 0.40, sign_y, sign_z, rx=-1.05)
+    attic_h = 0.22
+    attic = b.part('attic')
+    aw, ad = 2 * RHXL - 0.16, 2 * RHYL - 0.16
+    attic.box('wall_red', aw, 0.06, attic_h, 0, -(RHYL - 0.10), zlow + attic_h / 2)
+    attic.box('wall_red', aw, 0.06, attic_h, 0, (RHYL - 0.10), zlow + attic_h / 2)
+    attic.box('wall_red', 0.06, ad, attic_h, -(RHXL - 0.10), 0, zlow + attic_h / 2)
+    attic.box('wall_red', 0.06, ad, attic_h, (RHXL - 0.10), 0, zlow + attic_h / 2)
+    b.lattice_panel(0, zlow + attic_h / 2, 0.48, 0.14, -(RHYL - 0.10), nx=3, nz=1)
+
+    Z0U = zlow + attic_h
+    RISE_U = 0.52
+    EHXU, EHYU = RHXL + 0.12, RHYL + 0.10
+    RHXU, RHYU = 0.42, 0.03
+    rings, nx, ny, nr = b.hip_roof(
+        'roof', Z0U, RISE_U, EHXU, EHYU, RHXU, RHYU,
+        nx=12, ny=8, nr=6, lift=0.18, push=0.10,
+    )
+    b.ridge_ornaments(rings, Z0U, RISE_U, RHXU, nx, ny, nr)
+
+    # 招牌放在上簷前坡，高視角仍可讀「推拿館」
+    sign_z = Z0U + RISE_U * 0.55 + 0.16
+    sign_y = -0.28
+    b.tilted_sign(1.05, 0.36, sign_y, sign_z, rx=-1.05)
+
+    Z0, RISE = Z0U, RISE_U  # 給後面的 label 高度用
 
     # 前庭牌坊（兩側柱 + 橫樑；中央淨空）
     pg = b.part('paifang')
@@ -157,25 +182,40 @@ def build(out_path):
         lan.box('stone_dark', 0.20, 0.20, 0.04, x, y, 0.54)
         lan.cyl('stone', 0.03, 0.0, 0.08, x, y, 0.60, seg=5)
 
-    # 前庭小物：盆景、藥草竹篩、香爐
+    # 前庭小物：近廳盆景；左側銅像、右側藥圃（中央走道淨空）
     pr = b.part('props')
     for sx in (-1, 1):
         x, y = sx * 0.66, FRONT - 0.50
         pr.cyl('pot', 0.09, 0.07, 0.11, x, y, 0.085)
         pr.sphere('plant', 0.11, x, y, 0.23, sz=0.8, seg=7, rings=4)
         pr.sphere('plant', 0.07, x + 0.05, y - 0.03, 0.32, seg=6, rings=4)
-    rack_x, rack_y = 0.58, FRONT - 0.95
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            pr.box('wood', 0.025, 0.025, 0.34, rack_x + sx * 0.13, rack_y + sy * 0.1, 0.17)
-    for z in (0.12, 0.24, 0.34):
-        pr.cyl('herb', 0.15, 0.15, 0.022, rack_x, rack_y, z, seg=10)
-        pr.cyl('wood', 0.155, 0.155, 0.012, rack_x, rack_y, z - 0.015, seg=10)
-    # 香爐（左側、台階旁，不擋門）
-    pr.cyl('gold', 0.08, 0.07, 0.08, -0.55, FRONT - 0.95, 0.08, seg=8)
-    pr.cyl('gold', 0.05, 0.05, 0.10, -0.55, FRONT - 0.95, 0.16, seg=8)
-    pr.box('gold', 0.03, 0.03, 0.08, -0.55, FRONT - 0.95, 0.24)
-    pr.cyl('herb', 0.02, 0.01, 0.06, -0.55, FRONT - 0.95, 0.30, seg=5)
+
+    # 銅像（左側，約 1.1 高，不擋門與牌坊中央）
+    sx, sy = -0.58, FRONT - 0.95
+    pr.box('stone_dark', 0.34, 0.34, 0.08, sx, sy, 0.05)
+    pr.box('bronze_dark', 0.26, 0.26, 0.10, sx, sy, 0.14)
+    pr.box('bronze', 0.07, 0.07, 0.32, sx - 0.06, sy, 0.36)
+    pr.box('bronze', 0.07, 0.07, 0.32, sx + 0.06, sy, 0.36)
+    pr.box('bronze', 0.22, 0.11, 0.40, sx, sy, 0.70)
+    pr.box('bronze', 0.05, 0.05, 0.30, sx - 0.16, sy, 0.68)
+    pr.box('bronze', 0.05, 0.05, 0.30, sx + 0.16, sy, 0.68)
+    pr.sphere('bronze', 0.11, sx, sy, 0.98, seg=7, rings=5)
+    pr.cyl('bronze_dark', 0.12, 0.08, 0.07, sx, sy, 1.08, seg=6)
+    pr.box('gold', 0.04, 0.04, 0.08, sx, sy, 1.15)
+
+    # 藥圃抬床（右側）
+    hx, hy = 0.58, FRONT - 0.95
+    pr.box('wood', 0.62, 0.42, 0.10, hx, hy, 0.06)
+    pr.box('pot', 0.54, 0.34, 0.05, hx, hy, 0.12)
+    for i, (dx, dy, col, h) in enumerate((
+        (-0.16, 0.08, 'plant', 0.16),
+        (-0.02, -0.06, 'herb', 0.14),
+        (0.16, 0.06, 'plant', 0.18),
+        (0.08, -0.10, 'plant', 0.12),
+        (-0.14, -0.08, 'herb', 0.13),
+    )):
+        pr.cyl(col, 0.025, 0.015, h, hx + dx, hy + dy, 0.16 + h / 2, seg=5)
+        pr.sphere(col, 0.06 if i % 2 == 0 else 0.045, hx + dx, hy + dy, 0.16 + h, sz=0.7, seg=5, rings=3)
 
     # 標籤錨點約在屋脊上方（對齊既有 roofY + 1.05）
     # 既有：roofY ≈ G+0.08+1.85+0.08，anchor 在本地 (0, roofY+1.05, 0.12)

@@ -1,4 +1,7 @@
-"""研發樓（computer-site）：w=2.3 d=1.8，門朝本地 +Z。玻璃鋼構、屋頂光帶。"""
+"""研發樓（computer-site）：w=2.3 d=1.8，門朝本地 +Z。
+
+三層灰色科技樓、藍光窗格、屋頂衛星碟與機櫃、門口伺服器、地面電路紋路。
+"""
 from __future__ import annotations
 
 import math
@@ -12,9 +15,49 @@ import kit
 from kit import Builder, clear_scene, prepare_scene, argv_out
 
 W, D = 2.3, 1.8
-H = 2.05
 T = 0.10
-BASE = 0.08
+BASE = 0.10
+# 三層：每層約 0.95，總高約 3.05，屋頂再加 0.16
+STOREYS = 3
+STOREY_H = 0.95
+H = STOREYS * STOREY_H  # 2.85
+DOOR_W = 0.62
+
+
+def window_band(b, z0, z1, HX, HY, FRONT, BACK, skip_front_center=False):
+    """一層的玻璃帶 + 窗框分格。"""
+    mid_z = (z0 + z1) / 2
+    h = z1 - z0 - 0.08
+    g = b.part('windows_glow')
+    fr = b.part('mullions')
+    # 正面：格條必須在玻璃外側，否則窗格會被蓋住
+    if skip_front_center:
+        side = (W - DOOR_W) / 2 - 0.08
+        for sx in (-1, 1):
+            cx = sx * (HX - side / 2 - 0.04)
+            g.box('windows_glow', side, 0.03, h, cx, FRONT - 0.02, mid_z)
+            fr.box('lab_frame', side + 0.04, 0.05, 0.035, cx, FRONT - 0.05, z1 - 0.04)
+            fr.box('lab_frame', side + 0.04, 0.05, 0.035, cx, FRONT - 0.05, z0 + 0.04)
+            fr.box('lab_frame', 0.04, 0.05, h, cx, FRONT - 0.05, mid_z)
+    else:
+        g.box('windows_glow', W - 0.22, 0.03, h, 0, FRONT - 0.02, mid_z)
+        for x in (-0.65, -0.22, 0.22, 0.65):
+            fr.box('lab_frame', 0.04, 0.05, h, x, FRONT - 0.05, mid_z)
+        for z in (z0 + 0.04, mid_z, z1 - 0.04):
+            fr.box('lab_frame', W - 0.18, 0.05, 0.035, 0, FRONT - 0.05, z)
+    # 背面
+    g.box('windows_glow', W - 0.22, 0.03, h, 0, BACK + 0.02, mid_z)
+    for x in (-0.65, -0.22, 0.22, 0.65):
+        fr.box('lab_frame', 0.04, 0.05, h, x, BACK + 0.05, mid_z)
+    for z in (z0 + 0.04, mid_z, z1 - 0.04):
+        fr.box('lab_frame', W - 0.18, 0.05, 0.035, 0, BACK + 0.05, z)
+    # 兩側
+    for sx, n in ((-1, -1), (1, 1)):
+        g.box('windows_glow', 0.03, D - 0.22, h, sx * (HX + 0.03), 0, mid_z)
+        for y in (-0.45, 0.0, 0.45):
+            fr.box('lab_frame', 0.04, 0.03, h, sx * (HX + 0.04), y, mid_z)
+        for z in (z0 + 0.04, mid_z, z1 - 0.04):
+            fr.box('lab_frame', 0.04, D - 0.18, 0.03, sx * (HX + 0.04), 0, z)
 
 
 def build(out_path):
@@ -23,122 +66,114 @@ def build(out_path):
     else:
         prepare_scene()
     kit.set_palette_overrides({
-        'windows_glow': (0xb7e4ff, 0x7ec8ea),
+        'windows_glow': (0x7ec8ea, 0x5ad0ff),
         'lantern_glow': (0xa8d8f0, 0x7ec8ea),
-        'neon_glow': (0x7ec8ea, 0x7ec8ea),
+        'neon_glow': (0x3cf0ff, 0x3cf0ff),
     })
     b = Builder('computer_lab', W, D)
     FRONT, BACK = b.front, b.hy
     HX, HY = b.hx, b.hy
-    wall_z = BASE + H / 2
-    door_w = 0.62
 
-    # 前坪 + 既有電纜裝飾
+    # 前坪
     p = b.part('plaza')
-    p.box('paving', 1.55, 1.20, 0.04, 0, FRONT - 0.70, 0.02)
-    p.box('lab_ground', 1.30, 0.95, 0.03, 0, FRONT - 0.70, 0.035)
-    cab = b.part('cables')
-    cab.box('lab_cable', 0.05, 0.90, 0.03, 0.62, FRONT - 0.48, 0.055)
-    cab.box('lab_cable', 0.55, 0.05, 0.03, 0.32, FRONT - 0.12, 0.055)
-    # 側邊一條電纜管
-    cab.cyl('lab_cable', 0.025, 0.025, 0.80, HX + 0.06, 0.20, 0.12, seg=6, ry=math.pi / 2)
-    cab.cyl('lab_steel', 0.035, 0.035, 0.08, HX + 0.06, -0.18, 0.12, seg=6)
-    cab.cyl('lab_steel', 0.035, 0.035, 0.08, HX + 0.06, 0.58, 0.12, seg=6)
+    p.box('lab_steel_dark', 1.85, 1.45, 0.04, 0, FRONT - 0.82, 0.02)
+    p.box('lab_ground', 1.65, 1.25, 0.03, 0, FRONT - 0.82, 0.04)
+
+    # 地面電路紋路（neon_glow 細條，中央走道淨空）
+    cir = b.part('circuits')
+    # 主幹線沿兩側向前，再橫向分支出墊點
+    for sx in (-0.55, 0.55):
+        cir.box('neon_glow', 0.04, 1.15, 0.02, sx, FRONT - 0.75, 0.055)
+        for i, dy in enumerate((-0.35, -0.75, -1.10)):
+            cir.box('neon_glow', 0.28, 0.04, 0.02, sx + (0.18 if sx > 0 else -0.18), FRONT + dy, 0.055)
+            cir.box('neon_glow', 0.10, 0.10, 0.025, sx + (0.28 if sx > 0 else -0.28), FRONT + dy, 0.06)
+    # 門前一條橫線（不擋站位正中央，畫在門檻前較近處的兩側之間留缺口）
+    cir.box('neon_glow', 0.45, 0.04, 0.02, -0.55, FRONT - 0.28, 0.055)
+    cir.box('neon_glow', 0.45, 0.04, 0.02, 0.55, FRONT - 0.28, 0.055)
 
     # 台基
-    p = b.part('base')
-    p.box('lab_steel', W + 0.32, D + 0.32, 0.12, 0, 0, 0.06)
-    p.box('lab_ground', W - 0.16, D - 0.16, 0.08, 0, 0, 0.12)
+    st = b.part('base')
+    st.box('lab_steel', W + 0.28, D + 0.28, 0.12, 0, 0, 0.06)
+    st.box('lab_steel_dark', W - 0.08, D - 0.08, 0.08, 0, 0, 0.12)
 
-    # 結構框：四柱 + 上下梁，中間嵌玻璃
-    st = b.part('frame')
-    # 四角鋼柱
+    # 四角鋼柱貫穿三層
+    fr = b.part('frame')
     for sx, sy in ((-1, -1), (1, -1), (-1, 1), (1, 1)):
-        st.box('lab_steel_dark', 0.10, 0.10, H, sx * HX, sy * HY, wall_z)
-    # 中柱（正面門兩側、背面）
-    st.box('lab_steel_dark', 0.08, 0.08, H, -door_w / 2 - 0.04, FRONT + 0.02, wall_z)
-    st.box('lab_steel_dark', 0.08, 0.08, H, door_w / 2 + 0.04, FRONT + 0.02, wall_z)
-    st.box('lab_steel_dark', 0.08, 0.08, H, 0, BACK - 0.02, wall_z)
-    # 樓層橫梁（兩道，做出兩層玻璃的感覺）
-    for z in (BASE + 0.12, BASE + H * 0.52, BASE + H - 0.08):
-        st.box('lab_frame', W + 0.02, D + 0.02, 0.07, 0, 0, z)
+        fr.box('lab_steel_dark', 0.12, 0.12, H, sx * HX, sy * HY, BASE + H / 2)
+    # 樓層橫梁
+    for i in range(STOREYS + 1):
+        z = BASE + i * STOREY_H
+        fr.box('lab_frame', W + 0.04, D + 0.04, 0.08, 0, 0, z)
+    # 層間不透明裙牆（每層底部一小截實牆，讓樓層更清楚）
+    pan = b.part('panels')
+    for i in range(STOREYS):
+        z = BASE + i * STOREY_H + 0.10
+        pan.box('lab_grey', W - 0.16, T, 0.16, 0, BACK - T / 2, z)
+        pan.box('lab_grey', T, D - 0.16, 0.16, -HX + T / 2, 0, z)
+        pan.box('lab_grey', T, D - 0.16, 0.16, HX - T / 2, 0, z)
+        if i == 0:
+            side = (W - DOOR_W) / 2
+            pan.box('lab_grey', side - 0.06, T, 0.16, -HX + side / 2, FRONT + T / 2, z)
+            pan.box('lab_grey', side - 0.06, T, 0.16, HX - side / 2, FRONT + T / 2, z)
+        else:
+            pan.box('lab_grey', W - 0.16, T, 0.16, 0, FRONT + T / 2, z)
 
-    # 不透明側板（下半截實牆，上半玻璃）
-    wll = b.part('panels')
-    # 背面下牆
-    wll.box('lab_panel', W - 0.16, T, H * 0.38, 0, BACK - T / 2, BASE + H * 0.22)
-    # 兩側下牆
-    wll.box('lab_panel', T, D - 0.16, H * 0.38, -HX + T / 2, 0, BASE + H * 0.22)
-    wll.box('lab_panel', T, D - 0.16, H * 0.38, HX - T / 2, 0, BASE + H * 0.22)
-    # 正面門兩側下牆
-    side = (W - door_w) / 2
-    wll.box('lab_panel', side - 0.06, T, H * 0.38, -HX + side / 2, FRONT + T / 2, BASE + H * 0.22)
-    wll.box('lab_panel', side - 0.06, T, H * 0.38, HX - side / 2, FRONT + T / 2, BASE + H * 0.22)
-
-    # 大片玻璃（上半 + 部分下半），用 windows_glow 以便夜間發青光
-    # 這裡玻璃材質名稱必須是 windows_glow（code 依名稱換 emissive）
-    g = b.part('windows_glow')
-    # 正面上門楣玻璃帶
-    g.box('windows_glow', W - 0.20, 0.03, 0.70, 0, FRONT - 0.03, BASE + 1.45)
-    # 兩側大玻璃
-    g.box('windows_glow', 0.03, D - 0.22, 0.85, -HX - 0.03, 0, BASE + 1.40)
-    g.box('windows_glow', 0.03, D - 0.22, 0.85, HX + 0.03, 0, BASE + 1.40)
-    # 背面玻璃
-    g.box('windows_glow', W - 0.22, 0.03, 0.70, 0, BACK + 0.03, BASE + 1.45)
-    # 室內隱約的機櫃剪影（從玻璃看出去）
-    racks = b.part('racks')
-    for i, x in enumerate((-0.55, 0.0, 0.55)):
-        racks.box('lab_steel_dark', 0.32, 0.28, 0.70, x, 0.15, BASE + 1.15)
-        b.part('neon').box('neon_glow', 0.26, 0.02, 0.02, x, 0.15 - 0.15, BASE + 1.05 + (i % 2) * 0.2)
-
-    # 玻璃上的窗框分格
-    fr = b.part('mullions')
-    for x in (-0.55, 0.0, 0.55):
-        fr.box('lab_frame', 0.03, 0.04, 0.70, x, FRONT - 0.02, BASE + 1.45)
-    for z in (BASE + 1.20, BASE + 1.70):
-        fr.box('lab_frame', W - 0.16, 0.04, 0.03, 0, FRONT - 0.02, z)
-    for y in (-0.45, 0.0, 0.45):
-        fr.box('lab_frame', 0.04, 0.03, 0.85, HX + 0.04, y, BASE + 1.40)
-        fr.box('lab_frame', 0.04, 0.03, 0.85, -HX - 0.04, y, BASE + 1.40)
+    # 窗帶
+    for i in range(STOREYS):
+        z0 = BASE + i * STOREY_H + 0.20
+        z1 = BASE + (i + 1) * STOREY_H - 0.06
+        window_band(b, z0, z1, HX, HY, FRONT, BACK, skip_front_center=(i == 0))
 
     # 玻璃門
     door = b.part('door')
-    door.box('lab_steel_dark', door_w, 0.05, 1.32, 0, FRONT + 0.02, BASE + 0.66)
-    g.box('windows_glow', 0.50, 0.03, 1.10, 0, FRONT - 0.02, BASE + 0.70)
-    door.box('lab_accent', door_w + 0.10, 0.07, 0.05, 0, FRONT, BASE + 0.66 + 0.68)
-    door.box('lab_accent', 0.045, 0.07, 1.32, -door_w / 2, FRONT, BASE + 0.66)
-    door.box('lab_accent', 0.045, 0.07, 1.32, door_w / 2, FRONT, BASE + 0.66)
-    door.box('lab_accent', 0.04, 0.04, 0.07, 0.18, FRONT - 0.04, BASE + 0.64)
+    door.box('lab_steel_dark', DOOR_W, 0.05, 1.28, 0, FRONT + 0.02, BASE + 0.68)
+    b.part('windows_glow').box('windows_glow', 0.50, 0.03, 1.08, 0, FRONT - 0.02, BASE + 0.70)
+    door.box('lab_accent', DOOR_W + 0.10, 0.07, 0.05, 0, FRONT, BASE + 0.68 + 0.66)
+    door.box('lab_accent', 0.045, 0.07, 1.28, -DOOR_W / 2, FRONT, BASE + 0.68)
+    door.box('lab_accent', 0.045, 0.07, 1.28, DOOR_W / 2, FRONT, BASE + 0.68)
+    door.box('lab_accent', 0.04, 0.04, 0.07, 0.18, FRONT - 0.04, BASE + 0.62)
 
-    # 屋頂平板 + 一圈發光屋簷（neon_glow）
+    # 門口伺服器機櫃（兩側，中央走道淨空）
+    racks = b.part('racks')
+    neo = b.part('neon')
+    for sx in (-0.95, 0.95):
+        racks.box('lab_steel_dark', 0.36, 0.32, 0.85, sx, FRONT - 0.42, BASE + 0.48)
+        racks.box('lab_frame', 0.38, 0.34, 0.06, sx, FRONT - 0.42, BASE + 0.93)
+        # LED 燈條
+        for zi, col_z in enumerate((0.30, 0.48, 0.66)):
+            neo.box('neon_glow', 0.26, 0.02, 0.03, sx, FRONT - 0.58, BASE + col_z)
+        # 頂部指示燈
+        b.part('lanterns_glow').sphere('lantern_glow', 0.04, sx, FRONT - 0.42, BASE + 1.00, seg=6, rings=4)
+
+    # 屋頂
     roof_y = BASE + H + 0.08
     rf = b.part('roof')
-    rf.box('lab_panel', W + 0.16, D + 0.16, 0.10, 0, 0, roof_y - 0.10)
-    rf.box('lab_steel_dark', W + 0.40, D + 0.34, 0.16, 0, 0, roof_y)
-    neo = b.part('neon')
-    neo.box('neon_glow', W + 0.50, D + 0.44, 0.05, 0, 0, roof_y + 0.11)
-    # 內縮一圈暗邊，讓光帶更像「邊緣」
-    rf.box('lab_steel', W + 0.22, D + 0.18, 0.04, 0, 0, roof_y + 0.14)
+    rf.box('lab_panel', W + 0.12, D + 0.12, 0.10, 0, 0, roof_y - 0.08)
+    rf.box('lab_steel_dark', W + 0.36, D + 0.28, 0.14, 0, 0, roof_y)
+    # 青光屋簷
+    neo.box('neon_glow', W + 0.50, D + 0.42, 0.05, 0, 0, roof_y + 0.10)
+    rf.box('lab_steel', W + 0.20, D + 0.14, 0.04, 0, 0, roof_y + 0.13)
+    # 屋頂機櫃／空調
+    rf.box('lab_grey', 0.55, 0.42, 0.28, -0.55, 0.15, roof_y + 0.28)
+    rf.box('lab_frame', 0.50, 0.10, 0.06, -0.55, 0.15, roof_y + 0.44)
+    rf.cyl('lab_steel', 0.06, 0.06, 0.16, -0.70, 0.28, roof_y + 0.36, seg=6)
 
-    # 天線（既有地標：桿 + 發光球）
+    # 衛星碟（屋頂右側，比舊的 dish 小，因為島上 THEME 已有一座較大的）
     ant = b.part('antenna')
-    ant.box('lab_panel', 0.08, 0.08, 0.62, 0.32, 0.12, roof_y + 0.42)
-    b.part('lanterns_glow').sphere('lantern_glow', 0.09, 0.32, 0.12, roof_y + 0.80, seg=6, rings=5)
-    # 小碟形天線
-    ant.cyl('lab_steel', 0.16, 0.02, 0.04, 0.32, 0.12, roof_y + 0.55, seg=8, rx=0.6)
-    ant.box('lab_steel', 0.02, 0.02, 0.12, 0.32, 0.12, roof_y + 0.48)
+    ant.cyl('lab_steel', 0.05, 0.05, 0.55, 0.55, -0.15, roof_y + 0.40, seg=6)
+    ant.cyl('lab_panel', 0.32, 0.05, 0.05, 0.72, -0.15, roof_y + 0.62, seg=8, rx=0.85)
+    ant.box('lab_steel', 0.02, 0.02, 0.16, 0.62, -0.15, roof_y + 0.58)
+    b.part('lanterns_glow').sphere('lantern_glow', 0.07, 0.55, -0.15, roof_y + 0.78, seg=6, rings=5)
 
-    # 招牌：屋頂前緣、向後仰（既有 tiltX ≈ -0.16，再仰一點）
-    b.tilted_sign(1.35, 0.46, FRONT - 0.10, roof_y + 0.24, rx=-1.05, frame='lab_accent', board='lab_steel_dark')
+    # 招牌：屋頂前緣向後仰，高視角可讀
+    b.tilted_sign(1.40, 0.46, FRONT - 0.10, roof_y + 0.28, rx=-1.05, frame='lab_accent', board='lab_steel_dark')
 
     # 門旁小燈
     for sx in (-0.85, 0.85):
-        b.part('lanterns_glow').sphere('lantern_glow', 0.06, sx, FRONT - 0.12, BASE + 1.25, seg=6, rings=4)
-        st.box('lab_steel', 0.03, 0.03, 0.12, sx, FRONT - 0.12, BASE + 1.16)
+        b.part('lanterns_glow').sphere('lantern_glow', 0.055, sx, FRONT - 0.10, BASE + 1.20, seg=6, rings=4)
+        fr.box('lab_steel', 0.03, 0.03, 0.12, sx, FRONT - 0.10, BASE + 1.10)
 
-    # label：既有 (0, roofY+1.05, 0.12)
     label_blender = (0.0, -0.12, roof_y + 1.05)
-
     return b.finish(
         out_path,
         door_local=[0.0, 0.0, HY],

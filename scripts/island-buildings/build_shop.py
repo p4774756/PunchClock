@@ -165,6 +165,31 @@ def build(out_path):
         pr.cyl('pot', 0.10, 0.08, 0.14, sx, FRONT - 0.25, 0.10)
         pr.sphere('plant', 0.13, sx, FRONT - 0.25, 0.28, sz=0.85, seg=7, rings=4)
 
+    # 東側菜單／佈告板（不擋西門與遮陽棚中央走道）
+    mb = b.part('menu_board')
+    mx, my = 2.18, FRONT - 0.08
+    mb.box('shop_wood', 0.06, 0.06, 1.20, mx, my, 0.60)
+    mb.box('shop_navy', 0.58, 0.05, 0.88, mx, my + 0.04, 0.88)
+    mb.box('shop_orange', 0.62, 0.06, 0.07, mx, my + 0.04, 1.35)
+    mb.box('shop_wall', 0.46, 0.02, 0.10, mx, my + 0.06, 1.18)
+    for i, col in enumerate(('cup_pink', 'cup_yellow', 'cup_green', 'shop_trim')):
+        mb.box(col, 0.42, 0.02, 0.07, mx, my + 0.06, 1.02 - i * 0.14)
+        mb.box('shop_wall', 0.22, 0.015, 0.03, mx - 0.06, my + 0.07, 1.02 - i * 0.14)
+
+    # 東側戶外傘桌（在遮陽棚外側，避免與棚相交）
+    um = b.part('umbrella')
+    tx, ty = 2.20, FRONT - 0.72
+    um.box('shop_wood', 0.58, 0.58, 0.06, tx, ty, 0.42)
+    for dx, dy in ((-0.22, -0.22), (0.22, -0.22), (-0.22, 0.22), (0.22, 0.22)):
+        um.box('shop_wood', 0.05, 0.05, 0.40, tx + dx, ty + dy, 0.20)
+    um.box('shop_trim', 0.22, 0.22, 0.05, tx - 0.42, ty + 0.28, 0.28)
+    um.box('shop_wood', 0.05, 0.05, 0.26, tx - 0.42, ty + 0.28, 0.14)
+    um.box('shop_trim', 0.22, 0.04, 0.16, tx - 0.42, ty + 0.38, 0.38)
+    um.cyl('shop_wall', 0.025, 0.025, 1.22, tx, ty, 1.04, seg=6)
+    um.cyl('umbrella_yellow', 0.62, 0.02, 0.20, tx, ty, 1.72, seg=8)
+    um.sphere('cup_lid', 0.05, tx, ty, 1.84, seg=5, rings=3)
+    um.cyl('cup_pink', 0.04, 0.035, 0.08, tx + 0.12, ty, 0.50, seg=6)
+
     # 棚下暖燈
     for sx in (-0.9, 0.9):
         b.part('lanterns_glow').sphere('lantern_glow', 0.07, sx, FRONT - 0.35, BASE + H - 0.55, sz=1.1, seg=7, rings=5)

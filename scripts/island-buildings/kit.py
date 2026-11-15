@@ -64,6 +64,13 @@ PALETTE = {
     'lab_accent':     (0x7ec8ea, None),
     'lab_ground':     (0x8aa0b0, None),
     'lab_cable':      (0x3a312c, None),
+    'lab_grey':       (0x6a7a88, None),
+    # 中醫館銅像
+    'bronze':         (0xb08a3c, None),
+    'bronze_dark':    (0x6e4e22, None),
+    # 棕櫚
+    'palm_leaf':      (0x4f8a45, None),
+    'umbrella_yellow':(0xf6d35a, None),
 }
 
 

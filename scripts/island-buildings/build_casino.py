@@ -32,7 +32,10 @@ def build(out_path):
     p = b.part('plaza')
     p.box('paving', 2.15, 1.70, 0.04, 0, FRONT - 0.85, 0.02)
     p.box('shop_trim', 1.90, 1.45, 0.03, 0, FRONT - 0.85, 0.04)
-    p.box('cas_carpet', 0.78, 1.55, 0.025, 0, FRONT - 0.95, 0.055)
+    # 三級紅毯台階，由門口往前遞降，階高拉開好辨識
+    for i, h in enumerate((0.16, 0.11, 0.06)):
+        p.box('cas_carpet', 0.86 - i * 0.02, 0.42, h, 0, FRONT - 0.28 - i * 0.38, h / 2 + 0.01)
+    p.box('cas_carpet', 0.80, 0.28, 0.03, 0, FRONT - 0.10, 0.155)
 
     # 金台基
     p = b.part('base')
@@ -110,17 +113,65 @@ def build(out_path):
     for sx, sy in ((-1, -1), (1, -1), (-1, 1), (1, 1)):
         rf.box('gold', 0.12, 0.12, 0.10, sx * (HX + 0.28), sy * (HY + 0.28), roof_y + 0.22)
         rf.cyl('gold', 0.03, 0.0, 0.12, sx * (HX + 0.28), sy * (HY + 0.28), roof_y + 0.32, seg=5)
-    # 錐頂
-    sp = b.part('spire')
-    sp.cyl('gold', 0.42, 0.0, 0.55, 0, 0, roof_y + 0.55, seg=6)
-    sp.sphere('cas_gold_light', 0.08, 0, 0, roof_y + 0.86, seg=5, rings=4)
-    b.part('lanterns_glow').sphere('lantern_glow', 0.09, 0, 0, roof_y + 0.86, sz=1.0, seg=6, rings=4)
+    # 圓頂 + 頂燈塔
+    sp = b.part('dome')
+    sp.cyl('gold', 0.48, 0.48, 0.06, 0, 0, roof_y + 0.22, seg=10)
+    sp.sphere('cas_roof', 0.46, 0, 0, roof_y + 0.28, sz=0.82, seg=10, rings=6)
+    sp.cyl('gold', 0.10, 0.07, 0.16, 0, 0, roof_y + 0.72, seg=6)
+    sp.cyl('gold', 0.03, 0.03, 0.28, 0, 0, roof_y + 0.92, seg=5)
+    b.part('lanterns_glow').sphere('lantern_glow', 0.08, 0, 0, roof_y + 1.08, seg=6, rings=4)
 
-    # 招牌：屋頂前方，向後仰（既有 tiltX ≈ -0.35，這裡再仰一點方便高視角）
-    b.tilted_sign(1.90, 0.58, FRONT - 0.12, roof_y + 0.36, rx=-1.05, frame='gold', board='cas_dark')
-    # 招牌上下各一條霓虹
-    neo.box('neon_glow', 2.05, 0.04, 0.035, 0, FRONT - 0.22, roof_y + 0.62, rx=-1.05)
-    neo.box('neon_glow', 2.05, 0.04, 0.035, 0, FRONT - 0.22, roof_y + 0.10, rx=-1.05)
+    # 屋頂四角燈柱
+    lp_roof = b.part('roof_lamps')
+    glow = b.part('lanterns_glow')
+    for sx, sy in ((-1, -1), (1, -1), (-1, 1), (1, 1)):
+        x, y = sx * (HX + 0.18), sy * (HY + 0.18)
+        lp_roof.box('gold', 0.05, 0.05, 0.62, x, y, roof_y + 0.48)
+        lp_roof.box('gold', 0.10, 0.10, 0.04, x, y, roof_y + 0.80)
+        glow.sphere('lantern_glow', 0.07, x, y, roof_y + 0.88, seg=6, rings=4)
+
+    # 拱形燈泡招牌框（與招牌同一斜面）
+    rx = -1.05
+    cy, cz = FRONT - 0.12, roof_y + 0.36
+    b.tilted_sign(1.70, 0.50, cy, cz, rx=rx, frame='gold', board='cas_dark')
+    # 沿斜面座標 (lx, lz) 放燈泡與拱框：Rx 後 y'=-lz*sin(rx), z'=lz*cos(rx)
+    def on_sign(lx, lz, dist=0.06):
+        nx, ny, nz = 0.0, -math.cos(rx), -math.sin(rx)
+        return (
+            lx + nx * dist,
+            cy - lz * math.sin(rx) + ny * dist,
+            cz + lz * math.cos(rx) + nz * dist,
+        )
+    arch = b.part('marquee')
+    bulbs = b.part('lanterns_glow')
+    # 底橫樑與兩側柱
+    for lx, lz, sx, sy, sz in (
+        (0.0, -0.38, 1.95, 0.05, 0.07),
+        (-0.95, 0.02, 0.07, 0.05, 0.72),
+        (0.95, 0.02, 0.07, 0.05, 0.72),
+    ):
+        x, y, z = on_sign(lx, lz, 0.02)
+        arch.box('gold', sx, sy, sz, x, y, z, rx=rx)
+    # 半圓拱（約 11 段）
+    radius, nseg = 0.95, 11
+    prev = None
+    for i in range(nseg + 1):
+        ang = math.pi * i / nseg
+        lx = -radius * math.cos(ang)
+        lz = 0.08 + radius * math.sin(ang) * 0.55
+        x, y, z = on_sign(lx, lz, 0.03)
+        if prev is not None:
+            mx, my, mz = (x + prev[0]) / 2, (y + prev[1]) / 2, (z + prev[2]) / 2
+            arch.box('gold', 0.20, 0.05, 0.07, mx, my, mz, rx=rx)
+        prev = (x, y, z)
+        bulbs.sphere('lantern_glow', 0.045, *on_sign(lx, lz, 0.08), seg=5, rings=4)
+    # 底邊燈泡
+    for i in range(7):
+        lx = -0.90 + i * 0.30
+        bulbs.sphere('lantern_glow', 0.04, *on_sign(lx, -0.38, 0.08), seg=5, rings=4)
+    # 拱下再一條霓虹
+    x, y, z = on_sign(0.0, -0.28, 0.05)
+    neo.box('neon_glow', 1.85, 0.035, 0.03, x, y, z, rx=rx)
 
     # 門前金柱燈
     lp = b.part('lamp_posts')
@@ -132,9 +183,26 @@ def build(out_path):
     for sx in (-0.85, 0.85):
         trim.box('gold', 0.06, 0.06, 0.45, sx, FRONT - 0.25, 0.28)
 
+    # 前庭兩側盆栽棕櫚（不擋紅毯走道）
+    palms = b.part('palms')
+    for sx in (-1.05, 1.05):
+        y = FRONT - 1.15
+        palms.cyl('pot', 0.14, 0.11, 0.18, sx, y, 0.10, seg=7)
+        palms.box('shop_wood', 0.22, 0.22, 0.04, sx, y, 0.03)
+        palms.cyl('shop_wood', 0.04, 0.055, 0.72, sx, y, 0.52, seg=6)
+        # 葉：先繞 X 倒下再繞 Z 轉一圈，中心沿軸外移，看起來才像傘狀葉冠
+        rx, h, n = 1.15, 0.52, 6
+        for i in range(n):
+            a = (i / n) * math.pi * 2
+            ox = math.sin(a) * math.sin(rx) * (h / 2)
+            oy = -math.cos(a) * math.sin(rx) * (h / 2)
+            oz = math.cos(rx) * (h / 2)
+            palms.cyl('palm_leaf', 0.09, 0.012, h, sx + ox, y + oy, 0.86 + oz,
+                      seg=5, rx=rx, rz=a)
+
     # label：既有 (0, roofY+1.05, 0.1)
     # Want glTF (0, roof_y+1.05, 0.1) → Blender (0, -0.1, roof_y+1.05)
-    label_blender = (0.0, -0.10, roof_y + 1.05)
+    label_blender = (0.0, -0.10, roof_y + 1.25)
 
     return b.finish(
         out_path,
