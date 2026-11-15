@@ -55,6 +55,7 @@ import { buildIslandWorld } from './island-world.js';
 import { buildIslandBuildings } from './island-buildings.js';
 import { buildIslandProps, registerSceneMotion } from './island-props.js';
 import { buildIslandPeople } from './island-people.js';
+import { createIslandSea } from './island-sea.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 
@@ -179,7 +180,11 @@ function boot() {
     });
   });
 
-  buildIslandWorld({ scene: scene, kit: kit });
+  const worldResult = buildIslandWorld({ scene: scene, kit: kit });
+  const sea = createIslandSea(THREE, { kit: kit, reduced: reduced });
+  scene.add(sea.group);
+  if (worldResult && worldResult.water) worldResult.water.visible = false;
+
   const buildings = buildIslandBuildings({
     scene: scene,
     kit: kit,
@@ -225,6 +230,13 @@ function boot() {
     shaker: shaker,
     P: P
   });
+  loop.register(function updateSea(dt, elapsed) {
+    sea.update(dt, elapsed);
+  });
+  dayNight.onMix((t) => {
+    sea.setMix(t);
+  });
+  dayNight.refresh();
 
   // Phase 2：賭場門口互動區（座標見 CASINO／DEFAULT_INTERACT_ZONES）；須點按鈕或 Enter／E，不自動傳送。
   const INTERACT_ZONES = DEFAULT_INTERACT_ZONES.slice();
@@ -958,7 +970,8 @@ function boot() {
   const islandAudio = createIslandAudio({
     tracks: { main: '/audio/bgm-main.ogg' },
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    volume: 0.35
+    volume: 0.35,
+    ambience: { src: '/audio/ocean-waves.ogg', volume: 0.22 }
   });
   const audioBtn = document.getElementById('islandAudio');
 
@@ -966,7 +979,7 @@ function boot() {
     if (!audioBtn) return;
     const on = !islandAudio.muted;
     audioBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    audioBtn.setAttribute('aria-label', on ? '靜音背景音樂' : '開啟背景音樂');
+    audioBtn.setAttribute('aria-label', on ? '靜音背景音樂與海浪聲' : '開啟背景音樂與海浪聲');
     const iconEl = audioBtn.querySelector('.island-tool-audio-icon');
     if (iconEl) iconEl.textContent = on ? '🔊' : '🔇';
   }
@@ -1074,6 +1087,7 @@ function boot() {
       kit.addLamp(view.lamp);
     }
     dayNight.refresh();
+    islandAudio.setInsideRoom(true);
   }
 
   function disposeRoom() {
@@ -1084,6 +1098,7 @@ function boot() {
     if (roomView.lamp) kit.removeLamp(roomView.lamp);
     roomView.dispose();
     roomView = null;
+    islandAudio.setInsideRoom(false);
   }
 
   function abortInterior() {

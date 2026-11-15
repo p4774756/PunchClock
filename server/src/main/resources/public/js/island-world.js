@@ -84,4 +84,6 @@ export function buildIslandWorld(ctx) {
   paving(3.7, 0.7, 1.7, 2.5);
   paving(0, -4.7, 7.4, 1.2);
   paving(5.15, 5.55, 2.6, 1.15, -0.55);
+
+  return { water, sand };
 }
