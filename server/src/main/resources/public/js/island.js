@@ -55,6 +55,8 @@ import { buildIslandWorld } from './island-world.js';
 import { buildIslandBuildings } from './island-buildings.js';
 import { buildIslandProps, registerSceneMotion } from './island-props.js';
 import { buildIslandPeople } from './island-people.js';
+import { createIslandSea } from './island-sea.js';
+import { ISLANDS } from './island-layout.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 
@@ -179,7 +181,23 @@ function boot() {
     });
   });
 
-  buildIslandWorld({ scene: scene, kit: kit });
+
+  const loop = createUpdateLoop({
+    requestAnimationFrame: (cb) => window.requestAnimationFrame(cb),
+    cancelAnimationFrame: (id) => window.cancelAnimationFrame(id)
+  });
+
+  const worldResult = buildIslandWorld({ scene: scene, kit: kit });
+  const sea = createIslandSea(THREE, {
+    kit: kit,
+    islands: ISLANDS,
+    reduced: reduced,
+    water: worldResult.water,
+    sand: worldResult.sand
+  });
+  scene.add(sea.group);
+  dayNight.onMix((t) => sea.setMix(t));
+  loop.register((dt, elapsed) => sea.update(dt, elapsed));
   const buildings = buildIslandBuildings({
     scene: scene,
     kit: kit,
@@ -210,10 +228,6 @@ function boot() {
     buildings.paintRoadmapSign(copy);
   }
 
-  const loop = createUpdateLoop({
-    requestAnimationFrame: (cb) => window.requestAnimationFrame(cb),
-    cancelAnimationFrame: (id) => window.cancelAnimationFrame(id)
-  });
   registerSceneMotion(loop, {
     reduced: reduced,
     walkers: walkers,
@@ -958,7 +972,8 @@ function boot() {
   const islandAudio = createIslandAudio({
     tracks: { main: '/audio/bgm-main.ogg' },
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    volume: 0.35
+    volume: 0.35,
+    ambience: { src: '/audio/ocean-waves.ogg', volume: 0.22 }
   });
   const audioBtn = document.getElementById('islandAudio');
 
@@ -966,7 +981,7 @@ function boot() {
     if (!audioBtn) return;
     const on = !islandAudio.muted;
     audioBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    audioBtn.setAttribute('aria-label', on ? '靜音背景音樂' : '開啟背景音樂');
+    audioBtn.setAttribute('aria-label', on ? '靜音背景音樂與海浪聲' : '開啟背景音樂與海浪聲');
     const iconEl = audioBtn.querySelector('.island-tool-audio-icon');
     if (iconEl) iconEl.textContent = on ? '🔊' : '🔇';
   }
@@ -1074,6 +1089,7 @@ function boot() {
       kit.addLamp(view.lamp);
     }
     dayNight.refresh();
+    islandAudio.setIndoor(true);
   }
 
   function disposeRoom() {
@@ -1084,6 +1100,7 @@ function boot() {
     if (roomView.lamp) kit.removeLamp(roomView.lamp);
     roomView.dispose();
     roomView = null;
+    islandAudio.setIndoor(false);
   }
 
   function abortInterior() {

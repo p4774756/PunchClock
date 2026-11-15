@@ -2,10 +2,11 @@
  * 島嶼背景音樂模組。
  *
  * 主要 API：
- *   createIslandAudio({ tracks, storage, volume })
+ *   createIslandAudio({ tracks, storage, volume, ambience })
  *
  * tracks 格式：{ main: '/audio/bgm-main.ogg', casino?: '...', tcm?: '...', computer?: '...' }
  * 夜間版本預留：{ main_night: '...', casino_night: '...' }
+ * ambience 格式：{ src: '/audio/ocean-waves.ogg', volume: 0.22 }
  *
  * iOS Safari 的 HTMLMediaElement.volume 是唯讀，故使用 Web Audio API：
  * AudioContext + MediaElementAudioSourceNode + GainNode 控制音量與淡入淡出。
@@ -50,6 +51,7 @@ function createAudioContext() {
  * @param {Object<string, string>} opts.tracks - 音軌路徑
  * @param {Storage} [opts.storage] - localStorage 或替代品
  * @param {number} [opts.volume=0.35] - 基礎音量
+ * @param {Object} [opts.ambience] - 環境音（如海浪聲）{ src, volume }
  * @param {Function} [opts._createAudio] - 測試用：自訂 Audio 建構
  * @param {Object} [opts._audioContext] - 測試用：注入假 AudioContext
  * @param {boolean} [opts._forceElementVolume] - 測試用：強制使用 element.volume
@@ -59,6 +61,9 @@ export function createIslandAudio(opts) {
   const tracks = opts.tracks || {};
   const storage = opts.storage || null;
   const baseVolume = opts.volume != null ? opts.volume : 0.35;
+  const ambience = opts.ambience || null;
+  const ambienceVolume = ambience && ambience.volume != null ? ambience.volume : 0.22;
+  const ambienceIndoorScale = 0.3;
 
   let audio = opts._audio || null;
   let currentTrack = null;
@@ -68,6 +73,7 @@ export function createIslandAudio(opts) {
   let hidden = false;
   let disposed = false;
   let playSucceeded = false;
+  let indoor = false;
 
   let ctx = opts._audioContext || null;
   let gainNode = null;
@@ -75,6 +81,14 @@ export function createIslandAudio(opts) {
   let useWebAudio = !opts._forceElementVolume && (!!opts._audioContext || supportsWebAudio());
   let webAudioConnected = false;
   let playPending = false;
+
+  let ambienceAudio = null;
+  let ambienceGain = null;
+  let ambienceSource = null;
+  let ambienceConnected = false;
+  let ambienceAwaitingPlay = false;
+  let ambiencePlayPending = false;
+  let ambiencePlaySucceeded = false;
 
   function createAudio(src) {
     if (opts._createAudio) return opts._createAudio(src);
@@ -117,6 +131,24 @@ export function createIslandAudio(opts) {
     }
   }
 
+  function connectAmbienceWebAudio() {
+    if (!useWebAudio || !ctx || !ambienceAudio || ambienceConnected) return;
+    try {
+      if (!ambienceGain) {
+        ambienceGain = ctx.createGain();
+        ambienceGain.gain.setValueAtTime(0, ctx.currentTime);
+        ambienceGain.connect(ctx.destination);
+      }
+      if (!ambienceSource) {
+        ambienceSource = ctx.createMediaElementSource(ambienceAudio);
+        ambienceSource.connect(ambienceGain);
+      }
+      ambienceConnected = true;
+    } catch {
+      if (ambienceAudio) ambienceAudio.volume = 0;
+    }
+  }
+
   function setVolume(vol) {
     if (useWebAudio && gainNode && ctx) {
       gainNode.gain.setValueAtTime(vol, ctx.currentTime);
@@ -130,6 +162,42 @@ export function createIslandAudio(opts) {
       return gainNode.gain.value;
     }
     return audio ? audio.volume : 0;
+  }
+
+  function ambienceTargetVolume() {
+    return ambienceVolume * (indoor ? ambienceIndoorScale : 1);
+  }
+
+  function setAmbienceVolume(vol) {
+    if (useWebAudio && ambienceGain && ctx) {
+      ambienceGain.gain.setValueAtTime(vol, ctx.currentTime);
+    } else if (ambienceAudio) {
+      try { ambienceAudio.volume = vol; } catch { /* iOS readonly */ }
+    }
+  }
+
+  function getAmbienceVolume() {
+    if (useWebAudio && ambienceGain) {
+      return ambienceGain.gain.value;
+    }
+    return ambienceAudio ? ambienceAudio.volume : 0;
+  }
+
+  function fadeAmbienceTo(targetVol, cb) {
+    if (!ambienceAudio) {
+      if (cb) cb();
+      return;
+    }
+    if (useWebAudio && ambienceGain && ctx) {
+      const now = ctx.currentTime;
+      ambienceGain.gain.cancelScheduledValues(now);
+      ambienceGain.gain.setValueAtTime(ambienceGain.gain.value, now);
+      ambienceGain.gain.linearRampToValueAtTime(targetVol, now + FADE_DURATION);
+      if (cb) setTimeout(cb, FADE_DURATION * 1000 + 50);
+    } else {
+      setAmbienceVolume(targetVol);
+      if (cb) cb();
+    }
   }
 
   function fadeTo(targetVol, cb) {
@@ -201,6 +269,71 @@ export function createIslandAudio(opts) {
     }
   }
 
+  function pauseAmbience() {
+    if (ambienceAudio) {
+      ambienceAudio.pause();
+      setAmbienceVolume(0);
+    }
+  }
+
+  function createAmbienceAudio() {
+    if (!ambience || !ambience.src || ambienceAudio) return;
+    if (opts._createAudio) {
+      ambienceAudio = opts._createAudio(ambience.src);
+    } else {
+      ambienceAudio = new Audio();
+      ambienceAudio.src = ambience.src;
+      ambienceAudio.loop = true;
+      ambienceAudio.preload = 'auto';
+      if (!useWebAudio) ambienceAudio.volume = 0;
+    }
+  }
+
+  function tryPlayAmbience() {
+    if (disposed || muted || hidden || !ambienceAudio) {
+      ambienceAwaitingPlay = false;
+      return;
+    }
+    if (ambiencePlayPending) return;
+    if (!ambienceAudio.paused) {
+      ambienceAwaitingPlay = false;
+      ambiencePlaySucceeded = true;
+      fadeAmbienceTo(ambienceTargetVolume());
+      return;
+    }
+
+    ensureContext();
+    connectAmbienceWebAudio();
+
+    ambiencePlayPending = true;
+
+    const resumePromise = (useWebAudio && ctx && ctx.state === 'suspended')
+      ? ctx.resume().catch(() => {})
+      : Promise.resolve();
+
+    const playPromise = ambienceAudio.play();
+
+    const onSuccess = () => {
+      ambiencePlayPending = false;
+      ambienceAwaitingPlay = false;
+      ambiencePlaySucceeded = true;
+      fadeAmbienceTo(ambienceTargetVolume());
+    };
+
+    const onFailure = () => {
+      ambiencePlayPending = false;
+      ambienceAwaitingPlay = true;
+    };
+
+    if (playPromise && typeof playPromise.then === 'function') {
+      Promise.all([resumePromise, playPromise])
+        .then(onSuccess)
+        .catch(onFailure);
+    } else {
+      resumePromise.then(onSuccess).catch(onSuccess);
+    }
+  }
+
   function loadTrack(id) {
     if (currentTrack === id && audio) return;
     const src = tracks[id];
@@ -219,27 +352,38 @@ export function createIslandAudio(opts) {
       if (audio && !audio.paused) {
         fadeTo(0, () => pause());
       }
+      if (ambienceAudio && !ambienceAudio.paused) {
+        fadeAmbienceTo(0, () => pauseAmbience());
+      }
     } else if (userInteracted && !hidden) {
       tryPlay();
+      tryPlayAmbience();
     }
   }
 
   function onUserInteraction() {
     if (userInteracted) {
       if (awaitingPlay && !muted && !hidden) tryPlay();
+      if (ambienceAwaitingPlay && !muted && !hidden) tryPlayAmbience();
       return;
     }
     userInteracted = true;
     if (!currentTrack) loadTrack('main');
-    if (!muted && !hidden) tryPlay();
+    if (ambience && !ambienceAudio) createAmbienceAudio();
+    if (!muted && !hidden) {
+      tryPlay();
+      tryPlayAmbience();
+    }
   }
 
   function onVisibilityChange(isHidden) {
     hidden = !!isHidden;
     if (hidden) {
       pause();
+      pauseAmbience();
     } else if (userInteracted && !muted) {
       tryPlay();
+      tryPlayAmbience();
     }
   }
 
@@ -251,13 +395,24 @@ export function createIslandAudio(opts) {
   function dispose() {
     disposed = true;
     pause();
+    pauseAmbience();
     if (ctx && typeof ctx.close === 'function') {
       try { ctx.close(); } catch {}
     }
     audio = null;
+    ambienceAudio = null;
     ctx = null;
     gainNode = null;
     sourceNode = null;
+    ambienceGain = null;
+    ambienceSource = null;
+  }
+
+  function setIndoor(isIndoor) {
+    indoor = !!isIndoor;
+    if (ambienceAudio && !ambienceAudio.paused && !muted && !hidden) {
+      fadeAmbienceTo(ambienceTargetVolume());
+    }
   }
 
   function preload() {
@@ -278,17 +433,23 @@ export function createIslandAudio(opts) {
     get playSucceeded() { return playSucceeded; },
     get available() { return checkAvailable(); },
     get usingWebAudio() { return useWebAudio && !!ctx; },
+    get ambiencePlaying() { return ambienceAudio && !ambienceAudio.paused; },
+    get ambiencePlaySucceeded() { return ambiencePlaySucceeded; },
     setMuted,
     toggleMute() { setMuted(!muted); },
     onUserInteraction,
     onVisibilityChange,
     setTrack,
+    setIndoor,
     preload,
     dispose,
     _getAudio() { return audio; },
     _getAwaiting() { return awaitingPlay; },
     _getGainNode() { return gainNode; },
     _getVolume() { return getVolume(); },
-    _getPlayPending() { return playPending; }
+    _getPlayPending() { return playPending; },
+    _getAmbienceAudio() { return ambienceAudio; },
+    _getAmbienceGainNode() { return ambienceGain; },
+    _getAmbienceVolume() { return getAmbienceVolume(); }
   };
 }

@@ -11,6 +11,7 @@ export function buildIslandWorld(ctx) {
     shadow: false
   });
   water.receiveShadow = true;
+  water.renderOrder = -1;
 
   function layIsland(parent, radius) {
     const grassH = radius > 5 ? 0.26 : 0.18;
@@ -66,7 +67,7 @@ export function buildIslandWorld(ctx) {
     rockAt(x, z, s, -0.78);
   });
 
-  const sand = addMesh(scene, geo('cyl', [1.7, 1.95, 0.1, 6, HEX]), 0xf0ddb4, -4.4, -0.7, 7.6, { shadow: false });
+  const sand = addMesh(scene, geo('cyl', [1.7, 1.95, 0.1, 6, HEX]), 0xf0ddb4, -4.4, -0.66, 7.6, { shadow: false });
   sand.receiveShadow = true;
 
   function paving(x, z, w, d, rotY) {
@@ -84,4 +85,6 @@ export function buildIslandWorld(ctx) {
   paving(3.7, 0.7, 1.7, 2.5);
   paving(0, -4.7, 7.4, 1.2);
   paving(5.15, 5.55, 2.6, 1.15, -0.55);
+
+  return { water: water, sand: sand };
 }

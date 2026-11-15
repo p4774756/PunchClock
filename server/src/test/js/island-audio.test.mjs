@@ -501,4 +501,157 @@ describe('island-audio', () => {
       assert.equal(audio.playSucceeded, true, 'playSucceeded should be true');
     });
   });
+
+  describe('ambience audio', () => {
+    test('ambience plays together with music on interaction', async () => {
+      let musicPlayCalled = false;
+      let ambiencePlayCalled = false;
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage: fakeStorage(),
+        ambience: { src: '/audio/ocean-waves.ogg', volume: 0.22 },
+        _createAudio: (src) => {
+          const a = fakeAudio();
+          a.src = src;
+          const origPlay = a.play.bind(a);
+          a.play = () => {
+            if (src.indexOf('bgm') >= 0) musicPlayCalled = true;
+            else ambiencePlayCalled = true;
+            return origPlay();
+          };
+          return a;
+        },
+        _forceElementVolume: true
+      });
+
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 10));
+      assert.equal(musicPlayCalled, true, 'music should play');
+      assert.equal(ambiencePlayCalled, true, 'ambience should play');
+      assert.equal(audio.ambiencePlaying, true, 'ambience should be playing');
+    });
+
+    test('ambience has separate GainNode from music', async () => {
+      const ctx = fakeAudioContext();
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage: fakeStorage(),
+        ambience: { src: '/audio/ocean-waves.ogg', volume: 0.22 },
+        _createAudio: fakeAudio,
+        _audioContext: ctx
+      });
+
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 10));
+      const musicGain = audio._getGainNode();
+      const ambienceGain = audio._getAmbienceGainNode();
+      assert.ok(musicGain, 'music GainNode should exist');
+      assert.ok(ambienceGain, 'ambience GainNode should exist');
+      assert.notEqual(musicGain, ambienceGain, 'should be separate GainNodes');
+    });
+
+    test('setMuted(true) mutes both music and ambience', async () => {
+      const ctx = fakeAudioContext();
+      let musicAudio = null;
+      let ambienceAudio = null;
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage: fakeStorage(),
+        ambience: { src: '/audio/ocean-waves.ogg', volume: 0.22 },
+        _createAudio: (src) => {
+          const a = fakeAudio();
+          a.src = src;
+          if (src.indexOf('bgm') >= 0) musicAudio = a;
+          else ambienceAudio = a;
+          return a;
+        },
+        _audioContext: ctx
+      });
+
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 50));
+      assert.equal(audio.playing, true, 'music playing');
+      assert.equal(audio.ambiencePlaying, true, 'ambience playing');
+
+      audio.setMuted(true);
+      await new Promise(r => setTimeout(r, 100));
+      assert.equal(audio.muted, true, 'should be muted');
+      assert.equal(audio._getVolume(), 0, 'music volume should be 0');
+      assert.equal(audio._getAmbienceVolume(), 0, 'ambience volume should be 0');
+    });
+
+    test('onVisibilityChange(true) pauses both music and ambience', async () => {
+      let musicAudio = null;
+      let ambienceAudio = null;
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage: fakeStorage(),
+        ambience: { src: '/audio/ocean-waves.ogg', volume: 0.22 },
+        _createAudio: (src) => {
+          const a = fakeAudio();
+          a.src = src;
+          if (src.indexOf('bgm') >= 0) musicAudio = a;
+          else ambienceAudio = a;
+          return a;
+        },
+        _forceElementVolume: true
+      });
+
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 10));
+      assert.equal(musicAudio.paused, false, 'music should be playing');
+      assert.equal(ambienceAudio.paused, false, 'ambience should be playing');
+
+      audio.onVisibilityChange(true);
+      assert.equal(musicAudio.paused, true, 'music should pause when hidden');
+      assert.equal(ambienceAudio.paused, true, 'ambience should pause when hidden');
+
+      audio.onVisibilityChange(false);
+      await new Promise(r => setTimeout(r, 10));
+      assert.equal(musicAudio.paused, false, 'music should resume');
+      assert.equal(ambienceAudio.paused, false, 'ambience should resume');
+    });
+
+    test('no ambience when ambience option not provided', async () => {
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage: fakeStorage(),
+        _createAudio: fakeAudio,
+        _forceElementVolume: true
+      });
+
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 10));
+      assert.equal(audio.playing, true, 'music should play');
+      assert.ok(!audio.ambiencePlaying, 'no ambience should be playing');
+      assert.equal(audio._getAmbienceAudio(), null, 'ambience audio should be null');
+    });
+
+    test('setIndoor reduces ambience volume', async () => {
+      const ctx = fakeAudioContext();
+      const audio = createIslandAudio({
+        tracks: { main: '/audio/bgm.ogg' },
+        storage: fakeStorage(),
+        ambience: { src: '/audio/ocean-waves.ogg', volume: 0.22 },
+        _createAudio: fakeAudio,
+        _audioContext: ctx
+      });
+
+      audio.onUserInteraction();
+      await new Promise(r => setTimeout(r, 50));
+      const outdoorVol = audio._getAmbienceVolume();
+      assert.ok(Math.abs(outdoorVol - 0.22) < 0.01, 'outdoor volume should be ~0.22');
+
+      audio.setIndoor(true);
+      await new Promise(r => setTimeout(r, 50));
+      const indoorVol = audio._getAmbienceVolume();
+      assert.ok(indoorVol < outdoorVol, 'indoor volume should be less than outdoor');
+      assert.ok(indoorVol > 0, 'indoor volume should not be zero');
+
+      audio.setIndoor(false);
+      await new Promise(r => setTimeout(r, 50));
+      const backOutdoorVol = audio._getAmbienceVolume();
+      assert.ok(Math.abs(backOutdoorVol - 0.22) < 0.01, 'should restore outdoor volume');
+    });
+  });
 });
