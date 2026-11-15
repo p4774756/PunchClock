@@ -105,20 +105,87 @@ test('建築碰撞與門口由清單推導，主島原有障礙順序不變', ()
     }
   }
   assert.equal(hitsBoard(2.15, 5.55), false, 'milu 出生點可站');
-  for (const id of ['tcm-site', 'computer-site']) {
-    const site = L.buildingById(id);
-    assert.equal(site.deriveBlock, true);
-    assert.equal(site.entry, null);
-    assert.ok(L.blocked(site.x, site.z, 0.28), id + ' 本體不可穿越');
-  }
 });
 
-// 不呼叫清單裡的 rotateY，改用 Three.js rotation.y 的公式獨立驗證。
 function threeRotateY(x, z, yaw) {
   const c = Math.cos(yaw);
   const s = Math.sin(yaw);
   return { x: x * c + z * s, z: -x * s + z * c };
 }
+
+function circleHitsRect(x, z, r, rect) {
+  const dx = x - Math.max(rect.minX, Math.min(x, rect.maxX));
+  const dz = z - Math.max(rect.minZ, Math.min(z, rect.maxZ));
+  return dx * dx + dz * dz < r * r;
+}
+
+test('推拿館與研發樓的門在正面中線外，站得到，而且比樓心更靠近橋頭', () => {
+  const zones = L.interactZones();
+  for (const id of ['tcm-site', 'computer-site']) {
+    const hall = L.buildingById(id);
+    const island = L.islandById(hall.island);
+    const bridge = L.BRIDGES.find((item) => item.to === hall.island);
+    assert.equal(hall.deriveBlock, true);
+    assert.equal(hall.label === '施工中', false);
+    assert.ok(L.isClosedHall(hall.entry.action), id);
+    assert.notEqual(hall.entry.action, 'enterCasino');
+    assert.notEqual(hall.entry.action, 'enterInterior');
+    assert.ok(hall.door);
+    const front = threeRotateY(0, 1, hall.yaw);
+    const dx = hall.door.x - hall.x;
+    const dz = hall.door.z - hall.z;
+    const along = dx * front.x + dz * front.z;
+    const lateral = dx * -front.z + dz * front.x;
+    assert.ok(along > hall.d / 2, id + ' 門在正面之外');
+    assert.ok(Math.abs(lateral) < 1e-6, id + ' 門在正面中線');
+    assert.equal(L.walkable(hall.door.x, hall.door.z, 0.29), true, id + ' 門口在島上');
+    assert.equal(L.blocked(hall.door.x, hall.door.z, 0.29), false, id + ' 門口站得到');
+    assert.equal(L.blocked(hall.x, hall.z, 0.29), true, id + ' 本體不可穿越');
+    const doorDist = Math.hypot(hall.door.x - bridge.bx, hall.door.z - bridge.bz);
+    const centerDist = Math.hypot(hall.x - bridge.bx, hall.z - bridge.bz);
+    assert.ok(doorDist < centerDist, id + ' 門比樓心更靠近橋頭');
+    const corners = [
+      [hall.block.minX, hall.block.minZ],
+      [hall.block.maxX, hall.block.minZ],
+      [hall.block.maxX, hall.block.maxZ],
+      [hall.block.minX, hall.block.maxZ]
+    ];
+    for (const corner of corners) {
+      assert.ok(L.inIsland(corner[0], corner[1], island, 0), id + ' 碰撞框在島內');
+    }
+    assert.equal(L.onBridge(hall.door.x, hall.door.z, bridge, 0.29), false);
+    assert.equal(L.blocked(bridge.bx, bridge.bz, 0.29), false, id + ' 橋頭沒被擋住');
+    const zone = zones.find((item) => item.id === id);
+    assert.equal(zone.action, hall.entry.action);
+    assert.equal(zone.label, hall.entry.label);
+    for (const other of zones) {
+      if (other.id === zone.id) continue;
+      const gap = Math.hypot(zone.x - other.x, zone.z - other.z);
+      assert.ok(gap >= zone.r + other.r, id + ' 互動區不和 ' + other.id + ' 重疊');
+    }
+    for (const other of L.BUILDINGS) {
+      if (other.id === hall.id) continue;
+      const overlap = hall.block.minX < other.block.maxX && hall.block.maxX > other.block.minX
+        && hall.block.minZ < other.block.maxZ && hall.block.maxZ > other.block.minZ;
+      assert.equal(overlap, false, id + ' 不和 ' + other.id + ' 重疊');
+    }
+  }
+  assert.equal(L.blocked(2.15, 5.55, 0.29), false, '出生點沒被新裝飾擋住');
+  for (const prop of L.THEME_CIRCLES) {
+    const island = L.ISLANDS.find((item) => Math.hypot(prop.x - item.x, prop.z - item.z) + prop.r <= item.r + 0.001);
+    assert.ok(island, prop.id + ' 碰撞在某座島內');
+    assert.ok(Math.hypot(prop.x - island.x, prop.z - island.z) + prop.r <= island.r, prop.id);
+    for (const bridge of L.BRIDGES) {
+      assert.equal(L.onBridge(prop.x, prop.z, bridge, prop.r), false, prop.id + ' 不壓橋面');
+    }
+    for (const hall of [L.buildingById('tcm-site'), L.buildingById('computer-site')]) {
+      assert.equal(circleHitsRect(prop.x, prop.z, prop.r, hall.block), false, prop.id + ' 不壓 ' + hall.id);
+      const gap = Math.hypot(prop.x - hall.door.x, prop.z - hall.door.z);
+      assert.ok(gap > prop.r + 0.29, prop.id + ' 不擋 ' + hall.id + ' 門口');
+    }
+  }
+  assert.equal(L.isClosedHall('enterCasino'), false);
+});
 
 test('賭場門用 Three.js 的旋轉落在外觀正面，而且比建築中心更靠近橋頭', () => {
   const casino = L.buildingById('casino');
@@ -133,13 +200,6 @@ test('賭場門用 Three.js 的旋轉落在外觀正面，而且比建築中心�
   const doorDist = Math.hypot(casino.door.x - bridge.bx, casino.door.z - bridge.bz);
   const centerDist = Math.hypot(casino.x - bridge.bx, casino.z - bridge.bz);
   assert.ok(doorDist < centerDist, '門比建築中心更靠近橋頭');
-
-  const site = L.buildingById('tcm-site');
-  const tcmBridge = L.BRIDGES.find((item) => item.to === site.island);
-  const sign = threeRotateY(0, site.d / 2, site.yaw);
-  const signDist = Math.hypot(site.x + sign.x - tcmBridge.bx, site.z + sign.z - tcmBridge.bz);
-  const siteDist = Math.hypot(site.x - tcmBridge.bx, site.z - tcmBridge.bz);
-  assert.ok(signDist < siteDist, '中醫工地招牌比工地中心更靠近橋頭');
 });
 
 test('主島店面仍在原座標，賭場不在主島', () => {
