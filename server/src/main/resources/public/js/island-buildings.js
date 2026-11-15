@@ -1,13 +1,32 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CASINO } from './island-explore.js';
 import { wallSlots } from './island-graffiti.js';
 import { BUILDINGS, ISLANDS } from './island-layout.js';
 import { signCopy } from './island-roadmap.js';
-import { G, P } from './island-kit.js';
+import { G, P, nightHex } from './island-kit.js';
+import { BUILDING_GLOW, glowForMaterial } from './island-buildings-data.js';
+
+export { BUILDING_GLOW, glowForMaterial };
+
+const glbCache = new Map();
+let sharedLoader = null;
+function getLoader() {
+  if (!sharedLoader) sharedLoader = new GLTFLoader();
+  return sharedLoader;
+}
+function loadGLB(url) {
+  if (glbCache.has(url)) return glbCache.get(url);
+  const promise = new Promise((resolve, reject) => {
+    getLoader().load(url, resolve, undefined, reject);
+  });
+  glbCache.set(url, promise);
+  return promise;
+}
 
 export function buildIslandBuildings(ctx) {
-  const { scene, kit, anchors, rings, pickables, steams } = ctx;
-  const { addMesh, addBox, geo, mat, paint, picture, addCup, lampLight } = kit;
+  const { scene, kit, anchors, rings, pickables, steams, dayNight } = ctx;
+  const { addMesh, addBox, geo, mat, paint, picture, addCup, lampLight, addMaterial } = kit;
   let shaker = null;
   const font = '"PingFang TC", "Heiti TC", "Microsoft JhengHei", sans-serif';
   const signMap = paint(640, 256, (g, w, h) => {
@@ -100,6 +119,60 @@ export function buildIslandBuildings(ctx) {
     g.fillStyle = '#ffffff';
     g.fillText('研發樓', w / 2, h / 2 + 4);
   });
+  const signMaps = { shop: signMap, casino: casinoSignMap, 'tcm-site': tcmSignMap, 'computer-site': labSignMap };
+  const buildingGroups = {};
+
+  function loadBuildingGLB(buildingId, primitive, x, z, yaw) {
+    const url = '/models/' + buildingId + '.glb';
+    loadGLB(url).then((gltf) => {
+      const model = gltf.scene;
+      model.position.set(x, G, z);
+      model.rotation.y = yaw || 0;
+      model.traverse((obj) => {
+        if (!obj.isMesh) return;
+        const oldMat = obj.material;
+        const matName = oldMat && oldMat.name;
+        const glowInfo = glowForMaterial(buildingId, matName);
+        let baseColor = 0xffffff;
+        if (oldMat && oldMat.color) baseColor = oldMat.color.getHex();
+        let extra = {};
+        if (glowInfo) {
+          const nightC = nightHex(baseColor);
+          extra = {
+            night: nightC != null ? nightC : baseColor,
+            glow: glowInfo.color,
+            glowAmount: glowInfo.amount
+          };
+        }
+        if (obj.name === 'sign_face') {
+          const signTex = signMaps[buildingId];
+          if (signTex) {
+            obj.material = mat(0xffffff, {
+              map: signTex,
+              night: 0xfff0dc,
+              glow: 0xffb15a,
+              glowAmount: 0.28,
+              side: THREE.DoubleSide
+            });
+          } else {
+            obj.material = mat(baseColor, extra);
+          }
+        } else {
+          obj.material = mat(baseColor, extra);
+        }
+        if (oldMat && typeof oldMat.dispose === 'function') oldMat.dispose();
+        obj.castShadow = true;
+        obj.receiveShadow = true;
+      });
+      scene.add(model);
+      primitive.visible = false;
+      buildingGroups[buildingId] = model;
+      if (dayNight && typeof dayNight.refresh === 'function') dayNight.refresh();
+    }).catch((err) => {
+      console.warn('[Island] GLB 載入失敗 (' + buildingId + ')，保留 primitive：', err);
+    });
+  }
+
   function buildShop() {
     const shop = new THREE.Group();
     shop.position.set(0, 0, -0.55);
@@ -209,6 +282,8 @@ export function buildIslandBuildings(ctx) {
     anchors.shop = anchor;
     lampLight(0, base + 1.35, front + 0.55, 16);
     lampLight(0.2, base + 1.25, -0.2, 9);
+    buildingGroups.shop = shop;
+    loadBuildingGLB('shop', shop, 0, -0.55, 0);
   }
 
   buildShop();
@@ -325,6 +400,8 @@ export function buildIslandBuildings(ctx) {
     lampLight(0, base + 1.4, front + 0.55, 14, casino);
     lampLight(0, roofY + 0.7, 0, 8, casino);
     lampLight(0, G + 1.15, front + 1.5, 11, casino);
+    buildingGroups.casino = casino;
+    loadBuildingGLB('casino', casino, CASINO.x, CASINO.z, CASINO.yaw);
   }
 
   buildCasino();
@@ -459,6 +536,8 @@ export function buildIslandBuildings(ctx) {
     anchor.position.set(0, roofY + 1.05, 0.12);
     hall.add(anchor);
     anchors[building.id] = anchor;
+    buildingGroups[building.id] = hall;
+    loadBuildingGLB(building.id, hall, building.x, building.z, building.yaw);
   }
 
   BUILDINGS.forEach((building) => {

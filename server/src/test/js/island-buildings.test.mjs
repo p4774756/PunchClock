@@ -1,0 +1,82 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { BUILDING_GLOW, glowForMaterial } from '../../main/resources/public/js/island-buildings-data.js';
+import { BUILDINGS, buildingById } from '../../main/resources/public/js/island-layout.js';
+
+describe('BUILDING_GLOW', () => {
+  it('shop has windows_glow and lantern_glow', () => {
+    assert.ok(BUILDING_GLOW.shop);
+    assert.deepStrictEqual(BUILDING_GLOW.shop.windows_glow, { color: 0xffb15a, amount: 0.95 });
+    assert.deepStrictEqual(BUILDING_GLOW.shop.lantern_glow, { color: 0xff7a3a, amount: 1.1 });
+  });
+
+  it('casino has windows_glow, lantern_glow, and neon_glow', () => {
+    assert.ok(BUILDING_GLOW.casino);
+    assert.deepStrictEqual(BUILDING_GLOW.casino.windows_glow, { color: 0xffc56a, amount: 1.05 });
+    assert.deepStrictEqual(BUILDING_GLOW.casino.lantern_glow, { color: 0xffc56a, amount: 1.2 });
+    assert.deepStrictEqual(BUILDING_GLOW.casino.neon_glow, { color: 0xff6ad8, amount: 1.15 });
+  });
+
+  it('tcm-site has windows_glow and lantern_glow', () => {
+    assert.ok(BUILDING_GLOW['tcm-site']);
+    assert.deepStrictEqual(BUILDING_GLOW['tcm-site'].windows_glow, { color: 0xffb15a, amount: 0.9 });
+    assert.deepStrictEqual(BUILDING_GLOW['tcm-site'].lantern_glow, { color: 0xff7a3a, amount: 1.15 });
+  });
+
+  it('computer-site has windows_glow, lantern_glow, and neon_glow with cyan', () => {
+    assert.ok(BUILDING_GLOW['computer-site']);
+    assert.deepStrictEqual(BUILDING_GLOW['computer-site'].windows_glow, { color: 0x7ec8ea, amount: 1.15 });
+    assert.deepStrictEqual(BUILDING_GLOW['computer-site'].lantern_glow, { color: 0x7ec8ea, amount: 0.95 });
+    assert.deepStrictEqual(BUILDING_GLOW['computer-site'].neon_glow, { color: 0x3cf0ff, amount: 1.35 });
+  });
+});
+
+describe('glowForMaterial', () => {
+  it('returns glow info for known building/material pairs', () => {
+    assert.deepStrictEqual(glowForMaterial('shop', 'windows_glow'), { color: 0xffb15a, amount: 0.95 });
+    assert.deepStrictEqual(glowForMaterial('casino', 'neon_glow'), { color: 0xff6ad8, amount: 1.15 });
+    assert.deepStrictEqual(glowForMaterial('computer-site', 'neon_glow'), { color: 0x3cf0ff, amount: 1.35 });
+  });
+
+  it('returns null for unknown building or material', () => {
+    assert.strictEqual(glowForMaterial('unknown', 'windows_glow'), null);
+    assert.strictEqual(glowForMaterial('shop', 'unknown_material'), null);
+  });
+});
+
+describe('BUILDINGS door consistency', () => {
+  it('shop door is at -X (west wall)', () => {
+    const shop = buildingById('shop');
+    assert.ok(shop);
+    assert.ok(shop.entry);
+    assert.ok(shop.entry.at);
+    assert.ok(shop.entry.at.x < 0, 'shop door x should be negative (west wall)');
+  });
+
+  it('casino, tcm-site, computer-site have door at +Z (front)', () => {
+    ['casino', 'tcm-site', 'computer-site'].forEach((id) => {
+      const b = buildingById(id);
+      assert.ok(b, `${id} should exist`);
+      assert.ok(b.entry, `${id} should have entry`);
+      assert.ok(!b.entry.at, `${id} should NOT have entry.at (door at +Z via reach)`);
+    });
+  });
+});
+
+describe('BUILDINGS footprint dimensions', () => {
+  const expected = {
+    shop: { w: 4.75, d: 3.2 },
+    casino: { w: 2.4, d: 1.9 },
+    'tcm-site': { w: 2.3, d: 1.8 },
+    'computer-site': { w: 2.3, d: 1.8 }
+  };
+
+  Object.entries(expected).forEach(([id, dims]) => {
+    it(`${id} footprint is w=${dims.w}, d=${dims.d}`, () => {
+      const b = buildingById(id);
+      assert.ok(b);
+      assert.strictEqual(b.w, dims.w);
+      assert.strictEqual(b.d, dims.d);
+    });
+  });
+});

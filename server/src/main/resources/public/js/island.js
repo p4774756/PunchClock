@@ -193,7 +193,8 @@ function boot() {
     anchors: anchors,
     rings: rings,
     pickables: pickables,
-    steams: steams
+    steams: steams,
+    dayNight: dayNight
   });
   buildIslandProps({
     scene: scene,

@@ -108,6 +108,13 @@ public final class ServerApp {
                 sf.directory = "/public/audio";
                 sf.location = Location.CLASSPATH;
             });
+            // 建築 3D 模型（GLB）
+            config.staticFiles.add(sf -> {
+                sf.hostedPath = "/models";
+                sf.directory = "/public/models";
+                sf.location = Location.CLASSPATH;
+                sf.mimeTypes.add("model/gltf-binary", "glb");
+            });
             config.showJavalinBanner = false;
             long maxRequest = PhotoStore.MAX_INCOMING_REQUEST_BYTES;
             config.http.maxRequestSize = maxRequest;
