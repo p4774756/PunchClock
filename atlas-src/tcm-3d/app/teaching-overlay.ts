@@ -158,6 +158,14 @@ export function createTeachingOverlay(
    n.set(side,.04,-1).normalize();
    aim.y+=.02;aim.z-=.01;
    distance=.85;
+  }else if(n.z>.3){
+   // 背面穴：從後方看，勿把 viewDir.z 鎖成負值轉到正面
+   n.set(n.x*.28,Math.max(.06,n.y*.25+.1),Math.max(.82,Math.abs(n.z))).normalize();
+   distance=.78;
+  }else if(Math.abs(n.x)>.55&&Math.abs(n.z)<.55){
+   // 側面穴（如帶脈）：從側向看
+   n.set(Math.sign(n.x)*Math.max(.82,Math.abs(n.x)),Math.max(.06,n.y*.25+.1),n.z*.28).normalize();
+   distance=.75;
   }else if(n.y<-.75){
    n.set(.25,-.45,-1).normalize();
    distance=.7;

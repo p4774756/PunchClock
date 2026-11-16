@@ -76,8 +76,8 @@ try {
     assert.ok(open.includes('ST9'));
     assert.ok(open.includes('CV22'));
     assert.equal(practicePoints.length, 51);
-    assert.equal(ANIME_OUTFITS.length, 3);
-    assert.deepEqual(ANIME_OUTFITS.map(o => o.id), ['school', 'study-neck', 'study-body']);
+    assert.equal(ANIME_OUTFITS.length, 2);
+    assert.deepEqual(ANIME_OUTFITS.map(o => o.id), ['school', 'study-body']);
     for (const code of lesson.codes) {
       assert.ok(ANIME_SUPPORTED_CODES.has(code), `缺少烘點 ${code}`);
       const target = animePointTarget(code, 1);
@@ -162,6 +162,57 @@ try {
     for (const p of animeJson.points) {
       assert.ok(p.position?.length === 3);
       assert.ok(p.normal?.length === 3);
+    }
+  });
+
+  await test('每個烘點距離 Face／Body 皮膚 < 2 mm', async () => {
+    const {readFileSync} = await import('node:fs');
+    const {GLTFLoader} = await import('three/examples/jsm/loaders/GLTFLoader.js');
+    globalThis.self = globalThis;
+    globalThis.URL = URL;
+    globalThis.webkitURL = URL;
+    if (!globalThis.document) {
+      globalThis.document = {createElementNS: () => ({style: {}, setAttribute() {}, getContext() { return null; }})};
+    }
+    const buffer = readFileSync(join(project, 'public/models/anime-assistant.glb')).buffer;
+    const gltf = await new Promise((res, rej) => new GLTFLoader().parse(buffer, '', res, rej));
+    const scene = gltf.scene;
+    scene.updateMatrixWorld(true);
+    const skins = [];
+    scene.traverse(o => {
+      if (!o.isMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      if (mats.some(m => /Face_00_SKIN|Body_00_SKIN|FaceMouth/i.test(m?.name || ''))) skins.push(o);
+    });
+    assert.ok(skins.length > 0);
+    const tri = new T.Triangle();
+    const closest = new T.Vector3();
+    const a = new T.Vector3(), b = new T.Vector3(), c = new T.Vector3();
+    const distToSkin = (point) => {
+      let best = Infinity;
+      for (const mesh of skins) {
+        const pos = mesh.geometry.getAttribute('position');
+        const index = mesh.geometry.index;
+        if (!pos || !index) continue;
+        for (let i = 0; i < index.count; i += 3) {
+          a.fromBufferAttribute(pos, index.getX(i)).applyMatrix4(mesh.matrixWorld);
+          b.fromBufferAttribute(pos, index.getX(i + 1)).applyMatrix4(mesh.matrixWorld);
+          c.fromBufferAttribute(pos, index.getX(i + 2)).applyMatrix4(mesh.matrixWorld);
+          tri.set(a, b, c);
+          tri.closestPointToPoint(point, closest);
+          best = Math.min(best, point.distanceTo(closest));
+        }
+      }
+      return best;
+    };
+    for (const p of animeJson.points) {
+      // JSON +X = anatomical left; bake snapped on world −X then took abs — try both signs.
+      const candidates = p.midline
+        ? [new T.Vector3(0, p.position[1], p.position[2])]
+        : [new T.Vector3(-p.position[0], p.position[1], p.position[2]), new T.Vector3(p.position[0], p.position[1], p.position[2])];
+      let best = Infinity;
+      for (const world of candidates) best = Math.min(best, distToSkin(world));
+      assert.ok(best < 0.002, `${p.code} 距皮膚 ${(best * 1000).toFixed(2)} mm（需 < 2 mm）`);
     }
   });
 

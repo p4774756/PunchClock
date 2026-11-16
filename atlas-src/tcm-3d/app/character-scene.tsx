@@ -34,29 +34,28 @@ const materialLabel=(mat:T.Material,obj:T.Object3D)=>`${mat.name||''} ${obj.name
 
 /** Warm fill for MASK cutouts — chroma above #f6efe4 so restored skin is not a beige void. */
 const SKIN_FILL=new T.Color(232/255,198/255,178/255);
-const PRACTICE_TEAL=0x0d4a4f;
+const PRACTICE_TEAL=new T.Color(0x0d4a4f);
 const BUN_BROWN=0x3b2a22;
 
-const inCollarSkinBand=(x:number,y:number,z:number)=>{
- // Shirt V／天突窝 only — do not paint side-neck (reads as a peach oval).
- if(y<1.2||y>1.295||Math.abs(x)>.1)return false;
- return Math.abs(z)<.12;
-};
-
 const inTorsoSkinBand=(x:number,y:number,z:number)=>{
- if(y<.88||y>1.42||Math.abs(x)>.22)return false;
+ if(y<.8||y>1.42||Math.abs(x)>.22)return false;
  return Math.abs(z)<.16||(y>1.15&&Math.abs(z)<.14);
 };
 
-const fillSkinTexel=(data:ImageData,i:number,rgb:T.Color)=>{
- if(data.data[i+3]>=200)return;
- data.data[i]=rgb.r*255;
- data.data[i+1]=rgb.g*255;
- data.data[i+2]=rgb.b*255;
- data.data[i+3]=255;
+/** Sports bra: full front breast cover; back is a horizontal strap only. */
+const inPracticeBra=(x:number,y:number,z:number)=>{
+ if(y<1.15||y>1.27||Math.abs(x)>.13)return false;
+ if(z<=.02)return true; // front＋sides cover breasts
+ return y>=1.20&&y<=1.27; // back strap
 };
 
-const fillUvTriangle=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,u1:number,v1:number,u2:number,v2:number,rgb:T.Color)=>{
+/** High-waist shorts: below 神闕／命門, cover white underwear front＋back. */
+const inPracticeShorts=(x:number,y:number,z:number)=>{
+ if(y<.8||y>.97||Math.abs(x)>.16)return false;
+ return Math.abs(z)<.14;
+};
+
+const writeUvTriangle=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,u1:number,v1:number,u2:number,v2:number,rgb:T.Color,mode:'fillTransparent'|'paint')=>{
  const toX=(u:number)=>Math.min(width-1,Math.max(0,Math.round(u*(width-1))));
  const toY=(v:number)=>Math.min(height-1,Math.max(0,Math.round((flipY?1-v:v)*(height-1))));
  const x0=toX(u0),y0=toY(v0),x1=toX(u1),y1=toY(v1),x2=toX(u2),y2=toY(v2);
@@ -69,7 +68,12 @@ const fillUvTriangle=(data:ImageData,width:number,height:number,flipY:boolean,u0
   const w1=((x2-x)*(y0-y)-(x0-x)*(y2-y))/area;
   const w2=1-w0-w1;
   if(w0<-.01||w1<-.01||w2<-.01)continue;
-  fillSkinTexel(data,(y*width+x)*4,rgb);
+  const i=(y*width+x)*4;
+  if(mode==='fillTransparent'&&data.data[i+3]>=200)continue;
+  data.data[i]=rgb.r*255;
+  data.data[i+1]=rgb.g*255;
+  data.data[i+2]=rgb.b*255;
+  data.data[i+3]=255;
  }
 };
 
@@ -80,13 +84,17 @@ const findSkinMap=(m:T.MeshStandardMaterial & {map?:T.Texture|null;uniforms?:Rec
  return null;
 };
 
-const restoreBodySkinAlpha=(root:T.Object3D,band:(x:number,y:number,z:number)=>boolean)=>{
+/**
+ * Unmask Body_00_SKIN under hidden Tops／Bottoms, then paint teal bra＋shorts into the
+ * same lit MToon map so cloth follows the skinned mesh (no separate Mesh / no onBeforeCompile).
+ */
+const paintPracticeBodySkin=(root:T.Object3D)=>{
  const skinMats:T.MeshStandardMaterial[]=[];
  const skinMeshes:(T.Mesh|T.SkinnedMesh)[]=[];
  root.traverse((obj:T.Object3D)=>{
   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
   const mats=Array.isArray(obj.material)?obj.material:[obj.material];
-  const body=mats.filter(m=>/Body_00_SKIN/i.test(m.name||'')&&!/Outline|Practice/i.test(m.name||'')) as T.MeshStandardMaterial[];
+  const body=mats.filter(m=>/Body_00_SKIN/i.test(m.name||'')&&!/Outline/i.test(m.name||'')) as T.MeshStandardMaterial[];
   if(!body.length)return;
   skinMeshes.push(obj);
   for(const m of body)if(!skinMats.includes(m))skinMats.push(m);
@@ -101,15 +109,14 @@ const restoreBodySkinAlpha=(root:T.Object3D,band:(x:number,y:number,z:number)=>b
  if(!ctx)return;
  try{ctx.drawImage(img,0,0);}catch{return;}
  const data=ctx.getImageData(0,0,canvas.width,canvas.height);
- // Prefer real skin chroma from opaque texels; fall back to SKIN_FILL.
  let r=0,g=0,b=0,n=0;
  for(let i=0;i<data.data.length;i+=16){
   if(data.data[i+3]<200)continue;
   r+=data.data[i];g+=data.data[i+1];b+=data.data[i+2];n++;
  }
- const rgb=n?new T.Color(r/n/255,g/n/255,b/n/255):SKIN_FILL.clone();
+ const skinRgb=n?new T.Color(r/n/255,g/n/255,b/n/255):SKIN_FILL.clone();
  const flipY=!!src.flipY;
- let filled=0;
+ let touched=0;
  for(const mesh of skinMeshes){
   const geom=mesh.geometry;
   const pos=geom.getAttribute('position');
@@ -123,14 +130,20 @@ const restoreBodySkinAlpha=(root:T.Object3D,band:(x:number,y:number,z:number)=>b
    a.fromBufferAttribute(pos,i0).applyMatrix4(mesh.matrixWorld);
    b.fromBufferAttribute(pos,i1).applyMatrix4(mesh.matrixWorld);
    c.fromBufferAttribute(pos,i2).applyMatrix4(mesh.matrixWorld);
-   const hit=band(a.x,a.y,a.z)||band(b.x,b.y,b.z)||band(c.x,c.y,c.z)
-    ||band((a.x+b.x+c.x)/3,(a.y+b.y+c.y)/3,(a.z+b.z+c.z)/3);
-   if(!hit)continue;
-   fillUvTriangle(data,canvas.width,canvas.height,flipY,uv.getX(i0),uv.getY(i0),uv.getX(i1),uv.getY(i1),uv.getX(i2),uv.getY(i2),rgb);
-   filled++;
+   const cx=(a.x+b.x+c.x)/3,cy=(a.y+b.y+c.y)/3,cz=(a.z+b.z+c.z)/3;
+   const torso=inTorsoSkinBand(a.x,a.y,a.z)||inTorsoSkinBand(b.x,b.y,b.z)||inTorsoSkinBand(c.x,c.y,c.z)||inTorsoSkinBand(cx,cy,cz);
+   if(!torso)continue;
+   writeUvTriangle(data,canvas.width,canvas.height,flipY,uv.getX(i0),uv.getY(i0),uv.getX(i1),uv.getY(i1),uv.getX(i2),uv.getY(i2),skinRgb,'fillTransparent');
+   const cloth=inPracticeBra(cx,cy,cz)||inPracticeShorts(cx,cy,cz)
+    ||inPracticeBra(a.x,a.y,a.z)||inPracticeBra(b.x,b.y,b.z)||inPracticeBra(c.x,c.y,c.z)
+    ||inPracticeShorts(a.x,a.y,a.z)||inPracticeShorts(b.x,b.y,b.z)||inPracticeShorts(c.x,c.y,c.z);
+   if(cloth){
+    writeUvTriangle(data,canvas.width,canvas.height,flipY,uv.getX(i0),uv.getY(i0),uv.getX(i1),uv.getY(i1),uv.getX(i2),uv.getY(i2),PRACTICE_TEAL,'paint');
+   }
+   touched++;
   }
  }
- if(!filled)return;
+ if(!touched)return;
  ctx.putImageData(data,0,0);
  const next=src.clone();
  next.image=canvas;
@@ -146,86 +159,86 @@ const restoreBodySkinAlpha=(root:T.Object3D,band:(x:number,y:number,z:number)=>b
  }
 };
 
-/** Opaque lit teal undergarments — never MeshBasic flesh plugs. */
-const addPracticeUndergarments=(root:T.Object3D)=>{
- const mat=new T.MeshStandardMaterial({
-  name:'PracticeTealCloth',
-  color:PRACTICE_TEAL,
-  roughness:.55,
-  metalness:.04,
-  side:T.DoubleSide,
- });
- const group=new T.Group();
- group.name='PracticeUndergarments';
- // Sports bra: underbust band + lateral cups, midline open for 膻中.
- const band=new T.Mesh(new T.TorusGeometry(.086,.022,10,28),mat);
- band.rotation.x=Math.PI/2;
- band.position.set(0,1.195,.01);
- band.scale.set(1.05,.95,1.15);
- group.add(band);
- for(const side of[-1,1]){
-  const cup=new T.Mesh(new T.SphereGeometry(.048,18,14,0,Math.PI*2,0,Math.PI*.62),mat);
-  cup.position.set(side*.048,1.235,-.02);
-  cup.scale.set(.95,.72,.55);
-  group.add(cup);
- }
- // High-waist shorts: waistband below 神闕／命門 so abdomen＋腰 stay visible.
- const waist=new T.Mesh(new T.TorusGeometry(.095,.018,10,28),mat);
- waist.rotation.x=Math.PI/2;
- waist.position.set(0,.975,.005);
- waist.scale.set(1.08,1,1.05);
- group.add(waist);
- const shorts=new T.Mesh(new T.CylinderGeometry(.1,.112,.11,28,1,true),mat);
- shorts.position.set(0,.92,.005);
- group.add(shorts);
- const crotch=new T.Mesh(new T.SphereGeometry(.055,16,12,0,Math.PI*2,0,Math.PI*.55),mat);
- crotch.position.set(0,.88,.01);
- crotch.scale.set(1.15,.55,.7);
- group.add(crotch);
- group.traverse(o=>{if(o instanceof T.Mesh){o.frustumCulled=false;o.renderOrder=2;}});
- root.add(group);
-};
-
-/** Hide long hair meshes and add a high bun so occiput points stay visible. */
+/** Drop nape／occiput hair triangles; keep bangs and crown. Bun parents to Head bone. */
 const restyleHairBun=(root:T.Object3D)=>{
  root.traverse((obj:T.Object3D)=>{
   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
   const mats=Array.isArray(obj.material)?obj.material:[obj.material];
-  for(const mat of mats){
-   const m=mat as T.MeshStandardMaterial;
-   const name=materialLabel(m,obj);
-   if(/HairBack|Hair_00_HAIR_01/i.test(name)){
-    m.visible=false;
-    m.needsUpdate=true;
-   }else if(/Hair_00_HAIR_02|HAIR|髪/i.test(name)){
-    // Keep bangs／ fringe; slightly translucent so temples stay readable.
-    m.transparent=true;
-    m.opacity=Math.min(m.opacity??1,.85);
-    m.depthWrite=true;
-    m.needsUpdate=true;
+  const name=mats.map(m=>materialLabel(m,obj)).join(' ');
+  if(/HairBack|Hair_00_HAIR_01/i.test(name)){
+   const geom=obj.geometry;
+   const pos=geom.getAttribute('position');
+   const index=geom.index;
+   if(pos&&index){
+    obj.updateMatrixWorld(true);
+    const keep:number[]=[];
+    const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
+    for(let i=0;i<index.count;i+=3){
+     const i0=index.getX(i),i1=index.getX(i+1),i2=index.getX(i+2);
+     a.fromBufferAttribute(pos,i0).applyMatrix4(obj.matrixWorld);
+     b.fromBufferAttribute(pos,i1).applyMatrix4(obj.matrixWorld);
+     c.fromBufferAttribute(pos,i2).applyMatrix4(obj.matrixWorld);
+     const cy=(a.y+b.y+c.y)/3,cz=(a.z+b.z+c.z)/3;
+     // Nape／lower occiput blocks 風府／風池／啞門／天柱.
+     if(cz>.01&&cy<1.47)continue;
+     keep.push(i0,i1,i2);
+    }
+    geom.setIndex(keep);
+    geom.computeVertexNormals();
    }
+  }else if(/Hair_00_HAIR_02/i.test(name)){
+   const m=mats[0] as T.MeshStandardMaterial;
+   m.transparent=true;
+   m.opacity=Math.min(m.opacity??1,.9);
+   m.depthWrite=true;
+   m.needsUpdate=true;
   }
  });
  const head=root.getObjectByName('J_Bip_C_Head');
- const bunAt=new T.Vector3(0,1.58,.04);
- if(head)head.getWorldPosition(bunAt).add(new T.Vector3(0,.12,.04));
- // Convert world → root local if root is not identity.
- root.updateMatrixWorld(true);
- const local=bunAt.clone();
- root.worldToLocal(local);
+ if(!head)return;
  const bunMat=new T.MeshStandardMaterial({name:'PracticeHairBun',color:BUN_BROWN,roughness:.7,metalness:.02});
- const bun=new T.Mesh(new T.SphereGeometry(.055,20,16),bunMat);
+ // Head local +Y/+Z align with world; place above＋behind GV20 (~1.62) so the bun is visible from front.
+ const bun=new T.Mesh(new T.SphereGeometry(.06,20,16),bunMat);
  bun.name='PracticeHairBun';
- bun.position.copy(local);
- bun.scale.set(1.05,.9,1.1);
+ bun.position.set(0,.24,.055);
+ bun.scale.set(1.05,.92,1.08);
  bun.frustumCulled=false;
- root.add(bun);
- const coil=new T.Mesh(new T.TorusGeometry(.038,.014,8,20),bunMat);
+ head.add(bun);
+ const coil=new T.Mesh(new T.TorusGeometry(.042,.015,8,20),bunMat);
  coil.name='PracticeHairBunCoil';
- coil.position.copy(local).add(new T.Vector3(0,-.01,.01));
+ coil.position.set(0,.225,.06);
  coil.rotation.x=Math.PI/2;
  coil.frustumCulled=false;
- root.add(coil);
+ head.add(coil);
+};
+
+/** Shared focus framing: back points look from behind; side from the side. */
+export const focusViewFromNormal=(pointCode:string|null|undefined,normal:T.Vector3,side:1|-1)=>{
+ const viewDir=new T.Vector3();
+ let distance=.62;
+ let aimAdjust=new T.Vector3();
+ if(pointCode==='GV20'||normal.y>.85){
+  viewDir.set(.06,.22,-.97).normalize();
+  aimAdjust.set(0,-.1,-.06);
+  distance=1.35;
+ }else if(pointCode==='ST9'||pointCode==='CV22'||pointCode==='CV23'){
+  viewDir.set(Math.sign(normal.x||side)*.15,.04,-1).normalize();
+  aimAdjust.set(0,.02,-.01);
+  distance=.85;
+ }else if(normal.z>.3){
+  viewDir.set(normal.x*.28,Math.max(.06,normal.y*.25+.1),Math.max(.82,Math.abs(normal.z))).normalize();
+  distance=.78;
+ }else if(Math.abs(normal.x)>.55&&Math.abs(normal.z)<.55){
+  viewDir.set(Math.sign(normal.x)*Math.max(.82,Math.abs(normal.x)),Math.max(.06,normal.y*.25+.1),normal.z*.28).normalize();
+  distance=.75;
+ }else if(normal.y<-.75){
+  viewDir.set(.25,-.45,-1).normalize();
+  distance=.7;
+ }else{
+  viewDir.set(normal.x*.28-.1,Math.max(.06,normal.y*.25+.1),-Math.max(.82,Math.abs(normal.z))).normalize();
+  distance=.72;
+ }
+ return {viewDir,distance,aimAdjust};
 };
 
 const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
@@ -242,7 +255,7 @@ const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
    // MToon manages its own texture color space; forcing SRGB can mute litFactor maps.
    if(m.map&&!m.isMToonMaterial){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
    if(outfit.practiceBody){
-    // Hair restyled separately into a bun; do not force school-uniform translucency.
+    // Hair trimmed／bun separately; do not force school-uniform translucency.
    }else if(/HAIR|髪|HairBack/i.test(name)){
     m.transparent=true;
     m.opacity=/HairBack|Back/i.test(name)?Math.min(m.opacity??1,.42):Math.min(m.opacity??1,.55);
@@ -257,14 +270,10 @@ const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
    }
   }
  });
- // Restore lit MToon Body_00_SKIN alpha. Never add MeshBasic flesh balloons or
- // hook MToon onBeforeCompile (both broke neck demos in #74／#79).
+ // Never add MeshBasic flesh balloons or hook MToon onBeforeCompile.
  if(outfit.practiceBody){
-  restoreBodySkinAlpha(root,inTorsoSkinBand);
-  addPracticeUndergarments(root);
+  paintPracticeBodySkin(root);
   restyleHairBun(root);
- }else if(outfit.openCollar){
-  restoreBodySkinAlpha(root,inCollarSkinBand);
  }
 };
 
@@ -415,16 +424,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     if(target){
      const aim=new T.Vector3().fromArray(target.position);
      const normal=new T.Vector3().fromArray(target.normal).normalize();
-     let viewDir=new T.Vector3();
-     let distance=.62;
-     if(simState.pointCode==='GV20'||normal.y>.85){
-      viewDir.set(.06,.22,-.97).normalize();aim.y-=.1;aim.z-=.06;distance=1.35;
-     }else if(simState.pointCode==='ST9'||simState.pointCode==='CV22'||simState.pointCode==='CV23'){
-      viewDir.set(Math.sign(normal.x||simState.side)*.15,.04,-1).normalize();aim.y+=.02;aim.z-=.01;distance=.85;
-     }else{
-      viewDir.set(normal.x*.28-.1,Math.max(.06,normal.y*.25+.1),-Math.max(.82,Math.abs(normal.z))).normalize();
-      distance=.72;
-     }
+     const {viewDir,distance,aimAdjust}=focusViewFromNormal(simState.pointCode,normal,simState.side);
+     aim.add(aimAdjust);
      controls.target.copy(aim);
      camera.position.copy(aim).addScaledVector(viewDir,distance);
      controls.update();dirty=true;

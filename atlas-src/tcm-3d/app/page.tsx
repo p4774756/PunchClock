@@ -117,7 +117,7 @@ export default function Home(){
   }
   prepareFocus();setHolding(false);heldPointer.current=null;
   setSimulation(s=>({...s,pointCode:code,side:next.midline?1:side,customTarget:null,dragging:false,running:false,elapsed:0,focus:s.focus+1,pickMode:'point'}));
-  const tip=(code==='ST9'||code==='CV22')
+  const tip=(code==='ST9'||code==='CV22')&&outfitId!=='study-body'
    ?`已選擇${next.name} ${next.code}。請切「練習裝」露出頸前皮膚再演示。`
    :`已選擇${next.name} ${next.code}，可播放針／指壓演示。`;
   setFeedback(tip);
@@ -236,8 +236,8 @@ export default function Home(){
   <dialog ref={dialog} className="source-dialog" onCancel={()=>setAbout(false)} onClose={()=>setAbout(false)} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)setAbout(false);}}} aria-labelledby="source-title">
    <div className="dialog-heading"><span className="eyebrow">資料、許可與當前邊界</span><button className="icon-button" onClick={()=>setAbout(false)} aria-label="關閉來源與許可" autoFocus><X size={19}/></button></div>
    <h2 id="source-title">讓每一層，有據可查。</h2><p className="dialog-intro">這是供課堂討論與交互驗證的工程預覽。標準文字、角色模型與操作動畫分別保留來源和狀態。</p>
-   <section><h3>穴位定位</h3><p>以 GB/T 12346—2021《經穴名稱與定位》為主要核查來源。本版研習室只在角色身上顯示已烘上的穴位（頭頸 21，其中人迎／天突演示改至 #75）。`teaching-points.json` 仍保留完整目錄與歷史解剖空間座標，供之後每週加穴對位參考，並不代表解剖銅人模型仍在頁面中。</p><a href={STANDARD} target="_blank" rel="noreferrer">查閱國家標準正文<ArrowUpRight size={13}/></a></section>
-   <section><h3>動漫角色</h3><p>研習室角色為 VRoid Studio β 版樣本「Sendagaya Shino」（pixiv Inc.，CC0 1.0），目前為制服研習裝。露頸練習裝與人迎／天突近景演示改至 #75。針與指壓演示作用在選中穴的皮膚上。</p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">CC0 1.0 說明<ArrowUpRight size={13}/></a><a href={publicAssetUrl('/ATTRIBUTION.md')} target="_blank" rel="noreferrer">署名細節<ArrowUpRight size={13}/></a></section>
+   <section><h3>穴位定位</h3><p>以 GB/T 12346—2021《經穴名稱與定位》為主要核查來源。本版研習室只在角色身上顯示已烘上的穴位（頭頸 21＋頭胸腹背腰 30，共 51；含人迎、天突）。`teaching-points.json` 仍保留完整目錄與歷史解剖空間座標，供之後每週加穴對位參考，並不代表解剖銅人模型仍在頁面中。</p><a href={STANDARD} target="_blank" rel="noreferrer">查閱國家標準正文<ArrowUpRight size={13}/></a></section>
+   <section><h3>動漫角色</h3><p>研習室角色為 VRoid Studio β 版樣本「Sendagaya Shino」（pixiv Inc.，CC0 1.0）。換裝可切「制服」與「練習裝」（深青運動內衣＋高腰短褲、高包頭）；胸腹背腰與人迎／天突請用練習裝，針與指壓打在真實皮膚上。</p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">CC0 1.0 說明<ArrowUpRight size={13}/></a><a href={publicAssetUrl('/ATTRIBUTION.md')} target="_blank" rel="noreferrer">署名細節<ArrowUpRight size={13}/></a></section>
    <section><h3>工具與局部反饋</h3><p>針具接觸與指壓形變為教學視覺示意，不預測療效，也不提供真人操作參數。</p><a href="https://www.nccih.nih.gov/health/acupuncture-effectiveness-and-safety" target="_blank" rel="noreferrer">NCCIH：針灸資料<ArrowUpRight size={13}/></a><a href="https://www.mskcc.org/cancer-care/patient-education/acupressure-pain-and-headaches" target="_blank" rel="noreferrer">MSK：指壓資料<ArrowUpRight size={13}/></a></section>
    <button className="dialog-done" onClick={()=>setAbout(false)}>返回研習室</button>
   </dialog>
