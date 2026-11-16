@@ -153,11 +153,11 @@ export function createTeachingOverlay(
    aim.y-=.1;aim.z-=.06;
    distance=1.35;
   }else if(s.pointCode==='ST9'||s.pointCode==='CV22'||s.pointCode==='CV23'){
-   // 人迎／天突／廉泉：正前方看頸部皮膚，勿從頸胸開口望進體內
+   // 人迎／天突／廉泉：近距正前方，讓針／指壓清楚可見
    const side=Math.sign(n.x||(s.side||1))*.15;
    n.set(side,.04,-1).normalize();
    aim.y+=.02;aim.z-=.01;
-   distance=.85;
+   distance=.6;
   }else if(n.z>.3){
    // 背面穴：從後方看，勿把 viewDir.z 鎖成負值轉到正面
    n.set(n.x*.28,Math.max(.06,n.y*.25+.1),Math.max(.82,Math.abs(n.z))).normalize();

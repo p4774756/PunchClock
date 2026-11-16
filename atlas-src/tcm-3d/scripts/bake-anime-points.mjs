@@ -71,7 +71,8 @@ const L=-1;
 const seeds={
  GV20:[0,head.y+.155,head.z+.025],GV23:[0,eyeMid.y+.105,eyeMid.z-.055],'GV24+':[0,eyeMid.y+.028,eyeMid.z-.02],
  GV26:[0,eyeMid.y-.055,eyeMid.z-.045],CV24:[0,eyeMid.y-.095,eyeMid.z-.02],CV23:[0,neck.y-.01,neck.z-.035],
- CV22:[0,neck.y-.09,neck.z-.055],BL2:[.012*L,eyeMid.y+.03,eyeMid.z-.02],BL1:[.018*L,eyeMid.y+.005,eyeMid.z-.015],
+ // 天突：頸胸交界胸骨上窩（使用者同意自舊頭頸座標上移）。
+ CV22:[0,1.295,-.08],BL2:[.012*L,eyeMid.y+.03,eyeMid.z-.02],BL1:[.018*L,eyeMid.y+.005,eyeMid.z-.015],
  LI20:[.018*L,eyeMid.y-.04,eyeMid.z-.04],GB14:[.03*L,eyeMid.y+.055,eyeMid.z-.02],'EX-HN4':[.03*L,eyeMid.y+.036,eyeMid.z-.03],
  ST1:[.028*L,eyeMid.y-.02,eyeMid.z-.02],ST2:[.03*L,eyeMid.y-.035,eyeMid.z-.03],ST3:[.032*L,eyeMid.y-.055,eyeMid.z-.035],
  ST4:[.034*L,eyeMid.y-.075,eyeMid.z-.025],ST9:[.038*L,neck.y-.02,neck.z-.045],TE23:[.055*L,eyeMid.y+.02,eyeMid.z+.005],
@@ -81,11 +82,13 @@ const seeds={
  ST6:[.055*L,eyeMid.y-.06,eyeMid.z-.005],TE17:[.065*L,eyeMid.y-.025,eyeMid.z+.05],
  GB21:[.1*L,neck.y-.02,neck.z+.02],ST12:[.045*L,neck.y-.06,neck.z-.06],
  GV16:[0,head.y+.01,head.z+.1],GB20:[.028*L,1.435,.09],GV15:[0,neck.y+.04,neck.z+.095],
- BL10:[.022*L,neck.y+.015,neck.z+.095],GV14:[0,neck.y-.1,neck.z+.07],
+ BL10:[.022*L,neck.y+.015,neck.z+.095],
+ // 大椎：C7 棘突下、約肩線；BL14／BL43（T4）與 SI11 在其下方。
+ GV14:[0,1.31,.08],
  // 第 4 肋間：乳頭高度 y≈1.195、x≈0.055；ST17 在乳頭，KI23 正中旁開，PC1／SP18 再外。
  CV17:[0,1.195,-.12],KI23:[.03*L,1.195,-.12],ST17:[.055*L,1.195,-.13],PC1:[.075*L,1.195,-.11],SP18:[.095*L,1.195,-.09],
  CV14:[0,1.15,-.1],CV8:[0,1.02,-.1],KI16:[.02*L,1.02,-.1],ST25:[.05*L,1.015,-.1],SP15:[.09*L,1.015,-.08],GB26:[.12*L,1.015,-.04],
- BL14:[.03*L,1.30,.1],BL43:[.055*L,1.29,.105],SI11:[.11*L,1.28,.09],SI9:[.15*L,1.31,.05],
+ BL14:[.03*L,1.26,.09],BL43:[.055*L,1.25,.095],SI11:[.11*L,1.24,.08],SI9:[.15*L,1.31,.05],
  GV4:[0,1.02,.11],BL23:[.03*L,1.05,.1],BL52:[.055*L,1.04,.1],
 };
 const midline=new Set(['GV20','GV23','GV24+','GV26','CV24','CV23','CV22','GV16','GV15','GV14','CV17','CV14','CV8','GV4']);
@@ -96,6 +99,8 @@ const preferFor=(code,arr)=>{
  if(code==='GB20')return new T.Vector3(arr[0]*.35,-.2,1).normalize();
  if(code==='GB26')return new T.Vector3(arr[0],0,-.15).normalize();
  if(code==='GB1')return new T.Vector3(arr[0],0,-1).normalize();
+ if(code==='CV22')return new T.Vector3(0,0,-1);
+ if(code==='GV14')return new T.Vector3(0,0,1);
  const catalog=teachingByCode.get(code);
  if(catalog?.normal?.length===3){
   // Catalog: +X anatomical left, +Z front. Anime seeds: L=-1 world X, −Z front.

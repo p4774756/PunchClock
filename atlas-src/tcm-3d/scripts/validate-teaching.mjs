@@ -165,6 +165,13 @@ try {
     }
   });
 
+  await test('大椎 GV14 高於厥陰俞 BL14', () => {
+    const gv14 = animeJson.points.find(p => p.code === 'GV14');
+    const bl14 = animeJson.points.find(p => p.code === 'BL14');
+    assert.ok(gv14 && bl14);
+    assert.ok(gv14.position[1] > bl14.position[1], `GV14 y=${gv14.position[1]} 應高於 BL14 y=${bl14.position[1]}`);
+  });
+
   await test('每個烘點距離 Face／Body 皮膚 < 2 mm', async () => {
     const {readFileSync} = await import('node:fs');
     const {GLTFLoader} = await import('three/examples/jsm/loaders/GLTFLoader.js');

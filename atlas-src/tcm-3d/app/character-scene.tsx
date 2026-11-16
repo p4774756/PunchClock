@@ -34,7 +34,8 @@ const materialLabel=(mat:T.Material,obj:T.Object3D)=>`${mat.name||''} ${obj.name
 
 /** Warm fill for MASK cutouts — chroma above #f6efe4 so restored skin is not a beige void. */
 const SKIN_FILL=new T.Color(232/255,198/255,178/255);
-const PRACTICE_TEAL=new T.Color(0x0d4a4f);
+/** Deep teal as sRGB bytes — do not feed hex through ColorManagement (would go near-black on the map). */
+const PRACTICE_TEAL_SRGB={r:13,g:74,b:79};
 const BUN_BROWN=0x3b2a22;
 
 const inTorsoSkinBand=(x:number,y:number,z:number)=>{
@@ -42,11 +43,11 @@ const inTorsoSkinBand=(x:number,y:number,z:number)=>{
  return Math.abs(z)<.16||(y>1.15&&Math.abs(z)<.14);
 };
 
-/** Sports bra: full front breast cover; back is a horizontal strap only. */
+/** Sports bra: front covers breasts below 天突; back strap sits under GV14／BL14. */
 const inPracticeBra=(x:number,y:number,z:number)=>{
- if(y<1.15||y>1.27||Math.abs(x)>.13)return false;
- if(z<=.02)return true; // front＋sides cover breasts
- return y>=1.20&&y<=1.27; // back strap
+ if(Math.abs(x)>.13)return false;
+ if(z<=.02)return y>=1.15&&y<=1.235; // front＋sides
+ return y>=1.17&&y<=1.23; // back strap
 };
 
 /** High-waist shorts: below 神闕／命門, cover white underwear front＋back. */
@@ -55,7 +56,7 @@ const inPracticeShorts=(x:number,y:number,z:number)=>{
  return Math.abs(z)<.14;
 };
 
-const writeUvTriangle=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,u1:number,v1:number,u2:number,v2:number,rgb:T.Color,mode:'fillTransparent'|'paint')=>{
+const writeUvTriangleFill=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,u1:number,v1:number,u2:number,v2:number,rgb:T.Color)=>{
  const toX=(u:number)=>Math.min(width-1,Math.max(0,Math.round(u*(width-1))));
  const toY=(v:number)=>Math.min(height-1,Math.max(0,Math.round((flipY?1-v:v)*(height-1))));
  const x0=toX(u0),y0=toY(v0),x1=toX(u1),y1=toY(v1),x2=toX(u2),y2=toY(v2);
@@ -69,10 +70,36 @@ const writeUvTriangle=(data:ImageData,width:number,height:number,flipY:boolean,u
   const w2=1-w0-w1;
   if(w0<-.01||w1<-.01||w2<-.01)continue;
   const i=(y*width+x)*4;
-  if(mode==='fillTransparent'&&data.data[i+3]>=200)continue;
+  if(data.data[i+3]>=200)continue;
   data.data[i]=rgb.r*255;
   data.data[i+1]=rgb.g*255;
   data.data[i+2]=rgb.b*255;
+  data.data[i+3]=255;
+ }
+};
+
+/** Paint cloth only where interpolated world position is inside the garment band (smooth edges). */
+const writeUvTriangleCloth=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,wa:T.Vector3,u1:number,v1:number,wb:T.Vector3,u2:number,v2:number,wc:T.Vector3,pred:(x:number,y:number,z:number)=>boolean,rgb:{r:number;g:number;b:number})=>{
+ const toX=(u:number)=>Math.min(width-1,Math.max(0,Math.round(u*(width-1))));
+ const toY=(v:number)=>Math.min(height-1,Math.max(0,Math.round((flipY?1-v:v)*(height-1))));
+ const x0=toX(u0),y0=toY(v0),x1=toX(u1),y1=toY(v1),x2=toX(u2),y2=toY(v2);
+ const minX=Math.max(0,Math.min(x0,x1,x2)),maxX=Math.min(width-1,Math.max(x0,x1,x2));
+ const minY=Math.max(0,Math.min(y0,y1,y2)),maxY=Math.min(height-1,Math.max(y0,y1,y2));
+ const area=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);
+ if(area===0)return;
+ for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+  const w0=((x1-x)*(y2-y)-(x2-x)*(y1-y))/area;
+  const w1=((x2-x)*(y0-y)-(x0-x)*(y2-y))/area;
+  const w2=1-w0-w1;
+  if(w0<-.01||w1<-.01||w2<-.01)continue;
+  const wx=wa.x*w0+wb.x*w1+wc.x*w2;
+  const wy=wa.y*w0+wb.y*w1+wc.y*w2;
+  const wz=wa.z*w0+wb.z*w1+wc.z*w2;
+  if(!pred(wx,wy,wz))continue;
+  const i=(y*width+x)*4;
+  data.data[i]=rgb.r;
+  data.data[i+1]=rgb.g;
+  data.data[i+2]=rgb.b;
   data.data[i+3]=255;
  }
 };
@@ -133,12 +160,12 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
    const cx=(a.x+b.x+c.x)/3,cy=(a.y+b.y+c.y)/3,cz=(a.z+b.z+c.z)/3;
    const torso=inTorsoSkinBand(a.x,a.y,a.z)||inTorsoSkinBand(b.x,b.y,b.z)||inTorsoSkinBand(c.x,c.y,c.z)||inTorsoSkinBand(cx,cy,cz);
    if(!torso)continue;
-   writeUvTriangle(data,canvas.width,canvas.height,flipY,uv.getX(i0),uv.getY(i0),uv.getX(i1),uv.getY(i1),uv.getX(i2),uv.getY(i2),skinRgb,'fillTransparent');
-   const cloth=inPracticeBra(cx,cy,cz)||inPracticeShorts(cx,cy,cz)
-    ||inPracticeBra(a.x,a.y,a.z)||inPracticeBra(b.x,b.y,b.z)||inPracticeBra(c.x,c.y,c.z)
-    ||inPracticeShorts(a.x,a.y,a.z)||inPracticeShorts(b.x,b.y,b.z)||inPracticeShorts(c.x,c.y,c.z);
-   if(cloth){
-    writeUvTriangle(data,canvas.width,canvas.height,flipY,uv.getX(i0),uv.getY(i0),uv.getX(i1),uv.getY(i1),uv.getX(i2),uv.getY(i2),PRACTICE_TEAL,'paint');
+   const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
+   writeUvTriangleFill(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2,skinRgb);
+   // Broad AABB cull: only triangles that could intersect bra／shorts get per-texel paint.
+   const yMin=Math.min(a.y,b.y,c.y),yMax=Math.max(a.y,b.y,c.y);
+   if(yMax>=.8&&yMin<=1.24){
+    writeUvTriangleCloth(data,canvas.width,canvas.height,flipY,u0,v0,a,u1,v1,b,u2,v2,c,(x,y,z)=>inPracticeBra(x,y,z)||inPracticeShorts(x,y,z),PRACTICE_TEAL_SRGB);
    }
    touched++;
   }
@@ -224,7 +251,7 @@ export const focusViewFromNormal=(pointCode:string|null|undefined,normal:T.Vecto
  }else if(pointCode==='ST9'||pointCode==='CV22'||pointCode==='CV23'){
   viewDir.set(Math.sign(normal.x||side)*.15,.04,-1).normalize();
   aimAdjust.set(0,.02,-.01);
-  distance=.85;
+  distance=.6;
  }else if(normal.z>.3){
   viewDir.set(normal.x*.28,Math.max(.06,normal.y*.25+.1),Math.max(.82,Math.abs(normal.z))).normalize();
   distance=.78;
