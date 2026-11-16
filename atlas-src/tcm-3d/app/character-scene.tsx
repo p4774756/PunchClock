@@ -38,12 +38,13 @@ const NECK_SKIN_COLOR=new T.Color(232/255,198/255,178/255);
 /**
  * Sendagaya Body_00_SKIN uses MASK cutouts under the vest. Hiding／cutting Tops
  * opens a torso void. study-neck keeps Tops covering that cavity, hides only
- * Accessory (領結 fills the shirt V), restores Body_00_SKIN alpha in the collar V
- * so 人迎／天突 show real MToon skin, and adds a thin opaque shell for raycasts.
+ * Accessory (領結 fills the shirt V), and restores Body_00_SKIN alpha in the collar V
+ * so 人迎／天突 show real lit MToon skin that tools can hit — no NeckOpen filler mesh.
  */
 const inCollarSkinBand=(x:number,y:number,z:number)=>{
- if(y<1.2||y>1.42||Math.abs(x)>.14)return false;
- if(y>=1.3)return Math.abs(z)<.1;
+ // Only the shirt V／天突窝 (and matching back MASK). Do not paint 人迎 side-neck
+ // (y≈1.32) — flat NECK_SKIN_COLOR there reads as a peach oval under focus.
+ if(y<1.2||y>1.295||Math.abs(x)>.1)return false;
  // Front+back of the shirt V／鎖骨帶 — front-only fill still sees through back MASK.
  return Math.abs(z)<.12;
 };
@@ -138,36 +139,6 @@ const restoreCollarSkinAlpha=(root:T.Object3D)=>{
  }
 };
 
-/**
- * Skin plugs fill the shirt V left by hiding Accessory (the bow normally covers
- * the MASK cutout in that opening) and give 人迎／天突 a Body_00_SKIN_* hit target.
- * Parent to the VRM root in bind-pose world coords (T-pose teaching is static).
- */
-const addNeckSkinPlugs=(root:T.Object3D)=>{
- const mat=new T.MeshBasicMaterial({
-  name:'Body_00_SKIN_NeckOpen',
-  color:NECK_SKIN_COLOR.clone(),
-  toneMapped:false,
- });
- const attach=(wx:number,wy:number,wz:number,sx:number,sy:number,sz:number,radius:number)=>{
-  const mesh=new T.Mesh(new T.SphereGeometry(radius,28,18),mat);
-  mesh.name='Body_00_SKIN_NeckOpen';
-  mesh.position.set(wx,wy,wz);
-  mesh.scale.set(sx,sy,sz);
-  mesh.frustumCulled=false;
-  mesh.renderOrder=3;
-  root.add(mesh);
- };
- // Collar V — in front of Tops／MASK so 天突 is not a beige void.
- attach(0,1.26,-.105,2.4,1.15,1.2,.058);
- attach(0,1.285,-.09,1.9,1.2,1.1,.045);
- attach(0,1.235,-.115,2.15,1.05,1.15,.048);
- // 人迎
- attach(.028,1.325,-.045,1.25,1.3,1.15,.03);
- attach(-.028,1.325,-.045,1.25,1.3,1.15,.03);
- attach(0,1.305,-.055,1.6,1.15,1.2,.034);
-};
-
 const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
  root.traverse((obj:T.Object3D)=>{
   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
@@ -195,10 +166,11 @@ const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
    }
   }
  });
- if(outfit.openCollar){
-  restoreCollarSkinAlpha(root);
-  addNeckSkinPlugs(root);
- }
+ // restoreCollarSkinAlpha paints lit MToon skin in the shirt V. Do not add
+ // Body_00_SKIN_NeckOpen plugs — the old MeshBasicMaterial spheres
+ // (toneMapped:false, renderOrder:3) read as a flesh balloon over the chest
+ // in 人迎／天突 close-ups and stole needle／finger contacts.
+ if(outfit.openCollar)restoreCollarSkinAlpha(root);
 };
 
 export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onError}:Props){

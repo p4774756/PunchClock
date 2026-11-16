@@ -14,7 +14,7 @@ export interface AnimeOutfit{
  softenMaterials:string[];
  /**
   * study-neck: keep Tops covering the MASK hollow chest, hide only Accessory,
-  * restore collar-V Body_00_SKIN alpha, and overlay a thin neck shell for tools.
+  * and restore collar-V Body_00_SKIN alpha so 人迎／天突 hit lit MToon skin.
   */
  openCollar?:boolean;
 }
@@ -35,7 +35,7 @@ export const ANIME_OUTFITS:AnimeOutfit[]=[
   id:'study-neck',
   name:'露頸練習裝',
   shortName:'露頸',
-  blurb:'拿掉領結，上衣仍蓋住胸腔挖空，並在頸前／鎖骨補上練習用皮膚，方便人迎、天突對照。',
+  blurb:'拿掉領結，上衣仍蓋住胸腔挖空，並讓衣領 V 的皮膚可見，方便人迎、天突對照。',
   modelUrl:ANIME_MODEL_URL,
   hideMaterials:['Accessory'],
   softenMaterials:[],
