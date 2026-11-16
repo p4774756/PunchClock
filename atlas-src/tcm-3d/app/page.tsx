@@ -37,10 +37,11 @@ export default function Home(){
  const avatarCodes=useMemo(()=>avatarSupportedCodes(currentAvatar),[currentAvatar]);
  const [simulation,setSimulation]=useState<SimulationState>(()=>{
   const set=launch.set??ANIME_DEFAULT_SET;
-  const lesson=curriculumSet(set);
+  // Deep-link ?code= focuses that point; otherwise keep 印堂 and the full-body fit view
+  // (do not jump to 百會 / focus:1 — that drills into hair).
   const preferred=launch.code&&avatarCodes.has(launch.code)?launch.code:null;
-  const code=preferred??lesson?.codes.find(c=>avatarCodes.has(c))??initialSimulation.pointCode;
-  return {...initialSimulation,curriculumSet:set,pointCode:code,side:1,focus:1};
+  const code=preferred??initialSimulation.pointCode;
+  return {...initialSimulation,curriculumSet:set,pointCode:code,side:1,focus:preferred?1:0};
  });
  const [progress,setProgress]=useState(0),[error,setError]=useState('');
  const [region,setRegion]=useState<RegionId|'all'>('all'),[query,setQuery]=useState('');

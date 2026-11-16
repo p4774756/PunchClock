@@ -24,8 +24,6 @@ interface Props{
  onError:(s:string)=>void;
 }
 
-const SKIN_HINT=/Face_00_SKIN|Body_00_SKIN|FaceMouth/i;
-
 const toonGradient=()=>{
  const data=new Uint8Array([90,90,90,255,168,168,168,255,255,255,255,255]);
  const tex=new T.DataTexture(data,3,1,T.RGBAFormat);
@@ -40,12 +38,13 @@ const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
   obj.frustumCulled=false;
   const mats=Array.isArray(obj.material)?obj.material:[obj.material];
   for(const mat of mats){
-   const m=mat as T.MeshStandardMaterial;
+   const m=mat as T.MeshStandardMaterial & {isMToonMaterial?:boolean};
    const name=materialLabel(m,obj);
    const hide=outfit.hideMaterials.some(token=>name.includes(token));
    m.visible=!hide;
    if(hide){m.needsUpdate=true;continue;}
-   if(m.map){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
+   // MToon manages its own texture color space; forcing SRGB can mute litFactor maps.
+   if(m.map&&!m.isMToonMaterial){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
    if(/HAIR|髪|HairBack/i.test(name)){
     m.transparent=true;
     m.opacity=/HairBack|Back/i.test(name)?Math.min(m.opacity??1,.42):Math.min(m.opacity??1,.55);
@@ -60,35 +59,6 @@ const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
    }
   }
  });
-};
-
-/** Finger-pressure local dent + tint on anime skin materials (Face / Body). */
-const attachTeachDeform=(mat:T.Material,effect:{
- target:{value:T.Vector3};normal:{value:T.Vector3};deform:{value:number};
- activity:{value:number};color:{value:T.Color};tool:{value:number};
-})=>{
- const m=mat as T.MeshStandardMaterial;
- if((m as unknown as {userData:{teachHooked?:boolean}}).userData?.teachHooked)return;
- m.userData={...(m.userData||{}),teachHooked:true};
- m.onBeforeCompile=shader=>{
-  shader.uniforms.teachTarget=effect.target;
-  shader.uniforms.teachNormal=effect.normal;
-  shader.uniforms.teachDeform=effect.deform;
-  shader.uniforms.teachActivity=effect.activity;
-  shader.uniforms.teachColor=effect.color;
-  shader.uniforms.teachTool=effect.tool;
-  shader.vertexShader='varying vec3 teachPosition; uniform vec3 teachTarget; uniform vec3 teachNormal; uniform float teachDeform; varying float teachInfluence;\n'+shader.vertexShader;
-  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nteachPosition=transformed; teachInfluence = exp(-pow(distance(transformed, teachTarget) / 0.028, 2.0)); float skinProfile=exp(-pow(distance(transformed,teachTarget)/0.016,2.0)); transformed += teachNormal * skinProfile * teachDeform;');
-  shader.fragmentShader='varying vec3 teachPosition; uniform vec3 teachTarget; uniform float teachTool; uniform float teachActivity; uniform vec3 teachColor; varying float teachInfluence;\n'+shader.fragmentShader;
-  shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
-   diffuseColor.rgb = mix(diffuseColor.rgb, teachColor, teachInfluence * teachActivity * 0.45);
-   if(teachTool > 0.5){
-    float pressure=exp(-pow(distance(teachPosition,teachTarget)/0.014,2.0));
-    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.94,0.79,0.65),pressure*teachActivity*0.35);
-   }
-  `);
- };
- m.needsUpdate=true;
 };
 
 export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onError}:Props){
@@ -112,7 +82,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(34,1,.005,100),controls=new OrbitControls(camera,renderer.domElement);
   camera.position.set(0,1.45,2.4);controls.target.set(0,1.35,0);
-  controls.enableDamping=true;controls.dampingFactor=.085;controls.minDistance=.12;controls.maxDistance=8;
+  controls.enableDamping=true;controls.dampingFactor=.085;controls.minDistance=.35;controls.maxDistance=8;
   controls.maxPolarAngle=Math.PI*.96;controls.addEventListener('change',()=>{dirty=true;});
 
   const pmrem=new T.PMREMGenerator(renderer),room=new RoomEnvironment(),env=pmrem.fromScene(room,.04);
@@ -137,15 +107,12 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   });
   el.appendChild(teaching.label);
 
-  const effect={
-   target:{value:new T.Vector3(100,100,100)},
-   normal:{value:new T.Vector3(0,0,1)},
-   deform:{value:0},
-   activity:{value:0},
-   color:{value:new T.Color('#5c9c91')},
-   tool:{value:0},
-  };
+  // Finger-pressure feedback uses teaching-overlay halo/patch only.
+  // Do not patch VRM MToon onBeforeCompile — injecting into Face/Body skin
+  // breaks THREE_VRM_THREE_REVISION / WebGLProgram and turns skin black.
   let lastSimulation:SimulationState|null=null;
+  let vrm: {scene:T.Object3D;update:(delta:number)=>void}|null=null;
+  let lastFrame=performance.now();
 
   const fit=(view:string)=>{
    const mobile=el.clientWidth<768||(el.clientWidth<=1100&&el.clientHeight<=500);
@@ -164,16 +131,6 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   };
   const observer=new ResizeObserver(resize);observer.observe(el);
 
-  const hookSkinShaders=(root:T.Object3D)=>{
-   root.traverse(obj=>{
-    if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
-    const mats=Array.isArray(obj.material)?obj.material:[obj.material];
-    const name=mats.map(m=>m?.name||'').join(' ')+' '+obj.name;
-    if(!SKIN_HINT.test(name))return;
-    for(const mat of mats)if(mat)attachTeachDeform(mat,effect);
-   });
-  };
-
   if(avatar.modelStatus==='pending'||!avatar.modelUrl){
    ready=true;onProgress(100);fit(latest.current.view);dirty=true;
   }else{
@@ -183,7 +140,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const modelUrl=avatar.hasOutfits?outfit.modelUrl:avatar.modelUrl;
    loader.load(publicAssetUrl(modelUrl),(gltf)=>{
     if(disposed)return;
-    const vrm=gltf.userData.vrm;
+    vrm=gltf.userData.vrm??null;
     const model=vrm?.scene??gltf.scene;
     if(vrm){
      VRMUtils.removeUnnecessaryVertices(gltf.scene);
@@ -199,7 +156,6 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       if(m.map){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
      }
     });
-    hookSkinShaders(model);
     characterRoot.clear();
     characterRoot.add(model);
     model.updateMatrixWorld(true);
@@ -243,6 +199,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   const animate=()=>{
    if(disposed)return;frame=requestAnimationFrame(animate);
+   const now=performance.now();const delta=Math.min(.05,(now-lastFrame)/1000);lastFrame=now;
+   if(vrm)vrm.update(delta);
    const s=latest.current,simState=sim.current;
    toolInput.update();
    if(s.view!==lastView||s.reset!==lastReset){fit(s.view);lastView=s.view;lastReset=s.reset;}
@@ -253,30 +211,29 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(ready&&!teaching.isAnchored()&&characterRoot.children.length)teaching.anchor(characterRoot);
    if(teaching.focus(simState,camera,controls)){lastFocus=simState.focus;dirty=true;}
    else if(simState.focus&&lastFocus!==simState.focus&&ready){
+    // Pre-anchor fallback: same framing rules as teaching-overlay (do not ride the surface normal).
     lastFocus=simState.focus;
     const target=simState.pointCode?avatarPointTarget(avatar,simState.pointCode,simState.side):null;
     if(target){
      const aim=new T.Vector3().fromArray(target.position);
-     const viewDir=new T.Vector3().fromArray(target.normal).normalize();
-     if(viewDir.lengthSq()<.01)viewDir.set(0,.08,-1);
-     viewDir.add(new T.Vector3(0,.14,0)).normalize();
+     const normal=new T.Vector3().fromArray(target.normal).normalize();
+     let viewDir=new T.Vector3();
+     let distance=.62;
+     if(simState.pointCode==='GV20'||normal.y>.85){
+      viewDir.set(.06,.22,-.97).normalize();aim.y-=.1;aim.z-=.06;distance=1.35;
+     }else if(simState.pointCode==='ST9'||simState.pointCode==='CV22'||simState.pointCode==='CV23'){
+      viewDir.set(Math.sign(normal.x||simState.side)*.15,.04,-1).normalize();aim.y+=.02;aim.z-=.01;distance=.85;
+     }else{
+      viewDir.set(normal.x*.28-.1,Math.max(.06,normal.y*.25+.1),-Math.max(.82,Math.abs(normal.z))).normalize();
+      distance=.72;
+     }
      controls.target.copy(aim);
-     camera.position.copy(aim).addScaledVector(viewDir,.95);
+     camera.position.copy(aim).addScaledVector(viewDir,distance);
      controls.update();dirty=true;
     }
    }
 
    const response=teaching.update(simState,camera,el.clientWidth,el.clientHeight);
-   if(response){
-    effect.target.value.fromArray(response.target.position);
-    effect.normal.value.fromArray(response.target.normal);
-    effect.deform.value=response.deform;
-    effect.activity.value=response.activity;
-    effect.color.value.set(response.color);
-    effect.tool.value=simState.tool==='finger'?1:0;
-   }else{
-    effect.deform.value=0;effect.activity.value=0;
-   }
    if(lastSimulation!==simState||simState.running||response?.settling){dirty=true;lastSimulation=simState;}
 
    if(dirty){renderer.render(scene,camera);dirty=false;}

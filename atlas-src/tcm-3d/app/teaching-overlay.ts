@@ -141,12 +141,34 @@ export function createTeachingOverlay(
  const focus=(s:SimulationState,camera:T.PerspectiveCamera,controls:{target:T.Vector3;update:()=>void})=>{
   if(!s.focus||lastFocus===s.focus||!anchored)return false;
   const target=getTarget(s);if(!target)return false;lastFocus=s.focus;camera.clearViewOffset();
+  const aim=new T.Vector3().fromArray(target.position);
   n.fromArray(target.normal).normalize();
-  if(s.customTarget)n.copy(camera.position).sub(new T.Vector3().fromArray(target.position)).normalize();
-  else if(n.y<-.8)n.set(.3,-.7,-1).normalize();
-  else n.add(new T.Vector3(-.2,.25,-.4)).normalize();
-  const targetPosition=new T.Vector3().fromArray(target.position);
-  controls.target.copy(targetPosition);camera.position.copy(controls.target).addScaledVector(n,.95);controls.update();return true;
+  let distance=.62;
+  if(s.customTarget){
+   n.copy(camera.position).sub(aim).normalize();
+   distance=.7;
+  }else if(s.pointCode==='GV20'||n.y>.85){
+   // 百會／巔頂：偏正前方略抬高，看見頭頂與臉，勿從正上鑽進髮內
+   n.set(.06,.22,-.97).normalize();
+   aim.y-=.1;aim.z-=.06;
+   distance=1.35;
+  }else if(s.pointCode==='ST9'||s.pointCode==='CV22'||s.pointCode==='CV23'){
+   // 人迎／天突／廉泉：正前方看頸部皮膚，勿從頸胸開口望進體內
+   const side=Math.sign(n.x||(s.side||1))*.15;
+   n.set(side,.04,-1).normalize();
+   aim.y+=.02;aim.z-=.01;
+   distance=.85;
+  }else if(n.y<-.75){
+   n.set(.25,-.45,-1).normalize();
+   distance=.7;
+  }else{
+   // 顏面等：沿外向法線略抬高並退到正前，保持工具與穴位在框內
+   n.set(n.x*.28-.1,Math.max(.06,n.y*.25+.1),-Math.max(.82,Math.abs(n.z))).normalize();
+   distance=.72;
+  }
+  controls.target.copy(aim);
+  camera.position.copy(controls.target).addScaledVector(n,distance);
+  controls.update();return true;
  };
  const getDraggables=(tool:ToolId)=>{const meshes:T.Object3D[]=[];instruments.get(tool)?.traverseVisible(o=>{if(o instanceof T.Mesh)meshes.push(o);});return meshes;};
  return {
