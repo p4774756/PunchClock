@@ -16,7 +16,7 @@ export default defineConfig({
    output:{
     manualChunks(id:string){
      if(id.includes('node_modules/three'))return 'three';
-     if(id.includes('teaching-points.json')||id.includes('meridian-surface.json'))return 'teaching-data';
+     if(id.includes('teaching-points.json')||id.includes('anime-points.json'))return 'teaching-data';
      if(id.includes('node_modules/lucide-react'))return 'icons';
     },
    },

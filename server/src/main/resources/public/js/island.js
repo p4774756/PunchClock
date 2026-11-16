@@ -21,7 +21,8 @@ import {
 import {
   PANORAMA,
   poseForIsland,
-  isClosedHall
+  isClosedHall,
+  islandAt
 } from './island-layout.js';
 import { createCasinoController, CASINO_NAME } from './island-casino.js';
 import { createGraffitiController } from './island-graffiti.js';
@@ -58,17 +59,18 @@ import { createUpdateLoop } from './island-loop.js';
 import {
   EXPLORE_POSE,
   INTERIOR_POSE,
-  EXPLORE_PHI_MIN,
-  EXPLORE_PHI_MAX,
+  applyDragPhi,
   createPoses,
   createCameraRig
 } from './island-camera.js';
 import { buildIslandWorld } from './island-world.js';
 import { buildIslandBuildings } from './island-buildings.js';
 import { buildIslandProps, registerSceneMotion } from './island-props.js';
+import { buildIslandBeach } from './island-beach.js';
 import { buildIslandPeople } from './island-people.js';
 import { createIslandSky } from './island-sky.js';
 import { createIslandSea } from './island-sea.js';
+import { createFootprintView } from './island-footprints.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 
@@ -216,6 +218,12 @@ function boot() {
     clouds: clouds,
     swimmers: swimmers
   });
+  buildIslandBeach({ scene: scene, kit: kit });
+  const footprints = createFootprintView(THREE, {
+    scene: scene,
+    kit: kit,
+    trailOpts: { max: 40, stride: 0.34, life: 6, shoreLife: 2 }
+  });
   const people = buildIslandPeople({
     scene: scene,
     kit: kit,
@@ -265,6 +273,28 @@ function boot() {
   loop.register((dt, elapsed) => {
     sky.tick(dt, elapsed);
   });
+
+  function syncFootprints(dt) {
+    if (rooms.inside() || interiorBusy) {
+      footprints.setHidden(true);
+      return;
+    }
+    footprints.setHidden(false);
+    const here = islandAt(player.x, player.z);
+    const onSand = !!(here && here.theme === 'beach');
+    const shoreDist = onSand
+      ? here.r - Math.hypot(player.x - here.x, player.z - here.z)
+      : 99;
+    footprints.step({
+      x: player.x,
+      z: player.z,
+      yaw: player.yaw,
+      moving: !!player.moving,
+      onSand: onSand,
+      shoreDist: shoreDist,
+      reduced: reduced
+    }, dt);
+  }
 
   // Phase 2：賭場門口互動區（座標見 CASINO／DEFAULT_INTERACT_ZONES）；須點按鈕或 Enter／E，不自動傳送。
   const INTERACT_ZONES = DEFAULT_INTERACT_ZONES.slice();
@@ -852,10 +882,8 @@ function boot() {
     lastY = event.clientY;
     cam.targetTheta -= dx * 0.005;
     const followCam = controlsActive(mode);
-    // 探索模式允許仰望天空（EXPLORE_PHI_MIN），全景維持原俯視範圍。
-    const phiMin = followCam ? EXPLORE_PHI_MIN : 0.58;
-    const phiMax = followCam ? EXPLORE_PHI_MAX : 1.15;
-    cam.targetPhi = Math.min(phiMax, Math.max(phiMin, cam.targetPhi - dy * 0.0035));
+    // 探索：往上拖＝抬頭；全景維持「抓住世界拖」。左右不變。
+    cam.targetPhi = applyDragPhi(cam.targetPhi, dy, followCam);
   });
   canvas.addEventListener('pointerup', (event) => {
     dragging = false;
@@ -929,6 +957,7 @@ function boot() {
       playerMesh.position.set(player.x, P, player.z);
       playerMesh.rotation.y = player.yaw;
       stepMilu(dt);
+      syncFootprints(dt);
       return;
     }
     if (rooms.inside()) rooms.setPaused(false);
@@ -940,6 +969,7 @@ function boot() {
       playerMesh.position.set(player.x, P, player.z);
       playerMesh.rotation.y = player.yaw;
       stepMilu(dt);
+      syncFootprints(dt);
       return;
     }
     const input = moveVector(player.keys, { active: player.stickActive, x: player.stickX, y: player.stickY });
@@ -974,6 +1004,7 @@ function boot() {
     stepMilu(dt);
     cam.targetLook.set(player.x, G + 1.05, player.z);
     syncInteractPrompt();
+    syncFootprints(dt);
   }
 
   function frame() {
@@ -1350,6 +1381,7 @@ function boot() {
     if (!rooms.canEnter(buildingId, performance.now())) return;
     const ticket = ++interiorGeneration;
     interiorBusy = true;
+    footprints.setHidden(true);
     clearMoveInput();
     closeOverlayPanels();
     placeLabels();

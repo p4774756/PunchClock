@@ -5,11 +5,17 @@ import { loadPublicModule } from './load-public-module.mjs';
 
 const L = await loadPublicModule('island-layout.js');
 
-test('三座主題島連回主島，橋兩端都在島上', () => {
-  assert.deepEqual(L.ISLANDS.map((island) => island.id), ['main', 'casino', 'tcm', 'computer']);
+test('主題島連回主島，橋兩端都在島上；沙灘島無橋', () => {
+  assert.deepEqual(
+    L.ISLANDS.map((island) => island.id),
+    ['main', 'casino', 'tcm', 'computer', 'beach']
+  );
   assert.equal(L.BRIDGES.length, 3);
+  const bridged = new Set();
   for (const bridge of L.BRIDGES) {
     assert.equal(bridge.from, 'main');
+    assert.notEqual(bridge.to, 'beach', '沙灘島沒有橋');
+    bridged.add(bridge.to);
     const from = L.islandById(bridge.from);
     const to = L.islandById(bridge.to);
     assert.ok(L.inIsland(bridge.ax, bridge.az, from, 0), bridge.id + ' 起點在主島');
@@ -18,6 +24,35 @@ test('三座主題島連回主島，橋兩端都在島上', () => {
     const names = { casino: '博弈島', tcm: '中醫推拿島', computer: '電腦島' };
     assert.equal(to.name, names[to.id]);
   }
+  assert.deepEqual([...bridged].sort(), ['casino', 'computer', 'tcm']);
+  assert.equal(L.BRIDGES.some((bridge) => bridge.to === 'beach'), false);
+  const beach = L.islandById('beach');
+  assert.ok(beach);
+  assert.equal(beach.name, '沙灘島');
+  assert.equal(beach.theme, 'beach');
+});
+
+test('沙灘島在全景內、與其他島／橋不重疊', () => {
+  const beach = L.islandById('beach');
+  assert.ok(L.islandInPanorama(beach));
+  for (const island of L.ISLANDS) {
+    if (island.id === 'beach') continue;
+    const dist = Math.hypot(beach.x - island.x, beach.z - island.z);
+    assert.ok(dist > beach.visualR + island.visualR - 0.01, island.id + ' 外觀不重疊');
+  }
+  for (const bridge of L.BRIDGES) {
+    const midX = (bridge.ax + bridge.bx) / 2;
+    const midZ = (bridge.az + bridge.bz) / 2;
+    const dist = Math.hypot(beach.x - midX, beach.z - midZ);
+    assert.ok(dist > beach.r + bridge.halfWidth, bridge.id + ' 不碰沙灘島');
+  }
+});
+
+test('islandAt：沙上辨識、海面為 null', () => {
+  const beach = L.islandById('beach');
+  assert.equal(L.islandAt(beach.x, beach.z).id, 'beach');
+  assert.equal(L.islandAt(0, 0).id, 'main');
+  assert.equal(L.islandAt(80, 80), null);
 });
 
 test('全景鏡頭罩得住每座島，太遠的島不會被算進去', () => {

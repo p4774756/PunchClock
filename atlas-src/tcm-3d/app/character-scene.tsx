@@ -1,5 +1,5 @@
 import {publicAssetUrl} from './public-assets';
-import {animeAvatar,avatarPointTarget,type AvatarId} from './avatars';
+import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
 import {animeOutfit,type AnimeOutfit,type OutfitId} from './outfits';
 import {useEffect,useRef} from 'react';
 import * as T from 'three';
@@ -8,8 +8,10 @@ import {RoomEnvironment} from 'three/examples/jsm/environments/RoomEnvironment.j
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {VRMLoaderPlugin,VRMUtils} from '@pixiv/three-vrm';
 import {PointerTap} from './pointer-tap';
+import {createTeachingOverlay} from './teaching-overlay';
+import {installSurfaceToolInput} from './surface-tool-input';
 import type {SceneState} from './anatomy';
-import type {SimulationState} from './teaching';
+import type {SimulationState,SurfaceTarget,ToolDragPhase} from './teaching';
 
 interface Props{
  state:SceneState;
@@ -17,6 +19,7 @@ interface Props{
  avatarId:AvatarId;
  outfitId:OutfitId;
  onPoint:(code:string,side:1|-1)=>void;
+ onToolDrag:(target:SurfaceTarget|null,phase:ToolDragPhase)=>void;
  onProgress:(n:number)=>void;
  onError:(s:string)=>void;
 }
@@ -29,19 +32,258 @@ const toonGradient=()=>{
 
 const materialLabel=(mat:T.Material,obj:T.Object3D)=>`${mat.name||''} ${obj.name||''}`;
 
+/** Warm fill for MASK cutouts — chroma above #f6efe4 so restored skin is not a beige void. */
+const SKIN_FILL=new T.Color(232/255,198/255,178/255);
+/** Deep teal as sRGB bytes — do not feed hex through ColorManagement (would go near-black on the map). */
+const PRACTICE_TEAL_SRGB={r:13,g:74,b:79};
+const BUN_BROWN=0x3b2a22;
+
+const inTorsoSkinBand=(x:number,y:number,z:number)=>{
+ if(y<.8||y>1.42||Math.abs(x)>.22)return false;
+ return Math.abs(z)<.16||(y>1.15&&Math.abs(z)<.14);
+};
+
+/** Sports bra: front covers breasts below 天突; back strap sits under GV14／BL14. */
+const inPracticeBra=(x:number,y:number,z:number)=>{
+ if(Math.abs(x)>.13)return false;
+ if(z<=.02)return y>=1.15&&y<=1.235; // front＋sides
+ return y>=1.17&&y<=1.23; // back strap
+};
+
+/** High-waist shorts: below 神闕／命門, cover white underwear front＋back. */
+const inPracticeShorts=(x:number,y:number,z:number)=>{
+ if(y<.8||y>.97||Math.abs(x)>.16)return false;
+ return Math.abs(z)<.14;
+};
+
+const writeUvTriangleFill=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,u1:number,v1:number,u2:number,v2:number,rgb:T.Color)=>{
+ const toX=(u:number)=>Math.min(width-1,Math.max(0,Math.round(u*(width-1))));
+ const toY=(v:number)=>Math.min(height-1,Math.max(0,Math.round((flipY?1-v:v)*(height-1))));
+ const x0=toX(u0),y0=toY(v0),x1=toX(u1),y1=toY(v1),x2=toX(u2),y2=toY(v2);
+ const minX=Math.max(0,Math.min(x0,x1,x2)),maxX=Math.min(width-1,Math.max(x0,x1,x2));
+ const minY=Math.max(0,Math.min(y0,y1,y2)),maxY=Math.min(height-1,Math.max(y0,y1,y2));
+ const area=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);
+ if(area===0)return;
+ for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+  const w0=((x1-x)*(y2-y)-(x2-x)*(y1-y))/area;
+  const w1=((x2-x)*(y0-y)-(x0-x)*(y2-y))/area;
+  const w2=1-w0-w1;
+  if(w0<-.01||w1<-.01||w2<-.01)continue;
+  const i=(y*width+x)*4;
+  if(data.data[i+3]>=200)continue;
+  data.data[i]=rgb.r*255;
+  data.data[i+1]=rgb.g*255;
+  data.data[i+2]=rgb.b*255;
+  data.data[i+3]=255;
+ }
+};
+
+/** Paint cloth only where interpolated world position is inside the garment band (smooth edges). */
+const writeUvTriangleCloth=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,wa:T.Vector3,u1:number,v1:number,wb:T.Vector3,u2:number,v2:number,wc:T.Vector3,pred:(x:number,y:number,z:number)=>boolean,rgb:{r:number;g:number;b:number})=>{
+ const toX=(u:number)=>Math.min(width-1,Math.max(0,Math.round(u*(width-1))));
+ const toY=(v:number)=>Math.min(height-1,Math.max(0,Math.round((flipY?1-v:v)*(height-1))));
+ const x0=toX(u0),y0=toY(v0),x1=toX(u1),y1=toY(v1),x2=toX(u2),y2=toY(v2);
+ const minX=Math.max(0,Math.min(x0,x1,x2)),maxX=Math.min(width-1,Math.max(x0,x1,x2));
+ const minY=Math.max(0,Math.min(y0,y1,y2)),maxY=Math.min(height-1,Math.max(y0,y1,y2));
+ const area=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);
+ if(area===0)return;
+ for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+  const w0=((x1-x)*(y2-y)-(x2-x)*(y1-y))/area;
+  const w1=((x2-x)*(y0-y)-(x0-x)*(y2-y))/area;
+  const w2=1-w0-w1;
+  if(w0<-.01||w1<-.01||w2<-.01)continue;
+  const wx=wa.x*w0+wb.x*w1+wc.x*w2;
+  const wy=wa.y*w0+wb.y*w1+wc.y*w2;
+  const wz=wa.z*w0+wb.z*w1+wc.z*w2;
+  if(!pred(wx,wy,wz))continue;
+  const i=(y*width+x)*4;
+  data.data[i]=rgb.r;
+  data.data[i+1]=rgb.g;
+  data.data[i+2]=rgb.b;
+  data.data[i+3]=255;
+ }
+};
+
+const findSkinMap=(m:T.MeshStandardMaterial & {map?:T.Texture|null;uniforms?:Record<string,{value:unknown}>})=>{
+ if(m.map?.image)return m.map;
+ const uni=m.uniforms?.map?.value;
+ if(uni&&typeof uni==='object'&&'image' in (uni as object)&&(uni as T.Texture).image)return uni as T.Texture;
+ return null;
+};
+
+/**
+ * Unmask Body_00_SKIN under hidden Tops／Bottoms, then paint teal bra＋shorts into the
+ * same lit MToon map so cloth follows the skinned mesh (no separate Mesh / no onBeforeCompile).
+ */
+const paintPracticeBodySkin=(root:T.Object3D)=>{
+ const skinMats:T.MeshStandardMaterial[]=[];
+ const skinMeshes:(T.Mesh|T.SkinnedMesh)[]=[];
+ root.traverse((obj:T.Object3D)=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  const body=mats.filter(m=>/Body_00_SKIN/i.test(m.name||'')&&!/Outline/i.test(m.name||'')) as T.MeshStandardMaterial[];
+  if(!body.length)return;
+  skinMeshes.push(obj);
+  for(const m of body)if(!skinMats.includes(m))skinMats.push(m);
+ });
+ if(!skinMeshes.length||!skinMats.length)return;
+ const src=skinMats.map(findSkinMap).find(Boolean)??null;
+ if(!src?.image)return;
+ const img=src.image as CanvasImageSource & {width:number;height:number};
+ const canvas=document.createElement('canvas');
+ canvas.width=img.width;canvas.height=img.height;
+ const ctx=canvas.getContext('2d',{willReadFrequently:true});
+ if(!ctx)return;
+ try{ctx.drawImage(img,0,0);}catch{return;}
+ const data=ctx.getImageData(0,0,canvas.width,canvas.height);
+ let r=0,g=0,b=0,n=0;
+ for(let i=0;i<data.data.length;i+=16){
+  if(data.data[i+3]<200)continue;
+  r+=data.data[i];g+=data.data[i+1];b+=data.data[i+2];n++;
+ }
+ const skinRgb=n?new T.Color(r/n/255,g/n/255,b/n/255):SKIN_FILL.clone();
+ const flipY=!!src.flipY;
+ let touched=0;
+ for(const mesh of skinMeshes){
+  const geom=mesh.geometry;
+  const pos=geom.getAttribute('position');
+  const uv=geom.getAttribute('uv');
+  const index=geom.index;
+  if(!pos||!uv||!index)continue;
+  mesh.updateMatrixWorld(true);
+  const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
+  for(let i=0;i<index.count;i+=3){
+   const i0=index.getX(i),i1=index.getX(i+1),i2=index.getX(i+2);
+   a.fromBufferAttribute(pos,i0).applyMatrix4(mesh.matrixWorld);
+   b.fromBufferAttribute(pos,i1).applyMatrix4(mesh.matrixWorld);
+   c.fromBufferAttribute(pos,i2).applyMatrix4(mesh.matrixWorld);
+   const cx=(a.x+b.x+c.x)/3,cy=(a.y+b.y+c.y)/3,cz=(a.z+b.z+c.z)/3;
+   const torso=inTorsoSkinBand(a.x,a.y,a.z)||inTorsoSkinBand(b.x,b.y,b.z)||inTorsoSkinBand(c.x,c.y,c.z)||inTorsoSkinBand(cx,cy,cz);
+   if(!torso)continue;
+   const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
+   writeUvTriangleFill(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2,skinRgb);
+   // Broad AABB cull: only triangles that could intersect bra／shorts get per-texel paint.
+   const yMin=Math.min(a.y,b.y,c.y),yMax=Math.max(a.y,b.y,c.y);
+   if(yMax>=.8&&yMin<=1.24){
+    writeUvTriangleCloth(data,canvas.width,canvas.height,flipY,u0,v0,a,u1,v1,b,u2,v2,c,(x,y,z)=>inPracticeBra(x,y,z)||inPracticeShorts(x,y,z),PRACTICE_TEAL_SRGB);
+   }
+   touched++;
+  }
+ }
+ if(!touched)return;
+ ctx.putImageData(data,0,0);
+ const next=src.clone();
+ next.image=canvas;
+ next.generateMipmaps=true;
+ next.minFilter=T.LinearMipmapLinearFilter;
+ next.magFilter=T.LinearFilter;
+ next.needsUpdate=true;
+ for(const m of skinMats){
+  m.map=next;
+  const uni=(m as T.MeshStandardMaterial & {uniforms?:Record<string,{value:unknown}>}).uniforms;
+  if(uni?.map)uni.map.value=next;
+  m.needsUpdate=true;
+ }
+};
+
+/** Drop nape／occiput hair triangles; keep bangs and crown. Bun parents to Head bone. */
+const restyleHairBun=(root:T.Object3D)=>{
+ root.traverse((obj:T.Object3D)=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  const name=mats.map(m=>materialLabel(m,obj)).join(' ');
+  if(/HairBack|Hair_00_HAIR_01/i.test(name)){
+   const geom=obj.geometry;
+   const pos=geom.getAttribute('position');
+   const index=geom.index;
+   if(pos&&index){
+    obj.updateMatrixWorld(true);
+    const keep:number[]=[];
+    const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
+    for(let i=0;i<index.count;i+=3){
+     const i0=index.getX(i),i1=index.getX(i+1),i2=index.getX(i+2);
+     a.fromBufferAttribute(pos,i0).applyMatrix4(obj.matrixWorld);
+     b.fromBufferAttribute(pos,i1).applyMatrix4(obj.matrixWorld);
+     c.fromBufferAttribute(pos,i2).applyMatrix4(obj.matrixWorld);
+     const cy=(a.y+b.y+c.y)/3,cz=(a.z+b.z+c.z)/3;
+     // Nape／lower occiput blocks 風府／風池／啞門／天柱.
+     if(cz>.01&&cy<1.47)continue;
+     keep.push(i0,i1,i2);
+    }
+    geom.setIndex(keep);
+    geom.computeVertexNormals();
+   }
+  }else if(/Hair_00_HAIR_02/i.test(name)){
+   const m=mats[0] as T.MeshStandardMaterial;
+   m.transparent=true;
+   m.opacity=Math.min(m.opacity??1,.9);
+   m.depthWrite=true;
+   m.needsUpdate=true;
+  }
+ });
+ const head=root.getObjectByName('J_Bip_C_Head');
+ if(!head)return;
+ const bunMat=new T.MeshStandardMaterial({name:'PracticeHairBun',color:BUN_BROWN,roughness:.7,metalness:.02});
+ // Head local +Y/+Z align with world; place above＋behind GV20 (~1.62) so the bun is visible from front.
+ const bun=new T.Mesh(new T.SphereGeometry(.06,20,16),bunMat);
+ bun.name='PracticeHairBun';
+ bun.position.set(0,.24,.055);
+ bun.scale.set(1.05,.92,1.08);
+ bun.frustumCulled=false;
+ head.add(bun);
+ const coil=new T.Mesh(new T.TorusGeometry(.042,.015,8,20),bunMat);
+ coil.name='PracticeHairBunCoil';
+ coil.position.set(0,.225,.06);
+ coil.rotation.x=Math.PI/2;
+ coil.frustumCulled=false;
+ head.add(coil);
+};
+
+/** Shared focus framing: back points look from behind; side from the side. */
+export const focusViewFromNormal=(pointCode:string|null|undefined,normal:T.Vector3,side:1|-1)=>{
+ const viewDir=new T.Vector3();
+ let distance=.62;
+ let aimAdjust=new T.Vector3();
+ if(pointCode==='GV20'||normal.y>.85){
+  viewDir.set(.06,.22,-.97).normalize();
+  aimAdjust.set(0,-.1,-.06);
+  distance=1.35;
+ }else if(pointCode==='ST9'||pointCode==='CV22'||pointCode==='CV23'){
+  viewDir.set(Math.sign(normal.x||side)*.15,.04,-1).normalize();
+  aimAdjust.set(0,.02,-.01);
+  distance=.6;
+ }else if(normal.z>.3){
+  viewDir.set(normal.x*.28,Math.max(.06,normal.y*.25+.1),Math.max(.82,Math.abs(normal.z))).normalize();
+  distance=.78;
+ }else if(Math.abs(normal.x)>.55&&Math.abs(normal.z)<.55){
+  viewDir.set(Math.sign(normal.x)*Math.max(.82,Math.abs(normal.x)),Math.max(.06,normal.y*.25+.1),normal.z*.28).normalize();
+  distance=.75;
+ }else if(normal.y<-.75){
+  viewDir.set(.25,-.45,-1).normalize();
+  distance=.7;
+ }else{
+  viewDir.set(normal.x*.28-.1,Math.max(.06,normal.y*.25+.1),-Math.max(.82,Math.abs(normal.z))).normalize();
+  distance=.72;
+ }
+ return {viewDir,distance,aimAdjust};
+};
+
 const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
  root.traverse((obj:T.Object3D)=>{
   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
   obj.frustumCulled=false;
   const mats=Array.isArray(obj.material)?obj.material:[obj.material];
   for(const mat of mats){
-   const m=mat as T.MeshStandardMaterial;
+   const m=mat as T.MeshStandardMaterial & {isMToonMaterial?:boolean};
    const name=materialLabel(m,obj);
    const hide=outfit.hideMaterials.some(token=>name.includes(token));
    m.visible=!hide;
    if(hide){m.needsUpdate=true;continue;}
-   if(m.map){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
-   if(/HAIR|髪|HairBack/i.test(name)){
+   // MToon manages its own texture color space; forcing SRGB can mute litFactor maps.
+   if(m.map&&!m.isMToonMaterial){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
+   if(outfit.practiceBody){
+    // Hair trimmed／bun separately; do not force school-uniform translucency.
+   }else if(/HAIR|髪|HairBack/i.test(name)){
     m.transparent=true;
     m.opacity=/HairBack|Back/i.test(name)?Math.min(m.opacity??1,.42):Math.min(m.opacity??1,.55);
     m.depthWrite=false;
@@ -55,19 +297,22 @@ const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
    }
   }
  });
+ // Never add MeshBasic flesh balloons or hook MToon onBeforeCompile.
+ if(outfit.practiceBody){
+  paintPracticeBodySkin(root);
+  restyleHairBun(root);
+ }
 };
 
-const pointLift=(code:string)=>/^(ST9|CV22|CV23)$/.test(code)?.02:.012;
-
-export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onProgress,onError}:Props){
+export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onError}:Props){
  const host=useRef<HTMLDivElement>(null);
- const latest=useRef(state);const sim=useRef(simulation);const pointSelect=useRef(onPoint);
- latest.current=state;sim.current=simulation;pointSelect.current=onPoint;
+ const latest=useRef(state);const sim=useRef(simulation);const pointSelect=useRef(onPoint);const toolDrag=useRef(onToolDrag);
+ latest.current=state;sim.current=simulation;pointSelect.current=onPoint;toolDrag.current=onToolDrag;
 
  useEffect(()=>{
   const avatar=animeAvatar(avatarId);
   const outfit=animeOutfit(outfitId);
-  const points=avatar.points;
+  const points=avatarPracticePoints(avatar);
   const el=host.current!;let disposed=false,frame=0,dirty=true,ready=false,lastView='',lastReset=-1,lastFocus=-1;
   let renderer:T.WebGLRenderer;
   try{renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});}
@@ -80,7 +325,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(34,1,.005,100),controls=new OrbitControls(camera,renderer.domElement);
   camera.position.set(0,1.45,2.4);controls.target.set(0,1.35,0);
-  controls.enableDamping=true;controls.dampingFactor=.085;controls.minDistance=.12;controls.maxDistance=8;
+  controls.enableDamping=true;controls.dampingFactor=.085;controls.minDistance=.35;controls.maxDistance=8;
   controls.maxPolarAngle=Math.PI*.96;controls.addEventListener('change',()=>{dirty=true;});
 
   const pmrem=new T.PMREMGenerator(renderer),room=new RoomEnvironment(),env=pmrem.fromScene(room,.04);
@@ -99,23 +344,18 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   const gradient=toonGradient();
   const characterRoot=new T.Group();scene.add(characterRoot);
-  const markerRoot=new T.Group();scene.add(markerRoot);
-  const sphere=new T.SphereGeometry(.0064,16,12);
-  const idleMat=new T.MeshBasicMaterial({color:'#2f8f7c',transparent:true,opacity:.94,depthTest:true,depthWrite:false});
-  const activeColor='#e2b15a';
-  const markers:T.Mesh[]=[];
-  const toCamera=new T.Vector3(),outward=new T.Vector3();
-  for(const point of points)for(const side of point.midline?[1 as const]:[1 as const,-1 as const]){
-   const target=avatarPointTarget(avatar,point.code,side)!;
-   const dot=new T.Mesh(sphere,idleMat.clone());
-   const normal=new T.Vector3().fromArray(target.normal).normalize();
-   dot.userData={point:point.code,side,normal};
-   dot.renderOrder=20;
-   dot.position.fromArray(target.position).addScaledVector(normal,pointLift(point.code));
-   markerRoot.add(dot);markers.push(dot);
-  }
+  const teaching=createTeachingOverlay(scene,{
+   points,
+   resolvePoint:(code,side)=>avatarPointTarget(avatar,code,side),
+  });
+  el.appendChild(teaching.label);
 
-  const label=document.createElement('div');label.className='contact-label';label.hidden=true;el.appendChild(label);
+  // Finger-pressure feedback uses teaching-overlay halo/patch only.
+  // Do not patch VRM MToon onBeforeCompile — injecting into Face/Body skin
+  // breaks THREE_VRM_THREE_REVISION / WebGLProgram and turns skin black.
+  let lastSimulation:SimulationState|null=null;
+  let vrm: {scene:T.Object3D;update:(delta:number)=>void}|null=null;
+  let lastFrame=performance.now();
 
   const fit=(view:string)=>{
    const mobile=el.clientWidth<768||(el.clientWidth<=1100&&el.clientHeight<=500);
@@ -135,35 +375,25 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const observer=new ResizeObserver(resize);observer.observe(el);
 
   if(avatar.modelStatus==='pending'||!avatar.modelUrl){
-   // Keep orbit／view controls alive; page shows the pending-model card.
    ready=true;onProgress(100);fit(latest.current.view);dirty=true;
   }else{
    const loader=new GLTFLoader();
    loader.register(parser=>new VRMLoaderPlugin(parser));
    onProgress(8);
-   const modelUrl=avatar.hasOutfits?outfit.modelUrl:avatar.modelUrl;
-   loader.load(publicAssetUrl(modelUrl),(gltf)=>{
+   const modelUrl=outfit.modelUrl||avatar.modelUrl;
+   loader.load(publicAssetUrl(modelUrl!),(gltf)=>{
     if(disposed)return;
-    const vrm=gltf.userData.vrm;
+    vrm=gltf.userData.vrm??null;
     const model=vrm?.scene??gltf.scene;
     if(vrm){
      VRMUtils.removeUnnecessaryVertices(gltf.scene);
      VRMUtils.combineSkeletons(gltf.scene);
-     // Keep authored facing used by point JSON (face toward -Z). Do not rotateVRM0.
     }
-    if(avatar.hasOutfits)applyOutfitMaterials(model,outfit);
-    else model.traverse((obj:T.Object3D)=>{
-     if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
-     obj.frustumCulled=false;
-     const mats=Array.isArray(obj.material)?obj.material:[obj.material];
-     for(const mat of mats){
-      const m=mat as T.MeshStandardMaterial;
-      if(m.map){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
-     }
-    });
+    applyOutfitMaterials(model,outfit);
     characterRoot.clear();
     characterRoot.add(model);
     model.updateMatrixWorld(true);
+    teaching.anchor(characterRoot);
     ready=true;onProgress(100);fit(latest.current.view);dirty=true;
    },xhr=>{if(xhr.total)onProgress(Math.min(99,Math.round(xhr.loaded/xhr.total*100)));},()=>{if(!disposed)onError(`${avatar.name} 模型載入失敗，請確認 ${modelUrl} 是否存在。`);});
   }
@@ -177,7 +407,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const rect=renderer.domElement.getBoundingClientRect();
    pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
    raycaster.setFromCamera(pointer,camera);
-   const hit=raycaster.intersectObjects(markers.filter(m=>m.visible),false)[0];
+   const hit=raycaster.intersectObjects(teaching.markers.filter(m=>m.visible),false)[0];
    if(hit)pointSelect.current(hit.object.userData.point,hit.object.userData.side);
   };
   renderer.domElement.addEventListener('pointerdown',down);
@@ -185,48 +415,52 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   renderer.domElement.addEventListener('pointerup',up);
   renderer.domElement.addEventListener('pointercancel',cancel);
 
-  const projected=new T.Vector3();
-  const activeMarker=(code:string|null|undefined,side:1|-1)=>markers.find(m=>m.userData.point===code&&(m.userData.side===side||points.find(p=>p.code===code)?.midline));
+  const toolInput=installSurfaceToolInput({
+   canvas:renderer.domElement,
+   handle:teaching.label,
+   camera,
+   controls,
+   getSkins:()=>teaching.getSkinMeshes(),
+   getSimulation:()=>sim.current,
+   getState:()=>latest.current,
+   isReady:()=>ready&&teaching.isAnchored(),
+   getTarget:teaching.getTarget,
+   getDraggables:teaching.getDraggables,
+   snapTarget:teaching.snapTarget,
+   onDrag:(target,phase)=>toolDrag.current(target,phase),
+   invalidate:()=>{dirty=true;},
+  });
 
   const animate=()=>{
    if(disposed)return;frame=requestAnimationFrame(animate);
+   const now=performance.now();const delta=Math.min(.05,(now-lastFrame)/1000);lastFrame=now;
+   if(vrm)vrm.update(delta);
    const s=latest.current,simState=sim.current;
+   toolInput.update();
    if(s.view!==lastView||s.reset!==lastReset){fit(s.view);lastView=s.view;lastReset=s.reset;}
-   controls.autoRotate=s.rotate;controls.autoRotateSpeed=.55;controls.update();if(controls.autoRotate)dirty=true;
+   controls.autoRotate=s.rotate&&!toolInput.isDragging();controls.autoRotateSpeed=.55;
+   if(!toolInput.isDragging())controls.update();
+   if(controls.autoRotate)dirty=true;
 
-   for(const dot of markers){
-    const selected=dot.userData.point===simState.pointCode&&(dot.userData.side===simState.side||points.find(p=>p.code===simState.pointCode)?.midline);
-    const allowed=!simState.curriculumSet||simState.curriculumSet==='all'||simState.curriculumSet==='head-neck-21';
-    const facing=outward.copy(dot.userData.normal as T.Vector3).dot(toCamera.copy(camera.position).sub(dot.position).normalize())>.08;
-    dot.visible=!!simState.showPoints&&allowed&&!!(facing||selected);
-    const mat=dot.material as T.MeshBasicMaterial;
-    mat.color.set(selected?activeColor:'#2f8f7c');
-    mat.opacity=selected?.98:.9;
-    dot.scale.setScalar(selected?1.55:1);
-   }
-
-   if(simState.focus&&lastFocus!==simState.focus&&ready){
+   if(ready&&!teaching.isAnchored()&&characterRoot.children.length)teaching.anchor(characterRoot);
+   if(teaching.focus(simState,camera,controls)){lastFocus=simState.focus;dirty=true;}
+   else if(simState.focus&&lastFocus!==simState.focus&&ready){
+    // Pre-anchor fallback: same framing rules as teaching-overlay (do not ride the surface normal).
     lastFocus=simState.focus;
     const target=simState.pointCode?avatarPointTarget(avatar,simState.pointCode,simState.side):null;
     if(target){
      const aim=new T.Vector3().fromArray(target.position);
-     const viewDir=new T.Vector3().fromArray(target.normal).normalize();
-     if(viewDir.lengthSq()<.01)viewDir.set(0,.08,-1);
-     viewDir.add(new T.Vector3(0,.14,0)).normalize();
+     const normal=new T.Vector3().fromArray(target.normal).normalize();
+     const {viewDir,distance,aimAdjust}=focusViewFromNormal(simState.pointCode,normal,simState.side);
+     aim.add(aimAdjust);
      controls.target.copy(aim);
-     camera.position.copy(aim).addScaledVector(viewDir,.95);
+     camera.position.copy(aim).addScaledVector(viewDir,distance);
      controls.update();dirty=true;
     }
    }
 
-   const active=activeMarker(simState.pointCode,simState.side);
-   if(active){
-    projected.copy(active.position).project(camera);
-    const onScreen=projected.z>=-1&&projected.z<=1;
-    label.hidden=!onScreen;label.textContent=points.find(p=>p.code===simState.pointCode)?.name??'';
-    label.style.left=`${(projected.x+1)*el.clientWidth/2+14}px`;
-    label.style.top=`${(1-projected.y)*el.clientHeight/2-18}px`;
-   }else label.hidden=true;
+   const response=teaching.update(simState,camera,el.clientWidth,el.clientHeight);
+   if(lastSimulation!==simState||simState.running||response?.settling){dirty=true;lastSimulation=simState;}
 
    if(dirty){renderer.render(scene,camera);dirty=false;}
   };
@@ -237,10 +471,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   return()=>{
    disposed=true;cancelAnimationFrame(frame);observer.disconnect();
-   controls.dispose();gradient.dispose();sphere.dispose();idleMat.dispose();
-   markers.forEach(m=>{(m.material as T.Material).dispose();});
+   toolInput.dispose();teaching.dispose();controls.dispose();gradient.dispose();
    scene.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}});
-   env.dispose();label.remove();renderer.dispose();renderer.domElement.remove();
+   env.dispose();teaching.label.remove();renderer.dispose();renderer.domElement.remove();
   };
  },[avatarId,outfitId,onProgress,onError]);
 

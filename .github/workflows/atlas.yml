@@ -16,7 +16,7 @@ defaults:
 
 jobs:
   check:
-    name: check + validate-teaching
+    name: check + validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -30,3 +30,5 @@ jobs:
       - run: npm run check
       - run: node scripts/validate-tool-drag.mjs
       - run: node scripts/validate-teaching.mjs
+      - run: node scripts/validate-bake-merge.mjs
+      - run: node scripts/validate-interactions.mjs

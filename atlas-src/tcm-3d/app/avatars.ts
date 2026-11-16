@@ -1,6 +1,6 @@
 import {ANIME_MODEL_URL,ANIME_POINTS,type AnimePoint} from './character-mode';
 import type {SurfaceTarget} from './teaching';
-import {POINT_BY_CODE} from './teaching';
+import {POINT_BY_CODE,isPracticeDeferred} from './teaching';
 
 export type AvatarId='assistant';
 
@@ -14,7 +14,7 @@ export interface AnimeAvatar{
  /** Expected drop path when the GLB arrives. */
  expectedModelPath:string;
  points:AnimePoint[];
- /** Original Sendagaya wardrobe (制服／露頸). */
+ /** Wardrobe switch UI; false while only school uniform is shipped. */
  hasOutfits:boolean;
  blurb:string;
 }
@@ -29,7 +29,7 @@ export const ANIME_AVATARS:AnimeAvatar[]=[
   expectedModelPath:'atlas-src/tcm-3d/public/models/anime-assistant.glb',
   points:ANIME_POINTS,
   hasOutfits:true,
-  blurb:'Sendagaya Shino 研習室助教；可換制服／露頸。',
+  blurb:'Sendagaya Shino 研習室助教（制服／練習裝）。',
  },
 ];
 
@@ -62,10 +62,19 @@ export function avatarSupportsPoint(avatar:AnimeAvatar,code:string|null|undefine
  return !!code&&avatarSupportedCodes(avatar).has(code);
 }
 
+/** Baked and open for needle／finger demos. */
+export function avatarPracticeOpen(avatar:AnimeAvatar,code:string|null|undefined){
+ return avatarSupportsPoint(avatar,code)&&!isPracticeDeferred(code);
+}
+
+export function avatarPracticePoints(avatar:AnimeAvatar){
+ return avatar.points.filter(p=>!isPracticeDeferred(p.code));
+}
+
 export function avatarLessonNote(avatar:AnimeAvatar,code:string|null|undefined){
  if(avatar.modelStatus==='pending')return `${avatar.name} 的 3D 模型尚未加入，請把 .glb 放到 ${avatar.expectedModelPath}。`;
  if(!code)return `${avatar.name} 目前提供已對應穴位練習。`;
  if(avatarSupportsPoint(avatar,code))return `此穴已在${avatar.name}完成對應，可點選標記練習。`;
  const name=POINT_BY_CODE.get(code)?.name??code;
- return `${name} 尚未對應到${avatar.name}，請切換解剖模型查看。`;
+ return `${name} 尚未烘到${avatar.name}身上，之後依課堂進度加入。`;
 }

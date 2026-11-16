@@ -2,8 +2,6 @@ import animePoints from './anime-points.json';
 import type {CurriculumSetId, SurfaceTarget, Vec3} from './teaching';
 import {POINT_BY_CODE} from './teaching';
 
-export type ModelMode='anatomy'|'anime';
-
 export interface AnimePoint{
  code:string;
  name:string;
@@ -38,5 +36,5 @@ export function animeLessonNote(code:string|null|undefined){
  if(!code)return '動漫角色目前提供頭頸基準穴練習。';
  if(ANIME_SUPPORTED_CODES.has(code))return '此穴已在動漫角色完成對應，可點選標記練習。';
  const name=POINT_BY_CODE.get(code)?.name??code;
- return `${name} 尚未對應到動漫角色，請切回解剖模型查看。`;
+ return `${name} 尚未烘到角色身上，之後依課堂進度加入。`;
 }
