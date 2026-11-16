@@ -85,7 +85,7 @@ Dashboard「學習 → 中醫人體」連到 `/atlas/tcm-3d/`，靜態站來自 
 
 也可：`npm --prefix atlas-src/tcm-3d run build:punchclock`。Docker／Render 會在 image 建置時一併編譯。
 
-人體模型只提交 `.bin.gz`（約 31MB）；執行期瀏覽器解壓。若要跑 `optimize-anatomy` 等需未壓縮 `.bin` 的腳本：`npm --prefix atlas-src/tcm-3d run inflate-models`。
+角色模型為 `anime-assistant.glb`（CC0）；穴位只顯示已烘到角色身上的穴（目前頭頸 21）。之後每週加穴：`node atlas-src/tcm-3d/scripts/bake-anime-points.mjs --codes …`（合併寫入，不清空既有穴）。
 
 改動 `atlas-src/tcm-3d/` 時，GitHub Actions（`Atlas`）會跑 `npm run check`、`validate-tool-drag`、`validate-teaching`。
 

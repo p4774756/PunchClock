@@ -13,7 +13,7 @@
 | `client/` | 排程、UI、自動打卡、心跳、傳檔、網路工具、中繼 Proxy | `com.example.App` |
 | `server/` | 心跳、Dashboard、peer 訊息／傳檔、取消指令、經穴圖靜態站 | `com.example.server.ServerApp` |
 | `shared/` | 跨端共用（`PeerFileRules`、`ChatProtocol`、`ClientUpdatePolicy`） | — |
-| `atlas-src/tcm-3d/` | 中醫 3D 經絡穴道（Vite／Three.js）；本機先 `./scripts/build-atlas.sh`；模型只留 `.bin.gz` | `/atlas/tcm-3d/` |
+| `atlas-src/tcm-3d/` | 中醫 3D 經絡穴道（Vite／Three.js）；本機先 `./scripts/build-atlas.sh`；角色模型 `anime-assistant.glb` | `/atlas/tcm-3d/` |
 
 **Client 常見包：**
 

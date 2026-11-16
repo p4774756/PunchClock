@@ -86,9 +86,9 @@ public class AtlasRoutesTest {
     }
 
     @Test
-    public void modelBinGetsLongCache() throws Exception {
-        Files.writeString(root.resolve("tcm-3d").resolve("models").resolve("body-0.bin"), "bin");
-        HttpResponse<String> response = send("GET", "/atlas/tcm-3d/models/body-0.bin", null);
+    public void modelGlbGetsLongCache() throws Exception {
+        Files.writeString(root.resolve("tcm-3d").resolve("models").resolve("anime-assistant.glb"), "glb");
+        HttpResponse<String> response = send("GET", "/atlas/tcm-3d/models/anime-assistant.glb", null);
         assertEquals(200, response.statusCode());
         assertTrue(response.headers().firstValue("cache-control").orElse("").contains("max-age=604800"));
     }

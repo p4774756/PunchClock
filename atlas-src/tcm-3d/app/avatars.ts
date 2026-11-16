@@ -67,5 +67,5 @@ export function avatarLessonNote(avatar:AnimeAvatar,code:string|null|undefined){
  if(!code)return `${avatar.name} 目前提供已對應穴位練習。`;
  if(avatarSupportsPoint(avatar,code))return `此穴已在${avatar.name}完成對應，可點選標記練習。`;
  const name=POINT_BY_CODE.get(code)?.name??code;
- return `${name} 尚未對應到${avatar.name}，請切換解剖模型查看。`;
+ return `${name} 尚未烘到${avatar.name}身上，之後依課堂進度加入。`;
 }

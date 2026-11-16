@@ -11,8 +11,7 @@
     "build:vercel": "vite build",
     "build:punchclock": "vite build --base=/atlas/tcm-3d/",
     "check": "tsc --noEmit",
-    "build:tcm": "vite build --base=/3d/ --outDir ../dist-tcm",
-    "inflate-models": "node scripts/inflate-models.mjs"
+    "build:tcm": "vite build --base=/3d/ --outDir ../dist-tcm"
   },
   "dependencies": {
     "@pixiv/three-vrm": "^3.5.5",

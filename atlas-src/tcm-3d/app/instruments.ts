@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 export type InstrumentTool = 'needle' | 'moxa' | 'stone' | 'finger' | 'scraper' | 'cup';
+/** UI only exposes needle + finger; other tools remain for createInstrument if needed. */
 
 interface InstrumentState {
   tool: InstrumentTool;
