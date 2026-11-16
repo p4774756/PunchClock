@@ -17,7 +17,8 @@ await copyFile(pointsPath, backup);
 
 try {
   const before = JSON.parse(await readFile(pointsPath, 'utf8'));
-  assert.equal(before.points.length, 21);
+  assert.ok(before.points.length >= 21, 'anime-points.json should keep at least head-neck-21');
+  const beforeCodes = before.points.map(p => p.code);
 
   const dry = spawnSync(process.execPath, [join(root, 'scripts/bake-anime-points.mjs'), '--dry-run', '--codes', 'GV20'], {
     cwd: root, encoding: 'utf8',
@@ -33,9 +34,9 @@ try {
   });
   assert.equal(merge.status, 0, merge.stderr || merge.stdout);
   const after = JSON.parse(await readFile(pointsPath, 'utf8'));
-  assert.ok(after.points.length >= 21, 'merge must not drop existing points');
+  assert.ok(after.points.length >= before.points.length, 'merge must not drop existing points');
   const codes = new Set(after.points.map(p => p.code));
-  for (const code of before.points.map(p => p.code)) assert.ok(codes.has(code), `lost ${code}`);
+  for (const code of beforeCodes) assert.ok(codes.has(code), `lost ${code}`);
 
   const fake = spawnSync(process.execPath, [join(root, 'scripts/bake-anime-points.mjs'), '--codes', 'FAKE99', '--dry-run'], {
     cwd: root, encoding: 'utf8',
