@@ -432,6 +432,7 @@ function boot() {
     groundY: G,
     following: () => controlsActive(mode),
     smoothingFactor: smoothingFactor,
+    nightFactor: () => dayNight.mix,
     initial: POSES.home
   });
   let animating = false;

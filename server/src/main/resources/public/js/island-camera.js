@@ -1,5 +1,5 @@
 import { G } from './island-kit.js';
-import { MOON_AZIMUTH, MOON_ELEVATION } from './island-sky.js';
+import { MOON_ELEVATION } from './island-sky.js';
 
 export const EXPLORE_POSE = { radius: 9.2, theta: 0.35, phi: 0.98 };
 // 室內比島小很多，沿用探索的俯角但把鏡頭拉近，才看得到沒有屋頂的房間。
@@ -12,13 +12,32 @@ export const EXPLORE_PHI_MIN = 0.32;
 export const EXPLORE_PHI_MAX = 1.12;
 /** phi 高於此維持原本俯視角色，不抬頭。 */
 export const LOOK_UP_PHI_FLOOR = 0.70;
-/** 極限抬頭時視線仰角（rad），約 25°。 */
+/** 夜間極限抬頭視線仰角上限（rad），約 25°（對月亮）。 */
 export const LOOK_UP_PITCH_MAX = 25 * Math.PI / 180;
 /** blend 高於此維持天空視角仰角，避免中段又盯回角色。 */
 export const LOOK_UP_SKY_BLEND = 0.32;
 /** 太陽參考方位（與 island.js sun.position 一致）。 */
 export const SUN_AZIMUTH = Math.atan2(-9.5, 11);
 export const SUN_ELEVATION = Math.atan2(20.5, Math.hypot(9.5, 11));
+
+/** 正規化到 (-π, π]。 */
+export function wrapAngle(a) {
+  return Math.atan2(Math.sin(a), Math.cos(a));
+}
+
+/**
+ * 探索視線水平方位：相機在角色後方（theta），看向角色／前方天空為 theta+π。
+ * 不鎖月亮／太陽；抬頭只改 pitch，左右拖維持玩家自己的水平方向。
+ * celestialAzimuth 保留參數相容，刻意忽略。
+ */
+export function exploreAimAzimuth(theta, _blend, _celestialAzimuth) {
+  return wrapAngle(theta + Math.PI);
+}
+
+/** 面向某天空體時應設的 orbit theta（使視線方位 = bodyAzimuth）。 */
+export function exploreThetaFacing(bodyAzimuth) {
+  return wrapAngle(bodyAzimuth - Math.PI);
+}
 
 /** 0→1：phi 從 LOOK_UP_PHI_FLOOR 降到 EXPLORE_PHI_MIN 時的抬頭強度。 */
 export function exploreLookUpBlend(safePhi) {
@@ -61,31 +80,33 @@ function naturalPitchToPlayer(lookAtY, placement) {
   return Math.atan2(lookAtY - placement.cy, placement.horiz);
 }
 
-/** 由月亮高度與豎直 FOV 推算理想視線仰角（直向略降，避免圓月頂到裁切）。 */
-export function exploreIdealViewPitch(aspect) {
+/**
+ * 由天空體高度與豎直 FOV 推算理想視線仰角。
+ * 夜間對月亮約 23～25°；白天改用太陽仰角，才能把太陽收入畫面。
+ */
+export function exploreIdealViewPitch(aspect, bodyElevation) {
+  const elev = bodyElevation == null ? MOON_ELEVATION : bodyElevation;
   const halfV = (ISLAND_FOV_DEG * Math.PI / 180) / 2;
-  let pitch = MOON_ELEVATION + halfV * 0.28;
+  let pitch = elev + halfV * 0.28;
   if (aspect < 0.85) pitch -= (0.85 - aspect) * 0.14;
   if (aspect < 0.68) pitch -= (0.68 - Math.min(aspect, 0.68)) * 0.10;
-  return Math.max(0.38, Math.min(LOOK_UP_PITCH_MAX, pitch));
+  const lo = Math.min(0.38, elev * 0.55);
+  // 月亮仍受 LOOK_UP_PITCH_MAX；太陽仰角較高時放寬上限。
+  const hi = Math.max(LOOK_UP_PITCH_MAX, elev + halfV * 0.45);
+  return Math.max(lo, Math.min(hi, pitch));
 }
 
 /** 目標視線仰角（rad）；blend=0 回 null 表示盯角色。 */
-export function exploreTargetPitch(safePhi, lookAtY, dist, groundY, aspect, theta) {
+export function exploreTargetPitch(safePhi, lookAtY, dist, groundY, aspect, theta, bodyElevation) {
   const blend = exploreLookUpBlend(safePhi);
   if (blend <= 0) return null;
   const placement = exploreCameraPlacement(0, lookAtY, 0, dist, safePhi, theta, groundY);
   const natural = naturalPitchToPlayer(lookAtY, placement);
-  const skyPitch = exploreIdealViewPitch(aspect);
+  const skyPitch = exploreIdealViewPitch(aspect, bodyElevation);
   const ease = blend >= LOOK_UP_SKY_BLEND
     ? 1
     : Math.max(0, Math.min(1, blend / LOOK_UP_SKY_BLEND));
   return natural * (1 - ease) + skyPitch * ease;
-}
-
-export function exploreAimAzimuth(theta, blend, celestialAzimuth) {
-  const az = celestialAzimuth == null ? MOON_AZIMUTH : celestialAzimuth;
-  return theta * (1 - blend) + az * blend;
 }
 
 /** 由相機位置與目標仰角、方位角決定 lookAt 點（距離 72）。 */
@@ -106,9 +127,16 @@ export function celestialNdcY(bodyElevation, viewPitch, fovDeg) {
   return (bodyElevation - viewPitch) / halfV;
 }
 
+/** 天空體相對視線方位的水平 NDC x（水平半視角 = 豎直半視角 × aspect）。 */
+export function celestialNdcX(bodyAzimuth, viewAzimuth, aspect, fovDeg) {
+  const halfH = ((fovDeg * Math.PI / 180) / 2) * Math.max(aspect, 1e-3);
+  const d = wrapAngle(bodyAzimuth - viewAzimuth);
+  return d / halfH;
+}
+
 /** 極限抬頭時的視線仰角（供測試）。 */
-export function exploreSkyPitch(lookAtY, dist, safePhi, groundY, aspect, theta) {
-  const pitch = exploreTargetPitch(safePhi, lookAtY, dist, groundY, aspect, theta);
+export function exploreSkyPitch(lookAtY, dist, safePhi, groundY, aspect, theta, bodyElevation) {
+  const pitch = exploreTargetPitch(safePhi, lookAtY, dist, groundY, aspect, theta, bodyElevation);
   if (pitch != null) return pitch;
   const placement = exploreCameraPlacement(0, lookAtY, 0, dist, safePhi, theta, groundY);
   return naturalPitchToPlayer(lookAtY, placement);
@@ -128,6 +156,7 @@ export function createCameraRig(THREE, camera, hooks) {
   const groundY = hooks && hooks.groundY != null ? hooks.groundY : G;
   const following = hooks.following;
   const smoothingFactor = hooks.smoothingFactor;
+  const nightFactor = typeof hooks.nightFactor === 'function' ? hooks.nightFactor : () => 1;
   const home = hooks.initial;
   const lookAt = new THREE.Vector3();
   const targetLook = new THREE.Vector3();
@@ -137,6 +166,11 @@ export function createCameraRig(THREE, camera, hooks) {
   let targetRadius = radius;
   let targetTheta = theta;
   let targetPhi = phi;
+
+  function celestialElevation() {
+    // mix≥0.5 偏夜：用月亮；白天用太陽，勿再按月亮 20° 算。
+    return nightFactor() >= 0.5 ? MOON_ELEVATION : SUN_ELEVATION;
+  }
 
   function placeCamera() {
     const aspect = camera.aspect || 1;
@@ -149,8 +183,11 @@ export function createCameraRig(THREE, camera, hooks) {
     camera.position.set(placement.cx, placement.cy, placement.cz);
     const blend = followCam ? exploreLookUpBlend(safePhi) : 0;
     if (blend > 0) {
-      const pitch = exploreTargetPitch(safePhi, lookAt.y, dist, groundY, aspect, theta);
-      const aim = exploreAimAzimuth(theta, blend, MOON_AZIMUTH);
+      const pitch = exploreTargetPitch(
+        safePhi, lookAt.y, dist, groundY, aspect, theta, celestialElevation()
+      );
+      // 視線 yaw 永遠跟玩家水平方向（theta+π），不鎖月亮／太陽方位。
+      const aim = exploreAimAzimuth(theta, blend);
       const point = exploreLookPointFromPitch(placement, pitch, aim);
       camera.lookAt(point.x, point.y, point.z);
     } else {
