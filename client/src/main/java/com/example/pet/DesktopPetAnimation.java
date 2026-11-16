@@ -6,14 +6,15 @@ import java.util.Random;
  * 桌面寵物的動作。不含視窗與計時器，由視窗在 EDT 上逐格呼叫 {@link #tick()}。
  * <p>
  * 喵露待機：呼吸每張 300ms，眨眼每張 150ms。
- * 動作優先序是拖曳、揮手、走路、坐下、趴睡、待機，全部由這一個 tick 推進。
+ * 動作優先序是拖曳、揮手、Cursor 狀態、走路、坐下、趴睡、待機，全部由這一個 tick 推進。
  * 拖曳另有 {@link CarryPhase}：抓起、掙扎、放下，不混進一般動作的 {@link Mode}。
+ * Cursor 的思考／忙碌／困擾蓋在一般閒置行為上，被拎著時不打斷，放開或揮手結束後再回到對應狀態。
  * 還沒有合格影格的動作由畫面改畫待機。{@link #column()} 與 {@link #row()} 只給待機素材也載入失敗時的像素角色。
  */
 public final class DesktopPetAnimation {
 
     public enum Mode {
-        IDLE, WALK, REACT, SIT, SLEEP
+        IDLE, WALK, REACT, SIT, SLEEP, THINK, BUSY, WORRY
     }
 
     /** 被拎著的階段。放下回彈期間仍算被拎著，畫面依階段選圖。 */
@@ -25,6 +26,8 @@ public final class DesktopPetAnimation {
     public static final int IDLE_TICKS = 70;
     public static final int WALK_TICKS = 110;
     public static final int REACT_TICKS = 28;
+    /** 短暫困擾約與揮手同長，結束後回到 Cursor 維持狀態。 */
+    public static final int WORRY_TICKS = 28;
     public static final int BUBBLE_TICKS = 40;
     /** 事件提醒泡泡約 4 秒，落在 3～5 秒。 */
     public static final int NOTICE_TICKS = 80;
@@ -83,6 +86,8 @@ public final class DesktopPetAnimation {
     private double lean;
     private double smoothedSpeed;
     private boolean speedFresh;
+    /** Cursor 進行中要維持的狀態（THINK／BUSY）；null 表示沒有。 */
+    private Mode cursorHold;
 
     public DesktopPetAnimation() {
         this(new Random());
@@ -130,7 +135,9 @@ public final class DesktopPetAnimation {
         }
         poseTicks++;
         if (mode == Mode.REACT && poseTicks >= REACT_TICKS) {
-            enter(Mode.IDLE);
+            resumeAfterInterrupt();
+        } else if (mode == Mode.WORRY && poseTicks >= WORRY_TICKS) {
+            resumeAfterInterrupt();
         } else if (mode == Mode.IDLE && poseTicks >= IDLE_TICKS) {
             boolean sit = shouldSit();
             idleExits++;
@@ -143,6 +150,78 @@ public final class DesktopPetAnimation {
             enter(Mode.IDLE);
         }
         updateFrame();
+    }
+
+    /**
+     * 設定或清除 Cursor 維持狀態。被拖曳時只記住，放開後再套用。
+     * {@code hold} 僅接受 {@link Mode#THINK}、{@link Mode#BUSY} 或 null。
+     */
+    public void setCursorHold(Mode hold) {
+        if (hold != null && hold != Mode.THINK && hold != Mode.BUSY) {
+            hold = Mode.BUSY;
+        }
+        cursorHold = hold;
+        if (carried || settling) {
+            return;
+        }
+        if (mode == Mode.REACT || mode == Mode.WORRY) {
+            return;
+        }
+        applyCursorHoldNow();
+    }
+
+    public Mode cursorHold() {
+        return cursorHold;
+    }
+
+    /** 短暫困擾；被拖著時忽略。結束後回到 {@link #cursorHold()}。 */
+    public boolean flashWorry(String phrase) {
+        if (carried || settling) {
+            return false;
+        }
+        if (phrase != null && !phrase.isEmpty()) {
+            notice = false;
+            bubble = phrase;
+            bubbleTicks = BUBBLE_TICKS;
+        }
+        enter(Mode.WORRY);
+        updateFrame();
+        return true;
+    }
+
+    /** 揮手慶祝；被拖著時忽略。結束後回到 {@link #cursorHold()} 或待機。 */
+    public boolean celebrate(String phrase) {
+        if (carried || settling) {
+            return false;
+        }
+        notice = false;
+        if (phrase != null && !phrase.isEmpty()) {
+            bubble = phrase;
+            bubbleTicks = NOTICE_TICKS;
+        }
+        enter(Mode.REACT);
+        updateFrame();
+        return true;
+    }
+
+    public void clearCursorHold() {
+        cursorHold = null;
+        if (carried || settling) {
+            return;
+        }
+        if (mode == Mode.THINK || mode == Mode.BUSY || mode == Mode.WORRY) {
+            enter(Mode.IDLE);
+            updateFrame();
+        }
+    }
+
+    /** 固定短句泡泡，不改動作。提醒泡泡顯示中時不覆蓋。 */
+    public void showCursorPhrase(String phrase) {
+        if (carried || phrase == null || phrase.isEmpty() || notice) {
+            return;
+        }
+        bubble = phrase;
+        bubbleTicks = BUBBLE_TICKS;
     }
 
     /** 點一下：停下、揮手，並顯示一句話。被拖著時忽略。 */
@@ -208,10 +287,10 @@ public final class DesktopPetAnimation {
             lean = 0;
             smoothedSpeed = 0;
             speedFresh = false;
-            enter(Mode.IDLE);
             blinking = false;
             blinkStep = 0;
             blinkHold = 0;
+            resumeAfterInterrupt();
         }
         updateFrame();
     }
@@ -334,13 +413,17 @@ public final class DesktopPetAnimation {
         return blinkStep;
     }
 
-    /** 走路、揮手、拖曳共用的影格序號。每張約 150ms。 */
+    /** 走路、揮手、思考、忙碌、困擾、拖曳共用的影格序號。每張約 150ms。 */
     public int actionFrame(int count) {
         if (count <= 1) {
             return 0;
         }
         int ticks = carried ? carriedTicks : poseTicks;
         return Math.floorMod(ticks / ACTION_HOLD_TICKS, count);
+    }
+
+    public boolean isCursorPose() {
+        return mode == Mode.THINK || mode == Mode.BUSY || mode == Mode.WORRY;
     }
 
     /**
@@ -386,6 +469,19 @@ public final class DesktopPetAnimation {
         poseTicks = 0;
     }
 
+    private void resumeAfterInterrupt() {
+        applyCursorHoldNow();
+    }
+
+    private void applyCursorHoldNow() {
+        if (cursorHold == Mode.THINK || cursorHold == Mode.BUSY) {
+            enter(cursorHold);
+        } else {
+            enter(Mode.IDLE);
+        }
+        updateFrame();
+    }
+
     private void updateFrame() {
         if (carried) {
             frameColumn = 3;
@@ -393,7 +489,7 @@ public final class DesktopPetAnimation {
             bob = -6;
             return;
         }
-        if (mode == Mode.REACT) {
+        if (mode == Mode.REACT || mode == Mode.WORRY) {
             int phase = poseTicks % 16;
             frameRow = 1;
             bob = -2;
@@ -406,6 +502,12 @@ public final class DesktopPetAnimation {
             } else {
                 frameColumn = 1;
             }
+            return;
+        }
+        if (mode == Mode.THINK || mode == Mode.BUSY) {
+            bob = (poseTicks / 8) % 2 == 0 ? 0 : -1;
+            frameRow = 0;
+            frameColumn = 0;
             return;
         }
         if (mode == Mode.WALK) {
@@ -433,7 +535,7 @@ public final class DesktopPetAnimation {
     }
 
     private void updateMilu() {
-        if (carried || mode == Mode.WALK || mode == Mode.REACT) {
+        if (carried || mode == Mode.WALK || mode == Mode.REACT || isCursorPose()) {
             blinking = false;
             blinkStep = 0;
             blinkHold = 0;

@@ -14,7 +14,7 @@ import java.util.function.Consumer;
 /**
  * 讀取喵露 PNG。解圖在背景執行緒，結果回到 EDT。
  * 待機六張缺檔或不合格時回傳 null，呼叫端改畫原本的像素角色。
- * 走路、揮手、坐下、趴睡、拖曳、抓起、掙扎、放下會逐張篩掉裁切、標籤底和分離殘塊，缺的動作改畫待機。
+ * 走路、揮手、坐下、趴睡、思考、忙碌、困擾、拖曳、抓起、掙扎、放下會逐張篩掉裁切、標籤底和分離殘塊，缺的動作改畫待機。
  */
 public final class DesktopPetSpriteLoader {
 
@@ -106,6 +106,24 @@ public final class DesktopPetSpriteLoader {
             "/pet/milu/release/02.png",
             "/pet/milu/release/03.png"
     };
+    private static final String[] THINK = {
+            "/pet/milu/think/01.png",
+            "/pet/milu/think/02.png",
+            "/pet/milu/think/03.png",
+            "/pet/milu/think/04.png"
+    };
+    private static final String[] BUSY = {
+            "/pet/milu/busy/01.png",
+            "/pet/milu/busy/02.png",
+            "/pet/milu/busy/03.png",
+            "/pet/milu/busy/04.png"
+    };
+    private static final String[] WORRY = {
+            "/pet/milu/worry/01.png",
+            "/pet/milu/worry/02.png",
+            "/pet/milu/worry/03.png",
+            "/pet/milu/worry/04.png"
+    };
 
     private DesktopPetSpriteLoader() {
     }
@@ -123,11 +141,15 @@ public final class DesktopPetSpriteLoader {
         private final Sprite[] grab;
         private final Sprite[] struggle;
         private final Sprite[] release;
+        private final Sprite[] think;
+        private final Sprite[] busy;
+        private final Sprite[] worry;
 
         Frames(Sprite[] breath, Sprite blink1, Sprite blink2,
                 Sprite[] walkLeft, Sprite[] walkRight, Sprite[] wave,
                 Sprite[] sit, Sprite[] sleep, Sprite[] drag,
-                Sprite[] grab, Sprite[] struggle, Sprite[] release) {
+                Sprite[] grab, Sprite[] struggle, Sprite[] release,
+                Sprite[] think, Sprite[] busy, Sprite[] worry) {
             this.breath = breath;
             this.blink1 = blink1;
             this.blink2 = blink2;
@@ -140,6 +162,9 @@ public final class DesktopPetSpriteLoader {
             this.grab = grab;
             this.struggle = struggle;
             this.release = release;
+            this.think = think;
+            this.busy = busy;
+            this.worry = worry;
         }
 
         public BufferedImage breath(int index) {
@@ -190,6 +215,18 @@ public final class DesktopPetSpriteLoader {
             return release.length;
         }
 
+        public int thinkCount() {
+            return think.length;
+        }
+
+        public int busyCount() {
+            return busy.length;
+        }
+
+        public int worryCount() {
+            return worry.length;
+        }
+
         public BufferedImage grab(int index) {
             return grab[Math.floorMod(index, grab.length)].image;
         }
@@ -222,6 +259,18 @@ public final class DesktopPetSpriteLoader {
             return sleep[Math.floorMod(index, sleep.length)].image;
         }
 
+        public BufferedImage think(int index) {
+            return think[Math.floorMod(index, think.length)].image;
+        }
+
+        public BufferedImage busy(int index) {
+            return busy[Math.floorMod(index, busy.length)].image;
+        }
+
+        public BufferedImage worry(int index) {
+            return worry[Math.floorMod(index, worry.length)].image;
+        }
+
         public Sprite spriteFor(DesktopPetAnimation animation) {
             Sprite[] carry = carryClip(animation.carryPhase());
             if (carry != null && carry.length > 0) {
@@ -233,6 +282,15 @@ public final class DesktopPetSpriteLoader {
             DesktopPetAnimation.Mode mode = animation.mode();
             if (mode == DesktopPetAnimation.Mode.REACT) {
                 return clipOrIdleSprite(wave, animation);
+            }
+            if (mode == DesktopPetAnimation.Mode.THINK) {
+                return clipOrSitOrIdle(think, animation);
+            }
+            if (mode == DesktopPetAnimation.Mode.BUSY) {
+                return clipOrSitOrIdle(busy, animation);
+            }
+            if (mode == DesktopPetAnimation.Mode.WORRY) {
+                return clipOrSitOrIdle(worry, animation);
             }
             if (mode == DesktopPetAnimation.Mode.WALK) {
                 Sprite[] side = animation.facingRight() ? walkRight : walkLeft;
@@ -263,6 +321,9 @@ public final class DesktopPetSpriteLoader {
             addAll(all, grab);
             addAll(all, struggle);
             addAll(all, release);
+            addAll(all, think);
+            addAll(all, busy);
+            addAll(all, worry);
             return all.toArray(new Sprite[0]);
         }
 
@@ -289,8 +350,8 @@ public final class DesktopPetSpriteLoader {
         }
 
         /**
-         * 顯示優先序：抓起／掙扎／放下、揮手、走路、坐下、趴睡、待機。
-         * 該動作沒有合格影格時，改畫待機呼吸或眨眼。
+         * 顯示優先序：抓起／掙扎／放下、揮手、思考／忙碌／困擾、走路、坐下、趴睡、待機。
+         * 該動作沒有合格影格時，改畫待機呼吸或眨眼；Cursor 狀態可先退回坐下。
          */
         BufferedImage imageFor(DesktopPetAnimation animation) {
             return spriteFor(animation).image;
@@ -301,6 +362,16 @@ public final class DesktopPetSpriteLoader {
                 return idleSprite(animation);
             }
             return clip[animation.actionFrame(clip.length)];
+        }
+
+        private Sprite clipOrSitOrIdle(Sprite[] clip, DesktopPetAnimation animation) {
+            if (clip != null && clip.length > 0) {
+                return clip[animation.actionFrame(clip.length)];
+            }
+            if (sit != null && sit.length > 0) {
+                return sit[animation.actionFrame(sit.length)];
+            }
+            return idleSprite(animation);
         }
 
         private Sprite idleSprite(DesktopPetAnimation animation) {
@@ -330,6 +401,9 @@ public final class DesktopPetSpriteLoader {
             flushAll(grab);
             flushAll(struggle);
             flushAll(release);
+            flushAll(think);
+            flushAll(busy);
+            flushAll(worry);
         }
 
         private static void flushAll(Sprite[] sprites) {
@@ -374,7 +448,10 @@ public final class DesktopPetSpriteLoader {
                     loadOptional(DRAG),
                     withOffsetY(loadOptional(GRAB), carryShift),
                     withOffsetY(loadOptional(STRUGGLE), carryShift),
-                    withOffsetY(release, carryShift));
+                    withOffsetY(release, carryShift),
+                    loadOptional(THINK),
+                    loadOptional(BUSY),
+                    loadOptional(WORRY));
         } catch (IOException ex) {
             return null;
         }

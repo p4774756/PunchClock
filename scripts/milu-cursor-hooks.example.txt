@@ -1,0 +1,15 @@
+PunchClock milu × Cursor hooks（本機）
+
+1. 開啟桌面 App 的「桌面寵物」，並確認「Cursor 狀態反應」為開。
+2. 寵物啟動後會寫 ~/.punchclock/milu-hook.json（埠與 token）。
+3. 建議把 milu-cursor-hooks.example.json 複製到 ~/.cursor/hooks.json
+   （使用者級只影響本機 IDE；雲端 agent 不會跑使用者級 hook）。
+4. 使用者級 hooks 的工作目錄是 ~/.cursor/，請把 command 改成腳本絕對路徑，例如：
+     /Users/你/PunchClock/scripts/milu-cursor-hook.sh
+5. 若改用專案級 .cursor/hooks.json，command 可維持 ./scripts/milu-cursor-hook.sh；
+   雲端 agent 也會執行，但腳本連不到 127.0.0.1 時會立刻安靜結束（結束碼 0）。
+6. 不要掛 beforeShellExecution、preToolUse、beforeReadFile 等權限型 hook。
+7. 手動測腳本：
+     printf '%s' '{"hook_event_name":"stop","conversation_id":"x","status":"completed"}' \
+       | ./scripts/milu-cursor-hook.sh
+   沒開寵物時也應立刻結束、結束碼 0。

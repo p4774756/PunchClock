@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "./scripts/milu-cursor-hook.sh",
+        "timeout": 2
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "./scripts/milu-cursor-hook.sh",
+        "timeout": 2
+      }
+    ],
+    "afterAgentThought": [
+      {
+        "command": "./scripts/milu-cursor-hook.sh",
+        "timeout": 2
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "./scripts/milu-cursor-hook.sh",
+        "timeout": 2
+      }
+    ],
+    "afterShellExecution": [
+      {
+        "command": "./scripts/milu-cursor-hook.sh",
+        "timeout": 2
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "./scripts/milu-cursor-hook.sh",
+        "timeout": 2
+      }
+    ],
+    "postToolUseFailure": [
+      {
+        "command": "./scripts/milu-cursor-hook.sh",
+        "timeout": 2
+      }
+    ],
+    "afterMCPExecution": [
+      {
+        "command": "./scripts/milu-cursor-hook.sh",
+        "timeout": 2
+      }
+    ],
+    "stop": [
+      {
+        "command": "./scripts/milu-cursor-hook.sh",
+        "timeout": 2
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "./scripts/milu-cursor-hook.sh",
+        "timeout": 2
+      }
+    ]
+  }
+}

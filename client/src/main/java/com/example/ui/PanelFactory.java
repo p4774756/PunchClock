@@ -376,9 +376,11 @@ public class PanelFactory {
         refs.desktopPetNotifyFile = new CandySwitch();
         refs.desktopPetNotifyTask = new CandySwitch();
         refs.desktopPetNotifySound = new CandySwitch();
+        refs.desktopPetCursorReact = new CandySwitch();
         refs.desktopPetNotifyMessage.setSelected(true);
         refs.desktopPetNotifyFile.setSelected(true);
         refs.desktopPetNotifyTask.setSelected(true);
+        refs.desktopPetCursorReact.setSelected(true);
         column.add(petOption(refs.desktopPetNotifyMessage, "新訊息提醒",
                 "收到同事訊息時揮手提醒，不顯示訊息內容。", boldFont));
         column.add(petOption(refs.desktopPetNotifyFile, "檔案傳輸提醒",
@@ -387,6 +389,8 @@ public class PanelFactory {
                 "任務完成或排程時間到時揮手提醒。", boldFont));
         column.add(petOption(refs.desktopPetNotifySound, "提示音",
                 "提醒真正出現時才響一聲。預設關閉。", boldFont));
+        column.add(petOption(refs.desktopPetCursorReact, "Cursor 狀態反應",
+                "本機 Cursor agent 思考、改檔、完成或出錯時，喵露做出對應動作。預設開啟。", boldFont));
         refs.desktopPetSwitch.addItemListener(e -> applyDesktopPetOptionEnabled(refs));
         applyDesktopPetOptionEnabled(refs);
         return column;
@@ -402,6 +406,7 @@ public class PanelFactory {
         setPetOptionEnabled(refs.desktopPetNotifyFile, on);
         setPetOptionEnabled(refs.desktopPetNotifyTask, on);
         setPetOptionEnabled(refs.desktopPetNotifySound, on);
+        setPetOptionEnabled(refs.desktopPetCursorReact, on);
     }
 
     private static void setPetOptionEnabled(JToggleButton toggle, boolean enabled) {
@@ -517,6 +522,7 @@ public class PanelFactory {
         public JToggleButton desktopPetNotifyFile;
         public JToggleButton desktopPetNotifyTask;
         public JToggleButton desktopPetNotifySound;
+        public JToggleButton desktopPetCursorReact;
         // 中繼 Proxy
         public JCheckBox relayEnabledCheckBox;
         public JSpinner relayPortSpinner;

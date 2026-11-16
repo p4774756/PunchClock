@@ -5,16 +5,20 @@ import java.awt.GraphicsEnvironment;
 import java.awt.HeadlessException;
 import java.awt.Toolkit;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Path;
 
 /**
  * 桌面寵物的啟用、停用與結束。同一隻寵物只會有一個視窗，監聽器不重複註冊。
- * 所有 Swing 操作都在 EDT 上執行。
+ * 所有 Swing 操作都在 EDT 上執行。Cursor hook 監聽只綁 127.0.0.1。
  */
 public final class DesktopPetManager {
 
     private final DesktopPetSettings settings;
     private final DesktopPetEventBridge bridge;
+    private final DesktopPetCursorStatus cursorStatus = new DesktopPetCursorStatus();
+    private final Path hookFile;
     private DesktopPetWindow window;
+    private DesktopPetHookServer hookServer;
     private Runnable summonMain;
     private boolean active;
     private boolean closed;
@@ -24,10 +28,15 @@ public final class DesktopPetManager {
     }
 
     public DesktopPetManager(DesktopPetSettings settings) {
+        this(settings, DesktopPetHookServer.defaultHookFile());
+    }
+
+    DesktopPetManager(DesktopPetSettings settings, Path hookFile) {
         if (settings == null) {
             throw new IllegalArgumentException("settings");
         }
         this.settings = settings;
+        this.hookFile = hookFile != null ? hookFile : DesktopPetHookServer.defaultHookFile();
         this.bridge = new DesktopPetEventBridge(settings, new PetSurface());
     }
 
@@ -76,6 +85,38 @@ public final class DesktopPetManager {
         return result[0];
     }
 
+    /** 設定頁切換「Cursor 狀態反應」時呼叫。總開關關閉時不會開監聽。 */
+    public void setCursorReactEnabled(boolean enabled) {
+        Runnable task = () -> {
+            if (closed) {
+                return;
+            }
+            settings.setCursorReact(enabled);
+            if (!enabled) {
+                cursorStatus.clear();
+                if (window != null) {
+                    window.clearCursorStatus();
+                }
+                stopHookServer();
+                return;
+            }
+            if (active && settings.isEnabled()) {
+                startHookServer();
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            task.run();
+            return;
+        }
+        try {
+            SwingUtilities.invokeAndWait(task);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        } catch (InvocationTargetException ex) {
+            // 設定失敗時維持現況。
+        }
+    }
+
     /**
      * 關掉寵物並停掉計時器。不改已儲存的開關，下次啟動仍照上次的選擇。
      */
@@ -87,6 +128,8 @@ public final class DesktopPetManager {
             closed = true;
             active = false;
             bridge.discard();
+            cursorStatus.clear();
+            stopHookServer();
             if (window != null) {
                 window.disposePet();
                 window = null;
@@ -113,6 +156,14 @@ public final class DesktopPetManager {
         return window;
     }
 
+    DesktopPetHookServer hookServer() {
+        return hookServer;
+    }
+
+    DesktopPetCursorStatus cursorStatus() {
+        return cursorStatus;
+    }
+
     private boolean applyEnabled(boolean enabled) {
         if (closed) {
             return false;
@@ -121,13 +172,17 @@ public final class DesktopPetManager {
             settings.setEnabled(false);
             active = false;
             bridge.discard();
+            cursorStatus.clear();
+            stopHookServer();
             if (window != null) {
+                window.clearCursorStatus();
                 window.hidePet();
             }
             return true;
         }
         settings.setEnabled(true);
         if (active && window != null && window.isShowing() && window.isAnimating()) {
+            startHookServer();
             return true;
         }
         if (GraphicsEnvironment.isHeadless()) {
@@ -146,6 +201,7 @@ public final class DesktopPetManager {
             active = window.isShowing();
             if (active) {
                 bridge.pump();
+                startHookServer();
             }
             return active;
         } catch (HeadlessException ex) {
@@ -155,6 +211,49 @@ public final class DesktopPetManager {
             active = false;
             System.err.println("[桌面寵物] 無法顯示：" + ex.getMessage());
             return false;
+        }
+    }
+
+    private void startHookServer() {
+        if (closed || !active || !settings.isEnabled() || !settings.cursorReact()) {
+            stopHookServer();
+            return;
+        }
+        if (hookServer != null && hookServer.isRunning()) {
+            return;
+        }
+        stopHookServer();
+        hookServer = new DesktopPetHookServer(hookFile, this::onHookEvent);
+        if (!hookServer.start()) {
+            hookServer = null;
+        }
+    }
+
+    private void stopHookServer() {
+        if (hookServer != null) {
+            hookServer.stop();
+            hookServer = null;
+        }
+    }
+
+    private void onHookEvent(DesktopPetHookServer.HookEvent event) {
+        if (event == null || closed) {
+            return;
+        }
+        Runnable task = () -> {
+            if (closed || !active || !settings.isEnabled() || !settings.cursorReact()) {
+                return;
+            }
+            DesktopPetCursorStatus.Outcome outcome = cursorStatus.apply(
+                    event.eventName, event.conversationId, event.status);
+            if (window != null && window.isShowing()) {
+                window.applyCursorOutcome(outcome);
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            task.run();
+        } else {
+            SwingUtilities.invokeLater(task);
         }
     }
 

@@ -15,6 +15,7 @@ public final class DesktopPetSettings {
     static final String KEY_NOTIFY_FILE = "desktopPet.notify.file";
     static final String KEY_NOTIFY_TASK = "desktopPet.notify.task";
     static final String KEY_NOTIFY_SOUND = "desktopPet.notify.sound";
+    static final String KEY_CURSOR_REACT = "desktopPet.cursor.react";
 
     private final Preferences prefs;
 
@@ -106,6 +107,15 @@ public final class DesktopPetSettings {
 
     public void setNotifySound(boolean on) {
         writeFlag(KEY_NOTIFY_SOUND, on);
+    }
+
+    /** Cursor agent 狀態反應。沒存過時預設開啟。 */
+    public boolean cursorReact() {
+        return readFlag(KEY_CURSOR_REACT, true);
+    }
+
+    public void setCursorReact(boolean on) {
+        writeFlag(KEY_CURSOR_REACT, on);
     }
 
     private boolean readFlag(String key, boolean fallback) {

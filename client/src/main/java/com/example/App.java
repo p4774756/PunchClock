@@ -2057,6 +2057,11 @@ public class App extends JFrame {
                 desktopPetManager.settings()::setNotifyTask);
         bindPetToggle(serverRefs.desktopPetNotifySound, desktopPetManager.settings().notifySound(),
                 desktopPetManager.settings()::setNotifySound);
+        if (serverRefs.desktopPetCursorReact != null) {
+            serverRefs.desktopPetCursorReact.setSelected(desktopPetManager.settings().cursorReact());
+            serverRefs.desktopPetCursorReact.addActionListener(e ->
+                    desktopPetManager.setCursorReactEnabled(serverRefs.desktopPetCursorReact.isSelected()));
+        }
         if (slotController != null) {
             slotController.setTaskCompletedListener(task ->
                     notifyPet(DesktopPetEvent.TASK_COMPLETED, this::showScheduleFromPet));
