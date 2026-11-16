@@ -16,8 +16,13 @@ const {
   INTERIOR_POSE,
   EXPLORE_PHI_MIN,
   EXPLORE_PHI_MAX,
+  PANORAMA_PHI_MIN,
+  PANORAMA_PHI_MAX,
+  DRAG_PHI_SENSITIVITY,
   LOOK_UP_PHI_FLOOR,
   LOOK_UP_PITCH_MAX,
+  dragPhiDelta,
+  applyDragPhi,
   exploreLookUpBlend,
   exploreFollowDistance,
   exploreTargetPitch,
@@ -164,4 +169,33 @@ test('全景預設 phi 仍在探索俯視上限內', () => {
 test('鏡頭平滑常數已匯出', () => {
   assert.equal(CAMERA_LAMBDA, 5);
   assert.equal(CAMERA_LAMBDA_EXPLORE, 9);
+});
+
+test('dragPhiDelta：探索往上拖（dy<0）phi 變小，全景往上拖 phi 變大', () => {
+  assert.ok(dragPhiDelta(-10, true) < 0, '探索往上＝抬頭＝phi 減');
+  assert.ok(dragPhiDelta(10, true) > 0, '探索往下＝低頭＝phi 增');
+  assert.ok(dragPhiDelta(-10, false) > 0, '全景往上維持抓住世界＝phi 增');
+  assert.ok(dragPhiDelta(10, false) < 0, '全景往下＝抬頭＝phi 減');
+  assert.equal(dragPhiDelta(-10, true), -10 * DRAG_PHI_SENSITIVITY);
+  assert.equal(dragPhiDelta(-10, false), 10 * DRAG_PHI_SENSITIVITY);
+});
+
+test('applyDragPhi：探索 dy<0 時 phi 變小並夾在探索範圍', () => {
+  const mid = (EXPLORE_PHI_MIN + EXPLORE_PHI_MAX) * 0.5;
+  const next = applyDragPhi(mid, -20, true);
+  assert.ok(next < mid);
+  assert.ok(next >= EXPLORE_PHI_MIN);
+  assert.ok(next <= EXPLORE_PHI_MAX);
+  assert.equal(applyDragPhi(EXPLORE_PHI_MIN, -1000, true), EXPLORE_PHI_MIN);
+  assert.equal(applyDragPhi(EXPLORE_PHI_MAX, 1000, true), EXPLORE_PHI_MAX);
+});
+
+test('applyDragPhi：全景 dy<0 時 phi 變大並夾在全景範圍', () => {
+  const mid = (PANORAMA_PHI_MIN + PANORAMA_PHI_MAX) * 0.5;
+  const next = applyDragPhi(mid, -20, false);
+  assert.ok(next > mid);
+  assert.ok(next >= PANORAMA_PHI_MIN);
+  assert.ok(next <= PANORAMA_PHI_MAX);
+  assert.equal(applyDragPhi(PANORAMA_PHI_MIN, 1000, false), PANORAMA_PHI_MIN);
+  assert.equal(applyDragPhi(PANORAMA_PHI_MAX, -1000, false), PANORAMA_PHI_MAX);
 });
