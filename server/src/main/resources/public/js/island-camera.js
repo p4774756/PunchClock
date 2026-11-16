@@ -10,6 +10,11 @@ export const ISLAND_FOV_DEG = 25;
 
 export const EXPLORE_PHI_MIN = 0.32;
 export const EXPLORE_PHI_MAX = 1.12;
+/** 全景俯視拖曳的 phi 夾限（與 island.js pointermove 既有值一致）。 */
+export const PANORAMA_PHI_MIN = 0.58;
+export const PANORAMA_PHI_MAX = 1.15;
+/** 垂直拖曳對 phi 的靈敏度（不變）。 */
+export const DRAG_PHI_SENSITIVITY = 0.0035;
 /** phi 高於此維持原本俯視角色，不抬頭。 */
 export const LOOK_UP_PHI_FLOOR = 0.70;
 /** 夜間極限抬頭視線仰角上限（rad），約 25°（對月亮）。 */
@@ -37,6 +42,22 @@ export function exploreAimAzimuth(theta, _blend, _celestialAzimuth) {
 /** 面向某天空體時應設的 orbit theta（使視線方位 = bodyAzimuth）。 */
 export function exploreThetaFacing(bodyAzimuth) {
   return wrapAngle(bodyAzimuth - Math.PI);
+}
+
+/**
+ * 垂直拖曳造成的 phi 變化量。
+ * 探索（followCam）：往上拖 dy<0 → 負 delta → phi 變小＝抬頭（遊戲直覺）。
+ * 全景：維持「抓住世界拖」——往下拖 dy>0 → 負 delta → 抬頭。
+ */
+export function dragPhiDelta(dy, followCam) {
+  return followCam ? dy * DRAG_PHI_SENSITIVITY : -dy * DRAG_PHI_SENSITIVITY;
+}
+
+/** 依模式套用垂直拖曳並夾在對應 phi 範圍內。 */
+export function applyDragPhi(phi, dy, followCam) {
+  const phiMin = followCam ? EXPLORE_PHI_MIN : PANORAMA_PHI_MIN;
+  const phiMax = followCam ? EXPLORE_PHI_MAX : PANORAMA_PHI_MAX;
+  return Math.min(phiMax, Math.max(phiMin, phi + dragPhiDelta(dy, followCam)));
 }
 
 /** 0→1：phi 從 LOOK_UP_PHI_FLOOR 降到 EXPLORE_PHI_MIN 時的抬頭強度。 */

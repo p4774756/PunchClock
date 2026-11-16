@@ -59,8 +59,7 @@ import { createUpdateLoop } from './island-loop.js';
 import {
   EXPLORE_POSE,
   INTERIOR_POSE,
-  EXPLORE_PHI_MIN,
-  EXPLORE_PHI_MAX,
+  applyDragPhi,
   createPoses,
   createCameraRig
 } from './island-camera.js';
@@ -883,10 +882,8 @@ function boot() {
     lastY = event.clientY;
     cam.targetTheta -= dx * 0.005;
     const followCam = controlsActive(mode);
-    // 探索模式允許仰望天空（EXPLORE_PHI_MIN），全景維持原俯視範圍。
-    const phiMin = followCam ? EXPLORE_PHI_MIN : 0.58;
-    const phiMax = followCam ? EXPLORE_PHI_MAX : 1.15;
-    cam.targetPhi = Math.min(phiMax, Math.max(phiMin, cam.targetPhi - dy * 0.0035));
+    // 探索：往上拖＝抬頭；全景維持「抓住世界拖」。左右不變。
+    cam.targetPhi = applyDragPhi(cam.targetPhi, dy, followCam);
   });
   canvas.addEventListener('pointerup', (event) => {
     dragging = false;
