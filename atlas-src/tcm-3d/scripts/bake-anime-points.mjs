@@ -58,7 +58,9 @@ const snap=(seed,preferNormal)=>{
  const ray=new T.Raycaster();
  ray.set(seed.clone().addScaledVector(n,.08),n.clone().negate());ray.far=.2;
  let hits=ray.intersectObjects(projectMeshes,false);
+ if(!hits[0]){ray.set(seed.clone().addScaledVector(n,.16),n.clone().negate());ray.far=.35;hits=ray.intersectObjects(projectMeshes,false);}
  if(!hits[0]){ray.set(seed.clone().add(new T.Vector3(0,0,-.12)),new T.Vector3(0,0,1));ray.far=.25;hits=ray.intersectObjects(projectMeshes,false);}
+ if(!hits[0]){ray.set(seed.clone().add(new T.Vector3(0,0,.12)),new T.Vector3(0,0,-1));ray.far=.25;hits=ray.intersectObjects(projectMeshes,false);}
  if(!hits[0])return null;
  let outward=(hits[0].face?.normal.clone()??n).transformDirection(hits[0].object.matrixWorld);
  if(outward.dot(n)<0)outward.negate();
@@ -74,8 +76,31 @@ const seeds={
  ST1:[.028*L,eyeMid.y-.02,eyeMid.z-.02],ST2:[.03*L,eyeMid.y-.035,eyeMid.z-.03],ST3:[.032*L,eyeMid.y-.055,eyeMid.z-.035],
  ST4:[.034*L,eyeMid.y-.075,eyeMid.z-.025],ST9:[.038*L,neck.y-.02,neck.z-.045],TE23:[.055*L,eyeMid.y+.02,eyeMid.z+.005],
  'EX-HN5':[.06*L,eyeMid.y+.01,eyeMid.z+.02],GB1:[.055*L,eyeMid.y-.005,eyeMid.z+.005],SI18:[.05*L,eyeMid.y-.05,eyeMid.z+.01],
+ // Weekly trunk／head-neck 30 (#75). Teaching catalog coords → anime skin snap.
+ TE21:[.07*L,eyeMid.y+.005,eyeMid.z+.015],SI19:[.065*L,eyeMid.y,eyeMid.z+.02],GB2:[.065*L,eyeMid.y-.02,eyeMid.z+.015],
+ ST6:[.055*L,eyeMid.y-.06,eyeMid.z-.005],TE17:[.065*L,eyeMid.y-.025,eyeMid.z+.05],
+ GB21:[.1*L,neck.y-.02,neck.z+.02],ST12:[.045*L,neck.y-.06,neck.z-.06],
+ GV16:[0,head.y+.01,head.z+.1],GB20:[.03*L,head.y-.02,head.z+.1],GV15:[0,neck.y+.04,neck.z+.095],
+ BL10:[.022*L,neck.y+.015,neck.z+.095],GV14:[0,neck.y-.1,neck.z+.07],
+ CV17:[0,1.24,-.1],KI23:[.04*L,1.235,-.1],ST17:[.065*L,1.245,-.1],PC1:[.09*L,1.23,-.08],SP18:[.105*L,1.25,-.06],
+ CV14:[0,1.15,-.1],CV8:[0,1.02,-.1],KI16:[.02*L,1.02,-.1],ST25:[.05*L,1.015,-.1],SP15:[.09*L,1.015,-.08],GB26:[.125*L,1.02,-.01],
+ BL14:[.03*L,1.30,.1],BL43:[.055*L,1.29,.105],SI11:[.11*L,1.28,.09],SI9:[.15*L,1.31,.05],
+ GV4:[0,1.02,.11],BL23:[.03*L,1.05,.1],BL52:[.055*L,1.04,.1],
 };
-const midline=new Set(['GV20','GV23','GV24+','GV26','CV24','CV23','CV22']);
+const midline=new Set(['GV20','GV23','GV24+','GV26','CV24','CV23','CV22','GV16','GV15','GV14','CV17','CV14','CV8','GV4']);
+const trunkSet=new Set(['TE21','SI19','GB2','ST6','TE17','GB21','ST12','GV16','GB20','GV15','BL10','GV14','CV17','KI23','ST17','PC1','SP18','CV14','CV8','KI16','ST25','SP15','GB26','BL14','BL43','SI11','SI9','GV4','BL23','BL52']);
+
+const preferFor=(code,arr)=>{
+ const catalog=teachingByCode.get(code);
+ if(catalog?.normal?.length===3){
+  // Catalog: +X anatomical left, +Z front. Anime seeds: L=-1 world X, −Z front.
+  const n=new T.Vector3(catalog.normal[0]*L,catalog.normal[1],-catalog.normal[2]);
+  if(midline.has(code))n.x=0;
+  if(n.lengthSq()>.01)return n.normalize();
+ }
+ if(midline.has(code))return new T.Vector3(0,code==='GV20'?1:0,arr[2]>=0?1:-1).normalize();
+ return new T.Vector3(arr[0],0,arr[2]>=0?1:-.6).normalize();
+};
 
 const targetCodes=codesFilter??Object.keys(seeds);
 const missing=targetCodes.filter(code=>!(code in seeds));
@@ -88,22 +113,24 @@ const updated=[];
 for(const code of targetCodes){
  const arr=seeds[code];
  const seed=new T.Vector3(...arr);
- const prefer=midline.has(code)?new T.Vector3(0,code==='GV20'?1:0,-1).normalize():new T.Vector3(arr[0],0,-.6).normalize();
+ const prefer=preferFor(code,arr);
  const hit=snap(seed,prefer)??{position:arr.map(v=>+v.toFixed(5)),normal:prefer.toArray().map(v=>+v.toFixed(5)),meshId:'anime-skin'};
  const pos=hit.position.slice(),nor=hit.normal.slice();
  if(!midline.has(code)){pos[0]=Math.abs(pos[0]);nor[0]=Math.abs(nor[0]);}
+ else {pos[0]=0;}
  const catalogPoint=teachingByCode.get(code);
  const name=catalogPoint?.name??byCode.get(code)?.name??code;
- const entry={code,name,midline:midline.has(code)||!!catalogPoint?.midline,position:pos,normal:nor,reviewed:true,set:byCode.get(code)?.set??'head-neck-21'};
+ const defaultSet=trunkSet.has(code)?'trunk-30':'head-neck-21';
+ const entry={code,name,midline:midline.has(code)||!!catalogPoint?.midline,position:pos,normal:nor,reviewed:true,set:byCode.get(code)?.set??defaultSet};
  byCode.set(code,entry);
  updated.push(code);
 }
 
 const points=[...byCode.values()].sort((a,b)=>a.code.localeCompare(b.code));
 const payload={
- model:'anime-assistant.glb',character:'Sendagaya Shino',license:'CC0 1.0 (VRoid Studio beta sample)',set:'head-neck-21',
+ model:'anime-assistant.glb',character:'Sendagaya Shino',license:'CC0 1.0 (VRoid Studio beta sample)',set:'head-neck-21+trunk-30',
  faceAxis:'-Z',sideConvention:'position.x>0 means anatomical left; anime runtime flips X to -X for left',
- note:'穴位依解剖比例與臉部骨骼標誌吸附到角色皮膚；教學示意，非臨床取穴。合併寫入，不會清空既有穴。',
+ note:'穴位依解剖比例與臉部／軀幹骨骼標誌吸附到角色皮膚；教學示意，非臨床取穴。合併寫入，不會清空既有穴。',
  points,
 };
 

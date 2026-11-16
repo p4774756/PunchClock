@@ -6,9 +6,9 @@
 
 - 說明：https://vroid.pixiv.help/hc/en-us/articles/360012381793
 - 本倉庫檔案：`public/models/anime-assistant.glb`
-- 服裝：`app/outfits.ts`（制服；露頸隱藏 Tops／Accessory）
+- 服裝：`app/outfits.ts`（制服；露頸；軀幹練習裝＝深青運動內衣＋高腰短褲＋高包頭）
 - 角色：`app/avatars.ts`
-- 已烘穴位：`app/anime-points.json`（頭頸 21；教學示意）
+- 已烘穴位：`app/anime-points.json`（頭頸 21＋頭胸腹背腰 30；教學示意）
 
 ## Viewer code — MIT
 

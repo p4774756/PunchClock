@@ -28,8 +28,8 @@ export const ANIME_AVATARS:AnimeAvatar[]=[
   modelStatus:'ready',
   expectedModelPath:'atlas-src/tcm-3d/public/models/anime-assistant.glb',
   points:ANIME_POINTS,
-  hasOutfits:false,
-  blurb:'Sendagaya Shino 研習室助教（制服）。',
+  hasOutfits:true,
+  blurb:'Sendagaya Shino 研習室助教（制服／露頸／練習裝）。',
  },
 ];
 
@@ -62,7 +62,7 @@ export function avatarSupportsPoint(avatar:AnimeAvatar,code:string|null|undefine
  return !!code&&avatarSupportedCodes(avatar).has(code);
 }
 
-/** Baked and open for needle／finger demos (excludes #75 deferred collar points). */
+/** Baked and open for needle／finger demos. */
 export function avatarPracticeOpen(avatar:AnimeAvatar,code:string|null|undefined){
  return avatarSupportsPoint(avatar,code)&&!isPracticeDeferred(code);
 }
@@ -74,11 +74,10 @@ export function avatarPracticePoints(avatar:AnimeAvatar){
 export function avatarLessonNote(avatar:AnimeAvatar,code:string|null|undefined){
  if(avatar.modelStatus==='pending')return `${avatar.name} 的 3D 模型尚未加入，請把 .glb 放到 ${avatar.expectedModelPath}。`;
  if(!code)return `${avatar.name} 目前提供已對應穴位練習。`;
- if(isPracticeDeferred(code)){
-  const name=POINT_BY_CODE.get(code)?.name??code;
-  return `${name} 演示改至 #75（露頸練習裝）再開放。`;
+ if(avatarSupportsPoint(avatar,code)){
+  if(code==='ST9'||code==='CV22')return `此穴已對應；請切「練習裝」露出頸前真實皮膚再演示針／指壓。`;
+  return `此穴已在${avatar.name}完成對應，可點選標記練習。`;
  }
- if(avatarSupportsPoint(avatar,code))return `此穴已在${avatar.name}完成對應，可點選標記練習。`;
  const name=POINT_BY_CODE.get(code)?.name??code;
  return `${name} 尚未烘到${avatar.name}身上，之後依課堂進度加入。`;
 }

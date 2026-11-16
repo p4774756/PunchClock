@@ -38,7 +38,7 @@ export default function Home(){
  const [simulation,setSimulation]=useState<SimulationState>(()=>{
   const set=launch.set??ANIME_DEFAULT_SET;
   // Deep-link ?code= focuses that point; otherwise keep 印堂 and the full-body fit view
-  // (do not jump to 百會 / focus:1 — that drills into hair). ST9／CV22 wait for #75.
+  // (do not jump to 百會 / focus:1 — that drills into hair).
   const preferred=launch.code&&avatarPracticeOpen(currentAvatar,launch.code)?launch.code:null;
   const code=preferred??initialSimulation.pointCode;
   return {...initialSimulation,curriculumSet:set,pointCode:code,side:1,focus:preferred?1:0};
@@ -54,10 +54,9 @@ export default function Home(){
  const practiceCodes=useMemo(()=>new Set(practiceOpenCodes(avatarCodes)),[avatarCodes]);
  const [feedback,setFeedback]=useState(()=>{
   const lesson=curriculumSet(launch.set??ANIME_DEFAULT_SET);
-  if(launch.code&&isPracticeDeferred(launch.code))return avatarLessonNote(currentAvatar,launch.code);
   if(lesson){
    const open=practiceOpenCodes([...avatarCodes].filter(c=>lesson.codes.includes(c))).length;
-   return `課堂：${lesson.name}（可練習 ${open} 穴；人迎／天突改至 #75）。可依教材順序上一穴／下一穴。`;
+   return `課堂：${lesson.name}（可練習 ${open} 穴）。胸腹背腰與人迎／天突請切「練習裝」。`;
   }
   if(launch.code&&avatarPracticeOpen(currentAvatar,launch.code))return `已開啟穴位 ${launch.code}。`;
   if(launch.code)return avatarLessonNote(currentAvatar,launch.code);
@@ -118,7 +117,10 @@ export default function Home(){
   }
   prepareFocus();setHolding(false);heldPointer.current=null;
   setSimulation(s=>({...s,pointCode:code,side:next.midline?1:side,customTarget:null,dragging:false,running:false,elapsed:0,focus:s.focus+1,pickMode:'point'}));
-  setFeedback(`已選擇${next.name} ${next.code}，可播放針／指壓演示。`);
+  const tip=(code==='ST9'||code==='CV22')
+   ?`已選擇${next.name} ${next.code}。請切「練習裝」露出頸前皮膚再演示。`
+   :`已選擇${next.name} ${next.code}，可播放針／指壓演示。`;
+  setFeedback(tip);
   setMobilePanel(null);
  };
  const stepLesson=(dir:-1|1)=>{
@@ -153,7 +155,7 @@ export default function Home(){
     <a className="back-home" href={HOME_HREF}>{HOME_HREF==='/'?'返回後台':'返回首頁'}</a>
    </div>
    <div className="header-actions">
-    <div className="header-status"><span className="status-dot"/>頭頸穴練習中<span className="header-divider"/>{currentAvatar.shortName}</div>
+    <div className="header-status"><span className="status-dot"/>穴位練習中<span className="header-divider"/>{currentAvatar.shortName}</div>
     <button className="source-button" onClick={()=>setAbout(true)}><Info size={16}/><span>來源與許可</span></button>
    </div>
   </header>
@@ -195,7 +197,7 @@ export default function Home(){
      <div className="meridian-controls"><label>十四經脈<select aria-label="選擇經脈" value={simulation.meridianFilter??'all'} onChange={e=>{setRegion('all');setQuery('');setSimulation(s=>({...s,meridianFilter:e.target.value}));}}><option value="all">全部經脈 · {practiceCodes.size} 可練</option>{MERIDIANS.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label><small>經脈體表連線暫未烘到角色；目錄保留供之後加穴。</small></div>
      <div className="list-heading"><span>{activeLesson?activeLesson.name:'已烘穴位'}</span><span>{results.length} 穴</span></div>
      <div className="point-list">{results.map(p=>{const badge=curriculumBadge(p.code);const deferred=isPracticeDeferred(p.code);return <button key={p.code} type="button" className={`point-row ${p.code===simulation.pointCode?'selected':''} ${pointInCurriculum(p.code,activeLesson?.id)?'curriculum-point':''} ${p.reviewed&&!deferred?'reviewed-point':''} ${deferred?'is-deferred':''}`} onClick={()=>choosePoint(p.code)} aria-pressed={p.code===simulation.pointCode} aria-disabled={deferred||undefined} title={deferred?avatarLessonNote(currentAvatar,p.code):undefined}><span className="point-dot"/><span className="point-row-copy"><span className="point-name">{p.name}{badge&&<em className={`curriculum-badge ${deferred?'is-deferred':p.reviewed?'is-reviewed':''}`}>{badge}</em>}<span>{p.pinyin}</span></span><small>{p.meridian}</small></span><span className="point-code">{p.code}</span></button>;})}{results.length===0&&<div className="empty-state"><Search size={20}/><p>未找到匹配穴位</p><button className="text-button" onClick={()=>{setQuery('');setRegion('all');}}>查看全部已烘穴位</button></div>}</div>
-     <div className="point-list-foot"><span>可練習 {practiceCodes.size} 穴 · 人迎／天突改至 #75</span><button className="icon-button" aria-label={simulation.showPoints?'隱藏穴位點':'顯示穴位點'} aria-pressed={simulation.showPoints} onClick={()=>{setSimulation(s=>({...s,showPoints:!s.showPoints}));setFeedback(simulation.showPoints?'已隱藏穴位點。':'已顯示穴位點。');}}>{simulation.showPoints?<Eye size={15}/>:<EyeOff size={15}/>}</button></div>
+     <div className="point-list-foot"><span>可練習 {practiceCodes.size} 穴 · 胸腹背腰切練習裝</span><button className="icon-button" aria-label={simulation.showPoints?'隱藏穴位點':'顯示穴位點'} aria-pressed={simulation.showPoints} onClick={()=>{setSimulation(s=>({...s,showPoints:!s.showPoints}));setFeedback(simulation.showPoints?'已隱藏穴位點。':'已顯示穴位點。');}}>{simulation.showPoints?<Eye size={15}/>:<EyeOff size={15}/>}</button></div>
     </div>
    </div>
   </aside>
