@@ -1,38 +1,41 @@
 import { G } from './island-kit.js';
+import { MOON_AZIMUTH, MOON_ELEVATION } from './island-sky.js';
 
 export const EXPLORE_POSE = { radius: 9.2, theta: 0.35, phi: 0.98 };
 // 室內比島小很多，沿用探索的俯角但把鏡頭拉近，才看得到沒有屋頂的房間。
 export const INTERIOR_POSE = { radius: 5.2, theta: EXPLORE_POSE.theta, phi: 0.82 };
-// 鏡頭指數平滑速率（1/秒）；60fps 時約等於舊的每幀 0.08／0.14。
 export const CAMERA_LAMBDA = 5;
 export const CAMERA_LAMBDA_EXPLORE = 9;
-// 探索模式仰角：phi 愈小愈抬頭；0.32 介於過頭 0.25 與不足 0.40 之間。
+export const ISLAND_FOV_DEG = 25;
+
 export const EXPLORE_PHI_MIN = 0.32;
 export const EXPLORE_PHI_MAX = 1.12;
-// 接近預設俯視（0.98）仍略帶仰望，拉開可用拖曳帶。
-export const LOOK_UP_PHI_HIGH = 0.92;
+/** phi 高於此維持原本俯視角色，不抬頭。 */
+export const LOOK_UP_PHI_FLOOR = 0.70;
+/** 極限抬頭時視線仰角（rad），約 25°。 */
+export const LOOK_UP_PITCH_MAX = 25 * Math.PI / 180;
+/** blend 高於此維持天空視角仰角，避免中段又盯回角色。 */
+export const LOOK_UP_SKY_BLEND = 0.32;
+/** 太陽參考方位（與 island.js sun.position 一致）。 */
+export const SUN_AZIMUTH = Math.atan2(-9.5, 11);
+export const SUN_ELEVATION = Math.atan2(20.5, Math.hypot(9.5, 11));
 
-/** 0→1：探索模式抬頭強度（phi 愈小愈大）。 */
+/** 0→1：phi 從 LOOK_UP_PHI_FLOOR 降到 EXPLORE_PHI_MIN 時的抬頭強度。 */
 export function exploreLookUpBlend(safePhi) {
-  if (safePhi >= LOOK_UP_PHI_HIGH) return 0;
-  const span = LOOK_UP_PHI_HIGH - EXPLORE_PHI_MIN;
+  if (safePhi >= LOOK_UP_PHI_FLOOR) return 0;
+  const span = LOOK_UP_PHI_FLOOR - EXPLORE_PHI_MIN;
   if (span <= 0) return 0;
-  const t = Math.max(0, Math.min(1, (LOOK_UP_PHI_HIGH - safePhi) / span));
+  const t = Math.max(0, Math.min(1, (LOOK_UP_PHI_FLOOR - safePhi) / span));
   return t * t * (3 - 2 * t);
 }
 
-/** 探索模式仰望時視線目標上抬（Y）；FOV 25°。aspect<1 直向再加。 */
-export function exploreLookUpYOffset(safePhi, aspect) {
-  const eased = exploreLookUpBlend(safePhi);
-  if (eased <= 0) return 0;
-  let offset = eased * 12 + eased * eased * 9;
-  const a = aspect == null ? 1 : aspect;
-  if (a < 0.85) offset += eased * 3.5;
-  if (a < 0.68) offset += eased * 2.5;
-  return offset;
+export function exploreFollowDistance(radius, aspect) {
+  let dist = radius * 1.07;
+  if (aspect < 1.02) dist *= Math.min(1.6, 1.02 / Math.max(aspect, 0.5));
+  return dist;
 }
 
-/** 抬頭時鏡頭降到角色肩後，搭配上抬視線才能望見地平線以上。 */
+/** 抬頭時鏡頭降到角色肩後（保留前版手感）。 */
 export function exploreFollowCameraY(lookAtY, dist, safePhi, groundY) {
   let cy = lookAtY + dist * Math.cos(safePhi);
   const eased = exploreLookUpBlend(safePhi);
@@ -43,13 +46,72 @@ export function exploreFollowCameraY(lookAtY, dist, safePhi, groundY) {
   return Math.max(groundY + 0.88, cy);
 }
 
-/** 估計鏡頭仰角（rad），供測試：>0 表示視線高過角色。 */
-export function exploreSkyPitch(lookAtY, dist, safePhi, groundY, aspect) {
-  const blend = exploreLookUpBlend(safePhi);
+export function exploreCameraPlacement(lookAtX, lookAtY, lookAtZ, dist, safePhi, theta, groundY) {
+  const horiz = Math.max(0.55, dist * Math.sin(safePhi));
   const cy = exploreFollowCameraY(lookAtY, dist, safePhi, groundY);
-  const lookY = lookAtY + exploreLookUpYOffset(safePhi, aspect);
-  const horiz = Math.max(0.8, dist * Math.sin(safePhi));
-  return Math.atan2(lookY - cy, horiz);
+  return {
+    cx: lookAtX + horiz * Math.sin(theta),
+    cy: cy,
+    cz: lookAtZ + horiz * Math.cos(theta),
+    horiz: horiz
+  };
+}
+
+function naturalPitchToPlayer(lookAtY, placement) {
+  return Math.atan2(lookAtY - placement.cy, placement.horiz);
+}
+
+/** 由月亮高度與豎直 FOV 推算理想視線仰角（直向略降，避免圓月頂到裁切）。 */
+export function exploreIdealViewPitch(aspect) {
+  const halfV = (ISLAND_FOV_DEG * Math.PI / 180) / 2;
+  let pitch = MOON_ELEVATION + halfV * 0.28;
+  if (aspect < 0.85) pitch -= (0.85 - aspect) * 0.14;
+  if (aspect < 0.68) pitch -= (0.68 - Math.min(aspect, 0.68)) * 0.10;
+  return Math.max(0.38, Math.min(LOOK_UP_PITCH_MAX, pitch));
+}
+
+/** 目標視線仰角（rad）；blend=0 回 null 表示盯角色。 */
+export function exploreTargetPitch(safePhi, lookAtY, dist, groundY, aspect, theta) {
+  const blend = exploreLookUpBlend(safePhi);
+  if (blend <= 0) return null;
+  const placement = exploreCameraPlacement(0, lookAtY, 0, dist, safePhi, theta, groundY);
+  const natural = naturalPitchToPlayer(lookAtY, placement);
+  const skyPitch = exploreIdealViewPitch(aspect);
+  const ease = blend >= LOOK_UP_SKY_BLEND
+    ? 1
+    : Math.max(0, Math.min(1, blend / LOOK_UP_SKY_BLEND));
+  return natural * (1 - ease) + skyPitch * ease;
+}
+
+export function exploreAimAzimuth(theta, blend, celestialAzimuth) {
+  const az = celestialAzimuth == null ? MOON_AZIMUTH : celestialAzimuth;
+  return theta * (1 - blend) + az * blend;
+}
+
+/** 由相機位置與目標仰角、方位角決定 lookAt 點（距離 72）。 */
+export function exploreLookPointFromPitch(placement, pitch, aimAzimuth) {
+  const len = 72;
+  const cosP = Math.cos(pitch);
+  const sinP = Math.sin(pitch);
+  return {
+    x: placement.cx + cosP * Math.sin(aimAzimuth) * len,
+    y: placement.cy + sinP * len,
+    z: placement.cz + cosP * Math.cos(aimAzimuth) * len
+  };
+}
+
+/** 天空體仰角在畫面上的 NDC y（豎直 FOV）；相機仰角 pitch、體仰角 bodyEl。 */
+export function celestialNdcY(bodyElevation, viewPitch, fovDeg) {
+  const halfV = (fovDeg * Math.PI / 180) / 2;
+  return (bodyElevation - viewPitch) / halfV;
+}
+
+/** 極限抬頭時的視線仰角（供測試）。 */
+export function exploreSkyPitch(lookAtY, dist, safePhi, groundY, aspect, theta) {
+  const pitch = exploreTargetPitch(safePhi, lookAtY, dist, groundY, aspect, theta);
+  if (pitch != null) return pitch;
+  const placement = exploreCameraPlacement(0, lookAtY, 0, dist, safePhi, theta, groundY);
+  return naturalPitchToPlayer(lookAtY, placement);
 }
 
 export function createPoses(panorama) {
@@ -78,27 +140,22 @@ export function createCameraRig(THREE, camera, hooks) {
 
   function placeCamera() {
     const aspect = camera.aspect || 1;
-    let dist = radius * 1.07;
-    if (aspect < 1.02) dist *= Math.min(1.6, 1.02 / Math.max(aspect, 0.5));
+    const dist = exploreFollowDistance(radius, aspect);
     const followCam = following();
-    // 探索模式允許仰望天空（phi 低至 EXPLORE_PHI_MIN），同時保護鏡頭不穿地。
     const safePhi = followCam ? Math.min(EXPLORE_PHI_MAX, Math.max(EXPLORE_PHI_MIN, phi)) : phi;
-    const span = Math.sin(safePhi);
-    let cy = followCam
-      ? exploreFollowCameraY(lookAt.y, dist, safePhi, groundY)
-      : lookAt.y + dist * Math.cos(safePhi);
-    if (followCam && safePhi > LOOK_UP_PHI_HIGH) {
-      cy = Math.max(groundY + 1.35, lookAt.y + dist * Math.cos(safePhi));
-    }
-    camera.position.set(
-      lookAt.x + dist * span * Math.sin(theta),
-      cy,
-      lookAt.z + dist * span * Math.cos(theta)
+    const placement = exploreCameraPlacement(
+      lookAt.x, lookAt.y, lookAt.z, dist, safePhi, theta, groundY
     );
-    const lookUpY = followCam
-      ? lookAt.y + exploreLookUpYOffset(safePhi, aspect)
-      : lookAt.y;
-    camera.lookAt(lookAt.x, lookUpY, lookAt.z);
+    camera.position.set(placement.cx, placement.cy, placement.cz);
+    const blend = followCam ? exploreLookUpBlend(safePhi) : 0;
+    if (blend > 0) {
+      const pitch = exploreTargetPitch(safePhi, lookAt.y, dist, groundY, aspect, theta);
+      const aim = exploreAimAzimuth(theta, blend, MOON_AZIMUTH);
+      const point = exploreLookPointFromPitch(placement, pitch, aim);
+      camera.lookAt(point.x, point.y, point.z);
+    } else {
+      camera.lookAt(lookAt);
+    }
     camera.updateMatrixWorld(true);
   }
 
