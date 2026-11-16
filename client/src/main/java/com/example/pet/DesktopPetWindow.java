@@ -288,6 +288,53 @@ public final class DesktopPetWindow extends JFrame {
         return animation.isCarried();
     }
 
+    void applyCursorOutcome(DesktopPetCursorStatus.Outcome outcome) {
+        requireEdt();
+        if (outcome == null || outcome.action == DesktopPetCursorStatus.Action.NONE) {
+            return;
+        }
+        switch (outcome.action) {
+            case THINK:
+                animation.setCursorHold(DesktopPetAnimation.Mode.THINK);
+                animation.showCursorPhrase(outcome.bubble);
+                break;
+            case BUSY:
+                animation.setCursorHold(DesktopPetAnimation.Mode.BUSY);
+                animation.showCursorPhrase(outcome.bubble);
+                break;
+            case WORRY_FLASH:
+                applyHoldPhase(outcome.hold);
+                animation.flashWorry(outcome.bubble);
+                break;
+            case CELEBRATE:
+                applyHoldPhase(outcome.hold);
+                animation.celebrate(outcome.bubble);
+                break;
+            case CLEAR:
+                animation.clearCursorHold();
+                break;
+            default:
+                break;
+        }
+        repaint();
+    }
+
+    void clearCursorStatus() {
+        requireEdt();
+        animation.clearCursorHold();
+        repaint();
+    }
+
+    private void applyHoldPhase(DesktopPetCursorStatus.Phase hold) {
+        if (hold == DesktopPetCursorStatus.Phase.BUSY) {
+            animation.setCursorHold(DesktopPetAnimation.Mode.BUSY);
+        } else if (hold == DesktopPetCursorStatus.Phase.THINK) {
+            animation.setCursorHold(DesktopPetAnimation.Mode.THINK);
+        } else {
+            animation.clearCursorHold();
+        }
+    }
+
     void tickOnce() {
         requireEdt();
         if (!isAnimating()) {
@@ -800,6 +847,15 @@ public final class DesktopPetWindow extends JFrame {
         }
         if (mode == DesktopPetAnimation.Mode.REACT) {
             return "揮手";
+        }
+        if (mode == DesktopPetAnimation.Mode.THINK) {
+            return "思考";
+        }
+        if (mode == DesktopPetAnimation.Mode.BUSY) {
+            return "忙碌";
+        }
+        if (mode == DesktopPetAnimation.Mode.WORRY) {
+            return "困擾";
         }
         if (mode == DesktopPetAnimation.Mode.SIT) {
             return "坐下";
