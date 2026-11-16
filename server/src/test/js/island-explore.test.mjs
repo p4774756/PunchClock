@@ -272,6 +272,28 @@ function walkToward(pos, target) {
   return pos;
 }
 
+test('從出生點走不到沙灘島，沙灘島中心可站', () => {
+  const beach = X.ISLANDS.find((island) => island.id === 'beach');
+  assert.ok(beach);
+  assert.ok(X.canStand(beach.x, beach.z), '沙灘島中心可站');
+  let pos = { x: X.PLAYER_SPAWN.x, z: X.PLAYER_SPAWN.z, yaw: 0 };
+  let reached = false;
+  for (let i = 0; i < 4000; i++) {
+    const dx = beach.x - pos.x;
+    const dz = beach.z - pos.z;
+    if (Math.hypot(dx, dz) <= beach.r) {
+      reached = true;
+      break;
+    }
+    const len = Math.hypot(dx, dz) || 1;
+    const next = X.stepPlayer(pos, { x: dx / len, z: dz / len, moving: true }, 0, 1 / 60);
+    if (next.x === pos.x && next.z === pos.z) break;
+    pos = next;
+  }
+  assert.equal(reached, false, '沒有橋時不應走到沙灘島');
+  assert.ok(Math.hypot(pos.x - beach.x, pos.z - beach.z) > beach.r);
+});
+
 test('從出生點可走過橋到三座島，橋外是海', () => {
   const approaches = {
     casino: [{ x: 6.05, z: -0.15 }],

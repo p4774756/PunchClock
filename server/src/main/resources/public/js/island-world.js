@@ -12,13 +12,14 @@ export function buildIslandWorld(ctx) {
   });
   water.receiveShadow = true;
 
-  function layIsland(parent, radius) {
+  function layIsland(parent, radius, theme) {
     const grassH = radius > 5 ? 0.26 : 0.18;
     const soilH = radius > 5 ? 0.18 : 0.12;
     const deepH = radius > 5 ? 0.2 : 0.12;
     const rockH = radius > 5 ? 0.36 : 0.22;
     const y0 = G - grassH;
-    addMesh(parent, geo('cyl', [radius, radius + 0.12, grassH, 6, HEX]), 0xa8d06e, 0, y0 + grassH / 2, 0);
+    const top = theme === 'beach' ? 0xf0ddb4 : 0xa8d06e;
+    addMesh(parent, geo('cyl', [radius, radius + 0.12, grassH, 6, HEX]), top, 0, y0 + grassH / 2, 0);
     addMesh(parent, geo('cyl', [radius + 0.16, radius + 0.32, soilH, 6, HEX]), 0xd2a56c, 0, y0 - soilH / 2, 0);
     addMesh(parent, geo('cyl', [radius + 0.36, radius + 0.55, deepH, 6, HEX]), 0xb8884e, 0, y0 - soilH - deepH / 2, 0);
     addMesh(parent, geo('cyl', [radius + 0.6, radius + 0.95, rockH, 6, HEX]), 0xe7dcd0, 0, y0 - soilH - deepH - rockH / 2, 0);
@@ -30,7 +31,7 @@ export function buildIslandWorld(ctx) {
     if (island.id === 'main') return;
     const land = new THREE.Group();
     land.position.set(island.x, 0, island.z);
-    layIsland(land, island.visualR);
+    layIsland(land, island.visualR, island.theme);
     scene.add(land);
   });
 
