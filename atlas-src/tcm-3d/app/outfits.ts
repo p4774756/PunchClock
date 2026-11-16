@@ -1,6 +1,6 @@
 import {ANIME_MODEL_URL} from './character-mode';
 
-export type OutfitId='school'|'study-neck';
+export type OutfitId='school';
 
 export interface AnimeOutfit{
  id:OutfitId;
@@ -14,25 +14,17 @@ export interface AnimeOutfit{
  softenMaterials:string[];
 }
 
+/** School uniform only; 露頸練習裝（study-neck）deferred to issue #75. */
 export const ANIME_OUTFITS:AnimeOutfit[]=[
  {
   id:'school',
   name:'制服研習裝',
   shortName:'制服',
-  blurb:'Sendagaya 原裝制服。頸前穴被衣領遮擋時可切「露頸」。',
+  blurb:'Sendagaya 原裝制服。',
   modelUrl:ANIME_MODEL_URL,
   hideMaterials:[],
   // Do not soften Tops/CLOTH: VRoid bakes vest＋shirt as one material; transparent
   // depthWrite=false causes armpit／side silhouette artifacts.
-  softenMaterials:[],
- },
- {
-  id:'study-neck',
-  name:'露頸練習裝',
-  shortName:'露頸',
-  blurb:'隱藏上衣與領結，方便人迎、天突等頸前穴對照。',
-  modelUrl:ANIME_MODEL_URL,
-  hideMaterials:['Tops','Accessory'],
   softenMaterials:[],
  },
 ];

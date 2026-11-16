@@ -126,4 +126,34 @@ test('有限輸入相減溢出時拒絕，輸出始終保持有限', () => {
   assert.deepEqual(drag.move(1, -10, 0), {x: Number.MAX_VALUE, y: 0});
 });
 
-console.log(`${passed} 項工具拖動狀態檢查通過。`);
+const teachingSource = await readFile(new URL('../app/teaching.ts', import.meta.url), 'utf8');
+test('TOOLS 只保留針與指壓', () => {
+  assert.match(teachingSource, /id:'needle'/);
+  assert.match(teachingSource, /id:'finger'/);
+  assert.doesNotMatch(teachingSource, /id:'moxa'/);
+  assert.doesNotMatch(teachingSource, /id:'cup'/);
+  assert.doesNotMatch(teachingSource, /id:'scraper'/);
+  assert.doesNotMatch(teachingSource, /id:'stone'/);
+});
+
+const overlaySource = await readFile(new URL('../app/teaching-overlay.ts', import.meta.url), 'utf8');
+const surfaceSource = await readFile(new URL('../app/surface-tool-input.ts', import.meta.url), 'utf8');
+test('演示目標為少女皮膚，不再寫死 FJ2810／integumentary', () => {
+  assert.doesNotMatch(overlaySource, /FJ2810/);
+  assert.doesNotMatch(surfaceSource, /FJ2810/);
+  assert.doesNotMatch(surfaceSource, /integumentary/);
+  assert.match(overlaySource, /Face_00_SKIN|Body_00_SKIN/);
+  assert.match(surfaceSource, /getSkins/);
+  assert.match(overlaySource, /anime-skin|Face_00_SKIN/);
+});
+
+const pageSource = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
+test('頁面只留少女與針／指壓工具列，無解剖切換', () => {
+  assert.doesNotMatch(pageSource, /切回解剖模型/);
+  assert.doesNotMatch(pageSource, /anime-capability-card/);
+  assert.doesNotMatch(pageSource, /AnatomyScene|switchModelMode/);
+  assert.match(pageSource, /CharacterScene/);
+  assert.match(pageSource, /canPlayDemo/);
+});
+
+console.log(`${passed} 項工具拖動與少女演示檢查通過。`);
