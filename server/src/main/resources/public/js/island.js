@@ -58,6 +58,8 @@ import { createUpdateLoop } from './island-loop.js';
 import {
   EXPLORE_POSE,
   INTERIOR_POSE,
+  EXPLORE_PHI_MIN,
+  EXPLORE_PHI_MAX,
   createPoses,
   createCameraRig
 } from './island-camera.js';
@@ -65,6 +67,7 @@ import { buildIslandWorld } from './island-world.js';
 import { buildIslandBuildings } from './island-buildings.js';
 import { buildIslandProps, registerSceneMotion } from './island-props.js';
 import { buildIslandPeople } from './island-people.js';
+import { createIslandSky } from './island-sky.js';
 import { createIslandSea } from './island-sea.js';
 
 const ZONES = ['devices', 'system', 'photos'];
@@ -251,6 +254,18 @@ function boot() {
   });
   dayNight.refresh();
 
+  const sky = createIslandSky(THREE, {
+    reduced: reduced,
+    sunPos: sun.position
+  });
+  scene.add(sky.group);
+  dayNight.onMix((t) => {
+    sky.update(t, 0, camera);
+  });
+  loop.register((dt, elapsed) => {
+    sky.tick(dt, elapsed);
+  });
+
   // Phase 2：賭場門口互動區（座標見 CASINO／DEFAULT_INTERACT_ZONES）；須點按鈕或 Enter／E，不自動傳送。
   const INTERACT_ZONES = DEFAULT_INTERACT_ZONES.slice();
 
@@ -417,6 +432,7 @@ function boot() {
     groundY: G,
     following: () => controlsActive(mode),
     smoothingFactor: smoothingFactor,
+    nightFactor: () => dayNight.mix,
     initial: POSES.home
   });
   let animating = false;
@@ -836,8 +852,9 @@ function boot() {
     lastY = event.clientY;
     cam.targetTheta -= dx * 0.005;
     const followCam = controlsActive(mode);
-    const phiMin = followCam ? 0.72 : 0.58;
-    const phiMax = followCam ? 1.12 : 1.15;
+    // 探索模式允許仰望天空（EXPLORE_PHI_MIN），全景維持原俯視範圍。
+    const phiMin = followCam ? EXPLORE_PHI_MIN : 0.58;
+    const phiMax = followCam ? EXPLORE_PHI_MAX : 1.15;
     cam.targetPhi = Math.min(phiMax, Math.max(phiMin, cam.targetPhi - dy * 0.0035));
   });
   canvas.addEventListener('pointerup', (event) => {
@@ -1302,6 +1319,7 @@ function boot() {
       view.lamp.light.intensity = view.lamp.power * dayNight.mix;
       kit.addLamp(view.lamp);
     }
+    sky.setVisible(false);
     dayNight.refresh();
     islandAudio.setInsideRoom(true);
   }
@@ -1314,6 +1332,7 @@ function boot() {
     if (roomView.lamp) kit.removeLamp(roomView.lamp);
     roomView.dispose();
     roomView = null;
+    sky.setVisible(true);
     islandAudio.setInsideRoom(false);
   }
 
