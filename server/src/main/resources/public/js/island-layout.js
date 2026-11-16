@@ -17,7 +17,9 @@ const ISLAND_DEFS = [
   // 中醫島在正西，橋從樹與候餐座位之間的西岸接出去。
   { id: 'tcm', name: '中醫推拿島', x: -16.6, z: 1.15, r: 4.0, visualR: 5.15, theme: 'tcm' },
   // 電腦島在南邊，橋從碼頭接出去。
-  { id: 'computer', name: '電腦島', x: 0.45, z: 17.1, r: 4.0, visualR: 5.15, theme: 'computer' }
+  { id: 'computer', name: '電腦島', x: 0.45, z: 17.1, r: 4.0, visualR: 5.15, theme: 'computer' },
+  // 沙灘島只能坐船到（#65），不加橋。
+  { id: 'beach', name: '沙灘島', x: 22, z: 6, r: 4.4, visualR: 5.6, theme: 'beach' }
 ];
 
 export const ISLANDS = Object.freeze(ISLAND_DEFS.map((island) => Object.freeze(island)));
@@ -25,6 +27,14 @@ export const ISLANDS = Object.freeze(ISLAND_DEFS.map((island) => Object.freeze(i
 export function islandById(id) {
   for (let i = 0; i < ISLANDS.length; i++) {
     if (ISLANDS[i].id === id) return ISLANDS[i];
+  }
+  return null;
+}
+
+/** 回傳 (x,z) 所在的島（優先較早定義的），不在任何島上則 null。 */
+export function islandAt(x, z, radius) {
+  for (let i = 0; i < ISLANDS.length; i++) {
+    if (inIsland(x, z, ISLANDS[i], radius || 0)) return ISLANDS[i];
   }
   return null;
 }
@@ -187,7 +197,12 @@ export const THEME_CIRCLES = Object.freeze([
   themeCircle('figure', 'tcm', -0.2, -2.2, 0.46),
   themeCircle('herb', 'tcm', 1.35, 1.75, 0.32),
   themeCircle('dish', 'computer', 2.35, -0.15, 0.46),
-  themeCircle('rack', 'computer', -2.05, 0.85, 0.3)
+  themeCircle('rack', 'computer', -2.05, 0.85, 0.3),
+  themeCircle('lounger-1', 'beach', -1.2, 0.85, 0.52),
+  themeCircle('lounger-2', 'beach', 0.35, 1.45, 0.52),
+  themeCircle('lounger-3', 'beach', 1.55, 0.55, 0.52),
+  themeCircle('beach-umbrella', 'beach', 0.15, 0.95, 0.34),
+  themeCircle('beach-lamp', 'beach', -2.15, -1.55, 0.28)
 ]);
 
 export function footprintBlock(building) {
