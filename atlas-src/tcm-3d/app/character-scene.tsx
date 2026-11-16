@@ -1,5 +1,5 @@
 import {publicAssetUrl} from './public-assets';
-import {animeAvatar,avatarPointTarget,type AvatarId} from './avatars';
+import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
 import {animeOutfit,type AnimeOutfit,type OutfitId} from './outfits';
 import {useEffect,useRef} from 'react';
 import * as T from 'three';
@@ -32,113 +32,7 @@ const toonGradient=()=>{
 
 const materialLabel=(mat:T.Material,obj:T.Object3D)=>`${mat.name||''} ${obj.name||''}`;
 
-// Warm neck fill — keep chroma above the #f6efe4 clear color so the V is not a beige void.
-const NECK_SKIN_COLOR=new T.Color(232/255,198/255,178/255);
-
-/**
- * Sendagaya Body_00_SKIN uses MASK cutouts under the vest. Hiding／cutting Tops
- * opens a torso void. study-neck keeps Tops covering that cavity, hides only
- * Accessory (領結 fills the shirt V), and restores Body_00_SKIN alpha in the collar V
- * so 人迎／天突 show real lit MToon skin that tools can hit — no NeckOpen filler mesh.
- */
-const inCollarSkinBand=(x:number,y:number,z:number)=>{
- // Only the shirt V／天突窝 (and matching back MASK). Do not paint 人迎 side-neck
- // (y≈1.32) — flat NECK_SKIN_COLOR there reads as a peach oval under focus.
- if(y<1.2||y>1.295||Math.abs(x)>.1)return false;
- // Front+back of the shirt V／鎖骨帶 — front-only fill still sees through back MASK.
- return Math.abs(z)<.12;
-};
-
-const fillSkinTexel=(data:ImageData,i:number)=>{
- if(data.data[i+3]>=200)return;
- data.data[i]=NECK_SKIN_COLOR.r*255;
- data.data[i+1]=NECK_SKIN_COLOR.g*255;
- data.data[i+2]=NECK_SKIN_COLOR.b*255;
- data.data[i+3]=255;
-};
-
-const fillUvTriangle=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,u1:number,v1:number,u2:number,v2:number)=>{
- const toX=(u:number)=>Math.min(width-1,Math.max(0,Math.round(u*(width-1))));
- const toY=(v:number)=>Math.min(height-1,Math.max(0,Math.round((flipY?1-v:v)*(height-1))));
- const x0=toX(u0),y0=toY(v0),x1=toX(u1),y1=toY(v1),x2=toX(u2),y2=toY(v2);
- const minX=Math.max(0,Math.min(x0,x1,x2)),maxX=Math.min(width-1,Math.max(x0,x1,x2));
- const minY=Math.max(0,Math.min(y0,y1,y2)),maxY=Math.min(height-1,Math.max(y0,y1,y2));
- const area=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);
- if(area===0)return;
- for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
-  const w0=((x1-x)*(y2-y)-(x2-x)*(y1-y))/area;
-  const w1=((x2-x)*(y0-y)-(x0-x)*(y2-y))/area;
-  const w2=1-w0-w1;
-  if(w0<-.01||w1<-.01||w2<-.01)continue;
-  fillSkinTexel(data,(y*width+x)*4);
- }
-};
-
-const restoreCollarSkinAlpha=(root:T.Object3D)=>{
- const skinMats:T.MeshStandardMaterial[]=[];
- const skinMeshes:(T.Mesh|T.SkinnedMesh)[]=[];
- root.traverse((obj:T.Object3D)=>{
-  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
-  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
-  const body=mats.filter(m=>/Body_00_SKIN/i.test(m.name||'')&&!/Outline|NeckOpen/i.test(m.name||'')) as T.MeshStandardMaterial[];
-  if(!body.length)return;
-  skinMeshes.push(obj);
-  for(const m of body)if(!skinMats.includes(m))skinMats.push(m);
- });
- if(!skinMeshes.length||!skinMats.length)return;
- const findMap=(m:T.MeshStandardMaterial & {map?:T.Texture|null;uniforms?:Record<string,{value:unknown}>})=>{
-  if(m.map?.image)return m.map;
-  const uni=m.uniforms?.map?.value;
-  if(uni&&typeof uni==='object'&&'image' in (uni as object)&&(uni as T.Texture).image)return uni as T.Texture;
-  return null;
- };
- const src=skinMats.map(findMap).find(Boolean)??null;
- if(!src?.image)return;
- const img=src.image as CanvasImageSource & {width:number;height:number};
- const canvas=document.createElement('canvas');
- canvas.width=img.width;canvas.height=img.height;
- const ctx=canvas.getContext('2d',{willReadFrequently:true});
- if(!ctx)return;
- try{ctx.drawImage(img,0,0);}catch{return;}
- const data=ctx.getImageData(0,0,canvas.width,canvas.height);
- const flipY=!!src.flipY;
- let filled=0;
- for(const mesh of skinMeshes){
-  const geom=mesh.geometry;
-  const pos=geom.getAttribute('position');
-  const uv=geom.getAttribute('uv');
-  const index=geom.index;
-  if(!pos||!uv||!index)continue;
-  mesh.updateMatrixWorld(true);
-  const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
-  for(let i=0;i<index.count;i+=3){
-   const i0=index.getX(i),i1=index.getX(i+1),i2=index.getX(i+2);
-   a.fromBufferAttribute(pos,i0).applyMatrix4(mesh.matrixWorld);
-   b.fromBufferAttribute(pos,i1).applyMatrix4(mesh.matrixWorld);
-   c.fromBufferAttribute(pos,i2).applyMatrix4(mesh.matrixWorld);
-   const hit=inCollarSkinBand(a.x,a.y,a.z)||inCollarSkinBand(b.x,b.y,b.z)||inCollarSkinBand(c.x,c.y,c.z)
-    ||inCollarSkinBand((a.x+b.x+c.x)/3,(a.y+b.y+c.y)/3,(a.z+b.z+c.z)/3);
-   if(!hit)continue;
-   fillUvTriangle(data,canvas.width,canvas.height,flipY,uv.getX(i0),uv.getY(i0),uv.getX(i1),uv.getY(i1),uv.getX(i2),uv.getY(i2));
-   filled++;
-  }
- }
- if(!filled)return;
- ctx.putImageData(data,0,0);
- const next=src.clone();
- next.image=canvas;
- next.generateMipmaps=true;
- next.minFilter=T.LinearMipmapLinearFilter;
- next.magFilter=T.LinearFilter;
- next.needsUpdate=true;
- for(const m of skinMats){
-  m.map=next;
-  const uni=(m as T.MeshStandardMaterial & {uniforms?:Record<string,{value:unknown}>}).uniforms;
-  if(uni?.map)uni.map.value=next;
-  m.needsUpdate=true;
- }
-};
-
+/** School-uniform polish only (露頸／openCollar deferred to #75). */
 const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
  root.traverse((obj:T.Object3D)=>{
   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
@@ -166,11 +60,6 @@ const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
    }
   }
  });
- // restoreCollarSkinAlpha paints lit MToon skin in the shirt V. Do not add
- // Body_00_SKIN_NeckOpen plugs — the old MeshBasicMaterial spheres
- // (toneMapped:false, renderOrder:3) read as a flesh balloon over the chest
- // in 人迎／天突 close-ups and stole needle／finger contacts.
- if(outfit.openCollar)restoreCollarSkinAlpha(root);
 };
 
 export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onError}:Props){
@@ -181,7 +70,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
  useEffect(()=>{
   const avatar=animeAvatar(avatarId);
   const outfit=animeOutfit(outfitId);
-  const points=avatar.points;
+  // ST9／CV22 markers deferred with open-collar practice (#75).
+  const points=avatarPracticePoints(avatar);
   const el=host.current!;let disposed=false,frame=0,dirty=true,ready=false,lastView='',lastReset=-1,lastFocus=-1;
   let renderer:T.WebGLRenderer;
   try{renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});}
@@ -249,8 +139,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const loader=new GLTFLoader();
    loader.register(parser=>new VRMLoaderPlugin(parser));
    onProgress(8);
-   const modelUrl=avatar.hasOutfits?outfit.modelUrl:avatar.modelUrl;
-   loader.load(publicAssetUrl(modelUrl),(gltf)=>{
+   const modelUrl=outfit.modelUrl||avatar.modelUrl;
+   loader.load(publicAssetUrl(modelUrl!),(gltf)=>{
     if(disposed)return;
     vrm=gltf.userData.vrm??null;
     const model=vrm?.scene??gltf.scene;
@@ -258,16 +148,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      VRMUtils.removeUnnecessaryVertices(gltf.scene);
      VRMUtils.combineSkeletons(gltf.scene);
     }
-    if(avatar.hasOutfits)applyOutfitMaterials(model,outfit);
-    else model.traverse((obj:T.Object3D)=>{
-     if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
-     obj.frustumCulled=false;
-     const mats=Array.isArray(obj.material)?obj.material:[obj.material];
-     for(const mat of mats){
-      const m=mat as T.MeshStandardMaterial;
-      if(m.map){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
-     }
-    });
+    applyOutfitMaterials(model,outfit);
     characterRoot.clear();
     characterRoot.add(model);
     model.updateMatrixWorld(true);

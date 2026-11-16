@@ -40,10 +40,21 @@ export function pointInCurriculum(code:string|null|undefined,setId?:string|null)
 }
 export function curriculumBadge(code:string|null|undefined){
  if(!code)return null;
+ if(isPracticeDeferred(code))return `#${DEFERRED_PRACTICE_ISSUE} 開放`;
  const point=POINT_BY_CODE.get(code);
  if(point?.reviewed)return '已校正';
  if(CURRICULUM_CODES.has(code))return '待校正';
  return null;
+}
+
+/** Collar-dependent points; uniform demo deferred until open-collar practice (#75). */
+export const DEFERRED_PRACTICE_ISSUE=75;
+export const DEFERRED_PRACTICE_CODES=new Set(['ST9','CV22']);
+export function isPracticeDeferred(code:string|null|undefined){
+ return !!code&&DEFERRED_PRACTICE_CODES.has(code);
+}
+export function practiceOpenCodes(codes:Iterable<string>){
+ return [...codes].filter(code=>!isPracticeDeferred(code));
 }
 export const LOCATION:Record<string,{text:string;section:string;classic?:string;curriculum?:string}>={
  ST36:{text:'小腿外側，犢鼻下 3 寸，犢鼻與解溪連線上。',section:'5.3.36'},

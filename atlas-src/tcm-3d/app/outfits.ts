@@ -1,6 +1,6 @@
 import {ANIME_MODEL_URL} from './character-mode';
 
-export type OutfitId='school'|'study-neck';
+export type OutfitId='school';
 
 export interface AnimeOutfit{
  id:OutfitId;
@@ -12,34 +12,20 @@ export interface AnimeOutfit{
  hideMaterials:string[];
  /** Material name substrings to soften so neck points stay readable. */
  softenMaterials:string[];
- /**
-  * study-neck: keep Tops covering the MASK hollow chest, hide only Accessory,
-  * and restore collar-V Body_00_SKIN alpha so 人迎／天突 hit lit MToon skin.
-  */
- openCollar?:boolean;
 }
 
+/** School uniform only; 露頸練習裝（study-neck）deferred to issue #75. */
 export const ANIME_OUTFITS:AnimeOutfit[]=[
  {
   id:'school',
   name:'制服研習裝',
   shortName:'制服',
-  blurb:'Sendagaya 原裝制服。頸前穴被衣領遮擋時可切「露頸」。',
+  blurb:'Sendagaya 原裝制服。',
   modelUrl:ANIME_MODEL_URL,
   hideMaterials:[],
   // Do not soften Tops/CLOTH: VRoid bakes vest＋shirt as one material; transparent
   // depthWrite=false causes armpit／side silhouette artifacts.
   softenMaterials:[],
- },
- {
-  id:'study-neck',
-  name:'露頸練習裝',
-  shortName:'露頸',
-  blurb:'拿掉領結，上衣仍蓋住胸腔挖空，並讓衣領 V 的皮膚可見，方便人迎、天突對照。',
-  modelUrl:ANIME_MODEL_URL,
-  hideMaterials:['Accessory'],
-  softenMaterials:[],
-  openCollar:true,
  },
 ];
 

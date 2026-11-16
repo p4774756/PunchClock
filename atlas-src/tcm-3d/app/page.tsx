@@ -1,11 +1,11 @@
 import {publicAssetUrl} from './public-assets';
 import {ANIME_DEFAULT_SET} from './character-mode';
-import {DEFAULT_AVATAR_ID,animeAvatar,avatarLessonNote,avatarSupportsPoint,avatarSupportedCodes} from './avatars';
+import {DEFAULT_AVATAR_ID,animeAvatar,avatarLessonNote,avatarPracticeOpen,avatarSupportsPoint,avatarSupportedCodes} from './avatars';
 import {ANIME_OUTFITS,DEFAULT_OUTFIT_ID,animeOutfit,type OutfitId} from './outfits';
 import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState,type CSSProperties,type PointerEvent as ReactPointerEvent} from 'react';
 import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Focus,Info,Layers3,MapPin,Maximize2,Pause,Play,RotateCcw,RotateCw,Search,SlidersHorizontal,X} from 'lucide-react';
 import type {SceneState,View} from './anatomy';
-import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,LOCATION,POINTS,POINT_BY_CODE,MERIDIANS,pointInCurriculum,REGIONS,STANDARD,TOOLS,type CurriculumSetId,type RegionId,type SimulationState,type SurfaceTarget,type ToolId,type ToolDragPhase} from './teaching';
+import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,isPracticeDeferred,LOCATION,POINTS,POINT_BY_CODE,MERIDIANS,pointInCurriculum,practiceOpenCodes,REGIONS,STANDARD,TOOLS,type CurriculumSetId,type RegionId,type SimulationState,type SurfaceTarget,type ToolId,type ToolDragPhase} from './teaching';
 
 const CharacterScene=lazy(()=>import('./character-scene'));
 
@@ -38,8 +38,8 @@ export default function Home(){
  const [simulation,setSimulation]=useState<SimulationState>(()=>{
   const set=launch.set??ANIME_DEFAULT_SET;
   // Deep-link ?code= focuses that point; otherwise keep 印堂 and the full-body fit view
-  // (do not jump to 百會 / focus:1 — that drills into hair).
-  const preferred=launch.code&&avatarCodes.has(launch.code)?launch.code:null;
+  // (do not jump to 百會 / focus:1 — that drills into hair). ST9／CV22 wait for #75.
+  const preferred=launch.code&&avatarPracticeOpen(currentAvatar,launch.code)?launch.code:null;
   const code=preferred??initialSimulation.pointCode;
   return {...initialSimulation,curriculumSet:set,pointCode:code,side:1,focus:preferred?1:0};
  });
@@ -50,10 +50,17 @@ export default function Home(){
  const [about,setAbout]=useState(false),[holding,setHolding]=useState(false);
  const [outfitId,setOutfitId]=useState<OutfitId>(DEFAULT_OUTFIT_ID);
  const currentOutfit=animeOutfit(outfitId);
+ const showOutfitBar=currentAvatar.hasOutfits&&ANIME_OUTFITS.length>1;
+ const practiceCodes=useMemo(()=>new Set(practiceOpenCodes(avatarCodes)),[avatarCodes]);
  const [feedback,setFeedback]=useState(()=>{
   const lesson=curriculumSet(launch.set??ANIME_DEFAULT_SET);
-  if(lesson)return `課堂：${lesson.name}（已烘上 ${[...avatarCodes].filter(c=>lesson.codes.includes(c)).length} 穴）。可依教材順序上一穴／下一穴。`;
-  if(launch.code)return `已開啟穴位 ${launch.code}。`;
+  if(launch.code&&isPracticeDeferred(launch.code))return avatarLessonNote(currentAvatar,launch.code);
+  if(lesson){
+   const open=practiceOpenCodes([...avatarCodes].filter(c=>lesson.codes.includes(c))).length;
+   return `課堂：${lesson.name}（可練習 ${open} 穴；人迎／天突改至 #75）。可依教材順序上一穴／下一穴。`;
+  }
+  if(launch.code&&avatarPracticeOpen(currentAvatar,launch.code))return `已開啟穴位 ${launch.code}。`;
+  if(launch.code)return avatarLessonNote(currentAvatar,launch.code);
   return '選擇穴位與工具，開始一次課堂演示。';
  });
  const dialog=useRef<HTMLDialogElement>(null),searchInput=useRef<HTMLInputElement>(null);
@@ -63,9 +70,10 @@ export default function Home(){
  const point=POINTS.find(p=>p.code===simulation.pointCode);
  const tool=TOOLS.find(t=>t.id===simulation.tool)!;
  const activeLesson=curriculumSet(simulation.curriculumSet);
- const animePointReady=avatarSupportsPoint(currentAvatar,simulation.pointCode);
- const lessonIndex=activeLesson&&simulation.pointCode?activeLesson.codes.indexOf(simulation.pointCode):-1;
- const lessonProgress=activeLesson&&lessonIndex>=0?{name:activeLesson.shortName,index:lessonIndex+1,total:activeLesson.codes.length}:null;
+ const animePointReady=avatarPracticeOpen(currentAvatar,simulation.pointCode);
+ const lessonOpenCodes=useMemo(()=>activeLesson?practiceOpenCodes(activeLesson.codes.filter(c=>avatarCodes.has(c))):[...practiceCodes],[activeLesson,avatarCodes,practiceCodes]);
+ const lessonIndex=activeLesson&&simulation.pointCode?lessonOpenCodes.indexOf(simulation.pointCode):-1;
+ const lessonProgress=activeLesson&&lessonIndex>=0?{name:activeLesson.shortName,index:lessonIndex+1,total:lessonOpenCodes.length}:null;
  const hasTarget=!!point||!!simulation.customTarget;
  const canPlayDemo=hasTarget&&(!!simulation.customTarget||animePointReady)&&progress===100&&!error;
  const location=point?LOCATION[point.code]:null;
@@ -103,7 +111,11 @@ export default function Home(){
  };
  const choosePoint=(code:string,side:1|-1=simulation.side)=>{
   const next=POINTS.find(p=>p.code===code);if(!next)return;
-  if(!avatarSupportsPoint(currentAvatar,code)){setFeedback(avatarLessonNote(currentAvatar,code));setMobilePanel('selection');return;}
+  if(isPracticeDeferred(code)||!avatarSupportsPoint(currentAvatar,code)){
+   setFeedback(avatarLessonNote(currentAvatar,code));
+   setMobilePanel('selection');
+   return;
+  }
   prepareFocus();setHolding(false);heldPointer.current=null;
   setSimulation(s=>({...s,pointCode:code,side:next.midline?1:side,customTarget:null,dragging:false,running:false,elapsed:0,focus:s.focus+1,pickMode:'point'}));
   setFeedback(`已選擇${next.name} ${next.code}，可播放針／指壓演示。`);
@@ -111,10 +123,9 @@ export default function Home(){
  };
  const stepLesson=(dir:-1|1)=>{
   if(!point)return;
-  const list=(activeLesson?activeLesson.codes:CURRICULUM_SETS.find(c=>c.id===ANIME_DEFAULT_SET)!.codes)
-   .map(code=>POINT_BY_CODE.get(code)!).filter(p=>p&&avatarCodes.has(p.code));
+  const list=lessonOpenCodes.map(code=>POINT_BY_CODE.get(code)!).filter(Boolean);
   const i=list.findIndex(p=>p.code===point.code);
-  if(i<0){setFeedback('目前穴位不在此課程組合內。');return;}
+  if(i<0){setFeedback('目前穴位不在此課程可練習列表內。');return;}
   choosePoint(list[(i+dir+list.length)%list.length].code);
  };
  const chooseTool=(id:ToolId)=>{setHolding(false);heldPointer.current=null;setSimulation(s=>({...s,tool:id,dragging:false,running:false,elapsed:0}));setFeedback(`已切換為${TOOLS.find(t=>t.id===id)!.name}，演示回到起點。`);};
@@ -135,7 +146,7 @@ export default function Home(){
  const selectedTitle=point?.name??(simulation.customTarget?'自選體表位置':'點選穴位標記');
  const animationStatus=simulation.dragging?'操作中':simulation.running?'演示中':simulation.elapsed>0?'已暫停':'待演示';
 
- return <main className={`studio rpg-studio is-anime${currentAvatar.hasOutfits?' has-outfit-bar':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
+ return <main className={`studio rpg-studio is-anime${showOutfitBar?' has-outfit-bar':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
   <header className="studio-header rpg-header">
    <div className="brand-block">
     <a className="brand" href={HOME_HREF} aria-label={HOME_HREF==='/'?'返回後台':'返回中醫首頁'}><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室<span className="edition">RPG</span></span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></a>
@@ -167,24 +178,24 @@ export default function Home(){
    <span className="control-divider"/><button onClick={fullBody} title="顯示全身"><Maximize2 size={14}/><span>全身</span></button><button onClick={focusTarget} disabled={!hasTarget} title="聚焦當前穴位"><Focus size={14}/><span>聚焦</span></button><button className={`icon-button ${state.rotate?'selected':''}`} aria-label={state.rotate?'停止旋轉':'自動旋轉'} aria-pressed={state.rotate} onClick={()=>{pause();setState(s=>({...s,rotate:!s.rotate}));setFeedback(state.rotate?'自動旋轉已停止。':'正在自動旋轉。');}}><RotateCw size={15}/></button>
   </nav>
 
-  {currentAvatar.hasOutfits&&<nav className="outfit-bar surface" aria-label="動漫服裝"><span className="outfit-label">換裝</span>{ANIME_OUTFITS.map(outfit=><button key={outfit.id} type="button" className={outfitId===outfit.id?'selected':''} aria-pressed={outfitId===outfit.id} title={outfit.blurb} onClick={()=>switchOutfit(outfit.id)}>{outfit.shortName}</button>)}</nav>}
+  {showOutfitBar&&<nav className="outfit-bar surface" aria-label="動漫服裝"><span className="outfit-label">換裝</span>{ANIME_OUTFITS.map(outfit=><button key={outfit.id} type="button" className={outfitId===outfit.id?'selected':''} aria-pressed={outfitId===outfit.id} title={outfit.blurb} onClick={()=>switchOutfit(outfit.id)}>{outfit.shortName}</button>)}</nav>}
 
   <aside className={`library-panel surface ${mobilePanel==='library'?'mobile-expanded':''}`} aria-label="穴位庫">
    <button className="mobile-panel-heading" aria-expanded={mobilePanel==='library'} onClick={()=>setMobilePanel(p=>p==='library'?null:'library')}><span><Layers3 size={16}/>穴位庫</span><ChevronDown size={17}/></button>
    <div className="panel-content">
-    <div className="panel-tabs" role="tablist" aria-label="學習內容"><button role="tab" aria-selected className="selected" id="points-tab" aria-controls="points-panel">穴位<span>{avatarCodes.size}</span></button></div>
+    <div className="panel-tabs" role="tablist" aria-label="學習內容"><button role="tab" aria-selected className="selected" id="points-tab" aria-controls="points-panel">穴位<span>{practiceCodes.size}</span></button></div>
     <div className="tab-body" id="points-panel" role="tabpanel" aria-labelledby="points-tab">
      <label className="search-box"><Search size={15}/><input ref={searchInput} value={query} onChange={e=>setQuery(e.target.value)} placeholder="穴名、拼音或編號" aria-label="搜索教學穴位"/>{query?<button aria-label="清空搜索" onClick={()=>setQuery('')}><X size={13}/></button>:<kbd>/</kbd>}</label>
-     <div className="curriculum-controls" role="group" aria-label="課堂基準穴">{CURRICULUM_SETS.filter(set=>set.id===ANIME_DEFAULT_SET||set.codes.some(c=>avatarCodes.has(c))).map(set=><button key={set.id} className={simulation.curriculumSet===set.id?'selected':''} aria-pressed={simulation.curriculumSet===set.id} onClick={()=>{const on=simulation.curriculumSet!==set.id;const codes=set.codes.filter(c=>avatarCodes.has(c));if(on&&!codes.length){setFeedback(`${set.shortName} 尚未烘到角色身上。`);return;}setRegion('all');setQuery('');prepareFocus();setSimulation(s=>({...s,curriculumSet:on?set.id:ANIME_DEFAULT_SET,meridianFilter:'all',pointCode:on?codes[0]:s.pointCode,side:1,customTarget:null,dragging:false,running:false,elapsed:0,focus:s.focus+1,pickMode:'point'}));setFeedback(on?`課堂：${set.name}。依教材順序校正與演示。`:'已回到頭頸基準穴。');}}>{set.shortName}<small>{set.codes.filter(c=>avatarCodes.has(c)).length}</small></button>)}</div>
+     <div className="curriculum-controls" role="group" aria-label="課堂基準穴">{CURRICULUM_SETS.filter(set=>set.id===ANIME_DEFAULT_SET||set.codes.some(c=>avatarCodes.has(c))).map(set=>{const open=practiceOpenCodes(set.codes.filter(c=>avatarCodes.has(c)));return <button key={set.id} className={simulation.curriculumSet===set.id?'selected':''} aria-pressed={simulation.curriculumSet===set.id} onClick={()=>{const on=simulation.curriculumSet!==set.id;if(on&&!open.length){setFeedback(`${set.shortName} 尚未烘到角色身上。`);return;}setRegion('all');setQuery('');prepareFocus();setSimulation(s=>({...s,curriculumSet:on?set.id:ANIME_DEFAULT_SET,meridianFilter:'all',pointCode:on?(open[0]??s.pointCode):s.pointCode,side:1,customTarget:null,dragging:false,running:false,elapsed:0,focus:on?s.focus+1:s.focus,pickMode:'point'}));setFeedback(on?`課堂：${set.name}。依教材順序校正與演示。`:'已回到頭頸基準穴。');}}>{set.shortName}<small>{open.length}</small></button>;})}</div>
      {activeLesson&&<p className="curriculum-note">{activeLesson.lesson}{activeLesson.status==='reviewed'?' · 已課堂核對':' · 座標待核對'} · 僅顯示已烘上穴位</p>}
      {lessonProgress&&<div className="lesson-progress-card" aria-live="polite"><strong>{lessonProgress.name} · 第 {lessonProgress.index}／{lessonProgress.total} 穴</strong><div className="lesson-progress-actions"><button type="button" onClick={()=>stepLesson(-1)}>上一穴</button><button type="button" onClick={()=>stepLesson(1)}>下一穴</button></div></div>}
      <details className="region-disclosure"><summary>按身體區域篩選</summary><div className="section-label">選擇身體區域<button className={region==='all'?'current':''} onClick={()=>{setRegion('all');setFeedback('正在顯示全部已烘穴位。');}}>全部</button></div>
      <div className="region-grid">{REGIONS.map(r=><button className={region===r.id?'selected':''} key={r.id} aria-pressed={region===r.id} onClick={()=>{setRegion(r.id);setQuery('');if(avatarCodes.has(r.example))choosePoint(r.example);}}>{r.name}</button>)}</div>
      </details>
-     <div className="meridian-controls"><label>十四經脈<select aria-label="選擇經脈" value={simulation.meridianFilter??'all'} onChange={e=>{setRegion('all');setQuery('');setSimulation(s=>({...s,meridianFilter:e.target.value}));}}><option value="all">全部經脈 · {avatarCodes.size} 穴</option>{MERIDIANS.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label><small>經脈體表連線暫未烘到角色；目錄保留供之後加穴。</small></div>
+     <div className="meridian-controls"><label>十四經脈<select aria-label="選擇經脈" value={simulation.meridianFilter??'all'} onChange={e=>{setRegion('all');setQuery('');setSimulation(s=>({...s,meridianFilter:e.target.value}));}}><option value="all">全部經脈 · {practiceCodes.size} 可練</option>{MERIDIANS.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label><small>經脈體表連線暫未烘到角色；目錄保留供之後加穴。</small></div>
      <div className="list-heading"><span>{activeLesson?activeLesson.name:'已烘穴位'}</span><span>{results.length} 穴</span></div>
-     <div className="point-list">{results.map(p=>{const badge=curriculumBadge(p.code);return <button key={p.code} className={`point-row ${p.code===simulation.pointCode?'selected':''} ${pointInCurriculum(p.code,activeLesson?.id)?'curriculum-point':''} ${p.reviewed?'reviewed-point':''}`} onClick={()=>choosePoint(p.code)} aria-pressed={p.code===simulation.pointCode}><span className="point-dot"/><span className="point-row-copy"><span className="point-name">{p.name}{badge&&<em className={`curriculum-badge ${p.reviewed?'is-reviewed':''}`}>{badge}</em>}<span>{p.pinyin}</span></span><small>{p.meridian}</small></span><span className="point-code">{p.code}</span></button>;})}{results.length===0&&<div className="empty-state"><Search size={20}/><p>未找到匹配穴位</p><button className="text-button" onClick={()=>{setQuery('');setRegion('all');}}>查看全部已烘穴位</button></div>}</div>
-     <div className="point-list-foot"><span>已烘 {avatarCodes.size} 穴 · 其餘暫不顯示</span><button className="icon-button" aria-label={simulation.showPoints?'隱藏穴位點':'顯示穴位點'} aria-pressed={simulation.showPoints} onClick={()=>{setSimulation(s=>({...s,showPoints:!s.showPoints}));setFeedback(simulation.showPoints?'已隱藏穴位點。':'已顯示穴位點。');}}>{simulation.showPoints?<Eye size={15}/>:<EyeOff size={15}/>}</button></div>
+     <div className="point-list">{results.map(p=>{const badge=curriculumBadge(p.code);const deferred=isPracticeDeferred(p.code);return <button key={p.code} type="button" className={`point-row ${p.code===simulation.pointCode?'selected':''} ${pointInCurriculum(p.code,activeLesson?.id)?'curriculum-point':''} ${p.reviewed&&!deferred?'reviewed-point':''} ${deferred?'is-deferred':''}`} onClick={()=>choosePoint(p.code)} aria-pressed={p.code===simulation.pointCode} aria-disabled={deferred||undefined} title={deferred?avatarLessonNote(currentAvatar,p.code):undefined}><span className="point-dot"/><span className="point-row-copy"><span className="point-name">{p.name}{badge&&<em className={`curriculum-badge ${deferred?'is-deferred':p.reviewed?'is-reviewed':''}`}>{badge}</em>}<span>{p.pinyin}</span></span><small>{p.meridian}</small></span><span className="point-code">{p.code}</span></button>;})}{results.length===0&&<div className="empty-state"><Search size={20}/><p>未找到匹配穴位</p><button className="text-button" onClick={()=>{setQuery('');setRegion('all');}}>查看全部已烘穴位</button></div>}</div>
+     <div className="point-list-foot"><span>可練習 {practiceCodes.size} 穴 · 人迎／天突改至 #75</span><button className="icon-button" aria-label={simulation.showPoints?'隱藏穴位點':'顯示穴位點'} aria-pressed={simulation.showPoints} onClick={()=>{setSimulation(s=>({...s,showPoints:!s.showPoints}));setFeedback(simulation.showPoints?'已隱藏穴位點。':'已顯示穴位點。');}}>{simulation.showPoints?<Eye size={15}/>:<EyeOff size={15}/>}</button></div>
     </div>
    </div>
   </aside>
@@ -223,8 +234,8 @@ export default function Home(){
   <dialog ref={dialog} className="source-dialog" onCancel={()=>setAbout(false)} onClose={()=>setAbout(false)} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)setAbout(false);}}} aria-labelledby="source-title">
    <div className="dialog-heading"><span className="eyebrow">資料、許可與當前邊界</span><button className="icon-button" onClick={()=>setAbout(false)} aria-label="關閉來源與許可" autoFocus><X size={19}/></button></div>
    <h2 id="source-title">讓每一層，有據可查。</h2><p className="dialog-intro">這是供課堂討論與交互驗證的工程預覽。標準文字、角色模型與操作動畫分別保留來源和狀態。</p>
-   <section><h3>穴位定位</h3><p>以 GB/T 12346—2021《經穴名稱與定位》為主要核查來源。本版研習室只在角色身上顯示已烘上的穴位（目前頭頸 21）。`teaching-points.json` 仍保留完整目錄與歷史解剖空間座標，供之後每週加穴對位參考，並不代表解剖銅人模型仍在頁面中。</p><a href={STANDARD} target="_blank" rel="noreferrer">查閱國家標準正文<ArrowUpRight size={13}/></a></section>
-   <section><h3>動漫角色與換裝</h3><p>研習室角色為 VRoid Studio β 版樣本「Sendagaya Shino」（pixiv Inc.，CC0 1.0），可於畫面切換制服／露頸練習裝。針與指壓演示作用在選中穴的皮膚上。</p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">CC0 1.0 說明<ArrowUpRight size={13}/></a><a href={publicAssetUrl('/ATTRIBUTION.md')} target="_blank" rel="noreferrer">署名細節<ArrowUpRight size={13}/></a></section>
+   <section><h3>穴位定位</h3><p>以 GB/T 12346—2021《經穴名稱與定位》為主要核查來源。本版研習室只在角色身上顯示已烘上的穴位（頭頸 21，其中人迎／天突演示改至 #75）。`teaching-points.json` 仍保留完整目錄與歷史解剖空間座標，供之後每週加穴對位參考，並不代表解剖銅人模型仍在頁面中。</p><a href={STANDARD} target="_blank" rel="noreferrer">查閱國家標準正文<ArrowUpRight size={13}/></a></section>
+   <section><h3>動漫角色</h3><p>研習室角色為 VRoid Studio β 版樣本「Sendagaya Shino」（pixiv Inc.，CC0 1.0），目前為制服研習裝。露頸練習裝與人迎／天突近景演示改至 #75。針與指壓演示作用在選中穴的皮膚上。</p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">CC0 1.0 說明<ArrowUpRight size={13}/></a><a href={publicAssetUrl('/ATTRIBUTION.md')} target="_blank" rel="noreferrer">署名細節<ArrowUpRight size={13}/></a></section>
    <section><h3>工具與局部反饋</h3><p>針具接觸與指壓形變為教學視覺示意，不預測療效，也不提供真人操作參數。</p><a href="https://www.nccih.nih.gov/health/acupuncture-effectiveness-and-safety" target="_blank" rel="noreferrer">NCCIH：針灸資料<ArrowUpRight size={13}/></a><a href="https://www.mskcc.org/cancer-care/patient-education/acupressure-pain-and-headaches" target="_blank" rel="noreferrer">MSK：指壓資料<ArrowUpRight size={13}/></a></section>
    <button className="dialog-done" onClick={()=>setAbout(false)}>返回研習室</button>
   </dialog>

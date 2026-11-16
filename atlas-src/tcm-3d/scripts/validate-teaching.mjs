@@ -20,7 +20,7 @@ try {
   const bundlePath = join(temporaryDir, 'entry.mjs');
   const bundle = await build({
     stdin: {
-      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {POINTS,TOOLS,initialSimulation,CURRICULUM_SETS,curriculumSet} from './app/teaching'; export {ANIME_POINTS,ANIME_SUPPORTED_CODES,animePointTarget} from './app/character-mode';",
+      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {POINTS,TOOLS,initialSimulation,CURRICULUM_SETS,curriculumSet,isPracticeDeferred,practiceOpenCodes,DEFERRED_PRACTICE_CODES} from './app/teaching'; export {ANIME_POINTS,ANIME_SUPPORTED_CODES,animePointTarget} from './app/character-mode'; export {avatarPracticePoints,animeAvatar,DEFAULT_AVATAR_ID} from './app/avatars'; export {ANIME_OUTFITS} from './app/outfits';",
       resolveDir: project, sourcefile: 'validate-teaching-entry.ts', loader: 'ts',
     },
     bundle: true, platform: 'node', format: 'esm', target: 'node22',
@@ -34,15 +34,16 @@ try {
       return {className: '', hidden: false, style: {}, dataset: {}, textContent: '', setAttribute() {}, remove() {}, classList:{toggle(){}}};
     }},
   });
-  const {createTeachingOverlay, POINTS, TOOLS, initialSimulation, CURRICULUM_SETS, curriculumSet, ANIME_POINTS, ANIME_SUPPORTED_CODES, animePointTarget} = await import(pathToFileURL(bundlePath));
+  const {createTeachingOverlay, POINTS, TOOLS, initialSimulation, CURRICULUM_SETS, curriculumSet, isPracticeDeferred, practiceOpenCodes, DEFERRED_PRACTICE_CODES, ANIME_POINTS, ANIME_SUPPORTED_CODES, animePointTarget, avatarPracticePoints, animeAvatar, DEFAULT_AVATAR_ID, ANIME_OUTFITS} = await import(pathToFileURL(bundlePath));
   const camera = new T.PerspectiveCamera(34, 1.6, 0.005, 100);
   camera.position.set(0, 1.4, 2.5);
   camera.lookAt(0, 1.35, 0);
   camera.updateMatrixWorld(true);
   const state = overrides => ({...initialSimulation, ...overrides});
   const scene = new T.Scene();
+  const practicePoints = avatarPracticePoints(animeAvatar(DEFAULT_AVATAR_ID));
   const overlay = createTeachingOverlay(scene, {
-    points: ANIME_POINTS,
+    points: practicePoints,
     resolvePoint: (code, side) => animePointTarget(code, side),
   });
   const update = (overrides = {}) => overlay.update(state(overrides), camera, 1280, 800);
@@ -51,12 +52,23 @@ try {
     assert.deepEqual(TOOLS.map(t => t.id), ['needle', 'finger']);
   });
 
-  await test('頭頸 21 已烘到少女且可篩選', () => {
+  await test('頭頸 21 已烘；可練習 19 穴（ST9／CV22 改至 #75）', () => {
     const lesson = curriculumSet('head-neck-21');
     assert.ok(lesson);
     assert.equal(lesson.codes.length, 21);
     assert.equal(ANIME_POINTS.length, 21);
     assert.equal(ANIME_SUPPORTED_CODES.size, 21);
+    assert.deepEqual([...DEFERRED_PRACTICE_CODES].sort(), ['CV22', 'ST9']);
+    assert.equal(isPracticeDeferred('ST9'), true);
+    assert.equal(isPracticeDeferred('CV22'), true);
+    assert.equal(isPracticeDeferred('GV24+'), false);
+    const open = practiceOpenCodes(lesson.codes);
+    assert.equal(open.length, 19);
+    assert.ok(!open.includes('ST9'));
+    assert.ok(!open.includes('CV22'));
+    assert.equal(practicePoints.length, 19);
+    assert.equal(ANIME_OUTFITS.length, 1);
+    assert.equal(ANIME_OUTFITS[0].id, 'school');
     for (const code of lesson.codes) {
       assert.ok(ANIME_SUPPORTED_CODES.has(code), `缺少烘點 ${code}`);
       const target = animePointTarget(code, 1);
@@ -67,8 +79,15 @@ try {
     }
     update({curriculumSet: 'head-neck-21', showPoints: true});
     const visible = overlay.markers.filter(marker => marker.visible);
-    assert.ok(visible.length >= 21);
-    for (const marker of visible) assert.ok(lesson.codes.includes(marker.userData.point));
+    const visibleCodes = new Set(visible.map(marker => marker.userData.point));
+    assert.equal(visibleCodes.size, 19);
+    assert.ok(visible.length >= 19);
+    for (const marker of visible) {
+      assert.ok(lesson.codes.includes(marker.userData.point));
+      assert.equal(isPracticeDeferred(marker.userData.point), false);
+    }
+    assert.equal(visibleCodes.has('ST9'), false);
+    assert.equal(visibleCodes.has('CV22'), false);
   });
 
   await test('選中穴時針／指壓 contact 可見且非 FJ2810', () => {
