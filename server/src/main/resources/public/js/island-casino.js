@@ -1,14 +1,28 @@
-// 網頁賭場大廳狀態與籌碼佔位（純邏輯，不依賴 Three.js）。
-// 後續接真籌碼錢包時：傳入 chipWalletView({ enabled: true, balance: N }) 即可，不必改大廳版型。
+// 網頁賭場大廳與單人 21 點（純邏輯模組 + DOM 掛載；Three.js 在 island.js）。
+import {
+  CHIP_STORAGE_KEY,
+  MIN_BET,
+  STARTING_BALANCE,
+  cardLabel,
+  createBlackjackRound,
+  isRed,
+  readChipBalance,
+  writeChipBalance,
+  placeBet,
+  settleBet,
+  canPlaceBet,
+  needsPracticeChipRefill,
+  handValue
+} from './island-blackjack.js';
 
 export const CASINO_NAME = '莫卡賭場';
 export const CASINO_GAMES = Object.freeze([
   Object.freeze({
     id: 'blackjack',
     title: '網頁 21 點',
-    blurb: '下一階段開放。現在只能逛大廳。',
-    status: 'soon',
-    playable: false
+    blurb: '單人對莊家，練習籌碼僅本機。',
+    status: 'open',
+    playable: true
   }),
   Object.freeze({
     id: 'slots',
@@ -33,8 +47,8 @@ export function isLobbyOpen(state) {
 }
 
 /**
- * 籌碼顯示模型。Phase 2 固定為尚未啟用佔位；
- * 之後錢包啟用時傳 { enabled: true, balance: number, currency?: string }。
+ * 籌碼顯示模型。啟用時傳 { enabled: true, balance: number, currency?: string }。
+ * 練習籌碼餘額見 island-blackjack.js CHIP_STORAGE_KEY（localStorage）。
  */
 export function chipWalletView(wallet) {
   if (wallet && wallet.enabled) {
@@ -42,9 +56,9 @@ export function chipWalletView(wallet) {
     return {
       enabled: true,
       balance: balance,
-      label: wallet.currency || '籌碼',
+      label: wallet.currency || '練習籌碼',
       text: String(balance),
-      note: ''
+      note: wallet.note || '練習籌碼，僅本機，不是真錢。'
     };
   }
   return {
@@ -67,16 +81,332 @@ export function canOpenCasinoLobby(ctx) {
   return true;
 }
 
-/** 掛載大廳 DOM 事件；回傳 { open, close, isOpen, destroy }。 */
+function formatCards(cards, hideSecond) {
+  if (!cards || !cards.length) return '（無）';
+  return cards.map((c, i) => {
+    if (hideSecond && i === 1) return '蓋牌';
+    const red = isRed(c) ? ' casino-card-red' : '';
+    return '<span class="casino-card' + red + '">' + cardLabel(c) + '</span>';
+  }).join(' ');
+}
+
+/** 掛載大廳 DOM 事件；回傳 { open, close, isOpen, isTableOpen, closeTable, destroy }。 */
 export function mountCasinoLobby(opts) {
   const document = (opts && opts.doc) || globalThis.document;
   const root = opts && opts.root;
   const onChange = opts && opts.onChange;
+  const storage = (opts && opts.storage) || (globalThis.localStorage);
   let state = lobbyState(null, '');
+  let tableOpen = false;
+  let balance = readChipBalance(storage);
   const chipsEl = root && root.querySelector('[data-casino-chips]');
+  const chipsNoteEl = root && root.querySelector('[data-casino-chips-note]');
   const playerEl = root && root.querySelector('[data-casino-player]');
   const backBtn = root && root.querySelector('[data-casino-back]');
   const gamesEl = root && root.querySelector('[data-casino-games]');
+  const tableEl = root && root.querySelector('[data-casino-blackjack]');
+  const subEl = root && root.querySelector('[data-casino-sub]');
+  let round = createBlackjackRound();
+  let betInput = null;
+  let tableBackBtn = null;
+  let btnHit = null;
+  let btnStand = null;
+  let btnDeal = null;
+  let btnAgain = null;
+  let btnRefill = null;
+  let insufficientEl = null;
+  let resultEl = null;
+  let playerHandEl = null;
+  let dealerHandEl = null;
+  let playerValEl = null;
+  let dealerValEl = null;
+  let betRow = null;
+
+  function walletModel() {
+    return { enabled: true, balance, currency: '練習籌碼' };
+  }
+
+  function persistBalance(next) {
+    balance = Math.max(0, Math.floor(next));
+    writeChipBalance(storage, balance);
+  }
+
+  function refreshChips() {
+    if (playerEl) {
+      playerEl.textContent = playerLobbyLabel(opts && opts.auth);
+    }
+    if (chipsEl) {
+      const chips = chipWalletView(walletModel());
+      chipsEl.textContent = chips.label + ' ' + chips.text;
+      chipsEl.setAttribute('data-enabled', 'true');
+      if (chips.note) chipsEl.setAttribute('title', chips.note);
+    }
+    if (chipsNoteEl) {
+      chipsNoteEl.textContent = '練習籌碼，僅本機，不是真錢';
+    }
+  }
+
+  function setTableVisible(open) {
+    tableOpen = !!open;
+    if (gamesEl) gamesEl.hidden = tableOpen;
+    if (tableEl) tableEl.hidden = !tableOpen;
+    if (subEl) {
+      subEl.textContent = tableOpen
+        ? '21 點牌桌 · 勝出賠率 1:1'
+        : '練習大廳 · 虛擬籌碼僅本機';
+    }
+    document.body.classList.toggle('casino-blackjack-open', tableOpen);
+    if (open && tableEl) {
+      if (root && typeof root.scrollTop === 'number') root.scrollTop = 0;
+      if (typeof tableEl.scrollIntoView === 'function') {
+        tableEl.scrollIntoView({ block: 'start', behavior: 'auto' });
+      }
+    }
+  }
+
+  function renderRoundUI() {
+    const st = round.getState();
+    const hideHole = st.holeHidden && st.phase !== 'done';
+    if (playerHandEl) {
+      playerHandEl.innerHTML = formatCards(st.player, false);
+    }
+    if (dealerHandEl) {
+      dealerHandEl.innerHTML = formatCards(st.dealer, hideHole);
+    }
+    if (playerValEl) playerValEl.textContent = '點數 ' + st.playerValue;
+    if (dealerValEl) {
+      dealerValEl.textContent = hideHole ? '莊家明牌 ' + st.dealerValue : '點數 ' + handValue(st.dealer);
+    }
+    if (resultEl) {
+      resultEl.textContent = st.outcome || '';
+      resultEl.hidden = !st.outcome;
+    }
+    const betting = st.phase === 'betting';
+    const playing = st.phase === 'player';
+    const done = st.phase === 'done';
+    if (betInput) betInput.disabled = !betting;
+    if (btnDeal) {
+      btnDeal.hidden = !betting;
+      btnDeal.disabled = false;
+    }
+    if (btnHit) {
+      btnHit.hidden = !playing;
+      btnHit.disabled = !playing;
+    }
+    if (btnStand) {
+      btnStand.hidden = !playing;
+      btnStand.disabled = !playing;
+    }
+    if (btnAgain) {
+      btnAgain.hidden = !done;
+      btnAgain.disabled = !done;
+    }
+    const broke = needsPracticeChipRefill(balance);
+    if (insufficientEl) insufficientEl.hidden = !(broke && betting);
+    if (btnRefill) btnRefill.hidden = !(broke && betting);
+    if (betRow) betRow.hidden = broke && betting;
+    if (btnDeal && betting) {
+      btnDeal.disabled = broke;
+    }
+  }
+
+  function applyRoundPayout(st) {
+    if (!st.compare) return;
+    const next = settleBet(balance, st.bet, st.compare.winner);
+    persistBalance(next);
+    refreshChips();
+  }
+
+  function beginBet() {
+    const raw = betInput ? parseInt(betInput.value, 10) : MIN_BET;
+    const amount = Number.isFinite(raw) ? raw : MIN_BET;
+    if (!canPlaceBet(balance, amount)) {
+      if (resultEl) {
+        resultEl.hidden = false;
+        resultEl.textContent = '籌碼不足或下注低於 ' + MIN_BET;
+      }
+      return;
+    }
+    const afterBet = placeBet(balance, amount);
+    if (afterBet == null) return;
+    persistBalance(afterBet);
+    refreshChips();
+    round.start(amount);
+    const st = round.getState();
+    if (st.phase === 'done') applyRoundPayout(st);
+    renderRoundUI();
+  }
+
+  function onRefillChips() {
+    if (!needsPracticeChipRefill(balance)) return;
+    persistBalance(STARTING_BALANCE);
+    refreshChips();
+    if (resultEl) resultEl.hidden = true;
+    renderRoundUI();
+  }
+
+  function onHit() {
+    round.hit();
+    const st = round.getState();
+    if (st.phase === 'done') applyRoundPayout(st);
+    renderRoundUI();
+  }
+
+  function onStand() {
+    round.stand();
+    const st = round.getState();
+    applyRoundPayout(st);
+    renderRoundUI();
+  }
+
+  function onAgain() {
+    round.reset();
+    if (resultEl) resultEl.hidden = true;
+    renderRoundUI();
+  }
+
+  function openBlackjack() {
+    setTableVisible(true);
+    round.reset();
+    if (betInput) betInput.value = String(Math.min(100, balance));
+    if (resultEl) resultEl.hidden = true;
+    renderRoundUI();
+    if (tableBackBtn && typeof tableBackBtn.focus === 'function') tableBackBtn.focus();
+  }
+
+  function closeTable() {
+    if (!tableOpen) return;
+    setTableVisible(false);
+    round.reset();
+  }
+
+  function buildBlackjackTable() {
+    if (!tableEl || tableEl.dataset.ready) return;
+    tableEl.innerHTML = '';
+    const head = document.createElement('header');
+    head.className = 'casino-bj-head';
+    const title = document.createElement('h2');
+    title.textContent = '網頁 21 點';
+    tableBackBtn = document.createElement('button');
+    tableBackBtn.type = 'button';
+    tableBackBtn.className = 'btn btn-ghost';
+    tableBackBtn.textContent = '返回大廳';
+    tableBackBtn.setAttribute('data-casino-table-back', '');
+    head.appendChild(title);
+    head.appendChild(tableBackBtn);
+
+    const table = document.createElement('div');
+    table.className = 'casino-bj-table';
+
+    const dealerBlock = document.createElement('div');
+    dealerBlock.className = 'casino-bj-hand';
+    dealerBlock.innerHTML = '<span class="casino-bj-label">莊家</span>';
+    dealerHandEl = document.createElement('div');
+    dealerHandEl.className = 'casino-bj-cards';
+    dealerValEl = document.createElement('p');
+    dealerValEl.className = 'casino-bj-value';
+    dealerBlock.appendChild(dealerHandEl);
+    dealerBlock.appendChild(dealerValEl);
+
+    const playerBlock = document.createElement('div');
+    playerBlock.className = 'casino-bj-hand';
+    playerBlock.innerHTML = '<span class="casino-bj-label">你的牌</span>';
+    playerHandEl = document.createElement('div');
+    playerHandEl.className = 'casino-bj-cards';
+    playerValEl = document.createElement('p');
+    playerValEl.className = 'casino-bj-value';
+    playerBlock.appendChild(playerHandEl);
+    playerBlock.appendChild(playerValEl);
+
+    resultEl = document.createElement('p');
+    resultEl.className = 'casino-bj-result';
+    resultEl.hidden = true;
+
+    insufficientEl = document.createElement('p');
+    insufficientEl.className = 'casino-bj-insufficient';
+    insufficientEl.textContent = '練習籌碼不足';
+    insufficientEl.hidden = true;
+
+    btnRefill = document.createElement('button');
+    btnRefill.type = 'button';
+    btnRefill.className = 'btn casino-bj-refill';
+    btnRefill.textContent = '重新領取 ' + STARTING_BALANCE + ' 練習籌碼';
+    btnRefill.hidden = true;
+
+    betRow = document.createElement('div');
+    betRow.className = 'casino-bj-bet';
+    const betLabel = document.createElement('label');
+    betLabel.textContent = '下注（最少 ' + MIN_BET + '）';
+    betInput = document.createElement('input');
+    betInput.type = 'number';
+    betInput.className = 'casino-bj-bet-input';
+    betInput.min = String(MIN_BET);
+    betInput.step = '10';
+    betInput.inputMode = 'numeric';
+    betInput.value = String(Math.min(100, STARTING_BALANCE));
+    betLabel.appendChild(betInput);
+    betRow.appendChild(betLabel);
+
+    const actions = document.createElement('div');
+    actions.className = 'casino-bj-actions';
+    btnDeal = document.createElement('button');
+    btnDeal.type = 'button';
+    btnDeal.className = 'btn';
+    btnDeal.textContent = '下注並發牌';
+    btnHit = document.createElement('button');
+    btnHit.type = 'button';
+    btnHit.className = 'btn';
+    btnHit.textContent = '要牌';
+    btnStand = document.createElement('button');
+    btnStand.type = 'button';
+    btnStand.className = 'btn btn-ghost';
+    btnStand.textContent = '停牌';
+    btnAgain = document.createElement('button');
+    btnAgain.type = 'button';
+    btnAgain.className = 'btn';
+    btnAgain.textContent = '再來一局';
+    actions.appendChild(btnDeal);
+    actions.appendChild(btnHit);
+    actions.appendChild(btnStand);
+    actions.appendChild(btnAgain);
+
+    table.appendChild(dealerBlock);
+    table.appendChild(playerBlock);
+    table.appendChild(resultEl);
+    table.appendChild(insufficientEl);
+    table.appendChild(btnRefill);
+    table.appendChild(betRow);
+    table.appendChild(actions);
+
+    tableEl.appendChild(head);
+    tableEl.appendChild(table);
+    tableEl.dataset.ready = '1';
+
+    tableBackBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      closeTable();
+    });
+    btnDeal.addEventListener('click', (e) => {
+      e.preventDefault();
+      beginBet();
+    });
+    btnHit.addEventListener('click', (e) => {
+      e.preventDefault();
+      onHit();
+    });
+    btnStand.addEventListener('click', (e) => {
+      e.preventDefault();
+      onStand();
+    });
+    btnAgain.addEventListener('click', (e) => {
+      e.preventDefault();
+      onAgain();
+    });
+    btnRefill.addEventListener('click', (e) => {
+      e.preventDefault();
+      onRefillChips();
+    });
+  }
 
   function render() {
     if (!root) return;
@@ -84,16 +414,7 @@ export function mountCasinoLobby(opts) {
     root.hidden = !open;
     root.setAttribute('aria-hidden', open ? 'false' : 'true');
     document.body.classList.toggle('casino-lobby-open', open);
-    if (playerEl) {
-      playerEl.textContent = playerLobbyLabel(opts && opts.auth);
-    }
-    if (chipsEl) {
-      const chips = chipWalletView(opts && opts.wallet);
-      chipsEl.textContent = chips.enabled ? (chips.label + ' ' + chips.text) : (chips.label + ' · ' + chips.text);
-      chipsEl.setAttribute('data-enabled', chips.enabled ? 'true' : 'false');
-      if (chips.note) chipsEl.setAttribute('title', chips.note);
-      else chipsEl.removeAttribute('title');
-    }
+    refreshChips();
     if (gamesEl && !gamesEl.dataset.ready) {
       gamesEl.innerHTML = '';
       CASINO_GAMES.forEach((game) => {
@@ -104,23 +425,39 @@ export function mountCasinoLobby(opts) {
         title.textContent = game.title;
         const blurb = document.createElement('p');
         blurb.textContent = game.blurb;
-        const badge = document.createElement('span');
-        badge.className = 'casino-game-badge';
-        badge.textContent = '即將推出';
+        if (!game.playable) {
+          const badge = document.createElement('span');
+          badge.className = 'casino-game-badge';
+          badge.textContent = '即將推出';
+          card.appendChild(badge);
+        }
+        card.appendChild(title);
+        card.appendChild(blurb);
         const action = document.createElement('button');
         action.type = 'button';
         action.className = 'btn btn-ghost';
-        action.textContent = '尚不可玩';
-        action.disabled = true;
-        action.setAttribute('aria-disabled', 'true');
-        card.appendChild(badge);
-        card.appendChild(title);
-        card.appendChild(blurb);
+        if (game.playable) {
+          action.textContent = '開始遊玩';
+          action.disabled = false;
+          action.removeAttribute('aria-disabled');
+          action.classList.add('casino-game-play');
+          action.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (game.id === 'blackjack') openBlackjack();
+          });
+        } else {
+          action.textContent = '尚不可玩';
+          action.disabled = true;
+          action.setAttribute('aria-disabled', 'true');
+        }
         card.appendChild(action);
         gamesEl.appendChild(card);
       });
       gamesEl.dataset.ready = '1';
     }
+    buildBlackjackTable();
+    if (!open) closeTable();
+    renderRoundUI();
   }
 
   function setOpen(next) {
@@ -130,6 +467,7 @@ export function mountCasinoLobby(opts) {
       return state;
     }
     if (want && !canOpenCasinoLobby({ lobbyOpen: isLobbyOpen(state) })) return state;
+    if (!want) closeTable();
     state = lobbyState(state, want ? 'open' : 'close');
     render();
     if (typeof onChange === 'function') onChange(state);
@@ -138,6 +476,10 @@ export function mountCasinoLobby(opts) {
 
   function onBack(event) {
     if (event) event.preventDefault();
+    if (tableOpen) {
+      closeTable();
+      return;
+    }
     setOpen(false);
   }
 
@@ -149,9 +491,13 @@ export function mountCasinoLobby(opts) {
     open: () => setOpen(true),
     close: () => setOpen(false),
     isOpen: () => isLobbyOpen(state),
+    isTableOpen: () => tableOpen,
+    closeTable: () => closeTable(),
+    getBalance: () => balance,
     destroy: () => {
       if (backBtn) backBtn.removeEventListener('click', onBack);
       document.body.classList.remove('casino-lobby-open');
+      document.body.classList.remove('casino-blackjack-open');
     }
   };
 }
@@ -170,8 +516,8 @@ export function createCasinoController(opts) {
   const lobby = mountCasinoLobby({
     doc: doc,
     root: lobbyRoot,
+    storage: (opts && opts.storage) || (win && win.localStorage),
     auth: { authenticated: !!(win && win.PUNCHCLOCK_AUTHENTICATED) },
-    wallet: null,
     onChange: (state) => {
       if (typeof hooks.onLobbyChange === 'function') hooks.onLobbyChange(state);
     }
@@ -208,7 +554,12 @@ export function createCasinoController(opts) {
   }
 
   function closeLobby() {
+    if (lobby.isTableOpen()) lobby.closeTable();
     lobby.close();
+  }
+
+  function closeTable() {
+    lobby.closeTable();
   }
 
   if (promptBtn) {
@@ -231,6 +582,10 @@ export function createCasinoController(opts) {
     setPromptVisible: setPromptVisible,
     openLobby: openLobby,
     closeLobby: closeLobby,
+    closeTable: closeTable,
+    isTableOpen: () => lobby.isTableOpen(),
     isOpen: () => lobby.isOpen()
   };
 }
+
+export { CHIP_STORAGE_KEY, STARTING_BALANCE, MIN_BET };

@@ -272,6 +272,10 @@ export function handleExploreKeydown(ctx) {
     return true;
   }
   if (isTypingTarget(event.target)) return false;
+  if (ctx.casino && ctx.casino.isTableOpen && ctx.casino.isTableOpen()) {
+    ctx.casino.closeTable();
+    return true;
+  }
   if (ctx.casino && ctx.casino.isOpen()) {
     ctx.casino.closeLobby();
     return true;
