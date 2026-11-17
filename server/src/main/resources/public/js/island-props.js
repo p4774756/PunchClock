@@ -4,7 +4,7 @@ import { G, P } from './island-kit.js';
 
 export function buildIslandProps(ctx) {
   const { scene, kit, bobs, clouds, swimmers } = ctx;
-  const { addMesh, addBox, geo, addCup } = kit;
+  const { addMesh, addBox, geo, lampLight, addCup } = kit;
   function treeRound(x, z, scale, leaf) {
     const group = new THREE.Group();
     group.position.set(x, G, z);
@@ -175,6 +175,10 @@ export function buildIslandProps(ctx) {
   [[-1.6, 5.55], [1.6, 5.55], [-5.45, 1.15], [5.45, 2.35], [1.35, 8.15], [-3.3, -4.7]].forEach(([x, z]) => {
     streetLamp(x, z);
   });
+  lampLight(-1.6, G + 1.35, 5.55, 12);
+  lampLight(1.6, G + 1.35, 5.55, 12);
+  lampLight(5.45, G + 1.3, 2.35, 8);
+  lampLight(1.35, G + 1.25, 8.15, 8, null, { realLight: true });
 
   function bicycle(x, z, rotY) {
     const group = new THREE.Group();
@@ -316,6 +320,7 @@ export function buildIslandProps(ctx) {
       shadow: false
     });
     addBox(group, 0.04, 0.03, 0.7, 0x3a312c, 0.16, 0.07, -0.42, { shadow: false });
+    lampLight(0, 3.2, 0, 7, group);
     scene.add(group);
   }
   function figureAt(x, z) {
@@ -338,6 +343,7 @@ export function buildIslandProps(ctx) {
         shadow: false
       });
     });
+    lampLight(0, 1.3, 0.15, 5, group);
     scene.add(group);
   }
   function herbAt(x, z) {

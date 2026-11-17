@@ -164,9 +164,9 @@ function boot() {
   scene.add(sun.target);
 
   const hemiDay = new THREE.Color(0xfff8ef);
-  const hemiNight = new THREE.Color(0x8eabd4);
+  const hemiNight = new THREE.Color(0xb89a78);
   const groundDay = new THREE.Color(0xe7d8bc);
-  const groundNight = new THREE.Color(0x243044);
+  const groundNight = new THREE.Color(0x2e2a38);
   const sunDay = new THREE.Color(0xfff3d6);
   const sunNight = new THREE.Color(0xc5d4f2);
 
@@ -205,6 +205,11 @@ function boot() {
 
   const quality = createQualityAdvisor({
     getDevicePixelRatio: () => window.devicePixelRatio || 1
+  });
+
+  dayNight.onMix((t) => {
+    const pointOn = quality.tier !== 'shadowOff';
+    kit.forEachLamp((item) => kit.applyLampMix(item, t, pointOn));
   });
 
   function applyQualitySettings(settings) {
@@ -1006,7 +1011,8 @@ function boot() {
     scene.add(view.group);
     view.materials.forEach((material) => kit.addMaterial(material));
     if (view.lamp) {
-      view.lamp.light.intensity = view.lamp.power * dayNight.mix;
+      view.lamp.realLight = true;
+      kit.applyLampMix(view.lamp, dayNight.mix, quality.tier !== 'shadowOff');
       kit.addLamp(view.lamp);
     }
     lifecycle.emit('enterRoom', {});

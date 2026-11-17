@@ -5,7 +5,7 @@ import { G } from './island-kit.js';
 /** 沙灘島道具：躺椅、傘、小燈、貝殼與小石。碰撞見 THEME_CIRCLES。 */
 export function buildIslandBeach(ctx) {
   const { scene, kit } = ctx;
-  const { addMesh, addBox, geo } = kit;
+  const { addMesh, addBox, geo, lampLight } = kit;
   const beach = islandById('beach');
   if (!beach) return;
 
@@ -28,6 +28,7 @@ export function buildIslandBeach(ctx) {
       glowAmount: 1.15,
       shadow: false
     });
+    lampLight(x, G + 1.28, z, 9);
   }
 
   function lounger(x, z, rotY) {
