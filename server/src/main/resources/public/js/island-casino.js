@@ -8,8 +8,10 @@ import {
   isRed,
   readChipBalance,
   writeChipBalance,
-  applyPayout,
+  placeBet,
+  settleBet,
   canPlaceBet,
+  needsPracticeChipRefill,
   handValue
 } from './island-blackjack.js';
 
@@ -111,11 +113,14 @@ export function mountCasinoLobby(opts) {
   let btnStand = null;
   let btnDeal = null;
   let btnAgain = null;
+  let btnRefill = null;
+  let insufficientEl = null;
   let resultEl = null;
   let playerHandEl = null;
   let dealerHandEl = null;
   let playerValEl = null;
   let dealerValEl = null;
+  let betRow = null;
 
   function walletModel() {
     return { enabled: true, balance, currency: '練習籌碼' };
@@ -151,6 +156,12 @@ export function mountCasinoLobby(opts) {
         : '練習大廳 · 虛擬籌碼僅本機';
     }
     document.body.classList.toggle('casino-blackjack-open', tableOpen);
+    if (open && tableEl) {
+      if (root && typeof root.scrollTop === 'number') root.scrollTop = 0;
+      if (typeof tableEl.scrollIntoView === 'function') {
+        tableEl.scrollIntoView({ block: 'start', behavior: 'auto' });
+      }
+    }
   }
 
   function renderRoundUI() {
@@ -190,11 +201,18 @@ export function mountCasinoLobby(opts) {
       btnAgain.hidden = !done;
       btnAgain.disabled = !done;
     }
+    const broke = needsPracticeChipRefill(balance);
+    if (insufficientEl) insufficientEl.hidden = !(broke && betting);
+    if (btnRefill) btnRefill.hidden = !(broke && betting);
+    if (betRow) betRow.hidden = broke && betting;
+    if (btnDeal && betting) {
+      btnDeal.disabled = broke;
+    }
   }
 
   function applyRoundPayout(st) {
     if (!st.compare) return;
-    const next = applyPayout(balance, st.bet, st.compare.winner);
+    const next = settleBet(balance, st.bet, st.compare.winner);
     persistBalance(next);
     refreshChips();
   }
@@ -209,9 +227,20 @@ export function mountCasinoLobby(opts) {
       }
       return;
     }
+    const afterBet = placeBet(balance, amount);
+    if (afterBet == null) return;
+    persistBalance(afterBet);
+    refreshChips();
     round.start(amount);
     const st = round.getState();
     if (st.phase === 'done') applyRoundPayout(st);
+    renderRoundUI();
+  }
+
+  function onRefillChips() {
+    persistBalance(STARTING_BALANCE);
+    refreshChips();
+    if (resultEl) resultEl.hidden = true;
     renderRoundUI();
   }
 
@@ -292,7 +321,18 @@ export function mountCasinoLobby(opts) {
     resultEl.className = 'casino-bj-result';
     resultEl.hidden = true;
 
-    const betRow = document.createElement('div');
+    insufficientEl = document.createElement('p');
+    insufficientEl.className = 'casino-bj-insufficient';
+    insufficientEl.textContent = '練習籌碼不足';
+    insufficientEl.hidden = true;
+
+    btnRefill = document.createElement('button');
+    btnRefill.type = 'button';
+    btnRefill.className = 'btn';
+    btnRefill.textContent = '重新領取 ' + STARTING_BALANCE + ' 練習籌碼';
+    btnRefill.hidden = true;
+
+    betRow = document.createElement('div');
     betRow.className = 'casino-bj-bet';
     const betLabel = document.createElement('label');
     betLabel.textContent = '下注（最少 ' + MIN_BET + '）';
@@ -332,6 +372,8 @@ export function mountCasinoLobby(opts) {
     table.appendChild(dealerBlock);
     table.appendChild(playerBlock);
     table.appendChild(resultEl);
+    table.appendChild(insufficientEl);
+    table.appendChild(btnRefill);
     table.appendChild(betRow);
     table.appendChild(actions);
 
@@ -358,6 +400,10 @@ export function mountCasinoLobby(opts) {
     btnAgain.addEventListener('click', (e) => {
       e.preventDefault();
       onAgain();
+    });
+    btnRefill.addEventListener('click', (e) => {
+      e.preventDefault();
+      onRefillChips();
     });
   }
 

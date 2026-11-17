@@ -148,8 +148,30 @@ export function writeChipBalance(storage, balance) {
   return true;
 }
 
+/** 下注當下從餘額扣注；無效下注回傳 null。 */
+export function placeBet(balance, amount) {
+  const n = Math.floor(amount);
+  if (!canPlaceBet(balance, n)) return null;
+  return balance - n;
+}
+
+/**
+ * 結算已扣注的局：勝 +2×bet、平手 +bet、輸 +0（相對於下注前淨損益為 +bet／0／-bet）。
+ */
+export function settleBet(balance, bet, winner) {
+  const b = Math.floor(bet);
+  if (winner === 'player') return balance + 2 * b;
+  if (winner === 'push') return balance + b;
+  return balance;
+}
+
+/** @deprecated 結算時才加減的舊模型；新流程請用 placeBet + settleBet。 */
 export function applyPayout(balance, bet, winner) {
   return balance + payoutForBet(bet, winner);
+}
+
+export function needsPracticeChipRefill(balance) {
+  return Math.floor(balance) < MIN_BET;
 }
 
 /** 莊家依規則補牌至停牌；回傳新莊家手牌。 */
@@ -169,6 +191,7 @@ export function dealerPlay(dealer, deck, drawIndex) {
  */
 export function createBlackjackRound(opts) {
   const rng = opts && opts.rng;
+  const fixedDeck = opts && opts.deck;
   let phase = 'betting';
   let deck = [];
   let drawIndex = 0;
@@ -186,7 +209,7 @@ export function createBlackjackRound(opts) {
 
   function start(betAmount) {
     bet = Math.floor(betAmount);
-    deck = shuffledDeck(rng);
+    deck = fixedDeck ? fixedDeck.slice() : shuffledDeck(rng);
     drawIndex = 0;
     player = [dealFromDeck(), dealFromDeck()];
     dealer = [dealFromDeck(), dealFromDeck()];
@@ -197,6 +220,10 @@ export function createBlackjackRound(opts) {
       compare = compareHands(player, dealer);
       phase = 'done';
       holeHidden = false;
+    } else if (isNatural21(player) || isNatural21(dealer)) {
+      holeHidden = false;
+      compare = compareHands(player, dealer);
+      phase = 'done';
     }
     return getState();
   }

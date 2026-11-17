@@ -309,6 +309,14 @@ test('21 點牌桌：可玩按鈕啟用；Escape 先關牌桌再關大廳', () =
   assert.equal(t.casino.isTableOpen(), true);
   const table = t.lobbyEl.querySelector('[data-casino-blackjack]');
   assert.equal(table.hidden, false);
+  assert.equal(games.hidden, true, '開桌後隱藏遊戲列表');
+
+  t.casino.closeTable();
+  assert.equal(games.hidden, false, '返回大廳後顯示遊戲列表');
+  assert.equal(table.hidden, true);
+
+  playBtn.click();
+  assert.equal(games.hidden, true);
 
   t.pressEscape();
   assert.equal(t.casino.isTableOpen(), false);

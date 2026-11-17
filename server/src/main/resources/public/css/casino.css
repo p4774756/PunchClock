@@ -157,6 +157,11 @@ body.casino-lobby-open .island-brand {
   gap: 0.85rem;
 }
 
+.casino-game-grid[hidden],
+.casino-blackjack[hidden] {
+  display: none !important;
+}
+
 .casino-game-card {
   position: relative;
   display: flex;
@@ -209,6 +214,19 @@ body.casino-lobby-open .island-brand {
   cursor: pointer;
 }
 
+body.casino-blackjack-open .casino-lobby-head {
+  margin-bottom: 0.65rem;
+}
+
+body.casino-blackjack-open .casino-lobby-status {
+  margin-bottom: 0.55rem;
+  gap: 0.5rem;
+}
+
+body.casino-blackjack-open .casino-status-card {
+  padding: 0.55rem 0.7rem;
+}
+
 .casino-blackjack {
   margin-top: 0.5rem;
   padding: 1rem 0.95rem 1.1rem;
@@ -216,10 +234,6 @@ body.casino-lobby-open .island-brand {
   background: linear-gradient(165deg, rgba(42, 24, 72, 0.94), rgba(61, 36, 104, 0.9));
   color: #fff7ef;
   box-shadow: inset 0 0 0 1px rgba(240, 208, 120, 0.18);
-}
-
-.casino-blackjack[hidden] {
-  display: none !important;
 }
 
 .casino-bj-head {
@@ -314,6 +328,16 @@ body.casino-lobby-open .island-brand {
 }
 
 .casino-bj-actions .btn[hidden] {
+  display: none !important;
+}
+
+.casino-bj-insufficient {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: rgba(255, 247, 239, 0.92);
+}
+
+.casino-bj-insufficient[hidden] {
   display: none !important;
 }
 

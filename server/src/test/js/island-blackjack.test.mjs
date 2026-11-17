@@ -77,10 +77,50 @@ test('籌碼：起始額、贏加輸減、不能下超過餘額、可序列化',
   assert.equal(B.canPlaceBet(100, 101), false);
   assert.equal(B.canPlaceBet(5, 10), false);
 
-  assert.equal(B.applyPayout(1000, 50, 'player'), 1050);
-  assert.equal(B.applyPayout(1000, 50, 'dealer'), 950);
-  assert.equal(B.applyPayout(1000, 50, 'push'), 1000);
+  assert.equal(B.placeBet(1000, 50), 950);
+  assert.equal(B.placeBet(5, 10), null);
+  assert.equal(B.settleBet(950, 50, 'player'), 1050);
+  assert.equal(B.settleBet(950, 50, 'dealer'), 950);
+  assert.equal(B.settleBet(950, 50, 'push'), 1000);
+
+  let mid = B.placeBet(100, 20);
+  assert.equal(mid, 80);
+  assert.equal(B.settleBet(mid, 20, 'dealer'), 80, '中途放棄不退注');
+
+  assert.equal(B.needsPracticeChipRefill(9), true);
+  assert.equal(B.needsPracticeChipRefill(10), false);
+  B.writeChipBalance(storage, B.STARTING_BALANCE);
+  assert.equal(B.readChipBalance(storage), B.STARTING_BALANCE);
   assert.equal(B.CHIP_STORAGE_KEY, 'punchclock.casino.practiceChips');
+});
+
+function paddedDeck(indices) {
+  const deck = indices.slice();
+  for (let i = 0; deck.length < B.DECK_SIZE; i++) deck.push(i % 13 + Math.floor(i / 13) * 13);
+  return deck;
+}
+
+test('自然 21：發牌後立即結算，莊家不補牌', () => {
+  const ten = 22;
+  const roundPlayerNat = B.createBlackjackRound({ deck: paddedDeck([0, ten, 5, 6]) });
+  roundPlayerNat.start(10);
+  let st = roundPlayerNat.getState();
+  assert.equal(st.phase, 'done');
+  assert.equal(st.compare.winner, 'player');
+  assert.equal(st.holeHidden, false);
+
+  const roundDealerNat = B.createBlackjackRound({ deck: paddedDeck([5, 6, 0, ten]) });
+  roundDealerNat.start(10);
+  st = roundDealerNat.getState();
+  assert.equal(st.phase, 'done');
+  assert.equal(st.compare.winner, 'dealer');
+
+  const roundBothNat = B.createBlackjackRound({ deck: paddedDeck([0, ten, 13, 25]) });
+  roundBothNat.start(10);
+  st = roundBothNat.getState();
+  assert.equal(st.phase, 'done');
+  assert.equal(st.compare.winner, 'push');
+  assert.equal(st.compare.reason, 'both_natural');
 });
 
 test('dealerPlay：未達 17 持續要牌', () => {
