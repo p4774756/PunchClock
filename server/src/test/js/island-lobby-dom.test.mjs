@@ -185,8 +185,8 @@ test('island.js 的接線與本測試一致', () => {
   );
   assert.match(islandSource, /createExploreKeys\(/);
   assert.match(islandSource, /onPrompt: \(\) => \{[\s\S]*?openRoadmap\(\)/);
-  assert.match(islandSource, /function updatePlayer\(dt\) \{\s*if \(!flow\.canMove\(\)\)/);
-  assert.match(islandSource, /createExploreJoystick\([\s\S]*canMove: \(\) => flow\.canMove\(\)/);
+  assert.match(islandSource, /function updatePlayer\(dt\) \{[\s\S]*?if \(isSailing\(\)\)/);
+  assert.match(islandSource, /createExploreJoystick\([\s\S]*canMove: \(\) => canExploreMove\(\)/);
   assert.match(islandSource, /function reset\(\) \{\s*flow\.resetPanel\(\);/);
   assert.match(islandSource, /flow\.focusPanel\(id\)/);
   assert.doesNotMatch(islandSource, /afterClose/, '關閉流程只能走 onLobbyChange');

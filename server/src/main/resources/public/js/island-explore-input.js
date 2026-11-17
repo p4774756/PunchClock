@@ -6,6 +6,36 @@ import {
 } from './island-explore.js';
 import { shouldOpenChatKey } from './island-chat.js';
 
+/** 戶外互動分派；回傳 true 表示已處理，不應再開啟賭場。 */
+export function applyOutdoorInteractZone(zone, actions) {
+  if (!zone || !actions) return false;
+  if (zone.action === 'openGraffiti') {
+    actions.openGraffiti();
+    return true;
+  }
+  if (zone.action === 'openRoadmap') {
+    actions.openRoadmap();
+    return true;
+  }
+  if (zone.action === 'enterInterior') {
+    actions.enterInterior(zone.id);
+    return true;
+  }
+  if (zone.action === 'sail') {
+    actions.startSail(zone);
+    return true;
+  }
+  if (typeof actions.isClosedHall === 'function' && actions.isClosedHall(zone.action)) {
+    actions.showInteriorClosed();
+    return true;
+  }
+  if (zone.action === 'enterCasino') {
+    if (typeof actions.openCasino === 'function') actions.openCasino();
+    return true;
+  }
+  return false;
+}
+
 export function isTypingTarget(target) {
   if (!target) return false;
   const tag = target.tagName;
@@ -185,11 +215,16 @@ export function handleExploreKeydown(ctx) {
       if (zone && zone.action === 'exitInterior') ctx.leaveInterior();
       return true;
     }
-    if (zone && zone.action === 'openGraffiti') ctx.openGraffiti();
-    else if (zone && zone.action === 'openRoadmap') ctx.openRoadmap();
-    else if (zone && zone.action === 'enterInterior') ctx.enterInterior(zone.id);
-    else if (zone && ctx.isClosedHall(zone.action)) ctx.showInteriorClosed();
-    else if (ctx.casino) ctx.casino.openLobby();
+    const handled = applyOutdoorInteractZone(zone, {
+      openGraffiti: () => ctx.openGraffiti(),
+      openRoadmap: () => ctx.openRoadmap(),
+      enterInterior: (id) => ctx.enterInterior(id),
+      startSail: (z) => ctx.startSail && ctx.startSail(z),
+      isClosedHall: (action) => ctx.isClosedHall(action),
+      showInteriorClosed: () => ctx.showInteriorClosed(),
+      openCasino: () => ctx.casino && ctx.casino.openLobby()
+    });
+    if (!handled && ctx.casino) ctx.casino.openLobby();
     return true;
   }
 

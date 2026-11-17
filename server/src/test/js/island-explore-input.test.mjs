@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadPublicModule } from './load-public-module.mjs';
 
-const { isTypingTarget, focusKind, getOrbitClamp } = await loadPublicModule('island-explore-input.js');
+const { isTypingTarget, focusKind, getOrbitClamp, applyOutdoorInteractZone } = await loadPublicModule('island-explore-input.js');
 
 test('isTypingTarget：input／textarea／contenteditable', () => {
   assert.equal(isTypingTarget(null), false);
@@ -82,4 +82,19 @@ test('getOrbitClamp：室外或非跟隨時 indoorMin 為 null', () => {
     interiorMinRadius: 6.5
   };
   assert.deepEqual(getOrbitClamp(panel), { followCam: false, indoorMin: null });
+});
+
+test('sail 互動不會落到開賭場', () => {
+  let casinoOpened = false;
+  let sailed = false;
+  const handled = applyOutdoorInteractZone(
+    { action: 'sail', stop: 'main' },
+    {
+      startSail: () => { sailed = true; },
+      openCasino: () => { casinoOpened = true; }
+    }
+  );
+  assert.equal(handled, true);
+  assert.equal(sailed, true);
+  assert.equal(casinoOpened, false);
 });

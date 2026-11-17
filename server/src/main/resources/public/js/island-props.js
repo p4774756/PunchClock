@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BRIDGES, THEME_CIRCLES } from './island-layout.js';
+import { BRIDGES, BOAT_STOPS, THEME_CIRCLES } from './island-layout.js';
 import { G, P } from './island-kit.js';
 
 export function buildIslandProps(ctx) {
@@ -218,14 +218,15 @@ export function buildIslandProps(ctx) {
   const buoy = addMesh(scene, new THREE.TorusGeometry(0.16, 0.04, 5, 10), 0xf06a2a, 0.6, P + 0.32, 8.15);
   buoy.rotation.y = 0.5;
 
+  const berth = BOAT_STOPS.main.berth;
   const boat = new THREE.Group();
   addBox(boat, 1.2, 0.26, 0.48, 0xfff7ef, 0, 0.16, 0);
   addBox(boat, 0.7, 0.16, 0.32, 0xf06a2a, -0.05, 0.32, 0);
   addMesh(boat, geo('cone', [0.24, 0.36, 4]), 0xfff7ef, 0, 0.16, 0.55, { rot: [Math.PI / 2, 0, 0] });
-  boat.position.set(1.65, -0.62, 8.7);
-  boat.rotation.y = 0.4;
+  boat.position.set(berth.x, -0.62, berth.z);
+  boat.rotation.y = berth.yaw;
   scene.add(boat);
-  bobs.push({ obj: boat, base: -0.62, phase: 0.6, amp: 0.035 });
+  lampLight(0.55, 0.22, 0.62, 5, boat, { realLight: true });
 
   function bridge(x1, z1, x2, z2, width) {
     const deck = width || 1.15;
@@ -257,6 +258,7 @@ export function buildIslandProps(ctx) {
   }
   BRIDGES.forEach((span) => bridge(span.ax, span.az, span.bx, span.bz, span.halfWidth * 2));
   spanDeck(6.4, 1.95, 9.4, 1.95, 1.4, 0xc4844a, P);
+  spanDeck(17.4, BOAT_STOPS.beach.land.z, 15.7, BOAT_STOPS.beach.land.z, 1.2, 0xc4844a, P);
 
   function railing(x1, z1, x2, z2) {
     const dx = x2 - x1;
@@ -415,6 +417,8 @@ export function buildIslandProps(ctx) {
   }
   addFish(13.2, 0.18, 0.4, 0xf4a0c0, 0.7);
   addFish(14.1, 0.14, 2.2, 0xf6d35a, 0.55);
+
+  return { boat: boat };
 }
 
 export function registerSceneMotion(loop, state) {
