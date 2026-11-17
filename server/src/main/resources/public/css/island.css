@@ -459,8 +459,11 @@ body.island-sheet-open .island-explore-hint {
   font-size: 0.72rem;
   font-weight: 700;
   line-height: 1.35;
-  white-space: nowrap;
   pointer-events: none;
+}
+
+.island-peer-name-text {
+  white-space: nowrap;
 }
 
 .island-chat-wrap {
@@ -548,9 +551,10 @@ body.island-sheet-open .island-explore-hint {
 
 .island-chat-bubble {
   position: absolute;
-  left: 50%;
-  bottom: calc(100% + 0.28rem);
-  transform: translateX(-50%);
+  left: 0;
+  top: 0;
+  z-index: 5;
+  width: max-content;
   max-width: min(11rem, 46vw);
   padding: 0.28rem 0.55rem;
   border-radius: 12px;
@@ -568,15 +572,6 @@ body.island-sheet-open .island-explore-hint {
 
 .island-chat-bubble[hidden] {
   display: none !important;
-}
-
-.island-chat-bubble-self {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: auto;
-  transform: translate(-50%, -120%);
-  z-index: 5;
 }
 
 .island-chat-fab {

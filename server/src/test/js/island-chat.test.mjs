@@ -88,3 +88,53 @@ test('打字中移動鍵與互動鍵不會觸發', async () => {
     promptVisible: true, typing: true, focus: 'explore', code: 'KeyE', key: 'e'
   }), false);
 });
+
+test('對方泡泡用獨立定位，抬到名牌上方；自己維持原 transform', () => {
+  assert.match(C.peerBubbleTransform(120, 240), /translate\(120px, 240px\)/);
+  assert.match(C.peerBubbleTransform(120, 240), /translateY\(-1\.85rem\)/);
+  assert.equal(C.selfBubbleTransform(10, 20), 'translate(10px, 20px) translate(-50%, -120%)');
+});
+
+test('對方泡泡掛在 #islandLabels，不進名牌膠囊', () => {
+  const labels = { children: [], appendChild(el) { this.children.push(el); el.parentNode = this; } };
+  const name = {
+    className: 'island-peer-name',
+    children: [],
+    querySelector() { return null; },
+    insertBefore() { throw new Error('不該把泡泡插進名牌'); }
+  };
+  const doc = {
+    getElementById(id) {
+      if (id === 'islandLabels') return labels;
+      return null;
+    },
+    createElement(tag) {
+      return {
+        tagName: String(tag).toUpperCase(),
+        className: '',
+        hidden: false,
+        textContent: '',
+        dataset: {},
+        style: {},
+        parentNode: null,
+        children: [],
+        querySelector() { return null; },
+        appendChild(el) { this.children.push(el); el.parentNode = this; },
+        insertBefore() { throw new Error('不該 insertBefore 到名牌'); }
+      };
+    },
+    addEventListener() {}
+  };
+  const chat = C.createIslandChat({ document: doc, now: () => 1000 });
+  chat.onSaid({ t: 'said', id: 'p1', name: '甲', text: '你好世界這是稍長的句子', ts: 1 });
+  chat.placeBubbles({
+    visible: false,
+    peers: [{ id: 'p1', x: 100, y: 200, visible: true }]
+  });
+  const peers = labels.children.filter((el) => /island-chat-bubble-peer/.test(el.className));
+  assert.equal(peers.length, 1);
+  assert.equal(peers[0].textContent, '你好世界這是稍長的句子');
+  assert.match(peers[0].style.transform, /translateY\(-1\.85rem\)/);
+  assert.equal(labels.children.some((el) => el.parentNode === name), false);
+  assert.equal(name.children.length, 0);
+});

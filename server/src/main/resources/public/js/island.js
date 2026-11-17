@@ -767,11 +767,13 @@ function boot() {
     const height = stage.clientHeight || 1;
     const off = peerOffset();
     const now = performance.now();
-    peers.forEach((row) => {
+    const peerPlaces = [];
+    peers.forEach((row, id) => {
       const el = row.label;
       if (!el) return;
       if (!row.view.object.visible) {
         el.style.visibility = 'hidden';
+        peerPlaces.push({ id: id, visible: false });
         return;
       }
       const shown = sampleMotion(row.motion, now, reduced);
@@ -779,15 +781,17 @@ function boot() {
       projected.project(camera);
       if (projected.z > 1 || projected.x < -1.08 || projected.x > 1.08 || projected.y < -1.08 || projected.y > 1.08) {
         el.style.visibility = 'hidden';
+        peerPlaces.push({ id: id, visible: false });
         return;
       }
       const x = (projected.x * 0.5 + 0.5) * width;
       const y = (-projected.y * 0.5 + 0.5) * height;
       el.style.visibility = 'visible';
       el.style.transform = 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -120%)';
+      peerPlaces.push({ id: id, x: x, y: y, visible: true });
     });
     if (islandChat) {
-      islandChat.placeSelfBubble({
+      islandChat.placeBubbles({
         x: player.x,
         y: P + 1.18,
         z: player.z,
@@ -795,7 +799,8 @@ function boot() {
         width: width,
         height: height,
         camera: camera,
-        projected: projected
+        projected: projected,
+        peers: peerPlaces
       });
     }
   }
@@ -1605,10 +1610,6 @@ function boot() {
     document: document,
     presence: islandPresence,
     selfId: () => peerSelfId,
-    getPeerLabel: (id) => {
-      const row = peers.get(id);
-      return row ? row.label : null;
-    },
     now: () => Date.now()
   });
 

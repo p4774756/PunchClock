@@ -61,6 +61,15 @@ export function shouldOpenChatKey(ctx) {
   return false;
 }
 
+/** 對方泡泡與名牌同螢幕錨點，再往上抬過名牌膠囊。 */
+export function peerBubbleTransform(x, y) {
+  return 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -100%) translateY(-1.85rem)';
+}
+
+export function selfBubbleTransform(x, y) {
+  return 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -120%)';
+}
+
 /**
  * 角落紀錄、輸入框、頭上泡泡、手機 FAB。
  * presence.sendSay／onSaid／onSlow 由呼叫端接上。
@@ -70,6 +79,7 @@ export function createIslandChat(options) {
   const doc = opts.document || (typeof document !== 'undefined' ? document : null);
   const log = createChatLog(CHAT_LOG_MAX);
   const bubbles = new Map();
+  const peerEls = new Map();
   let open = false;
   let hintTimer = 0;
   let selfBubble = null;
@@ -91,6 +101,20 @@ export function createIslandChat(options) {
     selfBubble.hidden = true;
     labels.appendChild(selfBubble);
     return selfBubble;
+  }
+
+  /** 對方泡泡獨立掛在 #islandLabels，不要塞進名牌膠囊（會被 nowrap 擠成直排）。 */
+  function ensurePeerBubble(id) {
+    if (!labels || !id) return null;
+    let el = peerEls.get(id);
+    if (el && el.parentNode) return el;
+    el = doc.createElement('div');
+    el.className = 'island-chat-bubble island-chat-bubble-peer';
+    el.dataset.peerId = id;
+    el.hidden = true;
+    labels.appendChild(el);
+    peerEls.set(id, el);
+    return el;
   }
 
   function paintLog() {
@@ -138,19 +162,6 @@ export function createIslandChat(options) {
     }, 2200);
   }
 
-  function bubbleForPeer(id) {
-    const getLabel = opts.getPeerLabel;
-    const label = typeof getLabel === 'function' ? getLabel(id) : null;
-    if (!label) return null;
-    let bubble = label.querySelector('.island-chat-bubble');
-    if (!bubble) {
-      bubble = doc.createElement('div');
-      bubble.className = 'island-chat-bubble';
-      label.insertBefore(bubble, label.firstChild);
-    }
-    return bubble;
-  }
-
   function showBubble(id, text, self) {
     const now = typeof opts.now === 'function' ? opts.now() : Date.now();
     const until = now + BUBBLE_MS;
@@ -160,16 +171,21 @@ export function createIslandChat(options) {
       if (el) {
         el.textContent = text;
         el.hidden = false;
-        el.classList.remove('is-fading');
       }
       return;
     }
-    const el = bubbleForPeer(id);
+    const el = ensurePeerBubble(id);
     if (el) {
       el.textContent = text;
       el.hidden = false;
-      el.classList.remove('is-fading');
     }
+  }
+
+  function hideBubbleEl(el) {
+    if (!el) return;
+    el.hidden = true;
+    el.textContent = '';
+    el.style.visibility = 'hidden';
   }
 
   function expireBubbles(now) {
@@ -178,26 +194,21 @@ export function createIslandChat(options) {
       if (t < row.until) return;
       bubbles.delete(id);
       if (row.self) {
-        if (selfBubble) {
-          selfBubble.hidden = true;
-          selfBubble.textContent = '';
-        }
+        hideBubbleEl(selfBubble);
         return;
       }
-      const el = bubbleForPeer(id);
-      if (el) {
-        el.hidden = true;
-        el.textContent = '';
-      }
+      hideBubbleEl(peerEls.get(id));
     });
   }
 
-  function placeSelfBubble(ctx) {
-    const now = typeof opts.now === 'function' ? opts.now() : Date.now();
-    expireBubbles(now);
+  function placeSelfFromCtx(ctx) {
     const row = bubbles.get('__self__');
+    if (!row) {
+      if (selfBubble) selfBubble.style.visibility = 'hidden';
+      return;
+    }
     const el = ensureSelfBubble();
-    if (!el || !row || !ctx || !ctx.visible) {
+    if (!el || !ctx || !ctx.visible) {
       if (el) el.style.visibility = 'hidden';
       return;
     }
@@ -217,8 +228,52 @@ export function createIslandChat(options) {
     }
     const x = (projected.x * 0.5 + 0.5) * width;
     const screenY = (-projected.y * 0.5 + 0.5) * height;
+    el.hidden = false;
     el.style.visibility = 'visible';
-    el.style.transform = 'translate(' + x + 'px, ' + screenY + 'px) translate(-50%, -120%)';
+    el.style.transform = selfBubbleTransform(x, screenY);
+  }
+
+  function placePeerFromList(list) {
+    const seen = Object.create(null);
+    const places = list || [];
+    for (let i = 0; i < places.length; i++) {
+      const place = places[i];
+      if (!place || !place.id) continue;
+      seen[place.id] = true;
+      const live = bubbles.get(place.id);
+      if (!live || !place.visible) {
+        const existing = peerEls.get(place.id);
+        if (existing) existing.style.visibility = 'hidden';
+        continue;
+      }
+      const el = ensurePeerBubble(place.id);
+      if (!el) continue;
+      el.hidden = false;
+      el.style.visibility = 'visible';
+      el.style.transform = peerBubbleTransform(place.x, place.y);
+    }
+    peerEls.forEach((el, id) => {
+      if (seen[id]) return;
+      if (!bubbles.has(id)) {
+        hideBubbleEl(el);
+        if (el.parentNode) el.parentNode.removeChild(el);
+        peerEls.delete(id);
+      } else {
+        el.style.visibility = 'hidden';
+      }
+    });
+  }
+
+  /** 自己用世界座標投影；對方用與名牌相同的螢幕座標，獨立元素疊在名牌上方。 */
+  function placeBubbles(ctx) {
+    const now = typeof opts.now === 'function' ? opts.now() : Date.now();
+    expireBubbles(now);
+    placeSelfFromCtx(ctx);
+    placePeerFromList(ctx && ctx.peers);
+  }
+
+  function placeSelfBubble(ctx) {
+    placeBubbles(ctx);
   }
 
   function submit() {
@@ -284,10 +339,12 @@ export function createIslandChat(options) {
     log.clear();
     paintLog();
     bubbles.clear();
-    if (selfBubble) {
-      selfBubble.hidden = true;
-      selfBubble.textContent = '';
-    }
+    hideBubbleEl(selfBubble);
+    peerEls.forEach((el) => {
+      hideBubbleEl(el);
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
+    peerEls.clear();
     if (hint) hint.hidden = true;
   }
 
@@ -299,6 +356,7 @@ export function createIslandChat(options) {
     submit: submit,
     onSaid: onSaid,
     onSlow: onSlow,
+    placeBubbles: placeBubbles,
     placeSelfBubble: placeSelfBubble,
     setExploring: setExploring,
     clear: clearAll,
