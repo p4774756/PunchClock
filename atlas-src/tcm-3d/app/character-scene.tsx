@@ -58,10 +58,11 @@ const applyCelShading=(root:T.Object3D,gradient:T.DataTexture)=>{
    if(m.isMToonMaterial){
     m.shadingToonyFactor=.94;
     m.shadingShiftFactor=Math.min(m.shadingShiftFactor??0,-.06);
-    if(m.shadeColorFactor)m.shadeColorFactor.multiplyScalar(.78);
-    m.giEqualizationFactor=Math.min(m.giEqualizationFactor??1,.5);
+    if(m.shadeColorFactor)m.shadeColorFactor.multiplyScalar(.88);
+    m.giEqualizationFactor=Math.min(m.giEqualizationFactor??1,.52);
     m.outlineWidthMode=MToonMaterialOutlineWidthMode.WorldCoordinates;
-    m.outlineWidthFactor=Math.max(m.outlineWidthFactor??0,.0028);
+    const ow=m.outlineWidthFactor??0.0024;
+    m.outlineWidthFactor=Math.min(Math.max(ow,.0016),.0022);
     if(m.outlineColorFactor)m.outlineColorFactor.setRGB(.12,.09,.07);
     if(m.parametricRimColorFactor)m.parametricRimColorFactor.setRGB(0,0,0);
     if(m.rimLightingMixFactor!=null)m.rimLightingMixFactor=0;
@@ -117,9 +118,10 @@ const makeWoodcutBackdrop=()=>{
   ctx.stroke();
  };
  cloud(220,180,90);cloud(780,140,110);cloud(520,90,70);
- // Bamboo stalks
+ cloud(512,460,125);cloud(320,540,85);cloud(700,500,95);cloud(480,220,80);
+ // Bamboo stalks — spread so default front／back framing sees ink lines, not only side edges
  ctx.lineWidth=3;
- for(const x of [90,140,880,940]){
+ for(const x of [90,140,200,340,680,820,880,940]){
   ctx.beginPath();
   ctx.moveTo(x,size);ctx.quadraticCurveTo(x+18,size*.55,x-8,80);
   ctx.stroke();
@@ -143,11 +145,13 @@ const makeWoodcutBackdrop=()=>{
  const tex=new T.CanvasTexture(canvas);
  tex.colorSpace=T.SRGBColorSpace;
  tex.needsUpdate=true;
- const mat=new T.MeshBasicMaterial({map:tex,depthWrite:false});
- const plane=new T.Mesh(new T.PlaneGeometry(22,14),mat);
- plane.position.set(0,1.35,-5.2);
- plane.renderOrder=-2;
- return {plane,tex,mat};
+ tex.wrapS=tex.wrapT=T.RepeatWrapping;
+ const mat=new T.MeshBasicMaterial({map:tex,side:T.BackSide,depthWrite:false});
+ // Interior box skybox — visible from front／back／side orbit (single -Z plane was behind the camera).
+ const room=new T.Mesh(new T.BoxGeometry(26,17,26),mat);
+ room.position.set(0,1.35,0);
+ room.renderOrder=-2;
+ return {plane:room,tex,mat};
 };
 
 const materialLabel=(mat:T.Material,obj:T.Object3D)=>`${mat.name||''} ${obj.name||''}`;

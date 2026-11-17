@@ -282,7 +282,9 @@
 .boot-screen .loading-card,
 .loading-card.woodcut-loading{
   background-color:#ead9b8;
-  background-image:var(--paper-grain);
+  background-image:var(--woodcut-wash),var(--paper-grain);
+  background-size:100% auto,auto;
+  background-position:center top,center;
   border:1.5px solid rgba(58,46,34,.35);
   border-radius:14px;
   box-shadow:0 12px 32px rgba(40,32,20,.14);
