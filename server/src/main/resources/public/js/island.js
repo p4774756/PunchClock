@@ -485,7 +485,11 @@ function boot() {
     if (hint) hint.hidden = !exploring || overlay;
     if (islandChat) islandChat.setExploring(exploring && !overlay);
     syncInteractPrompt();
-    if (corner) corner.syncPeerCount();
+    if (corner) {
+      corner.syncPeerCount();
+      corner.syncMoreAudioLabel();
+      corner.closeMore();
+    }
   }
 
   function syncInteractPrompt() {
@@ -773,6 +777,7 @@ function boot() {
     listBtn.addEventListener('click', () => {
       list.hidden = !list.hidden;
       listBtn.setAttribute('aria-expanded', list.hidden ? 'false' : 'true');
+      if (corner) corner.closeMore();
       syncInteractPrompt();
     });
     list.querySelectorAll('[data-island]').forEach((btn) => {
@@ -838,6 +843,7 @@ function boot() {
     audioBtn.setAttribute('aria-label', on ? '靜音背景音樂與海浪聲' : '開啟背景音樂與海浪聲');
     const iconEl = audioBtn.querySelector('.island-tool-audio-icon');
     if (iconEl) iconEl.textContent = on ? '🔊' : '🔇';
+    if (corner) corner.syncMoreAudioLabel();
   }
 
   function showAudioButton() {
@@ -1215,7 +1221,8 @@ function boot() {
     getPresence: () => islandPresence,
     getPeerCount: () => peerLayer.peers.size + 1,
     isExploring: () => mode.exploring,
-    isWelcomed: () => peerLayer.getWelcomed()
+    isWelcomed: () => peerLayer.getWelcomed(),
+    getAudioMuted: () => islandAudio.muted
   });
 
   const exploreKeyCtx = {
