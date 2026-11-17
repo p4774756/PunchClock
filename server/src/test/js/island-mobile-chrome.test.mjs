@@ -232,3 +232,46 @@ test('手機 CSS 隱藏 overflow 列、保留 dock 與安全區', () => {
   assert.match(islandCss, /safe-area-inset-bottom/);
   assert.doesNotMatch(islandCss, /island-chat-fab/);
 });
+
+test('探索時聊天面板邊界不與搖桿相交（360／390）', () => {
+  for (const width of [360, 390]) {
+    const height = width === 360 ? 780 : 844;
+    const panel = Corner.chatPanelRectMobileExplore(width, height, 12);
+    assert.ok(panel.left >= panel.joy.right - 0.5, width + 'px 面板左緣避開搖桿');
+    assert.ok(panel.bottom <= panel.joy.top + 0.5, width + 'px 面板底在搖桿上緣之上');
+    assert.ok(!Corner.rectsIntersect(panel, panel.joy), width + 'px 面板與搖桿不重疊');
+    assert.ok(panel.left >= 0 && panel.right <= width + 0.5, width + 'px 面板在 viewport 內');
+  }
+});
+
+test('「更多」打開時 body 有 island-more-open，CSS 隱藏搖桿與 dock', () => {
+  const doc = makeMobileDom(true);
+  const ui = Corner.createCornerUi({
+    document: doc,
+    storage: null,
+    getPresence: () => null,
+    isExploring: () => true,
+    isWelcomed: () => false
+  });
+  ui.setMoreOpen(true);
+  assert.equal(doc.body.classList.contains('island-more-open'), true);
+  assert.match(
+    islandCss,
+    /body\.island-more-open \.island-corner[\s\S]*visibility:\s*hidden/
+  );
+  assert.match(
+    islandCss,
+    /body\.island-more-open \.island-joystick[\s\S]*visibility:\s*hidden/
+  );
+  ui.setMoreOpen(false);
+  assert.equal(doc.body.classList.contains('island-more-open'), false);
+});
+
+test('「更多」選單面板含 safe-area 底內距且層級高於搖桿', () => {
+  assert.match(islandCss, /\.island-more-panel[\s\S]*safe-area-inset-bottom/);
+  const sheetZ = /\.island-more-sheet\s*\{[^}]*z-index:\s*(\d+)/m.exec(islandCss);
+  const joyZ = /\.island-joystick\s*\{[^}]*z-index:\s*(\d+)/m.exec(islandCss);
+  assert.ok(sheetZ && joyZ, '可解析 z-index');
+  assert.ok(Number(sheetZ[1]) > Number(joyZ[1]), '更多選單在搖桿之上');
+  assert.match(islandCss, /body\.is-exploring \.island-chat-wrap\s*>\s*\.island-chat/);
+});

@@ -789,7 +789,8 @@ body.island-more-open .island-explore-hint {
 
 body.island-more-open .island-corner,
 body.island-more-open .island-joystick {
-  z-index: 9;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .chat-tab-badge[hidden] {
@@ -865,6 +866,18 @@ body.island-more-open .island-joystick {
   .island-chat {
     width: min(18rem, calc(100vw - 1.1rem - env(safe-area-inset-right, 0px)));
     max-width: calc(100vw - 10rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+  }
+  body.is-exploring .island-chat-wrap > .island-chat {
+    position: fixed;
+    top: auto;
+    bottom: max(
+      calc(0.7rem + 2.25rem + 0.4rem + env(safe-area-inset-bottom, 0px)),
+      calc(0.85rem + 8rem + 0.35rem + env(safe-area-inset-bottom, 0px))
+    );
+    right: max(0.55rem, env(safe-area-inset-right, 0px));
+    left: max(calc(0.7rem + 8rem + 0.55rem), env(safe-area-inset-left, 0px));
+    width: auto;
+    max-width: none;
   }
   .island-nick {
     right: 0;

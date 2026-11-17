@@ -56,6 +56,20 @@ export function dockFitsViewport(bounds, viewportWidth) {
   return bounds.left >= 0 && bounds.right <= viewportWidth + 0.5;
 }
 
+/** 探索中手機聊天面板預期邊界（對齊 island.css @760px body.is-exploring .island-chat）。 */
+export function chatPanelRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem) {
+  const hRem = panelHeightRem > 0 ? panelHeightRem : 12;
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  const dockBottom = (0.7 + 2.25 + 0.4) * REM;
+  const joyClear = 0.85 * REM + 8 * REM + 0.35 * REM;
+  const bottomInset = Math.max(dockBottom, joyClear);
+  const left = 0.7 * REM + 8 * REM + 0.55 * REM;
+  const right = viewportWidth - 0.55 * REM;
+  const bottom = viewportHeight - bottomInset;
+  const top = bottom - hRem * REM;
+  return { left, right, top, bottom, width: right - left, height: hRem * REM, joy };
+}
+
 export function createCornerUi(opts) {
   const document = opts.document;
   const storage = opts.storage;
