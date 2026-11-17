@@ -88,7 +88,9 @@ const seeds={
  // 第 4 肋間：乳頭高度 y≈1.195、x≈0.055；ST17 在乳頭，KI23 正中旁開，PC1／SP18 再外。
  CV17:[0,1.195,-.12],KI23:[.03*L,1.195,-.12],ST17:[.055*L,1.195,-.13],PC1:[.075*L,1.195,-.11],SP18:[.095*L,1.195,-.09],
  CV14:[0,1.15,-.1],CV8:[0,1.02,-.1],KI16:[.02*L,1.02,-.1],ST25:[.05*L,1.015,-.1],SP15:[.09*L,1.015,-.08],GB26:[.12*L,1.015,-.04],
- BL14:[.03*L,1.26,.09],BL43:[.055*L,1.25,.095],SI11:[.11*L,1.24,.08],SI9:[.15*L,1.31,.05],
+ BL14:[.03*L,1.26,.09],BL43:[.055*L,1.25,.095],
+ // 天宗：肩胛岡下窩中央（略內、略高於舊種子，避免偏外偏低）
+ SI11:[.085*L,1.265,.095],SI9:[.15*L,1.31,.05],
  GV4:[0,1.02,.11],BL23:[.03*L,1.05,.1],BL52:[.055*L,1.04,.1],
 };
 const midline=new Set(['GV20','GV23','GV24+','GV26','CV24','CV23','CV22','GV16','GV15','GV14','CV17','CV14','CV8','GV4']);
@@ -101,6 +103,7 @@ const preferFor=(code,arr)=>{
  if(code==='GB1')return new T.Vector3(arr[0],0,-1).normalize();
  if(code==='CV22')return new T.Vector3(0,0,-1);
  if(code==='GV14')return new T.Vector3(0,0,1);
+ if(code==='SI11')return new T.Vector3(arr[0]*.25,-.05,1).normalize();
  const catalog=teachingByCode.get(code);
  if(catalog?.normal?.length===3){
   // Catalog: +X anatomical left, +Z front. Anime seeds: L=-1 world X, −Z front.

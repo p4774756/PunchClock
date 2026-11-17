@@ -30,7 +30,7 @@ try {
   const bundlePath = join(temporaryDir, 'entry.mjs');
   const bundle = await build({
     stdin: {
-      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {POINTS,TOOLS,initialSimulation,CURRICULUM_SETS,curriculumSet,isPracticeDeferred,practiceOpenCodes,DEFERRED_PRACTICE_CODES} from './app/teaching'; export {ANIME_POINTS,ANIME_SUPPORTED_CODES,animePointTarget} from './app/character-mode'; export {avatarPracticePoints,animeAvatar,DEFAULT_AVATAR_ID} from './app/avatars'; export {ANIME_OUTFITS} from './app/outfits';",
+      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {POINTS,TOOLS,initialSimulation,CURRICULUM_SETS,curriculumSet,isPracticeDeferred,practiceOpenCodes,DEFERRED_PRACTICE_CODES} from './app/teaching'; export {ANIME_POINTS,ANIME_SUPPORTED_CODES,animePointTarget} from './app/character-mode'; export {avatarPracticePoints,animeAvatar,DEFAULT_AVATAR_ID} from './app/avatars'; export {ANIME_OUTFITS} from './app/outfits'; export {focusViewFromNormal} from './app/focus-view';",
       resolveDir: project, sourcefile: 'validate-teaching-entry.ts', loader: 'ts',
     },
     bundle: true, platform: 'node', format: 'esm', target: 'node22',
@@ -44,7 +44,7 @@ try {
       return {className: '', hidden: false, style: {}, dataset: {}, textContent: '', setAttribute() {}, remove() {}, classList:{toggle(){}}};
     }},
   });
-  const {createTeachingOverlay, POINTS, TOOLS, initialSimulation, CURRICULUM_SETS, curriculumSet, isPracticeDeferred, practiceOpenCodes, DEFERRED_PRACTICE_CODES, ANIME_POINTS, ANIME_SUPPORTED_CODES, animePointTarget, avatarPracticePoints, animeAvatar, DEFAULT_AVATAR_ID, ANIME_OUTFITS} = await import(pathToFileURL(bundlePath));
+  const {createTeachingOverlay, POINTS, TOOLS, initialSimulation, CURRICULUM_SETS, curriculumSet, isPracticeDeferred, practiceOpenCodes, DEFERRED_PRACTICE_CODES, ANIME_POINTS, ANIME_SUPPORTED_CODES, animePointTarget, avatarPracticePoints, animeAvatar, DEFAULT_AVATAR_ID, ANIME_OUTFITS, focusViewFromNormal} = await import(pathToFileURL(bundlePath));
   const camera = new T.PerspectiveCamera(34, 1.6, 0.005, 100);
   camera.position.set(0, 1.4, 2.5);
   camera.lookAt(0, 1.35, 0);
@@ -170,6 +170,40 @@ try {
     const bl14 = animeJson.points.find(p => p.code === 'BL14');
     assert.ok(gv14 && bl14);
     assert.ok(gv14.position[1] > bl14.position[1], `GV14 y=${gv14.position[1]} 應高於 BL14 y=${bl14.position[1]}`);
+  });
+
+  await test('天宗 SI11 在肩胛區、較舊種子內側且偏後', () => {
+    const si11 = animeJson.points.find(p => p.code === 'SI11');
+    assert.ok(si11);
+    assert.ok(si11.position[0] < 0.11, `SI11 x=${si11.position[0]} 應比舊的 0.11 更內側`);
+    assert.ok(si11.position[1] > 1.24, `SI11 y=${si11.position[1]} 應略高於舊的 1.24`);
+    assert.ok(si11.position[2] > 0.03, `SI11 z=${si11.position[2]} 應在背面`);
+    assert.ok(si11.normal[2] > 0.5, `SI11 法線應朝後（正看背面）`);
+  });
+
+  await test('人迎／天突／廉泉聚焦距離明顯近於預設；天宗從背面', () => {
+    const front = focusViewFromNormal('ST9', new T.Vector3(0.5, 0.5, -0.7).normalize(), 1);
+    assert.ok(front.distance < 0.45, `ST9 distance=${front.distance} 應遠小於預設 .62`);
+    assert.ok(front.viewDir.z < -0.8, '人迎應從前方看');
+    const cv22 = focusViewFromNormal('CV22', new T.Vector3(0, 0, -1), 1);
+    assert.ok(cv22.distance < 0.45);
+    const si11 = focusViewFromNormal('SI11', new T.Vector3(0.3, -0.2, 0.9).normalize(), 1);
+    assert.ok(si11.viewDir.z > 0.8, '天宗應從背面正看');
+    assert.ok(si11.distance > 0.5 && si11.distance < 0.9);
+  });
+
+  await test('人迎錨定後朝上皮膚法線仍走近距，不可變百會 1.35', () => {
+    // After overlay.anchor(), ST9 hit normal is ~[-0.06, 0.98, -0.17] (y≈0.984).
+    const up = new T.Vector3(-0.06, 0.98, -0.17).normalize();
+    assert.ok(up.y > 0.85, '測試法線必須能觸發舊的 normal.y>.85 分支');
+    for (const code of ['ST9', 'CV22', 'CV23']) {
+      const framed = focusViewFromNormal(code, up.clone(), 1);
+      assert.ok(framed.distance < 0.45, `${code} distance=${framed.distance} 應 < 0.45（不可為 1.35）`);
+      assert.notEqual(framed.distance, 1.35, `${code} 不可落入 GV20 遠距`);
+      assert.ok(framed.viewDir.z < -0.8, `${code} 應從前方看，viewDir.z=${framed.viewDir.z}`);
+    }
+    const crown = focusViewFromNormal('GV20', up.clone(), 1);
+    assert.equal(crown.distance, 1.35);
   });
 
   await test('每個烘點距離 Face／Body 皮膚 < 2 mm', async () => {
