@@ -1,5 +1,16 @@
 // 建築錨點名牌定位；同儕名牌由呼叫端傳入 placePeerLabels。
 
+const labelSizeCache = new WeakMap();
+const LABEL_SIZE_TTL_MS = 100;
+
+function labelSize(el, now) {
+  const hit = labelSizeCache.get(el);
+  if (hit && now - hit.t < LABEL_SIZE_TTL_MS) return hit;
+  const entry = { w: el.offsetWidth || 76, h: el.offsetHeight || 28, t: now };
+  labelSizeCache.set(el, entry);
+  return entry;
+}
+
 export function placeBuildingLabels(opts) {
   const inside = opts.inside;
   const interiorBusy = opts.interiorBusy;
@@ -11,6 +22,7 @@ export function placeBuildingLabels(opts) {
   const stage = opts.stage;
   const placePeerLabels = opts.placePeerLabels;
   const document = opts.document;
+  const now = opts.now != null ? opts.now : (typeof performance !== 'undefined' ? performance.now() : 0);
 
   if (shouldHideIslandLabels(inside, interiorBusy)) {
     document.querySelectorAll('[data-anchor]').forEach((el) => {
@@ -53,8 +65,9 @@ export function placeBuildingLabels(opts) {
   nodes.sort((a, b) => a.rank - b.rank);
   const placed = [];
   nodes.forEach((node) => {
-    const w = node.el.offsetWidth || 76;
-    const h = node.el.offsetHeight || 28;
+    const size = labelSize(node.el, now);
+    const w = size.w;
+    const h = size.h;
     let y = node.y;
     let hidden = false;
     for (let guard = 0; guard < 5; guard++) {

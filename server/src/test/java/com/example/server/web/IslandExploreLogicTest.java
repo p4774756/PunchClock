@@ -31,6 +31,7 @@ public class IslandExploreLogicTest {
     private static final String CHAT_SCRIPT = "src/test/js/island-chat.test.mjs";
     private static final String LIFECYCLE_SCRIPT = "src/test/js/island-lifecycle.test.mjs";
     private static final String EXPLORE_INPUT_SCRIPT = "src/test/js/island-explore-input.test.mjs";
+    private static final String QUALITY_SCRIPT = "src/test/js/island-quality.test.mjs";
 
     @Test
     public void exploreLogicPassesNodeTests() throws Exception {
@@ -110,6 +111,11 @@ public class IslandExploreLogicTest {
     @Test
     public void exploreInputPassesNodeTests() throws Exception {
         runNodeTest(EXPLORE_INPUT_SCRIPT, "未安裝 Node.js，略過探索輸入邏輯測試");
+    }
+
+    @Test
+    public void qualityPassesNodeTests() throws Exception {
+        runNodeTest(QUALITY_SCRIPT, "未安裝 Node.js，略過自適應畫質邏輯測試");
     }
 
     private void runNodeTest(String scriptPath, String skipMessage) throws Exception {

@@ -50,6 +50,28 @@ test('減少動態或分頁隱藏時立刻跳到目標', () => {
   assert.deepEqual(pausedSeen, [1]);
 });
 
+test('已到目標混光後 step 不再通知訂閱者', () => {
+  let hidden = false;
+  const dayNight = createDayNight({ reduced: false, hidden: () => hidden });
+  const seen = [];
+  dayNight.onMix((mix) => seen.push(mix));
+  hidden = true;
+  dayNight.setTarget(1);
+  seen.length = 0;
+  for (let i = 0; i < 8; i++) dayNight.step(0.016);
+  assert.equal(seen.length, 0);
+
+  const anim = createDayNight({ reduced: false });
+  const animSeen = [];
+  anim.onMix((mix) => animSeen.push(mix));
+  anim.setTarget(1);
+  for (let i = 0; i < 240; i++) anim.step(0.016);
+  assert.ok(Math.abs(anim.mix - 1) < 1e-4);
+  const count = animSeen.length;
+  anim.step(0.016);
+  assert.equal(animSeen.length, count);
+});
+
 test('取消訂閱後不再收到混合值，其他訂閱者仍會收到', () => {
   const dayNight = createDayNight({ reduced: false });
   const seen = [];

@@ -280,8 +280,8 @@ export function buildIslandBuildings(ctx) {
     anchor.position.set(0.15, roofY + 1.15, -0.05);
     shop.add(anchor);
     anchors.shop = anchor;
-    lampLight(0, base + 1.35, front + 0.55, 16);
-    lampLight(0.2, base + 1.25, -0.2, 9);
+    lampLight(0, base + 1.35, front + 0.55, 16, null, { realLight: true });
+    lampLight(0.2, base + 1.25, -0.2, 9, null, { realLight: true });
     buildingGroups.shop = shop;
     loadBuildingGLB('shop', shop, 0, -0.55, 0);
   }

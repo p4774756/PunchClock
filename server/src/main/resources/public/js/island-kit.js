@@ -42,6 +42,35 @@ export function nightHex(hex) {
   return null;
 }
 
+/** 場景內真實 PointLight 上限（其餘用地面光暈貼片）。 */
+export const MAX_LAMP_POINT_LIGHTS = 4;
+
+/** 夜間地面光暈不透明度（mix 0 時必為 0）。 */
+export function lampHaloOpacity(power, mix) {
+  const m = Math.max(0, Math.min(1, Number(mix) || 0));
+  if (m < 1e-6) return 0;
+  const p = Math.max(0, Number(power) || 0);
+  return m * Math.min(0.92, 0.06 + p * 0.038);
+}
+
+/** 點光源強度；pointLightsEnabled 僅供單元測試與例外情境，畫質降階不應關閉點光。 */
+export function lampPointIntensity(power, mix, pointLightsEnabled) {
+  if (!pointLightsEnabled) return 0;
+  const m = Math.max(0, Math.min(1, Number(mix) || 0));
+  return Math.max(0, Number(power) || 0) * m;
+}
+
+export function applyLampMixState(item, mix, pointLightsEnabled) {
+  if (!item) return;
+  const haloOpacity = lampHaloOpacity(item.power, mix);
+  if (item.halo && item.halo.material) item.halo.material.opacity = haloOpacity;
+  if (item.light) {
+    item.light.intensity = item.realLight
+      ? lampPointIntensity(item.power, mix, pointLightsEnabled)
+      : 0;
+  }
+}
+
 export function createSceneKit(THREE, opts) {
   const scene = opts && opts.scene;
   const bobs = (opts && opts.bobs) || [];
@@ -49,6 +78,8 @@ export function createSceneKit(THREE, opts) {
   const geos = new Map();
   const materials = [];
   const lamps = [];
+  let pointLightCount = 0;
+  let haloTexture = null;
 
   function nightOf(hex) {
     const mapped = nightHex(hex);
@@ -170,13 +201,66 @@ export function createSceneKit(THREE, opts) {
     return group;
   }
 
-  function lampLight(x, y, z, power, parent) {
-    const light = new THREE.PointLight(0xffb066, 0, 8.5, 2);
-    light.position.set(x, y, z);
-    (parent || scene).add(light);
-    const item = { light: light, power: power };
+  function lampHaloTexture() {
+    if (haloTexture) return haloTexture;
+    const size = 128;
+    const board = document.createElement('canvas');
+    board.width = size;
+    board.height = size;
+    const ctx = board.getContext('2d');
+    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, 'rgba(255,176,102,0.95)');
+    g.addColorStop(0.38, 'rgba(255,176,102,0.42)');
+    g.addColorStop(1, 'rgba(255,176,102,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    haloTexture = new THREE.CanvasTexture(board);
+    haloTexture.colorSpace = THREE.SRGBColorSpace;
+    return haloTexture;
+  }
+
+  function lampLight(x, y, z, power, parent, opts) {
+    opts = opts || {};
+    const holder = parent || scene;
+    const p = Math.max(0, Number(power) || 0);
+    const radius = 0.55 + p * 0.065;
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: 0xffb066,
+      map: lampHaloTexture(),
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    const halo = new THREE.Mesh(new THREE.CircleGeometry(radius, 20), haloMat);
+    halo.rotation.x = -Math.PI / 2;
+    halo.position.set(x, G + 0.018, z);
+    halo.castShadow = false;
+    halo.receiveShadow = false;
+    halo.renderOrder = 2;
+    holder.add(halo);
+
+    let wantReal = !!opts.realLight && pointLightCount < MAX_LAMP_POINT_LIGHTS;
+    let light = null;
+    if (wantReal) {
+      light = new THREE.PointLight(0xffb066, 0, 8.5, 2);
+      light.position.set(x, y, z);
+      holder.add(light);
+      pointLightCount += 1;
+    }
+
+    const item = {
+      power: p,
+      halo: halo,
+      light: light,
+      realLight: wantReal
+    };
     lamps.push(item);
     return item;
+  }
+
+  function applyLampMix(item, mix) {
+    applyLampMixState(item, mix, true);
   }
 
   function addMaterial(material) {
@@ -214,6 +298,7 @@ export function createSceneKit(THREE, opts) {
     picture: picture,
     addCup: addCup,
     lampLight: lampLight,
+    applyLampMix: applyLampMix,
     addMaterial: addMaterial,
     removeMaterial: removeMaterial,
     addLamp: addLamp,

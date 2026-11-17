@@ -76,6 +76,11 @@ import {
   createExploreKeys,
   createExploreJoystick
 } from './island-explore-input.js';
+import {
+  createQualityAdvisor,
+  DEFAULT_MAX_PIXEL_RATIO,
+  DEFAULT_SHADOW_MAP
+} from './island-quality.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 
@@ -128,7 +133,8 @@ function boot() {
   renderer.toneMappingExposure = 1.02;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const maxDevicePixelRatio = Math.min(window.devicePixelRatio || 1, DEFAULT_MAX_PIXEL_RATIO);
+  renderer.setPixelRatio(maxDevicePixelRatio);
 
   const scene = new THREE.Scene();
   const skyDay = new THREE.Color(0xd8f7f8);
@@ -144,7 +150,7 @@ function boot() {
   const sun = new THREE.DirectionalLight(0xfff3d6, 1.42);
   sun.position.set(-9.5, 20.5, 11);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(DEFAULT_SHADOW_MAP, DEFAULT_SHADOW_MAP);
   sun.shadow.camera.left = -36;
   sun.shadow.camera.right = 36;
   sun.shadow.camera.top = 36;
@@ -158,9 +164,9 @@ function boot() {
   scene.add(sun.target);
 
   const hemiDay = new THREE.Color(0xfff8ef);
-  const hemiNight = new THREE.Color(0x8eabd4);
+  const hemiNight = new THREE.Color(0xb89a78);
   const groundDay = new THREE.Color(0xe7d8bc);
-  const groundNight = new THREE.Color(0x243044);
+  const groundNight = new THREE.Color(0x2e2a38);
   const sunDay = new THREE.Color(0xfff3d6);
   const sunNight = new THREE.Color(0xc5d4f2);
 
@@ -195,10 +201,42 @@ function boot() {
     sun.color.copy(sunDay).lerp(sunNight, t);
     sun.intensity = 1.42 + (0.5 - 1.42) * t;
     renderer.toneMappingExposure = 1.02 + (0.94 - 1.02) * t;
-    kit.forEachLamp((item) => {
-      item.light.intensity = item.power * t;
-    });
   });
+
+  const quality = createQualityAdvisor({
+    getDevicePixelRatio: () => window.devicePixelRatio || 1
+  });
+
+  dayNight.onMix((t) => {
+    kit.forEachLamp((item) => kit.applyLampMix(item, t));
+  });
+
+  function applyQualitySettings(settings) {
+    if (!settings) return;
+    renderer.setPixelRatio(settings.pixelRatio);
+    renderer.shadowMap.enabled = !!settings.shadowEnabled;
+    const nextSize = settings.shadowMapSize || DEFAULT_SHADOW_MAP;
+    if (sun.shadow.mapSize.x !== nextSize) {
+      sun.shadow.mapSize.set(nextSize, nextSize);
+      if (sun.shadow.map) {
+        sun.shadow.map.dispose();
+        sun.shadow.map = null;
+      }
+    }
+  }
+
+  applyQualitySettings(quality.settings());
+
+  const perfEnabled = new URLSearchParams(window.location.search).get('perf') === '1';
+  let perfEl = null;
+  if (perfEnabled) {
+    perfEl = document.createElement('div');
+    perfEl.setAttribute('aria-hidden', 'true');
+    perfEl.style.cssText =
+      'position:absolute;left:8px;top:8px;z-index:25;padding:6px 8px;font:12px/1.35 sans-serif;'
+      + 'color:#fff;background:rgba(12,24,42,0.72);border-radius:6px;pointer-events:none;';
+    stage.appendChild(perfEl);
+  }
 
   const worldResult = buildIslandWorld({ scene: scene, kit: kit });
   const sea = createIslandSea(THREE, { kit: kit, reduced: reduced });
@@ -344,7 +382,7 @@ function boot() {
   playerMesh.rotation.y = player.yaw;
   playerMesh.visible = false;
 
-  const milu = createMiluView(THREE);
+  const milu = createMiluView(THREE, { deferLoad: true });
   scene.add(milu.object);
   milu.object.visible = false;
   let miluState = createMiluState();
@@ -615,8 +653,13 @@ function boot() {
     return { x: 0, z: 0 };
   }
 
-  function placeLabels() {
+  let lastLabelAt = 0;
+
+  function placeLabels(force) {
     if (!peerLayer) return;
+    const now = performance.now();
+    if (!force && now - lastLabelAt < 100) return;
+    lastLabelAt = now;
     placeBuildingLabels({
       inside: rooms.inside(),
       interiorBusy: interiorBusy,
@@ -627,6 +670,7 @@ function boot() {
       projected: projected,
       stage: stage,
       document: document,
+      now: now,
       placePeerLabels: () => peerLayer.placePeerLabels()
     });
   }
@@ -724,6 +768,12 @@ function boot() {
 
   function frame() {
     const dt = Math.min(0.1, clock.getDelta() || 0);
+    const sample = quality.observeFrame(dt * 1000);
+    if (sample.changed) applyQualitySettings(sample.settings);
+    if (perfEl) {
+      perfEl.textContent =
+        '幀率約 ' + Math.round(sample.fps) + ' · 畫質：' + sample.label;
+    }
     updatePlayer(dt);
     if (peerLayer) peerLayer.syncPresence(performance.now());
     cam.step(dt);
@@ -960,7 +1010,8 @@ function boot() {
     scene.add(view.group);
     view.materials.forEach((material) => kit.addMaterial(material));
     if (view.lamp) {
-      view.lamp.light.intensity = view.lamp.power * dayNight.mix;
+      view.lamp.realLight = true;
+      kit.applyLampMix(view.lamp, dayNight.mix);
       kit.addLamp(view.lamp);
     }
     lifecycle.emit('enterRoom', {});
@@ -1172,6 +1223,7 @@ function boot() {
   });
 
   lifecycle.on('enterExplore', () => {
+    if (typeof milu.beginLoad === 'function') milu.beginLoad();
     if (islandPresence) islandPresence.connect();
   });
   lifecycle.on('exitExplore', () => {

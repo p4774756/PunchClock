@@ -460,14 +460,20 @@ export function createMiluView(THREE, options) {
     if (pending <= 0 && !failed) loaded = true;
   }
 
-  if (!shared) {
+  const deferLoad = !!(options && options.deferLoad) && !shared;
+
+  function startTextureLoads() {
+    if (shared || disposed || pending > 0 || loaded) return;
     const loader = new THREE.TextureLoader();
     const groups = collectPaths(anim);
     const paths = groups.required.concat(groups.optional);
     const optional = Object.create(null);
     for (let i = 0; i < groups.optional.length; i++) optional[groups.optional[i]] = true;
     pending = paths.length;
-    if (!pending) loaded = true;
+    if (!pending) {
+      loaded = true;
+      return;
+    }
     paths.forEach((rel) => {
       loader.load(baseUrl + rel, (tex) => {
         if (disposed) {
@@ -488,6 +494,8 @@ export function createMiluView(THREE, options) {
       });
     });
   }
+
+  if (!shared && !deferLoad) startTextureLoads();
 
   function show(path) {
     if (disposed || !path || failed) return;
@@ -527,6 +535,7 @@ export function createMiluView(THREE, options) {
     show: show,
     faceCamera: faceCamera,
     anim: () => anim,
+    beginLoad: startTextureLoads,
     ready: () => (shared ? !!material.map : loaded) && !failed && !!material.map,
     failed: () => failed,
     sharedTextures: () => textures,

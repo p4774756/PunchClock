@@ -91,6 +91,7 @@ public class PublicIslandAuthTest {
         assertTrue(island.body().contains("from './island-layout.js'"));
         assertTrue(island.body().contains("from './island-casino.js'"));
         assertTrue(island.body().contains("from './island-milu.js'"));
+        assertTrue(island.body().contains("from './island-quality.js'"));
         assertTrue(island.body().contains("from './island-graffiti.js'"));
         assertTrue(island.body().contains("from './island-roadmap.js'"));
 
@@ -149,6 +150,29 @@ public class PublicIslandAuthTest {
         assertEquals((byte) 0x50, png[1]);
         assertEquals((byte) 0x4E, png[2]);
         assertEquals((byte) 0x47, png[3]);
+    }
+
+    @Test
+    public void islandStaticAssetsGetDayCache() throws Exception {
+        HttpResponse<String> js = send("GET", "/js/island-quality.js", null);
+        assertEquals(200, js.statusCode());
+        assertTrue(js.headers().firstValue("cache-control").orElse("").contains("no-cache"));
+
+        HttpResponse<String> css = send("GET", "/css/roadmap.css", null);
+        assertEquals(200, css.statusCode());
+        assertTrue(css.headers().firstValue("cache-control").orElse("").contains("no-cache"));
+
+        HttpResponse<String> pet = send("GET", "/pet/milu/walk/left_01.png", null);
+        assertEquals(200, pet.statusCode());
+        assertTrue(pet.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
+    }
+
+    @Test
+    public void dashboardHtmlStaysShortCache() throws Exception {
+        HttpResponse<String> home = send("GET", "/", null);
+        assertEquals(200, home.statusCode());
+        String cache = home.headers().firstValue("cache-control").orElse("");
+        assertTrue(cache.contains("no-cache") || cache.contains("must-revalidate"));
     }
 
     @Test
