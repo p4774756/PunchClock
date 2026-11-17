@@ -524,9 +524,9 @@ public final class DesktopPetSpriteLoader {
                     loadOptional(THINK),
                     loadOptional(BUSY),
                     loadOptional(WORRY),
-                    loadOptional(FEED),
-                    loadOptional(PAT),
-                    loadOptional(PLAY));
+                    loadOptional(FEED, true),
+                    loadOptional(PAT, true),
+                    loadOptional(PLAY, true));
         } catch (IOException ex) {
             return null;
         }
@@ -555,11 +555,15 @@ public final class DesktopPetSpriteLoader {
     }
 
     private static Sprite[] loadOptional(String[] paths) {
+        return loadOptional(paths, false);
+    }
+
+    private static Sprite[] loadOptional(String[] paths, boolean careClip) {
         List<Sprite> accepted = new ArrayList<Sprite>();
         for (String path : paths) {
             try {
                 BufferedImage image = read(path);
-                if (usable(image)) {
+                if (usable(image, careClip)) {
                     accepted.add(place(path, defringe(image)));
                 }
             } catch (IOException ex) {
@@ -651,6 +655,14 @@ public final class DesktopPetSpriteLoader {
      * 頭上的小塊效果（例如 Z）留著。
      */
     static boolean usable(BufferedImage image) {
+        return usable(image, false);
+    }
+
+    /**
+     * @param careClip 養成動作（feed／pat／play）可帶分離道具（例如毛線球），略過殘塊面積檢查；
+     *                 邊緣碰邊、標籤底、細長分離線仍擋。
+     */
+    static boolean usable(BufferedImage image, boolean careClip) {
         if (!acceptable(image)) {
             return false;
         }
@@ -683,7 +695,7 @@ public final class DesktopPetSpriteLoader {
             if (aboveHead) {
                 continue;
             }
-            if (blob[0] >= 80) {
+            if (blob[0] >= 80 && !careClip) {
                 return false;
             }
         }

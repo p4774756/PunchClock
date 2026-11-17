@@ -378,10 +378,16 @@ public class DesktopPetTest {
         assertEquals(4, frames.thinkCount());
         assertEquals(4, frames.busyCount());
         assertEquals(4, frames.worryCount());
-        assertTrue("feed sprites", frames.feedCount() >= 1);
-        assertTrue("pat sprites", frames.patCount() >= 1);
-        assertTrue("play sprites", frames.playCount() >= 1);
+        assertEquals(4, frames.feedCount());
+        assertEquals(4, frames.patCount());
+        assertEquals(4, frames.playCount());
         assertEquals(0, frames.dragCount());
+        assertTrue(DesktopPetSpriteLoader.usable(
+                DesktopPetSpriteLoader.read("/pet/milu/play/02.png"), true));
+        assertTrue(DesktopPetSpriteLoader.usable(
+                DesktopPetSpriteLoader.read("/pet/milu/play/03.png"), true));
+        assertFalse(DesktopPetSpriteLoader.usable(
+                DesktopPetSpriteLoader.read("/pet/milu/play/02.png"), false));
         assertNotSame(frames.walkLeft(0), frames.walkRight(0));
 
         DesktopPetAnimation walker = new DesktopPetAnimation(new Random(1));
@@ -571,6 +577,7 @@ public class DesktopPetTest {
                 main.setLocation(40, 40);
                 main.setVisible(true);
 
+                manager.setCareEnabled(false);
                 assertTrue(manager.setEnabled(true));
                 DesktopPetWindow pet = manager.window();
                 assertNotNull(pet);
@@ -796,6 +803,7 @@ public class DesktopPetTest {
             DesktopPetSettings settings = new DesktopPetSettings(prefs);
             DesktopPetManager manager = new DesktopPetManager(settings);
             try {
+                manager.setCareEnabled(false);
                 assertTrue(manager.setEnabled(true));
                 DesktopPetWindow pet = manager.window();
                 pet.useFrames(frames);
@@ -1140,6 +1148,7 @@ public class DesktopPetTest {
             DesktopPetSettings settings = new DesktopPetSettings(prefs);
             DesktopPetManager manager = new DesktopPetManager(settings);
             try {
+                manager.setCareEnabled(false);
                 assertTrue(manager.setEnabled(true));
                 DesktopPetWindow pet = manager.window();
                 pet.useFrames(frames);

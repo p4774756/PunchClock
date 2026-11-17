@@ -605,8 +605,8 @@ public final class DesktopPetWindow extends JFrame {
         care.tick();
         syncCareUi();
         Font font = UiFonts.chinesePlain(13);
-        JPopupMenu.setDefaultLightWeightPopupEnabled(false);
         JPopupMenu menu = new JPopupMenu();
+        menu.setLightWeightPopupEnabled(false);
         menu.setBackground(CandyTheme.NIGHT);
         addCareItem(menu, "餵食", DesktopPetCare.Action.FEED, DesktopPetAnimation.Mode.FEED, font);
         addCareItem(menu, "摸頭", DesktopPetCare.Action.PAT, DesktopPetAnimation.Mode.PAT, font);

@@ -44,6 +44,46 @@ public class DesktopPetCareTest {
     }
 
     @Test
+    public void manySmallTicksMatchOneHourTick() {
+        AtomicLong now = new AtomicLong(0L);
+        DesktopPetCare stepwise = new DesktopPetCare(now::get);
+        long step = 50L;
+        long hour = 3_600_000L;
+        for (long t = step; t <= hour; t += step) {
+            now.set(t);
+            stepwise.tick(t);
+        }
+        assertEquals(65, stepwise.snapshot().hunger);
+        assertEquals(67, stepwise.snapshot().mood);
+        assertEquals(66, stepwise.snapshot().energy);
+
+        now.set(0L);
+        DesktopPetCare once = new DesktopPetCare(now::get);
+        now.set(hour);
+        once.tick(hour);
+        assertEquals(stepwise.snapshot().hunger, once.snapshot().hunger);
+        assertEquals(stepwise.snapshot().mood, once.snapshot().mood);
+        assertEquals(stepwise.snapshot().energy, once.snapshot().energy);
+    }
+
+    @Test
+    public void clockRollbackDoesNotChangeValuesOrSavedAt() {
+        AtomicLong now = new AtomicLong(0L);
+        DesktopPetCare care = new DesktopPetCare(now::get);
+        now.set(3_600_000L);
+        DesktopPetCare.Snapshot after = care.tick(now.get());
+        assertEquals(65, after.hunger);
+        assertEquals(3_600_000L, after.savedAt);
+
+        now.set(1_000_000L);
+        DesktopPetCare.Snapshot rolled = care.tick(now.get());
+        assertEquals(65, rolled.hunger);
+        assertEquals(67, rolled.mood);
+        assertEquals(66, rolled.energy);
+        assertEquals(3_600_000L, rolled.savedAt);
+    }
+
+    @Test
     public void decayStopsAtFloor() {
         AtomicLong now = new AtomicLong(0L);
         DesktopPetCare care = new DesktopPetCare(now::get);

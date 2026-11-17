@@ -87,6 +87,10 @@ public final class DesktopPetCare {
     private long lastCursorAt;
     private boolean enabled = true;
     private boolean frozen;
+    /** 各項尚未湊成 1 點的毫秒，避免 50ms tick 把零頭丟掉。 */
+    private long hungerCarryMs;
+    private long moodCarryMs;
+    private long energyCarryMs;
 
     public DesktopPetCare() {
         this(System::currentTimeMillis);
@@ -119,6 +123,7 @@ public final class DesktopPetCare {
         lastCursorAt = Math.max(0L, snap.lastCursorAt);
         enabled = snap.enabled;
         frozen = snap.frozen;
+        clearCarry();
         if (savedAt <= 0L) {
             savedAt = Math.max(0L, clock.getAsLong());
         }
@@ -136,6 +141,7 @@ public final class DesktopPetCare {
         lastCursorAt = 0L;
         enabled = true;
         frozen = false;
+        clearCarry();
     }
 
     public boolean isEnabled() {
@@ -149,7 +155,7 @@ public final class DesktopPetCare {
             if (!enabled) {
                 enabled = true;
                 frozen = false;
-                savedAt = t;
+                rebase(t);
             }
             return;
         }
@@ -158,14 +164,18 @@ public final class DesktopPetCare {
         }
         enabled = false;
         frozen = true;
-        savedAt = t;
+        rebase(t);
     }
 
     public Snapshot tick() {
         return tick(clock.getAsLong());
     }
 
-    /** 依真實時間衰減。凍結或關閉時不扣。 */
+    /**
+     * 依真實時間衰減。凍結或關閉時不扣。
+     * 各項保留未湊滿 1 點的毫秒餘數，小間隔（例如動畫 50ms）反覆 tick 也會累積。
+     * 時鐘回撥（{@code now <= savedAt}）不改數值、也不把 {@code savedAt} 往回寫。
+     */
     public Snapshot tick(long now) {
         long t = now > 0 ? now : clock.getAsLong();
         if (!enabled || frozen) {
@@ -175,10 +185,15 @@ public final class DesktopPetCare {
             return snapshot();
         }
         long elapsed = t - savedAt;
-        // 用整數毫秒比例，避免不到一小時時 Math.floor(負小數) 變成 −1。
-        hunger = clamp(hunger + (int) (elapsed * (long) HUNGER_PER_HOUR / 3_600_000L));
-        mood = clamp(mood + (int) (elapsed * (long) MOOD_PER_HOUR / 3_600_000L));
-        energy = clamp(energy + (int) (elapsed * (long) ENERGY_PER_HOUR / 3_600_000L));
+        hungerCarryMs += elapsed;
+        moodCarryMs += elapsed;
+        energyCarryMs += elapsed;
+        hunger = consume(hunger, HUNGER_PER_HOUR, hungerCarryMs);
+        hungerCarryMs = leftover(hungerCarryMs, HUNGER_PER_HOUR);
+        mood = consume(mood, MOOD_PER_HOUR, moodCarryMs);
+        moodCarryMs = leftover(moodCarryMs, MOOD_PER_HOUR);
+        energy = consume(energy, ENERGY_PER_HOUR, energyCarryMs);
+        energyCarryMs = leftover(energyCarryMs, ENERGY_PER_HOUR);
         savedAt = t;
         return snapshot();
     }
@@ -202,20 +217,20 @@ public final class DesktopPetCare {
                 hunger = clamp(hunger + 25);
                 mood = clamp(mood + 5);
                 lastFeedAt = t;
-                savedAt = t;
+                rebase(t);
                 return new Result(true, "好好吃～", 0L, snapshot());
             case PAT:
                 mood = clamp(mood + 15);
                 energy = clamp(energy + 5);
                 lastPatAt = t;
-                savedAt = t;
+                rebase(t);
                 return new Result(true, "好舒服～", 0L, snapshot());
             case PLAY:
                 mood = clamp(mood + 15);
                 energy = clamp(energy + 20);
                 hunger = clamp(hunger - 5);
                 lastPlayAt = t;
-                savedAt = t;
+                rebase(t);
                 return new Result(true, "玩一玩！", 0L, snapshot());
             default:
                 return new Result(false, null, 0L, snapshot());
@@ -238,7 +253,7 @@ public final class DesktopPetCare {
         }
         mood = clamp(mood + 10);
         lastTaskAt = t;
-        savedAt = t;
+        rebase(t);
         return new Result(true, null, 0L, snapshot());
     }
 
@@ -258,7 +273,7 @@ public final class DesktopPetCare {
         }
         mood = clamp(mood + 8);
         lastCursorAt = t;
-        savedAt = t;
+        rebase(t);
         return new Result(true, null, 0L, snapshot());
     }
 
@@ -291,6 +306,43 @@ public final class DesktopPetCare {
             return MAX;
         }
         return value;
+    }
+
+    /** 加分或凍結後，以目前數值為新基準，清掉各項毫秒餘數。 */
+    private void rebase(long t) {
+        savedAt = t;
+        clearCarry();
+    }
+
+    private void clearCarry() {
+        hungerCarryMs = 0L;
+        moodCarryMs = 0L;
+        energyCarryMs = 0L;
+    }
+
+    private static int consume(int value, int ratePerHour, long carryMs) {
+        if (ratePerHour == 0) {
+            return value;
+        }
+        long msPerPoint = msPerPoint(ratePerHour);
+        int points = (int) (carryMs / msPerPoint);
+        if (points == 0) {
+            return value;
+        }
+        int signed = ratePerHour < 0 ? -points : points;
+        return clamp(value + signed);
+    }
+
+    private static long leftover(long carryMs, int ratePerHour) {
+        if (ratePerHour == 0) {
+            return carryMs;
+        }
+        long msPerPoint = msPerPoint(ratePerHour);
+        return carryMs % msPerPoint;
+    }
+
+    private static long msPerPoint(int ratePerHour) {
+        return 3_600_000L / Math.abs(ratePerHour);
     }
 
     private static long remaining(long lastAt, long cooldownMs, long now) {
