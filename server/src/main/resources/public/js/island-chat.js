@@ -71,7 +71,7 @@ export function selfBubbleTransform(x, y) {
 }
 
 /**
- * 角落紀錄、輸入框、頭上泡泡、手機 FAB。
+ * 角落紀錄、輸入框、頭上泡泡。
  * presence.sendSay／onSaid／onSlow 由呼叫端接上。
  */
 export function createIslandChat(options) {
@@ -86,7 +86,6 @@ export function createIslandChat(options) {
 
   const panel = doc ? doc.getElementById('islandChatPanel') : null;
   const btn = doc ? doc.getElementById('islandChatBtn') : null;
-  const fab = doc ? doc.getElementById('islandChatFab') : null;
   const logEl = doc ? doc.getElementById('islandChatLog') : null;
   const input = doc ? doc.getElementById('islandChatInput') : null;
   const sendBtn = doc ? doc.getElementById('islandChatSend') : null;
@@ -304,15 +303,12 @@ export function createIslandChat(options) {
     if (!open) return;
     const target = event && event.target;
     if (!target || !target.closest) return;
-    if (target.closest('#islandChatPanel, #islandChatBtn, #islandChatFab')) return;
+    if (target.closest('#islandChatPanel, #islandChatBtn')) return;
     setOpen(false);
   }
 
   if (btn) {
     btn.addEventListener('click', () => setOpen(!open));
-  }
-  if (fab) {
-    fab.addEventListener('click', () => setOpen(true));
   }
   if (sendBtn) {
     sendBtn.addEventListener('click', () => submit());
@@ -331,7 +327,6 @@ export function createIslandChat(options) {
   }
 
   function setExploring(exploring) {
-    if (fab) fab.hidden = !exploring;
     if (!exploring) setOpen(false);
   }
 
