@@ -171,10 +171,16 @@ export function createSceneKit(THREE, opts) {
   }
 
   function lampLight(x, y, z, power, parent) {
-    const light = new THREE.PointLight(0xffb066, 0, 8.5, 2);
-    light.position.set(x, y, z);
-    (parent || scene).add(light);
-    const item = { light: light, power: power };
+    const holder = parent || scene;
+    const bulb = addMesh(holder, geo('sph', [0.09, 6, 5]), 0xfff6d4, x, y, z, {
+      night: 0xffe2b0,
+      glow: 0xffb066,
+      glowAmount: Math.min(1.25, 0.05 + power * 0.06),
+      shadow: false,
+      receive: false
+    });
+    bulb.scale.setScalar(0.001);
+    const item = { mesh: bulb, power: power, light: null };
     lamps.push(item);
     return item;
   }

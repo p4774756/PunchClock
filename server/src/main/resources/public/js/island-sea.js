@@ -95,7 +95,7 @@ export function createIslandSea(THREE, opts) {
 
   const seaMesh = new THREE.Mesh(planeGeo, seaMat);
   seaMesh.position.y = SEA_Y;
-  seaMesh.receiveShadow = true;
+  seaMesh.receiveShadow = false;
   group.add(seaMesh);
 
   if (kit) kit.addMaterial(seaMat);

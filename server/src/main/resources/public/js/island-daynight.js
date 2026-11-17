@@ -20,9 +20,14 @@ export function createDayNight(opts) {
   }
 
   function step() {
-    if (reduced) mix = target;
-    else mix += (target - mix) * 0.06;
-    emit();
+    const prev = mix;
+    if (reduced) {
+      mix = target;
+    } else {
+      mix += (target - mix) * 0.06;
+      if (Math.abs(mix - target) < 1e-6) mix = target;
+    }
+    if (Math.abs(mix - prev) > 1e-9) emit();
   }
 
   function onMix(fn) {
