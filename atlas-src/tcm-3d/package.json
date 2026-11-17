@@ -11,6 +11,7 @@
     "build:vercel": "vite build",
     "build:punchclock": "vite build --base=/atlas/tcm-3d/",
     "check": "tsc --noEmit",
+    "recompress:anime": "node scripts/recompress-anime-glb.mjs --in-place",
     "build:tcm": "vite build --base=/3d/ --outDir ../dist-tcm"
   },
   "dependencies": {
@@ -29,6 +30,7 @@
     "@vitejs/plugin-react": "6.0.2",
     "esbuild": "^0.28.0",
     "meshoptimizer": "^1.2.0",
+    "sharp": "^0.34.5",
     "typescript": "5.9.3",
     "vite": "8.0.13"
   },

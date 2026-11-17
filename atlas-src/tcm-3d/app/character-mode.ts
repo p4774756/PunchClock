@@ -12,7 +12,9 @@ export interface AnimePoint{
  set:string;
 }
 
-export const ANIME_MODEL_URL='/models/anime-assistant.glb';
+import {ANIME_MODEL_DIGEST} from './anime-model-digest';
+
+export const ANIME_MODEL_URL=`/models/anime-assistant.glb?v=${ANIME_MODEL_DIGEST}`;
 export const ANIME_POINTS=(animePoints.points as AnimePoint[]);
 export const ANIME_POINT_BY_CODE=new Map(ANIME_POINTS.map(p=>[p.code,p]));
 export const ANIME_SUPPORTED_CODES=new Set(ANIME_POINTS.map(p=>p.code));
