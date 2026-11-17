@@ -46,6 +46,33 @@ test('開發進度篩選與失敗文案', () => {
   assert.ok(!R.DEV_STATUS_FILTERS.join('').includes('Cursor'));
 });
 
+test('研發樓螢幕開發進度文案', () => {
+  const sample = {
+    success: true,
+    stale: false,
+    now: {
+      current: { pair: 'i101', title: '研發樓室內', status: '實作中' },
+      next: { pair: 'i102', title: '下一張', status: '排隊' },
+      queue: [
+        { order: 1, pair: 'i10', title: 'A', status: '排隊' },
+        { order: 2, pair: 'i11', title: 'B', status: '排隊' }
+      ]
+    },
+    stats: { mergedThisWeek: 3, openIssues: 12 }
+  };
+  const lines = R.formatLabDevScreenLines(sample, { maxQueue: 3 });
+  assert.ok(lines.join('\n').includes('現在在做：i101 研發樓室內'));
+  assert.ok(lines.join('\n').includes('下一張：i102 下一張'));
+  assert.ok(lines.join('\n').includes('i10 A'));
+  assert.ok(lines.join('\n').includes('本週合併 3'));
+  assert.ok(lines.join('\n').includes('施工告示牌'));
+
+  const fail = R.formatLabDevScreenLines({ success: false, message: '開發進度暫時讀不到' });
+  assert.ok(fail.join('\n').includes('開發進度暫時讀不到'));
+  const empty = R.formatLabDevScreenLines({ success: true, now: { current: null, next: null, queue: [] } });
+  assert.ok(empty.join('\n').includes('開發進度暫時讀不到'));
+});
+
 test('台北時間格式含台北標籤', () => {
   const text = R.formatTaipeiTime(Date.UTC(2026, 10, 17, 6, 30, 0));
   assert.match(text, /2026\/11\/17/);

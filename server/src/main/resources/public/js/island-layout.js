@@ -329,7 +329,7 @@ const BUILDING_DEFS = [
   {
     id: 'computer-site', island: 'computer', x: 0.45, z: 17.85, w: 2.3, d: 1.8, yaw: Math.PI,
     label: '研發樓', panel: null, frontTrim: 0.2,
-    entry: { r: 0.82, reach: 0.78, label: '進入研發樓', action: 'enterComputer' }
+    entry: { r: 0.82, reach: 0.78, label: '進入研發樓', action: 'enterInterior' }
   }
 ];
 
@@ -364,7 +364,7 @@ export function buildingById(id) {
   return null;
 }
 
-// 研發樓室內尚未開放；不可當成進入賭場。推拿館改走經絡研習室（enterTcm）。
+// 封閉館（僅顯示尚未開放）。推拿館改走經絡研習室（enterTcm）；研發樓已可進室內。
 export function isClosedHall(action) {
   return action === 'enterComputer';
 }

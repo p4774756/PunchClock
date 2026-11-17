@@ -461,7 +461,8 @@ function boot() {
   let interiorBusy = false;
   let interiorGeneration = 0;
   const INTERIOR_MODULES = {
-    shop: () => import('./island-shop-interior.js')
+    shop: () => import('./island-shop-interior.js'),
+    'computer-site': () => import('./island-lab-interior.js')
   };
 
   function casinoOpen() {

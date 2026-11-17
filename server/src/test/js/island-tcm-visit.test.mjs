@@ -59,7 +59,8 @@ test('enterTcm 不會落到開賭場', () => {
   assert.equal(casinoOpened, false);
 });
 
-test('isClosedHall 僅研發樓', () => {
+test('isClosedHall 無封閉館（研發樓已開室內）', () => {
   assert.equal(L.isClosedHall('enterTcm'), false);
+  assert.equal(L.isClosedHall('enterInterior'), false);
   assert.equal(L.isClosedHall('enterComputer'), true);
 });
