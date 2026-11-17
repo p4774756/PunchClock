@@ -40,10 +40,36 @@ test('室內清單完整，手搖店西牆門口可站且不壓櫃台', () => {
   assert.ok(gap > shop.entry.r, '離開後的站點不在進門互動區裡');
 
   assert.equal(L.isClosedHall(L.buildingById('tcm-site').entry.action), false);
-  assert.equal(L.isClosedHall(L.buildingById('computer-site').entry.action), true);
-  assert.equal(I.interiorByBuilding('tcm-site'), null);
-  assert.equal(I.interiorByBuilding('computer-site'), null);
   assert.equal(L.buildingById('casino').entry.action, 'enterCasino');
+  assert.equal(I.interiorByBuilding('tcm-site'), null);
+});
+
+test('研發樓室內完整，門口外可站且不壓進門互動區', () => {
+  const room = I.interiorByBuilding('computer-site');
+  assert.ok(room);
+  assert.equal(room.id, 'lab-room');
+  assert.ok(room.spawn && room.exit && room.outside && room.floor && room.blocks.length);
+  assert.equal(I.interiorCanStand(room.spawn.x, room.spawn.z, room, RADIUS), true);
+  assert.equal(I.interiorCanStand(room.exit.x, room.exit.z, room, RADIUS), true);
+  assert.equal(I.interiorCanStand(room.blocks[0].minX + 0.05, room.blocks[0].minZ + 0.05, room, RADIUS), false);
+
+  const hall = L.buildingById('computer-site');
+  assert.equal(hall.entry.action, 'enterInterior');
+  assert.equal(hall.entry.label, '進入研發樓');
+  assert.equal(L.isClosedHall(hall.entry.action), false);
+  assert.equal(X.canStand(hall.door.x, hall.door.z, RADIUS), true);
+  assert.equal(X.canStand(room.outside.x, room.outside.z, RADIUS), true);
+
+  const gap = Math.hypot(room.outside.x - hall.door.x, room.outside.z - hall.door.z);
+  assert.ok(gap > hall.entry.r, '離開後的站點不在進門互動區裡');
+  assert.equal(L.blocked(room.outside.x, room.outside.z, RADIUS), false);
+
+  assert.ok(room.exit.x < -1.2, '出口在南牆門洞左側');
+  assert.ok(Math.hypot(room.exit.x - room.spawn.x, room.exit.z - room.spawn.z) > room.exit.r,
+    '出口離出生點有距離');
+  for (let bi = 0; bi < room.blocks.length; bi++) {
+    assert.equal(circleHitsRect(room.exit.x, room.exit.z, room.exit.r, room.blocks[bi]), false);
+  }
 });
 
 test('進出狀態機：室內可移動、面板暫停、不可重入、離開後清空', () => {
@@ -82,6 +108,18 @@ test('進出狀態機：室內可移動、面板暫停、不可重入、離開�
   const later = session.enter('shop', 1000 + I.ENTER_COOLDOWN_MS);
   assert.equal(later.ok, true);
   assert.equal(session.id(), 'shop-room');
+});
+
+test('研發樓進出狀態機與手搖店相同規則', () => {
+  const session = I.createInteriorSession();
+  const entered = session.enter('computer-site', 0);
+  assert.equal(entered.ok, true);
+  assert.equal(session.id(), 'lab-room');
+  assert.equal(session.buildingId(), 'computer-site');
+  const left = session.exit(800);
+  assert.equal(left.ok, true);
+  assert.equal(left.pose.x, I.interiorByBuilding('computer-site').outside.x);
+  assert.equal(session.inside(), false);
 });
 
 test('進入放到室內出生點，離開放到門前並面向離開建物', () => {
