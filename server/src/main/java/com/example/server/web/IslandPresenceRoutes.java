@@ -79,6 +79,10 @@ public final class IslandPresenceRoutes {
             send(id, result.welcomeJson);
         }
         deliver(result.leaveJson, result.leaveIds);
+        deliver(result.saidJson, result.saidIds);
+        if (result.slowJson != null) {
+            send(id, result.slowJson);
+        }
         if (result.close) {
             sockets.remove(id);
             ctx.closeSession(1008, "rate");

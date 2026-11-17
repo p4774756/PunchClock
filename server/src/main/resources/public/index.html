@@ -32,6 +32,17 @@
         <button type="button" class="island-tool" id="islandNickSave">儲存</button>
       </div>
     </div>
+    <div class="island-chat-wrap">
+      <button type="button" class="island-tool" id="islandChatBtn" aria-expanded="false" aria-controls="islandChatPanel">聊天</button>
+      <div class="island-chat" id="islandChatPanel" hidden>
+        <div class="island-chat-log" id="islandChatLog" aria-live="polite"></div>
+        <div class="island-chat-compose">
+          <input type="text" id="islandChatInput" maxlength="60" autocomplete="off" enterkeyhint="send" aria-label="聊天訊息" spellcheck="false">
+          <button type="button" class="island-tool" id="islandChatSend">送出</button>
+        </div>
+        <p class="island-chat-hint" id="islandChatHint" hidden>說太快了，等一下</p>
+      </div>
+    </div>
     <span class="island-tool island-peer-count" id="islandPeerCount" hidden aria-live="polite">島上 1 人</span>
     <span class="island-tool island-tool-user" data-auth-only>店長</span>
     <a class="island-tool" href="/logout" data-auth-only>登出</a>
@@ -57,6 +68,8 @@
       <div class="island-joystick-knob" id="islandJoystickKnob"></div>
     </div>
   </div>
+
+  <button type="button" class="island-chat-fab" id="islandChatFab" hidden>聊天</button>
 
   <div class="island-explore-hint" id="islandExploreHint" hidden>
     <span class="island-explore-hint-desk">WASD 或方向鍵移動 · 拖曳旋轉鏡頭</span>
@@ -178,6 +191,30 @@
       <div class="roadmap-list" data-roadmap-list></div>
       <p class="roadmap-note" data-roadmap-note></p>
       <a class="roadmap-source" data-roadmap-source href="https://github.com/p4774756/PunchClock/issues/36" target="_blank" rel="noopener noreferrer">資料來源：GitHub #36</a>
+
+      <section class="roadmap-dev" aria-label="開發進度">
+        <h3 class="roadmap-dev-heading">開發進度</h3>
+        <p class="roadmap-dev-note" data-dev-note></p>
+        <div class="roadmap-dev-focus">
+          <div class="roadmap-dev-card" data-dev-current></div>
+          <div class="roadmap-dev-card" data-dev-next></div>
+        </div>
+        <div class="roadmap-dev-mid">
+          <div class="roadmap-dev-queue-block">
+            <h4 class="roadmap-dev-sub">排隊</h4>
+            <div data-dev-queue></div>
+          </div>
+          <div class="roadmap-dev-stats-block">
+            <h4 class="roadmap-dev-sub">本週</h4>
+            <div data-dev-stats></div>
+          </div>
+        </div>
+        <h4 class="roadmap-dev-sub">進度表</h4>
+        <div class="roadmap-dev-filters" data-dev-filter role="group" aria-label="狀態篩選"></div>
+        <div class="roadmap-dev-table-wrap" data-dev-table></div>
+        <h4 class="roadmap-dev-sub">近 7 天</h4>
+        <div data-dev-timeline></div>
+      </section>
     </div>
   </section>
 
