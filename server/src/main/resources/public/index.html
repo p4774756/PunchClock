@@ -129,7 +129,7 @@
     <button type="button" data-island="computer">電腦島<small>機房與天線</small></button>
     <button type="button" data-island="beach">沙灘島<small>沙灘與躺椅</small></button>
     <p class="island-list-title island-list-title-next">娛樂</p>
-    <button type="button" data-open-casino>賭場大廳<small>訪客可進 · 籌碼尚未啟用</small></button>
+    <button type="button" data-open-casino>賭場大廳<small>訪客可進 · 練習籌碼僅本機</small></button>
     <button type="button" data-open-graffiti>塗鴉牆<small>訪客可畫 · 留下署名</small></button>
     <button type="button" data-open-roadmap>施工進度<small>群島做到第幾期</small></button>
     <p class="island-list-title island-list-title-next">學習</p>
@@ -142,7 +142,7 @@
         <div>
           <p class="casino-lobby-kicker">Island Casino</p>
           <h1 class="casino-lobby-title">莫卡賭場</h1>
-          <p class="casino-lobby-sub">大廳預覽 · 尚未開放下注</p>
+          <p class="casino-lobby-sub" data-casino-sub>練習大廳 · 虛擬籌碼僅本機</p>
         </div>
         <button type="button" class="btn btn-ghost" data-casino-back aria-label="返回島嶼">返回島嶼</button>
       </header>
@@ -151,13 +151,14 @@
           <span class="casino-status-label">玩家</span>
           <strong data-casino-player>訪客</strong>
         </div>
-        <div class="casino-status-card casino-status-chips" data-enabled="false">
-          <span class="casino-status-label">虛擬籌碼</span>
-          <strong data-casino-chips>虛擬籌碼 · 尚未啟用</strong>
-          <small>佔位顯示，不是真實餘額</small>
+        <div class="casino-status-card casino-status-chips" data-enabled="true">
+          <span class="casino-status-label">練習籌碼</span>
+          <strong data-casino-chips>練習籌碼 1000</strong>
+          <small data-casino-chips-note>練習籌碼，僅本機，不是真錢</small>
         </div>
       </div>
       <div class="casino-game-grid" data-casino-games aria-label="遊戲列表"></div>
+      <div class="casino-blackjack" data-casino-blackjack hidden aria-label="21 點牌桌"></div>
     </div>
   </section>
 

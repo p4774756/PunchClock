@@ -18,6 +18,7 @@ public class IslandExploreLogicTest {
     private static final String EXPLORE_SCRIPT = "src/test/js/island-explore.test.mjs";
     private static final String LAYOUT_SCRIPT = "src/test/js/island-layout.test.mjs";
     private static final String CASINO_SCRIPT = "src/test/js/island-casino.test.mjs";
+    private static final String BLACKJACK_SCRIPT = "src/test/js/island-blackjack.test.mjs";
     private static final String LOBBY_DOM_SCRIPT = "src/test/js/island-lobby-dom.test.mjs";
     private static final String MILU_SCRIPT = "src/test/js/island-milu.test.mjs";
     private static final String GRAFFITI_SCRIPT = "src/test/js/island-graffiti.test.mjs";
@@ -48,6 +49,11 @@ public class IslandExploreLogicTest {
     @Test
     public void casinoLogicPassesNodeTests() throws Exception {
         runNodeTest(CASINO_SCRIPT, "未安裝 Node.js，略過賭場大廳邏輯測試");
+    }
+
+    @Test
+    public void blackjackLogicPassesNodeTests() throws Exception {
+        runNodeTest(BLACKJACK_SCRIPT, "未安裝 Node.js，略過網頁 21 點邏輯測試");
     }
 
     @Test

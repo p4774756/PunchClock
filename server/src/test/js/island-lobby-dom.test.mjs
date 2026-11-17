@@ -111,7 +111,10 @@ function makeDocument() {
   el('button', { 'data-casino-back': '' }, lobby);
   el('strong', { 'data-casino-player': '' }, lobby);
   el('strong', { 'data-casino-chips': '' }, lobby);
+  el('small', { 'data-casino-chips-note': '' }, lobby);
+  el('p', { 'data-casino-sub': '' }, lobby);
   el('div', { 'data-casino-games': '' }, lobby);
+  el('div', { 'data-casino-blackjack': '', hidden: true }, lobby);
   el('button', { id: 'islandInteract', hidden: true });
   el('button', { id: 'islandListBtn', 'aria-expanded': 'false' });
   const list = el('aside', { id: 'islandList', hidden: true });
@@ -161,6 +164,10 @@ function setup() {
 
   // island.js 的 Escape 處理順序：大廳 → 管理面板 → 退出探索
   function pressEscape() {
+    if (casino.isTableOpen && casino.isTableOpen()) {
+      casino.closeTable();
+      return;
+    }
     if (casino.isOpen()) { casino.closeLobby(); return; }
     if (!sheet.hidden) switchDashTab('');
   }
@@ -286,6 +293,28 @@ test('全景進大廳：返回後仍是全景、不顯示角色', () => {
   assert.equal(X.playerVisible(t.flow.mode), false);
   assert.equal(t.flow.canMove(), false);
   assert.ok(!t.camera.includes('follow'), '不切到角色鏡頭');
+});
+
+test('21 點牌桌：可玩按鈕啟用；Escape 先關牌桌再關大廳', () => {
+  const t = setup();
+  t.enterExplore();
+  t.casino.openLobby();
+  const games = t.lobbyEl.querySelector('[data-casino-games]');
+  const card = games.children[0];
+  assert.equal(card.getAttribute('data-game'), 'blackjack');
+  const playBtn = card.children[card.children.length - 1];
+  assert.equal(playBtn.disabled, false);
+  assert.equal(playBtn.textContent, '開始遊玩');
+  playBtn.click();
+  assert.equal(t.casino.isTableOpen(), true);
+  const table = t.lobbyEl.querySelector('[data-casino-blackjack]');
+  assert.equal(table.hidden, false);
+
+  t.pressEscape();
+  assert.equal(t.casino.isTableOpen(), false);
+  assert.equal(t.casino.isOpen(), true);
+  t.pressEscape();
+  assert.equal(t.casino.isOpen(), false);
 });
 
 test('三種關閉方式都只觸發一次關閉流程；重複開啟不重複觸發', () => {

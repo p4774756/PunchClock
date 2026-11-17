@@ -75,7 +75,8 @@ public class PublicIslandAuthTest {
         assertTrue(response.body().contains("施工進度"));
         assertTrue(response.body().contains("塗鴉牆"));
         assertTrue(response.body().contains("返回島嶼"));
-        assertTrue(response.body().contains("尚未啟用"));
+        assertTrue(response.body().contains("練習籌碼"));
+        assertTrue(response.body().contains("不是真錢"));
         assertTrue(response.body().contains("is-guest"));
         assertTrue(response.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
         assertTrue(response.body().contains("登入後可操作"));
@@ -112,6 +113,11 @@ public class PublicIslandAuthTest {
         assertTrue(casino.body().contains("export function mountCasinoLobby"));
         assertTrue(casino.body().contains("export function createCasinoController"));
         assertTrue(casino.body().contains("export function chipWalletView"));
+        assertTrue(casino.body().contains("island-blackjack.js"));
+
+        HttpResponse<String> blackjack = send("GET", "/js/island-blackjack.js", null);
+        assertEquals(200, blackjack.statusCode());
+        assertTrue(blackjack.body().contains("export function handValue"));
 
         HttpResponse<String> css = send("GET", "/css/casino.css", null);
         assertEquals(200, css.statusCode());
