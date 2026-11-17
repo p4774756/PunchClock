@@ -166,7 +166,6 @@ const SKIN_FILL=new T.Color(232/255,198/255,178/255);
 const PRACTICE_TEAL_SRGB={r:13,g:74,b:79};
 /** VRoid Sendagaya Shino hair — lit / shade sRGB when GLB MToon is not sampled. */
 const HAIR_LIT=new T.Color(0x192338);
-const SHOULDER_ARTIFACT={r:56,g:40,b:48};
 
 const inTorsoSkinBand=(x:number,y:number,z:number)=>{
  if(y<.8||y>1.42||Math.abs(x)>.22)return false;
@@ -240,19 +239,14 @@ const writeUvTriangleCloth=(data:ImageData,width:number,height:number,flipY:bool
  }
 };
 
-const isShoulderArtifactPx=(r:number,g:number,b:number)=>{
- const dr=r-SHOULDER_ARTIFACT.r,dg=g-SHOULDER_ARTIFACT.g,db=b-SHOULDER_ARTIFACT.b;
- return dr*dr+dg*dg+db*db<1100&&r<105&&g<85&&b<90;
-};
-
 const looksLikeSkinPixel=(r:number,g:number,b:number,a:number)=>{
- if(a<200||isShoulderArtifactPx(r,g,b))return false;
+ if(a<200)return false;
  if(r<40&&g>55&&b>65)return false;
  return r>92&&g>72&&b>62&&r>=g-20;
 };
 
-const sampleNearbySkin=(data:ImageData,width:number,height:number,cx:number,cy:number)=>{
- for(let rad=1;rad<=28;rad++){
+const sampleNearbySkin=(data:ImageData,width:number,height:number,cx:number,cy:number,maxRad=96)=>{
+ for(let rad=1;rad<=maxRad;rad++){
   for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){
    if(Math.abs(dx)!==rad&&Math.abs(dy)!==rad)continue;
    const x=cx+dx,y=cy+dy;
@@ -265,12 +259,39 @@ const sampleNearbySkin=(data:ImageData,width:number,height:number,cx:number,cy:n
  return null;
 };
 
-/** Outer shoulder — atlas padding #382830; keep inTorsoSkinBand narrow (#87 clavicle guard). */
+/** Outer shoulder MASK cutouts — outside inTorsoSkinBand (clavicle guard unchanged). */
 const inOuterShoulderWorld=(x:number,y:number,z:number)=>{
- if(y<1.265||y>1.335)return false;
+ if(y<1.24||y>1.36)return false;
  const ax=Math.abs(x);
- if(ax<.19||ax>.36)return false;
- return Math.abs(z)<.22;
+ if(ax<=.06||ax>=.32)return false;
+ return true;
+};
+
+const paintShoulderAlphaHole=(data:ImageData,width:number,height:number,x:number,y:number)=>{
+ const i=(y*width+x)*4;
+ if(data.data[i+3]>=200)return true;
+ const sample=sampleNearbySkin(data,width,height,x,y);
+ if(sample){
+  data.data[i]=sample.r;data.data[i+1]=sample.g;data.data[i+2]=sample.b;data.data[i+3]=255;
+  return true;
+ }
+ return false;
+};
+
+const dilateShoulderHoleFromNeighbors=(data:ImageData,width:number,height:number,x:number,y:number)=>{
+ const i=(y*width+x)*4;
+ if(data.data[i+3]>=200)return true;
+ for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+  if(!dx&&!dy)continue;
+  const nx=x+dx,ny=y+dy;
+  if(nx<0||ny<0||nx>=width||ny>=height)continue;
+  const j=(ny*width+nx)*4;
+  if(data.data[j+3]<200)continue;
+  if(!looksLikeSkinPixel(data.data[j],data.data[j+1],data.data[j+2],data.data[j+3]))continue;
+  data.data[i]=data.data[j];data.data[i+1]=data.data[j+1];data.data[i+2]=data.data[j+2];data.data[i+3]=255;
+  return true;
+ }
+ return false;
 };
 
 const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,u1:number,v1:number,u2:number,v2:number)=>{
@@ -281,18 +302,23 @@ const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flip
  const minY=Math.max(0,Math.min(y0,y1,y2)),maxY=Math.min(height-1,Math.max(y0,y1,y2));
  const area=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);
  if(area===0)return;
+ const holes:{x:number;y:number}[]=[];
  for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
   const w0=((x1-x)*(y2-y)-(x2-x)*(y1-y))/area;
   const w1=((x2-x)*(y0-y)-(x0-x)*(y2-y))/area;
   const w2=1-w0-w1;
   if(w0<-.01||w1<-.01||w2<-.01)continue;
   const i=(y*width+x)*4;
-  if(data.data[i+3]<200)continue;
-  const r=data.data[i],g=data.data[i+1],b=data.data[i+2];
-  if(!isShoulderArtifactPx(r,g,b))continue;
-  const sample=sampleNearbySkin(data,width,height,x,y);
-  if(!sample)continue;
-  data.data[i]=sample.r;data.data[i+1]=sample.g;data.data[i+2]=sample.b;
+  if(data.data[i+3]>=200)continue;
+  if(!paintShoulderAlphaHole(data,width,height,x,y))holes.push({x,y});
+ }
+ for(let pass=0;pass<48&&holes.length;pass++){
+  const remain:typeof holes=[];
+  for(const {x,y} of holes){
+   if(!dilateShoulderHoleFromNeighbors(data,width,height,x,y))remain.push({x,y});
+  }
+  if(remain.length===holes.length)break;
+  holes.length=0;holes.push(...remain);
  }
 };
 
@@ -452,14 +478,14 @@ const restyleHairBun=(root:T.Object3D)=>{
  }
  const bun=new T.Mesh(new T.SphereGeometry(.055,20,16),bunMat as T.Material);
  bun.name='PracticeHairBun';
- // Sit on crown／occiput — do not float above hair top for front visibility alone.
- bun.position.set(0,.175,.042);
+ // Crown／occiput bun — lower half under hair, top ~2.5–3.5 cm above hair line.
+ bun.position.set(0,.205,.065);
  bun.scale.set(1.02,.86,1.02);
  bun.frustumCulled=false;
  head.add(bun);
  const coil=new T.Mesh(new T.TorusGeometry(.038,.013,8,20),bunMat.clone() as T.Material);
  coil.name='PracticeHairBunCoil';
- coil.position.set(0,.168,.045);
+ coil.position.set(0,.192,.063);
  coil.rotation.x=Math.PI/2;
  coil.frustumCulled=false;
  head.add(coil);
