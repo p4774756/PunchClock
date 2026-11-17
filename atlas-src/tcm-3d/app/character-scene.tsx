@@ -306,7 +306,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   const scene=new T.Scene(),camera=new T.PerspectiveCamera(34,1,.005,100),controls=new OrbitControls(camera,renderer.domElement);
   camera.position.set(0,1.45,2.4);controls.target.set(0,1.35,0);
-  controls.enableDamping=true;controls.dampingFactor=.085;controls.minDistance=.35;controls.maxDistance=8;
+  controls.enableDamping=true;controls.dampingFactor=.085;controls.minDistance=.2;controls.maxDistance=8;
   controls.maxPolarAngle=Math.PI*.96;controls.addEventListener('change',()=>{dirty=true;});
 
   const pmrem=new T.PMREMGenerator(renderer),room=new RoomEnvironment(),env=pmrem.fromScene(room,.04);

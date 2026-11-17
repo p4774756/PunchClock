@@ -192,6 +192,20 @@ try {
     assert.ok(si11.distance > 0.5 && si11.distance < 0.9);
   });
 
+  await test('人迎錨定後朝上皮膚法線仍走近距，不可變百會 1.35', () => {
+    // After overlay.anchor(), ST9 hit normal is ~[-0.06, 0.98, -0.17] (y≈0.984).
+    const up = new T.Vector3(-0.06, 0.98, -0.17).normalize();
+    assert.ok(up.y > 0.85, '測試法線必須能觸發舊的 normal.y>.85 分支');
+    for (const code of ['ST9', 'CV22', 'CV23']) {
+      const framed = focusViewFromNormal(code, up.clone(), 1);
+      assert.ok(framed.distance < 0.45, `${code} distance=${framed.distance} 應 < 0.45（不可為 1.35）`);
+      assert.notEqual(framed.distance, 1.35, `${code} 不可落入 GV20 遠距`);
+      assert.ok(framed.viewDir.z < -0.8, `${code} 應從前方看，viewDir.z=${framed.viewDir.z}`);
+    }
+    const crown = focusViewFromNormal('GV20', up.clone(), 1);
+    assert.equal(crown.distance, 1.35);
+  });
+
   await test('每個烘點距離 Face／Body 皮膚 < 2 mm', async () => {
     const {readFileSync} = await import('node:fs');
     const {GLTFLoader} = await import('three/examples/jsm/loaders/GLTFLoader.js');

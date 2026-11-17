@@ -2,19 +2,16 @@ import * as T from 'three';
 
 /**
  * Shared focus framing for teaching overlay and character-scene fallback.
- * Neck points (ST9／CV22／CV23) must be clearly closer than the default .62 —
- * a .6 tweak is visually identical to default and looks “too far”.
+ * Point-code specials must win before normal.y heuristics: after overlay
+ * anchor(), ST9’s skin hit normal is nearly (0,1,0) and would otherwise
+ * inherit GV20’s far 1.35 framing.
  */
 export const focusViewFromNormal=(pointCode:string|null|undefined,normal:T.Vector3,side:1|-1)=>{
  const viewDir=new T.Vector3();
  let distance=.62;
  let aimAdjust=new T.Vector3();
- if(pointCode==='GV20'||normal.y>.85){
-  viewDir.set(.06,.22,-.97).normalize();
-  aimAdjust.set(0,-.1,-.06);
-  distance=1.35;
- }else if(pointCode==='ST9'||pointCode==='CV22'||pointCode==='CV23'){
-  // 人迎／天突／廉泉：近距正前方，針／指壓要清楚（勿再用 ≈ 預設的 .6）
+ if(pointCode==='ST9'||pointCode==='CV22'||pointCode==='CV23'){
+  // 人迎／天突／廉泉：近距正前方（勿被朝上皮膚法線導進百會遠距）
   viewDir.set(Math.sign(normal.x||side)*.12,.03,-1).normalize();
   aimAdjust.set(0,.015,-.008);
   distance=.34;
@@ -23,6 +20,15 @@ export const focusViewFromNormal=(pointCode:string|null|undefined,normal:T.Vecto
   viewDir.set(Math.sign(normal.x||side)*.06,.04,.98).normalize();
   aimAdjust.set(0,.01,.005);
   distance=.68;
+ }else if(pointCode==='GV20'){
+  viewDir.set(.06,.22,-.97).normalize();
+  aimAdjust.set(0,-.1,-.06);
+  distance=1.35;
+ }else if(normal.y>.85){
+  // Other vertex／crown points without an explicit code
+  viewDir.set(.06,.22,-.97).normalize();
+  aimAdjust.set(0,-.1,-.06);
+  distance=1.35;
  }else if(normal.z>.3){
   viewDir.set(normal.x*.28,Math.max(.06,normal.y*.25+.1),Math.max(.82,Math.abs(normal.z))).normalize();
   distance=.78;
