@@ -15,6 +15,7 @@ async function load(name) {
 }
 const X = await load('island-explore.js');
 const C = await load('island-casino.js');
+const B = await load('island-blackjack.js');
 const islandSource = readFileSync(join(jsDir, 'island.js'), 'utf8');
 const exploreInputSource = readFileSync(join(jsDir, 'island-explore-input.js'), 'utf8');
 
@@ -111,7 +112,10 @@ function makeDocument() {
   el('button', { 'data-casino-back': '' }, lobby);
   el('strong', { 'data-casino-player': '' }, lobby);
   el('strong', { 'data-casino-chips': '' }, lobby);
+  el('small', { 'data-casino-chips-note': '' }, lobby);
+  el('p', { 'data-casino-sub': '' }, lobby);
   el('div', { 'data-casino-games': '' }, lobby);
+  el('div', { 'data-casino-blackjack': '', hidden: true }, lobby);
   el('button', { id: 'islandInteract', hidden: true });
   el('button', { id: 'islandListBtn', 'aria-expanded': 'false' });
   const list = el('aside', { id: 'islandList', hidden: true });
@@ -120,8 +124,20 @@ function makeDocument() {
   return doc;
 }
 
+function fakeChipStorage(balance) {
+  const map = new Map();
+  if (balance != null) {
+    map.set('punchclock.casino.practiceChips', String(balance));
+  }
+  return {
+    setItem: (k, v) => map.set(k, v),
+    getItem: (k) => (map.has(k) ? map.get(k) : null),
+    removeItem: (k) => map.delete(k)
+  };
+}
+
 /** 依 island.js 的接線方式組裝；camera 記錄鏡頭動作，keys 代表按住中的移動鍵。 */
-function setup() {
+function setup(opts) {
   const doc = makeDocument();
   const win = { PUNCHCLOCK_AUTHENTICATED: false, requestAnimationFrame: (fn) => fn() };
   const sheet = doc.getElementById('islandSheet');
@@ -150,6 +166,7 @@ function setup() {
   casino = C.createCasinoController({
     doc: doc,
     win: win,
+    storage: opts && opts.storage,
     hooks: {
       beforeOpen: () => flow.beforeLobbyOpen(),
       onLobbyChange: (state) => {
@@ -161,6 +178,10 @@ function setup() {
 
   // island.js 的 Escape 處理順序：大廳 → 管理面板 → 退出探索
   function pressEscape() {
+    if (casino.isTableOpen && casino.isTableOpen()) {
+      casino.closeTable();
+      return;
+    }
     if (casino.isOpen()) { casino.closeLobby(); return; }
     if (!sheet.hidden) switchDashTab('');
   }
@@ -185,8 +206,8 @@ test('island.js 的接線與本測試一致', () => {
   );
   assert.match(islandSource, /createExploreKeys\(/);
   assert.match(islandSource, /onPrompt: \(\) => \{[\s\S]*?openRoadmap\(\)/);
-  assert.match(islandSource, /function updatePlayer\(dt\) \{\s*if \(!flow\.canMove\(\)\)/);
-  assert.match(islandSource, /createExploreJoystick\([\s\S]*canMove: \(\) => flow\.canMove\(\)/);
+  assert.match(islandSource, /function updatePlayer\(dt\) \{[\s\S]*?if \(isSailing\(\)\)/);
+  assert.match(islandSource, /createExploreJoystick\([\s\S]*canMove: \(\) => canExploreMove\(\)/);
   assert.match(islandSource, /function reset\(\) \{\s*flow\.resetPanel\(\);/);
   assert.match(islandSource, /flow\.focusPanel\(id\)/);
   assert.doesNotMatch(islandSource, /afterClose/, '關閉流程只能走 onLobbyChange');
@@ -286,6 +307,89 @@ test('全景進大廳：返回後仍是全景、不顯示角色', () => {
   assert.equal(X.playerVisible(t.flow.mode), false);
   assert.equal(t.flow.canMove(), false);
   assert.ok(!t.camera.includes('follow'), '不切到角色鏡頭');
+});
+
+function queryClass(root, className) {
+  const walk = (node) => {
+    for (const child of node.children) {
+      const parts = (child.className || '').split(/\s+/).filter(Boolean);
+      if (parts.includes(className)) return child;
+      const found = walk(child);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(root);
+}
+
+function openBlackjackTable(t) {
+  t.casino.openLobby();
+  const games = t.lobbyEl.querySelector('[data-casino-games]');
+  const card = games.children[0];
+  const playBtn = card.children[card.children.length - 1];
+  playBtn.click();
+  return t.lobbyEl.querySelector('[data-casino-blackjack]');
+}
+
+test('21 點：補領按鈕僅下注階段且餘額不足時顯示', () => {
+  const tOk = setup({ storage: fakeChipStorage(1000) });
+  const tableOk = openBlackjackTable(tOk);
+  const refillOk = queryClass(tableOk, 'casino-bj-refill');
+  const betRowOk = queryClass(tableOk, 'casino-bj-bet');
+  const actionsOk = queryClass(tableOk, 'casino-bj-actions');
+  const dealOk = actionsOk && actionsOk.children[0];
+  assert.ok(refillOk);
+  assert.equal(refillOk.hidden, true, '餘額 1000 時補領按鈕 hidden');
+  assert.equal(betRowOk.hidden, false);
+  assert.equal(dealOk.disabled, false);
+  assert.equal(B.needsPracticeChipRefill(1000), false);
+  refillOk.click();
+  assert.equal(tOk.casino.lobby.getBalance(), 1000, '餘額足夠時點補領不生效');
+
+  const tBroke = setup({ storage: fakeChipStorage(5) });
+  const tableLow = openBlackjackTable(tBroke);
+  const refillLow = queryClass(tableLow, 'casino-bj-refill');
+  const betRowLow = queryClass(tableLow, 'casino-bj-bet');
+  const insufficient = queryClass(tableLow, 'casino-bj-insufficient');
+  const actionsLow = queryClass(tableLow, 'casino-bj-actions');
+  const dealLow = actionsLow && actionsLow.children[0];
+  assert.equal(refillLow.hidden, false, '餘額 5 時補領按鈕可見');
+  assert.equal(betRowLow.hidden, true);
+  assert.equal(insufficient.hidden, false);
+  assert.equal(dealLow.disabled, true);
+  assert.equal(B.needsPracticeChipRefill(5), true);
+  refillLow.click();
+  assert.equal(tBroke.casino.lobby.getBalance(), B.STARTING_BALANCE);
+});
+
+test('21 點牌桌：可玩按鈕啟用；Escape 先關牌桌再關大廳', () => {
+  const t = setup();
+  t.enterExplore();
+  t.casino.openLobby();
+  const games = t.lobbyEl.querySelector('[data-casino-games]');
+  const card = games.children[0];
+  assert.equal(card.getAttribute('data-game'), 'blackjack');
+  const playBtn = card.children[card.children.length - 1];
+  assert.equal(playBtn.disabled, false);
+  assert.equal(playBtn.textContent, '開始遊玩');
+  playBtn.click();
+  assert.equal(t.casino.isTableOpen(), true);
+  const table = t.lobbyEl.querySelector('[data-casino-blackjack]');
+  assert.equal(table.hidden, false);
+  assert.equal(games.hidden, true, '開桌後隱藏遊戲列表');
+
+  t.casino.closeTable();
+  assert.equal(games.hidden, false, '返回大廳後顯示遊戲列表');
+  assert.equal(table.hidden, true);
+
+  playBtn.click();
+  assert.equal(games.hidden, true);
+
+  t.pressEscape();
+  assert.equal(t.casino.isTableOpen(), false);
+  assert.equal(t.casino.isOpen(), true);
+  t.pressEscape();
+  assert.equal(t.casino.isOpen(), false);
 });
 
 test('三種關閉方式都只觸發一次關閉流程；重複開啟不重複觸發', () => {

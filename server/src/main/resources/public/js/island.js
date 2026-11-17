@@ -18,8 +18,21 @@ import {
   PANORAMA,
   poseForIsland,
   isClosedHall,
-  islandAt
+  islandAt,
+  BOAT_STOPS
 } from './island-layout.js';
+import {
+  createBoatState,
+  startSailing,
+  stepBoat,
+  abortSailing,
+  isSailingPhase,
+  sampleRoute,
+  routeProgress,
+  berthForDock,
+  dockedBob,
+  BOAT_DECK_OFFSET
+} from './island-boat.js';
 import { createCasinoController, CASINO_NAME } from './island-casino.js';
 import { createGraffitiController } from './island-graffiti.js';
 import { createRoadmapController } from './island-roadmap.js';
@@ -38,6 +51,7 @@ import {
   miluStep,
   screenAxes
 } from './island-milu.js';
+import { TCM_ATLAS_URL, consumeTcmReturn, writeTcmReturn } from './island-tcm-visit.js';
 import {
   HIDDEN_DISCONNECT_MS,
   createIslandPresence,
@@ -76,6 +90,11 @@ import {
   createExploreKeys,
   createExploreJoystick
 } from './island-explore-input.js';
+import {
+  createQualityAdvisor,
+  DEFAULT_MAX_PIXEL_RATIO,
+  DEFAULT_SHADOW_MAP
+} from './island-quality.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 
@@ -128,7 +147,8 @@ function boot() {
   renderer.toneMappingExposure = 1.02;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const maxDevicePixelRatio = Math.min(window.devicePixelRatio || 1, DEFAULT_MAX_PIXEL_RATIO);
+  renderer.setPixelRatio(maxDevicePixelRatio);
 
   const scene = new THREE.Scene();
   const skyDay = new THREE.Color(0xd8f7f8);
@@ -144,7 +164,7 @@ function boot() {
   const sun = new THREE.DirectionalLight(0xfff3d6, 1.42);
   sun.position.set(-9.5, 20.5, 11);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(DEFAULT_SHADOW_MAP, DEFAULT_SHADOW_MAP);
   sun.shadow.camera.left = -36;
   sun.shadow.camera.right = 36;
   sun.shadow.camera.top = 36;
@@ -158,9 +178,9 @@ function boot() {
   scene.add(sun.target);
 
   const hemiDay = new THREE.Color(0xfff8ef);
-  const hemiNight = new THREE.Color(0x8eabd4);
+  const hemiNight = new THREE.Color(0xb89a78);
   const groundDay = new THREE.Color(0xe7d8bc);
-  const groundNight = new THREE.Color(0x243044);
+  const groundNight = new THREE.Color(0x2e2a38);
   const sunDay = new THREE.Color(0xfff3d6);
   const sunNight = new THREE.Color(0xc5d4f2);
 
@@ -195,10 +215,42 @@ function boot() {
     sun.color.copy(sunDay).lerp(sunNight, t);
     sun.intensity = 1.42 + (0.5 - 1.42) * t;
     renderer.toneMappingExposure = 1.02 + (0.94 - 1.02) * t;
-    kit.forEachLamp((item) => {
-      item.light.intensity = item.power * t;
-    });
   });
+
+  const quality = createQualityAdvisor({
+    getDevicePixelRatio: () => window.devicePixelRatio || 1
+  });
+
+  dayNight.onMix((t) => {
+    kit.forEachLamp((item) => kit.applyLampMix(item, t));
+  });
+
+  function applyQualitySettings(settings) {
+    if (!settings) return;
+    renderer.setPixelRatio(settings.pixelRatio);
+    renderer.shadowMap.enabled = !!settings.shadowEnabled;
+    const nextSize = settings.shadowMapSize || DEFAULT_SHADOW_MAP;
+    if (sun.shadow.mapSize.x !== nextSize) {
+      sun.shadow.mapSize.set(nextSize, nextSize);
+      if (sun.shadow.map) {
+        sun.shadow.map.dispose();
+        sun.shadow.map = null;
+      }
+    }
+  }
+
+  applyQualitySettings(quality.settings());
+
+  const perfEnabled = new URLSearchParams(window.location.search).get('perf') === '1';
+  let perfEl = null;
+  if (perfEnabled) {
+    perfEl = document.createElement('div');
+    perfEl.setAttribute('aria-hidden', 'true');
+    perfEl.style.cssText =
+      'position:absolute;left:8px;top:8px;z-index:25;padding:6px 8px;font:12px/1.35 sans-serif;'
+      + 'color:#fff;background:rgba(12,24,42,0.72);border-radius:6px;pointer-events:none;';
+    stage.appendChild(perfEl);
+  }
 
   const worldResult = buildIslandWorld({ scene: scene, kit: kit });
   const sea = createIslandSea(THREE, { kit: kit, reduced: reduced });
@@ -216,13 +268,14 @@ function boot() {
     steams: steams,
     dayNight: dayNight
   });
-  buildIslandProps({
+  const propResult = buildIslandProps({
     scene: scene,
     kit: kit,
     bobs: bobs,
     clouds: clouds,
     swimmers: swimmers
   });
+  const boatMesh = propResult && propResult.boat;
   buildIslandBeach({ scene: scene, kit: kit });
   const footprints = createFootprintView(THREE, {
     scene: scene,
@@ -277,6 +330,17 @@ function boot() {
   });
   loop.register((dt, elapsed) => {
     sky.tick(dt, elapsed);
+  });
+  loop.register((dt, elapsed) => {
+    boatElapsed = elapsed;
+    const prev = boatState;
+    if (isSailing() && !voyageUiPaused() && !reduced) {
+      boatState = stepBoat(boatState, dt, { paused: false, reduced: false });
+    }
+    syncBoatMesh(elapsed);
+    if (isSailingPhase(prev.phase) && !isSailingPhase(boatState.phase)) {
+      finishVoyageDisembark();
+    }
   });
 
   const lifecycle = createLifecycle();
@@ -344,7 +408,7 @@ function boot() {
   playerMesh.rotation.y = player.yaw;
   playerMesh.visible = false;
 
-  const milu = createMiluView(THREE);
+  const milu = createMiluView(THREE, { deferLoad: true });
   scene.add(milu.object);
   milu.object.visible = false;
   let miluState = createMiluState();
@@ -397,7 +461,8 @@ function boot() {
   let interiorBusy = false;
   let interiorGeneration = 0;
   const INTERIOR_MODULES = {
-    shop: () => import('./island-shop-interior.js')
+    shop: () => import('./island-shop-interior.js'),
+    'computer-site': () => import('./island-lab-interior.js')
   };
 
   function casinoOpen() {
@@ -445,6 +510,8 @@ function boot() {
   }
   let playerBob = 0;
   let activeInteract = '';
+  let boatState = createBoatState('main');
+  let boatElapsed = 0;
 
   const cam = createCameraRig(THREE, camera, {
     reduced: reduced,
@@ -480,12 +547,82 @@ function boot() {
       btn.setAttribute('aria-label', exploring ? '退出探索模式' : '進入探索模式');
       btn.textContent = exploring ? '退出' : '探索';
     }
-    const overlay = casinoOpen() || graffitiOpen();
+    const overlay = casinoOpen() || graffitiOpen() || isSailing();
     if (stick) stick.hidden = !exploring || overlay;
     if (hint) hint.hidden = !exploring || overlay;
     if (islandChat) islandChat.setExploring(exploring && !overlay);
     syncInteractPrompt();
-    if (corner) corner.syncPeerCount();
+    if (corner) {
+      corner.syncPeerCount();
+      corner.syncMoreAudioLabel();
+      corner.closeMore();
+    }
+  }
+
+  function isSailing() {
+    return isSailingPhase(boatState.phase);
+  }
+
+  function canExploreMove() {
+    return flow.canMove() && !isSailing();
+  }
+
+  function voyageUiPaused() {
+    return mode.paused || sheetOpen() || casinoOpen() || graffitiOpen() || roadmapOpen();
+  }
+
+  function syncBoatMesh(elapsed) {
+    if (!boatMesh) return;
+    const bobY = dockedBob(elapsed, reduced);
+    if (isSailing()) {
+      const u = routeProgress(boatState.phase, boatState.progress);
+      const pose = sampleRoute(u);
+      boatMesh.position.set(pose.x, bobY, pose.z);
+      boatMesh.rotation.y = pose.yaw;
+      return;
+    }
+    const berth = berthForDock(boatState.dock);
+    boatMesh.position.set(berth.x, bobY, berth.z);
+    boatMesh.rotation.y = berth.yaw;
+  }
+
+  function finishVoyageDisembark() {
+    const land = BOAT_STOPS[boatState.dock].land;
+    player.x = land.x;
+    player.z = land.z;
+    player.yaw = boatState.dock === 'beach' ? Math.PI : 0.45;
+    player.moving = false;
+    player.vx = 0;
+    player.vz = 0;
+    playerMesh.position.set(player.x, P, player.z);
+    playerMesh.rotation.y = player.yaw;
+    syncBoatMesh(boatElapsed);
+    followPlayerCamera(true);
+    syncInteractPrompt();
+    syncExploreUi();
+  }
+
+  async function startSail(zone) {
+    if (!zone || zone.action !== 'sail' || !mode.exploring || rooms.inside() || interiorBusy || isSailing()) return;
+    const stop = zone.stop === 'beach' ? 'beach' : 'main';
+    const expected = stop === 'main' ? 'docked-main' : 'docked-beach';
+    if (boatState.phase !== expected) return;
+    clearMoveInput();
+    boatState = startSailing(boatState, stop);
+    syncExploreUi();
+    syncInteractPrompt();
+    if (reduced) {
+      await fadeTo(true);
+      boatState = stepBoat(boatState, 0, { paused: false, reduced: true });
+      finishVoyageDisembark();
+      await fadeTo(false);
+    }
+  }
+
+  function abortBoatVoyage() {
+    if (!isSailing()) return;
+    boatState = abortSailing(boatState);
+    finishVoyageDisembark();
   }
 
   function syncInteractPrompt() {
@@ -495,7 +632,7 @@ function boot() {
     const show = shouldShowInteractPrompt({
       exploring: mode.exploring,
       paused: mode.paused,
-      uiOpen: sheetOpen() || !!(document.getElementById('islandList') && !document.getElementById('islandList').hidden),
+      uiOpen: isSailing() || sheetOpen() || !!(document.getElementById('islandList') && !document.getElementById('islandList').hidden),
       lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
       zoneId: activeInteract
     });
@@ -540,6 +677,7 @@ function boot() {
         followPlayerCamera(instant);
       }
     } else {
+      if (isSailing()) abortBoatVoyage();
       if (rooms.inside()) abortInterior();
       if (casino && casino.isOpen()) casino.closeLobby();
       dispatchMode('exit');
@@ -611,8 +749,13 @@ function boot() {
     return { x: 0, z: 0 };
   }
 
-  function placeLabels() {
+  let lastLabelAt = 0;
+
+  function placeLabels(force) {
     if (!peerLayer) return;
+    const now = performance.now();
+    if (!force && now - lastLabelAt < 100) return;
+    lastLabelAt = now;
     placeBuildingLabels({
       inside: rooms.inside(),
       interiorBusy: interiorBusy,
@@ -623,6 +766,7 @@ function boot() {
       projected: projected,
       stage: stage,
       document: document,
+      now: now,
       placePeerLabels: () => peerLayer.placePeerLabels()
     });
   }
@@ -642,7 +786,8 @@ function boot() {
     playerMesh.visible = show && !useMilu;
   }
 
-  function stepMilu(dt) {
+  function stepMilu(dt, groundY) {
+    const y = groundY == null ? P : groundY;
     const axes = screenAxes(player.vx, player.vz, cam.theta);
     const anim = milu.anim();
     miluState = miluStep(miluState, dt, {
@@ -654,12 +799,32 @@ function boot() {
       anim: anim
     });
     milu.show(miluClipPath(miluState, anim));
-    milu.object.position.set(player.x, P, player.z);
+    milu.object.position.set(player.x, y, player.z);
     syncAvatarVisible();
   }
 
   function updatePlayer(dt) {
-    if (!flow.canMove()) {
+    if (isSailing()) {
+      player.moving = false;
+      player.vx = 0;
+      player.vz = 0;
+      playerBob = 0;
+      const u = routeProgress(boatState.phase, boatState.progress);
+      const pose = sampleRoute(u);
+      const deckY = dockedBob(boatElapsed, reduced) + BOAT_DECK_OFFSET;
+      const seatX = pose.x - Math.sin(pose.yaw) * 0.12;
+      const seatZ = pose.z - Math.cos(pose.yaw) * 0.12;
+      player.x = seatX;
+      player.z = seatZ;
+      player.yaw = pose.yaw;
+      playerMesh.position.set(seatX, deckY, seatZ);
+      playerMesh.rotation.y = pose.yaw;
+      stepMilu(dt, deckY);
+      cam.targetLook.set(pose.x, G + 1.05, pose.z);
+      footprints.setHidden(true);
+      return;
+    }
+    if (!canExploreMove()) {
       if (rooms.inside()) rooms.setPaused(true);
       player.moving = false;
       player.vx = 0;
@@ -720,6 +885,12 @@ function boot() {
 
   function frame() {
     const dt = Math.min(0.1, clock.getDelta() || 0);
+    const sample = quality.observeFrame(dt * 1000);
+    if (sample.changed) applyQualitySettings(sample.settings);
+    if (perfEl) {
+      perfEl.textContent =
+        '幀率約 ' + Math.round(sample.fps) + ' · 畫質：' + sample.label;
+    }
     updatePlayer(dt);
     if (peerLayer) peerLayer.syncPresence(performance.now());
     cam.step(dt);
@@ -773,6 +944,7 @@ function boot() {
     listBtn.addEventListener('click', () => {
       list.hidden = !list.hidden;
       listBtn.setAttribute('aria-expanded', list.hidden ? 'false' : 'true');
+      if (corner) corner.closeMore();
       syncInteractPrompt();
     });
     list.querySelectorAll('[data-island]').forEach((btn) => {
@@ -838,6 +1010,7 @@ function boot() {
     audioBtn.setAttribute('aria-label', on ? '靜音背景音樂與海浪聲' : '開啟背景音樂與海浪聲');
     const iconEl = audioBtn.querySelector('.island-tool-audio-icon');
     if (iconEl) iconEl.textContent = on ? '🔊' : '🔇';
+    if (corner) corner.syncMoreAudioLabel();
   }
 
   function showAudioButton() {
@@ -954,7 +1127,8 @@ function boot() {
     scene.add(view.group);
     view.materials.forEach((material) => kit.addMaterial(material));
     if (view.lamp) {
-      view.lamp.light.intensity = view.lamp.power * dayNight.mix;
+      view.lamp.realLight = true;
+      kit.applyLampMix(view.lamp, dayNight.mix);
       kit.addLamp(view.lamp);
     }
     lifecycle.emit('enterRoom', {});
@@ -981,7 +1155,7 @@ function boot() {
   }
 
   async function enterInterior(buildingId) {
-    if (interiorBusy || rooms.inside() || !mode.exploring) return;
+    if (interiorBusy || rooms.inside() || !mode.exploring || isSailing()) return;
     if (!rooms.canEnter(buildingId, performance.now())) return;
     const ticket = ++interiorGeneration;
     interiorBusy = true;
@@ -1011,6 +1185,15 @@ function boot() {
     syncInteractPrompt();
   }
 
+  async function enterTcm() {
+    if (!mode.exploring || rooms.inside() || interiorBusy || isSailing()) return;
+    clearMoveInput();
+    closeOverlayPanels();
+    writeTcmReturn(window.sessionStorage);
+    await fadeTo(true);
+    window.location.assign(TCM_ATLAS_URL);
+  }
+
   async function leaveInterior() {
     if (interiorBusy || !rooms.inside()) return;
     const ticket = ++interiorGeneration;
@@ -1030,6 +1213,7 @@ function boot() {
   }
 
   function openGraffiti() {
+    if (isSailing()) return;
     if (casino && casino.isOpen()) casino.closeLobby();
     if (roadmap && roadmap.isOpen()) roadmap.close();
     if (graffiti) graffiti.open();
@@ -1058,6 +1242,7 @@ function boot() {
   }
 
   function openRoadmap() {
+    if (isSailing()) return;
     if (casino && casino.isOpen()) casino.closeLobby();
     if (graffiti && graffiti.isOpen()) graffiti.close();
     if (roadmap) roadmap.open();
@@ -1088,6 +1273,14 @@ function boot() {
         }
         if (zone.action === 'openRoadmap') {
           openRoadmap();
+          return true;
+        }
+        if (zone.action === 'sail') {
+          startSail(zone);
+          return true;
+        }
+        if (zone.action === 'enterTcm') {
+          enterTcm();
           return true;
         }
         if (isClosedHall(zone.action)) {
@@ -1166,6 +1359,7 @@ function boot() {
   });
 
   lifecycle.on('enterExplore', () => {
+    if (typeof milu.beginLoad === 'function') milu.beginLoad();
     if (islandPresence) islandPresence.connect();
   });
   lifecycle.on('exitExplore', () => {
@@ -1215,7 +1409,8 @@ function boot() {
     getPresence: () => islandPresence,
     getPeerCount: () => peerLayer.peers.size + 1,
     isExploring: () => mode.exploring,
-    isWelcomed: () => peerLayer.getWelcomed()
+    isWelcomed: () => peerLayer.getWelcomed(),
+    getAudioMuted: () => islandAudio.muted
   });
 
   const exploreKeyCtx = {
@@ -1236,6 +1431,8 @@ function boot() {
     openRoadmap: openRoadmap,
     isClosedHall: isClosedHall,
     showInteriorClosed: showInteriorClosed,
+    startSail: (zone) => startSail(zone),
+    enterTcm: () => enterTcm(),
     isInside: () => rooms.inside(),
     islandChat: islandChat,
     setExplore: setExplore,
@@ -1270,7 +1467,7 @@ function boot() {
     stickRoot: document.getElementById('islandJoystick'),
     stickKnob: document.getElementById('islandJoystickKnob'),
     player: player,
-    canMove: () => flow.canMove()
+    canMove: () => canExploreMove()
   });
 
   window.PunchClockIsland = {
@@ -1294,8 +1491,17 @@ function boot() {
   resize();
   dayNight.refresh();
   syncExploreUi();
+  const tcmRestore = consumeTcmReturn(window.sessionStorage);
   const open = document.querySelector('.dash-panel.is-active');
-  if (open && !open.hasAttribute('hidden')) {
+  if (tcmRestore) {
+    player.x = tcmRestore.x;
+    player.z = tcmRestore.z;
+    player.yaw = tcmRestore.yaw;
+    playerMesh.position.set(player.x, P, player.z);
+    playerMesh.rotation.y = player.yaw;
+    milu.object.position.set(player.x, P, player.z);
+    setExplore(true, true);
+  } else if (open && !open.hasAttribute('hidden')) {
     const id = open.id.replace('panel-', '');
     applyPose(POSES[id] || POSES.home, true);
     setActive(POSES[id] ? id : '');

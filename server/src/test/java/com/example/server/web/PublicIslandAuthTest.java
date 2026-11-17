@@ -75,7 +75,8 @@ public class PublicIslandAuthTest {
         assertTrue(response.body().contains("施工進度"));
         assertTrue(response.body().contains("塗鴉牆"));
         assertTrue(response.body().contains("返回島嶼"));
-        assertTrue(response.body().contains("尚未啟用"));
+        assertTrue(response.body().contains("練習籌碼"));
+        assertTrue(response.body().contains("不是真錢"));
         assertTrue(response.body().contains("is-guest"));
         assertTrue(response.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
         assertTrue(response.body().contains("登入後可操作"));
@@ -91,6 +92,7 @@ public class PublicIslandAuthTest {
         assertTrue(island.body().contains("from './island-layout.js'"));
         assertTrue(island.body().contains("from './island-casino.js'"));
         assertTrue(island.body().contains("from './island-milu.js'"));
+        assertTrue(island.body().contains("from './island-quality.js'"));
         assertTrue(island.body().contains("from './island-graffiti.js'"));
         assertTrue(island.body().contains("from './island-roadmap.js'"));
 
@@ -111,6 +113,11 @@ public class PublicIslandAuthTest {
         assertTrue(casino.body().contains("export function mountCasinoLobby"));
         assertTrue(casino.body().contains("export function createCasinoController"));
         assertTrue(casino.body().contains("export function chipWalletView"));
+        assertTrue(casino.body().contains("island-blackjack.js"));
+
+        HttpResponse<String> blackjack = send("GET", "/js/island-blackjack.js", null);
+        assertEquals(200, blackjack.statusCode());
+        assertTrue(blackjack.body().contains("export function handValue"));
 
         HttpResponse<String> css = send("GET", "/css/casino.css", null);
         assertEquals(200, css.statusCode());
@@ -149,6 +156,29 @@ public class PublicIslandAuthTest {
         assertEquals((byte) 0x50, png[1]);
         assertEquals((byte) 0x4E, png[2]);
         assertEquals((byte) 0x47, png[3]);
+    }
+
+    @Test
+    public void islandStaticAssetsGetDayCache() throws Exception {
+        HttpResponse<String> js = send("GET", "/js/island-quality.js", null);
+        assertEquals(200, js.statusCode());
+        assertTrue(js.headers().firstValue("cache-control").orElse("").contains("no-cache"));
+
+        HttpResponse<String> css = send("GET", "/css/roadmap.css", null);
+        assertEquals(200, css.statusCode());
+        assertTrue(css.headers().firstValue("cache-control").orElse("").contains("no-cache"));
+
+        HttpResponse<String> pet = send("GET", "/pet/milu/walk/left_01.png", null);
+        assertEquals(200, pet.statusCode());
+        assertTrue(pet.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
+    }
+
+    @Test
+    public void dashboardHtmlStaysShortCache() throws Exception {
+        HttpResponse<String> home = send("GET", "/", null);
+        assertEquals(200, home.statusCode());
+        String cache = home.headers().firstValue("cache-control").orElse("");
+        assertTrue(cache.contains("no-cache") || cache.contains("must-revalidate"));
     }
 
     @Test

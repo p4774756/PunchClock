@@ -153,8 +153,53 @@ export function onBridge(x, z, bridge, radius) {
 
 export const WALK_PADS = Object.freeze([
   Object.freeze({ id: 'dock', minX: -1.05, maxX: 0.85, minZ: 6.9, maxZ: 8.95 }),
-  Object.freeze({ id: 'pier', minX: 6.2, maxX: 9.55, minZ: 1.15, maxZ: 2.75 })
+  Object.freeze({ id: 'pier', minX: 6.2, maxX: 9.55, minZ: 1.15, maxZ: 2.75 }),
+  Object.freeze({ id: 'beach-jetty', minX: 15.6, maxX: 18.5, minZ: 5.3, maxZ: 6.7 })
 ]);
+
+/** 停靠點與上下船位置（船在海上，玩家上下在棧橋）。 */
+export const BOAT_STOPS = Object.freeze({
+  main: Object.freeze({
+    board: Object.freeze({ x: 9.1, z: 1.95 }),
+    berth: Object.freeze({ x: 10.3, z: 1.95, yaw: 0.5 }),
+    land: Object.freeze({ x: 8.85, z: 1.95 })
+  }),
+  beach: Object.freeze({
+    board: Object.freeze({ x: 16.0, z: 6.0 }),
+    berth: Object.freeze({ x: 15.1, z: 6.0, yaw: -0.35 }),
+    land: Object.freeze({ x: 16.45, z: 6.0 })
+  })
+});
+
+/** 航線（海上路徑，不經任何島陸地）。 */
+export const BOAT_ROUTE = Object.freeze([
+  Object.freeze({ x: 10.3, z: 1.95 }),
+  Object.freeze({ x: 12.85, z: 3.75 }),
+  Object.freeze({ x: 15.1, z: 6.0 })
+]);
+
+export function boatZones() {
+  return Object.freeze([
+    Object.freeze({
+      id: 'boat-main',
+      x: BOAT_STOPS.main.board.x,
+      z: BOAT_STOPS.main.board.z,
+      r: 0.8,
+      label: '搭船到沙灘島',
+      action: 'sail',
+      stop: 'main'
+    }),
+    Object.freeze({
+      id: 'boat-beach',
+      x: BOAT_STOPS.beach.board.x,
+      z: BOAT_STOPS.beach.board.z,
+      r: 0.8,
+      label: '搭船回手搖店島',
+      action: 'sail',
+      stop: 'beach'
+    })
+  ]);
+}
 
 // 主島既有障礙，順序與改清單前的 BLOCK_RECTS（不含已搬走的賭場）一致。
 export const OBSTACLE_RECTS = Object.freeze([
@@ -284,7 +329,7 @@ const BUILDING_DEFS = [
   {
     id: 'computer-site', island: 'computer', x: 0.45, z: 17.85, w: 2.3, d: 1.8, yaw: Math.PI,
     label: '研發樓', panel: null, frontTrim: 0.2,
-    entry: { r: 0.82, reach: 0.78, label: '進入研發樓', action: 'enterComputer' }
+    entry: { r: 0.82, reach: 0.78, label: '進入研發樓', action: 'enterInterior' }
   }
 ];
 
@@ -319,9 +364,9 @@ export function buildingById(id) {
   return null;
 }
 
-// 門位已就緒、室內還沒做。這兩個 action 只顯示「尚未開放」，不可當成進入賭場。
+// 已無封閉館（研發樓等皆可進室內或開啟對應功能）。
 export function isClosedHall(action) {
-  return action === 'enterTcm' || action === 'enterComputer';
+  return false;
 }
 
 const BLOCK_RECT_LIST = OBSTACLE_RECTS.slice();

@@ -12,6 +12,7 @@ import {
   buildingById,
   blockRects,
   interactZones,
+  boatZones,
   walkable,
   blocked
 } from './island-layout.js';
@@ -44,8 +45,8 @@ export const CASINO = Object.freeze({
   })
 });
 
-/** 預設互動區由建築 entry 推導。觸發須由玩家明確操作，不自動傳送。 */
-export const DEFAULT_INTERACT_ZONES = interactZones();
+/** 預設互動區由建築 entry 推導，並含棧橋搭船區。觸發須由玩家明確操作，不自動傳送。 */
+export const DEFAULT_INTERACT_ZONES = Object.freeze(interactZones().concat(boatZones()));
 
 export { ISLANDS, BRIDGES, BUILDINGS };
 

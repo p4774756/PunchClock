@@ -162,9 +162,13 @@ test('推拿館與研發樓的門在正面中線外，站得到，而且比樓�
     const bridge = L.BRIDGES.find((item) => item.to === hall.island);
     assert.equal(hall.deriveBlock, true);
     assert.equal(hall.label === '施工中', false);
-    assert.ok(L.isClosedHall(hall.entry.action), id);
+    assert.equal(L.isClosedHall(hall.entry.action), false, id);
     assert.notEqual(hall.entry.action, 'enterCasino');
-    assert.notEqual(hall.entry.action, 'enterInterior');
+    if (id === 'computer-site') {
+      assert.equal(hall.entry.action, 'enterInterior');
+    } else {
+      assert.notEqual(hall.entry.action, 'enterInterior');
+    }
     assert.ok(hall.door);
     const front = threeRotateY(0, 1, hall.yaw);
     const dx = hall.door.x - hall.x;
@@ -235,6 +239,38 @@ test('賭場門用 Three.js 的旋轉落在外觀正面，而且比建築中心�
   const doorDist = Math.hypot(casino.door.x - bridge.bx, casino.door.z - bridge.bz);
   const centerDist = Math.hypot(casino.x - bridge.bx, casino.z - bridge.bz);
   assert.ok(doorDist < centerDist, '門比建築中心更靠近橋頭');
+});
+
+test('沙灘島棧橋與島相連、搭船互動區在棧橋上', () => {
+  const jetty = L.WALK_PADS.find((pad) => pad.id === 'beach-jetty');
+  assert.ok(jetty);
+  const beach = L.islandById('beach');
+  const innerX = jetty.maxX - 0.35;
+  const innerZ = 6.0;
+  assert.ok(L.inPad(innerX, innerZ, jetty, 0.29), '棧橋內側在棧橋上');
+  assert.ok(L.inIsland(innerX, innerZ, beach, 0.29), '棧橋內側與沙灘島重疊');
+  assert.ok(L.walkable(innerX, innerZ, 0.29));
+  for (const island of L.ISLANDS) {
+    if (island.id === 'beach') continue;
+    const dist = Math.hypot(jetty.maxX - island.x, jetty.minZ - island.z);
+    assert.ok(dist > island.visualR + 0.2, jetty.id + ' 不碰 ' + island.id);
+  }
+  for (const bridge of L.BRIDGES) {
+    const midX = (bridge.ax + bridge.bx) / 2;
+    const midZ = (bridge.az + bridge.bz) / 2;
+    const hit = midX >= jetty.minX && midX <= jetty.maxX && midZ >= jetty.minZ && midZ <= jetty.maxZ;
+    assert.equal(hit, false, bridge.id + ' 不穿越棧橋');
+  }
+  const zones = L.boatZones();
+  assert.equal(zones.length, 2);
+  for (const zone of zones) {
+    assert.equal(zone.action, 'sail');
+    assert.ok(L.walkable(zone.x, zone.z, 0.29), zone.id + ' 互動區在棧橋上');
+    assert.ok(!L.blocked(zone.x, zone.z, 0.29));
+  }
+  const pier = L.WALK_PADS.find((pad) => pad.id === 'pier');
+  const mainZone = zones.find((zone) => zone.id === 'boat-main');
+  assert.ok(mainZone.x >= pier.minX && mainZone.x <= pier.maxX);
 });
 
 test('主島店面仍在原座標，賭場不在主島', () => {

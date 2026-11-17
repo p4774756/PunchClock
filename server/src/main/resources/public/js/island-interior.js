@@ -47,6 +47,18 @@ export const INTERIORS = Object.freeze([
       Object.freeze({ id: 'counter', minX: -1.25, maxX: 0.2, minZ: 0.75, maxZ: 1.4 }),
       Object.freeze({ id: 'table', minX: 1.15, maxX: 1.9, minZ: -0.4, maxZ: 0.3 })
     ])
+  }),
+  Object.freeze({
+    id: 'lab-room',
+    buildingId: 'computer-site',
+    spawn: Object.freeze({ x: 0, z: -0.25, yaw: 0 }),
+    exit: Object.freeze({ x: -1.5, z: -1.45, r: 0.58, label: '離開研發樓' }),
+    outside: Object.freeze({ x: 0.45, z: 14.82, yaw: Math.PI }),
+    floor: Object.freeze({ minX: -2.15, maxX: 2.15, minZ: -1.8, maxZ: 1.9 }),
+    blocks: Object.freeze([
+      Object.freeze({ id: 'rack', minX: -2.05, maxX: -1.2, minZ: 0.55, maxZ: 1.45 }),
+      Object.freeze({ id: 'bench', minX: 1.05, maxX: 2.05, minZ: -0.55, maxZ: 0.35 })
+    ])
   })
 ]);
 

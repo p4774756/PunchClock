@@ -18,6 +18,7 @@ public class IslandExploreLogicTest {
     private static final String EXPLORE_SCRIPT = "src/test/js/island-explore.test.mjs";
     private static final String LAYOUT_SCRIPT = "src/test/js/island-layout.test.mjs";
     private static final String CASINO_SCRIPT = "src/test/js/island-casino.test.mjs";
+    private static final String BLACKJACK_SCRIPT = "src/test/js/island-blackjack.test.mjs";
     private static final String LOBBY_DOM_SCRIPT = "src/test/js/island-lobby-dom.test.mjs";
     private static final String MILU_SCRIPT = "src/test/js/island-milu.test.mjs";
     private static final String GRAFFITI_SCRIPT = "src/test/js/island-graffiti.test.mjs";
@@ -31,6 +32,9 @@ public class IslandExploreLogicTest {
     private static final String CHAT_SCRIPT = "src/test/js/island-chat.test.mjs";
     private static final String LIFECYCLE_SCRIPT = "src/test/js/island-lifecycle.test.mjs";
     private static final String EXPLORE_INPUT_SCRIPT = "src/test/js/island-explore-input.test.mjs";
+    private static final String QUALITY_SCRIPT = "src/test/js/island-quality.test.mjs";
+    private static final String BOAT_SCRIPT = "src/test/js/island-boat.test.mjs";
+    private static final String TCM_VISIT_SCRIPT = "src/test/js/island-tcm-visit.test.mjs";
 
     @Test
     public void exploreLogicPassesNodeTests() throws Exception {
@@ -45,6 +49,11 @@ public class IslandExploreLogicTest {
     @Test
     public void casinoLogicPassesNodeTests() throws Exception {
         runNodeTest(CASINO_SCRIPT, "未安裝 Node.js，略過賭場大廳邏輯測試");
+    }
+
+    @Test
+    public void blackjackLogicPassesNodeTests() throws Exception {
+        runNodeTest(BLACKJACK_SCRIPT, "未安裝 Node.js，略過網頁 21 點邏輯測試");
     }
 
     @Test
@@ -110,6 +119,21 @@ public class IslandExploreLogicTest {
     @Test
     public void exploreInputPassesNodeTests() throws Exception {
         runNodeTest(EXPLORE_INPUT_SCRIPT, "未安裝 Node.js，略過探索輸入邏輯測試");
+    }
+
+    @Test
+    public void qualityPassesNodeTests() throws Exception {
+        runNodeTest(QUALITY_SCRIPT, "未安裝 Node.js，略過自適應畫質邏輯測試");
+    }
+
+    @Test
+    public void boatPassesNodeTests() throws Exception {
+        runNodeTest(BOAT_SCRIPT, "未安裝 Node.js，略過搭船邏輯測試");
+    }
+
+    @Test
+    public void tcmVisitPassesNodeTests() throws Exception {
+        runNodeTest(TCM_VISIT_SCRIPT, "未安裝 Node.js，略過推拿館研習室往返測試");
     }
 
     private void runNodeTest(String scriptPath, String skipMessage) throws Exception {

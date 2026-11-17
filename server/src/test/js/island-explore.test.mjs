@@ -272,6 +272,26 @@ function walkToward(pos, target) {
   return pos;
 }
 
+test('從出生點可走到主島上船區', () => {
+  const zone = X.DEFAULT_INTERACT_ZONES.find((item) => item.id === 'boat-main');
+  assert.ok(zone);
+  assert.equal(zone.action, 'sail');
+  assert.equal(zone.label, '搭船到沙灘島');
+  let pos = { x: X.PLAYER_SPAWN.x, z: X.PLAYER_SPAWN.z, yaw: 0 };
+  let guard = 0;
+  while (Math.hypot(zone.x - pos.x, zone.z - pos.z) > zone.r && guard < 2500) {
+    const dx = zone.x - pos.x;
+    const dz = zone.z - pos.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const next = X.stepPlayer(pos, { x: dx / len, z: dz / len, moving: true }, 0, 1 / 60);
+    assert.ok(X.canStand(next.x, next.z), 'step ' + guard);
+    if (next.x === pos.x && next.z === pos.z) assert.fail('卡住');
+    pos = next;
+    guard++;
+  }
+  assert.ok(X.hitInteractZone(pos.x, pos.z, X.DEFAULT_INTERACT_ZONES));
+});
+
 test('從出生點走不到沙灘島，沙灘島中心可站', () => {
   const beach = X.ISLANDS.find((island) => island.id === 'beach');
   assert.ok(beach);

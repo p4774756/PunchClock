@@ -58,6 +58,74 @@ export function emptyDevStatusMessage(data) {
   return '';
 }
 
+function clipDevText(text, maxLen) {
+  const s = text == null ? '' : String(text);
+  if (s.length <= maxLen) return s;
+  return s.slice(0, Math.max(1, maxLen - 1)) + '…';
+}
+
+function devFocusLine(label, item) {
+  if (!item) return label + '：目前沒有';
+  const pair = item.pair || '';
+  const title = clipDevText(item.title || '', 16);
+  const status = item.status ? '（' + item.status + '）' : '';
+  const head = pair ? pair + ' ' : '';
+  return label + '：' + head + title + status;
+}
+
+/** 研發樓室內螢幕用的純文字行（Canvas 繪製，不含 DOM）。 */
+export function formatLabDevScreenLines(data, opts) {
+  const maxQueue = (opts && opts.maxQueue) || 3;
+  const detailHint = '詳細進度請到主島施工告示牌';
+  if (!data || data.success === false) {
+    const msg = emptyDevStatusMessage(data) || '開發進度暫時讀不到';
+    return ['【開發進度】', '', msg, '', detailHint];
+  }
+  const now = data.now || {};
+  const hasCurrent = !!(now.current && (now.current.pair || now.current.title));
+  const hasNext = !!(now.next && (now.next.pair || now.next.title));
+  const queue = Array.isArray(now.queue) ? now.queue : [];
+  const hasQueue = queue.some((entry) => entry && (entry.pair || entry.title));
+  const stats = data.stats || {};
+  if (!hasCurrent && !hasNext && !hasQueue) {
+    const msg = emptyDevStatusMessage(data) || '開發進度暫時讀不到';
+    return ['【開發進度】', '', msg, '', detailHint];
+  }
+  const lines = [];
+  const staleNote = data.stale ? '（快取）' : '';
+  lines.push('【開發進度】' + staleNote);
+  lines.push('');
+  lines.push(devFocusLine('現在在做', now.current));
+  lines.push(devFocusLine('下一張', now.next));
+  lines.push('');
+  lines.push('排隊：');
+  if (!hasQueue) {
+    lines.push('  尚無排隊標籤');
+  } else {
+    const slice = queue.slice(0, maxQueue);
+    for (let i = 0; i < slice.length; i++) {
+      const entry = slice[i] || {};
+      const order = entry.order != null ? entry.order + '. ' : '';
+      const pair = entry.pair || '';
+      const title = clipDevText(entry.title || '', 12);
+      const status = entry.status ? ' · ' + entry.status : '';
+      lines.push('  ' + order + pair + ' ' + title + status);
+    }
+    if (queue.length > maxQueue) {
+      lines.push('  …還有 ' + (queue.length - maxQueue) + ' 項');
+    }
+  }
+  if (stats.mergedThisWeek != null || stats.openIssues != null) {
+    lines.push('');
+    const merged = stats.mergedThisWeek != null ? stats.mergedThisWeek : 0;
+    const open = stats.openIssues != null ? stats.openIssues : 0;
+    lines.push('本週合併 ' + merged + ' · 未關 issue ' + open);
+  }
+  lines.push('');
+  lines.push(detailHint);
+  return lines;
+}
+
 function clearChildren(el) {
   if (!el) return;
   while (el.firstChild) el.removeChild(el.firstChild);

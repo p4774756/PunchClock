@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BRIDGES, THEME_CIRCLES } from './island-layout.js';
+import { BRIDGES, BOAT_STOPS, THEME_CIRCLES } from './island-layout.js';
 import { G, P } from './island-kit.js';
 
 export function buildIslandProps(ctx) {
@@ -9,29 +9,29 @@ export function buildIslandProps(ctx) {
     const group = new THREE.Group();
     group.position.set(x, G, z);
     group.scale.setScalar(scale);
-    addMesh(group, geo('cyl', [0.09, 0.13, 0.85, 6, 0]), 0xc4844a, 0, 0.42, 0);
-    addMesh(group, geo('sph', [0.58, 6, 5]), leaf, 0, 1.2, 0, { scale: [1.05, 0.82, 1.05] });
-    addMesh(group, geo('sph', [0.42, 6, 5]), leaf, 0.36, 1.0, 0.08, { scale: [1, 0.8, 1] });
-    addMesh(group, geo('sph', [0.36, 6, 5]), leaf, -0.32, 1.05, -0.06, { scale: [1, 0.75, 1] });
+    addMesh(group, geo('cyl', [0.09, 0.13, 0.85, 6, 0]), 0xc4844a, 0, 0.42, 0, { shadow: false });
+    addMesh(group, geo('sph', [0.58, 6, 5]), leaf, 0, 1.2, 0, { scale: [1.05, 0.82, 1.05], shadow: false });
+    addMesh(group, geo('sph', [0.42, 6, 5]), leaf, 0.36, 1.0, 0.08, { scale: [1, 0.8, 1], shadow: false });
+    addMesh(group, geo('sph', [0.36, 6, 5]), leaf, -0.32, 1.05, -0.06, { scale: [1, 0.75, 1], shadow: false });
     scene.add(group);
   }
   function treeCone(x, z, scale, leaf) {
     const group = new THREE.Group();
     group.position.set(x, G, z);
     group.scale.setScalar(scale);
-    addMesh(group, geo('cyl', [0.08, 0.12, 0.7, 5, 0]), 0xa56b38, 0, 0.35, 0);
-    addMesh(group, geo('cone', [0.62, 0.7, 7]), leaf, 0, 0.95, 0);
-    addMesh(group, geo('cone', [0.46, 0.55, 7]), leaf, 0, 1.4, 0);
+    addMesh(group, geo('cyl', [0.08, 0.12, 0.7, 5, 0]), 0xa56b38, 0, 0.35, 0, { shadow: false });
+    addMesh(group, geo('cone', [0.62, 0.7, 7]), leaf, 0, 0.95, 0, { shadow: false });
+    addMesh(group, geo('cone', [0.46, 0.55, 7]), leaf, 0, 1.4, 0, { shadow: false });
     scene.add(group);
   }
   function treeLayer(x, z, scale, leaf) {
     const group = new THREE.Group();
     group.position.set(x, G, z);
     group.scale.setScalar(scale);
-    addMesh(group, geo('cyl', [0.08, 0.11, 0.95, 5, 0]), 0xc4844a, 0, 0.48, 0);
-    addMesh(group, geo('sph', [0.7, 6, 5]), leaf, 0, 0.95, 0, { scale: [1, 0.42, 1] });
-    addMesh(group, geo('sph', [0.5, 6, 5]), leaf, 0, 1.28, 0, { scale: [1, 0.45, 1] });
-    addMesh(group, geo('sph', [0.32, 6, 5]), leaf, 0, 1.55, 0, { scale: [1, 0.5, 1] });
+    addMesh(group, geo('cyl', [0.08, 0.11, 0.95, 5, 0]), 0xc4844a, 0, 0.48, 0, { shadow: false });
+    addMesh(group, geo('sph', [0.7, 6, 5]), leaf, 0, 0.95, 0, { scale: [1, 0.42, 1], shadow: false });
+    addMesh(group, geo('sph', [0.5, 6, 5]), leaf, 0, 1.28, 0, { scale: [1, 0.45, 1], shadow: false });
+    addMesh(group, geo('sph', [0.32, 6, 5]), leaf, 0, 1.55, 0, { scale: [1, 0.5, 1], shadow: false });
     scene.add(group);
   }
   [
@@ -52,7 +52,7 @@ export function buildIslandProps(ctx) {
 
   const bushGeo = geo('sph', [0.42, 6, 5]);
   function bush(x, z, s, color) {
-    addMesh(scene, bushGeo, color, x, G + 0.2 * s, z, { scale: [s, s * 0.72, s] });
+    addMesh(scene, bushGeo, color, x, G + 0.2 * s, z, { scale: [s, s * 0.72, s], shadow: false });
   }
   [
     [-5.2, -3.2, 0.85, 0x7eae58],
@@ -178,7 +178,7 @@ export function buildIslandProps(ctx) {
   lampLight(-1.6, G + 1.35, 5.55, 12);
   lampLight(1.6, G + 1.35, 5.55, 12);
   lampLight(5.45, G + 1.3, 2.35, 8);
-  lampLight(1.35, G + 1.25, 8.15, 8);
+  lampLight(1.35, G + 1.25, 8.15, 8, null, { realLight: true });
 
   function bicycle(x, z, rotY) {
     const group = new THREE.Group();
@@ -218,14 +218,15 @@ export function buildIslandProps(ctx) {
   const buoy = addMesh(scene, new THREE.TorusGeometry(0.16, 0.04, 5, 10), 0xf06a2a, 0.6, P + 0.32, 8.15);
   buoy.rotation.y = 0.5;
 
+  const berth = BOAT_STOPS.main.berth;
   const boat = new THREE.Group();
   addBox(boat, 1.2, 0.26, 0.48, 0xfff7ef, 0, 0.16, 0);
   addBox(boat, 0.7, 0.16, 0.32, 0xf06a2a, -0.05, 0.32, 0);
   addMesh(boat, geo('cone', [0.24, 0.36, 4]), 0xfff7ef, 0, 0.16, 0.55, { rot: [Math.PI / 2, 0, 0] });
-  boat.position.set(1.65, -0.62, 8.7);
-  boat.rotation.y = 0.4;
+  boat.position.set(berth.x, -0.62, berth.z);
+  boat.rotation.y = berth.yaw;
   scene.add(boat);
-  bobs.push({ obj: boat, base: -0.62, phase: 0.6, amp: 0.035 });
+  lampLight(0.55, 0.22, 0.62, 5, boat, { realLight: true });
 
   function bridge(x1, z1, x2, z2, width) {
     const deck = width || 1.15;
@@ -257,6 +258,7 @@ export function buildIslandProps(ctx) {
   }
   BRIDGES.forEach((span) => bridge(span.ax, span.az, span.bx, span.bz, span.halfWidth * 2));
   spanDeck(6.4, 1.95, 9.4, 1.95, 1.4, 0xc4844a, P);
+  spanDeck(17.4, BOAT_STOPS.beach.land.z, 15.7, BOAT_STOPS.beach.land.z, 1.2, 0xc4844a, P);
 
   function railing(x1, z1, x2, z2) {
     const dx = x2 - x1;
@@ -320,8 +322,8 @@ export function buildIslandProps(ctx) {
       shadow: false
     });
     addBox(group, 0.04, 0.03, 0.7, 0x3a312c, 0.16, 0.07, -0.42, { shadow: false });
-    scene.add(group);
     lampLight(0, 3.2, 0, 7, group);
+    scene.add(group);
   }
   function figureAt(x, z) {
     const group = new THREE.Group();
@@ -343,8 +345,8 @@ export function buildIslandProps(ctx) {
         shadow: false
       });
     });
-    scene.add(group);
     lampLight(0, 1.3, 0.15, 5, group);
+    scene.add(group);
   }
   function herbAt(x, z) {
     const group = new THREE.Group();
@@ -415,6 +417,8 @@ export function buildIslandProps(ctx) {
   }
   addFish(13.2, 0.18, 0.4, 0xf4a0c0, 0.7);
   addFish(14.1, 0.14, 2.2, 0xf6d35a, 0.55);
+
+  return { boat: boat };
 }
 
 export function registerSceneMotion(loop, state) {
