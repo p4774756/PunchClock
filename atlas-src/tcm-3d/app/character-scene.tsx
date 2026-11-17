@@ -48,6 +48,8 @@ type MToonLike=T.Material & {
  matcapFactor?:T.Color;
 };
 
+const isHairMaterial=(mat:T.Material)=>/HAIR|HairBack|PracticeHairBun/i.test(mat.name||'');
+
 /** TV anime cel look: sharp shade bands + ink outline; keep #75 hide／hair／practice intact. */
 const applyCelShading=(root:T.Object3D,gradient:T.DataTexture)=>{
  root.traverse((obj:T.Object3D)=>{
@@ -55,11 +57,12 @@ const applyCelShading=(root:T.Object3D,gradient:T.DataTexture)=>{
   const mats=Array.isArray(obj.material)?obj.material:[obj.material];
   for(const mat of mats){
    const m=mat as MToonLike & T.MeshStandardMaterial & {isMeshToonMaterial?:boolean;gradientMap?:T.Texture|null;envMapIntensity?:number};
+   const hair=isHairMaterial(m);
    if(m.isMToonMaterial){
-    m.shadingToonyFactor=.94;
-    m.shadingShiftFactor=Math.min(m.shadingShiftFactor??0,-.06);
-    if(m.shadeColorFactor)m.shadeColorFactor.multiplyScalar(.88);
-    m.giEqualizationFactor=Math.min(m.giEqualizationFactor??1,.52);
+    m.shadingToonyFactor=hair?.88:.94;
+    m.shadingShiftFactor=Math.min(m.shadingShiftFactor??0,hair?-.02:-.06);
+    if(m.shadeColorFactor)m.shadeColorFactor.multiplyScalar(hair?.97:.88);
+    m.giEqualizationFactor=Math.min(m.giEqualizationFactor??1,hair?.64:.52);
     m.outlineWidthMode=MToonMaterialOutlineWidthMode.WorldCoordinates;
     const ow=m.outlineWidthFactor??0.0024;
     m.outlineWidthFactor=Math.min(Math.max(ow,.0016),.0022);
@@ -72,6 +75,7 @@ const applyCelShading=(root:T.Object3D,gradient:T.DataTexture)=>{
    }
    if(m.isMeshToonMaterial){
     m.gradientMap=gradient;
+    if(hair&&m.color)m.color.copy(m.color).multiplyScalar(1.04);
     m.needsUpdate=true;
     continue;
    }
@@ -160,7 +164,8 @@ const materialLabel=(mat:T.Material,obj:T.Object3D)=>`${mat.name||''} ${obj.name
 const SKIN_FILL=new T.Color(232/255,198/255,178/255);
 /** Deep teal as sRGB bytes — do not feed hex through ColorManagement (would go near-black on the map). */
 const PRACTICE_TEAL_SRGB={r:13,g:74,b:79};
-const BUN_BROWN=0x3b2a22;
+/** VRoid Sendagaya Shino hair — lit / shade sRGB when GLB MToon is not sampled. */
+const HAIR_LIT=new T.Color(0x192338);
 
 const inTorsoSkinBand=(x:number,y:number,z:number)=>{
  if(y<.8||y>1.42||Math.abs(x)>.22)return false;
@@ -234,6 +239,89 @@ const writeUvTriangleCloth=(data:ImageData,width:number,height:number,flipY:bool
  }
 };
 
+const looksLikeSkinPixel=(r:number,g:number,b:number,a:number)=>{
+ if(a<200)return false;
+ if(r<40&&g>55&&b>65)return false;
+ return r>92&&g>72&&b>62&&r>=g-20;
+};
+
+const sampleNearbySkin=(data:ImageData,width:number,height:number,cx:number,cy:number,maxRad=96)=>{
+ for(let rad=1;rad<=maxRad;rad++){
+  for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){
+   if(Math.abs(dx)!==rad&&Math.abs(dy)!==rad)continue;
+   const x=cx+dx,y=cy+dy;
+   if(x<0||y<0||x>=width||y>=height)continue;
+   const i=(y*width+x)*4;
+   const r=data.data[i],g=data.data[i+1],b=data.data[i+2],a=data.data[i+3];
+   if(looksLikeSkinPixel(r,g,b,a))return {r,g,b};
+  }
+ }
+ return null;
+};
+
+/** Outer shoulder MASK cutouts — outside inTorsoSkinBand (clavicle guard unchanged). */
+const inOuterShoulderWorld=(x:number,y:number,z:number)=>{
+ if(y<1.24||y>1.36)return false;
+ const ax=Math.abs(x);
+ if(ax<=.06||ax>=.32)return false;
+ return true;
+};
+
+const paintShoulderAlphaHole=(data:ImageData,width:number,height:number,x:number,y:number)=>{
+ const i=(y*width+x)*4;
+ if(data.data[i+3]>=200)return true;
+ const sample=sampleNearbySkin(data,width,height,x,y);
+ if(sample){
+  data.data[i]=sample.r;data.data[i+1]=sample.g;data.data[i+2]=sample.b;data.data[i+3]=255;
+  return true;
+ }
+ return false;
+};
+
+const dilateShoulderHoleFromNeighbors=(data:ImageData,width:number,height:number,x:number,y:number)=>{
+ const i=(y*width+x)*4;
+ if(data.data[i+3]>=200)return true;
+ for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+  if(!dx&&!dy)continue;
+  const nx=x+dx,ny=y+dy;
+  if(nx<0||ny<0||nx>=width||ny>=height)continue;
+  const j=(ny*width+nx)*4;
+  if(data.data[j+3]<200)continue;
+  if(!looksLikeSkinPixel(data.data[j],data.data[j+1],data.data[j+2],data.data[j+3]))continue;
+  data.data[i]=data.data[j];data.data[i+1]=data.data[j+1];data.data[i+2]=data.data[j+2];data.data[i+3]=255;
+  return true;
+ }
+ return false;
+};
+
+const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,u1:number,v1:number,u2:number,v2:number)=>{
+ const toX=(u:number)=>Math.min(width-1,Math.max(0,Math.round(u*(width-1))));
+ const toY=(v:number)=>Math.min(height-1,Math.max(0,Math.round((flipY?1-v:v)*(height-1))));
+ const x0=toX(u0),y0=toY(v0),x1=toX(u1),y1=toY(v1),x2=toX(u2),y2=toY(v2);
+ const minX=Math.max(0,Math.min(x0,x1,x2)),maxX=Math.min(width-1,Math.max(x0,x1,x2));
+ const minY=Math.max(0,Math.min(y0,y1,y2)),maxY=Math.min(height-1,Math.max(y0,y1,y2));
+ const area=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);
+ if(area===0)return;
+ const holes:{x:number;y:number}[]=[];
+ for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+  const w0=((x1-x)*(y2-y)-(x2-x)*(y1-y))/area;
+  const w1=((x2-x)*(y0-y)-(x0-x)*(y2-y))/area;
+  const w2=1-w0-w1;
+  if(w0<-.01||w1<-.01||w2<-.01)continue;
+  const i=(y*width+x)*4;
+  if(data.data[i+3]>=200)continue;
+  if(!paintShoulderAlphaHole(data,width,height,x,y))holes.push({x,y});
+ }
+ for(let pass=0;pass<48&&holes.length;pass++){
+  const remain:typeof holes=[];
+  for(const {x,y} of holes){
+   if(!dilateShoulderHoleFromNeighbors(data,width,height,x,y))remain.push({x,y});
+  }
+  if(remain.length===holes.length)break;
+  holes.length=0;holes.push(...remain);
+ }
+};
+
 const findSkinMap=(m:T.MeshStandardMaterial & {map?:T.Texture|null;uniforms?:Record<string,{value:unknown}>})=>{
  if(m.map?.image)return m.map;
  const uni=m.uniforms?.map?.value;
@@ -299,6 +387,18 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
    }
    touched++;
   }
+  for(let i=0;i<index.count;i+=3){
+   const i0=index.getX(i),i1=index.getX(i+1),i2=index.getX(i+2);
+   a.fromBufferAttribute(pos,i0).applyMatrix4(mesh.matrixWorld);
+   b.fromBufferAttribute(pos,i1).applyMatrix4(mesh.matrixWorld);
+   c.fromBufferAttribute(pos,i2).applyMatrix4(mesh.matrixWorld);
+   const cx=(a.x+b.x+c.x)/3,cy=(a.y+b.y+c.y)/3,cz=(a.z+b.z+c.z)/3;
+   const shoulder=inOuterShoulderWorld(a.x,a.y,a.z)||inOuterShoulderWorld(b.x,b.y,b.z)||inOuterShoulderWorld(c.x,c.y,c.z)||inOuterShoulderWorld(cx,cy,cz);
+   if(!shoulder)continue;
+   const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
+   writeUvTriangleShoulderFix(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2);
+   touched++;
+  }
  }
  if(!touched)return;
  ctx.putImageData(data,0,0);
@@ -314,6 +414,22 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
   if(uni?.map)uni.map.value=next;
   m.needsUpdate=true;
  }
+};
+
+const findPrimaryHairMaterial=(root:T.Object3D):MToonLike|null=>{
+ let found:MToonLike|null=null;
+ root.traverse((obj:T.Object3D)=>{
+  if(found)return;
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  const label=mats.map(m=>materialLabel(m,obj)).join(' ');
+  if(!/Hair_00_HAIR_01/i.test(label))return;
+  for(const mat of mats){
+   const m=mat as MToonLike;
+   if(m.isMToonMaterial&&!/Outline/i.test(m.name||'')){found=m;break;}
+  }
+ });
+ return found;
 };
 
 /** Drop nape／occiput hair triangles; keep bangs and crown. Bun parents to Head bone. */
@@ -354,17 +470,22 @@ const restyleHairBun=(root:T.Object3D)=>{
  });
  const head=root.getObjectByName('J_Bip_C_Head');
  if(!head)return;
- const bunMat=new T.MeshToonMaterial({name:'PracticeHairBun',color:BUN_BROWN});
- // Head local +Y/+Z align with world; place above＋behind GV20 (~1.62) so the bun is visible from front.
- const bun=new T.Mesh(new T.SphereGeometry(.06,20,16),bunMat);
+ const hairSrc=findPrimaryHairMaterial(root);
+ const bunMat=hairSrc?hairSrc.clone() as MToonLike:new T.MeshToonMaterial({color:HAIR_LIT.clone()});
+ bunMat.name='PracticeHairBun';
+ if(!hairSrc){
+  (bunMat as T.MeshToonMaterial).color.copy(HAIR_LIT);
+ }
+ const bun=new T.Mesh(new T.SphereGeometry(.055,20,16),bunMat as T.Material);
  bun.name='PracticeHairBun';
- bun.position.set(0,.24,.055);
- bun.scale.set(1.05,.92,1.08);
+ // Crown／occiput bun — lower half under hair, top ~2.5–3.5 cm above hair line.
+ bun.position.set(0,.205,.065);
+ bun.scale.set(1.02,.86,1.02);
  bun.frustumCulled=false;
  head.add(bun);
- const coil=new T.Mesh(new T.TorusGeometry(.042,.015,8,20),bunMat);
+ const coil=new T.Mesh(new T.TorusGeometry(.038,.013,8,20),bunMat.clone() as T.Material);
  coil.name='PracticeHairBunCoil';
- coil.position.set(0,.225,.06);
+ coil.position.set(0,.192,.063);
  coil.rotation.x=Math.PI/2;
  coil.frustumCulled=false;
  head.add(coil);
