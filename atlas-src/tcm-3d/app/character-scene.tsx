@@ -93,6 +93,33 @@ const applyCelShading=(root:T.Object3D,gradient:T.DataTexture)=>{
 /** 360° woodcut landscape panorama on an open inward cylinder (see issue #104). */
 type WoodcutBackdrop={mesh:T.Mesh;tex:T.Texture;mat:T.Material;geo:T.BufferGeometry};
 
+/** Map mesh angle so central 1280 px (u≈.344–.656) covers ±40° behind avatar; sides use fade extensions. */
+const remapWoodcutPanoramaUv=(geo:T.BufferGeometry)=>{
+ const pos=geo.getAttribute('position') as T.BufferAttribute;
+ const uv=geo.getAttribute('uv') as T.BufferAttribute;
+ const frontHalf=T.MathUtils.degToRad(40);
+ const uLo=.34375;
+ const uHi=.65625;
+ const uSpan=uHi-uLo;
+ for(let i=0;i<uv.count;i++){
+  const xw=-pos.getZ(i);
+  const zw=pos.getX(i);
+  const phi=Math.atan2(xw,-zw);
+  let uTex:number;
+  if(Math.abs(phi)<=frontHalf){
+   uTex=.5+(phi/frontHalf)*(uSpan*.5);
+  }else if(phi>frontHalf){
+   const t=(phi-frontHalf)/(Math.PI-frontHalf);
+   uTex=uHi+t*(1-uHi);
+  }else{
+   const t=(phi+frontHalf)/(-Math.PI+frontHalf);
+   uTex=uLo*(1-t);
+  }
+  uv.setX(i,uTex);
+ }
+ uv.needsUpdate=true;
+};
+
 const buildWoodcutBackdrop=(tex:T.Texture):WoodcutBackdrop=>{
  tex.colorSpace=T.SRGBColorSpace;
  tex.wrapS=T.RepeatWrapping;
@@ -103,18 +130,38 @@ const buildWoodcutBackdrop=(tex:T.Texture):WoodcutBackdrop=>{
   side:T.BackSide,
   depthWrite:false,
   transparent:true,
-  opacity:.56,
-  color:new T.Color('#fff9f2'),
+  opacity:.84,
+  color:new T.Color('#fffaf4'),
  });
  const radius=15;
- const height=18;
+ const height=radius*1.396*(720/1280);
+ const bottomY=1.4-radius*Math.tan(T.MathUtils.degToRad(17));
+ const centerY=bottomY+height/2;
  const geo=new T.CylinderGeometry(radius,radius,height,96,1,true);
+ remapWoodcutPanoramaUv(geo);
  const mesh=new T.Mesh(geo,mat);
- mesh.position.set(0,1.35,0);
+ mesh.position.set(0,centerY,0);
  // Texture u=0.5 (center blank) behind avatar at world −Z when camera sits on +Z.
  mesh.rotation.y=-Math.PI/2;
  mesh.renderOrder=-2;
  return {mesh,tex,mat,geo};
+};
+
+const makeFeetGround=()=>{
+ const canvas=document.createElement('canvas');
+ canvas.width=256;canvas.height=256;
+ const ctx=canvas.getContext('2d')!;
+ const g=ctx.createRadialGradient(128,128,0,128,128,128);
+ g.addColorStop(0,'rgba(232,220,196,1)');
+ g.addColorStop(.42,'rgba(232,220,196,.75)');
+ g.addColorStop(1,'rgba(232,220,196,0)');
+ ctx.fillStyle=g;ctx.fillRect(0,0,256,256);
+ const map=new T.CanvasTexture(canvas);
+ map.colorSpace=T.SRGBColorSpace;
+ return new T.Mesh(
+  new T.CircleGeometry(3.5,64),
+  new T.MeshBasicMaterial({map,transparent:true,depthWrite:false}),
+ );
 };
 
 const disposeWoodcutBackdrop=(woodcut:WoodcutBackdrop|null)=>{
@@ -538,7 +585,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    dirty=true;
   });
 
-  const ground=new T.Mesh(new T.CircleGeometry(18,64),new T.MeshBasicMaterial({color:0xe8dcc4}));
+  const ground=makeFeetGround();
   ground.rotation.x=-Math.PI/2;ground.position.y=-.01;scene.add(ground);
   const platform=new T.Mesh(new T.CylinderGeometry(.62,.64,.024,80),new T.MeshBasicMaterial({color:0xe8d8b8}));
   platform.position.y=-.008;scene.add(platform);
