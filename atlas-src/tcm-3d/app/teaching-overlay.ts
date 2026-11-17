@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {createInstrument,updateInstrument} from './instruments';
+import {focusViewFromNormal} from './focus-view';
 import {POINTS,POINT_BY_CODE,TOOLS,curriculumSet,type SimulationState,type SurfaceTarget,type ToolId} from './teaching';
 import type {AnimePoint} from './character-mode';
 
@@ -147,32 +148,12 @@ export function createTeachingOverlay(
   if(s.customTarget){
    n.copy(camera.position).sub(aim).normalize();
    distance=.7;
-  }else if(s.pointCode==='GV20'||n.y>.85){
-   // 百會／巔頂：偏正前方略抬高，看見頭頂與臉，勿從正上鑽進髮內
-   n.set(.06,.22,-.97).normalize();
-   aim.y-=.1;aim.z-=.06;
-   distance=1.35;
-  }else if(s.pointCode==='ST9'||s.pointCode==='CV22'||s.pointCode==='CV23'){
-   // 人迎／天突／廉泉：近距正前方，讓針／指壓清楚可見
-   const side=Math.sign(n.x||(s.side||1))*.15;
-   n.set(side,.04,-1).normalize();
-   aim.y+=.02;aim.z-=.01;
-   distance=.6;
-  }else if(n.z>.3){
-   // 背面穴：從後方看，勿把 viewDir.z 鎖成負值轉到正面
-   n.set(n.x*.28,Math.max(.06,n.y*.25+.1),Math.max(.82,Math.abs(n.z))).normalize();
-   distance=.78;
-  }else if(Math.abs(n.x)>.55&&Math.abs(n.z)<.55){
-   // 側面穴（如帶脈）：從側向看
-   n.set(Math.sign(n.x)*Math.max(.82,Math.abs(n.x)),Math.max(.06,n.y*.25+.1),n.z*.28).normalize();
-   distance=.75;
-  }else if(n.y<-.75){
-   n.set(.25,-.45,-1).normalize();
-   distance=.7;
   }else{
-   // 顏面等：沿外向法線略抬高並退到正前，保持工具與穴位在框內
-   n.set(n.x*.28-.1,Math.max(.06,n.y*.25+.1),-Math.max(.82,Math.abs(n.z))).normalize();
-   distance=.72;
+   // Single source of truth with character-scene fallback (ST9 close-up, SI11 back view, …).
+   const framed=focusViewFromNormal(s.pointCode,n,s.side||1);
+   n.copy(framed.viewDir);
+   aim.add(framed.aimAdjust);
+   distance=framed.distance;
   }
   controls.target.copy(aim);
   camera.position.copy(controls.target).addScaledVector(n,distance);

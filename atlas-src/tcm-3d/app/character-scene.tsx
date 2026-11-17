@@ -10,8 +10,11 @@ import {VRMLoaderPlugin,VRMUtils} from '@pixiv/three-vrm';
 import {PointerTap} from './pointer-tap';
 import {createTeachingOverlay} from './teaching-overlay';
 import {installSurfaceToolInput} from './surface-tool-input';
+import {focusViewFromNormal} from './focus-view';
 import type {SceneState} from './anatomy';
 import type {SimulationState,SurfaceTarget,ToolDragPhase} from './teaching';
+
+export {focusViewFromNormal} from './focus-view';
 
 interface Props{
  state:SceneState;
@@ -40,14 +43,20 @@ const BUN_BROWN=0x3b2a22;
 
 const inTorsoSkinBand=(x:number,y:number,z:number)=>{
  if(y<.8||y>1.42||Math.abs(x)>.22)return false;
+ // Skip clavicle／shoulder shelf — flat fill there reads as bright patches.
+ if(y>1.30&&Math.abs(x)>.07)return false;
+ if(y>1.33&&Math.abs(z)<.08)return false;
  return Math.abs(z)<.16||(y>1.15&&Math.abs(z)<.14);
 };
 
 /** Sports bra: front covers breasts below 天突; back strap sits under GV14／BL14. */
 const inPracticeBra=(x:number,y:number,z:number)=>{
  if(Math.abs(x)>.13)return false;
- if(z<=.02)return y>=1.15&&y<=1.235; // front＋sides
- return y>=1.17&&y<=1.23; // back strap
+ // Blend front／back y bands across the side so the strap meets without a step.
+ const t=Math.max(0,Math.min(1,(z+.02)/.08));
+ const y0=1.15+(1.17-1.15)*t;
+ const y1=1.235+(1.23-1.235)*t;
+ return y>=y0&&y<=y1;
 };
 
 /** High-waist shorts: below 神闕／命門, cover white underwear front＋back. */
@@ -217,7 +226,8 @@ const restyleHairBun=(root:T.Object3D)=>{
    const m=mats[0] as T.MeshStandardMaterial;
    m.transparent=true;
    m.opacity=Math.min(m.opacity??1,.9);
-   m.depthWrite=true;
+   // Translucent hair must not write depth or sorting against skin／bun glitches.
+   m.depthWrite=false;
    m.needsUpdate=true;
   }
  });
@@ -237,35 +247,6 @@ const restyleHairBun=(root:T.Object3D)=>{
  coil.rotation.x=Math.PI/2;
  coil.frustumCulled=false;
  head.add(coil);
-};
-
-/** Shared focus framing: back points look from behind; side from the side. */
-export const focusViewFromNormal=(pointCode:string|null|undefined,normal:T.Vector3,side:1|-1)=>{
- const viewDir=new T.Vector3();
- let distance=.62;
- let aimAdjust=new T.Vector3();
- if(pointCode==='GV20'||normal.y>.85){
-  viewDir.set(.06,.22,-.97).normalize();
-  aimAdjust.set(0,-.1,-.06);
-  distance=1.35;
- }else if(pointCode==='ST9'||pointCode==='CV22'||pointCode==='CV23'){
-  viewDir.set(Math.sign(normal.x||side)*.15,.04,-1).normalize();
-  aimAdjust.set(0,.02,-.01);
-  distance=.6;
- }else if(normal.z>.3){
-  viewDir.set(normal.x*.28,Math.max(.06,normal.y*.25+.1),Math.max(.82,Math.abs(normal.z))).normalize();
-  distance=.78;
- }else if(Math.abs(normal.x)>.55&&Math.abs(normal.z)<.55){
-  viewDir.set(Math.sign(normal.x)*Math.max(.82,Math.abs(normal.x)),Math.max(.06,normal.y*.25+.1),normal.z*.28).normalize();
-  distance=.75;
- }else if(normal.y<-.75){
-  viewDir.set(.25,-.45,-1).normalize();
-  distance=.7;
- }else{
-  viewDir.set(normal.x*.28-.1,Math.max(.06,normal.y*.25+.1),-Math.max(.82,Math.abs(normal.z))).normalize();
-  distance=.72;
- }
- return {viewDir,distance,aimAdjust};
 };
 
 const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
