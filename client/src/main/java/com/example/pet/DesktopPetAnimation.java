@@ -6,15 +6,16 @@ import java.util.Random;
  * 桌面寵物的動作。不含視窗與計時器，由視窗在 EDT 上逐格呼叫 {@link #tick()}。
  * <p>
  * 喵露待機：呼吸每張 300ms，眨眼每張 150ms。
- * 動作優先序是拖曳、揮手、Cursor 狀態、走路、坐下、趴睡、待機，全部由這一個 tick 推進。
+ * 動作優先序是拖曳、養成動作（餵食／摸頭／玩耍）、揮手、Cursor 狀態、走路、坐下、趴睡、待機，全部由這一個 tick 推進。
  * 拖曳另有 {@link CarryPhase}：抓起、掙扎、放下，不混進一般動作的 {@link Mode}。
  * Cursor 的思考／忙碌／困擾蓋在一般閒置行為上，被拎著時不打斷，放開或揮手結束後再回到對應狀態。
- * 還沒有合格影格的動作由畫面改畫待機。{@link #column()} 與 {@link #row()} 只給待機素材也載入失敗時的像素角色。
+ * 養成開啟時低數值會偏向趴睡／困擾／坐下。還沒有合格影格的動作由畫面改畫待機。
+ * {@link #column()} 與 {@link #row()} 只給待機素材也載入失敗時的像素角色。
  */
 public final class DesktopPetAnimation {
 
     public enum Mode {
-        IDLE, WALK, REACT, SIT, SLEEP, THINK, BUSY, WORRY
+        IDLE, WALK, REACT, SIT, SLEEP, THINK, BUSY, WORRY, FEED, PAT, PLAY
     }
 
     /** 被拎著的階段。放下回彈期間仍算被拎著，畫面依階段選圖。 */
@@ -26,6 +27,8 @@ public final class DesktopPetAnimation {
     public static final int IDLE_TICKS = 70;
     public static final int WALK_TICKS = 110;
     public static final int REACT_TICKS = 28;
+    /** 餵食／摸頭／玩耍約與揮手同長。 */
+    public static final int CARE_TICKS = 28;
     /** 短暫困擾約與揮手同長，結束後回到 Cursor 維持狀態。 */
     public static final int WORRY_TICKS = 28;
     public static final int BUBBLE_TICKS = 40;
@@ -88,6 +91,10 @@ public final class DesktopPetAnimation {
     private boolean speedFresh;
     /** Cursor 進行中要維持的狀態（THINK／BUSY）；null 表示沒有。 */
     private Mode cursorHold;
+    private boolean careIdle;
+    private int careHunger = DesktopPetCare.DEFAULT;
+    private int careMood = DesktopPetCare.DEFAULT;
+    private int careEnergy = DesktopPetCare.DEFAULT;
 
     public DesktopPetAnimation() {
         this(new Random());
@@ -97,6 +104,14 @@ public final class DesktopPetAnimation {
         this.random = random;
         resetBlinkDelay();
         updateFrame();
+    }
+
+    /** 養成開啟時用數值偏向閒置；關閉時清掉偏向。 */
+    public void setCareIdle(boolean enabled, int hunger, int mood, int energy) {
+        careIdle = enabled;
+        careHunger = hunger;
+        careMood = mood;
+        careEnergy = energy;
     }
 
     public void tick() {
@@ -134,14 +149,16 @@ public final class DesktopPetAnimation {
             return;
         }
         poseTicks++;
-        if (mode == Mode.REACT && poseTicks >= REACT_TICKS) {
+        if (isCarePose() && poseTicks >= CARE_TICKS) {
+            resumeAfterInterrupt();
+        } else if (mode == Mode.REACT && poseTicks >= REACT_TICKS) {
             resumeAfterInterrupt();
         } else if (mode == Mode.WORRY && poseTicks >= WORRY_TICKS) {
             resumeAfterInterrupt();
         } else if (mode == Mode.IDLE && poseTicks >= IDLE_TICKS) {
-            boolean sit = shouldSit();
+            Mode next = nextAfterIdle();
             idleExits++;
-            enter(sit ? Mode.SIT : Mode.WALK);
+            enter(next);
         } else if (mode == Mode.SIT && poseTicks >= SIT_TICKS) {
             enter(shouldSleep() ? Mode.SLEEP : Mode.IDLE);
         } else if (mode == Mode.SLEEP && poseTicks >= SLEEP_TICKS) {
@@ -164,7 +181,7 @@ public final class DesktopPetAnimation {
         if (carried || settling) {
             return;
         }
-        if (mode == Mode.REACT || mode == Mode.WORRY) {
+        if (mode == Mode.REACT || mode == Mode.WORRY || isCarePose()) {
             return;
         }
         applyCursorHoldNow();
@@ -202,6 +219,31 @@ public final class DesktopPetAnimation {
         enter(Mode.REACT);
         updateFrame();
         return true;
+    }
+
+    /**
+     * 養成動作：餵食／摸頭／玩耍。被拖著時忽略。
+     * {@code mode} 僅接受 {@link Mode#FEED}、{@link Mode#PAT}、{@link Mode#PLAY}。
+     */
+    public boolean playCare(Mode mode, String phrase) {
+        if (carried || settling) {
+            return false;
+        }
+        if (mode != Mode.FEED && mode != Mode.PAT && mode != Mode.PLAY) {
+            mode = Mode.PAT;
+        }
+        notice = false;
+        if (phrase != null && !phrase.isEmpty()) {
+            bubble = phrase;
+            bubbleTicks = BUBBLE_TICKS;
+        }
+        enter(mode);
+        updateFrame();
+        return true;
+    }
+
+    public boolean isCarePose() {
+        return mode == Mode.FEED || mode == Mode.PAT || mode == Mode.PLAY;
     }
 
     public void clearCursorHold() {
@@ -489,7 +531,7 @@ public final class DesktopPetAnimation {
             bob = -6;
             return;
         }
-        if (mode == Mode.REACT || mode == Mode.WORRY) {
+        if (mode == Mode.REACT || mode == Mode.WORRY || isCarePose()) {
             int phase = poseTicks % 16;
             frameRow = 1;
             bob = -2;
@@ -526,16 +568,41 @@ public final class DesktopPetAnimation {
         }
     }
 
+    private Mode nextAfterIdle() {
+        if (careIdle && careEnergy < 25 && random.nextInt(3) == 0) {
+            return Mode.SLEEP;
+        }
+        if (careIdle && (careHunger < 25 || careMood < 25)) {
+            if (random.nextInt(3) == 0) {
+                return Mode.WORRY;
+            }
+            return Mode.SIT;
+        }
+        return shouldSit() ? Mode.SIT : Mode.WALK;
+    }
+
     private boolean shouldSit() {
+        if (careIdle && (careHunger < 25 || careMood < 25)) {
+            return random.nextInt(4) != 0;
+        }
+        if (careIdle && careEnergy < 25) {
+            return random.nextInt(3) != 0;
+        }
         return idleExits >= 1 && random.nextInt(2) == 0;
     }
 
     private boolean shouldSleep() {
+        if (careIdle && careEnergy < 25) {
+            return random.nextInt(4) != 0;
+        }
+        if (careIdle && (careHunger < 25 || careMood < 25)) {
+            return random.nextInt(4) == 0;
+        }
         return random.nextInt(2) == 0;
     }
 
     private void updateMilu() {
-        if (carried || mode == Mode.WALK || mode == Mode.REACT || isCursorPose()) {
+        if (carried || mode == Mode.WALK || mode == Mode.REACT || isCarePose() || isCursorPose()) {
             blinking = false;
             blinkStep = 0;
             blinkHold = 0;

@@ -16,6 +16,18 @@ public final class DesktopPetSettings {
     static final String KEY_NOTIFY_TASK = "desktopPet.notify.task";
     static final String KEY_NOTIFY_SOUND = "desktopPet.notify.sound";
     static final String KEY_CURSOR_REACT = "desktopPet.cursor.react";
+    static final String KEY_CARE_SCHEMA = "desktopPet.care.schema";
+    static final String KEY_CARE_ENABLED = "desktopPet.care.enabled";
+    static final String KEY_CARE_HUNGER = "desktopPet.care.hunger";
+    static final String KEY_CARE_MOOD = "desktopPet.care.mood";
+    static final String KEY_CARE_ENERGY = "desktopPet.care.energy";
+    static final String KEY_CARE_SAVED_AT = "desktopPet.care.savedAt";
+    static final String KEY_CARE_LAST_FEED = "desktopPet.care.lastFeedAt";
+    static final String KEY_CARE_LAST_PAT = "desktopPet.care.lastPatAt";
+    static final String KEY_CARE_LAST_PLAY = "desktopPet.care.lastPlayAt";
+    static final String KEY_CARE_LAST_TASK = "desktopPet.care.lastTaskAt";
+    static final String KEY_CARE_LAST_CURSOR = "desktopPet.care.lastCursorAt";
+    static final String KEY_CARE_FROZEN = "desktopPet.care.frozen";
 
     private final Preferences prefs;
 
@@ -116,6 +128,71 @@ public final class DesktopPetSettings {
 
     public void setCursorReact(boolean on) {
         writeFlag(KEY_CURSOR_REACT, on);
+    }
+
+    /** 養成。沒存過時預設開啟。總開關關掉時這個值仍保留。 */
+    public boolean careEnabled() {
+        return readFlag(KEY_CARE_ENABLED, true);
+    }
+
+    public void setCareEnabled(boolean on) {
+        writeFlag(KEY_CARE_ENABLED, on);
+    }
+
+    /**
+     * 讀回養成狀態。schema 不符、缺欄或壞值時回到預設，不丟例外。
+     */
+    public DesktopPetCare.Snapshot loadCare() {
+        try {
+            int schema = prefs.getInt(KEY_CARE_SCHEMA, 0);
+            if (schema != DesktopPetCare.SCHEMA) {
+                return defaultCareSnapshot();
+            }
+            return new DesktopPetCare.Snapshot(
+                    DesktopPetCare.clamp(prefs.getInt(KEY_CARE_HUNGER, DesktopPetCare.DEFAULT)),
+                    DesktopPetCare.clamp(prefs.getInt(KEY_CARE_MOOD, DesktopPetCare.DEFAULT)),
+                    DesktopPetCare.clamp(prefs.getInt(KEY_CARE_ENERGY, DesktopPetCare.DEFAULT)),
+                    Math.max(0L, prefs.getLong(KEY_CARE_SAVED_AT, 0L)),
+                    Math.max(0L, prefs.getLong(KEY_CARE_LAST_FEED, 0L)),
+                    Math.max(0L, prefs.getLong(KEY_CARE_LAST_PAT, 0L)),
+                    Math.max(0L, prefs.getLong(KEY_CARE_LAST_PLAY, 0L)),
+                    Math.max(0L, prefs.getLong(KEY_CARE_LAST_TASK, 0L)),
+                    Math.max(0L, prefs.getLong(KEY_CARE_LAST_CURSOR, 0L)),
+                    prefs.getBoolean(KEY_CARE_ENABLED, true),
+                    prefs.getBoolean(KEY_CARE_FROZEN, false));
+        } catch (RuntimeException ex) {
+            return defaultCareSnapshot();
+        }
+    }
+
+    public void saveCare(DesktopPetCare.Snapshot snap) {
+        if (snap == null) {
+            return;
+        }
+        try {
+            prefs.putInt(KEY_CARE_SCHEMA, DesktopPetCare.SCHEMA);
+            prefs.putBoolean(KEY_CARE_ENABLED, snap.enabled);
+            prefs.putBoolean(KEY_CARE_FROZEN, snap.frozen);
+            prefs.putInt(KEY_CARE_HUNGER, DesktopPetCare.clamp(snap.hunger));
+            prefs.putInt(KEY_CARE_MOOD, DesktopPetCare.clamp(snap.mood));
+            prefs.putInt(KEY_CARE_ENERGY, DesktopPetCare.clamp(snap.energy));
+            prefs.putLong(KEY_CARE_SAVED_AT, Math.max(0L, snap.savedAt));
+            prefs.putLong(KEY_CARE_LAST_FEED, Math.max(0L, snap.lastFeedAt));
+            prefs.putLong(KEY_CARE_LAST_PAT, Math.max(0L, snap.lastPatAt));
+            prefs.putLong(KEY_CARE_LAST_PLAY, Math.max(0L, snap.lastPlayAt));
+            prefs.putLong(KEY_CARE_LAST_TASK, Math.max(0L, snap.lastTaskAt));
+            prefs.putLong(KEY_CARE_LAST_CURSOR, Math.max(0L, snap.lastCursorAt));
+            flush();
+        } catch (RuntimeException ex) {
+            // 養成寫入失敗時維持畫面，下次再試。
+        }
+    }
+
+    private static DesktopPetCare.Snapshot defaultCareSnapshot() {
+        long now = System.currentTimeMillis();
+        return new DesktopPetCare.Snapshot(
+                DesktopPetCare.DEFAULT, DesktopPetCare.DEFAULT, DesktopPetCare.DEFAULT,
+                now, 0L, 0L, 0L, 0L, 0L, true, false);
     }
 
     private boolean readFlag(String key, boolean fallback) {

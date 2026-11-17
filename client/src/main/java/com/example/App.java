@@ -2062,6 +2062,11 @@ public class App extends JFrame {
             serverRefs.desktopPetCursorReact.addActionListener(e ->
                     desktopPetManager.setCursorReactEnabled(serverRefs.desktopPetCursorReact.isSelected()));
         }
+        if (serverRefs.desktopPetCare != null) {
+            serverRefs.desktopPetCare.setSelected(desktopPetManager.settings().careEnabled());
+            serverRefs.desktopPetCare.addActionListener(e ->
+                    desktopPetManager.setCareEnabled(serverRefs.desktopPetCare.isSelected()));
+        }
         if (slotController != null) {
             slotController.setTaskCompletedListener(task ->
                     notifyPet(DesktopPetEvent.TASK_COMPLETED, this::showScheduleFromPet));
