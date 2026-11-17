@@ -1,3 +1,4 @@
+import {ANIME_MODEL_BYTES} from './anime-model-digest';
 import {publicAssetUrl} from './public-assets';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
 import {animeOutfit,type AnimeOutfit,type OutfitId} from './outfits';
@@ -612,6 +613,14 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    loader.register(parser=>new VRMLoaderPlugin(parser));
    onProgress(8);
    const modelUrl=outfit.modelUrl||avatar.modelUrl;
+   const isAnimeModel=!!modelUrl?.includes('anime-assistant.glb');
+   let loadProgress=8;
+   const reportLoadProgress=(pct:number)=>{
+    const next=Math.min(99,pct);
+    if(next<=loadProgress)return;
+    loadProgress=next;
+    onProgress(loadProgress);
+   };
    loader.load(publicAssetUrl(modelUrl!),(gltf)=>{
     if(disposed)return;
     vrm=gltf.userData.vrm??null;
@@ -626,7 +635,10 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     model.updateMatrixWorld(true);
     teaching.anchor(characterRoot);
     ready=true;onProgress(100);fit(latest.current.view);dirty=true;
-   },xhr=>{if(xhr.total)onProgress(Math.min(99,Math.round(xhr.loaded/xhr.total*100)));},()=>{if(!disposed)onError(`${avatar.name} 模型載入失敗，請確認 ${modelUrl} 是否存在。`);});
+   },xhr=>{
+    if(xhr.total)reportLoadProgress(Math.round(xhr.loaded/xhr.total*100));
+    else if(isAnimeModel&&ANIME_MODEL_BYTES>0)reportLoadProgress(Math.round(xhr.loaded/ANIME_MODEL_BYTES*100));
+   },()=>{if(!disposed)onError(`${avatar.name} 模型載入失敗，請確認 ${modelUrl} 是否存在。`);});
   }
 
   const raycaster=new T.Raycaster(),pointer=new T.Vector2(),tap=new PointerTap();

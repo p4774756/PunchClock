@@ -138,7 +138,7 @@ async function main() {
   }
   const final = readFileSync(written);
   const digest = createHash('sha256').update(final).digest('hex').slice(0, 12);
-  writeFileSync(digestPath, `/** Content digest for anime-assistant.glb (cache bust). */\nexport const ANIME_MODEL_DIGEST='${digest}';\n`);
+  writeFileSync(digestPath, `/** Content digest for anime-assistant.glb (cache bust). */\nexport const ANIME_MODEL_DIGEST='${digest}';\nexport const ANIME_MODEL_BYTES=${final.length};\n`);
   const gzip = Number(process.env.STAT_GZIP);
   console.log(`寫入 ${written}`);
   console.log(`原始位元組：${final.length}`);
