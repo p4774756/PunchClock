@@ -16,6 +16,7 @@ async function load(name) {
 const X = await load('island-explore.js');
 const C = await load('island-casino.js');
 const islandSource = readFileSync(join(jsDir, 'island.js'), 'utf8');
+const exploreInputSource = readFileSync(join(jsDir, 'island-explore-input.js'), 'utf8');
 
 class FakeEvent {
   constructor(type, init) {
@@ -178,10 +179,14 @@ test('island.js 的接線與本測試一致', () => {
   assert.match(islandSource, /beforeOpen: \(\) => \{[\s\S]*?flow\.beforeLobbyOpen\(\)/);
   assert.match(islandSource, /onLobbyChange: \(state\) => flow\.lobbyChanged\(state\.open\)/);
   assert.match(islandSource, /onPrompt: \(\) => \{[\s\S]*?openGraffiti\(\)/);
-  assert.match(islandSource, /roadmap\.close\(\);\s*return;\s*\}\s*if \(graffiti && graffiti\.isOpen\(\)\) \{\s*graffiti\.close\(\);\s*return;\s*\}\s*if \(isTypingTarget\(event\.target\)\) return;\s*if \(casino && casino\.isOpen\(\)\)/);
+  assert.match(
+    exploreInputSource,
+    /ctx\.roadmap\.close\(\);[\s\S]*ctx\.graffiti\.close\(\);[\s\S]*isTypingTarget\(event\.target\)[\s\S]*ctx\.casino && ctx\.casino\.isOpen\(\)/
+  );
+  assert.match(islandSource, /createExploreKeys\(/);
   assert.match(islandSource, /onPrompt: \(\) => \{[\s\S]*?openRoadmap\(\)/);
   assert.match(islandSource, /function updatePlayer\(dt\) \{\s*if \(!flow\.canMove\(\)\)/);
-  assert.match(islandSource, /pointerdown', \(event\) => \{\s*if \(!flow\.canMove\(\)\)/);
+  assert.match(islandSource, /createExploreJoystick\([\s\S]*canMove: \(\) => flow\.canMove\(\)/);
   assert.match(islandSource, /function reset\(\) \{\s*flow\.resetPanel\(\);/);
   assert.match(islandSource, /flow\.focusPanel\(id\)/);
   assert.doesNotMatch(islandSource, /afterClose/, '關閉流程只能走 onLobbyChange');
