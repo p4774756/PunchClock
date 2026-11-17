@@ -22,6 +22,182 @@ export function phaseStatus(phase, current) {
 }
 
 const STATUS_LABEL = { done: '已完成', active: '施工中', pending: '未開工' };
+export const DEV_STATUS_FILTERS = ['全部', '排隊', '實作中', '審核中', '已合併', '路線圖'];
+
+/** 台北時間（UTC+8），附「台北」標籤。 */
+export function formatTaipeiTime(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  const d = new Date(n);
+  const parts = new Intl.DateTimeFormat('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(d);
+  const get = (type) => {
+    const hit = parts.find((p) => p.type === type);
+    return hit ? hit.value : '';
+  };
+  return get('year') + '/' + get('month') + '/' + get('day') + ' ' + get('hour') + ':' + get('minute') + ' 台北';
+}
+
+export function filterDevItems(items, statusFilter) {
+  const list = Array.isArray(items) ? items : [];
+  if (!statusFilter || statusFilter === '全部') return list.slice();
+  return list.filter((row) => row && row.status === statusFilter);
+}
+
+export function emptyDevStatusMessage(data) {
+  if (!data) return '暫時讀不到開發進度';
+  if (data.message) return String(data.message);
+  if (data.stale) return '顯示的是上次讀到的開發進度';
+  return '';
+}
+
+function clearChildren(el) {
+  if (!el) return;
+  while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function textEl(doc, tag, className, text) {
+  const el = doc.createElement(tag);
+  if (className) el.className = className;
+  el.textContent = text == null ? '' : String(text);
+  return el;
+}
+
+function linkEl(doc, className, href, text) {
+  const a = doc.createElement('a');
+  if (className) a.className = className;
+  a.href = href || '#';
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  a.textContent = text == null ? '' : String(text);
+  return a;
+}
+
+function renderFocusCard(doc, root, label, item) {
+  if (!root) return;
+  clearChildren(root);
+  root.appendChild(textEl(doc, 'span', 'roadmap-dev-kicker', label));
+  if (!item) {
+    root.appendChild(textEl(doc, 'p', 'roadmap-dev-empty', '目前沒有'));
+    return;
+  }
+  const pair = linkEl(doc, 'roadmap-dev-pair', item.issueUrl || item.prUrl || '#', item.pair || '');
+  root.appendChild(pair);
+  root.appendChild(textEl(doc, 'p', 'roadmap-dev-title', item.title || ''));
+  root.appendChild(textEl(doc, 'span', 'roadmap-dev-status', item.status || ''));
+}
+
+function renderQueue(doc, root, queue) {
+  if (!root) return;
+  clearChildren(root);
+  const list = Array.isArray(queue) ? queue : [];
+  if (!list.length) {
+    root.appendChild(textEl(doc, 'p', 'roadmap-dev-empty', '尚無排隊標籤'));
+    return;
+  }
+  const ol = doc.createElement('ol');
+  ol.className = 'roadmap-dev-queue-list';
+  list.forEach((entry) => {
+    const li = doc.createElement('li');
+    const order = entry && entry.order != null ? entry.order : '';
+    const item = entry || {};
+    li.appendChild(textEl(doc, 'span', 'roadmap-dev-order', String(order)));
+    li.appendChild(linkEl(doc, 'roadmap-dev-pair', item.issueUrl || '#', item.pair || ''));
+    li.appendChild(textEl(doc, 'span', 'roadmap-dev-qtitle', item.title || ''));
+    li.appendChild(textEl(doc, 'span', 'roadmap-dev-status', item.status || ''));
+    ol.appendChild(li);
+  });
+  root.appendChild(ol);
+}
+
+function renderTable(doc, root, items) {
+  if (!root) return;
+  clearChildren(root);
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    root.appendChild(textEl(doc, 'p', 'roadmap-dev-empty', '沒有符合的項目'));
+    return;
+  }
+  const table = doc.createElement('table');
+  table.className = 'roadmap-dev-table';
+  const thead = doc.createElement('thead');
+  const hr = doc.createElement('tr');
+  ['編號', '標題', '狀態', '更新'].forEach((h) => {
+    hr.appendChild(textEl(doc, 'th', null, h));
+  });
+  thead.appendChild(hr);
+  table.appendChild(thead);
+  const tbody = doc.createElement('tbody');
+  list.forEach((item) => {
+    if (!item) return;
+    const tr = doc.createElement('tr');
+    const num = doc.createElement('td');
+    num.className = 'roadmap-dev-num';
+    if (item.issueUrl) num.appendChild(linkEl(doc, null, item.issueUrl, item.pair || ('i' + item.issue)));
+    else num.textContent = item.pair || '';
+    if (item.prUrl) {
+      num.appendChild(doc.createTextNode(' '));
+      num.appendChild(linkEl(doc, 'roadmap-dev-pr', item.prUrl, item.pr != null ? ('p' + item.pr) : 'PR'));
+    }
+    tr.appendChild(num);
+    tr.appendChild(textEl(doc, 'td', 'roadmap-dev-title-cell', item.title || ''));
+    tr.appendChild(textEl(doc, 'td', 'roadmap-dev-status-cell', item.status || ''));
+    tr.appendChild(textEl(doc, 'td', 'roadmap-dev-time', formatTaipeiTime(item.updatedAt)));
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  root.appendChild(table);
+}
+
+function renderTimeline(doc, root, events) {
+  if (!root) return;
+  clearChildren(root);
+  const list = Array.isArray(events) ? events : [];
+  if (!list.length) {
+    root.appendChild(textEl(doc, 'p', 'roadmap-dev-empty', '近 7 天沒有動態'));
+    return;
+  }
+  const ul = doc.createElement('ul');
+  ul.className = 'roadmap-dev-timeline';
+  list.forEach((event) => {
+    if (!event) return;
+    const li = doc.createElement('li');
+    li.appendChild(textEl(doc, 'time', null, formatTaipeiTime(event.at)));
+    li.appendChild(textEl(doc, 'span', 'roadmap-dev-action', event.action || ''));
+    const ref = event.url
+      ? linkEl(doc, 'roadmap-dev-pair', event.url, event.ref || '')
+      : textEl(doc, 'span', 'roadmap-dev-pair', event.ref || '');
+    li.appendChild(ref);
+    li.appendChild(textEl(doc, 'span', 'roadmap-dev-qtitle', event.title || ''));
+    ul.appendChild(li);
+  });
+  root.appendChild(ul);
+}
+
+function renderStats(doc, root, stats) {
+  if (!root) return;
+  clearChildren(root);
+  const s = stats || {};
+  root.appendChild(textEl(doc, 'p', 'roadmap-dev-week', s.weekLabel || '本週（週一 00:00 起，台北）'));
+  const grid = doc.createElement('div');
+  grid.className = 'roadmap-dev-stats-grid';
+  const merged = doc.createElement('div');
+  merged.appendChild(textEl(doc, 'strong', null, String(s.mergedThisWeek != null ? s.mergedThisWeek : 0)));
+  merged.appendChild(textEl(doc, 'span', null, '本週合併'));
+  const open = doc.createElement('div');
+  open.appendChild(textEl(doc, 'strong', null, String(s.openIssues != null ? s.openIssues : 0)));
+  open.appendChild(textEl(doc, 'span', null, '未關閉 issue'));
+  grid.appendChild(merged);
+  grid.appendChild(open);
+  root.appendChild(grid);
+}
 
 export function createRoadmapController(opts) {
   const doc = (opts && opts.doc) || globalThis.document;
@@ -33,8 +209,18 @@ export function createRoadmapController(opts) {
   const noteEl = root && root.querySelector('[data-roadmap-note]');
   const sourceEl = root && root.querySelector('[data-roadmap-source]');
   const backBtn = root && root.querySelector('[data-roadmap-back]');
+  const currentEl = root && root.querySelector('[data-dev-current]');
+  const nextEl = root && root.querySelector('[data-dev-next]');
+  const queueEl = root && root.querySelector('[data-dev-queue]');
+  const filterEl = root && root.querySelector('[data-dev-filter]');
+  const tableEl = root && root.querySelector('[data-dev-table]');
+  const timelineEl = root && root.querySelector('[data-dev-timeline]');
+  const statsEl = root && root.querySelector('[data-dev-stats]');
+  const devNoteEl = root && root.querySelector('[data-dev-note]');
   let openState = false;
   let latest = null;
+  let latestDev = null;
+  let statusFilter = '全部';
 
   function setOpen(next) {
     const want = !!next;
@@ -111,13 +297,59 @@ export function createRoadmapController(opts) {
     if (typeof hooks.onData === 'function') hooks.onData(latest, copy);
   }
 
+  function applyDev(data) {
+    latestDev = data || null;
+    if (devNoteEl) {
+      const msg = emptyDevStatusMessage(latestDev);
+      if (latestDev && latestDev.message && !(latestDev.items && latestDev.items.length)) {
+        devNoteEl.textContent = msg;
+      } else if (latestDev && latestDev.stale) {
+        devNoteEl.textContent = '顯示的是上次讀到的開發進度';
+      } else {
+        devNoteEl.textContent = msg && !(latestDev && latestDev.items && latestDev.items.length) ? msg : '';
+      }
+    }
+    const now = (latestDev && latestDev.now) || {};
+    renderFocusCard(doc, currentEl, '現在在做', now.current || null);
+    renderFocusCard(doc, nextEl, '下一張', now.next || null);
+    renderQueue(doc, queueEl, now.queue || []);
+    renderTable(doc, tableEl, filterDevItems(latestDev && latestDev.items, statusFilter));
+    renderTimeline(doc, timelineEl, latestDev && latestDev.timeline);
+    renderStats(doc, statsEl, latestDev && latestDev.stats);
+  }
+
+  function ensureFilters() {
+    if (!filterEl || filterEl.childNodes.length) return;
+    DEV_STATUS_FILTERS.forEach((label) => {
+      const btn = doc.createElement('button');
+      btn.type = 'button';
+      btn.className = 'roadmap-dev-filter-btn';
+      btn.textContent = label;
+      btn.setAttribute('aria-pressed', label === statusFilter ? 'true' : 'false');
+      btn.addEventListener('click', () => {
+        statusFilter = label;
+        filterEl.querySelectorAll('button').forEach((el) => {
+          el.setAttribute('aria-pressed', el.textContent === statusFilter ? 'true' : 'false');
+        });
+        renderTable(doc, tableEl, filterDevItems(latestDev && latestDev.items, statusFilter));
+      });
+      filterEl.appendChild(btn);
+    });
+  }
+
   function refresh() {
+    ensureFilters();
     const fetchFn = (opts && opts.fetch) || (globalThis.fetch ? globalThis.fetch.bind(globalThis) : null);
     if (!fetchFn) return;
     fetchFn('/api/roadmap').then((res) => res.json()).then((body) => {
       apply(body);
     }).catch(() => {
       apply({ success: false, phases: [], message: '暫時讀不到施工進度', stale: false, current: null });
+    });
+    fetchFn('/api/dev-status').then((res) => res.json()).then((body) => {
+      applyDev(body);
+    }).catch(() => {
+      applyDev({ success: false, stale: false, now: { current: null, next: null, queue: [] }, items: [], timeline: [], stats: { weekLabel: '本週（週一 00:00 起，台北）', mergedThisWeek: 0, openIssues: 0 }, message: '暫時讀不到開發進度' });
     });
   }
 
@@ -133,6 +365,7 @@ export function createRoadmapController(opts) {
     close() { setOpen(false); },
     isOpen() { return openState; },
     refresh: refresh,
-    apply: apply
+    apply: apply,
+    applyDev: applyDev
   };
 }

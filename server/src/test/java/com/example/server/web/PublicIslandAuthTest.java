@@ -1,7 +1,10 @@
 package com.example.server.web;
 
+import com.example.server.ClientRelease;
 import com.example.server.ServerApp;
 import com.example.server.auth.AdminAuthCookie;
+import com.example.server.store.DevStatusModels;
+import com.example.server.store.DevStatusService;
 import io.javalin.Javalin;
 import org.junit.After;
 import org.junit.Before;
@@ -14,6 +17,7 @@ import java.net.http.HttpResponse;
 import java.net.http.WebSocket;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
@@ -31,7 +35,15 @@ public class PublicIslandAuthTest {
 
     @Before
     public void setUp() {
-        app = new ServerApp().start(0);
+        // 假 Fetcher：立刻回固定樣本，不打真實 GitHub（避免 5～11 秒逾時）。
+        DevStatusService fakeDevStatus = new DevStatusService(repo -> new DevStatusModels.Snapshot(
+                Collections.singletonList(new DevStatusModels.IssueRow(
+                        50, "測試票", true, 1_000L, 2_000L, null,
+                        Collections.singletonList("queue:1"))),
+                Collections.emptyList(),
+                Collections.emptySet()
+        ), "p4774756/PunchClock");
+        app = new ServerApp(ClientRelease.NONE, fakeDevStatus).start(0);
         base = "http://127.0.0.1:" + app.port();
         http = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NEVER)
@@ -171,6 +183,24 @@ public class PublicIslandAuthTest {
         assertFalse(roadmap.body().contains("未登入"));
         assertFalse(roadmap.body().contains("**Phase"));
         assertFalse(roadmap.body().contains("## 分期"));
+    }
+
+    @Test
+    public void guestsCanReadDevStatusWithoutLogin() throws Exception {
+        HttpResponse<String> status = send("GET", "/api/dev-status", null);
+        assertEquals(200, status.statusCode());
+        String body = status.body();
+        assertTrue(body.contains("\"success\""));
+        assertTrue(body.contains("\"stale\""));
+        assertTrue(body.contains("\"now\""));
+        assertTrue(body.contains("\"items\""));
+        assertTrue(body.contains("\"timeline\""));
+        assertTrue(body.contains("\"stats\""));
+        assertFalse(body.contains("未登入"));
+        assertFalse(body.contains("Authorization"));
+        assertFalse(body.contains("PUNCHCLOCK_GITHUB_TOKEN"));
+        assertFalse(body.contains("## "));
+        assertFalse(body.contains("Closes #"));
     }
 
     @Test

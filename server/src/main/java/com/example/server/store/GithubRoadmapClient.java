@@ -30,15 +30,7 @@ public final class GithubRoadmapClient implements RoadmapService.Fetcher {
                 .header("Accept", "application/vnd.github+json")
                 .header("User-Agent", "PunchClock")
                 .GET();
-        String token = System.getenv("PUNCHCLOCK_GITHUB_TOKEN");
-        if (token != null && !token.isBlank()) {
-            String value = token.trim();
-            if (!value.regionMatches(true, 0, "Bearer ", 0, 7)
-                    && !value.regionMatches(true, 0, "token ", 0, 6)) {
-                value = "Bearer " + value;
-            }
-            builder.header("Authorization", value);
-        }
+        GithubTokenHeaders.apply(builder);
         HttpResponse<String> response;
         try {
             response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
