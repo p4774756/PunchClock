@@ -364,9 +364,9 @@ export function buildingById(id) {
   return null;
 }
 
-// 封閉館（僅顯示尚未開放）。推拿館改走經絡研習室（enterTcm）；研發樓已可進室內。
+// 已無封閉館（研發樓等皆可進室內或開啟對應功能）。
 export function isClosedHall(action) {
-  return action === 'enterComputer';
+  return false;
 }
 
 const BLOCK_RECT_LIST = OBSTACLE_RECTS.slice();
