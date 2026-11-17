@@ -56,9 +56,13 @@ public final class AtlasRoutes {
             ctx.status(404).html(relativePath.isBlank() ? notBuilt(appId) : page("找不到這個檔案"));
             return;
         }
-        ctx.minSizeForCompression(Integer.MAX_VALUE);
+        String fileName = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        boolean glb = fileName.endsWith(".glb");
+        if (!glb) {
+            ctx.minSizeForCompression(Integer.MAX_VALUE);
+            ctx.header("Content-Length", Long.toString(Files.size(file)));
+        }
         ctx.contentType(contentType(file));
-        ctx.header("Content-Length", Long.toString(Files.size(file)));
         ctx.header("X-Content-Type-Options", "nosniff");
         ctx.header("Cache-Control", cacheControl(file));
         ctx.result(Files.newInputStream(file));
