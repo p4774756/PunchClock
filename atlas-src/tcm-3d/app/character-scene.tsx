@@ -142,7 +142,7 @@ const buildWoodcutBackdrop=(tex:T.Texture):WoodcutBackdrop=>{
  const mesh=new T.Mesh(geo,mat);
  mesh.position.set(0,centerY,0);
  // Texture u=0.5 (center blank) behind avatar at world −Z when camera sits on +Z.
- mesh.rotation.y=-Math.PI/2;
+ mesh.rotation.y=Math.PI/2;
  mesh.renderOrder=-2;
  return {mesh,tex,mat,geo};
 };
