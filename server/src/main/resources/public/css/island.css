@@ -459,8 +459,143 @@ body.island-sheet-open .island-explore-hint {
   font-size: 0.72rem;
   font-weight: 700;
   line-height: 1.35;
-  white-space: nowrap;
   pointer-events: none;
+}
+
+.island-peer-name-text {
+  white-space: nowrap;
+}
+
+.island-chat-wrap {
+  position: relative;
+}
+
+.island-chat {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: min(18rem, calc(100vw - 1.6rem));
+  padding: 0.45rem;
+  background: rgba(255, 250, 246, 0.98);
+  border-radius: 16px;
+  box-shadow: 0 8px 18px rgba(33, 29, 29, 0.16);
+}
+
+.island-chat[hidden] {
+  display: none !important;
+}
+
+.island-chat-log {
+  max-height: 8.5rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.15rem 0.2rem;
+}
+
+.island-chat-line {
+  margin: 0;
+  color: #211d1d;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.island-chat-line-system {
+  color: #8a7f7a;
+  font-weight: 500;
+}
+
+.island-chat-compose {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.island-chat input {
+  flex: 1;
+  min-width: 0;
+  height: 2.15rem;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 0.7rem;
+  background: #fff;
+  color: #211d1d;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.island-chat input:focus {
+  outline: 2px solid #ea5420;
+  outline-offset: 1px;
+}
+
+.island-chat-hint {
+  margin: 0;
+  padding: 0 0.2rem;
+  color: #b45309;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.island-chat-hint[hidden] {
+  display: none !important;
+}
+
+.island-chat-bubble {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  width: max-content;
+  max-width: min(11rem, 46vw);
+  padding: 0.28rem 0.55rem;
+  border-radius: 12px;
+  background: rgba(255, 250, 246, 0.96);
+  color: #211d1d;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+  text-align: center;
+  box-shadow: 0 6px 14px rgba(33, 29, 29, 0.16);
+  pointer-events: none;
+}
+
+.island-chat-bubble[hidden] {
+  display: none !important;
+}
+
+.island-chat-fab {
+  display: none;
+  position: fixed;
+  z-index: 6;
+  left: 9.2rem;
+  bottom: 1.35rem;
+  min-width: 3.4rem;
+  height: 2.4rem;
+  padding: 0 0.85rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 250, 246, 0.96);
+  color: #211d1d;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(33, 29, 29, 0.14);
+  cursor: pointer;
+}
+
+.island-chat-fab[hidden] {
+  display: none !important;
 }
 
 .island-joystick {
@@ -607,6 +742,15 @@ body.island-sheet-open .island-explore-hint {
   .island-nick {
     top: auto;
     bottom: calc(100% + 0.4rem);
+  }
+  .island-chat {
+    top: auto;
+    bottom: calc(100% + 0.4rem);
+  }
+  body.is-exploring .island-chat-fab:not([hidden]) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
   .island-list {
     top: auto;

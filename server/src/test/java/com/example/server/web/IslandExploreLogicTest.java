@@ -28,6 +28,7 @@ public class IslandExploreLogicTest {
     private static final String SKY_SCRIPT = "src/test/js/island-sky.test.mjs";
     private static final String CAMERA_SCRIPT = "src/test/js/island-camera.test.mjs";
     private static final String PRESENCE_SCRIPT = "src/test/js/island-presence.test.mjs";
+    private static final String CHAT_SCRIPT = "src/test/js/island-chat.test.mjs";
 
     @Test
     public void exploreLogicPassesNodeTests() throws Exception {
@@ -92,6 +93,11 @@ public class IslandExploreLogicTest {
     @Test
     public void presencePassesNodeTests() throws Exception {
         runNodeTest(PRESENCE_SCRIPT, "未安裝 Node.js，略過島上在線邏輯測試");
+    }
+
+    @Test
+    public void chatPassesNodeTests() throws Exception {
+        runNodeTest(CHAT_SCRIPT, "未安裝 Node.js，略過島上聊天邏輯測試");
     }
 
     private void runNodeTest(String scriptPath, String skipMessage) throws Exception {

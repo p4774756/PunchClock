@@ -202,6 +202,79 @@ public class IslandPresenceTest {
     }
 
     @Test
+    public void cleanChatTextKeepsPunctuationAndTruncates() {
+        assertEquals("你好！", IslandPresence.cleanChatText(" \u0001你好！\n "));
+        assertEquals("<img src=x>", IslandPresence.cleanChatText("<img src=x>"));
+        assertEquals("🙂✨", IslandPresence.cleanChatText("🙂✨"));
+        assertNull(IslandPresence.cleanChatText("   "));
+        assertNull(IslandPresence.cleanChatText("\u0007"));
+        String sixty = "一二三四五六七八九十".repeat(6);
+        assertEquals(sixty, IslandPresence.cleanChatText(sixty));
+        assertEquals(sixty, IslandPresence.cleanChatText(sixty + "甲"));
+        assertNull(IslandPresence.cleanName(sixty + "甲"));
+    }
+
+    @Test
+    public void sayRequiresWelcomeAndBroadcastsSameSceneIncludingSelf() {
+        IslandPresence presence = new IslandPresence();
+        String a = welcomed(presence, "10.8.0.1", "甲", 0L);
+        String b = welcomed(presence, "10.8.0.2", "乙", 1L);
+        String shop = welcomed(presence, "10.8.0.3", "丙", 2L);
+        presence.handle(a, pos(1, 1, 0, false, "outdoor"), 3L);
+        presence.handle(b, pos(2, 2, 0, false, "outdoor"), 4L);
+        presence.handle(shop, pos(0.1, 0.1, 0, false, "shop"), 5L);
+
+        IslandPresence.Slot raw = presence.join("10.8.0.4", 6L);
+        IslandPresence.Result beforeHello = presence.handle(raw.id, say("嗨"), 7L);
+        assertNull(beforeHello.saidJson);
+        assertNull(beforeHello.slowJson);
+        assertFalse(beforeHello.close);
+
+        IslandPresence.Result said = presence.handle(a, say("  你好！ "), 8L);
+        assertNotNull(said.saidJson);
+        assertTrue(said.saidIds.contains(a));
+        assertTrue(said.saidIds.contains(b));
+        assertFalse(said.saidIds.contains(shop));
+        JsonObject body = JsonParser.parseString(said.saidJson).getAsJsonObject();
+        assertEquals("said", body.get("t").getAsString());
+        assertEquals(a, body.get("id").getAsString());
+        assertEquals("甲", body.get("name").getAsString());
+        assertEquals("你好！", body.get("text").getAsString());
+        assertEquals(8L, body.get("ts").getAsLong());
+        assertNull(said.slowJson);
+        assertFalse(said.close);
+    }
+
+    @Test
+    public void sayRateLimitsPerPeerAndIpWithoutDisconnect() {
+        IslandPresence presence = new IslandPresence();
+        String id = welcomed(presence, "10.9.0.1", "快嘴", 0L);
+        IslandPresence.Result first = presence.handle(id, say("第一句"), 1_000L);
+        assertNotNull(first.saidJson);
+        IslandPresence.Result peerSlow = presence.handle(id, say("太快"), 2_000L);
+        assertNull(peerSlow.saidJson);
+        assertNotNull(peerSlow.slowJson);
+        assertTrue(peerSlow.slowJson.contains("\"slow\""));
+        assertFalse(peerSlow.close);
+        assertNotNull(presence.view(id));
+
+        IslandPresence.Result again = presence.handle(id, say("第二句"), 3_100L);
+        assertNotNull(again.saidJson);
+
+        for (int i = 0; i < IslandPresence.CHAT_IP_PER_MINUTE - 2; i++) {
+            IslandPresence.Result ok = presence.handle(id, say("第" + i), 10_000L + i * IslandPresence.CHAT_PEER_MS);
+            assertNotNull(ok.saidJson);
+            assertNull(ok.slowJson);
+        }
+        IslandPresence.Result ipSlow = presence.handle(id, say("爆了"),
+                10_000L + (IslandPresence.CHAT_IP_PER_MINUTE - 2) * IslandPresence.CHAT_PEER_MS);
+        assertNull(ipSlow.saidJson);
+        assertNotNull(ipSlow.slowJson);
+        assertFalse(ipSlow.close);
+        assertNotNull(presence.view(id));
+    }
+
+    @Test
     public void originMustMatchHostAndScheme() {
         assertTrue(IslandPresence.sameOrigin("http://localhost:3000", "localhost:3000", false));
         assertFalse(IslandPresence.sameOrigin("https://localhost:3000", "localhost:3000", false));
@@ -226,6 +299,10 @@ public class IslandPresenceTest {
 
     private static String rename(String name) {
         return "{\"t\":\"rename\",\"name\":" + jsonString(name) + "}";
+    }
+
+    private static String say(String text) {
+        return "{\"t\":\"say\",\"text\":" + jsonString(text) + "}";
     }
 
     private static String pos(double x, double z, double yaw, boolean moving, String scene) {
