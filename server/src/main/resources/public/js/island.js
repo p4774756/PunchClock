@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import {
   PLAYER_SPAWN,
   PLAYER_SPEED,
-  MOVE_CODES,
   DEFAULT_INTERACT_ZONES,
   canStand,
   moveVector,
@@ -12,11 +11,8 @@ import {
   createExploreFlow,
   controlsActive,
   playerVisible,
-  shouldCaptureMoveKey,
   hitInteractZone,
-  shouldShowInteractPrompt,
-  shouldTriggerInteractKey,
-  clampOrbitRadius
+  shouldShowInteractPrompt
 } from './island-explore.js';
 import {
   PANORAMA,
@@ -44,7 +40,6 @@ import {
 } from './island-milu.js';
 import {
   HIDDEN_DISCONNECT_MS,
-  cleanNick,
   createIslandPresence,
   createMotion,
   loadNick,
@@ -52,7 +47,7 @@ import {
   sampleMotion,
   shouldSendPos
 } from './island-presence.js';
-import { createIslandChat, shouldOpenChatKey } from './island-chat.js';
+import { createIslandChat } from './island-chat.js';
 import { createIslandAudio } from './island-audio.js';
 import { G, P, createSceneKit } from './island-kit.js';
 import { createDayNight } from './island-daynight.js';
@@ -72,6 +67,15 @@ import { buildIslandPeople } from './island-people.js';
 import { createIslandSky } from './island-sky.js';
 import { createIslandSea } from './island-sea.js';
 import { createFootprintView } from './island-footprints.js';
+import { createLifecycle } from './island-lifecycle.js';
+import { createPeerLayer } from './island-peers.js';
+import { placeBuildingLabels } from './island-labels.js';
+import { createCornerUi } from './island-corner-ui.js';
+import {
+  createExplorePointer,
+  createExploreKeys,
+  createExploreJoystick
+} from './island-explore-input.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 
@@ -275,6 +279,8 @@ function boot() {
     sky.tick(dt, elapsed);
   });
 
+  const lifecycle = createLifecycle();
+
   function syncFootprints(dt) {
     if (rooms.inside() || interiorBusy) {
       footprints.setHidden(true);
@@ -342,13 +348,10 @@ function boot() {
   scene.add(milu.object);
   milu.object.visible = false;
   let miluState = createMiluState();
-  const peers = new Map();
   let islandPresence = null;
   let islandChat = null;
-  let peerWelcomed = false;
-  let peerSelfId = '';
-  let peerScene = 'outdoor';
-  let lastPosSent = null;
+  let peerLayer = null;
+  let corner = null;
   let peerHideTimer = 0;
   const MILU_NPCS = [
     { x: 0.15, z: 0.42 },
@@ -373,23 +376,6 @@ function boot() {
     player.vz = 0;
     const knob = document.getElementById('islandJoystickKnob');
     if (knob) knob.style.transform = 'translate(0px, 0px)';
-  }
-
-  function isTypingTarget(target) {
-    if (!target) return false;
-    const tag = target.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-    if (target.isContentEditable) return true;
-    return !!(target.closest && target.closest('input, textarea, select, [contenteditable="true"]'));
-  }
-
-  // 'explore'：焦點在畫布、探索按鈕、搖桿或頁面本身；'control'：其它可操作的 UI 元件。
-  function focusKind(target) {
-    if (!target || target === document.body || target === document.documentElement || target === window) return 'explore';
-    if (!target.closest) return 'explore';
-    if (target.closest('#islandStage, #islandExplore, #islandJoystick')) return 'explore';
-    if (target.closest('button, a[href], summary, [tabindex], [role="button"], [role="listbox"], [role="menu"], [role="option"], [role="tab"]')) return 'control';
-    return 'explore';
   }
 
   function sheetOpen() {
@@ -469,8 +455,6 @@ function boot() {
     initial: POSES.home
   });
   let animating = false;
-  const pointer = new THREE.Vector2();
-  const raycaster = new THREE.Raycaster();
   const projected = new THREE.Vector3();
   let activeZone = '';
 
@@ -501,7 +485,7 @@ function boot() {
     if (hint) hint.hidden = !exploring || overlay;
     if (islandChat) islandChat.setExploring(exploring && !overlay);
     syncInteractPrompt();
-    syncPeerCount();
+    if (corner) corner.syncPeerCount();
   }
 
   function syncInteractPrompt() {
@@ -547,8 +531,8 @@ function boot() {
       playerMesh.position.set(player.x, P, player.z);
       playerMesh.rotation.y = player.yaw;
       dispatchMode('enter');
-      peerScene = currentScene();
-      if (islandPresence) islandPresence.connect();
+      if (peerLayer) peerLayer.setPeerScene(currentScene());
+      lifecycle.emit('enterExplore', {});
       if (sheetOpen()) {
         dispatchMode('panelOpen');
       } else {
@@ -559,13 +543,7 @@ function boot() {
       if (rooms.inside()) abortInterior();
       if (casino && casino.isOpen()) casino.closeLobby();
       dispatchMode('exit');
-      peerWelcomed = false;
-      peerSelfId = '';
-      peerScene = 'outdoor';
-      lastPosSent = null;
-      clearPeers();
-      if (islandChat) islandChat.clear();
-      if (islandPresence) islandPresence.disconnect();
+      lifecycle.emit('exitExplore', {});
       const saved = exploreSaved || POSES.home;
       exploreSaved = null;
       applyPose({
@@ -633,319 +611,21 @@ function boot() {
     return { x: 0, z: 0 };
   }
 
-  function clearPeers() {
-    Array.from(peers.keys()).forEach(despawnPeer);
-  }
-
-  function despawnPeer(id) {
-    const row = peers.get(id);
-    if (!row) return;
-    peers.delete(id);
-    scene.remove(row.view.object);
-    if (row.view.dispose) row.view.dispose();
-    if (row.label && row.label.parentNode) row.label.parentNode.removeChild(row.label);
-  }
-
-  function tintRemote(view) {
-    view.object.traverse((node) => {
-      if (!node.material || !node.material.color || !(node.material.alphaTest > 0)) return;
-      node.material.color.setHex(0xb7d4ff);
-    });
-  }
-
-  function spawnPeer(info) {
-    const view = createMiluView(THREE, { shared: milu.sharedTextures() });
-    tintRemote(view);
-    view.object.visible = false;
-    scene.add(view.object);
-    const label = document.createElement('div');
-    label.className = 'island-peer-name';
-    if (info.id) label.dataset.peerId = info.id;
-    const nameEl = document.createElement('span');
-    nameEl.className = 'island-peer-name-text';
-    nameEl.textContent = info.name || '';
-    label.appendChild(nameEl);
-    const host = document.getElementById('islandLabels');
-    if (host) host.appendChild(label);
-    return {
-      view: view,
-      label: label,
-      name: info.name || '',
-      moving: !!info.moving,
-      motion: createMotion(),
-      miluState: createMiluState()
-    };
-  }
-
-  function applyPeerList(list) {
-    const seen = Object.create(null);
-    const now = performance.now();
-    const players = list || [];
-    for (let i = 0; i < players.length; i++) {
-      const info = players[i];
-      if (!info || !info.id) continue;
-      seen[info.id] = true;
-      let row = peers.get(info.id);
-      if (!row) {
-        row = spawnPeer(info);
-        peers.set(info.id, row);
-      }
-      row.name = info.name || '';
-      row.moving = !!info.moving;
-      if (row.label) {
-        const nameEl = row.label.querySelector('.island-peer-name-text');
-        if (nameEl) nameEl.textContent = row.name;
-        else row.label.textContent = row.name;
-      }
-      pushTarget(row.motion, { x: info.x, z: info.z, yaw: info.yaw }, now);
-    }
-    Array.from(peers.keys()).forEach((id) => {
-      if (!seen[id]) despawnPeer(id);
-    });
-    syncPeerCount();
-  }
-
-  function syncPeerCount() {
-    const el = document.getElementById('islandPeerCount');
-    if (!el) return;
-    const show = !!(mode.exploring && peerWelcomed);
-    el.hidden = !show;
-    if (!show) return;
-    el.textContent = '島上 ' + (peers.size + 1) + ' 人';
-  }
-
-  function stepPeers(dt) {
-    const now = performance.now();
-    const off = peerOffset();
-    peers.forEach((row) => {
-      const shown = sampleMotion(row.motion, now, reduced);
-      const x = shown.x + off.x;
-      const z = shown.z + off.z;
-      row.view.object.position.set(x, P, z);
-      const ready = row.view.ready();
-      row.view.object.visible = !!ready;
-      const moving = !!row.moving;
-      const axes = screenAxes(moving ? Math.sin(shown.yaw) : 0, moving ? Math.cos(shown.yaw) : 0, cam.theta);
-      const anim = row.view.anim();
-      row.miluState = miluStep(row.miluState, dt, {
-        moving: moving,
-        screenX: axes.x,
-        screenZ: axes.z,
-        near: false,
-        reduced: reduced,
-        anim: anim
-      });
-      row.view.show(miluClipPath(row.miluState, anim));
-      row.view.faceCamera(camera, x, z);
-    });
-  }
-
-  function syncPresence(now) {
-    if (!islandPresence || !mode.exploring) return;
-    const pose = presencePose();
-    if (pose.scene !== peerScene) {
-      peerScene = pose.scene;
-      clearPeers();
-      lastPosSent = null;
-      syncPeerCount();
-    }
-    if (!shouldSendPos(lastPosSent, pose, now)) return;
-    if (islandPresence.sendPos(pose)) {
-      lastPosSent = {
-        x: pose.x,
-        z: pose.z,
-        yaw: pose.yaw,
-        moving: pose.moving,
-        scene: pose.scene,
-        sentAt: now
-      };
-    }
-  }
-
-  function placePeerLabels() {
-    const width = stage.clientWidth || 1;
-    const height = stage.clientHeight || 1;
-    const off = peerOffset();
-    const now = performance.now();
-    const peerPlaces = [];
-    peers.forEach((row, id) => {
-      const el = row.label;
-      if (!el) return;
-      if (!row.view.object.visible) {
-        el.style.visibility = 'hidden';
-        peerPlaces.push({ id: id, visible: false });
-        return;
-      }
-      const shown = sampleMotion(row.motion, now, reduced);
-      projected.set(shown.x + off.x, P + 1.18, shown.z + off.z);
-      projected.project(camera);
-      if (projected.z > 1 || projected.x < -1.08 || projected.x > 1.08 || projected.y < -1.08 || projected.y > 1.08) {
-        el.style.visibility = 'hidden';
-        peerPlaces.push({ id: id, visible: false });
-        return;
-      }
-      const x = (projected.x * 0.5 + 0.5) * width;
-      const y = (-projected.y * 0.5 + 0.5) * height;
-      el.style.visibility = 'visible';
-      el.style.transform = 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -120%)';
-      peerPlaces.push({ id: id, x: x, y: y, visible: true });
-    });
-    if (islandChat) {
-      islandChat.placeBubbles({
-        x: player.x,
-        y: P + 1.18,
-        z: player.z,
-        visible: !!(mode.exploring && (milu.object.visible || playerMesh.visible)),
-        width: width,
-        height: height,
-        camera: camera,
-        projected: projected,
-        peers: peerPlaces
-      });
-    }
-  }
-
   function placeLabels() {
-    if (shouldHideIslandLabels(rooms.inside(), interiorBusy)) {
-      document.querySelectorAll('[data-anchor]').forEach((el) => {
-        el.style.visibility = 'hidden';
-      });
-      placePeerLabels();
-      return;
-    }
-    const width = stage.clientWidth || 1;
-    const height = stage.clientHeight || 1;
-    const far = cam.targetRadius > 42;
-    const nodes = [];
-    document.querySelectorAll('[data-anchor]').forEach((el) => {
-      const minor = el.hasAttribute('data-minor');
-      const rank = Number(el.getAttribute('data-rank') || 3);
-      if (far && (minor || rank >= 2)) {
-        el.style.visibility = 'hidden';
-        return;
-      }
-      const anchor = anchors[el.getAttribute('data-anchor')];
-      if (!anchor) return;
-      anchor.getWorldPosition(projected);
-      const dist = projected.distanceTo(camera.position);
-      projected.project(camera);
-      if (projected.z > 1 || projected.x < -1.08 || projected.x > 1.08 || projected.y < -1.08 || projected.y > 1.08) {
-        el.style.visibility = 'hidden';
-        return;
-      }
-      if (minor && dist > 32) {
-        el.style.visibility = 'hidden';
-        return;
-      }
-      nodes.push({
-        el: el,
-        x: (projected.x * 0.5 + 0.5) * width,
-        y: (-projected.y * 0.5 + 0.5) * height,
-        minor: minor,
-        rank: rank
-      });
+    if (!peerLayer) return;
+    placeBuildingLabels({
+      inside: rooms.inside(),
+      interiorBusy: interiorBusy,
+      shouldHideIslandLabels: shouldHideIslandLabels,
+      far: cam.targetRadius > 42,
+      camera: camera,
+      anchors: anchors,
+      projected: projected,
+      stage: stage,
+      document: document,
+      placePeerLabels: () => peerLayer.placePeerLabels()
     });
-    nodes.sort((a, b) => a.rank - b.rank);
-    const placed = [];
-    nodes.forEach((node) => {
-      const w = node.el.offsetWidth || 76;
-      const h = node.el.offsetHeight || 28;
-      let y = node.y;
-      let hidden = false;
-      for (let guard = 0; guard < 5; guard++) {
-        const hit = placed.some((item) => {
-          return Math.abs(item.x - node.x) < (item.w + w) * 0.48
-            && Math.abs(item.y - y) < (item.h + h) * 0.5;
-        });
-        if (!hit) break;
-        if (node.minor) {
-          hidden = true;
-          break;
-        }
-        y += h + 8;
-      }
-      if (hidden) {
-        node.el.style.visibility = 'hidden';
-        return;
-      }
-      node.el.style.visibility = 'visible';
-      node.el.style.transform = 'translate(' + node.x + 'px, ' + y + 'px) translate(-50%, -120%)';
-      placed.push({ x: node.x, y: y, w: w, h: h });
-    });
-    placePeerLabels();
   }
-
-  function ndc(event) {
-    const rect = canvas.getBoundingClientRect();
-    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-  }
-
-  function hitZone(event) {
-    ndc(event);
-    raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObjects(pickables, false);
-    return hits.length ? hits[0].object.userData.zone : '';
-  }
-
-  let dragging = false;
-  let moved = false;
-  let lastX = 0;
-  let lastY = 0;
-
-  canvas.addEventListener('pointerdown', (event) => {
-    dragging = true;
-    moved = false;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    canvas.style.cursor = 'grabbing';
-    if (canvas.setPointerCapture) canvas.setPointerCapture(event.pointerId);
-  });
-  canvas.addEventListener('pointermove', (event) => {
-    if (!dragging) {
-      canvas.style.cursor = hitZone(event) ? 'pointer' : 'grab';
-      return;
-    }
-    const dx = event.clientX - lastX;
-    const dy = event.clientY - lastY;
-    if (dx * dx + dy * dy > 9) moved = true;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    cam.targetTheta -= dx * 0.005;
-    const followCam = controlsActive(mode);
-    // 探索：往上拖＝抬頭；全景維持「抓住世界拖」。左右不變。
-    cam.targetPhi = applyDragPhi(cam.targetPhi, dy, followCam);
-  });
-  canvas.addEventListener('pointerup', (event) => {
-    dragging = false;
-    canvas.style.cursor = 'grab';
-    if (!moved) {
-      const zone = hitZone(event);
-      if (zone === 'graffiti-wall') {
-        openGraffiti();
-        return;
-      }
-      if (zone === 'construction-board') {
-        openRoadmap();
-        return;
-      }
-      if (zone && typeof window.switchDashTab === 'function') window.switchDashTab(zone);
-    }
-  });
-  canvas.addEventListener('pointercancel', () => {
-    dragging = false;
-    canvas.style.cursor = 'grab';
-  });
-  canvas.addEventListener('pointerleave', () => {
-    if (!dragging) canvas.style.cursor = 'grab';
-  });
-  canvas.addEventListener('wheel', (event) => {
-    event.preventDefault();
-    const followCam = controlsActive(mode);
-    const indoorMin = followCam && rooms.inside() ? INTERIOR_POSE.radius : null;
-    cam.targetRadius = clampOrbitRadius(cam.targetRadius, event.deltaY * 0.01, followCam, indoorMin);
-  }, { passive: false });
-
 
   function miluNpcPoints() {
     const points = MILU_NPCS.slice();
@@ -1041,10 +721,10 @@ function boot() {
   function frame() {
     const dt = Math.min(0.1, clock.getDelta() || 0);
     updatePlayer(dt);
-    syncPresence(performance.now());
+    if (peerLayer) peerLayer.syncPresence(performance.now());
     cam.step(dt);
     milu.faceCamera(camera, player.x, player.z);
-    stepPeers(dt);
+    if (peerLayer) peerLayer.stepPeers(dt);
     dayNight.step(dt);
     loop.tick(dt, clock.elapsedTime);
     renderer.render(scene, camera);
@@ -1081,151 +761,11 @@ function boot() {
       start();
       if (mode.exploring && islandPresence) islandPresence.connect();
     }
-    if (islandAudio) islandAudio.onVisibilityChange(document.hidden);
+    lifecycle.emit('visibilityChange', { hidden: document.hidden });
   });
   window.addEventListener('blur', () => {
     clearMoveInput();
   });
-
-  window.addEventListener('keydown', (event) => {
-    if (MOVE_CODES[event.code]) {
-      if (event.altKey || event.ctrlKey || event.metaKey) return;
-      const capture = shouldCaptureMoveKey({
-        code: event.code,
-        typing: isTypingTarget(event.target),
-        active: controlsActive(mode),
-        uiOpen: islandUiOpen(),
-        focus: focusKind(event.target)
-      });
-      if (!capture) return;
-      player.keys[event.code] = true;
-      event.preventDefault();
-      return;
-    }
-    const promptVisible = syncInteractPrompt();
-    if (casino && shouldTriggerInteractKey({
-      promptVisible: promptVisible,
-      typing: isTypingTarget(event.target),
-      focus: focusKind(event.target),
-      code: event.code,
-      key: event.key
-    })) {
-      // 焦點已在「進入賭場」按鈕時交給按鈕自己的 click／Enter，避免重複開啟。
-      if (event.target && event.target.id === 'islandInteract') return;
-      event.preventDefault();
-      const zone = hitInteractZone(player.x, player.z, promptZones());
-      if (rooms.inside()) {
-        if (zone && zone.action === 'exitInterior') leaveInterior();
-        return;
-      }
-      if (zone && zone.action === 'openGraffiti') openGraffiti();
-      else if (zone && zone.action === 'openRoadmap') openRoadmap();
-      else if (zone && zone.action === 'enterInterior') enterInterior(zone.id);
-      else if (zone && isClosedHall(zone.action)) showInteriorClosed();
-      else if (casino) casino.openLobby();
-      return;
-    }
-    const nickPopEl = document.getElementById('islandNickPop');
-    if (shouldOpenChatKey({
-      exploring: mode.exploring,
-      uiOpen: islandUiOpen(),
-      typing: isTypingTarget(event.target),
-      nickOpen: !!(nickPopEl && !nickPopEl.hidden),
-      chatOpen: !!(islandChat && islandChat.isOpen()),
-      promptVisible: promptVisible,
-      key: event.key,
-      code: event.code,
-      altKey: event.altKey,
-      ctrlKey: event.ctrlKey,
-      metaKey: event.metaKey
-    })) {
-      event.preventDefault();
-      if (islandChat) islandChat.open();
-      return;
-    }
-    if (event.key !== 'Escape') return;
-    if (islandChat && islandChat.isOpen()) {
-      islandChat.close();
-      return;
-    }
-    if (roadmap && roadmap.isOpen()) {
-      roadmap.close();
-      return;
-    }
-    if (graffiti && graffiti.isOpen()) {
-      graffiti.close();
-      return;
-    }
-    if (isTypingTarget(event.target)) return;
-    if (casino && casino.isOpen()) {
-      casino.closeLobby();
-      return;
-    }
-    const sheet = document.getElementById('islandSheet');
-    if (sheet && !sheet.hidden && typeof window.switchDashTab === 'function') {
-      window.switchDashTab('');
-      return;
-    }
-    if (rooms.inside()) {
-      leaveInterior();
-      return;
-    }
-    if (mode.exploring) setExplore(false, false);
-  });
-  document.addEventListener('focusin', (event) => {
-    if (isTypingTarget(event.target) || focusKind(event.target) !== 'explore') clearMoveInput();
-  });
-  window.addEventListener('keyup', (event) => {
-    if (!MOVE_CODES[event.code]) return;
-    player.keys[event.code] = false;
-  });
-
-  const stickRoot = document.getElementById('islandJoystick');
-  const stickKnob = document.getElementById('islandJoystickKnob');
-  let stickPointerId = null;
-  function setStickFromEvent(event) {
-    if (!stickRoot) return;
-    const rect = stickRoot.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const max = Math.min(rect.width, rect.height) * 0.34;
-    let dx = event.clientX - cx;
-    let dy = event.clientY - cy;
-    const len = Math.hypot(dx, dy) || 1;
-    if (len > max) {
-      dx = dx / len * max;
-      dy = dy / len * max;
-    }
-    player.stickX = dx / max;
-    player.stickY = dy / max;
-    player.stickActive = Math.hypot(player.stickX, player.stickY) > 0.08;
-    if (stickKnob) stickKnob.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
-  }
-  function endStick(event) {
-    if (stickPointerId != null && event && event.pointerId !== stickPointerId) return;
-    stickPointerId = null;
-    player.stickX = 0;
-    player.stickY = 0;
-    player.stickActive = false;
-    if (stickKnob) stickKnob.style.transform = 'translate(0px, 0px)';
-  }
-  if (stickRoot) {
-    stickRoot.addEventListener('pointerdown', (event) => {
-      if (!flow.canMove()) return;
-      event.preventDefault();
-      stickPointerId = event.pointerId;
-      if (stickRoot.setPointerCapture) stickRoot.setPointerCapture(event.pointerId);
-      setStickFromEvent(event);
-    });
-    stickRoot.addEventListener('pointermove', (event) => {
-      if (stickPointerId !== event.pointerId) return;
-      event.preventDefault();
-      setStickFromEvent(event);
-    });
-    stickRoot.addEventListener('pointerup', endStick);
-    stickRoot.addEventListener('pointercancel', endStick);
-    stickRoot.addEventListener('lostpointercapture', endStick);
-  }
 
   const list = document.getElementById('islandList');
   const listBtn = document.getElementById('islandListBtn');
@@ -1345,6 +885,19 @@ function boot() {
   document.addEventListener('touchend', tryInitAudio);
   document.addEventListener('keydown', tryInitAudio);
 
+  lifecycle.on('enterRoom', () => {
+    sky.setVisible(false);
+    dayNight.refresh();
+    islandAudio.setInsideRoom(true);
+  });
+  lifecycle.on('exitRoom', () => {
+    sky.setVisible(true);
+    islandAudio.setInsideRoom(false);
+  });
+  lifecycle.on('visibilityChange', (p) => {
+    islandAudio.onVisibilityChange(p.hidden);
+  });
+
   function promptZones() {
     if (!rooms.inside()) return INTERACT_ZONES;
     const exit = rooms.exitZone();
@@ -1404,9 +957,7 @@ function boot() {
       view.lamp.light.intensity = view.lamp.power * dayNight.mix;
       kit.addLamp(view.lamp);
     }
-    sky.setVisible(false);
-    dayNight.refresh();
-    islandAudio.setInsideRoom(true);
+    lifecycle.emit('enterRoom', {});
   }
 
   function disposeRoom() {
@@ -1417,8 +968,7 @@ function boot() {
     if (roomView.lamp) kit.removeLamp(roomView.lamp);
     roomView.dispose();
     roomView = null;
-    sky.setVisible(true);
-    islandAudio.setInsideRoom(false);
+    lifecycle.emit('exitRoom', {});
   }
 
   function abortInterior() {
@@ -1578,6 +1128,52 @@ function boot() {
   });
   roadmap.refresh();
 
+  peerLayer = createPeerLayer({
+    THREE: THREE,
+    scene: scene,
+    camera: camera,
+    projected: projected,
+    P: P,
+    reduced: reduced,
+    createMiluView: createMiluView,
+    createMiluState: createMiluState,
+    miluStep: miluStep,
+    miluClipPath: miluClipPath,
+    screenAxes: screenAxes,
+    createMotion: createMotion,
+    pushTarget: pushTarget,
+    sampleMotion: sampleMotion,
+    shouldSendPos: shouldSendPos,
+    sharedTextures: () => milu.sharedTextures(),
+    getMode: () => mode,
+    getPlayer: () => player,
+    getMiluVisible: () => milu.object.visible,
+    getPlayerMeshVisible: () => playerMesh.visible,
+    currentScene: currentScene,
+    presencePose: presencePose,
+    peerOffset: peerOffset,
+    getStageSize: () => ({
+      width: stage.clientWidth || 1,
+      height: stage.clientHeight || 1
+    }),
+    getChat: () => islandChat,
+    getPresence: () => islandPresence,
+    document: document,
+    getCam: () => cam,
+    syncPeerCount: () => {
+      if (corner) corner.syncPeerCount();
+    }
+  });
+
+  lifecycle.on('enterExplore', () => {
+    if (islandPresence) islandPresence.connect();
+  });
+  lifecycle.on('exitExplore', () => {
+    if (peerLayer) peerLayer.resetExploreState();
+    if (islandChat) islandChat.clear();
+    if (islandPresence) islandPresence.disconnect();
+  });
+
   islandPresence = createIslandPresence({
     location: window.location,
     WebSocket: window.WebSocket,
@@ -1586,18 +1182,18 @@ function boot() {
     scene: () => currentScene(),
     now: () => Date.now(),
     onWelcome: (msg) => {
-      peerWelcomed = true;
-      peerSelfId = msg.id || '';
+      peerLayer.setWelcomed(true);
+      peerLayer.setSelfId(msg.id || '');
       const input = document.getElementById('islandNickInput');
       if (input && !loadNick(window.localStorage) && document.activeElement !== input) {
         input.value = msg.name || '';
       }
-      syncPeerCount();
+      if (corner) corner.syncPeerCount();
     },
     onPlayers: (state) => {
-      peerWelcomed = !!state.selfId;
-      peerSelfId = state.selfId || '';
-      applyPeerList(state.players);
+      peerLayer.setWelcomed(!!state.selfId);
+      peerLayer.setSelfId(state.selfId || '');
+      peerLayer.applyPeerList(state.players);
     },
     onSaid: (msg) => {
       if (islandChat) islandChat.onSaid(msg);
@@ -1609,45 +1205,73 @@ function boot() {
   islandChat = createIslandChat({
     document: document,
     presence: islandPresence,
-    selfId: () => peerSelfId,
+    selfId: () => peerLayer.getSelfId(),
     now: () => Date.now()
   });
 
-  const nickBtn = document.getElementById('islandNickBtn');
-  const nickPop = document.getElementById('islandNickPop');
-  const nickInput = document.getElementById('islandNickInput');
-  const nickSave = document.getElementById('islandNickSave');
-  if (nickInput) {
-    const storedNick = loadNick(window.localStorage);
-    if (storedNick) nickInput.value = storedNick;
-  }
-  function setNickOpen(open) {
-    if (!nickPop || !nickBtn) return;
-    nickPop.hidden = !open;
-    nickBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open && nickInput) nickInput.focus();
-  }
-  function saveNick() {
-    if (!nickInput || !islandPresence) return;
-    const cleaned = cleanNick(nickInput.value);
-    if (!cleaned) return;
-    nickInput.value = cleaned;
-    islandPresence.rename(cleaned);
-    setNickOpen(false);
-  }
-  if (nickBtn && nickPop) {
-    nickBtn.addEventListener('click', () => setNickOpen(nickPop.hidden));
-  }
-  if (nickSave) nickSave.addEventListener('click', saveNick);
-  if (nickInput) {
-    nickInput.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter' && event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      if (event.key === 'Enter') saveNick();
-      else setNickOpen(false);
-    });
-  }
+  corner = createCornerUi({
+    document: document,
+    storage: window.localStorage,
+    getPresence: () => islandPresence,
+    getPeerCount: () => peerLayer.peers.size + 1,
+    isExploring: () => mode.exploring,
+    isWelcomed: () => peerLayer.getWelcomed()
+  });
+
+  const exploreKeyCtx = {
+    window: window,
+    document: document,
+    player: player,
+    getMode: () => mode,
+    controlsActive: controlsActive,
+    islandUiOpen: islandUiOpen,
+    syncInteractPrompt: syncInteractPrompt,
+    casino: casino,
+    graffiti: graffiti,
+    roadmap: roadmap,
+    hitInteractZone: () => hitInteractZone(player.x, player.z, promptZones()),
+    leaveInterior: leaveInterior,
+    enterInterior: enterInterior,
+    openGraffiti: openGraffiti,
+    openRoadmap: openRoadmap,
+    isClosedHall: isClosedHall,
+    showInteriorClosed: showInteriorClosed,
+    isInside: () => rooms.inside(),
+    islandChat: islandChat,
+    setExplore: setExplore,
+    switchDashTab: typeof window.switchDashTab === 'function' ? window.switchDashTab : null,
+    clearMoveInput: clearMoveInput
+  };
+  createExploreKeys(exploreKeyCtx);
+  createExplorePointer({
+    canvas: canvas,
+    camera: camera,
+    cam: cam,
+    THREE: THREE,
+    getMode: () => mode,
+    controlsActive: controlsActive,
+    applyDragPhi: applyDragPhi,
+    getPickables: () => pickables,
+    onZoneClick: (zone) => {
+      if (zone === 'graffiti-wall') {
+        openGraffiti();
+        return;
+      }
+      if (zone === 'construction-board') {
+        openRoadmap();
+        return;
+      }
+      if (zone && typeof window.switchDashTab === 'function') window.switchDashTab(zone);
+    },
+    isInside: () => rooms.inside(),
+    interiorMinRadius: INTERIOR_POSE.radius
+  });
+  createExploreJoystick({
+    stickRoot: document.getElementById('islandJoystick'),
+    stickKnob: document.getElementById('islandJoystickKnob'),
+    player: player,
+    canMove: () => flow.canMove()
+  });
 
   window.PunchClockIsland = {
     focus: focus,
