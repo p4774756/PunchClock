@@ -4,7 +4,7 @@ import '../app/globals.css';
 
 const Home=lazy(()=>import('../app/page'));
 createRoot(document.getElementById('root')!).render(
- <Suspense fallback={<div className="loading-card" role="status" style={{position:'fixed',top:'45%',left:'50%',transform:'translate(-50%,-50%)'}}><strong>正在載入教學臺</strong><p>準備穴位資料與介面。</p></div>}>
+ <Suspense fallback={<div className="boot-screen" role="status"><div className="loading-card woodcut-loading"><strong>正在載入教學臺</strong><p>準備穴位資料與介面。</p></div></div>}>
   <Home/>
  </Suspense>
 );
