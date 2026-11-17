@@ -5,28 +5,27 @@ import {PointerTap} from '../app/pointer-tap.ts';
 const radial=96;
 const frontHalf=T.MathUtils.degToRad(40);
 const uLo=.34375,uHi=.65625,uSpan=uHi-uLo;
-const woodcutPanoramaTexU=(phi)=>{
+const f=(phi)=>{
  if(Math.abs(phi)<=frontHalf) return .5+(phi/frontHalf)*(uSpan*.5);
- if(phi>frontHalf){const t=(phi-frontHalf)/(Math.PI-frontHalf);return uHi+t*(1-uHi);}
- const t=(phi+frontHalf)/(-Math.PI+frontHalf);return uLo*(1-t);
+ if(phi>frontHalf) return uHi+(phi-frontHalf)/(Math.PI-frontHalf)*(1-uHi);
+ return uLo*(1-(phi+frontHalf)/(-Math.PI+frontHalf));
 };
 const remapWoodcutPanoramaUv=(geo)=>{
  const uv=geo.getAttribute('uv');
  const perRing=radial+1;
  for(let i=0;i<uv.count;i++){
   const ring=i%perRing;
-  let uTex;
-  if(ring===0) uTex=0;
-  else if(ring===radial) uTex=1;
-  else{const theta=(ring/radial)*Math.PI*2;uTex=woodcutPanoramaTexU(theta-3*Math.PI/2);}
-  uv.setX(i,uTex);
+  const theta=ring/radial*Math.PI*2;
+  let phi=-Math.PI/2-theta;
+  let shift=0;
+  if(phi<=-Math.PI){phi+=Math.PI*2;shift=-1;}
+  uv.setX(i,f(phi)+shift);
  }
  const rows=Math.floor(uv.count/perRing);
  for(let row=0;row<rows;row++){
   const base=row*perRing;
   for(let x=0;x<radial;x++){
    const du=Math.abs(uv.getX(base+x+1)-uv.getX(base+x));
-   if(x===0||x===radial-1) continue;
    assert(du<.05,`woodcut UV jump ${du.toFixed(4)} row ${row} seg ${x}`);
   }
  }

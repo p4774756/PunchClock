@@ -93,59 +93,26 @@ const applyCelShading=(root:T.Object3D,gradient:T.DataTexture)=>{
 /** 360° woodcut landscape panorama on an open inward cylinder (see issue #104). */
 type WoodcutBackdrop={mesh:T.Mesh;tex:T.Texture;mat:T.Material;geo:T.BufferGeometry};
 
-const WOODCUT_PANORAMA_RADIAL=96;
-
-/** Central 1280 px (u≈.344–.656) covers ±40° behind avatar; sides use fade extensions. */
-const woodcutPanoramaTexU=(phi:number)=>{
- const frontHalf=T.MathUtils.degToRad(40);
- const uLo=.34375;
- const uHi=.65625;
- const uSpan=uHi-uLo;
- if(Math.abs(phi)<=frontHalf){
-  return .5+(phi/frontHalf)*(uSpan*.5);
- }
- if(phi>frontHalf){
-  const t=(phi-frontHalf)/(Math.PI-frontHalf);
-  return uHi+t*(1-uHi);
- }
- const t=(phi+frontHalf)/(-Math.PI+frontHalf);
- return uLo*(1-t);
-};
-
-const assertWoodcutPanoramaUvContinuity=(uv:T.BufferAttribute,radial:number)=>{
- const perRing=radial+1;
- const rows=Math.floor(uv.count/perRing);
- for(let row=0;row<rows;row++){
-  const base=row*perRing;
-  for(let x=0;x<radial;x++){
-   const du=Math.abs(uv.getX(base+x+1)-uv.getX(base+x));
-   if(x===0||x===radial-1)continue;
-   if(du>=.05){
-    throw new Error(`Woodcut panorama UV jump ${du.toFixed(4)} at row ${row} segment ${x}`);
-   }
-  }
- }
-};
-
-/** Use cylinder θ from vertex ring (not atan2 on position) so φ stays continuous at the back. */
-const remapWoodcutPanoramaUv=(geo:T.BufferGeometry)=>{
+/** Map mesh angle so central 1280 px (u≈.344–.656) covers ±40° behind avatar; sides use fade extensions. */
+const remapWoodcutPanoramaUv=(geo:T.BufferGeometry,radial:number)=>{
  const uv=geo.getAttribute('uv') as T.BufferAttribute;
- const vertsPerRing=WOODCUT_PANORAMA_RADIAL+1;
+ const perRing=radial+1;
+ const frontHalf=T.MathUtils.degToRad(40);
+ const uLo=.34375,uHi=.65625,uSpan=uHi-uLo;
+ const f=(phi:number)=>{
+  if(Math.abs(phi)<=frontHalf)return .5+(phi/frontHalf)*(uSpan*.5);
+  if(phi>frontHalf)return uHi+(phi-frontHalf)/(Math.PI-frontHalf)*(1-uHi);
+  return uLo*(1-(phi+frontHalf)/(-Math.PI+frontHalf));
+ };
  for(let i=0;i<uv.count;i++){
-  const ring=i%vertsPerRing;
-  let uTex:number;
-  if(ring===0){
-   uTex=0;
-  }else if(ring===WOODCUT_PANORAMA_RADIAL){
-   uTex=1;
-  }else{
-   const theta=(ring/WOODCUT_PANORAMA_RADIAL)*Math.PI*2;
-   uTex=woodcutPanoramaTexU(theta-3*Math.PI/2);
-  }
-  uv.setX(i,uTex);
+  const ring=i%perRing;
+  const theta=ring/radial*Math.PI*2;
+  let phi=-Math.PI/2-theta;
+  let shift=0;
+  if(phi<=-Math.PI){phi+=Math.PI*2;shift=-1;}
+  uv.setX(i,f(phi)+shift);
  }
  uv.needsUpdate=true;
- assertWoodcutPanoramaUvContinuity(uv,WOODCUT_PANORAMA_RADIAL);
 };
 
 const buildWoodcutBackdrop=(tex:T.Texture):WoodcutBackdrop=>{
@@ -165,8 +132,8 @@ const buildWoodcutBackdrop=(tex:T.Texture):WoodcutBackdrop=>{
  const height=radius*1.396*(720/1280);
  const bottomY=1.4-radius*Math.tan(T.MathUtils.degToRad(17));
  const centerY=bottomY+height/2;
- const geo=new T.CylinderGeometry(radius,radius,height,WOODCUT_PANORAMA_RADIAL,1,true);
- remapWoodcutPanoramaUv(geo);
+ const geo=new T.CylinderGeometry(radius,radius,height,96,1,true);
+ remapWoodcutPanoramaUv(geo,96);
  const mesh=new T.Mesh(geo,mat);
  mesh.position.set(0,centerY,0);
  // Texture u=0.5 (center blank) behind avatar at world −Z when camera sits on +Z.
