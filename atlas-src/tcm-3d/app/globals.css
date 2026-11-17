@@ -76,11 +76,11 @@
   --accent-deep:#1f6b5c;
   --gold:#a8894a;
   --cream:#f7faf4;
-  --wash:#e8d5b3;
+  --wash:#f0e4cc;
   --paper:#f3f6ee;
   --surface:#f4f7f0f2;
   --paper-grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .78 0 0 0 0 .84 0 0 0 0 .76 0 0 0 .12 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  --woodcut-wash:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='320' viewBox='0 0 480 320'%3E%3Crect fill='%23e6d5b3' width='480' height='320'/%3E%3Cg fill='none' stroke='%233a2e22' stroke-width='1.4' opacity='.28'%3E%3Cpath d='M40 260c20-80 12-160 8-220M70 270c10-90 22-150 6-230'/%3E%3Cpath d='M420 265c-18-85-10-165-6-225M450 275c-12-95-20-155-8-235'/%3E%3Cpath d='M90 70c40-30 90-20 120 10M300 55c50-25 100-10 130 25'/%3E%3C/g%3E%3C/svg%3E");
+  --woodcut-wash:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='320' viewBox='0 0 480 320'%3E%3Cdefs%3E%3ClinearGradient id='w' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23faf3e6'/%3E%3Cstop offset='.55' stop-color='%23f6ead7'/%3E%3Cstop offset='1' stop-color='%23ede0c8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23w)' width='480' height='320'/%3E%3C/svg%3E");
 }
 .rpg-studio{
   font-family:"Songti SC","Noto Serif CJK TC","PingFang TC","Microsoft JhengHei",ui-rounded,sans-serif;
@@ -89,7 +89,7 @@
 .rpg-studio{
   background:
     var(--woodcut-wash),
-    linear-gradient(180deg,#ead9b8 0%,#e2cfa8 45%,#dcc6a0 100%);
+    linear-gradient(180deg,#f6ead7 0%,#f0e4cc 45%,#e8dcc4 100%);
   background-size:cover,auto;
 }
 .rpg-studio button,.rpg-studio input,.rpg-studio select{
@@ -104,7 +104,7 @@
 }
 .rpg-studio .loading-card,
 .rpg-studio .source-dialog{
-  background-color:#ead9b8;
+  background-color:#f3e8d4;
   background-image:var(--woodcut-wash),var(--paper-grain);
   background-size:cover,auto;
   border:1.5px solid rgba(58,46,34,.35);
@@ -274,14 +274,14 @@
 .boot-screen{
   position:fixed;inset:0;display:grid;place-items:center;
   background:
-    var(--woodcut-wash,url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='320'%3E%3Crect fill='%23e6d5b3' width='480' height='320'/%3E%3C/svg%3E")),
-    #e6d5b3;
+    var(--woodcut-wash,url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='320'%3E%3Crect fill='%23f6ead7' width='480' height='320'/%3E%3C/svg%3E")),
+    #f6ead7;
   background-size:cover,auto;
   z-index:100;
 }
 .boot-screen .loading-card,
 .loading-card.woodcut-loading{
-  background-color:#ead9b8;
+  background-color:#f3e8d4;
   background-image:var(--woodcut-wash),var(--paper-grain);
   background-size:100% auto,auto;
   background-position:center top,center;

@@ -90,73 +90,80 @@ const applyCelShading=(root:T.Object3D,gradient:T.DataTexture)=>{
  });
 };
 
-/** Procedural woodcut parchment for the far backdrop (no external bitmap). */
-const makeWoodcutBackdrop=()=>{
- const size=1024;
- const canvas=document.createElement('canvas');
- canvas.width=size;canvas.height=size;
- const ctx=canvas.getContext('2d');
- if(!ctx)return null;
- ctx.fillStyle='#e4d4b4';
- ctx.fillRect(0,0,size,size);
- const grain=ctx.createImageData(size,size);
- for(let i=0;i<grain.data.length;i+=4){
-  const n=220+((Math.sin(i*.013)+Math.cos(i*.007))*8|0);
-  grain.data[i]=n;grain.data[i+1]=n-8;grain.data[i+2]=n-28;grain.data[i+3]=255;
- }
- ctx.putImageData(grain,0,0);
- ctx.globalAlpha=.22;
- ctx.fillStyle='#e8d9b8';
- ctx.fillRect(0,0,size,size);
- ctx.globalAlpha=1;
- ctx.strokeStyle='#3a2e22';
- ctx.lineWidth=2.2;
- ctx.lineJoin='round';
- // Cloud bands (墨線雲)
- const cloud=(cx:number,cy:number,s:number)=>{
-  ctx.beginPath();
-  ctx.moveTo(cx-s,cy);
-  ctx.bezierCurveTo(cx-s*.6,cy-s*.55,cx-s*.15,cy-s*.5,cx,cy-s*.15);
-  ctx.bezierCurveTo(cx+s*.2,cy-s*.55,cx+s*.7,cy-s*.45,cx+s,cy);
-  ctx.bezierCurveTo(cx+s*.55,cy+s*.25,cx+s*.15,cy+s*.2,cx,cy+s*.08);
-  ctx.bezierCurveTo(cx-s*.25,cy+s*.28,cx-s*.7,cy+s*.2,cx-s,cy);
-  ctx.stroke();
+/** 360° woodcut landscape panorama on an open inward cylinder (see issue #104). */
+type WoodcutBackdrop={mesh:T.Mesh;tex:T.Texture;mat:T.Material;geo:T.BufferGeometry};
+
+/** Map mesh angle so central 1280 px (u≈.344–.656) covers ±40° behind avatar; sides use fade extensions. */
+const remapWoodcutPanoramaUv=(geo:T.BufferGeometry,radial:number)=>{
+ const uv=geo.getAttribute('uv') as T.BufferAttribute;
+ const perRing=radial+1;
+ const frontHalf=T.MathUtils.degToRad(40);
+ const uLo=.34375,uHi=.65625,uSpan=uHi-uLo;
+ const f=(phi:number)=>{
+  if(Math.abs(phi)<=frontHalf)return .5+(phi/frontHalf)*(uSpan*.5);
+  if(phi>frontHalf)return uHi+(phi-frontHalf)/(Math.PI-frontHalf)*(1-uHi);
+  return uLo*(1-(phi+frontHalf)/(-Math.PI+frontHalf));
  };
- cloud(220,180,90);cloud(780,140,110);cloud(520,90,70);
- cloud(512,460,125);cloud(320,540,85);cloud(700,500,95);cloud(480,220,80);
- // Bamboo stalks — spread so default front／back framing sees ink lines, not only side edges
- ctx.lineWidth=3;
- for(const x of [90,140,200,340,680,820,880,940]){
-  ctx.beginPath();
-  ctx.moveTo(x,size);ctx.quadraticCurveTo(x+18,size*.55,x-8,80);
-  ctx.stroke();
-  for(let y=size-40;y>120;y-=70){
-   ctx.beginPath();
-   ctx.moveTo(x-10,y);ctx.lineTo(x+12,y-6);
-   ctx.stroke();
-   ctx.beginPath();
-   ctx.moveTo(x,y-20);
-   ctx.quadraticCurveTo(x+40,y-50,x+70,y-35);
-   ctx.stroke();
-   ctx.beginPath();
-   ctx.moveTo(x,y-35);
-   ctx.quadraticCurveTo(x-35,y-65,x-65,y-40);
-   ctx.stroke();
-  }
+ for(let i=0;i<uv.count;i++){
+  const ring=i%perRing;
+  const theta=ring/radial*Math.PI*2;
+  let phi=-Math.PI/2-theta;
+  let shift=0;
+  if(phi<=-Math.PI){phi+=Math.PI*2;shift=-1;}
+  uv.setX(i,f(phi)+shift);
  }
- ctx.strokeStyle='#5a4634';
- ctx.lineWidth=1.2;
- ctx.strokeRect(28,28,size-56,size-56);
- const tex=new T.CanvasTexture(canvas);
+ uv.needsUpdate=true;
+};
+
+const buildWoodcutBackdrop=(tex:T.Texture):WoodcutBackdrop=>{
  tex.colorSpace=T.SRGBColorSpace;
+ tex.wrapS=T.RepeatWrapping;
+ tex.wrapT=T.ClampToEdgeWrapping;
  tex.needsUpdate=true;
- tex.wrapS=tex.wrapT=T.RepeatWrapping;
- const mat=new T.MeshBasicMaterial({map:tex,side:T.BackSide,depthWrite:false});
- // Interior box skybox — visible from front／back／side orbit (single -Z plane was behind the camera).
- const room=new T.Mesh(new T.BoxGeometry(26,17,26),mat);
- room.position.set(0,1.35,0);
- room.renderOrder=-2;
- return {plane:room,tex,mat};
+ const mat=new T.MeshBasicMaterial({
+  map:tex,
+  side:T.BackSide,
+  depthWrite:false,
+  transparent:true,
+  opacity:.84,
+  color:new T.Color('#fffaf4'),
+ });
+ const radius=15;
+ const height=radius*1.396*(720/1280);
+ const bottomY=1.4-radius*Math.tan(T.MathUtils.degToRad(17));
+ const centerY=bottomY+height/2;
+ const geo=new T.CylinderGeometry(radius,radius,height,96,1,true);
+ remapWoodcutPanoramaUv(geo,96);
+ const mesh=new T.Mesh(geo,mat);
+ mesh.position.set(0,centerY,0);
+ // Texture u=0.5 (center blank) behind avatar at world −Z when camera sits on +Z.
+ mesh.rotation.y=Math.PI/2;
+ mesh.renderOrder=-2;
+ return {mesh,tex,mat,geo};
+};
+
+const makeFeetGround=()=>{
+ const canvas=document.createElement('canvas');
+ canvas.width=256;canvas.height=256;
+ const ctx=canvas.getContext('2d')!;
+ const g=ctx.createRadialGradient(128,128,0,128,128,128);
+ g.addColorStop(0,'rgba(232,220,196,1)');
+ g.addColorStop(.42,'rgba(232,220,196,.75)');
+ g.addColorStop(1,'rgba(232,220,196,0)');
+ ctx.fillStyle=g;ctx.fillRect(0,0,256,256);
+ const map=new T.CanvasTexture(canvas);
+ map.colorSpace=T.SRGBColorSpace;
+ return new T.Mesh(
+  new T.CircleGeometry(3.5,64),
+  new T.MeshBasicMaterial({map,transparent:true,depthWrite:false}),
+ );
+};
+
+const disposeWoodcutBackdrop=(woodcut:WoodcutBackdrop|null)=>{
+ if(!woodcut)return;
+ woodcut.tex.dispose();
+ woodcut.mat.dispose();
+ woodcut.geo.dispose();
 };
 
 const materialLabel=(mat:T.Material,obj:T.Object3D)=>`${mat.name||''} ${obj.name||''}`;
@@ -547,8 +554,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   try{renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});}
   catch{onError('無法啟動 3D 視圖，請使用支持 WebGL 的瀏覽器。');return;}
   renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<768?1.5:2));
-  // Style 4 parchment clear; no RoomEnvironment IBL (avoids oily specular on skin).
-  renderer.setClearColor('#e6d5b3');renderer.outputColorSpace=T.SRGBColorSpace;
+  // Parchment clear matches panorama top／bottom fade (no box lid).
+  renderer.setClearColor('#f6ead7');renderer.outputColorSpace=T.SRGBColorSpace;
   renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.86;
   el.appendChild(renderer.domElement);
   renderer.domElement.setAttribute('aria-label',`${avatar.name}：拖動旋轉，滾輪縮放，點擊穴位標記。`);
@@ -564,10 +571,16 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const rim=new T.DirectionalLight(0xd8e8df,.42);rim.position.set(2.1,1.6,-2.2);scene.add(rim);
   const fill=new T.DirectionalLight(0xffe2c0,.55);fill.position.set(.2,-.8,1.6);scene.add(fill);
 
-  const woodcut=makeWoodcutBackdrop();
-  if(woodcut)scene.add(woodcut.plane);
+  let woodcut:WoodcutBackdrop|null=null;
+  const panoramaLoader=new T.TextureLoader();
+  panoramaLoader.load(publicAssetUrl('textures/woodcut-landscape.webp'),loaded=>{
+   if(disposed)return;
+   woodcut=buildWoodcutBackdrop(loaded);
+   scene.add(woodcut.mesh);
+   dirty=true;
+  });
 
-  const ground=new T.Mesh(new T.CircleGeometry(18,64),new T.MeshBasicMaterial({color:0xdcc9a4}));
+  const ground=makeFeetGround();
   ground.rotation.x=-Math.PI/2;ground.position.y=-.01;scene.add(ground);
   const platform=new T.Mesh(new T.CylinderGeometry(.62,.64,.024,80),new T.MeshBasicMaterial({color:0xe8d8b8}));
   platform.position.y=-.008;scene.add(platform);
@@ -715,7 +728,11 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   return()=>{
    disposed=true;cancelAnimationFrame(frame);observer.disconnect();
    toolInput.dispose();teaching.dispose();controls.dispose();gradient.dispose();
-   woodcut?.tex.dispose();
+   if(woodcut){
+    scene.remove(woodcut.mesh);
+    disposeWoodcutBackdrop(woodcut);
+    woodcut=null;
+   }
    scene.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}});
    teaching.label.remove();renderer.dispose();renderer.domElement.remove();
   };
