@@ -1,18 +1,22 @@
 package com.example.pet;
 
 import com.example.ui.CandyTheme;
+import com.example.ui.NightTheme;
 import com.example.ui.UiFonts;
 import com.example.ui.hud.PixelSprite;
 
 import javax.swing.JComponent;
 import javax.swing.JFrame;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -24,6 +28,7 @@ import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
+import java.awt.event.InputEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
@@ -72,7 +77,11 @@ public final class DesktopPetWindow extends JFrame {
     private Runnable noticePump;
     private Runnable noticeOpen;
     private Runnable summonMain;
+    private Runnable persistCare;
+    private DesktopPetCare care;
+    private long lastCarePersistAt;
     private Rectangle bubbleBounds;
+    private static final long CARE_PERSIST_MS = 30_000L;
 
     DesktopPetWindow(DesktopPetSettings settings) {
         super("桌面寵物");
@@ -208,6 +217,7 @@ public final class DesktopPetWindow extends JFrame {
         requireEdt();
         stopMotion();
         rememberLocation();
+        persistCareNow();
         if (isVisible()) {
             setVisible(false);
         }
@@ -218,11 +228,36 @@ public final class DesktopPetWindow extends JFrame {
         retired = true;
         stopMotion();
         rememberLocation();
+        persistCareNow();
         if (milu != null) {
             milu.flush();
             milu = null;
         }
         dispose();
+    }
+
+    /** 綁定養成邏輯；可為 null（測試路徑）。 */
+    void bindCare(DesktopPetCare care, Runnable persistCare) {
+        requireEdt();
+        this.care = care;
+        this.persistCare = persistCare;
+        syncCareUi();
+    }
+
+    DesktopPetCare care() {
+        return care;
+    }
+
+    void syncCareUi() {
+        requireEdt();
+        if (care == null || !care.isEnabled()) {
+            animation.setCareIdle(false, DesktopPetCare.DEFAULT, DesktopPetCare.DEFAULT, DesktopPetCare.DEFAULT);
+            stage.setToolTipText(null);
+            return;
+        }
+        DesktopPetCare.Snapshot snap = care.tick();
+        animation.setCareIdle(true, snap.hunger, snap.mood, snap.energy);
+        stage.setToolTipText(care.statusLine());
     }
 
     boolean isAnimating() {
@@ -353,6 +388,7 @@ public final class DesktopPetWindow extends JFrame {
         if (!isVisible()) {
             return;
         }
+        maybeTickCare();
         boolean wasNotice = animation.isNotice();
         animation.tick();
         if (wasNotice && !animation.isNotice()) {
@@ -380,6 +416,35 @@ public final class DesktopPetWindow extends JFrame {
         repaint();
     }
 
+    private void maybeTickCare() {
+        if (care == null) {
+            return;
+        }
+        DesktopPetCare.Snapshot snap = care.tick();
+        if (care.isEnabled()) {
+            animation.setCareIdle(true, snap.hunger, snap.mood, snap.energy);
+            stage.setToolTipText(care.statusLine());
+        }
+        long now = System.currentTimeMillis();
+        if (lastCarePersistAt <= 0L || now - lastCarePersistAt >= CARE_PERSIST_MS) {
+            persistCareNow();
+        }
+    }
+
+    private void persistCareNow() {
+        if (care != null) {
+            care.tick();
+        }
+        lastCarePersistAt = System.currentTimeMillis();
+        if (persistCare != null) {
+            try {
+                persistCare.run();
+            } catch (RuntimeException ex) {
+                // 偏好寫入失敗時畫面照常。
+            }
+        }
+    }
+
     private Point initialLocation() {
         Rectangle[] screens = screenRects();
         if (settings.hasPosition()) {
@@ -400,8 +465,19 @@ public final class DesktopPetWindow extends JFrame {
             @Override
             public void mousePressed(MouseEvent e) {
                 if (SwingUtilities.isRightMouseButton(e)) {
-                    debug = !debug;
-                    repaint();
+                    if (careEnabled() && (e.getModifiersEx() & InputEvent.SHIFT_DOWN_MASK) != 0) {
+                        debug = !debug;
+                        repaint();
+                        return;
+                    }
+                    if (!careEnabled()) {
+                        debug = !debug;
+                        repaint();
+                        return;
+                    }
+                    // 養成開啟：右鍵在 released 開選單，這裡先不拖曳。
+                    pressScreen = null;
+                    grabOffset = null;
                     return;
                 }
                 if (!SwingUtilities.isLeftMouseButton(e)) {
@@ -455,6 +531,12 @@ public final class DesktopPetWindow extends JFrame {
 
             @Override
             public void mouseReleased(MouseEvent e) {
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    if (careEnabled() && (e.getModifiersEx() & InputEvent.SHIFT_DOWN_MASK) == 0) {
+                        showCareMenu(e);
+                    }
+                    return;
+                }
                 if (pressScreen == null || !SwingUtilities.isLeftMouseButton(e)) {
                     return;
                 }
@@ -484,6 +566,14 @@ public final class DesktopPetWindow extends JFrame {
                     }
                 } else if (e.getClickCount() >= 2) {
                     summonMainWindow();
+                } else if (careEnabled()) {
+                    if (animation.isNotice()) {
+                        noticeOpen = null;
+                        if (noticeReleased != null) {
+                            noticeReleased.run();
+                        }
+                    }
+                    showCareMenu(e);
                 } else if (animation.isNotice()) {
                     noticeOpen = null;
                     animation.poke();
@@ -502,6 +592,68 @@ public final class DesktopPetWindow extends JFrame {
                 repaint();
             }
         };
+    }
+
+    private boolean careEnabled() {
+        return care != null && care.isEnabled();
+    }
+
+    private void showCareMenu(MouseEvent e) {
+        if (!careEnabled() || animation.isCarried() || animation.isSettling()) {
+            return;
+        }
+        care.tick();
+        syncCareUi();
+        Font font = UiFonts.chinesePlain(13);
+        JPopupMenu menu = new JPopupMenu();
+        menu.setLightWeightPopupEnabled(false);
+        menu.setBackground(CandyTheme.NIGHT);
+        addCareItem(menu, "餵食", DesktopPetCare.Action.FEED, DesktopPetAnimation.Mode.FEED, font);
+        addCareItem(menu, "摸頭", DesktopPetCare.Action.PAT, DesktopPetAnimation.Mode.PAT, font);
+        addCareItem(menu, "玩耍", DesktopPetCare.Action.PLAY, DesktopPetAnimation.Mode.PLAY, font);
+        menu.addSeparator();
+        JMenuItem status = new JMenuItem(care.statusLine());
+        status.setFont(font);
+        status.setEnabled(false);
+        status.setForeground(NightTheme.MUTED);
+        menu.add(status);
+        JMenuItem debugItem = new JMenuItem(debug ? "關閉除錯" : "顯示除錯");
+        debugItem.setFont(font);
+        debugItem.addActionListener(ev -> {
+            debug = !debug;
+            repaint();
+        });
+        menu.add(debugItem);
+        menu.show(stage, e.getX(), e.getY());
+    }
+
+    private void addCareItem(JPopupMenu menu, String label, DesktopPetCare.Action action,
+                             DesktopPetAnimation.Mode mode, Font font) {
+        long remaining = care.cooldownRemaining(action, System.currentTimeMillis());
+        String text = remaining > 0L ? label + "（還要等一下）" : label;
+        JMenuItem item = new JMenuItem(text);
+        item.setFont(font);
+        item.setEnabled(remaining <= 0L);
+        item.addActionListener(ev -> applyCareAction(action, mode));
+        menu.add(item);
+    }
+
+    private void applyCareAction(DesktopPetCare.Action action, DesktopPetAnimation.Mode mode) {
+        if (!careEnabled()) {
+            return;
+        }
+        DesktopPetCare.Result result = care.perform(action);
+        syncCareUi();
+        persistCareNow();
+        if (!result.ok) {
+            if (result.bubble != null) {
+                animation.celebrate(result.bubble);
+            }
+            repaint();
+            return;
+        }
+        animation.playCare(mode, result.bubble);
+        repaint();
     }
 
     /**

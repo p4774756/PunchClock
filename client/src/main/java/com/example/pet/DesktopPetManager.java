@@ -14,6 +14,7 @@ import java.nio.file.Path;
 public final class DesktopPetManager {
 
     private final DesktopPetSettings settings;
+    private final DesktopPetCare care;
     private final DesktopPetEventBridge bridge;
     private final DesktopPetCursorStatus cursorStatus = new DesktopPetCursorStatus();
     private final Path hookFile;
@@ -36,8 +37,16 @@ public final class DesktopPetManager {
             throw new IllegalArgumentException("settings");
         }
         this.settings = settings;
+        this.care = new DesktopPetCare();
+        this.care.restore(settings.loadCare());
+        this.care.tick();
+        this.settings.saveCare(this.care.snapshot());
         this.hookFile = hookFile != null ? hookFile : DesktopPetHookServer.defaultHookFile();
         this.bridge = new DesktopPetEventBridge(settings, new PetSurface());
+    }
+
+    DesktopPetCare care() {
+        return care;
     }
 
     public DesktopPetSettings settings() {
@@ -47,12 +56,42 @@ public final class DesktopPetManager {
     /**
      * 聊天、傳檔、任務完成與排程時間到都從這裡進來。
      * 總開關關閉時直接丟掉，不影響原本的功能，重新開啟也不補播。
+     * 打卡成功（{@link DesktopPetEvent#TASK_COMPLETED}）在養成開啟時另加心情，與提醒開關無關。
      */
     public void onAppEvent(DesktopPetEvent event, Runnable open) {
         if (closed) {
             return;
         }
+        if (event == DesktopPetEvent.TASK_COMPLETED) {
+            applyTaskMood();
+        }
         bridge.offer(event, open);
+    }
+
+    /** 設定頁切換「養成」時呼叫。關閉會凍結數值；再開從凍結值繼續。 */
+    public void setCareEnabled(boolean enabled) {
+        Runnable task = () -> {
+            if (closed) {
+                return;
+            }
+            care.setEnabled(enabled, System.currentTimeMillis());
+            settings.setCareEnabled(enabled);
+            persistCare();
+            if (window != null) {
+                window.syncCareUi();
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            task.run();
+            return;
+        }
+        try {
+            SwingUtilities.invokeAndWait(task);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        } catch (InvocationTargetException ex) {
+            // 設定失敗時維持現況。
+        }
     }
 
     public boolean savedEnabled() {
@@ -130,6 +169,8 @@ public final class DesktopPetManager {
             bridge.discard();
             cursorStatus.clear();
             stopHookServer();
+            care.tick();
+            persistCare();
             if (window != null) {
                 window.disposePet();
                 window = null;
@@ -174,6 +215,8 @@ public final class DesktopPetManager {
             bridge.discard();
             cursorStatus.clear();
             stopHookServer();
+            care.tick();
+            persistCare();
             if (window != null) {
                 window.clearCursorStatus();
                 window.hidePet();
@@ -181,6 +224,8 @@ public final class DesktopPetManager {
             return true;
         }
         settings.setEnabled(true);
+        care.tick();
+        persistCare();
         if (active && window != null && window.isShowing() && window.isAnimating()) {
             startHookServer();
             return true;
@@ -196,7 +241,9 @@ public final class DesktopPetManager {
                 window.setNoticeReleased(bridge::releaseShowing);
                 window.setNoticePump(bridge::pump);
                 window.setSummonMain(summonMain);
+                window.bindCare(care, this::persistCare);
             }
+            window.syncCareUi();
             window.showPet();
             active = window.isShowing();
             if (active) {
@@ -211,6 +258,28 @@ public final class DesktopPetManager {
             active = false;
             System.err.println("[桌面寵物] 無法顯示：" + ex.getMessage());
             return false;
+        }
+    }
+
+    private void persistCare() {
+        settings.saveCare(care.snapshot());
+    }
+
+    private void applyTaskMood() {
+        Runnable task = () -> {
+            if (closed) {
+                return;
+            }
+            care.onTaskCompleted();
+            persistCare();
+            if (window != null) {
+                window.syncCareUi();
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            task.run();
+        } else {
+            SwingUtilities.invokeLater(task);
         }
     }
 
@@ -246,6 +315,13 @@ public final class DesktopPetManager {
             }
             DesktopPetCursorStatus.Outcome outcome = cursorStatus.apply(
                     event.eventName, event.conversationId, event.status);
+            if (outcome != null && outcome.action == DesktopPetCursorStatus.Action.CELEBRATE) {
+                care.onCursorCelebrate();
+                persistCare();
+                if (window != null) {
+                    window.syncCareUi();
+                }
+            }
             if (window != null && window.isShowing()) {
                 window.applyCursorOutcome(outcome);
             }

@@ -196,25 +196,32 @@ public class DesktopPetTest {
             assertEquals("任務與排程提醒", refs.desktopPetNotifyTask.getAccessibleContext().getAccessibleName());
             assertEquals("提示音", refs.desktopPetNotifySound.getAccessibleContext().getAccessibleName());
             assertEquals("Cursor 狀態反應", refs.desktopPetCursorReact.getAccessibleContext().getAccessibleName());
+            assertEquals("養成", refs.desktopPetCare.getAccessibleContext().getAccessibleName());
+            assertTrue(refs.desktopPetCare.isSelected());
             assertFalse(refs.desktopPetNotifyMessage.isEnabled());
             assertFalse(refs.desktopPetNotifyFile.isEnabled());
             assertFalse(refs.desktopPetNotifyTask.isEnabled());
             assertFalse(refs.desktopPetNotifySound.isEnabled());
             assertFalse(refs.desktopPetCursorReact.isEnabled());
+            assertFalse(refs.desktopPetCare.isEnabled());
             refs.desktopPetSwitch.setSelected(true);
             assertTrue(refs.desktopPetNotifyMessage.isEnabled());
             assertTrue(refs.desktopPetNotifyFile.isEnabled());
             assertTrue(refs.desktopPetNotifyTask.isEnabled());
             assertTrue(refs.desktopPetNotifySound.isEnabled());
             assertTrue(refs.desktopPetCursorReact.isEnabled());
+            assertTrue(refs.desktopPetCare.isEnabled());
             assertTrue(refs.desktopPetNotifyMessage.isSelected());
             assertFalse(refs.desktopPetNotifySound.isSelected());
             assertTrue(refs.desktopPetCursorReact.isSelected());
+            assertTrue(refs.desktopPetCare.isSelected());
             refs.desktopPetSwitch.setSelected(false);
             assertFalse(refs.desktopPetNotifyMessage.isEnabled());
             assertFalse(refs.desktopPetCursorReact.isEnabled());
+            assertFalse(refs.desktopPetCare.isEnabled());
             assertTrue(refs.desktopPetNotifyMessage.isSelected());
             assertTrue(refs.desktopPetCursorReact.isSelected());
+            assertTrue(refs.desktopPetCare.isSelected());
         });
     }
 
@@ -371,7 +378,16 @@ public class DesktopPetTest {
         assertEquals(4, frames.thinkCount());
         assertEquals(4, frames.busyCount());
         assertEquals(4, frames.worryCount());
+        assertEquals(4, frames.feedCount());
+        assertEquals(4, frames.patCount());
+        assertEquals(4, frames.playCount());
         assertEquals(0, frames.dragCount());
+        assertTrue(DesktopPetSpriteLoader.usable(
+                DesktopPetSpriteLoader.read("/pet/milu/play/02.png"), true));
+        assertTrue(DesktopPetSpriteLoader.usable(
+                DesktopPetSpriteLoader.read("/pet/milu/play/03.png"), true));
+        assertFalse(DesktopPetSpriteLoader.usable(
+                DesktopPetSpriteLoader.read("/pet/milu/play/02.png"), false));
         assertNotSame(frames.walkLeft(0), frames.walkRight(0));
 
         DesktopPetAnimation walker = new DesktopPetAnimation(new Random(1));
@@ -501,10 +517,12 @@ public class DesktopPetTest {
         Assume.assumeFalse("headless JVM cannot show a pet", GraphicsEnvironment.isHeadless());
         SwingUtilities.invokeAndWait(() -> {
             MemoryPreferences prefs = new MemoryPreferences();
-            DesktopPetManager manager = new DesktopPetManager(new DesktopPetSettings(prefs));
+            DesktopPetSettings settings = new DesktopPetSettings(prefs);
+            DesktopPetManager manager = new DesktopPetManager(settings);
             int[] summons = {0};
             manager.setSummonMain(() -> summons[0]++);
             try {
+                manager.setCareEnabled(false);
                 assertTrue(manager.setEnabled(true));
                 DesktopPetWindow pet = manager.window();
                 clickPet(pet, 1);
@@ -513,6 +531,29 @@ public class DesktopPetTest {
                 clickPet(pet, 2);
                 assertEquals(1, summons[0]);
                 assertEquals("嗨", pet.animation().bubble());
+            } finally {
+                manager.shutdown();
+            }
+        });
+    }
+
+    @Test
+    public void careEnabledClickOpensMenuWithoutPokeGreeting() throws Exception {
+        Assume.assumeFalse("headless JVM cannot show a pet", GraphicsEnvironment.isHeadless());
+        SwingUtilities.invokeAndWait(() -> {
+            MemoryPreferences prefs = new MemoryPreferences();
+            DesktopPetManager manager = new DesktopPetManager(new DesktopPetSettings(prefs));
+            int[] summons = {0};
+            manager.setSummonMain(() -> summons[0]++);
+            try {
+                assertTrue(manager.settings().careEnabled());
+                assertTrue(manager.setEnabled(true));
+                DesktopPetWindow pet = manager.window();
+                clickPet(pet, 1);
+                assertEquals(0, summons[0]);
+                assertNull(pet.animation().bubble());
+                clickPet(pet, 2);
+                assertEquals(1, summons[0]);
             } finally {
                 manager.shutdown();
             }
@@ -536,6 +577,7 @@ public class DesktopPetTest {
                 main.setLocation(40, 40);
                 main.setVisible(true);
 
+                manager.setCareEnabled(false);
                 assertTrue(manager.setEnabled(true));
                 DesktopPetWindow pet = manager.window();
                 assertNotNull(pet);
@@ -761,6 +803,7 @@ public class DesktopPetTest {
             DesktopPetSettings settings = new DesktopPetSettings(prefs);
             DesktopPetManager manager = new DesktopPetManager(settings);
             try {
+                manager.setCareEnabled(false);
                 assertTrue(manager.setEnabled(true));
                 DesktopPetWindow pet = manager.window();
                 pet.useFrames(frames);
@@ -1105,6 +1148,7 @@ public class DesktopPetTest {
             DesktopPetSettings settings = new DesktopPetSettings(prefs);
             DesktopPetManager manager = new DesktopPetManager(settings);
             try {
+                manager.setCareEnabled(false);
                 assertTrue(manager.setEnabled(true));
                 DesktopPetWindow pet = manager.window();
                 pet.useFrames(frames);

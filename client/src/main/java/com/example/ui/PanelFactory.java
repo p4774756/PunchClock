@@ -391,6 +391,10 @@ public class PanelFactory {
                 "提醒真正出現時才響一聲。預設關閉。", boldFont));
         column.add(petOption(refs.desktopPetCursorReact, "Cursor 狀態反應",
                 "本機 Cursor agent 思考、改檔、完成或出錯時，喵露做出對應動作。預設開啟。", boldFont));
+        refs.desktopPetCare = new CandySwitch();
+        refs.desktopPetCare.setSelected(true);
+        column.add(petOption(refs.desktopPetCare, "養成",
+                "飽足、心情、精神會隨時間下降。點喵露可餵食、摸頭、玩耍。預設開啟。", boldFont));
         refs.desktopPetSwitch.addItemListener(e -> applyDesktopPetOptionEnabled(refs));
         applyDesktopPetOptionEnabled(refs);
         return column;
@@ -407,6 +411,7 @@ public class PanelFactory {
         setPetOptionEnabled(refs.desktopPetNotifyTask, on);
         setPetOptionEnabled(refs.desktopPetNotifySound, on);
         setPetOptionEnabled(refs.desktopPetCursorReact, on);
+        setPetOptionEnabled(refs.desktopPetCare, on);
     }
 
     private static void setPetOptionEnabled(JToggleButton toggle, boolean enabled) {
@@ -523,6 +528,7 @@ public class PanelFactory {
         public JToggleButton desktopPetNotifyTask;
         public JToggleButton desktopPetNotifySound;
         public JToggleButton desktopPetCursorReact;
+        public JToggleButton desktopPetCare;
         // 中繼 Proxy
         public JCheckBox relayEnabledCheckBox;
         public JSpinner relayPortSpinner;

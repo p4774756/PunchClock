@@ -14,7 +14,7 @@ import java.util.function.Consumer;
 /**
  * 讀取喵露 PNG。解圖在背景執行緒，結果回到 EDT。
  * 待機六張缺檔或不合格時回傳 null，呼叫端改畫原本的像素角色。
- * 走路、揮手、坐下、趴睡、思考、忙碌、困擾、拖曳、抓起、掙扎、放下會逐張篩掉裁切、標籤底和分離殘塊，缺的動作改畫待機。
+ * 走路、揮手、坐下、趴睡、思考、忙碌、困擾、餵食、摸頭、玩耍、拖曳、抓起、掙扎、放下會逐張篩掉裁切、標籤底和分離殘塊，缺的動作改畫待機或後備。
  */
 public final class DesktopPetSpriteLoader {
 
@@ -124,6 +124,24 @@ public final class DesktopPetSpriteLoader {
             "/pet/milu/worry/03.png",
             "/pet/milu/worry/04.png"
     };
+    private static final String[] FEED = {
+            "/pet/milu/feed/01.png",
+            "/pet/milu/feed/02.png",
+            "/pet/milu/feed/03.png",
+            "/pet/milu/feed/04.png"
+    };
+    private static final String[] PAT = {
+            "/pet/milu/pat/01.png",
+            "/pet/milu/pat/02.png",
+            "/pet/milu/pat/03.png",
+            "/pet/milu/pat/04.png"
+    };
+    private static final String[] PLAY = {
+            "/pet/milu/play/01.png",
+            "/pet/milu/play/02.png",
+            "/pet/milu/play/03.png",
+            "/pet/milu/play/04.png"
+    };
 
     private DesktopPetSpriteLoader() {
     }
@@ -144,12 +162,16 @@ public final class DesktopPetSpriteLoader {
         private final Sprite[] think;
         private final Sprite[] busy;
         private final Sprite[] worry;
+        private final Sprite[] feed;
+        private final Sprite[] pat;
+        private final Sprite[] play;
 
         Frames(Sprite[] breath, Sprite blink1, Sprite blink2,
                 Sprite[] walkLeft, Sprite[] walkRight, Sprite[] wave,
                 Sprite[] sit, Sprite[] sleep, Sprite[] drag,
                 Sprite[] grab, Sprite[] struggle, Sprite[] release,
-                Sprite[] think, Sprite[] busy, Sprite[] worry) {
+                Sprite[] think, Sprite[] busy, Sprite[] worry,
+                Sprite[] feed, Sprite[] pat, Sprite[] play) {
             this.breath = breath;
             this.blink1 = blink1;
             this.blink2 = blink2;
@@ -165,6 +187,9 @@ public final class DesktopPetSpriteLoader {
             this.think = think;
             this.busy = busy;
             this.worry = worry;
+            this.feed = feed;
+            this.pat = pat;
+            this.play = play;
         }
 
         public BufferedImage breath(int index) {
@@ -227,6 +252,18 @@ public final class DesktopPetSpriteLoader {
             return worry.length;
         }
 
+        public int feedCount() {
+            return feed.length;
+        }
+
+        public int patCount() {
+            return pat.length;
+        }
+
+        public int playCount() {
+            return play.length;
+        }
+
         public BufferedImage grab(int index) {
             return grab[Math.floorMod(index, grab.length)].image;
         }
@@ -271,6 +308,18 @@ public final class DesktopPetSpriteLoader {
             return worry[Math.floorMod(index, worry.length)].image;
         }
 
+        public BufferedImage feed(int index) {
+            return feed[Math.floorMod(index, feed.length)].image;
+        }
+
+        public BufferedImage pat(int index) {
+            return pat[Math.floorMod(index, pat.length)].image;
+        }
+
+        public BufferedImage play(int index) {
+            return play[Math.floorMod(index, play.length)].image;
+        }
+
         public Sprite spriteFor(DesktopPetAnimation animation) {
             Sprite[] carry = carryClip(animation.carryPhase());
             if (carry != null && carry.length > 0) {
@@ -280,6 +329,16 @@ public final class DesktopPetSpriteLoader {
                 return clipOrIdleSprite(drag, animation);
             }
             DesktopPetAnimation.Mode mode = animation.mode();
+            if (mode == DesktopPetAnimation.Mode.FEED) {
+                return clipOrFallback(feed, sit, animation);
+            }
+            if (mode == DesktopPetAnimation.Mode.PAT) {
+                return clipOrFallback(pat, wave, animation);
+            }
+            if (mode == DesktopPetAnimation.Mode.PLAY) {
+                Sprite[] walk = animation.facingRight() ? walkRight : walkLeft;
+                return clipOrFallback(play, walk, animation);
+            }
             if (mode == DesktopPetAnimation.Mode.REACT) {
                 return clipOrIdleSprite(wave, animation);
             }
@@ -324,6 +383,9 @@ public final class DesktopPetSpriteLoader {
             addAll(all, think);
             addAll(all, busy);
             addAll(all, worry);
+            addAll(all, feed);
+            addAll(all, pat);
+            addAll(all, play);
             return all.toArray(new Sprite[0]);
         }
 
@@ -350,8 +412,8 @@ public final class DesktopPetSpriteLoader {
         }
 
         /**
-         * 顯示優先序：抓起／掙扎／放下、揮手、思考／忙碌／困擾、走路、坐下、趴睡、待機。
-         * 該動作沒有合格影格時，改畫待機呼吸或眨眼；Cursor 狀態可先退回坐下。
+         * 顯示優先序：抓起／掙扎／放下、餵食／摸頭／玩耍、揮手、思考／忙碌／困擾、走路、坐下、趴睡、待機。
+         * 該動作沒有合格影格時，改畫待機呼吸或眨眼；養成動作可先退回 sit／wave／walk；Cursor 狀態可先退回坐下。
          */
         BufferedImage imageFor(DesktopPetAnimation animation) {
             return spriteFor(animation).image;
@@ -362,6 +424,13 @@ public final class DesktopPetSpriteLoader {
                 return idleSprite(animation);
             }
             return clip[animation.actionFrame(clip.length)];
+        }
+
+        private Sprite clipOrFallback(Sprite[] clip, Sprite[] fallback, DesktopPetAnimation animation) {
+            if (clip != null && clip.length > 0) {
+                return clip[animation.actionFrame(clip.length)];
+            }
+            return clipOrIdleSprite(fallback, animation);
         }
 
         private Sprite clipOrSitOrIdle(Sprite[] clip, DesktopPetAnimation animation) {
@@ -404,6 +473,9 @@ public final class DesktopPetSpriteLoader {
             flushAll(think);
             flushAll(busy);
             flushAll(worry);
+            flushAll(feed);
+            flushAll(pat);
+            flushAll(play);
         }
 
         private static void flushAll(Sprite[] sprites) {
@@ -451,7 +523,10 @@ public final class DesktopPetSpriteLoader {
                     withOffsetY(release, carryShift),
                     loadOptional(THINK),
                     loadOptional(BUSY),
-                    loadOptional(WORRY));
+                    loadOptional(WORRY),
+                    loadOptional(FEED, true),
+                    loadOptional(PAT, true),
+                    loadOptional(PLAY, true));
         } catch (IOException ex) {
             return null;
         }
@@ -480,11 +555,15 @@ public final class DesktopPetSpriteLoader {
     }
 
     private static Sprite[] loadOptional(String[] paths) {
+        return loadOptional(paths, false);
+    }
+
+    private static Sprite[] loadOptional(String[] paths, boolean careClip) {
         List<Sprite> accepted = new ArrayList<Sprite>();
         for (String path : paths) {
             try {
                 BufferedImage image = read(path);
-                if (usable(image)) {
+                if (usable(image, careClip)) {
                     accepted.add(place(path, defringe(image)));
                 }
             } catch (IOException ex) {
@@ -576,6 +655,14 @@ public final class DesktopPetSpriteLoader {
      * 頭上的小塊效果（例如 Z）留著。
      */
     static boolean usable(BufferedImage image) {
+        return usable(image, false);
+    }
+
+    /**
+     * @param careClip 養成動作（feed／pat／play）可帶分離道具（例如毛線球），略過殘塊面積檢查；
+     *                 邊緣碰邊、標籤底、細長分離線仍擋。
+     */
+    static boolean usable(BufferedImage image, boolean careClip) {
         if (!acceptable(image)) {
             return false;
         }
@@ -608,7 +695,7 @@ public final class DesktopPetSpriteLoader {
             if (aboveHead) {
                 continue;
             }
-            if (blob[0] >= 80) {
+            if (blob[0] >= 80 && !careClip) {
                 return false;
             }
         }
