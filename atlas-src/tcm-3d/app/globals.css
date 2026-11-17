@@ -67,17 +67,20 @@
  .mobile-expanded.library-panel{left:calc(10px + env(safe-area-inset-left,0px));right:auto}.studio-footer{display:none}
 }
 
-/* —— 經絡研習室：日系 RPG 暖白／青綠／金 —— */
+/* —— 經絡研習室：風格 2 水彩面板＋風格 4 宣紙木刻底 —— */
 .rpg-studio,:root{
-  --ink:#1f3b34;
-  --muted:#5f746c;
-  --line:#e4ddd0;
-  --accent:#2f8f7c;
+  --ink:#1a332c;
+  --muted:#4f655c;
+  --line:#c5d4c8;
+  --accent:#3d8f78;
   --accent-deep:#1f6b5c;
-  --gold:#c9a45a;
-  --cream:#fffaf4;
-  --wash:#f6efe4;
-  --surface:rgba(255,250,246,.96);
+  --gold:#a8894a;
+  --cream:#f7faf4;
+  --wash:#e8d5b3;
+  --paper:#f3f6ee;
+  --surface:#f4f7f0f2;
+  --paper-grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .78 0 0 0 0 .84 0 0 0 0 .76 0 0 0 .12 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --woodcut-wash:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='320' viewBox='0 0 480 320'%3E%3Crect fill='%23e6d5b3' width='480' height='320'/%3E%3Cg fill='none' stroke='%233a2e22' stroke-width='1.4' opacity='.28'%3E%3Cpath d='M40 260c20-80 12-160 8-220M70 270c10-90 22-150 6-230'/%3E%3Cpath d='M420 265c-18-85-10-165-6-225M450 275c-12-95-20-155-8-235'/%3E%3Cpath d='M90 70c40-30 90-20 120 10M300 55c50-25 100-10 130 25'/%3E%3C/g%3E%3C/svg%3E");
 }
 .rpg-studio{
   font-family:"Songti SC","Noto Serif CJK TC","PingFang TC","Microsoft JhengHei",ui-rounded,sans-serif;
@@ -85,21 +88,40 @@
 }
 .rpg-studio{
   background:
-    radial-gradient(circle at 18% 12%,rgba(201,164,90,.18),transparent 28%),
-    radial-gradient(circle at 82% 18%,rgba(47,143,124,.14),transparent 30%),
-    linear-gradient(180deg,#f8f1e6 0%,#f3ebe0 48%,#efe4d4 100%);
+    var(--woodcut-wash),
+    linear-gradient(180deg,#ead9b8 0%,#e2cfa8 45%,#dcc6a0 100%);
+  background-size:cover,auto;
 }
 .rpg-studio button,.rpg-studio input,.rpg-studio select{
   font-family:"PingFang TC","Noto Sans TC","Microsoft JhengHei",ui-sans-serif,sans-serif;
 }
-.rpg-studio .surface,
+.rpg-studio .surface{
+  background-color:var(--paper);
+  background-image:var(--paper-grain);
+  border:1.5px solid rgba(45,110,90,.28);
+  border-radius:14px;
+  box-shadow:0 1px 0 rgba(255,255,255,.55) inset,0 8px 22px rgba(40,55,45,.08);
+}
 .rpg-studio .loading-card,
 .rpg-studio .source-dialog{
-  background:var(--surface);
-  border:1px solid rgba(47,143,124,.14);
-  border-radius:18px;
-  box-shadow:0 10px 28px rgba(33,29,29,.10);
+  background-color:#ead9b8;
+  background-image:var(--woodcut-wash),var(--paper-grain);
+  background-size:cover,auto;
+  border:1.5px solid rgba(58,46,34,.35);
+  border-radius:14px;
+  box-shadow:0 12px 32px rgba(40,32,20,.14);
+  color:#3a2e22;
 }
+.rpg-studio .loading-card strong{color:#2a2218}
+.rpg-studio .loading-card p,
+.rpg-studio .loading-card small{color:#5a4634}
+.rpg-studio .loading-symbol{
+  border-color:rgba(58,46,34,.28);
+  background:#e8d9b8;
+  color:#5a4634;
+}
+.rpg-studio .load-track{background:#d6c4a0}
+.rpg-studio .load-track i{background:#5a7a68}
 .rpg-header{
   height:auto;
   min-height:92px;
@@ -168,15 +190,13 @@
   box-shadow:0 8px 18px rgba(33,29,29,.10);color:#211d1d;font-weight:700;font-size:12px;height:40px;
 }
 .rpg-studio .camera-bar{
-  top:118px;background:rgba(255,250,246,.96);border-radius:14px;border:0;
-  box-shadow:0 8px 18px rgba(33,29,29,.10);
+  top:118px;border-radius:12px;
 }
-.rpg-studio .camera-bar button{color:#5f746c;font-size:12px;border-radius:10px}
-.rpg-studio .camera-bar button.selected{background:#e7f4ef;color:#1f6b5c}
+.rpg-studio .camera-bar button{color:#4f655c;font-size:12px;border-radius:8px}
+.rpg-studio .camera-bar button.selected{background:#dceee5;color:#1a4f42}
 .outfit-bar{
   position:absolute;z-index:4;top:168px;left:50%;transform:translateX(-50%);
-  display:inline-flex;align-items:center;gap:4px;padding:4px 6px;border:0;border-radius:14px;
-  background:rgba(255,250,246,.96);box-shadow:0 8px 18px rgba(33,29,29,.10);
+  display:inline-flex;align-items:center;gap:4px;padding:4px 6px;border-radius:12px;
 }
 .outfit-bar .outfit-label{
   padding:0 8px;font-size:11px;font-weight:700;letter-spacing:.08em;color:#7a5a18;
@@ -196,13 +216,13 @@
 .rpg-studio .panel-tabs button.selected:after{background:var(--accent)}
 .rpg-studio .panel-tabs span{background:#eef6f2;color:#4f7468;font-size:10px}
 .rpg-studio .search-box{
-  background:#fffdf9;border:1px solid #e4ddd0;border-radius:12px;color:#5f746c;height:40px;
+  background:#f7faf4;border:1px solid #c5d4c8;border-radius:10px;color:#4f655c;height:40px;
 }
 .rpg-studio .search-box input{font-size:13px;color:var(--ink)}
 .rpg-studio .curriculum-controls button{
-  background:#fffdf9;border-color:#e0d7c6;border-radius:999px;color:#1f3b34;font-size:12px;min-height:34px;
+  background:#f7faf4;border-color:#c5d4c8;border-radius:999px;color:#1a332c;font-size:12px;min-height:34px;
 }
-.rpg-studio .curriculum-controls button.selected{background:#e7f4ef;border-color:#9ecfbf;color:#1f6b5c}
+.rpg-studio .curriculum-controls button.selected{background:#dceee5;border-color:#8ebfae;color:#1a4f42}
 .rpg-studio .curriculum-note{color:#66766d;font-size:12px}
 .lesson-progress-card{
   margin:10px 15px 0;padding:12px;border-radius:14px;background:linear-gradient(180deg,#fffdf8,#f7f0e4);
@@ -220,21 +240,21 @@
 .rpg-studio .point-name{font-size:15px;color:var(--ink)}
 .rpg-studio .point-name>span{font-size:11px;color:#66766d}
 .rpg-studio .point-row small,.rpg-studio .point-code,.rpg-studio .list-heading,.rpg-studio .point-list-foot{font-size:11px;color:#5f746c}
-.rpg-studio .point-row.selected{background:#e7f4ef;border-color:#b7ddd0}
-.rpg-studio .point-row.selected .point-code,.rpg-studio .point-row.selected .point-name{color:#1f6b5c}
-.rpg-studio .selection-title h1{color:#1f3b34}
-.rpg-studio .selection-title p,.rpg-studio .selection-eyebrow,.rpg-studio .selection-number{font-size:12px;color:#5f746c}
-.rpg-studio .mode-control{background:#f3eee3;border-radius:12px}
-.rpg-studio .mode-control button{font-size:12px;color:#66766d;border-radius:9px}
-.rpg-studio .mode-control button.selected{background:#fff;color:#1f6b5c;box-shadow:0 2px 8px rgba(33,29,29,.06)}
-.rpg-studio .location-card p{font-size:13px;color:#35574c}
-.rpg-studio .location-card small,.rpg-studio .tool-note,.rpg-studio .amplitude-control small{font-size:11px;color:#5f746c}
+.rpg-studio .point-row.selected{background:#dceee5;border-color:#9ecfbf}
+.rpg-studio .point-row.selected .point-code,.rpg-studio .point-row.selected .point-name{color:#1a4f42}
+.rpg-studio .selection-title h1{color:#1a332c}
+.rpg-studio .selection-title p,.rpg-studio .selection-eyebrow,.rpg-studio .selection-number{font-size:12px;color:#4f655c}
+.rpg-studio .mode-control{background:#e4efe8;border-radius:10px}
+.rpg-studio .mode-control button{font-size:12px;color:#4f655c;border-radius:8px}
+.rpg-studio .mode-control button.selected{background:#f7faf4;color:#1a4f42;box-shadow:0 1px 4px rgba(40,55,45,.08)}
+.rpg-studio .location-card p{font-size:13px;line-height:1.9;color:#243f36;font-weight:500}
+.rpg-studio .location-card small,.rpg-studio .tool-note,.rpg-studio .amplitude-control small{font-size:11px;color:#4f655c}
 .anime-capability-card{
   margin-top:12px;padding:12px;border-radius:14px;background:#eef7f3;border:1px solid #c7e4da;color:#1f6b5c;font-size:12px;line-height:1.7;
 }
 .anime-capability-card .outline-button{margin-top:10px;border-color:#9ecfbf;color:#1f6b5c;background:#fff}
 .rpg-studio .play-button{background:linear-gradient(180deg,#3aa894,#1f6b5c);border-color:#1f6b5c;border-radius:12px;font-size:12px}
-.rpg-studio .tool-dock{background:rgba(255,250,246,.97);border-radius:18px}
+.rpg-studio .tool-dock{border-radius:16px}
 .anime-dock-copy{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1;color:#1f3b34}
 .anime-dock-copy strong{font-size:13px}.anime-dock-copy span{font-size:12px;color:#5f746c}
 .anime-switch-btn{width:auto;min-width:148px;flex-shrink:0}
@@ -243,8 +263,40 @@
 }
 .rpg-studio .anime-fallback{color:#7a5a18;background:linear-gradient(180deg,#fff6df,#f7e7bf)}
 .rpg-studio .studio-footer .status-message{font-size:12px;color:#5f746c}
-.rpg-studio .loading-card{border-radius:18px}
 .rpg-studio .dialog-done{background:linear-gradient(180deg,#3aa894,#1f6b5c);border-radius:12px}
+.contact-label{
+  background:#f4f7f0f5!important;
+  border:1px solid rgba(45,110,90,.35)!important;
+  color:#1a332c!important;
+  box-shadow:0 3px 12px rgba(40,55,45,.12)!important;
+}
+/* First-paint Suspense fallback (web/main.tsx) — style 4 woodcut, no white flash */
+.boot-screen{
+  position:fixed;inset:0;display:grid;place-items:center;
+  background:
+    var(--woodcut-wash,url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='320'%3E%3Crect fill='%23e6d5b3' width='480' height='320'/%3E%3C/svg%3E")),
+    #e6d5b3;
+  background-size:cover,auto;
+  z-index:100;
+}
+.boot-screen .loading-card,
+.loading-card.woodcut-loading{
+  background-color:#ead9b8;
+  background-image:var(--woodcut-wash),var(--paper-grain);
+  background-size:100% auto,auto;
+  background-position:center top,center;
+  border:1.5px solid rgba(58,46,34,.35);
+  border-radius:14px;
+  box-shadow:0 12px 32px rgba(40,32,20,.14);
+  color:#3a2e22;
+  padding:23px;
+  width:min(280px,86vw);
+  text-align:center;
+}
+.boot-screen .loading-card strong,
+.loading-card.woodcut-loading strong{display:block;font-size:13px;font-weight:500;color:#2a2218}
+.boot-screen .loading-card p,
+.loading-card.woodcut-loading p{font-size:11px;line-height:1.8;margin-top:8px;color:#5a4634}
 @media(max-width:767px),(max-width:1100px) and (max-height:500px){
   .rpg-header{min-height:58px;padding:10px 12px;align-items:center;gap:8px}
   .brand-block{max-width:none;gap:8px;flex-wrap:nowrap;min-width:0}
@@ -274,7 +326,8 @@
     max-height:44px;
     min-height:44px;
     overflow:hidden;
-    background:rgba(255,250,246,.96);
+    background-color:var(--paper);
+    background-image:var(--paper-grain);
   }
   .rpg-studio .library-panel:not(.mobile-expanded) .panel-content,
   .rpg-studio .selection-panel:not(.mobile-expanded) .panel-content{display:none!important}

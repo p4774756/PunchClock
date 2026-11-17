@@ -4,9 +4,9 @@ import {animeOutfit,type AnimeOutfit,type OutfitId} from './outfits';
 import {useEffect,useRef} from 'react';
 import * as T from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
-import {RoomEnvironment} from 'three/examples/jsm/environments/RoomEnvironment.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {VRMLoaderPlugin,VRMUtils} from '@pixiv/three-vrm';
+import {MToonMaterialOutlineWidthMode} from '@pixiv/three-vrm-materials-mtoon';
 import {PointerTap} from './pointer-tap';
 import {createTeachingOverlay} from './teaching-overlay';
 import {installSurfaceToolInput} from './surface-tool-input';
@@ -27,10 +27,131 @@ interface Props{
  onError:(s:string)=>void;
 }
 
+/** Three-step cel shade ramp for MeshToonMaterial.gradientMap (and leftover dispose). */
 const toonGradient=()=>{
  const data=new Uint8Array([90,90,90,255,168,168,168,255,255,255,255,255]);
  const tex=new T.DataTexture(data,3,1,T.RGBAFormat);
  tex.magFilter=T.NearestFilter;tex.minFilter=T.NearestFilter;tex.needsUpdate=true;return tex;
+};
+
+type MToonLike=T.Material & {
+ isMToonMaterial?:boolean;
+ shadeColorFactor?:T.Color;
+ shadingToonyFactor?:number;
+ shadingShiftFactor?:number;
+ giEqualizationFactor?:number;
+ outlineWidthFactor?:number;
+ outlineWidthMode?:MToonMaterialOutlineWidthMode;
+ outlineColorFactor?:T.Color;
+ parametricRimColorFactor?:T.Color;
+ rimLightingMixFactor?:number;
+ matcapFactor?:T.Color;
+};
+
+/** TV anime cel look: sharp shade bands + ink outline; keep #75 hide／hair／practice intact. */
+const applyCelShading=(root:T.Object3D,gradient:T.DataTexture)=>{
+ root.traverse((obj:T.Object3D)=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  for(const mat of mats){
+   const m=mat as MToonLike & T.MeshStandardMaterial & {isMeshToonMaterial?:boolean;gradientMap?:T.Texture|null;envMapIntensity?:number};
+   if(m.isMToonMaterial){
+    m.shadingToonyFactor=.94;
+    m.shadingShiftFactor=Math.min(m.shadingShiftFactor??0,-.06);
+    if(m.shadeColorFactor)m.shadeColorFactor.multiplyScalar(.88);
+    m.giEqualizationFactor=Math.min(m.giEqualizationFactor??1,.52);
+    m.outlineWidthMode=MToonMaterialOutlineWidthMode.WorldCoordinates;
+    const ow=m.outlineWidthFactor??0.0024;
+    m.outlineWidthFactor=Math.min(Math.max(ow,.0016),.0022);
+    if(m.outlineColorFactor)m.outlineColorFactor.setRGB(.12,.09,.07);
+    if(m.parametricRimColorFactor)m.parametricRimColorFactor.setRGB(0,0,0);
+    if(m.rimLightingMixFactor!=null)m.rimLightingMixFactor=0;
+    if(m.matcapFactor)m.matcapFactor.multiplyScalar(.3);
+    m.needsUpdate=true;
+    continue;
+   }
+   if(m.isMeshToonMaterial){
+    m.gradientMap=gradient;
+    m.needsUpdate=true;
+    continue;
+   }
+   if(m.isMeshStandardMaterial||(m as T.MeshPhysicalMaterial).isMeshPhysicalMaterial){
+    m.roughness=Math.max(m.roughness??.5,.82);
+    m.metalness=Math.min(m.metalness??0,.04);
+    if(m.envMapIntensity!=null)m.envMapIntensity=.12;
+    m.needsUpdate=true;
+   }
+  }
+ });
+};
+
+/** Procedural woodcut parchment for the far backdrop (no external bitmap). */
+const makeWoodcutBackdrop=()=>{
+ const size=1024;
+ const canvas=document.createElement('canvas');
+ canvas.width=size;canvas.height=size;
+ const ctx=canvas.getContext('2d');
+ if(!ctx)return null;
+ ctx.fillStyle='#e4d4b4';
+ ctx.fillRect(0,0,size,size);
+ const grain=ctx.createImageData(size,size);
+ for(let i=0;i<grain.data.length;i+=4){
+  const n=220+((Math.sin(i*.013)+Math.cos(i*.007))*8|0);
+  grain.data[i]=n;grain.data[i+1]=n-8;grain.data[i+2]=n-28;grain.data[i+3]=255;
+ }
+ ctx.putImageData(grain,0,0);
+ ctx.globalAlpha=.22;
+ ctx.fillStyle='#e8d9b8';
+ ctx.fillRect(0,0,size,size);
+ ctx.globalAlpha=1;
+ ctx.strokeStyle='#3a2e22';
+ ctx.lineWidth=2.2;
+ ctx.lineJoin='round';
+ // Cloud bands (墨線雲)
+ const cloud=(cx:number,cy:number,s:number)=>{
+  ctx.beginPath();
+  ctx.moveTo(cx-s,cy);
+  ctx.bezierCurveTo(cx-s*.6,cy-s*.55,cx-s*.15,cy-s*.5,cx,cy-s*.15);
+  ctx.bezierCurveTo(cx+s*.2,cy-s*.55,cx+s*.7,cy-s*.45,cx+s,cy);
+  ctx.bezierCurveTo(cx+s*.55,cy+s*.25,cx+s*.15,cy+s*.2,cx,cy+s*.08);
+  ctx.bezierCurveTo(cx-s*.25,cy+s*.28,cx-s*.7,cy+s*.2,cx-s,cy);
+  ctx.stroke();
+ };
+ cloud(220,180,90);cloud(780,140,110);cloud(520,90,70);
+ cloud(512,460,125);cloud(320,540,85);cloud(700,500,95);cloud(480,220,80);
+ // Bamboo stalks — spread so default front／back framing sees ink lines, not only side edges
+ ctx.lineWidth=3;
+ for(const x of [90,140,200,340,680,820,880,940]){
+  ctx.beginPath();
+  ctx.moveTo(x,size);ctx.quadraticCurveTo(x+18,size*.55,x-8,80);
+  ctx.stroke();
+  for(let y=size-40;y>120;y-=70){
+   ctx.beginPath();
+   ctx.moveTo(x-10,y);ctx.lineTo(x+12,y-6);
+   ctx.stroke();
+   ctx.beginPath();
+   ctx.moveTo(x,y-20);
+   ctx.quadraticCurveTo(x+40,y-50,x+70,y-35);
+   ctx.stroke();
+   ctx.beginPath();
+   ctx.moveTo(x,y-35);
+   ctx.quadraticCurveTo(x-35,y-65,x-65,y-40);
+   ctx.stroke();
+  }
+ }
+ ctx.strokeStyle='#5a4634';
+ ctx.lineWidth=1.2;
+ ctx.strokeRect(28,28,size-56,size-56);
+ const tex=new T.CanvasTexture(canvas);
+ tex.colorSpace=T.SRGBColorSpace;
+ tex.needsUpdate=true;
+ tex.wrapS=tex.wrapT=T.RepeatWrapping;
+ const mat=new T.MeshBasicMaterial({map:tex,side:T.BackSide,depthWrite:false});
+ // Interior box skybox — visible from front／back／side orbit (single -Z plane was behind the camera).
+ const room=new T.Mesh(new T.BoxGeometry(26,17,26),mat);
+ room.position.set(0,1.35,0);
+ room.renderOrder=-2;
+ return {plane:room,tex,mat};
 };
 
 const materialLabel=(mat:T.Material,obj:T.Object3D)=>`${mat.name||''} ${obj.name||''}`;
@@ -233,7 +354,7 @@ const restyleHairBun=(root:T.Object3D)=>{
  });
  const head=root.getObjectByName('J_Bip_C_Head');
  if(!head)return;
- const bunMat=new T.MeshStandardMaterial({name:'PracticeHairBun',color:BUN_BROWN,roughness:.7,metalness:.02});
+ const bunMat=new T.MeshToonMaterial({name:'PracticeHairBun',color:BUN_BROWN});
  // Head local +Y/+Z align with world; place above＋behind GV20 (~1.62) so the bun is visible from front.
  const bun=new T.Mesh(new T.SphereGeometry(.06,20,16),bunMat);
  bun.name='PracticeHairBun';
@@ -285,6 +406,11 @@ const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
  }
 };
 
+const finishCharacterLook=(root:T.Object3D,outfit:AnimeOutfit,gradient:T.DataTexture)=>{
+ applyOutfitMaterials(root,outfit);
+ applyCelShading(root,gradient);
+};
+
 export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onError}:Props){
  const host=useRef<HTMLDivElement>(null);
  const latest=useRef(state);const sim=useRef(simulation);const pointSelect=useRef(onPoint);const toolDrag=useRef(onToolDrag);
@@ -299,8 +425,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   try{renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});}
   catch{onError('無法啟動 3D 視圖，請使用支持 WebGL 的瀏覽器。');return;}
   renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<768?1.5:2));
-  renderer.setClearColor('#f6efe4');renderer.outputColorSpace=T.SRGBColorSpace;
-  renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
+  // Style 4 parchment clear; no RoomEnvironment IBL (avoids oily specular on skin).
+  renderer.setClearColor('#e6d5b3');renderer.outputColorSpace=T.SRGBColorSpace;
+  renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.86;
   el.appendChild(renderer.domElement);
   renderer.domElement.setAttribute('aria-label',`${avatar.name}：拖動旋轉，滾輪縮放，點擊穴位標記。`);
 
@@ -308,19 +435,21 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   camera.position.set(0,1.45,2.4);controls.target.set(0,1.35,0);
   controls.enableDamping=true;controls.dampingFactor=.085;controls.minDistance=.2;controls.maxDistance=8;
   controls.maxPolarAngle=Math.PI*.96;controls.addEventListener('change',()=>{dirty=true;});
+  scene.environment=null;
 
-  const pmrem=new T.PMREMGenerator(renderer),room=new RoomEnvironment(),env=pmrem.fromScene(room,.04);
-  scene.environment=env.texture;room.dispose();pmrem.dispose();
-  scene.add(new T.HemisphereLight(0xfff6ea,0xb7cfc4,1.15));
-  const key=new T.DirectionalLight(0xfff3df,2.1);key.position.set(-1.6,3.4,2.2);scene.add(key);
-  const rim=new T.DirectionalLight(0xd7fff4,1.35);rim.position.set(2.2,1.8,-2.4);scene.add(rim);
-  const fill=new T.DirectionalLight(0xffe7c8,1.1);fill.position.set(0,-1.2,1.4);scene.add(fill);
+  scene.add(new T.HemisphereLight(0xfff1dc,0x8a9a88,.85));
+  const key=new T.DirectionalLight(0xffe8c8,1.15);key.position.set(-1.5,3.2,2.1);scene.add(key);
+  const rim=new T.DirectionalLight(0xd8e8df,.42);rim.position.set(2.1,1.6,-2.2);scene.add(rim);
+  const fill=new T.DirectionalLight(0xffe2c0,.55);fill.position.set(.2,-.8,1.6);scene.add(fill);
 
-  const ground=new T.Mesh(new T.CircleGeometry(18,64),new T.MeshStandardMaterial({color:0xe8dcc8,roughness:1}));
+  const woodcut=makeWoodcutBackdrop();
+  if(woodcut)scene.add(woodcut.plane);
+
+  const ground=new T.Mesh(new T.CircleGeometry(18,64),new T.MeshBasicMaterial({color:0xdcc9a4}));
   ground.rotation.x=-Math.PI/2;ground.position.y=-.01;scene.add(ground);
-  const platform=new T.Mesh(new T.CylinderGeometry(.62,.64,.024,80),new T.MeshStandardMaterial({color:0xfff8ef,metalness:.08,roughness:.72}));
+  const platform=new T.Mesh(new T.CylinderGeometry(.62,.64,.024,80),new T.MeshBasicMaterial({color:0xe8d8b8}));
   platform.position.y=-.008;scene.add(platform);
-  const ring=new T.Mesh(new T.RingGeometry(.57,.575,96),new T.MeshBasicMaterial({color:0xc9a45a,transparent:true,opacity:.45,side:T.DoubleSide}));
+  const ring=new T.Mesh(new T.RingGeometry(.57,.575,96),new T.MeshBasicMaterial({color:0x6a5238,transparent:true,opacity:.35,side:T.DoubleSide}));
   ring.rotation.x=-Math.PI/2;ring.position.y=.001;scene.add(ring);
 
   const gradient=toonGradient();
@@ -370,7 +499,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      VRMUtils.removeUnnecessaryVertices(gltf.scene);
      VRMUtils.combineSkeletons(gltf.scene);
     }
-    applyOutfitMaterials(model,outfit);
+    finishCharacterLook(model,outfit,gradient);
     characterRoot.clear();
     characterRoot.add(model);
     model.updateMatrixWorld(true);
@@ -453,8 +582,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   return()=>{
    disposed=true;cancelAnimationFrame(frame);observer.disconnect();
    toolInput.dispose();teaching.dispose();controls.dispose();gradient.dispose();
+   woodcut?.tex.dispose();
    scene.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}});
-   env.dispose();teaching.label.remove();renderer.dispose();renderer.domElement.remove();
+   teaching.label.remove();renderer.dispose();renderer.domElement.remove();
   };
  },[avatarId,outfitId,onProgress,onError]);
 

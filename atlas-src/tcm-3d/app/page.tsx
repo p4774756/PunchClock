@@ -164,7 +164,7 @@ export default function Home(){
    <Suspense fallback={null}><CharacterScene key={`${DEFAULT_AVATAR_ID}-${outfitId}`} state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={DEFAULT_AVATAR_ID} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onError={onError}/></Suspense>
    <div className="scene-guide"><span className="guide-cross">+</span><span>{currentAvatar.shortName} · {currentOutfit.shortName}</span></div>
    {(progress<100||error)&&(
-    <div className={error?'loading-card load-error':'loading-card'} role="status">
+    <div className={error?'loading-card woodcut-loading load-error':'loading-card woodcut-loading'} role="status">
      <span className="loading-symbol">{error?(<Info size={23}/>):(<Layers3 size={23}/>)}</span>
      <strong>{error?'模型暫未就緒':('正在迎接'+currentAvatar.shortName)}</strong>
      <p>{error||('載入 '+currentOutfit.name+' 與已對應穴位標記。')}</p>
