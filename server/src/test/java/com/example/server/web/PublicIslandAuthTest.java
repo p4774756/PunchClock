@@ -174,6 +174,24 @@ public class PublicIslandAuthTest {
     }
 
     @Test
+    public void guestsCanReadDevStatusWithoutLogin() throws Exception {
+        HttpResponse<String> status = send("GET", "/api/dev-status", null);
+        assertEquals(200, status.statusCode());
+        String body = status.body();
+        assertTrue(body.contains("\"success\""));
+        assertTrue(body.contains("\"stale\""));
+        assertTrue(body.contains("\"now\""));
+        assertTrue(body.contains("\"items\""));
+        assertTrue(body.contains("\"timeline\""));
+        assertTrue(body.contains("\"stats\""));
+        assertFalse(body.contains("未登入"));
+        assertFalse(body.contains("Authorization"));
+        assertFalse(body.contains("PUNCHCLOCK_GITHUB_TOKEN"));
+        assertFalse(body.contains("## "));
+        assertFalse(body.contains("Closes #"));
+    }
+
+    @Test
     public void indexHtmlRedirectsToPublicHome() throws Exception {
         HttpResponse<String> response = send("GET", "/index.html", null);
         assertEquals(302, response.statusCode());

@@ -1,0 +1,353 @@
+package com.example.server.store;
+
+import com.example.server.store.DevStatusModels.Document;
+import com.example.server.store.DevStatusModels.IssueRow;
+import com.example.server.store.DevStatusModels.Item;
+import com.example.server.store.DevStatusModels.NowBlock;
+import com.example.server.store.DevStatusModels.PullRow;
+import com.example.server.store.DevStatusModels.QueueEntry;
+import com.example.server.store.DevStatusModels.Snapshot;
+import com.example.server.store.DevStatusModels.Stats;
+import com.example.server.store.DevStatusModels.TimelineEvent;
+
+import java.time.DayOfWeek;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/** 把 GitHub snapshot 對照成公開開發進度（不含正文／作者）。 */
+public final class DevStatusMapper {
+
+    public static final ZoneId TAIPEI = ZoneId.of("Asia/Taipei");
+    public static final long TIMELINE_WINDOW_MS = 7L * 24L * 60L * 60L * 1000L;
+
+    private static final Pattern QUEUE_LABEL = Pattern.compile("^queue:(\\d+)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern CLOSES = Pattern.compile(
+            "(?i)\\b(?:closes|fixes|resolves)\\s+#(\\d+)\\b");
+    private static final Pattern BRANCH_ISSUE = Pattern.compile("^refs/heads/ai/issue-(\\d+)$");
+
+    private DevStatusMapper() {
+    }
+
+    public static Integer queueOrder(List<String> labels) {
+        if (labels == null || labels.isEmpty()) {
+            return null;
+        }
+        Integer best = null;
+        for (String label : labels) {
+            if (label == null) {
+                continue;
+            }
+            Matcher m = QUEUE_LABEL.matcher(label.trim());
+            if (!m.matches()) {
+                continue;
+            }
+            int n = Integer.parseInt(m.group(1));
+            if (n <= 0) {
+                continue;
+            }
+            if (best == null || n < best) {
+                best = n;
+            }
+        }
+        return best;
+    }
+
+    public static Set<Integer> parseCloses(String body) {
+        if (body == null || body.isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<Integer> out = new HashSet<>();
+        Matcher m = CLOSES.matcher(body);
+        while (m.find()) {
+            out.add(Integer.parseInt(m.group(1)));
+        }
+        return out;
+    }
+
+    public static Integer parseBranchIssue(String ref) {
+        if (ref == null) {
+            return null;
+        }
+        Matcher m = BRANCH_ISSUE.matcher(ref.trim());
+        if (!m.matches()) {
+            return null;
+        }
+        return Integer.parseInt(m.group(1));
+    }
+
+    public static String formatPair(int issue, Integer pr) {
+        if (pr == null) {
+            return "i" + issue;
+        }
+        return "i" + issue + "（p" + pr + "）";
+    }
+
+    public static String issueUrl(String repo, int issue) {
+        return "https://github.com/" + repo + "/issues/" + issue;
+    }
+
+    public static String prUrl(String repo, int pr) {
+        return "https://github.com/" + repo + "/pull/" + pr;
+    }
+
+    /**
+     * 一張 issue 對應的 PR：已合併優先，否則取編號最大的開放 PR。
+     * 已合併票殘留分支不算進行中。
+     */
+    public static PullRow pickPull(int issueNumber, List<PullRow> pulls, Map<Integer, List<PullRow>> byIssue) {
+        List<PullRow> linked = byIssue.get(issueNumber);
+        if (linked == null || linked.isEmpty()) {
+            return null;
+        }
+        PullRow mergedBest = null;
+        PullRow openBest = null;
+        for (PullRow pull : linked) {
+            if (pull.merged) {
+                if (mergedBest == null || pull.number > mergedBest.number) {
+                    mergedBest = pull;
+                }
+            } else if (pull.open) {
+                if (openBest == null || pull.number > openBest.number) {
+                    openBest = pull;
+                }
+            }
+        }
+        if (mergedBest != null) {
+            return mergedBest;
+        }
+        return openBest;
+    }
+
+    public static String statusFor(IssueRow issue, PullRow pull, boolean hasActiveBranch) {
+        if (issue.number == DevStatusModels.ROADMAP_ISSUE) {
+            return DevStatusModels.STATUS_ROADMAP;
+        }
+        if (pull != null && pull.merged) {
+            return DevStatusModels.STATUS_MERGED;
+        }
+        if (pull != null && pull.open && !pull.draft) {
+            return DevStatusModels.STATUS_REVIEW;
+        }
+        if (pull != null && pull.open && pull.draft) {
+            return DevStatusModels.STATUS_WORKING;
+        }
+        if (issue.open && hasActiveBranch) {
+            return DevStatusModels.STATUS_WORKING;
+        }
+        if (issue.open) {
+            return DevStatusModels.STATUS_QUEUED;
+        }
+        return DevStatusModels.STATUS_MERGED;
+    }
+
+    public static boolean includeInTable(IssueRow issue, String status) {
+        if (issue.number == DevStatusModels.ROADMAP_ISSUE) {
+            return true;
+        }
+        if (issue.open) {
+            return true;
+        }
+        return issue.number >= DevStatusModels.CLOSED_MIN_NUMBER
+                && (DevStatusModels.STATUS_MERGED.equals(status) || !issue.open);
+    }
+
+    public static long weekStartTaipei(long nowMs) {
+        ZonedDateTime now = Instant.ofEpochMilli(nowMs).atZone(TAIPEI);
+        LocalDate monday = now.toLocalDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        return monday.atStartOfDay(TAIPEI).toInstant().toEpochMilli();
+    }
+
+    public static Document map(Snapshot snapshot, String repo, long nowMs) {
+        String safeRepo = repo == null || repo.isBlank() ? DevStatusService.DEFAULT_REPO : repo.trim();
+        List<IssueRow> issues = snapshot == null ? Collections.emptyList() : snapshot.issues;
+        List<PullRow> pulls = snapshot == null ? Collections.emptyList() : snapshot.pulls;
+        Set<Integer> branches = snapshot == null ? Collections.emptySet() : snapshot.activeBranches;
+
+        Map<Integer, List<PullRow>> byIssue = new HashMap<>();
+        for (PullRow pull : pulls) {
+            for (Integer closes : pull.closesIssues) {
+                byIssue.computeIfAbsent(closes, k -> new ArrayList<>()).add(pull);
+            }
+        }
+
+        // 已合併票的分支不算進行中
+        Set<Integer> mergedIssues = new HashSet<>();
+        for (IssueRow issue : issues) {
+            PullRow pull = pickPull(issue.number, pulls, byIssue);
+            if (pull != null && pull.merged) {
+                mergedIssues.add(issue.number);
+            }
+        }
+        Set<Integer> activeBranches = new HashSet<>();
+        for (Integer n : branches) {
+            if (n != null && !mergedIssues.contains(n)) {
+                activeBranches.add(n);
+            }
+        }
+
+        Map<Integer, Item> itemsByIssue = new LinkedHashMap<>();
+        List<Item> items = new ArrayList<>();
+        int openIssues = 0;
+        for (IssueRow issue : issues) {
+            if (issue.open && issue.number != DevStatusModels.ROADMAP_ISSUE) {
+                openIssues += 1;
+            }
+            PullRow pull = pickPull(issue.number, pulls, byIssue);
+            boolean branch = activeBranches.contains(issue.number);
+            String status = statusFor(issue, pull, branch);
+            if (!includeInTable(issue, status)) {
+                continue;
+            }
+            Integer prNum = pull == null ? null : Integer.valueOf(pull.number);
+            long updated = issue.updatedAt;
+            if (pull != null && pull.updatedAt > updated) {
+                updated = pull.updatedAt;
+            }
+            Item item = new Item(
+                    formatPair(issue.number, prNum),
+                    issue.number,
+                    prNum,
+                    issue.title,
+                    status,
+                    updated,
+                    issueUrl(safeRepo, issue.number),
+                    prNum == null ? null : prUrl(safeRepo, prNum)
+            );
+            items.add(item);
+            itemsByIssue.put(issue.number, item);
+        }
+        items.sort(Comparator.comparingInt((Item i) -> i.issue).reversed());
+
+        List<QueueEntry> queue = new ArrayList<>();
+        for (IssueRow issue : issues) {
+            if (!issue.open) {
+                continue;
+            }
+            Integer order = queueOrder(issue.labels);
+            if (order == null) {
+                continue;
+            }
+            Item item = itemsByIssue.get(issue.number);
+            if (item == null) {
+                PullRow pull = pickPull(issue.number, pulls, byIssue);
+                boolean branch = activeBranches.contains(issue.number);
+                String status = statusFor(issue, pull, branch);
+                Integer prNum = pull == null ? null : Integer.valueOf(pull.number);
+                item = new Item(
+                        formatPair(issue.number, prNum),
+                        issue.number,
+                        prNum,
+                        issue.title,
+                        status,
+                        issue.updatedAt,
+                        issueUrl(safeRepo, issue.number),
+                        prNum == null ? null : prUrl(safeRepo, prNum)
+                );
+            }
+            queue.add(new QueueEntry(order, item));
+        }
+        queue.sort(Comparator.comparingInt((QueueEntry q) -> q.order)
+                .thenComparingInt(q -> q.item.issue));
+
+        Item current = null;
+        int currentIndex = -1;
+        for (int i = 0; i < queue.size(); i++) {
+            QueueEntry entry = queue.get(i);
+            String status = entry.item.status;
+            if (DevStatusModels.STATUS_WORKING.equals(status) || DevStatusModels.STATUS_REVIEW.equals(status)) {
+                current = entry.item;
+                currentIndex = i;
+                break;
+            }
+        }
+        Item next = null;
+        if (currentIndex >= 0) {
+            if (currentIndex + 1 < queue.size()) {
+                next = queue.get(currentIndex + 1).item;
+            }
+        } else if (!queue.isEmpty()) {
+            next = queue.get(0).item;
+        }
+
+        long weekStart = weekStartTaipei(nowMs);
+        int mergedThisWeek = 0;
+        for (PullRow pull : pulls) {
+            if (pull.merged && pull.mergedAt != null && pull.mergedAt >= weekStart && pull.mergedAt <= nowMs) {
+                mergedThisWeek += 1;
+            }
+        }
+        Stats stats = new Stats("本週（週一 00:00 起，台北）", mergedThisWeek, openIssues);
+
+        long timelineFrom = nowMs - TIMELINE_WINDOW_MS;
+        List<TimelineEvent> timeline = new ArrayList<>();
+        for (IssueRow issue : issues) {
+            if (issue.number == DevStatusModels.ROADMAP_ISSUE) {
+                continue;
+            }
+            Item item = itemsByIssue.get(issue.number);
+            String ref = item != null ? item.pair : ("i" + issue.number);
+            String url = issueUrl(safeRepo, issue.number);
+            if (issue.createdAt >= timelineFrom && issue.createdAt <= nowMs) {
+                timeline.add(new TimelineEvent(issue.createdAt, "開了 issue", ref, issue.title, url));
+            }
+            if (issue.closedAt != null && issue.closedAt >= timelineFrom && issue.closedAt <= nowMs) {
+                PullRow pull = pickPull(issue.number, pulls, byIssue);
+                if (pull == null || !pull.merged) {
+                    timeline.add(new TimelineEvent(issue.closedAt, "關閉了 issue", ref, issue.title, url));
+                }
+            }
+        }
+        for (PullRow pull : pulls) {
+            String url = prUrl(safeRepo, pull.number);
+            String ref = "p" + pull.number;
+            Integer linked = primaryClosedIssue(pull);
+            if (linked != null) {
+                Item item = itemsByIssue.get(linked);
+                ref = item != null ? item.pair : formatPair(linked, pull.number);
+            }
+            if (pull.createdAt >= timelineFrom && pull.createdAt <= nowMs) {
+                timeline.add(new TimelineEvent(pull.createdAt, "開了 PR", ref, pull.title, url));
+            }
+            if (pull.merged && pull.mergedAt != null
+                    && pull.mergedAt >= timelineFrom && pull.mergedAt <= nowMs) {
+                timeline.add(new TimelineEvent(pull.mergedAt, "合併", ref, pull.title, url));
+            }
+        }
+        timeline.sort(Comparator.comparingLong((TimelineEvent e) -> e.at).reversed());
+
+        return new Document(new NowBlock(current, next, queue), items, timeline, stats);
+    }
+
+    private static Integer primaryClosedIssue(PullRow pull) {
+        if (pull.closesIssues.isEmpty()) {
+            return null;
+        }
+        int best = Integer.MAX_VALUE;
+        for (Integer n : pull.closesIssues) {
+            if (n != null && n < best) {
+                best = n;
+            }
+        }
+        return best == Integer.MAX_VALUE ? null : best;
+    }
+
+    /** 測試用：小寫 locale 無關。 */
+    public static String normalizeStatus(String status) {
+        return status == null ? "" : status.trim().toLowerCase(Locale.ROOT);
+    }
+}
