@@ -40,6 +40,20 @@ export function applyOutdoorInteractZone(zone, actions) {
   return false;
 }
 
+/** 戶外 E／Enter 互動用的 actions；與 applyOutdoorInteractZone 成對使用。 */
+export function buildOutdoorInteractActions(ctx) {
+  return {
+    openGraffiti: () => ctx.openGraffiti(),
+    openRoadmap: () => ctx.openRoadmap(),
+    enterInterior: (id) => ctx.enterInterior(id),
+    startSail: (z) => ctx.startSail && ctx.startSail(z),
+    isClosedHall: (action) => ctx.isClosedHall(action),
+    showInteriorClosed: () => ctx.showInteriorClosed(),
+    openCasino: () => ctx.casino && ctx.casino.openLobby(),
+    enterTcm: () => ctx.enterTcm && ctx.enterTcm()
+  };
+}
+
 export function isTypingTarget(target) {
   if (!target) return false;
   const tag = target.tagName;
@@ -219,15 +233,7 @@ export function handleExploreKeydown(ctx) {
       if (zone && zone.action === 'exitInterior') ctx.leaveInterior();
       return true;
     }
-    const handled = applyOutdoorInteractZone(zone, {
-      openGraffiti: () => ctx.openGraffiti(),
-      openRoadmap: () => ctx.openRoadmap(),
-      enterInterior: (id) => ctx.enterInterior(id),
-      startSail: (z) => ctx.startSail && ctx.startSail(z),
-      isClosedHall: (action) => ctx.isClosedHall(action),
-      showInteriorClosed: () => ctx.showInteriorClosed(),
-      openCasino: () => ctx.casino && ctx.casino.openLobby()
-    });
+    const handled = applyOutdoorInteractZone(zone, buildOutdoorInteractActions(ctx));
     if (!handled && ctx.casino) ctx.casino.openLobby();
     return true;
   }
