@@ -63,6 +63,13 @@ test('研發樓室內完整，門口外可站且不壓進門互動區', () => {
   const gap = Math.hypot(room.outside.x - hall.door.x, room.outside.z - hall.door.z);
   assert.ok(gap > hall.entry.r, '離開後的站點不在進門互動區裡');
   assert.equal(L.blocked(room.outside.x, room.outside.z, RADIUS), false);
+
+  assert.ok(room.exit.x < -1.2, '出口在南牆門洞左側');
+  assert.ok(Math.hypot(room.exit.x - room.spawn.x, room.exit.z - room.spawn.z) > room.exit.r,
+    '出口離出生點有距離');
+  for (let bi = 0; bi < room.blocks.length; bi++) {
+    assert.equal(circleHitsRect(room.exit.x, room.exit.z, room.exit.r, room.blocks[bi]), false);
+  }
 });
 
 test('進出狀態機：室內可移動、面板暫停、不可重入、離開後清空', () => {

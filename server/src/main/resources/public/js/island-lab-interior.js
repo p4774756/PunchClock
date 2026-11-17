@@ -6,16 +6,32 @@ import { formatLabDevScreenLines } from './island-roadmap.js';
 const SCREEN_W = 1024;
 const SCREEN_H = 768;
 
+function fitLine(ctx, text, maxW) {
+  if (!text) return text;
+  if (ctx.measureText(text).width <= maxW) return text;
+  const ell = '…';
+  let fit = text.length;
+  while (fit > 0 && ctx.measureText(text.slice(0, fit) + ell).width > maxW) fit -= 1;
+  if (fit < 1) return ell;
+  let cut = fit;
+  if (fit < text.length) {
+    const chunk = text.slice(0, fit);
+    const sp = chunk.lastIndexOf(' ');
+    if (sp > 0 && ctx.measureText(text.slice(0, sp) + ell).width <= maxW) cut = sp;
+  }
+  return text.slice(0, cut) + ell;
+}
+
 function drawScreenCanvas(canvas, lines) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   ctx.fillStyle = '#07111f';
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   ctx.fillStyle = '#9ae8ff';
-  ctx.font = '600 40px "PingFang TC", "Noto Sans TC", sans-serif';
+  ctx.font = '600 46px "PingFang TC", "Noto Sans TC", sans-serif';
   const list = Array.isArray(lines) ? lines : [];
   let y = 56;
-  const lineH = 52;
+  const lineH = 54;
   const pad = 48;
   const maxW = SCREEN_W - pad * 2;
   for (let i = 0; i < list.length; i++) {
@@ -24,17 +40,9 @@ function drawScreenCanvas(canvas, lines) {
       y += lineH * 0.55;
       continue;
     }
-    let text = raw;
-    while (text.length) {
-      let fit = text.length;
-      while (fit > 0 && ctx.measureText(text.slice(0, fit)).width > maxW) fit -= 1;
-      if (fit < 1) fit = 1;
-      const chunk = text.slice(0, fit);
-      ctx.fillText(chunk, pad, y);
-      text = text.slice(fit);
-      y += lineH;
-      if (y > SCREEN_H - 24) return;
-    }
+    ctx.fillText(fitLine(ctx, raw, maxW), pad, y);
+    y += lineH;
+    if (y > SCREEN_H - 24) return;
   }
 }
 
@@ -46,7 +54,7 @@ function loadDevScreen(texture, canvas, loadState) {
     texture.needsUpdate = true;
   };
   const fetchFn = globalThis.fetch ? globalThis.fetch.bind(globalThis) : null;
-  const loading = formatLabDevScreenLines(null, { maxQueue: 4 });
+  const loading = formatLabDevScreenLines(null, { maxQueue: 3 });
   loading[2] = '載入中…';
   apply(loading);
   if (!fetchFn) {
@@ -56,7 +64,7 @@ function loadDevScreen(texture, canvas, loadState) {
   fetchFn('/api/dev-status')
     .then((res) => res.json())
     .then((body) => {
-      apply(formatLabDevScreenLines(body, { maxQueue: 4 }));
+      apply(formatLabDevScreenLines(body, { maxQueue: 3 }));
     })
     .catch(() => {
       apply(formatLabDevScreenLines({ success: false, message: '開發進度暫時讀不到' }));
@@ -115,11 +123,15 @@ export function createInterior(THREE, opts) {
   box(width + wallT * 2, wallH, wallT, 0xd8e8f8, 0x8ea0bf, cx, wallY, floor.maxZ + wallT / 2);
 
   const doorW = 0.88;
+  const doorX = -1.5;
   const southZ = floor.minZ - wallT / 2;
-  const leftW = (width - doorW) / 2;
-  box(leftW, wallH, wallT, 0xd8e8f8, 0x8ea0bf, floor.minX + leftW / 2, wallY, southZ);
-  box(leftW, wallH, wallT, 0xd8e8f8, 0x8ea0bf, floor.maxX - leftW / 2, wallY, southZ);
-  box(doorW + 0.14, 0.14, wallT + 0.02, 0x8eb8d8, 0x7a98b8, 0, ground + wallH - 0.08, southZ);
+  const westSegW = doorX - doorW / 2 - floor.minX;
+  if (westSegW > 0.02) {
+    box(westSegW, wallH, wallT, 0xd8e8f8, 0x8ea0bf, floor.minX + westSegW / 2, wallY, southZ);
+  }
+  const eastSegW = floor.maxX - (doorX + doorW / 2);
+  box(eastSegW, wallH, wallT, 0xd8e8f8, 0x8ea0bf, doorX + doorW / 2 + eastSegW / 2, wallY, southZ);
+  box(doorW + 0.14, 0.14, wallT + 0.02, 0x8eb8d8, 0x7a98b8, doorX, ground + wallH - 0.08, southZ);
 
   const rack = room.blocks[0];
   const rw = rack.maxX - rack.minX;
@@ -136,11 +148,11 @@ export function createInterior(THREE, opts) {
   const bcz = (bench.minZ + bench.maxZ) / 2;
   box(bw, 0.42, bd, 0x506070, 0x788898, bcx, ground + 0.31, bcz);
 
-  const screenW = 1.4;
+  const screenW = 1.35;
   const screenH = 0.95;
-  const screenY = ground + 1.15;
+  const screenY = ground + 1.02;
   const screenZ = floor.minZ + 0.06;
-  const screenX = floor.maxX - leftW / 2;
+  const screenX = 0;
   screenCanvas = typeof document !== 'undefined' && document.createElement
     ? document.createElement('canvas')
     : null;

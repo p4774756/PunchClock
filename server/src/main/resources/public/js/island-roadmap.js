@@ -58,10 +58,16 @@ export function emptyDevStatusMessage(data) {
   return '';
 }
 
+function clipDevText(text, maxLen) {
+  const s = text == null ? '' : String(text);
+  if (s.length <= maxLen) return s;
+  return s.slice(0, Math.max(1, maxLen - 1)) + '…';
+}
+
 function devFocusLine(label, item) {
   if (!item) return label + '：目前沒有';
   const pair = item.pair || '';
-  const title = item.title || '';
+  const title = clipDevText(item.title || '', 16);
   const status = item.status ? '（' + item.status + '）' : '';
   const head = pair ? pair + ' ' : '';
   return label + '：' + head + title + status;
@@ -69,7 +75,7 @@ function devFocusLine(label, item) {
 
 /** 研發樓室內螢幕用的純文字行（Canvas 繪製，不含 DOM）。 */
 export function formatLabDevScreenLines(data, opts) {
-  const maxQueue = (opts && opts.maxQueue) || 4;
+  const maxQueue = (opts && opts.maxQueue) || 3;
   const detailHint = '詳細進度請到主島施工告示牌';
   if (!data || data.success === false) {
     const msg = emptyDevStatusMessage(data) || '開發進度暫時讀不到';
@@ -101,7 +107,7 @@ export function formatLabDevScreenLines(data, opts) {
       const entry = slice[i] || {};
       const order = entry.order != null ? entry.order + '. ' : '';
       const pair = entry.pair || '';
-      const title = entry.title || '';
+      const title = clipDevText(entry.title || '', 12);
       const status = entry.status ? ' · ' + entry.status : '';
       lines.push('  ' + order + pair + ' ' + title + status);
     }
