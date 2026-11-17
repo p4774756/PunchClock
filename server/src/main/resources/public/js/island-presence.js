@@ -128,6 +128,10 @@ export function encodePos(pose) {
   });
 }
 
+export function encodeSay(text) {
+  return JSON.stringify({ t: 'say', text: text == null ? '' : String(text) });
+}
+
 function finite(value) {
   return typeof value === 'number' && Number.isFinite(value);
 }
@@ -190,6 +194,21 @@ export function decodeMessage(text) {
   if (data.t === 'leave') {
     if (typeof data.id !== 'string' || !data.id) return null;
     return { t: 'leave', id: data.id, rev: rev };
+  }
+  if (data.t === 'said') {
+    if (typeof data.id !== 'string' || !data.id) return null;
+    if (typeof data.name !== 'string') return null;
+    if (typeof data.text !== 'string') return null;
+    return {
+      t: 'said',
+      id: data.id,
+      name: data.name,
+      text: data.text,
+      ts: finite(data.ts) ? data.ts : 0
+    };
+  }
+  if (data.t === 'slow') {
+    return { t: 'slow' };
   }
   return null;
 }
@@ -277,6 +296,14 @@ export function createIslandPresence(options) {
       }
       peers = next;
       emit();
+      return;
+    }
+    if (msg.t === 'said') {
+      if (typeof opts.onSaid === 'function') opts.onSaid(msg);
+      return;
+    }
+    if (msg.t === 'slow') {
+      if (typeof opts.onSlow === 'function') opts.onSlow(msg);
     }
   }
 
@@ -385,10 +412,21 @@ export function createIslandPresence(options) {
     return true;
   }
 
+  function sendSay(text) {
+    if (!socket || socket.readyState !== 1) return false;
+    try {
+      socket.send(encodeSay(text));
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
   return {
     connect: connect,
     disconnect: disconnect,
     sendPos: sendPos,
+    sendSay: sendSay,
     rename: rename,
     accept: accept
   };

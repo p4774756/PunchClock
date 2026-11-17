@@ -52,6 +52,7 @@ import {
   sampleMotion,
   shouldSendPos
 } from './island-presence.js';
+import { createIslandChat, shouldOpenChatKey } from './island-chat.js';
 import { createIslandAudio } from './island-audio.js';
 import { G, P, createSceneKit } from './island-kit.js';
 import { createDayNight } from './island-daynight.js';
@@ -343,7 +344,9 @@ function boot() {
   let miluState = createMiluState();
   const peers = new Map();
   let islandPresence = null;
+  let islandChat = null;
   let peerWelcomed = false;
+  let peerSelfId = '';
   let peerScene = 'outdoor';
   let lastPosSent = null;
   let peerHideTimer = 0;
@@ -496,6 +499,7 @@ function boot() {
     const overlay = casinoOpen() || graffitiOpen();
     if (stick) stick.hidden = !exploring || overlay;
     if (hint) hint.hidden = !exploring || overlay;
+    if (islandChat) islandChat.setExploring(exploring && !overlay);
     syncInteractPrompt();
     syncPeerCount();
   }
@@ -556,9 +560,11 @@ function boot() {
       if (casino && casino.isOpen()) casino.closeLobby();
       dispatchMode('exit');
       peerWelcomed = false;
+      peerSelfId = '';
       peerScene = 'outdoor';
       lastPosSent = null;
       clearPeers();
+      if (islandChat) islandChat.clear();
       if (islandPresence) islandPresence.disconnect();
       const saved = exploreSaved || POSES.home;
       exploreSaved = null;
@@ -654,7 +660,11 @@ function boot() {
     scene.add(view.object);
     const label = document.createElement('div');
     label.className = 'island-peer-name';
-    label.textContent = info.name || '';
+    if (info.id) label.dataset.peerId = info.id;
+    const nameEl = document.createElement('span');
+    nameEl.className = 'island-peer-name-text';
+    nameEl.textContent = info.name || '';
+    label.appendChild(nameEl);
     const host = document.getElementById('islandLabels');
     if (host) host.appendChild(label);
     return {
@@ -682,7 +692,11 @@ function boot() {
       }
       row.name = info.name || '';
       row.moving = !!info.moving;
-      if (row.label) row.label.textContent = row.name;
+      if (row.label) {
+        const nameEl = row.label.querySelector('.island-peer-name-text');
+        if (nameEl) nameEl.textContent = row.name;
+        else row.label.textContent = row.name;
+      }
       pushTarget(row.motion, { x: info.x, z: info.z, yaw: info.yaw }, now);
     }
     Array.from(peers.keys()).forEach((id) => {
@@ -772,6 +786,18 @@ function boot() {
       el.style.visibility = 'visible';
       el.style.transform = 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -120%)';
     });
+    if (islandChat) {
+      islandChat.placeSelfBubble({
+        x: player.x,
+        y: P + 1.18,
+        z: player.z,
+        visible: !!(mode.exploring && (milu.object.visible || playerMesh.visible)),
+        width: width,
+        height: height,
+        camera: camera,
+        projected: projected
+      });
+    }
   }
 
   function placeLabels() {
@@ -1071,8 +1097,9 @@ function boot() {
       event.preventDefault();
       return;
     }
+    const promptVisible = syncInteractPrompt();
     if (casino && shouldTriggerInteractKey({
-      promptVisible: syncInteractPrompt(),
+      promptVisible: promptVisible,
       typing: isTypingTarget(event.target),
       focus: focusKind(event.target),
       code: event.code,
@@ -1093,7 +1120,29 @@ function boot() {
       else if (casino) casino.openLobby();
       return;
     }
+    const nickPopEl = document.getElementById('islandNickPop');
+    if (shouldOpenChatKey({
+      exploring: mode.exploring,
+      uiOpen: islandUiOpen(),
+      typing: isTypingTarget(event.target),
+      nickOpen: !!(nickPopEl && !nickPopEl.hidden),
+      chatOpen: !!(islandChat && islandChat.isOpen()),
+      promptVisible: promptVisible,
+      key: event.key,
+      code: event.code,
+      altKey: event.altKey,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey
+    })) {
+      event.preventDefault();
+      if (islandChat) islandChat.open();
+      return;
+    }
     if (event.key !== 'Escape') return;
+    if (islandChat && islandChat.isOpen()) {
+      islandChat.close();
+      return;
+    }
     if (roadmap && roadmap.isOpen()) {
       roadmap.close();
       return;
@@ -1533,6 +1582,7 @@ function boot() {
     now: () => Date.now(),
     onWelcome: (msg) => {
       peerWelcomed = true;
+      peerSelfId = msg.id || '';
       const input = document.getElementById('islandNickInput');
       if (input && !loadNick(window.localStorage) && document.activeElement !== input) {
         input.value = msg.name || '';
@@ -1541,8 +1591,25 @@ function boot() {
     },
     onPlayers: (state) => {
       peerWelcomed = !!state.selfId;
+      peerSelfId = state.selfId || '';
       applyPeerList(state.players);
+    },
+    onSaid: (msg) => {
+      if (islandChat) islandChat.onSaid(msg);
+    },
+    onSlow: () => {
+      if (islandChat) islandChat.onSlow();
     }
+  });
+  islandChat = createIslandChat({
+    document: document,
+    presence: islandPresence,
+    selfId: () => peerSelfId,
+    getPeerLabel: (id) => {
+      const row = peers.get(id);
+      return row ? row.label : null;
+    },
+    now: () => Date.now()
   });
 
   const nickBtn = document.getElementById('islandNickBtn');

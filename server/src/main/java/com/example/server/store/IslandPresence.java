@@ -40,6 +40,12 @@ public final class IslandPresence {
      */
     public static final double WORLD_RADIUS = 36;
     public static final int NAME_MAX = 12;
+    public static final int CHAT_MAX = 60;
+    /** 同一連線兩則聊天至少間隔這麼久。超限回 slow，不斷線。 */
+    public static final long CHAT_PEER_MS = 2_000L;
+    /** 同一 IP 在這個視窗內最多 CHAT_IP_PER_MINUTE 則。 */
+    public static final long CHAT_IP_WINDOW_MS = 60_000L;
+    public static final int CHAT_IP_PER_MINUTE = 20;
     public static final String SCENE_OUTDOOR = "outdoor";
 
     private static final Set<String> SCENES;
@@ -57,6 +63,7 @@ public final class IslandPresence {
 
     private final Map<String, Peer> peers = new LinkedHashMap<>();
     private final Map<String, Integer> ipCount = new LinkedHashMap<>();
+    private final Map<String, java.util.ArrayDeque<Long>> ipSayAt = new LinkedHashMap<>();
     private final Set<String> dirty = new LinkedHashSet<>();
     private int nameSeq;
     private long revision;
@@ -83,6 +90,31 @@ public final class IslandPresence {
             return null;
         }
         return trimmed;
+    }
+
+    /**
+     * 聊天文字：去掉控制字元與頭尾空白，保留標點與 emoji。
+     * 空的回 null；超過 {@link #CHAT_MAX} 個字就截斷。不要拿來清理暱稱。
+     */
+    public static String cleanChatText(String raw) {
+        String source = raw == null ? "" : raw;
+        StringBuilder kept = new StringBuilder();
+        source.codePoints().forEach(cp -> {
+            if (Character.isISOControl(cp) || cp == 0x2028 || cp == 0x2029) {
+                return;
+            }
+            kept.appendCodePoint(cp);
+        });
+        String trimmed = kept.toString().strip();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        int count = trimmed.codePointCount(0, trimmed.length());
+        if (count <= CHAT_MAX) {
+            return trimmed;
+        }
+        int end = trimmed.offsetByCodePoints(0, CHAT_MAX);
+        return trimmed.substring(0, end);
     }
 
     public static String autoName(int n) {
@@ -235,6 +267,8 @@ public final class IslandPresence {
                 return pos(peer, inbound);
             case "rename":
                 return rename(peer, inbound, now);
+            case "say":
+                return say(peer, inbound, now);
             default:
                 return Result.none();
         }
@@ -332,6 +366,13 @@ public final class IslandPresence {
             }
             return Inbound.named(type, name);
         }
+        if ("say".equals(type)) {
+            String chat = optionalString(object, "text");
+            if (chat == null) {
+                return null;
+            }
+            return Inbound.say(chat);
+        }
         if (!"pos".equals(type)) {
             return null;
         }
@@ -400,6 +441,81 @@ public final class IslandPresence {
             dirty.add(peer.scene);
         }
         return Result.none();
+    }
+
+    private Result say(Peer peer, Inbound inbound, long now) {
+        if (!peer.welcomed) {
+            return Result.none();
+        }
+        String cleaned = cleanChatText(inbound.text);
+        if (cleaned == null) {
+            return Result.none();
+        }
+        if (peer.lastSayAt != Long.MIN_VALUE && now - peer.lastSayAt < CHAT_PEER_MS) {
+            return Result.slow(slowJson());
+        }
+        if (ipSayLimited(peer.ip, now)) {
+            return Result.slow(slowJson());
+        }
+        peer.lastSayAt = now;
+        recordIpSay(peer.ip, now);
+        List<String> ids = welcomedInScene(peer.scene);
+        if (ids.isEmpty()) {
+            return Result.none();
+        }
+        return Result.said(saidJson(peer, cleaned, now), ids);
+    }
+
+    private List<String> welcomedInScene(String scene) {
+        List<String> ids = new ArrayList<>();
+        for (Peer other : peers.values()) {
+            if (!other.welcomed || !scene.equals(other.scene)) {
+                continue;
+            }
+            ids.add(other.id);
+        }
+        return ids;
+    }
+
+    private static String saidJson(Peer peer, String text, long now) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("t", "said");
+        body.put("id", peer.id);
+        body.put("name", peer.name);
+        body.put("text", text);
+        body.put("ts", now);
+        return GSON.toJson(body);
+    }
+
+    private static String slowJson() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("t", "slow");
+        return GSON.toJson(body);
+    }
+
+    private boolean ipSayLimited(String ip, long now) {
+        java.util.ArrayDeque<Long> times = pruneIpSays(ip, now);
+        return times.size() >= CHAT_IP_PER_MINUTE;
+    }
+
+    private void recordIpSay(String ip, long now) {
+        pruneIpSays(ip, now).addLast(now);
+    }
+
+    private java.util.ArrayDeque<Long> pruneIpSays(String ip, long now) {
+        String key = ip == null || ip.isBlank() ? "unknown" : ip.trim();
+        java.util.ArrayDeque<Long> times = ipSayAt.get(key);
+        if (times == null) {
+            times = new java.util.ArrayDeque<>();
+            ipSayAt.put(key, times);
+        }
+        while (!times.isEmpty() && now - times.peekFirst() >= CHAT_IP_WINDOW_MS) {
+            times.pollFirst();
+        }
+        if (times.isEmpty()) {
+            ipSayAt.put(key, times);
+        }
+        return times;
     }
 
     private Result disconnect(Peer peer) {
@@ -621,6 +737,7 @@ public final class IslandPresence {
         boolean welcomed;
         long lastMessageAt;
         long lastRenameAt = Long.MIN_VALUE;
+        long lastSayAt = Long.MIN_VALUE;
         long windowStart;
         int messagesInWindow;
         int posInWindow;
@@ -707,15 +824,18 @@ public final class IslandPresence {
     public static final class Inbound {
         public final String type;
         public final String name;
+        public final String text;
         public final double x;
         public final double z;
         public final double yaw;
         public final boolean moving;
         public final String scene;
 
-        private Inbound(String type, String name, double x, double z, double yaw, boolean moving, String scene) {
+        private Inbound(String type, String name, String text, double x, double z, double yaw, boolean moving,
+                String scene) {
             this.type = type;
             this.name = name;
+            this.text = text;
             this.x = x;
             this.z = z;
             this.yaw = yaw;
@@ -724,11 +844,15 @@ public final class IslandPresence {
         }
 
         static Inbound named(String type, String name) {
-            return new Inbound(type, name, 0, 0, 0, false, null);
+            return new Inbound(type, name, "", 0, 0, 0, false, null);
+        }
+
+        static Inbound say(String text) {
+            return new Inbound("say", "", text, 0, 0, 0, false, null);
         }
 
         static Inbound pos(double x, double z, double yaw, boolean moving, String scene) {
-            return new Inbound("pos", "", x, z, yaw, moving, scene);
+            return new Inbound("pos", "", "", x, z, yaw, moving, scene);
         }
     }
 
@@ -736,29 +860,44 @@ public final class IslandPresence {
         public final String welcomeJson;
         public final String leaveJson;
         public final List<String> leaveIds;
+        public final String saidJson;
+        public final List<String> saidIds;
+        public final String slowJson;
         public final boolean close;
 
-        private Result(String welcomeJson, String leaveJson, List<String> leaveIds, boolean close) {
+        private Result(String welcomeJson, String leaveJson, List<String> leaveIds,
+                String saidJson, List<String> saidIds, String slowJson, boolean close) {
             this.welcomeJson = welcomeJson;
             this.leaveJson = leaveJson;
             this.leaveIds = leaveIds;
+            this.saidJson = saidJson;
+            this.saidIds = saidIds;
+            this.slowJson = slowJson;
             this.close = close;
         }
 
         static Result none() {
-            return new Result(null, null, List.of(), false);
+            return new Result(null, null, List.of(), null, List.of(), null, false);
         }
 
         static Result welcome(String json) {
-            return new Result(json, null, List.of(), false);
+            return new Result(json, null, List.of(), null, List.of(), null, false);
         }
 
         static Result leave(String json, List<String> ids) {
-            return new Result(null, json, ids, false);
+            return new Result(null, json, ids, null, List.of(), null, false);
+        }
+
+        static Result said(String json, List<String> ids) {
+            return new Result(null, null, List.of(), json, ids, null, false);
+        }
+
+        static Result slow(String json) {
+            return new Result(null, null, List.of(), null, List.of(), json, false);
         }
 
         static Result close(String json, List<String> ids) {
-            return new Result(null, json, ids, true);
+            return new Result(null, json, ids, null, List.of(), null, true);
         }
     }
 

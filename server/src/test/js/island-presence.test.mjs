@@ -66,6 +66,11 @@ test('位置訊息可以編碼再解回來', () => {
   assert.equal(P.decodeMessage(JSON.stringify({ t: 'pos', x: '1', z: 0, yaw: 0, moving: true, scene: 'outdoor' })), null);
   assert.equal(P.decodeMessage(JSON.stringify({ t: 'leave', id: 'ab12', rev: 3 })).id, 'ab12');
   assert.equal(JSON.parse(P.encodeRename('阿明')).t, 'rename');
+  assert.equal(P.decodeMessage(JSON.stringify({
+    t: 'said', id: 'ab12', name: '甲', text: '嗨', ts: 9
+  })).text, '嗨');
+  assert.equal(P.decodeMessage(JSON.stringify({ t: 'slow' })).t, 'slow');
+  assert.equal(JSON.parse(P.encodeSay('嗨')).text, '嗨');
 });
 
 test('快照之間平滑移動，角度走短邊', () => {
