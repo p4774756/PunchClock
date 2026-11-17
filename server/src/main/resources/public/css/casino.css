@@ -162,6 +162,10 @@ body.casino-lobby-open .island-brand {
   display: none !important;
 }
 
+.casino-blackjack [hidden] {
+  display: none !important;
+}
+
 .casino-game-card {
   position: relative;
   display: flex;

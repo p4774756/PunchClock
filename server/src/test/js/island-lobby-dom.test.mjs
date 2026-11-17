@@ -15,6 +15,7 @@ async function load(name) {
 }
 const X = await load('island-explore.js');
 const C = await load('island-casino.js');
+const B = await load('island-blackjack.js');
 const islandSource = readFileSync(join(jsDir, 'island.js'), 'utf8');
 const exploreInputSource = readFileSync(join(jsDir, 'island-explore-input.js'), 'utf8');
 
@@ -123,8 +124,20 @@ function makeDocument() {
   return doc;
 }
 
+function fakeChipStorage(balance) {
+  const map = new Map();
+  if (balance != null) {
+    map.set('punchclock.casino.practiceChips', String(balance));
+  }
+  return {
+    setItem: (k, v) => map.set(k, v),
+    getItem: (k) => (map.has(k) ? map.get(k) : null),
+    removeItem: (k) => map.delete(k)
+  };
+}
+
 /** 依 island.js 的接線方式組裝；camera 記錄鏡頭動作，keys 代表按住中的移動鍵。 */
-function setup() {
+function setup(opts) {
   const doc = makeDocument();
   const win = { PUNCHCLOCK_AUTHENTICATED: false, requestAnimationFrame: (fn) => fn() };
   const sheet = doc.getElementById('islandSheet');
@@ -153,6 +166,7 @@ function setup() {
   casino = C.createCasinoController({
     doc: doc,
     win: win,
+    storage: opts && opts.storage,
     hooks: {
       beforeOpen: () => flow.beforeLobbyOpen(),
       onLobbyChange: (state) => {
@@ -293,6 +307,59 @@ test('全景進大廳：返回後仍是全景、不顯示角色', () => {
   assert.equal(X.playerVisible(t.flow.mode), false);
   assert.equal(t.flow.canMove(), false);
   assert.ok(!t.camera.includes('follow'), '不切到角色鏡頭');
+});
+
+function queryClass(root, className) {
+  const walk = (node) => {
+    for (const child of node.children) {
+      const parts = (child.className || '').split(/\s+/).filter(Boolean);
+      if (parts.includes(className)) return child;
+      const found = walk(child);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(root);
+}
+
+function openBlackjackTable(t) {
+  t.casino.openLobby();
+  const games = t.lobbyEl.querySelector('[data-casino-games]');
+  const card = games.children[0];
+  const playBtn = card.children[card.children.length - 1];
+  playBtn.click();
+  return t.lobbyEl.querySelector('[data-casino-blackjack]');
+}
+
+test('21 點：補領按鈕僅下注階段且餘額不足時顯示', () => {
+  const tOk = setup({ storage: fakeChipStorage(1000) });
+  const tableOk = openBlackjackTable(tOk);
+  const refillOk = queryClass(tableOk, 'casino-bj-refill');
+  const betRowOk = queryClass(tableOk, 'casino-bj-bet');
+  const actionsOk = queryClass(tableOk, 'casino-bj-actions');
+  const dealOk = actionsOk && actionsOk.children[0];
+  assert.ok(refillOk);
+  assert.equal(refillOk.hidden, true, '餘額 1000 時補領按鈕 hidden');
+  assert.equal(betRowOk.hidden, false);
+  assert.equal(dealOk.disabled, false);
+  assert.equal(B.needsPracticeChipRefill(1000), false);
+  refillOk.click();
+  assert.equal(tOk.casino.lobby.getBalance(), 1000, '餘額足夠時點補領不生效');
+
+  const tBroke = setup({ storage: fakeChipStorage(5) });
+  const tableLow = openBlackjackTable(tBroke);
+  const refillLow = queryClass(tableLow, 'casino-bj-refill');
+  const betRowLow = queryClass(tableLow, 'casino-bj-bet');
+  const insufficient = queryClass(tableLow, 'casino-bj-insufficient');
+  const actionsLow = queryClass(tableLow, 'casino-bj-actions');
+  const dealLow = actionsLow && actionsLow.children[0];
+  assert.equal(refillLow.hidden, false, '餘額 5 時補領按鈕可見');
+  assert.equal(betRowLow.hidden, true);
+  assert.equal(insufficient.hidden, false);
+  assert.equal(dealLow.disabled, true);
+  assert.equal(B.needsPracticeChipRefill(5), true);
+  refillLow.click();
+  assert.equal(tBroke.casino.lobby.getBalance(), B.STARTING_BALANCE);
 });
 
 test('21 點牌桌：可玩按鈕啟用；Escape 先關牌桌再關大廳', () => {

@@ -238,6 +238,7 @@ export function mountCasinoLobby(opts) {
   }
 
   function onRefillChips() {
+    if (!needsPracticeChipRefill(balance)) return;
     persistBalance(STARTING_BALANCE);
     refreshChips();
     if (resultEl) resultEl.hidden = true;
@@ -328,7 +329,7 @@ export function mountCasinoLobby(opts) {
 
     btnRefill = document.createElement('button');
     btnRefill.type = 'button';
-    btnRefill.className = 'btn';
+    btnRefill.className = 'btn casino-bj-refill';
     btnRefill.textContent = '重新領取 ' + STARTING_BALANCE + ' 練習籌碼';
     btnRefill.hidden = true;
 
