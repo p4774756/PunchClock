@@ -54,6 +54,7 @@ public final class ServerApp {
     private static final BuildInfo BUILD_INFO = BuildInfo.load(ServerApp.class, "/server-build.properties");
     private static final String SERVER_VERSION = BUILD_INFO.version();
     private static final String ISLAND_STATIC_CACHE = "public, max-age=86400";
+    private static final String ISLAND_JS_CSS_CACHE = "no-cache";
     private static final String DASHBOARD_CACHE = "no-cache, must-revalidate";
 
     private final AuthService authService = new AuthService();
@@ -109,27 +110,27 @@ public final class ServerApp {
                 sf.hostedPath = "/css";
                 sf.directory = "/public/css";
                 sf.location = Location.CLASSPATH;
-                applyIslandStaticCache(sf);
+                applyIslandStaticCache(sf, ISLAND_JS_CSS_CACHE);
             });
             config.staticFiles.add(sf -> {
                 sf.hostedPath = "/js";
                 sf.directory = "/public/js";
                 sf.location = Location.CLASSPATH;
-                applyIslandStaticCache(sf);
+                applyIslandStaticCache(sf, ISLAND_JS_CSS_CACHE);
             });
             // 探索模式看板角色。圖檔由 Maven 從桌面端 resources 複製，不另存一份。
             config.staticFiles.add(sf -> {
                 sf.hostedPath = "/pet";
                 sf.directory = "/public/pet";
                 sf.location = Location.CLASSPATH;
-                applyIslandStaticCache(sf);
+                applyIslandStaticCache(sf, ISLAND_STATIC_CACHE);
             });
             // 島嶼背景音樂
             config.staticFiles.add(sf -> {
                 sf.hostedPath = "/audio";
                 sf.directory = "/public/audio";
                 sf.location = Location.CLASSPATH;
-                applyIslandStaticCache(sf);
+                applyIslandStaticCache(sf, ISLAND_STATIC_CACHE);
             });
             // 建築 3D 模型（GLB）
             config.staticFiles.add(sf -> {
@@ -137,7 +138,7 @@ public final class ServerApp {
                 sf.directory = "/public/models";
                 sf.location = Location.CLASSPATH;
                 sf.mimeTypes.add("model/gltf-binary", "glb");
-                applyIslandStaticCache(sf);
+                applyIslandStaticCache(sf, ISLAND_STATIC_CACHE);
             });
             config.showJavalinBanner = false;
             long maxRequest = PhotoStore.MAX_INCOMING_REQUEST_BYTES;
@@ -489,11 +490,11 @@ public final class ServerApp {
         ctx.html(html);
     }
 
-    private static void applyIslandStaticCache(StaticFileConfig sf) {
+    private static void applyIslandStaticCache(StaticFileConfig sf, String cacheControl) {
         if (sf.headers == null) {
             sf.headers = new HashMap<>();
         }
-        sf.headers.put("Cache-Control", ISLAND_STATIC_CACHE);
+        sf.headers.put("Cache-Control", cacheControl);
     }
 
     /** Render 容器是 UTC，後台固定以台北時間顯示。 */

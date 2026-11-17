@@ -156,7 +156,11 @@ public class PublicIslandAuthTest {
     public void islandStaticAssetsGetDayCache() throws Exception {
         HttpResponse<String> js = send("GET", "/js/island-quality.js", null);
         assertEquals(200, js.statusCode());
-        assertTrue(js.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
+        assertTrue(js.headers().firstValue("cache-control").orElse("").contains("no-cache"));
+
+        HttpResponse<String> css = send("GET", "/css/roadmap.css", null);
+        assertEquals(200, css.statusCode());
+        assertTrue(css.headers().firstValue("cache-control").orElse("").contains("no-cache"));
 
         HttpResponse<String> pet = send("GET", "/pet/milu/walk/left_01.png", null);
         assertEquals(200, pet.statusCode());

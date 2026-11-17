@@ -41,9 +41,14 @@ test('applyLampMixState 同步光暈與點光', () => {
   applyLampMixState(item, 0.5, true);
   assert.equal(haloMat.opacity, lampHaloOpacity(10, 0.5));
   assert.equal(light.intensity, 5);
-  applyLampMixState(item, 1, false);
-  assert.equal(light.intensity, 0);
+  applyLampMixState(item, 1, true);
+  assert.equal(light.intensity, 10);
   assert.ok(haloMat.opacity > 0);
+});
+
+test('最低畫質仍保留點光強度（不依 pointLightsEnabled 關燈）', () => {
+  assert.equal(lampPointIntensity(12, 0.5, true), 6);
+  assert.equal(lampPointIntensity(12, 0.5, false), 0);
 });
 
 test('場景 PointLight 上限為 4', () => {

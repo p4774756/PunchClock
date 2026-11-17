@@ -53,7 +53,7 @@ export function lampHaloOpacity(power, mix) {
   return m * Math.min(0.92, 0.06 + p * 0.038);
 }
 
-/** 點光源強度；關閉時仍為 0，避免畫質降階閃爍。 */
+/** 點光源強度；pointLightsEnabled 僅供單元測試與例外情境，畫質降階不應關閉點光。 */
 export function lampPointIntensity(power, mix, pointLightsEnabled) {
   if (!pointLightsEnabled) return 0;
   const m = Math.max(0, Math.min(1, Number(mix) || 0));
@@ -259,8 +259,8 @@ export function createSceneKit(THREE, opts) {
     return item;
   }
 
-  function applyLampMix(item, mix, pointLightsEnabled) {
-    applyLampMixState(item, mix, pointLightsEnabled);
+  function applyLampMix(item, mix) {
+    applyLampMixState(item, mix, true);
   }
 
   function addMaterial(material) {

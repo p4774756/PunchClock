@@ -208,8 +208,7 @@ function boot() {
   });
 
   dayNight.onMix((t) => {
-    const pointOn = quality.tier !== 'shadowOff';
-    kit.forEachLamp((item) => kit.applyLampMix(item, t, pointOn));
+    kit.forEachLamp((item) => kit.applyLampMix(item, t));
   });
 
   function applyQualitySettings(settings) {
@@ -1012,7 +1011,7 @@ function boot() {
     view.materials.forEach((material) => kit.addMaterial(material));
     if (view.lamp) {
       view.lamp.realLight = true;
-      kit.applyLampMix(view.lamp, dayNight.mix, quality.tier !== 'shadowOff');
+      kit.applyLampMix(view.lamp, dayNight.mix);
       kit.addLamp(view.lamp);
     }
     lifecycle.emit('enterRoom', {});
