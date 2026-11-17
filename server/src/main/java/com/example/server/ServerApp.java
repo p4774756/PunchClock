@@ -70,16 +70,25 @@ public final class ServerApp {
     private final GraffitiRoutes graffitiRoutes = new GraffitiRoutes(authService, graffitiStore);
     private final IslandPresenceRoutes islandPresenceRoutes = new IslandPresenceRoutes();
     private final RoadmapRoutes roadmapRoutes = new RoadmapRoutes(new RoadmapService(new GithubRoadmapClient()));
-    private final DevStatusRoutes devStatusRoutes = new DevStatusRoutes(new DevStatusService(new GithubDevStatusClient()));
+    private final DevStatusRoutes devStatusRoutes;
     private final AtlasRoutes atlasRoutes = new AtlasRoutes();
     private final ClientRelease clientRelease;
 
     public ServerApp() {
-        this(ClientRelease.discover());
+        this(ClientRelease.discover(), null);
     }
 
     ServerApp(ClientRelease clientRelease) {
+        this(clientRelease, null);
+    }
+
+    /** 測試可注入假的 DevStatusService，避免打真實 GitHub。 */
+    public ServerApp(ClientRelease clientRelease, DevStatusService devStatusService) {
         this.clientRelease = clientRelease == null ? ClientRelease.NONE : clientRelease;
+        DevStatusService status = devStatusService != null
+                ? devStatusService
+                : new DevStatusService(new GithubDevStatusClient());
+        this.devStatusRoutes = new DevStatusRoutes(status);
     }
 
     public static void main(String[] args) {

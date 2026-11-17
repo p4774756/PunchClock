@@ -6,6 +6,7 @@ import com.example.server.store.DevStatusModels.PullRow;
 import com.example.server.store.DevStatusModels.Snapshot;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -127,6 +128,23 @@ public class DevStatusMapperTest {
         assertEquals(1, doc.stats.mergedThisWeek);
         assertEquals(1, doc.stats.openIssues);
         assertTrue(doc.timeline.stream().anyMatch(e -> "合併".equals(e.action)));
+    }
+
+    @Test
+    public void timelineIsCapped() {
+        long now = 2_000_000_000_000L;
+        List<IssueRow> issues = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            long at = now - i * 60_000L;
+            issues.add(new IssueRow(100 + i, "t" + i, true, at, at, null, Collections.emptyList()));
+        }
+        Document doc = DevStatusMapper.map(
+                new Snapshot(issues, Collections.emptyList(), Collections.emptySet()),
+                "p4774756/PunchClock",
+                now
+        );
+        assertEquals(DevStatusMapper.TIMELINE_LIMIT, doc.timeline.size());
+        assertTrue(doc.timeline.get(0).at >= doc.timeline.get(doc.timeline.size() - 1).at);
     }
 
     private static IssueRow issue(int n, boolean open, List<String> labels) {

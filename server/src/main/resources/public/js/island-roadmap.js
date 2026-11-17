@@ -148,7 +148,7 @@ function renderTable(doc, root, items) {
     }
     tr.appendChild(num);
     tr.appendChild(textEl(doc, 'td', 'roadmap-dev-title-cell', item.title || ''));
-    tr.appendChild(textEl(doc, 'td', null, item.status || ''));
+    tr.appendChild(textEl(doc, 'td', 'roadmap-dev-status-cell', item.status || ''));
     tr.appendChild(textEl(doc, 'td', 'roadmap-dev-time', formatTaipeiTime(item.updatedAt)));
     tbody.appendChild(tr);
   });

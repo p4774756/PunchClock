@@ -5,7 +5,12 @@ import com.example.server.store.DevStatusModels.Snapshot;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
@@ -98,5 +103,54 @@ public class DevStatusServiceTest {
 
         service.get(1_000L + DevStatusService.FAILURE_BACKOFF_MS);
         assertEquals(2, calls.get());
+    }
+
+    @Test
+    public void concurrentMissUsesSingleFlight() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        DevStatusService service = new DevStatusService(repo -> {
+            calls.incrementAndGet();
+            started.countDown();
+            try {
+                if (!release.await(3, TimeUnit.SECONDS)) {
+                    throw new IOException("stuck");
+                }
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted", ex);
+            }
+            return sample();
+        }, "p4774756/PunchClock");
+
+        CyclicBarrier barrier = new CyclicBarrier(3);
+        List<DevStatusService.View> views = Collections.synchronizedList(new ArrayList<>());
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            Thread t = new Thread(() -> {
+                try {
+                    barrier.await(3, TimeUnit.SECONDS);
+                    views.add(service.get(10_000L));
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
+            });
+            threads.add(t);
+            t.start();
+        }
+        assertTrue(started.await(3, TimeUnit.SECONDS));
+        // 給跟隨者時間掛上 inFlight，再放行唯一一次 fetch。
+        Thread.sleep(80);
+        release.countDown();
+        for (Thread t : threads) {
+            t.join(5_000L);
+        }
+        assertEquals(1, calls.get());
+        assertEquals(3, views.size());
+        for (DevStatusService.View view : views) {
+            assertFalse(view.stale);
+            assertEquals(1, view.document.now.queue.size());
+        }
     }
 }

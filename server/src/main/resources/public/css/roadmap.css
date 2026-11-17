@@ -181,6 +181,19 @@
   font-size: 0.88rem;
 }
 
+.roadmap-dev-mid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 0.65rem;
+  margin-top: 0.35rem;
+  align-items: start;
+}
+
+.roadmap-dev-queue-block,
+.roadmap-dev-stats-block {
+  min-width: 0;
+}
+
 .roadmap-dev-queue-list {
   margin: 0;
   padding: 0;
@@ -266,6 +279,11 @@
   font-size: 0.8rem;
 }
 
+.roadmap-dev-status-cell {
+  white-space: nowrap;
+  font-weight: 700;
+}
+
 .roadmap-dev-time {
   white-space: nowrap;
   color: #717171;
@@ -334,7 +352,8 @@
     padding: 0.85rem 0.85rem 1rem;
   }
 
-  .roadmap-dev-focus {
+  .roadmap-dev-focus,
+  .roadmap-dev-mid {
     grid-template-columns: 1fr;
   }
 

@@ -34,6 +34,8 @@ public final class DevStatusMapper {
 
     public static final ZoneId TAIPEI = ZoneId.of("Asia/Taipei");
     public static final long TIMELINE_WINDOW_MS = 7L * 24L * 60L * 60L * 1000L;
+    /** 近 7 天時間線最多保留筆數（依時間新→舊截斷）。 */
+    public static final int TIMELINE_LIMIT = 25;
 
     private static final Pattern QUEUE_LABEL = Pattern.compile("^queue:(\\d+)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern CLOSES = Pattern.compile(
@@ -329,6 +331,9 @@ public final class DevStatusMapper {
             }
         }
         timeline.sort(Comparator.comparingLong((TimelineEvent e) -> e.at).reversed());
+        if (timeline.size() > TIMELINE_LIMIT) {
+            timeline = new ArrayList<>(timeline.subList(0, TIMELINE_LIMIT));
+        }
 
         return new Document(new NowBlock(current, next, queue), items, timeline, stats);
     }

@@ -7,10 +7,14 @@ import com.example.server.store.DevStatusModels.Stats;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 
 /**
  * 公開開發進度。快取 10 分鐘；失敗沿用上次成功並標 stale。
  * 失敗後 2 分鐘內不再打 GitHub。建構時不連線。
+ * 網路請求在鎖外執行，同時只允許一次刷新（single-flight）。
  */
 public final class DevStatusService {
 
@@ -48,6 +52,7 @@ public final class DevStatusService {
     private long fetchedAt;
     private boolean failing;
     private long lastFailureAt;
+    private CompletableFuture<View> inFlight;
 
     public DevStatusService(Fetcher fetcher) {
         this(fetcher, repoProperty());
@@ -64,24 +69,81 @@ public final class DevStatusService {
         return repo == null || repo.isBlank() ? DEFAULT_REPO : repo.trim();
     }
 
-    public synchronized View get(long now) {
-        if (cached != null && now - fetchedAt < TTL_MS) {
-            return view(false, fetchedAt, cached, null);
+    public View get(long now) {
+        CompletableFuture<View> pending;
+        boolean leader;
+        synchronized (this) {
+            if (cached != null && now - fetchedAt < TTL_MS) {
+                return view(false, fetchedAt, cached, null);
+            }
+            if (failing && now - lastFailureAt < FAILURE_BACKOFF_MS) {
+                return failedView(lastFailureAt);
+            }
+            if (inFlight != null) {
+                pending = inFlight;
+                leader = false;
+            } else {
+                pending = new CompletableFuture<>();
+                inFlight = pending;
+                leader = true;
+            }
         }
-        if (failing && now - lastFailureAt < FAILURE_BACKOFF_MS) {
-            return failedView(lastFailureAt);
+        if (!leader) {
+            return await(pending);
         }
+        try {
+            View result = refresh(now);
+            pending.complete(result);
+            return result;
+        } catch (RuntimeException ex) {
+            View fallback;
+            synchronized (this) {
+                failing = true;
+                lastFailureAt = now;
+                fallback = failedView(now);
+            }
+            pending.complete(fallback);
+            return fallback;
+        } finally {
+            synchronized (this) {
+                if (inFlight == pending) {
+                    inFlight = null;
+                }
+            }
+        }
+    }
+
+    private View refresh(long now) {
         try {
             Snapshot snapshot = fetcher.fetch(repo);
             Document document = DevStatusMapper.map(snapshot, repo, now);
-            cached = document;
-            fetchedAt = now;
-            failing = false;
-            return view(false, now, document, null);
+            synchronized (this) {
+                cached = document;
+                fetchedAt = now;
+                failing = false;
+                return view(false, now, document, null);
+            }
         } catch (RuntimeException | IOException ex) {
-            failing = true;
-            lastFailureAt = now;
-            return failedView(now);
+            synchronized (this) {
+                failing = true;
+                lastFailureAt = now;
+                return failedView(now);
+            }
+        }
+    }
+
+    private static View await(CompletableFuture<View> pending) {
+        try {
+            return pending.get();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("dev-status interrupted", ex);
+        } catch (ExecutionException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw new CompletionException(cause);
         }
     }
 
