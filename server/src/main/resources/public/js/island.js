@@ -51,6 +51,7 @@ import {
   miluStep,
   screenAxes
 } from './island-milu.js';
+import { TCM_ATLAS_URL, consumeTcmReturn, writeTcmReturn } from './island-tcm-visit.js';
 import {
   HIDDEN_DISCONNECT_MS,
   createIslandPresence,
@@ -1183,6 +1184,15 @@ function boot() {
     syncInteractPrompt();
   }
 
+  async function enterTcm() {
+    if (!mode.exploring || rooms.inside() || interiorBusy || isSailing()) return;
+    clearMoveInput();
+    closeOverlayPanels();
+    writeTcmReturn(window.sessionStorage);
+    await fadeTo(true);
+    window.location.assign(TCM_ATLAS_URL);
+  }
+
   async function leaveInterior() {
     if (interiorBusy || !rooms.inside()) return;
     const ticket = ++interiorGeneration;
@@ -1266,6 +1276,10 @@ function boot() {
         }
         if (zone.action === 'sail') {
           startSail(zone);
+          return true;
+        }
+        if (zone.action === 'enterTcm') {
+          enterTcm();
           return true;
         }
         if (isClosedHall(zone.action)) {
@@ -1417,6 +1431,7 @@ function boot() {
     isClosedHall: isClosedHall,
     showInteriorClosed: showInteriorClosed,
     startSail: (zone) => startSail(zone),
+    enterTcm: () => enterTcm(),
     isInside: () => rooms.inside(),
     islandChat: islandChat,
     setExplore: setExplore,
@@ -1475,8 +1490,17 @@ function boot() {
   resize();
   dayNight.refresh();
   syncExploreUi();
+  const tcmRestore = consumeTcmReturn(window.sessionStorage);
   const open = document.querySelector('.dash-panel.is-active');
-  if (open && !open.hasAttribute('hidden')) {
+  if (tcmRestore) {
+    player.x = tcmRestore.x;
+    player.z = tcmRestore.z;
+    player.yaw = tcmRestore.yaw;
+    playerMesh.position.set(player.x, P, player.z);
+    playerMesh.rotation.y = player.yaw;
+    milu.object.position.set(player.x, P, player.z);
+    setExplore(true, true);
+  } else if (open && !open.hasAttribute('hidden')) {
     const id = open.id.replace('panel-', '');
     applyPose(POSES[id] || POSES.home, true);
     setActive(POSES[id] ? id : '');

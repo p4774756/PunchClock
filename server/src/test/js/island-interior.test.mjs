@@ -39,7 +39,7 @@ test('室內清單完整，手搖店西牆門口可站且不壓櫃台', () => {
   const gap = Math.hypot(room.outside.x - shop.door.x, room.outside.z - shop.door.z);
   assert.ok(gap > shop.entry.r, '離開後的站點不在進門互動區裡');
 
-  assert.equal(L.isClosedHall(L.buildingById('tcm-site').entry.action), true);
+  assert.equal(L.isClosedHall(L.buildingById('tcm-site').entry.action), false);
   assert.equal(L.isClosedHall(L.buildingById('computer-site').entry.action), true);
   assert.equal(I.interiorByBuilding('tcm-site'), null);
   assert.equal(I.interiorByBuilding('computer-site'), null);

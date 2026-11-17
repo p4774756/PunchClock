@@ -3,7 +3,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadPublicModule } from './load-public-module.mjs';
 
-const { isTypingTarget, focusKind, getOrbitClamp, applyOutdoorInteractZone } = await loadPublicModule('island-explore-input.js');
+const {
+  isTypingTarget,
+  focusKind,
+  getOrbitClamp,
+  applyOutdoorInteractZone,
+  buildOutdoorInteractActions,
+  handleExploreKeydown
+} = await loadPublicModule('island-explore-input.js');
 
 test('isTypingTarget：input／textarea／contenteditable', () => {
   assert.equal(isTypingTarget(null), false);
@@ -82,6 +89,74 @@ test('getOrbitClamp：室外或非跟隨時 indoorMin 為 null', () => {
     interiorMinRadius: 6.5
   };
   assert.deepEqual(getOrbitClamp(panel), { followCam: false, indoorMin: null });
+});
+
+test('buildOutdoorInteractActions：推拿館 enterTcm 會呼叫 ctx.enterTcm', () => {
+  let entered = false;
+  let casinoOpened = false;
+  let interiorClosed = false;
+  const actions = buildOutdoorInteractActions({
+    openGraffiti: () => {},
+    openRoadmap: () => {},
+    enterInterior: () => {},
+    startSail: () => {},
+    isClosedHall: () => false,
+    showInteriorClosed: () => { interiorClosed = true; },
+    casino: { openLobby: () => { casinoOpened = true; } },
+    enterTcm: () => { entered = true; }
+  });
+  const handled = applyOutdoorInteractZone({ action: 'enterTcm' }, actions);
+  assert.equal(handled, true);
+  assert.equal(entered, true);
+  assert.equal(casinoOpened, false);
+  assert.equal(interiorClosed, false);
+});
+
+test('鍵盤 E：推拿館互動區會呼叫 enterTcm 且不開賭場', () => {
+  const body = { tagName: 'BODY' };
+  globalThis.document = { body: body, documentElement: { tagName: 'HTML' } };
+  globalThis.window = globalThis;
+
+  let entered = false;
+  let casinoOpened = false;
+  let interiorClosed = false;
+  const ctx = {
+    event: {
+      code: 'KeyE',
+      key: 'e',
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      target: body,
+      preventDefault() {}
+    },
+    getMode: () => ({ exploring: true }),
+    player: { keys: {} },
+    controlsActive: () => true,
+    islandUiOpen: () => false,
+    syncInteractPrompt: () => true,
+    casino: {
+      openLobby: () => { casinoOpened = true; },
+      isOpen: () => false,
+      closeLobby: () => {}
+    },
+    hitInteractZone: () => ({ action: 'enterTcm' }),
+    isInside: () => false,
+    enterTcm: () => { entered = true; },
+    openGraffiti: () => {},
+    openRoadmap: () => {},
+    enterInterior: () => {},
+    isClosedHall: () => false,
+    showInteriorClosed: () => { interiorClosed = true; },
+    startSail: () => {},
+    graffiti: null,
+    roadmap: null,
+    islandChat: null
+  };
+  assert.equal(handleExploreKeydown(ctx), true);
+  assert.equal(entered, true);
+  assert.equal(casinoOpened, false);
+  assert.equal(interiorClosed, false);
 });
 
 test('sail 互動不會落到開賭場', () => {

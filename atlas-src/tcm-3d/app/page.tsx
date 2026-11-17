@@ -13,6 +13,8 @@ const initialScene:SceneState={explode:0,visible:[],selected:[],isolate:false,vi
 const VIEW_LABELS:Record<View,string>={'three-quarter':'斜視',front:'正面',back:'背面',side:'側面'};
 const clean=(value:string)=>value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[\s\-_]/g,'');
 const HOME_HREF=import.meta.env.BASE_URL.startsWith('/atlas')?'/':'https://tcm.jic.io/';
+const BACK_HOME_LABEL=HOME_HREF==='/'?'回島':'返回首頁';
+const BACK_HOME_ARIA=HOME_HREF==='/'?'回島':'返回中醫首頁';
 const readLaunchParams=()=>{
  if(typeof window==='undefined')return {set:null as CurriculumSetId|null,code:null as string|null};
  const params=new URLSearchParams(window.location.search);
@@ -151,8 +153,8 @@ export default function Home(){
  return <main className={`studio rpg-studio is-anime${showOutfitBar?' has-outfit-bar':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
   <header className="studio-header rpg-header">
    <div className="brand-block">
-    <a className="brand" href={HOME_HREF} aria-label={HOME_HREF==='/'?'返回後台':'返回中醫首頁'}><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室<span className="edition">RPG</span></span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></a>
-    <a className="back-home" href={HOME_HREF}>{HOME_HREF==='/'?'返回後台':'返回首頁'}</a>
+    <a className="brand" href={HOME_HREF} aria-label={BACK_HOME_ARIA}><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室<span className="edition">RPG</span></span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></a>
+    <a className="back-home" href={HOME_HREF}>{BACK_HOME_LABEL}</a>
    </div>
    <div className="header-actions">
     <div className="header-status"><span className="status-dot"/>穴位練習中<span className="header-divider"/>{currentAvatar.shortName}</div>

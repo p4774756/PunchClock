@@ -162,7 +162,7 @@ test('推拿館與研發樓的門在正面中線外，站得到，而且比樓�
     const bridge = L.BRIDGES.find((item) => item.to === hall.island);
     assert.equal(hall.deriveBlock, true);
     assert.equal(hall.label === '施工中', false);
-    assert.ok(L.isClosedHall(hall.entry.action), id);
+    assert.equal(L.isClosedHall(hall.entry.action), id === 'computer-site', id);
     assert.notEqual(hall.entry.action, 'enterCasino');
     assert.notEqual(hall.entry.action, 'enterInterior');
     assert.ok(hall.door);
