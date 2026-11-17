@@ -25,6 +25,10 @@ export function applyOutdoorInteractZone(zone, actions) {
     actions.startSail(zone);
     return true;
   }
+  if (zone.action === 'enterTcm') {
+    if (typeof actions.enterTcm === 'function') actions.enterTcm();
+    return true;
+  }
   if (typeof actions.isClosedHall === 'function' && actions.isClosedHall(zone.action)) {
     actions.showInteriorClosed();
     return true;

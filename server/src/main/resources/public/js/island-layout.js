@@ -364,9 +364,9 @@ export function buildingById(id) {
   return null;
 }
 
-// 門位已就緒、室內還沒做。這兩個 action 只顯示「尚未開放」，不可當成進入賭場。
+// 研發樓室內尚未開放；不可當成進入賭場。推拿館改走經絡研習室（enterTcm）。
 export function isClosedHall(action) {
-  return action === 'enterTcm' || action === 'enterComputer';
+  return action === 'enterComputer';
 }
 
 const BLOCK_RECT_LIST = OBSTACLE_RECTS.slice();
