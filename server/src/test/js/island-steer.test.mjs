@@ -106,3 +106,17 @@ test('abortSteering 回到上船碼頭', () => {
   state = B.abortSteering(state);
   assert.equal(state.phase, 'docked-beach');
 });
+
+test('加大船體半徑：仍進不了島心、泊位與靠岸仍可行', () => {
+  const mainBerth = L.BOAT_STOPS.main.berth;
+  const beachBerth = L.BOAT_STOPS.beach.berth;
+  const r = B.BOAT_HULL_RADIUS;
+  assert.equal(B.boatNavigable(mainBerth.x, mainBerth.z, r), true);
+  assert.equal(B.boatNavigable(beachBerth.x, beachBerth.z, r), true);
+  assert.equal(B.boatNavigable(L.ISLANDS[0].x, L.ISLANDS[0].z, r), false);
+  assert.equal(B.disembarkNear(mainBerth.x, mainBerth.z, B.BOAT_DISEMBARK_RADIUS), 'main');
+  const mid = L.BOAT_ROUTE[1];
+  assert.equal(B.boatNavigable(mid.x, mid.z, r), true);
+  const toward = B.resolveBoatMove(mid.x, mid.z, L.ISLANDS[0].x, mid.z, r);
+  assert.ok(!L.walkable(toward.x, toward.z, 0.2));
+});

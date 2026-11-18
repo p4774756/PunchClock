@@ -63,6 +63,21 @@ test('下船點可站立', () => {
   assert.ok(B.disembarkPointsStand(0.29));
 });
 
+test('船PassengerScale：船上縮放、下船恢復', () => {
+  assert.equal(B.boatPassengerScaleFactor('docked-main'), 1);
+  assert.equal(B.boatPassengerScaleFactor('sailing-out'), B.BOAT_PASSENGER_SCALE);
+  assert.equal(B.boatPassengerScaleFactor('steering'), B.BOAT_PASSENGER_SCALE);
+  assert.equal(B.boatPassengerScaleFactor('docked-beach'), 1);
+});
+
+test('boatWakeActive：航行與低速掌舵', () => {
+  assert.equal(B.boatWakeActive('sailing-out', 0, {}), true);
+  assert.equal(B.boatWakeActive('docked-main', 0, {}), false);
+  assert.equal(B.boatWakeActive('steering', 0.12, {}), true);
+  assert.equal(B.boatWakeActive('steering', 0.02, {}), false);
+  assert.equal(B.boatWakeActive('steering', 0.5, { reduced: true }), false);
+});
+
 test('abortSailing 會抵達目的地', () => {
   let state = B.startSailing(B.createBoatState('main'), 'main');
   state = B.abortSailing(state);
@@ -72,15 +87,13 @@ test('abortSailing 會抵達目的地', () => {
 test('遊艇站位與船首軸向常數', () => {
   assert.ok(B.BOAT_BOW_LOCAL_Z > 0, '船首在本地 +Z');
   assert.ok(B.BOAT_STERN_DECK_Z < 0, '船尾甲板在本地 -Z');
-  assert.equal(B.BOAT_SEAT_STERN_OFFSET, -B.BOAT_STERN_DECK_Z, '站位沿船尾對齊甲板中心');
-  const sternDeckDepth = 0.4;
-  const deckHalf = sternDeckDepth / 2;
+  const deckHalf = B.BOAT_STERN_DECK_WIDTH / 2;
   const seatLocalZ = -B.BOAT_SEAT_STERN_OFFSET;
   assert.ok(
     seatLocalZ >= B.BOAT_STERN_DECK_Z - deckHalf && seatLocalZ <= B.BOAT_STERN_DECK_Z + deckHalf,
     '站位落在船尾木甲板 Z 範圍內'
   );
-  assert.equal(B.BOAT_DECK_OFFSET, 0.36);
+  assert.equal(B.BOAT_DECK_OFFSET, 0.41);
   assert.ok(B.boatHullPartCount() <= B.BOAT_HULL_MESH_BUDGET);
   const stern = B.sampleRoute(0);
   const bowish = B.sampleRoute(0.08);

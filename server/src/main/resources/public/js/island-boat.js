@@ -13,28 +13,37 @@ import {
 import { smoothingFactor } from './island-explore.js';
 
 export const BOAT_VOYAGE_SEC = 10;
-/** 角色站位（船 Group 局部 Y，對齊船尾木質日光甲板頂面）。 */
-export const BOAT_DECK_OFFSET = 0.36;
+/** 角色站位（船 Group 局部 Y，對齊船尾日光甲板頂面）。 */
+export const BOAT_DECK_OFFSET = 0.41;
 /** 船首特徵（本地 +Z），與 island-props buildBoatMesh 一致。 */
-export const BOAT_BOW_LOCAL_Z = 0.88;
+export const BOAT_BOW_LOCAL_Z = 1.02;
 /** 船尾日光甲板中心（本地 Z）。 */
-export const BOAT_STERN_DECK_Z = -0.58;
-/** 航行時角色沿船尾（本地 -Z）偏移，對齊船尾甲板中心。 */
-export const BOAT_SEAT_STERN_OFFSET = -BOAT_STERN_DECK_Z;
+export const BOAT_STERN_DECK_Z = -0.68;
+/** 日光甲板沿船寬（本地 X）尺寸，供站位測試。 */
+export const BOAT_STERN_DECK_WIDTH = 0.58;
+/** 航行時角色沿船尾（本地 -Z）偏移，對齊船尾甲板可站區（略偏船首避開泳池）。 */
+export const BOAT_SEAT_STERN_OFFSET = 0.58;
 /** 船體網格預算（不含燈與浪花）。 */
-export const BOAT_HULL_MESH_BUDGET = 20;
+export const BOAT_HULL_MESH_BUDGET = 48;
 /** 掌舵碰撞與靠岸判定用船體半徑。 */
-export const BOAT_HULL_RADIUS = 0.42;
+export const BOAT_HULL_RADIUS = 0.44;
 export const BOAT_STEER_SPEED = 2.15;
 export const BOAT_STEER_ACCEL_LAMBDA = 7.5;
 export const BOAT_YAW_LAMBDA = 9;
 /** 靠岸下船：船心與泊位距離上限。 */
 export const BOAT_DISEMBARK_RADIUS = 1.25;
+/** 船上乘客縮放（不動陸上 MILU_ANIM.height）。 */
+export const BOAT_PASSENGER_SCALE = 0.76;
 
 /** 遊艇船體零件數（不含桅燈與航行浪花），供測試對齊。 */
 export function boatHullPartCount() {
-  return 17;
+  return 28;
 }
+
+export function boatPassengerScaleFactor(phase) {
+  return isOnBoatPhase(phase) ? BOAT_PASSENGER_SCALE : 1;
+}
+
 export const BOAT_BOB_BASE = -0.62;
 export const BOAT_BOB_AMP = 0.035;
 
@@ -382,4 +391,17 @@ export function boatWorldPose(state) {
 
 export function pierPadsForNav() {
   return WALK_PADS;
+}
+
+/** 航行／掌舵時是否應顯示船尾浪花（純邏輯，不含 reduced-motion）。 */
+export function boatWakeActive(phase, speed, opts) {
+  const options = opts || {};
+  if (options.reduced) return false;
+  if (options.voyagePaused && isSailingPhase(phase)) return false;
+  if (isSailingPhase(phase)) return true;
+  if (isSteeringPhase(phase)) {
+    const lim = options.minSpeed == null ? 0.07 : options.minSpeed;
+    return (speed || 0) > lim;
+  }
+  return false;
 }

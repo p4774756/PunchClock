@@ -39,7 +39,9 @@ import {
   boatWorldPose,
   disembarkNear,
   BOAT_DECK_OFFSET,
-  BOAT_SEAT_STERN_OFFSET
+  BOAT_SEAT_STERN_OFFSET,
+  boatPassengerScaleFactor,
+  boatWakeActive
 } from './island-boat.js';
 import { createCasinoController, CASINO_NAME, promptDomUpdate } from './island-casino.js';
 import { createGraffitiController } from './island-graffiti.js';
@@ -375,19 +377,32 @@ function boot() {
       boatState = stepBoat(boatState, dt, { paused: false, reduced: false });
     }
     syncBoatMesh(elapsed);
-    const wake = boatMesh && boatMesh.userData.wake;
-    if (wake) {
-      const showWake = isSailing() && !reduced;
-      for (let wi = 0; wi < wake.length; wi++) {
-        const foam = wake[wi];
-        foam.visible = showWake;
-        if (showWake) {
-          foam.position.y = foam.userData.baseY + Math.sin(elapsed * 3.1 + foam.userData.phase) * 0.02;
-          foam.position.z = foam.userData.baseZ + Math.sin(elapsed * 2.4 + foam.userData.phase) * 0.025;
-        } else {
-          foam.position.y = foam.userData.baseY;
-          foam.position.z = foam.userData.baseZ;
+    const wakePack = boatMesh && boatMesh.userData.wake;
+    if (wakePack && wakePack.mesh) {
+      const steerSpd = isSteering() ? Math.hypot(boatState.vx || 0, boatState.vz || 0) : 0;
+      const showWake = boatWakeActive(boatState.phase, steerSpd, {
+        reduced: reduced,
+        voyagePaused: voyageUiPaused()
+      });
+      const wakeMesh = wakePack.mesh;
+      wakeMesh.visible = showWake;
+      if (showWake && !reduced) {
+        const dummy = wakePack.dummy;
+        const specs = wakePack.specs;
+        const bob = Math.sin(elapsed * 2.8) * 0.008;
+        for (let wi = 0; wi < specs.length; wi++) {
+          const s = specs[wi];
+          dummy.position.set(
+            s.baseX + Math.sin(elapsed * 3.2 + s.phase) * 0.012,
+            s.baseY + Math.sin(elapsed * 3.8 + s.phase) * 0.035 + bob,
+            s.baseZ + Math.sin(elapsed * 2.6 + s.phase) * 0.04
+          );
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.set(s.sx, s.sy, s.sz);
+          dummy.updateMatrix();
+          wakeMesh.setMatrixAt(wi, dummy.matrix);
         }
+        wakeMesh.instanceMatrix.needsUpdate = true;
       }
     }
     if (isSailingPhase(prev.phase) && !isSailingPhase(boatState.phase)) {
@@ -818,6 +833,7 @@ function boot() {
     player.vx = 0;
     player.vz = 0;
     setPlayerAnchor(player.x, P, player.z, player.yaw);
+    syncPassengerScale();
     syncBoatMesh(boatElapsed);
     followPlayerCamera(true);
     syncInteractPrompt();
@@ -835,6 +851,7 @@ function boot() {
     player.vz = 0;
     clearMoveInput();
     setPlayerAnchor(player.x, P, player.z, player.yaw);
+    syncPassengerScale();
     syncBoatMesh(boatElapsed);
     followPlayerCamera(true);
     syncInteractPrompt();
@@ -1112,6 +1129,12 @@ function boot() {
     }, 4200);
   }
 
+  function syncPassengerScale() {
+    const s = boatPassengerScaleFactor(boatState.phase);
+    milu.object.scale.setScalar(s);
+    miluPlaceholder.scale.setScalar(s);
+  }
+
   function syncAvatarVisible() {
     const vis = avatarVisibility({
       show: playerVisible(mode),
@@ -1140,6 +1163,7 @@ function boot() {
     milu.object.position.set(player.x, y, player.z);
     if (miluPlaceholder.visible) miluPlaceholder.position.set(player.x, y, player.z);
     syncAvatarVisible();
+    syncPassengerScale();
   }
 
   function updatePlayer(dt) {
