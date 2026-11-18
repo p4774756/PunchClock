@@ -1,11 +1,12 @@
 import {ANIME_MODEL_BYTES} from './anime-model-digest';
 import {publicAssetUrl} from './public-assets';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
-import {animeOutfit,type AnimeOutfit,type OutfitId} from './outfits';
+import {animeOutfit,ANIME_OUTFITS,type AnimeOutfit,type OutfitId} from './outfits';
 import {useEffect,useRef} from 'react';
 import * as T from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
+import {clone as cloneSkinnedObject} from 'three/examples/jsm/utils/SkeletonUtils.js';
 import {VRMLoaderPlugin,VRMUtils} from '@pixiv/three-vrm';
 import {MToonMaterialOutlineWidthMode} from '@pixiv/three-vrm-materials-mtoon';
 import {PointerTap} from './pointer-tap';
@@ -26,6 +27,7 @@ interface Props{
  onToolDrag:(target:SurfaceTarget|null,phase:ToolDragPhase)=>void;
  onProgress:(n:number)=>void;
  onError:(s:string)=>void;
+ onPracticeOutfitPreparing?:(preparing:boolean)=>void;
 }
 
 /** Three-step cel shade ramp for MeshToonMaterial.gradientMap (and leftover dispose). */
@@ -250,21 +252,31 @@ const writeUvTriangleCloth=(data:ImageData,width:number,height:number,flipY:bool
 const looksLikeSkinPixel=(r:number,g:number,b:number,a:number)=>{
  if(a<200)return false;
  if(r<40&&g>55&&b>65)return false;
+ // Reject orange-lit／vest bleed that skews shoulder inpaint warm.
+ if(r>g+12||r>b+10)return false;
  return r>92&&g>72&&b>62&&r>=g-20;
 };
 
-const sampleNearbySkin=(data:ImageData,width:number,height:number,cx:number,cy:number,maxRad=96)=>{
- for(let rad=1;rad<=maxRad;rad++){
-  for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){
-   if(Math.abs(dx)!==rad&&Math.abs(dy)!==rad)continue;
-   const x=cx+dx,y=cy+dy;
-   if(x<0||y<0||x>=width||y>=height)continue;
-   const i=(y*width+x)*4;
-   const r=data.data[i],g=data.data[i+1],b=data.data[i+2],a=data.data[i+3];
-   if(looksLikeSkinPixel(r,g,b,a))return {r,g,b};
-  }
+type ShoulderHoleBounds={minX:number;maxX:number;minY:number;maxY:number};
+type SkinRgb={r:number;g:number;b:number};
+
+/** One pass over padded triangle AABB — fallback when dilation cannot reach a hole. */
+const averageSkinInBounds=(data:ImageData,width:number,height:number,bounds:ShoulderHoleBounds):SkinRgb|null=>{
+ const loX=Math.max(0,bounds.minX),hiX=Math.min(width-1,bounds.maxX);
+ const loY=Math.max(0,bounds.minY),hiY=Math.min(height-1,bounds.maxY);
+ let sumR=0,sumG=0,sumB=0,n=0;
+ for(let y=loY;y<=hiY;y++)for(let x=loX;x<=hiX;x++){
+  const i=(y*width+x)*4;
+  if(!looksLikeSkinPixel(data.data[i],data.data[i+1],data.data[i+2],data.data[i+3]))continue;
+  sumR+=data.data[i];sumG+=data.data[i+1];sumB+=data.data[i+2];n++;
  }
- return null;
+ if(!n)return null;
+ return {r:Math.round(sumR/n),g:Math.round(sumG/n),b:Math.round(sumB/n)};
+};
+
+const fillShoulderHolePixel=(data:ImageData,width:number,height:number,x:number,y:number,rgb:SkinRgb)=>{
+ const i=(y*width+x)*4;
+ data.data[i]=rgb.r;data.data[i+1]=rgb.g;data.data[i+2]=rgb.b;data.data[i+3]=255;
 };
 
 /** Outer shoulder MASK cutouts — outside inTorsoSkinBand (clavicle guard unchanged). */
@@ -278,12 +290,7 @@ const inOuterShoulderWorld=(x:number,y:number,z:number)=>{
 const paintShoulderAlphaHole=(data:ImageData,width:number,height:number,x:number,y:number)=>{
  const i=(y*width+x)*4;
  if(data.data[i+3]>=200)return true;
- const sample=sampleNearbySkin(data,width,height,x,y);
- if(sample){
-  data.data[i]=sample.r;data.data[i+1]=sample.g;data.data[i+2]=sample.b;data.data[i+3]=255;
-  return true;
- }
- return false;
+ return dilateShoulderHoleFromNeighbors(data,width,height,x,y);
 };
 
 const dilateShoulderHoleFromNeighbors=(data:ImageData,width:number,height:number,x:number,y:number)=>{
@@ -302,7 +309,7 @@ const dilateShoulderHoleFromNeighbors=(data:ImageData,width:number,height:number
  return false;
 };
 
-const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,u1:number,v1:number,u2:number,v2:number)=>{
+const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,u1:number,v1:number,u2:number,v2:number,fallbackSkin:SkinRgb)=>{
  const toX=(u:number)=>Math.min(width-1,Math.max(0,Math.round(u*(width-1))));
  const toY=(v:number)=>Math.min(height-1,Math.max(0,Math.round((flipY?1-v:v)*(height-1))));
  const x0=toX(u0),y0=toY(v0),x1=toX(u1),y1=toY(v1),x2=toX(u2),y2=toY(v2);
@@ -310,6 +317,9 @@ const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flip
  const minY=Math.max(0,Math.min(y0,y1,y2)),maxY=Math.min(height-1,Math.max(y0,y1,y2));
  const area=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);
  if(area===0)return;
+ const pad=24;
+ const sampleBounds:ShoulderHoleBounds={minX:minX-pad,maxX:maxX+pad,minY:minY-pad,maxY:maxY+pad};
+ const fillRgb=averageSkinInBounds(data,width,height,sampleBounds)??fallbackSkin;
  const holes:{x:number;y:number}[]=[];
  for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
   const w0=((x1-x)*(y2-y)-(x2-x)*(y1-y))/area;
@@ -323,12 +333,25 @@ const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flip
  for(let pass=0;pass<48&&holes.length;pass++){
   const remain:typeof holes=[];
   for(const {x,y} of holes){
+   if(x<minX||x>maxX||y<minY||y>maxY)continue;
    if(!dilateShoulderHoleFromNeighbors(data,width,height,x,y))remain.push({x,y});
   }
   if(remain.length===holes.length)break;
   holes.length=0;holes.push(...remain);
  }
+ for(const {x,y} of holes)fillShoulderHolePixel(data,width,height,x,y,fillRgb);
+ for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+  const w0=((x1-x)*(y2-y)-(x2-x)*(y1-y))/area;
+  const w1=((x2-x)*(y0-y)-(x0-x)*(y2-y))/area;
+  const w2=1-w0-w1;
+  if(w0<-.01||w1<-.01||w2<-.01)continue;
+  const i=(y*width+x)*4;
+  if(data.data[i+3]>=200)continue;
+  fillShoulderHolePixel(data,width,height,x,y,fillRgb);
+ }
 };
+
+type MToonUniforms=Record<string,{value:unknown}>;
 
 const findSkinMap=(m:T.MeshStandardMaterial & {map?:T.Texture|null;uniforms?:Record<string,{value:unknown}>})=>{
  if(m.map?.image)return m.map;
@@ -336,6 +359,29 @@ const findSkinMap=(m:T.MeshStandardMaterial & {map?:T.Texture|null;uniforms?:Rec
  if(uni&&typeof uni==='object'&&'image' in (uni as object)&&(uni as T.Texture).image)return uni as T.Texture;
  return null;
 };
+
+const skinMapUniform=(m:T.MeshStandardMaterial & {uniforms?:MToonUniforms})=>{
+ const uni=m.uniforms?.map?.value;
+ if(uni&&typeof uni==='object'&&'isTexture' in (uni as object))return uni as T.Texture;
+ return m.map??null;
+};
+
+/** MToon samples uniforms.map — setter alone can miss WebGL refresh after clone／fork. */
+const setMToonBodyMap=(m:T.MeshStandardMaterial,tex:T.Texture)=>{
+ m.map=tex;
+ const uni=(m as T.MeshStandardMaterial & {uniforms?:MToonUniforms}).uniforms;
+ if(uni?.map)uni.map.value=tex;
+ const mtoon=m as MToonLike & {_uploadUniformsWorkaround?:()=>void;uniformsNeedUpdate?:boolean};
+ if(mtoon.isMToonMaterial&&mtoon._uploadUniformsWorkaround)mtoon._uploadUniformsWorkaround();
+ if('uniformsNeedUpdate' in mtoon)mtoon.uniformsNeedUpdate=true;
+ tex.needsUpdate=true;
+ m.needsUpdate=true;
+};
+
+const MTOON_TEXTURE_UNIFORM_KEYS=new Set([
+ 'map','normalMap','emissiveMap','shadeMultiplyTexture','shadingShiftTexture','matcapTexture',
+ 'rimMultiplyTexture','outlineWidthMultiplyTexture','uvAnimationMaskTexture',
+]);
 
 /**
  * Unmask Body_00_SKIN under hidden Tops／Bottoms, then paint teal bra＋shorts into the
@@ -368,6 +414,7 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
   r+=data.data[i];g+=data.data[i+1];b+=data.data[i+2];n++;
  }
  const skinRgb=n?new T.Color(r/n/255,g/n/255,b/n/255):SKIN_FILL.clone();
+ const fallbackSkin:SkinRgb={r:Math.round(skinRgb.r*255),g:Math.round(skinRgb.g*255),b:Math.round(skinRgb.b*255)};
  const flipY=!!src.flipY;
  let touched=0;
  for(const mesh of skinMeshes){
@@ -404,7 +451,7 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
    const shoulder=inOuterShoulderWorld(a.x,a.y,a.z)||inOuterShoulderWorld(b.x,b.y,b.z)||inOuterShoulderWorld(c.x,c.y,c.z)||inOuterShoulderWorld(cx,cy,cz);
    if(!shoulder)continue;
    const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
-   writeUvTriangleShoulderFix(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2);
+   writeUvTriangleShoulderFix(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2,fallbackSkin);
    touched++;
   }
  }
@@ -412,16 +459,228 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
  ctx.putImageData(data,0,0);
  const next=src.clone();
  next.image=canvas;
+ next.colorSpace=src.colorSpace??T.SRGBColorSpace;
  next.generateMipmaps=true;
  next.minFilter=T.LinearMipmapLinearFilter;
  next.magFilter=T.LinearFilter;
  next.needsUpdate=true;
- for(const m of skinMats){
-  m.map=next;
-  const uni=(m as T.MeshStandardMaterial & {uniforms?:Record<string,{value:unknown}>}).uniforms;
-  if(uni?.map)uni.map.value=next;
-  m.needsUpdate=true;
+ for(const m of skinMats)setMToonBodyMap(m,next);
+ for(const mesh of skinMeshes){
+  const mats=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+  for(const mat of mats){
+   const m=mat as T.MeshStandardMaterial;
+   if(!/Body_00_SKIN/i.test(m.name||'')||/Outline/i.test(m.name||''))continue;
+   setMToonBodyMap(m,next);
+  }
  }
+ return next;
+};
+
+const copyMToonTextureUniform=(bun:MToonUniforms,hair:MToonUniforms,key:string)=>{
+ const src=hair[key]?.value;
+ if(!src||typeof src!=='object'||!('isTexture' in (src as object)))return;
+ const tex=src as T.Texture;
+ const dst=bun[key];
+ if(dst)dst.value=tex;
+};
+
+/** Bun MToon matches primary hair lit／shade and map; strip parametric rim only. */
+const syncHairBunMaterial=(bun:MToonLike,hair:MToonLike)=>{
+ const h=hair as MToonLike & {litColorFactor?:T.Color;color?:T.Color;map?:T.Texture|null};
+ const b=bun as MToonLike & {litColorFactor?:T.Color;color?:T.Color;map?:T.Texture|null};
+ if(h.color&&b.color)b.color.copy(h.color);
+ if(h.litColorFactor&&b.litColorFactor)b.litColorFactor.copy(h.litColorFactor);
+ if(hair.shadeColorFactor&&bun.shadeColorFactor)bun.shadeColorFactor.copy(hair.shadeColorFactor);
+ if(h.map)b.map=h.map;
+ const hUni=(hair as MToonLike & {uniforms?:MToonUniforms}).uniforms;
+ const bUni=(bun as MToonLike & {uniforms?:MToonUniforms}).uniforms;
+ if(hUni&&bUni){
+  for(const key of ['map','shadeMultiplyTexture','matcap','emissiveMap'] as const)copyMToonTextureUniform(bUni,hUni,key);
+  const hLit=hUni.litFactor?.value;
+  const bLit=bUni.litFactor?.value;
+  if(hLit instanceof T.Color&&bLit instanceof T.Color)bLit.copy(hLit);
+  const hShade=hUni.shadeColorFactor?.value;
+  const bShade=bUni.shadeColorFactor?.value;
+  if(hShade instanceof T.Color&&bShade instanceof T.Color)bShade.copy(hShade);
+ }
+ bun.shadingToonyFactor=hair.shadingToonyFactor;
+ bun.shadingShiftFactor=hair.shadingShiftFactor;
+ if(bun.parametricRimColorFactor)bun.parametricRimColorFactor.setRGB(0,0,0);
+ if(bun.rimLightingMixFactor!=null)bun.rimLightingMixFactor=0;
+ bun.needsUpdate=true;
+};
+
+const cloneHairMaterialForBun=(hair:MToonLike)=>{
+ const bun=hair.clone() as MToonLike;
+ bun.name='PracticeHairBun';
+ syncHairBunMaterial(bun,hair);
+ return bun;
+};
+
+type MeshAssetSnapshot={materials:unknown[];geometry:unknown;indexCount:number|null};
+
+const snapshotMeshAssets=(root:T.Object3D)=>{
+ const snap=new Map<string,MeshAssetSnapshot>();
+ root.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  snap.set(obj.uuid,{materials:[...mats],geometry:obj.geometry,indexCount:obj.geometry.index?.count??null});
+ });
+ return snap;
+};
+
+const assertUniformOutfitUntouched=(before:Map<string,MeshAssetSnapshot>,school:T.Object3D)=>{
+ const err:string[]=[];
+ school.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const prev=before.get(obj.uuid);
+  if(!prev)return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  if(prev.geometry!==obj.geometry)err.push(`geometry mutated on ${obj.name||obj.uuid}`);
+  if(prev.indexCount!==(obj.geometry.index?.count??null))err.push(`index length mutated on ${obj.name||obj.uuid}`);
+  if(prev.materials.length!==mats.length)err.push(`material slot count mutated on ${obj.name||obj.uuid}`);
+  for(let i=0;i<mats.length;i++){
+   if(prev.materials[i]!==mats[i])err.push(`material identity mutated on ${obj.name||obj.uuid} slot ${i}`);
+  }
+ });
+ if(err.length)throw new Error(`school outfit touched by practice build: ${err.join('; ')}`);
+};
+
+const isOutlineMaterial=(m:T.Material)=>{
+ const x=m as MToonLike & {isOutline?:boolean};
+ return !!(x.isOutline||/Outline/i.test(m.name||''));
+};
+
+const syncMaterialRenderState=(dst:T.Material,src:T.Material)=>{
+ dst.transparent=src.transparent;
+ dst.opacity=src.opacity;
+ dst.alphaTest=src.alphaTest;
+ dst.depthWrite=src.depthWrite;
+ dst.depthTest=src.depthTest;
+ dst.side=src.side;
+ dst.blending=src.blending;
+ dst.polygonOffset=src.polygonOffset;
+ dst.polygonOffsetFactor=src.polygonOffsetFactor;
+ dst.polygonOffsetUnits=src.polygonOffsetUnits;
+};
+
+const forkUniformValue=(value:unknown):unknown=>{
+ if(value instanceof T.Color)return value.clone();
+ if(value instanceof T.Vector2)return value.clone();
+ if(value instanceof T.Vector3)return value.clone();
+ if(value instanceof T.Matrix3)return value.clone();
+ if(value instanceof T.Matrix4)return value.clone();
+ return value;
+};
+
+/** MToon ShaderMaterial.clone() shares Color uniforms with the school rig — fork on practice only. */
+const detachMToonUniforms=(dst:MToonLike,src:MToonLike)=>{
+ const su=(src as {uniforms?:MToonUniforms}).uniforms;
+ const du=(dst as {uniforms?:MToonUniforms}).uniforms;
+ if(!su||!du)return;
+ for(const key of Object.keys(su)){
+  if(MTOON_TEXTURE_UNIFORM_KEYS.has(key))continue;
+  const slot=du[key];
+  if(!slot)continue;
+  slot.value=forkUniformValue(su[key].value);
+ }
+};
+
+/** MToon.copy() aliases school map — fork texture uniforms so practice can swap maps safely. */
+const forkMToonTextureUniforms=(mat:MToonLike)=>{
+ const uni=(mat as {uniforms?:MToonUniforms}).uniforms;
+ if(!uni)return;
+ for(const key of MTOON_TEXTURE_UNIFORM_KEYS){
+  const slot=uni[key];
+  const tex=slot?.value;
+  if(!tex||typeof tex!=='object'||!('isTexture' in (tex as object)))continue;
+  const forked=(tex as T.Texture).clone();
+  forked.needsUpdate=true;
+  slot.value=forked;
+  if(key==='map')setMToonBodyMap(mat as T.MeshStandardMaterial,forked);
+ }
+};
+
+const clonePracticeMaterial=(src:T.Material)=>{
+ const dst=src.clone();
+ syncMaterialRenderState(dst,src);
+ const s=src as MToonLike;
+ const d=dst as MToonLike;
+ if(s.isMToonMaterial){
+  detachMToonUniforms(d,s);
+  forkMToonTextureUniforms(d);
+ }
+ const sm=src as T.MeshStandardMaterial;
+ const dm=dst as T.MeshStandardMaterial;
+ if(sm.map&&dm.map)dm.map.colorSpace=sm.map.colorSpace;
+ return dst;
+};
+
+const collectBodySkinMapTex=(root:T.Object3D,sink:Set<T.Texture>)=>{
+ root.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  for(const mat of mats){
+   const m=mat as T.MeshStandardMaterial;
+   if(!/Body_00_SKIN/i.test(m.name||'')||/Outline/i.test(m.name||''))continue;
+   const map=skinMapUniform(m);
+   if(map)sink.add(map);
+  }
+ });
+};
+
+const assertPracticeBodySkinMaps=(practice:T.Object3D,school:T.Object3D,painted:T.Texture)=>{
+ const schoolMaps=new Set<T.Texture>();
+ const practiceMaps=new Set<T.Texture>();
+ collectBodySkinMapTex(school,schoolMaps);
+ collectBodySkinMapTex(practice,practiceMaps);
+ for(const map of practiceMaps){
+  if(map===painted)continue;
+  if(schoolMaps.has(map))throw new Error('practice Body_00_SKIN map still references school albedo');
+  if(!(map.image instanceof HTMLCanvasElement))throw new Error('practice Body_00_SKIN map must be painted canvas');
+ }
+ for(const map of schoolMaps){
+  if(map===painted)throw new Error('school outfit map was replaced by practice paint');
+ }
+ practice.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  for(const mat of mats){
+   const m=mat as T.MeshStandardMaterial;
+   if(!/Body_00_SKIN/i.test(m.name||'')||/Outline/i.test(m.name||''))continue;
+   const viaUniform=skinMapUniform(m);
+   if(viaUniform!==painted)throw new Error('Body mesh render map uniform must be the painted skin texture');
+  }
+ });
+};
+
+const isPracticeUniformMesh=(obj:T.Mesh|T.SkinnedMesh,outfit:AnimeOutfit)=>{
+ if(!outfit.practiceBody||!outfit.hideMaterials.length)return false;
+ const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+ const surfaces=mats.filter(m=>!isOutlineMaterial(m));
+ if(!surfaces.length)return false;
+ return surfaces.every(m=>outfit.hideMaterials.some(token=>materialLabel(m,obj).includes(token)));
+};
+
+/** SkeletonUtils.clone shares geometry／material — deep-copy on practice rig only. */
+const isolatePracticeRig=(practice:T.Object3D)=>{
+ practice.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  obj.geometry=obj.geometry.clone();
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  const next=mats.map(clonePracticeMaterial);
+  obj.material=next.length===1?next[0]:next;
+ });
+};
+
+const disposeCharacterRoot=(root:T.Object3D|null)=>{
+ if(!root)return;
+ root.traverse(o=>{
+  if(!(o instanceof T.Mesh)&&!(o instanceof T.SkinnedMesh))return;
+  o.geometry.dispose();
+  const ms=Array.isArray(o.material)?o.material:[o.material];
+  ms.forEach(m=>m.dispose());
+ });
 };
 
 const findPrimaryHairMaterial=(root:T.Object3D):MToonLike|null=>{
@@ -479,11 +738,8 @@ const restyleHairBun=(root:T.Object3D)=>{
  const head=root.getObjectByName('J_Bip_C_Head');
  if(!head)return;
  const hairSrc=findPrimaryHairMaterial(root);
- const bunMat=hairSrc?hairSrc.clone() as MToonLike:new T.MeshToonMaterial({color:HAIR_LIT.clone()});
- bunMat.name='PracticeHairBun';
- if(!hairSrc){
-  (bunMat as T.MeshToonMaterial).color.copy(HAIR_LIT);
- }
+ const bunMat=hairSrc?cloneHairMaterialForBun(hairSrc):new T.MeshToonMaterial({color:HAIR_LIT.clone()});
+ if(!hairSrc)(bunMat as T.MeshToonMaterial).color.copy(HAIR_LIT);
  const bun=new T.Mesh(new T.SphereGeometry(.055,20,16),bunMat as T.Material);
  bun.name='PracticeHairBun';
  // Crown／occiput bun — lower half under hair, top ~2.5–3.5 cm above hair line.
@@ -491,7 +747,8 @@ const restyleHairBun=(root:T.Object3D)=>{
  bun.scale.set(1.02,.86,1.02);
  bun.frustumCulled=false;
  head.add(bun);
- const coil=new T.Mesh(new T.TorusGeometry(.038,.013,8,20),bunMat.clone() as T.Material);
+ const coilMat=hairSrc?cloneHairMaterialForBun(hairSrc):(bunMat as T.Material).clone();
+ const coil=new T.Mesh(new T.TorusGeometry(.038,.013,8,20),coilMat);
  coil.name='PracticeHairBunCoil';
  coil.position.set(0,.192,.063);
  coil.rotation.x=Math.PI/2;
@@ -527,10 +784,12 @@ const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
     m.needsUpdate=true;
    }
   }
+  if(outfit.practiceBody&&isPracticeUniformMesh(obj,outfit))obj.visible=false;
  });
  // Never add MeshBasic flesh balloons or hook MToon onBeforeCompile.
  if(outfit.practiceBody){
-  paintPracticeBodySkin(root);
+  const painted=paintPracticeBodySkin(root);
+  if(painted)root.userData.practiceBodySkinMap=painted;
   restyleHairBun(root);
  }
 };
@@ -540,14 +799,20 @@ const finishCharacterLook=(root:T.Object3D,outfit:AnimeOutfit,gradient:T.DataTex
  applyCelShading(root,gradient);
 };
 
-export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onError}:Props){
+type OutfitBridge={setOutfit:(id:OutfitId)=>void};
+
+export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onError,onPracticeOutfitPreparing}:Props){
  const host=useRef<HTMLDivElement>(null);
+ const outfitIdRef=useRef(outfitId);
+ outfitIdRef.current=outfitId;
+ const outfitBridge=useRef<OutfitBridge|null>(null);
  const latest=useRef(state);const sim=useRef(simulation);const pointSelect=useRef(onPoint);const toolDrag=useRef(onToolDrag);
  latest.current=state;sim.current=simulation;pointSelect.current=onPoint;toolDrag.current=onToolDrag;
 
  useEffect(()=>{
   const avatar=animeAvatar(avatarId);
-  const outfit=animeOutfit(outfitId);
+  const schoolOutfit=ANIME_OUTFITS.find(o=>o.id==='school')!;
+  const practiceOutfit=ANIME_OUTFITS.find(o=>o.id==='study-body')!;
   const points=avatarPracticePoints(avatar);
   const el=host.current!;let disposed=false,frame=0,dirty=true,ready=false,lastView='',lastReset=-1,lastFocus=-1;
   let renderer:T.WebGLRenderer;
@@ -600,7 +865,55 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   // breaks THREE_VRM_THREE_REVISION / WebGLProgram and turns skin black.
   let lastSimulation:SimulationState|null=null;
   let vrm: {scene:T.Object3D;update:(delta:number)=>void}|null=null;
+  let schoolModel:T.Object3D|null=null;
+  let practiceModel:T.Object3D|null=null;
+  let practiceShell:T.Object3D|null=null;
+  let practiceBuilt=false;
+  let uniformAssetSnap:Map<string,MeshAssetSnapshot>|null=null;
   let lastFrame=performance.now();
+
+  const showOutfit=(id:OutfitId)=>{
+   if(schoolModel)schoolModel.visible=id==='school';
+   if(practiceModel)practiceModel.visible=id==='study-body';
+   characterRoot.updateMatrixWorld(true);
+   if(ready)teaching.reanchor(characterRoot);
+   dirty=true;
+  };
+
+  const buildPracticeOutfit=()=>{
+   if(practiceBuilt||!practiceShell||disposed)return;
+   performance.mark('practice-outfit-build-start');
+   finishCharacterLook(practiceShell,practiceOutfit,gradient);
+   const painted=practiceShell.userData.practiceBodySkinMap as T.Texture|undefined;
+   if(schoolModel&&painted)assertPracticeBodySkinMaps(practiceShell,schoolModel,painted);
+   if(schoolModel&&uniformAssetSnap)assertUniformOutfitUntouched(uniformAssetSnap,schoolModel);
+   performance.mark('practice-outfit-build-end');
+   try{performance.measure('practice-outfit-build','practice-outfit-build-start','practice-outfit-build-end');}catch{/* duplicate measure */}
+   practiceModel=practiceShell;
+   characterRoot.add(practiceShell);
+   practiceShell.updateMatrixWorld(true);
+   practiceBuilt=true;
+   onPracticeOutfitPreparing?.(false);
+   dirty=true;
+  };
+
+  const setOutfit=(id:OutfitId)=>{
+   if(!schoolModel)return;
+   if(id==='study-body'&&!practiceBuilt){
+    onPracticeOutfitPreparing?.(true);
+    requestAnimationFrame(()=>{
+     requestAnimationFrame(()=>{
+      if(disposed||practiceBuilt||!practiceShell)return;
+      buildPracticeOutfit();
+      showOutfit(id);
+      if(ready)teaching.reanchor(characterRoot);
+     });
+    });
+    return;
+   }
+   showOutfit(id);
+  };
+  outfitBridge.current={setOutfit};
 
   const fit=(view:string)=>{
    const mobile=el.clientWidth<768||(el.clientWidth<=1100&&el.clientHeight<=500);
@@ -625,8 +938,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const loader=new GLTFLoader();
    loader.register(parser=>new VRMLoaderPlugin(parser));
    onProgress(8);
-   const modelUrl=outfit.modelUrl||avatar.modelUrl;
+   const modelUrl=schoolOutfit.modelUrl||avatar.modelUrl;
    const isAnimeModel=!!modelUrl?.includes('anime-assistant.glb');
+   const cacheAnimeOutfits=avatar.hasOutfits&&isAnimeModel;
    let loadProgress=8;
    const reportLoadProgress=(pct:number)=>{
     const next=Math.min(99,pct);
@@ -642,12 +956,23 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      VRMUtils.removeUnnecessaryVertices(gltf.scene);
      VRMUtils.combineSkeletons(gltf.scene);
     }
-    finishCharacterLook(model,outfit,gradient);
-    characterRoot.clear();
-    characterRoot.add(model);
+    if(cacheAnimeOutfits){
+     practiceShell=cloneSkinnedObject(model);
+     isolatePracticeRig(practiceShell);
+     finishCharacterLook(model,schoolOutfit,gradient);
+     uniformAssetSnap=snapshotMeshAssets(model);
+     schoolModel=model;
+     schoolModel.visible=outfitIdRef.current==='school';
+     characterRoot.clear();
+     characterRoot.add(schoolModel);
+    }else{
+     finishCharacterLook(model,animeOutfit(outfitIdRef.current),gradient);
+     characterRoot.clear();
+     characterRoot.add(model);
+    }
     model.updateMatrixWorld(true);
     teaching.anchor(characterRoot);
-    ready=true;onProgress(100);fit(latest.current.view);dirty=true;
+    ready=true;setOutfit(outfitIdRef.current);onProgress(100);fit(latest.current.view);dirty=true;
    },xhr=>{
     if(xhr.total)reportLoadProgress(Math.round(xhr.loaded/xhr.total*100));
     else if(isAnimeModel&&ANIME_MODEL_BYTES>0)reportLoadProgress(Math.round(xhr.loaded/ANIME_MODEL_BYTES*100));
@@ -726,17 +1051,28 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   renderer.domElement.addEventListener('webglcontextlost',contextLost);
 
   return()=>{
-   disposed=true;cancelAnimationFrame(frame);observer.disconnect();
+   disposed=true;outfitBridge.current=null;cancelAnimationFrame(frame);observer.disconnect();
    toolInput.dispose();teaching.dispose();controls.dispose();gradient.dispose();
    if(woodcut){
     scene.remove(woodcut.mesh);
     disposeWoodcutBackdrop(woodcut);
     woodcut=null;
    }
-   scene.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}});
+   characterRoot.clear();
+   disposeCharacterRoot(schoolModel);
+   disposeCharacterRoot(practiceModel);
+   if(practiceShell&&!practiceBuilt)disposeCharacterRoot(practiceShell);
+   scene.traverse(o=>{
+    if(!(o instanceof T.Mesh))return;
+    o.geometry.dispose();
+    const ms=Array.isArray(o.material)?o.material:[o.material];
+    ms.forEach(m=>m.dispose());
+   });
    teaching.label.remove();renderer.dispose();renderer.domElement.remove();
   };
- },[avatarId,outfitId,onProgress,onError]);
+ },[avatarId,onProgress,onError]);
+
+ useEffect(()=>{outfitBridge.current?.setOutfit(outfitId);},[outfitId]);
 
  return <div className="scene" ref={host}/>;
 }

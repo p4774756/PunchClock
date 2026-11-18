@@ -57,6 +57,7 @@ export function createTeachingOverlay(
  const collectSkins=(rootObj:T.Object3D)=>{
   const found:T.Object3D[]=[];
   rootObj.traverse(obj=>{
+   if(!obj.visible)return;
    if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
    const mats=Array.isArray(obj.material)?obj.material:[obj.material];
    const name=`${mats.map(m=>m?.name||'').join(' ')} ${obj.name||''}`;
@@ -90,6 +91,7 @@ export function createTeachingOverlay(
   }
   anchored=true;
  };
+ const reanchor=(characterRoot:T.Object3D)=>{anchored=false;anchor(characterRoot);};
  const update=(s:SimulationState,camera:T.Camera,width:number,height:number)=>{
   activeCurriculum=curriculumSet(s.curriculumSet==='all'?undefined:s.curriculumSet);
   root.visible=true;dots.visible=s.showPoints;
@@ -161,7 +163,7 @@ export function createTeachingOverlay(
  };
  const getDraggables=(tool:ToolId)=>{const meshes:T.Object3D[]=[];instruments.get(tool)?.traverseVisible(o=>{if(o instanceof T.Mesh)meshes.push(o);});return meshes;};
  return {
-  root,markers,label,anchor,update,focus,getTarget,getDraggables,snapTarget,
+  root,markers,label,anchor,reanchor,update,focus,getTarget,getDraggables,snapTarget,
   getSkinMeshes:()=>skinMeshes,
   isAnchored:()=>anchored,
   dispose:()=>{
