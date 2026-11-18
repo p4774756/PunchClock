@@ -21,7 +21,7 @@ test('夜間端點高於 i80 前環境光（補點光縮減）', () => {
   assert.equal(night.hemiIntensity, EXPLORE_LIGHT_NIGHT.hemiIntensity);
   assert.ok(night.hemiIntensity >= 0.65);
   assert.ok(night.sunIntensity > 0.5);
-  assert.ok(night.toneMappingExposure >= 1.12);
+  assert.ok(night.toneMappingExposure >= 1.17);
 });
 
 test('混合線性內插', () => {

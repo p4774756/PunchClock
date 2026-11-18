@@ -12,9 +12,9 @@ export const EXPLORE_LIGHT_DAY = Object.freeze({
  * 不增加點光數量與陰影成本。
  */
 export const EXPLORE_LIGHT_NIGHT = Object.freeze({
-  hemiIntensity: 0.69,
-  sunIntensity: 0.63,
-  toneMappingExposure: 1.12
+  hemiIntensity: 0.74,
+  sunIntensity: 0.65,
+  toneMappingExposure: 1.17
 });
 
 export function exploreLightAtMix(mix) {
