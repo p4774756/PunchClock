@@ -259,10 +259,12 @@ const looksLikeSkinPixel=(r:number,g:number,b:number,a:number)=>{
 
 type ShoulderHoleBounds={minX:number;maxX:number;minY:number;maxY:number};
 
-/** Inpaint search stays inside the triangle AABB (±pad) — never a full-texture maxRad scan. */
-const sampleNearbySkin=(data:ImageData,width:number,height:number,cx:number,cy:number,bounds:ShoulderHoleBounds,maxRad=24)=>{
+/** Inpaint inside triangle AABB (±pad); average several valid ring samples (main-quality, bounded work). */
+const sampleNearbySkin=(data:ImageData,width:number,height:number,cx:number,cy:number,bounds:ShoulderHoleBounds,maxRad=64)=>{
  const loX=Math.max(0,bounds.minX),hiX=Math.min(width-1,bounds.maxX);
  const loY=Math.max(0,bounds.minY),hiY=Math.min(height-1,bounds.maxY);
+ let sumR=0,sumG=0,sumB=0,n=0;
+ const maxSamples=16;
  for(let rad=1;rad<=maxRad;rad++){
   for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){
    if(Math.abs(dx)!==rad&&Math.abs(dy)!==rad)continue;
@@ -270,10 +272,13 @@ const sampleNearbySkin=(data:ImageData,width:number,height:number,cx:number,cy:n
    if(x<loX||y<loY||x>hiX||y>hiY)continue;
    const i=(y*width+x)*4;
    const r=data.data[i],g=data.data[i+1],b=data.data[i+2],a=data.data[i+3];
-   if(looksLikeSkinPixel(r,g,b,a))return {r,g,b};
+   if(!looksLikeSkinPixel(r,g,b,a))continue;
+   sumR+=r;sumG+=g;sumB+=b;n++;
+   if(n>=maxSamples)return {r:Math.round(sumR/n),g:Math.round(sumG/n),b:Math.round(sumB/n)};
   }
  }
- return null;
+ if(!n)return null;
+ return {r:Math.round(sumR/n),g:Math.round(sumG/n),b:Math.round(sumB/n)};
 };
 
 /** Outer shoulder MASK cutouts — outside inTorsoSkinBand (clavicle guard unchanged). */
@@ -436,13 +441,37 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
  }
 };
 
-/** Bun MToon cloned from hair but without purple parametric rim bleed. */
+type MToonUniforms=Record<string,{value:unknown}>;
+
+const copyMToonTextureUniform=(bun:MToonUniforms,hair:MToonUniforms,key:string)=>{
+ const src=hair[key]?.value;
+ if(!src||typeof src!=='object'||!('isTexture' in (src as object)))return;
+ const tex=src as T.Texture;
+ const dst=bun[key];
+ if(dst)dst.value=tex;
+};
+
+/** Bun MToon matches primary hair lit／shade and map; strip parametric rim only. */
 const syncHairBunMaterial=(bun:MToonLike,hair:MToonLike)=>{
- const h=hair as MToonLike & {litColorFactor?:T.Color;color?:T.Color};
- const b=bun as MToonLike & {litColorFactor?:T.Color;color?:T.Color};
+ const h=hair as MToonLike & {litColorFactor?:T.Color;color?:T.Color;map?:T.Texture|null};
+ const b=bun as MToonLike & {litColorFactor?:T.Color;color?:T.Color;map?:T.Texture|null};
  if(h.color&&b.color)b.color.copy(h.color);
  if(h.litColorFactor&&b.litColorFactor)b.litColorFactor.copy(h.litColorFactor);
  if(hair.shadeColorFactor&&bun.shadeColorFactor)bun.shadeColorFactor.copy(hair.shadeColorFactor);
+ if(h.map)b.map=h.map;
+ const hUni=(hair as MToonLike & {uniforms?:MToonUniforms}).uniforms;
+ const bUni=(bun as MToonLike & {uniforms?:MToonUniforms}).uniforms;
+ if(hUni&&bUni){
+  for(const key of ['map','shadeMultiplyTexture','matcap','emissiveMap'] as const)copyMToonTextureUniform(bUni,hUni,key);
+  const hLit=hUni.litFactor?.value;
+  const bLit=bUni.litFactor?.value;
+  if(hLit instanceof T.Color&&bLit instanceof T.Color)bLit.copy(hLit);
+  const hShade=hUni.shadeColorFactor?.value;
+  const bShade=bUni.shadeColorFactor?.value;
+  if(hShade instanceof T.Color&&bShade instanceof T.Color)bShade.copy(hShade);
+ }
+ bun.shadingToonyFactor=hair.shadingToonyFactor;
+ bun.shadingShiftFactor=hair.shadingShiftFactor;
  if(bun.parametricRimColorFactor)bun.parametricRimColorFactor.setRGB(0,0,0);
  if(bun.rimLightingMixFactor!=null)bun.rimLightingMixFactor=0;
  bun.needsUpdate=true;
@@ -453,6 +482,46 @@ const cloneHairMaterialForBun=(hair:MToonLike)=>{
  bun.name='PracticeHairBun';
  syncHairBunMaterial(bun,hair);
  return bun;
+};
+
+type MeshAssetSnapshot={materials:unknown[];geometry:unknown;indexCount:number|null};
+
+const snapshotMeshAssets=(root:T.Object3D)=>{
+ const snap=new Map<string,MeshAssetSnapshot>();
+ root.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  snap.set(obj.uuid,{materials:[...mats],geometry:obj.geometry,indexCount:obj.geometry.index?.count??null});
+ });
+ return snap;
+};
+
+const assertUniformOutfitUntouched=(before:Map<string,MeshAssetSnapshot>,school:T.Object3D)=>{
+ const err:string[]=[];
+ school.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const prev=before.get(obj.uuid);
+  if(!prev)return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  if(prev.geometry!==obj.geometry)err.push(`geometry mutated on ${obj.name||obj.uuid}`);
+  if(prev.indexCount!==(obj.geometry.index?.count??null))err.push(`index length mutated on ${obj.name||obj.uuid}`);
+  if(prev.materials.length!==mats.length)err.push(`material slot count mutated on ${obj.name||obj.uuid}`);
+  for(let i=0;i<mats.length;i++){
+   if(prev.materials[i]!==mats[i])err.push(`material identity mutated on ${obj.name||obj.uuid} slot ${i}`);
+  }
+ });
+ if(err.length)throw new Error(`school outfit touched by practice build: ${err.join('; ')}`);
+};
+
+/** SkeletonUtils.clone shares geometry／material — deep-copy on practice rig only. */
+const isolatePracticeRig=(practice:T.Object3D)=>{
+ practice.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  obj.geometry=obj.geometry.clone();
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  const next=mats.map(m=>m.clone());
+  obj.material=next.length===1?next[0]:next;
+ });
 };
 
 const disposeCharacterRoot=(root:T.Object3D|null)=>{
@@ -649,6 +718,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   let practiceModel:T.Object3D|null=null;
   let practiceShell:T.Object3D|null=null;
   let practiceBuilt=false;
+  let uniformAssetSnap:Map<string,MeshAssetSnapshot>|null=null;
   let lastFrame=performance.now();
 
   const showOutfit=(id:OutfitId)=>{
@@ -663,6 +733,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(practiceBuilt||!practiceShell||disposed)return;
    performance.mark('practice-outfit-build-start');
    finishCharacterLook(practiceShell,practiceOutfit,gradient);
+   if(schoolModel&&uniformAssetSnap)assertUniformOutfitUntouched(uniformAssetSnap,schoolModel);
    performance.mark('practice-outfit-build-end');
    try{performance.measure('practice-outfit-build','practice-outfit-build-start','practice-outfit-build-end');}catch{/* duplicate measure */}
    practiceModel=practiceShell;
@@ -734,7 +805,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     }
     if(cacheAnimeOutfits){
      practiceShell=cloneSkinnedObject(model);
+     isolatePracticeRig(practiceShell);
      finishCharacterLook(model,schoolOutfit,gradient);
+     uniformAssetSnap=snapshotMeshAssets(model);
      schoolModel=model;
      schoolModel.visible=outfitIdRef.current==='school';
      characterRoot.clear();

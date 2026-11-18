@@ -10,6 +10,8 @@ const pageSrc = await readFile(join(root, 'app/page.tsx'), 'utf8');
 assert.doesNotMatch(pageSrc, /CharacterScene key=\{`\$\{DEFAULT_AVATAR_ID\}-\$\{outfitId\}`\}/, 'outfit switch must not remount CharacterScene');
 assert.doesNotMatch(src, /\[avatarId,outfitId,onProgress,onError\]/, '3D scene must not rebuild on outfitId');
 assert.match(src, /cloneSkinnedObject|SkeletonUtils\.js/, 'anime GLB parsed once with cloned practice rig');
+assert.match(src, /isolatePracticeRig/, 'practice rig must deep-clone shared mesh assets');
+assert.match(src, /assertUniformOutfitUntouched/, 'practice build must not mutate school mesh materials');
 assert.match(src, /reanchor/, 'outfit switch must re-snap teaching markers');
 
 assert.doesNotMatch(src, /BUN_BROWN|0x3b2a22/i, 'practice bun must not use brown常量');
