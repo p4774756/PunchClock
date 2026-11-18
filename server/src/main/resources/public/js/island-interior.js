@@ -604,6 +604,30 @@ export const INTERIORS = Object.freeze([
       Object.freeze({ id: 'rack', minX: -2.05, maxX: -1.2, minZ: 0.55, maxZ: 1.45 }),
       Object.freeze({ id: 'bench', minX: 1.05, maxX: 2.05, minZ: -0.55, maxZ: 0.35 })
     ])
+  }),
+  Object.freeze({
+    id: 'casino-room',
+    buildingId: 'casino',
+    spawn: Object.freeze({ x: 0, z: 0.2, yaw: 0 }),
+    exit: Object.freeze({ x: 0, z: -1.2, r: 0.55, label: '離開賭場' }),
+    outside: Object.freeze({ x: 13.32, z: -7.4, yaw: Math.PI / 2 }),
+    floor: Object.freeze({ minX: -3.75, maxX: 3.75, minZ: -1.75, maxZ: 3.15 }),
+    blocks: Object.freeze([
+      Object.freeze({ id: 'prize-cab', minX: -3.55, maxX: -2.12, minZ: -0.45, maxZ: 1.02 }),
+      Object.freeze({ id: 'claw-a', minX: -3.02, maxX: -1.92, minZ: 1.72, maxZ: 2.62 }),
+      Object.freeze({ id: 'claw-b', minX: -1.62, maxX: -0.72, minZ: 1.72, maxZ: 2.62 }),
+      Object.freeze({ id: 'pinball', minX: 1.82, maxX: 3.62, minZ: -1.12, maxZ: 0.32 }),
+      Object.freeze({ id: 'bj-table', minX: 2.02, maxX: 3.48, minZ: 0.72, maxZ: 1.72 }),
+      Object.freeze({ id: 'arch-l', minX: -1.38, maxX: -0.8, minZ: -1.72, maxZ: -1.12 }),
+      Object.freeze({ id: 'arch-r', minX: 0.8, maxX: 1.38, minZ: -1.72, maxZ: -1.12 }),
+      Object.freeze({ id: 'plants', minX: 2.82, maxX: 3.52, minZ: 1.95, maxZ: 2.82 })
+    ]),
+    interacts: Object.freeze([
+      Object.freeze({ id: 'casino-bj', x: -0.2, z: 0.55, r: 0.62, label: '玩 21 點', action: 'openCasinoBlackjack' }),
+      Object.freeze({ id: 'casino-claw-a', x: -2.45, z: 1.38, r: 0.52, label: '夾娃娃機', action: 'casinoClaw', claw: 0 }),
+      Object.freeze({ id: 'casino-claw-b', x: -1.15, z: 1.38, r: 0.52, label: '夾娃娃機', action: 'casinoClaw', claw: 1 }),
+      Object.freeze({ id: 'casino-pinball', x: 1.15, z: -0.55, r: 0.68, label: '彈珠台', action: 'casinoPinball' })
+    ])
   })
 ]);
 
@@ -612,6 +636,38 @@ export function interiorByBuilding(buildingId) {
     if (INTERIORS[i].buildingId === buildingId) return INTERIORS[i];
   }
   return null;
+}
+
+/** 室內互動區世界座標（含原點平移）；供提示與 hitInteractZone 測試。 */
+export function interiorPromptZones(room, origin) {
+  if (!room) return [];
+  const o = origin || INTERIOR_ORIGIN;
+  const zones = [];
+  const exit = room.exit;
+  if (exit) {
+    zones.push(Object.freeze({
+      id: room.id + '-exit',
+      x: exit.x + o.x,
+      z: exit.z + o.z,
+      r: exit.r,
+      label: exit.label,
+      action: 'exitInterior'
+    }));
+  }
+  const list = room.interacts || [];
+  for (let i = 0; i < list.length; i++) {
+    const iz = list[i];
+    zones.push(Object.freeze({
+      id: iz.id,
+      x: iz.x + o.x,
+      z: iz.z + o.z,
+      r: iz.r,
+      label: iz.label,
+      action: iz.action,
+      claw: iz.claw
+    }));
+  }
+  return Object.freeze(zones);
 }
 
 function rectHits(x, z, rect, radius) {
@@ -723,6 +779,26 @@ export function createInteriorSession(list) {
         label: exit.label,
         action: 'exitInterior'
       };
+    },
+    interactZones() {
+      if (!active) return [];
+      const zones = [];
+      const exit = this.exitZone();
+      if (exit) zones.push(exit);
+      const list = active.def.interacts || [];
+      for (let i = 0; i < list.length; i++) {
+        const iz = list[i];
+        zones.push({
+          id: iz.id,
+          x: iz.x,
+          z: iz.z,
+          r: iz.r,
+          label: iz.label,
+          action: iz.action,
+          claw: iz.claw
+        });
+      }
+      return zones;
     }
   };
 }

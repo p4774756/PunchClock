@@ -606,8 +606,10 @@ function boot() {
   let interiorGeneration = 0;
   const INTERIOR_MODULES = {
     shop: () => import('./island-shop-interior.js'),
-    'computer-site': () => import('./island-lab-interior.js')
+    'computer-site': () => import('./island-lab-interior.js'),
+    casino: () => import('./island-casino-interior.js')
   };
+  let arcadeToastTimer = 0;
 
   function casinoOpen() {
     return !!(casino && casino.isOpen());
@@ -717,9 +719,29 @@ function boot() {
     });
   }
 
+  function showArcadeToast(message) {
+    const hint = document.getElementById('islandExploreHint');
+    if (!hint || !message) return;
+    const desk = hint.querySelector('.island-explore-hint-desk');
+    const touch = hint.querySelector('.island-explore-hint-touch');
+    if (desk && desk.textContent !== message) desk.textContent = message;
+    if (touch && touch.textContent !== message) touch.textContent = message;
+    if (arcadeToastTimer) window.clearTimeout(arcadeToastTimer);
+    arcadeToastTimer = window.setTimeout(() => {
+      arcadeToastTimer = 0;
+      syncExploreHint();
+    }, 2200);
+  }
+
+  function casinoArcadePoke(kind, clawIndex) {
+    if (!roomView || typeof roomView.poke !== 'function') return;
+    const msg = roomView.poke(kind, clawIndex);
+    if (msg) showArcadeToast(msg);
+  }
+
   function syncExploreHint() {
     const hint = document.getElementById('islandExploreHint');
-    if (!hint || closedHallTimer) return;
+    if (!hint || closedHallTimer || arcadeToastTimer) return;
     const desk = hint.querySelector('.island-explore-hint-desk');
     const touch = hint.querySelector('.island-explore-hint-touch');
     const inside = rooms.inside();
@@ -1296,6 +1318,7 @@ function boot() {
       );
     }
     updatePlayer(dt);
+    if (roomView && typeof roomView.tick === 'function') roomView.tick(dt);
     if (peerLayer) peerLayer.syncPresence(performance.now());
     cam.step(dt);
     localView.faceCamera(camera, player.x, player.z);
@@ -1501,16 +1524,16 @@ function boot() {
 
   function promptZones() {
     if (!rooms.inside()) return INTERACT_ZONES;
-    const exit = rooms.exitZone();
-    if (!exit) return [];
-    return [{
-      id: exit.id,
-      x: exit.x + INTERIOR_ORIGIN.x,
-      z: exit.z + INTERIOR_ORIGIN.z,
-      r: exit.r,
-      label: exit.label,
-      action: exit.action
-    }];
+    const local = rooms.interactZones();
+    return local.map((zone) => ({
+      id: zone.id,
+      x: zone.x + INTERIOR_ORIGIN.x,
+      z: zone.z + INTERIOR_ORIGIN.z,
+      r: zone.r,
+      label: zone.label,
+      action: zone.action,
+      claw: zone.claw
+    }));
   }
 
   function setFade(on) {
@@ -1598,7 +1621,7 @@ function boot() {
       if (!loader) throw new Error('no interior');
       const mod = await loader();
       if (ticket !== interiorGeneration) return;
-      mountRoom(mod.createInterior(THREE, { groundY: G }));
+      mountRoom(mod.createInterior(THREE, { groundY: G, reducedMotion: reduced }));
       const entered = rooms.enter(buildingId, performance.now());
       if (!entered.ok) disposeRoom();
       else applyPlayerPose(entered.pose, true);
@@ -1691,6 +1714,14 @@ function boot() {
         flow.beforeLobbyOpen();
       },
       onLobbyChange: (state) => flow.lobbyChanged(state.open),
+      onListCasino: () => {
+        if (isSailing() || isSteering() || interiorBusy) return true;
+        if (rooms.inside() && rooms.buildingId() === 'casino') return true;
+        if (!mode.exploring) setExplore(true, false);
+        if (rooms.inside()) return true;
+        enterInterior('casino');
+        return true;
+      },
       onPrompt: () => {
         if (isSteering()) {
           disembarkSteer();
@@ -1720,6 +1751,18 @@ function boot() {
         }
         if (zone.action === 'enterTcm') {
           enterTcm();
+          return true;
+        }
+        if (zone.action === 'openCasinoBlackjack') {
+          casino.openBlackjackFromInterior();
+          return true;
+        }
+        if (zone.action === 'casinoClaw') {
+          casinoArcadePoke('claw', zone.claw);
+          return true;
+        }
+        if (zone.action === 'casinoPinball') {
+          casinoArcadePoke('pinball');
           return true;
         }
         if (isClosedHall(zone.action)) {
@@ -1882,6 +1925,8 @@ function boot() {
     isSteering: () => isSteering(),
     disembarkSteer: () => disembarkSteer(),
     enterTcm: () => enterTcm(),
+    openCasinoBlackjack: () => casino.openBlackjackFromInterior(),
+    casinoArcadePoke: (kind, claw) => casinoArcadePoke(kind, claw),
     isInside: () => rooms.inside(),
     islandChat: islandChat,
     setExplore: setExplore,

@@ -327,7 +327,7 @@ const BUILDING_DEFS = [
   {
     id: 'casino', island: 'casino', x: 16.35, z: -7.4, w: 2.4, d: 1.9, yaw: -Math.PI / 2,
     label: '賭場', panel: null, frontTrim: 0.22,
-    entry: { r: 1.2, reach: 0.78, label: '進入賭場', action: 'enterCasino' }
+    entry: { r: 1.2, reach: 0.78, label: '進入賭場', action: 'enterInterior' }
   },
   {
     id: 'tcm-site', island: 'tcm', x: -17.45, z: 1.15, w: 2.3, d: 1.8, yaw: Math.PI / 2,

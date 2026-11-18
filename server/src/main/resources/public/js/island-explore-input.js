@@ -40,6 +40,37 @@ export function applyOutdoorInteractZone(zone, actions) {
   return false;
 }
 
+/** 室內互動分派；回傳 true 表示已處理。 */
+export function applyInteriorInteractZone(zone, actions) {
+  if (!zone || !actions) return false;
+  if (zone.action === 'exitInterior') {
+    if (typeof actions.leaveInterior === 'function') actions.leaveInterior();
+    return true;
+  }
+  if (zone.action === 'openCasinoBlackjack') {
+    if (typeof actions.openCasinoBlackjack === 'function') actions.openCasinoBlackjack();
+    return true;
+  }
+  if (zone.action === 'casinoClaw') {
+    if (typeof actions.casinoClaw === 'function') actions.casinoClaw(zone);
+    return true;
+  }
+  if (zone.action === 'casinoPinball') {
+    if (typeof actions.casinoPinball === 'function') actions.casinoPinball(zone);
+    return true;
+  }
+  return false;
+}
+
+export function buildInteriorInteractActions(ctx) {
+  return {
+    leaveInterior: () => ctx.leaveInterior && ctx.leaveInterior(),
+    openCasinoBlackjack: () => ctx.openCasinoBlackjack && ctx.openCasinoBlackjack(),
+    casinoClaw: (z) => ctx.casinoArcadePoke && ctx.casinoArcadePoke('claw', z && z.claw),
+    casinoPinball: () => ctx.casinoArcadePoke && ctx.casinoArcadePoke('pinball')
+  };
+}
+
 /** 戶外 E／Enter 互動用的 actions；與 applyOutdoorInteractZone 成對使用。 */
 export function buildOutdoorInteractActions(ctx) {
   return {
@@ -242,7 +273,10 @@ export function handleExploreKeydown(ctx) {
     }
     const zone = ctx.hitInteractZone();
     if (ctx.isInside()) {
-      if (zone && zone.action === 'exitInterior') ctx.leaveInterior();
+      if (zone) {
+        const handled = applyInteriorInteractZone(zone, buildInteriorInteractActions(ctx));
+        if (handled) return true;
+      }
       return true;
     }
     const handled = applyOutdoorInteractZone(zone, buildOutdoorInteractActions(ctx));

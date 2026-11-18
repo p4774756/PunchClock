@@ -8,7 +8,9 @@ const {
   focusKind,
   getOrbitClamp,
   applyOutdoorInteractZone,
+  applyInteriorInteractZone,
   buildOutdoorInteractActions,
+  buildInteriorInteractActions,
   handleExploreKeydown,
   createExplorePointer
 } = await loadPublicModule('island-explore-input.js');
@@ -341,6 +343,63 @@ test('鍵盤 E：焦點在 islandInteract 時交給按鈕、不重複 disembark'
   };
   assert.equal(handleExploreKeydown(ctx), false);
   assert.equal(disembarked, false);
+});
+
+test('室內 applyInteriorInteractZone：21 點與離開', () => {
+  let bj = false;
+  let left = false;
+  const actions = buildInteriorInteractActions({
+    openCasinoBlackjack: () => { bj = true; },
+    leaveInterior: () => { left = true; },
+    casinoArcadePoke: () => {}
+  });
+  assert.equal(applyInteriorInteractZone({ action: 'openCasinoBlackjack' }, actions), true);
+  assert.equal(bj, true);
+  assert.equal(applyInteriorInteractZone({ action: 'exitInterior' }, actions), true);
+  assert.equal(left, true);
+});
+
+test('鍵盤 E：室內玩 21 點不觸發 leaveInterior', () => {
+  const body = { tagName: 'BODY' };
+  globalThis.document = { body: body, documentElement: { tagName: 'HTML' } };
+  globalThis.window = globalThis;
+
+  let bj = false;
+  let left = false;
+  const ctx = {
+    event: {
+      code: 'KeyE',
+      key: 'e',
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      target: body,
+      preventDefault() {}
+    },
+    getMode: () => ({ exploring: true }),
+    player: { keys: {} },
+    controlsActive: () => true,
+    islandUiOpen: () => false,
+    syncInteractPrompt: () => true,
+    casino: {
+      openLobby: () => {},
+      isOpen: () => false,
+      closeLobby: () => {},
+      isTableOpen: () => false,
+      closeTable: () => {}
+    },
+    hitInteractZone: () => ({ action: 'openCasinoBlackjack' }),
+    isInside: () => true,
+    openCasinoBlackjack: () => { bj = true; },
+    leaveInterior: () => { left = true; },
+    casinoArcadePoke: () => {},
+    graffiti: null,
+    roadmap: null,
+    islandChat: null
+  };
+  assert.equal(handleExploreKeydown(ctx), true);
+  assert.equal(bj, true);
+  assert.equal(left, false);
 });
 
 test('sail 互動不會落到開賭場', () => {
