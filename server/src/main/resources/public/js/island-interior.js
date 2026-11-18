@@ -42,16 +42,16 @@ export const INTERIOR_HINT_INSIDE_DESK = 'WASD 或方向鍵移動 · Esc 或走�
 export const INTERIOR_HINT_INSIDE_TOUCH = '搖桿移動 · 按右下「離開」出去';
 
 /** 研發樓進房預設鏡頭（桌面／橫向）：北牆剖面後略拉遠，門／螢幕／角色同枠。 */
-export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 3.65, theta: 0.02, phi: 1.11 });
+export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 3.7, theta: 0.02, phi: 1.12 });
 
 export const LAB_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 11, theta: 0, phi: 1.12 });
 
 /** 鏡頭注視點：門與螢幕之間偏內，不跟著角色胸口偏移。 */
-export const LAB_INTERIOR_LOOK_DESKTOP = Object.freeze({ x: -0.25, y: G + 1.08, z: -0.85 });
+export const LAB_INTERIOR_LOOK_DESKTOP = Object.freeze({ x: -0.25, y: G + 1.12, z: -0.85 });
 export const LAB_INTERIOR_LOOK_MOBILE = Object.freeze({ x: -0.58, y: G + 1.08, z: -0.85 });
 
 /** 右上角工具列＋品牌區下緣到螢幕上緣至少約 24px（與 viewport 高度換算 NDC）。 */
-export const LAB_INTERIOR_TOOLBAR_INSET_PX = 112;
+export const LAB_INTERIOR_TOOLBAR_INSET_PX = 80;
 
 const LAB_SCREEN = Object.freeze({
   cx: 0,
@@ -326,25 +326,33 @@ export function labInteriorFramingOk(aspect, viewportHeightPx, room) {
     out[key] = labInteriorProjectNdc(p[0], p[1], p[2], pose, look, aspect);
   }
   const span = out.scrTL.y - out.scrBL.y;
-  const contentTopY = LAB_SCREEN.cy + LAB_SCREEN.hh;
-  const contentTopL = labInteriorProjectNdc(
-    LAB_SCREEN.cx - LAB_SCREEN.hw, contentTopY, LAB_SCREEN.cz, pose, look, aspect
-  );
-  const contentTopR = labInteriorProjectNdc(
-    LAB_SCREEN.cx + LAB_SCREEN.hw, contentTopY, LAB_SCREEN.cz, pose, look, aspect
-  );
-  const titleContentY = contentTopY - 0.14;
-  const titleTop = labInteriorProjectNdc(
-    LAB_SCREEN.cx - LAB_SCREEN.hw + 0.25, titleContentY, LAB_SCREEN.cz, pose, look, aspect
-  );
-  if (contentTopL.y > lim + 0.001 || contentTopR.y > lim + 0.001 || titleTop.y > lim + 0.001) {
+  if (aspect < 0.72) {
+    const contentTopY = LAB_SCREEN.cy + LAB_SCREEN.hh;
+    const contentTopL = labInteriorProjectNdc(
+      LAB_SCREEN.cx - LAB_SCREEN.hw, contentTopY, LAB_SCREEN.cz, pose, look, aspect
+    );
+    const contentTopR = labInteriorProjectNdc(
+      LAB_SCREEN.cx + LAB_SCREEN.hw, contentTopY, LAB_SCREEN.cz, pose, look, aspect
+    );
+    const titleContentY = contentTopY - 0.14;
+    const titleTop = labInteriorProjectNdc(
+      LAB_SCREEN.cx - LAB_SCREEN.hw + 0.25, titleContentY, LAB_SCREEN.cz, pose, look, aspect
+    );
+    if (contentTopL.y > lim + 0.001 || contentTopR.y > lim + 0.001 || titleTop.y > lim + 0.001) {
+      return false;
+    }
+  } else if (out.scrTL.y > lim + 0.001 || out.scrTR.y > lim + 0.001) {
     return false;
   }
-  const contentBot = labInteriorProjectNdc(
-    LAB_SCREEN.cx - LAB_SCREEN.hw, LAB_SCREEN.cy - LAB_SCREEN.hh, LAB_SCREEN.cz, pose, look, aspect
-  );
-  const contentVertical = contentTopL.y - contentBot.y;
   if (aspect < 0.72) {
+    const contentBot = labInteriorProjectNdc(
+      LAB_SCREEN.cx - LAB_SCREEN.hw, LAB_SCREEN.cy - LAB_SCREEN.hh, LAB_SCREEN.cz, pose, look, aspect
+    );
+    const contentTopY = LAB_SCREEN.cy + LAB_SCREEN.hh;
+    const contentTopL = labInteriorProjectNdc(
+      LAB_SCREEN.cx - LAB_SCREEN.hw, contentTopY, LAB_SCREEN.cz, pose, look, aspect
+    );
+    const contentVertical = contentTopL.y - contentBot.y;
     if (contentVertical < 0.28) return false;
   } else if (span < 0.78) {
     return false;

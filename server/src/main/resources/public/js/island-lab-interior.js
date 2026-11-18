@@ -210,6 +210,7 @@ export function createInterior(THREE, opts) {
     geometries.push(matGeo);
     const matMesh = new THREE.Mesh(matGeo, matMat);
     matMesh.rotation.x = -Math.PI / 2;
+    matMesh.rotation.z = Math.PI;
     matMesh.position.set(-1.0, ground + 0.125, floor.minZ + 0.39);
     group.add(matMesh);
   }
