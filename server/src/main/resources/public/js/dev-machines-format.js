@@ -90,8 +90,10 @@ export function appendLabMachineLines(baseLines, machineLines) {
   const extra = Array.isArray(machineLines) ? machineLines.filter(Boolean).slice(0, 2) : [];
   if (!extra.length) return base;
   const hint = '詳細進度請到主島施工告示牌';
+  const tlIdx = base.findIndex((line) => line && String(line).startsWith('【最近動態】'));
   const idx = base.lastIndexOf(hint);
-  const insertAt = idx >= 0 ? idx : base.length;
+  let insertAt = idx >= 0 ? idx : base.length;
+  if (tlIdx >= 0 && (idx < 0 || tlIdx < insertAt)) insertAt = tlIdx;
   const before = base.slice(0, insertAt);
   const after = idx >= 0 ? base.slice(insertAt) : [];
   if (before.length && before[before.length - 1] !== '') {
