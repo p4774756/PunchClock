@@ -342,6 +342,221 @@ export function miluStep(state, dt, ctx) {
   return next;
 }
 
+export const MILU_LOAD = Object.freeze({
+  maxRetries: 3,
+  retryDelaysMs: Object.freeze([1000, 3000, 8000]),
+  maxConcurrent: 4,
+  bootstrap: Object.freeze([
+    'idle/breath_01.png',
+    'walk/front_01.png',
+    'walk/front_02.png',
+    'walk/front_03.png',
+    'walk/front_04.png'
+  ])
+});
+
+export function miluCollectPaths(anim) {
+  return collectPaths(anim || MILU_ANIM);
+}
+
+export function miluPartitionLoadPaths(anim) {
+  const groups = collectPaths(anim || MILU_ANIM);
+  const bootstrap = MILU_LOAD.bootstrap.slice();
+  const bootSet = new Set(bootstrap);
+  const requiredRest = [];
+  for (let i = 0; i < groups.required.length; i++) {
+    const req = groups.required[i];
+    if (!bootSet.has(req)) requiredRest.push(req);
+  }
+  const optional = [];
+  for (let j = 0; j < groups.optional.length; j++) {
+    const opt = groups.optional[j];
+    if (!bootSet.has(opt)) optional.push(opt);
+  }
+  return {
+    bootstrap: bootstrap,
+    requiredRest: requiredRest,
+    optional: optional
+  };
+}
+
+export function miluOrderedLoadPlan(anim) {
+  const parts = miluPartitionLoadPaths(anim);
+  return parts.bootstrap.concat(parts.requiredRest, parts.optional);
+}
+
+export function miluRetryDelayMs(retryIndex) {
+  const delays = MILU_LOAD.retryDelaysMs;
+  return retryIndex >= 0 && retryIndex < delays.length ? delays[retryIndex] : -1;
+}
+
+export function miluShouldRetry(failureCount, maxRetries) {
+  const limit = maxRetries == null ? MILU_LOAD.maxRetries : maxRetries;
+  return failureCount > 0 && failureCount <= limit;
+}
+
+export function miluTextureUrl(baseUrl, rel, failureCount) {
+  const url = (baseUrl || '') + rel;
+  if (failureCount >= 2) {
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'r=' + failureCount;
+  }
+  return url;
+}
+
+export function miluConcurrencySlots(inFlightCount, maxConcurrent) {
+  const cap = maxConcurrent == null ? MILU_LOAD.maxConcurrent : maxConcurrent;
+  return Math.max(0, cap - (inFlightCount || 0));
+}
+
+export function miluPathsToStart(queue, inFlight, skip, maxConcurrent) {
+  const slots = miluConcurrencySlots(inFlight.size, maxConcurrent);
+  const starts = [];
+  if (slots <= 0) return starts;
+  const queued = queue.slice();
+  for (let i = 0; i < queued.length && starts.length < slots; i++) {
+    const rel = queued[i];
+    if (!rel || skip.has(rel) || inFlight.has(rel)) continue;
+    starts.push(rel);
+  }
+  return starts;
+}
+
+function isPathCollection(loaded) {
+  return !!(loaded && typeof loaded.has === 'function' && typeof loaded.size === 'number');
+}
+
+export function loadedPathSet(loaded) {
+  if (isPathCollection(loaded)) return loaded;
+  const set = new Set();
+  if (!loaded) return set;
+  if (typeof loaded.forEach === 'function') {
+    loaded.forEach((value, key) => {
+      if (value != null) set.add(key);
+    });
+    return set;
+  }
+  const list = Array.isArray(loaded) ? loaded : Object.keys(loaded);
+  for (let i = 0; i < list.length; i++) set.add(list[i]);
+  return set;
+}
+
+function allFrameLists(anim) {
+  const cfg = anim || MILU_ANIM;
+  const out = [];
+  const walk = cfg.clips.walk || {};
+  const keys = Object.keys(walk);
+  for (let i = 0; i < keys.length; i++) {
+    const list = walk[keys[i]];
+    if (list && list.length) out.push(list);
+  }
+  const idle = cfg.clips.idle || {};
+  const idleKeys = Object.keys(idle);
+  for (let j = 0; j < idleKeys.length; j++) {
+    const idleList = idle[idleKeys[j]];
+    if (idleList && idleList.length) out.push(idleList);
+  }
+  if (cfg.clips.wave && cfg.clips.wave.length) out.push(cfg.clips.wave);
+  return out;
+}
+
+function findListContaining(anim, rel) {
+  const lists = allFrameLists(anim);
+  for (let i = 0; i < lists.length; i++) {
+    if (lists[i].indexOf(rel) >= 0) return lists[i];
+  }
+  return null;
+}
+
+function firstLoadedInList(list, loaded) {
+  if (!list || !loaded || !loaded.size) return '';
+  for (let i = 0; i < list.length; i++) {
+    if (loaded.has(list[i])) return list[i];
+  }
+  return '';
+}
+
+function firstLoadedAny(anim, loaded) {
+  const lists = allFrameLists(anim);
+  for (let i = 0; i < lists.length; i++) {
+    const hit = firstLoadedInList(lists[i], loaded);
+    if (hit) return hit;
+  }
+  return '';
+}
+
+function pickNearestInList(list, idx, loaded) {
+  if (!list || !list.length || !loaded || !loaded.size) return '';
+  const at = idx < 0 ? 0 : idx;
+  for (let d = 0; d < list.length; d++) {
+    const left = at - d;
+    if (left >= 0 && loaded.has(list[left])) return list[left];
+    const right = at + d;
+    if (d > 0 && right < list.length && loaded.has(list[right])) return list[right];
+  }
+  return '';
+}
+
+export function avatarVisibility({ show, ready, failed }) {
+  const on = !!show;
+  return {
+    milu: on && !!ready,
+    placeholder: on && !failed && !ready,
+    block: on && !!failed
+  };
+}
+
+export function miluResolveForShow(requested, anim, loaded, cache) {
+  const row = cache || { requested: '', size: -1, resolved: '' };
+  if (isPathCollection(loaded) && loaded.has(requested)) {
+    row.requested = requested;
+    row.size = loaded.size;
+    row.resolved = requested;
+    return { cache: row, path: requested };
+  }
+  const size = isPathCollection(loaded) ? loaded.size : 0;
+  if (row.requested === requested && row.size === size) {
+    return { cache: row, path: row.resolved };
+  }
+  row.resolved = resolveDisplayPath(requested, anim, loaded);
+  row.requested = requested;
+  row.size = size;
+  return { cache: row, path: row.resolved };
+}
+
+export function resolveDisplayPath(requested, anim, loaded) {
+  const loadedSet = loadedPathSet(loaded);
+  if (!requested || !loadedSet.size) return '';
+  if (loadedSet.has(requested)) return requested;
+  const list = findListContaining(anim, requested);
+  if (list) {
+    const picked = pickNearestInList(list, list.indexOf(requested), loadedSet);
+    if (picked) return picked;
+  }
+  const breath = (anim || MILU_ANIM).clips.idle.breath;
+  const fromBreath = firstLoadedInList(breath, loadedSet);
+  if (fromBreath) return fromBreath;
+  return firstLoadedAny(anim, loadedSet);
+}
+
+export function miluReadyFromState(state) {
+  const row = state || {};
+  return !row.failed && (row.loadedCount || 0) > 0;
+}
+
+export function miluFailedFromState(state, anim) {
+  const row = state || {};
+  if (row.failed) return true;
+  const required = miluCollectPaths(anim).required;
+  const exhausted = row.exhausted || [];
+  const done = Object.create(null);
+  for (let i = 0; i < exhausted.length; i++) done[exhausted[i]] = true;
+  if (!required.length) return false;
+  for (let j = 0; j < required.length; j++) {
+    if (!done[required[j]]) return false;
+  }
+  return true;
+}
+
 function collectPaths(anim) {
   const required = [];
   const optional = [];
@@ -367,6 +582,24 @@ function collectPaths(anim) {
   add(idle.backBreath, optional);
   add(idle.backBlink, optional);
   return { required: required, optional: optional };
+}
+
+function miluLoadMeta(textures, create) {
+  if (!textures._miluLoad) {
+    textures._miluLoad = create ? {
+      failed: false,
+      started: false,
+      timers: [],
+      queue: [],
+      inFlight: new Set(),
+      attempts: new Map(),
+      exhausted: new Set(),
+      settled: new Set(),
+      optional: Object.create(null),
+      phase: 'bootstrap'
+    } : null;
+  }
+  return textures._miluLoad;
 }
 
 function copyList(list) {
@@ -449,61 +682,184 @@ export function createMiluView(THREE, options) {
   // shared 是另一隻 milu 已經在載的貼圖表。其他人的分身共用，避免每人各下一份。
   const shared = options && options.shared;
   const textures = shared || new Map();
-  let pending = 0;
-  let failed = false;
-  let loaded = false;
+  const loadMeta = miluLoadMeta(textures, !shared);
   let shown = '';
   let disposed = false;
-
-  function finishOne() {
-    pending -= 1;
-    if (pending <= 0 && !failed) loaded = true;
-  }
+  let displayResolveCache = { requested: '', size: -1, resolved: '' };
 
   const deferLoad = !!(options && options.deferLoad) && !shared;
 
-  function startTextureLoads() {
-    if (shared || disposed || pending > 0 || loaded) return;
-    const loader = new THREE.TextureLoader();
+  function isOptional(rel) {
+    return !!(loadMeta && loadMeta.optional[rel]);
+  }
+
+  function markOptionalMap() {
+    if (!loadMeta || loadMeta.optionalMapped) return;
     const groups = collectPaths(anim);
-    const paths = groups.required.concat(groups.optional);
-    const optional = Object.create(null);
-    for (let i = 0; i < groups.optional.length; i++) optional[groups.optional[i]] = true;
-    pending = paths.length;
-    if (!pending) {
-      loaded = true;
+    for (let i = 0; i < groups.optional.length; i++) loadMeta.optional[groups.optional[i]] = true;
+    loadMeta.optionalMapped = true;
+  }
+
+  function settlePath(rel) {
+    if (!loadMeta) return;
+    loadMeta.settled.add(rel);
+    const parts = miluPartitionLoadPaths(anim);
+    if (loadMeta.phase === 'bootstrap') {
+      let done = true;
+      for (let i = 0; i < parts.bootstrap.length; i++) {
+        if (!loadMeta.settled.has(parts.bootstrap[i])) {
+          done = false;
+          break;
+        }
+      }
+      if (done) {
+        loadMeta.phase = 'required';
+        enqueuePaths(parts.requiredRest);
+      }
+    } else if (loadMeta.phase === 'required') {
+      const req = collectPaths(anim).required;
+      let allReq = true;
+      for (let j = 0; j < req.length; j++) {
+        if (!loadMeta.settled.has(req[j])) {
+          allReq = false;
+          break;
+        }
+      }
+      if (allReq) {
+        loadMeta.phase = 'optional';
+        enqueuePaths(parts.optional);
+      }
+    }
+    syncFailed();
+  }
+
+  function syncFailed() {
+    if (!loadMeta) return;
+    const req = collectPaths(anim).required;
+    if (!req.length) {
+      loadMeta.failed = false;
       return;
     }
-    paths.forEach((rel) => {
-      loader.load(baseUrl + rel, (tex) => {
-        if (disposed) {
-          tex.dispose();
-          finishOne();
-          return;
-        }
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.magFilter = THREE.LinearFilter;
-        tex.minFilter = THREE.LinearFilter;
-        tex.generateMipmaps = false;
-        textures.set(rel, tex);
-        finishOne();
-      }, undefined, () => {
-        if (optional[rel]) forgetOptionalClip(anim, rel);
-        else failed = true;
-        finishOne();
-      });
+    let allGone = true;
+    for (let i = 0; i < req.length; i++) {
+      if (!loadMeta.exhausted.has(req[i])) {
+        allGone = false;
+        break;
+      }
+    }
+    loadMeta.failed = allGone;
+  }
+
+  function enqueuePaths(list) {
+    if (!loadMeta || !list) return;
+    for (let i = 0; i < list.length; i++) {
+      const rel = list[i];
+      if (!rel || textures.has(rel) || loadMeta.exhausted.has(rel)) continue;
+      if (loadMeta.queue.indexOf(rel) < 0 && !loadMeta.inFlight.has(rel)) loadMeta.queue.push(rel);
+    }
+  }
+
+  function pumpQueue() {
+    if (!loadMeta || disposed) return;
+    while (loadMeta.inFlight.size < MILU_LOAD.maxConcurrent && loadMeta.queue.length > 0) {
+      let picked = -1;
+      for (let i = 0; i < loadMeta.queue.length; i++) {
+        const rel = loadMeta.queue[i];
+        if (textures.has(rel) || loadMeta.exhausted.has(rel) || loadMeta.inFlight.has(rel)) continue;
+        picked = i;
+        break;
+      }
+      if (picked < 0) {
+        loadMeta.queue = loadMeta.queue.filter((rel) => {
+          return !textures.has(rel) && !loadMeta.exhausted.has(rel) && !loadMeta.inFlight.has(rel);
+        });
+        break;
+      }
+      beginLoad(loadMeta.queue.splice(picked, 1)[0]);
+    }
+  }
+
+  function beginLoad(rel) {
+    if (!loadMeta || disposed || textures.has(rel)) return;
+    loadMeta.inFlight.add(rel);
+    const failures = loadMeta.attempts.get(rel) || 0;
+    const url = miluTextureUrl(baseUrl, rel, failures);
+    const loader = new THREE.TextureLoader();
+    loader.load(url, (tex) => {
+      loadMeta.inFlight.delete(rel);
+      if (disposed) {
+        tex.dispose();
+        pumpQueue();
+        return;
+      }
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      textures.set(rel, tex);
+      loadMeta.settled.add(rel);
+      settlePath(rel);
+      if (shown) refreshShown();
+      pumpQueue();
+    }, undefined, () => {
+      loadMeta.inFlight.delete(rel);
+      if (disposed) return;
+      const count = (loadMeta.attempts.get(rel) || 0) + 1;
+      loadMeta.attempts.set(rel, count);
+      if (miluShouldRetry(count, MILU_LOAD.maxRetries)) {
+        const delay = miluRetryDelayMs(count - 1);
+        const timer = setTimeout(() => {
+          if (disposed || textures.has(rel) || loadMeta.exhausted.has(rel)) return;
+          if (loadMeta.queue.indexOf(rel) < 0) loadMeta.queue.push(rel);
+          pumpQueue();
+        }, delay);
+        loadMeta.timers.push(timer);
+      } else {
+        loadMeta.exhausted.add(rel);
+        if (isOptional(rel)) forgetOptionalClip(anim, rel);
+        settlePath(rel);
+      }
+      pumpQueue();
     });
+  }
+
+  function startTextureLoads() {
+    if (shared || disposed || !loadMeta || loadMeta.started) return;
+    loadMeta.started = true;
+    markOptionalMap();
+    const parts = miluPartitionLoadPaths(anim);
+    enqueuePaths(parts.bootstrap);
+    pumpQueue();
   }
 
   if (!shared && !deferLoad) startTextureLoads();
 
-  function show(path) {
-    if (disposed || !path || failed) return;
-    const tex = textures.get(path);
-    if (!tex || path === shown) return;
+  function refreshShown() {
+    if (!shown) return;
+    const hit = miluResolveForShow(shown, anim, textures, displayResolveCache);
+    displayResolveCache = hit.cache;
+    const path = hit.path;
+    const tex = path ? textures.get(path) : null;
+    if (!tex) return;
+    if (path === shown && material.map === tex) return;
     material.map = tex;
     material.needsUpdate = true;
     shown = path;
+  }
+
+  function show(path) {
+    if (disposed || !path) return;
+    if (loadMeta && loadMeta.failed && textures.size === 0) return;
+    const hit = miluResolveForShow(path, anim, textures, displayResolveCache);
+    displayResolveCache = hit.cache;
+    const resolved = hit.path;
+    if (!resolved) return;
+    const tex = textures.get(resolved);
+    if (!tex) return;
+    if (resolved === shown && material.map === tex) return;
+    material.map = tex;
+    material.needsUpdate = true;
+    shown = resolved;
   }
 
   // 只轉 yaw，看板保持直立面向鏡頭。lookAt 會連俯仰一起轉。
@@ -519,6 +875,12 @@ export function createMiluView(THREE, options) {
   function dispose() {
     if (disposed) return;
     disposed = true;
+    if (loadMeta) {
+      for (let i = 0; i < loadMeta.timers.length; i++) clearTimeout(loadMeta.timers[i]);
+      loadMeta.timers.length = 0;
+      loadMeta.inFlight.clear();
+      loadMeta.queue.length = 0;
+    }
     material.map = null;
     material.dispose();
     geo.dispose();
@@ -527,7 +889,16 @@ export function createMiluView(THREE, options) {
     if (!shared) {
       textures.forEach((tex) => tex.dispose());
       textures.clear();
+      textures._miluLoad = null;
     }
+  }
+
+  function ready() {
+    return textures.size > 0 && !failed();
+  }
+
+  function failed() {
+    return !!(loadMeta && loadMeta.failed);
   }
 
   return {
@@ -536,8 +907,8 @@ export function createMiluView(THREE, options) {
     faceCamera: faceCamera,
     anim: () => anim,
     beginLoad: startTextureLoads,
-    ready: () => (shared ? !!material.map : loaded) && !failed && !!material.map,
-    failed: () => failed,
+    ready: ready,
+    failed: failed,
     sharedTextures: () => textures,
     dispose: dispose
   };

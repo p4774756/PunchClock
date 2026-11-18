@@ -20,6 +20,7 @@ export function createPeerLayer(opts) {
   const getMode = opts.getMode;
   const getPlayer = opts.getPlayer;
   const getMiluVisible = opts.getMiluVisible;
+  const getMiluPlaceholderVisible = opts.getMiluPlaceholderVisible;
   const getPlayerMeshVisible = opts.getPlayerMeshVisible;
   const currentScene = opts.currentScene;
   const presencePose = opts.presencePose;
@@ -134,7 +135,8 @@ export function createPeerLayer(opts) {
       const z = shown.z + off.z;
       row.view.object.position.set(x, P, z);
       const ready = row.view.ready();
-      row.view.object.visible = !!ready;
+      const failed = row.view.failed();
+      row.view.object.visible = !!ready && !failed;
       const moving = !!row.moving;
       const axes = screenAxes(moving ? Math.sin(shown.yaw) : 0, moving ? Math.cos(shown.yaw) : 0, cam.theta);
       const anim = row.view.anim();
@@ -212,7 +214,11 @@ export function createPeerLayer(opts) {
         x: player.x,
         y: P + 1.18,
         z: player.z,
-        visible: !!(mode.exploring && (getMiluVisible() || getPlayerMeshVisible())),
+        visible: !!(mode.exploring && (
+          getMiluVisible()
+          || (typeof getMiluPlaceholderVisible === 'function' && getMiluPlaceholderVisible())
+          || getPlayerMeshVisible()
+        )),
         width: width,
         height: height,
         camera: camera,

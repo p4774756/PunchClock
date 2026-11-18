@@ -429,6 +429,116 @@ test('腳底貼齊本地 y = 0', () => {
   assert.ok(offset > 0);
 });
 
+test('載入優先順序：第一批是最小集合，其餘 required 再接 optional', () => {
+  const plan = M.miluOrderedLoadPlan(M.MILU_ANIM);
+  const parts = M.miluPartitionLoadPaths(M.MILU_ANIM);
+  assert.deepEqual(parts.bootstrap, M.MILU_LOAD.bootstrap);
+  assert.equal(plan[0], 'idle/breath_01.png');
+  assert.deepEqual(plan.slice(0, parts.bootstrap.length), parts.bootstrap);
+  const optionalStart = plan.indexOf('walk/back_01.png');
+  const requiredTail = plan.indexOf('walk/left_04.png');
+  assert.ok(optionalStart > requiredTail);
+  assert.ok(parts.requiredRest.indexOf('walk/front_01.png') < 0);
+});
+
+test('重試間隔 1／3／8 秒，超過 3 次不再重試', () => {
+  assert.equal(M.miluRetryDelayMs(0), 1000);
+  assert.equal(M.miluRetryDelayMs(1), 3000);
+  assert.equal(M.miluRetryDelayMs(2), 8000);
+  assert.equal(M.miluRetryDelayMs(3), -1);
+  assert.equal(M.miluShouldRetry(1), true);
+  assert.equal(M.miluShouldRetry(3), true);
+  assert.equal(M.miluShouldRetry(4), false);
+});
+
+test('第 2 次重試起加 cache-busting query', () => {
+  assert.equal(M.miluTextureUrl('/pet/milu/', 'idle/breath_01.png', 0), '/pet/milu/idle/breath_01.png');
+  assert.equal(M.miluTextureUrl('/pet/milu/', 'idle/breath_01.png', 1), '/pet/milu/idle/breath_01.png');
+  assert.equal(M.miluTextureUrl('/pet/milu/', 'idle/breath_01.png', 2), '/pet/milu/idle/breath_01.png?r=2');
+});
+
+test('併發上限不超過 MILU_LOAD.maxConcurrent', () => {
+  assert.equal(M.miluConcurrencySlots(0), 4);
+  assert.equal(M.miluConcurrencySlots(3), 1);
+  assert.equal(M.miluConcurrencySlots(4), 0);
+  const inFlight = new Set(['walk/left_01.png']);
+  const skip = new Set();
+  const queue = ['walk/left_02.png', 'walk/left_03.png', 'walk/left_04.png'];
+  const starts = M.miluPathsToStart(queue, inFlight, skip);
+  assert.equal(starts.length, 3);
+});
+
+test('已成功的圖不再排入併發啟動', () => {
+  const inFlight = new Set();
+  const skip = new Set(['idle/breath_01.png']);
+  const queue = ['idle/breath_01.png', 'walk/front_01.png'];
+  const starts = M.miluPathsToStart(queue, inFlight, skip);
+  assert.deepEqual(starts, ['walk/front_01.png']);
+});
+
+test('最近可用幀：同動作已載幀 → idle breath → 任何已載幀', () => {
+  const loaded = new Set(['idle/breath_01.png', 'walk/right_02.png']);
+  assert.equal(M.resolveDisplayPath('walk/right_04.png', M.MILU_ANIM, loaded), 'walk/right_02.png');
+  assert.equal(M.resolveDisplayPath('walk/left_01.png', M.MILU_ANIM, loaded), 'idle/breath_01.png');
+  assert.equal(M.resolveDisplayPath('wave/03.png', M.MILU_ANIM, loaded), 'idle/breath_01.png');
+});
+
+test('resolveDisplayPath 直接接受 Map，不複製', () => {
+  const loaded = new Map([
+    ['idle/breath_01.png', {}],
+    ['walk/right_02.png', {}]
+  ]);
+  assert.equal(M.resolveDisplayPath('walk/right_02.png', M.MILU_ANIM, loaded), 'walk/right_02.png');
+  assert.equal(M.resolveDisplayPath('walk/right_04.png', M.MILU_ANIM, loaded), 'walk/right_02.png');
+});
+
+test('miluResolveForShow 在 size 不變時沿用快取', () => {
+  const loaded = new Map([['idle/breath_01.png', {}]]);
+  let cache = { requested: '', size: -1, resolved: '' };
+  const first = M.miluResolveForShow('walk/left_01.png', M.MILU_ANIM, loaded, cache);
+  cache = first.cache;
+  assert.equal(first.path, 'idle/breath_01.png');
+  const second = M.miluResolveForShow('walk/left_01.png', M.MILU_ANIM, loaded, cache);
+  assert.equal(second.path, 'idle/breath_01.png');
+  assert.equal(second.cache, cache);
+  loaded.set('walk/left_01.png', {});
+  const third = M.miluResolveForShow('walk/left_01.png', M.MILU_ANIM, loaded, cache);
+  assert.equal(third.path, 'walk/left_01.png');
+});
+
+test('avatarVisibility 四種組合', () => {
+  assert.deepEqual(M.avatarVisibility({ show: false, ready: true, failed: false }), {
+    milu: false,
+    placeholder: false,
+    block: false
+  });
+  assert.deepEqual(M.avatarVisibility({ show: true, ready: true, failed: false }), {
+    milu: true,
+    placeholder: false,
+    block: false
+  });
+  assert.deepEqual(M.avatarVisibility({ show: true, ready: false, failed: false }), {
+    milu: false,
+    placeholder: true,
+    block: false
+  });
+  assert.deepEqual(M.avatarVisibility({ show: true, ready: false, failed: true }), {
+    milu: false,
+    placeholder: false,
+    block: true
+  });
+});
+
+test('ready／failed 判斷', () => {
+  assert.equal(M.miluReadyFromState({ loadedCount: 1, failed: false }), true);
+  assert.equal(M.miluReadyFromState({ loadedCount: 0, failed: false }), false);
+  assert.equal(M.miluReadyFromState({ loadedCount: 3, failed: true }), false);
+  const required = M.miluCollectPaths(M.MILU_ANIM).required;
+  assert.equal(M.miluFailedFromState({ exhausted: required.slice(0, 2) }), false);
+  assert.equal(M.miluFailedFromState({ exhausted: required }), true);
+  assert.equal(M.miluFailedFromState({ failed: true }), true);
+});
+
 test('搖桿往上（W）是離鏡頭，要播背面；往下是朝鏡頭，播正面', () => {
   const theta = 0.7;
   const up = X.cameraRelative(X.moveVector({ KeyW: true }), theta);
