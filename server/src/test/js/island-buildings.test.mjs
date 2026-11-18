@@ -17,6 +17,14 @@ describe('casino Vegas sign', () => {
     assert.ok(!buildingsJs.includes('赌场'));
     assert.ok(!buildingsJs.includes("'CASINO'"));
   });
+
+  it('屋頂橫式霓虹看板掛在西側屋脊，舊 sign_face 隱藏', () => {
+    assert.ok(buildingsJs.includes('signGroup'));
+    assert.ok(buildingsJs.includes("buildingId === 'casino'"));
+    assert.ok(buildingsJs.includes('obj.visible = false'));
+    assert.ok(buildingsJs.includes('casinoSignMap'));
+    assert.match(buildingsJs, /fillText\('777'/);
+  });
 });
 
 describe('BUILDING_GLOW', () => {
