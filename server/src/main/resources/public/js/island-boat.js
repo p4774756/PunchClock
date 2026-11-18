@@ -50,9 +50,103 @@ export const BOAT_PASSENGER_SCALE = 0.58;
 /** 乘客頭頂上限相對於 MILU_ANIM.height（島上角色）。 */
 export const BOAT_PASSENGER_HEIGHT = 1.42;
 
+/** buildBoatMesh 船體俯視半寬／半長（shape 單位）。 */
+export const BOAT_HULL_HALF_W = 0.37;
+export const BOAT_HULL_HALF_L = 0.97;
+
+/**
+ * 俯視 Shape 座標 (sx,sy；+Y 船首) → 船 Group 本地水平 (x,z)。
+ * 與 island-props extrudeFlat（rotateX(-π/2)、rotateY(π)）一致。
+ */
+export function hullShapeToLocal(sx, sy) {
+  return { x: -sx, z: sy };
+}
+
+function quadPoint(p0, p1, p2, t) {
+  const u = 1 - t;
+  return {
+    x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x,
+    y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y
+  };
+}
+
+/** 與 buildBoatMesh hullPlanShape 相同的俯視輪廓（shape XY）。 */
+export function hullPlanShapePoints(halfW, halfL, scale, segPerCurve) {
+  const s = scale == null ? 1 : scale;
+  const W = halfW * s;
+  const L = halfL * s;
+  const n = segPerCurve == null ? 10 : segPerCurve;
+  const pts = [];
+  function addQuad(p0, p1, p2) {
+    for (let i = 0; i < n; i++) pts.push(quadPoint(p0, p1, p2, i / n));
+  }
+  addQuad(
+    { x: 0, y: L },
+    { x: W * 0.82, y: L * 0.58 },
+    { x: W * 0.96, y: L * 0.12 }
+  );
+  addQuad(
+    { x: W * 0.96, y: L * 0.12 },
+    { x: W, y: -L * 0.42 },
+    { x: W * 0.78, y: -L }
+  );
+  pts.push({ x: W * 0.78, y: -L });
+  pts.push({ x: -W * 0.78, y: -L });
+  addQuad(
+    { x: -W * 0.78, y: -L },
+    { x: -W, y: -L * 0.42 },
+    { x: -W * 0.96, y: L * 0.12 }
+  );
+  addQuad(
+    { x: -W * 0.96, y: L * 0.12 },
+    { x: -W * 0.82, y: L * 0.58 },
+    { x: 0, y: L }
+  );
+  return pts;
+}
+
+function localHullContour(halfW, halfL, scale) {
+  return hullPlanShapePoints(halfW, halfL, scale).map((p) => hullShapeToLocal(p.x, p.y));
+}
+
+function distPointSeg(px, pz, ax, az, bx, bz) {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const len2 = dx * dx + dz * dz;
+  if (len2 < 1e-12) return Math.hypot(px - ax, pz - az);
+  let t = ((px - ax) * dx + (pz - az) * dz) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
+}
+
+/** 本地 (x,z) 到船體俯視輪廓的最短距離。 */
+export function distanceToHullPlanContour(x, z, halfW, halfL, scale) {
+  const contour = localHullContour(halfW, halfL, scale);
+  let best = Infinity;
+  for (let i = 0; i < contour.length; i++) {
+    const j = (i + 1) % contour.length;
+    const a = contour[i];
+    const b = contour[j];
+    const d = distPointSeg(x, z, a.x, a.z, b.x, b.z);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/** 舷側燈帶路徑（本地 XZ，沿輪廓外偏 outwardM）。 */
+export function hullGunwaleStripPathLocal(halfW, halfL, scale, outwardM, segPerCurve) {
+  const shapePts = hullPlanShapePoints(halfW, halfL, scale, segPerCurve);
+  return shapePts.map((p) => {
+    const loc = hullShapeToLocal(p.x, p.y);
+    const side = p.x >= 0 ? 1 : -1;
+    const out = outwardM == null ? 0.005 : outwardM;
+    return { x: loc.x + side * out, z: loc.z };
+  });
+}
+
 /** 遊艇船體零件數（不含桅燈與航行浪花），供測試對齊。 */
 export function boatHullPartCount() {
-  return 33;
+  return 34;
 }
 
 /** 角色本地站位 (x,z) 是否在船尾泳池矩形外。 */

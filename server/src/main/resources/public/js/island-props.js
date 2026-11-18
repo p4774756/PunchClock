@@ -4,8 +4,12 @@ import { G, P } from './island-kit.js';
 import {
   BOAT_BOW_LOCAL_Z,
   BOAT_STERN_DECK_Z,
+  BOAT_HULL_HALF_W,
+  BOAT_HULL_HALF_L,
   BOAT_HULL_MESH_BUDGET,
-  boatHullPartCount
+  boatHullPartCount,
+  hullShapeToLocal,
+  hullPlanShapePoints
 } from './island-boat.js';
 
 const WIN = 0x6b4a32;
@@ -114,17 +118,29 @@ export function buildBoatMesh(kit) {
   function extrudeFlat(shape, depth, color, x, y, z, extra, tiltX) {
     const g = new THREE.ExtrudeGeometry(shape, Object.assign({}, extrudeOpts, { depth: depth }));
     g.rotateX(-Math.PI / 2);
+    g.rotateY(Math.PI);
     return partMesh(boat, g, color, x, y, z, Object.assign({ rot: [tiltX || 0, 0, 0] }, extra || {}));
   }
 
-  const halfW = 0.37;
-  const halfL = 0.97;
+  function hullPlanRingShape(halfW, halfL, outerScale, innerScale) {
+    const shape = hullPlanShape(halfW, halfL, outerScale);
+    const hole = new THREE.Path();
+    const innerPts = hullPlanShape(halfW, halfL, innerScale).getPoints(14);
+    hole.moveTo(innerPts[0].x, innerPts[0].y);
+    for (let i = 1; i < innerPts.length; i++) hole.lineTo(innerPts[i].x, innerPts[i].y);
+    shape.holes.push(hole);
+    return shape;
+  }
+
+  const halfW = BOAT_HULL_HALF_W;
+  const halfL = BOAT_HULL_HALF_L;
   const hullDepth = 0.26;
   const hullY = 0.13;
 
-  extrudeFlat(hullPlanShape(halfW, halfL, 1), hullDepth, HULL_WHITE, 0, hullY, 0, null, -0.05);
+  extrudeFlat(hullPlanShape(halfW, halfL, 1), hullDepth, HULL_WHITE, 0, hullY, 0, null, 0.05);
   extrudeFlat(hullPlanShape(halfW, halfL, 1.04), 0.055, WATERLINE, 0, 0.045, -0.01, { receive: true });
-  extrudeFlat(hullPlanShape(halfW, halfL, 0.98), 0.014, GOLD_DIM, 0, hullY + hullDepth - 0.006, 0.01);
+  extrudeFlat(hullPlanShape(halfW, halfL, 0.96), 0.012, WOOD, 0, hullY + hullDepth - 0.004, 0.005);
+  extrudeFlat(hullPlanRingShape(halfW, halfL, 0.98, 0.94), 0.014, GOLD_DIM, 0, hullY + hullDepth - 0.006, 0.01);
 
   part(boat, 0.5, 0.04, 0.46, WOOD, 0, 0.39, 0.58);
   part(boat, 0.62, 0.04, 0.54, WOOD, 0, 0.39, BOAT_STERN_DECK_Z);
@@ -209,22 +225,18 @@ export function buildBoatMesh(kit) {
   ], { shadow: false });
 
   const stripMat = glowStripMaterial();
-  const sideStripGeo = geo('box', [0.01, 0.022, 1.62]);
+  const gunwaleY = 0.358;
+  const gunwalePath = hullPlanShapePoints(halfW, halfL, 1, 8).map((p) => {
+    const loc = hullShapeToLocal(p.x, p.y);
+    const side = p.x >= 0 ? 1 : -1;
+    return new THREE.Vector3(loc.x + side * 0.005, gunwaleY, loc.z);
+  });
+  const gunwaleCurve = new THREE.CatmullRomCurve3(gunwalePath, true, 'centripetal');
   hullMeshes += 1;
-  const sideStripMesh = new THREE.InstancedMesh(sideStripGeo, stripMat, 2);
+  const sideStripGeo = new THREE.TubeGeometry(gunwaleCurve, gunwalePath.length * 2, 0.0045, 4, true);
+  const sideStripMesh = new THREE.Mesh(sideStripGeo, stripMat);
   sideStripMesh.castShadow = false;
   sideStripMesh.receiveShadow = false;
-  [
-    [-0.375, 0.358, -0.02],
-    [0.375, 0.358, -0.02]
-  ].forEach((p, i) => {
-    dummy.position.set(p[0], p[1], p[2]);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(1, 1, 1);
-    dummy.updateMatrix();
-    sideStripMesh.setMatrixAt(i, dummy.matrix);
-  });
-  sideStripMesh.instanceMatrix.needsUpdate = true;
   boat.add(sideStripMesh);
   const deckStripGeo = geo('box', [0.56, 0.021, 0.012]);
   const deckStripMat = mat(STRIP_COLOR, { glow: STRIP_COLOR, glowAmount: 1.35, shadow: false });

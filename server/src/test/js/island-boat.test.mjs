@@ -84,6 +84,33 @@ test('abortSailing 會抵達目的地', () => {
   assert.equal(state.phase, 'docked-beach');
 });
 
+test('hullShapeToLocal：shape 船首尖端對齊本地 +Z', () => {
+  const halfL = B.BOAT_HULL_HALF_L;
+  const bow = B.hullShapeToLocal(0, halfL);
+  assert.ok(bow.z > 0, '船首 z 為正');
+  assert.ok(Math.abs(bow.z - B.BOAT_BOW_LOCAL_Z) < 0.04, '船首 z 約 BOAT_BOW_LOCAL_Z');
+  const stern = B.hullShapeToLocal(0, -halfL);
+  assert.ok(stern.z < 0, '船尾平切邊 z 為負');
+  assert.ok(stern.z < B.BOAT_STERN_DECK_Z, '船尾緣在泳池／艉甲板後方');
+  assert.ok(B.BOAT_STERN_DECK_Z < 0, '泳池中心在本地 -Z');
+});
+
+test('舷側燈帶貼齊船身輪廓', () => {
+  const path = B.hullGunwaleStripPathLocal(
+    B.BOAT_HULL_HALF_W,
+    B.BOAT_HULL_HALF_L,
+    1,
+    0.005,
+    8
+  );
+  assert.ok(path.length > 12);
+  for (let i = 0; i < path.length; i++) {
+    const p = path[i];
+    const d = B.distanceToHullPlanContour(p.x, p.z, B.BOAT_HULL_HALF_W, B.BOAT_HULL_HALF_L, 1);
+    assert.ok(d <= 0.012, '取樣點 ' + i + ' 距輪廓 ' + d.toFixed(4) + ' m');
+  }
+});
+
 test('遊艇站位與船首軸向常數', () => {
   assert.ok(B.BOAT_BOW_LOCAL_Z > 0, '船首在本地 +Z');
   assert.ok(B.BOAT_STERN_DECK_Z < 0, '船尾甲板在本地 -Z');
