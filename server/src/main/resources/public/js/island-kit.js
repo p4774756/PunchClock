@@ -48,13 +48,7 @@ export const MAX_LAMP_POINT_LIGHTS = 4;
 /** 夜間地面光暈半徑（世界單位）。 */
 export function lampGroundHaloRadius(power) {
   const p = Math.max(0, Number(power) || 0);
-  return 0.9 + p * 0.088;
-}
-
-/** 路燈暖色外溢球半徑（additive，補建物／角色，不加 PointLight）。 */
-export function lampWarmSpillRadius(power) {
-  const p = Math.max(0, Number(power) || 0);
-  return 1.2 + p * 0.095;
+  return 1.02 + p * 0.096;
 }
 
 /** 夜間地面光暈不透明度（mix 0 時必為 0）。 */
@@ -62,15 +56,7 @@ export function lampHaloOpacity(power, mix) {
   const m = Math.max(0, Math.min(1, Number(mix) || 0));
   if (m < 1e-6) return 0;
   const p = Math.max(0, Number(power) || 0);
-  return m * Math.min(0.95, 0.082 + p * 0.044);
-}
-
-/** 暖色外溢不透明度（mix 0 時必為 0）。 */
-export function lampWarmSpillOpacity(power, mix) {
-  const m = Math.max(0, Math.min(1, Number(mix) || 0));
-  if (m < 1e-6) return 0;
-  const p = Math.max(0, Number(power) || 0);
-  return m * Math.min(0.037, 0.0125 + p * 0.00245);
+  return m * Math.min(0.95, 0.09 + p * 0.048);
 }
 
 /** 點光源強度；pointLightsEnabled 僅供單元測試與例外情境，畫質降階不應關閉點光。 */
@@ -84,9 +70,6 @@ export function applyLampMixState(item, mix, pointLightsEnabled) {
   if (!item) return;
   const haloOpacity = lampHaloOpacity(item.power, mix);
   if (item.halo && item.halo.material) item.halo.material.opacity = haloOpacity;
-  if (item.warmSpill && item.warmSpill.material) {
-    item.warmSpill.material.opacity = lampWarmSpillOpacity(item.power, mix);
-  }
   if (item.light) {
     item.light.intensity = item.realLight
       ? lampPointIntensity(item.power, mix, pointLightsEnabled)
@@ -226,15 +209,18 @@ export function createSceneKit(THREE, opts) {
 
   function lampHaloTexture() {
     if (haloTexture) return haloTexture;
-    const size = 128;
+    const size = 192;
     const board = document.createElement('canvas');
     board.width = size;
     board.height = size;
     const ctx = board.getContext('2d');
-    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    g.addColorStop(0, 'rgba(255,184,112,0.96)');
-    g.addColorStop(0.34, 'rgba(255,176,102,0.48)');
-    g.addColorStop(1, 'rgba(255,176,102,0)');
+    const mid = size / 2;
+    const g = ctx.createRadialGradient(mid, mid, 0, mid, mid, mid);
+    g.addColorStop(0, 'rgba(255,188,118,0.88)');
+    g.addColorStop(0.22, 'rgba(255,178,108,0.52)');
+    g.addColorStop(0.55, 'rgba(255,170,100,0.14)');
+    g.addColorStop(0.82, 'rgba(255,166,96,0.028)');
+    g.addColorStop(1, 'rgba(255,166,96,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, size, size);
     haloTexture = new THREE.CanvasTexture(board);
@@ -255,28 +241,13 @@ export function createSceneKit(THREE, opts) {
       depthWrite: false,
       blending: THREE.AdditiveBlending
     });
-    const halo = new THREE.Mesh(new THREE.CircleGeometry(radius, 24), haloMat);
+    const halo = new THREE.Mesh(new THREE.CircleGeometry(radius, 48), haloMat);
     halo.rotation.x = -Math.PI / 2;
     halo.position.set(x, G + 0.018, z);
     halo.castShadow = false;
     halo.receiveShadow = false;
     halo.renderOrder = 2;
     holder.add(halo);
-
-    const spillRadius = lampWarmSpillRadius(p);
-    const spillMat = new THREE.MeshBasicMaterial({
-      color: 0xffb878,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending
-    });
-    const warmSpill = new THREE.Mesh(new THREE.SphereGeometry(spillRadius, 10, 8), spillMat);
-    warmSpill.position.set(x, y - 0.12, z);
-    warmSpill.castShadow = false;
-    warmSpill.receiveShadow = false;
-    warmSpill.renderOrder = 3;
-    holder.add(warmSpill);
 
     let wantReal = !!opts.realLight && pointLightCount < MAX_LAMP_POINT_LIGHTS;
     let light = null;
@@ -290,7 +261,6 @@ export function createSceneKit(THREE, opts) {
     const item = {
       power: p,
       halo: halo,
-      warmSpill: warmSpill,
       light: light,
       realLight: wantReal
     };

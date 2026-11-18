@@ -8,13 +8,13 @@ export const EXPLORE_LIGHT_DAY = Object.freeze({
 });
 
 /**
- * 夜間端點：略高於 i80 前（補足僅剩 4 盞 PointLight 後的環境光缺口）。
+ * 夜間端點：略高於 i80 前（補點光縮減後的環境光）；路燈暖色僅靠地面光暈＋點光。
  * 不增加點光數量與陰影成本。
  */
 export const EXPLORE_LIGHT_NIGHT = Object.freeze({
-  hemiIntensity: 0.73,
-  sunIntensity: 0.65,
-  toneMappingExposure: 1.15
+  hemiIntensity: 0.69,
+  sunIntensity: 0.63,
+  toneMappingExposure: 1.12
 });
 
 export function exploreLightAtMix(mix) {
