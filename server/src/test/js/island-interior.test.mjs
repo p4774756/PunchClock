@@ -177,7 +177,7 @@ test('研發樓出生朝向門口，有專用鏡頭與離開按鈕條件', () =>
   const room = I.interiorByBuilding('computer-site');
   assert.equal(room.spawn.yaw, Math.PI);
   assert.ok(room.spawn.z > -0.2, '出生點略靠房內北側，鏡頭看得到南牆門');
-  assert.deepEqual(I.LAB_INTERIOR_CAMERA, { radius: 3.75, theta: 0.05, phi: 1.12 });
+  assert.deepEqual(I.LAB_INTERIOR_CAMERA, { radius: 3.65, theta: 0.02, phi: 1.11 });
   assert.deepEqual(I.interiorFollowPose(room, 1.6), I.LAB_INTERIOR_CAMERA);
   assert.deepEqual(I.interiorFollowPose(room, 390 / 844), I.LAB_INTERIOR_CAMERA_MOBILE);
   assert.equal(I.interiorFollowPose(I.interiorByBuilding('shop')), null);
@@ -195,7 +195,55 @@ test('研發樓出生朝向門口，有專用鏡頭與離開按鈕條件', () =>
   assert.equal(I.interiorLeaveButtonLabel(session), '');
 });
 
+test('研發樓牆面 AABB 與視線遮擋：北牆剖面、門洞與室內站位', () => {
+  const room = I.interiorByBuilding('computer-site');
+  const floor = room.floor;
+  const walls = I.labInteriorVisibleWallAABBs(floor);
+  assert.ok(walls.length >= 5);
+  const northFull = walls.some(
+    (w) => w.maxY >= 1.7 && w.minZ >= floor.maxZ && (w.maxX - w.minX) > 2.5
+  );
+  assert.equal(northFull, false, '北牆整面不應列入可見遮擋');
+  const pose = I.labInteriorCameraForAspect(1440 / 900);
+  const look = I.LAB_INTERIOR_LOOK_DESKTOP;
+  const eye = I.labInteriorCameraEye(pose, look, 1440 / 900);
+  assert.equal(I.labInteriorCameraInsideFloor(eye, floor, 0.15), false);
+  const side = I.labInteriorSideWallAABBs(floor);
+  assert.ok(
+    I.labInteriorSightClear(eye, { x: 0, y: I.LAB_INTERIOR_PLAYER_CHEST_Y, z: -1.74 }, side),
+    '鏡頭到螢幕不穿過東西牆'
+  );
+  const samples = I.labInteriorPlayerSamplePositions(room);
+  const southBlocks = walls.slice(3);
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i];
+    assert.equal(
+      I.interiorCanStand(s.x, s.z, room, RADIUS),
+      true,
+      '採樣站位可站：' + s.id
+    );
+    const target = { x: s.x, y: I.LAB_INTERIOR_PLAYER_CHEST_Y, z: s.z };
+    assert.ok(
+      I.labInteriorSightClear(eye, target, side.concat(southBlocks)),
+      '站位視線不被牆擋：' + s.id
+    );
+  }
+  assert.equal(
+    I.segmentIntersectsAabb(0, 1, 0, 2, 1, 0, { minX: 0.5, maxX: 1.5, minY: 0, maxY: 2, minZ: -0.1, maxZ: 0.1 }),
+    true
+  );
+  assert.equal(
+    I.segmentIntersectsAabb(0, 1, -2, 0, 1, 2, { minX: -1, maxX: 1, minY: 0, maxY: 2, minZ: 0.9, maxZ: 1.1 }),
+    true
+  );
+  assert.equal(
+    I.segmentIntersectsAabb(0, 1, -2, 0, 1, 0.5, { minX: -1, maxX: 1, minY: 0, maxY: 2, minZ: 0.9, maxZ: 1.1 }),
+    false
+  );
+});
+
 test('研發樓預設鏡頭：三種 viewport 螢幕與門口投影在 NDC 內', () => {
+  const room = I.interiorByBuilding('computer-site');
   const viewports = [
     { aspect: 1440 / 900, height: 900 },
     { aspect: 1280 / 720, height: 720 },
@@ -204,7 +252,7 @@ test('研發樓預設鏡頭：三種 viewport 螢幕與門口投影在 NDC 內',
   for (let i = 0; i < viewports.length; i++) {
     const vp = viewports[i];
     assert.equal(
-      I.labInteriorFramingOk(vp.aspect, vp.height),
+      I.labInteriorFramingOk(vp.aspect, vp.height, room),
       true,
       'viewport ' + vp.aspect.toFixed(3)
     );

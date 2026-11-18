@@ -41,14 +41,14 @@ export const INTERIOR_HINT_EXPLORE_TOUCH = '用左下角搖桿移動 · 拖曳�
 export const INTERIOR_HINT_INSIDE_DESK = 'WASD 或方向鍵移動 · Esc 或走到門口離開 · 工具列可一鍵離開';
 export const INTERIOR_HINT_INSIDE_TOUCH = '搖桿移動 · 按右下「離開」出去';
 
-/** 研發樓進房預設鏡頭（桌面／橫向）：南牆門口與進度螢幕同時入鏡。 */
-export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 3.75, theta: 0.05, phi: 1.12 });
+/** 研發樓進房預設鏡頭（桌面／橫向）：北牆剖面後略拉遠，門／螢幕／角色同枠。 */
+export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 3.65, theta: 0.02, phi: 1.11 });
 
-export const LAB_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 6.65, theta: 0, phi: 1.12 });
+export const LAB_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 11, theta: 0, phi: 1.12 });
 
-/** 鏡頭注視點：南牆門與螢幕之間，不跟著角色胸口偏移。 */
-export const LAB_INTERIOR_LOOK_DESKTOP = Object.freeze({ x: -0.38, y: G + 1.08, z: -1.55 });
-export const LAB_INTERIOR_LOOK_MOBILE = Object.freeze({ x: -0.5, y: G + 1.08, z: -1.55 });
+/** 鏡頭注視點：門與螢幕之間偏內，不跟著角色胸口偏移。 */
+export const LAB_INTERIOR_LOOK_DESKTOP = Object.freeze({ x: -0.25, y: G + 1.08, z: -0.85 });
+export const LAB_INTERIOR_LOOK_MOBILE = Object.freeze({ x: -0.58, y: G + 1.08, z: -0.85 });
 
 /** 右上角工具列＋品牌區下緣到螢幕上緣至少約 24px（與 viewport 高度換算 NDC）。 */
 export const LAB_INTERIOR_TOOLBAR_INSET_PX = 112;
@@ -64,6 +64,7 @@ const LAB_SCREEN = Object.freeze({
 
 const LAB_DOOR = Object.freeze({
   x: -1.5,
+  doorW: 0.88,
   lintelY: G + 1.65,
   signY: G + 1.56,
   signX: -1.0,
@@ -73,6 +74,11 @@ const LAB_DOOR = Object.freeze({
   matZ: -1.42,
   southZ: -1.85
 });
+
+/** 與 island-lab-interior.js 幾何對齊；北牆剖面後不列入可見遮擋。 */
+export const LAB_INTERIOR_WALL = Object.freeze({ h: 2.2, t: 0.1 });
+
+export const LAB_INTERIOR_PLAYER_CHEST_Y = G + 1.05;
 
 export function labInteriorCameraForAspect(aspect) {
   const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
@@ -105,6 +111,142 @@ export function labInteriorScreenTopNdcLimit(viewportHeightPx) {
 
 function labFovFactor() {
   return 1 / Math.tan((LAB_FOV_DEG * Math.PI / 180) / 2);
+}
+
+/** 可見牆面 AABB（min／max 含 x,y,z），供視線遮擋測試；不含北牆剖面與門洞。 */
+export function labInteriorVisibleWallAABBs(floor) {
+  if (!floor) return [];
+  const wt = LAB_INTERIOR_WALL.t;
+  const wh = LAB_INTERIOR_WALL.h;
+  const y0 = G;
+  const y1 = G + wh;
+  const cz = (floor.minZ + floor.maxZ) / 2;
+  const depth = floor.maxZ - floor.minZ;
+  const southZ = floor.minZ - wt / 2;
+  const halfDepth = (depth + wt) / 2;
+  const doorX = LAB_DOOR.x;
+  const halfDoor = LAB_DOOR.doorW / 2;
+  const westEnd = doorX - halfDoor;
+  const eastStart = doorX + halfDoor;
+  const boxes = [];
+  const push = (minX, maxX, minZ, maxZ) => {
+    boxes.push(Object.freeze({ minX, maxX, minY: y0, maxY: y1, minZ, maxZ }));
+  };
+  push(floor.minX - wt, floor.minX, cz - halfDepth, cz + halfDepth);
+  push(floor.maxX, floor.maxX + wt, cz - halfDepth, cz + halfDepth);
+  const kickH = 0.14;
+  boxes.push(Object.freeze({
+    minX: floor.minX - wt,
+    maxX: floor.maxX + wt,
+    minY: y0,
+    maxY: y0 + kickH,
+    minZ: floor.maxZ,
+    maxZ: floor.maxZ + wt
+  }));
+  if (westEnd > floor.minX + 0.02) {
+    const w = westEnd - floor.minX;
+    const cx = floor.minX + w / 2;
+    push(cx - w / 2, cx + w / 2, southZ - wt / 2, southZ + wt / 2);
+  }
+  if (floor.maxX > eastStart + 0.02) {
+    const w = floor.maxX - eastStart;
+    const cx = eastStart + w / 2;
+    push(cx - w / 2, cx + w / 2, southZ - wt / 2, southZ + wt / 2);
+  }
+  const lintelHalfW = (LAB_DOOR.doorW + 0.14) / 2;
+  boxes.push(Object.freeze({
+    minX: doorX - lintelHalfW,
+    maxX: doorX + lintelHalfW,
+    minY: G + wh - 0.36,
+    maxY: G + wh - 0.08,
+    minZ: southZ - wt / 2,
+    maxZ: southZ + wt / 2
+  }));
+  return boxes;
+}
+
+/** 東／西牆與北側踢腳線：視線檢查南牆立面目標時用（不計入南牆本身）。 */
+export function labInteriorSideWallAABBs(floor) {
+  const all = labInteriorVisibleWallAABBs(floor);
+  if (all.length < 3) return all;
+  return all.slice(0, 3);
+}
+
+export function segmentIntersectsAabb(ox, oy, oz, tx, ty, tz, box) {
+  let tmin = 0;
+  let tmax = 1;
+  const dx = tx - ox;
+  const dy = ty - oy;
+  const dz = tz - oz;
+  const axes = [
+    [dx, ox, box.minX, box.maxX],
+    [dy, oy, box.minY, box.maxY],
+    [dz, oz, box.minZ, box.maxZ]
+  ];
+  for (let i = 0; i < 3; i++) {
+    const d = axes[i][0];
+    const o = axes[i][1];
+    const mn = axes[i][2];
+    const mx = axes[i][3];
+    if (Math.abs(d) < 1e-12) {
+      if (o < mn || o > mx) return false;
+      continue;
+    }
+    const inv = 1 / d;
+    let t1 = (mn - o) * inv;
+    let t2 = (mx - o) * inv;
+    if (t1 > t2) {
+      const tmp = t1;
+      t1 = t2;
+      t2 = tmp;
+    }
+    if (t1 > tmin) tmin = t1;
+    if (t2 < tmax) tmax = t2;
+    if (tmin > tmax) return false;
+  }
+  return tmin < 1 && tmax > 1e-4;
+}
+
+export function labInteriorCameraEye(pose, lookAt, aspect) {
+  const dist = labInteriorFollowDistance(pose.radius, aspect);
+  const phi = Math.min(LAB_PHI_MAX, Math.max(LAB_PHI_MIN, pose.phi));
+  const placement = labExploreCameraPlacement(
+    lookAt.x, lookAt.y, lookAt.z, dist, phi, pose.theta, G
+  );
+  return { x: placement.cx, y: placement.cy, z: placement.cz };
+}
+
+export function labInteriorSightClear(eye, target, wallBoxes) {
+  const walls = wallBoxes || [];
+  for (let i = 0; i < walls.length; i++) {
+    if (segmentIntersectsAabb(eye.x, eye.y, eye.z, target.x, target.y, target.z, walls[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function labInteriorCameraInsideFloor(eye, floor, inset) {
+  if (!floor || !eye) return false;
+  const m = inset == null ? 0.15 : inset;
+  return eye.x >= floor.minX + m
+    && eye.x <= floor.maxX - m
+    && eye.z >= floor.minZ + m
+    && eye.z <= floor.maxZ - m
+    && eye.y <= G + LAB_INTERIOR_WALL.h - 0.05;
+}
+
+/** 研發樓角落站位：門口、機櫃旁、工作台旁（供鏡頭與遮擋測試）。 */
+export function labInteriorPlayerSamplePositions(room) {
+  if (!room || room.id !== 'lab-room') return [];
+  const rack = room.blocks[0];
+  const bench = room.blocks[1];
+  return Object.freeze([
+    Object.freeze({ id: 'spawn', x: room.spawn.x, z: room.spawn.z }),
+    Object.freeze({ id: 'door', x: room.exit.x, z: room.exit.z }),
+    Object.freeze({ id: 'rack', x: -1.15, z: 0.25 }),
+    Object.freeze({ id: 'bench', x: 0.65, z: 0.0 })
+  ]);
 }
 
 /** 世界座標 → NDC（與探索鏡頭放置、25° FOV 一致）。 */
@@ -173,7 +315,7 @@ function labLandmarkPoints() {
 /**
  * 依 viewport 寬高比與高度檢查研發樓預設鏡頭：螢幕上緣留白、門口標示可見、手機螢幕至少 2/3 入鏡。
  */
-export function labInteriorFramingOk(aspect, viewportHeightPx) {
+export function labInteriorFramingOk(aspect, viewportHeightPx, room) {
   const pose = labInteriorCameraForAspect(aspect);
   const look = aspect < 0.72 ? LAB_INTERIOR_LOOK_MOBILE : LAB_INTERIOR_LOOK_DESKTOP;
   const lim = labInteriorScreenTopNdcLimit(viewportHeightPx);
@@ -184,10 +326,29 @@ export function labInteriorFramingOk(aspect, viewportHeightPx) {
     out[key] = labInteriorProjectNdc(p[0], p[1], p[2], pose, look, aspect);
   }
   const span = out.scrTL.y - out.scrBL.y;
-  if (out.scrTL.y > lim + 0.001 || out.scrTR.y > lim + 0.001 || out.title.y > lim + 0.001) {
+  const contentTopY = LAB_SCREEN.cy + LAB_SCREEN.hh;
+  const contentTopL = labInteriorProjectNdc(
+    LAB_SCREEN.cx - LAB_SCREEN.hw, contentTopY, LAB_SCREEN.cz, pose, look, aspect
+  );
+  const contentTopR = labInteriorProjectNdc(
+    LAB_SCREEN.cx + LAB_SCREEN.hw, contentTopY, LAB_SCREEN.cz, pose, look, aspect
+  );
+  const titleContentY = contentTopY - 0.14;
+  const titleTop = labInteriorProjectNdc(
+    LAB_SCREEN.cx - LAB_SCREEN.hw + 0.25, titleContentY, LAB_SCREEN.cz, pose, look, aspect
+  );
+  if (contentTopL.y > lim + 0.001 || contentTopR.y > lim + 0.001 || titleTop.y > lim + 0.001) {
     return false;
   }
-  if (span < (aspect < 0.72 ? 0.52 : 0.78)) return false;
+  const contentBot = labInteriorProjectNdc(
+    LAB_SCREEN.cx - LAB_SCREEN.hw, LAB_SCREEN.cy - LAB_SCREEN.hh, LAB_SCREEN.cz, pose, look, aspect
+  );
+  const contentVertical = contentTopL.y - contentBot.y;
+  if (aspect < 0.72) {
+    if (contentVertical < 0.28) return false;
+  } else if (span < 0.78) {
+    return false;
+  }
   const inside = (ndc) => ndc.vz > 0
     && ndc.y >= -0.94 && ndc.y <= 0.98
     && ndc.x >= -0.94 && ndc.x <= 0.94;
@@ -197,15 +358,45 @@ export function labInteriorFramingOk(aspect, viewportHeightPx) {
       / (out.scrTR.x - out.scrTL.x);
     if (!Number.isFinite(vis) || vis < 0.66) return false;
     if (!inside(out.doorSign) || !inside(out.pillarR) || !inside(out.mat)) return false;
-    return true;
+  } else {
+    const screenKeys = ['scrTL', 'scrTR', 'scrBL', 'scrBR', 'title'];
+    for (let i = 0; i < screenKeys.length; i++) {
+      if (!inside(out[screenKeys[i]])) return false;
+    }
+    if (!inside(out.lintel) || !inside(out.doorSign) || !inside(out.pillarR)) return false;
+    if (out.pillarL.x < -1.1) return false;
+    if (!inside(out.mat)) return false;
   }
-  const screenKeys = ['scrTL', 'scrTR', 'scrBL', 'scrBR', 'title'];
-  for (let i = 0; i < screenKeys.length; i++) {
-    if (!inside(out[screenKeys[i]])) return false;
+
+  const labRoom = room || INTERIORS.find((r) => r.id === 'lab-room');
+  const floor = labRoom && labRoom.floor;
+  const eye = labInteriorCameraEye(pose, look, aspect);
+  const walls = floor ? labInteriorVisibleWallAABBs(floor) : [];
+  const inRoom = floor ? labInteriorCameraInsideFloor(eye, floor, 0.15) : false;
+  const chestY = LAB_INTERIOR_PLAYER_CHEST_Y;
+  const sightTargets = [
+    { x: LAB_SCREEN.cx, y: LAB_SCREEN.cy, z: LAB_SCREEN.cz },
+    { x: LAB_DOOR.signX, y: LAB_DOOR.signY, z: LAB_DOOR.southZ - 0.03 },
+    { x: LAB_DOOR.x, y: LAB_DOOR.pillarY, z: LAB_DOOR.southZ }
+  ];
+  const samples = labInteriorPlayerSamplePositions(labRoom);
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i];
+    sightTargets.push({ x: s.x, y: chestY, z: s.z });
+    const ndc = labInteriorProjectNdc(s.x, chestY, s.z, pose, look, aspect);
+    if (!inside(ndc) || ndc.vz < 0.02) return false;
   }
-  if (!inside(out.lintel) || !inside(out.doorSign) || !inside(out.pillarR)) return false;
-  if (out.pillarL.x < -1.1) return false;
-  return inside(out.mat);
+  if (!inRoom) {
+    const sideWalls = floor ? labInteriorSideWallAABBs(floor) : [];
+    const southInterior = walls.filter((_, idx) => idx >= 3);
+    for (let j = 0; j < sightTargets.length; j++) {
+      const t = sightTargets[j];
+      const onSouthFacade = t.z <= floor.minZ + 0.08;
+      const blockers = onSouthFacade ? sideWalls : sideWalls.concat(southInterior);
+      if (!labInteriorSightClear(eye, t, blockers)) return false;
+    }
+  }
+  return true;
 }
 
 export function shouldShowInteriorLeave(ctx) {

@@ -148,7 +148,9 @@ export function createInterior(THREE, opts) {
 
   box(wallT, wallH, depth + wallT, 0xd8e8f8, 0x8ea0bf, floor.minX - wallT / 2, wallY, cz);
   box(wallT, wallH, depth + wallT, 0xd8e8f8, 0x8ea0bf, floor.maxX + wallT / 2, wallY, cz);
-  box(width + wallT * 2, wallH, wallT, 0xd8e8f8, 0x8ea0bf, cx, wallY, floor.maxZ + wallT / 2);
+  // 北牆剖面：鏡頭可於房外北側拉遠；南牆門與螢幕維持實牆。
+  const northKickH = 0.14;
+  box(width + wallT * 2, northKickH, wallT, 0xd8e8f8, 0x8ea0bf, cx, ground + northKickH / 2, floor.maxZ + wallT / 2);
 
   const doorW = 0.88;
   const doorX = -1.5;
