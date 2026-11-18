@@ -1,36 +1,42 @@
-// 研發樓小室內。低多邊形機房＋自發光進度螢幕；進房時讀一次 /api/dev-status。
+// 研發樓小室內。低多邊形機房＋自發光進度螢幕；進房時讀 /api/dev-status，製茶機牆輪詢 /api/tea-health。
 
 import { interiorByBuilding } from './island-interior.js';
-import { formatLabDevScreenLines, fitCanvasLine } from './island-roadmap.js';
+import { fitCanvasLine } from './island-roadmap.js';
 import {
   appendLabMachineLines,
   formatLabDevMachineLines,
   shouldFetchDevMachines
 } from './dev-machines-format.js';
+import {
+  drawTeaHealthCanvas,
+  formatLabDevScreenWithTimeline,
+  insertLabTeaStatusLine,
+  labTeaWallFrameOffset,
+  labTeaWallLayout,
+  layoutLabScreenLines
+} from './island-lab-health.js';
+import {
+  labInteriorCameraEye,
+  labInteriorCameraForAspect,
+  labInteriorLookTarget
+} from './island-interior.js';
 
 const SCREEN_W = 1024;
 const SCREEN_H = 768;
+const HEALTH_W = 512;
+const HEALTH_H = 384;
+const TEA_POLL_MS = 5000;
 
-function drawScreenLine(ctx, raw, pad, y, maxW, lineH) {
-  const text = raw == null ? '' : String(raw);
-  if (!text) return y + lineH * 0.55;
-  const fitted = fitCanvasLine(ctx, text, maxW);
-  if (ctx.measureText(fitted).width <= maxW) {
-    ctx.fillText(fitted, pad, y);
-    return y + lineH;
-  }
-  const colon = text.indexOf('：');
-  if (colon > 0 && colon < text.length - 1) {
-    const head = text.slice(0, colon + 1);
-    const tail = fitCanvasLine(ctx, text.slice(colon + 1).trim(), maxW);
-    if (ctx.measureText(head).width <= maxW) {
-      ctx.fillText(head, pad, y);
-      ctx.fillText(tail, pad, y + lineH * 0.88);
-      return y + lineH * 1.72;
+function configureLabCanvasTexture(texture, THREE, renderer) {
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  if (renderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function') {
+    const max = renderer.capabilities.getMaxAnisotropy();
+    if (Number.isFinite(max) && max > 0) {
+      texture.anisotropy = Math.min(4, max);
     }
   }
-  ctx.fillText(fitted, pad, y);
-  return y + lineH;
 }
 
 function drawScreenCanvas(canvas, lines) {
@@ -39,15 +45,16 @@ function drawScreenCanvas(canvas, lines) {
   ctx.fillStyle = '#07111f';
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   ctx.fillStyle = '#9ae8ff';
-  ctx.font = '600 38px "PingFang TC", "Noto Sans TC", sans-serif';
-  const list = Array.isArray(lines) ? lines : [];
-  let y = 52;
-  const lineH = 46;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
   const pad = 48;
   const maxW = SCREEN_W - pad * 2;
-  for (let i = 0; i < list.length; i++) {
-    y = drawScreenLine(ctx, list[i], pad, y, maxW, lineH);
-    if (y > SCREEN_H - 20) return;
+  const rows = layoutLabScreenLines(lines);
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    ctx.font = row.font;
+    const fitted = fitCanvasLine(ctx, row.text, maxW);
+    ctx.fillText(fitted, pad, row.y);
   }
 }
 
@@ -78,19 +85,47 @@ function exitCanvasTexture(THREE, opts) {
   return { texture: texture, canvas: canvas };
 }
 
-function loadDevScreen(texture, canvas, loadState) {
-  const disposed = () => loadState && loadState.disposed;
-  const apply = (lines) => {
-    if (disposed()) return;
+function composeLabScreenLines(devBody, machines, teaData) {
+  let lines = formatLabDevScreenWithTimeline(devBody, {
+    screen: true,
+    maxQueue: 2,
+    maxTimeline: 5
+  });
+  if (machines && machines.success !== false) {
+    lines = appendLabMachineLines(lines, formatLabDevMachineLines(machines));
+  }
+  return insertLabTeaStatusLine(lines, teaData);
+}
+
+function loadDevScreen(texture, canvas, screenState) {
+  const disposed = () => screenState && screenState.disposed;
+  screenState.refresh = () => {
+    if (disposed() || !canvas) return;
+    let lines;
+    if (screenState.devBody == null) {
+      lines = insertLabTeaStatusLine(['【開發進度】', '載入中…'], screenState.teaData);
+    } else if (screenState.devBody.success === false) {
+      lines = composeLabScreenLines(
+        screenState.devBody,
+        null,
+        screenState.teaData
+      );
+    } else {
+      lines = composeLabScreenLines(
+        screenState.devBody,
+        screenState.machines,
+        screenState.teaData
+      );
+    }
     drawScreenCanvas(canvas, lines);
-    texture.needsUpdate = true;
+    if (texture) texture.needsUpdate = true;
   };
   const fetchFn = globalThis.fetch ? globalThis.fetch.bind(globalThis) : null;
-  const loading = formatLabDevScreenLines(null, { maxQueue: 3 });
-  loading[2] = '載入中…';
-  apply(loading);
+  screenState.teaData = { success: true };
+  screenState.refresh();
   if (!fetchFn) {
-    apply(formatLabDevScreenLines({ success: false, message: '開發進度暫時讀不到' }));
+    screenState.devBody = { success: false, message: '開發進度暫時讀不到' };
+    screenState.refresh();
     return;
   }
   const authed = typeof globalThis !== 'undefined' && globalThis.PUNCHCLOCK_AUTHENTICATED === true;
@@ -102,15 +137,69 @@ function loadDevScreen(texture, canvas, loadState) {
     : Promise.resolve(null);
   Promise.all([devStatusPromise, machinesPromise])
     .then(([body, machines]) => {
-      let lines = formatLabDevScreenLines(body, { maxQueue: 3 });
-      if (machines && machines.success !== false) {
-        lines = appendLabMachineLines(lines, formatLabDevMachineLines(machines));
-      }
-      apply(lines);
+      if (disposed()) return;
+      screenState.devBody = body;
+      screenState.machines = machines;
+      screenState.refresh();
     })
     .catch(() => {
-      apply(formatLabDevScreenLines({ success: false, message: '開發進度暫時讀不到' }));
+      if (disposed()) return;
+      screenState.devBody = { success: false, message: '開發進度暫時讀不到' };
+      screenState.refresh();
     });
+}
+
+function loadTeaHealthWall(texture, canvas, loadState, onSample) {
+  const disposed = () => loadState && loadState.disposed;
+  const fetchFn = globalThis.fetch ? globalThis.fetch.bind(globalThis) : null;
+  let timerId = null;
+  let abortCtrl = null;
+
+  const paint = (data) => {
+    if (disposed() || !canvas) return;
+    drawTeaHealthCanvas(canvas.getContext('2d'), data, HEALTH_W, HEALTH_H);
+    if (texture) texture.needsUpdate = true;
+    if (onSample && !disposed()) onSample(data);
+  };
+
+  const refresh = () => {
+    if (disposed()) return;
+    if (abortCtrl) abortCtrl.abort();
+    if (!fetchFn) {
+      paint({ success: false });
+      return;
+    }
+    abortCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const signal = abortCtrl ? abortCtrl.signal : undefined;
+    fetchFn('/api/tea-health', signal ? { signal: signal } : undefined)
+      .then((res) => {
+        if (!res.ok) throw new Error('http');
+        return res.json();
+      })
+      .then((body) => {
+        if (disposed()) return;
+        paint(body);
+      })
+      .catch((err) => {
+        if (disposed()) return;
+        if (err && err.name === 'AbortError') return;
+        paint({ success: false });
+      });
+  };
+
+  paint({ success: true });
+  refresh();
+  timerId = setInterval(refresh, TEA_POLL_MS);
+  loadState.cleanup = () => {
+    if (timerId != null) {
+      clearInterval(timerId);
+      timerId = null;
+    }
+    if (abortCtrl) {
+      abortCtrl.abort();
+      abortCtrl = null;
+    }
+  };
 }
 
 export function createInterior(THREE, opts) {
@@ -127,8 +216,11 @@ export function createInterior(THREE, opts) {
   const geometries = [];
   let screenTexture = null;
   let screenCanvas = null;
+  let healthTexture = null;
+  let healthCanvas = null;
   const exitTextures = [];
-  const screenLoad = { disposed: false };
+  const screenLoad = { disposed: false, devBody: null, machines: null, teaData: null };
+  const teaLoad = { disposed: false };
 
   function mat(color, night, glow, emissiveI) {
     const material = new THREE.MeshLambertMaterial({
@@ -244,6 +336,58 @@ export function createInterior(THREE, opts) {
   const bcz = (bench.minZ + bench.maxZ) / 2;
   box(bw, 0.42, bd, 0x506070, 0x788898, bcx, ground + 0.31, bcz);
 
+  const wallEyeAspect = 1280 / 720;
+  const wallPose = labInteriorCameraForAspect(wallEyeAspect);
+  const wallLook = labInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, wallEyeAspect);
+  const wallEye = labInteriorCameraEye(wallPose, wallLook, wallEyeAspect);
+  const teaWall = labTeaWallLayout(ground, wallEye.x, wallEye.z);
+  const healthPlaneW = teaWall.w;
+  const healthPlaneH = teaWall.h;
+  healthCanvas = typeof document !== 'undefined' && document.createElement
+    ? document.createElement('canvas')
+    : null;
+  if (healthCanvas) {
+    healthCanvas.width = HEALTH_W;
+    healthCanvas.height = HEALTH_H;
+    healthTexture = new THREE.CanvasTexture(healthCanvas);
+    configureLabCanvasTexture(healthTexture, THREE, opts && opts.renderer);
+    const healthMat = new THREE.MeshLambertMaterial({
+      map: healthTexture,
+      emissive: new THREE.Color(0x3cf0ff),
+      emissiveMap: healthTexture,
+      emissiveIntensity: 0.58,
+      flatShading: true
+    });
+    healthMat.userData.day = new THREE.Color(0xffffff);
+    healthMat.userData.night = new THREE.Color(0x90c8e0);
+    healthMat.userData.dayE = 0.48;
+    healthMat.userData.nightE = 0.9;
+    materials.push(healthMat);
+    const healthGeo = new THREE.PlaneGeometry(healthPlaneW, healthPlaneH);
+    geometries.push(healthGeo);
+    const healthMesh = new THREE.Mesh(healthGeo, healthMat);
+    healthMesh.rotation.y = teaWall.ry;
+    healthMesh.position.set(teaWall.cx, teaWall.cy, teaWall.cz);
+    group.add(healthMesh);
+    const framePos = labTeaWallFrameOffset(teaWall);
+    const frameW = healthPlaneW + 0.08;
+    const frameH = healthPlaneH + 0.08;
+    const frameGeo = new THREE.BoxGeometry(frameW, frameH, 0.04);
+    geometries.push(frameGeo);
+    const frameMat = mat(0x1a2838, 0x3a5068, 0x3cf0ff, 0.25);
+    const frameMesh = new THREE.Mesh(frameGeo, frameMat);
+    frameMesh.rotation.y = teaWall.ry;
+    frameMesh.position.set(framePos.x, framePos.y, framePos.z);
+    frameMesh.castShadow = true;
+    frameMesh.receiveShadow = true;
+    group.add(frameMesh);
+    loadTeaHealthWall(healthTexture, healthCanvas, teaLoad, (data) => {
+      if (screenLoad.disposed) return;
+      screenLoad.teaData = data;
+      if (screenLoad.refresh) screenLoad.refresh();
+    });
+  }
+
   const screenW = 1.35;
   const screenH = 0.88;
   const screenY = ground + 0.84;
@@ -256,8 +400,7 @@ export function createInterior(THREE, opts) {
     screenCanvas.width = SCREEN_W;
     screenCanvas.height = SCREEN_H;
     screenTexture = new THREE.CanvasTexture(screenCanvas);
-    screenTexture.minFilter = THREE.LinearFilter;
-    screenTexture.magFilter = THREE.LinearFilter;
+    configureLabCanvasTexture(screenTexture, THREE, opts && opts.renderer);
     const screenMat = new THREE.MeshLambertMaterial({
       map: screenTexture,
       emissive: new THREE.Color(0x3cf0ff),
@@ -286,6 +429,9 @@ export function createInterior(THREE, opts) {
     materials: materials,
     dispose() {
       screenLoad.disposed = true;
+      teaLoad.disposed = true;
+      if (screenLoad.cleanup) screenLoad.cleanup();
+      if (teaLoad.cleanup) teaLoad.cleanup();
       geometries.forEach((geometry) => geometry.dispose());
       materials.forEach((material) => {
         if (material.map) material.map.dispose();
@@ -293,6 +439,8 @@ export function createInterior(THREE, opts) {
       });
       screenTexture = null;
       screenCanvas = null;
+      healthTexture = null;
+      healthCanvas = null;
       for (let i = 0; i < exitTextures.length; i++) {
         if (exitTextures[i].texture) exitTextures[i].texture.dispose();
       }

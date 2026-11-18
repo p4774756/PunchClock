@@ -237,6 +237,21 @@ public class PublicIslandAuthTest {
     }
 
     @Test
+    public void guestsCanReadTeaHealthWithoutSensitiveFields() throws Exception {
+        HttpResponse<String> response = send("GET", "/api/tea-health", null);
+        assertEquals(200, response.statusCode());
+        String body = response.body();
+        assertTrue(body.contains("\"success\""));
+        assertTrue(body.contains("heapUsedBytes") || body.contains("processCpuPercent"));
+        assertFalse(body.contains("\"clients\""));
+        assertFalse(body.contains("diskPath"));
+        assertFalse(body.contains("osName"));
+        assertFalse(body.contains("osArch"));
+        assertFalse(body.contains("relayActiveCount"));
+        assertFalse(body.contains("未登入"));
+    }
+
+    @Test
     public void guestsCannotReadDevMachines() throws Exception {
         HttpResponse<String> status = send("GET", "/api/dev-machines", null);
         assertEquals(401, status.statusCode());
