@@ -106,7 +106,6 @@ export default function Home(){
   if(id===outfitId||!currentAvatar.hasOutfits)return;
   const next=animeOutfit(id);
   setOutfitId(id);
-  setProgress(0);
   setError('');
   setFeedback(`已換裝：${next.name}。`);
  };
@@ -163,7 +162,7 @@ export default function Home(){
   </header>
 
   <section className="scene-stage" aria-label="3D 人體教學視窗">
-   <Suspense fallback={null}><CharacterScene key={`${DEFAULT_AVATAR_ID}-${outfitId}`} state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={DEFAULT_AVATAR_ID} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onError={onError}/></Suspense>
+   <Suspense fallback={null}><CharacterScene key={DEFAULT_AVATAR_ID} state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={DEFAULT_AVATAR_ID} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onError={onError}/></Suspense>
    <div className="scene-guide"><span className="guide-cross">+</span><span>{currentAvatar.shortName} · {currentOutfit.shortName}</span></div>
    {(progress<100||error)&&(
     <div className={error?'loading-card woodcut-loading load-error':'loading-card woodcut-loading'} role="status">

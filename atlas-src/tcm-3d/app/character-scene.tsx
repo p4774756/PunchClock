@@ -1,11 +1,12 @@
 import {ANIME_MODEL_BYTES} from './anime-model-digest';
 import {publicAssetUrl} from './public-assets';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
-import {animeOutfit,type AnimeOutfit,type OutfitId} from './outfits';
+import {animeOutfit,ANIME_OUTFITS,type AnimeOutfit,type OutfitId} from './outfits';
 import {useEffect,useRef} from 'react';
 import * as T from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
+import {clone as cloneSkinnedObject} from 'three/examples/jsm/utils/SkeletonUtils.js';
 import {VRMLoaderPlugin,VRMUtils} from '@pixiv/three-vrm';
 import {MToonMaterialOutlineWidthMode} from '@pixiv/three-vrm-materials-mtoon';
 import {PointerTap} from './pointer-tap';
@@ -250,10 +251,13 @@ const writeUvTriangleCloth=(data:ImageData,width:number,height:number,flipY:bool
 const looksLikeSkinPixel=(r:number,g:number,b:number,a:number)=>{
  if(a<200)return false;
  if(r<40&&g>55&&b>65)return false;
+ // Reject orange-lit／vest bleed that skews shoulder inpaint warm.
+ if(r>g+12||r>b+10)return false;
  return r>92&&g>72&&b>62&&r>=g-20;
 };
 
 const sampleNearbySkin=(data:ImageData,width:number,height:number,cx:number,cy:number,maxRad=96)=>{
+ let sr=0,sg=0,sb=0,n=0;
  for(let rad=1;rad<=maxRad;rad++){
   for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){
    if(Math.abs(dx)!==rad&&Math.abs(dy)!==rad)continue;
@@ -261,10 +265,13 @@ const sampleNearbySkin=(data:ImageData,width:number,height:number,cx:number,cy:n
    if(x<0||y<0||x>=width||y>=height)continue;
    const i=(y*width+x)*4;
    const r=data.data[i],g=data.data[i+1],b=data.data[i+2],a=data.data[i+3];
-   if(looksLikeSkinPixel(r,g,b,a))return {r,g,b};
+   if(!looksLikeSkinPixel(r,g,b,a))continue;
+   sr+=r;sg+=g;sb+=b;n++;
+   if(n>=10)break;
   }
+  if(n>=10)break;
  }
- return null;
+ return n?{r:Math.round(sr/n),g:Math.round(sg/n),b:Math.round(sb/n)}:null;
 };
 
 /** Outer shoulder MASK cutouts — outside inTorsoSkinBand (clavicle guard unchanged). */
@@ -424,6 +431,35 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
  }
 };
 
+/** Bun MToon cloned from hair but without purple parametric rim bleed. */
+const syncHairBunMaterial=(bun:MToonLike,hair:MToonLike)=>{
+ const h=hair as MToonLike & {litColorFactor?:T.Color;color?:T.Color};
+ const b=bun as MToonLike & {litColorFactor?:T.Color;color?:T.Color};
+ if(h.color&&b.color)b.color.copy(h.color);
+ if(h.litColorFactor&&b.litColorFactor)b.litColorFactor.copy(h.litColorFactor);
+ if(hair.shadeColorFactor&&bun.shadeColorFactor)bun.shadeColorFactor.copy(hair.shadeColorFactor);
+ if(bun.parametricRimColorFactor)bun.parametricRimColorFactor.setRGB(0,0,0);
+ if(bun.rimLightingMixFactor!=null)bun.rimLightingMixFactor=0;
+ bun.needsUpdate=true;
+};
+
+const cloneHairMaterialForBun=(hair:MToonLike)=>{
+ const bun=hair.clone() as MToonLike;
+ bun.name='PracticeHairBun';
+ syncHairBunMaterial(bun,hair);
+ return bun;
+};
+
+const disposeCharacterRoot=(root:T.Object3D|null)=>{
+ if(!root)return;
+ root.traverse(o=>{
+  if(!(o instanceof T.Mesh)&&!(o instanceof T.SkinnedMesh))return;
+  o.geometry.dispose();
+  const ms=Array.isArray(o.material)?o.material:[o.material];
+  ms.forEach(m=>m.dispose());
+ });
+};
+
 const findPrimaryHairMaterial=(root:T.Object3D):MToonLike|null=>{
  let found:MToonLike|null=null;
  root.traverse((obj:T.Object3D)=>{
@@ -479,11 +515,8 @@ const restyleHairBun=(root:T.Object3D)=>{
  const head=root.getObjectByName('J_Bip_C_Head');
  if(!head)return;
  const hairSrc=findPrimaryHairMaterial(root);
- const bunMat=hairSrc?hairSrc.clone() as MToonLike:new T.MeshToonMaterial({color:HAIR_LIT.clone()});
- bunMat.name='PracticeHairBun';
- if(!hairSrc){
-  (bunMat as T.MeshToonMaterial).color.copy(HAIR_LIT);
- }
+ const bunMat=hairSrc?cloneHairMaterialForBun(hairSrc):new T.MeshToonMaterial({color:HAIR_LIT.clone()});
+ if(!hairSrc)(bunMat as T.MeshToonMaterial).color.copy(HAIR_LIT);
  const bun=new T.Mesh(new T.SphereGeometry(.055,20,16),bunMat as T.Material);
  bun.name='PracticeHairBun';
  // Crown／occiput bun — lower half under hair, top ~2.5–3.5 cm above hair line.
@@ -491,7 +524,8 @@ const restyleHairBun=(root:T.Object3D)=>{
  bun.scale.set(1.02,.86,1.02);
  bun.frustumCulled=false;
  head.add(bun);
- const coil=new T.Mesh(new T.TorusGeometry(.038,.013,8,20),bunMat.clone() as T.Material);
+ const coilMat=hairSrc?cloneHairMaterialForBun(hairSrc):(bunMat as T.Material).clone();
+ const coil=new T.Mesh(new T.TorusGeometry(.038,.013,8,20),coilMat);
  coil.name='PracticeHairBunCoil';
  coil.position.set(0,.192,.063);
  coil.rotation.x=Math.PI/2;
@@ -540,14 +574,20 @@ const finishCharacterLook=(root:T.Object3D,outfit:AnimeOutfit,gradient:T.DataTex
  applyCelShading(root,gradient);
 };
 
+type OutfitBridge={setOutfit:(id:OutfitId)=>void};
+
 export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onError}:Props){
  const host=useRef<HTMLDivElement>(null);
+ const outfitIdRef=useRef(outfitId);
+ outfitIdRef.current=outfitId;
+ const outfitBridge=useRef<OutfitBridge|null>(null);
  const latest=useRef(state);const sim=useRef(simulation);const pointSelect=useRef(onPoint);const toolDrag=useRef(onToolDrag);
  latest.current=state;sim.current=simulation;pointSelect.current=onPoint;toolDrag.current=onToolDrag;
 
  useEffect(()=>{
   const avatar=animeAvatar(avatarId);
-  const outfit=animeOutfit(outfitId);
+  const schoolOutfit=ANIME_OUTFITS.find(o=>o.id==='school')!;
+  const practiceOutfit=ANIME_OUTFITS.find(o=>o.id==='study-body')!;
   const points=avatarPracticePoints(avatar);
   const el=host.current!;let disposed=false,frame=0,dirty=true,ready=false,lastView='',lastReset=-1,lastFocus=-1;
   let renderer:T.WebGLRenderer;
@@ -600,7 +640,38 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   // breaks THREE_VRM_THREE_REVISION / WebGLProgram and turns skin black.
   let lastSimulation:SimulationState|null=null;
   let vrm: {scene:T.Object3D;update:(delta:number)=>void}|null=null;
+  let schoolModel:T.Object3D|null=null;
+  let practiceModel:T.Object3D|null=null;
+  let practiceShell:T.Object3D|null=null;
+  let practiceBuilt=false;
   let lastFrame=performance.now();
+
+  const showOutfit=(id:OutfitId)=>{
+   if(schoolModel)schoolModel.visible=id==='school';
+   if(practiceModel)practiceModel.visible=id==='study-body';
+   characterRoot.updateMatrixWorld(true);
+   if(ready)teaching.reanchor(characterRoot);
+   dirty=true;
+  };
+
+  const buildPracticeOutfit=()=>{
+   if(practiceBuilt||!practiceShell||disposed)return;
+   finishCharacterLook(practiceShell,practiceOutfit,gradient);
+   practiceShell.visible=outfitIdRef.current==='study-body';
+   practiceModel=practiceShell;
+   characterRoot.add(practiceShell);
+   practiceShell.updateMatrixWorld(true);
+   practiceBuilt=true;
+   if(outfitIdRef.current==='study-body'&&ready)teaching.reanchor(characterRoot);
+   dirty=true;
+  };
+
+  const setOutfit=(id:OutfitId)=>{
+   if(!schoolModel)return;
+   if(id==='study-body'&&!practiceBuilt)buildPracticeOutfit();
+   showOutfit(id);
+  };
+  outfitBridge.current={setOutfit};
 
   const fit=(view:string)=>{
    const mobile=el.clientWidth<768||(el.clientWidth<=1100&&el.clientHeight<=500);
@@ -625,8 +696,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const loader=new GLTFLoader();
    loader.register(parser=>new VRMLoaderPlugin(parser));
    onProgress(8);
-   const modelUrl=outfit.modelUrl||avatar.modelUrl;
+   const modelUrl=schoolOutfit.modelUrl||avatar.modelUrl;
    const isAnimeModel=!!modelUrl?.includes('anime-assistant.glb');
+   const cacheAnimeOutfits=avatar.hasOutfits&&isAnimeModel;
    let loadProgress=8;
    const reportLoadProgress=(pct:number)=>{
     const next=Math.min(99,pct);
@@ -642,12 +714,26 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      VRMUtils.removeUnnecessaryVertices(gltf.scene);
      VRMUtils.combineSkeletons(gltf.scene);
     }
-    finishCharacterLook(model,outfit,gradient);
-    characterRoot.clear();
-    characterRoot.add(model);
+    if(cacheAnimeOutfits){
+     practiceShell=cloneSkinnedObject(model);
+     finishCharacterLook(model,schoolOutfit,gradient);
+     schoolModel=model;
+     schoolModel.visible=outfitIdRef.current==='school';
+     characterRoot.clear();
+     characterRoot.add(schoolModel);
+     if(outfitIdRef.current==='study-body')buildPracticeOutfit();
+     else{
+      const idle=typeof requestIdleCallback==='function'?requestIdleCallback:(cb:IdleRequestCallback)=>setTimeout(()=>cb({didTimeout:false,timeRemaining:()=>0} as IdleDeadline),1);
+      idle(()=>{if(!disposed)buildPracticeOutfit();});
+     }
+    }else{
+     finishCharacterLook(model,animeOutfit(outfitIdRef.current),gradient);
+     characterRoot.clear();
+     characterRoot.add(model);
+    }
     model.updateMatrixWorld(true);
     teaching.anchor(characterRoot);
-    ready=true;onProgress(100);fit(latest.current.view);dirty=true;
+    ready=true;setOutfit(outfitIdRef.current);onProgress(100);fit(latest.current.view);dirty=true;
    },xhr=>{
     if(xhr.total)reportLoadProgress(Math.round(xhr.loaded/xhr.total*100));
     else if(isAnimeModel&&ANIME_MODEL_BYTES>0)reportLoadProgress(Math.round(xhr.loaded/ANIME_MODEL_BYTES*100));
@@ -726,17 +812,28 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   renderer.domElement.addEventListener('webglcontextlost',contextLost);
 
   return()=>{
-   disposed=true;cancelAnimationFrame(frame);observer.disconnect();
+   disposed=true;outfitBridge.current=null;cancelAnimationFrame(frame);observer.disconnect();
    toolInput.dispose();teaching.dispose();controls.dispose();gradient.dispose();
    if(woodcut){
     scene.remove(woodcut.mesh);
     disposeWoodcutBackdrop(woodcut);
     woodcut=null;
    }
-   scene.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}});
+   characterRoot.clear();
+   disposeCharacterRoot(schoolModel);
+   disposeCharacterRoot(practiceModel);
+   if(practiceShell&&!practiceBuilt)disposeCharacterRoot(practiceShell);
+   scene.traverse(o=>{
+    if(!(o instanceof T.Mesh))return;
+    o.geometry.dispose();
+    const ms=Array.isArray(o.material)?o.material:[o.material];
+    ms.forEach(m=>m.dispose());
+   });
    teaching.label.remove();renderer.dispose();renderer.domElement.remove();
   };
- },[avatarId,outfitId,onProgress,onError]);
+ },[avatarId,onProgress,onError]);
+
+ useEffect(()=>{outfitBridge.current?.setOutfit(outfitId);},[outfitId]);
 
  return <div className="scene" ref={host}/>;
 }
