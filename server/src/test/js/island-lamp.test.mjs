@@ -6,6 +6,9 @@ import { loadPublicModule } from './load-public-module.mjs';
 const {
   MAX_LAMP_POINT_LIGHTS,
   lampHaloOpacity,
+  lampGroundHaloRadius,
+  lampWarmSpillOpacity,
+  lampWarmSpillRadius,
   lampPointIntensity,
   applyLampMixState
 } = await loadPublicModule('island-kit.js');
@@ -23,6 +26,12 @@ test('夜間光暈隨 power 與 mix 放大', () => {
   assert.ok(lampHaloOpacity(8, 1) < full);
 });
 
+test('地面光暈與暖色外溢半徑隨 power 增大', () => {
+  assert.ok(lampGroundHaloRadius(12) > lampGroundHaloRadius(6));
+  assert.ok(lampWarmSpillRadius(12) > lampWarmSpillRadius(6));
+  assert.ok(lampWarmSpillOpacity(10, 1) > 0.03);
+});
+
 test('關閉點光時強度為 0，開啟時與 power·mix 成正比', () => {
   assert.equal(lampPointIntensity(16, 1, false), 0);
   assert.equal(lampPointIntensity(16, 1, true), 16);
@@ -32,14 +41,17 @@ test('關閉點光時強度為 0，開啟時與 power·mix 成正比', () => {
 test('applyLampMixState 同步光暈與點光', () => {
   const haloMat = { opacity: 0.5 };
   const light = { intensity: 99 };
+  const spillMat = { opacity: 0.5 };
   const item = {
     power: 10,
     realLight: true,
     halo: { material: haloMat },
+    warmSpill: { material: spillMat },
     light: light
   };
   applyLampMixState(item, 0.5, true);
   assert.equal(haloMat.opacity, lampHaloOpacity(10, 0.5));
+  assert.equal(spillMat.opacity, lampWarmSpillOpacity(10, 0.5));
   assert.equal(light.intensity, 5);
   applyLampMixState(item, 1, true);
   assert.equal(light.intensity, 10);

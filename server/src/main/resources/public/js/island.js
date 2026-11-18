@@ -190,9 +190,9 @@ function boot() {
   scene.add(sun.target);
 
   const hemiDay = new THREE.Color(0xfff8ef);
-  const hemiNight = new THREE.Color(0xb89a78);
+  const hemiNight = new THREE.Color(0xcaa882);
   const groundDay = new THREE.Color(0xe7d8bc);
-  const groundNight = new THREE.Color(0x3a3548);
+  const groundNight = new THREE.Color(0x45404e);
   const sunDay = new THREE.Color(0xfff3d6);
   const sunNight = new THREE.Color(0xc5d4f2);
 

@@ -19,9 +19,9 @@ test('白天端點維持原本數值', () => {
 test('夜間端點高於 i80 前環境光（補點光縮減）', () => {
   const night = exploreLightAtMix(1);
   assert.equal(night.hemiIntensity, EXPLORE_LIGHT_NIGHT.hemiIntensity);
-  assert.ok(night.hemiIntensity > 0.38);
+  assert.ok(night.hemiIntensity >= 0.65);
   assert.ok(night.sunIntensity > 0.5);
-  assert.ok(night.toneMappingExposure > 0.94);
+  assert.ok(night.toneMappingExposure >= 1.12);
 });
 
 test('混合線性內插', () => {
