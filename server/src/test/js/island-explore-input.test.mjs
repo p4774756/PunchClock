@@ -211,6 +211,138 @@ test('畫布拖曳只跟第一根指標：第二指 move 不改 phi／theta', ()
   assert.notEqual(cam.targetPhi, phiAfterFirst, '第一指恢復後仍有效');
 });
 
+test('鍵盤 E：掌舵中可靠岸時呼叫 disembarkSteer、不開賭場', () => {
+  const body = { tagName: 'BODY' };
+  globalThis.document = { body: body, documentElement: { tagName: 'HTML' } };
+  globalThis.window = globalThis;
+
+  let disembarked = false;
+  let casinoOpened = false;
+  let outdoorHandled = false;
+  const ctx = {
+    event: {
+      code: 'KeyE',
+      key: 'e',
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      target: body,
+      preventDefault() {}
+    },
+    getMode: () => ({ exploring: true }),
+    player: { keys: {} },
+    controlsActive: () => true,
+    islandUiOpen: () => false,
+    syncInteractPrompt: () => true,
+    casino: {
+      openLobby: () => { casinoOpened = true; },
+      isOpen: () => false,
+      closeLobby: () => {}
+    },
+    isSteering: () => true,
+    disembarkSteer: () => { disembarked = true; },
+    hitInteractZone: () => ({ action: 'sail', stop: 'main' }),
+    isInside: () => false,
+    enterTcm: () => {},
+    openGraffiti: () => {},
+    openRoadmap: () => {},
+    enterInterior: () => {},
+    isClosedHall: () => false,
+    showInteriorClosed: () => {},
+    startSail: () => { outdoorHandled = true; },
+    graffiti: null,
+    roadmap: null,
+    islandChat: null
+  };
+  assert.equal(handleExploreKeydown(ctx), true);
+  assert.equal(disembarked, true);
+  assert.equal(casinoOpened, false);
+  assert.equal(outdoorHandled, false);
+});
+
+test('鍵盤 Enter：掌舵中不可靠岸時不開賭場、不觸發戶外 sail', () => {
+  const body = { tagName: 'BODY' };
+  globalThis.document = { body: body, documentElement: { tagName: 'HTML' } };
+  globalThis.window = globalThis;
+
+  let disembarked = false;
+  let casinoOpened = false;
+  let sailed = false;
+  const ctx = {
+    event: {
+      code: 'Enter',
+      key: 'Enter',
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      target: body,
+      preventDefault() {}
+    },
+    getMode: () => ({ exploring: true }),
+    player: { keys: {} },
+    controlsActive: () => true,
+    islandUiOpen: () => false,
+    syncInteractPrompt: () => true,
+    casino: {
+      openLobby: () => { casinoOpened = true; },
+      isOpen: () => false,
+      closeLobby: () => {}
+    },
+    isSteering: () => true,
+    disembarkSteer: () => { disembarked = true; },
+    hitInteractZone: () => null,
+    isInside: () => false,
+    enterTcm: () => {},
+    openGraffiti: () => {},
+    openRoadmap: () => {},
+    enterInterior: () => {},
+    isClosedHall: () => false,
+    showInteriorClosed: () => {},
+    startSail: () => { sailed = true; },
+    graffiti: null,
+    roadmap: null,
+    islandChat: null
+  };
+  assert.equal(handleExploreKeydown(ctx), true);
+  assert.equal(disembarked, true);
+  assert.equal(casinoOpened, false);
+  assert.equal(sailed, false);
+});
+
+test('鍵盤 E：焦點在 islandInteract 時交給按鈕、不重複 disembark', () => {
+  const btn = { tagName: 'BUTTON', id: 'islandInteract' };
+  globalThis.document = { body: btn, documentElement: { tagName: 'HTML' } };
+  globalThis.window = globalThis;
+
+  let disembarked = false;
+  const ctx = {
+    event: {
+      code: 'KeyE',
+      key: 'e',
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      target: btn,
+      preventDefault() {}
+    },
+    getMode: () => ({ exploring: true }),
+    player: { keys: {} },
+    controlsActive: () => true,
+    islandUiOpen: () => false,
+    syncInteractPrompt: () => true,
+    casino: { openLobby: () => {}, isOpen: () => false, closeLobby: () => {} },
+    isSteering: () => true,
+    disembarkSteer: () => { disembarked = true; },
+    hitInteractZone: () => null,
+    isInside: () => false,
+    graffiti: null,
+    roadmap: null,
+    islandChat: null
+  };
+  assert.equal(handleExploreKeydown(ctx), false);
+  assert.equal(disembarked, false);
+});
+
 test('sail 互動不會落到開賭場', () => {
   let casinoOpened = false;
   let sailed = false;

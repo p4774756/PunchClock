@@ -171,6 +171,14 @@ export const BOAT_STOPS = Object.freeze({
   })
 });
 
+/** 自由掌舵可航行海域（包住各島 visual 外緣再留約 7 單位水面；非全景半徑）。 */
+export const SEA_NAV_BOUNDS = Object.freeze({
+  minX: -29,
+  maxX: 35,
+  minZ: -20,
+  maxZ: 30
+});
+
 /** 航線（海上路徑，不經任何島陸地）。 */
 export const BOAT_ROUTE = Object.freeze([
   Object.freeze({ x: 10.3, z: 1.95 }),
