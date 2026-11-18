@@ -97,6 +97,7 @@ export function createExplorePointer(opts) {
   const pointer = new THREE.Vector2();
   let dragging = false;
   let moved = false;
+  let dragPointerId = null;
   let lastX = 0;
   let lastY = 0;
 
@@ -115,7 +116,9 @@ export function createExplorePointer(opts) {
   }
 
   function onPointerDown(event) {
+    if (dragPointerId != null && event.pointerId !== dragPointerId) return;
     dragging = true;
+    dragPointerId = event.pointerId;
     moved = false;
     lastX = event.clientX;
     lastY = event.clientY;
@@ -124,6 +127,7 @@ export function createExplorePointer(opts) {
   }
 
   function onPointerMove(event) {
+    if (dragging && dragPointerId !== event.pointerId) return;
     if (!dragging) {
       canvas.style.cursor = hitZone(event) ? 'pointer' : 'grab';
       return;
@@ -140,8 +144,10 @@ export function createExplorePointer(opts) {
   }
 
   function onPointerUp(event) {
+    if (dragPointerId != null && event.pointerId !== dragPointerId) return;
     const wasDrag = moved;
     dragging = false;
+    dragPointerId = null;
     canvas.style.cursor = 'grab';
     if (!wasDrag) {
       const zone = hitZone(event);
@@ -150,8 +156,10 @@ export function createExplorePointer(opts) {
     if (onAfterDragEnd) onAfterDragEnd({ moved: wasDrag, event: event });
   }
 
-  function onPointerCancel() {
+  function onPointerCancel(event) {
+    if (event && dragPointerId != null && event.pointerId !== dragPointerId) return;
     dragging = false;
+    dragPointerId = null;
     canvas.style.cursor = 'grab';
     if (onAfterDragEnd) onAfterDragEnd({ moved: moved, event: null });
   }

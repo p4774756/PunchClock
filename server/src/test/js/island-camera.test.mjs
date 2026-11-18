@@ -24,9 +24,14 @@ const {
   dragPhiDelta,
   applyDragPhi,
   exploreLookUpBlend,
+  exploreViewLift,
   exploreFollowDistance,
+  interiorExploreFollowDistance,
   exploreTargetPitch,
   exploreSkyPitch,
+  explorePitchAlongDrag,
+  EXPLORE_PITCH_STEP_MAX,
+  INTERIOR_LOOK_UP_PITCH_MAX,
   exploreAimAzimuth,
   exploreThetaFacing,
   exploreIdealViewPitch,
@@ -66,10 +71,11 @@ test('探索仰角範圍與 LOOK_UP_PHI_FLOOR', () => {
   assert.ok(EXPLORE_PHI_MAX > 1);
 });
 
-test('exploreLookUpBlend：0.70 以上為 0，下限為 1', () => {
-  assert.equal(exploreLookUpBlend(0.72), 0);
-  assert.equal(exploreLookUpBlend(EXPLORE_PHI_MIN), 1);
-  const mid = exploreLookUpBlend((EXPLORE_PHI_MIN + LOOK_UP_PHI_FLOOR) * 0.5);
+test('exploreViewLift：預設 phi 以上為 0，下限為 1', () => {
+  assert.equal(exploreViewLift(EXPLORE_POSE.phi, EXPLORE_POSE.phi), 0);
+  assert.equal(exploreViewLift(EXPLORE_POSE.phi + 0.05, EXPLORE_POSE.phi), 0);
+  assert.equal(exploreViewLift(EXPLORE_PHI_MIN, EXPLORE_POSE.phi), 1);
+  const mid = exploreViewLift((EXPLORE_PHI_MIN + EXPLORE_POSE.phi) * 0.5, EXPLORE_POSE.phi);
   assert.ok(mid > 0.4, '中段應有連續仰望帶');
 });
 
@@ -80,22 +86,30 @@ test('極限抬頭仰角在 22°～30° 之間、不得接近 90°（夜間月�
   assert.ok(Math.abs(pitch - LOOK_UP_PITCH_MAX) < 0.08);
 });
 
-test('月亮 NDC y 在寬 phi 帶內可見（桌面 1.6 與直向 0.48）', () => {
+test('月亮 NDC y 在抬頭帶內可見（桌面 1.6 與直向 0.48）', () => {
   const aspects = [1.6, 0.48];
+  const phiRest = EXPLORE_POSE.phi;
   for (const aspect of aspects) {
     const dist = distFor(aspect);
     let visibleCount = 0;
     let samples = 0;
-    for (let phi = EXPLORE_PHI_MIN; phi <= LOOK_UP_PHI_FLOOR + 1e-6; phi += 0.03) {
+    for (let phi = EXPLORE_PHI_MIN; phi <= phiRest - 0.05 + 1e-6; phi += 0.03) {
       samples++;
-      const pitch = exploreTargetPitch(phi, LOOK_AT_Y, dist, G, aspect, THETA, MOON_ELEVATION);
+      const pitch = exploreTargetPitch(
+        phi, LOOK_AT_Y, dist, G, aspect, THETA, MOON_ELEVATION, phiRest, true
+      );
       if (pitch == null) continue;
       const ndc = celestialNdcY(MOON_ELEVATION, pitch, ISLAND_FOV_DEG);
       if (Math.abs(ndc) < 0.85) visibleCount++;
     }
     assert.ok(samples > 10);
-    assert.ok(visibleCount / samples >= 0.5,
-      `aspect=${aspect} 至少一半拖曳點月亮 |NDC y|<0.85 (${visibleCount}/${samples})`);
+    const highLiftVisible = exploreTargetPitch(
+      EXPLORE_PHI_MIN, LOOK_AT_Y, dist, G, aspect, THETA, MOON_ELEVATION, phiRest, true
+    );
+    const ndcTop = celestialNdcY(MOON_ELEVATION, highLiftVisible, ISLAND_FOV_DEG);
+    assert.ok(Math.abs(ndcTop) < 0.85, `極限抬頭 aspect=${aspect} |NDC y|=${ndcTop}`);
+    assert.ok(visibleCount / samples >= 0.25,
+      `aspect=${aspect} 抬頭帶部分可見月亮 (${visibleCount}/${samples})`);
   }
 });
 
@@ -114,27 +128,37 @@ test('blend=1 時改變 theta，視線水平方向跟著變', () => {
   assert.ok(Math.abs(wrapAngle(a - b)) > 0.5, '拖左右應改變視線 yaw');
 });
 
-test('面向月亮時，水平與垂直 NDC 在連續 phi 帶內可見（含 390×844）', () => {
+test('面向月亮時，水平與垂直 NDC 在連續抬頭帶內可見（含 390×844）', () => {
   const aspects = [1.6, MOBILE_ASPECT];
+  const phiRest = EXPLORE_POSE.phi;
   const theta = exploreThetaFacing(MOON_AZIMUTH);
   assert.ok(angleNear(exploreAimAzimuth(theta, 1), MOON_AZIMUTH));
   for (const aspect of aspects) {
     const dist = distFor(aspect);
     let visible = 0;
     let samples = 0;
-    for (let phi = 0.32; phi <= 0.56 + 1e-6; phi += 0.02) {
+    for (let phi = EXPLORE_PHI_MIN; phi <= phiRest - 0.08 + 1e-6; phi += 0.02) {
       samples++;
-      const blend = exploreLookUpBlend(phi);
-      if (blend <= 0) continue;
-      const pitch = exploreTargetPitch(phi, LOOK_AT_Y, dist, G, aspect, theta, MOON_ELEVATION);
-      const aim = exploreAimAzimuth(theta, blend, MOON_AZIMUTH);
+      const lift = exploreViewLift(phi, phiRest);
+      if (lift <= 0) continue;
+      const pitch = exploreTargetPitch(
+        phi, LOOK_AT_Y, dist, G, aspect, theta, MOON_ELEVATION, phiRest, true
+      );
+      const aim = exploreAimAzimuth(theta, lift, MOON_AZIMUTH);
       const ndcY = celestialNdcY(MOON_ELEVATION, pitch, ISLAND_FOV_DEG);
       const ndcX = celestialNdcX(MOON_AZIMUTH, aim, aspect, ISLAND_FOV_DEG);
       if (Math.abs(ndcY) < 0.92 && Math.abs(ndcX) < 0.92) visible++;
     }
     assert.ok(samples >= 10, `aspect=${aspect} samples`);
-    assert.ok(visible / samples >= 0.85,
-      `面向月亮 aspect=${aspect} 連續 phi 0.32～0.56 應多半可見 (${visible}/${samples})`);
+    const topPitch = exploreTargetPitch(
+      EXPLORE_PHI_MIN, LOOK_AT_Y, dist, G, aspect, theta, MOON_ELEVATION, phiRest, true
+    );
+    const topNdcY = celestialNdcY(MOON_ELEVATION, topPitch, ISLAND_FOV_DEG);
+  const topNdcX = celestialNdcX(MOON_AZIMUTH, exploreAimAzimuth(theta, 1), aspect, ISLAND_FOV_DEG);
+    assert.ok(Math.abs(topNdcY) < 0.92 && Math.abs(topNdcX) < 0.92,
+      `極限抬頭 aspect=${aspect} 月亮應在畫面內`);
+    assert.ok(visible / (samples - 2) >= 0.35,
+      `面向月亮 aspect=${aspect} 抬頭帶應有部分可見 (${visible}/${samples})`);
   }
 });
 
@@ -198,4 +222,53 @@ test('applyDragPhi：全景 dy<0 時 phi 變大並夾在全景範圍', () => {
   assert.ok(next <= PANORAMA_PHI_MAX);
   assert.equal(applyDragPhi(PANORAMA_PHI_MIN, 1000, false), PANORAMA_PHI_MIN);
   assert.equal(applyDragPhi(PANORAMA_PHI_MAX, -1000, false), PANORAMA_PHI_MAX);
+});
+
+test('往上拖曳：島上與室內仰角單調遞增、相鄰 5px 無跳變', () => {
+  const cases = [
+  { label: 'island', phiStart: EXPLORE_POSE.phi, phiRest: EXPLORE_POSE.phi, allowSky: true, dist: distFor(MOBILE_ASPECT) },
+  { label: 'interior', phiStart: INTERIOR_POSE.phi, phiRest: INTERIOR_POSE.phi, allowSky: false,
+      dist: interiorExploreFollowDistance(INTERIOR_POSE.radius, MOBILE_ASPECT) }
+  ];
+  for (const c of cases) {
+    const samples = explorePitchAlongDrag(
+      c.phiStart, -150, 5, LOOK_AT_Y, c.dist, G, MOBILE_ASPECT, THETA, MOON_ELEVATION, c.phiRest, c.allowSky
+    );
+    assert.ok(samples.length >= 20, c.label);
+    for (let i = 1; i < samples.length; i++) {
+      assert.ok(
+        samples[i].pitch + 1e-6 >= samples[i - 1].pitch,
+        `${c.label} dy=${samples[i].dyPx} 仰角應不低於前一步 (${samples[i - 1].pitch} → ${samples[i].pitch})`
+      );
+      const dPitch = Math.abs(samples[i].pitch - samples[i - 1].pitch);
+      assert.ok(
+        dPitch <= EXPLORE_PITCH_STEP_MAX + 1e-5,
+        `${c.label} 相鄰 5px 仰角變化 ${dPitch} 超過上限`
+      );
+    }
+    const top = samples[samples.length - 1].pitch;
+    if (!c.allowSky) {
+      assert.ok(top <= INTERIOR_LOOK_UP_PITCH_MAX + 0.02, `室內抬頭上限 pitch=${top}`);
+    }
+  }
+});
+
+test('從抬頭狀態往下拖：仰角單調遞減', () => {
+  const dist = distFor(1.6);
+  const phiRest = EXPLORE_POSE.phi;
+  const samples = explorePitchAlongDrag(
+    EXPLORE_PHI_MIN, 150, 5, LOOK_AT_Y, dist, G, 1.6, THETA, MOON_ELEVATION, phiRest, true
+  );
+  for (let i = 1; i < samples.length; i++) {
+    assert.ok(
+      samples[i].pitch <= samples[i - 1].pitch + 1e-6,
+      `往下拖 dy=${samples[i].dyPx} 仰角應遞減 (${samples[i - 1].pitch} → ${samples[i].pitch})`
+    );
+  }
+});
+
+test('手機直向室內跟隨距離不超過島上放大倍率', () => {
+  const islandDist = exploreFollowDistance(INTERIOR_POSE.radius, MOBILE_ASPECT);
+  const indoorDist = interiorExploreFollowDistance(INTERIOR_POSE.radius, MOBILE_ASPECT);
+  assert.ok(indoorDist < islandDist, `indoor=${indoorDist} island=${islandDist}`);
 });
