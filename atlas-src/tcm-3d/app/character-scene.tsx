@@ -351,12 +351,37 @@ const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flip
  }
 };
 
+type MToonUniforms=Record<string,{value:unknown}>;
+
 const findSkinMap=(m:T.MeshStandardMaterial & {map?:T.Texture|null;uniforms?:Record<string,{value:unknown}>})=>{
  if(m.map?.image)return m.map;
  const uni=m.uniforms?.map?.value;
  if(uni&&typeof uni==='object'&&'image' in (uni as object)&&(uni as T.Texture).image)return uni as T.Texture;
  return null;
 };
+
+const skinMapUniform=(m:T.MeshStandardMaterial & {uniforms?:MToonUniforms})=>{
+ const uni=m.uniforms?.map?.value;
+ if(uni&&typeof uni==='object'&&'isTexture' in (uni as object))return uni as T.Texture;
+ return m.map??null;
+};
+
+/** MToon samples uniforms.map — setter alone can miss WebGL refresh after clone／fork. */
+const setMToonBodyMap=(m:T.MeshStandardMaterial,tex:T.Texture)=>{
+ m.map=tex;
+ const uni=(m as T.MeshStandardMaterial & {uniforms?:MToonUniforms}).uniforms;
+ if(uni?.map)uni.map.value=tex;
+ const mtoon=m as MToonLike & {_uploadUniformsWorkaround?:()=>void;uniformsNeedUpdate?:boolean};
+ if(mtoon.isMToonMaterial&&mtoon._uploadUniformsWorkaround)mtoon._uploadUniformsWorkaround();
+ if('uniformsNeedUpdate' in mtoon)mtoon.uniformsNeedUpdate=true;
+ tex.needsUpdate=true;
+ m.needsUpdate=true;
+};
+
+const MTOON_TEXTURE_UNIFORM_KEYS=new Set([
+ 'map','normalMap','emissiveMap','shadeMultiplyTexture','shadingShiftTexture','matcapTexture',
+ 'rimMultiplyTexture','outlineWidthMultiplyTexture','uvAnimationMaskTexture',
+]);
 
 /**
  * Unmask Body_00_SKIN under hidden Tops／Bottoms, then paint teal bra＋shorts into the
@@ -439,15 +464,17 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
  next.minFilter=T.LinearMipmapLinearFilter;
  next.magFilter=T.LinearFilter;
  next.needsUpdate=true;
- for(const m of skinMats){
-  m.map=next;
-  const uni=(m as T.MeshStandardMaterial & {uniforms?:Record<string,{value:unknown}>}).uniforms;
-  if(uni?.map)uni.map.value=next;
-  m.needsUpdate=true;
+ for(const m of skinMats)setMToonBodyMap(m,next);
+ for(const mesh of skinMeshes){
+  const mats=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+  for(const mat of mats){
+   const m=mat as T.MeshStandardMaterial;
+   if(!/Body_00_SKIN/i.test(m.name||'')||/Outline/i.test(m.name||''))continue;
+   setMToonBodyMap(m,next);
+  }
  }
+ return next;
 };
-
-type MToonUniforms=Record<string,{value:unknown}>;
 
 const copyMToonTextureUniform=(bun:MToonUniforms,hair:MToonUniforms,key:string)=>{
  const src=hair[key]?.value;
@@ -552,9 +579,25 @@ const detachMToonUniforms=(dst:MToonLike,src:MToonLike)=>{
  const du=(dst as {uniforms?:MToonUniforms}).uniforms;
  if(!su||!du)return;
  for(const key of Object.keys(su)){
+  if(MTOON_TEXTURE_UNIFORM_KEYS.has(key))continue;
   const slot=du[key];
   if(!slot)continue;
   slot.value=forkUniformValue(su[key].value);
+ }
+};
+
+/** MToon.copy() aliases school map — fork texture uniforms so practice can swap maps safely. */
+const forkMToonTextureUniforms=(mat:MToonLike)=>{
+ const uni=(mat as {uniforms?:MToonUniforms}).uniforms;
+ if(!uni)return;
+ for(const key of MTOON_TEXTURE_UNIFORM_KEYS){
+  const slot=uni[key];
+  const tex=slot?.value;
+  if(!tex||typeof tex!=='object'||!('isTexture' in (tex as object)))continue;
+  const forked=(tex as T.Texture).clone();
+  forked.needsUpdate=true;
+  slot.value=forked;
+  if(key==='map')setMToonBodyMap(mat as T.MeshStandardMaterial,forked);
  }
 };
 
@@ -563,11 +606,52 @@ const clonePracticeMaterial=(src:T.Material)=>{
  syncMaterialRenderState(dst,src);
  const s=src as MToonLike;
  const d=dst as MToonLike;
- if(s.isMToonMaterial)detachMToonUniforms(d,s);
+ if(s.isMToonMaterial){
+  detachMToonUniforms(d,s);
+  forkMToonTextureUniforms(d);
+ }
  const sm=src as T.MeshStandardMaterial;
  const dm=dst as T.MeshStandardMaterial;
  if(sm.map&&dm.map)dm.map.colorSpace=sm.map.colorSpace;
  return dst;
+};
+
+const collectBodySkinMapTex=(root:T.Object3D,sink:Set<T.Texture>)=>{
+ root.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  for(const mat of mats){
+   const m=mat as T.MeshStandardMaterial;
+   if(!/Body_00_SKIN/i.test(m.name||'')||/Outline/i.test(m.name||''))continue;
+   const map=skinMapUniform(m);
+   if(map)sink.add(map);
+  }
+ });
+};
+
+const assertPracticeBodySkinMaps=(practice:T.Object3D,school:T.Object3D,painted:T.Texture)=>{
+ const schoolMaps=new Set<T.Texture>();
+ const practiceMaps=new Set<T.Texture>();
+ collectBodySkinMapTex(school,schoolMaps);
+ collectBodySkinMapTex(practice,practiceMaps);
+ for(const map of practiceMaps){
+  if(map===painted)continue;
+  if(schoolMaps.has(map))throw new Error('practice Body_00_SKIN map still references school albedo');
+  if(!(map.image instanceof HTMLCanvasElement))throw new Error('practice Body_00_SKIN map must be painted canvas');
+ }
+ for(const map of schoolMaps){
+  if(map===painted)throw new Error('school outfit map was replaced by practice paint');
+ }
+ practice.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  for(const mat of mats){
+   const m=mat as T.MeshStandardMaterial;
+   if(!/Body_00_SKIN/i.test(m.name||'')||/Outline/i.test(m.name||''))continue;
+   const viaUniform=skinMapUniform(m);
+   if(viaUniform!==painted)throw new Error('Body mesh render map uniform must be the painted skin texture');
+  }
+ });
 };
 
 const isPracticeUniformMesh=(obj:T.Mesh|T.SkinnedMesh,outfit:AnimeOutfit)=>{
@@ -704,7 +788,8 @@ const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
  });
  // Never add MeshBasic flesh balloons or hook MToon onBeforeCompile.
  if(outfit.practiceBody){
-  paintPracticeBodySkin(root);
+  const painted=paintPracticeBodySkin(root);
+  if(painted)root.userData.practiceBodySkinMap=painted;
   restyleHairBun(root);
  }
 };
@@ -799,6 +884,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(practiceBuilt||!practiceShell||disposed)return;
    performance.mark('practice-outfit-build-start');
    finishCharacterLook(practiceShell,practiceOutfit,gradient);
+   const painted=practiceShell.userData.practiceBodySkinMap as T.Texture|undefined;
+   if(schoolModel&&painted)assertPracticeBodySkinMaps(practiceShell,schoolModel,painted);
    if(schoolModel&&uniformAssetSnap)assertUniformOutfitUntouched(uniformAssetSnap,schoolModel);
    performance.mark('practice-outfit-build-end');
    try{performance.measure('practice-outfit-build','practice-outfit-build-start','practice-outfit-build-end');}catch{/* duplicate measure */}

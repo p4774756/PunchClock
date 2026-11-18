@@ -14,6 +14,10 @@ assert.match(src, /isolatePracticeRig/, 'practice rig must deep-clone shared mes
 assert.match(src, /clonePracticeMaterial/, 'practice rig must fork MToon materials with render parity');
 assert.match(src, /syncMaterialRenderState/, 'cloned materials must copy transparent/depthWrite/side');
 assert.match(src, /detachMToonUniforms/, 'MToon Color uniforms must not alias school rig');
+assert.match(src, /MTOON_TEXTURE_UNIFORM_KEYS/, 'detach must not reset MToon texture uniforms to school');
+assert.match(src, /forkMToonTextureUniforms/, 'practice MToon must fork texture uniforms after clone');
+assert.match(src, /setMToonBodyMap/, 'painted skin must bind uniforms.map for MToon shader');
+assert.match(src, /assertPracticeBodySkinMaps/, 'practice build must verify body map fork from school');
 assert.match(src, /isPracticeUniformMesh/, 'practice must detect uniform-only meshes');
 assert.match(src, /isPracticeUniformMesh\(obj,outfit\)\)obj\.visible=false/, 'hidden uniform meshes must set visible=false');
 assert.match(src, /next\.colorSpace=src\.colorSpace/, 'painted skin map must preserve source colorSpace');
