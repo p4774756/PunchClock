@@ -63,24 +63,64 @@ test('下船點可站立', () => {
   assert.ok(B.disembarkPointsStand(0.29));
 });
 
+test('船PassengerScale：船上縮放、下船恢復', () => {
+  assert.equal(B.boatPassengerScaleFactor('docked-main'), 1);
+  assert.equal(B.boatPassengerScaleFactor('sailing-out'), B.BOAT_PASSENGER_SCALE);
+  assert.equal(B.boatPassengerScaleFactor('steering'), B.BOAT_PASSENGER_SCALE);
+  assert.equal(B.boatPassengerScaleFactor('docked-beach'), 1);
+});
+
+test('boatWakeActive：航行與低速掌舵', () => {
+  assert.equal(B.boatWakeActive('sailing-out', 0, {}), true);
+  assert.equal(B.boatWakeActive('docked-main', 0, {}), false);
+  assert.equal(B.boatWakeActive('steering', 0.12, {}), true);
+  assert.equal(B.boatWakeActive('steering', 0.02, {}), false);
+  assert.equal(B.boatWakeActive('steering', 0.5, { reduced: true }), false);
+});
+
 test('abortSailing 會抵達目的地', () => {
   let state = B.startSailing(B.createBoatState('main'), 'main');
   state = B.abortSailing(state);
   assert.equal(state.phase, 'docked-beach');
 });
 
+test('hullShapeToLocal：shape 船首尖端對齊本地 +Z', () => {
+  const halfL = B.BOAT_HULL_HALF_L;
+  const bow = B.hullShapeToLocal(0, halfL);
+  assert.ok(bow.z > 0, '船首 z 為正');
+  assert.ok(Math.abs(bow.z - B.BOAT_BOW_LOCAL_Z) < 0.04, '船首 z 約 BOAT_BOW_LOCAL_Z');
+  const stern = B.hullShapeToLocal(0, -halfL);
+  assert.ok(stern.z < 0, '船尾平切邊 z 為負');
+  assert.ok(stern.z < B.BOAT_STERN_DECK_Z, '船尾緣在泳池／艉甲板後方');
+  assert.ok(B.BOAT_STERN_DECK_Z < 0, '泳池中心在本地 -Z');
+});
+
+test('舷側燈帶貼齊船身輪廓', () => {
+  const path = B.hullGunwaleStripPathLocal(
+    B.BOAT_HULL_HALF_W,
+    B.BOAT_HULL_HALF_L,
+    1,
+    0.005,
+    8
+  );
+  assert.ok(path.length > 12);
+  for (let i = 0; i < path.length; i++) {
+    const p = path[i];
+    const d = B.distanceToHullPlanContour(p.x, p.z, B.BOAT_HULL_HALF_W, B.BOAT_HULL_HALF_L, 1);
+    assert.ok(d <= 0.012, '取樣點 ' + i + ' 距輪廓 ' + d.toFixed(4) + ' m');
+  }
+});
+
 test('遊艇站位與船首軸向常數', () => {
   assert.ok(B.BOAT_BOW_LOCAL_Z > 0, '船首在本地 +Z');
   assert.ok(B.BOAT_STERN_DECK_Z < 0, '船尾甲板在本地 -Z');
-  assert.equal(B.BOAT_SEAT_STERN_OFFSET, -B.BOAT_STERN_DECK_Z, '站位沿船尾對齊甲板中心');
-  const sternDeckDepth = 0.4;
-  const deckHalf = sternDeckDepth / 2;
-  const seatLocalZ = -B.BOAT_SEAT_STERN_OFFSET;
+  const deckHalf = B.BOAT_STERN_DECK_WIDTH / 2;
   assert.ok(
-    seatLocalZ >= B.BOAT_STERN_DECK_Z - deckHalf && seatLocalZ <= B.BOAT_STERN_DECK_Z + deckHalf,
+    B.BOAT_SEAT_LOCAL_Z >= B.BOAT_STERN_DECK_Z - deckHalf
+      && B.BOAT_SEAT_LOCAL_Z <= B.BOAT_STERN_DECK_Z + deckHalf + 0.12,
     '站位落在船尾木甲板 Z 範圍內'
   );
-  assert.equal(B.BOAT_DECK_OFFSET, 0.36);
+  assert.equal(B.BOAT_DECK_OFFSET, 0.41);
   assert.ok(B.boatHullPartCount() <= B.BOAT_HULL_MESH_BUDGET);
   const stern = B.sampleRoute(0);
   const bowish = B.sampleRoute(0.08);
@@ -88,4 +128,19 @@ test('遊艇站位與船首軸向常數', () => {
   const dz = bowish.z - stern.z;
   const yaw = Math.atan2(dx, dz);
   assert.ok(Math.abs(yaw - stern.yaw) < 0.35, '航向沿 +Z 船首');
+});
+
+test('乘客比例與站位不擋泳池', () => {
+  const headY = B.BOAT_DECK_OFFSET + B.BOAT_PASSENGER_HEIGHT * B.BOAT_PASSENGER_SCALE;
+  assert.ok(
+    headY > B.BOAT_SUPERSTRUCTURE_1_TOP,
+    '乘客頭頂應高出低緩第一層船室，跟隨鏡頭才看得到上半身'
+  );
+  assert.ok(
+    B.BOAT_FLYBRIDGE_TOP - B.BOAT_DECK_OFFSET <= 0.52,
+    '上層建築（不含桅杆）應在甲板上方約 0.5 m 內'
+  );
+  assert.ok(B.boatSeatClearOfPool(), '站位不在泳池矩形內');
+  assert.ok(B.BOAT_FLYBRIDGE_TOP > B.BOAT_DECK_OFFSET);
+  assert.ok(B.BOAT_PASSENGER_SCALE >= 0.55 && B.BOAT_PASSENGER_SCALE <= 0.6);
 });

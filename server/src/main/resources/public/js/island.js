@@ -39,7 +39,10 @@ import {
   boatWorldPose,
   disembarkNear,
   BOAT_DECK_OFFSET,
-  BOAT_SEAT_STERN_OFFSET
+  BOAT_SEAT_LOCAL_X,
+  BOAT_SEAT_LOCAL_Z,
+  boatPassengerScaleFactor,
+  boatWakeActive
 } from './island-boat.js';
 import { createCasinoController, CASINO_NAME, promptDomUpdate } from './island-casino.js';
 import { createGraffitiController } from './island-graffiti.js';
@@ -378,19 +381,32 @@ function boot() {
       boatState = stepBoat(boatState, dt, { paused: false, reduced: false });
     }
     syncBoatMesh(elapsed);
-    const wake = boatMesh && boatMesh.userData.wake;
-    if (wake) {
-      const showWake = isSailing() && !reduced;
-      for (let wi = 0; wi < wake.length; wi++) {
-        const foam = wake[wi];
-        foam.visible = showWake;
-        if (showWake) {
-          foam.position.y = foam.userData.baseY + Math.sin(elapsed * 3.1 + foam.userData.phase) * 0.02;
-          foam.position.z = foam.userData.baseZ + Math.sin(elapsed * 2.4 + foam.userData.phase) * 0.025;
-        } else {
-          foam.position.y = foam.userData.baseY;
-          foam.position.z = foam.userData.baseZ;
+    const wakePack = boatMesh && boatMesh.userData.wake;
+    if (wakePack && wakePack.mesh) {
+      const steerSpd = isSteering() ? Math.hypot(boatState.vx || 0, boatState.vz || 0) : 0;
+      const showWake = boatWakeActive(boatState.phase, steerSpd, {
+        reduced: reduced,
+        voyagePaused: voyageUiPaused()
+      });
+      const wakeMesh = wakePack.mesh;
+      wakeMesh.visible = showWake;
+      if (showWake && !reduced) {
+        const dummy = wakePack.dummy;
+        const specs = wakePack.specs;
+        const bob = Math.sin(elapsed * 2.8) * 0.004;
+        for (let wi = 0; wi < specs.length; wi++) {
+          const s = specs[wi];
+          dummy.position.set(
+            s.baseX + Math.sin(elapsed * 2.6 + s.phase) * 0.006,
+            s.baseY + bob,
+            s.baseZ + Math.sin(elapsed * 2.4 + s.phase) * 0.01
+          );
+          dummy.rotation.set(s.rx || 0, 0, s.rz || 0);
+          dummy.scale.set(s.sx, s.sy, s.sz);
+          dummy.updateMatrix();
+          wakeMesh.setMatrixAt(wi, dummy.matrix);
         }
+        wakeMesh.instanceMatrix.needsUpdate = true;
       }
     }
     if (isSailingPhase(prev.phase) && !isSailingPhase(boatState.phase)) {
@@ -825,6 +841,7 @@ function boot() {
     player.vx = 0;
     player.vz = 0;
     setPlayerAnchor(player.x, P, player.z, player.yaw);
+    syncPassengerScale();
     syncBoatMesh(boatElapsed);
     followPlayerCamera(true);
     syncInteractPrompt();
@@ -842,6 +859,7 @@ function boot() {
     player.vz = 0;
     clearMoveInput();
     setPlayerAnchor(player.x, P, player.z, player.yaw);
+    syncPassengerScale();
     syncBoatMesh(boatElapsed);
     followPlayerCamera(true);
     syncInteractPrompt();
@@ -1138,6 +1156,12 @@ function boot() {
     }, 4200);
   }
 
+  function syncPassengerScale() {
+    const s = boatPassengerScaleFactor(boatState.phase);
+    localView.object.scale.setScalar(s);
+    miluPlaceholder.scale.setScalar(s);
+  }
+
   function syncAvatarVisible() {
     const vis = avatarVisibility({
       show: playerVisible(mode),
@@ -1166,6 +1190,7 @@ function boot() {
     localView.object.position.set(player.x, y, player.z);
     if (miluPlaceholder.visible) miluPlaceholder.position.set(player.x, y, player.z);
     syncAvatarVisible();
+    syncPassengerScale();
   }
 
   function updatePlayer(dt) {
@@ -1177,8 +1202,12 @@ function boot() {
       const u = routeProgress(boatState.phase, boatState.progress);
       const pose = sampleRoute(u);
       const deckY = dockedBob(boatElapsed, reduced) + BOAT_DECK_OFFSET;
-      const seatX = pose.x - Math.sin(pose.yaw) * BOAT_SEAT_STERN_OFFSET;
-      const seatZ = pose.z - Math.cos(pose.yaw) * BOAT_SEAT_STERN_OFFSET;
+      const fwdX = Math.sin(pose.yaw);
+      const fwdZ = Math.cos(pose.yaw);
+      const rightX = Math.cos(pose.yaw);
+      const rightZ = -Math.sin(pose.yaw);
+      const seatX = pose.x + fwdX * BOAT_SEAT_LOCAL_Z + rightX * BOAT_SEAT_LOCAL_X;
+      const seatZ = pose.z + fwdZ * BOAT_SEAT_LOCAL_Z + rightZ * BOAT_SEAT_LOCAL_X;
       player.x = seatX;
       player.z = seatZ;
       player.yaw = pose.yaw;
@@ -1204,8 +1233,12 @@ function boot() {
       }
       const pose = boatWorldPose(boatState);
       const deckY = dockedBob(boatElapsed, reduced) + BOAT_DECK_OFFSET;
-      const seatX = pose.x - Math.sin(pose.yaw) * BOAT_SEAT_STERN_OFFSET;
-      const seatZ = pose.z - Math.cos(pose.yaw) * BOAT_SEAT_STERN_OFFSET;
+      const fwdX = Math.sin(pose.yaw);
+      const fwdZ = Math.cos(pose.yaw);
+      const rightX = Math.cos(pose.yaw);
+      const rightZ = -Math.sin(pose.yaw);
+      const seatX = pose.x + fwdX * BOAT_SEAT_LOCAL_Z + rightX * BOAT_SEAT_LOCAL_X;
+      const seatZ = pose.z + fwdZ * BOAT_SEAT_LOCAL_Z + rightZ * BOAT_SEAT_LOCAL_X;
       player.x = seatX;
       player.z = seatZ;
       player.yaw = pose.yaw;

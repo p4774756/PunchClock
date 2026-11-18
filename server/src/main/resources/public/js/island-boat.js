@@ -13,28 +13,154 @@ import {
 import { smoothingFactor } from './island-explore.js';
 
 export const BOAT_VOYAGE_SEC = 10;
-/** 角色站位（船 Group 局部 Y，對齊船尾木質日光甲板頂面）。 */
-export const BOAT_DECK_OFFSET = 0.36;
+/** 角色站位（船 Group 局部 Y，對齊船尾日光甲板頂面）。 */
+export const BOAT_DECK_OFFSET = 0.41;
 /** 船首特徵（本地 +Z），與 island-props buildBoatMesh 一致。 */
-export const BOAT_BOW_LOCAL_Z = 0.88;
+export const BOAT_BOW_LOCAL_Z = 0.96;
 /** 船尾日光甲板中心（本地 Z）。 */
-export const BOAT_STERN_DECK_Z = -0.58;
-/** 航行時角色沿船尾（本地 -Z）偏移，對齊船尾甲板中心。 */
-export const BOAT_SEAT_STERN_OFFSET = -BOAT_STERN_DECK_Z;
+export const BOAT_STERN_DECK_Z = -0.74;
+/** 日光甲板沿船寬（本地 X）尺寸，供站位測試。 */
+export const BOAT_STERN_DECK_WIDTH = 0.62;
+/** 角色站位（本地 X/Z，+Z 船首）；在泳池前、上層建築後的甲板側。 */
+export const BOAT_SEAT_LOCAL_X = 0.32;
+export const BOAT_SEAT_LOCAL_Z = -0.36;
+/** @deprecated 用 BOAT_SEAT_LOCAL_Z；保留供舊測試讀取 Z 符號。 */
+export const BOAT_SEAT_STERN_OFFSET = -BOAT_SEAT_LOCAL_Z;
+/** 船尾泳池中心與半寬（本地），供站位不在池內測試。 */
+export const BOAT_POOL_CENTER_X = 0;
+export const BOAT_POOL_CENTER_Z = -0.74;
+export const BOAT_POOL_HALF_W = 0.13;
+export const BOAT_POOL_HALF_D = 0.11;
+/** 第一層上層建築頂（船 Group 局部 Y，對齊 buildBoatMesh）。 */
+export const BOAT_SUPERSTRUCTURE_1_TOP = 0.575;
+/** 飛橋硬頂上緣（局部 Y）。 */
+export const BOAT_FLYBRIDGE_TOP = 0.9;
 /** 船體網格預算（不含燈與浪花）。 */
-export const BOAT_HULL_MESH_BUDGET = 20;
+export const BOAT_HULL_MESH_BUDGET = 48;
 /** 掌舵碰撞與靠岸判定用船體半徑。 */
-export const BOAT_HULL_RADIUS = 0.42;
+export const BOAT_HULL_RADIUS = 0.38;
 export const BOAT_STEER_SPEED = 2.15;
 export const BOAT_STEER_ACCEL_LAMBDA = 7.5;
 export const BOAT_YAW_LAMBDA = 9;
 /** 靠岸下船：船心與泊位距離上限。 */
 export const BOAT_DISEMBARK_RADIUS = 1.25;
+/** 船上乘客縮放（不動陸上 MILU_ANIM.height）。 */
+export const BOAT_PASSENGER_SCALE = 0.58;
+
+/** 乘客頭頂上限相對於 MILU_ANIM.height（島上角色）。 */
+export const BOAT_PASSENGER_HEIGHT = 1.42;
+
+/** buildBoatMesh 船體俯視半寬／半長（shape 單位）。 */
+export const BOAT_HULL_HALF_W = 0.37;
+export const BOAT_HULL_HALF_L = 0.97;
+
+/**
+ * 俯視 Shape 座標 (sx,sy；+Y 船首) → 船 Group 本地水平 (x,z)。
+ * 與 island-props extrudeFlat（rotateX(-π/2)、rotateY(π)）一致。
+ */
+export function hullShapeToLocal(sx, sy) {
+  return { x: -sx, z: sy };
+}
+
+function quadPoint(p0, p1, p2, t) {
+  const u = 1 - t;
+  return {
+    x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x,
+    y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y
+  };
+}
+
+/** 與 buildBoatMesh hullPlanShape 相同的俯視輪廓（shape XY）。 */
+export function hullPlanShapePoints(halfW, halfL, scale, segPerCurve) {
+  const s = scale == null ? 1 : scale;
+  const W = halfW * s;
+  const L = halfL * s;
+  const n = segPerCurve == null ? 10 : segPerCurve;
+  const pts = [];
+  function addQuad(p0, p1, p2) {
+    for (let i = 0; i < n; i++) pts.push(quadPoint(p0, p1, p2, i / n));
+  }
+  addQuad(
+    { x: 0, y: L },
+    { x: W * 0.82, y: L * 0.58 },
+    { x: W * 0.96, y: L * 0.12 }
+  );
+  addQuad(
+    { x: W * 0.96, y: L * 0.12 },
+    { x: W, y: -L * 0.42 },
+    { x: W * 0.78, y: -L }
+  );
+  pts.push({ x: W * 0.78, y: -L });
+  pts.push({ x: -W * 0.78, y: -L });
+  addQuad(
+    { x: -W * 0.78, y: -L },
+    { x: -W, y: -L * 0.42 },
+    { x: -W * 0.96, y: L * 0.12 }
+  );
+  addQuad(
+    { x: -W * 0.96, y: L * 0.12 },
+    { x: -W * 0.82, y: L * 0.58 },
+    { x: 0, y: L }
+  );
+  return pts;
+}
+
+function localHullContour(halfW, halfL, scale) {
+  return hullPlanShapePoints(halfW, halfL, scale).map((p) => hullShapeToLocal(p.x, p.y));
+}
+
+function distPointSeg(px, pz, ax, az, bx, bz) {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const len2 = dx * dx + dz * dz;
+  if (len2 < 1e-12) return Math.hypot(px - ax, pz - az);
+  let t = ((px - ax) * dx + (pz - az) * dz) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
+}
+
+/** 本地 (x,z) 到船體俯視輪廓的最短距離。 */
+export function distanceToHullPlanContour(x, z, halfW, halfL, scale) {
+  const contour = localHullContour(halfW, halfL, scale);
+  let best = Infinity;
+  for (let i = 0; i < contour.length; i++) {
+    const j = (i + 1) % contour.length;
+    const a = contour[i];
+    const b = contour[j];
+    const d = distPointSeg(x, z, a.x, a.z, b.x, b.z);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/** 舷側燈帶路徑（本地 XZ，沿輪廓外偏 outwardM）。 */
+export function hullGunwaleStripPathLocal(halfW, halfL, scale, outwardM, segPerCurve) {
+  const shapePts = hullPlanShapePoints(halfW, halfL, scale, segPerCurve);
+  return shapePts.map((p) => {
+    const loc = hullShapeToLocal(p.x, p.y);
+    const side = p.x >= 0 ? 1 : -1;
+    const out = outwardM == null ? 0.005 : outwardM;
+    return { x: loc.x + side * out, z: loc.z };
+  });
+}
 
 /** 遊艇船體零件數（不含桅燈與航行浪花），供測試對齊。 */
 export function boatHullPartCount() {
-  return 17;
+  return 34;
 }
+
+/** 角色本地站位 (x,z) 是否在船尾泳池矩形外。 */
+export function boatSeatClearOfPool() {
+  return (
+    Math.abs(BOAT_SEAT_LOCAL_X - BOAT_POOL_CENTER_X) > BOAT_POOL_HALF_W
+    || Math.abs(BOAT_SEAT_LOCAL_Z - BOAT_POOL_CENTER_Z) > BOAT_POOL_HALF_D
+  );
+}
+
+export function boatPassengerScaleFactor(phase) {
+  return isOnBoatPhase(phase) ? BOAT_PASSENGER_SCALE : 1;
+}
+
 export const BOAT_BOB_BASE = -0.62;
 export const BOAT_BOB_AMP = 0.035;
 
@@ -382,4 +508,17 @@ export function boatWorldPose(state) {
 
 export function pierPadsForNav() {
   return WALK_PADS;
+}
+
+/** 航行／掌舵時是否應顯示船尾浪花（純邏輯，不含 reduced-motion）。 */
+export function boatWakeActive(phase, speed, opts) {
+  const options = opts || {};
+  if (options.reduced) return false;
+  if (options.voyagePaused && isSailingPhase(phase)) return false;
+  if (isSailingPhase(phase)) return true;
+  if (isSteeringPhase(phase)) {
+    const lim = options.minSpeed == null ? 0.07 : options.minSpeed;
+    return (speed || 0) > lim;
+  }
+  return false;
 }
