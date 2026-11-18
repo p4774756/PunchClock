@@ -613,20 +613,15 @@ export const INTERIORS = Object.freeze([
     outside: Object.freeze({ x: 13.32, z: -7.4, yaw: Math.PI / 2 }),
     floor: Object.freeze({ minX: -3.75, maxX: 3.75, minZ: -1.75, maxZ: 3.15 }),
     blocks: Object.freeze([
-      Object.freeze({ id: 'prize-cab', minX: -3.55, maxX: -2.12, minZ: -0.45, maxZ: 1.02 }),
-      Object.freeze({ id: 'claw-a', minX: -3.02, maxX: -1.92, minZ: 1.72, maxZ: 2.62 }),
-      Object.freeze({ id: 'claw-b', minX: -1.62, maxX: -0.72, minZ: 1.72, maxZ: 2.62 }),
-      Object.freeze({ id: 'pinball', minX: 1.82, maxX: 3.62, minZ: -1.12, maxZ: 0.32 }),
+      Object.freeze({ id: 'slots-row', minX: -3.55, maxX: -1.82, minZ: -0.42, maxZ: 2.58 }),
+      Object.freeze({ id: 'roulette', minX: -0.92, maxX: 0.92, minZ: 1.38, maxZ: 2.72 }),
       Object.freeze({ id: 'bj-table', minX: 2.02, maxX: 3.48, minZ: 0.72, maxZ: 1.72 }),
-      Object.freeze({ id: 'arch-l', minX: -1.38, maxX: -0.8, minZ: -1.72, maxZ: -1.12 }),
-      Object.freeze({ id: 'arch-r', minX: 0.8, maxX: 1.38, minZ: -1.72, maxZ: -1.12 }),
-      Object.freeze({ id: 'plants', minX: 2.82, maxX: 3.52, minZ: 1.95, maxZ: 2.82 })
+      Object.freeze({ id: 'chip-bar', minX: -0.55, maxX: 0.55, minZ: 0.82, maxZ: 1.18 })
     ]),
     interacts: Object.freeze([
       Object.freeze({ id: 'casino-bj', x: 1.65, z: 1.22, r: 0.58, label: '玩 21 點', action: 'openCasinoBlackjack' }),
-      Object.freeze({ id: 'casino-claw-a', x: -2.45, z: 1.38, r: 0.52, label: '夾娃娃機', action: 'casinoClaw', claw: 0 }),
-      Object.freeze({ id: 'casino-claw-b', x: -1.15, z: 1.38, r: 0.52, label: '夾娃娃機', action: 'casinoClaw', claw: 1 }),
-      Object.freeze({ id: 'casino-pinball', x: 1.15, z: -0.55, r: 0.68, label: '彈珠台', action: 'casinoPinball' })
+      Object.freeze({ id: 'casino-slots', x: -1.12, z: 1.05, r: 0.62, label: '拉霸機', action: 'casinoSlots' }),
+      Object.freeze({ id: 'casino-roulette', x: 0.55, z: 0.42, r: 0.48, label: '輪盤桌', action: 'casinoRoulette' })
     ])
   })
 ]);

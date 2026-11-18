@@ -125,7 +125,7 @@ export function mountCasinoLobby(opts) {
   let blackjackFromInterior = false;
   let balance = readChipBalance(storage);
   const TABLE_BACK_LOBBY = '返回大廳';
-  const TABLE_BACK_INTERIOR = '返回遊樂場';
+  const TABLE_BACK_INTERIOR = '返回賭廳';
   const chipsEl = root && root.querySelector('[data-casino-chips]');
   const chipsNoteEl = root && root.querySelector('[data-casino-chips-note]');
   const playerEl = root && root.querySelector('[data-casino-player]');

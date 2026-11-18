@@ -51,12 +51,12 @@ export function applyInteriorInteractZone(zone, actions) {
     if (typeof actions.openCasinoBlackjack === 'function') actions.openCasinoBlackjack();
     return true;
   }
-  if (zone.action === 'casinoClaw') {
-    if (typeof actions.casinoClaw === 'function') actions.casinoClaw(zone);
+  if (zone.action === 'casinoSlots') {
+    if (typeof actions.casinoSlots === 'function') actions.casinoSlots(zone);
     return true;
   }
-  if (zone.action === 'casinoPinball') {
-    if (typeof actions.casinoPinball === 'function') actions.casinoPinball(zone);
+  if (zone.action === 'casinoRoulette') {
+    if (typeof actions.casinoRoulette === 'function') actions.casinoRoulette(zone);
     return true;
   }
   return false;
@@ -66,8 +66,8 @@ export function buildInteriorInteractActions(ctx) {
   return {
     leaveInterior: () => ctx.leaveInterior && ctx.leaveInterior(),
     openCasinoBlackjack: () => ctx.openCasinoBlackjack && ctx.openCasinoBlackjack(),
-    casinoClaw: (z) => ctx.casinoArcadePoke && ctx.casinoArcadePoke('claw', z && z.claw),
-    casinoPinball: () => ctx.casinoArcadePoke && ctx.casinoArcadePoke('pinball')
+    casinoSlots: () => ctx.casinoArcadePoke && ctx.casinoArcadePoke('slots'),
+    casinoRoulette: () => ctx.casinoArcadePoke && ctx.casinoArcadePoke('roulette')
   };
 }
 

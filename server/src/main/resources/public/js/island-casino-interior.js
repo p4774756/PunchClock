@@ -1,9 +1,9 @@
-// 莫卡賭場 3D 室內：粉彩霓虹台式遊樂場（低多邊形、無 PointLight）。
+// 莫卡賭場 3D 室內：拉斯維加斯霓虹廳（低多邊形、無 PointLight）。
 
 import { interiorByBuilding } from './island-interior.js';
 
-const CLAW_MSG = Object.freeze(['夾到一隻小熊！', '抓到粉紅兔兔！']);
-const PINBALL_MSG = '彈珠嘣啦啦～好彩頭！';
+const SLOTS_MSG = '即將開獎，敬請期待！';
+const ROULETTE_MSG = '輪盤轉運中，好運將至！';
 
 export function createInterior(THREE, opts) {
   const room = interiorByBuilding('casino');
@@ -18,12 +18,9 @@ export function createInterior(THREE, opts) {
   const wallT = 0.1;
   const materials = [];
   const geometries = [];
-  const clawPlush = [];
-  const pinballs = [];
   let feedbackText = '';
   let feedbackUntil = 0;
-  let clawPulse = 0;
-  let pinPulse = 0;
+  let wheelSpin = 0;
 
   function mat(color, night, glow, emissiveI) {
     const material = new THREE.MeshLambertMaterial({
@@ -55,100 +52,101 @@ export function createInterior(THREE, opts) {
   const wallY = ground + wallH / 2;
   const southZ = floor.minZ - wallT / 2;
 
-  box(width + wallT * 2, 0.12, depth + wallT * 2, 0x3a2858, 0x5a4878, cx, ground + 0.06, cz);
-  box(width, 0.05, depth, 0x2a2238, 0x424058, cx, ground + 0.1, cz);
+  box(width + wallT * 2, 0.12, depth + wallT * 2, 0x2a1848, 0x3a2858, cx, ground + 0.06, cz);
+  box(width, 0.05, depth, 0x5c1838, 0x7a2848, cx, ground + 0.1, cz);
 
-  const tileCols = 10;
-  const tileRows = 7;
-  const tileW = width / tileCols;
-  const tileD = depth / tileRows;
-  const tileGeo = new THREE.BoxGeometry(tileW * 0.96, 0.025, tileD * 0.96);
-  geometries.push(tileGeo);
-  const tileCount = tileCols * tileRows;
-  const tileMatA = mat(0xfff0f8, 0xd8c0d0, 0xff9ee8, 0.08);
-  const tileMatB = mat(0xe8fff8, 0xc0d8d0, 0x7af8e8, 0.08);
-  const tilesA = new THREE.InstancedMesh(tileGeo, tileMatA, Math.ceil(tileCount / 2));
-  const tilesB = new THREE.InstancedMesh(tileGeo, tileMatB, Math.floor(tileCount / 2));
+  const carpetGeo = new THREE.BoxGeometry(0.52, 0.022, 0.52);
+  geometries.push(carpetGeo);
+  const carpetMat = mat(0x8c2030, 0xa82838, 0xff6a78, 0.06);
+  const carpetCols = 14;
+  const carpetRows = 9;
+  const carpetW = width / carpetCols;
+  const carpetD = depth / carpetRows;
+  const carpetCount = carpetCols * carpetRows;
+  const carpets = new THREE.InstancedMesh(carpetGeo, carpetMat, carpetCount);
   const dummy = new THREE.Object3D();
-  let tiA = 0;
-  let tiB = 0;
-  for (let row = 0; row < tileRows; row++) {
-    for (let col = 0; col < tileCols; col++) {
+  let ci = 0;
+  for (let row = 0; row < carpetRows; row++) {
+    for (let col = 0; col < carpetCols; col++) {
       dummy.position.set(
-        floor.minX + tileW * (col + 0.5),
+        floor.minX + carpetW * (col + 0.5),
         ground + 0.115,
-        floor.minZ + tileD * (row + 0.5)
+        floor.minZ + carpetD * (row + 0.5)
       );
       dummy.updateMatrix();
-      if ((col + row) % 2) {
-        tilesB.setMatrixAt(tiB, dummy.matrix);
-        tiB += 1;
-      } else {
-        tilesA.setMatrixAt(tiA, dummy.matrix);
-        tiA += 1;
-      }
+      carpets.setMatrixAt(ci, dummy.matrix);
+      ci += 1;
     }
   }
-  tilesA.count = tiA;
-  tilesB.count = tiB;
-  tilesA.instanceMatrix.needsUpdate = true;
-  tilesB.instanceMatrix.needsUpdate = true;
-  group.add(tilesA);
-  group.add(tilesB);
+  carpets.instanceMatrix.needsUpdate = true;
+  group.add(carpets);
 
-  box(wallT, wallH, depth + wallT, 0xfff0fa, 0xb8a0c8, floor.minX - wallT / 2, wallY, cz);
-  box(wallT, wallH, depth + wallT, 0xfff0fa, 0xb8a0c8, floor.maxX + wallT / 2, wallY, cz);
-  box(width + wallT * 2, wallH, wallT, 0xfff0fa, 0xb8a0c8, cx, wallY, floor.maxZ + wallT / 2);
+  const wallPurple = mat(0x4a2878, 0x5a3888, 0x7a48a8, 0.08);
+  function wallBox(w, h, d, x, y, z) {
+    const geometry = new THREE.BoxGeometry(w, h, d);
+    geometries.push(geometry);
+    const mesh = new THREE.Mesh(geometry, wallPurple);
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    return mesh;
+  }
+  wallBox(wallT, wallH, depth + wallT, floor.minX - wallT / 2, wallY, cz);
+  wallBox(wallT, wallH, depth + wallT, floor.maxX + wallT / 2, wallY, cz);
+  wallBox(width + wallT * 2, wallH, wallT, cx, wallY, floor.maxZ + wallT / 2);
 
   const doorW = 1.35;
   const leftW = (width - doorW) / 2;
-  box(leftW, wallH, wallT, 0xfff0fa, 0xb8a0c8, floor.minX + leftW / 2, wallY, southZ);
-  box(leftW, wallH, wallT, 0xfff0fa, 0xb8a0c8, floor.maxX - leftW / 2, wallY, southZ);
+  wallBox(leftW, wallH, wallT, floor.minX + leftW / 2, wallY, southZ);
+  wallBox(leftW, wallH, wallT, floor.maxX - leftW / 2, wallY, southZ);
+  box(doorW + 0.08, 0.1, 0.12, 0xd4a84b, 0xd4a84b, 0, ground + 1.72, southZ + 0.04, 0xffc56a, 0.55);
+  box(doorW + 0.22, 0.05, 0.06, 0xff6ad8, 0xff6ad8, 0, ground + 1.82, southZ + 0.05, 0xff4ec8, 0.78);
 
-  const archY = ground + 1.75;
-  box(0.22, 0.22, 0.22, 0xff7ad8, 0xff7ad8, -1.1, archY, southZ + 0.04, 0xff7ad8, 0.65);
-  box(0.22, 0.22, 0.22, 0xff7ad8, 0xff7ad8, 1.1, archY, southZ + 0.04, 0xff7ad8, 0.65);
-  box(doorW + 0.28, 0.14, 0.12, 0xff9ee8, 0xff9ee8, 0, archY + 0.08, southZ + 0.04, 0xff6ad8, 0.78);
-  box(0.12, 1.55, 0.12, 0xffc8f0, 0xffc8f0, -1.1, ground + 0.92, southZ + 0.05, 0xff7ad8, 0.42);
-  box(0.12, 1.55, 0.12, 0xffc8f0, 0xffc8f0, 1.1, ground + 0.92, southZ + 0.05, 0xff7ad8, 0.42);
+  box(width - 0.2, 0.08, 0.06, 0xd4a84b, 0xd4a84b, cx, ground + wallH - 0.12, cz, 0xffc56a, 0.35);
+  box(width - 0.35, 0.05, 0.04, 0xff6ad8, 0xff6ad8, cx, ground + wallH - 0.22, cz, 0xff4ec8, 0.62);
 
-  function buildClaw(cxLocal, czLocal, plushColor, glow) {
-    box(0.78, 1.65, 0.62, 0xc8a8d8, 0x9880b0, cxLocal, ground + 0.92, czLocal);
-    box(0.6, 0.95, 0.46, 0x1e1828, 0x141020, cxLocal, ground + 1.02, czLocal + 0.04);
-    box(0.64, 0.72, 0.04, 0xc8e8ff, 0x98c0e8, cxLocal, ground + 1.08, czLocal + 0.28, 0x88d8ff, 0.18);
-    box(0.68, 0.12, 0.52, 0xff9ee8, 0xff9ee8, cxLocal, ground + 1.58, czLocal - 0.02, glow, 0.72);
-    box(0.08, 0.32, 0.08, 0x9ad8ff, 0x9ad8ff, cxLocal, ground + 1.38, czLocal + 0.12, 0x7ae8ff, 0.55);
-    const plush = box(0.22, 0.22, 0.18, plushColor, plushColor, cxLocal, ground + 0.92, czLocal + 0.08, glow, 0.42);
-    clawPlush.push(plush);
+  function buildSlot(cxLocal, czLocal) {
+    box(0.58, 1.72, 0.52, 0x3d2468, 0x2a1848, cxLocal, ground + 0.98, czLocal);
+    box(0.48, 0.82, 0.06, 0x141020, 0x141020, cxLocal, ground + 1.05, czLocal + 0.25);
+    box(0.44, 0.38, 0.04, 0x221828, 0x181020, cxLocal, ground + 1.08, czLocal + 0.28);
+    box(0.5, 0.14, 0.5, 0xd4a84b, 0xd4a84b, cxLocal, ground + 1.72, czLocal - 0.02, 0xffc56a, 0.55);
+    box(0.42, 0.22, 0.06, 0xffe878, 0xffc858, cxLocal, ground + 1.15, czLocal + 0.29, 0xffe878, 0.85);
   }
 
-  buildClaw(-2.48, 2.18, 0xffb878, 0xff9a68);
-  buildClaw(-1.18, 2.18, 0xffa8d8, 0xff88c8);
-
-  const pinCx = 2.72;
-  const pinD = 0.42;
-  for (let pi = 0; pi < 4; pi++) {
-    const px = pinCx + pi * 0.48;
-    box(0.42, 0.92, pinD, 0x7ad8e8, 0x5ab8c8, px, ground + 0.56, -0.28);
-    box(0.38, 0.55, 0.08, 0x2a3848, 0x2a3848, px, ground + 0.92, -0.48, 0x9ae8ff, 0.45);
-    const ballMat = mat(0xffe878, 0xffc858, 0xffe878, 0.2);
-    const ballGeo = new THREE.SphereGeometry(0.045, 6, 5);
-    geometries.push(ballGeo);
-    const ball = new THREE.Mesh(ballGeo, ballMat);
-    ball.position.set(px - 0.08, ground + 0.72, -0.22 + pi * 0.04);
-    group.add(ball);
-    pinballs.push(ball);
+  const slotZs = [0.15, 0.85, 1.55, 2.25];
+  for (let si = 0; si < slotZs.length; si++) {
+    buildSlot(-2.68, slotZs[si]);
   }
+
+  const wheelGroup = new THREE.Group();
+  wheelGroup.position.set(0, ground + 0.82, 2.02);
+  group.add(wheelGroup);
+  const wheelGeo = new THREE.CylinderGeometry(0.62, 0.62, 0.1, 12);
+  geometries.push(wheelGeo);
+  const wheelBase = new THREE.Mesh(wheelGeo, mat(0x3d2468, 0x2a1848, 0x5a3878, 0.12));
+  wheelGroup.add(wheelBase);
+  const wheelTopGeo = new THREE.CylinderGeometry(0.48, 0.48, 0.06, 12);
+  geometries.push(wheelTopGeo);
+  const wheelTop = new THREE.Mesh(wheelTopGeo, mat(0x2a9858, 0x1a7848, 0x5ae898, 0.22));
+  wheelTop.position.y = 0.08;
+  wheelGroup.add(wheelTop);
+  for (let wi = 0; wi < 8; wi++) {
+    const ang = (wi / 8) * Math.PI * 2;
+    box(0.08, 0.06, 0.22, 0xff6ad8, 0xff6ad8,
+      Math.cos(ang) * 0.38, ground + 0.92, 2.02 + Math.sin(ang) * 0.38, 0xff4ec8, 0.72);
+  }
+  box(1.35, 0.1, 0.95, 0x5a4878, 0x4a3868, 0, ground + 0.74, 2.02);
 
   const tbl = room.blocks.find((b) => b.id === 'bj-table');
   const tx = (tbl.minX + tbl.maxX) / 2;
   const tz = (tbl.minZ + tbl.maxZ) / 2;
-  box(tbl.maxX - tbl.minX, 0.08, tbl.maxZ - tbl.minZ, 0x3cb878, 0x2a9860, tx, ground + 0.74, tz, 0x5ae898, 0.22);
+  box(tbl.maxX - tbl.minX, 0.08, tbl.maxZ - tbl.minZ, 0x2a9860, 0x1a7848, tx, ground + 0.74, tz, 0x5ae898, 0.25);
   box(tbl.maxX - tbl.minX + 0.08, 0.05, tbl.maxZ - tbl.minZ + 0.08, 0x5a7858, 0x4a6850, tx, ground + 0.68, tz);
 
   const stoolGeo = new THREE.CylinderGeometry(0.14, 0.16, 0.42, 6);
   geometries.push(stoolGeo);
-  const stoolMat = mat(0xff9ad8, 0xd878b8, 0xff7ac8, 0.12);
+  const stoolMat = mat(0xd4a84b, 0xb48838, 0xffc56a, 0.15);
   const stoolCount = 4;
   const stools = new THREE.InstancedMesh(stoolGeo, stoolMat, stoolCount);
   const stoolPos = [
@@ -165,66 +163,55 @@ export function createInterior(THREE, opts) {
   stools.instanceMatrix.needsUpdate = true;
   group.add(stools);
 
-  const cab = room.blocks.find((b) => b.id === 'prize-cab');
-  const ccx = (cab.minX + cab.maxX) / 2;
-  const ccz = (cab.minZ + cab.maxZ) / 2;
-  box(cab.maxX - cab.minX, 1.35, cab.maxZ - cab.minZ, 0xe8d0f0, 0xb8a0c8, ccx, ground + 0.78, ccz);
-  box(cab.maxX - cab.minX - 0.12, 0.88, 0.42, 0x221828, 0x181020, ccx, ground + 1.0, ccz + 0.08);
-  box(cab.maxX - cab.minX - 0.08, 0.9, 0.06, 0xd8c8e8, 0xa8a0c0, ccx, ground + 0.92, ccz + (cab.maxZ - cab.minZ) / 2 - 0.02, 0xff9ee8, 0.35);
-
-  const lanternGeo = new THREE.BoxGeometry(0.22, 0.28, 0.22);
-  geometries.push(lanternGeo);
-  const lanternMat = mat(0xffe8c8, 0xffc878, 0xffd888, 0.55);
-  const lanternCount = 6;
-  const lanterns = new THREE.InstancedMesh(lanternGeo, lanternMat, lanternCount);
-  const lanternPos = [
-    [-3.2, 2.65], [-1.2, 2.65], [0.8, 2.65], [2.5, 2.65],
-    [-2.8, -0.6], [2.2, 1.8]
+  const chipGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.05, 8);
+  geometries.push(chipGeo);
+  const chipMat = mat(0xffe878, 0xffc858, 0xffe878, 0.18);
+  const chipCount = 12;
+  const chips = new THREE.InstancedMesh(chipGeo, chipMat, chipCount);
+  const chipSpots = [
+    [0, 1.0, 0], [0.12, 1.02, 0.04], [-0.1, 0.98, -0.03],
+    [tx - 0.35, 0.82, tz + 0.35], [tx - 0.22, 0.86, tz + 0.32], [tx - 0.42, 0.84, tz + 0.38],
+    [-0.25, 0.88, 1.85], [0.18, 0.9, 1.9], [-0.05, 0.92, 1.78]
   ];
-  for (let li = 0; li < lanternCount; li++) {
-    dummy.position.set(lanternPos[li][0], ground + wallH - 0.38, lanternPos[li][1]);
+  for (let chi = 0; chi < chipSpots.length; chi++) {
+    dummy.position.set(chipSpots[chi][0], ground + chipSpots[chi][1], chipSpots[chi][2]);
     dummy.updateMatrix();
-    lanterns.setMatrixAt(li, dummy.matrix);
+    chips.setMatrixAt(chi, dummy.matrix);
   }
-  lanterns.instanceMatrix.needsUpdate = true;
-  group.add(lanterns);
+  chips.count = chipSpots.length;
+  chips.instanceMatrix.needsUpdate = true;
+  group.add(chips);
 
-  const plantGeo = new THREE.ConeGeometry(0.2, 0.38, 5);
-  geometries.push(plantGeo);
-  const plantMat = mat(0x68c878, 0x489858, 0x88e898, 0.08);
-  const plantSpots = [
-    [3.15, 2.35], [3.05, -1.35], [-3.35, 0.55], [-0.4, 2.85]
+  const bulbGeo = new THREE.SphereGeometry(0.045, 5, 4);
+  geometries.push(bulbGeo);
+  const bulbMat = mat(0xffe878, 0xffc858, 0xffd888, 0.65);
+  const bulbCount = 10;
+  const bulbs = new THREE.InstancedMesh(bulbGeo, bulbMat, bulbCount);
+  const bulbPos = [
+    [-3.4, 2.05, -0.5], [-3.4, 2.05, 0.5], [-3.4, 2.05, 1.5], [-3.4, 2.05, 2.5],
+    [2.8, 2.05, 0.5], [2.8, 2.05, 1.5], [2.8, 2.05, 2.4],
+    [-0.8, 2.05, 2.85], [0.8, 2.05, 2.85], [0, 2.05, -1.0]
   ];
-  for (let pi = 0; pi < plantSpots.length; pi++) {
-    const px = plantSpots[pi][0];
-    const pz = plantSpots[pi][1];
-    box(0.26, 0.14, 0.26, 0xffb8c8, 0xd898a8, px, ground + 0.12, pz, 0xffa8c8, 0.12);
-    const coneGeo = plantGeo;
-    const plant = new THREE.Mesh(coneGeo, plantMat);
-    plant.position.set(px, ground + 0.36, pz);
-    group.add(plant);
+  for (let bi = 0; bi < bulbCount; bi++) {
+    dummy.position.set(bulbPos[bi][0], ground + bulbPos[bi][1], bulbPos[bi][2]);
+    dummy.updateMatrix();
+    bulbs.setMatrixAt(bi, dummy.matrix);
   }
+  bulbs.instanceMatrix.needsUpdate = true;
+  group.add(bulbs);
 
-  box(0.55, 0.08, 0.14, 0xff88d8, 0xff88d8, -2.85, ground + 1.22, 0.42, 0xff6ad8, 0.65);
+  box(0.65, 0.1, 0.14, 0xff6ad8, 0xff6ad8, 0, ground + 1.22, -1.25, 0xff4ec8, 0.72);
 
-  function poke(kind, index) {
-    if (kind === 'claw') {
-      const idx = index === 1 ? 1 : 0;
-      feedbackText = CLAW_MSG[idx];
+  function poke(kind) {
+    if (kind === 'slots') {
+      feedbackText = SLOTS_MSG;
       feedbackUntil = 2.2;
-      clawPulse = reduced ? 0 : 1;
-      if (!reduced && clawPlush[idx]) {
-        clawPlush[idx].position.y += 0.12;
-        window.setTimeout(() => {
-          if (clawPlush[idx]) clawPlush[idx].position.y -= 0.12;
-        }, 420);
-      }
       return feedbackText;
     }
-    if (kind === 'pinball') {
-      feedbackText = PINBALL_MSG;
-      feedbackUntil = 2;
-      pinPulse = reduced ? 0 : 1;
+    if (kind === 'roulette') {
+      feedbackText = ROULETTE_MSG;
+      feedbackUntil = 2.2;
+      wheelSpin = reduced ? 0 : 1;
       return feedbackText;
     }
     return '';
@@ -233,13 +220,9 @@ export function createInterior(THREE, opts) {
   function tick(dt) {
     if (feedbackUntil > 0) feedbackUntil = Math.max(0, feedbackUntil - dt);
     if (feedbackUntil <= 0) feedbackText = '';
-    if (reduced) return { message: feedbackText };
-    if (clawPulse > 0) clawPulse = Math.max(0, clawPulse - dt * 1.8);
-    if (pinPulse > 0) {
-      pinPulse = Math.max(0, pinPulse - dt * 2.2);
-      for (let i = 0; i < pinballs.length; i++) {
-        pinballs[i].position.z = -0.22 + i * 0.04 + Math.sin(performance.now() * 0.02 + i) * 0.02 * pinPulse;
-      }
+    if (!reduced && wheelSpin > 0) {
+      wheelSpin = Math.max(0, wheelSpin - dt * 0.65);
+      wheelTop.rotation.y += dt * 2.4 * wheelSpin;
     }
     return { message: feedbackText };
   }

@@ -113,10 +113,16 @@ def build(out_path):
     for sx, sy in ((-1, -1), (1, -1), (-1, 1), (1, 1)):
         rf.box('gold', 0.12, 0.12, 0.10, sx * (HX + 0.28), sy * (HY + 0.28), roof_y + 0.22)
         rf.cyl('gold', 0.03, 0.0, 0.12, sx * (HX + 0.28), sy * (HY + 0.28), roof_y + 0.32, seg=5)
-    # 圓頂 + 頂燈塔
+    # 屋頂輪盤 + 金塔
     sp = b.part('dome')
     sp.cyl('gold', 0.48, 0.48, 0.06, 0, 0, roof_y + 0.22, seg=10)
-    sp.sphere('cas_roof', 0.46, 0, 0, roof_y + 0.28, sz=0.82, seg=10, rings=6)
+    wheel = b.part('roulette')
+    wheel.cyl('cas_dark', 0.40, 0.40, 0.07, 0, 0, roof_y + 0.38, seg=12)
+    wheel.cyl('cas_wall', 0.32, 0.32, 0.04, 0, 0, roof_y + 0.44, seg=12)
+    for i in range(8):
+        ang = (i / 8) * math.pi * 2
+        wheel.box('neon_glow', 0.07, 0.04, 0.20, math.cos(ang) * 0.30, math.sin(ang) * 0.30,
+                  roof_y + 0.46, rz=ang)
     sp.cyl('gold', 0.10, 0.07, 0.16, 0, 0, roof_y + 0.72, seg=6)
     sp.cyl('gold', 0.03, 0.03, 0.28, 0, 0, roof_y + 0.92, seg=5)
     b.part('lanterns_glow').sphere('lantern_glow', 0.08, 0, 0, roof_y + 1.08, seg=6, rings=4)
@@ -172,6 +178,16 @@ def build(out_path):
     # 拱下再一條霓虹
     x, y, z = on_sign(0.0, -0.28, 0.05)
     neo.box('neon_glow', 1.85, 0.035, 0.03, x, y, z, rx=rx)
+
+    # 側牆 777 霓虹與門前撲克牌造型
+    seven = b.part('seven_sign')
+    seven.box('neon_glow', 0.09, 0.36, 0.03, -HX - 0.22, FRONT - 0.15, BASE + 1.65)
+    seven.box('neon_glow', 0.09, 0.36, 0.03, -HX - 0.08, FRONT - 0.15, BASE + 1.65)
+    seven.box('neon_glow', 0.09, 0.36, 0.03, HX + 0.08, FRONT - 0.15, BASE + 1.65)
+    cards = b.part('poker_cards')
+    for sx, rz in ((-0.95, 0.35), (0.95, -0.35)):
+        cards.box('cas_dark', 0.38, 0.02, 0.54, sx, FRONT - 0.04, BASE + 1.32, rz=rz)
+        cards.box('neon_glow', 0.42, 0.03, 0.58, sx, FRONT - 0.06, BASE + 1.32, rz=rz)
 
     # 門前金柱燈
     lp = b.part('lamp_posts')

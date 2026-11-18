@@ -1757,12 +1757,12 @@ function boot() {
           casino.openBlackjackFromInterior();
           return true;
         }
-        if (zone.action === 'casinoClaw') {
-          casinoArcadePoke('claw', zone.claw);
+        if (zone.action === 'casinoSlots') {
+          casinoArcadePoke('slots');
           return true;
         }
-        if (zone.action === 'casinoPinball') {
-          casinoArcadePoke('pinball');
+        if (zone.action === 'casinoRoulette') {
+          casinoArcadePoke('roulette');
           return true;
         }
         if (isClosedHall(zone.action)) {

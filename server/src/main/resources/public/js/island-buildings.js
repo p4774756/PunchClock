@@ -71,23 +71,27 @@ export function buildIslandBuildings(ctx) {
     });
   });
   const casinoSignMap = paint(640, 220, (g, w, h) => {
-    g.fillStyle = '#2a1848';
+    g.fillStyle = '#1a0c28';
     g.fillRect(0, 0, w, h);
-    g.fillStyle = '#d4a84b';
-    g.fillRect(0, 0, w, 18);
-    g.fillRect(0, h - 18, w, 18);
-    g.fillStyle = '#f0d078';
-    g.beginPath();
-    g.moveTo(w / 2, 36);
-    g.lineTo(w / 2 + 28, 88);
-    g.lineTo(w / 2 - 28, 88);
-    g.closePath();
-    g.fill();
-    g.fillStyle = '#fff7ef';
-    g.font = '700 92px ' + font;
+    g.strokeStyle = '#ff6ad8';
+    g.lineWidth = 8;
+    g.strokeRect(10, 10, w - 20, h - 20);
+    g.strokeStyle = '#d4a84b';
+    g.lineWidth = 4;
+    g.strokeRect(18, 18, w - 36, h - 36);
+    g.font = '700 68px ' + font;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.fillText('CASINO', w / 2, h / 2 + 28);
+    g.strokeStyle = '#ff4ec8';
+    g.lineWidth = 5;
+    g.strokeText('莫卡賭場', w / 2, h / 2 - 22);
+    g.fillStyle = '#ff9ee8';
+    g.fillText('莫卡賭場', w / 2, h / 2 - 22);
+    g.font = '700 44px ' + font;
+    g.strokeStyle = '#d4a84b';
+    g.strokeText('777', w / 2, h / 2 + 52);
+    g.fillStyle = '#ffe878';
+    g.fillText('777', w / 2, h / 2 + 52);
   });
   const tcmSignMap = paint(512, 256, (g, w, h) => {
     g.fillStyle = '#3c1e14';
@@ -121,6 +125,71 @@ export function buildIslandBuildings(ctx) {
   });
   const signMaps = { shop: signMap, casino: casinoSignMap, 'tcm-site': tcmSignMap, 'computer-site': labSignMap };
   const buildingGroups = {};
+
+  function attachCasinoVegasDecor(parent, base, front, roofY, doorW) {
+    const b = base == null ? G + 0.08 : base;
+  const fr = front == null ? 0.95 : front;
+    function neonCard(sx, tilt) {
+      const g = new THREE.Group();
+      g.position.set(sx, b + 1.32, fr - 0.08);
+      g.rotation.y = tilt;
+      addBox(g, 0.4, 0.58, 0.03, 0xfff7ef, 0, 0, 0);
+      addBox(g, 0.44, 0.62, 0.02, 0xff6ad8, 0, 0, 0.03, {
+        night: 0xff9ee8,
+        glow: 0xff4ec8,
+        glowAmount: 0.95,
+        shadow: false
+      });
+      addBox(g, 0.12, 0.14, 0.04, 0xcc2030, 0.08, 0.12, 0.04, { shadow: false });
+      parent.add(g);
+    }
+    neonCard(-0.95, 0.22);
+    neonCard(0.95, -0.22);
+    const seven = new THREE.Group();
+    seven.position.set(-1.22, b + 1.72, fr - 0.2);
+    addBox(seven, 0.1, 0.38, 0.03, 0xffe878, 0, 0, 0, {
+      night: 0xffe878,
+      glow: 0xffc56a,
+      glowAmount: 1.1,
+      shadow: false
+    });
+    addBox(seven, 0.1, 0.38, 0.03, 0xffe878, 0.16, 0, 0, {
+      night: 0xffe878,
+      glow: 0xffc56a,
+      glowAmount: 1.1,
+      shadow: false
+    });
+    addBox(seven, 0.1, 0.38, 0.03, 0xffe878, 0.32, 0, 0, {
+      night: 0xffe878,
+      glow: 0xffc56a,
+      glowAmount: 1.1,
+      shadow: false
+    });
+    parent.add(seven);
+    const wheelY = (roofY == null ? b + 2.55 : roofY) + 0.42;
+    const wheel = new THREE.Group();
+    wheel.position.set(0, wheelY, 0);
+    addMesh(wheel, geo('cyl', [0.4, 0.4, 0.08, 12, 0]), 0x2a1848, 0, 0, 0);
+    addMesh(wheel, geo('cyl', [0.32, 0.32, 0.05, 12, 0]), 0x2a9858, 0, 0.065, 0, {
+      night: 0x3ab878,
+      glow: 0x5ae898,
+      glowAmount: 0.35
+    });
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      addBox(wheel, 0.06, 0.05, 0.18, 0xff6ad8,
+        Math.cos(ang) * 0.28, 0.1, Math.sin(ang) * 0.28, {
+          night: 0xff9ee8,
+          glow: 0xff4ec8,
+          glowAmount: 0.88,
+          shadow: false
+        });
+    }
+    parent.add(wheel);
+    [[-0.55, fr + 0.55], [0.55, fr + 0.55]].forEach((pt) => {
+      addBox(parent, 0.78, 0.04, 0.22, 0x9c2b3a, pt[0], G + 0.055, pt[1], { shadow: false });
+    });
+  }
 
   function loadBuildingGLB(buildingId, primitive, x, z, yaw) {
     const url = '/models/' + buildingId + '.glb';
@@ -167,6 +236,11 @@ export function buildIslandBuildings(ctx) {
       scene.add(model);
       primitive.visible = false;
       buildingGroups[buildingId] = model;
+      if (buildingId === 'casino') {
+        const base = G + 0.08;
+        const roofY = base + 2.15 + 0.12;
+        attachCasinoVegasDecor(model, base, CASINO.d / 2, roofY, 0.72);
+      }
       if (dayNight && typeof dayNight.refresh === 'function') dayNight.refresh();
     }).catch((err) => {
       console.warn('[Island] GLB 載入失敗 (' + buildingId + ')，保留 primitive：', err);
@@ -400,6 +474,7 @@ export function buildIslandBuildings(ctx) {
     lampLight(0, base + 1.4, front + 0.55, 14, casino);
     lampLight(0, roofY + 0.7, 0, 8, casino);
     lampLight(0, G + 1.15, front + 1.5, 11, casino);
+    attachCasinoVegasDecor(casino, base, front, roofY, doorW);
     buildingGroups.casino = casino;
     loadBuildingGLB('casino', casino, CASINO.x, CASINO.z, CASINO.yaw);
   }

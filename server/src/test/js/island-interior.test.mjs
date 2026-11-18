@@ -418,7 +418,7 @@ test('賭場室內資料完整，門口外可站且不壓進門區', () => {
   assert.ok(gap > hall.entry.r, '離開後的站點不在進門互動區裡');
 
   const interacts = room.interacts || [];
-  assert.ok(interacts.length >= 4);
+  assert.ok(interacts.length >= 3);
   for (let i = 0; i < interacts.length; i++) {
     assert.equal(I.interiorCanStand(interacts[i].x, interacts[i].z, room, RADIUS), true,
       interacts[i].id + ' 互動點可站');
@@ -452,16 +452,16 @@ test('賭場室內互動區不重疊且含出口', () => {
   const session = I.createInteriorSession();
   session.enter('casino', 0);
   const zones = session.interactZones();
-  assert.ok(zones.length >= 5);
+  assert.ok(zones.length >= 4);
   const exit = zones.find((z) => z.action === 'exitInterior');
   assert.ok(exit);
   assert.equal(exit.label, '離開賭場');
 
   const world = I.interiorPromptZones(room);
   const bj = zones.find((z) => z.action === 'openCasinoBlackjack');
-  const claw = zones.filter((z) => z.action === 'casinoClaw');
-  const pin = zones.find((z) => z.action === 'casinoPinball');
-  assert.ok(bj && claw.length === 2 && pin);
+  const slots = zones.find((z) => z.action === 'casinoSlots');
+  const roulette = zones.find((z) => z.action === 'casinoRoulette');
+  assert.ok(bj && slots && roulette);
 
   for (let i = 0; i < zones.length; i++) {
     for (let j = i + 1; j < zones.length; j++) {
