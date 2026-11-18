@@ -1,10 +1,16 @@
 import * as THREE from 'three';
 import { ISLANDS } from './island-layout.js';
 import { G, HEX } from './island-kit.js';
+import { MAIN_PAVING_SPECS } from './island-decor.js';
+import {
+  layInstancedPaving,
+  polishMainIslandGround,
+  attachMainIslandExtras
+} from './island-decor-scene.js';
 
 export function buildIslandWorld(ctx) {
   const { scene, kit } = ctx;
-  const { addMesh, addBox, geo } = kit;
+  const { addMesh, geo } = kit;
   const water = addMesh(scene, new THREE.CircleGeometry(180, 72), 0x45c4c6, 0, -0.74, 0, {
     night: 0x12325f,
     rot: [-Math.PI / 2, 0, 0],
@@ -26,6 +32,9 @@ export function buildIslandWorld(ctx) {
   }
 
   layIsland(scene, 9.15);
+  polishMainIslandGround(scene, kit);
+  layInstancedPaving(scene, kit, MAIN_PAVING_SPECS);
+  attachMainIslandExtras(scene, kit);
 
   ISLANDS.forEach((island) => {
     if (island.id === 'main') return;
@@ -33,20 +42,6 @@ export function buildIslandWorld(ctx) {
     land.position.set(island.x, 0, island.z);
     layIsland(land, island.visualR, island.theme);
     scene.add(land);
-  });
-
-  [
-    [-5.4, -4.6, 2.3, 1.7, 0xc5e098],
-    [5.3, -4.9, 2.0, 1.6, 0x93c462],
-    [-6.1, 2.2, 1.5, 1.2, 0x7eae58],
-    [0.4, -6.15, 1.7, 1.15, 0xc5e098],
-    [6.1, 4.2, 1.35, 1.15, 0x93c462],
-    [-2.2, 6.7, 1.2, 0.9, 0xc5e098]
-  ].forEach(([x, z, rx, rz, color]) => {
-    addMesh(scene, geo('cyl', [1, 1, 0.025, 6, HEX]), color, x, G + 0.012, z, {
-      scale: [rx, 1, rz],
-      shadow: false
-    });
   });
 
   const rockGeo = geo('sph', [1, 5, 4]);
@@ -67,24 +62,12 @@ export function buildIslandWorld(ctx) {
     rockAt(x, z, s, -0.78);
   });
 
-  const sand = addMesh(scene, geo('cyl', [1.7, 1.95, 0.1, 6, HEX]), 0xf0ddb4, -4.4, -0.7, 7.6, { shadow: false });
-  sand.receiveShadow = true;
-
-  function paving(x, z, w, d, rotY) {
-    const extra = { shadow: false };
-    if (rotY) extra.rot = [0, rotY, 0];
-    addBox(scene, w + 0.16, 0.04, d + 0.16, 0xe4d2b2, x, G + 0.012, z, extra);
-    addBox(scene, w, 0.05, d, 0xf4e6cf, x, G + 0.034, z, extra);
-  }
-
-  paving(0, 3.05, 6.5, 4.35);
-  paving(0, 6.15, 1.9, 2.55);
-  paving(-4.15, 3.55, 2.5, 1.7);
-  paving(4.35, 3.45, 2.3, 1.65);
-  paving(-3.55, 0.55, 1.55, 2.7);
-  paving(3.7, 0.7, 1.7, 2.5);
-  paving(0, -4.7, 7.4, 1.2);
-  paving(5.15, 5.55, 2.6, 1.15, -0.55);
+  const sand = addMesh(scene, geo('cyl', [1, 1, 0.001, 6, HEX]), 0xf0ddb4, -4.4, G, 7.6, {
+    shadow: false,
+    opacity: 0,
+    receive: false
+  });
+  sand.visible = false;
 
   return { water, sand };
 }

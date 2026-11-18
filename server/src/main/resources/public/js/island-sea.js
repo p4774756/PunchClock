@@ -1,6 +1,7 @@
 // 海面起伏與岸邊浪花。可測試的純函式匯出給 island-sea.test.mjs。
 import { ISLANDS } from './island-layout.js';
 import { HEX } from './island-kit.js';
+import { mainIslandFoamAlpha, mainIslandFoamBaseOpacity } from './island-decor.js';
 
 const SEA_Y = -0.74;
 const WAVE_AMP = 0.02;
@@ -141,7 +142,7 @@ export function createIslandSea(THREE, opts) {
     foamMat.userData.night = foamNightColor.clone();
     foamMat.userData.dayE = 0;
     foamMat.userData.nightE = 0;
-    foamMat.userData.baseOpacity = 0.38;
+    foamMat.userData.baseOpacity = island.id === 'main' ? mainIslandFoamBaseOpacity() : 0.38;
 
     const foam = new THREE.Mesh(foamGeo, foamMat);
     foam.position.set(island.x, FOAM_Y, island.z);
@@ -171,8 +172,14 @@ export function createIslandSea(THREE, opts) {
     foamMeshes.forEach((foam) => {
       const cycle = foamCycle(elapsed, foam.userData.phase, reduced);
       foam.scale.setScalar(cycle.scale);
-      const nightDim = 1.0 - mixValue * 0.4;
-      foam.material.opacity = cycle.alpha * nightDim * (1.0 - mixValue * 0.6);
+      const islandIdx = foamMeshes.indexOf(foam);
+      const island = ISLANDS[islandIdx];
+      if (island && island.id === 'main') {
+        foam.material.opacity = mainIslandFoamAlpha(cycle.alpha, mixValue, reduced);
+      } else {
+        const nightDim = 1.0 - mixValue * 0.4;
+        foam.material.opacity = cycle.alpha * nightDim * (1.0 - mixValue * 0.6);
+      }
     });
   }
 
