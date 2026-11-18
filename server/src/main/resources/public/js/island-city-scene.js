@@ -33,12 +33,34 @@ export function buildIslandCity(ctx) {
   attachParkBench(root, kit, -2.4, 4.2, 0.4);
   attachParkBench(root, kit, 2.5, 4.0, -0.5);
 
-  function shopBlock(lx, lz, w, d, h, wallColor, signText, signColor) {
+  /**
+   * @param {'north'|'south'} face 街面朝向（north = 面向 +Z 巷弄）
+   */
+  function shopBlock(lx, lz, w, d, h, wallColor, signText, signColor, face) {
+    const street = face === 'south' ? -1 : 1;
+    const fz = lz + street * (d / 2);
     addBox(root, w, h, d, wallColor, lx, G + h / 2, lz);
-    addBox(root, w + 0.35, 0.12, d + 0.2, DECOR_STONE.edge, lx, G + h + 0.06, lz);
-    const tex = makeTradSignTexture(kit, signText, 280, 128);
+    const trim = street > 0 ? 0xfff0e8 : 0xfff5fa;
+    addBox(root, w + 0.08, 0.14, 0.12, trim, lx, G + h - 0.22, fz - street * 0.04);
+    addBox(root, w + 0.35, 0.1, d + 0.55, DECOR_STONE.edge, lx, G + h + 0.12, lz + street * 0.22);
+    const awning = addBox(root, w + 0.65, 0.07, 1.05, 0xe8dfd0, lx, G + h + 0.08, fz + street * 0.55);
+    awning.rotation.x = street * -0.06;
+
+    const doorW = Math.min(1.0, w * 0.32);
+    addBox(root, doorW, h * 0.72, 0.14, 0x3a3530, lx, G + h * 0.36, fz - street * 0.08);
+    const winW = 0.55;
+    for (const side of [-1, 1]) {
+      if (Math.abs(side * (w * 0.38)) + winW * 0.5 > w * 0.48) continue;
+      addBox(root, winW, h * 0.38, 0.08, 0x9ed4f5, lx + side * (w * 0.38), G + h * 0.58, fz - street * 0.06);
+      addBox(root, winW + 0.1, h * 0.42, 0.05, 0x5a4d42, lx + side * (w * 0.38), G + h * 0.58, fz - street * 0.09);
+    }
+
+    const signLen = signText.length >= 4 ? 320 : 280;
+    const signFont = signText.length >= 4 ? 34 : 40;
+    const tex = makeTradSignTexture(kit, signText, signLen, 112, signFont);
+    const planeW = signText.length >= 4 ? 1.55 : 1.35;
     const sign = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.35, 0.55),
+      new THREE.PlaneGeometry(planeW, 0.5),
       mat(0xffffff, {
         map: tex,
         side: THREE.DoubleSide,
@@ -48,32 +70,33 @@ export function buildIslandCity(ctx) {
         glowAmount: 0.45
       })
     );
-    sign.position.set(lx, G + h + 0.45, lz + d / 2 + 0.08);
-    sign.rotation.x = -0.06;
+    sign.position.set(lx, G + h * 0.78, fz + street * 0.18);
+    sign.rotation.y = street < 0 ? Math.PI : 0;
+    sign.rotation.x = -0.04;
     root.add(sign);
-    for (let i = -1; i <= 1; i += 2) {
-      addBox(root, 0.18, h + 0.5, 0.18, 0xe8e0d4, lx + i * (w / 2 + 0.55), G + (h + 0.5) / 2, lz + d / 2 + 0.55);
-    }
   }
 
-  shopBlock(-3.8, 0.5, 3.4, 4.6, 2.05, 0xfff7ef, '便利商店', 0xfff0e0);
-  shopBlock(3.8, 0.5, 3.4, 4.6, 2.05, 0xf4f0ff, '手搖飲', 0xfff6ff);
-  shopBlock(0, -4.2, 3.6, 2.8, 1.85, 0xfff0f5, '夾娃娃店', 0xffe8f4);
+  shopBlock(-3.8, 0.5, 3.4, 4.6, 2.05, 0xfff7ef, '便利商店', 0xfff0e0, 'north');
+  shopBlock(3.8, 0.5, 3.4, 4.6, 2.05, 0xf4f0ff, '手搖飲', 0xfff6ff, 'north');
+  shopBlock(0, -4.2, 3.6, 2.8, 1.85, 0xfff0f5, '夾娃娃店', 0xffe8f4, 'south');
 
   addBox(root, 2.2, 3.2, 2.2, 0xe0e4ea, -4.2, G + 1.6, 3.8);
   addBox(root, 2.2, 3.2, 2.2, 0xe0e4ea, 4.2, G + 1.6, 3.8);
 
-  const colGeo = geo('box', [0.22, 2.4, 0.22]);
+  const colGeo = geo('box', [0.2, 2.35, 0.2]);
   const colMat = mat(0xe8e0d4, { shadow: false });
   const cols = new THREE.InstancedMesh(colGeo, colMat, CITY_COLUMN_LOCAL.length);
   const dummy = new THREE.Object3D();
   CITY_COLUMN_LOCAL.forEach((col, i) => {
-    dummy.position.set(col.x, G + 1.2, col.z);
+    dummy.position.set(col.x, G + 1.18, col.z);
     dummy.updateMatrix();
     cols.setMatrixAt(i, dummy.matrix);
   });
   cols.instanceMatrix.needsUpdate = true;
   root.add(cols);
+  CITY_COLUMN_LOCAL.forEach((col) => {
+    addBox(root, 0.55, 0.07, 0.22, 0xe8dfd0, col.x, G + 2.35, col.z);
+  });
 
   function streetLamp(lx, lz) {
     addMesh(root, geo('cyl', [0.04, 0.05, 1.35, 5, 0]), 0x1f4d73, lx, G + 0.68, lz);
@@ -92,7 +115,7 @@ export function buildIslandCity(ctx) {
   streetLamp(3.0, -3.5);
 
   const trafficGroup = new THREE.Group();
-  trafficGroup.position.set(0, G, 0);
+  trafficGroup.position.set(1.2, G, 1.2);
   const pole = addBox(trafficGroup, 0.12, 2.6, 0.12, 0x2e2e2e, 0, 1.3, 0);
   const housing = addBox(trafficGroup, 0.38, 0.95, 0.22, 0x1a1a1a, 0, 2.55, 0.08);
   const lights = {
@@ -145,7 +168,7 @@ export function buildIslandCity(ctx) {
       });
     }
     const motoPaths = cityMotoPaths();
-    for (let m = 0; m < 2; m++) {
+    for (let m = 0; m < motoPaths.length; m++) {
       const moto = new THREE.Group();
       addBox(moto, 0.55, 0.28, 0.22, 0x3a4a5a, 0, 0.14, 0);
       addMesh(moto, geo('cyl', [0.12, 0.12, 0.1, 6, 0]), 0x222222, -0.22, 0.12, 0, { rot: [0, 0, Math.PI / 2] });

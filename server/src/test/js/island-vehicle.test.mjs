@@ -48,6 +48,15 @@ test('reduced／暫停不留速度殘值', () => {
   assert.equal(state.vz, 0);
 });
 
+test('粉紅小車路邊停靠可立即起步', () => {
+  const car = C.pinkCarWorld();
+  assert.ok(V.vehicleNavigable(car.x, car.z));
+  let state = V.enterVehicle(V.createVehicleState(), car.x, car.z);
+  const beforeZ = state.carZ;
+  state = V.stepVehicle(state, { x: 0, z: 1, moving: true }, 0.2, { reduced: false });
+  assert.ok(state.carZ > beforeZ + 0.02, '應能往北駛離');
+});
+
 test('forceExitVehicle', () => {
   let state = V.enterVehicle(V.createVehicleState(), C.pinkCarWorld().x, C.pinkCarWorld().z);
   state = V.stepVehicle(state, { x: 1, z: 0, moving: true }, 0.2, {});

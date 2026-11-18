@@ -72,3 +72,20 @@ test('城市碰撞由資料驅動', () => {
   const cz = (rects[0].minZ + rects[0].maxZ) / 2;
   assert.ok(L.blocked(cx, cz, 0.29));
 });
+
+test('路人與機車路徑不穿牆、留在城市島', () => {
+  const island = L.islandById('city');
+  const walkerPaths = C.cityWalkerPaths();
+  const motoPaths = C.cityMotoPaths();
+  assert.ok(walkerPaths.length >= 4 && walkerPaths.length <= 8);
+  assert.ok(motoPaths.length >= 2 && motoPaths.length <= 3);
+  const samples = C.sampleCityPaths(walkerPaths.concat(motoPaths), 12);
+  assert.ok(samples.length > 40);
+  for (let i = 0; i < samples.length; i++) {
+    const x = samples[i][0];
+    const z = samples[i][1];
+    assert.ok(L.inIsland(x, z, island, 0.2), '樣點 ' + i + ' 應在城市島內');
+    assert.ok(L.walkable(x, z, 0.16), '樣點 ' + i + ' 應可站立');
+    assert.ok(!L.blocked(x, z, 0.16), '樣點 ' + i + ' 不應在障礙內');
+  }
+});

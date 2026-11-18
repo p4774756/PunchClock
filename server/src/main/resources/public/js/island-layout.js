@@ -195,6 +195,9 @@ export const BOAT_ROUTE = Object.freeze([
   Object.freeze({ x: 15.1, z: 6.0 })
 ]);
 
+/** 主島棧橋「搭船到城市島」提示圈（與 BOAT_STOPS.main.board 錯開，不與沙灘線重疊）。 */
+export const BOAT_MAIN_CITY_PROMPT = Object.freeze({ x: 7.35, z: 1.95 });
+
 /** 主島碼頭 ↔ 城市島北岸泊位（海上路徑）。 */
 export const BOAT_ROUTE_MAIN_CITY = Object.freeze([
   Object.freeze({ x: 10.3, z: 1.95 }),
@@ -228,8 +231,8 @@ export function boatZones() {
     }),
     Object.freeze({
       id: 'boat-city',
-      x: BOAT_STOPS.main.board.x,
-      z: BOAT_STOPS.main.board.z,
+      x: BOAT_MAIN_CITY_PROMPT.x,
+      z: BOAT_MAIN_CITY_PROMPT.z,
       r: 0.8,
       label: '搭船到城市島',
       action: 'sail',

@@ -37,15 +37,16 @@ const CITY_LOCAL_RECTS = [
   { id: 'city-pier-rail-e', minX: 0.34, maxX: 0.55, minZ: 5.2, maxZ: 6.8 }
 ];
 
+/** 騎樓柱（店前人行，不在路口車道中央）。 */
 export const CITY_COLUMN_LOCAL = Object.freeze([
-  { id: 'col-n1', x: -1.15, z: 0.5, r: 0.22 },
-  { id: 'col-n2', x: 1.15, z: 0.5, r: 0.22 },
-  { id: 'col-s1', x: -1.15, z: -0.5, r: 0.22 },
-  { id: 'col-s2', x: 1.15, z: -0.5, r: 0.22 },
-  { id: 'col-w1', x: -0.5, z: 1.15, r: 0.22 },
-  { id: 'col-w2', x: -0.5, z: -1.15, r: 0.22 },
-  { id: 'col-e1', x: 0.5, z: 1.15, r: 0.22 },
-  { id: 'col-e2', x: 0.5, z: -1.15, r: 0.22 }
+  { id: 'col-cv-1', x: -4.7, z: 3.05, r: 0.18 },
+  { id: 'col-cv-2', x: -3.8, z: 3.05, r: 0.18 },
+  { id: 'col-cv-3', x: -2.9, z: 3.05, r: 0.18 },
+  { id: 'col-tea-1', x: 2.9, z: 3.05, r: 0.18 },
+  { id: 'col-tea-2', x: 3.8, z: 3.05, r: 0.18 },
+  { id: 'col-tea-3', x: 4.7, z: 3.05, r: 0.18 },
+  { id: 'col-claw-1', x: -1.1, z: -4.65, r: 0.18 },
+  { id: 'col-claw-2', x: 1.1, z: -4.65, r: 0.18 }
 ]);
 
 export function cityObstacleRects() {
@@ -69,7 +70,7 @@ export function cityObstacleCircles() {
   }));
 }
 
-export const PINK_CAR_LOCAL = Object.freeze({ x: 2.35, z: 3.25, yaw: -0.35 });
+export const PINK_CAR_LOCAL = Object.freeze({ x: 0.9, z: -1.35, yaw: 0 });
 
 export function pinkCarWorld() {
   const c = CITY_CENTER;
@@ -98,11 +99,12 @@ export function cityWalkerPaths() {
   const c = CITY_CENTER;
   const w = (lx, lz) => [c.x + lx, c.z + lz];
   return Object.freeze([
-    Object.freeze([w(-1.0, 4.2), w(-1.0, -0.2), w(1.0, -0.2), w(1.0, 4.2)]),
-    Object.freeze([w(-3.5, 1.0), w(3.5, 1.0), w(3.5, -3.0), w(-3.5, -3.0)]),
-    Object.freeze([w(0.5, 4.0), w(0.5, -4.5)]),
-    Object.freeze([w(-3.0, 0), w(3.0, 0)]),
-    Object.freeze([w(-2.5, 3.5), w(2.5, 3.5), w(2.5, -2.5), w(-2.5, -2.5)])
+    Object.freeze([w(-1.8, 3.0), w(1.8, 3.0), w(1.8, 1.55), w(-1.8, 1.55)]),
+    Object.freeze([w(-0.95, 4.2), w(-0.95, -1.15)]),
+    Object.freeze([w(0.95, 4.2), w(0.95, -1.15)]),
+    Object.freeze([w(-0.95, -1.15), w(0.95, -1.15)]),
+    Object.freeze([w(-1.8, -6.2), w(1.8, -6.2)]),
+    Object.freeze([w(0, 4.6), w(0, 5.7)])
   ]);
 }
 
@@ -110,8 +112,9 @@ export function cityMotoPaths() {
   const c = CITY_CENTER;
   const w = (lx, lz) => [c.x + lx, c.z + lz];
   return Object.freeze([
-    Object.freeze([w(0.8, 4.0), w(0.8, -1.0), w(-0.8, -1.0), w(-0.8, 4.0)]),
-    Object.freeze([w(-3.0, -2.5), w(3.0, -2.5)])
+    Object.freeze([w(-0.95, 3.5), w(-0.95, -1.0), w(0.95, -1.0), w(0.95, 3.5)]),
+    Object.freeze([w(-0.95, 1.55), w(0.95, 1.55)]),
+    Object.freeze([w(-1.8, 3.0), w(1.8, 3.0)])
   ]);
 }
 
@@ -122,3 +125,23 @@ export const CITY_PAVING_SPECS = Object.freeze([
   { x: 3.8, z: 0.5, w: 3.6, d: 4.8, rotY: 0 },
   { x: 0, z: -4.3, w: 3.8, d: 2.8, rotY: 0 }
 ]);
+
+/** 供測試：沿路徑分段取樣世界座標。 */
+export function sampleCityPaths(paths, stepsPerSegment) {
+  const steps = stepsPerSegment == null ? 10 : stepsPerSegment;
+  const out = [];
+  for (let p = 0; p < paths.length; p++) {
+    const path = paths[p];
+    for (let i = 0; i < path.length - 1; i++) {
+      const ax = path[i][0];
+      const az = path[i][1];
+      const bx = path[i + 1][0];
+      const bz = path[i + 1][1];
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        out.push([ax + (bx - ax) * t, az + (bz - az) * t]);
+      }
+    }
+  }
+  return out;
+}

@@ -276,6 +276,19 @@ test('沙灘島棧橋與島相連、搭船互動區在棧橋上', () => {
   assert.ok(mainZone.x >= pier.minX && mainZone.x <= pier.maxX);
 });
 
+test('主島碼頭可分辨搭船到沙灘島與城市島', async () => {
+  const X = await loadPublicModule('island-explore.js');
+  const zones = L.boatZones();
+  const board = L.BOAT_STOPS.main.board;
+  const cityZone = zones.find((zone) => zone.id === 'boat-city');
+  const mainZone = zones.find((zone) => zone.id === 'boat-main');
+  assert.ok(cityZone);
+  assert.ok(Math.hypot(board.x - cityZone.x, board.z - cityZone.z) > 1.6);
+  assert.equal(X.hitInteractZone(board.x, board.z, zones).id, 'boat-main');
+  assert.equal(X.hitInteractZone(cityZone.x, cityZone.z, zones).id, 'boat-city');
+  assert.ok(L.walkable(cityZone.x, cityZone.z, 0.29), '城市島提示在棧橋上');
+});
+
 test('主島店面仍在原座標，賭場不在主島', () => {
   const shop = L.buildingById('shop');
   assert.equal(shop.x, 0);
