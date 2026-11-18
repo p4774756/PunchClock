@@ -359,8 +359,8 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
             draw(g, art.bust, bust);
             g.setClip(clip);
         }
-        int sleeveBottom = bust.y + Math.round(bust.height * 0.336f);
-        int sleeveX = bust.x + Math.round(bust.width * 0.60f);
+        int sleeveBottom = bust.y + Math.round(bust.height * 0.408f);
+        int sleeveX = bust.x + Math.round(bust.width * HomeCharacterLayout.HAND_RIGHT_X);
         if (sleeveBottom > bottom && bust.x + bust.width > sleeveX) {
             g.clipRect(sleeveX, bottom, bust.x + bust.width - sleeveX, sleeveBottom - bottom);
             draw(g, art.bust, bust);
