@@ -197,23 +197,31 @@ test('鏡頭平滑常數已匯出', () => {
   assert.equal(CAMERA_LAMBDA_EXPLORE, 9);
 });
 
-test('dragPhiDelta：探索往上拖（dy<0）phi 變小，全景往上拖 phi 變大', () => {
-  assert.ok(dragPhiDelta(-10, true) < 0, '探索往上＝抬頭＝phi 減');
-  assert.ok(dragPhiDelta(10, true) > 0, '探索往下＝低頭＝phi 增');
+test('dragPhiDelta：探索往下拖（dy>0）phi 變小，全景往上拖 phi 變大', () => {
+  assert.ok(dragPhiDelta(10, true) < 0, '探索往下＝抬頭＝phi 減');
+  assert.ok(dragPhiDelta(-10, true) > 0, '探索往上＝低頭＝phi 增');
   assert.ok(dragPhiDelta(-10, false) > 0, '全景往上維持抓住世界＝phi 增');
   assert.ok(dragPhiDelta(10, false) < 0, '全景往下＝抬頭＝phi 減');
-  assert.equal(dragPhiDelta(-10, true), -10 * DRAG_PHI_SENSITIVITY);
+  assert.equal(dragPhiDelta(10, true), -10 * DRAG_PHI_SENSITIVITY);
   assert.equal(dragPhiDelta(-10, false), 10 * DRAG_PHI_SENSITIVITY);
 });
 
-test('applyDragPhi：探索 dy<0 時 phi 變小並夾在探索範圍', () => {
+test('探索模式 dy>0 時 phi 變小（朝天空）', () => {
   const mid = (EXPLORE_PHI_MIN + EXPLORE_PHI_MAX) * 0.5;
-  const next = applyDragPhi(mid, -20, true);
-  assert.ok(next < mid);
+  const next = applyDragPhi(mid, 20, true);
+  assert.ok(next < mid, '往下拖應使 phi 減小');
   assert.ok(next >= EXPLORE_PHI_MIN);
   assert.ok(next <= EXPLORE_PHI_MAX);
-  assert.equal(applyDragPhi(EXPLORE_PHI_MIN, -1000, true), EXPLORE_PHI_MIN);
-  assert.equal(applyDragPhi(EXPLORE_PHI_MAX, 1000, true), EXPLORE_PHI_MAX);
+});
+
+test('applyDragPhi：探索 dy<0 時 phi 變大並夾在探索範圍', () => {
+  const mid = (EXPLORE_PHI_MIN + EXPLORE_PHI_MAX) * 0.5;
+  const next = applyDragPhi(mid, -20, true);
+  assert.ok(next > mid);
+  assert.ok(next >= EXPLORE_PHI_MIN);
+  assert.ok(next <= EXPLORE_PHI_MAX);
+  assert.equal(applyDragPhi(EXPLORE_PHI_MIN, -1000, true), EXPLORE_PHI_MAX);
+  assert.equal(applyDragPhi(EXPLORE_PHI_MAX, 1000, true), EXPLORE_PHI_MIN);
 });
 
 test('applyDragPhi：全景 dy<0 時 phi 變大並夾在全景範圍', () => {
@@ -226,7 +234,7 @@ test('applyDragPhi：全景 dy<0 時 phi 變大並夾在全景範圍', () => {
   assert.equal(applyDragPhi(PANORAMA_PHI_MAX, -1000, false), PANORAMA_PHI_MAX);
 });
 
-test('往上拖曳：島上與室內仰角單調遞增、相鄰 5px 無跳變', () => {
+test('往上拖曳：島上與室內仰角單調遞減、相鄰 5px 無跳變', () => {
   const cases = [
   { label: 'island', phiStart: EXPLORE_POSE.phi, phiRest: EXPLORE_POSE.phi, allowSky: true, dist: distFor(MOBILE_ASPECT) },
   { label: 'interior', phiStart: INTERIOR_POSE.phi, phiRest: INTERIOR_POSE.phi, allowSky: false,
@@ -239,8 +247,8 @@ test('往上拖曳：島上與室內仰角單調遞增、相鄰 5px 無跳變', 
     assert.ok(samples.length >= 20, c.label);
     for (let i = 1; i < samples.length; i++) {
       assert.ok(
-        samples[i].pitch + 1e-6 >= samples[i - 1].pitch,
-        `${c.label} dy=${samples[i].dyPx} 仰角應不低於前一步 (${samples[i - 1].pitch} → ${samples[i].pitch})`
+        samples[i].pitch <= samples[i - 1].pitch + 1e-6,
+        `${c.label} dy=${samples[i].dyPx} 仰角應不高於前一步 (${samples[i - 1].pitch} → ${samples[i].pitch})`
       );
       const dPitch = Math.abs(samples[i].pitch - samples[i - 1].pitch);
       assert.ok(
@@ -255,7 +263,7 @@ test('往上拖曳：島上與室內仰角單調遞增、相鄰 5px 無跳變', 
   }
 });
 
-test('從抬頭狀態往下拖：仰角單調遞減', () => {
+test('從抬頭狀態往下拖：仰角單調遞增', () => {
   const dist = distFor(1.6);
   const phiRest = EXPLORE_POSE.phi;
   const samples = explorePitchAlongDrag(
@@ -263,13 +271,13 @@ test('從抬頭狀態往下拖：仰角單調遞減', () => {
   );
   for (let i = 1; i < samples.length; i++) {
     assert.ok(
-      samples[i].pitch <= samples[i - 1].pitch + 1e-6,
-      `往下拖 dy=${samples[i].dyPx} 仰角應遞減 (${samples[i - 1].pitch} → ${samples[i].pitch})`
+      samples[i].pitch + 1e-6 >= samples[i - 1].pitch,
+      `往下拖 dy=${samples[i].dyPx} 仰角應遞增 (${samples[i - 1].pitch} → ${samples[i].pitch})`
     );
   }
 });
 
-test('從任何起始 phi 往下拖：每步仰角不增加（含越過 phiRest 的俯視段）', () => {
+test('從任何起始 phi 往下拖：每步仰角不減少（含越過 phiRest 的俯視段）', () => {
   const dist = distFor(MOBILE_ASPECT);
   const phiRest = EXPLORE_POSE.phi;
   const starts = [EXPLORE_PHI_MIN, phiRest, (phiRest + EXPLORE_PHI_MAX) * 0.5, EXPLORE_PHI_MAX];
@@ -279,8 +287,8 @@ test('從任何起始 phi 往下拖：每步仰角不增加（含越過 phiRest 
     );
     for (let i = 1; i < samples.length; i++) {
       assert.ok(
-        samples[i].pitch <= samples[i - 1].pitch + 1e-6,
-        `起點 phi=${phiStart} dy=${samples[i].dyPx} 仰角不得上升 ` +
+        samples[i].pitch + 1e-6 >= samples[i - 1].pitch,
+        `起點 phi=${phiStart} dy=${samples[i].dyPx} 仰角不得下降 ` +
           `(${samples[i - 1].pitch} → ${samples[i].pitch})`
       );
     }
