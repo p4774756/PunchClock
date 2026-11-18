@@ -210,6 +210,7 @@ export function buildIslandBuildings(ctx) {
         if (!obj.isMesh) return;
         const oldMat = obj.material;
         const matName = oldMat && oldMat.name;
+        if (matName) obj.userData.glbMaterialName = matName;
         const glowInfo = glowForMaterial(buildingId, matName);
         let baseColor = 0xffffff;
         if (oldMat && oldMat.color) baseColor = oldMat.color.getHex();
@@ -925,6 +926,7 @@ export function buildIslandBuildings(ctx) {
   });
   return {
     get shaker() { return shaker; },
+    getTcmSiteModel() { return buildingGroups['tcm-site'] || null; },
     refreshGraffitiWall: () => refreshGraffitiWall(),
     paintRoadmapSign: (copy) => paintRoadmapSign(copy)
   };

@@ -85,6 +85,14 @@ public class PublicIslandAuthTest {
     }
 
     @Test
+    public void guestsCanLoadTcmBronzePointsJson() throws Exception {
+        HttpResponse<String> response = send("GET", "/island/tcm-bronze-points.json", null);
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("\"code\": \"BL1\""));
+        assertTrue(response.body().contains("眼內角斜外約 1 分。"));
+    }
+
+    @Test
     public void guestsCanLoadIslandExploreModule() throws Exception {
         HttpResponse<String> island = send("GET", "/js/island.js", null);
         assertEquals(200, island.statusCode());

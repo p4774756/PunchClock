@@ -647,29 +647,6 @@ export function buildIslandProps(ctx) {
     lampLight(0, 3.2, 0, 7, group);
     scene.add(group);
   }
-  function figureAt(x, z) {
-    const group = new THREE.Group();
-    group.position.set(x, G, z);
-    const gold = 0xd4a84b;
-    addBox(group, 0.62, 0.12, 0.62, 0x6b3a2a, 0, 0.06, 0);
-    addBox(group, 0.42, 0.1, 0.42, gold, 0, 0.16, 0);
-    addBox(group, 0.11, 1.05, 0.11, gold, -0.1, 0.72, 0);
-    addBox(group, 0.11, 1.05, 0.11, gold, 0.1, 0.72, 0);
-    addBox(group, 0.4, 0.78, 0.2, gold, 0, 1.52, 0);
-    addBox(group, 0.09, 0.62, 0.09, gold, -0.26, 1.58, 0);
-    addBox(group, 0.09, 0.62, 0.09, gold, 0.26, 1.58, 0);
-    addMesh(group, geo('sph', [0.2, 7, 6]), gold, 0, 2.12, 0);
-    [[0, 2.28, 0.12], [0, 1.62, 0.14], [-0.1, 1.38, 0.12], [0.1, 1.38, 0.12]].forEach((point) => {
-      addMesh(group, geo('sph', [0.03, 5, 4]), 0xfff1c4, point[0], point[1], point[2], {
-        night: 0xffe7a8,
-        glow: 0xffd27a,
-        glowAmount: 0.85,
-        shadow: false
-      });
-    });
-    lampLight(0, 1.3, 0.15, 5, group);
-    scene.add(group);
-  }
   function herbAt(x, z) {
     const group = new THREE.Group();
     group.position.set(x, G, z);
@@ -698,11 +675,12 @@ export function buildIslandProps(ctx) {
     });
     scene.add(group);
   }
+  let tcmFigureAnchor = null;
   THEME_CIRCLES.forEach((prop) => {
     if (prop.id.indexOf('palm') === 0) palmAt(prop.x, prop.z, true);
     else if (prop.id === 'bamboo') bambooAt(prop.x, prop.z);
     else if (prop.id === 'dish') dishAt(prop.x, prop.z);
-    else if (prop.id === 'figure') figureAt(prop.x, prop.z);
+    else if (prop.id === 'figure') tcmFigureAnchor = { x: prop.x, z: prop.z };
     else if (prop.id === 'herb') herbAt(prop.x, prop.z);
     else if (prop.id === 'rack') rackAt(prop.x, prop.z);
   });
@@ -740,7 +718,7 @@ export function buildIslandProps(ctx) {
   addFish(13.2, 0.18, 0.4, 0xf4a0c0, 0.7);
   addFish(14.1, 0.14, 2.2, 0xf6d35a, 0.55);
 
-  return { boat: boat };
+  return { boat: boat, tcmFigureAnchor: tcmFigureAnchor };
 }
 
 export function registerSceneMotion(loop, state) {
