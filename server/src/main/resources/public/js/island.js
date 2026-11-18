@@ -31,7 +31,8 @@ import {
   routeProgress,
   berthForDock,
   dockedBob,
-  BOAT_DECK_OFFSET
+  BOAT_DECK_OFFSET,
+  BOAT_SEAT_STERN_OFFSET
 } from './island-boat.js';
 import { createCasinoController, CASINO_NAME } from './island-casino.js';
 import { createGraffitiController } from './island-graffiti.js';
@@ -367,6 +368,21 @@ function boot() {
       boatState = stepBoat(boatState, dt, { paused: false, reduced: false });
     }
     syncBoatMesh(elapsed);
+    const wake = boatMesh && boatMesh.userData.wake;
+    if (wake) {
+      const showWake = isSailing() && !reduced;
+      for (let wi = 0; wi < wake.length; wi++) {
+        const foam = wake[wi];
+        foam.visible = showWake;
+        if (showWake) {
+          foam.position.y = foam.userData.baseY + Math.sin(elapsed * 3.1 + foam.userData.phase) * 0.02;
+          foam.position.z = foam.userData.baseZ + Math.sin(elapsed * 2.4 + foam.userData.phase) * 0.025;
+        } else {
+          foam.position.y = foam.userData.baseY;
+          foam.position.z = foam.userData.baseZ;
+        }
+      }
+    }
     if (isSailingPhase(prev.phase) && !isSailingPhase(boatState.phase)) {
       finishVoyageDisembark();
     }
@@ -1026,14 +1042,14 @@ function boot() {
       const u = routeProgress(boatState.phase, boatState.progress);
       const pose = sampleRoute(u);
       const deckY = dockedBob(boatElapsed, reduced) + BOAT_DECK_OFFSET;
-      const seatX = pose.x - Math.sin(pose.yaw) * 0.12;
-      const seatZ = pose.z - Math.cos(pose.yaw) * 0.12;
+      const seatX = pose.x - Math.sin(pose.yaw) * BOAT_SEAT_STERN_OFFSET;
+      const seatZ = pose.z - Math.cos(pose.yaw) * BOAT_SEAT_STERN_OFFSET;
       player.x = seatX;
       player.z = seatZ;
       player.yaw = pose.yaw;
       setPlayerAnchor(seatX, deckY, seatZ, pose.yaw);
       stepMilu(dt, deckY);
-      cam.targetLook.set(pose.x, G + 1.05, pose.z);
+      cam.targetLook.set(pose.x, G + 1.12, pose.z);
       footprints.setHidden(true);
       return;
     }

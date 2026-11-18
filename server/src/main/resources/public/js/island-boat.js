@@ -2,7 +2,21 @@
 import { BOAT_ROUTE, BOAT_STOPS, walkable, blocked } from './island-layout.js';
 
 export const BOAT_VOYAGE_SEC = 10;
-export const BOAT_DECK_OFFSET = 0.35;
+/** 角色站位（船 Group 局部 Y，對齊船尾木質日光甲板頂面）。 */
+export const BOAT_DECK_OFFSET = 0.36;
+/** 船首特徵（本地 +Z），與 island-props buildBoatMesh 一致。 */
+export const BOAT_BOW_LOCAL_Z = 0.88;
+/** 船尾日光甲板中心（本地 Z）。 */
+export const BOAT_STERN_DECK_Z = -0.58;
+/** 航行時角色沿船尾（本地 -Z）偏移，對齊船尾甲板中心。 */
+export const BOAT_SEAT_STERN_OFFSET = -BOAT_STERN_DECK_Z;
+/** 船體網格預算（不含燈與浪花）。 */
+export const BOAT_HULL_MESH_BUDGET = 20;
+
+/** 遊艇船體零件數（不含桅燈與航行浪花），供測試對齊。 */
+export function boatHullPartCount() {
+  return 17;
+}
 export const BOAT_BOB_BASE = -0.62;
 export const BOAT_BOB_AMP = 0.035;
 
