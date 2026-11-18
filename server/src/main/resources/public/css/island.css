@@ -24,6 +24,101 @@ body.island-body.is-night #islandStage {
     radial-gradient(circle at 50% 46%, #a8d06e 0 16%, #d2a56c 17% 22%, #45c4c6 23% 100%);
 }
 
+#islandWebglNotice {
+  position: fixed;
+  z-index: 5;
+  left: 38%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(26.25rem, calc(100vw - 1.5rem));
+  max-width: min(26.25rem, calc(800px - 2 * clamp(0.75rem, 4vw, 2rem)));
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+#islandWebglNotice[hidden] {
+  display: none !important;
+}
+
+.island-webgl-notice-card {
+  pointer-events: auto;
+  padding: 1.1rem 1.15rem 1rem;
+  border-radius: 16px;
+  background: rgba(255, 250, 246, 0.97);
+  color: #211d1d;
+  box-shadow: 0 14px 36px rgba(33, 29, 29, 0.18);
+  border: 1px solid rgba(33, 29, 29, 0.08);
+}
+
+body.island-body.is-night .island-webgl-notice-card {
+  background: rgba(22, 32, 58, 0.96);
+  color: #f4f6fb;
+  border-color: rgba(196, 212, 242, 0.16);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
+}
+
+.island-webgl-notice-title {
+  margin: 0 0 0.55rem;
+  font-size: 1.02rem;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: inherit;
+}
+
+.island-webgl-notice-body {
+  margin: 0 0 0.95rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.55;
+  color: #3f3434;
+}
+
+body.island-body.is-night .island-webgl-notice-body {
+  color: #d5dceb;
+}
+
+.island-webgl-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.island-webgl-notice-btn {
+  flex: 1 1 7.5rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.85rem;
+  border: 0;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: rgba(33, 29, 29, 0.08);
+  color: #211d1d;
+}
+
+body.island-body.is-night .island-webgl-notice-btn {
+  background: rgba(244, 246, 251, 0.12);
+  color: #f4f6fb;
+}
+
+.island-webgl-notice-btn-primary {
+  background: #ea5420;
+  color: #fff;
+}
+
+body.island-body.is-night .island-webgl-notice-btn-primary {
+  background: #f06a38;
+  color: #fff;
+}
+
+.island-webgl-notice-btn:hover,
+.island-webgl-notice-btn:focus-visible {
+  outline: 2px solid #ea5420;
+  outline-offset: 2px;
+}
+
 #islandFade {
   position: absolute;
   inset: 0;
@@ -824,6 +919,30 @@ body.island-more-open .island-joystick {
 }
 
 @media (max-width: 760px) {
+  #islandWebglNotice {
+    z-index: 7;
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: calc(12px + 2.25rem + max(0.7rem, env(safe-area-inset-bottom, 0px)));
+    transform: none;
+    width: auto;
+    max-width: none;
+  }
+
+  body.is-webgl-notice-open .island-list:not([hidden]) {
+    --island-list-notice-bottom: calc(
+      12px + 2.25rem + max(0.7rem, env(safe-area-inset-bottom, 0px))
+      + var(--island-webgl-notice-height, 11.5rem) + 8px
+    );
+    bottom: var(--island-list-notice-bottom);
+    max-height: calc(
+      100vh
+      - max(5.85rem, calc(4.65rem + env(safe-area-inset-top, 0px)))
+      - var(--island-list-notice-bottom)
+    );
+  }
+
   .island-brand {
     max-width: calc(100vw - 1.4rem);
     top: 0.55rem;

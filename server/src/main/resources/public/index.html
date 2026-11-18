@@ -87,6 +87,17 @@
     <div id="islandFade" aria-hidden="true"></div>
   </div>
 
+  <div id="islandWebglNotice" class="island-webgl-notice" hidden role="alertdialog" aria-modal="false" aria-labelledby="islandWebglNoticeTitle" aria-describedby="islandWebglNoticeBody">
+    <div class="island-webgl-notice-card">
+      <h2 class="island-webgl-notice-title" id="islandWebglNoticeTitle" data-webgl-notice-title>目前無法顯示 3D 島嶼</h2>
+      <p class="island-webgl-notice-body" id="islandWebglNoticeBody" data-webgl-notice-body></p>
+      <div class="island-webgl-notice-actions">
+        <button type="button" class="island-webgl-notice-btn island-webgl-notice-btn-primary" data-webgl-notice-reload>重新載入</button>
+        <button type="button" class="island-webgl-notice-btn" data-webgl-notice-close>關閉</button>
+      </div>
+    </div>
+  </div>
+
   <div id="islandJoystick" class="island-joystick" hidden aria-label="移動搖桿" role="application">
     <div class="island-joystick-base" aria-hidden="true">
       <div class="island-joystick-knob" id="islandJoystickKnob"></div>
