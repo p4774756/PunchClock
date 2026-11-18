@@ -204,9 +204,10 @@ test('研發樓牆面 AABB 與視線遮擋：北牆剖面、門洞與室內站�
     (w) => w.maxY >= 1.7 && w.minZ >= floor.maxZ && (w.maxX - w.minX) > 2.5
   );
   assert.equal(northFull, false, '北牆整面不應列入可見遮擋');
-  const pose = I.labInteriorCameraForAspect(1440 / 900);
-  const look = I.LAB_INTERIOR_LOOK_DESKTOP;
-  const eye = I.labInteriorCameraEye(pose, look, 1440 / 900);
+  const aspect = 1440 / 900;
+  const pose = I.labInteriorCameraForAspect(aspect);
+  const look = I.labInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, aspect);
+  const eye = I.labInteriorCameraEye(pose, look, aspect);
   assert.equal(I.labInteriorCameraInsideFloor(eye, floor, 0.15), false);
   const side = I.labInteriorSideWallAABBs(floor);
   assert.ok(
@@ -258,7 +259,7 @@ test('研發樓預設鏡頭：三種 viewport 螢幕與門口投影在 NDC 內',
     );
     const topLimit = I.labInteriorScreenTopNdcLimit(vp.height);
     const pose = I.labInteriorCameraForAspect(vp.aspect);
-    const look = vp.aspect < 0.72 ? I.LAB_INTERIOR_LOOK_MOBILE : I.LAB_INTERIOR_LOOK_DESKTOP;
+    const look = I.labInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, vp.aspect);
     const frameTopY = 0.2 + 0.84 + 0.44 + 0.12;
     const frameTop = I.labInteriorProjectNdc(-0.675 - 0.12, frameTopY, -1.74, pose, look, vp.aspect);
     if (vp.aspect >= 0.72) {
@@ -270,42 +271,77 @@ test('研發樓預設鏡頭：三種 viewport 螢幕與門口投影在 NDC 內',
   }
 });
 
-test('研發樓 runtime 注視世界焦點，勿誤用玩家胸口（會把螢幕頂進工具列）', () => {
+test('研發樓桌面注視：南牆焦點與胸口混合，手機維持純焦點', () => {
   const room = I.interiorByBuilding('computer-site');
   const spawn = room.spawn;
-  const aspect = 1440 / 900;
-  const height = 900;
-  const worldLook = I.labInteriorRuntimeLookAt(room, { x: spawn.x, z: spawn.z }, aspect);
-  const wrongLook = {
-    x: spawn.x + I.INTERIOR_ORIGIN.x,
+  const player = { x: spawn.x, z: spawn.z };
+  const desktopAspect = 1440 / 900;
+  const mobileAspect = 390 / 844;
+  const desktopLook = I.labInteriorLookTarget(room, player, desktopAspect);
+  const pureFocal = I.LAB_INTERIOR_LOOK_DESKTOP;
+  const pureChest = {
+    x: spawn.x,
     y: I.LAB_INTERIOR_PLAYER_CHEST_Y,
-    z: spawn.z + I.INTERIOR_ORIGIN.z
+    z: spawn.z
   };
-  assert.notDeepEqual(worldLook, wrongLook);
-  const pose = I.labInteriorCameraForAspect(aspect);
+  assert.notDeepEqual(desktopLook, pureFocal);
+  assert.notDeepEqual(desktopLook, pureChest);
+  assert.ok(
+    Math.abs(desktopLook.x - pureFocal.x) > 0.01 && Math.abs(desktopLook.x - pureChest.x) > 0.01,
+    '桌面 x 應在焦點與胸口之間'
+  );
+  assert.ok(
+    I.labInteriorChestBlend(room, { x: room.exit.x, z: room.exit.z }) <= I.LAB_INTERIOR_LOOK_CHEST_BLEND + 0.02,
+    '門口混合約 0.45'
+  );
+  assert.ok(
+    I.labInteriorChestBlend(room, player) > I.LAB_INTERIOR_LOOK_CHEST_BLEND + 0.2,
+    '出生點更靠胸口以露出全身'
+  );
+  assert.deepEqual(I.labInteriorLookTarget(room, player, mobileAspect), I.LAB_INTERIOR_LOOK_MOBILE);
+
+  const height = 900;
+  const pose = I.labInteriorCameraForAspect(desktopAspect);
   const frameTopY = 0.2 + 0.84 + 0.44 + 0.12;
   const lim = I.labInteriorScreenTopNdcLimit(height);
   const oz = I.INTERIOR_ORIGIN.z;
-  const focalTop = I.labInteriorProjectNdc(
+  const worldLook = I.labInteriorRuntimeLookAt(room, player, desktopAspect);
+  const frameTop = I.labInteriorProjectNdc(
     I.INTERIOR_ORIGIN.x - 0.675 - 0.12,
     frameTopY,
     oz - 1.74,
     pose,
     worldLook,
-    aspect
-  );
-  const playerTop = I.labInteriorProjectNdc(
-    I.INTERIOR_ORIGIN.x - 0.675 - 0.12,
-    frameTopY,
-    oz - 1.74,
-    pose,
-    wrongLook,
-    aspect
+    desktopAspect
   );
   const pxFromTop = (ndcY) => ((1 - ndcY) / 2) * height;
-  assert.ok(pxFromTop(focalTop.y) >= 80, '焦點注視時螢幕外框上緣 ≥80px');
-  assert.ok(playerTop.y > focalTop.y + 0.2, '胸口注視會把南牆頂端抬進工具列帶');
-  assert.ok(pxFromTop(playerTop.y) < 80, '胸口注視模擬 Playwright 實拍頂部遮擋');
+  assert.ok(pxFromTop(frameTop.y) >= 80, '混合注視時螢幕外框上緣 ≥80px');
+  assert.ok(frameTop.y <= lim + 0.03, '螢幕外框不應貼齊工具列');
+});
+
+test('研發樓各站位頭腳投影在 NDC 內（桌面 1280／1440）', () => {
+  const room = I.interiorByBuilding('computer-site');
+  const aspects = [1440 / 900, 1280 / 720];
+  const samples = I.labInteriorPlayerSamplePositions(room);
+  const inside = (ndc) => ndc.vz > 0
+    && ndc.y >= -0.94 && ndc.y <= 0.98
+    && ndc.x >= -0.94 && ndc.x <= 0.94;
+  for (let a = 0; a < aspects.length; a++) {
+    const aspect = aspects[a];
+    const pose = I.labInteriorCameraForAspect(aspect);
+    for (let i = 0; i < samples.length; i++) {
+      const s = samples[i];
+      const look = I.labInteriorLookTarget(room, { x: s.x, z: s.z }, aspect);
+      const head = I.labInteriorProjectNdc(
+        s.x, I.LAB_INTERIOR_PLAYER_HEAD_Y, s.z, pose, look, aspect
+      );
+      const feet = I.labInteriorProjectNdc(
+        s.x, I.LAB_INTERIOR_PLAYER_FEET_Y, s.z, pose, look, aspect
+      );
+      assert.ok(inside(head), `頭頂 NDC：${s.id} aspect=${aspect.toFixed(3)} y=${head.y.toFixed(3)}`);
+      assert.ok(inside(feet), `腳底 NDC：${s.id} aspect=${aspect.toFixed(3)} y=${feet.y.toFixed(3)}`);
+    }
+  }
 });
 
 test('手搖店室內離開按鈕文案與探索提示', () => {

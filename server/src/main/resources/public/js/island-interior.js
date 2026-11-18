@@ -12,7 +12,8 @@
 //   3. island.js 的 INTERIOR_MODULES 補上該室內的 dynamic import。
 
 import { cameraRelative, PLAYER_SPEED, MAX_STEP_DT } from './island-explore.js';
-import { G } from './island-kit.js';
+import { G, P } from './island-kit.js';
+import { MILU_ANIM } from './island-milu.js';
 
 const LAB_PHI_MIN = 0.32;
 const LAB_PHI_MAX = 1.12;
@@ -47,9 +48,13 @@ export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 4.6, theta: 0.02, phi
 
 export const LAB_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 11, theta: 0, phi: 1.12 });
 
-/** 鏡頭注視點：門與螢幕之間偏內，不跟著角色胸口偏移。 */
+/** 鏡頭南牆焦點（桌面）；每幀與角色胸口混合，手機維持純焦點。 */
 export const LAB_INTERIOR_LOOK_DESKTOP = Object.freeze({ x: -0.25, y: G + 1.12, z: -0.85 });
 export const LAB_INTERIOR_LOOK_MOBILE = Object.freeze({ x: -0.58, y: G + 1.08, z: -0.85 });
+/** 門口附近注視混合（朝胸口）；往北愈深愈抬高，上限避免螢幕頂貼工具列。 */
+export const LAB_INTERIOR_LOOK_CHEST_BLEND = 0.45;
+export const LAB_INTERIOR_LOOK_DEPTH_BLEND = 0.55;
+export const LAB_INTERIOR_LOOK_BLEND_MAX = 0.88;
 
 /** 右上角工具列＋品牌區下緣到螢幕上緣至少約 24px（與 viewport 高度換算 NDC）。 */
 export const LAB_INTERIOR_TOOLBAR_INSET_PX = 80;
@@ -80,6 +85,8 @@ const LAB_DOOR = Object.freeze({
 export const LAB_INTERIOR_WALL = Object.freeze({ h: 2.2, t: 0.1 });
 
 export const LAB_INTERIOR_PLAYER_CHEST_Y = G + 1.05;
+export const LAB_INTERIOR_PLAYER_FEET_Y = P;
+export const LAB_INTERIOR_PLAYER_HEAD_Y = P + MILU_ANIM.height;
 
 export function labInteriorCameraForAspect(aspect) {
   const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
@@ -100,9 +107,36 @@ export function labInteriorFollowDistance(radius, aspect) {
   return dist;
 }
 
-export function labInteriorLookTarget(_room, _player, aspect) {
+function labInteriorBlendLookAt(focal, player, blend) {
+  if (!player || blend <= 0) return focal;
+  const px = Number.isFinite(player.x) ? player.x : focal.x;
+  const pz = Number.isFinite(player.z) ? player.z : focal.z;
+  return Object.freeze({
+    x: focal.x + (px - focal.x) * blend,
+    y: focal.y + (LAB_INTERIOR_PLAYER_CHEST_Y - focal.y) * blend,
+    z: focal.z + (pz - focal.z) * blend
+  });
+}
+
+/** 桌面：lerp(焦點, 胸口)；門口 ≈0.45，越往北愈高。 */
+export function labInteriorChestBlend(room, player) {
+  if (!player || !Number.isFinite(player.z)) return LAB_INTERIOR_LOOK_CHEST_BLEND;
+  const doorZ = room && room.exit ? room.exit.z : -1.45;
+  const northZ = room && room.floor ? room.floor.maxZ : 1.9;
+  const span = northZ - doorZ;
+  if (!(span > 0.1)) return LAB_INTERIOR_LOOK_CHEST_BLEND;
+  const depth = Math.max(0, player.z - doorZ) / span;
+  return Math.min(
+    LAB_INTERIOR_LOOK_BLEND_MAX,
+    LAB_INTERIOR_LOOK_CHEST_BLEND + depth * LAB_INTERIOR_LOOK_DEPTH_BLEND
+  );
+}
+
+export function labInteriorLookTarget(room, player, aspect) {
   const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
-  return a < 0.72 ? LAB_INTERIOR_LOOK_MOBILE : LAB_INTERIOR_LOOK_DESKTOP;
+  const focal = a < 0.72 ? LAB_INTERIOR_LOOK_MOBILE : LAB_INTERIOR_LOOK_DESKTOP;
+  if (a < 0.72) return focal;
+  return labInteriorBlendLookAt(focal, player, labInteriorChestBlend(room, player));
 }
 
 /** 與 island.js follow／每幀 targetLook 相同：室內焦點平移到世界座標。 */
@@ -258,7 +292,8 @@ export function labInteriorPlayerSamplePositions(room) {
     Object.freeze({ id: 'spawn', x: room.spawn.x, z: room.spawn.z }),
     Object.freeze({ id: 'door', x: room.exit.x, z: room.exit.z }),
     Object.freeze({ id: 'rack', x: -1.15, z: 0.25 }),
-    Object.freeze({ id: 'bench', x: 0.65, z: 0.0 })
+    Object.freeze({ id: 'bench', x: 0.65, z: 0.0 }),
+    Object.freeze({ id: 'north', x: 0, z: Math.min(1.61, room.floor.maxZ - 0.34) })
   ]);
 }
 
@@ -330,7 +365,11 @@ function labLandmarkPoints() {
  */
 export function labInteriorFramingOk(aspect, viewportHeightPx, room) {
   const pose = labInteriorCameraForAspect(aspect);
-  const look = aspect < 0.72 ? LAB_INTERIOR_LOOK_MOBILE : LAB_INTERIOR_LOOK_DESKTOP;
+  const labRoom = room || INTERIORS.find((r) => r.id === 'lab-room');
+  const framingPlayer = labRoom
+    ? { x: labRoom.spawn.x, z: labRoom.spawn.z }
+    : { x: 0, z: 0 };
+  const look = labInteriorLookTarget(labRoom, framingPlayer, aspect);
   const lim = labInteriorScreenTopNdcLimit(viewportHeightPx);
   const pts = labLandmarkPoints();
   const out = {};
@@ -367,7 +406,7 @@ export function labInteriorFramingOk(aspect, viewportHeightPx, room) {
     );
     const contentVertical = contentTopL.y - contentBot.y;
     if (contentVertical < 0.22) return false;
-  } else if (span < 0.78) {
+  } else if (span < 0.70) {
     return false;
   }
   const inside = (ndc) => ndc.vz > 0
@@ -389,7 +428,6 @@ export function labInteriorFramingOk(aspect, viewportHeightPx, room) {
     if (!inside(out.mat)) return false;
   }
 
-  const labRoom = room || INTERIORS.find((r) => r.id === 'lab-room');
   const floor = labRoom && labRoom.floor;
   const eye = labInteriorCameraEye(pose, look, aspect);
   const walls = floor ? labInteriorVisibleWallAABBs(floor) : [];
@@ -403,9 +441,17 @@ export function labInteriorFramingOk(aspect, viewportHeightPx, room) {
   const samples = labInteriorPlayerSamplePositions(labRoom);
   for (let i = 0; i < samples.length; i++) {
     const s = samples[i];
+    const sampleLook = labInteriorLookTarget(labRoom, { x: s.x, z: s.z }, aspect);
     sightTargets.push({ x: s.x, y: chestY, z: s.z });
-    const ndc = labInteriorProjectNdc(s.x, chestY, s.z, pose, look, aspect);
-    if (!inside(ndc) || ndc.vz < 0.02) return false;
+    const headNdc = labInteriorProjectNdc(
+      s.x, LAB_INTERIOR_PLAYER_HEAD_Y, s.z, pose, sampleLook, aspect
+    );
+    const feetNdc = labInteriorProjectNdc(
+      s.x, LAB_INTERIOR_PLAYER_FEET_Y, s.z, pose, sampleLook, aspect
+    );
+    if (!inside(headNdc) || !inside(feetNdc) || headNdc.vz < 0.02 || feetNdc.vz < 0.02) {
+      return false;
+    }
   }
   if (!inRoom) {
     const sideWalls = floor ? labInteriorSideWallAABBs(floor) : [];

@@ -56,7 +56,7 @@ function drawExitLabel(ctx, w, h, subtitle) {
   ctx.fillText('出口', w / 2, h * (subtitle ? 0.42 : 0.5));
   if (subtitle) {
     ctx.font = '600 26px "PingFang TC", "Noto Sans TC", sans-serif';
-    ctx.fillText('↓', w / 2, h * 0.72);
+    ctx.fillText('↑', w / 2, h * 0.72);
   }
 }
 
