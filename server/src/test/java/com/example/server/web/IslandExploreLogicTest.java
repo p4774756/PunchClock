@@ -34,6 +34,7 @@ public class IslandExploreLogicTest {
     private static final String EXPLORE_INPUT_SCRIPT = "src/test/js/island-explore-input.test.mjs";
     private static final String QUALITY_SCRIPT = "src/test/js/island-quality.test.mjs";
     private static final String BOAT_SCRIPT = "src/test/js/island-boat.test.mjs";
+    private static final String STEER_SCRIPT = "src/test/js/island-steer.test.mjs";
     private static final String TCM_VISIT_SCRIPT = "src/test/js/island-tcm-visit.test.mjs";
 
     @Test
@@ -129,6 +130,11 @@ public class IslandExploreLogicTest {
     @Test
     public void boatPassesNodeTests() throws Exception {
         runNodeTest(BOAT_SCRIPT, "未安裝 Node.js，略過搭船邏輯測試");
+    }
+
+    @Test
+    public void steerPassesNodeTests() throws Exception {
+        runNodeTest(STEER_SCRIPT, "未安裝 Node.js，略過掌舵邏輯測試");
     }
 
     @Test
