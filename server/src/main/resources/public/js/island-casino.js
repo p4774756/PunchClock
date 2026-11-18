@@ -15,6 +15,30 @@ import {
   handValue
 } from './island-blackjack.js';
 
+/**
+ * 互動按鈕 DOM 更新：只在 visible／label 相對於 prev 有變時才回傳要寫的欄位（避免每幀重設 textContent）。
+ * @param {{ visible?: boolean, label?: string }} prev
+ * @param {{ visible?: boolean, label?: string }} next
+ */
+export function promptDomUpdate(prev, next) {
+  const p = prev || { visible: false, label: '' };
+  const n = next || { visible: false, label: '' };
+  const show = !!n.visible;
+  const wasShow = !!p.visible;
+  const label = n.label != null ? String(n.label) : '';
+  const prevLabel = p.label != null ? String(p.label) : '';
+  const patch = {};
+  if (show !== wasShow) {
+    patch.hidden = !show;
+    patch.ariaHidden = show ? 'false' : 'true';
+  }
+  if (label && label !== prevLabel) {
+    patch.textContent = label;
+    patch.ariaLabel = label;
+  }
+  return patch;
+}
+
 export const CASINO_NAME = '莫卡賭場';
 export const CASINO_GAMES = Object.freeze([
   Object.freeze({
@@ -523,15 +547,24 @@ export function createCasinoController(opts) {
     }
   });
 
+  let promptState = {
+    visible: promptBtn ? !promptBtn.hidden : false,
+    label: promptBtn ? String(promptBtn.textContent || '') : ''
+  };
+
   function setPromptVisible(visible, label) {
     if (!promptBtn) return;
-    const show = !!visible;
-    promptBtn.hidden = !show;
-    promptBtn.setAttribute('aria-hidden', show ? 'false' : 'true');
-    if (label) {
-      promptBtn.textContent = label;
-      promptBtn.setAttribute('aria-label', label);
-    }
+    const next = {
+      visible: !!visible,
+      label: label ? String(label) : promptState.label
+    };
+    const patch = promptDomUpdate(promptState, next);
+    if (Object.keys(patch).length === 0) return;
+    if ('hidden' in patch) promptBtn.hidden = patch.hidden;
+    if ('ariaHidden' in patch) promptBtn.setAttribute('aria-hidden', patch.ariaHidden);
+    if ('textContent' in patch) promptBtn.textContent = patch.textContent;
+    if ('ariaLabel' in patch) promptBtn.setAttribute('aria-label', patch.ariaLabel);
+    promptState = next;
   }
 
   function hideList() {
