@@ -1,4 +1,5 @@
 // 群島清單（純資料，不依賴 Three.js／DOM）。
+import { cityObstacleRects, cityObstacleCircles } from './island-city-data.js';
 //
 // 加一座島：在 ISLANDS 加 { id, name, x, z, r, visualR, theme }，
 // 再在 BRIDGES 用 connectBridge 連到既有的島。r 是可行走半徑，visualR 是草地外觀半徑。
@@ -19,7 +20,9 @@ const ISLAND_DEFS = [
   // 電腦島在南邊，橋從碼頭接出去。
   { id: 'computer', name: '電腦島', x: 0.45, z: 17.1, r: 4.0, visualR: 5.15, theme: 'computer' },
   // 沙灘島只能坐船到（#65），不加橋。
-  { id: 'beach', name: '沙灘島', x: 22, z: 6, r: 4.4, visualR: 5.6, theme: 'beach' }
+  { id: 'beach', name: '沙灘島', x: 22, z: 6, r: 4.4, visualR: 5.6, theme: 'beach' },
+  // 城市島在南側開闊處，與主島／博弈／電腦島外觀不相交（見 island-city.test.mjs）。
+  { id: 'city', name: '城市島', x: 0, z: -22, r: 7.6, visualR: 8.25, theme: 'city' }
 ];
 
 export const ISLANDS = Object.freeze(ISLAND_DEFS.map((island) => Object.freeze(island)));
@@ -154,7 +157,8 @@ export function onBridge(x, z, bridge, radius) {
 export const WALK_PADS = Object.freeze([
   Object.freeze({ id: 'dock', minX: -1.05, maxX: 0.85, minZ: 6.9, maxZ: 8.95 }),
   Object.freeze({ id: 'pier', minX: 6.2, maxX: 9.55, minZ: 1.15, maxZ: 2.75 }),
-  Object.freeze({ id: 'beach-jetty', minX: 15.6, maxX: 18.5, minZ: 5.3, maxZ: 6.7 })
+  Object.freeze({ id: 'beach-jetty', minX: 15.6, maxX: 18.5, minZ: 5.3, maxZ: 6.7 }),
+  Object.freeze({ id: 'city-jetty', minX: -1.2, maxX: 1.2, minZ: -16.2, maxZ: -14.7 })
 ]);
 
 /** 停靠點與上下船位置（船在海上，玩家上下在棧橋）。 */
@@ -168,6 +172,11 @@ export const BOAT_STOPS = Object.freeze({
     board: Object.freeze({ x: 16.0, z: 6.0 }),
     berth: Object.freeze({ x: 15.1, z: 6.0, yaw: -0.35 }),
     land: Object.freeze({ x: 16.45, z: 6.0 })
+  }),
+  city: Object.freeze({
+    board: Object.freeze({ x: 0, z: -15.5 }),
+    berth: Object.freeze({ x: 0, z: -13.85, yaw: Math.PI }),
+    land: Object.freeze({ x: 0, z: -15.15 })
   })
 });
 
@@ -175,7 +184,7 @@ export const BOAT_STOPS = Object.freeze({
 export const SEA_NAV_BOUNDS = Object.freeze({
   minX: -29,
   maxX: 35,
-  minZ: -20,
+  minZ: -28,
   maxZ: 30
 });
 
@@ -184,6 +193,18 @@ export const BOAT_ROUTE = Object.freeze([
   Object.freeze({ x: 10.3, z: 1.95 }),
   Object.freeze({ x: 12.85, z: 3.75 }),
   Object.freeze({ x: 15.1, z: 6.0 })
+]);
+
+/** 主島棧橋「搭船到城市島」提示圈（與 BOAT_STOPS.main.board 錯開，不與沙灘線重疊）。 */
+export const BOAT_MAIN_CITY_PROMPT = Object.freeze({ x: 7.35, z: 1.95 });
+
+/** 主島碼頭 ↔ 城市島北岸泊位（海上路徑）。 */
+export const BOAT_ROUTE_MAIN_CITY = Object.freeze([
+  Object.freeze({ x: 10.3, z: 1.95 }),
+  Object.freeze({ x: 14.5, z: 2.0 }),
+  Object.freeze({ x: 20.5, z: 2.0 }),
+  Object.freeze({ x: 20.5, z: -11.0 }),
+  Object.freeze({ x: 0, z: -13.85 })
 ]);
 
 export function boatZones() {
@@ -195,7 +216,8 @@ export function boatZones() {
       r: 0.8,
       label: '搭船到沙灘島',
       action: 'sail',
-      stop: 'main'
+      stop: 'main',
+      dest: 'beach'
     }),
     Object.freeze({
       id: 'boat-beach',
@@ -204,7 +226,28 @@ export function boatZones() {
       r: 0.8,
       label: '搭船回手搖店島',
       action: 'sail',
-      stop: 'beach'
+      stop: 'beach',
+      dest: 'main'
+    }),
+    Object.freeze({
+      id: 'boat-city',
+      x: BOAT_MAIN_CITY_PROMPT.x,
+      z: BOAT_MAIN_CITY_PROMPT.z,
+      r: 0.8,
+      label: '搭船到城市島',
+      action: 'sail',
+      stop: 'main',
+      dest: 'city'
+    }),
+    Object.freeze({
+      id: 'boat-city-back',
+      x: BOAT_STOPS.city.board.x,
+      z: BOAT_STOPS.city.board.z,
+      r: 0.8,
+      label: '搭船回手搖店島',
+      action: 'sail',
+      stop: 'city',
+      dest: 'main'
     })
   ]);
 }
@@ -381,6 +424,9 @@ const BLOCK_RECT_LIST = OBSTACLE_RECTS.slice();
 for (let bi = 0; bi < BUILDINGS.length; bi++) {
   if (BUILDINGS[bi].deriveBlock) BLOCK_RECT_LIST.push(BUILDINGS[bi].block);
 }
+for (let ci = 0; ci < cityObstacleRects().length; ci++) {
+  BLOCK_RECT_LIST.push(cityObstacleRects()[ci]);
+}
 
 export function blockRects() {
   return BLOCK_RECT_LIST;
@@ -455,6 +501,10 @@ export function blocked(x, z, radius) {
   }
   for (let i = 0; i < THEME_CIRCLES.length; i++) {
     if (circleHits(x, z, THEME_CIRCLES[i], radius)) return true;
+  }
+  const cityCircles = cityObstacleCircles();
+  for (let j = 0; j < cityCircles.length; j++) {
+    if (circleHits(x, z, cityCircles[j], radius)) return true;
   }
   return false;
 }

@@ -210,7 +210,8 @@ export function attachFlowerBedInstanced(scene, kit, cx, cz, w, d, seed) {
   });
 }
 
-function paintSmallTradSign(kit, text, w, h) {
+export function makeTradSignTexture(kit, text, w, h, fontPx) {
+  const size = fontPx == null ? 42 : fontPx;
   return kit.paint(w || 256, h || 128, (g, bw, bh) => {
     g.fillStyle = '#fff7ef';
     g.fillRect(0, 0, bw, bh);
@@ -218,7 +219,7 @@ function paintSmallTradSign(kit, text, w, h) {
     g.lineWidth = 6;
     g.strokeRect(8, 8, bw - 16, bh - 16);
     g.fillStyle = '#1f4d73';
-    g.font = '700 42px "PingFang TC", "Heiti TC", "Microsoft JhengHei", sans-serif';
+    g.font = '700 ' + size + 'px "PingFang TC", "Heiti TC", "Microsoft JhengHei", sans-serif';
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillText(String(text || ''), bw / 2, bh / 2 + 2);
@@ -271,7 +272,7 @@ export function attachShopEavesDecor(model, kit, opts) {
     { text: '今日特調', x: -1.45 },
     { text: '新鮮水果', x: 1.35 }
   ].forEach((spec) => {
-    const tex = paintSmallTradSign(kit, spec.text, 240, 120);
+    const tex = makeTradSignTexture(kit, spec.text, 240, 120);
     const plane = new THREE.Mesh(
       new THREE.PlaneGeometry(0.62, 0.3),
       mat(0xffffff, {

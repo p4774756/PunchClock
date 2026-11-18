@@ -1,6 +1,7 @@
 // 搭船往返主島棧橋與沙灘島：純邏輯（不依賴 Three.js／DOM）。
 import {
   BOAT_ROUTE,
+  BOAT_ROUTE_MAIN_CITY,
   BOAT_STOPS,
   ISLANDS,
   BRIDGES,
@@ -175,12 +176,13 @@ export function isOnBoatPhase(phase) {
 }
 
 export function createBoatState(dock) {
-  const d = dock === 'beach' ? 'beach' : 'main';
+  const d = dock === 'beach' ? 'beach' : dock === 'city' ? 'city' : 'main';
   return Object.freeze({ phase: 'docked-' + d, progress: 0, dock: d });
 }
 
 export function isSailingPhase(phase) {
-  return phase === 'sailing-out' || phase === 'sailing-back';
+  return phase === 'sailing-out' || phase === 'sailing-back'
+    || phase === 'sailing-city' || phase === 'sailing-city-back';
 }
 
 export function easeTrip(u) {
@@ -188,7 +190,23 @@ export function easeTrip(u) {
   return t * t * (3 - 2 * t);
 }
 
+function positionAtPolyline(t, pts) {
+  if (pts.length < 2) return { x: 0, z: 0 };
+  const u = Math.max(0, Math.min(1, t));
+  const segs = pts.length - 1;
+  const along = u * segs;
+  const idx = Math.min(segs - 1, Math.floor(along));
+  const local = along - idx;
+  const a = pts[idx];
+  const b = pts[idx + 1];
+  return {
+    x: a.x + (b.x - a.x) * local,
+    z: a.z + (b.z - a.z) * local
+  };
+}
+
 function positionAtRaw(t, pts) {
+  if (pts.length > 3) return positionAtPolyline(t, pts);
   if (pts.length < 2) return { x: 0, z: 0 };
   const u = Math.max(0, Math.min(1, t));
   if (pts.length === 2) {
@@ -224,10 +242,16 @@ export function sampleRoute(u, route) {
   return { x: pos.x, z: pos.z, yaw: yaw };
 }
 
+export function routeForPhase(phase) {
+  if (phase === 'sailing-city' || phase === 'sailing-city-back') return BOAT_ROUTE_MAIN_CITY;
+  return BOAT_ROUTE;
+}
+
 export function routeProgress(phase, progress) {
-  if (phase === 'sailing-out') return progress;
-  if (phase === 'sailing-back') return 1 - progress;
+  if (phase === 'sailing-out' || phase === 'sailing-city') return progress;
+  if (phase === 'sailing-back' || phase === 'sailing-city-back') return 1 - progress;
   if (phase === 'docked-beach') return 1;
+  if (phase === 'docked-city') return 1;
   return 0;
 }
 
@@ -283,7 +307,8 @@ export function disembarkNear(x, z, radius) {
   const lim = radius == null ? BOAT_DISEMBARK_RADIUS : radius;
   let best = null;
   let bestD = lim + 1;
-  for (const key of ['main', 'beach']) {
+  for (const key of ['main', 'beach', 'city']) {
+    if (!BOAT_STOPS[key]) continue;
     const berth = BOAT_STOPS[key].berth;
     const d = Math.hypot(x - berth.x, z - berth.z);
     if (d <= lim && d < bestD) {
@@ -297,8 +322,8 @@ export function disembarkNear(x, z, radius) {
 export function startSteering(state, fromStop) {
   if (!state) return state;
   if (isSailingPhase(state.phase) || isSteeringPhase(state.phase)) return state;
-  const stop = fromStop === 'beach' ? 'beach' : 'main';
-  const expected = stop === 'main' ? 'docked-main' : 'docked-beach';
+  const stop = fromStop === 'beach' ? 'beach' : fromStop === 'city' ? 'city' : 'main';
+  const expected = dockedPhaseFor(stop);
   if (state.phase !== expected) return state;
   const berth = berthForDock(stop);
   return freezeSteerFields({
@@ -314,37 +339,49 @@ export function startSteering(state, fromStop) {
   });
 }
 
-export function startSailing(state, fromStop) {
+export function startSailing(state, fromStop, toStop) {
   if (!state) return state;
   if (isSteeringPhase(state.phase)) return state;
+  const dest = toStop || (fromStop === 'main' ? 'beach' : 'main');
   if (fromStop === 'main' && state.phase === 'docked-main') {
+    if (dest === 'city') {
+      return Object.freeze({ phase: 'sailing-city', progress: 0, dock: 'main' });
+    }
     return Object.freeze({ phase: 'sailing-out', progress: 0, dock: 'main' });
   }
-  if (fromStop === 'beach' && state.phase === 'docked-beach') {
+  if (fromStop === 'beach' && state.phase === 'docked-beach' && dest === 'main') {
     return Object.freeze({ phase: 'sailing-back', progress: 0, dock: 'beach' });
+  }
+  if (fromStop === 'city' && state.phase === 'docked-city' && dest === 'main') {
+    return Object.freeze({ phase: 'sailing-city-back', progress: 0, dock: 'city' });
   }
   return state;
 }
 
 function dockedPhaseFor(dest) {
-  return dest === 'beach' ? 'docked-beach' : 'docked-main';
+  if (dest === 'beach') return 'docked-beach';
+  if (dest === 'city') return 'docked-city';
+  return 'docked-main';
 }
 
 export function voyageDestination(phase) {
   if (phase === 'sailing-out') return 'beach';
   if (phase === 'sailing-back') return 'main';
+  if (phase === 'sailing-city') return 'city';
+  if (phase === 'sailing-city-back') return 'main';
   return null;
 }
 
 export function stopSteering(state, dock) {
   if (!state || !isSteeringPhase(state.phase)) return state;
-  const d = dock === 'beach' ? 'beach' : 'main';
+  const d = dock === 'beach' ? 'beach' : dock === 'city' ? 'city' : 'main';
   return Object.freeze({ phase: dockedPhaseFor(d), progress: 0, dock: d });
 }
 
 export function abortSteering(state) {
   if (!state || !isSteeringPhase(state.phase)) return state;
-  const dock = state.steerDock === 'beach' ? 'beach' : 'main';
+  const dock = state.steerDock === 'beach' ? 'beach'
+    : state.steerDock === 'city' ? 'city' : 'main';
   return stopSteering(state, dock);
 }
 
@@ -489,7 +526,8 @@ export function disembarkPointsStand(radius) {
   const stops = BOAT_STOPS;
   const r = radius == null ? 0.29 : radius;
   return canStandAt(stops.main.land.x, stops.main.land.z, r)
-    && canStandAt(stops.beach.land.x, stops.beach.land.z, r);
+    && canStandAt(stops.beach.land.x, stops.beach.land.z, r)
+    && canStandAt(stops.city.land.x, stops.city.land.z, r);
 }
 
 /** 掌舵／自動航行時船的世界姿態。 */
@@ -500,7 +538,7 @@ export function boatWorldPose(state) {
   }
   if (isSailingPhase(state.phase)) {
     const u = routeProgress(state.phase, state.progress);
-    return sampleRoute(u);
+    return sampleRoute(u, routeForPhase(state.phase));
   }
   const berth = berthForDock(state.dock);
   return { x: berth.x, z: berth.z, yaw: berth.yaw };

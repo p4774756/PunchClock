@@ -125,6 +125,10 @@
 
   <button type="button" class="island-interact" id="islandInteract" hidden aria-hidden="true" aria-label="進入賭場">進入賭場</button>
   <button type="button" class="island-interact island-interact-steer" id="islandSteer" hidden aria-hidden="true" aria-label="自己開船">自己開船</button>
+  <div class="island-vehicle-hud" id="islandVehicleHud" hidden aria-hidden="true">
+    <p class="island-vehicle-speed" id="islandVehicleSpeed">0 公里／時</p>
+    <canvas id="islandVehicleMinimap" class="island-vehicle-minimap" width="112" height="112" aria-hidden="true"></canvas>
+  </div>
 
   <div id="islandLabels">
     <div class="island-mark" data-anchor="shop" data-rank="1">莫卡手搖</div>
@@ -140,6 +144,7 @@
     <div class="island-mark" data-anchor="computer-site" data-rank="2">研發樓</div>
     <div class="island-mark" data-anchor="island-computer" data-rank="1">電腦島</div>
     <div class="island-mark" data-anchor="island-beach" data-rank="1">沙灘島</div>
+    <div class="island-mark" data-anchor="island-city" data-rank="1">城市島</div>
     <div class="island-note" data-anchor="seating" data-rank="4" data-minor="1">候餐</div>
     <div class="island-note" data-anchor="dock" data-rank="4" data-minor="1">碼頭</div>
   </div>
@@ -155,6 +160,7 @@
     <button type="button" data-island="tcm">中醫推拿島<small>推拿館與銅人</small></button>
     <button type="button" data-island="computer">電腦島<small>機房與天線</small></button>
     <button type="button" data-island="beach">沙灘島<small>沙灘與躺椅</small></button>
+    <button type="button" data-island="city">城市島<small>騎樓街與碼頭</small></button>
     <p class="island-list-title island-list-title-next">娛樂</p>
     <button type="button" data-open-casino>賭場大廳<small>訪客可進 · 練習籌碼僅本機</small></button>
     <button type="button" data-open-graffiti>塗鴉牆<small>訪客可畫 · 留下署名</small></button>
