@@ -379,7 +379,7 @@ const BUILDING_DEFS = [
     entry: { r: 0.82, reach: 0.78, label: '進入推拿館', action: 'enterTcm' }
   },
   {
-    id: 'computer-site', island: 'computer', x: 0.45, z: 17.85, w: 2.3, d: 1.8, yaw: Math.PI,
+    id: 'computer-site', island: 'computer', x: 0.45, z: 18.2, w: 3.2, d: 2.5, yaw: Math.PI,
     label: '研發樓', panel: null, frontTrim: 0.2,
     entry: { r: 0.82, reach: 0.78, label: '進入研發樓', action: 'enterInterior' }
   }

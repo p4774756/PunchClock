@@ -117,6 +117,8 @@ test('Esc 在經歷卡開啟時應關閉本卡', () => {
   assert.equal(careerCardEscapeShouldClose(true, 'Enter'), false);
   assert.equal(careerCardEscapeShouldClose(false, 'Escape'), false);
   const js = readFileSync(join(root, 'js', 'island-career-corridor.js'), 'utf8');
+  assert.ok(!js.includes('attachComputerLabExterior'));
+  assert.ok(!js.includes('whitenComputerSiteMeshes'));
   assert.ok(js.includes('careerCardEscapeShouldClose(cardVisible, ev.key)'));
   const onDoc = js.match(/function onDocKey\(ev\) \{[\s\S]*?\n  \}/);
   assert.ok(onDoc);

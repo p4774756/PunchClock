@@ -10,7 +10,6 @@ import {
   resolveCareerPickHit
 } from './island-career-corridor-logic.js';
 import { CAREER_EXHIBIT_LAYOUT } from './island-career-corridor-data.js';
-import { glowForMaterial } from './island-buildings-data.js';
 import { careerCardEscapeShouldClose } from './island-career-corridor-logic.js';
 
 export { resolveCareerPickHit };
@@ -18,152 +17,6 @@ export { careerCardEscapeShouldClose };
 
 const LOAD_BUFFER = 1.4;
 const UNLOAD_BUFFER = 2.8;
-
-const GLOW_MAT = Object.freeze(new Set(['windows_glow', 'lantern_glow', 'neon_glow']));
-const WALL_MAT = Object.freeze(new Set([
-  'lab_panel', 'lab_grey', 'lab_steel', 'lab_steel_dark', 'lab_frame', 'lab_ground', 'lab_accent'
-]));
-
-function meshKeepsDarkGlazing(obj) {
-  const n = (obj && obj.name ? String(obj.name) : '').toLowerCase();
-  return n.indexOf('antenna') >= 0 || n.indexOf('solar') >= 0 || n.indexOf('dish') >= 0
-    || n.indexOf('circuit') >= 0 || n.indexOf('neon') >= 0 || n.indexOf('lantern') >= 0;
-}
-
-function whitenComputerSiteMeshes(model, kit) {
-  const { mat } = kit;
-  model.traverse((obj) => {
-    if (!obj.isMesh) return;
-    const matName = obj.userData.glbMaterialName
-      || (obj.material && obj.material.name) || '';
-    if (meshKeepsDarkGlazing(obj)) return;
-    if (GLOW_MAT.has(matName)) {
-      const glowInfo = glowForMaterial('computer-site', matName);
-      const extra = glowInfo
-        ? { night: glowInfo.color, glow: glowInfo.color, glowAmount: glowInfo.amount }
-        : {};
-      if (matName === 'windows_glow') {
-        obj.material = mat(0xd7f4ff, Object.assign({}, extra, {
-          opacity: 0.78,
-          night: 0x9ad8f0,
-          glow: 0x3cf0ff,
-          glowAmount: glowInfo ? glowInfo.amount : 1.15,
-          side: THREE.DoubleSide
-        }));
-      } else {
-        obj.material = mat(obj.material.color ? obj.material.color.getHex() : 0xffffff, extra);
-      }
-      return;
-    }
-    if (!WALL_MAT.has(matName)) return;
-    if (obj.position.y > 2.55 && (matName === 'lab_steel_dark' || matName === 'lab_panel' || matName === 'lab_steel')) {
-      return;
-    }
-    const light = matName === 'lab_panel' ? 0xf5f8fb : 0xe8eef2;
-    obj.material = mat(light, {
-      night: 0xd0dae2,
-      shadowSide: THREE.FrontSide
-    });
-  });
-}
-
-function attachComputerSiteExterior(model, kit, opts) {
-  const { addBox, addMesh, geo, paint } = kit;
-  const reduced = !!(opts && opts.reduced);
-  whitenComputerSiteMeshes(model, kit);
-  const base = 0.1;
-  const H = 2.85;
-  const front = 0.9;
-  const roofY = base + H + 0.22;
-
-  for (let floor = 0; floor < 3; floor++) {
-    const y = base + 0.55 + floor * 0.95;
-    for (const cx of [-0.45, 0.45]) {
-      addBox(model, 0.22, 0.42, 0.12, 0x1a2838, cx, y, front - 0.22, { shadow: false });
-      addBox(model, 0.18, 0.06, 0.03, 0x3cf0ff, cx, y + 0.2, front - 0.16, {
-        glow: 0x3cf0ff,
-        glowAmount: 0.45,
-        shadow: false
-      });
-    }
-  }
-
-  const windmill = new THREE.Group();
-  windmill.position.set(-1.05, roofY + 0.35, front - 0.55);
-  addMesh(windmill, geo('cyl', [0.03, 0.03, 0.42, 6, 0]), 0xe8eef2, 0, 0.21, 0);
-  const hub = addMesh(windmill, geo('cyl', [0.06, 0.06, 0.04, 6, 0]), 0x3cf0ff, 0, 0.44, 0, {
-    night: 0x7ec8ea,
-    glow: 0x3cf0ff,
-    glowAmount: 0.55,
-    shadow: false
-  });
-  for (let i = 0; i < 3; i++) {
-    const blade = addBox(windmill, 0.07, 0.025, 0.38, 0xf5fbff, 0, 0.46, 0.14, { shadow: false });
-    blade.rotation.y = (i / 3) * Math.PI * 2;
-    blade.userData.windBlade = true;
-  }
-  windmill.userData.windmill = !reduced;
-  model.add(windmill);
-
-  const screenMap = paint(256, 144, (g, w, h) => {
-    g.fillStyle = '#0e1a28';
-    g.fillRect(0, 0, w, h);
-    g.fillStyle = '#3cf0ff';
-    g.font = '700 28px monospace';
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillText('GitHub', w / 2, h / 2 - 14);
-    g.fillText('CI green', w / 2, h / 2 + 16);
-  });
-  const screen = new THREE.Group();
-  screen.position.set(1.02, base + 1.08, front + 0.22);
-  screen.rotation.y = -0.42;
-  addBox(screen, 0.82, 0.52, 0.05, 0x24384c, 0, 0, 0);
-  addMesh(screen, new THREE.PlaneGeometry(0.76, 0.44), 0xffffff, 0, 0, 0.028, {
-    map: screenMap,
-    night: 0xd7f4ff,
-    glow: 0x3cf0ff,
-    glowAmount: 0.85,
-    side: THREE.DoubleSide,
-    shadow: false
-  });
-  model.add(screen);
-
-  for (let i = 0; i < 4; i++) {
-    addBox(model, 0.22, 0.02, 0.32, 0x1a2838, -0.45 + i * 0.3, roofY + 0.06, -0.15, { shadow: false });
-    addBox(model, 0.2, 0.018, 0.3, 0x2a3c52, -0.45 + i * 0.3, roofY + 0.085, -0.15, {
-      night: 0x7ec8ea,
-      glow: 0x3cf0ff,
-      glowAmount: 0.35,
-      shadow: false
-    });
-  }
-
-  addBox(model, 2.34, 0.04, 0.58, 0x3cf0ff, -0.52, base + 1.35, front - 0.06, {
-    night: 0x7ec8ea,
-    glow: 0x3cf0ff,
-    glowAmount: 0.92,
-    shadow: false
-  });
-  addBox(model, 2.34, 0.04, 0.58, 0x3cf0ff, 0.52, base + 1.35, front - 0.06, {
-    night: 0x7ec8ea,
-    glow: 0x3cf0ff,
-    glowAmount: 0.92,
-    shadow: false
-  });
-  addBox(model, 2.38, 0.035, 0.06, 0x3cf0ff, 0, roofY + 0.12, front - 0.05, {
-    night: 0x7ec8ea,
-    glow: 0x3cf0ff,
-    glowAmount: 0.95,
-    shadow: false
-  });
-  addBox(model, 2.38, 0.035, 0.06, 0x3cf0ff, 0, base + 1.92, front - 0.05, {
-    night: 0x7ec8ea,
-    glow: 0x3cf0ff,
-    glowAmount: 0.88,
-    shadow: false
-  });
-}
 
 function buildPropMesh(kit, entry, group) {
   const { addBox, addMesh, geo, paint } = kit;
@@ -292,11 +145,6 @@ function buildOutdoorEasterEggs(scene, kit) {
   group.add(board);
 
   scene.add(group);
-}
-
-export function attachComputerLabExterior(model, kit, opts) {
-  if (!model) return;
-  attachComputerSiteExterior(model, kit, opts);
 }
 
 let styleInjected = false;
@@ -507,13 +355,6 @@ export function createCareerCorridorController(ctx) {
       return;
     }
     if (shouldLoad() && !loaded && !loading) loadCorridor();
-    if (loaded && rootGroup && !reduced) {
-      rootGroup.traverse((obj) => {
-        if (obj.userData && obj.userData.windmill) {
-          obj.rotation.y += (dt || 0.016) * 0.22;
-        }
-      });
-    }
   }
 
   function handleZoneClick(zone) {
