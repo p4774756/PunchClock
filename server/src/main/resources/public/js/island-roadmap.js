@@ -1,5 +1,10 @@
 // 施工進度面板與告示牌文字。不依賴 Three.js。
 
+import {
+  mergeRoadmapDevStatusLink,
+  shouldShowDevStatusNavLink
+} from './dev-machines-format.js';
+
 export function signCopy(doc) {
   const phases = (doc && doc.phases) || [];
   const numbered = phases.filter((phase) => phase && phase.phase != null);
@@ -305,6 +310,8 @@ export function createRoadmapController(opts) {
   const timelineEl = root && root.querySelector('[data-dev-timeline]');
   const statsEl = root && root.querySelector('[data-dev-stats]');
   const devNoteEl = root && root.querySelector('[data-dev-note]');
+  const devMachinesNav = root && root.querySelector('[data-dev-machines-nav]');
+  const win = (opts && opts.win) || globalThis;
   let openState = false;
   let latest = null;
   let latestDev = null;
@@ -425,7 +432,13 @@ export function createRoadmapController(opts) {
     });
   }
 
+  function refreshAuthChrome() {
+    const authed = !!(win && win.PUNCHCLOCK_AUTHENTICATED === true);
+    mergeRoadmapDevStatusLink(doc, devMachinesNav, shouldShowDevStatusNavLink(authed));
+  }
+
   function refresh() {
+    refreshAuthChrome();
     ensureFilters();
     const fetchFn = (opts && opts.fetch) || (globalThis.fetch ? globalThis.fetch.bind(globalThis) : null);
     if (!fetchFn) return;
@@ -441,6 +454,7 @@ export function createRoadmapController(opts) {
     });
   }
 
+  refreshAuthChrome();
   if (backBtn) backBtn.addEventListener('click', () => setOpen(false));
   if (doc && doc.querySelectorAll) {
     doc.querySelectorAll('[data-open-roadmap]').forEach((el) => {

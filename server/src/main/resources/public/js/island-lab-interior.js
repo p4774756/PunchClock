@@ -2,6 +2,11 @@
 
 import { interiorByBuilding } from './island-interior.js';
 import { formatLabDevScreenLines, fitCanvasLine } from './island-roadmap.js';
+import {
+  appendLabMachineLines,
+  formatLabDevMachineLines,
+  shouldFetchDevMachines
+} from './dev-machines-format.js';
 
 const SCREEN_W = 1024;
 const SCREEN_H = 768;
@@ -88,10 +93,20 @@ function loadDevScreen(texture, canvas, loadState) {
     apply(formatLabDevScreenLines({ success: false, message: '開發進度暫時讀不到' }));
     return;
   }
-  fetchFn('/api/dev-status')
-    .then((res) => res.json())
-    .then((body) => {
-      apply(formatLabDevScreenLines(body, { maxQueue: 3 }));
+  const authed = typeof globalThis !== 'undefined' && globalThis.PUNCHCLOCK_AUTHENTICATED === true;
+  const devStatusPromise = fetchFn('/api/dev-status').then((res) => res.json());
+  const machinesPromise = shouldFetchDevMachines(authed)
+    ? fetchFn('/api/dev-machines')
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null)
+    : Promise.resolve(null);
+  Promise.all([devStatusPromise, machinesPromise])
+    .then(([body, machines]) => {
+      let lines = formatLabDevScreenLines(body, { maxQueue: 3 });
+      if (machines && machines.success !== false) {
+        lines = appendLabMachineLines(lines, formatLabDevMachineLines(machines));
+      }
+      apply(lines);
     })
     .catch(() => {
       apply(formatLabDevScreenLines({ success: false, message: '開發進度暫時讀不到' }));

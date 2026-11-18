@@ -26,7 +26,9 @@ import com.example.server.web.IslandPresenceRoutes;
 import com.example.server.web.MarqueeRoutes;
 import com.example.server.web.PhotoRoutes;
 import com.example.server.web.RelayRoutes;
+import com.example.server.web.DevMachineRoutes;
 import com.example.server.web.DevStatusRoutes;
+import com.example.server.store.DevMachineStore;
 import com.example.server.web.RoadmapRoutes;
 import com.example.server.web.RouteSupport;
 import com.example.server.web.LoginPageRenderer;
@@ -76,6 +78,8 @@ public final class ServerApp {
     private final IslandPresenceRoutes islandPresenceRoutes = new IslandPresenceRoutes();
     private final RoadmapRoutes roadmapRoutes = new RoadmapRoutes(new RoadmapService(new GithubRoadmapClient()));
     private final DevStatusRoutes devStatusRoutes;
+    private final DevMachineStore devMachineStore = new DevMachineStore();
+    private final DevMachineRoutes devMachineRoutes;
     private final AtlasRoutes atlasRoutes = new AtlasRoutes();
     private final ClientRelease clientRelease;
 
@@ -94,6 +98,7 @@ public final class ServerApp {
                 ? devStatusService
                 : new DevStatusService(new GithubDevStatusClient());
         this.devStatusRoutes = new DevStatusRoutes(status);
+        this.devMachineRoutes = new DevMachineRoutes(authService, devMachineStore, status, gson);
     }
 
     public static void main(String[] args) {
@@ -193,6 +198,7 @@ public final class ServerApp {
         graffitiRoutes.register(app);
         roadmapRoutes.register(app);
         devStatusRoutes.register(app);
+        devMachineRoutes.register(app);
         atlasRoutes.register(app);
         app.get("/api/status", this::status);
         app.get("/api/health/history", this::healthHistory);

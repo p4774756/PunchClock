@@ -231,6 +231,27 @@ public class PublicIslandAuthTest {
         assertFalse(body.contains("PUNCHCLOCK_GITHUB_TOKEN"));
         assertFalse(body.contains("## "));
         assertFalse(body.contains("Closes #"));
+        assertFalse(body.contains("agentRunning"));
+        assertFalse(body.contains("lastSeen"));
+        assertFalse(body.contains("battery"));
+    }
+
+    @Test
+    public void guestsCannotReadDevMachines() throws Exception {
+        HttpResponse<String> status = send("GET", "/api/dev-machines", null);
+        assertEquals(401, status.statusCode());
+        assertTrue(status.body().contains("請先登入管理員"));
+        assertFalse(status.body().contains("家裡筆電"));
+        assertFalse(status.body().contains("commit"));
+    }
+
+    @Test
+    public void devStatusPageIsPublicShellWithoutMachineData() throws Exception {
+        HttpResponse<String> page = send("GET", "/dev-status", null);
+        assertEquals(200, page.statusCode());
+        assertTrue(page.body().contains("開發機狀態"));
+        assertFalse(page.body().contains("家裡筆電"));
+        assertFalse(page.body().contains("agentRunning"));
     }
 
     @Test
