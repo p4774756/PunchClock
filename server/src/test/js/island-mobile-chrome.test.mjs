@@ -102,6 +102,11 @@ function makeMobileDom(guest) {
   const el = (tag, attrs, parent) => (parent || doc.body).appendChild(new FakeElement(doc, tag, attrs));
 
   const corner = el('div', { class: 'island-corner' });
+  const avatarWrap = el('div', { class: 'island-avatar-wrap island-corner-dock' }, corner);
+  el('button', { id: 'islandAvatarBtn', class: 'island-tool', 'aria-expanded': 'false' }, avatarWrap);
+  const avatarPop = el('div', { id: 'islandAvatarPop', class: 'island-avatar-pop', hidden: true }, avatarWrap);
+  el('button', { class: 'island-avatar-choice', 'data-island-avatar': 'milu', 'aria-pressed': 'true' }, avatarPop);
+  el('button', { class: 'island-avatar-choice', 'data-island-avatar': 'berry', 'aria-pressed': 'false' }, avatarPop);
   el('button', { id: 'islandExplore', class: 'island-tool island-corner-dock' }, corner);
   el('button', { id: 'islandHome', class: 'island-tool island-corner-overflow' }, corner);
   el('button', { id: 'islandListBtn', class: 'island-tool island-corner-overflow' }, corner);
@@ -265,6 +270,71 @@ test('「更多」打開時 body 有 island-more-open，CSS 隱藏搖桿與 dock
   );
   ui.setMoreOpen(false);
   assert.equal(doc.body.classList.contains('island-more-open'), false);
+});
+
+test('角色選單打開時 body 有 island-avatar-open，CSS 停用搖桿', () => {
+  const doc = makeMobileDom(true);
+  const storage = { data: {}, getItem(k) { return this.data[k] ?? null; }, setItem(k, v) { this.data[k] = v; } };
+  const ui = Corner.createCornerUi({
+    document: doc,
+    storage,
+    getPresence: () => null,
+    isExploring: () => true,
+    isWelcomed: () => false
+  });
+  ui.setAvatarOpen(true);
+  assert.equal(doc.body.classList.contains('island-avatar-open'), true);
+  assert.equal(doc.getElementById('islandAvatarPop').hidden, false);
+  assert.match(
+    islandCss,
+    /body\.island-avatar-open \.island-joystick[\s\S]*pointer-events:\s*none/
+  );
+  ui.setAvatarOpen(false);
+  assert.equal(doc.body.classList.contains('island-avatar-open'), false);
+});
+
+test('手機角色選單邊界在 viewport 內且探索時不與搖桿相交（360／390）', () => {
+  for (const width of [360, 390]) {
+    const height = width === 360 ? 780 : 844;
+    for (const exploring of [false, true]) {
+      const panel = Corner.avatarPopRectMobile(width, height, exploring);
+      assert.ok(panel.left >= -0.5, width + 'px 選單左緣在畫面內');
+      assert.ok(panel.right <= width + 0.5, width + 'px 選單右緣在畫面內');
+      assert.ok(panel.width > 6 * 16, width + 'px 選單足夠顯示縮圖與文字');
+      if (exploring) {
+        assert.ok(!Corner.rectsIntersect(panel, panel.joy), width + 'px 探索中選單不與搖桿重疊');
+      }
+    }
+  }
+});
+
+test('手機 CSS 角色選單 fixed 錨在 dock 上、探索時避開搖桿', () => {
+  assert.match(islandCss, /body\.island-avatar-open \.island-avatar-pop[\s\S]*position:\s*fixed/);
+  assert.match(islandCss, /body\.is-exploring\.island-avatar-open \.island-avatar-pop[\s\S]*0\.7rem \+ 8rem/);
+});
+
+test('選小莓寫入 localStorage 並更新按鈕', () => {
+  const doc = makeMobileDom(true);
+  const storage = { data: {}, getItem(k) { return this.data[k] ?? null; }, setItem(k, v) { this.data[k] = v; } };
+  let changed = null;
+  const ui = Corner.createCornerUi({
+    document: doc,
+    storage,
+    getPresence: () => null,
+    isExploring: () => false,
+    isWelcomed: () => false,
+    onAvatarChange: (id) => { changed = id; }
+  });
+  const berryBtn = doc.querySelector('[data-island-avatar="berry"]');
+  berryBtn.click();
+  assert.equal(storage.data['punchclock.island.avatar'], 'berry');
+  assert.equal(changed, 'berry');
+  assert.equal(doc.getElementById('islandAvatarBtn').textContent, '小莓');
+  const miluBtn = doc.querySelector('[data-island-avatar="milu"]');
+  ui.setAvatarOpen(true);
+  miluBtn.click();
+  assert.equal(storage.data['punchclock.island.avatar'], 'milu');
+  assert.equal(doc.getElementById('islandAvatarBtn').textContent, '蜜鹿');
 });
 
 test('「更多」選單面板含 safe-area 底內距且層級高於搖桿', () => {

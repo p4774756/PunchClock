@@ -57,6 +57,23 @@ export function dockFitsViewport(bounds, viewportWidth) {
 }
 
 /** 探索中手機聊天面板預期邊界（對齊 island.css @760px body.is-exploring .island-chat）。 */
+/** 手機角色選單預期邊界（對齊 island.css @760px body.island-avatar-open .island-avatar-pop）。 */
+export function avatarPopRectMobile(viewportWidth, viewportHeight, exploring) {
+  const popH = 7.15 * REM;
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  const margin = 0.55 * REM;
+  const toolH = 2.25 * REM;
+  const gap = 0.4 * REM;
+  const bottomInset = 0.7 * REM;
+  const left = exploring
+    ? joy.right + 0.55 * REM
+    : Math.max(margin, 0);
+  const right = viewportWidth - margin;
+  const bottom = viewportHeight - bottomInset - toolH - gap;
+  const top = bottom - popH;
+  return { left, right, top, bottom, width: right - left, height: popH, joy };
+}
+
 export function chatPanelRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem) {
   const hRem = panelHeightRem > 0 ? panelHeightRem : 12;
   const joy = joystickRectMobile(viewportWidth, viewportHeight);
@@ -133,6 +150,7 @@ export function createCornerUi(opts) {
     const on = !!open;
     avatarPop.hidden = !on;
     avatarBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    document.body.classList.toggle('island-avatar-open', on);
     if (on) {
       syncAvatarUi();
       setNickOpen(false);
@@ -227,7 +245,10 @@ export function createCornerUi(opts) {
     moreSheet.hidden = !on;
     moreBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
     document.body.classList.toggle('island-more-open', on);
-    if (on) syncMoreAudioLabel();
+    if (on) {
+      setAvatarOpen(false);
+      syncMoreAudioLabel();
+    }
   }
 
   function closeMore() {

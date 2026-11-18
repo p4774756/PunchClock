@@ -1006,6 +1006,11 @@ body.island-more-open .island-joystick {
   pointer-events: none;
 }
 
+body.island-avatar-open .island-joystick {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .chat-tab-badge[hidden] {
   display: none !important;
 }
@@ -1094,12 +1099,20 @@ body.island-more-open .island-joystick {
     top: auto;
     bottom: calc(100% + 0.4rem);
   }
-  .island-avatar-pop {
+  body.island-avatar-open .island-avatar-pop {
+    position: fixed;
+    z-index: 9;
     top: auto;
-    bottom: calc(100% + 0.4rem);
-    right: 0;
-    left: auto;
-    width: min(14rem, calc(100vw - 1.1rem));
+    right: max(0.55rem, env(safe-area-inset-right, 0px));
+    left: max(0.55rem, env(safe-area-inset-left, 0px));
+    width: auto;
+    bottom: max(
+      calc(0.7rem + 2.25rem + 0.4rem + env(safe-area-inset-bottom, 0px)),
+      env(safe-area-inset-bottom, 0px)
+    );
+  }
+  body.is-exploring.island-avatar-open .island-avatar-pop {
+    left: max(calc(0.7rem + 8rem + 0.55rem), env(safe-area-inset-left, 0px));
   }
   .island-chat {
     top: auto;
