@@ -402,6 +402,46 @@ test('鍵盤 E：室內玩 21 點不觸發 leaveInterior', () => {
   assert.equal(left, false);
 });
 
+test('createExplorePointer：resolvePick 優先於 userData.zone', () => {
+  const listeners = {};
+  const canvas = {
+    style: { cursor: 'grab' },
+    addEventListener(type, fn) { listeners[type] = fn; },
+    removeEventListener() {},
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }),
+    setPointerCapture() {}
+  };
+  const THREE = {
+    Raycaster: function () {
+      this.setFromCamera = () => {};
+      this.intersectObjects = () => [{ object: { userData: { zone: 'legacy' } }, instanceId: 0 }];
+    },
+    Vector2: function () { this.x = 0; this.y = 0; }
+  };
+  let picked = null;
+  createExplorePointer({
+    canvas: canvas,
+    camera: {},
+    cam: { targetTheta: 0, targetPhi: 0, targetRadius: 8 },
+    THREE: THREE,
+    getMode: () => ({ exploring: true }),
+    controlsActive: () => true,
+    applyDragPhi: applyDragPhi,
+    resolvePick: (hit) => {
+      picked = hit;
+      return { type: 'tcm-point', instanceKey: 'LI4:1' };
+    },
+    onZoneClick: (zone) => {
+      assert.deepEqual(zone, { type: 'tcm-point', instanceKey: 'LI4:1' });
+    }
+  });
+  const down = listeners.pointerdown;
+  const up = listeners.pointerup;
+  down({ pointerId: 1, clientX: 40, clientY: 40 });
+  up({ pointerId: 1, clientX: 40, clientY: 40 });
+  assert.ok(picked);
+});
+
 test('sail 互動不會落到開賭場', () => {
   let casinoOpened = false;
   let sailed = false;

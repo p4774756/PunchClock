@@ -138,12 +138,17 @@ export function createExplorePointer(opts) {
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   }
 
+  const resolvePick = typeof opts.resolvePick === 'function' ? opts.resolvePick : null;
+
   function hitZone(event) {
     ndc(event);
     raycaster.setFromCamera(pointer, camera);
     const pickables = getPickables();
     const hits = raycaster.intersectObjects(pickables, false);
-    return hits.length ? hits[0].object.userData.zone : '';
+    if (!hits.length) return '';
+    if (resolvePick) return resolvePick(hits[0]);
+    const ud = hits[0].object.userData;
+    return ud.zone || '';
   }
 
   function onPointerDown(event) {

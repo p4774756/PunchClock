@@ -6,6 +6,7 @@ import { BUILDINGS, ISLANDS } from './island-layout.js';
 import { signCopy } from './island-roadmap.js';
 import { G, P, nightHex } from './island-kit.js';
 import { BUILDING_GLOW, glowForMaterial } from './island-buildings-data.js';
+import { replaceEntranceBronzeStatue } from './island-tcm-figure.js';
 
 export { BUILDING_GLOW, glowForMaterial };
 
@@ -247,6 +248,10 @@ export function buildIslandBuildings(ctx) {
       scene.add(model);
       primitive.visible = false;
       buildingGroups[buildingId] = model;
+      if (buildingId === 'tcm-site') {
+        const entrance = replaceEntranceBronzeStatue(model, kit);
+        if (entrance && entrance.hint) pickables.push(entrance.hint);
+      }
       if (buildingId === 'casino') {
         const base = G + 0.08;
         const roofY = base + 2.15 + 0.12;

@@ -75,6 +75,7 @@ import {
   screenAxes
 } from './island-milu.js';
 import { TCM_ATLAS_URL, consumeTcmReturn, writeTcmReturn } from './island-tcm-visit.js';
+import { createTcmFigureController, resolveTcmPickHit } from './island-tcm-figure.js';
 import {
   HIDDEN_DISCONNECT_MS,
   createIslandPresence,
@@ -319,6 +320,7 @@ function boot() {
     swimmers: swimmers
   });
   const boatMesh = propResult && propResult.boat;
+  const tcmFigureAnchor = propResult && propResult.tcmFigureAnchor;
   buildIslandBeach({ scene: scene, kit: kit });
   const footprints = createFootprintView(THREE, {
     scene: scene,
@@ -611,6 +613,19 @@ function boot() {
     const list = document.getElementById('islandList');
     return sheetOpen() || !!(list && !list.hidden) || casinoOpen() || graffitiOpen() || roadmapOpen();
   }
+
+  const tcmFigure = createTcmFigureController({
+    scene: scene,
+    kit: kit,
+    pickables: pickables,
+    reduced: reduced,
+    anchor: tcmFigureAnchor,
+    getPlayer: () => player,
+    islandUiOpen: islandUiOpen
+  });
+  loop.register(() => {
+    tcmFigure.tick();
+  });
 
   let exploreSaved = null;
   let casino = null;
@@ -1976,7 +1991,9 @@ function boot() {
     controlsActive: controlsActive,
     applyDragPhi: applyDragPhi,
     getPickables: () => pickables,
+    resolvePick: resolveTcmPickHit,
     onZoneClick: (zone) => {
+      if (zone && typeof zone === 'object' && tcmFigure.handleZoneClick(zone)) return;
       if (zone === 'graffiti-wall') {
         openGraffiti();
         return;
@@ -1985,7 +2002,9 @@ function boot() {
         openRoadmap();
         return;
       }
-      if (zone && typeof window.switchDashTab === 'function') window.switchDashTab(zone);
+      if (zone && typeof zone === 'string' && typeof window.switchDashTab === 'function') {
+        window.switchDashTab(zone);
+      }
     },
     isInside: () => rooms.inside(),
     interiorMinRadius: INTERIOR_POSE.radius
