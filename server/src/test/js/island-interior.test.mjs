@@ -172,3 +172,31 @@ test('島上標籤在室內或轉場中都要隱藏', () => {
   assert.equal(I.shouldHideIslandLabels(true, true), true);
   assert.equal(I.shouldHideIslandLabels(false, false), false);
 });
+
+test('研發樓出生朝向門口，有專用鏡頭與離開按鈕條件', () => {
+  const room = I.interiorByBuilding('computer-site');
+  assert.equal(room.spawn.yaw, Math.PI);
+  assert.ok(room.spawn.z > -0.2, '出生點略靠房內北側，鏡頭看得到南牆門');
+  assert.deepEqual(I.LAB_INTERIOR_CAMERA, { radius: 5.0, theta: 0.48, phi: 0.76 });
+  assert.deepEqual(I.interiorFollowPose(room), I.LAB_INTERIOR_CAMERA);
+  assert.equal(I.interiorFollowPose(I.interiorByBuilding('shop')), null);
+
+  const session = I.createInteriorSession();
+  session.enter('computer-site', 0);
+  assert.equal(I.interiorLeaveButtonLabel(session), '離開研發樓');
+  assert.equal(I.shouldShowInteriorLeave({ inside: true, exploring: true, busy: false, overlay: false }), true);
+  assert.equal(I.shouldShowInteriorLeave({ inside: true, exploring: true, busy: true, overlay: false }), false);
+  assert.equal(I.shouldShowInteriorLeave({ inside: false, exploring: true, busy: false, overlay: false }), false);
+  assert.equal(I.shouldShowInteriorLeave({ inside: true, exploring: true, busy: false, overlay: true }), false);
+  assert.ok(I.exploreHintText(true, true).includes('離開'));
+  assert.ok(I.exploreHintText(true, false).includes('Esc'));
+  session.exit(500);
+  assert.equal(I.interiorLeaveButtonLabel(session), '');
+});
+
+test('手搖店室內離開按鈕文案與探索提示', () => {
+  const session = I.createInteriorSession();
+  session.enter('shop', 0);
+  assert.equal(I.interiorLeaveButtonLabel(session), '離開莫卡手搖');
+  session.exit(200);
+});

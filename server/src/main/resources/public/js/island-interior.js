@@ -20,6 +20,36 @@ export const ISLAND_VIEW_REACH = 180;
 export const INTERIOR_CAMERA_PULL = 16;
 export const INTERIOR_ORIGIN = Object.freeze({ x: 0, z: -900 });
 
+export const INTERIOR_HINT_EXPLORE_DESK = 'WASD 或方向鍵移動 · 拖曳旋轉鏡頭';
+export const INTERIOR_HINT_EXPLORE_TOUCH = '用左下角搖桿移動 · 拖曳旋轉鏡頭';
+export const INTERIOR_HINT_INSIDE_DESK = 'WASD 或方向鍵移動 · Esc 或走到門口離開 · 工具列可一鍵離開';
+export const INTERIOR_HINT_INSIDE_TOUCH = '搖桿移動 · 按右下「離開」出去';
+
+/** 研發樓進房預設鏡頭：朝向南牆門口，手機直向也能看到門與螢幕。 */
+export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 5.0, theta: 0.48, phi: 0.76 });
+
+export function interiorFollowPose(room) {
+  if (room && room.id === 'lab-room') return LAB_INTERIOR_CAMERA;
+  return null;
+}
+
+export function shouldShowInteriorLeave(ctx) {
+  if (!ctx) return false;
+  return !!(ctx.inside && ctx.exploring && !ctx.busy && !ctx.overlay);
+}
+
+export function interiorLeaveButtonLabel(session) {
+  if (!session || typeof session.inside !== 'function' || !session.inside()) return '';
+  if (typeof session.exitZone !== 'function') return '離開室內';
+  const zone = session.exitZone();
+  return zone && zone.label ? zone.label : '離開室內';
+}
+
+export function exploreHintText(inside, touch) {
+  if (inside) return touch ? INTERIOR_HINT_INSIDE_TOUCH : INTERIOR_HINT_INSIDE_DESK;
+  return touch ? INTERIOR_HINT_EXPLORE_TOUCH : INTERIOR_HINT_EXPLORE_DESK;
+}
+
 /** 室內原點離島夠遠：鏡頭往島拉近後，島上最靠近的點仍在遠平面外。 */
 export function interiorClearsFarPlane(origin, far, reach, pull) {
   const point = origin || INTERIOR_ORIGIN;
@@ -51,7 +81,7 @@ export const INTERIORS = Object.freeze([
   Object.freeze({
     id: 'lab-room',
     buildingId: 'computer-site',
-    spawn: Object.freeze({ x: 0, z: -0.25, yaw: 0 }),
+    spawn: Object.freeze({ x: 0.05, z: 0.35, yaw: Math.PI }),
     exit: Object.freeze({ x: -1.5, z: -1.45, r: 0.58, label: '離開研發樓' }),
     outside: Object.freeze({ x: 0.45, z: 14.82, yaw: Math.PI }),
     floor: Object.freeze({ minX: -2.15, maxX: 2.15, minZ: -1.8, maxZ: 1.9 }),

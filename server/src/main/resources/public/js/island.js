@@ -41,7 +41,11 @@ import {
   ISLAND_CAMERA_FAR,
   createInteriorSession,
   stepInInterior,
-  shouldHideIslandLabels
+  shouldHideIslandLabels,
+  exploreHintText,
+  interiorFollowPose,
+  interiorLeaveButtonLabel,
+  shouldShowInteriorLeave
 } from './island-interior.js';
 import {
   createMiluState,
@@ -536,6 +540,34 @@ function boot() {
     });
   }
 
+  function syncExploreHint() {
+    const hint = document.getElementById('islandExploreHint');
+    if (!hint || closedHallTimer) return;
+    const desk = hint.querySelector('.island-explore-hint-desk');
+    const touch = hint.querySelector('.island-explore-hint-touch');
+    const inside = rooms.inside();
+    if (desk) desk.textContent = exploreHintText(inside, false);
+    if (touch) touch.textContent = exploreHintText(inside, true);
+  }
+
+  function syncInteriorLeave() {
+    const btn = document.getElementById('islandLeaveInterior');
+    if (!btn) return;
+    const overlay = casinoOpen() || graffitiOpen() || roadmapOpen() || isSailing();
+    const show = shouldShowInteriorLeave({
+      inside: rooms.inside(),
+      exploring: mode.exploring,
+      busy: interiorBusy,
+      overlay: overlay
+    });
+    btn.hidden = !show;
+    if (show) {
+      const label = interiorLeaveButtonLabel(rooms);
+      btn.textContent = label;
+      btn.setAttribute('aria-label', label);
+    }
+  }
+
   function syncExploreUi() {
     const btn = document.getElementById('islandExplore');
     const stick = document.getElementById('islandJoystick');
@@ -551,6 +583,8 @@ function boot() {
     if (stick) stick.hidden = !exploring || overlay;
     if (hint) hint.hidden = !exploring || overlay;
     if (islandChat) islandChat.setExploring(exploring && !overlay);
+    syncExploreHint();
+    syncInteriorLeave();
     syncInteractPrompt();
     if (corner) {
       corner.syncPeerCount();
@@ -641,7 +675,11 @@ function boot() {
   }
 
   function followPlayerCamera(instant) {
-    const pose = rooms.inside() ? INTERIOR_POSE : EXPLORE_POSE;
+    let pose = EXPLORE_POSE;
+    if (rooms.inside()) {
+      const custom = interiorFollowPose(rooms.room());
+      pose = custom || INTERIOR_POSE;
+    }
     cam.follow(player.x, G + 1.05, player.z, pose, instant);
   }
 
@@ -974,6 +1012,13 @@ function boot() {
       setExplore(next, false);
     });
   }
+  const leaveInteriorBtn = document.getElementById('islandLeaveInterior');
+  if (leaveInteriorBtn) {
+    leaveInteriorBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      leaveInterior();
+    });
+  }
   const home = document.getElementById('islandHome');
   if (home) {
     home.addEventListener('click', () => {
@@ -1182,6 +1227,8 @@ function boot() {
     await fadeTo(false);
     if (ticket !== interiorGeneration) return;
     interiorBusy = false;
+    syncExploreHint();
+    syncInteriorLeave();
     syncInteractPrompt();
   }
 
@@ -1209,6 +1256,8 @@ function boot() {
     await fadeTo(false);
     if (ticket !== interiorGeneration) return;
     interiorBusy = false;
+    syncExploreHint();
+    syncInteriorLeave();
     syncInteractPrompt();
   }
 
@@ -1234,10 +1283,7 @@ function boot() {
     if (closedHallTimer) window.clearTimeout(closedHallTimer);
     closedHallTimer = window.setTimeout(() => {
       closedHallTimer = 0;
-      const desk = hint.querySelector('.island-explore-hint-desk');
-      const touch = hint.querySelector('.island-explore-hint-touch');
-      if (desk) desk.textContent = 'WASD 或方向鍵移動 · 拖曳旋轉鏡頭';
-      if (touch) touch.textContent = '用左下角搖桿移動 · 拖曳旋轉鏡頭';
+      syncExploreHint();
     }, 1800);
   }
 

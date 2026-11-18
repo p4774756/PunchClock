@@ -64,6 +64,26 @@ function clipDevText(text, maxLen) {
   return s.slice(0, Math.max(1, maxLen - 1)) + '…';
 }
 
+/** 研發樓螢幕單行排版：pair 後的中日文標題按字元截斷，不在空白處整段砍掉。 */
+export function fitCanvasLine(ctx, text, maxW) {
+  if (!text || !ctx || typeof ctx.measureText !== 'function') return text || '';
+  if (ctx.measureText(text).width <= maxW) return text;
+  const ell = '…';
+  const headMatch = /^(.*[：:]\s*(?:i\d+|p\d+|\([^)]*\))[^\s]*\s*)/.exec(text);
+  const minKeep = headMatch ? headMatch[1].length : 0;
+  let fit = text.length;
+  while (fit > minKeep && ctx.measureText(text.slice(0, fit) + ell).width > maxW) fit -= 1;
+  if (fit < 1) return ell;
+  let cut = fit;
+  if (fit < text.length) {
+    const chunk = text.slice(0, fit);
+    const sp = chunk.lastIndexOf(' ');
+    const keepHead = sp > minKeep && ctx.measureText(text.slice(0, sp) + ell).width <= maxW;
+    if (keepHead) cut = sp;
+  }
+  return text.slice(0, cut) + ell;
+}
+
 function devFocusLine(label, item) {
   if (!item) return label + '：目前沒有';
   const pair = item.pair || '';
