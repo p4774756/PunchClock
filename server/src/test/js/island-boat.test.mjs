@@ -106,8 +106,12 @@ test('遊艇站位與船首軸向常數', () => {
 test('乘客比例與站位不擋泳池', () => {
   const headY = B.BOAT_DECK_OFFSET + B.BOAT_PASSENGER_HEIGHT * B.BOAT_PASSENGER_SCALE;
   assert.ok(
-    headY <= B.BOAT_SUPERSTRUCTURE_1_TOP,
-    '頭頂應低於第一層上層建築頂'
+    headY > B.BOAT_SUPERSTRUCTURE_1_TOP,
+    '乘客頭頂應高出低緩第一層船室，跟隨鏡頭才看得到上半身'
+  );
+  assert.ok(
+    B.BOAT_FLYBRIDGE_TOP - B.BOAT_DECK_OFFSET <= 0.52,
+    '上層建築（不含桅杆）應在甲板上方約 0.5 m 內'
   );
   assert.ok(B.boatSeatClearOfPool(), '站位不在泳池矩形內');
   assert.ok(B.BOAT_FLYBRIDGE_TOP > B.BOAT_DECK_OFFSET);

@@ -32,9 +32,9 @@ export const BOAT_POOL_CENTER_Z = -0.74;
 export const BOAT_POOL_HALF_W = 0.13;
 export const BOAT_POOL_HALF_D = 0.11;
 /** 第一層上層建築頂（船 Group 局部 Y，對齊 buildBoatMesh）。 */
-export const BOAT_SUPERSTRUCTURE_1_TOP = 1.27;
+export const BOAT_SUPERSTRUCTURE_1_TOP = 0.575;
 /** 飛橋硬頂上緣（局部 Y）。 */
-export const BOAT_FLYBRIDGE_TOP = 1.86;
+export const BOAT_FLYBRIDGE_TOP = 0.9;
 /** 船體網格預算（不含燈與浪花）。 */
 export const BOAT_HULL_MESH_BUDGET = 48;
 /** 掌舵碰撞與靠岸判定用船體半徑。 */
@@ -52,7 +52,7 @@ export const BOAT_PASSENGER_HEIGHT = 1.42;
 
 /** 遊艇船體零件數（不含桅燈與航行浪花），供測試對齊。 */
 export function boatHullPartCount() {
-  return 27;
+  return 33;
 }
 
 /** 角色本地站位 (x,z) 是否在船尾泳池矩形外。 */
