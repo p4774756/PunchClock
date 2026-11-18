@@ -5,9 +5,19 @@ import { loadPublicModule } from './load-public-module.mjs';
 const decor = await loadPublicModule('island-decor.js');
 const kit = await loadPublicModule('island-kit.js');
 
+const { G } = kit;
+
 const {
   MAX_LAMP_POINT_LIGHTS,
   MAIN_PAVING_SPECS,
+  MAIN_ISLAND_GRASS_DECOR_CENTER_Y,
+  MAIN_ISLAND_GRASS_DECOR_HEIGHT,
+  MAIN_PAVING_GROUP_Y,
+  MAIN_PAVING_BRICK_HEIGHT,
+  SHOP_GLB_FRONT_Z,
+  SHOP_EAVES_BULB_Y,
+  SHOP_EAVES_BULB_Z,
+  SHOP_EAVES_SIGN_Z,
   pavingTileLayout,
   decorLampHaloRadius,
   decorLampHaloOpacity,
@@ -25,6 +35,13 @@ const {
 const { lampGroundHaloRadius, lampHaloOpacity } = kit;
 
 describe('island-decor paving', () => {
+  test('grass decor layer sits below paving bricks', () => {
+    const grassTop = MAIN_ISLAND_GRASS_DECOR_CENTER_Y + MAIN_ISLAND_GRASS_DECOR_HEIGHT / 2;
+    const pavingTop = MAIN_PAVING_GROUP_Y + MAIN_PAVING_BRICK_HEIGHT / 2;
+    assert.ok(grassTop < pavingTop - 0.02);
+    assert.equal(MAIN_ISLAND_GRASS_DECOR_CENTER_Y, G + 0.013);
+  });
+
   test('pavingTileLayout is deterministic', () => {
     const a = pavingTileLayout(4, 3);
     const b = pavingTileLayout(4, 3);
@@ -62,6 +79,12 @@ describe('island-decor lamps', () => {
 });
 
 describe('island-decor string lights', () => {
+  test('shop eaves bulbs hang at awning not roof', () => {
+    assert.ok(SHOP_EAVES_BULB_Y < 1.85);
+    assert.ok(SHOP_EAVES_BULB_Z > SHOP_GLB_FRONT_Z);
+    assert.ok(SHOP_EAVES_SIGN_Z >= SHOP_GLB_FRONT_Z);
+  });
+
   test('stringLightBulbLayout spans walkway', () => {
     const bulbs = stringLightBulbLayout(4, 9);
     assert.equal(bulbs.length, 9);
@@ -100,7 +123,8 @@ describe('island-decor flowers and sky', () => {
 
   test('moonSeaReflectionOpacity off by day', () => {
     assert.equal(moonSeaReflectionOpacity(0, false), 0);
-    assert.ok(moonSeaReflectionOpacity(1, false) > 0.5);
+    assert.equal(moonSeaReflectionOpacity(0.2, false), 0);
+    assert.ok(moonSeaReflectionOpacity(1, false) > 0.75);
     assert.equal(moonSeaReflectionOpacity(1, true), moonSeaReflectionOpacity(1, false));
   });
 

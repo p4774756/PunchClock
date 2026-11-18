@@ -7,6 +7,14 @@ import {
   DECOR_STONE,
   MAIN_EXTRA_BENCHES,
   MAIN_EXTRA_FLOWER_BEDS,
+  MAIN_ISLAND_GRASS_DECOR_CENTER_Y,
+  MAIN_ISLAND_GRASS_DECOR_HEIGHT,
+  MAIN_ISLAND_GRASS_PATCH_CENTER_Y,
+  SHOP_EAVES_BULB_Y,
+  SHOP_EAVES_BULB_Z,
+  SHOP_EAVES_LIGHT_SPAN,
+  SHOP_EAVES_SIGN_Y,
+  SHOP_EAVES_SIGN_Z,
   flowerBedStemLayout,
   pavingTileLayout,
   stringLightBulbLayout
@@ -113,11 +121,19 @@ export function polishMainIslandGround(scene, kit) {
   const sandMap = terrainMapToTexture(createTerrainNoiseMap('sand', 64, 1462));
   sandMap.repeat.set(4, 4);
 
-  addMesh(scene, geo('cyl', [9.15, 9.27, 0.026, 6, HEX]), DECOR_GRASS.top, 0, G + 0.201, 0, {
-    map: grassMap,
-    shadow: false,
-    receive: true
-  });
+  addMesh(
+    scene,
+    geo('cyl', [9.15, 9.27, MAIN_ISLAND_GRASS_DECOR_HEIGHT, 6, HEX]),
+    DECOR_GRASS.top,
+    0,
+    MAIN_ISLAND_GRASS_DECOR_CENTER_Y,
+    0,
+    {
+      map: grassMap,
+      shadow: false,
+      receive: true
+    }
+  );
 
   addMesh(scene, geo('cyl', [1.7, 1.95, 0.102, 6, HEX]), DECOR_SAND.top, -4.4, G - 0.649, 7.6, {
     map: sandMap,
@@ -136,7 +152,7 @@ export function polishMainIslandGround(scene, kit) {
   const patchGeo = geo('cyl', [1, 1, 0.028, 6, HEX]);
   patches.forEach(([x, z, rx, rz, color], idx) => {
     const patchMap = terrainMapToTexture(createTerrainNoiseMap('grass', 48, 2000 + idx));
-    addMesh(scene, patchGeo, color, x, G + 0.014, z, {
+    addMesh(scene, patchGeo, color, x, MAIN_ISLAND_GRASS_PATCH_CENTER_Y, z, {
       map: patchMap,
       scale: [rx, 1, rz],
       shadow: false
@@ -213,58 +229,62 @@ export function attachShopEavesDecor(model, kit, opts) {
   opts = opts || {};
   const { geo, mat, lampLight } = kit;
   const reduced = !!opts.reduced;
-  const roofY = opts.roofY == null ? 2.34 : opts.roofY;
-  const frontZ = opts.frontZ == null ? 1.05 : opts.frontZ;
-  const span = opts.span == null ? 4.35 : opts.span;
+  const span = opts.span == null ? SHOP_EAVES_LIGHT_SPAN : opts.span;
+  const bulbY = opts.bulbY == null ? SHOP_EAVES_BULB_Y : opts.bulbY;
+  const bulbZ = opts.bulbZ == null ? SHOP_EAVES_BULB_Z : opts.bulbZ;
+  const signY = opts.signY == null ? SHOP_EAVES_SIGN_Y : opts.signY;
+  const signZ = opts.signZ == null ? SHOP_EAVES_SIGN_Z : opts.signZ;
 
   const bulbs = stringLightBulbLayout(span, 14);
-  const bulbGeo = geo('sph', [0.035, 6, 5]);
+  const bulbGeo = geo('sph', [0.046, 7, 6]);
   const bulbMat = mat(0xfff6d4, {
     night: 0xffe2b0,
     glow: 0xffc56a,
-    glowAmount: 1.02,
+    glowAmount: 1.2,
     shadow: false
   });
-  bulbMat.userData.dayE = 0.05;
-  bulbMat.userData.nightE = 1.02;
+  bulbMat.userData.dayE = 0.03;
+  bulbMat.userData.nightE = 1.18;
   const inst = new THREE.InstancedMesh(bulbGeo, bulbMat, bulbs.length);
   inst.castShadow = false;
   inst.userData.stringLight = true;
   const dummy = new THREE.Object3D();
   bulbs.forEach((b, i) => {
-    dummy.position.set(b.x, roofY + 0.08, frontZ + 0.12);
+    const hang = 0.04 + (i % 3) * 0.018;
+    dummy.position.set(b.x, bulbY - hang, bulbZ);
+    dummy.scale.setScalar(1.05);
     dummy.updateMatrix();
     inst.setMatrixAt(i, dummy.matrix);
   });
   inst.instanceMatrix.needsUpdate = true;
   model.add(inst);
 
-  const wireGeo = geo('box', [span, 0.012, 0.012]);
+  const wireGeo = geo('box', [span + 0.08, 0.014, 0.014]);
   const wireMat = mat(0x3a312c, { shadow: false });
   const wire = new THREE.Mesh(wireGeo, wireMat);
-  wire.position.set(0, roofY + 0.11, frontZ + 0.1);
+  wire.position.set(0, bulbY + 0.05, bulbZ - 0.02);
   model.add(wire);
 
-  lampLight(0, roofY + 0.05, frontZ + 0.35, 7, model, { localHalo: true });
+  lampLight(0, bulbY - 0.02, bulbZ + 0.22, 8, model, { localHalo: true });
 
   [
-    { text: '今日特調', x: -1.55, z: frontZ + 0.22 },
-    { text: '新鮮水果', x: 1.45, z: frontZ + 0.18 }
+    { text: '今日特調', x: -1.45 },
+    { text: '新鮮水果', x: 1.35 }
   ].forEach((spec) => {
-    const tex = paintSmallTradSign(kit, spec.text, 220, 110);
+    const tex = paintSmallTradSign(kit, spec.text, 240, 120);
     const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.55, 0.28),
+      new THREE.PlaneGeometry(0.62, 0.3),
       mat(0xffffff, {
         map: tex,
         night: 0xfff0dc,
         glow: 0xffb15a,
-        glowAmount: 0.35,
+        glowAmount: 0.55,
         side: THREE.DoubleSide,
         shadow: false
       })
     );
-    plane.position.set(spec.x, roofY - 0.05, spec.z);
-    plane.rotation.y = Math.PI;
+    plane.position.set(spec.x, signY, signZ);
+    plane.rotation.x = -0.08;
     model.add(plane);
   });
 

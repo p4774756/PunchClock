@@ -42,6 +42,25 @@ export const MAIN_EXTRA_FLOWER_BEDS = Object.freeze([
   { x: 2.4, z: 1.85, w: 0.95, d: 0.58 }
 ]);
 
+/** 本島草地貼圖層（圓柱中心 y；頂面須低於石板 G+0.059）。 */
+export const MAIN_ISLAND_GRASS_DECOR_CENTER_Y = G + 0.013;
+export const MAIN_ISLAND_GRASS_DECOR_HEIGHT = 0.026;
+export const MAIN_ISLAND_GRASS_PATCH_CENTER_Y = G + 0.014;
+export const MAIN_PAVING_GROUP_Y = G + 0.034;
+export const MAIN_PAVING_BRICK_HEIGHT = 0.05;
+
+/** 莫卡手搖 GLB 本地座標（model.position.y = G，不含 G）。正面朝 +Z。 */
+export const SHOP_GLB_BASE = 0.08;
+export const SHOP_GLB_DEPTH = 3.2;
+export const SHOP_GLB_WALL_H = 1.92;
+export const SHOP_GLB_ROOF_Y = SHOP_GLB_BASE + SHOP_GLB_WALL_H + 0.14;
+export const SHOP_GLB_FRONT_Z = SHOP_GLB_DEPTH / 2;
+export const SHOP_EAVES_BULB_Y = SHOP_GLB_BASE + SHOP_GLB_WALL_H - 0.5;
+export const SHOP_EAVES_BULB_Z = SHOP_GLB_FRONT_Z + 0.12;
+export const SHOP_EAVES_SIGN_Y = SHOP_GLB_BASE + SHOP_GLB_WALL_H - 0.48;
+export const SHOP_EAVES_SIGN_Z = SHOP_GLB_FRONT_Z + 0.1;
+export const SHOP_EAVES_LIGHT_SPAN = 4.35;
+
 /** 石板磚格：決定性色差與縫線偏移。 */
 export function pavingTileLayout(w, d, tileW, tileD, seed) {
   const tw = tileW == null ? 0.42 : tileW;
@@ -103,8 +122,8 @@ export function stringLightGlowScale(reduced, elapsed, phase) {
 
 export function stringLightEmissiveAtMix(mix, reduced, elapsed, phase) {
   const m = Math.max(0, Math.min(1, Number(mix) || 0));
-  const dayE = 0.04;
-  const nightE = 1.05;
+  const dayE = 0.03;
+  const nightE = 1.18;
   const base = dayE + (nightE - dayE) * m;
   return base * stringLightGlowScale(reduced, elapsed, phase);
 }
@@ -145,7 +164,7 @@ export function starFieldOpacityBoost(t) {
 export function moonSeaReflectionOpacity(mix, reduced) {
   const m = Math.max(0, Math.min(1, Number(mix) || 0));
   if (m < 0.25) return 0;
-  const base = m * 0.62;
+  const base = m * 0.88;
   if (reduced) return base;
   return base;
 }
