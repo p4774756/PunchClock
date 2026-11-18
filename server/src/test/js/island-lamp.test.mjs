@@ -6,6 +6,7 @@ import { loadPublicModule } from './load-public-module.mjs';
 const {
   MAX_LAMP_POINT_LIGHTS,
   lampHaloOpacity,
+  lampGroundHaloRadius,
   lampPointIntensity,
   applyLampMixState
 } = await loadPublicModule('island-kit.js');
@@ -21,6 +22,11 @@ test('夜間光暈隨 power 與 mix 放大', () => {
   assert.ok(full > 0.55);
   assert.ok(Math.abs(half - full * 0.5) < 1e-9);
   assert.ok(lampHaloOpacity(8, 1) < full);
+});
+
+test('地面光暈半徑隨 power 增大', () => {
+  assert.ok(lampGroundHaloRadius(12) > lampGroundHaloRadius(6));
+  assert.ok(lampGroundHaloRadius(10) > 1.5);
 });
 
 test('關閉點光時強度為 0，開啟時與 power·mix 成正比', () => {

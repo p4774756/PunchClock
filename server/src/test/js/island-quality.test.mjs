@@ -4,7 +4,13 @@ import assert from 'node:assert/strict';
 import { loadPublicModule } from './load-public-module.mjs';
 
 const Q = await loadPublicModule('island-quality.js');
-const { createQualityAdvisor, qualityTierSettings, DEFAULT_MAX_PIXEL_RATIO } = Q;
+const {
+  createQualityAdvisor,
+  qualityTierSettings,
+  createFpsRollingStats,
+  formatExplorePerfOverlay,
+  DEFAULT_MAX_PIXEL_RATIO
+} = Q;
 
 test('預設高畫質：像素比上限 1.5、陰影 1024', () => {
   const s = qualityTierSettings('high', 2);
@@ -31,4 +37,31 @@ test('連續掉幀會依序降階，順暢後恢復', () => {
 
   advisor.reset();
   assert.equal(advisor.tier, 'high');
+});
+
+test('observeFrame 回報畫質升降方向', () => {
+  const advisor = createQualityAdvisor({ slowNeed: 1, fastNeed: 1, getDevicePixelRatio: () => 2 });
+  const down = advisor.observeFrame(30);
+  assert.equal(down.tierDirection, 'down');
+  const up = advisor.observeFrame(12);
+  assert.equal(up.tierDirection, 'up');
+});
+
+test('滾動幀率統計與 perf 面板格式', () => {
+  const rolling = createFpsRollingStats(1000);
+  rolling.push(100, 60);
+  rolling.push(150, 30);
+  const snap = rolling.snapshot();
+  assert.equal(snap.count, 2);
+  assert.equal(snap.min, 30);
+  assert.equal(snap.avg, 45);
+  const text = formatExplorePerfOverlay(
+    { fps: 55, label: '高' },
+    snap,
+    { down: 2, up: 1 }
+  );
+  assert.match(text, /幀率約 55/);
+  assert.match(text, /平均 45/);
+  assert.match(text, /最低 30/);
+  assert.match(text, /降階：2 次/);
 });

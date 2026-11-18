@@ -101,9 +101,12 @@ import {
 } from './island-explore-input.js';
 import {
   createQualityAdvisor,
+  createFpsRollingStats,
+  formatExplorePerfOverlay,
   DEFAULT_MAX_PIXEL_RATIO,
   DEFAULT_SHADOW_MAP
 } from './island-quality.js';
+import { exploreLightAtMix } from './island-explore-light.js';
 import {
   attachWebglContextHandlers,
   bindWebglNotice,
@@ -199,9 +202,9 @@ function boot() {
   scene.add(sun.target);
 
   const hemiDay = new THREE.Color(0xfff8ef);
-  const hemiNight = new THREE.Color(0xb89a78);
+  const hemiNight = new THREE.Color(0xcaa882);
   const groundDay = new THREE.Color(0xe7d8bc);
-  const groundNight = new THREE.Color(0x2e2a38);
+  const groundNight = new THREE.Color(0x45404e);
   const sunDay = new THREE.Color(0xfff3d6);
   const sunNight = new THREE.Color(0xc5d4f2);
 
@@ -232,10 +235,11 @@ function boot() {
     scene.fog.far = 320 + (240 - 320) * t;
     hemi.color.copy(hemiDay).lerp(hemiNight, t);
     hemi.groundColor.copy(groundDay).lerp(groundNight, t);
-    hemi.intensity = 0.62 + (0.38 - 0.62) * t;
+    const light = exploreLightAtMix(t);
+    hemi.intensity = light.hemiIntensity;
     sun.color.copy(sunDay).lerp(sunNight, t);
-    sun.intensity = 1.42 + (0.5 - 1.42) * t;
-    renderer.toneMappingExposure = 1.02 + (0.94 - 1.02) * t;
+    sun.intensity = light.sunIntensity;
+    renderer.toneMappingExposure = light.toneMappingExposure;
   });
 
   const quality = createQualityAdvisor({
@@ -264,13 +268,17 @@ function boot() {
 
   const perfEnabled = new URLSearchParams(window.location.search).get('perf') === '1';
   let perfEl = null;
+  let perfRolling = null;
+  const perfTierChanges = { down: 0, up: 0 };
   if (perfEnabled) {
     perfEl = document.createElement('div');
     perfEl.setAttribute('aria-hidden', 'true');
     perfEl.style.cssText =
       'position:absolute;left:8px;top:8px;z-index:25;padding:6px 8px;font:12px/1.35 sans-serif;'
-      + 'color:#fff;background:rgba(12,24,42,0.72);border-radius:6px;pointer-events:none;';
+      + 'color:#fff;background:rgba(12,24,42,0.72);border-radius:6px;pointer-events:none;'
+      + 'white-space:pre-line;';
     stage.appendChild(perfEl);
+    perfRolling = createFpsRollingStats(10000);
   }
 
   const worldResult = buildIslandWorld({ scene: scene, kit: kit });
@@ -974,8 +982,14 @@ function boot() {
     const sample = quality.observeFrame(dt * 1000);
     if (sample.changed) applyQualitySettings(sample.settings);
     if (perfEl) {
-      perfEl.textContent =
-        '幀率約 ' + Math.round(sample.fps) + ' · 畫質：' + sample.label;
+      if (sample.tierDirection === 'down') perfTierChanges.down += 1;
+      if (sample.tierDirection === 'up') perfTierChanges.up += 1;
+      if (perfRolling) perfRolling.push(performance.now(), sample.fps);
+      perfEl.textContent = formatExplorePerfOverlay(
+        sample,
+        perfRolling ? perfRolling.snapshot() : null,
+        perfTierChanges
+      );
     }
     updatePlayer(dt);
     if (peerLayer) peerLayer.syncPresence(performance.now());
