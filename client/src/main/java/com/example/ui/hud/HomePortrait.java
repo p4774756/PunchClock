@@ -23,6 +23,8 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
     private final Rectangle bust = new Rectangle();
     /** 軌道前景等比例繪製後的實際矩形（頂右對齊）。 */
     private final Rectangle orbitalDrawn = new Rectangle();
+    /** 「下一個任務」卡片在畫布上的可見頂緣；與 {@link #bust} 同座標系。 */
+    private int cardTopOnCanvas = Integer.MIN_VALUE;
     /** 視窗控制鈕區域：角色不蓋住，點擊仍可穿透。 */
     private final Rectangle controlHole = new Rectangle();
     private CharacterTheme theme = CharacterTheme.SWEATER;
@@ -84,7 +86,7 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
             return;
         }
         drawHeadAndArms(g, canvas);
-        drawFingers(g);
+        drawFingers(g, canvas);
     }
 
     @Override
@@ -139,6 +141,7 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
                 canvasBounds, panel, titleH, stage, controls, maximized, bodySize, bodySize);
         bust.setBounds(box.bust);
         if (!shell.isShowing() || bust.height <= 0) {
+            cardTopOnCanvas = Integer.MIN_VALUE;
             return;
         }
         try {
@@ -149,8 +152,10 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
                     box.card.x - origin.x, box.card.y - origin.y, box.card.width, box.card.height);
             shell.presentHomeFigure(figure, card, box.textRight - origin.x, art.bust);
             shell.dropHomeBubbleBelow(card.y + card.height + 8);
+            cardTopOnCanvas = foregroundCutY(canvas, box.ledgeY());
         } catch (IllegalArgumentException ex) {
             shell.presentHomeFigure(null, null, 0, null);
+            cardTopOnCanvas = Integer.MIN_VALUE;
         }
     }
 
@@ -332,9 +337,14 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
         return canvas instanceof JComponent ? (JComponent) canvas : null;
     }
 
-    /** 頭和前臂畫在最前面。只有標題列那一段讓過視窗按鈕，袖子維持原圖的外緣。 */
+    /** 前景層（頭、手臂）下緣，與「下一個任務」卡片可見頂緣對齊（畫布座標）。 */
+    int foregroundFloorOnCanvas() {
+        return cardTopOnCanvas;
+    }
+
+    /** 頭和前臂畫在最前面。只有標題列那一段讓過視窗按鈕，下緣不超出卡片頂緣。 */
     private void drawHeadAndArms(Graphics2D g, JComponent canvas) {
-        int bottom = bust.y + Math.round(bust.height * HomeCharacterLayout.LEDGE_Y);
+        int bottom = foregroundCutY(canvas, bust.y + Math.round(bust.height * HomeCharacterLayout.LEDGE_Y));
         if (bottom - bust.y <= 0) {
             return;
         }
@@ -359,21 +369,14 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
             draw(g, art.bust, bust);
             g.setClip(clip);
         }
-        int sleeveBottom = bust.y + Math.round(bust.height * 0.336f);
-        int sleeveX = bust.x + Math.round(bust.width * 0.60f);
-        if (sleeveBottom > bottom && bust.x + bust.width > sleeveX) {
-            g.clipRect(sleeveX, bottom, bust.x + bust.width - sleeveX, sleeveBottom - bottom);
-            draw(g, art.bust, bust);
-            g.setClip(clip);
-        }
     }
 
     /** 卡片頂緣以下只留兩隻手的輪廓，兩手之間和兩側的毛衣不畫。 */
-    private void drawFingers(Graphics2D g) {
+    private void drawFingers(Graphics2D g, JComponent canvas) {
         if (art.fingers == null) {
             return;
         }
-        int top = bust.y + Math.round(bust.height * HomeCharacterLayout.LEDGE_Y);
+        int top = foregroundCutY(canvas, bust.y + Math.round(bust.height * HomeCharacterLayout.LEDGE_Y));
         int height = bust.y + bust.height - top;
         if (height <= 0) {
             return;
@@ -382,6 +385,21 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
         g.clipRect(bust.x, top, bust.width, height);
         draw(g, art.fingers, bust);
         g.setClip(clip);
+    }
+
+    /**
+     * 卡片實際可見頂緣（HomeBoard reminder 的圓角面板頂）。
+     * {@code fillRoundRect} 與 {@linkplain HomeCharacterLayout#place} 的 card.y 對齊。
+     */
+    private int foregroundCutY(JComponent canvas, int layoutFallback) {
+        Rectangle reminder = reminderOnCanvas(canvas);
+        if (reminder != null && reminder.width >= 80) {
+            return reminder.y;
+        }
+        if (cardTopOnCanvas > Integer.MIN_VALUE) {
+            return cardTopOnCanvas;
+        }
+        return layoutFallback;
     }
 
     private static void draw(Graphics2D g, java.awt.image.BufferedImage image, Rectangle dest) {

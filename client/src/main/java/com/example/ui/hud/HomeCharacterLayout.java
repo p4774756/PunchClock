@@ -8,43 +8,44 @@ import java.awt.Rectangle;
 /**
  * 首頁角色相對紫色面板的位置。座標都在主視窗內容區裡。
  * <p>
- * 全身圖 {@code /hud/home/home-body.png}：768×1024。上半身和腿腳是同一張圖、
- * 同一個矩形。前臂下緣貼「下一個任務」卡片頂緣；指尖垂在卡片前面。
- * 卡片底緣切在小腿上，右下角只留一小截深紫小腿，接著襪口和襪腳，整段都在視窗內。
+ * 全身圖 {@code /hud/home/home-body.png}：768×1024（Q 版、胸前比心）。
+ * 上半身和腿腳是同一張圖、同一個矩形。前臂下緣（袖口底）貼「下一個任務」卡片頂緣；
+ * 指尖垂在卡片前面。卡片底緣切在短褲下襬與膝上之間，右下角露出伸出的襪腳。
  */
 public final class HomeCharacterLayout {
 
     /** 頭髮最高點。 */
     public static final float HAIR_Y = 0.022f;
-    /** 臉的中心。 */
-    public static final float FACE_X = 0.46f;
-    public static final float FACE_Y = 0.21f;
+    /** 臉的中心（兩眼中點、略偏鼻樑）。 */
+    public static final float FACE_X = 0.484f;
+    public static final float FACE_Y = 0.273f;
     /** 下巴。放在標題列下面，臉才不會被標題列蓋住。 */
-    public static final float CHIN_Y = 0.248f;
-    /** 袖子向兩側展開。 */
-    public static final float ARM_TOP_Y = 0.227f;
-    /** 前臂下緣，對齊卡片頂緣。 */
-    public static final float LEDGE_Y = 0.326f;
-    /** 指尖，畫在卡片前面。 */
-    public static final float FINGERS_Y = 0.378f;
+    public static final float CHIN_Y = 0.342f;
+    /** 兩前臂上緣（比心姿勢）。 */
+    public static final float ARM_TOP_Y = 0.316f;
+    /** 前臂下緣／袖口底，對齊卡片頂緣（依素材袖口實測，約 y≈402）。 */
+    public static final float LEDGE_Y = 0.393f;
+    /** 最低指尖，畫在卡片前面。 */
+    public static final float FINGERS_Y = 0.441f;
     /** 雙手在圖上的左右緣。卡片文字停在這段左邊。 */
-    public static final float HAND_LEFT_X = 0.30f;
-    public static final float HAND_RIGHT_X = 0.63f;
-    /** 卡片右緣，切過小腿，腳從右下角伸出去。 */
-    public static final float CARD_RIGHT_X = 0.70f;
-    /** 卡片底緣。再往下只留一小截小腿，接著就是襪口。 */
-    public static final float CARD_BOTTOM_Y = 0.68f;
-    /** 奶油色襪口開始的高度。 */
-    public static final float CUFF_Y = 0.748f;
+    public static final float HAND_LEFT_X = 0.396f;
+    public static final float HAND_RIGHT_X = 0.651f;
+    /** 卡片右緣，切在伸出腳跟／腳背起點，襪腳從右下露出。 */
+    public static final float CARD_RIGHT_X = 0.729f;
+    /** 卡片底緣，約在短褲下襬下方、襪口上方。 */
+    public static final float CARD_BOTTOM_Y = 0.730f;
+    /** 伸出小腿襪的襪口頂。 */
+    public static final float CUFF_Y = 0.803f;
     /** 襪尖。 */
     public static final float TOE_X = 0.962f;
     /** 鞋底。 */
-    public static final float SOLE_Y = 0.956f;
+    public static final float SOLE_Y = 0.955f;
     /** 還原視窗右側透明區的比例。切頁時沿用，避免視窗尺寸重算。 */
     public static final float SOCK_VISIBLE = 0.09f;
     /** 卡片左側留給文字的寬度。 */
     public static final int TEXT_COLUMN = 168;
-    private static final float HEAD_RIGHT_X = 0.56f;
+    /** 髮髻右緣，標題列按鈕避讓用（馬尾更右，不當錨點）。 */
+    private static final float HEAD_RIGHT_X = 0.65f;
 
     private HomeCharacterLayout() {
     }
