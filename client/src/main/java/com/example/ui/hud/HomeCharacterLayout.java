@@ -23,8 +23,8 @@ public final class HomeCharacterLayout {
     public static final float CHIN_Y = 0.342f;
     /** 兩前臂上緣（比心姿勢）。 */
     public static final float ARM_TOP_Y = 0.316f;
-    /** 前臂下緣／袖口底，對齊卡片頂緣。 */
-    public static final float LEDGE_Y = 0.393f;
+    /** 前臂下緣／袖口底，對齊卡片頂緣（依素材袖口實測，約 35%）。 */
+    public static final float LEDGE_Y = 0.348f;
     /** 最低指尖，畫在卡片前面。 */
     public static final float FINGERS_Y = 0.441f;
     /** 雙手在圖上的左右緣。卡片文字停在這段左邊。 */

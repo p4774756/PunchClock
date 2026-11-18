@@ -15,6 +15,11 @@ public class HomeFigureMaskTest {
         BufferedImage fingers = art.fingers;
         assertTrue(opaque(fingers, 0.41f, 0.43f));
         assertTrue(opaque(fingers, 0.58f, 0.43f));
+        // 指頭內部取樣：必須完全不透明（不透出卡片紫）
+        assertTrue(opaque(fingers, 0.415f, 0.405f));
+        assertTrue(opaque(fingers, 0.42f, 0.418f));
+        assertTrue(opaque(fingers, 0.575f, 0.408f));
+        assertTrue(opaque(fingers, 0.585f, 0.422f));
         assertTrue(!opaque(fingers, 0.49f, 0.40f));
         assertTrue(!opaque(fingers, 0.35f, 0.40f));
         assertTrue(!opaque(fingers, 0.66f, 0.40f));
