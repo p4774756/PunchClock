@@ -275,12 +275,9 @@ function boot() {
   const perfTierChanges = { down: 0, up: 0 };
   if (perfEnabled) {
     perfEl = document.createElement('div');
+    perfEl.className = 'island-perf';
     perfEl.setAttribute('aria-hidden', 'true');
-    perfEl.style.cssText =
-      'position:absolute;left:8px;top:8px;z-index:25;padding:6px 8px;font:12px/1.35 sans-serif;'
-      + 'color:#fff;background:rgba(12,24,42,0.72);border-radius:6px;pointer-events:none;'
-      + 'white-space:pre-line;';
-    stage.appendChild(perfEl);
+    document.body.appendChild(perfEl);
     perfRolling = createFpsRollingStats(10000);
   }
 
