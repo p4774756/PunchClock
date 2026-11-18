@@ -47,7 +47,8 @@ import {
   interiorLeaveButtonLabel,
   shouldShowInteriorLeave,
   labInteriorFollowDistance,
-  labInteriorLookTarget
+  labInteriorLookTarget,
+  labInteriorRuntimeLookAt
 } from './island-interior.js';
 import {
   createMiluState,
@@ -693,7 +694,7 @@ function boot() {
       const custom = interiorFollowPose(room, camera.aspect);
       pose = custom || INTERIOR_POSE;
       if (room && room.id === 'lab-room') {
-        const focal = labInteriorLookTarget(room, player, camera.aspect);
+        const focal = labInteriorRuntimeLookAt(room, player, camera.aspect);
         lookX = focal.x;
         lookY = focal.y;
         lookZ = focal.z;
@@ -934,8 +935,12 @@ function boot() {
     const bobY = (!reduced && player.moving) ? Math.sin(playerBob) * 0.035 : 0;
     playerMesh.position.set(player.x, P + bobY, player.z);
     playerMesh.rotation.y = player.yaw;
-    stepMilu(dt);
-    cam.targetLook.set(player.x, G + 1.05, player.z);
+    if (rooms.inside() && rooms.room() && rooms.room().id === 'lab-room') {
+      const focal = labInteriorRuntimeLookAt(rooms.room(), player, camera.aspect);
+      cam.targetLook.set(focal.x, focal.y, focal.z);
+    } else {
+      cam.targetLook.set(player.x, G + 1.05, player.z);
+    }
     syncInteractPrompt();
     syncFootprints(dt);
   }

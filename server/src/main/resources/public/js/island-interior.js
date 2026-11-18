@@ -18,12 +18,13 @@ const LAB_PHI_MIN = 0.32;
 const LAB_PHI_MAX = 1.12;
 const LAB_FOV_DEG = 25;
 
+/** 與 island-camera.js exploreCameraPlacement 相同（研發樓 phi≥0.70，無抬頭俯仰混合）。 */
 function labExploreCameraPlacement(lookAtX, lookAtY, lookAtZ, dist, safePhi, theta, groundY) {
   const horiz = Math.max(0.55, dist * Math.sin(safePhi));
-  const cy = lookAtY + dist * Math.cos(safePhi);
+  const cy = Math.max(groundY + 0.88, lookAtY + dist * Math.cos(safePhi));
   return {
     cx: lookAtX + horiz * Math.sin(theta),
-    cy: Math.max(groundY + 0.88, cy),
+    cy: cy,
     cz: lookAtZ + horiz * Math.cos(theta),
     horiz: horiz
   };
@@ -41,8 +42,8 @@ export const INTERIOR_HINT_EXPLORE_TOUCH = '用左下角搖桿移動 · 拖曳�
 export const INTERIOR_HINT_INSIDE_DESK = 'WASD 或方向鍵移動 · Esc 或走到門口離開 · 工具列可一鍵離開';
 export const INTERIOR_HINT_INSIDE_TOUCH = '搖桿移動 · 按右下「離開」出去';
 
-/** 研發樓進房預設鏡頭（桌面／橫向）：北牆剖面後略拉遠，門／螢幕／角色同枠。 */
-export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 3.7, theta: 0.02, phi: 1.12 });
+/** 研發樓進房預設鏡頭（桌面／橫向）：北牆剖面後拉遠，南牆離開工具列。 */
+export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 4.6, theta: 0.02, phi: 1.12 });
 
 export const LAB_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 11, theta: 0, phi: 1.12 });
 
@@ -57,8 +58,8 @@ const LAB_SCREEN = Object.freeze({
   cx: 0,
   cy: G + 0.84,
   cz: -1.74,
-  hw: 0.795,
-  hh: 0.56,
+  hw: 0.675,
+  hh: 0.44,
   frame: 0.12
 });
 
@@ -102,6 +103,18 @@ export function labInteriorFollowDistance(radius, aspect) {
 export function labInteriorLookTarget(_room, _player, aspect) {
   const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
   return a < 0.72 ? LAB_INTERIOR_LOOK_MOBILE : LAB_INTERIOR_LOOK_DESKTOP;
+}
+
+/** 與 island.js follow／每幀 targetLook 相同：室內焦點平移到世界座標。 */
+export function labInteriorRuntimeLookAt(room, player, aspect, origin) {
+  if (!room || room.id !== 'lab-room') return null;
+  const focal = labInteriorLookTarget(room, player, aspect);
+  const o = origin || INTERIOR_ORIGIN;
+  return Object.freeze({
+    x: focal.x + o.x,
+    y: focal.y,
+    z: focal.z + o.z
+  });
 }
 
 export function labInteriorScreenTopNdcLimit(viewportHeightPx) {
@@ -353,7 +366,7 @@ export function labInteriorFramingOk(aspect, viewportHeightPx, room) {
       LAB_SCREEN.cx - LAB_SCREEN.hw, contentTopY, LAB_SCREEN.cz, pose, look, aspect
     );
     const contentVertical = contentTopL.y - contentBot.y;
-    if (contentVertical < 0.28) return false;
+    if (contentVertical < 0.22) return false;
   } else if (span < 0.78) {
     return false;
   }

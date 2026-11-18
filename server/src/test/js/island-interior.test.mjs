@@ -177,7 +177,7 @@ test('研發樓出生朝向門口，有專用鏡頭與離開按鈕條件', () =>
   const room = I.interiorByBuilding('computer-site');
   assert.equal(room.spawn.yaw, Math.PI);
   assert.ok(room.spawn.z > -0.2, '出生點略靠房內北側，鏡頭看得到南牆門');
-  assert.deepEqual(I.LAB_INTERIOR_CAMERA, { radius: 3.7, theta: 0.02, phi: 1.12 });
+  assert.deepEqual(I.LAB_INTERIOR_CAMERA, { radius: 4.6, theta: 0.02, phi: 1.12 });
   assert.deepEqual(I.interiorFollowPose(room, 1.6), I.LAB_INTERIOR_CAMERA);
   assert.deepEqual(I.interiorFollowPose(room, 390 / 844), I.LAB_INTERIOR_CAMERA_MOBILE);
   assert.equal(I.interiorFollowPose(I.interiorByBuilding('shop')), null);
@@ -259,8 +259,8 @@ test('研發樓預設鏡頭：三種 viewport 螢幕與門口投影在 NDC 內',
     const topLimit = I.labInteriorScreenTopNdcLimit(vp.height);
     const pose = I.labInteriorCameraForAspect(vp.aspect);
     const look = vp.aspect < 0.72 ? I.LAB_INTERIOR_LOOK_MOBILE : I.LAB_INTERIOR_LOOK_DESKTOP;
-    const frameTopY = 0.2 + 0.84 + 0.56 + 0.12;
-    const frameTop = I.labInteriorProjectNdc(-0.795 - 0.12, frameTopY, -1.74, pose, look, vp.aspect);
+    const frameTopY = 0.2 + 0.84 + 0.44 + 0.12;
+    const frameTop = I.labInteriorProjectNdc(-0.675 - 0.12, frameTopY, -1.74, pose, look, vp.aspect);
     if (vp.aspect >= 0.72) {
       assert.ok(frameTop.y <= topLimit + 0.02, '螢幕外框上緣 NDC y 不得貼齊工具列');
     } else {
@@ -268,6 +268,44 @@ test('研發樓預設鏡頭：三種 viewport 螢幕與門口投影在 NDC 內',
     }
     assert.ok(frameTop.y <= 0.85, '螢幕外框上緣 NDC y ≤ 0.85');
   }
+});
+
+test('研發樓 runtime 注視世界焦點，勿誤用玩家胸口（會把螢幕頂進工具列）', () => {
+  const room = I.interiorByBuilding('computer-site');
+  const spawn = room.spawn;
+  const aspect = 1440 / 900;
+  const height = 900;
+  const worldLook = I.labInteriorRuntimeLookAt(room, { x: spawn.x, z: spawn.z }, aspect);
+  const wrongLook = {
+    x: spawn.x + I.INTERIOR_ORIGIN.x,
+    y: I.LAB_INTERIOR_PLAYER_CHEST_Y,
+    z: spawn.z + I.INTERIOR_ORIGIN.z
+  };
+  assert.notDeepEqual(worldLook, wrongLook);
+  const pose = I.labInteriorCameraForAspect(aspect);
+  const frameTopY = 0.2 + 0.84 + 0.44 + 0.12;
+  const lim = I.labInteriorScreenTopNdcLimit(height);
+  const oz = I.INTERIOR_ORIGIN.z;
+  const focalTop = I.labInteriorProjectNdc(
+    I.INTERIOR_ORIGIN.x - 0.675 - 0.12,
+    frameTopY,
+    oz - 1.74,
+    pose,
+    worldLook,
+    aspect
+  );
+  const playerTop = I.labInteriorProjectNdc(
+    I.INTERIOR_ORIGIN.x - 0.675 - 0.12,
+    frameTopY,
+    oz - 1.74,
+    pose,
+    wrongLook,
+    aspect
+  );
+  const pxFromTop = (ndcY) => ((1 - ndcY) / 2) * height;
+  assert.ok(pxFromTop(focalTop.y) >= 80, '焦點注視時螢幕外框上緣 ≥80px');
+  assert.ok(playerTop.y > focalTop.y + 0.2, '胸口注視會把南牆頂端抬進工具列帶');
+  assert.ok(pxFromTop(playerTop.y) < 80, '胸口注視模擬 Playwright 實拍頂部遮擋');
 });
 
 test('手搖店室內離開按鈕文案與探索提示', () => {
