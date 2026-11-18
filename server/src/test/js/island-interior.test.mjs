@@ -304,19 +304,67 @@ test('研發樓桌面注視：南牆焦點與胸口混合，手機維持純焦�
   const pose = I.labInteriorCameraForAspect(desktopAspect);
   const frameTopY = 0.2 + 0.84 + 0.44 + 0.12;
   const lim = I.labInteriorScreenTopNdcLimit(height);
-  const oz = I.INTERIOR_ORIGIN.z;
-  const worldLook = I.labInteriorRuntimeLookAt(room, player, desktopAspect);
+  const o = I.INTERIOR_ORIGIN;
+  const worldPlayer = { x: player.x + o.x, z: player.z + o.z };
+  const worldLook = I.labInteriorRuntimeLookAt(room, worldPlayer, desktopAspect);
+  const localLook = {
+    x: worldLook.x - o.x,
+    y: worldLook.y,
+    z: worldLook.z - o.z
+  };
   const frameTop = I.labInteriorProjectNdc(
-    I.INTERIOR_ORIGIN.x - 0.675 - 0.12,
+    -0.675 - 0.12,
     frameTopY,
-    oz - 1.74,
+    -1.74,
     pose,
-    worldLook,
+    localLook,
     desktopAspect
   );
   const pxFromTop = (ndcY) => ((1 - ndcY) / 2) * height;
   assert.ok(pxFromTop(frameTop.y) >= 80, '混合注視時螢幕外框上緣 ≥80px');
   assert.ok(frameTop.y <= lim + 0.03, '螢幕外框不應貼齊工具列');
+});
+
+test('研發樓桌面世界座標：注視與鏡頭仍在室內附近', () => {
+  const room = I.interiorByBuilding('computer-site');
+  const o = I.INTERIOR_ORIGIN;
+  const focalZ = I.LAB_INTERIOR_LOOK_DESKTOP.z;
+  const aspects = [1440 / 900, 1280 / 720];
+  const samples = I.labInteriorPlayerSamplePositions(room);
+  const nearRoom = (x, z) => Math.hypot(x - o.x, z - o.z) < 15;
+  const betweenPlayerAndSouth = (playerZ, lookZ) => {
+    const lo = Math.min(playerZ, focalZ);
+    const hi = Math.max(playerZ, focalZ);
+    return lookZ >= lo - 0.01 && lookZ <= hi + 0.01;
+  };
+  for (let a = 0; a < aspects.length; a++) {
+    const aspect = aspects[a];
+    const pose = I.labInteriorCameraForAspect(aspect);
+    for (let i = 0; i < samples.length; i++) {
+      const s = samples[i];
+      const worldPlayer = { x: s.x + o.x, z: s.z + o.z };
+      const worldLook = I.labInteriorRuntimeLookAt(room, worldPlayer, aspect);
+      assert.ok(worldLook, 'worldLook');
+      assert.ok(
+        nearRoom(worldLook.x, worldLook.z),
+        `注視點距 INTERIOR_ORIGIN < 15：${s.id} aspect=${aspect.toFixed(3)}`
+      );
+      const localLook = {
+        x: worldLook.x - o.x,
+        y: worldLook.y,
+        z: worldLook.z - o.z
+      };
+      assert.ok(
+        betweenPlayerAndSouth(s.z, localLook.z),
+        `注視點應在玩家與南牆之間：${s.id} z=${localLook.z.toFixed(3)}`
+      );
+      const eye = I.labInteriorCameraEye(pose, localLook, aspect);
+      assert.ok(
+        Math.hypot(eye.x, eye.z) < 15,
+        `鏡頭距室內原點 < 15：${s.id} aspect=${aspect.toFixed(3)}`
+      );
+    }
+  }
 });
 
 test('研發樓各站位頭腳投影在 NDC 內（桌面 1280／1440）', () => {

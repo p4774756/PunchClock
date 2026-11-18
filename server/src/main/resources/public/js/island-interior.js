@@ -139,11 +139,25 @@ export function labInteriorLookTarget(room, player, aspect) {
   return labInteriorBlendLookAt(focal, player, labInteriorChestBlend(room, player));
 }
 
+function labInteriorPlayerLocal(player, origin) {
+  if (!player) return player;
+  const o = origin || INTERIOR_ORIGIN;
+  const pz = player.z;
+  if (!Number.isFinite(pz)) return player;
+  const worldIndoor = Math.abs(pz - o.z) < 12;
+  if (!worldIndoor) return player;
+  return {
+    x: Number.isFinite(player.x) ? player.x - o.x : player.x,
+    z: pz - o.z
+  };
+}
+
 /** 與 island.js follow／每幀 targetLook 相同：室內焦點平移到世界座標。 */
 export function labInteriorRuntimeLookAt(room, player, aspect, origin) {
   if (!room || room.id !== 'lab-room') return null;
-  const focal = labInteriorLookTarget(room, player, aspect);
   const o = origin || INTERIOR_ORIGIN;
+  const localPlayer = labInteriorPlayerLocal(player, o);
+  const focal = labInteriorLookTarget(room, localPlayer, aspect);
   return Object.freeze({
     x: focal.x + o.x,
     y: focal.y,
