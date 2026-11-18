@@ -785,7 +785,7 @@ function boot() {
   }
 
   function voyageUiPaused() {
-    return mode.paused || sheetOpen() || casinoOpen() || graffitiOpen() || roadmapOpen();
+    return mode.paused || islandUiOpen();
   }
 
   function syncBoatMesh(elapsed) {
@@ -1853,6 +1853,8 @@ function boot() {
     isClosedHall: isClosedHall,
     showInteriorClosed: showInteriorClosed,
     startSail: (zone) => startSail(zone),
+    isSteering: () => isSteering(),
+    disembarkSteer: () => disembarkSteer(),
     enterTcm: () => enterTcm(),
     isInside: () => rooms.inside(),
     islandChat: islandChat,

@@ -236,6 +236,10 @@ export function handleExploreKeydown(ctx) {
     // 焦點已在「進入賭場」按鈕時交給按鈕自己的 click／Enter，避免重複開啟。
     if (event.target && (event.target.id === 'islandInteract' || event.target.id === 'islandSteer')) return false;
     event.preventDefault();
+    if (typeof ctx.isSteering === 'function' && ctx.isSteering()) {
+      if (typeof ctx.disembarkSteer === 'function') ctx.disembarkSteer();
+      return true;
+    }
     const zone = ctx.hitInteractZone();
     if (ctx.isInside()) {
       if (zone && zone.action === 'exitInterior') ctx.leaveInterior();

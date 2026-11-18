@@ -77,6 +77,19 @@ test('reduced：stepSteering 不保留慣性', () => {
   assert.equal(state.vz, 0);
 });
 
+test('voyageUiPaused 等價：清單開啟（islandUiOpen）時 stepSteering 速度歸零', () => {
+  const voyageUiPaused = (mode, islandUiOpen) => mode.paused || islandUiOpen();
+  let state = B.startSteering(B.createBoatState('main'), 'main');
+  state = B.stepSteering(state, { x: 0, z: 1, moving: true }, 0.15, {});
+  const hadV = Math.hypot(state.vx, state.vz);
+  assert.ok(hadV > 0.05);
+  const paused = voyageUiPaused({ paused: false }, () => true);
+  assert.equal(paused, true, '清單等 UI 開啟應暫停');
+  state = B.stepSteering(state, { x: 0, z: 1, moving: true }, 0.1, { paused: true });
+  assert.equal(state.vx, 0);
+  assert.equal(state.vz, 0);
+});
+
 test('voyageUiPaused 等價：paused 時 stepSteering 速度歸零', () => {
   let state = B.startSteering(B.createBoatState('main'), 'main');
   state = B.stepSteering(state, { x: 0, z: 1, moving: true }, 0.15, {});
