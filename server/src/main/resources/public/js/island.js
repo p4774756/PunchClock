@@ -1158,7 +1158,7 @@ function boot() {
 
   function syncPassengerScale() {
     const s = boatPassengerScaleFactor(boatState.phase);
-    milu.object.scale.setScalar(s);
+    localView.object.scale.setScalar(s);
     miluPlaceholder.scale.setScalar(s);
   }
 
