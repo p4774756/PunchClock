@@ -260,6 +260,25 @@ body.is-authenticated [data-guest-only] {
   outline-offset: 2px;
 }
 
+.island-perf {
+  position: fixed;
+  z-index: 5;
+  left: max(0.85rem, env(safe-area-inset-left, 0px));
+  top: calc(5.15rem + 2.8rem + 0.5rem + env(safe-area-inset-top, 0px));
+  box-sizing: border-box;
+  max-width: 15rem;
+  min-width: 10.875rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 6px;
+  font: 12px/1.35 ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: rgba(12, 24, 42, 0.78);
+  pointer-events: none;
+  user-select: none;
+  white-space: pre-line;
+}
+
 #islandLabels {
   position: fixed;
   inset: 0;
@@ -950,6 +969,13 @@ body.island-more-open .island-joystick {
   }
   .island-brand-text small { display: none; }
   .island-time { top: 4.5rem; left: 0.55rem; }
+  .island-perf {
+    left: max(0.55rem, env(safe-area-inset-left, 0px));
+    top: calc(4.5rem + 2.8rem + 0.45rem + env(safe-area-inset-top, 0px));
+    max-width: min(11.5rem, calc(100vw - 13rem));
+    min-width: 9.5rem;
+    font-size: 11px;
+  }
   .island-corner {
     top: auto;
     left: auto;
