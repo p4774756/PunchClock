@@ -601,7 +601,7 @@ export function buildIslandProps(ctx) {
   hill(18, 40, 4.2, 1.7, 0xd7e6ee);
   hill(42, 18, 3.6, 1.5, 0xc9ddd4);
 
-  function palmAt(x, z) {
+  function palmAt(x, z, withUplight) {
     const group = new THREE.Group();
     group.position.set(x, G, z);
     addMesh(group, geo('cyl', [0.07, 0.11, 1.55, 5, 0]), 0xc4844a, 0, 0.78, 0);
@@ -610,6 +610,15 @@ export function buildIslandProps(ctx) {
       const frond = addMesh(group, geo('cone', [0.07, 0.85, 4]), 0x6fa84e, Math.cos(a) * 0.22, 1.55, Math.sin(a) * 0.22);
       frond.rotation.z = Math.cos(a) * 0.9;
       frond.rotation.x = Math.sin(a) * 0.9;
+    }
+    if (withUplight) {
+      addMesh(group, geo('sph', [0.14, 6, 5]), 0xffc56a, 0, 0.12, 0, {
+        night: 0xffe2b0,
+        glow: 0xff9a48,
+        glowAmount: 0.95,
+        shadow: false
+      });
+      lampLight(0, 0.08, 0, 10, group, { localHalo: true });
     }
     scene.add(group);
   }
@@ -690,7 +699,7 @@ export function buildIslandProps(ctx) {
     scene.add(group);
   }
   THEME_CIRCLES.forEach((prop) => {
-    if (prop.id.indexOf('palm') === 0) palmAt(prop.x, prop.z);
+    if (prop.id.indexOf('palm') === 0) palmAt(prop.x, prop.z, true);
     else if (prop.id === 'bamboo') bambooAt(prop.x, prop.z);
     else if (prop.id === 'dish') dishAt(prop.x, prop.z);
     else if (prop.id === 'figure') figureAt(prop.x, prop.z);

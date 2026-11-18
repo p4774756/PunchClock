@@ -408,3 +408,26 @@ test('三種關閉方式都只觸發一次關閉流程；重複開啟不重複�
     assert.equal(t.flow.canMove(), true, close);
   }
 });
+
+test('室內開牌桌：返回賭廳與返回島嶼都只關 overlay 不殘留大廳', () => {
+  const t = setup();
+  t.enterExplore();
+  t.casino.lobby.openBlackjack(true);
+  assert.equal(t.casino.isTableOpen(), true);
+  assert.equal(t.casino.isOpen(), true);
+  const tableBack = t.lobbyEl.querySelector('[data-casino-table-back]');
+  assert.ok(tableBack);
+  assert.equal(tableBack.textContent, '返回賭廳');
+  tableBack.click();
+  assert.equal(t.casino.isTableOpen(), false);
+  assert.equal(t.casino.isOpen(), false);
+  assert.equal(t.lobbyEl.hidden, true);
+
+  t.casino.lobby.openBlackjack(true);
+  assert.equal(t.casino.isTableOpen(), true);
+  t.backBtn.click();
+  assert.equal(t.casino.isTableOpen(), false);
+  assert.equal(t.casino.isOpen(), false);
+  assert.deepEqual(t.lobbyEvents, ['open', 'close', 'open', 'close']);
+  assert.equal(t.flow.canMove(), true);
+});

@@ -246,8 +246,8 @@ test('賭場在博弈島，主島原址不再是賭場', () => {
   const zone = X.hitInteractZone(c.door.x, c.door.z, X.DEFAULT_INTERACT_ZONES);
   assert.ok(zone);
   assert.equal(zone.id, 'casino');
-  assert.equal(zone.action, 'enterCasino');
-  assert.ok(X.DEFAULT_INTERACT_ZONES.some((zone) => zone.action === 'enterCasino'));
+  assert.equal(zone.action, 'enterInterior');
+  assert.ok(X.DEFAULT_INTERACT_ZONES.some((zone) => zone.id === 'casino' && zone.action === 'enterInterior'));
   assert.ok(X.DEFAULT_INTERACT_ZONES.some((zone) => zone.action === 'openGraffiti'));
   assert.ok(!X.hitInteractZone(c.door.x, c.door.z + c.door.r + 0.2, X.DEFAULT_INTERACT_ZONES));
   assert.ok(X.canStand(3.55, -3.65), '主島原賭場位置改為空地');
@@ -362,7 +362,7 @@ test('從出生點可走過橋到三座島，橋外是海', () => {
     at = walkToward(at, { x: hall.door.x, z: hall.door.z });
     const zone = X.hitInteractZone(at.x, at.z, X.DEFAULT_INTERACT_ZONES);
     assert.equal(zone.id, hall.id);
-    assert.equal(zone.action === 'enterCasino', false, id + ' 門口不是賭場');
+    assert.equal(zone && zone.id === 'casino', false, id + ' 門口不是賭場');
     assert.equal(X.canStand(hall.door.x, hall.door.z), true);
   }
 });

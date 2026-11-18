@@ -604,6 +604,25 @@ export const INTERIORS = Object.freeze([
       Object.freeze({ id: 'rack', minX: -2.05, maxX: -1.2, minZ: 0.55, maxZ: 1.45 }),
       Object.freeze({ id: 'bench', minX: 1.05, maxX: 2.05, minZ: -0.55, maxZ: 0.35 })
     ])
+  }),
+  Object.freeze({
+    id: 'casino-room',
+    buildingId: 'casino',
+    spawn: Object.freeze({ x: 0, z: 0.2, yaw: 0 }),
+    exit: Object.freeze({ x: 0, z: -1.2, r: 0.55, label: '離開賭場' }),
+    outside: Object.freeze({ x: 13.32, z: -7.4, yaw: Math.PI / 2 }),
+    floor: Object.freeze({ minX: -3.75, maxX: 3.75, minZ: -1.75, maxZ: 3.15 }),
+    blocks: Object.freeze([
+      Object.freeze({ id: 'slots-row', minX: -3.55, maxX: -1.82, minZ: -0.42, maxZ: 2.58 }),
+      Object.freeze({ id: 'roulette', minX: -0.92, maxX: 0.92, minZ: 1.38, maxZ: 2.72 }),
+      Object.freeze({ id: 'bj-table', minX: 2.02, maxX: 3.48, minZ: 0.72, maxZ: 1.72 }),
+      Object.freeze({ id: 'chip-bar', minX: -0.55, maxX: 0.55, minZ: 0.82, maxZ: 1.18 })
+    ]),
+    interacts: Object.freeze([
+      Object.freeze({ id: 'casino-bj', x: 1.65, z: 1.22, r: 0.58, label: '玩 21 點', action: 'openCasinoBlackjack' }),
+      Object.freeze({ id: 'casino-slots', x: -1.12, z: 1.05, r: 0.62, label: '拉霸機', action: 'casinoSlots' }),
+      Object.freeze({ id: 'casino-roulette', x: 0.55, z: 0.42, r: 0.48, label: '輪盤桌', action: 'casinoRoulette' })
+    ])
   })
 ]);
 
@@ -612,6 +631,38 @@ export function interiorByBuilding(buildingId) {
     if (INTERIORS[i].buildingId === buildingId) return INTERIORS[i];
   }
   return null;
+}
+
+/** 室內互動區世界座標（含原點平移）；供提示與 hitInteractZone 測試。 */
+export function interiorPromptZones(room, origin) {
+  if (!room) return [];
+  const o = origin || INTERIOR_ORIGIN;
+  const zones = [];
+  const exit = room.exit;
+  if (exit) {
+    zones.push(Object.freeze({
+      id: room.id + '-exit',
+      x: exit.x + o.x,
+      z: exit.z + o.z,
+      r: exit.r,
+      label: exit.label,
+      action: 'exitInterior'
+    }));
+  }
+  const list = room.interacts || [];
+  for (let i = 0; i < list.length; i++) {
+    const iz = list[i];
+    zones.push(Object.freeze({
+      id: iz.id,
+      x: iz.x + o.x,
+      z: iz.z + o.z,
+      r: iz.r,
+      label: iz.label,
+      action: iz.action,
+      claw: iz.claw
+    }));
+  }
+  return Object.freeze(zones);
 }
 
 function rectHits(x, z, rect, radius) {
@@ -723,6 +774,26 @@ export function createInteriorSession(list) {
         label: exit.label,
         action: 'exitInterior'
       };
+    },
+    interactZones() {
+      if (!active) return [];
+      const zones = [];
+      const exit = this.exitZone();
+      if (exit) zones.push(exit);
+      const list = active.def.interacts || [];
+      for (let i = 0; i < list.length; i++) {
+        const iz = list[i];
+        zones.push({
+          id: iz.id,
+          x: iz.x,
+          z: iz.z,
+          r: iz.r,
+          label: iz.label,
+          action: iz.action,
+          claw: iz.claw
+        });
+      }
+      return zones;
     }
   };
 }

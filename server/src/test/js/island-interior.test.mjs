@@ -40,7 +40,7 @@ test('室內清單完整，手搖店西牆門口可站且不壓櫃台', () => {
   assert.ok(gap > shop.entry.r, '離開後的站點不在進門互動區裡');
 
   assert.equal(L.isClosedHall(L.buildingById('tcm-site').entry.action), false);
-  assert.equal(L.buildingById('casino').entry.action, 'enterCasino');
+  assert.equal(L.buildingById('casino').entry.action, 'enterInterior');
   assert.equal(I.interiorByBuilding('tcm-site'), null);
 });
 
@@ -397,4 +397,114 @@ test('手搖店室內離開按鈕文案與探索提示', () => {
   session.enter('shop', 0);
   assert.equal(I.interiorLeaveButtonLabel(session), '離開莫卡手搖');
   session.exit(200);
+});
+
+test('賭場室內資料完整，門口外可站且不壓進門區', () => {
+  const room = I.interiorByBuilding('casino');
+  assert.ok(room);
+  assert.equal(room.id, 'casino-room');
+  assert.ok(room.spawn && room.exit && room.outside && room.floor && room.blocks.length);
+  assert.equal(I.interiorCanStand(room.spawn.x, room.spawn.z, room, RADIUS), true);
+  assert.equal(I.interiorCanStand(room.exit.x, room.exit.z, room, RADIUS), true);
+
+  const hall = L.buildingById('casino');
+  assert.equal(hall.entry.action, 'enterInterior');
+  assert.equal(hall.entry.label, '進入賭場');
+  assert.equal(X.canStand(hall.door.x, hall.door.z, RADIUS), true);
+  assert.equal(X.canStand(room.outside.x, room.outside.z, RADIUS), true);
+  assert.equal(L.blocked(room.outside.x, room.outside.z, RADIUS), false);
+
+  const gap = Math.hypot(room.outside.x - hall.door.x, room.outside.z - hall.door.z);
+  assert.ok(gap > hall.entry.r, '離開後的站點不在進門互動區裡');
+
+  const interacts = room.interacts || [];
+  assert.ok(interacts.length >= 3);
+  for (let i = 0; i < interacts.length; i++) {
+    assert.equal(I.interiorCanStand(interacts[i].x, interacts[i].z, room, RADIUS), true,
+      interacts[i].id + ' 互動點可站');
+  }
+});
+
+test('賭場進出狀態機：開牌桌暫停、離開後 cooldown', () => {
+  const session = I.createInteriorSession();
+  const entered = session.enter('casino', 0);
+  assert.equal(entered.ok, true);
+  assert.equal(session.inside(), true);
+  assert.equal(session.canMove(), true);
+  assert.equal(session.id(), 'casino-room');
+
+  session.setPaused(true);
+  assert.equal(session.canMove(), false);
+  session.setPaused(false);
+  assert.equal(session.canMove(), true);
+
+  const left = session.exit(500);
+  assert.equal(left.ok, true);
+  assert.equal(session.inside(), false);
+
+  const early = session.enter('casino', 500 + I.ENTER_COOLDOWN_MS - 1);
+  assert.equal(early.ok, false);
+  assert.equal(early.reason, 'cooldown');
+});
+
+test('賭場室內互動區不重疊且含出口', () => {
+  const room = I.interiorByBuilding('casino');
+  const session = I.createInteriorSession();
+  session.enter('casino', 0);
+  const zones = session.interactZones();
+  assert.ok(zones.length >= 4);
+  const exit = zones.find((z) => z.action === 'exitInterior');
+  assert.ok(exit);
+  assert.equal(exit.label, '離開賭場');
+
+  const world = I.interiorPromptZones(room);
+  const bj = zones.find((z) => z.action === 'openCasinoBlackjack');
+  const slots = zones.find((z) => z.action === 'casinoSlots');
+  const roulette = zones.find((z) => z.action === 'casinoRoulette');
+  assert.ok(bj && slots && roulette);
+
+  for (let i = 0; i < zones.length; i++) {
+    for (let j = i + 1; j < zones.length; j++) {
+      const dist = Math.hypot(zones[i].x - zones[j].x, zones[i].z - zones[j].z);
+      assert.ok(dist > zones[i].r + zones[j].r - 0.05,
+        zones[i].id + ' 與 ' + zones[j].id + ' 互動區不重疊');
+    }
+  }
+  assert.ok(world.length === zones.length);
+  session.exit(1000);
+});
+
+test('賭場 21 點互動區在牌桌西側走道，進門不觸發', () => {
+  const room = I.interiorByBuilding('casino');
+  const bjInteract = (room.interacts || []).find((z) => z.id === 'casino-bj');
+  assert.ok(bjInteract);
+  const table = room.blocks.find((b) => b.id === 'bj-table');
+  assert.ok(table);
+
+  assert.ok(bjInteract.x < table.minX - 0.15,
+    '互動圓心在桌子西側，不靠桌緣內側');
+  assert.ok(bjInteract.x > table.minX - 0.65,
+    '互動圓心仍靠近牌桌走道');
+  assert.ok(bjInteract.z >= table.minZ && bjInteract.z <= table.maxZ,
+    '互動圓心與牌桌 Z 範圍對齊');
+
+  for (let bi = 0; bi < room.blocks.length; bi++) {
+    assert.equal(circleHitsRect(bjInteract.x, bjInteract.z, 0.02, room.blocks[bi]), false,
+      'casino-bj 圓心不在 ' + room.blocks[bi].id);
+  }
+  assert.equal(I.interiorCanStand(bjInteract.x, bjInteract.z, room, RADIUS), true);
+
+  const spawnDist = Math.hypot(room.spawn.x - bjInteract.x, room.spawn.z - bjInteract.z);
+  assert.ok(spawnDist > bjInteract.r,
+    '出生點不在「玩 21 點」半徑內');
+
+  const session = I.createInteriorSession();
+  session.enter('casino', 0);
+  const zones = session.interactZones();
+  assert.equal(X.hitInteractZone(room.spawn.x, room.spawn.z, zones), null,
+    '門口不應命中 21 點互動區');
+  const bjZone = zones.find((z) => z.action === 'openCasinoBlackjack');
+  assert.ok(X.hitInteractZone(bjInteract.x, bjInteract.z, zones));
+  assert.equal(X.hitInteractZone(bjInteract.x, bjInteract.z, zones).action, 'openCasinoBlackjack');
+  session.exit(1000);
 });

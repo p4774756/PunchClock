@@ -122,7 +122,10 @@ export function mountCasinoLobby(opts) {
   const storage = (opts && opts.storage) || (globalThis.localStorage);
   let state = lobbyState(null, '');
   let tableOpen = false;
+  let blackjackFromInterior = false;
   let balance = readChipBalance(storage);
+  const TABLE_BACK_LOBBY = '返回大廳';
+  const TABLE_BACK_INTERIOR = '返回賭廳';
   const chipsEl = root && root.querySelector('[data-casino-chips]');
   const chipsNoteEl = root && root.querySelector('[data-casino-chips-note]');
   const playerEl = root && root.querySelector('[data-casino-player]');
@@ -289,7 +292,12 @@ export function mountCasinoLobby(opts) {
     renderRoundUI();
   }
 
-  function openBlackjack() {
+  function openBlackjack(fromInterior) {
+    if (fromInterior) {
+      blackjackFromInterior = true;
+      if (tableBackBtn) tableBackBtn.textContent = TABLE_BACK_INTERIOR;
+      if (!isLobbyOpen(state)) setOpen(true);
+    }
     setTableVisible(true);
     round.reset();
     if (betInput) betInput.value = String(Math.min(100, balance));
@@ -300,8 +308,18 @@ export function mountCasinoLobby(opts) {
 
   function closeTable() {
     if (!tableOpen) return;
+    const fromInterior = blackjackFromInterior;
     setTableVisible(false);
     round.reset();
+    if (fromInterior) {
+      blackjackFromInterior = false;
+      if (tableBackBtn) tableBackBtn.textContent = TABLE_BACK_LOBBY;
+      if (isLobbyOpen(state)) {
+        state = lobbyState(state, 'close');
+        render();
+        if (typeof onChange === 'function') onChange(state);
+      }
+    }
   }
 
   function buildBlackjackTable() {
@@ -314,7 +332,7 @@ export function mountCasinoLobby(opts) {
     tableBackBtn = document.createElement('button');
     tableBackBtn.type = 'button';
     tableBackBtn.className = 'btn btn-ghost';
-    tableBackBtn.textContent = '返回大廳';
+    tableBackBtn.textContent = TABLE_BACK_LOBBY;
     tableBackBtn.setAttribute('data-casino-table-back', '');
     head.appendChild(title);
     head.appendChild(tableBackBtn);
@@ -517,6 +535,7 @@ export function mountCasinoLobby(opts) {
     isOpen: () => isLobbyOpen(state),
     isTableOpen: () => tableOpen,
     closeTable: () => closeTable(),
+    openBlackjack: (fromInterior) => openBlackjack(!!fromInterior),
     getBalance: () => balance,
     destroy: () => {
       if (backBtn) backBtn.removeEventListener('click', onBack);
@@ -606,6 +625,7 @@ export function createCasinoController(opts) {
   doc.querySelectorAll('[data-open-casino]').forEach((el) => {
     el.addEventListener('click', (event) => {
       event.preventDefault();
+      if (typeof hooks.onListCasino === 'function' && hooks.onListCasino() === true) return;
       openLobby();
     });
   });
@@ -616,6 +636,12 @@ export function createCasinoController(opts) {
     openLobby: openLobby,
     closeLobby: closeLobby,
     closeTable: closeTable,
+    openBlackjackFromInterior: () => {
+      hideList();
+      if (typeof hooks.beforeOpen === 'function') hooks.beforeOpen();
+      setPromptVisible(false);
+      lobby.openBlackjack(true);
+    },
     isTableOpen: () => lobby.isTableOpen(),
     isOpen: () => lobby.isOpen()
   };

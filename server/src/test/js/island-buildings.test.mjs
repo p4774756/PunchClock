@@ -1,7 +1,31 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { BUILDING_GLOW, glowForMaterial } from '../../main/resources/public/js/island-buildings-data.js';
 import { BUILDINGS, buildingById } from '../../main/resources/public/js/island-layout.js';
+
+const buildingsJs = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public/js/island-buildings.js'),
+  'utf8'
+);
+
+describe('casino Vegas sign', () => {
+  it('招牌 canvas 使用繁中賭場，不含簡體赌场', () => {
+    assert.ok(buildingsJs.includes('莫卡賭場'));
+    assert.ok(!buildingsJs.includes('赌场'));
+    assert.ok(!buildingsJs.includes("'CASINO'"));
+  });
+
+  it('屋頂橫式霓虹看板掛在西側屋脊，舊 sign_face 隱藏', () => {
+    assert.ok(buildingsJs.includes('signGroup'));
+    assert.ok(buildingsJs.includes("buildingId === 'casino'"));
+    assert.ok(buildingsJs.includes('obj.visible = false'));
+    assert.ok(buildingsJs.includes('casinoSignMap'));
+    assert.match(buildingsJs, /fillText\('777'/);
+  });
+});
 
 describe('BUILDING_GLOW', () => {
   it('shop has windows_glow and lantern_glow', () => {

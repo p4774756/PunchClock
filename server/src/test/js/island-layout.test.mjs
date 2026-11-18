@@ -69,7 +69,7 @@ test('建築碰撞與門口由清單推導，主島原有障礙順序不變', ()
   assert.equal(rects[7].id, 'photo-wall');
   const casino = L.buildingById('casino');
   assert.equal(casino.island, 'casino');
-  assert.equal(casino.entry.action, 'enterCasino');
+  assert.equal(casino.entry.action, 'enterInterior');
   assert.ok(casino.door);
   const cx = (casino.block.minX + casino.block.maxX) / 2;
   const cz = (casino.block.minZ + casino.block.maxZ) / 2;
