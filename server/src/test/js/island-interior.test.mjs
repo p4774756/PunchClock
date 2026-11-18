@@ -473,3 +473,38 @@ test('賭場室內互動區不重疊且含出口', () => {
   assert.ok(world.length === zones.length);
   session.exit(1000);
 });
+
+test('賭場 21 點互動區在牌桌西側走道，進門不觸發', () => {
+  const room = I.interiorByBuilding('casino');
+  const bjInteract = (room.interacts || []).find((z) => z.id === 'casino-bj');
+  assert.ok(bjInteract);
+  const table = room.blocks.find((b) => b.id === 'bj-table');
+  assert.ok(table);
+
+  assert.ok(bjInteract.x < table.minX - 0.15,
+    '互動圓心在桌子西側，不靠桌緣內側');
+  assert.ok(bjInteract.x > table.minX - 0.65,
+    '互動圓心仍靠近牌桌走道');
+  assert.ok(bjInteract.z >= table.minZ && bjInteract.z <= table.maxZ,
+    '互動圓心與牌桌 Z 範圍對齊');
+
+  for (let bi = 0; bi < room.blocks.length; bi++) {
+    assert.equal(circleHitsRect(bjInteract.x, bjInteract.z, 0.02, room.blocks[bi]), false,
+      'casino-bj 圓心不在 ' + room.blocks[bi].id);
+  }
+  assert.equal(I.interiorCanStand(bjInteract.x, bjInteract.z, room, RADIUS), true);
+
+  const spawnDist = Math.hypot(room.spawn.x - bjInteract.x, room.spawn.z - bjInteract.z);
+  assert.ok(spawnDist > bjInteract.r,
+    '出生點不在「玩 21 點」半徑內');
+
+  const session = I.createInteriorSession();
+  session.enter('casino', 0);
+  const zones = session.interactZones();
+  assert.equal(X.hitInteractZone(room.spawn.x, room.spawn.z, zones), null,
+    '門口不應命中 21 點互動區');
+  const bjZone = zones.find((z) => z.action === 'openCasinoBlackjack');
+  assert.ok(X.hitInteractZone(bjInteract.x, bjInteract.z, zones));
+  assert.equal(X.hitInteractZone(bjInteract.x, bjInteract.z, zones).action, 'openCasinoBlackjack');
+  session.exit(1000);
+});

@@ -96,14 +96,14 @@ export function createInterior(THREE, opts) {
   group.add(tilesA);
   group.add(tilesB);
 
-  box(wallT, wallH, depth + wallT, 0xfff5fc, 0xb8a8c8, floor.minX - wallT / 2, wallY, cz);
-  box(wallT, wallH, depth + wallT, 0xfff5fc, 0xb8a8c8, floor.maxX + wallT / 2, wallY, cz);
-  box(width + wallT * 2, wallH, wallT, 0xfff5fc, 0xb8a8c8, cx, wallY, floor.maxZ + wallT / 2);
+  box(wallT, wallH, depth + wallT, 0xfff0fa, 0xb8a0c8, floor.minX - wallT / 2, wallY, cz);
+  box(wallT, wallH, depth + wallT, 0xfff0fa, 0xb8a0c8, floor.maxX + wallT / 2, wallY, cz);
+  box(width + wallT * 2, wallH, wallT, 0xfff0fa, 0xb8a0c8, cx, wallY, floor.maxZ + wallT / 2);
 
   const doorW = 1.35;
   const leftW = (width - doorW) / 2;
-  box(leftW, wallH, wallT, 0xfff5fc, 0xb8a8c8, floor.minX + leftW / 2, wallY, southZ);
-  box(leftW, wallH, wallT, 0xfff5fc, 0xb8a8c8, floor.maxX - leftW / 2, wallY, southZ);
+  box(leftW, wallH, wallT, 0xfff0fa, 0xb8a0c8, floor.minX + leftW / 2, wallY, southZ);
+  box(leftW, wallH, wallT, 0xfff0fa, 0xb8a0c8, floor.maxX - leftW / 2, wallY, southZ);
 
   const archY = ground + 1.75;
   box(0.22, 0.22, 0.22, 0xff7ad8, 0xff7ad8, -1.1, archY, southZ + 0.04, 0xff7ad8, 0.65);
@@ -113,10 +113,12 @@ export function createInterior(THREE, opts) {
   box(0.12, 1.55, 0.12, 0xffc8f0, 0xffc8f0, 1.1, ground + 0.92, southZ + 0.05, 0xff7ad8, 0.42);
 
   function buildClaw(cxLocal, czLocal, plushColor, glow) {
-    box(0.78, 1.65, 0.62, 0xf8e8ff, 0xc8b0d8, cxLocal, ground + 0.92, czLocal);
+    box(0.78, 1.65, 0.62, 0xc8a8d8, 0x9880b0, cxLocal, ground + 0.92, czLocal);
+    box(0.6, 0.95, 0.46, 0x1e1828, 0x141020, cxLocal, ground + 1.02, czLocal + 0.04);
+    box(0.64, 0.72, 0.04, 0xc8e8ff, 0x98c0e8, cxLocal, ground + 1.08, czLocal + 0.28, 0x88d8ff, 0.18);
     box(0.68, 0.12, 0.52, 0xff9ee8, 0xff9ee8, cxLocal, ground + 1.58, czLocal - 0.02, glow, 0.72);
     box(0.08, 0.32, 0.08, 0x9ad8ff, 0x9ad8ff, cxLocal, ground + 1.38, czLocal + 0.12, 0x7ae8ff, 0.55);
-    const plush = box(0.22, 0.22, 0.18, plushColor, plushColor, cxLocal, ground + 1.02, czLocal + 0.18, glow, 0.35);
+    const plush = box(0.22, 0.22, 0.18, plushColor, plushColor, cxLocal, ground + 0.92, czLocal + 0.08, glow, 0.42);
     clawPlush.push(plush);
   }
 
@@ -166,8 +168,9 @@ export function createInterior(THREE, opts) {
   const cab = room.blocks.find((b) => b.id === 'prize-cab');
   const ccx = (cab.minX + cab.maxX) / 2;
   const ccz = (cab.minZ + cab.maxZ) / 2;
-  box(cab.maxX - cab.minX, 1.35, cab.maxZ - cab.minZ, 0xfff0ff, 0xd8c8e8, ccx, ground + 0.78, ccz);
-  box(cab.maxX - cab.minX - 0.08, 0.9, 0.06, 0xf0e0ff, 0xc8b8d8, ccx, ground + 0.92, ccz + (cab.maxZ - cab.minZ) / 2 - 0.02, 0xff9ee8, 0.35);
+  box(cab.maxX - cab.minX, 1.35, cab.maxZ - cab.minZ, 0xe8d0f0, 0xb8a0c8, ccx, ground + 0.78, ccz);
+  box(cab.maxX - cab.minX - 0.12, 0.88, 0.42, 0x221828, 0x181020, ccx, ground + 1.0, ccz + 0.08);
+  box(cab.maxX - cab.minX - 0.08, 0.9, 0.06, 0xd8c8e8, 0xa8a0c0, ccx, ground + 0.92, ccz + (cab.maxZ - cab.minZ) / 2 - 0.02, 0xff9ee8, 0.35);
 
   const lanternGeo = new THREE.BoxGeometry(0.22, 0.28, 0.22);
   geometries.push(lanternGeo);

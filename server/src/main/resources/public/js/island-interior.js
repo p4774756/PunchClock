@@ -623,7 +623,7 @@ export const INTERIORS = Object.freeze([
       Object.freeze({ id: 'plants', minX: 2.82, maxX: 3.52, minZ: 1.95, maxZ: 2.82 })
     ]),
     interacts: Object.freeze([
-      Object.freeze({ id: 'casino-bj', x: -0.2, z: 0.55, r: 0.62, label: '玩 21 點', action: 'openCasinoBlackjack' }),
+      Object.freeze({ id: 'casino-bj', x: 1.65, z: 1.22, r: 0.58, label: '玩 21 點', action: 'openCasinoBlackjack' }),
       Object.freeze({ id: 'casino-claw-a', x: -2.45, z: 1.38, r: 0.52, label: '夾娃娃機', action: 'casinoClaw', claw: 0 }),
       Object.freeze({ id: 'casino-claw-b', x: -1.15, z: 1.38, r: 0.52, label: '夾娃娃機', action: 'casinoClaw', claw: 1 }),
       Object.freeze({ id: 'casino-pinball', x: 1.15, z: -0.55, r: 0.68, label: '彈珠台', action: 'casinoPinball' })
