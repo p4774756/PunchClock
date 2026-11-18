@@ -97,11 +97,27 @@ export function interiorExploreFollowDistance(radius, aspect) {
   return dist;
 }
 
+/** 俯視段（viewLift=0）放置角：不低於預設俯視，往下拖不會抬高鏡頭。 */
+export function exploreDownwardPlacementPhi(safePhi, phiRest) {
+  const rest = phiRest != null && Number.isFinite(phiRest) ? phiRest : EXPLORE_POSE.phi;
+  return Math.min(safePhi, rest);
+}
+
 /** 用於球面放置的有效 phi：抬頭段插向肩後角，其餘沿用 safePhi。 */
 export function explorePlacementPhi(safePhi, phiRest, viewLift) {
-  if (viewLift <= 0) return safePhi;
+  if (viewLift <= 0) return exploreDownwardPlacementPhi(safePhi, phiRest);
   const rest = phiRest != null && Number.isFinite(phiRest) ? phiRest : EXPLORE_POSE.phi;
   return rest * (1 - viewLift) + EXPLORE_PHI_SHOULDER * viewLift;
+}
+
+/** 室內抬頭：phi 略往水平靠，不降到肩後（避免鏡頭穿出小房間）。 */
+export const INTERIOR_PHI_LIFT_DELTA = 0.22;
+
+export function interiorPlacementPhi(safePhi, phiRest, viewLift) {
+  if (viewLift <= 0) return exploreDownwardPlacementPhi(safePhi, phiRest);
+  const rest = phiRest != null && Number.isFinite(phiRest) ? phiRest : EXPLORE_POSE.phi;
+  // 室內抬頭只改視線 pitch，鏡頭維持預設俯視位置（避免手機拉遠半徑把鏡頭抬出房間）。
+  return rest;
 }
 
 /** 抬頭時鏡頭降到角色肩後（與 viewLift 連續插值）。 */
@@ -189,9 +205,9 @@ export function explorePitchAlongDrag(
   return samples;
 }
 
-/** 由相機位置與目標仰角、方位角決定 lookAt 點（距離 72）。 */
-export function exploreLookPointFromPitch(placement, pitch, aimAzimuth) {
-  const len = 72;
+/** 由相機位置與目標仰角、方位角決定 lookAt 點（戶外預設 72；室內用較短距離）。 */
+export function exploreLookPointFromPitch(placement, pitch, aimAzimuth, len) {
+  if (len == null || !Number.isFinite(len)) len = 72;
   const cosP = Math.cos(pitch);
   const sinP = Math.sin(pitch);
   return {
@@ -224,11 +240,49 @@ export function exploreSkyPitch(
   );
   if (pitch != null) return pitch;
   const viewLift = exploreViewLift(safePhi, rest);
-  const placementPhi = explorePlacementPhi(safePhi, rest, viewLift);
+  const useInterior = allowSky === false;
+  const placementPhi = useInterior
+    ? interiorPlacementPhi(safePhi, rest, viewLift)
+    : explorePlacementPhi(safePhi, rest, viewLift);
+  const liftY = useInterior ? 0 : viewLift;
   const placement = exploreCameraPlacement(
-    0, lookAtY, 0, dist, placementPhi, theta, groundY, viewLift
+    0, lookAtY, 0, dist, placementPhi, theta, groundY, liftY
   );
-  return naturalPitchToPlayer(lookAtY, placement);
+  const pitchDown = naturalPitchToPlayer(lookAtY, placement);
+  if (safePhi >= rest - 1e-6) {
+    const restPlacement = exploreCameraPlacement(
+      0, lookAtY, 0, dist, rest, theta, groundY, 0
+    );
+    const pitchRest = naturalPitchToPlayer(lookAtY, restPlacement);
+    return Math.min(pitchDown, pitchRest);
+  }
+  return pitchDown;
+}
+
+/** 探索跟隨鏡頭一幀（純函式，供測試／室內約束）。 */
+export function exploreFollowCameraFrame(
+  lookAtX, lookAtY, lookAtZ, dist, safePhi, theta, groundY, aspect,
+  phiRest, allowSky, bodyElevation
+) {
+  const rest = phiRest != null && Number.isFinite(phiRest) ? phiRest : EXPLORE_POSE.phi;
+  const viewLift = exploreViewLift(safePhi, rest);
+  const indoor = allowSky === false;
+  const placementPhi = indoor
+    ? interiorPlacementPhi(safePhi, rest, viewLift)
+    : explorePlacementPhi(safePhi, rest, viewLift);
+  const liftY = indoor ? 0 : viewLift;
+  const placement = exploreCameraPlacement(
+    lookAtX, lookAtY, lookAtZ, dist, placementPhi, theta, groundY, liftY
+  );
+  const pitch = exploreSkyPitch(
+    lookAtY, dist, safePhi, groundY, aspect, theta, bodyElevation, rest, allowSky
+  );
+  let lookPoint = null;
+  if (viewLift > 0 && allowSky !== false) {
+    const aim = exploreAimAzimuth(theta, viewLift);
+    lookPoint = exploreLookPointFromPitch(placement, pitch, aim, 72);
+  }
+  return { placement, placementPhi, viewLift, pitch, lookPoint };
 }
 
 export function createPoses(panorama) {
@@ -272,22 +326,30 @@ export function createCameraRig(THREE, camera, hooks) {
     const followCam = following();
     const safePhi = followCam ? Math.min(EXPLORE_PHI_MAX, Math.max(EXPLORE_PHI_MIN, phi)) : phi;
     const phiRest = followCam ? phiRestHook() : EXPLORE_POSE.phi;
+    const allowSky = allowSkyHook();
     const viewLift = followCam ? exploreViewLift(safePhi, phiRest) : 0;
     const placementPhi = followCam
-      ? explorePlacementPhi(safePhi, phiRest, viewLift)
+      ? (allowSky
+        ? explorePlacementPhi(safePhi, phiRest, viewLift)
+        : interiorPlacementPhi(safePhi, phiRest, viewLift))
       : safePhi;
+    const liftY = followCam && !allowSky ? 0 : viewLift;
     const placement = exploreCameraPlacement(
-      lookAt.x, lookAt.y, lookAt.z, dist, placementPhi, theta, groundY, viewLift
+      lookAt.x, lookAt.y, lookAt.z, dist, placementPhi, theta, groundY, liftY
     );
     camera.position.set(placement.cx, placement.cy, placement.cz);
     if (viewLift > 0) {
       const pitch = exploreTargetPitch(
-        safePhi, lookAt.y, dist, groundY, aspect, theta, celestialElevation(), phiRest, allowSkyHook()
+        safePhi, lookAt.y, dist, groundY, aspect, theta, celestialElevation(), phiRest, allowSky
       );
       // 視線 yaw 永遠跟玩家水平方向（theta+π），不鎖月亮／太陽方位。
       const aim = exploreAimAzimuth(theta, viewLift);
-      const point = exploreLookPointFromPitch(placement, pitch, aim);
-      camera.lookAt(point.x, point.y, point.z);
+      if (allowSky) {
+        const point = exploreLookPointFromPitch(placement, pitch, aim, 72);
+        camera.lookAt(point.x, point.y, point.z);
+      } else {
+        camera.lookAt(lookAt);
+      }
     } else {
       camera.lookAt(lookAt);
     }

@@ -6,6 +6,7 @@ import { loadPublicModule } from './load-public-module.mjs';
 const kit = await loadPublicModule('island-kit.js');
 const sky = await loadPublicModule('island-sky.js');
 const C = await loadPublicModule('island-camera.js');
+const I = await loadPublicModule('island-interior.js');
 
 const G = kit.G;
 const MOON_ELEVATION = sky.MOON_ELEVATION;
@@ -30,6 +31,7 @@ const {
   exploreTargetPitch,
   exploreSkyPitch,
   explorePitchAlongDrag,
+  exploreFollowCameraFrame,
   EXPLORE_PITCH_STEP_MAX,
   INTERIOR_LOOK_UP_PITCH_MAX,
   exploreAimAzimuth,
@@ -267,8 +269,103 @@ test('從抬頭狀態往下拖：仰角單調遞減', () => {
   }
 });
 
+test('從任何起始 phi 往下拖：每步仰角不增加（含越過 phiRest 的俯視段）', () => {
+  const dist = distFor(MOBILE_ASPECT);
+  const phiRest = EXPLORE_POSE.phi;
+  const starts = [EXPLORE_PHI_MIN, phiRest, (phiRest + EXPLORE_PHI_MAX) * 0.5, EXPLORE_PHI_MAX];
+  for (const phiStart of starts) {
+    const samples = explorePitchAlongDrag(
+      phiStart, 210, 10, LOOK_AT_Y, dist, G, MOBILE_ASPECT, THETA, MOON_ELEVATION, phiRest, true
+    );
+    for (let i = 1; i < samples.length; i++) {
+      assert.ok(
+        samples[i].pitch <= samples[i - 1].pitch + 1e-6,
+        `起點 phi=${phiStart} dy=${samples[i].dyPx} 仰角不得上升 ` +
+          `(${samples[i - 1].pitch} → ${samples[i].pitch})`
+      );
+    }
+  }
+});
+
 test('手機直向室內跟隨距離不超過島上放大倍率', () => {
   const islandDist = exploreFollowDistance(INTERIOR_POSE.radius, MOBILE_ASPECT);
   const indoorDist = interiorExploreFollowDistance(INTERIOR_POSE.radius, MOBILE_ASPECT);
   assert.ok(indoorDist < islandDist, `indoor=${indoorDist} island=${islandDist}`);
+});
+
+test('研發樓手機：全 viewLift 鏡頭在擴張 AABB 內，角色與螢幕仍在畫面', () => {
+  const room = I.interiorByBuilding('computer-site');
+  const pose = I.labInteriorCameraForAspect(MOBILE_ASPECT);
+  const phiRest = pose.phi;
+  const dist = I.labInteriorFollowDistance(pose.radius, MOBILE_ASPECT);
+  const o = I.INTERIOR_ORIGIN;
+  const playerLocal = { x: room.spawn.x, z: room.spawn.z };
+  const lookLocal = I.labInteriorLookTarget(room, playerLocal, MOBILE_ASPECT);
+  const restFrame = exploreFollowCameraFrame(
+    lookLocal.x, lookLocal.y, lookLocal.z, dist, phiRest, pose.theta, G, MOBILE_ASPECT, phiRest, false,
+    MOON_ELEVATION
+  );
+  const bounds = I.interiorLiftBoundsFromRest(room, restFrame.placement);
+  const playerWorld = { x: playerLocal.x + o.x, z: playerLocal.z + o.z };
+  const inside = (ndc) => ndc.vz > 0.02 && ndc.y >= -0.94 && ndc.y <= 0.98 && ndc.x >= -0.94 && ndc.x <= 0.94;
+  const screenLocal = { cx: 0, cy: G + 0.84, cz: -1.74 };
+  for (let dy = 0; dy >= -160; dy -= 10) {
+    const phi = applyDragPhi(phiRest, dy, true);
+    const frame = exploreFollowCameraFrame(
+      lookLocal.x, lookLocal.y, lookLocal.z, dist, phi, pose.theta, G, MOBILE_ASPECT, phiRest, false,
+      MOON_ELEVATION
+    );
+    const eye = frame.placement;
+    assert.ok(
+      I.interiorCameraWithinBounds(eye, bounds),
+      `dy=${dy} 鏡頭應在擴張 AABB 內 (${eye.cx}, ${eye.cy}, ${eye.cz})`
+    );
+    const viewTarget = { x: lookLocal.x + o.x, y: lookLocal.y, z: lookLocal.z + o.z };
+    const eyeWorld = { x: eye.cx + o.x, y: eye.cy, z: eye.cz + o.z };
+    const headNdc = I.interiorProjectNdcFromEye(
+      eyeWorld, viewTarget,
+      playerWorld.x, I.LAB_INTERIOR_PLAYER_HEAD_Y, playerWorld.z, MOBILE_ASPECT
+    );
+    const scrNdc = I.interiorProjectNdcFromEye(
+      eyeWorld, viewTarget,
+      screenLocal.cx + o.x, screenLocal.cy, screenLocal.cz + o.z, MOBILE_ASPECT
+    );
+    assert.ok(inside(headNdc), `dy=${dy} 角色頭頂應在畫面內`);
+    assert.ok(inside(scrNdc), `dy=${dy} 南牆螢幕中心應在畫面內`);
+  }
+});
+
+test('手搖店室內：全 viewLift 鏡頭在擴張 AABB 內、角色在畫面內', () => {
+  const room = I.interiorByBuilding('shop');
+  const aspect = MOBILE_ASPECT;
+  const phiRest = INTERIOR_POSE.phi;
+  const dist = interiorExploreFollowDistance(INTERIOR_POSE.radius, aspect);
+  const o = I.INTERIOR_ORIGIN;
+  const local = { x: room.spawn.x, z: room.spawn.z };
+  const lookLocal = { x: local.x, y: LOOK_AT_Y, z: local.z };
+  const restFrame = exploreFollowCameraFrame(
+    lookLocal.x, lookLocal.y, lookLocal.z, dist, phiRest, INTERIOR_POSE.theta, G, aspect, phiRest, false,
+    MOON_ELEVATION
+  );
+  const bounds = I.interiorLiftBoundsFromRest(room, restFrame.placement);
+  const inside = (ndc) => ndc.vz > 0.02 && ndc.y >= -0.94 && ndc.y <= 0.98 && ndc.x >= -0.94 && ndc.x <= 0.94;
+  for (let dy = 0; dy >= -160; dy -= 10) {
+    const phi = applyDragPhi(phiRest, dy, true);
+    const frame = exploreFollowCameraFrame(
+      lookLocal.x, lookLocal.y, lookLocal.z, dist, phi, INTERIOR_POSE.theta, G, aspect, phiRest, false,
+      MOON_ELEVATION
+    );
+    const eye = frame.placement;
+    assert.ok(
+      I.interiorCameraWithinBounds(eye, bounds),
+      `shop dy=${dy} 鏡頭應在擴張 AABB 內`
+    );
+    const viewTarget = { x: lookLocal.x + o.x, y: lookLocal.y, z: lookLocal.z + o.z };
+    const eyeWorld = { x: eye.cx + o.x, y: eye.cy, z: eye.cz + o.z };
+    const headNdc = I.interiorProjectNdcFromEye(
+      eyeWorld, viewTarget,
+      lookLocal.x + o.x, I.LAB_INTERIOR_PLAYER_HEAD_Y, lookLocal.z + o.z, MOBILE_ASPECT
+    );
+    assert.ok(inside(headNdc), `shop dy=${dy} 角色應在畫面內`);
+  }
 });
