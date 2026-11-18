@@ -13,7 +13,7 @@ set +e
 
 ENV_FILE="${DEV_STATUS_ENV:-$HOME/.punchclock/dev-status.env}"
 RUN_FILE="$HOME/.punchclock/dev-status-run"
-DEFAULT_URL="https://punchclock.onrender.com/api/dev-machines/heartbeat"
+DEFAULT_URL="https://ping-pong-server-jbot.onrender.com/api/dev-machines/heartbeat"
 
 warn_perms() {
   if [ ! -f "$ENV_FILE" ]; then
@@ -50,19 +50,79 @@ agent_running() {
   return 1
 }
 
+# 供 self-test 使用：從 pmset 電量行擷取百分比
+parse_battery_pct() {
+  batt=$1
+  pct=$(printf '%s' "$batt" | sed -n 's/.*\t\([0-9][0-9]*\)%;.*/\1/p')
+  if [ -z "$pct" ]; then
+    pct=$(printf '%s' "$batt" | sed -n 's/.*[^0-9]\([0-9][0-9]*\)%;.*/\1/p')
+  fi
+  if [ -z "$pct" ]; then
+    pct=$(printf '%s' "$batt" | sed -n 's/^\([0-9][0-9]*\)%;.*/\1/p')
+  fi
+  printf '%s' "$pct"
+}
+
+# 供 self-test 使用：charging=true/false
+parse_battery_charging() {
+  batt_line=$1
+  first_line=$2
+  case "$first_line" in
+    *'AC Power'*)
+      printf 'true'
+      return
+    ;;
+  esac
+  state=$(printf '%s' "$batt_line" | sed -n 's/.*%;[[:space:]]*\([^;]*\).*/\1/p' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  case "$state" in
+    discharging) printf 'false' ;;
+    charging|charged) printf 'true' ;;
+    *AC\ attached*) printf 'true' ;;
+    *) printf 'false' ;;
+  esac
+}
+
+json_issue_field() {
+  issue=$1
+  case "$issue" in
+    ''|*[!0-9]*) printf 'null' ;;
+    *) printf '%s' "$issue" ;;
+  esac
+}
+
+json_branch_field() {
+  branch=$1
+  if [ -z "$branch" ]; then
+    printf 'null'
+    return
+  fi
+  if printf '%s' "$branch" | LC_ALL=C grep -Eq '^[A-Za-z0-9._/-]{1,100}$'; then
+    printf '"%s"' "$branch"
+  else
+    printf 'null'
+  fi
+}
+
+json_started_field() {
+  started=$1
+  case "$started" in
+    ''|*[!0-9]*) printf 'null' ;;
+    *) printf '%s' "$started" ;;
+  esac
+}
+
 read_battery() {
   if ! command -v pmset >/dev/null 2>&1; then
     return
   fi
-  batt=$(pmset -g batt 2>/dev/null | head -n 2 | tail -n 1)
-  pct=$(printf '%s' "$batt" | sed -n 's/.*\([0-9][0-9]*\)%;.*/\1/p')
+  pmset_out=$(pmset -g batt 2>/dev/null)
+  first_line=$(printf '%s\n' "$pmset_out" | sed -n '1p')
+  batt=$(printf '%s\n' "$pmset_out" | sed -n '2p')
+  pct=$(parse_battery_pct "$batt")
   if [ -z "$pct" ]; then
     return
   fi
-  charging=false
-  case "$batt" in
-    *charging*|*AC\ Power*) charging=true ;;
-  esac
+  charging=$(parse_battery_charging "$batt" "$first_line")
   BATTERY_JSON=",\"battery\":$pct,\"charging\":$charging"
 }
 
@@ -114,27 +174,18 @@ do_beat() {
   else
     agent=false
   fi
-  issue_json="null"
-  if [ -n "$ISSUE" ]; then
-    issue_json="$ISSUE"
-  fi
-  branch_json="null"
-  if [ -n "$BRANCH" ]; then
-    branch_json="\"$BRANCH\""
-  fi
-  started_json="null"
-  if [ -n "$STARTED" ]; then
-    started_json="$STARTED"
-  fi
+  issue_json=$(json_issue_field "$ISSUE")
+  branch_json=$(json_branch_field "$BRANCH")
+  started_json=$(json_started_field "$STARTED")
   payload=$(printf '{"machine":"%s","issue":%s,"branch":%s,"runStartedAt":%s,"agentRunning":%s%s%s}' \
     "$machine" "$issue_json" "$branch_json" "$started_json" "$agent" "$COMMIT_JSON" "$BATTERY_JSON")
   if ! command -v curl >/dev/null 2>&1; then
     exit 0
   fi
-  curl -sS -o /dev/null \
+  printf 'header = "Authorization: Bearer %s"\n' "$token" | curl -sS -K - \
+    -o /dev/null \
     --max-time 10 \
     -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $token" \
     -d "$payload" \
     "$url" >/dev/null 2>&1
   exit 0
@@ -167,10 +218,12 @@ cmd_loop() {
   done
 }
 
-case "$1" in
-  start) cmd_start "$2" "$3" ;;
-  stop) cmd_stop ;;
-  beat) do_beat ;;
-  loop) cmd_loop ;;
-  *) exit 0 ;;
-esac
+if [ "${DEV_HEARTBEAT_LIB:-}" != "1" ]; then
+  case "$1" in
+    start) cmd_start "$2" "$3" ;;
+    stop) cmd_stop ;;
+    beat) do_beat ;;
+    loop) cmd_loop ;;
+    *) exit 0 ;;
+  esac
+fi
