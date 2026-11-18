@@ -234,7 +234,7 @@ export function handleExploreKeydown(ctx) {
     key: event.key
   })) {
     // 焦點已在「進入賭場」按鈕時交給按鈕自己的 click／Enter，避免重複開啟。
-    if (event.target && event.target.id === 'islandInteract') return false;
+    if (event.target && (event.target.id === 'islandInteract' || event.target.id === 'islandSteer')) return false;
     event.preventDefault();
     const zone = ctx.hitInteractZone();
     if (ctx.isInside()) {

@@ -24,17 +24,24 @@ import {
 import {
   createBoatState,
   startSailing,
+  startSteering,
   stepBoat,
+  stepSteering,
+  stopSteering,
   abortSailing,
+  abortSteering,
   isSailingPhase,
+  isSteeringPhase,
   sampleRoute,
   routeProgress,
   berthForDock,
   dockedBob,
+  boatWorldPose,
+  disembarkNear,
   BOAT_DECK_OFFSET,
   BOAT_SEAT_STERN_OFFSET
 } from './island-boat.js';
-import { createCasinoController, CASINO_NAME } from './island-casino.js';
+import { createCasinoController, CASINO_NAME, promptDomUpdate } from './island-casino.js';
 import { createGraffitiController } from './island-graffiti.js';
 import { createRoadmapController } from './island-roadmap.js';
 import {
@@ -642,6 +649,26 @@ function boot() {
   let activeInteract = '';
   let boatState = createBoatState('main');
   let boatElapsed = 0;
+  const steerBtn = document.getElementById('islandSteer');
+  let steerPromptState = {
+    visible: steerBtn ? !steerBtn.hidden : false,
+    label: steerBtn ? String(steerBtn.textContent || '') : ''
+  };
+
+  function setSteerPromptVisible(visible, label) {
+    if (!steerBtn) return;
+    const next = {
+      visible: !!visible,
+      label: label != null ? String(label) : steerPromptState.label
+    };
+    const patch = promptDomUpdate(steerPromptState, next);
+    if (Object.keys(patch).length === 0) return;
+    if ('hidden' in patch) steerBtn.hidden = patch.hidden;
+    if ('ariaHidden' in patch) steerBtn.setAttribute('aria-hidden', patch.ariaHidden);
+    if ('textContent' in patch) steerBtn.textContent = patch.textContent;
+    if ('ariaLabel' in patch) steerBtn.setAttribute('aria-label', patch.ariaLabel);
+    steerPromptState = next;
+  }
 
   const cam = createCameraRig(THREE, camera, {
     reduced: reduced,
@@ -689,8 +716,15 @@ function boot() {
     const desk = hint.querySelector('.island-explore-hint-desk');
     const touch = hint.querySelector('.island-explore-hint-touch');
     const inside = rooms.inside();
-    const deskText = exploreHintText(inside, false);
-    const touchText = exploreHintText(inside, true);
+    let deskText;
+    let touchText;
+    if (isSteering()) {
+      deskText = '方向鍵或 WASD 開船，靠近碼頭可下船';
+      touchText = '搖桿開船，靠近碼頭可下船';
+    } else {
+      deskText = exploreHintText(inside, false);
+      touchText = exploreHintText(inside, true);
+    }
     if (desk && desk.textContent !== deskText) desk.textContent = deskText;
     if (touch && touch.textContent !== touchText) touch.textContent = touchText;
   }
@@ -698,7 +732,7 @@ function boot() {
   function syncInteriorLeave() {
     const btn = document.getElementById('islandLeaveInterior');
     if (!btn) return;
-    const overlay = casinoOpen() || graffitiOpen() || roadmapOpen() || isSailing();
+    const overlay = casinoOpen() || graffitiOpen() || roadmapOpen() || isSailing() || isSteering();
     const show = shouldShowInteriorLeave({
       inside: rooms.inside(),
       exploring: mode.exploring,
@@ -724,10 +758,10 @@ function boot() {
       btn.setAttribute('aria-label', exploring ? '退出探索模式' : '進入探索模式');
       btn.textContent = exploring ? '退出' : '探索';
     }
-    const overlay = casinoOpen() || graffitiOpen() || isSailing();
-    if (stick) stick.hidden = !exploring || overlay;
-    if (hint) hint.hidden = !exploring || overlay;
-    if (islandChat) islandChat.setExploring(exploring && !overlay);
+    const voyageBlock = casinoOpen() || graffitiOpen() || isSailing();
+    if (stick) stick.hidden = !exploring || voyageBlock;
+    if (hint) hint.hidden = !exploring || (voyageBlock && !isSteering());
+    if (islandChat) islandChat.setExploring(exploring && !voyageBlock);
     syncExploreHint();
     syncInteriorLeave();
     syncInteractPrompt();
@@ -740,6 +774,10 @@ function boot() {
 
   function isSailing() {
     return isSailingPhase(boatState.phase);
+  }
+
+  function isSteering() {
+    return isSteeringPhase(boatState.phase);
   }
 
   function canExploreMove() {
@@ -756,6 +794,12 @@ function boot() {
     if (isSailing()) {
       const u = routeProgress(boatState.phase, boatState.progress);
       const pose = sampleRoute(u);
+      boatMesh.position.set(pose.x, bobY, pose.z);
+      boatMesh.rotation.y = pose.yaw;
+      return;
+    }
+    if (isSteering()) {
+      const pose = boatWorldPose(boatState);
       boatMesh.position.set(pose.x, bobY, pose.z);
       boatMesh.rotation.y = pose.yaw;
       return;
@@ -780,8 +824,54 @@ function boot() {
     syncExploreUi();
   }
 
+  function finishSteerDisembark(dock) {
+    const d = dock === 'beach' ? 'beach' : 'main';
+    const land = BOAT_STOPS[d].land;
+    player.x = land.x;
+    player.z = land.z;
+    player.yaw = d === 'beach' ? Math.PI : 0.45;
+    player.moving = false;
+    player.vx = 0;
+    player.vz = 0;
+    clearMoveInput();
+    setPlayerAnchor(player.x, P, player.z, player.yaw);
+    syncBoatMesh(boatElapsed);
+    followPlayerCamera(true);
+    syncInteractPrompt();
+    syncExploreUi();
+  }
+
+  function disembarkSteer() {
+    if (!isSteering()) return;
+    const dock = disembarkNear(boatState.x, boatState.z);
+    if (!dock) return;
+    boatState = stopSteering(boatState, dock);
+    finishSteerDisembark(dock);
+  }
+
+  function abortSteerVoyage() {
+    if (!isSteering()) return;
+    const dock = boatState.steerDock === 'beach' ? 'beach' : 'main';
+    boatState = abortSteering(boatState);
+    finishSteerDisembark(dock);
+  }
+
+  async function startSteer(zone) {
+    if (!zone || zone.action !== 'sail' || !mode.exploring || rooms.inside() || interiorBusy) return;
+    if (isSailing() || isSteering()) return;
+    const stop = zone.stop === 'beach' ? 'beach' : 'main';
+    const expected = stop === 'main' ? 'docked-main' : 'docked-beach';
+    if (boatState.phase !== expected) return;
+    clearMoveInput();
+    boatState = startSteering(boatState, stop);
+    syncExploreUi();
+    syncInteractPrompt();
+    syncBoatMesh(boatElapsed);
+    followPlayerCamera(true);
+  }
+
   async function startSail(zone) {
-    if (!zone || zone.action !== 'sail' || !mode.exploring || rooms.inside() || interiorBusy || isSailing()) return;
+    if (!zone || zone.action !== 'sail' || !mode.exploring || rooms.inside() || interiorBusy || isSailing() || isSteering()) return;
     const stop = zone.stop === 'beach' ? 'beach' : 'main';
     const expected = stop === 'main' ? 'docked-main' : 'docked-beach';
     if (boatState.phase !== expected) return;
@@ -806,8 +896,20 @@ function boot() {
   function syncInteractPrompt() {
     if (!casino) return false;
     if (closedHallTimer) return false;
+    if (isSteering()) {
+      const dock = disembarkNear(boatState.x, boatState.z);
+      const show = !!(dock && mode.exploring && !mode.paused && !sheetOpen() && !casinoOpen() && !graffitiOpen() && !roadmapOpen());
+      casino.setPromptVisible(show, show ? '靠岸下船' : '');
+      setSteerPromptVisible(false);
+      return show;
+    }
     const zone = hitInteractZone(player.x, player.z, promptZones());
     activeInteract = zone ? (zone.id || '') : '';
+    const atBoatDock = !!(zone && zone.action === 'sail');
+    const dockedOk = atBoatDock && (
+      (zone.stop === 'main' && boatState.phase === 'docked-main')
+      || (zone.stop === 'beach' && boatState.phase === 'docked-beach')
+    );
     const show = shouldShowInteractPrompt({
       exploring: mode.exploring,
       paused: mode.paused,
@@ -815,6 +917,12 @@ function boot() {
       lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
       zoneId: activeInteract
     });
+    if (dockedOk) {
+      casino.setPromptVisible(show, zone.label);
+      setSteerPromptVisible(show, '自己開船');
+      return show;
+    }
+    setSteerPromptVisible(false);
     casino.setPromptVisible(show, zone && zone.label ? zone.label : '進入賭場');
     return show;
   }
@@ -869,6 +977,7 @@ function boot() {
         followPlayerCamera(instant);
       }
     } else {
+      if (isSteering()) abortSteerVoyage();
       if (isSailing()) abortBoatVoyage();
       if (rooms.inside()) abortInterior();
       if (casino && casino.isOpen()) casino.closeLobby();
@@ -1051,6 +1160,38 @@ function boot() {
       stepMilu(dt, deckY);
       cam.targetLook.set(pose.x, G + 1.12, pose.z);
       footprints.setHidden(true);
+      return;
+    }
+    if (isSteering()) {
+      const paused = voyageUiPaused();
+      const input = moveVector(player.keys, { active: player.stickActive, x: player.stickX, y: player.stickY });
+      if (!paused) {
+        const dir = input.moving ? cameraRelative(input, cam.theta) : { x: 0, z: 0 };
+        boatState = stepSteering(
+          boatState,
+          { x: dir.x, z: dir.z, moving: input.moving },
+          dt,
+          { paused: false, reduced: reduced }
+        );
+      } else {
+        boatState = stepSteering(boatState, { x: 0, z: 0, moving: false }, dt, { paused: true, reduced: reduced });
+      }
+      const pose = boatWorldPose(boatState);
+      const deckY = dockedBob(boatElapsed, reduced) + BOAT_DECK_OFFSET;
+      const seatX = pose.x - Math.sin(pose.yaw) * BOAT_SEAT_STERN_OFFSET;
+      const seatZ = pose.z - Math.cos(pose.yaw) * BOAT_SEAT_STERN_OFFSET;
+      player.x = seatX;
+      player.z = seatZ;
+      player.yaw = pose.yaw;
+      player.moving = !paused && input.moving;
+      player.vx = paused ? 0 : (boatState.vx || 0);
+      player.vz = paused ? 0 : (boatState.vz || 0);
+      playerBob = 0;
+      setPlayerAnchor(seatX, deckY, seatZ, pose.yaw);
+      stepMilu(dt, deckY);
+      cam.targetLook.set(pose.x, G + 1.12, pose.z);
+      footprints.setHidden(true);
+      syncInteractPrompt();
       return;
     }
     if (!canExploreMove()) {
@@ -1416,7 +1557,7 @@ function boot() {
   }
 
   async function enterInterior(buildingId) {
-    if (interiorBusy || rooms.inside() || !mode.exploring || isSailing()) return;
+    if (interiorBusy || rooms.inside() || !mode.exploring || isSailing() || isSteering()) return;
     if (!rooms.canEnter(buildingId, performance.now())) return;
     const ticket = ++interiorGeneration;
     interiorBusy = true;
@@ -1449,7 +1590,7 @@ function boot() {
   }
 
   async function enterTcm() {
-    if (!mode.exploring || rooms.inside() || interiorBusy || isSailing()) return;
+    if (!mode.exploring || rooms.inside() || interiorBusy || isSailing() || isSteering()) return;
     clearMoveInput();
     closeOverlayPanels();
     writeTcmReturn(window.sessionStorage);
@@ -1478,7 +1619,7 @@ function boot() {
   }
 
   function openGraffiti() {
-    if (isSailing()) return;
+    if (isSailing() || isSteering()) return;
     if (casino && casino.isOpen()) casino.closeLobby();
     if (roadmap && roadmap.isOpen()) roadmap.close();
     if (graffiti) graffiti.open();
@@ -1510,7 +1651,7 @@ function boot() {
   }
 
   function openRoadmap() {
-    if (isSailing()) return;
+    if (isSailing() || isSteering()) return;
     if (casino && casino.isOpen()) casino.closeLobby();
     if (graffiti && graffiti.isOpen()) graffiti.close();
     if (roadmap) roadmap.open();
@@ -1525,6 +1666,10 @@ function boot() {
       },
       onLobbyChange: (state) => flow.lobbyChanged(state.open),
       onPrompt: () => {
+        if (isSteering()) {
+          disembarkSteer();
+          return true;
+        }
         const zone = hitInteractZone(player.x, player.z, promptZones());
         if (!zone) return false;
         if (zone.action === 'exitInterior') {
@@ -1559,6 +1704,13 @@ function boot() {
       }
     }
   });
+  if (steerBtn) {
+    steerBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      const zone = hitInteractZone(player.x, player.z, promptZones());
+      if (zone && zone.action === 'sail') startSteer(zone);
+    });
+  }
   graffiti = createGraffitiController({
     hooks: {
       onChange: (state) => {

@@ -37,13 +37,23 @@
   filter: brightness(1.06);
 }
 
+.island-interact-steer {
+  bottom: 7.5rem;
+  background: linear-gradient(135deg, #2d6d8f 0%, #1e4d6b 55%, #143850 100%);
+  box-shadow:
+    0 0 0 2px rgba(138, 196, 224, 0.75),
+    0 12px 28px rgba(20, 56, 80, 0.35);
+}
+
 .island-mark-casino {
   background: rgba(42, 24, 72, 0.92);
   color: #f0d078;
 }
 
 body.island-sheet-open .island-interact,
+body.island-sheet-open .island-interact-steer,
 body.casino-lobby-open .island-interact,
+body.casino-lobby-open .island-interact-steer,
 body.casino-lobby-open .island-explore-hint,
 body.casino-lobby-open .island-joystick,
 body.casino-lobby-open #islandLabels,
@@ -359,8 +369,21 @@ body.casino-blackjack-open .casino-status-card {
     max-width: calc(100vw - 1.1rem);
   }
 
+  .island-interact-steer {
+    bottom: auto;
+    top: 5rem;
+    left: auto;
+    right: 0.55rem;
+    transform: none;
+    max-width: calc(100vw - 1.1rem);
+  }
+
   body.is-exploring .island-interact {
     top: 7.1rem;
+  }
+
+  body.is-exploring .island-interact-steer {
+    top: 4.75rem;
   }
 
   .casino-lobby {
