@@ -1,3 +1,7 @@
+.island-interact * {
+  pointer-events: none;
+}
+
 .island-interact {
   position: fixed;
   z-index: 7;

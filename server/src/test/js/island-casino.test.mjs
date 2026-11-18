@@ -56,3 +56,43 @@ test('island-casino 匯入 island-blackjack', () => {
   assert.equal(C.MIN_BET, 10);
   assert.equal(C.STARTING_BALANCE, 1000);
 });
+
+test('promptDomUpdate：相同 visible＋label 不寫入', () => {
+  const prev = { visible: true, label: '搭船到沙灘島' };
+  assert.deepEqual(C.promptDomUpdate(prev, prev), {});
+  assert.deepEqual(C.promptDomUpdate(prev, { visible: true, label: '搭船到沙灘島' }), {});
+});
+
+test('promptDomUpdate：label 改變只寫文字與 aria-label', () => {
+  const prev = { visible: true, label: '搭船到沙灘島' };
+  const patch = C.promptDomUpdate(prev, { visible: true, label: '搭船回手搖店島' });
+  assert.deepEqual(patch, {
+    textContent: '搭船回手搖店島',
+    ariaLabel: '搭船回手搖店島'
+  });
+});
+
+test('promptDomUpdate：visible 改變只寫 hidden 與 aria-hidden', () => {
+  const prev = { visible: false, label: '進入賭場' };
+  assert.deepEqual(C.promptDomUpdate(prev, { visible: true, label: '進入賭場' }), {
+    hidden: false,
+    ariaHidden: 'false'
+  });
+  assert.deepEqual(C.promptDomUpdate({ visible: true, label: '進入賭場' }, { visible: false, label: '進入賭場' }), {
+    hidden: true,
+    ariaHidden: 'true'
+  });
+});
+
+test('setPromptVisible：連續相同呼叫不重寫 textContent', () => {
+  let promptState = { visible: false, label: '進入賭場' };
+  let textWrites = 0;
+  const label = '搭船到沙灘島';
+  for (let i = 0; i < 60; i += 1) {
+    const next = { visible: true, label };
+    const patch = C.promptDomUpdate(promptState, next);
+    if ('textContent' in patch) textWrites += 1;
+    if (Object.keys(patch).length > 0) promptState = next;
+  }
+  assert.equal(textWrites, 1, 'textContent 只應寫入一次');
+});

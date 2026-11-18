@@ -676,8 +676,10 @@ function boot() {
     const desk = hint.querySelector('.island-explore-hint-desk');
     const touch = hint.querySelector('.island-explore-hint-touch');
     const inside = rooms.inside();
-    if (desk) desk.textContent = exploreHintText(inside, false);
-    if (touch) touch.textContent = exploreHintText(inside, true);
+    const deskText = exploreHintText(inside, false);
+    const touchText = exploreHintText(inside, true);
+    if (desk && desk.textContent !== deskText) desk.textContent = deskText;
+    if (touch && touch.textContent !== touchText) touch.textContent = touchText;
   }
 
   function syncInteriorLeave() {
@@ -790,6 +792,7 @@ function boot() {
 
   function syncInteractPrompt() {
     if (!casino) return false;
+    if (closedHallTimer) return false;
     const zone = hitInteractZone(player.x, player.z, promptZones());
     activeInteract = zone ? (zone.id || '') : '';
     const show = shouldShowInteractPrompt({
@@ -1471,19 +1474,25 @@ function boot() {
   let closedHallTimer = 0;
   function showInteriorClosed() {
     const hint = document.getElementById('islandExploreHint');
-    const button = document.getElementById('islandInteract');
-    if (button) {
-      button.textContent = '室內尚未開放';
-      button.setAttribute('aria-label', '室內尚未開放');
+    const closedLabel = '室內尚未開放';
+    if (casino) {
+      casino.setPromptVisible(true, closedLabel);
+    } else {
+      const button = document.getElementById('islandInteract');
+      if (button) {
+        button.textContent = closedLabel;
+        button.setAttribute('aria-label', closedLabel);
+      }
     }
     if (!hint) return;
     hint.querySelectorAll('span').forEach((el) => {
-      el.textContent = '室內尚未開放';
+      if (el.textContent !== closedLabel) el.textContent = closedLabel;
     });
     if (closedHallTimer) window.clearTimeout(closedHallTimer);
     closedHallTimer = window.setTimeout(() => {
       closedHallTimer = 0;
       syncExploreHint();
+      syncInteractPrompt();
     }, 1800);
   }
 
