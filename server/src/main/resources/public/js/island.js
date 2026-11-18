@@ -45,7 +45,9 @@ import {
   exploreHintText,
   interiorFollowPose,
   interiorLeaveButtonLabel,
-  shouldShowInteriorLeave
+  shouldShowInteriorLeave,
+  labInteriorFollowDistance,
+  labInteriorLookTarget
 } from './island-interior.js';
 import {
   createMiluState,
@@ -75,7 +77,8 @@ import {
   INTERIOR_POSE,
   applyDragPhi,
   createPoses,
-  createCameraRig
+  createCameraRig,
+  exploreFollowDistance
 } from './island-camera.js';
 import { buildIslandWorld } from './island-world.js';
 import { buildIslandBuildings } from './island-buildings.js';
@@ -523,6 +526,12 @@ function boot() {
     following: () => controlsActive(mode),
     smoothingFactor: smoothingFactor,
     nightFactor: () => dayNight.mix,
+    followDistance: (radius, aspect) => {
+      if (rooms.inside() && rooms.room() && rooms.room().id === 'lab-room') {
+        return labInteriorFollowDistance(radius, aspect);
+      }
+      return exploreFollowDistance(radius, aspect);
+    },
     initial: POSES.home
   });
   let animating = false;
@@ -676,11 +685,21 @@ function boot() {
 
   function followPlayerCamera(instant) {
     let pose = EXPLORE_POSE;
+    let lookX = player.x;
+    let lookY = G + 1.05;
+    let lookZ = player.z;
     if (rooms.inside()) {
-      const custom = interiorFollowPose(rooms.room());
+      const room = rooms.room();
+      const custom = interiorFollowPose(room, camera.aspect);
       pose = custom || INTERIOR_POSE;
+      if (room && room.id === 'lab-room') {
+        const focal = labInteriorLookTarget(room, player, camera.aspect);
+        lookX = focal.x;
+        lookY = focal.y;
+        lookZ = focal.z;
+      }
     }
-    cam.follow(player.x, G + 1.05, player.z, pose, instant);
+    cam.follow(lookX, lookY, lookZ, pose, instant);
   }
 
   function setExplore(next, instant) {

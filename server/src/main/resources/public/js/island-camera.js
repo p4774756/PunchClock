@@ -178,6 +178,9 @@ export function createCameraRig(THREE, camera, hooks) {
   const following = hooks.following;
   const smoothingFactor = hooks.smoothingFactor;
   const nightFactor = typeof hooks.nightFactor === 'function' ? hooks.nightFactor : () => 1;
+  const followDistance = typeof hooks.followDistance === 'function'
+    ? hooks.followDistance
+    : exploreFollowDistance;
   const home = hooks.initial;
   const lookAt = new THREE.Vector3();
   const targetLook = new THREE.Vector3();
@@ -195,7 +198,7 @@ export function createCameraRig(THREE, camera, hooks) {
 
   function placeCamera() {
     const aspect = camera.aspect || 1;
-    const dist = exploreFollowDistance(radius, aspect);
+    const dist = followDistance(radius, aspect);
     const followCam = following();
     const safePhi = followCam ? Math.min(EXPLORE_PHI_MAX, Math.max(EXPLORE_PHI_MIN, phi)) : phi;
     const placement = exploreCameraPlacement(

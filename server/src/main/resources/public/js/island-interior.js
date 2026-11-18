@@ -12,6 +12,22 @@
 //   3. island.js 的 INTERIOR_MODULES 補上該室內的 dynamic import。
 
 import { cameraRelative, PLAYER_SPEED, MAX_STEP_DT } from './island-explore.js';
+import { G } from './island-kit.js';
+
+const LAB_PHI_MIN = 0.32;
+const LAB_PHI_MAX = 1.12;
+const LAB_FOV_DEG = 25;
+
+function labExploreCameraPlacement(lookAtX, lookAtY, lookAtZ, dist, safePhi, theta, groundY) {
+  const horiz = Math.max(0.55, dist * Math.sin(safePhi));
+  const cy = lookAtY + dist * Math.cos(safePhi);
+  return {
+    cx: lookAtX + horiz * Math.sin(theta),
+    cy: Math.max(groundY + 0.88, cy),
+    cz: lookAtZ + horiz * Math.cos(theta),
+    horiz: horiz
+  };
+}
 
 export const ENTER_COOLDOWN_MS = 700;
 // 與 island.js 的 PerspectiveCamera far、水面圓半徑對齊。跟隨鏡頭最多再往島拉一段。
@@ -25,12 +41,171 @@ export const INTERIOR_HINT_EXPLORE_TOUCH = '用左下角搖桿移動 · 拖曳�
 export const INTERIOR_HINT_INSIDE_DESK = 'WASD 或方向鍵移動 · Esc 或走到門口離開 · 工具列可一鍵離開';
 export const INTERIOR_HINT_INSIDE_TOUCH = '搖桿移動 · 按右下「離開」出去';
 
-/** 研發樓進房預設鏡頭：朝向南牆門口，手機直向也能看到門與螢幕。 */
-export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 5.0, theta: 0.48, phi: 0.76 });
+/** 研發樓進房預設鏡頭（桌面／橫向）：南牆門口與進度螢幕同時入鏡。 */
+export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 3.75, theta: 0.05, phi: 1.12 });
 
-export function interiorFollowPose(room) {
-  if (room && room.id === 'lab-room') return LAB_INTERIOR_CAMERA;
+export const LAB_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 6.65, theta: 0, phi: 1.12 });
+
+/** 鏡頭注視點：南牆門與螢幕之間，不跟著角色胸口偏移。 */
+export const LAB_INTERIOR_LOOK_DESKTOP = Object.freeze({ x: -0.38, y: G + 1.08, z: -1.55 });
+export const LAB_INTERIOR_LOOK_MOBILE = Object.freeze({ x: -0.5, y: G + 1.08, z: -1.55 });
+
+/** 右上角工具列＋品牌區下緣到螢幕上緣至少約 24px（與 viewport 高度換算 NDC）。 */
+export const LAB_INTERIOR_TOOLBAR_INSET_PX = 112;
+
+const LAB_SCREEN = Object.freeze({
+  cx: 0,
+  cy: G + 0.84,
+  cz: -1.74,
+  hw: 0.795,
+  hh: 0.56,
+  frame: 0.12
+});
+
+const LAB_DOOR = Object.freeze({
+  x: -1.5,
+  lintelY: G + 1.65,
+  signY: G + 1.56,
+  signX: -1.0,
+  pillarY: G + 1.55,
+  pillarHalfW: 0.47,
+  matY: G + 0.14,
+  matZ: -1.42,
+  southZ: -1.85
+});
+
+export function labInteriorCameraForAspect(aspect) {
+  const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
+  return a < 0.72 ? LAB_INTERIOR_CAMERA_MOBILE : LAB_INTERIOR_CAMERA;
+}
+
+export function interiorFollowPose(room, aspect) {
+  if (room && room.id === 'lab-room') return labInteriorCameraForAspect(aspect);
   return null;
+}
+
+/** 研發樓室內跟隨距離：手機直向不拉回太遠，避免螢幕與門口被切掉。 */
+export function labInteriorFollowDistance(radius, aspect) {
+  let dist = radius * 1.07;
+  if (aspect < 1.02) {
+    dist *= Math.min(1.22, Math.sqrt(1.02 / Math.max(aspect, 0.45)));
+  }
+  return dist;
+}
+
+export function labInteriorLookTarget(_room, _player, aspect) {
+  const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
+  return a < 0.72 ? LAB_INTERIOR_LOOK_MOBILE : LAB_INTERIOR_LOOK_DESKTOP;
+}
+
+export function labInteriorScreenTopNdcLimit(viewportHeightPx) {
+  const h = viewportHeightPx == null || viewportHeightPx < 1 ? 900 : viewportHeightPx;
+  return Math.min(0.85, 1 - (2 * LAB_INTERIOR_TOOLBAR_INSET_PX) / h);
+}
+
+function labFovFactor() {
+  return 1 / Math.tan((LAB_FOV_DEG * Math.PI / 180) / 2);
+}
+
+/** 世界座標 → NDC（與探索鏡頭放置、25° FOV 一致）。 */
+export function labInteriorProjectNdc(worldX, worldY, worldZ, pose, lookAt, aspect) {
+  const dist = labInteriorFollowDistance(pose.radius, aspect);
+  const phi = Math.min(LAB_PHI_MAX, Math.max(LAB_PHI_MIN, pose.phi));
+  const placement = labExploreCameraPlacement(
+    lookAt.x, lookAt.y, lookAt.z, dist, phi, pose.theta, G
+  );
+  const eyeX = placement.cx;
+  const eyeY = placement.cy;
+  const eyeZ = placement.cz;
+  const dx = eyeX - lookAt.x;
+  const dy = eyeY - lookAt.y;
+  const dz = eyeZ - lookAt.z;
+  const len = Math.hypot(dx, dy, dz) || 1;
+  const zx = dx / len;
+  const zy = dy / len;
+  const zz = dz / len;
+  let ux = 0;
+  let uy = 1;
+  let uz = 0;
+  let xx = uy * zz - uz * zy;
+  let xy = uz * zx - ux * zz;
+  let xz = ux * zy - uy * zx;
+  const xlen = Math.hypot(xx, xy, xz) || 1;
+  xx /= xlen;
+  xy /= xlen;
+  xz /= xlen;
+  const yx = zy * xz - zz * xy;
+  const yy = zz * xx - zx * xz;
+  const yz = zx * xy - zy * xx;
+  const wx = worldX - eyeX;
+  const wy = worldY - eyeY;
+  const wz = worldZ - eyeZ;
+  const vx = wx * xx + wy * xy + wz * xz;
+  const vy = wx * yx + wy * yy + wz * yz;
+  const vz = -(wx * zx + wy * zy + wz * zz);
+  if (vz <= 0.001) return { x: 99, y: 99, vz: vz };
+  const f = labFovFactor();
+  const safeAspect = aspect == null || aspect < 1e-3 ? 1 : aspect;
+  return {
+    x: (vx / vz) * f / safeAspect,
+    y: (vy / vz) * f,
+    vz: vz
+  };
+}
+
+function labLandmarkPoints() {
+  const s = LAB_SCREEN;
+  const d = LAB_DOOR;
+  return {
+    scrTL: [s.cx - s.hw - s.frame, s.cy + s.hh + s.frame, s.cz],
+    scrTR: [s.cx + s.hw + s.frame, s.cy + s.hh + s.frame, s.cz],
+    scrBL: [s.cx - s.hw - s.frame, s.cy - s.hh - s.frame, s.cz],
+    scrBR: [s.cx + s.hw + s.frame, s.cy - s.hh - s.frame, s.cz],
+    title: [s.cx - s.hw + 0.25, s.cy + s.hh - 0.14, s.cz],
+    lintel: [d.x, d.lintelY, d.southZ],
+    doorSign: [d.signX, d.signY, d.southZ - 0.03],
+    pillarL: [d.x - d.pillarHalfW, d.pillarY, d.southZ],
+    pillarR: [d.x + d.pillarHalfW, d.pillarY, d.southZ],
+    mat: [d.signX, d.matY, d.matZ]
+  };
+}
+
+/**
+ * 依 viewport 寬高比與高度檢查研發樓預設鏡頭：螢幕上緣留白、門口標示可見、手機螢幕至少 2/3 入鏡。
+ */
+export function labInteriorFramingOk(aspect, viewportHeightPx) {
+  const pose = labInteriorCameraForAspect(aspect);
+  const look = aspect < 0.72 ? LAB_INTERIOR_LOOK_MOBILE : LAB_INTERIOR_LOOK_DESKTOP;
+  const lim = labInteriorScreenTopNdcLimit(viewportHeightPx);
+  const pts = labLandmarkPoints();
+  const out = {};
+  for (const key of Object.keys(pts)) {
+    const p = pts[key];
+    out[key] = labInteriorProjectNdc(p[0], p[1], p[2], pose, look, aspect);
+  }
+  const span = out.scrTL.y - out.scrBL.y;
+  if (out.scrTL.y > lim + 0.001 || out.scrTR.y > lim + 0.001 || out.title.y > lim + 0.001) {
+    return false;
+  }
+  if (span < (aspect < 0.72 ? 0.52 : 0.78)) return false;
+  const inside = (ndc) => ndc.vz > 0
+    && ndc.y >= -0.94 && ndc.y <= 0.98
+    && ndc.x >= -0.94 && ndc.x <= 0.94;
+  if (!inside(out.title)) return false;
+  if (aspect < 0.72) {
+    const vis = (Math.min(out.scrTR.x, 0.92) - Math.max(out.scrTL.x, -0.92))
+      / (out.scrTR.x - out.scrTL.x);
+    if (!Number.isFinite(vis) || vis < 0.66) return false;
+    if (!inside(out.doorSign) || !inside(out.pillarR) || !inside(out.mat)) return false;
+    return true;
+  }
+  const screenKeys = ['scrTL', 'scrTR', 'scrBL', 'scrBR', 'title'];
+  for (let i = 0; i < screenKeys.length; i++) {
+    if (!inside(out[screenKeys[i]])) return false;
+  }
+  if (!inside(out.lintel) || !inside(out.doorSign) || !inside(out.pillarR)) return false;
+  if (out.pillarL.x < -1.1) return false;
+  return inside(out.mat);
 }
 
 export function shouldShowInteriorLeave(ctx) {

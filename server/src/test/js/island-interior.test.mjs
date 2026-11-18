@@ -177,8 +177,9 @@ test('研發樓出生朝向門口，有專用鏡頭與離開按鈕條件', () =>
   const room = I.interiorByBuilding('computer-site');
   assert.equal(room.spawn.yaw, Math.PI);
   assert.ok(room.spawn.z > -0.2, '出生點略靠房內北側，鏡頭看得到南牆門');
-  assert.deepEqual(I.LAB_INTERIOR_CAMERA, { radius: 5.0, theta: 0.48, phi: 0.76 });
-  assert.deepEqual(I.interiorFollowPose(room), I.LAB_INTERIOR_CAMERA);
+  assert.deepEqual(I.LAB_INTERIOR_CAMERA, { radius: 3.75, theta: 0.05, phi: 1.12 });
+  assert.deepEqual(I.interiorFollowPose(room, 1.6), I.LAB_INTERIOR_CAMERA);
+  assert.deepEqual(I.interiorFollowPose(room, 390 / 844), I.LAB_INTERIOR_CAMERA_MOBILE);
   assert.equal(I.interiorFollowPose(I.interiorByBuilding('shop')), null);
 
   const session = I.createInteriorSession();
@@ -192,6 +193,28 @@ test('研發樓出生朝向門口，有專用鏡頭與離開按鈕條件', () =>
   assert.ok(I.exploreHintText(true, false).includes('Esc'));
   session.exit(500);
   assert.equal(I.interiorLeaveButtonLabel(session), '');
+});
+
+test('研發樓預設鏡頭：三種 viewport 螢幕與門口投影在 NDC 內', () => {
+  const viewports = [
+    { aspect: 1440 / 900, height: 900 },
+    { aspect: 1280 / 720, height: 720 },
+    { aspect: 390 / 844, height: 844 }
+  ];
+  for (let i = 0; i < viewports.length; i++) {
+    const vp = viewports[i];
+    assert.equal(
+      I.labInteriorFramingOk(vp.aspect, vp.height),
+      true,
+      'viewport ' + vp.aspect.toFixed(3)
+    );
+    const topLimit = I.labInteriorScreenTopNdcLimit(vp.height);
+    const pose = I.labInteriorCameraForAspect(vp.aspect);
+    const look = vp.aspect < 0.72 ? I.LAB_INTERIOR_LOOK_MOBILE : I.LAB_INTERIOR_LOOK_DESKTOP;
+    const top = I.labInteriorProjectNdc(-0.795, 1.6, -1.74, pose, look, vp.aspect);
+    assert.ok(top.y <= topLimit + 0.02, '螢幕上緣 NDC y 不得貼齊工具列');
+    assert.ok(top.y <= 0.85, '螢幕上緣 NDC y ≤ 0.85');
+  }
 });
 
 test('手搖店室內離開按鈕文案與探索提示', () => {
