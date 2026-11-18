@@ -20,7 +20,13 @@ const {
   resolveTcmPickHit,
   acupointNearBronzeBody,
   BRONZE_HEAD_TOP_Y,
-  markerSurfacePosition
+  markerSurfacePosition,
+  meshUsesEntranceBronzeMaterial,
+  meshMaterialNames,
+  entranceBronzeLocalGuard,
+  hideEntranceBronzeMeshes,
+  ENTRANCE_BRONZE_MATERIALS,
+  ENTRANCE_FIG_LOCAL
 } = await loadPublicModule('island-tcm-figure-logic.js');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'main', 'resources', 'public');
@@ -131,6 +137,42 @@ test('resolveTcmPickHit：舊 zone 字串行為不變', () => {
   assert.equal(legacy, 'graffiti-wall');
   const empty = resolveTcmPickHit(null);
   assert.equal(empty, '');
+});
+
+test('館門舊銅像：bronze 材質 mesh 選取', () => {
+  assert.deepEqual(ENTRANCE_BRONZE_MATERIALS, ['bronze', 'bronze_dark']);
+  const bronze = { isMesh: true, material: { name: 'bronze' }, visible: true };
+  const dark = { isMesh: true, material: { name: 'bronze_dark' }, visible: true };
+  const arrayMat = {
+    isMesh: true,
+    material: [{ name: 'wood' }, { name: 'bronze' }],
+    visible: true
+  };
+  assert.ok(meshUsesEntranceBronzeMaterial(bronze));
+  assert.ok(meshUsesEntranceBronzeMaterial(dark));
+  assert.ok(meshUsesEntranceBronzeMaterial(arrayMat));
+  assert.equal(meshMaterialNames({ material: { name: 'tile' } }).join(','), 'tile');
+  assert.ok(entranceBronzeLocalGuard({ x: -0.58, z: 1.85 }));
+  assert.ok(!entranceBronzeLocalGuard({ x: 0.2, z: 0.4 }));
+});
+
+test('館門舊銅像：traverse 隱藏兩件並保留新像座標', () => {
+  const meshes = [
+    { isMesh: true, material: { name: 'bronze' }, visible: true },
+    { isMesh: true, material: { name: 'bronze_dark' }, visible: true },
+    { isMesh: true, material: { name: 'tile' }, visible: true }
+  ];
+  const model = {
+    traverse(fn) {
+      for (let i = 0; i < meshes.length; i++) fn(meshes[i]);
+    }
+  };
+  assert.equal(hideEntranceBronzeMeshes(model), 2);
+  assert.equal(meshes[0].visible, false);
+  assert.equal(meshes[1].visible, false);
+  assert.equal(meshes[2].visible, true);
+  assert.equal(ENTRANCE_FIG_LOCAL.x, -0.58);
+  assert.equal(ENTRANCE_FIG_LOCAL.z, 1.85);
 });
 
 test('resolveTcmPickHit：InstancedMesh 回傳穴 instanceKey', () => {

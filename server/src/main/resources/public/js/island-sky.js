@@ -2,6 +2,7 @@
 // 所有天空物件 fog: false、depthWrite: false，放在霧之外、ISLAND_CAMERA_FAR 之內。
 
 import { ISLAND_CAMERA_FAR } from './island-interior.js';
+import { moonSeaReflectionOpacity, starFieldOpacityBoost } from './island-decor.js';
 
 export const STAR_COUNT = 600;
 export const METEOR_INTERVAL_MIN = 8;
@@ -392,8 +393,8 @@ export function createIslandSky(THREE, opts) {
   }
 
   function updateStarsOpacity(t) {
-    const baseOpacity = starOpacity(t);
-    stars.material.uniforms.opacity.value = baseOpacity;
+    const baseOpacity = starOpacity(t) * starFieldOpacityBoost(t);
+    stars.material.uniforms.opacity.value = Math.min(1, baseOpacity);
     stars.points.visible = baseOpacity > 0.01;
   }
 
@@ -459,7 +460,7 @@ export function createIslandSky(THREE, opts) {
   }
 
   function updateReflection(t, elapsed) {
-    const o = moonOpacity(t) * 0.5;
+    const o = moonSeaReflectionOpacity(t, reduced) * moonOpacity(t);
     reflection.material.opacity = o;
     reflection.mesh.visible = o > 0.01;
 

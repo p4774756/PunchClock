@@ -10,11 +10,66 @@ export const BRONZE_HEAD_TOP_Y = 1.72;
 /** 資料空間人體分區包圍盒（|x| 取絕對值比對）；與 buildBronzeFigure 對齊。 */
 export const BRONZE_PART_BOXES = Object.freeze([
   { minX: 0, maxX: 0.22, minY: 0, maxY: 0.12, minZ: -0.18, maxZ: 0.18 },
-  { minX: 0.02, maxX: 0.14, minY: 0.04, maxY: 0.98, minZ: -0.1, maxZ: 0.1 },
-  { minX: 0, maxX: 0.18, minY: 0.82, maxY: 1.52, minZ: -0.14, maxZ: 0.12 },
-  { minX: 0.04, maxX: 0.36, minY: 0.68, maxY: 1.52, minZ: -0.12, maxZ: 0.12 },
-  { minX: 0, maxX: 0.15, minY: 1.38, maxY: 1.78, minZ: -0.14, maxZ: 0.12 }
+  { minX: 0.02, maxX: 0.14, minY: 0.04, maxY: 0.98, minZ: -0.13, maxZ: 0.13 },
+  { minX: 0, maxX: 0.18, minY: 0.82, maxY: 1.52, minZ: -0.14, maxZ: 0.14 },
+  { minX: 0.04, maxX: 0.36, minY: 0.68, maxY: 1.52, minZ: -0.13, maxZ: 0.13 },
+  { minX: 0, maxX: 0.15, minY: 1.38, maxY: 1.78, minZ: -0.13, maxZ: 0.13 }
 ]);
+
+export const ENTRANCE_BRONZE_MATERIALS = Object.freeze(['bronze', 'bronze_dark']);
+export const ENTRANCE_FIG_LOCAL = Object.freeze({ x: -0.58, y: 0, z: 1.85 });
+
+export function meshMaterialNames(mesh) {
+  if (!mesh || !mesh.material) return [];
+  const mat = mesh.material;
+  if (Array.isArray(mat)) {
+    const names = [];
+    for (let i = 0; i < mat.length; i++) {
+      if (mat[i] && mat[i].name) names.push(mat[i].name);
+    }
+    return names;
+  }
+  return mat.name ? [mat.name] : [];
+}
+
+export function meshUsesEntranceBronzeMaterial(mesh) {
+  if (!mesh || mesh.isMesh !== true) return false;
+  const names = meshMaterialNames(mesh);
+  for (let i = 0; i < names.length; i++) {
+    if (ENTRANCE_BRONZE_MATERIALS.indexOf(names[i]) >= 0) return true;
+  }
+  return false;
+}
+
+/** tcm-site 館門舊像本地座標保險（與 GLB props 青銅件一致）。 */
+export function entranceBronzeLocalGuard(local) {
+  if (!local) return true;
+  const x = local.x != null ? local.x : local[0];
+  const z = local.z != null ? local.z : local[2];
+  return z > 1.5 && x < -0.3;
+}
+
+/**
+ * 隱藏館門舊方塊銅像（依材質名；可選本地座標過濾）。
+ * @returns 隱藏 mesh 數量
+ */
+export function hideEntranceBronzeMeshes(modelRoot, opts) {
+  const o = opts || {};
+  const useGuard = !!o.useLocalGuard;
+  const getLocal = o.getLocalPosition;
+  let hidden = 0;
+  if (!modelRoot || typeof modelRoot.traverse !== 'function') return 0;
+  modelRoot.traverse((obj) => {
+    if (!meshUsesEntranceBronzeMaterial(obj)) return;
+    if (useGuard && getLocal) {
+      const local = getLocal(obj);
+      if (!entranceBronzeLocalGuard(local)) return;
+    }
+    obj.visible = false;
+    hidden += 1;
+  });
+  return hidden;
+}
 
 export function markerSurfacePosition(record, side) {
   const t = pointTargetRecord(record, side != null ? side : 1);
@@ -250,7 +305,8 @@ export function resolveTcmPickHit(hit) {
   return ud.zone || '';
 }
 
-export function fillAcupointCard(root, model, doc) {
+export function fillAcupointCard(root, model, doc, opts) {
+  const compact = !!(opts && opts.compact);
   while (root.firstChild) root.removeChild(root.firstChild);
   const title = doc.createElement('h2');
   title.textContent = model.title;
@@ -264,6 +320,25 @@ export function fillAcupointCard(root, model, doc) {
     dateEl.className = 'tcm-card-date';
     dateEl.textContent = model.dateLine;
     root.appendChild(dateEl);
+  }
+  if (compact) {
+    const ind = doc.createElement('p');
+    ind.className = 'tcm-card-indications-line';
+    ind.textContent = model.indications;
+    root.appendChild(ind);
+    const details = doc.createElement('details');
+    details.className = 'tcm-card-more';
+    const summary = doc.createElement('summary');
+    summary.textContent = '完整說明';
+    details.appendChild(summary);
+    appendTextRow(details, model.locationLabel + '：', model.location, doc);
+    appendTextRow(details, model.methodLabel + '：', model.method, doc);
+    const foot = doc.createElement('p');
+    foot.className = 'tcm-card-disclaimer';
+    foot.textContent = model.disclaimer;
+    details.appendChild(foot);
+    root.appendChild(details);
+    return;
   }
   appendTextRow(root, model.locationLabel + '：', model.location, doc);
   appendTextRow(root, model.indicationsLabel + '：', model.indications, doc);

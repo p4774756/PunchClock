@@ -6,6 +6,9 @@ import { BUILDINGS, ISLANDS } from './island-layout.js';
 import { signCopy } from './island-roadmap.js';
 import { G, P, nightHex } from './island-kit.js';
 import { BUILDING_GLOW, glowForMaterial } from './island-buildings-data.js';
+import { polishPedestalBase } from './island-decor.js';
+import { attachShopEavesDecor } from './island-decor-scene.js';
+
 export { BUILDING_GLOW, glowForMaterial };
 
 const glbCache = new Map();
@@ -24,7 +27,7 @@ function loadGLB(url) {
 }
 
 export function buildIslandBuildings(ctx) {
-  const { scene, kit, anchors, rings, pickables, steams, dayNight } = ctx;
+  const { scene, kit, anchors, rings, pickables, steams, dayNight, reduced: motionReduced } = ctx;
   const { addMesh, addBox, geo, mat, paint, picture, addCup, lampLight, addMaterial } = kit;
   let shaker = null;
   const font = '"PingFang TC", "Heiti TC", "Microsoft JhengHei", sans-serif';
@@ -250,6 +253,9 @@ export function buildIslandBuildings(ctx) {
         const base = G + 0.08;
         const roofY = base + 2.15 + 0.12;
         attachCasinoVegasDecor(model, base, CASINO.d / 2, roofY, 0.72, CASINO.w);
+      }
+      if (buildingId === 'shop') {
+        attachShopEavesDecor(model, kit, { reduced: !!motionReduced });
       }
       if (dayNight && typeof dayNight.refresh === 'function') dayNight.refresh();
     }).catch((err) => {
@@ -748,9 +754,9 @@ export function buildIslandBuildings(ctx) {
     const wall = makeZone(graffitiBuilding.id, graffitiBuilding.x, graffitiBuilding.z, 1.5);
     wall.rotation.y = graffitiBuilding.yaw || 0;
     const faceZ = graffitiBuilding.d / 2;
-    addBox(wall, graffitiBuilding.w + 0.18, 0.16, graffitiBuilding.d + 0.12, 0xc4844a, 0, G + 0.08, 0);
-    addBox(wall, 0.14, 1.72, 0.16, 0xa56b38, -graffitiBuilding.w / 2, G + 0.94, 0);
-    addBox(wall, 0.14, 1.72, 0.16, 0xa56b38, graffitiBuilding.w / 2, G + 0.94, 0);
+    polishPedestalBase(addBox, wall, graffitiBuilding.w, graffitiBuilding.d);
+    addBox(wall, 0.15, 1.74, 0.17, 0xa56b38, -graffitiBuilding.w / 2, G + 0.95, 0);
+    addBox(wall, 0.15, 1.74, 0.17, 0xa56b38, graffitiBuilding.w / 2, G + 0.95, 0);
     addBox(wall, graffitiBuilding.w + 0.08, 0.12, 0.18, 0xf06a2a, 0, G + 1.78, 0);
     const boardCanvas = document.createElement('canvas');
     boardCanvas.width = 1024;
@@ -849,9 +855,9 @@ export function buildIslandBuildings(ctx) {
     const sign = makeZone(roadmapBuilding.id, roadmapBuilding.x, roadmapBuilding.z, 1.15);
     sign.rotation.y = roadmapBuilding.yaw || 0;
     const faceZ = roadmapBuilding.d / 2;
-    addBox(sign, 0.12, 1.42, 0.12, 0xa56b38, -roadmapBuilding.w / 2, G + 0.76, 0);
-    addBox(sign, 0.12, 1.42, 0.12, 0xa56b38, roadmapBuilding.w / 2, G + 0.76, 0);
-    addBox(sign, roadmapBuilding.w + 0.16, 0.1, 0.18, 0xc4844a, 0, G + 0.16, 0);
+    addBox(sign, 0.13, 1.44, 0.13, 0xa56b38, -roadmapBuilding.w / 2, G + 0.77, 0);
+    addBox(sign, 0.13, 1.44, 0.13, 0xa56b38, roadmapBuilding.w / 2, G + 0.77, 0);
+    polishPedestalBase(addBox, sign, roadmapBuilding.w, 0.18);
     const signCanvas = document.createElement('canvas');
     signCanvas.width = 640;
     signCanvas.height = 320;

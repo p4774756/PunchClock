@@ -216,10 +216,10 @@ export function createSceneKit(THREE, opts) {
     const ctx = board.getContext('2d');
     const mid = size / 2;
     const g = ctx.createRadialGradient(mid, mid, 0, mid, mid, mid);
-    g.addColorStop(0, 'rgba(255,188,118,0.88)');
-    g.addColorStop(0.22, 'rgba(255,178,108,0.52)');
-    g.addColorStop(0.55, 'rgba(255,170,100,0.14)');
-    g.addColorStop(0.82, 'rgba(255,166,96,0.028)');
+    g.addColorStop(0, 'rgba(255,196,128,0.9)');
+    g.addColorStop(0.22, 'rgba(255,186,118,0.55)');
+    g.addColorStop(0.55, 'rgba(255,176,108,0.16)');
+    g.addColorStop(0.82, 'rgba(255,170,102,0.032)');
     g.addColorStop(1, 'rgba(255,166,96,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, size, size);

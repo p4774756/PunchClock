@@ -9,7 +9,9 @@ import {
   fillAcupointCard,
   markerSurfacePosition,
   pickTodayCode,
-  resolveTcmPickHit
+  resolveTcmPickHit,
+  hideEntranceBronzeMeshes,
+  ENTRANCE_FIG_LOCAL
 } from './island-tcm-figure-logic.js';
 
 export { resolveTcmPickHit };
@@ -45,10 +47,16 @@ function ensureCardStyle(doc) {
     '#tcmAcupointCard .tcm-card-disclaimer{margin-top:0.65rem;font-size:0.78rem;color:#7a6e64}',
     '#tcmAcupointCardClose{position:absolute;top:0.45rem;right:0.45rem;width:2rem;height:2rem;',
     'border:0;border-radius:999px;background:rgba(107,58,42,0.08);color:#3a2620;font-size:1.1rem;cursor:pointer}',
+  '#tcmAcupointCard .tcm-card-more{margin-top:0.45rem;font-size:0.88rem}',
+  '#tcmAcupointCard .tcm-card-more summary{cursor:pointer;color:#6b3a2a;font-weight:600}',
+  '#tcmAcupointCard .tcm-card-indications-line{margin:0.35rem 0 0;line-height:1.4}',
     '@media (max-width:520px){#tcmAcupointCard{left:max(0.55rem,env(safe-area-inset-left,0px));',
-    'right:max(0.55rem,env(safe-area-inset-right,0px));width:auto;max-width:none;',
-    'top:calc(4.25rem + env(safe-area-inset-top,0px));',
-    'bottom:auto;max-height:min(38vh,18rem)}}'
+    'right:max(0.55rem,env(safe-area-inset-right,0px));width:auto;max-width:none;top:auto;',
+    'bottom:calc(0.85rem + 8rem + 0.4rem + env(safe-area-inset-bottom,0px));',
+    'max-height:min(30vh,14rem);-webkit-overflow-scrolling:touch}',
+    'body.is-exploring #tcmAcupointCard{bottom:max(',
+    'calc(0.85rem + 8rem + 0.4rem + env(safe-area-inset-bottom,0px)),',
+    'calc(0.7rem + 2.25rem + 0.45rem + env(safe-area-inset-bottom,0px)))}}'
   ].join('');
   doc.head.appendChild(css);
 }
@@ -103,31 +111,31 @@ export function buildBronzeFigure(ctx) {
 
   [-1, 1].forEach((side) => {
     const sx = side * 0.09;
-    addBox(group, 0.07, 0.04, 0.14, 0x5a3a24, sx, 0.06, 0.02, goldOpts({ glowAmount: 0.08 }));
-    limb(0.05, 0.055, 0.34, sx, 0.08, 0, { z: side * 0.04 });
-    limb(0.058, 0.062, 0.44, sx, 0.42, -0.01, { z: side * 0.03 });
+    addBox(group, 0.07, 0.04, 0.22, 0x5a3a24, sx, 0.06, 0.02, goldOpts({ glowAmount: 0.08 }));
+    limb(0.052, 0.058, 0.34, sx, 0.08, 0.03 * side, { z: side * 0.05 });
+    limb(0.06, 0.065, 0.44, sx, 0.42, 0.02 * side, { z: side * 0.04 });
     const shoulderX = side * 0.12;
     const shoulderY = 1.44;
     const elbowX = side * 0.21;
     const elbowY = 1.1;
     const wristX = side * 0.29;
     const wristY = 0.9;
-    goldPart(geo('cyl', [0.045, 0.052, 0.38, 7, 0]), (shoulderX + elbowX) / 2, (shoulderY + elbowY) / 2, 0.03, {
-      z: side * 0.55 + 0.1,
+    goldPart(geo('cyl', [0.048, 0.055, 0.38, 7, 0]), (shoulderX + elbowX) / 2, (shoulderY + elbowY) / 2, 0.05 * side, {
+      z: side * 0.55 + 0.08,
       x: 0.12
     });
-    goldPart(geo('cyl', [0.038, 0.042, 0.34, 7, 0]), (elbowX + wristX) / 2, (elbowY + wristY) / 2, 0.045, {
-      z: side * 0.35 + 0.18,
+    goldPart(geo('cyl', [0.042, 0.046, 0.34, 7, 0]), (elbowX + wristX) / 2, (elbowY + wristY) / 2, 0.06 * side, {
+      z: side * 0.32 + 0.16,
       x: 0.35
     });
-    addBox(group, 0.05, 0.035, 0.08, GOLD, wristX, 0.82, 0.05, goldOpts({ glowAmount: 0.18 }));
+    addBox(group, 0.05, 0.035, 0.12, GOLD, wristX, 0.82, 0.06 * side, goldOpts({ glowAmount: 0.18 }));
   });
 
-  addBox(group, 0.22, 0.12, 0.14, GOLD, 0, 0.92, 0, goldOpts());
-  addBox(group, 0.2, 0.28, 0.15, GOLD, 0, 1.1, 0.01, goldOpts());
-  addBox(group, 0.24, 0.2, 0.16, GOLD, 0, 1.34, -0.01, goldOpts());
-  limb(0.05, 0.055, 0.08, 0, 1.46, 0);
-  goldPart(geo('sph', [0.115, 8, 7]), 0, 1.61, 0);
+  addBox(group, 0.22, 0.12, 0.26, GOLD, 0, 0.92, 0, goldOpts());
+  addBox(group, 0.2, 0.28, 0.26, GOLD, 0, 1.1, 0.02, goldOpts());
+  addBox(group, 0.24, 0.2, 0.26, GOLD, 0, 1.34, -0.02, goldOpts());
+  limb(0.052, 0.058, 0.08, 0, 1.46, 0.04);
+  goldPart(geo('sph', [0.12, 8, 7]), 0, 1.62, 0.02);
 
   if (!interactive) {
     group.userData.tcmDecor = true;
@@ -243,7 +251,8 @@ export function createTcmFigureController(ctx) {
     const record = recordsByCode[row.code] || row;
     const today = opts && opts.today;
     const model = buildCardTextModel(record, { today: today, nowMs: getNow() });
-    fillAcupointCard(cardBody, model, doc);
+    const mobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 520px)').matches;
+    fillAcupointCard(cardBody, model, doc, { compact: !!(today && mobile) });
     cardEl.hidden = false;
     cardVisible = true;
   }
@@ -465,30 +474,10 @@ export function createTcmFigureController(ctx) {
 }
 
 const ENTRANCE_FIG_SCALE = 0.46;
-const ENTRANCE_FIG_LOCAL = { x: -0.58, y: 0, z: 1.85 };
 
 export function replaceEntranceBronzeStatue(model, kit, pickables) {
   model.updateMatrixWorld(true);
-  const hidden = [];
-  const world = new THREE.Vector3();
-  const local = new THREE.Vector3();
-  const bronzeMats = ['bronze', 'bronze_dark', 'gold'];
-
-  model.traverse((obj) => {
-    if (!obj.isMesh) return;
-    const matName = obj.material && obj.material.name;
-    if (bronzeMats.indexOf(matName) < 0) return;
-    obj.getWorldPosition(world);
-    model.worldToLocal(local.copy(world));
-    if (
-      local.x > -0.88 && local.x < -0.32 &&
-      local.y > 0.08 && local.y < 1.22 &&
-      local.z > 0.55 && local.z < 2.15
-    ) {
-      obj.visible = false;
-      hidden.push(obj);
-    }
-  });
+  const hiddenCount = hideEntranceBronzeMeshes(model);
 
   const fig = buildBronzeFigure({ kit: kit, scale: ENTRANCE_FIG_SCALE, interactive: false });
   fig.position.set(ENTRANCE_FIG_LOCAL.x, ENTRANCE_FIG_LOCAL.y, ENTRANCE_FIG_LOCAL.z);
@@ -503,9 +492,9 @@ export function replaceEntranceBronzeStatue(model, kit, pickables) {
   model.add(hint);
   if (pickables) pickables.push(hint);
 
-  if (!hidden.length) {
+  if (!hiddenCount) {
     console.warn('[Island] 館門舊銅像未命中，仍放置新銅人');
   }
 
-  return { figure: fig, hint: hint, hiddenCount: hidden.length };
+  return { figure: fig, hint: hint, hiddenCount: hiddenCount };
 }

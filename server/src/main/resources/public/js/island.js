@@ -101,6 +101,7 @@ import {
   interiorExploreFollowDistance
 } from './island-camera.js';
 import { buildIslandWorld } from './island-world.js';
+import { exploreSkyColorHex } from './island-decor.js';
 import { buildIslandBuildings } from './island-buildings.js';
 import { buildIslandProps, registerSceneMotion } from './island-props.js';
 import { buildIslandBeach } from './island-beach.js';
@@ -214,7 +215,8 @@ function boot() {
   sun.shadow.camera.near = 2;
   sun.shadow.camera.far = 80;
   sun.shadow.bias = -0.00045;
-  sun.shadow.normalBias = 0.032;
+  sun.shadow.normalBias = 0.038;
+  sun.shadow.radius = 2;
   sun.target.position.set(0, 0.4, 0);
   scene.add(sun);
   scene.add(sun.target);
@@ -247,7 +249,8 @@ function boot() {
       material.color.copy(material.userData.day).lerp(material.userData.night, t);
       material.emissiveIntensity = material.userData.dayE + (material.userData.nightE - material.userData.dayE) * t;
     });
-    scene.background.copy(skyDay).lerp(skyNight, t);
+    const decorNight = new THREE.Color(exploreSkyColorHex(t));
+    scene.background.copy(skyDay).lerp(decorNight, t);
     scene.fog.color.copy(scene.background);
     scene.fog.near = 150 + (100 - 150) * t;
     scene.fog.far = 320 + (240 - 320) * t;
@@ -310,7 +313,8 @@ function boot() {
     rings: rings,
     pickables: pickables,
     steams: steams,
-    dayNight: dayNight
+    dayNight: dayNight,
+    reduced: reduced
   });
   const propResult = buildIslandProps({
     scene: scene,
