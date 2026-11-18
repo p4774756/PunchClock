@@ -434,6 +434,7 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
  ctx.putImageData(data,0,0);
  const next=src.clone();
  next.image=canvas;
+ next.colorSpace=src.colorSpace??T.SRGBColorSpace;
  next.generateMipmaps=true;
  next.minFilter=T.LinearMipmapLinearFilter;
  next.magFilter=T.LinearFilter;
@@ -518,13 +519,72 @@ const assertUniformOutfitUntouched=(before:Map<string,MeshAssetSnapshot>,school:
  if(err.length)throw new Error(`school outfit touched by practice build: ${err.join('; ')}`);
 };
 
+const isOutlineMaterial=(m:T.Material)=>{
+ const x=m as MToonLike & {isOutline?:boolean};
+ return !!(x.isOutline||/Outline/i.test(m.name||''));
+};
+
+const syncMaterialRenderState=(dst:T.Material,src:T.Material)=>{
+ dst.transparent=src.transparent;
+ dst.opacity=src.opacity;
+ dst.alphaTest=src.alphaTest;
+ dst.depthWrite=src.depthWrite;
+ dst.depthTest=src.depthTest;
+ dst.side=src.side;
+ dst.blending=src.blending;
+ dst.polygonOffset=src.polygonOffset;
+ dst.polygonOffsetFactor=src.polygonOffsetFactor;
+ dst.polygonOffsetUnits=src.polygonOffsetUnits;
+};
+
+const forkUniformValue=(value:unknown):unknown=>{
+ if(value instanceof T.Color)return value.clone();
+ if(value instanceof T.Vector2)return value.clone();
+ if(value instanceof T.Vector3)return value.clone();
+ if(value instanceof T.Matrix3)return value.clone();
+ if(value instanceof T.Matrix4)return value.clone();
+ return value;
+};
+
+/** MToon ShaderMaterial.clone() shares Color uniforms with the school rig — fork on practice only. */
+const detachMToonUniforms=(dst:MToonLike,src:MToonLike)=>{
+ const su=(src as {uniforms?:MToonUniforms}).uniforms;
+ const du=(dst as {uniforms?:MToonUniforms}).uniforms;
+ if(!su||!du)return;
+ for(const key of Object.keys(su)){
+  const slot=du[key];
+  if(!slot)continue;
+  slot.value=forkUniformValue(su[key].value);
+ }
+};
+
+const clonePracticeMaterial=(src:T.Material)=>{
+ const dst=src.clone();
+ syncMaterialRenderState(dst,src);
+ const s=src as MToonLike;
+ const d=dst as MToonLike;
+ if(s.isMToonMaterial)detachMToonUniforms(d,s);
+ const sm=src as T.MeshStandardMaterial;
+ const dm=dst as T.MeshStandardMaterial;
+ if(sm.map&&dm.map)dm.map.colorSpace=sm.map.colorSpace;
+ return dst;
+};
+
+const isPracticeUniformMesh=(obj:T.Mesh|T.SkinnedMesh,outfit:AnimeOutfit)=>{
+ if(!outfit.practiceBody||!outfit.hideMaterials.length)return false;
+ const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+ const surfaces=mats.filter(m=>!isOutlineMaterial(m));
+ if(!surfaces.length)return false;
+ return surfaces.every(m=>outfit.hideMaterials.some(token=>materialLabel(m,obj).includes(token)));
+};
+
 /** SkeletonUtils.clone shares geometry／material — deep-copy on practice rig only. */
 const isolatePracticeRig=(practice:T.Object3D)=>{
  practice.traverse(obj=>{
   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
   obj.geometry=obj.geometry.clone();
   const mats=Array.isArray(obj.material)?obj.material:[obj.material];
-  const next=mats.map(m=>m.clone());
+  const next=mats.map(clonePracticeMaterial);
   obj.material=next.length===1?next[0]:next;
  });
 };
@@ -640,6 +700,7 @@ const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
     m.needsUpdate=true;
    }
   }
+  if(outfit.practiceBody&&isPracticeUniformMesh(obj,outfit))obj.visible=false;
  });
  // Never add MeshBasic flesh balloons or hook MToon onBeforeCompile.
  if(outfit.practiceBody){

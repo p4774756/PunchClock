@@ -11,6 +11,12 @@ assert.doesNotMatch(pageSrc, /CharacterScene key=\{`\$\{DEFAULT_AVATAR_ID\}-\$\{
 assert.doesNotMatch(src, /\[avatarId,outfitId,onProgress,onError\]/, '3D scene must not rebuild on outfitId');
 assert.match(src, /cloneSkinnedObject|SkeletonUtils\.js/, 'anime GLB parsed once with cloned practice rig');
 assert.match(src, /isolatePracticeRig/, 'practice rig must deep-clone shared mesh assets');
+assert.match(src, /clonePracticeMaterial/, 'practice rig must fork MToon materials with render parity');
+assert.match(src, /syncMaterialRenderState/, 'cloned materials must copy transparent/depthWrite/side');
+assert.match(src, /detachMToonUniforms/, 'MToon Color uniforms must not alias school rig');
+assert.match(src, /isPracticeUniformMesh/, 'practice must detect uniform-only meshes');
+assert.match(src, /isPracticeUniformMesh\(obj,outfit\)\)obj\.visible=false/, 'hidden uniform meshes must set visible=false');
+assert.match(src, /next\.colorSpace=src\.colorSpace/, 'painted skin map must preserve source colorSpace');
 assert.match(src, /assertUniformOutfitUntouched/, 'practice build must not mutate school mesh materials');
 assert.match(src, /reanchor/, 'outfit switch must re-snap teaching markers');
 
