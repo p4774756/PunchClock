@@ -483,6 +483,52 @@ test('最近可用幀：同動作已載幀 → idle breath → 任何已載幀',
   assert.equal(M.resolveDisplayPath('wave/03.png', M.MILU_ANIM, loaded), 'idle/breath_01.png');
 });
 
+test('resolveDisplayPath 直接接受 Map，不複製', () => {
+  const loaded = new Map([
+    ['idle/breath_01.png', {}],
+    ['walk/right_02.png', {}]
+  ]);
+  assert.equal(M.resolveDisplayPath('walk/right_02.png', M.MILU_ANIM, loaded), 'walk/right_02.png');
+  assert.equal(M.resolveDisplayPath('walk/right_04.png', M.MILU_ANIM, loaded), 'walk/right_02.png');
+});
+
+test('miluResolveForShow 在 size 不變時沿用快取', () => {
+  const loaded = new Map([['idle/breath_01.png', {}]]);
+  let cache = { requested: '', size: -1, resolved: '' };
+  const first = M.miluResolveForShow('walk/left_01.png', M.MILU_ANIM, loaded, cache);
+  cache = first.cache;
+  assert.equal(first.path, 'idle/breath_01.png');
+  const second = M.miluResolveForShow('walk/left_01.png', M.MILU_ANIM, loaded, cache);
+  assert.equal(second.path, 'idle/breath_01.png');
+  assert.equal(second.cache, cache);
+  loaded.set('walk/left_01.png', {});
+  const third = M.miluResolveForShow('walk/left_01.png', M.MILU_ANIM, loaded, cache);
+  assert.equal(third.path, 'walk/left_01.png');
+});
+
+test('avatarVisibility 四種組合', () => {
+  assert.deepEqual(M.avatarVisibility({ show: false, ready: true, failed: false }), {
+    milu: false,
+    placeholder: false,
+    block: false
+  });
+  assert.deepEqual(M.avatarVisibility({ show: true, ready: true, failed: false }), {
+    milu: true,
+    placeholder: false,
+    block: false
+  });
+  assert.deepEqual(M.avatarVisibility({ show: true, ready: false, failed: false }), {
+    milu: false,
+    placeholder: true,
+    block: false
+  });
+  assert.deepEqual(M.avatarVisibility({ show: true, ready: false, failed: true }), {
+    milu: false,
+    placeholder: false,
+    block: true
+  });
+});
+
 test('ready／failed 判斷', () => {
   assert.equal(M.miluReadyFromState({ loadedCount: 1, failed: false }), true);
   assert.equal(M.miluReadyFromState({ loadedCount: 0, failed: false }), false);

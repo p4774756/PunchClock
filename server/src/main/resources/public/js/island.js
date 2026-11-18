@@ -51,8 +51,10 @@ import {
   labInteriorRuntimeLookAt
 } from './island-interior.js';
 import {
+  avatarVisibility,
   createMiluState,
   createMiluView,
+  feetOffsetY,
   isNearWave,
   MILU_ANIM,
   miluClipPath,
@@ -436,22 +438,64 @@ function boot() {
     shadow.position.y = 0.015;
     shadow.renderOrder = 1;
     group.add(shadow);
-    const blob = addMesh(group, geo('sph', [0.44, 18, 14]), 0xffefe4, 0, 0.52, 0, {
-      shadow: false,
-      receive: false,
-      scale: [1, 1.05, 0.85]
-    });
-    blob.renderOrder = 2;
-    const markerTex = paint(160, 72, (ctx, w, h) => {
+    function roundRect(ctx, x, y, w, h, r) {
+      const rad = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rad, y);
+      ctx.arcTo(x + w, y, x + w, y + h, rad);
+      ctx.arcTo(x + w, y + h, x, y + h, rad);
+      ctx.arcTo(x, y + h, x, y, rad);
+      ctx.arcTo(x, y, x + w, y, rad);
+      ctx.closePath();
+    }
+    const phHeight = 1.28;
+    const boardTex = paint(220, 280, (ctx, w, h) => {
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = '#fff7ef';
-      ctx.font = 'bold 22px "PingFang TC", "Noto Sans TC", sans-serif';
+      const cx = w / 2;
+      const beaconY = 26;
+      ctx.fillStyle = '#f06a2a';
+      ctx.beginPath();
+      ctx.moveTo(cx, beaconY - 12);
+      ctx.lineTo(cx + 9, beaconY);
+      ctx.lineTo(cx, beaconY + 12);
+      ctx.lineTo(cx - 9, beaconY);
+      ctx.closePath();
+      ctx.fill();
+      const bodyW = 104;
+      const bodyH = 150;
+      const bodyTop = 48;
+      const bx = cx - bodyW / 2;
+      roundRect(ctx, bx, bodyTop, bodyW, bodyH, 34);
+      ctx.fillStyle = 'rgba(255, 243, 232, 0.85)';
+      ctx.fill();
+      ctx.strokeStyle = '#f06a2a';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      const pillW = 96;
+      const pillH = 30;
+      const pillY = bodyTop + bodyH + 8;
+      roundRect(ctx, cx - pillW / 2, pillY, pillW, pillH, pillH / 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.fillStyle = '#3a312c';
+      ctx.font = 'bold 17px "PingFang TC", "Noto Sans TC", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('這是你', w / 2, h / 2);
+      ctx.fillText('載入中…', cx, pillY + pillH / 2);
     });
-    const marker = picture(group, 0.62, 0.3, markerTex, 0, 1.05, 0.12, 0, 0.55, 0.35);
-    marker.renderOrder = 3;
+    const boardGeo = new THREE.PlaneGeometry(phHeight, phHeight);
+    boardGeo.translate(0, feetOffsetY(phHeight, MILU_ANIM.footV), 0);
+    const billboardMat = new THREE.MeshBasicMaterial({
+      map: boardTex,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    const billboard = new THREE.Mesh(boardGeo, billboardMat);
+    billboard.renderOrder = 2;
+    group.add(billboard);
+    group.userData.billboardMaterial = billboardMat;
+    group.userData.placeholderPulseT = 0;
     return group;
   }
 
@@ -944,16 +988,15 @@ function boot() {
   }
 
   function syncAvatarVisible() {
-    const show = playerVisible(mode);
-    const failed = milu.failed();
-    const ready = milu.ready();
-    const useMilu = show && ready;
-    const usePlaceholder = show && !failed && !ready;
-    const useBlock = show && failed;
-    milu.object.visible = useMilu;
-    miluPlaceholder.visible = usePlaceholder;
-    playerMesh.visible = useBlock;
-    if (useBlock) showMiluFailToast();
+    const vis = avatarVisibility({
+      show: playerVisible(mode),
+      ready: milu.ready(),
+      failed: milu.failed()
+    });
+    milu.object.visible = vis.milu;
+    miluPlaceholder.visible = vis.placeholder;
+    playerMesh.visible = vis.block;
+    if (vis.block) showMiluFailToast();
   }
 
   function stepMilu(dt, groundY) {
@@ -1043,8 +1086,8 @@ function boot() {
     if (!reduced && player.moving) playerBob += dt * 10;
     else playerBob = 0;
     const bobY = (!reduced && player.moving) ? Math.sin(playerBob) * 0.035 : 0;
-    playerMesh.position.set(player.x, P + bobY, player.z);
-    playerMesh.rotation.y = player.yaw;
+    setPlayerAnchor(player.x, P + bobY, player.z, player.yaw);
+    stepMilu(dt, P + bobY);
     if (rooms.inside() && rooms.room() && rooms.room().id === 'lab-room') {
       const focal = labInteriorRuntimeLookAt(rooms.room(), player, camera.aspect);
       cam.targetLook.set(focal.x, focal.y, focal.z);
@@ -1079,6 +1122,16 @@ function boot() {
       miluPlaceholder.rotation.y = Math.atan2(dx, dz);
       miluPlaceholder.rotation.x = 0;
       miluPlaceholder.rotation.z = 0;
+      const billboardMat = miluPlaceholder.userData.billboardMaterial;
+      if (billboardMat) {
+        if (reduced) {
+          billboardMat.opacity = 1;
+        } else {
+          miluPlaceholder.userData.placeholderPulseT += dt;
+          const pulse = 0.5 + 0.5 * Math.sin(miluPlaceholder.userData.placeholderPulseT * 2.2);
+          billboardMat.opacity = 0.7 + 0.3 * pulse;
+        }
+      }
     }
     if (peerLayer) peerLayer.stepPeers(dt);
     dayNight.step(dt);
@@ -1308,6 +1361,7 @@ function boot() {
     player.vz = 0;
     setPlayerAnchor(player.x, P, player.z, player.yaw);
     milu.object.position.set(player.x, P, player.z);
+    stepMilu(0, P);
     followPlayerCamera(true);
   }
 
@@ -1692,6 +1746,7 @@ function boot() {
     player.yaw = tcmRestore.yaw;
     setPlayerAnchor(player.x, P, player.z, player.yaw);
     milu.object.position.set(player.x, P, player.z);
+    stepMilu(0, P);
     setExplore(true, true);
   } else if (open && !open.hasAttribute('hidden')) {
     const id = open.id.replace('panel-', '');

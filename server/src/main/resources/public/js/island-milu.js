@@ -421,7 +421,12 @@ export function miluPathsToStart(queue, inFlight, skip, maxConcurrent) {
   return starts;
 }
 
+function isPathCollection(loaded) {
+  return !!(loaded && typeof loaded.has === 'function' && typeof loaded.size === 'number');
+}
+
 export function loadedPathSet(loaded) {
+  if (isPathCollection(loaded)) return loaded;
   const set = new Set();
   if (!loaded) return set;
   if (typeof loaded.forEach === 'function') {
@@ -430,7 +435,6 @@ export function loadedPathSet(loaded) {
     });
     return set;
   }
-  if (loaded instanceof Set) return new Set(loaded);
   const list = Array.isArray(loaded) ? loaded : Object.keys(loaded);
   for (let i = 0; i < list.length; i++) set.add(list[i]);
   return set;
@@ -490,6 +494,33 @@ function pickNearestInList(list, idx, loaded) {
     if (d > 0 && right < list.length && loaded.has(list[right])) return list[right];
   }
   return '';
+}
+
+export function avatarVisibility({ show, ready, failed }) {
+  const on = !!show;
+  return {
+    milu: on && !!ready,
+    placeholder: on && !failed && !ready,
+    block: on && !!failed
+  };
+}
+
+export function miluResolveForShow(requested, anim, loaded, cache) {
+  const row = cache || { requested: '', size: -1, resolved: '' };
+  if (isPathCollection(loaded) && loaded.has(requested)) {
+    row.requested = requested;
+    row.size = loaded.size;
+    row.resolved = requested;
+    return { cache: row, path: requested };
+  }
+  const size = isPathCollection(loaded) ? loaded.size : 0;
+  if (row.requested === requested && row.size === size) {
+    return { cache: row, path: row.resolved };
+  }
+  row.resolved = resolveDisplayPath(requested, anim, loaded);
+  row.requested = requested;
+  row.size = size;
+  return { cache: row, path: row.resolved };
 }
 
 export function resolveDisplayPath(requested, anim, loaded) {
@@ -654,6 +685,7 @@ export function createMiluView(THREE, options) {
   const loadMeta = miluLoadMeta(textures, !shared);
   let shown = '';
   let disposed = false;
+  let displayResolveCache = { requested: '', size: -1, resolved: '' };
 
   const deferLoad = !!(options && options.deferLoad) && !shared;
 
@@ -804,7 +836,9 @@ export function createMiluView(THREE, options) {
 
   function refreshShown() {
     if (!shown) return;
-    const path = resolveDisplayPath(shown, anim, textures);
+    const hit = miluResolveForShow(shown, anim, textures, displayResolveCache);
+    displayResolveCache = hit.cache;
+    const path = hit.path;
     const tex = path ? textures.get(path) : null;
     if (!tex) return;
     if (path === shown && material.map === tex) return;
@@ -816,7 +850,9 @@ export function createMiluView(THREE, options) {
   function show(path) {
     if (disposed || !path) return;
     if (loadMeta && loadMeta.failed && textures.size === 0) return;
-    const resolved = resolveDisplayPath(path, anim, textures);
+    const hit = miluResolveForShow(path, anim, textures, displayResolveCache);
+    displayResolveCache = hit.cache;
+    const resolved = hit.path;
     if (!resolved) return;
     const tex = textures.get(resolved);
     if (!tex) return;
