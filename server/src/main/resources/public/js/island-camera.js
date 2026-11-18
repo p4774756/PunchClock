@@ -50,11 +50,11 @@ export function exploreThetaFacing(bodyAzimuth) {
 
 /**
  * 垂直拖曳造成的 phi 變化量。
- * 探索（followCam）：往上拖 dy<0 → 負 delta → phi 變小＝抬頭（遊戲直覺）。
+ * 探索（followCam）：往下拖 dy>0 → 負 delta → phi 變小＝抬頭看天空。
  * 全景：維持「抓住世界拖」——往下拖 dy>0 → 負 delta → 抬頭。
  */
 export function dragPhiDelta(dy, followCam) {
-  return followCam ? dy * DRAG_PHI_SENSITIVITY : -dy * DRAG_PHI_SENSITIVITY;
+  return -dy * DRAG_PHI_SENSITIVITY;
 }
 
 /** 依模式套用垂直拖曳並夾在對應 phi 範圍內。 */
