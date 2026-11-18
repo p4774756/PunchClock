@@ -31,8 +31,8 @@ const CITY_LOCAL_RECTS = [
   { id: 'city-bld-convenience', minX: -5.6, maxX: -2.0, minZ: -2.0, maxZ: 3.2 },
   { id: 'city-bld-tea', minX: 2.0, maxX: 5.6, minZ: -2.0, maxZ: 3.2 },
   { id: 'city-bld-claw', minX: -2.2, maxX: 2.2, minZ: -6.0, maxZ: -2.6 },
-  { id: 'city-bld-nw', minX: -5.5, maxX: -3.0, minZ: 2.8, maxZ: 5.4 },
-  { id: 'city-bld-ne', minX: 3.0, maxX: 5.5, minZ: 2.8, maxZ: 5.4 },
+  { id: 'city-bld-nw', minX: -5.75, maxX: -4.25, minZ: 4.25, maxZ: 5.85 },
+  { id: 'city-bld-ne', minX: 4.25, maxX: 5.75, minZ: 4.25, maxZ: 5.85 },
   { id: 'city-pier-rail-w', minX: -0.55, maxX: -0.34, minZ: 5.2, maxZ: 6.8 },
   { id: 'city-pier-rail-e', minX: 0.34, maxX: 0.55, minZ: 5.2, maxZ: 6.8 }
 ];
@@ -71,6 +71,8 @@ export function cityObstacleCircles() {
 }
 
 export const PINK_CAR_LOCAL = Object.freeze({ x: 0.9, z: -1.35, yaw: 0 });
+/** 路人／機車取樣點須與停車位保持的最小距離（含車身與人身寬度）。 */
+export const PINK_CAR_PATH_CLEAR_R = 1.55;
 
 export function pinkCarWorld() {
   const c = CITY_CENTER;
@@ -100,9 +102,9 @@ export function cityWalkerPaths() {
   const w = (lx, lz) => [c.x + lx, c.z + lz];
   return Object.freeze([
     Object.freeze([w(-1.8, 3.0), w(1.8, 3.0), w(1.8, 1.55), w(-1.8, 1.55)]),
-    Object.freeze([w(-0.95, 4.2), w(-0.95, -1.15)]),
-    Object.freeze([w(0.95, 4.2), w(0.95, -1.15)]),
-    Object.freeze([w(-0.95, -1.15), w(0.95, -1.15)]),
+    Object.freeze([w(-0.95, 4.2), w(-0.95, -2.35)]),
+    Object.freeze([w(0.95, 4.2), w(0.95, 0.25)]),
+    Object.freeze([w(-0.95, 0.35), w(0.95, 0.35)]),
     Object.freeze([w(-1.8, -6.2), w(1.8, -6.2)]),
     Object.freeze([w(0, 4.6), w(0, 5.7)])
   ]);
@@ -112,7 +114,7 @@ export function cityMotoPaths() {
   const c = CITY_CENTER;
   const w = (lx, lz) => [c.x + lx, c.z + lz];
   return Object.freeze([
-    Object.freeze([w(-0.95, 3.5), w(-0.95, -1.0), w(0.95, -1.0), w(0.95, 3.5)]),
+    Object.freeze([w(-0.95, 3.5), w(-0.95, 0.3), w(0.95, 0.3), w(0.95, 3.5)]),
     Object.freeze([w(-0.95, 1.55), w(0.95, 1.55)]),
     Object.freeze([w(-1.8, 3.0), w(1.8, 3.0)])
   ]);

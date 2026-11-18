@@ -35,8 +35,9 @@ export function buildIslandCity(ctx) {
 
   /**
    * @param {'north'|'south'} face 街面朝向（north = 面向 +Z 巷弄）
+   * @param {'east'|'west'|'north'|null} [sideSign] 面對南北主路的次要招牌
    */
-  function shopBlock(lx, lz, w, d, h, wallColor, signText, signColor, face) {
+  function shopBlock(lx, lz, w, d, h, wallColor, signText, signColor, face, sideSign) {
     const street = face === 'south' ? -1 : 1;
     const fz = lz + street * (d / 2);
     addBox(root, w, h, d, wallColor, lx, G + h / 2, lz);
@@ -55,33 +56,46 @@ export function buildIslandCity(ctx) {
       addBox(root, winW + 0.1, h * 0.42, 0.05, 0x5a4d42, lx + side * (w * 0.38), G + h * 0.58, fz - street * 0.09);
     }
 
-    const signLen = signText.length >= 4 ? 320 : 280;
-    const signFont = signText.length >= 4 ? 34 : 40;
-    const tex = makeTradSignTexture(kit, signText, signLen, 112, signFont);
-    const planeW = signText.length >= 4 ? 1.55 : 1.35;
-    const sign = new THREE.Mesh(
-      new THREE.PlaneGeometry(planeW, 0.5),
-      mat(0xffffff, {
-        map: tex,
-        side: THREE.DoubleSide,
-        shadow: false,
-        night: signColor || 0xfff0dc,
-        glow: 0xffb15a,
-        glowAmount: 0.45
-      })
-    );
-    sign.position.set(lx, G + h * 0.78, fz + street * 0.18);
-    sign.rotation.y = street < 0 ? Math.PI : 0;
-    sign.rotation.x = -0.04;
-    root.add(sign);
+    function mountSign(text, color, sx, sy, sz, rotY, scale) {
+      const s = scale == null ? 1 : scale;
+      const signLen = text.length >= 4 ? 320 : 280;
+      const signFont = text.length >= 4 ? 34 : 40;
+      const tex = makeTradSignTexture(kit, text, signLen, 112, signFont);
+      const planeW = (text.length >= 4 ? 1.55 : 1.35) * s;
+      const sign = new THREE.Mesh(
+        new THREE.PlaneGeometry(planeW, 0.5 * s),
+        mat(0xffffff, {
+          map: tex,
+          side: THREE.DoubleSide,
+          shadow: false,
+          night: color || 0xfff0dc,
+          glow: 0xffb15a,
+          glowAmount: 0.45
+        })
+      );
+      sign.position.set(sx, sy, sz);
+      sign.rotation.y = rotY;
+      sign.rotation.x = -0.04;
+      root.add(sign);
+    }
+
+    mountSign(signText, signColor, lx, G + h * 0.78, fz + street * 0.18,
+      street < 0 ? Math.PI : 0, 1);
+    if (sideSign === 'east') {
+      mountSign(signText, signColor, lx + w / 2 + 0.06, G + h * 0.74, lz, Math.PI / 2, 0.82);
+    } else if (sideSign === 'west') {
+      mountSign(signText, signColor, lx - w / 2 - 0.06, G + h * 0.74, lz, -Math.PI / 2, 0.82);
+    } else if (sideSign === 'north') {
+      mountSign(signText, signColor, lx, G + h * 0.78, lz + d / 2 + 0.16, 0, 0.85);
+    }
   }
 
-  shopBlock(-3.8, 0.5, 3.4, 4.6, 2.05, 0xfff7ef, '便利商店', 0xfff0e0, 'north');
-  shopBlock(3.8, 0.5, 3.4, 4.6, 2.05, 0xf4f0ff, '手搖飲', 0xfff6ff, 'north');
-  shopBlock(0, -4.2, 3.6, 2.8, 1.85, 0xfff0f5, '夾娃娃店', 0xffe8f4, 'south');
+  shopBlock(-3.8, 0.5, 3.4, 4.6, 2.05, 0xfff7ef, '便利商店', 0xfff0e0, 'north', 'east');
+  shopBlock(3.8, 0.5, 3.4, 4.6, 2.05, 0xf4f0ff, '手搖飲', 0xfff6ff, 'north', 'west');
+  shopBlock(0, -4.2, 3.6, 2.8, 1.85, 0xfff0f5, '夾娃娃店', 0xffe8f4, 'south', 'north');
 
-  addBox(root, 2.2, 3.2, 2.2, 0xe0e4ea, -4.2, G + 1.6, 3.8);
-  addBox(root, 2.2, 3.2, 2.2, 0xe0e4ea, 4.2, G + 1.6, 3.8);
+  addBox(root, 1.5, 2.4, 1.5, 0xe0e4ea, -5.0, G + 1.2, 5.05);
+  addBox(root, 1.5, 2.4, 1.5, 0xe0e4ea, 5.0, G + 1.2, 5.05);
 
   const colGeo = geo('box', [0.2, 2.35, 0.2]);
   const colMat = mat(0xe8e0d4, { shadow: false });
@@ -116,13 +130,17 @@ export function buildIslandCity(ctx) {
 
   const trafficGroup = new THREE.Group();
   trafficGroup.position.set(1.2, G, 1.2);
-  const pole = addBox(trafficGroup, 0.12, 2.6, 0.12, 0x2e2e2e, 0, 1.3, 0);
-  const housing = addBox(trafficGroup, 0.38, 0.95, 0.22, 0x1a1a1a, 0, 2.55, 0.08);
+  trafficGroup.rotation.y = Math.atan2(-1.2, -0.7);
+  const pole = addBox(trafficGroup, 0.12, 2.5, 0.12, 0x2e2e2e, 0, 1.25, 0);
+  const housing = addBox(trafficGroup, 0.14, 1.05, 0.52, 0x1a1a1a, 0, 2.52, 0.22);
+  const lensR = 0.13;
+  const lensGeo = geo('sph', [lensR, 10, 8]);
   const lights = {
-    red: addMesh(trafficGroup, geo('sph', [0.08, 8, 6]), 0xff3b30, 0, 2.78, 0.08, { shadow: false }),
-    yellow: addMesh(trafficGroup, geo('sph', [0.08, 8, 6]), 0x3a3520, 0, 2.55, 0.08, { shadow: false }),
-    green: addMesh(trafficGroup, geo('sph', [0.08, 8, 6]), 0x1e3324, 0, 2.32, 0.08, { shadow: false })
+    red: addMesh(trafficGroup, lensGeo, 0xff3b30, 0, 2.82, 0.28, { shadow: false }),
+    yellow: addMesh(trafficGroup, lensGeo, 0xffcc00, 0, 2.52, 0.28, { shadow: false }),
+    green: addMesh(trafficGroup, lensGeo, 0x34c759, 0, 2.22, 0.28, { shadow: false })
   };
+  addBox(trafficGroup, 0.58, 0.08, 0.08, 0x3a3a3a, 0, 2.52, 0.08);
   root.add(trafficGroup);
   if (trafficMeshes) {
     trafficMeshes.pole = pole;
