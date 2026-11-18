@@ -63,6 +63,18 @@ test('下船點可站立', () => {
   assert.ok(B.disembarkPointsStand(0.29));
 });
 
+test('主島↔城市島航程', () => {
+  let state = B.createBoatState('main');
+  state = B.startSailing(state, 'main', 'city');
+  assert.equal(state.phase, 'sailing-city');
+  state = B.stepBoat(state, 15, { duration: 10 });
+  assert.equal(state.phase, 'docked-city');
+  state = B.startSailing(state, 'city', 'main');
+  assert.equal(state.phase, 'sailing-city-back');
+  state = B.stepBoat(state, 15, { duration: 10 });
+  assert.equal(state.phase, 'docked-main');
+});
+
 test('船PassengerScale：船上縮放、下船恢復', () => {
   assert.equal(B.boatPassengerScaleFactor('docked-main'), 1);
   assert.equal(B.boatPassengerScaleFactor('sailing-out'), B.BOAT_PASSENGER_SCALE);

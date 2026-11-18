@@ -24,7 +24,7 @@ export function buildIslandWorld(ctx) {
     const deepH = radius > 5 ? 0.2 : 0.12;
     const rockH = radius > 5 ? 0.36 : 0.22;
     const y0 = G - grassH;
-    const top = theme === 'beach' ? 0xf0ddb4 : 0xa8d06e;
+    const top = theme === 'beach' ? 0xf0ddb4 : theme === 'city' ? 0xc8ccd0 : 0xa8d06e;
     addMesh(parent, geo('cyl', [radius, radius + 0.12, grassH, 6, HEX]), top, 0, y0 + grassH / 2, 0);
     addMesh(parent, geo('cyl', [radius + 0.16, radius + 0.32, soilH, 6, HEX]), 0xd2a56c, 0, y0 - soilH / 2, 0);
     addMesh(parent, geo('cyl', [radius + 0.36, radius + 0.55, deepH, 6, HEX]), 0xb8884e, 0, y0 - soilH - deepH / 2, 0);

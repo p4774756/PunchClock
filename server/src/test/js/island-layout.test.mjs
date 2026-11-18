@@ -8,7 +8,7 @@ const L = await loadPublicModule('island-layout.js');
 test('主題島連回主島，橋兩端都在島上；沙灘島無橋', () => {
   assert.deepEqual(
     L.ISLANDS.map((island) => island.id),
-    ['main', 'casino', 'tcm', 'computer', 'beach']
+    ['main', 'casino', 'tcm', 'computer', 'beach', 'city']
   );
   assert.equal(L.BRIDGES.length, 3);
   const bridged = new Set();
@@ -262,7 +262,10 @@ test('沙灘島棧橋與島相連、搭船互動區在棧橋上', () => {
     assert.equal(hit, false, bridge.id + ' 不穿越棧橋');
   }
   const zones = L.boatZones();
-  assert.equal(zones.length, 2);
+  assert.equal(zones.length, 4);
+  const cityZone = zones.find((zone) => zone.id === 'boat-city');
+  assert.ok(cityZone);
+  assert.equal(cityZone.dest, 'city');
   for (const zone of zones) {
     assert.equal(zone.action, 'sail');
     assert.ok(L.walkable(zone.x, zone.z, 0.29), zone.id + ' 互動區在棧橋上');
@@ -271,6 +274,19 @@ test('沙灘島棧橋與島相連、搭船互動區在棧橋上', () => {
   const pier = L.WALK_PADS.find((pad) => pad.id === 'pier');
   const mainZone = zones.find((zone) => zone.id === 'boat-main');
   assert.ok(mainZone.x >= pier.minX && mainZone.x <= pier.maxX);
+});
+
+test('主島碼頭可分辨搭船到沙灘島與城市島', async () => {
+  const X = await loadPublicModule('island-explore.js');
+  const zones = L.boatZones();
+  const board = L.BOAT_STOPS.main.board;
+  const cityZone = zones.find((zone) => zone.id === 'boat-city');
+  const mainZone = zones.find((zone) => zone.id === 'boat-main');
+  assert.ok(cityZone);
+  assert.ok(Math.hypot(board.x - cityZone.x, board.z - cityZone.z) > 1.6);
+  assert.equal(X.hitInteractZone(board.x, board.z, zones).id, 'boat-main');
+  assert.equal(X.hitInteractZone(cityZone.x, cityZone.z, zones).id, 'boat-city');
+  assert.ok(L.walkable(cityZone.x, cityZone.z, 0.29), '城市島提示在棧橋上');
 });
 
 test('主島店面仍在原座標，賭場不在主島', () => {

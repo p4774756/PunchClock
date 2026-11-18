@@ -16,6 +16,7 @@ import {
   walkable,
   blocked
 } from './island-layout.js';
+import { vehicleZones } from './island-city-data.js';
 
 export const PLAYER_SPAWN = { x: 2.15, z: 5.55, yaw: Math.PI };
 export const PLAYER_SPEED = 3.35;
@@ -46,7 +47,9 @@ export const CASINO = Object.freeze({
 });
 
 /** 預設互動區由建築 entry 推導，並含棧橋搭船區。觸發須由玩家明確操作，不自動傳送。 */
-export const DEFAULT_INTERACT_ZONES = Object.freeze(interactZones().concat(boatZones()));
+export const DEFAULT_INTERACT_ZONES = Object.freeze(
+  interactZones().concat(boatZones()).concat(vehicleZones())
+);
 
 export { ISLANDS, BRIDGES, BUILDINGS };
 
