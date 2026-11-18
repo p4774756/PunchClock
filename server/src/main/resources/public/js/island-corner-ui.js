@@ -1,4 +1,4 @@
-import { cleanNick, loadNick } from './island-presence.js';
+import { cleanNick, loadAvatar, loadNick, normalizeAvatar, saveAvatar } from './island-presence.js';
 
 export const MOBILE_MAX_WIDTH = 760;
 const REM = 16;
@@ -57,6 +57,23 @@ export function dockFitsViewport(bounds, viewportWidth) {
 }
 
 /** 探索中手機聊天面板預期邊界（對齊 island.css @760px body.is-exploring .island-chat）。 */
+/** 手機角色選單預期邊界（對齊 island.css @760px body.island-avatar-open .island-avatar-pop）。 */
+export function avatarPopRectMobile(viewportWidth, viewportHeight, exploring) {
+  const popH = 7.15 * REM;
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  const margin = 0.55 * REM;
+  const toolH = 2.25 * REM;
+  const gap = 0.4 * REM;
+  const bottomInset = 0.7 * REM;
+  const left = exploring
+    ? joy.right + 0.55 * REM
+    : Math.max(margin, 0);
+  const right = viewportWidth - margin;
+  const bottom = viewportHeight - bottomInset - toolH - gap;
+  const top = bottom - popH;
+  return { left, right, top, bottom, width: right - left, height: popH, joy };
+}
+
 export function chatPanelRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem) {
   const hRem = panelHeightRem > 0 ? panelHeightRem : 12;
   const joy = joystickRectMobile(viewportWidth, viewportHeight);
@@ -80,6 +97,13 @@ export function createCornerUi(opts) {
   const isExploring = opts.isExploring;
   const isWelcomed = opts.isWelcomed;
   const getAudioMuted = opts.getAudioMuted;
+  const onAvatarChange = opts.onAvatarChange;
+
+  const avatarBtn = document.getElementById('islandAvatarBtn');
+  const avatarPop = document.getElementById('islandAvatarPop');
+  const avatarChoices = avatarPop
+    ? avatarPop.querySelectorAll('[data-island-avatar]')
+    : [];
 
   const nickBtn = document.getElementById('islandNickBtn');
   const nickPop = document.getElementById('islandNickPop');
@@ -100,11 +124,73 @@ export function createCornerUi(opts) {
     if (storedNick) nickInput.value = storedNick;
   }
 
+  let selectedAvatar = loadAvatar(storage);
+
+  function syncAvatarUi() {
+    const current = normalizeAvatar(selectedAvatar);
+    if (avatarChoices) {
+      avatarChoices.forEach((btn) => {
+        const id = btn.getAttribute('data-island-avatar');
+        const on = normalizeAvatar(id) === current;
+        btn.classList.toggle('is-selected', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
+    if (avatarBtn) {
+      avatarBtn.textContent = current === 'berry' ? '小莓' : '蜜鹿';
+      avatarBtn.setAttribute(
+        'aria-label',
+        '探索角色：' + (current === 'berry' ? '小莓' : '蜜鹿（預設）')
+      );
+    }
+  }
+
+  function setAvatarOpen(open) {
+    if (!avatarPop || !avatarBtn) return;
+    const on = !!open;
+    avatarPop.hidden = !on;
+    avatarBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    document.body.classList.toggle('island-avatar-open', on);
+    if (on) {
+      syncAvatarUi();
+      setNickOpen(false);
+    }
+  }
+
+  function pickAvatar(id) {
+    const next = saveAvatar(storage, id);
+    if (next === selectedAvatar) {
+      setAvatarOpen(false);
+      return;
+    }
+    selectedAvatar = next;
+    syncAvatarUi();
+    setAvatarOpen(false);
+    if (typeof onAvatarChange === 'function') onAvatarChange(next);
+  }
+
+  syncAvatarUi();
+
+  if (avatarBtn && avatarPop) {
+    avatarBtn.addEventListener('click', () => setAvatarOpen(avatarPop.hidden));
+  }
+  if (avatarChoices) {
+    avatarChoices.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-island-avatar');
+        if (id) pickAvatar(id);
+      });
+    });
+  }
+
   function setNickOpen(open) {
     if (!nickPop || !nickBtn) return;
     nickPop.hidden = !open;
     nickBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open && nickInput) nickInput.focus();
+    if (open) {
+      setAvatarOpen(false);
+      if (nickInput) nickInput.focus();
+    }
   }
 
   function saveNick() {
@@ -159,7 +245,10 @@ export function createCornerUi(opts) {
     moreSheet.hidden = !on;
     moreBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
     document.body.classList.toggle('island-more-open', on);
-    if (on) syncMoreAudioLabel();
+    if (on) {
+      setAvatarOpen(false);
+      syncMoreAudioLabel();
+    }
   }
 
   function closeMore() {
@@ -173,6 +262,11 @@ export function createCornerUi(opts) {
     if (id === 'islandNickBtn') {
       setMoreOpen(false);
       setNickOpen(true);
+      return;
+    }
+    if (id === 'islandAvatarBtn') {
+      setMoreOpen(false);
+      setAvatarOpen(true);
       return;
     }
     closeMore();
@@ -212,6 +306,9 @@ export function createCornerUi(opts) {
     saveNick: saveNick,
     setMoreOpen: setMoreOpen,
     closeMore: closeMore,
-    syncMoreAudioLabel: syncMoreAudioLabel
+    syncMoreAudioLabel: syncMoreAudioLabel,
+    setAvatarOpen: setAvatarOpen,
+    syncAvatarUi: syncAvatarUi,
+    currentAvatar: () => normalizeAvatar(selectedAvatar)
   };
 }

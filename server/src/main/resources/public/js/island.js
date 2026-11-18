@@ -66,10 +66,12 @@ import {
   createMiluState,
   createMiluView,
   feetOffsetY,
+  islandAvatarAnim,
   isNearWave,
   MILU_ANIM,
   miluClipPath,
   miluStep,
+  normalizeIslandAvatar,
   screenAxes
 } from './island-milu.js';
 import { TCM_ATLAS_URL, consumeTcmReturn, writeTcmReturn } from './island-tcm-visit.js';
@@ -77,6 +79,7 @@ import {
   HIDDEN_DISCONNECT_MS,
   createIslandPresence,
   createMotion,
+  loadAvatar,
   loadNick,
   pushTarget,
   sampleMotion,
@@ -561,9 +564,13 @@ function boot() {
   playerMesh.visible = false;
   miluPlaceholder.visible = false;
 
-  const milu = createMiluView(THREE, { deferLoad: true });
-  scene.add(milu.object);
-  milu.object.visible = false;
+  let localAvatarId = loadAvatar(window.localStorage);
+  let localView = createMiluView(THREE, {
+    deferLoad: true,
+    anim: islandAvatarAnim(localAvatarId)
+  });
+  scene.add(localView.object);
+  localView.object.visible = false;
   let miluState = createMiluState();
   let islandPresence = null;
   let islandChat = null;
@@ -1059,8 +1066,27 @@ function boot() {
       z: player.z - (indoor ? INTERIOR_ORIGIN.z : 0),
       yaw: player.yaw,
       moving: !!player.moving,
-      scene: sceneName
+      scene: sceneName,
+      avatar: localAvatarId
     };
+  }
+
+  function replaceLocalAvatar(nextId) {
+    const id = normalizeIslandAvatar(nextId);
+    if (id === localAvatarId) return;
+    scene.remove(localView.object);
+    if (typeof localView.dispose === 'function') localView.dispose();
+    miluFailToastShown = false;
+    localAvatarId = id;
+    miluState = createMiluState();
+    localView = createMiluView(THREE, { deferLoad: true, anim: islandAvatarAnim(id) });
+    scene.add(localView.object);
+    localView.object.visible = false;
+    if (mode.exploring) {
+      localView.beginLoad();
+      if (peerLayer) peerLayer.forceResendPos();
+    }
+    syncAvatarVisible();
   }
 
   function peerOffset() {
@@ -1106,7 +1132,7 @@ function boot() {
     const el = document.createElement('div');
     el.setAttribute('role', 'status');
     el.setAttribute('aria-live', 'polite');
-    el.textContent = '萌寵圖片載入失敗，已改用替代角色';
+    el.textContent = '角色圖片載入失敗，已改用替代造型';
     Object.assign(el.style, {
       position: 'fixed',
       left: '50%',
@@ -1139,10 +1165,10 @@ function boot() {
   function syncAvatarVisible() {
     const vis = avatarVisibility({
       show: playerVisible(mode),
-      ready: milu.ready(),
-      failed: milu.failed()
+      ready: localView.ready(),
+      failed: localView.failed()
     });
-    milu.object.visible = vis.milu;
+    localView.object.visible = vis.milu;
     miluPlaceholder.visible = vis.placeholder;
     playerMesh.visible = vis.block;
     if (vis.block) showMiluFailToast();
@@ -1151,7 +1177,7 @@ function boot() {
   function stepMilu(dt, groundY) {
     const y = groundY == null ? P : groundY;
     const axes = screenAxes(player.vx, player.vz, cam.theta);
-    const anim = milu.anim();
+    const anim = localView.anim();
     miluState = miluStep(miluState, dt, {
       moving: player.moving,
       screenX: axes.x,
@@ -1160,8 +1186,8 @@ function boot() {
       reduced: reduced,
       anim: anim
     });
-    milu.show(miluClipPath(miluState, anim));
-    milu.object.position.set(player.x, y, player.z);
+    localView.show(miluClipPath(miluState, anim));
+    localView.object.position.set(player.x, y, player.z);
     if (miluPlaceholder.visible) miluPlaceholder.position.set(player.x, y, player.z);
     syncAvatarVisible();
     syncPassengerScale();
@@ -1305,7 +1331,7 @@ function boot() {
     updatePlayer(dt);
     if (peerLayer) peerLayer.syncPresence(performance.now());
     cam.step(dt);
-    milu.faceCamera(camera, player.x, player.z);
+    localView.faceCamera(camera, player.x, player.z);
     if (miluPlaceholder.visible) {
       const dx = camera.position.x - player.x;
       const dz = camera.position.z - player.z;
@@ -1550,7 +1576,7 @@ function boot() {
     player.vx = 0;
     player.vz = 0;
     setPlayerAnchor(player.x, P, player.z, player.yaw);
-    milu.object.position.set(player.x, P, player.z);
+    localView.object.position.set(player.x, P, player.z);
     stepMilu(0, P);
     followPlayerCamera(true);
   }
@@ -1790,10 +1816,9 @@ function boot() {
     pushTarget: pushTarget,
     sampleMotion: sampleMotion,
     shouldSendPos: shouldSendPos,
-    sharedTextures: () => milu.sharedTextures(),
     getMode: () => mode,
     getPlayer: () => player,
-    getMiluVisible: () => milu.object.visible,
+    getMiluVisible: () => localView.object.visible,
     getMiluPlaceholderVisible: () => miluPlaceholder.visible,
     getPlayerMeshVisible: () => playerMesh.visible,
     currentScene: currentScene,
@@ -1813,7 +1838,7 @@ function boot() {
   });
 
   lifecycle.on('enterExplore', () => {
-    if (typeof milu.beginLoad === 'function') milu.beginLoad();
+    if (typeof localView.beginLoad === 'function') localView.beginLoad();
     if (islandPresence) islandPresence.connect();
   });
   lifecycle.on('exitExplore', () => {
@@ -1864,7 +1889,8 @@ function boot() {
     getPeerCount: () => peerLayer.peers.size + 1,
     isExploring: () => mode.exploring,
     isWelcomed: () => peerLayer.getWelcomed(),
-    getAudioMuted: () => islandAudio.muted
+    getAudioMuted: () => islandAudio.muted,
+    onAvatarChange: (id) => replaceLocalAvatar(id)
   });
 
   const exploreKeyCtx = {
@@ -1954,7 +1980,7 @@ function boot() {
     player.z = tcmRestore.z;
     player.yaw = tcmRestore.yaw;
     setPlayerAnchor(player.x, P, player.z, player.yaw);
-    milu.object.position.set(player.x, P, player.z);
+    localView.object.position.set(player.x, P, player.z);
     stepMilu(0, P);
     setExplore(true, true);
   } else if (open && !open.hasAttribute('hidden')) {
