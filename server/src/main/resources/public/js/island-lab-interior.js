@@ -1,25 +1,31 @@
 // 研發樓小室內。低多邊形機房＋自發光進度螢幕；進房時讀一次 /api/dev-status。
 
 import { interiorByBuilding } from './island-interior.js';
-import { formatLabDevScreenLines } from './island-roadmap.js';
+import { formatLabDevScreenLines, fitCanvasLine } from './island-roadmap.js';
 
 const SCREEN_W = 1024;
 const SCREEN_H = 768;
 
-function fitLine(ctx, text, maxW) {
-  if (!text) return text;
-  if (ctx.measureText(text).width <= maxW) return text;
-  const ell = '…';
-  let fit = text.length;
-  while (fit > 0 && ctx.measureText(text.slice(0, fit) + ell).width > maxW) fit -= 1;
-  if (fit < 1) return ell;
-  let cut = fit;
-  if (fit < text.length) {
-    const chunk = text.slice(0, fit);
-    const sp = chunk.lastIndexOf(' ');
-    if (sp > 0 && ctx.measureText(text.slice(0, sp) + ell).width <= maxW) cut = sp;
+function drawScreenLine(ctx, raw, pad, y, maxW, lineH) {
+  const text = raw == null ? '' : String(raw);
+  if (!text) return y + lineH * 0.55;
+  const fitted = fitCanvasLine(ctx, text, maxW);
+  if (ctx.measureText(fitted).width <= maxW) {
+    ctx.fillText(fitted, pad, y);
+    return y + lineH;
   }
-  return text.slice(0, cut) + ell;
+  const colon = text.indexOf('：');
+  if (colon > 0 && colon < text.length - 1) {
+    const head = text.slice(0, colon + 1);
+    const tail = fitCanvasLine(ctx, text.slice(colon + 1).trim(), maxW);
+    if (ctx.measureText(head).width <= maxW) {
+      ctx.fillText(head, pad, y);
+      ctx.fillText(tail, pad, y + lineH * 0.88);
+      return y + lineH * 1.72;
+    }
+  }
+  ctx.fillText(fitted, pad, y);
+  return y + lineH;
 }
 
 function drawScreenCanvas(canvas, lines) {
@@ -28,22 +34,43 @@ function drawScreenCanvas(canvas, lines) {
   ctx.fillStyle = '#07111f';
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   ctx.fillStyle = '#9ae8ff';
-  ctx.font = '600 46px "PingFang TC", "Noto Sans TC", sans-serif';
+  ctx.font = '600 38px "PingFang TC", "Noto Sans TC", sans-serif';
   const list = Array.isArray(lines) ? lines : [];
-  let y = 56;
-  const lineH = 54;
+  let y = 52;
+  const lineH = 46;
   const pad = 48;
   const maxW = SCREEN_W - pad * 2;
   for (let i = 0; i < list.length; i++) {
-    const raw = list[i] == null ? '' : String(list[i]);
-    if (!raw) {
-      y += lineH * 0.55;
-      continue;
-    }
-    ctx.fillText(fitLine(ctx, raw, maxW), pad, y);
-    y += lineH;
-    if (y > SCREEN_H - 24) return;
+    y = drawScreenLine(ctx, list[i], pad, y, maxW, lineH);
+    if (y > SCREEN_H - 20) return;
   }
+}
+
+function drawExitLabel(ctx, w, h, subtitle) {
+  ctx.fillStyle = '#07111f';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#9ae8ff';
+  ctx.font = '700 40px "PingFang TC", "Noto Sans TC", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('出口', w / 2, h * (subtitle ? 0.42 : 0.5));
+  if (subtitle) {
+    ctx.font = '600 26px "PingFang TC", "Noto Sans TC", sans-serif';
+    ctx.fillText('↑', w / 2, h * 0.72);
+  }
+}
+
+function exitCanvasTexture(THREE, opts) {
+  const w = (opts && opts.w) || 128;
+  const h = (opts && opts.h) || 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  drawExitLabel(canvas.getContext('2d'), w, h, !!(opts && opts.arrow));
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return { texture: texture, canvas: canvas };
 }
 
 function loadDevScreen(texture, canvas, loadState) {
@@ -85,6 +112,7 @@ export function createInterior(THREE, opts) {
   const geometries = [];
   let screenTexture = null;
   let screenCanvas = null;
+  const exitTextures = [];
   const screenLoad = { disposed: false };
 
   function mat(color, night, glow, emissiveI) {
@@ -120,7 +148,9 @@ export function createInterior(THREE, opts) {
 
   box(wallT, wallH, depth + wallT, 0xd8e8f8, 0x8ea0bf, floor.minX - wallT / 2, wallY, cz);
   box(wallT, wallH, depth + wallT, 0xd8e8f8, 0x8ea0bf, floor.maxX + wallT / 2, wallY, cz);
-  box(width + wallT * 2, wallH, wallT, 0xd8e8f8, 0x8ea0bf, cx, wallY, floor.maxZ + wallT / 2);
+  // 北牆剖面：鏡頭可於房外北側拉遠；南牆門與螢幕維持實牆。
+  const northKickH = 0.14;
+  box(width + wallT * 2, northKickH, wallT, 0xd8e8f8, 0x8ea0bf, cx, ground + northKickH / 2, floor.maxZ + wallT / 2);
 
   const doorW = 0.88;
   const doorX = -1.5;
@@ -131,7 +161,58 @@ export function createInterior(THREE, opts) {
   }
   const eastSegW = floor.maxX - (doorX + doorW / 2);
   box(eastSegW, wallH, wallT, 0xd8e8f8, 0x8ea0bf, doorX + doorW / 2 + eastSegW / 2, wallY, southZ);
-  box(doorW + 0.14, 0.14, wallT + 0.02, 0x8eb8d8, 0x7a98b8, doorX, ground + wallH - 0.08, southZ);
+  const lintelY = ground + wallH - 0.22;
+  box(doorW + 0.14, 0.14, wallT + 0.02, 0x8eb8d8, 0x7a98b8, doorX, lintelY, southZ, 0x5ac8e8, 0.48);
+  box(doorW * 0.9, 1.32, 0.06, 0xc8dce8, 0x6a8898, doorX, ground + 0.71, southZ + 0.02, 0x3cf0ff, 0.28);
+  box(0.06, 1.38, 0.08, 0x3cf0ff, 0x3cf0ff, doorX - doorW / 2 - 0.03, ground + 0.74, southZ + 0.03, 0x3cf0ff, 0.55);
+  box(0.06, 1.38, 0.08, 0x3cf0ff, 0x3cf0ff, doorX + doorW / 2 + 0.03, ground + 0.74, southZ + 0.03, 0x3cf0ff, 0.55);
+  box(doorW * 0.82, 0.02, 0.52, 0x2a8898, 0x2a8898, doorX, ground + 0.12, floor.minZ + 0.38, 0x3cf0ff, 0.62);
+  box(0.22, 0.03, 0.14, 0x9ae8ff, 0x7ad8ff, doorX, ground + 0.14, floor.minZ + 0.24, 0x7ad8ff, 0.45);
+
+  if (typeof document !== 'undefined' && document.createElement) {
+    const header = exitCanvasTexture(THREE, { w: 128, h: 64 });
+    const headerMat = new THREE.MeshLambertMaterial({
+      map: header.texture,
+      emissive: new THREE.Color(0x3cf0ff),
+      emissiveMap: header.texture,
+      emissiveIntensity: 0.55,
+      flatShading: true,
+      transparent: true
+    });
+    headerMat.userData.day = new THREE.Color(0xffffff);
+    headerMat.userData.night = new THREE.Color(0x90c8e0);
+    headerMat.userData.dayE = 0.5;
+    headerMat.userData.nightE = 0.92;
+    materials.push(headerMat);
+    exitTextures.push(header);
+    const headerGeo = new THREE.PlaneGeometry(0.34, 0.14);
+    geometries.push(headerGeo);
+    const headerMesh = new THREE.Mesh(headerGeo, headerMat);
+    headerMesh.position.set(-1.0, ground + 1.56, southZ + 0.06);
+    group.add(headerMesh);
+
+    const matLabel = exitCanvasTexture(THREE, { w: 128, h: 96, arrow: true });
+    const matMat = new THREE.MeshLambertMaterial({
+      map: matLabel.texture,
+      emissive: new THREE.Color(0x3cf0ff),
+      emissiveMap: matLabel.texture,
+      emissiveIntensity: 0.42,
+      flatShading: true,
+      transparent: true
+    });
+    matMat.userData.day = new THREE.Color(0xffffff);
+    matMat.userData.night = new THREE.Color(0x90c8e0);
+    matMat.userData.dayE = 0.38;
+    matMat.userData.nightE = 0.9;
+    materials.push(matMat);
+    exitTextures.push(matLabel);
+    const matGeo = new THREE.PlaneGeometry(0.36, 0.22);
+    geometries.push(matGeo);
+    const matMesh = new THREE.Mesh(matGeo, matMat);
+    matMesh.rotation.x = -Math.PI / 2;
+    matMesh.position.set(-1.0, ground + 0.125, floor.minZ + 0.39);
+    group.add(matMesh);
+  }
 
   const rack = room.blocks[0];
   const rw = rack.maxX - rack.minX;
@@ -149,8 +230,8 @@ export function createInterior(THREE, opts) {
   box(bw, 0.42, bd, 0x506070, 0x788898, bcx, ground + 0.31, bcz);
 
   const screenW = 1.35;
-  const screenH = 0.95;
-  const screenY = ground + 1.02;
+  const screenH = 0.88;
+  const screenY = ground + 0.84;
   const screenZ = floor.minZ + 0.06;
   const screenX = 0;
   screenCanvas = typeof document !== 'undefined' && document.createElement
@@ -197,6 +278,10 @@ export function createInterior(THREE, opts) {
       });
       screenTexture = null;
       screenCanvas = null;
+      for (let i = 0; i < exitTextures.length; i++) {
+        if (exitTextures[i].texture) exitTextures[i].texture.dispose();
+      }
+      exitTextures.length = 0;
     }
   };
 }

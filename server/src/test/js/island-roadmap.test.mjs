@@ -73,6 +73,40 @@ test('研發樓螢幕開發進度文案', () => {
   assert.ok(empty.join('\n').includes('開發進度暫時讀不到'));
 });
 
+test('研發樓螢幕長標題保留 pair 與部分標題', () => {
+  const longNext = '下一張：i104（p111）經絡研習室換裝與練習裝配色調整';
+  const sample = {
+    success: true,
+    stale: false,
+    now: {
+      current: { pair: 'i112', title: '出口導覽', status: '實作中' },
+      next: { pair: 'i104', title: '經絡研習室換裝與練習裝配色調整', status: '排隊' },
+      queue: []
+    },
+    stats: { mergedThisWeek: 0, openIssues: 0 }
+  };
+  const lines = R.formatLabDevScreenLines(sample, { maxQueue: 3 });
+  const nextLine = lines.find((line) => String(line).startsWith('下一張：'));
+  assert.ok(nextLine.includes('i104'), '下一張行要保留 issue pair');
+  assert.ok(nextLine.includes('經絡研習室'), '下一張行要保留標題前段');
+
+  const widths = new Map();
+  const mockCtx = {
+    measureText(text) {
+      if (!widths.has(text)) {
+        let w = 0;
+        for (const ch of text) w += ch.charCodeAt(0) > 255 ? 21 : 12;
+        widths.set(text, w);
+      }
+      return { width: widths.get(text) };
+    }
+  };
+  const fitted = R.fitCanvasLine(mockCtx, longNext, 520);
+  assert.ok(fitted.startsWith('下一張：i104'), 'Canvas 截斷不能把 pair 整段砍掉');
+  assert.ok(fitted.includes('經絡'), 'Canvas 截斷要留標題字元');
+  assert.ok(fitted.endsWith('…'), '太長時要有省略號');
+});
+
 test('台北時間格式含台北標籤', () => {
   const text = R.formatTaipeiTime(Date.UTC(2026, 10, 17, 6, 30, 0));
   assert.match(text, /2026\/11\/17/);
