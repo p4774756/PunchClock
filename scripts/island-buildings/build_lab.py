@@ -1,6 +1,7 @@
 """研發樓（computer-site）：w=2.3 d=1.8，門朝本地 +Z。
 
-三層灰色科技樓、藍光窗格、屋頂衛星碟與機櫃、門口伺服器、地面電路紋路。
+白玻璃科技樓、青色 LED 窗格、屋頂太陽能板與衛星碟、機房櫃剪影、門口伺服器、地面青燈回路。
+重建：python3 scripts/island-buildings/build_all.py
 """
 from __future__ import annotations
 
@@ -66,6 +67,10 @@ def build(out_path):
     else:
         prepare_scene()
     kit.set_palette_overrides({
+        'lab_panel': (0xf5fbff, 0xd7f4ff),
+        'lab_grey': (0xe8eef2, 0xb8ccd8),
+        'lab_steel': (0xc8d8e4, 0x8aa0b0),
+        'lab_steel_dark': (0x9ab0c0, 0x5d7384),
         'windows_glow': (0x7ec8ea, 0x5ad0ff),
         'lantern_glow': (0xa8d8f0, 0x7ec8ea),
         'neon_glow': (0x3cf0ff, 0x3cf0ff),
@@ -93,8 +98,8 @@ def build(out_path):
 
     # 台基
     st = b.part('base')
-    st.box('lab_steel', W + 0.28, D + 0.28, 0.12, 0, 0, 0.06)
-    st.box('lab_steel_dark', W - 0.08, D - 0.08, 0.08, 0, 0, 0.12)
+    st.box('lab_panel', W + 0.28, D + 0.28, 0.12, 0, 0, 0.06)
+    st.box('lab_grey', W - 0.08, D - 0.08, 0.08, 0, 0, 0.12)
 
     # 四角鋼柱貫穿三層
     fr = b.part('frame')
@@ -108,7 +113,7 @@ def build(out_path):
     pan = b.part('panels')
     for i in range(STOREYS):
         z = BASE + i * STOREY_H + 0.10
-        pan.box('lab_grey', W - 0.16, T, 0.16, 0, BACK - T / 2, z)
+        pan.box('lab_panel', W - 0.16, T, 0.16, 0, BACK - T / 2, z)
         pan.box('lab_grey', T, D - 0.16, 0.16, -HX + T / 2, 0, z)
         pan.box('lab_grey', T, D - 0.16, 0.16, HX - T / 2, 0, z)
         if i == 0:
@@ -158,10 +163,16 @@ def build(out_path):
     rf.box('lab_frame', 0.50, 0.10, 0.06, -0.55, 0.15, roof_y + 0.44)
     rf.cyl('lab_steel', 0.06, 0.06, 0.16, -0.70, 0.28, roof_y + 0.36, seg=6)
 
-    # 衛星碟（屋頂右側，比舊的 dish 小，因為島上 THEME 已有一座較大的）
+    # 屋頂太陽能板
+    rf.box('lab_steel_dark', 0.75, 0.45, 0.04, 0.45, -0.25, roof_y + 0.18)
+    rf.box('lab_panel', 0.72, 0.42, 0.03, 0.45, -0.25, roof_y + 0.215)
+    rf.box('lab_steel_dark', 0.42, 0.55, 0.04, -0.52, 0.05, roof_y + 0.18)
+    rf.box('lab_panel', 0.4, 0.52, 0.03, -0.52, 0.05, roof_y + 0.215)
+
+    # 衛星碟（屋頂右側；島上主題小碟已縮小，避免重複大碟）
     ant = b.part('antenna')
-    ant.cyl('lab_steel', 0.05, 0.05, 0.55, 0.55, -0.15, roof_y + 0.40, seg=6)
-    ant.cyl('lab_panel', 0.32, 0.05, 0.05, 0.72, -0.15, roof_y + 0.62, seg=8, rx=0.85)
+    ant.cyl('lab_steel', 0.05, 0.05, 0.48, 0.55, -0.15, roof_y + 0.40, seg=6)
+    ant.cyl('lab_panel', 0.26, 0.05, 0.05, 0.68, -0.15, roof_y + 0.58, seg=8, rx=0.85)
     ant.box('lab_steel', 0.02, 0.02, 0.16, 0.62, -0.15, roof_y + 0.58)
     b.part('lanterns_glow').sphere('lantern_glow', 0.07, 0.55, -0.15, roof_y + 0.78, seg=6, rings=5)
 

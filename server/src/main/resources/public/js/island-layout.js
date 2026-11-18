@@ -1,5 +1,6 @@
 // 群島清單（純資料，不依賴 Three.js／DOM）。
 import { cityObstacleRects, cityObstacleCircles } from './island-city-data.js';
+import { careerExhibitObstacleCircles } from './island-career-corridor-data.js';
 //
 // 加一座島：在 ISLANDS 加 { id, name, x, z, r, visualR, theme }，
 // 再在 BRIDGES 用 connectBridge 連到既有的島。r 是可行走半徑，visualR 是草地外觀半徑。
@@ -292,7 +293,7 @@ export const THEME_CIRCLES = Object.freeze([
   themeCircle('bamboo', 'tcm', 0.35, 2.55, 0.42),
   themeCircle('figure', 'tcm', -0.2, -2.2, 0.46),
   themeCircle('herb', 'tcm', 1.35, 1.75, 0.32),
-  themeCircle('dish', 'computer', 2.35, -0.15, 0.46),
+  themeCircle('dish', 'computer', 2.35, -0.15, 0.3),
   themeCircle('rack', 'computer', -2.05, 0.85, 0.3),
   themeCircle('lounger-1', 'beach', -1.2, 0.85, 0.52),
   themeCircle('lounger-2', 'beach', 0.35, 1.45, 0.52),
@@ -501,6 +502,10 @@ export function blocked(x, z, radius) {
   }
   for (let i = 0; i < THEME_CIRCLES.length; i++) {
     if (circleHits(x, z, THEME_CIRCLES[i], radius)) return true;
+  }
+  const careerCircles = careerExhibitObstacleCircles();
+  for (let c = 0; c < careerCircles.length; c++) {
+    if (circleHits(x, z, careerCircles[c], radius)) return true;
   }
   const cityCircles = cityObstacleCircles();
   for (let j = 0; j < cityCircles.length; j++) {

@@ -8,6 +8,7 @@ import { G, P, nightHex } from './island-kit.js';
 import { BUILDING_GLOW, glowForMaterial } from './island-buildings-data.js';
 import { polishPedestalBase } from './island-decor.js';
 import { attachShopEavesDecor } from './island-decor-scene.js';
+import { attachComputerLabExterior } from './island-career-corridor.js';
 
 export { BUILDING_GLOW, glowForMaterial };
 
@@ -257,6 +258,9 @@ export function buildIslandBuildings(ctx) {
       }
       if (buildingId === 'shop') {
         attachShopEavesDecor(model, kit, { reduced: !!motionReduced });
+      }
+      if (buildingId === 'computer-site') {
+        attachComputerLabExterior(model, kit, { reduced: !!motionReduced });
       }
       if (dayNight && typeof dayNight.refresh === 'function') dayNight.refresh();
     }).catch((err) => {
