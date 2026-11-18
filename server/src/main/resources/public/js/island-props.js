@@ -1,6 +1,94 @@
 import * as THREE from 'three';
 import { BRIDGES, BOAT_STOPS, THEME_CIRCLES } from './island-layout.js';
 import { G, P } from './island-kit.js';
+import {
+  BOAT_BOW_LOCAL_Z,
+  BOAT_STERN_DECK_Z,
+  BOAT_HULL_MESH_BUDGET,
+  boatHullPartCount
+} from './island-boat.js';
+
+const WIN = 0x2a4a58;
+const WIN_GLOW = 0x3d6a7a;
+const SILVER = 0xc0c4c8;
+const WOOD = 0xc4844a;
+const WOOD_DARK = 0xa56b38;
+const HULL_WHITE = 0xfff7ef;
+const WATERLINE = 0x1a3a5c;
+
+export function buildBoatMesh(kit) {
+  const { addMesh, addBox, geo, lampLight } = kit;
+  const boat = new THREE.Group();
+  let hullMeshes = 0;
+  function part(parent, w, h, d, color, x, y, z, extra) {
+    hullMeshes += 1;
+    return addBox(parent, w, h, d, color, x, y, z, extra);
+  }
+  function partMesh(parent, geometry, color, x, y, z, extra) {
+    hullMeshes += 1;
+    return addMesh(parent, geometry, color, x, y, z, extra);
+  }
+
+  part(boat, 0.64, 0.05, 1.62, WATERLINE, 0, 0.05, 0.02);
+  part(boat, 0.62, 0.2, 1.48, HULL_WHITE, 0, 0.15, 0.04);
+  part(boat, 0.56, 0.16, 0.92, HULL_WHITE, 0, 0.31, -0.08);
+  partMesh(boat, geo('cone', [0.3, 0.42, 5]), HULL_WHITE, 0, 0.28, BOAT_BOW_LOCAL_Z, {
+    rot: [Math.PI / 2, 0, 0]
+  });
+  part(boat, 0.5, 0.22, 0.44, HULL_WHITE, 0, 0.5, 0.12);
+  part(boat, 0.46, 0.07, 0.36, HULL_WHITE, 0, 0.65, 0.08);
+  part(boat, 0.42, 0.12, 0.06, WIN, 0, 0.52, 0.34, {
+    glow: WIN_GLOW,
+    glowAmount: 0.42
+  });
+  part(boat, 0.05, 0.1, 0.32, WIN, -0.24, 0.48, 0.08, {
+    glow: WIN_GLOW,
+    glowAmount: 0.35
+  });
+  part(boat, 0.05, 0.1, 0.32, WIN, 0.24, 0.48, 0.08, {
+    glow: WIN_GLOW,
+    glowAmount: 0.35
+  });
+  part(boat, 0.54, 0.04, 0.4, WOOD, 0, 0.34, BOAT_STERN_DECK_Z);
+  part(boat, 0.14, 0.06, 0.28, WOOD_DARK, -0.17, 0.39, BOAT_STERN_DECK_Z - 0.02, {
+    rot: [0, 0.18, 0]
+  });
+  part(boat, 0.14, 0.06, 0.28, WOOD_DARK, 0.17, 0.39, BOAT_STERN_DECK_Z - 0.02, {
+    rot: [0, -0.18, 0]
+  });
+  part(boat, 0.54, 0.03, 0.03, SILVER, 0, 0.41, BOAT_STERN_DECK_Z - 0.18);
+  part(boat, 0.03, 0.06, 0.36, SILVER, -0.26, 0.39, BOAT_STERN_DECK_Z);
+  part(boat, 0.03, 0.06, 0.36, SILVER, 0.26, 0.39, BOAT_STERN_DECK_Z);
+  partMesh(boat, geo('cyl', [0.12, 0.14, 0.08, 6, 0]), 0xe8eaed, 0, 0.72, 0.06);
+  partMesh(boat, geo('cyl', [0.025, 0.03, 0.18, 5, 0]), SILVER, 0, 0.64, 0.06);
+
+  const wake = [];
+  [[-0.14, 0.08, -0.74, 0.16], [0, 0.06, -0.78, 0.2], [0.14, 0.07, -0.72, 0.14]].forEach(([wx, wy, wz, sc], i) => {
+    const foam = addMesh(boat, geo('sph', [0.12, 5, 4]), 0xfffaf8, wx, wy, wz, {
+      scale: [sc * 1.2, sc * 0.35, sc],
+      shadow: false,
+      receive: false
+    });
+    foam.visible = false;
+    foam.userData.baseY = wy;
+    foam.userData.baseZ = wz;
+    foam.userData.phase = i * 1.4;
+    wake.push(foam);
+  });
+
+  lampLight(0, 0.76, 0.06, 5, boat, { realLight: true, localHalo: true });
+
+  if (hullMeshes !== boatHullPartCount()) {
+    console.warn('buildBoatMesh hull part count mismatch:', hullMeshes, boatHullPartCount());
+  }
+  if (hullMeshes > BOAT_HULL_MESH_BUDGET) {
+    console.warn('buildBoatMesh exceeds hull mesh budget:', hullMeshes, BOAT_HULL_MESH_BUDGET);
+  }
+
+  boat.userData.wake = wake;
+  boat.userData.hullMeshCount = hullMeshes;
+  return boat;
+}
 
 export function buildIslandProps(ctx) {
   const { scene, kit, bobs, clouds, swimmers } = ctx;
@@ -219,14 +307,10 @@ export function buildIslandProps(ctx) {
   buoy.rotation.y = 0.5;
 
   const berth = BOAT_STOPS.main.berth;
-  const boat = new THREE.Group();
-  addBox(boat, 1.2, 0.26, 0.48, 0xfff7ef, 0, 0.16, 0);
-  addBox(boat, 0.7, 0.16, 0.32, 0xf06a2a, -0.05, 0.32, 0);
-  addMesh(boat, geo('cone', [0.24, 0.36, 4]), 0xfff7ef, 0, 0.16, 0.55, { rot: [Math.PI / 2, 0, 0] });
+  const boat = buildBoatMesh(kit);
   boat.position.set(berth.x, -0.62, berth.z);
   boat.rotation.y = berth.yaw;
   scene.add(boat);
-  lampLight(0.55, 0.22, 0.62, 5, boat, { realLight: true });
 
   function bridge(x1, z1, x2, z2, width) {
     const deck = width || 1.15;

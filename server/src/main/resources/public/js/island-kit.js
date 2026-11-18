@@ -243,7 +243,8 @@ export function createSceneKit(THREE, opts) {
     });
     const halo = new THREE.Mesh(new THREE.CircleGeometry(radius, 48), haloMat);
     halo.rotation.x = -Math.PI / 2;
-    halo.position.set(x, G + 0.018, z);
+    const haloY = opts.localHalo ? y + 0.018 : G + 0.018;
+    halo.position.set(x, haloY, z);
     halo.castShadow = false;
     halo.receiveShadow = false;
     halo.renderOrder = 2;
