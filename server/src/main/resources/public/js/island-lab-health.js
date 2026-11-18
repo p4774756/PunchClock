@@ -7,11 +7,11 @@ const TEA_FAIL = '製茶機狀態暫時讀不到';
 const TIMELINE_EMPTY = '近 7 天沒有動態';
 /** 機櫃頂數據牆幾何（本地座標；cy 含 groundY）。 */
 export const LAB_TEA_WALL = Object.freeze({
-  cx: -1.2,
+  cx: -1.18,
   cz: 0.62,
   w: 0.5,
   h: 0.42,
-  groundOffsetY: 1.4
+  groundOffsetY: 1.52
 });
 
 export function labTeaWallCenterY(groundY) {
@@ -300,7 +300,7 @@ export function layoutLabScreenLines(lines) {
   const list = Array.isArray(lines) ? lines : [];
   const padTop = 48;
   const bodyFont = '600 36px "PingFang TC", "Noto Sans TC", sans-serif';
-  const timelineFont = '500 30px "PingFang TC", "Noto Sans TC", sans-serif';
+  const timelineFont = '600 30px "PingFang TC", "Noto Sans TC", sans-serif';
   const bodyLineH = 40;
   const timelineLineH = 36;
   let inTimeline = false;
@@ -343,7 +343,7 @@ export function drawTeaHealthCanvas(ctx, data, width, height) {
   ctx.textBaseline = 'top';
   ctx.fillText(vm.title, pad, y);
   y += 52;
-  ctx.font = '600 24px "PingFang TC", "Noto Sans TC", sans-serif';
+  ctx.font = '600 26px "PingFang TC", "Noto Sans TC", sans-serif';
   if (!vm.ok) {
     ctx.fillStyle = '#b8d8f0';
     ctx.fillText(vm.error, pad, y);

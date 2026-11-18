@@ -27,6 +27,18 @@ const HEALTH_W = 512;
 const HEALTH_H = 384;
 const TEA_POLL_MS = 5000;
 
+function configureLabCanvasTexture(texture, THREE, renderer) {
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  if (renderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function') {
+    const max = renderer.capabilities.getMaxAnisotropy();
+    if (Number.isFinite(max) && max > 0) {
+      texture.anisotropy = Math.min(4, max);
+    }
+  }
+}
+
 function drawScreenCanvas(canvas, lines) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -338,8 +350,7 @@ export function createInterior(THREE, opts) {
     healthCanvas.width = HEALTH_W;
     healthCanvas.height = HEALTH_H;
     healthTexture = new THREE.CanvasTexture(healthCanvas);
-    healthTexture.minFilter = THREE.LinearFilter;
-    healthTexture.magFilter = THREE.LinearFilter;
+    configureLabCanvasTexture(healthTexture, THREE, opts && opts.renderer);
     const healthMat = new THREE.MeshLambertMaterial({
       map: healthTexture,
       emissive: new THREE.Color(0x3cf0ff),
@@ -389,8 +400,7 @@ export function createInterior(THREE, opts) {
     screenCanvas.width = SCREEN_W;
     screenCanvas.height = SCREEN_H;
     screenTexture = new THREE.CanvasTexture(screenCanvas);
-    screenTexture.minFilter = THREE.LinearFilter;
-    screenTexture.magFilter = THREE.LinearFilter;
+    configureLabCanvasTexture(screenTexture, THREE, opts && opts.renderer);
     const screenMat = new THREE.MeshLambertMaterial({
       map: screenTexture,
       emissive: new THREE.Color(0x3cf0ff),

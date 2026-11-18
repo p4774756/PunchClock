@@ -20,10 +20,15 @@ const LAB_DOOR_TEST = Object.freeze({
   signY: 0.2 + 1.56,
   southZ: -1.85,
   pillarHalfW: 0.47,
-  pillarY: 0.2 + 1.55,
-  matY: 0.2 + 0.14,
-  matZ: -1.42
+  pillarY: 0.2 + 1.55
 });
+
+const LAB_EXIT_MAT_CORNERS = Object.freeze([
+  { x: -1.3, y: 0.2 + 0.14, z: -1.55 },
+  { x: -0.7, y: 0.2 + 0.14, z: -1.55 },
+  { x: -0.7, y: 0.2 + 0.14, z: -1.3 },
+  { x: -1.3, y: 0.2 + 0.14, z: -1.3 }
+]);
 
 function ndcRect(corners) {
   let minX = Infinity;
@@ -178,7 +183,7 @@ test('南牆螢幕排版最壞情況不截斷', () => {
   assert.equal(tlLines.length, 5, '時間軸固定 5 筆');
   const tlRows = rows.filter((r) => tlLines.includes(r.text));
   assert.equal(tlRows.length, 5);
-  assert.ok(tlRows.every((r) => r.font.includes('30px')));
+  assert.ok(tlRows.every((r) => r.font.includes('30px') && r.font.includes('600')));
 });
 
 test('數據牆 NDC 與朝向', () => {
@@ -215,8 +220,7 @@ test('數據牆 NDC 與朝向', () => {
     const doorPoints = [
       I.labInteriorProjectNdc(d.signX, d.signY, d.southZ - 0.03, pose, look, vp.aspect),
       I.labInteriorProjectNdc(d.x - d.pillarHalfW, d.pillarY, d.southZ, pose, look, vp.aspect),
-      I.labInteriorProjectNdc(d.x + d.pillarHalfW, d.pillarY, d.southZ, pose, look, vp.aspect),
-      I.labInteriorProjectNdc(d.signX, d.matY, d.matZ, pose, look, vp.aspect)
+      I.labInteriorProjectNdc(d.x + d.pillarHalfW, d.pillarY, d.southZ, pose, look, vp.aspect)
     ];
     for (let i = 0; i < doorPoints.length; i++) {
       assert.equal(
@@ -225,6 +229,16 @@ test('數據牆 NDC 與朝向', () => {
         '數據牆不可蓋住出口標示'
       );
     }
+    for (let m = 0; m < LAB_EXIT_MAT_CORNERS.length; m++) {
+      const corner = LAB_EXIT_MAT_CORNERS[m];
+      const pt = I.labInteriorProjectNdc(corner.x, corner.y, corner.z, pose, look, vp.aspect);
+      assert.equal(
+        ndcContainsPoint(panelRect, pt),
+        false,
+        '數據牆不可蓋住出口地墊（角點 ' + m + '）'
+      );
+    }
+    assert.ok(wall.w >= 0.5, '面板寬度至少 0.5 m');
     const s = LAB_SCREEN_NDC;
     const scrCorners = [
       I.labInteriorProjectNdc(s.cx - s.hw - s.frame, s.cy + s.hh + s.frame, s.cz, pose, look, vp.aspect),
