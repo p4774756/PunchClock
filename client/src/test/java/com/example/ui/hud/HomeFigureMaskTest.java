@@ -18,6 +18,9 @@ public class HomeFigureMaskTest {
         assertTrue(!opaque(fingers, 0.49f, 0.40f));
         assertTrue(!opaque(fingers, 0.35f, 0.40f));
         assertTrue(!opaque(fingers, 0.66f, 0.40f));
+        assertTrue(!opaque(fingers, 0.49f, 0.41f));
+        assertTrue(!opaque(fingers, 0.50f, 0.39f));
+        assertTrue(!opaque(fingers, 0.495f, 0.405f));
     }
 
     @Test
