@@ -150,5 +150,47 @@ export function assertCorridorNavigable(walkable, blocked, radius) {
       return { ok: false, reason: 'walk-' + i, x: s.x, z: s.z };
     }
   }
+  for (let z = 15.2; z <= 16.85 + 1e-6; z += 0.25) {
+    const x = 0.45;
+    if (!walkable(x, z, r) || blocked(x, z, r)) {
+      return { ok: false, reason: 'door-approach', x, z };
+    }
+  }
+  return { ok: true };
+}
+
+export const LAB_DOOR_STAND = Object.freeze({ x: 0.45, z: 16.17 });
+export const MIN_EXHIBIT_DOOR_GAP = 1.35;
+export const MIN_EXHIBIT_CENTER_GAP = 0.85;
+export const MIN_TWILIGHT_CENTER_GAP = 0.55;
+
+export function careerCardEscapeShouldClose(cardVisible, key) {
+  return !!cardVisible && key === 'Escape';
+}
+
+export function assertExhibitLayout(door) {
+  const d = door || LAB_DOOR_STAND;
+  for (let i = 0; i < CAREER_EXHIBIT_LAYOUT.length; i++) {
+    const row = CAREER_EXHIBIT_LAYOUT[i];
+    const gap = Math.hypot(row.x - d.x, row.z - d.z);
+    if (gap < MIN_EXHIBIT_DOOR_GAP - 1e-6) {
+      return { ok: false, reason: 'door-gap', id: row.id, gap };
+    }
+  }
+  for (let a = 0; a < CAREER_EXHIBIT_LAYOUT.length; a++) {
+    for (let b = a + 1; b < CAREER_EXHIBIT_LAYOUT.length; b++) {
+      const ra = CAREER_EXHIBIT_LAYOUT[a];
+      const rb = CAREER_EXHIBIT_LAYOUT[b];
+      const g = Math.hypot(ra.x - rb.x, ra.z - rb.z);
+      let need = MIN_EXHIBIT_CENTER_GAP;
+      if (
+        (ra.id === 'twilight-exchange' && rb.id === 'twilight-ops')
+        || (ra.id === 'twilight-ops' && rb.id === 'twilight-exchange')
+      ) need = MIN_TWILIGHT_CENTER_GAP;
+      if (g < need - 1e-6) {
+        return { ok: false, reason: 'pair-gap', a: ra.id, b: rb.id, gap: g };
+      }
+    }
+  }
   return { ok: true };
 }

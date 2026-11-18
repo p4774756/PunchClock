@@ -13,7 +13,9 @@ const {
   scanTimelinePrivacy,
   validateTimelineData,
   pickWhitelistFields,
-  assertCorridorNavigable
+  assertCorridorNavigable,
+  assertExhibitLayout,
+  careerCardEscapeShouldClose
 } = await loadPublicModule('island-career-corridor-logic.js');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'main', 'resources', 'public');
@@ -91,4 +93,32 @@ test('資料檔個資掃描', () => {
 test('走廊可走且研發樓門口仍可站', () => {
   const nav = assertCorridorNavigable(L.walkable, L.blocked, 0.29);
   assert.equal(nav.ok, true, JSON.stringify(nav));
+});
+
+test('展件與門口、彼此間距符合約束', () => {
+  const layout = assertExhibitLayout();
+  assert.equal(layout.ok, true, JSON.stringify(layout));
+});
+
+test('僅 PunchClock 卡顯示進入研發樓鈕（hidden 時應關閉）', () => {
+  const punch = buildCardTextModel(timeline.entries.find((e) => e.id === 'punchclock'));
+  const thu = buildCardTextModel(timeline.entries.find((e) => e.id === 'thu-2007'));
+  assert.equal(punch.isPunchClock, true);
+  assert.equal(thu.isPunchClock, false);
+  const css = readFileSync(
+    join(root, 'js', 'island-career-corridor.js'),
+    'utf8'
+  );
+  assert.ok(css.includes('#careerExhibitCard .career-enter-lab[hidden]{display:none!important}'));
+});
+
+test('Esc 在經歷卡開啟時應關閉本卡', () => {
+  assert.equal(careerCardEscapeShouldClose(true, 'Escape'), true);
+  assert.equal(careerCardEscapeShouldClose(true, 'Enter'), false);
+  assert.equal(careerCardEscapeShouldClose(false, 'Escape'), false);
+  const js = readFileSync(join(root, 'js', 'island-career-corridor.js'), 'utf8');
+  assert.ok(js.includes('careerCardEscapeShouldClose(cardVisible, ev.key)'));
+  const onDoc = js.match(/function onDocKey\(ev\) \{[\s\S]*?\n  \}/);
+  assert.ok(onDoc);
+  assert.equal(onDoc[0].includes('islandUiOpen'), false);
 });
