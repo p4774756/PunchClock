@@ -538,6 +538,79 @@ body.island-sheet-open .island-explore-hint {
   color: #fff;
 }
 
+.island-avatar-wrap {
+  position: relative;
+}
+
+.island-avatar-pop {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.4rem;
+  min-width: 9.5rem;
+  background: rgba(255, 250, 246, 0.98);
+  border-radius: 16px;
+  box-shadow: 0 8px 18px rgba(33, 29, 29, 0.16);
+}
+
+.island-avatar-pop[hidden] {
+  display: none;
+}
+
+.island-avatar-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.35rem 0.45rem;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: #fff;
+  color: #211d1d;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.island-avatar-choice:hover {
+  background: #fff4ec;
+}
+
+.island-avatar-choice.is-selected,
+.island-avatar-choice[aria-pressed="true"] {
+  border-color: #ea5420;
+  background: #fff0e6;
+}
+
+.island-avatar-thumb {
+  flex-shrink: 0;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 10px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.island-avatar-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  line-height: 1.2;
+}
+
+.island-avatar-label small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #6a5d55;
+}
+
 .island-nick-wrap {
   position: relative;
 }
@@ -1020,6 +1093,13 @@ body.island-more-open .island-joystick {
   .island-nick {
     top: auto;
     bottom: calc(100% + 0.4rem);
+  }
+  .island-avatar-pop {
+    top: auto;
+    bottom: calc(100% + 0.4rem);
+    right: 0;
+    left: auto;
+    width: min(14rem, calc(100vw - 1.1rem));
   }
   .island-chat {
     top: auto;

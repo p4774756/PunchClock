@@ -13,7 +13,7 @@ const FACE_CENTER = Object.freeze({
 export const MILU_ANIM = Object.freeze({
   // 400×400 透明圖，腳底約在底邊往上 41px（桌面端 ANCHOR_Y 359）。flipY 時圖的底邊是 v=0。
   footV: 0.1025,
-  height: 1.42,
+  height: 1.2,
   shadowRadius: 0.34,
   alphaTest: 0.5,
   faceDeadzone: 0.22,
@@ -41,6 +41,38 @@ export const MILU_ANIM = Object.freeze({
     wave: Object.freeze(['wave/01.png', 'wave/02.png', 'wave/03.png', 'wave/04.png'])
   })
 });
+
+export const BERRY_ANIM = Object.freeze({
+  footV: MILU_ANIM.footV,
+  height: MILU_ANIM.height,
+  shadowRadius: MILU_ANIM.shadowRadius,
+  alphaTest: MILU_ANIM.alphaTest,
+  faceDeadzone: MILU_ANIM.faceDeadzone,
+  faceBucket: MILU_ANIM.faceBucket,
+  faceHysteresis: MILU_ANIM.faceHysteresis,
+  waveNpcRadius: MILU_ANIM.waveNpcRadius,
+  waveZoneExtra: MILU_ANIM.waveZoneExtra,
+  fps: MILU_ANIM.fps,
+  blinkEvery: MILU_ANIM.blinkEvery,
+  baseUrl: '/pet/berry/',
+  clips: MILU_ANIM.clips
+});
+
+export const ISLAND_AVATAR_IDS = Object.freeze(['milu', 'berry']);
+
+const ISLAND_AVATAR_TABLE = Object.freeze({
+  milu: MILU_ANIM,
+  berry: BERRY_ANIM
+});
+
+/** 只接受 milu／berry，其餘當 milu。 */
+export function normalizeIslandAvatar(id) {
+  return id === 'berry' ? 'berry' : 'milu';
+}
+
+export function islandAvatarAnim(id) {
+  return ISLAND_AVATAR_TABLE[normalizeIslandAvatar(id)];
+}
 
 export function createMiluState() {
   return {

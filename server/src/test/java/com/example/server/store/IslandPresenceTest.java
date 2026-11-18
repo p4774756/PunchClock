@@ -275,6 +275,21 @@ public class IslandPresenceTest {
     }
 
     @Test
+    public void posAvatarDefaultsToMiluAndBerryInSnapshot() {
+        IslandPresence presence = new IslandPresence();
+        String miluPeer = welcomed(presence, "10.10.0.1", "蜜鹿", 0L);
+        String berryPeer = welcomed(presence, "10.10.0.2", "小莓", 1L);
+        presence.handle(miluPeer, pos(1, 1, 0, false, "outdoor"), 2L);
+        presence.handle(berryPeer, pos(2, 2, 0, true, "outdoor", "berry"), 3L);
+        String outdoor = snapFor(presence.takeSnaps(), "outdoor");
+        assertFalse(outdoor.contains("\"avatar\":\"milu\""));
+        assertTrue(outdoor.contains("\"avatar\":\"berry\""));
+        assertEquals("milu", IslandPresence.cleanAvatar(null));
+        assertEquals("milu", IslandPresence.cleanAvatar("cat"));
+        assertEquals("berry", IslandPresence.cleanAvatar("berry"));
+    }
+
+    @Test
     public void originMustMatchHostAndScheme() {
         assertTrue(IslandPresence.sameOrigin("http://localhost:3000", "localhost:3000", false));
         assertFalse(IslandPresence.sameOrigin("https://localhost:3000", "localhost:3000", false));
@@ -306,8 +321,21 @@ public class IslandPresenceTest {
     }
 
     private static String pos(double x, double z, double yaw, boolean moving, String scene) {
-        return "{\"t\":\"pos\",\"x\":" + x + ",\"z\":" + z + ",\"yaw\":" + yaw
-                + ",\"moving\":" + moving + ",\"scene\":" + jsonString(scene) + "}";
+        return pos(x, z, yaw, moving, scene, null);
+    }
+
+    private static String pos(double x, double z, double yaw, boolean moving, String scene, String avatar) {
+        StringBuilder body = new StringBuilder();
+        body.append("{\"t\":\"pos\",\"x\":").append(x)
+                .append(",\"z\":").append(z)
+                .append(",\"yaw\":").append(yaw)
+                .append(",\"moving\":").append(moving)
+                .append(",\"scene\":").append(jsonString(scene));
+        if (avatar != null) {
+            body.append(",\"avatar\":").append(jsonString(avatar));
+        }
+        body.append("}");
+        return body.toString();
     }
 
     private static final Gson JSON = new Gson();

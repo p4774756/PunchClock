@@ -122,6 +122,11 @@ public final class IslandPresence {
         return String.format("旅人 %03d", value);
     }
 
+    /** 探索角色：只接受 berry，其餘（缺欄、空值、不明）皆為 milu。 */
+    public static String cleanAvatar(String raw) {
+        return "berry".equals(raw) ? "berry" : "milu";
+    }
+
     /** 有限座標夾進島的半徑。呼叫前須先確認是有限數字。 */
     public static double[] clampXZ(double x, double z) {
         double radius = Math.hypot(x, z);
@@ -384,7 +389,8 @@ public final class IslandPresence {
         if (x == null || z == null || yaw == null || moving == null || !allowedScene(scene)) {
             return null;
         }
-        return Inbound.pos(x, z, yaw, moving, scene);
+        String avatar = cleanAvatar(optionalString(object, "avatar"));
+        return Inbound.pos(x, z, yaw, moving, scene, avatar);
     }
 
     private Result hello(Peer peer, Inbound inbound) {
@@ -413,6 +419,7 @@ public final class IslandPresence {
         peer.yaw = wrapYaw(inbound.yaw);
         peer.moving = inbound.moving;
         peer.scene = inbound.scene;
+        peer.avatar = inbound.avatar;
         peer.placed = true;
         dirty.add(peer.scene);
         if (!movedScene) {
@@ -729,6 +736,7 @@ public final class IslandPresence {
         final String autoName;
         String name;
         String scene = SCENE_OUTDOOR;
+        String avatar = "milu";
         double x;
         double z;
         double yaw;
@@ -762,6 +770,9 @@ public final class IslandPresence {
             body.put("z", round3(z));
             body.put("yaw", round3(yaw));
             body.put("moving", moving);
+            if ("berry".equals(avatar)) {
+                body.put("avatar", "berry");
+            }
             return body;
         }
 
@@ -830,9 +841,10 @@ public final class IslandPresence {
         public final double yaw;
         public final boolean moving;
         public final String scene;
+        public final String avatar;
 
         private Inbound(String type, String name, String text, double x, double z, double yaw, boolean moving,
-                String scene) {
+                String scene, String avatar) {
             this.type = type;
             this.name = name;
             this.text = text;
@@ -841,18 +853,19 @@ public final class IslandPresence {
             this.yaw = yaw;
             this.moving = moving;
             this.scene = scene;
+            this.avatar = avatar == null ? "milu" : avatar;
         }
 
         static Inbound named(String type, String name) {
-            return new Inbound(type, name, "", 0, 0, 0, false, null);
+            return new Inbound(type, name, "", 0, 0, 0, false, null, "milu");
         }
 
         static Inbound say(String text) {
-            return new Inbound("say", "", text, 0, 0, 0, false, null);
+            return new Inbound("say", "", text, 0, 0, 0, false, null, "milu");
         }
 
-        static Inbound pos(double x, double z, double yaw, boolean moving, String scene) {
-            return new Inbound("pos", "", "", x, z, yaw, moving, scene);
+        static Inbound pos(double x, double z, double yaw, boolean moving, String scene, String avatar) {
+            return new Inbound("pos", "", "", x, z, yaw, moving, scene, avatar);
         }
     }
 

@@ -101,6 +101,57 @@ test('斷線重連等待 1、2、4 秒，最多 30 秒', () => {
   assert.equal(P.reconnectDelayMs(9), 30000);
 });
 
+test('探索角色 id 只接受 milu 或 berry', () => {
+  assert.equal(P.normalizeAvatar('berry'), 'berry');
+  assert.equal(P.normalizeAvatar('milu'), 'milu');
+  assert.equal(P.normalizeAvatar(''), 'milu');
+  assert.equal(P.normalizeAvatar('cat'), 'milu');
+});
+
+test('encodePos 只有 berry 才帶 avatar，仍低於 512 bytes', () => {
+  const milu = JSON.parse(P.encodePos({ x: 0, z: 0, yaw: 0, moving: false, scene: 'outdoor', avatar: 'milu' }));
+  assert.equal(milu.avatar, undefined);
+  const berry = JSON.parse(P.encodePos({ x: 1, z: 2, yaw: 0.5, moving: true, scene: 'shop', avatar: 'berry' }));
+  assert.equal(berry.avatar, 'berry');
+  assert.ok(P.encodePos({ x: 1, z: 2, yaw: 0.5, moving: true, scene: 'shop', avatar: 'berry' }).length < 512);
+});
+
+test('decode 玩家 avatar 不明值回退 milu', () => {
+  const snap = P.decodeMessage(JSON.stringify({
+    t: 'snap',
+    scene: 'outdoor',
+    rev: 1,
+    players: [
+      { id: 'a', name: '甲', x: 0, z: 0, yaw: 0, moving: false, avatar: 'berry' },
+      { id: 'b', name: '乙', x: 1, z: 0, yaw: 0, moving: false },
+      { id: 'c', name: '丙', x: 2, z: 0, yaw: 0, moving: false, avatar: 'unknown' }
+    ]
+  }));
+  assert.equal(snap.players[0].avatar, 'berry');
+  assert.equal(snap.players[1].avatar, 'milu');
+  assert.equal(snap.players[2].avatar, 'milu');
+});
+
+test('角色變更時 shouldSendPos 立刻為真', () => {
+  const prev = { x: 0, z: 0, yaw: 0, moving: false, scene: 'outdoor', avatar: 'milu', sentAt: 5000 };
+  const next = { x: 0, z: 0, yaw: 0, moving: false, scene: 'outdoor', avatar: 'berry' };
+  assert.equal(P.shouldSendPos(prev, next, 5010), true);
+});
+
+test('loadAvatar／saveAvatar 走 localStorage', () => {
+  const store = Object.create(null);
+  const storage = {
+    getItem: (k) => (k in store ? store[k] : null),
+    setItem: (k, v) => {
+      store[k] = v;
+    }
+  };
+  assert.equal(P.loadAvatar(storage), 'milu');
+  assert.equal(P.saveAvatar(storage, 'berry'), 'berry');
+  assert.equal(P.loadAvatar(storage), 'berry');
+  assert.equal(P.saveAvatar(storage, 'evil'), 'milu');
+});
+
 test('移動中約每秒 10 次，站著不動就降頻', () => {
   const first = { x: 0, z: 0, yaw: 0, moving: true, scene: 'outdoor', sentAt: 1000 };
   assert.equal(P.shouldSendPos(null, first, 1000), true);

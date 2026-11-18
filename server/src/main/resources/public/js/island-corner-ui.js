@@ -1,4 +1,4 @@
-import { cleanNick, loadNick } from './island-presence.js';
+import { cleanNick, loadAvatar, loadNick, normalizeAvatar, saveAvatar } from './island-presence.js';
 
 export const MOBILE_MAX_WIDTH = 760;
 const REM = 16;
@@ -80,6 +80,13 @@ export function createCornerUi(opts) {
   const isExploring = opts.isExploring;
   const isWelcomed = opts.isWelcomed;
   const getAudioMuted = opts.getAudioMuted;
+  const onAvatarChange = opts.onAvatarChange;
+
+  const avatarBtn = document.getElementById('islandAvatarBtn');
+  const avatarPop = document.getElementById('islandAvatarPop');
+  const avatarChoices = avatarPop
+    ? avatarPop.querySelectorAll('[data-island-avatar]')
+    : [];
 
   const nickBtn = document.getElementById('islandNickBtn');
   const nickPop = document.getElementById('islandNickPop');
@@ -100,11 +107,72 @@ export function createCornerUi(opts) {
     if (storedNick) nickInput.value = storedNick;
   }
 
+  let selectedAvatar = loadAvatar(storage);
+
+  function syncAvatarUi() {
+    const current = normalizeAvatar(selectedAvatar);
+    if (avatarChoices) {
+      avatarChoices.forEach((btn) => {
+        const id = btn.getAttribute('data-island-avatar');
+        const on = normalizeAvatar(id) === current;
+        btn.classList.toggle('is-selected', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
+    if (avatarBtn) {
+      avatarBtn.textContent = current === 'berry' ? '小莓' : '蜜鹿';
+      avatarBtn.setAttribute(
+        'aria-label',
+        '探索角色：' + (current === 'berry' ? '小莓' : '蜜鹿（預設）')
+      );
+    }
+  }
+
+  function setAvatarOpen(open) {
+    if (!avatarPop || !avatarBtn) return;
+    const on = !!open;
+    avatarPop.hidden = !on;
+    avatarBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    if (on) {
+      syncAvatarUi();
+      setNickOpen(false);
+    }
+  }
+
+  function pickAvatar(id) {
+    const next = saveAvatar(storage, id);
+    if (next === selectedAvatar) {
+      setAvatarOpen(false);
+      return;
+    }
+    selectedAvatar = next;
+    syncAvatarUi();
+    setAvatarOpen(false);
+    if (typeof onAvatarChange === 'function') onAvatarChange(next);
+  }
+
+  syncAvatarUi();
+
+  if (avatarBtn && avatarPop) {
+    avatarBtn.addEventListener('click', () => setAvatarOpen(avatarPop.hidden));
+  }
+  if (avatarChoices) {
+    avatarChoices.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-island-avatar');
+        if (id) pickAvatar(id);
+      });
+    });
+  }
+
   function setNickOpen(open) {
     if (!nickPop || !nickBtn) return;
     nickPop.hidden = !open;
     nickBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (open && nickInput) nickInput.focus();
+    if (open) {
+      setAvatarOpen(false);
+      if (nickInput) nickInput.focus();
+    }
   }
 
   function saveNick() {
@@ -175,6 +243,11 @@ export function createCornerUi(opts) {
       setNickOpen(true);
       return;
     }
+    if (id === 'islandAvatarBtn') {
+      setMoreOpen(false);
+      setAvatarOpen(true);
+      return;
+    }
     closeMore();
     el.click();
   }
@@ -212,6 +285,9 @@ export function createCornerUi(opts) {
     saveNick: saveNick,
     setMoreOpen: setMoreOpen,
     closeMore: closeMore,
-    syncMoreAudioLabel: syncMoreAudioLabel
+    syncMoreAudioLabel: syncMoreAudioLabel,
+    setAvatarOpen: setAvatarOpen,
+    syncAvatarUi: syncAvatarUi,
+    currentAvatar: () => normalizeAvatar(selectedAvatar)
   };
 }
