@@ -79,7 +79,8 @@ import {
   applyDragPhi,
   createPoses,
   createCameraRig,
-  exploreFollowDistance
+  exploreFollowDistance,
+  interiorExploreFollowDistance
 } from './island-camera.js';
 import { buildIslandWorld } from './island-world.js';
 import { buildIslandBuildings } from './island-buildings.js';
@@ -528,11 +529,22 @@ function boot() {
     smoothingFactor: smoothingFactor,
     nightFactor: () => dayNight.mix,
     followDistance: (radius, aspect) => {
-      if (rooms.inside() && rooms.room() && rooms.room().id === 'lab-room') {
-        return labInteriorFollowDistance(radius, aspect);
+      if (rooms.inside()) {
+        if (rooms.room() && rooms.room().id === 'lab-room') {
+          return labInteriorFollowDistance(radius, aspect);
+        }
+        return interiorExploreFollowDistance(radius, aspect);
       }
       return exploreFollowDistance(radius, aspect);
     },
+    phiRest: () => {
+      if (rooms.inside()) {
+        const custom = interiorFollowPose(rooms.room(), camera.aspect);
+        return (custom || INTERIOR_POSE).phi;
+      }
+      return EXPLORE_POSE.phi;
+    },
+    allowSky: () => !rooms.inside(),
     initial: POSES.home
   });
   let animating = false;

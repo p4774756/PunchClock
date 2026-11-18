@@ -83,6 +83,57 @@ const LAB_DOOR = Object.freeze({
 
 /** 與 island-lab-interior.js 幾何對齊；北牆剖面後不列入可見遮擋。 */
 export const LAB_INTERIOR_WALL = Object.freeze({ h: 2.2, t: 0.1 });
+export const INTERIOR_WALL_HEIGHT = 2.2;
+export const INTERIOR_CAMERA_MARGIN_M = 3;
+export const INTERIOR_CAMERA_HEIGHT_ABOVE_WALL = 1.5;
+
+/** 室內地板 AABB 向外擴張（XZ）與牆高 + 上緩衝（Y），供鏡頭約束測試。 */
+export function interiorExpandedBounds(room, marginM, heightAboveWall) {
+  if (!room || !room.floor) return null;
+  const margin = marginM == null ? INTERIOR_CAMERA_MARGIN_M : marginM;
+  const above = heightAboveWall == null ? INTERIOR_CAMERA_HEIGHT_ABOVE_WALL : heightAboveWall;
+  const f = room.floor;
+  return Object.freeze({
+    minX: f.minX - margin,
+    maxX: f.maxX + margin,
+    minZ: f.minZ - margin,
+    maxZ: f.maxZ + margin,
+    minY: G,
+    maxY: G + INTERIOR_WALL_HEIGHT + above
+  });
+}
+
+export function interiorCameraWithinBounds(eye, bounds) {
+  if (!eye || !bounds) return false;
+  const ex = eye.x != null ? eye.x : eye.cx;
+  const ey = eye.y != null ? eye.y : eye.cy;
+  const ez = eye.z != null ? eye.z : eye.cz;
+  return ex >= bounds.minX && ex <= bounds.maxX
+    && ez >= bounds.minZ && ez <= bounds.maxZ
+    && ey >= bounds.minY && ey <= bounds.maxY;
+}
+
+/**
+ * 以預設進房鏡頭為中心再擴張 marginM（含 Z 北側剖面外），
+ * 高度上限為牆高+heightAbove 與預設鏡頭高度取較大者。
+ */
+export function interiorLiftBoundsFromRest(room, restEye, marginM, heightAboveWall) {
+  const base = interiorExpandedBounds(room, marginM, heightAboveWall);
+  if (!base || !restEye) return base;
+  const margin = marginM == null ? INTERIOR_CAMERA_MARGIN_M : marginM;
+  const ex = restEye.x != null ? restEye.x : restEye.cx;
+  const ey = restEye.y != null ? restEye.y : restEye.cy;
+  const ez = restEye.z != null ? restEye.z : restEye.cz;
+  if (![ex, ey, ez].every(Number.isFinite)) return base;
+  return Object.freeze({
+    minX: Math.min(base.minX, ex - margin),
+    maxX: Math.max(base.maxX, ex + margin),
+    minZ: Math.min(base.minZ, ez - margin),
+    maxZ: Math.max(base.maxZ, ez + margin),
+    minY: base.minY,
+    maxY: Math.max(base.maxY, ey + 0.25)
+  });
+}
 
 export const LAB_INTERIOR_PLAYER_CHEST_Y = G + 1.05;
 export const LAB_INTERIOR_PLAYER_FEET_Y = P;
@@ -311,16 +362,7 @@ export function labInteriorPlayerSamplePositions(room) {
   ]);
 }
 
-/** 世界座標 → NDC（與探索鏡頭放置、25° FOV 一致）。 */
-export function labInteriorProjectNdc(worldX, worldY, worldZ, pose, lookAt, aspect) {
-  const dist = labInteriorFollowDistance(pose.radius, aspect);
-  const phi = Math.min(LAB_PHI_MAX, Math.max(LAB_PHI_MIN, pose.phi));
-  const placement = labExploreCameraPlacement(
-    lookAt.x, lookAt.y, lookAt.z, dist, phi, pose.theta, G
-  );
-  const eyeX = placement.cx;
-  const eyeY = placement.cy;
-  const eyeZ = placement.cz;
+function interiorViewBasis(eyeX, eyeY, eyeZ, lookAt) {
   const dx = eyeX - lookAt.x;
   const dy = eyeY - lookAt.y;
   const dz = eyeZ - lookAt.z;
@@ -341,6 +383,19 @@ export function labInteriorProjectNdc(worldX, worldY, worldZ, pose, lookAt, aspe
   const yx = zy * xz - zz * xy;
   const yy = zz * xx - zx * xz;
   const yz = zx * xy - zy * xx;
+  return { zx, zy, zz, xx, xy, xz, yx, yy, yz };
+}
+
+/** 已知鏡頭與注視點時，世界座標 → NDC（抬頭 viewLift 測試用）。 */
+export function interiorProjectNdcFromEye(eye, lookAt, worldX, worldY, worldZ, aspect) {
+  if (!eye || !lookAt) return { x: 99, y: 99, vz: -1 };
+  return interiorProjectNdcWithBasis(
+    interiorViewBasis(eye.x, eye.y, eye.z, lookAt), eye.x, eye.y, eye.z, worldX, worldY, worldZ, aspect
+  );
+}
+
+function interiorProjectNdcWithBasis(basis, eyeX, eyeY, eyeZ, worldX, worldY, worldZ, aspect) {
+  const { zx, zy, zz, xx, xy, xz, yx, yy, yz } = basis;
   const wx = worldX - eyeX;
   const wy = worldY - eyeY;
   const wz = worldZ - eyeZ;
@@ -355,6 +410,19 @@ export function labInteriorProjectNdc(worldX, worldY, worldZ, pose, lookAt, aspe
     y: (vy / vz) * f,
     vz: vz
   };
+}
+
+/** 世界座標 → NDC（與探索鏡頭放置、25° FOV 一致）。 */
+export function labInteriorProjectNdc(worldX, worldY, worldZ, pose, lookAt, aspect) {
+  const dist = labInteriorFollowDistance(pose.radius, aspect);
+  const phi = Math.min(LAB_PHI_MAX, Math.max(LAB_PHI_MIN, pose.phi));
+  const placement = labExploreCameraPlacement(
+    lookAt.x, lookAt.y, lookAt.z, dist, phi, pose.theta, G
+  );
+  const basis = interiorViewBasis(placement.cx, placement.cy, placement.cz, lookAt);
+  return interiorProjectNdcWithBasis(
+    basis, placement.cx, placement.cy, placement.cz, worldX, worldY, worldZ, aspect
+  );
 }
 
 function labLandmarkPoints() {

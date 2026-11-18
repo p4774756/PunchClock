@@ -9,8 +9,11 @@ const {
   getOrbitClamp,
   applyOutdoorInteractZone,
   buildOutdoorInteractActions,
-  handleExploreKeydown
+  handleExploreKeydown,
+  createExplorePointer
 } = await loadPublicModule('island-explore-input.js');
+
+const { applyDragPhi } = await loadPublicModule('island-camera.js');
 
 test('isTypingTarget：input／textarea／contenteditable', () => {
   assert.equal(isTypingTarget(null), false);
@@ -157,6 +160,55 @@ test('鍵盤 E：推拿館互動區會呼叫 enterTcm 且不開賭場', () => {
   assert.equal(entered, true);
   assert.equal(casinoOpened, false);
   assert.equal(interiorClosed, false);
+});
+
+test('畫布拖曳只跟第一根指標：第二指 move 不改 phi／theta', () => {
+  const cam = {
+    targetTheta: 0.35,
+    targetPhi: 0.98,
+    targetRadius: 9.2
+  };
+  const listeners = {};
+  const canvas = {
+    style: { cursor: 'grab' },
+    addEventListener(type, fn) { listeners[type] = fn; },
+    removeEventListener() {},
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 390, height: 844 }),
+    setPointerCapture() {}
+  };
+  const camera = {};
+  const THREE = {
+    Raycaster: function () {
+      this.setFromCamera = () => {};
+      this.intersectObjects = () => [];
+    },
+    Vector2: function () { this.x = 0; this.y = 0; }
+  };
+  createExplorePointer({
+    canvas: canvas,
+    camera: camera,
+    cam: cam,
+    THREE: THREE,
+    getMode: () => ({ exploring: true }),
+    controlsActive: () => true,
+    applyDragPhi: applyDragPhi
+  });
+  const down = listeners.pointerdown;
+  const move = listeners.pointermove;
+  assert.ok(typeof down === 'function' && typeof move === 'function');
+  down({ pointerId: 1, clientX: 100, clientY: 200 });
+  const theta0 = cam.targetTheta;
+  const phi0 = cam.targetPhi;
+  move({ pointerId: 1, clientX: 100, clientY: 180 });
+  assert.notEqual(cam.targetPhi, phi0, '第一指應改變 phi');
+  const phiAfterFirst = cam.targetPhi;
+  const thetaAfterFirst = cam.targetTheta;
+  down({ pointerId: 2, clientX: 50, clientY: 50 });
+  move({ pointerId: 2, clientX: 50, clientY: 200 });
+  assert.equal(cam.targetPhi, phiAfterFirst);
+  assert.equal(cam.targetTheta, thetaAfterFirst);
+  move({ pointerId: 1, clientX: 100, clientY: 160 });
+  assert.notEqual(cam.targetPhi, phiAfterFirst, '第一指恢復後仍有效');
 });
 
 test('sail 互動不會落到開賭場', () => {
