@@ -30,6 +30,7 @@ import com.example.server.web.DevMachineRoutes;
 import com.example.server.web.DevStatusRoutes;
 import com.example.server.store.DevMachineStore;
 import com.example.server.web.RoadmapRoutes;
+import com.example.server.web.TeaHealthRoutes;
 import com.example.server.web.RouteSupport;
 import com.example.server.web.LoginPageRenderer;
 import com.google.gson.Gson;
@@ -81,6 +82,7 @@ public final class ServerApp {
     private final DevMachineStore devMachineStore = new DevMachineStore();
     private final DevMachineRoutes devMachineRoutes;
     private final AtlasRoutes atlasRoutes = new AtlasRoutes();
+    private final TeaHealthRoutes teaHealthRoutes;
     private final ClientRelease clientRelease;
 
     public ServerApp() {
@@ -99,6 +101,7 @@ public final class ServerApp {
                 : new DevStatusService(new GithubDevStatusClient());
         this.devStatusRoutes = new DevStatusRoutes(status);
         this.devMachineRoutes = new DevMachineRoutes(authService, devMachineStore, status, gson);
+        this.teaHealthRoutes = new TeaHealthRoutes(serverHealth);
     }
 
     public static void main(String[] args) {
@@ -199,6 +202,7 @@ public final class ServerApp {
         roadmapRoutes.register(app);
         devStatusRoutes.register(app);
         devMachineRoutes.register(app);
+        teaHealthRoutes.register(app);
         atlasRoutes.register(app);
         app.get("/api/status", this::status);
         app.get("/api/health/history", this::healthHistory);

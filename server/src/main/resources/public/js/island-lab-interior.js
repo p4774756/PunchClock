@@ -1,17 +1,25 @@
-// 研發樓小室內。低多邊形機房＋自發光進度螢幕；進房時讀一次 /api/dev-status。
+// 研發樓小室內。低多邊形機房＋自發光進度螢幕；進房時讀 /api/dev-status，製茶機牆輪詢 /api/tea-health。
 
 import { interiorByBuilding } from './island-interior.js';
-import { formatLabDevScreenLines, fitCanvasLine } from './island-roadmap.js';
+import { fitCanvasLine } from './island-roadmap.js';
 import {
   appendLabMachineLines,
   formatLabDevMachineLines,
   shouldFetchDevMachines
 } from './dev-machines-format.js';
+import {
+  drawTeaHealthCanvas,
+  formatLabDevScreenWithTimeline
+} from './island-lab-health.js';
 
 const SCREEN_W = 1024;
 const SCREEN_H = 768;
+const HEALTH_W = 512;
+const HEALTH_H = 384;
+const TEA_POLL_MS = 5000;
 
-function drawScreenLine(ctx, raw, pad, y, maxW, lineH) {
+function drawScreenLine(ctx, raw, pad, y, maxW, lineH, font) {
+  if (font) ctx.font = font;
   const text = raw == null ? '' : String(raw);
   if (!text) return y + lineH * 0.55;
   const fitted = fitCanvasLine(ctx, text, maxW);
@@ -39,14 +47,24 @@ function drawScreenCanvas(canvas, lines) {
   ctx.fillStyle = '#07111f';
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   ctx.fillStyle = '#9ae8ff';
-  ctx.font = '600 38px "PingFang TC", "Noto Sans TC", sans-serif';
   const list = Array.isArray(lines) ? lines : [];
+  const bodyFont = '600 38px "PingFang TC", "Noto Sans TC", sans-serif';
+  const timelineFont = '500 26px "PingFang TC", "Noto Sans TC", sans-serif';
   let y = 52;
   const lineH = 46;
+  const timelineLineH = 34;
   const pad = 48;
   const maxW = SCREEN_W - pad * 2;
+  let inTimeline = false;
   for (let i = 0; i < list.length; i++) {
-    y = drawScreenLine(ctx, list[i], pad, y, maxW, lineH);
+    const raw = list[i];
+    if (raw === '【最近動態】') {
+      inTimeline = true;
+    }
+    const font = inTimeline ? timelineFont : bodyFont;
+    const lh = inTimeline ? timelineLineH : lineH;
+    ctx.font = font;
+    y = drawScreenLine(ctx, raw, pad, y, maxW, lh, font);
     if (y > SCREEN_H - 20) return;
   }
 }
@@ -86,11 +104,11 @@ function loadDevScreen(texture, canvas, loadState) {
     texture.needsUpdate = true;
   };
   const fetchFn = globalThis.fetch ? globalThis.fetch.bind(globalThis) : null;
-  const loading = formatLabDevScreenLines(null, { maxQueue: 3 });
+  const loading = formatLabDevScreenWithTimeline(null, { maxQueue: 3 });
   loading[2] = '載入中…';
   apply(loading);
   if (!fetchFn) {
-    apply(formatLabDevScreenLines({ success: false, message: '開發進度暫時讀不到' }));
+    apply(formatLabDevScreenWithTimeline({ success: false, message: '開發進度暫時讀不到' }));
     return;
   }
   const authed = typeof globalThis !== 'undefined' && globalThis.PUNCHCLOCK_AUTHENTICATED === true;
@@ -102,15 +120,67 @@ function loadDevScreen(texture, canvas, loadState) {
     : Promise.resolve(null);
   Promise.all([devStatusPromise, machinesPromise])
     .then(([body, machines]) => {
-      let lines = formatLabDevScreenLines(body, { maxQueue: 3 });
+      let lines = formatLabDevScreenWithTimeline(body, { maxQueue: 3, maxTimeline: 6 });
       if (machines && machines.success !== false) {
         lines = appendLabMachineLines(lines, formatLabDevMachineLines(machines));
       }
       apply(lines);
     })
     .catch(() => {
-      apply(formatLabDevScreenLines({ success: false, message: '開發進度暫時讀不到' }));
+      apply(formatLabDevScreenWithTimeline({ success: false, message: '開發進度暫時讀不到' }));
     });
+}
+
+function loadTeaHealthWall(texture, canvas, loadState) {
+  const disposed = () => loadState && loadState.disposed;
+  const fetchFn = globalThis.fetch ? globalThis.fetch.bind(globalThis) : null;
+  let timerId = null;
+  let abortCtrl = null;
+
+  const paint = (data) => {
+    if (disposed() || !canvas) return;
+    drawTeaHealthCanvas(canvas.getContext('2d'), data, HEALTH_W, HEALTH_H);
+    if (texture) texture.needsUpdate = true;
+  };
+
+  const refresh = () => {
+    if (disposed()) return;
+    if (abortCtrl) abortCtrl.abort();
+    if (!fetchFn) {
+      paint({ success: false });
+      return;
+    }
+    abortCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const signal = abortCtrl ? abortCtrl.signal : undefined;
+    fetchFn('/api/tea-health', signal ? { signal: signal } : undefined)
+      .then((res) => {
+        if (!res.ok) throw new Error('http');
+        return res.json();
+      })
+      .then((body) => {
+        if (disposed()) return;
+        paint(body);
+      })
+      .catch((err) => {
+        if (disposed()) return;
+        if (err && err.name === 'AbortError') return;
+        paint({ success: false });
+      });
+  };
+
+  paint({ success: true });
+  refresh();
+  timerId = setInterval(refresh, TEA_POLL_MS);
+  loadState.cleanup = () => {
+    if (timerId != null) {
+      clearInterval(timerId);
+      timerId = null;
+    }
+    if (abortCtrl) {
+      abortCtrl.abort();
+      abortCtrl = null;
+    }
+  };
 }
 
 export function createInterior(THREE, opts) {
@@ -127,8 +197,11 @@ export function createInterior(THREE, opts) {
   const geometries = [];
   let screenTexture = null;
   let screenCanvas = null;
+  let healthTexture = null;
+  let healthCanvas = null;
   const exitTextures = [];
   const screenLoad = { disposed: false };
+  const teaLoad = { disposed: false };
 
   function mat(color, night, glow, emissiveI) {
     const material = new THREE.MeshLambertMaterial({
@@ -244,6 +317,42 @@ export function createInterior(THREE, opts) {
   const bcz = (bench.minZ + bench.maxZ) / 2;
   box(bw, 0.42, bd, 0x506070, 0x788898, bcx, ground + 0.31, bcz);
 
+  const healthPlaneW = Math.min(rw * 0.92, 1.05);
+  const healthPlaneH = healthPlaneW * (HEALTH_H / HEALTH_W);
+  const healthY = ground + 0.95;
+  const healthX = rack.maxX + 0.04;
+  healthCanvas = typeof document !== 'undefined' && document.createElement
+    ? document.createElement('canvas')
+    : null;
+  if (healthCanvas) {
+    healthCanvas.width = HEALTH_W;
+    healthCanvas.height = HEALTH_H;
+    healthTexture = new THREE.CanvasTexture(healthCanvas);
+    healthTexture.minFilter = THREE.LinearFilter;
+    healthTexture.magFilter = THREE.LinearFilter;
+    const healthMat = new THREE.MeshLambertMaterial({
+      map: healthTexture,
+      emissive: new THREE.Color(0x3cf0ff),
+      emissiveMap: healthTexture,
+      emissiveIntensity: 0.58,
+      flatShading: true
+    });
+    healthMat.userData.day = new THREE.Color(0xffffff);
+    healthMat.userData.night = new THREE.Color(0x90c8e0);
+    healthMat.userData.dayE = 0.48;
+    healthMat.userData.nightE = 0.9;
+    materials.push(healthMat);
+    const healthGeo = new THREE.PlaneGeometry(healthPlaneW, healthPlaneH);
+    geometries.push(healthGeo);
+    const healthMesh = new THREE.Mesh(healthGeo, healthMat);
+    healthMesh.rotation.y = -Math.PI / 2;
+    healthMesh.position.set(healthX, healthY, rcz);
+    group.add(healthMesh);
+    box(healthPlaneW + 0.08, healthPlaneH + 0.08, 0.04, 0x1a2838, 0x3a5068,
+      healthX - 0.02, healthY, rcz, 0x3cf0ff, 0.25);
+    loadTeaHealthWall(healthTexture, healthCanvas, teaLoad);
+  }
+
   const screenW = 1.35;
   const screenH = 0.88;
   const screenY = ground + 0.84;
@@ -286,6 +395,9 @@ export function createInterior(THREE, opts) {
     materials: materials,
     dispose() {
       screenLoad.disposed = true;
+      teaLoad.disposed = true;
+      if (screenLoad.cleanup) screenLoad.cleanup();
+      if (teaLoad.cleanup) teaLoad.cleanup();
       geometries.forEach((geometry) => geometry.dispose());
       materials.forEach((material) => {
         if (material.map) material.map.dispose();
@@ -293,6 +405,8 @@ export function createInterior(THREE, opts) {
       });
       screenTexture = null;
       screenCanvas = null;
+      healthTexture = null;
+      healthCanvas = null;
       for (let i = 0; i < exitTextures.length; i++) {
         if (exitTextures[i].texture) exitTextures[i].texture.dispose();
       }
