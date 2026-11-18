@@ -18,9 +18,11 @@ public class HomeFigureMaskTest {
         assertTrue(opaque(fingers, 350f / 768f, 420f / 1024f));
         assertTrue(opaque(fingers, 425f / 768f, 420f / 1024f));
         assertTrue(opaque(fingers, 405f / 768f, 440f / 1024f));
-        // 頭髮
-        assertTrue(!opaque(fingers, 432f / 768f, 435f / 1024f));
+        // 頭髮（離手部多邊形較遠；多邊形內緣仍可能吃到 keepSoft）
+        assertTrue(!opaque(fingers, 430f / 768f, 370f / 1024f));
         assertTrue(!opaque(fingers, 338f / 768f, 445f / 1024f));
+        // closing 後輪廓不應再被髮色逐像素挖洞
+        assertTrue(opaque(fingers, 418f / 768f, 438f / 1024f));
         // 多邊形外
         assertTrue(!opaque(fingers, 330f / 768f, 420f / 1024f));
         assertTrue(!opaque(fingers, 450f / 768f, 420f / 1024f));

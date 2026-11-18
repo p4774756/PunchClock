@@ -87,11 +87,6 @@ final class HomeFigureMask {
                 if (srcA == 0) {
                     continue;
                 }
-                int r = (pixel >>> 16) & 255;
-                int g = green(pixel);
-                if (isHair(r, g) || isSweater(r, g)) {
-                    continue;
-                }
                 float maskA = Math.min(polyA, keepSoft[y][x]);
                 int outA = Math.round(maskA * srcA);
                 if (outA <= 0) {
