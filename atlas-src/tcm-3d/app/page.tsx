@@ -51,6 +51,7 @@ export default function Home(){
  const [mobilePanel,setMobilePanel]=useState<'library'|'selection'|null>(null);
  const [about,setAbout]=useState(false),[holding,setHolding]=useState(false);
  const [outfitId,setOutfitId]=useState<OutfitId>(DEFAULT_OUTFIT_ID);
+ const [practicePreparing,setPracticePreparing]=useState(false);
  const currentOutfit=animeOutfit(outfitId);
  const showOutfitBar=currentAvatar.hasOutfits&&ANIME_OUTFITS.length>1;
  const practiceCodes=useMemo(()=>new Set(practiceOpenCodes(avatarCodes)),[avatarCodes]);
@@ -146,6 +147,7 @@ export default function Home(){
  const endHold=(event:ReactPointerEvent<HTMLButtonElement>)=>{if(heldPointer.current!==event.pointerId)return;heldPointer.current=null;if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);releaseHold();};
  const onProgress=useCallback((value:number)=>{setProgress(value);if(value===100)setError('');},[]);
  const onError=useCallback((_message:string)=>{setError('3D 模型加載出現問題，請檢查網絡與瀏覽器 WebGL 支持後重試。');setSimulation(s=>({...s,dragging:false,running:false}));},[]);
+ const onPracticeOutfitPreparing=useCallback((preparing:boolean)=>{setPracticePreparing(preparing);},[]);
  const selectedTitle=point?.name??(simulation.customTarget?'自選體表位置':'點選穴位標記');
  const animationStatus=simulation.dragging?'操作中':simulation.running?'演示中':simulation.elapsed>0?'已暫停':'待演示';
 
@@ -162,7 +164,7 @@ export default function Home(){
   </header>
 
   <section className="scene-stage" aria-label="3D 人體教學視窗">
-   <Suspense fallback={null}><CharacterScene key={DEFAULT_AVATAR_ID} state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={DEFAULT_AVATAR_ID} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onError={onError}/></Suspense>
+   <Suspense fallback={null}><CharacterScene key={DEFAULT_AVATAR_ID} state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={DEFAULT_AVATAR_ID} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onError={onError} onPracticeOutfitPreparing={onPracticeOutfitPreparing}/></Suspense>
    <div className="scene-guide"><span className="guide-cross">+</span><span>{currentAvatar.shortName} · {currentOutfit.shortName}</span></div>
    {(progress<100||error)&&(
     <div className={error?'loading-card woodcut-loading load-error':'loading-card woodcut-loading'} role="status">
@@ -182,6 +184,7 @@ export default function Home(){
   </nav>
 
   {showOutfitBar&&<nav className="outfit-bar surface" aria-label="動漫服裝"><span className="outfit-label">換裝</span>{ANIME_OUTFITS.map(outfit=><button key={outfit.id} type="button" className={outfitId===outfit.id?'selected':''} aria-pressed={outfitId===outfit.id} title={outfit.blurb} onClick={()=>switchOutfit(outfit.id)}>{outfit.shortName}</button>)}</nav>}
+  {practicePreparing&&<p className="practice-outfit-hint surface" role="status" aria-live="polite">準備練習裝…</p>}
 
   <aside className={`library-panel surface ${mobilePanel==='library'?'mobile-expanded':''}`} aria-label="穴位庫">
    <button className="mobile-panel-heading" aria-expanded={mobilePanel==='library'} onClick={()=>setMobilePanel(p=>p==='library'?null:'library')}><span><Layers3 size={16}/>穴位庫</span><ChevronDown size={17}/></button>

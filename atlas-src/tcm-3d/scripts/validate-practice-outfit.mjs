@@ -19,5 +19,8 @@ assert.doesNotMatch(src, /SHOULDER_ARTIFACT|isShoulderArtifactPx/, 'shoulder fix
 assert.match(src, /data\.data\[i\+3\]>=200\)continue[\s\S]*paintShoulderAlphaHole/, 'shoulder fix fills alpha<200 from nearby skin');
 assert.match(src, /isHairMaterial/, 'hair-specific cel shading to preserve blue-violet');
 assert.match(src, /syncHairBunMaterial/, 'bun materials must track hair MToon chroma');
+assert.doesNotMatch(src, /requestIdleCallback/, 'must not prebuild practice outfit on idle');
+assert.match(src, /practice-outfit-build-start/, 'practice outfit build must performance.mark start');
+assert.match(src, /performance\.measure\(['"]practice-outfit-build/, 'practice outfit build must performance.measure');
 
 console.log('practice outfit visual guards passed.');

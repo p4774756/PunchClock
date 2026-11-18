@@ -27,6 +27,7 @@ interface Props{
  onToolDrag:(target:SurfaceTarget|null,phase:ToolDragPhase)=>void;
  onProgress:(n:number)=>void;
  onError:(s:string)=>void;
+ onPracticeOutfitPreparing?:(preparing:boolean)=>void;
 }
 
 /** Three-step cel shade ramp for MeshToonMaterial.gradientMap (and leftover dispose). */
@@ -256,22 +257,23 @@ const looksLikeSkinPixel=(r:number,g:number,b:number,a:number)=>{
  return r>92&&g>72&&b>62&&r>=g-20;
 };
 
-const sampleNearbySkin=(data:ImageData,width:number,height:number,cx:number,cy:number,maxRad=96)=>{
- let sr=0,sg=0,sb=0,n=0;
+type ShoulderHoleBounds={minX:number;maxX:number;minY:number;maxY:number};
+
+/** Inpaint search stays inside the triangle AABB (±pad) — never a full-texture maxRad scan. */
+const sampleNearbySkin=(data:ImageData,width:number,height:number,cx:number,cy:number,bounds:ShoulderHoleBounds,maxRad=24)=>{
+ const loX=Math.max(0,bounds.minX),hiX=Math.min(width-1,bounds.maxX);
+ const loY=Math.max(0,bounds.minY),hiY=Math.min(height-1,bounds.maxY);
  for(let rad=1;rad<=maxRad;rad++){
   for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){
    if(Math.abs(dx)!==rad&&Math.abs(dy)!==rad)continue;
    const x=cx+dx,y=cy+dy;
-   if(x<0||y<0||x>=width||y>=height)continue;
+   if(x<loX||y<loY||x>hiX||y>hiY)continue;
    const i=(y*width+x)*4;
    const r=data.data[i],g=data.data[i+1],b=data.data[i+2],a=data.data[i+3];
-   if(!looksLikeSkinPixel(r,g,b,a))continue;
-   sr+=r;sg+=g;sb+=b;n++;
-   if(n>=10)break;
+   if(looksLikeSkinPixel(r,g,b,a))return {r,g,b};
   }
-  if(n>=10)break;
  }
- return n?{r:Math.round(sr/n),g:Math.round(sg/n),b:Math.round(sb/n)}:null;
+ return null;
 };
 
 /** Outer shoulder MASK cutouts — outside inTorsoSkinBand (clavicle guard unchanged). */
@@ -282,10 +284,10 @@ const inOuterShoulderWorld=(x:number,y:number,z:number)=>{
  return true;
 };
 
-const paintShoulderAlphaHole=(data:ImageData,width:number,height:number,x:number,y:number)=>{
+const paintShoulderAlphaHole=(data:ImageData,width:number,height:number,x:number,y:number,bounds:ShoulderHoleBounds)=>{
  const i=(y*width+x)*4;
  if(data.data[i+3]>=200)return true;
- const sample=sampleNearbySkin(data,width,height,x,y);
+ const sample=sampleNearbySkin(data,width,height,x,y,bounds);
  if(sample){
   data.data[i]=sample.r;data.data[i+1]=sample.g;data.data[i+2]=sample.b;data.data[i+3]=255;
   return true;
@@ -317,6 +319,8 @@ const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flip
  const minY=Math.max(0,Math.min(y0,y1,y2)),maxY=Math.min(height-1,Math.max(y0,y1,y2));
  const area=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);
  if(area===0)return;
+ const pad=24;
+ const sampleBounds:ShoulderHoleBounds={minX:minX-pad,maxX:maxX+pad,minY:minY-pad,maxY:maxY+pad};
  const holes:{x:number;y:number}[]=[];
  for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
   const w0=((x1-x)*(y2-y)-(x2-x)*(y1-y))/area;
@@ -325,11 +329,12 @@ const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flip
   if(w0<-.01||w1<-.01||w2<-.01)continue;
   const i=(y*width+x)*4;
   if(data.data[i+3]>=200)continue;
-  if(!paintShoulderAlphaHole(data,width,height,x,y))holes.push({x,y});
+  if(!paintShoulderAlphaHole(data,width,height,x,y,sampleBounds))holes.push({x,y});
  }
  for(let pass=0;pass<48&&holes.length;pass++){
   const remain:typeof holes=[];
   for(const {x,y} of holes){
+   if(x<minX||x>maxX||y<minY||y>maxY)continue;
    if(!dilateShoulderHoleFromNeighbors(data,width,height,x,y))remain.push({x,y});
   }
   if(remain.length===holes.length)break;
@@ -576,7 +581,7 @@ const finishCharacterLook=(root:T.Object3D,outfit:AnimeOutfit,gradient:T.DataTex
 
 type OutfitBridge={setOutfit:(id:OutfitId)=>void};
 
-export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onError}:Props){
+export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onError,onPracticeOutfitPreparing}:Props){
  const host=useRef<HTMLDivElement>(null);
  const outfitIdRef=useRef(outfitId);
  outfitIdRef.current=outfitId;
@@ -656,19 +661,32 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   const buildPracticeOutfit=()=>{
    if(practiceBuilt||!practiceShell||disposed)return;
+   performance.mark('practice-outfit-build-start');
    finishCharacterLook(practiceShell,practiceOutfit,gradient);
-   practiceShell.visible=outfitIdRef.current==='study-body';
+   performance.mark('practice-outfit-build-end');
+   try{performance.measure('practice-outfit-build','practice-outfit-build-start','practice-outfit-build-end');}catch{/* duplicate measure */}
    practiceModel=practiceShell;
    characterRoot.add(practiceShell);
    practiceShell.updateMatrixWorld(true);
    practiceBuilt=true;
-   if(outfitIdRef.current==='study-body'&&ready)teaching.reanchor(characterRoot);
+   onPracticeOutfitPreparing?.(false);
    dirty=true;
   };
 
   const setOutfit=(id:OutfitId)=>{
    if(!schoolModel)return;
-   if(id==='study-body'&&!practiceBuilt)buildPracticeOutfit();
+   if(id==='study-body'&&!practiceBuilt){
+    onPracticeOutfitPreparing?.(true);
+    requestAnimationFrame(()=>{
+     requestAnimationFrame(()=>{
+      if(disposed||practiceBuilt||!practiceShell)return;
+      buildPracticeOutfit();
+      showOutfit(id);
+      if(ready)teaching.reanchor(characterRoot);
+     });
+    });
+    return;
+   }
    showOutfit(id);
   };
   outfitBridge.current={setOutfit};
@@ -721,11 +739,6 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      schoolModel.visible=outfitIdRef.current==='school';
      characterRoot.clear();
      characterRoot.add(schoolModel);
-     if(outfitIdRef.current==='study-body')buildPracticeOutfit();
-     else{
-      const idle=typeof requestIdleCallback==='function'?requestIdleCallback:(cb:IdleRequestCallback)=>setTimeout(()=>cb({didTimeout:false,timeRemaining:()=>0} as IdleDeadline),1);
-      idle(()=>{if(!disposed)buildPracticeOutfit();});
-     }
     }else{
      finishCharacterLook(model,animeOutfit(outfitIdRef.current),gradient);
      characterRoot.clear();

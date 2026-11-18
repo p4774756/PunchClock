@@ -205,6 +205,10 @@
   min-height:32px;padding:0 11px;border-radius:10px;font-size:12px;font-weight:700;color:#5f746c;
 }
 .outfit-bar button.selected{background:#1f3b34;color:#fff}
+.practice-outfit-hint{
+  position:absolute;z-index:5;top:168px;right:max(18px,env(safe-area-inset-right,0px));
+  margin:0;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;color:#7a5a18;
+}
 .rpg-studio.is-anime.has-outfit-bar .library-panel,.rpg-studio.is-anime.has-outfit-bar .selection-panel{top:206px}
 .rpg-studio.is-anime.has-outfit-bar .pain-entry,.rpg-studio.is-anime.has-outfit-bar .anime-fallback{top:206px}
 .rpg-studio .library-panel,.rpg-studio .selection-panel{border-radius:18px}
