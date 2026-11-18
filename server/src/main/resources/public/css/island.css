@@ -920,13 +920,27 @@ body.island-more-open .island-joystick {
 
 @media (max-width: 760px) {
   #islandWebglNotice {
-    left: 50%;
-    top: max(5.85rem, calc(4.65rem + env(safe-area-inset-top, 0px)));
-    right: auto;
-    bottom: auto;
-    transform: translateX(-50%);
-    width: min(26.25rem, calc(100vw - 24px));
-    max-width: calc(100vw - 24px);
+    z-index: 7;
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: calc(12px + 2.25rem + max(0.7rem, env(safe-area-inset-bottom, 0px)));
+    transform: none;
+    width: auto;
+    max-width: none;
+  }
+
+  body.is-webgl-notice-open .island-list:not([hidden]) {
+    --island-list-notice-bottom: calc(
+      12px + 2.25rem + max(0.7rem, env(safe-area-inset-bottom, 0px))
+      + var(--island-webgl-notice-height, 11.5rem) + 8px
+    );
+    bottom: var(--island-list-notice-bottom);
+    max-height: calc(
+      100vh
+      - max(5.85rem, calc(4.65rem + env(safe-area-inset-top, 0px)))
+      - var(--island-list-notice-bottom)
+    );
   }
 
   .island-brand {

@@ -19,6 +19,26 @@ export function readForceNoWebgl(search = '') {
 /**
  * @param {{ root: HTMLElement, location?: Location }} opts
  */
+const WEBGL_NOTICE_OPEN_CLASS = 'is-webgl-notice-open';
+
+function syncWebglNoticeLayout(root, show) {
+  const body = root.ownerDocument?.body;
+  if (!body) return;
+
+  if (show) {
+    body.classList.add(WEBGL_NOTICE_OPEN_CLASS);
+    const measure = () => {
+      const h = root.offsetHeight;
+      if (h > 0) body.style.setProperty('--island-webgl-notice-height', `${h}px`);
+    };
+    measure();
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(measure);
+  } else {
+    body.classList.remove(WEBGL_NOTICE_OPEN_CLASS);
+    body.style.removeProperty('--island-webgl-notice-height');
+  }
+}
+
 export function bindWebglNotice({ root, location: loc = globalThis.location }) {
   if (!root) {
     return {
@@ -36,16 +56,33 @@ export function bindWebglNotice({ root, location: loc = globalThis.location }) {
   if (titleEl) titleEl.textContent = WEBGL_NOTICE_TITLE;
 
   let userDismissed = false;
+  let resizeListener = null;
 
   const present = ({ rendererOk, contextLost }) => {
     const show = shouldShowWebglNotice({ rendererOk, contextLost }) && !userDismissed;
     root.hidden = !show;
     if (show && bodyEl) bodyEl.textContent = webglNoticeBody({ contextLost });
+    syncWebglNoticeLayout(root, show);
+    if (show && !resizeListener && typeof globalThis.addEventListener === 'function') {
+      resizeListener = () => {
+        if (!root.hidden) syncWebglNoticeLayout(root, true);
+      };
+      globalThis.addEventListener('resize', resizeListener);
+    }
+    if (!show && resizeListener && typeof globalThis.removeEventListener === 'function') {
+      globalThis.removeEventListener('resize', resizeListener);
+      resizeListener = null;
+    }
   };
 
   const dismiss = () => {
     userDismissed = true;
     root.hidden = true;
+    syncWebglNoticeLayout(root, false);
+    if (resizeListener && typeof globalThis.removeEventListener === 'function') {
+      globalThis.removeEventListener('resize', resizeListener);
+      resizeListener = null;
+    }
   };
 
   reloadBtn?.addEventListener('click', () => {

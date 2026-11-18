@@ -55,6 +55,25 @@ class FakeLocation {
   }
 }
 
+class FakeBody {
+  constructor() {
+    this._classes = new Set();
+    this.style = {
+      _props: {},
+      setProperty(k, v) { this._props[k] = v; },
+      removeProperty(k) { delete this._props[k]; }
+    };
+  }
+  get classList() {
+    const self = this;
+    return {
+      add(c) { self._classes.add(c); },
+      remove(c) { self._classes.delete(c); },
+      contains(c) { return self._classes.has(c); }
+    };
+  }
+}
+
 class FakeElement {
   constructor(attrs = {}) {
     this.attrs = { ...attrs };
@@ -62,6 +81,8 @@ class FakeElement {
     this.listeners = {};
     this.children = [];
     this.textContent = '';
+    this.offsetHeight = attrs.offsetHeight ?? 184;
+    this.ownerDocument = attrs.ownerDocument ?? null;
   }
   get id() { return this.attrs.id || ''; }
   setAttribute(k, v) { this.attrs[k] = String(v); }
@@ -83,7 +104,11 @@ class FakeElement {
 }
 
 test('bindWebglNotice：顯示、關閉與重新載入', () => {
-  const root = new FakeElement({ hidden: true });
+  const docBody = new FakeBody();
+  const root = new FakeElement({
+    hidden: true,
+    ownerDocument: { body: docBody }
+  });
   const body = new FakeElement({ 'data-webgl-notice-body': '' });
   const reload = new FakeElement({ 'data-webgl-notice-reload': '' });
   const close = new FakeElement({ 'data-webgl-notice-close': '' });
@@ -94,10 +119,13 @@ test('bindWebglNotice：顯示、關閉與重新載入', () => {
   notice.present({ rendererOk: false, contextLost: false });
   assert.equal(root.hidden, false);
   assert.ok(body.textContent.includes('WebGL'));
+  assert.ok(docBody.classList.contains('is-webgl-notice-open'));
+  assert.equal(docBody.style._props['--island-webgl-notice-height'], '184px');
 
   close.dispatchEvent({ type: 'click' });
   assert.equal(root.hidden, true);
   assert.equal(notice.dismissed(), true);
+  assert.ok(!docBody.classList.contains('is-webgl-notice-open'));
 
   notice.present({ rendererOk: false, contextLost: true });
   assert.equal(root.hidden, true, '關閉後不再自動顯示');
@@ -142,7 +170,8 @@ test('CSS：按鈕觸控高度與版面約束', () => {
   assert.match(islandCss, /\.island-webgl-notice-btn[\s\S]*min-height:\s*2\.75rem/);
   assert.match(islandCss, /#islandWebglNotice[\s\S]*max-width:[\s\S]*800px/);
   assert.match(islandCss, /body\.island-body\.is-night \.island-webgl-notice-card/);
-  assert.match(islandCss, /@media \(max-width: 760px\)[\s\S]*#islandWebglNotice[\s\S]*calc\(100vw - 24px\)/);
+  assert.match(islandCss, /@media \(max-width: 760px\)[\s\S]*#islandWebglNotice[\s\S]*bottom:\s*calc\(12px \+ 2\.25rem/);
+  assert.match(islandCss, /body\.is-webgl-notice-open \.island-list:not\(\[hidden\]\)/);
 });
 
 function noticeRightEdgeX(viewportWidth) {
