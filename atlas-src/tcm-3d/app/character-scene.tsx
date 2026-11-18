@@ -258,27 +258,25 @@ const looksLikeSkinPixel=(r:number,g:number,b:number,a:number)=>{
 };
 
 type ShoulderHoleBounds={minX:number;maxX:number;minY:number;maxY:number};
+type SkinRgb={r:number;g:number;b:number};
 
-/** Inpaint inside triangle AABB (±pad); average several valid ring samples (main-quality, bounded work). */
-const sampleNearbySkin=(data:ImageData,width:number,height:number,cx:number,cy:number,bounds:ShoulderHoleBounds,maxRad=64)=>{
+/** One pass over padded triangle AABB — fallback when dilation cannot reach a hole. */
+const averageSkinInBounds=(data:ImageData,width:number,height:number,bounds:ShoulderHoleBounds):SkinRgb|null=>{
  const loX=Math.max(0,bounds.minX),hiX=Math.min(width-1,bounds.maxX);
  const loY=Math.max(0,bounds.minY),hiY=Math.min(height-1,bounds.maxY);
  let sumR=0,sumG=0,sumB=0,n=0;
- const maxSamples=16;
- for(let rad=1;rad<=maxRad;rad++){
-  for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){
-   if(Math.abs(dx)!==rad&&Math.abs(dy)!==rad)continue;
-   const x=cx+dx,y=cy+dy;
-   if(x<loX||y<loY||x>hiX||y>hiY)continue;
-   const i=(y*width+x)*4;
-   const r=data.data[i],g=data.data[i+1],b=data.data[i+2],a=data.data[i+3];
-   if(!looksLikeSkinPixel(r,g,b,a))continue;
-   sumR+=r;sumG+=g;sumB+=b;n++;
-   if(n>=maxSamples)return {r:Math.round(sumR/n),g:Math.round(sumG/n),b:Math.round(sumB/n)};
-  }
+ for(let y=loY;y<=hiY;y++)for(let x=loX;x<=hiX;x++){
+  const i=(y*width+x)*4;
+  if(!looksLikeSkinPixel(data.data[i],data.data[i+1],data.data[i+2],data.data[i+3]))continue;
+  sumR+=data.data[i];sumG+=data.data[i+1];sumB+=data.data[i+2];n++;
  }
  if(!n)return null;
  return {r:Math.round(sumR/n),g:Math.round(sumG/n),b:Math.round(sumB/n)};
+};
+
+const fillShoulderHolePixel=(data:ImageData,width:number,height:number,x:number,y:number,rgb:SkinRgb)=>{
+ const i=(y*width+x)*4;
+ data.data[i]=rgb.r;data.data[i+1]=rgb.g;data.data[i+2]=rgb.b;data.data[i+3]=255;
 };
 
 /** Outer shoulder MASK cutouts — outside inTorsoSkinBand (clavicle guard unchanged). */
@@ -289,15 +287,10 @@ const inOuterShoulderWorld=(x:number,y:number,z:number)=>{
  return true;
 };
 
-const paintShoulderAlphaHole=(data:ImageData,width:number,height:number,x:number,y:number,bounds:ShoulderHoleBounds)=>{
+const paintShoulderAlphaHole=(data:ImageData,width:number,height:number,x:number,y:number)=>{
  const i=(y*width+x)*4;
  if(data.data[i+3]>=200)return true;
- const sample=sampleNearbySkin(data,width,height,x,y,bounds);
- if(sample){
-  data.data[i]=sample.r;data.data[i+1]=sample.g;data.data[i+2]=sample.b;data.data[i+3]=255;
-  return true;
- }
- return false;
+ return dilateShoulderHoleFromNeighbors(data,width,height,x,y);
 };
 
 const dilateShoulderHoleFromNeighbors=(data:ImageData,width:number,height:number,x:number,y:number)=>{
@@ -316,7 +309,7 @@ const dilateShoulderHoleFromNeighbors=(data:ImageData,width:number,height:number
  return false;
 };
 
-const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,u1:number,v1:number,u2:number,v2:number)=>{
+const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,u1:number,v1:number,u2:number,v2:number,fallbackSkin:SkinRgb)=>{
  const toX=(u:number)=>Math.min(width-1,Math.max(0,Math.round(u*(width-1))));
  const toY=(v:number)=>Math.min(height-1,Math.max(0,Math.round((flipY?1-v:v)*(height-1))));
  const x0=toX(u0),y0=toY(v0),x1=toX(u1),y1=toY(v1),x2=toX(u2),y2=toY(v2);
@@ -326,6 +319,7 @@ const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flip
  if(area===0)return;
  const pad=24;
  const sampleBounds:ShoulderHoleBounds={minX:minX-pad,maxX:maxX+pad,minY:minY-pad,maxY:maxY+pad};
+ const fillRgb=averageSkinInBounds(data,width,height,sampleBounds)??fallbackSkin;
  const holes:{x:number;y:number}[]=[];
  for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
   const w0=((x1-x)*(y2-y)-(x2-x)*(y1-y))/area;
@@ -334,7 +328,7 @@ const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flip
   if(w0<-.01||w1<-.01||w2<-.01)continue;
   const i=(y*width+x)*4;
   if(data.data[i+3]>=200)continue;
-  if(!paintShoulderAlphaHole(data,width,height,x,y,sampleBounds))holes.push({x,y});
+  if(!paintShoulderAlphaHole(data,width,height,x,y))holes.push({x,y});
  }
  for(let pass=0;pass<48&&holes.length;pass++){
   const remain:typeof holes=[];
@@ -344,6 +338,16 @@ const writeUvTriangleShoulderFix=(data:ImageData,width:number,height:number,flip
   }
   if(remain.length===holes.length)break;
   holes.length=0;holes.push(...remain);
+ }
+ for(const {x,y} of holes)fillShoulderHolePixel(data,width,height,x,y,fillRgb);
+ for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+  const w0=((x1-x)*(y2-y)-(x2-x)*(y1-y))/area;
+  const w1=((x2-x)*(y0-y)-(x0-x)*(y2-y))/area;
+  const w2=1-w0-w1;
+  if(w0<-.01||w1<-.01||w2<-.01)continue;
+  const i=(y*width+x)*4;
+  if(data.data[i+3]>=200)continue;
+  fillShoulderHolePixel(data,width,height,x,y,fillRgb);
  }
 };
 
@@ -385,6 +389,7 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
   r+=data.data[i];g+=data.data[i+1];b+=data.data[i+2];n++;
  }
  const skinRgb=n?new T.Color(r/n/255,g/n/255,b/n/255):SKIN_FILL.clone();
+ const fallbackSkin:SkinRgb={r:Math.round(skinRgb.r*255),g:Math.round(skinRgb.g*255),b:Math.round(skinRgb.b*255)};
  const flipY=!!src.flipY;
  let touched=0;
  for(const mesh of skinMeshes){
@@ -421,7 +426,7 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
    const shoulder=inOuterShoulderWorld(a.x,a.y,a.z)||inOuterShoulderWorld(b.x,b.y,b.z)||inOuterShoulderWorld(c.x,c.y,c.z)||inOuterShoulderWorld(cx,cy,cz);
    if(!shoulder)continue;
    const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
-   writeUvTriangleShoulderFix(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2);
+   writeUvTriangleShoulderFix(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2,fallbackSkin);
    touched++;
   }
  }
