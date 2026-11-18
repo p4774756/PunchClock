@@ -2,6 +2,7 @@
 // 連線本身由 createIslandPresence 包起來，進入探索才開，離開或分頁藏太久就關。
 
 export const NICK_KEY = 'punchclock.island.nick';
+export const AVATAR_KEY = 'punchclock.island.avatar';
 export const NAME_MAX = 12;
 export const WORLD_RADIUS = 36;
 export const SEND_MOVE_MS = 100;
@@ -115,17 +116,44 @@ export function encodeRename(name) {
   return JSON.stringify({ t: 'rename', name: name == null ? '' : String(name) });
 }
 
+export function normalizeAvatar(id) {
+  return id === 'berry' ? 'berry' : 'milu';
+}
+
+export function loadAvatar(storage) {
+  if (!storage || typeof storage.getItem !== 'function') return 'milu';
+  try {
+    return normalizeAvatar(storage.getItem(AVATAR_KEY));
+  } catch (err) {
+    return 'milu';
+  }
+}
+
+export function saveAvatar(storage, id) {
+  const avatar = normalizeAvatar(id);
+  if (!storage || typeof storage.setItem !== 'function') return avatar;
+  try {
+    storage.setItem(AVATAR_KEY, avatar);
+  } catch (err) {
+    // localStorage 滿了仍回傳已選角色
+  }
+  return avatar;
+}
+
 export function encodePos(pose) {
   const body = pose || {};
   const scene = SCENE_SET[body.scene] ? body.scene : 'outdoor';
-  return JSON.stringify({
+  const avatar = normalizeAvatar(body.avatar);
+  const payload = {
     t: 'pos',
     x: round3(body.x),
     z: round3(body.z),
     yaw: round3(body.yaw),
     moving: !!body.moving,
     scene: scene
-  });
+  };
+  if (avatar === 'berry') payload.avatar = 'berry';
+  return JSON.stringify(payload);
 }
 
 export function encodeSay(text) {
@@ -148,7 +176,8 @@ function readPlayer(raw) {
     x: raw.x,
     z: raw.z,
     yaw: raw.yaw,
-    moving: raw.moving
+    moving: raw.moving,
+    avatar: normalizeAvatar(raw.avatar)
   };
 }
 
@@ -217,6 +246,7 @@ export function shouldSendPos(prev, next, now) {
   if (!next || !(now >= 0)) return false;
   if (!prev || !(prev.sentAt >= 0)) return true;
   if (next.scene !== prev.scene) return true;
+  if (normalizeAvatar(next.avatar) !== normalizeAvatar(prev.avatar)) return true;
   const elapsed = now - prev.sentAt;
   const turned = Math.abs(lerpAngle(prev.yaw, next.yaw, 1) - prev.yaw);
   const moved = Math.abs(next.x - prev.x) > 0.008

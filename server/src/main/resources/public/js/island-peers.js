@@ -1,4 +1,6 @@
-// 遠端 milu 同儕、名牌與位置同步；由 island.js 注入場景／玩家／在線服務。
+// 遠端看板同儕、名牌與位置同步；由 island.js 注入場景／玩家／在線服務。
+
+import { islandAvatarAnim, normalizeIslandAvatar } from './island-milu.js';
 
 export function createPeerLayer(opts) {
   const THREE = opts.THREE;
@@ -16,7 +18,6 @@ export function createPeerLayer(opts) {
   const pushTarget = opts.pushTarget;
   const sampleMotion = opts.sampleMotion;
   const shouldSendPos = opts.shouldSendPos;
-  const sharedTextures = opts.sharedTextures;
   const getMode = opts.getMode;
   const getPlayer = opts.getPlayer;
   const getMiluVisible = opts.getMiluVisible;
@@ -33,10 +34,21 @@ export function createPeerLayer(opts) {
   const syncPeerCountExternal = opts.syncPeerCount;
 
   const peers = new Map();
+  const avatarTexturePools = new Map();
   let peerWelcomed = false;
   let peerSelfId = '';
   let peerScene = 'outdoor';
   let lastPosSent = null;
+
+  function sharedTexturesForAvatar(avatarId) {
+    const key = normalizeIslandAvatar(avatarId);
+    let pool = avatarTexturePools.get(key);
+    if (!pool) {
+      pool = new Map();
+      avatarTexturePools.set(key, pool);
+    }
+    return pool;
+  }
 
   function clearPeers() {
     Array.from(peers.keys()).forEach(despawnPeer);
@@ -59,8 +71,9 @@ export function createPeerLayer(opts) {
   }
 
   function spawnPeer(info) {
-    const shared = typeof sharedTextures === 'function' ? sharedTextures() : sharedTextures;
-    const view = createMiluView(THREE, { shared: shared });
+    const avatar = normalizeIslandAvatar(info && info.avatar);
+    const anim = islandAvatarAnim(avatar);
+    const view = createMiluView(THREE, { shared: sharedTexturesForAvatar(avatar), anim: anim });
     tintRemote(view);
     view.object.visible = false;
     scene.add(view.object);
@@ -77,10 +90,27 @@ export function createPeerLayer(opts) {
       view: view,
       label: label,
       name: info.name || '',
+      avatar: avatar,
       moving: !!info.moving,
       motion: createMotion(),
       miluState: createMiluState()
     };
+  }
+
+  function ensurePeerView(row, info) {
+    const avatar = normalizeIslandAvatar(info && info.avatar);
+    if (row.avatar === avatar) return row;
+    scene.remove(row.view.object);
+    if (row.view.dispose) row.view.dispose();
+    const anim = islandAvatarAnim(avatar);
+    const view = createMiluView(THREE, { shared: sharedTexturesForAvatar(avatar), anim: anim });
+    tintRemote(view);
+    view.object.visible = false;
+    scene.add(view.object);
+    row.view = view;
+    row.avatar = avatar;
+    row.miluState = createMiluState();
+    return row;
   }
 
   function applyPeerList(list) {
@@ -95,6 +125,8 @@ export function createPeerLayer(opts) {
       if (!row) {
         row = spawnPeer(info);
         peers.set(info.id, row);
+      } else {
+        ensurePeerView(row, info);
       }
       row.name = info.name || '';
       row.moving = !!info.moving;
@@ -172,9 +204,14 @@ export function createPeerLayer(opts) {
         yaw: pose.yaw,
         moving: pose.moving,
         scene: pose.scene,
+        avatar: pose.avatar,
         sentAt: now
       };
     }
+  }
+
+  function forceResendPos() {
+    lastPosSent = null;
   }
 
   function placePeerLabels() {
@@ -266,6 +303,7 @@ export function createPeerLayer(opts) {
     clearPeers: clearPeers,
     stepPeers: stepPeers,
     syncPresence: syncPresence,
+    forceResendPos: forceResendPos,
     placePeerLabels: placePeerLabels,
     syncPeerCount: syncPeerCount,
     setWelcomed: setWelcomed,

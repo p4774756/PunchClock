@@ -166,6 +166,15 @@ test('方向交界有滯後，來回微幅擺動不會閃幀', () => {
   assert.equal(first.facing, 'front');
 });
 
+test('BERRY_ANIM 幀路徑與 milu 相同，baseUrl 為 /pet/berry/', () => {
+  assert.equal(M.BERRY_ANIM.clips, M.MILU_ANIM.clips);
+  assert.equal(M.BERRY_ANIM.baseUrl, '/pet/berry/');
+  assert.equal(M.BERRY_ANIM.height, M.MILU_ANIM.height);
+  assert.equal(M.islandAvatarAnim('berry').baseUrl, '/pet/berry/');
+  assert.equal(M.islandAvatarAnim('milu').baseUrl, '/pet/milu/');
+  assert.equal(M.normalizeIslandAvatar('nope'), 'milu');
+});
+
 test('預設 MILU_ANIM 的 backBreath／backBlink 長度與檔名正確', () => {
   const backBreath = M.MILU_ANIM.clips.idle.backBreath;
   const backBlink = M.MILU_ANIM.clips.idle.backBlink;

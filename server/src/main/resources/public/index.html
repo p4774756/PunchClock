@@ -22,6 +22,19 @@
 
   <div class="island-corner" aria-label="操作">
     <button type="button" class="island-tool island-corner-dock island-leave-interior" id="islandLeaveInterior" hidden>離開室內</button>
+    <div class="island-avatar-wrap island-corner-dock">
+      <button type="button" class="island-tool" id="islandAvatarBtn" aria-expanded="false" aria-controls="islandAvatarPop">蜜鹿</button>
+      <div class="island-avatar-pop" id="islandAvatarPop" hidden role="group" aria-label="選擇探索角色">
+        <button type="button" class="island-avatar-choice" data-island-avatar="milu" aria-pressed="true">
+          <img class="island-avatar-thumb" src="/pet/milu/idle/breath_01.png" width="52" height="52" alt="" decoding="async">
+          <span class="island-avatar-label">蜜鹿<small>預設</small></span>
+        </button>
+        <button type="button" class="island-avatar-choice" data-island-avatar="berry" aria-pressed="false">
+          <img class="island-avatar-thumb" src="/pet/berry/idle/breath_01.png" width="52" height="52" alt="" decoding="async">
+          <span class="island-avatar-label">小莓</span>
+        </button>
+      </div>
+    </div>
     <button type="button" class="island-tool island-corner-dock" id="islandExplore" aria-pressed="false" aria-label="進入探索模式">探索</button>
     <button type="button" class="island-tool island-corner-overflow" id="islandHome">全景</button>
     <button type="button" class="island-tool island-corner-overflow" id="islandListBtn" aria-expanded="false" aria-controls="islandList">清單</button>
@@ -63,6 +76,7 @@
         <button type="button" class="island-more-item" role="menuitem" data-island-more-target="islandHome">全景</button>
         <button type="button" class="island-more-item" role="menuitem" data-island-more-target="islandListBtn">清單</button>
         <button type="button" class="island-more-item" role="menuitem" data-island-more-target="islandNickBtn">暱稱</button>
+        <button type="button" class="island-more-item" role="menuitem" data-island-more-target="islandAvatarBtn">角色</button>
         <button type="button" class="island-more-item island-more-item-audio" role="menuitem" data-island-more-target="islandAudio" hidden>
           <span>音效</span>
           <small id="islandMoreAudioStatus">開啟</small>
