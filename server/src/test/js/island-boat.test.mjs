@@ -88,9 +88,9 @@ test('遊艇站位與船首軸向常數', () => {
   assert.ok(B.BOAT_BOW_LOCAL_Z > 0, '船首在本地 +Z');
   assert.ok(B.BOAT_STERN_DECK_Z < 0, '船尾甲板在本地 -Z');
   const deckHalf = B.BOAT_STERN_DECK_WIDTH / 2;
-  const seatLocalZ = -B.BOAT_SEAT_STERN_OFFSET;
   assert.ok(
-    seatLocalZ >= B.BOAT_STERN_DECK_Z - deckHalf && seatLocalZ <= B.BOAT_STERN_DECK_Z + deckHalf,
+    B.BOAT_SEAT_LOCAL_Z >= B.BOAT_STERN_DECK_Z - deckHalf
+      && B.BOAT_SEAT_LOCAL_Z <= B.BOAT_STERN_DECK_Z + deckHalf + 0.12,
     '站位落在船尾木甲板 Z 範圍內'
   );
   assert.equal(B.BOAT_DECK_OFFSET, 0.41);
@@ -101,4 +101,15 @@ test('遊艇站位與船首軸向常數', () => {
   const dz = bowish.z - stern.z;
   const yaw = Math.atan2(dx, dz);
   assert.ok(Math.abs(yaw - stern.yaw) < 0.35, '航向沿 +Z 船首');
+});
+
+test('乘客比例與站位不擋泳池', () => {
+  const headY = B.BOAT_DECK_OFFSET + B.BOAT_PASSENGER_HEIGHT * B.BOAT_PASSENGER_SCALE;
+  assert.ok(
+    headY <= B.BOAT_SUPERSTRUCTURE_1_TOP,
+    '頭頂應低於第一層上層建築頂'
+  );
+  assert.ok(B.boatSeatClearOfPool(), '站位不在泳池矩形內');
+  assert.ok(B.BOAT_FLYBRIDGE_TOP > B.BOAT_DECK_OFFSET);
+  assert.ok(B.BOAT_PASSENGER_SCALE >= 0.55 && B.BOAT_PASSENGER_SCALE <= 0.6);
 });

@@ -25,6 +25,14 @@ export function buildBoatMesh(kit) {
   const boat = new THREE.Group();
   const dummy = new THREE.Object3D();
   let hullMeshes = 0;
+  const extrudeOpts = {
+    bevelEnabled: true,
+    bevelSize: 0.01,
+    bevelThickness: 0.012,
+    curveSegments: 6,
+    steps: 1
+  };
+
   function part(parent, w, h, d, color, x, y, z, extra) {
     hullMeshes += 1;
     return addBox(parent, w, h, d, color, x, y, z, extra);
@@ -53,112 +61,202 @@ export function buildBoatMesh(kit) {
     parent.add(mesh);
     return mesh;
   }
+  function glowStripMaterial(color, amount) {
+    const m = mat(color, { glow: STRIP_GLOW, glowAmount: amount, shadow: false });
+    m.userData.dayE = 0.02;
+    m.userData.nightE = amount;
+    return m;
+  }
 
-  part(boat, 0.74, 0.06, 1.78, WATERLINE, 0, 0.06, -0.02);
-  part(boat, 0.7, 0.22, 1.55, HULL_WHITE, 0, 0.18, 0.04);
-  part(boat, 0.64, 0.18, 1.05, HULL_WHITE, 0, 0.34, -0.12);
-  partMesh(boat, geo('cone', [0.34, 0.48, 6]), HULL_WHITE, 0, 0.3, BOAT_BOW_LOCAL_Z, {
-    rot: [Math.PI / 2, 0, 0]
-  });
-  part(boat, 0.52, 0.04, 0.36, HULL_WHITE, 0, 0.39, 0.52);
-  part(boat, 0.72, 0.018, 1.62, GOLD_DIM, 0, 0.12, 0.02);
-  part(boat, 0.58, 0.24, 0.82, HULL_WHITE, 0, 0.56, 0.1);
-  part(boat, 0.54, 0.05, 0.76, HULL_WHITE, 0, 0.7, 0.06);
-  part(boat, 0.48, 0.13, 0.05, WIN, 0, 0.57, 0.52, {
-    glow: WIN_GLOW,
-    glowAmount: 0.45
-  });
-  const sideWinGeo = geo('box', [0.045, 0.12, 0.34]);
-  partInstances(boat, sideWinGeo, WIN, [
-    [-0.29, 0.55, 0.22, 0, 0, 0],
-    [0.29, 0.55, 0.22, 0, 0, 0],
-    [-0.29, 0.55, -0.02, 0, 0, 0],
-    [0.29, 0.55, -0.02, 0, 0, 0],
-    [-0.27, 0.55, 0.38, 0, 0.22, 0],
-    [0.27, 0.55, 0.38, 0, -0.22, 0]
-  ], { glow: WIN_GLOW, glowAmount: 0.38, shadow: false });
-  const frameGeo = geo('box', [0.028, 0.14, 0.36]);
-  partInstances(boat, frameGeo, GOLD, [
-    [-0.29, 0.55, 0.22, 0, 0, 0],
-    [0.29, 0.55, 0.22, 0, 0, 0],
-    [-0.29, 0.55, -0.02, 0, 0, 0],
-    [0.29, 0.55, -0.02, 0, 0, 0]
-  ], { shadow: false });
-  part(boat, 0.5, 0.2, 0.68, HULL_WHITE, 0, 0.86, 0.02);
-  part(boat, 0.46, 0.06, 0.58, HULL_WHITE, 0, 1.0, -0.04);
-  part(boat, 0.44, 0.08, 0.05, WIN, 0, 0.9, 0.36, {
-    glow: WIN_GLOW,
-    glowAmount: 0.4
-  });
-  part(boat, 0.42, 0.05, 0.44, HULL_WHITE, 0, 1.12, 0.04);
-  partMesh(boat, geo('cyl', [0.11, 0.13, 0.1, 6, 0]), 0xe8eaed, 0, 1.18, 0.08);
-  part(boat, 0.58, 0.04, 0.52, WOOD, 0, 0.39, BOAT_STERN_DECK_Z);
-  part(boat, 0.22, 0.04, 0.2, POOL, 0, 0.405, BOAT_STERN_DECK_Z + 0.02, {
-    opacity: 0.82,
+  /** 俯視船體輪廓（Shape XY：X 船寬、Y 船長 +Y 船首）。 */
+  function hullPlanShape(halfW, halfL, scale) {
+    const s = scale == null ? 1 : scale;
+    const W = halfW * s;
+    const L = halfL * s;
+    const shape = new THREE.Shape();
+    shape.moveTo(0, L);
+    shape.quadraticCurveTo(W * 0.82, L * 0.58, W * 0.96, L * 0.12);
+    shape.quadraticCurveTo(W, -L * 0.42, W * 0.78, -L);
+    shape.lineTo(-W * 0.78, -L);
+    shape.quadraticCurveTo(-W, -L * 0.42, -W * 0.96, L * 0.12);
+    shape.quadraticCurveTo(-W * 0.82, L * 0.58, 0, L);
+    return shape;
+  }
+
+  function deckCabinShape(halfW, halfL, taper) {
+    const t = taper == null ? 0.14 : taper;
+    const shape = new THREE.Shape();
+    shape.moveTo(-halfW * (1 - t), halfL);
+    shape.lineTo(halfW * (1 - t), halfL);
+    shape.lineTo(halfW, -halfL);
+    shape.lineTo(-halfW, -halfL);
+    shape.closePath();
+    return shape;
+  }
+
+  function extrudeFlat(shape, depth, color, x, y, z, extra, tiltX) {
+    const g = new THREE.ExtrudeGeometry(shape, Object.assign({}, extrudeOpts, { depth: depth }));
+    g.rotateX(-Math.PI / 2);
+    return partMesh(boat, g, color, x, y, z, Object.assign({ rot: [tiltX || 0, 0, 0] }, extra || {}));
+  }
+
+  const halfW = 0.37;
+  const halfL = 0.97;
+  const hullDepth = 0.26;
+  const hullY = 0.13;
+
+  extrudeFlat(hullPlanShape(halfW, halfL, 1), hullDepth, HULL_WHITE, 0, hullY, 0, null, -0.05);
+  extrudeFlat(hullPlanShape(halfW, halfL, 1.04), 0.055, WATERLINE, 0, 0.045, -0.01, { receive: true });
+  extrudeFlat(hullPlanShape(halfW, halfL, 0.98), 0.014, GOLD_DIM, 0, hullY + hullDepth - 0.006, 0.01);
+
+  part(boat, 0.62, 0.04, 0.54, WOOD, 0, 0.39, BOAT_STERN_DECK_Z);
+  part(boat, 0.26, 0.035, 0.22, POOL, 0, 0.405, BOAT_STERN_DECK_Z, {
+    opacity: 0.84,
     shadow: false
   });
-  part(boat, 0.24, 0.02, 0.22, GOLD, 0, 0.42, BOAT_STERN_DECK_Z + 0.02);
-  part(boat, 0.14, 0.05, 0.3, WOOD_DARK, -0.2, 0.415, BOAT_STERN_DECK_Z - 0.04, {
-    rot: [0, 0.16, 0]
+  part(boat, 0.28, 0.018, 0.24, 0xfffaf6, 0, 0.418, BOAT_STERN_DECK_Z);
+  part(boat, 0.13, 0.04, 0.34, 0xf8f4ef, -0.19, 0.415, BOAT_STERN_DECK_Z - 0.02, {
+    rot: [0, 0.12, 0]
   });
-  part(boat, 0.14, 0.05, 0.3, WOOD_DARK, 0.2, 0.415, BOAT_STERN_DECK_Z - 0.04, {
-    rot: [0, -0.16, 0]
+  part(boat, 0.13, 0.04, 0.34, 0xf8f4ef, 0.08, 0.415, BOAT_STERN_DECK_Z - 0.06, {
+    rot: [0, -0.1, 0]
   });
-  partMesh(boat, geo('cyl', [0.02, 0.02, 0.34, 6, 0]), GOLD_DIM, 0.22, 0.58, BOAT_STERN_DECK_Z - 0.1);
-  partMesh(boat, geo('cone', [0.2, 0.08, 6]), UMBRELLA, 0.22, 0.72, BOAT_STERN_DECK_Z - 0.1);
-  const postGeo = geo('cyl', [0.018, 0.018, 0.42, 6, 0]);
-  partInstances(boat, postGeo, GOLD, [
-    [-0.27, 0.6, BOAT_STERN_DECK_Z - 0.22],
-    [0.27, 0.6, BOAT_STERN_DECK_Z - 0.22],
-    [-0.27, 0.6, BOAT_STERN_DECK_Z + 0.18],
-    [0.27, 0.6, BOAT_STERN_DECK_Z + 0.18],
-    [-0.28, 0.94, 0.14],
-    [0.28, 0.94, 0.14],
-    [-0.28, 0.94, -0.16],
-    [0.28, 0.94, -0.16]
+  partMesh(boat, geo('cyl', [0.018, 0.018, 0.34, 6, 0]), GOLD_DIM, -0.2, 0.56, BOAT_STERN_DECK_Z - 0.08);
+  partMesh(boat, geo('cone', [0.22, 0.09, 8]), UMBRELLA, -0.2, 0.72, BOAT_STERN_DECK_Z - 0.08);
+
+  const cabin1Z = 0.06;
+  const cabin1H = 0.78;
+  const cabin1HW = 0.3;
+  const cabin1HL = 0.38;
+  const cabin1Base = 0.41;
+  extrudeFlat(deckCabinShape(cabin1HW, cabin1HL, 0.22), cabin1H, HULL_WHITE, 0, cabin1Base + cabin1H * 0.5, cabin1Z);
+  extrudeFlat(deckCabinShape(cabin1HW + 0.025, cabin1HL + 0.02, 0.2), 0.068, WIN, 0, cabin1Base + cabin1H * 0.42, cabin1Z, {
+    glow: WIN_GLOW,
+    glowAmount: 0.72
+  });
+  part(boat, 0.48, 0.14, 0.04, WIN, 0, cabin1Base + cabin1H * 0.72, cabin1Z + cabin1HL - 0.04, {
+    glow: WIN_GLOW,
+    glowAmount: 0.55,
+    rot: [0.42, 0, 0]
+  });
+  part(boat, 0.52, 0.04, 0.4, HULL_WHITE, 0, cabin1Base + cabin1H + 0.02, 0.04);
+
+  const cabin2Z = -0.02;
+  const cabin2H = 0.22;
+  const cabin2Base = cabin1Base + cabin1H + 0.04;
+  extrudeFlat(deckCabinShape(0.27, 0.32, 0.18), cabin2H, HULL_WHITE, 0, cabin2Base + cabin2H * 0.5, cabin2Z);
+  extrudeFlat(deckCabinShape(0.295, 0.335, 0.16), 0.062, WIN, 0, cabin2Base + cabin2H * 0.42, cabin2Z, {
+    glow: WIN_GLOW,
+    glowAmount: 0.68
+  });
+
+  const flyBase = cabin2Base + cabin2H + 0.02;
+  part(boat, 0.5, 0.03, 0.46, WOOD, 0, flyBase + 0.02, 0.02);
+  part(boat, 0.46, 0.03, 0.38, HULL_WHITE, 0, flyBase + 0.14, -0.02);
+  part(boat, 0.52, 0.025, 0.42, HULL_WHITE, 0, flyBase + 0.26, 0);
+  partMesh(boat, geo('sph', [0.09, 8, 6]), 0xf0f2f5, -0.1, flyBase + 0.31, 0.06);
+  partMesh(boat, geo('sph', [0.08, 8, 6]), 0xe4e8ed, 0.12, flyBase + 0.32, -0.04);
+  partMesh(boat, geo('cyl', [0.012, 0.014, 0.14, 6, 0]), GOLD_DIM, 0, flyBase + 0.37, 0.04);
+  part(boat, 0.06, 0.05, 0.06, 0x4a4f58, 0, flyBase + 0.39, 0.08);
+
+  const railPostGeo = geo('cyl', [0.014, 0.014, 0.07, 6, 0]);
+  const railPosts = [];
+  for (let zi = -0.55; zi <= 0.42; zi += 0.18) {
+    railPosts.push([-0.32, 0.44, zi]);
+    railPosts.push([0.32, 0.44, zi]);
+  }
+  const flyRailY = flyBase + 0.12;
+  for (let xi = -0.28; xi <= 0.28; xi += 0.14) {
+    railPosts.push([xi, flyRailY, -0.12]);
+    railPosts.push([xi, flyRailY, 0.2]);
+  }
+  partInstances(boat, railPostGeo, GOLD_DIM, railPosts, { shadow: false });
+
+  const handrailGeo = geo('box', [0.62, 0.018, 0.018]);
+  partInstances(boat, handrailGeo, GOLD, [
+    [0, 0.48, -0.06, 0, 0, 0],
+    [0, 0.48, 0.28, 0, 0, 0],
+    [-0.31, 0.48, 0.12, 0, Math.PI / 2, 0],
+    [0.31, 0.48, 0.12, 0, Math.PI / 2, 0],
+    [0, flyRailY + 0.04, 0.04, 0, 0, 0],
+    [-0.27, flyRailY + 0.04, 0.04, 0, 0, Math.PI / 2],
+    [0.27, flyRailY + 0.04, 0.04, 0, 0, Math.PI / 2]
   ], { shadow: false });
-  const stripGeo = geo('box', [0.52, 0.02, 0.02]);
-  partInstances(boat, stripGeo, 0xfff3e6, [
-    [-0.02, 0.415, BOAT_STERN_DECK_Z - 0.24, 0, Math.PI / 2, 0],
-    [-0.02, 0.415, BOAT_STERN_DECK_Z + 0.2, 0, Math.PI / 2, 0],
-    [0, 0.345, -0.58, 0, 0, 0],
-    [-0.33, 0.68, 0.08, 0, 0, Math.PI / 2],
-    [0.33, 0.68, 0.08, 0, 0, Math.PI / 2]
-  ], { glow: STRIP_GLOW, glowAmount: 0.55, shadow: false });
-  part(boat, 0.54, 0.03, 0.03, GOLD, 0, 0.44, BOAT_STERN_DECK_Z - 0.24);
-  partMesh(boat, geo('cyl', [0.024, 0.028, 0.16, 6, 0]), GOLD_DIM, 0, 1.06, 0.12);
-  part(boat, 0.08, 0.05, 0.06, 0x4a4f58, 0, 1.14, 0.1);
+
+  const stripMat = glowStripMaterial(0xfff6ea, 1.05);
+  const sideStripGeo = geo('box', [0.018, 0.014, 1.55]);
+  hullMeshes += 1;
+  const sideStripMesh = new THREE.InstancedMesh(sideStripGeo, stripMat, 2);
+  sideStripMesh.castShadow = false;
+  sideStripMesh.receiveShadow = false;
+  [
+    [-0.34, 0.355, -0.02],
+    [0.34, 0.355, -0.02]
+  ].forEach((p, i) => {
+    dummy.position.set(p[0], p[1], p[2]);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    sideStripMesh.setMatrixAt(i, dummy.matrix);
+  });
+  sideStripMesh.instanceMatrix.needsUpdate = true;
+  boat.add(sideStripMesh);
+  const deckStripGeo = geo('box', [0.54, 0.012, 0.012]);
+  const deckStripMesh = new THREE.InstancedMesh(deckStripGeo, stripMat, 3);
+  deckStripMesh.castShadow = false;
+  deckStripMesh.receiveShadow = false;
+  const deckStripPlacements = [
+    [0, 0.398, BOAT_STERN_DECK_Z - 0.22],
+    [0, 0.36, 0.08],
+    [0, cabin2Base + cabin2H - 0.01, 0.04]
+  ];
+  for (let si = 0; si < deckStripPlacements.length; si++) {
+    const p = deckStripPlacements[si];
+    dummy.position.set(p[0], p[1], p[2]);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    deckStripMesh.setMatrixAt(si, dummy.matrix);
+  }
+  deckStripMesh.instanceMatrix.needsUpdate = true;
+  boat.add(deckStripMesh);
+  hullMeshes += 1;
 
   const wakeSpecs = [];
-  const wakeGeo = geo('sph', [0.12, 5, 4]);
+  const wakeGeo = geo('box', [0.14, 0.04, 0.32]);
+  const wakeMat = mat(0xfffaf8, { opacity: 0.8, shadow: false, receive: false });
   const wakePlacements = [
-    [-0.18, 0.07, -0.88, 0, 0, 0, 0.22, 0.32, 0.18],
-    [-0.06, 0.05, -0.92, 0, 0, 0, 0.26, 0.38, 0.22],
-    [0.06, 0.055, -0.9, 0, 0, 0, 0.24, 0.36, 0.2],
-    [0.18, 0.065, -0.86, 0, 0, 0, 0.2, 0.3, 0.16],
-    [-0.12, 0.04, -0.96, 0, 0, 0, 0.18, 0.28, 0.15],
-    [0.12, 0.045, -0.94, 0, 0, 0, 0.19, 0.3, 0.16],
-    [0, 0.035, -1.0, 0, 0, 0, 0.28, 0.4, 0.24],
-    [-0.22, 0.05, -0.82, 0, 0, 0, 0.16, 0.26, 0.14]
+    [-0.42, 0.045, -1.08, 0, 0.22, 0, 1.15, 0.85, 1.2],
+    [-0.24, 0.04, -1.18, 0, 0.14, 0, 0.95, 0.75, 1.35],
+    [-0.08, 0.038, -1.26, 0, 0.08, 0, 0.75, 0.68, 1.45],
+    [0.08, 0.038, -1.26, 0, -0.08, 0, 0.75, 0.68, 1.45],
+    [0.24, 0.04, -1.18, 0, -0.14, 0, 0.95, 0.75, 1.35],
+    [0.42, 0.045, -1.08, 0, -0.22, 0, 1.15, 0.85, 1.2],
+    [0, 0.05, -1.35, 0, 0, 0, 1.35, 0.95, 1.1],
+    [-0.16, 0.042, -1.42, 0, 0.18, 0, 0.85, 0.7, 1.25],
+    [0.16, 0.042, -1.42, 0, -0.18, 0, 0.85, 0.7, 1.25]
   ];
   wakePlacements.forEach((p, i) => {
     wakeSpecs.push({
       baseX: p[0],
       baseY: p[1],
       baseZ: p[2],
+      rx: p[4] || 0,
+      rz: p[5] || 0,
       sx: p[6],
       sy: p[7],
       sz: p[8],
-      phase: i * 1.05
+      phase: i * 0.95
     });
   });
-  const wakeMesh = new THREE.InstancedMesh(wakeGeo, mat(0xfffaf8, { shadow: false, receive: false }), wakeSpecs.length);
+  const wakeMesh = new THREE.InstancedMesh(wakeGeo, wakeMat, wakeSpecs.length);
   wakeMesh.visible = false;
   wakeMesh.castShadow = false;
   wakeMesh.receiveShadow = false;
   for (let wi = 0; wi < wakeSpecs.length; wi++) {
     const s = wakeSpecs[wi];
     dummy.position.set(s.baseX, s.baseY, s.baseZ);
+    dummy.rotation.set(s.rx || 0, 0, s.rz || 0);
     dummy.scale.set(s.sx, s.sy, s.sz);
     dummy.updateMatrix();
     wakeMesh.setMatrixAt(wi, dummy.matrix);
@@ -166,7 +264,7 @@ export function buildBoatMesh(kit) {
   wakeMesh.instanceMatrix.needsUpdate = true;
   boat.add(wakeMesh);
 
-  lampLight(0, 1.2, 0.1, 5, boat, { realLight: true, localHalo: true });
+  lampLight(0, flyBase + 0.42, 0.1, 5, boat, { realLight: true, localHalo: true });
 
   if (hullMeshes !== boatHullPartCount()) {
     console.warn('buildBoatMesh hull part count mismatch:', hullMeshes, boatHullPartCount());

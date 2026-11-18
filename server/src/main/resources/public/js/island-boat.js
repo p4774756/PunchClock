@@ -16,28 +16,51 @@ export const BOAT_VOYAGE_SEC = 10;
 /** 角色站位（船 Group 局部 Y，對齊船尾日光甲板頂面）。 */
 export const BOAT_DECK_OFFSET = 0.41;
 /** 船首特徵（本地 +Z），與 island-props buildBoatMesh 一致。 */
-export const BOAT_BOW_LOCAL_Z = 1.02;
+export const BOAT_BOW_LOCAL_Z = 0.96;
 /** 船尾日光甲板中心（本地 Z）。 */
-export const BOAT_STERN_DECK_Z = -0.68;
+export const BOAT_STERN_DECK_Z = -0.74;
 /** 日光甲板沿船寬（本地 X）尺寸，供站位測試。 */
-export const BOAT_STERN_DECK_WIDTH = 0.58;
-/** 航行時角色沿船尾（本地 -Z）偏移，對齊船尾甲板可站區（略偏船首避開泳池）。 */
-export const BOAT_SEAT_STERN_OFFSET = 0.58;
+export const BOAT_STERN_DECK_WIDTH = 0.62;
+/** 角色站位（本地 X/Z，+Z 船首）；在泳池前、上層建築後的甲板側。 */
+export const BOAT_SEAT_LOCAL_X = 0.32;
+export const BOAT_SEAT_LOCAL_Z = -0.36;
+/** @deprecated 用 BOAT_SEAT_LOCAL_Z；保留供舊測試讀取 Z 符號。 */
+export const BOAT_SEAT_STERN_OFFSET = -BOAT_SEAT_LOCAL_Z;
+/** 船尾泳池中心與半寬（本地），供站位不在池內測試。 */
+export const BOAT_POOL_CENTER_X = 0;
+export const BOAT_POOL_CENTER_Z = -0.74;
+export const BOAT_POOL_HALF_W = 0.13;
+export const BOAT_POOL_HALF_D = 0.11;
+/** 第一層上層建築頂（船 Group 局部 Y，對齊 buildBoatMesh）。 */
+export const BOAT_SUPERSTRUCTURE_1_TOP = 1.27;
+/** 飛橋硬頂上緣（局部 Y）。 */
+export const BOAT_FLYBRIDGE_TOP = 1.86;
 /** 船體網格預算（不含燈與浪花）。 */
 export const BOAT_HULL_MESH_BUDGET = 48;
 /** 掌舵碰撞與靠岸判定用船體半徑。 */
-export const BOAT_HULL_RADIUS = 0.44;
+export const BOAT_HULL_RADIUS = 0.38;
 export const BOAT_STEER_SPEED = 2.15;
 export const BOAT_STEER_ACCEL_LAMBDA = 7.5;
 export const BOAT_YAW_LAMBDA = 9;
 /** 靠岸下船：船心與泊位距離上限。 */
 export const BOAT_DISEMBARK_RADIUS = 1.25;
 /** 船上乘客縮放（不動陸上 MILU_ANIM.height）。 */
-export const BOAT_PASSENGER_SCALE = 0.76;
+export const BOAT_PASSENGER_SCALE = 0.58;
+
+/** 乘客頭頂上限相對於 MILU_ANIM.height（島上角色）。 */
+export const BOAT_PASSENGER_HEIGHT = 1.42;
 
 /** 遊艇船體零件數（不含桅燈與航行浪花），供測試對齊。 */
 export function boatHullPartCount() {
-  return 28;
+  return 27;
+}
+
+/** 角色本地站位 (x,z) 是否在船尾泳池矩形外。 */
+export function boatSeatClearOfPool() {
+  return (
+    Math.abs(BOAT_SEAT_LOCAL_X - BOAT_POOL_CENTER_X) > BOAT_POOL_HALF_W
+    || Math.abs(BOAT_SEAT_LOCAL_Z - BOAT_POOL_CENTER_Z) > BOAT_POOL_HALF_D
+  );
 }
 
 export function boatPassengerScaleFactor(phase) {

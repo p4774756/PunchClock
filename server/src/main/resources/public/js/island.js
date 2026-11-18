@@ -39,7 +39,8 @@ import {
   boatWorldPose,
   disembarkNear,
   BOAT_DECK_OFFSET,
-  BOAT_SEAT_STERN_OFFSET,
+  BOAT_SEAT_LOCAL_X,
+  BOAT_SEAT_LOCAL_Z,
   boatPassengerScaleFactor,
   boatWakeActive
 } from './island-boat.js';
@@ -389,15 +390,15 @@ function boot() {
       if (showWake && !reduced) {
         const dummy = wakePack.dummy;
         const specs = wakePack.specs;
-        const bob = Math.sin(elapsed * 2.8) * 0.008;
+        const bob = Math.sin(elapsed * 2.8) * 0.004;
         for (let wi = 0; wi < specs.length; wi++) {
           const s = specs[wi];
           dummy.position.set(
-            s.baseX + Math.sin(elapsed * 3.2 + s.phase) * 0.012,
-            s.baseY + Math.sin(elapsed * 3.8 + s.phase) * 0.035 + bob,
-            s.baseZ + Math.sin(elapsed * 2.6 + s.phase) * 0.04
+            s.baseX + Math.sin(elapsed * 2.6 + s.phase) * 0.006,
+            s.baseY + bob,
+            s.baseZ + Math.sin(elapsed * 2.4 + s.phase) * 0.01
           );
-          dummy.rotation.set(0, 0, 0);
+          dummy.rotation.set(s.rx || 0, 0, s.rz || 0);
           dummy.scale.set(s.sx, s.sy, s.sz);
           dummy.updateMatrix();
           wakeMesh.setMatrixAt(wi, dummy.matrix);
@@ -1175,8 +1176,12 @@ function boot() {
       const u = routeProgress(boatState.phase, boatState.progress);
       const pose = sampleRoute(u);
       const deckY = dockedBob(boatElapsed, reduced) + BOAT_DECK_OFFSET;
-      const seatX = pose.x - Math.sin(pose.yaw) * BOAT_SEAT_STERN_OFFSET;
-      const seatZ = pose.z - Math.cos(pose.yaw) * BOAT_SEAT_STERN_OFFSET;
+      const fwdX = Math.sin(pose.yaw);
+      const fwdZ = Math.cos(pose.yaw);
+      const rightX = Math.cos(pose.yaw);
+      const rightZ = -Math.sin(pose.yaw);
+      const seatX = pose.x + fwdX * BOAT_SEAT_LOCAL_Z + rightX * BOAT_SEAT_LOCAL_X;
+      const seatZ = pose.z + fwdZ * BOAT_SEAT_LOCAL_Z + rightZ * BOAT_SEAT_LOCAL_X;
       player.x = seatX;
       player.z = seatZ;
       player.yaw = pose.yaw;
@@ -1202,8 +1207,12 @@ function boot() {
       }
       const pose = boatWorldPose(boatState);
       const deckY = dockedBob(boatElapsed, reduced) + BOAT_DECK_OFFSET;
-      const seatX = pose.x - Math.sin(pose.yaw) * BOAT_SEAT_STERN_OFFSET;
-      const seatZ = pose.z - Math.cos(pose.yaw) * BOAT_SEAT_STERN_OFFSET;
+      const fwdX = Math.sin(pose.yaw);
+      const fwdZ = Math.cos(pose.yaw);
+      const rightX = Math.cos(pose.yaw);
+      const rightZ = -Math.sin(pose.yaw);
+      const seatX = pose.x + fwdX * BOAT_SEAT_LOCAL_Z + rightX * BOAT_SEAT_LOCAL_X;
+      const seatZ = pose.z + fwdZ * BOAT_SEAT_LOCAL_Z + rightZ * BOAT_SEAT_LOCAL_X;
       player.x = seatX;
       player.z = seatZ;
       player.yaw = pose.yaw;
