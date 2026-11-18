@@ -129,78 +129,6 @@ export function buildIslandBuildings(ctx) {
   const signMaps = { shop: signMap, casino: casinoSignMap, 'tcm-site': tcmSignMap, 'computer-site': labSignMap };
   const buildingGroups = {};
 
-  function attachCasinoVegasDecor(parent, base, front, roofY, doorW, buildingW) {
-    const b = base == null ? G + 0.08 : base;
-    const fr = front == null ? 0.95 : front;
-    const bw = buildingW == null ? 2.4 : buildingW;
-    const ridgeY = (roofY == null ? b + 2.27 : roofY) + 0.44;
-    const signW = 2.12;
-    const signH = signW * (220 / 640);
-    const signGroup = new THREE.Group();
-    signGroup.position.set(0, ridgeY, fr - 0.2);
-    signGroup.rotation.x = -Math.PI / 2 + 0.36;
-    addBox(signGroup, signW + 0.12, signH + 0.1, 0.08, 0x2a1848, 0, 0, -0.035, {
-      night: 0x1a0c28,
-      glow: 0xff6ad8,
-      glowAmount: 0.42,
-      shadow: false
-    });
-    addMesh(signGroup, new THREE.PlaneGeometry(signW, signH), 0xffffff, 0, 0, 0.045, {
-      map: casinoSignMap,
-      night: 0xff9ee8,
-      glow: 0xff4ec8,
-      glowAmount: 1.12,
-      side: THREE.DoubleSide,
-      shadow: false,
-      receive: false
-    });
-    parent.add(signGroup);
-    function neonCard(sx, sz, tilt) {
-      const g = new THREE.Group();
-      g.position.set(sx, ridgeY + 0.06, sz);
-      g.rotation.x = -0.52;
-      g.rotation.y = tilt;
-      addBox(g, 0.54, 0.74, 0.04, 0xfff7ef, 0, 0, 0);
-      addBox(g, 0.58, 0.78, 0.03, 0xff6ad8, 0, 0, 0.045, {
-        night: 0xff9ee8,
-        glow: 0xff4ec8,
-        glowAmount: 0.98,
-        shadow: false
-      });
-      addBox(g, 0.15, 0.17, 0.05, 0xcc2030, 0.11, 0.15, 0.05, { shadow: false });
-      parent.add(g);
-    }
-    neonCard(-bw / 2 + 0.24, fr - 0.06, 0.32);
-    neonCard(bw / 2 - 0.24, fr - 0.06, -0.32);
-    const wheelY = (roofY == null ? b + 2.55 : roofY) + 0.46;
-    const wheel = new THREE.Group();
-    wheel.position.set(0, wheelY, -0.12);
-    addMesh(wheel, geo('cyl', [0.48, 0.48, 0.09, 14, 0]), 0x2a1848, 0, 0, 0);
-    addMesh(wheel, geo('cyl', [0.38, 0.38, 0.055, 14, 0]), 0x2a9858, 0, 0.072, 0, {
-      night: 0x3ab878,
-      glow: 0x5ae898,
-      glowAmount: 0.42
-    });
-    for (let i = 0; i < 8; i++) {
-      const ang = (i / 8) * Math.PI * 2;
-      addBox(wheel, 0.075, 0.055, 0.2, i % 2 ? 0xff6ad8 : 0x2a1848,
-        Math.cos(ang) * 0.34, 0.11, Math.sin(ang) * 0.34, {
-          night: i % 2 ? 0xff9ee8 : undefined,
-          glow: i % 2 ? 0xff4ec8 : undefined,
-          glowAmount: i % 2 ? 0.95 : undefined,
-          shadow: false
-        });
-    }
-    parent.add(wheel);
-    const carpetY = G + 0.052;
-    addBox(parent, 1.05, 0.038, 0.88, 0x9c2b3a, 0, carpetY, fr + 0.76, { shadow: false });
-    addBox(parent, 0.95, 0.036, 0.58, 0xa83245, 0, carpetY, fr + 0.42, { shadow: false });
-    addBox(parent, 0.88, 0.034, 0.36, 0x9c2b3a, 0, carpetY, fr + 0.14, { shadow: false });
-    [[-0.5, fr + 0.5], [0.5, fr + 0.5]].forEach((pt) => {
-      addBox(parent, 0.44, 0.036, 0.58, 0x9c2b3a, pt[0], carpetY, pt[1], { shadow: false });
-    });
-  }
-
   function loadBuildingGLB(buildingId, primitive, x, z, yaw) {
     const url = '/models/' + buildingId + '.glb';
     loadGLB(url).then((gltf) => {
@@ -225,10 +153,6 @@ export function buildIslandBuildings(ctx) {
           };
         }
         if (obj.name === 'sign_face') {
-          if (buildingId === 'casino') {
-            obj.visible = false;
-            return;
-          }
           const signTex = signMaps[buildingId];
           if (signTex) {
             obj.material = mat(0xffffff, {
@@ -251,11 +175,6 @@ export function buildIslandBuildings(ctx) {
       scene.add(model);
       primitive.visible = false;
       buildingGroups[buildingId] = model;
-      if (buildingId === 'casino') {
-        const base = G + 0.08;
-        const roofY = base + 2.15 + 0.12;
-        attachCasinoVegasDecor(model, base, CASINO.d / 2, roofY, 0.72, CASINO.w);
-      }
       if (buildingId === 'shop') {
         attachShopEavesDecor(model, kit, { reduced: !!motionReduced });
       }
@@ -493,7 +412,6 @@ export function buildIslandBuildings(ctx) {
     lampLight(0, base + 1.4, front + 0.55, 14, casino);
     lampLight(0, roofY + 0.7, 0, 8, casino);
     lampLight(0, G + 1.15, front + 1.5, 11, casino);
-    attachCasinoVegasDecor(casino, base, front, roofY, doorW, W);
     buildingGroups.casino = casino;
     loadBuildingGLB('casino', casino, CASINO.x, CASINO.z, CASINO.yaw);
   }
