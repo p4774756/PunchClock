@@ -34,6 +34,8 @@ export function meshMaterialNames(mesh) {
 
 export function meshUsesEntranceBronzeMaterial(mesh) {
   if (!mesh || mesh.isMesh !== true) return false;
+  const saved = mesh.userData && mesh.userData.glbMaterialName;
+  if (saved && ENTRANCE_BRONZE_MATERIALS.indexOf(saved) >= 0) return true;
   const names = meshMaterialNames(mesh);
   for (let i = 0; i < names.length; i++) {
     if (ENTRANCE_BRONZE_MATERIALS.indexOf(names[i]) >= 0) return true;

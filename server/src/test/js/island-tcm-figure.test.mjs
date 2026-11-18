@@ -156,6 +156,38 @@ test('館門舊銅像：bronze 材質 mesh 選取', () => {
   assert.ok(!entranceBronzeLocalGuard({ x: 0.2, z: 0.4 }));
 });
 
+test('館門舊銅像：材質已替換僅 userData.glbMaterialName', () => {
+  const meshes = [
+    {
+      isMesh: true,
+      material: { name: '' },
+      userData: { glbMaterialName: 'bronze' },
+      visible: true
+    },
+    {
+      isMesh: true,
+      material: { name: '' },
+      userData: { glbMaterialName: 'bronze_dark' },
+      visible: true
+    },
+    {
+      isMesh: true,
+      material: { name: 'tile' },
+      userData: { glbMaterialName: 'tile' },
+      visible: true
+    }
+  ];
+  const model = {
+    traverse(fn) {
+      for (let i = 0; i < meshes.length; i++) fn(meshes[i]);
+    }
+  };
+  assert.equal(hideEntranceBronzeMeshes(model), 2);
+  assert.equal(meshes[0].visible, false);
+  assert.equal(meshes[1].visible, false);
+  assert.equal(meshes[2].visible, true);
+});
+
 test('館門舊銅像：traverse 隱藏兩件並保留新像座標', () => {
   const meshes = [
     { isMesh: true, material: { name: 'bronze' }, visible: true },
