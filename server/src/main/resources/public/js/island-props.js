@@ -630,21 +630,36 @@ export function buildIslandProps(ctx) {
     });
     scene.add(group);
   }
-  function dishAt(x, z) {
+  function dishAt(x, z, compact) {
     const group = new THREE.Group();
     group.position.set(x, G, z);
-    addBox(group, 0.5, 0.1, 0.5, 0x5d7384, 0, 0.05, 0);
-    addBox(group, 0.09, 3.15, 0.09, 0xd5dde4, 0, 1.62, 0);
-    const dish = addMesh(group, geo('cyl', [0.42, 0.1, 0.08, 8, 0]), 0xf3e2cc, 0.28, 2.95, 0);
-    dish.rotation.z = -0.85;
-    addMesh(group, geo('sph', [0.1, 6, 5]), 0x7ec8ea, 0, 3.35, 0, {
-      night: 0xd7f4ff,
-      glow: 0x7ec8ea,
-      glowAmount: 1.35,
-      shadow: false
-    });
-    addBox(group, 0.04, 0.03, 0.7, 0x3a312c, 0.16, 0.07, -0.42, { shadow: false });
-    lampLight(0, 3.2, 0, 7, group);
+  if (compact) {
+      addBox(group, 0.28, 0.06, 0.28, 0x5d7384, 0, 0.03, 0);
+      addBox(group, 0.05, 1.35, 0.05, 0xd5dde4, 0, 0.68, 0);
+      addMesh(group, geo('cyl', [0.2, 0.06, 0.05, 8, 0]), 0xf3e2cc, 0.12, 1.22, 0, {
+        rot: [0, 0, -0.75],
+        shadow: false
+      });
+      addMesh(group, geo('sph', [0.055, 5, 4]), 0x7ec8ea, 0, 1.38, 0, {
+        night: 0xd7f4ff,
+        glow: 0x7ec8ea,
+        glowAmount: 0.85,
+        shadow: false
+      });
+    } else {
+      addBox(group, 0.5, 0.1, 0.5, 0x5d7384, 0, 0.05, 0);
+      addBox(group, 0.09, 3.15, 0.09, 0xd5dde4, 0, 1.62, 0);
+      const dish = addMesh(group, geo('cyl', [0.42, 0.1, 0.08, 8, 0]), 0xf3e2cc, 0.28, 2.95, 0);
+      dish.rotation.z = -0.85;
+      addMesh(group, geo('sph', [0.1, 6, 5]), 0x7ec8ea, 0, 3.35, 0, {
+        night: 0xd7f4ff,
+        glow: 0x7ec8ea,
+        glowAmount: 1.35,
+        shadow: false
+      });
+      addBox(group, 0.04, 0.03, 0.7, 0x3a312c, 0.16, 0.07, -0.42, { shadow: false });
+      lampLight(0, 3.2, 0, 7, group);
+    }
     scene.add(group);
   }
   function herbAt(x, z) {
@@ -679,7 +694,7 @@ export function buildIslandProps(ctx) {
   THEME_CIRCLES.forEach((prop) => {
     if (prop.id.indexOf('palm') === 0) palmAt(prop.x, prop.z, true);
     else if (prop.id === 'bamboo') bambooAt(prop.x, prop.z);
-    else if (prop.id === 'dish') dishAt(prop.x, prop.z);
+    else if (prop.id === 'dish') dishAt(prop.x, prop.z, prop.r < 0.35);
     else if (prop.id === 'figure') tcmFigureAnchor = { x: prop.x, z: prop.z };
     else if (prop.id === 'herb') herbAt(prop.x, prop.z);
     else if (prop.id === 'rack') rackAt(prop.x, prop.z);

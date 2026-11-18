@@ -92,6 +92,7 @@ import {
 } from './island-milu.js';
 import { TCM_ATLAS_URL, consumeTcmReturn, writeTcmReturn } from './island-tcm-visit.js';
 import { createLazyTcmFigureController, resolveTcmPickHit } from './island-tcm-figure-boot.js';
+import { createLazyCareerCorridorController, resolveCareerPickHit } from './island-career-corridor-boot.js';
 import {
   HIDDEN_DISCONNECT_MS,
   createIslandPresence,
@@ -660,7 +661,8 @@ function boot() {
 
   function islandUiOpen() {
     const list = document.getElementById('islandList');
-    return sheetOpen() || !!(list && !list.hidden) || casinoOpen() || graffitiOpen() || roadmapOpen();
+    return sheetOpen() || !!(list && !list.hidden) || casinoOpen() || graffitiOpen() || roadmapOpen()
+      || (career && career.isCardOpen());
   }
 
   const tcmFigure = createLazyTcmFigureController({
@@ -673,8 +675,18 @@ function boot() {
     getTcmSiteModel: () => (buildings.getTcmSiteModel ? buildings.getTcmSiteModel() : null),
     islandUiOpen: islandUiOpen
   });
-  loop.register(() => {
+  const career = createLazyCareerCorridorController({
+    scene: scene,
+    kit: kit,
+    pickables: pickables,
+    reduced: reduced,
+    getPlayer: () => player,
+    islandUiOpen: islandUiOpen,
+    enterInterior: (id) => enterInterior(id)
+  });
+  loop.register((dt) => {
     tcmFigure.tick();
+    career.tick(dt);
   });
 
   let exploreSaved = null;
@@ -1764,7 +1776,7 @@ function boot() {
   });
 
   function promptZones() {
-    if (!rooms.inside()) return INTERACT_ZONES;
+    if (!rooms.inside()) return INTERACT_ZONES.concat(career.getInteractZones());
     const local = rooms.interactZones();
     return local.map((zone) => ({
       id: zone.id,
@@ -2002,6 +2014,10 @@ function boot() {
           enterTcm();
           return true;
         }
+        if (zone.action === 'openCareerCard') {
+          career.showCard(zone.entryId);
+          return true;
+        }
         if (zone.action === 'openCasinoBlackjack') {
           casino.openBlackjackFromInterior();
           return true;
@@ -2192,8 +2208,13 @@ function boot() {
     controlsActive: controlsActive,
     applyDragPhi: applyDragPhi,
     getPickables: () => pickables,
-    resolvePick: resolveTcmPickHit,
+    resolvePick: (hit) => {
+      const careerHit = resolveCareerPickHit(hit);
+      if (careerHit) return careerHit;
+      return resolveTcmPickHit(hit);
+    },
     onZoneClick: (zone) => {
+      if (zone && typeof zone === 'object' && career.handleZoneClick(zone)) return;
       if (zone && typeof zone === 'object' && tcmFigure.handleZoneClick(zone)) return;
       if (zone === 'graffiti-wall') {
         openGraffiti();
