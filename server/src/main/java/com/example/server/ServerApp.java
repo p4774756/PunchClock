@@ -148,6 +148,13 @@ public final class ServerApp {
                 sf.mimeTypes.add("model/gltf-binary", "glb");
                 applyIslandStaticCache(sf, ISLAND_STATIC_CACHE);
             });
+            // 島嶼資料（銅人穴位 JSON 等）
+            config.staticFiles.add(sf -> {
+                sf.hostedPath = "/island";
+                sf.directory = "/public/island";
+                sf.location = Location.CLASSPATH;
+                applyIslandStaticCache(sf, ISLAND_STATIC_CACHE);
+            });
             config.showJavalinBanner = false;
             long maxRequest = PhotoStore.MAX_INCOMING_REQUEST_BYTES;
             config.http.maxRequestSize = maxRequest;

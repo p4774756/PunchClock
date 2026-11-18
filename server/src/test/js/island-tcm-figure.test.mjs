@@ -17,11 +17,36 @@ const {
   fillAcupointCard,
   pointTargetRecord,
   fieldCopy,
-  resolveTcmPickHit
+  resolveTcmPickHit,
+  acupointNearBronzeBody,
+  BRONZE_HEAD_TOP_Y,
+  markerSurfacePosition
 } = await loadPublicModule('island-tcm-figure-logic.js');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'main', 'resources', 'public');
 const records = JSON.parse(readFileSync(join(root, 'island/tcm-bronze-points.json'), 'utf8'));
+
+test('定位收錄：BL1 與有定位數量', () => {
+  const bl1 = records.find((r) => r.code === 'BL1');
+  assert.equal(bl1.location, '眼內角斜外約 1 分。');
+  const located = records.filter((r) => r.location && r.location.length);
+  assert.ok(located.length >= 50, 'located=' + located.length);
+});
+
+test('104 穴標記貼在銅人身體包圍盒內（外擴 0.04）', () => {
+  const expanded = expandCurriculumInstances(records);
+  assert.equal(expanded.length, 104);
+  let maxY = 0;
+  for (let i = 0; i < expanded.length; i++) {
+    const row = expanded[i];
+    const side = row.instanceKey.endsWith(':-1') ? -1 : 1;
+    const rec = records.find((r) => r.code === row.code);
+    const pos = markerSurfacePosition(rec, side);
+    assert.ok(acupointNearBronzeBody(pos, 0.04), row.instanceKey + ' ' + pos.join(','));
+    maxY = Math.max(maxY, pos[1]);
+  }
+  assert.ok(maxY <= BRONZE_HEAD_TOP_Y + 0.05, 'maxY=' + maxY);
+});
 
 test('課程穴 59 code 齊全', () => {
   assert.equal(records.length, 59);

@@ -7,6 +7,7 @@ import {
   buildCardTextModel,
   expandCurriculumInstances,
   fillAcupointCard,
+  markerSurfacePosition,
   pickTodayCode,
   resolveTcmPickHit
 } from './island-tcm-figure-logic.js';
@@ -16,10 +17,12 @@ export { resolveTcmPickHit };
 const BRONZE_POINTS_URL = '/island/tcm-bronze-points.json';
 const LOAD_BUFFER = 1.65;
 const UNLOAD_BUFFER = 3.2;
+const LOAD_RETRY_MS = 30_000;
 const GOLD = 0xd4a84b;
 const GOLD_EMI = 0xffd27a;
 const MARKER = 0xfff1c4;
 const TODAY_MARK = 0xffb15a;
+const BASE_BROWN = 0x4a2e1c;
 
 let styleInjected = false;
 
@@ -50,6 +53,16 @@ function ensureCardStyle(doc) {
   doc.head.appendChild(css);
 }
 
+function goldOpts(extra) {
+  return {
+    night: 0xb8922e,
+    glow: GOLD_EMI,
+    glowAmount: 0.22,
+    shadow: true,
+    ...(extra || {})
+  };
+}
+
 export function buildBronzeFigure(ctx) {
   const kit = ctx.kit;
   const scale = ctx.scale != null ? ctx.scale : 1;
@@ -57,40 +70,64 @@ export function buildBronzeFigure(ctx) {
   const { addMesh, addBox, geo, mat } = kit;
   const group = new THREE.Group();
   group.scale.setScalar(scale * (FIGURE_TARGET_HEIGHT / DATA_BODY_HEIGHT));
-  const goldMat = (extra) => mat(GOLD, { glow: GOLD_EMI, glowAmount: 0.22, ...extra });
-  const addPart = (w, h, d, x, y, z, rx, rz) => {
-    const m = addBox(group, w, h, d, GOLD, x, y, z, {
-      night: 0xb8922e,
-      glow: GOLD_EMI,
-      glowAmount: 0.18,
-      shadow: true
-    });
-    if (rx) m.rotation.x = rx;
-    if (rz) m.rotation.z = rz;
+
+  const goldPart = (geometry, x, y, z, rot) => {
+    const m = addMesh(group, geometry, GOLD, x, y, z, goldOpts());
+    if (rot) {
+      if (rot.x) m.rotation.x = rot.x;
+      if (rot.y) m.rotation.y = rot.y;
+      if (rot.z) m.rotation.z = rot.z;
+    }
     return m;
   };
+  const limb = (rt, rb, h, x, y, z, rot) => goldPart(geo('cyl', [rt, rb, h, 7, 0]), x, y + h / 2, z, rot);
 
-  addBox(group, 0.5, 0.06, 0.34, 0, 0.03, 0.01, 0x6b3a2a);
-  addPart(0.2, 0.09, 0.26, 0, 0.11, 0);
-  addPart(0.17, 0.14, 0.2, -0.1, 0.2, 0.02);
-  addPart(0.17, 0.14, 0.2, 0.1, 0.2, 0.02);
-  addPart(0.14, 0.42, 0.17, -0.1, 0.48, -0.01);
-  addPart(0.14, 0.42, 0.17, 0.1, 0.48, -0.01);
-  addPart(0.1, 0.08, 0.1, -0.1, 0.08, 0.04);
-  addPart(0.1, 0.08, 0.1, 0.1, 0.08, 0.04);
-  addPart(0.28, 0.34, 0.15, 0, 0.82, 0);
-  addPart(0.12, 0.08, 0.1, 0, 1.02, 0.02);
-  addMesh(group, geo('sph', [0.115, 7, 6]), GOLD, 0, 1.14, 0, {
-    night: 0xb8922e,
-    glow: GOLD_EMI,
-    glowAmount: 0.2
+  addMesh(
+    group,
+    geo('cyl', [0.2, 0.22, 0.06, 8, 0]),
+    BASE_BROWN,
+    0,
+    0.03,
+    0,
+    { night: 0x2a1a10, glow: 0x000000, glowAmount: 0, shadow: true }
+  );
+  addMesh(
+    group,
+    geo('cyl', [0.12, 0.14, 0.05, 8, 0]),
+    BASE_BROWN,
+    0,
+    0.085,
+    0,
+    { night: 0x2a1a10, glow: 0x000000, glowAmount: 0, shadow: true }
+  );
+
+  [-1, 1].forEach((side) => {
+    const sx = side * 0.09;
+    addBox(group, 0.07, 0.04, 0.14, 0x5a3a24, sx, 0.06, 0.02, goldOpts({ glowAmount: 0.08 }));
+    limb(0.05, 0.055, 0.34, sx, 0.08, 0, { z: side * 0.04 });
+    limb(0.058, 0.062, 0.44, sx, 0.42, -0.01, { z: side * 0.03 });
+    const shoulderX = side * 0.12;
+    const shoulderY = 1.44;
+    const elbowX = side * 0.21;
+    const elbowY = 1.1;
+    const wristX = side * 0.29;
+    const wristY = 0.9;
+    goldPart(geo('cyl', [0.045, 0.052, 0.38, 7, 0]), (shoulderX + elbowX) / 2, (shoulderY + elbowY) / 2, 0.03, {
+      z: side * 0.55 + 0.1,
+      x: 0.12
+    });
+    goldPart(geo('cyl', [0.038, 0.042, 0.34, 7, 0]), (elbowX + wristX) / 2, (elbowY + wristY) / 2, 0.045, {
+      z: side * 0.35 + 0.18,
+      x: 0.35
+    });
+    addBox(group, 0.05, 0.035, 0.08, GOLD, wristX, 0.82, 0.05, goldOpts({ glowAmount: 0.18 }));
   });
-  addPart(0.09, 0.36, 0.09, -0.22, 0.86, 0, 0, 0.22);
-  addPart(0.09, 0.36, 0.09, 0.22, 0.86, 0, 0, -0.22);
-  addPart(0.07, 0.28, 0.07, -0.34, 0.66, 0.02, 0.06, 0.12);
-  addPart(0.07, 0.28, 0.07, 0.34, 0.66, 0.02, 0.06, -0.12);
-  addPart(0.05, 0.05, 0.12, -0.38, 0.48, 0.04);
-  addPart(0.05, 0.05, 0.12, 0.38, 0.48, 0.04);
+
+  addBox(group, 0.22, 0.12, 0.14, GOLD, 0, 0.92, 0, goldOpts());
+  addBox(group, 0.2, 0.28, 0.15, GOLD, 0, 1.1, 0.01, goldOpts());
+  addBox(group, 0.24, 0.2, 0.16, GOLD, 0, 1.34, -0.01, goldOpts());
+  limb(0.05, 0.055, 0.08, 0, 1.46, 0);
+  goldPart(geo('sph', [0.115, 8, 7]), 0, 1.61, 0);
 
   if (!interactive) {
     group.userData.tcmDecor = true;
@@ -107,6 +144,7 @@ export function createTcmFigureController(ctx) {
   const getNow = ctx.getNow || (() => Date.now());
   const onZoneClick = ctx.onZoneClick;
   const islandUiOpen = ctx.islandUiOpen;
+  const getTcmSiteModel = ctx.getTcmSiteModel;
   const doc = ctx.document || document;
 
   const tcmIsland = islandById('tcm');
@@ -114,24 +152,29 @@ export function createTcmFigureController(ctx) {
 
   let loaded = false;
   let loading = false;
+  let loadFailedAt = 0;
   let disposed = false;
   let rootGroup = null;
   let pointMesh = null;
   let pickMesh = null;
+  let ownedMaterials = [];
+  let ownedGeometries = [];
   let instanceRows = [];
   let recordsByCode = {};
   let todayCode = null;
   let cardEl = null;
   let cardBody = null;
   let cardVisible = false;
-  let modulePromise = null;
+  let entrancePlaced = false;
 
-  window.__tcmFigure = {
+  const figState = {
     get loaded() { return loaded; },
     get figures() { return rootGroup ? 1 : 0; },
     get todayCode() { return todayCode; },
-    get instanceCount() { return instanceRows.length; }
+    get instanceCount() { return instanceRows.length; },
+    entrance: { hidden: 0, placed: false }
   };
+  window.__tcmFigure = figState;
 
   function distToTcm() {
     const p = getPlayer();
@@ -210,8 +253,8 @@ export function createTcmFigureController(ctx) {
     todayCode = code;
     if (!pointMesh || !instanceRows.length) return;
     const dummy = new THREE.Object3D();
-    const baseR = reduced ? 0.016 : 0.018;
-    const todayR = reduced ? 0.022 : 0.026;
+    const baseR = reduced ? 0.024 : 0.026;
+    const todayR = reduced ? 0.028 : 0.032;
     for (let i = 0; i < instanceRows.length; i++) {
       const row = instanceRows[i];
       const isToday = row.code === code;
@@ -228,16 +271,16 @@ export function createTcmFigureController(ctx) {
     if (pointMesh.instanceColor) pointMesh.instanceColor.needsUpdate = true;
   }
 
+  function disposeOwned() {
+    for (let i = 0; i < ownedGeometries.length; i++) ownedGeometries[i].dispose();
+    for (let i = 0; i < ownedMaterials.length; i++) ownedMaterials[i].dispose();
+    ownedGeometries = [];
+    ownedMaterials = [];
+  }
+
   function disposeFigure() {
     if (rootGroup) {
       scene.remove(rootGroup);
-      rootGroup.traverse((obj) => {
-        if (obj.geometry) obj.geometry.dispose();
-        if (obj.material) {
-          if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
-          else obj.material.dispose();
-        }
-      });
       rootGroup = null;
     }
     if (pointMesh) {
@@ -246,28 +289,34 @@ export function createTcmFigureController(ctx) {
       pointMesh = null;
       pickMesh = null;
     }
+    disposeOwned();
     instanceRows = [];
     recordsByCode = {};
     loaded = false;
     todayCode = null;
+    loadFailedAt = 0;
     hideCard();
   }
 
   function buildPointMeshes(parent, rows) {
     const count = rows.length;
-    const markerGeo = new THREE.SphereGeometry(0.018, 6, 5);
+    const markerGeo = new THREE.SphereGeometry(0.026, 7, 5);
     const markerMat = kit.mat(MARKER, {
       glow: TODAY_MARK,
       glowAmount: 0.55,
       shadow: false
     });
+    ownedGeometries.push(markerGeo);
     pointMesh = new THREE.InstancedMesh(markerGeo, markerMat, count);
     pointMesh.castShadow = false;
     pointMesh.receiveShadow = false;
 
-    const pickScale = window.matchMedia('(max-width: 520px)').matches ? 1.45 : 1.2;
-    const pickGeo = new THREE.SphereGeometry(0.018 * pickScale, 5, 4);
+    const mobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 520px)').matches;
+    const pickRadius = mobile ? 0.06 : 0.045;
+    const pickGeo = new THREE.SphereGeometry(pickRadius, 5, 4);
     const pickMat = new THREE.MeshBasicMaterial({ visible: false });
+    ownedGeometries.push(pickGeo);
+    ownedMaterials.push(pickMat);
     pickMesh = new THREE.InstancedMesh(pickGeo, pickMat, count);
     pickMesh.userData.tcmPointPick = { instanceKeys: rows.map((r) => r.instanceKey) };
 
@@ -289,8 +338,33 @@ export function createTcmFigureController(ctx) {
     pickables.push(pickMesh);
   }
 
+  function expandRowsWithSurface(records) {
+    const expanded = expandCurriculumInstances(records);
+    for (let i = 0; i < expanded.length; i++) {
+      const row = expanded[i];
+      const rec = recordsByCode[row.code];
+      const side = row.instanceKey.endsWith(':-1') ? -1 : row.instanceKey.endsWith(':1') ? 1 : 1;
+      const surf = markerSurfacePosition(rec || row, side);
+      row.position = surf;
+    }
+    return expanded;
+  }
+
+  function tryEntranceBronze() {
+    if (entrancePlaced || !getTcmSiteModel) return;
+    const model = getTcmSiteModel();
+    if (!model) return;
+    const result = replaceEntranceBronzeStatue(model, kit, pickables);
+    entrancePlaced = !!result;
+    figState.entrance = {
+      hidden: result ? result.hiddenCount : 0,
+      placed: !!result
+    };
+  }
+
   async function loadFigure() {
     if (loaded || loading || disposed) return;
+    if (loadFailedAt && getNow() - loadFailedAt < LOAD_RETRY_MS) return;
     loading = true;
     try {
       const res = await fetch(BRONZE_POINTS_URL);
@@ -298,7 +372,7 @@ export function createTcmFigureController(ctx) {
       const records = await res.json();
       recordsByCode = {};
       for (let i = 0; i < records.length; i++) recordsByCode[records[i].code] = records[i];
-      instanceRows = expandCurriculumInstances(records);
+      instanceRows = expandRowsWithSurface(records);
       todayCode = pickTodayCode(records, getNow());
 
       rootGroup = new THREE.Group();
@@ -309,9 +383,12 @@ export function createTcmFigureController(ctx) {
       scene.add(rootGroup);
       refreshTodayHighlight();
       loaded = true;
+      loadFailedAt = 0;
+      tryEntranceBronze();
       if (shouldLoad()) showCardForInstance(findTodayInstanceKey(), { today: true });
     } catch (err) {
       console.warn('[Island] 銅人載入失敗', err);
+      loadFailedAt = getNow();
       disposeFigure();
     } finally {
       loading = false;
@@ -354,9 +431,9 @@ export function createTcmFigureController(ctx) {
       disposeFigure();
       return;
     }
-    if (shouldLoad() && !loaded && !loading) {
-      loadFigure();
-      return;
+    if (shouldLoad()) {
+      if (!loaded && !loading) loadFigure();
+      else if (!entrancePlaced) tryEntranceBronze();
     }
     if (loaded) {
       const nextCode = pickTodayCode(Object.values(recordsByCode), getNow());
@@ -387,33 +464,48 @@ export function createTcmFigureController(ctx) {
   };
 }
 
-export function replaceEntranceBronzeStatue(model, kit) {
+const ENTRANCE_FIG_SCALE = 0.46;
+const ENTRANCE_FIG_LOCAL = { x: -0.58, y: 0, z: 1.85 };
+
+export function replaceEntranceBronzeStatue(model, kit, pickables) {
+  model.updateMatrixWorld(true);
   const hidden = [];
-  const box = new THREE.Box3();
+  const world = new THREE.Vector3();
+  const local = new THREE.Vector3();
+  const bronzeMats = ['bronze', 'bronze_dark', 'gold'];
+
   model.traverse((obj) => {
     if (!obj.isMesh) return;
     const matName = obj.material && obj.material.name;
-    if (matName !== 'bronze' && matName !== 'bronze_dark' && matName !== 'gold') return;
-    const b = new THREE.Box3().setFromObject(obj);
-    const c = b.getCenter(new THREE.Vector3());
-    if (c.x < -0.3 && c.x > -0.9 && c.y > 0.15 && c.y < 1.3 && Math.abs(c.z) < 0.35) {
+    if (bronzeMats.indexOf(matName) < 0) return;
+    obj.getWorldPosition(world);
+    model.worldToLocal(local.copy(world));
+    if (
+      local.x > -0.88 && local.x < -0.32 &&
+      local.y > 0.08 && local.y < 1.22 &&
+      local.z > 0.55 && local.z < 2.15
+    ) {
       obj.visible = false;
       hidden.push(obj);
-      box.union(b);
     }
   });
-  if (!hidden.length) return null;
-  const center = box.getCenter(new THREE.Vector3());
-  const fig = buildBronzeFigure({ kit: kit, scale: 0.52, interactive: false });
-  fig.position.set(center.x, 0, center.z);
-  const hint = new THREE.Mesh(
-    new THREE.BoxGeometry(0.32, 1.05, 0.28),
-    new THREE.MeshBasicMaterial({ visible: false })
-  );
-  hint.position.copy(fig.position);
-  hint.position.y += 0.52;
+
+  const fig = buildBronzeFigure({ kit: kit, scale: ENTRANCE_FIG_SCALE, interactive: false });
+  fig.position.set(ENTRANCE_FIG_LOCAL.x, ENTRANCE_FIG_LOCAL.y, ENTRANCE_FIG_LOCAL.z);
+  fig.rotation.y = 0.22;
+
+  const hintGeo = new THREE.BoxGeometry(0.32, 1.05, 0.28);
+  const hintMat = new THREE.MeshBasicMaterial({ visible: false });
+  const hint = new THREE.Mesh(hintGeo, hintMat);
+  hint.position.set(ENTRANCE_FIG_LOCAL.x, ENTRANCE_FIG_SCALE * 0.95, ENTRANCE_FIG_LOCAL.z);
   hint.userData.tcmEntranceHint = true;
   model.add(fig);
   model.add(hint);
-  return { figure: fig, hint: hint };
+  if (pickables) pickables.push(hint);
+
+  if (!hidden.length) {
+    console.warn('[Island] 館門舊銅像未命中，仍放置新銅人');
+  }
+
+  return { figure: fig, hint: hint, hiddenCount: hidden.length };
 }

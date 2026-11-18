@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const NO_LOCATION_IN_JSON = new Set(['GV24+', 'EX-HN4', 'EX-HN5', 'SP6', 'LR3', 'TE5']);
 const pointsPath = join(root, 'atlas-src/tcm-3d/app/teaching-points.json');
 const teachingTs = readFileSync(join(root, 'atlas-src/tcm-3d/app/teaching.ts'), 'utf8');
 
@@ -66,10 +67,11 @@ function extractLocationMap(src) {
   const end = src.indexOf('export interface SurfaceTarget');
   const block = src.slice(start, end);
   const loc = {};
-  const entryRe = /'([^']+)':\s*\{\s*text:\s*'((?:\\'|[^'])*)'/g;
+  const entryRe = /(?:'([^']+)'|([A-Z]{1,2}\d+\+?|EX-HN\d+)):\{text:'((?:\\'|[^'])*)'/g;
   let m;
   while ((m = entryRe.exec(block))) {
-    loc[m[1]] = m[2].replace(/\\'/g, "'");
+    const code = m[1] || m[2];
+    loc[code] = m[3].replace(/\\'/g, "'");
   }
   return loc;
 }
@@ -96,7 +98,7 @@ const out = curriculumCodes.map((code) => {
     position: p.position,
     normal: p.normal,
     midline: !!p.midline,
-    location: location[code] || '',
+    location: NO_LOCATION_IN_JSON.has(code) ? '' : (location[code] || ''),
     indications: common ? common.indications : '',
     method: common ? common.method : ''
   };

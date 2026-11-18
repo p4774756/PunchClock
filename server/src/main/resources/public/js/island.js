@@ -75,7 +75,7 @@ import {
   screenAxes
 } from './island-milu.js';
 import { TCM_ATLAS_URL, consumeTcmReturn, writeTcmReturn } from './island-tcm-visit.js';
-import { createTcmFigureController, resolveTcmPickHit } from './island-tcm-figure.js';
+import { createLazyTcmFigureController, resolveTcmPickHit } from './island-tcm-figure-boot.js';
 import {
   HIDDEN_DISCONNECT_MS,
   createIslandPresence,
@@ -614,13 +614,14 @@ function boot() {
     return sheetOpen() || !!(list && !list.hidden) || casinoOpen() || graffitiOpen() || roadmapOpen();
   }
 
-  const tcmFigure = createTcmFigureController({
+  const tcmFigure = createLazyTcmFigureController({
     scene: scene,
     kit: kit,
     pickables: pickables,
     reduced: reduced,
     anchor: tcmFigureAnchor,
     getPlayer: () => player,
+    getTcmSiteModel: () => (buildings.getTcmSiteModel ? buildings.getTcmSiteModel() : null),
     islandUiOpen: islandUiOpen
   });
   loop.register(() => {

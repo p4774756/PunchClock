@@ -4,6 +4,55 @@ export const PENDING_COPY = '尚待收錄';
 export const DISCLAIMER = '教學參考，非診療建議';
 export const FIGURE_TARGET_HEIGHT = 2.12;
 export const DATA_BODY_HEIGHT = 1.72;
+export const MARKER_SURFACE_EPS = 0.012;
+export const BRONZE_HEAD_TOP_Y = 1.72;
+
+/** 資料空間人體分區包圍盒（|x| 取絕對值比對）；與 buildBronzeFigure 對齊。 */
+export const BRONZE_PART_BOXES = Object.freeze([
+  { minX: 0, maxX: 0.22, minY: 0, maxY: 0.12, minZ: -0.18, maxZ: 0.18 },
+  { minX: 0.02, maxX: 0.14, minY: 0.04, maxY: 0.98, minZ: -0.1, maxZ: 0.1 },
+  { minX: 0, maxX: 0.18, minY: 0.82, maxY: 1.52, minZ: -0.14, maxZ: 0.12 },
+  { minX: 0.04, maxX: 0.36, minY: 0.68, maxY: 1.52, minZ: -0.12, maxZ: 0.12 },
+  { minX: 0, maxX: 0.15, minY: 1.38, maxY: 1.78, minZ: -0.14, maxZ: 0.12 }
+]);
+
+export function markerSurfacePosition(record, side) {
+  const t = pointTargetRecord(record, side != null ? side : 1);
+  const pos = t.position;
+  let nx = t.normal[0];
+  let ny = t.normal[1];
+  let nz = t.normal[2];
+  const len = Math.hypot(nx, ny, nz);
+  if (len < 1e-6) {
+    nz = 0.08;
+    ny = 0;
+    nx = t.side < 0 ? -0.08 : t.side > 0 ? 0.08 : 0;
+  }
+  const inv = 1 / (len < 1e-6 ? Math.hypot(nx, ny, nz) : len);
+  return [
+    pos[0] + nx * inv * MARKER_SURFACE_EPS,
+    pos[1] + ny * inv * MARKER_SURFACE_EPS,
+    pos[2] + nz * inv * MARKER_SURFACE_EPS
+  ];
+}
+
+export function acupointNearBronzeBody(position, margin) {
+  const m = margin == null ? 0.04 : margin;
+  const ax = Math.abs(position[0]);
+  const y = position[1];
+  const z = position[2];
+  for (let i = 0; i < BRONZE_PART_BOXES.length; i++) {
+    const b = BRONZE_PART_BOXES[i];
+    if (
+      ax >= b.minX - m && ax <= b.maxX + m &&
+      y >= b.minY - m && y <= b.maxY + m &&
+      z >= b.minZ - m && z <= b.maxZ + m
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 export const COMMON_10_COPY = Object.freeze({
   LI4: {
