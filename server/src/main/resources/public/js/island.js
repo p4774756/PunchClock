@@ -54,6 +54,7 @@ import {
   createMiluState,
   createMiluView,
   isNearWave,
+  MILU_ANIM,
   miluClipPath,
   miluStep,
   screenAxes
@@ -219,7 +220,7 @@ function boot() {
   const swimmers = [];
   const steams = [];
   const kit = createSceneKit(THREE, { scene: scene, bobs: bobs });
-  const { addMesh, addBox, geo } = kit;
+  const { addMesh, addBox, geo, paint, picture } = kit;
   const dayNight = createDayNight({
     reduced: reduced,
     hidden: () => document.hidden
@@ -419,8 +420,45 @@ function boot() {
     return group;
   }
 
+  function makeMiluPlaceholder() {
+    const group = new THREE.Group();
+    group.name = 'miluPlaceholder';
+    const shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(MILU_ANIM.shadowRadius, 24),
+      new THREE.MeshBasicMaterial({
+        color: 0x24180f,
+        transparent: true,
+        opacity: 0.32,
+        depthWrite: false
+      })
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 0.015;
+    shadow.renderOrder = 1;
+    group.add(shadow);
+    const blob = addMesh(group, geo('sph', [0.44, 18, 14]), 0xffefe4, 0, 0.52, 0, {
+      shadow: false,
+      receive: false,
+      scale: [1, 1.05, 0.85]
+    });
+    blob.renderOrder = 2;
+    const markerTex = paint(160, 72, (ctx, w, h) => {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#fff7ef';
+      ctx.font = 'bold 22px "PingFang TC", "Noto Sans TC", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('這是你', w / 2, h / 2);
+    });
+    const marker = picture(group, 0.62, 0.3, markerTex, 0, 1.05, 0.12, 0, 0.55, 0.35);
+    marker.renderOrder = 3;
+    return group;
+  }
+
   const playerMesh = makePlayerAvatar();
   scene.add(playerMesh);
+  const miluPlaceholder = makeMiluPlaceholder();
+  scene.add(miluPlaceholder);
   const player = {
     x: PLAYER_SPAWN.x,
     z: PLAYER_SPAWN.z,
@@ -433,9 +471,15 @@ function boot() {
     stickY: 0,
     stickActive: false
   };
-  playerMesh.position.set(player.x, P, player.z);
-  playerMesh.rotation.y = player.yaw;
+  function setPlayerAnchor(x, y, z, yaw) {
+    playerMesh.position.set(x, y, z);
+    miluPlaceholder.position.set(x, y, z);
+    if (yaw != null) playerMesh.rotation.y = yaw;
+  }
+
+  setPlayerAnchor(player.x, P, player.z, player.yaw);
   playerMesh.visible = false;
+  miluPlaceholder.visible = false;
 
   const milu = createMiluView(THREE, { deferLoad: true });
   scene.add(milu.object);
@@ -670,8 +714,7 @@ function boot() {
     player.moving = false;
     player.vx = 0;
     player.vz = 0;
-    playerMesh.position.set(player.x, P, player.z);
-    playerMesh.rotation.y = player.yaw;
+    setPlayerAnchor(player.x, P, player.z, player.yaw);
     syncBoatMesh(boatElapsed);
     followPlayerCamera(true);
     syncInteractPrompt();
@@ -755,8 +798,7 @@ function boot() {
         player.z = PLAYER_SPAWN.z;
         player.yaw = PLAYER_SPAWN.yaw;
       }
-      playerMesh.position.set(player.x, P, player.z);
-      playerMesh.rotation.y = player.yaw;
+      setPlayerAnchor(player.x, P, player.z, player.yaw);
       dispatchMode('enter');
       if (peerLayer) peerLayer.setPeerScene(currentScene());
       lifecycle.emit('enterExplore', {});
@@ -869,11 +911,49 @@ function boot() {
     return points;
   }
 
+  let miluFailToastShown = false;
+
+  function showMiluFailToast() {
+    if (miluFailToastShown) return;
+    miluFailToastShown = true;
+    const el = document.createElement('div');
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.textContent = '萌寵圖片載入失敗，已改用替代角色';
+    Object.assign(el.style, {
+      position: 'fixed',
+      left: '50%',
+      bottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))',
+      transform: 'translateX(-50%)',
+      maxWidth: 'min(92vw, 22rem)',
+      padding: '0.55rem 0.85rem',
+      borderRadius: '0.65rem',
+      background: 'rgba(22, 18, 14, 0.88)',
+      color: '#fff7ef',
+      fontSize: '0.92rem',
+      lineHeight: '1.35',
+      textAlign: 'center',
+      zIndex: '12040',
+      pointerEvents: 'none',
+      boxShadow: '0 10px 28px rgba(0, 0, 0, 0.35)'
+    });
+    document.body.appendChild(el);
+    window.setTimeout(() => {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }, 4200);
+  }
+
   function syncAvatarVisible() {
     const show = playerVisible(mode);
-    const useMilu = show && milu.ready() && !milu.failed();
+    const failed = milu.failed();
+    const ready = milu.ready();
+    const useMilu = show && ready;
+    const usePlaceholder = show && !failed && !ready;
+    const useBlock = show && failed;
     milu.object.visible = useMilu;
-    playerMesh.visible = show && !useMilu;
+    miluPlaceholder.visible = usePlaceholder;
+    playerMesh.visible = useBlock;
+    if (useBlock) showMiluFailToast();
   }
 
   function stepMilu(dt, groundY) {
@@ -890,6 +970,7 @@ function boot() {
     });
     milu.show(miluClipPath(miluState, anim));
     milu.object.position.set(player.x, y, player.z);
+    if (miluPlaceholder.visible) miluPlaceholder.position.set(player.x, y, player.z);
     syncAvatarVisible();
   }
 
@@ -907,8 +988,7 @@ function boot() {
       player.x = seatX;
       player.z = seatZ;
       player.yaw = pose.yaw;
-      playerMesh.position.set(seatX, deckY, seatZ);
-      playerMesh.rotation.y = pose.yaw;
+      setPlayerAnchor(seatX, deckY, seatZ, pose.yaw);
       stepMilu(dt, deckY);
       cam.targetLook.set(pose.x, G + 1.05, pose.z);
       footprints.setHidden(true);
@@ -920,8 +1000,7 @@ function boot() {
       player.vx = 0;
       player.vz = 0;
       playerBob = 0;
-      playerMesh.position.set(player.x, P, player.z);
-      playerMesh.rotation.y = player.yaw;
+      setPlayerAnchor(player.x, P, player.z, player.yaw);
       stepMilu(dt);
       syncFootprints(dt);
       return;
@@ -932,8 +1011,7 @@ function boot() {
       player.vx = 0;
       player.vz = 0;
       playerBob = 0;
-      playerMesh.position.set(player.x, P, player.z);
-      playerMesh.rotation.y = player.yaw;
+      setPlayerAnchor(player.x, P, player.z, player.yaw);
       stepMilu(dt);
       syncFootprints(dt);
       return;
@@ -995,6 +1073,13 @@ function boot() {
     if (peerLayer) peerLayer.syncPresence(performance.now());
     cam.step(dt);
     milu.faceCamera(camera, player.x, player.z);
+    if (miluPlaceholder.visible) {
+      const dx = camera.position.x - player.x;
+      const dz = camera.position.z - player.z;
+      miluPlaceholder.rotation.y = Math.atan2(dx, dz);
+      miluPlaceholder.rotation.x = 0;
+      miluPlaceholder.rotation.z = 0;
+    }
     if (peerLayer) peerLayer.stepPeers(dt);
     dayNight.step(dt);
     loop.tick(dt, clock.elapsedTime);
@@ -1221,8 +1306,7 @@ function boot() {
     player.moving = false;
     player.vx = 0;
     player.vz = 0;
-    playerMesh.position.set(player.x, P, player.z);
-    playerMesh.rotation.y = player.yaw;
+    setPlayerAnchor(player.x, P, player.z, player.yaw);
     milu.object.position.set(player.x, P, player.z);
     followPlayerCamera(true);
   }
@@ -1449,6 +1533,7 @@ function boot() {
     getMode: () => mode,
     getPlayer: () => player,
     getMiluVisible: () => milu.object.visible,
+    getMiluPlaceholderVisible: () => miluPlaceholder.visible,
     getPlayerMeshVisible: () => playerMesh.visible,
     currentScene: currentScene,
     presencePose: presencePose,
@@ -1605,8 +1690,7 @@ function boot() {
     player.x = tcmRestore.x;
     player.z = tcmRestore.z;
     player.yaw = tcmRestore.yaw;
-    playerMesh.position.set(player.x, P, player.z);
-    playerMesh.rotation.y = player.yaw;
+    setPlayerAnchor(player.x, P, player.z, player.yaw);
     milu.object.position.set(player.x, P, player.z);
     setExplore(true, true);
   } else if (open && !open.hasAttribute('hidden')) {
