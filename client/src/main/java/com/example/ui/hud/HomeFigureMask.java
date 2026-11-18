@@ -1,7 +1,10 @@
 package com.example.ui.hud;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.Polygon;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -10,6 +13,23 @@ import java.util.List;
  * 手指遮罩只留胸前比心的兩隻手（心形空隙保持透明）；腿部遮罩只留右下角伸出的襪腳段。
  */
 final class HomeFigureMask {
+
+    private static final int REF_W = 768;
+    private static final int REF_H = 1024;
+
+    /** 素材 768×1024 下左手多邊形頂點 (x,y)。 */
+    private static final int[] LEFT_HAND_X = {
+        334, 394, 395, 393, 388, 380, 376, 372, 367, 361, 357, 354, 349, 345, 341, 337, 335
+    };
+    private static final int[] LEFT_HAND_Y = {
+        396, 396, 412, 426, 434, 432, 436, 447, 453, 453, 447, 451, 452, 447, 441, 428, 412
+    };
+    private static final int[] RIGHT_HAND_X = {
+        397, 441, 441, 439, 436, 431, 426, 423, 417, 413, 410, 405, 401, 399, 397
+    };
+    private static final int[] RIGHT_HAND_Y = {
+        396, 396, 412, 428, 440, 447, 447, 450, 450, 445, 447, 445, 437, 425, 410
+    };
 
     final BufferedImage fingers;
     final BufferedImage extendedLeg;
@@ -29,448 +49,219 @@ final class HomeFigureMask {
     private static BufferedImage fingersOf(BufferedImage body) {
         int w = body.getWidth();
         int h = body.getHeight();
-        boolean[][] seeds = new boolean[h][w];
-        int y0 = Math.round(0.36f * h);
-        int y1 = Math.round(0.44f * h);
-        int x0 = Math.round(0.39f * w);
-        int x1 = Math.round(0.65f * w);
-        int gap0 = Math.round(0.47f * w);
-        int gap1 = Math.round(0.52f * w);
-        floodFingers(body, seeds, x0, gap0, y0, y1);
-        floodFingers(body, seeds, gap1, x1, y0, y1);
-        int[] dx = {1, -1, 0, 0};
-        int[] dy = {0, 0, 1, -1};
-        int[][] id = new int[h][w];
-        List<int[]> boxes = new ArrayList<int[]>();
-        int count = 0;
-        for (int y = y0; y < y1; y++) {
-            for (int x = x0; x < x1; x++) {
-                if (!seeds[y][x] || id[y][x] != 0) {
+        float sx = w / (float) REF_W;
+        float sy = h / (float) REF_H;
+
+        float[][] poly = handPolygonMask(w, h, sx, sy);
+
+        boolean[][] keep = new boolean[h][w];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int pixel = body.getRGB(x, y);
+                int a = alpha(pixel);
+                if (a < 8) {
                     continue;
                 }
-                count++;
-                int minX = x;
-                int maxX = x;
-                int pixels = 0;
-                ArrayDeque<int[]> fill = new ArrayDeque<int[]>();
-                fill.add(new int[] {x, y});
-                id[y][x] = count;
-                while (!fill.isEmpty()) {
-                    int[] cell = fill.removeFirst();
-                    pixels++;
-                    minX = Math.min(minX, cell[0]);
-                    maxX = Math.max(maxX, cell[0]);
-                    for (int k = 0; k < 4; k++) {
-                        int nx = cell[0] + dx[k];
-                        int ny = cell[1] + dy[k];
-                        if (nx < x0 || ny < y0 || nx >= x1 || ny >= y1 || !seeds[ny][nx] || id[ny][nx] != 0) {
-                            continue;
-                        }
-                        id[ny][nx] = count;
-                        fill.add(new int[] {nx, ny});
-                    }
+                int r = (pixel >>> 16) & 255;
+                int g = green(pixel);
+                if (isHair(r, g) || isSweater(r, g)) {
+                    continue;
                 }
-                boxes.add(new int[] {count, pixels, minX, maxX});
+                keep[y][x] = true;
             }
         }
-        int mid = (gap0 + gap1) / 2;
-        int[] handLeft = null;
-        int[] handRight = null;
-        for (int[] box : boxes) {
-            if (box[1] <= 400) {
-                continue;
-            }
-            if (box[3] <= mid && (handLeft == null || box[1] > handLeft[1])) {
-                handLeft = box;
-            }
-            if (box[2] >= mid && (handRight == null || box[1] > handRight[1])) {
-                handRight = box;
-            }
-        }
-        if (handLeft == null || handRight == null) {
-            return clear(w, h);
-        }
-        boolean[] keepId = new boolean[count + 1];
-        keepId[handLeft[0]] = true;
-        keepId[handRight[0]] = true;
-        boolean[][] hand = new boolean[h][w];
-        for (int y = y0; y < y1; y++) {
-            for (int x = x0; x < x1; x++) {
-                if (keepId[id[y][x]]) {
-                    hand[y][x] = true;
-                }
-            }
-        }
-        int paintY1 = Math.min(h, Math.round(0.46f * h));
+
+        keep = morphClose(keep, w, h, 2);
+        keep = morphOpen(keep, w, h);
+        float[][] keepSoft = blur3x3(toFloatMask(keep, w, h), w, h);
+
         BufferedImage masked = clear(w, h);
-        stampSkin(body, masked, hand, gap0, gap1, y0, paintY1);
-        growSkin(body, masked, hand, id, keepId, gap0, gap1, y0, paintY1, 2);
-        fillSkinHoles(body, masked, id, handLeft[0], handRight[0], gap0, gap1, y0, paintY1);
-        closeFingerMask(masked, gap0, gap1, y0, paintY1, 2);
-        solidifyHands(body, masked, id, handLeft[0], handRight[0], gap0, gap1, y0, paintY1);
-        featherFingerEdges(masked, gap0, gap1, y0, paintY1);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                float polyA = poly[y][x];
+                if (polyA <= 0f) {
+                    continue;
+                }
+                int pixel = body.getRGB(x, y);
+                int srcA = alpha(pixel);
+                if (srcA == 0) {
+                    continue;
+                }
+                int r = (pixel >>> 16) & 255;
+                int g = green(pixel);
+                if (isHair(r, g) || isSweater(r, g)) {
+                    continue;
+                }
+                float maskA = Math.min(polyA, keepSoft[y][x]);
+                int outA = Math.round(maskA * srcA);
+                if (outA <= 0) {
+                    continue;
+                }
+                masked.setRGB(x, y, (outA << 24) | (pixel & 0xffffff));
+            }
+        }
         return masked;
     }
 
-    /** 只從手部種子複製膚色像素；心形空隙整段略過。 */
-    private static void stampSkin(
-            BufferedImage body,
-            BufferedImage masked,
-            boolean[][] hand,
-            int gap0,
-            int gap1,
-            int y0,
-            int y1) {
-        int w = body.getWidth();
-        for (int y = y0; y < y1; y++) {
+    private static float[][] handPolygonMask(int w, int h, float sx, float sy) {
+        BufferedImage raster = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = raster.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(Color.WHITE);
+        g.fill(scaledPolygon(LEFT_HAND_X, LEFT_HAND_Y, sx, sy));
+        g.fill(scaledPolygon(RIGHT_HAND_X, RIGHT_HAND_Y, sx, sy));
+        g.dispose();
+
+        float[][] poly = new float[h][w];
+        for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
-                if (!hand[y][x] || inHeartGap(x, gap0, gap1)) {
-                    continue;
-                }
-                int pixel = body.getRGB(x, y);
-                if (!opaqueFingerPixel(pixel)) {
-                    continue;
-                }
-                masked.setRGB(x, y, pixel | 0xff000000);
+                int a = alpha(raster.getRGB(x, y));
+                poly[y][x] = a / 255f;
             }
         }
+        return poly;
     }
 
-    /**
-     * 沿手指外緣再長 1～2px，仍限同一隻手的連通塊；不跨心形空隙。
-     */
-    private static void growSkin(
-            BufferedImage body,
-            BufferedImage masked,
-            boolean[][] hand,
-            int[][] id,
-            boolean[] keepId,
-            int gap0,
-            int gap1,
-            int y0,
-            int y1,
-            int steps) {
-        int w = body.getWidth();
-        int h = body.getHeight();
-        boolean[][] grown = new boolean[h][w];
-        for (int y = y0; y < y1; y++) {
-            for (int x = 0; x < w; x++) {
-                grown[y][x] = alpha(masked.getRGB(x, y)) > 16;
-            }
+    private static Polygon scaledPolygon(int[] xs, int[] ys, float sx, float sy) {
+        int n = xs.length;
+        int[] px = new int[n];
+        int[] py = new int[n];
+        for (int i = 0; i < n; i++) {
+            px[i] = Math.round(xs[i] * sx);
+            py[i] = Math.round(ys[i] * sy);
         }
-        int[] dx = {1, -1, 0, 0, 1, 1, -1, -1};
-        int[] dy = {0, 0, 1, -1, 1, -1, 1, -1};
-        for (int step = 0; step < steps; step++) {
-            boolean[][] next = new boolean[h][w];
-            for (int y = y0; y < y1; y++) {
-                for (int x = 0; x < w; x++) {
-                    if (!grown[y][x]) {
-                        continue;
-                    }
-                    next[y][x] = true;
-                    int component = id[y][x];
-                    if (component <= 0 || !keepId[component]) {
-                        continue;
-                    }
-                    for (int k = 0; k < dx.length; k++) {
-                        int nx = x + dx[k];
-                        int ny = y + dy[k];
-                        if (nx < 0 || ny < y0 || nx >= w || ny >= y1 || inHeartGap(nx, gap0, gap1)) {
-                            continue;
-                        }
-                        if (id[ny][nx] != component) {
-                            continue;
-                        }
-                        int pixel = body.getRGB(nx, ny);
-                        if (!opaqueFingerPixel(pixel)) {
-                            continue;
-                        }
-                        next[ny][nx] = true;
-                        masked.setRGB(nx, ny, pixel | 0xff000000);
-                    }
-                }
-            }
-            grown = next;
-        }
+        return new Polygon(px, py, n);
     }
 
-    /** 同一連通塊內全部填實，指縫陰影與灰階膚色也視為不透明。 */
-    private static void solidifyHands(
-            BufferedImage body,
-            BufferedImage masked,
-            int[][] id,
-            int leftId,
-            int rightId,
-            int gap0,
-            int gap1,
-            int y0,
-            int y1) {
-        int w = body.getWidth();
-        int h = body.getHeight();
-        for (int y = y0; y < y1; y++) {
-            for (int x = 0; x < w; x++) {
-                if (inHeartGap(x, gap0, gap1)) {
-                    continue;
-                }
-                int component = id[y][x];
-                if (component != leftId && component != rightId) {
-                    continue;
-                }
-                int pixel = body.getRGB(x, y);
-                if (!opaqueFingerPixel(pixel)) {
-                    continue;
-                }
-                masked.setRGB(x, y, pixel | 0xff000000);
-            }
-        }
-    }
-
-    /** 形態學 closing，填補指頭內小洞後再還原膚色。 */
-    private static void closeFingerMask(BufferedImage masked, int gap0, int gap1, int y0, int y1, int radius) {
-        int w = masked.getWidth();
-        int h = masked.getHeight();
-        boolean[][] opaque = new boolean[h][w];
-        for (int y = y0; y < y1; y++) {
-            for (int x = 0; x < w; x++) {
-                opaque[y][x] = alpha(masked.getRGB(x, y)) > 16 && !inHeartGap(x, gap0, gap1);
-            }
-        }
-        for (int pass = 0; pass < radius; pass++) {
-            boolean[][] grown = new boolean[h][w];
-            for (int y = y0; y < y1; y++) {
-                for (int x = 0; x < w; x++) {
-                    if (!opaque[y][x]) {
-                        continue;
-                    }
-                    grown[y][x] = true;
-                    for (int oy = -1; oy <= 1; oy++) {
-                        for (int ox = -1; ox <= 1; ox++) {
-                            int nx = x + ox;
-                            int ny = y + oy;
-                            if (nx < 0 || ny < y0 || nx >= w || ny >= y1 || inHeartGap(nx, gap0, gap1)) {
-                                continue;
-                            }
-                            grown[ny][nx] = true;
-                        }
-                    }
-                }
-            }
-            opaque = grown;
-        }
-        for (int pass = 0; pass < radius; pass++) {
-            boolean[][] shrunk = new boolean[h][w];
-            for (int y = y0 + 1; y < y1 - 1; y++) {
-                for (int x = 1; x < w - 1; x++) {
-                    if (!opaque[y][x]) {
-                        continue;
-                    }
-                    boolean keep = true;
-                    for (int oy = -1; oy <= 1 && keep; oy++) {
-                        for (int ox = -1; ox <= 1 && keep; ox++) {
-                            if (!opaque[y + oy][x + ox]) {
-                                keep = false;
-                            }
-                        }
-                    }
-                    shrunk[y][x] = keep;
-                }
-            }
-            opaque = shrunk;
-        }
-        int[][] backup = new int[h][w];
-        for (int y = y0; y < y1; y++) {
-            for (int x = 0; x < w; x++) {
-                backup[y][x] = masked.getRGB(x, y);
-            }
-        }
-        for (int y = y0; y < y1; y++) {
-            for (int x = 0; x < w; x++) {
-                if (!opaque[y][x] || inHeartGap(x, gap0, gap1)) {
-                    continue;
-                }
-                int pixel = backup[y][x];
-                if (alpha(pixel) > 16) {
-                    masked.setRGB(x, y, pixel | 0xff000000);
-                }
-            }
-        }
-    }
-
-    /** 填手心小破洞，範圍限在該手的連通塊內。 */
-    private static void fillSkinHoles(
-            BufferedImage body,
-            BufferedImage masked,
-            int[][] id,
-            int leftId,
-            int rightId,
-            int gap0,
-            int gap1,
-            int y0,
-            int y1) {
-        int w = body.getWidth();
-        int h = body.getHeight();
-        for (int pass = 0; pass < 2; pass++) {
-            boolean[][] filled = new boolean[h][w];
-            for (int y = y0; y < y1; y++) {
-                for (int x = 0; x < w; x++) {
-                    filled[y][x] = alpha(masked.getRGB(x, y)) > 16;
-                }
-            }
-            for (int y = y0 + 1; y < y1 - 1; y++) {
-                for (int x = 1; x < w - 1; x++) {
-                    if (filled[y][x] || inHeartGap(x, gap0, gap1)) {
-                        continue;
-                    }
-                    int component = id[y][x];
-                    if (component != leftId && component != rightId) {
-                        continue;
-                    }
-                    int pixel = body.getRGB(x, y);
-                    if (!opaqueFingerPixel(pixel)) {
-                        continue;
-                    }
-                    int around = 0;
-                    for (int oy = -1; oy <= 1; oy++) {
-                        for (int ox = -1; ox <= 1; ox++) {
-                            if ((ox != 0 || oy != 0) && filled[y + oy][x + ox]) {
-                                around++;
-                            }
-                        }
-                    }
-                    if (around >= 5) {
-                        masked.setRGB(x, y, pixel | 0xff000000);
-                    }
-                }
-            }
-        }
-    }
-
-    private static boolean inHeartGap(int x, int gap0, int gap1) {
-        return x >= gap0 && x < gap1;
-    }
-
-    /** 指緣 1～2px 漸進 alpha；心形空隙與指頭內部不羽化。 */
-    private static void featherFingerEdges(BufferedImage masked, int gap0, int gap1, int y0, int y1) {
-        int w = masked.getWidth();
-        int h = masked.getHeight();
-        int x0 = Math.max(0, Math.round(0.35f * w));
-        int x1 = Math.min(w, Math.round(0.71f * w));
-        for (int pass = 0; pass < 2; pass++) {
-            int[][] planned = new int[h][w];
-            for (int y = Math.max(1, y0); y < Math.min(h - 1, y1); y++) {
-                for (int x = Math.max(1, x0); x < Math.min(w - 1, x1); x++) {
-                    if (inHeartGap(x, gap0, gap1)) {
-                        continue;
-                    }
-                    int pixel = masked.getRGB(x, y);
-                    int a = alpha(pixel);
-                    if (a < 20) {
-                        continue;
-                    }
-                    int exterior = 0;
-                    for (int oy = -1; oy <= 1; oy++) {
-                        for (int ox = -1; ox <= 1; ox++) {
-                            int nx = x + ox;
-                            int ny = y + oy;
-                            if (inHeartGap(nx, gap0, gap1)) {
-                                continue;
-                            }
-                            if (alpha(masked.getRGB(nx, ny)) < 20) {
-                                exterior++;
-                            }
-                        }
-                    }
-                    if (exterior == 0) {
-                        planned[y][x] = pixel | 0xff000000;
-                        continue;
-                    }
-                    int scale = Math.max(128, 255 - exterior * 36);
-                    int newA = a * scale / 255;
-                    planned[y][x] = (newA << 24) | (pixel & 0xffffff);
-                }
-            }
-            for (int y = y0; y < y1; y++) {
-                for (int x = x0; x < x1; x++) {
-                    if (planned[y][x] != 0) {
-                        masked.setRGB(x, y, planned[y][x]);
-                    }
-                }
-            }
-        }
-    }
-
-    /** 比心時左右手可能仍連成一塊，分開從兩側泛洪，心形空隙才不會被補滿。 */
-    private static void floodFingers(
-            BufferedImage body, boolean[][] seeds, int x0, int x1, int y0, int y1) {
-        ArrayDeque<int[]> queue = new ArrayDeque<int[]>();
-        for (int y = y0; y < y1; y++) {
-            for (int x = x0; x < x1; x++) {
-                if (seeds[y][x]) {
-                    continue;
-                }
-                int pixel = body.getRGB(x, y);
-                if (alpha(pixel) > 100 && redBias(pixel) > 36 && green(pixel) < 185) {
-                    seeds[y][x] = true;
-                    queue.add(new int[] {x, y});
-                }
-            }
-        }
-        int[] dx = {1, -1, 0, 0};
-        int[] dy = {0, 0, 1, -1};
-        while (!queue.isEmpty()) {
-            int[] cell = queue.removeFirst();
-            for (int k = 0; k < 4; k++) {
-                int nx = cell[0] + dx[k];
-                int ny = cell[1] + dy[k];
-                if (nx < x0 || ny < y0 || nx >= x1 || ny >= y1 || seeds[ny][nx]) {
-                    continue;
-                }
-                int pixel = body.getRGB(nx, ny);
-                if (alpha(pixel) < 80 || redBias(pixel) < 10 || cream(pixel) || knit(pixel)) {
-                    continue;
-                }
-                seeds[ny][nx] = true;
-                queue.add(new int[] {nx, ny});
-            }
-        }
-    }
-
-    /** 手指遮罩用：含陰影膚色，排除毛衣與頭髮。 */
-    private static boolean opaqueFingerPixel(int pixel) {
-        if (alpha(pixel) < 24) {
-            return false;
-        }
-        return !knit(pixel) && !hair(pixel);
-    }
-
-    private static boolean skin(int pixel) {
-        if (alpha(pixel) < 32) {
-            return false;
-        }
-        if (knit(pixel) || hair(pixel)) {
-            return false;
-        }
-        if (cream(pixel)) {
+    private static boolean isHair(int r, int g) {
+        if (r < 140) {
             return true;
         }
-        return redBias(pixel) > 8 && green(pixel) < 210;
-    }
-
-    private static boolean hair(int pixel) {
-        int red = (pixel >>> 16) & 255;
-        int lum = (red + green(pixel) + (pixel & 255)) / 3;
-        if (lum < 40) {
-            return redBias(pixel) < 10;
+        if (r == 0) {
+            return false;
         }
-        return lum < 95 && redBias(pixel) < 5;
+        return g / (float) r < 0.55f;
     }
 
-    /** 毛衣的亮色，不要把它補進手指遮罩。 */
-    private static boolean knit(int pixel) {
-        int red = (pixel >>> 16) & 255;
-        int green = green(pixel);
-        int blue = pixel & 255;
-        return green > 175 && blue > 148 && (red - green) < 48;
+    private static boolean isSweater(int r, int g) {
+        if (r == 0) {
+            return g > 0;
+        }
+        return g / (float) r > 0.735f;
+    }
+
+    private static float[][] toFloatMask(boolean[][] mask, int w, int h) {
+        float[][] out = new float[h][w];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                out[y][x] = mask[y][x] ? 1f : 0f;
+            }
+        }
+        return out;
+    }
+
+    private static boolean[][] morphClose(boolean[][] mask, int w, int h, int passes) {
+        boolean[][] cur = mask;
+        for (int i = 0; i < passes; i++) {
+            cur = dilate3(cur, w, h);
+        }
+        for (int i = 0; i < passes; i++) {
+            cur = erode3(cur, w, h);
+        }
+        return cur;
+    }
+
+    private static boolean[][] morphOpen(boolean[][] mask, int w, int h) {
+        boolean[][] cur = erode3(mask, w, h);
+        return dilate3(cur, w, h);
+    }
+
+    private static boolean[][] dilate3(boolean[][] mask, int w, int h) {
+        boolean[][] out = new boolean[h][w];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                boolean any = false;
+                for (int oy = -1; oy <= 1 && !any; oy++) {
+                    int ny = y + oy;
+                    if (ny < 0 || ny >= h) {
+                        continue;
+                    }
+                    for (int ox = -1; ox <= 1; ox++) {
+                        int nx = x + ox;
+                        if (nx < 0 || nx >= w) {
+                            continue;
+                        }
+                        if (mask[ny][nx]) {
+                            any = true;
+                            break;
+                        }
+                    }
+                }
+                out[y][x] = any;
+            }
+        }
+        return out;
+    }
+
+    private static boolean[][] erode3(boolean[][] mask, int w, int h) {
+        boolean[][] out = new boolean[h][w];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                if (!mask[y][x]) {
+                    continue;
+                }
+                boolean all = true;
+                for (int oy = -1; oy <= 1 && all; oy++) {
+                    int ny = y + oy;
+                    if (ny < 0 || ny >= h) {
+                        all = false;
+                        break;
+                    }
+                    for (int ox = -1; ox <= 1; ox++) {
+                        int nx = x + ox;
+                        if (nx < 0 || nx >= w || !mask[ny][nx]) {
+                            all = false;
+                            break;
+                        }
+                    }
+                }
+                out[y][x] = all;
+            }
+        }
+        return out;
+    }
+
+    /** 3×3 加權平均，半徑約 0.7px 羽化。 */
+    private static float[][] blur3x3(float[][] mask, int w, int h) {
+        float[][] out = new float[h][w];
+        int[][] k = {
+            {1, 2, 1},
+            {2, 4, 2},
+            {1, 2, 1}
+        };
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                float sum = 0f;
+                int weight = 0;
+                for (int oy = -1; oy <= 1; oy++) {
+                    int ny = y + oy;
+                    if (ny < 0 || ny >= h) {
+                        continue;
+                    }
+                    for (int ox = -1; ox <= 1; ox++) {
+                        int nx = x + ox;
+                        if (nx < 0 || nx >= w) {
+                            continue;
+                        }
+                        int wgt = k[oy + 1][ox + 1];
+                        sum += mask[ny][nx] * wgt;
+                        weight += wgt;
+                    }
+                }
+                out[y][x] = weight == 0 ? 0f : sum / weight;
+            }
+        }
+        return out;
     }
 
     private static BufferedImage legOf(BufferedImage body) {
@@ -535,15 +326,5 @@ final class HomeFigureMask {
 
     private static int green(int pixel) {
         return (pixel >>> 8) & 255;
-    }
-
-    private static int redBias(int pixel) {
-        return ((pixel >>> 16) & 255) - (pixel & 255);
-    }
-
-    private static boolean cream(int pixel) {
-        int green = green(pixel);
-        int blue = pixel & 255;
-        return green > 185 && blue > 150;
     }
 }

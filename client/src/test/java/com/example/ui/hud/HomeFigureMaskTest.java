@@ -13,19 +13,20 @@ public class HomeFigureMaskTest {
         HomeCharacterArt art = HomeCharacterArt.load();
         assertTrue(art != null);
         BufferedImage fingers = art.fingers;
-        assertTrue(opaque(fingers, 0.41f, 0.43f));
-        assertTrue(opaque(fingers, 0.58f, 0.43f));
-        // 指頭內部取樣：必須完全不透明（不透出卡片紫）
-        assertTrue(opaque(fingers, 0.415f, 0.405f));
-        assertTrue(opaque(fingers, 0.42f, 0.418f));
-        assertTrue(opaque(fingers, 0.575f, 0.408f));
-        assertTrue(opaque(fingers, 0.585f, 0.422f));
-        assertTrue(!opaque(fingers, 0.49f, 0.40f));
-        assertTrue(!opaque(fingers, 0.35f, 0.40f));
-        assertTrue(!opaque(fingers, 0.66f, 0.40f));
-        assertTrue(!opaque(fingers, 0.49f, 0.41f));
-        assertTrue(!opaque(fingers, 0.50f, 0.39f));
-        assertTrue(!opaque(fingers, 0.495f, 0.405f));
+        // 手指內部（768×1024 換算比例）
+        assertTrue(opaque(fingers, 365f / 768f, 430f / 1024f));
+        assertTrue(opaque(fingers, 350f / 768f, 420f / 1024f));
+        assertTrue(opaque(fingers, 425f / 768f, 420f / 1024f));
+        assertTrue(opaque(fingers, 405f / 768f, 440f / 1024f));
+        // 頭髮
+        assertTrue(!opaque(fingers, 432f / 768f, 435f / 1024f));
+        assertTrue(!opaque(fingers, 338f / 768f, 445f / 1024f));
+        // 多邊形外
+        assertTrue(!opaque(fingers, 330f / 768f, 420f / 1024f));
+        assertTrue(!opaque(fingers, 450f / 768f, 420f / 1024f));
+        assertTrue(!opaque(fingers, 395f / 768f, 460f / 1024f));
+        // 比心空隙（兩指之間）
+        assertTrue(!opaque(fingers, 395f / 768f, 405f / 1024f));
     }
 
     @Test
