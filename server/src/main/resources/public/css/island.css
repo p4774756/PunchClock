@@ -1168,6 +1168,54 @@ body.island-avatar-open .island-joystick {
   .island-sheet { height: 78vh; }
 }
 
+.island-vehicle-hud {
+  position: fixed;
+  z-index: 12;
+  right: 0.85rem;
+  bottom: calc(6.2rem + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  pointer-events: none;
+}
+
+.island-vehicle-hud[hidden] {
+  display: none !important;
+}
+
+.island-vehicle-speed {
+  margin: 0;
+  padding: 0.32rem 0.55rem;
+  border-radius: 0.55rem;
+  background: rgba(22, 18, 14, 0.82);
+  color: #fff7ef;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+.island-vehicle-minimap {
+  width: 5.6rem;
+  height: 5.6rem;
+  border-radius: 0.55rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(31, 77, 115, 0.22);
+}
+
+@media (max-width: 480px) {
+  .island-vehicle-hud {
+    right: 0.55rem;
+    bottom: calc(9.6rem + env(safe-area-inset-bottom, 0px));
+  }
+  .island-vehicle-minimap {
+    width: 4.75rem;
+    height: 4.75rem;
+  }
+}
+
 @media (max-width: 400px) {
   .island-corner {
     gap: 0.25rem;

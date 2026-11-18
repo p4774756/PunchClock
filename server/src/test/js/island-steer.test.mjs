@@ -45,6 +45,9 @@ test('boatNavigable：泊位、海路、島心、橋面、邊界', () => {
   const bx = (bridge.ax + bridge.bx) * 0.5;
   const bz = (bridge.az + bridge.bz) * 0.5;
   assert.equal(B.boatNavigable(bx, bz), false, '橋面中央');
+  const cityBerth = L.BOAT_STOPS.city.berth;
+  assert.equal(B.boatNavigable(cityBerth.x, cityBerth.z), true, '城市泊位');
+  assert.equal(B.disembarkNear(cityBerth.x, cityBerth.z, B.BOAT_DISEMBARK_RADIUS), 'city');
   assert.equal(B.boatNavigable(L.SEA_NAV_BOUNDS.minX - 2, 0), false, '海域西界外');
   assert.equal(B.boatNavigable(L.SEA_NAV_BOUNDS.maxX + 2, 6), false, '海域東界外');
 });

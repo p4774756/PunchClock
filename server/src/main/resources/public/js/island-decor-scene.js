@@ -210,7 +210,7 @@ export function attachFlowerBedInstanced(scene, kit, cx, cz, w, d, seed) {
   });
 }
 
-function paintSmallTradSign(kit, text, w, h) {
+export function makeTradSignTexture(kit, text, w, h) {
   return kit.paint(w || 256, h || 128, (g, bw, bh) => {
     g.fillStyle = '#fff7ef';
     g.fillRect(0, 0, bw, bh);
@@ -271,7 +271,7 @@ export function attachShopEavesDecor(model, kit, opts) {
     { text: '今日特調', x: -1.45 },
     { text: '新鮮水果', x: 1.35 }
   ].forEach((spec) => {
-    const tex = paintSmallTradSign(kit, spec.text, 240, 120);
+    const tex = makeTradSignTexture(kit, spec.text, 240, 120);
     const plane = new THREE.Mesh(
       new THREE.PlaneGeometry(0.62, 0.3),
       mat(0xffffff, {

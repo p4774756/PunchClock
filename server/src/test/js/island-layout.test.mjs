@@ -8,7 +8,7 @@ const L = await loadPublicModule('island-layout.js');
 test('主題島連回主島，橋兩端都在島上；沙灘島無橋', () => {
   assert.deepEqual(
     L.ISLANDS.map((island) => island.id),
-    ['main', 'casino', 'tcm', 'computer', 'beach']
+    ['main', 'casino', 'tcm', 'computer', 'beach', 'city']
   );
   assert.equal(L.BRIDGES.length, 3);
   const bridged = new Set();
@@ -262,7 +262,10 @@ test('沙灘島棧橋與島相連、搭船互動區在棧橋上', () => {
     assert.equal(hit, false, bridge.id + ' 不穿越棧橋');
   }
   const zones = L.boatZones();
-  assert.equal(zones.length, 2);
+  assert.equal(zones.length, 4);
+  const cityZone = zones.find((zone) => zone.id === 'boat-city');
+  assert.ok(cityZone);
+  assert.equal(cityZone.dest, 'city');
   for (const zone of zones) {
     assert.equal(zone.action, 'sail');
     assert.ok(L.walkable(zone.x, zone.z, 0.29), zone.id + ' 互動區在棧橋上');
