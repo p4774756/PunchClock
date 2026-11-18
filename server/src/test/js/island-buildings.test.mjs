@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { BUILDING_GLOW, glowForMaterial } from '../../main/resources/public/js/island-buildings-data.js';
 import { BUILDINGS, buildingById } from '../../main/resources/public/js/island-layout.js';
+import { MAX_LAMP_POINT_LIGHTS } from '../../main/resources/public/js/island-kit.js';
 
 const buildingsJs = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public/js/island-buildings.js'),
@@ -18,12 +19,27 @@ describe('casino Vegas sign', () => {
     assert.ok(!buildingsJs.includes("'CASINO'"));
   });
 
-  it('屋頂橫式霓虹看板掛在西側屋脊，舊 sign_face 隱藏', () => {
-    assert.ok(buildingsJs.includes('signGroup'));
-    assert.ok(buildingsJs.includes("buildingId === 'casino'"));
-    assert.ok(buildingsJs.includes('obj.visible = false'));
+  it('招牌貼在 GLB sign_face，JS 替身裝飾已移除', () => {
+    assert.ok(!buildingsJs.includes('attachCasinoVegasDecor'));
+    assert.ok(!buildingsJs.includes('signGroup'));
     assert.ok(buildingsJs.includes('casinoSignMap'));
+    assert.ok(buildingsJs.includes("signMaps[buildingId]"));
     assert.match(buildingsJs, /fillText\('777'/);
+  });
+
+  it('casino layout 座標與佔地不變', () => {
+    const c = buildingById('casino');
+    assert.equal(c.x, 16.35);
+    assert.equal(c.z, -7.4);
+    assert.equal(c.w, 2.4);
+    assert.equal(c.d, 1.9);
+    assert.equal(c.yaw, -Math.PI / 2);
+    assert.equal(c.entry.reach, 0.78);
+    assert.equal(c.entry.action, 'enterInterior');
+  });
+
+  it('MAX_LAMP_POINT_LIGHTS 仍為 4', () => {
+    assert.equal(MAX_LAMP_POINT_LIGHTS, 4);
   });
 });
 
