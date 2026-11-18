@@ -107,12 +107,18 @@ import {
   DEFAULT_SHADOW_MAP
 } from './island-quality.js';
 import { exploreLightAtMix } from './island-explore-light.js';
+import {
+  attachWebglContextHandlers,
+  bindWebglNotice,
+  readForceNoWebgl
+} from './island-webgl-notice.js';
 
 const ZONES = ['devices', 'system', 'photos'];
 
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const stage = document.getElementById('islandStage');
 const canvas = document.getElementById('islandCanvas');
+const webglNotice = bindWebglNotice({ root: document.getElementById('islandWebglNotice') });
 
 function bootCasinoFallback() {
   const casino = createCasinoController({
@@ -138,11 +144,14 @@ function bootCasinoFallback() {
 if (stage && canvas) boot();
 
 function boot() {
-  let renderer;
-  try {
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  } catch (e) {
-    renderer = null;
+  let renderer = null;
+  const forceNoWebgl = readForceNoWebgl(window.location.search);
+  if (!forceNoWebgl) {
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    } catch (e) {
+      renderer = null;
+    }
   }
   if (!renderer || !renderer.getContext()) {
     stage.classList.add('is-fallback');
@@ -150,9 +159,12 @@ function boot() {
     const listBtn = document.getElementById('islandListBtn');
     if (list) list.hidden = false;
     if (listBtn) listBtn.setAttribute('aria-expanded', 'true');
+    webglNotice.present({ rendererOk: false, contextLost: false });
     bootCasinoFallback();
     return;
   }
+
+  attachWebglContextHandlers(canvas, webglNotice);
 
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
