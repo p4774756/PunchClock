@@ -50,7 +50,7 @@ export function lampHaloOpacity(power, mix) {
   const m = Math.max(0, Math.min(1, Number(mix) || 0));
   if (m < 1e-6) return 0;
   const p = Math.max(0, Number(power) || 0);
-  return m * Math.min(0.92, 0.06 + p * 0.038);
+  return m * Math.min(0.95, 0.075 + p * 0.042);
 }
 
 /** 點光源強度；pointLightsEnabled 僅供單元測試與例外情境，畫質降階不應關閉點光。 */
