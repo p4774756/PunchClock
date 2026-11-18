@@ -72,7 +72,14 @@ test('abortSailing 會抵達目的地', () => {
 test('遊艇站位與船首軸向常數', () => {
   assert.ok(B.BOAT_BOW_LOCAL_Z > 0, '船首在本地 +Z');
   assert.ok(B.BOAT_STERN_DECK_Z < 0, '船尾甲板在本地 -Z');
-  assert.ok(B.BOAT_SEAT_STERN_OFFSET > 0);
+  assert.equal(B.BOAT_SEAT_STERN_OFFSET, -B.BOAT_STERN_DECK_Z, '站位沿船尾對齊甲板中心');
+  const sternDeckDepth = 0.4;
+  const deckHalf = sternDeckDepth / 2;
+  const seatLocalZ = -B.BOAT_SEAT_STERN_OFFSET;
+  assert.ok(
+    seatLocalZ >= B.BOAT_STERN_DECK_Z - deckHalf && seatLocalZ <= B.BOAT_STERN_DECK_Z + deckHalf,
+    '站位落在船尾木甲板 Z 範圍內'
+  );
   assert.equal(B.BOAT_DECK_OFFSET, 0.36);
   assert.ok(B.boatHullPartCount() <= B.BOAT_HULL_MESH_BUDGET);
   const stern = B.sampleRoute(0);
