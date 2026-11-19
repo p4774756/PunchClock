@@ -249,11 +249,14 @@ def _chest_second_diff_max(bm, hubs, r_lim=0.06):
 
 
 def _smooth_breast_detail(body):
-    """胸部：外圈二次曲面擬合 + 權重 lerp + 局部 Laplacian（無球面投影）。"""
+    """r8 外圈二次曲面 + r<4 cm 球冠（R≥7 cm）沿法線替換，避免中心尖點。"""
     R_RING_LO = 0.040
     R_RING_HI = 0.070
     R_BLEND_FULL = 0.040
     R_BLEND_FADE = 0.070
+    R_CAP_FULL = 0.020
+    R_CAP_FADE = 0.040
+    R_CROWN = 0.075
     me = body.data
     orig = [v.co.copy() for v in me.vertices]
     bm = bmesh.new()
@@ -262,6 +265,11 @@ def _smooth_breast_detail(body):
     hubs = _nipple_hubs(body)
     weight = {v.index: 0.0 for v in bm.verts}
     touched = set()
+
+    def _sphere_cap(rho, scale):
+        if rho >= R_CROWN - 1e-6:
+            return scale * 0.008
+        return scale * (R_CROWN - math.sqrt(max(R_CROWN * R_CROWN - rho * rho, 0.0)))
 
     for hub in hubs:
         ring = []
@@ -300,6 +308,11 @@ def _smooth_breast_detail(body):
             a, b, c, d, e, f = coeffs
             return a * u * u + b * vv * vv + c * u * vv + d * u + e * vv + f
 
+        rho_ref = 0.5 * (R_RING_LO + R_RING_HI)
+        cap_ref = _sphere_cap(rho_ref, 1.0)
+        ring_h = [(v.co - hub).dot(normal) for v in ring]
+        scale = (sum(ring_h) / len(ring_h)) / cap_ref if cap_ref > 1e-6 else 1.0
+
         for v in bm.verts:
             if v.co.z < 0.98 or v.co.z > 1.44:
                 continue
@@ -309,15 +322,31 @@ def _smooth_breast_detail(body):
                 continue
             u = off.dot(tangent_u)
             vv = off.dot(tangent_v)
+            lateral = tangent_u * u + tangent_v * vv
+            rho = lateral.length
             h_orig = (orig[v.index] - hub).dot(normal)
+
+            if d <= R_CAP_FADE:
+                w_cap = (
+                    1.0
+                    if d <= R_CAP_FULL
+                    else (0.0 if d >= R_CAP_FADE else 1.0 - _smoothstep(R_CAP_FULL, R_CAP_FADE, d))
+                )
+                if w_cap <= 0.0:
+                    continue
+                h_cap = _sphere_cap(rho, scale)
+                h_delta = (h_cap - h_orig) * w_cap
+                h_delta = max(-0.010, min(0.006, h_delta))
+                v.co = orig[v.index] + normal * h_delta
+                weight[v.index] = max(weight[v.index], w_cap)
+                touched.add(v.index)
+                continue
+
             h_new = h_quad(u, vv)
             w = 1.0 if d <= R_BLEND_FULL else (0.0 if d >= R_BLEND_FADE else 1.0 - _smoothstep(R_BLEND_FULL, R_BLEND_FADE, d))
             if w <= 0.0:
                 continue
-            if d <= R_BLEND_FULL:
-                h_blend = h_new
-            else:
-                h_blend = h_orig * (1.0 - w) + h_new * w
+            h_blend = h_new if d <= R_BLEND_FULL else h_orig * (1.0 - w) + h_new * w
             v.co = hub + tangent_u * u + tangent_v * vv + normal * h_blend
             weight[v.index] = max(weight[v.index], w)
             touched.add(v.index)
@@ -375,65 +404,125 @@ def _smooth_breast_detail(body):
     return residual_bump
 
 
-def _subdivide_breast_patch(body):
+def _subdivide_breast_uniform(body):
+    """雙乳 r<10 cm：僅細分 >6 mm 的邊（最多 10 輪），避免 T 接與全身三角化。"""
     hubs = _nipple_hubs(body)
-    R = 0.09
+    R = 0.10
     me = body.data
     bm = bmesh.new()
     bm.from_mesh(me)
-    bm.verts.ensure_lookup_table()
+    bm.faces.ensure_lookup_table()
     bm.edges.ensure_lookup_table()
-    for _ in range(5):
-        edges = []
+    rounds = 0
+    for _ in range(16):
+        long_e = []
         for e in bm.edges:
-            if e.calc_length() <= 0.006:
+            elen = e.calc_length()
+            if elen <= 0.006:
                 continue
-            v0, v1 = e.verts[0].co, e.verts[1].co
-            mid = (v0 + v1) * 0.5
-            if mid.z < 0.98 or mid.z > 1.44 or mid.y > 0.025:
+            touched = False
+            for hub in hubs:
+                if (e.verts[0].co - hub).length <= R or (e.verts[1].co - hub).length <= R:
+                    touched = True
+                    break
+            if not touched:
                 continue
-            if not any((v0 - hub).length <= R and (v1 - hub).length <= R for hub in hubs):
+            mid = (e.verts[0].co + e.verts[1].co) * 0.5
+            if mid.z < 0.96 or mid.z > 1.46:
                 continue
-            edges.append(e)
-        if not edges:
+            long_e.append(e)
+        if not long_e:
             break
-        bmesh.ops.subdivide_edges(bm, edges=edges, cuts=1, use_grid_fill=True)
-    bmesh.ops.triangulate(bm, faces=bm.faces, quad_method='BEAUTY', ngon_method='BEAUTY')
+        rounds += 1
+        bmesh.ops.subdivide_edges(bm, edges=long_e, cuts=1, use_grid_fill=True)
     bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=0.00002)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    print(f'[body] breast_subdivide patch_verts≈{len(bm.verts)}')
+    print(f'[body] breast_edge_refine rounds={rounds} verts={len(bm.verts)}')
     bm.to_mesh(me)
     bm.free()
     me.update()
 
 
-def _report_breast_mesh_quality(body):
-    hubs = _nipple_hubs(body)
+def _recalc_breast_normals_outward(body, hubs, r_lim=0.10):
     bm = bmesh.new()
     bm.from_mesh(body.data)
+    bm.faces.ensure_lookup_table()
+    faces = set()
+    for f in bm.faces:
+        for v in f.verts:
+            if any((v.co - hub).length <= r_lim and 0.96 < v.co.z < 1.46 for hub in hubs):
+                faces.add(f)
+                break
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    inward = 0
+    for f in faces:
+        c = f.calc_center_median()
+        if not any((c - hub).length <= r_lim for hub in hubs):
+            continue
+        n = f.normal
+        out = Vector((c.x, c.y + 0.05, 0))
+        if n.dot(out) < 0:
+            inward += 1
+    bm.to_mesh(body.data)
+    bm.free()
+    body.data.update()
+    print(f'[body] breast_normals_inward_faces={inward} (expect 0)')
+
+
+def _report_breast_mesh_quality(body):
+    hubs = _nipple_hubs(body)
+    R = 0.10
+    R_CAP = 0.075
+    bm = bmesh.new()
+    bm.from_mesh(body.data)
+    bm.verts.ensure_lookup_table()
     bm.edges.ensure_lookup_table()
+    bm.faces.ensure_lookup_table()
     max_edge = 0.0
     max_ang = 0.0
+    tiny = 0
+    inward = 0
+    mw = body.matrix_world
+    rot = mw.to_3x3()
     for e in bm.edges:
         mid = (e.verts[0].co + e.verts[1].co) * 0.5
-        if not any((mid - hub).length < 0.04 and 0.98 < mid.z < 1.44 for hub in hubs):
+        if not any((mid - hub).length < R and 0.96 < mid.z < 1.46 for hub in hubs):
             continue
         max_edge = max(max_edge, e.calc_length())
     for f in bm.faces:
         c = f.calc_center_median()
-        if not any((c - hub).length < 0.04 for hub in hubs):
+        if not any((c - hub).length < R for hub in hubs):
             continue
+        if f.calc_area() < 0.5e-6:
+            tiny += 1
+        wn = (rot @ f.normal).normalized()
+        wc = mw @ c
+        if wn.dot(Vector((wc.x, wc.y - (-0.05), 0))) < 0:
+            inward += 1
         for lp in f.loops:
             for nf in lp.edge.link_faces:
                 if nf is f:
                     continue
                 ang = math.degrees(math.acos(max(-1.0, min(1.0, f.normal.dot(nf.normal)))))
-                if ang <= 90.0:
-                    max_ang = max(max_ang, ang)
+                max_ang = max(max_ang, ang)
+    max_curv = 0.0
+    for hub in hubs:
+        for v in bm.verts:
+            if (v.co - hub).length > 0.02:
+                continue
+            ring = [u for u in bm.verts if abs((u.co - hub).length - 0.03) < 0.004]
+            if len(ring) < 8:
+                continue
+            ys = sorted(u.co.y for u in ring)
+            if len(ys) >= 5:
+                d2 = [abs(ys[i + 1] - 2 * ys[i] + ys[i - 1]) for i in range(1, len(ys) - 1)]
+                if d2:
+                    max_curv = max(max_curv, max(d2))
     bm.free()
     print(
-        f'[body] breast_r4cm edge_len_max_mm={max_edge * 1000:.2f} '
-        f'adj_face_normal_max_deg={max_ang:.2f} (expect ≤6mm / ≤3°)'
+        f'[body] breast_r10cm edge_len_max_mm={max_edge * 1000:.2f} '
+        f'tiny_tris={tiny} inward_faces={inward} '
+        f'adj_normal_max_deg={max_ang:.2f} center_curv_proxy={max_curv*1000:.3f} '
+        f'(expect ≤6mm / tiny=0 / inward=0 / ≤4° / curv≤{1000/R_CAP:.1f})'
     )
 
 
@@ -506,22 +595,25 @@ HAIR_SHELL_OFF_MID = 0.0045
 HAIR_CAP_D_MIN = -0.012
 HAIR_ZONE_REJECT = -0.005
 MERIDIAN_FRAGMENT_MIN = 0.040
-MERIDIAN_HOOK_MAX_LEN = 0.050
+MERIDIAN_HOOK_MAX_LEN = 0.060
 MERIDIAN_HOOK_TURN_DEG = 90.0
+MERIDIAN_HOOK_TRIM_LEN = 0.015
+MERIDIAN_HOOK_TRIM_TURN = 45.0
+MERIDIAN_BRANCH_MAX_LEN = 0.050
 
 _HAIRLINE_CTRL_R = (
     (0.00, 1.6880),
     (0.22, 1.6855),
     (0.38, 1.6765),
-    (0.52, 1.6580),
-    (0.66, 1.6340),
-    (0.80, 1.6225),
-    (0.96, 1.6095),
-    (1.12, 1.5965),
-    (1.30, 1.5860),
-    (1.52, 1.5785),
-    (1.75, 1.5740),
-    (math.pi, 1.5720),
+    (0.52, 1.6565),
+    (0.66, 1.6385),
+    (0.80, 1.6285),
+    (0.96, 1.6185),
+    (1.12, 1.6085),
+    (1.30, 1.5985),
+    (1.52, 1.5665),
+    (1.75, 1.5545),
+    (math.pi, 1.5520),
 )
 
 
@@ -560,7 +652,13 @@ def _hairline_z_at_azimuth(az):
 
 
 def _hairline_signed_distance(wco):
-    return float(wco.z) - _hairline_z_at_azimuth(_hairline_azimuth(wco))
+    az = _hairline_azimuth(wco)
+    z_line = _hairline_z_at_azimuth(az)
+    aabs = abs(math.atan2(math.sin(az), math.cos(az)))
+    if aabs > 1.22 and float(wco.y) - HEAD_REF.y > 0.015:
+        z_line -= 0.016 * _smoothstep(1.22, math.pi, aabs)
+        z_line -= 0.010 * (1.0 - _smoothstep(0.0, 0.11, abs(float(wco.x))))
+    return float(wco.z) - z_line
 
 
 def _hair_shell_offset(d):
@@ -620,9 +718,10 @@ def _print_head_landmarks(body):
 
 def _hair_cap_face_ok(face):
     verts = list(face.verts)
-    if max(v.co.z for v in verts) < 1.582:
+    mz = max(v.co.z for v in verts)
+    if mz < 1.545:
         return False
-    if all(v.co.z < 1.598 for v in verts):
+    if all(v.co.z < 1.565 for v in verts):
         return False
     center = sum((v.co for v in verts), Vector()) / len(verts)
     return _hairline_signed_distance(center) > HAIR_CAP_D_MIN
@@ -633,11 +732,18 @@ def _mesh_merge_centerline(ob, threshold=0.00012):
     bm = bmesh.new()
     bm.from_mesh(ob.data)
     bm.verts.ensure_lookup_table()
-    seam = [v for v in bm.verts if abs(v.co.x) <= 0.0012 and v.co.y > 0.015 and v.co.z > 1.58]
+    seam = [v for v in bm.verts if abs(v.co.x) <= 0.0025 and v.co.y > 0.012 and v.co.z > 1.56]
     if len(seam) >= 2:
-        bmesh.ops.remove_doubles(bm, verts=seam, dist=0.0006)
-        for v in seam:
-            if v.is_valid:
+        bmesh.ops.remove_doubles(bm, verts=seam, dist=0.0009)
+        seam = [
+            v
+            for v in bm.verts
+            if v.is_valid and abs(v.co.x) <= 0.0025 and v.co.y > 0.012 and v.co.z > 1.56
+        ]
+        if len(seam) >= 2:
+            bmesh.ops.remove_doubles(bm, verts=seam, dist=0.0005)
+        for v in bm.verts:
+            if v.is_valid and abs(v.co.x) <= 0.0025 and v.co.y > 0.012 and v.co.z > 1.56:
                 v.co.x = 0.0
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.to_mesh(ob.data)
@@ -718,11 +824,79 @@ def _subdivide_bmesh_to(bm, min_verts=4000, max_pass=7):
     bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=0.00004)
 
 
+def _hair_shell_degen_report(bm, min_area=0.5e-6, max_edge_angle_deg=60.0):
+    bm.faces.ensure_lookup_table()
+    bm.edges.ensure_lookup_table()
+    sharp = 0
+    for e in bm.edges:
+        if e.is_boundary or len(e.link_faces) < 2:
+            continue
+        n0, n1 = e.link_faces[0].normal, e.link_faces[1].normal
+        ang = math.degrees(math.acos(max(-1.0, min(1.0, n0.dot(n1)))))
+        if ang > max_edge_angle_deg:
+            sharp += 1
+    tiny = sum(1 for f in bm.faces if f.calc_area() < min_area)
+    return tiny, sharp
+
+
+def _cull_hair_shell_degens(bm, min_area=0.5e-6, max_edge_angle_deg=60.0):
+    tiny_faces = [f for f in bm.faces if f.calc_area() < min_area]
+    if tiny_faces:
+        bmesh.ops.delete(bm, geom=tiny_faces, context='FACES_ONLY')
+    loose = [v for v in bm.verts if not v.link_faces]
+    if loose:
+        bmesh.ops.delete(bm, geom=loose, context='VERTS')
+    return len(tiny_faces), _hair_shell_degen_report(bm, min_area, max_edge_angle_deg)[1]
+
+
+def _bury_hair_shell_boundary(cap, body, mw, imw, min_bury=0.0015):
+    """邊界環與內側兩圈頂點沿法線埋入皮膚 ≥ min_bury。"""
+    cap.verts.ensure_lookup_table()
+    cap.edges.ensure_lookup_table()
+    zone = set()
+    frontier = set()
+    for e in cap.edges:
+        if e.is_boundary:
+            for v in e.verts:
+                zone.add(v)
+                frontier.add(v)
+    for _ in range(2):
+        nxt = set()
+        for v in frontier:
+            for e in v.link_edges:
+                nxt.add(e.other_vert(v))
+        zone |= nxt
+        frontier = nxt
+    gaps = []
+    for v in zone:
+        wco = mw @ v.co
+        hit = _closest_on_body(body, wco)
+        if not hit:
+            continue
+        wloc, wnorm, _ = hit
+        gap = (wco - wloc).dot(wnorm)
+        if gap > -min_bury:
+            target = wloc + wnorm * (-min_bury - 0.00025)
+            v.co = imw @ target
+            wco = mw @ v.co
+            gap = (wco - wloc).dot(wnorm)
+        gaps.append(gap)
+    buried = sum(1 for g in gaps if g <= -0.001)
+    max_gap = max(gaps) if gaps else 0.0
+    print(
+        f'[hair] boundary_bury verts={len(gaps)} buried≤-1mm={buried} '
+        f'along_normal_max_mm={max_gap*1000:.2f} (expect all buried≤-1.0)'
+    )
+    return buried, len(gaps), max_gap
+
+
 def _hair_shell_quality(bm):
     bm.edges.ensure_lookup_table()
     boundary = [e for e in bm.edges if e.is_boundary]
     if not boundary:
-        return len(bm.verts), 0, 0.0, 0
+        tiny, sharp = _hair_shell_degen_report(bm)
+        vmax = max((len(v.link_faces) for v in bm.verts), default=0)
+        return len(bm.verts), 0, 0.0, 0, tiny, sharp, vmax
     unvisited = {e.index for e in boundary}
     by_vert = {}
     for e in boundary:
@@ -774,7 +948,9 @@ def _hair_shell_quality(bm):
                 max_turn,
                 math.degrees(math.acos(max(-1.0, min(1.0, t1.dot(t2))))),
             )
-    return len(bm.verts), loops, max_turn, len(boundary)
+    tiny, sharp = _hair_shell_degen_report(bm)
+    max_valence = max((len(v.link_faces) for v in bm.verts), default=0)
+    return len(bm.verts), loops, max_turn, len(boundary), tiny, sharp, max_valence
 
 
 def _build_hair_shell_bmesh(body):
@@ -829,6 +1005,8 @@ def _build_hair_shell_bmesh(body):
             wout.x = 0.0
         v.co = imw @ wout
     print(f'[hair] shell near_skin_off_band violations={near_skin_bad} (expect 0)')
+    _bury_hair_shell_boundary(cap, body, mw, imw, min_bury=0.0015)
+    _cull_hair_shell_degens(cap)
     bmesh.ops.remove_doubles(cap, verts=list(cap.verts), dist=0.00004)
     bmesh.ops.recalc_face_normals(cap, faces=cap.faces)
     return cap
@@ -839,11 +1017,12 @@ def _add_hair(body, mat_hair):
     if not shell.faces:
         shell.free()
         return None
-    vn, loops, max_turn, bedges = _hair_shell_quality(shell)
+    vn, loops, max_turn, bedges, tiny, sharp, vmax = _hair_shell_quality(shell)
     print(
         f'[hair] shell verts={vn} boundary_loops={loops} '
         f'boundary_turn_max_deg={max_turn:.2f} boundary_edges={bedges} '
-        f'(expect loops=1 turn≤25)'
+        f'tiny_tris={tiny} sharp_int_edges={sharp} max_valence={vmax} '
+        f'(expect loops=1 tiny=0 sharp=0 valence≤10)'
     )
     ob_shell = _mesh_from_bm(shell, 'bronze_hair_shell', mat_hair)
     _mesh_merge_centerline(ob_shell)
@@ -984,12 +1163,18 @@ def _verify_back_hair_rays(body, hair_ob):
     bm.transform(hair_ob.matrix_world)
     shell_bvh = BVHTree.FromBMesh(bm)
     bm.free()
+    total = 0
+    hit = 0
     miss = 0
-    for z in np.arange(1.568, 1.712, 0.005):
-        origin = Vector((0.0, 0.07, float(z)))
-        if not shell_bvh.ray_cast(origin, Vector((0.0, -1.0, 0.0)), 0.25)[0]:
-            miss += 1
-    print(f'[hair] back_centerline_ray_miss={miss} (expect 0)')
+    for x in (0.0, -0.002, 0.002):
+        for z in np.arange(1.562, 1.712, 0.003):
+            total += 1
+            origin = Vector((float(x), 0.07, float(z)))
+            if shell_bvh.ray_cast(origin, Vector((0.0, -1.0, 0.0)), 0.25)[0]:
+                hit += 1
+            else:
+                miss += 1
+    print(f'[hair] back_centerline_rays={hit}/{total} miss={miss} (expect 0 miss)')
 
 
 def _sash_stripe_mat():
@@ -1458,12 +1643,100 @@ def _meridian_segment_ok(points):
     return True
 
 
+def _path_turn_in_first_len(points, seg_len):
+    if len(points) < 3:
+        return 0.0
+    acc = 0.0
+    end = 1
+    for i in range(1, len(points)):
+        acc += (points[i] - points[i - 1]).length
+        end = i
+        if acc >= seg_len:
+            break
+    return _path_total_turning_deg(points[: end + 1])
+
+
+def _trim_meridian_hook_endpoints(points):
+    if len(points) < 3:
+        return points
+
+    def _trim_end(pts):
+        if _path_polyline_length(pts) < 0.02:
+            return pts
+        if _path_turn_in_first_len(pts, MERIDIAN_HOOK_TRIM_LEN) > MERIDIAN_HOOK_TRIM_TURN:
+            acc = 0.0
+            for i in range(1, len(pts)):
+                acc += (pts[i] - pts[i - 1]).length
+                if acc >= MERIDIAN_HOOK_TRIM_LEN:
+                    return pts[i:] if len(pts[i:]) >= 2 else pts
+        return pts
+
+    out = _trim_end(points)
+    out = list(reversed(_trim_end(list(reversed(out)))))
+    return out
+
+
+def _cull_short_meridian_branches(paths, min_len=MERIDIAN_BRANCH_MAX_LEN):
+    """同一端點 Y/T 短枝：僅保留最長段。"""
+    buckets = {}
+    for p in paths:
+        if len(p) < 2:
+            continue
+        key_a = tuple(round(c, 3) for c in p[0])
+        key_b = tuple(round(c, 3) for c in p[-1])
+        buckets.setdefault(key_a, []).append(p)
+        if key_a != key_b:
+            buckets.setdefault(key_b, []).append(p)
+    drop = set()
+    for group in buckets.values():
+        if len(group) < 2:
+            continue
+        lengths = [(p, _path_polyline_length(p)) for p in group]
+        lengths.sort(key=lambda t: t[1], reverse=True)
+        for p, ln in lengths[1:]:
+            if ln < min_len:
+                drop.add(id(p))
+    return [p for p in paths if id(p) not in drop]
+
+
+def _prune_meridian_paths(paths):
+    out = []
+    hooks = 0
+    for p in paths:
+        trimmed = _trim_meridian_hook_endpoints(p)
+        if len(trimmed) < 2:
+            hooks += 1
+            continue
+        if not _meridian_segment_ok(trimmed):
+            hooks += 1
+            continue
+        out.append(trimmed)
+    out = _cull_short_meridian_branches(out)
+    ymin = min((p[0].z for p in out), default=0.0)
+    head_neck = sum(1 for p in out if p and min(pt.z for pt in p) > 1.58)
+    lens = sorted(_path_polyline_length(p) for p in out)
+    print(
+        f'[meridians] pruned paths={len(out)} hook_or_short_dropped={hooks} '
+        f'len_min_cm={(lens[0]*100 if lens else 0):.2f} '
+        f'head_neck_segments={head_neck} (expect hooks=0)'
+    )
+    return out
+
+
+def _hair_zone_reject_for(meridian=''):
+    if meridian == '督脈':
+        return 0.040
+    if meridian in MIDLINE_MERIDIANS:
+        return 0.016
+    return HAIR_ZONE_REJECT
+
+
 def _filter_hair_zone_point_segments(points, meridian=''):
-    del meridian
+    reject = _hair_zone_reject_for(meridian)
     segments = []
     current = []
     for p in points:
-        if _hairline_signed_distance(p) <= HAIR_ZONE_REJECT:
+        if _hairline_signed_distance(p) <= reject:
             current.append(p)
         else:
             if len(current) >= 2:
@@ -1809,7 +2082,7 @@ def _meridian_paths_from_records(body, records):
             for seg in _finalize_meridian_paths(body, path):
                 if _meridian_segment_ok(seg):
                     paths.append(seg)
-    return paths
+    return _prune_meridian_paths(paths)
 
 
 def _curve_tube_from_points(points, name, mat):
@@ -2189,8 +2462,9 @@ def build(out_path):
     _optional_decimate(body)
 
     _print_head_landmarks(body)
-    _subdivide_breast_patch(body)
+    _subdivide_breast_uniform(body)
     _smooth_breast_detail(body)
+    _recalc_breast_normals_outward(body, _nipple_hubs(body))
     _report_breast_mesh_quality(body)
 
     mat_bronze = _mat_pbr('bronze', BRONZE_HEX, rough=BRONZE_ROUGH, metal=BRONZE_METAL)
