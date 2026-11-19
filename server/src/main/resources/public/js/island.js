@@ -141,7 +141,7 @@ import { shouldOfferNpcTalkPrompt, NPC_TALK_ACTION } from './island-people-data.
 import { createIslandNpcTalk, npcTalkPromptLabel } from './island-npc-talk.js';
 import { createIslandSky } from './island-sky.js';
 import { createIslandSea } from './island-sea.js';
-import { createIslandLife } from './island-life.js';
+import { createIslandLife, LIFE_PANORAMA_CAMERA } from './island-life.js';
 import { createFootprintView } from './island-footprints.js';
 import { createLifecycle } from './island-lifecycle.js';
 import { createPeerLayer } from './island-peers.js';
@@ -342,11 +342,100 @@ function boot() {
   const worldResult = buildIslandWorld({ scene: scene, kit: kit });
   const sea = createIslandSea(THREE, { kit: kit, reduced: reduced });
   scene.add(sea.group);
-  const lifeRareParam = new URLSearchParams(window.location.search).get('lifeRare');
+  const lifeQs = new URLSearchParams(window.location.search);
+  const lifeRareParam = lifeQs.get('lifeRare');
   const life = createIslandLife(THREE, {
     kit: kit,
     reduced: reduced,
-    forceRare: lifeRareParam
+    forceRare: lifeRareParam,
+    forceAll: lifeQs.get('forceAll') === '1',
+    lifeSpout: lifeQs.get('lifeSpout') === '1'
+  });
+  life.ready.then(() => {
+    window.__islandLifeBox3 = {
+      worldSize(kind) {
+        const box = new THREE.Box3();
+        let node = null;
+        for (let i = 0; i < life.creatures.length; i++) {
+          const c = life.creatures[i];
+          if (c.userData && c.userData.kind === kind) node = c;
+        }
+        if (!node) return null;
+        box.setFromObject(node);
+        const s = new THREE.Vector3();
+        box.getSize(s);
+        return { x: +s.x.toFixed(2), y: +s.y.toFixed(2), z: +s.z.toFixed(2) };
+      }
+    };
+    window.__islandLifeMeshTable = function () {
+      const rows = [];
+      const walkKind = new Map();
+      for (let i = 0; i < life.creatures.length; i++) {
+        const creature = life.creatures[i];
+        const kind = creature.userData && creature.userData.kind;
+        if (!kind) continue;
+        walkKind.set(creature, kind);
+        creature.traverse((child) => {
+          if (child === creature) return;
+          walkKind.set(child, kind);
+        });
+      }
+      life.group.traverse((child) => {
+        if (!child.isMesh) return;
+        const kind = (child.userData && child.userData.kind) || walkKind.get(child);
+        if (!kind) return;
+        const box = new THREE.Box3().setFromObject(child);
+        const sz = new THREE.Vector3();
+        box.getSize(sz);
+        const mat = child.material;
+        const col = mat && mat.color;
+        rows.push({
+          kind: kind,
+          mesh: child.name || '(mesh)',
+          color: col && col.getHexString ? '#' + col.getHexString() : '#?',
+          x: +sz.x.toFixed(2),
+          y: +sz.y.toFixed(2),
+          z: +sz.z.toFixed(2)
+        });
+      });
+      return rows;
+    };
+    if (lifeQs.get('lifeNight') === '1') {
+      dayNight.setTarget(1);
+      dayNight.refresh();
+    }
+    if (lifeQs.get('lifePanorama') === '1') {
+      const c = LIFE_PANORAMA_CAMERA;
+      camera.position.set(c.eye.x, c.eye.y, c.eye.z);
+      camera.lookAt(c.eye.x + c.dir.x, c.eye.y + c.dir.y, c.eye.z + c.dir.z);
+      camera.fov = c.fovDeg;
+      camera.updateProjectionMatrix();
+    } else if (lifeQs.get('lifeClose') === '1' && lifeRareParam) {
+      const box = new THREE.Box3();
+      let node = null;
+      for (let i = 0; i < life.creatures.length; i++) {
+        const c = life.creatures[i];
+        if (c.userData && c.userData.kind === lifeRareParam) node = c;
+      }
+      if (node) {
+        box.setFromObject(node);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const span = Math.max(size.x, size.y, size.z, 0.8);
+        if (lifeQs.get('lifeCloseView') === 'top') {
+          camera.position.set(center.x, center.y + span * 2.4, center.z);
+        } else {
+          camera.position.set(center.x + span * 1.7, center.y + span * 1.05, center.z + span * 1.5);
+        }
+        camera.lookAt(center);
+        camera.fov = 30;
+        camera.updateProjectionMatrix();
+      }
+    }
+    if (lifeQs.get('lifeSpout') === '1') {
+      life.update(0.016, 0.55);
+    }
+    window.__islandLifeReady = true;
   });
   scene.add(life.group);
   if (worldResult && worldResult.water) {
