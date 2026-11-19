@@ -1728,6 +1728,14 @@ function boot() {
   }
 
   const listBtn = document.getElementById('islandListBtn');
+  const listClose = document.getElementById('islandListClose');
+  function closeListPanel() {
+    if (!list) return;
+    list.hidden = true;
+    if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
+    syncInteractPrompt();
+  }
+  if (listClose) listClose.addEventListener('click', closeListPanel);
   if (listBtn && list) {
     listBtn.addEventListener('click', () => {
       list.hidden = !list.hidden;

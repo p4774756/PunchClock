@@ -345,7 +345,7 @@ test('探索時聊天面板邊界不與搖桿相交（360／390）', () => {
   }
 });
 
-test('「選單」打開時 body 有 island-more-open，CSS 隱藏搖桿與 HUD', () => {
+test('「選單」打開時 body 有 island-more-open，手機 CSS 隱藏搖桿與 HUD', () => {
   const doc = makeMobileDom(true);
   const ui = Corner.createCornerUi({
     document: doc,
@@ -358,12 +358,13 @@ test('「選單」打開時 body 有 island-more-open，CSS 隱藏搖桿與 HUD'
   assert.equal(doc.body.classList.contains('island-more-open'), true);
   assert.match(
     islandCss,
-    /body\.island-more-open \.island-hud[\s\S]*visibility:\s*hidden/
+    /@media \(max-width: 760px\)[\s\S]*body\.island-more-open \.island-hud[\s\S]*visibility:\s*hidden/
   );
   assert.match(
     islandCss,
-    /body\.island-more-open \.island-joystick[\s\S]*visibility:\s*hidden/
+    /@media \(max-width: 760px\)[\s\S]*body\.island-more-open \.island-joystick[\s\S]*visibility:\s*hidden/
   );
+  assert.match(islandCss, /@media \(min-width: 761px\)[\s\S]*\.island-more-panel[\s\S]*position:\s*fixed/);
   ui.setMoreOpen(false);
   assert.equal(doc.body.classList.contains('island-more-open'), false);
 });
