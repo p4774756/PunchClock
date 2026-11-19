@@ -1,6 +1,7 @@
 // 遠端看板同儕、名牌與位置同步；由 island.js 注入場景／玩家／在線服務。
 
 import { islandAvatarAnim, normalizeIslandAvatar } from './island-milu.js';
+import { peerNameScreenOffsetAway } from './island-self-label.js';
 
 export function createPeerLayer(opts) {
   const THREE = opts.THREE;
@@ -33,6 +34,7 @@ export function createPeerLayer(opts) {
   const getCam = opts.getCam || function () { return { theta: 0 }; };
   const syncPeerCountExternal = opts.syncPeerCount;
   const placeSelfLabel = opts.placeSelfLabel;
+  const getSelfLabelScreen = opts.getSelfLabelScreen;
 
   const peers = new Map();
   const avatarTexturePools = new Map();
@@ -246,7 +248,8 @@ export function createPeerLayer(opts) {
       projected: projected,
       peers: peerPlaces || [],
       selfNameAbove: false,
-      selfBubbleExtra: ''
+      labelX: null,
+      labelY: null
     };
   }
 
@@ -267,7 +270,8 @@ export function createPeerLayer(opts) {
       if (placed) {
         if (placed.headY != null) bubbleCtx.y = placed.headY;
         bubbleCtx.selfNameAbove = !!placed.selfNameAbove;
-        if (placed.selfBubbleExtra) bubbleCtx.selfBubbleExtra = placed.selfBubbleExtra;
+        if (placed.labelX != null) bubbleCtx.labelX = placed.labelX;
+        if (placed.labelY != null) bubbleCtx.labelY = placed.labelY;
       }
     }
     const islandChat = getChat();
@@ -280,6 +284,7 @@ export function createPeerLayer(opts) {
     const height = size.height || 1;
     const off = peerOffset();
     const now = performance.now();
+    const selfScreen = typeof getSelfLabelScreen === 'function' ? getSelfLabelScreen() : null;
     const peerPlaces = [];
     peers.forEach((row, id) => {
       const el = row.label;
@@ -298,7 +303,11 @@ export function createPeerLayer(opts) {
         return;
       }
       const x = (projected.x * 0.5 + 0.5) * width;
-      const y = (-projected.y * 0.5 + 0.5) * height;
+      const y0 = (-projected.y * 0.5 + 0.5) * height;
+      const away = selfScreen
+        ? peerNameScreenOffsetAway(selfScreen.x, selfScreen.y, x, y0)
+        : 0;
+      const y = y0 + away;
       el.style.visibility = 'visible';
       el.style.transform = 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -120%)';
       peerPlaces.push({ id: id, x: x, y: y, visible: true });

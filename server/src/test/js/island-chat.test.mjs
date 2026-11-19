@@ -94,9 +94,10 @@ test('對方泡泡用獨立定位，抬到名牌上方；自己名牌開啟時�
   assert.match(C.peerBubbleTransform(120, 240), /translateY\(-1\.85rem\)/);
   assert.equal(C.selfBubbleTransform(10, 20), 'translate(10px, 20px) translate(-50%, -120%)');
   assert.match(
-    C.selfBubbleTransform(10, 20, { selfNameAbove: true, extraTransform: ' translateY(-1.65rem)' }),
-    /translateY\(-1\.65rem\)/
+    C.selfBubbleTransform(10, 20, { selfNameAbove: true, extraUpPx: 6 }),
+    /translateY\(-6px\)/
   );
+  assert.match(C.peerBubbleTransform(10, 20, { upPx: 4 }), /translateY\(-4px\)/);
 });
 
 test('對方泡泡掛在 #islandLabels，不進名牌膠囊', () => {

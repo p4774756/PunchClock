@@ -10,16 +10,17 @@ import {
   isSteeringPhase
 } from './island-boat.js';
 import { cleanNick, loadNick, NAME_MAX } from './island-presence.js';
+import { PINK_CAR_ROOF_Y_FALLBACK } from './island-city-data.js';
 import { isDrivingPhase } from './island-vehicle.js';
 import { playerVisible } from './island-explore.js';
 
 export const SELF_NAME_KEY = 'punchclock.island.selfName';
 export const SELF_LABEL_HEAD_OFFSET = 1.18;
-/** 粉紅小車頂端上方（相對地面 Y）。 */
-export const VEHICLE_SELF_LABEL_TOP = 1.05;
+/** 名牌下緣對齊車頂時錨點（-120% 底緣）在車頂上方的距離（世界單位）。 */
+export const VEHICLE_SELF_LABEL_ABOVE_ROOF = 0;
 /** 航行／掌舵且主角隱藏時，掛在船頂（相對船體 Y）。 */
 export const BOAT_VEHICLE_LABEL_TOP = BOAT_FLYBRIDGE_TOP + 0.08;
-/** 自己泡泡在名牌上方時額外位移（與 peer 泡泡類似）。 */
+/** 測試／舊 API：名牌上方泡泡還用 px 佈局（見 island-overlay-layout.js）。 */
 export const SELF_BUBBLE_ABOVE_NAME_REM = 1.65;
 /** 與同儕名牌螢幕距離過近時，自己名牌往上錯開（px）。 */
 export const SELF_PEER_SCREEN_NUDGE_PX = 22;
@@ -118,11 +119,12 @@ export function selfLabelAnchor(state) {
     const x = (s.vehicleX == null ? s.playerX : s.vehicleX) + offX;
     const z = (s.vehicleZ == null ? s.playerZ : s.vehicleZ) + offZ;
     const gy = s.P == null ? groundY : s.P;
+    const roofY = s.vehicleRoofY == null ? PINK_CAR_ROOF_Y_FALLBACK : s.vehicleRoofY;
     return Object.freeze({
       kind: 'vehicle',
       x: x,
       z: z,
-      headY: gy + VEHICLE_SELF_LABEL_TOP
+      headY: vehicleSelfLabelHeadY(gy, roofY)
     });
   }
 
@@ -177,6 +179,12 @@ export function projectInView(projected, camera, x, y, z, width, height) {
   };
 }
 
+export function vehicleSelfLabelHeadY(groundY, roofY) {
+  const gy = groundY == null ? 0 : groundY;
+  const roof = roofY == null ? PINK_CAR_ROOF_Y_FALLBACK : roofY;
+  return gy + roof + VEHICLE_SELF_LABEL_ABOVE_ROOF;
+}
+
 export function selfLabelPeerNudge(x, y, peers) {
   const list = peers || [];
   let nudge = 0;
@@ -188,6 +196,13 @@ export function selfLabelPeerNudge(x, y, peers) {
     }
   }
   return nudge;
+}
+
+/** 自己名牌上移時，同儕名牌往下錯開（螢幕 px）。 */
+export function peerNameScreenOffsetAway(selfLabelX, selfLabelY, peerX, peerY) {
+  if (selfLabelX == null || selfLabelY == null) return 0;
+  if (Math.hypot(peerX - selfLabelX, peerY - selfLabelY) >= SELF_PEER_SCREEN_MIN_PX) return 0;
+  return SELF_PEER_SCREEN_NUDGE_PX;
 }
 
 export function selfLabelTransform(x, y) {
@@ -232,6 +247,7 @@ export function buildSelfLabelState(ctx) {
       : c.passengerScale,
     vehicleX: vehicle ? vehicle.carX : c.vehicleX,
     vehicleZ: vehicle ? vehicle.carZ : c.vehicleZ,
+    vehicleRoofY: c.vehicleRoofY,
     boatPose: boatPose,
     boatBobY: bobY,
     peers: c.peers
@@ -320,13 +336,25 @@ export function createSelfLabelPlacer(opts) {
     const show = selfLabelVisible(state);
     if (!show) {
       hide();
-      return { selfNameAbove: false, headY: anchor.headY, screenY: null };
+      return {
+        selfNameAbove: false,
+        headY: anchor.headY,
+        labelX: null,
+        labelY: null,
+        screenY: null
+      };
     }
 
     const node = ensure();
     if (!node) {
       hide();
-      return { selfNameAbove: false, headY: anchor.headY, screenY: null };
+      return {
+        selfNameAbove: false,
+        headY: anchor.headY,
+        labelX: null,
+        labelY: null,
+        screenY: null
+      };
     }
 
     const screen = projectInView(
@@ -340,7 +368,13 @@ export function createSelfLabelPlacer(opts) {
     );
     if (!screen) {
       hide();
-      return { selfNameAbove: false, headY: anchor.headY, screenY: null };
+      return {
+        selfNameAbove: false,
+        headY: anchor.headY,
+        labelX: null,
+        labelY: null,
+        screenY: null
+      };
     }
 
     const nudge = selfLabelPeerNudge(screen.x, screen.y, ctx.peers);
@@ -355,7 +389,14 @@ export function createSelfLabelPlacer(opts) {
       y: y,
       anchor: anchor
     });
-    return { selfNameAbove: true, headY: anchor.headY, screenY: screen.y };
+    return {
+      selfNameAbove: true,
+      headY: anchor.headY,
+      labelX: screen.x,
+      labelY: y,
+      screenY: screen.y,
+      nudgePx: nudge
+    };
   }
 
   function getDebug() {

@@ -1,5 +1,7 @@
 // 島上泡泡聊天的純邏輯與角落 UI。不存檔；內容只用 textContent 顯示。
 
+import { layoutIslandOverlays } from './island-overlay-layout.js';
+
 export const CHAT_MAX = 60;
 export const CHAT_LOG_MAX = 20;
 export const BUBBLE_MS = 5000;
@@ -62,14 +64,22 @@ export function shouldOpenChatKey(ctx) {
 }
 
 /** 對方泡泡與名牌同螢幕錨點，再往上抬過名牌膠囊。 */
-export function peerBubbleTransform(x, y) {
-  return 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -100%) translateY(-1.85rem)';
+export function peerBubbleTransform(x, y, opts) {
+  const upPx = opts && typeof opts.upPx === 'number' && opts.upPx > 0 ? opts.upPx : 0;
+  const extra = upPx > 0 ? ' translateY(-' + upPx + 'px)' : '';
+  return 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -100%) translateY(-1.85rem)' + extra;
 }
 
 export function selfBubbleTransform(x, y, opts) {
-  const extra = typeof opts === 'object' && opts && opts.selfNameAbove
-    ? (typeof opts.extraTransform === 'string' ? opts.extraTransform : '')
-    : '';
+  const o = typeof opts === 'object' && opts ? opts : null;
+  let extra = '';
+  if (o && o.selfNameAbove) {
+    if (typeof o.extraUpPx === 'number' && o.extraUpPx > 0) {
+      extra = ' translateY(-' + o.extraUpPx + 'px)';
+    } else if (typeof o.extraTransform === 'string') {
+      extra = o.extraTransform;
+    }
+  }
   return 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -120%)' + extra;
 }
 
@@ -204,7 +214,28 @@ export function createIslandChat(options) {
     });
   }
 
-  function placeSelfFromCtx(ctx) {
+  function projectSelfHead(ctx) {
+    if (!ctx || !ctx.visible) return null;
+    const width = ctx.width || 1;
+    const height = ctx.height || 1;
+    const projected = ctx.projected;
+    const camera = ctx.camera;
+    if (!projected || !camera || typeof projected.set !== 'function' || typeof projected.project !== 'function') {
+      return null;
+    }
+    const worldY = ctx.y == null ? 1.18 : ctx.y;
+    projected.set(ctx.x, worldY, ctx.z);
+    projected.project(camera);
+    if (projected.z > 1 || projected.x < -1.08 || projected.x > 1.08 || projected.y < -1.08 || projected.y > 1.08) {
+      return null;
+    }
+    return {
+      x: (projected.x * 0.5 + 0.5) * width,
+      y: (-projected.y * 0.5 + 0.5) * height
+    };
+  }
+
+  function placeSelfFromLayout(ctx, layout) {
     const row = bubbles.get('__self__');
     if (!row) {
       if (selfBubble) selfBubble.style.visibility = 'hidden';
@@ -215,36 +246,25 @@ export function createIslandChat(options) {
       if (el) el.style.visibility = 'hidden';
       return;
     }
-    const width = ctx.width || 1;
-    const height = ctx.height || 1;
-    const projected = ctx.projected;
-    const camera = ctx.camera;
-    if (!projected || !camera || typeof projected.set !== 'function' || typeof projected.project !== 'function') {
-      return;
-    }
-    const worldY = ctx.y == null ? 1.18 : ctx.y;
-    projected.set(ctx.x, worldY, ctx.z);
-    projected.project(camera);
-    if (projected.z > 1 || projected.x < -1.08 || projected.x > 1.08 || projected.y < -1.08 || projected.y > 1.08) {
+    const head = projectSelfHead(ctx);
+    const bubble = layout && layout.selfBubble;
+    if (!bubble && !head) {
       el.style.visibility = 'hidden';
       return;
     }
-    const x = (projected.x * 0.5 + 0.5) * width;
-    const screenY = (-projected.y * 0.5 + 0.5) * height;
+    const use = bubble || { x: head.x, anchorY: head.y, extraUpPx: 0 };
     el.hidden = false;
     el.style.visibility = 'visible';
-    const extra = ctx.selfNameAbove && typeof ctx.selfBubbleExtra === 'string'
-      ? ctx.selfBubbleExtra
-      : '';
-    el.style.transform = selfBubbleTransform(x, screenY, {
-      selfNameAbove: !!ctx.selfNameAbove,
-      extraTransform: extra
+    el.style.transform = selfBubbleTransform(use.x, use.anchorY, {
+      selfNameAbove: !!(ctx.selfNameAbove && bubble),
+      extraUpPx: use.extraUpPx
     });
   }
 
-  function placePeerFromList(list) {
+  function placePeerFromList(list, layout) {
     const seen = Object.create(null);
     const places = list || [];
+    const offsets = layout && layout.peerBubbleOffsetY ? layout.peerBubbleOffsetY : null;
     for (let i = 0; i < places.length; i++) {
       const place = places[i];
       if (!place || !place.id) continue;
@@ -259,7 +279,8 @@ export function createIslandChat(options) {
       if (!el) continue;
       el.hidden = false;
       el.style.visibility = 'visible';
-      el.style.transform = peerBubbleTransform(place.x, place.y);
+      const upPx = offsets && offsets[place.id] ? offsets[place.id] : 0;
+      el.style.transform = peerBubbleTransform(place.x, place.y, { upPx: upPx });
     }
     peerEls.forEach((el, id) => {
       if (seen[id]) return;
@@ -277,8 +298,26 @@ export function createIslandChat(options) {
   function placeBubbles(ctx) {
     const now = typeof opts.now === 'function' ? opts.now() : Date.now();
     expireBubbles(now);
-    placeSelfFromCtx(ctx);
-    placePeerFromList(ctx && ctx.peers);
+    if (!ctx) return;
+    const head = projectSelfHead(ctx);
+    const peerRows = (ctx.peers || []).map((place) => ({
+      id: place.id,
+      x: place.x,
+      y: place.y,
+      visible: place.visible,
+      bubble: !!(place.id && bubbles.has(place.id))
+    }));
+    const layout = layoutIslandOverlays({
+      selfNameVisible: !!(ctx.selfNameAbove && ctx.labelY != null && ctx.labelX != null),
+      selfLabelX: ctx.labelX,
+      selfLabelY: ctx.labelY,
+      selfBubbleActive: !!(ctx.visible && bubbles.has('__self__')),
+      selfHeadX: head ? head.x : null,
+      selfHeadY: head ? head.y : null,
+      peers: peerRows
+    }, ctx.overlayMetrics);
+    placeSelfFromLayout(ctx, layout);
+    placePeerFromList(ctx.peers, layout);
   }
 
   function placeSelfBubble(ctx) {

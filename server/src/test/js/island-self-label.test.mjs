@@ -141,7 +141,7 @@ test('selfLabelAnchor：步行、乘客縮放、車、船', () => {
   });
   assert.equal(vehicle.kind, 'vehicle');
   assert.equal(vehicle.x, 5);
-  assert.ok(Math.abs(vehicle.headY - (0.15 + L.VEHICLE_SELF_LABEL_TOP)) < 0.001);
+  assert.ok(Math.abs(vehicle.headY - L.vehicleSelfLabelHeadY(0.15, 0.697)) < 0.001);
 
   const boatTop = L.selfLabelAnchor({
     sailing: true,
@@ -185,9 +185,9 @@ test('聊天泡泡在名牌上方', () => {
   assert.match(C.selfBubbleTransform(10, 20), /translate\(10px, 20px\)/);
   const withName = C.selfBubbleTransform(10, 20, {
     selfNameAbove: true,
-    extraTransform: L.selfBubbleExtraTransform(true)
+    extraUpPx: 12
   });
-  assert.match(withName, /translateY\(-1\.65rem\)/);
+  assert.match(withName, /translateY\(-12px\)/);
   assert.doesNotMatch(C.selfBubbleTransform(1, 2, { selfNameAbove: false }), /translateY/);
 });
 
