@@ -228,12 +228,23 @@ test('右下操作叢與搖桿、離開室內不重疊（390×844）', () => {
   const width = 390;
   const height = 844;
   const joy = Corner.joystickRectMobile(width, height);
-  const actions = Corner.hudActionsRect(width, height);
+  const actions = Corner.hudActionsRect(width, height, {
+    exploring: true,
+    withInteract: true,
+    withSteer: true
+  });
   const leave = Corner.leaveInteriorRectMobile(width, height);
+  const joyPad = 0.55 * 16;
+  assert.ok(actions.left >= joy.right + joyPad - 0.5, '探索操作叢左緣在搖桿右側');
   assert.ok(!Corner.rectsIntersect(actions, joy), '操作叢不與搖桿重疊');
   assert.ok(!Corner.rectsIntersect(leave, joy), '離開室內不與搖桿重疊');
   assert.ok(actions.primary.minTouch >= 44, '主情境鈕觸控至少 44px');
   assert.ok(actions.smallOrb.minTouch >= 44, '小圓鈕觸控至少 44px');
+  const layout = Corner.exploreHudActionItems(width, height, { withInteract: true, withSteer: true });
+  for (const item of layout.items) {
+    assert.ok(item.left >= joy.right + joyPad - 0.5, item.id + ' 左緣避開搖桿');
+    assert.ok(!Corner.rectsIntersect(item, joy), item.id + ' 不與搖桿重疊');
+  }
 });
 
 test('chat 無 FAB，探索切換不會露出第二顆聊天', () => {
@@ -469,12 +480,31 @@ test('戶外探索提示含 Esc 退出探索', () => {
   assert.match(indexHtml, /Esc 退出探索/);
 });
 
+test('探索 HUD：手機操作叢留搖桿間距，退出探索不換行', () => {
+  assert.match(
+    islandCss,
+    /body\.is-exploring \.island-hud-actions[\s\S]*0\.7rem \+ 8rem \+ 0\.55rem/
+  );
+  assert.match(islandCss, /body\.is-exploring \.island-hud-explore-entry[\s\S]*white-space:\s*nowrap/);
+  assert.match(
+    islandCss,
+    /body\.is-exploring \.island-hud-explore-entry[\s\S]*0\.85rem \+ 3\.75rem \+ 0\.45rem/
+  );
+});
+
 test('1280×720 與 390×844「退出探索」不與搖桿、右上 HUD 重疊', () => {
   for (const [w, h] of [[1280, 720], [390, 844]]) {
     const btn = Corner.exploreExitButtonRect(w, h);
+    const joyPad = w <= Corner.MOBILE_MAX_WIDTH ? 0.55 * 16 : 0;
     assert.ok(!Corner.rectsIntersect(btn, btn.joy), w + ' 退出探索與搖桿不重疊');
     assert.ok(!Corner.rectsIntersect(btn, btn.tr), w + ' 退出探索與右上圓鈕不重疊');
-    assert.ok(btn.left >= btn.joy.right - 0.5, w + ' 退出探索在搖桿右側');
+    assert.ok(btn.left >= btn.joy.right + joyPad - 0.5, w + ' 退出探索在搖桿右側');
     assert.ok(btn.left >= 0 && btn.right <= w + 0.5, w + ' 退出探索在 viewport 內');
+    if (w <= Corner.MOBILE_MAX_WIDTH) {
+      const layout = Corner.exploreHudActionItems(w, h, { withInteract: true, withSteer: true });
+      for (const item of layout.items) {
+        assert.ok(!Corner.rectsIntersect(item, btn.joy), w + ' ' + item.id + ' 與搖桿不重疊');
+      }
+    }
   }
 });

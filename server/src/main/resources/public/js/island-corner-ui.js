@@ -44,17 +44,29 @@ export function hudTopRightRect(viewportWidth, viewportHeight, showAudio) {
   return { left, right, top, bottom, width: totalW, height: bottom - top, orbSize: ORB_SIZE };
 }
 
+const EXPLORE_EXIT_MIN_W = 5.5 * REM;
+const INTERACT_BTN_W = 7.5625 * REM;
+
 /** 探索中右下角「退出探索」主按鈕（對齊 island.css）。 */
 export function exploreExitButtonRect(viewportWidth, viewportHeight) {
   const narrow = viewportWidth <= MOBILE_MAX_WIDTH;
   const margin = hudMargin(viewportWidth);
   const height = 3.75 * REM;
-  const width = (narrow ? 4.35 : 4.85) * REM;
-  const bottomInset = narrow ? 0.85 * REM : 1.1 * REM;
-  const bottom = viewportHeight - bottomInset;
-  const top = bottom - height;
+  const width = narrow ? EXPLORE_EXIT_MIN_W : 5.85 * REM;
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
   const right = viewportWidth - margin;
   const left = right - width;
+  let bottom;
+  let top;
+  if (narrow) {
+    const lift = 0.85 * REM + 3.75 * REM + 0.45 * REM;
+    bottom = viewportHeight - lift;
+    top = bottom - height;
+  } else {
+    const bottomInset = 1.1 * REM;
+    bottom = viewportHeight - bottomInset;
+    top = bottom - height;
+  }
   return {
     left,
     right,
@@ -62,36 +74,102 @@ export function exploreExitButtonRect(viewportWidth, viewportHeight) {
     bottom,
     width,
     height,
-    joy: joystickRectMobile(viewportWidth, viewportHeight),
+    joy,
     tr: hudTopRightRect(viewportWidth, viewportHeight, true),
-    actions: hudActionsRect(viewportWidth, viewportHeight)
+    actions: hudActionsRect(viewportWidth, viewportHeight, { exploring: true })
   };
 }
 
-export function hudActionsRect(viewportWidth, viewportHeight) {
+/**
+ * @param {{ exploring?: boolean, withInteract?: boolean, withSteer?: boolean, interactWidth?: number }} [opts]
+ */
+export function hudActionsRect(viewportWidth, viewportHeight, opts) {
+  const exploring = !!(opts && opts.exploring);
+  const withInteract = !!(opts && opts.withInteract);
+  const withSteer = !!(opts && opts.withSteer);
+  const interactWidth = (opts && opts.interactWidth) || INTERACT_BTN_W;
   const margin = hudMargin(viewportWidth);
+  const narrow = viewportWidth <= MOBILE_MAX_WIDTH;
   const smallOrb = 2.85 * REM;
   const primaryW = 3.75 * REM;
   const primaryH = 3.75 * REM;
   const steerW = smallOrb;
   const gap = 0.45 * REM;
-  const rowW = smallOrb * 2 + gap + primaryW;
-  const bottom = viewportHeight - Math.max(0.7 * REM, 0);
-  const bottomInset = viewportWidth <= MOBILE_MAX_WIDTH ? 0.85 * REM : 1.1 * REM;
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  const bottomInset = narrow ? 0.85 * REM : 1.1 * REM;
   const bottomEdge = viewportHeight - bottomInset;
   const top = bottomEdge - primaryH;
   const right = viewportWidth - margin;
-  const left = right - rowW - steerW - gap;
+  let rowW = smallOrb * 2 + gap;
+  if (!(exploring && narrow)) rowW += primaryW;
+  if (withInteract) rowW += gap + interactWidth;
+  if (withSteer) rowW += gap + steerW;
+  let left;
+  if (narrow && exploring) {
+    left = joy.right + 0.55 * REM;
+  } else {
+    const legacyRow = smallOrb * 2 + gap + primaryW;
+    left = right - legacyRow - steerW - gap;
+  }
+  const width = Math.max(0, right - left);
   return {
     left,
     right,
     top,
     bottom: bottomEdge,
-    width: rowW + steerW + gap,
+    width,
     height: primaryH,
+    rowW,
     primary: { width: primaryW, height: primaryH, minTouch: Math.min(primaryW, primaryH) },
-    smallOrb: { width: smallOrb, height: smallOrb + 0.75 * REM, minTouch: smallOrb }
+    smallOrb: { width: smallOrb, height: smallOrb + 0.75 * REM, minTouch: smallOrb },
+    joy
   };
+}
+
+/** 探索中下排地圖／角色／情境／開船各鈕（右緣貼齊操作叢，不含上方「退出探索」）。 */
+export function exploreHudActionItems(viewportWidth, viewportHeight, opts) {
+  const withInteract = !!(opts && opts.withInteract);
+  const withSteer = !!(opts && opts.withSteer);
+  const interactWidth = (opts && opts.interactWidth) || INTERACT_BTN_W;
+  const actions = hudActionsRect(viewportWidth, viewportHeight, {
+    exploring: true,
+    withInteract,
+    withSteer,
+    interactWidth
+  });
+  const gap = 0.45 * REM;
+  const smallOrb = 2.85 * REM;
+  const primaryH = 3.75 * REM;
+  const specs = [
+    ...(withSteer ? [{ id: 'steer', w: smallOrb, h: smallOrb }] : []),
+    ...(withInteract ? [{ id: 'interact', w: interactWidth, h: primaryH }] : []),
+    { id: 'role', w: smallOrb, h: smallOrb },
+    { id: 'map', w: smallOrb, h: smallOrb }
+  ];
+  const items = [];
+  let rowBottom = actions.bottom;
+  let cursor = actions.right;
+  let rowMaxH = 0;
+  for (const spec of specs) {
+    if (cursor - spec.w < actions.left - 0.5) {
+      rowBottom -= rowMaxH + gap;
+      cursor = actions.right;
+      rowMaxH = 0;
+    }
+    const left = cursor - spec.w;
+    items.push({
+      id: spec.id,
+      left,
+      right: cursor,
+      top: rowBottom - spec.h,
+      bottom: rowBottom,
+      width: spec.w,
+      height: spec.h
+    });
+    rowMaxH = Math.max(rowMaxH, spec.h);
+    cursor = left - gap;
+  }
+  return { actions, items, joy: actions.joy };
 }
 
 export function leaveInteriorRectMobile(viewportWidth, viewportHeight) {
