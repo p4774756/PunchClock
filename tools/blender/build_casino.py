@@ -1,4 +1,4 @@
-"""賭場（casino）：v2 放大、北立面 local -X 朝向 EXPLORE 鏡頭（#163）。
+"""賭場（casino）：v2 放大、北立面 local +X 朝向 EXPLORE 鏡頭（#163）。
 
 無頭重建：
   ~/.local/bin/blender -b --factory-startup -P tools/blender/build_casino.py -- \\
@@ -34,17 +34,17 @@ def _semicircle_boxes(part, mat, cx, y, z0, radius, nseg, sx, sy, sz, rx=0.0, ry
 
 
 def _north_vertical_sign(b, width, height, z_center, north_x):
-    """主招牌：法線朝 -X（世界北／EXPLORE 鏡頭）；sign_face → casinoSignMap。"""
+    """主招牌：法線朝 +X（世界北／EXPLORE 鏡頭）；sign_face → casinoSignMap。"""
     fr = b.part('sign')
     face = b.part('sign_face')
     neo = b.part('neon')
     pitch = -0.16
-    x_frame, x_board, x_face = north_x - 0.07, north_x - 0.09, north_x - 0.115
-    x_neon = north_x - 0.12
+    x_frame, x_board, x_face = north_x + 0.07, north_x + 0.09, north_x + 0.115
+    x_neon = north_x + 0.12
     fr.box('gold', 0.13, width + 0.20, height + 0.18, x_frame, 0, z_center, rx=pitch)
     fr.box('cas_dark', 0.055, width + 0.04, height + 0.06, x_board, 0, z_center, rx=pitch)
     neo.box('neon_glow', 0.058, width + 0.26, height + 0.22, x_neon, 0, z_center, rx=pitch)
-    face.plane('sign', width, height, x_face, 0, z_center, ry=math.pi / 2, rx=pitch, flip_u=True)
+    face.plane('sign', width, height, x_face, 0, z_center, ry=-math.pi / 2, rx=pitch, flip_u=False)
     neo.box('neon_glow', 0.050, width + 0.16, 0.055, x_neon, 0, z_center + height / 2 + 0.04, rx=pitch)
     neo.box('neon_glow', 0.050, width + 0.16, 0.055, x_neon, 0, z_center - height / 2 - 0.04, rx=pitch)
     for dy in (-width / 2 - 0.04, width / 2 + 0.04):
@@ -52,8 +52,8 @@ def _north_vertical_sign(b, width, height, z_center, north_x):
 
 
 def _north_marquee(arch, bulbs, neo, north_x, z_top, width):
-    """北立面垂直霓虹拱（YZ 拱門、法線朝 -X）。"""
-    x = north_x - 0.10
+    """北立面垂直霓虹拱（YZ 拱門、法線朝 +X）。"""
+    x = north_x + 0.10
     pillar_h = 0.58
     z_base = z_top - pillar_h
     for ly in (-width * 0.47, width * 0.47):
@@ -68,27 +68,27 @@ def _north_marquee(arch, bulbs, neo, north_x, z_top, width):
             my, mz = (ly + prev[0]) / 2, (lz + prev[1]) / 2
             arch.box('gold', 0.11, 0.24, 0.11, x, my, mz)
         prev = (ly, lz)
-        bulbs.sphere('lantern_glow', 0.052, x - 0.08, ly, lz, seg=5, rings=4)
-    neo.box('neon_glow', 0.052, width * 0.94, 0.060, x - 0.10, 0, z_base - 0.02)
+        bulbs.sphere('lantern_glow', 0.052, x + 0.08, ly, lz, seg=5, rings=4)
+    neo.box('neon_glow', 0.052, width * 0.94, 0.060, x + 0.10, 0, z_base - 0.02)
     for i in range(9):
         ly = -width * 0.42 + i * (width * 0.84 / 8)
-        bulbs.sphere('lantern_glow', 0.044, x - 0.09, ly, z_base + 0.05, seg=5, rings=4)
+        bulbs.sphere('lantern_glow', 0.044, x + 0.09, ly, z_base + 0.05, seg=5, rings=4)
 
 
 def _giant_poker_card(cards, neo, y, north_x, z_center):
-    """朝北（-X）的巨型撲克牌（牆面突出）。"""
-    x = north_x - 0.09
+    """朝北（+X）的巨型撲克牌（牆面突出）。"""
+    x = north_x + 0.09
     cw, ch = 0.82, 1.12
     cards.box('windows_glow', 0.055, cw - 0.06, ch - 0.06, x, y, z_center)
-    cards.box('cas_dark', 0.065, cw, ch, x - 0.02, y, z_center)
-    neo.box('neon_glow', 0.075, cw + 0.10, ch + 0.10, x - 0.05, y, z_center)
-    cards.box('cas_carpet', 0.07, 0.16, 0.20, x - 0.04, y - cw * 0.30, z_center + ch * 0.28)
-    cards.box('gold', 0.07, 0.20, 0.30, x - 0.04, y + cw * 0.22, z_center - ch * 0.22)
+    cards.box('cas_dark', 0.065, cw, ch, x + 0.02, y, z_center)
+    neo.box('neon_glow', 0.075, cw + 0.10, ch + 0.10, x + 0.05, y, z_center)
+    cards.box('cas_carpet', 0.07, 0.16, 0.20, x + 0.04, y - cw * 0.30, z_center + ch * 0.28)
+    cards.box('gold', 0.07, 0.20, 0.30, x + 0.04, y + cw * 0.22, z_center - ch * 0.22)
 
 
 def _neon_seven(seven, oy, north_x, z_center):
-    """單個 7 字形霓虹（法線朝 -X）。"""
-    x = north_x - 0.11
+    """單個 7 字形霓虹（法線朝 +X）。"""
+    x = north_x + 0.11
     w, h, t = 0.26, 0.68, 0.065
     seven.box('neon_glow', t, w, 0.060, x, oy, z_center + h / 2 - 0.04)
     seven.box('neon_glow', t, t, h, x, oy + w * 0.36, z_center)
@@ -144,23 +144,24 @@ def build(out_path):
     arch_r = door_w / 2 + 0.11
     _semicircle_boxes(p, 'cas_wall', 0, FRONT + T / 2, door_top, arch_r, 14, 0.24, T + 0.03, 0.14)
     p.box('gold', door_w + 0.20, T + 0.04, 0.11, 0, FRONT, door_top + arch_r - 0.02)
+    p.box('cas_carpet', door_w + 0.24, 0.08, 0.07, 0, FRONT + 0.04, door_top - 0.14)
     p.box('cas_wall', 0.18, 0.22, 2.05, -HX + 0.28, FRONT + 0.12, BASE + 1.08)
 
-    north_x = -HX - 0.02
+    north_x = HX + 0.02
     sign_z = BASE + 1.72
     marquee_top = BASE + H - 0.02
 
-    # 北側 Vegas 立面（local -X）：層次退台 + 垂直招牌／拱門／777／撲克牌
+    # 北側 Vegas 立面（local +X）：層次退台 + 垂直招牌／拱門／777／撲克牌
     vegas = b.part('vegas_facade')
     for dz, ww, hh in ((sign_z - 0.55, W - 0.42, 1.05), (sign_z + 0.55, W - 0.58, 0.95)):
-        vegas.box('cas_purple', 0.12, ww, hh, north_x - 0.04, 0, dz)
-        vegas.box('cas_dark', 0.08, ww - 0.18, hh - 0.12, north_x - 0.03, 0, dz - 0.04)
+        vegas.box('cas_purple', 0.12, ww, hh, north_x + 0.04, 0, dz)
+        vegas.box('cas_dark', 0.08, ww - 0.18, hh - 0.12, north_x + 0.03, 0, dz - 0.04)
     for sy in (-1.42, 1.42):
-        vegas.box('gold', 0.14, 0.11, 2.35, north_x - 0.03, sy, sign_z)
+        vegas.box('gold', 0.14, 0.11, 2.35, north_x + 0.03, sy, sign_z)
 
     neo = b.part('neon')
-    neo.box('neon_glow', 0.050, W - 0.28, 0.055, north_x - 0.11, 0, BASE + 0.55)
-    neo.box('neon_glow', 0.045, W - 0.18, 0.050, north_x - 0.10, 0, marquee_top + 0.12)
+    neo.box('neon_glow', 0.050, W - 0.28, 0.055, north_x + 0.11, 0, BASE + 0.55)
+    neo.box('neon_glow', 0.045, W - 0.18, 0.050, north_x + 0.10, 0, marquee_top + 0.12)
 
     arch = b.part('marquee')
     bulbs = b.part('marquee_lamps')
@@ -169,7 +170,7 @@ def build(out_path):
     seven = b.part('seven_sign')
     for oy in (-0.52, 0.0, 0.52):
         _neon_seven(seven, oy, north_x, BASE + 2.48)
-    seven.box('gold', 0.08, 2.35, 0.10, north_x - 0.08, 0, BASE + 2.12)
+    seven.box('gold', 0.08, 2.35, 0.10, north_x + 0.08, 0, BASE + 2.12)
 
     cards = b.part('poker_cards')
     for sy in (-1.52, 1.52):
@@ -196,8 +197,8 @@ def build(out_path):
     eave_z = BASE + H + 0.12
     neo.box('neon_glow', W + 0.75, 0.045, 0.045, 0, FRONT - 0.35, eave_z)
     neo.box('neon_glow', W + 0.75, 0.045, 0.045, 0, BACK + 0.35, eave_z)
-    neo.box('neon_glow', 0.045, D + 0.65, 0.045, -HX - 0.35, 0, eave_z)
     neo.box('neon_glow', 0.045, D + 0.65, 0.045, HX + 0.35, 0, eave_z)
+    neo.box('neon_glow', 0.045, D + 0.65, 0.045, -HX - 0.35, 0, eave_z)
 
     door = b.part('door')
     door.box('cas_dark', door_w, 0.09, 2.02, 0, FRONT + 0.02, BASE + 1.01)
@@ -212,8 +213,6 @@ def build(out_path):
     p.box('gold', 1.15, 0.68, 0.09, 0, FRONT - 0.48, BASE + 0.02)
 
     win_z = BASE + 1.62
-    b.framed_window(HX, win_z, 0.78, 0.82, -0.55, normal='+x', frame='gold')
-    b.framed_window(HX, win_z, 0.78, 0.82, 0.62, normal='+x', frame='gold')
     for sx in (-1.22, 1.22):
         b.framed_window(sx, win_z + 0.05, 0.62, 0.72, BACK - 0.02, normal='+y', frame='gold')
     b.framed_window(0, win_z + 0.08, 0.95, 0.88, FRONT - 0.04, normal='-y', frame='gold')
@@ -280,7 +279,7 @@ def build(out_path):
             palms.cyl('palm_leaf', 0.11, 0.014, h, sx + ox, y + oy, 1.02 + oz,
                       seg=5, rx=rxp, rz=a)
 
-    label_blender = (north_x - 0.24, 0.0, sign_z)
+    label_blender = (north_x + 0.24, 0.0, sign_z)
 
     return b.finish(
         out_path,
