@@ -132,7 +132,7 @@ def _paint_triangle(pixels, w, h, uv0, uv1, uv2, col):
             if bc is None:
                 continue
             j = (y * w + x) * 4
-            n = 0.9 + random.random() * 0.18
+            n = 1.02 + random.random() * 0.12
             pixels[j] = min(1.0, col[0] * n)
             pixels[j + 1] = min(1.0, col[1] * n)
             pixels[j + 2] = min(1.0, col[2] * n)
@@ -141,10 +141,9 @@ def _paint_triangle(pixels, w, h, uv0, uv1, uv2, col):
 
 def _rasterize_hand_painted(bm, color_lay, uv_lay, size):
     w = h = size
-    pixels = [0.82, 0.88, 0.94, 1.0] * (w * h)
-    # base paper tone
+    pixels = [0.97, 0.98, 1.0, 1.0] * (w * h)
     for i in range(0, len(pixels), 4):
-        n = 0.96 + random.random() * 0.08
+        n = 0.98 + random.random() * 0.04
         pixels[i] *= n
         pixels[i + 1] *= n
         pixels[i + 2] *= n
