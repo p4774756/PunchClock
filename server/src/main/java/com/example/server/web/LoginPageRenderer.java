@@ -1,6 +1,7 @@
 package com.example.server.web;
 
 import com.example.server.auth.AuthService.LoginLockStatus;
+import com.example.server.util.HtmlEscape;
 
 public final class LoginPageRenderer {
 
@@ -8,9 +9,17 @@ public final class LoginPageRenderer {
     }
 
     public static String render(String alertMessage, LoginLockStatus lockStatus, String version) {
+        return render(alertMessage, lockStatus, version, null);
+    }
+
+    public static String render(String alertMessage, LoginLockStatus lockStatus, String version, String nextPath) {
         String safeAlert = alertMessage == null ? "" : alertMessage;
         boolean locked = lockStatus.isLocked();
         int remainingSec = lockStatus.remainingSec;
+        String nextField = "";
+        if (nextPath != null && !nextPath.isEmpty()) {
+            nextField = "          <input type=\"hidden\" name=\"next\" value=\"" + HtmlEscape.escape(nextPath) + "\" />\n";
+        }
         return ""
                 + "<!DOCTYPE html>\n"
                 + "<html lang=\"zh-TW\">\n"
@@ -37,6 +46,7 @@ public final class LoginPageRenderer {
                 + "      <div class=\"login-inner\">\n"
                 + safeAlert
                 + "        <form action=\"/login\" method=\"POST\" class=\"form-signin\">\n"
+                + nextField
                 + "          <div class=\"form-group\">\n"
                 + "            <label for=\"password\">密碼</label>\n"
                 + "            <div class=\"pwd-wrapper\">\n"
