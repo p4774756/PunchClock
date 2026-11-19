@@ -1674,9 +1674,11 @@ body.is-exploring .island-hud-tr .island-chat {
   }
 
   body.is-exploring .island-hud-explore-entry {
-    position: fixed;
-    right: max(0.55rem, env(safe-area-inset-right, 0px));
-    bottom: calc(0.85rem + 3.75rem + 0.45rem + env(safe-area-inset-bottom, 0px));
+    order: -1;
+    flex: 0 0 100%;
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
     min-width: 5.5rem;
     padding-left: 0.85rem;
     padding-right: 0.85rem;

@@ -480,19 +480,23 @@ test('戶外探索提示含 Esc 退出探索', () => {
   assert.match(indexHtml, /Esc 退出探索/);
 });
 
-test('探索 HUD：手機操作叢留搖桿間距，退出探索不換行', () => {
+test('探索 HUD：手機操作叢留搖桿間距，退出探索在 flex 流內換行', () => {
   assert.match(
     islandCss,
     /body\.is-exploring \.island-hud-actions[\s\S]*0\.7rem \+ 8rem \+ 0\.55rem/
   );
   assert.match(islandCss, /body\.is-exploring \.island-hud-explore-entry[\s\S]*white-space:\s*nowrap/);
-  assert.match(
-    islandCss,
-    /body\.is-exploring \.island-hud-explore-entry[\s\S]*0\.85rem \+ 3\.75rem \+ 0\.45rem/
+  const mobileExploreHud = /@media \(max-width: 760px\)[\s\S]*body\.is-exploring \.island-hud-explore-entry\s*\{([^}]+)\}/.exec(
+    islandCss
   );
+  assert.ok(mobileExploreHud, '手機探索退出探索樣式');
+  const block = mobileExploreHud[1];
+  assert.match(block, /flex:\s*0\s+0\s+100%/, '退出探索獨佔一列');
+  assert.doesNotMatch(block, /position:\s*fixed/, '退出探索不用 fixed 脫離 flex');
 });
 
-test('1280×720 與 390×844「退出探索」不與搖桿、右上 HUD 重疊', () => {
+test('1280×720 與 390×844「退出探索」不與搖桿、右上 HUD、操作叢重疊', () => {
+  const interactW = 121;
   for (const [w, h] of [[1280, 720], [390, 844]]) {
     const btn = Corner.exploreExitButtonRect(w, h);
     const joyPad = w <= Corner.MOBILE_MAX_WIDTH ? 0.55 * 16 : 0;
@@ -501,9 +505,24 @@ test('1280×720 與 390×844「退出探索」不與搖桿、右上 HUD 重疊',
     assert.ok(btn.left >= btn.joy.right + joyPad - 0.5, w + ' 退出探索在搖桿右側');
     assert.ok(btn.left >= 0 && btn.right <= w + 0.5, w + ' 退出探索在 viewport 內');
     if (w <= Corner.MOBILE_MAX_WIDTH) {
-      const layout = Corner.exploreHudActionItems(w, h, { withInteract: true, withSteer: true });
+      const layout = Corner.exploreHudActionItems(w, h, {
+        withInteract: true,
+        withSteer: true,
+        interactWidth: interactW
+      });
       for (const item of layout.items) {
         assert.ok(!Corner.rectsIntersect(item, btn.joy), w + ' ' + item.id + ' 與搖桿不重疊');
+        assert.ok(!Corner.rectsIntersect(item, btn.tr), w + ' ' + item.id + ' 與右上 HUD 不重疊');
+        assert.ok(!Corner.rectsIntersect(item, btn), w + ' ' + item.id + ' 與退出探索不重疊');
+        assert.ok(item.left >= btn.joy.right + joyPad - 0.5, w + ' ' + item.id + ' 左緣避開搖桿');
+      }
+      for (let i = 0; i < layout.items.length; i++) {
+        for (let j = i + 1; j < layout.items.length; j++) {
+          assert.ok(
+            !Corner.rectsIntersect(layout.items[i], layout.items[j]),
+            w + ' ' + layout.items[i].id + ' 與 ' + layout.items[j].id + ' 不重疊'
+          );
+        }
       }
     }
   }

@@ -59,8 +59,15 @@ export function exploreExitButtonRect(viewportWidth, viewportHeight) {
   let bottom;
   let top;
   if (narrow) {
-    const lift = 0.85 * REM + 3.75 * REM + 0.45 * REM;
-    bottom = viewportHeight - lift;
+    const layout = exploreHudActionItems(viewportWidth, viewportHeight, {
+      withInteract: true,
+      withSteer: true
+    });
+    const rowGap = 0.45 * REM;
+    const clusterTop = layout.items.length
+      ? Math.min(...layout.items.map((i) => i.top))
+      : layout.actions.top;
+    bottom = clusterTop - rowGap;
     top = bottom - height;
   } else {
     const bottomInset = 1.1 * REM;
@@ -126,7 +133,7 @@ export function hudActionsRect(viewportWidth, viewportHeight, opts) {
   };
 }
 
-/** 探索中下排地圖／角色／情境／開船各鈕（右緣貼齊操作叢，不含上方「退出探索」）。 */
+/** 探索中下排地圖／角色／情境／開船各鈕（DOM 順序、flex-end 換行；不含「退出探索」）。 */
 export function exploreHudActionItems(viewportWidth, viewportHeight, opts) {
   const withInteract = !!(opts && opts.withInteract);
   const withSteer = !!(opts && opts.withSteer);
@@ -140,36 +147,56 @@ export function exploreHudActionItems(viewportWidth, viewportHeight, opts) {
   const gap = 0.45 * REM;
   const smallOrb = 2.85 * REM;
   const primaryH = 3.75 * REM;
-  const specs = [
-    ...(withSteer ? [{ id: 'steer', w: smallOrb, h: smallOrb }] : []),
-    ...(withInteract ? [{ id: 'interact', w: interactWidth, h: primaryH }] : []),
-    { id: 'role', w: smallOrb, h: smallOrb },
-    { id: 'map', w: smallOrb, h: smallOrb }
+  const specById = {
+    map: { id: 'map', w: smallOrb, h: smallOrb },
+    role: { id: 'role', w: smallOrb, h: smallOrb },
+    interact: { id: 'interact', w: interactWidth, h: primaryH },
+    steer: { id: 'steer', w: smallOrb, h: smallOrb }
+  };
+  const sourceOrder = [
+    specById.map,
+    specById.role,
+    ...(withInteract ? [specById.interact] : []),
+    ...(withSteer ? [specById.steer] : [])
   ];
+  const rows = [];
+  let row = [];
+  let rowW = 0;
+  for (const spec of sourceOrder) {
+    const need = row.length ? gap + spec.w : spec.w;
+    if (row.length && rowW + need > actions.width + 0.5) {
+      rows.push(row);
+      row = [spec];
+      rowW = spec.w;
+    } else {
+      rowW += need;
+      row.push(spec);
+    }
+  }
+  if (row.length) rows.push(row);
   const items = [];
   let rowBottom = actions.bottom;
-  let cursor = actions.right;
-  let rowMaxH = 0;
-  for (const spec of specs) {
-    if (cursor - spec.w < actions.left - 0.5) {
-      rowBottom -= rowMaxH + gap;
-      cursor = actions.right;
-      rowMaxH = 0;
+  for (let r = rows.length - 1; r >= 0; r--) {
+    const line = rows[r];
+    const rowH = Math.max(...line.map((s) => s.h));
+    let cursor = actions.right;
+    for (let i = line.length - 1; i >= 0; i--) {
+      const spec = line[i];
+      cursor -= spec.w;
+      items.push({
+        id: spec.id,
+        left: cursor,
+        right: cursor + spec.w,
+        top: rowBottom - spec.h,
+        bottom: rowBottom,
+        width: spec.w,
+        height: spec.h
+      });
+      cursor -= gap;
     }
-    const left = cursor - spec.w;
-    items.push({
-      id: spec.id,
-      left,
-      right: cursor,
-      top: rowBottom - spec.h,
-      bottom: rowBottom,
-      width: spec.w,
-      height: spec.h
-    });
-    rowMaxH = Math.max(rowMaxH, spec.h);
-    cursor = left - gap;
+    rowBottom -= rowH + gap;
   }
-  return { actions, items, joy: actions.joy };
+  return { actions, items, joy: actions.joy, rows };
 }
 
 export function leaveInteriorRectMobile(viewportWidth, viewportHeight) {
