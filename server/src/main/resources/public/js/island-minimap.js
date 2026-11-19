@@ -239,9 +239,10 @@ export function collectOutdoorMarkers(opts) {
 }
 
 const LARGE_MAP_PAD = 10;
-const PIN_FONT_PX_DESKTOP = 14;
+const PIN_FONT_PX_DESKTOP = 16;
 const PIN_FONT_PX_MOBILE = 13;
 const PIN_MIN_TOUCH = 44;
+const MAP_POINTER_JUMP_SLOP = 10;
 
 /** 大地圖標記：不含 NPC／門口／施工牌／停放車；碼頭每站一個。 */
 export function collectLargeMapMarkers(opts) {
@@ -301,16 +302,33 @@ export function largeMapWorldAspect() {
   return spanZ / spanX;
 }
 
-/** 依面板 CSS 推估大地圖 canvas 邏輯尺寸（與 #islandMapCanvasWrap 排版一致）。 */
-export function largeMapCanvasCssSize(viewportWidth) {
+/** 依視窗推估大地圖面板內留給 canvas 區塊的可用高度（與 CSS 排版一致）。 */
+export function largeMapCanvasAvailHeight(viewportWidth, viewportHeight) {
+  const vw = viewportWidth > 0 ? viewportWidth : 390;
+  const vh = viewportHeight > 0 ? viewportHeight : 800;
+  const desktop = vw >= 761;
+  const panelCap = desktop ? Math.min(vh * 0.86, 780) : Math.min(vh * 0.88, 720);
+  const headerH = desktop ? 46 : 44;
+  const legendH = 28;
+  const wrapPadY = 13;
+  return Math.max(72, panelCap - headerH - legendH - wrapPadY);
+}
+
+/** 依面板 CSS 推估大地圖 canvas 邏邏輯尺寸（與 #islandMapCanvasWrap 排版一致）。 */
+export function largeMapCanvasCssSize(viewportWidth, viewportHeight) {
   const vw = viewportWidth > 0 ? viewportWidth : 390;
   const desktop = vw >= 761;
   const panelW = desktop ? Math.min(44 * 16, vw * 0.92) : vw - 16;
   const wrapPadX = 27;
-  const innerW = Math.max(120, panelW - wrapPadX);
+  let innerW = Math.max(120, panelW - wrapPadX);
   const aspect = largeMapWorldAspect();
   const pad = LARGE_MAP_PAD;
-  const innerH = innerW * aspect;
+  const availH = largeMapCanvasAvailHeight(vw, viewportHeight);
+  let innerH = innerW * aspect;
+  if (innerH > availH) {
+    innerH = availH;
+    innerW = Math.max(120, innerH / aspect);
+  }
   const height = innerH + pad * 2;
   const width = innerW + pad * 2;
   return Object.freeze({
@@ -318,7 +336,8 @@ export function largeMapCanvasCssSize(viewportWidth) {
     height: height,
     innerWidth: innerW,
     innerHeight: innerH,
-    padding: pad
+    padding: pad,
+    availHeight: availH
   });
 }
 
@@ -329,18 +348,52 @@ function pinTextWidthPx(name, fontPx) {
     const ch = text.charCodeAt(i);
     w += ch > 0x2e80 ? fontPx : fontPx * 0.58;
   }
-  return w + 18;
+  return w + 14;
 }
 
-function pinBoxFromAnchor(x, y, w, h) {
+function pinBoxFromCenter(x, y, w, h) {
   return Object.freeze({
     left: x - w * 0.5,
-    top: y - h,
+    top: y - h * 0.5,
     right: x + w * 0.5,
-    bottom: y,
+    bottom: y + h * 0.5,
     width: w,
-    height: h
+    height: h,
+    centerX: x,
+    centerY: y
   });
+}
+
+export function pointInIslandEllipse(px, py, cx, cy, rx, ry, shrink) {
+  const s = shrink == null ? 1 : shrink;
+  const erx = rx * s;
+  const ery = ry * s;
+  if (erx <= 0 || ery <= 0) return false;
+  const dx = (px - cx) / erx;
+  const dy = (py - cy) / ery;
+  return dx * dx + dy * dy <= 1;
+}
+
+/** 矩形（名牌點擊區）是否侵入另一座島的橢圓。 */
+export function pinTouchBoxHitsForeignIsland(box, ownId, islands, shrink) {
+  const pts = [
+    [box.left, box.top],
+    [box.right, box.top],
+    [box.left, box.bottom],
+    [box.right, box.bottom],
+    [box.centerX != null ? box.centerX : (box.left + box.right) * 0.5,
+      box.centerY != null ? box.centerY : (box.top + box.bottom) * 0.5]
+  ];
+  for (let i = 0; i < islands.length; i++) {
+    const isl = islands[i];
+    if (isl.id === ownId) continue;
+    for (let p = 0; p < pts.length; p++) {
+      if (pointInIslandEllipse(pts[p][0], pts[p][1], isl.centerX, isl.centerY, isl.rx, isl.ry, shrink)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 function boxesOverlap(a, b) {
@@ -352,7 +405,7 @@ function boxInsideBounds(box, maxW, maxH, margin) {
   return box.left >= m && box.top >= m && box.right <= maxW - m && box.bottom <= maxH - m;
 }
 
-/** 六島名牌版面：圓圈上緣、不重疊、在邊界內。 */
+/** 六島名牌版面：置於各自圓內、不重疊、點擊區不壓到別島。 */
 export function islandPinLayout(cssWidth, cssHeight, opts) {
   const options = opts || {};
   const w = cssWidth > 0 ? cssWidth : 1;
@@ -363,57 +416,79 @@ export function islandPinLayout(cssWidth, cssHeight, opts) {
   const frame = mapInnerFrame(w, h, padding);
   const spanX = bounds.maxX - bounds.minX || 1;
   const spanZ = bounds.maxZ - bounds.minZ || 1;
-  const placed = [];
+  const islandGeo = [];
+  for (let gi = 0; gi < ISLANDS.length; gi++) {
+    const isl = ISLANDS[gi];
+    const vr = isl.visualR != null ? isl.visualR : isl.r;
+    const c = worldToMap(isl.x, isl.z, bounds, frame.innerW, frame.innerH);
+    islandGeo.push({
+      id: isl.id,
+      name: isl.name,
+      centerX: frame.pad + c.px,
+      centerY: frame.pad + c.py,
+      rx: (vr / spanX) * frame.innerW,
+      ry: (vr / spanZ) * frame.innerH
+    });
+  }
+  const placedTouch = [];
   const out = [];
 
   for (let i = 0; i < ISLANDS.length; i++) {
     const isl = ISLANDS[i];
-    const vr = isl.visualR != null ? isl.visualR : isl.r;
-    const c = worldToMap(isl.x, isl.z, bounds, frame.innerW, frame.innerH);
-    const rx = (vr / spanX) * frame.innerW;
-    const ry = (vr / spanZ) * frame.innerH;
-    const centerX = frame.pad + c.px;
-    const centerY = frame.pad + c.py;
-    const pinW = Math.max(PIN_MIN_TOUCH, pinTextWidthPx(isl.name, fontPx));
-    const pinH = Math.max(PIN_MIN_TOUCH, fontPx + 14);
+    const geo = islandGeo[i];
+    const centerX = geo.centerX;
+    const centerY = geo.centerY;
+    const rx = geo.rx;
+    const ry = geo.ry;
+    const visualW = pinTextWidthPx(isl.name, fontPx);
+    const visualH = Math.round(fontPx * 1.25) + 8;
+    const touchW = Math.max(PIN_MIN_TOUCH, visualW);
+    const touchH = Math.max(PIN_MIN_TOUCH, visualH);
 
     const offsets = [
-      { dx: 0, dy: -ry - 6 },
-      { dx: -rx * 0.35, dy: -ry * 0.55 },
-      { dx: rx * 0.35, dy: -ry * 0.55 },
-      { dx: 0, dy: -ry - pinH * 0.15 },
-      { dx: -rx * 0.55, dy: -ry * 0.25 },
-      { dx: rx * 0.55, dy: -ry * 0.25 }
+      { dx: 0, dy: 0 },
+      { dx: 0, dy: -ry * 0.28 },
+      { dx: 0, dy: ry * 0.22 },
+      { dx: -rx * 0.26, dy: 0 },
+      { dx: rx * 0.26, dy: 0 },
+      { dx: -rx * 0.2, dy: -ry * 0.2 },
+      { dx: rx * 0.2, dy: -ry * 0.2 },
+      { dx: -rx * 0.18, dy: ry * 0.18 },
+      { dx: rx * 0.18, dy: ry * 0.18 },
+      { dx: 0, dy: -ry * 0.12 }
     ];
 
     let chosen = null;
     for (let o = 0; o < offsets.length; o++) {
       const anchorX = centerX + offsets[o].dx;
       const anchorY = centerY + offsets[o].dy;
-      const box = pinBoxFromAnchor(anchorX, anchorY, pinW, pinH);
-      if (!boxInsideBounds(box, w, h, 2)) continue;
+      if (!pointInIslandEllipse(anchorX, anchorY, centerX, centerY, rx, ry, 0.88)) continue;
+      const touchBox = pinBoxFromCenter(anchorX, anchorY, touchW, touchH);
+      if (!boxInsideBounds(touchBox, w, h, 2)) continue;
+      if (pinTouchBoxHitsForeignIsland(touchBox, isl.id, islandGeo, 0.9)) continue;
       let clash = false;
-      for (let p = 0; p < placed.length; p++) {
-        if (boxesOverlap(box, placed[p])) {
+      for (let p = 0; p < placedTouch.length; p++) {
+        if (boxesOverlap(touchBox, placedTouch[p])) {
           clash = true;
           break;
         }
       }
       if (!clash) {
-        chosen = { anchorX: anchorX, anchorY: anchorY, box: box };
+        chosen = { anchorX: anchorX, anchorY: anchorY, touchBox: touchBox };
         break;
       }
     }
     if (!chosen) {
       const anchorX = centerX;
-      const anchorY = centerY - ry - 6;
+      const anchorY = centerY;
       chosen = {
         anchorX: anchorX,
         anchorY: anchorY,
-        box: pinBoxFromAnchor(anchorX, anchorY, pinW, pinH)
+        touchBox: pinBoxFromCenter(anchorX, anchorY, touchW, touchH)
       };
     }
-    placed.push(chosen.box);
+    placedTouch.push(chosen.touchBox);
+    const visualBox = pinBoxFromCenter(chosen.anchorX, chosen.anchorY, visualW, visualH);
     out.push(Object.freeze({
       id: isl.id,
       name: isl.name,
@@ -424,12 +499,58 @@ export function islandPinLayout(cssWidth, cssHeight, opts) {
       rx: rx,
       ry: ry,
       fontPx: fontPx,
-      pinWidth: pinW,
-      pinHeight: pinH,
-      box: chosen.box
+      visualWidth: visualW,
+      visualHeight: visualH,
+      touchWidth: touchW,
+      touchHeight: touchH,
+      box: visualBox,
+      touchBox: chosen.touchBox
     }));
   }
   return Object.freeze(out);
+}
+
+/** 室內 → 所屬群島 id（依 buildingId）。 */
+export function islandIdForInteriorRoom(room) {
+  if (!room || !room.buildingId) return null;
+  for (let i = 0; i < BUILDINGS.length; i++) {
+    const b = BUILDINGS[i];
+    if (b.id === room.buildingId) return b.island || null;
+  }
+  return null;
+}
+
+/** 室內切換群島地圖時，玩家標記畫在建築門口。 */
+export function outdoorPlayerPoseFromInterior(room) {
+  if (!room) return null;
+  if (room.outside && Number.isFinite(room.outside.x) && Number.isFinite(room.outside.z)) {
+    return Object.freeze({
+      x: room.outside.x,
+      z: room.outside.z,
+      yaw: room.outside.yaw == null ? 0 : room.outside.yaw
+    });
+  }
+  for (let i = 0; i < BUILDINGS.length; i++) {
+    const b = BUILDINGS[i];
+    if (b.id !== room.buildingId) continue;
+    const door = b.door || worldDoor(b);
+    if (door && Number.isFinite(door.x) && Number.isFinite(door.z)) {
+      return Object.freeze({ x: door.x, z: door.z, yaw: b.yaw == null ? 0 : b.yaw });
+    }
+    break;
+  }
+  return null;
+}
+
+/** pointerdown→pointerup 同一島且位移小於 slop 才跳島。 */
+export function shouldJumpIslandOnPointerUp(down, up, slop) {
+  if (!down || !up || !down.islandId) return null;
+  if (down.islandId !== up.islandId) return null;
+  const limit = slop == null ? MAP_POINTER_JUMP_SLOP : slop;
+  const dx = up.x - down.x;
+  const dy = up.y - down.y;
+  if (dx * dx + dy * dy > limit * limit) return null;
+  return down.islandId;
 }
 
 /** 大地圖 canvas 座標命中哪座島；海面／橋上回傳 null。 */
@@ -510,20 +631,51 @@ function applyNight(ctx, mix) {
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 }
 
-function drawBerthIcon(ctx, px, py, scale) {
+function drawAnchorIcon(ctx, px, py, scale) {
   const s = scale || 1;
-  ctx.fillStyle = MARKER_COLORS.boat;
   ctx.strokeStyle = '#1f3a66';
-  ctx.lineWidth = Math.max(1, 1.2 * s);
+  ctx.fillStyle = MARKER_COLORS.boat;
+  ctx.lineWidth = Math.max(1.1, 1.35 * s);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const ringY = py - 3.2 * s;
   ctx.beginPath();
-  ctx.arc(px, py + 1.5 * s, 4.5 * s, Math.PI, 0);
+  ctx.arc(px, ringY, 2.6 * s, Math.PI + 0.35, -0.35);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(px, py - 4 * s);
-  ctx.lineTo(px + 0.5 * s, py + 1 * s);
-  ctx.lineTo(px - 0.5 * s, py + 1 * s);
+  ctx.moveTo(px, ringY + 2.2 * s);
+  ctx.lineTo(px, py + 5.5 * s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(px - 4.8 * s, py + 1.8 * s);
+  ctx.lineTo(px + 4.8 * s, py + 1.8 * s);
+  ctx.lineTo(px + 2.4 * s, py + 5.2 * s);
+  ctx.lineTo(px - 2.4 * s, py + 5.2 * s);
   ctx.closePath();
   ctx.fill();
+  ctx.stroke();
+}
+
+export function drawLargeMapPlayerMarker(ctx, x, y, yaw, scale, nightMix) {
+  const s = scale || 1;
+  const coreR = 9.5 * s;
+  const t = nightMix == null ? 0 : Math.max(0, Math.min(1, nightMix));
+  const glowA = 0.38 + (1 - t) * 0.22;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(72, 138, 220, ' + glowA.toFixed(3) + ')';
+  ctx.lineWidth = 3.2 * s;
+  ctx.beginPath();
+  ctx.arc(x, y, coreR + 5.5 * s, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#163a70';
+  ctx.lineWidth = 2.4 * s;
+  ctx.beginPath();
+  ctx.arc(x, y, coreR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  drawArrow(ctx, x, y, yaw, MARKER_COLORS.player, s * 1.05);
+  ctx.restore();
 }
 
 function drawArrow(ctx, x, y, yaw, color, scale) {
@@ -568,10 +720,12 @@ function drawOutdoorScene(ctx, frame, opts) {
     const c = worldToMap(isl.x, isl.z, bounds, innerW, innerH);
     const rx = (r / (bounds.maxX - bounds.minX)) * innerW;
     const ry = (r / (bounds.maxZ - bounds.minZ)) * innerH;
+    const pressed = frame.largeMap && frame.pressedIslandId === isl.id;
     const hovered = frame.largeMap && frame.hoverIslandId === isl.id;
-    ctx.fillStyle = hovered ? '#a4e088' : MARKER_COLORS.land;
-    ctx.strokeStyle = hovered ? '#2d6b38' : MARKER_COLORS.landStroke;
-    ctx.lineWidth = hovered ? 2.4 : 1.2;
+  const active = pressed || hovered;
+    ctx.fillStyle = pressed ? '#7bc96a' : (hovered ? '#a4e088' : MARKER_COLORS.land);
+    ctx.strokeStyle = pressed ? '#1f4a28' : (hovered ? '#2d6b38' : MARKER_COLORS.landStroke);
+    ctx.lineWidth = active ? 2.4 : 1.2;
     ctx.beginPath();
     ctx.ellipse(pad + c.px, pad + c.py, Math.max(rx, 4), Math.max(ry, 4), 0, 0, Math.PI * 2);
     ctx.fill();
@@ -599,7 +753,7 @@ function drawOutdoorScene(ctx, frame, opts) {
     const py = pad + p.py;
     if (frame.largeMap) {
       if (mk.kind === 'berth') {
-        drawBerthIcon(ctx, px, py, frame.scale * 1.1);
+        drawAnchorIcon(ctx, px, py, frame.scale * 0.95);
       } else if (mk.kind === 'boat-live') {
         ctx.fillStyle = MARKER_COLORS.boat;
         ctx.beginPath();
@@ -653,7 +807,8 @@ function drawOutdoorScene(ctx, frame, opts) {
   }
 
   const player = opts.player;
-  if (player && Number.isFinite(player.x) && Number.isFinite(player.z)) {
+  const playerOnOverlay = frame.largeMap && frame.playerOnOverlay;
+  if (!playerOnOverlay && player && Number.isFinite(player.x) && Number.isFinite(player.z)) {
     const p = worldToMap(player.x, player.z, bounds, innerW, innerH);
     const px = pad + p.px;
     const py = pad + p.py;
@@ -675,6 +830,26 @@ function drawOutdoorScene(ctx, frame, opts) {
     if (frame.largeMap) ctx.stroke();
     drawArrow(ctx, px, py, player.yaw, MARKER_COLORS.player, arrowScale);
   }
+}
+
+/** 大地圖玩家疊加層（高於名牌 DOM）。 */
+export function paintLargeMapPlayerOverlay(ctx, opts) {
+  const options = opts || {};
+  const player = options.player;
+  if (!player || !Number.isFinite(player.x) || !Number.isFinite(player.z)) return;
+  const w = options.logicalWidth > 0 ? options.logicalWidth : 1;
+  const h = options.logicalHeight > 0 ? options.logicalHeight : 1;
+  const pad = options.padding == null ? LARGE_MAP_PAD : options.padding;
+  const frame = mapInnerFrame(w, h, pad);
+  const bounds = worldMapBounds();
+  const dpr = options.devicePixelRatio == null ? 1 : options.devicePixelRatio;
+  ctx.save();
+  if (dpr !== 1) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  else ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const p = worldToMap(player.x, player.z, bounds, frame.innerW, frame.innerH);
+  drawLargeMapPlayerMarker(ctx, pad + p.px, pad + p.py, player.yaw, options.scale || 1, options.nightMix);
+  ctx.restore();
 }
 
 function drawInteriorScene(ctx, frame, opts) {
@@ -758,7 +933,9 @@ export function paintMinimap(ctx, opts) {
     scale: scale,
     showLabels: !!options.large,
     largeMap: !!options.large,
-    hoverIslandId: options.hoverIslandId || null
+    hoverIslandId: options.hoverIslandId || null,
+    pressedIslandId: options.pressedIslandId || null,
+    playerOnOverlay: !!options.playerOnOverlay
   };
   ctx.save();
   if (dpr !== 1) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -844,6 +1021,7 @@ export function createMinimapHud(opts) {
   const bodyEl = document.getElementById('islandMinimapBody');
   const hudCanvas = document.getElementById('islandMinimapCanvas');
   const mapCanvas = document.getElementById('islandMapCanvas');
+  const mapPlayerCanvas = document.getElementById('islandMapPlayerCanvas');
   const mapWrap = document.getElementById('islandMapCanvasWrap');
   const mapPins = document.getElementById('islandMapPins');
   const mapModeToggle = document.getElementById('islandMapModeToggle');
@@ -860,6 +1038,8 @@ export function createMinimapHud(opts) {
   let expandIconReady = false;
   let mapOverlayMode = 'default';
   let hoverIslandId = null;
+  let pressedIslandId = null;
+  let pointerDown = null;
   let mapLogicalSize = { width: 480, height: 360 };
   let mapResizeObserver = null;
   let mapWindowResizeListener = null;
@@ -874,6 +1054,10 @@ export function createMinimapHud(opts) {
 
   function mapCtx() {
     return mapCanvas && mapCanvas.getContext ? mapCanvas.getContext('2d') : null;
+  }
+
+  function mapPlayerCtx() {
+    return mapPlayerCanvas && mapPlayerCanvas.getContext ? mapPlayerCanvas.getContext('2d') : null;
   }
 
   function ensureExpandIcon() {
@@ -926,7 +1110,7 @@ export function createMinimapHud(opts) {
       return;
     }
     mapModeToggle.hidden = false;
-  const showOutdoor = mapOverlayMode === 'force-outdoor';
+    const showOutdoor = mapOverlayMode === 'force-outdoor';
     mapModeToggle.textContent = showOutdoor ? '室內平面圖' : '群島地圖';
     mapModeToggle.setAttribute(
       'aria-label',
@@ -937,10 +1121,24 @@ export function createMinimapHud(opts) {
   function outdoorPaintPlayer(state) {
     if (!state) return null;
     if (state.interiorRoom) {
-      if (mapOverlayMode === 'force-outdoor' && state.worldPlayer) return state.worldPlayer;
-      return null;
+      if (mapOverlayMode !== 'force-outdoor') return null;
+      return outdoorPlayerPoseFromInterior(state.interiorRoom) || state.worldPlayer;
     }
     return state.player;
+  }
+
+  function outdoorCurrentIslandId(state) {
+    if (!state) return null;
+    if (state.interiorRoom) {
+      if (mapOverlayMode === 'force-outdoor') return islandIdForInteriorRoom(state.interiorRoom);
+      return null;
+    }
+    const player = outdoorPaintPlayer(state);
+    if (player && Number.isFinite(player.x) && Number.isFinite(player.z)) {
+      const here = islandAt(player.x, player.z, 0.12);
+      return here ? here.id : null;
+    }
+    return null;
   }
 
   function syncMapPins(state) {
@@ -951,12 +1149,7 @@ export function createMinimapHud(opts) {
     mapPins.setAttribute('aria-hidden', outdoor ? 'false' : 'true');
     if (!outdoor) return;
     const layouts = islandPinLayout(mapLogicalSize.width, mapLogicalSize.height);
-    const player = outdoorPaintPlayer(state);
-    let currentId = null;
-    if (player && Number.isFinite(player.x) && Number.isFinite(player.z)) {
-      const here = islandAt(player.x, player.z, 0.12);
-      currentId = here ? here.id : null;
-    }
+    const currentId = outdoorCurrentIslandId(state);
     const buttons = mapPins.querySelectorAll('.island-map-pin');
     for (let i = 0; i < buttons.length; i++) {
       const btn = buttons[i];
@@ -967,6 +1160,7 @@ export function createMinimapHud(opts) {
       const pctY = (row.anchorY / mapLogicalSize.height) * 100;
       btn.style.left = pctX + '%';
       btn.style.top = pctY + '%';
+      btn.style.fontSize = row.fontPx + 'px';
       btn.classList.toggle('is-current', id === currentId);
     }
     if (mapCanvas) {
@@ -974,21 +1168,79 @@ export function createMinimapHud(opts) {
     }
   }
 
+  function mapWrapAvailableHeight() {
+    if (!mapWrap) return null;
+    const panel = mapWrap.closest ? mapWrap.closest('.island-map-panel') : null;
+    if (panel && panel.clientHeight > 0) {
+      const bar = panel.querySelector('.island-map-bar');
+      const legendEl = panel.querySelector('.island-map-legend');
+      const barH = bar ? bar.offsetHeight : 46;
+      const legH = legendEl ? legendEl.offsetHeight : 28;
+      let padY = 13;
+      if (win && typeof win.getComputedStyle === 'function') {
+        const cs = win.getComputedStyle(mapWrap);
+        padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+      }
+      return Math.max(72, panel.clientHeight - barH - legH - padY);
+    }
+    if (win && typeof win.innerHeight === 'number') {
+      const vw = win.innerWidth || 390;
+      return largeMapCanvasAvailHeight(vw, win.innerHeight);
+    }
+    return null;
+  }
+
   function syncLargeMapCanvasSize() {
     if (!mapCanvas || !mapWrap) return;
-    const cssW = Math.max(1, Math.floor(mapWrap.clientWidth || mapWrap.getBoundingClientRect().width));
+    const wrapW = Math.max(1, Math.floor(mapWrap.clientWidth || mapWrap.getBoundingClientRect().width));
     const aspect = largeMapWorldAspect();
     const pad = LARGE_MAP_PAD;
-    const innerW = Math.max(1, cssW - pad * 2);
-    const innerH = Math.max(1, Math.round(innerW * aspect));
+    const availH = mapWrapAvailableHeight();
+    let innerW = Math.max(1, wrapW - pad * 2);
+    let innerH = Math.max(1, Math.round(innerW * aspect));
+    if (availH != null && innerH > availH) {
+      innerH = Math.max(60, Math.floor(availH));
+      innerW = Math.max(1, Math.round(innerH / aspect));
+    }
+    const cssW = innerW + pad * 2;
     const cssH = innerH + pad * 2;
     const dpr = win && win.devicePixelRatio
       ? Math.min(2, Math.max(1, win.devicePixelRatio))
       : 1;
     mapLogicalSize = { width: cssW, height: cssH, dpr: dpr, innerW: innerW, innerH: innerH };
+    mapCanvas.style.width = cssW + 'px';
     mapCanvas.style.height = cssH + 'px';
+    mapCanvas.style.marginLeft = 'auto';
+    mapCanvas.style.marginRight = 'auto';
     mapCanvas.width = Math.round(cssW * dpr);
     mapCanvas.height = Math.round(cssH * dpr);
+    if (mapPlayerCanvas) {
+      mapPlayerCanvas.style.width = cssW + 'px';
+      mapPlayerCanvas.style.height = cssH + 'px';
+      mapPlayerCanvas.width = Math.round(cssW * dpr);
+      mapPlayerCanvas.height = Math.round(cssH * dpr);
+    }
+    syncMapOverlayGeometry(cssW, cssH);
+  }
+
+  function syncMapOverlayGeometry(cssW, cssH) {
+    if (!mapWrap || !mapCanvas) return;
+    const left = mapCanvas.offsetLeft;
+    const top = mapCanvas.offsetTop;
+    const geom = cssW + 'px';
+    const geoh = cssH + 'px';
+    if (mapPins) {
+      mapPins.style.left = left + 'px';
+      mapPins.style.top = top + 'px';
+      mapPins.style.width = geom;
+      mapPins.style.height = geoh;
+    }
+    if (mapPlayerCanvas) {
+      mapPlayerCanvas.style.left = left + 'px';
+      mapPlayerCanvas.style.top = top + 'px';
+      mapPlayerCanvas.style.width = geom;
+      mapPlayerCanvas.style.height = geoh;
+    }
   }
 
   function resetMapOverlay() {
@@ -1000,11 +1252,13 @@ export function createMinimapHud(opts) {
     const getState = opts.getPaintState;
     if (typeof getState !== 'function') return;
     const state = getState();
-  if (titleEl) titleEl.textContent = resolveAreaName({
-      interiorRoom: state.interiorRoom,
-      x: state.player ? state.player.x : 0,
-      z: state.player ? state.player.z : 0
-    });
+    if (titleEl) {
+      titleEl.textContent = resolveAreaName({
+        interiorRoom: resolveLargeMapInterior(state) || state.interiorRoom,
+        x: state.player ? state.player.x : 0,
+        z: state.player ? state.player.z : 0
+      });
+    }
     const paintOpts = {
       player: state.player,
       interiorRoom: state.interiorRoom,
@@ -1023,6 +1277,7 @@ export function createMinimapHud(opts) {
       syncLargeMapCanvasSize();
       const interiorRoom = resolveLargeMapInterior(state);
       const outdoorPlayer = outdoorPaintPlayer(state);
+      const outdoorLarge = !interiorRoom;
       syncMapModeToggle(state);
       syncMapPins(state);
       paintMinimap(mctx, Object.assign({}, paintOpts, {
@@ -1033,8 +1288,29 @@ export function createMinimapHud(opts) {
         logicalWidth: mapLogicalSize.width,
         logicalHeight: mapLogicalSize.height,
         devicePixelRatio: mapLogicalSize.dpr || 1,
-        hoverIslandId: hoverIslandId
+        hoverIslandId: hoverIslandId,
+        pressedIslandId: pressedIslandId,
+        playerOnOverlay: outdoorLarge
       }));
+      const pctx = mapPlayerCtx();
+      if (pctx && outdoorLarge && outdoorPlayer) {
+        paintLargeMapPlayerOverlay(pctx, {
+          player: outdoorPlayer,
+          logicalWidth: mapLogicalSize.width,
+          logicalHeight: mapLogicalSize.height,
+          devicePixelRatio: mapLogicalSize.dpr || 1,
+          padding: LARGE_MAP_PAD,
+          scale: 1,
+          nightMix: paintOpts.nightMix
+        });
+      } else if (pctx) {
+        const dpr = mapLogicalSize.dpr || 1;
+        pctx.save();
+        if (dpr !== 1) pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        else pctx.setTransform(1, 0, 0, 1, 0, 0);
+        pctx.clearRect(0, 0, mapLogicalSize.width, mapLogicalSize.height);
+        pctx.restore();
+      }
     }
   }
 
@@ -1081,6 +1357,14 @@ export function createMinimapHud(opts) {
       const y = ((event.clientY - rect.top) / rect.height) * mapLogicalSize.height;
       return { x: x, y: y };
     }
+    function clearPointerPress() {
+      pointerDown = null;
+      if (pressedIslandId) {
+        pressedIslandId = null;
+        lastPaint = 0;
+        paintTargets();
+      }
+    }
     mapCanvas.addEventListener('pointerdown', (event) => {
       const mapSheet = document.getElementById('islandMapSheet');
       if (!mapSheet || mapSheet.hidden) return;
@@ -1092,9 +1376,48 @@ export function createMinimapHud(opts) {
       const hit = islandAtMapPoint(pt.x, pt.y, mapLogicalSize.width, mapLogicalSize.height, 12);
       if (hit) {
         event.preventDefault();
-        opts.onJumpToIsland(hit);
+        event.stopPropagation();
+        pointerDown = { islandId: hit, x: pt.x, y: pt.y };
+        pressedIslandId = hit;
+        if (typeof mapCanvas.setPointerCapture === 'function') {
+          try { mapCanvas.setPointerCapture(event.pointerId); } catch (_e) { /* ignore */ }
+        }
+        lastPaint = 0;
+        paintTargets();
       }
     });
+    mapCanvas.addEventListener('pointerup', (event) => {
+      const mapSheet = document.getElementById('islandMapSheet');
+      if (!mapSheet || mapSheet.hidden) {
+        clearPointerPress();
+        return;
+      }
+      const getState = opts.getPaintState;
+      const state = typeof getState === 'function' ? getState() : null;
+      if (resolveLargeMapInterior(state)) {
+        clearPointerPress();
+        return;
+      }
+      const pt = canvasPointFromEvent(event);
+      const upHit = pt
+        ? islandAtMapPoint(pt.x, pt.y, mapLogicalSize.width, mapLogicalSize.height, 12)
+        : null;
+      const jumpId = shouldJumpIslandOnPointerUp(
+        pointerDown,
+        pt && upHit ? { islandId: upHit, x: pt.x, y: pt.y } : null,
+        MAP_POINTER_JUMP_SLOP
+      );
+      pointerDown = null;
+      pressedIslandId = null;
+      lastPaint = 0;
+      if (jumpId) {
+        event.preventDefault();
+        event.stopPropagation();
+        opts.onJumpToIsland(jumpId);
+      }
+      paintTargets();
+    });
+    mapCanvas.addEventListener('pointercancel', clearPointerPress);
     mapCanvas.addEventListener('pointermove', (event) => {
       const mapSheet = document.getElementById('islandMapSheet');
       if (!mapSheet || mapSheet.hidden) return;
@@ -1118,6 +1441,7 @@ export function createMinimapHud(opts) {
       }
     });
     mapCanvas.addEventListener('pointerleave', () => {
+      if (pointerDown) clearPointerPress();
       if (!hoverIslandId) return;
       hoverIslandId = null;
       lastPaint = 0;

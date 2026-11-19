@@ -197,27 +197,47 @@ test('收合狀態下縮小與放大鈕內容不同', () => {
   hud.destroy();
 });
 
+function layoutIslandGeo(layouts) {
+  return layouts.map((row) => ({
+    id: row.id,
+    centerX: row.centerX,
+    centerY: row.centerY,
+    rx: row.rx,
+    ry: row.ry
+  }));
+}
+
 function assertLayoutsNoOverlap(layouts, width, height) {
+  const geo = layoutIslandGeo(layouts);
   for (let a = 0; a < layouts.length; a++) {
-    const box = layouts[a].box;
-    assert.ok(boxInside(layouts[a], width, height), layouts[a].id + ' 名牌超出地圖');
+    const row = layouts[a];
+    const touch = row.touchBox;
+    assert.ok(touchBoxInside(touch, width, height), row.id + ' 點擊區超出地圖');
+    assert.ok(
+      M.pointInIslandEllipse(row.anchorX, row.anchorY, row.centerX, row.centerY, row.rx, row.ry, 0.88),
+      row.id + ' 名牌中心應落在自己島內'
+    );
+    assert.equal(
+      M.pinTouchBoxHitsForeignIsland(touch, row.id, geo, 0.9),
+      false,
+      row.id + ' 點擊區壓到別座島'
+    );
     for (let b = a + 1; b < layouts.length; b++) {
-      const other = layouts[b].box;
-      const overlap = !(box.right <= other.left || box.left >= other.right
-        || box.bottom <= other.top || box.top >= other.bottom);
+      const other = layouts[b].touchBox;
+      const overlap = !(touch.right <= other.left || touch.left >= other.right
+        || touch.bottom <= other.top || touch.top >= other.bottom);
       assert.equal(overlap, false, layouts[a].id + ' 與 ' + layouts[b].id + ' 名牌重疊');
     }
   }
 }
 
-function boxInside(row, width, height) {
-  const box = row.box;
+function touchBoxInside(box, width, height) {
   return box.left >= 2 && box.top >= 2 && box.right <= width - 2 && box.bottom <= height - 2;
 }
 
 test('大地圖名牌版面：390 與 1280 六島在界內、不重疊', () => {
-  const s390 = M.largeMapCanvasCssSize(390);
-  const s1280 = M.largeMapCanvasCssSize(1280);
+  const s390 = M.largeMapCanvasCssSize(390, 844);
+  const s1280 = M.largeMapCanvasCssSize(1280, 800);
   const l390 = M.islandPinLayout(s390.width, s390.height);
   const l1280 = M.islandPinLayout(s1280.width, s1280.height);
   assert.equal(l390.length, 6);
@@ -226,10 +246,49 @@ test('大地圖名牌版面：390 與 1280 六島在界內、不重疊', () => {
   assertLayoutsNoOverlap(l1280, s1280.width, s1280.height);
   const tcm = l390.find((row) => row.id === 'tcm');
   assert.ok(tcm && tcm.fontPx >= 13, '手機字級 ≥ 13px');
+  const desk = l1280.find((row) => row.id === 'main');
+  assert.ok(desk && desk.fontPx >= 15 && desk.fontPx <= 17, '桌機字級 15–16px');
+  assert.ok(s1280.innerHeight <= s1280.availHeight + 1, '1280×800 canvas 內高不超出面板可用高');
+});
+
+test('largeMapCanvasCssSize：常見視窗不撐出捲軸', () => {
+  const vps = [
+    [1280, 800],
+    [1280, 720],
+    [390, 844],
+    [360, 740]
+  ];
+  for (let i = 0; i < vps.length; i++) {
+    const size = M.largeMapCanvasCssSize(vps[i][0], vps[i][1]);
+    assert.ok(size.innerHeight <= size.availHeight + 1, vps[i] + ' 內高 ≤ 可用高');
+  }
+});
+
+test('shouldJumpIslandOnPointerUp：同島小位移才跳', () => {
+  const down = { islandId: 'main', x: 100, y: 80 };
+  assert.equal(M.shouldJumpIslandOnPointerUp(down, { islandId: 'main', x: 105, y: 84 }, 10), 'main');
+  assert.equal(M.shouldJumpIslandOnPointerUp(down, { islandId: 'city', x: 105, y: 84 }, 10), null);
+  assert.equal(M.shouldJumpIslandOnPointerUp(down, { islandId: 'main', x: 120, y: 80 }, 10), null);
+  assert.equal(M.shouldJumpIslandOnPointerUp(null, { islandId: 'main', x: 100, y: 80 }, 10), null);
+});
+
+test('室內 → 群島：島別與門口座標', () => {
+  const cases = [
+    ['shop-room', 'main'],
+    ['casino-room', 'casino'],
+    ['tcm-room', 'tcm'],
+    ['lab-room', 'computer']
+  ];
+  for (let i = 0; i < cases.length; i++) {
+    const room = M.interiorByRoomId(cases[i][0]);
+    assert.equal(M.islandIdForInteriorRoom(room), cases[i][1], cases[i][0]);
+    const pose = M.outdoorPlayerPoseFromInterior(room);
+    assert.ok(pose && Number.isFinite(pose.x) && Number.isFinite(pose.z), cases[i][0] + ' 門口座標');
+  }
 });
 
 test('大地圖點擊命中：圈心命中該島、海面 null', () => {
-  const size = M.largeMapCanvasCssSize(1280);
+  const size = M.largeMapCanvasCssSize(1280, 800);
   const layouts = M.islandPinLayout(size.width, size.height);
   for (let i = 0; i < layouts.length; i++) {
     const row = layouts[i];

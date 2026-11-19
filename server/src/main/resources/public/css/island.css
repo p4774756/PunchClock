@@ -1153,6 +1153,10 @@ body.is-exploring .island-npc-talk:not([hidden]) {
   }
 }
 
+body.island-map-open .island-explore-hint {
+  visibility: hidden !important;
+}
+
 body.island-map-open .island-hud,
 body.island-map-open .island-joystick {
   visibility: hidden;
@@ -1474,6 +1478,11 @@ body:not(.is-exploring) .island-minimap {
   flex: 1 1 auto;
   min-height: 0;
   padding: 0.45rem 0.85rem 0.35rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 .island-map-canvas {
@@ -1490,9 +1499,20 @@ body:not(.is-exploring) .island-minimap {
   cursor: pointer;
 }
 
+.island-map-player-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  height: auto;
+  pointer-events: none;
+  z-index: 3;
+}
+
 .island-map-pins {
   position: absolute;
-  inset: 0.45rem 0.85rem 0.35rem;
+  left: 0;
+  top: 0;
   pointer-events: none;
 }
 
@@ -1505,15 +1525,17 @@ body:not(.is-exploring) .island-minimap {
   left: 0;
   top: 0;
   margin: 0;
-  padding: 0.35rem 0.55rem;
-  min-width: 2.75rem;
-  min-height: 2.75rem;
+  padding: 0.2rem 0.45rem;
+  min-width: 0;
+  min-height: 0;
+  width: max-content;
+  max-width: none;
   border: 2px solid #1f3a66;
   border-radius: 6px;
   background: #f8f4e8;
   color: #142440;
   font-family: inherit;
-  font-size: 0.81rem;
+  font-size: 0.8125rem;
   font-weight: 800;
   line-height: 1.2;
   text-align: center;
@@ -1521,14 +1543,19 @@ body:not(.is-exploring) .island-minimap {
   box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.22);
   cursor: pointer;
   pointer-events: auto;
-  transform: translate(-50%, -100%);
+  transform: translate(-50%, -50%);
   z-index: 2;
+  overflow: visible;
 }
 
 .island-map-pin::before {
   content: '';
   position: absolute;
-  inset: -0.45rem;
+  left: 50%;
+  top: 50%;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -1.375rem 0 0 -1.375rem;
 }
 
 .island-map-pin.is-current {
@@ -1551,11 +1578,11 @@ body:not(.is-exploring) .island-minimap {
   background: #fff8e8;
   outline: 2px solid #3a7ac4;
   outline-offset: 1px;
-  transform: translate(-50%, calc(-100% - 2px));
+  transform: translate(-50%, calc(-50% - 2px));
 }
 
 .island-map-pin:active {
-  transform: translate(-50%, calc(-100% + 1px));
+  transform: translate(-50%, calc(-50% + 1px));
   box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.2);
   filter: brightness(0.96);
 }
@@ -1575,9 +1602,9 @@ body:not(.is-exploring) .island-minimap {
   text-align: center;
 }
 
-@media (max-width: 760px) {
+@media (min-width: 761px) {
   .island-map-pin {
-    font-size: 0.8125rem;
+    font-size: 1rem;
   }
 }
 
