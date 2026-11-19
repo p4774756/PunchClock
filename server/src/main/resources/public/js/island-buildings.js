@@ -8,8 +8,6 @@ import { G, P, nightHex } from './island-kit.js';
 import { BUILDING_GLOW, glowForMaterial } from './island-buildings-data.js';
 import { polishPedestalBase } from './island-decor.js';
 import { attachShopEavesDecor } from './island-decor-scene.js';
-import { attachComputerLabExterior } from './island-career-corridor.js';
-
 export { BUILDING_GLOW, glowForMaterial };
 
 const glbCache = new Map();
@@ -155,11 +153,12 @@ export function buildIslandBuildings(ctx) {
         if (obj.name === 'sign_face') {
           const signTex = signMaps[buildingId];
           if (signTex) {
+            const labSignNight = buildingId === 'computer-site';
             obj.material = mat(0xffffff, {
               map: signTex,
-              night: 0xfff0dc,
-              glow: 0xffb15a,
-              glowAmount: 0.28,
+              night: labSignNight ? 0xe8f8ff : 0xfff0dc,
+              glow: labSignNight ? 0x7ec8ea : 0xffb15a,
+              glowAmount: labSignNight ? 1.12 : 0.28,
               side: THREE.DoubleSide
             });
           } else {
@@ -179,7 +178,11 @@ export function buildIslandBuildings(ctx) {
         attachShopEavesDecor(model, kit, { reduced: !!motionReduced });
       }
       if (buildingId === 'computer-site') {
-        attachComputerLabExterior(model, kit, { reduced: !!motionReduced });
+        model.traverse((obj) => {
+          if (obj.isMesh && obj.name === 'windmill') {
+            obj.userData.slowSpin = !motionReduced;
+          }
+        });
       }
       if (dayNight && typeof dayNight.refresh === 'function') dayNight.refresh();
     }).catch((err) => {
@@ -846,10 +849,22 @@ export function buildIslandBuildings(ctx) {
     const yOff = (island.id === 'tcm' || island.id === 'computer') ? G + 3.65 : G + 2.6;
     marker('island-' + island.id, island.x, yOff, island.z);
   });
+  function tickComputerSite(dt) {
+    const model = buildingGroups['computer-site'];
+    if (!model || motionReduced) return;
+    const step = (dt || 0.016) * 0.22;
+    model.traverse((obj) => {
+      if (obj.userData && obj.userData.slowSpin) {
+        obj.rotation.y += step;
+      }
+    });
+  }
+
   return {
     get shaker() { return shaker; },
     getTcmSiteModel() { return buildingGroups['tcm-site'] || null; },
     refreshGraffitiWall: () => refreshGraffitiWall(),
-    paintRoadmapSign: (copy) => paintRoadmapSign(copy)
+    paintRoadmapSign: (copy) => paintRoadmapSign(copy),
+    tickComputerSite: (dt) => tickComputerSite(dt)
   };
 }

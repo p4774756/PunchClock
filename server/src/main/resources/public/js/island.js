@@ -687,6 +687,7 @@ function boot() {
   loop.register((dt) => {
     tcmFigure.tick();
     career.tick(dt);
+    if (buildings.tickComputerSite) buildings.tickComputerSite(dt);
   });
 
   let exploreSaved = null;

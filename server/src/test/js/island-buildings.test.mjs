@@ -103,12 +103,35 @@ describe('BUILDINGS door consistency', () => {
   });
 });
 
+describe('computer-site GLB exterior', () => {
+  it('研發樓 JS 外觀遮醜已移除，招牌仍走 labSignMap', () => {
+    assert.ok(!buildingsJs.includes('attachComputerLabExterior'));
+    assert.ok(!buildingsJs.includes('attachComputerSiteExterior'));
+    assert.ok(!buildingsJs.includes('whitenComputerSiteMeshes'));
+    assert.ok(buildingsJs.includes('labSignMap'));
+    assert.ok(buildingsJs.includes("buildingId === 'computer-site'"));
+    assert.ok(buildingsJs.includes("obj.name === 'windmill'"));
+  });
+
+  it('computer-site layout 與門口維持職涯走廊可走', () => {
+    const c = buildingById('computer-site');
+    assert.equal(c.x, 0.45);
+    assert.equal(c.z, 18.35);
+    assert.equal(c.w, 3.5);
+    assert.equal(c.d, 2.8);
+    assert.equal(c.yaw, Math.PI);
+    assert.equal(c.entry.reach, 0.78);
+    assert.ok(Math.abs(c.door.x - 0.45) < 1e-6);
+    assert.ok(Math.abs(c.door.z - 16.17) < 0.01);
+  });
+});
+
 describe('BUILDINGS footprint dimensions', () => {
   const expected = {
     shop: { w: 4.75, d: 3.2 },
     casino: { w: 2.4, d: 1.9 },
     'tcm-site': { w: 2.3, d: 1.8 },
-    'computer-site': { w: 2.3, d: 1.8 }
+    'computer-site': { w: 3.5, d: 2.8 }
   };
 
   Object.entries(expected).forEach(([id, dims]) => {

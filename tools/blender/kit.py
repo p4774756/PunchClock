@@ -183,12 +183,16 @@ class Part:
             self._uv = self.bm.loops.layers.uv.new('UVMap')
         return self._uv
 
-    def plane(self, mat, w, h, x, y, z, rx=0.0, ry=0.0, rz=0.0):
+    def plane(self, mat, w, h, x, y, z, rx=0.0, ry=0.0, rz=0.0, flip_u=False):
         """XZ 平面上寬 w、高 h、法線朝 -Y（正面）的單一面，帶 0..1 UV。"""
         dx, dz = w / 2, h / 2
         local = [(-dx, 0, -dz), (dx, 0, -dz), (dx, 0, dz), (-dx, 0, dz)]
         # glTF / Three.js 的 V=0 在圖上緣；這裡先把 V 對調，匯出後文字才是正的。
-        uvs = [(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]
+        # 北側 back 字牌在 yaw=π 後需水平對調 U 才與南簷 front 同向可讀。
+        if flip_u:
+            uvs = [(1.0, 1.0), (0.0, 1.0), (0.0, 0.0), (1.0, 0.0)]
+        else:
+            uvs = [(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]
         m = (Matrix.Translation((x, y, z))
              @ Matrix.Rotation(rz, 4, 'Z')
              @ Matrix.Rotation(ry, 4, 'Y')
@@ -366,23 +370,45 @@ class Builder:
             tip = pts[-1]
             rid.cyl(accent, 0.03, 0.0, 0.12, tip.x, tip.y, tip.z + 0.08, seg=5)
 
-    def tilted_sign(self, width, height, y, z, rx=-1.05, frame='gold', board='sign'):
-        """屋頂正面招牌。rx 為負：法線朝 -Y 且略朝上，遊戲高視角看得到文字。sign_face 帶 0..1 UV。"""
+    def tilted_sign(self, width, height, y, z, rx=None, frame='gold', board='sign', facing='front'):
+        """屋頂招牌。facing=front：法線朝 -Y 略仰（南簷）；back：朝 +Y 面北鏡頭（EXPLORE 下緣）。sign_face 帶 0..1 UV。"""
         import math as _math
+        if rx is None:
+            rx = 2.18 if facing == 'back' else -1.05
         fr = self.part('sign')
         face = self.part('sign_face')
-        # 沿旋轉後法線往鏡頭挪一點，避免被框擋住
-        # 原法線 (0,-1,0) 經 Rx(rx) → (0, -cos(rx), -sin(rx))；rx<0 時 Z 分為正。
-        nx, ny, nz = 0.0, -_math.cos(rx), -_math.sin(rx)
+        # (0,-1,0) 經 Rx(rx) → (0, -cos(rx), sin(rx))；front 沿用舊 -sin 以不動其它 GLB。
+        if facing == 'back':
+            nx, ny, nz = 0.0, -_math.cos(rx), _math.sin(rx)
+        else:
+            nx, ny, nz = 0.0, -_math.cos(rx), -_math.sin(rx)
         def along(x0, y0, z0, dist):
             return x0 + nx * dist, y0 + ny * dist, z0 + nz * dist
         fx, fy, fz = along(0, y, z, 0.012)
         bx, by, bz = along(0, y, z, 0.028)
-        px, py, pz = along(0, y, z, 0.045)
+        px, py, pz = along(0, y, z, 0.048)
         fr.box(frame, width + 0.10, 0.05, height + 0.10, fx, fy, fz, rx=rx)
         fr.box(board, width + 0.02, 0.02, height + 0.02, bx, by, bz, rx=rx)
-        face.plane('sign', width, height, px, py, pz, rx=rx)
+        face.plane('sign', width, height, px, py, pz, rx=rx, flip_u=(facing == 'back'))
         return (0.0, z, -y)
+
+    def roof_readable_sign(self, width, height, x, y, z, rx=None, ry=0.10, frame='lab_accent', board='sign',
+                           flip_u=True):
+        """屋頂近水平招牌（字朝上），高俯視角可讀；併入既有 sign_face UV。"""
+        import math as _math
+        if rx is None:
+            rx = _math.pi / 2 - 0.18
+        fr = self.part('sign')
+        face = self.part('sign_face')
+        nx, ny, nz = 0.0, -_math.cos(rx), _math.sin(rx)
+        def along(x0, y0, z0, dist):
+            return x0 + nx * dist, y0 + ny * dist, z0 + nz * dist
+        fx, fy, fz = along(x, y, z, 0.010)
+        bx, by, bz = along(x, y, z, 0.024)
+        px, py, pz = along(x, y, z, 0.040)
+        fr.box(frame, width + 0.08, 0.04, height + 0.08, fx, fy, fz, rx=rx, ry=ry)
+        fr.box(board, width + 0.02, 0.02, height + 0.02, bx, by, bz, rx=rx, ry=ry)
+        face.plane('sign', width, height, px, py, pz, rx=rx, ry=ry, flip_u=flip_u)
 
     def finish(self, out_path, extras=None, label_anchor=None, door_local=None):
         root = bpy.data.objects.new(self.name, None)
