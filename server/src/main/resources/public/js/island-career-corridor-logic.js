@@ -236,5 +236,17 @@ export function assertZoneSignLayout() {
       return { ok: false, reason: 'sign-yaw', i, yaw: s.yaw };
     }
   }
+  const swExhibit = CAREER_EXHIBIT_LAYOUT.find((row) => row.id === 'software-2022-now');
+  const swSign = CAREER_ZONE_SIGNS.find((row) => row.phase === '純軟體時期');
+  if (swExhibit && swSign && swSign.z >= swExhibit.z - 0.08) {
+    return { ok: false, reason: 'sign-behind-software-exhibit', z: swSign.z, exhibitZ: swExhibit.z };
+  }
+  const hall = buildingById('computer-site');
+  if (hall && swSign) {
+    const eastEdge = hall.x + hall.w / 2;
+    if (swSign.x + 0.29 > eastEdge + 1e-6) {
+      return { ok: false, reason: 'sign-past-east-wall', x: swSign.x, eastEdge };
+    }
+  }
   return { ok: true };
 }

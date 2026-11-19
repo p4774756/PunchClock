@@ -121,8 +121,8 @@ function buildPhaseSigns(rootGroup, kit) {
     g.position.set(sign.x, G, sign.z);
     g.rotation.y = sign.yaw || 0;
     const faceZ = 0.04;
-    addBox(g, 0.58, 0.88, 0.06, 0x8a9aaa, 0, 0.42, 0, { shadow: false });
-    addMesh(g, new THREE.PlaneGeometry(0.52, 0.28), 0xffffff, 0, 0.78, faceZ, {
+    addBox(g, 0.58, 0.88, 0.06, 0x8a9aaa, 0, 0.46, 0, { shadow: false });
+    addMesh(g, new THREE.PlaneGeometry(0.52, 0.28), 0xffffff, 0, 0.92, faceZ, {
       map,
       side: THREE.DoubleSide,
       shadow: false
