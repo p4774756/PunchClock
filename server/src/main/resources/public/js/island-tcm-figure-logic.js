@@ -2,10 +2,11 @@
 
 export const PENDING_COPY = '尚待收錄';
 export const DISCLAIMER = '教學參考，非診療建議';
-export const FIGURE_TARGET_HEIGHT = 2.12;
-export const DATA_BODY_HEIGHT = 1.72;
+export const FIGURE_TARGET_HEIGHT = 2.365;
+export const DATA_BODY_HEIGHT = 1.912;
+export const BODY_FOOT_Y = 0.192;
 export const MARKER_SURFACE_EPS = 0.009;
-export const BRONZE_HEAD_TOP_Y = 1.76;
+export const BRONZE_HEAD_TOP_Y = 1.96;
 export const BRONZE_SURFACE_TOLERANCE = 0.02;
 
 /** 體表吸附（由 build_tcm_bronze_figure.py 產出 tcm-bronze-surface.json）。 */

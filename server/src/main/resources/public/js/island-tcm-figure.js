@@ -108,7 +108,8 @@ function nightColorFromDay(hex, opts) {
   return out;
 }
 
-const BRONZE_SRGB = 0xc9a55c;
+const BRONZE_SRGB = 0xcda862;
+const MERIDIAN_SRGB = 0x4a3214;
 const BRONZE_PED_SRGB = 0xab8748;
 
 function bronzeMaterialFromGltf(oldMat, kit, opts) {
@@ -120,7 +121,10 @@ function bronzeMaterialFromGltf(oldMat, kit, opts) {
   const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(
     isFabric ? 0xffffff : darkPed ? BRONZE_PED_SRGB : BRONZE_SRGB
   );
-  if (isBronze && !isFabric) {
+  if (o.meridian) {
+    day.setHex(MERIDIAN_SRGB);
+    if (oldMat.color) day.copy(oldMat.color);
+  } else if (isBronze && !isFabric) {
     const hasMap = !!(oldMat.map);
     if (hasMap) {
       day.setRGB(1, 1, 1);
@@ -196,12 +200,29 @@ function applyBronzeFigureMaterials(root, kit) {
     if (!obj.isMesh) return;
     const oldMat = obj.material;
     const matName = (oldMat && oldMat.name) || '';
+    const isMeridian =
+      matName.indexOf('meridian') >= 0 || obj.name.indexOf('meridian') >= 0;
     const fabric =
       matName === 'sash_cloth' ||
       matName === 'bronze_sash' ||
       obj.name.indexOf('sash') >= 0;
-    const isBronze = !fabric;
-    if (oldMat && oldMat.isMeshStandardMaterial) {
+    const isBronze = !fabric && !isMeridian;
+    if (isMeridian) {
+      obj.material = bronzeMaterialFromGltf(
+        oldMat && oldMat.isMeshStandardMaterial
+          ? oldMat
+          : {
+              name: matName || 'meridian_dark',
+              color: new THREE.Color(MERIDIAN_SRGB),
+              metalness: 0.9,
+              roughness: 0.45,
+              emissive: new THREE.Color(0x000000),
+              emissiveIntensity: 0
+            },
+        kit,
+        { bronze: true, fabric: false, meridian: true }
+      );
+    } else if (oldMat && oldMat.isMeshStandardMaterial) {
       obj.material = bronzeMaterialFromGltf(oldMat, kit, { bronze: isBronze, fabric: fabric });
     } else if (fabric) {
       obj.material = bronzeMaterialFromGltf(
@@ -647,7 +668,7 @@ export function createTcmFigureController(ctx) {
   };
 }
 
-const ENTRANCE_FIG_SCALE = 0.86;
+const ENTRANCE_FIG_SCALE = 0.78;
 
 export function replaceEntranceBronzeStatue(model, kit, pickables, opts) {
   model.updateMatrixWorld(true);
