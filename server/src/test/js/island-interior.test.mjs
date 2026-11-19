@@ -174,9 +174,10 @@ test('進入放到室內出生點，離開放到門前並面向離開建物', ()
 
 test('室內原點在鏡頭遠平面外，出生點與碰撞仍是本地座標', () => {
   const room = I.interiorByBuilding('shop');
-  assert.deepEqual(room.spawn, { x: 0, z: 0.2, yaw: Math.PI });
-  assert.equal(room.floor.minX, -2.35);
-  assert.equal(room.blocks[0].minX, -1.25);
+  assert.deepEqual(room.spawn, { x: 0, z: 0.9, yaw: 0 });
+  assert.ok(room.floor.maxX - room.floor.minX >= 15, '店內寬度遠大於外觀盒子');
+  assert.ok(room.floor.maxZ - room.floor.minZ >= 11, '店內進深遠大於外觀盒子');
+  assert.equal(room.blocks[0].id, 'bar');
   assert.equal(I.interiorClearsFarPlane(I.INTERIOR_ORIGIN, I.ISLAND_CAMERA_FAR), true);
   assert.equal(I.interiorClearsFarPlane({ x: 0, z: -220 }, I.ISLAND_CAMERA_FAR), false);
   const worldZ = I.INTERIOR_ORIGIN.z + room.spawn.z;
@@ -199,7 +200,7 @@ test('研發樓出生朝向門口，有專用鏡頭與離開按鈕條件', () =>
   assert.ok(I.LAB_INTERIOR_CAMERA.phi > 1.4);
   assert.deepEqual(I.interiorFollowPose(room, 1.6), I.LAB_INTERIOR_CAMERA);
   assert.deepEqual(I.interiorFollowPose(room, 390 / 844), I.LAB_INTERIOR_CAMERA_MOBILE);
-  assert.equal(I.interiorFollowPose(I.interiorByBuilding('shop')), null);
+  assert.equal(I.interiorFollowPose(I.interiorByBuilding('shop')), I.SHOP_INTERIOR_CAMERA);
 
   const session = I.createInteriorSession();
   session.enter('computer-site', 0);
@@ -598,4 +599,24 @@ test('推拿館室內可走、可離開，並有進入經絡研習室的互動',
   assert.equal(left.ok, true);
   assert.ok(Math.abs(left.pose.x - room.outside.x) < 1e-9);
   assert.ok(Math.abs(left.pose.z - room.outside.z) < 1e-9);
+});
+
+test('神之島店內遠大於外觀，進房鏡頭站在門內往北看吧台', () => {
+  const room = I.interiorByBuilding('shop');
+  assert.equal(room.exit.label, '離開神之島');
+  assert.deepEqual(room.outside, { x: -3.86, z: -1.4, yaw: -Math.PI / 2 });
+  const viewports = [1280 / 720, 1440 / 900, 390 / 844];
+  for (let i = 0; i < viewports.length; i++) {
+    const aspect = viewports[i];
+    const pose = I.shopInteriorCameraForAspect(aspect);
+    const look = I.shopInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, aspect);
+    const eye = I.shopInteriorCameraEye(pose, look, aspect);
+    assert.ok(eye.z < look.z - 1, '鏡頭在焦點南側，往北看店內');
+    assert.ok(eye.z >= room.floor.minZ + 0.8 && eye.z <= 2.2, '鏡頭深入店內、不受門框擋住 z=' + eye.z.toFixed(3));
+    assert.ok(eye.y < 4.2, '鏡頭低於天花 y=' + eye.y.toFixed(3));
+  }
+  assert.equal(I.interiorFollowPose(room, 1.6), I.SHOP_INTERIOR_CAMERA);
+  assert.equal(I.interiorCameraFov(room), I.SHOP_FOV_DEG);
+  assert.equal(I.interiorCanStand(room.spawn.x, room.spawn.z, room, RADIUS), true);
+  assert.equal(I.interiorCanStand(room.exit.x, room.exit.z, room, RADIUS), true);
 });

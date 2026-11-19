@@ -23,11 +23,13 @@ export const DEFAULT_INTERIOR_FOV_DEG = 25;
 
 export const CASINO_FOV_DEG = 42;
 export const TCM_FOV_DEG = 42;
+export const SHOP_FOV_DEG = 42;
 
 export function interiorCameraFov(room) {
   if (room && room.id === 'lab-room') return LAB_FOV_DEG;
   if (room && room.id === 'casino-room') return CASINO_FOV_DEG;
   if (room && room.id === 'tcm-room') return TCM_FOV_DEG;
+  if (room && room.id === 'shop-room') return SHOP_FOV_DEG;
   return DEFAULT_INTERIOR_FOV_DEG;
 }
 
@@ -164,6 +166,7 @@ export function interiorFollowPose(room, aspect) {
   if (room && room.id === 'lab-room') return labInteriorCameraForAspect(aspect);
   if (room && room.id === 'casino-room') return casinoInteriorCameraForAspect(aspect);
   if (room && room.id === 'tcm-room') return tcmInteriorCameraForAspect(aspect);
+  if (room && room.id === 'shop-room') return shopInteriorCameraForAspect(aspect);
   return null;
 }
 
@@ -256,6 +259,54 @@ export function tcmInteriorRuntimeLookAt(room, player, aspect, origin) {
   const o = origin || INTERIOR_ORIGIN;
   const localPlayer = tcmInteriorPlayerLocal(player, o);
   const focal = tcmInteriorLookTarget(room, localPlayer, aspect);
+  return Object.freeze({
+    x: focal.x + o.x,
+    y: focal.y,
+    z: focal.z + o.z
+  });
+}
+
+/** 神之島進房預設鏡頭：站在南門內側往北看吧台、座位與菜單燈箱。 */
+export const SHOP_INTERIOR_CAMERA = Object.freeze({ radius: 5.75, theta: Math.PI, phi: 1.35 });
+export const SHOP_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 3.7, theta: Math.PI, phi: 1.32 });
+export const SHOP_INTERIOR_LOOK = Object.freeze({ x: 0.3, y: G + 2.0, z: 6.2 });
+export const SHOP_INTERIOR_LOOK_MOBILE = Object.freeze({ x: 0.2, y: G + 1.9, z: 5.4 });
+
+export function shopInteriorCameraForAspect(aspect) {
+  const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
+  if (a < 0.72) return SHOP_INTERIOR_CAMERA_MOBILE;
+  if (a > 1.72) {
+    return Object.freeze({ radius: 5.9, theta: SHOP_INTERIOR_CAMERA.theta, phi: SHOP_INTERIOR_CAMERA.phi });
+  }
+  return SHOP_INTERIOR_CAMERA;
+}
+
+export function shopInteriorLookTarget(room, player, aspect) {
+  const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
+  return a < 0.72 ? SHOP_INTERIOR_LOOK_MOBILE : SHOP_INTERIOR_LOOK;
+}
+
+export function shopInteriorCameraEye(pose, look, aspect) {
+  const used = pose || shopInteriorCameraForAspect(aspect);
+  const dist = labInteriorFollowDistance(used.radius, aspect);
+  const place = labExploreCameraPlacement(look.x, look.y, look.z, dist, used.phi, used.theta, G);
+  return Object.freeze({ x: place.cx, y: place.cy, z: place.cz });
+}
+
+function shopInteriorPlayerLocal(player, origin) {
+  const o = origin || INTERIOR_ORIGIN;
+  if (!player) return { x: 0, z: 0.9 };
+  const x = Number.isFinite(player.x) ? player.x : 0;
+  const z = Number.isFinite(player.z) ? player.z : 0.9;
+  if (Math.abs(z - o.z) < 80) return { x: x - o.x, z: z - o.z };
+  return { x, z };
+}
+
+export function shopInteriorRuntimeLookAt(room, player, aspect, origin) {
+  if (!room || room.id !== 'shop-room') return null;
+  const o = origin || INTERIOR_ORIGIN;
+  const localPlayer = shopInteriorPlayerLocal(player, o);
+  const focal = shopInteriorLookTarget(room, localPlayer, aspect);
   return Object.freeze({
     x: focal.x + o.x,
     y: focal.y,
@@ -656,13 +707,17 @@ export const INTERIORS = Object.freeze([
   Object.freeze({
     id: 'shop-room',
     buildingId: 'shop',
-    spawn: Object.freeze({ x: 0, z: 0.2, yaw: Math.PI }),
+    spawn: Object.freeze({ x: 0, z: 0.9, yaw: 0 }),
     exit: Object.freeze({ x: 0, z: -1.35, r: 0.58, label: '離開神之島' }),
     outside: Object.freeze({ x: -3.86, z: -1.4, yaw: -Math.PI / 2 }),
-    floor: Object.freeze({ minX: -2.35, maxX: 2.35, minZ: -1.9, maxZ: 2.05 }),
+    floor: Object.freeze({ minX: -8.0, maxX: 8.0, minZ: -2.0, maxZ: 10.0 }),
     blocks: Object.freeze([
-      Object.freeze({ id: 'counter', minX: -1.25, maxX: 0.2, minZ: 0.75, maxZ: 1.4 }),
-      Object.freeze({ id: 'table', minX: 1.15, maxX: 1.9, minZ: -0.4, maxZ: 0.3 })
+      Object.freeze({ id: 'bar', minX: -4.7, maxX: 4.7, minZ: 8.2, maxZ: 9.55 }),
+      Object.freeze({ id: 'seat-west-a', minX: -6.3, maxX: -4.3, minZ: 2.0, maxZ: 4.0 }),
+      Object.freeze({ id: 'seat-west-b', minX: -6.3, maxX: -4.3, minZ: 4.8, maxZ: 6.8 }),
+      Object.freeze({ id: 'seat-east-a', minX: 4.3, maxX: 6.3, minZ: 2.0, maxZ: 4.0 }),
+      Object.freeze({ id: 'seat-east-b', minX: 4.3, maxX: 6.3, minZ: 4.8, maxZ: 6.8 }),
+      Object.freeze({ id: 'fridge', minX: 6.4, maxX: 7.3, minZ: 7.1, maxZ: 9.35 })
     ])
   }),
   Object.freeze({

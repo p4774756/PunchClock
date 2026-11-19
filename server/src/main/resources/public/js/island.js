@@ -78,6 +78,7 @@ import {
   labInteriorRuntimeLookAt,
   casinoInteriorRuntimeLookAt,
   tcmInteriorRuntimeLookAt,
+  shopInteriorRuntimeLookAt,
   interiorCameraFov
 } from './island-interior.js';
 import {
@@ -805,7 +806,7 @@ function boot() {
     nightFactor: () => dayNight.mix,
     followDistance: (radius, aspect) => {
       if (rooms.inside()) {
-        if (rooms.room() && (rooms.room().id === 'lab-room' || rooms.room().id === 'casino-room' || rooms.room().id === 'tcm-room')) {
+        if (rooms.room() && (rooms.room().id === 'lab-room' || rooms.room().id === 'casino-room' || rooms.room().id === 'tcm-room' || rooms.room().id === 'shop-room')) {
           return labInteriorFollowDistance(radius, aspect);
         }
         return interiorExploreFollowDistance(radius, aspect);
@@ -1206,6 +1207,11 @@ function boot() {
         lookX = focal.x;
         lookY = focal.y;
         lookZ = focal.z;
+      } else if (room && room.id === 'shop-room') {
+        const focal = shopInteriorRuntimeLookAt(room, player, camera.aspect);
+        lookX = focal.x;
+        lookY = focal.y;
+        lookZ = focal.z;
       }
     }
     const wantFov = interiorCameraFov(rooms.inside() ? rooms.room() : null);
@@ -1599,6 +1605,9 @@ function boot() {
       cam.targetLook.set(focal.x, focal.y, focal.z);
     } else if (followRoom && followRoom.id === 'tcm-room') {
       const focal = tcmInteriorRuntimeLookAt(followRoom, player, camera.aspect);
+      cam.targetLook.set(focal.x, focal.y, focal.z);
+    } else if (followRoom && followRoom.id === 'shop-room') {
+      const focal = shopInteriorRuntimeLookAt(followRoom, player, camera.aspect);
       cam.targetLook.set(focal.x, focal.y, focal.z);
     } else {
       cam.targetLook.set(player.x, G + 1.05, player.z);
