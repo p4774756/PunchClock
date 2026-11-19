@@ -89,6 +89,7 @@ export function createIslandChat(options) {
   const logEl = doc ? doc.getElementById('islandChatLog') : null;
   const input = doc ? doc.getElementById('islandChatInput') : null;
   const sendBtn = doc ? doc.getElementById('islandChatSend') : null;
+  const closeBtn = doc ? doc.getElementById('islandChatClose') : null;
   const hint = doc ? doc.getElementById('islandChatHint') : null;
   const labels = doc ? doc.getElementById('islandLabels') : null;
 
@@ -309,6 +310,9 @@ export function createIslandChat(options) {
 
   if (btn) {
     btn.addEventListener('click', () => setOpen(!open));
+  }
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => setOpen(false));
   }
   if (sendBtn) {
     sendBtn.addEventListener('click', () => submit());

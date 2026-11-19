@@ -341,6 +341,47 @@ export function handleExploreKeydown(ctx) {
     ctx.switchDashTab('');
     return true;
   }
+  if (doc) {
+    const moreSheet = doc.getElementById('islandMoreSheet');
+    if (moreSheet && !moreSheet.hidden) {
+      event.preventDefault();
+      if (typeof ctx.closeMore === 'function') ctx.closeMore();
+      else moreSheet.hidden = true;
+      return true;
+    }
+    const mapSheet = doc.getElementById('islandMapSheet');
+    if (mapSheet && !mapSheet.hidden) {
+      event.preventDefault();
+      if (typeof ctx.closeMap === 'function') ctx.closeMap();
+      else mapSheet.hidden = true;
+      return true;
+    }
+    const listEl = doc.getElementById('islandList');
+    if (listEl && !listEl.hidden) {
+      event.preventDefault();
+      if (typeof ctx.closeList === 'function') ctx.closeList();
+      else {
+        listEl.hidden = true;
+        const listToggle = doc.getElementById('islandListBtn');
+        if (listToggle) listToggle.setAttribute('aria-expanded', 'false');
+      }
+      return true;
+    }
+    const nickPopElOpen = doc.getElementById('islandNickPop');
+    if (nickPopElOpen && !nickPopElOpen.hidden) {
+      event.preventDefault();
+      if (typeof ctx.setNickOpen === 'function') ctx.setNickOpen(false);
+      else nickPopElOpen.hidden = true;
+      return true;
+    }
+    const avatarPopEl = doc.getElementById('islandAvatarPop');
+    if (avatarPopEl && !avatarPopEl.hidden) {
+      event.preventDefault();
+      if (typeof ctx.setAvatarOpen === 'function') ctx.setAvatarOpen(false);
+      else avatarPopEl.hidden = true;
+      return true;
+    }
+  }
   if (ctx.isInside()) {
     ctx.leaveInterior();
     return true;
