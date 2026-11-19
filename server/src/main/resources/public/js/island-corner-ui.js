@@ -246,6 +246,29 @@ export function avatarPopRectMobile(viewportWidth, viewportHeight, exploring) {
   return { left, right, top, bottom, width: right - left, height: popH, joy };
 }
 
+/** 探索中桌面清單：錨在右上 HUD 列下方（與選單面板對齊）。 */
+export function listPanelRectDesktop(viewportWidth, viewportHeight, showAudio) {
+  const tr = hudTopRightRect(viewportWidth, viewportHeight, showAudio);
+  const margin = hudMargin(viewportWidth);
+  const gap = 8;
+  const width = Math.min(280, viewportWidth - 2 * REM);
+  const right = viewportWidth - margin;
+  const left = right - width;
+  const top = tr.bottom + gap;
+  const maxBody = Math.min(28 * REM, viewportHeight - top - REM);
+  return {
+    left,
+    right,
+    top,
+    bottom: top + maxBody,
+    width,
+    height: maxBody,
+    closeTop: top + 4,
+    closeRight: right - 4,
+    tr
+  };
+}
+
 export function chatPanelRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem) {
   const hRem = panelHeightRem > 0 ? panelHeightRem : 12;
   const joy = joystickRectMobile(viewportWidth, viewportHeight);
@@ -270,6 +293,7 @@ export function createCornerUi(opts) {
   const isWelcomed = opts.isWelcomed;
   const getAudioMuted = opts.getAudioMuted;
   const onAvatarChange = opts.onAvatarChange;
+  const closeList = typeof opts.closeList === 'function' ? opts.closeList : null;
 
   const avatarBtn = document.getElementById('islandAvatarBtn');
   const avatarPop = document.getElementById('islandAvatarPop');
@@ -387,6 +411,13 @@ export function createCornerUi(opts) {
     if (open) {
       setAvatarOpen(false);
       setMapOpen(false);
+      if (closeList) closeList();
+      else {
+        const listEl = document.getElementById('islandList');
+        const listToggle = document.getElementById('islandListBtn');
+        if (listEl) listEl.hidden = true;
+        if (listToggle) listToggle.setAttribute('aria-expanded', 'false');
+      }
       if (nickInput) nickInput.focus();
     }
   }
@@ -566,16 +597,42 @@ export function createCornerUi(opts) {
   if (mapClose) mapClose.addEventListener('click', () => closeMap());
   if (mapScrim) mapScrim.addEventListener('click', () => closeMap());
 
+  function stopEscape(event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
     if (mapSheet && !mapSheet.hidden) {
-      event.preventDefault();
+      stopEscape(event);
       closeMap();
       return;
     }
     if (moreSheet && !moreSheet.hidden) {
-      event.preventDefault();
+      stopEscape(event);
       closeMore();
+      return;
+    }
+    const listEl = document.getElementById('islandList');
+    if (listEl && !listEl.hidden) {
+      stopEscape(event);
+      if (closeList) closeList();
+      else {
+        listEl.hidden = true;
+        const listToggle = document.getElementById('islandListBtn');
+        if (listToggle) listToggle.setAttribute('aria-expanded', 'false');
+      }
+      return;
+    }
+    if (nickPop && !nickPop.hidden) {
+      stopEscape(event);
+      setNickOpen(false);
+      return;
+    }
+    if (avatarPop && !avatarPop.hidden) {
+      stopEscape(event);
+      setAvatarOpen(false);
     }
   });
 

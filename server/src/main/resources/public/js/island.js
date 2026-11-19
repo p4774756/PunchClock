@@ -1729,18 +1729,60 @@ function boot() {
 
   const listBtn = document.getElementById('islandListBtn');
   const listClose = document.getElementById('islandListClose');
+  let listPositionListener = null;
+
+  function positionListPanel() {
+    if (!list || list.hidden) return;
+    const anchor = document.getElementById('islandMoreBtn');
+    if (!anchor || !list.style || typeof list.style.setProperty !== 'function') return;
+    const mm = typeof globalThis.matchMedia === 'function'
+      ? globalThis.matchMedia('(min-width: 761px)')
+      : null;
+    if (!mm || !mm.matches) {
+      list.style.removeProperty('--island-list-top');
+      list.style.removeProperty('--island-list-right');
+      return;
+    }
+    const rect = anchor.getBoundingClientRect();
+    const vw = globalThis.innerWidth || 1280;
+    list.style.setProperty('--island-list-top', `${rect.bottom + 8}px`);
+    list.style.setProperty('--island-list-right', `${Math.max(0, vw - rect.right)}px`);
+  }
+
+  function bindListPosition(on) {
+    const g = globalThis;
+    if (!g || typeof g.addEventListener !== 'function') return;
+    if (on && !listPositionListener) {
+      listPositionListener = () => positionListPanel();
+      g.addEventListener('resize', listPositionListener);
+      g.addEventListener('scroll', listPositionListener, true);
+    } else if (!on && listPositionListener) {
+      g.removeEventListener('resize', listPositionListener);
+      g.removeEventListener('scroll', listPositionListener, true);
+      listPositionListener = null;
+    }
+  }
+
   function closeListPanel() {
     if (!list) return;
     list.hidden = true;
     if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
+    bindListPosition(false);
     syncInteractPrompt();
   }
   if (listClose) listClose.addEventListener('click', closeListPanel);
   if (listBtn && list) {
     listBtn.addEventListener('click', () => {
-      list.hidden = !list.hidden;
-      listBtn.setAttribute('aria-expanded', list.hidden ? 'false' : 'true');
-      if (corner) corner.closeMore();
+      const opening = list.hidden;
+      list.hidden = !opening;
+      listBtn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+      if (opening) {
+        if (corner) corner.closeMore();
+        positionListPanel();
+        bindListPosition(true);
+      } else {
+        bindListPosition(false);
+      }
       syncInteractPrompt();
     });
     list.querySelectorAll('[data-island]').forEach((btn) => {
@@ -2317,7 +2359,8 @@ function boot() {
     isExploring: () => mode.exploring,
     isWelcomed: () => peerLayer.getWelcomed(),
     getAudioMuted: () => islandAudio.muted,
-    onAvatarChange: (id) => replaceLocalAvatar(id)
+    onAvatarChange: (id) => replaceLocalAvatar(id),
+    closeList: closeListPanel
   });
   corner.syncExploreHudLabels();
 
@@ -2350,7 +2393,12 @@ function boot() {
     islandChat: islandChat,
     setExplore: setExplore,
     switchDashTab: typeof window.switchDashTab === 'function' ? window.switchDashTab : null,
-    clearMoveInput: clearMoveInput
+    clearMoveInput: clearMoveInput,
+    closeMore: () => corner && corner.closeMore(),
+    closeMap: () => corner && corner.closeMap(),
+    closeList: closeListPanel,
+    setNickOpen: (open) => corner && corner.setNickOpen(open),
+    setAvatarOpen: (open) => corner && corner.setAvatarOpen(open)
   };
   createExploreKeys(exploreKeyCtx);
   createExplorePointer({

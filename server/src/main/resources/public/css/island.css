@@ -931,6 +931,18 @@ body.island-sheet-open .island-map-sheet {
     max-height: min(70vh, 520px);
     border-radius: 6px;
   }
+
+  body.is-exploring .island-list:not([hidden]),
+  .island-list:not([hidden]) {
+    top: var(--island-list-top, 5.5rem);
+    right: var(--island-list-right, 0.85rem);
+    left: auto;
+    bottom: auto;
+    max-height: min(
+      28rem,
+      calc(100vh - var(--island-list-top, 5.5rem) - 1rem)
+    );
+  }
 }
 
 body.island-map-open .island-hud,
@@ -1057,8 +1069,17 @@ body.island-avatar-open .island-joystick {
     bottom: 3.6rem;
     width: min(280px, calc(100vw - 1.1rem));
   }
-  body.is-exploring .island-list {
-    bottom: max(3.5rem, calc(2.25rem + env(safe-area-inset-bottom, 0px) + 1.1rem));
+  body.is-exploring .island-list:not([hidden]) {
+    top: max(5.15rem, calc(4.55rem + 2.85rem + 0.45rem + env(safe-area-inset-top, 0px)));
+    bottom: auto;
+    max-height: min(
+      52vh,
+      calc(
+        100vh
+        - max(5.15rem, calc(4.55rem + 2.85rem + 0.45rem + env(safe-area-inset-top, 0px)))
+        - max(5.5rem, calc(3.75rem + 0.85rem + env(safe-area-inset-bottom, 0px)))
+      )
+    );
   }
   .island-chat {
     width: min(18rem, calc(100vw - 1.1rem - env(safe-area-inset-right, 0px)));
@@ -1895,18 +1916,30 @@ body.island-avatar-open .island-avatar-pop {
   bottom: max(calc(1.1rem + 3.75rem + 3.2rem + env(safe-area-inset-bottom, 0px)), 5.5rem);
 }
 
-body.is-exploring .island-hud-tr .island-chat {
-  position: fixed;
-  z-index: 10;
-  top: auto;
-  left: max(calc(0.7rem + 8rem + 0.55rem), env(safe-area-inset-left, 0px));
-  right: max(0.55rem, env(safe-area-inset-right, 0px));
-  bottom: max(calc(1.1rem + 3.75rem + 4rem + env(safe-area-inset-bottom, 0px)), 6rem);
-  width: auto;
-  max-width: none;
+@media (min-width: 761px) {
+  body.is-exploring .island-hud-tr .island-chat:not([hidden]) {
+    position: absolute;
+    z-index: 10;
+    top: calc(100% + 0.4rem);
+    right: 0;
+    left: auto;
+    bottom: auto;
+    width: min(18rem, calc(100vw - 1.6rem));
+    max-width: min(18rem, calc(100vw - 1.6rem));
+  }
 }
 
 @media (max-width: 760px) {
+  body.is-exploring .island-hud-tr .island-chat:not([hidden]) {
+    position: fixed;
+    z-index: 10;
+    top: auto;
+    left: max(calc(0.7rem + 8rem + 0.55rem), env(safe-area-inset-left, 0px));
+    right: max(0.55rem, env(safe-area-inset-right, 0px));
+    bottom: max(calc(1.1rem + 3.75rem + 4rem + env(safe-area-inset-bottom, 0px)), 6rem);
+    width: auto;
+    max-width: none;
+  }
   .island-hud-player {
     top: max(3.65rem, calc(2.75rem + env(safe-area-inset-top, 0px)));
     left: max(0.55rem, env(safe-area-inset-left, 0px));

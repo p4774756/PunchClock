@@ -16,6 +16,7 @@ const Corner = await loadPublicModule('island-corner-ui.js');
 const Chat = await loadPublicModule('island-chat.js');
 const Explore = await loadPublicModule('island-explore.js');
 const Interior = await loadPublicModule('island-interior.js');
+const ExploreInput = await loadPublicModule('island-explore-input.js');
 
 class FakeClassList {
   constructor() { this.set = new Set(); }
@@ -151,6 +152,7 @@ function makeMobileDom(guest) {
   const mapPanel = el('div', { class: 'island-map-panel' }, map);
   el('button', { id: 'islandMapClose' }, mapPanel);
 
+  el('aside', { id: 'islandList', class: 'island-list', hidden: true });
   el('div', { id: 'islandLabels' });
   el('div', { id: 'islandJoystick', class: 'island-joystick' });
   el('input', { id: 'islandChatInput' });
@@ -516,6 +518,111 @@ test('探索 HUD：手機操作叢留搖桿間距，退出探索在 flex 流內�
   const block = mobileExploreHud[1];
   assert.match(block, /flex:\s*0\s+0\s+100%/, '退出探索獨佔一列');
   assert.doesNotMatch(block, /position:\s*fixed/, '退出探索不用 fixed 脫離 flex');
+});
+
+test('探索中桌面清單錨在右上 HUD 下方，標題與關閉鈕不與圓鈕列重疊', () => {
+  const panel = Corner.listPanelRectDesktop(1280, 720, true);
+  const titleBar = { left: panel.left, right: panel.right, top: panel.top, bottom: panel.top + 28 };
+  const closeBtn = {
+    left: panel.closeRight - 32,
+    right: panel.closeRight,
+    top: panel.closeTop,
+    bottom: panel.closeTop + 32
+  };
+  assert.ok(!Corner.rectsIntersect(titleBar, panel.tr), '標題列在 HUD 列下方');
+  assert.ok(!Corner.rectsIntersect(closeBtn, panel.tr), '關閉鈕可點、不被圓鈕遮住');
+});
+
+test('探索中 Esc 關選單會 stopPropagation 且不退出探索', () => {
+  const doc = makeMobileDom(true);
+  doc.body.classList.add('is-exploring');
+  let stopped = false;
+  Corner.createCornerUi({
+    document: doc,
+    storage: null,
+    getPresence: () => null,
+    isExploring: () => true,
+    isWelcomed: () => false
+  });
+  const uiMore = doc.getElementById('islandMoreSheet');
+  uiMore.hidden = false;
+  doc.body.classList.add('island-more-open');
+  const event = {
+    key: 'Escape',
+    preventDefault() {},
+    stopPropagation() {
+      stopped = true;
+    }
+  };
+  (doc.listeners.keydown || []).forEach((fn) => fn(event));
+  assert.equal(stopped, true);
+  assert.equal(uiMore.hidden, true);
+  assert.equal(doc.body.classList.contains('is-exploring'), true);
+});
+
+test('桌面探索中聊天維持緊湊寬度，不橫跨畫面', () => {
+  const re = /body\.is-exploring \.island-hud-tr \.island-chat:not\(\[hidden\]\)\s*\{([^}]+)\}/g;
+  let hit = null;
+  let block;
+  while ((block = re.exec(islandCss)) !== null) {
+    if (block[1].includes('width: min(18rem')) hit = block[1];
+  }
+  assert.ok(hit, '桌面探索聊天為 min(18rem) 寬');
+  assert.doesNotMatch(hit, /left:\s*max\(calc\(0\.7rem \+ 8rem/);
+});
+
+test('探索中 Esc 關選單（handleExploreKeydown）不觸發 setExplore', () => {
+  const body = { tagName: 'BODY' };
+  globalThis.document = {
+    body: body,
+    documentElement: { tagName: 'HTML' }
+  };
+  const moreSheet = { id: 'islandMoreSheet', hidden: false };
+  const doc = {
+    body,
+    getElementById: (id) => (id === 'islandMoreSheet' ? moreSheet : null)
+  };
+  let exploreOff = false;
+  ExploreInput.handleExploreKeydown({
+    event: { key: 'Escape', target: body, preventDefault() {} },
+    document: doc,
+    getMode: () => ({ exploring: true }),
+    player: { keys: {} },
+    controlsActive: () => true,
+    islandUiOpen: () => false,
+    syncInteractPrompt: () => false,
+    casino: { isOpen: () => false, isTableOpen: () => false, closeLobby: () => {}, closeTable: () => {} },
+    isInside: () => false,
+    islandChat: { isOpen: () => false, close: () => {} },
+    graffiti: null,
+    roadmap: null,
+    closeMore: () => {
+      moreSheet.hidden = true;
+    },
+    setExplore: () => {
+      exploreOff = true;
+    }
+  });
+  assert.equal(moreSheet.hidden, true);
+  assert.equal(exploreOff, false);
+});
+
+test('打開暱稱會先關掉清單', () => {
+  const doc = makeMobileDom(true);
+  doc.getElementById('islandList').hidden = false;
+  const ui = Corner.createCornerUi({
+    document: doc,
+    storage: null,
+    getPresence: () => ({ rename() {} }),
+    isExploring: () => true,
+    isWelcomed: () => false,
+    closeList: () => {
+      doc.getElementById('islandList').hidden = true;
+    }
+  });
+  ui.setNickOpen(true);
+  assert.equal(doc.getElementById('islandList').hidden, true);
+  assert.equal(doc.getElementById('islandNickPop').hidden, false);
 });
 
 test('1280×720 與 390×844「退出探索」不與搖桿、右上 HUD、操作叢重疊', () => {

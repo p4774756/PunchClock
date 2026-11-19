@@ -456,6 +456,51 @@ test('sail 互動不會落到開賭場', () => {
   assert.equal(sailed, true);
   assert.equal(casinoOpened, false);
 });
+test('探索中 Esc 關選單：只關視窗、不呼叫 setExplore', () => {
+  const body = { tagName: 'BODY' };
+  const moreSheet = { id: 'islandMoreSheet', hidden: false };
+  globalThis.document = {
+    body: body,
+    documentElement: { tagName: 'HTML' },
+    getElementById: (id) => (id === 'islandMoreSheet' ? moreSheet : null)
+  };
+  globalThis.window = globalThis;
+  let exploreOff = false;
+  let closedMore = false;
+  const ctx = {
+    event: {
+      key: 'Escape',
+      code: 'Escape',
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      target: body,
+      preventDefault() {}
+    },
+    document: globalThis.document,
+    getMode: () => ({ exploring: true }),
+    player: { keys: {} },
+    controlsActive: () => true,
+    islandUiOpen: () => false,
+    syncInteractPrompt: () => false,
+    casino: { isOpen: () => false, isTableOpen: () => false, closeLobby: () => {}, closeTable: () => {} },
+    isInside: () => false,
+    graffiti: null,
+    roadmap: null,
+    islandChat: { isOpen: () => false, close: () => {} },
+    closeMore: () => {
+      closedMore = true;
+      moreSheet.hidden = true;
+    },
+    setExplore: () => {
+      exploreOff = true;
+    }
+  };
+  assert.equal(handleExploreKeydown(ctx), true);
+  assert.equal(closedMore, true);
+  assert.equal(exploreOff, false);
+});
+
 test('室內 applyInteriorInteractZone：進入經絡研習室', () => {
   let went = false;
   const actions = {
