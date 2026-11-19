@@ -51,7 +51,7 @@ public final class DevMachineRoutes {
 
     private void devStatusPage(Context ctx) {
         ctx.header("Cache-Control", "no-cache, must-revalidate");
-        ctx.html(readResource("/public/dev-status.html"));
+        ctx.html(com.example.server.util.DonatePageTokens.apply(readResource("/public/dev-status.html")));
     }
 
     private void heartbeat(Context ctx) {
