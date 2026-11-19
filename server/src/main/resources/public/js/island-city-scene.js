@@ -50,21 +50,21 @@ function citySignMaps(kit) {
 
   return {
     sign_face_arcade: neonSign('小東遊戲機', 900, 280, 78, '#fff8d8', '#ff9a3a', '#1a0838'),
-    sign_face_711: paint(560, 280, (g, pw, ph) => {
+    sign_face_711: paint(640, 320, (g, pw, ph) => {
       g.fillStyle = '#ff6b35';
-      g.fillRect(0, 0, pw, ph);
-      g.fillStyle = '#00913a';
-      g.fillRect(pw * 0.58, 0, pw * 0.42, ph);
-      g.fillStyle = '#ff2200';
-      g.fillRect(0, ph * 0.52, pw * 0.58, ph * 0.48);
+      g.fillRect(0, 0, pw, ph * 0.48);
+      g.fillStyle = '#008c3a';
+      g.fillRect(0, ph * 0.48, pw, ph * 0.28);
+      g.fillStyle = '#e3181c';
+      g.fillRect(0, ph * 0.76, pw, ph * 0.24);
       g.fillStyle = '#ffffff';
-      g.font = '900 96px ' + font;
+      g.font = '900 112px ' + font;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.strokeStyle = '#1a1a1a';
-      g.lineWidth = 4;
-      g.strokeText('7-11', pw * 0.29, ph * 0.72);
-      g.fillText('7-11', pw * 0.29, ph * 0.72);
+      g.lineWidth = 5;
+      g.strokeText('7-11', pw * 0.5, ph * 0.62);
+      g.fillText('7-11', pw * 0.5, ph * 0.62);
     }),
     sign_face_claw: neonSign('夾娃娃', 680, 260, 76, '#ffe8f8', '#ff4ec8', '#180828'),
     sign_face_snack: neonSign('台灣小吃', 720, 260, 74, '#fff4d0', '#ff8a3a', '#281008'),

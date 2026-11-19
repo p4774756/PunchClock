@@ -77,10 +77,10 @@ export function poseForIsland(id) {
   }
   if (island.id === 'city') {
     return {
-      look: [island.x + 6.5, 0.85, island.z + 1.1],
-      radius: 14.2,
-      theta: -Math.PI * 0.62,
-      phi: 0.90
+      look: [island.x + 7.4, 0.45, island.z + 0.2],
+      radius: 15.5,
+      theta: Math.PI * 0.72,
+      phi: 0.86
     };
   }
   return {

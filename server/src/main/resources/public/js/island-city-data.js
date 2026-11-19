@@ -34,7 +34,7 @@ const CITY_LOCAL_RECTS = [
   { id: 'city-bld-arcade', minX: -GRID - BLOCK * 0.5, maxX: -GRID + BLOCK * 0.5, minZ: -BLOCK * 0.5, maxZ: BLOCK * 0.5 },
   { id: 'city-bld-tea', minX: GRID - BLOCK * 0.5, maxX: GRID + BLOCK * 0.5, minZ: -BLOCK * 0.5, maxZ: BLOCK * 0.5 },
   { id: 'city-bld-claw', minX: -BLOCK * 0.5, maxX: BLOCK * 0.5, minZ: -GRID - BLOCK * 0.5, maxZ: -GRID + BLOCK * 0.5 },
-  { id: 'city-bld-plaza', minX: -1.55, maxX: 1.55, minZ: -1.45, maxZ: 1.45 },
+  { id: 'city-bld-plaza', minX: -1.15, maxX: 1.15, minZ: -1.05, maxZ: 1.05 },
   { id: 'city-bld-nw', minX: -GRID - BLOCK * 0.5, maxX: -GRID + BLOCK * 0.5, minZ: GRID - BLOCK * 0.5, maxZ: GRID + BLOCK * 0.5 },
   { id: 'city-bld-ne', minX: GRID - BLOCK * 0.5, maxX: GRID + BLOCK * 0.5, minZ: GRID - BLOCK * 0.5, maxZ: GRID + BLOCK * 0.5 },
   { id: 'city-bld-sw', minX: -GRID - BLOCK * 0.5, maxX: -GRID + BLOCK * 0.5, minZ: -GRID - BLOCK * 0.5, maxZ: -GRID + BLOCK * 0.5 },
@@ -77,7 +77,7 @@ export function cityObstacleCircles() {
   }));
 }
 
-export const PINK_CAR_LOCAL = Object.freeze({ x: 1.5, z: 0.35, yaw: -0.12 });
+export const PINK_CAR_LOCAL = Object.freeze({ x: 2.5, z: 0, yaw: -0.12 });
 /** 路人／機車取樣點須與停車位保持的最小距離（含車身與人身寬度）。 */
 export const PINK_CAR_PATH_CLEAR_R = 1.55;
 
@@ -108,9 +108,9 @@ export function cityWalkerPaths() {
   const c = CITY_CENTER;
   const w = (lx, lz) => [c.x + lx, c.z + lz];
   return Object.freeze([
-    Object.freeze([w(-2.2, 3.8), w(2.2, 3.8), w(2.2, 2.45), w(-2.2, 2.45)]),
-    Object.freeze([w(-3.1, 3.8), w(-3.1, 2.45)]),
-    Object.freeze([w(3.1, 3.8), w(3.1, -3.1)]),
+    Object.freeze([w(-2.2, 3.8), w(1.05, 3.8), w(1.05, 2.45), w(-2.2, 2.45)]),
+    Object.freeze([w(-3.15, 3.8), w(-3.15, 2.45)]),
+    Object.freeze([w(-3.15, -3.1), w(-3.15, -1.25)]),
     Object.freeze([w(-2.2, -3.2), w(-1.45, -3.2)]),
     Object.freeze([w(1.45, -3.2), w(2.2, -3.2)]),
     Object.freeze([w(-1.2, 3.65), w(-1.2, 6.0)])
@@ -123,7 +123,7 @@ export function cityMotoPaths() {
   return Object.freeze([
     Object.freeze([w(-2.85, 3.4), w(-2.85, 2.25), w(-2.1, 2.25), w(2.1, 2.25)]),
     Object.freeze([w(-2.1, 3.5), w(2.1, 3.5)]),
-    Object.freeze([w(-2.1, -3.15), w(-1.38, -3.15)])
+    Object.freeze([w(-2.15, -3.15), w(-1.42, -3.15)])
   ]);
 }
 
