@@ -10,28 +10,28 @@ export const BRONZE_HEAD_TOP_Y = 1.76;
 /** 與 tcm-bronze-figure.glb 對齊的吸附用橢球（資料空間 Y-up）；頂髻略扁、偏後，拉開金點。 */
 const BRONZE_SNAP_TOPKNOT = Object.freeze({
   cx: 0,
-  cy: 1.698,
-  cz: -0.058,
-  rx: 0.102,
-  ry: 0.028,
-  rz: 0.068
+  cy: 1.694,
+  cz: -0.048,
+  rx: 0.128,
+  ry: 0.026,
+  rz: 0.082
 });
 /** 額頂～髻根（略高於一般頭殼），橫向較寬避免髻週金點擠成一團。 */
 const BRONZE_SNAP_CROWN = Object.freeze({
   cx: 0,
-  cy: 1.654,
-  cz: 0.028,
-  rx: 0.122,
-  ry: 0.052,
-  rz: 0.104
+  cy: 1.652,
+  cz: 0.042,
+  rx: 0.138,
+  ry: 0.048,
+  rz: 0.118
 });
 const BRONZE_SNAP_HEAD = Object.freeze({
   cx: 0,
   cy: 1.558,
-  cz: 0.054,
-  rx: 0.108,
-  ry: 0.114,
-  rz: 0.124
+  cz: 0.062,
+  rx: 0.112,
+  ry: 0.116,
+  rz: 0.128
 });
 const BRONZE_SNAP_TORSO = Object.freeze({
   cx: 0,

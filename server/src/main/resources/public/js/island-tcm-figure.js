@@ -94,10 +94,16 @@ function nightColorFromDay(hex, opts) {
 
 function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(0xc8a850);
-  if (isBronze) {
+  const matName = (oldMat.name || '').toLowerCase();
+  const faceRecess = isBronze && (matName === 'bronze_dark' || matName === 'bronze_patina');
+  if (isBronze && !faceRecess) {
     const hsl = { h: 0, s: 0, l: 0 };
     day.getHSL(hsl);
     day.setHSL(hsl.h, Math.min(1, hsl.s * 1.14 + 0.06), Math.min(0.46, Math.max(0.34, hsl.l * 0.82)));
+  } else if (faceRecess) {
+    const hsl = { h: 0, s: 0, l: 0 };
+    day.getHSL(hsl);
+    day.setHSL(hsl.h, Math.min(1, hsl.s * 1.02 + 0.04), Math.min(0.32, Math.max(0.18, hsl.l * 0.72)));
   }
   const night = nightColorFromDay(day.getHex(), { bronze: isBronze });
   const emissive = oldMat.emissive ? oldMat.emissive.clone() : new THREE.Color(0x000000);
@@ -106,7 +112,12 @@ function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   let roughness = oldMat.roughness != null ? oldMat.roughness : (isBronze ? 0.15 : 0.86);
   if (isBronze) {
     metalness = Math.min(0.97, Math.max(0.9, metalness));
-    roughness = Math.min(0.14, Math.max(0.07, roughness * 0.78));
+    if (faceRecess) {
+      metalness = Math.min(0.9, Math.max(0.82, metalness * 0.94));
+      roughness = Math.min(0.28, Math.max(0.16, roughness * 1.35));
+    } else {
+      roughness = Math.min(0.14, Math.max(0.07, roughness * 0.78));
+    }
   } else {
     metalness = Math.min(0.08, metalness);
     roughness = Math.max(0.72, roughness);
@@ -127,7 +138,7 @@ function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   std.userData.bronze = isBronze;
   std.userData.dayE = isBronze ? Math.max(0.04, emissiveI) : 0.016;
   std.userData.nightE = isBronze ? Math.max(0.16, emissiveI * 2.6) : 0.008;
-  std.envMapIntensity = isBronze ? 1.38 : 0.22;
+  std.envMapIntensity = isBronze ? (faceRecess ? 0.92 : 1.38) : 0.22;
   kit.addMaterial(std);
   return std;
 }
@@ -148,15 +159,18 @@ function applyBronzeEnvToRoot(root, envMap) {
 }
 
 function attachBronzeFigureLights(parent) {
-  const key = new THREE.DirectionalLight(0xffd890, 0.88);
-  key.position.set(0.22, 1.85, 1.75);
+  const key = new THREE.DirectionalLight(0xffd890, 0.92);
+  key.position.set(0.08, 1.72, 2.05);
   parent.add(key);
-  const fill = new THREE.DirectionalLight(0xe8b870, 0.38);
-  fill.position.set(-1.1, 1.4, 1.1);
+  const fill = new THREE.DirectionalLight(0xe8b870, 0.34);
+  fill.position.set(-1.15, 1.38, 0.65);
   parent.add(fill);
-  const rim = new THREE.DirectionalLight(0xffc060, 0.48);
-  rim.position.set(0.12, 1.92, -1.45);
+  const rim = new THREE.DirectionalLight(0xffc060, 0.42);
+  rim.position.set(0.05, 1.88, -1.55);
   parent.add(rim);
+  const face = new THREE.DirectionalLight(0xffe8c0, 0.28);
+  face.position.set(0, 1.58, 1.85);
+  parent.add(face);
 }
 
 function applyBronzeFigureMaterials(root, kit) {
@@ -204,8 +218,8 @@ function applyBronzeFigureMaterials(root, kit) {
     obj.receiveShadow = true;
   });
 }
-/** 庭院銅人面向走進庭院的玩家（模型正面 +Z；yaw 0 朝庭院南側動線）。 */
-const COURTYARD_FIG_YAW = 0;
+/** 庭院銅人正面朝 -Z，讓南侧動線（z 較小）走近的玩家看見五官；館門側見背面可接受。 */
+const COURTYARD_FIG_YAW = Math.PI;
 
 const LOAD_BUFFER = 1.65;
 const UNLOAD_BUFFER = 3.2;
@@ -613,7 +627,7 @@ export function createTcmFigureController(ctx) {
   };
 }
 
-const ENTRANCE_FIG_SCALE = 0.76;
+const ENTRANCE_FIG_SCALE = 0.9;
 
 export function replaceEntranceBronzeStatue(model, kit, pickables, opts) {
   model.updateMatrixWorld(true);

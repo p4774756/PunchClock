@@ -211,59 +211,93 @@ def _build_pedestal(mat_top, mat_dark, mat_band):
 
 
 def _build_classical_head(bm, front):
-    """頂髻、眼鼻口凹凸，非光滑圓球。"""
-    head_y = 1.562
-    head_z = front + 0.014
+    """頭殼與頂髻（五官另 mesh，保留凹凸）。"""
+    head_y = 1.558
+    head_z = front + 0.018
 
-    _add_uv_ellipsoid(bm, _v(0.0, head_y, head_z), (0.090, 0.102, 0.118), u=24, v=16)
-    _add_uv_ellipsoid(bm, _v(0.0, head_y - 0.020, head_z + 0.024), (0.078, 0.086, 0.094), u=20, v=14)
+    # 正面略扁、後腦略圓，讓 +Z 方向有臉部平面
+    _add_uv_ellipsoid(bm, _v(0.0, head_y, head_z + 0.008), (0.092, 0.108, 0.096), u=24, v=16)
+    _add_uv_ellipsoid(bm, _v(0.0, head_y - 0.024, head_z - 0.018), (0.082, 0.092, 0.104), u=20, v=14)
 
-    # 頂髻（雙層、橫向拉開，配合 crown/topknot 吸附）
-    _add_uv_ellipsoid(bm, _v(0.0, 1.674, head_z - 0.062), (0.074, 0.030, 0.056), u=14, v=12)
-    _add_uv_ellipsoid(bm, _v(0.0, 1.702, head_z - 0.074), (0.056, 0.038, 0.050), u=12, v=10)
-
-    brow_y = head_y + 0.022
+    # 頂髻左右分開、扁平，配合 crown/topknot 吸附
     for side in (1, -1):
-        eye = bmesh.new()
         _add_uv_ellipsoid(
-            eye,
-            _v(side * 0.034, head_y + 0.008, head_z + 0.086),
-            (0.019, 0.013, 0.011),
-            u=8,
-            v=6,
+            bm,
+            _v(side * 0.048, 1.684, head_z - 0.052),
+            (0.046, 0.022, 0.048),
+            u=12,
+            v=10,
         )
-        _append_bmesh(bm, eye)
-        eye.free()
-        brow = bmesh.new()
-        _add_uv_ellipsoid(
-            brow,
-            _v(side * 0.034, brow_y, head_z + 0.078),
-            (0.022, 0.006, 0.008),
-            u=6,
-            v=4,
-        )
-        _append_bmesh(bm, brow)
-        brow.free()
+    _add_uv_ellipsoid(bm, _v(0.0, 1.706, head_z - 0.066), (0.052, 0.018, 0.044), u=12, v=8)
+
+    for side in (1, -1):
         ear = bmesh.new()
         _add_uv_ellipsoid(
             ear,
-            _v(side * 0.084, head_y - 0.008, head_z - 0.012),
-            (0.015, 0.024, 0.013),
+            _v(side * 0.086, head_y - 0.010, head_z - 0.010),
+            (0.016, 0.026, 0.014),
             u=8,
             v=6,
         )
         _append_bmesh(bm, ear)
         ear.free()
 
+
+def _build_face_detail(bm, front):
+    """眼窩／眉／鼻／唇（bronze_dark mesh，遠看仍有明暗）。"""
+    head_y = 1.558
+    head_z = front + 0.018
+    face_z = head_z + 0.088
+
+    for side in (1, -1):
+        sock = bmesh.new()
+        _add_uv_ellipsoid(
+            sock,
+            _v(side * 0.036, head_y + 0.006, face_z - 0.014),
+            (0.022, 0.016, 0.012),
+            u=8,
+            v=6,
+        )
+        _append_bmesh(bm, sock)
+        sock.free()
+        eye = bmesh.new()
+        _add_uv_ellipsoid(
+            eye,
+            _v(side * 0.036, head_y + 0.004, face_z + 0.004),
+            (0.014, 0.010, 0.008),
+            u=6,
+            v=5,
+        )
+        _append_bmesh(bm, eye)
+        eye.free()
+        brow = bmesh.new()
+        _add_uv_ellipsoid(
+            brow,
+            _v(side * 0.036, head_y + 0.028, face_z - 0.006),
+            (0.026, 0.007, 0.010),
+            u=6,
+            v=4,
+        )
+        _append_bmesh(bm, brow)
+        brow.free()
+
     nose = bmesh.new()
-    _add_uv_ellipsoid(nose, _v(0.0, head_y - 0.006, head_z + 0.096), (0.015, 0.028, 0.030), u=10, v=8)
+    _add_uv_ellipsoid(nose, _v(0.0, head_y - 0.008, face_z + 0.018), (0.018, 0.036, 0.034), u=10, v=8)
     _append_bmesh(bm, nose)
     nose.free()
+    bridge = bmesh.new()
+    _add_uv_ellipsoid(bridge, _v(0.0, head_y + 0.018, face_z + 0.002), (0.012, 0.022, 0.010), u=6, v=5)
+    _append_bmesh(bm, bridge)
+    bridge.free()
 
-    mouth = bmesh.new()
-    _add_uv_ellipsoid(mouth, _v(0.0, head_y - 0.042, head_z + 0.078), (0.028, 0.008, 0.012), u=8, v=6)
-    _append_bmesh(bm, mouth)
-    mouth.free()
+    lip = bmesh.new()
+    _add_uv_ellipsoid(lip, _v(0.0, head_y - 0.046, face_z - 0.004), (0.032, 0.010, 0.014), u=8, v=6)
+    _append_bmesh(bm, lip)
+    lip.free()
+    chin = bmesh.new()
+    _add_uv_ellipsoid(chin, _v(0.0, head_y - 0.068, face_z + 0.012), (0.038, 0.014, 0.022), u=8, v=6)
+    _append_bmesh(bm, chin)
+    chin.free()
 
 
 def _build_body(mat_main, mat_dark, mat_patina):
@@ -274,8 +308,8 @@ def _build_body(mat_main, mat_dark, mat_patina):
     # —— 軀幹（胸腹背一体）——
     torso = [
         (1.34, 0.0, front, 0.075, 0.070),   # 頸根
-        (1.24, 0.0, front - 0.004, 0.118, 0.092),   # 肩線
-        (1.16, 0.0, front - 0.006, 0.152, 0.100),   # 肩膊
+        (1.24, 0.0, front - 0.004, 0.124, 0.096),   # 肩線
+        (1.16, 0.0, front - 0.006, 0.158, 0.104),   # 肩膊
         (1.06, 0.0, front - 0.01, 0.132, 0.098),  # 胸
         (0.94, 0.0, front, 0.118, 0.090),   # 腰
         (0.82, 0.0, front - 0.006, 0.132, 0.104),  # 腹
@@ -291,6 +325,9 @@ def _build_body(mat_main, mat_dark, mat_patina):
     _loft_sections(bm, neck)
 
     _build_classical_head(bm, front)
+
+    bm_face = bmesh.new()
+    _build_face_detail(bm_face, front)
 
     # —— 腿（分左右，能辨識大腿／小腿／腳）——
     def leg(side):
@@ -363,6 +400,7 @@ def _build_body(mat_main, mat_dark, mat_patina):
     )
 
     body = _mesh_from_bmesh(bm, 'bronze_body', mat_main)
+    face = _mesh_from_bmesh(bm_face, 'bronze_face', mat_dark)
     sash = _mesh_from_bmesh(bm_robe, 'bronze_sash', mat_dark)
     pat = bmesh.new()
     _loft_sections(
@@ -375,9 +413,10 @@ def _build_body(mat_main, mat_dark, mat_patina):
     )
     patina = _mesh_from_bmesh(pat, 'bronze_patina', mat_patina)
     _subdiv_apply(body, 2)
+    _subdiv_apply(face, 1)
     _subdiv_apply(sash, 1)
     _subdiv_apply(patina, 1)
-    return [body, sash, patina]
+    return [body, face, sash, patina]
 
 
 def build(out_path):
@@ -390,7 +429,7 @@ def build(out_path):
         emit=0xffc878,
         emit_strength=0.022,
     )
-    mat_bronze_dark = _mat_bronze('bronze_dark', 0x8a5c28, rough=0.17, metal=0.93)
+    mat_bronze_dark = _mat_bronze('bronze_dark', 0x6e4820, rough=0.22, metal=0.88)
     mat_patina = _mat_bronze('bronze_patina', 0x6a7048, rough=0.32, metal=0.84)
     mat_stone = _mat_stone('stone', 0xf6f0e8, rough=0.68)
     mat_stone_band = _mat_stone('stone_band', 0xeae2d8, rough=0.72)
