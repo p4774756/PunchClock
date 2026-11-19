@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PMREMGenerator } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { G, nightHex } from './island-kit.js';
 import { islandById } from './island-layout.js';
@@ -6,6 +7,7 @@ import {
   DATA_BODY_HEIGHT,
   FIGURE_TARGET_HEIGHT,
   buildCardTextModel,
+  configureBronzeSurface,
   expandCurriculumInstances,
   fillAcupointCard,
   markerSurfacePosition,
@@ -18,10 +20,57 @@ import {
 export { resolveTcmPickHit };
 
 const BRONZE_POINTS_URL = '/island/tcm-bronze-points.json';
+const BRONZE_SURFACE_URL = '/island/tcm-bronze-surface.json';
 const BRONZE_FIG_URL = '/models/tcm-bronze-figure.glb';
 
 let bronzeFigScene = null;
 let bronzeFigPromise = null;
+let bronzeEnvMap = null;
+let bronzeEnvPmrem = null;
+let bronzeEnvSourceTex = null;
+
+function disposeBronzeEnvMap() {
+  if (bronzeEnvMap) bronzeEnvMap.dispose();
+  if (bronzeEnvSourceTex) bronzeEnvSourceTex.dispose();
+  if (bronzeEnvPmrem) bronzeEnvPmrem.dispose();
+  bronzeEnvMap = null;
+  bronzeEnvPmrem = null;
+  bronzeEnvSourceTex = null;
+}
+
+function ensureBronzeEnvMap(renderer) {
+  if (bronzeEnvMap) return bronzeEnvMap;
+  if (!renderer) return null;
+  const w = 512;
+  const h = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx2d = canvas.getContext('2d');
+  const sky = ctx2d.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#f2e4d0');
+  sky.addColorStop(0.35, '#e4d4b8');
+  sky.addColorStop(0.62, '#c8ae88');
+  sky.addColorStop(1, '#907060');
+  ctx2d.fillStyle = sky;
+  ctx2d.fillRect(0, 0, w, h);
+  const sunSpot = ctx2d.createRadialGradient(w * 0.68, h * 0.26, 0, w * 0.68, h * 0.26, w * 0.4);
+  sunSpot.addColorStop(0, 'rgba(255,215,150,0.92)');
+  sunSpot.addColorStop(1, 'rgba(255,215,150,0)');
+  ctx2d.fillStyle = sunSpot;
+  ctx2d.fillRect(0, 0, w, h);
+  bronzeEnvSourceTex = new THREE.CanvasTexture(canvas);
+  bronzeEnvSourceTex.colorSpace = THREE.SRGBColorSpace;
+  bronzeEnvSourceTex.mapping = THREE.EquirectangularReflectionMapping;
+  bronzeEnvPmrem = new PMREMGenerator(renderer);
+  bronzeEnvPmrem.compileEquirectangularShader();
+  bronzeEnvMap = bronzeEnvPmrem.fromEquirectangular(bronzeEnvSourceTex).texture;
+  bronzeEnvSourceTex.dispose();
+  bronzeEnvSourceTex = null;
+  bronzeEnvPmrem.dispose();
+  bronzeEnvPmrem = null;
+  return bronzeEnvMap;
+}
 
 function ensureBronzeFigureGlb() {
   if (bronzeFigScene) return Promise.resolve(bronzeFigScene);
@@ -51,35 +100,82 @@ function nightColorFromDay(hex, opts) {
   c.getHSL(hsl);
   const out = new THREE.Color();
   if (bronze) {
-    out.setHSL(hsl.h, Math.min(1, hsl.s * 0.62), 0.2 + hsl.l * 0.45);
+    out.setHSL(hsl.h, Math.min(1, hsl.s * 0.78), 0.2 + hsl.l * 0.36);
   } else {
     out.setHSL(hsl.h, Math.min(1, hsl.s * 0.78), 0.12 + hsl.l * 0.42);
   }
   return out;
 }
 
-function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
-  const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(0xc8a850);
-  const night = nightColorFromDay(day.getHex(), { bronze: isBronze });
+function bronzeMaterialFromGltf(oldMat, kit, opts) {
+  const o = opts || {};
+  const isBronze = !!o.bronze;
+  const isFabric = !!o.fabric;
+  const matName = (oldMat.name || '').toLowerCase();
+  const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(isFabric ? 0xd8d0c8 : 0xc89a4a);
+  if (isBronze && !isFabric) {
+    const hsl = { h: 0, s: 0, l: 0 };
+    day.getHSL(hsl);
+    day.setHSL(
+      Math.min(0.12, Math.max(0.07, hsl.h * 0.9 + 0.05)),
+      Math.min(0.88, hsl.s * 0.95 + 0.12),
+      Math.min(0.42, Math.max(0.28, hsl.l * 0.92))
+    );
+  }
+  const night = nightColorFromDay(day.getHex(), { bronze: isBronze && !isFabric });
   const emissive = oldMat.emissive ? oldMat.emissive.clone() : new THREE.Color(0x000000);
   const emissiveI = oldMat.emissiveIntensity != null ? oldMat.emissiveIntensity : 0;
+  let metalness = oldMat.metalness != null ? oldMat.metalness : (isBronze && !isFabric ? 0.9 : 0.04);
+  let roughness = oldMat.roughness != null ? oldMat.roughness : (isFabric ? 0.6 : isBronze ? 0.3 : 0.82);
+  if (isBronze && !isFabric) {
+    metalness = Math.min(0.95, Math.max(0.88, metalness));
+    roughness = Math.min(0.38, Math.max(0.22, roughness));
+  } else if (isFabric) {
+    metalness = 0;
+    roughness = Math.max(0.55, Math.min(0.68, roughness));
+  }
   const std = new THREE.MeshStandardMaterial({
     name: oldMat.name || '',
     color: day.clone(),
-    metalness: oldMat.metalness != null ? oldMat.metalness : (isBronze ? 0.94 : 0.05),
-    roughness: oldMat.roughness != null ? oldMat.roughness : (isBronze ? 0.19 : 0.86),
+    metalness: metalness,
+    roughness: roughness,
     emissive: emissive,
     emissiveIntensity: emissiveI,
     flatShading: false
   });
   if (oldMat.map) std.map = oldMat.map;
   if (oldMat.normalMap) std.normalMap = oldMat.normalMap;
+  if (oldMat.roughnessMap) std.roughnessMap = oldMat.roughnessMap;
+  if (oldMat.metalnessMap) std.metalnessMap = oldMat.metalnessMap;
   std.userData.day = day;
   std.userData.night = night;
-  std.userData.dayE = isBronze ? Math.max(0.03, emissiveI) : 0;
-  std.userData.nightE = isBronze ? Math.max(0.14, emissiveI * 2.6) : 0;
+  std.userData.bronze = isBronze && !isFabric;
+  std.userData.dayE = isBronze && !isFabric ? Math.max(0.035, emissiveI) : isFabric ? 0 : 0.012;
+  std.userData.nightE = isBronze && !isFabric ? Math.max(0.15, emissiveI * 2.4) : isFabric ? 0 : 0.006;
+  std.userData.dayEnvI = isBronze && !isFabric ? 1.05 : isFabric ? 0 : 0.18;
+  std.userData.nightEnvI = isBronze && !isFabric ? 0.62 : isFabric ? 0 : 0.12;
+  std.envMapIntensity = std.userData.dayEnvI;
+  if (matName.indexOf('pedestal') >= 0) std.envMapIntensity = 0.88;
   kit.addMaterial(std);
   return std;
+}
+
+function applyBronzeEnvToRoot(root, envMap) {
+  if (!envMap) return;
+  root.traverse((obj) => {
+    if (!obj.isMesh || !obj.material) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (let i = 0; i < mats.length; i++) {
+      const m = mats[i];
+      if (m && m.isMeshStandardMaterial && m.userData.bronze) {
+        m.envMap = envMap;
+        m.needsUpdate = true;
+      } else if (m && m.isMeshStandardMaterial && m.metalness > 0.5 && !m.userData.fabric) {
+        m.envMap = envMap;
+        m.needsUpdate = true;
+      }
+    }
+  });
 }
 
 function applyBronzeFigureMaterials(root, kit) {
@@ -87,39 +183,39 @@ function applyBronzeFigureMaterials(root, kit) {
     if (!obj.isMesh) return;
     const oldMat = obj.material;
     const matName = (oldMat && oldMat.name) || '';
-    const stone =
-      matName === 'stone' ||
-      matName === 'stone_dark' ||
-      matName === 'stone_band' ||
-      obj.name.indexOf('pedestal') >= 0;
-    const isBronze = !stone;
+    const fabric =
+      matName === 'sash_cloth' ||
+      matName === 'bronze_sash' ||
+      obj.name.indexOf('sash') >= 0;
+    const isBronze = !fabric;
     if (oldMat && oldMat.isMeshStandardMaterial) {
-      obj.material = bronzeMaterialFromGltf(oldMat, kit, isBronze);
-    } else if (stone) {
+      obj.material = bronzeMaterialFromGltf(oldMat, kit, { bronze: isBronze, fabric: fabric });
+    } else if (fabric) {
       obj.material = bronzeMaterialFromGltf(
         {
-          name: matName,
-          color: new THREE.Color(0xe8dfd2),
-          metalness: 0.04,
-          roughness: 0.82,
+          name: matName || 'sash_cloth',
+          color: new THREE.Color(0xddd0c8),
+          metalness: 0,
+          roughness: 0.62,
           emissive: new THREE.Color(0x000000),
           emissiveIntensity: 0
         },
         kit,
-        false
+        { bronze: false, fabric: true }
       );
     } else {
+      const darkPedestal = matName === 'bronze_dark' || obj.name.indexOf('pedestal') >= 0;
       obj.material = bronzeMaterialFromGltf(
         {
           name: matName || 'bronze',
-          color: new THREE.Color(0xd4ae58),
-          metalness: 0.96,
-          roughness: 0.18,
-          emissive: new THREE.Color(0xffe8b0),
-          emissiveIntensity: 0.05
+          color: new THREE.Color(darkPedestal ? 0x9a7238 : 0xc89a4a),
+          metalness: 0.9,
+          roughness: darkPedestal ? 0.34 : 0.28,
+          emissive: new THREE.Color(0xf0c878),
+          emissiveIntensity: 0.018
         },
         kit,
-        true
+        { bronze: true, fabric: false }
       );
     }
     if (oldMat && typeof oldMat.dispose === 'function' && oldMat !== obj.material) oldMat.dispose();
@@ -127,6 +223,8 @@ function applyBronzeFigureMaterials(root, kit) {
     obj.receiveShadow = true;
   });
 }
+/** 模型正面 +Z；yaw 0 時面朝庭院入口（與 PR #214 一致）。 */
+const COURTYARD_FIG_YAW = 0;
 const LOAD_BUFFER = 1.65;
 const UNLOAD_BUFFER = 3.2;
 const LOAD_RETRY_MS = 30_000;
@@ -172,17 +270,22 @@ export function buildBronzeFigure(ctx) {
   const kit = ctx.kit;
   const scale = ctx.scale != null ? ctx.scale : 1;
   const interactive = ctx.interactive !== false;
+  const renderer = ctx.renderer;
   if (!bronzeFigScene) {
     throw new Error('bronze GLB not loaded; call ensureBronzeFigureGlb() first');
   }
   const group = bronzeFigScene.clone(true);
   group.scale.setScalar(scale * (FIGURE_TARGET_HEIGHT / DATA_BODY_HEIGHT));
   applyBronzeFigureMaterials(group, kit);
+  const envMap = ensureBronzeEnvMap(renderer);
+  applyBronzeEnvToRoot(group, envMap);
   if (!interactive) {
     group.userData.tcmDecor = true;
   }
   return group;
 }
+
+export { disposeBronzeEnvMap };
 
 export { ensureBronzeFigureGlb };
 
@@ -412,7 +515,7 @@ export function createTcmFigureController(ctx) {
       console.warn('[Island] 館門銅人 GLB 載入失敗', err);
       return;
     }
-    const result = replaceEntranceBronzeStatue(model, kit, pickables);
+    const result = replaceEntranceBronzeStatue(model, kit, pickables, { renderer: ctx.renderer });
     entrancePlaced = !!result;
     figState.entrance = {
       hidden: result ? result.hiddenCount : 0,
@@ -426,9 +529,14 @@ export function createTcmFigureController(ctx) {
     loading = true;
     try {
       await ensureBronzeFigureGlb();
-      const res = await fetch(BRONZE_POINTS_URL);
-      if (!res.ok) throw new Error('fetch ' + BRONZE_POINTS_URL);
-      const records = await res.json();
+      const [pointsRes, surfaceRes] = await Promise.all([
+        fetch(BRONZE_POINTS_URL),
+        fetch(BRONZE_SURFACE_URL)
+      ]);
+      if (!pointsRes.ok) throw new Error('fetch ' + BRONZE_POINTS_URL);
+      if (!surfaceRes.ok) throw new Error('fetch ' + BRONZE_SURFACE_URL);
+      const records = await pointsRes.json();
+      configureBronzeSurface(await surfaceRes.json());
       recordsByCode = {};
       for (let i = 0; i < records.length; i++) recordsByCode[records[i].code] = records[i];
       instanceRows = expandRowsWithSurface(records);
@@ -436,7 +544,8 @@ export function createTcmFigureController(ctx) {
 
       rootGroup = new THREE.Group();
       rootGroup.position.set(anchor.x, G, anchor.z);
-      const body = buildBronzeFigure({ kit: kit, scale: 1, interactive: true });
+      const body = buildBronzeFigure({ kit: kit, renderer: ctx.renderer, scale: 1, interactive: true });
+      body.rotation.y = COURTYARD_FIG_YAW;
       rootGroup.add(body);
       buildPointMeshes(body, instanceRows);
       scene.add(rootGroup);
@@ -506,6 +615,7 @@ export function createTcmFigureController(ctx) {
   function destroy() {
     disposed = true;
     disposeFigure();
+    disposeBronzeEnvMap();
     if (cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl);
     cardEl = null;
     doc.removeEventListener('pointerdown', onDocPointer, true);
@@ -523,13 +633,14 @@ export function createTcmFigureController(ctx) {
   };
 }
 
-const ENTRANCE_FIG_SCALE = 0.50;
+const ENTRANCE_FIG_SCALE = 1.1;
 
-export function replaceEntranceBronzeStatue(model, kit, pickables) {
+export function replaceEntranceBronzeStatue(model, kit, pickables, opts) {
   model.updateMatrixWorld(true);
   const hiddenCount = hideEntranceBronzeMeshes(model);
+  const renderer = opts && opts.renderer;
 
-  const fig = buildBronzeFigure({ kit: kit, scale: ENTRANCE_FIG_SCALE, interactive: false });
+  const fig = buildBronzeFigure({ kit: kit, renderer: renderer, scale: ENTRANCE_FIG_SCALE, interactive: false });
   fig.position.set(ENTRANCE_FIG_LOCAL.x, ENTRANCE_FIG_LOCAL.y, ENTRANCE_FIG_LOCAL.z);
   fig.rotation.y = 0.22;
 

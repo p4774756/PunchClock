@@ -270,6 +270,10 @@ function boot() {
     kit.forEachMaterial((material) => {
       material.color.copy(material.userData.day).lerp(material.userData.night, t);
       material.emissiveIntensity = material.userData.dayE + (material.userData.nightE - material.userData.dayE) * t;
+      if (material.userData.dayEnvI != null && material.envMap) {
+        material.envMapIntensity =
+          material.userData.dayEnvI + (material.userData.nightEnvI - material.userData.dayEnvI) * t;
+      }
     });
     const decorNight = new THREE.Color(exploreSkyColorHex(t));
     scene.background.copy(skyDay).lerp(decorNight, t);
@@ -684,6 +688,7 @@ function boot() {
   const tcmFigure = createLazyTcmFigureController({
     scene: scene,
     kit: kit,
+    renderer: renderer,
     pickables: pickables,
     reduced: reduced,
     anchor: tcmFigureAnchor,

@@ -6,42 +6,49 @@ export const FIGURE_TARGET_HEIGHT = 2.12;
 export const DATA_BODY_HEIGHT = 1.72;
 export const MARKER_SURFACE_EPS = 0.009;
 export const BRONZE_HEAD_TOP_Y = 1.76;
+export const BRONZE_SURFACE_TOLERANCE = 0.02;
 
-/** 與 tcm-bronze-figure.glb 對齊的吸附用橢球／球（資料空間 Y-up）。 */
-const BRONZE_SNAP_TOPKNOT = Object.freeze({ cx: 0, cy: 1.698, cz: -0.008, r: 0.058 });
-const BRONZE_SNAP_HEAD = Object.freeze({
-  cx: 0,
-  cy: 1.562,
-  cz: 0.052,
-  rx: 0.098,
-  ry: 0.112,
-  rz: 0.128
-});
-const BRONZE_SNAP_TORSO = Object.freeze({
-  cx: 0,
-  cy: 1.02,
-  cz: 0.015,
-  rx: 0.162,
-  ry: 0.3,
-  rz: 0.112
-});
-const BRONZE_SNAP_ROBE_FRONT = Object.freeze({
-  cx: 0,
-  cy: 0.78,
-  cz: 0.068,
-  rx: 0.168,
-  ry: 0.42,
-  rz: 0.078
-});
+/** 體表吸附（由 build_tcm_bronze_figure.py 產出 tcm-bronze-surface.json）。 */
+let bronzeSurfaceInstances = null;
+let bronzePartBoxes = null;
 
-/** 資料空間人體分區包圍盒（|x| 取絕對值比對）；與 tcm-bronze-figure.glb 體型對齊。 */
-export const BRONZE_PART_BOXES = Object.freeze([
-  { minX: 0, maxX: 0.26, minY: 0, maxY: 0.16, minZ: -0.12, maxZ: 0.16 },
-  { minX: 0.02, maxX: 0.17, minY: 0.02, maxY: 0.98, minZ: -0.14, maxZ: 0.14 },
-  { minX: 0, maxX: 0.22, minY: 0.70, maxY: 1.38, minZ: -0.15, maxZ: 0.14 },
-  { minX: 0.04, maxX: 0.38, minY: 0.66, maxY: 1.28, minZ: -0.14, maxZ: 0.10 },
-  { minX: 0, maxX: 0.15, minY: 1.34, maxY: 1.76, minZ: -0.15, maxZ: 0.15 }
+/** 資料空間人體分區包圍盒（|x| 取絕對值）；未載入 surface 時的保守預設。 */
+const BRONZE_PART_BOXES_DEFAULT = Object.freeze([
+  { minX: 0, maxX: 0.33, minY: 0, maxY: 0.18, minZ: -0.09, maxZ: 0.2 },
+  { minX: 0.02, maxX: 0.31, minY: 0.14, maxY: 0.74, minZ: -0.09, maxZ: 0.16 },
+  { minX: 0, maxX: 0.33, minY: 0.68, maxY: 1.38, minZ: -0.1, maxZ: 0.16 },
+  { minX: 0, maxX: 0.33, minY: 0.72, maxY: 1.32, minZ: -0.1, maxZ: 0.16 },
+  { minX: 0, maxX: 0.22, minY: 1.32, maxY: 1.76, minZ: -0.08, maxZ: 0.17 }
 ]);
+
+export const BRONZE_PART_BOXES = BRONZE_PART_BOXES_DEFAULT;
+
+export function configureBronzeSurface(surfaceDoc) {
+  if (!surfaceDoc || typeof surfaceDoc !== 'object') return;
+  if (surfaceDoc.instances) bronzeSurfaceInstances = surfaceDoc.instances;
+  if (surfaceDoc.partBoxes && surfaceDoc.partBoxes.length) {
+    bronzePartBoxes = surfaceDoc.partBoxes;
+  }
+}
+
+export function bronzePartBoxesForHitTest() {
+  return bronzePartBoxes || BRONZE_PART_BOXES_DEFAULT;
+}
+
+export function bronzeSurfaceInstanceKey(record, side) {
+  const t = pointTargetRecord(record, side != null ? side : 1);
+  const s = t.side;
+  if (record.midline) return record.code + ':m';
+  return record.code + ':' + s;
+}
+
+export function bronzeSurfaceBodyPosition(record, side) {
+  if (!bronzeSurfaceInstances) return null;
+  const key = bronzeSurfaceInstanceKey(record, side);
+  const row = bronzeSurfaceInstances[key];
+  if (!row || !row.position) return null;
+  return row.position;
+}
 
 export const ENTRANCE_BRONZE_MATERIALS = Object.freeze(['bronze', 'bronze_dark']);
 export const ENTRANCE_FIG_LOCAL = Object.freeze({ x: -0.58, y: 0, z: 1.85 });
@@ -100,77 +107,32 @@ export function hideEntranceBronzeMeshes(modelRoot, opts) {
   return hidden;
 }
 
-function snapEllipsoid(px, py, pz, e, eps) {
-  let dx = px - e.cx;
-  let dy = py - e.cy;
-  let dz = pz - e.cz;
-  if (Math.hypot(dx, dy, dz) < 1e-8) {
-    dy = e.ry;
-    dx = 0;
-    dz = 0;
-  }
-  const t =
-    1 /
-    Math.sqrt((dx / e.rx) ** 2 + (dy / e.ry) ** 2 + (dz / e.rz) ** 2);
-  const sx = e.cx + dx * t;
-  const sy = e.cy + dy * t;
-  const sz = e.cz + dz * t;
-  const nx = (dx * t) / (e.rx * e.rx);
-  const ny = (dy * t) / (e.ry * e.ry);
-  const nz = (dz * t) / (e.rz * e.rz);
-  const nlen = Math.hypot(nx, ny, nz);
-  const inv = nlen > 1e-8 ? 1 / nlen : 0;
-  return [sx + nx * inv * eps, sy + ny * inv * eps, sz + nz * inv * eps];
-}
-
-function snapSphere(px, py, pz, s, eps) {
-  return snapEllipsoid(px, py, pz, { cx: s.cx, cy: s.cy, cz: s.cz, rx: s.r, ry: s.r, rz: s.r }, eps);
-}
-
-function markerOffsetByNormal(record, side) {
-  const t = pointTargetRecord(record, side != null ? side : 1);
-  const pos = t.position;
-  let nx = t.normal[0];
-  let ny = t.normal[1];
-  let nz = t.normal[2];
+function offsetAlongNormal(pos, norm, eps) {
+  let nx = norm[0];
+  let ny = norm[1];
+  let nz = norm[2];
   const len = Math.hypot(nx, ny, nz);
   if (len < 1e-6) {
-    nz = 0.08;
+    nz = 1;
+    nx = 0;
     ny = 0;
-    nx = t.side < 0 ? -0.08 : t.side > 0 ? 0.08 : 0;
   }
-  const inv = 1 / (len < 1e-6 ? Math.hypot(nx, ny, nz) : len);
+  const inv = 1 / (len < 1e-6 ? 1 : len);
   return [
-    pos[0] + nx * inv * MARKER_SURFACE_EPS,
-    pos[1] + ny * inv * MARKER_SURFACE_EPS,
-    pos[2] + nz * inv * MARKER_SURFACE_EPS
+    pos[0] + nx * inv * eps,
+    pos[1] + ny * inv * eps,
+    pos[2] + nz * inv * eps
   ];
 }
 
 export function markerSurfacePosition(record, side) {
+  const key = bronzeSurfaceInstanceKey(record, side);
+  if (bronzeSurfaceInstances && bronzeSurfaceInstances[key]) {
+    const row = bronzeSurfaceInstances[key];
+    return offsetAlongNormal(row.position, row.normal, MARKER_SURFACE_EPS);
+  }
   const t = pointTargetRecord(record, side != null ? side : 1);
-  const px = t.position[0];
-  const py = t.position[1];
-  const pz = t.position[2];
-  const eps = MARKER_SURFACE_EPS;
-
-  if (py >= 1.648) {
-    const tk = BRONZE_SNAP_TOPKNOT;
-    const dtk = Math.hypot(px - tk.cx, py - tk.cy, pz - tk.cz);
-    if (dtk < tk.r * 1.35 || py >= 1.68) {
-      return snapSphere(px, py, pz, tk, eps);
-    }
-  }
-  if (py >= 1.34) {
-    return snapEllipsoid(px, py, pz, BRONZE_SNAP_HEAD, eps);
-  }
-  if (py >= 0.64 && py < 1.34) {
-    if (pz > 0.04) {
-      return snapEllipsoid(px, py, pz, BRONZE_SNAP_ROBE_FRONT, eps);
-    }
-    return snapEllipsoid(px, py, pz, BRONZE_SNAP_TORSO, eps);
-  }
-  return markerOffsetByNormal(record, side);
+  return offsetAlongNormal(t.position, t.normal, MARKER_SURFACE_EPS);
 }
 
 export function acupointNearBronzeBody(position, margin) {
@@ -178,8 +140,9 @@ export function acupointNearBronzeBody(position, margin) {
   const ax = Math.abs(position[0]);
   const y = position[1];
   const z = position[2];
-  for (let i = 0; i < BRONZE_PART_BOXES.length; i++) {
-    const b = BRONZE_PART_BOXES[i];
+  const boxes = bronzePartBoxesForHitTest();
+  for (let i = 0; i < boxes.length; i++) {
+    const b = boxes[i];
     if (
       ax >= b.minX - m && ax <= b.maxX + m &&
       y >= b.minY - m && y <= b.maxY + m &&

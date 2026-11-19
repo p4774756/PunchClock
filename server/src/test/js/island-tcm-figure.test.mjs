@@ -20,7 +20,11 @@ const {
   resolveTcmPickHit,
   acupointNearBronzeBody,
   BRONZE_HEAD_TOP_Y,
+  BRONZE_SURFACE_TOLERANCE,
   markerSurfacePosition,
+  configureBronzeSurface,
+  bronzeSurfaceBodyPosition,
+  bronzeSurfaceInstanceKey,
   meshUsesEntranceBronzeMaterial,
   meshMaterialNames,
   entranceBronzeLocalGuard,
@@ -31,6 +35,8 @@ const {
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'main', 'resources', 'public');
 const records = JSON.parse(readFileSync(join(root, 'island/tcm-bronze-points.json'), 'utf8'));
+const surfaceDoc = JSON.parse(readFileSync(join(root, 'island/tcm-bronze-surface.json'), 'utf8'));
+configureBronzeSurface(surfaceDoc);
 
 test('定位收錄：BL1 與有定位數量', () => {
   const bl1 = records.find((r) => r.code === 'BL1');
@@ -39,15 +45,19 @@ test('定位收錄：BL1 與有定位數量', () => {
   assert.ok(located.length >= 50, 'located=' + located.length);
 });
 
-test('104 穴標記貼在銅人身體包圍盒內（外擴 0.04）', () => {
+test('104 穴標記貼在銅人體表（±0.02）且落在身體包圍盒內', () => {
   const expanded = expandCurriculumInstances(records);
   assert.equal(expanded.length, 104);
   let maxY = 0;
   for (let i = 0; i < expanded.length; i++) {
     const row = expanded[i];
-    const side = row.instanceKey.endsWith(':-1') ? -1 : 1;
+    const side = row.instanceKey.endsWith(':-1') ? -1 : row.instanceKey.endsWith(':1') ? 1 : 1;
     const rec = records.find((r) => r.code === row.code);
+    const bodyPos = bronzeSurfaceBodyPosition(rec, side);
+    assert.ok(bodyPos, 'missing surface ' + bronzeSurfaceInstanceKey(rec, side));
     const pos = markerSurfacePosition(rec, side);
+    const drift = Math.hypot(pos[0] - bodyPos[0], pos[1] - bodyPos[1], pos[2] - bodyPos[2]);
+    assert.ok(drift <= BRONZE_SURFACE_TOLERANCE + 0.004, row.instanceKey + ' drift=' + drift);
     assert.ok(acupointNearBronzeBody(pos, 0.04), row.instanceKey + ' ' + pos.join(','));
     maxY = Math.max(maxY, pos[1]);
   }
