@@ -59,6 +59,7 @@ public class MeridianQuestRoutesTest {
         HttpResponse<String> put = send("PUT", "/api/meridian-quest/progress", body, AdminAuthCookie.header());
         assertEquals(200, put.statusCode());
         assertTrue(put.body().contains("\"stars\":2"));
+        assertTrue(!put.body().contains("\"stars\":2.0"));
 
         HttpResponse<String> get = send("GET", "/api/meridian-quest/progress", null, AdminAuthCookie.header());
         assertEquals(200, get.statusCode());
@@ -68,6 +69,14 @@ public class MeridianQuestRoutesTest {
         java.util.Arrays.fill(big, 'x');
         HttpResponse<String> bad = send("PUT", "/api/meridian-quest/progress", new String(big), AdminAuthCookie.header());
         assertEquals(400, bad.statusCode());
+
+        String regress = "{\"version\":1,\"stages\":{\"LU\":{\"stars\":3,\"bestScore\":500,\"bestTimeMs\":90000,\"clearedAt\":\"2024-01-01\"}}}";
+        HttpResponse<String> putLower = send("PUT", "/api/meridian-quest/progress", regress, AdminAuthCookie.header());
+        assertEquals(200, putLower.statusCode());
+        HttpResponse<String> getAfter = send("GET", "/api/meridian-quest/progress", null, AdminAuthCookie.header());
+        assertEquals(200, getAfter.statusCode());
+        assertTrue(getAfter.body().contains("\"bestScore\":800"));
+        assertTrue(getAfter.body().contains("\"stars\":3"));
     }
 
     private HttpResponse<String> send(String method, String path, String body) throws Exception {

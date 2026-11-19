@@ -109,7 +109,42 @@ public final class MeridianQuestStore {
     static Map<String, Object> copyProgress(Map<String, Object> src) {
         String json = GSON.toJson(src);
         Map<String, Object> copy = GSON.fromJson(json, MAP_TYPE);
-        return copy != null ? copy : emptyProgress();
+        return copy != null ? normalizeNumbers(copy) : emptyProgress();
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> normalizeNumbers(Map<String, Object> raw) {
+        Map<String, Object> root = new LinkedHashMap<>();
+        Object version = raw.get("version");
+        root.put("version", version instanceof Number ? ((Number) version).intValue() : 1);
+        Object stagesObj = raw.get("stages");
+        Map<String, Object> stagesOut = new LinkedHashMap<>();
+        if (stagesObj instanceof Map) {
+            for (Map.Entry<String, Object> e : ((Map<String, Object>) stagesObj).entrySet()) {
+                if (!(e.getValue() instanceof Map)) {
+                    continue;
+                }
+                Map<String, Object> s = (Map<String, Object>) e.getValue();
+                Map<String, Object> clean = new LinkedHashMap<>();
+                clean.put("stars", asInt(s.get("stars"), 0));
+                clean.put("bestScore", asInt(s.get("bestScore"), 0));
+                Object time = s.get("bestTimeMs");
+                if (time instanceof Number) {
+                    int t = ((Number) time).intValue();
+                    if (t >= 1_000 && t <= 3_600_000) {
+                        clean.put("bestTimeMs", t);
+                    } else {
+                        clean.put("bestTimeMs", null);
+                    }
+                } else {
+                    clean.put("bestTimeMs", null);
+                }
+                clean.put("clearedAt", s.get("clearedAt"));
+                stagesOut.put(e.getKey(), clean);
+            }
+        }
+        root.put("stages", stagesOut);
+        return root;
     }
 
   @SuppressWarnings("unchecked")

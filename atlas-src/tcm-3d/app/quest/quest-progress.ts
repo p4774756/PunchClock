@@ -84,6 +84,15 @@ export function stageUnlocked(progress:QuestProgressV1,id:MeridianQuestId):boole
  return (progress.stages[prev]?.stars??0)>=1;
 }
 
+export function latestPlayableStage(progress:QuestProgressV1):MeridianQuestId{
+ let last:MeridianQuestId='LU';
+ for(const id of QUEST_STAGE_ORDER){
+  if(stageUnlocked(progress,id))last=id;
+  else break;
+ }
+ return last;
+}
+
 export function readLocalProgress():QuestProgressV1{
  if(typeof localStorage==='undefined')return emptyProgress();
  try{

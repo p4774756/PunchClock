@@ -70,7 +70,7 @@ public final class MeridianQuestRoutes {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", success);
         body.put("message", message);
-        body.put("progress", progress);
+        body.put("progress", MeridianQuestStore.normalizeNumbers(progress));
         return body;
     }
 }

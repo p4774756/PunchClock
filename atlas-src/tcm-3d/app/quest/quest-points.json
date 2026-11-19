@@ -1,1853 +1,2669 @@
 [
-  {
-    "code": "LU1",
-    "name": "中府",
-    "meridianId": "LU",
-    "order": 1,
-    "location": "在胸部，鎖骨下窩，前正中線旁開 6 寸。",
-    "indications": [
-      "咳嗽",
-      "氣喘",
-      "胸痛",
-      "肩背痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LU2",
-    "name": "雲門",
-    "meridianId": "LU",
-    "order": 2,
-    "location": "在胸部，鎖骨下窩，前正中線旁開 6 寸。",
-    "indications": [
-      "咳嗽",
-      "胸痛",
-      "肩背痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LU3",
-    "name": "天府",
-    "meridianId": "LU",
-    "order": 3,
-    "location": "在臂前區，腋前紋下 3 寸。",
-    "indications": [
-      "鼻衄",
-      "吐血"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LU4",
-    "name": "俠白",
-    "meridianId": "LU",
-    "order": 4,
-    "location": "在臂前區，尺澤上 5 寸。",
-    "indications": [
-      "咳嗽",
-      "氣喘",
-      "肩臂痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LU5",
-    "name": "尺澤",
-    "meridianId": "LU",
-    "order": 5,
-    "location": "在肘窩區，肘橫紋上，肱二頭肌腱橈側凹陷中。",
-    "indications": [
-      "咳嗽",
-      "氣喘",
-      "肘臂攣痛",
-      "急性腹痛"
-    ],
-    "category": "合穴、五輸（合）",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LU6",
-    "name": "孔最",
-    "meridianId": "LU",
-    "order": 6,
-    "location": "在臂前區，腕掌側遠端橫紋上 7 寸。",
-    "indications": [
-      "咳嗽",
-      "氣喘",
-      "咽喉腫痛",
-      "肘臂痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LU7",
-    "name": "列缺",
-    "meridianId": "LU",
-    "order": 7,
-    "location": "在腕掌側遠端橫紋上 1.5 寸。",
-    "indications": [
-      "咳嗽",
-      "氣喘",
-      "偏頭痛",
-      "頸項強痛",
-      "盜汗"
-    ],
-    "category": "絡穴、八脈交會穴（通任脈）",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LU8",
-    "name": "經渠",
-    "meridianId": "LU",
-    "order": 8,
-    "location": "在腕掌側遠端橫紋上 1 寸。",
-    "indications": [
-      "咳嗽",
-      "氣喘",
-      "咽喉腫痛",
-      "腕痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LU9",
-    "name": "太淵",
-    "meridianId": "LU",
-    "order": 9,
-    "location": "在腕掌側遠端橫紋的橈側，橈側腕屈肌腱橈側凹陷中。",
-    "indications": [
-      "咳嗽",
-      "氣喘",
-      "胸痛",
-      "腕臂痛"
-    ],
-    "category": "原穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LU10",
-    "name": "魚際",
-    "meridianId": "LU",
-    "order": 10,
-    "location": "在魚際區，第 1 掌腕關節處，掌指鬆弛微屈時肌肉最高處。",
-    "indications": [
-      "咳嗽",
-      "咽喉腫痛",
-      "掌中熱"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LU11",
-    "name": "少商",
-    "meridianId": "LU",
-    "order": 11,
-    "location": "在手指，拇指，橈側指甲角旁 0.1 寸。",
-    "indications": [
-      "咽喉腫痛",
-      "扁桃腺炎",
-      "昏迷"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LI1",
-    "name": "商陽",
-    "meridianId": "LI",
-    "order": 1,
-    "location": "在手指，食指，橈側指甲角旁 0.1 寸。",
-    "indications": [
-      "牙痛",
-      "喉痺",
-      "手指麻木"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LI2",
-    "name": "二間",
-    "meridianId": "LI",
-    "order": 2,
-    "location": "在手指，食指，橈側指間關節橈側，橈側緣與掌背分界處。",
-    "indications": [
-      "目痛",
-      "齒痛",
-      "咽喉腫痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LI3",
-    "name": "三間",
-    "meridianId": "LI",
-    "order": 3,
-    "location": "在手指，食指，橈側指間關節處。",
-    "indications": [
-      "牙痛",
-      "咽喉腫痛",
-      "手指屈伸不利"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LI4",
-    "name": "合谷",
-    "meridianId": "LI",
-    "order": 4,
-    "location": "手背，第 2 掌骨橈側的中點處。",
-    "indications": [
-      "頭痛",
-      "牙痛",
-      "目赤",
-      "口眼歪斜",
-      "腹痛"
-    ],
-    "category": "原穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LI5",
-    "name": "陽溪",
-    "meridianId": "LI",
-    "order": 5,
-    "location": "在前臂外側，陽溪與曲池連線上，陽溪上 3 寸。",
-    "indications": [
-      "熱病",
-      "肩臂痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LI6",
-    "name": "偏歷",
-    "meridianId": "LI",
-    "order": 6,
-    "location": "在前臂外側，陽溪與曲池連線上，陽溪上 4 寸。",
-    "indications": [
-      "鼻衄",
-      "頭痛",
-      "肩臂痛"
-    ],
-    "category": "絡穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LI7",
-    "name": "溫溜",
-    "meridianId": "LI",
-    "order": 7,
-    "location": "在前臂外側，陽溪與曲池連線上，陽溪上 5 寸。",
-    "indications": [
-      "頭痛",
-      "肩背酸痛",
-      "發熱"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LI8",
-    "name": "下廉",
-    "meridianId": "LI",
-    "order": 8,
-    "location": "在前臂外側，陽溪與曲池連線上，陽溪上 6 寸。",
-    "indications": [
-      "頭痛",
-      "肩背痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LI11",
-    "name": "曲池",
-    "meridianId": "LI",
-    "order": 11,
-    "location": "在肘區，肘橫紋外側端與肱骨外上髁連線的中點。",
-    "indications": [
-      "肩臂痛",
-      "熱病",
-      "麻疹"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LI14",
-    "name": "臂臑",
-    "meridianId": "LI",
-    "order": 14,
-    "location": "在臂部，曲池上 1 寸。",
-    "indications": [
-      "肩臂攣痛",
-      "頸項強痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LI15",
-    "name": "肩髃",
-    "meridianId": "LI",
-    "order": 15,
-    "location": "在臂部，肩髃與曲池連線上，肩髃下 2 寸。",
-    "indications": [
-      "肩臂痛",
-      "癭氣"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LI20",
-    "name": "迎香",
-    "meridianId": "LI",
-    "order": 20,
-    "location": "鼻孔旁 5 分，鼻唇溝上。",
-    "indications": [
-      "鼻塞",
-      "鼻淵",
-      "口歪"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "ST1",
-    "name": "承泣",
-    "meridianId": "ST",
-    "order": 1,
-    "location": "瞳孔直下，眼球與眶下緣之間。",
-    "indications": [
-      "目赤",
-      "迎風流淚",
-      "面癱"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "ST2",
-    "name": "四白",
-    "meridianId": "ST",
-    "order": 2,
-    "location": "瞳孔直下，眶下緣下約 1 寸。",
-    "indications": [
-      "目痛",
-      "眼瞼瞤動"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "ST3",
-    "name": "巨髎",
-    "meridianId": "ST",
-    "order": 3,
-    "location": "鼻孔旁 8 分，瞳孔直下。",
-    "indications": [
-      "面癱",
-      "齒痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "ST4",
-    "name": "地倉",
-    "meridianId": "ST",
-    "order": 4,
-    "location": "嘴角外側約 0.4 寸。",
-    "indications": [
-      "口眼歪斜",
-      "面癱"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "ST6",
-    "name": "頰車",
-    "meridianId": "ST",
-    "order": 6,
-    "location": "下頜角前方咬肌隆起處。",
-    "indications": [
-      "牙痛",
-      "面頰腫",
-      "頸項強痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "ST9",
-    "name": "人迎",
-    "meridianId": "ST",
-    "order": 9,
-    "location": "廉泉旁開約 1.5 寸（頸側動脈搏動處）。練習裝露出頸側皮膚後再演示。",
-    "indications": [
-      "咽喉腫痛",
-      "氣喘",
-      "頸項強痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "ST12",
-    "name": "缺盆",
-    "meridianId": "ST",
-    "order": 12,
-    "location": "鎖骨上窩中央，約當鎖骨中點。",
-    "indications": [
-      "咳嗽",
-      "氣喘",
-      "胸悶"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "ST17",
-    "name": "乳中",
-    "meridianId": "ST",
-    "order": 17,
-    "location": "第 4 肋間，乳頭中央。",
-    "indications": [
-      "乳癰",
-      "乳癖"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "ST25",
-    "name": "天樞",
-    "meridianId": "ST",
-    "order": 25,
-    "location": "臍中旁開 2 寸。",
-    "indications": [
-      "腹痛",
-      "腹瀉",
-      "痢疾"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "ST36",
-    "name": "足三里",
-    "meridianId": "ST",
-    "order": 36,
-    "location": "小腿外側，犢鼻下 3 寸，犢鼻與解溪連線上。",
-    "indications": [
-      "胃痛",
-      "腹脹",
-      "消化不良",
-      "下肢痿痹"
-    ],
-    "category": "合穴、胃下合穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "ST40",
-    "name": "豐隆",
-    "meridianId": "ST",
-    "order": 40,
-    "location": "小腿外側，外踝尖與犢鼻連線中點。",
-    "indications": [
-      "頭痛",
-      "痰多",
-      "驚厥"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "ST41",
-    "name": "解溪",
-    "meridianId": "ST",
-    "order": 41,
-    "location": "足背，內、外踝連線的中央處。",
-    "indications": [
-      "頭痛",
-      "目眩",
-      "腳氣"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "ST44",
-    "name": "內庭",
-    "meridianId": "ST",
-    "order": 44,
-    "location": "足背，第 2 趾趾間、第 3 趾趾間，趾蹼緣後方赤白肉際處。",
-    "indications": [
-      "齒痛",
-      "咽喉腫痛",
-      "熱病"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SP1",
-    "name": "隱白",
-    "meridianId": "SP",
-    "order": 1,
-    "location": "在足大趾，橈側指甲角旁 0.1 寸。",
-    "indications": [
-      "胃痛",
-      "腹脹",
-      "月經不調"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SP2",
-    "name": "大都",
-    "meridianId": "SP",
-    "order": 2,
-    "location": "在足大趾，大趾與第 2 趾趾間，趾蹼緣後方赤白肉際處。",
-    "indications": [
-      "胃痛",
-      "腹脹"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SP3",
-    "name": "太白",
-    "meridianId": "SP",
-    "order": 3,
-    "location": "在足跗部，第 1 跖骨關節後方赤白肉際。",
-    "indications": [
-      "月經不調",
-      "崩漏"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SP4",
-    "name": "公孫",
-    "meridianId": "SP",
-    "order": 4,
-    "location": "在足跗部，第 1 跖骨基底與第 2 跖骨基底之間。",
-    "indications": [
-      "腹脹",
-      "痢疾"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SP5",
-    "name": "商丘",
-    "meridianId": "SP",
-    "order": 5,
-    "location": "在足跗部，第 5 跖骨基底與第 5 跖骨基底之間。",
-    "indications": [
-      "便血",
-      "月經過多"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SP6",
-    "name": "三陰交",
-    "meridianId": "SP",
-    "order": 6,
-    "location": "內踝尖上 3 寸，脛骨內側後緣。",
-    "indications": [
-      "腹脹",
-      "泄瀉",
-      "月經不調",
-      "失眠"
-    ],
-    "category": "交會穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SP9",
-    "name": "陰陵泉",
-    "meridianId": "SP",
-    "order": 9,
-    "location": "陰陵泉下 3 寸。",
-    "indications": [
-      "腹痛",
-      "腹瀉"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SP10",
-    "name": "血海",
-    "meridianId": "SP",
-    "order": 10,
-    "location": "在膝部，陰陵泉與膝臥左側陰嘴上，陰陵泉上 6 寸。",
-    "indications": [
-      "腹痛",
-      "腹脹"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SP15",
-    "name": "大橫",
-    "meridianId": "SP",
-    "order": 15,
-    "location": "臍中旁開 4 寸。",
-    "indications": [
-      "泄瀉",
-      "疝氣"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SP21",
-    "name": "大包",
-    "meridianId": "SP",
-    "order": 21,
-    "location": "在胸廓部，第 6 肋間隙，前正中線旁開 6 寸。",
-    "indications": [
-      "胸脅痛",
-      "嘔吐"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "HT1",
-    "name": "極泉",
-    "meridianId": "HT",
-    "order": 1,
-    "location": "在腋窩區，腋窩中央。",
-    "indications": [
-      "心痛",
-      "肩臂痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "HT2",
-    "name": "青靈",
-    "meridianId": "HT",
-    "order": 2,
-    "location": "在臂前區，極泉下 3 寸。",
-    "indications": [
-      "心悸",
-      "胸脅痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "HT3",
-    "name": "少海",
-    "meridianId": "HT",
-    "order": 3,
-    "location": "在肘窩區，肘橫紋內側端凹中。",
-    "indications": [
-      "心痛",
-      "肘臂痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "HT4",
-    "name": "靈道",
-    "meridianId": "HT",
-    "order": 4,
-    "location": "在前臂掌側，腕掌側遠端橫紋上 1.5 寸。",
-    "indications": [
-      "心悸",
-      "胸痛",
-      "腕痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "HT5",
-    "name": "通里",
-    "nameVariant": "通裡",
-    "meridianId": "HT",
-    "order": 5,
-    "location": "在前臂掌側，腕掌側遠端橫紋上 1 寸。",
-    "indications": [
-      "心悸",
-      "失眠",
-      "舌強不語"
-    ],
-    "category": "絡穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "HT6",
-    "name": "陰郄",
-    "meridianId": "HT",
-    "order": 6,
-    "location": "在前臂掌側，腕掌側遠端橫紋上 0.5 寸。",
-    "indications": [
-      "心痛",
-      "驚恐",
-      "失眠"
-    ],
-    "category": "郄穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "HT7",
-    "name": "神門",
-    "meridianId": "HT",
-    "order": 7,
-    "location": "在腕掌側橫紋尺側端，尺側腕屈肌腱橈側凹陷中。",
-    "indications": [
-      "心悸",
-      "失眠",
-      "健忘"
-    ],
-    "category": "原穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "HT8",
-    "name": "少府",
-    "meridianId": "HT",
-    "order": 8,
-    "location": "在掌前區，掌心橫紋，第 4、5 掌骨之間。",
-    "indications": [
-      "心痛",
-      "手指攣急"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "HT9",
-    "name": "少衝",
-    "meridianId": "HT",
-    "order": 9,
-    "location": "在手指，小指，橈側指甲角旁 0.1 寸。",
-    "indications": [
-      "心痛",
-      "胸脅痛",
-      "手指麻木"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SI1",
-    "name": "少澤",
-    "meridianId": "SI",
-    "order": 1,
-    "location": "在手小指，橈側指甲角旁 0.1 寸。",
-    "indications": [
-      "咽痛",
-      "頸項強痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SI3",
-    "name": "後溪",
-    "meridianId": "SI",
-    "order": 3,
-    "location": "手背，第 5 掌指關節後，近側掌橫紋頭中點。",
-    "indications": [
-      "目赤",
-      "項强"
-    ],
-    "category": "原穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SI4",
-    "name": "腕骨",
-    "meridianId": "SI",
-    "order": 4,
-    "location": "在腕部，第 5 掌骨基底與第 4 掌骨基底之間。",
-    "indications": [
-      "耳鳴",
-      "目黃"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SI8",
-    "name": "小海",
-    "meridianId": "SI",
-    "order": 8,
-    "location": "在前臂後區，尺側腕伸肌腱橈側凹陷中。",
-    "indications": [
-      "耳鳴",
-      "咽喉腫痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SI9",
-    "name": "肩貞",
-    "meridianId": "SI",
-    "order": 9,
-    "location": "腋後紋頭上 1 寸（肩後／腋後）。",
-    "indications": [
-      "肩背痛",
-      "耳鳴"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SI11",
-    "name": "天宗",
-    "meridianId": "SI",
-    "order": 11,
-    "location": "肩胛岡中點與肩胛下角連線上 1/3 與下 2/3 交點。",
-    "indications": [
-      "肩臂痛",
-      "瘰癧"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SI18",
-    "name": "顴髎",
-    "meridianId": "SI",
-    "order": 18,
-    "location": "顴骨下緣，外眼角直下。",
-    "indications": [
-      "面頰腫",
-      "牙痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SI19",
-    "name": "聽宮",
-    "meridianId": "SI",
-    "order": 19,
-    "location": "耳屏與下頜關節之間，張口凹陷處。",
-    "indications": [
-      "耳鳴",
-      "聾啞"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SI10",
-    "name": "臑俞",
-    "meridianId": "SI",
-    "order": 10,
-    "location": "肘後區，尺骨鷹嘴與肱骨內上髁之間凹陷。",
-    "indications": [
-      "肩臂痛",
-      "脅痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SI12",
-    "name": "秉風",
-    "meridianId": "SI",
-    "order": 12,
-    "location": "在肩胛區，肩胛骨上緣。",
-    "indications": [
-      "肩臂痛",
-      "頸項強痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SI16",
-    "name": "天窗",
-    "meridianId": "SI",
-    "order": 16,
-    "location": "在側頸，天窗上 1 寸。",
-    "indications": [
-      "牙痛",
-      "頸項強痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "SI17",
-    "name": "天容",
-    "meridianId": "SI",
-    "order": 17,
-    "location": "在下頜角後方。",
-    "indications": [
-      "耳鳴",
-      "面頰腫"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL1",
-    "name": "睛明",
-    "meridianId": "BL",
-    "order": 1,
-    "location": "眼內角斜外約 1 分。",
-    "indications": [
-      "目赤",
-      "近視"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL2",
-    "name": "攢竹",
-    "meridianId": "BL",
-    "order": 2,
-    "location": "眉頭內側凹陷。",
-    "indications": [
-      "頭痛",
-      "鼻塞"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL10",
-    "name": "天柱",
-    "meridianId": "BL",
-    "order": 10,
-    "location": "啞門旁開 1.3 寸，斜方肌外緣凹陷。",
-    "indications": [
-      "頭痛",
-      "項強"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL11",
-    "name": "大杼",
-    "meridianId": "BL",
-    "order": 11,
-    "location": "在脊柱區，第 1 胸椎棘突下，後正中線旁開 1.5 寸。",
-    "indications": [
-      "肺疾",
-      "背脊痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL12",
-    "name": "風門",
-    "meridianId": "BL",
-    "order": 12,
-    "location": "在脊柱區，第 2 胸椎棘突下，後正中線旁開 1.5 寸。",
-    "indications": [
-      "肺疾",
-      "項強"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL13",
-    "name": "肺俞",
-    "meridianId": "BL",
-    "order": 13,
-    "location": "在脊柱區，第 3 胸椎棘突下，後正中線旁開 1.5 寸。",
-    "indications": [
-      "心疾",
-      "項強"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL14",
-    "name": "厥陰俞",
-    "meridianId": "BL",
-    "order": 14,
-    "location": "第 4 胸椎棘突下，後正中線旁開 1.5 寸。",
-    "indications": [
-      "心疾",
-      "背脊痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL15",
-    "name": "心俞",
-    "meridianId": "BL",
-    "order": 15,
-    "location": "在脊柱區，第 5 胸椎棘突下，後正中線旁開 1.5 寸。",
-    "indications": [
-      "氣短",
-      "背脊痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL17",
-    "name": "膈俞",
-    "meridianId": "BL",
-    "order": 17,
-    "location": "在脊柱區，第 7 胸椎棘突下，後正中線旁開 1.5 寸。",
-    "indications": [
-      "胃疾",
-      "項強"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL18",
-    "name": "肝俞",
-    "meridianId": "BL",
-    "order": 18,
-    "location": "在脊柱區，第 8 胸椎棘突下，後正中線旁開 1.5 寸。",
-    "indications": [
-      "胃疾",
-      "背脊痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL23",
-    "name": "腎俞",
-    "meridianId": "BL",
-    "order": 23,
-    "location": "腰部，第 2 腰椎棘突下，後正中線旁開 1.5 寸。",
-    "indications": [
-      "腰痛",
-      "腎虛",
-      "遺精"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL40",
-    "name": "委中",
-    "meridianId": "BL",
-    "order": 40,
-    "location": "膝後區，膕橫紋中點。",
-    "indications": [
-      "腰痛",
-      "下肢痿痹",
-      "膝痛"
-    ],
-    "category": "合穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL60",
-    "name": "崑崙",
-    "meridianId": "BL",
-    "order": 60,
-    "location": "在踝區，外踝與跟腱之間凹陷中。",
-    "indications": [
-      "頭痛",
-      "項強",
-      "腰腿痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "BL67",
-    "name": "至陰",
-    "meridianId": "BL",
-    "order": 67,
-    "location": "在足外側，小趾本節後外側，背側皮膚皺襞終點的外側。",
-    "indications": [
-      "頭痛",
-      "眩暈",
-      "腰腿痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "KI1",
-    "name": "湧泉",
-    "meridianId": "KI",
-    "order": 1,
-    "location": "足底，屈足卷趾時足心最凹陷中；須結合體位和標準註釋定位。",
-    "indications": [
-      "頭痛",
-      "失眠",
-      "昏厥"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "KI2",
-    "name": "然谷",
-    "meridianId": "KI",
-    "order": 2,
-    "location": "在足內側，足舟骨粗隆下方赤白肉際。",
-    "indications": [
-      "陰痿",
-      "月經不調"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "KI3",
-    "name": "太溪",
-    "meridianId": "KI",
-    "order": 3,
-    "location": "在足內側，內踝後方與內踝尖與跟腱之間凹陷中。",
-    "indications": [
-      "腰痛",
-      "耳鳴",
-      "遺精"
-    ],
-    "category": "原穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "KI6",
-    "name": "照海",
-    "meridianId": "KI",
-    "order": 6,
-    "location": "在內踝與舟骨之間，約當內踝尖與足舟骨結節連線中點。",
-    "indications": [
-      "咽喉腫痛",
-      "失眠"
-    ],
-    "category": "八脈交會穴（通陰維）",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "KI7",
-    "name": "復溜",
-    "meridianId": "KI",
-    "order": 7,
-    "location": "在內踝與腓腸肌下端之間的凹陷中。",
-    "indications": [
-      "心悸",
-      "失眠"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "KI8",
-    "name": "交信",
-    "meridianId": "KI",
-    "order": 8,
-    "location": "在膝部，陰谷與橫骨連線上，在橫骨上 0.5 寸。",
-    "indications": [
-      "咳血",
-      "陰萎"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "KI9",
-    "name": "築賓",
-    "meridianId": "KI",
-    "order": 9,
-    "location": "在腹股溝區，氣沖下 4 寸。",
-    "indications": [
-      "陰萎",
-      "疝氣"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "KI10",
-    "name": "陰谷",
-    "meridianId": "KI",
-    "order": 10,
-    "location": "在膝部，腘窩內側，膝臥與陰谷連線的中點。",
-    "indications": [
-      "陰痿",
-      "遺尿"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "KI16",
-    "name": "肓俞",
-    "meridianId": "KI",
-    "order": 16,
-    "location": "臍中旁開 0.5 寸。",
-    "indications": [
-      "腹痛",
-      "腹瀉"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "KI23",
-    "name": "神封",
-    "meridianId": "KI",
-    "order": 23,
-    "location": "第 4 肋間，前正中線旁開 2 寸。",
-    "indications": [
-      "胸痛",
-      "氣喘"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "PC1",
-    "name": "天池",
-    "meridianId": "PC",
-    "order": 1,
-    "location": "第 4 肋間，前正中線旁開 5 寸。",
-    "indications": [
-      "心煩",
-      "胸悶",
-      "脅痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "PC2",
-    "name": "天泉",
-    "meridianId": "PC",
-    "order": 2,
-    "location": "國標定位條文待補；請對照 GB/T 12346-2021。",
-    "indications": [
-      "心煩",
-      "肘臂痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "PC3",
-    "name": "曲澤",
-    "meridianId": "PC",
-    "order": 3,
-    "location": "國標定位條文待補；請對照 GB/T 12346-2021。",
-    "indications": [
-      "心悸",
-      "肘臂痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "PC4",
-    "name": "郄門",
-    "meridianId": "PC",
-    "order": 4,
-    "location": "國標定位條文待補；請對照 GB/T 12346-2021。",
-    "indications": [
-      "心痛",
-      "呃逆"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "PC5",
-    "name": "間使",
-    "meridianId": "PC",
-    "order": 5,
-    "location": "國標定位條文待補；請對照 GB/T 12346-2021。",
-    "indications": [
-      "心悸",
-      "嘔吐"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "PC6",
-    "name": "內關",
-    "meridianId": "PC",
-    "order": 6,
-    "location": "前臂前區，腕掌側遠端橫紋上 2 寸，掌長肌腱與橈側腕屈肌腱之間。",
-    "indications": [
-      "心悸",
-      "失眠",
-      "嘔吐",
-      "胸悶"
-    ],
-    "category": "絡穴、八脈交會穴（通陰維）",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "PC7",
-    "name": "大陵",
-    "meridianId": "PC",
-    "order": 7,
-    "location": "國標定位條文待補；請對照 GB/T 12346-2021。",
-    "indications": [
-      "心悸",
-      "腕痛"
-    ],
-    "category": "原穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "PC8",
-    "name": "勞宮",
-    "meridianId": "PC",
-    "order": 8,
-    "location": "國標定位條文待補；請對照 GB/T 12346-2021。",
-    "indications": [
-      "昏迷",
-      "掌中熱"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "PC9",
-    "name": "中衝",
-    "meridianId": "PC",
-    "order": 9,
-    "location": "國標定位條文待補；請對照 GB/T 12346-2021。",
-    "indications": [
-      "昏迷",
-      "中暑"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "TE1",
-    "name": "關衝",
-    "meridianId": "TE",
-    "order": 1,
-    "location": "在手指，環指，橈側指甲角旁 0.1 寸。",
-    "indications": [
-      "咽喉腫痛",
-      "舌強"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "TE2",
-    "name": "液門",
-    "meridianId": "TE",
-    "order": 2,
-    "location": "在手背，第 4、5 掌骨間，第 4 掌指關節近端橈側掌指橈側緣。",
-    "indications": [
-      "耳聾",
-      "齒痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "TE3",
-    "name": "中渚",
-    "meridianId": "TE",
-    "order": 3,
-    "location": "在前臂外側，腕背橫紋上 4 寸。",
-    "indications": [
-      "耳聾",
-      "肋脅痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "TE4",
-    "name": "陽池",
-    "meridianId": "TE",
-    "order": 4,
-    "location": "在前臂外側，肘橫紋上 5 寸。",
-    "indications": [
-      "耳聾",
-      "手指攣急"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "TE5",
-    "name": "外關",
-    "meridianId": "TE",
-    "order": 5,
-    "location": "在前臂外側，尺橈骨之間，腕背橫紋上 2 寸。",
-    "indications": [
-      "耳聾",
-      "瘧疾",
-      "肩背痛"
-    ],
-    "category": "原穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "TE6",
-    "name": "支溝",
-    "meridianId": "TE",
-    "order": 6,
-    "location": "在前臂外側，尺橈骨之間，腕背橫紋上 3 寸。",
-    "indications": [
-      "耳鳴",
-      "臂痛"
-    ],
-    "category": "郄穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "TE9",
-    "name": "四瀆",
-    "meridianId": "TE",
-    "order": 9,
-    "location": "在前臂外側，肘橫紋上 4 寸。",
-    "indications": [
-      "耳聾",
-      "上肢痹痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "TE10",
-    "name": "天井",
-    "meridianId": "TE",
-    "order": 10,
-    "location": "在前臂外側，肘橫紋上 3 寸。",
-    "indications": [
-      "上肢痹痛",
-      "耳聾"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "TE17",
-    "name": "翳風",
-    "meridianId": "TE",
-    "order": 17,
-    "location": "耳垂後方，乳突與下頜角之間凹陷。",
-    "indications": [
-      "頭痛",
-      "項強"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "TE21",
-    "name": "耳門",
-    "meridianId": "TE",
-    "order": 21,
-    "location": "耳屏上切跡前方，張口凹陷處。",
-    "indications": [
-      "耳聾",
-      "口眼歪斜"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "TE23",
-    "name": "絲竹空",
-    "meridianId": "TE",
-    "order": 23,
-    "location": "眉毛外端凹陷。",
-    "indications": [
-      "頭痛",
-      "目赤"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "GB1",
-    "name": "瞳子髎",
-    "meridianId": "GB",
-    "order": 1,
-    "location": "外眼角旁約 0.5 寸。",
-    "indications": [
-      "目赤",
-      "迎風流淚"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "GB2",
-    "name": "聽會",
-    "meridianId": "GB",
-    "order": 2,
-    "location": "耳屏間切跡前方，張口凹陷處。",
-    "indications": [
-      "耳聾",
-      "牙痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "GB14",
-    "name": "陽白",
-    "meridianId": "GB",
-    "order": 14,
-    "location": "瞳孔直上，眉毛中央上方約 1 寸。",
-    "indications": [
-      "頭痛",
-      "目眩"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "GB20",
-    "name": "風池",
-    "meridianId": "GB",
-    "order": 20,
-    "location": "枕骨下，胸鎖乳突肌與斜方肌之間凹陷。",
-    "indications": [
-      "頭痛",
-      "眩暈",
-      "項強"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "GB21",
-    "name": "肩井",
-    "meridianId": "GB",
-    "order": 21,
-    "location": "頸後部，第 7 頸椎棘突與肩峰最外側點連線的中點。",
-    "indications": [
-      "肩臂痛",
-      "頸項強痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "GB24",
-    "name": "日月",
-    "meridianId": "GB",
-    "order": 24,
-    "location": "在脅肋部，第 10 肋游離端下方。",
-    "indications": [
-      "脅痛",
-      "嘔吐"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "GB26",
-    "name": "帶脈",
-    "meridianId": "GB",
-    "order": 26,
-    "location": "第 11 肋游離端下方，與臍相平。",
-    "indications": [
-      "疝氣",
-      "少腹痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "GB30",
-    "name": "環跳",
-    "meridianId": "GB",
-    "order": 30,
-    "location": "在髖部，股骨大粗隆與髖骨裂孔的外側。",
-    "indications": [
-      "腰腿痛",
-      "坐骨神經痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "GB34",
-    "name": "陽陵泉",
-    "meridianId": "GB",
-    "order": 34,
-    "location": "小腿外側，腓骨小頭前下方凹陷中。",
-    "indications": [
-      "脅痛",
-      "下肢痿痹"
-    ],
-    "category": "合穴、膽下合穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "GB39",
-    "name": "懸鐘",
-    "meridianId": "GB",
-    "order": 39,
-    "location": "外踝尖上 3 寸，腓骨前緣。",
-    "indications": [
-      "踝關節痛",
-      "偏頭痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "GB40",
-    "name": "丘墟",
-    "meridianId": "GB",
-    "order": 40,
-    "location": "國標定位條文待補；請對照 GB/T 12346-2021。",
-    "indications": [
-      "頭痛",
-      "項強"
-    ],
-    "category": "郄穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR1",
-    "name": "大敦",
-    "meridianId": "LR",
-    "order": 1,
-    "location": "在足大趾，橈側指甲角旁 0.1 寸。",
-    "indications": [
-      "疝氣",
-      "少腹疼痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR2",
-    "name": "行間",
-    "meridianId": "LR",
-    "order": 2,
-    "location": "在足背，第 1、2 趾蹼緣後方赤白肉際處。",
-    "indications": [
-      "頭痛",
-      "眩暈"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR3",
-    "name": "太衝",
-    "nameVariant": "太沖",
-    "meridianId": "LR",
-    "order": 3,
-    "location": "足背第 1、2 蹠骨結合部前方凹陷。",
-    "indications": [
-      "頭痛",
-      "眩暈",
-      "月經不調",
-      "癲癇"
-    ],
-    "category": "原穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR4",
-    "name": "中封",
-    "meridianId": "LR",
-    "order": 4,
-    "location": "在踝部，內踝尖上約 1 寸。",
-    "indications": [
-      "陰腫",
-      "腰痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR5",
-    "name": "蠡溝",
-    "meridianId": "LR",
-    "order": 5,
-    "location": "在小腿內側，內踝尖上 5 寸。",
-    "indications": [
-      "小便不利",
-      "陰囊濕痒"
-    ],
-    "category": "絡穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR6",
-    "name": "中都",
-    "meridianId": "LR",
-    "order": 6,
-    "location": "在小腿內側，內踝尖上 7 寸。",
-    "indications": [
-      "腹痛",
-      "泄瀉"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR7",
-    "name": "膝關",
-    "meridianId": "LR",
-    "order": 7,
-    "location": "在膝部，陰陵泉後方 4 寸。",
-    "indications": [
-      "膝痛",
-      "胯痛"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR8",
-    "name": "曲泉",
-    "meridianId": "LR",
-    "order": 8,
-    "location": "在膝部，股骨內上髁後方。",
-    "indications": [
-      "遺尿",
-      "月經不調"
-    ],
-    "category": "合穴",
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR9",
-    "name": "陰包",
-    "meridianId": "LR",
-    "order": 9,
-    "location": "在大腿內側，急脈下 2 寸。",
-    "indications": [
-      "陰股痛",
-      "遺尿"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR10",
-    "name": "足五里",
-    "meridianId": "LR",
-    "order": 10,
-    "location": "在大腿內側，足五里上 1 寸。",
-    "indications": [
-      "少腹脹",
-      "小便不利"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR11",
-    "name": "陰廉",
-    "meridianId": "LR",
-    "order": 11,
-    "location": "在大腿內側，陰廉上 2 寸。",
-    "indications": [
-      "月經不調",
-      "崩漏"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR12",
-    "name": "急脈",
-    "meridianId": "LR",
-    "order": 12,
-    "location": "在大腿內側，恥骨結節與肶骨結節連線的 3/4 處。",
-    "indications": [
-      "脘腹脹",
-      "腹瀉"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR13",
-    "name": "章門",
-    "meridianId": "LR",
-    "order": 13,
-    "location": "在腹脅部，第 11 肋游離端下 6 寸。",
-    "indications": [
-      "脅痛",
-      "嘔吐"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  },
-  {
-    "code": "LR14",
-    "name": "期門",
-    "meridianId": "LR",
-    "order": 14,
-    "location": "在胸脅部，第 6 肋間隙，前正中線旁開 4 寸。",
-    "indications": [
-      "胸脅脹脅脹滿",
-      "嘔吐"
-    ],
-    "source": "經絡腧穴學教材；GB/T 12346-2021",
-    "reviewed": false
-  }
+ {
+  "code": "LU1",
+  "name": "中府",
+  "meridianId": "LU",
+  "order": 1,
+  "location": "在胸部，橫平第 1 肋間隙，鎖骨下窩外側，前正中線旁開 6 寸。",
+  "indications": [
+   "咳嗽",
+   "氣喘",
+   "胸滿痛",
+   "肩背痛"
+  ],
+  "category": "肺之募穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LU2",
+  "name": "雲門",
+  "meridianId": "LU",
+  "order": 2,
+  "location": "在胸部，鎖骨下窩凹陷中，肩胛骨喙突內緣，前正中線旁開 6 寸。",
+  "indications": [
+   "咳嗽",
+   "氣喘",
+   "胸痛",
+   "肩痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LU3",
+  "name": "天府",
+  "meridianId": "LU",
+  "order": 3,
+  "location": "在臂前區，腋前紋頭下 3 寸，肱二頭肌橈側緣處。",
+  "indications": [
+   "咳嗽",
+   "氣喘",
+   "鼻衄",
+   "癭氣",
+   "上臂痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LU4",
+  "name": "俠白",
+  "meridianId": "LU",
+  "order": 4,
+  "location": "在臂前區，腋前紋頭下 4 寸，肱二頭肌橈側緣處。",
+  "indications": [
+   "咳嗽",
+   "氣喘",
+   "乾嘔",
+   "上臂痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LU5",
+  "name": "尺澤",
+  "meridianId": "LU",
+  "order": 5,
+  "location": "在肘區，肘橫紋上，肱二頭肌腱橈側緣凹陷中。",
+  "indications": [
+   "咳嗽",
+   "咯血",
+   "咽喉腫痛",
+   "急性吐瀉",
+   "小兒驚風",
+   "肘臂攣痛"
+  ],
+  "category": "合穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LU6",
+  "name": "孔最",
+  "meridianId": "LU",
+  "order": 6,
+  "location": "在前臂前區，腕掌側遠端橫紋上 7 寸，尺澤與太淵連線上。",
+  "indications": [
+   "咯血",
+   "咳嗽",
+   "咽喉腫痛",
+   "痔血",
+   "肘臂攣痛"
+  ],
+  "category": "郄穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LU7",
+  "name": "列缺",
+  "meridianId": "LU",
+  "order": 7,
+  "location": "在前臂，腕掌側遠端橫紋上 1.5 寸，拇短伸肌腱與拇長展肌腱之間，拇長展肌腱溝的凹陷中。",
+  "indications": [
+   "咳嗽",
+   "氣喘",
+   "頭痛",
+   "項強",
+   "咽喉痛",
+   "口眼歪斜"
+  ],
+  "category": "絡穴；八脈交會穴（通任脈）",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LU8",
+  "name": "經渠",
+  "meridianId": "LU",
+  "order": 8,
+  "location": "在前臂前區，腕掌側遠端橫紋上 1 寸，橈骨莖突與橈動脈之間。",
+  "indications": [
+   "咳嗽",
+   "氣喘",
+   "胸痛",
+   "咽喉腫痛",
+   "手腕痛"
+  ],
+  "category": "經穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LU9",
+  "name": "太淵",
+  "meridianId": "LU",
+  "order": 9,
+  "location": "在腕前區，橈骨莖突與舟狀骨之間，拇長展肌腱尺側凹陷中。",
+  "indications": [
+   "咳嗽",
+   "氣喘",
+   "無脈症",
+   "腕臂痛"
+  ],
+  "category": "輸穴；原穴；八會穴之脈會",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LU10",
+  "name": "魚際",
+  "meridianId": "LU",
+  "order": 10,
+  "location": "在手外側，第 1 掌骨橈側中點赤白肉際處。",
+  "indications": [
+   "咳嗽",
+   "咯血",
+   "咽喉腫痛",
+   "失音",
+   "發熱",
+   "小兒疳積"
+  ],
+  "category": "滎穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LU11",
+  "name": "少商",
+  "meridianId": "LU",
+  "order": 11,
+  "location": "在手指，拇指末節橈側，指甲根角側上方 0.1 寸（指寸）。",
+  "indications": [
+   "咽喉腫痛",
+   "鼻衄",
+   "高熱",
+   "昏迷",
+   "癲狂"
+  ],
+  "category": "井穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LI1",
+  "name": "商陽",
+  "meridianId": "LI",
+  "order": 1,
+  "location": "在手指，食指末節橈側，指甲根角側上方 0.1 寸（指寸）。",
+  "indications": [
+   "齒痛",
+   "咽喉腫痛",
+   "熱病",
+   "昏迷",
+   "手指麻木"
+  ],
+  "category": "井穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LI2",
+  "name": "二間",
+  "meridianId": "LI",
+  "order": 2,
+  "location": "在手指，第 2 掌指關節橈側遠端赤白肉際處。",
+  "indications": [
+   "鼻衄",
+   "齒痛",
+   "咽喉腫痛",
+   "熱病"
+  ],
+  "category": "滎穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LI3",
+  "name": "三間",
+  "meridianId": "LI",
+  "order": 3,
+  "location": "在手背，第 2 掌指關節橈側近端凹陷中。",
+  "indications": [
+   "齒痛",
+   "咽喉腫痛",
+   "腹脹",
+   "腸鳴",
+   "手背腫痛"
+  ],
+  "category": "輸穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LI4",
+  "name": "合谷",
+  "meridianId": "LI",
+  "order": 4,
+  "location": "在手背，第 2 掌骨橈側的中點處。",
+  "indications": [
+   "頭痛",
+   "齒痛",
+   "目赤腫痛",
+   "口眼歪斜",
+   "發熱惡寒",
+   "經閉"
+  ],
+  "category": "原穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LI5",
+  "name": "陽溪",
+  "meridianId": "LI",
+  "order": 5,
+  "location": "在腕區，腕背側遠端橫紋橈側，橈骨莖突遠端，解剖學「鼻煙窩」凹陷中。",
+  "indications": [
+   "頭痛",
+   "目赤腫痛",
+   "齒痛",
+   "咽喉腫痛",
+   "手腕痛"
+  ],
+  "category": "經穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LI6",
+  "name": "偏歷",
+  "meridianId": "LI",
+  "order": 6,
+  "location": "在前臂，腕背側遠端橫紋上 3 寸，陽溪與曲池連線上。",
+  "indications": [
+   "耳鳴",
+   "鼻衄",
+   "目赤",
+   "水腫",
+   "手臂酸痛"
+  ],
+  "category": "絡穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LI7",
+  "name": "溫溜",
+  "meridianId": "LI",
+  "order": 7,
+  "location": "在前臂，腕橫紋上 5 寸，陽溪與曲池連線上。",
+  "indications": [
+   "頭痛",
+   "面腫",
+   "咽喉腫痛",
+   "急性腸鳴腹痛",
+   "肩背酸痛"
+  ],
+  "category": "郄穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LI10",
+  "name": "手三里",
+  "meridianId": "LI",
+  "order": 10,
+  "location": "在前臂，肘橫紋下 2 寸，陽溪與曲池連線上。",
+  "indications": [
+   "手臂無力",
+   "上肢不遂",
+   "腹痛",
+   "腹瀉",
+   "齒痛",
+   "頰腫"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LI11",
+  "name": "曲池",
+  "meridianId": "LI",
+  "order": 11,
+  "location": "在肘區，尺澤與肱骨外上髁連線的中點處。",
+  "indications": [
+   "熱病",
+   "咽喉腫痛",
+   "上肢不遂",
+   "腹痛吐瀉",
+   "高血壓",
+   "癮疹"
+  ],
+  "category": "合穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LI14",
+  "name": "臂臑",
+  "meridianId": "LI",
+  "order": 14,
+  "location": "在臂部，曲池上 7 寸，三角肌前緣處。",
+  "indications": [
+   "肩臂疼痛",
+   "頸項拘攣",
+   "瘰癧",
+   "目疾"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LI15",
+  "name": "肩髃",
+  "meridianId": "LI",
+  "order": 15,
+  "location": "在三角肌區，肩峰外側緣前端與肱骨大結節兩骨間凹陷中。",
+  "indications": [
+   "肩臂攣痛",
+   "上肢不遂",
+   "癮疹"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LI20",
+  "name": "迎香",
+  "meridianId": "LI",
+  "order": 20,
+  "location": "在面部，鼻翼外緣中點旁，鼻唇溝中。",
+  "indications": [
+   "鼻塞",
+   "鼻衄",
+   "鼻淵",
+   "口歪",
+   "面癢",
+   "膽道蛔蟲症"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST1",
+  "name": "承泣",
+  "meridianId": "ST",
+  "order": 1,
+  "location": "在面部，眼球與眶下緣之間，瞳孔直下。",
+  "indications": [
+   "眼瞼瞤動",
+   "迎風流淚",
+   "夜盲",
+   "近視",
+   "口眼歪斜"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST2",
+  "name": "四白",
+  "meridianId": "ST",
+  "order": 2,
+  "location": "在面部，眶下孔處。",
+  "indications": [
+   "目赤痛癢",
+   "眼瞼瞤動",
+   "目翳",
+   "口眼歪斜",
+   "頭痛眩暈"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST3",
+  "name": "巨髎",
+  "meridianId": "ST",
+  "order": 3,
+  "location": "在面部，橫平鼻翼下緣，瞳孔直下。",
+  "indications": [
+   "口角歪斜",
+   "鼻衄",
+   "齒痛",
+   "唇頰腫"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST4",
+  "name": "地倉",
+  "meridianId": "ST",
+  "order": 4,
+  "location": "在面部，口角旁開 0.4 寸（指寸）。",
+  "indications": [
+   "口角歪斜",
+   "流涎",
+   "三叉神經痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST6",
+  "name": "頰車",
+  "meridianId": "ST",
+  "order": 6,
+  "location": "在面部，下頜角前上方一橫指（中指）。",
+  "indications": [
+   "齒痛",
+   "牙關不利",
+   "頰腫",
+   "口角歪斜"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST7",
+  "name": "下關",
+  "meridianId": "ST",
+  "order": 7,
+  "location": "在面部，顴弓下緣中央與下頜切跡之間凹陷中。",
+  "indications": [
+   "牙關不利",
+   "三叉神經痛",
+   "齒痛",
+   "耳聾",
+   "耳鳴",
+   "口眼歪斜"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST8",
+  "name": "頭維",
+  "meridianId": "ST",
+  "order": 8,
+  "location": "在頭部，額角髮際直上 0.5 寸，頭正中線旁開 4.5 寸。",
+  "indications": [
+   "頭痛",
+   "目眩",
+   "目痛",
+   "流淚"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST9",
+  "name": "人迎",
+  "meridianId": "ST",
+  "order": 9,
+  "location": "在頸部，橫平喉結，胸鎖乳突肌前緣，頸總動脈搏動處。",
+  "indications": [
+   "咽喉腫痛",
+   "高血壓",
+   "瘰癧",
+   "癭氣",
+   "氣喘"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST12",
+  "name": "缺盆",
+  "meridianId": "ST",
+  "order": 12,
+  "location": "在頸外側區，鎖骨上大窩，鎖骨上緣凹陷中，前正中線旁開 4 寸。",
+  "indications": [
+   "咳嗽",
+   "氣喘",
+   "咽喉腫痛",
+   "缺盆中痛",
+   "瘰癧"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST25",
+  "name": "天樞",
+  "meridianId": "ST",
+  "order": 25,
+  "location": "在腹部，橫平臍中，前正中線旁開 2 寸。",
+  "indications": [
+   "腹痛",
+   "腹脹",
+   "便秘",
+   "腹瀉",
+   "痢疾",
+   "月經不調"
+  ],
+  "category": "大腸之募穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST36",
+  "name": "足三里",
+  "meridianId": "ST",
+  "order": 36,
+  "location": "在小腿外側，犢鼻下 3 寸，犢鼻與解溪連線上。",
+  "indications": [
+   "胃痛",
+   "嘔吐",
+   "腹脹",
+   "腹瀉",
+   "下肢痿痹",
+   "虛勞羸瘦"
+  ],
+  "category": "合穴；胃之下合穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST37",
+  "name": "上巨虛",
+  "meridianId": "ST",
+  "order": 37,
+  "location": "在小腿外側，犢鼻下 6 寸，犢鼻與解溪連線上。",
+  "indications": [
+   "腸鳴",
+   "腹痛",
+   "腹瀉",
+   "便秘",
+   "腸癰",
+   "下肢痿痹"
+  ],
+  "category": "大腸之下合穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST39",
+  "name": "下巨虛",
+  "meridianId": "ST",
+  "order": 39,
+  "location": "在小腿外側，犢鼻下 9 寸，犢鼻與解溪連線上。",
+  "indications": [
+   "小腹痛",
+   "泄瀉",
+   "痢疾",
+   "乳癰",
+   "下肢痿痹"
+  ],
+  "category": "小腸之下合穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST40",
+  "name": "豐隆",
+  "meridianId": "ST",
+  "order": 40,
+  "location": "在小腿外側，外踝尖上 8 寸，脛骨前肌的外緣。",
+  "indications": [
+   "頭痛",
+   "眩暈",
+   "咳嗽痰多",
+   "癲狂",
+   "下肢痿痹"
+  ],
+  "category": "絡穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST41",
+  "name": "解溪",
+  "meridianId": "ST",
+  "order": 41,
+  "location": "在踝區，踝關節前面中央凹陷中，拇長伸肌腱與趾長伸肌腱之間。",
+  "indications": [
+   "下肢痿痹",
+   "踝關節病",
+   "頭痛",
+   "眩暈",
+   "癲狂",
+   "腹脹"
+  ],
+  "category": "經穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST44",
+  "name": "內庭",
+  "meridianId": "ST",
+  "order": 44,
+  "location": "在足背，第 2、3 趾間，趾蹼緣後方赤白肉際處。",
+  "indications": [
+   "齒痛",
+   "咽喉腫痛",
+   "鼻衄",
+   "熱病",
+   "腹痛",
+   "足背腫痛"
+  ],
+  "category": "滎穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "ST45",
+  "name": "厲兌",
+  "meridianId": "ST",
+  "order": 45,
+  "location": "在足趾，第 2 趾末節外側，趾甲根角側後方 0.1 寸（指寸）。",
+  "indications": [
+   "鼻衄",
+   "齒痛",
+   "咽喉腫痛",
+   "熱病",
+   "多夢",
+   "癲狂"
+  ],
+  "category": "井穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SP1",
+  "name": "隱白",
+  "meridianId": "SP",
+  "order": 1,
+  "location": "在足趾，大趾末節內側，趾甲根角側後方 0.1 寸（指寸）。",
+  "indications": [
+   "月經過多",
+   "崩漏",
+   "便血",
+   "尿血",
+   "癲狂",
+   "多夢"
+  ],
+  "category": "井穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SP2",
+  "name": "大都",
+  "meridianId": "SP",
+  "order": 2,
+  "location": "在足趾，第 1 蹠趾關節遠端赤白肉際凹陷中。",
+  "indications": [
+   "腹脹",
+   "胃痛",
+   "嘔吐",
+   "泄瀉",
+   "便秘",
+   "熱病無汗"
+  ],
+  "category": "滎穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SP3",
+  "name": "太白",
+  "meridianId": "SP",
+  "order": 3,
+  "location": "在蹠區，第 1 蹠趾關節近端赤白肉際凹陷中。",
+  "indications": [
+   "腸鳴",
+   "腹脹",
+   "泄瀉",
+   "胃痛",
+   "便秘",
+   "體重節痛"
+  ],
+  "category": "輸穴；原穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SP4",
+  "name": "公孫",
+  "meridianId": "SP",
+  "order": 4,
+  "location": "在蹠區，第 1 蹠骨底的前下緣赤白肉際處。",
+  "indications": [
+   "胃痛",
+   "嘔吐",
+   "腹痛",
+   "泄瀉",
+   "痢疾",
+   "心煩失眠"
+  ],
+  "category": "絡穴；八脈交會穴（通衝脈）",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SP5",
+  "name": "商丘",
+  "meridianId": "SP",
+  "order": 5,
+  "location": "在踝區，內踝前下方，舟骨粗隆與內踝尖連線中點凹陷中。",
+  "indications": [
+   "腹脹",
+   "泄瀉",
+   "便秘",
+   "黃疸",
+   "足踝痛"
+  ],
+  "category": "經穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SP6",
+  "name": "三陰交",
+  "meridianId": "SP",
+  "order": 6,
+  "location": "在小腿內側，內踝尖上 3 寸，脛骨內側緣後際。",
+  "indications": [
+   "腸鳴腹脹",
+   "泄瀉",
+   "月經不調",
+   "遺精",
+   "失眠",
+   "下肢痿痹"
+  ],
+  "category": "足太陰、足厥陰、足少陰經交會穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SP8",
+  "name": "地機",
+  "meridianId": "SP",
+  "order": 8,
+  "location": "在小腿內側，陰陵泉下 3 寸，脛骨內側緣後際。",
+  "indications": [
+   "痛經",
+   "崩漏",
+   "月經不調",
+   "腹痛",
+   "泄瀉",
+   "水腫"
+  ],
+  "category": "郄穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SP9",
+  "name": "陰陵泉",
+  "meridianId": "SP",
+  "order": 9,
+  "location": "在小腿內側，脛骨內側髁下緣與脛骨內側緣之間的凹陷中。",
+  "indications": [
+   "腹脹",
+   "泄瀉",
+   "水腫",
+   "黃疸",
+   "小便不利",
+   "膝痛"
+  ],
+  "category": "合穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SP10",
+  "name": "血海",
+  "meridianId": "SP",
+  "order": 10,
+  "location": "在股前區，髕底內側端上 2 寸，股內側肌隆起處。",
+  "indications": [
+   "月經不調",
+   "痛經",
+   "經閉",
+   "崩漏",
+   "癮疹",
+   "濕疹"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SP15",
+  "name": "大橫",
+  "meridianId": "SP",
+  "order": 15,
+  "location": "在腹部，臍中旁開 4 寸。",
+  "indications": [
+   "泄瀉",
+   "便秘",
+   "腹痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SP18",
+  "name": "天溪",
+  "meridianId": "SP",
+  "order": 18,
+  "location": "在胸部，第 4 肋間隙，前正中線旁開 6 寸。",
+  "indications": [
+   "胸脅疼痛",
+   "咳嗽",
+   "乳癰",
+   "乳汁少"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SP21",
+  "name": "大包",
+  "meridianId": "SP",
+  "order": 21,
+  "location": "在胸外側區，第 6 肋間隙，在腋中線上。",
+  "indications": [
+   "氣喘",
+   "胸脅痛",
+   "全身疼痛",
+   "四肢無力"
+  ],
+  "category": "脾之大絡",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "HT1",
+  "name": "極泉",
+  "meridianId": "HT",
+  "order": 1,
+  "location": "在腋區，腋窩中央，腋動脈搏動處。",
+  "indications": [
+   "心痛",
+   "心悸",
+   "胸悶氣短",
+   "脅肋疼痛",
+   "肩臂疼痛",
+   "瘰癧"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "HT2",
+  "name": "青靈",
+  "meridianId": "HT",
+  "order": 2,
+  "location": "在臂前區，肘橫紋上 3 寸，肱二頭肌的內側溝中。",
+  "indications": [
+   "頭痛振寒",
+   "脅痛",
+   "肩臂疼痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "HT3",
+  "name": "少海",
+  "meridianId": "HT",
+  "order": 3,
+  "location": "在肘前區，橫平肘橫紋，肱骨內上髁前緣。",
+  "indications": [
+   "心痛",
+   "癔病",
+   "肘臂攣痛",
+   "臂麻手顫",
+   "頭項痛",
+   "瘰癧"
+  ],
+  "category": "合穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "HT4",
+  "name": "靈道",
+  "meridianId": "HT",
+  "order": 4,
+  "location": "在前臂前區，腕掌側遠端橫紋上 1.5 寸，尺側腕屈肌腱的橈側緣。",
+  "indications": [
+   "心痛",
+   "悲恐善笑",
+   "暴瘖",
+   "肘臂攣痛"
+  ],
+  "category": "經穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "HT5",
+  "name": "通里",
+  "meridianId": "HT",
+  "order": 5,
+  "location": "在前臂前區，腕掌側遠端橫紋上 1 寸，尺側腕屈肌腱的橈側緣。",
+  "indications": [
+   "心悸",
+   "怔忡",
+   "舌強不語",
+   "暴瘖",
+   "腕臂痛"
+  ],
+  "category": "絡穴",
+  "nameVariant": "通裡",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "HT6",
+  "name": "陰郄",
+  "meridianId": "HT",
+  "order": 6,
+  "location": "在前臂前區，腕掌側遠端橫紋上 0.5 寸，尺側腕屈肌腱的橈側緣。",
+  "indications": [
+   "心痛",
+   "驚悸",
+   "骨蒸盜汗",
+   "吐血",
+   "衄血",
+   "暴瘖"
+  ],
+  "category": "郄穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "HT7",
+  "name": "神門",
+  "meridianId": "HT",
+  "order": 7,
+  "location": "在腕前區，腕掌側遠端橫紋尺側端，尺側腕屈肌腱的橈側緣。",
+  "indications": [
+   "心痛",
+   "心煩",
+   "驚悸",
+   "健忘",
+   "失眠",
+   "癲狂癇"
+  ],
+  "category": "輸穴；原穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "HT8",
+  "name": "少府",
+  "meridianId": "HT",
+  "order": 8,
+  "location": "在手掌，橫平第 5 掌指關節近端，第 4、5 掌骨之間。",
+  "indications": [
+   "心悸",
+   "胸痛",
+   "陰癢",
+   "陰痛",
+   "小便不利",
+   "手小指拘攣"
+  ],
+  "category": "滎穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "HT9",
+  "name": "少衝",
+  "meridianId": "HT",
+  "order": 9,
+  "location": "在手指，小指末節橈側，指甲根角側上方 0.1 寸（指寸）。",
+  "indications": [
+   "心悸",
+   "心痛",
+   "癲狂",
+   "昏迷",
+   "熱病"
+  ],
+  "category": "井穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SI1",
+  "name": "少澤",
+  "meridianId": "SI",
+  "order": 1,
+  "location": "在手指，小指末節尺側，指甲根角側上方 0.1 寸（指寸）。",
+  "indications": [
+   "乳汁少",
+   "乳癰",
+   "昏迷",
+   "熱病",
+   "頭痛",
+   "咽喉腫痛"
+  ],
+  "category": "井穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SI3",
+  "name": "後溪",
+  "meridianId": "SI",
+  "order": 3,
+  "location": "在手內側，第 5 掌指關節尺側近端赤白肉際凹陷中。",
+  "indications": [
+   "頭項強痛",
+   "腰背痛",
+   "耳聾",
+   "目赤",
+   "癲狂癇",
+   "瘧疾"
+  ],
+  "category": "輸穴；八脈交會穴（通督脈）",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SI4",
+  "name": "腕骨",
+  "meridianId": "SI",
+  "order": 4,
+  "location": "在腕區，第 5 掌骨底與三角骨之間的赤白肉際凹陷中。",
+  "indications": [
+   "指攣腕痛",
+   "頭項強痛",
+   "目翳",
+   "黃疸",
+   "熱病",
+   "瘧疾"
+  ],
+  "category": "原穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SI6",
+  "name": "養老",
+  "meridianId": "SI",
+  "order": 6,
+  "location": "在前臂後區，腕背橫紋上 1 寸，尺骨頭橈側凹陷中。",
+  "indications": [
+   "目視不明",
+   "肩背肘臂酸痛",
+   "急性腰痛"
+  ],
+  "category": "郄穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SI7",
+  "name": "支正",
+  "meridianId": "SI",
+  "order": 7,
+  "location": "在前臂後區，腕背側遠端橫紋上 5 寸，尺骨尺側與尺側腕屈肌之間。",
+  "indications": [
+   "頭痛",
+   "項強",
+   "肘臂酸痛",
+   "熱病",
+   "癲狂",
+   "扁平疣"
+  ],
+  "category": "絡穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SI8",
+  "name": "小海",
+  "meridianId": "SI",
+  "order": 8,
+  "location": "在肘後區，尺骨鷹嘴與肱骨內上髁之間凹陷中。",
+  "indications": [
+   "肘臂疼痛",
+   "麻木",
+   "癲癇"
+  ],
+  "category": "合穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SI9",
+  "name": "肩貞",
+  "meridianId": "SI",
+  "order": 9,
+  "location": "在肩胛區，肩關節後下方，腋後紋頭直上 1 寸。",
+  "indications": [
+   "肩臂疼痛",
+   "上肢不遂",
+   "瘰癧"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SI10",
+  "name": "臑俞",
+  "meridianId": "SI",
+  "order": 10,
+  "location": "在肩胛區，腋後紋頭直上，肩胛岡下緣凹陷中。",
+  "indications": [
+   "肩臂疼痛",
+   "肩不舉",
+   "瘰癧"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SI11",
+  "name": "天宗",
+  "meridianId": "SI",
+  "order": 11,
+  "location": "在肩胛區，肩胛岡中點與肩胛骨下角連線上 1/3 與下 2/3 交點凹陷中。",
+  "indications": [
+   "肩胛疼痛",
+   "肩背部損傷",
+   "氣喘",
+   "乳癰"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SI12",
+  "name": "秉風",
+  "meridianId": "SI",
+  "order": 12,
+  "location": "在肩胛區，肩胛岡中點上方岡上窩中。",
+  "indications": [
+   "肩胛疼痛",
+   "上肢酸麻"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SI18",
+  "name": "顴髎",
+  "meridianId": "SI",
+  "order": 18,
+  "location": "在面部，顴骨下緣，目外眥直下凹陷中。",
+  "indications": [
+   "口眼歪斜",
+   "眼瞼瞤動",
+   "齒痛",
+   "面痛",
+   "三叉神經痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "SI19",
+  "name": "聽宮",
+  "meridianId": "SI",
+  "order": 19,
+  "location": "在面部，耳屏正中與下頜骨髁突之間的凹陷中。",
+  "indications": [
+   "耳鳴",
+   "耳聾",
+   "聤耳",
+   "齒痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL1",
+  "name": "睛明",
+  "meridianId": "BL",
+  "order": 1,
+  "location": "在面部，目內眥內上方眶內側壁凹陷中。",
+  "indications": [
+   "目赤腫痛",
+   "流淚",
+   "視物不明",
+   "近視",
+   "夜盲",
+   "急性腰扭傷"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL2",
+  "name": "攢竹",
+  "meridianId": "BL",
+  "order": 2,
+  "location": "在面部，眉頭凹陷中，額切跡處。",
+  "indications": [
+   "頭痛",
+   "眉棱骨痛",
+   "眼瞼瞤動",
+   "眼瞼下垂",
+   "目視不明",
+   "呃逆"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL10",
+  "name": "天柱",
+  "meridianId": "BL",
+  "order": 10,
+  "location": "在頸後區，橫平第 2 頸椎棘突上際，斜方肌外緣凹陷中。",
+  "indications": [
+   "後頭痛",
+   "項強",
+   "肩背腰痛",
+   "鼻塞",
+   "目痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL11",
+  "name": "大杼",
+  "meridianId": "BL",
+  "order": 11,
+  "location": "在脊柱區，第 1 胸椎棘突下，後正中線旁開 1.5 寸。",
+  "indications": [
+   "咳嗽",
+   "發熱",
+   "項強",
+   "肩背痛"
+  ],
+  "category": "八會穴之骨會",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL12",
+  "name": "風門",
+  "meridianId": "BL",
+  "order": 12,
+  "location": "在脊柱區，第 2 胸椎棘突下，後正中線旁開 1.5 寸。",
+  "indications": [
+   "感冒",
+   "咳嗽",
+   "發熱頭痛",
+   "項強",
+   "胸背痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL13",
+  "name": "肺俞",
+  "meridianId": "BL",
+  "order": 13,
+  "location": "在脊柱區，第 3 胸椎棘突下，後正中線旁開 1.5 寸。",
+  "indications": [
+   "咳嗽",
+   "氣喘",
+   "咯血",
+   "骨蒸潮熱",
+   "盜汗",
+   "鼻塞"
+  ],
+  "category": "肺之背俞穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL14",
+  "name": "厥陰俞",
+  "meridianId": "BL",
+  "order": 14,
+  "location": "在脊柱區，第 4 胸椎棘突下，後正中線旁開 1.5 寸。",
+  "indications": [
+   "心痛",
+   "心悸",
+   "咳嗽",
+   "胸悶",
+   "嘔吐"
+  ],
+  "category": "心包之背俞穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL15",
+  "name": "心俞",
+  "meridianId": "BL",
+  "order": 15,
+  "location": "在脊柱區，第 5 胸椎棘突下，後正中線旁開 1.5 寸。",
+  "indications": [
+   "心痛",
+   "驚悸",
+   "失眠",
+   "健忘",
+   "癲癇",
+   "咳嗽"
+  ],
+  "category": "心之背俞穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL17",
+  "name": "膈俞",
+  "meridianId": "BL",
+  "order": 17,
+  "location": "在脊柱區，第 7 胸椎棘突下，後正中線旁開 1.5 寸。",
+  "indications": [
+   "嘔吐",
+   "呃逆",
+   "氣喘",
+   "吐血",
+   "癮疹",
+   "潮熱盜汗"
+  ],
+  "category": "八會穴之血會",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL18",
+  "name": "肝俞",
+  "meridianId": "BL",
+  "order": 18,
+  "location": "在脊柱區，第 9 胸椎棘突下，後正中線旁開 1.5 寸。",
+  "indications": [
+   "黃疸",
+   "脅痛",
+   "目赤",
+   "目視不明",
+   "夜盲",
+   "癲狂癇"
+  ],
+  "category": "肝之背俞穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL20",
+  "name": "脾俞",
+  "meridianId": "BL",
+  "order": 20,
+  "location": "在脊柱區，第 11 胸椎棘突下，後正中線旁開 1.5 寸。",
+  "indications": [
+   "腹脹",
+   "納呆",
+   "嘔吐",
+   "腹瀉",
+   "水腫",
+   "背痛"
+  ],
+  "category": "脾之背俞穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL21",
+  "name": "胃俞",
+  "meridianId": "BL",
+  "order": 21,
+  "location": "在脊柱區，第 12 胸椎棘突下，後正中線旁開 1.5 寸。",
+  "indications": [
+   "胃脘痛",
+   "嘔吐",
+   "腹脹",
+   "腸鳴"
+  ],
+  "category": "胃之背俞穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL23",
+  "name": "腎俞",
+  "meridianId": "BL",
+  "order": 23,
+  "location": "在脊柱區，第 2 腰椎棘突下，後正中線旁開 1.5 寸。",
+  "indications": [
+   "腰痛",
+   "遺尿",
+   "遺精",
+   "陽痿",
+   "月經不調",
+   "耳鳴"
+  ],
+  "category": "腎之背俞穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL25",
+  "name": "大腸俞",
+  "meridianId": "BL",
+  "order": 25,
+  "location": "在脊柱區，第 4 腰椎棘突下，後正中線旁開 1.5 寸。",
+  "indications": [
+   "腹脹",
+   "泄瀉",
+   "便秘",
+   "腰痛"
+  ],
+  "category": "大腸之背俞穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL40",
+  "name": "委中",
+  "meridianId": "BL",
+  "order": 40,
+  "location": "在膝後區，膕橫紋中點。",
+  "indications": [
+   "腰背痛",
+   "下肢痿痹",
+   "腹痛",
+   "急性吐瀉",
+   "小便不利",
+   "丹毒"
+  ],
+  "category": "合穴；膀胱之下合穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL43",
+  "name": "膏肓",
+  "meridianId": "BL",
+  "order": 43,
+  "location": "在脊柱區，第 4 胸椎棘突下，後正中線旁開 3 寸。",
+  "indications": [
+   "咳嗽",
+   "氣喘",
+   "肺癆",
+   "健忘",
+   "遺精",
+   "肩胛痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL52",
+  "name": "志室",
+  "meridianId": "BL",
+  "order": 52,
+  "location": "在腰區，第 2 腰椎棘突下，後正中線旁開 3 寸。",
+  "indications": [
+   "遺精",
+   "陽痿",
+   "小便不利",
+   "水腫",
+   "腰脊強痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL57",
+  "name": "承山",
+  "meridianId": "BL",
+  "order": 57,
+  "location": "在小腿後區，腓腸肌兩肌腹與肌腱交角處。",
+  "indications": [
+   "腰腿拘急疼痛",
+   "痔疾",
+   "便秘",
+   "腳氣"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL60",
+  "name": "崑崙",
+  "meridianId": "BL",
+  "order": 60,
+  "location": "在踝區，外踝尖與跟腱之間的凹陷中。",
+  "indications": [
+   "後頭痛",
+   "項強",
+   "腰骶疼痛",
+   "足踝腫痛",
+   "癲癇",
+   "滯產"
+  ],
+  "category": "經穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL62",
+  "name": "申脈",
+  "meridianId": "BL",
+  "order": 62,
+  "location": "在踝區，外踝尖直下，外踝下緣與跟骨之間凹陷中。",
+  "indications": [
+   "頭痛",
+   "眩暈",
+   "失眠",
+   "癲狂癇",
+   "腰腿酸痛"
+  ],
+  "category": "八脈交會穴（通陽蹻脈）",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "BL67",
+  "name": "至陰",
+  "meridianId": "BL",
+  "order": 67,
+  "location": "在足趾，小趾末節外側，趾甲根角側後方 0.1 寸（指寸）。",
+  "indications": [
+   "胎位不正",
+   "滯產",
+   "頭痛",
+   "目痛",
+   "鼻塞",
+   "鼻衄"
+  ],
+  "category": "井穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "KI1",
+  "name": "湧泉",
+  "meridianId": "KI",
+  "order": 1,
+  "location": "在足底，屈足卷趾時足心最凹陷中。",
+  "indications": [
+   "昏厥",
+   "中暑",
+   "癲癇",
+   "頭痛",
+   "失眠",
+   "便秘"
+  ],
+  "category": "井穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "KI2",
+  "name": "然谷",
+  "meridianId": "KI",
+  "order": 2,
+  "location": "在足內側，足舟骨粗隆下方，赤白肉際處。",
+  "indications": [
+   "月經不調",
+   "陰挺",
+   "遺精",
+   "消渴",
+   "泄瀉",
+   "小兒臍風"
+  ],
+  "category": "滎穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "KI3",
+  "name": "太溪",
+  "meridianId": "KI",
+  "order": 3,
+  "location": "在踝區，內踝尖與跟腱之間的凹陷中。",
+  "indications": [
+   "頭痛",
+   "耳鳴",
+   "咽喉腫痛",
+   "失眠",
+   "遺精",
+   "腰脊痛"
+  ],
+  "category": "輸穴；原穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "KI4",
+  "name": "大鐘",
+  "meridianId": "KI",
+  "order": 4,
+  "location": "在跟區，內踝後下方，跟骨上緣，跟腱附著部前緣凹陷中。",
+  "indications": [
+   "癃閉",
+   "遺尿",
+   "咯血",
+   "氣喘",
+   "痴呆",
+   "足跟痛"
+  ],
+  "category": "絡穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "KI5",
+  "name": "水泉",
+  "meridianId": "KI",
+  "order": 5,
+  "location": "在跟區，太溪直下 1 寸，跟骨結節內側凹陷中。",
+  "indications": [
+   "月經不調",
+   "痛經",
+   "小便不利",
+   "腹痛"
+  ],
+  "category": "郄穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "KI6",
+  "name": "照海",
+  "meridianId": "KI",
+  "order": 6,
+  "location": "在踝區，內踝尖下 1 寸，內踝下緣邊際凹陷中。",
+  "indications": [
+   "失眠",
+   "癲癇",
+   "咽喉乾痛",
+   "目赤腫痛",
+   "月經不調",
+   "小便頻數"
+  ],
+  "category": "八脈交會穴（通陰蹻脈）",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "KI7",
+  "name": "復溜",
+  "meridianId": "KI",
+  "order": 7,
+  "location": "在小腿內側，內踝尖上 2 寸，跟腱的前緣。",
+  "indications": [
+   "水腫",
+   "腹脹",
+   "腹瀉",
+   "盜汗",
+   "熱病無汗",
+   "下肢痿痹"
+  ],
+  "category": "經穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "KI8",
+  "name": "交信",
+  "meridianId": "KI",
+  "order": 8,
+  "location": "在小腿內側，內踝尖上 2 寸，脛骨內側緣後際凹陷中。",
+  "indications": [
+   "月經不調",
+   "崩漏",
+   "陰挺",
+   "泄瀉",
+   "便秘"
+  ],
+  "category": "陰蹻脈郄穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "KI9",
+  "name": "築賓",
+  "meridianId": "KI",
+  "order": 9,
+  "location": "在小腿內側，太溪直上 5 寸，比目魚肌與跟腱之間。",
+  "indications": [
+   "癲狂",
+   "嘔吐",
+   "疝氣",
+   "小腿內側痛"
+  ],
+  "category": "陰維脈郄穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "KI10",
+  "name": "陰谷",
+  "meridianId": "KI",
+  "order": 10,
+  "location": "在膝後區，膕橫紋上，半腱肌肌腱外側緣。",
+  "indications": [
+   "癲狂",
+   "陽痿",
+   "月經不調",
+   "崩漏",
+   "小便不利",
+   "膝股內側痛"
+  ],
+  "category": "合穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "KI16",
+  "name": "肓俞",
+  "meridianId": "KI",
+  "order": 16,
+  "location": "在腹部，臍中旁開 0.5 寸。",
+  "indications": [
+   "腹痛",
+   "腹脹",
+   "腹瀉",
+   "便秘",
+   "月經不調",
+   "疝氣"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "KI23",
+  "name": "神封",
+  "meridianId": "KI",
+  "order": 23,
+  "location": "在胸部，第 4 肋間隙，前正中線旁開 2 寸。",
+  "indications": [
+   "咳嗽",
+   "氣喘",
+   "胸脅支滿",
+   "乳癰",
+   "嘔吐"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "KI27",
+  "name": "俞府",
+  "meridianId": "KI",
+  "order": 27,
+  "location": "在胸部，鎖骨下緣，前正中線旁開 2 寸。",
+  "indications": [
+   "咳嗽",
+   "氣喘",
+   "胸痛",
+   "嘔吐"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "PC1",
+  "name": "天池",
+  "meridianId": "PC",
+  "order": 1,
+  "location": "在胸部，第 4 肋間隙，前正中線旁開 5 寸。",
+  "indications": [
+   "咳嗽",
+   "痰多",
+   "胸悶",
+   "氣喘",
+   "胸痛",
+   "乳癰"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "PC2",
+  "name": "天泉",
+  "meridianId": "PC",
+  "order": 2,
+  "location": "在臂前區，腋前紋頭下 2 寸，肱二頭肌的長、短頭之間。",
+  "indications": [
+   "心痛",
+   "咳嗽",
+   "胸脅脹滿",
+   "胸背及上臂內側痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "PC3",
+  "name": "曲澤",
+  "meridianId": "PC",
+  "order": 3,
+  "location": "在肘前區，肘橫紋上，肱二頭肌腱的尺側緣凹陷中。",
+  "indications": [
+   "心痛",
+   "善驚",
+   "嘔血",
+   "暑熱病",
+   "肘臂攣痛"
+  ],
+  "category": "合穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "PC4",
+  "name": "郄門",
+  "meridianId": "PC",
+  "order": 4,
+  "location": "在前臂前區，腕掌側遠端橫紋上 5 寸，掌長肌腱與橈側腕屈肌腱之間。",
+  "indications": [
+   "急性心痛",
+   "心悸",
+   "心煩",
+   "咯血",
+   "嘔血",
+   "疔瘡"
+  ],
+  "category": "郄穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "PC5",
+  "name": "間使",
+  "meridianId": "PC",
+  "order": 5,
+  "location": "在前臂前區，腕掌側遠端橫紋上 3 寸，掌長肌腱與橈側腕屈肌腱之間。",
+  "indications": [
+   "心痛",
+   "心悸",
+   "胃痛",
+   "熱病",
+   "瘧疾",
+   "癲狂癇"
+  ],
+  "category": "經穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "PC6",
+  "name": "內關",
+  "meridianId": "PC",
+  "order": 6,
+  "location": "在前臂前區，腕掌側遠端橫紋上 2 寸，掌長肌腱與橈側腕屈肌腱之間。",
+  "indications": [
+   "心悸",
+   "胸悶",
+   "嘔吐",
+   "呃逆",
+   "失眠",
+   "上肢痹痛"
+  ],
+  "category": "絡穴；八脈交會穴（通陰維脈）",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "PC7",
+  "name": "大陵",
+  "meridianId": "PC",
+  "order": 7,
+  "location": "在腕前區，腕掌側遠端橫紋中，掌長肌腱與橈側腕屈肌腱之間。",
+  "indications": [
+   "心痛",
+   "喜笑悲恐",
+   "胃痛",
+   "嘔吐",
+   "手腕麻痛"
+  ],
+  "category": "輸穴；原穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "PC8",
+  "name": "勞宮",
+  "meridianId": "PC",
+  "order": 8,
+  "location": "在掌區，橫平第 3 掌指關節近端，第 2、3 掌骨之間偏於第 3 掌骨。",
+  "indications": [
+   "中風昏迷",
+   "中暑",
+   "心痛",
+   "口瘡",
+   "口臭",
+   "鵝掌風"
+  ],
+  "category": "滎穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "PC9",
+  "name": "中衝",
+  "meridianId": "PC",
+  "order": 9,
+  "location": "在手指，中指末端最高點。",
+  "indications": [
+   "中風昏迷",
+   "昏厥",
+   "小兒驚風",
+   "熱病",
+   "舌強腫痛"
+  ],
+  "category": "井穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "TE1",
+  "name": "關衝",
+  "meridianId": "TE",
+  "order": 1,
+  "location": "在手指，第 4 指末節尺側，指甲根角側上方 0.1 寸（指寸）。",
+  "indications": [
+   "頭痛",
+   "目赤",
+   "耳聾",
+   "咽喉腫痛",
+   "熱病",
+   "昏厥"
+  ],
+  "category": "井穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "TE2",
+  "name": "液門",
+  "meridianId": "TE",
+  "order": 2,
+  "location": "在手背，第 4、5 指間，指蹼緣上方赤白肉際凹陷中。",
+  "indications": [
+   "頭痛",
+   "目赤",
+   "耳鳴",
+   "耳聾",
+   "喉痹",
+   "瘧疾"
+  ],
+  "category": "滎穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "TE3",
+  "name": "中渚",
+  "meridianId": "TE",
+  "order": 3,
+  "location": "在手背，第 4、5 掌骨間，第 4 掌指關節近端凹陷中。",
+  "indications": [
+   "頭痛",
+   "目赤",
+   "耳鳴",
+   "耳聾",
+   "熱病",
+   "手指不能屈伸"
+  ],
+  "category": "輸穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "TE4",
+  "name": "陽池",
+  "meridianId": "TE",
+  "order": 4,
+  "location": "在腕後區，腕背側遠端橫紋上，指伸肌腱的尺側緣凹陷中。",
+  "indications": [
+   "目赤腫痛",
+   "耳聾",
+   "喉痹",
+   "消渴",
+   "口乾",
+   "腕痛"
+  ],
+  "category": "原穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "TE5",
+  "name": "外關",
+  "meridianId": "TE",
+  "order": 5,
+  "location": "在前臂後區，腕背側遠端橫紋上 2 寸，尺骨與橈骨間隙中點。",
+  "indications": [
+   "熱病",
+   "頭痛",
+   "目赤腫痛",
+   "耳鳴",
+   "脅肋痛",
+   "上肢痹痛"
+  ],
+  "category": "絡穴；八脈交會穴（通陽維脈）",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "TE6",
+  "name": "支溝",
+  "meridianId": "TE",
+  "order": 6,
+  "location": "在前臂後區，腕背側遠端橫紋上 3 寸，尺骨與橈骨間隙中點。",
+  "indications": [
+   "便秘",
+   "耳鳴",
+   "耳聾",
+   "暴瘖",
+   "脅肋痛",
+   "熱病"
+  ],
+  "category": "經穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "TE7",
+  "name": "會宗",
+  "meridianId": "TE",
+  "order": 7,
+  "location": "在前臂後區，腕背側遠端橫紋上 3 寸，尺骨的橈側緣。",
+  "indications": [
+   "耳聾",
+   "癲癇",
+   "上肢痹痛"
+  ],
+  "category": "郄穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "TE10",
+  "name": "天井",
+  "meridianId": "TE",
+  "order": 10,
+  "location": "在肘後區，肘尖上 1 寸凹陷中。",
+  "indications": [
+   "偏頭痛",
+   "耳聾",
+   "癲癇",
+   "瘰癧",
+   "肘臂痛"
+  ],
+  "category": "合穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "TE14",
+  "name": "肩髎",
+  "meridianId": "TE",
+  "order": 14,
+  "location": "在三角肌區，肩峰角與肱骨大結節兩骨間凹陷中。",
+  "indications": [
+   "肩臂攣痛",
+   "肩重不舉"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "TE17",
+  "name": "翳風",
+  "meridianId": "TE",
+  "order": 17,
+  "location": "在頸部，耳垂後方，乳突下端前方凹陷中。",
+  "indications": [
+   "耳鳴",
+   "耳聾",
+   "口眼歪斜",
+   "牙關緊閉",
+   "頰腫",
+   "瘰癧"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "TE21",
+  "name": "耳門",
+  "meridianId": "TE",
+  "order": 21,
+  "location": "在耳區，耳屏上切跡與下頜骨髁突之間的凹陷中。",
+  "indications": [
+   "耳鳴",
+   "耳聾",
+   "聤耳",
+   "齒痛",
+   "頸頷痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "TE23",
+  "name": "絲竹空",
+  "meridianId": "TE",
+  "order": 23,
+  "location": "在面部，眉梢凹陷中。",
+  "indications": [
+   "頭痛",
+   "目赤腫痛",
+   "眼瞼瞤動",
+   "齒痛",
+   "癲癇"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB1",
+  "name": "瞳子髎",
+  "meridianId": "GB",
+  "order": 1,
+  "location": "在面部，目外眥外側 0.5 寸凹陷中。",
+  "indications": [
+   "頭痛",
+   "目赤腫痛",
+   "羞明流淚",
+   "目翳",
+   "口眼歪斜"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB2",
+  "name": "聽會",
+  "meridianId": "GB",
+  "order": 2,
+  "location": "在面部，耳屏間切跡與下頜骨髁突之間的凹陷中。",
+  "indications": [
+   "耳鳴",
+   "耳聾",
+   "聤耳",
+   "齒痛",
+   "口眼歪斜"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB8",
+  "name": "率谷",
+  "meridianId": "GB",
+  "order": 8,
+  "location": "在頭部，耳尖直上入髮際 1.5 寸。",
+  "indications": [
+   "偏頭痛",
+   "眩暈",
+   "小兒急慢驚風"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB14",
+  "name": "陽白",
+  "meridianId": "GB",
+  "order": 14,
+  "location": "在頭部，眉上 1 寸，瞳孔直上。",
+  "indications": [
+   "前頭痛",
+   "目痛",
+   "視物模糊",
+   "眼瞼瞤動",
+   "眼瞼下垂",
+   "口眼歪斜"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB20",
+  "name": "風池",
+  "meridianId": "GB",
+  "order": 20,
+  "location": "在頸後區，枕骨之下，胸鎖乳突肌上端與斜方肌上端之間的凹陷中。",
+  "indications": [
+   "頭痛",
+   "眩暈",
+   "失眠",
+   "目赤腫痛",
+   "鼻塞",
+   "頸項強痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB21",
+  "name": "肩井",
+  "meridianId": "GB",
+  "order": 21,
+  "location": "在肩胛區，第 7 頸椎棘突與肩峰最外側點連線的中點。",
+  "indications": [
+   "頸項強痛",
+   "肩背疼痛",
+   "上肢不遂",
+   "難產",
+   "乳癰",
+   "乳汁不下"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB24",
+  "name": "日月",
+  "meridianId": "GB",
+  "order": 24,
+  "location": "在胸部，第 7 肋間隙中，前正中線旁開 4 寸。",
+  "indications": [
+   "黃疸",
+   "脅肋疼痛",
+   "嘔吐",
+   "吞酸",
+   "呃逆"
+  ],
+  "category": "膽之募穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB25",
+  "name": "京門",
+  "meridianId": "GB",
+  "order": 25,
+  "location": "在上腹部，第 12 肋骨游離端的下際。",
+  "indications": [
+   "小便不利",
+   "水腫",
+   "腹脹",
+   "泄瀉",
+   "腰痛",
+   "脅痛"
+  ],
+  "category": "腎之募穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB26",
+  "name": "帶脈",
+  "meridianId": "GB",
+  "order": 26,
+  "location": "在側腹部，第 11 肋骨游離端垂線與臍水平線的交點上。",
+  "indications": [
+   "月經不調",
+   "帶下",
+   "經閉",
+   "疝氣",
+   "腰脅痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB30",
+  "name": "環跳",
+  "meridianId": "GB",
+  "order": 30,
+  "location": "在臀區，股骨大轉子最凸點與骶管裂孔連線上的外 1/3 與內 2/3 交點處。",
+  "indications": [
+   "腰胯疼痛",
+   "下肢痿痹",
+   "半身不遂"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB31",
+  "name": "風市",
+  "meridianId": "GB",
+  "order": 31,
+  "location": "在股部，直立垂手，掌心貼於大腿時，中指尖所指凹陷中，髂脛束後緣。",
+  "indications": [
+   "下肢痿痹",
+   "遍身瘙癢",
+   "腳氣"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB34",
+  "name": "陽陵泉",
+  "meridianId": "GB",
+  "order": 34,
+  "location": "在小腿外側，腓骨頭前下方凹陷中。",
+  "indications": [
+   "黃疸",
+   "脅痛",
+   "口苦",
+   "嘔吐",
+   "下肢痿痹",
+   "膝腫痛"
+  ],
+  "category": "合穴；膽之下合穴；八會穴之筋會",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB37",
+  "name": "光明",
+  "meridianId": "GB",
+  "order": 37,
+  "location": "在小腿外側，外踝尖上 5 寸，腓骨前緣。",
+  "indications": [
+   "目痛",
+   "夜盲",
+   "近視",
+   "乳房脹痛",
+   "下肢痿痹"
+  ],
+  "category": "絡穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB39",
+  "name": "懸鐘",
+  "meridianId": "GB",
+  "order": 39,
+  "location": "在小腿外側，外踝尖上 3 寸，腓骨前緣。",
+  "indications": [
+   "頸項強痛",
+   "偏頭痛",
+   "咽喉腫痛",
+   "脅痛",
+   "下肢痿痹",
+   "痴呆"
+  ],
+  "category": "八會穴之髓會",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB40",
+  "name": "丘墟",
+  "meridianId": "GB",
+  "order": 40,
+  "location": "在踝區，外踝的前下方，趾長伸肌腱的外側凹陷中。",
+  "indications": [
+   "目赤腫痛",
+   "頸項痛",
+   "脅肋痛",
+   "外踝腫痛",
+   "下肢痿痹"
+  ],
+  "category": "原穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB41",
+  "name": "足臨泣",
+  "meridianId": "GB",
+  "order": 41,
+  "location": "在足背，第 4、5 蹠骨底結合部的前方，第 5 趾長伸肌腱外側凹陷中。",
+  "indications": [
+   "偏頭痛",
+   "目赤腫痛",
+   "脅肋疼痛",
+   "乳癰",
+   "月經不調",
+   "足跗腫痛"
+  ],
+  "category": "輸穴；八脈交會穴（通帶脈）",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "GB44",
+  "name": "足竅陰",
+  "meridianId": "GB",
+  "order": 44,
+  "location": "在足趾，第 4 趾末節外側，趾甲根角側後方 0.1 寸（指寸）。",
+  "indications": [
+   "頭痛",
+   "目赤腫痛",
+   "耳聾",
+   "咽喉腫痛",
+   "熱病",
+   "失眠"
+  ],
+  "category": "井穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR1",
+  "name": "大敦",
+  "meridianId": "LR",
+  "order": 1,
+  "location": "在足趾，大趾末節外側，趾甲根角側後方 0.1 寸（指寸）。",
+  "indications": [
+   "疝氣",
+   "遺尿",
+   "癃閉",
+   "經閉",
+   "崩漏",
+   "癇證"
+  ],
+  "category": "井穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR2",
+  "name": "行間",
+  "meridianId": "LR",
+  "order": 2,
+  "location": "在足背，第 1、2 趾間，趾蹼緣後方赤白肉際處。",
+  "indications": [
+   "頭痛",
+   "目眩",
+   "目赤腫痛",
+   "口歪",
+   "月經過多",
+   "脅肋疼痛"
+  ],
+  "category": "滎穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR3",
+  "name": "太衝",
+  "meridianId": "LR",
+  "order": 3,
+  "location": "在足背，第 1、2 蹠骨間，蹠骨底結合部前方凹陷中，或觸及動脈搏動。",
+  "indications": [
+   "頭痛",
+   "眩暈",
+   "目赤腫痛",
+   "脅痛",
+   "月經不調",
+   "癲癇"
+  ],
+  "category": "輸穴；原穴",
+  "nameVariant": "太沖",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR4",
+  "name": "中封",
+  "meridianId": "LR",
+  "order": 4,
+  "location": "在踝區，內踝前，脛骨前肌肌腱的內側緣凹陷中。",
+  "indications": [
+   "疝氣",
+   "遺精",
+   "小便不利",
+   "腰痛",
+   "少腹痛",
+   "內踝腫痛"
+  ],
+  "category": "經穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR5",
+  "name": "蠡溝",
+  "meridianId": "LR",
+  "order": 5,
+  "location": "在小腿內側，內踝尖上 5 寸，脛骨內側面的中央。",
+  "indications": [
+   "月經不調",
+   "帶下",
+   "陰挺",
+   "陰癢",
+   "小便不利",
+   "疝氣"
+  ],
+  "category": "絡穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR6",
+  "name": "中都",
+  "meridianId": "LR",
+  "order": 6,
+  "location": "在小腿內側，內踝尖上 7 寸，脛骨內側面的中央。",
+  "indications": [
+   "疝氣",
+   "小腹痛",
+   "崩漏",
+   "惡露不盡",
+   "泄瀉"
+  ],
+  "category": "郄穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR7",
+  "name": "膝關",
+  "meridianId": "LR",
+  "order": 7,
+  "location": "在膝部，脛骨內側髁的下方，陰陵泉後 1 寸。",
+  "indications": [
+   "膝髕腫痛",
+   "下肢痿痹"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR8",
+  "name": "曲泉",
+  "meridianId": "LR",
+  "order": 8,
+  "location": "在膝部，膕橫紋內側端，半腱肌肌腱內緣凹陷中。",
+  "indications": [
+   "月經不調",
+   "痛經",
+   "帶下",
+   "陰挺",
+   "小便不利",
+   "膝髕腫痛"
+  ],
+  "category": "合穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR9",
+  "name": "陰包",
+  "meridianId": "LR",
+  "order": 9,
+  "location": "在股前區，髕底上 4 寸，股薄肌與縫匠肌之間。",
+  "indications": [
+   "月經不調",
+   "小便不利",
+   "遺尿",
+   "腰骶痛引少腹"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR10",
+  "name": "足五里",
+  "meridianId": "LR",
+  "order": 10,
+  "location": "在股前區，氣衝直下 3 寸，動脈搏動處。",
+  "indications": [
+   "少腹痛",
+   "小便不通",
+   "陰挺",
+   "睪丸腫痛",
+   "瘰癧"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR11",
+  "name": "陰廉",
+  "meridianId": "LR",
+  "order": 11,
+  "location": "在股前區，氣衝直下 2 寸。",
+  "indications": [
+   "月經不調",
+   "帶下",
+   "少腹痛"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR12",
+  "name": "急脈",
+  "meridianId": "LR",
+  "order": 12,
+  "location": "在腹股溝區，橫平恥骨聯合上緣，前正中線旁開 2.5 寸。",
+  "indications": [
+   "少腹痛",
+   "疝氣",
+   "陰挺"
+  ],
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR13",
+  "name": "章門",
+  "meridianId": "LR",
+  "order": 13,
+  "location": "在側腹部，第 11 肋游離端的下際。",
+  "indications": [
+   "腹痛",
+   "腹脹",
+   "腸鳴",
+   "泄瀉",
+   "嘔吐",
+   "脅痛"
+  ],
+  "category": "脾之募穴；八會穴之臟會",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ },
+ {
+  "code": "LR14",
+  "name": "期門",
+  "meridianId": "LR",
+  "order": 14,
+  "location": "在胸部，第 6 肋間隙，前正中線旁開 4 寸。",
+  "indications": [
+   "胸脅脹痛",
+   "嘔吐",
+   "吞酸",
+   "呃逆",
+   "腹脹",
+   "乳癰"
+  ],
+  "category": "肝之募穴",
+  "source": "GB/T 12346-2021《經穴名稱與定位》；《經絡腧穴學》（全國中醫藥行業高等教育規劃教材）",
+  "reviewed": false
+ }
 ]

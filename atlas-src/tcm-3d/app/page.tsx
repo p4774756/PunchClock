@@ -184,7 +184,19 @@ export default function Home(){
  const closeQuest=useCallback(()=>{setQuestOpen(false);setSimulation(s=>({...s,meridianFilter:'all',dragging:false,running:false}));},[]);
  const onQuestPlaying=useCallback((active:boolean,_id:MeridianQuestId|null)=>{setQuestPlaying(active);if(active)pause('經絡闖關進行中。');},[pause]);
  const onQuestMeridian=useCallback((id:MeridianQuestId|null)=>{setSimulation(s=>({...s,meridianFilter:id??'all',showPoints:true,dragging:false,running:false,customTarget:null}));},[]);
- const onQuestHint=useCallback((code:string|null)=>{if(!code)return;setSimulation(s=>({...s,pointCode:code,side:1,focus:s.focus+1,pickMode:'point',customTarget:null}));},[]);
+ const onQuestHint=useCallback((answerCode:string|null)=>{
+  if(!answerCode)return;
+  const target=POINT_BY_CODE.get(answerCode);
+  if(!target)return;
+  const proxy=POINTS.find(p=>avatarCodes.has(p.code)&&p.code!==answerCode&&p.region===target.region);
+  if(proxy){
+   setSimulation(s=>({...s,pointCode:proxy.code,side:1,focus:s.focus+1,pickMode:'point',customTarget:null}));
+   return;
+  }
+  setSimulation(s=>({...s,pointCode:null,focus:s.focus+1,customTarget:null}));
+  const view=target.region==='head'?'front':target.region==='waist'?'back':'three-quarter';
+  setState(s=>({...s,view,rotate:false,reset:s.reset+1}));
+ },[avatarCodes]);
  const onQuestHighlight=useCallback((code:string|null)=>{if(!code)return;setSimulation(s=>({...s,pointCode:code,side:1,focus:s.focus+1,pickMode:'point',customTarget:null}));},[]);
  const onQuestPracticeOutfit=useCallback(()=>{if(outfitId!=='study-body')switchOutfit('study-body');},[outfitId]);
 

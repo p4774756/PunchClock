@@ -1,8 +1,11 @@
 import raw from './quest-points.json';
+import anime from '../anime-points.json';
 import {POINT_BY_CODE} from '../teaching';
 import {ANIME_SUPPORTED_CODES} from '../character-mode';
 import type {MeridianQuestId,QuestPointRecord} from './types';
 import {QUEST_STAGE_ORDER} from './quest-stages';
+
+const ANIME_META=new Map(anime.points.map(p=>[p.code,p]));
 
 export const QUEST_POINTS=raw as QuestPointRecord[];
 export const QUEST_BY_CODE=new Map(QUEST_POINTS.map(p=>[p.code,p]));
@@ -34,4 +37,8 @@ export function questAvatarLocateCodes(meridianId:MeridianQuestId):string[]{
 
 export function isIndicationEligible(point:QuestPointRecord):boolean{
  return !point.uncertain&&point.indications.length>=2;
+}
+
+export function questAvatarTrunkLocate(code:string):boolean{
+ return ANIME_META.get(code)?.set==='trunk-30';
 }
