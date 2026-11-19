@@ -396,9 +396,11 @@ export function createInterior(THREE, opts) {
     ctx.font = 'bold 52px "Noto Sans TC","PingFang TC",sans-serif';
     ctx.fillText('↓ 經絡研習室（銅人在這）', canvas.width / 2, canvas.height / 2);
   });
-  const guideY = ground + 3.05;
-  const studyGuide = plaque(2.35, 0.48, 0, guideY, northZ - 0.22, guideTex);
-  studyGuide.rotation.x = -0.08;
+  // 大廳內面向南門進館鏡頭，避開北牆門楣匾疊字
+  const guideY = ground + 2.12;
+  const guideZ = 8.35;
+  const studyGuide = plaque(2.5, 0.52, 0, guideY, guideZ, guideTex);
+  studyGuide.rotation.y = Math.PI;
 
   let glowPhase = 0;
 
@@ -410,7 +412,7 @@ export function createInterior(THREE, opts) {
       const base = glowMats[i].userData.dayE || 0.4;
       glowMats[i].emissiveIntensity = base * pulse;
     }
-    studyGuide.position.y = guideY + 0.1 * Math.sin(glowPhase * 1.65);
+    studyGuide.position.y = guideY + 0.08 * Math.sin(glowPhase * 1.65);
     return null;
   }
 

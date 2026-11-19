@@ -677,6 +677,17 @@ export function labInteriorFramingOk(aspect, viewportHeightPx, room) {
 /** 進門瞬間沿鏡頭注視方向的最小深度（避開近平面／鏡頭後方）。 */
 export const INTERIOR_ENTRY_MIN_VIEW_DIST = 1.2;
 
+/** 進門第一幀：胸口、頭、腳 NDC 須在畫面內（與預設進門鏡頭一致）。 */
+export function interiorEntrySpawnNdcInFrame(chest, head, feet) {
+  if (!chest || !head || !feet) return false;
+  if (chest.vz <= 0.02 || head.vz <= 0.02 || feet.vz <= 0.02) return false;
+  if (Math.abs(chest.x) > 0.8) return false;
+  if (chest.y < -0.7 || chest.y > 0.5) return false;
+  if (head.y > 0.82) return false;
+  if (feet.y < -0.95) return false;
+  return true;
+}
+
 export function interiorSpawnAlongViewDistance(eye, look, px, pz, chestY) {
   if (!eye || !look) return -1;
   const cy = chestY == null ? LAB_INTERIOR_PLAYER_CHEST_Y : chestY;
@@ -726,8 +737,7 @@ export function interiorSpawnHitsEntryZone(spawn, room) {
 }
 
 /**
- * 預設進門鏡頭下出生點：可站、不踩互動區、在鏡頭前方且沿視線深度足夠。
- * 研發樓沿用 labInteriorFramingOk（含 NDC）。
+ * 預設進門鏡頭下出生點：可站、不踩互動區、在鏡頭前方、沿視線深度足夠且角色 NDC 入畫。
  */
 export function interiorEntrySpawnOk(room, aspect, opts) {
   const radius = opts && opts.radius != null ? opts.radius : 0.29;
@@ -737,11 +747,6 @@ export function interiorEntrySpawnOk(room, aspect, opts) {
   if (!interiorCanStand(spawn.x, spawn.z, room, radius)) return false;
   if (interiorSpawnHitsEntryZone(spawn, room)) return false;
 
-  if (room.id === 'lab-room') {
-    const vh = aspect < 0.72 ? 844 : (aspect > 1.72 ? 900 : 720);
-    return labInteriorFramingOk(aspect, vh, room);
-  }
-
   const eye = interiorEntryCameraEye(room, aspect);
   const look = interiorEntryLookTarget(room, aspect);
   if (!eye || !look) return false;
@@ -750,10 +755,13 @@ export function interiorEntrySpawnOk(room, aspect, opts) {
   const chest = interiorProjectNdcFromEye(
     eye, look, spawn.x, LAB_INTERIOR_PLAYER_CHEST_Y, spawn.z, aspect
   );
+  const head = interiorProjectNdcFromEye(
+    eye, look, spawn.x, LAB_INTERIOR_PLAYER_HEAD_Y, spawn.z, aspect
+  );
   const feet = interiorProjectNdcFromEye(
     eye, look, spawn.x, LAB_INTERIOR_PLAYER_FEET_Y, spawn.z, aspect
   );
-  return chest.vz > 0.02 && feet.vz > 0.02;
+  return interiorEntrySpawnNdcInFrame(chest, head, feet);
 }
 
 export function shouldShowInteriorLeave(ctx) {
@@ -797,7 +805,7 @@ export const INTERIORS = Object.freeze([
   Object.freeze({
     id: 'shop-room',
     buildingId: 'shop',
-    spawn: Object.freeze({ x: 0, z: 3.2, yaw: 0 }),
+    spawn: Object.freeze({ x: 0, z: 6.1, yaw: 0 }),
     exit: Object.freeze({ x: 0, z: -1.35, r: 0.58, label: '離開神之島' }),
     outside: Object.freeze({ x: -3.86, z: -1.4, yaw: -Math.PI / 2 }),
     floor: Object.freeze({ minX: -8.0, maxX: 8.0, minZ: -2.0, maxZ: 10.0 }),
@@ -813,7 +821,7 @@ export const INTERIORS = Object.freeze([
   Object.freeze({
     id: 'lab-room',
     buildingId: 'computer-site',
-    spawn: Object.freeze({ x: 0.15, z: 1.08, yaw: Math.PI }),
+    spawn: Object.freeze({ x: 0.15, z: 3.5, yaw: Math.PI }),
     exit: Object.freeze({ x: -1.5, z: -1.45, r: 0.58, label: '離開研發樓' }),
     outside: Object.freeze({ x: 0.45, z: 14.82, yaw: Math.PI }),
     floor: Object.freeze({ minX: -8.5, maxX: 8.5, minZ: -1.8, maxZ: 12.2 }),
@@ -833,7 +841,7 @@ export const INTERIORS = Object.freeze([
   Object.freeze({
     id: 'casino-room',
     buildingId: 'casino',
-    spawn: Object.freeze({ x: 0, z: 3.2, yaw: 0 }),
+    spawn: Object.freeze({ x: 0, z: 7.0, yaw: 0 }),
     exit: Object.freeze({ x: 0, z: -1.4, r: 0.55, label: '離開賭場' }),
     outside: Object.freeze({ x: 13.12, z: -7.35, yaw: Math.PI / 2 }),
     floor: Object.freeze({ minX: -8.5, maxX: 8.5, minZ: -2.0, maxZ: 14.0 }),
@@ -852,7 +860,7 @@ export const INTERIORS = Object.freeze([
   Object.freeze({
     id: 'tcm-room',
     buildingId: 'tcm-site',
-    spawn: Object.freeze({ x: 0, z: 3.2, yaw: 0 }),
+    spawn: Object.freeze({ x: 0, z: 6.5, yaw: 0 }),
     exit: Object.freeze({ x: 0, z: -1.4, r: 0.55, label: '離開推拿館' }),
     outside: Object.freeze((() => {
       const pose = tcmReturnPose();

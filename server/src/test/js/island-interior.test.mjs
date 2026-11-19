@@ -174,7 +174,7 @@ test('進入放到室內出生點，離開放到門前並面向離開建物', ()
 
 test('室內原點在鏡頭遠平面外，出生點與碰撞仍是本地座標', () => {
   const room = I.interiorByBuilding('shop');
-  assert.deepEqual(room.spawn, { x: 0, z: 3.2, yaw: 0 });
+  assert.deepEqual(room.spawn, { x: 0, z: 6.1, yaw: 0 });
   assert.ok(room.floor.maxX - room.floor.minX >= 15, '店內寬度遠大於外觀盒子');
   assert.ok(room.floor.maxZ - room.floor.minZ >= 11, '店內進深遠大於外觀盒子');
   assert.equal(room.blocks[0].id, 'bar');
@@ -288,12 +288,11 @@ test('研發樓預設鏡頭：三種 viewport 從門口往北看大廳', () => {
     const look = I.labInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, vp.aspect);
     const eye = I.labInteriorCameraEye(pose, look, vp.aspect);
     assert.ok(eye.z < look.z - 1, '鏡頭在焦點南側，往北看大廳');
-    if (vp.aspect > 1) {
-      assert.ok(
-        eye.z > -1.75 && eye.z < -1.15,
-        '桌面鏡頭在南門內側，進房直接看到大廳 z=' + eye.z.toFixed(3)
-      );
-    }
+    assert.equal(
+      I.interiorEntrySpawnOk(room, vp.aspect, { radius: RADIUS }),
+      true,
+      '進門出生點入畫 aspect=' + vp.aspect.toFixed(3)
+    );
   }
 });
 
