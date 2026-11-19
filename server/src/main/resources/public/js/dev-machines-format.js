@@ -370,12 +370,13 @@ export function showLoginRequiredToast(doc, loginHref, message) {
   close.setAttribute('aria-label', '關閉');
   close.textContent = '×';
   const teardown = () => {
-    if (doc.removeEventListener) doc.removeEventListener('keydown', onKey);
+    if (doc.removeEventListener) doc.removeEventListener('keydown', onKey, true);
     if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
     if (toastDismiss === teardown) toastDismiss = null;
   };
   const onKey = (ev) => {
     if (ev.key !== 'Escape') return;
+    if (!wrap.parentNode) return;
     if (ev.stopPropagation) ev.stopPropagation();
     if (ev.preventDefault) ev.preventDefault();
     teardown();

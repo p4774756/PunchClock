@@ -258,9 +258,10 @@ test('toast Esc 用 capture 關閉並 stopPropagation', () => {
     addEventListener(ev, fn, cap) {
       if (ev === 'keydown') keyHandlers.push({ fn, cap: !!cap });
     },
-    removeEventListener(ev, fn) {
+    removeEventListener(ev, fn, cap) {
       if (ev !== 'keydown') return;
-      const i = keyHandlers.findIndex((h) => h.fn === fn);
+      const capture = !!cap;
+      const i = keyHandlers.findIndex((h) => h.fn === fn && h.cap === capture);
       if (i >= 0) keyHandlers.splice(i, 1);
     },
     createElement() {
@@ -298,6 +299,110 @@ test('toast Esc 用 capture 關閉並 stopPropagation', () => {
   cap.fn(ev);
   assert.equal(ev.stopped, true);
   assert.equal(F.isLoginRequiredToastOpen(doc), false);
+  assert.equal(keyHandlers.length, 0);
+});
+
+function docWithKeydownCapture() {
+  const keyHandlers = [];
+  const doc = {
+    body: {
+      childNodes: [],
+      appendChild(c) { this.childNodes.push(c); c.parentNode = this; },
+      removeChild(c) {
+        const i = this.childNodes.indexOf(c);
+        if (i >= 0) this.childNodes.splice(i, 1);
+        c.parentNode = null;
+      }
+    },
+    addEventListener(ev, fn, cap) {
+      if (ev === 'keydown') keyHandlers.push({ fn, cap: !!cap });
+    },
+    removeEventListener(ev, fn, cap) {
+      if (ev !== 'keydown') return;
+      const capture = !!cap;
+      const i = keyHandlers.findIndex((h) => h.fn === fn && h.cap === capture);
+      if (i >= 0) keyHandlers.splice(i, 1);
+    },
+    createElement(tag) {
+      const node = {
+        tagName: tag,
+        type: tag === 'button' ? 'button' : undefined,
+        className: '',
+        classList: { _c: new Set(), add(x) { this._c.add(x); } },
+        childNodes: [],
+        attributes: {},
+        textContent: '',
+        href: '',
+        parentNode: null,
+        appendChild(c) { this.childNodes.push(c); c.parentNode = this; return c; },
+        setAttribute(k, v) { this.attributes[k] = v; },
+        addEventListener(ev, fn) {
+          if (!node._ev) node._ev = {};
+          node._ev[ev] = fn;
+        }
+      };
+      return node;
+    },
+    querySelector(sel) {
+      if (sel === '[data-dev-login-toast]') {
+        return doc.body.childNodes.find((n) => n.attributes && n.attributes['data-dev-login-toast']) || null;
+      }
+      return null;
+    }
+  };
+  const fireEscape = () => {
+    const h = keyHandlers[0];
+    const ev = {
+      key: 'Escape',
+      stopPropagation() { ev.stopped = true; },
+      preventDefault() { ev.prevented = true; }
+    };
+    if (h) h.fn(ev);
+    return ev;
+  };
+  const toastWrap = () => doc.body.childNodes.find((n) => n.attributes && n.attributes['data-dev-login-toast']);
+  const closeBtn = () => {
+    const w = toastWrap();
+    return w && w.childNodes.find((c) => c.tagName === 'button');
+  };
+  return { doc, keyHandlers, fireEscape, toastWrap, closeBtn };
+}
+
+test('toast 關閉後 Esc 監聽移除且不攔截後續 Esc', () => {
+  const { doc, keyHandlers, fireEscape } = docWithKeydownCapture();
+  F.showLoginRequiredToast(doc, '/login');
+  assert.equal(keyHandlers.length, 1);
+  const first = fireEscape();
+  assert.equal(first.stopped, true);
+  assert.equal(keyHandlers.length, 0);
+  const second = fireEscape();
+  assert.notEqual(second.stopped, true);
+});
+
+test('toast × 關閉與逾時關閉後無 keydown 監聽', async () => {
+  const { doc, keyHandlers, closeBtn } = docWithKeydownCapture();
+  F.showLoginRequiredToast(doc, '/login');
+  assert.equal(keyHandlers.length, 1);
+  closeBtn()._ev.click({});
+  assert.equal(keyHandlers.length, 0);
+  assert.equal(F.isLoginRequiredToastOpen(doc), false);
+
+  F.showLoginRequiredToast(doc, '/login');
+  assert.equal(keyHandlers.length, 1);
+  await new Promise((r) => setTimeout(r, 4100));
+  assert.equal(keyHandlers.length, 0);
+  assert.equal(F.isLoginRequiredToastOpen(doc), false);
+});
+
+test('連續開兩次 toast 關閉後 keydown 監聽為 0', () => {
+  const { doc, keyHandlers, fireEscape } = docWithKeydownCapture();
+  F.showLoginRequiredToast(doc, '/login');
+  F.showLoginRequiredToast(doc, '/login');
+  assert.equal(keyHandlers.length, 1);
+  fireEscape();
+  assert.equal(keyHandlers.length, 0);
+  const second = fireEscape();
+  assert.notEqual(second.stopped, true);
 });
 
 test('今日合併篩選接受 API 合併與已合併', () => {
