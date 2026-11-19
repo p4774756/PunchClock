@@ -158,11 +158,14 @@ export function buildIslandBuildings(ctx) {
             const casinoSignNight = buildingId === 'casino';
             obj.material = mat(0xffffff, {
               map: signTex,
-              night: labSignNight ? 0xe8f8ff : (casinoSignNight ? 0x140428 : 0xfff0dc),
-              glow: labSignNight ? 0x7ec8ea : (casinoSignNight ? 0xff6ad8 : 0xffb15a),
-              glowAmount: labSignNight ? 1.12 : (casinoSignNight ? 0.28 : 0.28),
+              night: labSignNight ? 0xe8f8ff : (casinoSignNight ? 0xffffff : 0xfff0dc),
+              glow: labSignNight ? 0x7ec8ea : (casinoSignNight ? 0xffffff : 0xffb15a),
+              glowAmount: labSignNight ? 1.12 : (casinoSignNight ? 0.12 : 0.28),
               side: THREE.DoubleSide
             });
+            if (casinoSignNight) {
+              obj.material.emissiveMap = signTex;
+            }
           } else {
             obj.material = mat(baseColor, extra);
           }
