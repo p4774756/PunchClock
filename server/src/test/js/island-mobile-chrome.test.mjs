@@ -202,6 +202,9 @@ test('index 使用 Concept A HUD：玩家卡、右上圓鈕、選單與地圖', 
   assert.match(indexHtml, /id="islandMoreBtn"/);
   assert.match(indexHtml, /aria-label="選單"/);
   assert.match(indexHtml, /id="islandMapSheet"/);
+  assert.match(indexHtml, /id="islandMinimap"/);
+  assert.match(indexHtml, /id="islandMapCanvas"/);
+  assert.match(islandCss, /\.island-minimap/);
   assert.match(indexHtml, /id="islandHudRoleBtn"/);
   assert.match(indexHtml, /island-hud-player-name[^>]*>milu</);
   assert.match(indexHtml, /island-hud-player-title-text[^>]*>神之島</);
