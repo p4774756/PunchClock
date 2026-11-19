@@ -207,7 +207,8 @@ test('index 使用 Concept A HUD：玩家卡、右上圓鈕、選單與地圖', 
   assert.match(islandCss, /\.island-minimap/);
   assert.match(indexHtml, /id="islandHudRoleBtn"/);
   assert.match(indexHtml, /island-hud-player-name[^>]*>milu</);
-  assert.match(indexHtml, /island-hud-player-title-text[^>]*>神之島</);
+  assert.match(indexHtml, /id="islandHudPlayerTitleText"/);
+  assert.match(islandCss, /body:has\(#islandHudPlayer\) \.island-brand[\s\S]*display:\s*none/);
   assert.doesNotMatch(indexHtml, /id="islandNight"/);
   assert.match(indexHtml, /island-hud-roadmap[\s\S]*data-open-roadmap/);
 });
@@ -235,6 +236,38 @@ test('syncAvatarUi：milu 時顯示 milu 而不是蜜鹿', () => {
   ui.syncAvatarUi();
   assert.equal(doc.getElementById('islandHudPlayerName').textContent, 'milu');
   assert.equal(doc.getElementById('islandAvatarBtn').textContent, 'milu');
+});
+
+test('非探索：島嶼頁隱藏品牌卡、選單底有版本行', () => {
+  assert.match(islandCss, /body:has\(#islandHudPlayer\) \.island-brand[\s\S]*display:\s*none/);
+  assert.match(indexHtml, /id="islandMoreBuild"/);
+  assert.match(indexHtml, /island-more-build[^>]*>飲料店 · v\{\{SERVER_VERSION\}\} · 開店 \{\{SERVER_BUILD_TIME\}\}</);
+  assert.match(islandCss, /\.island-more-build/);
+});
+
+test('玩家卡與右上圓鈕列不相交（360／375／390／412／1280）', () => {
+  const cases = [
+    [360, 780, false],
+    [375, 812, false],
+    [390, 844, false],
+    [412, 915, false],
+    [1280, 720, false],
+    [390, 844, true],
+    [1280, 720, true]
+  ];
+  for (const [width, height, exploring] of cases) {
+    const mobile = width <= Corner.MOBILE_MAX_WIDTH;
+    const showAudio = mobile ? true : !!exploring;
+    const tr = Corner.hudTopRightRect(width, height, showAudio);
+    const player = mobile
+      ? Corner.hudPlayerRectMobile(width, height, showAudio)
+      : Corner.hudPlayerRectDesktop(width, height);
+    assert.ok(!Corner.rectsIntersect(player, tr), `${width}×${height} 玩家卡與右上 HUD 不重疊`);
+    assert.ok(
+      player.right <= tr.left - Corner.HUD_PLAYER_TR_GAP + 0.5,
+      `${width}×${height} 玩家卡右緣與圓鈕列至少 ${Corner.HUD_PLAYER_TR_GAP}px 空隙`
+    );
+  }
 });
 
 test('360／390 右上 HUD 在 viewport 內且不與搖桿相交', () => {
@@ -369,6 +402,31 @@ test('390×844 探索中清單標題列不與玩家卡相交', () => {
 test('390×844 探索中操作提示不與右上圓鈕列相交', () => {
   const hint = Corner.exploreHintRectMobile(390, 844, 2.5);
   assert.ok(!Corner.rectsIntersect(hint, hint.tr), '操作提示在 HUD 圓鈕列下方');
+});
+
+test('探索中操作提示不與任何 HUD 相交（390×844／412×915／1280×720）', () => {
+  const layouts = [
+    [390, 844],
+    [412, 915],
+    [1280, 720]
+  ];
+  for (const [w, h] of layouts) {
+    if (w <= Corner.MOBILE_MAX_WIDTH) {
+      const targets = Corner.exploreHintHudTargetsMobile(w, h, 2.5);
+      const { hint, player, joy, actions, interact, tr } = targets;
+      assert.ok(!Corner.rectsIntersect(hint, tr), w + '×' + h + ' 提示不與右上圓鈕列相交');
+      assert.ok(!Corner.rectsIntersect(hint, player), w + '×' + h + ' 提示不與玩家卡相交');
+      assert.ok(!Corner.rectsIntersect(hint, joy), w + '×' + h + ' 提示不與搖桿相交');
+      assert.ok(!Corner.rectsIntersect(hint, actions), w + '×' + h + ' 提示不與操作叢相交');
+      assert.ok(!Corner.rectsIntersect(hint, interact), w + '×' + h + ' 提示不與情境鈕相交');
+    } else {
+      const hint = Corner.exploreHintRectDesktop(w, h, 2.5);
+      assert.ok(!Corner.rectsIntersect(hint, hint.tr), w + '×' + h + ' 提示不與右上 HUD 相交');
+      assert.ok(!Corner.rectsIntersect(hint, hint.player), w + '×' + h + ' 提示不與玩家卡相交');
+      assert.ok(!Corner.rectsIntersect(hint, hint.actions), w + '×' + h + ' 提示不與操作列相交');
+      assert.ok(!Corner.rectsIntersect(hint, hint.joy), w + '×' + h + ' 提示不與左下區域相交');
+    }
+  }
 });
 
 test('1280×720 探索中暱稱窗與右下操作列留空隙', () => {

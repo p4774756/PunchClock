@@ -290,6 +290,8 @@
 .roadmap-phase.is-done .roadmap-tag { background: var(--maple-green); }
 .roadmap-phase.is-active { background: #fff8e8; }
 .roadmap-phase.is-active .roadmap-tag { background: var(--maple-gold); color: var(--maple-navy); }
+.roadmap-phase.is-progress { background: #f4f8ff; }
+.roadmap-phase.is-progress .roadmap-tag { background: var(--maple-gold); color: var(--maple-navy); }
 .roadmap-phase.is-pending .roadmap-tag { background: var(--maple-gray); }
 
 .roadmap-phase ul {
