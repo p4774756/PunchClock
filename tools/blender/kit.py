@@ -225,21 +225,23 @@ class Part:
             self._uv = self.bm.loops.layers.uv.new('UVMap')
         return self._uv
 
-    def textured_plane(self, tex_subpath, w, h, x, y, z, rx=0.0, ry=0.0, rz=0.0, flip_u=False):
+    def textured_plane(self, tex_subpath, w, h, x, y, z, rx=0.0, ry=0.0, rz=0.0,
+                       flip_u=False, flip_v=False):
         """tex_subpath 相對於 tools/blender/textures/，例如 casino/cas_stone.png。"""
         slot = 'tex|' + tex_subpath.replace('\\', '/')
-        self.plane(slot, w, h, x, y, z, rx=rx, ry=ry, rz=rz, flip_u=flip_u)
+        self.plane(slot, w, h, x, y, z, rx=rx, ry=ry, rz=rz, flip_u=flip_u, flip_v=flip_v)
 
-    def plane(self, mat, w, h, x, y, z, rx=0.0, ry=0.0, rz=0.0, flip_u=False):
+    def plane(self, mat, w, h, x, y, z, rx=0.0, ry=0.0, rz=0.0, flip_u=False, flip_v=False):
         """XZ 平面上寬 w、高 h、法線朝 -Y（正面）的單一面，帶 0..1 UV。"""
         dx, dz = w / 2, h / 2
         local = [(-dx, 0, -dz), (dx, 0, -dz), (dx, 0, dz), (-dx, 0, dz)]
         # glTF / Three.js 的 V=0 在圖上緣；這裡先把 V 對調，匯出後文字才是正的。
         # 北側 back 字牌在 yaw=π 後需水平對調 U 才與南簷 front 同向可讀。
+        uvs = [(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]
         if flip_u:
-            uvs = [(1.0, 1.0), (0.0, 1.0), (0.0, 0.0), (1.0, 0.0)]
-        else:
-            uvs = [(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]
+            uvs = [(1.0 - u, v) for u, v in uvs]
+        if flip_v:
+            uvs = [(u, 1.0 - v) for u, v in uvs]
         m = (Matrix.Translation((x, y, z))
              @ Matrix.Rotation(rz, 4, 'Z')
              @ Matrix.Rotation(ry, 4, 'Y')

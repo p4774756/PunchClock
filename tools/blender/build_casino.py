@@ -36,10 +36,13 @@ def _semicircle_boxes(part, mat, cx, y, z0, radius, nseg, sx, sy, sz, rx=0.0, ry
         part.box(mat, sx, sy, sz, mx, y, mz, rx=rx, ry=ry)
 
 
-def _horiz_tex(part, tex_subpath, w, h, x, y, z, ry=0.0, rz=0.0, flip_u=False, label='horiz'):
+def _horiz_tex(part, tex_subpath, w, h, x, y, z, ry=0.0, rz=0.0,
+               flip_u=False, flip_v=False, label='horiz'):
     """屋頂水平貼圖：rx=-π/2，法線朝 +Z（俯視可見）；旋轉順序同 kit.plane（rx→ry→rz）。"""
     rx = -math.pi / 2
-    part.textured_plane(tex_subpath, w, h, x, y, z, rx=rx, ry=ry, rz=rz, flip_u=flip_u)
+    part.textured_plane(
+        tex_subpath, w, h, x, y, z, rx=rx, ry=ry, rz=rz, flip_u=flip_u, flip_v=flip_v,
+    )
     rot = Matrix.Rotation(rz, 4, 'Z') @ Matrix.Rotation(ry, 4, 'Y') @ Matrix.Rotation(rx, 4, 'X')
     n = rot @ Vector((0.0, -1.0, 0.0))
     print(f'HORIZ_TEX {label}: normal≈({n.x:.3f}, {n.y:.3f}, {n.z:.3f}) expect z≈+1')
@@ -244,7 +247,7 @@ def build(out_path):
     sign_rz = -math.pi / 2
     _horiz_tex(
         roof_deco, 'casino/cas_roof_sign.png', sign_w, sign_h,
-        sign_cx, sign_cy, roof_top + 0.04, rz=sign_rz, label='roof_sign',
+        sign_cx, sign_cy, roof_top + 0.04, rz=sign_rz, flip_v=True, label='roof_sign',
     )
     wheel.cyl('cas_dark', wheel_r, wheel_r, 0.06, wheel_cx, wheel_cy, wheel_z, seg=20)
     _horiz_tex(
@@ -263,13 +266,6 @@ def build(out_path):
     print(
         f'ROOF_BOUNDS wheel X=[{wheel_cx - wheel_r:.3f},{wheel_cx + wheel_r:.3f}] '
         f'Y=[{wheel_cy - wheel_r:.3f},{wheel_cy + wheel_r:.3f}] north_gap={north_gap:.3f}'
-    )
-      # 西簷朝上橫幅（門前俯視可讀「神之島」；U 沿南北長邊）
-    west_w, west_h = 2.85, 0.95
-    west_x, west_y = -HX + 0.58, -0.28
-    _horiz_tex(
-        roof_deco, 'casino/cas_arch_roof.png', west_w, west_h,
-        west_x, west_y, roof_top + 0.035, rz=-math.pi / 2, label='west_eave_sign',
     )
 
     lp = b.part('lamp_posts')
