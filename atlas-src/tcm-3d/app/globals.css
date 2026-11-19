@@ -205,6 +205,9 @@
   min-height:32px;padding:0 11px;border-radius:10px;font-size:12px;font-weight:700;color:#5f746c;
 }
 .outfit-bar button.selected{background:#1f3b34;color:#fff}
+.outfit-bar button.is-pending{position:relative;padding-right:22px}
+.outfit-bar button .outfit-pending{position:absolute;right:6px;top:50%;width:10px;height:10px;margin-top:-5px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:outfit-spin .7s linear infinite}
+@keyframes outfit-spin{to{transform:rotate(360deg)}}
 .practice-outfit-hint{
   position:absolute;z-index:5;top:168px;right:max(18px,env(safe-area-inset-right,0px));
   margin:0;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;color:#7a5a18;

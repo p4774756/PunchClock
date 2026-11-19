@@ -22,7 +22,10 @@ assert.match(src, /isPracticeUniformMesh/, 'practice must detect uniform-only me
 assert.match(src, /isPracticeUniformMesh\(obj,outfit\)\)obj\.visible=false/, 'hidden uniform meshes must set visible=false');
 assert.match(src, /next\.colorSpace=src\.colorSpace/, 'painted skin map must preserve source colorSpace');
 assert.match(src, /assertUniformOutfitUntouched/, 'practice build must not mutate school mesh materials');
-assert.match(src, /reanchor/, 'outfit switch must re-snap teaching markers');
+assert.match(src, /applyCachedAnchors/, 'outfit switch must apply cached teaching markers');
+assert.doesNotMatch(src, /teaching\.reanchor/, 'outfit switch must not repeat CPU skin raycast');
+const overlay=await readFile(join(root,'app/teaching-overlay.ts'),'utf8');
+assert.match(overlay, /buildSkinRaycastProxies|skin-raycast-proxy/, 'anchor must bake static skin proxies');
 
 assert.doesNotMatch(src, /BUN_BROWN|0x3b2a22/i, 'practice bun must not use brown常量');
 assert.match(src, /findPrimaryHairMaterial/, 'bun should sample GLB hair MToon');
@@ -31,7 +34,9 @@ assert.doesNotMatch(src, /SHOULDER_ARTIFACT|isShoulderArtifactPx/, 'shoulder fix
 assert.match(src, /data\.data\[i\+3\]>=200\)continue[\s\S]*paintShoulderAlphaHole/, 'shoulder fix fills alpha<200 from nearby skin');
 assert.match(src, /isHairMaterial/, 'hair-specific cel shading to preserve blue-violet');
 assert.match(src, /syncHairBunMaterial/, 'bun materials must track hair MToon chroma');
-assert.doesNotMatch(src, /requestIdleCallback/, 'must not prebuild practice outfit on idle');
+assert.match(src, /requestIdleCallback|schedulePracticeWarm/, 'practice outfit must warm on idle after first frame');
+assert.match(src, /atlas:outfit-switch/, 'outfit switch must performance.measure atlas:outfit-switch');
+assert.match(src, /atlas:model-visible/, 'first model frame must performance.measure atlas:model-visible');
 assert.match(src, /practice-outfit-build-start/, 'practice outfit build must performance.mark start');
 assert.match(src, /performance\.measure\(['"]practice-outfit-build/, 'practice outfit build must performance.measure');
 

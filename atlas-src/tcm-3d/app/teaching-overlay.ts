@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {createInstrument,updateInstrument} from './instruments';
 import {focusViewFromNormal} from './focus-view';
+import {buildSkinRaycastProxies} from './skin-raycast-proxy';
 import {POINTS,POINT_BY_CODE,TOOLS,curriculumSet,type SimulationState,type SurfaceTarget,type ToolId} from './teaching';
 import type {AnimePoint} from './character-mode';
 
@@ -32,6 +33,8 @@ export function createTeachingOverlay(
  const axis=new T.Vector3(0,0,1),n=new T.Vector3(),v=new T.Vector3(),origin=new T.Vector3();
  const ray=new T.Raycaster();let anchored=false,lastFocus=-1,lastRelease=0,releaseAt=-1;
  let skinMeshes:T.Object3D[]=[];
+ let raycastTargets:T.Object3D[]=[];
+ let anchorSnapshot:Map<string,SurfaceTarget>|null=null;
  let activeCurriculum:ReturnType<typeof curriculumSet>;
  const label=document.createElement('button');label.type='button';label.className='contact-label tool-drag-handle';label.setAttribute('aria-label','移動當前工具');label.title='按住拖動工具；方向鍵微調位置';label.hidden=true;
  const resolvePoint=(code:string,side:1|-1)=>{
@@ -65,18 +68,18 @@ export function createTeachingOverlay(
   });
   return found;
  };
- const anchor=(characterRoot:T.Object3D)=>{
-  if(anchored)return;
-  skinMeshes=collectSkins(characterRoot);
-  if(!skinMeshes.length)return;
-  characterRoot.updateMatrixWorld(true);
-  for(const dot of markers){
-   const seed=opts.resolvePoint(dot.userData.point,dot.userData.side)??{position:dot.position.toArray() as [number,number,number],normal:[0,0,-1]};
-   v.fromArray(seed.position);n.fromArray(seed.normal).normalize();origin.copy(v).addScaledVector(n,.08);
+ const applySeed=(dot:T.Mesh,seed:SurfaceTarget,meshId='anime-skin')=>{
+  n.fromArray(seed.normal).normalize();
+  surface.set(`${dot.userData.point}:${dot.userData.side}`,{...seed,meshId});
+  dot.position.fromArray(seed.position).addScaledVector(n,.003);
+ };
+ const snapDot=(dot:T.Mesh,seed:SurfaceTarget)=>{
+  v.fromArray(seed.position);n.fromArray(seed.normal).normalize();origin.copy(v).addScaledVector(n,.08);
+  if(raycastTargets.length){
    ray.set(origin,n.clone().negate());ray.far=.2;
-   const hits=ray.intersectObjects(skinMeshes,false);
+   const hits=ray.intersectObjects(raycastTargets,false);
    let hit=hits.find(h=>h.point.distanceTo(v)<.08)??hits[0];
-   if(!hit){ray.set(v.clone().add(new T.Vector3(0,0,-.12)),new T.Vector3(0,0,1));ray.far=.25;hit=ray.intersectObjects(skinMeshes,false)[0];}
+   if(!hit){ray.set(v.clone().add(new T.Vector3(0,0,-.12)),new T.Vector3(0,0,1));ray.far=.25;hit=ray.intersectObjects(raycastTargets,false)[0];}
    if(hit){
     const outward=(hit.face?.normal.clone()??n.clone()).transformDirection(hit.object.matrixWorld);
     if(outward.dot(n)<0)outward.negate();
@@ -85,13 +88,45 @@ export function createTeachingOverlay(
     const target:SurfaceTarget={position:hit.point.toArray() as [number,number,number],normal:outward.toArray() as [number,number,number],meshId,faceIndex:hit.faceIndex};
     surface.set(`${dot.userData.point}:${dot.userData.side}`,target);
     dot.position.copy(hit.point).addScaledVector(outward,.003);
-   }else{
-    surface.set(`${dot.userData.point}:${dot.userData.side}`,{...seed,meshId:'anime-skin'});
+    return;
    }
+  }
+  applySeed(dot,seed);
+ };
+ const anchor=(characterRoot:T.Object3D)=>{
+  if(anchored)return;
+  skinMeshes=collectSkins(characterRoot);
+  if(!skinMeshes.length)return;
+  characterRoot.updateMatrixWorld(true);
+  performance.mark('atlas:anchor-start');
+  raycastTargets=buildSkinRaycastProxies(characterRoot,SKIN_MESH_HINT);
+  for(const dot of markers){
+   const seed=opts.resolvePoint(dot.userData.point,dot.userData.side)??{position:dot.position.toArray() as [number,number,number],normal:[0,0,-1]};
+   snapDot(dot,seed);
+  }
+  anchorSnapshot=new Map(surface);
+  anchored=true;
+  performance.mark('atlas:anchor-end');
+  try{performance.measure('atlas:anchor','atlas:anchor-start','atlas:anchor-end');}catch{/* duplicate */}
+ };
+ /** Outfit switches share body geometry — restore baked targets without another raycast. */
+ const applyCachedAnchors=()=>{
+  if(!anchorSnapshot?.size)return;
+  for(const dot of markers){
+   const key=`${dot.userData.point}:${dot.userData.side}`;
+   const target=anchorSnapshot.get(key);
+   if(!target)continue;
+   surface.set(key,target);
+   v.fromArray(target.position);n.fromArray(target.normal).normalize();
+   dot.position.copy(v).addScaledVector(n,.003);
   }
   anchored=true;
  };
- const reanchor=(characterRoot:T.Object3D)=>{anchored=false;anchor(characterRoot);};
+ const reanchor=(characterRoot:T.Object3D)=>{
+  if(anchorSnapshot?.size){applyCachedAnchors();return;}
+  anchored=false;
+  anchor(characterRoot);
+ };
  const update=(s:SimulationState,camera:T.Camera,width:number,height:number)=>{
   activeCurriculum=curriculumSet(s.curriculumSet==='all'?undefined:s.curriculumSet);
   root.visible=true;dots.visible=s.showPoints;
@@ -163,7 +198,7 @@ export function createTeachingOverlay(
  };
  const getDraggables=(tool:ToolId)=>{const meshes:T.Object3D[]=[];instruments.get(tool)?.traverseVisible(o=>{if(o instanceof T.Mesh)meshes.push(o);});return meshes;};
  return {
-  root,markers,label,anchor,reanchor,update,focus,getTarget,getDraggables,snapTarget,
+  root,markers,label,anchor,reanchor,applyCachedAnchors,update,focus,getTarget,getDraggables,snapTarget,
   getSkinMeshes:()=>skinMeshes,
   isAnchored:()=>anchored,
   dispose:()=>{

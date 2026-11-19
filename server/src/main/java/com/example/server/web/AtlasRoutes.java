@@ -6,9 +6,15 @@ import io.javalin.http.Context;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /** 經穴圖靜態站。不必登入。檔案在磁碟，不打進 jar。 */
 public final class AtlasRoutes {
@@ -16,6 +22,8 @@ public final class AtlasRoutes {
     static final String ROOT_PROPERTY = "punchclock.atlas.root";
     private static final Set<String> APPS = Set.of("tcm-3d");
     private static final Map<String, String> TITLES = Map.of("tcm-3d", "中醫人體");
+    private static final Pattern FINGERPRINTED_ASSET = Pattern.compile(".+-[0-9a-zA-Z]{8,}\\.(js|mjs|css)$");
+    private static final DateTimeFormatter HTTP_DATE = DateTimeFormatter.RFC_1123_DATE_TIME;
 
     public AtlasRoutes() {
     }
@@ -56,30 +64,69 @@ public final class AtlasRoutes {
             ctx.status(404).html(relativePath.isBlank() ? notBuilt(appId) : page("找不到這個檔案"));
             return;
         }
-        String fileName = file.getFileName().toString().toLowerCase(Locale.ROOT);
-        boolean glb = fileName.endsWith(".glb");
-        if (!glb) {
-            ctx.minSizeForCompression(Integer.MAX_VALUE);
-            ctx.header("Content-Length", Long.toString(Files.size(file)));
+        long size = Files.size(file);
+        FileTime modified = Files.getLastModifiedTime(file);
+        String etag = "\"" + Long.toHexString(size) + "-" + Long.toHexString(modified.toMillis()) + "\"";
+        String ifNoneMatch = ctx.header("If-None-Match");
+        if (matchesEtag(ifNoneMatch, etag)) {
+            ctx.status(304);
+            ctx.header("ETag", etag);
+            ctx.header("Cache-Control", cacheControl(file));
+            ctx.header("Last-Modified", formatHttpDate(modified.toInstant()));
+            return;
         }
+
+        String fileName = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        ctx.minSizeForCompression(Integer.MAX_VALUE);
+        ctx.header("Content-Length", Long.toString(size));
         ctx.contentType(contentType(file));
         ctx.header("X-Content-Type-Options", "nosniff");
         ctx.header("Cache-Control", cacheControl(file));
+        ctx.header("ETag", etag);
+        ctx.header("Last-Modified", formatHttpDate(modified.toInstant()));
+        if (fileName.endsWith(".glb")) {
+            ctx.contentType("model/gltf-binary");
+        }
         ctx.result(Files.newInputStream(file));
+    }
+
+    static boolean matchesEtag(String headerValue, String etag) {
+        if (headerValue == null || headerValue.isBlank()) {
+            return false;
+        }
+        for (String token : headerValue.split(",")) {
+            String trimmed = token.trim();
+            if (trimmed.equals(etag) || trimmed.equals("W/" + etag)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static String formatHttpDate(Instant instant) {
+        return HTTP_DATE.format(ZonedDateTime.ofInstant(instant, ZoneOffset.UTC));
     }
 
     /** HTML 短快取；模型與指紋化靜態檔可長快取，重開頁較快。 */
     static String cacheControl(Path file) {
-        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
-        if (name.endsWith(".html")) {
+        String name = file.getFileName().toString();
+        String lower = name.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".html")) {
             return "private, max-age=0, must-revalidate";
         }
-        if (name.endsWith(".bin") || name.endsWith(".gz") || name.endsWith(".wasm") || name.endsWith(".glb")
-                || name.endsWith(".woff2") || name.endsWith(".png") || name.endsWith(".jpg")
-                || name.endsWith(".jpeg") || name.endsWith(".webp") || name.endsWith(".svg")) {
-            return "private, max-age=604800, immutable";
+        Path parent = file.getParent();
+        if (parent != null && "assets".equals(parent.getFileName().toString()) && FINGERPRINTED_ASSET.matcher(name).matches()) {
+            return "public, max-age=31536000, immutable";
         }
-        if (name.endsWith(".js") || name.endsWith(".mjs") || name.endsWith(".css")) {
+        if (lower.endsWith(".txt") || lower.endsWith(".md")) {
+            return "private, max-age=300";
+        }
+        if (lower.endsWith(".bin") || lower.endsWith(".gz") || lower.endsWith(".wasm") || lower.endsWith(".glb")
+                || lower.endsWith(".woff2") || lower.endsWith(".png") || lower.endsWith(".jpg")
+                || lower.endsWith(".jpeg") || lower.endsWith(".webp") || lower.endsWith(".svg")) {
+            return "public, max-age=31536000, immutable";
+        }
+        if (lower.endsWith(".js") || lower.endsWith(".mjs") || lower.endsWith(".css")) {
             return "private, max-age=86400";
         }
         return "private, max-age=300";

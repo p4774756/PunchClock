@@ -2,6 +2,7 @@ import {publicAssetUrl} from './public-assets';
 import {ANIME_DEFAULT_SET} from './character-mode';
 import {DEFAULT_AVATAR_ID,animeAvatar,avatarLessonNote,avatarPracticeOpen,avatarSupportsPoint,avatarSupportedCodes} from './avatars';
 import {ANIME_OUTFITS,DEFAULT_OUTFIT_ID,animeOutfit,type OutfitId} from './outfits';
+import {type AtlasLoadProgress} from './load-progress';
 import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState,type CSSProperties,type PointerEvent as ReactPointerEvent} from 'react';
 import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Focus,Info,Layers3,MapPin,Maximize2,Pause,Play,RotateCcw,RotateCw,Search,SlidersHorizontal,X} from 'lucide-react';
 import type {SceneState,View} from './anatomy';
@@ -52,7 +53,7 @@ export default function Home(){
   const code=preferred??initialSimulation.pointCode;
   return {...initialSimulation,curriculumSet:set,pointCode:code,side:1,focus:preferred?1:0};
  });
- const [progress,setProgress]=useState(0),[error,setError]=useState('');
+ const [progress,setProgress]=useState(0),[loadStep,setLoadStep]=useState(''),[error,setError]=useState('');
  const [region,setRegion]=useState<RegionId|'all'>('all'),[query,setQuery]=useState('');
  const [toolsExpanded,setToolsExpanded]=useState(false);
  const [mobilePanel,setMobilePanel]=useState<'library'|'selection'|null>(null);
@@ -152,7 +153,12 @@ export default function Home(){
  const play=(restart=false)=>{if(!canPlayDemo)return;setState(s=>({...s,explode:0,rotate:false,isolate:false}));setSimulation(s=>({...s,running:true,elapsed:restart?0:s.elapsed,focus:s.focus+1}));setFeedback(`${tool.name}演示進行中：${tool.effect}。`);};
  const startHold=(event:ReactPointerEvent<HTMLButtonElement>)=>{if(!canPlayDemo)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);heldPointer.current=event.pointerId;setHolding(true);play();};
  const endHold=(event:ReactPointerEvent<HTMLButtonElement>)=>{if(heldPointer.current!==event.pointerId)return;heldPointer.current=null;if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);releaseHold();};
- const onProgress=useCallback((value:number)=>{setProgress(value);if(value===100)setError('');},[]);
+ const onProgress=useCallback((value:AtlasLoadProgress|number)=>{
+  const next=typeof value==='number'?{percent:value,step:'download' as const,stepLabel:'載入中…'}:value;
+  setProgress(next.percent);
+  setLoadStep(next.stepLabel);
+  if(next.percent===100)setError('');
+ },[]);
  const onError=useCallback((_message:string)=>{setError('3D 模型加載出現問題，請檢查網絡與瀏覽器 WebGL 支持後重試。');setSimulation(s=>({...s,dragging:false,running:false}));},[]);
  const onPracticeOutfitPreparing=useCallback((preparing:boolean)=>{setPracticePreparing(preparing);},[]);
  const selectedTitle=point?.name??(simulation.customTarget?'自選體表位置':'點選穴位標記');
@@ -192,8 +198,8 @@ export default function Home(){
     <div className={error?'loading-card woodcut-loading load-error':'loading-card woodcut-loading'} role="status">
      <span className="loading-symbol">{error?(<Info size={23}/>):(<Layers3 size={23}/>)}</span>
      <strong>{error?'模型暫未就緒':('正在迎接'+currentAvatar.shortName)}</strong>
-     <p>{error||('載入 '+currentOutfit.name+' 與已對應穴位標記。')}</p>
-     {!error&&<><div className="load-track"><i style={{width:progress+'%'}}/></div><small>{progress}%</small></>}
+     <p>{error||(loadStep||('載入 '+currentOutfit.name+' 與已對應穴位標記。'))}</p>
+     {!error&&<><div className="load-track"><i style={{width:progress+'%'}}/></div><small>{loadStep?`${loadStep} · `:''}{progress}%</small></>}
      {error&&<button className="text-button" onClick={()=>window.location.reload()}>重新加載</button>}
     </div>
    )}
@@ -205,8 +211,11 @@ export default function Home(){
    <span className="control-divider"/><button onClick={fullBody} title="顯示全身"><Maximize2 size={14}/><span>全身</span></button><button onClick={focusTarget} disabled={!hasTarget} title="聚焦當前穴位"><Focus size={14}/><span>聚焦</span></button><button className={`icon-button ${state.rotate?'selected':''}`} aria-label={state.rotate?'停止旋轉':'自動旋轉'} aria-pressed={state.rotate} onClick={()=>{pause();setState(s=>({...s,rotate:!s.rotate}));setFeedback(state.rotate?'自動旋轉已停止。':'正在自動旋轉。');}}><RotateCw size={15}/></button>
   </nav>
 
-  {showOutfitBar&&<nav className="outfit-bar surface" aria-label="動漫服裝"><span className="outfit-label">換裝</span>{ANIME_OUTFITS.map(outfit=><button key={outfit.id} type="button" className={outfitId===outfit.id?'selected':''} aria-pressed={outfitId===outfit.id} title={outfit.blurb} onClick={()=>switchOutfit(outfit.id)}>{outfit.shortName}</button>)}</nav>}
-  {practicePreparing&&<p className="practice-outfit-hint surface" role="status" aria-live="polite">準備練習裝…</p>}
+  {showOutfitBar&&<nav className="outfit-bar surface" aria-label="動漫服裝"><span className="outfit-label">換裝</span>{ANIME_OUTFITS.map(outfit=>{
+   const pending=outfit.id==='study-body'&&practicePreparing&&outfitId==='study-body';
+   return <button key={outfit.id} type="button" className={`${outfitId===outfit.id?'selected':''}${pending?' is-pending':''}`} aria-pressed={outfitId===outfit.id} title={outfit.blurb} onClick={()=>switchOutfit(outfit.id)}>{outfit.shortName}{pending&&<span className="outfit-pending" aria-hidden="true"/>}</button>;
+  })}</nav>}
+  {practicePreparing&&outfitId==='study-body'&&<p className="practice-outfit-hint surface" role="status" aria-live="polite">準備練習裝…</p>}
 
   <aside className={`library-panel surface ${mobilePanel==='library'?'mobile-expanded':''}`} aria-label="穴位庫">
    <button className="mobile-panel-heading" aria-expanded={mobilePanel==='library'} onClick={()=>setMobilePanel(p=>p==='library'?null:'library')}><span><Layers3 size={16}/>穴位庫</span><ChevronDown size={17}/></button>
