@@ -234,16 +234,17 @@ def build(out_path):
 
     # 屋頂水平招牌＋輪盤（預設俯視辨識；北簷橫幅 + 南側輪盤不重疊）
     roof_deco = b.part('roof_deco')
-    sign_cx, sign_cy = 1.55, 0.0
-    sign_w, sign_h = 3.20, 1.08
+    sign_cx, sign_cy = 1.55, -0.35
+    sign_w, sign_h = 2.85, 1.08
     wheel = b.part('roulette')
     wheel_z = roof_top + 0.02
     wheel_cx, wheel_cy = -0.12, 0.0
     wheel_d = 2.10
     wheel_r = wheel_d / 2
+    sign_rz = -math.pi / 2
     _horiz_tex(
         roof_deco, 'casino/cas_roof_sign.png', sign_w, sign_h,
-        sign_cx, sign_cy, roof_top + 0.04, rz=math.pi / 2, label='roof_sign',
+        sign_cx, sign_cy, roof_top + 0.04, rz=sign_rz, label='roof_sign',
     )
     wheel.cyl('cas_dark', wheel_r, wheel_r, 0.06, wheel_cx, wheel_cy, wheel_z, seg=20)
     _horiz_tex(
@@ -251,21 +252,24 @@ def build(out_path):
         wheel_cx, wheel_cy, wheel_z + 0.035, label='roulette',
     )
     wheel.cyl('gold', 0.14, 0.12, 0.04, wheel_cx, wheel_cy, wheel_z + 0.05, seg=8)
-    print(
-        f'ROOF_BOUNDS sign X=[{sign_cx - sign_w / 2:.3f},{sign_cx + sign_w / 2:.3f}] '
-        f'Y=[{sign_cy - sign_h / 2:.3f},{sign_cy + sign_h / 2:.3f}]'
-    )
+    quarter = abs(abs(sign_rz) - math.pi / 2) < 0.02
+    sign_rx, sign_ry = sign_w, sign_h
+    if quarter:
+        sign_rx, sign_ry = sign_h, sign_w
+    sign_x0, sign_x1 = sign_cx - sign_rx / 2, sign_cx + sign_rx / 2
+    sign_y0, sign_y1 = sign_cy - sign_ry / 2, sign_cy + sign_ry / 2
+    north_gap = sign_x0 - (wheel_cx + wheel_r)
+    print(f'ROOF_BOUNDS sign X=[{sign_x0:.3f},{sign_x1:.3f}] Y=[{sign_y0:.3f},{sign_y1:.3f}]')
     print(
         f'ROOF_BOUNDS wheel X=[{wheel_cx - wheel_r:.3f},{wheel_cx + wheel_r:.3f}] '
-        f'Y=[{wheel_cy - wheel_r:.3f},{wheel_cy + wheel_r:.3f}] '
-        f'north_gap={sign_cx - sign_w / 2 - (wheel_cx + wheel_r):.3f}'
+        f'Y=[{wheel_cy - wheel_r:.3f},{wheel_cy + wheel_r:.3f}] north_gap={north_gap:.3f}'
     )
-    # 西簷朝上橫幅（門前俯視可讀「神之島」；U 沿南北長邊）
-    west_w, west_h = 3.05, 0.95
-    west_y = FRONT - 0.45
+      # 西簷朝上橫幅（門前俯視可讀「神之島」；U 沿南北長邊）
+    west_w, west_h = 2.85, 0.95
+    west_x, west_y = -HX + 0.58, -0.28
     _horiz_tex(
         roof_deco, 'casino/cas_arch_roof.png', west_w, west_h,
-        0, west_y, roof_top + 0.035, rz=0, label='west_eave_sign',
+        west_x, west_y, roof_top + 0.035, rz=-math.pi / 2, label='west_eave_sign',
     )
 
     lp = b.part('lamp_posts')
