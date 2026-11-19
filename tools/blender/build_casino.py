@@ -36,11 +36,11 @@ def _semicircle_boxes(part, mat, cx, y, z0, radius, nseg, sx, sy, sz, rx=0.0, ry
         part.box(mat, sx, sy, sz, mx, y, mz, rx=rx, ry=ry)
 
 
-def _horiz_tex(part, tex_subpath, w, h, x, y, z, ry=0.0, label='horiz'):
-    """屋頂水平貼圖：rx=-π/2，法線朝 +Z（俯視可見）。"""
+def _horiz_tex(part, tex_subpath, w, h, x, y, z, ry=0.0, rz=0.0, flip_u=False, label='horiz'):
+    """屋頂水平貼圖：rx=-π/2，法線朝 +Z（俯視可見）；旋轉順序同 kit.plane（rx→ry→rz）。"""
     rx = -math.pi / 2
-    part.textured_plane(tex_subpath, w, h, x, y, z, rx=rx, ry=ry)
-    rot = Matrix.Rotation(ry, 4, 'Y') @ Matrix.Rotation(rx, 4, 'X')
+    part.textured_plane(tex_subpath, w, h, x, y, z, rx=rx, ry=ry, rz=rz, flip_u=flip_u)
+    rot = Matrix.Rotation(rz, 4, 'Z') @ Matrix.Rotation(ry, 4, 'Y') @ Matrix.Rotation(rx, 4, 'X')
     n = rot @ Vector((0.0, -1.0, 0.0))
     print(f'HORIZ_TEX {label}: normal≈({n.x:.3f}, {n.y:.3f}, {n.z:.3f}) expect z≈+1')
 
@@ -235,7 +235,7 @@ def build(out_path):
     # 屋頂水平招牌＋輪盤（預設俯視辨識；北簷橫幅 + 南側輪盤不重疊）
     roof_deco = b.part('roof_deco')
     sign_cx, sign_cy = 1.55, 0.0
-    sign_w, sign_h = 1.08, 3.20
+    sign_w, sign_h = 3.20, 1.08
     wheel = b.part('roulette')
     wheel_z = roof_top + 0.02
     wheel_cx, wheel_cy = -0.12, 0.0
@@ -243,7 +243,7 @@ def build(out_path):
     wheel_r = wheel_d / 2
     _horiz_tex(
         roof_deco, 'casino/cas_roof_sign.png', sign_w, sign_h,
-        sign_cx, sign_cy, roof_top + 0.04, label='roof_sign',
+        sign_cx, sign_cy, roof_top + 0.04, rz=math.pi / 2, label='roof_sign',
     )
     wheel.cyl('cas_dark', wheel_r, wheel_r, 0.06, wheel_cx, wheel_cy, wheel_z, seg=20)
     _horiz_tex(
@@ -260,12 +260,12 @@ def build(out_path):
         f'Y=[{wheel_cy - wheel_r:.3f},{wheel_cy + wheel_r:.3f}] '
         f'north_gap={sign_cx - sign_w / 2 - (wheel_cx + wheel_r):.3f}'
     )
-    # 西簷朝上橫幅（門前俯視可讀「神之島」）
-    west_w, west_h = 0.95, 3.05
-    west_y = FRONT + 0.50
+    # 西簷朝上橫幅（門前俯視可讀「神之島」；U 沿南北長邊）
+    west_w, west_h = 3.05, 0.95
+    west_y = FRONT - 0.45
     _horiz_tex(
         roof_deco, 'casino/cas_arch_roof.png', west_w, west_h,
-        0, west_y, roof_top + 0.035, label='west_eave_sign',
+        0, west_y, roof_top + 0.035, rz=0, label='west_eave_sign',
     )
 
     lp = b.part('lamp_posts')
