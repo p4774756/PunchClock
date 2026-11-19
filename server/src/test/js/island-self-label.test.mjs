@@ -254,3 +254,177 @@ test('createSelfLabelPlacer 只在名稱變更時寫 textContent', () => {
   placer.place(ctx);
   assert.ok(writes > first);
 });
+
+test('createSelfLabelPlacer：名稱先解析、節點後建立', () => {
+  const labels = { children: [], appendChild(el) { this.children.push(el); el.parentNode = this; } };
+  const doc = {
+    getElementById(id) { return id === 'islandLabels' ? labels : null; },
+    createElement() {
+      return {
+        className: '',
+        hidden: false,
+        style: {},
+        parentNode: null,
+        children: [],
+        set textContent(v) { this._text = v; },
+        get textContent() { return this._text; },
+        appendChild(el) { this.children.push(el); el.parentNode = this; },
+        setAttribute() {}
+      };
+    }
+  };
+  const projected = {
+    set() {},
+    project() { this.z = 0; this.x = 0; this.y = 0; },
+    x: 0, y: 0, z: 0
+  };
+  const placer = L.createSelfLabelPlacer({ document: doc });
+  const ctx = {
+    mode: { exploring: true },
+    selfNameEnabled: true,
+    interiorBusy: false,
+    uiOverlay: false,
+    miluVisible: true,
+    storage: storageMem(),
+    loadNick: P.loadNick,
+    selfName: '旅人 012',
+    playerX: 2,
+    playerZ: -893,
+    groundY: 0,
+    P: 0,
+    passengerScale: 1,
+    width: 400,
+    height: 300,
+    camera: {},
+    projected: projected,
+    peers: []
+  };
+  placer.place(ctx);
+  const dbg = placer.getDebug();
+  assert.equal(dbg.visible, true);
+  assert.equal(dbg.text, '旅人 012');
+});
+
+test('createSelfLabelPlacer：開關關閉後重開、節點重建仍帶字', () => {
+  const labels = { children: [], appendChild(el) { this.children.push(el); el.parentNode = this; } };
+  let host = labels;
+  const doc = {
+    getElementById(id) { return id === 'islandLabels' ? host : null; },
+    createElement() {
+      return {
+        className: '',
+        hidden: false,
+        style: { visibility: '' },
+        parentNode: null,
+        children: [],
+        set textContent(v) { this._text = v; },
+        get textContent() { return this._text; },
+        appendChild(el) { this.children.push(el); el.parentNode = this; },
+        setAttribute() {}
+      };
+    }
+  };
+  const projected = {
+    set() {},
+    project() { this.z = 0; this.x = 0; this.y = 0; },
+    x: 0, y: 0, z: 0
+  };
+  const placer = L.createSelfLabelPlacer({ document: doc });
+  const baseCtx = {
+    mode: { exploring: true },
+    selfNameEnabled: true,
+    interiorBusy: false,
+    uiOverlay: false,
+    miluVisible: true,
+    storage: storageMem(),
+    loadNick: P.loadNick,
+    selfName: '旅人 088',
+    playerX: 0,
+    playerZ: 0,
+    groundY: 0,
+    P: 0,
+    passengerScale: 1,
+    width: 400,
+    height: 300,
+    camera: {},
+    projected: projected,
+    peers: []
+  };
+  placer.place({ ...baseCtx, selfNameEnabled: false });
+  assert.equal(placer.getDebug().visible, false);
+  placer.place(baseCtx);
+  assert.equal(placer.getDebug().text, '旅人 088');
+  host = { children: [], appendChild(el) { this.children.push(el); el.parentNode = this; } };
+  placer.place(baseCtx);
+  assert.equal(placer.getDebug().text, '旅人 088');
+  assert.equal(placer.getDebug().visible, true);
+});
+
+test('createSelfLabelPlacer：清空暱稱後顯示 welcome 或旅人', () => {
+  const labels = { children: [], appendChild(el) { this.children.push(el); el.parentNode = this; } };
+  const doc = {
+    getElementById(id) { return id === 'islandLabels' ? labels : null; },
+    createElement() {
+      return {
+        className: '',
+        hidden: false,
+        style: {},
+        parentNode: null,
+        children: [],
+        set textContent(v) { this._text = v; },
+        get textContent() { return this._text; },
+        appendChild(el) { this.children.push(el); el.parentNode = this; },
+        setAttribute() {}
+      };
+    }
+  };
+  const projected = {
+    set() {},
+    project() { this.z = 0; this.x = 0; this.y = 0; },
+    x: 0, y: 0, z: 0
+  };
+  const placer = L.createSelfLabelPlacer({ document: doc });
+  const st = storageMem();
+  const ctxWelcome = {
+    mode: { exploring: true },
+    selfNameEnabled: true,
+    interiorBusy: false,
+    uiOverlay: false,
+    miluVisible: true,
+    storage: st,
+    loadNick: P.loadNick,
+    selfName: '旅人 333',
+    playerX: 1,
+    playerZ: -890,
+    groundY: 0,
+    P: 0,
+    passengerScale: 1,
+    width: 400,
+    height: 300,
+    camera: {},
+    projected: projected,
+    peers: []
+  };
+  placer.place(ctxWelcome);
+  assert.equal(placer.getDebug().text, '旅人 333');
+  placer.place({ ...ctxWelcome, selfName: '' });
+  assert.equal(placer.getDebug().text, '旅人');
+  assert.notEqual(placer.getDebug().text, '');
+});
+
+test('selfLabelAnchor 室內世界座標不加 peer offset', () => {
+  const a = L.selfLabelAnchor({
+    driving: false,
+    sailing: false,
+    playerX: 12.5,
+    playerZ: -892.4,
+    offsetX: 0,
+    offsetZ: 0,
+    groundY: 0,
+    P: 0,
+    passengerScale: 1
+  });
+  assert.equal(a.kind, 'player');
+  assert.equal(a.x, 12.5);
+  assert.equal(a.z, -892.4);
+});

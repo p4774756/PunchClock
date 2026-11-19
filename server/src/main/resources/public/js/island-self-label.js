@@ -254,7 +254,11 @@ export function createSelfLabelPlacer(opts) {
 
   function ensure() {
     if (!doc || !host) return null;
-    if (el && el.parentNode === host) return el;
+    if (el && el.parentNode === host && textEl) return el;
+    if (el && el.parentNode !== host) {
+      el = null;
+      textEl = null;
+    }
     el = doc.createElement('div');
     el.className = 'island-self-name';
     el.hidden = true;
@@ -264,6 +268,7 @@ export function createSelfLabelPlacer(opts) {
     star.textContent = '★';
     textEl = doc.createElement('span');
     textEl.className = 'island-self-name-text';
+    textEl.textContent = lastText;
     el.appendChild(star);
     el.appendChild(textEl);
     host.appendChild(el);
@@ -286,9 +291,13 @@ export function createSelfLabelPlacer(opts) {
 
   function setText(name) {
     const next = name == null ? '' : String(name);
+    if (!textEl) {
+      lastText = next;
+      return;
+    }
     if (next === lastText) return;
     lastText = next;
-    if (textEl) textEl.textContent = next;
+    textEl.textContent = next;
   }
 
   /**

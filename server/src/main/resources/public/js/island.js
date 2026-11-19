@@ -687,8 +687,8 @@ function boot() {
       playerZ: player.z,
       groundY: playerGroundY(),
       P: P,
-      offsetX: peerOffset().x,
-      offsetZ: peerOffset().z,
+      offsetX: 0,
+      offsetZ: 0,
       passengerScale: boatPassengerScaleFactor(boatState.phase),
       vehicleState: vehicleState,
       boatState: boatState,
@@ -1721,7 +1721,41 @@ function boot() {
     dayNight.step(dt);
     loop.tick(dt, clock.elapsedTime);
     renderer.render(scene, camera);
+    placeSelfOverlaysEveryFrame();
     placeLabels();
+  }
+
+  function placeSelfOverlaysEveryFrame() {
+    if (peerLayer && typeof peerLayer.placeSelfOverlays === 'function') {
+      peerLayer.placeSelfOverlays();
+      return;
+    }
+    const w = stage.clientWidth || 1;
+    const h = stage.clientHeight || 1;
+    const placed = placeSelfLabelFrame({
+      width: w,
+      height: h,
+      camera: camera,
+      projected: projected,
+      peers: []
+    });
+    if (!islandChat) return;
+    const bubbleCtx = {
+      x: player.x,
+      y: placed && placed.headY != null ? placed.headY : P + 1.18,
+      z: player.z,
+      visible: !!(mode.exploring && (
+        localView.object.visible || miluPlaceholder.visible || playerMesh.visible
+      )),
+      width: w,
+      height: h,
+      camera: camera,
+      projected: projected,
+      peers: [],
+      selfNameAbove: !!(placed && placed.selfNameAbove),
+      selfBubbleExtra: placed && placed.selfBubbleExtra ? placed.selfBubbleExtra : ''
+    };
+    islandChat.placeBubbles(bubbleCtx);
   }
 
   function start() {
@@ -2607,4 +2641,34 @@ function boot() {
   renderer.render(scene, camera);
   placeLabels();
   if (!document.hidden) start();
+
+  const pwQ = new URLSearchParams(window.location.search);
+  if (pwQ.get('pw') === '1') {
+    window.__islandPw = {
+      setPlayer: (x, z, yaw) => {
+        player.x = x;
+        player.z = z;
+        if (yaw != null) player.yaw = yaw;
+        setPlayerAnchor(player.x, P, player.z, player.yaw);
+        localView.object.position.set(player.x, P, player.z);
+        syncAvatarVisible();
+      },
+      enterInterior: (id) => enterInterior(id),
+      leaveInterior: () => leaveInterior(),
+      enterVehicle: () => enterVehicleInteract(),
+      disembarkVehicle: () => disembarkVehicle(),
+      startSailTo: (stop) => {
+        const zone = promptZones().find((z) => z.action === 'sail' && z.stop === stop);
+        if (zone) void startSail(zone);
+      },
+      say: (text) => {
+        const cleaned = typeof text === 'string' ? text.trim() : '';
+        if (!cleaned || !islandPresence || typeof islandPresence.sendSay !== 'function') return false;
+        return islandPresence.sendSay(cleaned);
+      },
+      toggleSelfName: (on) => {
+        if (corner && typeof corner.setSelfNameEnabled === 'function') corner.setSelfNameEnabled(on);
+      }
+    };
+  }
 }

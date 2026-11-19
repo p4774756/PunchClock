@@ -36,6 +36,7 @@ export function createPeerLayer(opts) {
 
   const peers = new Map();
   const avatarTexturePools = new Map();
+  let lastPeerPlaces = [];
   let peerWelcomed = false;
   let peerSelfId = '';
   let peerScene = 'outdoor';
@@ -43,12 +44,22 @@ export function createPeerLayer(opts) {
 
   function sharedTexturesForAvatar(avatarId) {
     const key = normalizeIslandAvatar(avatarId);
-    let pool = avatarTexturePools.get(key);
-    if (!pool) {
-      pool = new Map();
-      avatarTexturePools.set(key, pool);
+    let row = avatarTexturePools.get(key);
+    if (!row) {
+      const anim = islandAvatarAnim(key);
+      const anchor = createMiluView(THREE, { deferLoad: true, anim: anim });
+      row = { pool: anchor.sharedTextures(), anchor: anchor };
+      avatarTexturePools.set(key, row);
+      anchor.beginLoad();
     }
-    return pool;
+    return row.pool;
+  }
+
+  function disposeAvatarTexturePools() {
+    avatarTexturePools.forEach((row) => {
+      if (row && row.anchor && row.anchor.dispose) row.anchor.dispose();
+    });
+    avatarTexturePools.clear();
   }
 
   function clearPeers() {
@@ -215,6 +226,54 @@ export function createPeerLayer(opts) {
     lastPosSent = null;
   }
 
+  function buildSelfBubbleCtx(size, peerPlaces) {
+    const width = size.width || 1;
+    const height = size.height || 1;
+    const mode = getMode();
+    const player = getPlayer();
+    return {
+      x: player.x,
+      y: P + 1.18,
+      z: player.z,
+      visible: !!(mode.exploring && (
+        getMiluVisible()
+        || (typeof getMiluPlaceholderVisible === 'function' && getMiluPlaceholderVisible())
+        || getPlayerMeshVisible()
+      )),
+      width: width,
+      height: height,
+      camera: camera,
+      projected: projected,
+      peers: peerPlaces || [],
+      selfNameAbove: false,
+      selfBubbleExtra: ''
+    };
+  }
+
+  function placeSelfOverlays(peerPlaces) {
+    const size = getStageSize();
+    const width = size.width || 1;
+    const height = size.height || 1;
+    const places = peerPlaces || lastPeerPlaces;
+    let bubbleCtx = buildSelfBubbleCtx(size, places);
+    if (typeof placeSelfLabel === 'function') {
+      const placed = placeSelfLabel({
+        width: width,
+        height: height,
+        camera: camera,
+        projected: projected,
+        peers: places
+      });
+      if (placed) {
+        if (placed.headY != null) bubbleCtx.y = placed.headY;
+        bubbleCtx.selfNameAbove = !!placed.selfNameAbove;
+        if (placed.selfBubbleExtra) bubbleCtx.selfBubbleExtra = placed.selfBubbleExtra;
+      }
+    }
+    const islandChat = getChat();
+    if (islandChat) islandChat.placeBubbles(bubbleCtx);
+  }
+
   function placePeerLabels() {
     const size = getStageSize();
     const width = size.width || 1;
@@ -222,9 +281,6 @@ export function createPeerLayer(opts) {
     const off = peerOffset();
     const now = performance.now();
     const peerPlaces = [];
-    const mode = getMode();
-    const player = getPlayer();
-    const islandChat = getChat();
     peers.forEach((row, id) => {
       const el = row.label;
       if (!el) return;
@@ -247,38 +303,7 @@ export function createPeerLayer(opts) {
       el.style.transform = 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -120%)';
       peerPlaces.push({ id: id, x: x, y: y, visible: true });
     });
-    let bubbleCtx = {
-      x: player.x,
-      y: P + 1.18,
-      z: player.z,
-      visible: !!(mode.exploring && (
-        getMiluVisible()
-        || (typeof getMiluPlaceholderVisible === 'function' && getMiluPlaceholderVisible())
-        || getPlayerMeshVisible()
-      )),
-      width: width,
-      height: height,
-      camera: camera,
-      projected: projected,
-      peers: peerPlaces,
-      selfNameAbove: false,
-      selfBubbleExtra: ''
-    };
-    if (typeof placeSelfLabel === 'function') {
-      const placed = placeSelfLabel({
-        width: width,
-        height: height,
-        camera: camera,
-        projected: projected,
-        peers: peerPlaces
-      });
-      if (placed) {
-        if (placed.headY != null) bubbleCtx.y = placed.headY;
-        bubbleCtx.selfNameAbove = !!placed.selfNameAbove;
-        if (placed.selfBubbleExtra) bubbleCtx.selfBubbleExtra = placed.selfBubbleExtra;
-      }
-    }
-    if (islandChat) islandChat.placeBubbles(bubbleCtx);
+    lastPeerPlaces = peerPlaces;
   }
 
   function setWelcomed(value) {
@@ -311,6 +336,8 @@ export function createPeerLayer(opts) {
     peerScene = 'outdoor';
     lastPosSent = null;
     clearPeers();
+    disposeAvatarTexturePools();
+    lastPeerPlaces = [];
   }
 
   function collectMinimapPeers(now) {
@@ -337,6 +364,7 @@ export function createPeerLayer(opts) {
     syncPresence: syncPresence,
     forceResendPos: forceResendPos,
     placePeerLabels: placePeerLabels,
+    placeSelfOverlays: placeSelfOverlays,
     syncPeerCount: syncPeerCount,
     setWelcomed: setWelcomed,
     getWelcomed: getWelcomed,

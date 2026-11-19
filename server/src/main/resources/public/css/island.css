@@ -986,6 +986,32 @@ body.island-sheet-open .island-map-sheet {
   white-space: nowrap;
 }
 
+.island-more-self-name .island-more-self-name-state {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.35rem;
+  padding: 0.14rem 0.55rem;
+  border-radius: 999px;
+  border: 2px solid #163a70;
+  box-shadow: 1px 2px 0 rgba(0, 0, 0, 0.28);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+#islandSelfNameToggle[aria-checked="true"] .island-more-self-name-state {
+  background: #3b7dd8;
+  color: #f8fbff;
+}
+
+#islandSelfNameToggle[aria-checked="false"] .island-more-self-name-state {
+  background: #d9dee6;
+  color: #5a6578;
+}
+
 .island-more-build {
   flex-shrink: 0;
   margin: 0;
