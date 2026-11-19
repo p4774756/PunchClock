@@ -39,8 +39,8 @@ export function hudTopRightRect(viewportWidth, viewportHeight, showAudio) {
   const totalW = dayNightBlock + audioW + chatMenuW;
   const right = viewportWidth - margin;
   const left = right - totalW;
-  const top = (viewportWidth <= MOBILE_MAX_WIDTH ? 4.55 : 3.6) * REM;
-  const bottom = top + ORB_SIZE + 0.9 * REM;
+  const top = (viewportWidth <= MOBILE_MAX_WIDTH ? 0.55 : 3.6) * REM;
+  const bottom = top + ORB_SIZE + 1.05 * REM;
   return { left, right, top, bottom, width: totalW, height: bottom - top, orbSize: ORB_SIZE };
 }
 
@@ -269,17 +269,100 @@ export function listPanelRectDesktop(viewportWidth, viewportHeight, showAudio) {
   };
 }
 
-export function chatPanelRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem) {
-  const hRem = panelHeightRem > 0 ? panelHeightRem : 12;
-  const joy = joystickRectMobile(viewportWidth, viewportHeight);
-  const actions = hudActionsRect(viewportWidth, viewportHeight);
+const EXPLORE_FLOAT_BOTTOM_REM =
+  0.85 + 3.75 + 0.45 + 3.75 + 0.45 + 3.75 + 0.35;
+
+export function exploreFloatBottomPx(viewportHeight) {
+  return viewportHeight - EXPLORE_FLOAT_BOTTOM_REM * REM;
+}
+
+/** 手機探索：左上玩家 HUD（含卡、間距、人數晶片；對齊 island.css @760px）。 */
+export function hudPlayerRectMobile(viewportWidth, viewportHeight) {
+  void viewportWidth;
+  void viewportHeight;
+  const top = Math.max(3.65 * REM, 2.75 * REM);
+  const left = 0.55 * REM;
+  const width = Math.min(10.5 * REM, viewportWidth - 9.5 * REM);
+  // 卡 + gap 0.35rem + .island-hud-peer-badge（390×844 Chrome 量測 ≈8.15rem）
+  const boxH = 8.15 * REM;
+  return { left, right: left + width, top, bottom: top + boxH, width, height: boxH };
+}
+
+/** 手機探索：清單面板（對齊 island.css @760px）。 */
+export function listPanelRectMobileExplore(viewportWidth, viewportHeight) {
+  const player = hudPlayerRectMobile(viewportWidth, viewportHeight);
   const margin = hudMargin(viewportWidth);
-  const bottomInset = Math.max(actions.bottom - actions.top + 0.5 * REM, joy.bottom - joy.top);
+  const top = player.bottom + 0.5 * REM;
+  const width = Math.min(280, viewportWidth - 1.1 * REM);
+  const right = viewportWidth - margin;
+  const left = right - width;
+  const titleBarH = 2 * REM;
+  const maxBody = Math.min(
+    0.52 * viewportHeight,
+    viewportHeight - top - Math.max(5.5 * REM, 3.75 * REM + 0.85 * REM)
+  );
+  return {
+    left,
+    right,
+    top,
+    bottom: top + titleBarH,
+    width,
+    height: titleBarH,
+    titleBar: { left, right, top, bottom: top + titleBarH, width, height: titleBarH },
+    closeTop: top + 4,
+    closeRight: right - 4,
+    maxBody,
+    player
+  };
+}
+
+export function nickPopRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem) {
+  return popRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem > 0 ? panelHeightRem : 9);
+}
+
+export function chatPanelRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem) {
+  return popRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem > 0 ? panelHeightRem : 12);
+}
+
+function popRectMobileExplore(viewportWidth, viewportHeight, hRem) {
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  const exit = exploreExitButtonRect(viewportWidth, viewportHeight);
+  const margin = hudMargin(viewportWidth);
+  const gap = 0.35 * REM;
   const left = joy.right + 0.55 * REM;
   const right = viewportWidth - margin;
-  const bottom = actions.top - 0.35 * REM;
-  const top = bottom - hRem * REM;
-  return { left, right, top, bottom, width: right - left, height: hRem * REM, joy };
+  const bottom = exploreFloatBottomPx(viewportHeight);
+  const maxH = Math.max(6 * REM, bottom - gap - joy.top - gap);
+  const height = Math.min(hRem * REM, maxH);
+  const top = bottom - height;
+  return { left, right, top, bottom, width: right - left, height, joy, exit };
+}
+
+/** 桌面探索：暱稱窗（對齊 body.is-exploring.island-nick-open .island-nick）。 */
+export function nickPopRectDesktopExplore(viewportWidth, viewportHeight) {
+  const margin = 0.85 * REM;
+  const width = Math.min(18 * REM, viewportWidth - 1.6 * REM);
+  const right = viewportWidth - margin;
+  const left = right - width;
+  const height = 7.5 * REM;
+  const bottomInset = 1.1 * REM + 3.75 * REM + 0.65 * REM;
+  const panelBottom = viewportHeight - bottomInset;
+  const top = panelBottom - height;
+  const actions = hudActionsRect(viewportWidth, viewportHeight, { exploring: true });
+  return { left, right, top, bottom: panelBottom, width, height, actions };
+}
+
+/** 手機探索：操作提示（對齊 .island-explore-hint @760px）。 */
+export function exploreHintRectMobile(viewportWidth, viewportHeight, approxHeightRem) {
+  const hRem = approxHeightRem > 0 ? approxHeightRem : 2.5;
+  const margin = hudMargin(viewportWidth);
+  const top = 0.55 * REM + 2.85 * REM + 1.05 * REM + 0.35 * REM;
+  const right = viewportWidth - margin;
+  const width = Math.min(11 * REM, viewportWidth - 8 * REM);
+  const left = right - width;
+  const height = hRem * REM;
+  const tr = hudTopRightRect(viewportWidth, viewportHeight, true);
+  return { left, right, top, bottom: top + height, width, height, tr };
 }
 
 export function createCornerUi(opts) {
