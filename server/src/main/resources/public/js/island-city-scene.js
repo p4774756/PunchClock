@@ -169,21 +169,34 @@ export function buildIslandCity(ctx) {
   root.add(car);
   if (ctx.pinkCarMesh) ctx.pinkCarMesh.group = car;
 
-  const { makePerson } = ctx.people || {};
-  if (makePerson && walkers) {
-    const paths = cityWalkerPaths();
-    const shirts = [0xf08a3a, 0x1f4d73, 0x9fd9b4, 0xf4a0c0, 0x7ec8ea, 0xfff7ef];
-    for (let i = 0; i < 6; i++) {
-      const person = makePerson({ shirt: shirts[i % shirts.length] });
-      scene.add(person);
-      walkers.push({
-        obj: person,
-        path: paths[i % paths.length],
-        speed: 0.038 + (i % 3) * 0.006,
-        pingpong: i % 2 === 1,
-        offset: i * 0.17,
-        cityOnly: true
-      });
+  const peopleApi = ctx.people || {};
+  if (walkers) {
+    const spawnCity = () => {
+      if (typeof peopleApi.spawnCityWalkers === 'function') {
+        peopleApi.spawnCityWalkers();
+        return;
+      }
+      const { makePerson } = peopleApi;
+      if (!makePerson) return;
+      const paths = cityWalkerPaths();
+      const shirts = [0xf08a3a, 0x1f4d73, 0x9fd9b4, 0xf4a0c0, 0x7ec8ea, 0xfff7ef];
+      for (let i = 0; i < 6; i++) {
+        const person = makePerson({ shirt: shirts[i % shirts.length] });
+        scene.add(person);
+        walkers.push({
+          obj: person,
+          path: paths[i % paths.length],
+          speed: 0.038 + (i % 3) * 0.006,
+          pingpong: i % 2 === 1,
+          offset: i * 0.17,
+          cityOnly: true
+        });
+      }
+    };
+    if (peopleApi.whenReady && typeof peopleApi.whenReady.then === 'function') {
+      peopleApi.whenReady.then(spawnCity).catch(spawnCity);
+    } else {
+      spawnCity();
     }
     const motoPaths = cityMotoPaths();
     for (let m = 0; m < motoPaths.length; m++) {
