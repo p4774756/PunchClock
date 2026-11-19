@@ -260,7 +260,7 @@ public class App extends JFrame {
     }
 
     private void initUI() {
-        setTitle("洋流  " + AppVersion.displayLabel());
+        setTitle("神器  " + AppVersion.displayLabel());
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         Font mainFont = UiFonts.chinesePlain(13);

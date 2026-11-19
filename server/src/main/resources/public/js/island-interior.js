@@ -585,7 +585,7 @@ export const INTERIORS = Object.freeze([
     id: 'shop-room',
     buildingId: 'shop',
     spawn: Object.freeze({ x: 0, z: 0.2, yaw: Math.PI }),
-    exit: Object.freeze({ x: 0, z: -1.35, r: 0.58, label: '離開莫卡手搖' }),
+    exit: Object.freeze({ x: 0, z: -1.35, r: 0.58, label: '離開神之島' }),
     outside: Object.freeze({ x: -3.86, z: -1.4, yaw: -Math.PI / 2 }),
     floor: Object.freeze({ minX: -2.35, maxX: 2.35, minZ: -1.9, maxZ: 2.05 }),
     blocks: Object.freeze([

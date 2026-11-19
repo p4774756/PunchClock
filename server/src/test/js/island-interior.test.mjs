@@ -25,7 +25,7 @@ test('室內清單完整，手搖店西牆門口可站且不壓櫃台', () => {
 
   const shop = L.buildingById('shop');
   assert.equal(shop.entry.action, 'enterInterior');
-  assert.equal(shop.entry.label, '進入莫卡手搖');
+  assert.equal(shop.entry.label, '進入神之島');
   assert.equal(shop.deriveBlock, false);
   assert.ok(shop.door.x < shop.x - shop.w / 2, '門口在西牆外，不是預設的正面 +Z');
   assert.equal(X.canStand(shop.door.x, shop.door.z, RADIUS), true);
@@ -395,7 +395,7 @@ test('研發樓各站位頭腳投影在 NDC 內（桌面 1280／1440）', () => 
 test('手搖店室內離開按鈕文案與探索提示', () => {
   const session = I.createInteriorSession();
   session.enter('shop', 0);
-  assert.equal(I.interiorLeaveButtonLabel(session), '離開莫卡手搖');
+  assert.equal(I.interiorLeaveButtonLabel(session), '離開神之島');
   session.exit(200);
 });
 

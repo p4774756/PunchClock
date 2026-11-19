@@ -65,10 +65,10 @@ test('promptDomUpdate：相同 visible＋label 不寫入', () => {
 
 test('promptDomUpdate：label 改變只寫文字與 aria-label', () => {
   const prev = { visible: true, label: '搭船到沙灘島' };
-  const patch = C.promptDomUpdate(prev, { visible: true, label: '搭船回手搖店島' });
+  const patch = C.promptDomUpdate(prev, { visible: true, label: '搭船回神之島' });
   assert.deepEqual(patch, {
-    textContent: '搭船回手搖店島',
-    ariaLabel: '搭船回手搖店島'
+    textContent: '搭船回神之島',
+    ariaLabel: '搭船回神之島'
   });
 });
 
