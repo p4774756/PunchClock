@@ -85,7 +85,7 @@ function nightColorFromDay(hex, opts) {
   c.getHSL(hsl);
   const out = new THREE.Color();
   if (bronze) {
-    out.setHSL(hsl.h, Math.min(1, hsl.s * 0.7), 0.26 + hsl.l * 0.42);
+    out.setHSL(hsl.h, Math.min(1, hsl.s * 0.82), 0.20 + hsl.l * 0.34);
   } else {
     out.setHSL(hsl.h, Math.min(1, hsl.s * 0.78), 0.12 + hsl.l * 0.42);
   }
@@ -107,9 +107,9 @@ function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
       );
     } else {
       day.setHSL(
-        Math.min(0.13, Math.max(0.08, hsl.h * 0.92 + 0.09)),
-        Math.min(0.78, hsl.s * 0.88 + 0.12),
-        Math.min(0.5, Math.max(0.36, hsl.l * 0.9 + 0.04))
+        Math.min(0.11, Math.max(0.07, hsl.h * 0.88 + 0.06)),
+        Math.min(0.85, hsl.s * 0.92 + 0.22),
+        Math.min(0.39, Math.max(0.27, hsl.l * 0.68 + 0.02))
       );
     }
   }
@@ -146,7 +146,7 @@ function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   std.userData.bronze = isBronze;
   std.userData.dayE = isBronze ? Math.max(0.04, emissiveI) : 0.016;
   std.userData.nightE = isBronze ? Math.max(0.16, emissiveI * 2.6) : 0.008;
-  std.envMapIntensity = isBronze ? (faceRecess ? 0.92 : 1.38) : 0.22;
+  std.envMapIntensity = isBronze ? (faceRecess ? 0.78 : 1.12) : 0.22;
   kit.addMaterial(std);
   return std;
 }
@@ -635,7 +635,7 @@ export function createTcmFigureController(ctx) {
   };
 }
 
-const ENTRANCE_FIG_SCALE = 1.08;
+const ENTRANCE_FIG_SCALE = 1.12;
 
 export function replaceEntranceBronzeStatue(model, kit, pickables, opts) {
   model.updateMatrixWorld(true);

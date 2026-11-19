@@ -215,9 +215,9 @@ def _build_classical_head(bm, front):
     head_y = 1.558
     head_z = front + 0.018
 
-    # 正面略扁、後腦略圓，讓 +Z 方向有臉部平面
-    _add_uv_ellipsoid(bm, _v(0.0, head_y, head_z + 0.008), (0.092, 0.108, 0.096), u=24, v=16)
-    _add_uv_ellipsoid(bm, _v(0.0, head_y - 0.024, head_z - 0.018), (0.082, 0.092, 0.104), u=20, v=14)
+    # 正面略扁、後腦略圓；+Z 臉部平面加寬，讓眼窩凹影能讀出
+    _add_uv_ellipsoid(bm, _v(0.0, head_y, head_z + 0.012), (0.098, 0.112, 0.102), u=24, v=16)
+    _add_uv_ellipsoid(bm, _v(0.0, head_y - 0.024, head_z - 0.018), (0.086, 0.096, 0.108), u=20, v=14)
 
     # 頂髻左右分開、扁平，配合 crown/topknot 吸附
     for side in (1, -1):
@@ -244,58 +244,90 @@ def _build_classical_head(bm, front):
 
 
 def _build_face_detail(bm, front):
-    """眼窩／眉／鼻／唇（bronze_dark mesh，遠看仍有明暗）。"""
+    """成對眼窩、鼻樑、嘴（bronze_dark；大、深、有明暗，勿單一喙狀凸起）。"""
     head_y = 1.558
     head_z = front + 0.018
-    face_z = head_z + 0.088
+    face_z = head_z + 0.082
 
     for side in (1, -1):
         sock = bmesh.new()
         _add_uv_ellipsoid(
             sock,
-            _v(side * 0.036, head_y + 0.006, face_z - 0.016),
-            (0.026, 0.018, 0.014),
-            u=8,
-            v=6,
+            _v(side * 0.041, head_y + 0.010, face_z - 0.032),
+            (0.044, 0.030, 0.036),
+            u=12,
+            v=10,
         )
         _append_bmesh(bm, sock)
         sock.free()
-        eye = bmesh.new()
+        lid = bmesh.new()
         _add_uv_ellipsoid(
-            eye,
-            _v(side * 0.036, head_y + 0.004, face_z + 0.004),
-            (0.014, 0.010, 0.008),
-            u=6,
+            lid,
+            _v(side * 0.041, head_y + 0.022, face_z - 0.012),
+            (0.048, 0.010, 0.018),
+            u=8,
             v=5,
         )
-        _append_bmesh(bm, eye)
-        eye.free()
+        _append_bmesh(bm, lid)
+        lid.free()
         brow = bmesh.new()
         _add_uv_ellipsoid(
             brow,
-            _v(side * 0.036, head_y + 0.028, face_z - 0.006),
-            (0.026, 0.007, 0.010),
-            u=6,
-            v=4,
+            _v(side * 0.041, head_y + 0.034, face_z - 0.008),
+            (0.050, 0.012, 0.016),
+            u=8,
+            v=5,
         )
         _append_bmesh(bm, brow)
         brow.free()
+        cheek = bmesh.new()
+        _add_uv_ellipsoid(
+            cheek,
+            _v(side * 0.058, head_y - 0.018, face_z - 0.018),
+            (0.022, 0.026, 0.020),
+            u=8,
+            v=6,
+        )
+        _append_bmesh(bm, cheek)
+        cheek.free()
 
-    nose = bmesh.new()
-    _add_uv_ellipsoid(nose, _v(0.0, head_y - 0.008, face_z + 0.022), (0.022, 0.042, 0.038), u=10, v=8)
-    _append_bmesh(bm, nose)
-    nose.free()
     bridge = bmesh.new()
-    _add_uv_ellipsoid(bridge, _v(0.0, head_y + 0.018, face_z + 0.002), (0.012, 0.022, 0.010), u=6, v=5)
+    _add_uv_ellipsoid(
+        bridge,
+        _v(0.0, head_y + 0.022, face_z - 0.006),
+        (0.016, 0.048, 0.014),
+        u=8,
+        v=10,
+    )
     _append_bmesh(bm, bridge)
     bridge.free()
+    nose_side = bmesh.new()
+    _add_uv_ellipsoid(nose_side, _v(0.012, head_y - 0.006, face_z + 0.004), (0.010, 0.022, 0.014), u=6, v=6)
+    _append_bmesh(bm, nose_side)
+    nose_side.free()
+    nose_side2 = bmesh.new()
+    _add_uv_ellipsoid(nose_side2, _v(-0.012, head_y - 0.006, face_z + 0.004), (0.010, 0.022, 0.014), u=6, v=6)
+    _append_bmesh(bm, nose_side2)
+    nose_side2.free()
+    tip = bmesh.new()
+    _add_uv_ellipsoid(tip, _v(0.0, head_y - 0.014, face_z + 0.006), (0.014, 0.016, 0.012), u=6, v=5)
+    _append_bmesh(bm, tip)
+    tip.free()
 
-    lip = bmesh.new()
-    _add_uv_ellipsoid(lip, _v(0.0, head_y - 0.046, face_z - 0.004), (0.032, 0.010, 0.014), u=8, v=6)
-    _append_bmesh(bm, lip)
-    lip.free()
+    upper_lip = bmesh.new()
+    _add_uv_ellipsoid(upper_lip, _v(0.0, head_y - 0.038, face_z - 0.006), (0.052, 0.012, 0.018), u=10, v=6)
+    _append_bmesh(bm, upper_lip)
+    upper_lip.free()
+    lower_lip = bmesh.new()
+    _add_uv_ellipsoid(lower_lip, _v(0.0, head_y - 0.050, face_z - 0.002), (0.048, 0.014, 0.020), u=10, v=6)
+    _append_bmesh(bm, lower_lip)
+    lower_lip.free()
+    mouth_line = bmesh.new()
+    _add_uv_ellipsoid(mouth_line, _v(0.0, head_y - 0.044, face_z - 0.014), (0.040, 0.006, 0.012), u=8, v=4)
+    _append_bmesh(bm, mouth_line)
+    mouth_line.free()
     chin = bmesh.new()
-    _add_uv_ellipsoid(chin, _v(0.0, head_y - 0.068, face_z + 0.012), (0.038, 0.014, 0.022), u=8, v=6)
+    _add_uv_ellipsoid(chin, _v(0.0, head_y - 0.072, face_z + 0.004), (0.042, 0.018, 0.024), u=8, v=6)
     _append_bmesh(bm, chin)
     chin.free()
 
@@ -307,13 +339,13 @@ def _build_body(mat_main, mat_dark, mat_patina):
 
     # —— 軀幹（胸腹背一体）——
     torso = [
-        (1.34, 0.0, front, 0.082, 0.078),   # 頸根
-        (1.24, 0.0, front - 0.004, 0.138, 0.108),   # 肩線
-        (1.16, 0.0, front - 0.006, 0.172, 0.116),   # 肩膊
-        (1.06, 0.0, front - 0.01, 0.146, 0.108),  # 胸
-        (0.94, 0.0, front, 0.132, 0.098),   # 腰
-        (0.82, 0.0, front - 0.006, 0.146, 0.114),  # 腹
-        (0.74, 0.0, front, 0.156, 0.118),  # 胯
+        (1.34, 0.0, front, 0.088, 0.084),   # 頸根
+        (1.24, 0.0, front - 0.004, 0.152, 0.120),   # 肩線
+        (1.16, 0.0, front - 0.006, 0.192, 0.128),   # 肩膊
+        (1.06, 0.0, front - 0.01, 0.164, 0.120),  # 胸
+        (0.94, 0.0, front, 0.148, 0.108),   # 腰
+        (0.82, 0.0, front - 0.006, 0.162, 0.124),  # 腹
+        (0.74, 0.0, front, 0.172, 0.126),  # 胯
     ]
     _loft_sections(bm, torso)
 
@@ -333,12 +365,12 @@ def _build_body(mat_main, mat_dark, mat_patina):
     def leg(side):
         ox = side * 0.085
         sections = [
-            (0.76, ox, front, 0.092, 0.088),
-            (0.54, ox * 0.95, front, 0.072, 0.076),
-            (0.34, ox * 0.88, front + 0.01, 0.058, 0.062),
-            (0.18, ox * 0.82, front + 0.02, 0.062, 0.068),
-            (0.075, ox * 0.75, front + 0.03, 0.082, 0.095),
-            (0.028, ox * 0.70, front + 0.035, 0.095, 0.11),
+            (0.76, ox, front, 0.102, 0.098),
+            (0.54, ox * 0.95, front, 0.082, 0.086),
+            (0.34, ox * 0.88, front + 0.01, 0.066, 0.072),
+            (0.18, ox * 0.82, front + 0.02, 0.072, 0.078),
+            (0.075, ox * 0.75, front + 0.03, 0.092, 0.106),
+            (0.028, ox * 0.70, front + 0.035, 0.106, 0.122),
         ]
         _tube(bm, sections, cap_end=True)
 
@@ -349,19 +381,19 @@ def _build_body(mat_main, mat_dark, mat_patina):
     def arm(side):
         s = side
         upper = [
-            (1.28, s * 0.158, front - 0.008, 0.068, 0.062),
-            (1.14, s * 0.188, front - 0.015, 0.058, 0.054),
-            (1.02, s * 0.208, front - 0.022, 0.052, 0.050),
+            (1.28, s * 0.162, front - 0.008, 0.078, 0.072),
+            (1.14, s * 0.194, front - 0.015, 0.066, 0.062),
+            (1.02, s * 0.214, front - 0.022, 0.060, 0.056),
         ]
         _loft_sections(bm, upper)
         fore = [
-            (1.02, s * 0.208, front - 0.022, 0.050, 0.048),
-            (0.90, s * 0.238, front - 0.028, 0.046, 0.044),
-            (0.82, s * 0.258, front - 0.032, 0.044, 0.042),
+            (1.02, s * 0.214, front - 0.022, 0.058, 0.054),
+            (0.90, s * 0.244, front - 0.028, 0.054, 0.052),
+            (0.82, s * 0.264, front - 0.032, 0.052, 0.048),
         ]
         _loft_sections(bm, fore)
         hand = bmesh.new()
-        _add_uv_ellipsoid(hand, _v(s * 0.258, 0.795, front - 0.034), (0.034, 0.030, 0.042), u=10, v=8)
+        _add_uv_ellipsoid(hand, _v(s * 0.264, 0.795, front - 0.034), (0.038, 0.034, 0.046), u=10, v=8)
         _append_bmesh(bm, hand)
         hand.free()
 
@@ -413,7 +445,7 @@ def _build_body(mat_main, mat_dark, mat_patina):
     )
     patina = _mesh_from_bmesh(pat, 'bronze_patina', mat_patina)
     _subdiv_apply(body, 2)
-    _subdiv_apply(face, 1)
+    _subdiv_apply(face, 2)
     _subdiv_apply(sash, 1)
     _subdiv_apply(patina, 1)
     return [body, face, sash, patina]
@@ -423,14 +455,14 @@ def build(out_path):
     prepare_scene()
     mat_bronze = _mat_bronze(
         'bronze',
-        0xb88a38,
-        rough=0.11,
-        metal=0.96,
-        emit=0xf0c878,
-        emit_strength=0.018,
+        0x8f5a2a,
+        rough=0.15,
+        metal=0.94,
+        emit=0xa87840,
+        emit_strength=0.010,
     )
-    mat_bronze_dark = _mat_bronze('bronze_dark', 0x5a3818, rough=0.24, metal=0.86)
-    mat_patina = _mat_bronze('bronze_patina', 0x6a5c38, rough=0.34, metal=0.82)
+    mat_bronze_dark = _mat_bronze('bronze_dark', 0x3a2210, rough=0.30, metal=0.82)
+    mat_patina = _mat_bronze('bronze_patina', 0x5c4a28, rough=0.38, metal=0.78)
     mat_stone = _mat_stone('stone', 0xf6f0e8, rough=0.68)
     mat_stone_band = _mat_stone('stone_band', 0xeae2d8, rough=0.72)
     mat_stone_dark = _mat_stone('stone_dark', 0xd8cec2, rough=0.76)
