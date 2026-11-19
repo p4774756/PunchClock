@@ -201,7 +201,6 @@ body.dev-machines-page {
 .dev-btn-secondary {
   background: var(--maple-white);
   color: var(--maple-navy);
-  margin-left: 0.5rem;
 }
 
 .dev-run-list {
@@ -325,6 +324,23 @@ body.dev-machines-page {
 .dev-machines-footer {
   text-align: center;
   padding: 0.85rem 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.dev-machines-footer .dev-btn {
+  width: min(100%, 20rem);
+  max-width: 100%;
+  min-height: 40px;
+}
+
+.dev-machines-guest-body {
+  padding: 1.25rem 1rem 1.5rem;
+  text-align: center;
 }
 
 .dev-machines-donate {
