@@ -1,5 +1,6 @@
 import {ANIME_MODEL_BYTES} from './anime-model-digest';
 import {publicAssetUrl} from './public-assets';
+import {animePointTarget} from './character-mode';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
 import {animeOutfit,ANIME_OUTFITS,type AnimeOutfit,type OutfitId} from './outfits';
 import {useEffect,useRef} from 'react';
@@ -868,6 +869,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   // Do not patch VRM MToon onBeforeCompile — injecting into Face/Body skin
   // breaks THREE_VRM_THREE_REVISION / WebGLProgram and turns skin black.
   let lastSimulation:SimulationState|null=null;
+  let lastRefinedLocate=-1;
   let vrm: {scene:T.Object3D;update:(delta:number)=>void}|null=null;
   let schoolModel:T.Object3D|null=null;
   let practiceModel:T.Object3D|null=null;
@@ -987,12 +989,46 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const down=(e:PointerEvent)=>tap.down(e.pointerId,e.clientX,e.clientY,e.pointerType==='touch'?12:5);
   const move=(e:PointerEvent)=>{tap.move(e.pointerId,e.clientX,e.clientY);};
   const cancel=(e:PointerEvent)=>tap.cancel(e.pointerId);
+  const markerFacingCamera=(m:T.Mesh)=>{
+   const code=m.userData.point as string;
+   const side=(m.userData.side as number)||1;
+   const meta=animePointTarget(code,side as 1|-1)??avatarPointTarget(avatar,code,side as 1|-1);
+   if(!meta)return true;
+   const n=new T.Vector3().fromArray(meta.normal);
+   characterRoot.updateMatrixWorld();
+   n.transformDirection(characterRoot.matrixWorld).normalize();
+   const toCam=camera.position.clone().sub(m.position).normalize();
+   const thresh=questMode?0.05:0.2;
+   return n.dot(toCam)>thresh;
+  };
+  const markerOccluded=(m:T.Mesh)=>{
+   if(!ready)return true;
+   const fl=sim.current.frameLocate;
+   if(questMode&&fl){
+    const p=m.position.clone().project(camera);
+    if(p.z<-1||p.z>1)return true;
+    if(fl.viewDir[2]>=-.25)return false;
+   }
+   if(!markerFacingCamera(m))return true;
+   const skins=teaching.getSkinMeshes();
+   if(!skins.length)return false;
+   const target=m.position.clone();
+   const camPos=camera.position.clone();
+   const dir=target.clone().sub(camPos);
+   const dist=dir.length();
+   if(dist<1e-4)return false;
+   dir.normalize();
+   raycaster.set(camPos,dir);
+   raycaster.far=dist-.01;
+   raycaster.near=0.001;
+   return raycaster.intersectObjects(skins,true).length>0;
+  };
   const pickQuestMarker=(clientX:number,clientY:number)=>{
    const rect=renderer.domElement.getBoundingClientRect();
    const minPx=el.clientWidth<=720?24:10;
    let best:T.Mesh|null=null,bestD=minPx;
    for(const m of teaching.markers){
-    if(!m.visible)continue;
+    if(!m.visible||markerOccluded(m))continue;
     const p=m.position.clone().project(camera);
     if(p.z<-1||p.z>1)continue;
     const sx=(p.x+1)/2*rect.width,sy=(1-p.y)/2*rect.height;
@@ -1006,7 +1042,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const rect=renderer.domElement.getBoundingClientRect();
    pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
    raycaster.setFromCamera(pointer,camera);
-   let hit=raycaster.intersectObjects(teaching.markers.filter(m=>m.visible),false)[0];
+   let hit=raycaster.intersectObjects(teaching.markers.filter(m=>m.visible&&!markerOccluded(m)),false)[0];
    if(!hit&&questMode){
     const near=pickQuestMarker(e.clientX,e.clientY);
     if(near)hit={object:near,distance:0,point:new T.Vector3(),face:null,instanceId:null as unknown as number} as T.Intersection;
@@ -1034,22 +1070,89 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    invalidate:()=>{dirty=true;},
   });
   if(questMode)teaching.label.hidden=true;
-  type MqDebugWindow=Window&{__mqDebug?:()=>{markers:{code:string;side:number;screenX:number;screenY:number;inFrustum:boolean}[];hudBottom:number;hintTop:number}};
+  const applyLocateViewOffset=(fl:NonNullable<SimulationState['frameLocate']>)=>{
+   camera.clearViewOffset();
+   if(fl?.viewOffset){
+    const vo=fl.viewOffset;
+    camera.setViewOffset(vo.fullWidth,vo.fullHeight,vo.offsetX,vo.offsetY,vo.width,vo.height);
+    camera.updateProjectionMatrix();
+   }
+  };
+  const clamp=(n:number,lo:number,hi:number)=>Math.max(lo,Math.min(hi,n));
+  const refineLocateView=(fl:NonNullable<SimulationState['frameLocate']>)=>{
+   if(!fl.viewOffset||!fl.answerCode)return;
+   const desktop=fl.viewOffset.fullWidth>=720;
+   const hudBox=document.querySelector('.mq-hud-panel')?.getBoundingClientRect();
+   const hintBox=document.querySelector('.mq-hint-btn')?.getBoundingClientRect();
+   if(!hudBox||!hintBox)return;
+   const rect=renderer.domElement.getBoundingClientRect();
+   const margin=8;
+   const vo=fl.viewOffset;
+   for(let pass=0;pass<3;pass++){
+    applyLocateViewOffset(fl);
+    const answer=teaching.markers.find(m=>m.userData.point===fl.answerCode);
+    if(!answer)break;
+    const p=answer.position.clone().project(camera);
+    const ay=rect.top+(1-p.y)/2*rect.height;
+    const maxY=hintBox.top-margin;
+    const minY=hudBox.bottom+margin;
+    let moved=false;
+    if(ay>maxY){
+     vo.offsetY+=clamp(Math.round((ay-maxY)*.55),2,48);moved=true;
+    }else if(ay<minY){
+     vo.offsetY-=clamp(Math.round((minY-ay)*.55),2,48);moved=true;
+    }
+    const aim=new T.Vector3().fromArray(fl.aim).project(camera);
+    const cy=rect.top+(1-aim.y)/2*rect.height;
+    const mid=(hudBox.bottom+hintBox.top)/2;
+    const span=Math.max(56,hintBox.top-hudBox.bottom);
+    const drift=cy-mid;
+    if(!desktop&&Math.abs(drift)>span*.15){
+     vo.offsetY+=clamp(Math.round(drift*.42),2,40);moved=true;
+    }
+    vo.offsetY=clamp(vo.offsetY,-120,120);
+    if(!moved&&ay>=minY&&ay<=maxY)break;
+   }
+   applyLocateViewOffset(fl);
+   dirty=true;
+  };
+  type MqDebugWindow=Window&{__mqRefineLocate?:()=>void;__mqDebug?:()=>{
+   markers:{code:string;side:number;screenX:number;screenY:number;inFrustum:boolean;occluded:boolean}[];
+   hudBottom:number;hintTop:number;usableMid:number;frameCenter:{screenX:number;screenY:number}|null;
+  }};
+  if(questMode)(window as MqDebugWindow).__mqRefineLocate=()=>{
+   if(sim.current.frameLocate)refineLocateView(sim.current.frameLocate);
+  };
   if(questMode)(window as MqDebugWindow).__mqDebug=()=>{
    const rect=renderer.domElement.getBoundingClientRect();
    const hudBox=(document.querySelector('.mq-hud-panel')??document.querySelector('.mq-hud'))?.getBoundingClientRect();
    const hintBox=(document.querySelector('.mq-hint-btn')??document.querySelector('.mq-choices'))?.getBoundingClientRect();
+   const hudBottom=hudBox?.bottom??0;
+   const hintTop=hintBox?.top??window.innerHeight;
+   const usableMid=(hudBottom+hintTop)/2;
    const markers=teaching.markers.filter(m=>m.visible).map(m=>{
     const p=m.position.clone().project(camera);
+    const onScreen=p.z>=-1&&p.z<=1;
+    const occluded=onScreen?markerOccluded(m):true;
     return {
      code:m.userData.point as string,
      side:m.userData.side as number,
      screenX:rect.left+(p.x+1)/2*rect.width,
      screenY:rect.top+(1-p.y)/2*rect.height,
-     inFrustum:p.z>=-1&&p.z<=1,
+     inFrustum:onScreen&&!occluded,
+     occluded,
     };
    });
-   return {markers,hudBottom:hudBox?.bottom??0,hintTop:hintBox?.top??window.innerHeight};
+   let frameCenter:{screenX:number;screenY:number}|null=null;
+   const fl=sim.current.frameLocate;
+   if(fl){
+    const p=new T.Vector3().fromArray(fl.aim).project(camera);
+    frameCenter={
+     screenX:rect.left+(p.x+1)/2*rect.width,
+     screenY:rect.top+(1-p.y)/2*rect.height,
+    };
+   }
+   return {markers,hudBottom,hintTop,usableMid,frameCenter};
   };
 
   const animate=()=>{
@@ -1059,20 +1162,16 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const s=latest.current;
    let simState=sim.current;
    toolInput.update();
-   if(s.view!==lastView||s.reset!==lastReset){fit(s.view);lastView=s.view;lastReset=s.reset;}
+   if(s.view!==lastView||s.reset!==lastReset){
+    const holdLocate=questMode&&!!simState.frameLocate;
+    if(!holdLocate)fit(s.view);
+    lastView=s.view;lastReset=s.reset;
+   }
    controls.autoRotate=s.rotate&&!toolInput.isDragging();controls.autoRotateSpeed=.55;
    if(!toolInput.isDragging())controls.update();
    if(controls.autoRotate)dirty=true;
 
    if(ready&&!teaching.isAnchored()&&characterRoot.children.length)teaching.anchor(characterRoot);
-   const applyLocateViewOffset=(fl:NonNullable<typeof simState.frameLocate>)=>{
-    camera.clearViewOffset();
-    if(fl.viewOffset){
-     const vo=fl.viewOffset;
-     camera.setViewOffset(vo.fullWidth,vo.fullHeight,vo.offsetX,vo.offsetY,vo.width,vo.height);
-     camera.updateProjectionMatrix();
-    }
-   };
    const beginLocateLerp=(fl:NonNullable<typeof simState.frameLocate>)=>{
     const aim=new T.Vector3().fromArray(fl.aim);
     const viewDir=new T.Vector3().fromArray(fl.viewDir).normalize();
@@ -1124,7 +1223,13 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     controls.update();dirty=true;
     if(u>=1){
      locateLerp=null;
-     if(simState.frameLocate)applyLocateViewOffset(simState.frameLocate);
+     if(simState.frameLocate){
+      applyLocateViewOffset(simState.frameLocate);
+      if(questMode&&lastRefinedLocate!==simState.focus){
+       lastRefinedLocate=simState.focus;
+       refineLocateView(simState.frameLocate);
+      }
+     }
     }
    }
 
@@ -1145,7 +1250,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   return()=>{
    disposed=true;outfitBridge.current=null;cancelAnimationFrame(frame);observer.disconnect();
-   if(questMode)delete (window as MqDebugWindow).__mqDebug;
+   if(questMode){delete (window as MqDebugWindow).__mqDebug;delete (window as MqDebugWindow).__mqRefineLocate;}
    toolInput.dispose();teaching.dispose();controls.dispose();gradient.dispose();
    if(woodcut){
     scene.remove(woodcut.mesh);

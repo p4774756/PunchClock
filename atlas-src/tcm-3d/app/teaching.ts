@@ -133,6 +133,7 @@ export type LocateFrameSpec={
  distance:number;
  viewDir:[number,number,number];
  viewOffset?:LocateViewOffset;
+ answerCode?:string;
 };
 
 export interface SimulationState {showMeridians?:boolean;meridianFilter?:string;curriculumSet?:CurriculumSetId|'all'|null;tool:ToolId;release?:number;dragging?:boolean;running:boolean;elapsed:number;amplitude:number;pointCode:string|null;side:1|-1;framePointCode?:string|null;frameSide?:1|-1;frameLocate?:LocateFrameSpec|null;customTarget:SurfaceTarget|null;focus:number;showPoints:boolean;pickMode:'point';effects:boolean}

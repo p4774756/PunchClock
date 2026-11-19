@@ -219,13 +219,15 @@ export default function Home(){
   const view=target.region==='head'?'front':target.region==='waist'?'back':'three-quarter';
   setState(s=>({...s,view,rotate:false,reset:s.reset+1}));
  },[avatarCodes]);
- const onQuestLocateFraming=useCallback((meridianId:MeridianQuestId,answerCode:string)=>{
+ const onQuestLocateFraming=useCallback((meridianId:MeridianQuestId,answerCode:string,seed:number,questionIndex:number)=>{
   const mobile=typeof window!=='undefined'&&(window.innerWidth<768||(window.innerWidth<=1100&&window.innerHeight<=500));
   const w=typeof window!=='undefined'?window.innerWidth:1280;
   const h=typeof window!=='undefined'?window.innerHeight:720;
-  const hudTop=mobile?124:136;
-  const bottomReserved=mobile?200:176;
-  const frame=computeLocateFrame(meridianId,answerCode,{mobile,aspect:w/h,viewportWidth:w,viewportHeight:h,hudTop,bottomReserved});
+  const hudBox=typeof document!=='undefined'?document.querySelector('.mq-hud-panel')?.getBoundingClientRect():undefined;
+  const hintBox=typeof document!=='undefined'?document.querySelector('.mq-hint-btn')?.getBoundingClientRect():undefined;
+  const hudTop=hudBox?Math.max(0,Math.round(hudBox.bottom)):(mobile?124:136);
+  const bottomReserved=hintBox?Math.max(0,Math.round(h-hintBox.top)):(mobile?200:176);
+  const frame=computeLocateFrame(meridianId,answerCode,{mobile,aspect:w/h,viewportWidth:w,viewportHeight:h,hudTop,bottomReserved,seed,questionIndex});
   const view=questLocateViewForAnswer(answerCode);
   setState(s=>({...s,view,rotate:false,reset:s.reset+1}));
   setSimulation(s=>({
@@ -266,7 +268,7 @@ export default function Home(){
      {error&&<button className="text-button" onClick={()=>window.location.reload()}>重新加載</button>}
     </div>
    )}
-   <div className="scene-mode-hint"><span className="tiny-dot"/>{animePointReady?'點選金色穴位 · 抓住工具移動 · 拖動旋轉 · 滾動縮放':avatarLessonNote(currentAvatar,simulation.pointCode)}</div>
+   {!questPlaying&&<div className="scene-mode-hint"><span className="tiny-dot"/>{animePointReady?'點選金色穴位 · 抓住工具移動 · 拖動旋轉 · 滾動縮放':avatarLessonNote(currentAvatar,simulation.pointCode)}</div>}
   </section>
 
   <nav className="camera-bar surface" aria-label="人體視角">

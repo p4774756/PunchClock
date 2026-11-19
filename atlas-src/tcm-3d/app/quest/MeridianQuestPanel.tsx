@@ -36,7 +36,7 @@ interface Props{
  onMeridianFilter:(id:MeridianQuestId|null)=>void;
  onHighlight:(code:string|null)=>void;
  onHintFocus:(code:string|null)=>void;
- onLocateFraming?:(meridianId:MeridianQuestId,excludeAnswer:string)=>void;
+ onLocateFraming?:(meridianId:MeridianQuestId,answerCode:string,seed:number,questionIndex:number)=>void;
  onNeedPracticeOutfit:()=>void;
  onLocateAnswer?:(code:string)=>void;
  registerLocateHandler?:(fn:((code:string)=>void)|null)=>void;
@@ -106,8 +106,8 @@ export default function MeridianQuestPanel({
 
  useEffect(()=>{
   if(view!=='play'||!playId||!q||q.kind!=='locate'||cardOpen)return;
-  onLocateFraming?.(playId,q.answerCode);
- },[view,playId,q,cardOpen,onLocateFraming,index]);
+  if(plan)onLocateFraming?.(playId,q.answerCode,plan.seed,index);
+ },[view,playId,q,cardOpen,onLocateFraming,index,plan]);
 
  const pauseTimer=useCallback(()=>{
   setAccumulatedMs(ms=>ms+Math.max(0,Date.now()-segmentStart));
@@ -327,7 +327,10 @@ export default function MeridianQuestPanel({
           data-idx={idx}
           onClick={()=>setSelected(st.id)}>
           {!canPlay&&<span className="mq-lock" aria-hidden="true">🔒</span>}
-          <span className="mq-node-name">{questStageNodeLines(st.name)}</span>
+          <span className="mq-node-name">
+           <span className="mq-node-name-inline">{st.name}</span>
+           <span className="mq-node-name-two" aria-hidden>{questStageNodeLines(st.name)}</span>
+          </span>
           <span className="mq-node-count">{st.count} 穴</span>
           <span className="mq-stars">{starRow(stars)}</span>
          </button>;

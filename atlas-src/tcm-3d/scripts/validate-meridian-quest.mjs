@@ -259,13 +259,19 @@ await test('桌機選關第二排蛇行',async()=>{
 });
 
 await test('找穴位鏡頭框選',async()=>{
- const mobileOpts={mobile:true,aspect:390/844,viewportWidth:390,viewportHeight:844,hudTop:124,bottomReserved:200};
- const deskOpts={mobile:false,aspect:1280/720,viewportWidth:1280,viewportHeight:720,hudTop:136,bottomReserved:176};
+ const mobileOpts={mobile:true,aspect:390/844,viewportWidth:390,viewportHeight:844,hudTop:124,bottomReserved:200,seed:246801357,questionIndex:0};
+ const deskOpts={mobile:false,aspect:1280/720,viewportWidth:1280,viewportHeight:720,hudTop:136,bottomReserved:176,seed:246801357,questionIndex:0};
  const mobile=M.computeLocateFrame('ST','ST25',mobileOpts);
  const desktop=M.computeLocateFrame('ST','ST25',deskOpts);
  assert.ok(mobile&&mobile.aim[1]>0.9&&mobile.aim[1]<1.35,`天樞 mobile aim.y=${mobile?.aim[1]}`);
  assert.ok(desktop&&desktop.distance>=0.35&&desktop.distance<=2.2,`桌機距離 ${desktop?.distance}`);
  assert.ok(mobile?.viewOffset,'mobile 應有 viewOffset');
+ const jitterB=M.computeLocateFrame('ST','ST25',{...mobileOpts,questionIndex:3});
+ assert.ok(jitterB?.viewOffset&&(jitterB.viewOffset.offsetX!==mobile.viewOffset?.offsetX||jitterB.viewOffset.offsetY!==mobile.viewOffset?.offsetY),'題序應改變偏移');
+ const li=M.computeLocateFrame('LI','LI20',{...deskOpts,questionIndex:0});
+ assert.ok(li&&li.distance>=0.35,'迎香應框選部位而非單點貼臉');
+ const si11=M.computeLocateFrame('SI','SI11',deskOpts);
+ assert.ok(si11&&si11.viewDir[2]>.25,`天宗 viewDir.z=${si11?.viewDir[2]}`);
  for(const code of M.questAvatarLocateCodes('ST')){
   const m=M.computeLocateFrame('ST',code,mobileOpts);
   assert.ok(m,`${code} 應能計算鏡頭`);

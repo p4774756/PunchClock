@@ -68,6 +68,8 @@
 .mq-node.picked{outline:3px solid var(--mq-border);outline-offset:3px}
 .mq-node.latest{box-shadow:0 0 0 3px var(--mq-btn),var(--mq-shadow)}
 .mq-node-name{font-size:11px;font-weight:700;line-height:1.3;word-break:keep-all;overflow-wrap:break-word;max-width:100%;flex:1;display:flex;align-items:center;justify-content:center}
+.mq-node-name-two{display:none}
+.mq-node-name-inline{display:inline}
 .mq-node-count{font-size:9px;color:var(--mq-muted);margin-top:2px;flex-shrink:0}
 .mq-stars{display:flex;gap:2px;margin-top:3px;color:var(--mq-gold);font-size:12px;flex-shrink:0}
 .mq-star-on{color:var(--mq-gold)}
@@ -182,7 +184,9 @@
  .mq-map-grid .mq-node[data-idx="9"]{grid-column:3;grid-row:2}
  .mq-map-grid .mq-node[data-idx="10"]{grid-column:2;grid-row:2}
  .mq-map-grid .mq-node[data-idx="11"]{grid-column:1;grid-row:2}
- .mq-node-name{font-size:10px;line-height:1.22;max-width:72px;margin:0 auto;white-space:pre-line;text-align:center;overflow:hidden;max-height:2.5em}
+ .mq-node-name{font-size:10px;line-height:1.22;max-width:72px;margin:0 auto;text-align:center;overflow:hidden;max-height:2.5em}
+ .mq-node-name-inline{display:none}
+ .mq-node-name-two{display:block;white-space:pre-line}
  .mq-choices{
   left:auto;right:12px;width:min(360px,calc(50vw - 24px));bottom:12px;
  }
