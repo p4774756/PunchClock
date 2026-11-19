@@ -1,0 +1,20 @@
+Title: 1956 Fiat 500 Low Poly
+Author: Montero (Sketchfab: StMontero)
+License: Creative Commons Attribution 4.0 International (CC-BY-4.0)
+License URL: https://creativecommons.org/licenses/by/4.0/
+Original page: https://sketchfab.com/3d-models/1956-fiat-500-low-poly-55f16de75dba4bf7adce3e1ff5bdfa46
+Sketchfab UID: 55f16de75dba4bf7adce3e1ff5bdfa46
+Triangles / vertices (Sketchfab): 2.1k / 1.5k
+Retrieved: 2026-11-19
+
+Download path (login-free CC-BY redistribution in Objaverse):
+https://huggingface.co/datasets/allenai/objaverse/resolve/main/glbs/000-040/55f16de75dba4bf7adce3e1ff5bdfa46.glb
+Objaverse object path: glbs/000-040/55f16de75dba4bf7adce3e1ff5bdfa46.glb
+Local original: montero-1956-fiat-500.glb (179368 bytes, glTF binary)
+
+Attribution requirement: credit Montero (StMontero). Commercial use is allowed.
+
+Notes:
+- Classic 1956 Fiat 500 / Cinquecento silhouette: short rounded hatch, round headlights, chrome bumper.
+- Restyle in tools/blender (pastel pink body, cream/white roof, chrome bumpers, keep round lights and bubble roof) to match PunchClock city concept 36b51d99.jpg.
+- Do not replace this mesh with stacked boxes or spheres.
