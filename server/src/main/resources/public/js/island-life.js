@@ -534,8 +534,10 @@ function prepareLifeMaterials(THREE, root, kind) {
       mat.userData.nightE = sprayMesh ? 0.2 : nightE;
       if (sprayMesh && mat.emissive) mat.emissive.setRGB(0.75, 0.9, 1);
       if (birdMesh && mat.emissive) {
-        const e = 0.36;
-        mat.emissive.copy(mat.color).multiplyScalar(e);
+        const isTip = n.includes('gull_tip');
+        const isBeak = n.includes('gull_beak');
+        const e = isTip ? 0 : isBeak ? 0.38 : 0.46;
+        mat.emissive.copy(mat.color);
         mat.emissiveIntensity = e;
         mat.userData.dayEmissiveMin = e;
       }
@@ -1258,3 +1260,5 @@ export function createIslandLife(THREE, opts) {
     ready
   };
 }
+
+export { prepareLifeMaterials };

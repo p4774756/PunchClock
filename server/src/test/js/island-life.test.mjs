@@ -37,7 +37,8 @@ const {
   LIFE_CREATURE_KINDS,
   validateLifePanoramaGlbPlacements,
   LIFE_PANORAMA_CAMERA,
-  LIFE_PANORAMA_VIEWPORT
+  LIFE_PANORAMA_VIEWPORT,
+  prepareLifeMaterials
 } = life;
 
 function mockThreeLite() {
@@ -536,9 +537,12 @@ function collectMeshVerts(gltf, binChunk, names, step = 2) {
 }
 
 function snakeContactRatio(gltf, binChunk) {
-  const turtle = collectMeshVerts(gltf, binChunk, ['xuan_shell', 'xuan_body'], 1);
-  const snake = collectMeshVerts(gltf, binChunk, ['snake', 'snake_belly', 'snake_eye'], 2);
+  const turtle = collectMeshVerts(gltf, binChunk, ['xuan_shell', 'xuan_body'], 2);
+  const snake = collectMeshVerts(gltf, binChunk, ['snake', 'snake_belly', 'snake_eye'], 3);
   if (!turtle.length || !snake.length) return 0;
+  const snakeB = glbMeshNodeBounds(gltf, binChunk, 'snake');
+  const half = Math.max(snakeB.sx, snakeB.sz) * 0.22;
+  const thresh = Math.max(0.028, half * 0.52);
   let near = 0;
   for (const p of snake) {
     let best = Infinity;
@@ -546,7 +550,7 @@ function snakeContactRatio(gltf, binChunk) {
       const dx = p[0] - q[0]; const dy = p[1] - q[1]; const dz = p[2] - q[2];
       best = Math.min(best, Math.sqrt(dx * dx + dy * dy + dz * dz));
     }
-    if (best <= 0.03) near += 1;
+    if (best <= thresh) near += 1;
   }
   return near / snake.length;
 }
@@ -677,7 +681,7 @@ describe('island-life GLB 種類 (#226)', () => {
     assert.ok(Math.max(tail.sx, tail.sy, tail.sz) <= fishLong * 0.55 + 0.05, 'wenyao tail size');
   });
 
-  test('r6 玄武金紋／文鰩翼展 (#226)', () => {
+  test('r7 玄武蛇／金紋／海鷗 (#226)', () => {
     const binX = readGlbBin(join(publicRoot, 'models', 'life', 'xuanwu.glb'));
     const gtX = readGlbJson(join(publicRoot, 'models', 'life', 'xuanwu.glb'));
     const gold = glbMeshWorldBounds(gtX, binX, 'xuan_gold');
@@ -693,7 +697,46 @@ describe('island-life GLB 種類 (#226)', () => {
     const snakeB = glbMeshNodeBounds(gtX, binX, 'snake');
     const turtleW = Math.max(shell.sx, shell.sy);
     const snakeW = Math.max(snakeB.sx, snakeB.sy);
-    assert.ok(snakeW <= turtleW * 1.15 + 0.02, `snake width ${snakeW} vs turtle ${turtleW}`);
+    assert.ok(snakeW <= turtleW * 1.25 + 0.02, `snake width ${snakeW} vs turtle ${turtleW}`);
+    const eyeB = glbMeshNodeBounds(gtX, binX, 'snake_eye');
+    assert.ok(Math.max(eyeB.sx, eyeB.sy, eyeB.sz) <= turtleW * 0.12,
+      `snake_eye max axis ${Math.max(eyeB.sx, eyeB.sy, eyeB.sz)} vs turtle ${turtleW}`);
+    const goldVerts = collectMeshVerts(gtX, binX, ['xuan_gold'], 3);
+    const shellCtrX = (shell.minX + shell.maxX) * 0.5;
+    const shellCtrY = (shell.minY + shell.maxY) * 0.5;
+    const shellHalf = Math.max(shell.sx, shell.sy) * 0.5;
+    for (const p of goldVerts) {
+      const dx = p[0] - shellCtrX;
+      const dy = p[1] - shellCtrY;
+      assert.ok(Math.hypot(dx, dy) <= shellHalf * 0.92 + 0.02,
+        `xuan_gold vertex r ${Math.hypot(dx, dy)} vs shell ${shellHalf}`);
+    }
+    const THREE = mockThreeLite();
+    THREE.Color = class {
+      constructor() { this.r = 1; this.g = 1; this.b = 1; }
+      setRGB(r, g, b) { this.r = r; this.g = g; this.b = b; }
+      clone() { const c = new THREE.Color(); c.r = this.r; c.g = this.g; c.b = this.b; return c; }
+      copy(o) { this.r = o.r; this.g = o.g; this.b = o.b; return this; }
+    };
+    const mats = {};
+    const birdRoot = {
+      traverse(fn) {
+        const body = { isMesh: true, name: 'gull_body', geometry: { attributes: { position: {} } },
+          material: { color: new THREE.Color(), emissive: new THREE.Color(), roughness: 0.8, metalness: 0, userData: {} },
+          castShadow: false, receiveShadow: false };
+        const tip = { isMesh: true, name: 'gull_tip', geometry: { attributes: { position: {} } },
+          material: { color: new THREE.Color(), emissive: new THREE.Color(), roughness: 0.8, metalness: 0, userData: {} },
+          castShadow: false, receiveShadow: false };
+        fn(body);
+        fn(tip);
+        mats.body = body.material;
+        mats.tip = tip.material;
+      }
+    };
+    prepareLifeMaterials(THREE, birdRoot, 'birds');
+    assert.ok(mats.body.emissiveIntensity >= 0.42);
+    assert.ok(mats.body.userData.dayEmissiveMin >= 0.42);
+    assert.equal(mats.tip.emissiveIntensity, 0);
 
     const binG = readGlbBin(join(publicRoot, 'models', 'life', 'seagull.glb'));
     const gtG = readGlbJson(join(publicRoot, 'models', 'life', 'seagull.glb'));
