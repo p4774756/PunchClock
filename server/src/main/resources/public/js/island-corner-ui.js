@@ -1,5 +1,6 @@
 import { cleanNick, loadAvatar, loadNick, normalizeAvatar, saveAvatar, NICK_KEY } from './island-presence.js';
 import { loadSelfNameEnabled, saveSelfNameEnabled } from './island-self-label.js';
+import { mountDonateLinks } from './donate-link.js';
 
 export const MOBILE_MAX_WIDTH = 760;
 const REM = 16;
@@ -836,6 +837,11 @@ export function createCornerUi(opts) {
       setAvatarOpen(false);
     }
   });
+
+  const donateWin = document.defaultView || (typeof window !== 'undefined' ? window : null);
+  if (donateWin) {
+    mountDonateLinks(donateWin);
+  }
 
   return {
     syncPeerCount: syncPeerCount,

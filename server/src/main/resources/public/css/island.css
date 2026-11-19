@@ -1047,6 +1047,29 @@ body.is-exploring .island-npc-talk:not([hidden]) {
   white-space: nowrap;
 }
 
+.island-more-donate {
+  gap: 0.5rem;
+  white-space: nowrap;
+  min-height: 2.75rem;
+}
+
+.island-donate-heart {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  border: 2px solid #163a70;
+  background: #ffd44d;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  color: #163a70;
+  box-shadow: 1px 2px 0 rgba(0, 0, 0, 0.28);
+}
+
 .island-more-self-name .island-more-self-name-state {
   flex: 0 0 auto;
   display: inline-flex;
@@ -1618,6 +1641,10 @@ body.island-map-open .island-minimap {
   text-align: left;
   box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.2);
   cursor: pointer;
+}
+
+.island-more-menu .island-more-item.island-more-donate {
+  justify-content: flex-start;
 }
 
 .island-list-body > button,

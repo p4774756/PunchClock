@@ -55,6 +55,43 @@
   color: var(--maple-ink);
 }
 
+.donate-toast {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.6rem 0.55rem 0.75rem;
+  max-width: min(92vw, 380px);
+  width: max-content;
+}
+
+.donate-toast-msg {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.donate-toast .dev-login-toast-close {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  font-size: 1.15rem;
+}
+
+.donate-toast--island {
+  top: max(68px, calc(env(safe-area-inset-top, 0px) + 56px));
+  bottom: auto;
+}
+
+.donate-toast--dev {
+  bottom: max(7.75rem, calc(env(safe-area-inset-bottom, 0px) + 6.75rem));
+  top: auto;
+}
+
 .dev-btn {
   display: inline-flex;
   align-items: center;
