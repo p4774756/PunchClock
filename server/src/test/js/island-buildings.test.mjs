@@ -116,9 +116,9 @@ describe('computer-site GLB exterior', () => {
   it('computer-site layout 與門口維持職涯走廊可走', () => {
     const c = buildingById('computer-site');
     assert.equal(c.x, 0.45);
-    assert.equal(c.z, 18.2);
-    assert.equal(c.w, 3.2);
-    assert.equal(c.d, 2.5);
+    assert.equal(c.z, 18.35);
+    assert.equal(c.w, 3.5);
+    assert.equal(c.d, 2.8);
     assert.equal(c.yaw, Math.PI);
     assert.equal(c.entry.reach, 0.78);
     assert.ok(Math.abs(c.door.x - 0.45) < 1e-6);
@@ -131,7 +131,7 @@ describe('BUILDINGS footprint dimensions', () => {
     shop: { w: 4.75, d: 3.2 },
     casino: { w: 2.4, d: 1.9 },
     'tcm-site': { w: 2.3, d: 1.8 },
-    'computer-site': { w: 3.2, d: 2.5 }
+    'computer-site': { w: 3.5, d: 2.8 }
   };
 
   Object.entries(expected).forEach(([id, dims]) => {

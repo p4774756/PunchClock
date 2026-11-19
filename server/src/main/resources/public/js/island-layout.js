@@ -19,7 +19,7 @@ const ISLAND_DEFS = [
   // 中醫島在正西，橋從樹與候餐座位之間的西岸接出去。
   { id: 'tcm', name: '中醫推拿島', x: -16.6, z: 1.15, r: 4.0, visualR: 5.15, theme: 'tcm' },
   // 電腦島在南邊，橋從碼頭接出去。
-  { id: 'computer', name: '電腦島', x: 0.45, z: 17.1, r: 4.0, visualR: 5.15, theme: 'computer' },
+  { id: 'computer', name: '電腦島', x: 0.45, z: 17.05, r: 4.25, visualR: 5.4, theme: 'computer' },
   // 沙灘島只能坐船到（#65），不加橋。
   { id: 'beach', name: '沙灘島', x: 22, z: 6, r: 4.4, visualR: 5.6, theme: 'beach' },
   // 城市島在南側開闊處，與主島／博弈／電腦島外觀不相交（見 island-city.test.mjs）。
@@ -294,7 +294,7 @@ export const THEME_CIRCLES = Object.freeze([
   themeCircle('figure', 'tcm', -0.2, -2.2, 0.46),
   themeCircle('herb', 'tcm', 1.35, 1.75, 0.32),
   themeCircle('dish', 'computer', 2.35, -0.15, 0.3),
-  themeCircle('rack', 'computer', -2.05, 0.85, 0.3),
+  themeCircle('rack', 'computer', -2.35, 0.50, 0.3),
   themeCircle('lounger-1', 'beach', -1.2, 0.85, 0.52),
   themeCircle('lounger-2', 'beach', 0.35, 1.45, 0.52),
   themeCircle('lounger-3', 'beach', 1.55, 0.55, 0.52),
@@ -379,7 +379,7 @@ const BUILDING_DEFS = [
     entry: { r: 0.82, reach: 0.78, label: '進入推拿館', action: 'enterTcm' }
   },
   {
-    id: 'computer-site', island: 'computer', x: 0.45, z: 18.2, w: 3.2, d: 2.5, yaw: Math.PI,
+    id: 'computer-site', island: 'computer', x: 0.45, z: 18.35, w: 3.5, d: 2.8, yaw: Math.PI,
     label: '研發樓', panel: null, frontTrim: 0.2,
     entry: { r: 0.82, reach: 0.78, label: '進入研發樓', action: 'enterInterior' }
   }
