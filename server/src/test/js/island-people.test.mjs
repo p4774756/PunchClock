@@ -1,53 +1,53 @@
 // node --test server/src/test/js/island-people.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadPublicModule } from './load-public-module.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(here, '..', '..', 'main', 'resources', 'public');
-const glbPath = join(publicDir, 'models', 'npc-women.glb');
-const indexHtml = readFileSync(join(publicDir, 'index.html'), 'utf8');
+const petRoot = join(publicDir, 'pet', 'npc-women');
 const islandJs = readFileSync(join(publicDir, 'js', 'island.js'), 'utf8');
-
-function glbJsonChunk(filePath) {
-  const buf = readFileSync(filePath);
-  const jsonLen = buf.readUInt32LE(12);
-  return JSON.parse(buf.subarray(20, 20 + jsonLen).toString('utf8'));
-}
+const peopleJs = readFileSync(join(publicDir, 'js', 'island-people.js'), 'utf8');
 
 const D = await loadPublicModule('island-people-data.js');
 const L = await loadPublicModule('island-layout.js');
-const peopleJs = readFileSync(join(publicDir, 'js', 'island-people.js'), 'utf8');
 const C = await loadPublicModule('island-city-data.js');
+const M = await loadPublicModule('island-milu.js');
 
 test('七種造型清單且不含旗袍', () => {
   assert.deepEqual(D.NPC_STYLE_IDS, [
     'summer', 'student', 'tech', 'idol', 'swimsuit', 'sport', 'fairy'
   ]);
   assert.equal(D.NPC_STYLE_IDS.includes('qipao'), false);
-  assert.equal(D.NPC_STYLE_IDS.includes('cheongsam'), false);
   assert.equal(D.NPC_STYLE_IDS.length, 7);
 });
 
-test('預算常數與 GLB 統計', () => {
-  const st = statSync(glbPath);
-  assert.ok(st.size <= D.NPC_BUDGET.MAX_GLB_BYTES);
-  assert.ok(D.NPC_GLB_STATS.bytes <= D.NPC_BUDGET.MAX_GLB_BYTES);
-  assert.ok(D.NPC_GLB_STATS.trisTotalUnique <= D.NPC_BUDGET.MAX_UNIQUE_TRIS);
+test('各造型看板幀檔與 baseUrl', () => {
   for (const style of D.NPC_STYLE_IDS) {
-    assert.ok(D.NPC_GLB_STATS.trisPerStyle[style] <= D.NPC_BUDGET.MAX_TRIS_PER_STYLE);
+    const anim = D.npcWomenAnim(style);
+    assert.equal(anim.baseUrl, D.NPC_PET_BASE + style + '/');
+    assert.equal(anim.footV, M.MILU_ANIM.footV);
+    assert.equal(anim.fps.walk, 8);
+    assert.equal(anim.fps.idle, 5);
+    const dir = join(petRoot, style);
+    assert.ok(existsSync(dir), style);
+    for (const rel of ['idle/breath_01.png', 'walk/left_01.png', 'walk/front_01.png']) {
+      assert.ok(existsSync(join(dir, rel)), style + ' ' + rel);
+    }
+    if (style === 'student' || style === 'idol' || style === 'sport') {
+      assert.ok(existsSync(join(dir, 'sit', 'sit_01.png')));
+      assert.ok(existsSync(join(dir, 'sit', 'sit_02.png')));
+      assert.equal(anim.clips.idle.sit.length, 2);
+    }
   }
-  assert.ok(D.NPC_GLB_STATS.drawCallsEst <= D.NPC_BUDGET.MAX_DRAW_CALLS);
 });
 
 test('行人數量上限', () => {
   const full = D.npcSpawnPlan({});
   assert.ok(D.countNpcInstances(full) <= D.NPC_BUDGET.MAX_INSTANCES);
-  const estTris = D.countNpcInstances(full) * D.NPC_BUDGET.MAX_TRIS_PER_STYLE;
-  assert.ok(estTris <= D.NPC_BUDGET.MAX_INSTANCE_TRIS);
 });
 
 test('walker／idle 路徑可走', () => {
@@ -82,10 +82,42 @@ test('reduced 計畫縮減且不增例', () => {
   assert.ok(r.cityCount < f.cityCount);
 });
 
-test('dispose 介面存在', () => {
+test('#189 三處生成點座標', () => {
+  const idles = D.mainIdleDefs();
+  const sport = idles.find((d) => d.style === 'sport' && d.seated);
+  assert.ok(sport);
+  assert.ok(Math.abs(sport.x - (-5.15)) < 0.01);
+  assert.ok(Math.abs(sport.z - 5.05) < 0.01);
+  assert.ok(Math.abs(sport.rotY - Math.PI * 0.85) < 0.01);
+
+  const extras = D.islandExtraDefs();
+  const idolCasino = extras.find((d) => d.style === 'idol' && d.island === 'casino' && !d.walker);
+  assert.ok(idolCasino);
+  assert.ok(Math.abs(idolCasino.x - 15.25) < 0.01);
+  assert.ok(Math.abs(idolCasino.z - (-5.45)) < 0.01);
+  assert.ok(Math.abs(idolCasino.rotY - 2.35) < 0.01);
+
+  const tech = extras.find((d) => d.style === 'tech');
+  assert.ok(tech);
+  assert.ok(Math.abs(tech.x - 1.05) < 0.01);
+  assert.ok(Math.abs(tech.z - 15.25) < 0.01);
+  assert.ok(Math.abs(tech.rotY - (-0.35)) < 0.01);
+});
+
+test('主島三個坐下座位仍在', () => {
+  const seated = D.mainIdleDefs().filter((d) => d.seated);
+  assert.equal(seated.length, 3);
+  const styles = seated.map((d) => d.style).sort();
+  assert.deepEqual(styles, ['idol', 'sport', 'student']);
+});
+
+test('dispose 與看板運動介面', () => {
   assert.match(peopleJs, /npcDisposeAll/);
-  assert.match(peopleJs, /mixer\.stopAllAction/);
-  assert.match(peopleJs, /geometry\.dispose/);
+  assert.match(peopleJs, /registerNpcBillboardMotion/);
+  assert.match(peopleJs, /createMiluView/);
+  assert.doesNotMatch(peopleJs, /SkeletonUtils/);
+  assert.doesNotMatch(peopleJs, /npc-women\.glb/);
+  assert.match(islandJs, /registerBillboardMotion/);
 });
 
 test('milu 靜態點由閒置物件推導', () => {
@@ -99,62 +131,4 @@ test('milu 靜態點由閒置物件推導', () => {
 test('makePlayerAvatar 仍使用 makePerson', () => {
   assert.match(islandJs, /function makePlayerAvatar/);
   assert.match(islandJs, /makePerson\(/);
-});
-
-test('重建指令字串', () => {
-  assert.match(D.NPC_GLB_STATS.rebuildCmd, /build_npc_women\.py/);
-  assert.match(D.NPC_GLB_STATS.rebuildCmd, /npc-women\.glb/);
-});
-
-test('importmap 含 SkeletonUtils', () => {
-  assert.match(indexHtml, /three\/addons\/utils\/SkeletonUtils\.js/);
-  assert.match(indexHtml, /\/js\/vendor\/SkeletonUtils\.js/);
-});
-
-test('vendor SkeletonUtils 具名匯出可 clone', () => {
-  const vendorPath = join(publicDir, 'js', 'vendor', 'SkeletonUtils.js');
-  const src = readFileSync(vendorPath, 'utf8');
-  assert.match(src, /const SkeletonUtils = \{ retarget, retargetClip, clone \}/);
-  assert.match(src, /export\s*\{[\s\S]*SkeletonUtils/);
-  assert.match(src, /export\s*\{[\s\S]*\bclone\b/);
-});
-
-test('全量行人 draw call 預算', () => {
-  const g = glbJsonChunk(glbPath);
-  const maxPrim = Math.max(...(g.meshes || []).map((m) => (m.primitives || []).length));
-  assert.ok(maxPrim <= D.NPC_BUDGET.MAX_MESHES_PER_INSTANCE);
-  const full = D.npcSpawnPlan({});
-  const inst = D.countNpcInstances(full);
-  const est = inst * maxPrim;
-  assert.ok(est <= D.NPC_BUDGET.MAX_DRAW_CALLS);
-  assert.equal(D.NPC_GLB_STATS.drawCallsEst, est);
-});
-
-test('NPC 實例 clone 後根與子節點可見', () => {
-  const child = { visible: false };
-  const root = {
-    visible: false,
-    traverse(fn) {
-      fn(this);
-      fn(child);
-    }
-  };
-  D.revealNpcInstanceRoot(root);
-  assert.equal(root.visible, true);
-  assert.equal(child.visible, true);
-  assert.match(peopleJs, /revealNpcInstanceRoot\(root\)/);
-});
-
-test('GLB 每造型 walk／idle 動畫', () => {
-  const g = glbJsonChunk(glbPath);
-  const names = new Set((g.animations || []).map((a) => a.name));
-  for (const style of D.NPC_STYLE_IDS) {
-    assert.ok(names.has(`${style}_walk`), `${style}_walk`);
-    assert.ok(names.has(`${style}_idle`), `${style}_idle`);
-  }
-  const meshNodes = (g.nodes || []).filter((n) => n.mesh != null && String(n.name || '').startsWith('mesh_'));
-  assert.equal(meshNodes.length, 7);
-  meshNodes.forEach((n) => {
-    assert.notEqual(n.skin, undefined, n.name + ' 應有 skin');
-  });
 });

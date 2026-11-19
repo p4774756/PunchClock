@@ -781,12 +781,16 @@ export function registerSceneMotion(loop, state) {
       const step = sampleWalker(walker, walker.pingpong ? along * walker.path.length : along);
       const dx = step.to[0] - step.from[0];
       const dz = step.to[1] - step.from[1];
-      walker.obj.position.set(
-        step.from[0] + dx * step.blend,
-        ground,
-        step.from[1] + dz * step.blend
-      );
-      if (dx || dz) walker.obj.rotation.y = Math.atan2(dx * step.dir, dz * step.dir);
+      if (!walker.billboard) {
+        walker.obj.position.set(
+          step.from[0] + dx * step.blend,
+          ground,
+          step.from[1] + dz * step.blend
+        );
+      }
+      if (!walker.billboard && (dx || dz)) {
+        walker.obj.rotation.y = Math.atan2(dx * step.dir, dz * step.dir);
+      }
       if (walker.mixer) {
         walker.mixer.update(reduced ? 0 : dt);
         const moving = !reduced && Math.abs(walker.speed) > 0;
@@ -821,7 +825,7 @@ export function registerSceneMotion(loop, state) {
           if (!item.idleAction.isRunning()) item.idleAction.play();
         }
       }
-      if (reduced) return;
+      if (reduced || item.billboard) return;
       const bob = item.seated ? 0.004 : 0.012;
       item.obj.position.y = item.base + Math.sin(t * 1.5 + item.phase) * bob;
     });

@@ -608,11 +608,12 @@ function collectPaths(anim) {
   add(walk.right, required);
   add(idle.breath, required);
   add(idle.blink, required);
-  add(anim.clips.wave, required);
+  if (anim.clips.wave && anim.clips.wave.length) add(anim.clips.wave, required);
   add(walk.front, optional);
   add(walk.back, optional);
   add(idle.backBreath, optional);
   add(idle.backBlink, optional);
+  add(idle.sit, optional);
   return { required: required, optional: optional };
 }
 
@@ -667,7 +668,8 @@ function liveAnimFrom(anim) {
         breath: copyList(idle.breath),
         blink: copyList(idle.blink),
         backBreath: copyList(idle.backBreath),
-        backBlink: copyList(idle.backBlink)
+        backBlink: copyList(idle.backBlink),
+        sit: copyList(idle.sit)
       },
       wave: copyList(clips.wave)
     }
