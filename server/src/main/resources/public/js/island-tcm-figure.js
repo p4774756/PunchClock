@@ -48,10 +48,11 @@ function ensureBronzeEnvMap(renderer) {
   canvas.height = h;
   const ctx2d = canvas.getContext('2d');
   const sky = ctx2d.createLinearGradient(0, 0, 0, h);
-  sky.addColorStop(0, '#f2e4d0');
-  sky.addColorStop(0.35, '#e4d4b8');
-  sky.addColorStop(0.62, '#c8ae88');
-  sky.addColorStop(1, '#907060');
+  sky.addColorStop(0, '#f8f2e8');
+  sky.addColorStop(0.28, '#e8dfd0');
+  sky.addColorStop(0.55, '#b8a080');
+  sky.addColorStop(0.82, '#585048');
+  sky.addColorStop(1, '#282420');
   ctx2d.fillStyle = sky;
   ctx2d.fillRect(0, 0, w, h);
   const sunSpot = ctx2d.createRadialGradient(w * 0.68, h * 0.26, 0, w * 0.68, h * 0.26, w * 0.4);
@@ -107,36 +108,34 @@ function nightColorFromDay(hex, opts) {
   return out;
 }
 
+const BRONZE_SRGB = 0xc9a55c;
+const BRONZE_PED_SRGB = 0xab8748;
+
 function bronzeMaterialFromGltf(oldMat, kit, opts) {
   const o = opts || {};
   const isBronze = !!o.bronze;
   const isFabric = !!o.fabric;
   const matName = (oldMat.name || '').toLowerCase();
-  const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(isFabric ? 0xd8d0c8 : 0xd2a65a);
+  const darkPed = matName.indexOf('pedestal') >= 0 || matName === 'bronze_dark';
+  const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(
+    isFabric ? 0xffffff : darkPed ? BRONZE_PED_SRGB : BRONZE_SRGB
+  );
   if (isBronze && !isFabric) {
     const hasMap = !!(oldMat.map);
-    if (!hasMap) {
-      day.setHex(0xd2a65a);
+    if (hasMap) {
+      day.setRGB(1, 1, 1);
     } else {
-      const hsl = { h: 0, s: 0, l: 0 };
-      day.getHSL(hsl);
-      if (hsl.l < 0.46) {
-        day.setHSL(
-          Math.min(0.12, Math.max(0.07, hsl.h)),
-          Math.min(0.82, Math.max(0.38, hsl.s)),
-          Math.min(0.58, Math.max(0.48, hsl.l * 1.18 + 0.1))
-        );
-      }
+      day.setHex(darkPed ? BRONZE_PED_SRGB : BRONZE_SRGB);
     }
   }
   const night = nightColorFromDay(day.getHex(), { bronze: isBronze && !isFabric });
-  const emissive = oldMat.emissive ? oldMat.emissive.clone() : new THREE.Color(0x000000);
-  const emissiveI = oldMat.emissiveIntensity != null ? oldMat.emissiveIntensity : 0;
-  let metalness = oldMat.metalness != null ? oldMat.metalness : (isBronze && !isFabric ? 0.9 : 0.04);
-  let roughness = oldMat.roughness != null ? oldMat.roughness : (isFabric ? 0.6 : isBronze ? 0.3 : 0.82);
+  const emissive = new THREE.Color(0x000000);
+  const emissiveI = 0;
+  let metalness = oldMat.metalness != null ? oldMat.metalness : (isBronze && !isFabric ? 0.97 : 0.04);
+  let roughness = oldMat.roughness != null ? oldMat.roughness : (isFabric ? 0.62 : isBronze ? 0.26 : 0.82);
   if (isBronze && !isFabric) {
-    metalness = Math.min(0.95, Math.max(0.88, metalness));
-    roughness = Math.min(0.38, Math.max(0.22, roughness));
+    metalness = Math.min(1.0, Math.max(0.95, metalness));
+    roughness = Math.min(0.3, Math.max(0.22, roughness));
   } else if (isFabric) {
     metalness = 0;
     roughness = Math.max(0.55, Math.min(0.68, roughness));
@@ -151,18 +150,21 @@ function bronzeMaterialFromGltf(oldMat, kit, opts) {
     flatShading: false
   });
   if (oldMat.map) std.map = oldMat.map;
-  if (oldMat.normalMap) std.normalMap = oldMat.normalMap;
+  if (oldMat.normalMap) {
+    std.normalMap = oldMat.normalMap;
+    std.normalScale = new THREE.Vector2(0.85, 0.85);
+  }
   if (oldMat.roughnessMap) std.roughnessMap = oldMat.roughnessMap;
   if (oldMat.metalnessMap) std.metalnessMap = oldMat.metalnessMap;
-  std.userData.day = day;
+  std.userData.day = day.clone();
   std.userData.night = night;
   std.userData.bronze = isBronze && !isFabric;
-  std.userData.dayE = isBronze && !isFabric ? Math.max(0.035, emissiveI) : isFabric ? 0 : 0.012;
-  std.userData.nightE = isBronze && !isFabric ? Math.max(0.15, emissiveI * 2.4) : isFabric ? 0 : 0.006;
-  std.userData.dayEnvI = isBronze && !isFabric ? 1.18 : isFabric ? 0 : 0.18;
-  std.userData.nightEnvI = isBronze && !isFabric ? 0.72 : isFabric ? 0 : 0.12;
+  std.userData.fabric = isFabric;
+  std.userData.dayE = 0;
+  std.userData.nightE = isBronze && !isFabric ? 0.018 : isFabric ? 0 : 0.006;
+  std.userData.dayEnvI = isBronze && !isFabric ? 1.52 : isFabric ? 0 : 0.18;
+  std.userData.nightEnvI = isBronze && !isFabric ? 0.82 : isFabric ? 0 : 0.12;
   std.envMapIntensity = std.userData.dayEnvI;
-  if (matName.indexOf('pedestal') >= 0) std.envMapIntensity = 0.88;
   kit.addMaterial(std);
   return std;
 }
@@ -174,11 +176,15 @@ function applyBronzeEnvToRoot(root, envMap) {
     const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
     for (let i = 0; i < mats.length; i++) {
       const m = mats[i];
-      if (m && m.isMeshStandardMaterial && m.userData.bronze) {
+      if (
+        m
+        && m.isMeshStandardMaterial
+        && (m.userData.bronze || (!m.userData.fabric && m.metalness >= 0.5))
+      ) {
         m.envMap = envMap;
-        m.needsUpdate = true;
-      } else if (m && m.isMeshStandardMaterial && m.metalness > 0.5 && !m.userData.fabric) {
-        m.envMap = envMap;
+        if (m.userData.dayEnvI == null) {
+          m.envMapIntensity = 1.35;
+        }
         m.needsUpdate = true;
       }
     }
@@ -215,11 +221,11 @@ function applyBronzeFigureMaterials(root, kit) {
       obj.material = bronzeMaterialFromGltf(
         {
           name: matName || 'bronze',
-          color: new THREE.Color(darkPedestal ? 0x9a7238 : 0xd2a65a),
-          metalness: 0.9,
-          roughness: darkPedestal ? 0.34 : 0.28,
-          emissive: new THREE.Color(0xf0c878),
-          emissiveIntensity: 0.018
+          color: new THREE.Color(darkPedestal ? BRONZE_PED_SRGB : BRONZE_SRGB),
+          metalness: darkPedestal ? 0.96 : 0.97,
+          roughness: darkPedestal ? 0.28 : 0.26,
+          emissive: new THREE.Color(0x000000),
+          emissiveIntensity: 0
         },
         kit,
         { bronze: true, fabric: false }
@@ -235,8 +241,8 @@ const COURTYARD_FIG_YAW = 0;
 const LOAD_BUFFER = 1.65;
 const UNLOAD_BUFFER = 3.2;
 const LOAD_RETRY_MS = 30_000;
-const MARKER = 0x8a6530;
-const MARKER_VIS_R = 0.005;
+const MARKER = 0x5a3e1a;
+const MARKER_VIS_R = 0.007;
 const TODAY_MARK = 0xffb15a;
 
 let styleInjected = false;
@@ -641,7 +647,7 @@ export function createTcmFigureController(ctx) {
   };
 }
 
-const ENTRANCE_FIG_SCALE = 1.1;
+const ENTRANCE_FIG_SCALE = 0.86;
 
 export function replaceEntranceBronzeStatue(model, kit, pickables, opts) {
   model.updateMatrixWorld(true);

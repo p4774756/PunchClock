@@ -24,6 +24,11 @@ from kit import argv_out, hex_rgba, prepare_scene
 
 DATA_BODY_HEIGHT = 1.72
 TEX_SIZE = 1024
+BRONZE_HEX = 0xc9a55c
+BRONZE_DARK_HEX = 0xab8748
+MERIDIAN_LINE_HEX = 0x5a3e1a
+BRONZE_METAL = 0.97
+BRONZE_ROUGH = 0.26
 BASE_GLB = os.path.join(_HERE, 'assets', 'bronze-base', 'mh-female-base.glb')
 POINTS_JSON = os.path.join(_REPO, 'server/src/main/resources/public/island/tcm-bronze-points.json')
 SURFACE_JSON = os.path.join(_REPO, 'server/src/main/resources/public/island/tcm-bronze-surface.json')
@@ -42,7 +47,7 @@ def blender_normal_to_data(n):
     return (float(n.x), float(n.z), float(-n.y))
 
 
-def _mat_pbr(name, base_hex, rough=0.3, metal=0.0, tex=None, normal_tex=None):
+def _mat_pbr(name, base_hex, rough=0.3, metal=0.0, tex=None, normal_tex=None, rough_tex=None):
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     nt = m.node_tree
@@ -64,8 +69,14 @@ def _mat_pbr(name, base_hex, rough=0.3, metal=0.0, tex=None, normal_tex=None):
         t_n.image = normal_tex
         t_n.image.colorspace_settings.name = 'Non-Color'
         nm = nodes.new('ShaderNodeNormalMap')
+        nm.inputs['Strength'].default_value = 0.85
         links.new(t_n.outputs['Color'], nm.inputs['Color'])
         links.new(nm.outputs['Normal'], bsdf.inputs['Normal'])
+    if rough_tex is not None:
+        t_r = nodes.new('ShaderNodeTexImage')
+        t_r.image = rough_tex
+        t_r.image.colorspace_settings.name = 'Non-Color'
+        links.new(t_r.outputs['Color'], bsdf.inputs['Roughness'])
     links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
     out.location = (400, 0)
     bsdf.location = (100, 0)
@@ -136,6 +147,56 @@ def _import_body():
 
 def _tri_count(ob):
     return sum(len(p.vertices) - 2 for p in ob.data.polygons)
+
+
+def _smooth_breast_detail(body):
+    """教學銅人胸部：抹平乳頭／乳暈突起，保留柔和輪廓。"""
+    me = body.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.verts.ensure_lookup_table()
+    chest = []
+    for v in bm.verts:
+        x, y, z = v.co.x, v.co.y, v.co.z
+        if z < 1.05 or z > 1.34:
+            continue
+        if y > -0.015:
+            continue
+        ax = abs(x)
+        if ax < 0.05 or ax > 0.17:
+            continue
+        chest.append(v)
+    if chest:
+        for _ in range(6):
+            bmesh.ops.smooth_vert(
+                bm,
+                verts=chest,
+                factor=0.9,
+                use_axis_x=True,
+                use_axis_y=True,
+                use_axis_z=True,
+            )
+        for v in chest:
+            if v.co.y < -0.06 and 0.075 < abs(v.co.x) < 0.13:
+                blend = min(1.0, max(0.0, (-0.06 - v.co.y) * 8.0))
+                v.co.y += blend * 0.018
+                v.co.z -= blend * 0.004 * (1.0 if v.co.z > 1.18 else 0.35)
+    bm.to_mesh(me)
+    bm.free()
+    me.update()
+    print(f'[body] chest smoothed verts={len(chest)}')
+
+
+def _shrinkwrap_to_body(ob, body, offset=0.01):
+    mod = ob.modifiers.new('Shrinkwrap', 'SHRINKWRAP')
+    mod.target = body
+    mod.wrap_method = 'NEAREST_SURFACEPOINT'
+    mod.wrap_mode = 'ON_SURFACE'
+    mod.offset = offset
+    bpy.context.view_layer.objects.active = ob
+    ob.select_set(True)
+    bpy.ops.object.modifier_apply(modifier=mod.name)
+    ob.select_set(False)
 
 
 def _optional_decimate(body, limit=30000):
@@ -243,46 +304,54 @@ def _sash_stripe_mat():
     return mat
 
 
-def _add_sash(_body, _mat_cloth):
-    """窄條紋布帶（約 8–10 cm 寬），環繞髖部並於正面垂短布。"""
+def _stripe_uvs(ob, band_half_h, repeat_u=14.0, repeat_v=22.0):
+    uv = ob.data.uv_layers.active or ob.data.uv_layers.new(name='UVMap')
+    for poly in ob.data.polygons:
+        for li in poly.loop_indices:
+            vid = ob.data.loops[li].vertex_index
+            co = ob.data.vertices[vid].co
+            ang = math.atan2(co.y, co.x)
+            u = (ang / (2 * math.pi) + 0.5) * repeat_u
+            v = ((co.z + band_half_h) / max(band_half_h * 2, 1e-6)) * repeat_v
+            uv.data[li].uv = (u, v)
+
+
+def _add_sash(body, _mat_cloth):
+    """紅白藍條紋帶：環繞髖一整圈（前低後高），正面垂短布遮下身。"""
     mat = _sash_stripe_mat()
-    hip_mid = 0.908
-    band_half_h = 0.041
-    inner_r, outer_r = 0.120, 0.131
-    segs = 32
-    a0, a1 = math.radians(108), math.radians(-108)
+    hip_mid = 0.905
+    band_half_h = 0.035
+    mean_r = 0.138
+    segs = 72
     bm = bmesh.new()
     ring_lo, ring_hi = [], []
     for i in range(segs + 1):
-        ang = a0 + (a1 - a0) * i / segs
+        ang = 2 * math.pi * i / segs
         ca, sa = math.cos(ang), math.sin(ang)
-        ring_lo.append(bm.verts.new((inner_r * ca, inner_r * sa, hip_mid - band_half_h)))
-        ring_hi.append(bm.verts.new((outer_r * ca, outer_r * sa, hip_mid + band_half_h)))
+        z_tilt = hip_mid - 0.028 * max(0.0, -sa) + 0.022 * max(0.0, sa)
+        ring_lo.append(bm.verts.new(((mean_r - 0.006) * ca, (mean_r - 0.006) * sa, z_tilt - band_half_h)))
+        ring_hi.append(bm.verts.new(((mean_r + 0.006) * ca, (mean_r + 0.006) * sa, z_tilt + band_half_h)))
     for i in range(segs):
         bm.faces.new([ring_lo[i], ring_lo[i + 1], ring_hi[i + 1], ring_hi[i]])
     ob_band = _mesh_from_bm(bm, 'bronze_sash_band', mat)
+    _shrinkwrap_to_body(ob_band, body, offset=0.009)
+    _stripe_uvs(ob_band, band_half_h)
 
     bm2 = bmesh.new()
-    flap_w, flap_h = 0.082, 0.105
-    y_front = -0.126
-    z_top = hip_mid - band_half_h + 0.008
+    flap_w, flap_h = 0.12, 0.15
+    y_front = -0.138
+    z_top = hip_mid - band_half_h - 0.032
     pts = [
-        (-flap_w * 0.15, y_front, z_top),
-        (flap_w * 0.55, y_front, z_top),
-        (flap_w * 0.48, y_front, z_top - flap_h),
-        (-flap_w * 0.08, y_front, z_top - flap_h),
+        (-flap_w * 0.42, y_front, z_top),
+        (flap_w * 0.42, y_front, z_top),
+        (flap_w * 0.38, y_front, z_top - flap_h),
+        (-flap_w * 0.38, y_front, z_top - flap_h),
     ]
     vs = [bm2.verts.new(p) for p in pts]
     bm2.faces.new(vs)
     ob_flap = _mesh_from_bm(bm2, 'bronze_sash_flap', mat)
-
-    for ob in (ob_band, ob_flap):
-        uv = ob.data.uv_layers.active or ob.data.uv_layers.new(name='UVMap')
-        for poly in ob.data.polygons:
-            for li in poly.loop_indices:
-                vid = ob.data.loops[li].vertex_index
-                co = ob.data.vertices[vid].co
-                uv.data[li].uv = (co.z * 2.2 + li * 0.04, math.atan2(co.y, co.x) * 0.35 + co.x * 3.0)
+    _shrinkwrap_to_body(ob_flap, body, offset=0.011)
+    _stripe_uvs(ob_flap, flap_h * 0.5, repeat_u=1.0, repeat_v=16.0)
 
     root = bpy.data.objects.new('bronze_sash', None)
     bpy.context.scene.collection.objects.link(root)
@@ -292,13 +361,13 @@ def _add_sash(_body, _mat_cloth):
 
 
 def _plaque_texture():
-    w, h = 512, 128
+    w, h = 640, 160
     arr = np.zeros((h, w, 4), dtype=np.float32)
     arr[:, :, :3] = (0.14, 0.11, 0.07)
     arr[:, :, 3] = 1.0
     curve = bpy.data.curves.new('_plaque_curve', type='FONT')
     curve.body = '人體針灸銅人'
-    curve.size = 0.28
+    curve.size = 0.36
     curve.align_x = 'CENTER'
     curve.extrude = 0.012
     ob = bpy.data.objects.new('_plaque_glyph', curve)
@@ -333,33 +402,41 @@ def _plaque_texture():
     return img
 
 
-def _build_pedestal(mat_dark):
+def _pedestal_tier(name, mat, cx, cy, cz, sx, sy, sz):
     bm = bmesh.new()
+    bmesh.ops.create_cube(
+        bm,
+        size=1.0,
+        matrix=Matrix.Translation((cx, cy, cz)) @ Matrix.Diagonal((sx, sy, sz, 1.0)),
+    )
+    return _mesh_from_bm(bm, name, mat)
 
-    def box(cx, cy, cz, sx, sy, sz):
-        bmesh.ops.create_cube(
-            bm,
-            size=1.0,
-            matrix=Matrix.Translation((cx, cy, cz)) @ Matrix.Diagonal((sx, sy, sz, 1.0)),
-        )
 
-    # 三階金座：頂面 z=0，階差明顯（腳底貼地面）
-    box(0, 0, -0.022, 0.54, 0.48, 0.044)
-    box(0, 0, -0.078, 0.44, 0.38, 0.052)
-    box(0, 0, -0.138, 0.34, 0.30, 0.058)
-    ped = _mesh_from_bm(bm, 'pedestal', mat_dark)
+def _build_pedestal(mat_dark):
+    # 三階金座：由下往上逐階縮小，頂面 z=0（腳掌貼座面）；各階獨立封閉方塊避免內面空洞
+    tiers = [
+        _pedestal_tier('pedestal_base', mat_dark, 0, 0, -0.142, 0.52, 0.46, 0.056),
+        _pedestal_tier('pedestal_mid', mat_dark, 0, 0, -0.086, 0.42, 0.38, 0.048),
+        _pedestal_tier('pedestal_top', mat_dark, 0, 0, -0.032, 0.32, 0.28, 0.040),
+    ]
+    ped_root = bpy.data.objects.new('pedestal', None)
+    bpy.context.scene.collection.objects.link(ped_root)
+    for t in tiers:
+        t.parent = ped_root
 
     bm2 = bmesh.new()
     bmesh.ops.create_cube(
         bm2,
         size=1.0,
-        matrix=Matrix.Translation((0, -0.218, -0.052)) @ Matrix.Diagonal((0.26, 0.014, 0.115, 1.0)),
+        matrix=Matrix.Translation((0, -0.198, -0.078))
+        @ Matrix.Diagonal((0.30, 0.012, 0.132, 1.0)),
     )
     plaque = _mesh_from_bm(bm2, 'pedestal_plaque', None)
     plaque_tex = _plaque_texture()
-    p_mat = _mat_pbr('plaque', 0x8a6528, rough=0.35, metal=0.85, tex=plaque_tex)
+    p_mat = _mat_pbr('plaque', 0x5a3e1a, rough=0.32, metal=0.9, tex=plaque_tex)
     plaque.data.materials.append(p_mat)
-    return [ped, plaque]
+    plaque.parent = ped_root
+    return [ped_root, plaque]
 
 
 def _face_uv_at_point(mesh, face_idx, world_co, mw):
@@ -457,18 +534,19 @@ def _sort_meridian_records(recs):
     )
 
 
-def _uv_span_ok(a, b, limit=95):
+def _uv_span_ok(a, b, limit=110):
     return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 <= limit * limit
 
 
 def _bake_meridian_textures(body, records):
-    base = np.array(hex_rgba(0xdeb878)[:3], dtype=np.float32)
-    dark = np.array([0.38, 0.27, 0.12], dtype=np.float32)
+    base = np.array(hex_rgba(BRONZE_HEX)[:3], dtype=np.float32)
+    dark = np.array(hex_rgba(MERIDIAN_LINE_HEX)[:3], dtype=np.float32)
     col_buf = np.ones((TEX_SIZE, TEX_SIZE, 4), dtype=np.float32)
     col_buf[:, :, :3] = base
     col_buf[:, :, 3] = 1.0
     nrm = np.zeros((TEX_SIZE, TEX_SIZE, 4), dtype=np.float32)
     nrm[:, :, :] = [0.5, 0.5, 1.0, 1.0]
+    rough = np.ones((TEX_SIZE, TEX_SIZE, 4), dtype=np.float32) * BRONZE_ROUGH
 
     groups = {}
     for rec in records:
@@ -489,8 +567,8 @@ def _bake_meridian_textures(body, records):
         _, _, uv = hit
         return int(uv.x * (TEX_SIZE - 1)), int((1.0 - uv.y) * (TEX_SIZE - 1))
 
-    line_w = 2
-    dot_r = 2
+    line_w = 5
+    dot_r = 4
     for _key, pts in groups.items():
         ordered = _sort_meridian_records(pts)
         uvs = []
@@ -499,13 +577,15 @@ def _bake_meridian_textures(body, records):
             if u:
                 uvs.append(u)
                 _draw_disk(col_buf, u[0], u[1], dot_r, dark)
-                nrm[u[1], u[0], 0] = 0.45
-                nrm[u[1], u[0], 1] = 0.55
+                nrm[u[1], u[0], 0] = 0.44
+                nrm[u[1], u[0], 1] = 0.52
+                rough[u[1], u[0], 0] = 0.42
         for a, b in zip(uvs, uvs[1:]):
             if not _uv_span_ok(a, b):
                 continue
             _draw_line(col_buf, a[0], a[1], b[0], b[1], dark, line_w)
-            _draw_line(nrm, a[0], a[1], b[0], b[1], [0.45, 0.45, 1.0], line_w)
+            _draw_line(nrm, a[0], a[1], b[0], b[1], [0.44, 0.44, 1.0], line_w)
+            _draw_line(rough, a[0], a[1], b[0], b[1], [0.44, 0.44, 0.44], line_w)
         uvs_m = []
         for rec in ordered:
             if rec.get('midline'):
@@ -528,7 +608,12 @@ def _bake_meridian_textures(body, records):
     img_n.colorspace_settings.name = 'Non-Color'
     img_n.pixels.foreach_set(nrm.ravel())
     img_n.pack()
-    return img_col, img_n
+
+    img_r = bpy.data.images.new('bronze_body_rough', TEX_SIZE, TEX_SIZE, alpha=False)
+    img_r.colorspace_settings.name = 'Non-Color'
+    img_r.pixels.foreach_set(rough.ravel())
+    img_r.pack()
+    return img_col, img_n, img_r
 
 
 def _compute_part_boxes(body):
@@ -607,7 +692,7 @@ def render_previews(root, out_dir=None):
     os.makedirs(out_dir, exist_ok=True)
     sc = bpy.context.scene
     sc.render.engine = 'CYCLES'
-    sc.cycles.samples = 48
+    sc.cycles.samples = 64
     sc.cycles.device = 'CPU'
     sc.render.resolution_x = 768
     sc.render.resolution_y = 1080
@@ -615,12 +700,24 @@ def render_previews(root, out_dir=None):
     sc.world = world
     world.use_nodes = True
     bg = world.node_tree.nodes['Background']
-    bg.inputs[0].default_value = (0.08, 0.10, 0.14, 1)
-    bg.inputs[1].default_value = 1.0
+    bg.inputs[0].default_value = (0.10, 0.12, 0.16, 1)
+    bg.inputs[1].default_value = 0.85
     sun = bpy.data.objects.new('preview_sun', bpy.data.lights.new('preview_sun', 'SUN'))
-    sun.data.energy = 3.6
-    sun.rotation_euler = (math.radians(55), 0, math.radians(25))
+    sun.data.energy = 4.2
+    sun.rotation_euler = (math.radians(52), 0, math.radians(28))
     sc.collection.objects.link(sun)
+    fill = bpy.data.objects.new('preview_fill', bpy.data.lights.new('preview_fill', 'AREA'))
+    fill.data.energy = 280
+    fill.data.size = 2.8
+    fill.location = (1.2, -1.5, 1.55)
+    fill.rotation_euler = (math.radians(65), math.radians(12), math.radians(8))
+    sc.collection.objects.link(fill)
+    rim = bpy.data.objects.new('preview_rim', bpy.data.lights.new('preview_rim', 'AREA'))
+    rim.data.energy = 160
+    rim.data.size = 2.0
+    rim.location = (-1.6, 1.4, 1.2)
+    rim.rotation_euler = (math.radians(50), math.radians(-30), 0)
+    sc.collection.objects.link(rim)
     cam = bpy.data.objects.new('preview_cam', bpy.data.cameras.new('preview_cam'))
     sc.collection.objects.link(cam)
     sc.camera = cam
@@ -629,8 +726,9 @@ def render_previews(root, out_dir=None):
     for name, off, lens in (
         ('front', Vector((0, -2.8, center.z)), 52),
         ('side', Vector((2.8, 0, center.z)), 52),
+        ('back', Vector((0, 2.65, center.z)), 52),
         ('face', Vector((0, -1.0, bb_max.z - 0.08)), 75),
-        ('pedestal', Vector((0, -1.35, -0.04)), 52),
+        ('pedestal', Vector((0, -1.28, -0.055)), 58),
     ):
         look_at = Vector((0, -0.02, -0.075)) if name == 'pedestal' else center
         cam.location = look_at + off if name == 'pedestal' else center + off
@@ -654,13 +752,23 @@ def build(out_path):
     body = _import_body()
     _optional_decimate(body)
 
-    mat_bronze = _mat_pbr('bronze', 0xdeb878, rough=0.28, metal=0.9)
-    mat_dark = _mat_pbr('bronze_dark', 0x9a7238, rough=0.32, metal=0.88)
-    mat_hair = _mat_pbr('bronze_hair', 0xc8964a, rough=0.3, metal=0.9)
-    mat_cloth = _mat_pbr('sash_cloth', 0xffffff, rough=0.6, metal=0.0)
+    _smooth_breast_detail(body)
 
-    img_col, img_n = _bake_meridian_textures(body, records)
-    mat_body = _mat_pbr('bronze', 0xdeb878, rough=0.28, metal=0.9, tex=img_col, normal_tex=img_n)
+    mat_bronze = _mat_pbr('bronze', BRONZE_HEX, rough=BRONZE_ROUGH, metal=BRONZE_METAL)
+    mat_dark = _mat_pbr('bronze_dark', BRONZE_DARK_HEX, rough=0.28, metal=0.96)
+    mat_hair = _mat_pbr('bronze_hair', BRONZE_HEX, rough=BRONZE_ROUGH, metal=BRONZE_METAL)
+    mat_cloth = _mat_pbr('sash_cloth', 0xffffff, rough=0.62, metal=0.0)
+
+    img_col, img_n, img_r = _bake_meridian_textures(body, records)
+    mat_body = _mat_pbr(
+        'bronze',
+        BRONZE_HEX,
+        rough=BRONZE_ROUGH,
+        metal=BRONZE_METAL,
+        tex=img_col,
+        normal_tex=img_n,
+        rough_tex=img_r,
+    )
     body.data.materials.clear()
     body.data.materials.append(mat_body)
 
