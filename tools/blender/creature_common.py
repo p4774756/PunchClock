@@ -16,9 +16,9 @@ if _HERE not in sys.path:
 
 from kit import hex_rgba, prepare_scene, srgb_to_lin
 
-# 模型空間倍率（匯出前套用到 rig）
-CREATURE_MESH_SCALE = 3.0
-TEXTURE_SIZE = 384
+# 模型空間倍率（匯出前套用到 rig；配合 LIFE_GLB_SCALE 達世界尺寸）
+CREATURE_MESH_SCALE = 2.0
+TEXTURE_SIZE = 512
 
 
 def _hex_lin(h):
@@ -45,6 +45,17 @@ def append_bmesh(dst, src):
 def prim_sphere(bm, co, radius, seg=7, rings=5):
     sub = bmesh.new()
     bmesh.ops.create_uvsphere(sub, u_segments=seg, v_segments=rings, radius=radius)
+    bmesh.ops.translate(sub, vec=co, verts=sub.verts)
+    append_bmesh(bm, sub)
+    sub.free()
+
+
+def prim_ellipsoid(bm, co, radii, seg=7, rings=5):
+    """radii: (rx, ry, rz)；Z 為 Blender 上（匯出後對應 Three.js Y）。"""
+    rx, ry, rz = radii
+    sub = bmesh.new()
+    bmesh.ops.create_uvsphere(sub, u_segments=seg, v_segments=rings, radius=1.0)
+    bmesh.ops.scale(sub, vec=(rx, ry, rz), verts=sub.verts)
     bmesh.ops.translate(sub, vec=co, verts=sub.verts)
     append_bmesh(bm, sub)
     sub.free()

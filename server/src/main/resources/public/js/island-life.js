@@ -80,19 +80,20 @@ const LIFE_GLB_FILES = Object.freeze({
   kunpeng: 'kunpeng.glb'
 });
 
+/** 世界尺度 ≈ BOUNDS 最大軸 × 此係數（#199 r2，目標：鯨／鯤 ~10、玄武 ~6.5、魚／鷗 ~1.2） */
 const LIFE_GLB_SCALE = Object.freeze({
-  fishSchool: 4.2,
-  whale: 7.5,
-  octopus: 3.4,
-  wenyao: 3.6,
-  chiru: 3.6,
-  xuanwu: 4.8,
-  seaSerpent: 3.8,
-  birds: 4.5,
-  qingniao: 3.4,
-  phoenix: 3.6,
-  wyvern: 4.0,
-  kunpeng: 7.2
+  fishSchool: 1.05,
+  whale: 2.65,
+  octopus: 1.35,
+  wenyao: 1.55,
+  chiru: 1.45,
+  xuanwu: 2.85,
+  seaSerpent: 2.35,
+  birds: 1.05,
+  qingniao: 1.5,
+  phoenix: 1.55,
+  wyvern: 1.65,
+  kunpeng: 2.55
 });
 
 /** 海面生物：身體或特效露出水面（世界 Y，相對錨點 xz） */
@@ -255,7 +256,13 @@ export function lifeGlowStrength(kind, mix, reduced) {
 
 export function lifeKindActive(kind, mix, reduced, elapsed, opts) {
   const o = opts || {};
-  if (o.forceRare && kind === o.forceRare) return !reduced;
+  if (o.forceRare) {
+    if (kind === o.forceRare) return !reduced;
+    if (COMMON_KINDS.includes(kind)) {
+      return !reduced || kind === 'fishSchool' || kind === 'birds';
+    }
+    return false;
+  }
   if (o.forceAll) return true;
   if (COMMON_KINDS.includes(kind)) return !reduced || kind === 'fishSchool' || kind === 'birds';
   if (NIGHT_GLOW_KINDS.includes(kind)) {
@@ -807,15 +814,12 @@ async function hydrateLifeGlbModels(THREE, kit, creatures, mixers) {
     if (prep.mixer) mixers.push({ mixer: prep.mixer, root: prep.root });
     if (kind === 'whale') {
       let spray = null;
-      let maxY = -Infinity;
       prep.root.traverse((child) => {
-        if (!child.isMesh || !child.visible) return;
-        if (child.position.y > maxY) {
-          maxY = child.position.y;
-          spray = child;
-        }
+        if (!child.isMesh) return;
+        const n = (child.name || '').toLowerCase();
+        if (n.includes('spray')) spray = child;
       });
-      node.userData.spray = maxY > 0.8 ? spray : null;
+      node.userData.spray = spray;
     }
     if (kind === 'phoenix') node.userData.glowKind = true;
   }

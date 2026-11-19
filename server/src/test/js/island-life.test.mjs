@@ -183,6 +183,9 @@ describe('island-life 稀有一輪一隻', () => {
   test('forceRare 示範可鎖定單一傳說物', () => {
     assert.equal(lifeKindActive('xuanwu', 0, false, 0, { forceRare: 'xuanwu' }), true);
     assert.equal(lifeKindActive('kunpeng', 0, false, 0, { forceRare: 'xuanwu' }), false);
+    assert.equal(lifeKindActive('whale', 0, false, 0, { forceRare: 'xuanwu' }), false);
+    assert.equal(lifeKindActive('fishSchool', 0.1, false, 0, { forceRare: 'whale' }), true);
+    assert.equal(lifeKindActive('phoenix', 0.9, false, 0, { forceRare: 'whale' }), false);
   });
 });
 
