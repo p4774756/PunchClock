@@ -208,7 +208,7 @@ test('index 使用 Concept A HUD：玩家卡、右上圓鈕、選單與地圖', 
   assert.match(indexHtml, /id="islandHudRoleBtn"/);
   assert.match(indexHtml, /island-hud-player-name[^>]*>milu</);
   assert.match(indexHtml, /id="islandHudPlayerTitleText"/);
-  assert.match(islandCss, /body\.is-exploring \.island-brand[\s\S]*display:\s*none/);
+  assert.match(islandCss, /body:has\(#islandHudPlayer\) \.island-brand[\s\S]*display:\s*none/);
   assert.doesNotMatch(indexHtml, /id="islandNight"/);
   assert.match(indexHtml, /island-hud-roadmap[\s\S]*data-open-roadmap/);
 });
@@ -236,6 +236,32 @@ test('syncAvatarUi：milu 時顯示 milu 而不是蜜鹿', () => {
   ui.syncAvatarUi();
   assert.equal(doc.getElementById('islandHudPlayerName').textContent, 'milu');
   assert.equal(doc.getElementById('islandAvatarBtn').textContent, 'milu');
+});
+
+test('非探索：島嶼頁隱藏品牌卡、選單底有版本行', () => {
+  assert.match(islandCss, /body:has\(#islandHudPlayer\) \.island-brand[\s\S]*display:\s*none/);
+  assert.match(indexHtml, /id="islandMoreBuild"/);
+  assert.match(indexHtml, /island-more-build[^>]*>飲料店 · v\{\{SERVER_VERSION\}\} · 開店 \{\{SERVER_BUILD_TIME\}\}</);
+  assert.match(islandCss, /\.island-more-build/);
+});
+
+test('玩家卡與右上圓鈕列不相交（360／390／412／1280）', () => {
+  const cases = [
+    [360, 780, false],
+    [390, 844, false],
+    [412, 915, false],
+    [1280, 720, false],
+    [390, 844, true],
+    [1280, 720, true]
+  ];
+  for (const [width, height, exploring] of cases) {
+    const tr = Corner.hudTopRightRect(width, height, exploring);
+    const player = width <= Corner.MOBILE_MAX_WIDTH
+      ? Corner.hudPlayerRectMobile(width, height)
+      : Corner.hudPlayerRectDesktop(width, height);
+    assert.ok(!Corner.rectsIntersect(player, tr), `${width}×${height} 玩家卡與右上 HUD 不重疊`);
+    assert.ok(player.right <= tr.left + 0.5 || tr.right <= player.left, `${width}×${height} 玩家卡右緣在圓鈕列左側`);
+  }
 });
 
 test('360／390 右上 HUD 在 viewport 內且不與搖桿相交', () => {
