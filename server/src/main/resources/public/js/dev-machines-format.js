@@ -105,8 +105,12 @@ export function effectivePhaseStatus(phase, current) {
   return 'pending';
 }
 
-export function shouldFetchDevMachines() {
-  return true;
+export function shouldFetchDevMachines(authenticated) {
+  if (arguments.length === 0) {
+    const w = typeof globalThis !== 'undefined' ? globalThis : null;
+    return !!(w && w.PUNCHCLOCK_AUTHENTICATED === true);
+  }
+  return authenticated === true;
 }
 
 export function shouldShowDevStatusNavLink() {
@@ -254,7 +258,9 @@ export function appendLabMachineLines(baseLines, machineLines) {
   return before.concat(after);
 }
 
-export function mergeRoadmapDevStatusLink(doc, container) {
+const DEV_STATUS_LOGIN_NEXT = '/login?next=/dev-status';
+
+export function mergeRoadmapDevStatusLink(doc, container, opts) {
   if (!doc || !container) return;
   while (container.firstChild) container.removeChild(container.firstChild);
   if (!shouldShowDevStatusNavLink()) {
@@ -262,14 +268,74 @@ export function mergeRoadmapDevStatusLink(doc, container) {
     return;
   }
   container.hidden = false;
+  const o = opts || {};
+  const authed = viewerCanLink(o.authenticated);
   const a = doc.createElement('a');
   a.className = 'roadmap-btn roadmap-btn-secondary';
   a.href = '/dev-status';
   a.textContent = '開發機狀態';
+  if (!authed) {
+    bindGuestDevStatusNav(a, doc, o);
+  }
   container.appendChild(a);
 }
 
+function bindGuestDevStatusNav(node, doc, opts) {
+  const loginHref = (opts && opts.loginHref) || DEV_STATUS_LOGIN_NEXT;
+  const toastMessage = (opts && opts.toastMessage) || '開發機狀態需登入後查看';
+  const open = (ev) => {
+    if (ev) ev.preventDefault();
+    showLoginRequiredToast(doc, loginHref, toastMessage);
+  };
+  node.addEventListener('click', open);
+  node.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' || ev.key === ' ') {
+      ev.preventDefault();
+      open(ev);
+    }
+  });
+}
+
+/** 從 location.search 解析 ?open= 參數（純函式，可供測試）。 */
+export function parseIslandOpenParam(search) {
+  const raw = search == null ? '' : String(search);
+  const qs = raw.startsWith('?') ? raw.slice(1) : raw;
+  if (!qs) return '';
+  try {
+    return new URLSearchParams(qs).get('open') || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+export function shouldOpenRoadmapFromSearch(search) {
+  return parseIslandOpenParam(search) === 'roadmap';
+}
+
+/** 島嶼首頁載入後若帶 open=roadmap，開路線圖並清掉 query。 */
+export function applyIslandOpenRoadmapParam(win, openRoadmapFn) {
+  if (!win || !win.location || typeof openRoadmapFn !== 'function') return false;
+  if (!shouldOpenRoadmapFromSearch(win.location.search)) return false;
+  openRoadmapFn();
+  try {
+    const url = new URL(win.location.href);
+    url.searchParams.delete('open');
+    const q = url.searchParams.toString();
+    const next = url.pathname + (q ? '?' + q : '') + (url.hash || '');
+    if (win.history && typeof win.history.replaceState === 'function') {
+      win.history.replaceState(null, '', next);
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  return true;
+}
+
 let toastDismiss = null;
+
+export function isLoginRequiredToastOpen(doc) {
+  return !!(doc && doc.querySelector && doc.querySelector('[data-dev-login-toast]'));
+}
 
 export function dismissLoginToast(doc) {
   if (toastDismiss) {
@@ -283,7 +349,7 @@ export function dismissLoginToast(doc) {
   }
 }
 
-export function showLoginRequiredToast(doc, loginHref) {
+export function showLoginRequiredToast(doc, loginHref, message) {
   if (!doc || !doc.body) return;
   dismissLoginToast(doc);
   const href = loginHref || LOGIN_PATH;
@@ -293,7 +359,7 @@ export function showLoginRequiredToast(doc, loginHref) {
   wrap.setAttribute('role', 'status');
   const msg = doc.createElement('p');
   msg.className = 'dev-login-toast-msg';
-  msg.textContent = '登入後才能查看連結';
+  msg.textContent = message == null || message === '' ? '登入後才能查看連結' : String(message);
   const btn = doc.createElement('a');
   btn.className = 'dev-btn dev-btn-gold dev-login-toast-btn';
   btn.href = href;
@@ -303,17 +369,26 @@ export function showLoginRequiredToast(doc, loginHref) {
   close.className = 'dev-login-toast-close';
   close.setAttribute('aria-label', '關閉');
   close.textContent = '×';
-  const remove = () => {
+  const teardown = () => {
+    if (doc.removeEventListener) doc.removeEventListener('keydown', onKey, true);
     if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
-    if (toastDismiss === remove) toastDismiss = null;
+    if (toastDismiss === teardown) toastDismiss = null;
   };
-  close.addEventListener('click', remove);
+  const onKey = (ev) => {
+    if (ev.key !== 'Escape') return;
+    if (!wrap.parentNode) return;
+    if (ev.stopPropagation) ev.stopPropagation();
+    if (ev.preventDefault) ev.preventDefault();
+    teardown();
+  };
+  close.addEventListener('click', teardown);
+  if (doc.addEventListener) doc.addEventListener('keydown', onKey, true);
   wrap.appendChild(msg);
   wrap.appendChild(btn);
   wrap.appendChild(close);
   doc.body.appendChild(wrap);
-  toastDismiss = remove;
-  setTimeout(remove, TOAST_MS);
+  toastDismiss = teardown;
+  setTimeout(teardown, TOAST_MS);
 }
 
 function bindGuestLinkActivate(node, doc, loginHref) {

@@ -605,8 +605,9 @@ export function createRoadmapController(opts) {
   }
 
   function refreshAuthChrome() {
-    canLinkGithub = viewerCanLink(!!(win && win.PUNCHCLOCK_AUTHENTICATED === true));
-    mergeRoadmapDevStatusLink(doc, devMachinesNav);
+    const authed = !!(win && win.PUNCHCLOCK_AUTHENTICATED === true);
+    canLinkGithub = viewerCanLink(authed);
+    mergeRoadmapDevStatusLink(doc, devMachinesNav, { authenticated: authed });
     if (latest) apply(latest);
     if (latestDev) applyDev(latestDev);
   }

@@ -62,6 +62,7 @@ import {
 } from './island-vehicle.js';
 import { createCasinoController, CASINO_NAME, promptDomUpdate } from './island-casino.js';
 import { createGraffitiController } from './island-graffiti.js';
+import { applyIslandOpenRoadmapParam } from './dev-machines-format.js';
 import { createRoadmapController } from './island-roadmap.js';
 import {
   INTERIOR_ORIGIN,
@@ -196,6 +197,7 @@ function bootCasinoFallback() {
   window.PunchClockIsland.closeGraffiti = () => graffiti.close();
   window.PunchClockIsland.openRoadmap = () => roadmap.open();
   window.PunchClockIsland.closeRoadmap = () => roadmap.close();
+  applyIslandOpenRoadmapParam(window, () => roadmap.open());
 }
 
 if (stage && canvas) boot();
@@ -2797,8 +2799,25 @@ function boot() {
       }
     },
     isInside: () => rooms.inside(),
-    interiorMinRadius: INTERIOR_POSE.radius
+    interiorMinRadius: INTERIOR_POSE.radius,
+    getInteriorPoseRadius: () => {
+      if (!rooms.inside()) return null;
+      const custom = interiorFollowPose(rooms.room(), camera.aspect);
+      return (custom || INTERIOR_POSE).radius;
+    }
   });
+  if (typeof window !== 'undefined') {
+    window.__islandCam = () => ({
+      radius: cam.radius,
+      targetRadius: cam.targetRadius,
+      theta: cam.theta,
+      targetTheta: cam.targetTheta,
+      phi: cam.phi,
+      targetPhi: cam.targetPhi,
+      mode: mode,
+      inside: rooms.inside()
+    });
+  }
   createExploreJoystick({
     stickRoot: document.getElementById('islandJoystick'),
     stickKnob: document.getElementById('islandJoystickKnob'),
@@ -2870,5 +2889,6 @@ function boot() {
   renderer.render(scene, camera);
   placeLabels();
   if (!document.hidden) start();
+  applyIslandOpenRoadmapParam(window, () => roadmap.open());
 
 }
