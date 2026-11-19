@@ -109,8 +109,7 @@ function makeMobileDom(guest) {
   el('span', { id: 'islandPeerCount', class: 'island-hud-peer-badge', hidden: true }, hud);
   el('strong', { id: 'islandHudPlayerName' }, hud);
   el('img', { id: 'islandHudPlayerThumb' }, hud);
-  el('button', { id: 'islandDay', class: 'island-orb island-orb-day', 'aria-pressed': 'true' }, hud);
-  el('button', { id: 'islandNight', class: 'island-orb island-orb-night', 'aria-pressed': 'false' }, hud);
+  el('button', { id: 'islandDay', class: 'island-orb island-orb-daynight', 'aria-pressed': 'false' }, hud);
   el('button', { id: 'islandAudio', class: 'island-orb island-orb-audio', 'aria-pressed': 'true' }, hud);
   const chatWrap = el('div', { class: 'island-chat-wrap island-hud-chat' }, hud);
   el('button', { id: 'islandChatBtn', class: 'island-orb island-orb-chat' }, chatWrap);
@@ -176,6 +175,24 @@ function popWouldBeVisible(node) {
   return node && !node.hidden && !hasMenuTargetsAncestor(node);
 }
 
+test('情境鈕 [hidden] 時不被 island-hud-btn 的 inline-flex 蓋過', () => {
+  assert.match(
+    islandCss,
+    /\.island-hud-btn\[hidden\][\s\S]*\.island-interact-steer\[hidden\][\s\S]*display:\s*none\s*!important/
+  );
+});
+
+test('施工進度：永久藍鈕時不顯示情境 #islandInteract（openRoadmap 區）', () => {
+  assert.match(
+    islandJs,
+    /zone\.action === 'openRoadmap'[\s\S]*?setPromptVisible\(false\)/
+  );
+  const roadmapInActions = indexHtml.match(
+    /class="island-hud-actions"[\s\S]*?island-hud-roadmap[\s\S]*?id="islandInteract"/
+  );
+  assert.ok(roadmapInActions, '操作叢同時含永久施工進度與情境鈕');
+});
+
 test('index 使用 Concept A HUD：玩家卡、右上圓鈕、選單與地圖', () => {
   assert.doesNotMatch(indexHtml, /id="islandChatFab"/);
   assert.doesNotMatch(indexHtml, />蜜鹿</);
@@ -185,6 +202,9 @@ test('index 使用 Concept A HUD：玩家卡、右上圓鈕、選單與地圖', 
   assert.match(indexHtml, /id="islandMapSheet"/);
   assert.match(indexHtml, /id="islandHudRoleBtn"/);
   assert.match(indexHtml, /island-hud-player-name[^>]*>milu</);
+  assert.match(indexHtml, /island-hud-player-title-text[^>]*>神之島</);
+  assert.doesNotMatch(indexHtml, /id="islandNight"/);
+  assert.match(indexHtml, /island-hud-roadmap[\s\S]*data-open-roadmap/);
 });
 
 test('index：角色／暱稱彈層不在隱藏選單靶容器內', () => {
@@ -308,6 +328,8 @@ test('選單打開後訪客看得到登入，已登入看得到登出與全景�
 
 test('手機 CSS 有 HUD 圓鈕、搖桿安全區與地圖層級', () => {
   assert.match(islandCss, /\.island-orb/);
+  assert.match(islandCss, /#163a70/);
+  assert.doesNotMatch(islandCss, /\.island-orb-day\s*\{/);
   assert.match(islandCss, /safe-area-inset-right/);
   assert.match(islandCss, /safe-area-inset-bottom/);
   assert.doesNotMatch(islandCss, /island-chat-fab/);
