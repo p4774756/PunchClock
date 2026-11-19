@@ -8,12 +8,12 @@ import {latestPlayableStage,stageUnlocked,writeLocalProgress} from './quest-prog
 import type {QuestProgressV1} from './types';
 import {persistQuestProgress} from './quest-sync';
 import {playQuestCorrect,playQuestStar,playQuestWrong,questMuted,setQuestMuted} from './quest-sounds';
+import {questNewRecordFlags} from './quest-record';
+import {MapGridShell} from './MapSnakePath';
 import type {ChoiceQuestion,MeridianQuestId,QuestQuestion,StageProgress} from './types';
 import './quest.css';
 
 type View='map'|'play'|'result';
-
-const MAP_PATH_DESKTOP='M 80 72 L 168 72 L 256 72 L 344 72 L 432 72 L 520 72 L 608 72 L 688 72 L 688 148 L 608 148 L 520 148 L 432 148 L 344 148 L 256 148 L 168 148 L 80 148';
 
 function formatMs(ms:number){
  const sec=Math.max(0,Math.round(ms/1000));
@@ -36,13 +36,14 @@ interface Props{
  onMeridianFilter:(id:MeridianQuestId|null)=>void;
  onHighlight:(code:string|null)=>void;
  onHintFocus:(code:string|null)=>void;
+ onLocateFraming?:(meridianId:MeridianQuestId,excludeAnswer:string)=>void;
  onNeedPracticeOutfit:()=>void;
  onLocateAnswer?:(code:string)=>void;
  registerLocateHandler?:(fn:((code:string)=>void)|null)=>void;
 }
 
 export default function MeridianQuestPanel({
- open,onClose,progress,onProgress,onPlaying,onMeridianFilter,onHighlight,onHintFocus,onNeedPracticeOutfit,registerLocateHandler,
+ open,onClose,progress,onProgress,onPlaying,onMeridianFilter,onHighlight,onHintFocus,onLocateFraming,onNeedPracticeOutfit,registerLocateHandler,
 }:Props){
  const stages=allQuestStages();
  const [view,setView]=useState<View>('map');
@@ -71,6 +72,7 @@ export default function MeridianQuestPanel({
  const [mute,setMute]=useState(questMuted);
  const [confirmLeave,setConfirmLeave]=useState(false);
  const [resultStars,setResultStars]=useState(0);
+ const [resultPrev,setResultPrev]=useState<StageProgress|undefined>();
  const [reviewCode,setReviewCode]=useState<string|null>(null);
  const practiceOnce=useRef(false);
  const playable=latestPlayableStage(progress);
@@ -102,6 +104,11 @@ export default function MeridianQuestPanel({
   }
  },[view,plan,onNeedPracticeOutfit]);
 
+ useEffect(()=>{
+  if(view!=='play'||!playId||!q||q.kind!=='locate'||cardOpen)return;
+  onLocateFraming?.(playId,q.answerCode);
+ },[view,playId,q,cardOpen,onLocateFraming,index]);
+
  const pauseTimer=useCallback(()=>{
   setAccumulatedMs(ms=>ms+Math.max(0,Date.now()-segmentStart));
   setPaused(true);
@@ -111,6 +118,10 @@ export default function MeridianQuestPanel({
   setSegmentStart(Date.now());
   setPaused(false);
  },[]);
+
+ useEffect(()=>{
+  if(confirmLeave&&!paused)pauseTimer();
+ },[confirmLeave,paused,pauseTimer]);
 
  const saveStage=useCallback((stars:0|1|2|3,totalMs:number,totalScore:number)=>{
   if(!playId)return;
@@ -223,6 +234,7 @@ export default function MeridianQuestPanel({
  const beginStage=(id:MeridianQuestId)=>{
   if(!stageUnlocked(progress,id))return;
   practiceOnce.current=false;
+  setResultPrev(progress.stages[id]?{...progress.stages[id]}:undefined);
   setPlayId(id);
   setSeed(Math.floor(Math.random()*1e9));
   setIndex(0);
@@ -266,13 +278,13 @@ export default function MeridianQuestPanel({
 
  const playHud=view==='play'&&plan&&playId&&q?<>
   <div className={`mq-play-layer ${cardOpen?'mq-card-open':''}`} aria-hidden="false">
-   <button type="button" className="mq-play-close" onClick={attemptClose}><span className="mq-esc">Esc</span>關閉</button>
    <div className={`mq-hud ${shake?'mq-shake':''}`}>
     <div className="mq-hud-panel">
      <div className="mq-hud-top">
-      <span>第 {stages.findIndex(s=>s.id===playId)+1} 關 · {questStageMeta(playId).name}</span>
+      <span className="mq-hud-title">第 {stages.findIndex(s=>s.id===playId)+1} 關 · {questStageMeta(playId).name}</span>
       <div className="mq-hud-tools">
        <button type="button" className="mq-toolbtn" onClick={()=>{const next=!mute;setMute(next);setQuestMuted(next);}} aria-label="音效">{mute?'🔇':'🔊'}</button>
+       <button type="button" className="mq-toolbtn mq-hud-close" onClick={attemptClose}><span className="mq-esc">Esc</span>關閉</button>
       </div>
      </div>
      <div className="mq-hud-q">{q.prompt}</div>
@@ -305,8 +317,7 @@ export default function MeridianQuestPanel({
     <div className="mq-body">
      {view==='map'&&<>
       <div className="mq-map-bg" style={{backgroundImage:`url(${publicAssetUrl('textures/woodcut-landscape.webp')})`}}>
-       <svg className="mq-map-path" viewBox="0 0 768 220" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path d={MAP_PATH_DESKTOP}/></svg>
-       <div className="mq-map-grid">
+       <MapGridShell stages={stages} progress={progress}>
         {stages.map((st,idx)=>{
          const canPlay=stageUnlocked(progress,st.id);
          const stars=progress.stages[st.id]?.stars??0;
@@ -315,13 +326,13 @@ export default function MeridianQuestPanel({
           className={`mq-node ${canPlay?'':'locked'} ${selected===st.id?'picked':''} ${isLatest?'latest':''}`}
           data-idx={idx}
           onClick={()=>setSelected(st.id)}>
+          {!canPlay&&<span className="mq-lock" aria-hidden="true">🔒</span>}
           <span className="mq-node-name">{st.name}</span>
           <span className="mq-node-count">{st.count} 穴</span>
           <span className="mq-stars">{starRow(stars)}</span>
-          {!canPlay&&<span className="mq-lock" aria-hidden="true">🔒</span>}
          </button>;
         })}
-       </div>
+       </MapGridShell>
       </div>
       <div className="mq-info">
        <h3>{selectedMeta.name} · {selectedMeta.count} 穴</h3>
@@ -333,7 +344,7 @@ export default function MeridianQuestPanel({
      </>}
 
      {view==='result'&&playId&&plan&&<ResultView playId={playId} plan={plan} correct={correct} elapsed={elapsed} score={score} maxCombo={maxCombo} wrong={wrong}
-      progress={progress} stars={resultStars} onRetry={()=>beginStage(playId)} onMap={()=>setView('map')}
+      prevStage={resultPrev} progress={progress} stars={resultStars} onRetry={()=>beginStage(playId)} onMap={()=>setView('map')}
       onNext={()=>{const n=nextStageId(playId);if(n&&stageUnlocked(progress,n))beginStage(n);}}
       onReview={code=>setReviewCode(code)}/>}
     </div>
@@ -341,7 +352,7 @@ export default function MeridianQuestPanel({
   </div>}
   {playHud}
   {reviewCode&&<ReviewCard code={reviewCode} onClose={()=>setReviewCode(null)}/>}
-  {confirmLeave&&<ConfirmLeave onStay={()=>setConfirmLeave(false)} onQuit={()=>{setConfirmLeave(false);onClose();}}/>}
+  {confirmLeave&&<ConfirmLeave onStay={()=>{setConfirmLeave(false);if(view==='play'&&!cardOpen)resumeTimer();}} onQuit={()=>{setConfirmLeave(false);onClose();}}/>}
  </div>;
 }
 
@@ -362,13 +373,11 @@ function IndicationCard({q,onNext,desktopSide}:{q:QuestQuestion;onNext:()=>void;
  </div>;
 }
 
-function ResultView({playId,plan,correct,elapsed,score,maxCombo,wrong,progress,stars,onRetry,onMap,onNext,onReview}:{playId:MeridianQuestId;plan:ReturnType<typeof generateStage>;correct:number;elapsed:number;score:number;maxCombo:number;wrong:string[];progress:QuestProgressV1;stars:number;onRetry:()=>void;onMap:()=>void;onNext:()=>void;onReview:(code:string)=>void}){
+function ResultView({playId,plan,correct,elapsed,score,maxCombo,wrong,prevStage,progress,stars,onRetry,onMap,onNext,onReview}:{playId:MeridianQuestId;plan:ReturnType<typeof generateStage>;correct:number;elapsed:number;score:number;maxCombo:number;wrong:string[];prevStage:StageProgress|undefined;progress:QuestProgressV1;stars:number;onRetry:()=>void;onMap:()=>void;onNext:()=>void;onReview:(code:string)=>void}){
  const nxt=nextStageId(playId);
  const nextOk=!!nxt&&stageUnlocked(progress,nxt);
- const prev=progress.stages[playId];
  const computed=starsFromRun(correct,plan.questions.length,elapsed);
- const newTime=computed>=1&&(prev?.bestTimeMs==null||elapsed<prev.bestTimeMs);
- const newScore=score>(prev?.bestScore??0);
+ const record=questNewRecordFlags(prevStage,computed as 0|1|2|3,elapsed,score);
  const [shown,setShown]=useState(0);
  useEffect(()=>{
   if(stars<=0)return;
@@ -379,7 +388,7 @@ function ResultView({playId,plan,correct,elapsed,score,maxCombo,wrong,progress,s
  return <div className="mq-result">
   <h3>{questStageMeta(playId).name} 結算</h3>
   <p className="mq-stars mq-result-stars">{starRow(shown||computed)}</p>
-  {(newTime||newScore)&&<p className="mq-new-record">新紀錄</p>}
+  {record.show&&<span className="mq-new-record">新紀錄</span>}
   <p>正確率 {Math.round(correct/plan.questions.length*100)}% · 時間 {formatMs(elapsed)} · 分數 {score} · 最高連擊 {maxCombo}</p>
   <div className="mq-result-actions">
    <button type="button" className="mq-primary" onClick={onRetry}>再挑戰</button>

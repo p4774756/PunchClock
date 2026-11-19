@@ -39,7 +39,8 @@ const bundle=await build({
 export {generateStage} from './app/quest/quest-generator';
 export {starsFromRun,scoreForAnswer,comboBonus} from './app/quest/quest-score';
 export {mergeProgress,sanitizeProgress,stageUnlocked,emptyProgress} from './app/quest/quest-progress';
-export {QUEST_STAGE_ORDER} from './app/quest/quest-stages';`,
+export {QUEST_STAGE_ORDER} from './app/quest/quest-stages';
+export {questNewRecordFlags} from './app/quest/quest-record';`,
   resolveDir:project,sourcefile:'validate-meridian-quest-entry.ts',loader:'ts',
  },
  bundle:true,platform:'node',format:'esm',target:'node22',write:false,logLevel:'silent',
@@ -211,8 +212,22 @@ await test('進度 merge 不倒退',async()=>{
  assert.ok(M.stageUnlocked(m,'LI'));
 });
 
+await test('新紀錄須用結算前舊成績',async()=>{
+ assert.equal(M.questNewRecordFlags(undefined,2,50000,900).show,true,'首次通關');
+ assert.equal(M.questNewRecordFlags({stars:2,bestTimeMs:40000,bestScore:1200,clearedAt:'x'},2,50000,1270).show,true,'破分');
+ assert.equal(M.questNewRecordFlags({stars:2,bestTimeMs:40000,bestScore:1200,clearedAt:'x'},2,17000,1100).show,true,'破時');
+ assert.equal(M.questNewRecordFlags({stars:2,bestTimeMs:40000,bestScore:1200,clearedAt:'x'},2,50000,1100).show,false,'無破紀');
+});
+
+await test('選關路徑節點 12 關順序',async()=>{
+ assert.equal(M.QUEST_STAGE_ORDER.length,12);
+ assert.deepEqual(M.QUEST_STAGE_ORDER,['LU','LI','ST','SP','HT','SI','BL','KI','PC','TE','GB','LR']);
+});
+
 await test('關卡中 HUD 不遮蔽全螢幕',async()=>{
  const css=await readFile(join(project,'app/quest/quest.css'),'utf8');
+ assert.ok(css.includes('.mq-hud-close'),'關閉鈕應在 HUD');
+ assert.ok(!css.includes('.mq-map-path'),'應移除獨立長方形路徑');
  assert.ok(css.includes('.mq-root-play'),'缺少 play 透明根');
  assert.ok(css.includes('pointer-events:none'),'缺少 HUD 穿透');
  assert.ok(css.includes('.mq-play-layer'),'缺少 play 圖層');

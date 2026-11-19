@@ -42,3 +42,20 @@ export function isIndicationEligible(point:QuestPointRecord):boolean{
 export function questAvatarTrunkLocate(code:string):boolean{
  return ANIME_META.get(code)?.set==='trunk-30';
 }
+
+/** Pick a bake proxy in the densest body region for locate framing (never the answer). */
+export function questLocateFramingCode(meridianId:MeridianQuestId,exclude?:string):string|null{
+ const codes=questAvatarLocateCodes(meridianId).filter(c=>c!==exclude);
+ if(!codes.length)return null;
+ const byRegion=new Map<string,string[]>();
+ for(const code of codes){
+  const region=POINT_BY_CODE.get(code)?.region??'abdomen';
+  const list=byRegion.get(region)??[];
+  list.push(code);
+  byRegion.set(region,list);
+ }
+ let pool:string[]=[];
+ for(const list of byRegion.values())if(list.length>pool.length)pool=list;
+ pool.sort((a,b)=>(POINT_BY_CODE.get(a)?.position[1]??0)-(POINT_BY_CODE.get(b)?.position[1]??0));
+ return pool[Math.floor(pool.length/2)]??pool[0]??null;
+}

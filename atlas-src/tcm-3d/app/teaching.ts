@@ -120,7 +120,7 @@ export const LOCATION:Record<string,{text:string;section:string;classic?:string;
 };
 export interface SurfaceTarget {position:Vec3;normal:Vec3;meshId?:string;faceIndex?:number|null;pointCode?:string;pointSide?:1|-1}
 export type ToolDragPhase='start'|'move'|'end'|'cancel';
-export interface SimulationState {showMeridians?:boolean;meridianFilter?:string;curriculumSet?:CurriculumSetId|'all'|null;tool:ToolId;release?:number;dragging?:boolean;running:boolean;elapsed:number;amplitude:number;pointCode:string|null;side:1|-1;customTarget:SurfaceTarget|null;focus:number;showPoints:boolean;pickMode:'point';effects:boolean}
+export interface SimulationState {showMeridians?:boolean;meridianFilter?:string;curriculumSet?:CurriculumSetId|'all'|null;tool:ToolId;release?:number;dragging?:boolean;running:boolean;elapsed:number;amplitude:number;pointCode:string|null;side:1|-1;framePointCode?:string|null;frameSide?:1|-1;customTarget:SurfaceTarget|null;focus:number;showPoints:boolean;pickMode:'point';effects:boolean}
 export const initialSimulation:SimulationState={showMeridians:false,meridianFilter:'all',curriculumSet:'head-neck-21',tool:'needle',running:false,elapsed:0,amplitude:.55,pointCode:'GV24+',side:1,customTarget:null,focus:0,showPoints:true,pickMode:'point',effects:true};
 export function pointTarget(code:string,side:1|-1):SurfaceTarget{const p=POINT_BY_CODE.get(code)!;return {position:[p.midline?p.position[0]:p.position[0]*side,p.position[1],p.position[2]],normal:[p.normal[0]*side,p.normal[1],p.normal[2]]};}
 export function classifyRegion(p:Vec3):RegionId{return p[1]>1.52?'head':p[1]>1.3?'shoulder':Math.abs(p[0])>.18?'arm':p[1]>.8?(p[2]<-.025?'waist':'abdomen'):'leg';}

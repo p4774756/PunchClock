@@ -985,12 +985,30 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const down=(e:PointerEvent)=>tap.down(e.pointerId,e.clientX,e.clientY,e.pointerType==='touch'?12:5);
   const move=(e:PointerEvent)=>{tap.move(e.pointerId,e.clientX,e.clientY);};
   const cancel=(e:PointerEvent)=>tap.cancel(e.pointerId);
+  const pickQuestMarker=(clientX:number,clientY:number)=>{
+   const rect=renderer.domElement.getBoundingClientRect();
+   const minPx=el.clientWidth<=720?18:10;
+   let best:T.Mesh|null=null,bestD=minPx;
+   for(const m of teaching.markers){
+    if(!m.visible)continue;
+    const p=m.position.clone().project(camera);
+    if(p.z<-1||p.z>1)continue;
+    const sx=(p.x+1)/2*rect.width,sy=(1-p.y)/2*rect.height;
+    const d=Math.hypot(clientX-rect.left-sx,clientY-rect.top-sy);
+    if(d<=bestD){bestD=d;best=m;}
+   }
+   return best;
+  };
   const up=(e:PointerEvent)=>{
    if(!tap.up(e.pointerId,e.clientX,e.clientY)||!ready)return;
    const rect=renderer.domElement.getBoundingClientRect();
    pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
    raycaster.setFromCamera(pointer,camera);
-   const hit=raycaster.intersectObjects(teaching.markers.filter(m=>m.visible),false)[0];
+   let hit=raycaster.intersectObjects(teaching.markers.filter(m=>m.visible),false)[0];
+   if(!hit&&questMode){
+    const near=pickQuestMarker(e.clientX,e.clientY);
+    if(near)hit={object:near,distance:0,point:new T.Vector3(),face:null,instanceId:null as unknown as number} as T.Intersection;
+   }
    if(hit)pointSelect.current(hit.object.userData.point,hit.object.userData.side);
   };
   renderer.domElement.addEventListener('pointerdown',down);
@@ -1032,11 +1050,13 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    else if(simState.focus&&lastFocus!==simState.focus&&ready){
     // Pre-anchor fallback: same framing rules as teaching-overlay (do not ride the surface normal).
     lastFocus=simState.focus;
-    const target=simState.pointCode?avatarPointTarget(avatar,simState.pointCode,simState.side):null;
+    const frameCode=simState.framePointCode??simState.pointCode;
+    const frameSide=simState.framePointCode?(simState.frameSide??1):simState.side;
+    const target=frameCode?avatarPointTarget(avatar,frameCode,frameSide):null;
     if(target){
      const aim=new T.Vector3().fromArray(target.position);
      const normal=new T.Vector3().fromArray(target.normal).normalize();
-     const {viewDir,distance,aimAdjust}=focusViewFromNormal(simState.pointCode,normal,simState.side);
+     const {viewDir,distance,aimAdjust}=focusViewFromNormal(frameCode,normal,frameSide);
      aim.add(aimAdjust);
      controls.target.copy(aim);
      camera.position.copy(aim).addScaledVector(viewDir,distance);

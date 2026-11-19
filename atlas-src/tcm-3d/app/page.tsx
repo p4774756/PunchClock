@@ -9,6 +9,7 @@ import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,isPracti
 import MeridianQuestPanel from './quest/MeridianQuestPanel';
 import {readLocalProgress} from './quest/quest-progress';
 import {bootstrapQuestProgress} from './quest/quest-sync';
+import {questLocateFramingCode} from './quest/quest-data';
 import type {MeridianQuestId,QuestProgressV1} from './quest/types';
 
 const CharacterScene=lazy(()=>import('./character-scene'));
@@ -181,9 +182,9 @@ export default function Home(){
   window.location.href='/';
  },[launch.fromIsland]);
 
- const closeQuest=useCallback(()=>{setQuestOpen(false);setSimulation(s=>({...s,meridianFilter:'all',dragging:false,running:false}));},[]);
+ const closeQuest=useCallback(()=>{setQuestOpen(false);setSimulation(s=>({...s,meridianFilter:'all',dragging:false,running:false,framePointCode:null}));},[]);
  const onQuestPlaying=useCallback((active:boolean,_id:MeridianQuestId|null)=>{setQuestPlaying(active);if(active)pause('經絡闖關進行中。');},[pause]);
- const onQuestMeridian=useCallback((id:MeridianQuestId|null)=>{setSimulation(s=>({...s,meridianFilter:id??'all',showPoints:true,dragging:false,running:false,customTarget:null}));},[]);
+ const onQuestMeridian=useCallback((id:MeridianQuestId|null)=>{setSimulation(s=>({...s,meridianFilter:id??'all',showPoints:true,dragging:false,running:false,customTarget:null,framePointCode:null}));},[]);
  const onQuestHint=useCallback((answerCode:string|null)=>{
   if(!answerCode)return;
   const target=POINT_BY_CODE.get(answerCode);
@@ -197,7 +198,22 @@ export default function Home(){
   const view=target.region==='head'?'front':target.region==='waist'?'back':'three-quarter';
   setState(s=>({...s,view,rotate:false,reset:s.reset+1}));
  },[avatarCodes]);
- const onQuestHighlight=useCallback((code:string|null)=>{if(!code)return;setSimulation(s=>({...s,pointCode:code,side:1,focus:s.focus+1,pickMode:'point',customTarget:null}));},[]);
+ const onQuestLocateFraming=useCallback((meridianId:MeridianQuestId,excludeCode:string)=>{
+  const proxy=questLocateFramingCode(meridianId,excludeCode);
+  if(!proxy){
+   setState(s=>({...s,view:'three-quarter',rotate:false,reset:s.reset+1}));
+   setSimulation(s=>({...s,pointCode:null,framePointCode:null,focus:s.focus+1,customTarget:null,dragging:false,running:false}));
+   return;
+  }
+  const row=POINT_BY_CODE.get(proxy);
+  const view=row?.region==='head'?'front':row?.region==='waist'?'back':'three-quarter';
+  setState(s=>({...s,view,rotate:false,reset:s.reset+1}));
+  setSimulation(s=>({...s,pointCode:null,framePointCode:proxy,frameSide:1,focus:s.focus+1,pickMode:'point',customTarget:null,dragging:false,running:false}));
+ },[]);
+ const onQuestHighlight=useCallback((code:string|null)=>{
+  if(!code){setSimulation(s=>({...s,pointCode:null,framePointCode:null}));return;}
+  setSimulation(s=>({...s,pointCode:code,side:1,framePointCode:null,focus:s.focus+1,pickMode:'point',customTarget:null}));
+ },[]);
  const onQuestPracticeOutfit=useCallback(()=>{if(outfitId!=='study-body')switchOutfit('study-body');},[outfitId]);
 
  return <main className={`studio rpg-studio is-anime${showOutfitBar?' has-outfit-bar':''}${questPlaying?' quest-studio':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
@@ -291,7 +307,7 @@ export default function Home(){
 
   <footer className="studio-footer"><span className="status-message" role="status" aria-live="polite">{feedback}</span><span className="footer-scope">經絡研習室<span>·</span>動漫對應示意</span></footer>
   <MeridianQuestPanel open={questOpen} onClose={closeQuest} progress={questProgress} onProgress={setQuestProgress}
-   onPlaying={onQuestPlaying} onMeridianFilter={onQuestMeridian} onHighlight={onQuestHighlight} onHintFocus={onQuestHint}
+   onPlaying={onQuestPlaying} onMeridianFilter={onQuestMeridian} onHighlight={onQuestHighlight} onHintFocus={onQuestHint} onLocateFraming={onQuestLocateFraming}
    onNeedPracticeOutfit={onQuestPracticeOutfit} registerLocateHandler={fn=>{questLocate.current=fn;}}/>
   <dialog ref={dialog} className="source-dialog" onCancel={()=>setAbout(false)} onClose={()=>setAbout(false)} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)setAbout(false);}}} aria-labelledby="source-title">
    <div className="dialog-heading"><span className="eyebrow">資料、許可與當前邊界</span><button className="icon-button" onClick={()=>setAbout(false)} aria-label="關閉來源與許可" autoFocus><X size={19}/></button></div>

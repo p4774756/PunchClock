@@ -141,18 +141,23 @@ export function createTeachingOverlay(
    settling:releaseAt>=0&&releaseElapsed<=.85,
   };
  };
+ const resolveFocusTarget=(s:SimulationState):SurfaceTarget|null=>{
+  if(s.framePointCode)return resolvePoint(s.framePointCode,s.frameSide??1);
+  return getTarget(s);
+ };
  const focus=(s:SimulationState,camera:T.PerspectiveCamera,controls:{target:T.Vector3;update:()=>void})=>{
   if(!s.focus||lastFocus===s.focus||!anchored)return false;
-  const target=getTarget(s);if(!target)return false;lastFocus=s.focus;camera.clearViewOffset();
+  const target=resolveFocusTarget(s);if(!target)return false;lastFocus=s.focus;camera.clearViewOffset();
   const aim=new T.Vector3().fromArray(target.position);
   n.fromArray(target.normal).normalize();
+  const focusCode=s.framePointCode??s.pointCode;
+  const focusSide=s.framePointCode?(s.frameSide??1):(s.side||1);
   let distance=.62;
   if(s.customTarget){
    n.copy(camera.position).sub(aim).normalize();
    distance=.7;
   }else{
-   // Single source of truth with character-scene fallback (ST9 close-up, SI11 back view, …).
-   const framed=focusViewFromNormal(s.pointCode,n,s.side||1);
+   const framed=focusViewFromNormal(focusCode,n,focusSide);
    n.copy(framed.viewDir);
    aim.add(framed.aimAdjust);
    distance=framed.distance;
