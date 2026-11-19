@@ -97,221 +97,284 @@ def _uv_box(bm, size, co):
 
 
 def _join_meshes(name, pieces):
-    """pieces: list of (material_name, bmesh_ops_fn returning bm with geo)"""
+    """pieces: list of (palette_key, bmesh_ops_fn) — 每 piece 面指派對應材質 slot。"""
     bm = bmesh.new()
+    mat_order = []
+    mat_objs = []
+
+    def slot_for(mat_name):
+        if mat_name not in mat_order:
+            mat_order.append(mat_name)
+            m = bpy.data.materials.get('npc_' + mat_name)
+            if not m:
+                base = PALETTE.get(mat_name, PALETTE['skin'])
+                m = _mat('npc_' + mat_name, base)
+            mat_objs.append(m)
+        return mat_order.index(mat_name)
+
     for mat_name, build_fn in pieces:
         sub = bmesh.new()
         build_fn(sub)
         sub.faces.ensure_lookup_table()
+        slot = slot_for(mat_name)
         offset = len(bm.verts)
         for v in sub.verts:
             bm.verts.new(v.co)
         bm.verts.ensure_lookup_table()
         bm.verts.index_update()
         for face in sub.faces:
-            bm.faces.new([bm.verts[offset + v.index] for v in face.verts])
+            nf = bm.faces.new([bm.verts[offset + v.index] for v in face.verts])
+            nf.material_index = slot
         sub.free()
     bm.faces.ensure_lookup_table()
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0001)
     bm.normal_update()
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
     obj = bpy.data.objects.new(name, me)
-    mats = []
-    for mat_name, _ in pieces:
-        m = bpy.data.materials.get('npc_' + mat_name) or bpy.data.materials.get(mat_name)
-        if m and m not in mats:
-            mats.append(m)
-    me.materials.append(mats[0] if mats else _mat('npc_skin', PALETTE['skin']))
-    if len(mats) > 1:
-        me.materials.append(mats[1])
+    for m in mat_objs:
+        me.materials.append(m)
     return obj
+
+
+def _face_pieces(pieces):
+    """頭部與五官分色，避免全膚色糊成一團。"""
+    def head_skin(bm):
+        _uv_sphere(bm, (0, 0, 0.78), 0.172, 9, 7)
+        _uv_sphere(bm, (0, 0.052, 0.788), 0.02, 5, 4)
+
+    pieces.append(('skin', head_skin))
+
+    def eye_white(bm):
+        for sx in (-0.055, 0.055):
+            _uv_box(bm, (0.038, 0.014, 0.012), (sx, 0.188, 0.796))
+
+    pieces.append(('eye_white', eye_white))
+
+    def eye_pupil(bm):
+        for sx in (-0.055, 0.055):
+            _uv_box(bm, (0.02, 0.006, 0.006), (sx, 0.196, 0.798))
+
+    pieces.append(('eye_pupil', eye_pupil))
+
+    def lips(bm):
+        _uv_box(bm, (0.05, 0.014, 0.01), (0, 0.158, 0.768))
+
+    pieces.append(('lip', lips))
 
 
 def _style_mesh(style):
     """回傳 mesh object（未綁骨）。"""
-    z0 = 0.0
     skin = 'skin'
     pieces = []
-
-    def head_block(bm):
-        _uv_sphere(bm, (0, 0, 0.78), 0.17, 7, 5)
-        _uv_sphere(bm, (0, 0.055, 0.785), 0.028, 5, 4)  # nose hint
-        _uv_sphere(bm, (-0.055, 0.12, 0.8), 0.032, 5, 4)  # L eye white
-        _uv_sphere(bm, (0.055, 0.12, 0.8), 0.032, 5, 4)
-        _uv_sphere(bm, (-0.055, 0.125, 0.805), 0.018, 4, 3)
-        _uv_sphere(bm, (0.055, 0.125, 0.805), 0.018, 4, 3)
-
-    pieces.append((skin, head_block))
+    _face_pieces(pieces)
 
     def torso_base(bm):
         _uv_box(bm, (0.26, 0.14, 0.26), (0, 0, 0.52))
 
     if style == 'summer':
         def hair(bm):
-            _uv_sphere(bm, (0, 0, 0.88), 0.19, 7, 5)
+            _uv_sphere(bm, (0, 0.02, 0.9), 0.2, 9, 7)
             for side in (-1, 1):
-                _uv_sphere(bm, (side * 0.14, 0, 0.74), 0.08, 5, 4)
+                _uv_sphere(bm, (side * 0.15, -0.02, 0.73), 0.09, 7, 5)
+                _uv_sphere(bm, (side * 0.17, 0.04, 0.68), 0.06, 6, 4)
         pieces.append(('hair_mint', hair))
 
         def dress(bm):
-            _uv_box(bm, (0.3, 0.12, 0.22), (0, 0, 0.46))
-            _uv_box(bm, (0.34, 0.1, 0.14), (0, 0, 0.36))
+            _uv_box(bm, (0.32, 0.13, 0.24), (0, 0, 0.47))
+            _uv_box(bm, (0.36, 0.11, 0.16), (0, 0, 0.35))
+            _uv_box(bm, (0.34, 0.05, 0.1), (0, 0.07, 0.42))
         pieces.append(('yellow', dress))
 
         def legs(bm):
             for side in (-1, 1):
-                _uv_box(bm, (0.09, 0.1, 0.2), (side * 0.08, 0, 0.22))
-                _uv_box(bm, (0.1, 0.05, 0.08), (side * 0.08, 0.05, 0.08))
+                _uv_box(bm, (0.09, 0.1, 0.22), (side * 0.08, 0, 0.22))
+                _uv_box(bm, (0.11, 0.05, 0.09), (side * 0.08, 0.06, 0.07))
         pieces.append((skin, legs))
-        pieces.append((skin, torso_base))
 
     elif style == 'student':
         def hair(bm):
-            _uv_sphere(bm, (0, 0, 0.87), 0.185, 7, 5)
-            _uv_box(bm, (0.2, 0.04, 0.08), (0, 0.12, 0.92))
+            _uv_sphere(bm, (0, 0, 0.87), 0.188, 9, 7)
+            _uv_box(bm, (0.22, 0.05, 0.09), (0, 0.13, 0.925))
+            for side in (-1, 1):
+                _uv_box(bm, (0.08, 0.04, 0.06), (side * 0.1, 0.1, 0.84))
         pieces.append(('hair_navy', hair))
 
         def uniform(bm):
-            _uv_box(bm, (0.28, 0.14, 0.24), (0, 0, 0.52))
-            _uv_box(bm, (0.08, 0.05, 0.06), (0, -0.08, 0.56))
-            _uv_box(bm, (0.32, 0.11, 0.18), (0, 0, 0.38))
+            _uv_box(bm, (0.3, 0.15, 0.25), (0, 0, 0.52))
+            _uv_box(bm, (0.1, 0.06, 0.06), (0, -0.09, 0.57))
+            _uv_box(bm, (0.35, 0.12, 0.2), (0, 0, 0.36))
         pieces.append(('white', uniform))
-        pieces.append(('red', lambda b: _uv_box(b, (0.1, 0.04, 0.02), (0, -0.02, 0.58))))
-        pieces.append(('navy', lambda b: _uv_box(b, (0.34, 0.1, 0.16), (0, 0, 0.36))))
+        pieces.append(('red', lambda b: _uv_box(b, (0.12, 0.05, 0.025), (0, -0.01, 0.595))))
+        pieces.append(('navy', lambda b: _uv_box(b, (0.36, 0.11, 0.17), (0, 0, 0.34))))
 
         def bag(bm):
-            _uv_box(bm, (0.14, 0.06, 0.18), (0.14, -0.04, 0.48))
+            _uv_box(bm, (0.16, 0.07, 0.2), (0.16, -0.05, 0.46))
+            _uv_box(bm, (0.03, 0.02, 0.04), (0.1, -0.02, 0.55))
         pieces.append(('brown', bag))
 
         def legs(bm):
             for side in (-1, 1):
-                _uv_box(bm, (0.09, 0.1, 0.2), (side * 0.08, 0, 0.22))
-                _uv_box(bm, (0.11, 0.06, 0.1), (side * 0.08, 0.04, 0.06))
+                _uv_box(bm, (0.09, 0.1, 0.22), (side * 0.08, 0, 0.22))
+                _uv_box(bm, (0.12, 0.06, 0.11), (side * 0.08, 0.045, 0.06))
+        def arms(bm):
+            for side in (-1, 1):
+                _uv_box(bm, (0.08, 0.08, 0.22), (side * 0.2, 0, 0.48))
+        pieces.append((skin, arms))
         pieces.append((skin, legs))
 
     elif style == 'tech':
         def hair(bm):
-            _uv_sphere(bm, (0, 0, 0.88), 0.17, 7, 5)
-            _uv_box(bm, (0.06, 0.06, 0.22), (0, -0.14, 0.92))
+            _uv_sphere(bm, (0, 0, 0.885), 0.175, 9, 7)
+            _uv_box(bm, (0.07, 0.07, 0.26), (0, -0.15, 0.93))
+            _uv_box(bm, (0.05, 0.04, 0.08), (0, -0.1, 1.0))
         pieces.append(('hair_silver', hair))
 
         def suit(bm):
-            _uv_box(bm, (0.24, 0.13, 0.28), (0, 0, 0.5))
-            for x in (-0.06, 0.06):
-                _uv_box(bm, (0.02, 0.01, 0.26), (x, 0.07, 0.5))
+            _uv_box(bm, (0.26, 0.14, 0.3), (0, 0, 0.5))
+            _uv_box(bm, (0.32, 0.12, 0.16), (0, 0, 0.35))
+            for side in (-1, 1):
+                _uv_box(bm, (0.1, 0.08, 0.22), (side * 0.2, 0.02, 0.48))
         pieces.append(('black', suit))
-        pieces.append(('white', lambda b: _uv_box(b, (0.12, 0.08, 0.12), (0, 0, 0.54))))
+        pieces.append(('cyan', lambda b: _uv_box(b, (0.22, 0.01, 0.18), (0, 0.07, 0.52))))
+        pieces.append(('white', lambda b: _uv_box(b, (0.1, 0.07, 0.11), (0, 0.05, 0.555))))
 
         def goggles(bm):
-            _uv_box(bm, (0.24, 0.04, 0.05), (0, 0.14, 0.8))
+            _uv_box(bm, (0.24, 0.04, 0.05), (0, 0.19, 0.82))
+            for side in (-1, 1):
+                _uv_box(bm, (0.04, 0.02, 0.02), (side * 0.12, 0.19, 0.825))
         pieces.append(('cyan', goggles))
 
         def legs(bm):
             for side in (-1, 1):
-                _uv_box(bm, (0.1, 0.1, 0.22), (side * 0.08, 0, 0.22))
-                _uv_box(bm, (0.12, 0.07, 0.12), (side * 0.08, 0.04, 0.08))
+                _uv_box(bm, (0.1, 0.1, 0.24), (side * 0.08, 0, 0.22))
+                _uv_box(bm, (0.13, 0.08, 0.13), (side * 0.08, 0.04, 0.07))
         pieces.append((skin, legs))
 
     elif style == 'idol':
         def hair(bm):
-            _uv_sphere(bm, (0, 0, 0.88), 0.17, 7, 5)
+            _uv_sphere(bm, (0, 0.02, 0.888), 0.175, 9, 7)
             for side in (-1, 1):
-                _uv_box(bm, (0.08, 0.08, 0.28), (side * 0.12, -0.06, 0.8))
-                _uv_box(bm, (0.06, 0.03, 0.04), (side * 0.1, 0, 0.98))
+                _uv_box(bm, (0.08, 0.08, 0.3), (side * 0.14, -0.08, 0.76))
+                _uv_sphere(bm, (side * 0.13, 0.04, 0.98), 0.065, 7, 5)
+                _uv_box(bm, (0.06, 0.03, 0.05), (side * 0.12, -0.04, 1.0))
         pieces.append(('hair_blonde', hair))
-        pieces.append(('pink_hot', lambda b: _uv_box(b, (0.06, 0.04, 0.04), (-0.1, 0, 0.98))))
-        pieces.append(('pink_hot', lambda b: _uv_box(b, (0.06, 0.04, 0.04), (0.1, 0, 0.98))))
 
         def outfit(bm):
-            _uv_box(bm, (0.26, 0.12, 0.2), (0, 0, 0.5))
-            _uv_box(bm, (0.32, 0.1, 0.12), (0, 0, 0.36))
+            _uv_box(bm, (0.28, 0.13, 0.22), (0, 0, 0.5))
+            _uv_box(bm, (0.34, 0.11, 0.14), (0, 0, 0.35))
+            for side in (-1, 1):
+                _uv_box(bm, (0.08, 0.08, 0.14), (side * 0.19, 0.04, 0.46))
         pieces.append(('pink', outfit))
-        pieces.append(('white', lambda b: _uv_box(b, (0.14, 0.06, 0.08), (0, 0, 0.58))))
+        pieces.append(('pink_hot', lambda b: _uv_box(b, (0.07, 0.05, 0.05), (-0.11, 0, 0.99))))
+        pieces.append(('pink_hot', lambda b: _uv_box(b, (0.07, 0.05, 0.05), (0.11, 0, 0.99))))
+        pieces.append(('white', lambda b: _uv_box(b, (0.15, 0.07, 0.09), (0, 0, 0.585))))
 
         def mic(bm):
-            _uv_box(bm, (0.04, 0.04, 0.14), (0.22, 0, 0.55))
-            _uv_sphere(bm, (0.22, 0, 0.64), 0.045, 5, 4)
+            _uv_box(bm, (0.04, 0.04, 0.14), (0.26, 0.02, 0.56))
+            _uv_sphere(bm, (0.26, 0.02, 0.64), 0.045, 6, 5)
         pieces.append(('grey', mic))
 
         def legs(bm):
             for side in (-1, 1):
-                _uv_box(bm, (0.09, 0.1, 0.2), (side * 0.08, 0, 0.22))
-                _uv_box(bm, (0.11, 0.07, 0.1), (side * 0.08, 0.04, 0.06))
+                _uv_box(bm, (0.09, 0.1, 0.22), (side * 0.08, 0, 0.22))
+                _uv_box(bm, (0.12, 0.07, 0.11), (side * 0.08, 0.04, 0.06))
         pieces.append((skin, legs))
 
     elif style == 'swimsuit':
         def hair(bm):
-            _uv_sphere(bm, (0, 0, 0.88), 0.18, 7, 5)
+            _uv_sphere(bm, (0, 0.02, 0.89), 0.185, 9, 7)
             for side in (-1, 1):
-                _uv_sphere(bm, (side * 0.12, 0, 0.72), 0.07, 5, 4)
+                _uv_sphere(bm, (side * 0.13, -0.02, 0.71), 0.08, 7, 5)
+                _uv_sphere(bm, (side * 0.15, 0.02, 0.65), 0.055, 6, 4)
         pieces.append(('hair_teal', hair))
 
         def swim(bm):
-            _uv_box(bm, (0.24, 0.1, 0.26), (0, 0, 0.48))
+            _uv_box(bm, (0.26, 0.11, 0.28), (0, 0, 0.48))
+            _uv_box(bm, (0.14, 0.06, 0.12), (0, 0.04, 0.52))
         pieces.append(('blue_swim', swim))
 
         def sarong(bm):
-            _uv_box(bm, (0.28, 0.04, 0.14), (0, 0.06, 0.34))
+            _uv_box(bm, (0.3, 0.05, 0.16), (0, 0.07, 0.33))
+            _uv_box(bm, (0.18, 0.03, 0.08), (0.12, 0.05, 0.34))
         pieces.append(('white', sarong))
 
         def hat(bm):
-            _uv_box(bm, (0.22, 0.04, 0.22), (0, 0, 1.0))
+            _uv_box(bm, (0.24, 0.05, 0.24), (0, 0, 1.02))
+            _uv_box(bm, (0.28, 0.02, 0.1), (0, 0, 1.06))
         pieces.append(('straw', hat))
 
         def legs(bm):
             for side in (-1, 1):
-                _uv_box(bm, (0.09, 0.1, 0.22), (side * 0.08, 0, 0.22))
+                _uv_box(bm, (0.09, 0.1, 0.24), (side * 0.08, 0, 0.22))
         pieces.append((skin, legs))
 
     elif style == 'sport':
         def hair(bm):
-            _uv_sphere(bm, (0, 0, 0.88), 0.17, 7, 5)
-            _uv_box(bm, (0.07, 0.07, 0.2), (0, -0.12, 0.9))
+            _uv_sphere(bm, (0, 0, 0.885), 0.175, 9, 7)
+            _uv_box(bm, (0.08, 0.08, 0.24), (0, -0.13, 0.91))
+            _uv_box(bm, (0.05, 0.03, 0.06), (0, -0.16, 0.98))
         pieces.append(('hair_orange', hair))
-        pieces.append(('cyan', lambda b: _uv_box(b, (0.06, 0.02, 0.03), (0, -0.1, 0.98))))
+        pieces.append(('cyan', lambda b: _uv_box(b, (0.07, 0.025, 0.035), (0, -0.11, 0.99))))
 
         def jacket(bm):
-            _uv_box(bm, (0.28, 0.12, 0.24), (0, 0, 0.52))
-            _uv_box(bm, (0.14, 0.05, 0.1), (-0.2, 0, 0.52))
-            _uv_box(bm, (0.14, 0.05, 0.1), (0.2, 0, 0.52))
+            _uv_box(bm, (0.3, 0.13, 0.26), (0, 0, 0.52))
+            for side in (-1, 1):
+                _uv_box(bm, (0.12, 0.06, 0.18), (side * 0.22, 0.02, 0.47))
+            _uv_box(bm, (0.08, 0.04, 0.08), (0, 0.09, 0.56))
         pieces.append(('navy', jacket))
-        pieces.append(('white', lambda b: _uv_box(b, (0.26, 0.08, 0.08), (0, 0.07, 0.54))))
+        pieces.append(('white', lambda b: _uv_box(b, (0.28, 0.09, 0.09), (0, 0.075, 0.54))))
 
         def shorts(bm):
-            _uv_box(bm, (0.3, 0.1, 0.14), (0, 0, 0.36))
+            _uv_box(bm, (0.32, 0.11, 0.15), (0, 0, 0.355))
         pieces.append(('navy', shorts))
 
         def legs(bm):
             for side in (-1, 1):
-                _uv_box(bm, (0.1, 0.1, 0.22), (side * 0.08, 0, 0.22))
-                _uv_box(bm, (0.12, 0.07, 0.1), (side * 0.08, 0.04, 0.06))
+                _uv_box(bm, (0.1, 0.1, 0.16), (side * 0.08, 0, 0.14))
+                _uv_box(bm, (0.14, 0.08, 0.12), (side * 0.08, 0.04, 0.06))
         pieces.append((skin, legs))
-        pieces.append(('red', lambda b: _uv_box(b, (0.04, 0.03, 0.06), (-0.08, 0.03, 0.05))))
+        pieces.append(('red', lambda b: _uv_box(b, (0.05, 0.035, 0.065), (-0.09, 0.035, 0.05))))
 
     elif style == 'fairy':
         def hair(bm):
-            _uv_sphere(bm, (0, 0, 0.9), 0.19, 7, 5)
+            _uv_sphere(bm, (0, 0.02, 0.905), 0.195, 9, 7)
             for side in (-1, 1):
-                _uv_sphere(bm, (side * 0.14, 0, 0.68), 0.08, 5, 4)
-            _uv_box(bm, (0.04, 0.04, 0.08), (0, 0.12, 0.96))
+                _uv_sphere(bm, (side * 0.15, -0.02, 0.66), 0.09, 7, 5)
+                _uv_sphere(bm, (side * 0.17, 0.04, 0.6), 0.06, 6, 4)
+            _uv_box(bm, (0.05, 0.05, 0.09), (0, 0.13, 0.97))
         pieces.append(('hair_purple', hair))
-        pieces.append(('gold', lambda b: _uv_box(b, (0.06, 0.01, 0.04), (0, 0.14, 0.98))))
+        pieces.append(('gold', lambda b: _uv_box(b, (0.07, 0.012, 0.05), (0, 0.15, 0.99))))
+
+        def shoulders(bm):
+            for side in (-1, 1):
+                _uv_sphere(bm, (side * 0.16, 0, 0.56), 0.06, 6, 5)
+            _uv_box(bm, (0.12, 0.04, 0.1), (0, 0, 0.58))
+        pieces.append((skin, shoulders))
+
+        def torso_gauze(bm):
+            _uv_box(bm, (0.14, 0.06, 0.12), (0, 0, 0.52))
+            _uv_box(bm, (0.16, 0.04, 0.08), (0, 0, 0.46))
+        pieces.append(('purple_light', torso_gauze))
 
         def gown(bm):
-            _uv_box(bm, (0.22, 0.08, 0.12), (0, 0, 0.58))
-            _uv_box(bm, (0.18, 0.06, 0.1), (0, 0, 0.52))
             for side in (-1, 1):
-                _uv_box(bm, (0.12, 0.04, 0.22), (side * 0.22, 0.02, 0.46))
-            _uv_box(bm, (0.28, 0.05, 0.18), (0, 0.04, 0.34))
+                _uv_box(bm, (0.1, 0.03, 0.28), (side * 0.24, 0.02, 0.42))
+                _uv_box(bm, (0.06, 0.025, 0.18), (side * 0.2, 0.03, 0.52))
+            _uv_box(bm, (0.3, 0.04, 0.2), (0, 0.04, 0.32))
+            _uv_box(bm, (0.08, 0.02, 0.14), (0, 0, 0.36))
         pieces.append(('purple_gown', gown))
-        pieces.append(('purple_light', lambda b: _uv_box(b, (0.16, 0.05, 0.08), (0, 0, 0.54))))
-        pieces.append(('gold', lambda b: _uv_sphere(b, (0, -0.04, 0.54), 0.03, 4, 3)))
+
+        def sash(bm):
+            for side in (-1, 1):
+                _uv_sphere(bm, (side * 0.2, 0.05, 0.54), 0.03, 5, 4)
+        pieces.append(('gold', sash))
 
         def legs(bm):
             for side in (-1, 1):
-                _uv_box(bm, (0.09, 0.1, 0.24), (side * 0.08, 0, 0.22))
-                _uv_box(bm, (0.1, 0.05, 0.08), (side * 0.08, 0.05, 0.08))
+                _uv_box(bm, (0.09, 0.1, 0.26), (side * 0.08, 0, 0.22))
+                _uv_box(bm, (0.11, 0.05, 0.09), (side * 0.08, 0.05, 0.08))
         pieces.append((skin, legs))
 
     else:
@@ -360,12 +423,37 @@ def _make_armature(name):
     return rig
 
 
+def _assign_simple_weights(mesh_obj, rig):
+    """熱權重失敗時依高度／左右簡易分骨，確保 glTF 能匯出 skin。"""
+    names = {b.name for b in rig.data.bones}
+    vgs = mesh_obj.vertex_groups
+    for bname in names:
+        if bname not in vgs.keys():
+            vgs.new(name=bname)
+    for v in mesh_obj.data.vertices:
+        co = v.co
+        if co.z >= 0.7:
+            bone = 'head' if 'head' in names else 'spine'
+        elif co.z >= 0.38:
+            bone = 'spine'
+        elif co.z >= 0.14:
+            bone = 'thigh.L' if co.x >= 0 else 'thigh.R'
+        else:
+            bone = 'shin.L' if co.x >= 0 else 'shin.R'
+        if bone not in names:
+            bone = 'root'
+        vgs[bone].add([v.index], 1.0, 'REPLACE')
+
+
 def _parent_auto(mesh_obj, rig):
     bpy.ops.object.select_all(action='DESELECT')
-    mesh_obj.select_set(True)
     rig.select_set(True)
+    mesh_obj.select_set(True)
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+    weighted = sum(len(v.groups) for v in mesh_obj.data.vertices)
+    if weighted == 0:
+        _assign_simple_weights(mesh_obj, rig)
 
 
 def _set_action_fps(frames=24):
@@ -381,14 +469,29 @@ def _key_rot_bone(pose_bones, name, frame, axis, angle):
     pb.keyframe_insert(data_path='rotation_euler', frame=frame)
 
 
+def _bake_action(rig, pose, action):
+    if rig.animation_data is None:
+        rig.animation_data_create()
+    rig.animation_data.action = action
+
+
+def _nla_push(rig, action, clip_name):
+    ad = rig.animation_data
+    if ad is None:
+        rig.animation_data_create()
+        ad = rig.animation_data
+    tr = ad.nla_tracks.new()
+    tr.strips.new(clip_name, 0, action)
+
+
 def _animate_walk_idle(rig, style):
     _set_action_fps()
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.mode_set(mode='POSE')
     pose = rig.pose.bones
+
     walk = bpy.data.actions.new(style + '_walk')
-    rig.animation_data_create()
-    rig.animation_data.action = walk
+    _bake_action(rig, pose, walk)
     for frame, ph in enumerate([0, 6, 12, 18]):
         t = ph / 18.0 * math.pi * 2
         leg = math.sin(t) * 0.42
@@ -403,22 +506,45 @@ def _animate_walk_idle(rig, style):
         rig.pose.bones['root'].keyframe_insert(data_path='location', frame=frame)
 
     idle = bpy.data.actions.new(style + '_idle')
-    rig.animation_data.action = idle
-    for frame, sway in enumerate([0, 12, 24]):
-        ang = math.sin(frame / 24 * math.pi * 2) * 0.04
+    _bake_action(rig, pose, idle)
+    for frame in (0, 12, 24):
+        sway = frame / 24.0
+        ang = math.sin(sway * math.pi * 2) * 0.04
         _key_rot_bone(pose, 'spine', frame, 2, ang)
         _key_rot_bone(pose, 'head', frame, 2, -ang * 0.3)
-        rig.pose.bones['spine'].keyframe_insert(data_path='scale', frame=frame)
         rig.pose.bones['spine'].scale = Vector((1, 1, 1 + sway * 0.008))
-    bpy.ops.object.mode_set(mode='OBJECT')
+        rig.pose.bones['spine'].keyframe_insert(data_path='scale', frame=frame)
 
-    return [walk, idle]
+    sit = bpy.data.actions.new(style + '_sit_idle')
+    _bake_action(rig, pose, sit)
+    for frame in (0, 24):
+        _key_rot_bone(pose, 'spine', frame, 0, -0.12)
+        _key_rot_bone(pose, 'thigh.L', frame, 0, 1.05)
+        _key_rot_bone(pose, 'thigh.R', frame, 0, 1.05)
+        _key_rot_bone(pose, 'shin.L', frame, 0, 0.65)
+        _key_rot_bone(pose, 'shin.R', frame, 0, 0.65)
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    ad = rig.animation_data
+    ad.action = None
+    for act, label in (
+        (walk, style + '_walk'),
+        (idle, style + '_idle'),
+        (sit, style + '_sit_idle'),
+    ):
+        _nla_push(rig, act, label)
+
+    return [walk, idle, sit]
 
 
 def _count_tris(obj):
     if obj.type != 'MESH':
         return 0
     return sum(len(p.vertices) - 2 for p in obj.data.polygons)
+
+
+def _draw_call_slots(mesh_obj):
+    return len(mesh_obj.data.materials) if mesh_obj.data else 0
 
 
 def build_character(style, root_collection):
@@ -431,10 +557,11 @@ def build_character(style, root_collection):
     root.empty_display_size = 0.2
     root_collection.objects.link(root)
     rig.parent = root
-    mesh.parent = root
+    # glTF 匯出要求蒙皮網格必須仍是骨架的子物件
     anims = _animate_walk_idle(rig, style)
     tris = _count_tris(mesh)
-    return root, tris, anims
+    slots = _draw_call_slots(mesh)
+    return root, tris, anims, slots
 
 
 def build(out_path):
@@ -443,13 +570,16 @@ def build(out_path):
     coll = bpy.data.collections.new('npc_women')
     bpy.context.scene.collection.children.link(coll)
     stats = {}
+    slots_per = {}
     all_actions = []
     for style in STYLES:
-        root, tris, actions = build_character(style, coll)
+        root, tris, actions, slots = build_character(style, coll)
         stats[style] = tris
+        slots_per[style] = slots
         all_actions.extend(actions)
         if tris > 2500:
             print(f'WARN {style} tris={tris} exceeds 2500')
+    draw_est = max(slots_per.values()) if slots_per else 7
 
     bpy.context.scene.frame_start = 0
     bpy.context.scene.frame_end = 24
@@ -466,7 +596,7 @@ def build(out_path):
         export_cameras=False,
         export_lights=False,
         export_animations=True,
-        export_nla_strips=False,
+        export_nla_strips=True,
     )
     total = sum(stats.values())
     size = os.path.getsize(out_path)
@@ -475,7 +605,8 @@ def build(out_path):
         'tris_per_style': stats,
         'tris_total_unique': total,
         'bytes': size,
-        'draw_calls_est': len(STYLES) * 2,
+        'draw_calls_est': draw_est,
+        'slots_per_style': slots_per,
     }
     print('NPC_EXPORT ' + json.dumps(meta, ensure_ascii=False))
     print(f'EXPORTED {out_path} tris≈{total} bytes={size}')

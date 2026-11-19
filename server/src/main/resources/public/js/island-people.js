@@ -57,7 +57,9 @@ function buildNpcLibrary(gltf) {
     for (const style of NPC_STYLE_IDS) {
       if (name === style + '_walk') clipsByStyle[style].walk = clip;
       if (name === style + '_idle') clipsByStyle[style].idle = clip;
-      if (name === style + '_sit') clipsByStyle[style].sit = clip;
+      if (name === style + '_sit' || name === style + '_sit_idle') {
+        clipsByStyle[style].sit = clip;
+      }
     }
   });
   gltf.scene.traverse((obj) => {

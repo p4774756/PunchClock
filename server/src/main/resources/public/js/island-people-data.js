@@ -25,17 +25,17 @@ export const NPC_BUDGET = Object.freeze({
 
 /** 與 build_npc_women.py 匯出統計同步（無頭重建後請更新）。 */
 export const NPC_GLB_STATS = Object.freeze({
-  bytes: 359888,
-  trisTotalUnique: 2716,
-  drawCallsEst: 14,
+  bytes: 561732,
+  trisTotalUnique: 3229,
+  drawCallsEst: 9,
   trisPerStyle: Object.freeze({
-    summer: 378,
-    student: 366,
-    tech: 354,
-    idol: 432,
-    swimsuit: 354,
-    sport: 378,
-    fairy: 454
+    summer: 518,
+    student: 332,
+    tech: 336,
+    idol: 402,
+    swimsuit: 562,
+    sport: 345,
+    fairy: 734
   }),
   rebuildCmd:
     '~/.local/bin/blender -b --factory-startup -P tools/blender/build_npc_women.py -- ' +

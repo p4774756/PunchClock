@@ -9,7 +9,14 @@ import { loadPublicModule } from './load-public-module.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(here, '..', '..', 'main', 'resources', 'public');
 const glbPath = join(publicDir, 'models', 'npc-women.glb');
+const indexHtml = readFileSync(join(publicDir, 'index.html'), 'utf8');
 const islandJs = readFileSync(join(publicDir, 'js', 'island.js'), 'utf8');
+
+function glbJsonChunk(filePath) {
+  const buf = readFileSync(filePath);
+  const jsonLen = buf.readUInt32LE(12);
+  return JSON.parse(buf.subarray(20, 20 + jsonLen).toString('utf8'));
+}
 
 const D = await loadPublicModule('island-people-data.js');
 const L = await loadPublicModule('island-layout.js');
@@ -97,4 +104,23 @@ test('makePlayerAvatar 仍使用 makePerson', () => {
 test('重建指令字串', () => {
   assert.match(D.NPC_GLB_STATS.rebuildCmd, /build_npc_women\.py/);
   assert.match(D.NPC_GLB_STATS.rebuildCmd, /npc-women\.glb/);
+});
+
+test('importmap 含 SkeletonUtils', () => {
+  assert.match(indexHtml, /three\/addons\/utils\/SkeletonUtils\.js/);
+  assert.match(indexHtml, /\/js\/vendor\/SkeletonUtils\.js/);
+});
+
+test('GLB 每造型 walk／idle 動畫', () => {
+  const g = glbJsonChunk(glbPath);
+  const names = new Set((g.animations || []).map((a) => a.name));
+  for (const style of D.NPC_STYLE_IDS) {
+    assert.ok(names.has(`${style}_walk`), `${style}_walk`);
+    assert.ok(names.has(`${style}_idle`), `${style}_idle`);
+  }
+  const meshNodes = (g.nodes || []).filter((n) => n.mesh != null && String(n.name || '').startsWith('mesh_'));
+  assert.equal(meshNodes.length, 7);
+  meshNodes.forEach((n) => {
+    assert.notEqual(n.skin, undefined, n.name + ' 應有 skin');
+  });
 });
