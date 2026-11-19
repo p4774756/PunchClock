@@ -15,7 +15,7 @@ if _HERE not in sys.path:
 
 import bmesh
 import bpy
-from mathutils import Euler, Vector
+from mathutils import Euler, Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
 from creature_common import (
@@ -39,7 +39,7 @@ COL = {
     'fish_back': 0xD89A1E,
     'fish_eye': 0x1A2830,
     'gull_white': 0xF7F9FB,
-    'gull_wing': 0xB8C2CC,
+    'gull_wing': 0xC9D1D9,
     'gull_tip': 0x2A2A2A,
     'gull_beak': 0xF2B630,
     'whale_back': 0x3E6E9E,
@@ -56,8 +56,8 @@ COL = {
     'xuan_shell': 0x3C7048,
     'xuan_gold': 0xC9A23A,
     'xuan_body': 0x7C8F6A,
-    'snake': 0x3FAF7A,
-    'snake_belly': 0xF0E8B8,
+    'snake': 0x2F6B3A,
+    'snake_belly': 0xB8C98A,
     'kun_white': 0xEAF4FB,
     'kun_blue': 0xBFD9EE,
     'kun_cloud': 0xFFFFFF,
@@ -367,7 +367,7 @@ def _split_src_mesh(src, specs, parent):
     return out
 
 
-def _solid_obj(name, hx, builder, parent=None, alpha=1.0):
+def _solid_obj(name, hx, builder, parent=None, alpha=1.0, emissive=None):
     bm = bmesh.new()
     builder(bm)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
@@ -376,7 +376,7 @@ def _solid_obj(name, hx, builder, parent=None, alpha=1.0):
     bm.to_mesh(me)
     bm.free()
     ob = bpy.data.objects.new(name, me)
-    mat = creature_solid_material(hx, name + '_mat', alpha=alpha)
+    mat = creature_solid_material(hx, name + '_mat', alpha=alpha, emissive=emissive)
     ob.data.materials.append(mat)
     bpy.context.scene.collection.objects.link(ob)
     if parent:
@@ -476,80 +476,431 @@ def _curve_path_length(points):
     return total
 
 
-def _shell_gold_hex_lines(bm, shell_ob):
-    """BVHTree 將六角格線投影到 xuan_shell 表面並以細管連接。"""
+def _shell_bvh_data(shell_ob):
     bvh_bm = bmesh.new()
     bvh_bm.from_mesh(shell_ob.data)
     bvh_bm.transform(shell_ob.matrix_world)
+    bvh_bm.normal_update()
     if not bvh_bm.faces:
         bvh_bm.free()
-        return
+        return None, None, None
     bvh = BVHTree.FromBMesh(bvh_bm)
-    co_list = [v.co for v in bvh_bm.verts]
-    max_z = max(v.z for v in co_list)
-    min_x = min(v.x for v in co_list)
-    max_x = max(v.x for v in co_list)
-    min_y = min(v.y for v in co_list)
-    max_y = max(v.y for v in co_list)
-    span = max(max_x - min_x, max_y - min_y)
-    cell = span / 5.5
-    tube_r = max(0.008, min(0.012, cell * 0.07))
-    span_lim = span * 0.52
+    verts = [v.co.copy() for v in bvh_bm.verts]
+    xs = [v.x for v in verts]
+    ys = [v.y for v in verts]
+    zs = [v.z for v in verts]
+    meta = dict(
+        min_x=min(xs), max_x=max(xs), min_y=min(ys), max_y=max(ys),
+        max_z=max(zs), cx=(min(xs) + max(xs)) * 0.5, cy=(min(ys) + max(ys)) * 0.5,
+    )
+    return bvh, bvh_bm, meta
 
-    def _surf(x, y):
-        hit = bvh.ray_cast(Vector((x, y, max_z + 1.0)), Vector((0.0, 0.0, -1.0)))
-        if hit[0] is None:
-            return None
-        loc, nrm = hit[0], hit[1]
-        return loc + nrm.normalized() * 0.006
 
-    rings = 3
+def _shell_top_hit(bvh, meta, x, y, lift=0.003):
+    hit = bvh.ray_cast(Vector((x, y, meta['max_z'] + 1.0)), Vector((0.0, 0.0, -1.0)))
+    if hit[0] is None:
+        return None
+    loc, nrm = hit[0], hit[1]
+    n = nrm.normalized()
+    if n.z < 0.5:
+        return None
+    return loc + n * lift, n
+
+
+def _band_quad(bm, a0, n0, a1, n1, half_w):
+    t = (a1 - a0).normalized()
+    s0 = n0.cross(t)
+    if s0.length < 1e-6:
+        s0 = Vector((1.0, 0.0, 0.0))
+    s0.normalize()
+    s1 = n1.cross(t)
+    if s1.length < 1e-6:
+        s1 = s0
+    else:
+        s1.normalize()
+    v = [
+        bm.verts.new(a0 + s0 * half_w), bm.verts.new(a0 - s0 * half_w),
+        bm.verts.new(a1 - s1 * half_w), bm.verts.new(a1 + s1 * half_w),
+    ]
+    bm.verts.ensure_lookup_table()
+    try:
+        bm.faces.new(v)
+    except ValueError:
+        pass
+
+
+def _shell_gold_hex_lines(bm, shell_ob):
+    """殼頂上表面：BVH 六角細帶（非圓管）＋殼緣內側金邊。"""
+    pack = _shell_bvh_data(shell_ob)
+    if pack[0] is None:
+        return
+    bvh, bvh_bm, meta = pack
+    span = max(meta['max_x'] - meta['min_x'], meta['max_y'] - meta['min_y'])
+    cell = span / 6.0
+    half_w = max(0.010, min(0.014, cell * 0.09))
+    span_lim = span * 0.45
+
+    def _edge_samples(x0, y0, x1, y1, steps=11):
+        pts = []
+        for s in range(steps + 1):
+            t = s / steps
+            hit = _shell_top_hit(bvh, meta, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)
+            if hit is None:
+                return None
+            pts.append(hit)
+        for i in range(len(pts) - 1):
+            if abs(pts[i][0].z - pts[i + 1][0].z) > 0.02:
+                return None
+        return pts
+
+    rings = 2
     for q in range(-rings, rings + 1):
         for r in range(-rings, rings + 1):
             if abs(q + r) > rings:
                 continue
-            cx = cell * 1.5 * q
-            cy = cell * math.sqrt(3.0) * (r + q / 2.0)
-            if cx * cx + cy * cy > span_lim * span_lim:
+            cx = meta['cx'] + cell * 1.5 * q
+            cy = meta['cy'] + cell * math.sqrt(3.0) * (r + q / 2.0)
+            if (cx - meta['cx']) ** 2 + (cy - meta['cy']) ** 2 > span_lim * span_lim:
                 continue
             for k in range(6):
                 a0 = (k / 6.0) * math.pi * 2.0 + math.pi / 6.0
                 a1 = ((k + 1) / 6.0) * math.pi * 2.0 + math.pi / 6.0
-                x0, y0 = cx + cell * math.cos(a0) * 0.92, cy + cell * math.sin(a0) * 0.92
-                x1, y1 = cx + cell * math.cos(a1) * 0.92, cy + cell * math.sin(a1) * 0.92
-                poly = []
-                steps = 6
-                for s in range(steps + 1):
-                    t = s / steps
-                    pt = _surf(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)
-                    if pt is not None:
-                        poly.append(pt)
-                if len(poly) >= 2:
-                    radii = [tube_r] * len(poly)
-                    _continuous_tube(bm, [(p.x, p.y, p.z) for p in poly], radii, 6)
+                x0, y0 = cx + cell * math.cos(a0) * 0.88, cy + cell * math.sin(a0) * 0.88
+                x1, y1 = cx + cell * math.cos(a1) * 0.88, cy + cell * math.sin(a1) * 0.88
+                pts = _edge_samples(x0, y0, x1, y1)
+                if not pts:
+                    continue
+                for i in range(len(pts) - 1):
+                    _band_quad(bm, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], half_w * 0.5)
+
+    rim_n = 40
+    rim_pts = []
+    rx = (meta['max_x'] - meta['min_x']) * 0.42
+    ry = (meta['max_y'] - meta['min_y']) * 0.40
+    for i in range(rim_n):
+        ang = (i / rim_n) * math.pi * 2.0
+        hit = _shell_top_hit(
+            bvh, meta,
+            meta['cx'] + math.cos(ang) * rx,
+            meta['cy'] + math.sin(ang) * ry * 0.88,
+            lift=0.0025,
+        )
+        if hit:
+            rim_pts.append(hit)
+    for i in range(len(rim_pts)):
+        j = (i + 1) % len(rim_pts)
+        _band_quad(bm, rim_pts[i][0], rim_pts[i][1], rim_pts[j][0], rim_pts[j][1], half_w * 0.35)
     bvh_bm.free()
 
 
-def _snake_taper_radii(n, head_r=0.062, tail_r=0.008):
-    radii = []
-    for i in range(n):
-        t = i / max(1, n - 1)
-        radii.append(head_r * (1.0 - t ** 1.4) + tail_r * (t ** 1.4))
-    return radii
+def _catmull_rom(p0, p1, p2, p3, t):
+    t2 = t * t
+    t3 = t2 * t
+    return 0.5 * (
+        (2.0 * p1)
+        + (-p0 + p2) * t
+        + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+        + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3
+    )
 
 
-def _fallback_snake_tubes(root, path_pts):
-    radii = _snake_taper_radii(len(path_pts))
+def _resample_catmull_rom(control, count=128, closed=True):
+    n = len(control)
+    if n < 4:
+        return [Vector(p) for p in control]
+    dense = []
+    segs = max(12, count // max(1, n - (0 if closed else 1)))
+    loops = n if closed else n - 1
+    for i in range(loops):
+        i0 = (i - 1) % n
+        i1 = i
+        i2 = (i + 1) % n
+        i3 = (i + 2) % n
+        p0, p1, p2, p3 = control[i0], control[i1], control[i2], control[i3]
+        for s in range(segs):
+            t = s / segs
+            dense.append(_catmull_rom(p0, p1, p2, p3, t))
+    if not closed:
+        dense.append(Vector(control[-1]))
+    acc = [0.0]
+    total = 0.0
+    for i in range(1, len(dense)):
+        total += (dense[i] - dense[i - 1]).length
+        acc.append(total)
+    if total < 1e-6:
+        return dense
+    out = []
+    for k in range(count):
+        target = (k / max(1, count - 1)) * total
+        j = 0
+        while j < len(acc) - 1 and acc[j + 1] < target:
+            j += 1
+        if j >= len(dense) - 1:
+            out.append(dense[-1].copy())
+            continue
+        seg = acc[j + 1] - acc[j]
+        t = 0.0 if seg < 1e-8 else (target - acc[j]) / seg
+        out.append(dense[j].lerp(dense[j + 1], t))
+    return out
 
-    def _body(bm):
-        _continuous_tube(bm, path_pts, radii, 12)
 
-    def _belly(bm):
-        low = [(p[0], p[1], p[2] - 0.02) for p in path_pts]
-        _continuous_tube(bm, low, [r * 0.62 for r in radii], 12)
+def _parallel_transport_frames(path):
+    if len(path) < 2:
+        return []
+    tangents = []
+    for i in range(len(path)):
+        if i == 0:
+            tangents.append((path[1] - path[0]).normalized())
+        elif i == len(path) - 1:
+            tangents.append((path[-1] - path[-2]).normalized())
+        else:
+            tangents.append((path[i + 1] - path[i - 1]).normalized())
+    up_hint = Vector((0.0, 0.0, 1.0))
+    side = tangents[0].cross(up_hint)
+    if side.length < 1e-5:
+        side = Vector((1.0, 0.0, 0.0))
+    else:
+        side.normalize()
+    up = side.cross(tangents[0]).normalized()
+    frames = [(path[0].copy(), tangents[0], side, up)]
+    for i in range(1, len(path)):
+        t_prev, t_curr = frames[-1][1], tangents[i]
+        side_prev, up_prev = frames[-1][2], frames[-1][3]
+        axis = t_prev.cross(t_curr)
+        if axis.length < 1e-6:
+            side_n, up_n = side_prev, up_prev
+        else:
+            ang = t_prev.angle(t_curr)
+            rot = Matrix.Rotation(ang, 3, axis.normalized())
+            side_n = rot @ side_prev
+            up_n = rot @ up_prev
+        side_n = side_n - t_curr * t_curr.dot(side_n)
+        if side_n.length > 1e-6:
+            side_n.normalize()
+        else:
+            side_n = side_prev
+        up_n = t_curr.cross(side_n).normalized()
+        frames.append((path[i].copy(), t_curr, side_n, up_n))
+    return frames
 
-    _solid_obj('snake', COL['snake'], _body, parent=root)
-    _solid_obj('snake_belly', COL['snake_belly'], _belly, parent=root)
+
+def _interp_frame(frames, s):
+    s = max(0.0, min(1.0, s))
+    f = s * (len(frames) - 1)
+    i = int(f)
+    t = f - i
+    i = min(i, len(frames) - 2)
+    p0, t0, s0, u0 = frames[i]
+    p1, t1, s1, u1 = frames[i + 1]
+    pos = p0.lerp(p1, t)
+    tang = (t0 * (1.0 - t) + t1 * t).normalized()
+    side = (s0 * (1.0 - t) + s1 * t)
+    side -= tang * tang.dot(side)
+    if side.length > 1e-6:
+        side.normalize()
+    else:
+        side = s0
+    up = tang.cross(side).normalized()
+    return pos, tang, side, up
+
+
+def _get_image_texture(ob):
+    for slot in ob.material_slots:
+        mat = slot.material
+        if not mat or not mat.use_nodes:
+            continue
+        for node in mat.node_tree.nodes:
+            if node.type == 'TEX_IMAGE' and node.image:
+                return node.image
+    return None
+
+
+def _sample_tex_rgb(img, u, v):
+    w, h = img.size[0], img.size[1]
+    if w < 1 or h < 1:
+        return (0.5, 0.5, 0.5)
+    x = max(0, min(w - 1, int(u * (w - 1) + 0.5)))
+    y = max(0, min(h - 1, int((1.0 - v) * (h - 1) + 0.5)))
+    idx = (y * w + x) * 4
+    px = img.pixels
+    return (px[idx], px[idx + 1], px[idx + 2])
+
+
+def _tex_bucket(r, g, b):
+    lum = 0.299 * r + 0.587 * g + 0.114 * b
+    if lum < 0.36 and max(r, g, b) < 0.42:
+        return 'black'
+    if (r > 0.40 and g > 0.28 and b < 0.58 and r >= g * 0.88) or (
+        r > g * 1.02 and r > b * 1.05 and 0.34 < lum < 0.88
+    ):
+        return 'orange'
+    if lum > 0.78:
+        return 'white'
+    if g > r * 1.05 and g > b * 1.05:
+        return 'green_dark' if lum < 0.50 else 'green_light'
+    if lum > 0.42:
+        return 'gray'
+    return 'green_dark'
+
+
+def _face_tex_bucket(face, uv_layer, img):
+    if img is None or uv_layer is None:
+        return 'white'
+    uvs = [loop[uv_layer].uv for loop in face.loops]
+    u = sum(p.x for p in uvs) / len(uvs)
+    v = sum(p.y for p in uvs) / len(uvs)
+    r, g, b = _sample_tex_rgb(img, u, v)
+    return _tex_bucket(r, g, b)
+
+
+def _snake_path_from_shell(shell_ob, turns=1.02):
+    pack = _shell_bvh_data(shell_ob)
+    if pack[0] is None:
+        raise RuntimeError('xuan shell BVH missing for snake path')
+    bvh, bvh_bm, meta = pack
+    rx = (meta['max_x'] - meta['min_x']) * 0.46
+    ry = (meta['max_y'] - meta['min_y']) * 0.43
+
+    def _snap(x, y, lift=0.0):
+        hit2 = bvh.ray_cast(Vector((x, y, meta['max_z'] + 1.0)), Vector((0.0, 0.0, -1.0)))
+        if hit2[0] is None:
+            return None
+        return hit2[0] + Vector((0.0, 0.0, lift))
+
+    span = max(meta['max_x'] - meta['min_x'], meta['max_y'] - meta['min_y'])
+    rim_h = meta['max_z'] - span * 0.07
+    ctrl_n = 18
+    control = []
+    for i in range(ctrl_n):
+        ang = (i / ctrl_n) * turns * math.pi * 2.0 - math.pi * 0.5
+        x = meta['cx'] + math.cos(ang) * rx
+        y = meta['cy'] + math.sin(ang) * ry
+        lift = 0.24 if i == int(ctrl_n * 0.25) else 0.004
+        p = _snap(x, y, lift)
+        if p is None:
+            p = Vector((x, y, rim_h + lift))
+        control.append(p)
+    tail_ang = (0.70 / ctrl_n) * turns * math.pi * 2.0 - math.pi * 0.5
+    p_tail = _snap(
+        meta['cx'] + math.cos(tail_ang) * rx * 0.55,
+        meta['cy'] + math.sin(tail_ang) * ry * 0.55,
+        0.002,
+    )
+    control.append(p_tail if p_tail is not None else Vector((
+        meta['cx'] + math.cos(tail_ang) * rx * 0.55,
+        meta['cy'] + math.sin(tail_ang) * ry * 0.55,
+        rim_h,
+    )))
+    bvh_bm.free()
+    if len(control) < 8:
+        raise RuntimeError('snake shell path too sparse')
+    return _resample_catmull_rom(control, count=130, closed=True)
+
+
+def _orient_snake_y_plus_head(src):
+    mn, mx = _bounds_meshes([src])
+    dims = mx - mn
+    longest = sorted([('x', dims.x), ('y', dims.y), ('z', dims.z)], key=lambda t: t[1])[-1][0]
+    if longest != 'y':
+        if longest == 'x':
+            src.rotation_euler = Euler((0.0, 0.0, math.pi / 2.0))
+        else:
+            src.rotation_euler = Euler((math.pi / 2.0, 0.0, 0.0))
+        bpy.context.view_layer.objects.active = src
+        src.select_set(True)
+        bpy.ops.object.transform_apply(rotation=True)
+        src.select_set(False)
+        mn, mx = _bounds_meshes([src])
+    cy = sum(v.co.y for v in src.data.vertices) / len(src.data.vertices)
+    if cy < (mn.y + mx.y) * 0.5:
+        src.rotation_euler = Euler((math.pi, 0.0, 0.0))
+        bpy.context.view_layer.objects.active = src
+        src.select_set(True)
+        bpy.ops.object.transform_apply(rotation=True)
+        src.select_set(False)
+        mn, mx = _bounds_meshes([src])
+    return mn, mx
+
+
+def _snap_snake_to_turtle(ob, root, clearance=0.0015):
+    turtle = [c for c in root.children if c.name in ('xuan_shell', 'xuan_body') and c.type == 'MESH']
+    if not turtle:
+        return
+    bvh_bm = bmesh.new()
+    for tob in turtle:
+        sub = bmesh.new()
+        sub.from_mesh(tob.data)
+        sub.transform(tob.matrix_world)
+        append_bmesh(bvh_bm, sub)
+        sub.free()
+    bvh = BVHTree.FromBMesh(bvh_bm)
+    mw = ob.matrix_world
+    imw = mw.inverted()
+    me = ob.data
+    mn, mx = _bounds_meshes([ob])
+    span = mx.y - mn.y
+    for v in me.vertices:
+        ly = (v.co.y - mn.y) / max(span, 1e-6)
+        if ly > 0.94:
+            continue
+        wp = mw @ v.co
+        loc, nrm, _idx, dist = bvh.find_nearest(wp)
+        if loc is None or dist is None or dist > 0.34:
+            continue
+        nn = nrm.normalized() if nrm.length > 1e-6 else Vector((0.0, 0.0, 1.0))
+        target = loc + nn * clearance
+        v.co = imw @ target
+    me.update()
+    bvh_bm.free()
+
+
+def _deform_along_path(ob, frames, path_len):
+    mn, mx = _bounds_meshes([ob])
+    body_len = mx.y - mn.y
+    if body_len < 1e-6:
+        raise RuntimeError('snake body length zero')
+    me = ob.data
+    for v in me.vertices:
+        s = (v.co.y - mn.y) / body_len
+        pos, tang, side, up = _interp_frame(frames, s)
+        v.co[:] = pos + side * v.co.x + up * v.co.z
+    me.update()
+
+
+def _scale_snake_cross_section(ob, factor):
+    for v in ob.data.vertices:
+        v.co.x *= factor
+        v.co.z *= factor
+    ob.data.update()
+
+
+def _snake_contact_stats(root):
+    turtle = [c for c in root.children if c.name in ('xuan_shell', 'xuan_body') and c.type == 'MESH']
+    snakes = [c for c in root.children if c.name in ('snake', 'snake_belly', 'snake_eye') and c.type == 'MESH']
+    if not turtle or not snakes:
+        return 0.0, 0
+    bvh_bm = bmesh.new()
+    for ob in turtle:
+        sub = bmesh.new()
+        sub.from_mesh(ob.data)
+        sub.transform(ob.matrix_world)
+        append_bmesh(bvh_bm, sub)
+        sub.free()
+    bvh = BVHTree.FromBMesh(bvh_bm)
+    near = 0
+    total = 0
+    for ob in snakes:
+        mw = ob.matrix_world
+        verts = ob.data.vertices
+        for i in range(0, len(verts), 2):
+            p = mw @ verts[i].co
+            total += 1
+            loc, _n, _i, _d = bvh.find_nearest(p)
+            if loc is not None and (p - loc).length <= 0.03:
+                near += 1
+    bvh_bm.free()
+    ratio = near / max(1, total)
+    return ratio, total
 
 
 def _flatten_mesh_list(objs):
@@ -574,101 +925,77 @@ def _flatten_mesh_list(objs):
     return joined
 
 
-def _add_snake_quaternius(root, path_pts):
-    """沿殼頂曲線彎曲 snake-quaternius；失敗時回傳 False 由呼叫端改 procedural tube。"""
+def _add_snake_long_polygoogle(root, shell_ob, path_pts):
     before = {ob.as_pointer() for ob in bpy.data.objects}
-    try:
-        _import_glb(os.path.join(SRC, 'snake-quaternius.glb'))
-    except Exception:
-        return False
+    path = [Vector(p) if not isinstance(p, Vector) else p.copy() for p in path_pts]
+    path_len = sum((path[i + 1] - path[i]).length for i in range(len(path) - 1))
+    if path_len < 1e-4:
+        raise RuntimeError('snake path length invalid')
+    _import_glb(os.path.join(SRC, 'snake-long-polygoogle.glb'))
     new_meshes = [ob for ob in bpy.data.objects if ob.type == 'MESH' and ob.as_pointer() not in before]
     if not new_meshes:
-        return False
+        raise RuntimeError('snake-long import produced no meshes')
     src = _flatten_mesh_list(new_meshes)
     if src is None:
-        return False
-    mn, mx = _bounds_meshes([src])
-    dims = mx - mn
-    if dims.y < max(dims.x, dims.z) * 0.85:
-        if dims.x >= dims.z:
-            src.rotation_euler = Euler((0.0, 0.0, math.pi / 2.0))
-        else:
-            src.rotation_euler = Euler((math.pi / 2.0, 0.0, 0.0))
-        bpy.context.view_layer.objects.active = src
-        src.select_set(True)
-        bpy.ops.object.transform_apply(rotation=True)
-        src.select_set(False)
-        mn, mx = _bounds_meshes([src])
+        raise RuntimeError('snake-long flatten failed')
+    img = _get_image_texture(src)
+    mn, mx = _orient_snake_y_plus_head(src)
     body_len = mx.y - mn.y
-    path_len = _curve_path_length(path_pts)
-    if body_len > 1e-5 and path_len > 1e-5:
-        fac = path_len / body_len
-        src.scale = (fac * 0.92, fac, fac * 0.92)
-        bpy.context.view_layer.objects.active = src
-        src.select_set(True)
-        bpy.ops.object.transform_apply(scale=True)
-        src.select_set(False)
-        mn, mx = _bounds_meshes([src])
-    for _ in range(2):
-        bpy.context.view_layer.objects.active = src
-        src.select_set(True)
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.subdivide(number_cuts=4)
-        bpy.ops.object.mode_set(mode='OBJECT')
-        src.select_set(False)
-    cu = bpy.data.curves.new('SnakePath', type='CURVE')
-    cu.dimensions = '3D'
-    sp = cu.splines.new('POLY')
-    sp.points.add(len(path_pts) - 1)
-    for i, p in enumerate(path_pts):
-        sp.points[i].co = (float(p[0]), float(p[1]), float(p[2]), 1.0)
-    curve_ob = bpy.data.objects.new('snake_curve', cu)
-    bpy.context.scene.collection.objects.link(curve_ob)
-    curve_ob.parent = root
-    mod = src.modifiers.new('Curve', 'CURVE')
-    mod.object = curve_ob
-    mod.deform_axis = 'POS_Y'
+    fac = (path_len / body_len) * 0.96 if body_len > 1e-6 else 1.0
+    src.scale = (fac * 0.82, fac, fac * 0.82)
     bpy.context.view_layer.objects.active = src
     src.select_set(True)
-    bpy.ops.object.select_all(action='DESELECT')
-    src.select_set(True)
-    bpy.context.view_layer.objects.active = src
-    try:
-        bpy.ops.object.modifier_apply(modifier=mod.name)
-    except Exception:
-        src.modifiers.remove(mod)
-        bpy.data.objects.remove(curve_ob, do_unlink=True)
-        src.select_set(False)
-        for ob in list(bpy.data.objects):
-            if ob.as_pointer() not in before and ob.type == 'MESH' and ob != src:
-                bpy.data.objects.remove(ob, do_unlink=True)
-        bpy.data.objects.remove(src, do_unlink=True)
-        return False
+    bpy.ops.object.transform_apply(scale=True)
     src.select_set(False)
-    bpy.data.objects.remove(curve_ob, do_unlink=True)
-    mn, mx = _bounds_meshes([src])
-    head_y = mx.y
-    body_len = max(mx.y - mn.y, 1e-6)
+    bpy.context.view_layer.objects.active = src
+    src.select_set(True)
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.subdivide(number_cuts=2)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    src.select_set(False)
+    turtle_obs = [c for c in root.children if c.name.startswith('xuan_')]
+    tmn, tmx = _bounds_meshes(turtle_obs)
+    t_w = max(tmx.x - tmn.x, tmx.y - tmn.y)
+    smn, smx = _bounds_meshes([src])
+    s_w = max(smx.x - smn.x, smx.z - smn.z)
+    if s_w > t_w * 0.22:
+        _scale_snake_cross_section(src, (t_w * 0.20) / max(s_w, 1e-6))
+        mn, mx = _bounds_meshes([src])
+    frames = _parallel_transport_frames(path)
+    _deform_along_path(src, frames, path_len)
     src.parent = root
+    _snap_snake_to_turtle(src, root)
+    _snap_snake_to_turtle(src, root)
+    bm = bmesh.new()
+    bm.from_mesh(src.data)
+    bm.faces.ensure_lookup_table()
+    bm.normal_update()
+    uv_layer = bm.loops.layers.uv.active
+    buckets = {f.index: _face_tex_bucket(f, uv_layer, img) for f in bm.faces}
 
     def _is_eye(f):
-        c = _face_center(f)
-        return c.y > head_y - body_len * 0.14 and abs(c.x) < body_len * 0.12 and c.z > -0.05
+        return buckets.get(f.index) == 'black'
 
     def _is_belly(f):
-        return f.normal.z < -0.28
+        b = buckets.get(f.index, 'green_dark')
+        return b in ('white', 'gray', 'green_light') or f.normal.dot(Vector((0, 0, -1))) > 0.35
 
+    me_backup = src.data
+    bm.to_mesh(me_backup)
+    bm.free()
     _split_src_mesh(
         src,
         [
-            ('snake_eye', COL['snake_eye'], 1.0, _is_eye),
+            ('snake_eye', COL['black'], 1.0, _is_eye),
             ('snake_belly', COL['snake_belly'], 1.0, _is_belly),
             ('snake', COL['snake'], 1.0, lambda f: True),
         ],
         root,
     )
-    return True
+    for ob in list(bpy.data.objects):
+        if ob.as_pointer() not in before and ob.type == 'MESH' and ob.parent is None:
+            bpy.data.objects.remove(ob, do_unlink=True)
 
 
 def _snake_ring_points(turns=1.55, n=28, rad=0.46, head_lift=0.72):
@@ -758,26 +1085,57 @@ def build_seagull():
     _import_glb(os.path.join(SRC, 'seagull-flying-polygoogle.glb'))
     _flatten_bake_meshes()
     src = _merge_imported_meshes('gull_src')
-    bm_g = bmesh.new()
-    bm_g.from_mesh(src.data)
-    bmesh.ops.remove_doubles(bm_g, verts=bm_g.verts, dist=0.0005)
-    bm_g.to_mesh(src.data)
-    bm_g.free()
-    src.data.update()
+    img = _get_image_texture(src)
     _orient_long_axis_x()
     _center_at_origin()
     root = _make_export_root()
     if src.parent != root:
         src.parent = root
+    mn, mx = _bounds_meshes([src])
+    bm0 = bmesh.new()
+    bm0.from_mesh(src.data)
+    bm0.faces.ensure_lookup_table()
+    uv_layer = bm0.loops.layers.uv.active
+    buckets = {f.index: _face_tex_bucket(f, uv_layer, img) for f in bm0.faces}
+    orange_x = [_face_center(f).x for f in bm0.faces if buckets.get(f.index) == 'orange']
+    max_orange_x = max(orange_x) if orange_x else mx.x
+    bm0.free()
+    span = mx.x - mn.x
+    y_half = (mx.y - mn.y) * 0.5
+    mid_y = (mn.y + mx.y) * 0.5
+    beak_x_cut = max_orange_x - span * 0.035
+
+    def _beak(f):
+        c = _face_center(f)
+        return (
+            buckets.get(f.index) == 'orange'
+            and c.x >= beak_x_cut
+            and abs(c.z) < span * 0.05
+            and abs(c.y - mid_y) < y_half * 0.12
+        )
+
+    def _tip(f):
+        c = _face_center(f)
+        wing_span = (mx.x - mn.x) * 0.5
+        b = buckets.get(f.index)
+        outer = abs(c.x - (mn.x + mx.x) * 0.5) > wing_span * 0.52
+        return outer and b in ('black', 'gray', 'green_dark')
+
+    def _wing(f):
+        c = _face_center(f)
+        b = buckets.get(f.index)
+        if b in ('orange', 'black'):
+            return False
+        return abs(c.x - (mn.x + mx.x) * 0.5) > span * 0.11 and (
+            b == 'gray' or (b == 'white' and (f.normal.z > 0.15 or abs(c.x) > span * 0.22))
+        )
+
     _split_src_mesh(
         src,
         [
-            ('gull_beak', COL['gull_beak'], 1.0,
-             lambda f: _face_center(f).x > 0.24 and f.normal.x > 0.35),
-            ('gull_tip', COL['gull_tip'], 1.0,
-             lambda f: abs(_face_center(f).x) > 0.32 and abs(_face_center(f).z) < 0.07),
-            ('gull_wing', COL['gull_wing'], 1.0,
-             lambda f: f.normal.z > 0.42 and abs(_face_center(f).x) > 0.1),
+            ('gull_beak', COL['gull_beak'], 1.0, _beak),
+            ('gull_tip', COL['gull_tip'], 1.0, _tip),
+            ('gull_wing', COL['gull_wing'], 1.0, _wing),
             ('gull_body', COL['gull_white'], 1.0, lambda f: True),
         ],
         root,
@@ -798,7 +1156,6 @@ def build_seagull():
         ob.data.materials.append(mat)
     meshes = [c for c in root.children if c.type == 'MESH']
     _normalize_objects(meshes, 1.0)
-    _decimate_scene(520)
     export_life(os.path.join(OUT_DIR, 'seagull.glb'), root)
 
 
@@ -1049,19 +1406,29 @@ def build_xuanwu():
     if shell_ob:
         def _gold_build(bm):
             _shell_gold_hex_lines(bm, shell_ob)
-        _solid_obj('xuan_gold', COL['xuan_gold'], _gold_build, parent=root)
-    snake_pts = _snake_shell_path(turns=1.4, rad=0.43)
-    if not _add_snake_quaternius(root, snake_pts):
-        _fallback_snake_tubes(root, snake_pts)
-    else:
-        snake_obs = [c for c in root.children if c.name in ('snake', 'snake_belly', 'snake_eye')]
-        smn, smx = _bounds_meshes(snake_obs)
-        turtle_obs = [c for c in root.children if c.name.startswith('xuan_')]
-        tmn, tmx = _bounds_meshes(turtle_obs)
-        if (smx - smn).length > (tmx - tmn).length * 1.35:
-            for ob in snake_obs:
-                bpy.data.objects.remove(ob, do_unlink=True)
-            _fallback_snake_tubes(root, snake_pts)
+        gold_ob = _solid_obj('xuan_gold', COL['xuan_gold'], _gold_build, parent=root, emissive=0x3A2A08)
+        gmat = gold_ob.data.materials[0]
+        bsdf = gmat.node_tree.nodes.get('Principled BSDF')
+        if bsdf:
+            try:
+                bsdf.inputs['Emission Strength'].default_value = 0.42
+            except KeyError:
+                bsdf.inputs['Emission'].default_value = 0.42
+        gmat.use_backface_culling = False
+    snake_pts = _snake_path_from_shell(shell_ob)
+    _add_snake_long_polygoogle(root, shell_ob, snake_pts)
+    touch, sv = _snake_contact_stats(root)
+    print(f'XUANWU snake_touch_ratio={touch:.3f} snake_verts={sv}')
+    if touch < 0.60:
+        raise RuntimeError(f'snake shell contact {touch:.3f} < 0.60')
+    snake_obs = [c for c in root.children if c.name in ('snake', 'snake_belly', 'snake_eye')]
+    smn, smx = _bounds_meshes(snake_obs)
+    turtle_obs = [c for c in root.children if c.name.startswith('xuan_')]
+    tmn, tmx = _bounds_meshes(turtle_obs)
+    t_w = max(tmx.x - tmn.x, tmx.y - tmn.y)
+    s_w = max(smx.x - smn.x, smx.y - smn.y)
+    if s_w > t_w * 1.15:
+        raise RuntimeError(f'snake too wide {s_w:.3f} vs turtle {t_w:.3f}')
     _normalize_longest(1.0)
     turtle_meshes = [c for c in root.children if c.type == 'MESH' and c.name in ('xuan_shell', 'xuan_body')]
     _decimate_objects(turtle_meshes, 650)
@@ -1070,6 +1437,13 @@ def build_xuanwu():
         if c.type == 'MESH' and c.name in ('snake', 'snake_belly', 'snake_eye')
     ]
     _decimate_objects(snake_meshes, 480)
+    for ob in snake_meshes:
+        for _ in range(3):
+            _snap_snake_to_turtle(ob, root)
+    touch_final, _ = _snake_contact_stats(root)
+    print(f'XUANWU snake_touch_final={touch_final:.3f}')
+    if touch_final < 0.60:
+        raise RuntimeError(f'snake post-decimate contact {touch_final:.3f} < 0.60')
     _shade_smooth(_mesh_objs())
     export_life(os.path.join(OUT_DIR, 'xuanwu.glb'), root)
 

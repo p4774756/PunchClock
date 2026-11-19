@@ -446,6 +446,111 @@ function glbMeshNodeBounds(gltf, binChunk, nodeName) {
   return { sx: maxX - minX, sy: maxY - minY, sz: maxZ - minZ };
 }
 
+function glbMeshWorldBounds(gltf, binChunk, nodeName) {
+  const nodes = gltf.nodes || [];
+  const meshes = gltf.meshes || [];
+  const accessors = gltf.accessors || [];
+  const bufferViews = gltf.bufferViews || [];
+  const world = new Array(nodes.length);
+  const visited = new Set();
+  function dfs(i, parent) {
+    if (visited.has(i)) return;
+    visited.add(i);
+    const local = nodeLocalMatrix(nodes[i]);
+    world[i] = parent ? mat4Multiply(parent, local) : local;
+    for (const c of nodes[i].children || []) dfs(c, world[i]);
+  }
+  for (const sc of gltf.scenes || [{ nodes: [0] }]) {
+    for (const root of sc.nodes || []) dfs(root, null);
+  }
+  let minX = Infinity; let minY = Infinity; let minZ = Infinity;
+  let maxX = -Infinity; let maxY = -Infinity; let maxZ = -Infinity;
+  let count = 0;
+  for (let ni = 0; ni < nodes.length; ni++) {
+    const node = nodes[ni];
+    if ((node.name || '') !== nodeName || node.mesh == null || world[ni] == null) continue;
+    const mesh = meshes[node.mesh];
+    if (!mesh) continue;
+    for (const prim of mesh.primitives || []) {
+      const posAcc = accessors[prim.attributes.POSITION];
+      if (!posAcc) continue;
+      const bv = bufferViews[posAcc.bufferView];
+      const byteOffset = (bv.byteOffset || 0) + (posAcc.byteOffset || 0);
+      const stride = bv.byteStride || 12;
+      const dv = new DataView(binChunk.buffer, binChunk.byteOffset + byteOffset, bv.byteLength);
+      for (let vi = 0; vi < posAcc.count; vi++) {
+        const off = vi * stride;
+        const [wx, wy, wz] = transformPoint(
+          world[ni], dv.getFloat32(off, true), dv.getFloat32(off + 4, true), dv.getFloat32(off + 8, true)
+        );
+        minX = Math.min(minX, wx); minY = Math.min(minY, wy); minZ = Math.min(minZ, wz);
+        maxX = Math.max(maxX, wx); maxY = Math.max(maxY, wy); maxZ = Math.max(maxZ, wz);
+        count += 1;
+      }
+    }
+  }
+  return {
+    minX, minY, minZ, maxX, maxY, maxZ,
+    sx: maxX - minX, sy: maxY - minY, sz: maxZ - minZ,
+    count
+  };
+}
+
+function collectMeshVerts(gltf, binChunk, names, step = 2) {
+  const out = [];
+  for (const nm of names) {
+    const nodes = gltf.nodes || [];
+    const meshes = gltf.meshes || [];
+    const accessors = gltf.accessors || [];
+    const bufferViews = gltf.bufferViews || [];
+    const world = new Array(nodes.length);
+    const visited = new Set();
+    function dfs(i, parent) {
+      if (visited.has(i)) return;
+      visited.add(i);
+      const local = nodeLocalMatrix(nodes[i]);
+      world[i] = parent ? mat4Multiply(parent, local) : local;
+      for (const c of nodes[i].children || []) dfs(c, world[i]);
+    }
+    for (const sc of gltf.scenes || [{ nodes: [0] }]) {
+      for (const root of sc.nodes || []) dfs(root, null);
+    }
+    for (let ni = 0; ni < nodes.length; ni++) {
+      const node = nodes[ni];
+      if ((node.name || '') !== nm || node.mesh == null) continue;
+      const mesh = meshes[node.mesh];
+      const posAcc = accessors[mesh.primitives[0].attributes.POSITION];
+      const bv = bufferViews[posAcc.bufferView];
+      const byteOffset = (bv.byteOffset || 0) + (posAcc.byteOffset || 0);
+      const stride = bv.byteStride || 12;
+      const dv = new DataView(binChunk.buffer, binChunk.byteOffset + byteOffset, bv.byteLength);
+      for (let vi = 0; vi < posAcc.count; vi += step) {
+        const off = vi * stride;
+        out.push(transformPoint(
+          world[ni], dv.getFloat32(off, true), dv.getFloat32(off + 4, true), dv.getFloat32(off + 8, true)
+        ));
+      }
+    }
+  }
+  return out;
+}
+
+function snakeContactRatio(gltf, binChunk) {
+  const turtle = collectMeshVerts(gltf, binChunk, ['xuan_shell', 'xuan_body'], 1);
+  const snake = collectMeshVerts(gltf, binChunk, ['snake', 'snake_belly', 'snake_eye'], 2);
+  if (!turtle.length || !snake.length) return 0;
+  let near = 0;
+  for (const p of snake) {
+    let best = Infinity;
+    for (const q of turtle) {
+      const dx = p[0] - q[0]; const dy = p[1] - q[1]; const dz = p[2] - q[2];
+      best = Math.min(best, Math.sqrt(dx * dx + dy * dy + dz * dz));
+    }
+    if (best <= 0.03) near += 1;
+  }
+  return near / snake.length;
+}
+
 function readGlbBin(filePath) {
   const buf = readFileSync(filePath);
   const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
@@ -575,12 +680,32 @@ describe('island-life GLB 種類 (#226)', () => {
   test('r6 玄武金紋／文鰩翼展 (#226)', () => {
     const binX = readGlbBin(join(publicRoot, 'models', 'life', 'xuanwu.glb'));
     const gtX = readGlbJson(join(publicRoot, 'models', 'life', 'xuanwu.glb'));
-    const gold = glbMeshNodeBounds(gtX, binX, 'xuan_gold');
+    const gold = glbMeshWorldBounds(gtX, binX, 'xuan_gold');
+    const shell = glbMeshWorldBounds(gtX, binX, 'xuan_shell');
     const goldLong = Math.max(gold.sx, gold.sy, gold.sz);
     assert.ok(goldLong > 0.05, `xuan_gold bbox ${goldLong}`);
-    const shell = glbMeshNodeBounds(gtX, binX, 'xuan_shell');
-    const shellTop = shell.sz;
-    assert.ok(gold.sz <= shellTop + 0.12, `xuan_gold height ${gold.sz} vs shell ${shellTop}`);
+    assert.ok(gold.minX >= shell.minX - 0.03 && gold.maxX <= shell.maxX + 0.03, 'xuan_gold X in shell');
+    assert.ok(gold.minZ >= shell.minZ - 0.02, `xuan_gold on shell top minZ ${gold.minZ} shell ${shell.minZ}`);
+    assert.ok(gold.sz <= shell.sz + 0.12, `xuan_gold height ${gold.sz} vs shell ${shell.sz}`);
+
+    const contact = snakeContactRatio(gtX, binX);
+    assert.ok(contact >= 0.60, `snake contact ratio ${contact}`);
+    const snakeB = glbMeshNodeBounds(gtX, binX, 'snake');
+    const turtleW = Math.max(shell.sx, shell.sy);
+    const snakeW = Math.max(snakeB.sx, snakeB.sy);
+    assert.ok(snakeW <= turtleW * 1.15 + 0.02, `snake width ${snakeW} vs turtle ${turtleW}`);
+
+    const binG = readGlbBin(join(publicRoot, 'models', 'life', 'seagull.glb'));
+    const gtG = readGlbJson(join(publicRoot, 'models', 'life', 'seagull.glb'));
+    const bird = glbNodeBounds(gtG, binG);
+    const beak = glbMeshWorldBounds(gtG, binG, 'gull_beak');
+    const tip = glbMeshWorldBounds(gtG, binG, 'gull_tip');
+    assert.ok(beak.sx <= bird.sx * 0.15 + 0.02, `gull_beak sx ${beak.sx}`);
+    assert.ok(beak.sy <= bird.sy * 0.15 + 0.02, `gull_beak sy ${beak.sy}`);
+    assert.ok(beak.sz <= bird.sz * 0.15 + 0.02, `gull_beak sz ${beak.sz}`);
+    assert.ok(tip.count >= 12, `gull_tip verts ${tip.count}`);
+    const tipOut = Math.max(Math.abs(tip.minX), Math.abs(tip.maxX));
+    assert.ok(tipOut >= bird.sx * 0.32, `gull_tip outer ${tipOut}`);
 
     const binW = readGlbBin(join(publicRoot, 'models', 'life', 'wenyao.glb'));
     const gtW = readGlbJson(join(publicRoot, 'models', 'life', 'wenyao.glb'));

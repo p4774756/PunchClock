@@ -494,7 +494,8 @@ function prepareLifeMaterials(THREE, root, kind) {
     for (let i = 0; i < mats.length; i++) {
       const mat = mats[i];
       if (!mat) continue;
-      mat.flatShading = true;
+      const birdMesh = kind === 'birds';
+      mat.flatShading = !birdMesh;
       if (mat.map) {
         mat.map.dispose();
         mat.map = null;
@@ -505,6 +506,8 @@ function prepareLifeMaterials(THREE, root, kind) {
         mat.vertexColors = false;
       }
       if (!mat.color) mat.color = new THREE.Color(0xffffff);
+      if (birdMesh && mat.roughness != null) mat.roughness = 0.8;
+      if (birdMesh && mat.metalness != null) mat.metalness = 0;
       if (sprayMesh) {
         mat.color.setRGB(0.95, 0.98, 1);
         mat.transparent = true;
@@ -530,6 +533,12 @@ function prepareLifeMaterials(THREE, root, kind) {
       const nightE = nightKinds[kind] || 0.08;
       mat.userData.nightE = sprayMesh ? 0.2 : nightE;
       if (sprayMesh && mat.emissive) mat.emissive.setRGB(0.75, 0.9, 1);
+      if (birdMesh && mat.emissive) {
+        const e = 0.36;
+        mat.emissive.copy(mat.color).multiplyScalar(e);
+        mat.emissiveIntensity = e;
+        mat.userData.dayEmissiveMin = e;
+      }
     }
   });
 }
@@ -1079,7 +1088,10 @@ export function createIslandLife(THREE, opts) {
       const strength = lifeGlowStrength(node.userData.kind, mixValue, reduced);
       node.traverse((child) => {
         if (child.material && child.material.emissiveIntensity != null) {
-          child.material.emissiveIntensity = strength * (reduced ? 0 : 0.55);
+          const floor = child.material.userData.dayEmissiveMin;
+          const night = strength * (reduced ? 0 : 0.55);
+          child.material.emissiveIntensity =
+            floor != null ? Math.max(floor, night) : night;
         }
         if (child.material && child.material.userData) {
           child.material.userData.nightE = strength * 0.75;
