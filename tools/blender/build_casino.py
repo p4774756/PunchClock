@@ -42,10 +42,10 @@ def _marquee_tower(b, north_x, z_base, height, width):
     bulbs = b.part('marquee_lamps')
     neo = b.part('marquee_neon')
     pitch = -0.12
-    x_back = north_x + 0.06
-    x_face = north_x + 0.14
-    x_bulb = north_x + 0.17
-    fr.box('cas_dark', 0.22, width + 0.12, height + 0.14, x_back, 0, z_base + height / 2)
+    x_back = north_x + 0.03
+    x_face = north_x + 0.22
+    x_bulb = north_x + 0.26
+    fr.box('cas_dark', 0.18, width + 0.12, height + 0.14, x_back, 0, z_base + height / 2)
     fr.box('gold', 0.26, width + 0.22, 0.07, x_back - 0.02, 0, z_base + height + 0.02, rx=pitch)
     fr.box('gold', 0.26, width + 0.22, 0.07, x_back - 0.02, 0, z_base - 0.02, rx=pitch)
     for dy in (-width / 2 - 0.06, width / 2 + 0.06):
@@ -68,7 +68,7 @@ def _marquee_tower(b, north_x, z_base, height, width):
 def _textured_poker(b, y, north_x, z_center, tex_name, flip=False):
     cards = b.part('poker_cards')
     neo = b.part('card_neon')
-    x_board, x_face = north_x + 0.07, north_x + 0.095
+    x_board, x_face = north_x + 0.12, north_x + 0.155
     cw, ch = 0.64, 0.90
     cards.box('cas_dark', 0.038, cw + 0.06, ch + 0.06, x_board, y, z_center)
     cards.textured_plane(
@@ -83,7 +83,7 @@ def _textured_poker(b, y, north_x, z_center, tex_name, flip=False):
 def _seven_box(b, north_x, z_center, oy):
     box = b.part('seven_sign')
     neo = b.part('seven_neon')
-    x_back, x_face = north_x + 0.075, north_x + 0.10
+    x_back, x_face = north_x + 0.12, north_x + 0.155
     bw, bh = 1.95, 0.82
     box.box('gold', 0.075, bw + 0.10, bh + 0.10, x_back, oy, z_center)
     box.textured_plane('casino/cas_777.png', bw, bh, x_face, oy, z_center, rz=math.pi / 2)
@@ -94,7 +94,7 @@ def _seven_box(b, north_x, z_center, oy):
 def _glow_dice(b, north_x, z_center, oy):
     d = b.part('dice')
     neo = b.part('dice_neon')
-    x_back, x_face = north_x + 0.08, north_x + 0.11
+    x_back, x_face = north_x + 0.12, north_x + 0.155
     s = 0.52
     d.box('cas_dark', 0.055, s + 0.06, s + 0.06, x_back, oy, z_center)
     d.textured_plane('casino/cas_dice.png', s, s, x_face, oy, z_center, rz=math.pi / 2)
@@ -141,14 +141,18 @@ def build(out_path):
     side = (W - door_w) / 2
     walls.box('cas_wall', side, T, H, -HX + side / 2, FRONT + T / 2, wall_z)
     walls.box('cas_wall', side, T, H, HX - side / 2, FRONT + T / 2, wall_z)
-    for dz, ww, hh, dep in (
+    tier_specs = (
         (BASE + 0.72, W - 0.48, 0.88, 0.11),
         (BASE + 1.58, W - 0.62, 0.78, 0.13),
         (BASE + H - 0.48, W - 0.38, 0.52, 0.10),
-    ):
-        walls.box('cas_dark', dep, ww, hh, north_x + 0.02, 0, dz)
+    )
     stone = b.part('stone_facade')
-    stone.textured_plane('casino/cas_stone.png', W - 0.35, H - 0.18, north_x + 0.12, 0, wall_z, rz=math.pi / 2)
+    stone.textured_plane('casino/cas_stone.png', W - 0.35, H - 0.18, north_x + 0.165, 0, wall_z, rz=math.pi / 2)
+    for dz, ww, hh, dep in tier_specs:
+        walls.box('cas_dark', dep, ww, hh, north_x + 0.04, 0, dz)
+        stone.textured_plane(
+            'casino/cas_stone.png', ww - 0.06, hh - 0.05, north_x + dep + 0.04, 0, dz, rz=math.pi / 2
+        )
 
     # 入口拱門「神之島」
     arch = b.part('entry_arch')
@@ -163,15 +167,15 @@ def build(out_path):
         arch.box('gold', 0.08, 0.10, 2.12, sx, FRONT - 0.06, BASE + 1.18)
         b.part('lanterns_glow').sphere('lantern_glow', 0.10, sx, FRONT - 0.08, BASE + 2.18, seg=6, rings=4)
 
-    sign_z = BASE + 1.92
-    _marquee_tower(b, north_x, BASE + 0.18, 2.55, 2.35)
+    sign_z = BASE + 2.05
+    _marquee_tower(b, north_x, BASE + 0.14, 3.62, 2.35)
 
-    card_y = 1.38
-    _textured_poker(b, -card_y, north_x, BASE + 1.42, 'cas_poker_ah.png')
-    _textured_poker(b, card_y, north_x, BASE + 1.42, 'cas_poker_as.png')
-    _seven_box(b, north_x, BASE + 0.78, 0)
-    _glow_dice(b, north_x, BASE + 2.35, -1.05)
-    _glow_dice(b, north_x, BASE + 2.35, 1.05)
+    card_y = 1.62
+    _textured_poker(b, -card_y, north_x, BASE + 1.55, 'cas_poker_ah.png')
+    _textured_poker(b, card_y, north_x, BASE + 1.55, 'cas_poker_as.png')
+    _seven_box(b, north_x, BASE + 0.92, 0)
+    _glow_dice(b, north_x, BASE + 2.62, -1.12)
+    _glow_dice(b, north_x, BASE + 2.62, 1.12)
 
     # 門與窗
     door = b.part('door')
@@ -188,15 +192,23 @@ def build(out_path):
     roof_y = BASE + H + 0.12
     rf = b.part('roof')
     rf.box('cas_roof', W + 0.52, D + 0.52, 0.28, 0, 0, roof_y)
+    rf.box('cas_roof', W - 0.42, D - 0.42, 0.20, 0, 0, roof_y + 0.30)
+    rf.box('cas_roof', W - 0.95, D - 0.95, 0.16, 0, 0, roof_y + 0.50)
     rf.box('gold', W + 0.62, 0.11, 0.07, 0, -HY - 0.04, roof_y + 0.22)
     rf.box('gold', W + 0.62, 0.11, 0.07, 0, HY + 0.04, roof_y + 0.22)
     rf.box('gold', 0.11, D + 0.62, 0.07, -HX - 0.04, 0, roof_y + 0.22)
     rf.box('gold', 0.11, D + 0.62, 0.07, HX + 0.04, 0, roof_y + 0.22)
+    # 屋頂北緣撲克／777 剪影（俯視可辨）
+    roof_deco = b.part('roof_deco')
+    for sx, sz in ((-0.95, 0.72), (0.95, 0.72)):
+        roof_deco.textured_plane('casino/cas_poker_ah.png', 0.42, 0.58, sx, sz, roof_y + 0.58, rx=-math.pi / 2)
+    roof_deco.textured_plane('casino/cas_777.png', 0.72, 0.38, 0, -1.02, roof_y + 0.56, rx=-math.pi / 2)
 
     wheel = b.part('roulette')
-    wheel.cyl('cas_dark', 0.54, 0.54, 0.11, 0, 0, roof_y + 0.38, seg=12)
-    wheel.cyl('gold', 0.18, 0.14, 0.06, 0, 0, roof_y + 0.52, seg=8)
-    wheel.textured_plane('casino/cas_roulette.png', 0.92, 0.92, 0, 0, roof_y + 0.44, rx=-math.pi / 2)
+    wheel_r = 0.86
+    wheel.cyl('cas_dark', wheel_r, wheel_r, 0.15, 0, 0, roof_y + 0.40, seg=16)
+    wheel.cyl('gold', 0.22, 0.16, 0.07, 0, 0, roof_y + 0.55, seg=10)
+    wheel.textured_plane('casino/cas_roulette.png', 1.68, 1.68, 0, 0, roof_y + 0.48, rx=-math.pi / 2)
 
     lp = b.part('lamp_posts')
     for sx in (-0.78, 0.78):

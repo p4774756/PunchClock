@@ -167,9 +167,21 @@ export function buildIslandBuildings(ctx) {
             obj.material = mat(baseColor, extra);
           }
         } else {
+          const glbMap = oldMat && oldMat.map;
+          const keepGlbTex = glbMap && (matName && matName.indexOf('tex|') === 0 || glbMap);
+          if (keepGlbTex) extra.map = glbMap;
           obj.material = mat(baseColor, extra);
+          if (keepGlbTex && oldMat.emissiveMap && !extra.glow) {
+            obj.material.emissiveMap = oldMat.emissiveMap;
+          }
         }
-        if (oldMat && typeof oldMat.dispose === 'function') oldMat.dispose();
+        if (oldMat && typeof oldMat.dispose === 'function') {
+          const keepMap = obj.material && obj.material.map === oldMat.map;
+          const keepEm = obj.material && obj.material.emissiveMap === oldMat.emissiveMap;
+          if (keepMap) oldMat.map = null;
+          if (keepEm) oldMat.emissiveMap = null;
+          oldMat.dispose();
+        }
         obj.castShadow = true;
         obj.receiveShadow = true;
       });

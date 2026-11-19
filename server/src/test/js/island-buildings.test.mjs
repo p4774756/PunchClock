@@ -58,6 +58,12 @@ describe('casino Vegas sign', () => {
     assert.ok(!buildingsJs.match(/casinoSignMap[\s\S]*fillText\('777'/));
   });
 
+  it('loadBuildingGLB 保留 GLB tex| 貼圖', () => {
+    assert.ok(buildingsJs.includes("matName.indexOf('tex|')"));
+    assert.ok(buildingsJs.includes('extra.map = glbMap'));
+    assert.ok(buildingsJs.includes('oldMat.map = null'));
+  });
+
   it('casino layout v2 放大與博弈島半徑', () => {
     const c = buildingById('casino');
     assert.equal(c.x, 17.0);
