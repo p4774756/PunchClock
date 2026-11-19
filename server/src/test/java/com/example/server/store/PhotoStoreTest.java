@@ -239,7 +239,7 @@ public class PhotoStoreTest {
         assertTrue(PhotoStore.MAX_DOCUMENT_BYTES < PhotoStore.MAX_INCOMING_REQUEST_BYTES);
         assertTrue(PhotoStore.MAX_INCOMING_REQUEST_BYTES >= RelayStore.MAX_CHUNK_BYTES);
         assertTrue(PhotoStore.MAX_INCOMING_REQUEST_BYTES < PeerFileRules.MAX_BYTES);
-        assertEquals(300L * 1024 * 1024, PeerFileRules.MAX_BYTES);
+        assertEquals(400L * 1024 * 1024, PeerFileRules.MAX_BYTES);
     }
 
     @Test
