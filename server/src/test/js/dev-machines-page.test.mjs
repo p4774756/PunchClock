@@ -56,3 +56,8 @@ test('管理員登入後隱藏頁尾管理員登入鈕', () => {
   D.updateDevMachinesLoginFooter(doc, true);
   assert.equal(foot.hidden, true);
 });
+
+test('頁尾管理員登入鈕 hidden 時覆寫 .dev-btn display', () => {
+  const css = readFileSync(join(publicRoot, 'css/dev-machines.css'), 'utf8');
+  assert.match(css, /\.dev-machines-login-footer\[hidden\]\s*\{[^}]*display:\s*none\s*!important/);
+});

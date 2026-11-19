@@ -269,6 +269,10 @@ body.dev-machines-page {
   margin-top: 0.5rem;
 }
 
+.dev-machines-login-footer[hidden] {
+  display: none !important;
+}
+
 .dev-merged-note {
   font-weight: 700;
   color: var(--maple-navy);
