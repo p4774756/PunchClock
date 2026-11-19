@@ -77,7 +77,8 @@ export function cityObstacleCircles() {
   }));
 }
 
-export const PINK_CAR_LOCAL = Object.freeze({ x: 1.5, z: -1.65, yaw: 0.2 });
+/** 車頭朝北（7-11 廣場）；南側貼住宅牆，不可再朝南停。 */
+export const PINK_CAR_LOCAL = Object.freeze({ x: 1.5, z: -1.65, yaw: 0.2 + Math.PI });
 /** 路人／機車取樣點須與停車位保持的最小距離（含車身與人身寬度）。 */
 export const PINK_CAR_PATH_CLEAR_R = 1.55;
 
@@ -111,14 +112,14 @@ export function pinkCarReviewPoses() {
       player: pinkCarReviewStand(-1),
       look,
       radius: 4.9,
-      theta: 0.55,
+      theta: 2.15,
       phi: 1.02
     }),
     'pink-car-look-front': Object.freeze({
       player: pinkCarReviewStand(-1),
       look,
       radius: 4.9,
-      theta: 2.15,
+      theta: 0.55,
       phi: 1.02
     })
   });

@@ -205,14 +205,14 @@ test('粉紅車審查鏡頭：玩家路邊站位、不疊車頂', () => {
     CAM.exploreFollowDistance(rear.radius, 1280 / 720),
     rear.phi, rear.theta, 0, 0
   );
-  assert.ok(rearPlace.cx > car.x + 1.5, '後 3/4 鏡頭應在車東北側');
-  assert.ok(rearPlace.cz > car.z + 2.5, '後 3/4 鏡頭應在車東北側');
+  assert.ok(rearPlace.cx > car.x + 2.5, '後 3/4 鏡頭應在車東南側（東側街道，避開南牆）');
+  assert.ok(rearPlace.cz < car.z - 1.5, '後 3/4 鏡頭應在車東南側（東側街道，避開南牆）');
   const front = poses['pink-car-look-front'];
   const frontPlace = CAM.exploreCameraPlacement(
     front.look[0], front.look[1], front.look[2],
     CAM.exploreFollowDistance(front.radius, 1280 / 720),
     front.phi, front.theta, 0, 0
   );
-  assert.ok(frontPlace.cx > car.x + 2.5, '前 3/4 鏡頭應在車東南側（避開 7-11 綠牆）');
-  assert.ok(frontPlace.cz < car.z - 1.5, '前 3/4 鏡頭應在車東南側（避開 7-11 綠牆）');
+  assert.ok(frontPlace.cx > car.x + 1.5, '前 3/4 鏡頭應在車東北側（朝北車頭、開放廣場）');
+  assert.ok(frontPlace.cz > car.z + 2.5, '前 3/4 鏡頭應在車東北側（朝北車頭、開放廣場）');
 });
