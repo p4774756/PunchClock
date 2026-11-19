@@ -77,9 +77,12 @@ export function cityObstacleCircles() {
   }));
 }
 
-export const PINK_CAR_LOCAL = Object.freeze({ x: 1.5, z: -1.65, yaw: 0.2 });
+/** 車頭朝西（往廣場東西向街道）；南側貼住宅牆。模型 local +Z 為車頭。 */
+export const PINK_CAR_LOCAL = Object.freeze({ x: 1.5, z: -1.65, yaw: 0.2 - Math.PI / 2 });
 /** 路人／機車取樣點須與停車位保持的最小距離（含車身與人身寬度）。 */
 export const PINK_CAR_PATH_CLEAR_R = 1.55;
+/** 粉紅 Fiat 車頂相對車體原點 Y（glb 包圍盒 max.y；占位 fallback ≈0.77）。 */
+export const PINK_CAR_ROOF_Y_FALLBACK = 0.697;
 
 export function pinkCarWorld() {
   const c = CITY_CENTER;
@@ -87,6 +90,53 @@ export function pinkCarWorld() {
     x: c.x + PINK_CAR_LOCAL.x,
     z: c.z + PINK_CAR_LOCAL.z,
     yaw: PINK_CAR_LOCAL.yaw
+  });
+}
+
+/** 審查 pink-car-look：路邊站位（勿與車心重疊；仍在上車距離內）。side：-1 駕駛側、+1 副駕。 */
+export function pinkCarReviewStand(side) {
+  const s = side == null ? -1 : side;
+  const car = pinkCarWorld();
+  const yaw = car.yaw;
+  const dist = 1.05;
+  const x = car.x + Math.cos(yaw) * s * dist;
+  const z = car.z - Math.sin(yaw) * s * dist;
+  const face = yaw + (s < 0 ? Math.PI / 2 : -Math.PI / 2);
+  return Object.freeze({ x, z, yaw: face });
+}
+
+/**
+ * 正式審查鏡頭（3/4 後側／前側）。
+ * 探索模式每幀以玩家為鏡頭中心，look 僅文件用；構圖由 player 站位 + theta/phi/radius 決定。
+ */
+export function pinkCarReviewPoses() {
+  const car = pinkCarWorld();
+  const look = Object.freeze([car.x, 0.48, car.z]);
+  const rearPlayer = Object.freeze({
+    x: car.x - 0.21,
+    z: car.z - 1.03,
+    yaw: pinkCarReviewStand(-1).yaw
+  });
+  const frontPlayer = Object.freeze({
+    x: car.x + 0.8,
+    z: car.z - 0.95,
+    yaw: Math.atan2(car.x - (car.x + 0.8), car.z - (car.z - 0.95))
+  });
+  return Object.freeze({
+    'pink-car-look': Object.freeze({
+      player: rearPlayer,
+      look,
+      radius: 5.0,
+      theta: 2.0,
+      phi: 0.85
+    }),
+    'pink-car-look-front': Object.freeze({
+      player: frontPlayer,
+      look,
+      radius: 5.0,
+      theta: 3.93,
+      phi: 0.92
+    })
   });
 }
 

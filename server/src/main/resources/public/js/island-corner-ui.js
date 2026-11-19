@@ -1,10 +1,15 @@
-import { cleanNick, loadAvatar, loadNick, normalizeAvatar, saveAvatar } from './island-presence.js';
+import { cleanNick, loadAvatar, loadNick, normalizeAvatar, saveAvatar, NICK_KEY } from './island-presence.js';
+import { loadSelfNameEnabled, saveSelfNameEnabled } from './island-self-label.js';
+import { mountDonateLinks } from './donate-link.js';
 
 export const MOBILE_MAX_WIDTH = 760;
 const REM = 16;
 export const ORB_SIZE = 2.85 * REM;
 export const ORB_GAP = 0.4 * REM;
+export const ORB_TR_GAP_MOBILE = 0.28 * REM;
+export const HUD_PLAYER_TR_GAP = 0.375 * REM;
 const HUD_MARGIN = 0.55 * REM;
+const HUD_PLAYER_MAX_W_MOBILE = 10.5 * REM;
 
 const AUDIO_ON_SVG =
   '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" d="M5 10v4h3l4.5 3V7L8 10H5z"/><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M17 9.5v5"/></svg>';
@@ -31,16 +36,16 @@ function orbRowCount(showAudio) {
 }
 
 export function hudTopRightRect(viewportWidth, viewportHeight, showAudio) {
+  void viewportHeight;
   const margin = hudMargin(viewportWidth);
+  const narrow = viewportWidth <= MOBILE_MAX_WIDTH;
+  const trGap = narrow ? ORB_TR_GAP_MOBILE : ORB_GAP;
   const orbs = orbRowCount(showAudio);
-  const dayNightBlock = ORB_SIZE;
-  const audioW = showAudio ? ORB_SIZE + ORB_GAP : 0;
-  const chatMenuW = ORB_SIZE * 2 + ORB_GAP;
-  const totalW = dayNightBlock + audioW + chatMenuW;
+  const totalW = orbs * ORB_SIZE + Math.max(0, orbs - 1) * trGap;
   const right = viewportWidth - margin;
   const left = right - totalW;
-  const top = (viewportWidth <= MOBILE_MAX_WIDTH ? 4.55 : 3.6) * REM;
-  const bottom = top + ORB_SIZE + 0.9 * REM;
+  const top = (narrow ? 0.55 : 3.6) * REM;
+  const bottom = top + ORB_SIZE + 1.05 * REM;
   return { left, right, top, bottom, width: totalW, height: bottom - top, orbSize: ORB_SIZE };
 }
 
@@ -269,17 +274,166 @@ export function listPanelRectDesktop(viewportWidth, viewportHeight, showAudio) {
   };
 }
 
-export function chatPanelRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem) {
-  const hRem = panelHeightRem > 0 ? panelHeightRem : 12;
-  const joy = joystickRectMobile(viewportWidth, viewportHeight);
-  const actions = hudActionsRect(viewportWidth, viewportHeight);
+const EXPLORE_FLOAT_BOTTOM_REM =
+  0.85 + 3.75 + 0.45 + 3.75 + 0.45 + 3.75 + 0.35;
+
+export function exploreFloatBottomPx(viewportHeight) {
+  return viewportHeight - EXPLORE_FLOAT_BOTTOM_REM * REM;
+}
+
+/** 手機：右上圓鈕列寬度（對齊 island.css @760px flex gap）。 */
+export function hudTopRightWidthMobile(showAudio) {
+  const orbs = orbRowCount(showAudio);
+  return orbs * ORB_SIZE + Math.max(0, orbs - 1) * ORB_TR_GAP_MOBILE;
+}
+
+/** 手機探索：左上玩家 HUD（含卡、間距、人數晶片；對齊 island.css @760px）。 */
+export function hudPlayerRectMobile(viewportWidth, viewportHeight, showAudio) {
+  void viewportHeight;
   const margin = hudMargin(viewportWidth);
-  const bottomInset = Math.max(actions.bottom - actions.top + 0.5 * REM, joy.bottom - joy.top);
+  const audio = showAudio !== false;
+  const trWidth = hudTopRightWidthMobile(audio);
+  const top = Math.max(margin, 0);
+  const left = margin;
+  const width = Math.min(
+    HUD_PLAYER_MAX_W_MOBILE,
+    viewportWidth - trWidth - 2 * margin - HUD_PLAYER_TR_GAP
+  );
+  const cardH = 5.35 * REM;
+  const gap = 0.35 * REM;
+  const badgeH = 1.35 * REM;
+  const boxH = cardH + gap + badgeH;
+  return { left, right: left + width, top, bottom: top + boxH, width, height: boxH, cardH };
+}
+
+/** 桌面探索：左上玩家 HUD（對齊 island.css）。 */
+export function hudPlayerRectDesktop(viewportWidth, viewportHeight) {
+  void viewportHeight;
+  const top = Math.max(0.85 * REM, 0);
+  const left = 0.85 * REM;
+  const width = Math.min(14 * REM, viewportWidth - 11 * REM);
+  const boxH = 5.85 * REM;
+  return { left, right: left + width, top, bottom: top + boxH, width, height: boxH };
+}
+
+/** 桌面探索：底部置中操作提示（對齊 .island-explore-hint）。 */
+export function exploreHintRectDesktop(viewportWidth, viewportHeight, approxHeightRem) {
+  const hRem = approxHeightRem > 0 ? approxHeightRem : 2.5;
+  const height = hRem * REM;
+  const bottomInset = 1.15 * REM;
+  const bottom = viewportHeight - bottomInset;
+  const top = bottom - height;
+  const width = Math.min(32 * REM, viewportWidth - 2 * REM);
+  const left = (viewportWidth - width) * 0.5;
+  return {
+    left,
+    right: left + width,
+    top,
+    bottom,
+    width,
+    height,
+    tr: hudTopRightRect(viewportWidth, viewportHeight, true),
+    player: hudPlayerRectDesktop(viewportWidth, viewportHeight),
+    actions: hudActionsRect(viewportWidth, viewportHeight, { exploring: true }),
+    joy: joystickRectMobile(viewportWidth, viewportHeight)
+  };
+}
+
+/** 手機探索：提示與常見 HUD 邊界（供 node:test 驗證不重疊）。 */
+export function exploreHintHudTargetsMobile(viewportWidth, viewportHeight, approxHeightRem) {
+  const hint = exploreHintRectMobile(viewportWidth, viewportHeight, approxHeightRem);
+  const player = hudPlayerRectMobile(viewportWidth, viewportHeight);
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  const actions = hudActionsRect(viewportWidth, viewportHeight, {
+    exploring: true,
+    withInteract: true,
+    withSteer: true
+  });
+  const layout = exploreHudActionItems(viewportWidth, viewportHeight, {
+    withInteract: true,
+    withSteer: true
+  });
+  const interact = layout.items.find((item) => item.id === 'islandInteract') || actions;
+  return { hint, player, joy, actions, interact, tr: hint.tr };
+}
+
+/** 手機探索：清單面板（對齊 island.css @760px）。 */
+export function listPanelRectMobileExplore(viewportWidth, viewportHeight) {
+  const player = hudPlayerRectMobile(viewportWidth, viewportHeight);
+  const margin = hudMargin(viewportWidth);
+  const top = player.bottom + 0.5 * REM;
+  const width = Math.min(280, viewportWidth - 1.1 * REM);
+  const right = viewportWidth - margin;
+  const left = right - width;
+  const titleBarH = 2 * REM;
+  const maxBody = Math.min(
+    0.52 * viewportHeight,
+    viewportHeight - top - Math.max(5.5 * REM, 3.75 * REM + 0.85 * REM)
+  );
+  return {
+    left,
+    right,
+    top,
+    bottom: top + titleBarH,
+    width,
+    height: titleBarH,
+    titleBar: { left, right, top, bottom: top + titleBarH, width, height: titleBarH },
+    closeTop: top + 4,
+    closeRight: right - 4,
+    maxBody,
+    player
+  };
+}
+
+export function nickPopRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem) {
+  return popRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem > 0 ? panelHeightRem : 9);
+}
+
+export function chatPanelRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem) {
+  return popRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem > 0 ? panelHeightRem : 12);
+}
+
+function popRectMobileExplore(viewportWidth, viewportHeight, hRem) {
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  const exit = exploreExitButtonRect(viewportWidth, viewportHeight);
+  const margin = hudMargin(viewportWidth);
+  const gap = 0.35 * REM;
   const left = joy.right + 0.55 * REM;
   const right = viewportWidth - margin;
-  const bottom = actions.top - 0.35 * REM;
-  const top = bottom - hRem * REM;
-  return { left, right, top, bottom, width: right - left, height: hRem * REM, joy };
+  const bottom = exploreFloatBottomPx(viewportHeight);
+  const maxH = Math.max(6 * REM, bottom - gap - joy.top - gap);
+  const height = Math.min(hRem * REM, maxH);
+  const top = bottom - height;
+  return { left, right, top, bottom, width: right - left, height, joy, exit };
+}
+
+/** 桌面探索：暱稱窗（對齊 body.is-exploring.island-nick-open .island-nick）。 */
+export function nickPopRectDesktopExplore(viewportWidth, viewportHeight) {
+  const margin = 0.85 * REM;
+  const width = Math.min(18 * REM, viewportWidth - 1.6 * REM);
+  const right = viewportWidth - margin;
+  const left = right - width;
+  const height = 7.5 * REM;
+  const bottomInset = 1.1 * REM + 3.75 * REM + 0.65 * REM;
+  const panelBottom = viewportHeight - bottomInset;
+  const top = panelBottom - height;
+  const actions = hudActionsRect(viewportWidth, viewportHeight, { exploring: true });
+  return { left, right, top, bottom: panelBottom, width, height, actions };
+}
+
+/** 手機探索：操作提示（對齊 .island-explore-hint @760px）。 */
+export function exploreHintRectMobile(viewportWidth, viewportHeight, approxHeightRem) {
+  const hRem = approxHeightRem > 0 ? approxHeightRem : 2.5;
+  const margin = hudMargin(viewportWidth);
+  const top = 0.55 * REM + 2.85 * REM + 1.05 * REM + 0.35 * REM;
+  const right = viewportWidth - margin;
+  const width = Math.min(11 * REM, viewportWidth - 8 * REM);
+  const left = right - width;
+  const height = hRem * REM;
+  const tr = hudTopRightRect(viewportWidth, viewportHeight, true);
+  const player = hudPlayerRectMobile(viewportWidth, viewportHeight);
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  return { left, right, top, bottom: top + height, width, height, tr, player, joy };
 }
 
 export function createCornerUi(opts) {
@@ -293,6 +447,8 @@ export function createCornerUi(opts) {
   const isWelcomed = opts.isWelcomed;
   const getAudioMuted = opts.getAudioMuted;
   const onAvatarChange = opts.onAvatarChange;
+  const onNickSaved = opts.onNickSaved;
+  const onSelfNameToggle = opts.onSelfNameToggle;
   const closeList = typeof opts.closeList === 'function' ? opts.closeList : null;
 
   const avatarBtn = document.getElementById('islandAvatarBtn');
@@ -313,6 +469,10 @@ export function createCornerUi(opts) {
 
   const moreBtn = document.getElementById('islandMoreBtn');
   const moreSheet = document.getElementById('islandMoreSheet');
+  const selfNameToggle = document.getElementById('islandSelfNameToggle');
+  const selfNameToggleState = selfNameToggle
+    ? selfNameToggle.querySelector('.island-more-self-name-state')
+    : null;
   const moreClose = document.getElementById('islandMoreClose');
   const moreScrim = document.getElementById('islandMoreScrim');
   const nickClose = document.getElementById('islandNickClose');
@@ -422,13 +582,55 @@ export function createCornerUi(opts) {
     }
   }
 
+  let selfNameEnabled = loadSelfNameEnabled(storage);
+
+  function syncSelfNameToggleUi() {
+    if (!selfNameToggle) return;
+    selfNameToggle.setAttribute('aria-checked', selfNameEnabled ? 'true' : 'false');
+    if (selfNameToggleState) {
+      selfNameToggleState.textContent = selfNameEnabled ? '開' : '關';
+    }
+  }
+
+  function setSelfNameEnabled(on) {
+    selfNameEnabled = !!on;
+    saveSelfNameEnabled(storage, selfNameEnabled);
+    syncSelfNameToggleUi();
+    if (typeof onSelfNameToggle === 'function') onSelfNameToggle(selfNameEnabled);
+  }
+
+  syncSelfNameToggleUi();
+
+  if (selfNameToggle) {
+    selfNameToggle.addEventListener('click', () => {
+      setSelfNameEnabled(!selfNameEnabled);
+    });
+  }
+
   function saveNick() {
     const islandPresence = getPresence();
-    if (!nickInput || !islandPresence) return;
+    if (!nickInput) return;
     const cleaned = cleanNickFn(nickInput.value);
-    if (!cleaned) return;
+    if (!cleaned) {
+      if (storage && typeof storage.removeItem === 'function') {
+        try {
+          storage.removeItem(NICK_KEY);
+        } catch (err) {
+          // 略過
+        }
+      }
+      nickInput.value = '';
+      if (islandPresence && typeof islandPresence.rename === 'function') {
+        islandPresence.rename('');
+      }
+      if (typeof onNickSaved === 'function') onNickSaved('');
+      setNickOpen(false);
+      return;
+    }
+    if (!islandPresence) return;
     nickInput.value = cleaned;
     islandPresence.rename(cleaned);
+    if (typeof onNickSaved === 'function') onNickSaved(cleaned);
     setNickOpen(false);
   }
 
@@ -636,6 +838,11 @@ export function createCornerUi(opts) {
     }
   });
 
+  const donateWin = document.defaultView || (typeof window !== 'undefined' ? window : null);
+  if (donateWin) {
+    mountDonateLinks(donateWin);
+  }
+
   return {
     syncPeerCount: syncPeerCount,
     setNickOpen: setNickOpen,
@@ -648,6 +855,8 @@ export function createCornerUi(opts) {
     setAvatarOpen: setAvatarOpen,
     syncAvatarUi: syncAvatarUi,
     syncExploreHudLabels: syncExploreHudLabels,
-    currentAvatar: () => normalizeAvatar(selectedAvatar)
+    currentAvatar: () => normalizeAvatar(selectedAvatar),
+    isSelfNameEnabled: () => selfNameEnabled,
+    setSelfNameEnabled: setSelfNameEnabled
   };
 }

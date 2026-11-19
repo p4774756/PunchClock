@@ -111,23 +111,98 @@ public class DevMachineRoutesTest {
     }
 
     @Test
-    public void listRequiresAdminAndIncludesIssueTitle() throws Exception {
+    public void guestAndAdminListWithViewer() throws Exception {
         clock.set(2_000_000L);
         sendHeartbeat("Bearer " + TOKEN,
                 "{\"machine\":\"home\",\"issue\":126,\"branch\":\"ai/issue-126\",\"runStartedAt\":1000,"
-                        + "\"agentRunning\":true,\"commit\":\"abcdef1\"}");
+                        + "\"agentRunning\":true,\"commit\":\"abcdef1\","
+                        + "\"runs\":[{\"issue\":235,\"round\":0,\"branch\":\"ai/issue-235\",\"startedAt\":1000,"
+                        + "\"worktree\":\"~/PunchClock-oki/wt-235\",\"commit\":\"abc1234\"}]}");
 
         HttpResponse<String> guest = send("GET", "/api/dev-machines", null);
         assertEquals(401, guest.statusCode());
-        assertTrue(guest.body().contains("請先登入管理員"));
-        assertFalse(guest.body().contains("commit"));
-        assertFalse(guest.body().contains("小貓"));
+        assertTrue(guest.body().contains("\"success\":false"));
+        assertTrue(guest.body().contains("請先登入"));
+        assertFalse(guest.body().contains("\"machines\""));
+        assertFalse(guest.body().contains("\"wt-235\""));
+        assertFalse(guest.body().contains("unit-test-dev-status-token"));
 
         HttpResponse<String> admin = send("GET", "/api/dev-machines", AdminAuthCookie.header());
         assertEquals(200, admin.statusCode());
-        assertTrue(admin.body().contains("\"commit\":\"abcdef1\""));
+        assertTrue(admin.body().contains("\"viewer\":\"admin\""));
         assertTrue(admin.body().contains("\"issueTitle\":\"測試 issue\""));
         assertTrue(admin.body().contains("小貓"));
+    }
+
+    @Test
+    public void runsValidationAndLegacyPayload() throws Exception {
+        String threeRuns = "{\"machine\":\"home\",\"runs\":["
+                + "{\"issue\":235,\"round\":0,\"branch\":\"ai/issue-235\",\"startedAt\":2000,"
+                + "\"worktree\":\"wt-235\",\"commit\":\"abcdef1\"},"
+                + "{\"issue\":237,\"round\":2,\"branch\":\"ai/issue-237\",\"startedAt\":3000,"
+                + "\"commit\":\"bcdef12\"},"
+                + "{\"issue\":239,\"round\":1,\"branch\":\"ai/issue-239\",\"startedAt\":1000}]"
+                + ",\"agentRunning\":true}";
+        assertEquals(200, sendHeartbeat("Bearer " + TOKEN, threeRuns).statusCode());
+        HttpResponse<String> list = send("GET", "/api/dev-machines", AdminAuthCookie.header());
+        assertTrue(list.body().contains("\"round\":0"));
+        assertTrue(list.body().contains("\"round\":2"));
+        int idx239 = list.body().indexOf("\"issue\":239");
+        int idx237 = list.body().indexOf("\"issue\":237");
+        int idx235 = list.body().indexOf("\"issue\":235");
+        assertTrue(idx239 < idx235);
+        assertTrue(idx235 < idx237);
+
+        assertEquals(400, sendHeartbeat("Bearer " + TOKEN, "{\"machine\":\"home\",\"runs\":\"x\"}").statusCode());
+
+        StringBuilder many = new StringBuilder("{\"machine\":\"home\",\"runs\":[");
+        for (int i = 1; i <= 13; i++) {
+            if (i > 1) many.append(',');
+            many.append("{\"issue\":").append(i).append(",\"round\":0,\"branch\":\"ai/issue-").append(i).append("\"}");
+        }
+        many.append("]}");
+        assertEquals(400, sendHeartbeat("Bearer " + TOKEN, many.toString()).statusCode());
+
+        assertEquals(400, sendHeartbeat("Bearer " + TOKEN,
+                "{\"machine\":\"home\",\"runs\":[{\"issue\":\"235\",\"round\":0,\"branch\":\"a\"}]}").statusCode());
+        assertEquals(400, sendHeartbeat("Bearer " + TOKEN,
+                "{\"machine\":\"home\",\"runs\":[{\"issue\":0,\"round\":0,\"branch\":\"a\"}]}").statusCode());
+        assertEquals(400, sendHeartbeat("Bearer " + TOKEN,
+                "{\"machine\":\"home\",\"runs\":[{\"issue\":1,\"round\":10,\"branch\":\"a\"}]}").statusCode());
+        assertEquals(400, sendHeartbeat("Bearer " + TOKEN,
+                "{\"machine\":\"home\",\"runs\":[{\"issue\":1,\"round\":-1,\"branch\":\"a\"}]}").statusCode());
+        assertEquals(400, sendHeartbeat("Bearer " + TOKEN,
+                "{\"machine\":\"home\",\"runs\":[{\"issue\":1,\"round\":1.5,\"branch\":\"a\"}]}").statusCode());
+        assertEquals(400, sendHeartbeat("Bearer " + TOKEN,
+                "{\"machine\":\"home\",\"runs\":[{\"issue\":1,\"round\":0,\"branch\":\"bad branch\"}]}").statusCode());
+        assertEquals(400, sendHeartbeat("Bearer " + TOKEN,
+                "{\"machine\":\"home\",\"runs\":[{\"issue\":1,\"round\":0,\"branch\":\"ai;x\"}]}").statusCode());
+        assertEquals(400, sendHeartbeat("Bearer " + TOKEN,
+                "{\"machine\":\"home\",\"runs\":[{\"issue\":1,\"round\":0,\"branch\":\"ai/issue-1\","
+                        + "\"worktree\":\"bad path\"}]}").statusCode());
+        assertEquals(400, sendHeartbeat("Bearer " + TOKEN,
+                "{\"machine\":\"home\",\"runs\":[{\"issue\":1,\"round\":0,\"branch\":\"ai/issue-1\","
+                        + "\"worktree\":\"$(touch)\"}]}").statusCode());
+        assertEquals(400, sendHeartbeat("Bearer " + TOKEN,
+                "{\"machine\":\"home\",\"runs\":[{\"issue\":1,\"round\":0,\"branch\":\"ai/issue-1\","
+                        + "\"commit\":\"nothex\"}]}").statusCode());
+
+        HttpResponse<String> legacy = sendHeartbeat("Bearer " + TOKEN,
+                "{\"machine\":\"office\",\"issue\":50,\"branch\":\"ai/issue-50\",\"runStartedAt\":500,"
+                        + "\"agentRunning\":false}");
+        assertEquals(200, legacy.statusCode());
+        HttpResponse<String> body = send("GET", "/api/dev-machines", AdminAuthCookie.header());
+        assertTrue(body.body().contains("\"runs\":[]"));
+    }
+
+    @Test
+    public void offlineMachineOmitsRuns() throws Exception {
+        sendHeartbeat("Bearer " + TOKEN,
+                "{\"machine\":\"home\",\"runs\":[{\"issue\":1,\"round\":0,\"branch\":\"ai/issue-1\"}],"
+                        + "\"agentRunning\":true}");
+        clock.set(2_000_000L + DevMachineStore.ONLINE_WINDOW_MS + 5);
+        HttpResponse<String> list = send("GET", "/api/dev-machines", AdminAuthCookie.header());
+        assertFalse(list.body().contains("\"runs\""));
     }
 
     @Test
@@ -135,6 +210,7 @@ public class DevMachineRoutesTest {
         HttpResponse<String> page = send("GET", "/dev-status", null);
         assertEquals(200, page.statusCode());
         assertTrue(page.body().contains("開發機狀態"));
+        assertTrue(page.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
         assertFalse(page.body().contains("小貓"));
         assertFalse(page.body().contains("agentRunning"));
 

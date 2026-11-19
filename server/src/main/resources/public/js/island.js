@@ -12,7 +12,8 @@ import {
   controlsActive,
   playerVisible,
   hitInteractZone,
-  shouldShowInteractPrompt
+  shouldShowInteractPrompt,
+  hudBlocksInteract
 } from './island-explore.js';
 import {
   PANORAMA,
@@ -56,12 +57,12 @@ import {
   isDrivingPhase,
   vehicleSpeedKmh,
   vehicleCameraLook,
-  minimapNorm,
   VEHICLE_FOLLOW_BACK,
   VEHICLE_DISMOUNT_SPEED
 } from './island-vehicle.js';
 import { createCasinoController, CASINO_NAME, promptDomUpdate } from './island-casino.js';
 import { createGraffitiController } from './island-graffiti.js';
+import { applyIslandOpenRoadmapParam } from './dev-machines-format.js';
 import { createRoadmapController } from './island-roadmap.js';
 import {
   INTERIOR_ORIGIN,
@@ -92,6 +93,7 @@ import {
   miluClipPath,
   miluStep,
   normalizeIslandAvatar,
+  resolveFacing,
   screenAxes
 } from './island-milu.js';
 import { TCM_ATLAS_URL, consumeTcmReturn, writeTcmReturn } from './island-tcm-visit.js';
@@ -127,14 +129,29 @@ import { buildIslandBuildings } from './island-buildings.js';
 import { buildIslandProps, registerSceneMotion } from './island-props.js';
 import { buildIslandBeach } from './island-beach.js';
 import { buildIslandPeople } from './island-people.js';
+import {
+  freezeNpcWalker,
+  unfreezeNpcWalker,
+  freezeNpcIdle,
+  unfreezeNpcIdle,
+  npcFacePlayer,
+  getNpcMotionTime
+} from './island-people.js';
+import { shouldOfferNpcTalkPrompt, NPC_TALK_ACTION } from './island-people-data.js';
+import { createIslandNpcTalk, npcTalkPromptLabel } from './island-npc-talk.js';
 import { createIslandSky } from './island-sky.js';
 import { createIslandSea } from './island-sea.js';
-import { createIslandLife } from './island-life.js';
+import { createIslandLife, LIFE_PANORAMA_CAMERA } from './island-life.js';
 import { createFootprintView } from './island-footprints.js';
 import { createLifecycle } from './island-lifecycle.js';
 import { createPeerLayer } from './island-peers.js';
+import {
+  createSelfLabelPlacer,
+  loadSelfNameEnabled
+} from './island-self-label.js';
 import { placeBuildingLabels } from './island-labels.js';
 import { createCornerUi } from './island-corner-ui.js';
+import { createMinimapHud, syncPlayerAreaTitle } from './island-minimap.js';
 import {
   createExplorePointer,
   createExploreKeys,
@@ -180,6 +197,7 @@ function bootCasinoFallback() {
   window.PunchClockIsland.closeGraffiti = () => graffiti.close();
   window.PunchClockIsland.openRoadmap = () => roadmap.open();
   window.PunchClockIsland.closeRoadmap = () => roadmap.close();
+  applyIslandOpenRoadmapParam(window, () => roadmap.open());
 }
 
 if (stage && canvas) boot();
@@ -328,11 +346,100 @@ function boot() {
   const worldResult = buildIslandWorld({ scene: scene, kit: kit });
   const sea = createIslandSea(THREE, { kit: kit, reduced: reduced });
   scene.add(sea.group);
-  const lifeRareParam = new URLSearchParams(window.location.search).get('lifeRare');
+  const lifeQs = new URLSearchParams(window.location.search);
+  const lifeRareParam = lifeQs.get('lifeRare');
   const life = createIslandLife(THREE, {
     kit: kit,
     reduced: reduced,
-    forceRare: lifeRareParam
+    forceRare: lifeRareParam,
+    forceAll: lifeQs.get('forceAll') === '1',
+    lifeSpout: lifeQs.get('lifeSpout') === '1'
+  });
+  life.ready.then(() => {
+    window.__islandLifeBox3 = {
+      worldSize(kind) {
+        const box = new THREE.Box3();
+        let node = null;
+        for (let i = 0; i < life.creatures.length; i++) {
+          const c = life.creatures[i];
+          if (c.userData && c.userData.kind === kind) node = c;
+        }
+        if (!node) return null;
+        box.setFromObject(node);
+        const s = new THREE.Vector3();
+        box.getSize(s);
+        return { x: +s.x.toFixed(2), y: +s.y.toFixed(2), z: +s.z.toFixed(2) };
+      }
+    };
+    window.__islandLifeMeshTable = function () {
+      const rows = [];
+      const walkKind = new Map();
+      for (let i = 0; i < life.creatures.length; i++) {
+        const creature = life.creatures[i];
+        const kind = creature.userData && creature.userData.kind;
+        if (!kind) continue;
+        walkKind.set(creature, kind);
+        creature.traverse((child) => {
+          if (child === creature) return;
+          walkKind.set(child, kind);
+        });
+      }
+      life.group.traverse((child) => {
+        if (!child.isMesh) return;
+        const kind = (child.userData && child.userData.kind) || walkKind.get(child);
+        if (!kind) return;
+        const box = new THREE.Box3().setFromObject(child);
+        const sz = new THREE.Vector3();
+        box.getSize(sz);
+        const mat = child.material;
+        const col = mat && mat.color;
+        rows.push({
+          kind: kind,
+          mesh: child.name || '(mesh)',
+          color: col && col.getHexString ? '#' + col.getHexString() : '#?',
+          x: +sz.x.toFixed(2),
+          y: +sz.y.toFixed(2),
+          z: +sz.z.toFixed(2)
+        });
+      });
+      return rows;
+    };
+    if (lifeQs.get('lifeNight') === '1') {
+      dayNight.setTarget(1);
+      dayNight.refresh();
+    }
+    if (lifeQs.get('lifePanorama') === '1') {
+      const c = LIFE_PANORAMA_CAMERA;
+      camera.position.set(c.eye.x, c.eye.y, c.eye.z);
+      camera.lookAt(c.eye.x + c.dir.x, c.eye.y + c.dir.y, c.eye.z + c.dir.z);
+      camera.fov = c.fovDeg;
+      camera.updateProjectionMatrix();
+    } else if (lifeQs.get('lifeClose') === '1' && lifeRareParam) {
+      const box = new THREE.Box3();
+      let node = null;
+      for (let i = 0; i < life.creatures.length; i++) {
+        const c = life.creatures[i];
+        if (c.userData && c.userData.kind === lifeRareParam) node = c;
+      }
+      if (node) {
+        box.setFromObject(node);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const span = Math.max(size.x, size.y, size.z, 0.8);
+        if (lifeQs.get('lifeCloseView') === 'top') {
+          camera.position.set(center.x, center.y + span * 2.4, center.z);
+        } else {
+          camera.position.set(center.x + span * 1.7, center.y + span * 1.05, center.z + span * 1.5);
+        }
+        camera.lookAt(center);
+        camera.fov = 30;
+        camera.updateProjectionMatrix();
+      }
+    }
+    if (lifeQs.get('lifeSpout') === '1') {
+      life.update(0.016, 0.55);
+    }
+    window.__islandLifeReady = true;
   });
   scene.add(life.group);
   if (worldResult && worldResult.water) {
@@ -388,9 +495,6 @@ function boot() {
   let vehicleState = createVehicleState();
   const vehicleHud = document.getElementById('islandVehicleHud');
   const vehicleSpeedEl = document.getElementById('islandVehicleSpeed');
-  const vehicleMinimap = document.getElementById('islandVehicleMinimap');
-  const vehicleMinimapCtx = vehicleMinimap && vehicleMinimap.getContext
-    ? vehicleMinimap.getContext('2d') : null;
   const shaker = buildings.shaker;
   function refreshGraffitiWall() {
     buildings.refreshGraffitiWall();
@@ -650,6 +754,83 @@ function boot() {
   let islandChat = null;
   let peerLayer = null;
   let corner = null;
+  const selfLabel = createSelfLabelPlacer({ document: document });
+  if (typeof window !== 'undefined') {
+    window.__islandSelfLabel = () => {
+      const dbg = selfLabel.getDebug();
+      return Object.assign({}, dbg, {
+        vehicleRoofY: pinkCarMesh && pinkCarMesh.roofY,
+        driving: isDriving()
+      });
+    };
+  }
+
+  function playerGroundY() {
+    if (isSailing() || isSteering()) {
+      return dockedBob(boatElapsed, reduced) + BOAT_DECK_OFFSET;
+    }
+    return P;
+  }
+
+  function selfNameEnabledNow() {
+    if (corner && typeof corner.isSelfNameEnabled === 'function') {
+      return corner.isSelfNameEnabled();
+    }
+    return loadSelfNameEnabled(window.localStorage);
+  }
+
+  let lastSelfLabelScreen = null;
+
+  function placeSelfLabelFrame(partial) {
+    const pack = partial || {};
+    const placed = selfLabel.place({
+      mode: mode,
+      storage: window.localStorage,
+      loadNick: loadNick,
+      selfName: islandPresence && typeof islandPresence.getSelfName === 'function'
+        ? islandPresence.getSelfName()
+        : '',
+      selfNameEnabled: selfNameEnabledNow(),
+      interiorBusy: interiorBusy,
+      uiOverlay: islandUiOpen()
+        || !!(document.getElementById('islandMoreSheet') && !document.getElementById('islandMoreSheet').hidden),
+      miluVisible: localView.object.visible,
+      placeholderVisible: miluPlaceholder.visible,
+      blockVisible: playerMesh.visible,
+      playerX: player.x,
+      playerZ: player.z,
+      groundY: playerGroundY(),
+      P: P,
+      offsetX: 0,
+      offsetZ: 0,
+      passengerScale: boatPassengerScaleFactor(boatState.phase),
+      vehicleState: vehicleState,
+      boatState: boatState,
+      boatPhase: boatState.phase,
+      boatElapsed: boatElapsed,
+      reduced: reduced,
+      width: pack.width,
+      height: pack.height,
+      camera: pack.camera,
+      projected: pack.projected,
+      peers: pack.peers,
+      vehicleRoofY: pinkCarMesh.roofY
+    });
+    if (!placed) {
+      lastSelfLabelScreen = null;
+      return null;
+    }
+    lastSelfLabelScreen = placed.selfNameAbove && placed.labelX != null
+      ? { x: placed.labelX, y: placed.labelY }
+      : null;
+    return {
+      headY: placed.headY,
+      selfNameAbove: placed.selfNameAbove,
+      labelX: placed.labelX,
+      labelY: placed.labelY
+    };
+  }
+  let minimapHud = null;
   let peerHideTimer = 0;
 
   function clearMoveInput() {
@@ -675,6 +856,97 @@ function boot() {
     const list = document.getElementById('islandList');
     const map = document.getElementById('islandMapSheet');
     return !!(list && !list.hidden) || !!(map && !map.hidden);
+  }
+
+  function exploreHudPanelsOpen() {
+    const more = document.getElementById('islandMoreSheet');
+    return hudBlocksInteract({
+      bigMapOpen: false,
+      moreOpen: !!(more && !more.hidden),
+      chatOpen: !!(islandChat && islandChat.isOpen())
+    });
+  }
+
+  function npcMotionT() {
+    const t = getNpcMotionTime();
+    return Number.isFinite(t) && t > 0 ? t : clock.elapsedTime;
+  }
+
+  function endNpcTalkResume() {
+    if (activeNpcRecord && activeNpcRecord.kind === 'walker') {
+      unfreezeNpcWalker(activeNpcRecord.row, npcMotionT(), reduced);
+    } else if (activeNpcRecord && activeNpcRecord.kind === 'idle') {
+      unfreezeNpcIdle(activeNpcRecord.row);
+    }
+    activeNpcRecord = null;
+  }
+
+  function closeNpcTalkIfOpen() {
+    if (npcTalk && npcTalk.isOpen()) npcTalk.close();
+  }
+
+  function beginNpcTalk(npc) {
+    if (!npc || !npcTalk) return false;
+    const record = npc.record;
+    if (record && record.row && record.row.obj) {
+      npc.x = record.row.obj.position.x;
+      npc.z = record.row.obj.position.z;
+    }
+    const now = performance.now();
+    if (record && record.kind === 'walker') {
+      freezeNpcWalker(record.row, npcMotionT(), reduced);
+      record.row.talkGreetAt = now;
+      record.row.state = npcFacePlayer(
+        record.row.state,
+        record.row.anim,
+        player.x,
+        player.z,
+        npc.x,
+        npc.z,
+        cam.theta,
+        false
+      );
+    } else if (record && record.kind === 'idle') {
+      freezeNpcIdle(record.row);
+      record.row.talkGreetAt = now;
+      record.row.state = npcFacePlayer(
+        record.row.state,
+        record.row.anim,
+        player.x,
+        player.z,
+        npc.x,
+        npc.z,
+        cam.theta,
+        !!record.row.seated
+      );
+    }
+    activeNpcRecord = record || null;
+    const anim = localView.anim();
+    const axes = screenAxes(npc.x - player.x, npc.z - player.z, cam.theta);
+    miluState = Object.assign({}, miluState, {
+      mode: 'wave',
+      frame: 0,
+      acc: 0,
+      waved: false,
+      facing: resolveFacing(miluState.facing, axes.x, axes.z, anim, false)
+    });
+    npcTalk.open(Object.assign({}, npc));
+    syncInteractPrompt();
+    return true;
+  }
+
+  function onNpcTalkInteract() {
+    if (npcTalk && npcTalk.isOpen()) {
+      npcTalk.advance();
+      syncInteractPrompt();
+      return true;
+    }
+    if (pendingNpcTalk) return beginNpcTalk(pendingNpcTalk);
+    return false;
+  }
+
+  function startNpcTalk() {
+    return onNpcTalkInteract();
   }
 
   function islandUiOpen() {
@@ -772,6 +1044,9 @@ function boot() {
   }
   let playerBob = 0;
   let activeInteract = '';
+  let pendingNpcTalk = null;
+  let activeNpcRecord = null;
+  let npcTalk = null;
   let boatState = createBoatState('main');
   let boatElapsed = 0;
   const steerBtn = document.getElementById('islandSteer');
@@ -877,8 +1152,9 @@ function boot() {
       deskText = '方向鍵或 WASD 開船，靠近碼頭可下船';
       touchText = '搖桿開船，靠近碼頭可下船';
     } else {
-      deskText = exploreHintText(inside, false);
-      touchText = exploreHintText(inside, true);
+      const roomId = inside && rooms.inside() ? rooms.id() : null;
+      deskText = exploreHintText(inside, false, roomId);
+      touchText = exploreHintText(inside, true, roomId);
     }
     if (desk && desk.textContent !== deskText) desk.textContent = deskText;
     if (touch && touch.textContent !== touchText) touch.textContent = touchText;
@@ -928,6 +1204,9 @@ function boot() {
       corner.syncMoreAudioLabel();
       corner.syncExploreHudLabels();
       corner.closeMore();
+    }
+    if (!exploring) {
+      syncPlayerAreaTitle(document, { interiorRoom: null, player: { x: 0, z: 0 } }, null);
     }
   }
 
@@ -1038,24 +1317,6 @@ function boot() {
     if (vehicleSpeedEl) {
       vehicleSpeedEl.textContent = vehicleSpeedKmh(vehicleState.vx, vehicleState.vz) + ' 公里／時';
     }
-    if (!vehicleMinimapCtx || !vehicleMinimap) return;
-    const w = vehicleMinimap.width;
-    const h = vehicleMinimap.height;
-    vehicleMinimapCtx.clearRect(0, 0, w, h);
-    vehicleMinimapCtx.fillStyle = 'rgba(255,250,246,0.92)';
-    vehicleMinimapCtx.fillRect(0, 0, w, h);
-    vehicleMinimapCtx.strokeStyle = 'rgba(31,77,115,0.35)';
-    vehicleMinimapCtx.strokeRect(4, 4, w - 8, h - 8);
-    const car = minimapNorm(vehicleState.carX, vehicleState.carZ);
-    vehicleMinimapCtx.fillStyle = '#ff8ac8';
-    vehicleMinimapCtx.beginPath();
-    vehicleMinimapCtx.arc(4 + car.u * (w - 8), 4 + car.v * (h - 8), 4, 0, Math.PI * 2);
-    vehicleMinimapCtx.fill();
-    vehicleMinimapCtx.fillStyle = '#1f4d73';
-    vehicleMinimapCtx.beginPath();
-    const p = minimapNorm(player.x, player.z);
-    vehicleMinimapCtx.arc(4 + p.u * (w - 8), 4 + p.v * (h - 8), 3, 0, Math.PI * 2);
-    vehicleMinimapCtx.fill();
   }
 
   async function startSteer(zone) {
@@ -1113,7 +1374,7 @@ function boot() {
       const showDrive = shouldShowInteractPrompt({
         exploring: mode.exploring,
         paused: mode.paused,
-        uiOpen: isSailing() || sheetOpen() || listOrMapOpen(),
+        uiOpen: isSailing() || sheetOpen() || listOrMapOpen() || exploreHudPanelsOpen(),
         lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
         zoneId: activeInteract
       });
@@ -1130,10 +1391,11 @@ function boot() {
       || (zone.stop === 'beach' && boatState.phase === 'docked-beach')
       || (zone.stop === 'city' && boatState.phase === 'docked-city')
     );
+    const hudPanelsOpen = exploreHudPanelsOpen();
     const show = shouldShowInteractPrompt({
       exploring: mode.exploring,
       paused: mode.paused,
-      uiOpen: isSailing() || sheetOpen() || listOrMapOpen(),
+      uiOpen: isSailing() || sheetOpen() || listOrMapOpen() || hudPanelsOpen,
       lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
       zoneId: activeInteract
     });
@@ -1146,6 +1408,57 @@ function boot() {
     if (zone && zone.action === 'openRoadmap') {
       casino.setPromptVisible(false);
       return false;
+    }
+    if (npcTalk && npcTalk.isOpen()) {
+      const stepLabel = npcTalk.interactPromptLabel();
+      activeInteract = 'npc-talk';
+      if (stepLabel) {
+        const showTalk = shouldShowInteractPrompt({
+          exploring: mode.exploring,
+          paused: mode.paused,
+          uiOpen: isSailing() || sheetOpen() || listOrMapOpen() || hudPanelsOpen,
+          lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
+          zoneId: 'npc-talk'
+        });
+        casino.setPromptVisible(showTalk, stepLabel, stepLabel);
+        return showTalk;
+      }
+      casino.setPromptVisible(false);
+      return false;
+    }
+    if (!zone && !rooms.inside()) {
+      const npcs = typeof people.collectTalkableNpcs === 'function' ? people.collectTalkableNpcs() : [];
+      pendingNpcTalk = shouldOfferNpcTalkPrompt({
+        exploring: mode.exploring,
+        paused: mode.paused,
+        indoor: false,
+        driving: false,
+        sailing: isSailing(),
+        steering: false,
+        uiOpen: isSailing() || sheetOpen() || listOrMapOpen() || hudPanelsOpen,
+        lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
+        chatOpen: !!(islandChat && islandChat.isOpen()),
+        talkOpen: false,
+        zone: null,
+        px: player.x,
+        pz: player.z,
+        npcs: npcs,
+        radius: MILU_ANIM.waveNpcRadius
+      });
+      if (pendingNpcTalk) {
+        activeInteract = 'npc-talk';
+        const showTalk = shouldShowInteractPrompt({
+          exploring: mode.exploring,
+          paused: mode.paused,
+          uiOpen: isSailing() || sheetOpen() || listOrMapOpen() || hudPanelsOpen,
+          lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
+          zoneId: 'npc-talk'
+        });
+        casino.setPromptVisible(showTalk, '聊天', npcTalkPromptLabel(pendingNpcTalk.name));
+        return showTalk;
+      }
+    } else {
+      pendingNpcTalk = null;
     }
     casino.setPromptVisible(show, zone && zone.label ? zone.label : '進入賭場');
     return show;
@@ -1164,6 +1477,7 @@ function boot() {
 
   function enterVehicleInteract() {
     if (isDriving() || isSailing() || isSteering()) return;
+    closeNpcTalkIfOpen();
     const next = enterVehicle(vehicleState, player.x, player.z);
     if (!isDrivingPhase(next.phase)) return;
     vehicleState = next;
@@ -1264,6 +1578,7 @@ function boot() {
         followPlayerCamera(instant);
       }
     } else {
+      closeNpcTalkIfOpen();
       if (isDriving()) {
         const pack = exitVehicle(vehicleState, { maxSpeed: 999 });
         vehicleState = pack.state || forceExitVehicle(vehicleState);
@@ -1651,6 +1966,9 @@ function boot() {
       );
     }
     updatePlayer(dt);
+    if (npcTalk && npcTalk.isOpen()) {
+      npcTalk.tick(dt, player);
+    }
     if (roomView && typeof roomView.tick === 'function') roomView.tick(dt);
     if (peerLayer) peerLayer.syncPresence(performance.now());
     cam.step(dt);
@@ -1673,10 +1991,46 @@ function boot() {
       }
     }
     if (peerLayer) peerLayer.stepPeers(dt);
+    if (minimapHud) minimapHud.tick(performance.now());
     dayNight.step(dt);
     loop.tick(dt, clock.elapsedTime);
     renderer.render(scene, camera);
+    placeSelfOverlaysEveryFrame();
     placeLabels();
+  }
+
+  function placeSelfOverlaysEveryFrame() {
+    if (peerLayer && typeof peerLayer.placeSelfOverlays === 'function') {
+      peerLayer.placeSelfOverlays();
+      return;
+    }
+    const w = stage.clientWidth || 1;
+    const h = stage.clientHeight || 1;
+    const placed = placeSelfLabelFrame({
+      width: w,
+      height: h,
+      camera: camera,
+      projected: projected,
+      peers: []
+    });
+    if (!islandChat) return;
+    const bubbleCtx = {
+      x: player.x,
+      y: placed && placed.headY != null ? placed.headY : P + 1.18,
+      z: player.z,
+      visible: !!(mode.exploring && (
+        localView.object.visible || miluPlaceholder.visible || playerMesh.visible
+      )),
+      width: w,
+      height: h,
+      camera: camera,
+      projected: projected,
+      peers: [],
+      selfNameAbove: !!(placed && placed.selfNameAbove),
+      labelX: placed && placed.labelX != null ? placed.labelX : null,
+      labelY: placed && placed.labelY != null ? placed.labelY : null
+    };
+    islandChat.placeBubbles(bubbleCtx);
   }
 
   function start() {
@@ -1791,12 +2145,6 @@ function boot() {
       syncInteractPrompt();
     });
     list.querySelectorAll('[data-island]').forEach((btn) => {
-      btn.addEventListener('click', () => jumpToIsland(btn.getAttribute('data-island')));
-    });
-  }
-  const mapSheet = document.getElementById('islandMapSheet');
-  if (mapSheet) {
-    mapSheet.querySelectorAll('[data-island]').forEach((btn) => {
       btn.addEventListener('click', () => jumpToIsland(btn.getAttribute('data-island')));
     });
   }
@@ -1959,6 +2307,7 @@ function boot() {
   });
   lifecycle.on('visibilityChange', (p) => {
     islandAudio.onVisibilityChange(p.hidden);
+    if (p.hidden) closeNpcTalkIfOpen();
   });
 
   function promptZones() {
@@ -1987,6 +2336,7 @@ function boot() {
   }
 
   function closeOverlayPanels() {
+    closeNpcTalkIfOpen();
     if (casino && casino.isOpen()) casino.closeLobby();
     if (graffiti && graffiti.isOpen()) graffiti.close();
     if (roadmap && roadmap.isOpen()) roadmap.close();
@@ -2081,10 +2431,40 @@ function boot() {
     return enterInterior('tcm-site');
   }
 
+  async function enterTcmHallFromReturn(pose) {
+    if (interiorBusy || rooms.inside()) return;
+    const buildingId = 'tcm-site';
+    const ticket = ++interiorGeneration;
+    interiorBusy = true;
+    footprints.setHidden(true);
+    clearMoveInput();
+    closeOverlayPanels();
+    placeLabels();
+    try {
+      const loader = INTERIOR_MODULES[buildingId];
+      if (!loader) throw new Error('no interior');
+      const mod = await loader();
+      if (ticket !== interiorGeneration) return;
+      mountRoom(mod.createInterior(THREE, { groundY: G, reducedMotion: reduced }));
+      const entered = rooms.enter(buildingId, performance.now());
+      if (!entered.ok) disposeRoom();
+      else applyPlayerPose(pose, true);
+    } catch (err) {
+      disposeRoom();
+      if (rooms.inside()) rooms.exit(performance.now());
+    }
+    if (ticket !== interiorGeneration) return;
+    interiorBusy = false;
+    syncExploreHint();
+    syncInteriorLeave();
+    syncInteractPrompt();
+    followPlayerCamera(true);
+  }
+
   async function enterTcmStudy() {
     if (interiorBusy || !mode.exploring || isSailing() || isSteering()) return;
     if (!rooms.inside() || !rooms.room() || rooms.room().id !== 'tcm-room') return;
-    writeTcmReturn(window.sessionStorage);
+    writeTcmReturn(window.sessionStorage, null, { target: 'hall' });
     const ticket = ++interiorGeneration;
     interiorBusy = true;
     clearMoveInput();
@@ -2117,6 +2497,7 @@ function boot() {
 
   function openGraffiti() {
     if (isSailing() || isSteering()) return;
+    closeNpcTalkIfOpen();
     if (casino && casino.isOpen()) casino.closeLobby();
     if (roadmap && roadmap.isOpen()) roadmap.close();
     if (graffiti) graffiti.open();
@@ -2149,6 +2530,7 @@ function boot() {
 
   function openRoadmap() {
     if (isSailing() || isSteering()) return;
+    closeNpcTalkIfOpen();
     if (casino && casino.isOpen()) casino.closeLobby();
     if (graffiti && graffiti.isOpen()) graffiti.close();
     if (roadmap) roadmap.open();
@@ -2171,6 +2553,10 @@ function boot() {
         return true;
       },
       onPrompt: () => {
+        if (activeInteract === 'npc-talk') {
+          onNpcTalkInteract();
+          return true;
+        }
         if (isSteering()) {
           disembarkSteer();
           return true;
@@ -2308,7 +2694,9 @@ function boot() {
     getCam: () => cam,
     syncPeerCount: () => {
       if (corner) corner.syncPeerCount();
-    }
+    },
+    placeSelfLabel: (partial) => placeSelfLabelFrame(partial),
+    getSelfLabelScreen: () => lastSelfLabelScreen
   });
 
   lifecycle.on('enterExplore', () => {
@@ -2329,6 +2717,7 @@ function boot() {
     scene: () => currentScene(),
     now: () => Date.now(),
     onWelcome: (msg) => {
+      selfLabel.invalidateText();
       peerLayer.setWelcomed(true);
       peerLayer.setSelfId(msg.id || '');
       const input = document.getElementById('islandNickInput');
@@ -2355,6 +2744,25 @@ function boot() {
     selfId: () => peerLayer.getSelfId(),
     now: () => Date.now()
   });
+  if (islandChat && typeof islandChat.open === 'function') {
+    const openChat = islandChat.open.bind(islandChat);
+    islandChat.open = function () {
+      closeNpcTalkIfOpen();
+      return openChat();
+    };
+  }
+
+  npcTalk = createIslandNpcTalk({
+    document: document,
+    window: window,
+    reduced: reduced,
+    hooks: {
+      onClose: () => {
+        endNpcTalkResume();
+        syncInteractPrompt();
+      }
+    }
+  });
 
   corner = createCornerUi({
     document: document,
@@ -2365,9 +2773,51 @@ function boot() {
     isWelcomed: () => peerLayer.getWelcomed(),
     getAudioMuted: () => islandAudio.muted,
     onAvatarChange: (id) => replaceLocalAvatar(id),
+    onNickSaved: () => selfLabel.invalidateText(),
+    onSelfNameToggle: () => selfLabel.invalidateText(),
     closeList: closeListPanel
   });
   corner.syncExploreHudLabels();
+
+  minimapHud = createMinimapHud({
+    document: document,
+    window: window,
+    isExploring: () => mode.exploring,
+    openLargeMap: () => corner && corner.setMapOpen(true),
+    onMapOpenChange: function () {},
+    onJumpToIsland: (id) => jumpToIsland(id),
+    getPaintState: function () {
+      const room = rooms.inside() ? rooms.room() : null;
+      const interior = rooms.inside();
+      let paintPlayer;
+      let worldPlayer;
+      if (isDriving()) {
+        worldPlayer = { x: vehicleState.carX, z: vehicleState.carZ, yaw: vehicleState.carYaw };
+      } else {
+        worldPlayer = { x: player.x, z: player.z, yaw: player.yaw };
+      }
+      if (interior) {
+        paintPlayer = {
+          x: player.x - INTERIOR_ORIGIN.x,
+          z: player.z - INTERIOR_ORIGIN.z,
+          yaw: player.yaw
+        };
+      } else if (isDriving()) {
+        paintPlayer = worldPlayer;
+      } else {
+        paintPlayer = worldPlayer;
+      }
+      return {
+        player: paintPlayer,
+        worldPlayer: worldPlayer,
+        interiorRoom: interior ? room : null,
+        vehicleState: vehicleState,
+        boatState: boatState,
+        peers: peerLayer ? peerLayer.collectMinimapPeers(performance.now()) : [],
+        nightMix: typeof dayNight.mix === 'number' ? dayNight.mix : (document.body.classList.contains('is-night') ? 1 : 0)
+      };
+    }
+  });
 
   const exploreKeyCtx = {
     window: window,
@@ -2380,7 +2830,15 @@ function boot() {
     casino: casino,
     graffiti: graffiti,
     roadmap: roadmap,
-    hitInteractZone: () => hitInteractZone(player.x, player.z, promptZones()),
+    hitInteractZone: () => {
+      if (activeInteract === 'npc-talk' && (pendingNpcTalk || (npcTalk && npcTalk.isOpen()))) {
+        return { id: 'npc-talk', action: NPC_TALK_ACTION, label: '聊天' };
+      }
+      return hitInteractZone(player.x, player.z, promptZones());
+    },
+    npcTalk: npcTalk,
+    onNpcTalkInteract: onNpcTalkInteract,
+    startNpcTalk: startNpcTalk,
     leaveInterior: leaveInterior,
     enterInterior: enterInterior,
     openGraffiti: openGraffiti,
@@ -2403,7 +2861,8 @@ function boot() {
     closeMap: () => corner && corner.closeMap(),
     closeList: closeListPanel,
     setNickOpen: (open) => corner && corner.setNickOpen(open),
-    setAvatarOpen: (open) => corner && corner.setAvatarOpen(open)
+    setAvatarOpen: (open) => corner && corner.setAvatarOpen(open),
+    openMap: () => corner && corner.setMapOpen(true)
   };
   createExploreKeys(exploreKeyCtx);
   createExplorePointer({
@@ -2436,8 +2895,25 @@ function boot() {
       }
     },
     isInside: () => rooms.inside(),
-    interiorMinRadius: INTERIOR_POSE.radius
+    interiorMinRadius: INTERIOR_POSE.radius,
+    getInteriorPoseRadius: () => {
+      if (!rooms.inside()) return null;
+      const custom = interiorFollowPose(rooms.room(), camera.aspect);
+      return (custom || INTERIOR_POSE).radius;
+    }
   });
+  if (typeof window !== 'undefined') {
+    window.__islandCam = () => ({
+      radius: cam.radius,
+      targetRadius: cam.targetRadius,
+      theta: cam.theta,
+      targetTheta: cam.targetTheta,
+      phi: cam.phi,
+      targetPhi: cam.targetPhi,
+      mode: mode,
+      inside: rooms.inside()
+    });
+  }
   createExploreJoystick({
     stickRoot: document.getElementById('islandJoystick'),
     stickKnob: document.getElementById('islandJoystickKnob'),
@@ -2451,6 +2927,20 @@ function boot() {
     setMode: setMode,
     setExplore: setExplore,
     isExploring: () => mode.exploring,
+    debugNpcs: perfEnabled && typeof people.collectTalkableNpcs === 'function'
+      ? () => people.collectTalkableNpcs()
+      : undefined,
+    debugTeleport: perfEnabled
+      ? (x, z, yaw) => {
+        player.x = x;
+        player.z = z;
+        if (Number.isFinite(yaw)) player.yaw = yaw;
+        setPlayerAnchor(player.x, P, player.z, player.yaw);
+        localView.object.position.set(player.x, P, player.z);
+        stepMilu(0, P);
+        syncInteractPrompt();
+      }
+      : undefined,
     openCasino: () => casino.openLobby(),
     closeCasino: () => casino.closeLobby(),
     isCasinoOpen: () => casino.isOpen(),
@@ -2470,13 +2960,21 @@ function boot() {
   const tcmRestore = consumeTcmReturn(window.sessionStorage);
   const open = document.querySelector('.dash-panel.is-active');
   if (tcmRestore) {
-    player.x = tcmRestore.x;
-    player.z = tcmRestore.z;
-    player.yaw = tcmRestore.yaw;
-    setPlayerAnchor(player.x, P, player.z, player.yaw);
-    localView.object.position.set(player.x, P, player.z);
-    stepMilu(0, P);
     setExplore(true, true);
+    if (tcmRestore.target === 'hall' && tcmRestore.buildingId === 'tcm-site') {
+      void enterTcmHallFromReturn({
+        x: tcmRestore.x,
+        z: tcmRestore.z,
+        yaw: tcmRestore.yaw
+      });
+    } else {
+      player.x = tcmRestore.x;
+      player.z = tcmRestore.z;
+      player.yaw = tcmRestore.yaw;
+      setPlayerAnchor(player.x, P, player.z, player.yaw);
+      localView.object.position.set(player.x, P, player.z);
+      stepMilu(0, P);
+    }
   } else if (open && !open.hasAttribute('hidden')) {
     const id = open.id.replace('panel-', '');
     applyPose(POSES[id] || POSES.home, true);
@@ -2487,4 +2985,6 @@ function boot() {
   renderer.render(scene, camera);
   placeLabels();
   if (!document.hidden) start();
+  applyIslandOpenRoadmapParam(window, () => roadmap.open());
+
 }

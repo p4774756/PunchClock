@@ -1,0 +1,117 @@
+/* 訪客 GitHub 引用與登入 toast：主島 roadmap 與 /dev-status 共用 */
+
+.dev-guest-ref {
+  color: var(--maple-muted);
+  text-decoration: none;
+  cursor: help;
+  font-weight: 700;
+}
+
+.dev-login-toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.65rem 0.85rem;
+  max-width: min(92vw, 360px);
+  pointer-events: auto;
+}
+
+.dev-login-toast.maple-window {
+  background: var(--maple-white);
+  border: 3px solid var(--maple-navy);
+  outline: 1px solid var(--maple-blue-lt);
+  outline-offset: -4px;
+  border-radius: 6px;
+  box-shadow: var(--maple-shadow);
+}
+
+.dev-login-toast-msg {
+  font-weight: 700;
+  margin: 0;
+  color: var(--maple-ink);
+}
+
+.dev-login-toast-btn {
+  min-height: 38px;
+  padding: 0.35rem 0.85rem;
+}
+
+.dev-login-toast-close {
+  border: 2px solid var(--maple-navy);
+  background: var(--maple-white);
+  border-radius: 4px;
+  min-width: 32px;
+  min-height: 32px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  color: var(--maple-ink);
+}
+
+.donate-toast {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.6rem 0.55rem 0.75rem;
+  max-width: min(92vw, 380px);
+  width: max-content;
+}
+
+.donate-toast-msg {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.donate-toast .dev-login-toast-close {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  font-size: 1.15rem;
+}
+
+.donate-toast--island {
+  top: max(68px, calc(env(safe-area-inset-top, 0px) + 56px));
+  bottom: auto;
+}
+
+.donate-toast--dev {
+  bottom: max(7.75rem, calc(env(safe-area-inset-bottom, 0px) + 6.75rem));
+  top: auto;
+}
+
+.dev-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.5rem 1.35rem;
+  border-radius: 6px;
+  border: 3px solid var(--maple-navy);
+  outline: 1px solid var(--maple-blue-lt);
+  outline-offset: -4px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.31);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.dev-btn-gold {
+  background: var(--maple-gold);
+  color: var(--maple-ink);
+  box-shadow: inset 0 1px 0 var(--maple-gold-hi), 2px 3px 0 rgba(0, 0, 0, 0.31);
+}

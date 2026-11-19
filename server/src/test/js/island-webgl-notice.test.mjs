@@ -167,7 +167,7 @@ test('index.html 含 WebGL 提示結構', () => {
 });
 
 test('CSS：按鈕觸控高度與版面約束', () => {
-  assert.match(islandCss, /\.island-webgl-notice-btn[\s\S]*min-height:\s*2\.75rem/);
+  assert.match(islandCss, /\.island-maple-btn[\s\S]*min-height:\s*2\.75rem/);
   assert.match(islandCss, /#islandWebglNotice[\s\S]*max-width:[\s\S]*800px/);
   assert.match(islandCss, /body\.island-body\.is-night \.island-webgl-notice-card/);
   assert.match(islandCss, /@media \(max-width: 760px\)[\s\S]*#islandWebglNotice[\s\S]*bottom:\s*calc\(12px \+ 2\.25rem/);

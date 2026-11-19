@@ -52,9 +52,9 @@ test('粉紅小車路邊停靠可立即起步', () => {
   const car = C.pinkCarWorld();
   assert.ok(V.vehicleNavigable(car.x, car.z));
   let state = V.enterVehicle(V.createVehicleState(), car.x, car.z);
-  const beforeZ = state.carZ;
-  state = V.stepVehicle(state, { x: 0, z: 1, moving: true }, 0.2, { reduced: false });
-  assert.ok(state.carZ > beforeZ + 0.02, '應能往北駛離');
+  const beforeX = state.carX;
+  state = V.stepVehicle(state, { x: -1, z: 0, moving: true }, 0.2, { reduced: false });
+  assert.ok(state.carX < beforeX - 0.02, '應能往西（朝車頭）駛離');
 });
 
 test('forceExitVehicle', () => {

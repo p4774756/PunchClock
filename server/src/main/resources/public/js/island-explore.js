@@ -137,6 +137,13 @@ export function controlsActive(state) {
   return !!(state && state.exploring && !state.paused && !state.lobby);
 }
 
+/** 室內跟隨下限：不超過該房間進門時的 pose 半徑（手機近景可低於 INTERIOR_POSE）。 */
+export function effectiveInteriorOrbitMin(configuredMin, poseRadius) {
+  if (configuredMin == null) return null;
+  if (poseRadius == null || !Number.isFinite(poseRadius)) return configuredMin;
+  return Math.min(configuredMin, poseRadius);
+}
+
 // 跟隨角色時戶外最近 6.5；室內把下限降到該房間的預設距離，離開後仍用 6.5。
 // 非跟隨（全景）維持 11–128。delta 是滾輪已經乘上 0.01 的距離變化。
 export function clampOrbitRadius(current, delta, following, indoorMin) {
@@ -259,6 +266,14 @@ export function shouldShowInteractPrompt(ctx) {
   if (!ctx) return false;
   if (!ctx.exploring || ctx.paused || ctx.uiOpen || ctx.lobbyOpen) return false;
   return !!(ctx.zoneId);
+}
+
+/**
+ * 探索 HUD 是否應擋住情境鈕／門口提示（常駐小地圖不算面板）。
+ */
+export function hudBlocksInteract(ctx) {
+  if (!ctx) return false;
+  return !!(ctx.bigMapOpen || ctx.moreOpen || ctx.chatOpen);
 }
 
 /** Enter／E 是否觸發目前互動提示（不搶輸入框與其它可聚焦 UI）。 */

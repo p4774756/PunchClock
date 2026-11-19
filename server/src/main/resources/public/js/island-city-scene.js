@@ -5,7 +5,8 @@ import { islandById } from './island-layout.js';
 import { G } from './island-kit.js';
 import {
   CITY_ID,
-  PINK_CAR_LOCAL
+  PINK_CAR_LOCAL,
+  PINK_CAR_ROOF_Y_FALLBACK
 } from './island-city-data.js';
 import { applyCityMaterials, applyCarMaterials } from './island-city-materials.js';
 
@@ -146,6 +147,11 @@ export function buildIslandCity(ctx) {
     const model = gltf.scene;
     applyCarMaterials(model, kit);
     car.add(model);
+    const box = new THREE.Box3().setFromObject(model);
+    const roofY = box.max.y;
+    if (ctx.pinkCarMesh) {
+      ctx.pinkCarMesh.roofY = roofY > 0.05 ? roofY : PINK_CAR_ROOF_Y_FALLBACK;
+    }
     finishRefresh();
   }).catch((err) => {
     console.warn('[Island] city-pink-car.glb 載入失敗，保留占位：', err);
@@ -157,6 +163,7 @@ export function buildIslandCity(ctx) {
       wheelMesh.rotation.z = Math.PI / 2;
       car.add(wheelMesh);
     });
+    if (ctx.pinkCarMesh) ctx.pinkCarMesh.roofY = 0.77;
   });
 
   const peopleApi = ctx.people || {};

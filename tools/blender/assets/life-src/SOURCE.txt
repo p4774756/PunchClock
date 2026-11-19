@@ -1,0 +1,44 @@
+海空生物 v3（#226）來源模型
+取用日期：2026-11-19（Asia/Taipei），由 Oki 從 Poly Pizza 靜態鏡像下載，未修改。
+CC0 1.0：https://creativecommons.org/publicdomain/zero/1.0/
+CC-BY 3.0：https://creativecommons.org/licenses/by/3.0/ （需標註作者）
+
+whale-quaternius.glb
+  Whale, by Quaternius, CC0 1.0
+  https://poly.pizza/m/JGFwp6xWgk
+  https://static.poly.pizza/7300e697-2543-4a9a-a77d-dedf29251fd7.glb
+
+fish-quaternius.glb
+  Fish, by Quaternius, CC0 1.0
+  https://poly.pizza/m/XWl86YFtpF
+  https://static.poly.pizza/311a79f6-ba3e-47aa-80ce-04185fc76b2a.glb
+
+snake-quaternius.glb
+  Snake, by Quaternius, CC0 1.0
+  https://poly.pizza/m/x9x0viZs8V
+  https://static.poly.pizza/0f3a551e-743e-48f5-936f-804c6c3b88bd.glb
+
+seagull-flying-polygoogle.glb
+  Flying seagull, by Poly by Google, CC-BY 3.0
+  https://poly.pizza/m/6Tpj_vcWP3f
+  https://static.poly.pizza/ee7ad6b3-ebdc-4494-ba1e-8b6190004df5.glb
+
+gull-flying-polygoogle.glb
+  Flying gull, by Poly by Google, CC-BY 3.0
+  https://poly.pizza/m/eMNhHDZakYp
+  https://static.poly.pizza/882c4ff3-c97b-4ae2-aedf-953c8d692898.glb
+
+turtle-sea-polygoogle.glb
+  Turtle, by Poly by Google, CC-BY 3.0
+  https://poly.pizza/m/fklSEvGm1Q8
+  https://static.poly.pizza/7c64cc2c-b9aa-4edd-bc32-9e95d66ca5e0.glb
+
+snake-long-polygoogle.glb
+  Snake, by Poly by Google, CC-BY 3.0
+  https://poly.pizza/m/2ovwPNrRijL
+  https://static.poly.pizza/510ac0ee-7b6b-4d0f-b409-5d60f5181cc3.glb
+
+octopus-polygoogle.glb
+  Octopus, by Poly by Google, CC-BY 3.0
+  https://poly.pizza/m/9-b6-yqrwEe
+  https://static.poly.pizza/d87e72b2-5b68-416a-99ce-1206acec3fd7.glb

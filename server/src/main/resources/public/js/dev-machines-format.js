@@ -4,6 +4,9 @@ const MS_MIN = 60 * 1000;
 const MS_HOUR = 60 * MS_MIN;
 const MS_DAY = 24 * MS_HOUR;
 const TAIPEI_OFFSET_MS = 8 * MS_HOUR;
+const GITHUB_REPO = 'https://github.com/p4774756/PunchClock';
+const LOGIN_PATH = '/login';
+const TOAST_MS = 4000;
 
 export const MACHINE_ROLE = {
   office: '辦公室 Mac',
@@ -91,22 +94,32 @@ export function roadmapItemTotals(phases) {
   return { done, total };
 }
 
-/** 子項全勾視為已完成（即使上級未勾）。 */
+/** done 已完成；active 施工中（current）；progress 進行中（部分完成）；pending 未開工。 */
 export function effectivePhaseStatus(phase, current) {
   if (!phase) return 'pending';
   const pr = phaseItemProgress(phase);
   if (pr.total > 0 && pr.done >= pr.total) return 'done';
   if (phase.done) return 'done';
   if (phase.phase != null && phase.phase === current) return 'active';
+  if (pr.total > 0 && pr.done > 0 && pr.done < pr.total) return 'progress';
   return 'pending';
 }
 
 export function shouldFetchDevMachines(authenticated) {
+  if (arguments.length === 0) {
+    const w = typeof globalThis !== 'undefined' ? globalThis : null;
+    return !!(w && w.PUNCHCLOCK_AUTHENTICATED === true);
+  }
   return authenticated === true;
 }
 
-export function shouldShowDevStatusNavLink(authenticated) {
-  return authenticated === true;
+export function shouldShowDevStatusNavLink() {
+  return true;
+}
+
+export function viewerCanLink(viewerOrAuth) {
+  if (typeof viewerOrAuth === 'string') return viewerOrAuth === 'admin';
+  return viewerOrAuth === true;
 }
 
 /** 最後回報：剛剛、N 分鐘前、N 小時前、尚無回報 */
@@ -136,25 +149,44 @@ export function formatRunDuration(runStartedAt, nowMs) {
   return '已跑 ' + hours + ' 小時 ' + rem + ' 分';
 }
 
+export function formatRoundLabel(round) {
+  const n = Number(round);
+  if (!Number.isFinite(n) || n === 0) return '初版';
+  return '第 ' + n + ' 輪';
+}
+
+function issueUrl(issue, repo) {
+  const base = repo || GITHUB_REPO;
+  return base.replace(/\/$/, '') + '/issues/' + issue;
+}
+
+function clipTitle(title, max) {
+  const s = title == null ? '' : String(title);
+  if (s.length <= max) return s;
+  return s.slice(0, Math.max(1, max - 1)) + '…';
+}
+
 export function formatMachineWork(machine, repo) {
   const m = machine || {};
   if (!m.online) {
     return { text: '—', href: null };
   }
-  if (m.issue == null) {
-    return { text: '閒置', href: null };
+  const runs = Array.isArray(m.runs) ? m.runs : [];
+  if (runs.length > 0) {
+    return { text: runs.length + ' 條進行中', href: null };
   }
-  const href = issueUrl(m.issue, repo);
+  if (m.issue != null) {
+    const href = issueUrl(m.issue, repo);
+    if (m.agentRunning === true) {
+      const title = m.issueTitle ? ' ' + String(m.issueTitle) : '';
+      return { text: '正在跑 #' + m.issue + title, href: href };
+    }
+    return { text: '等待 review・#' + m.issue, href: href };
+  }
   if (m.agentRunning === true) {
-    const title = m.issueTitle ? ' ' + String(m.issueTitle) : '';
-    return { text: '正在跑 #' + m.issue + title, href: href };
+    return { text: 'Cursor 執行中（未標記工作）', href: null };
   }
-  return { text: '等待 review・#' + m.issue, href: href };
-}
-
-function issueUrl(issue, repo) {
-  const base = repo || 'https://github.com/p4774756/PunchClock';
-  return base.replace(/\/$/, '') + '/issues/' + issue;
+  return { text: '閒置', href: null };
 }
 
 export function formatCursorLine(agentRunning) {
@@ -171,14 +203,30 @@ export function formatBatteryLine(machine) {
   return line;
 }
 
+function formatRunsIssueSummary(runs) {
+  const list = Array.isArray(runs) ? runs : [];
+  if (!list.length) return '閒置';
+  const shown = list.slice(0, 3).map((r) => '#' + r.issue);
+  let inner = shown.join(' ');
+  if (list.length > 3) inner += ' …';
+  return '跑 ' + list.length + ' 條（' + inner + '）';
+}
+
 /** 研發樓螢幕單行：小貓 在線・跑 #126 */
 export function formatLabDevMachineLine(machine) {
   const m = machine || {};
   const label = m.label || m.machine || '';
   if (!m.online) return label + ' 離線';
-  let work = '閒置';
-  if (m.issue != null) {
+  const runs = Array.isArray(m.runs) ? m.runs : [];
+  let work;
+  if (runs.length > 0) {
+    work = formatRunsIssueSummary(runs);
+  } else if (m.issue != null) {
     work = m.agentRunning === true ? '跑 #' + m.issue : '等待 review・#' + m.issue;
+  } else if (m.agentRunning === true) {
+    work = 'Cursor 執行中（未標記工作）';
+  } else {
+    work = '閒置';
   }
   return label + ' 在線・' + work;
 }
@@ -210,17 +258,269 @@ export function appendLabMachineLines(baseLines, machineLines) {
   return before.concat(after);
 }
 
-export function mergeRoadmapDevStatusLink(doc, container, authenticated) {
+const DEV_STATUS_LOGIN_NEXT = '/login?next=/dev-status';
+
+export function mergeRoadmapDevStatusLink(doc, container, opts) {
   if (!doc || !container) return;
   while (container.firstChild) container.removeChild(container.firstChild);
-  if (!shouldShowDevStatusNavLink(authenticated)) {
+  if (!shouldShowDevStatusNavLink()) {
     container.hidden = true;
     return;
   }
   container.hidden = false;
+  const o = opts || {};
+  const authed = viewerCanLink(o.authenticated);
   const a = doc.createElement('a');
   a.className = 'roadmap-btn roadmap-btn-secondary';
   a.href = '/dev-status';
   a.textContent = '開發機狀態';
+  if (!authed) {
+    bindGuestDevStatusNav(a, doc, o);
+  }
   container.appendChild(a);
+}
+
+function bindGuestDevStatusNav(node, doc, opts) {
+  const loginHref = (opts && opts.loginHref) || DEV_STATUS_LOGIN_NEXT;
+  const toastMessage = (opts && opts.toastMessage) || '開發機狀態需登入後查看';
+  const open = (ev) => {
+    if (ev) ev.preventDefault();
+    showLoginRequiredToast(doc, loginHref, toastMessage);
+  };
+  node.addEventListener('click', open);
+  node.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' || ev.key === ' ') {
+      ev.preventDefault();
+      open(ev);
+    }
+  });
+}
+
+/** 從 location.search 解析 ?open= 參數（純函式，可供測試）。 */
+export function parseIslandOpenParam(search) {
+  const raw = search == null ? '' : String(search);
+  const qs = raw.startsWith('?') ? raw.slice(1) : raw;
+  if (!qs) return '';
+  try {
+    return new URLSearchParams(qs).get('open') || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+export function shouldOpenRoadmapFromSearch(search) {
+  return parseIslandOpenParam(search) === 'roadmap';
+}
+
+/** 島嶼首頁載入後若帶 open=roadmap，開路線圖並清掉 query。 */
+export function applyIslandOpenRoadmapParam(win, openRoadmapFn) {
+  if (!win || !win.location || typeof openRoadmapFn !== 'function') return false;
+  if (!shouldOpenRoadmapFromSearch(win.location.search)) return false;
+  openRoadmapFn();
+  try {
+    const url = new URL(win.location.href);
+    url.searchParams.delete('open');
+    const q = url.searchParams.toString();
+    const next = url.pathname + (q ? '?' + q : '') + (url.hash || '');
+    if (win.history && typeof win.history.replaceState === 'function') {
+      win.history.replaceState(null, '', next);
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  return true;
+}
+
+let toastDismiss = null;
+
+export function isLoginRequiredToastOpen(doc) {
+  return !!(doc && doc.querySelector && doc.querySelector('[data-dev-login-toast]'));
+}
+
+export function dismissLoginToast(doc) {
+  if (toastDismiss) {
+    toastDismiss();
+    toastDismiss = null;
+  }
+  if (!doc || !doc.body) return;
+  const existing = doc.querySelector('[data-dev-login-toast]');
+  if (existing && existing.parentNode) {
+    existing.parentNode.removeChild(existing);
+  }
+}
+
+export function showLoginRequiredToast(doc, loginHref, message) {
+  if (!doc || !doc.body) return;
+  dismissLoginToast(doc);
+  const href = loginHref || LOGIN_PATH;
+  const wrap = doc.createElement('div');
+  wrap.className = 'dev-login-toast maple-window';
+  wrap.setAttribute('data-dev-login-toast', '1');
+  wrap.setAttribute('role', 'status');
+  const msg = doc.createElement('p');
+  msg.className = 'dev-login-toast-msg';
+  msg.textContent = message == null || message === '' ? '登入後才能查看連結' : String(message);
+  const btn = doc.createElement('a');
+  btn.className = 'dev-btn dev-btn-gold dev-login-toast-btn';
+  btn.href = href;
+  btn.textContent = '登入';
+  const close = doc.createElement('button');
+  close.type = 'button';
+  close.className = 'dev-login-toast-close';
+  close.setAttribute('aria-label', '關閉');
+  close.textContent = '×';
+  const teardown = () => {
+    if (doc.removeEventListener) doc.removeEventListener('keydown', onKey, true);
+    if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+    if (toastDismiss === teardown) toastDismiss = null;
+  };
+  const onKey = (ev) => {
+    if (ev.key !== 'Escape') return;
+    if (!wrap.parentNode) return;
+    if (ev.stopPropagation) ev.stopPropagation();
+    if (ev.preventDefault) ev.preventDefault();
+    teardown();
+  };
+  close.addEventListener('click', teardown);
+  if (doc.addEventListener) doc.addEventListener('keydown', onKey, true);
+  wrap.appendChild(msg);
+  wrap.appendChild(btn);
+  wrap.appendChild(close);
+  doc.body.appendChild(wrap);
+  toastDismiss = teardown;
+  setTimeout(teardown, TOAST_MS);
+}
+
+function bindGuestLinkActivate(node, doc, loginHref) {
+  const open = (ev) => {
+    if (ev) ev.preventDefault();
+    showLoginRequiredToast(doc, loginHref);
+  };
+  node.addEventListener('click', open);
+  node.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' || ev.key === ' ') {
+      ev.preventDefault();
+      open(ev);
+    }
+  });
+}
+
+/** 管理員：<a>；訪客：不可點的純文字＋ toast。 */
+export function createGithubLink(doc, opts) {
+  const o = opts || {};
+  const text = o.text == null ? '' : String(o.text);
+  const href = o.href || issueUrl(o.issue, o.repo);
+  const canLink = viewerCanLink(o.canLink);
+  if (canLink) {
+    const a = doc.createElement('a');
+    if (o.className) a.className = o.className;
+    else a.className = 'dev-link';
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = text;
+    return a;
+  }
+  const span = doc.createElement(o.tagName || 'span');
+  span.className = (o.className ? o.className + ' ' : '') + 'dev-guest-ref';
+  span.textContent = text;
+  span.setAttribute('role', 'link');
+  span.setAttribute('tabindex', '0');
+  span.setAttribute('aria-disabled', 'true');
+  bindGuestLinkActivate(span, doc, o.loginHref);
+  return span;
+}
+
+export function applyGithubSourceLabel(doc, el, href, canLink) {
+  if (!doc || !el) return;
+  const url = href || GITHUB_REPO + '/issues/36';
+  const match = /\/issues\/(\d+)\s*$/.exec(url);
+  const label = '資料來源：GitHub #' + (match ? match[1] : '36');
+  el.classList.remove('dev-guest-ref');
+  el.removeAttribute('role');
+  el.removeAttribute('tabindex');
+  el.removeAttribute('aria-disabled');
+  if (viewerCanLink(canLink)) {
+    if (el.tagName && String(el.tagName).toLowerCase() === 'a') {
+      el.href = url;
+      el.target = '_blank';
+      el.rel = 'noopener noreferrer';
+      el.textContent = label;
+    } else {
+      while (el.firstChild) el.removeChild(el.firstChild);
+      const a = doc.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = label;
+      el.appendChild(a);
+    }
+  } else {
+    el.removeAttribute('href');
+    el.removeAttribute('target');
+    el.removeAttribute('rel');
+    el.textContent = label;
+    el.classList.add('dev-guest-ref');
+    el.setAttribute('role', 'link');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-disabled', 'true');
+    bindGuestLinkActivate(el, doc, LOGIN_PATH);
+  }
+}
+
+export function formatShortSha(commit) {
+  if (commit == null || commit === '') return '';
+  return String(commit).slice(0, 7);
+}
+
+export function buildRunRows(doc, runs, nowMs, opts) {
+  const list = Array.isArray(runs) ? runs : [];
+  const o = opts || {};
+  const canLink = o.canLink;
+  const repo = o.repo || GITHUB_REPO;
+  const ul = doc.createElement('ul');
+  ul.className = 'dev-run-list';
+  list.forEach((run) => {
+    const li = doc.createElement('li');
+    li.className = 'dev-run-row';
+    const head = doc.createElement('div');
+    head.className = 'dev-run-head';
+    head.appendChild(createGithubLink(doc, {
+      className: 'dev-run-issue',
+      href: issueUrl(run.issue, repo),
+      text: '#' + run.issue,
+      canLink: canLink
+    }));
+    if (run.issueTitle) {
+      const title = doc.createElement('span');
+      title.className = 'dev-run-title';
+      title.textContent = clipTitle(run.issueTitle, 42);
+      head.appendChild(title);
+    }
+    li.appendChild(head);
+    const chip = doc.createElement('span');
+    chip.className = 'dev-round-chip';
+    chip.textContent = formatRoundLabel(run.round);
+    li.appendChild(chip);
+    const meta = doc.createElement('div');
+    meta.className = 'dev-run-meta';
+    const dur = doc.createElement('span');
+    dur.textContent = formatRunDuration(run.startedAt, nowMs);
+    meta.appendChild(dur);
+    if (run.branch) {
+      const br = doc.createElement('span');
+      br.className = 'dev-run-branch';
+      br.textContent = run.branch;
+      meta.appendChild(br);
+    }
+    if (run.commit) {
+      const sha = doc.createElement('span');
+      sha.className = 'dev-run-sha';
+      sha.textContent = formatShortSha(run.commit);
+      meta.appendChild(sha);
+    }
+    li.appendChild(meta);
+    ul.appendChild(li);
+  });
+  return ul;
 }

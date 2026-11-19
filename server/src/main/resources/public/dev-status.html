@@ -5,8 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>開發機狀態</title>
   <link rel="stylesheet" href="/css/dev-machines.css">
+  <link rel="stylesheet" href="/css/dev-guest-ui.css">
 </head>
 <body class="dev-machines-page">
+  <script>window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};</script>
+  <script>window.PUNCHCLOCK_DONATE = {{DONATE_SCRIPT}};</script>
   <div class="dev-machines-frame">
     <header class="dev-machines-header">
       <h1>開發機狀態</h1>
@@ -16,7 +19,10 @@
       <div id="devMachinesRoot" class="dev-machines-root" aria-live="polite"></div>
     </main>
     <footer class="dev-machines-footer">
+      <a class="dev-btn dev-btn-action" href="/?open=roadmap">施工進度</a>
       <a class="dev-btn dev-btn-action" href="/">返回島嶼首頁</a>
+      <a class="dev-btn dev-btn-secondary dev-machines-login-footer" href="/login?next=/dev-status">管理員登入</a>
+      <a class="dev-machines-donate dev-machines-donate-link" id="devMachinesDonate" href="{{DONATE_URL}}" target="_blank" rel="noopener noreferrer"><span class="island-donate-heart" aria-hidden="true">♥</span><span>贊助</span></a>
     </footer>
   </div>
   <script type="module" src="/js/dev-machines.js"></script>

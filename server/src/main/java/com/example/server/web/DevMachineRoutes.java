@@ -50,8 +50,11 @@ public final class DevMachineRoutes {
     }
 
     private void devStatusPage(Context ctx) {
+        boolean authenticated = authService.isAuth(ctx);
         ctx.header("Cache-Control", "no-cache, must-revalidate");
-        ctx.html(readResource("/public/dev-status.html"));
+        String html = com.example.server.util.DonatePageTokens.apply(readResource("/public/dev-status.html"))
+                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false");
+        ctx.html(html);
     }
 
     private void heartbeat(Context ctx) {
@@ -125,7 +128,7 @@ public final class DevMachineRoutes {
         if (!authService.isAuth(ctx)) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(
                     "success", false,
-                    "message", "請先登入管理員"
+                    "message", "請先登入"
             ));
             return;
         }
@@ -134,6 +137,7 @@ public final class DevMachineRoutes {
         DevMachineStore.IssueTitleResolver titles = issue -> issueTitle(view, issue);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("success", true);
+        payload.put("viewer", "admin");
         payload.put("machines", store.listForApi(now, titles));
         ctx.json(payload);
     }

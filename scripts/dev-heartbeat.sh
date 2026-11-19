@@ -158,6 +158,180 @@ read_run() {
   fi
 }
 
+worktree_head_short() {
+  wt=$1
+  if [ -z "$wt" ]; then
+    return 1
+  fi
+  if [ -n "$MOCK_GIT_SHORT" ]; then
+    printf '%s' "$MOCK_GIT_SHORT"
+    return 0
+  fi
+  if command -v git >/dev/null 2>&1 && { [ -d "$wt/.git" ] || [ -d "$wt" ]; }; then
+    sha=$(git -C "$wt" rev-parse --short HEAD 2>/dev/null)
+    if [ -n "$sha" ]; then
+      printf '%s' "$sha"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+pick_longest_run_from_json() {
+  printf '%s' "$1" | awk '
+    BEGIN { best_st = -1; bi = ""; bb = ""; bst = -1 }
+    {
+      s = $0
+      gsub(/^\[/, "", s)
+      gsub(/\]$/, "", s)
+      n = split(s, chunks, /},{/)
+      for (i = 1; i <= n; i++) {
+        c = chunks[i]
+        if (i < n) c = c "}"
+        issue = 0; branch = ""; st = -1
+        if (match(c, /"issue":([0-9]+)/)) issue = substr(c, RSTART + 8, RLENGTH - 8) + 0
+        if (match(c, /"branch":"[^"]+"/)) branch = substr(c, RSTART + 10, RLENGTH - 11)
+        if (match(c, /"startedAt":([0-9]+)/)) st = substr(c, RSTART + 13, RLENGTH - 13) + 0
+        if (st >= 0 && (best_st < 0 || st < best_st)) {
+          best_st = st
+          bi = issue
+          bb = branch
+          bst = st
+        }
+      }
+    }
+    END {
+      if (best_st >= 0) printf "%s|%s|%s", bi, bb, bst
+    }
+  '
+}
+
+# 解析 ps 輸出中的 run-wt.sh run<N>[-f<K>] … <worktree>
+read_wt_runs() {
+  RUNS_JSON="[]"
+  if [ -n "$MOCK_PS_OUTPUT" ]; then
+    ps_out="$MOCK_PS_OUTPUT"
+  else
+    ps_out=$(ps -axo etime=,command= 2>/dev/null)
+  fi
+  [ -z "$ps_out" ] && return 0
+  now_ms=$(date +%s)000
+  tsv=$(printf '%s\n' "$ps_out" | awk -v now_ms="$now_ms" '
+    function etime_ms(e,    n, d, h, m, s) {
+      gsub(/^[ \t]+|[ \t]+$/, "", e)
+      n = split(e, p, /[-:]/)
+      if (e ~ /^[0-9]+-[0-9]+:[0-9]+:[0-9]+$/) {
+        d = p[1] + 0; h = p[2] + 0; m = p[3] + 0; s = p[4] + 0
+        return (d * 86400000 + h * 3600000 + m * 60000 + s * 1000)
+      }
+      if (e ~ /^[0-9]+:[0-9]+:[0-9]+$/) {
+        h = p[1] + 0; m = p[2] + 0; s = p[3] + 0
+        return (h * 3600000 + m * 60000 + s * 1000)
+      }
+      if (e ~ /^[0-9]+:[0-9]+$/) {
+        m = p[1] + 0; s = p[2] + 0
+        return (m * 60000 + s * 1000)
+      }
+      return 0
+    }
+    function json_str(s) {
+      gsub(/\\/, "\\\\", s)
+      gsub(/"/, "\\\"", s)
+      return s
+    }
+  function is_run_wt_argv(    sh, script, tok) {
+    sh = $2
+    if (sh ~ /(^|\/)(sh|bash)$/) {
+      script = $3
+      tok = $4
+      if (script ~ /(^|\/)run-wt\.sh$/ && tok ~ /^run[0-9]+(-f[0-9]+)?$/) {
+        run_argv_tok = tok
+        return 1
+      }
+    }
+    script = $2
+    tok = $3
+    if (script ~ /(^|\/)run-wt\.sh$/ && tok ~ /^run[0-9]+(-f[0-9]+)?$/) {
+      run_argv_tok = tok
+      return 1
+    }
+    return 0
+  }
+    BEGIN { count = 0 }
+    {
+      if (!is_run_wt_argv()) next
+      et = $1
+      elapsed = etime_ms(et)
+      started = now_ms - elapsed
+      issue = 0
+      round = 0
+      tok = run_argv_tok
+      sub(/^run/, "", tok)
+      if (match(tok, /^[0-9]+/)) {
+        issue = substr(tok, RSTART, RLENGTH) + 0
+      }
+      if (match(tok, /-f[0-9]+/)) {
+        rpart = substr(tok, RSTART, RLENGTH)
+        sub(/^-f/, "", rpart)
+        round = rpart + 0
+      }
+      if (issue < 1) next
+      branch = "ai/issue-" issue
+      wt = ""
+      n = NF
+      while (n > 1) {
+        cand = $n
+        if (cand ~ /^(\/|~)/) {
+          wt = cand
+          break
+        }
+        n--
+      }
+      if (!(issue in best_started) || started > best_started[issue]) {
+        best_started[issue] = started
+        best_round[issue] = round
+        best_branch[issue] = branch
+        best_wt[issue] = wt
+      }
+    }
+    END {
+      for (i in best_started) {
+        if (count >= 12) continue
+        printf "%s\t%s\t%s\t%s\t%s\n", i, best_round[i], best_branch[i], best_started[i], best_wt[i]
+        count++
+      }
+    }
+  ')
+  if [ -z "$tsv" ]; then
+    RUNS_JSON="[]"
+    return 0
+  fi
+  json="["
+  sep=""
+  while IFS='	' read -r issue round branch started wt; do
+    [ -z "$issue" ] && continue
+    commit_json=""
+    if [ -n "$wt" ]; then
+      sha=$(worktree_head_short "$wt") || sha=""
+      if [ -n "$sha" ]; then
+        commit_json=$(printf ',"commit":"%s"' "$sha")
+      fi
+    fi
+    wt_json=""
+    if [ -n "$wt" ]; then
+      wt_json=$(printf ',"worktree":"%s"' "$wt")
+    fi
+    part=$(printf '{"issue":%s,"round":%s,"branch":"%s","startedAt":%s%s%s}' \
+      "$issue" "$round" "$branch" "$started" "$wt_json" "$commit_json")
+    json="$json$sep$part"
+    sep=","
+  done <<EOF
+$tsv
+EOF
+  json="$json]"
+  RUNS_JSON="$json"
+}
+
 git_commit() {
   repo=$(pick_env PUNCHCLOCK_REPO)
   if [ -z "$repo" ]; then
@@ -186,6 +360,15 @@ do_beat() {
     exit 0
   fi
   read_run
+  read_wt_runs
+  if [ -z "$ISSUE" ] && [ "$RUNS_JSON" != "[]" ]; then
+  picked=$(pick_longest_run_from_json "$RUNS_JSON")
+    if [ -n "$picked" ]; then
+      ISSUE=$(printf '%s' "$picked" | cut -d'|' -f1)
+      BRANCH=$(printf '%s' "$picked" | cut -d'|' -f2)
+      STARTED=$(printf '%s' "$picked" | cut -d'|' -f3)
+    fi
+  fi
   BATTERY_JSON=""
   COMMIT_JSON=""
   read_battery
@@ -198,8 +381,9 @@ do_beat() {
   issue_json=$(json_issue_field "$ISSUE")
   branch_json=$(json_branch_field "$BRANCH")
   started_json=$(json_started_field "$STARTED")
-  payload=$(printf '{"machine":"%s","issue":%s,"branch":%s,"runStartedAt":%s,"agentRunning":%s%s%s}' \
-    "$machine" "$issue_json" "$branch_json" "$started_json" "$agent" "$COMMIT_JSON" "$BATTERY_JSON")
+  runs_json="$RUNS_JSON"
+  payload=$(printf '{"machine":"%s","issue":%s,"branch":%s,"runStartedAt":%s,"agentRunning":%s,"runs":%s%s%s}' \
+    "$machine" "$issue_json" "$branch_json" "$started_json" "$agent" "$runs_json" "$COMMIT_JSON" "$BATTERY_JSON")
   if ! command -v curl >/dev/null 2>&1; then
     exit 0
   fi
