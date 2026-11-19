@@ -127,6 +127,15 @@ export function idleFootY(seated) {
   return seated ? G : P;
 }
 
+/** GLB 模板在場景中隱藏；SkeletonUtils.clone 會複製 visible，實例需再設回 true。 */
+export function revealNpcInstanceRoot(root) {
+  if (!root) return;
+  root.visible = true;
+  root.traverse((child) => {
+    child.visible = true;
+  });
+}
+
 export function samplePathPoints(path, stepsPerEdge = 6) {
   const out = [];
   if (!path || !path.length) return out;

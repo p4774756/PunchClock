@@ -130,6 +130,21 @@ test('全量行人 draw call 預算', () => {
   assert.equal(D.NPC_GLB_STATS.drawCallsEst, est);
 });
 
+test('NPC 實例 clone 後根與子節點可見', () => {
+  const child = { visible: false };
+  const root = {
+    visible: false,
+    traverse(fn) {
+      fn(this);
+      fn(child);
+    }
+  };
+  D.revealNpcInstanceRoot(root);
+  assert.equal(root.visible, true);
+  assert.equal(child.visible, true);
+  assert.match(peopleJs, /revealNpcInstanceRoot\(root\)/);
+});
+
 test('GLB 每造型 walk／idle 動畫', () => {
   const g = glbJsonChunk(glbPath);
   const names = new Set((g.animations || []).map((a) => a.name));
