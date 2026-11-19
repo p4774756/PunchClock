@@ -16,7 +16,7 @@ import {
 const REFRESH_MS = 30 * 1000;
 const REPO = 'https://github.com/p4774756/PunchClock';
 const MERGED_PREVIEW = 8;
-const LOGIN_PATH = '/login';
+const LOGIN_NEXT = '/login?next=/dev-status';
 
 function el(tag, className) {
   const node = document.createElement(tag);
@@ -28,6 +28,11 @@ function setText(node, text) {
   node.textContent = text == null ? '' : String(text);
 }
 
+function isAdminViewer() {
+  if (typeof window !== 'undefined' && window.PUNCHCLOCK_AUTHENTICATED === true) return true;
+  return false;
+}
+
 /** 管理員已登入時隱藏頁尾「管理員登入」。 */
 export function updateDevMachinesLoginFooter(doc, canLink) {
   if (!doc || !doc.querySelector) return;
@@ -35,23 +40,33 @@ export function updateDevMachinesLoginFooter(doc, canLink) {
   if (foot) foot.hidden = !!canLink;
 }
 
-function renderGuestHint(root, show) {
-  let hint = root.parentElement && root.parentElement.querySelector('[data-dev-guest-hint]');
-  if (!show) {
-    if (hint) hint.hidden = true;
-    return;
-  }
-  if (!hint && root.parentElement) {
-    hint = el('p', 'dev-guest-hint');
-    hint.setAttribute('data-dev-guest-hint', '1');
-    const login = el('a', 'dev-btn dev-btn-gold dev-guest-hint-login');
-    login.href = LOGIN_PATH;
-    setText(login, '登入');
-    hint.appendChild(document.createTextNode('登入後可點開 issue / PR 連結 '));
-    hint.appendChild(login);
-    root.parentElement.insertBefore(hint, root);
-  }
-  if (hint) hint.hidden = false;
+function setGuestChrome(doc, guest) {
+  const sub = doc && doc.querySelector('.dev-machines-sub');
+  if (sub) sub.hidden = !!guest;
+}
+
+export function renderGuestLoginPanel(root, doc) {
+  const d = doc || (typeof document !== 'undefined' ? document : null);
+  if (!root || !d) return;
+  root.replaceChildren();
+  setGuestChrome(d, true);
+  const panel = el('section', 'dev-machines-guest maple-window');
+  const chrome = el('header', 'maple-win-title');
+  const title = el('h2', null);
+  setText(title, '開發機狀態');
+  chrome.appendChild(title);
+  panel.appendChild(chrome);
+  const body = el('div', 'dev-machines-guest-body');
+  const msg = el('p', 'dev-machines-guest-msg');
+  setText(msg, '開發機狀態只開放管理員查看，請先登入。');
+  body.appendChild(msg);
+  const login = el('a', 'dev-btn dev-btn-gold');
+  login.href = LOGIN_NEXT;
+  setText(login, '登入');
+  body.appendChild(login);
+  panel.appendChild(body);
+  root.appendChild(panel);
+  updateDevMachinesLoginFooter(d, false);
 }
 
 function renderErrorBanner(root, message) {
@@ -198,21 +213,12 @@ function renderMerged(root, timeline, now, canLink, doc) {
       li.appendChild(time);
       const ref = el('span', 'dev-merged-ref');
       if (row.url) {
-        if (canLink) {
-          const a = el('a', 'dev-link');
-          a.href = row.url;
-          a.target = '_blank';
-          a.rel = 'noopener noreferrer';
-          setText(a, row.ref || '');
-          ref.appendChild(a);
-        } else {
-          ref.appendChild(createGithubLink(d, {
-            className: 'dev-merged-ref',
-            text: row.ref || '',
-            href: row.url,
-            canLink: false
-          }));
-        }
+        const a = el('a', 'dev-link');
+        a.href = row.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        setText(a, row.ref || '');
+        ref.appendChild(a);
       } else {
         setText(ref, row.ref || '');
       }
@@ -232,13 +238,13 @@ function renderMachines(root, payload, devStatus, now, doc) {
   const machines = payload && Array.isArray(payload.machines) ? payload.machines : [];
   const canLink = viewerCanLink(payload && payload.viewer);
   root.replaceChildren();
+  setGuestChrome(d, false);
   const grid = d.createElement('div');
   grid.className = 'dev-machines-grid';
   machines.forEach((m) => grid.appendChild(renderCard(d, m, now, { canLink: canLink })));
   root.appendChild(grid);
   const timeline = devStatus && Array.isArray(devStatus.timeline) ? devStatus.timeline : [];
   renderMerged(root, timeline, now, canLink, d);
-  renderGuestHint(root, !canLink);
   updateDevMachinesLoginFooter(d, canLink);
 }
 
@@ -272,15 +278,26 @@ export function createDevMachinesPage(opts) {
 
   function refresh() {
     if (!fetchFn || !root) return;
+    if (!isAdminViewer()) {
+      renderGuestLoginPanel(root, doc);
+      stopTimer();
+      return;
+    }
     const now = Date.now();
     Promise.all([
       fetchFn('/api/dev-machines').then((res) => {
+        if (res.status === 401) {
+          stopTimer();
+          renderGuestLoginPanel(root, doc);
+          return null;
+        }
         if (!res.ok) throw new Error('bad status');
         return res.json();
       }),
       fetchFn('/api/dev-status').then((res) => (res.ok ? res.json() : null)).catch(() => null)
     ])
       .then(([body, devBody]) => {
+        if (!body) return;
         if (body.success === false) {
           renderErrorBanner(root, body.message || '暫時讀不到狀態');
           return;
@@ -296,6 +313,15 @@ export function createDevMachinesPage(opts) {
           renderMachines(root, lastGood, lastDev, Date.now(), doc);
         }
       });
+  }
+
+  if (!root) {
+    return { refresh: () => {}, stop: stopTimer };
+  }
+
+  if (!isAdminViewer()) {
+    renderGuestLoginPanel(root, doc);
+    return { refresh: () => renderGuestLoginPanel(root, doc), stop: stopTimer };
   }
 
   if (doc && typeof doc.addEventListener === 'function') {

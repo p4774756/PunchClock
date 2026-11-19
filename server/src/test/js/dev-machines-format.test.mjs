@@ -106,7 +106,8 @@ test('研發樓單行 runs 上限', () => {
 });
 
 test('訪客與管理員連結／toast', () => {
-  assert.equal(F.shouldFetchDevMachines(false), true);
+  assert.equal(F.shouldFetchDevMachines(false), false);
+  assert.equal(F.shouldFetchDevMachines(true), true);
   assert.equal(F.shouldShowDevStatusNavLink(false), true);
 
   const doc = miniDoc();
@@ -162,17 +163,76 @@ test('buildRunRows 與 renderCard 訪客無 href', () => {
   assert.ok(doc.nodes.some((n) => n.href && n.href.includes('github.com')));
 });
 
+function navWithCapture(doc) {
+  const nav = doc.createElement('span');
+  const listeners = new Map();
+  const origCreate = doc.createElement.bind(doc);
+  doc.createElement = (tag) => {
+  const node = origCreate(tag);
+    if (tag === 'a') {
+      node.addEventListener = (ev, fn) => {
+        if (!listeners.has(node)) listeners.set(node, {});
+        listeners.get(node)[ev] = fn;
+      };
+    }
+    return node;
+  };
+  return { nav, listeners, restore: () => { doc.createElement = origCreate; } };
+}
+
 test('roadmap 開發機狀態鈕與資料來源', () => {
   const doc = miniDoc();
   const nav = doc.createElement('span');
-  F.mergeRoadmapDevStatusLink(doc, nav);
+  F.mergeRoadmapDevStatusLink(doc, nav, { authenticated: true });
   assert.equal(nav.hidden, false);
+  assert.equal(nav.childNodes[0].href, '/dev-status');
   const src = doc.createElement('a');
   src.className = 'roadmap-source';
   F.applyGithubSourceLabel(doc, src, 'https://github.com/p4774756/PunchClock/issues/36', false);
   assert.equal(src.textContent, '資料來源：GitHub #36');
   assert.equal(src.getAttribute('aria-disabled'), 'true');
   assert.ok(src.className.includes('dev-guest-ref'));
+});
+
+test('訪客點路線圖開發機狀態鈕跳 toast 不導頁', () => {
+  const doc = miniDoc();
+  const { nav, listeners, restore } = navWithCapture(doc);
+  F.mergeRoadmapDevStatusLink(doc, nav, { authenticated: false });
+  const link = nav.childNodes[0];
+  assert.equal(link.href, '/dev-status');
+  let prevented = false;
+  const clickFn = listeners.get(link)?.click;
+  assert.equal(typeof clickFn, 'function');
+  clickFn({ preventDefault: () => { prevented = true; } });
+  assert.equal(prevented, true);
+  const toasts = doc.body.childNodes.filter((n) => n.attributes && n.attributes['data-dev-login-toast']);
+  assert.equal(toasts.length, 1);
+  assert.ok(toasts[0].childNodes.some((c) => (c.textContent || '') === '開發機狀態需登入後查看'));
+  restore();
+});
+
+test('管理員點路線圖開發機狀態鈕可導頁', () => {
+  const doc = miniDoc();
+  const { nav, listeners, restore } = navWithCapture(doc);
+  F.mergeRoadmapDevStatusLink(doc, nav, { authenticated: true });
+  const link = nav.childNodes[0];
+  assert.equal(listeners.get(link)?.click, undefined);
+  restore();
+});
+
+test('open=roadmap 參數解析與深連結', () => {
+  assert.equal(F.parseIslandOpenParam(''), '');
+  assert.equal(F.parseIslandOpenParam('?open=roadmap'), 'roadmap');
+  assert.equal(F.shouldOpenRoadmapFromSearch('?open=roadmap&x=1'), true);
+  assert.equal(F.shouldOpenRoadmapFromSearch('?open=casino'), false);
+  let opened = false;
+  const win = {
+    location: { href: 'http://localhost/?open=roadmap', search: '?open=roadmap', pathname: '/', hash: '' },
+    history: { replaceState: (_a, _b, url) => { win._url = url; } }
+  };
+  assert.equal(F.applyIslandOpenRoadmapParam(win, () => { opened = true; }), true);
+  assert.equal(opened, true);
+  assert.equal(win._url, '/');
 });
 
 test('effectivePhaseStatus：0/5 pending、3/5 progress、5/5 done、current 0/5 active', () => {
