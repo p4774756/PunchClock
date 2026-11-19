@@ -20,8 +20,8 @@ public final class DevMachineStore {
 
     private static final List<String> MACHINE_ORDER = List.of("home", "office");
     private static final Map<String, String> LABELS = Map.of(
-            "home", "家裡筆電",
-            "office", "公司筆電"
+            "home", "小貓",
+            "office", "猛虎"
     );
 
     @FunctionalInterface

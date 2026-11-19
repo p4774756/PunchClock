@@ -44,6 +44,12 @@ assert_eq "$(json_issue_field '')" "null" "issue empty"
 assert_eq "$(json_started_field '1730000000000')" "1730000000000" "started digits"
 assert_eq "$(json_started_field 'not-a-ts')" "null" "started invalid"
 
+assert_eq "$(parse_run_started_ms '1730000000000')" "1730000000000" "run file epoch ms"
+iso_ms=$(parse_run_started_ms '2024-06-01T00:00:00Z')
+if [ -z "$iso_ms" ] || [ "$iso_ms" = "2024-06-01T00:00:00Z" ]; then
+  fail "run file ISO 8601"
+fi
+
 assert_eq "$(json_branch_field 'ai/issue-127')" '"ai/issue-127"' "branch ok"
 assert_eq "$(json_branch_field 'bad branch')" "null" "branch space"
 assert_eq "$(json_branch_field '')" "null" "branch empty"

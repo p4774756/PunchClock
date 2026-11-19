@@ -172,8 +172,8 @@ test('南牆螢幕排版最壞情況不截斷', () => {
   lines.splice(
     lines.findIndex((l) => l.startsWith('【最近動態】')),
     0,
-    '家裡筆電 在線・跑 #99',
-    '公司筆電 離線'
+    '小貓 在線・跑 #99',
+    '猛虎 離線'
   );
   const rows = H.layoutLabScreenLines(lines);
   const bottom = H.layoutLabScreenBottomY(rows);

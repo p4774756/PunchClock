@@ -126,6 +126,27 @@ read_battery() {
   BATTERY_JSON=",\"battery\":$pct,\"charging\":$charging"
 }
 
+# 第 3 行可為 epoch 毫秒或 ISO 8601（dev-run-mark.sh 寫入後者）
+parse_run_started_ms() {
+  raw=$1
+  if [ -z "$raw" ]; then
+    return
+  fi
+  case "$raw" in
+    *[!0-9]*)
+      sec=""
+      sec=$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$raw" +%s 2>/dev/null) || true
+      if [ -z "$sec" ]; then
+        sec=$(date -u -d "$raw" +%s 2>/dev/null) || true
+      fi
+      if [ -n "$sec" ]; then
+        printf '%s000' "$sec"
+      fi
+      ;;
+    *) printf '%s' "$raw" ;;
+  esac
+}
+
 read_run() {
   ISSUE=""
   BRANCH=""
@@ -133,7 +154,7 @@ read_run() {
   if [ -f "$RUN_FILE" ]; then
     ISSUE=$(sed -n '1p' "$RUN_FILE")
     BRANCH=$(sed -n '2p' "$RUN_FILE")
-    STARTED=$(sed -n '3p' "$RUN_FILE")
+    STARTED=$(parse_run_started_ms "$(sed -n '3p' "$RUN_FILE")")
   fi
 }
 

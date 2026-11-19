@@ -121,13 +121,13 @@ public class DevMachineRoutesTest {
         assertEquals(401, guest.statusCode());
         assertTrue(guest.body().contains("請先登入管理員"));
         assertFalse(guest.body().contains("commit"));
-        assertFalse(guest.body().contains("家裡筆電"));
+        assertFalse(guest.body().contains("小貓"));
 
         HttpResponse<String> admin = send("GET", "/api/dev-machines", AdminAuthCookie.header());
         assertEquals(200, admin.statusCode());
         assertTrue(admin.body().contains("\"commit\":\"abcdef1\""));
         assertTrue(admin.body().contains("\"issueTitle\":\"測試 issue\""));
-        assertTrue(admin.body().contains("家裡筆電"));
+        assertTrue(admin.body().contains("小貓"));
     }
 
     @Test
@@ -135,7 +135,7 @@ public class DevMachineRoutesTest {
         HttpResponse<String> page = send("GET", "/dev-status", null);
         assertEquals(200, page.statusCode());
         assertTrue(page.body().contains("開發機狀態"));
-        assertFalse(page.body().contains("家裡筆電"));
+        assertFalse(page.body().contains("小貓"));
         assertFalse(page.body().contains("agentRunning"));
 
     }
