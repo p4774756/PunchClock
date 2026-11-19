@@ -297,6 +297,22 @@ export function createPeerLayer(opts) {
     clearPeers();
   }
 
+  function collectMinimapPeers(now) {
+    const out = [];
+    const off = peerOffset();
+    const at = now == null ? performance.now() : now;
+    peers.forEach((row) => {
+      if (!row.view.object.visible) return;
+      const shown = sampleMotion(row.motion, at, reduced);
+      out.push(Object.freeze({
+        x: shown.x + off.x,
+        z: shown.z + off.z,
+        yaw: shown.yaw || 0
+      }));
+    });
+    return out;
+  }
+
   return {
     peers: peers,
     applyPeerList: applyPeerList,
@@ -312,6 +328,7 @@ export function createPeerLayer(opts) {
     getSelfId: getSelfId,
     setPeerScene: setPeerScene,
     getPeerScene: getPeerScene,
-    resetExploreState: resetExploreState
+    resetExploreState: resetExploreState,
+    collectMinimapPeers: collectMinimapPeers
   };
 }

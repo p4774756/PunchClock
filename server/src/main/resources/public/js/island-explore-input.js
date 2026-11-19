@@ -5,6 +5,7 @@ import {
   clampOrbitRadius
 } from './island-explore.js';
 import { shouldOpenChatKey } from './island-chat.js';
+import { shouldOpenMapWithKey } from './island-minimap.js';
 
 /** 戶外互動分派；回傳 true 表示已處理，不應再開啟賭場。 */
 export function applyOutdoorInteractZone(zone, actions) {
@@ -296,6 +297,30 @@ export function handleExploreKeydown(ctx) {
 
   const doc = ctx.document || (typeof document !== 'undefined' ? document : null);
   const nickPopEl = doc && doc.getElementById('islandNickPop');
+  const moreSheetEl = doc && doc.getElementById('islandMoreSheet');
+  const mapSheetEl = doc && doc.getElementById('islandMapSheet');
+  const avatarPopEl = doc && doc.getElementById('islandAvatarPop');
+  if (shouldOpenMapWithKey({
+    exploring: mode.exploring,
+    typing: isTypingTarget(event.target),
+    altKey: event.altKey,
+    ctrlKey: event.ctrlKey,
+    metaKey: event.metaKey,
+    key: event.key,
+    mapOpen: !!(mapSheetEl && !mapSheetEl.hidden),
+    moreOpen: !!(moreSheetEl && !moreSheetEl.hidden),
+    nickOpen: !!(nickPopEl && !nickPopEl.hidden),
+    chatOpen: !!(ctx.islandChat && ctx.islandChat.isOpen()),
+    avatarOpen: !!(avatarPopEl && !avatarPopEl.hidden),
+    sheetOpen: !!(doc && doc.getElementById('islandSheet') && !doc.getElementById('islandSheet').hidden),
+    roadmapOpen: !!(ctx.roadmap && ctx.roadmap.isOpen()),
+    casinoOpen: !!(ctx.casino && ctx.casino.isOpen()),
+    graffitiOpen: !!(ctx.graffiti && ctx.graffiti.isOpen())
+  })) {
+    event.preventDefault();
+    if (typeof ctx.openMap === 'function') ctx.openMap();
+    return true;
+  }
   if (shouldOpenChatKey({
     exploring: mode.exploring,
     uiOpen: ctx.islandUiOpen(),

@@ -168,13 +168,13 @@ test('進入放到室內出生點，離開放到門前並面向離開建物', ()
   );
   assert.equal(I.interiorCanStand(pushed.x, pushed.z, room, RADIUS), true);
   assert.ok(pushed.x >= room.floor.minX + RADIUS - 0.001);
-  assert.equal(L.blocked(room.spawn.x, room.spawn.z, RADIUS), true, '出生點在島上店裡，室內碰撞不能沿用島上的');
+  assert.equal(L.blocked(0, 0.9, RADIUS), true, '舊門口出生若誤用島上座標會撞建物；室內要獨立 floor／blocks');
   assert.equal(I.interiorCanStand(room.spawn.x, room.spawn.z, room, RADIUS), true);
 });
 
 test('室內原點在鏡頭遠平面外，出生點與碰撞仍是本地座標', () => {
   const room = I.interiorByBuilding('shop');
-  assert.deepEqual(room.spawn, { x: 0, z: 0.9, yaw: 0 });
+  assert.deepEqual(room.spawn, { x: 0, z: 6.1, yaw: 0 });
   assert.ok(room.floor.maxX - room.floor.minX >= 15, '店內寬度遠大於外觀盒子');
   assert.ok(room.floor.maxZ - room.floor.minZ >= 11, '店內進深遠大於外觀盒子');
   assert.equal(room.blocks[0].id, 'bar');
@@ -210,6 +210,7 @@ test('研發樓出生朝向門口，有專用鏡頭與離開按鈕條件', () =>
   assert.equal(I.shouldShowInteriorLeave({ inside: false, exploring: true, busy: false, overlay: false }), false);
   assert.equal(I.shouldShowInteriorLeave({ inside: true, exploring: true, busy: false, overlay: true }), false);
   assert.ok(I.exploreHintText(true, true).includes('離開'));
+  assert.ok(I.exploreHintText(true, true, 'tcm-room').includes('紅門'));
   assert.ok(I.exploreHintText(true, false).includes('Esc'));
   assert.ok(I.exploreHintText(false, false).includes('Esc 退出探索'));
   session.exit(500);
@@ -287,12 +288,11 @@ test('研發樓預設鏡頭：三種 viewport 從門口往北看大廳', () => {
     const look = I.labInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, vp.aspect);
     const eye = I.labInteriorCameraEye(pose, look, vp.aspect);
     assert.ok(eye.z < look.z - 1, '鏡頭在焦點南側，往北看大廳');
-    if (vp.aspect > 1) {
-      assert.ok(
-        eye.z > -1.75 && eye.z < -1.15,
-        '桌面鏡頭在南門內側，進房直接看到大廳 z=' + eye.z.toFixed(3)
-      );
-    }
+    assert.equal(
+      I.interiorEntrySpawnOk(room, vp.aspect, { radius: RADIUS }),
+      true,
+      '進門出生點入畫 aspect=' + vp.aspect.toFixed(3)
+    );
   }
 });
 
@@ -562,6 +562,7 @@ test('推拿館室內遠大於外觀，進房鏡頭站在門內往北看', async
     const look = I.tcmInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, aspect);
     const eye = I.tcmInteriorCameraEye(pose, look, aspect);
     assert.ok(eye.z < look.z - 1, '鏡頭在焦點南側，往北看醫館');
+    assert.ok(room.spawn.z > eye.z + 1.2, '出生點在鏡頭前方、角色入畫 aspect=' + aspect);
     assert.ok(eye.z >= room.floor.minZ + 0.8 && eye.z <= 2.2, '鏡頭深入醫館、不受門框擋住 z=' + eye.z.toFixed(3));
     assert.ok(eye.y < 4.4, '鏡頭低於天花 y=' + eye.y.toFixed(3));
   }
@@ -584,6 +585,8 @@ test('推拿館室內可走、可離開，並有進入經絡研習室的互動',
   assert.equal(exit.label, '離開推拿館');
   assert.ok(study);
   assert.equal(study.label, '進入經絡研習室');
+  assert.ok(study.r >= 1.6 && study.r <= 2.0);
+  assert.equal(X.hitInteractZone(0, 9, zones)?.action, 'enterTcmStudy', '沿紅地毯較北處可進研習室');
 
   const spawnHit = X.hitInteractZone(room.spawn.x, room.spawn.z, zones);
   assert.equal(spawnHit, null, '出生點不應命中出口或研習室互動');
@@ -600,6 +603,33 @@ test('推拿館室內可走、可離開，並有進入經絡研習室的互動',
   assert.equal(left.ok, true);
   assert.ok(Math.abs(left.pose.x - room.outside.x) < 1e-9);
   assert.ok(Math.abs(left.pose.z - room.outside.z) < 1e-9);
+});
+
+test('各室內進門出生點在預設鏡頭前方、可站且不踩出口', () => {
+  const viewports = [
+    { aspect: 1280 / 720, height: 720 },
+    { aspect: 1440 / 900, height: 900 },
+    { aspect: 390 / 844, height: 844 }
+  ];
+  for (let ri = 0; ri < I.INTERIORS.length; ri++) {
+    const room = I.INTERIORS[ri];
+    for (let vi = 0; vi < viewports.length; vi++) {
+      const vp = viewports[vi];
+      assert.equal(
+        I.interiorEntrySpawnOk(room, vp.aspect, { radius: RADIUS }),
+        true,
+        room.id + ' aspect=' + vp.aspect.toFixed(3)
+      );
+      const eye = I.interiorEntryCameraEye(room, vp.aspect);
+      const look = I.interiorEntryLookTarget(room, vp.aspect);
+      assert.ok(eye && look, room.id + ' 進門鏡頭');
+      const along = I.interiorSpawnAlongViewDistance(eye, look, room.spawn.x, room.spawn.z);
+      assert.ok(along >= I.INTERIOR_ENTRY_MIN_VIEW_DIST - 1e-6,
+        room.id + ' 沿視線深度 along=' + along.toFixed(3));
+      assert.equal(I.interiorSpawnHitsEntryZone(room.spawn, room), false,
+        room.id + ' 出生不應踩出口或互動區');
+    }
+  }
 });
 
 test('神之島店內遠大於外觀，進房鏡頭站在門內往北看吧台', () => {

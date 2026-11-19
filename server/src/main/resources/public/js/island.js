@@ -56,7 +56,6 @@ import {
   isDrivingPhase,
   vehicleSpeedKmh,
   vehicleCameraLook,
-  minimapNorm,
   VEHICLE_FOLLOW_BACK,
   VEHICLE_DISMOUNT_SPEED
 } from './island-vehicle.js';
@@ -135,6 +134,7 @@ import { createLifecycle } from './island-lifecycle.js';
 import { createPeerLayer } from './island-peers.js';
 import { placeBuildingLabels } from './island-labels.js';
 import { createCornerUi } from './island-corner-ui.js';
+import { createMinimapHud } from './island-minimap.js';
 import {
   createExplorePointer,
   createExploreKeys,
@@ -384,9 +384,6 @@ function boot() {
   let vehicleState = createVehicleState();
   const vehicleHud = document.getElementById('islandVehicleHud');
   const vehicleSpeedEl = document.getElementById('islandVehicleSpeed');
-  const vehicleMinimap = document.getElementById('islandVehicleMinimap');
-  const vehicleMinimapCtx = vehicleMinimap && vehicleMinimap.getContext
-    ? vehicleMinimap.getContext('2d') : null;
   const shaker = buildings.shaker;
   function refreshGraffitiWall() {
     buildings.refreshGraffitiWall();
@@ -646,6 +643,7 @@ function boot() {
   let islandChat = null;
   let peerLayer = null;
   let corner = null;
+  let minimapHud = null;
   let peerHideTimer = 0;
 
   function clearMoveInput() {
@@ -872,8 +870,9 @@ function boot() {
       deskText = '方向鍵或 WASD 開船，靠近碼頭可下船';
       touchText = '搖桿開船，靠近碼頭可下船';
     } else {
-      deskText = exploreHintText(inside, false);
-      touchText = exploreHintText(inside, true);
+      const roomId = inside && rooms.inside() ? rooms.id() : null;
+      deskText = exploreHintText(inside, false, roomId);
+      touchText = exploreHintText(inside, true, roomId);
     }
     if (desk && desk.textContent !== deskText) desk.textContent = deskText;
     if (touch && touch.textContent !== touchText) touch.textContent = touchText;
@@ -1033,24 +1032,6 @@ function boot() {
     if (vehicleSpeedEl) {
       vehicleSpeedEl.textContent = vehicleSpeedKmh(vehicleState.vx, vehicleState.vz) + ' 公里／時';
     }
-    if (!vehicleMinimapCtx || !vehicleMinimap) return;
-    const w = vehicleMinimap.width;
-    const h = vehicleMinimap.height;
-    vehicleMinimapCtx.clearRect(0, 0, w, h);
-    vehicleMinimapCtx.fillStyle = 'rgba(255,250,246,0.92)';
-    vehicleMinimapCtx.fillRect(0, 0, w, h);
-    vehicleMinimapCtx.strokeStyle = 'rgba(31,77,115,0.35)';
-    vehicleMinimapCtx.strokeRect(4, 4, w - 8, h - 8);
-    const car = minimapNorm(vehicleState.carX, vehicleState.carZ);
-    vehicleMinimapCtx.fillStyle = '#ff8ac8';
-    vehicleMinimapCtx.beginPath();
-    vehicleMinimapCtx.arc(4 + car.u * (w - 8), 4 + car.v * (h - 8), 4, 0, Math.PI * 2);
-    vehicleMinimapCtx.fill();
-    vehicleMinimapCtx.fillStyle = '#1f4d73';
-    vehicleMinimapCtx.beginPath();
-    const p = minimapNorm(player.x, player.z);
-    vehicleMinimapCtx.arc(4 + p.u * (w - 8), 4 + p.v * (h - 8), 3, 0, Math.PI * 2);
-    vehicleMinimapCtx.fill();
   }
 
   async function startSteer(zone) {
@@ -1668,6 +1649,7 @@ function boot() {
       }
     }
     if (peerLayer) peerLayer.stepPeers(dt);
+    if (minimapHud) minimapHud.tick(performance.now());
     dayNight.step(dt);
     loop.tick(dt, clock.elapsedTime);
     renderer.render(scene, camera);
@@ -2076,10 +2058,40 @@ function boot() {
     return enterInterior('tcm-site');
   }
 
+  async function enterTcmHallFromReturn(pose) {
+    if (interiorBusy || rooms.inside()) return;
+    const buildingId = 'tcm-site';
+    const ticket = ++interiorGeneration;
+    interiorBusy = true;
+    footprints.setHidden(true);
+    clearMoveInput();
+    closeOverlayPanels();
+    placeLabels();
+    try {
+      const loader = INTERIOR_MODULES[buildingId];
+      if (!loader) throw new Error('no interior');
+      const mod = await loader();
+      if (ticket !== interiorGeneration) return;
+      mountRoom(mod.createInterior(THREE, { groundY: G, reducedMotion: reduced }));
+      const entered = rooms.enter(buildingId, performance.now());
+      if (!entered.ok) disposeRoom();
+      else applyPlayerPose(pose, true);
+    } catch (err) {
+      disposeRoom();
+      if (rooms.inside()) rooms.exit(performance.now());
+    }
+    if (ticket !== interiorGeneration) return;
+    interiorBusy = false;
+    syncExploreHint();
+    syncInteriorLeave();
+    syncInteractPrompt();
+    followPlayerCamera(true);
+  }
+
   async function enterTcmStudy() {
     if (interiorBusy || !mode.exploring || isSailing() || isSteering()) return;
     if (!rooms.inside() || !rooms.room() || rooms.room().id !== 'tcm-room') return;
-    writeTcmReturn(window.sessionStorage);
+    writeTcmReturn(window.sessionStorage, null, { target: 'hall' });
     const ticket = ++interiorGeneration;
     interiorBusy = true;
     clearMoveInput();
@@ -2364,6 +2376,38 @@ function boot() {
   });
   corner.syncExploreHudLabels();
 
+  minimapHud = createMinimapHud({
+    document: document,
+    window: window,
+    isExploring: () => mode.exploring,
+    openLargeMap: () => corner && corner.setMapOpen(true),
+    onMapOpenChange: function () {},
+    getPaintState: function () {
+      const room = rooms.inside() ? rooms.room() : null;
+      const interior = rooms.inside();
+      let paintPlayer;
+      if (interior) {
+        paintPlayer = {
+          x: player.x - INTERIOR_ORIGIN.x,
+          z: player.z - INTERIOR_ORIGIN.z,
+          yaw: player.yaw
+        };
+      } else if (isDriving()) {
+        paintPlayer = { x: vehicleState.carX, z: vehicleState.carZ, yaw: vehicleState.carYaw };
+      } else {
+        paintPlayer = { x: player.x, z: player.z, yaw: player.yaw };
+      }
+      return {
+        player: paintPlayer,
+        interiorRoom: interior ? room : null,
+        vehicleState: vehicleState,
+        boatState: boatState,
+        peers: peerLayer ? peerLayer.collectMinimapPeers(performance.now()) : [],
+        nightMix: typeof dayNight.mix === 'number' ? dayNight.mix : (document.body.classList.contains('is-night') ? 1 : 0)
+      };
+    }
+  });
+
   const exploreKeyCtx = {
     window: window,
     document: document,
@@ -2398,7 +2442,8 @@ function boot() {
     closeMap: () => corner && corner.closeMap(),
     closeList: closeListPanel,
     setNickOpen: (open) => corner && corner.setNickOpen(open),
-    setAvatarOpen: (open) => corner && corner.setAvatarOpen(open)
+    setAvatarOpen: (open) => corner && corner.setAvatarOpen(open),
+    openMap: () => corner && corner.setMapOpen(true)
   };
   createExploreKeys(exploreKeyCtx);
   createExplorePointer({
@@ -2465,13 +2510,21 @@ function boot() {
   const tcmRestore = consumeTcmReturn(window.sessionStorage);
   const open = document.querySelector('.dash-panel.is-active');
   if (tcmRestore) {
-    player.x = tcmRestore.x;
-    player.z = tcmRestore.z;
-    player.yaw = tcmRestore.yaw;
-    setPlayerAnchor(player.x, P, player.z, player.yaw);
-    localView.object.position.set(player.x, P, player.z);
-    stepMilu(0, P);
     setExplore(true, true);
+    if (tcmRestore.target === 'hall' && tcmRestore.buildingId === 'tcm-site') {
+      void enterTcmHallFromReturn({
+        x: tcmRestore.x,
+        z: tcmRestore.z,
+        yaw: tcmRestore.yaw
+      });
+    } else {
+      player.x = tcmRestore.x;
+      player.z = tcmRestore.z;
+      player.yaw = tcmRestore.yaw;
+      setPlayerAnchor(player.x, P, player.z, player.yaw);
+      localView.object.position.set(player.x, P, player.z);
+      stepMilu(0, P);
+    }
   } else if (open && !open.hasAttribute('hidden')) {
     const id = open.id.replace('panel-', '');
     applyPose(POSES[id] || POSES.home, true);

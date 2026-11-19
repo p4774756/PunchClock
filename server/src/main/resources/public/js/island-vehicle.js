@@ -8,6 +8,7 @@ import {
 } from './island-layout.js';
 import { smoothingFactor } from './island-explore.js';
 import { pinkCarWorld, CITY_ID } from './island-city-data.js';
+import { worldMapBounds, worldNorm } from './island-minimap.js';
 
 export const VEHICLE_STEER_SPEED = 6.8;
 export const VEHICLE_ACCEL_LAMBDA = 8.5;
@@ -230,14 +231,7 @@ export function vehicleCameraLook(state) {
 }
 
 export function minimapBounds() {
-  const island = islandById(CITY_ID);
-  if (!island) return { minX: -8, maxX: 8, minZ: -30, maxZ: -14 };
-  return {
-    minX: island.x - island.r,
-    maxX: island.x + island.r,
-    minZ: island.z - island.r,
-    maxZ: island.z + island.r
-  };
+  return worldMapBounds();
 }
 
 export function playerOnCityIsland(x, z) {
@@ -247,9 +241,5 @@ export function playerOnCityIsland(x, z) {
 
 /** 縮小座標到 0..1 供小地圖。 */
 export function minimapNorm(x, z) {
-  const b = minimapBounds();
-  return {
-    u: (x - b.minX) / (b.maxX - b.minX),
-    v: (z - b.minZ) / (b.maxZ - b.minZ)
-  };
+  return worldNorm(x, z);
 }
