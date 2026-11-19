@@ -7,7 +7,6 @@ import { signCopy } from './island-roadmap.js';
 import { G, P, nightHex } from './island-kit.js';
 import { BUILDING_GLOW, glowForMaterial } from './island-buildings-data.js';
 import { polishPedestalBase } from './island-decor.js';
-import { attachShopEavesDecor } from './island-decor-scene.js';
 export { BUILDING_GLOW, glowForMaterial };
 
 const glbCache = new Map();
@@ -174,9 +173,6 @@ export function buildIslandBuildings(ctx) {
       scene.add(model);
       primitive.visible = false;
       buildingGroups[buildingId] = model;
-      if (buildingId === 'shop') {
-        attachShopEavesDecor(model, kit, { reduced: !!motionReduced });
-      }
       if (buildingId === 'computer-site') {
         model.traverse((obj) => {
           if (obj.isMesh && obj.name === 'windmill') {

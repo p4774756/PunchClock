@@ -4,13 +4,44 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { BUILDING_GLOW, glowForMaterial } from '../../main/resources/public/js/island-buildings-data.js';
-import { BUILDINGS, buildingById } from '../../main/resources/public/js/island-layout.js';
+import { BUILDINGS, OBSTACLE_RECTS, buildingById } from '../../main/resources/public/js/island-layout.js';
 import { MAX_LAMP_POINT_LIGHTS } from '../../main/resources/public/js/island-kit.js';
 
 const buildingsJs = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public/js/island-buildings.js'),
   'utf8'
 );
+
+describe('shop GLB exterior', () => {
+  it('屋簷 JS 替身已移除，招牌仍走 signMap', () => {
+    assert.ok(!buildingsJs.includes('attachShopEavesDecor'));
+    assert.ok(buildingsJs.includes('神之島'));
+    assert.ok(buildingsJs.includes("signMaps[buildingId]"));
+    assert.ok(!buildingsJs.includes('莫卡手搖'));
+  });
+
+  it('shop layout 座標、西門與碰撞框不變', () => {
+    const s = buildingById('shop');
+    assert.equal(s.x, 0);
+    assert.equal(s.z, -0.55);
+    assert.equal(s.w, 4.75);
+    assert.equal(s.d, 3.2);
+    assert.equal(s.yaw, 0);
+    assert.equal(s.entry.label, '進入神之島');
+    assert.ok(s.entry.at);
+    assert.ok(Math.abs(s.entry.at.x + 3.09) < 0.02);
+    assert.ok(Math.abs(s.entry.at.z + 0.85) < 0.02);
+    const block = OBSTACLE_RECTS.find((r) => r.id === 'shop');
+    assert.equal(block.minX, -2.45);
+    assert.equal(block.maxX, 2.45);
+    assert.equal(block.minZ, -2.2);
+    assert.equal(block.maxZ, 0.95);
+  });
+
+  it('MAX_LAMP_POINT_LIGHTS 仍為 4', () => {
+    assert.equal(MAX_LAMP_POINT_LIGHTS, 4);
+  });
+});
 
 describe('casino Vegas sign', () => {
   it('招牌 canvas 使用繁中賭場，不含簡體赌场', () => {
