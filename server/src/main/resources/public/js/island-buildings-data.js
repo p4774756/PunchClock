@@ -22,8 +22,8 @@ export const BUILDING_GLOW = Object.freeze({
   city: Object.freeze({
     windows_glow: { color: 0xffb15a, amount: 0.95 },
     lantern_glow: { color: 0xffc56a, amount: 1.15 },
-    neon_glow: { color: 0xff6ad8, amount: 1.1 },
-    city_asphalt_wet: { color: 0x99bbee, amount: 0.42 }
+    neon_glow: { color: 0xff6ad8, amount: 1.25 },
+    city_asphalt_wet: { color: 0x99bbee, amount: 0.55 }
   })
 });
 

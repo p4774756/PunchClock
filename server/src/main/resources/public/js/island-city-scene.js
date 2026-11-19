@@ -49,8 +49,8 @@ function citySignMaps(kit) {
   }
 
   return {
-    sign_face_arcade: neonSign('小東遊戲機', 640, 200, 52, '#fff2b8', '#ff9a3a', '#2a1848'),
-    sign_face_711: paint(420, 200, (g, pw, ph) => {
+    sign_face_arcade: neonSign('小東遊戲機', 768, 240, 62, '#fff2b8', '#ff9a3a', '#2a1848'),
+    sign_face_711: paint(512, 256, (g, pw, ph) => {
       g.fillStyle = '#ff6b35';
       g.fillRect(0, 0, pw, ph);
       g.fillStyle = '#00913a';
@@ -58,27 +58,29 @@ function citySignMaps(kit) {
       g.fillStyle = '#ff2200';
       g.fillRect(0, ph * 0.55, pw * 0.58, ph * 0.45);
       g.fillStyle = '#ffffff';
-      g.font = '900 108px ' + font;
+      g.font = '900 120px ' + font;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.fillText('7-ELEVEN', pw * 0.29, ph * 0.3);
-      g.font = '900 88px ' + font;
+      g.font = '900 100px ' + font;
       g.fillText('7-11', pw * 0.29, ph * 0.78);
     }),
-    sign_face_claw: neonSign('夾娃娃', 480, 180, 56, '#ffd8f4', '#ff5ac8', '#281038'),
-    sign_face_snack: neonSign('台灣小吃', 520, 180, 54, '#fff0d8', '#ff8a3a', '#3a2018'),
-    sign_face_bubble: paint(520, 180, (g, pw, ph) => {
+    sign_face_claw: neonSign('夾娃娃', 560, 220, 66, '#ffd8f4', '#ff5ac8', '#281038'),
+    sign_face_snack: neonSign('台灣小吃', 600, 220, 64, '#fff0d8', '#ff8a3a', '#3a2018'),
+    sign_face_bubble: paint(600, 220, (g, pw, ph) => {
       g.fillStyle = '#e8fff8';
       g.fillRect(0, 0, pw, ph);
       g.fillStyle = '#7ec8ea';
       g.fillRect(0, 0, pw, 22);
-      g.font = '700 58px ' + font;
+      g.font = '700 68px ' + font;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.fillStyle = '#1f4d73';
       g.fillText('Bubble Tea', pw / 2, ph / 2 + 4);
+      g.font = '700 52px ' + font;
+      g.fillText('波波茶飲', pw / 2, ph / 2 + 52);
     }),
-    sign_face_game: neonSign('小東遊戲機', 560, 200, 48, '#fff2b8', '#ff9a3a', '#2a1848')
+    sign_face_game: neonSign('小東遊戲機', 640, 220, 58, '#fff2b8', '#ff9a3a', '#2a1848')
   };
 }
 
@@ -119,7 +121,7 @@ function applyCityMaterials(model, kit, signMaps) {
         map: signTex,
         night: 0xfff0dc,
         glow: emissive ? 0xffffff : 0xffb15a,
-        glowAmount: emissive ? 0.78 : 0.92,
+        glowAmount: emissive ? 0.95 : 1.08,
         side: THREE.DoubleSide
       });
       if (emissive) obj.material.emissiveMap = signTex;
