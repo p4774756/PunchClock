@@ -1437,8 +1437,43 @@ body:not(.is-exploring) .island-minimap {
   text-align: center;
 }
 
+.island-map-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.island-map-mode-toggle {
+  min-height: 1.75rem;
+  padding: 0.15rem 0.55rem;
+  border: 2px solid #163a70;
+  border-radius: 5px;
+  background: #ecf4fc;
+  color: #142440;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 1px 2px 0 rgba(0, 0, 0, 0.18);
+}
+
+.island-map-mode-toggle:hover,
+.island-map-mode-toggle:focus-visible {
+  background: #dce8f6;
+  outline: 2px solid #3a7ac4;
+  outline-offset: 1px;
+}
+
+.island-map-mode-toggle:active {
+  transform: translate(1px, 1px);
+}
+
 .island-map-canvas-wrap {
-  padding: 0.45rem 0.85rem 0.25rem;
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.45rem 0.85rem 0.35rem;
 }
 
 .island-map-canvas {
@@ -1448,6 +1483,102 @@ body:not(.is-exploring) .island-minimap {
   border-radius: 4px;
   border: 1px solid rgba(58, 122, 196, 0.35);
   background: #9ed4f5;
+  touch-action: manipulation;
+}
+
+.island-map-canvas.island-map-canvas-hit {
+  cursor: pointer;
+}
+
+.island-map-pins {
+  position: absolute;
+  inset: 0.45rem 0.85rem 0.35rem;
+  pointer-events: none;
+}
+
+.island-map-pins:not([hidden]) {
+  pointer-events: none;
+}
+
+.island-map-pin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 2px solid #1f3a66;
+  border-radius: 6px;
+  background: #f8f4e8;
+  color: #142440;
+  font-family: inherit;
+  font-size: 0.81rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  pointer-events: auto;
+  transform: translate(-50%, -100%);
+  z-index: 2;
+}
+
+.island-map-pin::before {
+  content: '';
+  position: absolute;
+  inset: -0.45rem;
+}
+
+.island-map-pin.is-current {
+  background: #163a70;
+  color: #f8fbff;
+  border-color: #1f3a66;
+}
+
+.island-map-pin.is-current::after {
+  content: '你在這';
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  opacity: 0.92;
+}
+
+.island-map-pin:hover,
+.island-map-pin:focus-visible {
+  background: #fff8e8;
+  outline: 2px solid #3a7ac4;
+  outline-offset: 1px;
+  transform: translate(-50%, calc(-100% - 2px));
+}
+
+.island-map-pin:active {
+  transform: translate(-50%, calc(-100% + 1px));
+  box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.2);
+  filter: brightness(0.96);
+}
+
+.island-map-pin.is-current:hover,
+.island-map-pin.is-current:focus-visible {
+  background: #1f4a88;
+}
+
+.island-map-legend {
+  margin: 0;
+  padding: 0.2rem 0.85rem 0.65rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #5a7a9e;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .island-map-pin {
+    font-size: 0.8125rem;
+  }
 }
 
 body.island-map-open .island-minimap {
@@ -1621,7 +1752,6 @@ body.island-map-open .island-minimap {
 .island-more-item,
 .island-list-body > button,
 .island-list-body > a,
-.island-map-isle,
 .island-avatar-choice {
   display: flex;
   align-items: center;
@@ -1649,7 +1779,6 @@ body.island-map-open .island-minimap {
 
 .island-list-body > button,
 .island-list-body > a,
-.island-map-isle,
 .island-avatar-choice {
   flex-direction: column;
   align-items: flex-start;
@@ -1664,8 +1793,6 @@ body.island-map-open .island-minimap {
 .island-list-body > button:focus-visible,
 .island-list-body > a:hover,
 .island-list-body > a:focus-visible,
-.island-map-isle:hover,
-.island-map-isle:focus-visible,
 .island-avatar-choice:hover,
 .island-avatar-choice:focus-visible {
   background: #dce8f6;
@@ -1677,7 +1804,6 @@ body.island-map-open .island-minimap {
 .island-more-item:active,
 .island-list-body > button:active,
 .island-list-body > a:active,
-.island-map-isle:active,
 .island-avatar-choice:active {
   transform: translate(1px, 1px);
   box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.25);
@@ -2177,31 +2303,21 @@ body.is-exploring .island-hud-explore-entry .island-hud-primary-label {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(22rem, calc(100vw - 1.5rem));
-  max-height: min(72vh, 520px);
+  width: calc(100vw - 1rem);
+  max-width: calc(100vw - 1rem);
+  max-height: min(88vh, 720px);
   display: flex;
   flex-direction: column;
   padding-bottom: env(safe-area-inset-bottom, 0px);
+  overflow: hidden;
 }
 
-.island-map-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
-  padding: 0.35rem 0.85rem 1rem;
-  overflow: auto;
-}
-
-.island-map-isle {
-  gap: 0.15rem;
-  min-height: 3.1rem;
-  font-size: 0.88rem;
-}
-
-.island-map-isle small {
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: #465a78;
+@media (min-width: 761px) {
+  .island-map-panel {
+    width: min(44rem, 92vw);
+    max-width: min(44rem, 92vw);
+    max-height: min(86vh, 780px);
+  }
 }
 
 body.island-nick-open .island-nick {

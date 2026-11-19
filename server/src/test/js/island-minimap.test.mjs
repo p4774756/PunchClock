@@ -1,7 +1,13 @@
 // node --test server/src/test/js/island-minimap.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadPublicModule } from './load-public-module.mjs';
+
+const publicDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'main', 'resources', 'public');
+const indexHtml = readFileSync(join(publicDir, 'index.html'), 'utf8');
 
 const M = await loadPublicModule('island-minimap.js');
 const L = await loadPublicModule('island-layout.js');
@@ -189,6 +195,71 @@ test('收合狀態下縮小與放大鈕內容不同', () => {
   assert.notEqual(collapseBtn.textContent, expandBtn.textContent);
   assert.ok(expandBtn.querySelector('svg'), '放大鈕為 SVG');
   hud.destroy();
+});
+
+function assertLayoutsNoOverlap(layouts, width, height) {
+  for (let a = 0; a < layouts.length; a++) {
+    const box = layouts[a].box;
+    assert.ok(boxInside(layouts[a], width, height), layouts[a].id + ' 名牌超出地圖');
+    for (let b = a + 1; b < layouts.length; b++) {
+      const other = layouts[b].box;
+      const overlap = !(box.right <= other.left || box.left >= other.right
+        || box.bottom <= other.top || box.top >= other.bottom);
+      assert.equal(overlap, false, layouts[a].id + ' 與 ' + layouts[b].id + ' 名牌重疊');
+    }
+  }
+}
+
+function boxInside(row, width, height) {
+  const box = row.box;
+  return box.left >= 2 && box.top >= 2 && box.right <= width - 2 && box.bottom <= height - 2;
+}
+
+test('大地圖名牌版面：390 與 1280 六島在界內、不重疊', () => {
+  const s390 = M.largeMapCanvasCssSize(390);
+  const s1280 = M.largeMapCanvasCssSize(1280);
+  const l390 = M.islandPinLayout(s390.width, s390.height);
+  const l1280 = M.islandPinLayout(s1280.width, s1280.height);
+  assert.equal(l390.length, 6);
+  assert.equal(l1280.length, 6);
+  assertLayoutsNoOverlap(l390, s390.width, s390.height);
+  assertLayoutsNoOverlap(l1280, s1280.width, s1280.height);
+  const tcm = l390.find((row) => row.id === 'tcm');
+  assert.ok(tcm && tcm.fontPx >= 13, '手機字級 ≥ 13px');
+});
+
+test('大地圖點擊命中：圈心命中該島、海面 null', () => {
+  const size = M.largeMapCanvasCssSize(1280);
+  const layouts = M.islandPinLayout(size.width, size.height);
+  for (let i = 0; i < layouts.length; i++) {
+    const row = layouts[i];
+    const hit = M.islandAtMapPoint(row.centerX, row.centerY, size.width, size.height, 0);
+    assert.equal(hit, row.id, row.id + ' 圈心應命中');
+  }
+  const miss = M.islandAtMapPoint(size.width * 0.08, size.height * 0.92, size.width, size.height, 12);
+  assert.equal(miss, null, '左下海面不應命中');
+});
+
+test('大地圖標記過濾：不含 npc／門口／施工牌／停放車', () => {
+  const large = M.collectLargeMapMarkers({ vehicleState: null, boatState: null, peers: [] });
+  const small = M.collectOutdoorMarkers({ vehicleState: null, boatState: null, peers: [] });
+  assert.ok(small.some((mk) => mk.kind === 'npc'));
+  assert.ok(small.some((mk) => mk.kind === 'door'));
+  assert.ok(small.some((mk) => mk.kind === 'board'));
+  assert.equal(large.some((mk) => mk.kind === 'npc'), false);
+  assert.equal(large.some((mk) => mk.kind === 'door'), false);
+  assert.equal(large.some((mk) => mk.kind === 'board'), false);
+  assert.equal(large.some((mk) => mk.kind === 'car'), false);
+  const berthIds = large.filter((mk) => mk.kind === 'berth').map((mk) => mk.id);
+  assert.equal(new Set(berthIds).size, berthIds.length, '碼頭每站一個');
+  assert.ok(berthIds.length >= 3);
+});
+
+test('index.html 已移除 island-map-isle、保留 data-island 名牌', () => {
+  assert.doesNotMatch(indexHtml, /island-map-isle/);
+  assert.doesNotMatch(indexHtml, /island-map-grid/);
+  assert.match(indexHtml, /class="island-map-pin"[^>]*data-island="main"/);
+  assert.match(indexHtml, /data-island="tcm"/);
 });
 
 test('shouldOpenMapWithKey：輸入框聚焦不攔截，探索中可按 M', () => {

@@ -203,22 +203,26 @@
     <div class="island-map-panel maple-window" role="dialog" aria-modal="true" aria-labelledby="islandMapTitle">
       <header class="maple-win-title island-map-bar">
         <h2 id="islandMapTitle">群島地圖</h2>
-        <button type="button" class="maple-win-close island-map-close" id="islandMapClose" aria-label="關閉">
-          <span class="maple-win-close-glyph" aria-hidden="true">×</span>
-          <span class="island-hud-esc-chip island-maple-close-esc" aria-hidden="true">Esc</span>
-        </button>
+        <div class="island-map-bar-actions">
+          <button type="button" class="island-map-mode-toggle" id="islandMapModeToggle" hidden>群島地圖</button>
+          <button type="button" class="maple-win-close island-map-close" id="islandMapClose" aria-label="關閉">
+            <span class="maple-win-close-glyph" aria-hidden="true">×</span>
+            <span class="island-hud-esc-chip island-maple-close-esc" aria-hidden="true">Esc</span>
+          </button>
+        </div>
       </header>
-      <div class="island-map-canvas-wrap">
+      <div class="island-map-canvas-wrap" id="islandMapCanvasWrap">
         <canvas id="islandMapCanvas" class="island-map-canvas" width="480" height="360" aria-label="群島與室內平面圖"></canvas>
+        <div class="island-map-pins" id="islandMapPins" hidden aria-hidden="true">
+          <button type="button" class="island-map-pin" data-island="main" aria-label="前往神之島">神之島</button>
+          <button type="button" class="island-map-pin" data-island="casino" aria-label="前往博弈島">博弈島</button>
+          <button type="button" class="island-map-pin" data-island="tcm" aria-label="前往中醫推拿島">中醫推拿島</button>
+          <button type="button" class="island-map-pin" data-island="computer" aria-label="前往電腦島">電腦島</button>
+          <button type="button" class="island-map-pin" data-island="beach" aria-label="前往沙灘島">沙灘島</button>
+          <button type="button" class="island-map-pin" data-island="city" aria-label="前往城市島">城市島</button>
+        </div>
       </div>
-      <div class="island-map-grid" role="list">
-        <button type="button" class="island-map-isle" data-island="main" role="listitem">神之島<small>店面與碼頭</small></button>
-        <button type="button" class="island-map-isle" data-island="casino" role="listitem">博弈島<small>神之島賭場</small></button>
-        <button type="button" class="island-map-isle" data-island="tcm" role="listitem">中醫推拿島<small>推拿館</small></button>
-        <button type="button" class="island-map-isle" data-island="computer" role="listitem">電腦島<small>機房與天線</small></button>
-        <button type="button" class="island-map-isle" data-island="beach" role="listitem">沙灘島<small>沙灘與躺椅</small></button>
-        <button type="button" class="island-map-isle" data-island="city" role="listitem">城市島<small>騎樓街</small></button>
-      </div>
+      <p class="island-map-legend" aria-hidden="true">▲ 你　⚓ 碼頭　● 其他玩家</p>
     </div>
   </section>
 
