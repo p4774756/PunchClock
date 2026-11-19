@@ -139,15 +139,9 @@ def build(out_path):
     mas.cyl('cup_lid', 0.32, 0.32, 0.10, mx, my, mz + 0.58, seg=7)
     mas.cyl('straw', 0.036, 0.036, 0.46, mx + 0.06, my, mz + 0.88, seg=5, rx=0.0, ry=0.2)
 
-    # 主招牌：北立面直立朝鏡頭（sign_face UV 供「神之島」canvas）
-    sign_y = FRONT - 0.06
-    sign_z = BASE + H + 0.02
-    fr = b.part('sign')
-    face = b.part('sign_face')
-    sw, sh = 2.55, 0.76
-    fr.box('shop_orange', sw + 0.12, 0.06, sh + 0.12, 0, sign_y + 0.02, sign_z)
-    fr.box('shop_navy', sw + 0.04, 0.035, sh + 0.04, 0, sign_y + 0.03, sign_z)
-    face.plane('sign', sw, sh, 0, sign_y + 0.048, sign_z)
+    # 主招牌：北坡屋頂略仰，俯視鏡頭可讀「神之島」（sign_face / shopSignMap）
+    b.tilted_sign(2.50, 0.78, FRONT - 0.08, ztop + 0.16, rx=-1.10, facing='front',
+                  frame='shop_orange', board='shop_navy')
 
     aw = b.part('awning')
     aw_y = FRONT - 0.02
