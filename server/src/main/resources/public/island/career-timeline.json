@@ -5,72 +5,22 @@
       "years": "2007–2012",
       "org": "東海大學",
       "role": "資訊工程與科學系",
-      "summary": "教室角落研讀原文書，黑板寫著「資料結構」「演算法」。",
+      "summary": "教室角落研讀原文書，黑板寫著「資料結構」「演算法」，為之後的韌體與軟體工作打底。",
       "prop": "教室黑板與原文書"
     },
     {
-      "id": "hongzhen",
-      "years": "2016–2018",
-      "org": "弘真科技",
-      "role": "軟體工程師",
-      "summary": "後台報表匯出與效能調整、路由器內建網頁介面、產線桌上型 MAC／序號燒錄工具。",
-      "prop": "迷你路由器"
+      "id": "firmware-2013-2022",
+      "phase": "韌體時期",
+      "years": "2013–2022",
+      "summary": "嵌入式 Linux、MCU 韌體開發、路由器內建網頁介面，以及產線 MAC／序號燒錄工具。",
+      "prop": "電路板、MCU 晶片、路由器天線"
     },
     {
-      "id": "dc-power",
-      "years": "2022",
-      "org": "直流電通",
-      "role": "後端工程師",
-      "summary": "第三方支付，串接永豐銀行 API 與 3DS 交易。",
-      "prop": "刷卡機"
-    },
-    {
-      "id": "chengfeng",
-      "years": "2022–2023",
-      "org": "程豐資通",
-      "role": "後端工程師",
-      "summary": "後台 API 與資料結構設計，導入 Jenkins CI/CD 與 Redmine。",
-      "prop": "小輸送帶"
-    },
-    {
-      "id": "sugar-frog",
-      "years": "2023",
-      "org": "糖蛙線上娛樂",
-      "role": "資深 Java 後端",
-      "summary": "老虎機後端、為多人開發重構、部署其他國家版本。",
-      "prop": "迷你拉霸"
-    },
-    {
-      "id": "geein",
-      "years": "2024",
-      "org": "吉音資訊（派駐台灣大哥大）",
-      "role": "全端",
-      "summary": "後台功能，導入開源聊天系統。",
-      "prop": "聊天泡泡看板"
-    },
-    {
-      "id": "twilight-exchange",
-      "years": "2025–2026",
-      "org": "夕煇",
-      "role": "後端工程師",
-      "summary": "虛擬貨幣交易所後台報表。",
-      "prop": "金色小硬幣"
-    },
-    {
-      "id": "twilight-ops",
-      "years": "2025–2026",
-      "org": "夕煇",
-      "role": "後端工程師",
-      "summary": "運維後台：AWS RDS／EKS、k8s 升級、log 匯出、資料庫監控。",
-      "prop": "雲端伺服器塔"
-    },
-    {
-      "id": "weichiao",
-      "years": "2026 至今",
-      "org": "威僑（派駐新光人壽）",
-      "role": "全端工程師",
-      "summary": "行動投保全端（Flutter／Java）、弱點掃描修復。",
-      "prop": "手機與盾牌"
+      "id": "software-2022-now",
+      "phase": "純軟體時期",
+      "years": "2022–至今",
+      "summary": "金融保險、博弈、網站與虛擬貨幣交易所後台報表；運維後台含 AWS RDS／EKS、k8s 升級與 log 匯出；也曾做支付串接、拉霸後端與行動投保全端。",
+      "prop": "走勢圖、硬幣、拉霸輪軸、保險 App"
     },
     {
       "id": "punchclock",

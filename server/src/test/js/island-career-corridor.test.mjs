@@ -4,17 +4,20 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadPublicModule } from './load-public-module.mjs';
+import { MAX_LAMP_POINT_LIGHTS } from '../../main/resources/public/js/island-kit.js';
 
 const L = await loadPublicModule('island-layout.js');
 const {
   CARD_FIELD_WHITELIST,
   buildCardTextModel,
   fillCareerCard,
+  careerCardHeading,
   scanTimelinePrivacy,
   validateTimelineData,
   pickWhitelistFields,
   assertCorridorNavigable,
   assertExhibitLayout,
+  assertZoneSignLayout,
   careerCardEscapeShouldClose
 } = await loadPublicModule('island-career-corridor-logic.js');
 
@@ -22,23 +25,59 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'main', '
 const timelineText = readFileSync(join(root, 'island/career-timeline.json'), 'utf8');
 const timeline = JSON.parse(timelineText);
 
-test('時間軸 10 格含夕煇兩筆與 PunchClock', () => {
+test('時間軸為兩階段結構含 PunchClock', () => {
   const v = validateTimelineData(timeline);
   assert.equal(v.ok, true, v.reason);
-  assert.equal(timeline.entries.length, 10);
-  const twi = timeline.entries.filter((e) => e.org === '夕煇');
-  assert.equal(twi.length, 2);
-  assert.ok(twi[0].summary.includes('虛擬貨幣交易所'));
-  assert.ok(!twi[0].summary.includes('運維'));
-  assert.ok(twi[1].summary.includes('運維'));
+  assert.equal(timeline.entries.length, 4);
+  const firmware = timeline.entries.find((e) => e.id === 'firmware-2013-2022');
+  const software = timeline.entries.find((e) => e.id === 'software-2022-now');
+  assert.equal(firmware.phase, '韌體時期');
+  assert.equal(software.phase, '純軟體時期');
+  assert.ok(!firmware.org);
+  assert.ok(software.summary.includes('虛擬貨幣交易所'));
+  assert.ok(software.summary.includes('運維'));
+  assert.ok(!timelineText.includes('弘真科技'));
+  assert.ok(!timelineText.includes('hongzhen'));
+  assert.ok(!timelineText.includes('2018–2022'));
+  assert.ok(!timelineText.includes('從缺'));
 });
 
 test('卡片僅輸出白名單欄位', () => {
-  const model = buildCardTextModel(timeline.entries[6]);
+  const model = buildCardTextModel(timeline.entries[1]);
   const keys = Object.keys(model).filter((k) => k !== 'isPunchClock');
   assert.deepEqual(keys.sort(), CARD_FIELD_WHITELIST.slice().sort());
-  const picked = pickWhitelistFields(timeline.entries[0]);
-  assert.deepEqual(Object.keys(picked).sort(), CARD_FIELD_WHITELIST.slice().sort());
+  const picked = pickWhitelistFields(timeline.entries.find((e) => e.id === 'firmware-2013-2022'));
+  assert.deepEqual(Object.keys(picked).sort(), ['phase', 'prop', 'summary', 'years']);
+});
+
+test('韌體卡無公司名時以時期名作標題', () => {
+  const model = buildCardTextModel(timeline.entries.find((e) => e.id === 'firmware-2013-2022'));
+  assert.equal(model.org, '');
+  assert.equal(careerCardHeading(model), '韌體時期');
+  const doc = {
+    createElement: (tag) => {
+      const el = {
+        tagName: tag.toUpperCase(),
+        className: '',
+        textContent: '',
+        children: [],
+        firstChild: null,
+        appendChild(child) {
+          this.children.push(child);
+          if (!this.firstChild) this.firstChild = child;
+        },
+        removeChild(child) {
+          this.children = this.children.filter((c) => c !== child);
+          this.firstChild = this.children[0] || null;
+        }
+      };
+      return el;
+    }
+  };
+  const body = doc.createElement('div');
+  fillCareerCard(body, model, doc);
+  assert.equal(body.children[0].textContent, '韌體時期');
+  assert.ok(body.children[0].textContent.length > 0);
 });
 
 test('fillCareerCard 以 textContent 寫入，不吃 innerHTML', () => {
@@ -100,11 +139,16 @@ test('展件與門口、彼此間距符合約束', () => {
   assert.equal(layout.ok, true, JSON.stringify(layout));
 });
 
+test('時期主題牌位於前庭朝南、不貼研發樓前門牆', () => {
+  const signs = assertZoneSignLayout();
+  assert.equal(signs.ok, true, JSON.stringify(signs));
+});
+
 test('僅 PunchClock 卡顯示進入研發樓鈕（hidden 時應關閉）', () => {
   const punch = buildCardTextModel(timeline.entries.find((e) => e.id === 'punchclock'));
-  const thu = buildCardTextModel(timeline.entries.find((e) => e.id === 'thu-2007'));
+  const fw = buildCardTextModel(timeline.entries.find((e) => e.id === 'firmware-2013-2022'));
   assert.equal(punch.isPunchClock, true);
-  assert.equal(thu.isPunchClock, false);
+  assert.equal(fw.isPunchClock, false);
   const css = readFileSync(
     join(root, 'js', 'island-career-corridor.js'),
     'utf8'
@@ -123,4 +167,8 @@ test('Esc 在經歷卡開啟時應關閉本卡', () => {
   const onDoc = js.match(/function onDocKey\(ev\) \{[\s\S]*?\n  \}/);
   assert.ok(onDoc);
   assert.equal(onDoc[0].includes('islandUiOpen'), false);
+});
+
+test('MAX_LAMP_POINT_LIGHTS 仍為 4', () => {
+  assert.equal(MAX_LAMP_POINT_LIGHTS, 4);
 });

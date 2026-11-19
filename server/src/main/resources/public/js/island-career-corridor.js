@@ -9,7 +9,7 @@ import {
   careerInteractZones,
   resolveCareerPickHit
 } from './island-career-corridor-logic.js';
-import { CAREER_EXHIBIT_LAYOUT } from './island-career-corridor-data.js';
+import { CAREER_EXHIBIT_LAYOUT, CAREER_ZONE_SIGNS } from './island-career-corridor-data.js';
 import { careerCardEscapeShouldClose } from './island-career-corridor-logic.js';
 
 export { resolveCareerPickHit };
@@ -40,49 +40,94 @@ function buildPropMesh(kit, entry, group) {
     });
     addBox(group, 0.22 * S, 0.03 * S, 0.16 * S, 0x5d4a38, 0.12, 0.46 * S, 0.05);
     addMesh(group, geo('box', [0.16 * S, 0.02 * S, 0.11 * S]), 0x8a9aaa, 0.14 * S, 0.49 * S, 0.05, { shadow: false });
-  } else if (id === 'hongzhen') {
-    addBox(group, 0.14 * S, 0.06 * S, 0.1 * S, 0x2a3848, 0, 0.42 * S, 0);
-    addMesh(group, geo('cyl', [0.02 * S, 0.02 * S, 0.08 * S, 4, 0]), 0x3cf0ff, 0.05 * S, 0.48 * S, 0.04, {
-      glow: 0x3cf0ff,
-      glowAmount: 0.65,
+  } else if (id === 'firmware-2013-2022') {
+    const pcbMap = paint(96, 64, (g, w, h) => {
+      g.fillStyle = '#1b5538';
+      g.fillRect(0, 0, w, h);
+      g.strokeStyle = '#c8e0a8';
+      g.lineWidth = 1;
+      for (let i = 8; i < w; i += 14) {
+        g.beginPath();
+        g.moveTo(i, 4);
+        g.lineTo(i, h - 4);
+        g.stroke();
+      }
+    });
+    addMesh(group, new THREE.PlaneGeometry(0.28 * S, 0.2 * S), 0xffffff, -0.06 * S, 0.5 * S, 0.02, {
+      map: pcbMap,
+      side: THREE.DoubleSide,
       shadow: false
     });
-  } else if (id === 'dc-power') {
-    addBox(group, 0.18 * S, 0.1 * S, 0.14 * S, 0x2a3848, 0, 0.44 * S, 0);
-    addBox(group, 0.12 * S, 0.04 * S, 0.02, 0x7ec8ea, 0, 0.52 * S, 0.06, { glow: 0x3cf0ff, glowAmount: 0.55, shadow: false });
-  } else if (id === 'chengfeng') {
-    addBox(group, 0.32 * S, 0.05 * S, 0.12 * S, 0x5d7384, -0.08 * S, 0.44 * S, 0);
-    addBox(group, 0.08 * S, 0.05 * S, 0.08 * S, 0xf06a2a, 0.1 * S, 0.46 * S, 0.02, { shadow: false });
-  } else if (id === 'sugar-frog') {
-    addBox(group, 0.2 * S, 0.14 * S, 0.14 * S, 0x5b3a8c, 0, 0.46 * S, 0);
-    addBox(group, 0.14 * S, 0.06 * S, 0.02, 0xff6ad8, 0, 0.55 * S, 0.06, { glow: 0xff4ec8, glowAmount: 0.75, shadow: false });
-  } else if (id === 'geein') {
-    addBox(group, 0.18 * S, 0.22 * S, 0.02, 0xe8eef2, 0, 0.5 * S, 0);
-    addMesh(group, geo('sph', [0.05 * S, 6, 5]), 0x7ec8ea, -0.04 * S, 0.58 * S, 0.02, { glow: 0x3cf0ff, glowAmount: 0.55, shadow: false });
-  } else if (id === 'twilight-exchange') {
-    addMesh(group, geo('cyl', [0.1 * S, 0.1 * S, 0.02, 10, 0]), 0xf0d078, 0, 0.46 * S, 0, {
+    addMesh(group, geo('box', [0.08 * S, 0.02 * S, 0.08 * S]), 0x2a3848, 0.04 * S, 0.54 * S, 0.05, { shadow: false });
+    addMesh(group, geo('cyl', [0.016 * S, 0.016 * S, 0.1 * S, 6, 0]), 0x4a6078, 0.12 * S, 0.58 * S, 0.04, { shadow: false });
+    addMesh(group, geo('cyl', [0.02 * S, 0.02 * S, 0.08 * S, 5, 0]), 0x3cf0ff, 0.12 * S, 0.66 * S, 0.04, {
+      glow: 0x3cf0ff,
+      glowAmount: 0.55,
+      shadow: false
+    });
+  } else if (id === 'software-2022-now') {
+    const chartMap = paint(128, 80, (g, w, h) => {
+      g.fillStyle = '#0e1824';
+      g.fillRect(0, 0, w, h);
+      g.strokeStyle = '#7ec8ea';
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(8, h - 12);
+      g.lineTo(30, 52);
+      g.lineTo(52, 58);
+      g.lineTo(74, 28);
+      g.lineTo(w - 8, 18);
+      g.stroke();
+    });
+    addMesh(group, new THREE.PlaneGeometry(0.22 * S, 0.14 * S), 0xffffff, -0.14 * S, 0.58 * S, 0.02, {
+      map: chartMap,
+      side: THREE.DoubleSide,
+      shadow: false
+    });
+    addMesh(group, geo('cyl', [0.09 * S, 0.09 * S, 0.02, 10, 0]), 0xf0d078, 0.1 * S, 0.46 * S, 0.04, {
       night: 0xd4a84b,
       glow: 0xffd27a,
-      glowAmount: 0.65,
+      glowAmount: 0.6,
       shadow: false
     });
-  } else if (id === 'twilight-ops') {
-    addBox(group, 0.14 * S, 0.34 * S, 0.1 * S, 0x24384c, 0, 0.5 * S, 0);
-    addBox(group, 0.12 * S, 0.03 * S, 0.02, 0x3cf0ff, 0, 0.68 * S, 0.05, { glow: 0x3cf0ff, glowAmount: 0.75, shadow: false });
-    if (entry.neighborCoin) {
-      addMesh(group, geo('cyl', [0.08 * S, 0.08 * S, 0.018, 8, 0]), 0xf0d078, -0.14 * S, 0.44 * S, 0.06, {
-        glow: 0xffd27a,
-        glowAmount: 0.55,
-        shadow: false
-      });
-    }
-  } else if (id === 'weichiao') {
-    addBox(group, 0.07 * S, 0.14 * S, 0.02, 0x1a2838, -0.04 * S, 0.48 * S, 0);
-    addMesh(group, geo('box', [0.08 * S, 0.12 * S, 0.02]), 0x7ec8ea, 0.05 * S, 0.48 * S, 0, { shadow: false });
-    addMesh(group, geo('cyl', [0.06 * S, 0.08 * S, 0.02, 5, 0]), 0x9fd9b4, 0.1 * S, 0.42 * S, 0.05, { shadow: false });
+    addBox(group, 0.16 * S, 0.12 * S, 0.1 * S, 0x5b3a8c, 0.12 * S, 0.52 * S, 0);
+    addBox(group, 0.12 * S, 0.05 * S, 0.02, 0xff6ad8, 0.12 * S, 0.6 * S, 0.06, { glow: 0xff4ec8, glowAmount: 0.65, shadow: false });
+    addBox(group, 0.07 * S, 0.14 * S, 0.02, 0x1a2838, 0.2 * S, 0.48 * S, 0);
+    addMesh(group, geo('box', [0.08 * S, 0.11 * S, 0.02]), 0x7ec8ea, 0.21 * S, 0.48 * S, 0, { shadow: false });
+    addMesh(group, geo('cyl', [0.055 * S, 0.075 * S, 0.02, 5, 0]), 0x9fd9b4, 0.26 * S, 0.42 * S, 0.05, { shadow: false });
   } else if (id === 'punchclock') {
     addMesh(group, geo('sph', [0.1 * S, 8, 6]), 0xf06a2a, 0, 0.52 * S, 0, { glow: 0xffb15a, glowAmount: 0.45, shadow: false });
     addBox(group, 0.22 * S, 0.04 * S, 0.12 * S, 0x1f4d73, 0, 0.38 * S, 0);
+  }
+}
+
+function buildPhaseSigns(rootGroup, kit) {
+  const { addBox, addMesh, paint } = kit;
+  for (let i = 0; i < CAREER_ZONE_SIGNS.length; i++) {
+    const sign = CAREER_ZONE_SIGNS[i];
+    const map = paint(320, 104, (g, w, h) => {
+      g.fillStyle = '#f3f6f9';
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = '#1a2838';
+      g.font = '700 24px sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(sign.phase, w / 2, h * 0.38);
+      g.font = '600 20px sans-serif';
+      g.fillStyle = '#3a5068';
+      g.fillText(sign.years, w / 2, h * 0.68);
+    });
+    const g = new THREE.Group();
+    g.position.set(sign.x, G, sign.z);
+    g.rotation.y = sign.yaw || 0;
+    const faceZ = 0.04;
+    addBox(g, 0.58, 0.88, 0.06, 0x8a9aaa, 0, 0.46, 0, { shadow: false });
+    addMesh(g, new THREE.PlaneGeometry(0.52, 0.28), 0xffffff, 0, 0.92, faceZ, {
+      map,
+      side: THREE.DoubleSide,
+      shadow: false
+    });
+    rootGroup.add(g);
   }
 }
 
@@ -305,10 +350,10 @@ export function createCareerCorridorController(ctx) {
       const doorZ = building.door ? building.door.z : 16.17;
       layInstancedPaving(scene, kit, [
         { x: building.x - 0.05, z: doorZ - 0.45, w: 0.65, d: 1.55, rotY: 0.02 },
-        { x: building.x - 1.35, z: 16.15, w: 1.85, d: 0.75, rotY: 0.05 },
-        { x: building.x - 1.25, z: 15.72, w: 1.55, d: 0.62, rotY: -0.03 },
-        { x: building.x + 1.35, z: 16.12, w: 1.65, d: 0.72, rotY: -0.04 },
-        { x: building.x + 0.95, z: 15.62, w: 1.15, d: 0.55, rotY: 0.06 }
+        { x: building.x - 1.25, z: 16.28, w: 1.55, d: 0.82, rotY: 0.05 },
+        { x: building.x - 1.15, z: 15.68, w: 1.35, d: 0.58, rotY: -0.03 },
+        { x: building.x + 1.28, z: 16.25, w: 1.55, d: 0.78, rotY: -0.04 },
+        { x: building.x + 0.92, z: 15.58, w: 1.05, d: 0.52, rotY: 0.06 }
       ]);
 
       for (let j = 0; j < CAREER_EXHIBIT_LAYOUT.length; j++) {
@@ -320,10 +365,7 @@ export function createCareerCorridorController(ctx) {
         kit.addBox(pedestal, 0.48, 0.09, 0.36, 0xe8eef2, 0, 0.045, 0, { shadow: false });
         const prop = new THREE.Group();
         prop.position.y = 0.08;
-        const propEntry = Object.assign({}, entry, {
-          neighborCoin: row.id === 'twilight-ops'
-        });
-        buildPropMesh(kit, propEntry, prop);
+        buildPropMesh(kit, entry, prop);
         pedestal.add(prop);
 
         const pick = new THREE.Mesh(
@@ -337,6 +379,7 @@ export function createCareerCorridorController(ctx) {
         rootGroup.add(pedestal);
       }
 
+      buildPhaseSigns(rootGroup, kit);
       buildOutdoorEasterEggs(scene, kit);
       scene.add(rootGroup);
       loaded = true;

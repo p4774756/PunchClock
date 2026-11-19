@@ -2,11 +2,12 @@ import { buildingById } from './island-layout.js';
 import {
   CAREER_EXHIBIT_LAYOUT,
   CAREER_WALK_SAMPLES,
+  CAREER_ZONE_SIGNS,
   CAREER_PROMPT_LABEL
 } from './island-career-corridor-data.js';
 
 export const CAREER_TIMELINE_URL = '/island/career-timeline.json';
-export const CARD_FIELD_WHITELIST = Object.freeze(['years', 'org', 'role', 'summary', 'prop']);
+export const CARD_FIELD_WHITELIST = Object.freeze(['years', 'org', 'role', 'summary', 'prop', 'phase', 'title']);
 
 const PII_PATTERNS = [
   /\bTEL\b/i,
@@ -32,18 +33,27 @@ export function buildCardTextModel(entry) {
     role: fields.role || '',
     summary: fields.summary || '',
     prop: fields.prop || '',
+    phase: fields.phase || '',
+    title: fields.title || '',
     isPunchClock: entry && entry.id === 'punchclock'
   };
+}
+
+export function careerCardHeading(model) {
+  if (model.org) return model.org;
+  if (model.phase) return model.phase;
+  if (model.title) return model.title;
+  return '';
 }
 
 export function fillCareerCard(root, model, doc) {
   while (root.firstChild) root.removeChild(root.firstChild);
   const title = doc.createElement('h2');
-  title.textContent = model.org;
+  title.textContent = careerCardHeading(model);
   root.appendChild(title);
   const meta = doc.createElement('p');
   meta.className = 'career-card-meta';
-  meta.textContent = model.years + ' · ' + model.role;
+  meta.textContent = model.role ? model.years + ' · ' + model.role : model.years;
   root.appendChild(meta);
   const summary = doc.createElement('p');
   summary.className = 'career-card-summary';
@@ -67,23 +77,39 @@ export function scanTimelinePrivacy(text) {
   return hits;
 }
 
+const FORBIDDEN_EMPLOYER_SNIPPETS = Object.freeze(['弘真科技', 'hongzhen']);
+
 export function validateTimelineData(data) {
   const entries = data && Array.isArray(data.entries) ? data.entries : [];
-  if (entries.length !== 10) {
+  if (entries.length !== CAREER_EXHIBIT_LAYOUT.length) {
     return { ok: false, reason: 'count=' + entries.length };
   }
-  const twilight = entries.filter((e) => e.org === '夕煇');
-  if (twilight.length !== 2) return { ok: false, reason: 'twilight-count' };
-  const exchange = twilight.find((e) => e.id === 'twilight-exchange');
-  const ops = twilight.find((e) => e.id === 'twilight-ops');
-  if (!exchange || !ops) return { ok: false, reason: 'twilight-ids' };
-  if (!exchange.summary.includes('虛擬貨幣交易所')) return { ok: false, reason: 'exchange-summary' };
-  if (exchange.summary.includes('運維') || exchange.summary.includes('EKS')) {
-    return { ok: false, reason: 'exchange-mixed-ops' };
-  }
-  if (!ops.summary.includes('運維')) return { ok: false, reason: 'ops-summary' };
+  const firmware = entries.find((e) => e.id === 'firmware-2013-2022');
+  const software = entries.find((e) => e.id === 'software-2022-now');
   const punch = entries.find((e) => e.id === 'punchclock');
-  if (!punch) return { ok: false, reason: 'punchclock' };
+  const edu = entries.find((e) => e.id === 'thu-2007');
+  if (!firmware || !software || !punch || !edu) return { ok: false, reason: 'phase-ids' };
+  if (firmware.phase !== '韌體時期' || !String(firmware.years).includes('2013')) {
+    return { ok: false, reason: 'firmware-years' };
+  }
+  if (software.phase !== '純軟體時期' || !String(software.years).includes('2022')) {
+    return { ok: false, reason: 'software-years' };
+  }
+  if (firmware.org != null && String(firmware.org).trim() !== '') {
+    return { ok: false, reason: 'firmware-org' };
+  }
+  const blob = JSON.stringify(entries);
+  for (let f = 0; f < FORBIDDEN_EMPLOYER_SNIPPETS.length; f++) {
+    if (blob.includes(FORBIDDEN_EMPLOYER_SNIPPETS[f])) {
+      return { ok: false, reason: 'forbidden-employer' };
+    }
+  }
+  if (!software.summary.includes('虛擬貨幣交易所') || !software.summary.includes('運維')) {
+    return { ok: false, reason: 'software-twilight-split' };
+  }
+  if (software.summary.includes('2018') && software.summary.includes('從缺')) {
+    return { ok: false, reason: 'blank-gap' };
+  }
   for (let i = 0; i < entries.length; i++) {
     const keys = Object.keys(entries[i]);
     for (let j = 0; j < keys.length; j++) {
@@ -160,10 +186,11 @@ export function assertCorridorNavigable(walkable, blocked, radius) {
 }
 
 export const LAB_DOOR_STAND = Object.freeze({ x: 0.45, z: 16.17 });
+export const LAB_FRONT_WALL_Z = 16.95;
+export const MAX_ZONE_SIGN_Z = 16.7;
+export const ZONE_SIGN_SOUTH_YAW = Math.PI;
 export const MIN_EXHIBIT_DOOR_GAP = 1.35;
 export const MIN_EXHIBIT_CENTER_GAP = 0.85;
-export const MIN_TWILIGHT_CENTER_GAP = 0.55;
-
 export function careerCardEscapeShouldClose(cardVisible, key) {
   return !!cardVisible && key === 'Escape';
 }
@@ -182,14 +209,43 @@ export function assertExhibitLayout(door) {
       const ra = CAREER_EXHIBIT_LAYOUT[a];
       const rb = CAREER_EXHIBIT_LAYOUT[b];
       const g = Math.hypot(ra.x - rb.x, ra.z - rb.z);
-      let need = MIN_EXHIBIT_CENTER_GAP;
-      if (
-        (ra.id === 'twilight-exchange' && rb.id === 'twilight-ops')
-        || (ra.id === 'twilight-ops' && rb.id === 'twilight-exchange')
-      ) need = MIN_TWILIGHT_CENTER_GAP;
+      const need = MIN_EXHIBIT_CENTER_GAP;
       if (g < need - 1e-6) {
         return { ok: false, reason: 'pair-gap', a: ra.id, b: rb.id, gap: g };
       }
+    }
+  }
+  return { ok: true };
+}
+
+export function assertZoneSignLayout() {
+  const door = LAB_DOOR_STAND;
+  for (let i = 0; i < CAREER_ZONE_SIGNS.length; i++) {
+    const s = CAREER_ZONE_SIGNS[i];
+    if (s.z > MAX_ZONE_SIGN_Z + 1e-6) {
+      return { ok: false, reason: 'sign-z', i, z: s.z };
+    }
+    if (s.z >= LAB_FRONT_WALL_Z - 0.2) {
+      return { ok: false, reason: 'sign-past-wall', i, z: s.z };
+    }
+    const gap = Math.hypot(s.x - door.x, s.z - door.z);
+    if (gap < MIN_EXHIBIT_DOOR_GAP - 1e-6) {
+      return { ok: false, reason: 'sign-door-gap', i, gap };
+    }
+    if (Math.abs(s.yaw - ZONE_SIGN_SOUTH_YAW) > 0.15) {
+      return { ok: false, reason: 'sign-yaw', i, yaw: s.yaw };
+    }
+  }
+  const swExhibit = CAREER_EXHIBIT_LAYOUT.find((row) => row.id === 'software-2022-now');
+  const swSign = CAREER_ZONE_SIGNS.find((row) => row.phase === '純軟體時期');
+  if (swExhibit && swSign && swSign.z >= swExhibit.z - 0.08) {
+    return { ok: false, reason: 'sign-behind-software-exhibit', z: swSign.z, exhibitZ: swExhibit.z };
+  }
+  const hall = buildingById('computer-site');
+  if (hall && swSign) {
+    const eastEdge = hall.x + hall.w / 2;
+    if (swSign.x + 0.29 > eastEdge + 1e-6) {
+      return { ok: false, reason: 'sign-past-east-wall', x: swSign.x, eastEdge };
     }
   }
   return { ok: true };
