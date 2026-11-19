@@ -106,15 +106,23 @@ def _shophouse(b, walls, sign_part, neon_part, lx, lz, bw, bd, bh, tex_wall, sig
 
 def _residential_block(walls, props, lx, lz, bw, bd, bh, mat, face_south=True):
     if mat in REGIONS:
-        walls.box_tex(f'@{mat}', _au(mat), bw, bh, bd, lx, lz, bh / 2)
+        walls.box_tex(f'@{mat}', _au(mat), bw, bh * 0.62, bd, lx, lz, bh * 0.31)
     else:
-        _wall_tex(walls, mat, bw, bh, bd, lx, lz, bh / 2)
+        _wall_tex(walls, mat, bw, bh * 0.62, bd, lx, lz, bh * 0.31)
+    uv = _au(mat) if mat in REGIONS else _au('city_facade')
+    upper_bw, upper_bd = bw * 0.82, bd * 0.84
+    if mat in REGIONS:
+        walls.box_tex(f'@{mat}', uv, upper_bw, bh * 0.44, upper_bd, lx, lz, bh * 0.80)
+    else:
+        _wall_tex(walls, mat, upper_bw, bh * 0.44, upper_bd, lx, lz, bh * 0.80)
     _roof_slab(walls, lx, lz, bw + 0.12, bd + 0.12, bh + 0.08, _roof_key(mat))
     street = 1 if face_south else -1
     fy = lz + street * (bd / 2 - 0.08)
     _facade_extras(walls, props, lx, fy, street, bw, bh, mat)
     walls.box_tex('@city_awning', _au('city_awning'), bw + 0.22, 0.06, 0.32,
-                  lx, fy + street * 0.18, bh + 0.52)
+                  lx, fy + street * 0.18, bh * 0.48)
+    for ox in (-bw * 0.34, 0.0, bw * 0.34):
+        props.cyl('stone', 0.11, 0.09, bh * 0.46, lx + ox, fy + street * 0.24, bh * 0.23, seg=6)
     for sx in (-1, 1):
         for sz in (-1, 1):
             px, pz = lx + sx * bw * 0.32, lz + sz * bd * 0.32
@@ -124,27 +132,29 @@ def _residential_block(walls, props, lx, lz, bw, bd, bh, mat, face_south=True):
 
 
 def _plaza_711(b, walls, props, ground, sign_part, neon_part):
-    """中央 7-11 廣場：開闊鋪面＋超商立面（朝南、預設俯視可讀）。"""
+    """中央 7-11 廣場：開闊鋪面＋超商立面（朝南、與騎樓店同一掛法）。"""
     bw, bd, bh = 2.12, 1.92, 1.52
     lx, lz = 0.0, 0.0
+    street = -1
+    fy = lz + street * (bd / 2 - 0.08)
     walls.box_tex('@city_wall_yellow', _au('city_wall_yellow'), bw, bh, bd, lx, lz, bh / 2 + 0.04)
     _roof_slab(walls, lx, lz, bw + 0.22, bd + 0.22, bh + 0.08, 'roof_tile_green')
-    fy_south = lz + bd / 2 - 0.08
     stripe_h = 0.11
     for dy, mat in ((0.0, 'shop_orange'), (stripe_h, 'city_traffic_grn'), (stripe_h * 2, 'city_traffic_red')):
-        walls.box(mat, bw - 0.16, stripe_h - 0.02, 0.05, lx, fy_south + 0.04, bh * 0.38 + dy)
-    _facade_extras(walls, props, lx, fy_south, 1, bw, bh, 'city_wall_yellow')
+        walls.box(mat, bw - 0.16, stripe_h - 0.02, 0.06, lx, fy + street * 0.05, bh * 0.36 + dy)
+    _facade_extras(walls, props, lx, fy, street, bw, bh, 'city_wall_yellow')
     for ox in (-bw * 0.38, bw * 0.38):
-        props.cyl('stone', 0.14, 0.12, 0.28, lx + ox, fy_south + 0.28, 0.15, seg=6)
+        props.cyl('stone', 0.14, 0.12, 0.28, lx + ox, fy + street * 0.26, 0.15, seg=6)
     sw, sh = 2.75, 1.42
-    sz = bh + 0.42
-    pitch = 0.05
+    sz = bh + 0.58
+    pitch = 0.06
+    y_out = fy + street * 0.50
     frame = b.part('sign_face_711_frame')
-    frame.box('roof_tile_green', sw + 0.20, 0.06, sh + 0.16, lx, fy_south + 0.62, sz, rx=pitch)
+    frame.box('roof_tile_green', sw + 0.20, 0.06, sh + 0.16, lx, y_out, sz, rx=pitch)
     sign = b.part('sign_face_711')
-    sign.plane('sign', sw, sh, lx, fy_south + 0.68, sz, rx=pitch, ry=math.pi, **_SIGN_UV)
+    sign.plane('sign', sw, sh, lx, y_out + street * 0.06, sz, rx=pitch, ry=math.pi, **_SIGN_UV)
     neo = b.part('shop_neon')
-    neo.box('neon_glow', sw + 0.12, 0.05, 0.06, lx, fy_south + 0.66, sz + sh / 2 - 0.06, rx=pitch)
+    neo.box('neon_glow', sw + 0.12, 0.05, 0.06, lx, y_out + street * 0.04, sz + sh / 2 - 0.06, rx=pitch)
     for sx, szp in ((-1.55, -1.45), (1.55, -1.45), (-1.55, 1.45), (1.55, 1.45)):
         props.cyl('plant', 0.20, 0.16, 0.22, sx, szp, 0.12, seg=7)
     ground.box_tex('@city_sidewalk', _au('city_sidewalk'), 4.55, 4.55, 0.06, lx, lz, 0.042)
@@ -319,8 +329,8 @@ def build(out_path):
     _shophouse(b, walls, tea, neon_shop, GRID, 0, bw, bd, bh,
                'city_wall_mint', 'sign_face_bubble', True)
     claw = b.part('sign_face_claw')
-    _shophouse(b, walls, claw, neon_shop, 0, -GRID, bw, bd, 1.85,
-               'city_wall_lilac', 'sign_face_claw', False, sign_tall=True)
+    _shophouse(b, walls, claw, neon_shop, 0, -GRID, bw, bd, 1.68,
+               'city_wall_lilac', 'sign_face_claw', True, sign_tall=True)
 
     _plaza_711(b, walls, props, ground, b.part('sign_face_711'), neon_shop)
 
@@ -332,7 +342,7 @@ def build(out_path):
     ):
         _residential_block(walls, props, lx, lz, BLOCK, BLOCK, 1.85, mat)
 
-    _mount_sign(b, 'sign_face_snack', GRID, GRID - 0.55, 1.95, 2.45, 1.18,
+    _mount_sign(b, 'sign_face_snack', GRID, GRID - BLOCK / 2 - 0.2, 2.05, 2.45, 1.18,
                 roof='roof_tile_orange', face_south=True)
 
     for lx, ly in ((-GRID * 0.65, GRID + 0.65), (GRID * 0.65, GRID + 0.65),

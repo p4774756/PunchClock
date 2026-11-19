@@ -1,4 +1,4 @@
-"""城市島粉紅復古小車（Fiat 500 圓潤掀背）；邏輯／碰撞仍用 island-vehicle.js。
+"""城市島粉紅復古小車（Fiat 500 掀背側影）；邏輯／碰撞仍用 island-vehicle.js。
 
   ~/.local/bin/blender -b --factory-startup -P tools/blender/build_city_pink_car.py -- \\
     server/src/main/resources/public/models/city-pink-car.glb
@@ -25,52 +25,54 @@ def build(out_path):
 
     set_palette_overrides({})
 
-    b = Builder('city-pink-car', 1.05, 0.78)
+    b = Builder('city-pink-car', 1.72, 0.92)
     body = b.part('car_body')
     cabin = b.part('car_cabin')
     trim = b.part('car_trim')
     wheels = b.part('car_wheels')
     glass = b.part('car_glass')
 
-    # 短圓掀背：總長約 0.72、寬 0.64、高駕駛艙
-    body.box('city_pink_car', 0.60, 0.14, 0.46, 0, 0, 0.10)
-    body.box('city_pink_car', 0.64, 0.20, 0.50, 0, 0.0, 0.22)
-    body.sphere('city_pink_car', 0.34, 0, 0.0, 0.38, seg=10, rings=8)
-    body.sphere('city_pink_car', 0.28, 0, -0.04, 0.52, seg=9, rings=7)
-    cabin.sphere('city_pink_roof', 0.30, 0, 0.0, 0.62, seg=10, rings=8)
-    cabin.box('city_pink_roof', 0.50, 0.12, 0.36, 0, 0.02, 0.72)
-    # 圓鼻（前緣 -Y）
-    body.sphere('city_pink_car', 0.22, 0, -0.30, 0.26, seg=8, rings=6)
-    body.box('city_pink_car', 0.46, 0.18, 0.42, 0, -0.26, 0.20, rx=-0.14)
-    # 後掀背
-    body.box('city_pink_car', 0.52, 0.16, 0.38, 0, 0.26, 0.34, rx=0.28)
-    body.box('city_pink_car', 0.44, 0.12, 0.32, 0, 0.30, 0.46, rx=0.36)
+    # 短鼻、直立艙、掀背側影（方體堆疊，不用大球）
+    body.box('city_pink_car', 0.88, 0.17, 0.52, 0, -0.28, 0.10)
+    body.box('city_pink_car', 0.94, 0.22, 0.58, 0, 0.02, 0.11)
+    body.box('city_pink_car', 0.90, 0.34, 0.56, 0, 0.02, 0.28)
+    body.box('city_pink_car', 0.84, 0.40, 0.54, 0, 0.04, 0.44)
+    body.box('city_pink_car', 0.76, 0.36, 0.50, 0, 0.06, 0.58)
+    body.box('city_pink_car', 0.62, 0.28, 0.46, 0, 0.04, 0.70)
+    cabin.box('city_pink_roof', 0.70, 0.16, 0.42, 0, 0.02, 0.78)
+    cabin.box('city_pink_roof', 0.54, 0.10, 0.36, 0, 0.0, 0.84)
+    body.box('city_pink_car', 0.48, 0.20, 0.48, 0, -0.40, 0.20, rx=-0.18)
+    body.box('city_pink_car', 0.36, 0.22, 0.44, 0, -0.46, 0.28, rx=-0.22)
+    body.box('city_pink_car', 0.58, 0.22, 0.44, 0, 0.40, 0.34, rx=0.32)
+    body.box('city_pink_car', 0.50, 0.18, 0.40, 0, 0.44, 0.48, rx=0.38)
 
     for sx in (-1, 1):
-        body.box('city_pink_car', 0.10, 0.22, 0.40, sx * 0.28, 0.0, 0.28)
-        trim.sphere('city_trim_white', 0.10, sx * 0.30, -0.28, 0.22, seg=8, rings=6)
-        trim.sphere('windows_glow', 0.052, sx * 0.29, -0.27, 0.24, seg=6, rings=5)
+        trim.box('city_traffic_dark', 0.20, 0.10, 0.28, sx * 0.46, 0.02, 0.22)
+        body.box('city_pink_car', 0.14, 0.06, 0.18, sx * 0.50, -0.04, 0.14)
+        body.box('city_pink_car', 0.12, 0.06, 0.16, sx * 0.50, 0.14, 0.26)
 
-    glass.box('city_glass_blue', 0.46, 0.02, 0.28, 0, 0.24, 0.52)
-    glass.box('city_glass_blue', 0.38, 0.16, 0.02, 0, 0.22, 0.48)
-    glass.box('city_glass_blue', 0.36, 0.02, 0.26, 0, 0.0, 0.46)
-    glass.box('city_glass_blue', 0.22, 0.12, 0.02, 0, -0.16, 0.38)
-    for sx in (-0.18, 0.18):
-        glass.box('city_glass_blue', 0.02, 0.12, 0.24, sx, 0.02, 0.44)
+    glass.box('city_glass_blue', 0.46, 0.02, 0.30, 0, 0.36, 0.54)
+    glass.box('city_glass_blue', 0.38, 0.14, 0.02, 0, 0.34, 0.50)
+    glass.box('city_glass_blue', 0.40, 0.02, 0.32, 0, 0.08, 0.50)
+    for sx in (-0.24, 0.24):
+        glass.box('city_glass_blue', 0.02, 0.14, 0.30, sx, 0.06, 0.48)
+    glass.box('city_glass_blue', 0.28, 0.10, 0.02, 0, -0.18, 0.40)
 
-    trim.box('city_trim_white', 0.58, 0.05, 0.06, 0, -0.30, 0.15)
-    trim.box('city_trim_white', 0.52, 0.05, 0.06, 0, 0.30, 0.16)
-    trim.box('city_trim_white', 0.46, 0.03, 0.03, 0, -0.30, 0.19)
-    for sx in (-0.32, 0.32):
-        trim.sphere('city_trim_white', 0.040, sx, -0.28, 0.20, seg=7, rings=4)
-    for sx in (-0.08, 0.08):
-        trim.sphere('city_traffic_red', 0.042, sx, 0.30, 0.18, seg=7, rings=4)
+    trim.box('city_trim_white', 0.74, 0.04, 0.06, 0, -0.44, 0.15)
+    trim.box('city_trim_white', 0.62, 0.04, 0.06, 0, 0.43, 0.17)
+    trim.box('city_trim_white', 0.72, 0.03, 0.04, 0, -0.44, 0.21)
+    for sx in (-0.40, 0.40):
+        wheels.cyl('city_trim_white', 0.052, 0.052, 0.02, sx, -0.38, 0.22,
+                   seg=14, rx=math.pi / 2)
+        trim.sphere('windows_glow', 0.050, sx, -0.38, 0.22, seg=10, rings=6)
+    for sx in (-0.10, 0.10):
+        trim.sphere('city_traffic_red', 0.046, sx, 0.42, 0.20, seg=8, rings=5)
 
-    wheel_offs = [(-0.38, 0.24), (0.38, 0.24), (-0.38, -0.24), (0.38, -0.24)]
+    wheel_offs = [(-0.44, 0.27), (0.44, 0.27), (-0.44, -0.27), (0.44, -0.27)]
     for wx, wz in wheel_offs:
-        wheels.cyl('city_traffic_dark', 0.12, 0.12, 0.09, wx, wz, 0.10, seg=16, rx=math.pi / 2)
-        wheels.cyl('city_trim_white', 0.068, 0.068, 0.04, wx, wz, 0.10, seg=12, rx=math.pi / 2)
-        wheels.cyl('city_trim_white', 0.032, 0.032, 0.025, wx, wz, 0.10, seg=8, rx=math.pi / 2)
+        wheels.cyl('city_traffic_dark', 0.13, 0.13, 0.10, wx, wz, 0.10, seg=16, rx=math.pi / 2)
+        wheels.cyl('city_trim_white', 0.074, 0.074, 0.05, wx, wz, 0.10, seg=12, rx=math.pi / 2)
+        wheels.cyl('city_trim_white', 0.038, 0.038, 0.03, wx, wz, 0.10, seg=8, rx=math.pi / 2)
 
     return b.finish(out_path, extras={'model': 'city-pink-car'})
 

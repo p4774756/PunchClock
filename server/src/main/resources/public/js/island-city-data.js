@@ -77,7 +77,7 @@ export function cityObstacleCircles() {
   }));
 }
 
-export const PINK_CAR_LOCAL = Object.freeze({ x: 2.5, z: 0, yaw: -0.12 });
+export const PINK_CAR_LOCAL = Object.freeze({ x: 2.5, z: 0.35, yaw: 0.65 });
 /** 路人／機車取樣點須與停車位保持的最小距離（含車身與人身寬度）。 */
 export const PINK_CAR_PATH_CLEAR_R = 1.55;
 
