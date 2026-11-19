@@ -251,9 +251,9 @@ def _chest_second_diff_max(bm, hubs, r_lim=0.06):
 def _smooth_breast_detail(body):
     """胸部：外圈二次曲面擬合 + 權重 lerp + 局部 Laplacian（無球面投影）。"""
     R_RING_LO = 0.045
-    R_RING_HI = 0.065
-    R_BLEND_FULL = 0.025
-    R_BLEND_FADE = 0.055
+    R_RING_HI = 0.068
+    R_BLEND_FULL = 0.030
+    R_BLEND_FADE = 0.060
     me = body.data
     orig = [v.co.copy() for v in me.vertices]
     bm = bmesh.new()
@@ -320,7 +320,7 @@ def _smooth_breast_detail(body):
             touched.add(v.index)
 
     smooth_verts = [v for v in bm.verts if weight.get(v.index, 0.0) > 0.05]
-    for _ in range(6):
+    for _ in range(11):
         bmesh.ops.smooth_vert(
             bm,
             verts=smooth_verts,
@@ -426,16 +426,38 @@ def _make_stripe_tex():
     return path
 
 
-def _hair_face_ok(face, z_hairline=1.618):
-    """髮際線在額上緣；不蓋眉眼，只留頂部與耳上後方薄殼。"""
+def _hair_face_ok(face, z_hairline=1.638):
+    """盤髻用薄殼：額頭全露、鬢不蓋耳，只留頂與後腦。"""
     verts = list(face.verts)
     max_z = max(v.co.z for v in verts)
+    min_z = min(v.co.z for v in verts)
     avg_y = sum(v.co.y for v in verts) / len(verts)
-    if max_z < z_hairline - 0.028:
+    avg_x = sum(abs(v.co.x) for v in verts) / len(verts)
+    if max_z < z_hairline - 0.020:
         return False
-    if avg_y < -0.05 and max_z < z_hairline + 0.006:
+    if any(v.co.y < -0.045 and v.co.z < z_hairline + 0.032 for v in verts):
+        return False
+    if avg_y < -0.010 and min_z < z_hairline + 0.012:
+        return False
+    if avg_y < -0.028 and max_z < z_hairline + 0.038:
+        return False
+    if avg_x > 0.095 and avg_y < 0.0 and max_z < z_hairline + 0.024:
         return False
     return True
+
+
+def _mesh_merge_centerline(ob, threshold=0.00012):
+    """僅合併背面 x≈0 接縫，避免誤刪整片髮殼。"""
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bm.verts.ensure_lookup_table()
+    seam = [v for v in bm.verts if abs(v.co.x) <= threshold * 1.5 and v.co.y > 0.01]
+    if len(seam) >= 2:
+        bmesh.ops.remove_doubles(bm, verts=seam, dist=threshold)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(ob.data)
+    bm.free()
+    ob.data.update()
 
 
 def _hair_streak_normal_image():
@@ -488,16 +510,33 @@ def _add_hair(body, mat_hair):
     ob_shell.select_set(True)
     bpy.ops.object.modifier_apply(modifier=mod.name)
     ob_shell.select_set(False)
+    _mesh_merge_centerline(ob_shell)
+    bpy.context.view_layer.update()
+    mw_s = ob_shell.matrix_world
+    trim_bm = bmesh.new()
+    trim_bm.from_mesh(ob_shell.data)
+    trim_bm.verts.ensure_lookup_table()
+    inv_s = mw_s.inverted()
+    drop = [
+        v
+        for v in trim_bm.verts
+        if (w := mw_s @ v.co).y < -0.048 and w.z < 1.652
+    ]
+    if drop:
+        bmesh.ops.delete(trim_bm, geom=drop, context='VERTS')
+    trim_bm.to_mesh(ob_shell.data)
+    trim_bm.free()
+    ob_shell.data.update()
     mw_s = ob_shell.matrix_world
     inv_s = mw_s.inverted()
-    grooves = []
     for v in ob_shell.data.vertices:
         w = mw_s @ v.co
         if w.z < 1.58:
             continue
-        strike = 0.0012 * math.sin(w.y * 220.0 - w.z * 40.0) + 0.0006 * math.sin(w.x * 180.0 + w.z * 30.0)
-        back = Vector((0.0, 1.0, 0.08)).normalized()
-        v.co = inv_s @ (w + back * strike)
+        flow = math.atan2(w.y + 0.035, max(w.z - 1.60, 0.015))
+        strike = 0.0012 * math.sin(flow * 13.5 - w.x * 140.0)
+        along = Vector((0.05 * math.sin(flow * 2.5), 1.0, 0.10)).normalized()
+        v.co = inv_s @ (w + along * strike)
     ob_shell.data.update()
     shell_gaps = []
     mw_s = ob_shell.matrix_world
@@ -514,9 +553,11 @@ def _add_hair(body, mat_hair):
             f'[hair] shell gap mm mean={1000*np.mean(shell_gaps):.2f} '
             f'max={1000*np.max(shell_gaps):.2f} (expect 4-7)'
         )
+    front_z = max(-(mw_s @ v.co).y for v in ob_shell.data.vertices)
+    print(f'[hair] shell front_z_gltf_max={front_z:.4f} (forehead band; lower=less bang)')
 
     bun_r = 0.028
-    bun_center = Vector((0.0, 0.050, 1.676))
+    bun_center = Vector((0.0, 0.068, 1.662))
     matrix = (
         Matrix.Translation(bun_center)
         @ Matrix.Diagonal((bun_r, bun_r * 0.85, bun_r * 1.0, 1.0))
@@ -530,34 +571,27 @@ def _add_hair(body, mat_hair):
         v.co = matrix.inverted() @ (w - inward * groove)
     ob_bun = _mesh_from_bm(bm_bun, 'bronze_hair_bun', mat_hair)
     bpy.context.view_layer.update()
+    head_ref = Vector((0.0, -0.055, 1.648))
     mw_b = ob_bun.matrix_world
-    mw_body = body.matrix_world
+    to_head = (head_ref - bun_center).normalized()
     for v in ob_bun.data.vertices:
         w = mw_b @ v.co
-        hit = _closest_on_body(body, w)
-        if hit:
-            wloc, wnorm, _ = hit
-            gap = (w - wloc).dot(wnorm)
-            if gap > -0.004:
-                local = mw_b.inverted() @ (w - wnorm * (gap + 0.006))
-                v.co = local
-    ob_bun.data.update()
-    for _ in range(2):
-        mw_b = ob_bun.matrix_world
-        touched = False
-        for i in range(0, len(ob_bun.data.vertices)):
-            v = ob_bun.data.vertices[i]
-            w = mw_b @ v.co
+        outward = w - bun_center
+        if outward.length < 1e-8:
+            continue
+        if outward.normalized().dot(to_head) < 0.32:
+            continue
+        hit = _closest_on_body(ob_shell, w)
+        if not hit:
             hit = _closest_on_body(body, w)
-            if not hit:
-                continue
-            wloc, wnorm, _ = hit
-            gap = (w - wloc).dot(wnorm)
-            if gap > -0.002:
-                v.co = mw_b.inverted() @ (w - wnorm * (gap + 0.0045))
-                touched = True
-        if touched:
-            ob_bun.data.update()
+        if not hit:
+            continue
+        wloc, wnorm, _ = hit
+        gap = (w - wloc).dot(wnorm)
+        if gap > 0.0008:
+            pull = min(gap, 0.003)
+            v.co = mw_b.inverted() @ (w - wnorm * pull)
+    ob_bun.data.update()
     gap_max = 0.0
     gap_min = 0.0
     mw_b = ob_bun.matrix_world
@@ -972,9 +1006,6 @@ def _mirror_path_x(points):
 
 
 EXTRA_MERIDIAN_WAYPOINTS = [
-    [(0, 1.70, 0.05), (0, 1.74, 0.04), (0, 1.72, 0.11), (0, 1.68, 0.14)],
-    [(0.055, 1.62, 0.10), (0.050, 1.56, 0.09), (0.045, 1.48, 0.08)],
-    [(-0.055, 1.62, 0.10), (-0.050, 1.56, 0.09), (-0.045, 1.48, 0.08)],
     [(0.24, 1.22, 0.04), (0.26, 1.05, 0.06), (0.24, 0.88, 0.02)],
     [(-0.24, 1.22, 0.04), (-0.26, 1.05, 0.06), (-0.24, 0.88, 0.02)],
     [(0.08, 1.20, -0.02), (0.06, 1.02, -0.04), (0.05, 0.86, -0.02)],
@@ -1002,6 +1033,111 @@ def _point_body_gap(body, world_co):
         return 1e9
     wloc, _, _ = hit
     return (world_co - wloc).length
+
+
+TORSO_MERIDIAN_NAMES = frozenset({'任脈', '督脈', '足陽明胃經', '足少陰腎經', '足太陰脾經'})
+
+
+def _torso_half_width_blender(body, axis_z):
+    mw = body.matrix_world
+    half = 0.12
+    for v in body.data.vertices:
+        w = mw @ v.co
+        if abs(w.z - axis_z) > 0.016:
+            continue
+        if w.y > 0.07:
+            continue
+        half = max(half, abs(w.x))
+    return half
+
+
+def _point_in_scalp_hair_zone(wco):
+    """髮殼覆蓋區（留額與臉頸經絡）。"""
+    if wco.z < 1.625:
+        return False
+    if wco.y < -0.05 and wco.z < 1.648:
+        return False
+    if wco.y < -0.02 and wco.z < 1.638:
+        return False
+    if wco.z >= 1.628 and wco.y >= -0.07:
+        return True
+    if wco.z >= 1.622 and abs(wco.x) >= 0.085:
+        return True
+    return False
+
+
+def _filter_hair_zone_points(points, meridian=''):
+    if meridian == '督脈':
+        return points
+    return [p for p in points if not _point_in_scalp_hair_zone(p)]
+
+
+def _path_polyline_length(points):
+    if len(points) < 2:
+        return 0.0
+    total = 0.0
+    for i in range(1, len(points)):
+        total += (points[i] - points[i - 1]).length
+    return total
+
+
+def _edge_should_break(body, a, b):
+    gap = _edge_body_gap_max(body, a, b)
+    if gap <= MERIDIAN_BREAK_GAP:
+        return False
+    if (b - a).length > MERIDIAN_EDGE_LEN_MAX and gap <= MERIDIAN_EDGE_GAP_MAX:
+        return False
+    z_mid = a.lerp(b, 0.5).z
+    torso_w = _torso_half_width_blender(body, z_mid)
+    on_torso = abs(a.x) <= torso_w + 0.028 and abs(b.x) <= torso_w + 0.028
+    chest_band = 1.02 <= min(a.z, b.z) and max(a.z, b.z) <= 1.42
+    mid = a.lerp(b, 0.5)
+    mid_gap = _point_body_gap(body, mid)
+    if on_torso and chest_band:
+        if abs(mid.x) < torso_w * 0.70 and mid_gap <= MERIDIAN_BREAK_GAP:
+            return False
+        if mid_gap <= MERIDIAN_EDGE_GAP_MAX:
+            return False
+    if abs(mid.x) > torso_w + 0.05 and mid_gap > MERIDIAN_BREAK_GAP:
+        return True
+    fine = _subdivide_segment_snap(body, a, b, max_iters=8)
+    if len(fine) > 2:
+        return False
+    if (b - a).length > MERIDIAN_EDGE_LEN_MAX:
+        return True
+    return gap > MERIDIAN_BREAK_GAP
+
+
+def _meridian_draw_ratio_report(body, records):
+    groups = {}
+    for rec in records:
+        mer = rec.get('meridian') or ''
+        if rec.get('midline') or mer in ('任脈', '督脈'):
+            groups.setdefault((mer, 0), []).append(rec)
+        else:
+            side = -1 if rec['position'][0] < 0 else 1
+            groups.setdefault((mer, side), []).append(rec)
+    for key in sorted(groups.keys(), key=lambda k: k[0]):
+        mer = key[0]
+        ordered = _sort_meridian_records(groups[key])
+        raw = []
+        for rec in ordered:
+            px = 0.0 if rec.get('midline') else rec['position'][0]
+            py, pz = rec['position'][1], rec['position'][2]
+            raw.append(data_to_blender(px, py, pz))
+        raw_len = _path_polyline_length(raw)
+        drawn = 0.0
+        for path in _snap_data_path_segments(body, ordered):
+            path = _filter_hair_zone_points(path, mer)
+            drawn += _path_polyline_length(path)
+        if mer not in MIDLINE_MERIDIANS and key[1] > 0:
+            drawn *= 2.0
+        pct = 100.0 * drawn / raw_len if raw_len > 1e-6 else 100.0
+        mark = 'OK' if mer not in TORSO_MERIDIAN_NAMES or pct >= 90.0 else 'LOW'
+        print(
+            f'[meridians] {mer} drawn/path={pct:.1f}% '
+            f'({drawn:.3f}/{raw_len:.3f}m) {mark}'
+        )
 
 
 def _edge_body_gap_max(body, a, b):
@@ -1036,6 +1172,25 @@ def _subdivide_segment_snap(body, a, b, max_iters=5):
     return pts
 
 
+def _resample_path_uniform(points, step=MERIDIAN_PATH_STEP):
+    if len(points) < 2:
+        return points
+    out = [points[0]]
+    for i in range(1, len(points)):
+        a, b = points[i - 1], points[i]
+        dist = (b - a).length
+        if dist <= step + 1e-9:
+            if (b - out[-1]).length > 1e-6:
+                out.append(b)
+            continue
+        n = max(1, int(math.ceil(dist / step)))
+        for k in range(1, n + 1):
+            p = a.lerp(b, k / n)
+            if (p - out[-1]).length > 1e-6:
+                out.append(p)
+    return out
+
+
 def _densify_and_snap(body, points):
     """≤8 mm 間距吸附；弦面貼體不足時斷開跨越腋窩的空段。"""
     if len(points) < 2:
@@ -1043,10 +1198,14 @@ def _densify_and_snap(body, points):
     dense = [points[0]]
     for i in range(len(points) - 1):
         a, b = points[i], points[i + 1]
-        seg = _subdivide_segment_snap(body, a, b)
+        seg = _subdivide_segment_snap(body, a, b, max_iters=8)
         if len(seg) < 2:
             continue
-        if _edge_body_gap_max(body, a, b) > 0.006 and len(seg) <= 2:
+        if (
+            _edge_body_gap_max(body, a, b) > MERIDIAN_BREAK_GAP
+            and len(seg) <= 2
+            and (b - a).length > 0.022
+        ):
             continue
         for p in seg[1:]:
             if _point_body_gap(body, p) <= MERIDIAN_BREAK_GAP:
@@ -1067,7 +1226,7 @@ def _split_path_keep_surface(body, points):
     segments = [[points[0]]]
     for i in range(1, len(points)):
         a, b = points[i - 1], points[i]
-        if (b - a).length > MERIDIAN_EDGE_LEN_MAX or _edge_body_gap_max(body, a, b) > MERIDIAN_BREAK_GAP:
+        if _edge_should_break(body, a, b):
             if len(segments[-1]) >= 2:
                 segments.append([b])
             elif segments[-1]:
@@ -1094,6 +1253,7 @@ def _snap_data_path(body, waypoints):
     if len(snapped) < 2:
         return []
     dense = _densify_and_snap(body, snapped)
+    dense = _resample_path_uniform(dense)
     parts = _split_path_keep_surface(body, dense)
     if not parts:
         return []
@@ -1118,7 +1278,7 @@ def _snap_data_path_segments(body, waypoints):
     chunks = [[raw[0]]]
     for i in range(1, len(raw)):
         a, b = raw[i - 1], raw[i]
-        if _edge_body_gap_max(body, a, b) > 0.006:
+        if _edge_should_break(body, a, b):
             if len(chunks[-1]) >= 2:
                 chunks.append([b])
             else:
@@ -1128,7 +1288,18 @@ def _snap_data_path_segments(body, waypoints):
     out = []
     for ch in chunks:
         dense = _densify_and_snap(body, ch)
-        out.extend(_split_path_keep_surface(body, dense))
+        dense = _resample_path_uniform(dense)
+        snapped_line = []
+        for p in dense:
+            sp = _snap_point_on_body(body, p)
+            if not sp:
+                if len(snapped_line) >= 2:
+                    out.extend(_split_path_keep_surface(body, snapped_line))
+                snapped_line = []
+                continue
+            snapped_line.append(sp[0])
+        if len(snapped_line) >= 2:
+            out.extend(_split_path_keep_surface(body, snapped_line))
     return out
 
 
@@ -1165,6 +1336,30 @@ def _meridian_edge_gap_and_len_max(body, meridian_ob):
     return (max(edge_gaps) if edge_gaps else 0.0, max(edge_lens) if edge_lens else 0.0)
 
 
+def _finalize_meridian_paths(body, points):
+    """≤8 mm 重採樣、再吸附；過長弦自動拆段。"""
+    points = _resample_path_uniform(points)
+    chunks = []
+    chunk = []
+    for p in points:
+        sp = _snap_point_on_body(body, p)
+        if not sp:
+            if len(chunk) >= 2:
+                chunks.append(chunk)
+            chunk = []
+            continue
+        pt = sp[0]
+        if chunk and (pt - chunk[-1]).length > MERIDIAN_EDGE_LEN_MAX + 0.001:
+            if len(chunk) >= 2:
+                chunks.append(chunk)
+            chunk = [pt]
+        else:
+            chunk.append(pt)
+    if len(chunk) >= 2:
+        chunks.append(chunk)
+    return chunks
+
+
 def _meridian_paths_from_records(body, records):
     groups = {}
     for rec in records:
@@ -1177,14 +1372,19 @@ def _meridian_paths_from_records(body, records):
     paths = []
     for key, pts in groups.items():
         ordered = _sort_meridian_records(pts)
+        mer = key[0] if key else ''
         for path in _snap_data_path_segments(body, ordered):
-            paths.append(path)
-            mer = key[0] if key else ''
-            if mer and mer not in MIDLINE_MERIDIANS:
-                paths.append(_mirror_path_x(path))
+            path = _filter_hair_zone_points(path, mer)
+            for seg in _finalize_meridian_paths(body, path):
+                paths.append(seg)
+                if mer and mer not in MIDLINE_MERIDIANS:
+                    mir = _filter_hair_zone_points(_mirror_path_x(seg), mer)
+                    if len(mir) >= 2:
+                        paths.append(mir)
     for waypoints in EXTRA_MERIDIAN_WAYPOINTS:
         for path in _snap_data_path_segments(body, waypoints):
-            paths.append(path)
+            for seg in _finalize_meridian_paths(body, path):
+                paths.append(seg)
     return paths
 
 
@@ -1214,8 +1414,27 @@ def _curve_tube_from_points(points, name, mat):
     return ob
 
 
+def _subdivide_long_meridian_edges(ob, max_len=MERIDIAN_EDGE_LEN_MAX, max_passes=12):
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    for _ in range(max_passes):
+        bm.edges.ensure_lookup_table()
+        long_edges = [e for e in bm.edges if e.calc_length() > max_len]
+        if not long_edges:
+            break
+        bmesh.ops.subdivide_edges(bm, edges=long_edges, cuts=1)
+    bm.to_mesh(ob.data)
+    bm.free()
+    ob.data.update()
+
+
 def _build_meridian_mesh(body, records, mat_meridian):
     paths = _meridian_paths_from_records(body, records)
+    seg_max = 0.0
+    for path in paths:
+        for i in range(1, len(path)):
+            seg_max = max(seg_max, (path[i] - path[i - 1]).length)
+    print(f'[meridians] path_seg_max_mm={seg_max * 1000:.2f} (expect ≤12)')
     tubes = []
     for i, path in enumerate(paths):
         ob = _curve_tube_from_points(path, f'meridian_seg_{i}', mat_meridian)
@@ -1230,6 +1449,14 @@ def _build_meridian_mesh(body, records, mat_meridian):
     bpy.ops.object.join()
     merged = bpy.context.active_object
     merged.name = 'bronze_meridians'
+    _subdivide_long_meridian_edges(merged)
+    mw_m = merged.matrix_world
+    vcos = [mw_m @ v.co for v in merged.data.vertices]
+    pre_max_edge = 0.0
+    for e in merged.data.edges:
+        va, vb = e.vertices
+        pre_max_edge = max(pre_max_edge, (vcos[va] - vcos[vb]).length)
+    print(f'[meridians] mesh_edge_max_mm={pre_max_edge * 1000:.2f} after subdivide')
     if merged.data:
         merged.data.name = 'bronze_meridians'
     tris = _tri_count(merged)
@@ -1242,7 +1469,8 @@ def _build_meridian_mesh(body, records, mat_meridian):
         merged.select_set(False)
         tris = _tri_count(merged)
     gap_max = _meridian_vertex_body_gap_max(body, merged)
-    edge_gap_max, edge_len_max = _meridian_edge_gap_and_len_max(body, merged)
+    edge_gap_max, _ = _meridian_edge_gap_and_len_max(body, merged)
+    edge_len_max = pre_max_edge
     print(
         f'[meridians] paths={len(paths)} tris={tris} vtx_gap_max_mm={gap_max * 1000:.2f} '
         f'edge_gap_max_mm={edge_gap_max * 1000:.2f} edge_len_max_mm={edge_len_max * 1000:.2f}'
@@ -1435,6 +1663,7 @@ def render_previews(root, out_dir=None):
         ('face', Vector((0, -1.0, bb_max.z - 0.08)), 75),
         ('head_side', Vector((0.82, 0.08, bb_max.z - 0.12)), 64),
         ('head_back', Vector((0.0, 1.05, bb_max.z - 0.14)), 68),
+        ('head_3q', Vector((0.72, -0.42, bb_max.z - 0.12)), 62),
         ('chest', Vector((0.35, -0.22, 1.20)), 48),
         ('pedestal', Vector((0, -1.28, PEDESTAL_BASE_H * 0.5)), 58),
     ):
@@ -1444,6 +1673,8 @@ def render_previews(root, out_dir=None):
             look_at = Vector((0, -0.02, bb_max.z - 0.14))
         elif name == 'head_back':
             look_at = Vector((0, 0.04, bb_max.z - 0.16))
+        elif name == 'head_3q':
+            look_at = Vector((0.02, -0.03, bb_max.z - 0.14))
         elif name == 'chest':
             look_at = Vector((0, -0.04, 1.20))
         else:
@@ -1458,7 +1689,7 @@ def render_previews(root, out_dir=None):
             fill.data.energy = 280
         cam.location = (
             look_at + off
-            if name in ('pedestal', 'head_side', 'head_back', 'chest', 'face')
+            if name in ('pedestal', 'head_side', 'head_back', 'head_3q', 'chest', 'face')
             else center + off
         )
         cam.data.lens = lens
@@ -1494,6 +1725,7 @@ def build(out_path):
         metal=MERIDIAN_METAL,
     )
 
+    _meridian_draw_ratio_report(body, records)
     meridian_ob = _build_meridian_mesh(body, records, mat_meridian)
 
     img_col, img_n, img_r = _bake_body_textures()
