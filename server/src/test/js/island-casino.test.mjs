@@ -7,9 +7,108 @@ import { dirname, join } from 'node:path';
 import { loadPublicModule } from './load-public-module.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const modulePath = join(here, '..', '..', 'main', 'resources', 'public', 'js', 'island-casino.js');
+const jsDir = join(here, '..', '..', 'main', 'resources', 'public', 'js');
+const modulePath = join(jsDir, 'island-casino.js');
+const islandSource = readFileSync(join(jsDir, 'island.js'), 'utf8');
 const source = readFileSync(modulePath, 'utf8');
 const C = await loadPublicModule('island-casino.js');
+
+class FakeEvent {
+  constructor(type) { this.type = type; this.defaultPrevented = false; }
+  preventDefault() { this.defaultPrevented = true; }
+}
+
+class FakeClassList {
+  constructor() { this.set = new Set(); }
+  add(c) { this.set.add(c); }
+  remove(c) { this.set.delete(c); }
+  toggle(c, force) {
+    const on = force === undefined ? !this.set.has(c) : !!force;
+    if (on) this.set.add(c); else this.set.delete(c);
+    return on;
+  }
+}
+
+function wireDomTree(node) {
+  node.querySelector = (sel) => {
+    const wantAttr = /^\[([\w-]+)\]$/.exec(sel);
+    const walk = (n) => {
+      if (wantAttr && n.hasAttribute && n.hasAttribute(wantAttr[1])) return n;
+      for (const c of n.children || []) {
+        const hit = walk(c);
+        if (hit) return hit;
+      }
+      return null;
+    };
+    return walk(node);
+  };
+  node.querySelectorAll = (sel) => {
+    const wantAttr = /^\[([\w-]+)\]$/.exec(sel);
+    const out = [];
+    const walk = (n) => {
+      if (wantAttr && n.hasAttribute && n.hasAttribute(wantAttr[1])) out.push(n);
+      for (const c of n.children || []) walk(c);
+    };
+    walk(node);
+    return out;
+  };
+}
+
+class FakeElement {
+  constructor(doc, tag, attrs) {
+    this.ownerDocument = doc;
+    this.tagName = tag.toUpperCase();
+    this.listeners = {};
+    this.children = [];
+    this.hidden = false;
+    this.textContent = '';
+    this.classList = new FakeClassList();
+    this.dataset = {};
+    this.attrs = {};
+    Object.entries(attrs || {}).forEach(([k, v]) => {
+      if (k === 'id') this.id = v;
+      if (k === 'hidden') this.hidden = !!v;
+      this.attrs[k] = String(v);
+    });
+    wireDomTree(this);
+  }
+  appendChild(child) { this.children.push(child); return child; }
+  hasAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k); }
+  setAttribute(k, v) { this.attrs[k] = String(v); }
+  getAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : null; }
+  addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }
+  dispatchEvent(event) {
+    for (const fn of (this.listeners[event.type] || [])) fn.call(this, event);
+    return !event.defaultPrevented;
+  }
+  click() { this.dispatchEvent(new FakeEvent('click')); }
+}
+
+function makePromptDoc() {
+  const doc = { body: null };
+  doc.createElement = (tag) => new FakeElement(doc, tag);
+  doc.body = new FakeElement(doc, 'body');
+  doc.body.classList = new FakeClassList();
+  const append = (tag, attrs, parent) => (parent || doc.body).appendChild(new FakeElement(doc, tag, attrs));
+  const lobby = append('section', { id: 'casinoLobby', hidden: true, 'aria-hidden': 'true' });
+  append('button', { 'data-casino-back': '' }, lobby);
+  append('button', { id: 'islandInteract', hidden: true });
+  append('button', { id: 'islandListBtn' });
+  append('aside', { id: 'islandList', hidden: true });
+  doc.getElementById = (id) => {
+    const walk = (node) => {
+      if (node.id === id) return node;
+      for (const c of node.children || []) {
+        const hit = walk(c);
+        if (hit) return hit;
+      }
+      return null;
+    };
+    return walk(doc.body);
+  };
+  doc.querySelectorAll = (sel) => doc.body.querySelectorAll(sel);
+  return doc;
+}
 
 test('lobbyState：開關大廳', () => {
   const init = C.lobbyState(null, '');
@@ -95,4 +194,73 @@ test('setPromptVisible：連續相同呼叫不重寫 textContent', () => {
     if (Object.keys(patch).length > 0) promptState = next;
   }
   assert.equal(textWrites, 1, 'textContent 只應寫入一次');
+});
+
+test('island-casino：#islandInteract 不再於 onPrompt 失敗時一律 openLobby', () => {
+  const block = /if \(promptBtn\) \{[\s\S]*?promptBtn\.addEventListener\('click'/;
+  const handler = block.exec(source);
+  assert.ok(handler, '應有 promptBtn click 處理');
+  const clickBlock = source.slice(handler.index, handler.index + 320);
+  assert.doesNotMatch(clickBlock, /openLobby\(\)/);
+});
+
+test('island.js：onPrompt 在 hitInteractZone 前先處理下車', () => {
+  assert.match(
+    islandSource,
+    /onPrompt: \(\) => \{[\s\S]*?isSteering\(\)[\s\S]*?isDriving\(\)[\s\S]*?hitInteractZone/
+  );
+});
+
+test('開車且無互動區：點「下車」會下車、不開練習大廳', () => {
+  const doc = makePromptDoc();
+  let disembarked = false;
+  const onPrompt = () => {
+    disembarked = true;
+    return true;
+  };
+  const casino = C.createCasinoController({
+    doc,
+    win: { PUNCHCLOCK_AUTHENTICATED: false, localStorage: { getItem: () => null, setItem: () => {} } },
+    hooks: { onPrompt }
+  });
+  casino.setPromptVisible(true, '下車');
+  doc.getElementById('islandInteract').click();
+  assert.equal(disembarked, true);
+  assert.equal(casino.isOpen(), false);
+});
+
+test('未知或無互動區（非開車）：點提示不開任何 overlay', () => {
+  const doc = makePromptDoc();
+  let called = false;
+  const casino = C.createCasinoController({
+    doc,
+    win: { PUNCHCLOCK_AUTHENTICATED: false, localStorage: { getItem: () => null, setItem: () => {} } },
+    hooks: { onPrompt: () => { called = true; return false; } }
+  });
+  casino.setPromptVisible(true, '互動');
+  doc.getElementById('islandInteract').click();
+  assert.equal(called, true);
+  assert.equal(casino.isOpen(), false);
+});
+
+test('賭場門口 enterInterior：onPrompt 回 true 不開練習大廳', () => {
+  const doc = makePromptDoc();
+  let entered = null;
+  const onPrompt = () => {
+    const zone = { id: 'casino', action: 'enterInterior' };
+    if (zone.action === 'enterInterior') {
+      entered = zone.id;
+      return true;
+    }
+    return false;
+  };
+  const casino = C.createCasinoController({
+    doc,
+    win: { PUNCHCLOCK_AUTHENTICATED: false, localStorage: { getItem: () => null, setItem: () => {} } },
+    hooks: { onPrompt }
+  });
+  casino.setPromptVisible(true, '進入賭場');
+  doc.getElementById('islandInteract').click();
+  assert.equal(entered, 'casino');
+  assert.equal(casino.isOpen(), false);
 });
