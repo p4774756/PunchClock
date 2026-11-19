@@ -267,6 +267,55 @@ test('createExplorePointer：室內手機 3.7 張開捏合不反向跳', () => {
   assert.notEqual(cam.targetRadius, 5.2, '不可跳到 INTERIOR_POSE 下限');
 });
 
+test('createExplorePointer：室內 3.7 先合攏拉遠再張開可回到 pose 半徑（捏合與滾輪）', () => {
+  const cam = { targetTheta: 0, targetPhi: 1.1, targetRadius: 3.7 };
+  const listeners = {};
+  const canvas = {
+    style: { cursor: 'grab' },
+    addEventListener(type, fn) { listeners[type] = fn; },
+    removeEventListener() {},
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 390, height: 844 }),
+    setPointerCapture() {},
+    releasePointerCapture() {}
+  };
+  const THREE = {
+    Raycaster: function () {
+      this.setFromCamera = () => {};
+      this.intersectObjects = () => [];
+    },
+    Vector2: function () { this.x = 0; this.y = 0; }
+  };
+  createExplorePointer({
+    canvas: canvas,
+    camera: {},
+    cam: cam,
+    THREE: THREE,
+    getMode: () => ({ exploring: true }),
+    controlsActive: () => true,
+    applyDragPhi: applyDragPhi,
+    isInside: () => true,
+    interiorMinRadius: 5.2,
+    getInteriorPoseRadius: () => 3.7
+  });
+  const down = listeners.pointerdown;
+  const move = listeners.pointermove;
+  const wheel = listeners.wheel;
+  down({ pointerId: 1, clientX: 80, clientY: 400 });
+  down({ pointerId: 2, clientX: 200, clientY: 400 });
+  move({ pointerId: 1, clientX: 170, clientY: 400 });
+  move({ pointerId: 2, clientX: 200, clientY: 400 });
+  assert.ok(cam.targetRadius > 10, '合攏應拉遠超過 10');
+  for (let spread = 220; spread <= 320; spread += 40) {
+    move({ pointerId: 1, clientX: 80, clientY: 400 });
+    move({ pointerId: 2, clientX: spread, clientY: 400 });
+  }
+  assert.equal(cam.targetRadius, 3.7, '張開到底應回到進門 pose 半徑，不是 5.2');
+
+  cam.targetRadius = 13.5;
+  wheel({ deltaY: -1000, preventDefault() {} });
+  assert.equal(cam.targetRadius, 3.7, '滾輪拉近到底應為 pose 半徑');
+});
+
 test('createExplorePointer：pointerup 後 lostpointercapture 只觸發一次 onAfterDragEnd', () => {
   const listeners = {};
   const canvas = {

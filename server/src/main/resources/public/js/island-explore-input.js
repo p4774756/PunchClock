@@ -151,6 +151,7 @@ export function createExplorePointer(opts) {
   const onAfterDragEnd = opts.onAfterDragEnd;
   const isInside = opts.isInside || function () { return false; };
   const interiorMinRadius = opts.interiorMinRadius != null ? opts.interiorMinRadius : null;
+  const getInteriorPoseRadius = opts.getInteriorPoseRadius;
 
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -161,7 +162,8 @@ export function createExplorePointer(opts) {
       getMode: getMode,
       controlsActive: controlsActive,
       isInside: isInside,
-      interiorMinRadius: interiorMinRadius
+      interiorMinRadius: interiorMinRadius,
+      getInteriorPoseRadius: getInteriorPoseRadius
     });
   }
 
