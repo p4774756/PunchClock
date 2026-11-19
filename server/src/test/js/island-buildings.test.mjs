@@ -14,7 +14,7 @@ const buildingsJs = readFileSync(
 
 describe('casino Vegas sign', () => {
   it('招牌 canvas 使用繁中賭場，不含簡體赌场', () => {
-    assert.ok(buildingsJs.includes('莫卡賭場'));
+    assert.ok(buildingsJs.includes('神之島賭場'));
     assert.ok(!buildingsJs.includes('赌场'));
     assert.ok(!buildingsJs.includes("'CASINO'"));
   });

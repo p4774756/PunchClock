@@ -39,7 +39,7 @@ export function promptDomUpdate(prev, next) {
   return patch;
 }
 
-export const CASINO_NAME = '莫卡賭場';
+export const CASINO_NAME = '神之島賭場';
 export const CASINO_GAMES = Object.freeze([
   Object.freeze({
     id: 'blackjack',

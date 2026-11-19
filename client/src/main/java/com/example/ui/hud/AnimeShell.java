@@ -484,7 +484,7 @@ public final class AnimeShell extends JPanel {
         g.drawString("助手", nav.x + 18, nav.y + 36);
         g.setFont(UiFonts.chinesePlain(12));
         g.setColor(MUTED);
-        g.drawString("洋流", nav.x + 18, nav.y + 56);
+        g.drawString("神器", nav.x + 18, nav.y + 56);
         int selected = holdingHome ? 0 : navIndexForTab(tabs.getSelectedIndex());
         for (int i = 0; i < NAV.length; i++) {
             java.awt.Rectangle row = navRow(nav, i);

@@ -43,11 +43,11 @@ export function buildIslandBuildings(ctx) {
     g.font = '700 68px ' + font;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.fillText('M', 108, h / 2 + 2);
+    g.fillText('神', 108, h / 2 + 2);
     g.fillStyle = '#1f4d73';
-    g.font = '700 88px ' + font;
+    g.font = '700 72px ' + font;
     g.textAlign = 'left';
-    g.fillText('莫卡手搖', 188, h / 2 + 2);
+    g.fillText('神之島', 188, h / 2 + 2);
   });
   const menuMap = paint(384, 512, (g, w, h) => {
     g.fillStyle = '#fff7ef';
@@ -85,9 +85,9 @@ export function buildIslandBuildings(ctx) {
     g.textBaseline = 'middle';
     g.strokeStyle = '#ff4ec8';
     g.lineWidth = 5;
-    g.strokeText('莫卡賭場', w / 2, h / 2 - 24);
+    g.strokeText('神之島賭場', w / 2, h / 2 - 24);
     g.fillStyle = '#ff9ee8';
-    g.fillText('莫卡賭場', w / 2, h / 2 - 24);
+    g.fillText('神之島賭場', w / 2, h / 2 - 24);
     g.font = '700 52px ' + font;
     g.strokeStyle = '#d4a84b';
     g.strokeText('777', w / 2, h / 2 + 52);

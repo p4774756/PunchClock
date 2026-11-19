@@ -41,7 +41,7 @@ public class FileTransferDialogTest {
         assertEquals("在線 · 2.0.2", FriendListItem.statusLine(true, "2.0.2"));
         assertEquals("離線", FriendListItem.statusLine(false, null));
         assertEquals("A", FriendListItem.initial("aa123"));
-        assertEquals("洋", FriendListItem.initial("洋流"));
+        assertEquals("王", FriendListItem.initial("王小明"));
         assertEquals("找不到檔案", FileTransferDialog.rejection(Path.of("missing-punchclock-file.txt")));
     }
 

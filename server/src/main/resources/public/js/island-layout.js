@@ -13,7 +13,7 @@ import { careerExhibitObstacleCircles } from './island-career-corridor-data.js';
 export const MAIN_ISLAND_ID = 'main';
 
 const ISLAND_DEFS = [
-  { id: 'main', name: '手搖店島', x: 0, z: 0, r: 8.05, visualR: 9.15, theme: 'shop' },
+  { id: 'main', name: '神之島', x: 0, z: 0, r: 8.05, visualR: 9.15, theme: 'shop' },
   // 博弈島在東南，橋不經過正東岸（既有測試把 +X 岸當海水）。
   { id: 'casino', name: '博弈島', x: 15.2, z: -7.4, r: 4.15, visualR: 5.3, theme: 'casino' },
   // 中醫島在正西，橋從樹與候餐座位之間的西岸接出去。
@@ -225,7 +225,7 @@ export function boatZones() {
       x: BOAT_STOPS.beach.board.x,
       z: BOAT_STOPS.beach.board.z,
       r: 0.8,
-      label: '搭船回手搖店島',
+      label: '搭船回神之島',
       action: 'sail',
       stop: 'beach',
       dest: 'main'
@@ -245,7 +245,7 @@ export function boatZones() {
       x: BOAT_STOPS.city.board.x,
       z: BOAT_STOPS.city.board.z,
       r: 0.8,
-      label: '搭船回手搖店島',
+      label: '搭船回神之島',
       action: 'sail',
       stop: 'city',
       dest: 'main'
@@ -347,9 +347,9 @@ const BUILDING_DEFS = [
   // 主島碰撞沿用 OBSTACLE_RECTS，這裡只記錄外觀位置，不再推一份框。
   // 西牆已有門。at 是建築本地座標，站在門外草地，不落到南面櫃台。
   {
-    id: 'shop', island: 'main', x: 0, z: -0.55, w: 4.75, d: 3.2, yaw: 0, label: '莫卡手搖', panel: null, collide: false,
+    id: 'shop', island: 'main', x: 0, z: -0.55, w: 4.75, d: 3.2, yaw: 0, label: '神之島', panel: null, collide: false,
     entry: {
-      r: 0.55, label: '進入莫卡手搖', action: 'enterInterior',
+      r: 0.55, label: '進入神之島', action: 'enterInterior',
       at: { x: -3.09, z: -0.85 }
     }
   },
