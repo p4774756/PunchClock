@@ -1583,8 +1583,12 @@ function boot() {
     const bobY = (!reduced && player.moving) ? Math.sin(playerBob) * 0.035 : 0;
     setPlayerAnchor(player.x, P + bobY, player.z, player.yaw);
     stepMilu(dt, P + bobY);
-    if (rooms.inside() && rooms.room() && rooms.room().id === 'lab-room') {
-      const focal = labInteriorRuntimeLookAt(rooms.room(), player, camera.aspect);
+    const followRoom = rooms.inside() ? rooms.room() : null;
+    if (followRoom && followRoom.id === 'lab-room') {
+      const focal = labInteriorRuntimeLookAt(followRoom, player, camera.aspect);
+      cam.targetLook.set(focal.x, focal.y, focal.z);
+    } else if (followRoom && followRoom.id === 'casino-room') {
+      const focal = casinoInteriorRuntimeLookAt(followRoom, player, camera.aspect);
       cam.targetLook.set(focal.x, focal.y, focal.z);
     } else {
       cam.targetLook.set(player.x, G + 1.05, player.z);
