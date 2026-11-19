@@ -66,8 +66,8 @@ function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   const std = new THREE.MeshStandardMaterial({
     name: oldMat.name || '',
     color: day.clone(),
-    metalness: oldMat.metalness != null ? oldMat.metalness : (isBronze ? 0.88 : 0.05),
-    roughness: oldMat.roughness != null ? oldMat.roughness : (isBronze ? 0.28 : 0.88),
+    metalness: oldMat.metalness != null ? oldMat.metalness : (isBronze ? 0.94 : 0.05),
+    roughness: oldMat.roughness != null ? oldMat.roughness : (isBronze ? 0.19 : 0.86),
     emissive: emissive,
     emissiveIntensity: emissiveI,
     flatShading: false
@@ -90,6 +90,7 @@ function applyBronzeFigureMaterials(root, kit) {
     const stone =
       matName === 'stone' ||
       matName === 'stone_dark' ||
+      matName === 'stone_band' ||
       obj.name.indexOf('pedestal') >= 0;
     const isBronze = !stone;
     if (oldMat && oldMat.isMeshStandardMaterial) {
@@ -98,9 +99,9 @@ function applyBronzeFigureMaterials(root, kit) {
       obj.material = bronzeMaterialFromGltf(
         {
           name: matName,
-          color: new THREE.Color(0xc4b8a8),
-          metalness: 0.05,
-          roughness: 0.9,
+          color: new THREE.Color(0xe8dfd2),
+          metalness: 0.04,
+          roughness: 0.82,
           emissive: new THREE.Color(0x000000),
           emissiveIntensity: 0
         },
@@ -111,11 +112,11 @@ function applyBronzeFigureMaterials(root, kit) {
       obj.material = bronzeMaterialFromGltf(
         {
           name: matName || 'bronze',
-          color: new THREE.Color(0xc8a850),
-          metalness: 0.9,
-          roughness: 0.32,
-          emissive: new THREE.Color(0xffd080),
-          emissiveIntensity: 0.03
+          color: new THREE.Color(0xd4ae58),
+          metalness: 0.96,
+          roughness: 0.18,
+          emissive: new THREE.Color(0xffe8b0),
+          emissiveIntensity: 0.05
         },
         kit,
         true
@@ -351,7 +352,7 @@ export function createTcmFigureController(ctx) {
 
   function buildPointMeshes(parent, rows) {
     const count = rows.length;
-    const markerGeo = new THREE.SphereGeometry(0.015, 8, 6);
+    const markerGeo = new THREE.SphereGeometry(0.011, 8, 6);
     const markerMat = kit.mat(MARKER, {
       glow: TODAY_MARK,
       glowAmount: 0.92,

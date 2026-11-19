@@ -161,7 +161,7 @@ def _append_bmesh(dst, src):
         dst.faces.new([dst.verts[off + v.index] for v in face.verts])
 
 
-def _build_pedestal(mat_top, mat_dark):
+def _build_pedestal(mat_top, mat_dark, mat_band):
     bm = bmesh.new()
 
     def box(cx, cy, cz, sx, sy, sz):
@@ -171,33 +171,92 @@ def _build_pedestal(mat_top, mat_dark):
             matrix=Matrix.Translation((cx, cy, cz)) @ Matrix.Diagonal((sx, sy, sz, 1.0)),
         )
 
-    # 三層石座：較寬、略高，整體含座約 1.85–1.95
-    box(0, 0, 0.032, 0.52, 0.44, 0.064)
-    box(0, 0, 0.082, 0.40, 0.34, 0.040)
-    box(0, 0, 0.112, 0.30, 0.26, 0.028)
+    # 三層淺色石座：台階分明、略高
+    box(0, 0, 0.040, 0.54, 0.46, 0.080)
+    box(0, 0, 0.102, 0.42, 0.36, 0.050)
+    box(0, 0, 0.142, 0.32, 0.28, 0.038)
     top = _mesh_from_bmesh(bm, 'pedestal', mat_top)
     _subdiv_apply(top, 1)
 
     bm2 = bmesh.new()
-    bmesh.ops.create_cube(
-        bm2,
-        size=1.0,
-        matrix=Matrix.Translation((0, 0, 0.088)) @ Matrix.Diagonal((0.38, 0.32, 0.016, 1.0)),
-    )
-    for _ in range(4):
-        ang = math.pi * 0.25
+
+    def box2(cx, cy, cz, sx, sy, sz):
         bmesh.ops.create_cube(
             bm2,
             size=1.0,
-            matrix=Matrix.Translation((0.34 * math.cos(ang), 0.34 * math.sin(ang), 0.045))
-            @ Matrix.Diagonal((0.06, 0.05, 0.09, 1.0)),
+            matrix=Matrix.Translation((cx, cy, cz)) @ Matrix.Diagonal((sx, sy, sz, 1.0)),
         )
-    trim = _mesh_from_bmesh(bm2, 'pedestal_trim', mat_dark)
-    return [top, trim]
+
+    # 層間淺槽與頂緣帶
+    box2(0, 0, 0.082, 0.44, 0.38, 0.008)
+    box2(0, 0, 0.128, 0.34, 0.30, 0.006)
+    band = _mesh_from_bmesh(bm2, 'pedestal_band', mat_band)
+
+    bm3 = bmesh.new()
+    bmesh.ops.create_cube(
+        bm3,
+        size=1.0,
+        matrix=Matrix.Translation((0, 0, 0.118)) @ Matrix.Diagonal((0.34, 0.30, 0.012, 1.0)),
+    )
+    for i in range(4):
+        ang = math.pi * 0.5 * i + math.pi * 0.25
+        bmesh.ops.create_cube(
+            bm3,
+            size=1.0,
+            matrix=Matrix.Translation((0.36 * math.cos(ang), 0.36 * math.sin(ang), 0.052))
+            @ Matrix.Diagonal((0.055, 0.048, 0.082, 1.0)),
+        )
+    trim = _mesh_from_bmesh(bm3, 'pedestal_trim', mat_dark)
+    return [top, band, trim]
+
+
+def _build_classical_head(bm, front):
+    """頂髻、眼鼻口凹凸，非光滑圓球。"""
+    head_y = 1.562
+    head_z = front + 0.014
+
+    _add_uv_ellipsoid(bm, _v(0.0, head_y, head_z), (0.088, 0.100, 0.116), u=22, v=16)
+    _add_uv_ellipsoid(bm, _v(0.0, head_y - 0.018, head_z + 0.022), (0.074, 0.082, 0.090), u=18, v=12)
+
+    # 頂髻（雙層髮髻）
+    _add_uv_ellipsoid(bm, _v(0.0, 1.682, head_z - 0.046), (0.050, 0.042, 0.048), u=14, v=12)
+    _add_uv_ellipsoid(bm, _v(0.0, 1.708, head_z - 0.050), (0.038, 0.056, 0.040), u=12, v=10)
+
+    for side in (1, -1):
+        eye = bmesh.new()
+        _add_uv_ellipsoid(
+            eye,
+            _v(side * 0.032, head_y + 0.010, head_z + 0.082),
+            (0.016, 0.011, 0.009),
+            u=8,
+            v=6,
+        )
+        _append_bmesh(bm, eye)
+        eye.free()
+        ear = bmesh.new()
+        _add_uv_ellipsoid(
+            ear,
+            _v(side * 0.082, head_y - 0.006, head_z - 0.010),
+            (0.014, 0.022, 0.012),
+            u=8,
+            v=6,
+        )
+        _append_bmesh(bm, ear)
+        ear.free()
+
+    nose = bmesh.new()
+    _add_uv_ellipsoid(nose, _v(0.0, head_y - 0.004, head_z + 0.092), (0.013, 0.024, 0.026), u=10, v=8)
+    _append_bmesh(bm, nose)
+    nose.free()
+
+    mouth = bmesh.new()
+    _add_uv_ellipsoid(mouth, _v(0.0, head_y - 0.040, head_z + 0.076), (0.026, 0.007, 0.010), u=8, v=6)
+    _append_bmesh(bm, mouth)
+    mouth.free()
 
 
 def _build_body(mat_main, mat_dark, mat_patina):
-    """站姿銅人：管狀軀幹四肢＋橢球頭，非分離橢球雪人。"""
+    """站姿銅人：管狀軀幹四肢＋古典頭面，非光滑圓球。"""
     bm = bmesh.new()
     front = 0.038
 
@@ -220,10 +279,7 @@ def _build_body(mat_main, mat_dark, mat_patina):
     ]
     _loft_sections(bm, neck)
 
-    head = bmesh.new()
-    _add_uv_ellipsoid(head, _v(0.0, 1.582, front + 0.01), (0.095, 0.104, 0.132), u=18, v=14)
-    _append_bmesh(bm, head)
-    head.free()
+    _build_classical_head(bm, front)
 
     # —— 腿（分左右，能辨識大腿／小腿／腳）——
     def leg(side):
@@ -267,7 +323,7 @@ def _build_body(mat_main, mat_dark, mat_patina):
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.008)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
 
-    # —— 中衣／飾帶（獨立網格）——
+    # —— 中衣／飾帶／袍擺（獨立網格）——
     bm_robe = bmesh.new()
     _loft_sections(
         bm_robe,
@@ -283,6 +339,15 @@ def _build_body(mat_main, mat_dark, mat_patina):
             (1.08, 0.0, front + 0.012, 0.138, 0.078),
             (1.02, 0.0, front + 0.014, 0.142, 0.080),
             (0.98, 0.0, front + 0.012, 0.136, 0.076),
+        ],
+    )
+    _loft_sections(
+        bm_robe,
+        [
+            (0.62, 0.0, front + 0.024, 0.148, 0.082),
+            (0.48, 0.0, front + 0.030, 0.158, 0.088),
+            (0.34, 0.0, front + 0.028, 0.142, 0.082),
+            (0.22, 0.0, front + 0.022, 0.122, 0.072),
         ],
     )
 
@@ -308,19 +373,20 @@ def build(out_path):
     prepare_scene()
     mat_bronze = _mat_bronze(
         'bronze',
-        0xc4a456,
-        rough=0.26,
-        metal=0.96,
-        emit=0xffe8b0,
-        emit_strength=0.045,
+        0xd4ae58,
+        rough=0.17,
+        metal=0.98,
+        emit=0xffeab8,
+        emit_strength=0.058,
     )
-    mat_bronze_dark = _mat_bronze('bronze_dark', 0x6a4e28, rough=0.40, metal=0.88)
-    mat_patina = _mat_bronze('bronze_patina', 0x5a6448, rough=0.58, metal=0.72)
-    mat_stone = _mat_stone('stone', 0xd6cdc0, rough=0.84)
-    mat_stone_dark = _mat_stone('stone_dark', 0x9a8f82, rough=0.90)
+    mat_bronze_dark = _mat_bronze('bronze_dark', 0x7a5c30, rough=0.32, metal=0.92)
+    mat_patina = _mat_bronze('bronze_patina', 0x5a6448, rough=0.52, metal=0.78)
+    mat_stone = _mat_stone('stone', 0xece3d6, rough=0.76)
+    mat_stone_band = _mat_stone('stone_band', 0xd8cfc2, rough=0.80)
+    mat_stone_dark = _mat_stone('stone_dark', 0xb0a498, rough=0.86)
 
     objs = []
-    objs.extend(_build_pedestal(mat_stone, mat_stone_dark))
+    objs.extend(_build_pedestal(mat_stone, mat_stone_dark, mat_stone_band))
     objs.extend(_build_body(mat_bronze, mat_bronze_dark, mat_patina))
 
     root = bpy.data.objects.new('tcm_bronze_figure', None)
