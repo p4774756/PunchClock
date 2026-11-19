@@ -164,16 +164,16 @@ export function interiorFollowPose(room, aspect) {
 }
 
 /** 賭場進房預設鏡頭：站在南門內側往北看大廳的吊燈、拉霸列與 21 點桌。 */
-export const CASINO_INTERIOR_CAMERA = Object.freeze({ radius: 5.7, theta: Math.PI + 0.12, phi: 1.40 });
-export const CASINO_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 3.65, theta: Math.PI + 0.10, phi: 1.36 });
-export const CASINO_INTERIOR_LOOK = Object.freeze({ x: 1.85, y: G + 2.05, z: 6.4 });
-export const CASINO_INTERIOR_LOOK_MOBILE = Object.freeze({ x: 1.4, y: G + 1.9, z: 5.6 });
+export const CASINO_INTERIOR_CAMERA = Object.freeze({ radius: 5.75, theta: Math.PI, phi: 1.35 });
+export const CASINO_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 3.7, theta: Math.PI, phi: 1.32 });
+export const CASINO_INTERIOR_LOOK = Object.freeze({ x: 0.35, y: G + 2.0, z: 7.2 });
+export const CASINO_INTERIOR_LOOK_MOBILE = Object.freeze({ x: 0.25, y: G + 1.9, z: 6.4 });
 
 export function casinoInteriorCameraForAspect(aspect) {
   const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
   if (a < 0.72) return CASINO_INTERIOR_CAMERA_MOBILE;
   if (a > 1.72) {
-    return Object.freeze({ radius: 5.85, theta: CASINO_INTERIOR_CAMERA.theta, phi: CASINO_INTERIOR_CAMERA.phi });
+    return Object.freeze({ radius: 5.9, theta: CASINO_INTERIOR_CAMERA.theta, phi: CASINO_INTERIOR_CAMERA.phi });
   }
   return CASINO_INTERIOR_CAMERA;
 }
