@@ -51,7 +51,7 @@ def _north_vertical_sign(b, width, height, z_center, north_x):
     for dy in (-width / 2 - ew * 0.32, width / 2 + ew * 0.32):
         fr.box('gold', ft, ew, height + 0.06, x_frame, dy, z_center, rx=pitch)
     # plane 預設 XZ、法線 -Y；rz=π/2 才轉成 YZ、法線 +X（ry 不會離開 -Y）
-    face.plane('sign', width, height, x_face, 0, z_center, rz=math.pi / 2, rx=pitch, flip_u=True)
+    face.plane('sign', width, height, x_face, 0, z_center, rz=math.pi / 2, rx=pitch, flip_u=False)
     neo.box('neon_glow', 0.050, width + 0.16, 0.055, x_neon, 0, z_center + height / 2 + 0.04, rx=pitch)
     neo.box('neon_glow', 0.050, width + 0.16, 0.055, x_neon, 0, z_center - height / 2 - 0.04, rx=pitch)
     for dy in (-width / 2 - 0.04, width / 2 + 0.04):
@@ -101,12 +101,12 @@ def _giant_poker_card(cards, neo, y, north_x, z_center):
 
 def _neon_seven(seven, neo, oy, north_x, z_center):
     """單個 7 字形霓虹（法線朝 +X），金底襯托。"""
-    x_back, x_glow = north_x + 0.085, north_x + 0.112
-    w, h, t = 0.24, 0.58, 0.058
-    seven.box('gold', 0.072, w + 0.10, h + 0.10, x_back, oy, z_center)
-    seven.box('cas_dark', 0.068, w + 0.04, h + 0.04, x_back + 0.006, oy, z_center)
-    neo.box('neon_glow', t, w, 0.052, x_glow, oy, z_center + h / 2 - 0.03)
-    neo.box('neon_glow', t, t, h - 0.06, x_glow, oy + w * 0.37, z_center - 0.03)
+    x_back, x_glow = north_x + 0.085, north_x + 0.118
+    w, h, t = 0.30, 0.72, 0.068
+    seven.box('gold', 0.078, w + 0.12, h + 0.12, x_back, oy, z_center)
+    seven.box('cas_dark', 0.072, w + 0.06, h + 0.06, x_back + 0.006, oy, z_center)
+    neo.box('neon_glow', t, w, 0.058, x_glow, oy, z_center + h / 2 - 0.03)
+    neo.box('neon_glow', t, t, h - 0.08, x_glow, oy + w * 0.37, z_center - 0.04)
 
 
 def build(out_path):
@@ -188,9 +188,9 @@ def build(out_path):
 
     seven = b.part('seven_sign')
     neo777 = b.part('seven_neon')
-    for oy in (-0.48, 0.0, 0.48):
+    for oy in (-0.56, 0.0, 0.56):
         _neon_seven(seven, neo777, oy, north_x, seven_z)
-    seven.box('gold', 0.075, 1.72, 0.09, north_x + 0.07, 0, seven_z - 0.52)
+    seven.box('gold', 0.080, 2.05, 0.10, north_x + 0.07, 0, seven_z - 0.58)
 
     cards = b.part('poker_cards')
     for sy in (-card_y, card_y):
