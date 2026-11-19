@@ -38,13 +38,14 @@ def _north_vertical_sign(b, width, height, z_center, north_x):
     fr = b.part('sign')
     face = b.part('sign_face')
     neo = b.part('neon')
-    pitch = -0.16
-    x_frame, x_board, x_face = north_x + 0.07, north_x + 0.09, north_x + 0.115
+    pitch = -0.10
+    x_frame, x_board, x_face = north_x + 0.07, north_x + 0.09, north_x + 0.118
     x_neon = north_x + 0.12
     fr.box('gold', 0.13, width + 0.20, height + 0.18, x_frame, 0, z_center, rx=pitch)
     fr.box('cas_dark', 0.055, width + 0.04, height + 0.06, x_board, 0, z_center, rx=pitch)
     neo.box('neon_glow', 0.058, width + 0.26, height + 0.22, x_neon, 0, z_center, rx=pitch)
-    face.plane('sign', width, height, x_face, 0, z_center, ry=-math.pi / 2, rx=pitch, flip_u=False)
+    # plane 預設 XZ、法線 -Y；rz=π/2 才轉成 YZ、法線 +X（ry 不會離開 -Y）
+    face.plane('sign', width, height, x_face, 0, z_center, rz=math.pi / 2, rx=pitch, flip_u=True)
     neo.box('neon_glow', 0.050, width + 0.16, 0.055, x_neon, 0, z_center + height / 2 + 0.04, rx=pitch)
     neo.box('neon_glow', 0.050, width + 0.16, 0.055, x_neon, 0, z_center - height / 2 - 0.04, rx=pitch)
     for dy in (-width / 2 - 0.04, width / 2 + 0.04):
@@ -76,22 +77,30 @@ def _north_marquee(arch, bulbs, neo, north_x, z_top, width):
 
 
 def _giant_poker_card(cards, neo, y, north_x, z_center):
-    """朝北（+X）的巨型撲克牌（牆面突出）。"""
-    x = north_x + 0.09
-    cw, ch = 0.82, 1.12
-    cards.box('windows_glow', 0.055, cw - 0.06, ch - 0.06, x, y, z_center)
-    cards.box('cas_dark', 0.065, cw, ch, x + 0.02, y, z_center)
-    neo.box('neon_glow', 0.075, cw + 0.10, ch + 0.10, x + 0.05, y, z_center)
-    cards.box('cas_carpet', 0.07, 0.16, 0.20, x + 0.04, y - cw * 0.30, z_center + ch * 0.28)
-    cards.box('gold', 0.07, 0.20, 0.30, x + 0.04, y + cw * 0.22, z_center - ch * 0.22)
+    """朝北（+X）的巨型撲克牌：淺色牌面、深色花色，僅薄邊霓虹。"""
+    x_board, x_face = north_x + 0.08, north_x + 0.105
+    cw, ch = 0.68, 0.94
+    cards.box('cas_dark', 0.042, cw + 0.07, ch + 0.07, x_board, y, z_center)
+    cards.box('shop_trim', 0.038, cw, ch, x_face, y, z_center)
+    cards.box('cas_carpet', 0.040, 0.13, 0.17, x_face + 0.02, y - cw * 0.30, z_center + ch * 0.30)
+    cards.box('cas_dark', 0.040, 0.11, 0.15, x_face + 0.02, y + cw * 0.28, z_center - ch * 0.28)
+    cards.box('cas_dark', 0.041, 0.20, 0.26, x_face + 0.02, y, z_center)
+    et, ed = 0.014, 0.018
+    x_n = x_face + 0.022
+    neo.box('neon_glow', ed, cw + 0.03, et, x_n, y, z_center + ch / 2)
+    neo.box('neon_glow', ed, cw + 0.03, et, x_n, y, z_center - ch / 2)
+    neo.box('neon_glow', ed, et, ch + 0.02, x_n, y - cw / 2, z_center)
+    neo.box('neon_glow', ed, et, ch + 0.02, x_n, y + cw / 2, z_center)
 
 
-def _neon_seven(seven, oy, north_x, z_center):
-    """單個 7 字形霓虹（法線朝 +X）。"""
-    x = north_x + 0.11
-    w, h, t = 0.26, 0.68, 0.065
-    seven.box('neon_glow', t, w, 0.060, x, oy, z_center + h / 2 - 0.04)
-    seven.box('neon_glow', t, t, h, x, oy + w * 0.36, z_center)
+def _neon_seven(seven, neo, oy, north_x, z_center):
+    """單個 7 字形霓虹（法線朝 +X），金底襯托。"""
+    x_back, x_glow = north_x + 0.085, north_x + 0.112
+    w, h, t = 0.24, 0.58, 0.058
+    seven.box('gold', 0.072, w + 0.10, h + 0.10, x_back, oy, z_center)
+    seven.box('cas_dark', 0.068, w + 0.04, h + 0.04, x_back + 0.006, oy, z_center)
+    neo.box('neon_glow', t, w, 0.052, x_glow, oy, z_center + h / 2 - 0.03)
+    neo.box('neon_glow', t, t, h - 0.06, x_glow, oy + w * 0.37, z_center - 0.03)
 
 
 def build(out_path):
@@ -148,7 +157,7 @@ def build(out_path):
     p.box('cas_wall', 0.18, 0.22, 2.05, -HX + 0.28, FRONT + 0.12, BASE + 1.08)
 
     north_x = HX + 0.02
-    sign_z = BASE + 1.72
+    sign_z = BASE + 1.84
     marquee_top = BASE + H - 0.02
 
     # 北側 Vegas 立面（local +X）：層次退台 + 垂直招牌／拱門／777／撲克牌
@@ -168,15 +177,16 @@ def build(out_path):
     _north_marquee(arch, bulbs, neo, north_x, marquee_top, 2.85)
 
     seven = b.part('seven_sign')
-    for oy in (-0.52, 0.0, 0.52):
-        _neon_seven(seven, oy, north_x, BASE + 2.48)
-    seven.box('gold', 0.08, 2.35, 0.10, north_x + 0.08, 0, BASE + 2.12)
+    neo777 = b.part('seven_neon')
+    for oy in (-0.48, 0.0, 0.48):
+        _neon_seven(seven, neo777, oy, north_x, BASE + 1.26)
+    seven.box('gold', 0.075, 1.72, 0.09, north_x + 0.07, 0, BASE + 1.08)
 
     cards = b.part('poker_cards')
-    for sy in (-1.52, 1.52):
-        _giant_poker_card(cards, neo, sy, north_x, BASE + 1.62)
+    for sy in (-1.22, 1.22):
+        _giant_poker_card(cards, neo, sy, north_x, BASE + 1.42)
 
-    _north_vertical_sign(b, 3.05, 1.02, sign_z, north_x)
+    _north_vertical_sign(b, 3.18, 1.14, sign_z, north_x)
 
     # 西北角門廊量體（真門仍在西側 FRONT）
     nw = b.part('nw_portico')
