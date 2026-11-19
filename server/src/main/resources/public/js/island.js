@@ -363,7 +363,8 @@ function boot() {
     scene: scene,
     kit: kit,
     idles: idles,
-    walkers: walkers
+    walkers: walkers,
+    reduced: reduced
   });
   const makePerson = people.makePerson;
   const trafficMeshes = { lights: null };
@@ -644,16 +645,6 @@ function boot() {
   let peerLayer = null;
   let corner = null;
   let peerHideTimer = 0;
-  const MILU_NPCS = [
-    { x: 0.15, z: 0.42 },
-    { x: 0.05, z: 2.25 },
-    { x: -0.05, z: 2.9 },
-    { x: 0.12, z: 3.55 },
-    { x: -4.85, z: 4.15 },
-    { x: -4.85, z: 2.95 },
-    { x: 4.55, z: 4.08 },
-    { x: -0.15, z: 8.45 }
-  ];
 
   function clearMoveInput() {
     Object.keys(player.keys).forEach((key) => {
@@ -1372,7 +1363,8 @@ function boot() {
   }
 
   function miluNpcPoints() {
-    const points = MILU_NPCS.slice();
+    const points =
+      typeof people.miluStaticPoints === 'function' ? people.miluStaticPoints() : [];
     for (let i = 0; i < walkers.length; i++) {
       points.push({ x: walkers[i].obj.position.x, z: walkers[i].obj.position.z });
     }

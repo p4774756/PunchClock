@@ -787,6 +787,24 @@ export function registerSceneMotion(loop, state) {
         step.from[1] + dz * step.blend
       );
       if (dx || dz) walker.obj.rotation.y = Math.atan2(dx * step.dir, dz * step.dir);
+      if (walker.mixer) {
+        walker.mixer.update(reduced ? 0 : dt);
+        const moving = !reduced && Math.abs(walker.speed) > 0;
+        if (walker.walkAction && walker.idleAction) {
+          const walk = walker.walkAction;
+          const idle = walker.idleAction;
+          if (moving) {
+            if (!walk.isRunning()) {
+              walk.reset().fadeIn(0.15).play();
+              idle.fadeOut(0.15);
+            }
+            walk.timeScale = Math.max(0.6, Math.abs(walker.speed) / 0.045);
+          } else if (!idle.isRunning()) {
+            idle.reset().fadeIn(0.15).play();
+            walk.fadeOut(0.15);
+          }
+        }
+      }
     });
   });
   loop.register(function updateBobs(dt, t) {
@@ -796,9 +814,16 @@ export function registerSceneMotion(loop, state) {
     });
   });
   loop.register(function updateIdles(dt, t) {
-    if (reduced) return;
     idles.forEach((item) => {
-      item.obj.position.y = item.base + Math.sin(t * 1.5 + item.phase) * 0.012;
+      if (item.mixer) {
+        item.mixer.update(reduced ? 0 : dt);
+        if (item.idleAction && !reduced && !item.seated) {
+          if (!item.idleAction.isRunning()) item.idleAction.play();
+        }
+      }
+      if (reduced) return;
+      const bob = item.seated ? 0.004 : 0.012;
+      item.obj.position.y = item.base + Math.sin(t * 1.5 + item.phase) * bob;
     });
   });
   loop.register(function updateSteams(dt, t) {
