@@ -42,27 +42,32 @@ function ensureBronzeFigureGlb() {
   return bronzeFigPromise;
 }
 
-function nightColorFromDay(hex) {
+function nightColorFromDay(hex, opts) {
+  const bronze = opts && opts.bronze;
   const mapped = nightHex(hex);
-  if (mapped !== null) return new THREE.Color(mapped);
+  if (mapped !== null && !bronze) return new THREE.Color(mapped);
   const c = new THREE.Color(hex);
   const hsl = { h: 0, s: 0, l: 0 };
   c.getHSL(hsl);
   const out = new THREE.Color();
-  out.setHSL(hsl.h, Math.min(1, hsl.s * 0.78), 0.12 + hsl.l * 0.42);
+  if (bronze) {
+    out.setHSL(hsl.h, Math.min(1, hsl.s * 0.62), 0.2 + hsl.l * 0.45);
+  } else {
+    out.setHSL(hsl.h, Math.min(1, hsl.s * 0.78), 0.12 + hsl.l * 0.42);
+  }
   return out;
 }
 
 function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(0xc8a850);
-  const night = nightColorFromDay(day.getHex());
+  const night = nightColorFromDay(day.getHex(), { bronze: isBronze });
   const emissive = oldMat.emissive ? oldMat.emissive.clone() : new THREE.Color(0x000000);
   const emissiveI = oldMat.emissiveIntensity != null ? oldMat.emissiveIntensity : 0;
   const std = new THREE.MeshStandardMaterial({
     name: oldMat.name || '',
     color: day.clone(),
     metalness: oldMat.metalness != null ? oldMat.metalness : (isBronze ? 0.88 : 0.05),
-    roughness: oldMat.roughness != null ? oldMat.roughness : (isBronze ? 0.34 : 0.88),
+    roughness: oldMat.roughness != null ? oldMat.roughness : (isBronze ? 0.28 : 0.88),
     emissive: emissive,
     emissiveIntensity: emissiveI,
     flatShading: false
@@ -71,8 +76,8 @@ function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   if (oldMat.normalMap) std.normalMap = oldMat.normalMap;
   std.userData.day = day;
   std.userData.night = night;
-  std.userData.dayE = isBronze ? Math.max(0.02, emissiveI) : 0;
-  std.userData.nightE = isBronze ? Math.max(0.1, emissiveI * 2.2) : 0;
+  std.userData.dayE = isBronze ? Math.max(0.03, emissiveI) : 0;
+  std.userData.nightE = isBronze ? Math.max(0.14, emissiveI * 2.6) : 0;
   kit.addMaterial(std);
   return std;
 }
@@ -299,8 +304,8 @@ export function createTcmFigureController(ctx) {
     todayCode = code;
     if (!pointMesh || !instanceRows.length) return;
     const dummy = new THREE.Object3D();
-    const baseR = reduced ? 0.014 : 0.016;
-    const todayR = reduced ? 0.018 : 0.021;
+    const baseR = reduced ? 0.013 : 0.015;
+    const todayR = reduced ? 0.017 : 0.02;
     for (let i = 0; i < instanceRows.length; i++) {
       const row = instanceRows[i];
       const isToday = row.code === code;
@@ -346,7 +351,7 @@ export function createTcmFigureController(ctx) {
 
   function buildPointMeshes(parent, rows) {
     const count = rows.length;
-    const markerGeo = new THREE.SphereGeometry(0.016, 8, 6);
+    const markerGeo = new THREE.SphereGeometry(0.015, 8, 6);
     const markerMat = kit.mat(MARKER, {
       glow: TODAY_MARK,
       glowAmount: 0.92,
