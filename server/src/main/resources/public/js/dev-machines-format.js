@@ -333,6 +333,10 @@ export function applyIslandOpenRoadmapParam(win, openRoadmapFn) {
 
 let toastDismiss = null;
 
+export function isLoginRequiredToastOpen(doc) {
+  return !!(doc && doc.querySelector && doc.querySelector('[data-dev-login-toast]'));
+}
+
 export function dismissLoginToast(doc) {
   if (toastDismiss) {
     toastDismiss();
@@ -371,10 +375,13 @@ export function showLoginRequiredToast(doc, loginHref, message) {
     if (toastDismiss === teardown) toastDismiss = null;
   };
   const onKey = (ev) => {
-    if (ev.key === 'Escape') teardown();
+    if (ev.key !== 'Escape') return;
+    if (ev.stopPropagation) ev.stopPropagation();
+    if (ev.preventDefault) ev.preventDefault();
+    teardown();
   };
   close.addEventListener('click', teardown);
-  if (doc.addEventListener) doc.addEventListener('keydown', onKey);
+  if (doc.addEventListener) doc.addEventListener('keydown', onKey, true);
   wrap.appendChild(msg);
   wrap.appendChild(btn);
   wrap.appendChild(close);

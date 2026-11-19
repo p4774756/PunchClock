@@ -201,7 +201,6 @@ body.dev-machines-page {
 .dev-btn-secondary {
   background: var(--maple-white);
   color: var(--maple-navy);
-  margin-left: 0.5rem;
 }
 
 .dev-run-list {

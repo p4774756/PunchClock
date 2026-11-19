@@ -53,7 +53,7 @@ export function renderGuestLoginPanel(root, doc) {
   const panel = el('section', 'dev-machines-guest maple-window');
   const chrome = el('header', 'maple-win-title');
   const title = el('h2', null);
-  setText(title, '開發機狀態');
+  setText(title, '請先登入');
   chrome.appendChild(title);
   panel.appendChild(chrome);
   const body = el('div', 'dev-machines-guest-body');

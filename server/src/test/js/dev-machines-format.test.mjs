@@ -244,6 +244,62 @@ test('effectivePhaseStatus：0/5 pending、3/5 progress、5/5 done、current 0/5
   assert.equal(F.effectivePhaseStatus({ phase: 5, done: true, itemsDone: 2, itemsTotal: 5 }, null), 'done');
 });
 
+test('toast Esc 用 capture 關閉並 stopPropagation', () => {
+  const keyHandlers = [];
+  const doc = {
+    body: {
+      childNodes: [],
+      appendChild(c) { this.childNodes.push(c); },
+      removeChild(c) {
+        const i = this.childNodes.indexOf(c);
+        if (i >= 0) this.childNodes.splice(i, 1);
+      }
+    },
+    addEventListener(ev, fn, cap) {
+      if (ev === 'keydown') keyHandlers.push({ fn, cap: !!cap });
+    },
+    removeEventListener(ev, fn) {
+      if (ev !== 'keydown') return;
+      const i = keyHandlers.findIndex((h) => h.fn === fn);
+      if (i >= 0) keyHandlers.splice(i, 1);
+    },
+    createElement() {
+      return {
+        className: '',
+        classList: { _c: new Set(), add(x) { this._c.add(x); }, remove(x) { this._c.delete(x); } },
+        childNodes: [],
+        attributes: {},
+        parentNode: doc.body,
+        appendChild(c) { this.childNodes.push(c); return c; },
+        setAttribute(k, v) { this.attributes[k] = v; },
+        addEventListener() {},
+        removeChild(c) {
+          const i = this.childNodes.indexOf(c);
+          if (i >= 0) this.childNodes.splice(i, 1);
+        }
+      };
+    },
+    querySelector(sel) {
+      if (sel === '[data-dev-login-toast]') {
+        return doc.body.childNodes.find((n) => n.attributes && n.attributes['data-dev-login-toast']) || null;
+      }
+      return null;
+    }
+  };
+  F.showLoginRequiredToast(doc, '/login');
+  assert.equal(F.isLoginRequiredToastOpen(doc), true);
+  assert.ok(keyHandlers.some((h) => h.cap));
+  const ev = {
+    key: 'Escape',
+    stopPropagation() { this.stopped = true; },
+    preventDefault() { this.prevented = true; }
+  };
+  const cap = keyHandlers.find((h) => h.cap);
+  cap.fn(ev);
+  assert.equal(ev.stopped, true);
+  assert.equal(F.isLoginRequiredToastOpen(doc), false);
+});
+
 test('今日合併篩選接受 API 合併與已合併', () => {
   const now = Date.UTC(2026, 10, 19, 8, 6, 0);
   const merged = F.filterMergedToday(
