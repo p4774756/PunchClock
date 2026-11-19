@@ -14,6 +14,7 @@
 import { cameraRelative, PLAYER_SPEED, MAX_STEP_DT } from './island-explore.js';
 import { G, P } from './island-kit.js';
 import { MILU_ANIM } from './island-milu.js';
+import { tcmReturnPose } from './island-tcm-visit.js';
 
 const LAB_PHI_MIN = 0.32;
 const LAB_PHI_MAX = 1.50;
@@ -21,10 +22,12 @@ export const LAB_FOV_DEG = 42;
 export const DEFAULT_INTERIOR_FOV_DEG = 25;
 
 export const CASINO_FOV_DEG = 42;
+export const TCM_FOV_DEG = 42;
 
 export function interiorCameraFov(room) {
   if (room && room.id === 'lab-room') return LAB_FOV_DEG;
   if (room && room.id === 'casino-room') return CASINO_FOV_DEG;
+  if (room && room.id === 'tcm-room') return TCM_FOV_DEG;
   return DEFAULT_INTERIOR_FOV_DEG;
 }
 
@@ -160,6 +163,7 @@ export function labInteriorCameraForAspect(aspect) {
 export function interiorFollowPose(room, aspect) {
   if (room && room.id === 'lab-room') return labInteriorCameraForAspect(aspect);
   if (room && room.id === 'casino-room') return casinoInteriorCameraForAspect(aspect);
+  if (room && room.id === 'tcm-room') return tcmInteriorCameraForAspect(aspect);
   return null;
 }
 
@@ -204,6 +208,54 @@ export function casinoInteriorRuntimeLookAt(room, player, aspect, origin) {
   const o = origin || INTERIOR_ORIGIN;
   const localPlayer = casinoInteriorPlayerLocal(player, o);
   const focal = casinoInteriorLookTarget(room, localPlayer, aspect);
+  return Object.freeze({
+    x: focal.x + o.x,
+    y: focal.y,
+    z: focal.z + o.z
+  });
+}
+
+/** 推拿館進房預設鏡頭：站在南門內側往北看暖色醫館、床帳與經絡研習室門。 */
+export const TCM_INTERIOR_CAMERA = Object.freeze({ radius: 5.75, theta: Math.PI, phi: 1.35 });
+export const TCM_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 3.7, theta: Math.PI, phi: 1.32 });
+export const TCM_INTERIOR_LOOK = Object.freeze({ x: 0.25, y: G + 2.0, z: 6.6 });
+export const TCM_INTERIOR_LOOK_MOBILE = Object.freeze({ x: 0.2, y: G + 1.9, z: 5.8 });
+
+export function tcmInteriorCameraForAspect(aspect) {
+  const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
+  if (a < 0.72) return TCM_INTERIOR_CAMERA_MOBILE;
+  if (a > 1.72) {
+    return Object.freeze({ radius: 5.9, theta: TCM_INTERIOR_CAMERA.theta, phi: TCM_INTERIOR_CAMERA.phi });
+  }
+  return TCM_INTERIOR_CAMERA;
+}
+
+export function tcmInteriorLookTarget(room, player, aspect) {
+  const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
+  return a < 0.72 ? TCM_INTERIOR_LOOK_MOBILE : TCM_INTERIOR_LOOK;
+}
+
+export function tcmInteriorCameraEye(pose, look, aspect) {
+  const used = pose || tcmInteriorCameraForAspect(aspect);
+  const dist = labInteriorFollowDistance(used.radius, aspect);
+  const place = labExploreCameraPlacement(look.x, look.y, look.z, dist, used.phi, used.theta, G);
+  return Object.freeze({ x: place.cx, y: place.cy, z: place.cz });
+}
+
+function tcmInteriorPlayerLocal(player, origin) {
+  const o = origin || INTERIOR_ORIGIN;
+  if (!player) return { x: 0, z: 0.9 };
+  const x = Number.isFinite(player.x) ? player.x : 0;
+  const z = Number.isFinite(player.z) ? player.z : 0.9;
+  if (Math.abs(z - o.z) < 80) return { x: x - o.x, z: z - o.z };
+  return { x, z };
+}
+
+export function tcmInteriorRuntimeLookAt(room, player, aspect, origin) {
+  if (!room || room.id !== 'tcm-room') return null;
+  const o = origin || INTERIOR_ORIGIN;
+  const localPlayer = tcmInteriorPlayerLocal(player, o);
+  const focal = tcmInteriorLookTarget(room, localPlayer, aspect);
   return Object.freeze({
     x: focal.x + o.x,
     y: focal.y,
@@ -650,6 +702,30 @@ export const INTERIORS = Object.freeze([
       Object.freeze({ id: 'casino-bj', x: 3.05, z: 4.4, r: 0.58, label: '玩 21 點', action: 'openCasinoBlackjack' }),
       Object.freeze({ id: 'casino-slots', x: -4.25, z: 4.2, r: 0.62, label: '拉霸機', action: 'casinoSlots' }),
       Object.freeze({ id: 'casino-roulette', x: 0, z: 7.7, r: 0.52, label: '輪盤桌', action: 'casinoRoulette' })
+    ])
+  }),
+  Object.freeze({
+    id: 'tcm-room',
+    buildingId: 'tcm-site',
+    spawn: Object.freeze({ x: 0, z: 0.9, yaw: 0 }),
+    exit: Object.freeze({ x: 0, z: -1.4, r: 0.55, label: '離開推拿館' }),
+    outside: Object.freeze((() => {
+      const pose = tcmReturnPose();
+      return pose || { x: -14.8, z: 1.15, yaw: Math.PI / 2 };
+    })()),
+    floor: Object.freeze({ minX: -8.0, maxX: 8.0, minZ: -2.0, maxZ: 12.5 }),
+    blocks: Object.freeze([
+      Object.freeze({ id: 'bed-west-a', minX: -6.05, maxX: -4.65, minZ: 2.15, maxZ: 4.45 }),
+      Object.freeze({ id: 'bed-west-b', minX: -6.05, maxX: -4.65, minZ: 5.25, maxZ: 7.55 }),
+      Object.freeze({ id: 'bed-east', minX: 4.65, maxX: 6.05, minZ: 2.15, maxZ: 4.45 }),
+      Object.freeze({ id: 'cabinet', minX: 6.45, maxX: 7.25, minZ: 5.7, maxZ: 9.5 }),
+      Object.freeze({ id: 'cupping-table', minX: 4.35, maxX: 5.4, minZ: 6.2, maxZ: 6.95 }),
+      Object.freeze({ id: 'today-stand', minX: 4.15, maxX: 5.65, minZ: 9.55, maxZ: 10.25 }),
+      Object.freeze({ id: 'screen-west-a', minX: -4.45, maxX: -2.65, minZ: 1.95, maxZ: 2.4 }),
+      Object.freeze({ id: 'screen-west-b', minX: -4.45, maxX: -2.65, minZ: 4.95, maxZ: 5.4 })
+    ]),
+    interacts: Object.freeze([
+      Object.freeze({ id: 'tcm-study', x: 0, z: 10.7, r: 0.7, label: '進入經絡研習室', action: 'enterTcmStudy' })
     ])
   })
 ]);
