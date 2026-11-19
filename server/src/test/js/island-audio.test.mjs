@@ -2,7 +2,20 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadPublicModule } from './load-public-module.mjs';
 
-const { createIslandAudio } = await loadPublicModule('island-audio.js');
+const { createIslandAudio, resolveTrackId } = await loadPublicModule('island-audio.js');
+
+const FULL_TRACKS = {
+  main: '/audio/bgm-main.ogg',
+  main_night: '/audio/bgm-main-night.ogg',
+  casino: '/audio/bgm-casino.ogg',
+  casino_night: '/audio/bgm-casino-night.ogg',
+  tcm: '/audio/bgm-tcm.ogg',
+  tcm_night: '/audio/bgm-tcm-night.ogg',
+  computer: '/audio/bgm-computer.ogg',
+  computer_night: '/audio/bgm-computer-night.ogg',
+  city: '/audio/bgm-city.ogg',
+  city_night: '/audio/bgm-city-night.ogg'
+};
 
 function fakeStorage() {
   const map = new Map();
@@ -674,6 +687,140 @@ describe('island-audio', () => {
       await new Promise(r => setTimeout(r, 30));
       assert.equal(ambienceAttempts, 2, 'ambience should retry on next interaction');
       assert.equal(audio.ambiencePlaySucceeded, true, 'ambience succeeded on retry');
+    });
+  });
+
+  describe('resolveTrackId', () => {
+    test('島嶼與日夜對應曲目', () => {
+      assert.equal(resolveTrackId({ islandId: 'casino', night: false, tracks: FULL_TRACKS }), 'casino');
+      assert.equal(resolveTrackId({ islandId: 'casino', night: true, tracks: FULL_TRACKS }), 'casino_night');
+      assert.equal(resolveTrackId({ islandId: 'city', night: false, tracks: FULL_TRACKS }), 'city');
+      assert.equal(resolveTrackId({ islandId: null, night: false, tracks: FULL_TRACKS }), 'main');
+      assert.equal(resolveTrackId({ islandId: 'beach', night: true, tracks: FULL_TRACKS }), 'main_night');
+    });
+
+    test('室內建築對應島嶼曲目', () => {
+      assert.equal(
+        resolveTrackId({ buildingId: 'tcm-site', night: false, tracks: FULL_TRACKS }),
+        'tcm'
+      );
+      assert.equal(
+        resolveTrackId({ buildingId: 'computer-site', night: true, tracks: FULL_TRACKS }),
+        'computer_night'
+      );
+    });
+
+    test('夜間檔缺失時退回白天曲', () => {
+      const partial = { main: '/m.ogg', casino: '/c.ogg' };
+      assert.equal(resolveTrackId({ islandId: 'casino', night: true, tracks: partial }), 'casino');
+    });
+
+    test('島嶼曲缺失時退回 main / main_night', () => {
+      const partial = { main: '/m.ogg', main_night: '/mn.ogg' };
+      assert.equal(resolveTrackId({ islandId: 'city', night: false, tracks: partial }), 'main');
+      assert.equal(resolveTrackId({ islandId: 'city', night: true, tracks: partial }), 'main_night');
+    });
+  });
+
+  describe('setTrack crossfade', () => {
+    test('setTrack 會換成指定 id', async () => {
+      const storage = fakeStorage();
+      const audio = createIslandAudio({
+        tracks: { main: '/a.ogg', casino: '/b.ogg' },
+        storage,
+        _createAudio: () => fakeAudio(),
+        _forceElementVolume: true
+      });
+      audio.onUserInteraction();
+      await new Promise((r) => setTimeout(r, 10));
+      audio.setTrack('casino');
+      await new Promise((r) => setTimeout(r, 10));
+      assert.equal(audio.currentTrack, 'casino');
+    });
+
+    test('同一 id 再呼叫不會重啟', async () => {
+      let playCount = 0;
+      const storage = fakeStorage();
+      const audio = createIslandAudio({
+        tracks: { main: '/a.ogg', casino: '/b.ogg' },
+        storage,
+        _createAudio: () => {
+          const a = fakeAudio();
+          const orig = a.play;
+          a.play = () => {
+            playCount += 1;
+            return orig.call(a);
+          };
+          return a;
+        },
+        _forceElementVolume: true
+      });
+      audio.onUserInteraction();
+      await new Promise((r) => setTimeout(r, 10));
+      const afterFirst = playCount;
+      audio.setTrack('main');
+      await new Promise((r) => setTimeout(r, 10));
+      assert.equal(playCount, afterFirst, 'same track should not call play again');
+      assert.equal(audio.currentTrack, 'main');
+    });
+
+    test('換曲時交叉淡出期間可有兩個 element', async () => {
+      const storage = fakeStorage();
+      const audio = createIslandAudio({
+        tracks: { main: '/a.ogg', casino: '/b.ogg' },
+        storage,
+        _createAudio: fakeAudio,
+        _forceElementVolume: true
+      });
+      audio.onUserInteraction();
+      await new Promise((r) => setTimeout(r, 10));
+      audio.setTrack('casino');
+      await new Promise((r) => setTimeout(r, 30));
+      assert.ok(audio._getAudio(), 'incoming element');
+      assert.ok(audio._getOutgoingAudio(), 'outgoing during crossfade');
+      await new Promise((r) => setTimeout(r, 1600));
+      assert.equal(audio._getOutgoingAudio(), null, 'outgoing cleared after fade');
+      assert.equal(audio.currentTrack, 'casino');
+    });
+
+    test('靜音會暫停淡出中的兩邊', async () => {
+      const storage = fakeStorage();
+      const audio = createIslandAudio({
+        tracks: { main: '/a.ogg', casino: '/b.ogg' },
+        storage,
+        _createAudio: fakeAudio,
+        _forceElementVolume: true
+      });
+      audio.onUserInteraction();
+      await new Promise((r) => setTimeout(r, 10));
+      audio.setTrack('casino');
+      await new Promise((r) => setTimeout(r, 30));
+      const incoming = audio._getAudio();
+      const outgoing = audio._getOutgoingAudio();
+      assert.ok(incoming && outgoing);
+      audio.setMuted(true);
+      await new Promise((r) => setTimeout(r, 1600));
+      assert.equal(incoming.paused, true);
+      assert.equal(outgoing.paused, true);
+    });
+
+    test('setInsideRoom 不改曲目', async () => {
+      const storage = fakeStorage();
+      const audio = createIslandAudio({
+        tracks: { main: '/a.ogg', casino: '/b.ogg' },
+        storage,
+        _createAudio: fakeAudio,
+        _forceElementVolume: true
+      });
+      audio.onUserInteraction();
+      await new Promise((r) => setTimeout(r, 10));
+      audio.setTrack('casino');
+      await new Promise((r) => setTimeout(r, 10));
+      assert.equal(audio.currentTrack, 'casino');
+      audio.setInsideRoom(true);
+      assert.equal(audio.currentTrack, 'casino');
+      audio.setInsideRoom(false);
+      assert.equal(audio.currentTrack, 'casino');
     });
   });
 });

@@ -3,9 +3,10 @@
  *
  * 主要 API：
  *   createIslandAudio({ tracks, storage, volume, ambience })
+ *   resolveTrackId({ islandId, buildingId, night, tracks })
  *
  * tracks 格式：{ main: '/audio/bgm-main.ogg', casino?: '...', tcm?: '...', computer?: '...' }
- * 夜間版本預留：{ main_night: '...', casino_night: '...' }
+ * 夜間版本：{ main_night: '...', casino_night: '...' }
  * ambience 格式：{ src: '/audio/ocean-waves.ogg', volume: 0.22 }
  *
  * iOS Safari 的 HTMLMediaElement.volume 是唯讀，故使用 Web Audio API：
@@ -15,6 +16,50 @@
 
 const STORAGE_KEY = 'punchclock.island.muted';
 const FADE_DURATION = 1.5;
+
+const BUILDING_ISLAND = Object.freeze({
+  shop: 'main',
+  casino: 'casino',
+  'tcm-site': 'tcm',
+  'computer-site': 'computer'
+});
+
+/**
+ * 依島嶼／室內建築／日夜選曲目 id（不含路徑）。
+ * @param {Object} opts
+ * @param {string|null} [opts.islandId] - islandAt 的 id，海上／橋為 null
+ * @param {string|null} [opts.buildingId] - 室內 buildingId
+ * @param {boolean} opts.night
+ * @param {Object<string, string>} [opts.tracks]
+ */
+export function resolveTrackId(opts) {
+  const islandId = opts.islandId != null ? opts.islandId : null;
+  const buildingId = opts.buildingId != null ? opts.buildingId : null;
+  const night = !!opts.night;
+  const tracks = opts.tracks || {};
+
+  let base = 'main';
+  if (buildingId) {
+    base = BUILDING_ISLAND[buildingId] || 'main';
+  } else if (islandId && islandId !== 'beach') {
+    base = islandId;
+  }
+
+  const dayId =
+    base === 'main' || base === 'casino' || base === 'tcm' || base === 'computer' || base === 'city'
+      ? base
+      : 'main';
+
+  if (night) {
+    const nightId = dayId + '_night';
+    if (tracks[nightId]) return nightId;
+    if (tracks[dayId]) return dayId;
+    if (tracks.main_night) return 'main_night';
+    return 'main';
+  }
+  if (tracks[dayId]) return dayId;
+  return 'main';
+}
 
 function safeParse(storage, key, fallback) {
   if (!storage) return fallback;
@@ -65,7 +110,7 @@ export function createIslandAudio(opts) {
   const ambienceVolume = ambience && ambience.volume != null ? ambience.volume : 0.22;
 
   let audio = opts._audio || null;
-  let currentTrack = null;
+  let currentTrackId = null;
   let muted = safeParse(storage, STORAGE_KEY, false);
   let userInteracted = false;
   let awaitingPlay = false;
@@ -79,6 +124,11 @@ export function createIslandAudio(opts) {
   let useWebAudio = !opts._forceElementVolume && (!!opts._audioContext || supportsWebAudio());
   let webAudioConnected = false;
   let playPending = false;
+
+  let crossfadeOutgoing = null;
+  let crossfadeOutgoingGain = null;
+  let crossfadeTimer = null;
+  let elementFadeTimer = null;
 
   let ambienceAudio = null;
   let ambienceGain = null;
@@ -157,6 +207,14 @@ export function createIslandAudio(opts) {
     }
   }
 
+  function setOutgoingVolume(vol) {
+    if (useWebAudio && crossfadeOutgoingGain && ctx) {
+      crossfadeOutgoingGain.gain.setValueAtTime(vol, ctx.currentTime);
+    } else if (crossfadeOutgoing) {
+      try { crossfadeOutgoing.volume = vol; } catch { /* iOS readonly */ }
+    }
+  }
+
   function setAmbienceVolume(vol) {
     if (useWebAudio && ambienceGain && ctx) {
       ambienceGain.gain.setValueAtTime(vol, ctx.currentTime);
@@ -182,6 +240,26 @@ export function createIslandAudio(opts) {
   function currentAmbienceTarget() {
     const base = ambienceVolume;
     return insideRoom ? base * AMBIENCE_INDOOR_FACTOR : base;
+  }
+
+  function clearCrossfadeTimers() {
+    if (crossfadeTimer) {
+      clearTimeout(crossfadeTimer);
+      crossfadeTimer = null;
+    }
+    if (elementFadeTimer) {
+      clearInterval(elementFadeTimer);
+      elementFadeTimer = null;
+    }
+  }
+
+  function finishOutgoing() {
+    if (crossfadeOutgoing) {
+      crossfadeOutgoing.pause();
+      crossfadeOutgoing = null;
+    }
+    crossfadeOutgoingGain = null;
+    clearCrossfadeTimers();
   }
 
   function fadeTo(targetVol, cb) {
@@ -215,6 +293,43 @@ export function createIslandAudio(opts) {
     } else {
       setAmbienceVolume(targetVol);
       if (cb) cb();
+    }
+  }
+
+  function fadeAllMusicTo(targetVol, cb) {
+    let pending = audio ? 1 : 0;
+    if (crossfadeOutgoing) pending += 1;
+    if (!pending) {
+      if (cb) cb();
+      return;
+    }
+    const done = () => {
+      pending -= 1;
+      if (pending <= 0 && cb) cb();
+    };
+    if (audio) {
+      if (useWebAudio && gainNode && ctx) {
+        const now = ctx.currentTime;
+        gainNode.gain.cancelScheduledValues(now);
+        gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+        gainNode.gain.linearRampToValueAtTime(targetVol, now + FADE_DURATION);
+        setTimeout(done, FADE_DURATION * 1000 + 50);
+      } else {
+        setVolume(targetVol);
+        done();
+      }
+    }
+    if (crossfadeOutgoing) {
+      if (useWebAudio && crossfadeOutgoingGain && ctx) {
+        const now = ctx.currentTime;
+        crossfadeOutgoingGain.gain.cancelScheduledValues(now);
+        crossfadeOutgoingGain.gain.setValueAtTime(crossfadeOutgoingGain.gain.value, now);
+        crossfadeOutgoingGain.gain.linearRampToValueAtTime(targetVol, now + FADE_DURATION);
+        setTimeout(done, FADE_DURATION * 1000 + 50);
+      } else {
+        setOutgoingVolume(targetVol);
+        done();
+      }
     }
   }
 
@@ -308,11 +423,20 @@ export function createIslandAudio(opts) {
     }
   }
 
-  function pause() {
+  function pauseMusicElements() {
     if (audio) {
       audio.pause();
       setVolume(0);
     }
+    if (crossfadeOutgoing) {
+      crossfadeOutgoing.pause();
+      setOutgoingVolume(0);
+    }
+    finishOutgoing();
+  }
+
+  function pause() {
+    pauseMusicElements();
   }
 
   function pauseAmbience() {
@@ -323,14 +447,101 @@ export function createIslandAudio(opts) {
   }
 
   function loadTrack(id) {
-    if (currentTrack === id && audio) return;
+    if (currentTrackId === id && audio) return;
     const src = tracks[id];
     if (!src) return;
-    pause();
+    finishOutgoing();
+    if (audio) {
+      audio.pause();
+    }
     webAudioConnected = false;
     sourceNode = null;
     audio = createAudio(src);
-    currentTrack = id;
+    currentTrackId = id;
+  }
+
+  function crossfadeTo(id, src) {
+    finishOutgoing();
+    const outgoing = audio;
+    const outgoingGain = gainNode;
+
+    const nextAudio = createAudio(src);
+    currentTrackId = id;
+    audio = nextAudio;
+    webAudioConnected = false;
+    sourceNode = null;
+    gainNode = null;
+
+    if (outgoing) {
+      crossfadeOutgoing = outgoing;
+      crossfadeOutgoingGain = outgoingGain;
+    }
+
+    const beginCrossfade = () => {
+      if (disposed || muted || hidden) return;
+
+      if (useWebAudio && ensureContext()) {
+        gainNode = ctx.createGain();
+        gainNode.gain.setValueAtTime(0, ctx.currentTime);
+        gainNode.connect(ctx.destination);
+        sourceNode = ctx.createMediaElementSource(nextAudio);
+        sourceNode.connect(gainNode);
+        webAudioConnected = true;
+
+        const now = ctx.currentTime;
+        gainNode.gain.linearRampToValueAtTime(baseVolume, now + FADE_DURATION);
+        if (crossfadeOutgoingGain && crossfadeOutgoing) {
+          crossfadeOutgoingGain.gain.cancelScheduledValues(now);
+          crossfadeOutgoingGain.gain.setValueAtTime(crossfadeOutgoingGain.gain.value, now);
+          crossfadeOutgoingGain.gain.linearRampToValueAtTime(0, now + FADE_DURATION);
+        }
+
+        crossfadeTimer = setTimeout(() => {
+          if (crossfadeOutgoing) {
+            crossfadeOutgoing.pause();
+          }
+          crossfadeOutgoing = null;
+          crossfadeOutgoingGain = null;
+          crossfadeTimer = null;
+        }, FADE_DURATION * 1000 + 50);
+      } else {
+        try { nextAudio.volume = 0; } catch { /* readonly */ }
+        const start = Date.now();
+        const fromOut = crossfadeOutgoing ? crossfadeOutgoing.volume : 0;
+        elementFadeTimer = setInterval(() => {
+          const t = Math.min(1, (Date.now() - start) / (FADE_DURATION * 1000));
+          const vol = baseVolume * t;
+          const outVol = fromOut * (1 - t);
+          try { nextAudio.volume = vol; } catch { /* readonly */ }
+          if (crossfadeOutgoing) {
+            try { crossfadeOutgoing.volume = outVol; } catch { /* readonly */ }
+          }
+          if (t >= 1) {
+            clearInterval(elementFadeTimer);
+            elementFadeTimer = null;
+            if (crossfadeOutgoing) {
+              crossfadeOutgoing.pause();
+            }
+            crossfadeOutgoing = null;
+            crossfadeOutgoingGain = null;
+          }
+        }, 50);
+      }
+    };
+
+    const playPromise = nextAudio.play();
+    const afterPlay = () => {
+      playSucceeded = true;
+      beginCrossfade();
+    };
+
+    if (playPromise && typeof playPromise.then === 'function') {
+      playPromise.then(afterPlay).catch(() => {
+        awaitingPlay = true;
+      });
+    } else {
+      afterPlay();
+    }
   }
 
   function loadAmbience() {
@@ -342,8 +553,11 @@ export function createIslandAudio(opts) {
     muted = !!m;
     safeSet(storage, STORAGE_KEY, muted);
     if (muted) {
-      if (audio && !audio.paused) {
-        fadeTo(0, () => pause());
+      const anyPlaying =
+        (audio && !audio.paused) ||
+        (crossfadeOutgoing && !crossfadeOutgoing.paused);
+      if (anyPlaying) {
+        fadeAllMusicTo(0, () => pauseMusicElements());
       }
       if (ambienceAudio && !ambienceAudio.paused) {
         fadeAmbienceTo(0, () => pauseAmbience());
@@ -361,7 +575,7 @@ export function createIslandAudio(opts) {
       return;
     }
     userInteracted = true;
-    if (!currentTrack) loadTrack('main');
+    if (!currentTrackId) loadTrack('main');
     loadAmbience();
     if (!muted && !hidden) {
       tryPlay();
@@ -381,8 +595,22 @@ export function createIslandAudio(opts) {
   }
 
   function setTrack(id) {
-    loadTrack(id);
-    if (userInteracted && !muted && !hidden) tryPlay();
+    const src = tracks[id];
+    if (!src) return;
+    if (currentTrackId === id && audio && !crossfadeOutgoing) {
+      if (userInteracted && !muted && !hidden && audio.paused) tryPlay();
+      return;
+    }
+    if (!userInteracted) {
+      loadTrack(id);
+      return;
+    }
+    if (!audio) {
+      loadTrack(id);
+      if (!muted && !hidden) tryPlay();
+      return;
+    }
+    crossfadeTo(id, src);
   }
 
   function setInsideRoom(inside) {
@@ -407,10 +635,12 @@ export function createIslandAudio(opts) {
     sourceNode = null;
     ambienceGain = null;
     ambienceSource = null;
+    crossfadeOutgoing = null;
+    crossfadeOutgoingGain = null;
   }
 
   function preload() {
-    if (currentTrack) return;
+    if (currentTrackId) return;
     const src = tracks.main;
     if (!src) return;
     loadTrack('main');
@@ -429,6 +659,7 @@ export function createIslandAudio(opts) {
     get usingWebAudio() { return useWebAudio && !!ctx; },
     get ambiencePlaying() { return ambienceAudio && !ambienceAudio.paused; },
     get ambiencePlaySucceeded() { return ambiencePlaySucceeded; },
+    get currentTrack() { return currentTrackId; },
     setMuted,
     toggleMute() { setMuted(!muted); },
     onUserInteraction,
@@ -438,6 +669,8 @@ export function createIslandAudio(opts) {
     preload,
     dispose,
     _getAudio() { return audio; },
+    _getOutgoingAudio() { return crossfadeOutgoing; },
+    _getCurrentTrackId() { return currentTrackId; },
     _getAwaiting() { return awaitingPlay; },
     _getGainNode() { return gainNode; },
     _getVolume() { return getVolume(); },
