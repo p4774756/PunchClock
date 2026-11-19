@@ -10,9 +10,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(here, '..', '..', 'main', 'resources', 'public');
 const indexHtml = readFileSync(join(publicDir, 'index.html'), 'utf8');
 const islandCss = readFileSync(join(publicDir, 'css', 'island.css'), 'utf8');
+const islandJs = readFileSync(join(publicDir, 'js/island.js'), 'utf8');
 
 const Corner = await loadPublicModule('island-corner-ui.js');
 const Chat = await loadPublicModule('island-chat.js');
+const Explore = await loadPublicModule('island-explore.js');
+const Interior = await loadPublicModule('island-interior.js');
 
 class FakeClassList {
   constructor() { this.set = new Set(); }
@@ -115,7 +118,10 @@ function makeMobileDom(guest) {
   el('button', { id: 'islandMoreBtn', class: 'island-orb island-orb-menu', 'aria-expanded': 'false' }, hud);
   el('button', { id: 'islandHudRoleBtn', 'aria-expanded': 'false' }, hud);
   el('button', { id: 'islandMapBtn', 'aria-expanded': 'false' }, hud);
-  el('button', { id: 'islandExplore', class: 'island-hud-primary island-hud-explore-entry' }, hud);
+  const exploreEntry = el('button', { id: 'islandExplore', class: 'island-hud-primary island-hud-explore-entry' }, hud);
+  const exploreLabel = doc.createElement('span');
+  exploreLabel.className = 'island-hud-primary-label';
+  exploreEntry.appendChild(exploreLabel);
 
   const targets = el('div', { class: 'island-hud-menu-targets' }, hud);
   el('button', { id: 'islandHome' }, targets);
@@ -415,4 +421,60 @@ test('選單面板含 safe-area 底內距且層級高於搖桿', () => {
   assert.ok(sheetZ && joyZ, '可解析 z-index');
   assert.ok(Number(sheetZ[1]) > Number(joyZ[1]), '選單在搖桿之上');
   assert.match(islandCss, /body\.is-exploring \.island-hud-tr \.island-chat/);
+});
+
+test('探索中不再隱藏 #islandExplore（Concept A 退出探索）', () => {
+  assert.doesNotMatch(
+    islandCss,
+    /body\.is-exploring \.island-hud-explore-entry\s*\{[^}]*display:\s*none/
+  );
+  assert.doesNotMatch(islandJs, /btn\.hidden = exploring/);
+  assert.match(islandJs, /退出探索/);
+});
+
+test('syncExploreHudLabels：探索中顯示「退出探索」', () => {
+  const doc = makeMobileDom(true);
+  const exploreBtn = doc.getElementById('islandExplore');
+  const label = exploreBtn.querySelector('.island-hud-primary-label');
+  const ui = Corner.createCornerUi({
+    document: doc,
+    storage: null,
+    getPresence: () => null,
+    isExploring: () => true,
+    isWelcomed: () => false
+  });
+  ui.syncExploreHudLabels();
+  assert.equal(exploreBtn.getAttribute('aria-label'), '退出探索模式');
+  const visibleLabel = label && label.textContent ? label.textContent : exploreBtn.textContent;
+  assert.equal(visibleLabel, '退出探索');
+  const moreRow = doc.querySelector('.island-more-explore');
+  assert.equal(moreRow.textContent, '退出探索');
+  assert.equal(moreRow.hidden, false);
+});
+
+test('探索按鈕切換（與 island.js click 同路徑）會離開探索', () => {
+  const flow = Explore.createExploreFlow({});
+  flow.dispatch('enter');
+  assert.equal(flow.mode.exploring, true);
+  const clickExploreToggle = () => {
+    const next = !flow.mode.exploring;
+    flow.dispatch(next ? 'enter' : 'exit');
+  };
+  clickExploreToggle();
+  assert.equal(flow.mode.exploring, false);
+});
+
+test('戶外探索提示含 Esc 退出探索', () => {
+  assert.ok(Interior.exploreHintText(false, false).includes('Esc 退出探索'));
+  assert.match(indexHtml, /Esc 退出探索/);
+});
+
+test('1280×720 與 390×844「退出探索」不與搖桿、右上 HUD 重疊', () => {
+  for (const [w, h] of [[1280, 720], [390, 844]]) {
+    const btn = Corner.exploreExitButtonRect(w, h);
+    assert.ok(!Corner.rectsIntersect(btn, btn.joy), w + ' 退出探索與搖桿不重疊');
+    assert.ok(!Corner.rectsIntersect(btn, btn.tr), w + ' 退出探索與右上圓鈕不重疊');
+    assert.ok(btn.left >= btn.joy.right - 0.5, w + ' 退出探索在搖桿右側');
+    assert.ok(btn.left >= 0 && btn.right <= w + 0.5, w + ' 退出探索在 viewport 內');
+  }
 });

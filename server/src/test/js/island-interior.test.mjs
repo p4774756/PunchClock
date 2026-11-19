@@ -211,6 +211,7 @@ test('研發樓出生朝向門口，有專用鏡頭與離開按鈕條件', () =>
   assert.equal(I.shouldShowInteriorLeave({ inside: true, exploring: true, busy: false, overlay: true }), false);
   assert.ok(I.exploreHintText(true, true).includes('離開'));
   assert.ok(I.exploreHintText(true, false).includes('Esc'));
+  assert.ok(I.exploreHintText(false, false).includes('Esc 退出探索'));
   session.exit(500);
   assert.equal(I.interiorLeaveButtonLabel(session), '');
 });

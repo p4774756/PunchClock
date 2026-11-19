@@ -52,7 +52,7 @@ export const ISLAND_VIEW_REACH = 180;
 export const INTERIOR_CAMERA_PULL = 16;
 export const INTERIOR_ORIGIN = Object.freeze({ x: 0, z: -900 });
 
-export const INTERIOR_HINT_EXPLORE_DESK = 'WASD 或方向鍵移動 · 拖曳旋轉鏡頭';
+export const INTERIOR_HINT_EXPLORE_DESK = 'WASD 或方向鍵移動 · 拖曳旋轉鏡頭 · Esc 退出探索';
 export const INTERIOR_HINT_EXPLORE_TOUCH = '用左下角搖桿移動 · 拖曳旋轉鏡頭';
 export const INTERIOR_HINT_INSIDE_DESK = 'WASD 或方向鍵移動 · Esc 或走到門口離開 · 工具列可一鍵離開';
 export const INTERIOR_HINT_INSIDE_TOUCH = '搖桿移動 · 按右下「離開」出去';

@@ -1488,7 +1488,8 @@ body.island-avatar-open .island-joystick {
 }
 
 body.is-exploring .island-hud-explore-entry {
-  display: none !important;
+  min-width: 4.85rem;
+  letter-spacing: 0.03em;
 }
 
 .island-hud-actions .island-interact {
@@ -1658,6 +1659,13 @@ body.is-exploring .island-hud-tr .island-chat {
   .island-hud-actions {
     right: max(0.55rem, env(safe-area-inset-right, 0px));
     bottom: max(0.85rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  body.is-exploring .island-hud-explore-entry {
+    min-width: 4.35rem;
+    padding-left: 0.7rem;
+    padding-right: 0.7rem;
+    font-size: 0.86rem;
   }
 
   .island-hud-leave {

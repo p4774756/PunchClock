@@ -895,10 +895,10 @@ function boot() {
     if (btn) {
       btn.setAttribute('aria-pressed', exploring ? 'true' : 'false');
       btn.setAttribute('aria-label', exploring ? '退出探索模式' : '進入探索模式');
-      btn.hidden = exploring;
+      btn.hidden = false;
       const exploreLabel = btn.querySelector('.island-hud-primary-label');
-      if (exploreLabel) exploreLabel.textContent = exploring ? '退出' : '探索';
-      else btn.textContent = exploring ? '退出' : '探索';
+      if (exploreLabel) exploreLabel.textContent = exploring ? '退出探索' : '探索';
+      else btn.textContent = exploring ? '退出探索' : '探索';
     }
     const voyageBlock = casinoOpen() || graffitiOpen() || isSailing();
     if (stick) stick.hidden = !exploring || voyageBlock;

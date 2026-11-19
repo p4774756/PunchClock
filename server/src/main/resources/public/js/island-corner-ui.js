@@ -44,6 +44,30 @@ export function hudTopRightRect(viewportWidth, viewportHeight, showAudio) {
   return { left, right, top, bottom, width: totalW, height: bottom - top, orbSize: ORB_SIZE };
 }
 
+/** 探索中右下角「退出探索」主按鈕（對齊 island.css）。 */
+export function exploreExitButtonRect(viewportWidth, viewportHeight) {
+  const narrow = viewportWidth <= MOBILE_MAX_WIDTH;
+  const margin = hudMargin(viewportWidth);
+  const height = 3.75 * REM;
+  const width = (narrow ? 4.35 : 4.85) * REM;
+  const bottomInset = narrow ? 0.85 * REM : 1.1 * REM;
+  const bottom = viewportHeight - bottomInset;
+  const top = bottom - height;
+  const right = viewportWidth - margin;
+  const left = right - width;
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    width,
+    height,
+    joy: joystickRectMobile(viewportWidth, viewportHeight),
+    tr: hudTopRightRect(viewportWidth, viewportHeight, true),
+    actions: hudActionsRect(viewportWidth, viewportHeight)
+  };
+}
+
 export function hudActionsRect(viewportWidth, viewportHeight) {
   const margin = hudMargin(viewportWidth);
   const smallOrb = 2.85 * REM;
@@ -293,13 +317,13 @@ export function createCornerUi(opts) {
     if (exploreBtn) {
       exploreBtn.setAttribute('aria-pressed', exploring ? 'true' : 'false');
       exploreBtn.setAttribute('aria-label', exploring ? '退出探索模式' : '進入探索模式');
-      const label = exploring ? '退出' : '探索';
+      const label = exploring ? '退出探索' : '探索';
       if (explorePrimaryLabel) explorePrimaryLabel.textContent = label;
       else exploreBtn.textContent = label;
     }
     if (moreExploreRow) {
       moreExploreRow.hidden = !exploring;
-      moreExploreRow.textContent = '退出';
+      moreExploreRow.textContent = '退出探索';
     }
   }
 
