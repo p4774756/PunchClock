@@ -82,6 +82,115 @@ test('室外標記從模組讀取（門、碼頭、粉紅車、施工牌）', ()
   assert.equal(car.z, pink.z);
 });
 
+test('syncPlayerAreaTitle：戶外與推拿館室內', () => {
+  const doc = {
+    values: {},
+    getElementById(id) {
+      if (id === 'islandHudPlayerTitleText') return this.textEl;
+      return null;
+    },
+    querySelector(sel) {
+      return sel === '.island-hud-player-title-mark' ? this.markEl : null;
+    },
+    textEl: { textContent: '' },
+    markEl: { textContent: '' }
+  };
+  const cache = { name: null };
+  M.syncPlayerAreaTitle(doc, { player: { x: 0, z: 0 } }, cache);
+  assert.equal(doc.textEl.textContent, '神之島');
+  assert.equal(doc.markEl.textContent, '神');
+  const tcmRoom = M.interiorByRoomId('tcm-room');
+  M.syncPlayerAreaTitle(doc, { interiorRoom: tcmRoom, player: { x: 0, z: 0 } }, cache);
+  assert.equal(doc.textEl.textContent, '推拿館');
+  assert.equal(doc.markEl.textContent, '推');
+});
+
+test('createMinimapHud：手機寬 tick 不顯示小地圖，桌機寬會顯示', () => {
+  let mobile = true;
+  const listeners = [];
+  const mobileMq = {
+    get matches() { return mobile; },
+    addEventListener(type, fn) { listeners.push(fn); },
+    removeEventListener() {}
+  };
+  const root = { id: 'islandMinimap', hidden: true, classList: { toggle() {} } };
+  const collapseBtn = {
+    textContent: '−',
+    setAttribute() {},
+    addEventListener() {}
+  };
+  const expandBtn = { addEventListener() {}, querySelector: () => null, textContent: '', insertAdjacentHTML() {} };
+  const hudCanvas = { getContext: () => null };
+  const doc = {
+    getElementById(id) {
+      if (id === 'islandMinimap') return root;
+      if (id === 'islandMinimapCollapse') return collapseBtn;
+      if (id === 'islandMinimapExpand') return expandBtn;
+      if (id === 'islandMinimapCanvas') return hudCanvas;
+      if (id === 'islandHudPlayerTitleText') return { textContent: '' };
+      if (id === 'islandMapSheet') return { hidden: true };
+      return null;
+    },
+    querySelector() { return { textContent: '' }; }
+  };
+  const hud = M.createMinimapHud({
+    document: doc,
+    window: { matchMedia: () => mobileMq },
+    isExploring: () => true,
+    getPaintState: () => ({ player: { x: 0, z: 0 }, interiorRoom: null })
+  });
+  hud.tick(1000);
+  assert.equal(root.hidden, true, '手機探索中小地圖保持隱藏');
+  mobile = false;
+  listeners.forEach((fn) => fn());
+  hud.tick(2000);
+  assert.equal(root.hidden, false, '桌機探索中顯示小地圖');
+  hud.destroy();
+});
+
+test('收合狀態下縮小與放大鈕內容不同', () => {
+  const root = { hidden: false, classList: { toggle() {} } };
+  let collapsed = false;
+  const collapseBtn = {
+    textContent: '−',
+    setAttribute() {},
+    addEventListener(type, fn) {
+      if (type === 'click') collapseBtn._click = fn;
+    }
+  };
+  const expandBtn = {
+    textContent: '',
+    innerHTML: '',
+    addEventListener() {},
+    querySelector: () => ({ tagName: 'svg' }),
+    insertAdjacentHTML() {}
+  };
+  const doc = {
+    getElementById(id) {
+      const map = {
+        islandMinimap: root,
+        islandMinimapCollapse: collapseBtn,
+        islandMinimapExpand: expandBtn,
+        islandMinimapCanvas: { getContext: () => null },
+        islandMapSheet: { hidden: true }
+      };
+      return map[id] || null;
+    },
+    querySelector() { return null; }
+  };
+  const hud = M.createMinimapHud({
+    document: doc,
+    window: { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }) },
+    isExploring: () => true,
+    getPaintState: () => ({ player: { x: 0, z: 0 } })
+  });
+  hud.setCollapsed(true);
+  assert.equal(collapseBtn.textContent, '▾');
+  assert.notEqual(collapseBtn.textContent, expandBtn.textContent);
+  assert.ok(expandBtn.querySelector('svg'), '放大鈕為 SVG');
+  hud.destroy();
+});
+
 test('shouldOpenMapWithKey：輸入框聚焦不攔截，探索中可按 M', () => {
   assert.equal(M.shouldOpenMapWithKey({
     exploring: true,

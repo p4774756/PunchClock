@@ -278,14 +278,66 @@ export function exploreFloatBottomPx(viewportHeight) {
 
 /** 手機探索：左上玩家 HUD（含卡、間距、人數晶片；對齊 island.css @760px）。 */
 export function hudPlayerRectMobile(viewportWidth, viewportHeight) {
-  void viewportWidth;
   void viewportHeight;
-  const top = Math.max(3.65 * REM, 2.75 * REM);
+  const top = Math.max(0.55 * REM, 0);
   const left = 0.55 * REM;
   const width = Math.min(10.5 * REM, viewportWidth - 9.5 * REM);
-  // 卡 + gap 0.35rem + .island-hud-peer-badge（390×844 Chrome 量測 ≈8.15rem）
-  const boxH = 8.15 * REM;
+  const cardH = 5.35 * REM;
+  const gap = 0.35 * REM;
+  const badgeH = 1.35 * REM;
+  const boxH = cardH + gap + badgeH;
+  return { left, right: left + width, top, bottom: top + boxH, width, height: boxH, cardH };
+}
+
+/** 桌面探索：左上玩家 HUD（對齊 island.css）。 */
+export function hudPlayerRectDesktop(viewportWidth, viewportHeight) {
+  void viewportHeight;
+  const top = Math.max(0.85 * REM, 0);
+  const left = 0.85 * REM;
+  const width = Math.min(14 * REM, viewportWidth - 11 * REM);
+  const boxH = 5.85 * REM;
   return { left, right: left + width, top, bottom: top + boxH, width, height: boxH };
+}
+
+/** 桌面探索：底部置中操作提示（對齊 .island-explore-hint）。 */
+export function exploreHintRectDesktop(viewportWidth, viewportHeight, approxHeightRem) {
+  const hRem = approxHeightRem > 0 ? approxHeightRem : 2.5;
+  const height = hRem * REM;
+  const bottomInset = 1.15 * REM;
+  const bottom = viewportHeight - bottomInset;
+  const top = bottom - height;
+  const width = Math.min(32 * REM, viewportWidth - 2 * REM);
+  const left = (viewportWidth - width) * 0.5;
+  return {
+    left,
+    right: left + width,
+    top,
+    bottom,
+    width,
+    height,
+    tr: hudTopRightRect(viewportWidth, viewportHeight, true),
+    player: hudPlayerRectDesktop(viewportWidth, viewportHeight),
+    actions: hudActionsRect(viewportWidth, viewportHeight, { exploring: true }),
+    joy: joystickRectMobile(viewportWidth, viewportHeight)
+  };
+}
+
+/** 手機探索：提示與常見 HUD 邊界（供 node:test 驗證不重疊）。 */
+export function exploreHintHudTargetsMobile(viewportWidth, viewportHeight, approxHeightRem) {
+  const hint = exploreHintRectMobile(viewportWidth, viewportHeight, approxHeightRem);
+  const player = hudPlayerRectMobile(viewportWidth, viewportHeight);
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  const actions = hudActionsRect(viewportWidth, viewportHeight, {
+    exploring: true,
+    withInteract: true,
+    withSteer: true
+  });
+  const layout = exploreHudActionItems(viewportWidth, viewportHeight, {
+    withInteract: true,
+    withSteer: true
+  });
+  const interact = layout.items.find((item) => item.id === 'islandInteract') || actions;
+  return { hint, player, joy, actions, interact, tr: hint.tr };
 }
 
 /** 手機探索：清單面板（對齊 island.css @760px）。 */
@@ -362,7 +414,9 @@ export function exploreHintRectMobile(viewportWidth, viewportHeight, approxHeigh
   const left = right - width;
   const height = hRem * REM;
   const tr = hudTopRightRect(viewportWidth, viewportHeight, true);
-  return { left, right, top, bottom: top + height, width, height, tr };
+  const player = hudPlayerRectMobile(viewportWidth, viewportHeight);
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  return { left, right, top, bottom: top + height, width, height, tr, player, joy };
 }
 
 export function createCornerUi(opts) {

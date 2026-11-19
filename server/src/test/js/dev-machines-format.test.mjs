@@ -64,6 +64,15 @@ test('401 時不產生研發樓行', () => {
   assert.deepEqual(F.formatLabDevMachineLines(null), []);
 });
 
+test('effectivePhaseStatus：0/5 pending、3/5 progress、5/5 done、current 0/5 active', () => {
+  const phase = (n, done, total, extra) => Object.assign({ phase: n, done: false, itemsDone: done, itemsTotal: total }, extra);
+  assert.equal(F.effectivePhaseStatus(phase(6, 0, 5), 7), 'pending');
+  assert.equal(F.effectivePhaseStatus(phase(6, 3, 5), 7), 'progress');
+  assert.equal(F.effectivePhaseStatus(phase(6, 5, 5), 7), 'done');
+  assert.equal(F.effectivePhaseStatus(phase(7, 0, 5), 7), 'active');
+  assert.equal(F.effectivePhaseStatus({ phase: 5, done: true, itemsDone: 2, itemsTotal: 5 }, null), 'done');
+});
+
 test('今日合併篩選接受 API 合併與已合併', () => {
   const now = Date.UTC(2026, 10, 19, 8, 6, 0);
   const merged = F.filterMergedToday(

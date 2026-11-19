@@ -207,7 +207,8 @@ test('index 使用 Concept A HUD：玩家卡、右上圓鈕、選單與地圖', 
   assert.match(islandCss, /\.island-minimap/);
   assert.match(indexHtml, /id="islandHudRoleBtn"/);
   assert.match(indexHtml, /island-hud-player-name[^>]*>milu</);
-  assert.match(indexHtml, /island-hud-player-title-text[^>]*>神之島</);
+  assert.match(indexHtml, /id="islandHudPlayerTitleText"/);
+  assert.match(islandCss, /body\.is-exploring \.island-brand[\s\S]*display:\s*none/);
   assert.doesNotMatch(indexHtml, /id="islandNight"/);
   assert.match(indexHtml, /island-hud-roadmap[\s\S]*data-open-roadmap/);
 });
@@ -369,6 +370,31 @@ test('390×844 探索中清單標題列不與玩家卡相交', () => {
 test('390×844 探索中操作提示不與右上圓鈕列相交', () => {
   const hint = Corner.exploreHintRectMobile(390, 844, 2.5);
   assert.ok(!Corner.rectsIntersect(hint, hint.tr), '操作提示在 HUD 圓鈕列下方');
+});
+
+test('探索中操作提示不與任何 HUD 相交（390×844／412×915／1280×720）', () => {
+  const layouts = [
+    [390, 844],
+    [412, 915],
+    [1280, 720]
+  ];
+  for (const [w, h] of layouts) {
+    if (w <= Corner.MOBILE_MAX_WIDTH) {
+      const targets = Corner.exploreHintHudTargetsMobile(w, h, 2.5);
+      const { hint, player, joy, actions, interact, tr } = targets;
+      assert.ok(!Corner.rectsIntersect(hint, tr), w + '×' + h + ' 提示不與右上圓鈕列相交');
+      assert.ok(!Corner.rectsIntersect(hint, player), w + '×' + h + ' 提示不與玩家卡相交');
+      assert.ok(!Corner.rectsIntersect(hint, joy), w + '×' + h + ' 提示不與搖桿相交');
+      assert.ok(!Corner.rectsIntersect(hint, actions), w + '×' + h + ' 提示不與操作叢相交');
+      assert.ok(!Corner.rectsIntersect(hint, interact), w + '×' + h + ' 提示不與情境鈕相交');
+    } else {
+      const hint = Corner.exploreHintRectDesktop(w, h, 2.5);
+      assert.ok(!Corner.rectsIntersect(hint, hint.tr), w + '×' + h + ' 提示不與右上 HUD 相交');
+      assert.ok(!Corner.rectsIntersect(hint, hint.player), w + '×' + h + ' 提示不與玩家卡相交');
+      assert.ok(!Corner.rectsIntersect(hint, hint.actions), w + '×' + h + ' 提示不與操作列相交');
+      assert.ok(!Corner.rectsIntersect(hint, hint.joy), w + '×' + h + ' 提示不與左下區域相交');
+    }
+  }
 });
 
 test('1280×720 探索中暱稱窗與右下操作列留空隙', () => {
