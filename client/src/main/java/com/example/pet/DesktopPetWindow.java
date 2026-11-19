@@ -7,6 +7,7 @@ import com.example.ui.hud.PixelSprite;
 
 import javax.swing.JComponent;
 import javax.swing.JFrame;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
@@ -29,6 +30,8 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
 import java.awt.event.InputEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
@@ -56,6 +59,7 @@ public final class DesktopPetWindow extends JFrame {
 
     private final DesktopPetSettings settings;
     private final DesktopPetAnimation animation = new DesktopPetAnimation();
+    private final DesktopPetControl control = new DesktopPetControl();
     private final PixelSprite sprite = PixelSprite.load();
     private final JPanel stage = new Stage();
     private final Timer timer;
@@ -81,6 +85,7 @@ public final class DesktopPetWindow extends JFrame {
     private DesktopPetCare care;
     private long lastCarePersistAt;
     private Rectangle bubbleBounds;
+    private int controlGroundY;
     private static final long CARE_PERSIST_MS = 30_000L;
 
     DesktopPetWindow(DesktopPetSettings settings) {
@@ -136,6 +141,9 @@ public final class DesktopPetWindow extends JFrame {
         MouseAdapter pointer = pointer();
         stage.addMouseListener(pointer);
         stage.addMouseMotionListener(pointer);
+        KeyAdapter keys = keys();
+        stage.addKeyListener(keys);
+        addKeyListener(keys);
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosed(WindowEvent e) {
@@ -274,8 +282,49 @@ public final class DesktopPetWindow extends JFrame {
         return animation;
     }
 
+    DesktopPetControl control() {
+        return control;
+    }
+
     JPanel stage() {
         return stage;
+    }
+
+    void enterControlMode() {
+        requireEdt();
+        if (control.isActive()) {
+            return;
+        }
+        control.enter();
+        animation.setPlayerControl(true);
+        controlGroundY = getY();
+        setFocusableWindowState(true);
+        setAutoRequestFocus(false);
+        stage.setFocusable(true);
+        stage.requestFocusInWindow();
+        requestFocus();
+        repaint();
+    }
+
+    void exitControlMode() {
+        requireEdt();
+        if (!control.isActive()) {
+            return;
+        }
+        control.exit();
+        animation.setPlayerControl(false);
+        animation.syncPlayerWalk(0);
+        setFocusableWindowState(false);
+        stage.setFocusable(false);
+        Point grounded = DesktopPetWindow.clampToScreens(
+                getX(), controlGroundY, getWidth(), getHeight(), screenRects());
+        setLocation(grounded);
+        rememberLocation();
+        repaint();
+    }
+
+    boolean controlModeActive() {
+        return control.isActive();
     }
 
     Rectangle usableBounds() {
@@ -391,29 +440,94 @@ public final class DesktopPetWindow extends JFrame {
         maybeTickCare();
         boolean wasNotice = animation.isNotice();
         animation.tick();
+        if (control.isActive()) {
+            control.tickJump();
+        }
         if (wasNotice && !animation.isNotice()) {
             noticeOpen = null;
             if (noticeEnded != null) {
                 noticeEnded.run();
             }
         } else if (!animation.isNotice() && animation.bubble() == null && !animation.isCarried()
-                && noticePump != null) {
+                && !control.isActive() && noticePump != null) {
             noticePump.run();
         }
-        int dx = animation.stepX();
-        if (dx != 0) {
-            Rectangle bounds = usableBounds();
-            int minX = bounds.x;
-            int maxX = bounds.x + bounds.width - getWidth();
-            HorizontalStep step = stepHorizontal(getX(), dx, minX, maxX);
-            if (step.bounce) {
-                animation.turnAround();
-            }
-            if (step.x != getX()) {
-                setLocation(step.x, getY());
+        if (control.isActive()) {
+            tickControlMove();
+        } else {
+            int dx = animation.stepX();
+            if (dx != 0) {
+                Rectangle bounds = usableBounds();
+                int minX = bounds.x;
+                int maxX = bounds.x + bounds.width - getWidth();
+                HorizontalStep step = stepHorizontal(getX(), dx, minX, maxX);
+                if (step.bounce) {
+                    animation.turnAround();
+                }
+                if (step.x != getX()) {
+                    setLocation(step.x, getY());
+                }
             }
         }
         repaint();
+    }
+
+    private void tickControlMove() {
+        animation.syncPlayerWalk(control.walkDirection());
+        int dx = control.horizontalDelta();
+        int lift = control.jumpLift();
+        Point next = clampedControlMove(getX(), controlGroundY, dx, lift);
+        if (dx != 0 && next.x == getX()) {
+            int dir = control.walkDirection();
+            if (dir < 0 && animation.facingRight()) {
+                animation.turnAround();
+            } else if (dir > 0 && !animation.facingRight()) {
+                animation.turnAround();
+            }
+        }
+        controlGroundY = next.y + lift;
+        if (next.x != getX() || next.y != getY()) {
+            setLocation(next);
+        }
+    }
+
+    Point clampedControlMove(int x, int groundY, int dx, int jumpLift) {
+        return DesktopPetControl.clampedMove(
+                x, groundY, dx, jumpLift, getWidth(), getHeight(), screenRects());
+    }
+
+    private KeyAdapter keys() {
+        return new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (!control.isActive()) {
+                    return;
+                }
+                boolean wasActive = control.isActive();
+                control.applyKeyPressed(e.getKeyCode());
+                if (!control.isActive()) {
+                    exitControlMode();
+                    e.consume();
+                    return;
+                }
+                if (wasActive) {
+                    tickControlMove();
+                    repaint();
+                }
+                e.consume();
+            }
+
+            @Override
+            public void keyReleased(KeyEvent e) {
+                if (!control.isActive()) {
+                    return;
+                }
+                control.applyKeyReleased(e.getKeyCode());
+                animation.syncPlayerWalk(control.walkDirection());
+                repaint();
+                e.consume();
+            }
+        };
     }
 
     private void maybeTickCare() {
@@ -471,8 +585,9 @@ public final class DesktopPetWindow extends JFrame {
                         return;
                     }
                     if (!careEnabled()) {
-                        debug = !debug;
-                        repaint();
+                        // 養成關閉：右鍵在 released 開選單；Shift+右鍵仍切換除錯。
+                        pressScreen = null;
+                        grabOffset = null;
                         return;
                     }
                     // 養成開啟：右鍵在 released 開選單，這裡先不拖曳。
@@ -504,6 +619,9 @@ public final class DesktopPetWindow extends JFrame {
                 Point now = e.getLocationOnScreen();
                 if (!dragging && pressScreen.distance(now) >= DRAG_THRESHOLD) {
                     dragging = true;
+                    if (control.isActive()) {
+                        exitControlMode();
+                    }
                     if (animation.isCarried()) {
                         animation.setCarried(false);
                     }
@@ -532,8 +650,8 @@ public final class DesktopPetWindow extends JFrame {
             @Override
             public void mouseReleased(MouseEvent e) {
                 if (SwingUtilities.isRightMouseButton(e)) {
-                    if (careEnabled() && (e.getModifiersEx() & InputEvent.SHIFT_DOWN_MASK) == 0) {
-                        showCareMenu(e);
+                    if ((e.getModifiersEx() & InputEvent.SHIFT_DOWN_MASK) == 0) {
+                        showPetMenu(e);
                     }
                     return;
                 }
@@ -573,7 +691,7 @@ public final class DesktopPetWindow extends JFrame {
                             noticeReleased.run();
                         }
                     }
-                    showCareMenu(e);
+                    showPetMenu(e);
                 } else if (animation.isNotice()) {
                     noticeOpen = null;
                     animation.poke();
@@ -598,25 +716,39 @@ public final class DesktopPetWindow extends JFrame {
         return care != null && care.isEnabled();
     }
 
-    private void showCareMenu(MouseEvent e) {
-        if (!careEnabled() || animation.isCarried() || animation.isSettling()) {
+    private void showPetMenu(MouseEvent e) {
+        if (animation.isCarried() || animation.isSettling()) {
             return;
         }
-        care.tick();
-        syncCareUi();
         Font font = UiFonts.chinesePlain(13);
         JPopupMenu menu = new JPopupMenu();
         menu.setLightWeightPopupEnabled(false);
         menu.setBackground(CandyTheme.NIGHT);
-        addCareItem(menu, "餵食", DesktopPetCare.Action.FEED, DesktopPetAnimation.Mode.FEED, font);
-        addCareItem(menu, "摸頭", DesktopPetCare.Action.PAT, DesktopPetAnimation.Mode.PAT, font);
-        addCareItem(menu, "玩耍", DesktopPetCare.Action.PLAY, DesktopPetAnimation.Mode.PLAY, font);
+        JCheckBoxMenuItem controlItem = new JCheckBoxMenuItem("操控模式", control.isActive());
+        controlItem.setFont(font);
+        controlItem.addActionListener(ev -> {
+            if (controlItem.isSelected()) {
+                enterControlMode();
+            } else {
+                exitControlMode();
+            }
+        });
+        menu.add(controlItem);
+        if (careEnabled()) {
+            care.tick();
+            syncCareUi();
+            menu.addSeparator();
+            addCareItem(menu, "餵食", DesktopPetCare.Action.FEED, DesktopPetAnimation.Mode.FEED, font);
+            addCareItem(menu, "摸頭", DesktopPetCare.Action.PAT, DesktopPetAnimation.Mode.PAT, font);
+            addCareItem(menu, "玩耍", DesktopPetCare.Action.PLAY, DesktopPetAnimation.Mode.PLAY, font);
+            menu.addSeparator();
+            JMenuItem status = new JMenuItem(care.statusLine());
+            status.setFont(font);
+            status.setEnabled(false);
+            status.setForeground(NightTheme.MUTED);
+            menu.add(status);
+        }
         menu.addSeparator();
-        JMenuItem status = new JMenuItem(care.statusLine());
-        status.setFont(font);
-        status.setEnabled(false);
-        status.setForeground(NightTheme.MUTED);
-        menu.add(status);
         JMenuItem debugItem = new JMenuItem(debug ? "關閉除錯" : "顯示除錯");
         debugItem.setFont(font);
         debugItem.addActionListener(ev -> {
@@ -847,6 +979,9 @@ public final class DesktopPetWindow extends JFrame {
                     paintSprite(g);
                 }
                 paintBubble(g);
+                if (control.isActive()) {
+                    paintControlHint(g);
+                }
                 if (debug && milu != null) {
                     paintDebug(g);
                 }
@@ -956,6 +1091,23 @@ public final class DesktopPetWindow extends JFrame {
                     3);
             g.setColor(CandyTheme.PINK_INK);
             g.drawString(fitted, bx + 8, by + metrics.getAscent() + 4);
+        }
+
+        private void paintControlHint(Graphics2D g) {
+            String text = DesktopPetControl.HINT;
+            g.setFont(UiFonts.chinesePlain(11));
+            FontMetrics metrics = g.getFontMetrics();
+            int pad = 6;
+            int boxW = metrics.stringWidth(text) + pad * 2;
+            int boxH = metrics.getHeight() + 4;
+            int bx = getWidth() - boxW - 6;
+            int by = 6;
+            g.setColor(new Color(20, 16, 28, 200));
+            g.fillRoundRect(bx, by, boxW, boxH, 8, 8);
+            g.setColor(CandyTheme.PINK_HI);
+            g.drawRoundRect(bx, by, boxW, boxH, 8, 8);
+            g.setColor(CandyTheme.PINK_INK);
+            g.drawString(text, bx + pad, by + metrics.getAscent() + 2);
         }
 
         private void paintDebug(Graphics2D g) {

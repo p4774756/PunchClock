@@ -95,6 +95,8 @@ public final class DesktopPetAnimation {
     private int careHunger = DesktopPetCare.DEFAULT;
     private int careMood = DesktopPetCare.DEFAULT;
     private int careEnergy = DesktopPetCare.DEFAULT;
+    /** 鍵盤操控中：暫停自主閒逛，僅由外部驅動走路。 */
+    private boolean playerControl;
 
     public DesktopPetAnimation() {
         this(new Random());
@@ -112,6 +114,18 @@ public final class DesktopPetAnimation {
         careHunger = hunger;
         careMood = mood;
         careEnergy = energy;
+    }
+
+    public void setPlayerControl(boolean playerControl) {
+        this.playerControl = playerControl;
+        if (!playerControl && (mode == Mode.WALK || mode == Mode.SIT || mode == Mode.SLEEP)) {
+            enter(Mode.IDLE);
+        }
+        updateFrame();
+    }
+
+    public boolean isPlayerControl() {
+        return playerControl;
     }
 
     public void tick() {
@@ -149,21 +163,25 @@ public final class DesktopPetAnimation {
             return;
         }
         poseTicks++;
-        if (isCarePose() && poseTicks >= CARE_TICKS) {
-            resumeAfterInterrupt();
-        } else if (mode == Mode.REACT && poseTicks >= REACT_TICKS) {
-            resumeAfterInterrupt();
-        } else if (mode == Mode.WORRY && poseTicks >= WORRY_TICKS) {
-            resumeAfterInterrupt();
-        } else if (mode == Mode.IDLE && poseTicks >= IDLE_TICKS) {
-            Mode next = nextAfterIdle();
-            idleExits++;
-            enter(next);
-        } else if (mode == Mode.SIT && poseTicks >= SIT_TICKS) {
-            enter(shouldSleep() ? Mode.SLEEP : Mode.IDLE);
-        } else if (mode == Mode.SLEEP && poseTicks >= SLEEP_TICKS) {
-            enter(Mode.IDLE);
-        } else if (mode == Mode.WALK && poseTicks >= WALK_TICKS) {
+        if (!playerControl) {
+            if (isCarePose() && poseTicks >= CARE_TICKS) {
+                resumeAfterInterrupt();
+            } else if (mode == Mode.REACT && poseTicks >= REACT_TICKS) {
+                resumeAfterInterrupt();
+            } else if (mode == Mode.WORRY && poseTicks >= WORRY_TICKS) {
+                resumeAfterInterrupt();
+            } else if (mode == Mode.IDLE && poseTicks >= IDLE_TICKS) {
+                Mode next = nextAfterIdle();
+                idleExits++;
+                enter(next);
+            } else if (mode == Mode.SIT && poseTicks >= SIT_TICKS) {
+                enter(shouldSleep() ? Mode.SLEEP : Mode.IDLE);
+            } else if (mode == Mode.SLEEP && poseTicks >= SLEEP_TICKS) {
+                enter(Mode.IDLE);
+            } else if (mode == Mode.WALK && poseTicks >= WALK_TICKS) {
+                enter(Mode.IDLE);
+            }
+        } else if (mode != Mode.WALK && mode != Mode.IDLE) {
             enter(Mode.IDLE);
         }
         updateFrame();
@@ -401,9 +419,9 @@ public final class DesktopPetAnimation {
         direction = -direction;
     }
 
-    /** 這一格要往右（負值往左）移動的像素。站住或被拖著時為 0。 */
+    /** 這一格要往右（負值往左）移動的像素。站住或被拖著時為 0；操控走路由視窗另行處理。 */
     public int stepX() {
-        if (carried || handDown || mode != Mode.WALK) {
+        if (carried || handDown || playerControl || mode != Mode.WALK) {
             return 0;
         }
         return direction * STEP;
@@ -503,6 +521,21 @@ public final class DesktopPetAnimation {
     void forceWalk(int direction) {
         this.direction = direction >= 0 ? 1 : -1;
         enter(Mode.WALK);
+        updateFrame();
+    }
+
+    /** 操控模式：有方向就走，沒有就待機。 */
+    public void syncPlayerWalk(int direction) {
+        if (!playerControl) {
+            return;
+        }
+        if (direction == 0) {
+            if (mode == Mode.WALK) {
+                enter(Mode.IDLE);
+            }
+        } else {
+            forceWalk(direction);
+        }
         updateFrame();
     }
 
