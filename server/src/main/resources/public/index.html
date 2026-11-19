@@ -91,6 +91,20 @@
       </button>
     </nav>
 
+    <div class="island-minimap maple-window" id="islandMinimap" hidden aria-label="探索小地圖">
+      <header class="maple-win-title island-minimap-bar">
+        <h2 id="islandMinimapTitle">神之島</h2>
+        <div class="island-minimap-win-btns">
+          <button type="button" class="maple-win-close island-minimap-collapse" id="islandMinimapCollapse" aria-expanded="true" aria-label="縮小小地圖">−</button>
+          <button type="button" class="maple-win-close island-minimap-expand" id="islandMinimapExpand" aria-label="放大地圖">+</button>
+        </div>
+      </header>
+      <div class="island-minimap-body" id="islandMinimapBody">
+        <canvas id="islandMinimapCanvas" class="island-minimap-canvas" width="168" height="126" aria-label="小地圖總覽"></canvas>
+        <p class="island-minimap-legend" aria-hidden="true">門·船·車·NPC</p>
+      </div>
+    </div>
+
     <div class="island-hud-menu-targets" hidden aria-hidden="true">
       <button type="button" class="island-tool" id="islandHome">全景</button>
       <button type="button" class="island-tool" id="islandListBtn" aria-expanded="false" aria-controls="islandList">清單</button>
@@ -186,6 +200,9 @@
           <span class="island-hud-esc-chip island-maple-close-esc" aria-hidden="true">Esc</span>
         </button>
       </header>
+      <div class="island-map-canvas-wrap">
+        <canvas id="islandMapCanvas" class="island-map-canvas" width="480" height="360" aria-label="群島與室內平面圖"></canvas>
+      </div>
       <div class="island-map-grid" role="list">
         <button type="button" class="island-map-isle" data-island="main" role="listitem">神之島<small>店面與碼頭</small></button>
         <button type="button" class="island-map-isle" data-island="casino" role="listitem">博弈島<small>神之島賭場</small></button>
@@ -232,7 +249,7 @@
 
   <div class="island-vehicle-hud" id="islandVehicleHud" hidden aria-hidden="true">
     <p class="island-vehicle-speed" id="islandVehicleSpeed">0 公里／時</p>
-    <canvas id="islandVehicleMinimap" class="island-vehicle-minimap" width="112" height="112" aria-hidden="true"></canvas>
+    <canvas id="islandVehicleMinimap" class="island-vehicle-minimap" width="112" height="112" aria-hidden="true" hidden></canvas>
   </div>
 
   <div id="islandLabels">

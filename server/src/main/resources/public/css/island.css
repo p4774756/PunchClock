@@ -1190,11 +1190,84 @@ body.island-avatar-open .island-joystick {
 }
 
 .island-vehicle-minimap {
-  width: 5.6rem;
-  height: 5.6rem;
-  border-radius: 0.55rem;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
-  border: 1px solid rgba(31, 77, 115, 0.22);
+  display: none !important;
+}
+
+.island-minimap {
+  position: fixed;
+  z-index: 7;
+  top: calc(max(0.85rem, env(safe-area-inset-top, 0px)) + 4.35rem);
+  right: max(0.85rem, env(safe-area-inset-right, 0px));
+  width: 11.5rem;
+  max-width: calc(100vw - 10.5rem);
+  pointer-events: auto;
+}
+
+.island-minimap[hidden] {
+  display: none !important;
+}
+
+body:not(.is-exploring) .island-minimap {
+  display: none !important;
+}
+
+.island-minimap-bar h2 {
+  flex: 1;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.island-minimap-win-btns {
+  display: inline-flex;
+  gap: 0.28rem;
+  flex: none;
+}
+
+.island-minimap-body {
+  padding: 0.35rem 0.45rem 0.5rem;
+  background: #f8fbff;
+}
+
+.island-minimap-collapsed .island-minimap-body {
+  display: none;
+}
+
+.island-minimap-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  border: 1px solid rgba(58, 122, 196, 0.35);
+  cursor: pointer;
+  background: #9ed4f5;
+}
+
+.island-minimap-legend {
+  margin: 0.28rem 0 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #5a7a9e;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.island-map-canvas-wrap {
+  padding: 0.45rem 0.85rem 0.25rem;
+}
+
+.island-map-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  border: 1px solid rgba(58, 122, 196, 0.35);
+  background: #9ed4f5;
+}
+
+body.island-map-open .island-minimap {
+  z-index: 6;
 }
 
 @media (max-width: 480px) {
@@ -1972,6 +2045,17 @@ body.island-avatar-open .island-avatar-pop {
 }
 
 @media (max-width: 760px) {
+  .island-minimap {
+    top: calc(max(0.55rem, env(safe-area-inset-top, 0px)) + 3.85rem);
+    right: max(0.55rem, env(safe-area-inset-right, 0px));
+    width: min(9.5rem, calc(100vw - 11.5rem));
+    max-width: min(9.5rem, calc(100vw - 11.5rem));
+  }
+
+  body.is-exploring .island-minimap:not(.island-minimap-mobile-expand) {
+    width: min(8.2rem, calc(100vw - 11.5rem));
+  }
+
   body.is-exploring {
     --island-explore-float-bottom: calc(
       0.85rem + 3.75rem + 0.45rem + 3.75rem + 0.45rem + 3.75rem + 0.35rem
