@@ -29,7 +29,7 @@ test('沿矩形碰撞滑移、不可入海', () => {
   }
   assert.ok(V.vehicleNavigable(state.carX, state.carZ));
   const towardSea = V.stepVehicle(state, { x: 0, z: 1, moving: true }, 0.25, { reduced: true });
-  const island = { x: 0, z: -22, r: 7.6 };
+  const island = { x: 0, z: -22, r: 7.65 };
   const dist = Math.hypot(towardSea.carX - island.x, towardSea.carZ - island.z);
   assert.ok(dist <= island.r + 0.05, '車不應穿出城市島');
 });

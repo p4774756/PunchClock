@@ -23,7 +23,7 @@ const ISLAND_DEFS = [
   // 沙灘島只能坐船到（#65），不加橋。
   { id: 'beach', name: '沙灘島', x: 22, z: 6, r: 4.4, visualR: 5.6, theme: 'beach' },
   // 城市島在南側開闊處，與主島／博弈／電腦島外觀不相交（見 island-city.test.mjs）。
-  { id: 'city', name: '城市島', x: 0, z: -22, r: 7.6, visualR: 8.25, theme: 'city' }
+  { id: 'city', name: '城市島', x: 0, z: -22, r: 7.65, visualR: 8.95, theme: 'city' }
 ];
 
 export const ISLANDS = Object.freeze(ISLAND_DEFS.map((island) => Object.freeze(island)));
@@ -74,6 +74,14 @@ export function poseForIsland(id) {
   if (!island) return null;
   if (island.id === MAIN_ISLAND_ID) {
     return { look: [0.15, 0.95, 1.35], radius: 28.4, theta: 0.48, phi: 0.93 };
+  }
+  if (island.id === 'city') {
+    return {
+      look: [island.x + 7.4, 0.45, island.z + 0.2],
+      radius: 15.5,
+      theta: Math.PI * 0.72,
+      phi: 0.86
+    };
   }
   return {
     look: [island.x, 1.25, island.z],

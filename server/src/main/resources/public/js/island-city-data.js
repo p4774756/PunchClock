@@ -27,26 +27,33 @@ export function trafficLightMeshColors(elapsedSec) {
   };
 }
 
+const BLOCK = 2.75;
+const GRID = 4.85;
+
 const CITY_LOCAL_RECTS = [
-  { id: 'city-bld-convenience', minX: -5.6, maxX: -2.0, minZ: -2.0, maxZ: 3.2 },
-  { id: 'city-bld-tea', minX: 2.0, maxX: 5.6, minZ: -2.0, maxZ: 3.2 },
-  { id: 'city-bld-claw', minX: -2.2, maxX: 2.2, minZ: -6.0, maxZ: -2.6 },
-  { id: 'city-bld-nw', minX: -5.75, maxX: -4.25, minZ: 4.25, maxZ: 5.85 },
-  { id: 'city-bld-ne', minX: 4.25, maxX: 5.75, minZ: 4.25, maxZ: 5.85 },
+  { id: 'city-bld-arcade', minX: -GRID - BLOCK * 0.5, maxX: -GRID + BLOCK * 0.5, minZ: -BLOCK * 0.5, maxZ: BLOCK * 0.5 },
+  { id: 'city-bld-tea', minX: GRID - BLOCK * 0.5, maxX: GRID + BLOCK * 0.5, minZ: -BLOCK * 0.5, maxZ: BLOCK * 0.5 },
+  { id: 'city-bld-claw', minX: -BLOCK * 0.5, maxX: BLOCK * 0.5, minZ: -GRID - BLOCK * 0.5, maxZ: -GRID + BLOCK * 0.5 },
+  { id: 'city-bld-plaza', minX: -1.15, maxX: 1.15, minZ: -1.05, maxZ: 1.05 },
+  { id: 'city-bld-nw', minX: -GRID - BLOCK * 0.5, maxX: -GRID + BLOCK * 0.5, minZ: GRID - BLOCK * 0.5, maxZ: GRID + BLOCK * 0.5 },
+  { id: 'city-bld-ne', minX: GRID - BLOCK * 0.5, maxX: GRID + BLOCK * 0.5, minZ: GRID - BLOCK * 0.5, maxZ: GRID + BLOCK * 0.5 },
+  { id: 'city-bld-sw', minX: -GRID - BLOCK * 0.5, maxX: -GRID + BLOCK * 0.5, minZ: -GRID - BLOCK * 0.5, maxZ: -GRID + BLOCK * 0.5 },
+  { id: 'city-bld-se', minX: GRID - BLOCK * 0.5, maxX: GRID + BLOCK * 0.5, minZ: -GRID - BLOCK * 0.5, maxZ: -GRID + BLOCK * 0.5 },
   { id: 'city-pier-rail-w', minX: -0.55, maxX: -0.34, minZ: 5.2, maxZ: 6.8 },
-  { id: 'city-pier-rail-e', minX: 0.34, maxX: 0.55, minZ: 5.2, maxZ: 6.8 }
+  { id: 'city-pier-rail-e', minX: 0.34, maxX: 0.55, minZ: 5.2, maxZ: 6.8 },
+  { id: 'city-harbor-e', minX: 6.0, maxX: 8.45, minZ: -4.0, maxZ: 4.0 }
 ];
 
 /** 騎樓柱（店前人行，不在路口車道中央）。 */
 export const CITY_COLUMN_LOCAL = Object.freeze([
-  { id: 'col-cv-1', x: -4.7, z: 3.05, r: 0.18 },
-  { id: 'col-cv-2', x: -3.8, z: 3.05, r: 0.18 },
-  { id: 'col-cv-3', x: -2.9, z: 3.05, r: 0.18 },
-  { id: 'col-tea-1', x: 2.9, z: 3.05, r: 0.18 },
-  { id: 'col-tea-2', x: 3.8, z: 3.05, r: 0.18 },
-  { id: 'col-tea-3', x: 4.7, z: 3.05, r: 0.18 },
-  { id: 'col-claw-1', x: -1.1, z: -4.65, r: 0.18 },
-  { id: 'col-claw-2', x: 1.1, z: -4.65, r: 0.18 }
+  { id: 'col-arc-1', x: -GRID - 0.85, z: 1.25, r: 0.18 },
+  { id: 'col-arc-2', x: -GRID + 0.15, z: 1.25, r: 0.18 },
+  { id: 'col-tea-1', x: GRID - 0.15, z: 1.25, r: 0.18 },
+  { id: 'col-tea-2', x: GRID + 0.85, z: 1.25, r: 0.18 },
+  { id: 'col-claw-1', x: -1.1, z: -GRID - 0.55, r: 0.18 },
+  { id: 'col-claw-2', x: 1.1, z: -GRID - 0.55, r: 0.18 },
+  { id: 'col-plaza-1', x: -1.0, z: 1.05, r: 0.16 },
+  { id: 'col-plaza-2', x: 1.0, z: 1.05, r: 0.16 }
 ]);
 
 export function cityObstacleRects() {
@@ -70,7 +77,7 @@ export function cityObstacleCircles() {
   }));
 }
 
-export const PINK_CAR_LOCAL = Object.freeze({ x: 0.9, z: -1.35, yaw: 0 });
+export const PINK_CAR_LOCAL = Object.freeze({ x: 1.5, z: -1.65, yaw: 0.2 });
 /** 路人／機車取樣點須與停車位保持的最小距離（含車身與人身寬度）。 */
 export const PINK_CAR_PATH_CLEAR_R = 1.55;
 
@@ -101,12 +108,12 @@ export function cityWalkerPaths() {
   const c = CITY_CENTER;
   const w = (lx, lz) => [c.x + lx, c.z + lz];
   return Object.freeze([
-    Object.freeze([w(-1.8, 3.0), w(1.8, 3.0), w(1.8, 1.55), w(-1.8, 1.55)]),
-    Object.freeze([w(-0.95, 4.2), w(-0.95, -2.35)]),
-    Object.freeze([w(0.95, 4.2), w(0.95, 0.25)]),
-    Object.freeze([w(-0.95, 0.35), w(0.95, 0.35)]),
-    Object.freeze([w(-1.8, -6.2), w(1.8, -6.2)]),
-    Object.freeze([w(0, 4.6), w(0, 5.7)])
+    Object.freeze([w(-2.2, 3.8), w(1.05, 3.8), w(1.05, 2.45), w(-2.2, 2.45)]),
+    Object.freeze([w(-3.15, 3.8), w(-3.15, 2.45)]),
+    Object.freeze([w(-3.15, -3.1), w(-3.15, -1.25)]),
+    Object.freeze([w(-2.2, -3.2), w(-1.45, -3.2)]),
+    Object.freeze([w(1.45, -3.2), w(2.2, -3.2)]),
+    Object.freeze([w(-1.2, 3.65), w(-1.2, 6.0)])
   ]);
 }
 
@@ -114,18 +121,19 @@ export function cityMotoPaths() {
   const c = CITY_CENTER;
   const w = (lx, lz) => [c.x + lx, c.z + lz];
   return Object.freeze([
-    Object.freeze([w(-0.95, 3.5), w(-0.95, 0.3), w(0.95, 0.3), w(0.95, 3.5)]),
-    Object.freeze([w(-0.95, 1.55), w(0.95, 1.55)]),
-    Object.freeze([w(-1.8, 3.0), w(1.8, 3.0)])
+    Object.freeze([w(-2.85, 3.4), w(-2.85, 2.25), w(-2.1, 2.25), w(2.1, 2.25)]),
+    Object.freeze([w(-2.1, 3.5), w(2.1, 3.5)]),
+    Object.freeze([w(-2.15, -3.15), w(-1.42, -3.15)])
   ]);
 }
 
 export const CITY_PAVING_SPECS = Object.freeze([
-  { x: 0, z: 0.5, w: 2.2, d: 9.5, rotY: 0 },
-  { x: 0, z: 0.5, w: 9.5, d: 2.2, rotY: 0 },
-  { x: -3.8, z: 0.5, w: 3.6, d: 4.8, rotY: 0 },
-  { x: 3.8, z: 0.5, w: 3.6, d: 4.8, rotY: 0 },
-  { x: 0, z: -4.3, w: 3.8, d: 2.8, rotY: 0 }
+  { x: 0, z: 0, w: 1.85, d: 11.5, rotY: 0 },
+  { x: 0, z: 0, w: 11.5, d: 1.85, rotY: 0 },
+  { x: -GRID, z: 0, w: 1.85, d: 11.5, rotY: 0 },
+  { x: GRID, z: 0, w: 1.85, d: 11.5, rotY: 0 },
+  { x: 0, z: -GRID, w: 11.5, d: 1.85, rotY: 0 },
+  { x: 0, z: GRID, w: 11.5, d: 1.85, rotY: 0 }
 ]);
 
 /** 供測試：沿路徑分段取樣世界座標。 */

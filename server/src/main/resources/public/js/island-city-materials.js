@@ -2,7 +2,7 @@
 import { nightHex } from './island-kit.js';
 import { glowForMaterial } from './island-buildings-data.js';
 
-const MESH_SIDE_DOUBLE = 2;
+const MESH_SIDE_FRONT = 0;
 
 function collectForDispose(mat, set) {
   if (!mat) return;
@@ -39,7 +39,7 @@ function replaceOneMaterial(obj, oldMat, kit, signMaps) {
       night: 0xfff0dc,
       glow: is711 ? 0xffffff : 0xffb15a,
       glowAmount: is711 ? 0.98 : 1.18,
-      side: MESH_SIDE_DOUBLE
+      side: MESH_SIDE_FRONT
     });
     created.emissiveMap = signTex;
     return created;
