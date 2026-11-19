@@ -180,8 +180,40 @@ test('路人與機車路徑不穿牆、留在城市島', () => {
   }
 });
 
-test('粉紅車審查鏡頭：玩家路邊站位、不疊車頂', () => {
+test('粉紅車審查鏡頭：玩家路邊站位、3/4 前後鏡頭方位', () => {
   const car = C.pinkCarWorld();
+  const expectedYaw = 0.2 - Math.PI / 2;
+  assert.ok(Math.abs(car.yaw - expectedYaw) < 1e-4, '車頭 yaw 應朝西');
+  const headX = Math.sin(car.yaw);
+  const headZ = Math.cos(car.yaw);
+  const cos20 = Math.cos((20 * Math.PI) / 180);
+  const rects = C.cityObstacleRects();
+
+  function cameraInBuilding(cx, cz) {
+    for (const r of rects) {
+      if (cx >= r.minX && cx <= r.maxX && cz >= r.minZ && cz <= r.maxZ) return true;
+    }
+    return false;
+  }
+
+  function cameraPlacement(pose, anchorX, anchorZ) {
+    const dist = CAM.exploreFollowDistance(pose.radius, 1280 / 720);
+    return CAM.exploreCameraPlacement(
+      anchorX, pose.look[1], anchorZ,
+      dist, pose.phi, pose.theta, 0, 0
+    );
+  }
+
+  function cameraOffsetFromCar(pose) {
+    const st = pose.player;
+    const place = cameraPlacement(pose, st.x, st.z);
+    const offX = place.cx - car.x;
+    const offZ = place.cz - car.z;
+    const len = Math.hypot(offX, offZ);
+    const dot = offX * headX + offZ * headZ;
+    return { place, offX, offZ, len, dot, dotNorm: len > 1e-6 ? dot / len : 0 };
+  }
+
   const poses = C.pinkCarReviewPoses();
   assert.ok(poses['pink-car-look']);
   assert.ok(poses['pink-car-look-front']);
@@ -189,30 +221,30 @@ test('粉紅車審查鏡頭：玩家路邊站位、不疊車頂', () => {
     const p = poses[key];
     const st = p.player;
     const dCenter = Math.hypot(st.x - car.x, st.z - car.z);
-    assert.ok(dCenter >= 0.85, key + ' 站位應離車心');
+    assert.ok(dCenter >= 0.9, key + ' 站位應離車心 ≥0.9');
     assert.ok(dCenter <= 1.35, key + ' 站位應在上車圈內');
     assert.ok(Math.abs(st.x - car.x) > 0.12 || Math.abs(st.z - car.z) > 0.12,
       key + ' 不可與車心重疊');
     assert.equal(p.look[0], car.x);
     assert.equal(p.look[2], car.z);
     assert.ok(p.look[1] >= 0.42 && p.look[1] <= 0.58, key + ' look 高度應對準車身');
-    assert.ok(p.phi >= 0.98 && p.phi <= 1.08, key + ' phi 應為 3/4 俯角');
-    assert.ok(p.radius >= 4.2 && p.radius <= 5.6, key + ' radius 應拉近審查');
+    assert.ok(p.phi >= 0.82 && p.phi <= 1.0, key + ' phi 應為 3/4 俯角');
+    assert.ok(p.radius >= 4.8 && p.radius <= 5.4, key + ' radius 應拉近審查');
+    const standInBld = cameraInBuilding(st.x, st.z);
+    assert.ok(!standInBld, key + ' 玩家站位不在建築內');
+    const docPlace = cameraPlacement(p, p.look[0], p.look[2]);
+    assert.ok(!cameraInBuilding(docPlace.cx, docPlace.cz), key + ' 車心錨點鏡頭不在建築內');
   }
-  const rear = poses['pink-car-look'];
-  const rearPlace = CAM.exploreCameraPlacement(
-    rear.look[0], rear.look[1], rear.look[2],
-    CAM.exploreFollowDistance(rear.radius, 1280 / 720),
-    rear.phi, rear.theta, 0, 0
-  );
-  assert.ok(rearPlace.cx > car.x + 2.5, '後 3/4 鏡頭應在車東南側（東側街道，避開南牆）');
-  assert.ok(rearPlace.cz < car.z - 1.5, '後 3/4 鏡頭應在車東南側（東側街道，避開南牆）');
-  const front = poses['pink-car-look-front'];
-  const frontPlace = CAM.exploreCameraPlacement(
-    front.look[0], front.look[1], front.look[2],
-    CAM.exploreFollowDistance(front.radius, 1280 / 720),
-    front.phi, front.theta, 0, 0
-  );
-  assert.ok(frontPlace.cx > car.x + 1.5, '前 3/4 鏡頭應在車東北側（朝北車頭、開放廣場）');
-  assert.ok(frontPlace.cz > car.z + 2.5, '前 3/4 鏡頭應在車東北側（朝北車頭、開放廣場）');
+
+  const rear = cameraOffsetFromCar(poses['pink-car-look']);
+  assert.ok(rear.dot < 0, '後 3/4 鏡頭應在車尾側（內積 < 0）');
+  assert.ok(rear.dotNorm > -cos20, '後 3/4 應偏離車軸 ≥20°（非正後）');
+
+  const front = cameraOffsetFromCar(poses['pink-car-look-front']);
+  assert.ok(front.dot > 0, '前 3/4 鏡頭應在車頭側（內積 > 0）');
+  assert.ok(front.dotNorm < cos20, '前 3/4 應偏離車軸 ≥20°（非正前）');
+
+  const rearStand = C.pinkCarReviewStand(-1);
+  assert.ok(Math.abs(rearStand.x - (car.x - 0.21)) < 0.02);
+  assert.ok(Math.abs(rearStand.z - (car.z - 1.03)) < 0.02);
 });

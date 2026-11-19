@@ -77,8 +77,8 @@ export function cityObstacleCircles() {
   }));
 }
 
-/** 車頭朝北（7-11 廣場）；南側貼住宅牆，不可再朝南停。 */
-export const PINK_CAR_LOCAL = Object.freeze({ x: 1.5, z: -1.65, yaw: 0.2 + Math.PI });
+/** 車頭朝西（往廣場東西向街道）；南側貼住宅牆。模型 local +Z 為車頭。 */
+export const PINK_CAR_LOCAL = Object.freeze({ x: 1.5, z: -1.65, yaw: 0.2 - Math.PI / 2 });
 /** 路人／機車取樣點須與停車位保持的最小距離（含車身與人身寬度）。 */
 export const PINK_CAR_PATH_CLEAR_R = 1.55;
 
@@ -103,24 +103,37 @@ export function pinkCarReviewStand(side) {
   return Object.freeze({ x, z, yaw: face });
 }
 
-/** 正式審查鏡頭（3/4 後側／前側；look 對車心約車高）。 */
+/**
+ * 正式審查鏡頭（3/4 後側／前側）。
+ * 探索模式每幀以玩家為鏡頭中心，look 僅文件用；構圖由 player 站位 + theta/phi/radius 決定。
+ */
 export function pinkCarReviewPoses() {
   const car = pinkCarWorld();
   const look = Object.freeze([car.x, 0.48, car.z]);
+  const rearPlayer = Object.freeze({
+    x: car.x - 0.21,
+    z: car.z - 1.03,
+    yaw: pinkCarReviewStand(-1).yaw
+  });
+  const frontPlayer = Object.freeze({
+    x: car.x + 0.8,
+    z: car.z - 0.95,
+    yaw: Math.atan2(car.x - (car.x + 0.8), car.z - (car.z - 0.95))
+  });
   return Object.freeze({
     'pink-car-look': Object.freeze({
-      player: pinkCarReviewStand(-1),
+      player: rearPlayer,
       look,
-      radius: 4.9,
-      theta: 2.15,
-      phi: 1.02
+      radius: 5.0,
+      theta: 2.0,
+      phi: 0.85
     }),
     'pink-car-look-front': Object.freeze({
-      player: pinkCarReviewStand(-1),
+      player: frontPlayer,
       look,
-      radius: 4.9,
-      theta: 0.55,
-      phi: 1.02
+      radius: 5.0,
+      theta: 3.93,
+      phi: 0.92
     })
   });
 }
