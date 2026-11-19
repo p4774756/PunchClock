@@ -120,7 +120,7 @@ function buildPhaseSigns(rootGroup, kit) {
     const g = new THREE.Group();
     g.position.set(sign.x, G, sign.z);
     g.rotation.y = sign.yaw || 0;
-    const faceZ = sign.yaw > Math.PI * 0.5 ? -0.04 : 0.04;
+    const faceZ = 0.04;
     addBox(g, 0.58, 0.88, 0.06, 0x8a9aaa, 0, 0.42, 0, { shadow: false });
     addMesh(g, new THREE.PlaneGeometry(0.52, 0.28), 0xffffff, 0, 0.78, faceZ, {
       map,
