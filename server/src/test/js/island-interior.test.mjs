@@ -531,7 +531,7 @@ test('賭場大廳遠大於舊房間，進房鏡頭站在門內往北看', () =>
     const look = I.casinoInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, aspect);
     const eye = I.casinoInteriorCameraEye(pose, look, aspect);
     assert.ok(eye.z < look.z - 1, '鏡頭在焦點南側，往北看大廳');
-    assert.ok(eye.z >= room.floor.minZ && eye.z <= room.floor.minZ + 1.1, '鏡頭在南門內側 z=' + eye.z.toFixed(3));
+    assert.ok(eye.z >= room.floor.minZ + 0.8 && eye.z <= 2.2, '鏡頭深入大廳、不受門框擋住 z=' + eye.z.toFixed(3));
     assert.ok(eye.y < 4.4, '鏡頭低於天花 y=' + eye.y.toFixed(3));
   }
   assert.equal(I.interiorFollowPose(room, 1.6), I.CASINO_INTERIOR_CAMERA);
