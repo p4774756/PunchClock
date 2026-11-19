@@ -31,7 +31,9 @@ import com.example.ui.TransferProgressDialog;
 import com.example.ui.NightTheme;
 import com.example.ui.PanelFactory;
 import com.example.ui.PanelFactory.*;
+import com.example.ui.ClientIdApplyUi;
 import com.example.ui.RecentValuesHelper;
+import com.example.PeerFileRules;
 import com.example.ui.SlotController;
 import com.example.model.CheckInHistoryEntry;
 import com.example.model.CheckInTask;
@@ -46,8 +48,11 @@ import com.example.ui.WindowShake;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
+import java.awt.event.ItemEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
@@ -135,6 +140,11 @@ public class App extends JFrame {
     private String lastUpdateCheckMinute = "";
     private static final DateTimeFormatter UPDATE_CHECK_TIME =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final int CLIENT_ID_SAVED_VISIBLE_MS = 2000;
+    private static final int CLIENT_ID_SAVED_FADE_MS = 480;
+    private Timer clientIdSavedVisibleTimer;
+    private Timer clientIdSavedFadeTimer;
+    private Color clientIdSavedLabelColor;
 
     public App() {
         this.schedulerService = new SchedulerService();
@@ -1960,6 +1970,33 @@ public class App extends JFrame {
                 applyClientIdFromUI(true);
             }
         });
+        peerRefs.clientIdCombo.addItemListener(e -> {
+            if (e.getStateChange() == ItemEvent.SELECTED) {
+                updateClientIdApplyButtonState();
+            }
+        });
+        if (editor instanceof javax.swing.text.JTextComponent) {
+            javax.swing.text.JTextComponent textEditor = (javax.swing.text.JTextComponent) editor;
+            textEditor.getDocument().addDocumentListener(new DocumentListener() {
+                @Override
+                public void insertUpdate(DocumentEvent ev) {
+                    updateClientIdApplyButtonState();
+                }
+
+                @Override
+                public void removeUpdate(DocumentEvent ev) {
+                    updateClientIdApplyButtonState();
+                }
+
+                @Override
+                public void changedUpdate(DocumentEvent ev) {
+                    updateClientIdApplyButtonState();
+                }
+            });
+        }
+        if (peerRefs.clientIdApplyButton != null) {
+            peerRefs.clientIdApplyButton.addActionListener(e -> applyClientIdFromUI(true));
+        }
         if (serverRefs.trustAllSslCheckBox != null) {
             serverRefs.trustAllSslCheckBox.addActionListener(e -> {
                 boolean trust = serverRefs.trustAllSslCheckBox.isSelected();
@@ -2270,6 +2307,7 @@ public class App extends JFrame {
             ensureClientIdOption(config.clientId);
             peerRefs.clientIdCombo.setSelectedItem(config.clientId);
             heartbeatService.setClientId(config.clientId);
+            updateClientIdApplyButtonState();
         }
         if (serverRefs.heartbeatTokenField != null && config.heartbeatToken != null) {
             serverRefs.heartbeatTokenField.setText(config.heartbeatToken);
@@ -2338,6 +2376,10 @@ public class App extends JFrame {
         String clientId = item.toString().trim();
         if (clientId.isEmpty()) return;
 
+        String previous = heartbeatService.getClientId();
+        String normalizedNew = PeerFileRules.normalizeClientId(clientId);
+        boolean changed = !normalizedNew.isEmpty() && !normalizedNew.equals(previous);
+
         ensureClientIdOption(clientId);
         heartbeatService.setClientId(clientId);
         if (!isCloudEnabled()) {
@@ -2345,6 +2387,82 @@ public class App extends JFrame {
         }
         if (persist) {
             saveCloudConfig();
+        }
+        if (changed) {
+            appendLog("[裝置] 裝置 ID 已改為 " + heartbeatService.getClientId());
+            showClientIdSavedFeedback();
+        }
+        updateClientIdApplyButtonState();
+    }
+
+    private String clientIdDraftFromUi() {
+        if (peerRefs.clientIdCombo == null) {
+            return "";
+        }
+        java.awt.Component editor = peerRefs.clientIdCombo.getEditor().getEditorComponent();
+        if (editor instanceof javax.swing.text.JTextComponent) {
+            return ((javax.swing.text.JTextComponent) editor).getText();
+        }
+        Object item = peerRefs.clientIdCombo.getSelectedItem();
+        return item != null ? item.toString() : "";
+    }
+
+    private void updateClientIdApplyButtonState() {
+        if (peerRefs.clientIdApplyButton == null) {
+            return;
+        }
+        String draft = clientIdDraftFromUi();
+        String effective = heartbeatService.getClientId();
+        peerRefs.clientIdApplyButton.setEnabled(ClientIdApplyUi.isApplyEnabled(draft, effective));
+    }
+
+    private void showClientIdSavedFeedback() {
+        if (peerRefs.clientIdSavedLabel == null) {
+            return;
+        }
+        stopClientIdSavedTimers();
+        if (clientIdSavedLabelColor == null) {
+            clientIdSavedLabelColor = peerRefs.clientIdSavedLabel.getForeground();
+        }
+        peerRefs.clientIdSavedLabel.setForeground(clientIdSavedLabelColor);
+        peerRefs.clientIdSavedLabel.setVisible(true);
+        clientIdSavedVisibleTimer = new Timer(CLIENT_ID_SAVED_VISIBLE_MS, e -> {
+            ((Timer) e.getSource()).stop();
+            beginClientIdSavedFade();
+        });
+        clientIdSavedVisibleTimer.setRepeats(false);
+        clientIdSavedVisibleTimer.start();
+    }
+
+    private void beginClientIdSavedFade() {
+        if (peerRefs.clientIdSavedLabel == null || clientIdSavedLabelColor == null) {
+            return;
+        }
+        final long started = System.currentTimeMillis();
+        clientIdSavedFadeTimer = new Timer(40, e -> {
+            long elapsed = System.currentTimeMillis() - started;
+            float t = Math.min(1f, elapsed / (float) CLIENT_ID_SAVED_FADE_MS);
+            int alpha = Math.round((1f - t) * 255f);
+            Color base = clientIdSavedLabelColor;
+            peerRefs.clientIdSavedLabel.setForeground(new Color(
+                    base.getRed(), base.getGreen(), base.getBlue(), Math.max(0, alpha)));
+            if (t >= 1f) {
+                ((Timer) e.getSource()).stop();
+                peerRefs.clientIdSavedLabel.setVisible(false);
+                peerRefs.clientIdSavedLabel.setForeground(clientIdSavedLabelColor);
+            }
+        });
+        clientIdSavedFadeTimer.start();
+    }
+
+    private void stopClientIdSavedTimers() {
+        if (clientIdSavedVisibleTimer != null) {
+            clientIdSavedVisibleTimer.stop();
+            clientIdSavedVisibleTimer = null;
+        }
+        if (clientIdSavedFadeTimer != null) {
+            clientIdSavedFadeTimer.stop();
+            clientIdSavedFadeTimer = null;
         }
     }
 
