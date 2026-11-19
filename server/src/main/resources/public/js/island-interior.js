@@ -48,10 +48,10 @@ export const INTERIOR_HINT_EXPLORE_TOUCH = '用左下角搖桿移動 · 拖曳�
 export const INTERIOR_HINT_INSIDE_DESK = 'WASD 或方向鍵移動 · Esc 或走到門口離開 · 工具列可一鍵離開';
 export const INTERIOR_HINT_INSIDE_TOUCH = '搖桿移動 · 按右下「離開」出去';
 
-/** 研發樓進房預設鏡頭（桌面／橫向）：貼在南側門外往北看大廳，讓門洞占滿畫面並避開中央數據柱。 */
-export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 7.9, theta: Math.PI + 0.36, phi: 1.46 });
+/** 研發樓進房預設鏡頭（桌面／橫向）：站在南門內側往北看大廳，避開門框與中央數據柱。 */
+export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 6.8, theta: Math.PI + 0.36, phi: 1.46 });
 
-export const LAB_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 6.85, theta: Math.PI + 0.32, phi: 1.45 });
+export const LAB_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 6.0, theta: Math.PI + 0.32, phi: 1.45 });
 
 /** 鏡頭大廳焦點（桌面）；每幀與角色胸口混合，讓進房先看到挑高大廳而不是南牆特寫。 */
 export const LAB_INTERIOR_LOOK_DESKTOP = Object.freeze({ x: 1.65, y: G + 1.55, z: 6.6 });
@@ -148,7 +148,7 @@ export function labInteriorCameraForAspect(aspect) {
   const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
   if (a < 0.72) return LAB_INTERIOR_CAMERA_MOBILE;
   if (a > 1.72) {
-    return Object.freeze({ radius: 8.0, theta: LAB_INTERIOR_CAMERA.theta, phi: 1.46 });
+    return Object.freeze({ radius: 6.9, theta: LAB_INTERIOR_CAMERA.theta, phi: 1.46 });
   }
   return LAB_INTERIOR_CAMERA;
 }
@@ -493,8 +493,11 @@ export function labInteriorFramingOk(aspect, viewportHeightPx, room) {
   const walls = labInteriorVisibleWallAABBs(labRoom.floor);
   if (!labInteriorSightClear(eye, { x: look.x, y: look.y, z: look.z }, walls)) return false;
 
-  const inside = (ndc) => ndc.vz > 0.02
+  const insideHead = (ndc) => ndc.vz > 0.02
     && ndc.y >= -1.16 && ndc.y <= 0.98
+    && ndc.x >= -0.98 && ndc.x <= 0.98;
+  const insideFeet = (ndc) => ndc.vz > 0.02
+    && ndc.y >= -1.85 && ndc.y <= 0.98
     && ndc.x >= -0.98 && ndc.x <= 0.98;
   const head = labInteriorProjectNdc(
     player.x, LAB_INTERIOR_PLAYER_HEAD_Y, player.z, pose, look, aspect
@@ -502,12 +505,12 @@ export function labInteriorFramingOk(aspect, viewportHeightPx, room) {
   const feet = labInteriorProjectNdc(
     player.x, LAB_INTERIOR_PLAYER_FEET_Y, player.z, pose, look, aspect
   );
-  if (!inside(head) || !inside(feet)) return false;
+  if (!insideHead(head) || !insideFeet(feet)) return false;
 
   const hall = labInteriorProjectNdc(0.9, G + 2.2, 6.1, pose, look, aspect);
   const rack = labInteriorProjectNdc(6.3, G + 1.1, 5.4, pose, look, aspect);
   if (hall.vz <= 0.02) return false;
-  if (!(inside(hall) || (rack.vz > 0.02 && rack.x < 0.98))) return false;
+  if (!(insideHead(hall) || (rack.vz > 0.02 && rack.x < 0.98))) return false;
   return true;
 }
 

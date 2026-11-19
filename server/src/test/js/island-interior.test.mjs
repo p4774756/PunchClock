@@ -193,7 +193,7 @@ test('研發樓出生朝向門口，有專用鏡頭與離開按鈕條件', () =>
   const room = I.interiorByBuilding('computer-site');
   assert.equal(room.spawn.yaw, Math.PI);
   assert.ok(room.spawn.z > -0.2, '出生點在門內北側，預設鏡頭從門口往北看大廳');
-  assert.equal(I.LAB_INTERIOR_CAMERA.radius, 7.9);
+  assert.equal(I.LAB_INTERIOR_CAMERA.radius, 6.8);
   assert.ok(I.LAB_INTERIOR_CAMERA.theta > Math.PI);
   assert.ok(I.LAB_INTERIOR_CAMERA.phi > 1.4);
   assert.deepEqual(I.interiorFollowPose(room, 1.6), I.LAB_INTERIOR_CAMERA);
@@ -226,7 +226,7 @@ test('研發樓牆面 AABB 與視線遮擋：北牆剖面、門洞與室內站�
   const pose = I.labInteriorCameraForAspect(aspect);
   const look = I.labInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, aspect);
   const eye = I.labInteriorCameraEye(pose, look, aspect);
-  assert.equal(I.labInteriorCameraInsideFloor(eye, floor, 0.15), false);
+  assert.equal(I.labInteriorCameraInsideFloor(eye, floor, 0.15), true, '進房鏡頭站在南門內側');
   const side = I.labInteriorSideWallAABBs(floor);
   assert.ok(
     I.labInteriorSightClear(eye, { x: look.x, y: look.y, z: look.z }, side),
@@ -286,8 +286,8 @@ test('研發樓預設鏡頭：三種 viewport 從門口往北看大廳', () => {
     assert.ok(eye.z < look.z - 1, '鏡頭在焦點南側，往北看大廳');
     if (vp.aspect > 1) {
       assert.ok(
-        eye.z > -2.75 && eye.z < -2.30,
-        '桌面鏡頭貼近南門外側，門洞才能占滿畫面 z=' + eye.z.toFixed(3)
+        eye.z > -1.75 && eye.z < -1.15,
+        '桌面鏡頭在南門內側，進房直接看到大廳 z=' + eye.z.toFixed(3)
       );
     }
   }
@@ -382,8 +382,8 @@ test('研發樓各站位頭腳投影在 NDC 內（桌面 1280／1440）', () => 
   const room = I.interiorByBuilding('computer-site');
   const aspects = [1440 / 900, 1280 / 720];
   const samples = I.labInteriorPlayerSamplePositions(room).filter((s) => s.id === 'spawn' || s.id === 'lobby');
-  const inside = (ndc) => ndc.vz > 0
-    && ndc.y >= -1.16 && ndc.y <= 0.98
+  const inside = (ndc, feet) => ndc.vz > 0
+    && ndc.y >= (feet ? -1.85 : -1.16) && ndc.y <= 0.98
     && ndc.x >= -0.98 && ndc.x <= 0.98;
   for (let a = 0; a < aspects.length; a++) {
     const aspect = aspects[a];
@@ -397,8 +397,8 @@ test('研發樓各站位頭腳投影在 NDC 內（桌面 1280／1440）', () => 
       const feet = I.labInteriorProjectNdc(
         s.x, I.LAB_INTERIOR_PLAYER_FEET_Y, s.z, pose, look, aspect
       );
-      assert.ok(inside(head), `頭頂 NDC：${s.id} aspect=${aspect.toFixed(3)} y=${head.y.toFixed(3)}`);
-      assert.ok(inside(feet), `腳底 NDC：${s.id} aspect=${aspect.toFixed(3)} y=${feet.y.toFixed(3)}`);
+      assert.ok(inside(head, false), `頭頂 NDC：${s.id} aspect=${aspect.toFixed(3)} y=${head.y.toFixed(3)}`);
+      assert.ok(inside(feet, true), `腳底 NDC：${s.id} aspect=${aspect.toFixed(3)} y=${feet.y.toFixed(3)}`);
     }
   }
 });
