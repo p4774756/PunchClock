@@ -7,9 +7,9 @@ export const ORB_GAP = 0.4 * REM;
 const HUD_MARGIN = 0.55 * REM;
 
 const AUDIO_ON_SVG =
-  '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 10v4h4l5 4V6L8 10H4zm12.5 2a3.5 3.5 0 0 0-2-3.15v6.3a3.5 3.5 0 0 0 2-3.15z"/></svg>';
+  '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" d="M5 10v4h3l4.5 3V7L8 10H5z"/><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M17 9.5v5"/></svg>';
 const AUDIO_OFF_SVG =
-  '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 10v4h3l5 4V6L8 10H4zm14.3 2.3 2.1 2.1-1.4 1.4-2.1-2.1-2.1 2.1-1.4-1.4 2.1-2.1-2.1-2.1 1.4-1.4 2.1 2.1 2.1-2.1 1.4 1.4-2.1 2.1z"/></svg>';
+  '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" d="M5 10v4h3l4.5 3V7L8 10H5z"/><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M16 10l4 4M20 10l-4 4"/></svg>';
 
 /** 供 Node 測試估算手機搖桿與 HUD 是否重疊（對齊 island.css）。 */
 export function joystickRectMobile(viewportWidth, viewportHeight) {
@@ -33,7 +33,7 @@ function orbRowCount(showAudio) {
 export function hudTopRightRect(viewportWidth, viewportHeight, showAudio) {
   const margin = hudMargin(viewportWidth);
   const orbs = orbRowCount(showAudio);
-  const dayNightBlock = ORB_SIZE * 2 + 0.25 * REM;
+  const dayNightBlock = ORB_SIZE;
   const audioW = showAudio ? ORB_SIZE + ORB_GAP : 0;
   const chatMenuW = ORB_SIZE * 2 + ORB_GAP;
   const totalW = dayNightBlock + audioW + chatMenuW;
@@ -46,6 +46,9 @@ export function hudTopRightRect(viewportWidth, viewportHeight, showAudio) {
 
 const EXPLORE_EXIT_MIN_W = 5.5 * REM;
 const INTERACT_BTN_W = 7.5625 * REM;
+const ROADMAP_BTN_W = 6.25 * REM;
+const STEER_BTN_W = 5.5 * REM;
+const HUD_CHIP = 2.85 * REM;
 
 /** 探索中右下角「退出探索」主按鈕（對齊 island.css）。 */
 export function exploreExitButtonRect(viewportWidth, viewportHeight) {
@@ -97,26 +100,26 @@ export function hudActionsRect(viewportWidth, viewportHeight, opts) {
   const interactWidth = (opts && opts.interactWidth) || INTERACT_BTN_W;
   const margin = hudMargin(viewportWidth);
   const narrow = viewportWidth <= MOBILE_MAX_WIDTH;
-  const smallOrb = 2.85 * REM;
+  const smallOrb = HUD_CHIP;
   const primaryW = 3.75 * REM;
   const primaryH = 3.75 * REM;
-  const steerW = smallOrb;
+  const steerW = STEER_BTN_W;
   const gap = 0.45 * REM;
   const joy = joystickRectMobile(viewportWidth, viewportHeight);
   const bottomInset = narrow ? 0.85 * REM : 1.1 * REM;
   const bottomEdge = viewportHeight - bottomInset;
   const top = bottomEdge - primaryH;
   const right = viewportWidth - margin;
-  let rowW = smallOrb * 2 + gap;
-  if (!(exploring && narrow)) rowW += primaryW;
+  let rowW = smallOrb * 2 + gap + ROADMAP_BTN_W;
+  if (!(exploring && narrow)) rowW += gap + primaryW;
   if (withInteract) rowW += gap + interactWidth;
   if (withSteer) rowW += gap + steerW;
   let left;
   if (narrow && exploring) {
     left = joy.right + 0.55 * REM;
   } else {
-    const legacyRow = smallOrb * 2 + gap + primaryW;
-    left = right - legacyRow - steerW - gap;
+    const legacyRow = smallOrb * 2 + gap + ROADMAP_BTN_W + gap + primaryW;
+    left = right - legacyRow - (withSteer ? steerW + gap : 0);
   }
   const width = Math.max(0, right - left);
   return {
@@ -145,17 +148,19 @@ export function exploreHudActionItems(viewportWidth, viewportHeight, opts) {
     interactWidth
   });
   const gap = 0.45 * REM;
-  const smallOrb = 2.85 * REM;
+  const smallOrb = HUD_CHIP;
   const primaryH = 3.75 * REM;
   const specById = {
-    map: { id: 'map', w: smallOrb, h: smallOrb },
-    role: { id: 'role', w: smallOrb, h: smallOrb },
+    map: { id: 'map', w: smallOrb, h: smallOrb + 0.15 * REM },
+    role: { id: 'role', w: smallOrb, h: smallOrb + 0.15 * REM },
+    roadmap: { id: 'roadmap', w: ROADMAP_BTN_W, h: primaryH },
     interact: { id: 'interact', w: interactWidth, h: primaryH },
-    steer: { id: 'steer', w: smallOrb, h: smallOrb }
+    steer: { id: 'steer', w: STEER_BTN_W, h: primaryH }
   };
   const sourceOrder = [
     specById.map,
     specById.role,
+    specById.roadmap,
     ...(withInteract ? [specById.interact] : []),
     ...(withSteer ? [specById.steer] : [])
   ];

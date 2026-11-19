@@ -1139,6 +1139,10 @@ function boot() {
       return show;
     }
     setSteerPromptVisible(false);
+    if (zone && zone.action === 'openRoadmap') {
+      casino.setPromptVisible(false);
+      return false;
+    }
     casino.setPromptVisible(show, zone && zone.label ? zone.label : '進入賭場');
     return show;
   }
@@ -1303,9 +1307,10 @@ function boot() {
     dayNight.setTarget(night ? 1 : 0);
     if (reduced || document.hidden) renderer.render(scene, camera);
     const dayBtn = document.getElementById('islandDay');
-    const nightBtn = document.getElementById('islandNight');
-    if (dayBtn) dayBtn.setAttribute('aria-pressed', night ? 'false' : 'true');
-    if (nightBtn) nightBtn.setAttribute('aria-pressed', night ? 'true' : 'false');
+    if (dayBtn) {
+      dayBtn.setAttribute('aria-pressed', night ? 'true' : 'false');
+      dayBtn.setAttribute('aria-label', night ? '夜景，點擊切換日景' : '日景，點擊切換夜景');
+    }
     document.body.classList.toggle('is-night', night);
     if (syncIslandBgm) syncIslandBgm();
   }
@@ -1777,9 +1782,12 @@ function boot() {
     });
   }
   const dayBtn = document.getElementById('islandDay');
-  const nightBtn = document.getElementById('islandNight');
-  if (dayBtn) dayBtn.addEventListener('click', () => setMode('day'));
-  if (nightBtn) nightBtn.addEventListener('click', () => setMode('night'));
+  if (dayBtn) {
+    dayBtn.addEventListener('click', () => {
+      const night = document.body.classList.contains('is-night');
+      setMode(night ? 'day' : 'night');
+    });
+  }
 
   const ISLAND_BGM_TRACKS = Object.freeze({
     main: '/audio/bgm-main.ogg',

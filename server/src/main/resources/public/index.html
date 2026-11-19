@@ -9,6 +9,9 @@
   <link rel="stylesheet" href="/css/casino.css">
   <link rel="stylesheet" href="/css/graffiti.css">
   <link rel="stylesheet" href="/css/roadmap.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
 </head>
 <body class="island-body {{AUTH_BODY_CLASS}}">
   <script>window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};</script>
@@ -23,34 +26,43 @@
   <div class="island-hud" aria-label="探索操作">
     <div class="island-hud-player" id="islandHudPlayer">
       <div class="island-hud-player-card" aria-live="polite">
-        <img class="island-hud-player-thumb" id="islandHudPlayerThumb" src="/pet/milu/idle/breath_01.png" width="44" height="44" alt="" decoding="async">
-        <span class="island-hud-player-meta">
-          <strong class="island-hud-player-name" id="islandHudPlayerName">milu</strong>
-          <small class="island-hud-player-shop" data-auth-only>店長 · 小店營業中</small>
-          <small class="island-hud-player-shop" data-guest-only>訪客</small>
-        </span>
+        <div class="island-hud-player-title" aria-hidden="true">
+          <span class="island-hud-player-title-mark">神</span>
+          <span class="island-hud-player-title-text">神之島</span>
+        </div>
+        <div class="island-hud-player-body">
+          <img class="island-hud-player-thumb" id="islandHudPlayerThumb" src="/pet/milu/idle/breath_01.png" width="44" height="44" alt="" decoding="async">
+          <span class="island-hud-player-meta">
+            <strong class="island-hud-player-name" id="islandHudPlayerName">milu</strong>
+            <small class="island-hud-player-tag" data-auth-only>店長 · 小店營業中</small>
+            <small class="island-hud-player-tag island-hud-player-tag-guest" data-guest-only>訪客</small>
+          </span>
+        </div>
       </div>
       <span class="island-hud-peer-badge" id="islandPeerCount" hidden aria-live="polite">島上 1 人</span>
     </div>
 
     <nav class="island-hud-tr" aria-label="快捷操作">
       <div class="island-hud-orbs island-hud-time" role="group" aria-label="日夜切換">
-        <button type="button" class="island-orb island-orb-day" id="islandDay" aria-pressed="true" aria-label="日景">
-          <span class="island-orb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 3.2v1.8M12 19v1.8M3.2 12H5M19 12h1.8M5.6 5.6l1.3 1.3M17.1 17.1l1.3 1.3M18.4 5.6l-1.3 1.3M6.9 17.1l-1.3 1.3"/></svg></span>
+        <button type="button" class="island-orb island-orb-daynight" id="islandDay" aria-pressed="false" aria-label="日景，點擊切換夜景">
+          <span class="island-orb-face">
+            <span class="island-orb-icon island-orb-icon-day" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2.2"/><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M12 4v2M12 18v2M4 12h2M18 12h2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4"/></svg></span>
+            <span class="island-orb-icon island-orb-icon-night" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" d="M14.6 4.4a8 8 0 1 0 7.2 11.6A7 7 0 0 1 14.6 4.4z"/></svg></span>
+          </span>
           <span class="island-orb-label">日夜</span>
-        </button>
-        <button type="button" class="island-orb island-orb-night" id="islandNight" aria-pressed="false" aria-label="夜景">
-          <span class="island-orb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M14.5 3.2a7.8 7.8 0 1 0 6.2 12.4A7.2 7.2 0 0 1 14.5 3.2z"/></svg></span>
-          <span class="island-orb-label">夜景</span>
         </button>
       </div>
       <button type="button" class="island-orb island-orb-audio island-tool-audio" id="islandAudio" aria-pressed="true" aria-label="開啟背景音樂" hidden>
-        <span class="island-orb-icon island-tool-audio-icon" aria-hidden="true" data-audio-on><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 10v4h4l5 4V6L8 10H4zm12.5 2a3.5 3.5 0 0 0-2-3.15v6.3a3.5 3.5 0 0 0 2-3.15z"/></svg></span>
+        <span class="island-orb-face">
+          <span class="island-orb-icon island-tool-audio-icon" aria-hidden="true" data-audio-on><svg viewBox="0 0 24 24" width="22" height="22"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" d="M5 10v4h3l4.5 3V7L8 10H5z"/><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M17 9.5v5"/></svg></span>
+        </span>
         <span class="island-orb-label">音樂</span>
       </button>
       <div class="island-chat-wrap island-hud-chat">
         <button type="button" class="island-orb island-orb-chat" id="islandChatBtn" aria-expanded="false" aria-controls="islandChatPanel">
-          <span class="island-orb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 5h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 4V7a2 2 0 0 1 2-2z"/></svg></span>
+          <span class="island-orb-face">
+            <span class="island-orb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" d="M5 6h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9l-4 3V8a2 2 0 0 1 2-2z"/></svg></span>
+          </span>
           <span class="island-orb-label">聊天</span>
         </button>
         <div class="island-chat" id="islandChatPanel" hidden>
@@ -63,7 +75,9 @@
         </div>
       </div>
       <button type="button" class="island-orb island-orb-menu" id="islandMoreBtn" aria-expanded="false" aria-controls="islandMoreSheet" aria-label="選單">
-        <span class="island-orb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 7h16v2H4V7zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/></svg></span>
+        <span class="island-orb-face">
+          <span class="island-orb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M5 7h14M5 12h14M5 17h14"/></svg></span>
+        </span>
         <span class="island-orb-label">選單</span>
       </button>
     </nav>
@@ -92,19 +106,23 @@
     <button type="button" class="island-hud-leave" id="islandLeaveInterior" hidden>離開室內</button>
 
     <div class="island-hud-actions" id="islandHudActions">
-      <button type="button" class="island-orb island-orb-sm island-orb-map" id="islandMapBtn" aria-expanded="false" aria-controls="islandMapSheet">
-        <span class="island-orb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 2c3.9 0 7 3.1 7 7 0 5.2-7 13-7 13S5 14.2 5 9c0-3.9 3.1-7 7-7zm0 4.5A2.5 2.5 0 1 0 12 11a2.5 2.5 0 0 0 0-4.5z"/></svg></span>
-        <span class="island-orb-label">地圖</span>
+      <button type="button" class="island-hud-chip island-hud-chip-map" id="islandMapBtn" aria-expanded="false" aria-controls="islandMapSheet">
+        <span class="island-hud-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" d="M12 3c3.5 0 6.5 2.8 6.5 6.4 0 4.8-6.5 11.6-6.5 11.6S5.5 14.2 5.5 9.4 8.5 3 12 3z"/><circle cx="12" cy="9.5" r="2.2" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></span>
+        <span class="island-hud-chip-label">地圖</span>
       </button>
-      <button type="button" class="island-orb island-orb-sm island-orb-role" id="islandHudRoleBtn" aria-expanded="false" aria-controls="islandAvatarPop">
-        <span class="island-orb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 12a4.2 4.2 0 1 0-4.2-4.2A4.2 4.2 0 0 0 12 12zm0 2.4c-3.6 0-6.5 1.8-6.5 4v1.1h13V18.4c0-2.2-2.9-4-6.5-4z"/></svg></span>
-        <span class="island-orb-label">角色</span>
+      <button type="button" class="island-hud-chip island-hud-chip-role" id="islandHudRoleBtn" aria-expanded="false" aria-controls="islandAvatarPop">
+        <span class="island-hud-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="8.5" r="3.4" fill="none" stroke="currentColor" stroke-width="2.2"/><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M5.5 19.5c.8-3.2 3.4-4.8 6.5-4.8s5.7 1.6 6.5 4.8"/></svg></span>
+        <span class="island-hud-chip-label">角色</span>
+      </button>
+      <button type="button" class="island-hud-btn island-hud-btn-blue island-hud-roadmap" data-open-roadmap aria-label="看施工進度">
+        <span class="island-hud-btn-label">看施工進度</span>
       </button>
       <button type="button" class="island-hud-primary island-hud-explore-entry" id="islandExplore" aria-pressed="false" aria-label="進入探索模式">
         <span class="island-hud-primary-label">探索</span>
+        <span class="island-hud-esc-chip" aria-hidden="true">Esc</span>
       </button>
-      <button type="button" class="island-interact island-hud-primary" id="islandInteract" hidden aria-hidden="true" aria-label="進入賭場">進入</button>
-      <button type="button" class="island-interact-steer island-orb island-orb-sm island-orb-steer" id="islandSteer" hidden aria-hidden="true" aria-label="自己開船">自己開船</button>
+      <button type="button" class="island-interact island-hud-btn island-hud-btn-secondary" id="islandInteract" hidden aria-hidden="true" aria-label="進入賭場">進入</button>
+      <button type="button" class="island-interact-steer island-hud-btn island-hud-btn-secondary" id="islandSteer" hidden aria-hidden="true" aria-label="自己開船">自己開船</button>
     </div>
   </div>
 
@@ -287,41 +305,60 @@
   </section>
 
   <section id="roadmapBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="施工進度">
-    <div class="roadmap-panel">
-      <header class="roadmap-head">
+    <div class="roadmap-panel maple-window">
+      <header class="maple-win-title roadmap-win-head">
         <h2>施工進度</h2>
-        <button type="button" class="btn btn-ghost" data-roadmap-back aria-label="返回島嶼">返回島嶼</button>
+        <button type="button" class="roadmap-close-x" data-roadmap-back aria-label="關閉">×</button>
       </header>
-      <p class="roadmap-now" data-roadmap-headline>施工進度</p>
-      <p class="roadmap-phase-name" data-roadmap-title></p>
-      <div class="roadmap-list" data-roadmap-list></div>
+      <div class="roadmap-banner">
+        <div class="roadmap-banner-text">
+          <strong class="roadmap-now" data-roadmap-headline>施工進度</strong>
+          <span class="roadmap-phase-name" data-roadmap-title></span>
+        </div>
+        <div class="roadmap-banner-progress">
+          <span class="roadmap-total-label" data-roadmap-total-label>子項合計 0/0</span>
+          <div class="roadmap-progress-track"><span class="roadmap-progress-bar" data-roadmap-total-bar></span></div>
+        </div>
+      </div>
+      <div class="roadmap-tabs" role="tablist" aria-label="施工進度分頁">
+        <button type="button" class="roadmap-tab is-active" data-roadmap-tab="phases" aria-pressed="true">路線圖</button>
+        <button type="button" class="roadmap-tab" data-roadmap-tab="dev" aria-pressed="false">開發進度</button>
+      </div>
+      <div class="roadmap-layout">
+        <div class="roadmap-main-stack">
+          <div class="roadmap-tab-panel" data-roadmap-panel="phases">
+            <div class="roadmap-list" data-roadmap-list></div>
+          </div>
+          <section class="roadmap-tab-panel roadmap-dev" data-roadmap-panel="dev" hidden aria-label="開發進度">
+            <p class="roadmap-dev-note" data-dev-note></p>
+            <div class="roadmap-dev-focus">
+              <div class="roadmap-dev-card" data-dev-current></div>
+              <div class="roadmap-dev-card" data-dev-next></div>
+            </div>
+            <div class="roadmap-dev-mid">
+              <div class="roadmap-dev-queue-block">
+                <h4 class="roadmap-dev-sub">排隊</h4>
+                <div data-dev-queue></div>
+              </div>
+              <div class="roadmap-dev-stats-block">
+                <h4 class="roadmap-dev-sub">本週</h4>
+                <div data-dev-stats></div>
+              </div>
+            </div>
+            <h4 class="roadmap-dev-sub">進度表</h4>
+            <div class="roadmap-dev-filters" data-dev-filter role="group" aria-label="狀態篩選"></div>
+            <div class="roadmap-dev-table-wrap" data-dev-table></div>
+            <h4 class="roadmap-dev-sub">近 7 天</h4>
+            <div data-dev-timeline></div>
+          </section>
+        </div>
+        <aside class="roadmap-today-panel maple-window" data-roadmap-today aria-label="今日完成"></aside>
+      </div>
       <p class="roadmap-note" data-roadmap-note></p>
-      <a class="roadmap-source" data-roadmap-source href="https://github.com/p4774756/PunchClock/issues/36" target="_blank" rel="noopener noreferrer">資料來源：GitHub #36</a>
-
-      <p class="roadmap-dev-machines-nav" data-dev-machines-nav hidden></p>
-      <section class="roadmap-dev" aria-label="開發進度">
-        <h3 class="roadmap-dev-heading">開發進度</h3>
-        <p class="roadmap-dev-note" data-dev-note></p>
-        <div class="roadmap-dev-focus">
-          <div class="roadmap-dev-card" data-dev-current></div>
-          <div class="roadmap-dev-card" data-dev-next></div>
-        </div>
-        <div class="roadmap-dev-mid">
-          <div class="roadmap-dev-queue-block">
-            <h4 class="roadmap-dev-sub">排隊</h4>
-            <div data-dev-queue></div>
-          </div>
-          <div class="roadmap-dev-stats-block">
-            <h4 class="roadmap-dev-sub">本週</h4>
-            <div data-dev-stats></div>
-          </div>
-        </div>
-        <h4 class="roadmap-dev-sub">進度表</h4>
-        <div class="roadmap-dev-filters" data-dev-filter role="group" aria-label="狀態篩選"></div>
-        <div class="roadmap-dev-table-wrap" data-dev-table></div>
-        <h4 class="roadmap-dev-sub">近 7 天</h4>
-        <div data-dev-timeline></div>
-      </section>
+      <footer class="roadmap-foot">
+        <a class="roadmap-source" data-roadmap-source href="https://github.com/p4774756/PunchClock/issues/36" target="_blank" rel="noopener noreferrer">資料來源：GitHub #36</a>
+        <span class="roadmap-dev-machines-nav" data-dev-machines-nav hidden></span>
+      </footer>
     </div>
   </section>
 
