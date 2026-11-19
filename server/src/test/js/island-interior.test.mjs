@@ -210,6 +210,7 @@ test('研發樓出生朝向門口，有專用鏡頭與離開按鈕條件', () =>
   assert.equal(I.shouldShowInteriorLeave({ inside: false, exploring: true, busy: false, overlay: false }), false);
   assert.equal(I.shouldShowInteriorLeave({ inside: true, exploring: true, busy: false, overlay: true }), false);
   assert.ok(I.exploreHintText(true, true).includes('離開'));
+  assert.ok(I.exploreHintText(true, true, 'tcm-room').includes('紅門'));
   assert.ok(I.exploreHintText(true, false).includes('Esc'));
   assert.ok(I.exploreHintText(false, false).includes('Esc 退出探索'));
   session.exit(500);
@@ -562,6 +563,7 @@ test('推拿館室內遠大於外觀，進房鏡頭站在門內往北看', async
     const look = I.tcmInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, aspect);
     const eye = I.tcmInteriorCameraEye(pose, look, aspect);
     assert.ok(eye.z < look.z - 1, '鏡頭在焦點南側，往北看醫館');
+    assert.ok(room.spawn.z > eye.z + 1.2, '出生點在鏡頭前方、角色入畫 aspect=' + aspect);
     assert.ok(eye.z >= room.floor.minZ + 0.8 && eye.z <= 2.2, '鏡頭深入醫館、不受門框擋住 z=' + eye.z.toFixed(3));
     assert.ok(eye.y < 4.4, '鏡頭低於天花 y=' + eye.y.toFixed(3));
   }
@@ -584,6 +586,8 @@ test('推拿館室內可走、可離開，並有進入經絡研習室的互動',
   assert.equal(exit.label, '離開推拿館');
   assert.ok(study);
   assert.equal(study.label, '進入經絡研習室');
+  assert.ok(study.r >= 1.6 && study.r <= 2.0);
+  assert.equal(X.hitInteractZone(0, 9, zones)?.action, 'enterTcmStudy', '沿紅地毯較北處可進研習室');
 
   const spawnHit = X.hitInteractZone(room.spawn.x, room.spawn.z, zones);
   assert.equal(spawnHit, null, '出生點不應命中出口或研習室互動');

@@ -376,9 +376,48 @@ export function createInterior(THREE, opts) {
   });
   plaque(1.7, 0.42, 0, ground + 2.72, northZ - 0.12, studyTex);
 
+  // 北門前楓之谷風金／藍脈衝地圈（emissive，無 PointLight）
+  const glowGold = mat(0xffe8a8, 0xb8922e, 0xffd050, 0.42, 0.7);
+  const glowBlue = mat(0xa8d0f2, 0x204e96, 0x3cf0ff, 0.38, 0.65);
+  const studyGlowZ = 9.85;
+  const glowMats = [glowGold, glowBlue];
+  cyl(1.12, 1.12, 0.022, 36, 0xffe8a8, 0xb8922e, 0, ground + 0.155, studyGlowZ, 0xffd050, 0.42, 0.7).material = glowGold;
+  cyl(0.78, 0.78, 0.028, 36, 0xa8d0f2, 0x204e96, 0, ground + 0.162, studyGlowZ, 0x3cf0ff, 0.38, 0.65).material = glowBlue;
+
+  const guideTex = paintCanvas(1024, 200, (ctx, canvas) => {
+    ctx.fillStyle = '#163a70';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#ecc440';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(12, 12, canvas.width - 24, canvas.height - 24);
+    ctx.fillStyle = '#f8fbff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 52px "Noto Sans TC","PingFang TC",sans-serif';
+    ctx.fillText('↓ 經絡研習室（銅人在這）', canvas.width / 2, canvas.height / 2);
+  });
+  const guideY = ground + 3.05;
+  const studyGuide = plaque(2.35, 0.48, 0, guideY, northZ - 0.22, guideTex);
+  studyGuide.rotation.x = -0.08;
+
+  let glowPhase = 0;
+
+  function tick(dt) {
+    if (reduced) return null;
+    glowPhase += dt;
+    const pulse = 0.55 + 0.4 * Math.sin(glowPhase * 2.35);
+    for (let i = 0; i < glowMats.length; i++) {
+      const base = glowMats[i].userData.dayE || 0.4;
+      glowMats[i].emissiveIntensity = base * pulse;
+    }
+    studyGuide.position.y = guideY + 0.1 * Math.sin(glowPhase * 1.65);
+    return null;
+  }
+
   return {
     group: group,
     materials: materials,
+    tick: tick,
     dispose() {
       textures.forEach((texture) => texture.dispose && texture.dispose());
       geometries.forEach((geometry) => geometry.dispose && geometry.dispose());

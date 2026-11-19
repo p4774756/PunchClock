@@ -13,6 +13,8 @@ const records = JSON.parse(readFileSync(join(here, '..', '..', 'main', 'resource
 test('推拿館室內源碼：無 PointLight，有醫館與經絡研習室文案', () => {
   assert.match(source, new RegExp(HALL_NAME));
   assert.match(source, /經絡研習室/);
+  assert.match(source, /銅人在這/);
+  assert.match(source, /tick/);
   assert.match(source, /今日一穴/);
   assert.match(source, /百子櫃|drawer/);
   assert.doesNotMatch(source, /new THREE\.PointLight/);

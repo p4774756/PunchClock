@@ -56,6 +56,10 @@ export const INTERIOR_HINT_EXPLORE_DESK = 'WASD 或方向鍵移動 · 拖曳旋�
 export const INTERIOR_HINT_EXPLORE_TOUCH = '用左下角搖桿移動 · 拖曳旋轉鏡頭';
 export const INTERIOR_HINT_INSIDE_DESK = 'WASD 或方向鍵移動 · Esc 或走到門口離開 · 工具列可一鍵離開';
 export const INTERIOR_HINT_INSIDE_TOUCH = '搖桿移動 · 按右下「離開」出去';
+export const TCM_HINT_INSIDE_DESK =
+  'WASD 或方向鍵移動 · 往北走紅門進入經絡研習室 · Esc 或走到南門離開';
+export const TCM_HINT_INSIDE_TOUCH =
+  '搖桿移動 · 往北走紅門進入經絡研習室 · 按右下「離開」出去';
 
 /** 研發樓進房預設鏡頭（桌面／橫向）：站在南門內側往北看大廳，避開門框與中央數據柱。 */
 export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 6.8, theta: Math.PI + 0.36, phi: 1.46 });
@@ -683,8 +687,13 @@ export function interiorLeaveButtonLabel(session) {
   return zone && zone.label ? zone.label : '離開室內';
 }
 
-export function exploreHintText(inside, touch) {
-  if (inside) return touch ? INTERIOR_HINT_INSIDE_TOUCH : INTERIOR_HINT_INSIDE_DESK;
+export function exploreHintText(inside, touch, roomId) {
+  if (inside) {
+    if (roomId === 'tcm-room') {
+      return touch ? TCM_HINT_INSIDE_TOUCH : TCM_HINT_INSIDE_DESK;
+    }
+    return touch ? INTERIOR_HINT_INSIDE_TOUCH : INTERIOR_HINT_INSIDE_DESK;
+  }
   return touch ? INTERIOR_HINT_EXPLORE_TOUCH : INTERIOR_HINT_EXPLORE_DESK;
 }
 
@@ -762,7 +771,7 @@ export const INTERIORS = Object.freeze([
   Object.freeze({
     id: 'tcm-room',
     buildingId: 'tcm-site',
-    spawn: Object.freeze({ x: 0, z: 0.9, yaw: 0 }),
+    spawn: Object.freeze({ x: 0, z: 3.2, yaw: 0 }),
     exit: Object.freeze({ x: 0, z: -1.4, r: 0.55, label: '離開推拿館' }),
     outside: Object.freeze((() => {
       const pose = tcmReturnPose();
@@ -780,7 +789,7 @@ export const INTERIORS = Object.freeze([
       Object.freeze({ id: 'screen-west-b', minX: -4.45, maxX: -2.65, minZ: 4.95, maxZ: 5.4 })
     ]),
     interacts: Object.freeze([
-      Object.freeze({ id: 'tcm-study', x: 0, z: 10.7, r: 0.7, label: '進入經絡研習室', action: 'enterTcmStudy' })
+      Object.freeze({ id: 'tcm-study', x: 0, z: 10.7, r: 1.8, label: '進入經絡研習室', action: 'enterTcmStudy' })
     ])
   })
 ]);
