@@ -108,6 +108,7 @@ def hex_rgba(h):
 _MATS = {}
 _TEXTURED = {}
 _PALETTE_OVERRIDES = {}
+_ATLAS_IMAGE = None
 _TEX_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'textures')
 
 
@@ -150,6 +151,62 @@ def material_textured(name, base_hex, image_path, emissive_hex=None, roughness=0
     return m
 
 
+def city_atlas_path():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'textures', 'city_atlas.png')
+
+
+def load_city_atlas():
+    global _ATLAS_IMAGE
+    if _ATLAS_IMAGE is not None:
+        return _ATLAS_IMAGE
+    path = city_atlas_path()
+    if not os.path.isfile(path):
+        raise FileNotFoundError('請先執行 tools/blender/gen_city_textures.py')
+    _ATLAS_IMAGE = bpy.data.images.load(path, check_existing=True)
+    _ATLAS_IMAGE.pack()
+    _ATLAS_IMAGE.colorspace_settings.name = 'sRGB'
+    return _ATLAS_IMAGE
+
+
+def material_tex(name, tint_hex=None, emis=None):
+    """圖集材質；tint_hex 可微調底色。"""
+    cache_key = f'tex::{name}::{tint_hex}::{emis}'
+    if cache_key in _MATS and _MATS[cache_key].name in bpy.data.materials:
+        return _MATS[cache_key]
+    base, _ = _PALETTE_OVERRIDES.get(name, PALETTE.get(name, (0xffffff, None)))
+    if tint_hex is not None:
+        base = tint_hex
+    m = bpy.data.materials.new(cache_key[:60])
+    m.use_nodes = True
+    nt = m.node_tree
+    for node in list(nt.nodes):
+        if node.type != 'OUTPUT_MATERIAL':
+            nt.nodes.remove(node)
+    out = nt.nodes['Material Output']
+    bsdf = nt.nodes.new('ShaderNodeBsdfPrincipled')
+    tex = nt.nodes.new('ShaderNodeTexImage')
+    tex.image = load_city_atlas()
+    tex.interpolation = 'Closest' if 'cross' in name or 'sidewalk' in name else 'Linear'
+    mix = nt.nodes.new('ShaderNodeMixRGB')
+    mix.blend_type = 'MULTIPLY'
+    mix.inputs['Fac'].default_value = 0.35 if tint_hex is None else 0.55
+    mix.inputs['Color1'].default_value = (1, 1, 1, 1)
+    mix.inputs['Color2'].default_value = hex_rgba(base)
+    nt.links.new(tex.outputs['Color'], mix.inputs['Color1'])
+    nt.links.new(mix.outputs['Color'], bsdf.inputs['Base Color'])
+    bsdf.inputs['Roughness'].default_value = 0.88
+    if emis is not None:
+        bsdf.inputs['Emission Color'].default_value = hex_rgba(emis)
+        bsdf.inputs['Emission Strength'].default_value = 0.85
+    elif name in PALETTE and PALETTE[name][1] is not None:
+        emis = _PALETTE_OVERRIDES.get(name, PALETTE[name])[1]
+        bsdf.inputs['Emission Color'].default_value = hex_rgba(emis)
+        bsdf.inputs['Emission Strength'].default_value = 0.75
+    nt.links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
+    _MATS[cache_key] = m
+    return m
+
+
 def set_palette_overrides(d=None):
     """單棟建築覆寫調色（每個 GLB 分開匯出，所以同名 windows_glow 可以有不同底色）。"""
     global _PALETTE_OVERRIDES
@@ -179,7 +236,7 @@ def material(name):
 
 def clear_scene():
     """清空物件、網格、材質，重設材質快取。給同一行程連續建多棟用。"""
-    global _MATS, _TEXTURED
+    global _MATS, _TEXTURED, _ATLAS_IMAGE
     for obj in list(bpy.data.objects):
         bpy.data.objects.remove(obj, do_unlink=True)
     for block in (bpy.data.meshes, bpy.data.materials, bpy.data.cameras, bpy.data.lights):
@@ -187,6 +244,7 @@ def clear_scene():
             block.remove(item)
     _MATS = {}
     _TEXTURED = {}
+    _ATLAS_IMAGE = None
     _PALETTE_OVERRIDES = {}
 
 
@@ -224,6 +282,22 @@ class Part:
              @ Matrix.Diagonal((sx, sy, sz, 1)))
         r = bmesh.ops.create_cube(self.bm, size=1.0, matrix=m)
         self._tag(self._faces_of(r['verts']), mat)
+
+    def box_tex(self, mat, region, sx, sy, sz, x, y, z, rz=0.0, rx=0.0, ry=0.0):
+        """立方體六面套用同一圖集 UV 區塊。"""
+        u0, v0, u1, v1 = region
+        quads = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
+        m = (Matrix.Translation((x, y, z))
+             @ Matrix.Rotation(rz, 4, 'Z')
+             @ Matrix.Rotation(ry, 4, 'Y')
+             @ Matrix.Rotation(rx, 4, 'X')
+             @ Matrix.Diagonal((sx, sy, sz, 1)))
+        r = bmesh.ops.create_cube(self.bm, size=1.0, matrix=m)
+        uv = self.uv_layer()
+        for f in self._faces_of(r['verts']):
+            for i, loop in enumerate(f.loops):
+                loop[uv].uv = quads[i % 4]
+        self._tag([f for f in self._faces_of(r['verts'])], mat)
 
     def cyl(self, mat, r1, r2, h, x, y, z, seg=8, rx=0.0, ry=0.0, rz=0.0):
         m = (Matrix.Translation((x, y, z))
@@ -286,6 +360,8 @@ class Part:
             if isinstance(m, str) and m.startswith('tex|'):
                 rel = m[4:]
                 me.materials.append(material_textured(m.replace('|', '_'), 0xffffff, tex_path(rel)))
+            elif isinstance(m, str) and m.startswith('@'):
+                me.materials.append(material_tex(m[1:]))
             else:
                 me.materials.append(material(m))
         for p in me.polygons:
