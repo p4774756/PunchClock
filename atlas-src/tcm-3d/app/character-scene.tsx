@@ -28,6 +28,7 @@ import {
   uploadOneTexture,
   warmSchoolCompileFlush,
   warmSchoolOutlineCompileFlush,
+  warmDrawBehindCard,
 } from './shader-warm';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
 import {animeOutfit,ANIME_OUTFITS,type AnimeOutfit,type OutfitId} from './outfits';
@@ -974,31 +975,21 @@ const listOutfitMeshes=(root:T.Object3D)=>{
  return list;
 };
 
- const buildPracticeOutfitIncremental=async(
+/** Same material order as main finishCharacterLook; yield around the sync block only. */
+const buildPracticeOutfitIncremental=async(
  root:T.Object3D,
  outfit:AnimeOutfit,
  gradient:T.DataTexture,
  onSlice?:(index:number,total:number)=>void,
 )=>{
- const meshes=listOutfitMeshes(root);
- const total=Math.max(meshes.length+3,1);
- let step=0;
- const tick=()=>{step++;onSlice?.(step,total);};
- const budget=createSliceBudget();
- for(let i=0;i<meshes.length;i++){
-  applyOutfitMaterialsToObject(meshes[i],outfit);
-  applyCelShadingToObject(meshes[i],gradient);
-  if(sliceBudgetElapsed(budget)>=SLICE_BUDGET_MS||i===meshes.length-1){
-   tick();
-   await yieldForSliceBudget(budget,true);
-   resetSliceBudget(budget);
-  }
- }
- const painted=await paintPracticeBodySkinIncremental(root);
- if(painted)root.userData.practiceBodySkinMap=painted;
- restyleHairBun(root);
- tick();
- await yieldForSliceBudget(budget,true);
+ await yieldOnce();
+ const t0=performance.now();
+ finishCharacterLook(root,outfit,gradient);
+ const ms=Math.round(performance.now()-t0);
+ if(ms>=SLICE_BUDGET_MS)console.debug('atlas:phase','build-practice-sync',ms);
+ onSlice?.(1,1);
+ await yieldOnce();
+ await yieldToMain();
 };
 
 const finishCharacterLook=(root:T.Object3D,outfit:AnimeOutfit,gradient:T.DataTexture)=>{
@@ -1153,9 +1144,11 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(performance.getEntriesByName(OUTFIT_SWITCH_START,'mark').length)outfitSwitchMeasurePending=true;
   };
 
-  const finalizePracticeShell=()=>{
+  const buildPracticeOutfit=()=>{
    if(practiceBuilt||!practiceShell||disposed)return;
    performance.mark('practice-outfit-build-start');
+   practiceShell.updateMatrixWorld(true);
+   finishCharacterLook(practiceShell,practiceOutfit,gradient);
    const painted=practiceShell.userData.practiceBodySkinMap as T.Texture|undefined;
    if(schoolModel&&painted)assertPracticeBodySkinMaps(practiceShell,schoolModel,painted);
    if(schoolModel&&uniformAssetSnap)assertUniformOutfitUntouched(uniformAssetSnap,schoolModel);
@@ -1166,7 +1159,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    practiceShell.visible=false;
    practiceShell.updateMatrixWorld(true);
    practiceBuilt=true;
-   if(!pendingOutfitId)onPracticeOutfitPreparing?.(false);
+   onPracticeOutfitPreparing?.(false);
    dirty=true;
   };
 
@@ -1214,29 +1207,6 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const buildPostWarmQueue=()=>{
    postWarmQueue=[];
    if(cacheAnimeOutfitsFlag){
-    postWarmQueue.push({name:'clone-practice',practiceRelated:true,run:async()=>{
-     await yieldOnce();
-     if(disposed||practiceShell||!schoolModel)return;
-     const t0=performance.now();
-     performance.mark('atlas:phase-clone-practice-start');
-     practiceShell=cloneSkinnedObject(schoolModel);
-     await yieldOnce();
-     if(disposed)return;
-     isolatePracticeRig(practiceShell);
-     performance.mark('atlas:phase-clone-practice-end');
-     logPhase('clone-practice',t0);
-    }});
-    postWarmQueue.push({name:'build-practice',practiceRelated:true,run:async()=>{
-     await yieldOnce();
-     if(disposed||!practiceShell||practiceBuilt)return;
-     const t0=performance.now();
-     await buildPracticeOutfitIncremental(practiceShell,practiceOutfit,gradient);
-     await yieldOnce();
-     if(disposed)return;
-     finalizePracticeShell();
-     practiceWarm=true;
-     logPhase('build-practice',t0);
-    }});
     postWarmQueue.push({name:'attach-practice-warm',practiceRelated:true,run:async()=>{
      if(disposed||!practiceModel)return;
      const batch:typeof postWarmQueue=[];
@@ -1422,9 +1392,15 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const setOutfit=(id:OutfitId)=>{
    if(!schoolModel)return;
    if(id==='study-body'&&!practiceBuilt){
-    pendingOutfitId=id;
     onPracticeOutfitPreparing?.(true);
-    prioritizePracticeWarm();
+    requestAnimationFrame(()=>{
+     requestAnimationFrame(()=>{
+      if(disposed||practiceBuilt||!practiceShell)return;
+      buildPracticeOutfit();
+      showOutfit(id);
+      if(ready)teaching.applyCachedAnchors();
+     });
+    });
     return;
    }
    pendingOutfitId=null;
@@ -1533,6 +1509,14 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       await parseSlice('vrm-combine-skeletons',()=>VRMUtils.combineSkeletons(gltf.scene));
      }
      if(cacheAnimeOutfits){
+      await parseSlice('clone-practice-shell',()=>{
+       practiceShell=cloneSkinnedObject(model);
+      });
+      await yieldToMain();
+      if(disposed)return;
+      await parseSlice('isolate-practice',()=>{
+       if(practiceShell)isolatePracticeRig(practiceShell);
+      });
       await parseSlice('finish-school-look',()=>finishCharacterLook(model,schoolOutfit,gradient));
       uniformAssetSnap=snapshotMeshAssets(model);
       schoolModel=model;
@@ -1568,8 +1552,10 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      await prepareSchoolCardMaterials(schoolRoot,bumpMaterials);
      reportProgress(99,'materials','準備材質…');
      if(disposed)return;
-     showOutfit(outfitIdRef.current);
      characterRoot.visible=true;
+     await warmDrawBehindCard(renderer,scene,camera,[schoolRoot,characterRoot],()=>disposed,postWarmWarmedKeys);
+     if(disposed)return;
+     showOutfit(outfitIdRef.current);
      teachingOverlayVisible=true;
      const launchSim=sim.current;
      if(launchSim.focus>0&&teaching.focus(launchSim,camera,controls,{force:true}))lastFocus=launchSim.focus;
