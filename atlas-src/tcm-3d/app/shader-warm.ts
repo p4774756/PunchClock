@@ -80,7 +80,6 @@ const textureOnGpu = (renderer: T.WebGLRenderer, texture: T.Texture): boolean =>
   return props?.__webglTexture !== undefined;
 };
 
-const FLUSH_VIEWPORT = 64;
 const _readPixel = new Uint8Array(4);
 
 type ImageLike = CanvasImageSource & {width: number; height: number};
@@ -93,55 +92,10 @@ const textureImage = (tex: T.Texture): ImageLike | null => {
 
 const textureMetaLabel = (tex: T.Texture): string => tex.name || `tex#${tex.id}`;
 
-/**
- * Real mini draw + readPixels so SwiftShader finishes sampling work inside the load slice
- * (1×1 scissor alone does not).
- */
-export const flushGpuSlice = (renderer: T.WebGLRenderer, scene: T.Scene, camera: T.Camera) => {
-  const gl = renderer.getContext();
-  const prevTarget = renderer.getRenderTarget();
-  const prevViewport = new T.Vector4();
-  renderer.getViewport(prevViewport);
-  const prevScissorTest = renderer.getScissorTest();
-  const prevScissor = new T.Vector4();
-  renderer.getScissor(prevScissor);
-  try {
-    renderer.setRenderTarget(null);
-    renderer.setScissorTest(false);
-    renderer.setViewport(0, 0, FLUSH_VIEWPORT, FLUSH_VIEWPORT);
-    renderer.render(scene, camera);
-    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, _readPixel);
-    if (typeof gl.finish === 'function') gl.finish();
-  } catch {
-    /* software WebGL */
-  } finally {
-    renderer.setRenderTarget(prevTarget);
-    renderer.setViewport(prevViewport);
-    renderer.setScissor(prevScissor);
-    renderer.setScissorTest(prevScissorTest);
-  }
-};
-
-const warmSliceRender = (
-  renderer: T.WebGLRenderer,
-  scene: T.Scene,
-  camera: T.Camera,
-  fullFrame?: boolean,
-) => {
-  if (fullFrame) {
-    try {
-      renderer.render(scene, camera);
-      const gl = renderer.getContext();
-      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, _readPixel);
-      if (typeof gl.finish === 'function') gl.finish();
-    } catch {
-      /* software WebGL */
-    }
-    return;
-  }
+const warmScissorRender = (renderer: T.WebGLRenderer, scene: T.Scene, camera: T.Camera) => {
   const scissorOn = renderer.getScissorTest();
   renderer.setScissorTest(true);
-  renderer.setScissor(0, 0, FLUSH_VIEWPORT, FLUSH_VIEWPORT);
+  renderer.setScissor(0, 0, 1, 1);
   try {
     renderer.render(scene, camera);
   } catch {
@@ -191,22 +145,23 @@ export const uploadTexturesIncremental = async (opts: {
     if (disposed()) break;
     resetSliceBudget(budget);
     while (i < pending.length) {
+      const tex = pending[i];
       const t0 = performance.now();
       try {
-        renderer.initTexture(pending[i]);
+        renderer.initTexture(tex);
       } catch {
         /* software WebGL */
       }
       const ms = performance.now() - t0;
-      const img = textureImage(pending[i]);
+      const img = textureImage(tex);
       if (import.meta.env.DEV || ms > SLICE_BUDGET_MS) {
         console.debug(
           'atlas:texture-upload',
-          textureMetaLabel(pending[i]),
+          textureMetaLabel(tex),
           img?.width ?? 0,
           img?.height ?? 0,
-          pending[i].format,
-          pending[i].generateMipmaps,
+          tex.format,
+          tex.generateMipmaps,
           Math.round(ms),
         );
       }
@@ -257,8 +212,6 @@ export const warmShadersIncremental = async (opts: {
   warmedKeys?: Set<string>;
   /** Outline pass only — fills MToon outline shaders before the first full frame. */
   outlineOnly?: boolean;
-  /** After each program group, flush GPU with a real mini viewport draw. */
-  flushGpu?: boolean;
 }): Promise<ShaderWarmResult> => {
   const {
     renderer,
@@ -272,7 +225,6 @@ export const warmShadersIncremental = async (opts: {
     keepSceneChrome,
     warmedKeys,
     outlineOnly,
-    flushGpu = true,
   } = opts;
   const programsBefore = programCount(renderer);
   const warmRoots = roots?.length ? roots : [root];
@@ -311,9 +263,8 @@ export const warmShadersIncremental = async (opts: {
     const restoreChrome = keepSceneChrome ? () => {} : hideSceneChrome(scene);
     try {
       await renderer.compileAsync(scene, camera);
-      if (flushGpu) flushGpuSlice(renderer, scene, camera);
     } catch {
-      warmSliceRender(renderer, scene, camera);
+      warmScissorRender(renderer, scene, camera);
     } finally {
       restoreChrome();
       restoreMeshes();
@@ -329,7 +280,7 @@ export const warmShadersIncremental = async (opts: {
       const restoreMeshes = setRootMeshVisibility(meshes, new Set([rep]));
       const restoreChrome = keepSceneChrome ? () => {} : hideSceneChrome(scene);
       try {
-        warmSliceRender(renderer, scene, camera);
+        warmScissorRender(renderer, scene, camera);
       } catch {
         /* software WebGL */
       } finally {
@@ -362,15 +313,76 @@ export type FinalRenderStats = {
   programKeys: string[];
 };
 
-/** Full-size warm-up render — programs/textures must not grow vs pre-call counts. */
-export const finalSceneRender = (
+type TileRect = {x: number; y: number; w: number; h: number};
+
+const FINAL_TILE_PX = 128;
+
+const yieldBetweenTiles = async () => {
+  await yieldOnce();
+};
+
+/**
+ * Full-resolution pre-draw in scissor tiles while the load card is up — keeps the first
+ * post-card frame cheap on SwiftShader (readPixels syncs GPU; never call gl.finish).
+ */
+export const finalSceneRenderTiled = async (
   renderer: T.WebGLRenderer,
   scene: T.Scene,
   camera: T.Camera,
   programsBefore: number,
   texturesBefore: number,
-): FinalRenderStats => {
-  warmSliceRender(renderer, scene, camera, true);
+  disposed?: () => boolean,
+): Promise<FinalRenderStats> => {
+  const buf = new T.Vector2();
+  renderer.getDrawingBufferSize(buf);
+  const fullW = Math.max(1, Math.floor(buf.x));
+  const fullH = Math.max(1, Math.floor(buf.y));
+
+  const gl = renderer.getContext();
+  const prevTarget = renderer.getRenderTarget();
+  const prevViewport = new T.Vector4();
+  renderer.getViewport(prevViewport);
+  const prevScissorTest = renderer.getScissorTest();
+  const prevScissor = new T.Vector4();
+  renderer.getScissor(prevScissor);
+
+  const tw = Math.min(FINAL_TILE_PX, fullW);
+  const th = Math.min(FINAL_TILE_PX, fullH);
+  const queue: TileRect[] = [
+    {
+      x: Math.max(0, Math.floor(fullW / 2 - tw / 2)),
+      y: Math.max(0, Math.floor(fullH / 2 - th / 2)),
+      w: tw,
+      h: th,
+    },
+  ];
+
+  let tileIndex = 0;
+  renderer.setRenderTarget(null);
+  renderer.setScissorTest(true);
+
+  try {
+    while (queue.length) {
+      if (disposed?.()) break;
+      const tile = queue.shift()!;
+      const scissorY = fullH - tile.y - tile.h;
+      renderer.setScissor(tile.x, scissorY, tile.w, tile.h);
+      renderer.setViewport(tile.x, scissorY, tile.w, tile.h);
+      const t0 = performance.now();
+      renderer.render(scene, camera);
+      gl.readPixels(tile.x, scissorY, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, _readPixel);
+      const ms = performance.now() - t0;
+      console.debug('atlas:final-tile', tileIndex, Math.round(ms));
+      tileIndex++;
+      await yieldBetweenTiles();
+    }
+  } finally {
+    renderer.setRenderTarget(prevTarget);
+    renderer.setViewport(prevViewport);
+    renderer.setScissor(prevScissor);
+    renderer.setScissorTest(prevScissorTest);
+  }
+
   const newPrograms = Math.max(0, programCount(renderer) - programsBefore);
   const newTextures = Math.max(0, textureCount(renderer) - texturesBefore);
   const stats = {newPrograms, newTextures, programKeys: programCacheKeys(renderer)};

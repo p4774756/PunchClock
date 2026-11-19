@@ -112,8 +112,17 @@ export default function Home(){
  useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){setAbout(false);setMobilePanel(null);pause();}if(event.key==='/'&&!(event.target instanceof HTMLInputElement)&&!(event.target instanceof HTMLTextAreaElement)){event.preventDefault();setMobilePanel('library');searchInput.current?.focus();}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[pause]);
 
  const prepareFocus=()=>setState(s=>({...s,explode:0,rotate:false,isolate:false,selected:[]}));
- const switchOutfit=(id:OutfitId)=>{
+ const switchOutfit=(id:OutfitId,btn?:HTMLButtonElement)=>{
   if(id===outfitId||!currentAvatar.hasOutfits)return;
+  if(btn){
+   const bar=btn.closest('.outfit-bar');
+   bar?.querySelectorAll('button[type="button"]').forEach(b=>{
+    b.classList.remove('selected');
+    b.setAttribute('aria-pressed','false');
+   });
+   btn.classList.add('selected');
+   btn.setAttribute('aria-pressed','true');
+  }
   performance.clearMarks('atlas:outfit-switch-start');
   performance.clearMarks('atlas:outfit-switch-end');
   performance.clearMarks('atlas:outfit-pressed');
@@ -220,7 +229,7 @@ export default function Home(){
 
   {showOutfitBar&&<nav className="outfit-bar surface" aria-label="動漫服裝"><span className="outfit-label">換裝</span>{ANIME_OUTFITS.map(outfit=>{
    const pending=outfit.id==='study-body'&&practicePreparing&&outfitId==='study-body';
-   return <button key={outfit.id} type="button" className={`${outfitId===outfit.id?'selected':''}${pending?' is-pending':''}`} aria-pressed={outfitId===outfit.id} title={outfit.blurb} onClick={()=>switchOutfit(outfit.id)}>{outfit.shortName}{pending&&<span className="outfit-pending" aria-hidden="true"/>}</button>;
+   return <button key={outfit.id} type="button" className={`${outfitId===outfit.id?'selected':''}${pending?' is-pending':''}`} aria-pressed={outfitId===outfit.id} title={outfit.blurb} onPointerDown={e=>{if(e.button!==0)return; switchOutfit(outfit.id,e.currentTarget);}} onClick={e=>{if(e.detail===0)switchOutfit(outfit.id,e.currentTarget);}}>{outfit.shortName}{pending&&<span className="outfit-pending" aria-hidden="true"/>}</button>;
   })}</nav>}
   {practicePreparing&&outfitId==='study-body'&&<p className="practice-outfit-hint surface" role="status" aria-live="polite">準備練習裝…</p>}
 

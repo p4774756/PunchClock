@@ -21,7 +21,7 @@ import {
   groupMeshesByProgram,
   programCount,
   textureCount,
-  finalSceneRender,
+  finalSceneRenderTiled,
   uploadTexturesIncremental,
   warmShadersIncremental,
 } from './shader-warm';
@@ -1028,8 +1028,11 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    await yieldToMain();
    await yieldToMain();
    if(disposed)throw new Error('disposed');
+   const glT0=performance.now();
    try{renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});}
    catch{onError('無法啟動 3D 視圖，請使用支持 WebGL 的瀏覽器。');throw new Error('no-gl');}
+   const glMs=Math.round(performance.now()-glT0);
+   if(glMs>SLICE_BUDGET_MS)console.debug('atlas:program-slice','WebGLRenderer',glMs);
    if(import.meta.env.PROD)renderer.debug.checkShaderErrors=false;
    glReady=true;
    return renderer;
@@ -1359,7 +1362,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       const t0=performance.now();
       work();
       const ms=Math.round(performance.now()-t0);
-      if(import.meta.env.DEV)console.debug('atlas:parse-slice',label,ms);
+      if(import.meta.env.DEV||ms>SLICE_BUDGET_MS)console.debug('atlas:parse-slice',label,ms);
       await yieldToMain();
       if(ms>SLICE_BUDGET_MS)await yieldOnce();
      };
@@ -1439,11 +1442,14 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      showOutfit(outfitIdRef.current);
      characterRoot.visible=true;
      teachingOverlayVisible=true;
+     const launchSim=sim.current;
+     if(launchSim.focus>0&&teaching.focus(launchSim,camera,controls,{force:true}))lastFocus=launchSim.focus;
+     else fit(latest.current.view);
      const programsBeforeFinal=programCount(renderer);
      const texturesBeforeFinal=textureCount(renderer);
      teaching.update(sim.current,camera,el.clientWidth,el.clientHeight,true);
      dirty=true;
-     finalSceneRender(renderer,scene,camera,programsBeforeFinal,texturesBeforeFinal);
+     await finalSceneRenderTiled(renderer,scene,camera,programsBeforeFinal,texturesBeforeFinal,()=>disposed);
      dirty=false;
      finishOutfitSwitchMeasure();
      await yieldToMain();
@@ -1451,16 +1457,6 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      ready=true;
      sceneReady.current=true;
      reportProgress(100,'done');
-     if(!skinProxyBakeScheduled){
-      skinProxyBakeScheduled=true;
-      const bake=()=>{void teaching.ensureSkinProxyBake(characterRoot,()=>disposed);};
-      if(typeof requestIdleCallback==='function')requestIdleCallback(bake);
-      else setTimeout(bake,64);
-     }
-     const launchSim=sim.current;
-     if(launchSim.focus>0&&teaching.focus(launchSim,camera,controls,{force:true}))lastFocus=launchSim.focus;
-     else fit(latest.current.view);
-     dirty=true;
      performance.mark('atlas:model-visible');
      try{performance.measure('atlas:model-visible','atlas:boot-start','atlas:model-visible');}catch{/* duplicate */}
     })();
@@ -1475,7 +1471,10 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   let toolInput:ReturnType<typeof installSurfaceToolInput>|undefined;
   const raycaster=new T.Raycaster(),pointer=new T.Vector2(),tap=new PointerTap();
   const down=(e:PointerEvent)=>{
-   if(ready&&!teaching.hasSkinProxies())void teaching.ensureSkinProxyBake(characterRoot,()=>disposed);
+   if(!skinProxyBakeScheduled){
+    skinProxyBakeScheduled=true;
+    void teaching.ensureSkinProxyBake(characterRoot,()=>disposed);
+   }
    tap.down(e.pointerId,e.clientX,e.clientY,e.pointerType==='touch'?12:5);
   };
   const move=(e:PointerEvent)=>{tap.move(e.pointerId,e.clientX,e.clientY);};
