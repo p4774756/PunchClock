@@ -4,6 +4,7 @@ import {DEFAULT_AVATAR_ID,animeAvatar,avatarLessonNote,avatarPracticeOpen,avatar
 import {ANIME_OUTFITS,DEFAULT_OUTFIT_ID,animeOutfit,type OutfitId} from './outfits';
 import {LOAD_STEP_LABELS,type AtlasLoadProgress} from './load-progress';
 import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState,type CSSProperties,type PointerEvent as ReactPointerEvent} from 'react';
+import {flushSync} from 'react-dom';
 import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Focus,Info,Layers3,MapPin,Maximize2,Pause,Play,RotateCcw,RotateCw,Search,SlidersHorizontal,X} from 'lucide-react';
 import type {SceneState,View} from './anatomy';
 import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,isPracticeDeferred,LOCATION,POINTS,POINT_BY_CODE,MERIDIANS,pointInCurriculum,practiceOpenCodes,REGIONS,STANDARD,TOOLS,type CurriculumSetId,type RegionId,type SimulationState,type SurfaceTarget,type ToolId,type ToolDragPhase} from './teaching';
@@ -119,8 +120,8 @@ export default function Home(){
   performance.mark('atlas:outfit-switch-start');
   performance.mark('atlas:outfit-pressed');
   const next=animeOutfit(id);
-  setOutfitId(id);
-  requestAnimationFrame(()=>requestAnimationFrame(()=>performance.mark('atlas:outfit-ui-painted')));
+  flushSync(()=>setOutfitId(id));
+  performance.mark('atlas:outfit-ui-painted');
   setError('');
   setFeedback(`已換裝：${next.name}。`);
  };
@@ -205,7 +206,7 @@ export default function Home(){
      <span className="loading-symbol">{error?(<Info size={23}/>):(<Layers3 size={23}/>)}</span>
      <strong>{error?'模型暫未就緒':('正在迎接'+currentAvatar.shortName)}</strong>
      <p>{error||(loadStep||('載入 '+currentOutfit.name+' 與已對應穴位標記。'))}</p>
-     {!error&&<><div className="load-track"><i style={{width:progress+'%'}}/></div><small>{progress}%</small></>}
+     {!error&&<><div className="load-track load-track-shimmer"><i style={{width:progress+'%'}}/></div><small>{progress}%</small></>}
      {error&&<button className="text-button" onClick={()=>window.location.reload()}>重新加載</button>}
     </div>
    )}

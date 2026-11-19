@@ -13,7 +13,7 @@ export type AtlasLoadProgress = {
 };
 
 export const LOAD_STEP_LABELS: Record<AtlasLoadStep, string> = {
-  program: '載入程式',
+  program: '建立畫面',
   download: '下載模型',
   parse: '解析模型',
   anchor: '對應穴位',
@@ -30,6 +30,18 @@ export const yieldToMain = (): Promise<void> =>
 export const yieldSlice = (): Promise<void> =>
   new Promise(resolve => {
     requestAnimationFrame(() => setTimeout(() => resolve(), 0));
+  });
+
+/** Single macrotask yield — keeps shader link off the critical path between programs. */
+export const yieldOnce = (): Promise<void> =>
+  new Promise(resolve => {
+    if (typeof MessageChannel !== 'undefined') {
+      const ch = new MessageChannel();
+      ch.port1.onmessage = () => resolve();
+      ch.port2.postMessage(null);
+    } else {
+      setTimeout(() => resolve(), 0);
+    }
   });
 
 export const DOWNLOAD_PERCENT_MIN = 12;

@@ -1,24 +1,25 @@
 import * as T from 'three';
-import {yieldSlice} from './load-progress';
+import {yieldOnce, yieldSlice} from './load-progress';
 
-const stashSceneChrome = (scene: T.Scene, keep: T.Object3D) => {
+/** Hide panorama / ground / platform / ring only — never lights or fog. */
+export const hideSceneChrome = (scene: T.Scene) => {
   const saved: {obj: T.Object3D; visible: boolean}[] = [];
-  const isAncestorOfKeep = (obj: T.Object3D) => {
-    let p: T.Object3D | null = keep;
-    while (p) {
-      if (p === obj) return true;
-      p = p.parent;
-    }
-    return false;
-  };
-  for (const child of scene.children) {
-    if (child === keep || isAncestorOfKeep(child)) continue;
-    saved.push({obj: child, visible: child.visible});
-    child.visible = false;
-  }
+  scene.traverse(obj => {
+    if (!obj.userData?.atlasSceneChrome) return;
+    saved.push({obj, visible: obj.visible});
+    obj.visible = false;
+  });
   return () => saved.forEach(({obj, visible}) => {
     obj.visible = visible;
   });
+};
+
+export const materialProgramKey = (material: T.Material): string => {
+  const custom =
+    typeof material.customProgramCacheKey === 'function' ? material.customProgramCacheKey() : '';
+  const defines = (material as {defines?: Record<string, unknown>}).defines;
+  const defineKey = defines ? JSON.stringify(defines, Object.keys(defines).sort()) : '';
+  return `${material.type}|${custom}|${defineKey}`;
 };
 
 export const collectRenderableMeshes = (root: T.Object3D): (T.Mesh | T.SkinnedMesh)[] => {
@@ -27,6 +28,52 @@ export const collectRenderableMeshes = (root: T.Object3D): (T.Mesh | T.SkinnedMe
     if ((obj instanceof T.Mesh || obj instanceof T.SkinnedMesh) && obj.geometry) meshes.push(obj);
   });
   return meshes;
+};
+
+/** One representative mesh per unique material program (type / defines / custom key). */
+export const groupMeshesByProgram = (
+  meshes: (T.Mesh | T.SkinnedMesh)[],
+): {key: string; mesh: T.Mesh | T.SkinnedMesh}[] => {
+  const groups = new Map<string, T.Mesh | T.SkinnedMesh>();
+  for (const mesh of meshes) {
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const mat of mats) {
+      if (!mat?.visible) continue;
+      const key = materialProgramKey(mat);
+      if (!groups.has(key)) groups.set(key, mesh);
+    }
+  }
+  return [...groups.entries()].map(([key, mesh]) => ({key, mesh}));
+};
+
+export const programCount = (renderer: T.WebGLRenderer): number =>
+  renderer.info?.programs?.length ?? 0;
+
+const supportsParallelCompile = (renderer: T.WebGLRenderer): boolean => {
+  try {
+    return renderer.getContext().getExtension('KHR_parallel_shader_compile') != null;
+  } catch {
+    return false;
+  }
+};
+
+const warmScissorRender = (renderer: T.WebGLRenderer, scene: T.Scene, camera: T.Camera) => {
+  const scissorOn = renderer.getScissorTest();
+  renderer.setScissorTest(true);
+  renderer.setScissor(0, 0, 1, 1);
+  renderer.render(scene, camera);
+  renderer.setScissorTest(scissorOn);
+};
+
+const setRootMeshVisibility = (
+  meshes: (T.Mesh | T.SkinnedMesh)[],
+  visible: Set<T.Mesh | T.SkinnedMesh>,
+) => {
+  const saved = meshes.map(m => m.visible);
+  for (const m of meshes) m.visible = visible.has(m);
+  return () => meshes.forEach((m, i) => {
+    m.visible = saved[i];
+  });
 };
 
 export const uploadTexturesIncremental = async (opts: {
@@ -48,44 +95,75 @@ export const uploadTexturesIncremental = async (opts: {
   }
 };
 
+export type ShaderWarmResult = {programsBefore: number; programsAfter: number};
+
+const filterWarmMeshes = (root: T.Object3D) =>
+  collectRenderableMeshes(root).filter(
+    m => !/Outline/i.test(m.name) && !/Outline/i.test((m.material as T.Material)?.name ?? ''),
+  );
+
 export const warmShadersIncremental = async (opts: {
   renderer: T.WebGLRenderer;
   scene: T.Scene;
   camera: T.Camera;
   root: T.Object3D;
+  roots?: T.Object3D[];
   disposed: () => boolean;
   onSlice?: (index: number, total: number) => void;
-}) => {
-  const {renderer, scene, camera, root, disposed, onSlice} = opts;
-  const meshes = collectRenderableMeshes(root).filter(
-    m => !/Outline/i.test(m.name) && !/Outline/i.test((m.material as T.Material)?.name ?? ''),
-  );
-  if (!meshes.length) return;
-  const saved = meshes.map(m => m.visible);
-  const hadRootVisible = root.visible;
-  root.visible = true;
-  for (let i = 0; i < meshes.length; i++) {
-    if (disposed()) break;
-    for (let j = 0; j < meshes.length; j++) meshes[j].visible = saved[j] && j === i;
-    root.updateMatrixWorld(true);
-    await yieldSlice();
-    const restoreChrome = stashSceneChrome(scene, root);
+  /** Use rAF between slices when updating a visible progress bar. */
+  progressSlices?: boolean;
+}): Promise<ShaderWarmResult> => {
+  const {renderer, scene, camera, root, roots, disposed, onSlice, progressSlices} = opts;
+  const programsBefore = programCount(renderer);
+  const warmRoots = roots?.length ? roots : [root];
+  const meshes = warmRoots.flatMap(r => filterWarmMeshes(r));
+  if (!meshes.length) return {programsBefore, programsAfter: programsBefore};
+
+  const groups = groupMeshesByProgram(meshes);
+  const parallel = supportsParallelCompile(renderer);
+  const yieldBetween = progressSlices ? yieldSlice : yieldOnce;
+  const visSaved = warmRoots.map(r => ({r, visible: r.visible}));
+  for (const r of warmRoots) {
+    r.visible = true;
+    r.updateMatrixWorld(true);
+  }
+
+  if (parallel && typeof renderer.compileAsync === 'function') {
+    const reps = new Set(groups.map(g => g.mesh));
+    const restoreMeshes = setRootMeshVisibility(meshes, reps);
+    const restoreChrome = hideSceneChrome(scene);
     try {
-      const scissorOn = renderer.getScissorTest();
-      renderer.setScissorTest(true);
-      renderer.setScissor(0, 0, 1, 1);
-      renderer.render(scene, camera);
-      renderer.setScissorTest(scissorOn);
+      await renderer.compileAsync(scene, camera);
+    } catch {
+      warmScissorRender(renderer, scene, camera);
+    } finally {
+      restoreChrome();
+      restoreMeshes();
+    }
+    onSlice?.(groups.length, groups.length);
+  } else {
+    const reps = new Set(groups.map(g => g.mesh));
+    const restoreMeshes = setRootMeshVisibility(meshes, reps);
+    root.updateMatrixWorld(true);
+    const restoreChrome = hideSceneChrome(scene);
+    try {
+      warmScissorRender(renderer, scene, camera);
     } catch {
       /* software WebGL */
     } finally {
       restoreChrome();
+      restoreMeshes();
     }
-    onSlice?.(i + 1, meshes.length);
-    await yieldSlice();
+    onSlice?.(groups.length, groups.length);
+    await yieldBetween();
   }
-  meshes.forEach((m, idx) => {
-    m.visible = saved[idx];
+
+  visSaved.forEach(({r, visible}) => {
+    r.visible = visible;
   });
-  root.visible = hadRootVisible;
+  const programsAfter = programCount(renderer);
+  if (import.meta.env.DEV) {
+    console.debug('atlas:shader-warm programs', programsBefore, '→', programsAfter);
+  }
+  return {programsBefore, programsAfter};
 };

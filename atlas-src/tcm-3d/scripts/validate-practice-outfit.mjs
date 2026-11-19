@@ -34,9 +34,15 @@ assert.doesNotMatch(src, /SHOULDER_ARTIFACT|isShoulderArtifactPx/, 'shoulder fix
 assert.match(src, /data\.data\[i\+3\]>=200\)continue[\s\S]*paintShoulderAlphaHole/, 'shoulder fix fills alpha<200 from nearby skin');
 assert.match(src, /isHairMaterial/, 'hair-specific cel shading to preserve blue-violet');
 assert.match(src, /syncHairBunMaterial/, 'bun materials must track hair MToon chroma');
-assert.match(src, /schedulePracticeWarm/, 'practice outfit must warm after first frame');
+assert.match(src, /buildPracticeOutfitIncremental/, 'practice outfit must build per mesh during materials phase');
+assert.match(src, /schedulePracticeWarm/, 'practice outfit must have background warm fallback');
 assert.match(src, /uploadTexturesIncremental/, 'practice warm must upload outfit textures in slices');
-assert.match(src, /warmShadersIncremental/, 'practice warm must shader-warm visible practice rig per mesh');
+assert.match(src, /warmShadersIncremental/, 'practice warm must shader-warm by program group');
+const shaderWarm = await readFile(join(root, 'app/shader-warm.ts'), 'utf8');
+assert.match(shaderWarm, /hideSceneChrome/, 'shader warm must hide scene chrome only');
+assert.match(shaderWarm, /atlasSceneChrome/, 'scene chrome must be tagged on panorama/ground');
+assert.match(shaderWarm, /groupMeshesByProgram|materialProgramKey/, 'shader warm must group by program cache key');
+assert.doesNotMatch(shaderWarm, /stashSceneChrome/, 'must not hide all non-character scene children (lights)');
 assert.match(src, /finishOutfitSwitchMeasure/, 'outfit switch measure must end after render');
 assert.match(
   src,

@@ -7,10 +7,11 @@ import {
   createDownloadProgressState,
   creepLoadingPercent,
   nextModelDownloadProgress,
+  yieldOnce,
   yieldSlice,
   yieldToMain,
 } from './load-progress';
-import {uploadTexturesIncremental,warmShadersIncremental} from './shader-warm';
+import {programCount,uploadTexturesIncremental,warmShadersIncremental} from './shader-warm';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
 import {animeOutfit,ANIME_OUTFITS,type AnimeOutfit,type OutfitId} from './outfits';
 import {useEffect,useRef} from 'react';
@@ -65,42 +66,44 @@ type MToonLike=T.Material & {
 const isHairMaterial=(mat:T.Material)=>/HAIR|HairBack|PracticeHairBun/i.test(mat.name||'');
 
 /** TV anime cel look: sharp shade bands + ink outline; keep #75 hide／hair／practice intact. */
-const applyCelShading=(root:T.Object3D,gradient:T.DataTexture)=>{
- root.traverse((obj:T.Object3D)=>{
-  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
-  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
-  for(const mat of mats){
-   const m=mat as MToonLike & T.MeshStandardMaterial & {isMeshToonMaterial?:boolean;gradientMap?:T.Texture|null;envMapIntensity?:number};
-   const hair=isHairMaterial(m);
-   if(m.isMToonMaterial){
-    m.shadingToonyFactor=hair?.88:.94;
-    m.shadingShiftFactor=Math.min(m.shadingShiftFactor??0,hair?-.02:-.06);
-    if(m.shadeColorFactor)m.shadeColorFactor.multiplyScalar(hair?.97:.88);
-    m.giEqualizationFactor=Math.min(m.giEqualizationFactor??1,hair?.64:.52);
-    m.outlineWidthMode=MToonMaterialOutlineWidthMode.WorldCoordinates;
-    const ow=m.outlineWidthFactor??0.0024;
-    m.outlineWidthFactor=Math.min(Math.max(ow,.0016),.0022);
-    if(m.outlineColorFactor)m.outlineColorFactor.setRGB(.12,.09,.07);
-    if(m.parametricRimColorFactor)m.parametricRimColorFactor.setRGB(0,0,0);
-    if(m.rimLightingMixFactor!=null)m.rimLightingMixFactor=0;
-    if(m.matcapFactor)m.matcapFactor.multiplyScalar(.3);
-    m.needsUpdate=true;
-    continue;
-   }
-   if(m.isMeshToonMaterial){
-    m.gradientMap=gradient;
-    if(hair&&m.color)m.color.copy(m.color).multiplyScalar(1.04);
-    m.needsUpdate=true;
-    continue;
-   }
-   if(m.isMeshStandardMaterial||(m as T.MeshPhysicalMaterial).isMeshPhysicalMaterial){
-    m.roughness=Math.max(m.roughness??.5,.82);
-    m.metalness=Math.min(m.metalness??0,.04);
-    if(m.envMapIntensity!=null)m.envMapIntensity=.12;
-    m.needsUpdate=true;
-   }
+const applyCelShadingToObject=(obj:T.Object3D,gradient:T.DataTexture)=>{
+ if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+ const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+ for(const mat of mats){
+  const m=mat as MToonLike & T.MeshStandardMaterial & {isMeshToonMaterial?:boolean;gradientMap?:T.Texture|null;envMapIntensity?:number};
+  const hair=isHairMaterial(m);
+  if(m.isMToonMaterial){
+   m.shadingToonyFactor=hair?.88:.94;
+   m.shadingShiftFactor=Math.min(m.shadingShiftFactor??0,hair?-.02:-.06);
+   if(m.shadeColorFactor)m.shadeColorFactor.multiplyScalar(hair?.97:.88);
+   m.giEqualizationFactor=Math.min(m.giEqualizationFactor??1,hair?.64:.52);
+   m.outlineWidthMode=MToonMaterialOutlineWidthMode.WorldCoordinates;
+   const ow=m.outlineWidthFactor??0.0024;
+   m.outlineWidthFactor=Math.min(Math.max(ow,.0016),.0022);
+   if(m.outlineColorFactor)m.outlineColorFactor.setRGB(.12,.09,.07);
+   if(m.parametricRimColorFactor)m.parametricRimColorFactor.setRGB(0,0,0);
+   if(m.rimLightingMixFactor!=null)m.rimLightingMixFactor=0;
+   if(m.matcapFactor)m.matcapFactor.multiplyScalar(.3);
+   m.needsUpdate=true;
+   continue;
   }
- });
+  if(m.isMeshToonMaterial){
+   m.gradientMap=gradient;
+   if(hair&&m.color)m.color.copy(m.color).multiplyScalar(1.04);
+   m.needsUpdate=true;
+   continue;
+  }
+  if(m.isMeshStandardMaterial||(m as T.MeshPhysicalMaterial).isMeshPhysicalMaterial){
+   m.roughness=Math.max(m.roughness??.5,.82);
+   m.metalness=Math.min(m.metalness??0,.04);
+   if(m.envMapIntensity!=null)m.envMapIntensity=.12;
+   m.needsUpdate=true;
+  }
+ }
+};
+
+const applyCelShading=(root:T.Object3D,gradient:T.DataTexture)=>{
+ root.traverse((obj:T.Object3D)=>applyCelShadingToObject(obj,gradient));
 };
 
 /** 360° woodcut landscape panorama on an open inward cylinder (see issue #104). */
@@ -790,42 +793,70 @@ const restyleHairBun=(root:T.Object3D)=>{
  head.add(coil);
 };
 
-const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
- root.traverse((obj:T.Object3D)=>{
-  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
-  obj.frustumCulled=false;
-  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
-  for(const mat of mats){
-   const m=mat as T.MeshStandardMaterial & {isMToonMaterial?:boolean};
-   const name=materialLabel(m,obj);
-   const hide=outfit.hideMaterials.some(token=>name.includes(token));
-   m.visible=!hide;
-   if(hide){m.needsUpdate=true;continue;}
-   // MToon manages its own texture color space; forcing SRGB can mute litFactor maps.
-   if(m.map&&!m.isMToonMaterial){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
-   if(outfit.practiceBody){
-    // Hair trimmed／bun separately; do not force school-uniform translucency.
-   }else if(/HAIR|髪|HairBack/i.test(name)){
-    m.transparent=true;
-    m.opacity=/HairBack|Back/i.test(name)?Math.min(m.opacity??1,.42):Math.min(m.opacity??1,.55);
-    m.depthWrite=false;
-    m.side=T.DoubleSide;
-    m.needsUpdate=true;
-   }else if(outfit.softenMaterials.some(token=>name.includes(token))){
-    m.transparent=true;
-    m.opacity=Math.min(m.opacity??1,.78);
-    m.depthWrite=true;
-    m.needsUpdate=true;
-   }
+const applyOutfitMaterialsToObject=(obj:T.Object3D,outfit:AnimeOutfit)=>{
+ if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+ obj.frustumCulled=false;
+ const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+ for(const mat of mats){
+  const m=mat as T.MeshStandardMaterial & {isMToonMaterial?:boolean};
+  const name=materialLabel(m,obj);
+  const hide=outfit.hideMaterials.some(token=>name.includes(token));
+  m.visible=!hide;
+  if(hide){m.needsUpdate=true;continue;}
+  if(m.map&&!m.isMToonMaterial){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
+  if(outfit.practiceBody){
+   /* hair / bun handled separately */
+  }else if(/HAIR|髪|HairBack/i.test(name)){
+   m.transparent=true;
+   m.opacity=/HairBack|Back/i.test(name)?Math.min(m.opacity??1,.42):Math.min(m.opacity??1,.55);
+   m.depthWrite=false;
+   m.side=T.DoubleSide;
+   m.needsUpdate=true;
+  }else if(outfit.softenMaterials.some(token=>name.includes(token))){
+   m.transparent=true;
+   m.opacity=Math.min(m.opacity??1,.78);
+   m.depthWrite=true;
+   m.needsUpdate=true;
   }
-  if(outfit.practiceBody&&isPracticeUniformMesh(obj,outfit))obj.visible=false;
- });
- // Never add MeshBasic flesh balloons or hook MToon onBeforeCompile.
+ }
+ if(outfit.practiceBody&&isPracticeUniformMesh(obj,outfit))obj.visible=false;
+};
+
+const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
+ root.traverse((obj:T.Object3D)=>applyOutfitMaterialsToObject(obj,outfit));
  if(outfit.practiceBody){
   const painted=paintPracticeBodySkin(root);
   if(painted)root.userData.practiceBodySkinMap=painted;
   restyleHairBun(root);
  }
+};
+
+const listOutfitMeshes=(root:T.Object3D)=>{
+ const list:T.Object3D[]=[];
+ root.traverse(obj=>{if(obj instanceof T.Mesh||obj instanceof T.SkinnedMesh)list.push(obj);});
+ return list;
+};
+
+ const buildPracticeOutfitIncremental=async(
+ root:T.Object3D,
+ outfit:AnimeOutfit,
+ gradient:T.DataTexture,
+ onSlice?:(index:number,total:number)=>void,
+)=>{
+ const meshes=listOutfitMeshes(root);
+ const total=Math.max(Math.ceil(meshes.length/4)+2,1);
+ let step=0;
+ const tick=()=>{step++;onSlice?.(step,total);};
+ for(let i=0;i<meshes.length;i++){
+  applyOutfitMaterialsToObject(meshes[i],outfit);
+  applyCelShadingToObject(meshes[i],gradient);
+  if(i%4===3||i===meshes.length-1){tick();await yieldOnce();}
+ }
+ const painted=paintPracticeBodySkin(root);
+ if(painted)root.userData.practiceBodySkinMap=painted;
+ restyleHairBun(root);
+ tick();
+ await yieldOnce();
 };
 
 const finishCharacterLook=(root:T.Object3D,outfit:AnimeOutfit,gradient:T.DataTexture)=>{
@@ -849,20 +880,24 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const practiceOutfit=ANIME_OUTFITS.find(o=>o.id==='study-body')!;
   const points=avatarPracticePoints(avatar);
   const el=host.current!;let disposed=false,frame=0,dirty=true,ready=false,lastView='',lastReset=-1,lastFocus=-1;
-  let renderer:T.WebGLRenderer;
-  try{renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});}
-  catch{onError('無法啟動 3D 視圖，請使用支持 WebGL 的瀏覽器。');return;}
-  renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<768?1.5:2));
-  // Parchment clear matches panorama top／bottom fade (no box lid).
-  renderer.setClearColor('#f6ead7');renderer.outputColorSpace=T.SRGBColorSpace;
-  renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.86;
-  el.appendChild(renderer.domElement);
-  renderer.domElement.setAttribute('aria-label',`${avatar.name}：拖動旋轉，滾輪縮放，點擊穴位標記。`);
-
-  const scene=new T.Scene(),camera=new T.PerspectiveCamera(34,1,.005,100),controls=new OrbitControls(camera,renderer.domElement);
-  camera.position.set(0,1.45,2.4);controls.target.set(0,1.35,0);
-  controls.enableDamping=true;controls.dampingFactor=.085;controls.minDistance=.2;controls.maxDistance=8;
-  controls.maxPolarAngle=Math.PI*.96;controls.addEventListener('change',()=>{dirty=true;});
+  let renderer!:T.WebGLRenderer;
+  let shaderWarmPrograms:number|null=null;
+  let parseCreepTimer=0;
+  let glReady=false;
+  const ensureRenderer=async()=>{
+   if(glReady)return renderer;
+   await yieldToMain();
+   await yieldToMain();
+   if(disposed)throw new Error('disposed');
+   try{renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});}
+   catch{onError('無法啟動 3D 視圖，請使用支持 WebGL 的瀏覽器。');throw new Error('no-gl');}
+   if(import.meta.env.PROD)renderer.debug.checkShaderErrors=false;
+   glReady=true;
+   return renderer;
+  };
+  const scene=new T.Scene(),camera=new T.PerspectiveCamera(34,1,.005,100);
+  let controls!:OrbitControls;
+  camera.position.set(0,1.45,2.4);
   scene.environment=null;
 
   scene.add(new T.HemisphereLight(0xfff1dc,0x8a9a88,.85));
@@ -875,16 +910,17 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   panoramaLoader.load(publicAssetUrl(`textures/woodcut-landscape.webp?v=${WOODCUT_LANDSCAPE_DIGEST}`),loaded=>{
    if(disposed)return;
    woodcut=buildWoodcutBackdrop(loaded);
+   woodcut.mesh.userData.atlasSceneChrome=true;
    scene.add(woodcut.mesh);
    dirty=true;
   });
 
   const ground=makeFeetGround();
-  ground.rotation.x=-Math.PI/2;ground.position.y=-.01;scene.add(ground);
+  ground.rotation.x=-Math.PI/2;ground.position.y=-.01;ground.userData.atlasSceneChrome=true;scene.add(ground);
   const platform=new T.Mesh(new T.CylinderGeometry(.62,.64,.024,80),new T.MeshBasicMaterial({color:0xe8d8b8}));
-  platform.position.y=-.008;scene.add(platform);
+  platform.position.y=-.008;platform.userData.atlasSceneChrome=true;scene.add(platform);
   const ring=new T.Mesh(new T.RingGeometry(.57,.575,96),new T.MeshBasicMaterial({color:0x6a5238,transparent:true,opacity:.35,side:T.DoubleSide}));
-  ring.rotation.x=-Math.PI/2;ring.position.y=.001;scene.add(ring);
+  ring.rotation.x=-Math.PI/2;ring.position.y=.001;ring.userData.atlasSceneChrome=true;scene.add(ring);
 
   const gradient=toonGradient();
   const characterRoot=new T.Group();scene.add(characterRoot);
@@ -941,75 +977,67 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(performance.getEntriesByName(OUTFIT_SWITCH_START,'mark').length)outfitSwitchMeasurePending=true;
   };
 
-  const buildPracticeOutfit=()=>{
+  const finalizePracticeShell=()=>{
    if(practiceBuilt||!practiceShell||disposed)return;
    performance.mark('practice-outfit-build-start');
-   finishCharacterLook(practiceShell,practiceOutfit,gradient);
    const painted=practiceShell.userData.practiceBodySkinMap as T.Texture|undefined;
    if(schoolModel&&painted)assertPracticeBodySkinMaps(practiceShell,schoolModel,painted);
    if(schoolModel&&uniformAssetSnap)assertUniformOutfitUntouched(uniformAssetSnap,schoolModel);
    performance.mark('practice-outfit-build-end');
    try{performance.measure('practice-outfit-build','practice-outfit-build-start','practice-outfit-build-end');}catch{/* duplicate measure */}
    practiceModel=practiceShell;
-   characterRoot.add(practiceShell);
+   if(!practiceShell.parent)characterRoot.add(practiceShell);
+   practiceShell.visible=false;
    practiceShell.updateMatrixWorld(true);
    practiceBuilt=true;
    onPracticeOutfitPreparing?.(false);
    dirty=true;
   };
 
-  const warmModelMaterials=async(
-   root:T.Object3D,
-   onProgress?:(pct:number)=>void,
-  )=>{
-   const textures=collectMeshTextures(root);
-   const texSlices=Math.max(textures.length,1);
+  const prepareAllMaterials=async(primaryRoot:T.Object3D|null,onPct?:(pct:number)=>void)=>{
+   const textures=new Set<T.Texture>();
+   if(primaryRoot)for(const t of collectMeshTextures(primaryRoot))textures.add(t);
+   if(practiceShell&&practiceBuilt)for(const t of collectMeshTextures(practiceShell))textures.add(t);
+   const texList=[...textures];
    await uploadTexturesIncremental({
     renderer,
-    textures,
+    textures:texList,
     disposed:()=>disposed,
-    onSlice:(i,n)=>onProgress?.(92+Math.round((i/n)*4)),
+    onSlice:(i,n)=>onPct?.(92+Math.round((i/Math.max(n,1))*3)),
    });
    if(disposed)return;
-   await warmShadersIncremental({
-    renderer,
-    scene,
-    camera,
-    root,
-    disposed:()=>disposed,
-    onSlice:(i,n)=>onProgress?.(96+Math.round((i/n)*3)),
-   });
+   const warmRoots=[...(primaryRoot?[primaryRoot]:[]),...(practiceShell&&practiceBuilt?[practiceShell]:[])];
+   let warmPrograms=programCount(renderer);
+   if(warmRoots.length){
+    const warm=await warmShadersIncremental({
+     renderer,scene,camera,root:warmRoots[0],roots:warmRoots,disposed:()=>disposed,progressSlices:true,
+     onSlice:(i,n)=>onPct?.(95+Math.round((i/Math.max(n,1))*4)),
+    });
+    warmPrograms=warm.programsAfter;
+   }
+   shaderWarmPrograms=warmPrograms;
+   onPct?.(99);
   };
 
   const schedulePracticeWarm=()=>{
    if(practiceBuilt||practiceWarm||!practiceShell||disposed)return;
    practiceWarm=true;
-   const breathe=async()=>{
-    await yieldSlice();
-    if(pendingOutfitId)await yieldSlice();
-   };
-   const run=async()=>{
-    await breathe();
+   void (async()=>{
+    await yieldOnce();
     if(disposed||practiceBuilt)return;
-    buildPracticeOutfit();
-    await breathe();
-    if(!renderer||disposed||!practiceModel)return;
-    const restoreSchool=schoolModel?.visible??true;
-    if(schoolModel)schoolModel.visible=false;
-    practiceModel.visible=false;
-    characterRoot.updateMatrixWorld(true);
-    await warmModelMaterials(practiceModel);
+    await buildPracticeOutfitIncremental(practiceShell!,practiceOutfit,gradient);
     if(disposed)return;
-    if(schoolModel)schoolModel.visible=restoreSchool;
-    dirty=true;
+    finalizePracticeShell();
+    if(!renderer||disposed||!practiceModel)return;
+    await warmShadersIncremental({renderer,scene,camera,root:practiceModel,disposed:()=>disposed});
     if(pendingOutfitId){
      const next=pendingOutfitId;
      pendingOutfitId=null;
      showOutfit(next);
      onPracticeOutfitPreparing?.(false);
     }
-   };
-   void run();
+    dirty=true;
+   })();
   };
 
   const setOutfit=(id:OutfitId)=>{
@@ -1041,11 +1069,10 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    camera.aspect=el.clientWidth/el.clientHeight;camera.updateProjectionMatrix();
    renderer.setSize(el.clientWidth,el.clientHeight);fit(latest.current.view);
   };
-  const observer=new ResizeObserver(resize);observer.observe(el);
+  let observer:ResizeObserver|undefined;
+  let glBooted=false;
 
-  performance.mark('atlas:boot-start');
-  reportProgress(4,'program');
-
+  const runLoader=()=>{
   if(avatar.modelStatus==='pending'||!avatar.modelUrl){
    ready=true;reportProgress(100,'done');fit(latest.current.view);dirty=true;
   }else{
@@ -1098,7 +1125,15 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    loader.load(publicAssetUrl(modelUrl!),gltf=>{
     if(disposed)return;
     void (async()=>{
-     reportProgress(Math.max(downloadPct,80),'parse');
+     let parsePct=Math.max(downloadPct,80);
+     reportProgress(parsePct,'parse');
+     parseCreepTimer=window.setInterval(()=>{
+      if(disposed||ready)return;
+      const stalled=performance.now()-lastProgressAt;
+      if(stalled<400)return;
+      const next=creepLoadingPercent(parsePct,parsePct,85,1);
+      if(next>parsePct){parsePct=next;reportProgress(next,'parse');}
+     },220);
      await yieldToMain();
      if(disposed)return;
      vrm=gltf.userData.vrm??null;
@@ -1122,6 +1157,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       characterRoot.add(model);
      }
      model.updateMatrixWorld(true);
+     window.clearInterval(parseCreepTimer);
      reportProgress(86,'anchor');
      await yieldToMain();
      if(disposed)return;
@@ -1129,7 +1165,14 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      reportProgress(92,'materials','準備材質…');
      await yieldToMain();
      if(disposed)return;
-     if(schoolModel)await warmModelMaterials(schoolModel,pct=>reportProgress(pct,'materials','準備材質…'));
+     if(cacheAnimeOutfits&&practiceShell&&!practiceBuilt){
+      await buildPracticeOutfitIncremental(practiceShell,practiceOutfit,gradient,(i,n)=>{
+       reportProgress(92+Math.round((i/n)*4),'materials','準備材質…');
+      });
+      if(disposed)return;
+      finalizePracticeShell();
+     }
+     await prepareAllMaterials(schoolModel??model,pct=>reportProgress(pct,'materials','準備材質…'));
      if(disposed)return;
      ready=true;
      showOutfit(outfitIdRef.current);
@@ -1140,7 +1183,6 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      dirty=true;
      performance.mark('atlas:model-visible');
      try{performance.measure('atlas:model-visible','atlas:boot-start','atlas:model-visible');}catch{/* duplicate */}
-     if(cacheAnimeOutfits)requestAnimationFrame(()=>requestAnimationFrame(()=>schedulePracticeWarm()));
     })();
    },xhr=>{
     reportDownload(xhr.loaded,xhr.total||0);
@@ -1148,7 +1190,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    reportProgress(8,'download');
    seedPreloadedDownload();
   }
+  };
 
+  let toolInput:ReturnType<typeof installSurfaceToolInput>|undefined;
   const raycaster=new T.Raycaster(),pointer=new T.Vector2(),tap=new PointerTap();
   const down=(e:PointerEvent)=>tap.down(e.pointerId,e.clientX,e.clientY,e.pointerType==='touch'?12:5);
   const move=(e:PointerEvent)=>{tap.move(e.pointerId,e.clientX,e.clientY);};
@@ -1161,36 +1205,15 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const hit=raycaster.intersectObjects(teaching.markers.filter(m=>m.visible),false)[0];
    if(hit)pointSelect.current(hit.object.userData.point,hit.object.userData.side);
   };
-  renderer.domElement.addEventListener('pointerdown',down);
-  renderer.domElement.addEventListener('pointermove',move);
-  renderer.domElement.addEventListener('pointerup',up);
-  renderer.domElement.addEventListener('pointercancel',cancel);
-
-  const toolInput=installSurfaceToolInput({
-   canvas:renderer.domElement,
-   handle:teaching.label,
-   camera,
-   controls,
-   getSkins:()=>teaching.getSkinMeshes(),
-   getSimulation:()=>sim.current,
-   getState:()=>latest.current,
-   isReady:()=>ready&&teaching.isAnchored(),
-   getTarget:teaching.getTarget,
-   getDraggables:teaching.getDraggables,
-   snapTarget:teaching.snapTarget,
-   onDrag:(target,phase)=>toolDrag.current(target,phase),
-   invalidate:()=>{dirty=true;},
-  });
-
   const animate=()=>{
    if(disposed)return;frame=requestAnimationFrame(animate);
    const now=performance.now();const delta=Math.min(.05,(now-lastFrame)/1000);lastFrame=now;
    if(vrm)vrm.update(delta);
    const s=latest.current,simState=sim.current;
-   toolInput.update();
+   toolInput?.update();
    if(s.view!==lastView||s.reset!==lastReset){fit(s.view);lastView=s.view;lastReset=s.reset;}
-   controls.autoRotate=s.rotate&&!toolInput.isDragging();controls.autoRotateSpeed=.55;
-   if(!toolInput.isDragging())controls.update();
+   controls.autoRotate=s.rotate&&!toolInput?.isDragging();controls.autoRotateSpeed=.55;
+   if(!toolInput?.isDragging())controls.update();
    if(controls.autoRotate)dirty=true;
 
    if(ready&&!teaching.isAnchored()&&characterRoot.children.length)teaching.anchor(characterRoot);
@@ -1214,6 +1237,12 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(lastSimulation!==simState||simState.running||response?.settling){dirty=true;lastSimulation=simState;}
 
    if(dirty){
+    if(shaderWarmPrograms!=null){
+     const after=programCount(renderer);
+     if(import.meta.env.DEV)console.debug('atlas:programs first render',after,'warmed',shaderWarmPrograms);
+     if(after>shaderWarmPrograms)console.warn('atlas: shader programs grew after warm',after-shaderWarmPrograms);
+     shaderWarmPrograms=null;
+    }
     renderer.render(scene,camera);
     dirty=false;
     finishOutfitSwitchMeasure();
@@ -1224,14 +1253,59 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     }
    }
   };
-  animate();
 
-  const contextLost=(e:Event)=>{e.preventDefault();onError('設備暫停了 3D 顯示，請重新載入頁面。');};
-  renderer.domElement.addEventListener('webglcontextlost',contextLost);
+  const mountGl=async()=>{
+   if(glBooted||disposed)return;
+   glBooted=true;
+   reportProgress(4,'program');
+   try{await ensureRenderer();}catch{return;}
+   if(disposed)return;
+   renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<768?1.5:2));
+   renderer.setClearColor('#f6ead7');renderer.outputColorSpace=T.SRGBColorSpace;
+   renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=.86;
+   el.appendChild(renderer.domElement);
+   renderer.domElement.setAttribute('aria-label',`${avatar.name}：拖動旋轉，滾輪縮放，點擊穴位標記。`);
+   controls=new OrbitControls(camera,renderer.domElement);
+   controls.target.set(0,1.35,0);
+   controls.enableDamping=true;controls.dampingFactor=.085;controls.minDistance=.2;controls.maxDistance=8;
+   controls.maxPolarAngle=Math.PI*.96;controls.addEventListener('change',()=>{dirty=true;});
+   observer=new ResizeObserver(resize);
+   observer.observe(el);
+   resize();
+   performance.mark('atlas:boot-start');
+   reportProgress(8,'program');
+   renderer.domElement.addEventListener('pointerdown',down);
+   renderer.domElement.addEventListener('pointermove',move);
+   renderer.domElement.addEventListener('pointerup',up);
+   renderer.domElement.addEventListener('pointercancel',cancel);
+   const contextLost=(e:Event)=>{e.preventDefault();onError('設備暫停了 3D 顯示，請重新載入頁面。');};
+   renderer.domElement.addEventListener('webglcontextlost',contextLost);
+   toolInput=installSurfaceToolInput({
+    canvas:renderer.domElement,
+    handle:teaching.label,
+    camera,
+    controls,
+    getSkins:()=>teaching.getSkinMeshes(),
+    getSimulation:()=>sim.current,
+    getState:()=>latest.current,
+    isReady:()=>ready&&teaching.isAnchored(),
+    getTarget:teaching.getTarget,
+    getDraggables:teaching.getDraggables,
+    snapTarget:teaching.snapTarget,
+    onDrag:(target,phase)=>toolDrag.current(target,phase),
+    invalidate:()=>{dirty=true;},
+   });
+   animate();
+   runLoader();
+  };
+  void mountGl();
 
   return()=>{
-   disposed=true;outfitBridge.current=null;cancelAnimationFrame(frame);window.clearInterval(downloadCreepTimer);observer.disconnect();
-   toolInput.dispose();teaching.dispose();controls.dispose();gradient.dispose();
+   disposed=true;outfitBridge.current=null;cancelAnimationFrame(frame);
+   window.clearInterval(downloadCreepTimer);
+   window.clearInterval(parseCreepTimer);
+   observer?.disconnect();
+   toolInput?.dispose();teaching.dispose();controls?.dispose();gradient.dispose();
    if(woodcut){
     scene.remove(woodcut.mesh);
     disposeWoodcutBackdrop(woodcut);
@@ -1247,7 +1321,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     const ms=Array.isArray(o.material)?o.material:[o.material];
     ms.forEach(m=>m.dispose());
    });
-   teaching.label.remove();renderer.dispose();renderer.domElement.remove();
+   teaching.label.remove();
+   if(glReady&&renderer){renderer.dispose();renderer.domElement.remove();}
   };
  },[avatarId,onProgress,onError]);
 
