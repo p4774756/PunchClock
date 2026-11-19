@@ -51,7 +51,7 @@ function nightColorFromDay(hex, opts) {
   c.getHSL(hsl);
   const out = new THREE.Color();
   if (bronze) {
-    out.setHSL(hsl.h, Math.min(1, hsl.s * 0.62), 0.2 + hsl.l * 0.45);
+    out.setHSL(hsl.h, Math.min(1, hsl.s * 0.7), 0.26 + hsl.l * 0.42);
   } else {
     out.setHSL(hsl.h, Math.min(1, hsl.s * 0.78), 0.12 + hsl.l * 0.42);
   }
@@ -60,14 +60,25 @@ function nightColorFromDay(hex, opts) {
 
 function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(0xc8a850);
+  if (isBronze) {
+    const hsl = { h: 0, s: 0, l: 0 };
+    day.getHSL(hsl);
+    day.setHSL(hsl.h, Math.min(1, hsl.s * 1.06 + 0.02), Math.min(0.64, Math.max(0.5, hsl.l + 0.03)));
+  }
   const night = nightColorFromDay(day.getHex(), { bronze: isBronze });
   const emissive = oldMat.emissive ? oldMat.emissive.clone() : new THREE.Color(0x000000);
   const emissiveI = oldMat.emissiveIntensity != null ? oldMat.emissiveIntensity : 0;
+  let metalness = oldMat.metalness != null ? oldMat.metalness : (isBronze ? 0.96 : 0.05);
+  let roughness = oldMat.roughness != null ? oldMat.roughness : (isBronze ? 0.15 : 0.86);
+  if (isBronze) {
+    metalness = Math.max(metalness, 0.93);
+    roughness = Math.min(roughness, 0.17);
+  }
   const std = new THREE.MeshStandardMaterial({
     name: oldMat.name || '',
     color: day.clone(),
-    metalness: oldMat.metalness != null ? oldMat.metalness : (isBronze ? 0.94 : 0.05),
-    roughness: oldMat.roughness != null ? oldMat.roughness : (isBronze ? 0.19 : 0.86),
+    metalness: metalness,
+    roughness: roughness,
     emissive: emissive,
     emissiveIntensity: emissiveI,
     flatShading: false
@@ -99,9 +110,9 @@ function applyBronzeFigureMaterials(root, kit) {
       obj.material = bronzeMaterialFromGltf(
         {
           name: matName,
-          color: new THREE.Color(0xe8dfd2),
+          color: new THREE.Color(0xf0e8de),
           metalness: 0.04,
-          roughness: 0.82,
+          roughness: 0.78,
           emissive: new THREE.Color(0x000000),
           emissiveIntensity: 0
         },
@@ -112,11 +123,11 @@ function applyBronzeFigureMaterials(root, kit) {
       obj.material = bronzeMaterialFromGltf(
         {
           name: matName || 'bronze',
-          color: new THREE.Color(0xd4ae58),
-          metalness: 0.96,
-          roughness: 0.18,
-          emissive: new THREE.Color(0xffe8b0),
-          emissiveIntensity: 0.05
+          color: new THREE.Color(0xe2bc62),
+          metalness: 0.97,
+          roughness: 0.14,
+          emissive: new THREE.Color(0xfff0c8),
+          emissiveIntensity: 0.055
         },
         kit,
         true
@@ -127,6 +138,9 @@ function applyBronzeFigureMaterials(root, kit) {
     obj.receiveShadow = true;
   });
 }
+/** 庭院銅人面向走進庭院的玩家（模型預設 +Z 朝館舍，故轉 180°）。 */
+const COURTYARD_FIG_YAW = Math.PI;
+
 const LOAD_BUFFER = 1.65;
 const UNLOAD_BUFFER = 3.2;
 const LOAD_RETRY_MS = 30_000;
@@ -437,6 +451,7 @@ export function createTcmFigureController(ctx) {
       rootGroup = new THREE.Group();
       rootGroup.position.set(anchor.x, G, anchor.z);
       const body = buildBronzeFigure({ kit: kit, scale: 1, interactive: true });
+      body.rotation.y = COURTYARD_FIG_YAW;
       rootGroup.add(body);
       buildPointMeshes(body, instanceRows);
       scene.add(rootGroup);
@@ -523,7 +538,7 @@ export function createTcmFigureController(ctx) {
   };
 }
 
-const ENTRANCE_FIG_SCALE = 0.50;
+const ENTRANCE_FIG_SCALE = 0.59;
 
 export function replaceEntranceBronzeStatue(model, kit, pickables) {
   model.updateMatrixWorld(true);

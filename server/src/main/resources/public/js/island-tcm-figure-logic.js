@@ -7,8 +7,15 @@ export const DATA_BODY_HEIGHT = 1.72;
 export const MARKER_SURFACE_EPS = 0.009;
 export const BRONZE_HEAD_TOP_Y = 1.76;
 
-/** 與 tcm-bronze-figure.glb 對齊的吸附用橢球／球（資料空間 Y-up）。 */
-const BRONZE_SNAP_TOPKNOT = Object.freeze({ cx: 0, cy: 1.698, cz: -0.008, r: 0.058 });
+/** 與 tcm-bronze-figure.glb 對齊的吸附用橢球（資料空間 Y-up）；頂髻略扁以免多穴重疊。 */
+const BRONZE_SNAP_TOPKNOT = Object.freeze({
+  cx: 0,
+  cy: 1.692,
+  cz: -0.022,
+  rx: 0.068,
+  ry: 0.036,
+  rz: 0.058
+});
 const BRONZE_SNAP_HEAD = Object.freeze({
   cx: 0,
   cy: 1.562,
@@ -154,12 +161,8 @@ export function markerSurfacePosition(record, side) {
   const pz = t.position[2];
   const eps = MARKER_SURFACE_EPS;
 
-  if (py >= 1.648) {
-    const tk = BRONZE_SNAP_TOPKNOT;
-    const dtk = Math.hypot(px - tk.cx, py - tk.cy, pz - tk.cz);
-    if (dtk < tk.r * 1.35 || py >= 1.68) {
-      return snapSphere(px, py, pz, tk, eps);
-    }
+  if (py >= 1.704) {
+    return snapEllipsoid(px, py, pz, BRONZE_SNAP_TOPKNOT, eps);
   }
   if (py >= 1.34) {
     return snapEllipsoid(px, py, pz, BRONZE_SNAP_HEAD, eps);

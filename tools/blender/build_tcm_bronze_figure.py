@@ -30,7 +30,7 @@ def _mat_bronze(name, base_hex, rough=0.38, metal=0.92, emit=None, emit_strength
     bsdf.inputs['Base Color'].default_value = hex_rgba(base_hex)
     bsdf.inputs['Roughness'].default_value = rough
     bsdf.inputs['Metallic'].default_value = metal
-    bsdf.inputs['Specular IOR Level'].default_value = 0.62
+    bsdf.inputs['Specular IOR Level'].default_value = 0.72
     if emit is not None:
         bsdf.inputs['Emission Color'].default_value = hex_rgba(emit)
         bsdf.inputs['Emission Strength'].default_value = emit_strength
@@ -44,7 +44,7 @@ def _mat_stone(name, base_hex, rough=0.88):
     bsdf.inputs['Base Color'].default_value = hex_rgba(base_hex)
     bsdf.inputs['Roughness'].default_value = rough
     bsdf.inputs['Metallic'].default_value = 0.05
-    bsdf.inputs['Specular IOR Level'].default_value = 0.35
+    bsdf.inputs['Specular IOR Level'].default_value = 0.42
     return m
 
 
@@ -215,29 +215,40 @@ def _build_classical_head(bm, front):
     head_y = 1.562
     head_z = front + 0.014
 
-    _add_uv_ellipsoid(bm, _v(0.0, head_y, head_z), (0.088, 0.100, 0.116), u=22, v=16)
-    _add_uv_ellipsoid(bm, _v(0.0, head_y - 0.018, head_z + 0.022), (0.074, 0.082, 0.090), u=18, v=12)
+    _add_uv_ellipsoid(bm, _v(0.0, head_y, head_z), (0.090, 0.102, 0.118), u=24, v=16)
+    _add_uv_ellipsoid(bm, _v(0.0, head_y - 0.020, head_z + 0.024), (0.078, 0.086, 0.094), u=20, v=14)
 
-    # 頂髻（雙層髮髻）
-    _add_uv_ellipsoid(bm, _v(0.0, 1.682, head_z - 0.046), (0.050, 0.042, 0.048), u=14, v=12)
-    _add_uv_ellipsoid(bm, _v(0.0, 1.708, head_z - 0.050), (0.038, 0.056, 0.040), u=12, v=10)
+    # 頂髻（雙層髮髻，略扁避免穴位貼點擠成一團）
+    _add_uv_ellipsoid(bm, _v(0.0, 1.678, head_z - 0.048), (0.054, 0.040, 0.050), u=14, v=12)
+    _add_uv_ellipsoid(bm, _v(0.0, 1.702, head_z - 0.052), (0.042, 0.052, 0.042), u=12, v=10)
 
+    brow_y = head_y + 0.022
     for side in (1, -1):
         eye = bmesh.new()
         _add_uv_ellipsoid(
             eye,
-            _v(side * 0.032, head_y + 0.010, head_z + 0.082),
-            (0.016, 0.011, 0.009),
+            _v(side * 0.034, head_y + 0.008, head_z + 0.086),
+            (0.019, 0.013, 0.011),
             u=8,
             v=6,
         )
         _append_bmesh(bm, eye)
         eye.free()
+        brow = bmesh.new()
+        _add_uv_ellipsoid(
+            brow,
+            _v(side * 0.034, brow_y, head_z + 0.078),
+            (0.022, 0.006, 0.008),
+            u=6,
+            v=4,
+        )
+        _append_bmesh(bm, brow)
+        brow.free()
         ear = bmesh.new()
         _add_uv_ellipsoid(
             ear,
-            _v(side * 0.082, head_y - 0.006, head_z - 0.010),
-            (0.014, 0.022, 0.012),
+            _v(side * 0.084, head_y - 0.008, head_z - 0.012),
+            (0.015, 0.024, 0.013),
             u=8,
             v=6,
         )
@@ -245,12 +256,12 @@ def _build_classical_head(bm, front):
         ear.free()
 
     nose = bmesh.new()
-    _add_uv_ellipsoid(nose, _v(0.0, head_y - 0.004, head_z + 0.092), (0.013, 0.024, 0.026), u=10, v=8)
+    _add_uv_ellipsoid(nose, _v(0.0, head_y - 0.006, head_z + 0.096), (0.015, 0.028, 0.030), u=10, v=8)
     _append_bmesh(bm, nose)
     nose.free()
 
     mouth = bmesh.new()
-    _add_uv_ellipsoid(mouth, _v(0.0, head_y - 0.040, head_z + 0.076), (0.026, 0.007, 0.010), u=8, v=6)
+    _add_uv_ellipsoid(mouth, _v(0.0, head_y - 0.042, head_z + 0.078), (0.028, 0.008, 0.012), u=8, v=6)
     _append_bmesh(bm, mouth)
     mouth.free()
 
@@ -373,17 +384,17 @@ def build(out_path):
     prepare_scene()
     mat_bronze = _mat_bronze(
         'bronze',
-        0xd4ae58,
-        rough=0.17,
-        metal=0.98,
-        emit=0xffeab8,
-        emit_strength=0.058,
+        0xe2bc62,
+        rough=0.12,
+        metal=0.99,
+        emit=0xfff0c8,
+        emit_strength=0.048,
     )
-    mat_bronze_dark = _mat_bronze('bronze_dark', 0x7a5c30, rough=0.32, metal=0.92)
-    mat_patina = _mat_bronze('bronze_patina', 0x5a6448, rough=0.52, metal=0.78)
-    mat_stone = _mat_stone('stone', 0xece3d6, rough=0.76)
-    mat_stone_band = _mat_stone('stone_band', 0xd8cfc2, rough=0.80)
-    mat_stone_dark = _mat_stone('stone_dark', 0xb0a498, rough=0.86)
+    mat_bronze_dark = _mat_bronze('bronze_dark', 0x9a7848, rough=0.24, metal=0.94)
+    mat_patina = _mat_bronze('bronze_patina', 0x7a8260, rough=0.38, metal=0.86)
+    mat_stone = _mat_stone('stone', 0xf2ebe3, rough=0.72)
+    mat_stone_band = _mat_stone('stone_band', 0xe4dcd2, rough=0.76)
+    mat_stone_dark = _mat_stone('stone_dark', 0xd0c6ba, rough=0.80)
 
     objs = []
     objs.extend(_build_pedestal(mat_stone, mat_stone_dark, mat_stone_band))
