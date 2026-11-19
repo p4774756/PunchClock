@@ -170,6 +170,34 @@ def _rasterize_hand_painted(bm, color_lay, uv_lay, size):
     return img
 
 
+def creature_solid_material(hex_color, name='creature_solid_mat', alpha=1.0):
+    """無貼圖 Principled 材質（glTF baseColorFactor）。"""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    bsdf = nt.nodes.get('Principled BSDF')
+    if bsdf is None:
+        for node in list(nt.nodes):
+            if node.type == 'BSDF_PRINCIPLED':
+                bsdf = node
+                break
+    if bsdf is None:
+        bsdf = nt.nodes.new('ShaderNodeBsdfPrincipled')
+        out = nt.nodes.get('Material Output') or nt.nodes.new('ShaderNodeOutputMaterial')
+        nt.links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
+    r, g, b, a = rgba_hex(hex_color)
+    bsdf.inputs['Base Color'].default_value = (r, g, b, 1.0)
+    bsdf.inputs['Roughness'].default_value = 0.78
+    try:
+        bsdf.inputs['Specular IOR Level'].default_value = 0.12
+    except KeyError:
+        bsdf.inputs['Specular'].default_value = 0.12
+    if alpha < 0.999:
+        bsdf.inputs['Alpha'].default_value = alpha
+        m.blend_method = 'BLEND'
+    return m
+
+
 def creature_image_material(tex_img, name='creature_tex_mat'):
     m = bpy.data.materials.new(name)
     m.use_nodes = True

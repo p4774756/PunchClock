@@ -97,13 +97,6 @@ const LIFE_KIND_YAW = Object.freeze({
   wenyao: 0.35
 });
 
-/** 部分匯出模型骨架軸向需補正（已含部分 yaw 意圖時仍套 group.rotation.y） */
-const LIFE_KIND_GLB_ROTATION = Object.freeze({
-  whale: { x: Math.PI / 2, y: 0, z: -Math.PI / 2 },
-  kunpeng: { x: Math.PI / 2, y: 0, z: -Math.PI / 2 },
-  fishSchool: { x: 0, y: 0, z: 0 }
-});
-
 /** 全景驗收相機（1280×720 實測） */
 export const LIFE_PANORAMA_VIEWPORT = Object.freeze({
   width: 1280,
@@ -131,24 +124,13 @@ export const LIFE_SCREEN_EXCLUSIONS = Object.freeze([
 
 /** 世界半徑估計（AABB 半軸；略大以保守避讓） */
 export const LIFE_KIND_HALF_EXTENTS = Object.freeze({
-  fishSchool: Object.freeze({ x: 2.15, y: 0.38, z: 1.75 }),
-  whale: Object.freeze({ x: 3.85, y: 0.95, z: 1.15 }),
-  octopus: Object.freeze({ x: 1.28, y: 0.95, z: 1.28 }),
-  wenyao: Object.freeze({ x: 1.18, y: 0.45, z: 0.95 }),
-  xuanwu: Object.freeze({ x: 2.55, y: 0.55, z: 2.2 }),
-  birds: Object.freeze({ x: 2.35, y: 0.85, z: 1.55 }),
-  kunpeng: Object.freeze({ x: 4.6, y: 1.25, z: 1.85 })
-});
-
-/**  Lambert 色增益（對 UV 貼圖 hand-paint 補飽和） */
-const LIFE_KIND_MATERIAL_GAIN = Object.freeze({
-  whale: 1.12,
-  kunpeng: 1.1,
-  xuanwu: 1.12,
-  octopus: 1.1,
-  wenyao: 1.1,
-  fishSchool: 1.08,
-  birds: 1.08
+  fishSchool: Object.freeze({ x: 2.05, y: 0.22, z: 1.65 }),
+  whale: Object.freeze({ x: 0.95, y: 0.55, z: 3.85 }),
+  octopus: Object.freeze({ x: 1.35, y: 0.65, z: 1.35 }),
+  wenyao: Object.freeze({ x: 1.12, y: 0.4, z: 0.92 }),
+  xuanwu: Object.freeze({ x: 2.65, y: 0.72, z: 2.35 }),
+  birds: Object.freeze({ x: 2.25, y: 0.75, z: 1.45 }),
+  kunpeng: Object.freeze({ x: 1.1, y: 0.9, z: 4.75 })
 });
 
 /** 海面生物：身體或特效露出水面（世界 Y，相對錨點 xz） */
@@ -502,8 +484,6 @@ function isCreatureBodyMesh(mesh) {
 }
 
 function prepareLifeMaterials(THREE, root, kind) {
-  const gain = (kind && LIFE_KIND_MATERIAL_GAIN[kind]) || 1.12;
-  const tint = Math.min(1.45, gain);
   forEachMesh(root, (mesh) => {
     if (!isCreatureBodyMesh(mesh)) {
       mesh.visible = false;
@@ -513,28 +493,30 @@ function prepareLifeMaterials(THREE, root, kind) {
     mesh.receiveShadow = false;
     const n = (mesh.name || '').toLowerCase();
     const sprayMesh = n.includes('spray');
+    const cloudMesh = n.includes('cloud') || n.includes('kun_cloud');
     const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     for (let i = 0; i < mats.length; i++) {
       const mat = mats[i];
       if (!mat) continue;
       mat.flatShading = true;
+      if (mat.map) {
+        mat.map.dispose();
+        mat.map = null;
+      }
       if (mesh.geometry && mesh.geometry.attributes.color) {
         mat.vertexColors = true;
-      }
-      if (mat.map) {
-        mat.map.colorSpace = THREE.SRGBColorSpace;
+      } else {
         mat.vertexColors = false;
       }
       if (!mat.color) mat.color = new THREE.Color(0xffffff);
       if (sprayMesh) {
-        mat.color.setRGB(0.82, 0.94, 1);
+        mat.color.setRGB(0.95, 0.98, 1);
         mat.transparent = true;
-        mat.opacity = 0.88;
-      } else if (mat.map) {
-        const k = 0.92 + (tint - 1) * 0.35;
-        mat.color.setRGB(k, k, k);
-      } else {
-        mat.color.setRGB(tint, tint, tint);
+        mat.opacity = 0.82;
+      } else if (cloudMesh) {
+        mat.color.setRGB(0.98, 0.99, 1);
+        mat.transparent = true;
+        mat.opacity = 0.68;
       }
       const base = mat.color.clone();
       mat.userData.day = base;
@@ -576,28 +558,16 @@ function applyLifeViewPosition(group, anchor, kind) {
   group.userData.viewOffset = { x: dx, z: dz };
 }
 
-function prepSkinnedRoot(THREE, gltf, scale, kind) {
+function prepSkinnedRoot(THREE, gltf, scale) {
   const root = gltf.scene;
   root.scale.setScalar(scale || 1);
   root.rotation.x = 0;
   root.rotation.y = 0;
   root.rotation.z = 0;
-  const rot = kind && LIFE_KIND_GLB_ROTATION[kind];
-  if (rot) {
-    if (rot.x) root.rotation.x = rot.x;
-    if (rot.y) root.rotation.y = rot.y;
-    if (rot.z) root.rotation.z = rot.z;
-  }
   root.traverse((o) => {
     o.frustumCulled = true;
   });
-  let mixer = null;
-  if (gltf.animations && gltf.animations.length > 0 && THREE.AnimationMixer) {
-    mixer = new THREE.AnimationMixer(root);
-    const action = mixer.clipAction(gltf.animations[0]);
-    action.play();
-  }
-  return { root: root, mixer: mixer, animations: gltf.animations || [] };
+  return { root: root, mixer: null, animations: [] };
 }
 
 function firstMeshPair(root) {
@@ -631,7 +601,7 @@ function buildFishSchoolInstanced(THREE, kit, anchor, fishRoot) {
         (i % 3) * 0.08 - 0.04,
         (Math.floor(i / 4) % 4) * 0.82 - 1.1
       );
-      dummy.rotation.set(-0.58, (i % 5) * 0.38 + 0.2, (i % 3) * 0.1);
+      dummy.rotation.set(0, (i % 5) * 0.38 + 0.2, (i % 3) * 0.04);
       dummy.scale.setScalar(0.92 + (i % 4) * 0.12);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
@@ -646,7 +616,7 @@ function buildFishSchoolInstanced(THREE, kit, anchor, fishRoot) {
         (i % 3) * 0.08 - 0.04,
         (Math.floor(i / 4) % 4) * 0.82 - 1.1
       );
-      fish.rotation.set(-0.58, (i % 5) * 0.38 + 0.2, (i % 3) * 0.1);
+      fish.rotation.set(0, (i % 5) * 0.38 + 0.2, (i % 3) * 0.04);
       fish.scale.setScalar(0.92 + (i % 4) * 0.12);
       group.add(fish);
     }
@@ -991,7 +961,7 @@ async function hydrateLifeGlbModels(THREE, kit, creatures, mixers) {
     if (!url) continue;
     try {
       const gltf = await fetchLifeGlb(url);
-      const prep = prepSkinnedRoot(THREE, gltf, LIFE_GLB_SCALE[kind], kind);
+      const prep = prepSkinnedRoot(THREE, gltf, LIFE_GLB_SCALE[kind]);
       prepareLifeMaterials(THREE, prep.root, kind);
       shared[kind] = prep.root;
     } catch (err) {
@@ -1006,7 +976,7 @@ async function hydrateLifeGlbModels(THREE, kit, creatures, mixers) {
     if (!url) return;
     try {
       const gltf = await fetchLifeGlb(url);
-      solo[kind] = prepSkinnedRoot(THREE, gltf, LIFE_GLB_SCALE[kind], kind);
+      solo[kind] = prepSkinnedRoot(THREE, gltf, LIFE_GLB_SCALE[kind]);
     } catch (err) {
       console.warn('life glb', kind, err);
     }
@@ -1206,10 +1176,13 @@ export function createIslandLife(THREE, opts) {
         node.rotation.y = pos.yaw;
       } else if (kind === 'octopus') {
         node.rotation.y = Math.sin(tick.elapsed * 0.25) * 0.15;
+      } else if (kind === 'xuanwu') {
+        node.rotation.y = (LIFE_KIND_YAW.xuanwu || 0) + Math.sin(tick.elapsed * 0.12) * 0.06;
       } else if (kind === 'whale') {
-        const cycle = tick.elapsed % 5.2;
-        const breach = cycle < 1.8;
-        const spout = cycle > 0.25 && cycle < 2.6;
+        node.rotation.x = Math.sin(tick.elapsed * 0.14) * 0.05;
+        const cycle = tick.elapsed % 5.0;
+        const breach = cycle < 1.6;
+        const spout = cycle > 0.2 && cycle < 2.4;
         if (node.userData.spray) {
           node.userData.spray.visible = spout;
           node.userData.spray.scale.setScalar(spout ? 1.35 + Math.sin(cycle * 4) * 0.08 : 0.01);
@@ -1218,6 +1191,8 @@ export function createIslandLife(THREE, opts) {
         const w = waveHeight(anchor.x + vo.x, anchor.z + vo.z, tick.elapsed, false);
         const whaleBase = LIFE_SEA_MOUNT_Y.whale != null ? LIFE_SEA_MOUNT_Y.whale : 0.42;
         node.position.y = LIFE_SEA_Y + whaleBase + (breach ? 0.32 : -0.02) + w * 0.2;
+        const baseYaw = LIFE_KIND_YAW.whale != null ? LIFE_KIND_YAW.whale : 0;
+        node.rotation.y = baseYaw + Math.sin(tick.elapsed * 0.06) * 0.08;
       } else if (kind === 'seaDragon') {
         node.position.x = anchor.x + Math.sin(tick.elapsed * 0.12) * 1.8;
         node.position.z = anchor.z + Math.cos(tick.elapsed * 0.1) * 1.2;
@@ -1257,6 +1232,7 @@ export function createIslandLife(THREE, opts) {
         const baseYaw = LIFE_KIND_YAW.kunpeng != null ? LIFE_KIND_YAW.kunpeng : 0;
         node.position.x = anchor.x + vo.x + Math.sin(tick.elapsed * 0.04) * 3;
         node.rotation.y = baseYaw + tick.elapsed * 0.05;
+        node.rotation.x = Math.sin(tick.elapsed * 0.07) * 0.05;
       } else if (kind === 'phoenix') {
         node.position.y = LIFE_SKY_BASE + 7 + Math.sin(tick.elapsed * 0.35) * 0.5;
         node.rotation.y = tick.elapsed * 0.06;

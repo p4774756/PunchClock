@@ -1,8 +1,8 @@
 // 海空生物：node --test server/src/test/js/island-life.test.mjs
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadPublicModule } from './load-public-module.mjs';
 
@@ -220,6 +220,181 @@ describe('island-life 全景投影 (#226 r2)', () => {
   });
 });
 
+const LIFE_GLB_FILES = Object.freeze({
+  fishSchool: 'fish.glb',
+  whale: 'whale.glb',
+  octopus: 'octopus.glb',
+  wenyao: 'wenyao.glb',
+  xuanwu: 'xuanwu.glb',
+  birds: 'seagull.glb',
+  kunpeng: 'kunpeng.glb'
+});
+
+function readGlbJson(filePath) {
+  const buf = readFileSync(filePath);
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  assert.equal(view.getUint32(0, true), 0x46546C67, 'glTF magic');
+  const jsonLen = view.getUint32(12, true);
+  const jsonText = new TextDecoder().decode(buf.subarray(20, 20 + jsonLen));
+  return JSON.parse(jsonText);
+}
+
+function mat4Identity() {
+  return new Float64Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+}
+
+function mat4Multiply(a, b) {
+  const o = new Float64Array(16);
+  for (let col = 0; col < 4; col++) {
+    for (let row = 0; row < 4; row++) {
+      let sum = 0;
+      for (let k = 0; k < 4; k++) sum += a[k * 4 + row] * b[col * 4 + k];
+      o[col * 4 + row] = sum;
+    }
+  }
+  return o;
+}
+
+function quatToMat4(q) {
+  const [x, y, z, w] = q;
+  const xx = x * x; const yy = y * y; const zz = z * z;
+  const xy = x * y; const xz = x * z; const yz = y * z;
+  const wx = w * x; const wy = w * y; const wz = w * z;
+  const m = mat4Identity();
+  m[0] = 1 - 2 * (yy + zz);
+  m[4] = 2 * (xy - wz);
+  m[8] = 2 * (xz + wy);
+  m[1] = 2 * (xy + wz);
+  m[5] = 1 - 2 * (xx + zz);
+  m[9] = 2 * (yz - wx);
+  m[2] = 2 * (xz - wy);
+  m[6] = 2 * (yz + wx);
+  m[10] = 1 - 2 * (xx + yy);
+  return m;
+}
+
+function nodeLocalMatrix(node) {
+  const m = mat4Identity();
+  if (node.matrix && node.matrix.length === 16) {
+    return Float64Array.from(node.matrix);
+  }
+  const t = node.translation || [0, 0, 0];
+  const s = node.scale || [1, 1, 1];
+  const r = node.rotation || [0, 0, 0, 1];
+  const rm = quatToMat4(r);
+  rm[12] = t[0] * s[0];
+  rm[13] = t[1] * s[1];
+  rm[14] = t[2] * s[2];
+  m[0] *= s[0]; m[5] *= s[1]; m[10] *= s[2];
+  return mat4Multiply(rm, m);
+}
+
+function transformPoint(m, x, y, z) {
+  const px = m[0] * x + m[4] * y + m[8] * z + m[12];
+  const py = m[1] * x + m[5] * y + m[9] * z + m[13];
+  const pz = m[2] * x + m[6] * y + m[10] * z + m[14];
+  return [px, py, pz];
+}
+
+function glbNodeBounds(gltf, binChunk) {
+  const nodes = gltf.nodes || [];
+  const meshes = gltf.meshes || [];
+  const accessors = gltf.accessors || [];
+  const bufferViews = gltf.bufferViews || [];
+  const world = new Array(nodes.length);
+  const visited = new Set();
+
+  function dfs(i, parent) {
+    if (visited.has(i)) return;
+    visited.add(i);
+    const local = nodeLocalMatrix(nodes[i]);
+    world[i] = parent ? mat4Multiply(parent, local) : local;
+    for (const c of nodes[i].children || []) dfs(c, world[i]);
+  }
+  for (const sc of gltf.scenes || [{ nodes: [0] }]) {
+    for (const root of sc.nodes || []) dfs(root, null);
+  }
+
+  let minX = Infinity; let minY = Infinity; let minZ = Infinity;
+  let maxX = -Infinity; let maxY = -Infinity; let maxZ = -Infinity;
+  let tris = 0;
+
+  for (let ni = 0; ni < nodes.length; ni++) {
+    const node = nodes[ni];
+    if (node.mesh == null || world[ni] == null) continue;
+    const mesh = meshes[node.mesh];
+    if (!mesh) continue;
+    for (const prim of mesh.primitives || []) {
+      const posAcc = accessors[prim.attributes.POSITION];
+      if (!posAcc) continue;
+      const bv = bufferViews[posAcc.bufferView];
+      const byteOffset = (bv.byteOffset || 0) + (posAcc.byteOffset || 0);
+      const stride = bv.byteStride || 12;
+      const dv = new DataView(binChunk.buffer, binChunk.byteOffset + byteOffset, bv.byteLength);
+      for (let vi = 0; vi < posAcc.count; vi++) {
+        const off = vi * stride;
+        const x = dv.getFloat32(off, true);
+        const y = dv.getFloat32(off + 4, true);
+        const z = dv.getFloat32(off + 8, true);
+        const [wx, wy, wz] = transformPoint(world[ni], x, y, z);
+        minX = Math.min(minX, wx); minY = Math.min(minY, wy); minZ = Math.min(minZ, wz);
+        maxX = Math.max(maxX, wx); maxY = Math.max(maxY, wy); maxZ = Math.max(maxZ, wz);
+      }
+      if (prim.indices != null) {
+        const iacc = accessors[prim.indices];
+        tris += Math.floor(iacc.count / 3);
+      } else {
+        tris += Math.floor(posAcc.count / 3);
+      }
+    }
+  }
+  const sx = maxX - minX; const sy = maxY - minY; const sz = maxZ - minZ;
+  return { sx, sy, sz, minY, maxY, tris };
+}
+
+function readGlbBin(filePath) {
+  const buf = readFileSync(filePath);
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const jsonLen = view.getUint32(12, true);
+  let off = 20 + jsonLen;
+  if (off % 4) off += 4 - (off % 4);
+  const binLen = view.getUint32(off + 4, true);
+  return buf.subarray(off + 8, off + 8 + binLen);
+}
+
+function assertLifeGlbContract(filePath, horizontalKinds) {
+  const gltf = readGlbJson(filePath);
+  const name = basename(filePath);
+  for (const node of gltf.nodes || []) {
+    assert.notEqual((node.name || '').toLowerCase(), 'armature', name + ': Armature node');
+    if (node.scale) {
+      for (const s of node.scale) {
+        assert.ok(Math.abs(s - 1) < 0.02, `${name} scale ${s}`);
+      }
+    }
+    assert.equal(node.rotation == null || node.rotation.every((v, i) => (i < 3 ? Math.abs(v) < 0.02 : Math.abs(v - 1) < 0.02)), true,
+      `${name} node rotation ${node.name}`);
+  }
+  assert.equal((gltf.animations || []).length, 0, name + ': animations');
+  for (const mat of gltf.materials || []) {
+    const pbr = mat.pbrMetallicRoughness || mat;
+    assert.equal(pbr.baseColorTexture != null, false, name + ' baseColorTexture');
+    assert.equal(mat.normalTexture != null, false, name + ' normalTexture');
+  }
+  const bin = readGlbBin(filePath);
+  const b = glbNodeBounds(gltf, bin);
+  const longest = Math.max(b.sx, b.sy, b.sz);
+  assert.ok(longest >= 0.95 && longest <= 1.05, `${name} longest ${longest}`);
+  const kindKey = Object.entries(LIFE_GLB_FILES).find(([, f]) => f === name)?.[0];
+  if (horizontalKinds && kindKey && horizontalKinds.has(kindKey)) {
+    const ySpan = b.maxY - b.minY;
+    assert.ok(ySpan <= longest * 0.4 + 0.02, `${name} glTF Y span ${ySpan} vs longest ${longest}`);
+  }
+  assert.ok(b.tris <= 3000, `${name} tris ${b.tris}`);
+  assert.ok(readFileSync(filePath).length <= 300 * 1024, name + ' file size');
+  return b;
+}
+
 describe('island-life GLB 種類 (#226)', () => {
   test('每個 GLB 種類皆有對應模型檔', () => {
     assert.equal(LIFE_GLB_KINDS.length, 7);
@@ -232,6 +407,18 @@ describe('island-life GLB 種類 (#226)', () => {
     for (const kind of removed) {
       assert.equal(lifeModelPath(kind), null, kind + ' 不應有 GLB');
     }
+  });
+
+  test('每個 GLB 無骨架縮放／無貼圖／正規化最長軸', () => {
+    const horizontal = new Set(['fishSchool', 'whale', 'kunpeng']);
+    let totalBytes = 0;
+    for (const kind of LIFE_GLB_KINDS) {
+      const file = LIFE_GLB_FILES[kind];
+      const fp = join(publicRoot, 'models', 'life', file);
+      assertLifeGlbContract(fp, horizontal);
+      totalBytes += readFileSync(fp).length;
+    }
+    assert.ok(totalBytes <= 2 * 1024 * 1024, 'life GLB total bytes');
   });
 });
 
