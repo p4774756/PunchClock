@@ -5,7 +5,10 @@ export const MOBILE_MAX_WIDTH = 760;
 const REM = 16;
 export const ORB_SIZE = 2.85 * REM;
 export const ORB_GAP = 0.4 * REM;
+export const ORB_TR_GAP_MOBILE = 0.28 * REM;
+export const HUD_PLAYER_TR_GAP = 0.375 * REM;
 const HUD_MARGIN = 0.55 * REM;
+const HUD_PLAYER_MAX_W_MOBILE = 10.5 * REM;
 
 const AUDIO_ON_SVG =
   '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" d="M5 10v4h3l4.5 3V7L8 10H5z"/><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M17 9.5v5"/></svg>';
@@ -32,15 +35,15 @@ function orbRowCount(showAudio) {
 }
 
 export function hudTopRightRect(viewportWidth, viewportHeight, showAudio) {
+  void viewportHeight;
   const margin = hudMargin(viewportWidth);
+  const narrow = viewportWidth <= MOBILE_MAX_WIDTH;
+  const trGap = narrow ? ORB_TR_GAP_MOBILE : ORB_GAP;
   const orbs = orbRowCount(showAudio);
-  const dayNightBlock = ORB_SIZE;
-  const audioW = showAudio ? ORB_SIZE + ORB_GAP : 0;
-  const chatMenuW = ORB_SIZE * 2 + ORB_GAP;
-  const totalW = dayNightBlock + audioW + chatMenuW;
+  const totalW = orbs * ORB_SIZE + Math.max(0, orbs - 1) * trGap;
   const right = viewportWidth - margin;
   const left = right - totalW;
-  const top = (viewportWidth <= MOBILE_MAX_WIDTH ? 0.55 : 3.6) * REM;
+  const top = (narrow ? 0.55 : 3.6) * REM;
   const bottom = top + ORB_SIZE + 1.05 * REM;
   return { left, right, top, bottom, width: totalW, height: bottom - top, orbSize: ORB_SIZE };
 }
@@ -277,16 +280,80 @@ export function exploreFloatBottomPx(viewportHeight) {
   return viewportHeight - EXPLORE_FLOAT_BOTTOM_REM * REM;
 }
 
+/** 手機：右上圓鈕列寬度（對齊 island.css @760px flex gap）。 */
+export function hudTopRightWidthMobile(showAudio) {
+  const orbs = orbRowCount(showAudio);
+  return orbs * ORB_SIZE + Math.max(0, orbs - 1) * ORB_TR_GAP_MOBILE;
+}
+
 /** 手機探索：左上玩家 HUD（含卡、間距、人數晶片；對齊 island.css @760px）。 */
-export function hudPlayerRectMobile(viewportWidth, viewportHeight) {
-  void viewportWidth;
+export function hudPlayerRectMobile(viewportWidth, viewportHeight, showAudio) {
   void viewportHeight;
-  const top = Math.max(3.65 * REM, 2.75 * REM);
-  const left = 0.55 * REM;
-  const width = Math.min(10.5 * REM, viewportWidth - 9.5 * REM);
-  // 卡 + gap 0.35rem + .island-hud-peer-badge（390×844 Chrome 量測 ≈8.15rem）
-  const boxH = 8.15 * REM;
+  const margin = hudMargin(viewportWidth);
+  const audio = showAudio !== false;
+  const trWidth = hudTopRightWidthMobile(audio);
+  const top = Math.max(margin, 0);
+  const left = margin;
+  const width = Math.min(
+    HUD_PLAYER_MAX_W_MOBILE,
+    viewportWidth - trWidth - 2 * margin - HUD_PLAYER_TR_GAP
+  );
+  const cardH = 5.35 * REM;
+  const gap = 0.35 * REM;
+  const badgeH = 1.35 * REM;
+  const boxH = cardH + gap + badgeH;
+  return { left, right: left + width, top, bottom: top + boxH, width, height: boxH, cardH };
+}
+
+/** 桌面探索：左上玩家 HUD（對齊 island.css）。 */
+export function hudPlayerRectDesktop(viewportWidth, viewportHeight) {
+  void viewportHeight;
+  const top = Math.max(0.85 * REM, 0);
+  const left = 0.85 * REM;
+  const width = Math.min(14 * REM, viewportWidth - 11 * REM);
+  const boxH = 5.85 * REM;
   return { left, right: left + width, top, bottom: top + boxH, width, height: boxH };
+}
+
+/** 桌面探索：底部置中操作提示（對齊 .island-explore-hint）。 */
+export function exploreHintRectDesktop(viewportWidth, viewportHeight, approxHeightRem) {
+  const hRem = approxHeightRem > 0 ? approxHeightRem : 2.5;
+  const height = hRem * REM;
+  const bottomInset = 1.15 * REM;
+  const bottom = viewportHeight - bottomInset;
+  const top = bottom - height;
+  const width = Math.min(32 * REM, viewportWidth - 2 * REM);
+  const left = (viewportWidth - width) * 0.5;
+  return {
+    left,
+    right: left + width,
+    top,
+    bottom,
+    width,
+    height,
+    tr: hudTopRightRect(viewportWidth, viewportHeight, true),
+    player: hudPlayerRectDesktop(viewportWidth, viewportHeight),
+    actions: hudActionsRect(viewportWidth, viewportHeight, { exploring: true }),
+    joy: joystickRectMobile(viewportWidth, viewportHeight)
+  };
+}
+
+/** 手機探索：提示與常見 HUD 邊界（供 node:test 驗證不重疊）。 */
+export function exploreHintHudTargetsMobile(viewportWidth, viewportHeight, approxHeightRem) {
+  const hint = exploreHintRectMobile(viewportWidth, viewportHeight, approxHeightRem);
+  const player = hudPlayerRectMobile(viewportWidth, viewportHeight);
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  const actions = hudActionsRect(viewportWidth, viewportHeight, {
+    exploring: true,
+    withInteract: true,
+    withSteer: true
+  });
+  const layout = exploreHudActionItems(viewportWidth, viewportHeight, {
+    withInteract: true,
+    withSteer: true
+  });
+  const interact = layout.items.find((item) => item.id === 'islandInteract') || actions;
+  return { hint, player, joy, actions, interact, tr: hint.tr };
 }
 
 /** 手機探索：清單面板（對齊 island.css @760px）。 */
@@ -363,7 +430,9 @@ export function exploreHintRectMobile(viewportWidth, viewportHeight, approxHeigh
   const left = right - width;
   const height = hRem * REM;
   const tr = hudTopRightRect(viewportWidth, viewportHeight, true);
-  return { left, right, top, bottom: top + height, width, height, tr };
+  const player = hudPlayerRectMobile(viewportWidth, viewportHeight);
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  return { left, right, top, bottom: top + height, width, height, tr, player, joy };
 }
 
 export function createCornerUi(opts) {

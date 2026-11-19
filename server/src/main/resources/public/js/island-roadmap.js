@@ -16,24 +16,43 @@ export function signCopy(doc) {
   const phases = (doc && doc.phases) || [];
   const numbered = phases.filter((phase) => phase && phase.phase != null);
   const current = doc && doc.current != null ? doc.current : null;
-  if (current == null && numbered.length > 0 && numbered.every((phase) => phase.done)) {
+  if (current == null && numbered.length > 0 && numbered.every((phase) => effectivePhaseStatus(phase, current) === 'done')) {
     return { headline: '群島完工', title: '' };
   }
   if (current != null) {
     const phase = phases.find((item) => item && item.phase === current);
     return { headline: '第 ' + current + ' 期施工中', title: phase && phase.title ? phase.title : '' };
   }
+  let latestActive = null;
+  for (let i = 0; i < numbered.length; i++) {
+    const phase = numbered[i];
+    const status = effectivePhaseStatus(phase, current);
+    if (status === 'active' || status === 'progress') {
+      if (!latestActive || phase.phase > latestActive.phase) latestActive = phase;
+    }
+  }
+  if (latestActive) {
+    const st = effectivePhaseStatus(latestActive, current);
+    const headline = st === 'active'
+      ? '第 ' + latestActive.phase + ' 期施工中'
+      : '第 ' + latestActive.phase + ' 期進行中';
+    return {
+      headline: headline,
+      title: latestActive.title ? latestActive.title : ''
+    };
+  }
   return { headline: '施工進度', title: '' };
 }
 
-/** done 已完成、active 施工中、pending 未開工。只有有編號且等於 current 的才算施工中。 */
 export function phaseStatus(phase, current) {
-  if (!phase || phase.done) return 'done';
-  if (phase.phase != null && phase.phase === current) return 'active';
-  return 'pending';
+  return effectivePhaseStatus(phase, current);
 }
 
-const STATUS_LABEL = { done: '已完成', active: '施工中', pending: '未開工' };
+const STATUS_LABEL = { done: '已完成', active: '施工中', progress: '進行中', pending: '未開工' };
+
+function phaseStatusLabel(status) {
+  return STATUS_LABEL[status] || STATUS_LABEL.pending;
+}
 export const DEV_STATUS_FILTERS = ['全部', '排隊', '實作中', '審核中', '已合併', '路線圖'];
 const TODAY_PREVIEW = 8;
 
@@ -53,7 +72,7 @@ function setBar(node, done, total, status) {
 
 function phaseMark(status) {
   if (status === 'done') return '✓';
-  if (status === 'active') return '▸';
+  if (status === 'active' || status === 'progress') return '▸';
   return '○';
 }
 
@@ -69,9 +88,9 @@ function normalizeItem(item) {
 
 function shouldDefaultOpen(phase, status) {
   if (status === 'done') return false;
-  if (status === 'active') return true;
+  if (status === 'active' || status === 'progress') return true;
   const pr = phaseItemProgress(phase);
-  return pr.total > 0 && pr.done < pr.total;
+  return pr.total > 0 && pr.done > 0 && pr.done < pr.total;
 }
 
 function renderTodayPanel(doc, root, timeline, now) {
@@ -499,7 +518,7 @@ export function createRoadmapController(opts) {
         ratio.textContent = pr.done + '/' + pr.total;
         const tag = doc.createElement('span');
         tag.className = 'roadmap-tag';
-        tag.textContent = STATUS_LABEL[status];
+        tag.textContent = phaseStatusLabel(status);
         summary.appendChild(mark);
         summary.appendChild(name);
         summary.appendChild(prog);
