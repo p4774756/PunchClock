@@ -571,6 +571,29 @@ describe('island-life GLB 種類 (#226)', () => {
     assert.ok(Math.abs(tailCtrY - bodyEnd) <= fishLong * 0.2 + 0.05, `wenyao tail y=${tailCtrY} vs body end ${bodyEnd}`);
     assert.ok(Math.max(tail.sx, tail.sy, tail.sz) <= fishLong * 0.55 + 0.05, 'wenyao tail size');
   });
+
+  test('r6 玄武金紋／文鰩翼展 (#226)', () => {
+    const binX = readGlbBin(join(publicRoot, 'models', 'life', 'xuanwu.glb'));
+    const gtX = readGlbJson(join(publicRoot, 'models', 'life', 'xuanwu.glb'));
+    const gold = glbMeshNodeBounds(gtX, binX, 'xuan_gold');
+    const goldLong = Math.max(gold.sx, gold.sy, gold.sz);
+    assert.ok(goldLong > 0.05, `xuan_gold bbox ${goldLong}`);
+    const shell = glbMeshNodeBounds(gtX, binX, 'xuan_shell');
+    const shellTop = shell.sz;
+    assert.ok(gold.sz <= shellTop + 0.12, `xuan_gold height ${gold.sz} vs shell ${shellTop}`);
+
+    const binW = readGlbBin(join(publicRoot, 'models', 'life', 'wenyao.glb'));
+    const gtW = readGlbJson(join(publicRoot, 'models', 'life', 'wenyao.glb'));
+    const body = glbMeshNodeBounds(gtW, binW, 'wen_body');
+    const bodyLong = Math.max(body.sx, body.sy, body.sz);
+    const wingL = glbMeshNodeBounds(gtW, binW, 'wen_wing_l');
+    const wingR = glbMeshNodeBounds(gtW, binW, 'wen_wing_r');
+    const wingSpan = wingL.sx + wingR.sx;
+    const runtimeScale = 2.25;
+    assert.ok(wingSpan >= bodyLong * 1.75, `wenyao wing span ${wingSpan} vs body ${bodyLong}`);
+    assert.ok(wingSpan * runtimeScale >= bodyLong * runtimeScale * 1.75, 'wenyao runtime wing/body ratio');
+    assert.ok(wingSpan * runtimeScale >= 1.9 && wingSpan * runtimeScale <= 2.6, `wenyao runtime wingspan ${wingSpan * runtimeScale}`);
+  });
 });
 
 describe('island-life createIslandLife', () => {

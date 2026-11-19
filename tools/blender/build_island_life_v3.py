@@ -16,6 +16,7 @@ if _HERE not in sys.path:
 import bmesh
 import bpy
 from mathutils import Euler, Vector
+from mathutils.bvhtree import BVHTree
 
 from creature_common import (
     append_bmesh,
@@ -37,8 +38,8 @@ COL = {
     'fish_yellow': 0xF5C542,
     'fish_back': 0xD89A1E,
     'fish_eye': 0x1A2830,
-    'gull_white': 0xF4F6F8,
-    'gull_wing': 0x9AA6B2,
+    'gull_white': 0xF7F9FB,
+    'gull_wing': 0xB8C2CC,
     'gull_tip': 0x2A2A2A,
     'gull_beak': 0xF2B630,
     'whale_back': 0x3E6E9E,
@@ -299,11 +300,18 @@ def _make_export_root():
 
 
 def _decimate_scene(max_tris):
-    total = _tri_count_scene()
+    _decimate_objects(_mesh_objs(), max_tris)
+
+
+def _decimate_objects(objs, max_tris):
+    objs = [o for o in objs if o and o.type == 'MESH']
+    if not objs:
+        return
+    total = sum(sum(len(p.vertices) - 2 for p in ob.data.polygons) for ob in objs)
     if total <= max_tris:
         return
     ratio = (max_tris / total) * 0.98
-    for ob in _mesh_objs():
+    for ob in objs:
         mod = ob.modifiers.new('Decimate', 'DECIMATE')
         mod.ratio = min(0.99, ratio)
         bpy.context.view_layer.objects.active = ob
@@ -461,6 +469,208 @@ def _continuous_tube(bm, points, radii, segs=12):
     bm.verts.ensure_lookup_table()
 
 
+def _curve_path_length(points):
+    total = 0.0
+    for i in range(len(points) - 1):
+        total += (Vector(points[i + 1]) - Vector(points[i])).length
+    return total
+
+
+def _shell_gold_hex_lines(bm, shell_ob):
+    """BVHTree 將六角格線投影到 xuan_shell 表面並以細管連接。"""
+    bvh_bm = bmesh.new()
+    bvh_bm.from_mesh(shell_ob.data)
+    bvh_bm.transform(shell_ob.matrix_world)
+    if not bvh_bm.faces:
+        bvh_bm.free()
+        return
+    bvh = BVHTree.FromBMesh(bvh_bm)
+    co_list = [v.co for v in bvh_bm.verts]
+    max_z = max(v.z for v in co_list)
+    min_x = min(v.x for v in co_list)
+    max_x = max(v.x for v in co_list)
+    min_y = min(v.y for v in co_list)
+    max_y = max(v.y for v in co_list)
+    span = max(max_x - min_x, max_y - min_y)
+    cell = span / 5.5
+    tube_r = max(0.008, min(0.012, cell * 0.07))
+    span_lim = span * 0.52
+
+    def _surf(x, y):
+        hit = bvh.ray_cast(Vector((x, y, max_z + 1.0)), Vector((0.0, 0.0, -1.0)))
+        if hit[0] is None:
+            return None
+        loc, nrm = hit[0], hit[1]
+        return loc + nrm.normalized() * 0.006
+
+    rings = 3
+    for q in range(-rings, rings + 1):
+        for r in range(-rings, rings + 1):
+            if abs(q + r) > rings:
+                continue
+            cx = cell * 1.5 * q
+            cy = cell * math.sqrt(3.0) * (r + q / 2.0)
+            if cx * cx + cy * cy > span_lim * span_lim:
+                continue
+            for k in range(6):
+                a0 = (k / 6.0) * math.pi * 2.0 + math.pi / 6.0
+                a1 = ((k + 1) / 6.0) * math.pi * 2.0 + math.pi / 6.0
+                x0, y0 = cx + cell * math.cos(a0) * 0.92, cy + cell * math.sin(a0) * 0.92
+                x1, y1 = cx + cell * math.cos(a1) * 0.92, cy + cell * math.sin(a1) * 0.92
+                poly = []
+                steps = 6
+                for s in range(steps + 1):
+                    t = s / steps
+                    pt = _surf(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)
+                    if pt is not None:
+                        poly.append(pt)
+                if len(poly) >= 2:
+                    radii = [tube_r] * len(poly)
+                    _continuous_tube(bm, [(p.x, p.y, p.z) for p in poly], radii, 6)
+    bvh_bm.free()
+
+
+def _snake_taper_radii(n, head_r=0.062, tail_r=0.008):
+    radii = []
+    for i in range(n):
+        t = i / max(1, n - 1)
+        radii.append(head_r * (1.0 - t ** 1.4) + tail_r * (t ** 1.4))
+    return radii
+
+
+def _fallback_snake_tubes(root, path_pts):
+    radii = _snake_taper_radii(len(path_pts))
+
+    def _body(bm):
+        _continuous_tube(bm, path_pts, radii, 12)
+
+    def _belly(bm):
+        low = [(p[0], p[1], p[2] - 0.02) for p in path_pts]
+        _continuous_tube(bm, low, [r * 0.62 for r in radii], 12)
+
+    _solid_obj('snake', COL['snake'], _body, parent=root)
+    _solid_obj('snake_belly', COL['snake_belly'], _belly, parent=root)
+
+
+def _flatten_mesh_list(objs):
+    """只對指定 mesh 清除父級並套用變換（不影響場景其他物件）。"""
+    objs = [o for o in objs if o and o.type == 'MESH']
+    if not objs:
+        return None
+    for ob in list(bpy.data.objects):
+        if ob.type == 'ARMATURE':
+            bpy.data.objects.remove(ob, do_unlink=True)
+    _flatten_selected_meshes(objs)
+    if len(objs) == 1:
+        return objs[0]
+    bpy.ops.object.select_all(action='DESELECT')
+    for ob in objs:
+        ob.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.object.join()
+    joined = bpy.context.view_layer.objects.active
+    joined.name = 'snake_import'
+    joined.select_set(False)
+    return joined
+
+
+def _add_snake_quaternius(root, path_pts):
+    """沿殼頂曲線彎曲 snake-quaternius；失敗時回傳 False 由呼叫端改 procedural tube。"""
+    before = {ob.as_pointer() for ob in bpy.data.objects}
+    try:
+        _import_glb(os.path.join(SRC, 'snake-quaternius.glb'))
+    except Exception:
+        return False
+    new_meshes = [ob for ob in bpy.data.objects if ob.type == 'MESH' and ob.as_pointer() not in before]
+    if not new_meshes:
+        return False
+    src = _flatten_mesh_list(new_meshes)
+    if src is None:
+        return False
+    mn, mx = _bounds_meshes([src])
+    dims = mx - mn
+    if dims.y < max(dims.x, dims.z) * 0.85:
+        if dims.x >= dims.z:
+            src.rotation_euler = Euler((0.0, 0.0, math.pi / 2.0))
+        else:
+            src.rotation_euler = Euler((math.pi / 2.0, 0.0, 0.0))
+        bpy.context.view_layer.objects.active = src
+        src.select_set(True)
+        bpy.ops.object.transform_apply(rotation=True)
+        src.select_set(False)
+        mn, mx = _bounds_meshes([src])
+    body_len = mx.y - mn.y
+    path_len = _curve_path_length(path_pts)
+    if body_len > 1e-5 and path_len > 1e-5:
+        fac = path_len / body_len
+        src.scale = (fac * 0.92, fac, fac * 0.92)
+        bpy.context.view_layer.objects.active = src
+        src.select_set(True)
+        bpy.ops.object.transform_apply(scale=True)
+        src.select_set(False)
+        mn, mx = _bounds_meshes([src])
+    for _ in range(2):
+        bpy.context.view_layer.objects.active = src
+        src.select_set(True)
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.subdivide(number_cuts=4)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        src.select_set(False)
+    cu = bpy.data.curves.new('SnakePath', type='CURVE')
+    cu.dimensions = '3D'
+    sp = cu.splines.new('POLY')
+    sp.points.add(len(path_pts) - 1)
+    for i, p in enumerate(path_pts):
+        sp.points[i].co = (float(p[0]), float(p[1]), float(p[2]), 1.0)
+    curve_ob = bpy.data.objects.new('snake_curve', cu)
+    bpy.context.scene.collection.objects.link(curve_ob)
+    curve_ob.parent = root
+    mod = src.modifiers.new('Curve', 'CURVE')
+    mod.object = curve_ob
+    mod.deform_axis = 'POS_Y'
+    bpy.context.view_layer.objects.active = src
+    src.select_set(True)
+    bpy.ops.object.select_all(action='DESELECT')
+    src.select_set(True)
+    bpy.context.view_layer.objects.active = src
+    try:
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+    except Exception:
+        src.modifiers.remove(mod)
+        bpy.data.objects.remove(curve_ob, do_unlink=True)
+        src.select_set(False)
+        for ob in list(bpy.data.objects):
+            if ob.as_pointer() not in before and ob.type == 'MESH' and ob != src:
+                bpy.data.objects.remove(ob, do_unlink=True)
+        bpy.data.objects.remove(src, do_unlink=True)
+        return False
+    src.select_set(False)
+    bpy.data.objects.remove(curve_ob, do_unlink=True)
+    mn, mx = _bounds_meshes([src])
+    head_y = mx.y
+    body_len = max(mx.y - mn.y, 1e-6)
+    src.parent = root
+
+    def _is_eye(f):
+        c = _face_center(f)
+        return c.y > head_y - body_len * 0.14 and abs(c.x) < body_len * 0.12 and c.z > -0.05
+
+    def _is_belly(f):
+        return f.normal.z < -0.28
+
+    _split_src_mesh(
+        src,
+        [
+            ('snake_eye', COL['snake_eye'], 1.0, _is_eye),
+            ('snake_belly', COL['snake_belly'], 1.0, _is_belly),
+            ('snake', COL['snake'], 1.0, lambda f: True),
+        ],
+        root,
+    )
+    return True
+
+
 def _snake_ring_points(turns=1.55, n=28, rad=0.46, head_lift=0.72):
     pts = []
     for i in range(n + 1):
@@ -567,11 +777,25 @@ def build_seagull():
             ('gull_tip', COL['gull_tip'], 1.0,
              lambda f: abs(_face_center(f).x) > 0.32 and abs(_face_center(f).z) < 0.07),
             ('gull_wing', COL['gull_wing'], 1.0,
-             lambda f: f.normal.z < -0.42 and abs(_face_center(f).x) > 0.1),
+             lambda f: f.normal.z > 0.42 and abs(_face_center(f).x) > 0.1),
             ('gull_body', COL['gull_white'], 1.0, lambda f: True),
         ],
         root,
     )
+    for ob in [c for c in root.children if c.type == 'MESH']:
+        em = 0x222222 if ob.name in ('gull_body', 'gull_wing') else None
+        hx = COL['gull_beak'] if ob.name == 'gull_beak' else (
+            COL['gull_tip'] if ob.name == 'gull_tip' else (
+                COL['gull_wing'] if ob.name == 'gull_wing' else COL['gull_white']))
+        ob.data.materials.clear()
+        mat = creature_solid_material(hx, ob.name + '_mat', emissive=em)
+        mat.use_backface_culling = False
+        bsdf = mat.node_tree.nodes.get('Principled BSDF')
+        if bsdf:
+            bsdf.inputs['Roughness'].default_value = 0.8
+            if 'Metallic' in bsdf.inputs:
+                bsdf.inputs['Metallic'].default_value = 0.0
+        ob.data.materials.append(mat)
     meshes = [c for c in root.children if c.type == 'MESH']
     _normalize_objects(meshes, 1.0)
     _decimate_scene(520)
@@ -657,8 +881,8 @@ def build_octopus():
         lambda bm: (
             prim_sphere(bm, (-0.14, 0.04, 0.2), 0.1, 8, 6),
             prim_sphere(bm, (0.14, 0.04, 0.2), 0.1, 8, 6),
-            prim_sphere(bm, (-0.14, 0.04, 0.24), 0.035, 6, 4),
-            prim_sphere(bm, (0.14, 0.04, 0.24), 0.035, 6, 4),
+            prim_sphere(bm, (-0.14, 0.04, 0.27), 0.045, 6, 4),
+            prim_sphere(bm, (0.14, 0.04, 0.27), 0.045, 6, 4),
         ),
         parent=root,
     )
@@ -667,22 +891,50 @@ def build_octopus():
     export_life(os.path.join(OUT_DIR, 'octopus.glb'), root)
 
 
-def _wen_fan_wing(bm, side, root_y=0.1):
-    """扇形胸鰭（水平展開；魚體沿 Blender Y）。"""
-    sx = side
-    tip_y = root_y - 0.52
-    pts = [
-        (0.06 * sx, root_y, 0.0),
-        (0.22 * sx, root_y - 0.08, 0.03 * sx),
-        (0.38 * sx, root_y - 0.22, 0.06 * sx),
-        (0.48 * sx, tip_y, 0.08 * sx),
+def _wen_fan_wing(bm, side, body_len, fin_bm=None):
+    """大扇形胸鰭：根部弦長約 35% 體長、展長約 0.9 體長、後掠 ~30°（水平展開）。"""
+    L = body_len
+    sweep = math.radians(30.0)
+    chord = L * 0.35
+    span = L * 1.08
+    root_x = 0.08 * side * L
+    root_z = 0.02
+    tip_x = root_x + side * span * math.cos(sweep)
+    tip_z = root_z - span * math.sin(sweep) * 0.35
+    leading = [
+        (root_x, 0.0, root_z),
+        (root_x + side * chord * 0.45, -L * 0.04, root_z + L * 0.02),
+        (tip_x * 0.72, -L * 0.14, tip_z * 0.55 + L * 0.03),
+        (tip_x, -L * 0.18, tip_z),
     ]
-    radii = [0.034, 0.028, 0.022, 0.012]
-    _continuous_tube(bm, pts, radii, 10)
-    for i, off in enumerate((0.14, 0.26, 0.38)):
-        prim_box(bm, (0.012, 0.55 - i * 0.12, 0.008),
-                 (pts[i + 1][0] * 0.92, pts[i + 1][1], pts[i + 1][2] * 0.5),
-                 rot=(0.0, 0.52 * sx, -0.12))
+    trailing = [
+        (root_x - side * chord * 0.12, -L * 0.06, root_z - L * 0.02),
+        (root_x + side * chord * 0.35, -L * 0.12, root_z - L * 0.01),
+        (tip_x * 0.68, -L * 0.22, tip_z * 0.5),
+        (tip_x * 0.94, -L * 0.2, tip_z * 0.85),
+    ]
+    v_top = []
+    v_bot = []
+    for i in range(4):
+        v_top.append(bm.verts.new(Vector(leading[i]) + Vector((0.0, L * 0.012, 0.0))))
+        v_bot.append(bm.verts.new(Vector(trailing[i]) + Vector((0.0, -L * 0.008, 0.0))))
+    bm.verts.ensure_lookup_table()
+    for i in range(3):
+        try:
+            bm.faces.new((v_top[i], v_top[i + 1], v_bot[i + 1], v_bot[i]))
+        except ValueError:
+            pass
+    try:
+        bm.faces.new((v_top[3], v_bot[3], v_bot[2], v_top[2]))
+    except ValueError:
+        pass
+    if fin_bm is not None:
+        for i, t in enumerate((0.28, 0.52, 0.76)):
+            fx = leading[1][0] + (tip_x - leading[1][0]) * t
+            fz = leading[1][2] + (tip_z - leading[1][2]) * t
+            prim_box(fin_bm, (0.006, L * 0.55, 0.004),
+                     (fx, -L * (0.08 + i * 0.04), fz),
+                     rot=(0.0, 0.08 * side, 0.0))
 
 
 def build_wenyao():
@@ -709,23 +961,35 @@ def build_wenyao():
             ],
             root,
         )
+    body_parts = [c for c in root.children if c.type == 'MESH' and not c.name.startswith('wen_wing')]
+    _normalize_objects(body_parts, 1.2)
+    body_ob = bpy.data.objects.get('wen_body') or body_parts[0]
+    bb = body_ob.data.vertices
+    if bb:
+        mn = Vector((min(v.co.x for v in bb), min(v.co.y for v in bb), min(v.co.z for v in bb)))
+        mx = Vector((max(v.co.x for v in bb), max(v.co.y for v in bb), max(v.co.z for v in bb)))
+        body_len = max(mx.y - mn.y, mx.x - mn.x, mx.z - mn.z)
+    else:
+        body_len = 1.2
+
     def _wing_l(bm):
-        _wen_fan_wing(bm, 1.0)
+        ribs = bmesh.new()
+        _wen_fan_wing(bm, 1.0, body_len, ribs)
+        append_bmesh(bm, ribs)
+        ribs.free()
 
     def _wing_r(bm):
-        _wen_fan_wing(bm, -1.0)
+        ribs = bmesh.new()
+        _wen_fan_wing(bm, -1.0, body_len, ribs)
+        append_bmesh(bm, ribs)
+        ribs.free()
 
-    _solid_obj('wen_wing_l', COL['wen_wing'], _wing_l, parent=root, alpha=0.85)
-    _solid_obj('wen_wing_r', COL['wen_wing'], _wing_r, parent=root, alpha=0.85)
-    for ob in [c for c in root.children if 'wen_wing' in c.name]:
-        ob.scale = (3.4, 1.0, 1.6)
-        bpy.context.view_layer.objects.active = ob
-        ob.select_set(True)
-        bpy.ops.object.transform_apply(scale=True)
-        ob.select_set(False)
-    all_meshes = [c for c in root.children if c.type == 'MESH']
-    _normalize_objects(all_meshes, 1.0)
-    _decimate_scene(720)
+    for builder, nm in ((_wing_l, 'wen_wing_l'), (_wing_r, 'wen_wing_r')):
+        wob = _solid_obj(nm, COL['wen_wing'], builder, parent=root, alpha=0.85)
+        wob.data.materials[0].use_backface_culling = False
+    _decimate_objects([c for c in root.children if c.type == 'MESH'], 720)
+    _normalize_longest(1.0)
+    _shade_smooth(_mesh_objs())
     export_life(os.path.join(OUT_DIR, 'wenyao.glb'), root)
 
 
@@ -781,32 +1045,31 @@ def build_xuanwu():
         bm.free()
         ob.data.update()
     _normalize_objects([c for c in root.children if c.type == 'MESH' and c.name.startswith('xuan')], 1.0)
+    shell_ob = bpy.data.objects.get('xuan_shell')
+    if shell_ob:
+        def _gold_build(bm):
+            _shell_gold_hex_lines(bm, shell_ob)
+        _solid_obj('xuan_gold', COL['xuan_gold'], _gold_build, parent=root)
     snake_pts = _snake_shell_path(turns=1.4, rad=0.43)
-    hx, hy, hz = snake_pts[0]
-
-    def _procedural_snake(bm):
-        _tube_along_points(bm, snake_pts, 0.055, 12)
-        prim_ellipsoid(bm, (hx + 0.05, hy, hz + 0.05), (0.065, 0.075, 0.06), 6, 5)
-
-    def _procedural_belly(bm):
-        pts = [(p[0], p[1], p[2] - 0.022) for p in snake_pts]
-        _tube_along_points(bm, pts, 0.034, 10)
-
-    _solid_obj('snake', COL['snake'], _procedural_snake, parent=root)
-    _solid_obj('snake_belly', COL['snake_belly'], _procedural_belly, parent=root)
+    if not _add_snake_quaternius(root, snake_pts):
+        _fallback_snake_tubes(root, snake_pts)
+    else:
+        snake_obs = [c for c in root.children if c.name in ('snake', 'snake_belly', 'snake_eye')]
+        smn, smx = _bounds_meshes(snake_obs)
+        turtle_obs = [c for c in root.children if c.name.startswith('xuan_')]
+        tmn, tmx = _bounds_meshes(turtle_obs)
+        if (smx - smn).length > (tmx - tmn).length * 1.35:
+            for ob in snake_obs:
+                bpy.data.objects.remove(ob, do_unlink=True)
+            _fallback_snake_tubes(root, snake_pts)
     _normalize_longest(1.0)
-    turtle_meshes = [c for c in root.children if c.type == 'MESH' and c.name.startswith('xuan')]
-    t_tris = sum(sum(len(p.vertices) - 2 for p in ob.data.polygons) for ob in turtle_meshes)
-    if t_tris > 650:
-        ratio = (650 / t_tris) * 0.98
-        for ob in turtle_meshes:
-            mod = ob.modifiers.new('Decimate', 'DECIMATE')
-            mod.ratio = min(0.99, ratio)
-            bpy.context.view_layer.objects.active = ob
-            ob.select_set(True)
-            bpy.ops.object.modifier_apply(modifier=mod.name)
-            ob.select_set(False)
-    _decimate_scene(2900)
+    turtle_meshes = [c for c in root.children if c.type == 'MESH' and c.name in ('xuan_shell', 'xuan_body')]
+    _decimate_objects(turtle_meshes, 650)
+    snake_meshes = [
+        c for c in root.children
+        if c.type == 'MESH' and c.name in ('snake', 'snake_belly', 'snake_eye')
+    ]
+    _decimate_objects(snake_meshes, 480)
     _shade_smooth(_mesh_objs())
     export_life(os.path.join(OUT_DIR, 'xuanwu.glb'), root)
 
