@@ -81,6 +81,8 @@ export function cityObstacleCircles() {
 export const PINK_CAR_LOCAL = Object.freeze({ x: 1.5, z: -1.65, yaw: 0.2 - Math.PI / 2 });
 /** 路人／機車取樣點須與停車位保持的最小距離（含車身與人身寬度）。 */
 export const PINK_CAR_PATH_CLEAR_R = 1.55;
+/** 粉紅 Fiat 車頂相對車體原點 Y（glb 包圍盒 max.y；占位 fallback ≈0.77）。 */
+export const PINK_CAR_ROOF_Y_FALLBACK = 0.697;
 
 export function pinkCarWorld() {
   const c = CITY_CENTER;
