@@ -6,6 +6,8 @@ import {
   SLICE_BUDGET_MS,
   yieldForSliceBudget,
   yieldOnce,
+  yieldToMain,
+  type SliceBudget,
 } from './load-progress';
 
 /** Hide panorama / ground / platform / ring only — never lights or fog. */
@@ -62,6 +64,9 @@ export const programCount = (renderer: T.WebGLRenderer): number =>
 export const textureCount = (renderer: T.WebGLRenderer): number =>
   renderer.info?.memory?.textures ?? 0;
 
+export const programCacheKeys = (renderer: T.WebGLRenderer): string[] =>
+  renderer.info?.programs?.map(p => String((p as {cacheKey?: string}).cacheKey ?? p.name ?? '')) ?? [];
+
 const supportsParallelCompile = (renderer: T.WebGLRenderer): boolean => {
   try {
     return renderer.getContext().getExtension('KHR_parallel_shader_compile') != null;
@@ -75,12 +80,75 @@ const textureOnGpu = (renderer: T.WebGLRenderer, texture: T.Texture): boolean =>
   return props?.__webglTexture !== undefined;
 };
 
-const warmScissorRender = (renderer: T.WebGLRenderer, scene: T.Scene, camera: T.Camera) => {
+const FLUSH_VIEWPORT = 64;
+const _readPixel = new Uint8Array(4);
+
+type ImageLike = CanvasImageSource & {width: number; height: number};
+
+const textureImage = (tex: T.Texture): ImageLike | null => {
+  const img = tex.image as ImageLike | undefined;
+  if (!img?.width || !img?.height) return null;
+  return img;
+};
+
+const textureMetaLabel = (tex: T.Texture): string => tex.name || `tex#${tex.id}`;
+
+/**
+ * Real mini draw + readPixels so SwiftShader finishes sampling work inside the load slice
+ * (1×1 scissor alone does not).
+ */
+export const flushGpuSlice = (renderer: T.WebGLRenderer, scene: T.Scene, camera: T.Camera) => {
+  const gl = renderer.getContext();
+  const prevTarget = renderer.getRenderTarget();
+  const prevViewport = new T.Vector4();
+  renderer.getViewport(prevViewport);
+  const prevScissorTest = renderer.getScissorTest();
+  const prevScissor = new T.Vector4();
+  renderer.getScissor(prevScissor);
+  try {
+    renderer.setRenderTarget(null);
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, FLUSH_VIEWPORT, FLUSH_VIEWPORT);
+    renderer.render(scene, camera);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, _readPixel);
+    if (typeof gl.finish === 'function') gl.finish();
+  } catch {
+    /* software WebGL */
+  } finally {
+    renderer.setRenderTarget(prevTarget);
+    renderer.setViewport(prevViewport);
+    renderer.setScissor(prevScissor);
+    renderer.setScissorTest(prevScissorTest);
+  }
+};
+
+const warmSliceRender = (
+  renderer: T.WebGLRenderer,
+  scene: T.Scene,
+  camera: T.Camera,
+  fullFrame?: boolean,
+) => {
+  if (fullFrame) {
+    try {
+      renderer.render(scene, camera);
+      const gl = renderer.getContext();
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, _readPixel);
+      if (typeof gl.finish === 'function') gl.finish();
+    } catch {
+      /* software WebGL */
+    }
+    return;
+  }
   const scissorOn = renderer.getScissorTest();
   renderer.setScissorTest(true);
-  renderer.setScissor(0, 0, 1, 1);
-  renderer.render(scene, camera);
-  renderer.setScissorTest(scissorOn);
+  renderer.setScissor(0, 0, FLUSH_VIEWPORT, FLUSH_VIEWPORT);
+  try {
+    renderer.render(scene, camera);
+  } catch {
+    /* software WebGL */
+  } finally {
+    renderer.setScissorTest(scissorOn);
+  }
 };
 
 const setRootMeshVisibility = (
@@ -122,18 +190,36 @@ export const uploadTexturesIncremental = async (opts: {
   while (i < pending.length) {
     if (disposed()) break;
     resetSliceBudget(budget);
-    while (i < pending.length && sliceBudgetElapsed(budget) < SLICE_BUDGET_MS) {
+    while (i < pending.length) {
+      const t0 = performance.now();
       try {
         renderer.initTexture(pending[i]);
       } catch {
         /* software WebGL */
       }
+      const ms = performance.now() - t0;
+      const img = textureImage(pending[i]);
+      if (import.meta.env.DEV || ms > SLICE_BUDGET_MS) {
+        console.debug(
+          'atlas:texture-upload',
+          textureMetaLabel(pending[i]),
+          img?.width ?? 0,
+          img?.height ?? 0,
+          pending[i].format,
+          pending[i].generateMipmaps,
+          Math.round(ms),
+        );
+      }
       i++;
       itemCount++;
+      if (sliceBudgetElapsed(budget) >= SLICE_BUDGET_MS || ms > SLICE_BUDGET_MS * 4) break;
     }
     sliceCount++;
     onSlice?.(sliceCount, pending.length);
-    if (i < pending.length) await yieldForSliceBudget(budget, !!progressSlices);
+    if (i < pending.length) {
+      if (progressSlices) await yieldToMain();
+      await yieldForSliceBudget(budget, !!progressSlices);
+    }
   }
   return {sliceCount, itemCount, skippedCount};
 };
@@ -171,6 +257,8 @@ export const warmShadersIncremental = async (opts: {
   warmedKeys?: Set<string>;
   /** Outline pass only — fills MToon outline shaders before the first full frame. */
   outlineOnly?: boolean;
+  /** After each program group, flush GPU with a real mini viewport draw. */
+  flushGpu?: boolean;
 }): Promise<ShaderWarmResult> => {
   const {
     renderer,
@@ -184,6 +272,7 @@ export const warmShadersIncremental = async (opts: {
     keepSceneChrome,
     warmedKeys,
     outlineOnly,
+    flushGpu = true,
   } = opts;
   const programsBefore = programCount(renderer);
   const warmRoots = roots?.length ? roots : [root];
@@ -222,8 +311,9 @@ export const warmShadersIncremental = async (opts: {
     const restoreChrome = keepSceneChrome ? () => {} : hideSceneChrome(scene);
     try {
       await renderer.compileAsync(scene, camera);
+      if (flushGpu) flushGpuSlice(renderer, scene, camera);
     } catch {
-      warmScissorRender(renderer, scene, camera);
+      warmSliceRender(renderer, scene, camera);
     } finally {
       restoreChrome();
       restoreMeshes();
@@ -239,7 +329,7 @@ export const warmShadersIncremental = async (opts: {
       const restoreMeshes = setRootMeshVisibility(meshes, new Set([rep]));
       const restoreChrome = keepSceneChrome ? () => {} : hideSceneChrome(scene);
       try {
-        warmScissorRender(renderer, scene, camera);
+        warmSliceRender(renderer, scene, camera);
       } catch {
         /* software WebGL */
       } finally {
@@ -250,6 +340,7 @@ export const warmShadersIncremental = async (opts: {
       sliceCount++;
       onSlice?.(i + 1, groups.length);
       if (i < groups.length - 1) {
+        if (progressSlices) await yieldToMain();
         await (progressSlices ? yieldForSliceBudget(budget, true) : yieldOnce());
       }
     }
@@ -263,4 +354,32 @@ export const warmShadersIncremental = async (opts: {
     console.debug('atlas:shader-warm programs', programsBefore, '→', programsAfter);
   }
   return {programsBefore, programsAfter, groups: groups.length, groupsSkipped, sliceCount};
+};
+
+export type FinalRenderStats = {
+  newPrograms: number;
+  newTextures: number;
+  programKeys: string[];
+};
+
+/** Full-size warm-up render — programs/textures must not grow vs pre-call counts. */
+export const finalSceneRender = (
+  renderer: T.WebGLRenderer,
+  scene: T.Scene,
+  camera: T.Camera,
+  programsBefore: number,
+  texturesBefore: number,
+): FinalRenderStats => {
+  warmSliceRender(renderer, scene, camera, true);
+  const newPrograms = Math.max(0, programCount(renderer) - programsBefore);
+  const newTextures = Math.max(0, textureCount(renderer) - texturesBefore);
+  const stats = {newPrograms, newTextures, programKeys: programCacheKeys(renderer)};
+  console.debug(
+    'atlas:final-render new programs/textures',
+    newPrograms,
+    newTextures,
+    'programs',
+    stats.programKeys.length,
+  );
+  return stats;
 };

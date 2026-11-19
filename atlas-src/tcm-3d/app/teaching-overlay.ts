@@ -1,7 +1,7 @@
 import * as T from 'three';
 import {createInstrument,updateInstrument} from './instruments';
 import {focusViewFromNormal} from './focus-view';
-import {buildSkinRaycastProxies} from './skin-raycast-proxy';
+import {buildSkinRaycastProxiesIncremental} from './skin-raycast-proxy';
 import {POINTS,POINT_BY_CODE,TOOLS,curriculumSet,type SimulationState,type SurfaceTarget,type ToolId} from './teaching';
 import type {AnimePoint} from './character-mode';
 
@@ -93,21 +93,39 @@ export function createTeachingOverlay(
   }
   applySeed(dot,seed);
  };
+ let proxyBakePromise:Promise<void>|null=null;
  const anchor=(characterRoot:T.Object3D)=>{
   if(anchored)return;
   skinMeshes=collectSkins(characterRoot);
   if(!skinMeshes.length)return;
   characterRoot.updateMatrixWorld(true);
-  performance.mark('atlas:anchor-start');
-  raycastTargets=buildSkinRaycastProxies(characterRoot,SKIN_MESH_HINT);
   for(const dot of markers){
    const seed=opts.resolvePoint(dot.userData.point,dot.userData.side)??{position:dot.position.toArray() as [number,number,number],normal:[0,0,-1]};
-   snapDot(dot,seed);
+   applySeed(dot,seed);
   }
   anchorSnapshot=new Map(surface);
   anchored=true;
+ };
+ const refineAnchorsFromProxies=()=>{
+  if(!raycastTargets.length)return;
+  performance.mark('atlas:anchor-start');
+  for(const dot of markers){
+   const seed=surface.get(`${dot.userData.point}:${dot.userData.side}`)??opts.resolvePoint(dot.userData.point,dot.userData.side);
+   if(seed)snapDot(dot,seed);
+  }
+  anchorSnapshot=new Map(surface);
   performance.mark('atlas:anchor-end');
   try{performance.measure('atlas:anchor','atlas:anchor-start','atlas:anchor-end');}catch{/* duplicate */}
+ };
+ const ensureSkinProxyBake=async(characterRoot:T.Object3D,disposed:()=>boolean)=>{
+  if(raycastTargets.length)return;
+  if(proxyBakePromise)return proxyBakePromise;
+  proxyBakePromise=(async()=>{
+   raycastTargets=await buildSkinRaycastProxiesIncremental(characterRoot,SKIN_MESH_HINT,disposed);
+   if(disposed())return;
+   refineAnchorsFromProxies();
+  })();
+  return proxyBakePromise;
  };
  /** Outfit switches share body geometry — restore baked targets without another raycast. */
  const applyCachedAnchors=()=>{
@@ -127,9 +145,9 @@ export function createTeachingOverlay(
   anchored=false;
   anchor(characterRoot);
  };
- const update=(s:SimulationState,camera:T.Camera,width:number,height:number)=>{
+ const update=(s:SimulationState,camera:T.Camera,width:number,height:number,show=true)=>{
   activeCurriculum=curriculumSet(s.curriculumSet==='all'?undefined:s.curriculumSet);
-  root.visible=true;dots.visible=s.showPoints;
+  root.visible=show;dots.visible=s.showPoints;
   const target=getTarget(s);contact.visible=!!target;
   for(const dot of markers){
    const selected=dot.userData.point===s.pointCode&&(dot.userData.side===s.side||opts.points.find(p=>p.code===s.pointCode)?.midline);
@@ -200,9 +218,10 @@ export function createTeachingOverlay(
  };
  const getDraggables=(tool:ToolId)=>{const meshes:T.Object3D[]=[];instruments.get(tool)?.traverseVisible(o=>{if(o instanceof T.Mesh)meshes.push(o);});return meshes;};
  return {
-  root,markers,label,anchor,reanchor,applyCachedAnchors,update,focus,getTarget,getDraggables,snapTarget,
+  root,markers,label,anchor,reanchor,applyCachedAnchors,ensureSkinProxyBake,update,focus,getTarget,getDraggables,snapTarget,
   getSkinMeshes:()=>skinMeshes,
   isAnchored:()=>anchored,
+  hasSkinProxies:()=>raycastTargets.length>0,
   dispose:()=>{
    normalMat.dispose();activeMat.dispose();sphere.dispose();
    instruments.forEach(g=>g.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}}));

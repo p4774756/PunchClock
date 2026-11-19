@@ -9,6 +9,11 @@ import {
   nextModelDownloadProgress,
   materialsSlicePercent,
   nextMonotonicPercent,
+  createSliceBudget,
+  resetSliceBudget,
+  sliceBudgetElapsed,
+  SLICE_BUDGET_MS,
+  yieldForSliceBudget,
   yieldOnce,
   yieldToMain,
 } from './load-progress';
@@ -16,6 +21,7 @@ import {
   groupMeshesByProgram,
   programCount,
   textureCount,
+  finalSceneRender,
   uploadTexturesIncremental,
   warmShadersIncremental,
 } from './shader-warm';
@@ -455,6 +461,103 @@ const collectMeshTextures=(root:T.Object3D,extras:T.Texture[]=[],includeHidden=f
  * Unmask Body_00_SKIN under hidden Tops／Bottoms, then paint teal bra＋shorts into the
  * same lit MToon map so cloth follows the skinned mesh (no separate Mesh / no onBeforeCompile).
  */
+const paintPracticeBodySkinIncremental=async(root:T.Object3D)=>{
+ const skinMats:T.MeshStandardMaterial[]=[];
+ const skinMeshes:(T.Mesh|T.SkinnedMesh)[]=[];
+ root.traverse((obj:T.Object3D)=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  const body=mats.filter(m=>/Body_00_SKIN/i.test(m.name||'')&&!/Outline/i.test(m.name||'')) as T.MeshStandardMaterial[];
+  if(!body.length)return;
+  skinMeshes.push(obj);
+  for(const m of body)if(!skinMats.includes(m))skinMats.push(m);
+ });
+ if(!skinMeshes.length||!skinMats.length)return;
+ const src=skinMats.map(findSkinMap).find(Boolean)??null;
+ if(!src?.image)return;
+ const img=src.image as CanvasImageSource & {width:number;height:number};
+ const canvas=document.createElement('canvas');
+ canvas.width=img.width;canvas.height=img.height;
+ const ctx=canvas.getContext('2d',{willReadFrequently:true});
+ if(!ctx)return;
+ try{ctx.drawImage(img,0,0);}catch{return;}
+ const data=ctx.getImageData(0,0,canvas.width,canvas.height);
+ let r=0,g=0,b=0,n=0;
+ for(let i=0;i<data.data.length;i+=16){
+  if(data.data[i+3]<200)continue;
+  r+=data.data[i];g+=data.data[i+1];b+=data.data[i+2];n++;
+ }
+ const skinRgb=n?new T.Color(r/n/255,g/n/255,b/n/255):SKIN_FILL.clone();
+ const fallbackSkin:SkinRgb={r:Math.round(skinRgb.r*255),g:Math.round(skinRgb.g*255),b:Math.round(skinRgb.b*255)};
+ const flipY=!!src.flipY;
+ let touched=0;
+ for(const mesh of skinMeshes){
+  const geom=mesh.geometry;
+  const pos=geom.getAttribute('position');
+  const uv=geom.getAttribute('uv');
+  const index=geom.index;
+  if(!pos||!uv||!index)continue;
+  mesh.updateMatrixWorld(true);
+  const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
+  const budget=createSliceBudget();
+  const slice=async()=>{
+   if(sliceBudgetElapsed(budget)<SLICE_BUDGET_MS)return;
+   await yieldForSliceBudget(budget,true);
+   resetSliceBudget(budget);
+  };
+  for(let i=0;i<index.count;i+=3){
+   const i0=index.getX(i),i1=index.getX(i+1),i2=index.getX(i+2);
+   a.fromBufferAttribute(pos,i0).applyMatrix4(mesh.matrixWorld);
+   b.fromBufferAttribute(pos,i1).applyMatrix4(mesh.matrixWorld);
+   c.fromBufferAttribute(pos,i2).applyMatrix4(mesh.matrixWorld);
+   const cx=(a.x+b.x+c.x)/3,cy=(a.y+b.y+c.y)/3,cz=(a.z+b.z+c.z)/3;
+   const torso=inTorsoSkinBand(a.x,a.y,a.z)||inTorsoSkinBand(b.x,b.y,b.z)||inTorsoSkinBand(c.x,c.y,c.z)||inTorsoSkinBand(cx,cy,cz);
+   if(!torso)continue;
+   const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
+   writeUvTriangleFill(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2,skinRgb);
+   // Broad AABB cull: only triangles that could intersect bra／shorts get per-texel paint.
+   const yMin=Math.min(a.y,b.y,c.y),yMax=Math.max(a.y,b.y,c.y);
+   if(yMax>=.8&&yMin<=1.24){
+    writeUvTriangleCloth(data,canvas.width,canvas.height,flipY,u0,v0,a,u1,v1,b,u2,v2,c,(x,y,z)=>inPracticeBra(x,y,z)||inPracticeShorts(x,y,z),PRACTICE_TEAL_SRGB);
+   }
+   touched++;
+   if(i%96===0)await slice();
+  }
+  for(let i=0;i<index.count;i+=3){
+   const i0=index.getX(i),i1=index.getX(i+1),i2=index.getX(i+2);
+   a.fromBufferAttribute(pos,i0).applyMatrix4(mesh.matrixWorld);
+   b.fromBufferAttribute(pos,i1).applyMatrix4(mesh.matrixWorld);
+   c.fromBufferAttribute(pos,i2).applyMatrix4(mesh.matrixWorld);
+   const cx=(a.x+b.x+c.x)/3,cy=(a.y+b.y+c.y)/3,cz=(a.z+b.z+c.z)/3;
+   const shoulder=inOuterShoulderWorld(a.x,a.y,a.z)||inOuterShoulderWorld(b.x,b.y,b.z)||inOuterShoulderWorld(c.x,c.y,c.z)||inOuterShoulderWorld(cx,cy,cz);
+   if(!shoulder)continue;
+   const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
+   writeUvTriangleShoulderFix(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2,fallbackSkin);
+   touched++;
+   if(i%96===0)await slice();
+  }
+ }
+ if(!touched)return;
+ ctx.putImageData(data,0,0);
+ const next=src.clone();
+ next.image=canvas;
+ next.colorSpace=src.colorSpace??T.SRGBColorSpace;
+ next.generateMipmaps=true;
+ next.minFilter=T.LinearMipmapLinearFilter;
+ next.magFilter=T.LinearFilter;
+ next.needsUpdate=true;
+ for(const m of skinMats)setMToonBodyMap(m,next);
+ for(const mesh of skinMeshes){
+  const mats=Array.isArray(mesh.material)?mesh.material:[mesh.material];
+  for(const mat of mats){
+   const m=mat as T.MeshStandardMaterial;
+   if(!/Body_00_SKIN/i.test(m.name||'')||/Outline/i.test(m.name||''))continue;
+   setMToonBodyMap(m,next);
+  }
+ }
+ return next;
+};
+
 const paintPracticeBodySkin=(root:T.Object3D)=>{
  const skinMats:T.MeshStandardMaterial[]=[];
  const skinMeshes:(T.Mesh|T.SkinnedMesh)[]=[];
@@ -503,7 +606,6 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
    if(!torso)continue;
    const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
    writeUvTriangleFill(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2,skinRgb);
-   // Broad AABB cull: only triangles that could intersect bra／shorts get per-texel paint.
    const yMin=Math.min(a.y,b.y,c.y),yMax=Math.max(a.y,b.y,c.y);
    if(yMax>=.8&&yMin<=1.24){
     writeUvTriangleCloth(data,canvas.width,canvas.height,flipY,u0,v0,a,u1,v1,b,u2,v2,c,(x,y,z)=>inPracticeBra(x,y,z)||inPracticeShorts(x,y,z),PRACTICE_TEAL_SRGB);
@@ -875,19 +977,24 @@ const listOutfitMeshes=(root:T.Object3D)=>{
  onSlice?:(index:number,total:number)=>void,
 )=>{
  const meshes=listOutfitMeshes(root);
- const total=Math.max(Math.ceil(meshes.length/4)+2,1);
+ const total=Math.max(meshes.length+3,1);
  let step=0;
  const tick=()=>{step++;onSlice?.(step,total);};
+ const budget=createSliceBudget();
  for(let i=0;i<meshes.length;i++){
   applyOutfitMaterialsToObject(meshes[i],outfit);
   applyCelShadingToObject(meshes[i],gradient);
-  if(i%4===3||i===meshes.length-1){tick();await yieldOnce();}
+  if(sliceBudgetElapsed(budget)>=SLICE_BUDGET_MS||i===meshes.length-1){
+   tick();
+   await yieldForSliceBudget(budget,true);
+   resetSliceBudget(budget);
+  }
  }
- const painted=paintPracticeBodySkin(root);
+ const painted=await paintPracticeBodySkinIncremental(root);
  if(painted)root.userData.practiceBodySkinMap=painted;
  restyleHairBun(root);
  tick();
- await yieldOnce();
+ await yieldForSliceBudget(budget,true);
 };
 
 const finishCharacterLook=(root:T.Object3D,outfit:AnimeOutfit,gradient:T.DataTexture)=>{
@@ -958,7 +1065,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   ring.rotation.x=-Math.PI/2;ring.position.y=.001;ring.userData.atlasSceneChrome=true;scene.add(ring);
 
   const gradient=toonGradient();
-  const characterRoot=new T.Group();scene.add(characterRoot);
+  const characterRoot=new T.Group();characterRoot.visible=false;scene.add(characterRoot);
+  let teachingOverlayVisible=false;
+  let skinProxyBakeScheduled=false;
   const teaching=createTeachingOverlay(scene,{
    points,
    resolvePoint:(code,side)=>avatarPointTarget(avatar,code,side),
@@ -1069,6 +1178,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    await Promise.race([woodcutReady,timeoutAfter(25_000)]);
    if(disposed)return;
    const warmPrepStart=performance.now();
+   const charVisible=characterRoot.visible;
+   characterRoot.visible=true;
+   characterRoot.updateMatrixWorld(true);
    const warmRoots=[...(primaryRoot?[primaryRoot]:[]),...(practiceShell&&practiceBuilt?[practiceShell]:[])];
    const chromeExtras:T.Texture[]=[gradient];
    if(woodcut)chromeExtras.push(woodcut.tex);
@@ -1123,6 +1235,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    shaderWarmPrograms=warmPrograms;
    gpuBaselineAfterLoad={programs:programCount(renderer),textures:textureCount(renderer)};
    outfitSwitchAssertPending=!!practiceBuilt;
+   characterRoot.visible=charVisible;
   };
 
   const schedulePracticeWarm=()=>{
@@ -1242,23 +1355,33 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      },220);
      await yieldToMain();
      if(disposed)return;
+     const parseSlice=async(label:string,work:()=>void)=>{
+      const t0=performance.now();
+      work();
+      const ms=Math.round(performance.now()-t0);
+      if(import.meta.env.DEV)console.debug('atlas:parse-slice',label,ms);
+      await yieldToMain();
+      if(ms>SLICE_BUDGET_MS)await yieldOnce();
+     };
      vrm=gltf.userData.vrm??null;
      const model=vrm?.scene??gltf.scene;
      if(vrm){
-      VRMUtils.removeUnnecessaryVertices(gltf.scene);
-      VRMUtils.combineSkeletons(gltf.scene);
+      await parseSlice('vrm-remove-vertices',()=>VRMUtils.removeUnnecessaryVertices(gltf.scene));
+      await parseSlice('vrm-combine-skeletons',()=>VRMUtils.combineSkeletons(gltf.scene));
      }
      if(cacheAnimeOutfits){
-      practiceShell=cloneSkinnedObject(model);
-      isolatePracticeRig(practiceShell);
-      finishCharacterLook(model,schoolOutfit,gradient);
+      await parseSlice('clone-practice',()=>{
+       practiceShell=cloneSkinnedObject(model);
+       isolatePracticeRig(practiceShell!);
+      });
+      await parseSlice('finish-school-look',()=>finishCharacterLook(model,schoolOutfit,gradient));
       uniformAssetSnap=snapshotMeshAssets(model);
       schoolModel=model;
       schoolModel.visible=outfitIdRef.current==='school';
       characterRoot.clear();
       characterRoot.add(schoolModel);
      }else{
-      finishCharacterLook(model,animeOutfit(outfitIdRef.current),gradient);
+      await parseSlice('finish-look',()=>finishCharacterLook(model,animeOutfit(outfitIdRef.current),gradient));
       characterRoot.clear();
       characterRoot.add(model);
      }
@@ -1314,9 +1437,13 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      reportProgress(99,'materials','準備材質…');
      if(disposed)return;
      showOutfit(outfitIdRef.current);
-     teaching.update(sim.current,camera,el.clientWidth,el.clientHeight);
+     characterRoot.visible=true;
+     teachingOverlayVisible=true;
+     const programsBeforeFinal=programCount(renderer);
+     const texturesBeforeFinal=textureCount(renderer);
+     teaching.update(sim.current,camera,el.clientWidth,el.clientHeight,true);
      dirty=true;
-     renderer.render(scene,camera);
+     finalSceneRender(renderer,scene,camera,programsBeforeFinal,texturesBeforeFinal);
      dirty=false;
      finishOutfitSwitchMeasure();
      await yieldToMain();
@@ -1324,6 +1451,12 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      ready=true;
      sceneReady.current=true;
      reportProgress(100,'done');
+     if(!skinProxyBakeScheduled){
+      skinProxyBakeScheduled=true;
+      const bake=()=>{void teaching.ensureSkinProxyBake(characterRoot,()=>disposed);};
+      if(typeof requestIdleCallback==='function')requestIdleCallback(bake);
+      else setTimeout(bake,64);
+     }
      const launchSim=sim.current;
      if(launchSim.focus>0&&teaching.focus(launchSim,camera,controls,{force:true}))lastFocus=launchSim.focus;
      else fit(latest.current.view);
@@ -1341,7 +1474,10 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   let toolInput:ReturnType<typeof installSurfaceToolInput>|undefined;
   const raycaster=new T.Raycaster(),pointer=new T.Vector2(),tap=new PointerTap();
-  const down=(e:PointerEvent)=>tap.down(e.pointerId,e.clientX,e.clientY,e.pointerType==='touch'?12:5);
+  const down=(e:PointerEvent)=>{
+   if(ready&&!teaching.hasSkinProxies())void teaching.ensureSkinProxyBake(characterRoot,()=>disposed);
+   tap.down(e.pointerId,e.clientX,e.clientY,e.pointerType==='touch'?12:5);
+  };
   const move=(e:PointerEvent)=>{tap.move(e.pointerId,e.clientX,e.clientY);};
   const cancel=(e:PointerEvent)=>tap.cancel(e.pointerId);
   const up=(e:PointerEvent)=>{
@@ -1364,7 +1500,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(controls.autoRotate)dirty=true;
 
    if(ready&&!teaching.isAnchored()&&characterRoot.children.length)teaching.anchor(characterRoot);
-   if(teaching.focus(simState,camera,controls)){lastFocus=simState.focus;dirty=true;}
+   if(ready&&teaching.focus(simState,camera,controls)){lastFocus=simState.focus;dirty=true;}
    else if(simState.focus&&lastFocus!==simState.focus&&ready){
     // Pre-anchor fallback: same framing rules as teaching-overlay (do not ride the surface normal).
     lastFocus=simState.focus;
@@ -1380,10 +1516,13 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     }
    }
 
-   const response=teaching.update(simState,camera,el.clientWidth,el.clientHeight);
-   if(lastSimulation!==simState||simState.running||response?.settling){dirty=true;lastSimulation=simState;}
+   if(ready){
+    const response=teaching.update(simState,camera,el.clientWidth,el.clientHeight,teachingOverlayVisible);
+    if(lastSimulation!==simState||simState.running||response?.settling){dirty=true;lastSimulation=simState;}
+   }
 
    if(dirty){
+    if(!ready){dirty=false;return;}
     if(shaderWarmPrograms!=null){
      const after=programCount(renderer);
      if(import.meta.env.DEV)console.debug('atlas:programs first render',after,'warmed',shaderWarmPrograms);
