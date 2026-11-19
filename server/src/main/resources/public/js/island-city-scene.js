@@ -82,6 +82,16 @@ function citySignMaps(kit) {
   };
 }
 
+function disposeLoadedMaterial(oldMat, keepMap) {
+  if (!oldMat || typeof oldMat.dispose !== 'function') return;
+  if (keepMap && oldMat.map === keepMap) {
+    oldMat.map = null;
+    oldMat.dispose();
+    return;
+  }
+  oldMat.dispose();
+}
+
 function applyCityMaterials(model, kit, signMaps) {
   const { mat } = kit;
   model.traverse((obj) => {
@@ -91,6 +101,7 @@ function applyCityMaterials(model, kit, signMaps) {
     obj.userData.glbMaterialName = matName;
     let baseColor = 0xffffff;
     if (oldMat && oldMat.color) baseColor = oldMat.color.getHex();
+    const atlasMap = oldMat && oldMat.map ? oldMat.map : null;
     const glowInfo = glowForMaterial('city', matName);
     let extra = {};
     if (glowInfo) {
@@ -108,7 +119,7 @@ function applyCityMaterials(model, kit, signMaps) {
         map: signTex,
         night: 0xfff0dc,
         glow: emissive ? 0xffffff : 0xffb15a,
-        glowAmount: emissive ? 0.22 : 0.55,
+        glowAmount: emissive ? 0.78 : 0.92,
         side: THREE.DoubleSide
       });
       if (emissive) obj.material.emissiveMap = signTex;
@@ -116,10 +127,12 @@ function applyCityMaterials(model, kit, signMaps) {
       const init = obj.name === 'traffic_red' ? 0xff3b30
         : obj.name === 'traffic_yellow' ? 0xffcc00 : 0x34c759;
       obj.material = mat(init, { shadow: false });
+    } else if (atlasMap) {
+      obj.material = mat(0xffffff, Object.assign({ shadow: true, map: atlasMap }, extra));
     } else {
       obj.material = mat(baseColor, Object.assign({ shadow: true }, extra));
     }
-    if (oldMat && typeof oldMat.dispose === 'function') oldMat.dispose();
+    disposeLoadedMaterial(oldMat, obj.material && obj.material.map);
     obj.castShadow = true;
     obj.receiveShadow = true;
   });
@@ -153,8 +166,13 @@ function applyCarMaterials(carModel, kit) {
     const oldMat = obj.material;
     let baseColor = 0xffffff;
     if (oldMat && oldMat.color) baseColor = oldMat.color.getHex();
-    obj.material = mat(baseColor, { shadow: true });
-    if (oldMat && typeof oldMat.dispose === 'function') oldMat.dispose();
+    const atlasMap = oldMat && oldMat.map ? oldMat.map : null;
+    if (atlasMap) {
+      obj.material = mat(0xffffff, { shadow: true, map: atlasMap });
+    } else {
+      obj.material = mat(baseColor, { shadow: true });
+    }
+    disposeLoadedMaterial(oldMat, obj.material && obj.material.map);
     obj.castShadow = true;
     obj.receiveShadow = true;
   });

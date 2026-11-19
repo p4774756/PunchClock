@@ -27,9 +27,10 @@ REGIONS = _ATLAS_CELLS
 
 
 def atlas_uv(name):
+    """PIL 圖 y=0 在上方；glTF／Three V=0 在下方 → 對 V 軸翻轉。"""
     col, row = _ATLAS_CELLS.get(name, (0, 0))
     u0 = col / COLS
     u1 = (col + 1) / COLS
-    v0 = row / ROWS
-    v1 = (row + 1) / ROWS
+    v0 = 1.0 - (row + 1) / ROWS
+    v1 = 1.0 - row / ROWS
     return (u0, v0, u1, v1)

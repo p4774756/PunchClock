@@ -40,7 +40,7 @@ def _shophouse(b, walls, sign_part, lx, lz, bw, bd, bh, tex_wall, street_sign,
                       lx + ox, fy - street * 0.10, bh * 0.46)
     walls.box_tex(f'@{awning}', _au(awning), bw + 0.55, 0.10, 1.15, lx, fy + street * 0.52, bh + 0.06)
     walls.box_tex('@wood', _au('wood'), bw + 0.45, 0.06, bd + 0.22, lx, lz + street * 0.14, bh + 0.12)
-  # 陽台層
+    # 陽台層
     for fz in (bh * 0.52, bh * 0.78):
         walls.box_tex('@city_facade', uv_facade, bw - 0.35, 0.28, 0.14, lx, fy - street * 0.20, fz)
         walls.box('lab_grey', 0.26, 0.20, 0.16, lx + bw * 0.30, fy - street * 0.12, fz + 0.04)
@@ -50,13 +50,16 @@ def _shophouse(b, walls, sign_part, lx, lz, bw, bd, bh, tex_wall, street_sign,
     # 店面大窗
     walls.box_tex('@city_facade', uv_facade, min(1.1, bw * 0.55), bh * 0.45, 0.09,
                   lx, fy - street * 0.06, bh * 0.38)
-    # 招牌（朝街）
-    sw = min(1.85, bw * 0.52)
-    sh = 0.56
-    sx, sy, sz = lx, fy + street * 0.28, bh * 0.82
-    sign_part.box('gold', sw + 0.14, 0.05, sh + 0.12, sx, sy, sz)
-    pitch = -0.10 if street > 0 else 0.10
-    sign_part.plane('sign', sw, sh, sx, sy + street * 0.05, sz, rx=pitch)
+    # 招牌（朝街、俯視鏡頭可讀）
+    sw = min(2.55, bw * 0.68)
+    sh = 0.82
+    sx, sy, sz = lx, fy + street * 0.34, bh * 0.90
+    pitch = -0.14 if street > 0 else 0.12
+    sign_part.box('gold', sw + 0.18, 0.06, sh + 0.14, sx, sy, sz)
+    if street > 0:
+        sign_part.plane('sign', sw, sh, sx, sy + 0.07, sz, rx=pitch, ry=math.pi, flip_u=True)
+    else:
+        sign_part.plane('sign', sw, sh, sx, sy - 0.06, sz, rx=pitch)
 
 
 def _corner_tower(walls, lx, lz, bw, bd, bh, mat, accent):
@@ -67,11 +70,12 @@ def _corner_tower(walls, lx, lz, bw, bd, bh, mat, accent):
         walls.box(accent, 0.40, 0.36, 0.08, lx + ox, lz + oz, bh * 0.58)
 
 
-def _mount_sign(b, part_name, lx, ly, lz, sw, sh, rx=0.0, ry=0.0):
+def _mount_sign(b, part_name, lx, ly, lz, sw, sh, rx=-0.12, ry=math.pi):
+    """北向立面；法線朝 +Y 對準 EXPLORE 鏡頭。"""
     face = b.part(part_name)
     fr = b.part(part_name + '_frame')
-    fr.box('gold', sw + 0.12, 0.05, sh + 0.10, lx, ly, lz, rx=rx, ry=ry)
-    face.plane('sign', sw, sh, lx, ly + 0.03, lz, rx=rx, ry=ry)
+    fr.box('gold', sw + 0.18, 0.06, sh + 0.16, lx, ly - 0.05, lz, rx=rx, ry=ry)
+    face.plane('sign', sw, sh, lx, ly + 0.08, lz, rx=rx, ry=ry, flip_u=True)
 
 
 def _zebra(ground, cx, cz, along_x=True):
@@ -99,12 +103,18 @@ def _palm(props, x, y):
 
 
 def _scooter(props, x, y, rz=0.0):
-    props.box('city_moto_dark', 0.58, 0.30, 0.22, x, y, 0.15, rz=rz)
-    props.box('shop_navy', 0.44, 0.11, 0.28, x, y + 0.08, 0.26, rz=rz)
-    props.box('shop_navy', 0.16, 0.32, 0.14, x, y - 0.06, 0.40, rz=rz)
-    for wx in (-0.22, 0.22):
-        props.cyl('city_traffic_dark', 0.11, 0.11, 0.10, x + wx, y, 0.12, seg=7, rx=math.pi / 2, rz=rz)
-    props.box('windows_glow', 0.06, 0.05, 0.06, x - 0.26, y, 0.18, rz=rz)
+    """小綿羊：圓潤前罩、踏板、座椅、輪拱。"""
+    props.box('city_trim_white', 0.64, 0.06, 0.28, x, y - 0.04, 0.11, rz=rz)
+    props.sphere('city_moto_cream', 0.19, x, y + 0.16, 0.24, sz=0.82, seg=8, rings=5)
+    props.box('city_moto_cream', 0.40, 0.18, 0.30, x, y + 0.02, 0.26, rz=rz)
+    props.box('city_moto_dark', 0.36, 0.11, 0.32, x, y - 0.10, 0.36, rz=rz)
+    props.cyl('city_traffic_dark', 0.028, 0.028, 0.34, x, y + 0.06, 0.42, seg=5, rz=rz)
+    props.box('city_traffic_dark', 0.38, 0.05, 0.05, x, y + 0.20, 0.46, rz=rz)
+    props.sphere('windows_glow', 0.065, x, y + 0.24, 0.20, seg=6, rings=4)
+    for wx in (-0.21, 0.21):
+        props.cyl('city_traffic_dark', 0.10, 0.10, 0.07, x + wx, y, 0.10, seg=7, rx=math.pi / 2, rz=rz)
+        props.sphere('city_moto_cream', 0.13, x + wx, y, 0.14, sz=0.55, seg=6, rings=4)
+    props.sphere('city_traffic_red', 0.04, x, y - 0.24, 0.22, seg=5, rings=4)
 
 
 def _vending(props, x, y, ry=0.0):
@@ -116,20 +126,24 @@ def _vending(props, x, y, ry=0.0):
 
 
 def _harbor(ground, walls, props):
-    """北側碼頭：岸線、雙棧橋、纜柱、小型遊艇剪影。"""
-    ground.box_tex('@city_water_edge', _au('city_water_edge'), 6.2, 0.75, 0.12, 0, 6.45, 0.05)
-    ground.box_tex('@wood', _au('wood'), 1.05, 5.6, 0.10, 0, 6.05, 0.04)
-    for ox in (-0.95, 0.95):
-        ground.box_tex('@wood', _au('wood'), 0.95, 5.4, 0.14, ox, 6.15, 0.07)
-        for z in (5.45, 6.15, 6.75):
-            walls.box('city_rail', 0.10, 0.12, 0.55, ox, z, 0.30)
-    for px, pz in ((-1.1, 6.55), (1.1, 6.55), (-0.55, 6.55), (0.55, 6.55)):
-        props.cyl('city_rail', 0.055, 0.04, 0.42, px, pz, 0.22, seg=6)
-    # 小船
-    props.box('city_trim_white', 1.35, 0.38, 0.22, -2.2, 6.85, 0.14)
-    props.box('shop_navy', 1.1, 0.22, 0.18, -2.2, 6.85, 0.32)
-    props.cyl('city_trim_white', 0.04, 0.04, 0.55, -2.2, 6.85, 0.62, seg=5)
-    ground.box('city_sand', 2.4, 1.2, 0.08, -2.2, 6.75, 0.04)
+    """北側碼頭：岸線、T 型棧橋、遊艇剪影（全景可辨）。"""
+    ground.box_tex('@city_water_edge', _au('city_water_edge'), 7.0, 1.05, 0.14, 0, 6.55, 0.06)
+    ground.box_tex('@wood', _au('wood'), 1.25, 6.4, 0.11, 0, 6.12, 0.055)
+    ground.box_tex('@wood', _au('wood'), 2.6, 0.95, 0.11, 0.75, 6.65, 0.055)
+    for ox in (-1.15, 1.15):
+        ground.box_tex('@wood', _au('wood'), 1.05, 5.2, 0.14, ox, 6.25, 0.075)
+        for z in (5.55, 6.2, 6.85):
+            walls.box('city_rail', 0.10, 0.12, 0.62, ox, z, 0.34)
+    for px, pz in ((-1.2, 6.6), (1.2, 6.6), (-0.6, 6.8), (0.6, 6.8), (0.75, 6.95)):
+        props.cyl('city_rail', 0.06, 0.045, 0.48, px, pz, 0.26, seg=6)
+    # 遊艇
+    props.box('city_trim_white', 2.0, 0.42, 0.28, -1.85, 6.95, 0.16)
+    props.box('shop_navy', 1.45, 0.28, 0.22, -1.85, 6.95, 0.36)
+    props.box('lab_glass', 0.55, 0.32, 0.32, -1.85, 6.95, 0.58)
+    props.cyl('city_trim_white', 0.05, 0.05, 0.62, -1.85, 6.95, 0.72, seg=5)
+    props.box('city_trim_white', 0.95, 0.22, 0.18, 1.55, 6.88, 0.14)
+    props.box('shop_navy', 0.72, 0.16, 0.14, 1.55, 6.88, 0.28)
+    ground.box('city_sand', 3.2, 1.45, 0.09, -1.6, 6.82, 0.045)
 
 
 def _traffic(b):
@@ -201,12 +215,12 @@ def build(out_path):
     # —— 3×3 街區其餘角樓（純視覺，不增碰撞）——
     blocks = [
         (-5.1, 5.0, 1.55, 1.55, 2.05, 'city_wall_yellow'),
-        (5.1, 5.0, 1.55, 1.55, 2.05, 'city_wall_teal'),
+        (5.1, 5.0, 1.55, 1.55, 2.05, 'city_wall_mint'),
         (-5.1, -5.0, 1.45, 1.45, 1.85, 'city_wall_lilac'),
         (5.1, -5.0, 1.45, 1.45, 1.85, 'city_wall_coral'),
         (-5.1, 0.0, 1.35, 1.35, 1.75, 'city_wall_mint'),
         (5.1, 0.0, 1.35, 1.35, 1.75, 'city_wall_yellow'),
-        (0, 5.0, 1.65, 1.65, 1.95, 'city_wall_teal'),
+        (0, 5.0, 1.65, 1.65, 1.95, 'city_wall_mint'),
         (-2.6, 2.6, 1.25, 1.25, 1.55, 'city_wall_coral'),
         (2.6, 2.6, 1.25, 1.25, 1.55, 'city_wall_mint'),
     ]
@@ -216,11 +230,11 @@ def build(out_path):
         _mini_block(walls, lx, lz, bw, bd, bh, mat)
 
     _corner_tower(walls, -5.0, 5.05, 1.48, 1.48, 2.48, 'city_wall_yellow', 'lab_glass')
-    _corner_tower(walls, 5.0, 5.05, 1.48, 1.48, 2.48, 'city_wall_teal', 'lab_glass')
+    _corner_tower(walls, 5.0, 5.05, 1.48, 1.48, 2.48, 'city_wall_mint', 'lab_glass')
 
-    _mount_sign(b, 'sign_face_game', -5.0, 5.68, 1.72, 1.55, 0.52, rx=-0.12)
-    _mount_sign(b, 'sign_face_711', 5.0, 5.68, 1.72, 1.20, 0.52, rx=-0.12)
-    _mount_sign(b, 'sign_face_snack', -1.40, 5.68, 1.18, 1.40, 0.44, rx=-0.10)
+    _mount_sign(b, 'sign_face_game', -5.0, 5.72, 1.92, 1.95, 0.68)
+    _mount_sign(b, 'sign_face_711', 5.0, 5.72, 1.92, 1.55, 0.68)
+    _mount_sign(b, 'sign_face_snack', -1.35, 5.72, 1.55, 1.75, 0.58)
 
     for lx, ly in ((-3.0, 4.55), (3.0, 4.55), (-3.0, -3.45), (3.0, -3.45), (0, 5.4)):
         props.cyl('city_traffic_dark', 0.045, 0.055, 1.42, lx, ly, 0.72, seg=6)

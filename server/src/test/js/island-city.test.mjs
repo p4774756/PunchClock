@@ -96,6 +96,12 @@ test('城市機車為 milu 看板而非方塊人', () => {
   assert.match(citySceneJs, /spawnCityScooterWalkers/);
 });
 
+test('applyCityMaterials 保留 glTF city_atlas map', () => {
+  assert.match(citySceneJs, /const atlasMap = oldMat && oldMat\.map/);
+  assert.match(citySceneJs, /mat\(0xffffff, Object\.assign\(\{ shadow: true, map: atlasMap \}, extra\)\)/);
+  assert.match(citySceneJs, /disposeLoadedMaterial\(oldMat, obj\.material && obj\.material\.map\)/);
+});
+
 test('city.glb 與 city-pink-car.glb 已建置', () => {
   const cityPath = path.join(_models, 'city.glb');
   const carPath = path.join(_models, 'city-pink-car.glb');

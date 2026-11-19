@@ -91,6 +91,7 @@ PALETTE = {
     'city_traffic_yel':  (0xffcc00, None),
     'city_traffic_grn':  (0x34c759, None),
     'city_moto_dark':    (0x3a4a5a, None),
+    'city_moto_cream':   (0xf4f0e8, None),
     'city_vending_grn':  (0x4caf7a, None),
     'city_sand':         (0xe8d4a8, None),
     'city_water_edge':   (0x6a9ec8, None),
