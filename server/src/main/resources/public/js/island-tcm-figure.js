@@ -96,14 +96,22 @@ function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(0xc8a850);
   const matName = (oldMat.name || '').toLowerCase();
   const faceRecess = isBronze && (matName === 'bronze_dark' || matName === 'bronze_patina');
-  if (isBronze && !faceRecess) {
+  if (isBronze) {
     const hsl = { h: 0, s: 0, l: 0 };
     day.getHSL(hsl);
-    day.setHSL(hsl.h, Math.min(1, hsl.s * 1.14 + 0.06), Math.min(0.46, Math.max(0.34, hsl.l * 0.82)));
-  } else if (faceRecess) {
-    const hsl = { h: 0, s: 0, l: 0 };
-    day.getHSL(hsl);
-    day.setHSL(hsl.h, Math.min(1, hsl.s * 1.02 + 0.04), Math.min(0.32, Math.max(0.18, hsl.l * 0.72)));
+    if (faceRecess) {
+      day.setHSL(
+        Math.min(0.12, Math.max(0.06, hsl.h)),
+        Math.min(0.88, hsl.s * 0.92 + 0.08),
+        Math.min(0.3, Math.max(0.16, hsl.l * 0.65))
+      );
+    } else {
+      day.setHSL(
+        Math.min(0.13, Math.max(0.08, hsl.h * 0.92 + 0.09)),
+        Math.min(0.78, hsl.s * 0.88 + 0.12),
+        Math.min(0.5, Math.max(0.36, hsl.l * 0.9 + 0.04))
+      );
+    }
   }
   const night = nightColorFromDay(day.getHex(), { bronze: isBronze });
   const emissive = oldMat.emissive ? oldMat.emissive.clone() : new THREE.Color(0x000000);
@@ -203,11 +211,11 @@ function applyBronzeFigureMaterials(root, kit) {
       obj.material = bronzeMaterialFromGltf(
         {
           name: matName || 'bronze',
-          color: new THREE.Color(0xc4862e),
-          metalness: 0.97,
-          roughness: 0.09,
-          emissive: new THREE.Color(0xffc878),
-          emissiveIntensity: 0.028
+          color: new THREE.Color(0xb88a38),
+          metalness: 0.96,
+          roughness: 0.11,
+          emissive: new THREE.Color(0xf0c878),
+          emissiveIntensity: 0.022
         },
         kit,
         true
@@ -218,8 +226,8 @@ function applyBronzeFigureMaterials(root, kit) {
     obj.receiveShadow = true;
   });
 }
-/** 庭院銅人正面朝 -Z，讓南侧動線（z 較小）走近的玩家看見五官；館門側見背面可接受。 */
-const COURTYARD_FIG_YAW = Math.PI;
+/** 模型正面 +Z；yaw 0 與官方庭院姿態一致，走近錨點一側可見眼鼻口（館門側見背可接受）。 */
+const COURTYARD_FIG_YAW = 0;
 
 const LOAD_BUFFER = 1.65;
 const UNLOAD_BUFFER = 3.2;
@@ -627,7 +635,7 @@ export function createTcmFigureController(ctx) {
   };
 }
 
-const ENTRANCE_FIG_SCALE = 0.9;
+const ENTRANCE_FIG_SCALE = 1.08;
 
 export function replaceEntranceBronzeStatue(model, kit, pickables, opts) {
   model.updateMatrixWorld(true);

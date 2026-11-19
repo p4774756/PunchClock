@@ -8,30 +8,31 @@ export const MARKER_SURFACE_EPS = 0.009;
 export const BRONZE_HEAD_TOP_Y = 1.76;
 
 /** 與 tcm-bronze-figure.glb 對齊的吸附用橢球（資料空間 Y-up）；頂髻略扁、偏後，拉開金點。 */
+/** 僅百會等後頂正中點；扁而小，避免金點圍髻成環。 */
 const BRONZE_SNAP_TOPKNOT = Object.freeze({
   cx: 0,
-  cy: 1.694,
-  cz: -0.048,
-  rx: 0.128,
-  ry: 0.026,
-  rz: 0.082
+  cy: 1.702,
+  cz: -0.062,
+  rx: 0.078,
+  ry: 0.022,
+  rz: 0.055
 });
-/** 額頂～髻根（略高於一般頭殼），橫向較寬避免髻週金點擠成一團。 */
+/** 額頂正中帶；橫向橫向寬、縱向扁，與頭殼錯層。 */
 const BRONZE_SNAP_CROWN = Object.freeze({
   cx: 0,
-  cy: 1.652,
-  cz: 0.042,
-  rx: 0.138,
-  ry: 0.048,
-  rz: 0.118
+  cy: 1.648,
+  cz: 0.038,
+  rx: 0.118,
+  ry: 0.036,
+  rz: 0.108
 });
 const BRONZE_SNAP_HEAD = Object.freeze({
   cx: 0,
-  cy: 1.558,
-  cz: 0.062,
-  rx: 0.112,
-  ry: 0.116,
-  rz: 0.128
+  cy: 1.562,
+  cz: 0.058,
+  rx: 0.118,
+  ry: 0.122,
+  rz: 0.132
 });
 const BRONZE_SNAP_TORSO = Object.freeze({
   cx: 0,
@@ -55,12 +56,12 @@ export const BRONZE_PART_BOXES = Object.freeze([
   { minX: 0, maxX: 0.26, minY: 0, maxY: 0.16, minZ: -0.12, maxZ: 0.16 },
   { minX: 0.02, maxX: 0.17, minY: 0.02, maxY: 0.98, minZ: -0.14, maxZ: 0.14 },
   { minX: 0, maxX: 0.22, minY: 0.70, maxY: 1.38, minZ: -0.15, maxZ: 0.14 },
-  { minX: 0.04, maxX: 0.38, minY: 0.66, maxY: 1.28, minZ: -0.14, maxZ: 0.10 },
+  { minX: 0.04, maxX: 0.4, minY: 0.66, maxY: 1.28, minZ: -0.14, maxZ: 0.12 },
   { minX: 0, maxX: 0.15, minY: 1.34, maxY: 1.76, minZ: -0.15, maxZ: 0.17 }
 ]);
 
 export const ENTRANCE_BRONZE_MATERIALS = Object.freeze(['bronze', 'bronze_dark']);
-export const ENTRANCE_FIG_LOCAL = Object.freeze({ x: -0.58, y: 0, z: 1.85 });
+export const ENTRANCE_FIG_LOCAL = Object.freeze({ x: -0.52, y: 0, z: 1.78 });
 
 export function meshMaterialNames(mesh) {
   if (!mesh || !mesh.material) return [];
@@ -170,11 +171,18 @@ export function markerSurfacePosition(record, side) {
   const pz = t.position[2];
   const eps = MARKER_SURFACE_EPS;
 
-  if (py >= 1.712) {
+  const ax = Math.abs(px);
+  if (py >= 1.698 && ax < 0.02 && pz < -0.008) {
     return snapEllipsoid(px, py, pz, BRONZE_SNAP_TOPKNOT, eps);
   }
-  if (py >= 1.646) {
-    return snapEllipsoid(px, py, pz, BRONZE_SNAP_CROWN, eps);
+  if (py >= 1.652) {
+    if (ax > 0.024 || pz > 0.05) {
+      return snapEllipsoid(px, py, pz, BRONZE_SNAP_HEAD, eps);
+    }
+    if (py >= 1.668 && ax < 0.035 && pz > 0.02 && pz < 0.09) {
+      return snapEllipsoid(px, py, pz, BRONZE_SNAP_CROWN, eps);
+    }
+    return snapEllipsoid(px, py, pz, BRONZE_SNAP_HEAD, eps);
   }
   if (py >= 1.34) {
     return snapEllipsoid(px, py, pz, BRONZE_SNAP_HEAD, eps);

@@ -152,7 +152,7 @@ test('館門舊銅像：bronze 材質 mesh 選取', () => {
   assert.ok(meshUsesEntranceBronzeMaterial(dark));
   assert.ok(meshUsesEntranceBronzeMaterial(arrayMat));
   assert.equal(meshMaterialNames({ material: { name: 'tile' } }).join(','), 'tile');
-  assert.ok(entranceBronzeLocalGuard({ x: -0.58, z: 1.85 }));
+  assert.ok(entranceBronzeLocalGuard({ x: -0.52, z: 1.78 }));
   assert.ok(!entranceBronzeLocalGuard({ x: 0.2, z: 0.4 }));
 });
 
@@ -203,8 +203,8 @@ test('館門舊銅像：traverse 隱藏兩件並保留新像座標', () => {
   assert.equal(meshes[0].visible, false);
   assert.equal(meshes[1].visible, false);
   assert.equal(meshes[2].visible, true);
-  assert.equal(ENTRANCE_FIG_LOCAL.x, -0.58);
-  assert.equal(ENTRANCE_FIG_LOCAL.z, 1.85);
+  assert.equal(ENTRANCE_FIG_LOCAL.x, -0.52);
+  assert.equal(ENTRANCE_FIG_LOCAL.z, 1.78);
 });
 
 test('resolveTcmPickHit：InstancedMesh 回傳穴 instanceKey', () => {

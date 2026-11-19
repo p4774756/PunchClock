@@ -253,8 +253,8 @@ def _build_face_detail(bm, front):
         sock = bmesh.new()
         _add_uv_ellipsoid(
             sock,
-            _v(side * 0.036, head_y + 0.006, face_z - 0.014),
-            (0.022, 0.016, 0.012),
+            _v(side * 0.036, head_y + 0.006, face_z - 0.016),
+            (0.026, 0.018, 0.014),
             u=8,
             v=6,
         )
@@ -282,7 +282,7 @@ def _build_face_detail(bm, front):
         brow.free()
 
     nose = bmesh.new()
-    _add_uv_ellipsoid(nose, _v(0.0, head_y - 0.008, face_z + 0.018), (0.018, 0.036, 0.034), u=10, v=8)
+    _add_uv_ellipsoid(nose, _v(0.0, head_y - 0.008, face_z + 0.022), (0.022, 0.042, 0.038), u=10, v=8)
     _append_bmesh(bm, nose)
     nose.free()
     bridge = bmesh.new()
@@ -307,13 +307,13 @@ def _build_body(mat_main, mat_dark, mat_patina):
 
     # —— 軀幹（胸腹背一体）——
     torso = [
-        (1.34, 0.0, front, 0.075, 0.070),   # 頸根
-        (1.24, 0.0, front - 0.004, 0.124, 0.096),   # 肩線
-        (1.16, 0.0, front - 0.006, 0.158, 0.104),   # 肩膊
-        (1.06, 0.0, front - 0.01, 0.132, 0.098),  # 胸
-        (0.94, 0.0, front, 0.118, 0.090),   # 腰
-        (0.82, 0.0, front - 0.006, 0.132, 0.104),  # 腹
-        (0.74, 0.0, front, 0.142, 0.108),  # 胯
+        (1.34, 0.0, front, 0.082, 0.078),   # 頸根
+        (1.24, 0.0, front - 0.004, 0.138, 0.108),   # 肩線
+        (1.16, 0.0, front - 0.006, 0.172, 0.116),   # 肩膊
+        (1.06, 0.0, front - 0.01, 0.146, 0.108),  # 胸
+        (0.94, 0.0, front, 0.132, 0.098),   # 腰
+        (0.82, 0.0, front - 0.006, 0.146, 0.114),  # 腹
+        (0.74, 0.0, front, 0.156, 0.118),  # 胯
     ]
     _loft_sections(bm, torso)
 
@@ -349,15 +349,15 @@ def _build_body(mat_main, mat_dark, mat_patina):
     def arm(side):
         s = side
         upper = [
-            (1.28, s * 0.155, front - 0.008, 0.058, 0.055),
-            (1.14, s * 0.182, front - 0.015, 0.050, 0.048),
-            (1.02, s * 0.198, front - 0.022, 0.044, 0.044),
+            (1.28, s * 0.158, front - 0.008, 0.068, 0.062),
+            (1.14, s * 0.188, front - 0.015, 0.058, 0.054),
+            (1.02, s * 0.208, front - 0.022, 0.052, 0.050),
         ]
         _loft_sections(bm, upper)
         fore = [
-            (1.02, s * 0.198, front - 0.022, 0.042, 0.040),
-            (0.90, s * 0.228, front - 0.028, 0.038, 0.038),
-            (0.82, s * 0.248, front - 0.032, 0.036, 0.036),
+            (1.02, s * 0.208, front - 0.022, 0.050, 0.048),
+            (0.90, s * 0.238, front - 0.028, 0.046, 0.044),
+            (0.82, s * 0.258, front - 0.032, 0.044, 0.042),
         ]
         _loft_sections(bm, fore)
         hand = bmesh.new()
@@ -423,14 +423,14 @@ def build(out_path):
     prepare_scene()
     mat_bronze = _mat_bronze(
         'bronze',
-        0xc4862e,
-        rough=0.09,
+        0xb88a38,
+        rough=0.11,
         metal=0.96,
-        emit=0xffc878,
-        emit_strength=0.022,
+        emit=0xf0c878,
+        emit_strength=0.018,
     )
-    mat_bronze_dark = _mat_bronze('bronze_dark', 0x6e4820, rough=0.22, metal=0.88)
-    mat_patina = _mat_bronze('bronze_patina', 0x6a7048, rough=0.32, metal=0.84)
+    mat_bronze_dark = _mat_bronze('bronze_dark', 0x5a3818, rough=0.24, metal=0.86)
+    mat_patina = _mat_bronze('bronze_patina', 0x6a5c38, rough=0.34, metal=0.82)
     mat_stone = _mat_stone('stone', 0xf6f0e8, rough=0.68)
     mat_stone_band = _mat_stone('stone_band', 0xeae2d8, rough=0.72)
     mat_stone_dark = _mat_stone('stone_dark', 0xd8cec2, rough=0.76)
