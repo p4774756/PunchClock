@@ -170,7 +170,7 @@ def _rasterize_hand_painted(bm, color_lay, uv_lay, size):
     return img
 
 
-def creature_solid_material(hex_color, name='creature_solid_mat', alpha=1.0):
+def creature_solid_material(hex_color, name='creature_solid_mat', alpha=1.0, emissive=None):
     """無貼圖 Principled 材質（glTF baseColorFactor）。"""
     m = bpy.data.materials.new(name)
     m.use_nodes = True
@@ -195,6 +195,13 @@ def creature_solid_material(hex_color, name='creature_solid_mat', alpha=1.0):
     if alpha < 0.999:
         bsdf.inputs['Alpha'].default_value = alpha
         m.blend_method = 'BLEND'
+    if emissive is not None:
+        er, eg, eb, _ = hex_rgba(emissive) if isinstance(emissive, int) else (*emissive[:3], 1.0)
+        bsdf.inputs['Emission Color'].default_value = (er, eg, eb, 1.0)
+        try:
+            bsdf.inputs['Emission Strength'].default_value = 0.38
+        except KeyError:
+            bsdf.inputs['Emission'].default_value = 0.38
     return m
 
 

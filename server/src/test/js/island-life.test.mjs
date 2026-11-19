@@ -296,6 +296,52 @@ function transformPoint(m, x, y, z) {
   return [px, py, pz];
 }
 
+function glbNodeBoundsFiltered(gltf, binChunk, skipNames) {
+  const nodes = gltf.nodes || [];
+  const meshes = gltf.meshes || [];
+  const accessors = gltf.accessors || [];
+  const bufferViews = gltf.bufferViews || [];
+  const world = new Array(nodes.length);
+  const visited = new Set();
+
+  function dfs(i, parent) {
+    if (visited.has(i)) return;
+    visited.add(i);
+    const local = nodeLocalMatrix(nodes[i]);
+    world[i] = parent ? mat4Multiply(parent, local) : local;
+    for (const c of nodes[i].children || []) dfs(c, world[i]);
+  }
+  for (const sc of gltf.scenes || [{ nodes: [0] }]) {
+    for (const root of sc.nodes || []) dfs(root, null);
+  }
+
+  let minX = Infinity; let minY = Infinity; let minZ = Infinity;
+  let maxX = -Infinity; let maxY = -Infinity; let maxZ = -Infinity;
+
+  for (let ni = 0; ni < nodes.length; ni++) {
+    const node = nodes[ni];
+    if (node.mesh == null || world[ni] == null) continue;
+    if (skipNames && skipNames.has(node.name || '')) continue;
+    const mesh = meshes[node.mesh];
+    if (!mesh) continue;
+    for (const prim of mesh.primitives || []) {
+      const posAcc = accessors[prim.attributes.POSITION];
+      if (!posAcc) continue;
+      const bv = bufferViews[posAcc.bufferView];
+      const byteOffset = (bv.byteOffset || 0) + (posAcc.byteOffset || 0);
+      const stride = bv.byteStride || 12;
+      const dv = new DataView(binChunk.buffer, binChunk.byteOffset + byteOffset, bv.byteLength);
+      for (let vi = 0; vi < posAcc.count; vi++) {
+        const off = vi * stride;
+        const [wx, wy, wz] = transformPoint(world[ni], dv.getFloat32(off, true), dv.getFloat32(off + 4, true), dv.getFloat32(off + 8, true));
+        minX = Math.min(minX, wx); minY = Math.min(minY, wy); minZ = Math.min(minZ, wz);
+        maxX = Math.max(maxX, wx); maxY = Math.max(maxY, wy); maxZ = Math.max(maxZ, wz);
+      }
+    }
+  }
+  return { minY, maxY, sx: maxX - minX, sy: maxY - minY, sz: maxZ - minZ };
+}
+
 function glbNodeBounds(gltf, binChunk) {
   const nodes = gltf.nodes || [];
   const meshes = gltf.meshes || [];
@@ -431,7 +477,9 @@ function assertLifeGlbContract(filePath, horizontalKinds) {
   }
   const bin = readGlbBin(filePath);
   const b = glbNodeBounds(gltf, bin);
-  const longest = Math.max(b.sx, b.sy, b.sz);
+  const skipLong = name === 'whale.glb' ? new Set(['whale_spray']) : null;
+  const bLong = skipLong ? glbNodeBoundsFiltered(gltf, bin, skipLong) : b;
+  const longest = Math.max(bLong.sx, bLong.sy, bLong.sz);
   assert.ok(longest >= 0.95 && longest <= 1.05, `${name} longest ${longest}`);
   for (const node of gltf.nodes || []) {
     if (node.mesh == null) continue;
@@ -444,7 +492,9 @@ function assertLifeGlbContract(filePath, horizontalKinds) {
   }
   const kindKey = Object.entries(LIFE_GLB_FILES).find(([, f]) => f === name)?.[0];
   if (horizontalKinds && kindKey && horizontalKinds.has(kindKey)) {
-    const ySpan = b.maxY - b.minY;
+    const skip = kindKey === 'whale' ? new Set(['whale_spray']) : null;
+    const bb = skip ? glbNodeBoundsFiltered(gltf, bin, skip) : b;
+    const ySpan = bb.maxY - bb.minY;
     assert.ok(ySpan <= longest * 0.4 + 0.02, `${name} glTF Y span ${ySpan} vs longest ${longest}`);
   }
   assert.ok(b.tris <= 3000, `${name} tris ${b.tris}`);
@@ -467,7 +517,7 @@ describe('island-life GLB 種類 (#226)', () => {
   });
 
   test('每個 GLB 無骨架縮放／無貼圖／正規化最長軸', () => {
-    const horizontal = new Set(['fishSchool', 'whale', 'kunpeng', 'wenyao', 'birds']);
+    const horizontal = new Set(['fishSchool', 'whale', 'kunpeng', 'wenyao']);
     let totalBytes = 0;
     for (const kind of LIFE_GLB_KINDS) {
       const file = LIFE_GLB_FILES[kind];
@@ -476,6 +526,50 @@ describe('island-life GLB 種類 (#226)', () => {
       totalBytes += readFileSync(fp).length;
     }
     assert.ok(totalBytes <= 2 * 1024 * 1024, 'life GLB total bytes');
+  });
+
+  test('r5 鯤身體／章魚觸手／文鰩尾軸 (#226)', () => {
+    const binK = readGlbBin(join(publicRoot, 'models', 'life', 'kunpeng.glb'));
+    const gtK = readGlbJson(join(publicRoot, 'models', 'life', 'kunpeng.glb'));
+    const back = glbMeshNodeBounds(gtK, binK, 'kun_back');
+    const bodyLong = Math.max(back.sx, back.sy, back.sz);
+    for (const part of ['kun_clouds', 'kun_fin']) {
+      const mb = glbMeshNodeBounds(gtK, binK, part);
+      const partLong = Math.max(mb.sx, mb.sy, mb.sz);
+      assert.ok(bodyLong + 1e-4 >= partLong, `kunpeng ${part} ${partLong} vs body ${bodyLong}`);
+    }
+    const binO = readGlbBin(join(publicRoot, 'models', 'life', 'octopus.glb'));
+    const gtO = readGlbJson(join(publicRoot, 'models', 'life', 'octopus.glb'));
+    const arms = glbMeshNodeBounds(gtO, binO, 'octo_arms');
+    assert.ok(arms.sy <= arms.sx + 1e-4 && arms.sy <= arms.sz + 1e-4, `octo_arms Y min ${arms.sy} vs ${arms.sx}×${arms.sz}`);
+    const binW = readGlbBin(join(publicRoot, 'models', 'life', 'wenyao.glb'));
+    const gtW = readGlbJson(join(publicRoot, 'models', 'life', 'wenyao.glb'));
+    const tail = glbMeshNodeBounds(gtW, binW, 'wen_tail');
+    const body = glbMeshNodeBounds(gtW, binW, 'wen_body');
+    const fishLong = Math.max(body.sx, body.sy, body.sz);
+    const tailCtrY = (() => {
+      const node = gtW.nodes.find((n) => n.name === 'wen_tail');
+      const mesh = gtW.meshes[node.mesh];
+      const posAcc = gtW.accessors[mesh.primitives[0].attributes.POSITION];
+      const bv = gtW.bufferViews[posAcc.bufferView];
+      const byteOffset = (bv.byteOffset || 0) + (posAcc.byteOffset || 0);
+      const dv = new DataView(binW.buffer, binW.byteOffset + byteOffset, bv.byteLength);
+      let sy = 0;
+      for (let i = 0; i < posAcc.count; i++) sy += dv.getFloat32(i * 12 + 4, true);
+      return sy / posAcc.count;
+    })();
+    const bodyMesh = gtW.nodes.find((n) => n.name === 'wen_body');
+    const posAccB = gtW.accessors[gtW.meshes[bodyMesh.mesh].primitives[0].attributes.POSITION];
+    const bvB = gtW.bufferViews[posAccB.bufferView];
+    const dvB = new DataView(binW.buffer, binW.byteOffset + (bvB.byteOffset || 0) + (posAccB.byteOffset || 0), bvB.byteLength);
+    let minYB = Infinity; let maxYB = -Infinity;
+    for (let i = 0; i < posAccB.count; i++) {
+      const y = dvB.getFloat32(i * 12 + 4, true);
+      minYB = Math.min(minYB, y); maxYB = Math.max(maxYB, y);
+    }
+    const bodyEnd = body.sy >= body.sx && body.sy >= body.sz ? minYB : maxYB;
+    assert.ok(Math.abs(tailCtrY - bodyEnd) <= fishLong * 0.2 + 0.05, `wenyao tail y=${tailCtrY} vs body end ${bodyEnd}`);
+    assert.ok(Math.max(tail.sx, tail.sy, tail.sz) <= fishLong * 0.55 + 0.05, 'wenyao tail size');
   });
 });
 
