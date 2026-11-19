@@ -154,11 +154,12 @@ export function buildIslandBuildings(ctx) {
           const signTex = signMaps[buildingId];
           if (signTex) {
             const labSignNight = buildingId === 'computer-site';
+            const casinoSignNight = buildingId === 'casino';
             obj.material = mat(0xffffff, {
               map: signTex,
-              night: labSignNight ? 0xe8f8ff : 0xfff0dc,
-              glow: labSignNight ? 0x7ec8ea : 0xffb15a,
-              glowAmount: labSignNight ? 1.12 : 0.28,
+              night: labSignNight ? 0xe8f8ff : (casinoSignNight ? 0x140428 : 0xfff0dc),
+              glow: labSignNight ? 0x7ec8ea : (casinoSignNight ? 0xff6ad8 : 0xffb15a),
+              glowAmount: labSignNight ? 1.12 : (casinoSignNight ? 1.45 : 0.28),
               side: THREE.DoubleSide
             });
           } else {
