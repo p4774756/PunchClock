@@ -305,7 +305,6 @@ body.is-authenticated [data-guest-only] {
 
 .island-label {
   pointer-events: auto;
-  border: 0;
   font-weight: 700;
   font-size: 0.82rem;
   letter-spacing: 0.03em;
@@ -1100,19 +1099,18 @@ body.island-avatar-open .island-joystick {
     width: min(280px, calc(100vw - 1.1rem));
   }
   body.is-exploring .island-list:not([hidden]) {
-    top: max(
-      9.6rem,
-      calc(3.65rem + 5.25rem + 0.45rem + env(safe-area-inset-top, 0px))
+    --island-explore-list-top: calc(
+      max(3.65rem, calc(2.75rem + env(safe-area-inset-top, 0px)))
+      + 8.15rem
+      + 0.5rem
     );
+    top: var(--island-explore-list-top);
     bottom: auto;
     max-height: min(
       52vh,
       calc(
         100vh
-        - max(
-            9.6rem,
-            calc(3.65rem + 5.25rem + 0.45rem + env(safe-area-inset-top, 0px))
-          )
+        - var(--island-explore-list-top)
         - max(5.5rem, calc(3.75rem + 0.85rem + env(safe-area-inset-bottom, 0px)))
       )
     );

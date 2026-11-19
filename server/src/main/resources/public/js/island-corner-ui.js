@@ -276,22 +276,23 @@ export function exploreFloatBottomPx(viewportHeight) {
   return viewportHeight - EXPLORE_FLOAT_BOTTOM_REM * REM;
 }
 
-/** 手機探索：左上玩家卡（對齊 island.css @760px）。 */
+/** 手機探索：左上玩家 HUD（含卡、間距、人數晶片；對齊 island.css @760px）。 */
 export function hudPlayerRectMobile(viewportWidth, viewportHeight) {
   void viewportWidth;
   void viewportHeight;
   const top = Math.max(3.65 * REM, 2.75 * REM);
   const left = 0.55 * REM;
   const width = Math.min(10.5 * REM, viewportWidth - 9.5 * REM);
-  const cardH = 2 * REM + 0.25 * REM + 0.4 * REM + 2.75 * REM + 0.45 * REM + 6;
-  return { left, right: left + width, top, bottom: top + cardH, width, height: cardH };
+  // 卡 + gap 0.35rem + .island-hud-peer-badge（390×844 Chrome 量測 ≈8.15rem）
+  const boxH = 8.15 * REM;
+  return { left, right: left + width, top, bottom: top + boxH, width, height: boxH };
 }
 
 /** 手機探索：清單面板（對齊 island.css @760px）。 */
 export function listPanelRectMobileExplore(viewportWidth, viewportHeight) {
   const player = hudPlayerRectMobile(viewportWidth, viewportHeight);
   const margin = hudMargin(viewportWidth);
-  const top = Math.max(9.6 * REM, player.bottom + 0.45 * REM);
+  const top = player.bottom + 0.5 * REM;
   const width = Math.min(280, viewportWidth - 1.1 * REM);
   const right = viewportWidth - margin;
   const left = right - width;
