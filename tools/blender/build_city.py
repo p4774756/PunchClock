@@ -20,6 +20,9 @@ from city_atlas_uv import REGIONS, atlas_uv
 
 W, D = 14.0, 14.0
 
+# 預設探索鏡頭俯視：招牌貼圖旋轉 180° 才端正可讀（同 casino 北簷橫幅）
+_SIGN_UV = dict(flip_u=True, flip_v=True)
+
 ROOF_BY_WALL = {
     'city_wall_coral': 'roof_tile_red',
     'city_wall_mint': 'roof_tile_green',
@@ -35,7 +38,12 @@ def _roof_key(wall_mat):
 
 def _roof_slab(walls, lx, lz, bw, bd, z, roof_key=None):
     rk = roof_key or 'roof_tile'
-    walls.box_tex(f'@{rk}', _au('roof_tile'), bw, 0.14, bd, lx, lz, z)
+    if rk in REGIONS:
+        walls.box_tex(f'@{rk}', _au(rk), bw, 0.14, bd, lx, lz, z)
+    elif rk == 'roof_tile':
+        walls.box_tex(f'@{rk}', _au('roof_tile'), bw, 0.14, bd, lx, lz, z)
+    else:
+        walls.box(rk, bw, 0.14, bd, lx, lz, z)
 
 
 def _au(name):
@@ -82,7 +90,7 @@ def _shophouse(b, walls, sign_part, neon_part, lx, lz, bw, bd, bh, tex_wall, sig
     frame = b.part(sign_key + '_frame')
     frame.box_tex(f'@{_roof_key(tex_wall)}', _au('roof_tile'), sw + 0.18, 0.06, sh + 0.14,
                   lx, y_out, sz, rx=pitch)
-    sign_part.plane('sign', sw, sh, lx, y_out + street * 0.06, sz, rx=pitch, ry=math.pi, flip_u=False)
+    sign_part.plane('sign', sw, sh, lx, y_out + street * 0.06, sz, rx=pitch, ry=math.pi, **_SIGN_UV)
     neon_part.box('neon_glow', sw + 0.14, 0.05, 0.07, lx, y_out + street * 0.04, sz + sh / 2 - 0.05, rx=pitch)
     neon_part.box('neon_glow', sw + 0.14, 0.05, 0.07, lx, y_out + street * 0.04, sz - sh / 2 + 0.05, rx=pitch)
 
@@ -103,7 +111,7 @@ def _mount_sign(b, part_name, lx, ly, lz, sw, sh, rx=0.08, roof='roof_tile_orang
     y_face = ly - 0.22
     fr.box_tex(f'@{roof}', _au('roof_tile'), sw + 0.22, 0.06, sh + 0.18,
               lx, y_face - 0.04, lz, rx=rx)
-    face.plane('sign', sw, sh, lx, y_face + 0.12, lz, rx=rx, flip_u=False)
+    face.plane('sign', sw, sh, lx, y_face + 0.12, lz, rx=rx, **_SIGN_UV)
     neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, y_face + 0.11, lz + sh / 2 - 0.05, rx=rx)
     neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, y_face + 0.11, lz - sh / 2 + 0.05, rx=rx)
 
@@ -169,13 +177,15 @@ def _harbor(ground, walls, props, b):
     for px, pz in ((-1.45, 6.55), (1.45, 6.55), (-0.7, 6.85), (0.7, 6.85), (0.0, 7.05),
                    (-2.2, 6.75), (2.2, 6.75)):
         props.cyl('city_rail', 0.065, 0.05, 0.52, px, pz, 0.28, seg=6)
-    props.box('city_trim_white', 2.55, 0.48, 0.32, -2.05, 6.95, 0.18)
-    props.box('shop_navy', 1.85, 0.32, 0.26, -2.05, 6.95, 0.40)
-    props.box('lab_glass', 0.62, 0.38, 0.36, -2.05, 6.95, 0.62)
-    props.cyl('city_trim_white', 0.06, 0.06, 0.72, -2.05, 6.95, 0.78, seg=5)
-    props.box('city_trim_white', 1.25, 0.28, 0.20, 2.05, 6.90, 0.16)
-    props.box('shop_navy', 0.95, 0.20, 0.16, 2.05, 6.90, 0.30)
-    props.box('lab_glass', 0.48, 0.26, 0.28, 2.05, 6.90, 0.48)
+    props.box('city_trim_white', 2.85, 0.52, 0.36, -2.05, 6.95, 0.16)
+    props.box('shop_navy', 2.05, 0.34, 0.28, -2.05, 6.92, 0.38)
+    props.box('shop_navy', 1.55, 0.24, 0.22, -2.35, 6.88, 0.40, rx=-0.18)
+    props.box('lab_glass', 0.58, 0.34, 0.40, -1.72, 6.96, 0.58)
+    props.cyl('city_trim_white', 0.05, 0.04, 0.68, -2.05, 6.95, 0.76, seg=5)
+    props.box('city_trim_white', 1.35, 0.30, 0.22, 2.05, 6.90, 0.14)
+    props.box('shop_navy', 1.05, 0.22, 0.18, 2.05, 6.89, 0.28)
+    props.box('shop_navy', 0.72, 0.16, 0.16, 2.32, 6.86, 0.30, rx=0.14)
+    props.box('lab_glass', 0.44, 0.24, 0.30, 2.28, 6.91, 0.46)
     neo = b.part('harbor_neon')
     neo.box('neon_glow', 0.55, 0.12, 0.06, 0, 6.25, 0.62)
 
