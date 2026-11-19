@@ -75,6 +75,14 @@ export function poseForIsland(id) {
   if (island.id === MAIN_ISLAND_ID) {
     return { look: [0.15, 0.95, 1.35], radius: 28.4, theta: 0.48, phi: 0.93 };
   }
+  if (island.id === 'city') {
+    return {
+      look: [island.x + 5.0, 1.15, island.z + 0.2],
+      radius: 14.8,
+      theta: -Math.PI * 0.52,
+      phi: 0.92
+    };
+  }
   return {
     look: [island.x, 1.25, island.z],
     radius: 18.5,

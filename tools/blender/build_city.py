@@ -1,4 +1,4 @@
-"""城市島 v2（#205）：3×3 台式騎騎樓街、貼圖殼體、港灣棧橋。
+"""城市島 v2（#215）：3×3 台式騎騎樓街、貼圖殼體、東側港灣＋北岸棧橋。
 
   python3 tools/blender/gen_city_textures.py
   ~/.local/bin/blender -b --factory-startup -P tools/blender/build_city.py -- \\
@@ -18,9 +18,11 @@ import kit
 from kit import Builder, clear_scene, prepare_scene, argv_out, set_palette_overrides
 from city_atlas_uv import REGIONS, atlas_uv
 
-W, D = 14.0, 14.0
+W, D = 15.2, 15.2
+GRID = 4.55
+BLOCK = 2.85
+ROAD = 1.85
 
-# 預設探索鏡頭俯視：招牌貼圖旋轉 180° 才端正可讀（同 casino 北簷橫幅）
 _SIGN_UV = dict(flip_u=True, flip_v=True)
 
 ROOF_BY_WALL = {
@@ -51,7 +53,6 @@ def _au(name):
 
 
 def _wall_tex(walls, mat, sx, sy, sz, x, y, z, **kw):
-    """盡量走圖集，避免素色大白盒。"""
     if mat in REGIONS:
         walls.box_tex(f'@{mat}', _au(mat), sx, sy, sz, x, y, z, **kw)
     elif mat == 'wood':
@@ -60,60 +61,89 @@ def _wall_tex(walls, mat, sx, sy, sz, x, y, z, **kw):
         walls.box_tex('@city_facade', _au('city_facade'), sx, sy, sz, x, y, z, **kw)
 
 
+def _facade_extras(walls, props, lx, fy, street, bw, bh, tex_wall):
+    """窗框、陽台、室外機、騎樓樑。"""
+    uv_facade = _au('city_facade')
+    _wall_tex(walls, 'wood', bw - 0.5, 0.10, 1.15, lx, fy - street * 0.32, 0.15)
+    for ox in (-bw * 0.34, 0.0, bw * 0.34):
+        walls.box_tex('@city_facade', uv_facade, 0.17, bh * 0.85, 0.16,
+                      lx + ox, fy - street * 0.08, bh * 0.44)
+    for fz in (bh * 0.50, bh * 0.76):
+        walls.box_tex('@city_facade', uv_facade, bw - 0.30, 0.26, 0.12, lx, fy - street * 0.18, fz)
+        for wx in (-bw * 0.30, bw * 0.30):
+            walls.box('lab_glass', 0.42, bh * 0.28, 0.06, lx + wx, fy - street * 0.04, fz + 0.10)
+            _wall_tex(walls, 'wood', 0.46, bh * 0.32, 0.04, lx + wx, fy - street * 0.06, fz + 0.10)
+            walls.box_tex('@city_facade', uv_facade, 0.32, 0.08, 0.22, lx + wx + street * 0.02,
+                          fy - street * 0.14, fz - 0.08)
+        props.box('city_traffic_dark', 0.22, 0.16, 0.20, lx + bw * 0.34, fy - street * 0.06, fz + 0.02)
+        props.box('city_traffic_dark', 0.16, 0.14, 0.18, lx - bw * 0.34, fy - street * 0.06, fz + 0.04)
+
+
 def _shophouse(b, walls, sign_part, neon_part, lx, lz, bw, bd, bh, tex_wall, sign_key,
                face_north=True, awning='city_awning'):
-    """多層騎樓：圖集外牆＋柱列＋遮陽棚＋朝北（-Y／glTF +Z）立面大招牌。"""
     street = -1 if face_north else 1
     fy = lz + street * (bd / 2 - 0.08)
     uv = _au(tex_wall)
-    uv_facade = _au('city_facade')
+    rk = _roof_key(tex_wall)
     walls.box_tex(f'@{tex_wall}', uv, bw, bh, bd, lx, lz, bh / 2 + 0.06)
-    _wall_tex(walls, 'wood', bw - 0.6, 0.12, 1.25, lx, fy - street * 0.38, 0.16)
-    for ox in (-bw * 0.38, 0.0, bw * 0.38):
-        walls.box_tex('@city_facade', uv_facade, 0.18, bh * 0.88, 0.18,
-                      lx + ox, fy - street * 0.10, bh * 0.46)
-    walls.box_tex(f'@{awning}', _au(awning), bw + 0.38, 0.08, 0.72, lx, fy + street * 0.40, bh + 0.52)
-    _roof_slab(walls, lx, lz + street * 0.14, bw + 0.45, bd + 0.22, bh + 0.12, _roof_key(tex_wall))
-    for fz in (bh * 0.52, bh * 0.78):
-        walls.box_tex('@city_facade', uv_facade, bw - 0.35, 0.28, 0.14, lx, fy - street * 0.20, fz)
-        _wall_tex(walls, tex_wall, 0.28, 0.20, 0.16, lx + bw * 0.30, fy - street * 0.12, fz + 0.04)
-        for wx in (-bw * 0.32, bw * 0.32):
-            walls.box('lab_glass', 0.44, bh * 0.30, 0.07, lx + wx, fy - street * 0.05, fz + 0.12)
-            _wall_tex(walls, 'wood', 0.48, bh * 0.34, 0.05, lx + wx, fy - street * 0.08, fz + 0.12)
-    walls.box_tex('@city_facade', uv_facade, min(1.2, bw * 0.58), bh * 0.48, 0.09,
-                  lx, fy - street * 0.06, bh * 0.38)
+    props = b.part('props')
+    _facade_extras(walls, props, lx, fy, street, bw, bh, tex_wall)
+    walls.box_tex(f'@{awning}', _au(awning), bw + 0.28, 0.07, 0.55, lx, fy + street * 0.30, bh + 0.56)
+    _roof_slab(walls, lx, lz + street * 0.12, bw + 0.40, bd + 0.18, bh + 0.12, rk)
     sw = min(3.55, bw * 0.88)
     sh = 1.42
-    sz = bh * 0.78
-    y_out = fy + street * 0.62
-    pitch = 0.06
+    sz = bh * 0.82
+    y_out = fy + street * 0.52
+    pitch = 0.05
     frame = b.part(sign_key + '_frame')
-    frame.box_tex(f'@{_roof_key(tex_wall)}', _au('roof_tile'), sw + 0.18, 0.06, sh + 0.14,
-                  lx, y_out, sz, rx=pitch)
-    sign_part.plane('sign', sw, sh, lx, y_out + street * 0.06, sz, rx=pitch, ry=math.pi, **_SIGN_UV)
-    neon_part.box('neon_glow', sw + 0.14, 0.05, 0.07, lx, y_out + street * 0.04, sz + sh / 2 - 0.05, rx=pitch)
-    neon_part.box('neon_glow', sw + 0.14, 0.05, 0.07, lx, y_out + street * 0.04, sz - sh / 2 + 0.05, rx=pitch)
+    frame.box(rk, sw + 0.16, 0.06, sh + 0.12, lx, y_out, sz, rx=pitch)
+    sign_part.plane('sign', sw, sh, lx, y_out + street * 0.05, sz, rx=pitch, ry=math.pi, **_SIGN_UV)
+    neon_part.box('neon_glow', sw + 0.12, 0.05, 0.06, lx, y_out + street * 0.03, sz + sh / 2 - 0.05, rx=pitch)
+    neon_part.box('neon_glow', sw + 0.12, 0.05, 0.06, lx, y_out + street * 0.03, sz - sh / 2 + 0.05, rx=pitch)
 
 
-def _corner_tower(walls, lx, lz, bw, bd, bh, mat, accent):
-    _wall_tex(walls, mat, bw, bh, bd, lx, lz, bh / 2)
-    _roof_slab(walls, lx, lz, bw + 0.18, bd + 0.18, bh + 0.10, _roof_key(mat))
-    for ox, oz in ((-bw * 0.35, -bd * 0.35), (bw * 0.35, -bd * 0.35),
-                   (-bw * 0.35, bd * 0.35), (bw * 0.35, bd * 0.35)):
-        walls.box('lab_glass', 0.40, 0.36, 0.08, lx + ox, lz + oz, bh * 0.58)
+def _residential_block(walls, props, lx, lz, bw, bd, bh, mat):
+    if mat in REGIONS:
+        walls.box_tex(f'@{mat}', _au(mat), bw, bh, bd, lx, lz, bh / 2)
+    else:
+        _wall_tex(walls, mat, bw, bh, bd, lx, lz, bh / 2)
+    _roof_slab(walls, lx, lz, bw + 0.12, bd + 0.12, bh + 0.08, _roof_key(mat))
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            px, pz = lx + sx * bw * 0.32, lz + sz * bd * 0.32
+            walls.box('lab_glass', 0.38, 0.34, 0.07, px, pz, bh * 0.55)
+            walls.box('wood', 0.42, 0.38, 0.04, px, pz, bh * 0.55)
+            props.box('city_traffic_dark', 0.20, 0.14, 0.16, px + sx * 0.08, pz, bh * 0.82)
+
+
+def _plaza_711(b, walls, props, ground, sign_part, neon_part):
+    """中央 7-11 廣場：開闊鋪面＋超商立面。"""
+    bw, bd, bh = 2.65, 2.45, 1.55
+    lx, lz = 0.0, 0.0
+    walls.box_tex('@city_wall_yellow', _au('city_wall_yellow'), bw, bh, bd, lx, lz, bh / 2 + 0.04)
+    _roof_slab(walls, lx, lz, bw + 0.35, bd + 0.35, bh + 0.10, 'roof_tile_green')
+    fy = lz - bd / 2 + 0.08
+    _facade_extras(walls, props, lx, fy, -1, bw, bh, 'city_wall_yellow')
+    sw, sh = 2.35, 1.18
+    sz = bh * 0.88
+    frame = b.part('sign_face_711_frame')
+    frame.box('roof_tile_green', sw + 0.16, 0.06, sh + 0.12, lx, fy - 0.48, sz, rx=0.05)
+    sign = b.part('sign_face_711')
+    sign.plane('sign', sw, sh, lx, fy - 0.42, sz, rx=0.05, ry=math.pi, **_SIGN_UV)
+    neo = b.part('shop_neon')
+    neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, fy - 0.43, sz + sh / 2 - 0.05, rx=0.05)
+    ground.box_tex('@city_sidewalk', _au('city_sidewalk'), 3.2, 3.2, 0.06, lx, lz, 0.042)
 
 
 def _mount_sign(b, part_name, lx, ly, lz, sw, sh, rx=0.08, roof='roof_tile_orange'):
-    """朝 -Y（glTF +Z）街面；探索鏡頭由北往南俯視可讀。"""
     face = b.part(part_name)
     fr = b.part(part_name + '_frame')
     neo = b.part(part_name + '_neon')
-    y_face = ly - 0.22
-    fr.box_tex(f'@{roof}', _au('roof_tile'), sw + 0.22, 0.06, sh + 0.18,
-              lx, y_face - 0.04, lz, rx=rx)
-    face.plane('sign', sw, sh, lx, y_face + 0.12, lz, rx=rx, **_SIGN_UV)
-    neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, y_face + 0.11, lz + sh / 2 - 0.05, rx=rx)
-    neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, y_face + 0.11, lz - sh / 2 + 0.05, rx=rx)
+    y_face = ly - 0.18
+    fr.box(roof, sw + 0.20, 0.06, sh + 0.16, lx, y_face - 0.03, lz, rx=rx)
+    face.plane('sign', sw, sh, lx, y_face + 0.10, lz, rx=rx, **_SIGN_UV)
+    neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, y_face + 0.09, lz + sh / 2 - 0.05, rx=rx)
+    neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, y_face + 0.09, lz - sh / 2 + 0.05, rx=rx)
 
 
 def _zebra(ground, cx, cz, along_x=True):
@@ -141,19 +171,20 @@ def _palm(props, x, y):
 
 
 def _scooter(props, x, y, rz=0.0):
-    """小綿羊：車頭、車把、雙輪、座椅分離。"""
-    props.box_tex('@city_traffic_dark', _au('city_traffic_dark'), 0.52, 0.09, 0.30, x, y - 0.06, 0.08, rz=rz)
-    props.box('city_moto_cream', 0.38, 0.22, 0.32, x, y + 0.02, 0.24, rz=rz)
-    props.box('city_moto_dark', 0.34, 0.16, 0.36, x, y - 0.12, 0.28, rz=rz)
-    props.box('city_moto_cream', 0.22, 0.18, 0.22, x, y + 0.18, 0.34, rz=rz)
-    props.cyl('city_traffic_dark', 0.028, 0.028, 0.36, x + 0.02, y + 0.08, 0.48, seg=5, rz=rz + 0.15)
-    props.cyl('city_traffic_dark', 0.022, 0.022, 0.26, x + 0.08, y + 0.20, 0.46, seg=5, rx=0.55, rz=rz)
-    props.cyl('city_traffic_dark', 0.022, 0.022, 0.26, x - 0.08, y + 0.20, 0.46, seg=5, rx=0.55, rz=rz)
-    props.sphere('windows_glow', 0.055, x, y + 0.22, 0.24, seg=6, rings=4)
-    for wx, wy in ((-0.22, 0.14), (0.22, -0.16)):
+    """小綿羊：圓頭、車把、踏板、座椅、雙輪。"""
+    props.box('city_moto_cream', 0.28, 0.12, 0.48, x, y - 0.04, 0.07, rz=rz)
+    props.box('city_moto_cream', 0.22, 0.18, 0.34, x, y + 0.10, 0.26, rz=rz)
+    props.box('city_moto_cream', 0.18, 0.20, 0.28, x, y + 0.22, 0.36, rz=rz, rx=0.08)
+    props.sphere('city_moto_dark', 0.14, x, y + 0.28, 0.22, seg=8, rings=5)
+    props.box('city_moto_dark', 0.06, 0.12, 0.18, x, y + 0.26, 0.24, rz=rz)
+    props.cyl('city_traffic_dark', 0.024, 0.024, 0.32, x + 0.04, y + 0.14, 0.48, seg=5, rz=rz + 0.12)
+    props.cyl('city_traffic_dark', 0.020, 0.020, 0.24, x + 0.10, y + 0.24, 0.46, seg=5, rx=0.62, rz=rz)
+    props.cyl('city_traffic_dark', 0.020, 0.020, 0.24, x - 0.06, y + 0.24, 0.46, seg=5, rx=0.62, rz=rz)
+    props.sphere('windows_glow', 0.050, x, y + 0.30, 0.22, seg=6, rings=4)
+    for wx, wy in ((-0.22, 0.13), (0.21, -0.15)):
         props.cyl('city_traffic_dark', 0.11, 0.11, 0.06, x + wx, y + wy, 0.11, seg=8, rx=math.pi / 2, rz=rz)
         props.cyl('city_trim_white', 0.06, 0.06, 0.04, x + wx, y + wy, 0.11, seg=6, rx=math.pi / 2, rz=rz)
-    props.sphere('city_traffic_red', 0.045, x, y - 0.26, 0.22, seg=5, rings=4)
+    props.sphere('city_traffic_red', 0.042, x, y - 0.28, 0.22, seg=5, rings=4)
 
 
 def _vending(props, x, y, ry=0.0):
@@ -164,39 +195,45 @@ def _vending(props, x, y, ry=0.0):
     props.box('shop_orange', 0.38, 0.02, 0.22, x, y + 0.24, 0.62, ry=ry)
 
 
-def _harbor(ground, walls, props, b):
-    """北側港灣：寬岸線、T 棧橋、雙遊艇；全景可辨。"""
-    ground.box_tex('@city_water_edge', _au('city_water_edge'), 9.5, 1.35, 0.14, 0, 6.45, 0.055)
-    ground.box_tex('@city_water_edge', _au('city_water_edge'), 8.8, 1.85, 0.08, 0, 6.35, 0.04)
-    ground.box_tex('@wood', _au('wood'), 1.35, 7.2, 0.12, 0, 6.05, 0.055)
-    ground.box_tex('@wood', _au('wood'), 3.4, 1.05, 0.12, 1.05, 6.55, 0.055)
-    for ox in (-1.35, 1.35, 0.0):
-        ground.box_tex('@wood', _au('wood'), 1.15, 5.8, 0.14, ox, 6.20, 0.075)
-        for z in (5.45, 6.05, 6.65, 7.15):
-            walls.box_tex('@wood', _au('wood'), 0.12, 0.14, 0.55, ox, z, 0.34)
-    for px, pz in ((-1.45, 6.55), (1.45, 6.55), (-0.7, 6.85), (0.7, 6.85), (0.0, 7.05),
-                   (-2.2, 6.75), (2.2, 6.75)):
-        props.cyl('city_rail', 0.065, 0.05, 0.52, px, pz, 0.28, seg=6)
-    props.box('city_trim_white', 2.85, 0.52, 0.36, -2.05, 6.95, 0.16)
-    props.box('shop_navy', 2.05, 0.34, 0.28, -2.05, 6.92, 0.38)
-    props.box('shop_navy', 1.55, 0.24, 0.22, -2.35, 6.88, 0.40, rx=-0.18)
-    props.box('lab_glass', 0.58, 0.34, 0.40, -1.72, 6.96, 0.58)
-    props.cyl('city_trim_white', 0.05, 0.04, 0.68, -2.05, 6.95, 0.76, seg=5)
-    props.box('city_trim_white', 1.35, 0.30, 0.22, 2.05, 6.90, 0.14)
-    props.box('shop_navy', 1.05, 0.22, 0.18, 2.05, 6.89, 0.28)
-    props.box('shop_navy', 0.72, 0.16, 0.16, 2.32, 6.86, 0.30, rx=0.14)
-    props.box('lab_glass', 0.44, 0.24, 0.30, 2.28, 6.91, 0.46)
+def _harbor_north(ground, walls, props, b):
+    """北岸棧橋（對齊 BOAT_STOPS.city）。"""
+    ground.box_tex('@city_water_edge', _au('city_water_edge'), 8.5, 1.25, 0.12, 0, 6.55, 0.052)
+    ground.box_tex('@wood', _au('wood'), 1.25, 5.8, 0.12, 0, 6.35, 0.058)
+    for ox in (-0.95, 0.95):
+        ground.box_tex('@wood', _au('wood'), 1.10, 5.6, 0.13, ox, 6.25, 0.072)
+        for z in (5.55, 6.15, 6.75):
+            walls.box_tex('@wood', _au('wood'), 0.11, 0.13, 0.52, ox, z, 0.33)
+    for px, pz in ((-1.0, 6.35), (1.0, 6.35), (0.0, 6.65)):
+        props.cyl('city_rail', 0.065, 0.05, 0.50, px, pz, 0.27, seg=6)
+
+
+def _harbor_east(ground, walls, props, b):
+    """東側港灣：T 型碼頭、遊艇剪影、欄杆。"""
+    hx = 6.65
+    ground.box_tex('@city_water_edge', _au('city_water_edge'), 4.5, 10.5, 0.14, hx, 0, 0.055)
+    ground.box_tex('@wood', _au('wood'), 3.6, 1.0, 0.12, hx - 1.2, 0, 0.056)
+    ground.box_tex('@wood', _au('wood'), 1.05, 7.5, 0.12, hx, -3.0, 0.056)
+    ground.box_tex('@wood', _au('wood'), 1.05, 7.5, 0.12, hx, 3.0, 0.056)
+    for oz in (-3.2, -1.6, 0, 1.6, 3.2):
+        walls.box_tex('@wood', _au('wood'), 0.11, 0.13, 0.52, hx - 0.05, oz, 0.34)
+        props.cyl('city_rail', 0.060, 0.048, 0.48, hx + 0.32, oz, 0.28, seg=6)
+    props.box('city_trim_white', 2.65, 0.48, 0.34, hx + 1.05, 0.6, 0.15)
+    props.box('shop_navy', 1.95, 0.32, 0.26, hx + 1.05, 0.58, 0.36)
+    props.box('shop_navy', 1.45, 0.22, 0.20, hx + 1.35, 0.56, 0.38, rx=-0.15)
+    props.box('lab_glass', 0.52, 0.30, 0.36, hx + 1.42, 0.62, 0.54)
+    props.cyl('city_trim_white', 0.05, 0.04, 0.64, hx + 1.05, 0.6, 0.72, seg=5)
+    props.box('city_trim_white', 1.25, 0.28, 0.20, hx + 1.05, -0.5, 0.14)
+    props.box('shop_navy', 0.95, 0.20, 0.16, hx + 1.05, -0.52, 0.26)
     neo = b.part('harbor_neon')
-    neo.box('neon_glow', 0.55, 0.12, 0.06, 0, 6.25, 0.62)
+    neo.box('neon_glow', 0.52, 0.11, 0.06, hx - 0.35, 0, 0.62)
 
 
-def _traffic(b):
+def _traffic(b, tx, ty):
     pole = b.part('traffic_pole')
     housing = b.part('traffic_housing')
     red = b.part('traffic_red')
     yellow = b.part('traffic_yellow')
     green = b.part('traffic_green')
-    tx, ty = 1.15, 1.05
     pole.box_tex('@city_traffic_dark', _au('city_traffic_dark'), 0.10, 0.10, 2.55, tx, ty, 1.28)
     housing.box_tex('@city_traffic_dark', _au('city_traffic_dark'), 0.32, 0.18, 0.62, tx, ty + 0.22, 2.58)
     housing.box_tex('@city_facade', _au('city_facade'), 0.36, 0.05, 0.66, tx, ty + 0.22, 2.58)
@@ -204,15 +241,23 @@ def _traffic(b):
     yellow.sphere('city_traffic_yel', 0.14, tx, ty + 0.22, 2.56, seg=8, rings=6)
     green.sphere('city_traffic_grn', 0.14, tx, ty + 0.22, 2.22, seg=8, rings=6)
     housing.box_tex('@city_traffic_dark', _au('city_traffic_dark'), 0.68, 0.08, 0.10, tx, ty, 2.54)
-    housing.box_tex('@city_traffic_dark', _au('city_traffic_dark'), 0.42, 0.05, 0.06, tx, ty + 0.32, 2.16)
 
 
-def _mini_block(walls, lx, lz, bw, bd, bh, mat):
-    if mat in REGIONS:
-        walls.box_tex(f'@{mat}', _au(mat), bw, bh, bd, lx, lz, bh / 2)
-    else:
-        _wall_tex(walls, mat, bw, bh, bd, lx, lz, bh / 2)
-    _roof_slab(walls, lx, lz, bw + 0.12, bd + 0.12, bh + 0.07, _roof_key(mat))
+def _road_grid(ground):
+    """3×3 九宮格路網。"""
+    ground.box_tex('@city_asphalt', _au('city_asphalt'), W - 0.5, D - 0.5, 0.11, 0, 0, 0.055)
+    ground.box_tex('@city_asphalt_wet', _au('city_asphalt_wet'), ROAD, D - 1.0, 0.07, 0, 0, 0.038)
+    ground.box_tex('@city_asphalt_wet', _au('city_asphalt_wet'), W - 1.0, ROAD, 0.07, 0, 0, 0.038)
+    for gx in (-GRID, GRID):
+        ground.box_tex('@city_asphalt_wet', _au('city_asphalt_wet'), ROAD, D - 1.2, 0.07, gx, 0, 0.038)
+    for gz in (-GRID, GRID):
+        ground.box_tex('@city_asphalt_wet', _au('city_asphalt_wet'), W - 1.2, ROAD, 0.07, 0, gz, 0.038)
+    for cx, cz in ((0, GRID), (0, -GRID), (GRID, 0), (-GRID, 0)):
+        ground.box_tex('@city_cross_white', _au('city_cross_white'), 0.09, 0.05, ROAD + 0.2, cx + 0.95, cz, 0.040)
+    _zebra(ground, 0, 0, along_x=True)
+    _zebra(ground, 0, 0, along_x=False)
+    for ox, oz in ((0, GRID + 0.9), (0, -GRID - 0.9), (GRID + 0.9, 0), (-GRID - 0.9, 0)):
+        ground.box_tex('@city_sidewalk', _au('city_sidewalk'), 2.6, 1.05, 0.06, ox, oz, 0.042)
 
 
 def build(out_path):
@@ -235,74 +280,57 @@ def build(out_path):
     glow = b.part('street_glow')
     neo = b.part('neon_trim')
 
-    ground.box_tex('@city_asphalt', _au('city_asphalt'), W - 0.6, D - 0.6, 0.11, 0, 0, 0.055)
-    for slab in ((2.2, 9.4, 0, 0.6), (9.4, 2.2, 0, 0.6), (3.5, 2.0, -2.2, -0.8), (3.5, 2.0, 2.2, 0.8)):
-        sw, sd, ox, oz = slab
-        ground.box_tex('@city_asphalt_wet', _au('city_asphalt_wet'), sw, sd, 0.07, ox, oz, 0.038)
-    for ox, oz in ((0, 3.55), (0, -2.55), (-3.85, 0.55), (3.85, 0.55)):
-        ground.box_tex('@city_sidewalk', _au('city_sidewalk'), 8.8, 1.12, 0.06, ox, oz, 0.042)
-    for z in (-2.6, 1.6, 4.2):
-        ground.box_tex('@city_cross_white', _au('city_cross_white'), 0.09, 0.05, 4.8, 0.95, z, 0.040)
-    _zebra(ground, 0, 1.25, along_x=True)
-    _zebra(ground, 0, 1.25, along_x=False)
-
-    _harbor(ground, walls, props, b)
+    _road_grid(ground)
+    _harbor_north(ground, walls, props, b)
+    _harbor_east(ground, walls, props, b)
 
     neon_shop = b.part('shop_neon')
+    bw, bd, bh = BLOCK, BLOCK, 2.05
 
     aw = b.part('sign_face_arcade')
-    _shophouse(b, walls, aw, neon_shop, -3.8, 0.55, 3.35, 4.55, 2.35,
+    _shophouse(b, walls, aw, neon_shop, -GRID, 0, bw, bd, bh,
                'city_wall_coral', 'sign_face_arcade', True)
     tea = b.part('sign_face_bubble')
-    _shophouse(b, walls, tea, neon_shop, 3.8, 0.55, 3.35, 4.55, 2.35,
+    _shophouse(b, walls, tea, neon_shop, GRID, 0, bw, bd, bh,
                'city_wall_mint', 'sign_face_bubble', True)
     claw = b.part('sign_face_claw')
-    _shophouse(b, walls, claw, neon_shop, 0, -4.15, 3.55, 2.75, 1.95,
-               'city_wall_lilac', 'sign_face_claw', False, 'city_awning')
+    _shophouse(b, walls, claw, neon_shop, 0, -GRID, bw, bd, 1.85,
+               'city_wall_lilac', 'sign_face_claw', False)
 
-    blocks = [
-        (-5.1, 5.0, 1.55, 1.55, 2.05, 'city_wall_yellow'),
-        (5.1, 5.0, 1.55, 1.55, 2.05, 'city_wall_mint'),
-        (-5.1, -5.0, 1.45, 1.45, 1.85, 'city_wall_lilac'),
-        (5.1, -5.0, 1.45, 1.45, 1.85, 'city_wall_coral'),
-        (-5.1, 0.0, 1.35, 1.35, 1.75, 'city_wall_mint'),
-        (5.1, 0.0, 1.35, 1.35, 1.75, 'city_wall_yellow'),
-        (0, 5.0, 1.65, 1.65, 1.95, 'city_wall_mint'),
-        (-2.6, 2.6, 1.25, 1.25, 1.55, 'city_wall_coral'),
-        (2.6, 2.6, 1.25, 1.25, 1.55, 'city_wall_mint'),
-    ]
-    for lx, lz, bw, bd, bh, mat in blocks:
-        if abs(lx) < 2.5 and abs(lz) < 2.5:
-            continue
-        _mini_block(walls, lx, lz, bw, bd, bh, mat)
+    _plaza_711(b, walls, props, ground, b.part('sign_face_711'), neon_shop)
 
-    _corner_tower(walls, -5.0, 5.05, 1.48, 1.48, 2.48, 'city_wall_yellow', 'lab_glass')
-    _corner_tower(walls, 5.0, 5.05, 1.48, 1.48, 2.48, 'city_wall_mint', 'lab_glass')
+    for lx, lz, mat in (
+        (-GRID, GRID, 'city_wall_yellow'),
+        (GRID, GRID, 'city_wall_teal'),
+        (-GRID, -GRID, 'city_wall_lilac'),
+        (GRID, -GRID, 'city_wall_coral'),
+    ):
+        _residential_block(walls, props, lx, lz, 2.55, 2.55, 1.85, mat)
 
-    _mount_sign(b, 'sign_face_game', -5.0, 4.05, 2.05, 2.45, 1.18, roof='roof_tile_red')
-    _mount_sign(b, 'sign_face_711', 5.0, 4.05, 2.05, 2.35, 1.18, roof='roof_tile_green')
-    _mount_sign(b, 'sign_face_snack', 0.0, 4.05, 1.85, 2.25, 1.08, roof='roof_tile_orange')
+    _mount_sign(b, 'sign_face_game', -GRID, GRID - 0.6, 0.25, 2.45, 1.18, roof='roof_tile_red')
+    _mount_sign(b, 'sign_face_snack', GRID, GRID - 0.6, 0.25, 2.25, 1.08, roof='roof_tile_orange')
 
-    for lx, ly in ((-3.0, 4.55), (3.0, 4.55), (-3.0, -3.45), (3.0, -3.45), (0, 5.4)):
+    for lx, ly in ((-GRID * 0.65, GRID + 0.65), (GRID * 0.65, GRID + 0.65),
+                   (-2.5, -GRID - 0.5), (2.8, -GRID - 0.45), (0, GRID + 0.85)):
         props.cyl('city_traffic_dark', 0.045, 0.055, 1.42, lx, ly, 0.72, seg=6)
         props.box_tex('@city_facade', _au('city_facade'), 0.28, 0.09, 0.26, lx, ly, 1.44)
         glow.sphere('lantern_glow', 0.090, lx, ly, 1.34, seg=6, rings=4)
 
-    for px, py in ((-4.6, 2.85), (4.6, 2.85), (-2.3, -1.15), (2.5, -0.75),
-                   (-5.2, -2.45), (0.8, 4.2), (-1.5, 4.5)):
+    for px, py in ((-GRID + 0.5, GRID - 0.4), (GRID - 0.4, GRID - 0.5),
+                   (-2.8, 2.0), (3.0, 1.6), (-GRID, -GRID + 0.4), (GRID - 0.3, -GRID)):
         _palm(props, px, py)
 
-    for px, py, rz in ((-2.05, 3.25, 0.3), (2.25, 2.95, -0.2), (-0.85, -0.30, 1.0),
-                       (1.65, 0.15, -0.45), (-3.8, -3.2, 0.7), (3.5, -2.5, -0.3)):
+    for px, py, rz in ((-3.4, 1.55, 0.25), (3.6, 1.25, -0.18), (-1.2, -2.35, 0.85),
+                       (2.55, -1.85, -0.35), (-4.2, -3.2, 0.6), (4.0, -2.8, -0.25)):
         _scooter(props, px, py, rz)
 
-    _vending(props, -4.25, -0.45, ry=0.38)
-    _vending(props, 4.05, -1.75, ry=-0.22)
+    _vending(props, -GRID + 0.5, -1.2, ry=0.32)
+    _vending(props, GRID - 0.6, -1.8, ry=-0.18)
 
-    _traffic(b)
+    _traffic(b, -2.05, 2.65)
 
-    for lx, ly, sw in ((-3.8, 2.55, 3.1), (3.8, 2.55, 2.9), (0, -3.95, 2.65),
-                       (-5.0, 4.55, 1.55), (5.0, 4.55, 1.55)):
+    for lx, ly, sw in ((-GRID, 0, 2.9), (GRID, 0, 2.9), (0, -GRID, 2.65),
+                       (-GRID, GRID, 1.55), (GRID, GRID, 1.55)):
         neo.box('neon_glow', sw, 0.05, 0.06, lx, ly, 2.22)
 
     return b.finish(out_path, extras={'building_id': 'city', 'island_id': 'city'})
