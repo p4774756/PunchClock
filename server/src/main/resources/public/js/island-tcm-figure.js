@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { G } from './island-kit.js';
+import { G, nightHex } from './island-kit.js';
 import { islandById } from './island-layout.js';
 import {
   DATA_BODY_HEIGHT,
@@ -42,6 +42,41 @@ function ensureBronzeFigureGlb() {
   return bronzeFigPromise;
 }
 
+function nightColorFromDay(hex) {
+  const mapped = nightHex(hex);
+  if (mapped !== null) return new THREE.Color(mapped);
+  const c = new THREE.Color(hex);
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl);
+  const out = new THREE.Color();
+  out.setHSL(hsl.h, Math.min(1, hsl.s * 0.78), 0.12 + hsl.l * 0.42);
+  return out;
+}
+
+function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
+  const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(0xc8a850);
+  const night = nightColorFromDay(day.getHex());
+  const emissive = oldMat.emissive ? oldMat.emissive.clone() : new THREE.Color(0x000000);
+  const emissiveI = oldMat.emissiveIntensity != null ? oldMat.emissiveIntensity : 0;
+  const std = new THREE.MeshStandardMaterial({
+    name: oldMat.name || '',
+    color: day.clone(),
+    metalness: oldMat.metalness != null ? oldMat.metalness : (isBronze ? 0.88 : 0.05),
+    roughness: oldMat.roughness != null ? oldMat.roughness : (isBronze ? 0.34 : 0.88),
+    emissive: emissive,
+    emissiveIntensity: emissiveI,
+    flatShading: false
+  });
+  if (oldMat.map) std.map = oldMat.map;
+  if (oldMat.normalMap) std.normalMap = oldMat.normalMap;
+  std.userData.day = day;
+  std.userData.night = night;
+  std.userData.dayE = isBronze ? Math.max(0.02, emissiveI) : 0;
+  std.userData.nightE = isBronze ? Math.max(0.1, emissiveI * 2.2) : 0;
+  kit.addMaterial(std);
+  return std;
+}
+
 function applyBronzeFigureMaterials(root, kit) {
   root.traverse((obj) => {
     if (!obj.isMesh) return;
@@ -51,15 +86,35 @@ function applyBronzeFigureMaterials(root, kit) {
       matName === 'stone' ||
       matName === 'stone_dark' ||
       obj.name.indexOf('pedestal') >= 0;
-    if (stone) {
-      obj.material = kit.mat(BASE_BROWN, {
-        night: 0x2a1a10,
-        glow: 0x000000,
-        glowAmount: 0,
-        shadow: true
-      });
+    const isBronze = !stone;
+    if (oldMat && oldMat.isMeshStandardMaterial) {
+      obj.material = bronzeMaterialFromGltf(oldMat, kit, isBronze);
+    } else if (stone) {
+      obj.material = bronzeMaterialFromGltf(
+        {
+          name: matName,
+          color: new THREE.Color(0xc4b8a8),
+          metalness: 0.05,
+          roughness: 0.9,
+          emissive: new THREE.Color(0x000000),
+          emissiveIntensity: 0
+        },
+        kit,
+        false
+      );
     } else {
-      obj.material = kit.mat(GOLD, goldOpts({ glowAmount: 0.26 }));
+      obj.material = bronzeMaterialFromGltf(
+        {
+          name: matName || 'bronze',
+          color: new THREE.Color(0xc8a850),
+          metalness: 0.9,
+          roughness: 0.32,
+          emissive: new THREE.Color(0xffd080),
+          emissiveIntensity: 0.03
+        },
+        kit,
+        true
+      );
     }
     if (oldMat && typeof oldMat.dispose === 'function' && oldMat !== obj.material) oldMat.dispose();
     obj.castShadow = true;
@@ -69,11 +124,8 @@ function applyBronzeFigureMaterials(root, kit) {
 const LOAD_BUFFER = 1.65;
 const UNLOAD_BUFFER = 3.2;
 const LOAD_RETRY_MS = 30_000;
-const GOLD = 0xd4a84b;
-const GOLD_EMI = 0xffd27a;
 const MARKER = 0xfff1c4;
 const TODAY_MARK = 0xffb15a;
-const BASE_BROWN = 0x4a2e1c;
 
 let styleInjected = false;
 
@@ -108,16 +160,6 @@ function ensureCardStyle(doc) {
     'calc(0.7rem + 2.25rem + 0.45rem + env(safe-area-inset-bottom,0px)))}}'
   ].join('');
   doc.head.appendChild(css);
-}
-
-function goldOpts(extra) {
-  return {
-    night: 0xb8922e,
-    glow: GOLD_EMI,
-    glowAmount: 0.22,
-    shadow: true,
-    ...(extra || {})
-  };
 }
 
 export function buildBronzeFigure(ctx) {
@@ -475,7 +517,7 @@ export function createTcmFigureController(ctx) {
   };
 }
 
-const ENTRANCE_FIG_SCALE = 0.46;
+const ENTRANCE_FIG_SCALE = 0.50;
 
 export function replaceEntranceBronzeStatue(model, kit, pickables) {
   model.updateMatrixWorld(true);
