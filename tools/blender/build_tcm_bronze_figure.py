@@ -250,10 +250,10 @@ def _chest_second_diff_max(bm, hubs, r_lim=0.06):
 
 def _smooth_breast_detail(body):
     """胸部：外圈二次曲面擬合 + 權重 lerp + 局部 Laplacian（無球面投影）。"""
-    R_RING_LO = 0.045
-    R_RING_HI = 0.068
-    R_BLEND_FULL = 0.030
-    R_BLEND_FADE = 0.060
+    R_RING_LO = 0.040
+    R_RING_HI = 0.070
+    R_BLEND_FULL = 0.040
+    R_BLEND_FADE = 0.070
     me = body.data
     orig = [v.co.copy() for v in me.vertices]
     bm = bmesh.new()
@@ -314,13 +314,16 @@ def _smooth_breast_detail(body):
             w = 1.0 if d <= R_BLEND_FULL else (0.0 if d >= R_BLEND_FADE else 1.0 - _smoothstep(R_BLEND_FULL, R_BLEND_FADE, d))
             if w <= 0.0:
                 continue
-            h_blend = h_orig * (1.0 - w) + h_new * w
+            if d <= R_BLEND_FULL:
+                h_blend = h_new
+            else:
+                h_blend = h_orig * (1.0 - w) + h_new * w
             v.co = hub + tangent_u * u + tangent_v * vv + normal * h_blend
             weight[v.index] = max(weight[v.index], w)
             touched.add(v.index)
 
     smooth_verts = [v for v in bm.verts if weight.get(v.index, 0.0) > 0.05]
-    for _ in range(11):
+    for _ in range(6):
         bmesh.ops.smooth_vert(
             bm,
             verts=smooth_verts,
@@ -343,22 +346,30 @@ def _smooth_breast_detail(body):
     d2_chest, d2_ref = _chest_second_diff_max(bm2, hubs)
     bm2.free()
     residual_bump = 0.0
+    fit_residual_mm = 0.0
     for hub in hubs:
         for i, o in enumerate(orig):
             if abs(o.z - hub.z) > 0.14:
                 continue
-            if (o - hub).length > 0.035:
+            d = (o - hub).length
+            if d > R_BLEND_FADE:
                 continue
             wco = me.vertices[i].co
             off = wco - hub
             if off.length < 1e-5:
                 continue
-            bump = max(0.0, off.dot(Vector((0.0, -1.0, 0.0)).normalized()) - (o - hub).dot(Vector((0.0, -1.0, 0.0)).normalized()))
+            bump = max(
+                0.0,
+                off.dot(Vector((0.0, -1.0, 0.0)).normalized())
+                - (o - hub).dot(Vector((0.0, -1.0, 0.0)).normalized()),
+            )
             residual_bump = max(residual_bump, bump)
+            if d < R_BLEND_FULL:
+                fit_residual_mm = max(fit_residual_mm, off.length)
     print(
         f'[body] chest hubs=({hubs[0].x:.3f},{hubs[0].y:.3f},{hubs[0].z:.3f}) '
         f'verts_touched={len(touched)} d2_chest={d2_chest*1000:.3f}mm d2_ref={d2_ref*1000:.3f}mm '
-        f'residual_bump_mm={residual_bump * 1000:.2f}'
+        f'residual_bump_mm={residual_bump * 1000:.2f} center_fit_dev_mm={fit_residual_mm*1000:.2f}'
     )
     body['chest_max_bump_m'] = residual_bump
     return residual_bump
@@ -426,24 +437,57 @@ def _make_stripe_tex():
     return path
 
 
-def _hair_face_ok(face, z_hairline=1.638):
-    """盤髻用薄殼：額頭全露、鬢不蓋耳，只留頂與後腦。"""
+HEAD_REF = Vector((0.0, -0.02, 1.655))
+HAIRLINE_BLEND = 0.015
+HAIR_SHELL_THICK_MAX = 0.0085
+HAIR_BOUNDARY_OFFSET = 0.0003
+HAIR_ZONE_REJECT = -0.003
+MERIDIAN_FRAGMENT_MIN = 0.020
+MERIDIAN_HOOK_MAX_LEN = 0.040
+MERIDIAN_HOOK_TURN_DEG = 120.0
+
+
+def _hairline_z_at_azimuth(az):
+    """平滑髮際高度（Blender Z）：正面眉上 ~5 cm、鬢角耳前上、後枕下緣。"""
+    s = abs(math.sin(az))
+    c = math.cos(az)
+    z = 1.638
+    z -= 0.020 * (s ** 1.15)
+    z -= 0.043 * max(0.0, -c)
+    z += 0.006 * max(0.0, c) * (1.0 - max(0.0, c))
+    return z
+
+
+def _hairline_signed_distance(wco):
+    """髮區有號距離：d>0 在髮際內（可覆殼），d<0 額/耳/頸前暴露。"""
+    x, y, z = float(wco.x), float(wco.y), float(wco.z)
+    rel_y = y - HEAD_REF.y
+    az = math.atan2(x, max(1e-6, -rel_y))
+    z_line = _hairline_z_at_azimuth(az)
+    d = z - z_line
+    if abs(x) > 0.062 and y > -0.062 and z < 1.678:
+        ear_cap = 1.652 + 0.012
+        d = min(d, z - ear_cap + 0.008)
+    if y < -0.040 and z < 1.654:
+        d = min(d, -0.022 - 0.35 * max(0.0, -y - 0.040))
+    if y < -0.012 and z < 1.632:
+        d = min(d, z - 1.630)
+    if abs(x) < 0.035 and y < -0.008 and z < 1.640:
+        d = min(d, z - 1.636)
+    return d
+
+
+def _hair_cap_face_ok(face):
     verts = list(face.verts)
-    max_z = max(v.co.z for v in verts)
-    min_z = min(v.co.z for v in verts)
-    avg_y = sum(v.co.y for v in verts) / len(verts)
-    avg_x = sum(abs(v.co.x) for v in verts) / len(verts)
-    if max_z < z_hairline - 0.020:
+    if max(v.co.z for v in verts) < 1.582:
         return False
-    if any(v.co.y < -0.045 and v.co.z < z_hairline + 0.032 for v in verts):
+    if all(v.co.z < 1.598 for v in verts):
         return False
-    if avg_y < -0.010 and min_z < z_hairline + 0.012:
-        return False
-    if avg_y < -0.028 and max_z < z_hairline + 0.038:
-        return False
-    if avg_x > 0.095 and avg_y < 0.0 and max_z < z_hairline + 0.024:
-        return False
-    return True
+    mw = Matrix.Identity(4)
+    for v in verts:
+        if _hairline_signed_distance(v.co) > -0.004:
+            return True
+    return False
 
 
 def _mesh_merge_centerline(ob, threshold=0.00012):
@@ -490,43 +534,208 @@ def _mat_hair_gold():
     )
 
 
-def _add_hair(body, mat_hair):
+def _hairline_skin_point(body, wco):
+    hit = _closest_on_body(body, wco)
+    if not hit:
+        return None
+    wloc, wnorm, _ = hit
+    az = math.atan2(wloc.x, max(1e-6, -(wloc.y - HEAD_REF.y)))
+    z_line = _hairline_z_at_azimuth(az)
+    probe = Vector((wloc.x * 0.92, wloc.y, z_line))
+    hit2 = _closest_on_body(body, probe)
+    if hit2:
+        wloc, wnorm, _ = hit2
+    return wloc + wnorm * HAIR_BOUNDARY_OFFSET
+
+
+def _relax_hair_boundary(bm, body):
+    mw = body.matrix_world
+    imw = mw.inverted()
+    bm.verts.ensure_lookup_table()
+    bm.edges.ensure_lookup_table()
+    boundary = {v for e in bm.edges if e.is_boundary for v in e.verts}
+    for v in boundary:
+        w = mw @ v.co
+        tgt = _hairline_skin_point(body, w)
+        if tgt:
+            v.co = imw @ tgt
+    for _ in range(2):
+        moves = {}
+        for v in boundary:
+            nbrs = [e.other_vert(v) for e in v.link_edges if e.is_boundary]
+            if len(nbrs) < 2:
+                continue
+            cent = sum((n.co for n in nbrs), Vector()) / len(nbrs)
+            moves[v] = v.co.lerp(cent, 0.22)
+        for v, co in moves.items():
+            w = mw @ co
+            tgt = _hairline_skin_point(body, w)
+            v.co = imw @ (tgt if tgt else co)
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=0.00003)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+
+
+def _largest_face_island(faces, pred):
+    face_set = {f for f in faces if pred(f)}
+    if not face_set:
+        return []
+    visited = set()
+    best = []
+    for f in face_set:
+        if f in visited:
+            continue
+        stack = [f]
+        island = []
+        while stack:
+            cur = stack.pop()
+            if cur in visited or cur not in face_set:
+                continue
+            visited.add(cur)
+            island.append(cur)
+            for e in cur.edges:
+                for nf in e.link_faces:
+                    if nf in face_set and nf not in visited:
+                        stack.append(nf)
+        if len(island) > len(best):
+            best = island
+    return best
+
+
+def _subdivide_bmesh_to(bm, min_verts=4000, max_pass=7):
+    for _ in range(max_pass):
+        if len(bm.verts) >= min_verts:
+            break
+        bmesh.ops.subdivide_edges(bm, edges=list(bm.edges), cuts=1, use_grid_fill=True)
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=0.00004)
+
+
+def _hair_shell_quality(bm):
+    bm.edges.ensure_lookup_table()
+    boundary = [e for e in bm.edges if e.is_boundary]
+    if not boundary:
+        return len(bm.verts), 0, 0.0, 0
+    unvisited = {e.index for e in boundary}
+    by_vert = {}
+    for e in boundary:
+        for v in e.verts:
+            by_vert.setdefault(v.index, []).append(e)
+    loops = 0
+    max_turn = 0.0
+    while unvisited:
+        loops += 1
+        seed = unvisited.pop()
+        stack = [seed]
+        loop_edges = []
+        while stack:
+            ei = stack.pop()
+            loop_edges.append(bm.edges[ei])
+            e = bm.edges[ei]
+            for v in e.verts:
+                for ne in by_vert.get(v.index, []):
+                    if ne.index in unvisited:
+                        unvisited.remove(ne.index)
+                        stack.append(ne.index)
+        v0 = loop_edges[0].verts[0]
+        v = loop_edges[0].verts[1]
+        ordered = [v0, v]
+        guard = 0
+        while guard < len(loop_edges) + 4:
+            guard += 1
+            nxt = None
+            for e in v.link_edges:
+                if not e.is_boundary:
+                    continue
+                o = e.other_vert(v)
+                if o is ordered[-2]:
+                    continue
+                nxt = o
+                break
+            if nxt is None or nxt is v0:
+                break
+            ordered.append(nxt)
+            v = nxt
+        for i in range(1, len(ordered) - 1):
+            t1 = ordered[i].co - ordered[i - 1].co
+            t2 = ordered[i + 1].co - ordered[i].co
+            if t1.length < 1e-9 or t2.length < 1e-9:
+                continue
+            t1.normalize()
+            t2.normalize()
+            max_turn = max(
+                max_turn,
+                math.degrees(math.acos(max(-1.0, min(1.0, t1.dot(t2))))),
+            )
+    return len(bm.verts), loops, max_turn, len(boundary)
+
+
+def _build_hair_shell_bmesh(body):
     me = body.data
-    shell = bmesh.new()
-    shell.from_mesh(me)
-    shell.verts.ensure_lookup_table()
-    shell.faces.ensure_lookup_table()
-    del_faces = [f for f in shell.faces if not _hair_face_ok(f)]
+    cap = bmesh.new()
+    cap.from_mesh(me)
+    cap.faces.ensure_lookup_table()
+    drop = [f for f in cap.faces if not _hair_cap_face_ok(f)]
+    if drop:
+        bmesh.ops.delete(cap, geom=drop, context='FACES_ONLY')
+    loose = [v for v in cap.verts if not v.link_faces]
+    if loose:
+        bmesh.ops.delete(cap, geom=loose, context='VERTS')
+    _subdivide_bmesh_to(cap, min_verts=4200, max_pass=9)
+    cap.verts.ensure_lookup_table()
+    cap.faces.ensure_lookup_table()
+    mw = body.matrix_world
+    imw = mw.inverted()
+    d_map = {}
+    for v in cap.verts:
+        hit = _closest_on_body(body, mw @ v.co)
+        if not hit:
+            d_map[v] = -0.01
+            continue
+        wloc, _, _ = hit
+        d_map[v] = _hairline_signed_distance(wloc)
+    def _face_keep(f):
+        ds = [d_map.get(v, -0.01) for v in f.verts]
+        return sum(ds) / len(ds) > -0.0006 and max(ds) > -0.0015
+
+    keep_faces = _largest_face_island(cap.faces, _face_keep)
+    del_faces = [f for f in cap.faces if f not in set(keep_faces)]
     if del_faces:
-        bmesh.ops.delete(shell, geom=del_faces, context='FACES_ONLY')
+        bmesh.ops.delete(cap, geom=del_faces, context='FACES_ONLY')
+    loose = [v for v in cap.verts if not v.link_faces]
+    if loose:
+        bmesh.ops.delete(cap, geom=loose, context='VERTS')
+    cap.verts.ensure_lookup_table()
+    for v in cap.verts:
+        hit = _closest_on_body(body, mw @ v.co)
+        if not hit:
+            continue
+        wloc, wnorm, _ = hit
+        d = d_map.get(v, _hairline_signed_distance(wloc))
+        if d < 0.0:
+            skin = _hairline_skin_point(body, wloc)
+            wout = skin if skin else wloc + wnorm * HAIR_BOUNDARY_OFFSET
+        else:
+            thick = _smoothstep(0.0, HAIRLINE_BLEND, d) * HAIR_SHELL_THICK_MAX
+            wout = wloc + wnorm * (HAIR_BOUNDARY_OFFSET + thick)
+        v.co = imw @ wout
+    bmesh.ops.remove_doubles(cap, verts=list(cap.verts), dist=0.00004)
+    bmesh.ops.recalc_face_normals(cap, faces=cap.faces)
+    return cap
+
+
+def _add_hair(body, mat_hair):
+    shell = _build_hair_shell_bmesh(body)
     if not shell.faces:
         shell.free()
         return None
+    vn, loops, max_turn, bedges = _hair_shell_quality(shell)
+    print(
+        f'[hair] shell verts={vn} boundary_loops={loops} '
+        f'boundary_turn_max_deg={max_turn:.2f} boundary_edges={bedges} '
+        f'(expect loops=1 turn≤25)'
+    )
     ob_shell = _mesh_from_bm(shell, 'bronze_hair_shell', mat_hair)
-    mod = ob_shell.modifiers.new('Solidify', 'SOLIDIFY')
-    mod.thickness = 0.0115
-    mod.offset = -0.62
-    bpy.context.view_layer.objects.active = ob_shell
-    ob_shell.select_set(True)
-    bpy.ops.object.modifier_apply(modifier=mod.name)
-    ob_shell.select_set(False)
     _mesh_merge_centerline(ob_shell)
     bpy.context.view_layer.update()
-    mw_s = ob_shell.matrix_world
-    trim_bm = bmesh.new()
-    trim_bm.from_mesh(ob_shell.data)
-    trim_bm.verts.ensure_lookup_table()
-    inv_s = mw_s.inverted()
-    drop = [
-        v
-        for v in trim_bm.verts
-        if (w := mw_s @ v.co).y < -0.048 and w.z < 1.652
-    ]
-    if drop:
-        bmesh.ops.delete(trim_bm, geom=drop, context='VERTS')
-    trim_bm.to_mesh(ob_shell.data)
-    trim_bm.free()
-    ob_shell.data.update()
     mw_s = ob_shell.matrix_world
     inv_s = mw_s.inverted()
     for v in ob_shell.data.vertices:
@@ -534,80 +743,122 @@ def _add_hair(body, mat_hair):
         if w.z < 1.58:
             continue
         flow = math.atan2(w.y + 0.035, max(w.z - 1.60, 0.015))
-        strike = 0.0012 * math.sin(flow * 13.5 - w.x * 140.0)
+        strike = 0.0008 * math.sin(flow * 13.5 - w.x * 140.0)
         along = Vector((0.05 * math.sin(flow * 2.5), 1.0, 0.10)).normalized()
         v.co = inv_s @ (w + along * strike)
     ob_shell.data.update()
+
     shell_gaps = []
     mw_s = ob_shell.matrix_world
-    for i in range(0, len(ob_shell.data.vertices), 4):
+    for i in range(0, len(ob_shell.data.vertices), 5):
         w = mw_s @ ob_shell.data.vertices[i].co
         hit = _closest_on_body(body, w)
         if hit:
             wloc, wnorm, _ = hit
             gap = (w - wloc).dot(wnorm)
-            if gap > 0.0025:
+            if gap > 0.0015:
                 shell_gaps.append(gap)
     if shell_gaps:
         print(
             f'[hair] shell gap mm mean={1000*np.mean(shell_gaps):.2f} '
-            f'max={1000*np.max(shell_gaps):.2f} (expect 4-7)'
+            f'max={1000*np.max(shell_gaps):.2f} (expect 4-9)'
         )
     front_z = max(-(mw_s @ v.co).y for v in ob_shell.data.vertices)
     print(f'[hair] shell front_z_gltf_max={front_z:.4f} (forehead band; lower=less bang)')
 
-    bun_r = 0.028
-    bun_center = Vector((0.0, 0.068, 1.662))
-    matrix = (
-        Matrix.Translation(bun_center)
-        @ Matrix.Diagonal((bun_r, bun_r * 0.85, bun_r * 1.0, 1.0))
-    )
+    head_z_max = max((body.matrix_world @ v.co).z for v in body.data.vertices)
+    bun_r = 0.0275
+    ray_dir = Vector((0.0, math.sin(math.radians(40.0)), math.cos(math.radians(40.0)))).normalized()
+    inv = body.matrix_world.inverted()
+    rot = body.matrix_world.to_3x3()
+    surface = None
+    shell_n = ray_dir
+    for t in np.linspace(0.03, 0.14, 80):
+        probe = HEAD_REF + ray_dir * t
+        loc = inv @ probe
+        ld = (inv.to_3x3() @ ray_dir).normalized()
+        rc = body.ray_cast(loc, ld, distance=0.08)
+        if not rc[0]:
+            continue
+        hit_loc, hit_n = rc[1], rc[2]
+        surface = body.matrix_world @ hit_loc
+        shell_n = (rot @ hit_n).normalized()
+        break
+    if surface is None:
+        hit = _closest_on_body(body, HEAD_REF + ray_dir * 0.09)
+        if hit:
+            surface, shell_n, _ = hit
+        else:
+            surface = HEAD_REF + ray_dir * 0.09
+    shell_hit = _closest_on_mesh(ob_shell, surface)
+    if shell_hit:
+        surface = shell_hit[0]
+        shell_n = shell_hit[1]
+    bun_center = surface + shell_n * (0.55 * bun_r)
+    bun_center.x = 0.0
+    if bun_center.z + bun_r > head_z_max - 0.001:
+        bun_center.z = head_z_max - bun_r - 0.001
+
+    matrix = Matrix.Translation(bun_center) @ Matrix.Scale(bun_r, 4)
     bm_bun = bmesh.new()
     bmesh.ops.create_uvsphere(bm_bun, u_segments=32, v_segments=16, radius=1.0, matrix=matrix)
-    for v in bm_bun.verts:
-        w = matrix @ v.co
-        groove = 0.0012 * math.sin(math.atan2(w.x, w.y - bun_center.y) * 9.0)
-        inward = (w - bun_center).normalized()
-        v.co = matrix.inverted() @ (w - inward * groove)
     ob_bun = _mesh_from_bm(bm_bun, 'bronze_hair_bun', mat_hair)
     bpy.context.view_layer.update()
-    head_ref = Vector((0.0, -0.055, 1.648))
+    from mathutils.bvhtree import BVHTree
+
+    shell_bm = bmesh.new()
+    shell_bm.from_mesh(ob_shell.data)
+    shell_bm.transform(ob_shell.matrix_world)
+    shell_bvh = BVHTree.FromBMesh(shell_bm)
+    to_head = (HEAD_REF - bun_center).normalized()
     mw_b = ob_bun.matrix_world
-    to_head = (head_ref - bun_center).normalized()
+    imw_b = mw_b.inverted()
+    embed_gap_max = 0.0
     for v in ob_bun.data.vertices:
         w = mw_b @ v.co
         outward = w - bun_center
         if outward.length < 1e-8:
             continue
-        if outward.normalized().dot(to_head) < 0.32:
+        if outward.normalized().dot(to_head) < 0.40:
             continue
-        hit = _closest_on_body(ob_shell, w)
-        if not hit:
-            hit = _closest_on_body(body, w)
-        if not hit:
+        nearest, wnorm, _idx, dist = shell_bvh.find_nearest(w)
+        if nearest is None or dist > 0.006:
             continue
-        wloc, wnorm, _ = hit
-        gap = (w - wloc).dot(wnorm)
-        if gap > 0.0008:
-            pull = min(gap, 0.003)
-            v.co = mw_b.inverted() @ (w - wnorm * pull)
+        v.co = imw_b @ (nearest + wnorm * 0.0005)
+    shell_bm.free()
     ob_bun.data.update()
-    gap_max = 0.0
-    gap_min = 0.0
+    shell_bm = bmesh.new()
+    shell_bm.from_mesh(ob_shell.data)
+    shell_bm.transform(ob_shell.matrix_world)
+    shell_bvh = BVHTree.FromBMesh(shell_bm)
     mw_b = ob_bun.matrix_world
-    verts = ob_bun.data.vertices
-    for i in range(0, len(verts), 2):
-        v = verts[i]
+    embed_gap_max = 0.0
+    for v in ob_bun.data.vertices:
         w = mw_b @ v.co
-        hit = _closest_on_body(body, w)
-        if hit:
-            wloc, wnorm, _ = hit
-            g = (w - wloc).dot(wnorm)
-            gap_max = max(gap_max, g)
-            gap_min = min(gap_min, g)
+        outward = w - bun_center
+        if outward.length < 1e-8:
+            continue
+        if outward.normalized().dot(to_head) < 0.22:
+            continue
+        _nearest, _wnorm, _idx, dist = shell_bvh.find_nearest(w)
+        embed_gap_max = max(embed_gap_max, dist)
+    shell_bm.free()
+
+    mw_b = ob_bun.matrix_world
+    xs, ys, zs = [], [], []
+    for v in ob_bun.data.vertices:
+        w = mw_b @ v.co
+        xs.append(w.x)
+        ys.append(w.y)
+        zs.append(w.z)
+    dx = max(xs) - min(xs)
+    dy = max(ys) - min(ys)
+    dz = max(zs) - min(zs)
+    dims = sorted([dx, dy, dz])
     print(
-        f'[hair] bun center_x={bun_center.x:.4f} '
-        f'gap_mm=[{gap_min*1000:.1f},{gap_max*1000:.1f}] (expect max≤0 embed)'
+        f'[hair] bun center_x={bun_center.x:.4f} bbox_cm='
+        f'[{dx*100:.1f},{dy*100:.1f},{dz*100:.1f}] aspect={dims[2]/max(dims[0],1e-9):.3f} '
+        f'z_max={max(zs):.4f} head_z_max={head_z_max:.4f} embed_gap_max_mm={embed_gap_max*1000:.2f}'
     )
     return [ob_shell, ob_bun]
 
@@ -1052,23 +1303,34 @@ def _torso_half_width_blender(body, axis_z):
 
 
 def _point_in_scalp_hair_zone(wco):
-    """髮殼覆蓋區（留額與臉頸經絡）。"""
-    if wco.z < 1.625:
+    return _hairline_signed_distance(wco) > HAIR_ZONE_REJECT
+
+
+def _path_total_turning_deg(points):
+    if len(points) < 3:
+        return 0.0
+    total = 0.0
+    for i in range(1, len(points) - 1):
+        v1 = (points[i] - points[i - 1]).normalized()
+        v2 = (points[i + 1] - points[i]).normalized()
+        total += math.degrees(math.acos(max(-1.0, min(1.0, v1.dot(v2)))))
+    return total
+
+
+def _meridian_segment_ok(points):
+    if len(points) < 2:
         return False
-    if wco.y < -0.05 and wco.z < 1.648:
+    length = _path_polyline_length(points)
+    if length < MERIDIAN_FRAGMENT_MIN:
         return False
-    if wco.y < -0.02 and wco.z < 1.638:
+    turn = _path_total_turning_deg(points)
+    if turn > MERIDIAN_HOOK_TURN_DEG and length < MERIDIAN_HOOK_MAX_LEN:
         return False
-    if wco.z >= 1.628 and wco.y >= -0.07:
-        return True
-    if wco.z >= 1.622 and abs(wco.x) >= 0.085:
-        return True
-    return False
+    return True
 
 
 def _filter_hair_zone_points(points, meridian=''):
-    if meridian == '督脈':
-        return points
+    del meridian
     return [p for p in points if not _point_in_scalp_hair_zone(p)]
 
 
@@ -1376,15 +1638,18 @@ def _meridian_paths_from_records(body, records):
         for path in _snap_data_path_segments(body, ordered):
             path = _filter_hair_zone_points(path, mer)
             for seg in _finalize_meridian_paths(body, path):
+                if not _meridian_segment_ok(seg):
+                    continue
                 paths.append(seg)
                 if mer and mer not in MIDLINE_MERIDIANS:
                     mir = _filter_hair_zone_points(_mirror_path_x(seg), mer)
-                    if len(mir) >= 2:
+                    if _meridian_segment_ok(mir):
                         paths.append(mir)
     for waypoints in EXTRA_MERIDIAN_WAYPOINTS:
         for path in _snap_data_path_segments(body, waypoints):
             for seg in _finalize_meridian_paths(body, path):
-                paths.append(seg)
+                if _meridian_segment_ok(seg):
+                    paths.append(seg)
     return paths
 
 
@@ -1412,6 +1677,34 @@ def _curve_tube_from_points(points, name, mat):
         else:
             ob.data.materials.append(mat)
     return ob
+
+
+def _cull_meridian_mesh_scalp(body, meridian_ob):
+    if meridian_ob is None:
+        return
+    mw_m = meridian_ob.matrix_world
+    bm = bmesh.new()
+    bm.from_mesh(meridian_ob.data)
+    bm.faces.ensure_lookup_table()
+
+    def _vertex_in_scalp(v):
+        w = mw_m @ v.co
+        if _hairline_signed_distance(w) > HAIR_ZONE_REJECT:
+            return True
+        hit = _closest_on_body(body, w)
+        if not hit:
+            return False
+        return _hairline_signed_distance(hit[0]) > HAIR_ZONE_REJECT
+
+    drop_faces = [f for f in bm.faces if f.verts and all(_vertex_in_scalp(v) for v in f.verts)]
+    if drop_faces:
+        bmesh.ops.delete(bm, geom=drop_faces, context='FACES_ONLY')
+    loose = [v for v in bm.verts if not v.link_faces]
+    if loose:
+        bmesh.ops.delete(bm, geom=loose, context='VERTS')
+    bm.to_mesh(meridian_ob.data)
+    bm.free()
+    meridian_ob.data.update()
 
 
 def _subdivide_long_meridian_edges(ob, max_len=MERIDIAN_EDGE_LEN_MAX, max_passes=12):
@@ -1460,6 +1753,8 @@ def _build_meridian_mesh(body, records, mat_meridian):
     if merged.data:
         merged.data.name = 'bronze_meridians'
     tris = _tri_count(merged)
+    _cull_meridian_mesh_scalp(body, merged)
+
     if tris > MERIDIAN_MAX_TRIS:
         mod = merged.modifiers.new('Decimate', 'DECIMATE')
         mod.ratio = MERIDIAN_MAX_TRIS / tris
