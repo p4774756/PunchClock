@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { G } from './island-kit.js';
 import { islandById } from './island-layout.js';
 import {
@@ -17,6 +18,54 @@ import {
 export { resolveTcmPickHit };
 
 const BRONZE_POINTS_URL = '/island/tcm-bronze-points.json';
+const BRONZE_FIG_URL = '/models/tcm-bronze-figure.glb';
+
+let bronzeFigScene = null;
+let bronzeFigPromise = null;
+
+function ensureBronzeFigureGlb() {
+  if (bronzeFigScene) return Promise.resolve(bronzeFigScene);
+  if (!bronzeFigPromise) {
+    bronzeFigPromise = new Promise((resolve, reject) => {
+      const loader = new GLTFLoader();
+      loader.load(
+        BRONZE_FIG_URL,
+        (gltf) => {
+          bronzeFigScene = gltf.scene;
+          resolve(bronzeFigScene);
+        },
+        undefined,
+        reject
+      );
+    });
+  }
+  return bronzeFigPromise;
+}
+
+function applyBronzeFigureMaterials(root, kit) {
+  root.traverse((obj) => {
+    if (!obj.isMesh) return;
+    const oldMat = obj.material;
+    const matName = (oldMat && oldMat.name) || '';
+    const stone =
+      matName === 'stone' ||
+      matName === 'stone_dark' ||
+      obj.name.indexOf('pedestal') >= 0;
+    if (stone) {
+      obj.material = kit.mat(BASE_BROWN, {
+        night: 0x2a1a10,
+        glow: 0x000000,
+        glowAmount: 0,
+        shadow: true
+      });
+    } else {
+      obj.material = kit.mat(GOLD, goldOpts({ glowAmount: 0.26 }));
+    }
+    if (oldMat && typeof oldMat.dispose === 'function' && oldMat !== obj.material) oldMat.dispose();
+    obj.castShadow = true;
+    obj.receiveShadow = true;
+  });
+}
 const LOAD_BUFFER = 1.65;
 const UNLOAD_BUFFER = 3.2;
 const LOAD_RETRY_MS = 30_000;
@@ -75,73 +124,19 @@ export function buildBronzeFigure(ctx) {
   const kit = ctx.kit;
   const scale = ctx.scale != null ? ctx.scale : 1;
   const interactive = ctx.interactive !== false;
-  const { addMesh, addBox, geo, mat } = kit;
-  const group = new THREE.Group();
+  if (!bronzeFigScene) {
+    throw new Error('bronze GLB not loaded; call ensureBronzeFigureGlb() first');
+  }
+  const group = bronzeFigScene.clone(true);
   group.scale.setScalar(scale * (FIGURE_TARGET_HEIGHT / DATA_BODY_HEIGHT));
-
-  const goldPart = (geometry, x, y, z, rot) => {
-    const m = addMesh(group, geometry, GOLD, x, y, z, goldOpts());
-    if (rot) {
-      if (rot.x) m.rotation.x = rot.x;
-      if (rot.y) m.rotation.y = rot.y;
-      if (rot.z) m.rotation.z = rot.z;
-    }
-    return m;
-  };
-  const limb = (rt, rb, h, x, y, z, rot) => goldPart(geo('cyl', [rt, rb, h, 7, 0]), x, y + h / 2, z, rot);
-
-  addMesh(
-    group,
-    geo('cyl', [0.2, 0.22, 0.06, 8, 0]),
-    BASE_BROWN,
-    0,
-    0.03,
-    0,
-    { night: 0x2a1a10, glow: 0x000000, glowAmount: 0, shadow: true }
-  );
-  addMesh(
-    group,
-    geo('cyl', [0.12, 0.14, 0.05, 8, 0]),
-    BASE_BROWN,
-    0,
-    0.085,
-    0,
-    { night: 0x2a1a10, glow: 0x000000, glowAmount: 0, shadow: true }
-  );
-
-  [-1, 1].forEach((side) => {
-    const sx = side * 0.09;
-    addBox(group, 0.07, 0.04, 0.22, 0x5a3a24, sx, 0.06, 0.02, goldOpts({ glowAmount: 0.08 }));
-    limb(0.052, 0.058, 0.34, sx, 0.08, 0.03 * side, { z: side * 0.05 });
-    limb(0.06, 0.065, 0.44, sx, 0.42, 0.02 * side, { z: side * 0.04 });
-    const shoulderX = side * 0.12;
-    const shoulderY = 1.44;
-    const elbowX = side * 0.21;
-    const elbowY = 1.1;
-    const wristX = side * 0.29;
-    const wristY = 0.9;
-    goldPart(geo('cyl', [0.048, 0.055, 0.38, 7, 0]), (shoulderX + elbowX) / 2, (shoulderY + elbowY) / 2, 0.05 * side, {
-      z: side * 0.55 + 0.08,
-      x: 0.12
-    });
-    goldPart(geo('cyl', [0.042, 0.046, 0.34, 7, 0]), (elbowX + wristX) / 2, (elbowY + wristY) / 2, 0.06 * side, {
-      z: side * 0.32 + 0.16,
-      x: 0.35
-    });
-    addBox(group, 0.05, 0.035, 0.12, GOLD, wristX, 0.82, 0.06 * side, goldOpts({ glowAmount: 0.18 }));
-  });
-
-  addBox(group, 0.22, 0.12, 0.26, GOLD, 0, 0.92, 0, goldOpts());
-  addBox(group, 0.2, 0.28, 0.26, GOLD, 0, 1.1, 0.02, goldOpts());
-  addBox(group, 0.24, 0.2, 0.26, GOLD, 0, 1.34, -0.02, goldOpts());
-  limb(0.052, 0.058, 0.08, 0, 1.46, 0.04);
-  goldPart(geo('sph', [0.12, 8, 7]), 0, 1.62, 0.02);
-
+  applyBronzeFigureMaterials(group, kit);
   if (!interactive) {
     group.userData.tcmDecor = true;
   }
   return group;
 }
+
+export { ensureBronzeFigureGlb };
 
 export function createTcmFigureController(ctx) {
   const scene = ctx.scene;
@@ -262,8 +257,8 @@ export function createTcmFigureController(ctx) {
     todayCode = code;
     if (!pointMesh || !instanceRows.length) return;
     const dummy = new THREE.Object3D();
-    const baseR = reduced ? 0.024 : 0.026;
-    const todayR = reduced ? 0.028 : 0.032;
+    const baseR = reduced ? 0.014 : 0.016;
+    const todayR = reduced ? 0.018 : 0.021;
     for (let i = 0; i < instanceRows.length; i++) {
       const row = instanceRows[i];
       const isToday = row.code === code;
@@ -309,10 +304,10 @@ export function createTcmFigureController(ctx) {
 
   function buildPointMeshes(parent, rows) {
     const count = rows.length;
-    const markerGeo = new THREE.SphereGeometry(0.026, 7, 5);
+    const markerGeo = new THREE.SphereGeometry(0.016, 8, 6);
     const markerMat = kit.mat(MARKER, {
       glow: TODAY_MARK,
-      glowAmount: 0.55,
+      glowAmount: 0.92,
       shadow: false
     });
     ownedGeometries.push(markerGeo);
@@ -359,10 +354,16 @@ export function createTcmFigureController(ctx) {
     return expanded;
   }
 
-  function tryEntranceBronze() {
+  async function tryEntranceBronze() {
     if (entrancePlaced || !getTcmSiteModel) return;
     const model = getTcmSiteModel();
     if (!model) return;
+    try {
+      await ensureBronzeFigureGlb();
+    } catch (err) {
+      console.warn('[Island] 館門銅人 GLB 載入失敗', err);
+      return;
+    }
     const result = replaceEntranceBronzeStatue(model, kit, pickables);
     entrancePlaced = !!result;
     figState.entrance = {
@@ -376,6 +377,7 @@ export function createTcmFigureController(ctx) {
     if (loadFailedAt && getNow() - loadFailedAt < LOAD_RETRY_MS) return;
     loading = true;
     try {
+      await ensureBronzeFigureGlb();
       const res = await fetch(BRONZE_POINTS_URL);
       if (!res.ok) throw new Error('fetch ' + BRONZE_POINTS_URL);
       const records = await res.json();

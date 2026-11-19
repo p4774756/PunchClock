@@ -7,7 +7,7 @@ export const DATA_BODY_HEIGHT = 1.72;
 export const MARKER_SURFACE_EPS = 0.012;
 export const BRONZE_HEAD_TOP_Y = 1.72;
 
-/** 資料空間人體分區包圍盒（|x| 取絕對值比對）；與 buildBronzeFigure 對齊。 */
+/** 資料空間人體分區包圍盒（|x| 取絕對值比對）；與 tcm-bronze-figure.glb 體型對齊。 */
 export const BRONZE_PART_BOXES = Object.freeze([
   { minX: 0, maxX: 0.22, minY: 0, maxY: 0.12, minZ: -0.18, maxZ: 0.18 },
   { minX: 0.02, maxX: 0.14, minY: 0.04, maxY: 0.98, minZ: -0.13, maxZ: 0.13 },
