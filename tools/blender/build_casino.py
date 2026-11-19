@@ -39,11 +39,17 @@ def _north_vertical_sign(b, width, height, z_center, north_x):
     face = b.part('sign_face')
     neo = b.part('neon')
     pitch = -0.10
-    x_frame, x_board, x_face = north_x + 0.07, north_x + 0.09, north_x + 0.118
-    x_neon = north_x + 0.12
-    fr.box('gold', 0.13, width + 0.20, height + 0.18, x_frame, 0, z_center, rx=pitch)
-    fr.box('cas_dark', 0.055, width + 0.04, height + 0.06, x_board, 0, z_center, rx=pitch)
-    neo.box('neon_glow', 0.058, width + 0.26, height + 0.22, x_neon, 0, z_center, rx=pitch)
+    x_face = north_x + 0.118
+    x_back = north_x + 0.040
+    x_frame = north_x + 0.062
+    x_neon = north_x + 0.125
+    ft, ew = 0.040, 0.052
+    # 背板在 sign_face 最北緣（頂緣 pitch 後最小 +X）之後，僅薄板、不做實心封盖
+    fr.box('cas_dark', 0.034, width + 0.02, height + 0.02, x_back, 0, z_center, rx=pitch)
+    fr.box('gold', ft, width + 0.10, ew, x_frame, 0, z_center + height / 2 + ew * 0.22, rx=pitch)
+    fr.box('gold', ft, width + 0.10, ew, x_frame, 0, z_center - height / 2 - ew * 0.22, rx=pitch)
+    for dy in (-width / 2 - ew * 0.32, width / 2 + ew * 0.32):
+        fr.box('gold', ft, ew, height + 0.06, x_frame, dy, z_center, rx=pitch)
     # plane 預設 XZ、法線 -Y；rz=π/2 才轉成 YZ、法線 +X（ry 不會離開 -Y）
     face.plane('sign', width, height, x_face, 0, z_center, rz=math.pi / 2, rx=pitch, flip_u=True)
     neo.box('neon_glow', 0.050, width + 0.16, 0.055, x_neon, 0, z_center + height / 2 + 0.04, rx=pitch)
@@ -176,17 +182,21 @@ def build(out_path):
     bulbs = b.part('marquee_lamps')
     _north_marquee(arch, bulbs, neo, north_x, marquee_top, 2.85)
 
+    sign_w = 2.58
+    seven_z = BASE + 0.86
+    card_y = sign_w / 2 + 0.68 / 2 + 0.20
+
     seven = b.part('seven_sign')
     neo777 = b.part('seven_neon')
     for oy in (-0.48, 0.0, 0.48):
-        _neon_seven(seven, neo777, oy, north_x, BASE + 1.26)
-    seven.box('gold', 0.075, 1.72, 0.09, north_x + 0.07, 0, BASE + 1.08)
+        _neon_seven(seven, neo777, oy, north_x, seven_z)
+    seven.box('gold', 0.075, 1.72, 0.09, north_x + 0.07, 0, seven_z - 0.52)
 
     cards = b.part('poker_cards')
-    for sy in (-1.22, 1.22):
-        _giant_poker_card(cards, neo, sy, north_x, BASE + 1.42)
+    for sy in (-card_y, card_y):
+        _giant_poker_card(cards, neo, sy, north_x, BASE + 1.48)
 
-    _north_vertical_sign(b, 3.18, 1.14, sign_z, north_x)
+    _north_vertical_sign(b, sign_w, 1.14, sign_z, north_x)
 
     # 西北角門廊量體（真門仍在西側 FRONT）
     nw = b.part('nw_portico')

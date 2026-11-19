@@ -159,7 +159,7 @@ export function buildIslandBuildings(ctx) {
               map: signTex,
               night: labSignNight ? 0xe8f8ff : (casinoSignNight ? 0x140428 : 0xfff0dc),
               glow: labSignNight ? 0x7ec8ea : (casinoSignNight ? 0xff6ad8 : 0xffb15a),
-              glowAmount: labSignNight ? 1.12 : (casinoSignNight ? 1.45 : 0.28),
+              glowAmount: labSignNight ? 1.12 : (casinoSignNight ? 1.18 : 0.28),
               side: THREE.DoubleSide
             });
           } else {
