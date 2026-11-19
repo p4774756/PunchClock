@@ -34,8 +34,11 @@ MERIDIAN_METAL = 0.9
 MERIDIAN_ROUGH = 0.45
 MERIDIAN_BEVEL_R = 0.00175
 MERIDIAN_SURFACE_OFFSET = 0.0015
-HAIR_HEX = 0xB88A3E
-MERIDIAN_PATH_STEP = 0.024
+HAIR_HEX = 0x54381C
+MERIDIAN_PATH_STEP = 0.008
+MERIDIAN_EDGE_GAP_MAX = 0.004
+MERIDIAN_BREAK_GAP = 0.006
+MERIDIAN_EDGE_LEN_MAX = 0.012
 MERIDIAN_MAX_TRIS = 20000
 PEDESTAL_BASE_H = 0.072
 PEDESTAL_MID_H = 0.064
@@ -96,7 +99,11 @@ def _mat_pbr(name, base_hex, rough=0.3, metal=0.0, tex=None, normal_tex=None, ro
     return m
 
 
-def _mesh_from_bm(bm, name, mat):
+def _mesh_from_bm(bm, name, mat, flat=False):
+    if flat:
+        for f in bm.faces:
+            f.smooth = False
+        bmesh.ops.split_edges(bm, edges=list(bm.edges), use_verts=False)
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
@@ -105,7 +112,8 @@ def _mesh_from_bm(bm, name, mat):
     if mat:
         ob.data.materials.append(mat)
     for p in me.polygons:
-        p.use_smooth = True
+        p.use_smooth = not flat
+    me.update()
     return ob
 
 
@@ -191,68 +199,166 @@ def _nipple_hubs(body):
     return tuple(hubs)
 
 
+def _smoothstep(edge0, edge1, x):
+    t = max(0.0, min(1.0, (x - edge0) / max(edge1 - edge0, 1e-9)))
+    return t * t * (3.0 - 2.0 * t)
+
+
+def _fit_quad_height(samples):
+    """samples: list of (u, v, h) → coeffs for h = au²+bv²+cuv+du+ev+f."""
+    if len(samples) < 10:
+        return None
+    rows = []
+    targets = []
+    for u, v, h in samples:
+        rows.append([u * u, v * v, u * v, u, v, 1.0])
+        targets.append(h)
+    a = np.array(rows, dtype=np.float64)
+    b = np.array(targets, dtype=np.float64)
+    try:
+        coeffs, *_ = np.linalg.lstsq(a, b, rcond=None)
+    except np.linalg.LinAlgError:
+        return None
+    return coeffs
+
+
+def _chest_second_diff_max(bm, hubs, r_lim=0.06):
+    """乳房區沿 Z 剖面之二階差分最大值（與平滑區對照用）。"""
+    max_chest = 0.0
+    max_other = 0.0
+    for hub in hubs:
+        ring_z = sorted(
+            {round(v.co.z, 3) for v in bm.verts if (v.co - hub).length < r_lim and v.co.z > 1.0}
+        )
+        for z0 in ring_z[:: max(1, len(ring_z) // 6)]:
+            line = sorted(
+                [v.co.y for v in bm.verts if abs(v.co.z - z0) < 0.003 and (v.co - hub).length < r_lim],
+            )
+            if len(line) < 5:
+                continue
+            d2 = [abs(line[i + 1] - 2 * line[i] + line[i - 1]) for i in range(1, len(line) - 1)]
+            if d2:
+                max_chest = max(max_chest, max(d2))
+    ref_z = 0.92
+    ref_line = sorted([v.co.y for v in bm.verts if abs(v.co.z - ref_z) < 0.008 and abs(v.co.x) < 0.22])
+    if len(ref_line) >= 5:
+        d2 = [abs(ref_line[i + 1] - 2 * ref_line[i] + ref_line[i - 1]) for i in range(1, len(ref_line) - 1)]
+        if d2:
+            max_other = max(d2)
+    return max_chest, max_other
+
+
 def _smooth_breast_detail(body):
-    """教學銅人胸部：乳暈區頂點投影到外圈擬合球面後 Laplacian 平滑。"""
-    R_IN = 0.035
-    R_RING_LO = 0.040
-    R_RING_HI = 0.052
+    """胸部：外圈二次曲面擬合 + 權重 lerp + 局部 Laplacian（無球面投影）。"""
+    R_RING_LO = 0.045
+    R_RING_HI = 0.065
+    R_BLEND_FULL = 0.025
+    R_BLEND_FADE = 0.055
     me = body.data
+    orig = [v.co.copy() for v in me.vertices]
     bm = bmesh.new()
     bm.from_mesh(me)
     bm.verts.ensure_lookup_table()
     hubs = _nipple_hubs(body)
-    inner_all = []
-    residual_bump = 0.0
+    weight = {v.index: 0.0 for v in bm.verts}
+    touched = set()
+
     for hub in hubs:
-        inner = []
         ring = []
         for v in bm.verts:
-            if v.co.z < 1.02 or v.co.z > 1.38 or v.co.y > -0.01:
+            if v.co.z < 1.0 or v.co.z > 1.42 or v.co.y > 0.02:
                 continue
             d = (v.co - hub).length
-            if d <= R_IN:
-                inner.append((v, v.co.copy()))
-            elif R_RING_LO <= d <= R_RING_HI:
+            if R_RING_LO <= d <= R_RING_HI:
                 ring.append(v)
-        if len(ring) < 12 or not inner:
+        if len(ring) < 14:
             continue
-        radius = sum((v.co - hub).length for v in ring) / len(ring)
-        for v, _orig in inner:
+        normal = Vector((0.0, 0.0, 0.0))
+        for v in ring:
+            for p in v.link_faces:
+                normal += p.normal
+        if normal.length < 1e-6:
+            normal = Vector((0.0, -1.0, 0.2))
+        normal.normalize()
+        tangent_u = Vector((1.0, 0.0, 0.0))
+        if abs(normal.dot(tangent_u)) > 0.92:
+            tangent_u = Vector((0.0, 0.0, 1.0))
+        tangent_v = normal.cross(tangent_u).normalized()
+        tangent_u = tangent_v.cross(normal).normalized()
+        samples = []
+        for v in ring:
             off = v.co - hub
-            if off.length < 1e-5:
-                off = Vector((0.0, -1.0, 0.15)).normalized() * radius
-            else:
-                off = off.normalized() * radius
-            v.co = hub + off
-        inner_all.extend([pair[0] for pair in inner])
-    inner_all = list({id(v): v for v in inner_all}.values())
-    if inner_all:
-        for _ in range(3):
-            bmesh.ops.smooth_vert(
-                bm,
-                verts=inner_all,
-                factor=0.72,
-                use_axis_x=True,
-                use_axis_y=True,
-                use_axis_z=True,
-            )
-    for hub in hubs:
-        for v in inner_all:
+            u = off.dot(tangent_u)
+            vv = off.dot(tangent_v)
+            h = off.dot(normal)
+            samples.append((u, vv, h))
+        coeffs = _fit_quad_height(samples)
+        if coeffs is None:
+            continue
+
+        def h_quad(u, vv):
+            a, b, c, d, e, f = coeffs
+            return a * u * u + b * vv * vv + c * u * vv + d * u + e * vv + f
+
+        for v in bm.verts:
+            if v.co.z < 0.98 or v.co.z > 1.44:
+                continue
             off = v.co - hub
             d = off.length
-            if d < 1e-5 or d > R_IN:
+            if d > R_RING_HI + 0.008:
                 continue
-            radial = off.normalized()
-            ring_d = R_RING_LO + 0.006
-            target = hub + radial * ring_d
-            bump = max(0.0, (v.co - target).dot(radial))
-            residual_bump = max(residual_bump, bump)
+            u = off.dot(tangent_u)
+            vv = off.dot(tangent_v)
+            h_orig = (orig[v.index] - hub).dot(normal)
+            h_new = h_quad(u, vv)
+            w = 1.0 if d <= R_BLEND_FULL else (0.0 if d >= R_BLEND_FADE else 1.0 - _smoothstep(R_BLEND_FULL, R_BLEND_FADE, d))
+            if w <= 0.0:
+                continue
+            h_blend = h_orig * (1.0 - w) + h_new * w
+            v.co = hub + tangent_u * u + tangent_v * vv + normal * h_blend
+            weight[v.index] = max(weight[v.index], w)
+            touched.add(v.index)
+
+    smooth_verts = [v for v in bm.verts if weight.get(v.index, 0.0) > 0.05]
+    for _ in range(6):
+        bmesh.ops.smooth_vert(
+            bm,
+            verts=smooth_verts,
+            factor=0.35,
+            use_axis_x=True,
+            use_axis_y=True,
+            use_axis_z=True,
+        )
+        for v in smooth_verts:
+            w = weight.get(v.index, 0.0)
+            if w >= 0.999:
+                continue
+            o = orig[v.index]
+            v.co = o.lerp(v.co, w)
     bm.to_mesh(me)
     bm.free()
     me.update()
+    bm2 = bmesh.new()
+    bm2.from_mesh(me)
+    d2_chest, d2_ref = _chest_second_diff_max(bm2, hubs)
+    bm2.free()
+    residual_bump = 0.0
+    for hub in hubs:
+        for i, o in enumerate(orig):
+            if abs(o.z - hub.z) > 0.14:
+                continue
+            if (o - hub).length > 0.035:
+                continue
+            wco = me.vertices[i].co
+            off = wco - hub
+            if off.length < 1e-5:
+                continue
+            bump = max(0.0, off.dot(Vector((0.0, -1.0, 0.0)).normalized()) - (o - hub).dot(Vector((0.0, -1.0, 0.0)).normalized()))
+            residual_bump = max(residual_bump, bump)
     print(
         f'[body] chest hubs=({hubs[0].x:.3f},{hubs[0].y:.3f},{hubs[0].z:.3f}) '
-        f'inner={len(inner_all)} residual_bump_mm={residual_bump * 1000:.2f}'
+        f'verts_touched={len(touched)} d2_chest={d2_chest*1000:.3f}mm d2_ref={d2_ref*1000:.3f}mm '
+        f'residual_bump_mm={residual_bump * 1000:.2f}'
     )
     body['chest_max_bump_m'] = residual_bump
     return residual_bump
@@ -376,24 +482,53 @@ def _add_hair(body, mat_hair):
         return None
     ob_shell = _mesh_from_bm(shell, 'bronze_hair_shell', mat_hair)
     mod = ob_shell.modifiers.new('Solidify', 'SOLIDIFY')
-    mod.thickness = 0.004
-    mod.offset = -0.25
+    mod.thickness = 0.0115
+    mod.offset = -0.62
     bpy.context.view_layer.objects.active = ob_shell
     ob_shell.select_set(True)
     bpy.ops.object.modifier_apply(modifier=mod.name)
     ob_shell.select_set(False)
+    mw_s = ob_shell.matrix_world
+    inv_s = mw_s.inverted()
+    grooves = []
+    for v in ob_shell.data.vertices:
+        w = mw_s @ v.co
+        if w.z < 1.58:
+            continue
+        strike = 0.0012 * math.sin(w.y * 220.0 - w.z * 40.0) + 0.0006 * math.sin(w.x * 180.0 + w.z * 30.0)
+        back = Vector((0.0, 1.0, 0.08)).normalized()
+        v.co = inv_s @ (w + back * strike)
+    ob_shell.data.update()
+    shell_gaps = []
+    mw_s = ob_shell.matrix_world
+    for i in range(0, len(ob_shell.data.vertices), 4):
+        w = mw_s @ ob_shell.data.vertices[i].co
+        hit = _closest_on_body(body, w)
+        if hit:
+            wloc, wnorm, _ = hit
+            gap = (w - wloc).dot(wnorm)
+            if gap > 0.0025:
+                shell_gaps.append(gap)
+    if shell_gaps:
+        print(
+            f'[hair] shell gap mm mean={1000*np.mean(shell_gaps):.2f} '
+            f'max={1000*np.max(shell_gaps):.2f} (expect 4-7)'
+        )
 
     bun_r = 0.028
-    bun_center = Vector((0.0, 0.078, 1.652))
+    bun_center = Vector((0.0, 0.050, 1.676))
     matrix = (
         Matrix.Translation(bun_center)
-        @ Matrix.Rotation(math.radians(12), 4, 'X')
-        @ Matrix.Diagonal((bun_r, bun_r * 0.88, bun_r * 0.92, 1.0))
+        @ Matrix.Diagonal((bun_r, bun_r * 0.85, bun_r * 1.0, 1.0))
     )
     bm_bun = bmesh.new()
     bmesh.ops.create_uvsphere(bm_bun, u_segments=32, v_segments=16, radius=1.0, matrix=matrix)
+    for v in bm_bun.verts:
+        w = matrix @ v.co
+        groove = 0.0012 * math.sin(math.atan2(w.x, w.y - bun_center.y) * 9.0)
+        inward = (w - bun_center).normalized()
+        v.co = matrix.inverted() @ (w - inward * groove)
     ob_bun = _mesh_from_bm(bm_bun, 'bronze_hair_bun', mat_hair)
-    _shrinkwrap_to_body(ob_bun, body, offset=-0.022)
     bpy.context.view_layer.update()
     mw_b = ob_bun.matrix_world
     mw_body = body.matrix_world
@@ -679,7 +814,7 @@ def _pedestal_tier(name, mat, cx, cy, cz, sx, sy, sz):
         size=1.0,
         matrix=Matrix.Translation((cx, cy, cz)) @ Matrix.Diagonal((sx, sy, sz, 1.0)),
     )
-    return _mesh_from_bm(bm, name, mat)
+    return _mesh_from_bm(bm, name, mat, flat=True)
 
 
 def _build_pedestal(mat_dark):
@@ -697,9 +832,10 @@ def _build_pedestal(mat_dark):
     for t in tiers:
         t.parent = ped_root
 
-    plaque_w = 0.52 * 0.85
-    plaque_h = PEDESTAL_BASE_H * 0.82
-    plaque_y = -(0.46 * 0.5 + 0.011)
+    plaque_tex_aspect = 1024.0 / 140.0
+    plaque_h = min(PEDESTAL_BASE_H * 0.9, 0.064)
+    plaque_w = plaque_h * plaque_tex_aspect
+    plaque_y = -(0.46 * 0.5 + 0.008)
     plaque_z = base_cz
     bm2 = bmesh.new()
     bmesh.ops.create_cube(
@@ -708,10 +844,10 @@ def _build_pedestal(mat_dark):
         matrix=Matrix.Translation((0, plaque_y, plaque_z))
         @ Matrix.Diagonal((plaque_w, 0.012, plaque_h, 1.0)),
     )
-    plaque = _mesh_from_bm(bm2, 'pedestal_plaque', None)
+    plaque = _mesh_from_bm(bm2, 'pedestal_plaque', None, flat=True)
     _assign_plaque_uv(plaque, plaque_w, plaque_h)
     plaque_tex = _plaque_texture()
-    p_mat = _mat_pbr('plaque', 0x3A2A18, rough=0.5, metal=0.18, tex=plaque_tex)
+    p_mat = _mat_pbr('plaque', 0x4A3520, rough=0.5, metal=0.18, tex=plaque_tex)
     plaque.data.materials.append(p_mat)
     plaque.parent = ped_root
     return [ped_root, plaque]
@@ -742,7 +878,7 @@ def _assign_plaque_uv(plaque, pw, ph):
         for loop in front.loops:
             co = loop.vert.co
             u = (co.x - xmin) / dx
-            v = (zmax - co.z) / dz
+            v = (co.z - zmin) / dz
             loop[layer].uv = (max(0.0, min(1.0, u)), max(0.0, min(1.0, v)))
     for f in bm.faces:
         if f is front:
@@ -868,33 +1004,79 @@ def _point_body_gap(body, world_co):
     return (world_co - wloc).length
 
 
+def _edge_body_gap_max(body, a, b):
+  mx = 0.0
+  for t in (0.25, 0.5, 0.75):
+    mx = max(mx, _point_body_gap(body, a.lerp(b, t)))
+  return mx
+
+
+def _subdivide_segment_snap(body, a, b, max_iters=5):
+    """反覆細分→吸附，直到弦中點貼體或達迭代上限。"""
+    pts = [a, b]
+    for _ in range(max_iters):
+        new_pts = [pts[0]]
+        changed = False
+        for i in range(len(pts) - 1):
+            p0, p1 = pts[i], pts[i + 1]
+            if (p1 - p0).length <= MERIDIAN_PATH_STEP and _edge_body_gap_max(body, p0, p1) <= MERIDIAN_EDGE_GAP_MAX:
+                new_pts.append(p1)
+                continue
+            mid = p0.lerp(p1, 0.5)
+            snapped = _snap_point_on_body(body, mid)
+            if snapped and _point_body_gap(body, snapped[0]) <= MERIDIAN_BREAK_GAP:
+                new_pts.append(snapped[0])
+                new_pts.append(p1)
+                changed = True
+            else:
+                new_pts.append(p1)
+        pts = new_pts
+        if not changed:
+            break
+    return pts
+
+
 def _densify_and_snap(body, points):
-    """細分後重吸附；剔除離體 >8 mm 的點。"""
+    """≤8 mm 間距吸附；弦面貼體不足時斷開跨越腋窩的空段。"""
     if len(points) < 2:
         return []
     dense = [points[0]]
     for i in range(len(points) - 1):
         a, b = points[i], points[i + 1]
-        dist = (a - b).length
-        mid = (a + b) * 0.5
-        mid_gap = _point_body_gap(body, mid)
-        steps = max(1, int(dist / MERIDIAN_PATH_STEP))
-        if dist > 0.03 or mid_gap > 0.005:
-            steps = max(steps, int(dist / 0.012) + 1)
-        for j in range(1, steps + 1):
-            t = j / steps
-            probe = a.lerp(b, t)
-            snapped = _snap_point_on_body(body, probe)
-            if not snapped:
-                continue
-            p, _hit = snapped
-            if _point_body_gap(body, p) <= 0.008:
-                dense.append(p)
+        seg = _subdivide_segment_snap(body, a, b)
+        if len(seg) < 2:
+            continue
+        if _edge_body_gap_max(body, a, b) > 0.006 and len(seg) <= 2:
+            continue
+        for p in seg[1:]:
+            if _point_body_gap(body, p) <= MERIDIAN_BREAK_GAP:
+                if dense and (p - dense[-1]).length > 1e-5:
+                    dense.append(p)
     out = []
     for p in dense:
-        if _point_body_gap(body, p) <= 0.008:
+        if _point_body_gap(body, p) <= MERIDIAN_BREAK_GAP:
             out.append(p)
+    if len(out) < 2:
+        return []
     return out
+
+
+def _split_path_keep_surface(body, points):
+    if len(points) < 2:
+        return []
+    segments = [[points[0]]]
+    for i in range(1, len(points)):
+        a, b = points[i - 1], points[i]
+        if (b - a).length > MERIDIAN_EDGE_LEN_MAX or _edge_body_gap_max(body, a, b) > MERIDIAN_BREAK_GAP:
+            if len(segments[-1]) >= 2:
+                segments.append([b])
+            elif segments[-1]:
+                segments[-1] = [segments[-1][-1], b] if (b - segments[-1][-1]).length < MERIDIAN_EDGE_LEN_MAX else [b]
+            else:
+                segments[-1] = [b]
+        else:
+            segments[-1].append(b)
+    return [s for s in segments if len(s) >= 2]
 
 
 def _snap_data_path(body, waypoints):
@@ -911,7 +1093,43 @@ def _snap_data_path(body, waypoints):
             snapped.append(pt[0])
     if len(snapped) < 2:
         return []
-    return _densify_and_snap(body, snapped)
+    dense = _densify_and_snap(body, snapped)
+    parts = _split_path_keep_surface(body, dense)
+    if not parts:
+        return []
+    return max(parts, key=len)
+
+
+def _snap_data_path_segments(body, waypoints):
+    """若資料點間弦離體，拆成多段各自細分吸附。"""
+    raw = []
+    for wp in waypoints:
+        if isinstance(wp, dict):
+            px = 0.0 if wp.get('midline') else wp['position'][0]
+            py, pz = wp['position'][1], wp['position'][2]
+        else:
+            px, py, pz = wp
+        wco = data_to_blender(px, py, pz)
+        pt = _snap_point_on_body(body, wco)
+        if pt:
+            raw.append(pt[0])
+    if len(raw) < 2:
+        return []
+    chunks = [[raw[0]]]
+    for i in range(1, len(raw)):
+        a, b = raw[i - 1], raw[i]
+        if _edge_body_gap_max(body, a, b) > 0.006:
+            if len(chunks[-1]) >= 2:
+                chunks.append([b])
+            else:
+                chunks[-1] = [b]
+        else:
+            chunks[-1].append(b)
+    out = []
+    for ch in chunks:
+        dense = _densify_and_snap(body, ch)
+        out.extend(_split_path_keep_surface(body, dense))
+    return out
 
 
 def _meridian_vertex_body_gap_max(body, meridian_ob, step=3):
@@ -927,6 +1145,26 @@ def _meridian_vertex_body_gap_max(body, meridian_ob, step=3):
     return max(sample) if sample else 0.0
 
 
+def _meridian_edge_gap_and_len_max(body, meridian_ob):
+    """每條 mesh 邊在 25/50/75% 取樣離體距離與邊長上限。"""
+    if meridian_ob is None:
+        return 0.0, 0.0
+    mw_m = meridian_ob.matrix_world
+    me = meridian_ob.data
+    edge_lens = []
+    edge_gaps = []
+    vcos = [mw_m @ v.co for v in me.vertices]
+    for e in me.edges:
+        a, b = e.vertices
+        pa, pb = vcos[a], vcos[b]
+        elen = (pb - pa).length
+        edge_lens.append(elen)
+        for t in (0.25, 0.5, 0.75):
+            wco = pa.lerp(pb, t)
+            edge_gaps.append(_point_body_gap(body, wco))
+    return (max(edge_gaps) if edge_gaps else 0.0, max(edge_lens) if edge_lens else 0.0)
+
+
 def _meridian_paths_from_records(body, records):
     groups = {}
     for rec in records:
@@ -939,15 +1177,13 @@ def _meridian_paths_from_records(body, records):
     paths = []
     for key, pts in groups.items():
         ordered = _sort_meridian_records(pts)
-        path = _snap_data_path(body, ordered)
-        if len(path) >= 2:
+        for path in _snap_data_path_segments(body, ordered):
             paths.append(path)
             mer = key[0] if key else ''
             if mer and mer not in MIDLINE_MERIDIANS:
                 paths.append(_mirror_path_x(path))
     for waypoints in EXTRA_MERIDIAN_WAYPOINTS:
-        path = _snap_data_path(body, waypoints)
-        if len(path) >= 2:
+        for path in _snap_data_path_segments(body, waypoints):
             paths.append(path)
     return paths
 
@@ -1006,9 +1242,13 @@ def _build_meridian_mesh(body, records, mat_meridian):
         merged.select_set(False)
         tris = _tri_count(merged)
     gap_max = _meridian_vertex_body_gap_max(body, merged)
-    print(f'[meridians] paths={len(paths)} tris={tris} body_gap_max_mm={gap_max * 1000:.2f}')
-    if gap_max > 0.006:
-        print('[meridians] WARN body_gap_max exceeds 6mm')
+    edge_gap_max, edge_len_max = _meridian_edge_gap_and_len_max(body, merged)
+    print(
+        f'[meridians] paths={len(paths)} tris={tris} vtx_gap_max_mm={gap_max * 1000:.2f} '
+        f'edge_gap_max_mm={edge_gap_max * 1000:.2f} edge_len_max_mm={edge_len_max * 1000:.2f}'
+    )
+    if edge_gap_max > 0.006 or edge_len_max > MERIDIAN_EDGE_LEN_MAX:
+        print('[meridians] WARN edge sample or edge length exceeds spec')
     return merged
 
 
@@ -1194,21 +1434,31 @@ def render_previews(root, out_dir=None):
         ('back', Vector((0, 2.65, center.z)), 52),
         ('face', Vector((0, -1.0, bb_max.z - 0.08)), 75),
         ('head_side', Vector((0.82, 0.08, bb_max.z - 0.12)), 64),
-        ('chest', Vector((0, -0.55, 1.22)), 42),
+        ('head_back', Vector((0.0, 1.05, bb_max.z - 0.14)), 68),
+        ('chest', Vector((0.35, -0.22, 1.20)), 48),
         ('pedestal', Vector((0, -1.28, PEDESTAL_BASE_H * 0.5)), 58),
     ):
-        look_at = (
-            Vector((0, -0.22, PEDESTAL_BASE_H * 0.5))
-            if name == 'pedestal'
-            else (
-                Vector((0, -0.02, bb_max.z - 0.14))
-                if name == 'head_side'
-                else (Vector((0, -0.05, 1.20)) if name == 'chest' else center)
-            )
-        )
+        if name == 'pedestal':
+            look_at = Vector((0, -0.22, PEDESTAL_BASE_H * 0.5))
+        elif name == 'head_side':
+            look_at = Vector((0, -0.02, bb_max.z - 0.14))
+        elif name == 'head_back':
+            look_at = Vector((0, 0.04, bb_max.z - 0.16))
+        elif name == 'chest':
+            look_at = Vector((0, -0.04, 1.20))
+        else:
+            look_at = center
+        if name == 'chest':
+            sun.data.energy = 8.5
+            sun.rotation_euler = (math.radians(12), 0, math.radians(62))
+            fill.data.energy = 40
+        else:
+            sun.data.energy = 4.2
+            sun.rotation_euler = (math.radians(52), 0, math.radians(28))
+            fill.data.energy = 280
         cam.location = (
             look_at + off
-            if name in ('pedestal', 'head_side', 'chest', 'face')
+            if name in ('pedestal', 'head_side', 'head_back', 'chest', 'face')
             else center + off
         )
         cam.data.lens = lens

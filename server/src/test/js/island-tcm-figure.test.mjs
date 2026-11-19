@@ -30,7 +30,10 @@ const {
   entranceBronzeLocalGuard,
   hideEntranceBronzeMeshes,
   ENTRANCE_BRONZE_MATERIALS,
-  ENTRANCE_FIG_LOCAL
+  ENTRANCE_FIG_LOCAL,
+  BRONZE_BODY_SRGB,
+  BRONZE_HAIR_SRGB,
+  bronzeHairDistinctFromBody
 } = await loadPublicModule('island-tcm-figure-logic.js');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'main', 'resources', 'public');
@@ -223,6 +226,39 @@ test('resolveTcmPickHit：InstancedMesh 回傳穴 instanceKey', () => {
     object: { userData: { tcmPointPick: { instanceKeys: ['A:m', 'B:1', 'B:-1', 'C:1'] } } }
   });
   assert.deepEqual(hit, { type: 'tcm-point', instanceKey: 'C:1', instanceId: 3 });
+});
+
+test('銅人材質：頭髮色深於身體、匾額 emissiveMap', () => {
+  assert.ok(bronzeHairDistinctFromBody(BRONZE_HAIR_SRGB, BRONZE_BODY_SRGB));
+  const jsPath = join(root, 'js', 'island-tcm-figure.js');
+  const source = readFileSync(jsPath, 'utf8');
+  assert.ok(/isHair/.test(source));
+  assert.ok(/bronze_hair/.test(source));
+  assert.ok(/emissiveMap\s*=\s*obj\.material\.map/.test(source));
+  assert.ok(/userData\.dayE\s*=\s*0\.45/.test(source));
+  assert.ok(/userData\.nightE\s*=\s*0\.6/.test(source));
+  const glbPath = join(root, 'models', 'tcm-bronze-figure.glb');
+  const buf = readFileSync(glbPath);
+  assert.equal(buf.readUInt32LE(0), 0x46546c67);
+  const jlen = buf.readUInt32LE(12);
+  const chunk = JSON.parse(buf.subarray(20, 20 + jlen).toString('utf8'));
+  const mats = chunk.materials || [];
+  const hair = mats.find((m) => m.name === 'bronze_hair');
+  const body = mats.find((m) => m.name === 'bronze' || m.name === 'bronze.001');
+  assert.ok(hair && body, 'hair/body materials');
+  const linToSrgb8 = (c) => {
+    const x = Math.max(0, Math.min(1, c));
+  const s = x <= 0.0031308 ? x * 12.92 : 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
+    return Math.round(s * 255);
+  };
+  const hairRgb = (hair.pbrMetallicRoughness.baseColorFactor || []).slice(0, 3);
+  const hairHex =
+    (linToSrgb8(hairRgb[0]) << 16)
+    + (linToSrgb8(hairRgb[1]) << 8)
+    + linToSrgb8(hairRgb[2]);
+  assert.ok(bronzeHairDistinctFromBody(hairHex, BRONZE_BODY_SRGB));
+  const plaque = mats.find((m) => m.name === 'plaque');
+  assert.ok(plaque && plaque.pbrMetallicRoughness.baseColorTexture, 'plaque texture');
 });
 
 test('buildPointMeshes 不可引用未定義的裸 renderer', () => {

@@ -6,9 +6,9 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-W, H = 640, 160
+W, H = 1024, 140
 TEXT = '人體針灸銅人'
-BG = (58, 42, 24, 255)
+BG = (74, 53, 32, 255)
 FG = (232, 200, 120, 255)
 
 
@@ -26,11 +26,11 @@ def main():
         if not p.is_file():
             continue
         try:
-            font = ImageFont.truetype(str(p), 96, index=0)
+            font = ImageFont.truetype(str(p), 108, index=0)
             break
         except OSError:
             try:
-                font = ImageFont.truetype(str(p), 96)
+                font = ImageFont.truetype(str(p), 108)
                 break
             except OSError:
                 continue

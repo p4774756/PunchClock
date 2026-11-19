@@ -23,6 +23,13 @@ const BRONZE_PART_BOXES_DEFAULT = Object.freeze([
 ]);
 
 export const BRONZE_PART_BOXES = BRONZE_PART_BOXES_DEFAULT;
+export const BRONZE_BODY_SRGB = 0xcda862;
+export const BRONZE_HAIR_SRGB = 0x54381c;
+
+/** 遊戲內頭髮材質須保留較深古銅色，不可與身體亮金相同。 */
+export function bronzeHairDistinctFromBody(hairHex, bodyHex = BRONZE_BODY_SRGB) {
+  return hairHex !== bodyHex && hairHex < bodyHex;
+}
 
 export function configureBronzeSurface(surfaceDoc) {
   if (!surfaceDoc || typeof surfaceDoc !== 'object') return;

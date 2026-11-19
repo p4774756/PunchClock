@@ -109,21 +109,31 @@ function nightColorFromDay(hex, opts) {
 }
 
 const BRONZE_SRGB = 0xcda862;
+const BRONZE_HAIR_SRGB = 0x54381c;
 const MERIDIAN_SRGB = 0x4a3214;
 const BRONZE_PED_SRGB = 0xab8748;
+const PLAQUE_SRGB = 0x4a3520;
 
 function bronzeMaterialFromGltf(oldMat, kit, opts) {
   const o = opts || {};
   const isBronze = !!o.bronze;
   const isFabric = !!o.fabric;
+  const isHair = !!o.hair;
+  const isPlaque = !!o.plaque;
   const matName = (oldMat.name || '').toLowerCase();
   const darkPed = matName.indexOf('pedestal') >= 0 || matName === 'bronze_dark';
   const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(
-    isFabric ? 0xffffff : darkPed ? BRONZE_PED_SRGB : BRONZE_SRGB
+    isFabric ? 0xffffff : darkPed ? BRONZE_PED_SRGB : isHair ? BRONZE_HAIR_SRGB : BRONZE_SRGB
   );
   if (o.meridian) {
     if (oldMat.color) day.copy(oldMat.color);
     else day.setHex(MERIDIAN_SRGB);
+  } else if (isHair) {
+    if (oldMat.color) day.copy(oldMat.color);
+    else day.setHex(BRONZE_HAIR_SRGB);
+  } else if (isPlaque) {
+    if (oldMat.map) day.setRGB(1, 1, 1);
+    else day.setHex(PLAQUE_SRGB);
   } else if (isBronze && !isFabric) {
     const hasMap = !!(oldMat.map);
     if (hasMap) {
@@ -132,14 +142,20 @@ function bronzeMaterialFromGltf(oldMat, kit, opts) {
       day.setHex(darkPed ? BRONZE_PED_SRGB : BRONZE_SRGB);
     }
   }
-  const night = nightColorFromDay(day.getHex(), { bronze: isBronze && !isFabric });
+  const night = nightColorFromDay(day.getHex(), { bronze: (isBronze && !isFabric) || isHair });
   const emissive = new THREE.Color(0x000000);
   const emissiveI = 0;
   let metalness = oldMat.metalness != null ? oldMat.metalness : (isBronze && !isFabric ? 0.97 : 0.04);
   let roughness = oldMat.roughness != null ? oldMat.roughness : (isFabric ? 0.62 : isBronze ? 0.26 : 0.82);
-  if (isBronze && !isFabric) {
+  if (isHair) {
+    metalness = 0.8;
+    roughness = 0.5;
+  } else if (isBronze && !isFabric) {
     metalness = Math.min(1.0, Math.max(0.95, metalness));
     roughness = Math.min(0.3, Math.max(0.22, roughness));
+  } else if (isPlaque) {
+    metalness = Math.min(0.22, Math.max(0.14, metalness));
+    roughness = Math.max(0.48, roughness);
   } else if (isFabric) {
     metalness = 0;
     roughness = Math.max(0.55, Math.min(0.68, roughness));
@@ -156,7 +172,8 @@ function bronzeMaterialFromGltf(oldMat, kit, opts) {
   if (oldMat.map) std.map = oldMat.map;
   if (oldMat.normalMap) {
     std.normalMap = oldMat.normalMap;
-    std.normalScale = new THREE.Vector2(0.85, 0.85);
+    const nscale = isHair ? 1.2 : 0.85;
+    std.normalScale = new THREE.Vector2(nscale, nscale);
   }
   if (oldMat.roughnessMap) std.roughnessMap = oldMat.roughnessMap;
   if (oldMat.metalnessMap) std.metalnessMap = oldMat.metalnessMap;
@@ -164,10 +181,18 @@ function bronzeMaterialFromGltf(oldMat, kit, opts) {
   std.userData.night = night;
   std.userData.bronze = isBronze && !isFabric;
   std.userData.fabric = isFabric;
-  std.userData.dayE = 0;
-  std.userData.nightE = isBronze && !isFabric ? 0.018 : isFabric ? 0 : 0.006;
-  std.userData.dayEnvI = isBronze && !isFabric ? 1.52 : isFabric ? 0 : 0.18;
-  std.userData.nightEnvI = isBronze && !isFabric ? 0.82 : isFabric ? 0 : 0.12;
+  std.userData.dayE = isPlaque ? 0.45 : 0;
+  std.userData.nightE = isPlaque
+    ? 0.6
+    : isHair
+      ? 0.012
+      : isBronze && !isFabric
+        ? 0.018
+        : isFabric
+          ? 0
+          : 0.006;
+  std.userData.dayEnvI = isHair ? 0.82 : isBronze && !isFabric ? 1.52 : isFabric ? 0 : isPlaque ? 0.35 : 0.18;
+  std.userData.nightEnvI = isHair ? 0.48 : isBronze && !isFabric ? 0.82 : isFabric ? 0 : isPlaque ? 0.42 : 0.12;
   std.envMapIntensity = std.userData.dayEnvI;
   kit.addMaterial(std);
   return std;
@@ -208,7 +233,9 @@ function applyBronzeFigureMaterials(root, kit) {
       obj.name.indexOf('sash') >= 0;
     const isPlaque =
       matName === 'plaque' || obj.name.indexOf('plaque') >= 0;
-    const isBronze = !fabric && !isMeridian && !isPlaque;
+    const isHair =
+      matName === 'bronze_hair' || obj.name.indexOf('hair') >= 0;
+    const isBronze = !fabric && !isMeridian && !isPlaque && !isHair;
     if (isMeridian) {
       obj.material = bronzeMaterialFromGltf(
         oldMat && oldMat.isMeshStandardMaterial
@@ -225,10 +252,19 @@ function applyBronzeFigureMaterials(root, kit) {
         { bronze: true, fabric: false, meridian: true }
       );
     } else if (isPlaque && oldMat && oldMat.isMeshStandardMaterial) {
-      obj.material = bronzeMaterialFromGltf(oldMat, kit, { bronze: false, fabric: false });
-      if (obj.material.metalness > 0.22) obj.material.metalness = 0.18;
-      if (obj.material.roughness < 0.42) obj.material.roughness = 0.5;
-      obj.material.envMapIntensity = 0.35;
+      obj.material = bronzeMaterialFromGltf(oldMat, kit, { bronze: false, fabric: false, plaque: true });
+      if (obj.material.map) {
+        obj.material.emissiveMap = obj.material.map;
+        obj.material.emissive = new THREE.Color(0xffffff);
+        obj.material.emissiveIntensity = 0.45;
+        obj.material.userData.dayE = 0.45;
+        obj.material.userData.nightE = 0.6;
+      }
+      if (!obj.material.map) obj.material.color.setHex(PLAQUE_SRGB);
+      obj.material.envMapIntensity = obj.material.userData.dayEnvI;
+    } else if (isHair && oldMat && oldMat.isMeshStandardMaterial) {
+      obj.material = bronzeMaterialFromGltf(oldMat, kit, { bronze: true, fabric: false, hair: true });
+      obj.material.envMapIntensity = obj.material.userData.dayEnvI;
     } else if (oldMat && oldMat.isMeshStandardMaterial) {
       obj.material = bronzeMaterialFromGltf(oldMat, kit, { bronze: isBronze, fabric: fabric });
     } else if (fabric) {
