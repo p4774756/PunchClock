@@ -1,7 +1,19 @@
 // 海空生物：node --test server/src/test/js/island-life.test.mjs
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadPublicModule } from './load-public-module.mjs';
+
+const publicRoot = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  'main',
+  'resources',
+  'public'
+);
 
 const life = await loadPublicModule('island-life.js');
 const {
@@ -19,7 +31,10 @@ const {
   lifeUpdateTick,
   createIslandLife,
   sampleFishSchool,
-  distanceToBoatRoutes
+  distanceToBoatRoutes,
+  LIFE_GLB_KINDS,
+  lifeModelPath,
+  LIFE_CREATURE_KINDS
 } = life;
 
 function mockThreeLite() {
@@ -168,6 +183,9 @@ describe('island-life 稀有一輪一隻', () => {
   test('forceRare 示範可鎖定單一傳說物', () => {
     assert.equal(lifeKindActive('xuanwu', 0, false, 0, { forceRare: 'xuanwu' }), true);
     assert.equal(lifeKindActive('kunpeng', 0, false, 0, { forceRare: 'xuanwu' }), false);
+    assert.equal(lifeKindActive('whale', 0, false, 0, { forceRare: 'xuanwu' }), false);
+    assert.equal(lifeKindActive('fishSchool', 0.1, false, 0, { forceRare: 'whale' }), true);
+    assert.equal(lifeKindActive('phoenix', 0.9, false, 0, { forceRare: 'whale' }), false);
   });
 });
 
@@ -186,10 +204,28 @@ describe('island-life 純函式', () => {
   });
 });
 
+describe('island-life GLB 種類 (#199)', () => {
+  test('概念圖 12 種皆有模型路徑', () => {
+    assert.equal(LIFE_GLB_KINDS.length, 12);
+    for (const kind of LIFE_GLB_KINDS) {
+      const path = lifeModelPath(kind);
+      assert.ok(path && path.startsWith('/models/life/'), kind + ' → ' + path);
+      assert.ok(existsSync(join(publicRoot, path)), 'missing ' + path);
+    }
+  });
+
+  test('青鳥有錨點且為合法 kind', () => {
+    assert.ok(LIFE_CREATURE_KINDS.includes('qingniao'));
+    const anchors = lifePlacementAnchors().filter((a) => a.kind === 'qingniao');
+    assert.equal(anchors.length, 1);
+    assert.equal(anchors[0].realm, 'sky');
+  });
+});
+
 describe('island-life createIslandLife', () => {
   test('建立與 dispose 不拋錯', () => {
     const THREE = mockThreeLite();
-    const view = createIslandLife(THREE, { reduced: false });
+    const view = createIslandLife(THREE, { reduced: false, procedural: true });
     assert.ok(view.group);
     assert.ok(view.creatures.length > 0);
     view.update(0.016, 1);
@@ -200,7 +236,7 @@ describe('island-life createIslandLife', () => {
 
   test('reduced 時 update 不拋錯', () => {
     const THREE = mockThreeLite();
-    const view = createIslandLife(THREE, { reduced: true });
+    const view = createIslandLife(THREE, { reduced: true, procedural: true });
     for (let i = 0; i < 30; i++) {
       view.update(0.016, i * 0.016);
     }
