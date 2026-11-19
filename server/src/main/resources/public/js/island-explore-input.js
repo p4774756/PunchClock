@@ -2,8 +2,17 @@ import {
   MOVE_CODES,
   shouldCaptureMoveKey,
   shouldTriggerInteractKey,
-  clampOrbitRadius
+  clampOrbitRadius,
+  effectiveInteriorOrbitMin
 } from './island-explore.js';
+import {
+  createCanvasPointerState,
+  onPointerDownState,
+  onPointerMoveState,
+  onPointerUpState,
+  onPointerCancelState,
+  pinchOrbitRadiusStep
+} from './island-pinch.js';
 import { shouldOpenChatKey } from './island-chat.js';
 import { shouldOpenMapWithKey } from './island-minimap.js';
 
@@ -120,7 +129,11 @@ export function focusKind(target) {
 export function getOrbitClamp(ctx) {
   const mode = ctx.getMode();
   const followCam = ctx.controlsActive(mode);
-  const indoorMin = followCam && ctx.isInside() ? ctx.interiorMinRadius : null;
+  if (!followCam || !ctx.isInside()) {
+    return { followCam: followCam, indoorMin: null };
+  }
+  const poseR = typeof ctx.getInteriorPoseRadius === 'function' ? ctx.getInteriorPoseRadius() : null;
+  const indoorMin = effectiveInteriorOrbitMin(ctx.interiorMinRadius, poseR);
   return { followCam: followCam, indoorMin: indoorMin };
 }
 
@@ -138,14 +151,38 @@ export function createExplorePointer(opts) {
   const onAfterDragEnd = opts.onAfterDragEnd;
   const isInside = opts.isInside || function () { return false; };
   const interiorMinRadius = opts.interiorMinRadius != null ? opts.interiorMinRadius : null;
+  const getInteriorPoseRadius = opts.getInteriorPoseRadius;
 
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  let dragging = false;
-  let moved = false;
-  let dragPointerId = null;
-  let lastX = 0;
-  let lastY = 0;
+  const ptr = createCanvasPointerState();
+
+  function orbitClamp() {
+    return getOrbitClamp({
+      getMode: getMode,
+      controlsActive: controlsActive,
+      isInside: isInside,
+      interiorMinRadius: interiorMinRadius,
+      getInteriorPoseRadius: getInteriorPoseRadius
+    });
+  }
+
+  function applyPinchRadius(curDist) {
+    if (ptr.pinchStartRadius == null || ptr.pinchStartDist == null) return;
+    const clamp = orbitClamp();
+    const step = pinchOrbitRadiusStep(
+      cam.targetRadius,
+      ptr.pinchStartRadius,
+      ptr.pinchStartDist,
+      curDist,
+      (raw) => clampOrbitRadius(raw, 0, clamp.followCam, clamp.indoorMin)
+    );
+    cam.targetRadius = step.radius;
+    if (step.resetBaseline) {
+      ptr.pinchStartRadius = step.radius;
+      ptr.pinchStartDist = curDist;
+    }
+  }
 
   function ndc(event) {
     const rect = canvas.getBoundingClientRect();
@@ -167,66 +204,72 @@ export function createExplorePointer(opts) {
   }
 
   function onPointerDown(event) {
-    if (dragPointerId != null && event.pointerId !== dragPointerId) return;
-    dragging = true;
-    dragPointerId = event.pointerId;
-    moved = false;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    canvas.style.cursor = 'grabbing';
+    const down = onPointerDownState(ptr, event.pointerId, event.clientX, event.clientY);
+    if (down.ignored) return;
+    if (down.beginPinch) {
+      ptr.pinchStartRadius = cam.targetRadius;
+    }
+    if (ptr.pointers.size > 0) canvas.style.cursor = 'grabbing';
     if (canvas.setPointerCapture) canvas.setPointerCapture(event.pointerId);
   }
 
   function onPointerMove(event) {
-    if (dragging && dragPointerId !== event.pointerId) return;
-    if (!dragging) {
+    const active = ptr.pointers.size > 0;
+    if (!active) {
       canvas.style.cursor = hitZone(event) ? 'pointer' : 'grab';
       return;
     }
-    const dx = event.clientX - lastX;
-    const dy = event.clientY - lastY;
-    if (dx * dx + dy * dy > 9) moved = true;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    cam.targetTheta -= dx * 0.005;
-    const followCam = controlsActive(getMode());
-    // 探索：往上拖＝抬頭；全景維持「抓住世界拖」。左右不變。
-    cam.targetPhi = applyDragPhi(cam.targetPhi, dy, followCam);
+    const move = onPointerMoveState(ptr, event.pointerId, event.clientX, event.clientY);
+    if (move.mode === 'ignore') return;
+    if (move.mode === 'pinch') {
+      applyPinchRadius(move.curDist);
+      return;
+    }
+    if (move.mode === 'drag') {
+      cam.targetTheta -= move.dx * 0.005;
+      const followCam = controlsActive(getMode());
+      cam.targetPhi = applyDragPhi(cam.targetPhi, move.dy, followCam);
+    }
   }
 
   function onPointerUp(event) {
-    if (dragPointerId != null && event.pointerId !== dragPointerId) return;
-    const wasDrag = moved;
-    dragging = false;
-    dragPointerId = null;
-    canvas.style.cursor = 'grab';
-    if (!wasDrag) {
-      const zone = hitZone(event);
-      if (zone) onZoneClick(zone, event);
+    const up = onPointerUpState(ptr, event.pointerId);
+    if (up.remaining === 0) canvas.style.cursor = 'grab';
+    if (canvas.releasePointerCapture) {
+      try { canvas.releasePointerCapture(event.pointerId); } catch (_e) { /* already released */ }
     }
-    if (onAfterDragEnd) onAfterDragEnd({ moved: wasDrag, event: event });
+    if (up.ended) {
+      if (up.allowClick) {
+        const zone = hitZone(event);
+        if (zone) onZoneClick(zone, event);
+      }
+      if (onAfterDragEnd) onAfterDragEnd({ moved: up.dragMoved, event: event });
+    }
   }
 
   function onPointerCancel(event) {
-    if (event && dragPointerId != null && event.pointerId !== dragPointerId) return;
-    dragging = false;
-    dragPointerId = null;
-    canvas.style.cursor = 'grab';
-    if (onAfterDragEnd) onAfterDragEnd({ moved: moved, event: null });
+    if (!event) return;
+    const cancel = onPointerCancelState(ptr, event.pointerId);
+    if (cancel.remaining === 0) canvas.style.cursor = 'grab';
+    if (canvas.releasePointerCapture) {
+      try { canvas.releasePointerCapture(event.pointerId); } catch (_e) { /* already released */ }
+    }
+    if (cancel.ended && onAfterDragEnd) {
+      onAfterDragEnd({ moved: cancel.dragMoved, event: null });
+    }
+  }
+
+  function onLostPointerCapture(event) {
+    onPointerCancel(event);
   }
 
   function onPointerLeave() {
-    if (!dragging) canvas.style.cursor = 'grab';
+    if (ptr.pointers.size === 0) canvas.style.cursor = 'grab';
   }
 
   function onWheel(event) {
     event.preventDefault();
-    const clamp = getOrbitClamp({
-      getMode: getMode,
-      controlsActive: controlsActive,
-      isInside: isInside,
-      interiorMinRadius: interiorMinRadius
-    });
+    const clamp = orbitClamp();
     cam.targetRadius = clampOrbitRadius(
       cam.targetRadius,
       event.deltaY * 0.01,
@@ -239,6 +282,7 @@ export function createExplorePointer(opts) {
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
   canvas.addEventListener('pointercancel', onPointerCancel);
+  canvas.addEventListener('lostpointercapture', onLostPointerCapture);
   canvas.addEventListener('pointerleave', onPointerLeave);
   canvas.addEventListener('wheel', onWheel, { passive: false });
 
@@ -247,6 +291,7 @@ export function createExplorePointer(opts) {
     canvas.removeEventListener('pointermove', onPointerMove);
     canvas.removeEventListener('pointerup', onPointerUp);
     canvas.removeEventListener('pointercancel', onPointerCancel);
+    canvas.removeEventListener('lostpointercapture', onLostPointerCapture);
     canvas.removeEventListener('pointerleave', onPointerLeave);
     canvas.removeEventListener('wheel', onWheel);
   };

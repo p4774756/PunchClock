@@ -474,7 +474,9 @@ export function createCameraRig(THREE, camera, hooks) {
   }
 
   return {
+    get radius() { return radius; },
     get theta() { return theta; },
+    get phi() { return phi; },
     get targetLook() { return targetLook; },
     get targetRadius() { return targetRadius; },
     set targetRadius(value) { targetRadius = value; },
