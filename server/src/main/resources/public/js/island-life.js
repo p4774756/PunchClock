@@ -536,7 +536,7 @@ function prepareLifeMaterials(THREE, root, kind) {
       if (birdMesh && mat.emissive) {
         const isTip = n.includes('gull_tip');
         const isBeak = n.includes('gull_beak');
-        const e = isTip ? 0 : isBeak ? 0.38 : 0.46;
+        const e = isTip ? 0 : isBeak ? 0.38 : 0.52;
         mat.emissive.copy(mat.color);
         mat.emissiveIntensity = e;
         mat.userData.dayEmissiveMin = e;

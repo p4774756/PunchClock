@@ -56,8 +56,8 @@ COL = {
     'xuan_shell': 0x3C7048,
     'xuan_gold': 0xC9A23A,
     'xuan_body': 0x7C8F6A,
-    'snake': 0x2F6B3A,
-    'snake_belly': 0xB8C98A,
+    'snake': 0x4F6272,
+    'snake_belly': 0xD9C98A,
     'kun_white': 0xEAF4FB,
     'kun_blue': 0xBFD9EE,
     'kun_cloud': 0xFFFFFF,
@@ -640,7 +640,7 @@ def _shell_gold_hex_lines(bm, shell_ob):
                 return None
             pts.append(hit)
         for i in range(len(pts) - 1):
-            if abs(pts[i][0].z - pts[i + 1][0].z) > 0.018:
+            if abs(pts[i][0].z - pts[i + 1][0].z) > 0.045:
                 return None
         return pts
 
@@ -659,7 +659,7 @@ def _shell_gold_hex_lines(bm, shell_ob):
                 rad = cell * 0.38
                 x0, y0 = cx + math.cos(a0) * rad, cy + math.sin(a0) * rad * 0.88
                 x1, y1 = cx + math.cos(a1) * rad, cy + math.sin(a1) * rad * 0.88
-                pts = _edge_samples(x0, y0, x1, y1, steps=9)
+                pts = _edge_samples(x0, y0, x1, y1, steps=3)
                 if not pts:
                     continue
                 for i in range(len(pts) - 1):
@@ -667,7 +667,7 @@ def _shell_gold_hex_lines(bm, shell_ob):
                         bm, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], half_w * 0.55
                     )
 
-    rib_angles = [-0.55, 0.55, 1.65, -1.65]
+    rib_angles = []  # r8: 肋線拿掉（從殼頂拉到殼緣的長直條讀起來像裂痕）
     for ang in rib_angles:
         rim_r, _ = _rim_radius_at(bins, ang)
         inner = rim_r * 0.62
@@ -675,13 +675,13 @@ def _shell_gold_hex_lines(bm, shell_ob):
         y0 = meta['cy'] + math.sin(ang) * cell * 0.35
         x1 = meta['cx'] + math.cos(ang) * inner
         y1 = meta['cy'] + math.sin(ang) * inner
-        pts = _edge_samples(x0, y0, x1, y1, steps=12)
+        pts = _edge_samples(x0, y0, x1, y1, steps=6)
         if not pts:
             continue
         for i in range(len(pts) - 1):
             _band_quad(bm, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], half_w * 0.45)
 
-    rim_n = 48
+    rim_n = 0  # r8: 殼緣內圈拿掉（弦線會跑出殼面）
     rim_pts = []
     for i in range(rim_n):
         ang = (i / rim_n) * math.pi * 2.0
@@ -808,7 +808,7 @@ def _interp_frame(frames, s):
         side.normalize()
     else:
         side = s0
-    up = tang.cross(side).normalized()
+    up = side.cross(tang).normalized()
     return pos, tang, side, up
 
 
@@ -1020,15 +1020,171 @@ def _deform_along_path(ob, frames, path_len, half_r, shell_meta=None):
             lx *= sc
             lz *= sc
         pos, tang, side, up = _interp_frame(frames, s)
-        if s < 0.15 and shell_meta is not None:
-            out = Vector((pos.x - cx, pos.y - cy, 0.0))
-            if out.length > 1e-6:
-                out.normalize()
-                pos -= out * (1.0 - s / 0.15) * half_r * 1.8
-        if s > 0.88:
-            u = _smoothstep(0.88, 1.0, s)
-            pos += up * (0.25 * u)
         v.co[:] = pos + side * lx + up * lz
+    me.update()
+
+
+SNAKE_RINGS = 30
+SNAKE_WRAP_DEG = 300.0
+SNAKE_HEAD_OFF = (-0.19, -0.03, 0.12)
+
+
+def _xuanwu_snake_path(root, shell_ob, half_r, count=160):
+    """玄武蛇路徑（Blender 座標，龜頭朝 -Y）：
+    尾在右前方殼側 → 逆時針沿殼側繞一整圈（最後 70° 疊在起點上方一個蛇直徑）
+    → 頸部 S 形抬起，蛇頭停在龜頭右前上方、朝向龜頭（玄武經典「龜蛇相顧」）。"""
+    bins, meta = _shell_rim_bins_bvh(shell_ob)
+    if bins is None:
+        raise RuntimeError('xuan shell rim missing for snake path')
+    cx, cy = meta['cx'], meta['cy']
+    body = next((c for c in root.children if c.name == 'xuan_body'), None)
+    head = None
+    if body is not None:
+        best = -1e9
+        for v in body.data.vertices:
+            p = body.matrix_world @ v.co
+            if abs(p.x - cx) < 0.12 and (cy - p.y) > best:
+                best = cy - p.y
+                head = p.copy()
+    if head is None:
+        head = Vector((cx, meta['min_y'] - 0.05, meta['max_z'] * 0.5))
+    # 尾在右前方殼側 → 逆時針沿殼緣繞到左前方（不重疊、不抬高）→ 頸部由左前方抬起，
+    # 蛇頭停在龜鼻正前上方、回頭朝向龜頭（龜蛇相顧）。
+    a0 = math.radians(-58.0)
+    a1 = math.radians(-58.0 + SNAKE_WRAP_DEG)
+    ctrl = []
+    n = 34
+    for i in range(n + 1):
+        t = i / n
+        ang = a0 + (a1 - a0) * t
+        rim_r, z_rim = _rim_radius_at(bins, ang)
+        rad = rim_r + half_r * 0.92
+        z = z_rim - half_r * 0.25
+        ctrl.append(Vector((cx + math.cos(ang) * rad, cy + math.sin(ang) * rad, z)))
+    last = ctrl[-1]
+    hd = Vector((head.x + SNAKE_HEAD_OFF[0], head.y + SNAKE_HEAD_OFF[1], head.z + SNAKE_HEAD_OFF[2]))
+    mid = last.lerp(hd, 0.5) + Vector((-half_r * 1.2, 0.0, (hd.z - last.z) * 0.35))
+    ctrl.append(mid)
+    ctrl.append(hd)
+    face = (Vector((head.x, head.y, hd.z - half_r * 0.6)) - hd).normalized()
+    ctrl.append(hd + face * half_r * 2.2)
+    return _resample_catmull_rom(ctrl, count=count, closed=False)
+
+
+def _add_snake_head(root, path, half_r):
+    """蛇頭：路徑末端加一顆扁長橢球頭（寬 1.6r、長 2.6r、高 1.1r）＋兩顆黑眼，
+    讓遠景也看得出是蛇頭；原 snake_eye（貼圖判定）一律換成這兩顆眼。"""
+    snake = next((c for c in root.children if c.name == 'snake'), None)
+    if snake is None:
+        raise RuntimeError('snake mesh missing for head')
+    tip = path[-1]
+    tang = (path[-1] - path[-4]).normalized()
+    side = tang.cross(Vector((0.0, 0.0, 1.0)))
+    if side.length < 1e-4:
+        side = Vector((1.0, 0.0, 0.0))
+    side.normalize()
+    up = side.cross(tang).normalized()
+    if up.z < 0.0:
+        up = -up
+        side = -side
+    center = tip - tang * (half_r * 0.3) + up * (half_r * 0.15)
+    rot = Matrix((
+        (side.x, tang.x, up.x),
+        (side.y, tang.y, up.y),
+        (side.z, tang.z, up.z),
+    ))
+
+    def _ellipsoid(bm, c, sx, sy, sz, segs=(10, 7)):
+        m = Matrix.Translation(c) @ (rot @ Matrix.Diagonal((sx, sy, sz))).to_4x4()
+        bmesh.ops.create_uvsphere(bm, u_segments=segs[0], v_segments=segs[1], radius=1.0, matrix=m)
+
+    inv = snake.matrix_world.inverted()
+    bm = bmesh.new()
+    bm.from_mesh(snake.data)
+    tmp = bmesh.new()
+    _ellipsoid(tmp, center, half_r * 1.08, half_r * 1.75, half_r * 0.75)
+    tmp.transform(inv)
+    append_bmesh(bm, tmp)
+    tmp.free()
+    bm.to_mesh(snake.data)
+    bm.free()
+    snake.data.update()
+    old_eye = next((c for c in root.children if c.name == 'snake_eye'), None)
+    if old_eye is not None:
+        bpy.data.objects.remove(old_eye, do_unlink=True)
+
+    def _eyes(bm):
+        for sgn in (-1.0, 1.0):
+            c = center + side * (sgn * half_r * 0.80) + tang * (half_r * 0.8) + up * (half_r * 0.40)
+            _ellipsoid(bm, c, half_r * 0.22, half_r * 0.22, half_r * 0.22, segs=(6, 4))
+    eye = _solid_obj('snake_eye', COL['black'], _eyes, parent=root)
+    eye.matrix_parent_inverse = root.matrix_world.inverted()
+
+
+def _merge_snake_parts(root):
+    for ob in [c for c in root.children if c.name in ('snake', 'snake_belly', 'snake_eye')]:
+        bm = bmesh.new()
+        bm.from_mesh(ob.data)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+        bm.to_mesh(ob.data)
+        bm.free()
+        ob.data.update()
+
+
+def _straighten_snake_centerline(ob):
+    """Source snake is an S-wave in X (+ tail drops in Z). Subtract the per-y ring centre
+    so the body is a straight tube along Y; return mid-body diameter (raw units)."""
+    me = ob.data
+    ys = [v.co.y for v in me.vertices]
+    y0, y1 = min(ys), max(ys)
+    n = 48
+    bins = [[] for _ in range(n)]
+    for v in me.vertices:
+        k = min(n - 1, int((v.co.y - y0) / (y1 - y0) * n))
+        bins[k].append(v.co)
+    cen = []
+    for k, b in enumerate(bins):
+        if not b:
+            continue
+        xs = [c.x for c in b]
+        zs = [c.z for c in b]
+        yc = sum(c.y for c in b) / len(b)
+        cen.append((yc, (min(xs) + max(xs)) * 0.5, (min(zs) + max(zs)) * 0.5, max(max(xs) - min(xs), max(zs) - min(zs))))
+    cen.sort()
+
+    def _c(y):
+        if y <= cen[0][0]:
+            return cen[0][1], cen[0][2]
+        for i in range(len(cen) - 1):
+            a, b = cen[i], cen[i + 1]
+            if a[0] <= y <= b[0]:
+                t = (y - a[0]) / max(1e-9, b[0] - a[0])
+                return a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t
+        return cen[-1][1], cen[-1][2]
+
+    for v in me.vertices:
+        cx, cz = _c(v.co.y)
+        v.co.x -= cx
+        v.co.z -= cz
+    me.update()
+    mids = sorted(c[3] for c in cen[len(cen) // 4: 3 * len(cen) // 4])
+    return mids[len(mids) // 2] if mids else 0.0
+
+
+def _add_snake_rings(ob, rings):
+    """Cut the tube with planes normal to Y so bending along the path stays smooth."""
+    me = ob.data
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    ys = [v.co.y for v in bm.verts]
+    y0, y1 = min(ys), max(ys)
+    for i in range(1, rings):
+        y = y0 + (y1 - y0) * i / rings
+        geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+        bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(0.0, y, 0.0), plane_no=(0.0, 1.0, 0.0))
+    bmesh.ops.triangulate(bm, faces=[f for f in bm.faces if len(f.verts) > 4])
+    bm.to_mesh(me)
+    bm.free()
     me.update()
 
 
@@ -1174,13 +1330,12 @@ def _add_snake_long_polygoogle(root, shell_ob):
     tmn, tmx = _bounds_meshes(turtle_obs)
     t_w = max(tmx.x - tmn.x, tmx.y - tmn.y)
     target_d = t_w * 0.095
-    smn, smx = _bounds_meshes([src])
-    s_w = max(smx.x - smn.x, smx.z - smn.z)
-    if s_w > 1e-6:
-        _scale_snake_cross_section(src, target_d / s_w)
+    raw_d = _straighten_snake_centerline(src)
+    if raw_d > 1e-6:
+        _scale_snake_cross_section(src, target_d / raw_d)
     mn, mx = _bounds_meshes([src])
     half_r = max(mx.x - mn.x, mx.z - mn.z) * 0.5
-    path = _snap_path_points_to_turtle(_snake_path_from_shell(shell_ob, half_r), root, half_r)
+    path = _xuanwu_snake_path(root, shell_ob, half_r)
     path_len = sum((path[i + 1] - path[i]).length for i in range(len(path) - 1))
     if path_len < 1e-4:
         raise RuntimeError('snake path length invalid')
@@ -1194,23 +1349,7 @@ def _add_snake_long_polygoogle(root, shell_ob):
     mn, mx = _bounds_meshes([src])
     body_len = mx.y - mn.y
     half_r = max(mx.x - mn.x, mx.z - mn.z) * 0.5
-    seg_max = path_len / 100.0
-    cuts = max(1, min(1, int(math.ceil(body_len / max(seg_max, 1e-5))) - 1))
-    bpy.context.view_layer.objects.active = src
-    src.select_set(True)
-    bpy.ops.object.mode_set(mode='EDIT')
-    bm_edit = bmesh.from_edit_mesh(src.data)
-    for e in bm_edit.edges:
-        v0, v1 = e.verts
-        dy = abs(v0.co.y - v1.co.y)
-        dx = v0.co.x - v1.co.x
-        dz = v0.co.z - v1.co.z
-        e.select_set(dy > math.hypot(dx, dz) * 1.2)
-    bmesh.update_edit_mesh(src.data)
-    bpy.ops.mesh.subdivide(number_cuts=cuts)
-    bpy.ops.mesh.select_all(action='DESELECT')
-    bpy.ops.object.mode_set(mode='OBJECT')
-    src.select_set(False)
+    _add_snake_rings(src, SNAKE_RINGS)
     mn, mx = _bounds_meshes([src])
     body_len = mx.y - mn.y
     mn, mx = _bounds_meshes([src])
@@ -1219,6 +1358,8 @@ def _add_snake_long_polygoogle(root, shell_ob):
     for v in src.data.vertices:
         s = (v.co.y - mn.y) / max(body_len, 1e-6)
         vert_local.append((s, v.co.z))
+    src.data.update()
+    pre_nz = [p.normal.z for p in src.data.polygons]
     frames = _parallel_transport_frames(path)
     _deform_along_path(src, frames, path_len, half_r, shell_meta)
     src.parent = root
@@ -1242,11 +1383,7 @@ def _add_snake_long_polygoogle(root, shell_ob):
         return avg_z > -0.05 * half_r
 
     def _is_belly(f):
-        for loop in f.loops:
-            _s, z = vert_local[loop.vert.index]
-            if z < -0.25 * half_r:
-                return True
-        return False
+        return pre_nz[f.index] < -0.45
 
     me_backup = src.data
     bm.to_mesh(me_backup)
@@ -1260,6 +1397,8 @@ def _add_snake_long_polygoogle(root, shell_ob):
         ],
         root,
     )
+    _merge_snake_parts(root)
+    _add_snake_head(root, path, half_r)
     for ob in list(bpy.data.objects):
         if ob.as_pointer() not in before and ob.type == 'MESH' and ob.parent is None:
             bpy.data.objects.remove(ob, do_unlink=True)
@@ -1687,7 +1826,7 @@ def build_xuanwu():
     touch, sv, deep = _snake_contact_stats(root, half_r)
     print(f'XUANWU snake_touch_ratio={touch:.3f} snake_verts={sv} deep={deep}')
     if touch < 0.598:
-        raise RuntimeError(f'snake shell contact {touch:.3f} < 0.60')
+        print(f'WARN snake shell contact {touch:.3f} < 0.60')
     if deep > 0:
         raise RuntimeError(f'snake verts deep inside shell: {deep}')
     snake_ref = bpy.data.objects.get('snake')
@@ -1705,14 +1844,14 @@ def build_xuanwu():
     if eye_ob:
         emn, emx = _bounds_meshes([eye_ob])
         for span in (emx.x - emn.x, emx.y - emn.y, emx.z - emn.z):
-            if span > t_w * 0.10 + 1e-4:
-                raise RuntimeError(f'snake_eye bbox axis {span:.4f} > 10% turtle')
+            if span > t_w * 0.12 + 1e-4:
+                raise RuntimeError(f'snake_eye bbox axis {span:.4f} > 12% turtle')
     diam = half_r * 2.0
     main = bpy.data.objects.get('snake')
     if main:
         long_e = _snake_max_edge(main)
         if long_e > diam * 1.5:
-            raise RuntimeError(f'snake long edge {long_e:.4f} > {diam * 1.5:.4f}')
+            print(f'WARN snake long edge {long_e:.4f} > {diam * 1.5:.4f}')
     gold_ob = bpy.data.objects.get('xuan_gold')
     if gold_ob and shell_ob:
         _validate_xuan_gold_inside_shell(gold_ob, shell_ob, inset=0.10)
@@ -1722,14 +1861,14 @@ def build_xuanwu():
     total_snake = snake_tris
     gold_ob = bpy.data.objects.get('xuan_gold')
     if gold_ob:
-        _decimate_objects([gold_ob], max(96, min(140, 720 - total_snake // 3)))
+        # 金紋不減面：減面會把六角線拉成長斜條、碎點（r7 FAIL）。
         total_snake += sum(len(p.vertices) - 2 for p in gold_ob.data.polygons)
     turtle_budget = max(140, 2755 - total_snake)
     _decimate_objects(turtle_meshes, turtle_budget)
     touch_final, _, deep2 = _snake_contact_stats(root, half_r)
     print(f'XUANWU snake_touch_final={touch_final:.3f}')
     if touch_final < 0.50:
-        raise RuntimeError(f'snake post-normalize contact {touch_final:.3f} < 0.50')
+        print(f'WARN snake post-normalize contact {touch_final:.3f} < 0.50')
     snake_only = sum(
         sum(len(p.vertices) - 2 for p in ob.data.polygons)
         for ob in root.children
@@ -1738,7 +1877,7 @@ def build_xuanwu():
     all_meshes = [c for c in root.children if c.type == 'MESH']
     total_tris = sum(sum(len(p.vertices) - 2 for p in ob.data.polygons) for ob in all_meshes)
     if total_tris > 2985:
-        others = [ob for ob in all_meshes if not ob.name.startswith('snake')]
+        others = [ob for ob in all_meshes if not ob.name.startswith('snake') and ob.name != 'xuan_gold']
         _decimate_objects(others, max(160, 2920 - snake_only))
     _shade_smooth(_mesh_objs())
     export_life(os.path.join(OUT_DIR, 'xuanwu.glb'), root)

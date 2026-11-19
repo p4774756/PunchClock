@@ -698,9 +698,20 @@ describe('island-life GLB 種類 (#226)', () => {
     const turtleW = Math.max(shell.sx, shell.sy);
     const snakeW = Math.max(snakeB.sx, snakeB.sy);
     assert.ok(snakeW <= turtleW * 1.25 + 0.02, `snake width ${snakeW} vs turtle ${turtleW}`);
-    const eyeB = glbMeshNodeBounds(gtX, binX, 'snake_eye');
+    const eyeB = glbMeshWorldBounds(gtX, binX, 'snake_eye');
+    const eyeNode = gtX.nodes.find((n) => n.name === 'snake_eye');
+    assert.ok(eyeNode && eyeNode.mesh != null, 'snake_eye mesh exists');
+    assert.ok(eyeB.count > 0, `snake_eye verts ${eyeB.count}`);
     assert.ok(Math.max(eyeB.sx, eyeB.sy, eyeB.sz) <= turtleW * 0.12,
       `snake_eye max axis ${Math.max(eyeB.sx, eyeB.sy, eyeB.sz)} vs turtle ${turtleW}`);
+    const snakeNode = gtX.nodes.find((n) => n.name === 'snake');
+    assert.ok(snakeNode && snakeNode.mesh != null, 'snake mesh exists');
+    const snakeMesh = gtX.meshes[snakeNode.mesh];
+    const snakeMat = gtX.materials[snakeMesh.primitives[0].material];
+    assert.ok(snakeMat, 'snake material');
+    const bcf = (snakeMat.pbrMetallicRoughness || snakeMat).baseColorFactor || [0, 0, 0, 1];
+    const [sr, sg, sb] = bcf;
+    assert.ok(!(sg > sr * 1.3 && sg > sb * 1.3), `snake not greenish r=${sr} g=${sg} b=${sb}`);
     const goldVerts = collectMeshVerts(gtX, binX, ['xuan_gold'], 3);
     const shellCtrX = (shell.minX + shell.maxX) * 0.5;
     const shellCtrY = (shell.minY + shell.maxY) * 0.5;
@@ -734,8 +745,8 @@ describe('island-life GLB 種類 (#226)', () => {
       }
     };
     prepareLifeMaterials(THREE, birdRoot, 'birds');
-    assert.ok(mats.body.emissiveIntensity >= 0.42);
-    assert.ok(mats.body.userData.dayEmissiveMin >= 0.42);
+    assert.ok(mats.body.emissiveIntensity >= 0.52);
+    assert.ok(mats.body.userData.dayEmissiveMin >= 0.52);
     assert.equal(mats.tip.emissiveIntensity, 0);
 
     const binG = readGlbBin(join(publicRoot, 'models', 'life', 'seagull.glb'));
