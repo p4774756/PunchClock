@@ -71,6 +71,29 @@ PALETTE = {
     # 棕櫚
     'palm_leaf':      (0x4f8a45, None),
     'umbrella_yellow':(0xf6d35a, None),
+    # 城市島 v2
+    'city_wall_coral':   (0xf4a8a0, None),
+    'city_wall_mint':    (0xb8e8d8, None),
+    'city_wall_lilac':   (0xd4c8f0, None),
+    'city_wall_yellow':  (0xfff0b8, None),
+    'city_wall_teal':    (0x7ec8c0, None),
+    'city_trim_white':   (0xfff7ef, None),
+    'city_asphalt':      (0x5a5a62, None),
+    'city_asphalt_wet':  (0x4a4a58, 0x8899bb),
+    'city_cross_white':  (0xf0f0f0, None),
+    'city_sidewalk':     (0xc9b896, None),
+    'city_rail':         (0xa89272, None),
+    'city_pink_car':     (0xff8ac8, None),
+    'city_pink_roof':    (0xffb8dd, None),
+    'city_glass_blue':   (0x88ccff, None),
+    'city_traffic_dark': (0x2e2e2e, None),
+    'city_traffic_red':  (0xff3b30, None),
+    'city_traffic_yel':  (0xffcc00, None),
+    'city_traffic_grn':  (0x34c759, None),
+    'city_moto_dark':    (0x3a4a5a, None),
+    'city_vending_grn':  (0x4caf7a, None),
+    'city_sand':         (0xe8d4a8, None),
+    'city_water_edge':   (0x6a9ec8, None),
 }
 
 

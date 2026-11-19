@@ -1,171 +1,217 @@
-// 城市島場景 mesh（瀏覽器／Three.js）。
+// 城市島場景：載入 city.glb／粉紅車 GLB（#205）。
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { islandById } from './island-layout.js';
-import { G } from './island-kit.js';
-import { DECOR_STONE } from './island-decor.js';
-import {
-  layInstancedPaving,
-  attachParkBench,
-  makeTradSignTexture
-} from './island-decor-scene.js';
+import { G, nightHex } from './island-kit.js';
+import { glowForMaterial } from './island-buildings-data.js';
 import {
   CITY_ID,
-  CITY_CENTER,
-  CITY_COLUMN_LOCAL,
-  CITY_PAVING_SPECS,
   PINK_CAR_LOCAL
 } from './island-city-data.js';
 
+const glbCache = new Map();
+let sharedLoader = null;
+
+function getLoader() {
+  if (!sharedLoader) sharedLoader = new GLTFLoader();
+  return sharedLoader;
+}
+
+function loadGLB(url) {
+  if (glbCache.has(url)) return glbCache.get(url);
+  const promise = new Promise((resolve, reject) => {
+    getLoader().load(url, resolve, undefined, reject);
+  });
+  glbCache.set(url, promise);
+  return promise;
+}
+
+function citySignMaps(kit) {
+  const font = '"PingFang TC", "Heiti TC", "Microsoft JhengHei", sans-serif';
+  const { paint } = kit;
+
+  function neonSign(text, w, h, fontSize, fill, stroke, bg) {
+    return paint(w, h, (g, pw, ph) => {
+      g.fillStyle = bg || '#1a1028';
+      g.fillRect(0, 0, pw, ph);
+      g.strokeStyle = stroke || '#ff6ad8';
+      g.lineWidth = 6;
+      g.strokeRect(8, 8, pw - 16, ph - 16);
+      g.font = '700 ' + fontSize + 'px ' + font;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.strokeStyle = stroke || '#ff4ec8';
+      g.lineWidth = 4;
+      g.strokeText(text, pw / 2, ph / 2);
+      g.fillStyle = fill || '#ffe8ff';
+      g.fillText(text, pw / 2, ph / 2);
+    });
+  }
+
+  return {
+    sign_face_arcade: neonSign('小東遊戲機', 640, 200, 52, '#fff2b8', '#ff9a3a', '#2a1848'),
+    sign_face_711: paint(420, 200, (g, pw, ph) => {
+      g.fillStyle = '#ff6b35';
+      g.fillRect(0, 0, pw, ph);
+      g.fillStyle = '#00913a';
+      g.fillRect(pw * 0.58, 0, pw * 0.42, ph);
+      g.fillStyle = '#ff2200';
+      g.fillRect(0, ph * 0.55, pw * 0.58, ph * 0.45);
+      g.fillStyle = '#ffffff';
+      g.font = '900 108px ' + font;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText('7-ELEVEN', pw * 0.29, ph * 0.3);
+      g.font = '900 88px ' + font;
+      g.fillText('7-11', pw * 0.29, ph * 0.78);
+    }),
+    sign_face_claw: neonSign('夾娃娃', 480, 180, 56, '#ffd8f4', '#ff5ac8', '#281038'),
+    sign_face_snack: neonSign('台灣小吃', 520, 180, 54, '#fff0d8', '#ff8a3a', '#3a2018'),
+    sign_face_bubble: paint(520, 180, (g, pw, ph) => {
+      g.fillStyle = '#e8fff8';
+      g.fillRect(0, 0, pw, ph);
+      g.fillStyle = '#7ec8ea';
+      g.fillRect(0, 0, pw, 22);
+      g.font = '700 58px ' + font;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillStyle = '#1f4d73';
+      g.fillText('Bubble Tea', pw / 2, ph / 2 + 4);
+    }),
+    sign_face_game: neonSign('小東遊戲機', 560, 200, 48, '#fff2b8', '#ff9a3a', '#2a1848')
+  };
+}
+
+function applyCityMaterials(model, kit, signMaps) {
+  const { mat } = kit;
+  model.traverse((obj) => {
+    if (!obj.isMesh) return;
+    const oldMat = obj.material;
+    const matName = (oldMat && oldMat.name) || '';
+    obj.userData.glbMaterialName = matName;
+    let baseColor = 0xffffff;
+    if (oldMat && oldMat.color) baseColor = oldMat.color.getHex();
+    const glowInfo = glowForMaterial('city', matName);
+    let extra = {};
+    if (glowInfo) {
+      const nightC = nightHex(baseColor);
+      extra = {
+        night: nightC != null ? nightC : baseColor,
+        glow: glowInfo.color,
+        glowAmount: glowInfo.amount
+      };
+    }
+    const signTex = signMaps[obj.name];
+    if (signTex) {
+      const emissive = obj.name.indexOf('711') >= 0;
+      obj.material = mat(0xffffff, {
+        map: signTex,
+        night: 0xfff0dc,
+        glow: emissive ? 0xffffff : 0xffb15a,
+        glowAmount: emissive ? 0.22 : 0.55,
+        side: THREE.DoubleSide
+      });
+      if (emissive) obj.material.emissiveMap = signTex;
+    } else if (obj.name === 'traffic_red' || obj.name === 'traffic_yellow' || obj.name === 'traffic_green') {
+      const init = obj.name === 'traffic_red' ? 0xff3b30
+        : obj.name === 'traffic_yellow' ? 0xffcc00 : 0x34c759;
+      obj.material = mat(init, { shadow: false });
+    } else {
+      obj.material = mat(baseColor, Object.assign({ shadow: true }, extra));
+    }
+    if (oldMat && typeof oldMat.dispose === 'function') oldMat.dispose();
+    obj.castShadow = true;
+    obj.receiveShadow = true;
+  });
+}
+
+function wireTrafficFromModel(model, trafficMeshes) {
+  if (!trafficMeshes) return;
+  const lights = {};
+  let pole = null;
+  let housing = null;
+  model.traverse((obj) => {
+    if (!obj.isMesh) return;
+    if (obj.name === 'traffic_red') lights.red = obj;
+    if (obj.name === 'traffic_yellow') lights.yellow = obj;
+    if (obj.name === 'traffic_green') lights.green = obj;
+    if (obj.name === 'traffic_pole') pole = obj;
+    if (obj.name === 'traffic_housing') housing = obj;
+  });
+  if (lights.red && lights.yellow && lights.green) {
+    trafficMeshes.lights = lights;
+    trafficMeshes.pole = pole;
+    trafficMeshes.housing = housing;
+    trafficMeshes.group = model;
+  }
+}
+
+function applyCarMaterials(carModel, kit) {
+  const { mat } = kit;
+  carModel.traverse((obj) => {
+    if (!obj.isMesh) return;
+    const oldMat = obj.material;
+    let baseColor = 0xffffff;
+    if (oldMat && oldMat.color) baseColor = oldMat.color.getHex();
+    obj.material = mat(baseColor, { shadow: true });
+    if (oldMat && typeof oldMat.dispose === 'function') oldMat.dispose();
+    obj.castShadow = true;
+    obj.receiveShadow = true;
+  });
+}
+
 export function buildIslandCity(ctx) {
-  const { scene, kit, walkers, trafficMeshes } = ctx;
+  const { scene, kit, walkers, trafficMeshes, dayNight } = ctx;
   const island = islandById(CITY_ID);
   if (!island) return;
-  const { addMesh, addBox, geo, mat, lampLight } = kit;
+  const { addBox, geo, mat } = kit;
   const cx = island.x;
   const cz = island.z;
   const root = new THREE.Group();
   root.position.set(cx, 0, cz);
   scene.add(root);
 
-  layInstancedPaving(root, kit, CITY_PAVING_SPECS);
-  attachParkBench(root, kit, -2.4, 4.2, 0.4);
-  attachParkBench(root, kit, 2.5, 4.0, -0.5);
-
-  /**
-   * @param {'north'|'south'} face 街面朝向（north = 面向 +Z 巷弄）
-   * @param {'east'|'west'|'north'|null} [sideSign] 面對南北主路的次要招牌
-   */
-  function shopBlock(lx, lz, w, d, h, wallColor, signText, signColor, face, sideSign) {
-    const street = face === 'south' ? -1 : 1;
-    const fz = lz + street * (d / 2);
-    addBox(root, w, h, d, wallColor, lx, G + h / 2, lz);
-    const trim = street > 0 ? 0xfff0e8 : 0xfff5fa;
-    addBox(root, w + 0.08, 0.14, 0.12, trim, lx, G + h - 0.22, fz - street * 0.04);
-    addBox(root, w + 0.35, 0.1, d + 0.55, DECOR_STONE.edge, lx, G + h + 0.12, lz + street * 0.22);
-    const awning = addBox(root, w + 0.65, 0.07, 1.05, 0xe8dfd0, lx, G + h + 0.08, fz + street * 0.55);
-    awning.rotation.x = street * -0.06;
-
-    const doorW = Math.min(1.0, w * 0.32);
-    addBox(root, doorW, h * 0.72, 0.14, 0x3a3530, lx, G + h * 0.36, fz - street * 0.08);
-    const winW = 0.55;
-    for (const side of [-1, 1]) {
-      if (Math.abs(side * (w * 0.38)) + winW * 0.5 > w * 0.48) continue;
-      addBox(root, winW, h * 0.38, 0.08, 0x9ed4f5, lx + side * (w * 0.38), G + h * 0.58, fz - street * 0.06);
-      addBox(root, winW + 0.1, h * 0.42, 0.05, 0x5a4d42, lx + side * (w * 0.38), G + h * 0.58, fz - street * 0.09);
-    }
-
-    function mountSign(text, color, sx, sy, sz, rotY, scale) {
-      const s = scale == null ? 1 : scale;
-      const signLen = text.length >= 4 ? 320 : 280;
-      const signFont = text.length >= 4 ? 34 : 40;
-      const tex = makeTradSignTexture(kit, text, signLen, 112, signFont);
-      const planeW = (text.length >= 4 ? 1.55 : 1.35) * s;
-      const sign = new THREE.Mesh(
-        new THREE.PlaneGeometry(planeW, 0.5 * s),
-        mat(0xffffff, {
-          map: tex,
-          side: THREE.DoubleSide,
-          shadow: false,
-          night: color || 0xfff0dc,
-          glow: 0xffb15a,
-          glowAmount: 0.45
-        })
-      );
-      sign.position.set(sx, sy, sz);
-      sign.rotation.y = rotY;
-      sign.rotation.x = -0.04;
-      root.add(sign);
-    }
-
-    mountSign(signText, signColor, lx, G + h * 0.78, fz + street * 0.18,
-      street < 0 ? Math.PI : 0, 1);
-    if (sideSign === 'east') {
-      mountSign(signText, signColor, lx + w / 2 + 0.06, G + h * 0.74, lz, Math.PI / 2, 0.82);
-    } else if (sideSign === 'west') {
-      mountSign(signText, signColor, lx - w / 2 - 0.06, G + h * 0.74, lz, -Math.PI / 2, 0.82);
-    } else if (sideSign === 'north') {
-      mountSign(signText, signColor, lx, G + h * 0.78, lz + d / 2 + 0.16, 0, 0.85);
-    }
-  }
-
-  shopBlock(-3.8, 0.5, 3.4, 4.6, 2.05, 0xfff7ef, '便利商店', 0xfff0e0, 'north', 'east');
-  shopBlock(3.8, 0.5, 3.4, 4.6, 2.05, 0xf4f0ff, '手搖飲', 0xfff6ff, 'north', 'west');
-  shopBlock(0, -4.2, 3.6, 2.8, 1.85, 0xfff0f5, '夾娃娃店', 0xffe8f4, 'south', 'north');
-
-  addBox(root, 1.5, 2.4, 1.5, 0xe0e4ea, -5.0, G + 1.2, 5.05);
-  addBox(root, 1.5, 2.4, 1.5, 0xe0e4ea, 5.0, G + 1.2, 5.05);
-
-  const colGeo = geo('box', [0.2, 2.35, 0.2]);
-  const colMat = mat(0xe8e0d4, { shadow: false });
-  const cols = new THREE.InstancedMesh(colGeo, colMat, CITY_COLUMN_LOCAL.length);
-  const dummy = new THREE.Object3D();
-  CITY_COLUMN_LOCAL.forEach((col, i) => {
-    dummy.position.set(col.x, G + 1.18, col.z);
-    dummy.updateMatrix();
-    cols.setMatrixAt(i, dummy.matrix);
-  });
-  cols.instanceMatrix.needsUpdate = true;
-  root.add(cols);
-  CITY_COLUMN_LOCAL.forEach((col) => {
-    addBox(root, 0.55, 0.07, 0.22, 0xe8dfd0, col.x, G + 2.35, col.z);
-  });
-
-  function streetLamp(lx, lz) {
-    addMesh(root, geo('cyl', [0.04, 0.05, 1.35, 5, 0]), 0x1f4d73, lx, G + 0.68, lz);
-    addBox(root, 0.26, 0.08, 0.26, 0xf3e2cc, lx, G + 1.38, lz);
-    addMesh(root, geo('sph', [0.09, 6, 5]), 0xfff6d4, lx, G + 1.28, lz, {
-      night: 0xffe2b0,
-      glow: 0xffc56a,
-      glowAmount: 1.1,
-      shadow: false
-    });
-    lampLight(lx + cx, G + 1.28, lz + cz, 8);
-  }
-  streetLamp(-3.0, 4.5);
-  streetLamp(3.0, 4.5);
-  streetLamp(-3.0, -3.5);
-  streetLamp(3.0, -3.5);
-
-  const trafficGroup = new THREE.Group();
-  trafficGroup.position.set(1.2, G, 1.2);
-  trafficGroup.rotation.y = Math.atan2(-1.2, -0.7);
-  const pole = addBox(trafficGroup, 0.12, 2.5, 0.12, 0x2e2e2e, 0, 1.25, 0);
-  const housing = addBox(trafficGroup, 0.14, 1.05, 0.52, 0x1a1a1a, 0, 2.52, 0.22);
-  const lensR = 0.13;
-  const lensGeo = geo('sph', [lensR, 10, 8]);
-  const lights = {
-    red: addMesh(trafficGroup, lensGeo, 0xff3b30, 0, 2.82, 0.28, { shadow: false }),
-    yellow: addMesh(trafficGroup, lensGeo, 0xffcc00, 0, 2.52, 0.28, { shadow: false }),
-    green: addMesh(trafficGroup, lensGeo, 0x34c759, 0, 2.22, 0.28, { shadow: false })
-  };
-  addBox(trafficGroup, 0.58, 0.08, 0.08, 0x3a3a3a, 0, 2.52, 0.08);
-  root.add(trafficGroup);
-  if (trafficMeshes) {
-    trafficMeshes.pole = pole;
-    trafficMeshes.housing = housing;
-    trafficMeshes.lights = lights;
-    trafficMeshes.group = trafficGroup;
-  }
-
-  addBox(root, 0.9, 0.08, 5.2, 0xc9b896, 0, G + 0.04, 6.2);
-  addBox(root, 0.12, 0.55, 5.2, 0xa89272, 0.42, G + 0.28, 6.2);
-  addBox(root, 0.12, 0.55, 5.2, 0xa89272, -0.42, G + 0.28, 6.2);
-
+  const signMaps = citySignMaps(kit);
   const car = new THREE.Group();
   car.position.set(PINK_CAR_LOCAL.x, G, PINK_CAR_LOCAL.z);
   car.rotation.y = PINK_CAR_LOCAL.yaw;
-  addBox(car, 1.45, 0.42, 0.75, 0xff8ac8, 0, 0.21, 0);
-  addBox(car, 0.95, 0.38, 0.68, 0xffb8dd, 0, 0.58, -0.05);
-  addBox(car, 0.28, 0.22, 0.55, 0x88ccff, -0.32, 0.52, 0.12, { shadow: false });
-  addBox(car, 0.28, 0.22, 0.55, 0x88ccff, 0.32, 0.52, 0.12, { shadow: false });
-  [[-0.55, 0.35], [0.55, 0.35], [-0.55, -0.35], [0.55, -0.35]].forEach(([wx, wz]) => {
-    addMesh(car, geo('cyl', [0.14, 0.14, 0.12, 6, 0]), 0x2a2a2a, wx, 0.12, wz, {
-      rot: [0, 0, Math.PI / 2],
-      shadow: false
-    });
-  });
   root.add(car);
   if (ctx.pinkCarMesh) ctx.pinkCarMesh.group = car;
+
+  function finishRefresh() {
+    if (dayNight && typeof dayNight.refresh === 'function') dayNight.refresh();
+  }
+
+  const cityUrl = '/models/city.glb';
+  const carUrl = '/models/city-pink-car.glb';
+
+  loadGLB(cityUrl).then((gltf) => {
+    const model = gltf.scene;
+    model.position.set(0, G, 0);
+    applyCityMaterials(model, kit, signMaps);
+    root.add(model);
+    wireTrafficFromModel(model, trafficMeshes);
+    finishRefresh();
+  }).catch((err) => {
+    console.warn('[Island] city.glb 載入失敗：', err);
+  });
+
+  loadGLB(carUrl).then((gltf) => {
+    const model = gltf.scene;
+    applyCarMaterials(model, kit);
+    car.add(model);
+    finishRefresh();
+  }).catch((err) => {
+    console.warn('[Island] city-pink-car.glb 載入失敗，保留占位：', err);
+    addBox(car, 1.45, 0.42, 0.75, 0xff8ac8, 0, 0.21, 0);
+    addBox(car, 0.95, 0.38, 0.68, 0xffb8dd, 0, 0.58, -0.05);
+    [[-0.55, 0.35], [0.55, 0.35], [-0.55, -0.35], [0.55, -0.35]].forEach(([wx, wz]) => {
+      const wheelMesh = new THREE.Mesh(geo('cyl', [0.14, 0.14, 0.12, 6, 0]), mat(0x2a2a2a, { shadow: false }));
+      wheelMesh.position.set(wx, 0.12, wz);
+      wheelMesh.rotation.z = Math.PI / 2;
+      car.add(wheelMesh);
+    });
+  });
 
   const peopleApi = ctx.people || {};
   if (walkers) {

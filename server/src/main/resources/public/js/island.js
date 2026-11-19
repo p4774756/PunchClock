@@ -378,7 +378,8 @@ function boot() {
     trafficMeshes: trafficMeshes,
     pinkCarMesh: pinkCarMesh,
     people: people,
-    reduced: reduced
+    reduced: reduced,
+    dayNight: dayNight
   });
   let vehicleState = createVehicleState();
   const vehicleHud = document.getElementById('islandVehicleHud');

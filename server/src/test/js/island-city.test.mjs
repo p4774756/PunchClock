@@ -1,10 +1,18 @@
 // node --test server/src/test/js/island-city.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadPublicModule } from './load-public-module.mjs';
+import { BUILDING_GLOW } from '../../main/resources/public/js/island-buildings-data.js';
+
+const _models = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..', '..', 'main', 'resources', 'public', 'models'
+);
 
 const here = dirname(fileURLToPath(import.meta.url));
 const citySceneJs = readFileSync(
@@ -86,6 +94,15 @@ test('城市機車為 milu 看板而非方塊人', () => {
   assert.doesNotMatch(citySceneJs, /0x3a4a5a/);
   assert.doesNotMatch(citySceneJs, /0x5a7ec8/);
   assert.match(citySceneJs, /spawnCityScooterWalkers/);
+});
+
+test('city.glb 與 city-pink-car.glb 已建置', () => {
+  const cityPath = path.join(_models, 'city.glb');
+  const carPath = path.join(_models, 'city-pink-car.glb');
+  assert.ok(fs.statSync(cityPath).size > 80_000);
+  assert.ok(fs.statSync(carPath).size > 15_000);
+  assert.ok(BUILDING_GLOW.city);
+  assert.ok(BUILDING_GLOW.city.neon_glow);
 });
 
 test('路人與機車路徑不穿牆、留在城市島', () => {
