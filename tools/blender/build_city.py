@@ -20,6 +20,23 @@ from city_atlas_uv import REGIONS, atlas_uv
 
 W, D = 14.0, 14.0
 
+ROOF_BY_WALL = {
+    'city_wall_coral': 'roof_tile_red',
+    'city_wall_mint': 'roof_tile_green',
+    'city_wall_lilac': 'roof_tile_pink',
+    'city_wall_yellow': 'roof_tile_orange',
+    'city_wall_teal': 'roof_tile_blue',
+}
+
+
+def _roof_key(wall_mat):
+    return ROOF_BY_WALL.get(wall_mat, 'roof_tile')
+
+
+def _roof_slab(walls, lx, lz, bw, bd, z, roof_key=None):
+    rk = roof_key or 'roof_tile'
+    walls.box_tex(f'@{rk}', _au('roof_tile'), bw, 0.14, bd, lx, lz, z)
+
 
 def _au(name):
     return atlas_uv(name)
@@ -47,8 +64,8 @@ def _shophouse(b, walls, sign_part, neon_part, lx, lz, bw, bd, bh, tex_wall, sig
     for ox in (-bw * 0.38, 0.0, bw * 0.38):
         walls.box_tex('@city_facade', uv_facade, 0.18, bh * 0.88, 0.18,
                       lx + ox, fy - street * 0.10, bh * 0.46)
-    walls.box_tex(f'@{awning}', _au(awning), bw + 0.55, 0.10, 1.15, lx, fy + street * 0.52, bh + 0.06)
-    walls.box_tex('@roof_tile', _au('roof_tile'), bw + 0.45, 0.12, bd + 0.22, lx, lz + street * 0.14, bh + 0.12)
+    walls.box_tex(f'@{awning}', _au(awning), bw + 0.38, 0.08, 0.72, lx, fy + street * 0.40, bh + 0.52)
+    _roof_slab(walls, lx, lz + street * 0.14, bw + 0.45, bd + 0.22, bh + 0.12, _roof_key(tex_wall))
     for fz in (bh * 0.52, bh * 0.78):
         walls.box_tex('@city_facade', uv_facade, bw - 0.35, 0.28, 0.14, lx, fy - street * 0.20, fz)
         _wall_tex(walls, tex_wall, 0.28, 0.20, 0.16, lx + bw * 0.30, fy - street * 0.12, fz + 0.04)
@@ -57,39 +74,36 @@ def _shophouse(b, walls, sign_part, neon_part, lx, lz, bw, bd, bh, tex_wall, sig
             _wall_tex(walls, 'wood', 0.48, bh * 0.34, 0.05, lx + wx, fy - street * 0.08, fz + 0.12)
     walls.box_tex('@city_facade', uv_facade, min(1.2, bw * 0.58), bh * 0.48, 0.09,
                   lx, fy - street * 0.06, bh * 0.38)
-    sw = min(3.35, bw * 0.82)
-    sh = 1.28
-    sz = bh * 0.82
-    y_face = fy + (-0.38 if street < 0 else 0.38)
-    pitch = 0.14 if street < 0 else -0.12
+    sw = min(3.55, bw * 0.88)
+    sh = 1.42
+    sz = bh * 0.78
+    y_out = fy + street * 0.62
+    pitch = 0.06
     frame = b.part(sign_key + '_frame')
-    frame.box_tex('@roof_tile', _au('roof_tile'), sw + 0.16, 0.06, sh + 0.12,
-                  lx, y_face - street * 0.04, sz, rx=pitch)
-    if street < 0:
-        sign_part.plane('sign', sw, sh, lx, y_face - 0.08, sz, rx=pitch, flip_u=False)
-    else:
-        sign_part.plane('sign', sw, sh, lx, y_face + 0.07, sz, rx=pitch, ry=math.pi, flip_u=True)
-    neon_part.box('neon_glow', sw + 0.12, 0.05, 0.06, lx, y_face - street * 0.06, sz + sh / 2 - 0.06, rx=pitch)
-    neon_part.box('neon_glow', sw + 0.12, 0.05, 0.06, lx, y_face - street * 0.06, sz - sh / 2 + 0.06, rx=pitch)
+    frame.box_tex(f'@{_roof_key(tex_wall)}', _au('roof_tile'), sw + 0.18, 0.06, sh + 0.14,
+                  lx, y_out, sz, rx=pitch)
+    sign_part.plane('sign', sw, sh, lx, y_out + street * 0.06, sz, rx=pitch, ry=math.pi, flip_u=False)
+    neon_part.box('neon_glow', sw + 0.14, 0.05, 0.07, lx, y_out + street * 0.04, sz + sh / 2 - 0.05, rx=pitch)
+    neon_part.box('neon_glow', sw + 0.14, 0.05, 0.07, lx, y_out + street * 0.04, sz - sh / 2 + 0.05, rx=pitch)
 
 
 def _corner_tower(walls, lx, lz, bw, bd, bh, mat, accent):
     _wall_tex(walls, mat, bw, bh, bd, lx, lz, bh / 2)
-    walls.box_tex('@roof_tile', _au('roof_tile'), bw + 0.18, 0.22, bd + 0.18, lx, lz, bh + 0.10)
+    _roof_slab(walls, lx, lz, bw + 0.18, bd + 0.18, bh + 0.10, _roof_key(mat))
     for ox, oz in ((-bw * 0.35, -bd * 0.35), (bw * 0.35, -bd * 0.35),
                    (-bw * 0.35, bd * 0.35), (bw * 0.35, bd * 0.35)):
         walls.box('lab_glass', 0.40, 0.36, 0.08, lx + ox, lz + oz, bh * 0.58)
 
 
-def _mount_sign(b, part_name, lx, ly, lz, sw, sh, rx=0.14):
+def _mount_sign(b, part_name, lx, ly, lz, sw, sh, rx=0.08, roof='roof_tile_orange'):
     """朝 -Y（glTF +Z）街面；探索鏡頭由北往南俯視可讀。"""
     face = b.part(part_name)
     fr = b.part(part_name + '_frame')
     neo = b.part(part_name + '_neon')
-    y_face = ly - 0.14
-    fr.box_tex('@roof_tile', _au('roof_tile'), sw + 0.20, 0.06, sh + 0.16,
-              lx, y_face - 0.05, lz, rx=rx)
-    face.plane('sign', sw, sh, lx, y_face + 0.08, lz, rx=rx, flip_u=False)
+    y_face = ly - 0.22
+    fr.box_tex(f'@{roof}', _au('roof_tile'), sw + 0.22, 0.06, sh + 0.18,
+              lx, y_face - 0.04, lz, rx=rx)
+    face.plane('sign', sw, sh, lx, y_face + 0.12, lz, rx=rx, flip_u=False)
     neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, y_face + 0.11, lz + sh / 2 - 0.05, rx=rx)
     neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, y_face + 0.11, lz - sh / 2 + 0.05, rx=rx)
 
@@ -188,7 +202,7 @@ def _mini_block(walls, lx, lz, bw, bd, bh, mat):
         walls.box_tex(f'@{mat}', _au(mat), bw, bh, bd, lx, lz, bh / 2)
     else:
         _wall_tex(walls, mat, bw, bh, bd, lx, lz, bh / 2)
-    walls.box_tex('@roof_tile', _au('roof_tile'), bw + 0.12, 0.16, bd + 0.12, lx, lz, bh + 0.07)
+    _roof_slab(walls, lx, lz, bw + 0.12, bd + 0.12, bh + 0.07, _roof_key(mat))
 
 
 def build(out_path):
@@ -255,9 +269,9 @@ def build(out_path):
     _corner_tower(walls, -5.0, 5.05, 1.48, 1.48, 2.48, 'city_wall_yellow', 'lab_glass')
     _corner_tower(walls, 5.0, 5.05, 1.48, 1.48, 2.48, 'city_wall_mint', 'lab_glass')
 
-    _mount_sign(b, 'sign_face_game', -5.0, 4.28, 2.05, 2.25, 1.05)
-    _mount_sign(b, 'sign_face_711', 5.0, 4.28, 2.05, 2.10, 1.05)
-    _mount_sign(b, 'sign_face_snack', 0.0, 4.28, 1.85, 2.05, 0.95)
+    _mount_sign(b, 'sign_face_game', -5.0, 4.05, 2.05, 2.45, 1.18, roof='roof_tile_red')
+    _mount_sign(b, 'sign_face_711', 5.0, 4.05, 2.05, 2.35, 1.18, roof='roof_tile_green')
+    _mount_sign(b, 'sign_face_snack', 0.0, 4.05, 1.85, 2.25, 1.08, roof='roof_tile_orange')
 
     for lx, ly in ((-3.0, 4.55), (3.0, 4.55), (-3.0, -3.45), (3.0, -3.45), (0, 5.4)):
         props.cyl('city_traffic_dark', 0.045, 0.055, 1.42, lx, ly, 0.72, seg=6)

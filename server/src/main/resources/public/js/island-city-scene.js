@@ -2,12 +2,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { islandById } from './island-layout.js';
-import { G, nightHex } from './island-kit.js';
-import { glowForMaterial } from './island-buildings-data.js';
+import { G } from './island-kit.js';
 import {
   CITY_ID,
   PINK_CAR_LOCAL
 } from './island-city-data.js';
+import { applyCityMaterials, applyCarMaterials } from './island-city-materials.js';
 
 const glbCache = new Map();
 let sharedLoader = null;
@@ -49,95 +49,40 @@ function citySignMaps(kit) {
   }
 
   return {
-    sign_face_arcade: neonSign('小東遊戲機', 768, 240, 62, '#fff2b8', '#ff9a3a', '#2a1848'),
-    sign_face_711: paint(512, 256, (g, pw, ph) => {
+    sign_face_arcade: neonSign('小東遊戲機', 900, 280, 78, '#fff8d8', '#ff9a3a', '#1a0838'),
+    sign_face_711: paint(560, 280, (g, pw, ph) => {
       g.fillStyle = '#ff6b35';
       g.fillRect(0, 0, pw, ph);
       g.fillStyle = '#00913a';
       g.fillRect(pw * 0.58, 0, pw * 0.42, ph);
       g.fillStyle = '#ff2200';
-      g.fillRect(0, ph * 0.55, pw * 0.58, ph * 0.45);
+      g.fillRect(0, ph * 0.52, pw * 0.58, ph * 0.48);
       g.fillStyle = '#ffffff';
-      g.font = '900 120px ' + font;
+      g.font = '900 96px ' + font;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
-      g.fillText('7-ELEVEN', pw * 0.29, ph * 0.3);
-      g.font = '900 100px ' + font;
-      g.fillText('7-11', pw * 0.29, ph * 0.78);
+      g.strokeStyle = '#1a1a1a';
+      g.lineWidth = 4;
+      g.strokeText('7-11', pw * 0.29, ph * 0.72);
+      g.fillText('7-11', pw * 0.29, ph * 0.72);
     }),
-    sign_face_claw: neonSign('夾娃娃', 560, 220, 66, '#ffd8f4', '#ff5ac8', '#281038'),
-    sign_face_snack: neonSign('台灣小吃', 600, 220, 64, '#fff0d8', '#ff8a3a', '#3a2018'),
-    sign_face_bubble: paint(600, 220, (g, pw, ph) => {
-      g.fillStyle = '#e8fff8';
+    sign_face_claw: neonSign('夾娃娃', 680, 260, 76, '#ffe8f8', '#ff4ec8', '#180828'),
+    sign_face_snack: neonSign('台灣小吃', 720, 260, 74, '#fff4d0', '#ff8a3a', '#281008'),
+    sign_face_bubble: paint(720, 260, (g, pw, ph) => {
+      g.fillStyle = '#f0fff8';
       g.fillRect(0, 0, pw, ph);
       g.fillStyle = '#7ec8ea';
-      g.fillRect(0, 0, pw, 22);
-      g.font = '700 68px ' + font;
+      g.fillRect(0, 0, pw, 28);
+      g.font = '700 58px ' + font;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
-      g.fillStyle = '#1f4d73';
-      g.fillText('Bubble Tea', pw / 2, ph / 2 + 4);
-      g.font = '700 52px ' + font;
-      g.fillText('波波茶飲', pw / 2, ph / 2 + 52);
+      g.fillStyle = '#143858';
+      g.fillText('Bubble Tea', pw / 2, ph * 0.38);
+      g.font = '900 82px ' + font;
+      g.fillText('波波茶飲', pw / 2, ph * 0.72);
     }),
-    sign_face_game: neonSign('小東遊戲機', 640, 220, 58, '#fff2b8', '#ff9a3a', '#2a1848')
+    sign_face_game: neonSign('小東遊戲機', 820, 280, 72, '#fff8d8', '#ff9a3a', '#180838')
   };
-}
-
-function disposeLoadedMaterial(oldMat, keepMap) {
-  if (!oldMat || typeof oldMat.dispose !== 'function') return;
-  if (keepMap && oldMat.map === keepMap) {
-    oldMat.map = null;
-    oldMat.dispose();
-    return;
-  }
-  oldMat.dispose();
-}
-
-function applyCityMaterials(model, kit, signMaps) {
-  const { mat } = kit;
-  model.traverse((obj) => {
-    if (!obj.isMesh) return;
-    const oldMat = obj.material;
-    const matName = (oldMat && oldMat.name) || '';
-    obj.userData.glbMaterialName = matName;
-    let baseColor = 0xffffff;
-    if (oldMat && oldMat.color) baseColor = oldMat.color.getHex();
-    const atlasMap = oldMat && oldMat.map ? oldMat.map : null;
-    const glowInfo = glowForMaterial('city', matName);
-    let extra = {};
-    if (glowInfo) {
-      const nightC = nightHex(baseColor);
-      extra = {
-        night: nightC != null ? nightC : baseColor,
-        glow: glowInfo.color,
-        glowAmount: glowInfo.amount
-      };
-    }
-    const signTex = signMaps[obj.name];
-    if (signTex) {
-      const emissive = obj.name.indexOf('711') >= 0;
-      obj.material = mat(0xffffff, {
-        map: signTex,
-        night: 0xfff0dc,
-        glow: emissive ? 0xffffff : 0xffb15a,
-        glowAmount: emissive ? 0.95 : 1.08,
-        side: THREE.DoubleSide
-      });
-      if (emissive) obj.material.emissiveMap = signTex;
-    } else if (obj.name === 'traffic_red' || obj.name === 'traffic_yellow' || obj.name === 'traffic_green') {
-      const init = obj.name === 'traffic_red' ? 0xff3b30
-        : obj.name === 'traffic_yellow' ? 0xffcc00 : 0x34c759;
-      obj.material = mat(init, { shadow: false });
-    } else if (atlasMap) {
-      obj.material = mat(0xffffff, Object.assign({ shadow: true, map: atlasMap }, extra));
-    } else {
-      obj.material = mat(baseColor, Object.assign({ shadow: true }, extra));
-    }
-    disposeLoadedMaterial(oldMat, obj.material && obj.material.map);
-    obj.castShadow = true;
-    obj.receiveShadow = true;
-  });
 }
 
 function wireTrafficFromModel(model, trafficMeshes) {
@@ -159,25 +104,6 @@ function wireTrafficFromModel(model, trafficMeshes) {
     trafficMeshes.housing = housing;
     trafficMeshes.group = model;
   }
-}
-
-function applyCarMaterials(carModel, kit) {
-  const { mat } = kit;
-  carModel.traverse((obj) => {
-    if (!obj.isMesh) return;
-    const oldMat = obj.material;
-    let baseColor = 0xffffff;
-    if (oldMat && oldMat.color) baseColor = oldMat.color.getHex();
-    const atlasMap = oldMat && oldMat.map ? oldMat.map : null;
-    if (atlasMap) {
-      obj.material = mat(0xffffff, { shadow: true, map: atlasMap });
-    } else {
-      obj.material = mat(baseColor, { shadow: true });
-    }
-    disposeLoadedMaterial(oldMat, obj.material && obj.material.map);
-    obj.castShadow = true;
-    obj.receiveShadow = true;
-  });
 }
 
 export function buildIslandCity(ctx) {

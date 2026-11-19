@@ -20,6 +20,8 @@ const citySceneJs = readFileSync(
   'utf8'
 );
 
+const M = await loadPublicModule('island-city-materials.js');
+
 const L = await loadPublicModule('island-layout.js');
 const C = await loadPublicModule('island-city-data.js');
 const B = await loadPublicModule('island-boat.js');
@@ -96,10 +98,55 @@ test('城市機車為 milu 看板而非方塊人', () => {
   assert.match(citySceneJs, /spawnCityScooterWalkers/);
 });
 
-test('applyCityMaterials 保留 glTF city_atlas map', () => {
-  assert.match(citySceneJs, /const atlasMap = oldMat && oldMat\.map/);
-  assert.match(citySceneJs, /mat\(0xffffff, Object\.assign\(\{ shadow: true, map: atlasMap \}, extra\)\)/);
-  assert.match(citySceneJs, /disposeLoadedMaterial\(oldMat, obj\.material && obj\.material\.map\)/);
+test('applyCityMaterials 共用 glTF 材質時保留 map 到 traverse 結束', () => {
+  const sharedMap = { image: { width: 4, height: 4 }, disposed: false };
+  const disposed = [];
+  class Color {
+    constructor(v) { this._hex = v; }
+    getHex() { return this._hex; }
+  }
+  class OldMat {
+    constructor() {
+      this.name = 'tex::roof_tile::None::None';
+      this.color = new Color(0xffffff);
+      this.map = sharedMap;
+    }
+    dispose() { disposed.push(this); }
+  }
+  class RuntimeMat {
+    constructor(opts) {
+      this.map = opts.map || null;
+    }
+  }
+  const old = new OldMat();
+  let meshCount = 0;
+  const kit = {
+    mat(color, extra) {
+      return new RuntimeMat(extra || {});
+    }
+  };
+  const model = {
+    traverse(fn) {
+      const a = { isMesh: true, name: 'walls', material: old, castShadow: false, receiveShadow: false, userData: {} };
+      const b = { isMesh: true, name: 'sign_face_arcade_frame', material: old, castShadow: false, receiveShadow: false, userData: {} };
+      fn(a);
+      fn(b);
+      meshCount = 2;
+    }
+  };
+  M.applyCityMaterials(model, kit, {});
+  assert.equal(meshCount, 2);
+  assert.equal(disposed.length, 1, '共用舊材質只 dispose 一次');
+  assert.equal(sharedMap.disposed, false);
+  assert.equal(old.map, sharedMap, 'traverse 期間不得清空共用 map');
+  model.traverse((obj) => {
+    if (!obj.isMesh) return;
+    assert.ok(obj.material.map === sharedMap, obj.name + ' 應保留 atlas map');
+  });
+  assert.doesNotMatch(
+    readFileSync(join(here, '..', '..', 'main', 'resources', 'public', 'js', 'island-city-materials.js'), 'utf8'),
+    /oldMat\.map\s*=\s*null/
+  );
 });
 
 test('city.glb 與 city-pink-car.glb 已建置', () => {

@@ -83,10 +83,18 @@ def _awning(draw, ox, oy):
 
 
 def _roof(draw, ox, oy):
+    palette = [
+        (175, 88, 68), (88, 155, 108), (215, 135, 175),
+        (95, 138, 188), (215, 148, 75), (125, 118, 145),
+        (198, 95, 78), (72, 128, 98),
+    ]
     for row in range(16):
         for col in range(16):
-            c = (110 + (row % 2) * 8, 125 + (col % 2) * 6, 145)
-            draw.rectangle([ox + col * 16, oy + row * 16, ox + col * 16 + 15, oy + row * 16 + 15], fill=c)
+            base = palette[(row * 3 + col * 2) % len(palette)]
+            c = tuple(max(0, min(255, base[i] + ((row + col) % 2) * 10 - 5)) for i in range(3))
+            draw.rectangle([ox + col * 16, oy + row * 16, ox + col * 16 + 14, oy + row * 16 + 14], fill=c)
+            draw.rectangle([ox + col * 16 + 14, oy + row * 16, ox + col * 16 + 15, oy + row * 16 + 15],
+                           fill=(max(0, c[0] - 28), max(0, c[1] - 28), max(0, c[2] - 28)))
 
 
 def _wood(draw, ox, oy):
