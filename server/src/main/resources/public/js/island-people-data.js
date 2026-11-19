@@ -14,28 +14,28 @@ export const NPC_STYLE_IDS = Object.freeze([
 export const NPC_GLB_URL = '/models/npc-women.glb';
 
 export const NPC_BUDGET = Object.freeze({
-  MAX_TRIS_PER_STYLE: 2500,
-  MAX_UNIQUE_TRIS: 17500,
+  MAX_TRIS_PER_STYLE: 8000,
+  MAX_UNIQUE_TRIS: 50000,
   MAX_INSTANCES: 24,
-  MAX_INSTANCE_TRIS: 60000,
-  MAX_DRAW_CALLS: 48,
-  MAX_GLB_BYTES: 800 * 1024,
-  MAX_MESHES_PER_INSTANCE: 2
+  MAX_INSTANCE_TRIS: 192000,
+  MAX_DRAW_CALLS: 120,
+  MAX_GLB_BYTES: Math.floor(2.5 * 1024 * 1024),
+  MAX_MESHES_PER_INSTANCE: 6
 });
 
 /** 與 build_npc_women.py 匯出統計同步（無頭重建後請更新）。 */
 export const NPC_GLB_STATS = Object.freeze({
-  bytes: 710652,
-  trisTotalUnique: 4102,
-  drawCallsEst: 24,
+  bytes: 631320,
+  trisTotalUnique: 5992,
+  drawCallsEst: 96,
   trisPerStyle: Object.freeze({
-    summer: 574,
-    student: 498,
-    tech: 486,
-    idol: 658,
-    swimsuit: 586,
-    sport: 474,
-    fairy: 826
+    summer: 828,
+    student: 840,
+    tech: 804,
+    idol: 1020,
+    swimsuit: 756,
+    sport: 768,
+    fairy: 976
   }),
   rebuildCmd:
     '~/.local/bin/blender -b --factory-startup -P tools/blender/build_npc_women.py -- ' +
@@ -67,7 +67,7 @@ export function mainIdleDefs() {
     { style: 'summer', x: 0.05, z: 2.25, rotY: Math.PI, seated: false, phase: 0.8, variant: 1 },
     { style: 'idol', x: -0.05, z: 2.9, rotY: Math.PI, seated: false, phase: 1.4 },
     { style: 'summer', x: 0.12, z: 3.55, rotY: Math.PI, seated: false, phase: 2.1, variant: 1 },
-    { style: 'sport', x: -4.85, z: 4.15, rotY: Math.PI, seated: true, phase: 0.5 },
+    { style: 'sport', x: -5.15, z: 5.05, rotY: Math.PI * 0.85, seated: true, phase: 0.5 },
     { style: 'idol', x: -4.85, z: 2.95, rotY: 0, seated: true, phase: 1.6, variant: 1 },
     { style: 'student', x: 4.55, z: 4.08, rotY: Math.PI, seated: true, phase: 2.4 },
     { style: 'swimsuit', x: -0.15, z: 8.45, rotY: 0.15, seated: false, phase: 0.9 }
@@ -77,7 +77,7 @@ export function mainIdleDefs() {
 /** 其他島與城市以外的主場景補點（總量 ≤ 24） */
 export function islandExtraDefs() {
   return Object.freeze([
-    { style: 'tech', x: 0.35, z: 16.35, rotY: Math.PI, walker: false, island: 'computer' },
+    { style: 'tech', x: 1.05, z: 15.25, rotY: -0.35, walker: false, island: 'computer' },
     { style: 'student', x: 1.0, z: 15.4, rotY: -0.4, walker: true,
       path: [[0.35, 15.9], [1.45, 16.15], [2.15, 15.25]], speed: 0.042, pingpong: true },
     { style: 'fairy', x: -16.2, z: 0.35, rotY: 0.6, walker: false, island: 'tcm' },
@@ -86,7 +86,7 @@ export function islandExtraDefs() {
     { style: 'swimsuit', x: 21.35, z: 5.35, rotY: 0.3, walker: false, island: 'beach' },
     { style: 'swimsuit', x: 22.15, z: 6.25, rotY: -2.0, walker: true,
       path: [[21.55, 6.05], [22.45, 5.85], [22.05, 6.35]], speed: 0.038, pingpong: true },
-    { style: 'idol', x: 14.85, z: -6.35, rotY: 0.8, walker: false, island: 'casino' },
+    { style: 'idol', x: 15.25, z: -5.45, rotY: 2.35, walker: false, island: 'casino' },
     { style: 'sport', x: 15.05, z: -7.85, rotY: -0.5, walker: true,
       path: [[14.55, -7.05], [15.05, -7.55], [14.75, -8.15]], speed: 0.044, pingpong: false }
   ]);

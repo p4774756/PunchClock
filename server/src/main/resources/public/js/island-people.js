@@ -127,7 +127,7 @@ function createNpcInstance(lib, style, opts, kit) {
         const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
         const cloned = mats.map((m) => {
           const c = m.clone();
-          c.vertexColors = true;
+          c.vertexColors = !!(m.vertexColors && !m.map);
           c.userData = Object.assign({}, m.userData);
           c.userData.day = c.color ? c.color.clone() : new THREE.Color(0xffffff);
           c.userData.night = c.color ? c.color.clone().multiplyScalar(0.72) : new THREE.Color(0x888888);
