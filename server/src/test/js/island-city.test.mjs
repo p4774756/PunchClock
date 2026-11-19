@@ -178,3 +178,21 @@ test('路人與機車路徑不穿牆、留在城市島', () => {
       '樣點 ' + i + ' 應遠離粉紅小車');
   }
 });
+
+test('粉紅車審查鏡頭：玩家路邊站位、不疊車頂', () => {
+  const car = C.pinkCarWorld();
+  const poses = C.pinkCarReviewPoses();
+  assert.ok(poses['pink-car-look']);
+  assert.ok(poses['pink-car-look-front']);
+  for (const key of Object.keys(poses)) {
+    const p = poses[key];
+    const st = p.player;
+    const dCenter = Math.hypot(st.x - car.x, st.z - car.z);
+    assert.ok(dCenter >= 0.85, key + ' 站位應離車心');
+    assert.ok(dCenter <= 1.35, key + ' 站位應在上車圈內');
+    assert.ok(Math.abs(st.x - car.x) > 0.12 || Math.abs(st.z - car.z) > 0.12,
+      key + ' 不可與車心重疊');
+    assert.equal(p.look[0], car.x);
+    assert.equal(p.look[2], car.z);
+  }
+});

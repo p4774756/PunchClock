@@ -90,6 +90,40 @@ export function pinkCarWorld() {
   });
 }
 
+/** 審查 pink-car-look：路邊站位（勿與車心重疊；仍在上車距離內）。side：-1 駕駛側、+1 副駕。 */
+export function pinkCarReviewStand(side) {
+  const s = side == null ? -1 : side;
+  const car = pinkCarWorld();
+  const yaw = car.yaw;
+  const dist = 1.05;
+  const x = car.x + Math.cos(yaw) * s * dist;
+  const z = car.z - Math.sin(yaw) * s * dist;
+  const face = yaw + (s < 0 ? Math.PI / 2 : -Math.PI / 2);
+  return Object.freeze({ x, z, yaw: face });
+}
+
+/** 正式審查鏡頭（3/4 後側／前側；look 對車心約車高）。 */
+export function pinkCarReviewPoses() {
+  const car = pinkCarWorld();
+  const look = Object.freeze([car.x, 0.52, car.z]);
+  return Object.freeze({
+    'pink-car-look': Object.freeze({
+      player: pinkCarReviewStand(-1),
+      look,
+      radius: 6.4,
+      theta: car.yaw + Math.PI * 0.62,
+      phi: 0.9
+    }),
+    'pink-car-look-front': Object.freeze({
+      player: pinkCarReviewStand(1),
+      look,
+      radius: 6.0,
+      theta: car.yaw - Math.PI * 0.38,
+      phi: 0.9
+    })
+  });
+}
+
 export function vehicleZones() {
   const car = pinkCarWorld();
   return Object.freeze([
