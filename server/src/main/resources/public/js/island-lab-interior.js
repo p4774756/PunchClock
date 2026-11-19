@@ -193,9 +193,8 @@ function loadDevScreen(texture, canvas, screenState, reducedMotion) {
     screenState.refresh();
     return;
   }
-  const authed = typeof globalThis !== 'undefined' && globalThis.PUNCHCLOCK_AUTHENTICATED === true;
   const devStatusPromise = fetchFn('/api/dev-status').then((res) => res.json());
-  const machinesPromise = shouldFetchDevMachines(authed)
+  const machinesPromise = shouldFetchDevMachines()
     ? fetchFn('/api/dev-machines')
         .then((res) => (res.ok ? res.json() : null))
         .catch(() => null)
