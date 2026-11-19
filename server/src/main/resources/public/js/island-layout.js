@@ -15,7 +15,7 @@ export const MAIN_ISLAND_ID = 'main';
 const ISLAND_DEFS = [
   { id: 'main', name: '神之島', x: 0, z: 0, r: 8.05, visualR: 9.15, theme: 'shop' },
   // 博弈島在東南，橋不經過正東岸（既有測試把 +X 岸當海水）。
-  { id: 'casino', name: '博弈島', x: 15.2, z: -7.4, r: 4.15, visualR: 5.3, theme: 'casino' },
+  { id: 'casino', name: '博弈島', x: 15.5, z: -7.5, r: 5.35, visualR: 6.75, theme: 'casino' },
   // 中醫島在正西，橋從樹與候餐座位之間的西岸接出去。
   { id: 'tcm', name: '中醫推拿島', x: -16.6, z: 1.15, r: 4.0, visualR: 5.15, theme: 'tcm' },
   // 電腦島在南邊，橋從碼頭接出去。
@@ -203,8 +203,9 @@ export const BOAT_MAIN_CITY_PROMPT = Object.freeze({ x: 7.35, z: 1.95 });
 export const BOAT_ROUTE_MAIN_CITY = Object.freeze([
   Object.freeze({ x: 10.3, z: 1.95 }),
   Object.freeze({ x: 14.5, z: 2.0 }),
-  Object.freeze({ x: 20.5, z: 2.0 }),
-  Object.freeze({ x: 20.5, z: -11.0 }),
+  Object.freeze({ x: 23.0, z: 1.8 }),
+  Object.freeze({ x: 23.0, z: -11.0 }),
+  Object.freeze({ x: 23.0, z: -16.5 }),
   Object.freeze({ x: 0, z: -13.85 })
 ]);
 
@@ -289,7 +290,7 @@ function themeCircle(id, islandId, dx, dz, r) {
 export const THEME_CIRCLES = Object.freeze([
   themeCircle('palm-n', 'casino', 1.15, 3.2, 0.36),
   themeCircle('palm-s', 'casino', 1.0, -3.25, 0.34),
-  themeCircle('palm-e', 'casino', 3.4, 0.3, 0.34),
+  themeCircle('palm-e', 'casino', 3.85, -0.45, 0.34),
   themeCircle('bamboo', 'tcm', 0.35, 2.55, 0.42),
   themeCircle('figure', 'tcm', -0.2, -2.2, 0.46),
   themeCircle('herb', 'tcm', 1.35, 1.75, 0.32),
@@ -369,9 +370,9 @@ const BUILDING_DEFS = [
     entry: { r: 0.95, reach: 0.62, label: '看施工進度', action: 'openRoadmap' }
   },
   {
-    id: 'casino', island: 'casino', x: 16.35, z: -7.4, w: 2.4, d: 1.9, yaw: -Math.PI / 2,
-    label: '賭場', panel: null, frontTrim: 0.22,
-    entry: { r: 1.2, reach: 0.78, label: '進入賭場', action: 'enterInterior' }
+    id: 'casino', island: 'casino', x: 17.0, z: -7.35, w: 4.2, d: 3.4, yaw: -Math.PI / 2,
+    label: '賭場', panel: null, frontTrim: 0.24,
+    entry: { r: 1.2, reach: 0.85, label: '進入賭場', action: 'enterInterior' }
   },
   {
     id: 'tcm-site', island: 'tcm', x: -17.45, z: 1.15, w: 2.3, d: 1.8, yaw: Math.PI / 2,

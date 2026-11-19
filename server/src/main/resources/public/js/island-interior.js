@@ -610,7 +610,7 @@ export const INTERIORS = Object.freeze([
     buildingId: 'casino',
     spawn: Object.freeze({ x: 0, z: 0.2, yaw: 0 }),
     exit: Object.freeze({ x: 0, z: -1.2, r: 0.55, label: '離開賭場' }),
-    outside: Object.freeze({ x: 13.32, z: -7.4, yaw: Math.PI / 2 }),
+    outside: Object.freeze({ x: 13.12, z: -7.35, yaw: Math.PI / 2 }),
     floor: Object.freeze({ minX: -3.75, maxX: 3.75, minZ: -1.75, maxZ: 3.15 }),
     blocks: Object.freeze([
       Object.freeze({ id: 'slots-row', minX: -3.55, maxX: -1.82, minZ: -0.42, maxZ: 2.58 }),
