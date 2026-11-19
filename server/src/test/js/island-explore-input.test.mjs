@@ -164,11 +164,11 @@ test('鍵盤 E：推拿館互動區會呼叫 enterTcm 且不開賭場', () => {
   assert.equal(interiorClosed, false);
 });
 
-test('畫布拖曳只跟第一根指標：第二指 move 不改 phi／theta', () => {
+test('畫布兩指捏合：phi／theta 不變、半徑依距離變化', () => {
   const cam = {
     targetTheta: 0.35,
     targetPhi: 0.98,
-    targetRadius: 9.2
+    targetRadius: 10
   };
   const listeners = {};
   const canvas = {
@@ -176,7 +176,8 @@ test('畫布拖曳只跟第一根指標：第二指 move 不改 phi／theta', ()
     addEventListener(type, fn) { listeners[type] = fn; },
     removeEventListener() {},
     getBoundingClientRect: () => ({ left: 0, top: 0, width: 390, height: 844 }),
-    setPointerCapture() {}
+    setPointerCapture() {},
+    releasePointerCapture() {}
   };
   const camera = {};
   const THREE = {
@@ -197,20 +198,90 @@ test('畫布拖曳只跟第一根指標：第二指 move 不改 phi／theta', ()
   });
   const down = listeners.pointerdown;
   const move = listeners.pointermove;
-  assert.ok(typeof down === 'function' && typeof move === 'function');
-  down({ pointerId: 1, clientX: 100, clientY: 200 });
-  const theta0 = cam.targetTheta;
-  const phi0 = cam.targetPhi;
-  move({ pointerId: 1, clientX: 100, clientY: 180 });
-  assert.notEqual(cam.targetPhi, phi0, '第一指應改變 phi');
-  const phiAfterFirst = cam.targetPhi;
-  const thetaAfterFirst = cam.targetTheta;
-  down({ pointerId: 2, clientX: 50, clientY: 50 });
-  move({ pointerId: 2, clientX: 50, clientY: 200 });
-  assert.equal(cam.targetPhi, phiAfterFirst);
-  assert.equal(cam.targetTheta, thetaAfterFirst);
-  move({ pointerId: 1, clientX: 100, clientY: 160 });
-  assert.notEqual(cam.targetPhi, phiAfterFirst, '第一指恢復後仍有效');
+  const up = listeners.pointerup;
+  down({ pointerId: 1, clientX: 100, clientY: 300 });
+  move({ pointerId: 1, clientX: 100, clientY: 280 });
+  const phiDrag = cam.targetPhi;
+  const thetaDrag = cam.targetTheta;
+  down({ pointerId: 2, clientX: 200, clientY: 300 });
+  move({ pointerId: 2, clientX: 300, clientY: 300 });
+  assert.equal(cam.targetPhi, phiDrag);
+  assert.equal(cam.targetTheta, thetaDrag);
+  assert.ok(cam.targetRadius < 10, '張開應拉近');
+  down({ pointerId: 1, clientX: 100, clientY: 300 });
+  down({ pointerId: 2, clientX: 200, clientY: 300 });
+  up({ pointerId: 2, clientX: 200, clientY: 300 });
+  const thetaBefore = cam.targetTheta;
+  move({ pointerId: 1, clientX: 130, clientY: 300 });
+  assert.notEqual(cam.targetTheta, thetaBefore, '2→1 後單指水平拖曳仍有效');
+});
+
+test('createExplorePointer：兩指捏合放開不觸發 onZoneClick', () => {
+  const listeners = {};
+  const canvas = {
+    style: { cursor: 'grab' },
+    addEventListener(type, fn) { listeners[type] = fn; },
+    removeEventListener() {},
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 390, height: 844 }),
+    setPointerCapture() {},
+    releasePointerCapture() {}
+  };
+  const THREE = {
+    Raycaster: function () {
+      this.setFromCamera = () => {};
+      this.intersectObjects = () => [{ object: { userData: { zone: 'devices' } } }];
+    },
+    Vector2: function () { this.x = 0; this.y = 0; }
+  };
+  let zoneHit = null;
+  createExplorePointer({
+    canvas: canvas,
+    camera: {},
+    cam: { targetTheta: 0, targetPhi: 0, targetRadius: 8 },
+    THREE: THREE,
+    getMode: () => ({ exploring: true }),
+    controlsActive: () => true,
+    applyDragPhi: applyDragPhi,
+    onZoneClick: (z) => { zoneHit = z; }
+  });
+  listeners.pointerdown({ pointerId: 1, clientX: 0, clientY: 0 });
+  listeners.pointerdown({ pointerId: 2, clientX: 120, clientY: 0 });
+  listeners.pointerup({ pointerId: 1, clientX: 0, clientY: 0 });
+  listeners.pointerup({ pointerId: 2, clientX: 120, clientY: 0 });
+  assert.equal(zoneHit, null);
+});
+
+test('createExplorePointer：單指輕點仍觸發 onZoneClick', () => {
+  const listeners = {};
+  const canvas = {
+    style: { cursor: 'grab' },
+    addEventListener(type, fn) { listeners[type] = fn; },
+    removeEventListener() {},
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 390, height: 844 }),
+    setPointerCapture() {},
+    releasePointerCapture() {}
+  };
+  const THREE = {
+    Raycaster: function () {
+      this.setFromCamera = () => {};
+      this.intersectObjects = () => [{ object: { userData: { zone: 'devices' } } }];
+    },
+    Vector2: function () { this.x = 0; this.y = 0; }
+  };
+  let zoneHit = null;
+  createExplorePointer({
+    canvas: canvas,
+    camera: {},
+    cam: { targetTheta: 0, targetPhi: 0, targetRadius: 8 },
+    THREE: THREE,
+    getMode: () => ({ exploring: true }),
+    controlsActive: () => true,
+    applyDragPhi: applyDragPhi,
+    onZoneClick: (z) => { zoneHit = z; }
+  });
+  listeners.pointerdown({ pointerId: 1, clientX: 50, clientY: 50 });
+  listeners.pointerup({ pointerId: 1, clientX: 50, clientY: 50 });
+  assert.equal(zoneHit, 'devices');
 });
 
 test('鍵盤 E：掌舵中可靠岸時呼叫 disembarkSteer、不開賭場', () => {
