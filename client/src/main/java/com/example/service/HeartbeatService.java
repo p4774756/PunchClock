@@ -40,7 +40,7 @@ public class HeartbeatService implements HeartbeatEvents {
 
     static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
     static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
-    /** 單檔可達 300 MB，較慢網路需要比一般心跳更長的逾時。 */
+    /** 單檔可達 400 MB，較慢網路需要比一般心跳更長的逾時。 */
     static final Duration FILE_TRANSFER_TIMEOUT = Duration.ofMinutes(30);
 
     /** 線上同事摘要（由心跳回應 peers[] 解析） */
