@@ -503,11 +503,11 @@ public final class ServerApp {
 
     private void dashboard(Context ctx) {
         boolean authenticated = authService.isAuth(ctx);
-        String html = readResource("/public/index.html")
+        String html = com.example.server.util.DonatePageTokens.apply(readResource("/public/index.html")
                 .replace("{{SERVER_VERSION}}", SERVER_VERSION)
                 .replace("{{SERVER_BUILD_TIME}}", serverBuildLabel())
                 .replace("{{AUTH_BODY_CLASS}}", authenticated ? "is-authenticated" : "is-guest")
-                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false");
+                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false"));
         ctx.header("Cache-Control", DASHBOARD_CACHE);
         ctx.html(html);
     }

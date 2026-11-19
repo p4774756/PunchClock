@@ -5,6 +5,7 @@ import org.junit.Test;
 import java.awt.Rectangle;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class AnimeShellNavTest {
@@ -70,5 +71,22 @@ public class AnimeShellNavTest {
         assertTrue(board.reminder.y < figure.y + figure.height);
         assertTrue(board.reminder.width + 8 >= figure.width * 70 / 100);
         assertTrue(board.reminder.x + board.reminder.width <= board.stage.x + board.stage.width);
+    }
+
+    @Test
+    public void donateClickAreaDoesNotOverlapNavRows() {
+        int height = 720;
+        Rectangle donate = AnimeShell.donateClickBounds(1100, height);
+        assertTrue(donate.width > 0);
+        assertTrue(donate.height > 0);
+        for (int i = 0; i < AnimeShell.navCount(); i++) {
+            Rectangle row = AnimeShell.navRowBounds(1100, height, i);
+            assertFalse("nav " + i + " overlaps donate", row.intersects(donate));
+        }
+    }
+
+    @Test
+    public void sidebarPreviewRendersWithoutError() {
+        assertTrue(AnimeShell.renderSidebarPreview(1100, 720).getWidth() > 0);
     }
 }
