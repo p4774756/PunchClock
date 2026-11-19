@@ -2111,6 +2111,10 @@ function boot() {
           disembarkSteer();
           return true;
         }
+        if (isDriving() || activeInteract === 'driving-exit') {
+          disembarkVehicle();
+          return true;
+        }
         const zone = hitInteractZone(player.x, player.z, promptZones());
         if (!zone) return false;
         if (zone.action === 'exitInterior') {
@@ -2135,10 +2139,6 @@ function boot() {
         }
         if (zone.action === 'enterVehicle') {
           enterVehicleInteract();
-          return true;
-        }
-        if (isDriving() || activeInteract === 'driving-exit') {
-          disembarkVehicle();
           return true;
         }
         if (zone.action === 'enterTcm') {

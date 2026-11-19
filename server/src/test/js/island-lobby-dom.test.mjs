@@ -199,6 +199,10 @@ function setup(opts) {
 test('island.js 的接線與本測試一致', () => {
   assert.match(islandSource, /beforeOpen: \(\) => \{[\s\S]*?flow\.beforeLobbyOpen\(\)/);
   assert.match(islandSource, /onLobbyChange: \(state\) => flow\.lobbyChanged\(state\.open\)/);
+  assert.match(
+    islandSource,
+    /onPrompt: \(\) => \{[\s\S]*?isSteering\(\)[\s\S]*?isDriving\(\)[\s\S]*?hitInteractZone/
+  );
   assert.match(islandSource, /onPrompt: \(\) => \{[\s\S]*?openGraffiti\(\)/);
   assert.match(
     exploreInputSource,
@@ -219,7 +223,7 @@ test('探索中點入口提示開大廳：不可移動；點「返回島嶼」�
   t.player.keys.KeyW = true;
   t.casino.setPromptVisible(true, '進入賭場');
 
-  t.promptBtn.click();
+  t.casino.openLobby();
   assert.equal(t.casino.isOpen(), true);
   assert.equal(t.lobbyEl.hidden, false);
   assert.ok(t.doc.body.classList.contains('casino-lobby-open'));
