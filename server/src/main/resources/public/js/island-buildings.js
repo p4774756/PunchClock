@@ -153,11 +153,12 @@ export function buildIslandBuildings(ctx) {
         if (obj.name === 'sign_face') {
           const signTex = signMaps[buildingId];
           if (signTex) {
+            const labSignNight = buildingId === 'computer-site';
             obj.material = mat(0xffffff, {
               map: signTex,
-              night: 0xfff0dc,
-              glow: 0xffb15a,
-              glowAmount: 0.28,
+              night: labSignNight ? 0xe8f8ff : 0xfff0dc,
+              glow: labSignNight ? 0x7ec8ea : 0xffb15a,
+              glowAmount: labSignNight ? 1.12 : 0.28,
               side: THREE.DoubleSide
             });
           } else {

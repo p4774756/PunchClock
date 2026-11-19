@@ -279,13 +279,16 @@ def build(out_path):
     for sx in (-0.88, 0.88):
         b.part('lanterns_glow').sphere('lantern_glow', 0.050, sx, FRONT - 0.06, z_ground + 1.06, seg=6, rings=4)
 
-    # 招牌：南側女兒牆／簷口（畫面下緣），朝 EXPLORE_POSE 高視角傾斜（sign_face / labSignMap）
-    sign_rx = -0.90
-    sign_y = FRONT + 0.04
-    sign_z = roof_y + 0.22
-    b.tilted_sign(2.12, 0.72, sign_y, sign_z, rx=sign_rx, frame='lab_accent', board='sign')
+    # 招牌：北側女兒牆（BACK＝1280 畫面下緣近景），朝北／+Y 仰角對準 EXPLORE_POSE（sign_face / labSignMap）
+    sign_y = BACK - 0.06
+    sign_z = roof_y + 0.18
+    b.tilted_sign(2.28, 0.78, sign_y, sign_z, rx=2.15, facing='back', frame='lab_accent', board='sign')
+    # 屋頂北半近水平字牌，高俯視仍可讀
+    b.roof_readable_sign(1.72, 0.62, 0.02, BACK - 0.42, roof_y + 0.11, rx=math.pi / 2 - 0.14,
+                         frame='lab_accent', board='sign')
+    b.part('lanterns_glow').sphere('lantern_glow', 0.065, 0.0, BACK - 0.40, roof_y + 0.22, seg=6, rings=4)
 
-    label_blender = (0.0, sign_y + 0.08, sign_z + 0.38)
+    label_blender = (0.0, sign_y - 0.12, sign_z + 0.26)
     return b.finish(
         out_path,
         door_local=[0.0, 0.0, HY],
