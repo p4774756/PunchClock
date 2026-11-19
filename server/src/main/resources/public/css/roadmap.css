@@ -363,6 +363,22 @@
   font-weight: 600;
 }
 
+.roadmap-source.dev-guest-ref,
+a.roadmap-source[aria-disabled="true"] {
+  color: var(--maple-muted);
+  text-decoration: none;
+  cursor: help;
+  font-weight: 700;
+}
+
+.roadmap-dev-pair.dev-guest-ref,
+.roadmap-dev-pr.dev-guest-ref,
+.roadmap-today-list .dev-guest-ref {
+  color: var(--maple-muted);
+  text-decoration: none;
+  cursor: help;
+}
+
 .roadmap-btn {
   display: inline-flex;
   align-items: center;

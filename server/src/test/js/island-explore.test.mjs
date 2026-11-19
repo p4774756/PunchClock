@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { loadPublicModule } from './load-public-module.mjs';
 
 const X = await loadPublicModule('island-explore.js');
+const PeopleData = await loadPublicModule('island-people-data.js');
 
 const R = X.PLAYER_RADIUS;
 const EPS = 1e-9;
@@ -386,6 +387,68 @@ test('互動提示：僅探索中且未開面板／大廳時顯示', () => {
   assert.equal(X.shouldShowInteractPrompt({
     exploring: true, paused: false, uiOpen: false, lobbyOpen: false, zoneId: ''
   }), false);
+});
+
+test('hudBlocksInteract：常駐小地圖不擋；大地圖／選單／聊天擋', () => {
+  assert.equal(X.hudBlocksInteract({
+    minimapVisible: true,
+    bigMapOpen: false,
+    moreOpen: false,
+    chatOpen: false
+  }), false);
+  assert.equal(X.hudBlocksInteract({
+    bigMapOpen: true,
+    moreOpen: false,
+    chatOpen: false
+  }), true);
+  assert.equal(X.hudBlocksInteract({
+    bigMapOpen: false,
+    moreOpen: true,
+    chatOpen: false
+  }), true);
+  assert.equal(X.hudBlocksInteract({
+    bigMapOpen: false,
+    moreOpen: false,
+    chatOpen: true
+  }), true);
+});
+
+test('npcTalkPrompt：小地圖可見時仍顯示聊天', () => {
+  const npcs = [{ x: 0.5, z: 0, talkable: true, scooter: false }];
+  const hit = PeopleData.shouldOfferNpcTalkPrompt({
+    exploring: true,
+    paused: false,
+    indoor: false,
+    driving: false,
+    sailing: false,
+    steering: false,
+    uiOpen: false,
+    lobbyOpen: false,
+    chatOpen: false,
+    talkOpen: false,
+    zone: null,
+    px: 0,
+    pz: 0,
+    npcs: npcs
+  });
+  assert.ok(hit);
+  const blocked = PeopleData.shouldOfferNpcTalkPrompt({
+    exploring: true,
+    paused: false,
+    indoor: false,
+    driving: false,
+    sailing: false,
+    steering: false,
+    uiOpen: true,
+    lobbyOpen: false,
+    chatOpen: false,
+    talkOpen: false,
+    zone: null,
+    px: 0,
+    pz: 0,
+    npcs: npcs
+  });
+  assert.equal(blocked, null);
 });
 
 test('Enter／E 觸發互動：不搶輸入框與其它 UI', () => {
