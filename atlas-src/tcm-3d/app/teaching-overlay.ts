@@ -176,8 +176,10 @@ export function createTeachingOverlay(
    settling:releaseAt>=0&&releaseElapsed<=.85,
   };
  };
- const focus=(s:SimulationState,camera:T.PerspectiveCamera,controls:{target:T.Vector3;update:()=>void})=>{
-  if(!s.focus||lastFocus===s.focus||!anchored)return false;
+ type FocusOptions={force?:boolean};
+ const focus=(s:SimulationState,camera:T.PerspectiveCamera,controls:{target:T.Vector3;update:()=>void},options?:FocusOptions)=>{
+  if(!s.focus||!anchored)return false;
+  if(!options?.force&&lastFocus===s.focus)return false;
   const target=getTarget(s);if(!target)return false;lastFocus=s.focus;camera.clearViewOffset();
   const aim=new T.Vector3().fromArray(target.position);
   n.fromArray(target.normal).normalize();

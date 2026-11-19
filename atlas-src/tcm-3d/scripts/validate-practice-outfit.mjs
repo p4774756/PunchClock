@@ -34,7 +34,10 @@ assert.doesNotMatch(src, /SHOULDER_ARTIFACT|isShoulderArtifactPx/, 'shoulder fix
 assert.match(src, /data\.data\[i\+3\]>=200\)continue[\s\S]*paintShoulderAlphaHole/, 'shoulder fix fills alpha<200 from nearby skin');
 assert.match(src, /isHairMaterial/, 'hair-specific cel shading to preserve blue-violet');
 assert.match(src, /syncHairBunMaterial/, 'bun materials must track hair MToon chroma');
-assert.match(src, /requestIdleCallback|schedulePracticeWarm/, 'practice outfit must warm on idle after first frame');
+assert.match(src, /schedulePracticeWarm/, 'practice outfit must warm after first frame');
+assert.match(src, /initTexture/, 'practice warm must upload outfit textures');
+assert.match(src, /compileAsync/, 'practice warm must compile visible practice rig');
+assert.match(pageSrc, /atlas:outfit-switch-start/, 'outfit switch measure must start on button click');
 assert.match(src, /atlas:outfit-switch/, 'outfit switch must performance.measure atlas:outfit-switch');
 assert.match(src, /atlas:model-visible/, 'first model frame must performance.measure atlas:model-visible');
 assert.match(src, /practice-outfit-build-start/, 'practice outfit build must performance.mark start');

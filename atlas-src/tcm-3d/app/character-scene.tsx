@@ -1,4 +1,4 @@
-import {ANIME_MODEL_BYTES} from './anime-model-digest';
+import {ANIME_MODEL_BYTES,ANIME_MODEL_GZIP_BYTES} from './anime-model-digest';
 import {WOODCUT_LANDSCAPE_DIGEST} from './texture-digests';
 import {publicAssetUrl} from './public-assets';
 import {LOAD_STEP_LABELS,type AtlasLoadProgress,yieldToMain} from './load-progress';
@@ -384,6 +384,29 @@ const MTOON_TEXTURE_UNIFORM_KEYS=new Set([
  'map','normalMap','emissiveMap','shadeMultiplyTexture','shadingShiftTexture','matcapTexture',
  'rimMultiplyTexture','outlineWidthMultiplyTexture','uvAnimationMaskTexture',
 ]);
+
+const OUTFIT_SWITCH_START='atlas:outfit-switch-start';
+const OUTFIT_SWITCH_END='atlas:outfit-switch-end';
+
+const collectMeshTextures=(root:T.Object3D)=>{
+ const textures=new Set<T.Texture>();
+ root.traverseVisible(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  for(const mat of mats){
+   const m=mat as T.MeshStandardMaterial & {uniforms?:MToonUniforms;isMToonMaterial?:boolean};
+   if(m.map)textures.add(m.map);
+   if(m.normalMap)textures.add(m.normalMap);
+   if(m.emissiveMap)textures.add(m.emissiveMap);
+   const uni=m.uniforms;
+   if(uni)for(const key of MTOON_TEXTURE_UNIFORM_KEYS){
+    const tex=uni[key]?.value;
+    if(tex&&typeof tex==='object'&&'isTexture' in (tex as object))textures.add(tex as T.Texture);
+   }
+  }
+ });
+ return [...textures];
+};
 
 /**
  * Unmask Body_00_SKIN under hidden Tops／Bottoms, then paint teal bra＋shorts into the
@@ -876,7 +899,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   let lastFrame=performance.now();
   let modelVisibleMarked=false;
   let pendingOutfitId:OutfitId|null=null;
-  let outfitSwitchMark: string | null = null;
+  let downloadComplete=false;
 
   const reportProgress=(percent:number,step:AtlasLoadProgress['step'],extra?:string)=>{
    const stepLabel=extra??LOAD_STEP_LABELS[step];
@@ -889,10 +912,13 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    characterRoot.updateMatrixWorld(true);
    if(ready)teaching.applyCachedAnchors();
    dirty=true;
-   if(outfitSwitchMark){
-    performance.mark('atlas:outfit-switch-end');
-    try{performance.measure('atlas:outfit-switch',outfitSwitchMark,'atlas:outfit-switch-end');}catch{/* duplicate */}
-    outfitSwitchMark=null;
+   if(performance.getEntriesByName(OUTFIT_SWITCH_START,'mark').length){
+    performance.mark(OUTFIT_SWITCH_END);
+    try{
+     performance.measure('atlas:outfit-switch',OUTFIT_SWITCH_START,OUTFIT_SWITCH_END);
+    }catch{/* duplicate */}
+    performance.clearMarks(OUTFIT_SWITCH_START);
+    performance.clearMarks(OUTFIT_SWITCH_END);
    }
   };
 
@@ -916,23 +942,29 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const schedulePracticeWarm=()=>{
    if(practiceBuilt||practiceWarm||!practiceShell||disposed)return;
    practiceWarm=true;
-   const run=()=>{
+   const run=async()=>{
     if(disposed||practiceBuilt)return;
     buildPracticeOutfit();
-    if(!renderer||disposed)return;
-    renderer.compileAsync(scene,camera).then(()=>{dirty=true;}).catch(()=>{});
-    if(practiceModel)practiceModel.visible=false;
+    if(!renderer||disposed||!practiceModel)return;
+    const restoreSchool=schoolModel?.visible??true;
+    if(schoolModel)schoolModel.visible=false;
+    practiceModel.visible=true;
+    characterRoot.updateMatrixWorld(true);
+    for(const tex of collectMeshTextures(practiceModel))renderer.initTexture(tex);
+    try{
+     await renderer.compileAsync(scene,camera);
+     renderer.render(scene,camera);
+    }catch{/* software WebGL */}
+    practiceModel.visible=false;
+    if(schoolModel)schoolModel.visible=restoreSchool;
+    dirty=true;
     if(pendingOutfitId){const next=pendingOutfitId;pendingOutfitId=null;showOutfit(next);onPracticeOutfitPreparing?.(false);}
    };
-   const idle=(globalThis as {requestIdleCallback?:(cb:()=>void,o?:{timeout:number})=>number}).requestIdleCallback;
-   if(idle)idle(run,{timeout:1200});
-   else setTimeout(run,0);
+   requestAnimationFrame(()=>{void run();});
   };
 
   const setOutfit=(id:OutfitId)=>{
    if(!schoolModel)return;
-   outfitSwitchMark=`atlas:outfit-switch:${performance.now()}`;
-   performance.mark(outfitSwitchMark);
    if(id==='study-body'&&!practiceBuilt){
     pendingOutfitId=id;
     onPracticeOutfitPreparing?.(true);
@@ -974,13 +1006,22 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const isAnimeModel=!!modelUrl?.includes('anime-assistant.glb');
    const cacheAnimeOutfits=avatar.hasOutfits&&isAnimeModel;
    let downloadPct=0;
+   const downloadBytes=isAnimeModel?ANIME_MODEL_GZIP_BYTES||ANIME_MODEL_BYTES:ANIME_MODEL_BYTES;
    const reportDownload=(loaded:number,total:number)=>{
-    const denom=total>0?total:isAnimeModel?ANIME_MODEL_BYTES:0;
+    const denom=total>0?total:downloadBytes;
     if(!denom)return;
+    if(total>0&&loaded>=total){
+     if(!downloadComplete){
+      downloadComplete=true;
+      reportProgress(Math.max(downloadPct,80),'parse');
+      downloadPct=Math.max(downloadPct,80);
+     }
+     return;
+    }
     const pct=Math.min(78,12+Math.round(loaded/denom*66));
     if(pct<=downloadPct)return;
     downloadPct=pct;
-    reportProgress(pct,'download',`下載模型 ${Math.min(100,Math.round(loaded/denom*100))}%`);
+    reportProgress(pct,'download');
    };
    loader.load(publicAssetUrl(modelUrl!),gltf=>{
     if(disposed)return;
@@ -1020,7 +1061,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      ready=true;
      showOutfit(outfitIdRef.current);
      reportProgress(100,'done');
-     fit(latest.current.view);
+     const launchSim=sim.current;
+     if(launchSim.focus>0&&teaching.focus(launchSim,camera,controls,{force:true}))lastFocus=launchSim.focus;
+     else fit(latest.current.view);
      dirty=true;
      performance.mark('atlas:model-visible');
      try{performance.measure('atlas:model-visible','atlas:boot-start','atlas:model-visible');}catch{/* duplicate */}

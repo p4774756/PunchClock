@@ -13,17 +13,24 @@ export function buildSkinRaycastProxies(root: T.Object3D, namePattern: RegExp): 
     if (!namePattern.test(label)) return;
     obj.skeleton.update();
     const geometry = obj.geometry.clone();
+    geometry.morphAttributes = {};
     const position = geometry.attributes.position as T.BufferAttribute;
     for (let i = 0; i < position.count; i++) {
-      obj.applyBoneTransform(i, _v);
+      obj.getVertexPosition(i, _v);
       position.setXYZ(i, _v.x, _v.y, _v.z);
     }
     position.needsUpdate = true;
     geometry.computeBoundingSphere();
     geometry.computeBoundingBox();
+    const proxyMaterials = mats.map(
+      m =>
+        new T.MeshBasicMaterial({
+          side: (m as T.Material & {side?: number}).side ?? T.FrontSide,
+        }),
+    );
     const proxy = new T.Mesh(
       geometry,
-      new T.MeshBasicMaterial({visible: false, side: T.DoubleSide}),
+      proxyMaterials.length === 1 ? proxyMaterials[0] : proxyMaterials,
     );
     proxy.name = `${obj.name || 'skin'}#raycast`;
     proxy.matrixAutoUpdate = false;

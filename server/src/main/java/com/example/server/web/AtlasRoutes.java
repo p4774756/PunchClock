@@ -23,6 +23,7 @@ public final class AtlasRoutes {
     private static final Set<String> APPS = Set.of("tcm-3d");
     private static final Map<String, String> TITLES = Map.of("tcm-3d", "中醫人體");
     private static final Pattern FINGERPRINTED_ASSET = Pattern.compile(".+-[0-9a-zA-Z]{8,}\\.(js|mjs|css)$");
+    private static final Pattern CACHE_BUST_QUERY = Pattern.compile("(?:^|&)v=[^&]+");
     private static final DateTimeFormatter HTTP_DATE = DateTimeFormatter.RFC_1123_DATE_TIME;
 
     public AtlasRoutes() {
@@ -64,30 +65,77 @@ public final class AtlasRoutes {
             ctx.status(404).html(relativePath.isBlank() ? notBuilt(appId) : page("找不到這個檔案"));
             return;
         }
+        String fileName = file.getFileName().toString().toLowerCase(Locale.ROOT);
         long size = Files.size(file);
         FileTime modified = Files.getLastModifiedTime(file);
-        String etag = "\"" + Long.toHexString(size) + "-" + Long.toHexString(modified.toMillis()) + "\"";
+        boolean gzipBody = false;
+        Path bodyPath = file;
+        long bodySize = size;
+
+        if (fileName.endsWith(".glb")) {
+            Path gzPath = Path.of(file.toString() + ".gz");
+            if (Files.isRegularFile(gzPath) && acceptsGzip(ctx)) {
+                gzipBody = true;
+                bodyPath = gzPath;
+                bodySize = Files.size(gzPath);
+            }
+        }
+
+        String etag = etagFor(bodyPath, bodySize, modified, gzipBody);
         String ifNoneMatch = ctx.header("If-None-Match");
         if (matchesEtag(ifNoneMatch, etag)) {
             ctx.status(304);
             ctx.header("ETag", etag);
-            ctx.header("Cache-Control", cacheControl(file));
+            ctx.header("Cache-Control", cacheControl(file, ctx));
+            if (gzipBody) {
+                ctx.header("Vary", "Accept-Encoding");
+            }
             ctx.header("Last-Modified", formatHttpDate(modified.toInstant()));
             return;
         }
 
-        String fileName = file.getFileName().toString().toLowerCase(Locale.ROOT);
         ctx.minSizeForCompression(Integer.MAX_VALUE);
-        ctx.header("Content-Length", Long.toString(size));
+        ctx.header("Content-Length", Long.toString(bodySize));
         ctx.contentType(contentType(file));
         ctx.header("X-Content-Type-Options", "nosniff");
-        ctx.header("Cache-Control", cacheControl(file));
+        ctx.header("Cache-Control", cacheControl(file, ctx));
         ctx.header("ETag", etag);
         ctx.header("Last-Modified", formatHttpDate(modified.toInstant()));
+        if (gzipBody) {
+            ctx.header("Content-Encoding", "gzip");
+            ctx.header("Vary", "Accept-Encoding");
+        }
         if (fileName.endsWith(".glb")) {
             ctx.contentType("model/gltf-binary");
         }
-        ctx.result(Files.newInputStream(file));
+        ctx.result(Files.newInputStream(bodyPath));
+    }
+
+    private static boolean acceptsGzip(Context ctx) {
+        String accept = ctx.header("Accept-Encoding");
+        if (accept == null || accept.isBlank()) {
+            return false;
+        }
+        for (String part : accept.split(",")) {
+            String token = part.trim().toLowerCase(Locale.ROOT);
+            int semi = token.indexOf(';');
+            if (semi >= 0) {
+                token = token.substring(0, semi).trim();
+            }
+            if ("gzip".equals(token)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static String etagFor(Path file, long size, FileTime modified, boolean gzipVariant) {
+        String name = file.getFileName().toString();
+        String tag = Long.toHexString(size) + "-" + Long.toHexString(modified.toMillis());
+        if (gzipVariant || name.endsWith(".gz")) {
+            tag = tag + "-gzip";
+        }
+        return "\"" + tag + "\"";
     }
 
     static boolean matchesEtag(String headerValue, String etag) {
@@ -107,8 +155,8 @@ public final class AtlasRoutes {
         return HTTP_DATE.format(ZonedDateTime.ofInstant(instant, ZoneOffset.UTC));
     }
 
-    /** HTML 短快取；模型與指紋化靜態檔可長快取，重開頁較快。 */
-    static String cacheControl(Path file) {
+    /** HTML 短快取；指紋化靜態檔與帶 ?v= 資源可長快取。 */
+    static String cacheControl(Path file, Context ctx) {
         String name = file.getFileName().toString();
         String lower = name.toLowerCase(Locale.ROOT);
         if (lower.endsWith(".html")) {
@@ -118,16 +166,21 @@ public final class AtlasRoutes {
         if (parent != null && "assets".equals(parent.getFileName().toString()) && FINGERPRINTED_ASSET.matcher(name).matches()) {
             return "public, max-age=31536000, immutable";
         }
+        String query = ctx.queryString();
+        if (query != null && CACHE_BUST_QUERY.matcher(query).find()) {
+            return "public, max-age=31536000, immutable";
+        }
         if (lower.endsWith(".txt") || lower.endsWith(".md")) {
             return "private, max-age=300";
         }
-        if (lower.endsWith(".bin") || lower.endsWith(".gz") || lower.endsWith(".wasm") || lower.endsWith(".glb")
-                || lower.endsWith(".woff2") || lower.endsWith(".png") || lower.endsWith(".jpg")
-                || lower.endsWith(".jpeg") || lower.endsWith(".webp") || lower.endsWith(".svg")) {
+        if (lower.endsWith(".bin") || lower.endsWith(".wasm")) {
             return "public, max-age=31536000, immutable";
         }
         if (lower.endsWith(".js") || lower.endsWith(".mjs") || lower.endsWith(".css")) {
             return "private, max-age=86400";
+        }
+        if (lower.endsWith(".glb") || lower.endsWith(".glb.gz")) {
+            return "public, max-age=86400";
         }
         return "private, max-age=300";
     }

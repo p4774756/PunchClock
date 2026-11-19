@@ -113,6 +113,9 @@ export default function Home(){
  const prepareFocus=()=>setState(s=>({...s,explode:0,rotate:false,isolate:false,selected:[]}));
  const switchOutfit=(id:OutfitId)=>{
   if(id===outfitId||!currentAvatar.hasOutfits)return;
+  performance.clearMarks('atlas:outfit-switch-start');
+  performance.clearMarks('atlas:outfit-switch-end');
+  performance.mark('atlas:outfit-switch-start');
   const next=animeOutfit(id);
   setOutfitId(id);
   setError('');
@@ -199,7 +202,7 @@ export default function Home(){
      <span className="loading-symbol">{error?(<Info size={23}/>):(<Layers3 size={23}/>)}</span>
      <strong>{error?'模型暫未就緒':('正在迎接'+currentAvatar.shortName)}</strong>
      <p>{error||(loadStep||('載入 '+currentOutfit.name+' 與已對應穴位標記。'))}</p>
-     {!error&&<><div className="load-track"><i style={{width:progress+'%'}}/></div><small>{loadStep?`${loadStep} · `:''}{progress}%</small></>}
+     {!error&&<><div className="load-track"><i style={{width:progress+'%'}}/></div><small>{progress}%</small></>}
      {error&&<button className="text-button" onClick={()=>window.location.reload()}>重新加載</button>}
     </div>
    )}

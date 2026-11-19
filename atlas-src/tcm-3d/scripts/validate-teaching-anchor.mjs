@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-/** Anchor path must use baked skin proxies, not SkinnedMesh raycast; spot-check proxy hits. */
+/** Anchor path must use baked skin proxies; CI spot-check proxy vs SkinnedMesh ≤2 mm. */
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import * as T from 'three';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
+import {buildSkinRaycastProxies} from '../app/skin-raycast-proxy.ts';
 
 globalThis.self = globalThis;
 globalThis.URL = URL;
@@ -22,32 +23,51 @@ assert.match(overlaySrc, /buildSkinRaycastProxies/, 'teaching overlay must bake 
 assert.match(overlaySrc, /applyCachedAnchors/, 'teaching overlay must cache anchor snapshot');
 assert.doesNotMatch(overlaySrc, /intersectObjects\(skinMeshes/, 'must not raycast SkinnedMesh for anchors');
 assert.doesNotMatch(sceneSrc, /teaching\.reanchor/, 'outfit switch must not re-snap with raycast');
+assert.match(sceneSrc, /focus\(launchSim,camera,controls,\{force:true\}\)/, 'deep-link load must re-apply focus after compile');
 
-const _v = new T.Vector3();
 const SKIN = /Face_00_SKIN|Body_00_SKIN|FaceMouth/i;
-function buildSkinRaycastProxies(root) {
-  const proxies = [];
-  root.updateMatrixWorld(true);
-  root.traverse(obj => {
-    if (!(obj instanceof T.SkinnedMesh)) return;
-    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-    const label = `${mats.map(m => m?.name || '').join(' ')} ${obj.name || ''}`;
-    if (!SKIN.test(label)) return;
-    obj.skeleton.update();
-    const geometry = obj.geometry.clone();
-    const position = geometry.attributes.position;
-    for (let i = 0; i < position.count; i++) {
-      obj.applyBoneTransform(i, _v);
-      position.setXYZ(i, _v.x, _v.y, _v.z);
+
+function stripGlbForNode(buffer) {
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  if (view.getUint32(0, true) !== 0x46546c67) throw new Error('not GLB');
+  const jsonLen = view.getUint32(12, true);
+  const json = JSON.parse(new TextDecoder().decode(buffer.subarray(20, 20 + jsonLen)));
+  json.images = [];
+  json.textures = [];
+  json.samplers = [];
+  const dropTextures = obj => {
+    if (!obj || typeof obj !== 'object') return;
+    for (const key of [...Object.keys(obj)]) {
+      if (/Texture$/i.test(key) || key === 'normalTexture' || key === 'occlusionTexture' || key === 'emissiveTexture') {
+        delete obj[key];
+        continue;
+      }
+      const val = obj[key];
+      if (val && typeof val === 'object') dropTextures(val);
     }
-    position.needsUpdate = true;
-    const proxy = new T.Mesh(geometry, new T.MeshBasicMaterial({side: T.DoubleSide}));
-    proxy.matrixAutoUpdate = false;
-    proxy.matrix.copy(obj.matrix);
-    proxy.matrixWorld.copy(obj.matrixWorld);
-    proxies.push(proxy);
-  });
-  return proxies;
+  };
+  for (const mat of json.materials ?? []) dropTextures(mat);
+  if (json.extensions?.VRM) dropTextures(json.extensions.VRM);
+  const jsonBuf = Buffer.from(JSON.stringify(json));
+  const jsonPad = (4 - (jsonBuf.length % 4)) % 4;
+  const binStart = 20 + jsonLen;
+  const binLen = view.getUint32(binStart, true);
+  const bin = buffer.subarray(binStart + 8, binStart + 8 + binLen);
+  const binPad = (4 - (bin.length % 4)) % 4;
+  const total = 12 + 8 + jsonBuf.length + jsonPad + 8 + bin.length + binPad;
+  const out = Buffer.alloc(total);
+  let o = 0;
+  out.writeUInt32LE(0x46546c67, o); o += 4;
+  out.writeUInt32LE(2, o); o += 4;
+  out.writeUInt32LE(total, o); o += 4;
+  out.writeUInt32LE(jsonBuf.length + jsonPad, o); o += 4;
+  out.writeUInt32LE(0x4e4f534a, o); o += 4;
+  jsonBuf.copy(out, o); o += jsonBuf.length;
+  if (jsonPad) out.fill(0x20, o, o + jsonPad), o += jsonPad;
+  out.writeUInt32LE(bin.length + binPad, o); o += 4;
+  out.writeUInt32LE(0x004e4942, o); o += 4;
+  bin.copy(out, o);
+  return out;
 }
 
 function snapDot(targets, seed) {
@@ -68,13 +88,24 @@ function snapDot(targets, seed) {
 }
 
 const animePoints = JSON.parse(readFileSync(join(rootDir, 'app/anime-points.json'), 'utf8'));
-const buffer = readFileSync(join(rootDir, 'public/models/anime-assistant.glb')).buffer;
-const gltf = await new Promise((res, rej) => new GLTFLoader().parse(buffer, '', res, rej));
-const proxies = buildSkinRaycastProxies(gltf.scene);
+const stripped = stripGlbForNode(readFileSync(join(rootDir, 'public/models/anime-assistant.glb')));
+const gltf = await new Promise((res, rej) => new GLTFLoader().parse(stripped.buffer, '', res, rej));
+gltf.scene.updateMatrixWorld(true);
+const skinMeshes = [];
+gltf.scene.traverse(obj => {
+  if (!(obj instanceof T.SkinnedMesh)) return;
+  const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+  const label = `${mats.map(m => m?.name || '').join(' ')} ${obj.name || ''}`;
+  if (!SKIN.test(label)) return;
+  obj.skeleton.update();
+  skinMeshes.push(obj);
+});
+const proxies = buildSkinRaycastProxies(gltf.scene, SKIN);
 assert.ok(proxies.length >= 2, 'expected skin raycast proxies');
+assert.ok(skinMeshes.length >= 2, 'expected skin SkinnedMeshes');
 
-let tried = 0;
-let ok = 0;
+let compared = 0;
+let matched = 0;
 const maxDelta = 0.002;
 for (const point of animePoints.points) {
   for (const side of point.midline ? [1] : [1, -1]) {
@@ -82,17 +113,14 @@ for (const point of animePoints.points) {
       position: [point.midline ? 0 : -point.position[0] * side, point.position[1], point.position[2]],
       normal: [point.midline ? point.normal[0] : -point.normal[0] * side, point.normal[1], point.normal[2]],
     };
-    const hit = snapDot(proxies, seed);
-    if (!hit) continue;
-    tried += 1;
-    const baked = new T.Vector3().fromArray(point.position);
-    if (!point.midline) baked.x *= -side;
-    if (hit.point.distanceTo(baked) <= maxDelta) ok += 1;
+    const skinHit = snapDot(skinMeshes, seed);
+    const proxyHit = snapDot(proxies, seed);
+    assert.ok(skinHit, `skin raycast must hit ${point.code}${point.midline ? '' : side > 0 ? ' L' : ' R'}`);
+    assert.ok(proxyHit, `proxy raycast must hit ${point.code}`);
+    compared += 1;
+    if (proxyHit.point.distanceTo(skinHit.point) <= maxDelta) matched += 1;
   }
 }
-if (tried >= 20) {
-  assert.ok(ok / tried >= 0.85, `only ${ok}/${tried} proxy hits within 2 mm`);
-  console.log(`teaching anchor spot-check ok (${ok}/${tried} within 2 mm).`);
-} else {
-  console.log(`teaching anchor static guards ok (runtime spot-check skipped, hits=${tried}).`);
-}
+assert.ok(compared >= 80, `expected spot-checks, got ${compared}`);
+assert.equal(matched, compared, `${matched}/${compared} proxy vs skin hits exceed 2 mm`);
+console.log(`teaching anchor spot-check ok (${compared} proxy vs skin ≤2 mm).`);
