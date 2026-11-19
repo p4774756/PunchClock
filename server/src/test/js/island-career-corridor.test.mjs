@@ -17,6 +17,7 @@ const {
   pickWhitelistFields,
   assertCorridorNavigable,
   assertExhibitLayout,
+  assertZoneSignLayout,
   careerCardEscapeShouldClose
 } = await loadPublicModule('island-career-corridor-logic.js');
 
@@ -136,6 +137,11 @@ test('走廊可走且研發樓門口仍可站', () => {
 test('展件與門口、彼此間距符合約束', () => {
   const layout = assertExhibitLayout();
   assert.equal(layout.ok, true, JSON.stringify(layout));
+});
+
+test('時期主題牌位於前庭朝南、不貼研發樓前門牆', () => {
+  const signs = assertZoneSignLayout();
+  assert.equal(signs.ok, true, JSON.stringify(signs));
 });
 
 test('僅 PunchClock 卡顯示進入研發樓鈕（hidden 時應關閉）', () => {

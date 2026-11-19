@@ -105,23 +105,24 @@ function buildPhaseSigns(rootGroup, kit) {
   const { addBox, addMesh, paint } = kit;
   for (let i = 0; i < CAREER_ZONE_SIGNS.length; i++) {
     const sign = CAREER_ZONE_SIGNS[i];
-    const map = paint(280, 88, (g, w, h) => {
+    const map = paint(320, 104, (g, w, h) => {
       g.fillStyle = '#f3f6f9';
       g.fillRect(0, 0, w, h);
       g.fillStyle = '#1a2838';
-      g.font = '700 22px sans-serif';
+      g.font = '700 24px sans-serif';
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.fillText(sign.phase, w / 2, h * 0.38);
-      g.font = '600 18px sans-serif';
+      g.font = '600 20px sans-serif';
       g.fillStyle = '#3a5068';
       g.fillText(sign.years, w / 2, h * 0.68);
     });
     const g = new THREE.Group();
     g.position.set(sign.x, G, sign.z);
     g.rotation.y = sign.yaw || 0;
-    addBox(g, 0.52, 0.72, 0.06, 0x8a9aaa, 0, 0.36, 0, { shadow: false });
-    addMesh(g, new THREE.PlaneGeometry(0.46, 0.22), 0xffffff, 0, 0.68, 0.035, {
+    const faceZ = sign.yaw > Math.PI * 0.5 ? -0.04 : 0.04;
+    addBox(g, 0.58, 0.88, 0.06, 0x8a9aaa, 0, 0.42, 0, { shadow: false });
+    addMesh(g, new THREE.PlaneGeometry(0.52, 0.28), 0xffffff, 0, 0.78, faceZ, {
       map,
       side: THREE.DoubleSide,
       shadow: false

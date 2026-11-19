@@ -2,6 +2,7 @@ import { buildingById } from './island-layout.js';
 import {
   CAREER_EXHIBIT_LAYOUT,
   CAREER_WALK_SAMPLES,
+  CAREER_ZONE_SIGNS,
   CAREER_PROMPT_LABEL
 } from './island-career-corridor-data.js';
 
@@ -185,6 +186,9 @@ export function assertCorridorNavigable(walkable, blocked, radius) {
 }
 
 export const LAB_DOOR_STAND = Object.freeze({ x: 0.45, z: 16.17 });
+export const LAB_FRONT_WALL_Z = 16.95;
+export const MAX_ZONE_SIGN_Z = 16.7;
+export const ZONE_SIGN_SOUTH_YAW = Math.PI;
 export const MIN_EXHIBIT_DOOR_GAP = 1.35;
 export const MIN_EXHIBIT_CENTER_GAP = 0.85;
 export function careerCardEscapeShouldClose(cardVisible, key) {
@@ -209,6 +213,27 @@ export function assertExhibitLayout(door) {
       if (g < need - 1e-6) {
         return { ok: false, reason: 'pair-gap', a: ra.id, b: rb.id, gap: g };
       }
+    }
+  }
+  return { ok: true };
+}
+
+export function assertZoneSignLayout() {
+  const door = LAB_DOOR_STAND;
+  for (let i = 0; i < CAREER_ZONE_SIGNS.length; i++) {
+    const s = CAREER_ZONE_SIGNS[i];
+    if (s.z > MAX_ZONE_SIGN_Z + 1e-6) {
+      return { ok: false, reason: 'sign-z', i, z: s.z };
+    }
+    if (s.z >= LAB_FRONT_WALL_Z - 0.2) {
+      return { ok: false, reason: 'sign-past-wall', i, z: s.z };
+    }
+    const gap = Math.hypot(s.x - door.x, s.z - door.z);
+    if (gap < MIN_EXHIBIT_DOOR_GAP - 1e-6) {
+      return { ok: false, reason: 'sign-door-gap', i, gap };
+    }
+    if (Math.abs(s.yaw - ZONE_SIGN_SOUTH_YAW) > 0.15) {
+      return { ok: false, reason: 'sign-yaw', i, yaw: s.yaw };
     }
   }
   return { ok: true };

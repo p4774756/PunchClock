@@ -8,8 +8,8 @@ export const CAREER_EXHIBIT_LAYOUT = Object.freeze([
 ]);
 
 export const CAREER_ZONE_SIGNS = Object.freeze([
-  { phase: '韌體時期', years: '2013–2022', x: -1.72, z: 17.08, yaw: 0.12 },
-  { phase: '純軟體時期', years: '2022–至今', x: 1.62, z: 17.05, yaw: -0.1 }
+  { phase: '韌體時期', years: '2013–2022', x: -1.78, z: 16.65, yaw: Math.PI },
+  { phase: '純軟體時期', years: '2022–至今', x: 1.92, z: 16.65, yaw: Math.PI }
 ]);
 
 /** 走廊採樣點：驗證可走（半徑 0.29）。 */
