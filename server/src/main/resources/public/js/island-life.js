@@ -1,4 +1,4 @@
-// 海面與天空裝飾生物（#162）：可測試純邏輯 + Three.js 場景掛載。
+// 海面與天空裝飾生物（#162 / #199）：可測試純邏輯 + Three.js 場景掛載。
 import {
   walkable,
   ISLANDS,
@@ -30,6 +30,7 @@ export const LIFE_CREATURE_KINDS = Object.freeze([
   'xuanwu',
   'seaSerpent',
   'birds',
+  'qingniao',
   'kunpeng',
   'kitsune',
   'phoenix',
@@ -37,6 +38,68 @@ export const LIFE_CREATURE_KINDS = Object.freeze([
   'bifang',
   'chenghuang'
 ]);
+
+/** 概念圖 12 種：Blender GLB（#199） */
+export const LIFE_GLB_KINDS = Object.freeze([
+  'fishSchool',
+  'whale',
+  'octopus',
+  'wenyao',
+  'chiru',
+  'xuanwu',
+  'seaSerpent',
+  'birds',
+  'qingniao',
+  'phoenix',
+  'wyvern',
+  'kunpeng'
+]);
+
+/** #162 舊種：保留生成邏輯，預設縮小隱藏（#199） */
+export const LIFE_LEGACY_HIDDEN_KINDS = Object.freeze([
+  'mermaid',
+  'seaDragon',
+  'jellyfish',
+  'kitsune',
+  'bifang',
+  'chenghuang'
+]);
+
+const LIFE_GLB_FILES = Object.freeze({
+  fishSchool: 'fish.glb',
+  whale: 'whale.glb',
+  octopus: 'octopus.glb',
+  wenyao: 'wenyao.glb',
+  chiru: 'chiru.glb',
+  xuanwu: 'xuanwu.glb',
+  seaSerpent: 'sea-serpent.glb',
+  birds: 'seagull.glb',
+  qingniao: 'qingniao.glb',
+  phoenix: 'phoenix.glb',
+  wyvern: 'wyvern.glb',
+  kunpeng: 'kunpeng.glb'
+});
+
+const LIFE_GLB_SCALE = Object.freeze({
+  fishSchool: 2.4,
+  whale: 5.2,
+  octopus: 2.6,
+  wenyao: 2.2,
+  chiru: 2.8,
+  xuanwu: 3.6,
+  seaSerpent: 3.0,
+  birds: 2.8,
+  qingniao: 2.6,
+  phoenix: 2.8,
+  wyvern: 3.2,
+  kunpeng: 4.6
+});
+
+export function lifeModelPath(kind) {
+  const file = LIFE_GLB_FILES[kind];
+  if (!file) return null;
+  return '/models/life/' + file;
+}
 
 const COMMON_KINDS = Object.freeze(['fishSchool', 'birds', 'octopus']);
 const NIGHT_GLOW_KINDS = Object.freeze(['jellyfish', 'phoenix']);
@@ -48,6 +111,7 @@ const RARE_KINDS = Object.freeze([
   'chiru',
   'xuanwu',
   'seaSerpent',
+  'qingniao',
   'kunpeng',
   'kitsune',
   'wyvern',
@@ -74,6 +138,7 @@ export function lifePlacementAnchors() {
     Object.freeze({ kind: 'seaSerpent', x: 32.0, z: -14.0, realm: 'sea' }),
     Object.freeze({ kind: 'birds', x: -10.0, z: 13.5, radius: 5.5, realm: 'sky' }),
     Object.freeze({ kind: 'birds', x: 23.0, z: -14.5, radius: 4.8, realm: 'sky' }),
+    Object.freeze({ kind: 'qingniao', x: -6.0, z: 18.5, realm: 'sky' }),
     Object.freeze({ kind: 'kunpeng', x: 28.0, z: 18.0, realm: 'sky' }),
     Object.freeze({ kind: 'kitsune', x: -18.0, z: 16.0, realm: 'sky' }),
     Object.freeze({ kind: 'phoenix', x: -11.5, z: -26.0, realm: 'sky' }),
@@ -223,6 +288,151 @@ export function lifeUpdateTick(reduced, dt, elapsed) {
 
 function addDisposable(list, item) {
   if (item) list.push(item);
+}
+
+let lifeGltfLoader = null;
+const lifeGlbCache = new Map();
+
+async function getLifeLoader() {
+  if (!lifeGltfLoader) {
+    const mod = await import('three/addons/loaders/GLTFLoader.js');
+    lifeGltfLoader = new mod.GLTFLoader();
+  }
+  return lifeGltfLoader;
+}
+
+function fetchLifeGlb(url) {
+  if (lifeGlbCache.has(url)) return lifeGlbCache.get(url);
+  const promise = getLifeLoader().then((loader) => new Promise((resolve, reject) => {
+    loader.load(url, resolve, undefined, reject);
+  }));
+  lifeGlbCache.set(url, promise);
+  return promise;
+}
+
+function forEachMesh(root, fn) {
+  root.traverse((child) => {
+    if (child.isMesh || child.type === 'Mesh') fn(child);
+  });
+}
+
+function flattenMaterials(THREE, root, kit) {
+  forEachMesh(root, (mesh) => {
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    const old = mesh.material;
+    const color = old && old.color ? old.color.getHex() : 0xffffff;
+    if (kit && kit.mat) {
+      mesh.material = kit.mat(color, { shadow: false, flatShading: true });
+    } else {
+      mesh.material = new THREE.MeshLambertMaterial({
+        color: color,
+        flatShading: true
+      });
+    }
+    if (old && typeof old.dispose === 'function') old.dispose();
+  });
+}
+
+function prepSkinnedRoot(THREE, gltf, scale) {
+  const root = gltf.scene;
+  root.scale.setScalar(scale || 1);
+  root.rotation.x = 0;
+  root.traverse((o) => {
+    o.frustumCulled = true;
+  });
+  let mixer = null;
+  if (gltf.animations && gltf.animations.length > 0 && THREE.AnimationMixer) {
+    mixer = new THREE.AnimationMixer(root);
+    const action = mixer.clipAction(gltf.animations[0]);
+    action.play();
+  }
+  return { root: root, mixer: mixer };
+}
+
+function firstMeshPair(root) {
+  let geometry = null;
+  let material = null;
+  forEachMesh(root, (mesh) => {
+    if (!geometry && mesh.geometry) {
+      geometry = mesh.geometry;
+      material = mesh.material;
+    }
+  });
+  return { geometry: geometry, material: material };
+}
+
+function buildFishSchoolInstanced(THREE, kit, anchor, fishRoot) {
+  const group = new THREE.Group();
+  group.userData.kind = 'fishSchool';
+  group.userData.anchor = anchor;
+  const pair = firstMeshPair(fishRoot);
+  if (!pair.geometry) return group;
+  const count = 16;
+  const mesh = new THREE.InstancedMesh(pair.geometry, pair.material, count);
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  const dummy = new THREE.Object3D();
+  const cols = [0, 1, 2];
+  for (let i = 0; i < count; i++) {
+    dummy.position.set(
+      (i % 4) * 0.42 - 0.63,
+      (i % 3) * 0.12,
+      (Math.floor(i / 4) % 3) * 0.35 - 0.35
+    );
+    dummy.rotation.set(0, (i % 5) * 0.4, 0);
+    dummy.scale.setScalar(0.85 + (i % 4) * 0.12);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  group.add(mesh);
+  group.position.set(anchor.x, LIFE_SEA_Y - 0.08, anchor.z);
+  return group;
+}
+
+function buildBirdsInstanced(THREE, kit, anchor, gullRoot) {
+  const group = new THREE.Group();
+  group.userData.kind = 'birds';
+  group.userData.anchor = anchor;
+  const pair = firstMeshPair(gullRoot);
+  if (!pair.geometry) return group;
+  const count = 10;
+  const mesh = new THREE.InstancedMesh(pair.geometry, pair.material, count);
+  mesh.castShadow = false;
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < count; i++) {
+    dummy.position.set(
+      (i % 5) * 0.65 - 1.3,
+      (i % 2) * 0.55 + 0.1,
+      (Math.floor(i / 5)) * 0.9 - 0.45
+    );
+    dummy.rotation.set(0, (i % 4) * 0.35, 0);
+    dummy.scale.setScalar(0.9 + (i % 3) * 0.15);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  group.add(mesh);
+  group.position.set(anchor.x, LIFE_SKY_BASE + 2.5, anchor.z);
+  return group;
+}
+
+function mountGlbCreature(THREE, kit, anchor, kind, disposables, mixers) {
+  const group = new THREE.Group();
+  group.userData.kind = kind;
+  group.userData.anchor = anchor;
+  const scale = LIFE_GLB_SCALE[kind] || 2;
+  if (kind === 'phoenix') group.userData.glowKind = true;
+  const realm = anchor.realm || 'sea';
+  if (realm === 'sea') {
+    group.position.set(anchor.x, LIFE_SEA_Y, anchor.z);
+  } else {
+    group.position.set(anchor.x, LIFE_SKY_BASE + (kind === 'kunpeng' ? 12 : 6), anchor.z);
+  }
+  group.userData.glbMount = true;
+  group.userData.glbScale = scale;
+  return group;
 }
 
 function emissiveMat(THREE, kit, color, glow, parent) {
@@ -500,6 +710,88 @@ function buildChenghuang(THREE, kit, anchor) {
   return group;
 }
 
+function buildQingniao(THREE, kit, anchor) {
+  const group = new THREE.Group();
+  group.userData.kind = 'qingniao';
+  if (kit) {
+    kit.addMesh(group, kit.geo('sph', [0.16, 6, 5]), 0x48b8f0, 0, 0, 0, { shadow: false });
+    kit.addMesh(group, kit.geo('cone', [0.06, 0.35, 4]), 0x88d8ff, -0.28, 0.05, 0, { shadow: false, rot: [0.15, 0, 0] });
+    kit.addMesh(group, kit.geo('box', [0.22, 0.05, 0.12]), 0x58c8f0, 0.1, 0.08, 0.08, { shadow: false });
+    kit.addMesh(group, kit.geo('box', [0.22, 0.05, 0.12]), 0x58c8f0, 0.1, -0.08, 0.08, { shadow: false });
+  }
+  group.position.set(anchor.x, LIFE_SKY_BASE + 6.5, anchor.z);
+  return group;
+}
+
+async function hydrateLifeGlbModels(THREE, kit, creatures, mixers) {
+  const shared = {};
+  for (let i = 0; i < 2; i++) {
+    const kind = i === 0 ? 'fishSchool' : 'birds';
+    const url = lifeModelPath(kind);
+    if (!url) continue;
+    try {
+      const gltf = await fetchLifeGlb(url);
+      const prep = prepSkinnedRoot(THREE, gltf, LIFE_GLB_SCALE[kind]);
+      flattenMaterials(THREE, prep.root, kit);
+      shared[kind] = prep.root;
+    } catch (err) {
+      console.warn('life glb shared', kind, err);
+    }
+  }
+
+  const solo = {};
+  const soloKinds = LIFE_GLB_KINDS.filter((k) => k !== 'fishSchool' && k !== 'birds');
+  await Promise.all(soloKinds.map(async (kind) => {
+    const url = lifeModelPath(kind);
+    if (!url) return;
+    try {
+      const gltf = await fetchLifeGlb(url);
+      solo[kind] = prepSkinnedRoot(THREE, gltf, LIFE_GLB_SCALE[kind]);
+    } catch (err) {
+      console.warn('life glb', kind, err);
+    }
+  }));
+
+  for (let c = 0; c < creatures.length; c++) {
+    const node = creatures[c];
+    if (!node.userData.glbMount) continue;
+    const kind = node.userData.kind;
+    const anchor = node.userData.anchor;
+
+    if (kind === 'fishSchool' && shared.fishSchool) {
+      const school = buildFishSchoolInstanced(THREE, kit, anchor, shared.fishSchool);
+      node.position.copy(school.position);
+      for (let ch = 0; ch < school.children.length; ch++) {
+        node.add(school.children[ch]);
+      }
+      continue;
+    }
+    if (kind === 'birds' && shared.birds) {
+      const flock = buildBirdsInstanced(THREE, kit, anchor, shared.birds);
+      node.position.copy(flock.position);
+      for (let ch = 0; ch < flock.children.length; ch++) {
+        node.add(flock.children[ch]);
+      }
+      continue;
+    }
+
+    const prep = solo[kind];
+    if (!prep) continue;
+    flattenMaterials(THREE, prep.root, kit);
+    node.add(prep.root);
+    if (prep.mixer) mixers.push({ mixer: prep.mixer, root: prep.root });
+    if (kind === 'whale') {
+      let spray = null;
+      prep.root.traverse((child) => {
+        if (spray || !child.isMesh) return;
+        if (child.position.y > 0.7) spray = child;
+      });
+      node.userData.spray = spray;
+    }
+    if (kind === 'phoenix') node.userData.glowKind = true;
+  }
+}
+
 const BUILDERS = {
   fishSchool: buildFishSchool,
   whale: buildWhale,
@@ -512,6 +804,7 @@ const BUILDERS = {
   xuanwu: buildXuanwu,
   seaSerpent: buildSeaSerpent,
   birds: buildBirds,
+  qingniao: buildQingniao,
   kunpeng: buildKunpeng,
   kitsune: buildKitsune,
   phoenix: buildPhoenix,
@@ -526,8 +819,10 @@ export function createIslandLife(THREE, opts) {
   let lowQuality = !!(opts && opts.lowQuality);
   const forceAll = !!(opts && opts.forceAll);
   const forceRare = opts && opts.forceRare ? String(opts.forceRare) : '';
+  const useGlb = !(opts && opts.procedural);
   const disposables = [];
   const creatures = [];
+  const mixers = [];
 
   const group = new THREE.Group();
   group.name = 'islandLife';
@@ -535,18 +830,32 @@ export function createIslandLife(THREE, opts) {
   const anchors = lifePlacementAnchors();
   for (let i = 0; i < anchors.length; i++) {
     const anchor = anchors[i];
-    const build = BUILDERS[anchor.kind];
-    if (!build) continue;
-    const obj = build(THREE, kit, anchor, disposables);
+    const kind = anchor.kind;
+    let obj;
+    if (useGlb && LIFE_GLB_KINDS.includes(kind)) {
+      obj = mountGlbCreature(THREE, kit, anchor, kind, disposables, mixers);
+    } else {
+      const build = BUILDERS[kind];
+      if (!build) continue;
+      obj = build(THREE, kit, anchor, disposables);
+    }
     obj.userData.anchor = anchor;
     obj.castShadow = false;
     obj.receiveShadow = false;
+    if (LIFE_LEGACY_HIDDEN_KINDS.includes(kind)) {
+      obj.scale.setScalar(0.001);
+      obj.userData.legacyHidden = true;
+    }
     creatures.push(obj);
     group.add(obj);
   }
 
   let mixValue = 0;
   let disposed = false;
+  let ready = Promise.resolve();
+  if (useGlb) {
+    ready = hydrateLifeGlbModels(THREE, kit, creatures, mixers);
+  }
 
   function applyVisibility(elapsed) {
     const budget = lifeInstanceBudget(reduced, lowQuality);
@@ -559,6 +868,7 @@ export function createIslandLife(THREE, opts) {
         forceAll: forceAll,
         forceRare: forceRare || null
       });
+      if (node.userData.legacyHidden && !forceAll) visible = false;
       if (kind === 'fishSchool') {
         if (visible) {
           schoolCount += 1;
@@ -611,6 +921,12 @@ export function createIslandLife(THREE, opts) {
     applyGlow();
     if (!tick.animate) return;
 
+    const animDt = tick.dt || 0;
+    for (let m = 0; m < mixers.length; m++) {
+      const entry = mixers[m];
+      if (entry.mixer) entry.mixer.update(animDt);
+    }
+
     for (let c = 0; c < creatures.length; c++) {
       const node = creatures[c];
       if (!node.visible) continue;
@@ -626,9 +942,6 @@ export function createIslandLife(THREE, opts) {
         const pos = sampleFishSchool(anchor, tick.elapsed * 0.55, false);
         node.position.set(pos.x, LIFE_SKY_BASE + 2.8 + Math.sin(tick.elapsed * 0.4) * 0.35, pos.z);
         node.rotation.y = pos.yaw;
-        node.children.forEach((bird, bi) => {
-          bird.rotation.z = Math.sin(tick.elapsed * 3.5 + bi) * 0.25;
-        });
       } else if (kind === 'octopus') {
         node.rotation.y = Math.sin(tick.elapsed * 0.25) * 0.15;
       } else if (kind === 'whale') {
@@ -661,6 +974,11 @@ export function createIslandLife(THREE, opts) {
       } else if (kind === 'bifang') {
         node.position.x = anchor.x + Math.sin(tick.elapsed * 0.18) * 6;
         node.position.z = anchor.z + Math.cos(tick.elapsed * 0.15) * 4;
+      } else if (kind === 'qingniao') {
+        node.position.x = anchor.x + Math.sin(tick.elapsed * 0.14) * 3.5;
+        node.position.z = anchor.z + Math.cos(tick.elapsed * 0.12) * 2.5;
+        node.position.y = LIFE_SKY_BASE + 6.5 + Math.sin(tick.elapsed * 0.35) * 0.45;
+        node.rotation.y = tick.elapsed * 0.08;
       } else if (kind === 'kunpeng') {
         node.position.x = anchor.x + Math.sin(tick.elapsed * 0.04) * 3;
         node.rotation.y = tick.elapsed * 0.05;
@@ -697,6 +1015,11 @@ export function createIslandLife(THREE, opts) {
     }
     disposables.length = 0;
     creatures.length = 0;
+    for (let m = 0; m < mixers.length; m++) {
+      const entry = mixers[m];
+      if (entry.mixer && entry.mixer.stopAllAction) entry.mixer.stopAllAction();
+    }
+    mixers.length = 0;
   }
 
   applyVisibility(0);
@@ -709,6 +1032,7 @@ export function createIslandLife(THREE, opts) {
     setMix,
     setLowQuality,
     setVisible,
-    dispose
+    dispose,
+    ready
   };
 }
