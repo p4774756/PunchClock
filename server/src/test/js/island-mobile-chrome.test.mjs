@@ -245,9 +245,10 @@ test('非探索：島嶼頁隱藏品牌卡、選單底有版本行', () => {
   assert.match(islandCss, /\.island-more-build/);
 });
 
-test('玩家卡與右上圓鈕列不相交（360／390／412／1280）', () => {
+test('玩家卡與右上圓鈕列不相交（360／375／390／412／1280）', () => {
   const cases = [
     [360, 780, false],
+    [375, 812, false],
     [390, 844, false],
     [412, 915, false],
     [1280, 720, false],
@@ -255,12 +256,17 @@ test('玩家卡與右上圓鈕列不相交（360／390／412／1280）', () => {
     [1280, 720, true]
   ];
   for (const [width, height, exploring] of cases) {
-    const tr = Corner.hudTopRightRect(width, height, exploring);
-    const player = width <= Corner.MOBILE_MAX_WIDTH
-      ? Corner.hudPlayerRectMobile(width, height)
+    const mobile = width <= Corner.MOBILE_MAX_WIDTH;
+    const showAudio = mobile ? true : !!exploring;
+    const tr = Corner.hudTopRightRect(width, height, showAudio);
+    const player = mobile
+      ? Corner.hudPlayerRectMobile(width, height, showAudio)
       : Corner.hudPlayerRectDesktop(width, height);
     assert.ok(!Corner.rectsIntersect(player, tr), `${width}×${height} 玩家卡與右上 HUD 不重疊`);
-    assert.ok(player.right <= tr.left + 0.5 || tr.right <= player.left, `${width}×${height} 玩家卡右緣在圓鈕列左側`);
+    assert.ok(
+      player.right <= tr.left - Corner.HUD_PLAYER_TR_GAP + 0.5,
+      `${width}×${height} 玩家卡右緣與圓鈕列至少 ${Corner.HUD_PLAYER_TR_GAP}px 空隙`
+    );
   }
 });
 

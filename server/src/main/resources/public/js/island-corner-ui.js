@@ -4,7 +4,10 @@ export const MOBILE_MAX_WIDTH = 760;
 const REM = 16;
 export const ORB_SIZE = 2.85 * REM;
 export const ORB_GAP = 0.4 * REM;
+export const ORB_TR_GAP_MOBILE = 0.28 * REM;
+export const HUD_PLAYER_TR_GAP = 0.375 * REM;
 const HUD_MARGIN = 0.55 * REM;
+const HUD_PLAYER_MAX_W_MOBILE = 10.5 * REM;
 
 const AUDIO_ON_SVG =
   '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" d="M5 10v4h3l4.5 3V7L8 10H5z"/><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M17 9.5v5"/></svg>';
@@ -31,15 +34,15 @@ function orbRowCount(showAudio) {
 }
 
 export function hudTopRightRect(viewportWidth, viewportHeight, showAudio) {
+  void viewportHeight;
   const margin = hudMargin(viewportWidth);
+  const narrow = viewportWidth <= MOBILE_MAX_WIDTH;
+  const trGap = narrow ? ORB_TR_GAP_MOBILE : ORB_GAP;
   const orbs = orbRowCount(showAudio);
-  const dayNightBlock = ORB_SIZE;
-  const audioW = showAudio ? ORB_SIZE + ORB_GAP : 0;
-  const chatMenuW = ORB_SIZE * 2 + ORB_GAP;
-  const totalW = dayNightBlock + audioW + chatMenuW;
+  const totalW = orbs * ORB_SIZE + Math.max(0, orbs - 1) * trGap;
   const right = viewportWidth - margin;
   const left = right - totalW;
-  const top = (viewportWidth <= MOBILE_MAX_WIDTH ? 0.55 : 3.6) * REM;
+  const top = (narrow ? 0.55 : 3.6) * REM;
   const bottom = top + ORB_SIZE + 1.05 * REM;
   return { left, right, top, bottom, width: totalW, height: bottom - top, orbSize: ORB_SIZE };
 }
@@ -276,12 +279,24 @@ export function exploreFloatBottomPx(viewportHeight) {
   return viewportHeight - EXPLORE_FLOAT_BOTTOM_REM * REM;
 }
 
+/** 手機：右上圓鈕列寬度（對齊 island.css @760px flex gap）。 */
+export function hudTopRightWidthMobile(showAudio) {
+  const orbs = orbRowCount(showAudio);
+  return orbs * ORB_SIZE + Math.max(0, orbs - 1) * ORB_TR_GAP_MOBILE;
+}
+
 /** 手機探索：左上玩家 HUD（含卡、間距、人數晶片；對齊 island.css @760px）。 */
-export function hudPlayerRectMobile(viewportWidth, viewportHeight) {
+export function hudPlayerRectMobile(viewportWidth, viewportHeight, showAudio) {
   void viewportHeight;
-  const top = Math.max(0.55 * REM, 0);
-  const left = 0.55 * REM;
-  const width = Math.min(10.5 * REM, viewportWidth - 9.5 * REM);
+  const margin = hudMargin(viewportWidth);
+  const audio = showAudio !== false;
+  const trWidth = hudTopRightWidthMobile(audio);
+  const top = Math.max(margin, 0);
+  const left = margin;
+  const width = Math.min(
+    HUD_PLAYER_MAX_W_MOBILE,
+    viewportWidth - trWidth - 2 * margin - HUD_PLAYER_TR_GAP
+  );
   const cardH = 5.35 * REM;
   const gap = 0.35 * REM;
   const badgeH = 1.35 * REM;

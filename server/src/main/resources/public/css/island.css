@@ -2118,7 +2118,35 @@ body.island-avatar-open .island-avatar-pop {
   .island-hud-player {
     top: max(0.55rem, env(safe-area-inset-top, 0px));
     left: max(0.55rem, env(safe-area-inset-left, 0px));
-    max-width: min(10.5rem, calc(100vw - 9.5rem));
+  }
+
+  .island-hud-player,
+  body.is-exploring .island-hud-player {
+    --island-hud-tr-orbs: 4;
+    --island-hud-tr-gap: 0.28rem;
+    --island-hud-player-tr-gap: 0.375rem;
+    max-width: min(
+      10.5rem,
+      calc(
+        100vw
+        - var(--island-hud-tr-orbs) * 2.85rem
+        - (var(--island-hud-tr-orbs) - 1) * var(--island-hud-tr-gap)
+        - 2 * 0.55rem
+        - var(--island-hud-player-tr-gap)
+      )
+    );
+  }
+
+  .island-hud-player-card {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .island-hud-player-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .island-hud-tr {
