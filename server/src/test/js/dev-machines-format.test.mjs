@@ -10,6 +10,7 @@ test('最後回報與已跑時間格式化', () => {
   assert.equal(F.formatLastSeenAgo(now - 30 * 1000, now), '剛剛');
   assert.equal(F.formatLastSeenAgo(now - 5 * 60 * 1000, now), '5 分鐘前');
   assert.equal(F.formatLastSeenAgo(now - 2 * 60 * 60 * 1000, now), '2 小時前');
+  assert.equal(F.formatRunDuration(0, now), '—');
   assert.equal(F.formatRunDuration(now - 45 * 60 * 1000, now), '已跑 45 分鐘');
   assert.equal(F.formatRunDuration(now - (2 * 60 + 20) * 60 * 1000, now), '已跑 2 小時 20 分');
 });
@@ -61,4 +62,20 @@ test('管理員才請求／顯示', () => {
 test('401 時不產生研發樓行', () => {
   assert.deepEqual(F.formatLabDevMachineLines({ success: false }), []);
   assert.deepEqual(F.formatLabDevMachineLines(null), []);
+});
+
+test('今日合併篩選接受 API 合併與已合併', () => {
+  const now = Date.UTC(2026, 10, 19, 8, 6, 0);
+  const merged = F.filterMergedToday(
+    [
+      { action: '合併', at: Date.UTC(2026, 10, 19, 8, 6, 0), ref: '#205' },
+      { action: '已合併', at: Date.UTC(2026, 10, 19, 7, 55, 0), ref: '#200' },
+      { action: '合併', at: Date.UTC(2026, 10, 18, 14, 0, 0), ref: '#old' },
+      { action: '審核中', at: Date.UTC(2026, 10, 19, 8, 0, 0) }
+    ],
+    now
+  );
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].ref, '#205');
+  assert.equal(merged[1].ref, '#200');
 });

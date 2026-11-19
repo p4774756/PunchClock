@@ -1,9 +1,16 @@
 // 施工進度面板與告示牌文字。不依賴 Three.js。
 
 import {
+  effectivePhaseStatus,
+  filterMergedToday,
+  formatTaipeiClock,
   mergeRoadmapDevStatusLink,
+  phaseItemProgress,
+  roadmapItemTotals,
   shouldShowDevStatusNavLink
 } from './dev-machines-format.js';
+
+export { effectivePhaseStatus, phaseItemProgress, filterMergedToday, roadmapItemTotals };
 
 export function signCopy(doc) {
   const phases = (doc && doc.phases) || [];
@@ -28,6 +35,84 @@ export function phaseStatus(phase, current) {
 
 const STATUS_LABEL = { done: '已完成', active: '施工中', pending: '未開工' };
 export const DEV_STATUS_FILTERS = ['全部', '排隊', '實作中', '審核中', '已合併', '路線圖'];
+const TODAY_PREVIEW = 8;
+
+function progressPercent(done, total) {
+  if (!total || total <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((done / total) * 100)));
+}
+
+function setBar(node, done, total, status) {
+  if (!node) return;
+  const pct = progressPercent(done, total);
+  node.style.width = pct + '%';
+  node.classList.remove('is-done', 'is-pending');
+  if (status === 'done') node.classList.add('is-done');
+  else if (status === 'pending') node.classList.add('is-pending');
+}
+
+function phaseMark(status) {
+  if (status === 'done') return '✓';
+  if (status === 'active') return '▸';
+  return '○';
+}
+
+function normalizeItem(item) {
+  if (item == null) return { text: '', done: false, issue: null };
+  if (typeof item === 'string') return { text: item, done: false, issue: null };
+  return {
+    text: item.text == null ? '' : String(item.text),
+    done: !!item.done,
+    issue: item.issue != null ? item.issue : null
+  };
+}
+
+function shouldDefaultOpen(phase, status) {
+  if (status === 'done') return false;
+  if (status === 'active') return true;
+  const pr = phaseItemProgress(phase);
+  return pr.total > 0 && pr.done < pr.total;
+}
+
+function renderTodayPanel(doc, root, timeline, now) {
+  if (!root) return;
+  clearChildren(root);
+  const head = doc.createElement('header');
+  head.className = 'maple-win-title';
+  const h = doc.createElement('h3');
+  h.textContent = '今日完成';
+  head.appendChild(h);
+  root.appendChild(head);
+  const body = doc.createElement('div');
+  body.className = 'roadmap-today-body';
+  const list = filterMergedToday(timeline, now);
+  const note = doc.createElement('p');
+  note.className = 'roadmap-today-note';
+  note.textContent = '今日已合併 ' + list.length + ' 項';
+  body.appendChild(note);
+  if (!list.length) {
+    body.appendChild(textEl(doc, 'p', 'roadmap-dev-empty', '今日尚無合併紀錄'));
+  } else {
+    const ul = doc.createElement('ul');
+    ul.className = 'roadmap-today-list';
+    list.slice(0, TODAY_PREVIEW).forEach((row) => {
+      const li = doc.createElement('li');
+      const time = doc.createElement('time');
+      time.textContent = formatTaipeiClock(row.at);
+      li.appendChild(time);
+      const line = doc.createElement('div');
+      if (row.url) {
+        line.appendChild(linkEl(doc, null, row.url, (row.ref || '') + ' ' + (row.title || '')));
+      } else {
+        line.textContent = (row.ref || '') + ' ' + (row.title || '');
+      }
+      li.appendChild(line);
+      ul.appendChild(li);
+    });
+    body.appendChild(ul);
+  }
+  root.appendChild(body);
+}
 
 /** 台北時間（UTC+8），附「台北」標籤。 */
 export function formatTaipeiTime(ms) {
@@ -302,6 +387,11 @@ export function createRoadmapController(opts) {
   const noteEl = root && root.querySelector('[data-roadmap-note]');
   const sourceEl = root && root.querySelector('[data-roadmap-source]');
   const backBtn = root && root.querySelector('[data-roadmap-back]');
+  const totalLabel = root && root.querySelector('[data-roadmap-total-label]');
+  const totalBar = root && root.querySelector('[data-roadmap-total-bar]');
+  const todayEl = root && root.querySelector('[data-roadmap-today]');
+  const tabButtons = root ? root.querySelectorAll('[data-roadmap-tab]') : [];
+  const tabPanels = root ? root.querySelectorAll('[data-roadmap-panel]') : [];
   const currentEl = root && root.querySelector('[data-dev-current]');
   const nextEl = root && root.querySelector('[data-dev-next]');
   const queueEl = root && root.querySelector('[data-dev-queue]');
@@ -316,6 +406,25 @@ export function createRoadmapController(opts) {
   let latest = null;
   let latestDev = null;
   let statusFilter = '全部';
+  let activeTab = 'phases';
+
+  function setTab(tab) {
+    activeTab = tab === 'dev' ? 'dev' : 'phases';
+    tabButtons.forEach((btn) => {
+      const on = btn.getAttribute('data-roadmap-tab') === activeTab;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    tabPanels.forEach((panel) => {
+      const show = panel.getAttribute('data-roadmap-panel') === activeTab;
+      panel.hidden = !show;
+    });
+  }
+
+  tabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => setTab(btn.getAttribute('data-roadmap-tab')));
+  });
+  setTab('phases');
 
   function setOpen(next) {
     const want = !!next;
@@ -350,41 +459,77 @@ export function createRoadmapController(opts) {
       const match = /\/issues\/(\d+)\s*$/.exec(href);
       sourceEl.textContent = '資料來源：GitHub #' + (match ? match[1] : '36');
     }
+    const phases = (latest && latest.phases) || [];
+    const current = latest ? latest.current : null;
+    const totals = roadmapItemTotals(phases);
+    if (totalLabel) {
+      totalLabel.textContent = '子項合計 ' + totals.done + '/' + totals.total;
+    }
+    const totalStatus = totals.total > 0 && totals.done >= totals.total ? 'done' : 'active';
+    setBar(totalBar, totals.done, totals.total, totalStatus);
     if (listEl) {
       while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
-      const phases = (latest && latest.phases) || [];
-      const current = latest ? latest.current : null;
       phases.forEach((phase) => {
         if (!phase) return;
-        const status = phaseStatus(phase, current);
+        const status = effectivePhaseStatus(phase, current);
+        const pr = phaseItemProgress(phase);
         const row = doc.createElement('details');
         row.className = 'roadmap-phase is-' + status;
-        if (status === 'active') row.open = true;
+        row.open = shouldDefaultOpen(phase, status);
         const summary = doc.createElement('summary');
         const mark = doc.createElement('span');
         mark.className = 'roadmap-mark';
-        mark.textContent = status === 'done' ? '✓' : (status === 'active' ? '●' : '○');
+        mark.textContent = phaseMark(status);
         const name = doc.createElement('span');
         name.className = 'roadmap-name';
         name.textContent = phase.phase == null
           ? (phase.title || '')
           : ('第 ' + phase.phase + ' 期 ' + (phase.title || ''));
+        const prog = doc.createElement('div');
+        prog.className = 'roadmap-phase-progress';
+        const track = doc.createElement('div');
+        track.className = 'roadmap-progress-track';
+        const bar = doc.createElement('span');
+        bar.className = 'roadmap-progress-bar';
+        setBar(bar, pr.done, pr.total, status);
+        track.appendChild(bar);
+        prog.appendChild(track);
+        const ratio = doc.createElement('span');
+        ratio.className = 'roadmap-ratio';
+        ratio.textContent = pr.done + '/' + pr.total;
         const tag = doc.createElement('span');
         tag.className = 'roadmap-tag';
         tag.textContent = STATUS_LABEL[status];
         summary.appendChild(mark);
         summary.appendChild(name);
+        summary.appendChild(prog);
+        summary.appendChild(ratio);
         summary.appendChild(tag);
         row.appendChild(summary);
-        const items = phase.items || [];
+        const items = (phase.items || []).map(normalizeItem);
         if (items.length) {
           const ul = doc.createElement('ul');
           items.forEach((item) => {
             const li = doc.createElement('li');
-            li.textContent = item == null ? '' : String(item);
+            const box = doc.createElement('span');
+            box.className = 'roadmap-check' + (item.done ? ' is-on' : '');
+            box.setAttribute('aria-hidden', 'true');
+            li.appendChild(box);
+            const text = doc.createElement('span');
+            if (item.issue != null) {
+              text.appendChild(doc.createTextNode(item.text + ' '));
+              const issueLink = linkEl(doc, null, 'https://github.com/p4774756/PunchClock/issues/' + item.issue, '#' + item.issue);
+              text.appendChild(issueLink);
+            } else {
+              text.textContent = item.text;
+            }
+            li.appendChild(text);
             ul.appendChild(li);
           });
           row.appendChild(ul);
+        }
+        if (phase.progressNote) {
+          row.appendChild(textEl(doc, 'p', 'roadmap-phase-note', phase.progressNote));
         }
         listEl.appendChild(row);
       });
@@ -411,6 +556,7 @@ export function createRoadmapController(opts) {
     renderTable(doc, tableEl, filterDevItems(latestDev && latestDev.items, statusFilter));
     renderTimeline(doc, timelineEl, latestDev && latestDev.timeline);
     renderStats(doc, statsEl, latestDev && latestDev.stats);
+    renderTodayPanel(doc, todayEl, latestDev && latestDev.timeline, Date.now());
   }
 
   function ensureFilters() {

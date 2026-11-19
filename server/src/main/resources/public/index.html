@@ -305,41 +305,60 @@
   </section>
 
   <section id="roadmapBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="施工進度">
-    <div class="roadmap-panel">
-      <header class="roadmap-head">
+    <div class="roadmap-panel maple-window">
+      <header class="maple-win-title roadmap-win-head">
         <h2>施工進度</h2>
-        <button type="button" class="btn btn-ghost" data-roadmap-back aria-label="返回島嶼">返回島嶼</button>
+        <button type="button" class="roadmap-close-x" data-roadmap-back aria-label="關閉">×</button>
       </header>
-      <p class="roadmap-now" data-roadmap-headline>施工進度</p>
-      <p class="roadmap-phase-name" data-roadmap-title></p>
-      <div class="roadmap-list" data-roadmap-list></div>
+      <div class="roadmap-banner">
+        <div class="roadmap-banner-text">
+          <strong class="roadmap-now" data-roadmap-headline>施工進度</strong>
+          <span class="roadmap-phase-name" data-roadmap-title></span>
+        </div>
+        <div class="roadmap-banner-progress">
+          <span class="roadmap-total-label" data-roadmap-total-label>子項合計 0/0</span>
+          <div class="roadmap-progress-track"><span class="roadmap-progress-bar" data-roadmap-total-bar></span></div>
+        </div>
+      </div>
+      <div class="roadmap-tabs" role="tablist" aria-label="施工進度分頁">
+        <button type="button" class="roadmap-tab is-active" data-roadmap-tab="phases" aria-pressed="true">路線圖</button>
+        <button type="button" class="roadmap-tab" data-roadmap-tab="dev" aria-pressed="false">開發進度</button>
+      </div>
+      <div class="roadmap-layout">
+        <div class="roadmap-main-stack">
+          <div class="roadmap-tab-panel" data-roadmap-panel="phases">
+            <div class="roadmap-list" data-roadmap-list></div>
+          </div>
+          <section class="roadmap-tab-panel roadmap-dev" data-roadmap-panel="dev" hidden aria-label="開發進度">
+            <p class="roadmap-dev-note" data-dev-note></p>
+            <div class="roadmap-dev-focus">
+              <div class="roadmap-dev-card" data-dev-current></div>
+              <div class="roadmap-dev-card" data-dev-next></div>
+            </div>
+            <div class="roadmap-dev-mid">
+              <div class="roadmap-dev-queue-block">
+                <h4 class="roadmap-dev-sub">排隊</h4>
+                <div data-dev-queue></div>
+              </div>
+              <div class="roadmap-dev-stats-block">
+                <h4 class="roadmap-dev-sub">本週</h4>
+                <div data-dev-stats></div>
+              </div>
+            </div>
+            <h4 class="roadmap-dev-sub">進度表</h4>
+            <div class="roadmap-dev-filters" data-dev-filter role="group" aria-label="狀態篩選"></div>
+            <div class="roadmap-dev-table-wrap" data-dev-table></div>
+            <h4 class="roadmap-dev-sub">近 7 天</h4>
+            <div data-dev-timeline></div>
+          </section>
+        </div>
+        <aside class="roadmap-today-panel maple-window" data-roadmap-today aria-label="今日完成"></aside>
+      </div>
       <p class="roadmap-note" data-roadmap-note></p>
-      <a class="roadmap-source" data-roadmap-source href="https://github.com/p4774756/PunchClock/issues/36" target="_blank" rel="noopener noreferrer">資料來源：GitHub #36</a>
-
-      <p class="roadmap-dev-machines-nav" data-dev-machines-nav hidden></p>
-      <section class="roadmap-dev" aria-label="開發進度">
-        <h3 class="roadmap-dev-heading">開發進度</h3>
-        <p class="roadmap-dev-note" data-dev-note></p>
-        <div class="roadmap-dev-focus">
-          <div class="roadmap-dev-card" data-dev-current></div>
-          <div class="roadmap-dev-card" data-dev-next></div>
-        </div>
-        <div class="roadmap-dev-mid">
-          <div class="roadmap-dev-queue-block">
-            <h4 class="roadmap-dev-sub">排隊</h4>
-            <div data-dev-queue></div>
-          </div>
-          <div class="roadmap-dev-stats-block">
-            <h4 class="roadmap-dev-sub">本週</h4>
-            <div data-dev-stats></div>
-          </div>
-        </div>
-        <h4 class="roadmap-dev-sub">進度表</h4>
-        <div class="roadmap-dev-filters" data-dev-filter role="group" aria-label="狀態篩選"></div>
-        <div class="roadmap-dev-table-wrap" data-dev-table></div>
-        <h4 class="roadmap-dev-sub">近 7 天</h4>
-        <div data-dev-timeline></div>
-      </section>
+      <footer class="roadmap-foot">
+        <a class="roadmap-source" data-roadmap-source href="https://github.com/p4774756/PunchClock/issues/36" target="_blank" rel="noopener noreferrer">資料來源：GitHub #36</a>
+        <span class="roadmap-dev-machines-nav" data-dev-machines-nav hidden></span>
+      </footer>
     </div>
   </section>
 

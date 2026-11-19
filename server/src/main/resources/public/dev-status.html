@@ -7,16 +7,18 @@
   <link rel="stylesheet" href="/css/dev-machines.css">
 </head>
 <body class="dev-machines-page">
-  <header class="dev-machines-header">
-    <h1>開發機狀態</h1>
-    <p class="dev-machines-sub">負責跑 Cursor 的筆電是否在線與目前工作</p>
-  </header>
-  <main class="dev-machines-main">
-    <div id="devMachinesRoot" class="dev-machines-root" aria-live="polite"></div>
-  </main>
-  <footer class="dev-machines-footer">
-    <a href="/">返回島嶼首頁</a>
-  </footer>
+  <div class="dev-machines-frame">
+    <header class="dev-machines-header">
+      <h1>開發機狀態</h1>
+      <p class="dev-machines-sub">每 30 秒更新 · 時間 台北</p>
+    </header>
+    <main class="dev-machines-main">
+      <div id="devMachinesRoot" class="dev-machines-root" aria-live="polite"></div>
+    </main>
+    <footer class="dev-machines-footer">
+      <a class="dev-btn dev-btn-action" href="/">返回島嶼首頁</a>
+    </footer>
+  </div>
   <script type="module" src="/js/dev-machines.js"></script>
 </body>
 </html>

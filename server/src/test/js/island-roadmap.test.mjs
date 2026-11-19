@@ -107,6 +107,27 @@ test('研發樓螢幕長標題保留 pair 與部分標題', () => {
   assert.ok(fitted.endsWith('…'), '太長時要有省略號');
 });
 
+test('子項進度與今日合併', () => {
+  const phase = {
+    done: false,
+    phase: 5,
+    itemsDone: 1,
+    itemsTotal: 4,
+    items: [{ text: '21點', done: true }, { text: '拉霸機', done: false }]
+  };
+  assert.equal(R.effectivePhaseStatus(phase, 5), 'active');
+  assert.deepEqual(R.phaseItemProgress(phase), { done: 1, total: 4 });
+  const group = { done: false, items: [{ text: 'A', done: true }, { text: 'B', done: true }] };
+  assert.equal(R.effectivePhaseStatus(group, null), 'done');
+  const dayStart = R.filterMergedToday([
+    { action: '已合併', at: Date.now() - 1000, ref: '#1' },
+    { action: '合併', at: Date.now() - 2000, ref: '#205' },
+    { action: '審核中', at: Date.now() - 1000 },
+    { action: '已合併', at: 0, ref: '#2' }
+  ], Date.now());
+  assert.equal(dayStart.length, 2);
+});
+
 test('台北時間格式含台北標籤', () => {
   const text = R.formatTaipeiTime(Date.UTC(2026, 10, 17, 6, 30, 0));
   assert.match(text, /2026\/11\/17/);

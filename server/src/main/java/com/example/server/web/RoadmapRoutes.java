@@ -32,7 +32,23 @@ public final class RoadmapRoutes {
             row.put("phase", phase.phase);
             row.put("title", phase.title);
             row.put("done", phase.done);
-            row.put("items", phase.items);
+            row.put("itemsDone", phase.itemsDone);
+            row.put("itemsTotal", phase.itemsTotal);
+            if (phase.progressNote != null) {
+                row.put("progressNote", phase.progressNote);
+            }
+            List<Map<String, Object>> items = new ArrayList<>();
+            for (int j = 0; j < phase.items.size(); j++) {
+                RoadmapParser.Item item = phase.items.get(j);
+                Map<String, Object> cell = new LinkedHashMap<>();
+                cell.put("text", item.text);
+                cell.put("done", item.done);
+                if (item.issue != null) {
+                    cell.put("issue", item.issue);
+                }
+                items.add(cell);
+            }
+            row.put("items", items);
             phases.add(row);
         }
         Map<String, Object> body = new LinkedHashMap<>();
