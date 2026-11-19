@@ -10,28 +10,28 @@ export const BRONZE_HEAD_TOP_Y = 1.76;
 /** 與 tcm-bronze-figure.glb 對齊的吸附用橢球（資料空間 Y-up）；頂髻略扁、偏後，拉開金點。 */
 const BRONZE_SNAP_TOPKNOT = Object.freeze({
   cx: 0,
-  cy: 1.696,
-  cz: -0.044,
-  rx: 0.092,
-  ry: 0.026,
+  cy: 1.698,
+  cz: -0.058,
+  rx: 0.102,
+  ry: 0.028,
   rz: 0.068
 });
 /** 額頂～髻根（略高於一般頭殼），橫向較寬避免髻週金點擠成一團。 */
 const BRONZE_SNAP_CROWN = Object.freeze({
   cx: 0,
-  cy: 1.666,
-  cz: -0.012,
-  rx: 0.108,
-  ry: 0.044,
-  rz: 0.092
+  cy: 1.654,
+  cz: 0.028,
+  rx: 0.122,
+  ry: 0.052,
+  rz: 0.104
 });
 const BRONZE_SNAP_HEAD = Object.freeze({
   cx: 0,
-  cy: 1.562,
-  cz: 0.052,
-  rx: 0.098,
-  ry: 0.112,
-  rz: 0.128
+  cy: 1.558,
+  cz: 0.054,
+  rx: 0.108,
+  ry: 0.114,
+  rz: 0.124
 });
 const BRONZE_SNAP_TORSO = Object.freeze({
   cx: 0,
@@ -56,7 +56,7 @@ export const BRONZE_PART_BOXES = Object.freeze([
   { minX: 0.02, maxX: 0.17, minY: 0.02, maxY: 0.98, minZ: -0.14, maxZ: 0.14 },
   { minX: 0, maxX: 0.22, minY: 0.70, maxY: 1.38, minZ: -0.15, maxZ: 0.14 },
   { minX: 0.04, maxX: 0.38, minY: 0.66, maxY: 1.28, minZ: -0.14, maxZ: 0.10 },
-  { minX: 0, maxX: 0.15, minY: 1.34, maxY: 1.76, minZ: -0.15, maxZ: 0.15 }
+  { minX: 0, maxX: 0.15, minY: 1.34, maxY: 1.76, minZ: -0.15, maxZ: 0.17 }
 ]);
 
 export const ENTRANCE_BRONZE_MATERIALS = Object.freeze(['bronze', 'bronze_dark']);
@@ -170,10 +170,10 @@ export function markerSurfacePosition(record, side) {
   const pz = t.position[2];
   const eps = MARKER_SURFACE_EPS;
 
-  if (py >= 1.708) {
+  if (py >= 1.712) {
     return snapEllipsoid(px, py, pz, BRONZE_SNAP_TOPKNOT, eps);
   }
-  if (py >= 1.652) {
+  if (py >= 1.646) {
     return snapEllipsoid(px, py, pz, BRONZE_SNAP_CROWN, eps);
   }
   if (py >= 1.34) {

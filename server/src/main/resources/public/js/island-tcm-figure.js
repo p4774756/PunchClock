@@ -35,15 +35,15 @@ function ensureBronzeEnvMap(renderer) {
   canvas.height = h;
   const ctx2d = canvas.getContext('2d');
   const sky = ctx2d.createLinearGradient(0, 0, 0, h);
-  sky.addColorStop(0, '#fff9ec');
-  sky.addColorStop(0.32, '#f4ebe0');
-  sky.addColorStop(0.58, '#ddeef6');
-  sky.addColorStop(1, '#c4b498');
+  sky.addColorStop(0, '#f0dcc0');
+  sky.addColorStop(0.32, '#e8cdb0');
+  sky.addColorStop(0.58, '#d4bea0');
+  sky.addColorStop(1, '#a88868');
   ctx2d.fillStyle = sky;
   ctx2d.fillRect(0, 0, w, h);
   const sunSpot = ctx2d.createRadialGradient(w * 0.68, h * 0.26, 0, w * 0.68, h * 0.26, w * 0.38);
-  sunSpot.addColorStop(0, 'rgba(255,244,210,0.92)');
-  sunSpot.addColorStop(1, 'rgba(255,244,210,0)');
+  sunSpot.addColorStop(0, 'rgba(255,205,120,0.88)');
+  sunSpot.addColorStop(1, 'rgba(255,205,120,0)');
   ctx2d.fillStyle = sunSpot;
   ctx2d.fillRect(0, 0, w, h);
   const tex = new THREE.CanvasTexture(canvas);
@@ -97,7 +97,7 @@ function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   if (isBronze) {
     const hsl = { h: 0, s: 0, l: 0 };
     day.getHSL(hsl);
-    day.setHSL(hsl.h, Math.min(1, hsl.s * 1.06 + 0.02), Math.min(0.64, Math.max(0.5, hsl.l + 0.03)));
+    day.setHSL(hsl.h, Math.min(1, hsl.s * 1.14 + 0.06), Math.min(0.46, Math.max(0.34, hsl.l * 0.82)));
   }
   const night = nightColorFromDay(day.getHex(), { bronze: isBronze });
   const emissive = oldMat.emissive ? oldMat.emissive.clone() : new THREE.Color(0x000000);
@@ -105,8 +105,8 @@ function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   let metalness = oldMat.metalness != null ? oldMat.metalness : (isBronze ? 0.96 : 0.05);
   let roughness = oldMat.roughness != null ? oldMat.roughness : (isBronze ? 0.15 : 0.86);
   if (isBronze) {
-    metalness = Math.min(0.94, Math.max(0.86, metalness * 0.93));
-    roughness = Math.min(0.2, Math.max(0.11, roughness));
+    metalness = Math.min(0.97, Math.max(0.9, metalness));
+    roughness = Math.min(0.14, Math.max(0.07, roughness * 0.78));
   } else {
     metalness = Math.min(0.08, metalness);
     roughness = Math.max(0.72, roughness);
@@ -127,7 +127,7 @@ function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   std.userData.bronze = isBronze;
   std.userData.dayE = isBronze ? Math.max(0.04, emissiveI) : 0.016;
   std.userData.nightE = isBronze ? Math.max(0.16, emissiveI * 2.6) : 0.008;
-  std.envMapIntensity = isBronze ? 1.08 : 0.22;
+  std.envMapIntensity = isBronze ? 1.38 : 0.22;
   kit.addMaterial(std);
   return std;
 }
@@ -148,14 +148,14 @@ function applyBronzeEnvToRoot(root, envMap) {
 }
 
 function attachBronzeFigureLights(parent) {
-  const key = new THREE.DirectionalLight(0xfff2dc, 0.78);
-  key.position.set(0.28, 1.82, 1.95);
+  const key = new THREE.DirectionalLight(0xffd890, 0.88);
+  key.position.set(0.22, 1.85, 1.75);
   parent.add(key);
-  const fill = new THREE.DirectionalLight(0xffebc0, 0.42);
-  fill.position.set(-1.05, 1.35, 1.35);
+  const fill = new THREE.DirectionalLight(0xe8b870, 0.38);
+  fill.position.set(-1.1, 1.4, 1.1);
   parent.add(fill);
-  const rim = new THREE.DirectionalLight(0xffd890, 0.36);
-  rim.position.set(0.15, 1.9, -1.55);
+  const rim = new THREE.DirectionalLight(0xffc060, 0.48);
+  rim.position.set(0.12, 1.92, -1.45);
   parent.add(rim);
 }
 
@@ -189,11 +189,11 @@ function applyBronzeFigureMaterials(root, kit) {
       obj.material = bronzeMaterialFromGltf(
         {
           name: matName || 'bronze',
-          color: new THREE.Color(0xe2bc62),
+          color: new THREE.Color(0xc4862e),
           metalness: 0.97,
-          roughness: 0.14,
-          emissive: new THREE.Color(0xfff0c8),
-          emissiveIntensity: 0.055
+          roughness: 0.09,
+          emissive: new THREE.Color(0xffc878),
+          emissiveIntensity: 0.028
         },
         kit,
         true
@@ -204,8 +204,8 @@ function applyBronzeFigureMaterials(root, kit) {
     obj.receiveShadow = true;
   });
 }
-/** 庭院銅人面向走進庭院的玩家（模型預設 +Z 朝館舍，故轉 180°）。 */
-const COURTYARD_FIG_YAW = Math.PI;
+/** 庭院銅人面向走進庭院的玩家（模型正面 +Z；yaw 0 朝庭院南側動線）。 */
+const COURTYARD_FIG_YAW = 0;
 
 const LOAD_BUFFER = 1.65;
 const UNLOAD_BUFFER = 3.2;
@@ -613,7 +613,7 @@ export function createTcmFigureController(ctx) {
   };
 }
 
-const ENTRANCE_FIG_SCALE = 0.64;
+const ENTRANCE_FIG_SCALE = 0.76;
 
 export function replaceEntranceBronzeStatue(model, kit, pickables, opts) {
   model.updateMatrixWorld(true);

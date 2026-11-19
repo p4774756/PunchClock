@@ -30,7 +30,7 @@ def _mat_bronze(name, base_hex, rough=0.38, metal=0.92, emit=None, emit_strength
     bsdf.inputs['Base Color'].default_value = hex_rgba(base_hex)
     bsdf.inputs['Roughness'].default_value = rough
     bsdf.inputs['Metallic'].default_value = metal
-    bsdf.inputs['Specular IOR Level'].default_value = 0.72
+    bsdf.inputs['Specular IOR Level'].default_value = 0.82
     if emit is not None:
         bsdf.inputs['Emission Color'].default_value = hex_rgba(emit)
         bsdf.inputs['Emission Strength'].default_value = emit_strength
@@ -218,9 +218,9 @@ def _build_classical_head(bm, front):
     _add_uv_ellipsoid(bm, _v(0.0, head_y, head_z), (0.090, 0.102, 0.118), u=24, v=16)
     _add_uv_ellipsoid(bm, _v(0.0, head_y - 0.020, head_z + 0.024), (0.078, 0.086, 0.094), u=20, v=14)
 
-    # 頂髻（雙層、略扁且橫向拉開，配合 crown/topknot 吸附）
-    _add_uv_ellipsoid(bm, _v(0.0, 1.676, head_z - 0.058), (0.062, 0.034, 0.054), u=14, v=12)
-    _add_uv_ellipsoid(bm, _v(0.0, 1.698, head_z - 0.064), (0.048, 0.044, 0.048), u=12, v=10)
+    # 頂髻（雙層、橫向拉開，配合 crown/topknot 吸附）
+    _add_uv_ellipsoid(bm, _v(0.0, 1.674, head_z - 0.062), (0.074, 0.030, 0.056), u=14, v=12)
+    _add_uv_ellipsoid(bm, _v(0.0, 1.702, head_z - 0.074), (0.056, 0.038, 0.050), u=12, v=10)
 
     brow_y = head_y + 0.022
     for side in (1, -1):
@@ -384,14 +384,14 @@ def build(out_path):
     prepare_scene()
     mat_bronze = _mat_bronze(
         'bronze',
-        0xe8c468,
-        rough=0.13,
-        metal=0.94,
-        emit=0xfff0c8,
-        emit_strength=0.038,
+        0xc4862e,
+        rough=0.09,
+        metal=0.96,
+        emit=0xffc878,
+        emit_strength=0.022,
     )
-    mat_bronze_dark = _mat_bronze('bronze_dark', 0x9e7c4c, rough=0.22, metal=0.90)
-    mat_patina = _mat_bronze('bronze_patina', 0x7a8260, rough=0.36, metal=0.82)
+    mat_bronze_dark = _mat_bronze('bronze_dark', 0x8a5c28, rough=0.17, metal=0.93)
+    mat_patina = _mat_bronze('bronze_patina', 0x6a7048, rough=0.32, metal=0.84)
     mat_stone = _mat_stone('stone', 0xf6f0e8, rough=0.68)
     mat_stone_band = _mat_stone('stone_band', 0xeae2d8, rough=0.72)
     mat_stone_dark = _mat_stone('stone_dark', 0xd8cec2, rough=0.76)
