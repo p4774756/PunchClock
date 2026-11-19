@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PMREMGenerator } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { G, nightHex } from './island-kit.js';
 import { islandById } from './island-layout.js';
@@ -22,6 +23,39 @@ const BRONZE_FIG_URL = '/models/tcm-bronze-figure.glb';
 
 let bronzeFigScene = null;
 let bronzeFigPromise = null;
+let bronzeEnvMap = null;
+
+function ensureBronzeEnvMap(renderer) {
+  if (bronzeEnvMap) return bronzeEnvMap;
+  if (!renderer) return null;
+  const w = 512;
+  const h = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx2d = canvas.getContext('2d');
+  const sky = ctx2d.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#fff9ec');
+  sky.addColorStop(0.32, '#f4ebe0');
+  sky.addColorStop(0.58, '#ddeef6');
+  sky.addColorStop(1, '#c4b498');
+  ctx2d.fillStyle = sky;
+  ctx2d.fillRect(0, 0, w, h);
+  const sunSpot = ctx2d.createRadialGradient(w * 0.68, h * 0.26, 0, w * 0.68, h * 0.26, w * 0.38);
+  sunSpot.addColorStop(0, 'rgba(255,244,210,0.92)');
+  sunSpot.addColorStop(1, 'rgba(255,244,210,0)');
+  ctx2d.fillStyle = sunSpot;
+  ctx2d.fillRect(0, 0, w, h);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  const pmrem = new PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  bronzeEnvMap = pmrem.fromEquirectangular(tex).texture;
+  tex.dispose();
+  pmrem.dispose();
+  return bronzeEnvMap;
+}
 
 function ensureBronzeFigureGlb() {
   if (bronzeFigScene) return Promise.resolve(bronzeFigScene);
@@ -71,8 +105,11 @@ function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   let metalness = oldMat.metalness != null ? oldMat.metalness : (isBronze ? 0.96 : 0.05);
   let roughness = oldMat.roughness != null ? oldMat.roughness : (isBronze ? 0.15 : 0.86);
   if (isBronze) {
-    metalness = Math.max(metalness, 0.93);
-    roughness = Math.min(roughness, 0.17);
+    metalness = Math.min(0.94, Math.max(0.86, metalness * 0.93));
+    roughness = Math.min(0.2, Math.max(0.11, roughness));
+  } else {
+    metalness = Math.min(0.08, metalness);
+    roughness = Math.max(0.72, roughness);
   }
   const std = new THREE.MeshStandardMaterial({
     name: oldMat.name || '',
@@ -87,10 +124,39 @@ function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
   if (oldMat.normalMap) std.normalMap = oldMat.normalMap;
   std.userData.day = day;
   std.userData.night = night;
-  std.userData.dayE = isBronze ? Math.max(0.03, emissiveI) : 0;
-  std.userData.nightE = isBronze ? Math.max(0.14, emissiveI * 2.6) : 0;
+  std.userData.bronze = isBronze;
+  std.userData.dayE = isBronze ? Math.max(0.04, emissiveI) : 0.016;
+  std.userData.nightE = isBronze ? Math.max(0.16, emissiveI * 2.6) : 0.008;
+  std.envMapIntensity = isBronze ? 1.08 : 0.22;
   kit.addMaterial(std);
   return std;
+}
+
+function applyBronzeEnvToRoot(root, envMap) {
+  if (!envMap) return;
+  root.traverse((obj) => {
+    if (!obj.isMesh || !obj.material) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (let i = 0; i < mats.length; i++) {
+      const m = mats[i];
+      if (m && m.isMeshStandardMaterial) {
+        m.envMap = envMap;
+        m.needsUpdate = true;
+      }
+    }
+  });
+}
+
+function attachBronzeFigureLights(parent) {
+  const key = new THREE.DirectionalLight(0xfff2dc, 0.78);
+  key.position.set(0.28, 1.82, 1.95);
+  parent.add(key);
+  const fill = new THREE.DirectionalLight(0xffebc0, 0.42);
+  fill.position.set(-1.05, 1.35, 1.35);
+  parent.add(fill);
+  const rim = new THREE.DirectionalLight(0xffd890, 0.36);
+  rim.position.set(0.15, 1.9, -1.55);
+  parent.add(rim);
 }
 
 function applyBronzeFigureMaterials(root, kit) {
@@ -186,12 +252,16 @@ export function buildBronzeFigure(ctx) {
   const kit = ctx.kit;
   const scale = ctx.scale != null ? ctx.scale : 1;
   const interactive = ctx.interactive !== false;
+  const renderer = ctx.renderer;
   if (!bronzeFigScene) {
     throw new Error('bronze GLB not loaded; call ensureBronzeFigureGlb() first');
   }
   const group = bronzeFigScene.clone(true);
   group.scale.setScalar(scale * (FIGURE_TARGET_HEIGHT / DATA_BODY_HEIGHT));
   applyBronzeFigureMaterials(group, kit);
+  const envMap = ensureBronzeEnvMap(renderer);
+  applyBronzeEnvToRoot(group, envMap);
+  attachBronzeFigureLights(group);
   if (!interactive) {
     group.userData.tcmDecor = true;
   }
@@ -426,7 +496,7 @@ export function createTcmFigureController(ctx) {
       console.warn('[Island] 館門銅人 GLB 載入失敗', err);
       return;
     }
-    const result = replaceEntranceBronzeStatue(model, kit, pickables);
+    const result = replaceEntranceBronzeStatue(model, kit, pickables, { renderer: ctx.renderer });
     entrancePlaced = !!result;
     figState.entrance = {
       hidden: result ? result.hiddenCount : 0,
@@ -450,10 +520,15 @@ export function createTcmFigureController(ctx) {
 
       rootGroup = new THREE.Group();
       rootGroup.position.set(anchor.x, G, anchor.z);
-      const body = buildBronzeFigure({ kit: kit, scale: 1, interactive: true });
+      const body = buildBronzeFigure({ kit: kit, renderer: ctx.renderer, scale: 1, interactive: true });
       body.rotation.y = COURTYARD_FIG_YAW;
       rootGroup.add(body);
       buildPointMeshes(body, instanceRows);
+      const envMap = ensureBronzeEnvMap(ctx.renderer);
+      if (envMap) {
+        scene.environment = envMap;
+        scene.environmentIntensity = 1.0;
+      }
       scene.add(rootGroup);
       refreshTodayHighlight();
       loaded = true;
@@ -538,13 +613,14 @@ export function createTcmFigureController(ctx) {
   };
 }
 
-const ENTRANCE_FIG_SCALE = 0.59;
+const ENTRANCE_FIG_SCALE = 0.64;
 
-export function replaceEntranceBronzeStatue(model, kit, pickables) {
+export function replaceEntranceBronzeStatue(model, kit, pickables, opts) {
   model.updateMatrixWorld(true);
   const hiddenCount = hideEntranceBronzeMeshes(model);
+  const renderer = opts && opts.renderer;
 
-  const fig = buildBronzeFigure({ kit: kit, scale: ENTRANCE_FIG_SCALE, interactive: false });
+  const fig = buildBronzeFigure({ kit: kit, renderer: renderer, scale: ENTRANCE_FIG_SCALE, interactive: false });
   fig.position.set(ENTRANCE_FIG_LOCAL.x, ENTRANCE_FIG_LOCAL.y, ENTRANCE_FIG_LOCAL.z);
   fig.rotation.y = 0.22;
 

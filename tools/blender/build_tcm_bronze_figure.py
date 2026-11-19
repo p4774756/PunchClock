@@ -218,9 +218,9 @@ def _build_classical_head(bm, front):
     _add_uv_ellipsoid(bm, _v(0.0, head_y, head_z), (0.090, 0.102, 0.118), u=24, v=16)
     _add_uv_ellipsoid(bm, _v(0.0, head_y - 0.020, head_z + 0.024), (0.078, 0.086, 0.094), u=20, v=14)
 
-    # 頂髻（雙層髮髻，略扁避免穴位貼點擠成一團）
-    _add_uv_ellipsoid(bm, _v(0.0, 1.678, head_z - 0.048), (0.054, 0.040, 0.050), u=14, v=12)
-    _add_uv_ellipsoid(bm, _v(0.0, 1.702, head_z - 0.052), (0.042, 0.052, 0.042), u=12, v=10)
+    # 頂髻（雙層、略扁且橫向拉開，配合 crown/topknot 吸附）
+    _add_uv_ellipsoid(bm, _v(0.0, 1.676, head_z - 0.058), (0.062, 0.034, 0.054), u=14, v=12)
+    _add_uv_ellipsoid(bm, _v(0.0, 1.698, head_z - 0.064), (0.048, 0.044, 0.048), u=12, v=10)
 
     brow_y = head_y + 0.022
     for side in (1, -1):
@@ -384,17 +384,17 @@ def build(out_path):
     prepare_scene()
     mat_bronze = _mat_bronze(
         'bronze',
-        0xe2bc62,
-        rough=0.12,
-        metal=0.99,
+        0xe8c468,
+        rough=0.13,
+        metal=0.94,
         emit=0xfff0c8,
-        emit_strength=0.048,
+        emit_strength=0.038,
     )
-    mat_bronze_dark = _mat_bronze('bronze_dark', 0x9a7848, rough=0.24, metal=0.94)
-    mat_patina = _mat_bronze('bronze_patina', 0x7a8260, rough=0.38, metal=0.86)
-    mat_stone = _mat_stone('stone', 0xf2ebe3, rough=0.72)
-    mat_stone_band = _mat_stone('stone_band', 0xe4dcd2, rough=0.76)
-    mat_stone_dark = _mat_stone('stone_dark', 0xd0c6ba, rough=0.80)
+    mat_bronze_dark = _mat_bronze('bronze_dark', 0x9e7c4c, rough=0.22, metal=0.90)
+    mat_patina = _mat_bronze('bronze_patina', 0x7a8260, rough=0.36, metal=0.82)
+    mat_stone = _mat_stone('stone', 0xf6f0e8, rough=0.68)
+    mat_stone_band = _mat_stone('stone_band', 0xeae2d8, rough=0.72)
+    mat_stone_dark = _mat_stone('stone_dark', 0xd8cec2, rough=0.76)
 
     objs = []
     objs.extend(_build_pedestal(mat_stone, mat_stone_dark, mat_stone_band))

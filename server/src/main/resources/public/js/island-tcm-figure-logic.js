@@ -7,14 +7,23 @@ export const DATA_BODY_HEIGHT = 1.72;
 export const MARKER_SURFACE_EPS = 0.009;
 export const BRONZE_HEAD_TOP_Y = 1.76;
 
-/** 與 tcm-bronze-figure.glb 對齊的吸附用橢球（資料空間 Y-up）；頂髻略扁以免多穴重疊。 */
+/** 與 tcm-bronze-figure.glb 對齊的吸附用橢球（資料空間 Y-up）；頂髻略扁、偏後，拉開金點。 */
 const BRONZE_SNAP_TOPKNOT = Object.freeze({
   cx: 0,
-  cy: 1.692,
-  cz: -0.022,
-  rx: 0.068,
-  ry: 0.036,
-  rz: 0.058
+  cy: 1.696,
+  cz: -0.044,
+  rx: 0.092,
+  ry: 0.026,
+  rz: 0.068
+});
+/** 額頂～髻根（略高於一般頭殼），橫向較寬避免髻週金點擠成一團。 */
+const BRONZE_SNAP_CROWN = Object.freeze({
+  cx: 0,
+  cy: 1.666,
+  cz: -0.012,
+  rx: 0.108,
+  ry: 0.044,
+  rz: 0.092
 });
 const BRONZE_SNAP_HEAD = Object.freeze({
   cx: 0,
@@ -161,8 +170,11 @@ export function markerSurfacePosition(record, side) {
   const pz = t.position[2];
   const eps = MARKER_SURFACE_EPS;
 
-  if (py >= 1.704) {
+  if (py >= 1.708) {
     return snapEllipsoid(px, py, pz, BRONZE_SNAP_TOPKNOT, eps);
+  }
+  if (py >= 1.652) {
+    return snapEllipsoid(px, py, pz, BRONZE_SNAP_CROWN, eps);
   }
   if (py >= 1.34) {
     return snapEllipsoid(px, py, pz, BRONZE_SNAP_HEAD, eps);

@@ -684,6 +684,7 @@ function boot() {
   const tcmFigure = createLazyTcmFigureController({
     scene: scene,
     kit: kit,
+    renderer: renderer,
     pickables: pickables,
     reduced: reduced,
     anchor: tcmFigureAnchor,
