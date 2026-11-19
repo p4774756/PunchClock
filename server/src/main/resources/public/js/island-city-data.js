@@ -105,21 +105,21 @@ export function pinkCarReviewStand(side) {
 /** 正式審查鏡頭（3/4 後側／前側；look 對車心約車高）。 */
 export function pinkCarReviewPoses() {
   const car = pinkCarWorld();
-  const look = Object.freeze([car.x, 0.52, car.z]);
+  const look = Object.freeze([car.x, 0.48, car.z]);
   return Object.freeze({
     'pink-car-look': Object.freeze({
       player: pinkCarReviewStand(-1),
       look,
-      radius: 6.4,
-      theta: car.yaw + Math.PI * 0.62,
-      phi: 0.9
+      radius: 4.9,
+      theta: 0.55,
+      phi: 1.02
     }),
     'pink-car-look-front': Object.freeze({
-      player: pinkCarReviewStand(1),
+      player: pinkCarReviewStand(-1),
       look,
-      radius: 6.0,
-      theta: car.yaw - Math.PI * 0.38,
-      phi: 0.9
+      radius: 4.9,
+      theta: 2.15,
+      phi: 1.02
     })
   });
 }

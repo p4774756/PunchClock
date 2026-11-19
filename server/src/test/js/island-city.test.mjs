@@ -25,6 +25,7 @@ const M = await loadPublicModule('island-city-materials.js');
 const L = await loadPublicModule('island-layout.js');
 const C = await loadPublicModule('island-city-data.js');
 const B = await loadPublicModule('island-boat.js');
+const CAM = await loadPublicModule('island-camera.js');
 
 test('城市島與既有島／橋／主航線不相交', () => {
   const city = L.islandById('city');
@@ -194,5 +195,24 @@ test('粉紅車審查鏡頭：玩家路邊站位、不疊車頂', () => {
       key + ' 不可與車心重疊');
     assert.equal(p.look[0], car.x);
     assert.equal(p.look[2], car.z);
+    assert.ok(p.look[1] >= 0.42 && p.look[1] <= 0.58, key + ' look 高度應對準車身');
+    assert.ok(p.phi >= 0.98 && p.phi <= 1.08, key + ' phi 應為 3/4 俯角');
+    assert.ok(p.radius >= 4.2 && p.radius <= 5.6, key + ' radius 應拉近審查');
   }
+  const rear = poses['pink-car-look'];
+  const rearPlace = CAM.exploreCameraPlacement(
+    rear.look[0], rear.look[1], rear.look[2],
+    CAM.exploreFollowDistance(rear.radius, 1280 / 720),
+    rear.phi, rear.theta, 0, 0
+  );
+  assert.ok(rearPlace.cx > car.x + 1.5, '後 3/4 鏡頭應在車東北側');
+  assert.ok(rearPlace.cz > car.z + 2.5, '後 3/4 鏡頭應在車東北側');
+  const front = poses['pink-car-look-front'];
+  const frontPlace = CAM.exploreCameraPlacement(
+    front.look[0], front.look[1], front.look[2],
+    CAM.exploreFollowDistance(front.radius, 1280 / 720),
+    front.phi, front.theta, 0, 0
+  );
+  assert.ok(frontPlace.cx > car.x + 2.5, '前 3/4 鏡頭應在車東南側（避開 7-11 綠牆）');
+  assert.ok(frontPlace.cz < car.z - 1.5, '前 3/4 鏡頭應在車東南側（避開 7-11 綠牆）');
 });
