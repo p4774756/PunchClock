@@ -347,6 +347,32 @@ test('探索時聊天面板邊界不與搖桿相交（360／390）', () => {
   }
 });
 
+test('390×844 探索中聊天／暱稱不與「退出探索」相交', () => {
+  const exit = Corner.exploreExitButtonRect(390, 844);
+  for (const panel of [
+    Corner.chatPanelRectMobileExplore(390, 844, 12),
+    Corner.nickPopRectMobileExplore(390, 844, 9)
+  ]) {
+    assert.ok(!Corner.rectsIntersect(panel, exit), '浮動視窗與退出探索不重疊');
+    assert.ok(!Corner.rectsIntersect(panel, panel.joy), '浮動視窗與搖桿不重疊');
+  }
+});
+
+test('390×844 探索中清單標題列不與玩家卡相交', () => {
+  const list = Corner.listPanelRectMobileExplore(390, 844);
+  assert.ok(!Corner.rectsIntersect(list.titleBar, list.player), '清單標題列在玩家卡下方');
+});
+
+test('390×844 探索中操作提示不與右上圓鈕列相交', () => {
+  const hint = Corner.exploreHintRectMobile(390, 844, 2.5);
+  assert.ok(!Corner.rectsIntersect(hint, hint.tr), '操作提示在 HUD 圓鈕列下方');
+});
+
+test('1280×720 探索中暱稱窗與右下操作列留空隙', () => {
+  const nick = Corner.nickPopRectDesktopExplore(1280, 720);
+  assert.ok(nick.bottom <= nick.actions.top - 8, '暱稱窗底在操作列上方留空');
+});
+
 test('「選單」打開時 body 有 island-more-open，手機 CSS 隱藏搖桿與 HUD', () => {
   const doc = makeMobileDom(true);
   const ui = Corner.createCornerUi({
