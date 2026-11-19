@@ -121,10 +121,11 @@ test('子項進度與今日合併', () => {
   assert.equal(R.effectivePhaseStatus(group, null), 'done');
   const dayStart = R.filterMergedToday([
     { action: '已合併', at: Date.now() - 1000, ref: '#1' },
+    { action: '合併', at: Date.now() - 2000, ref: '#205' },
     { action: '審核中', at: Date.now() - 1000 },
     { action: '已合併', at: 0, ref: '#2' }
   ], Date.now());
-  assert.equal(dayStart.length, 1);
+  assert.equal(dayStart.length, 2);
 });
 
 test('台北時間格式含台北標籤', () => {

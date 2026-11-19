@@ -19,12 +19,16 @@ export function taipeiTodayStartMs(nowMs) {
   return dayStart - TAIPEI_OFFSET_MS;
 }
 
+function isMergedTimelineAction(action) {
+  return action === '合併' || action === '已合併';
+}
+
 /** 從開發進度 timeline 篩當日台北已合併項目。 */
 export function filterMergedToday(timeline, nowMs) {
   const list = Array.isArray(timeline) ? timeline : [];
   const start = taipeiTodayStartMs(nowMs);
   return list.filter((row) => {
-    if (!row || row.action !== '已合併') return false;
+    if (!row || !isMergedTimelineAction(row.action)) return false;
     const at = Number(row.at);
     return Number.isFinite(at) && at >= start;
   });

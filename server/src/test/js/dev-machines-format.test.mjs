@@ -63,3 +63,19 @@ test('401 時不產生研發樓行', () => {
   assert.deepEqual(F.formatLabDevMachineLines({ success: false }), []);
   assert.deepEqual(F.formatLabDevMachineLines(null), []);
 });
+
+test('今日合併篩選接受 API 合併與已合併', () => {
+  const now = Date.UTC(2026, 10, 19, 8, 6, 0);
+  const merged = F.filterMergedToday(
+    [
+      { action: '合併', at: Date.UTC(2026, 10, 19, 8, 6, 0), ref: '#205' },
+      { action: '已合併', at: Date.UTC(2026, 10, 19, 7, 55, 0), ref: '#200' },
+      { action: '合併', at: Date.UTC(2026, 10, 18, 14, 0, 0), ref: '#old' },
+      { action: '審核中', at: Date.UTC(2026, 10, 19, 8, 0, 0) }
+    ],
+    now
+  );
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].ref, '#205');
+  assert.equal(merged[1].ref, '#200');
+});
