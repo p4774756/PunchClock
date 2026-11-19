@@ -10,6 +10,7 @@ test('最後回報與已跑時間格式化', () => {
   assert.equal(F.formatLastSeenAgo(now - 30 * 1000, now), '剛剛');
   assert.equal(F.formatLastSeenAgo(now - 5 * 60 * 1000, now), '5 分鐘前');
   assert.equal(F.formatLastSeenAgo(now - 2 * 60 * 60 * 1000, now), '2 小時前');
+  assert.equal(F.formatRunDuration(0, now), '—');
   assert.equal(F.formatRunDuration(now - 45 * 60 * 1000, now), '已跑 45 分鐘');
   assert.equal(F.formatRunDuration(now - (2 * 60 + 20) * 60 * 1000, now), '已跑 2 小時 20 分');
 });
