@@ -149,6 +149,44 @@ test('子項進度與今日合併', () => {
   assert.equal(dayStart.length, 2);
 });
 
+test('toast 開著時 Esc 不關路線圖，第二次才關', async () => {
+  const F = await loadPublicModule('dev-machines-format.js');
+  const { handleExploreKeydown } = await loadPublicModule('island-explore-input.js');
+  let roadmapClosed = false;
+  const doc = {
+    querySelector(sel) {
+      if (sel === '[data-dev-login-toast]') return toastNode;
+      return null;
+    },
+    getElementById() {
+      return null;
+    }
+  };
+  let toastNode = { attributes: { 'data-dev-login-toast': '1' } };
+  const roadmap = { isOpen: () => true, close: () => { roadmapClosed = true; } };
+  const base = {
+    document: doc,
+    event: { key: 'Escape', target: null, preventDefault() {} },
+    player: { keys: {} },
+    npcTalk: null,
+    islandChat: { isOpen: () => false, close: () => {} },
+    graffiti: null,
+    casino: { isOpen: () => false, isTableOpen: () => false },
+    getMode: () => ({ exploring: true }),
+    controlsActive: () => true,
+    islandUiOpen: () => false,
+    syncInteractPrompt: () => false,
+    isInside: () => false,
+    setExplore: () => {}
+  };
+  assert.equal(handleExploreKeydown(Object.assign({}, base, { roadmap })), true);
+  assert.equal(roadmapClosed, false);
+  toastNode = null;
+  assert.equal(handleExploreKeydown(Object.assign({}, base, { roadmap })), true);
+  assert.equal(roadmapClosed, true);
+  assert.equal(F.isLoginRequiredToastOpen(doc), false);
+});
+
 test('台北時間格式含台北標籤', () => {
   const text = R.formatTaipeiTime(Date.UTC(2026, 10, 17, 6, 30, 0));
   assert.match(text, /2026\/11\/17/);

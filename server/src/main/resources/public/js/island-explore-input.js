@@ -15,6 +15,7 @@ import {
 } from './island-pinch.js';
 import { shouldOpenChatKey } from './island-chat.js';
 import { shouldOpenMapWithKey } from './island-minimap.js';
+import { isLoginRequiredToastOpen } from './dev-machines-format.js';
 
 /** 戶外互動分派；回傳 true 表示已處理，不應再開啟賭場。 */
 export function applyOutdoorInteractZone(zone, actions) {
@@ -414,6 +415,9 @@ export function handleExploreKeydown(ctx) {
   }
 
   if (event.key !== 'Escape') return false;
+  if (ctx.document && isLoginRequiredToastOpen(ctx.document)) {
+    return true;
+  }
   if (ctx.npcTalk && ctx.npcTalk.isOpen && ctx.npcTalk.isOpen()) {
     ctx.npcTalk.close();
     return true;

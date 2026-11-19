@@ -62,6 +62,7 @@ import {
 } from './island-vehicle.js';
 import { createCasinoController, CASINO_NAME, promptDomUpdate } from './island-casino.js';
 import { createGraffitiController } from './island-graffiti.js';
+import { applyIslandOpenRoadmapParam } from './dev-machines-format.js';
 import { createRoadmapController } from './island-roadmap.js';
 import {
   INTERIOR_ORIGIN,
@@ -196,6 +197,7 @@ function bootCasinoFallback() {
   window.PunchClockIsland.closeGraffiti = () => graffiti.close();
   window.PunchClockIsland.openRoadmap = () => roadmap.open();
   window.PunchClockIsland.closeRoadmap = () => roadmap.close();
+  applyIslandOpenRoadmapParam(window, () => roadmap.open());
 }
 
 if (stage && canvas) boot();
@@ -2887,5 +2889,6 @@ function boot() {
   renderer.render(scene, camera);
   placeLabels();
   if (!document.hidden) start();
+  applyIslandOpenRoadmapParam(window, () => roadmap.open());
 
 }

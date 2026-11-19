@@ -61,3 +61,16 @@ test('頁尾管理員登入鈕 hidden 時覆寫 .dev-btn display', () => {
   const css = readFileSync(join(publicRoot, 'css/dev-machines.css'), 'utf8');
   assert.match(css, /\.dev-machines-login-footer\[hidden\]\s*\{[^}]*display:\s*none\s*!important/);
 });
+
+test('頁尾三顆按鈕同寬對齊（secondary 無額外 margin）', () => {
+  const css = readFileSync(join(publicRoot, 'css/dev-machines.css'), 'utf8');
+  const secondary = css.match(/\.dev-btn-secondary\s*\{([^}]+)\}/);
+  assert.ok(secondary);
+  assert.ok(!secondary[1].includes('margin-left'));
+  assert.match(css, /\.dev-machines-footer \.dev-btn/);
+});
+
+test('訪客面板小標題為請先登入', () => {
+  const js = readFileSync(join(publicRoot, 'js/dev-machines.js'), 'utf8');
+  assert.match(js, /setText\(title,\s*'請先登入'\)/);
+});
