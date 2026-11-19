@@ -66,8 +66,11 @@ export function peerBubbleTransform(x, y) {
   return 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -100%) translateY(-1.85rem)';
 }
 
-export function selfBubbleTransform(x, y) {
-  return 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -120%)';
+export function selfBubbleTransform(x, y, opts) {
+  const extra = typeof opts === 'object' && opts && opts.selfNameAbove
+    ? (typeof opts.extraTransform === 'string' ? opts.extraTransform : '')
+    : '';
+  return 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -120%)' + extra;
 }
 
 /**
@@ -230,7 +233,13 @@ export function createIslandChat(options) {
     const screenY = (-projected.y * 0.5 + 0.5) * height;
     el.hidden = false;
     el.style.visibility = 'visible';
-    el.style.transform = selfBubbleTransform(x, screenY);
+    const extra = ctx.selfNameAbove && typeof ctx.selfBubbleExtra === 'string'
+      ? ctx.selfBubbleExtra
+      : '';
+    el.style.transform = selfBubbleTransform(x, screenY, {
+      selfNameAbove: !!ctx.selfNameAbove,
+      extraTransform: extra
+    });
   }
 
   function placePeerFromList(list) {

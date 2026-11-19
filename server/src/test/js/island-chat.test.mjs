@@ -89,10 +89,14 @@ test('打字中移動鍵與互動鍵不會觸發', async () => {
   }), false);
 });
 
-test('對方泡泡用獨立定位，抬到名牌上方；自己維持原 transform', () => {
+test('對方泡泡用獨立定位，抬到名牌上方；自己名牌開啟時再往上', () => {
   assert.match(C.peerBubbleTransform(120, 240), /translate\(120px, 240px\)/);
   assert.match(C.peerBubbleTransform(120, 240), /translateY\(-1\.85rem\)/);
   assert.equal(C.selfBubbleTransform(10, 20), 'translate(10px, 20px) translate(-50%, -120%)');
+  assert.match(
+    C.selfBubbleTransform(10, 20, { selfNameAbove: true, extraTransform: ' translateY(-1.65rem)' }),
+    /translateY\(-1\.65rem\)/
+  );
 });
 
 test('對方泡泡掛在 #islandLabels，不進名牌膠囊', () => {

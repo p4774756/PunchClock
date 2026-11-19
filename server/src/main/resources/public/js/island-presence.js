@@ -458,6 +458,7 @@ export function createIslandPresence(options) {
     sendPos: sendPos,
     sendSay: sendSay,
     rename: rename,
-    accept: accept
+    accept: accept,
+    getSelfName: () => selfName
   };
 }

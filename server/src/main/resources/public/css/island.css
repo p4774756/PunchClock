@@ -662,6 +662,57 @@ body.island-sheet-open .island-map-sheet {
   white-space: nowrap;
 }
 
+.island-self-name {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  max-width: min(11rem, 58vw);
+  padding: 0.1rem 0.48rem 0.1rem 0.36rem;
+  border-radius: 999px;
+  border: 2px solid #163a70;
+  background: #f8fbff;
+  box-shadow: 1px 2px 0 rgba(0, 0, 0, 0.31), inset 0 0 0 1px #a8d0f2;
+  color: #163a70;
+  font-family: "Noto Sans TC", "Noto Sans CJK TC", ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.island-self-name[hidden] {
+  display: none !important;
+}
+
+.island-self-name-star {
+  flex: 0 0 auto;
+  color: #ecc440;
+  font-size: 0.72rem;
+  line-height: 1;
+  -webkit-text-stroke: 0.4px #163a70;
+}
+
+.island-self-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.island-peer-name {
+  z-index: 5;
+}
+
+@media (max-width: 760px) {
+  .island-self-name {
+    font-size: 0.84rem;
+  }
+}
+
 .island-chat-wrap {
   position: relative;
 }

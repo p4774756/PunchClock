@@ -132,6 +132,11 @@ import { createIslandLife } from './island-life.js';
 import { createFootprintView } from './island-footprints.js';
 import { createLifecycle } from './island-lifecycle.js';
 import { createPeerLayer } from './island-peers.js';
+import {
+  createSelfLabelPlacer,
+  loadSelfNameEnabled,
+  selfBubbleExtraTransform
+} from './island-self-label.js';
 import { placeBuildingLabels } from './island-labels.js';
 import { createCornerUi } from './island-corner-ui.js';
 import { createMinimapHud } from './island-minimap.js';
@@ -643,6 +648,66 @@ function boot() {
   let islandChat = null;
   let peerLayer = null;
   let corner = null;
+  const selfLabel = createSelfLabelPlacer({ document: document });
+  if (typeof window !== 'undefined') {
+    window.__islandSelfLabel = () => selfLabel.getDebug();
+  }
+
+  function playerGroundY() {
+    if (isSailing() || isSteering()) {
+      return dockedBob(boatElapsed, reduced) + BOAT_DECK_OFFSET;
+    }
+    return P;
+  }
+
+  function selfNameEnabledNow() {
+    if (corner && typeof corner.isSelfNameEnabled === 'function') {
+      return corner.isSelfNameEnabled();
+    }
+    return loadSelfNameEnabled(window.localStorage);
+  }
+
+  function placeSelfLabelFrame(partial) {
+    const pack = partial || {};
+    const placed = selfLabel.place({
+      mode: mode,
+      storage: window.localStorage,
+      loadNick: loadNick,
+      selfName: islandPresence && typeof islandPresence.getSelfName === 'function'
+        ? islandPresence.getSelfName()
+        : '',
+      selfNameEnabled: selfNameEnabledNow(),
+      interiorBusy: interiorBusy,
+      uiOverlay: islandUiOpen()
+        || !!(document.getElementById('islandMoreSheet') && !document.getElementById('islandMoreSheet').hidden),
+      miluVisible: localView.object.visible,
+      placeholderVisible: miluPlaceholder.visible,
+      blockVisible: playerMesh.visible,
+      playerX: player.x,
+      playerZ: player.z,
+      groundY: playerGroundY(),
+      P: P,
+      offsetX: peerOffset().x,
+      offsetZ: peerOffset().z,
+      passengerScale: boatPassengerScaleFactor(boatState.phase),
+      vehicleState: vehicleState,
+      boatState: boatState,
+      boatPhase: boatState.phase,
+      boatElapsed: boatElapsed,
+      reduced: reduced,
+      width: pack.width,
+      height: pack.height,
+      camera: pack.camera,
+      projected: pack.projected,
+      peers: pack.peers
+    });
+    if (!placed) return null;
+    return {
+      headY: placed.headY,
+      selfNameAbove: placed.selfNameAbove,
+      selfBubbleExtra: placed.selfNameAbove ? selfBubbleExtraTransform(true) : ''
+    };
+  }
   let minimapHud = null;
   let peerHideTimer = 0;
 
@@ -2315,7 +2380,8 @@ function boot() {
     getCam: () => cam,
     syncPeerCount: () => {
       if (corner) corner.syncPeerCount();
-    }
+    },
+    placeSelfLabel: (partial) => placeSelfLabelFrame(partial)
   });
 
   lifecycle.on('enterExplore', () => {
@@ -2372,6 +2438,8 @@ function boot() {
     isWelcomed: () => peerLayer.getWelcomed(),
     getAudioMuted: () => islandAudio.muted,
     onAvatarChange: (id) => replaceLocalAvatar(id),
+    onNickSaved: () => selfLabel.invalidateText(),
+    onSelfNameToggle: () => selfLabel.invalidateText(),
     closeList: closeListPanel
   });
   corner.syncExploreHudLabels();

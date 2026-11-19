@@ -1,4 +1,5 @@
-import { cleanNick, loadAvatar, loadNick, normalizeAvatar, saveAvatar } from './island-presence.js';
+import { cleanNick, loadAvatar, loadNick, normalizeAvatar, saveAvatar, NICK_KEY } from './island-presence.js';
+import { loadSelfNameEnabled, saveSelfNameEnabled } from './island-self-label.js';
 
 export const MOBILE_MAX_WIDTH = 760;
 const REM = 16;
@@ -376,6 +377,8 @@ export function createCornerUi(opts) {
   const isWelcomed = opts.isWelcomed;
   const getAudioMuted = opts.getAudioMuted;
   const onAvatarChange = opts.onAvatarChange;
+  const onNickSaved = opts.onNickSaved;
+  const onSelfNameToggle = opts.onSelfNameToggle;
   const closeList = typeof opts.closeList === 'function' ? opts.closeList : null;
 
   const avatarBtn = document.getElementById('islandAvatarBtn');
@@ -396,6 +399,10 @@ export function createCornerUi(opts) {
 
   const moreBtn = document.getElementById('islandMoreBtn');
   const moreSheet = document.getElementById('islandMoreSheet');
+  const selfNameToggle = document.getElementById('islandSelfNameToggle');
+  const selfNameToggleState = selfNameToggle
+    ? selfNameToggle.querySelector('.island-more-self-name-state')
+    : null;
   const moreClose = document.getElementById('islandMoreClose');
   const moreScrim = document.getElementById('islandMoreScrim');
   const nickClose = document.getElementById('islandNickClose');
@@ -505,13 +512,55 @@ export function createCornerUi(opts) {
     }
   }
 
+  let selfNameEnabled = loadSelfNameEnabled(storage);
+
+  function syncSelfNameToggleUi() {
+    if (!selfNameToggle) return;
+    selfNameToggle.setAttribute('aria-checked', selfNameEnabled ? 'true' : 'false');
+    if (selfNameToggleState) {
+      selfNameToggleState.textContent = selfNameEnabled ? '開' : '關';
+    }
+  }
+
+  function setSelfNameEnabled(on) {
+    selfNameEnabled = !!on;
+    saveSelfNameEnabled(storage, selfNameEnabled);
+    syncSelfNameToggleUi();
+    if (typeof onSelfNameToggle === 'function') onSelfNameToggle(selfNameEnabled);
+  }
+
+  syncSelfNameToggleUi();
+
+  if (selfNameToggle) {
+    selfNameToggle.addEventListener('click', () => {
+      setSelfNameEnabled(!selfNameEnabled);
+    });
+  }
+
   function saveNick() {
     const islandPresence = getPresence();
-    if (!nickInput || !islandPresence) return;
+    if (!nickInput) return;
     const cleaned = cleanNickFn(nickInput.value);
-    if (!cleaned) return;
+    if (!cleaned) {
+      if (storage && typeof storage.removeItem === 'function') {
+        try {
+          storage.removeItem(NICK_KEY);
+        } catch (err) {
+          // 略過
+        }
+      }
+      nickInput.value = '';
+      if (islandPresence && typeof islandPresence.rename === 'function') {
+        islandPresence.rename('');
+      }
+      if (typeof onNickSaved === 'function') onNickSaved('');
+      setNickOpen(false);
+      return;
+    }
+    if (!islandPresence) return;
     nickInput.value = cleaned;
     islandPresence.rename(cleaned);
+    if (typeof onNickSaved === 'function') onNickSaved(cleaned);
     setNickOpen(false);
   }
 
@@ -731,6 +780,8 @@ export function createCornerUi(opts) {
     setAvatarOpen: setAvatarOpen,
     syncAvatarUi: syncAvatarUi,
     syncExploreHudLabels: syncExploreHudLabels,
-    currentAvatar: () => normalizeAvatar(selectedAvatar)
+    currentAvatar: () => normalizeAvatar(selectedAvatar),
+    isSelfNameEnabled: () => selfNameEnabled,
+    setSelfNameEnabled: setSelfNameEnabled
   };
 }

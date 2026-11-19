@@ -32,6 +32,7 @@ export function createPeerLayer(opts) {
   const document = opts.document;
   const getCam = opts.getCam || function () { return { theta: 0 }; };
   const syncPeerCountExternal = opts.syncPeerCount;
+  const placeSelfLabel = opts.placeSelfLabel;
 
   const peers = new Map();
   const avatarTexturePools = new Map();
@@ -246,23 +247,38 @@ export function createPeerLayer(opts) {
       el.style.transform = 'translate(' + x + 'px, ' + y + 'px) translate(-50%, -120%)';
       peerPlaces.push({ id: id, x: x, y: y, visible: true });
     });
-    if (islandChat) {
-      islandChat.placeBubbles({
-        x: player.x,
-        y: P + 1.18,
-        z: player.z,
-        visible: !!(mode.exploring && (
-          getMiluVisible()
-          || (typeof getMiluPlaceholderVisible === 'function' && getMiluPlaceholderVisible())
-          || getPlayerMeshVisible()
-        )),
+    let bubbleCtx = {
+      x: player.x,
+      y: P + 1.18,
+      z: player.z,
+      visible: !!(mode.exploring && (
+        getMiluVisible()
+        || (typeof getMiluPlaceholderVisible === 'function' && getMiluPlaceholderVisible())
+        || getPlayerMeshVisible()
+      )),
+      width: width,
+      height: height,
+      camera: camera,
+      projected: projected,
+      peers: peerPlaces,
+      selfNameAbove: false,
+      selfBubbleExtra: ''
+    };
+    if (typeof placeSelfLabel === 'function') {
+      const placed = placeSelfLabel({
         width: width,
         height: height,
         camera: camera,
         projected: projected,
         peers: peerPlaces
       });
+      if (placed) {
+        if (placed.headY != null) bubbleCtx.y = placed.headY;
+        bubbleCtx.selfNameAbove = !!placed.selfNameAbove;
+        if (placed.selfBubbleExtra) bubbleCtx.selfBubbleExtra = placed.selfBubbleExtra;
+      }
     }
+    if (islandChat) islandChat.placeBubbles(bubbleCtx);
   }
 
   function setWelcomed(value) {
