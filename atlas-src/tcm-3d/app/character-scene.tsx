@@ -1,7 +1,16 @@
 import {ANIME_MODEL_BYTES,ANIME_MODEL_GZIP_BYTES} from './anime-model-digest';
 import {WOODCUT_LANDSCAPE_DIGEST} from './texture-digests';
 import {publicAssetUrl} from './public-assets';
-import {LOAD_STEP_LABELS,type AtlasLoadProgress,yieldToMain} from './load-progress';
+import {
+  LOAD_STEP_LABELS,
+  type AtlasLoadProgress,
+  createDownloadProgressState,
+  creepLoadingPercent,
+  nextModelDownloadProgress,
+  yieldSlice,
+  yieldToMain,
+} from './load-progress';
+import {uploadTexturesIncremental,warmShadersIncremental} from './shader-warm';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
 import {animeOutfit,ANIME_OUTFITS,type AnimeOutfit,type OutfitId} from './outfits';
 import {useEffect,useRef} from 'react';
@@ -900,10 +909,27 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   let modelVisibleMarked=false;
   let pendingOutfitId:OutfitId|null=null;
   let downloadComplete=false;
+  let outfitSwitchMeasurePending=false;
+  let downloadProgressState=createDownloadProgressState();
+  let downloadCreepTimer=0;
+  let lastProgressAt=performance.now();
 
   const reportProgress=(percent:number,step:AtlasLoadProgress['step'],extra?:string)=>{
    const stepLabel=extra??LOAD_STEP_LABELS[step];
+   lastProgressAt=performance.now();
    onProgress({percent,step,stepLabel});
+  };
+
+  const finishOutfitSwitchMeasure=()=>{
+   if(!outfitSwitchMeasurePending)return;
+   outfitSwitchMeasurePending=false;
+   if(!performance.getEntriesByName(OUTFIT_SWITCH_START,'mark').length)return;
+   performance.mark(OUTFIT_SWITCH_END);
+   try{
+    performance.measure('atlas:outfit-switch',OUTFIT_SWITCH_START,OUTFIT_SWITCH_END);
+   }catch{/* duplicate */}
+   performance.clearMarks(OUTFIT_SWITCH_START);
+   performance.clearMarks(OUTFIT_SWITCH_END);
   };
 
   const showOutfit=(id:OutfitId)=>{
@@ -912,14 +938,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    characterRoot.updateMatrixWorld(true);
    if(ready)teaching.applyCachedAnchors();
    dirty=true;
-   if(performance.getEntriesByName(OUTFIT_SWITCH_START,'mark').length){
-    performance.mark(OUTFIT_SWITCH_END);
-    try{
-     performance.measure('atlas:outfit-switch',OUTFIT_SWITCH_START,OUTFIT_SWITCH_END);
-    }catch{/* duplicate */}
-    performance.clearMarks(OUTFIT_SWITCH_START);
-    performance.clearMarks(OUTFIT_SWITCH_END);
-   }
+   if(performance.getEntriesByName(OUTFIT_SWITCH_START,'mark').length)outfitSwitchMeasurePending=true;
   };
 
   const buildPracticeOutfit=()=>{
@@ -939,28 +958,58 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    dirty=true;
   };
 
+  const warmModelMaterials=async(
+   root:T.Object3D,
+   onProgress?:(pct:number)=>void,
+  )=>{
+   const textures=collectMeshTextures(root);
+   const texSlices=Math.max(textures.length,1);
+   await uploadTexturesIncremental({
+    renderer,
+    textures,
+    disposed:()=>disposed,
+    onSlice:(i,n)=>onProgress?.(92+Math.round((i/n)*4)),
+   });
+   if(disposed)return;
+   await warmShadersIncremental({
+    renderer,
+    scene,
+    camera,
+    root,
+    disposed:()=>disposed,
+    onSlice:(i,n)=>onProgress?.(96+Math.round((i/n)*3)),
+   });
+  };
+
   const schedulePracticeWarm=()=>{
    if(practiceBuilt||practiceWarm||!practiceShell||disposed)return;
    practiceWarm=true;
+   const breathe=async()=>{
+    await yieldSlice();
+    if(pendingOutfitId)await yieldSlice();
+   };
    const run=async()=>{
+    await breathe();
     if(disposed||practiceBuilt)return;
     buildPracticeOutfit();
+    await breathe();
     if(!renderer||disposed||!practiceModel)return;
     const restoreSchool=schoolModel?.visible??true;
     if(schoolModel)schoolModel.visible=false;
-    practiceModel.visible=true;
-    characterRoot.updateMatrixWorld(true);
-    for(const tex of collectMeshTextures(practiceModel))renderer.initTexture(tex);
-    try{
-     await renderer.compileAsync(scene,camera);
-     renderer.render(scene,camera);
-    }catch{/* software WebGL */}
     practiceModel.visible=false;
+    characterRoot.updateMatrixWorld(true);
+    await warmModelMaterials(practiceModel);
+    if(disposed)return;
     if(schoolModel)schoolModel.visible=restoreSchool;
     dirty=true;
-    if(pendingOutfitId){const next=pendingOutfitId;pendingOutfitId=null;showOutfit(next);onPracticeOutfitPreparing?.(false);}
+    if(pendingOutfitId){
+     const next=pendingOutfitId;
+     pendingOutfitId=null;
+     showOutfit(next);
+     onPracticeOutfitPreparing?.(false);
+    }
    };
-   requestAnimationFrame(()=>{void run();});
+   void run();
   };
 
   const setOutfit=(id:OutfitId)=>{
@@ -1006,23 +1055,46 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const isAnimeModel=!!modelUrl?.includes('anime-assistant.glb');
    const cacheAnimeOutfits=avatar.hasOutfits&&isAnimeModel;
    let downloadPct=0;
-   const downloadBytes=isAnimeModel?ANIME_MODEL_GZIP_BYTES||ANIME_MODEL_BYTES:ANIME_MODEL_BYTES;
+   const gzipBytes=isAnimeModel?ANIME_MODEL_GZIP_BYTES||0:0;
+   const rawBytes=isAnimeModel?ANIME_MODEL_BYTES:ANIME_MODEL_BYTES;
    const reportDownload=(loaded:number,total:number)=>{
-    const denom=total>0?total:downloadBytes;
-    if(!denom)return;
-    if(total>0&&loaded>=total){
+    const result=nextModelDownloadProgress(loaded,total,gzipBytes,rawBytes,downloadProgressState);
+    downloadProgressState=result.state;
+    if(!result.percent||!result.step)return;
+    if(result.step==='parse'){
      if(!downloadComplete){
       downloadComplete=true;
-      reportProgress(Math.max(downloadPct,80),'parse');
-      downloadPct=Math.max(downloadPct,80);
+      downloadPct=Math.max(downloadPct,result.percent);
+      reportProgress(result.percent,'parse');
      }
      return;
     }
-    const pct=Math.min(78,12+Math.round(loaded/denom*66));
-    if(pct<=downloadPct)return;
-    downloadPct=pct;
-    reportProgress(pct,'download');
+    downloadPct=result.percent;
+    reportProgress(result.percent,'download');
    };
+   const seedPreloadedDownload=()=>{
+    if(!isAnimeModel||typeof performance==='undefined')return;
+    const needle='anime-assistant.glb';
+    for(const entry of performance.getEntriesByType('resource')){
+     if(!entry.name.includes(needle))continue;
+     const rt=entry as PerformanceResourceTiming;
+     if(rt.transferSize===0&&rt.decodedBodySize===0)continue;
+     const total=rt.encodedBodySize||gzipBytes||rawBytes;
+     const loaded=Math.max(rt.transferSize||0,total);
+     reportDownload(loaded,total>0?total:0);
+     break;
+    }
+   };
+   downloadCreepTimer=window.setInterval(()=>{
+    if(downloadComplete||disposed)return;
+    const stalled=performance.now()-lastProgressAt;
+    if(stalled<400)return;
+    const next=creepLoadingPercent(downloadPct,12,downloadComplete?80:77,1);
+    if(next>downloadPct){
+     downloadPct=next;
+     reportProgress(next,'download');
+    }
+   },220);
    loader.load(publicAssetUrl(modelUrl!),gltf=>{
     if(disposed)return;
     void (async()=>{
@@ -1057,7 +1129,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      reportProgress(92,'materials','準備材質…');
      await yieldToMain();
      if(disposed)return;
-     try{await renderer.compileAsync(scene,camera);}catch{/* software WebGL */}
+     if(schoolModel)await warmModelMaterials(schoolModel,pct=>reportProgress(pct,'materials','準備材質…'));
+     if(disposed)return;
      ready=true;
      showOutfit(outfitIdRef.current);
      reportProgress(100,'done');
@@ -1067,12 +1140,13 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      dirty=true;
      performance.mark('atlas:model-visible');
      try{performance.measure('atlas:model-visible','atlas:boot-start','atlas:model-visible');}catch{/* duplicate */}
-     if(cacheAnimeOutfits)schedulePracticeWarm();
+     if(cacheAnimeOutfits)requestAnimationFrame(()=>requestAnimationFrame(()=>schedulePracticeWarm()));
     })();
    },xhr=>{
-    if(xhr.total)reportDownload(xhr.loaded,xhr.total);
-    else if(isAnimeModel)reportDownload(xhr.loaded,ANIME_MODEL_BYTES);
+    reportDownload(xhr.loaded,xhr.total||0);
    },()=>{if(!disposed)onError(`${avatar.name} 模型載入失敗，請確認 ${modelUrl} 是否存在。`);});
+   reportProgress(8,'download');
+   seedPreloadedDownload();
   }
 
   const raycaster=new T.Raycaster(),pointer=new T.Vector2(),tap=new PointerTap();
@@ -1142,6 +1216,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(dirty){
     renderer.render(scene,camera);
     dirty=false;
+    finishOutfitSwitchMeasure();
     if(ready&&!modelVisibleMarked){
      modelVisibleMarked=true;
      performance.mark('atlas:model-frame');
@@ -1155,7 +1230,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   renderer.domElement.addEventListener('webglcontextlost',contextLost);
 
   return()=>{
-   disposed=true;outfitBridge.current=null;cancelAnimationFrame(frame);observer.disconnect();
+   disposed=true;outfitBridge.current=null;cancelAnimationFrame(frame);window.clearInterval(downloadCreepTimer);observer.disconnect();
    toolInput.dispose();teaching.dispose();controls.dispose();gradient.dispose();
    if(woodcut){
     scene.remove(woodcut.mesh);

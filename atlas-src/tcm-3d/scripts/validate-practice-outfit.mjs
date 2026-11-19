@@ -35,8 +35,19 @@ assert.match(src, /data\.data\[i\+3\]>=200\)continue[\s\S]*paintShoulderAlphaHol
 assert.match(src, /isHairMaterial/, 'hair-specific cel shading to preserve blue-violet');
 assert.match(src, /syncHairBunMaterial/, 'bun materials must track hair MToon chroma');
 assert.match(src, /schedulePracticeWarm/, 'practice outfit must warm after first frame');
-assert.match(src, /initTexture/, 'practice warm must upload outfit textures');
-assert.match(src, /compileAsync/, 'practice warm must compile visible practice rig');
+assert.match(src, /uploadTexturesIncremental/, 'practice warm must upload outfit textures in slices');
+assert.match(src, /warmShadersIncremental/, 'practice warm must shader-warm visible practice rig per mesh');
+assert.match(src, /finishOutfitSwitchMeasure/, 'outfit switch measure must end after render');
+assert.match(
+  src,
+  /renderer\.render\(scene,camera\);[\s\S]{0,120}finishOutfitSwitchMeasure\(\)/,
+  'atlas:outfit-switch must measure after renderer.render',
+);
+assert.doesNotMatch(
+  src.match(/const showOutfit=\([\s\S]*?\n  \};/m)?.[0] ?? '',
+  /performance\.measure\('atlas:outfit-switch'/,
+  'must not measure outfit switch inside showOutfit',
+);
 assert.match(pageSrc, /atlas:outfit-switch-start/, 'outfit switch measure must start on button click');
 assert.match(src, /atlas:outfit-switch/, 'outfit switch must performance.measure atlas:outfit-switch');
 assert.match(src, /atlas:model-visible/, 'first model frame must performance.measure atlas:model-visible');
