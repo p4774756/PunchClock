@@ -2054,12 +2054,6 @@ function boot() {
       btn.addEventListener('click', () => jumpToIsland(btn.getAttribute('data-island')));
     });
   }
-  const mapSheet = document.getElementById('islandMapSheet');
-  if (mapSheet) {
-    mapSheet.querySelectorAll('[data-island]').forEach((btn) => {
-      btn.addEventListener('click', () => jumpToIsland(btn.getAttribute('data-island')));
-    });
-  }
   const exploreBtn = document.getElementById('islandExplore');
   if (exploreBtn) {
     exploreBtn.addEventListener('click', () => {

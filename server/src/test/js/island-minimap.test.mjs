@@ -235,33 +235,81 @@ function touchBoxInside(box, width, height) {
   return box.left >= 2 && box.top >= 2 && box.right <= width - 2 && box.bottom <= height - 2;
 }
 
-test('大地圖名牌版面：390 與 1280 六島在界內、不重疊', () => {
+const MAP_LAYOUT_VPS = [
+  [1280, 800],
+  [1280, 720],
+  [412, 915],
+  [390, 844],
+  [360, 740]
+];
+
+test('大地圖名牌版面：多視窗六島在界內、不重疊', () => {
+  for (let v = 0; v < MAP_LAYOUT_VPS.length; v++) {
+    const vw = MAP_LAYOUT_VPS[v][0];
+    const size = M.largeMapCanvasCssSize(vw, MAP_LAYOUT_VPS[v][1]);
+    const layouts = M.islandPinLayout(size.width, size.height);
+    assert.equal(layouts.length, 6, vw + ' 應有六島');
+    assertLayoutsNoOverlap(layouts, size.width, size.height);
+    assert.ok(size.width <= size.contentWidth + 0.5, vw + ' canvas 寬 ≤ wrap 內容區');
+  }
   const s390 = M.largeMapCanvasCssSize(390, 844);
-  const s1280 = M.largeMapCanvasCssSize(1280, 800);
   const l390 = M.islandPinLayout(s390.width, s390.height);
-  const l1280 = M.islandPinLayout(s1280.width, s1280.height);
-  assert.equal(l390.length, 6);
-  assert.equal(l1280.length, 6);
-  assertLayoutsNoOverlap(l390, s390.width, s390.height);
-  assertLayoutsNoOverlap(l1280, s1280.width, s1280.height);
   const tcm = l390.find((row) => row.id === 'tcm');
   assert.ok(tcm && tcm.fontPx >= 13, '手機字級 ≥ 13px');
-  const desk = l1280.find((row) => row.id === 'main');
+  assert.ok(tcm.lines && tcm.lines.length >= 2, '推拿島手機多行名牌');
+  const s1280 = M.largeMapCanvasCssSize(1280, 800);
+  const desk = M.islandPinLayout(s1280.width, s1280.height).find((row) => row.id === 'main');
   assert.ok(desk && desk.fontPx >= 15 && desk.fontPx <= 17, '桌機字級 15–16px');
   assert.ok(s1280.innerHeight <= s1280.availHeight + 1, '1280×800 canvas 內高不超出面板可用高');
 });
 
+test('largeMapCanvasSizeFromWrapContent：canvas 不超出內容區', () => {
+  const contentW = 347;
+  const size = M.largeMapCanvasSizeFromWrapContent(contentW, 520);
+  assert.equal(size.contentWidth, contentW);
+  assert.ok(size.width <= contentW + 0.01, '含邊框仍不超過 wrap 寬');
+});
+
 test('largeMapCanvasCssSize：常見視窗不撐出捲軸', () => {
-  const vps = [
-    [1280, 800],
-    [1280, 720],
-    [390, 844],
-    [360, 740]
-  ];
-  for (let i = 0; i < vps.length; i++) {
-    const size = M.largeMapCanvasCssSize(vps[i][0], vps[i][1]);
-    assert.ok(size.innerHeight <= size.availHeight + 1, vps[i] + ' 內高 ≤ 可用高');
+  for (let i = 0; i < MAP_LAYOUT_VPS.length; i++) {
+    const size = M.largeMapCanvasCssSize(MAP_LAYOUT_VPS[i][0], MAP_LAYOUT_VPS[i][1]);
+    assert.ok(size.innerHeight <= size.availHeight + 1, MAP_LAYOUT_VPS[i] + ' 內高 ≤ 可用高');
+    assert.ok(size.width <= size.contentWidth + 0.5, MAP_LAYOUT_VPS[i] + ' canvas 不超內容寬');
   }
+});
+
+test('名牌避開玩家標記：推拿館門口', () => {
+  const size = M.largeMapCanvasCssSize(390, 844);
+  const room = M.interiorByRoomId('tcm-room');
+  const player = M.outdoorPlayerPoseFromInterior(room);
+  const pt = M.playerMapPointFromWorld(player, size.width, size.height);
+  assert.ok(pt, '門口座標');
+  const obstacle = {
+    x: pt.x,
+    y: pt.y,
+    radius: M.largeMapPlayerLabelAvoidRadius(1, true)
+  };
+  const layouts = M.islandPinLayout(size.width, size.height, {
+    playerObstacle: obstacle,
+    playerIslandId: 'tcm'
+  });
+  const tcm = layouts.find((row) => row.id === 'tcm');
+  assert.ok(tcm, 'tcm 名牌');
+  const drawPt = M.largeMapPlayerDrawPoint(pt.x, pt.y, tcm, 14);
+  assert.equal(
+    M.touchBoxOverlapsCircle(tcm.box, drawPt.x, drawPt.y, obstacle.radius),
+    false,
+    '推拿島名牌與偏移後的玩家圖示不重疊'
+  );
+});
+
+test('大地圖標題：室內房名與群島', () => {
+  const room = M.interiorByRoomId('tcm-room');
+  assert.equal(M.resolveLargeMapSheetTitle(room, false), '推拿館');
+  assert.equal(M.resolveLargeMapSheetTitle(room, true), '群島地圖');
+  assert.equal(M.resolveLargeMapSheetTitle(null, false), '群島地圖');
+  assert.equal(M.resolveLargeMapModeToggleLabel(false), '群島地圖');
+  assert.equal(M.resolveLargeMapModeToggleLabel(true), '室內平面圖');
 });
 
 test('shouldJumpIslandOnPointerUp：同島小位移才跳', () => {
@@ -319,6 +367,8 @@ test('index.html 已移除 island-map-isle、保留 data-island 名牌', () => {
   assert.doesNotMatch(indexHtml, /island-map-grid/);
   assert.match(indexHtml, /class="island-map-pin"[^>]*data-island="main"/);
   assert.match(indexHtml, /data-island="tcm"/);
+  assert.match(indexHtml, /island-map-pin-label/);
+  assert.match(indexHtml, /island-map-legend-peer-dot/);
 });
 
 test('shouldOpenMapWithKey：輸入框聚焦不攔截，探索中可按 M', () => {
