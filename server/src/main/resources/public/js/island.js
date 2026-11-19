@@ -125,6 +125,7 @@ import { buildIslandBeach } from './island-beach.js';
 import { buildIslandPeople } from './island-people.js';
 import { createIslandSky } from './island-sky.js';
 import { createIslandSea } from './island-sea.js';
+import { createIslandLife } from './island-life.js';
 import { createFootprintView } from './island-footprints.js';
 import { createLifecycle } from './island-lifecycle.js';
 import { createPeerLayer } from './island-peers.js';
@@ -319,6 +320,13 @@ function boot() {
   const worldResult = buildIslandWorld({ scene: scene, kit: kit });
   const sea = createIslandSea(THREE, { kit: kit, reduced: reduced });
   scene.add(sea.group);
+  const lifeRareParam = new URLSearchParams(window.location.search).get('lifeRare');
+  const life = createIslandLife(THREE, {
+    kit: kit,
+    reduced: reduced,
+    forceRare: lifeRareParam
+  });
+  scene.add(life.group);
   if (worldResult && worldResult.water) {
     worldResult.water.position.y = -0.78;
   }
@@ -399,8 +407,12 @@ function boot() {
   loop.register(function updateSea(dt, elapsed) {
     sea.update(dt, elapsed);
   });
+  loop.register(function updateLife(dt, elapsed) {
+    life.update(dt, elapsed);
+  });
   dayNight.onMix((t) => {
     sea.setMix(t);
+    life.setMix(t);
   });
   dayNight.refresh();
 
@@ -1572,7 +1584,10 @@ function boot() {
   function frame() {
     const dt = Math.min(0.1, clock.getDelta() || 0);
     const sample = quality.observeFrame(dt * 1000);
-    if (sample.changed) applyQualitySettings(sample.settings);
+    if (sample.changed) {
+      applyQualitySettings(sample.settings);
+      life.setLowQuality(sample.tier === 'shadowOff' || sample.tier === 'shadowLow');
+    }
     if (perfEl) {
       if (sample.tierDirection === 'down') perfTierChanges.down += 1;
       if (sample.tierDirection === 'up') perfTierChanges.up += 1;
@@ -1792,11 +1807,13 @@ function boot() {
 
   lifecycle.on('enterRoom', () => {
     sky.setVisible(false);
+    life.setVisible(false);
     dayNight.refresh();
     islandAudio.setInsideRoom(true);
   });
   lifecycle.on('exitRoom', () => {
     sky.setVisible(true);
+    life.setVisible(true);
     islandAudio.setInsideRoom(false);
   });
   lifecycle.on('visibilityChange', (p) => {
