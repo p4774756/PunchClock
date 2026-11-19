@@ -1663,6 +1663,12 @@ body.is-night .island-orb-icon-night {
   display: none !important;
 }
 
+.island-hud-btn[hidden],
+.island-interact[hidden],
+.island-interact-steer[hidden] {
+  display: none !important;
+}
+
 body.is-exploring .island-hud-explore-entry {
   min-width: 5.5rem;
   letter-spacing: 0.03em;

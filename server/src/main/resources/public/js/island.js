@@ -1138,6 +1138,10 @@ function boot() {
       return show;
     }
     setSteerPromptVisible(false);
+    if (zone && zone.action === 'openRoadmap') {
+      casino.setPromptVisible(false);
+      return false;
+    }
     casino.setPromptVisible(show, zone && zone.label ? zone.label : '進入賭場');
     return show;
   }

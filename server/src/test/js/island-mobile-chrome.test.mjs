@@ -175,6 +175,24 @@ function popWouldBeVisible(node) {
   return node && !node.hidden && !hasMenuTargetsAncestor(node);
 }
 
+test('情境鈕 [hidden] 時不被 island-hud-btn 的 inline-flex 蓋過', () => {
+  assert.match(
+    islandCss,
+    /\.island-hud-btn\[hidden\][\s\S]*\.island-interact-steer\[hidden\][\s\S]*display:\s*none\s*!important/
+  );
+});
+
+test('施工進度：永久藍鈕時不顯示情境 #islandInteract（openRoadmap 區）', () => {
+  assert.match(
+    islandJs,
+    /zone\.action === 'openRoadmap'[\s\S]*?setPromptVisible\(false\)/
+  );
+  const roadmapInActions = indexHtml.match(
+    /class="island-hud-actions"[\s\S]*?island-hud-roadmap[\s\S]*?id="islandInteract"/
+  );
+  assert.ok(roadmapInActions, '操作叢同時含永久施工進度與情境鈕');
+});
+
 test('index 使用 Concept A HUD：玩家卡、右上圓鈕、選單與地圖', () => {
   assert.doesNotMatch(indexHtml, /id="islandChatFab"/);
   assert.doesNotMatch(indexHtml, />蜜鹿</);
