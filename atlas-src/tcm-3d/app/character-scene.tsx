@@ -28,6 +28,8 @@ interface Props{
  onProgress:(n:number)=>void;
  onError:(s:string)=>void;
  onPracticeOutfitPreparing?:(preparing:boolean)=>void;
+ /** 闖關模式：隱藏穴名工具標籤、停用針／指壓拖曳。 */
+ questMode?:boolean;
 }
 
 /** Three-step cel shade ramp for MeshToonMaterial.gradientMap (and leftover dispose). */
@@ -801,7 +803,7 @@ const finishCharacterLook=(root:T.Object3D,outfit:AnimeOutfit,gradient:T.DataTex
 
 type OutfitBridge={setOutfit:(id:OutfitId)=>void};
 
-export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onError,onPracticeOutfitPreparing}:Props){
+export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onError,onPracticeOutfitPreparing,questMode=false}:Props){
  const host=useRef<HTMLDivElement>(null);
  const outfitIdRef=useRef(outfitId);
  outfitIdRef.current=outfitId;
@@ -996,7 +998,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   renderer.domElement.addEventListener('pointerup',up);
   renderer.domElement.addEventListener('pointercancel',cancel);
 
-  const toolInput=installSurfaceToolInput({
+  const toolInput=questMode?{update:()=>{},dispose:()=>{},isDragging:()=>false}:installSurfaceToolInput({
    canvas:renderer.domElement,
    handle:teaching.label,
    camera,
@@ -1011,12 +1013,14 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    onDrag:(target,phase)=>toolDrag.current(target,phase),
    invalidate:()=>{dirty=true;},
   });
+  if(questMode)teaching.label.hidden=true;
 
   const animate=()=>{
    if(disposed)return;frame=requestAnimationFrame(animate);
    const now=performance.now();const delta=Math.min(.05,(now-lastFrame)/1000);lastFrame=now;
    if(vrm)vrm.update(delta);
-   const s=latest.current,simState=sim.current;
+   const s=latest.current;
+   let simState=sim.current;
    toolInput.update();
    if(s.view!==lastView||s.reset!==lastReset){fit(s.view);lastView=s.view;lastReset=s.reset;}
    controls.autoRotate=s.rotate&&!toolInput.isDragging();controls.autoRotateSpeed=.55;
@@ -1040,7 +1044,12 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     }
    }
 
+   if(questMode){
+    simState={...simState,dragging:false,running:false,customTarget:null};
+    teaching.label.hidden=true;
+   }
    const response=teaching.update(simState,camera,el.clientWidth,el.clientHeight);
+   if(questMode)teaching.label.hidden=true;
    if(lastSimulation!==simState||simState.running||response?.settling){dirty=true;lastSimulation=simState;}
 
    if(dirty){renderer.render(scene,camera);dirty=false;}
@@ -1070,7 +1079,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    });
    teaching.label.remove();renderer.dispose();renderer.domElement.remove();
   };
- },[avatarId,onProgress,onError]);
+ },[avatarId,onProgress,onError,questMode]);
 
  useEffect(()=>{outfitBridge.current?.setOutfit(outfitId);},[outfitId]);
 

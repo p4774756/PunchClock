@@ -32,3 +32,4 @@ jobs:
       - run: node scripts/validate-teaching.mjs
       - run: node scripts/validate-bake-merge.mjs
       - run: node scripts/validate-interactions.mjs
+      - run: node scripts/validate-meridian-quest.mjs

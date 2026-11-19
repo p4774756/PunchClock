@@ -6,6 +6,10 @@ import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState,type CSSProp
 import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Focus,Info,Layers3,MapPin,Maximize2,Pause,Play,RotateCcw,RotateCw,Search,SlidersHorizontal,X} from 'lucide-react';
 import type {SceneState,View} from './anatomy';
 import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,isPracticeDeferred,LOCATION,POINTS,POINT_BY_CODE,MERIDIANS,pointInCurriculum,practiceOpenCodes,REGIONS,STANDARD,TOOLS,type CurriculumSetId,type RegionId,type SimulationState,type SurfaceTarget,type ToolId,type ToolDragPhase} from './teaching';
+import MeridianQuestPanel from './quest/MeridianQuestPanel';
+import {readLocalProgress} from './quest/quest-progress';
+import {bootstrapQuestProgress} from './quest/quest-sync';
+import type {MeridianQuestId,QuestProgressV1} from './quest/types';
 
 const CharacterScene=lazy(()=>import('./character-scene'));
 
@@ -19,14 +23,15 @@ const TCM_RETURN_KEY='punchclock.islandTcmReturn';
 const TCM_ISLAND_RETURN={explore:true,target:'island',x:-14.8,z:1.15,yaw:Math.PI/2};
 const TCM_HALL_RETURN={explore:true,target:'hall',buildingId:'tcm-site',x:0,z:8.19,yaw:Math.PI};
 const readLaunchParams=()=>{
- if(typeof window==='undefined')return {set:null as CurriculumSetId|null,code:null as string|null,fromIsland:false};
+ if(typeof window==='undefined')return {set:null as CurriculumSetId|null,code:null as string|null,fromIsland:false,modeQuest:false};
  const params=new URLSearchParams(window.location.search);
  const setId=params.get('set');
  const set=curriculumSet(setId)?.id??null;
  const rawCode=params.get('code')??params.get('point');
  const code=rawCode&&POINTS.some(p=>p.code===rawCode)?rawCode:null;
  const fromIsland=params.get('from')==='island';
- return {set,code,fromIsland};
+ const modeQuest=params.get('mode')==='quest';
+ return {set,code,fromIsland,modeQuest};
 };
 const persistTcmReturn=(payload:Record<string,unknown>)=>{
  try{sessionStorage.setItem(TCM_RETURN_KEY,JSON.stringify(payload));}catch{/* sessionStorage 不可用 */}
@@ -57,6 +62,10 @@ export default function Home(){
  const [toolsExpanded,setToolsExpanded]=useState(false);
  const [mobilePanel,setMobilePanel]=useState<'library'|'selection'|null>(null);
  const [about,setAbout]=useState(false),[holding,setHolding]=useState(false);
+ const [questOpen,setQuestOpen]=useState(()=>launch.modeQuest);
+ const [questPlaying,setQuestPlaying]=useState(false);
+ const [questProgress,setQuestProgress]=useState<QuestProgressV1>(()=>readLocalProgress());
+ const questLocate=useRef<((code:string)=>void)|null>(null);
  const [outfitId,setOutfitId]=useState<OutfitId>(DEFAULT_OUTFIT_ID);
  const [practicePreparing,setPracticePreparing]=useState(false);
  const currentOutfit=animeOutfit(outfitId);
@@ -107,7 +116,8 @@ export default function Home(){
  const releaseHold=useCallback(()=>{heldPointer.current=null;setHolding(false);setSimulation(s=>({...s,dragging:false,running:false,release:(s.release??0)+1}));setFeedback('已鬆開，皮膚與器具逐漸回彈。');},[]);
  useEffect(()=>{const blur=()=>pause('窗口已離開，演示自動暫停。');const visibility=()=>{if(document.hidden)blur();};window.addEventListener('blur',blur);document.addEventListener('visibilitychange',visibility);return()=>{window.removeEventListener('blur',blur);document.removeEventListener('visibilitychange',visibility);};},[pause]);
  useEffect(()=>{if(about){dialog.current?.showModal();pause('已打開來源與許可，演示暫停。');}else dialog.current?.close();},[about,pause]);
- useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){setAbout(false);setMobilePanel(null);pause();}if(event.key==='/'&&!(event.target instanceof HTMLInputElement)&&!(event.target instanceof HTMLTextAreaElement)){event.preventDefault();setMobilePanel('library');searchInput.current?.focus();}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[pause]);
+ useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!questOpen){setAbout(false);setMobilePanel(null);pause();}if(event.key==='/'&&!(event.target instanceof HTMLInputElement)&&!(event.target instanceof HTMLTextAreaElement)){event.preventDefault();setMobilePanel('library');searchInput.current?.focus();}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[pause,questOpen]);
+ useEffect(()=>{bootstrapQuestProgress(setQuestProgress);},[]);
 
  const prepareFocus=()=>setState(s=>({...s,explode:0,rotate:false,isolate:false,selected:[]}));
  const switchOutfit=(id:OutfitId)=>{
@@ -118,6 +128,7 @@ export default function Home(){
   setFeedback(`已換裝：${next.name}。`);
  };
  const choosePoint=(code:string,side:1|-1=simulation.side)=>{
+  if(questPlaying){questLocate.current?.(code);return;}
   const next=POINTS.find(p=>p.code===code);if(!next)return;
   if(isPracticeDeferred(code)||!avatarSupportsPoint(currentAvatar,code)){
    setFeedback(avatarLessonNote(currentAvatar,code));
@@ -170,7 +181,14 @@ export default function Home(){
   window.location.href='/';
  },[launch.fromIsland]);
 
- return <main className={`studio rpg-studio is-anime${showOutfitBar?' has-outfit-bar':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
+ const closeQuest=useCallback(()=>{setQuestOpen(false);setSimulation(s=>({...s,meridianFilter:'all',dragging:false,running:false}));},[]);
+ const onQuestPlaying=useCallback((active:boolean,_id:MeridianQuestId|null)=>{setQuestPlaying(active);if(active)pause('經絡闖關進行中。');},[pause]);
+ const onQuestMeridian=useCallback((id:MeridianQuestId|null)=>{setSimulation(s=>({...s,meridianFilter:id??'all',showPoints:true,dragging:false,running:false,customTarget:null}));},[]);
+ const onQuestHint=useCallback((code:string|null)=>{if(!code)return;setSimulation(s=>({...s,pointCode:code,side:1,focus:s.focus+1,pickMode:'point',customTarget:null}));},[]);
+ const onQuestHighlight=useCallback((code:string|null)=>{if(!code)return;setSimulation(s=>({...s,pointCode:code,side:1,focus:s.focus+1,pickMode:'point',customTarget:null}));},[]);
+ const onQuestPracticeOutfit=useCallback(()=>{if(outfitId!=='study-body')switchOutfit('study-body');},[outfitId]);
+
+ return <main className={`studio rpg-studio is-anime${showOutfitBar?' has-outfit-bar':''}${questPlaying?' quest-studio':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
   <header className="studio-header rpg-header">
    <div className="brand-block">
     <a className="brand" href={HOME_HREF} aria-label={BACK_HOME_ARIA}><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室<span className="edition">RPG</span></span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></a>
@@ -181,12 +199,13 @@ export default function Home(){
    </div>
    <div className="header-actions">
     <div className="header-status"><span className="status-dot"/>穴位練習中<span className="header-divider"/>{currentAvatar.shortName}</div>
+    <button type="button" className="quest-entry-btn" onClick={()=>setQuestOpen(true)}>闖關</button>
     <button className="source-button" onClick={()=>setAbout(true)}><Info size={16}/><span>來源與許可</span></button>
    </div>
   </header>
 
   <section className="scene-stage" aria-label="3D 人體教學視窗">
-   <Suspense fallback={null}><CharacterScene key={DEFAULT_AVATAR_ID} state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={DEFAULT_AVATAR_ID} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onError={onError} onPracticeOutfitPreparing={onPracticeOutfitPreparing}/></Suspense>
+   <Suspense fallback={null}><CharacterScene key={DEFAULT_AVATAR_ID} state={{...state,inspectorOpen:false,rotate:questPlaying?false:state.rotate}} simulation={simulation} avatarId={DEFAULT_AVATAR_ID} outfitId={outfitId} questMode={questPlaying} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onError={onError} onPracticeOutfitPreparing={onPracticeOutfitPreparing}/></Suspense>
    <div className="scene-guide"><span className="guide-cross">+</span><span>{currentAvatar.shortName} · {currentOutfit.shortName}</span></div>
    {(progress<100||error)&&(
     <div className={error?'loading-card woodcut-loading load-error':'loading-card woodcut-loading'} role="status">
@@ -259,6 +278,9 @@ export default function Home(){
   </section>
 
   <footer className="studio-footer"><span className="status-message" role="status" aria-live="polite">{feedback}</span><span className="footer-scope">經絡研習室<span>·</span>動漫對應示意</span></footer>
+  <MeridianQuestPanel open={questOpen} onClose={closeQuest} progress={questProgress} onProgress={setQuestProgress}
+   onPlaying={onQuestPlaying} onMeridianFilter={onQuestMeridian} onHighlight={onQuestHighlight} onHintFocus={onQuestHint}
+   onNeedPracticeOutfit={onQuestPracticeOutfit} registerLocateHandler={fn=>{questLocate.current=fn;}}/>
   <dialog ref={dialog} className="source-dialog" onCancel={()=>setAbout(false)} onClose={()=>setAbout(false)} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)setAbout(false);}}} aria-labelledby="source-title">
    <div className="dialog-heading"><span className="eyebrow">資料、許可與當前邊界</span><button className="icon-button" onClick={()=>setAbout(false)} aria-label="關閉來源與許可" autoFocus><X size={19}/></button></div>
    <h2 id="source-title">讓每一層，有據可查。</h2><p className="dialog-intro">這是供課堂討論與交互驗證的工程預覽。標準文字、角色模型與操作動畫分別保留來源和狀態。</p>
