@@ -81,18 +81,29 @@ const LIFE_GLB_FILES = Object.freeze({
 });
 
 const LIFE_GLB_SCALE = Object.freeze({
-  fishSchool: 2.4,
-  whale: 5.2,
-  octopus: 2.6,
-  wenyao: 2.2,
-  chiru: 2.8,
-  xuanwu: 3.6,
-  seaSerpent: 3.0,
-  birds: 2.8,
-  qingniao: 2.6,
-  phoenix: 2.8,
-  wyvern: 3.2,
-  kunpeng: 4.6
+  fishSchool: 4.2,
+  whale: 7.5,
+  octopus: 3.4,
+  wenyao: 3.6,
+  chiru: 3.6,
+  xuanwu: 4.8,
+  seaSerpent: 3.8,
+  birds: 4.5,
+  qingniao: 3.4,
+  phoenix: 3.6,
+  wyvern: 4.0,
+  kunpeng: 7.2
+});
+
+/** 海面生物：身體或特效露出水面（世界 Y，相對錨點 xz） */
+const LIFE_SEA_MOUNT_Y = Object.freeze({
+  fishSchool: -0.02,
+  whale: 0.42,
+  octopus: 0.12,
+  wenyao: 0.38,
+  chiru: 0.08,
+  xuanwu: 0.28,
+  seaSerpent: 0.22
 });
 
 export function lifeModelPath(kind) {
@@ -251,10 +262,6 @@ export function lifeKindActive(kind, mix, reduced, elapsed, opts) {
     const t = Math.max(0, Math.min(1, Number(mix) || 0));
     return !reduced && t >= 0.4;
   }
-  if (kind === 'wenyao') {
-    const t = Math.max(0, Math.min(1, Number(mix) || 0));
-    return !reduced && t >= 0.45;
-  }
   if (kind === 'wyvern') {
     const t = Math.max(0, Math.min(1, Number(mix) || 0));
     return !reduced && t >= 0.55;
@@ -316,21 +323,38 @@ function forEachMesh(root, fn) {
   });
 }
 
-function flattenMaterials(THREE, root, kit) {
+function isCreatureBodyMesh(mesh) {
+  const n = (mesh.name || '').toLowerCase();
+  if (!n || n.includes('icosphere') || n.includes('cube')) return false;
+  return mesh.geometry && mesh.geometry.attributes && mesh.geometry.attributes.position;
+}
+
+function prepareLifeMaterials(THREE, root) {
   forEachMesh(root, (mesh) => {
+    if (!isCreatureBodyMesh(mesh)) {
+      mesh.visible = false;
+      return;
+    }
     mesh.castShadow = false;
     mesh.receiveShadow = false;
-    const old = mesh.material;
-    const color = old && old.color ? old.color.getHex() : 0xffffff;
-    if (kit && kit.mat) {
-      mesh.material = kit.mat(color, { shadow: false, flatShading: true });
-    } else {
-      mesh.material = new THREE.MeshLambertMaterial({
-        color: color,
-        flatShading: true
-      });
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (let i = 0; i < mats.length; i++) {
+      const mat = mats[i];
+      if (!mat) continue;
+      mat.flatShading = true;
+      if (mesh.geometry && mesh.geometry.attributes.color) {
+        mat.vertexColors = true;
+      }
+      if (mat.map) {
+        mat.map.colorSpace = THREE.SRGBColorSpace;
+        mat.vertexColors = false;
+      }
+      const base = mat.color ? mat.color.clone() : new THREE.Color(0xffffff);
+      mat.userData.day = base;
+      mat.userData.night = base.clone();
+      mat.userData.dayE = mat.emissiveIntensity || 0;
+      mat.userData.nightE = mat.emissiveIntensity || 0;
     }
-    if (old && typeof old.dispose === 'function') old.dispose();
   });
 }
 
@@ -347,17 +371,16 @@ function prepSkinnedRoot(THREE, gltf, scale) {
     const action = mixer.clipAction(gltf.animations[0]);
     action.play();
   }
-  return { root: root, mixer: mixer };
+  return { root: root, mixer: mixer, animations: gltf.animations || [] };
 }
 
 function firstMeshPair(root) {
   let geometry = null;
   let material = null;
   forEachMesh(root, (mesh) => {
-    if (!geometry && mesh.geometry) {
-      geometry = mesh.geometry;
-      material = mesh.material;
-    }
+    if (geometry || !isCreatureBodyMesh(mesh)) return;
+    geometry = mesh.geometry;
+    material = mesh.material;
   });
   return { geometry: geometry, material: material };
 }
@@ -381,13 +404,14 @@ function buildFishSchoolInstanced(THREE, kit, anchor, fishRoot) {
       (Math.floor(i / 4) % 3) * 0.35 - 0.35
     );
     dummy.rotation.set(0, (i % 5) * 0.4, 0);
-    dummy.scale.setScalar(0.85 + (i % 4) * 0.12);
+    dummy.scale.setScalar(1.05 + (i % 4) * 0.14);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
   }
   mesh.instanceMatrix.needsUpdate = true;
   group.add(mesh);
-  group.position.set(anchor.x, LIFE_SEA_Y - 0.08, anchor.z);
+  const seaY = LIFE_SEA_MOUNT_Y.fishSchool != null ? LIFE_SEA_MOUNT_Y.fishSchool : -0.02;
+  group.position.set(anchor.x, LIFE_SEA_Y + seaY, anchor.z);
   return group;
 }
 
@@ -408,7 +432,7 @@ function buildBirdsInstanced(THREE, kit, anchor, gullRoot) {
       (Math.floor(i / 5)) * 0.9 - 0.45
     );
     dummy.rotation.set(0, (i % 4) * 0.35, 0);
-    dummy.scale.setScalar(0.9 + (i % 3) * 0.15);
+    dummy.scale.setScalar(1.1 + (i % 3) * 0.18);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
   }
@@ -426,7 +450,8 @@ function mountGlbCreature(THREE, kit, anchor, kind, disposables, mixers) {
   if (kind === 'phoenix') group.userData.glowKind = true;
   const realm = anchor.realm || 'sea';
   if (realm === 'sea') {
-    group.position.set(anchor.x, LIFE_SEA_Y, anchor.z);
+    const seaOff = LIFE_SEA_MOUNT_Y[kind];
+    group.position.set(anchor.x, LIFE_SEA_Y + (seaOff != null ? seaOff : 0), anchor.z);
   } else {
     group.position.set(anchor.x, LIFE_SKY_BASE + (kind === 'kunpeng' ? 12 : 6), anchor.z);
   }
@@ -732,7 +757,7 @@ async function hydrateLifeGlbModels(THREE, kit, creatures, mixers) {
     try {
       const gltf = await fetchLifeGlb(url);
       const prep = prepSkinnedRoot(THREE, gltf, LIFE_GLB_SCALE[kind]);
-      flattenMaterials(THREE, prep.root, kit);
+      prepareLifeMaterials(THREE, prep.root);
       shared[kind] = prep.root;
     } catch (err) {
       console.warn('life glb shared', kind, err);
@@ -777,16 +802,20 @@ async function hydrateLifeGlbModels(THREE, kit, creatures, mixers) {
 
     const prep = solo[kind];
     if (!prep) continue;
-    flattenMaterials(THREE, prep.root, kit);
+    prepareLifeMaterials(THREE, prep.root);
     node.add(prep.root);
     if (prep.mixer) mixers.push({ mixer: prep.mixer, root: prep.root });
     if (kind === 'whale') {
       let spray = null;
+      let maxY = -Infinity;
       prep.root.traverse((child) => {
-        if (spray || !child.isMesh) return;
-        if (child.position.y > 0.7) spray = child;
+        if (!child.isMesh || !child.visible) return;
+        if (child.position.y > maxY) {
+          maxY = child.position.y;
+          spray = child;
+        }
       });
-      node.userData.spray = spray;
+      node.userData.spray = maxY > 0.8 ? spray : null;
     }
     if (kind === 'phoenix') node.userData.glowKind = true;
   }
@@ -936,7 +965,8 @@ export function createIslandLife(THREE, opts) {
       if (kind === 'fishSchool') {
         const pos = sampleFishSchool(anchor, tick.elapsed, false);
         const wave = waveHeight(pos.x, pos.z, tick.elapsed, false);
-        node.position.set(pos.x, LIFE_SEA_Y - 0.08 + wave * 0.3, pos.z);
+        const fishY = LIFE_SEA_MOUNT_Y.fishSchool != null ? LIFE_SEA_MOUNT_Y.fishSchool : -0.02;
+        node.position.set(pos.x, LIFE_SEA_Y + fishY + wave * 0.3, pos.z);
         node.rotation.y = pos.yaw;
       } else if (kind === 'birds') {
         const pos = sampleFishSchool(anchor, tick.elapsed * 0.55, false);
@@ -948,7 +978,8 @@ export function createIslandLife(THREE, opts) {
         const breach = (tick.elapsed % 95) < 9;
         if (node.userData.spray) node.userData.spray.visible = breach && (tick.elapsed % 95) > 2;
         const w = waveHeight(anchor.x, anchor.z, tick.elapsed, false);
-        node.position.y = LIFE_SEA_Y - 0.18 + (breach ? 0.35 : 0) + w * 0.2;
+        const whaleBase = LIFE_SEA_MOUNT_Y.whale != null ? LIFE_SEA_MOUNT_Y.whale : 0.42;
+        node.position.y = LIFE_SEA_Y + whaleBase + (breach ? 0.28 : -0.05) + w * 0.2;
       } else if (kind === 'seaDragon') {
         node.position.x = anchor.x + Math.sin(tick.elapsed * 0.12) * 1.8;
         node.position.z = anchor.z + Math.cos(tick.elapsed * 0.1) * 1.2;
@@ -959,7 +990,8 @@ export function createIslandLife(THREE, opts) {
         const along = (tick.elapsed * 0.15) % 1;
         node.position.x = anchor.x + along * 18;
         node.position.z = anchor.z + Math.sin(along * Math.PI * 2) * 0.8;
-        node.position.y = LIFE_SEA_Y + 0.45 + Math.sin(tick.elapsed * 0.6) * 0.12;
+        const wenyaoBase = LIFE_SEA_MOUNT_Y.wenyao != null ? LIFE_SEA_MOUNT_Y.wenyao : 0.38;
+        node.position.y = LIFE_SEA_Y + wenyaoBase + Math.sin(tick.elapsed * 0.6) * 0.12;
         node.rotation.y = 0.15;
       } else if (kind === 'chiru') {
         node.position.x = anchor.x + Math.sin(tick.elapsed * 0.2) * 1.2;

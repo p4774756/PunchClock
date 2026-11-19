@@ -61,8 +61,12 @@ COL = {
     'wyvern_green': 0x58a868,
     'wyvern_wing': 0xf0d8a8,
     'kun_cloud': 0xe8f0ff,
-    'kun_shade': 0xb8c8e8,
+    'kun_shade': 0x7a98c8,
+    'kun_fin': 0xc8e0ff,
     'spray': 0xd8f0ff,
+    'xuan_moss': 0x5a7858,
+    'fish_red': 0xf05858,
+    'fish_green': 0x58c878,
 }
 
 
@@ -76,9 +80,14 @@ def _link_root(rig, mesh):
 
 def build_fish():
     def body(bm):
-        prim_sphere(bm, (0, 0, 0.06), 0.14, 6, 5)
-        prim_cone(bm, (-0.2, 0, 0.06), 0.06, 0.12, 4, rot=(0, 0, math.pi))
-    mesh = build_colored_mesh('fish_body', [(COL['fish_yellow'], body)])
+        prim_sphere(bm, (0, 0, 0.06), 0.16, 6, 5)
+        prim_cone(bm, (-0.22, 0, 0.06), 0.07, 0.14, 4, rot=(0, 0, math.pi))
+        prim_box(bm, (0.05, 0.02, 0.03), (0, 0.1, 0.04))
+    mesh = build_colored_mesh('fish_body', [
+        (COL['fish_yellow'], lambda bm: (prim_sphere(bm, (0, 0, 0.06), 0.16, 6, 5), prim_cone(bm, (-0.22, 0, 0.06), 0.07, 0.14, 4, rot=(0, 0, math.pi)))),
+        (COL['fish_orange'], lambda bm: prim_box(bm, (0.06, 0.02, 0.03), (0, 0.1, 0.04))),
+        (COL['fish_blue'], lambda bm: prim_box(bm, (0.04, 0.02, 0.05), (0, -0.1, 0.03))),
+    ])
     rig = make_armature('fish_rig', [
         ('root', (0, 0, 0), (0.15, 0, 0), None),
         ('tail', (-0.12, 0, 0.06), (-0.28, 0, 0.06), 'root'),
@@ -86,22 +95,16 @@ def build_fish():
     assign_region_weights(mesh, rig, lambda co, _n: 'tail' if co.x < -0.05 else 'root')
     _link_root(rig, mesh)
     bake_swim_cycle(rig, ['root', 'tail'])
-    export_glb(os.path.join(OUT_DIR, 'fish.glb'))
+    export_glb(os.path.join(OUT_DIR, 'fish.glb'), rig)
 
 
 def build_seagull():
-    def body(bm):
-        prim_sphere(bm, (0, 0, 0.1), 0.1, 6, 5)
-        prim_cone(bm, (0.1, 0, 0.1), 0.04, 0.14, 4, rot=(0, math.pi * 0.5, 0))
-        prim_box(bm, (0.22, 0.04, 0.02), (0.12, 0, 0.08))
-        prim_box(bm, (0.28, 0.12, 0.04), (0, 0, 0.1))
-        prim_box(bm, (0.28, 0.12, 0.04), (0, 0, -0.1))
     mesh = build_colored_mesh('gull_body', [
-        (COL['gull_white'], lambda bm: (prim_sphere(bm, (0, 0, 0.1), 0.1, 6, 5))),
-        (COL['gull_beak'], lambda bm: prim_cone(bm, (0.1, 0, 0.1), 0.04, 0.14, 4, rot=(0, math.pi * 0.5, 0))),
+        (COL['gull_white'], lambda bm: (prim_sphere(bm, (0, 0, 0.12), 0.13, 6, 5), prim_cylinder(bm, (0.05, 0, 0.1), 0.05, 0.1, 5))),
+        (COL['gull_beak'], lambda bm: prim_cone(bm, (0.12, 0, 0.12), 0.05, 0.16, 4, rot=(0, math.pi * 0.5, 0))),
         (COL['gull_wing'], lambda bm: (
-            prim_box(bm, (0.28, 0.12, 0.04), (0, 0, 0.1)),
-            prim_box(bm, (0.28, 0.12, 0.04), (0, 0, -0.1)),
+            prim_box(bm, (0.34, 0.14, 0.05), (0, 0, 0.12)),
+            prim_box(bm, (0.34, 0.14, 0.05), (0, 0, -0.12)),
         )),
     ])
     rig = make_armature('gull_rig', [
@@ -114,7 +117,7 @@ def build_seagull():
         'wing.L' if co.z > 0 and co.x > 0 else ('wing.R' if co.z < 0 and co.x > 0 else 'body'))
     _link_root(rig, mesh)
     bake_flap_cycle(rig, ['wing.L', 'wing.R'])
-    export_glb(os.path.join(OUT_DIR, 'seagull.glb'))
+    export_glb(os.path.join(OUT_DIR, 'seagull.glb'), rig)
 
 
 def build_whale():
@@ -126,7 +129,11 @@ def build_whale():
             prim_cone(bm, (-1.0, 0, 0.42), 0.12, 0.35, 5, rot=(0, 0, math.pi * 0.5)),
         )),
         (COL['whale_pale'], lambda bm: prim_sphere(bm, (0, 0, -0.08), 0.42, 7, 5)),
-        (COL['spray'], lambda bm: prim_cylinder(bm, (0, 0, 0.95), 0.06, 0.35, 5)),
+        (COL['spray'], lambda bm: (
+            prim_cylinder(bm, (0, 0, 1.05), 0.08, 0.55, 6),
+            prim_sphere(bm, (0, 0, 1.32), 0.12, 5, 4),
+        )),
+        (COL['whale_pale'], lambda bm: prim_box(bm, (0.18, 0.05, 0.12), (0.2, 0, 0.55))),
     ])
     rig = make_armature('whale_rig', [
         ('root', (0, 0, 0), (0.5, 0, 0), None),
@@ -138,7 +145,7 @@ def build_whale():
         'spray' if co.z > 0.85 else ('tail' if co.x < -0.5 else 'body'))
     _link_root(rig, mesh)
     bake_swim_cycle(rig, ['body', 'tail'])
-    export_glb(os.path.join(OUT_DIR, 'whale.glb'))
+    export_glb(os.path.join(OUT_DIR, 'whale.glb'), rig)
 
 
 def build_octopus():
@@ -161,7 +168,7 @@ def build_octopus():
     assign_region_weights(mesh, rig, lambda co, _n: 'head' if co.z > 0.12 else 'root')
     _link_root(rig, mesh)
     bake_swim_cycle(rig, ['root', 'head'])
-    export_glb(os.path.join(OUT_DIR, 'octopus.glb'))
+    export_glb(os.path.join(OUT_DIR, 'octopus.glb'), rig)
 
 
 def build_wenyao():
@@ -186,7 +193,7 @@ def build_wenyao():
         'wing.L' if co.y > 0 and co.x > 0.05 else ('wing.R' if co.y < 0 and co.x > 0.05 else 'body'))
     _link_root(rig, mesh)
     bake_flap_cycle(rig, ['wing.L', 'wing.R'])
-    export_glb(os.path.join(OUT_DIR, 'wenyao.glb'))
+    export_glb(os.path.join(OUT_DIR, 'wenyao.glb'), rig)
 
 
 def build_chiru():
@@ -205,7 +212,7 @@ def build_chiru():
     assign_region_weights(mesh, rig, lambda co, _n: 'body')
     _link_root(rig, mesh)
     bake_swim_cycle(rig, ['root', 'body'])
-    export_glb(os.path.join(OUT_DIR, 'chiru.glb'))
+    export_glb(os.path.join(OUT_DIR, 'chiru.glb'), rig)
 
 
 def build_xuanwu():
@@ -215,9 +222,15 @@ def build_xuanwu():
             prim_sphere(bm, (0, 0, 0.52), 0.35, 7, 5),
         )),
         (COL['xuan_gold'], lambda bm: prim_box(bm, (0.48, 0.06, 0.48), (0, 0, 0.52))),
+        (COL['xuan_moss'], lambda bm: (
+            prim_sphere(bm, (0.12, 0.08, 0.42), 0.1, 4, 3),
+            prim_sphere(bm, (-0.14, 0.12, 0.38), 0.08, 4, 3),
+            prim_sphere(bm, (0, -0.1, 0.45), 0.09, 4, 3),
+        )),
         (COL['xuan_snake'], lambda bm: (
-            prim_sphere(bm, (0.18, 0.15, 0.65), 0.08, 5, 4),
-            prim_cylinder(bm, (0.32, 0.22, 0.72), 0.05, 0.5, 5),
+            prim_sphere(bm, (0.22, 0.18, 0.72), 0.1, 5, 4),
+            prim_cylinder(bm, (0.38, 0.28, 0.82), 0.06, 0.62, 5),
+            prim_sphere(bm, (0.52, 0.35, 0.92), 0.07, 4, 3),
         )),
     ])
     rig = make_armature('xuanwu_rig', [
@@ -229,7 +242,7 @@ def build_xuanwu():
         'snake' if co.z > 0.58 and co.x > 0.1 else 'shell')
     _link_root(rig, mesh)
     bake_swim_cycle(rig, ['shell', 'snake'])
-    export_glb(os.path.join(OUT_DIR, 'xuanwu.glb'))
+    export_glb(os.path.join(OUT_DIR, 'xuanwu.glb'), rig)
 
 
 def build_sea_serpent():
@@ -257,7 +270,7 @@ def build_sea_serpent():
     _link_root(rig, mesh)
     segs = ['seg{}'.format(i) for i in range(6)]
     bake_swim_cycle(rig, segs)
-    export_glb(os.path.join(OUT_DIR, 'sea-serpent.glb'))
+    export_glb(os.path.join(OUT_DIR, 'sea-serpent.glb'), rig)
 
 
 def build_qingniao():
@@ -284,7 +297,7 @@ def build_qingniao():
             'wing.R' if co.y < 0 and co.x > 0 else 'body')))
     _link_root(rig, mesh)
     bake_flap_cycle(rig, ['wing.L', 'wing.R', 'tail'])
-    export_glb(os.path.join(OUT_DIR, 'qingniao.glb'))
+    export_glb(os.path.join(OUT_DIR, 'qingniao.glb'), rig)
 
 
 def build_phoenix():
@@ -309,7 +322,7 @@ def build_phoenix():
             'wing.R' if co.y < 0 else 'body')))
     _link_root(rig, mesh)
     bake_flap_cycle(rig, ['wing.L', 'wing.R', 'tail'])
-    export_glb(os.path.join(OUT_DIR, 'phoenix.glb'))
+    export_glb(os.path.join(OUT_DIR, 'phoenix.glb'), rig)
 
 
 def build_wyvern():
@@ -335,17 +348,26 @@ def build_wyvern():
         'wing.L' if co.y > 0 and abs(co.x) < 0.35 else ('wing.R' if co.y < 0 else 'body'))
     _link_root(rig, mesh)
     bake_flap_cycle(rig, ['wing.L', 'wing.R'])
-    export_glb(os.path.join(OUT_DIR, 'wyvern.glb'))
+    export_glb(os.path.join(OUT_DIR, 'wyvern.glb'), rig)
 
 
 def build_kunpeng():
     mesh = build_colored_mesh('kunpeng_body', [
-        (COL['kun_cloud'], lambda bm: (
-            prim_sphere(bm, (0, 0, 0.25), 0.65, 8, 6),
-            prim_sphere(bm, (0.5, 0.1, 0.15), 0.35, 6, 5),
-            prim_sphere(bm, (-0.55, -0.08, 0.2), 0.28, 6, 5),
+        (COL['kun_shade'], lambda bm: (
+            prim_sphere(bm, (0, 0, 0.2), 0.62, 8, 6),
+            prim_sphere(bm, (0.62, 0.05, 0.18), 0.38, 6, 5),
+            prim_cone(bm, (-1.0, 0, 0.22), 0.18, 0.42, 5, rot=(0, 0, math.pi * 0.5)),
         )),
-        (COL['kun_shade'], lambda bm: prim_sphere(bm, (0, 0, -0.05), 0.48, 7, 5)),
+        (COL['kun_cloud'], lambda bm: (
+            prim_sphere(bm, (-0.35, 0.18, 0.35), 0.22, 5, 4),
+            prim_sphere(bm, (0.15, -0.22, 0.42), 0.2, 5, 4),
+            prim_sphere(bm, (0.42, 0.25, 0.32), 0.18, 5, 4),
+            prim_sphere(bm, (-0.15, -0.15, 0.55), 0.16, 5, 4),
+        )),
+        (COL['kun_fin'], lambda bm: (
+            prim_box(bm, (0.55, 0.08, 0.3), (0, 0.32, 0.12)),
+            prim_box(bm, (0.55, 0.08, 0.3), (0, -0.32, 0.12)),
+        )),
     ])
     rig = make_armature('kunpeng_rig', [
         ('root', (0, 0, 0), (0.4, 0, 0), None),
@@ -355,7 +377,7 @@ def build_kunpeng():
     assign_region_weights(mesh, rig, lambda co, _n: 'tail' if co.x < -0.4 else 'body')
     _link_root(rig, mesh)
     bake_swim_cycle(rig, ['body', 'tail'])
-    export_glb(os.path.join(OUT_DIR, 'kunpeng.glb'))
+    export_glb(os.path.join(OUT_DIR, 'kunpeng.glb'), rig)
 
 
 BUILDERS = (
