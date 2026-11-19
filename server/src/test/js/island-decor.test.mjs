@@ -1,5 +1,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { loadPublicModule } from './load-public-module.mjs';
 
 const decor = await loadPublicModule('island-decor.js');
@@ -79,10 +82,15 @@ describe('island-decor lamps', () => {
 });
 
 describe('island-decor string lights', () => {
-  test('shop eaves bulbs hang at awning not roof', () => {
+  test('shop eaves JS decor retired; constants kept for layout reference', () => {
     assert.ok(SHOP_EAVES_BULB_Y < 1.85);
     assert.ok(SHOP_EAVES_BULB_Z > SHOP_GLB_FRONT_Z);
     assert.ok(SHOP_EAVES_SIGN_Z >= SHOP_GLB_FRONT_Z);
+    const sceneJs = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public/js/island-buildings.js'),
+      'utf8'
+    );
+    assert.ok(!sceneJs.includes('attachShopEavesDecor'));
   });
 
   test('stringLightBulbLayout spans walkway', () => {

@@ -10,14 +10,8 @@ import {
   MAIN_ISLAND_GRASS_DECOR_CENTER_Y,
   MAIN_ISLAND_GRASS_DECOR_HEIGHT,
   MAIN_ISLAND_GRASS_PATCH_CENTER_Y,
-  SHOP_EAVES_BULB_Y,
-  SHOP_EAVES_BULB_Z,
-  SHOP_EAVES_LIGHT_SPAN,
-  SHOP_EAVES_SIGN_Y,
-  SHOP_EAVES_SIGN_Z,
   flowerBedStemLayout,
-  pavingTileLayout,
-  stringLightBulbLayout
+  pavingTileLayout
 } from './island-decor.js';
 
 function mulberry32(seed) {
@@ -224,73 +218,6 @@ export function makeTradSignTexture(kit, text, w, h, fontPx) {
     g.textBaseline = 'middle';
     g.fillText(String(text || ''), bw / 2, bh / 2 + 2);
   });
-}
-
-export function attachShopEavesDecor(model, kit, opts) {
-  opts = opts || {};
-  const { geo, mat, lampLight } = kit;
-  const reduced = !!opts.reduced;
-  const span = opts.span == null ? SHOP_EAVES_LIGHT_SPAN : opts.span;
-  const bulbY = opts.bulbY == null ? SHOP_EAVES_BULB_Y : opts.bulbY;
-  const bulbZ = opts.bulbZ == null ? SHOP_EAVES_BULB_Z : opts.bulbZ;
-  const signY = opts.signY == null ? SHOP_EAVES_SIGN_Y : opts.signY;
-  const signZ = opts.signZ == null ? SHOP_EAVES_SIGN_Z : opts.signZ;
-
-  const bulbs = stringLightBulbLayout(span, 14);
-  const bulbGeo = geo('sph', [0.046, 7, 6]);
-  const bulbMat = mat(0xfff6d4, {
-    night: 0xffe2b0,
-    glow: 0xffc56a,
-    glowAmount: 1.2,
-    shadow: false
-  });
-  bulbMat.userData.dayE = 0.03;
-  bulbMat.userData.nightE = 1.18;
-  const inst = new THREE.InstancedMesh(bulbGeo, bulbMat, bulbs.length);
-  inst.castShadow = false;
-  inst.userData.stringLight = true;
-  const dummy = new THREE.Object3D();
-  bulbs.forEach((b, i) => {
-    const hang = 0.04 + (i % 3) * 0.018;
-    dummy.position.set(b.x, bulbY - hang, bulbZ);
-    dummy.scale.setScalar(1.05);
-    dummy.updateMatrix();
-    inst.setMatrixAt(i, dummy.matrix);
-  });
-  inst.instanceMatrix.needsUpdate = true;
-  model.add(inst);
-
-  const wireGeo = geo('box', [span + 0.08, 0.014, 0.014]);
-  const wireMat = mat(0x3a312c, { shadow: false });
-  const wire = new THREE.Mesh(wireGeo, wireMat);
-  wire.position.set(0, bulbY + 0.05, bulbZ - 0.02);
-  model.add(wire);
-
-  lampLight(0, bulbY - 0.02, bulbZ + 0.22, 8, model, { localHalo: true });
-
-  [
-    { text: '今日特調', x: -1.45 },
-    { text: '新鮮水果', x: 1.35 }
-  ].forEach((spec) => {
-    const tex = makeTradSignTexture(kit, spec.text, 240, 120);
-    const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.62, 0.3),
-      mat(0xffffff, {
-        map: tex,
-        night: 0xfff0dc,
-        glow: 0xffb15a,
-        glowAmount: 0.55,
-        side: THREE.DoubleSide,
-        shadow: false
-      })
-    );
-    plane.position.set(spec.x, signY, signZ);
-    plane.rotation.x = -0.08;
-    model.add(plane);
-  });
-
-  inst.userData.reduced = reduced;
-  return inst;
 }
 
 export function attachMainIslandExtras(scene, kit) {
