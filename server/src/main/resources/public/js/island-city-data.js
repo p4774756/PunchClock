@@ -27,21 +27,21 @@ export function trafficLightMeshColors(elapsedSec) {
   };
 }
 
-const BLOCK = 2.55;
-const GRID = 4.55;
+const BLOCK = 2.75;
+const GRID = 4.85;
 
 const CITY_LOCAL_RECTS = [
   { id: 'city-bld-arcade', minX: -GRID - BLOCK * 0.5, maxX: -GRID + BLOCK * 0.5, minZ: -BLOCK * 0.5, maxZ: BLOCK * 0.5 },
   { id: 'city-bld-tea', minX: GRID - BLOCK * 0.5, maxX: GRID + BLOCK * 0.5, minZ: -BLOCK * 0.5, maxZ: BLOCK * 0.5 },
   { id: 'city-bld-claw', minX: -BLOCK * 0.5, maxX: BLOCK * 0.5, minZ: -GRID - BLOCK * 0.5, maxZ: -GRID + BLOCK * 0.5 },
-  { id: 'city-bld-plaza', minX: -1.45, maxX: 1.45, minZ: -1.35, maxZ: 1.35 },
+  { id: 'city-bld-plaza', minX: -1.55, maxX: 1.55, minZ: -1.45, maxZ: 1.45 },
   { id: 'city-bld-nw', minX: -GRID - BLOCK * 0.5, maxX: -GRID + BLOCK * 0.5, minZ: GRID - BLOCK * 0.5, maxZ: GRID + BLOCK * 0.5 },
   { id: 'city-bld-ne', minX: GRID - BLOCK * 0.5, maxX: GRID + BLOCK * 0.5, minZ: GRID - BLOCK * 0.5, maxZ: GRID + BLOCK * 0.5 },
   { id: 'city-bld-sw', minX: -GRID - BLOCK * 0.5, maxX: -GRID + BLOCK * 0.5, minZ: -GRID - BLOCK * 0.5, maxZ: -GRID + BLOCK * 0.5 },
   { id: 'city-bld-se', minX: GRID - BLOCK * 0.5, maxX: GRID + BLOCK * 0.5, minZ: -GRID - BLOCK * 0.5, maxZ: -GRID + BLOCK * 0.5 },
   { id: 'city-pier-rail-w', minX: -0.55, maxX: -0.34, minZ: 5.2, maxZ: 6.8 },
   { id: 'city-pier-rail-e', minX: 0.34, maxX: 0.55, minZ: 5.2, maxZ: 6.8 },
-  { id: 'city-harbor-e', minX: 5.6, maxX: 7.9, minZ: -3.6, maxZ: 3.6 }
+  { id: 'city-harbor-e', minX: 6.0, maxX: 8.45, minZ: -4.0, maxZ: 4.0 }
 ];
 
 /** 騎樓柱（店前人行，不在路口車道中央）。 */
@@ -77,7 +77,7 @@ export function cityObstacleCircles() {
   }));
 }
 
-export const PINK_CAR_LOCAL = Object.freeze({ x: -2.15, z: 0.35, yaw: 0.1 });
+export const PINK_CAR_LOCAL = Object.freeze({ x: 1.5, z: 0.35, yaw: -0.12 });
 /** 路人／機車取樣點須與停車位保持的最小距離（含車身與人身寬度）。 */
 export const PINK_CAR_PATH_CLEAR_R = 1.55;
 
@@ -108,12 +108,12 @@ export function cityWalkerPaths() {
   const c = CITY_CENTER;
   const w = (lx, lz) => [c.x + lx, c.z + lz];
   return Object.freeze([
-    Object.freeze([w(-2.1, 3.5), w(2.1, 3.5), w(2.1, 2.25), w(-2.1, 2.25)]),
-    Object.freeze([w(-2.85, 3.5), w(-2.85, 2.25)]),
-    Object.freeze([w(2.85, 3.5), w(2.85, -2.85)]),
-    Object.freeze([w(-2.1, -3.15), w(-1.38, -3.15)]),
-    Object.freeze([w(1.38, -3.15), w(2.1, -3.15)]),
-    Object.freeze([w(0, 3.4), w(0, 5.85)])
+    Object.freeze([w(-2.2, 3.8), w(2.2, 3.8), w(2.2, 2.45), w(-2.2, 2.45)]),
+    Object.freeze([w(-3.1, 3.8), w(-3.1, 2.45)]),
+    Object.freeze([w(3.1, 3.8), w(3.1, -3.1)]),
+    Object.freeze([w(-2.2, -3.2), w(-1.45, -3.2)]),
+    Object.freeze([w(1.45, -3.2), w(2.2, -3.2)]),
+    Object.freeze([w(-1.2, 3.65), w(-1.2, 6.0)])
   ]);
 }
 

@@ -18,10 +18,10 @@ import kit
 from kit import Builder, clear_scene, prepare_scene, argv_out, set_palette_overrides
 from city_atlas_uv import REGIONS, atlas_uv
 
-W, D = 15.2, 15.2
-GRID = 4.55
-BLOCK = 2.85
-ROAD = 1.85
+W, D = 16.5, 16.5
+GRID = 4.85
+BLOCK = 2.75
+ROAD = 1.95
 
 _SIGN_UV = dict(flip_u=True, flip_v=True)
 
@@ -88,13 +88,13 @@ def _shophouse(b, walls, sign_part, neon_part, lx, lz, bw, bd, bh, tex_wall, sig
     walls.box_tex(f'@{tex_wall}', uv, bw, bh, bd, lx, lz, bh / 2 + 0.06)
     props = b.part('props')
     _facade_extras(walls, props, lx, fy, street, bw, bh, tex_wall)
-    walls.box_tex(f'@{awning}', _au(awning), bw + 0.28, 0.07, 0.55, lx, fy + street * 0.30, bh + 0.56)
+    walls.box_tex(f'@{awning}', _au(awning), bw + 0.26, 0.06, 0.38, lx, fy + street * 0.22, bh + 0.54)
     _roof_slab(walls, lx, lz + street * 0.12, bw + 0.40, bd + 0.18, bh + 0.12, rk)
     sw = min(3.55, bw * 0.88)
     sh = 1.42
-    sz = bh * 0.82
-    y_out = fy + street * 0.52
-    pitch = 0.05
+    sz = bh + 0.36
+    y_out = fy + street * 0.48
+    pitch = 0.06
     frame = b.part(sign_key + '_frame')
     frame.box(rk, sw + 0.16, 0.06, sh + 0.12, lx, y_out, sz, rx=pitch)
     sign_part.plane('sign', sw, sh, lx, y_out + street * 0.05, sz, rx=pitch, ry=math.pi, **_SIGN_UV)
@@ -102,12 +102,17 @@ def _shophouse(b, walls, sign_part, neon_part, lx, lz, bw, bd, bh, tex_wall, sig
     neon_part.box('neon_glow', sw + 0.12, 0.05, 0.06, lx, y_out + street * 0.03, sz - sh / 2 + 0.05, rx=pitch)
 
 
-def _residential_block(walls, props, lx, lz, bw, bd, bh, mat):
+def _residential_block(walls, props, lx, lz, bw, bd, bh, mat, face_south=True):
     if mat in REGIONS:
         walls.box_tex(f'@{mat}', _au(mat), bw, bh, bd, lx, lz, bh / 2)
     else:
         _wall_tex(walls, mat, bw, bh, bd, lx, lz, bh / 2)
     _roof_slab(walls, lx, lz, bw + 0.12, bd + 0.12, bh + 0.08, _roof_key(mat))
+    street = 1 if face_south else -1
+    fy = lz + street * (bd / 2 - 0.08)
+    _facade_extras(walls, props, lx, fy, street, bw, bh, mat)
+    walls.box_tex('@city_awning', _au('city_awning'), bw + 0.22, 0.06, 0.32,
+                  lx, fy + street * 0.18, bh + 0.52)
     for sx in (-1, 1):
         for sz in (-1, 1):
             px, pz = lx + sx * bw * 0.32, lz + sz * bd * 0.32
@@ -117,33 +122,46 @@ def _residential_block(walls, props, lx, lz, bw, bd, bh, mat):
 
 
 def _plaza_711(b, walls, props, ground, sign_part, neon_part):
-    """中央 7-11 廣場：開闊鋪面＋超商立面。"""
-    bw, bd, bh = 2.65, 2.45, 1.55
+    """中央 7-11 廣場：開闊鋪面＋超商立面（朝南、預設俯視可讀）。"""
+    bw, bd, bh = 2.85, 2.55, 1.68
     lx, lz = 0.0, 0.0
     walls.box_tex('@city_wall_yellow', _au('city_wall_yellow'), bw, bh, bd, lx, lz, bh / 2 + 0.04)
     _roof_slab(walls, lx, lz, bw + 0.35, bd + 0.35, bh + 0.10, 'roof_tile_green')
-    fy = lz - bd / 2 + 0.08
-    _facade_extras(walls, props, lx, fy, -1, bw, bh, 'city_wall_yellow')
-    sw, sh = 2.35, 1.18
-    sz = bh * 0.88
+    fy_south = lz + bd / 2 - 0.10
+    for mat, zf in (
+        ('city_traffic_grn', 0.62),
+        ('shop_orange', 0.44),
+        ('city_traffic_red', 0.28),
+    ):
+        walls.box(mat, bw - 0.28, 0.08, 0.04, lx, fy_south - 0.02, bh * zf)
+    _facade_extras(walls, props, lx, fy_south, 1, bw, bh, 'city_wall_yellow')
+    sw, sh = 2.55, 1.28
+    sz = bh * 0.74
+    pitch = 0.06
     frame = b.part('sign_face_711_frame')
-    frame.box('roof_tile_green', sw + 0.16, 0.06, sh + 0.12, lx, fy - 0.48, sz, rx=0.05)
+    frame.box('roof_tile_green', sw + 0.18, 0.06, sh + 0.14, lx, fy_south + 0.54, sz, rx=pitch)
     sign = b.part('sign_face_711')
-    sign.plane('sign', sw, sh, lx, fy - 0.42, sz, rx=0.05, ry=math.pi, **_SIGN_UV)
+    sign.plane('sign', sw, sh, lx, fy_south + 0.60, sz, rx=pitch, ry=math.pi, **_SIGN_UV)
     neo = b.part('shop_neon')
-    neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, fy - 0.43, sz + sh / 2 - 0.05, rx=0.05)
-    ground.box_tex('@city_sidewalk', _au('city_sidewalk'), 3.2, 3.2, 0.06, lx, lz, 0.042)
+    neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, fy_south + 0.58, sz + sh / 2 - 0.05, rx=pitch)
+    ground.box_tex('@city_sidewalk', _au('city_sidewalk'), 3.45, 3.45, 0.06, lx, lz, 0.042)
 
 
-def _mount_sign(b, part_name, lx, ly, lz, sw, sh, rx=0.08, roof='roof_tile_orange'):
+def _mount_sign(b, part_name, lx, ly, lz, sw, sh, rx=0.08, roof='roof_tile_orange', face_south=True):
+    """face_south=True：招牌法線朝南，預設探索鏡頭可讀。"""
     face = b.part(part_name)
     fr = b.part(part_name + '_frame')
     neo = b.part(part_name + '_neon')
-    y_face = ly - 0.18
-    fr.box(roof, sw + 0.20, 0.06, sh + 0.16, lx, y_face - 0.03, lz, rx=rx)
-    face.plane('sign', sw, sh, lx, y_face + 0.10, lz, rx=rx, **_SIGN_UV)
-    neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, y_face + 0.09, lz + sh / 2 - 0.05, rx=rx)
-    neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, y_face + 0.09, lz - sh / 2 + 0.05, rx=rx)
+    if face_south:
+        y_face = ly + 0.52
+        fr.box(roof, sw + 0.20, 0.06, sh + 0.16, lx, y_face, lz, rx=rx)
+        face.plane('sign', sw, sh, lx, y_face + 0.06, lz, rx=rx, ry=math.pi, **_SIGN_UV)
+        neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, y_face + 0.05, lz + sh / 2 - 0.05, rx=rx)
+    else:
+        y_face = ly - 0.18
+        fr.box(roof, sw + 0.20, 0.06, sh + 0.16, lx, y_face - 0.03, lz, rx=rx)
+        face.plane('sign', sw, sh, lx, y_face + 0.10, lz, rx=rx, **_SIGN_UV)
+        neo.box('neon_glow', sw + 0.10, 0.05, 0.06, lx, y_face + 0.09, lz + sh / 2 - 0.05, rx=rx)
 
 
 def _zebra(ground, cx, cz, along_x=True):
@@ -171,20 +189,20 @@ def _palm(props, x, y):
 
 
 def _scooter(props, x, y, rz=0.0):
-    """小綿羊：圓頭、車把、踏板、座椅、雙輪。"""
-    props.box('city_moto_cream', 0.28, 0.12, 0.48, x, y - 0.04, 0.07, rz=rz)
-    props.box('city_moto_cream', 0.22, 0.18, 0.34, x, y + 0.10, 0.26, rz=rz)
-    props.box('city_moto_cream', 0.18, 0.20, 0.28, x, y + 0.22, 0.36, rz=rz, rx=0.08)
-    props.sphere('city_moto_dark', 0.14, x, y + 0.28, 0.22, seg=8, rings=5)
-    props.box('city_moto_dark', 0.06, 0.12, 0.18, x, y + 0.26, 0.24, rz=rz)
-    props.cyl('city_traffic_dark', 0.024, 0.024, 0.32, x + 0.04, y + 0.14, 0.48, seg=5, rz=rz + 0.12)
-    props.cyl('city_traffic_dark', 0.020, 0.020, 0.24, x + 0.10, y + 0.24, 0.46, seg=5, rx=0.62, rz=rz)
-    props.cyl('city_traffic_dark', 0.020, 0.020, 0.24, x - 0.06, y + 0.24, 0.46, seg=5, rx=0.62, rz=rz)
-    props.sphere('windows_glow', 0.050, x, y + 0.30, 0.22, seg=6, rings=4)
-    for wx, wy in ((-0.22, 0.13), (0.21, -0.15)):
-        props.cyl('city_traffic_dark', 0.11, 0.11, 0.06, x + wx, y + wy, 0.11, seg=8, rx=math.pi / 2, rz=rz)
-        props.cyl('city_trim_white', 0.06, 0.06, 0.04, x + wx, y + wy, 0.11, seg=6, rx=math.pi / 2, rz=rz)
-    props.sphere('city_traffic_red', 0.042, x, y - 0.28, 0.22, seg=5, rings=4)
+    """小綿羊：白車身、座椅、龍頭、雙輪。"""
+    props.box('city_moto_cream', 0.30, 0.10, 0.52, x, y - 0.02, 0.08, rz=rz)
+    props.box('city_moto_cream', 0.24, 0.08, 0.38, x, y + 0.08, 0.24, rz=rz)
+    props.box('city_moto_cream', 0.20, 0.22, 0.30, x, y + 0.22, 0.34, rz=rz, rx=0.06)
+    props.sphere('city_moto_cream', 0.12, x, y + 0.30, 0.26, seg=8, rings=5)
+    props.box('city_moto_dark', 0.08, 0.10, 0.16, x, y + 0.28, 0.24, rz=rz)
+    props.cyl('city_moto_dark', 0.026, 0.026, 0.36, x + 0.06, y + 0.16, 0.50, seg=6, rz=rz + 0.15)
+    props.cyl('city_moto_dark', 0.024, 0.024, 0.30, x + 0.12, y + 0.28, 0.48, seg=5, rx=0.58, rz=rz)
+    props.cyl('city_moto_dark', 0.024, 0.024, 0.30, x - 0.04, y + 0.28, 0.48, seg=5, rx=0.58, rz=rz)
+    props.sphere('windows_glow', 0.042, x, y + 0.31, 0.25, seg=6, rings=4)
+    for wx, wy in ((-0.24, 0.12), (0.22, -0.14)):
+        props.cyl('city_traffic_dark', 0.12, 0.12, 0.07, x + wx, y + wy, 0.12, seg=10, rx=math.pi / 2, rz=rz)
+        props.cyl('city_trim_white', 0.068, 0.068, 0.045, x + wx, y + wy, 0.12, seg=8, rx=math.pi / 2, rz=rz)
+    props.sphere('city_traffic_red', 0.040, x, y - 0.30, 0.22, seg=6, rings=4)
 
 
 def _vending(props, x, y, ry=0.0):
@@ -208,24 +226,28 @@ def _harbor_north(ground, walls, props, b):
 
 
 def _harbor_east(ground, walls, props, b):
-    """東側港灣：T 型碼頭、遊艇剪影、欄杆。"""
-    hx = 6.65
-    ground.box_tex('@city_water_edge', _au('city_water_edge'), 4.5, 10.5, 0.14, hx, 0, 0.055)
-    ground.box_tex('@wood', _au('wood'), 3.6, 1.0, 0.12, hx - 1.2, 0, 0.056)
-    ground.box_tex('@wood', _au('wood'), 1.05, 7.5, 0.12, hx, -3.0, 0.056)
-    ground.box_tex('@wood', _au('wood'), 1.05, 7.5, 0.12, hx, 3.0, 0.056)
-    for oz in (-3.2, -1.6, 0, 1.6, 3.2):
-        walls.box_tex('@wood', _au('wood'), 0.11, 0.13, 0.52, hx - 0.05, oz, 0.34)
-        props.cyl('city_rail', 0.060, 0.048, 0.48, hx + 0.32, oz, 0.28, seg=6)
-    props.box('city_trim_white', 2.65, 0.48, 0.34, hx + 1.05, 0.6, 0.15)
-    props.box('shop_navy', 1.95, 0.32, 0.26, hx + 1.05, 0.58, 0.36)
-    props.box('shop_navy', 1.45, 0.22, 0.20, hx + 1.35, 0.56, 0.38, rx=-0.15)
-    props.box('lab_glass', 0.52, 0.30, 0.36, hx + 1.42, 0.62, 0.54)
-    props.cyl('city_trim_white', 0.05, 0.04, 0.64, hx + 1.05, 0.6, 0.72, seg=5)
-    props.box('city_trim_white', 1.25, 0.28, 0.20, hx + 1.05, -0.5, 0.14)
-    props.box('shop_navy', 0.95, 0.20, 0.16, hx + 1.05, -0.52, 0.26)
+    """東側港灣：伸入水中的 T 型棧型棧橋、欄杆、遊艇剪影。"""
+    hx = W / 2 - 1.05
+    ground.box_tex('@city_water_edge', _au('city_water_edge'), 5.2, 12.5, 0.14, hx, 0, 0.055)
+    ground.box_tex('@wood', _au('wood'), 4.2, 1.15, 0.12, hx - 1.35, 0, 0.058)
+    ground.box_tex('@wood', _au('wood'), 1.15, 8.5, 0.12, hx + 0.15, -3.2, 0.058)
+    ground.box_tex('@wood', _au('wood'), 1.15, 8.5, 0.12, hx + 0.15, 3.2, 0.058)
+    for oz in (-3.5, -1.75, 0, 1.75, 3.5):
+        walls.box_tex('@wood', _au('wood'), 0.12, 0.14, 0.55, hx - 0.08, oz, 0.35)
+        props.cyl('city_rail', 0.065, 0.050, 0.52, hx + 0.42, oz, 0.30, seg=6)
+    # 遊艇（白船身＋藍彩條條＋駕駛艙）
+    yx, yy = hx + 1.45, 0.85
+    props.box('city_trim_white', 3.1, 0.52, 0.36, yx, yy, 0.16)
+    props.box('shop_navy', 2.45, 0.38, 0.28, yx, yy, 0.34)
+    props.box('shop_navy', 1.75, 0.24, 0.22, yx + 0.55, yy, 0.36, rx=-0.12)
+    props.box('lab_glass', 0.58, 0.32, 0.38, yx + 0.95, yy + 0.1, 0.56)
+    props.cyl('city_trim_white', 0.06, 0.05, 0.68, yx, yy, 0.74, seg=6)
+    props.box('city_trim_white', 1.35, 0.30, 0.22, yx, yy - 0.55, 0.15)
+    props.box('shop_navy', 1.05, 0.22, 0.18, yx, yy - 0.56, 0.26)
+    props.box('city_trim_white', 0.85, 0.18, 0.14, yx - 1.25, yy, 0.20)
     neo = b.part('harbor_neon')
-    neo.box('neon_glow', 0.52, 0.11, 0.06, hx - 0.35, 0, 0.62)
+    neo.box('neon_glow', 0.58, 0.12, 0.06, hx - 0.42, -0.2, 0.64)
+    neo.box('neon_glow', 0.48, 0.10, 0.05, hx - 0.38, 0.25, 0.64)
 
 
 def _traffic(b, tx, ty):
@@ -307,8 +329,8 @@ def build(out_path):
     ):
         _residential_block(walls, props, lx, lz, 2.55, 2.55, 1.85, mat)
 
-    _mount_sign(b, 'sign_face_game', -GRID, GRID - 0.6, 0.25, 2.45, 1.18, roof='roof_tile_red')
-    _mount_sign(b, 'sign_face_snack', GRID, GRID - 0.6, 0.25, 2.25, 1.08, roof='roof_tile_orange')
+    _mount_sign(b, 'sign_face_snack', GRID, GRID - 1.32, 0.28, 2.35, 1.12,
+                roof='roof_tile_orange', face_south=True)
 
     for lx, ly in ((-GRID * 0.65, GRID + 0.65), (GRID * 0.65, GRID + 0.65),
                    (-2.5, -GRID - 0.5), (2.8, -GRID - 0.45), (0, GRID + 0.85)):
@@ -320,8 +342,8 @@ def build(out_path):
                    (-2.8, 2.0), (3.0, 1.6), (-GRID, -GRID + 0.4), (GRID - 0.3, -GRID)):
         _palm(props, px, py)
 
-    for px, py, rz in ((-3.4, 1.55, 0.25), (3.6, 1.25, -0.18), (-1.2, -2.35, 0.85),
-                       (2.55, -1.85, -0.35), (-4.2, -3.2, 0.6), (4.0, -2.8, -0.25)):
+    for px, py, rz in ((-3.6, 1.75, 0.25), (3.85, 1.45, -0.18), (-1.1, -2.55, 0.85),
+                       (2.75, -2.05, -0.35), (-4.45, -3.45, 0.6), (4.25, -3.05, -0.25)):
         _scooter(props, px, py, rz)
 
     _vending(props, -GRID + 0.5, -1.2, ry=0.32)
