@@ -615,7 +615,9 @@ public class PanelFactory {
         refs.clientIdCombo.setEditable(true);
         refs.clientIdCombo.setFont(mainFont);
         refs.clientIdCombo.setPrototypeDisplayValue("company-worker4");
-        refs.clientIdCombo.setToolTipText("好友看到的本機名稱。可下拉選擇或自行輸入；雲端連線中也可直接修改");
+        refs.clientIdCombo.setToolTipText(
+                "好友看到的本機名稱。可下拉選擇或自行輸入；雲端連線中也可直接修改。"
+                        + " 按 Enter 或「套用」後立即生效並儲存");
         CandyComboBox.install(refs.clientIdCombo);
         Component idEditor = refs.clientIdCombo.getEditor().getEditorComponent();
         if (idEditor != null) {
@@ -624,6 +626,14 @@ public class PanelFactory {
         // 只設 preferred 時，旁邊的說明會把欄位擠回最小寬度，暱稱開頭會被裁掉。
         int idHeight = Math.max(refs.clientIdCombo.getPreferredSize().height, 30);
         lockComponentSize(refs.clientIdCombo, new Dimension(280, idHeight));
+
+        refs.clientIdApplyButton = candyButton(
+                "套用", CandyButton.Variant.SECONDARY, mainFont, "按 Enter 或「套用」後立即生效並儲存");
+        refs.clientIdApplyButton.setEnabled(false);
+        refs.clientIdSavedLabel = new JLabel("✓ 已儲存");
+        refs.clientIdSavedLabel.setFont(mainFont);
+        refs.clientIdSavedLabel.setForeground(new Color(144, 230, 176));
+        refs.clientIdSavedLabel.setVisible(false);
         JPanel hintBlock = new JPanel();
         hintBlock.setOpaque(false);
         hintBlock.setLayout(new BoxLayout(hintBlock, BoxLayout.Y_AXIS));
@@ -644,9 +654,17 @@ public class PanelFactory {
         idLabel.setFont(mainFont);
         idRow.add(idLabel, idGbc);
         idGbc.gridx = 1;
-        idGbc.insets = new Insets(0, 0, 0, 16);
+        idGbc.insets = new Insets(0, 0, 0, 8);
         idRow.add(refs.clientIdCombo, idGbc);
         idGbc.gridx = 2;
+        idGbc.weightx = 0;
+        idGbc.fill = GridBagConstraints.NONE;
+        idGbc.insets = new Insets(0, 0, 0, 8);
+        idRow.add(refs.clientIdApplyButton, idGbc);
+        idGbc.gridx = 3;
+        idGbc.insets = new Insets(0, 0, 0, 16);
+        idRow.add(refs.clientIdSavedLabel, idGbc);
+        idGbc.gridx = 4;
         idGbc.weightx = 1.0;
         idGbc.fill = GridBagConstraints.HORIZONTAL;
         idGbc.insets = new Insets(0, 0, 0, 0);
@@ -883,6 +901,8 @@ public class PanelFactory {
         public JLabel peerHintLabel;
         public JLabel peerStatusLabel;
         public JComboBox<String> clientIdCombo;
+        public JButton clientIdApplyButton;
+        public JLabel clientIdSavedLabel;
         public JLabel avatarPreview;
         public JButton chooseAvatarButton;
         public JButton clearAvatarButton;
