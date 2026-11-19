@@ -260,12 +260,12 @@ public class PublicIslandAuthTest {
     }
 
     @Test
-    public void guestsCanReadDevMachinesWithoutSensitivePaths() throws Exception {
+    public void guestsAreDeniedDevMachinesApi() throws Exception {
         HttpResponse<String> status = send("GET", "/api/dev-machines", null);
-        assertEquals(200, status.statusCode());
-        assertTrue(status.body().contains("\"viewer\":\"guest\""));
-        assertFalse(status.body().contains("/Users/"));
-        assertFalse(status.body().contains("PunchClock-oki/"));
+        assertEquals(401, status.statusCode());
+        assertTrue(status.body().contains("\"success\":false"));
+        assertTrue(status.body().contains("請先登入"));
+        assertFalse(status.body().contains("\"machines\""));
     }
 
     @Test
@@ -273,8 +273,49 @@ public class PublicIslandAuthTest {
         HttpResponse<String> page = send("GET", "/dev-status", null);
         assertEquals(200, page.statusCode());
         assertTrue(page.body().contains("開發機狀態"));
+        assertTrue(page.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
         assertFalse(page.body().contains("小貓"));
         assertFalse(page.body().contains("agentRunning"));
+    }
+
+    @Test
+    public void loginNextRedirectsWhenAlreadyAuthed() throws Exception {
+        HttpResponse<String> response = send("GET", "/login?next=/dev-status", adminCookie());
+        assertEquals(302, response.statusCode());
+        assertEquals("/dev-status", response.headers().firstValue("location").orElse(""));
+    }
+
+    @Test
+    public void loginRejectsUnsafeNextParam() throws Exception {
+        HttpResponse<String> authed = send("GET", "/login?next=//evil.com", adminCookie());
+        assertEquals(302, authed.statusCode());
+        assertEquals("/", authed.headers().firstValue("location").orElse(""));
+        HttpResponse<String> form = send("GET", "/login?next=https://evil.com", null);
+        assertEquals(200, form.statusCode());
+        assertFalse(form.body().contains("https://evil.com"));
+        HttpResponse<String> slash = send("GET", "/login?next=/%5Cevil", null);
+        assertEquals(200, slash.statusCode());
+        assertFalse(slash.body().contains("name=\"next\""));
+    }
+
+    @Test
+    public void loginFormCarriesSafeNext() throws Exception {
+        HttpResponse<String> response = send("GET", "/login?next=/dev-status", null);
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("name=\"next\""));
+        assertTrue(response.body().contains("value=\"/dev-status\""));
+    }
+
+    @Test
+    public void loginPostRedirectsToSafeNext() throws Exception {
+        HttpResponse<String> response = http.send(HttpRequest.newBuilder(URI.create(base + "/login"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .timeout(Duration.ofSeconds(5))
+                .POST(HttpRequest.BodyPublishers.ofString("password=secret&next=%2Fdev-status"))
+                .build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        assertEquals(302, response.statusCode());
+        assertEquals("/dev-status", response.headers().firstValue("location").orElse(""));
+        assertTrue(response.headers().allValues("Set-Cookie").stream().anyMatch(c -> c.startsWith("auth=")));
     }
 
     @Test

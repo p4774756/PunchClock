@@ -32,6 +32,7 @@ public class IslandExploreLogicTest {
     private static final String CHAT_SCRIPT = "src/test/js/island-chat.test.mjs";
     private static final String LIFECYCLE_SCRIPT = "src/test/js/island-lifecycle.test.mjs";
     private static final String EXPLORE_INPUT_SCRIPT = "src/test/js/island-explore-input.test.mjs";
+    private static final String PINCH_SCRIPT = "src/test/js/island-pinch.test.mjs";
     private static final String QUALITY_SCRIPT = "src/test/js/island-quality.test.mjs";
     private static final String BOAT_SCRIPT = "src/test/js/island-boat.test.mjs";
     private static final String STEER_SCRIPT = "src/test/js/island-steer.test.mjs";
@@ -123,6 +124,11 @@ public class IslandExploreLogicTest {
     @Test
     public void exploreInputPassesNodeTests() throws Exception {
         runNodeTest(EXPLORE_INPUT_SCRIPT, "未安裝 Node.js，略過探索輸入邏輯測試");
+    }
+
+    @Test
+    public void pinchLogicPassesNodeTests() throws Exception {
+        runNodeTest(PINCH_SCRIPT, "未安裝 Node.js，略過兩指捏合邏輯測試");
     }
 
     @Test

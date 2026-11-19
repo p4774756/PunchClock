@@ -32,6 +32,7 @@ import com.example.server.store.DevMachineStore;
 import com.example.server.web.RoadmapRoutes;
 import com.example.server.web.TeaHealthRoutes;
 import com.example.server.web.RouteSupport;
+import com.example.server.web.LoginNextPath;
 import com.example.server.web.LoginPageRenderer;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -237,8 +238,9 @@ public final class ServerApp {
     }
 
     private void loginGet(Context ctx) {
+        String nextSafe = LoginNextPath.sanitize(ctx.queryParam("next"));
         if (authService.isAuth(ctx)) {
-            ctx.redirect("/");
+            ctx.redirect(nextSafe != null ? nextSafe : "/");
             return;
         }
         String ip = IpResolver.clientIp(ctx);
@@ -254,24 +256,37 @@ public final class ServerApp {
             int remainingAttempts = Math.max(0, 5 - lockStatus.attempts);
             alertMessage = "<div class=\"error-alert\">[警告] 密碼錯誤！剩餘嘗試次數：" + remainingAttempts + " 次 (滿5次鎖定15分鐘)</div>";
         }
-        ctx.html(LoginPageRenderer.render(alertMessage, lockStatus, SERVER_VERSION));
+        ctx.html(LoginPageRenderer.render(alertMessage, lockStatus, SERVER_VERSION, nextSafe));
     }
 
     private void loginPost(Context ctx) {
         String ip = IpResolver.clientIp(ctx);
+        String nextSafe = LoginNextPath.sanitize(ctx.formParam("next"));
         if (authService.getLoginLockStatus(ip).isLocked()) {
-            ctx.redirect("/login");
+            ctx.redirect(loginUrlWithNext(null));
             return;
         }
         String password = ctx.formParam("password");
         if (authService.checkAdminPassword(password)) {
             authService.clearLoginAttempt(ip);
             setAuthCookie(ctx, authService.authCookieValue());
-            ctx.redirect("/");
+            ctx.redirect(nextSafe != null ? nextSafe : "/");
             return;
         }
         authService.recordLoginFailure(ip);
-        ctx.redirect("/login?error=1");
+        ctx.redirect(loginUrlWithNext(nextSafe, true));
+    }
+
+    private static String loginUrlWithNext(String nextSafe) {
+        return loginUrlWithNext(nextSafe, false);
+    }
+
+    private static String loginUrlWithNext(String nextSafe, boolean error) {
+        String url = error ? "/login?error=1" : "/login";
+        if (nextSafe != null && !nextSafe.isEmpty()) {
+            url += (error ? "&" : "?") + "next=" + java.net.URLEncoder.encode(nextSafe, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        return url;
     }
 
     private void logout(Context ctx) {
