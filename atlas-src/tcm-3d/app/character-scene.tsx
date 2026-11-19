@@ -18,12 +18,14 @@ import {
   yieldToMain,
 } from './load-progress';
 import {
-  groupMeshesByProgram,
+  isTextureOnGpu,
+  planShaderWarm,
   programCount,
   textureCount,
-  finalSceneRenderTiled,
+  uploadOneTexture,
   uploadTexturesIncremental,
-  warmShadersIncremental,
+  warmSchoolDuringCard,
+  warmShaderPlanGroup,
 } from './shader-warm';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
 import {animeOutfit,ANIME_OUTFITS,type AnimeOutfit,type OutfitId} from './outfits';
@@ -1087,6 +1089,12 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   let practiceShell:T.Object3D|null=null;
   let practiceBuilt=false;
   let practiceWarm=false;
+  let cacheAnimeOutfitsFlag=false;
+  let postWarmQueue:{name:string;run:()=>Promise<void>;practiceRelated?:boolean}[]=[];
+  let postWarmBoost=false;
+  let postWarmSkipFrames=0;
+  let postWarmScheduled=false;
+  let postWarmWarmedKeys=new Set<string>();
   let uniformAssetSnap:Map<string,MeshAssetSnapshot>|null=null;
   let lastFrame=performance.now();
   let modelVisibleMarked=false;
@@ -1156,110 +1164,216 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    practiceShell.visible=false;
    practiceShell.updateMatrixWorld(true);
    practiceBuilt=true;
-   onPracticeOutfitPreparing?.(false);
+   if(!pendingOutfitId)onPracticeOutfitPreparing?.(false);
    dirty=true;
-  };
-
-  const countProgramGroups=(roots:T.Object3D[])=>{
-   const meshes=roots.flatMap(r=>{
-    const list:(T.Mesh|T.SkinnedMesh)[]=[];
-    r.traverse(obj=>{
-     if((obj instanceof T.Mesh||obj instanceof T.SkinnedMesh)&&obj.geometry)list.push(obj);
-    });
-    return list.filter(m=>!/Outline/i.test(m.name)&&!/Outline/i.test((m.material as T.Material)?.name??''));
-   });
-   return groupMeshesByProgram(meshes).length;
   };
 
   const timeoutAfter=(ms:number)=>new Promise<void>(resolve=>{window.setTimeout(resolve,ms);});
 
-  const prepareAllMaterials=async(
-   primaryRoot:T.Object3D|null,
+  const logPhase=(name:string,t0:number)=>{
+   const ms=Math.round(performance.now()-t0);
+   console.debug('atlas:phase',name,ms);
+  };
+
+  const pushTextureWarmTasks=(textures:T.Texture[],prefix:string,practice=false)=>{
+   for(const tex of textures){
+    if(isTextureOnGpu(renderer,tex))continue;
+    const label=prefix+(tex.name||`tex#${tex.id}`);
+    postWarmQueue.push({name:label,practiceRelated:practice,run:async()=>{
+     const ms=uploadOneTexture(renderer,tex);
+     console.debug('atlas:post-warm',label,Math.round(ms));
+     if(ms>=600)console.debug('atlas:post-warm-slow',label,Math.round(ms));
+    }});
+   }
+  };
+
+  const pushShaderWarmTasks=(roots:T.Object3D[],outlineOnly:boolean,prefix:string,practice=false)=>{
+   const plan=planShaderWarm(roots,outlineOnly,postWarmWarmedKeys);
+   for(let i=0;i<plan.groups.length;i++){
+    const gi=i;
+    const key=plan.groups[gi].key;
+    postWarmQueue.push({name:`${prefix}${outlineOnly?'outline:':''}${key}`,practiceRelated:practice,run:async()=>{
+     if(disposed)return;
+     const ms=await warmShaderPlanGroup(renderer,scene,camera,plan,gi,true);
+     postWarmWarmedKeys.add(key);
+     console.debug('atlas:post-warm',`${prefix}${key}`,Math.round(ms));
+    }});
+   }
+  };
+
+  const buildPostWarmQueue=()=>{
+   postWarmQueue=[];
+   if(cacheAnimeOutfitsFlag){
+    postWarmQueue.push({name:'clone-practice',run:async()=>{
+     if(disposed||practiceShell||!schoolModel)return;
+     const t0=performance.now();
+     performance.mark('atlas:phase-clone-practice-start');
+     practiceShell=cloneSkinnedObject(schoolModel);
+     isolatePracticeRig(practiceShell);
+     performance.mark('atlas:phase-clone-practice-end');
+     logPhase('clone-practice',t0);
+    }});
+    postWarmQueue.push({name:'build-practice',practiceRelated:true,run:async()=>{
+     if(disposed||!practiceShell||practiceBuilt)return;
+     const t0=performance.now();
+     await buildPracticeOutfitIncremental(practiceShell,practiceOutfit,gradient);
+     finalizePracticeShell();
+     practiceWarm=true;
+     logPhase('build-practice',t0);
+    }});
+    postWarmQueue.push({name:'attach-practice-warm',practiceRelated:true,run:async()=>{
+     if(disposed||!practiceModel)return;
+     const batch:typeof postWarmQueue=[];
+     const pushTo=(tasks:typeof postWarmQueue)=>{batch.push(...tasks);};
+     const saveQueue=postWarmQueue;
+     postWarmQueue=batch;
+     pushTextureWarmTasks(collectMeshTextures(practiceModel,[],true),'practice-tex:',true);
+     pushShaderWarmTasks([practiceModel],false,'practice-prog:',true);
+     pushShaderWarmTasks([practiceModel],true,'practice-',true);
+     const inserted=batch;
+     postWarmQueue=saveQueue;
+     postWarmQueue=[...inserted,...postWarmQueue];
+     if(postWarmBoost){
+      const practice=postWarmQueue.filter(q=>q.practiceRelated);
+      const rest=postWarmQueue.filter(q=>!q.practiceRelated);
+      postWarmQueue=[...practice,...rest];
+     }
+    }});
+   }
+   postWarmQueue.push({name:'plan-teaching-tex',run:async()=>{
+    if(disposed)return;
+    const batch:typeof postWarmQueue=[];
+    const saved=postWarmQueue;
+    postWarmQueue=batch;
+    pushTextureWarmTasks(collectMeshTextures(teaching.root,[]),'teaching-tex:',false);
+    const items=batch;
+    postWarmQueue=saved;
+    postWarmQueue=[...items,...postWarmQueue];
+   }});
+   postWarmQueue.push({name:'plan-teaching-shaders',run:async()=>{
+    if(disposed)return;
+    const batch:typeof postWarmQueue=[];
+    const saved=postWarmQueue;
+    postWarmQueue=batch;
+    pushShaderWarmTasks([teaching.root],false,'teaching-prog:',false);
+    const items=batch;
+    postWarmQueue=saved;
+    postWarmQueue=[...items,...postWarmQueue];
+   }});
+   const schoolForOutline=schoolModel;
+   if(schoolForOutline){
+    postWarmQueue.push({name:'plan-school-outline',run:async()=>{
+     if(disposed)return;
+     const batch:typeof postWarmQueue=[];
+     const saved=postWarmQueue;
+     postWarmQueue=batch;
+     pushShaderWarmTasks([schoolForOutline],true,'school-outline:',false);
+     const items=batch;
+     postWarmQueue=saved;
+     postWarmQueue=[...items,...postWarmQueue];
+    }});
+   }
+   postWarmQueue.push({name:'skin-proxy',run:async()=>{
+    if(disposed)return;
+    const t0=performance.now();
+    await teaching.ensureSkinProxyBake(characterRoot,()=>disposed);
+    logPhase('skin-proxy',t0);
+   }});
+  };
+
+  const drainPostWarmQueue=async(maxItems:number)=>{
+   for(let n=0;n<maxItems&&postWarmQueue.length;n++){
+    const item=postWarmQueue.shift()!;
+    if(item.name==='attach-practice-warm'){
+     await item.run();
+     n--;
+     continue;
+    }
+    const t0=performance.now();
+    await item.run();
+    const ms=Math.round(performance.now()-t0);
+    console.debug('atlas:post-warm',item.name,ms);
+    if(ms>=600)console.debug('atlas:post-warm-slow',item.name,ms);
+    if(!postWarmBoost&&ms>SLICE_BUDGET_MS)break;
+   }
+   if(practiceBuilt&&pendingOutfitId){
+    const next=pendingOutfitId;
+    pendingOutfitId=null;
+    showOutfit(next);
+    onPracticeOutfitPreparing?.(false);
+    dirty=true;
+   }
+   if(!postWarmQueue.length){
+    postWarmBoost=false;
+    gpuBaselineAfterLoad={programs:programCount(renderer),textures:textureCount(renderer)};
+    outfitSwitchAssertPending=practiceBuilt;
+   }
+  };
+
+  let postWarmIdleFrames=0;
+  const startPostCardWarm=()=>{
+   if(postWarmQueue.length)return;
+   buildPostWarmQueue();
+   postWarmIdleFrames=0;
+   postWarmBoost=false;
+   const idle=(deadline:IdleDeadline)=>{
+    if(disposed)return;
+    if(postWarmIdleFrames<2){
+     postWarmIdleFrames++;
+     requestAnimationFrame(()=>requestIdleCallback(idle,{timeout:500}));
+     return;
+    }
+    void drainPostWarmQueue(postWarmBoost?48:1).then(()=>{
+     if(!disposed&&postWarmQueue.length)requestIdleCallback(idle,{timeout:500});
+    });
+   };
+   requestIdleCallback(idle,{timeout:500});
+  };
+
+  const prioritizePracticeWarm=()=>{
+   if(practiceBuilt||disposed)return;
+   if(!postWarmQueue.length)buildPostWarmQueue();
+   const practice=postWarmQueue.filter(q=>q.practiceRelated);
+   const rest=postWarmQueue.filter(q=>!q.practiceRelated);
+   postWarmQueue=[...practice,...rest];
+   postWarmBoost=true;
+   void drainPostWarmQueue(48);
+  };
+
+  const prepareSchoolCardMaterials=async(
+   primaryRoot:T.Object3D,
    bumpSlice?:()=>void,
-   skipTextures?:Set<T.Texture>,
   )=>{
    await Promise.race([woodcutReady,timeoutAfter(25_000)]);
    if(disposed)return;
    const warmPrepStart=performance.now();
-   const charVisible=characterRoot.visible;
-   characterRoot.visible=true;
-   characterRoot.updateMatrixWorld(true);
-   const warmRoots=[...(primaryRoot?[primaryRoot]:[]),...(practiceShell&&practiceBuilt?[practiceShell]:[])];
    const chromeExtras:T.Texture[]=[gradient];
    if(woodcut)chromeExtras.push(woodcut.tex);
    const texList=[...new Set([
-    ...(primaryRoot?collectMeshTextures(primaryRoot,chromeExtras):chromeExtras),
-    ...(practiceShell&&practiceBuilt?collectMeshTextures(practiceShell,[],true):[]),
-    ...collectMeshTextures(teaching.root,[]),
+    ...collectMeshTextures(primaryRoot,chromeExtras),
     ...collectSceneChromeTextures(scene),
-   ])].filter(tex=>!skipTextures?.has(tex));
-   const texturesBefore=textureCount(renderer);
-   const warmedKeys=new Set<string>();
-   const texWarm=await uploadTexturesIncremental({
+   ])];
+   await uploadTexturesIncremental({
     renderer,
     textures:texList,
     disposed:()=>disposed,
-    progressSlices:true,
+    progressSlices:false,
     onSlice:()=>bumpSlice?.(),
    });
    if(disposed)return;
-   const texturesAfter=textureCount(renderer);
-   if(import.meta.env.DEV&&texturesAfter<texturesBefore+texList.length-texWarm.skippedCount){
-    console.warn('atlas:texture-upload-incomplete',texturesBefore,texturesAfter,'wanted',texList.length);
-   }
-   let warmPrograms=programCount(renderer);
-   let groupCount=0;
-   let warmSlices=texWarm.sliceCount;
-   const allShaderRoots=[...warmRoots,teaching.root];
-   if(allShaderRoots.length){
-    const warm=await warmShadersIncremental({
-      renderer,scene,camera,root:allShaderRoots[0],roots:allShaderRoots,disposed:()=>disposed,
-      progressSlices:true,warmedKeys,keepSceneChrome:true,onSlice:()=>bumpSlice?.(),
-    });
-    warmPrograms=warm.programsAfter;
-    groupCount+=warm.groups;
-    warmSlices+=warm.sliceCount;
-    const outlineWarm=await warmShadersIncremental({
-      renderer,scene,camera,root:allShaderRoots[0],roots:allShaderRoots,disposed:()=>disposed,
-      progressSlices:true,warmedKeys,keepSceneChrome:true,outlineOnly:true,onSlice:()=>bumpSlice?.(),
-    });
-    groupCount+=outlineWarm.groups;
-    warmSlices+=outlineWarm.sliceCount;
-   }
+   await warmSchoolDuringCard(renderer,scene,camera,characterRoot,()=>{
+    const overlayWas=teachingOverlayVisible;
+    teachingOverlayVisible=false;
+    const markers=teaching.markers.map(m=>m.visible);
+    teaching.markers.forEach(m=>{m.visible=false;});
+    return()=>{
+     teachingOverlayVisible=overlayWas;
+     teaching.markers.forEach((m,i)=>{m.visible=markers[i];});
+    };
+   });
    if(disposed)return;
-   console.debug(
-    'atlas:warm-prep',
-    'textures',texList.length,
-    'texSkipped',texWarm.skippedCount,
-    'groups',groupCount,
-    'slices',warmSlices,
-    'ms',Math.round(performance.now()-warmPrepStart),
-   );
-   shaderWarmPrograms=warmPrograms;
-   gpuBaselineAfterLoad={programs:programCount(renderer),textures:textureCount(renderer)};
-   outfitSwitchAssertPending=!!practiceBuilt;
-   characterRoot.visible=charVisible;
-  };
-
-  const schedulePracticeWarm=()=>{
-   if(practiceBuilt||practiceWarm||!practiceShell||disposed)return;
-   practiceWarm=true;
-   void (async()=>{
-    await yieldOnce();
-    if(disposed||practiceBuilt)return;
-    await buildPracticeOutfitIncremental(practiceShell!,practiceOutfit,gradient);
-    if(disposed)return;
-    finalizePracticeShell();
-    if(!renderer||disposed||!practiceModel)return;
-    await warmShadersIncremental({renderer,scene,camera,root:practiceModel,disposed:()=>disposed});
-    if(pendingOutfitId){
-     const next=pendingOutfitId;
-     pendingOutfitId=null;
-     showOutfit(next);
-     onPracticeOutfitPreparing?.(false);
-    }
-    dirty=true;
-   })();
+   shaderWarmPrograms=programCount(renderer);
+   logPhase('school-card-materials',warmPrepStart);
   };
 
   const setOutfit=(id:OutfitId)=>{
@@ -1267,7 +1381,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(id==='study-body'&&!practiceBuilt){
     pendingOutfitId=id;
     onPracticeOutfitPreparing?.(true);
-    schedulePracticeWarm();
+    prioritizePracticeWarm();
     return;
    }
    pendingOutfitId=null;
@@ -1303,6 +1417,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const modelUrl=schoolOutfit.modelUrl||avatar.modelUrl;
    const isAnimeModel=!!modelUrl?.includes('anime-assistant.glb');
    const cacheAnimeOutfits=avatar.hasOutfits&&isAnimeModel;
+   cacheAnimeOutfitsFlag=cacheAnimeOutfits;
    let downloadPct=0;
    const gzipBytes=isAnimeModel?ANIME_MODEL_GZIP_BYTES||0:0;
    const rawBytes=isAnimeModel?ANIME_MODEL_BYTES:ANIME_MODEL_BYTES;
@@ -1347,6 +1462,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    loader.load(publicAssetUrl(modelUrl!),gltf=>{
     if(disposed)return;
     void (async()=>{
+     const phaseGltf=performance.now();
+     performance.mark('atlas:phase-gltf-loaded');
+     logPhase('gltf-loaded',phaseGltf);
      let parsePct=Math.max(downloadPct,80);
      reportProgress(parsePct,'parse');
      parseCreepTimer=window.setInterval(()=>{
@@ -1361,10 +1479,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      const parseSlice=async(label:string,work:()=>void)=>{
       const t0=performance.now();
       work();
-      const ms=Math.round(performance.now()-t0);
-      if(import.meta.env.DEV||ms>SLICE_BUDGET_MS)console.debug('atlas:parse-slice',label,ms);
+      logPhase(label,t0);
       await yieldToMain();
-      if(ms>SLICE_BUDGET_MS)await yieldOnce();
+      if(performance.now()-t0>SLICE_BUDGET_MS)await yieldOnce();
      };
      vrm=gltf.userData.vrm??null;
      const model=vrm?.scene??gltf.scene;
@@ -1373,10 +1490,6 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       await parseSlice('vrm-combine-skeletons',()=>VRMUtils.combineSkeletons(gltf.scene));
      }
      if(cacheAnimeOutfits){
-      await parseSlice('clone-practice',()=>{
-       practiceShell=cloneSkinnedObject(model);
-       isolatePracticeRig(practiceShell!);
-      });
       await parseSlice('finish-school-look',()=>finishCharacterLook(model,schoolOutfit,gradient));
       uniformAssetSnap=snapshotMeshAssets(model);
       schoolModel=model;
@@ -1385,58 +1498,31 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       characterRoot.add(schoolModel);
      }else{
       await parseSlice('finish-look',()=>finishCharacterLook(model,animeOutfit(outfitIdRef.current),gradient));
+      schoolModel=model;
       characterRoot.clear();
       characterRoot.add(model);
      }
-     model.updateMatrixWorld(true);
+     await parseSlice('scene-graph',()=>model.updateMatrixWorld(true));
      window.clearInterval(parseCreepTimer);
      reportProgress(86,'anchor');
      await yieldToMain();
      if(disposed)return;
+     const anchorT0=performance.now();
      teaching.anchor(characterRoot);
+     logPhase('anchor',anchorT0);
      reportProgress(92,'materials','準備材質…');
      await yieldToMain();
      if(disposed)return;
+     const schoolRoot=schoolModel??model;
      let matSlice=0;
-     let matTotal=48;
+     const chromeExtras:T.Texture[]=[gradient];
+     if(woodcut)chromeExtras.push(woodcut.tex);
+     const matTotal=Math.max(8,[...new Set(collectMeshTextures(schoolRoot,chromeExtras))].length+2);
      const bumpMaterials=()=>{
       matSlice=Math.min(matTotal,matSlice+1);
       reportProgress(materialsSlicePercent(matSlice,matTotal),'materials','準備材質…');
      };
-     const chromeExtrasEarly:T.Texture[]=[gradient];
-     if(woodcut)chromeExtrasEarly.push(woodcut.tex);
-     const earlyTexList=[...new Set(collectMeshTextures(schoolModel??model,chromeExtrasEarly))];
-     const earlyTexUpload=uploadTexturesIncremental({
-      renderer,
-      textures:earlyTexList,
-      disposed:()=>disposed,
-      progressSlices:true,
-      onSlice:()=>bumpMaterials(),
-     });
-     if(cacheAnimeOutfits&&practiceShell&&!practiceBuilt){
-      const buildSlices=Math.max(Math.ceil(listOutfitMeshes(practiceShell).length/4)+2,1);
-      matTotal=buildSlices+48;
-      await buildPracticeOutfitIncremental(practiceShell,practiceOutfit,gradient,()=>bumpMaterials());
-      if(disposed)return;
-      finalizePracticeShell();
-     }
-     await earlyTexUpload;
-     if(disposed)return;
-     const warmRoots=[...(schoolModel??model?[schoolModel??model]:[]),...(practiceShell&&practiceBuilt?[practiceShell]:[])];
-     const chromeExtras:T.Texture[]=[gradient];
-     if(woodcut)chromeExtras.push(woodcut.tex);
-     const texEst=[...new Set([
-      ...collectMeshTextures(schoolModel??model,chromeExtras),
-      ...(practiceShell&&practiceBuilt?collectMeshTextures(practiceShell,[],true):[]),
-      ...collectMeshTextures(teaching.root,[]),
-      ...collectSceneChromeTextures(scene),
-     ])].length;
-     const progEst=
-      countProgramGroups(warmRoots)+
-      countProgramGroups([teaching.root])+
-      (practiceShell&&practiceBuilt&&schoolModel?countProgramGroups([practiceShell]):0);
-     matTotal=Math.max(matTotal,matSlice+texEst+progEst);
-     await prepareAllMaterials(schoolModel??model,bumpMaterials,new Set(earlyTexList));
+     await prepareSchoolCardMaterials(schoolRoot,bumpMaterials);
      reportProgress(99,'materials','準備材質…');
      if(disposed)return;
      showOutfit(outfitIdRef.current);
@@ -1445,12 +1531,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      const launchSim=sim.current;
      if(launchSim.focus>0&&teaching.focus(launchSim,camera,controls,{force:true}))lastFocus=launchSim.focus;
      else fit(latest.current.view);
-     const programsBeforeFinal=programCount(renderer);
-     const texturesBeforeFinal=textureCount(renderer);
      teaching.update(sim.current,camera,el.clientWidth,el.clientHeight,true);
      dirty=true;
-     await finalSceneRenderTiled(renderer,scene,camera,programsBeforeFinal,texturesBeforeFinal,()=>disposed);
-     dirty=false;
      finishOutfitSwitchMeasure();
      await yieldToMain();
      if(disposed)return;
@@ -1518,6 +1600,14 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(ready){
     const response=teaching.update(simState,camera,el.clientWidth,el.clientHeight,teachingOverlayVisible);
     if(lastSimulation!==simState||simState.running||response?.settling){dirty=true;lastSimulation=simState;}
+   }
+
+   if(ready&&!postWarmScheduled){
+    postWarmSkipFrames++;
+    if(postWarmSkipFrames>=3){
+     postWarmScheduled=true;
+     startPostCardWarm();
+    }
    }
 
    if(dirty){
@@ -1614,13 +1704,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
  useEffect(()=>{
   let cancelled=false;
   const id=outfitId;
-  if(sceneReady.current){
-   outfitBridge.current?.setOutfit(id);
-   return ()=>{cancelled=true;};
-  }
-  let outer=0;
-  outer=requestAnimationFrame(()=>{if(!cancelled)outfitBridge.current?.setOutfit(id);});
-  return ()=>{cancelled=true;cancelAnimationFrame(outer);};
+  const invoke=()=>{if(!cancelled)outfitBridge.current?.setOutfit(id);};
+  requestAnimationFrame(()=>{if(!cancelled)setTimeout(invoke,0);});
+  return ()=>{cancelled=true;};
  },[outfitId]);
 
  return <div className="scene" ref={host}/>;

@@ -129,10 +129,14 @@ export default function Home(){
   performance.mark('atlas:outfit-switch-start');
   performance.mark('atlas:outfit-pressed');
   const next=animeOutfit(id);
-  flushSync(()=>setOutfitId(id));
-  performance.mark('atlas:outfit-ui-painted');
   setError('');
   setFeedback(`已換裝：${next.name}。`);
+  requestAnimationFrame(()=>{
+   setTimeout(()=>{
+    flushSync(()=>setOutfitId(id));
+    performance.mark('atlas:outfit-ui-painted');
+   },0);
+  });
  };
  const choosePoint=(code:string,side:1|-1=simulation.side)=>{
   const next=POINTS.find(p=>p.code===code);if(!next)return;
@@ -231,7 +235,7 @@ export default function Home(){
    const pending=outfit.id==='study-body'&&practicePreparing&&outfitId==='study-body';
    return <button key={outfit.id} type="button" className={`${outfitId===outfit.id?'selected':''}${pending?' is-pending':''}`} aria-pressed={outfitId===outfit.id} title={outfit.blurb} onPointerDown={e=>{if(e.button!==0)return; switchOutfit(outfit.id,e.currentTarget);}} onClick={e=>{if(e.detail===0)switchOutfit(outfit.id,e.currentTarget);}}>{outfit.shortName}{pending&&<span className="outfit-pending" aria-hidden="true"/>}</button>;
   })}</nav>}
-  {practicePreparing&&outfitId==='study-body'&&<p className="practice-outfit-hint surface" role="status" aria-live="polite">準備練習裝…</p>}
+  {practicePreparing&&outfitId==='study-body'&&<p className="practice-outfit-hint surface" role="status" aria-live="polite">換裝中…</p>}
 
   <aside className={`library-panel surface ${mobilePanel==='library'?'mobile-expanded':''}`} aria-label="穴位庫">
    <button className="mobile-panel-heading" aria-expanded={mobilePanel==='library'} onClick={()=>setMobilePanel(p=>p==='library'?null:'library')}><span><Layers3 size={16}/>穴位庫</span><ChevronDown size={17}/></button>
