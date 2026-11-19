@@ -58,8 +58,7 @@ body.casino-lobby-open .island-explore-hint,
 body.casino-lobby-open .island-joystick,
 body.casino-lobby-open #islandLabels,
 body.casino-lobby-open .island-list,
-body.casino-lobby-open .island-corner,
-body.casino-lobby-open .island-time,
+body.casino-lobby-open .island-hud,
 body.casino-lobby-open .island-brand {
   visibility: hidden;
   pointer-events: none;
@@ -360,30 +359,9 @@ body.casino-blackjack-open .casino-status-card {
 }
 
 @media (max-width: 760px) {
-  .island-interact {
-    bottom: auto;
-    top: 7.4rem;
-    left: auto;
-    right: 0.55rem;
-    transform: none;
-    max-width: calc(100vw - 1.1rem);
-  }
-
-  .island-interact-steer {
-    bottom: auto;
-    top: 5rem;
-    left: auto;
-    right: 0.55rem;
-    transform: none;
-    max-width: calc(100vw - 1.1rem);
-  }
-
-  body.is-exploring .island-interact {
-    top: 7.1rem;
-  }
-
-  body.is-exploring .island-interact-steer {
-    top: 4.75rem;
+  .island-hud-actions .island-interact,
+  .island-hud-actions .island-orb-steer {
+    max-width: calc(100vw - 8rem);
   }
 
   .casino-lobby {

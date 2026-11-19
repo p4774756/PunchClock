@@ -173,8 +173,7 @@ body.graffiti-open .island-explore-hint,
 body.graffiti-open .island-joystick,
 body.graffiti-open #islandLabels,
 body.graffiti-open .island-list,
-body.graffiti-open .island-corner,
-body.graffiti-open .island-time,
+body.graffiti-open .island-hud,
 body.graffiti-open .island-brand {
   visibility: hidden;
 }
