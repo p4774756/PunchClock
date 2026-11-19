@@ -522,6 +522,11 @@ export function createInterior(THREE, opts) {
       emissiveIntensity: 0.5,
       flatShading: true
     });
+    // 進房時 dayNight 會對 kit 裡每份材質做 color.copy(userData.day)；缺了會整段進房失敗。
+    signMat.userData.day = new THREE.Color(0xffffff);
+    signMat.userData.night = new THREE.Color(0x90c8e0);
+    signMat.userData.dayE = 0.45;
+    signMat.userData.nightE = 0.88;
     materials.push(signMat);
     const signMesh = new THREE.Mesh(signGeo, signMat);
     signMesh.position.set(-5.5, ground + 2.12, 9.16);
