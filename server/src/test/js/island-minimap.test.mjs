@@ -320,6 +320,51 @@ test('shouldJumpIslandOnPointerUp：同島小位移才跳', () => {
   assert.equal(M.shouldJumpIslandOnPointerUp(null, { islandId: 'main', x: 100, y: 80 }, 10), null);
 });
 
+test('installMapJumpGhostClickGuard：pointerup 跳島後緊接的 click 被吞掉、超時後正常', async () => {
+  const doc = {
+    listeners: {},
+    addEventListener(type, fn, opts) {
+      if (!this.listeners[type]) this.listeners[type] = [];
+      this.listeners[type].push({ fn, capture: !!(opts && opts.capture) });
+    },
+    removeEventListener(type, fn) {
+      const list = this.listeners[type] || [];
+      const idx = list.findIndex((row) => row.fn === fn);
+      if (idx >= 0) list.splice(idx, 1);
+    },
+    dispatch(type, event) {
+      const list = this.listeners[type] || [];
+      for (let pass = 0; pass < 2; pass++) {
+        const capture = pass === 0;
+        for (let i = 0; i < list.length; i++) {
+          if (list[i].capture !== capture) continue;
+          list[i].fn(event);
+          if (event._stopped) return;
+        }
+      }
+    }
+  };
+  function makePointerEvent() {
+    return {
+      _stopped: false,
+      preventDefault() {},
+      stopPropagation() { this._stopped = true; },
+      stopImmediatePropagation() { this._stopped = true; }
+    };
+  }
+  let bubbled = 0;
+  doc.addEventListener('click', () => { bubbled += 1; }, { capture: false });
+  M.installMapJumpGhostClickGuard(doc, 40);
+  doc.dispatch('click', makePointerEvent());
+  assert.equal(bubbled, 0, '守護期間合成 click 不應落到場景');
+  doc.dispatch('mousedown', makePointerEvent());
+  doc.dispatch('mouseup', makePointerEvent());
+  assert.equal(bubbled, 0);
+  await new Promise((resolve) => setTimeout(resolve, 55));
+  doc.dispatch('click', makePointerEvent());
+  assert.equal(bubbled, 1, '超時後 click 應恢復正常');
+});
+
 test('室內 → 群島：島別與門口座標', () => {
   const cases = [
     ['shop-room', 'main'],

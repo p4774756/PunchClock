@@ -696,6 +696,47 @@ export function shouldJumpIslandOnPointerUp(down, up, slop) {
   return down.islandId;
 }
 
+/** 觸控跳島關閉地圖後，擋住瀏覽器合成的 click／mouse 事件落到 3D 場景。 */
+export const MAP_JUMP_GHOST_CLICK_MS = 600;
+
+export function installMapJumpGhostClickGuard(doc, ms) {
+  const root = doc || (typeof document !== 'undefined' ? document : null);
+  const noopDispose = { dispose: function () {} };
+  if (!root || typeof root.addEventListener !== 'function') return noopDispose;
+  const duration = Number.isFinite(ms) && ms > 0 ? ms : MAP_JUMP_GHOST_CLICK_MS;
+  const swallow = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function') {
+      event.stopImmediatePropagation();
+    }
+  };
+  const capture = { capture: true };
+  const types = ['click', 'mousedown', 'mouseup'];
+  const bound = [];
+  for (let i = 0; i < types.length; i++) {
+    const type = types[i];
+    const handler = (event) => swallow(event);
+    root.addEventListener(type, handler, capture);
+    bound.push({ type: type, handler: handler });
+  }
+  let timer = null;
+  const dispose = () => {
+    if (timer != null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    for (let i = 0; i < bound.length; i++) {
+      const row = bound[i];
+      root.removeEventListener(row.type, row.handler, capture);
+    }
+  };
+  const schedule = typeof setTimeout === 'function' ? setTimeout : null;
+  if (schedule) timer = schedule(dispose, duration);
+  else dispose();
+  return { dispose: dispose };
+}
+
 /** 大地圖 canvas 座標命中哪座島；海面／橋上回傳 null。 */
 export function islandAtMapPoint(px, py, cssWidth, cssHeight, slop) {
   if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
@@ -1639,6 +1680,16 @@ export function createMinimapHud(opts) {
 
   let pinPointerDown = null;
   let pinJumpHandledByPointer = false;
+  let mapJumpGhostGuard = null;
+
+  function jumpToIslandAfterPointer(jumpId) {
+    if (!jumpId || typeof opts.onJumpToIsland !== 'function') return;
+    if (mapJumpGhostGuard) mapJumpGhostGuard.dispose();
+    mapJumpGhostGuard = installMapJumpGhostClickGuard(
+      typeof document !== 'undefined' ? document : null
+    );
+    opts.onJumpToIsland(jumpId);
+  }
 
   if (mapPins && typeof opts.onJumpToIsland === 'function') {
     function pinIslandFromEvent(event) {
@@ -1680,7 +1731,7 @@ export function createMinimapHud(opts) {
         event.preventDefault();
         event.stopPropagation();
         pinJumpHandledByPointer = true;
-        opts.onJumpToIsland(jumpId);
+        jumpToIslandAfterPointer(jumpId);
       }
     });
     mapPins.addEventListener('pointercancel', () => { pinPointerDown = null; });
@@ -1766,7 +1817,7 @@ export function createMinimapHud(opts) {
       if (jumpId) {
         event.preventDefault();
         event.stopPropagation();
-        opts.onJumpToIsland(jumpId);
+        jumpToIslandAfterPointer(jumpId);
       }
       paintTargets();
     });
@@ -1877,6 +1928,10 @@ export function createMinimapHud(opts) {
     forceRepaint: function () { lastPaint = 0; paintTargets(); },
     resetMapOverlay: resetMapOverlay,
     destroy: function () {
+      if (mapJumpGhostGuard) {
+        mapJumpGhostGuard.dispose();
+        mapJumpGhostGuard = null;
+      }
       if (mapResizeObserver && mapWrap) mapResizeObserver.unobserve(mapWrap);
       if (mapWindowResizeListener && win) {
         win.removeEventListener('resize', mapWindowResizeListener);
