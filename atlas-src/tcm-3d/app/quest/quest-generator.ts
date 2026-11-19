@@ -5,6 +5,71 @@ import type {MeridianQuestId,QuestPointRecord,QuestQuestion,StageQuestionPlan} f
 const MAX_LOCATE=4;
 const TARGET_QUESTIONS=10;
 
+const SYMPTOM_BODY_KEYS=new Set([
+ '咽','喉','頭','目','眼','耳','鼻','齒','牙','口','唇','舌','面','頰','項','頸',
+ '胸','脅','乳','心','肩','臂','肘','腕','手','指','腰','背','脊','腹','臍','膝','腿','股','踝','足','趾',
+ '喘','咳','嗽','血','瀉','痢','秘','經','帶','癲','狂','癇','驚','眩','暈','昏','厥','麻','痹','痿','疝','汗','嘔','吐','尿','遺','淋','癮','疹','瘡','癰',
+]);
+
+const SYNONYM_GROUPS=[
+ ['泄瀉','腹瀉','腹痛泄瀉','泄瀉痢疾'],
+ ['咳血','咯血','嘔血'],
+ ['耳聾','耳鳴'],
+ ['昏厥','昏迷','中風昏迷','暈厥'],
+ ['中暑','暑熱病'],
+ ['麻木','酸麻'],
+ ['目眩','眩暈','頭暈'],
+ ['心痛','胸痛','胸悶','胸滿痛'],
+];
+
+function symptomKeys(text:string):Set<string>{
+ const keys=new Set<string>();
+ for(const ch of text)if(SYMPTOM_BODY_KEYS.has(ch))keys.add(ch);
+ return keys;
+}
+
+function vomitingVsHematemesis(a:string,b:string):boolean{
+ return (a.includes('嘔吐')&&b.includes('嘔血'))||(b.includes('嘔吐')&&a.includes('嘔血'));
+}
+
+function bodyKeysConflict(a:string,b:string):boolean{
+ const ka=symptomKeys(a),kb=symptomKeys(b);
+ for(const k of ka){
+  if(!kb.has(k))continue;
+  if(k==='嘔'&&vomitingVsHematemesis(a,b))continue;
+  return true;
+ }
+ return false;
+}
+
+function inSameSynonymGroup(a:string,b:string):boolean{
+ if(a===b)return true;
+ if(vomitingVsHematemesis(a,b))return false;
+ for(const g of SYNONYM_GROUPS){
+  if(g.includes(a)&&g.includes(b))return true;
+ }
+ return false;
+}
+
+/** Exported for validation — conservative: treat near-overlap as conflict. */
+export function symptomsConflict(asked:string,other:string):boolean{
+ const a=asked.trim(),b=other.trim();
+ if(!a||!b)return false;
+ if(a===b)return true;
+ if(a.includes(b)||b.includes(a))return true;
+ if(inSameSynonymGroup(a,b))return true;
+ return bodyKeysConflict(a,b);
+}
+
+export function locationsConflict(asked:string,other:string):boolean{
+ const norm=(s:string)=>s.replace(/[\s，。、；：,.;:!?！？「」『』《》（）()[\]【】]/g,'').trim();
+ const a=norm(asked),b=norm(other);
+ if(!a||!b)return false;
+ if(a===b)return true;
+ if(a.includes(b)||b.includes(a))return true;
+ return false;
+}
+
 export function questOrderFromCode(code:string):number{
  const m=code.match(/(\d+)/);
  return m?Number(m[1]):0;
@@ -50,10 +115,28 @@ function balancedAnswerSlots(count:number,rand:()=>number):number[]{
  return shuffle(slots,rand);
 }
 
-function pickSymptom(point:QuestPointRecord,distractors:QuestPointRecord[],rand:()=>number):string|null{
- const pool=point.indications.filter(sym=>!distractors.some(d=>d.indications.includes(sym)));
- if(!pool.length)return null;
- return pool[Math.floor(rand()*pool.length)];
+function rankedSymptoms(
+ point:QuestPointRecord,
+ meridianId:MeridianQuestId,
+ bank:Map<MeridianQuestId,QuestPointRecord[]>,
+ rand:()=>number,
+):string[]{
+ const meridianPool=bank.get(meridianId)??[];
+ const half=meridianPool.length/2;
+ const scored:{sym:string;count:number}[]=[];
+ for(const sym of point.indications){
+  let count=0;
+  for(const p of meridianPool){
+   if(!isIndicationEligible(p))continue;
+   if(p.indications.some(ind=>symptomsConflict(sym,ind)))count++;
+  }
+  if(count>half)continue;
+  scored.push({sym,count});
+ }
+ if(!scored.length)return [];
+ const min=Math.min(...scored.map(s=>s.count));
+ const best=scored.filter(s=>s.count===min);
+ return shuffle(best,rand).map(s=>s.sym);
 }
 
 function buildDistractors(
@@ -73,11 +156,11 @@ function buildDistractors(
   if(used.has(p.code))return false;
   if(kind==='indication'){
    if(!isIndicationEligible(p))return false;
-   if(symptom&&p.indications.includes(symptom))return false;
+   if(symptom&&p.indications.some(ind=>symptomsConflict(symptom,ind)))return false;
    return true;
   }
   if(!p.location?.trim())return false;
-  if(locationText&&p.location.trim()===locationText.trim())return false;
+  if(locationText&&locationsConflict(p.location,locationText))return false;
   return true;
  };
  for(const p of shuffle(same,rand))if(allow(p))pool.push(p);
@@ -118,19 +201,17 @@ function makeChoiceQuestion(
 ):QuestQuestion|null{
  if(kind==='indication'&&!isIndicationEligible(point))return null;
  let symptom:string|null=null;
- if(kind==='indication'){
-  symptom=pickSymptom(point,[],rand);
-  if(!symptom)return null;
- }
  const locationText=kind==='location'?point.location:null;
- const distractors=buildDistractors(meridianId,point,bank,kind,symptom,locationText,rand,used);
- if(distractors.length<3){
-  if(kind==='indication'&&symptom){
-   const retry=buildDistractors(meridianId,point,bank,kind,symptom,locationText,rand,used);
-   if(retry.length<3)return null;
-   distractors.length=0;
-   distractors.push(...retry);
-  }else return null;
+ let distractors:QuestPointRecord[]=[];
+ if(kind==='indication'){
+  for(const sym of rankedSymptoms(point,meridianId,bank,rand)){
+   const built=buildDistractors(meridianId,point,bank,kind,sym,locationText,rand,used);
+   if(built.length>=3){symptom=sym;distractors=built;break;}
+  }
+  if(!symptom)return null;
+ }else{
+  distractors=buildDistractors(meridianId,point,bank,kind,symptom,locationText,rand,used);
+  if(distractors.length<3)return null;
  }
  const rawChoices=[point.code,...distractors.map(d=>d.code)];
  const balanced=orderChoices(rawChoices,point.code,targetIndex,rand);

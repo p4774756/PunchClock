@@ -36,11 +36,12 @@ const bundlePath=join(temporaryDir,'entry.mjs');
 const bundle=await build({
  stdin:{
   contents:`export {QUEST_POINTS,QUEST_BY_CODE,questAvatarLocateCodes,questBankByMeridian,isIndicationEligible,questPointName} from './app/quest/quest-data';
-export {generateStage} from './app/quest/quest-generator';
+export {generateStage,symptomsConflict,locationsConflict} from './app/quest/quest-generator';
 export {starsFromRun,scoreForAnswer,comboBonus} from './app/quest/quest-score';
 export {mergeProgress,sanitizeProgress,stageUnlocked,emptyProgress} from './app/quest/quest-progress';
 export {QUEST_STAGE_ORDER} from './app/quest/quest-stages';
-export {questNewRecordFlags} from './app/quest/quest-record';`,
+export {questNewRecordFlags} from './app/quest/quest-record';
+export {computeLocateFrame} from './app/quest/quest-locate-frame';`,
   resolveDir:project,sourcefile:'validate-meridian-quest-entry.ts',loader:'ts',
  },
  bundle:true,platform:'node',format:'esm',target:'node22',write:false,logLevel:'silent',
@@ -137,7 +138,9 @@ function assertStagePlan(id,plan){
     if(code===q.answerCode)continue;
     const row=M.QUEST_POINTS.find(p=>p.code===code);
     assert.ok(row);
-    assert.ok(!row.indications.includes(symptom),`干擾項 ${code} 含症狀 ${symptom}`);
+    for(const ind of row.indications){
+     assert.ok(!M.symptomsConflict(symptom,ind),`干擾項 ${code} 症狀「${ind}」與題目「${symptom}」衝突`);
+    }
    }
   }
   if(q.kind==='location'){
@@ -146,7 +149,7 @@ function assertStagePlan(id,plan){
     if(code===q.answerCode)continue;
     const row=M.QUEST_POINTS.find(p=>p.code===code);
     assert.ok(row);
-    assert.notEqual(row.location.trim(),ans.location.trim(),'定位干擾項 location 相同');
+    assert.ok(!M.locationsConflict(ans.location,row.location),'定位干擾項 location 相同或近義');
    }
   }
   assert.equal(new Set(q.kind==='locate'?[q.answerCode]:q.choices).size,q.kind==='locate'?1:4);
@@ -222,6 +225,36 @@ await test('新紀錄須用結算前舊成績',async()=>{
 await test('選關路徑節點 12 關順序',async()=>{
  assert.equal(M.QUEST_STAGE_ORDER.length,12);
  assert.deepEqual(M.QUEST_STAGE_ORDER,['LU','LI','ST','SP','HT','SI','BL','KI','PC','TE','GB','LR']);
+});
+
+await test('symptomsConflict 斷言',async()=>{
+ assert.equal(M.symptomsConflict('泄瀉','腹瀉'),true);
+ assert.equal(M.symptomsConflict('胸痛','胸滿痛'),true);
+ assert.equal(M.symptomsConflict('咽喉腫痛','咽喉痛'),true);
+ assert.equal(M.symptomsConflict('耳聾','耳鳴'),true);
+ assert.equal(M.symptomsConflict('癲狂','癲狂癇'),true);
+ assert.equal(M.symptomsConflict('頭痛','偏頭痛'),true);
+ assert.equal(M.symptomsConflict('上臂痛','肩臂攣痛'),true);
+ assert.equal(M.symptomsConflict('便秘','小便不利'),false);
+ assert.equal(M.symptomsConflict('氣喘','疝氣'),false);
+});
+
+await test('桌機選關第二排蛇行',async()=>{
+ const css=await readFile(join(project,'app/quest/quest.css'),'utf8');
+ assert.match(css,/data-idx="6"\]\{grid-column:6;grid-row:2\}/);
+ assert.match(css,/data-idx="11"\]\{grid-column:1;grid-row:2\}/);
+ assert.ok(css.includes('top:-6px;right:-8px'),'鎖頭應在圓外');
+});
+
+await test('找穴位鏡頭框選',async()=>{
+ const mobile=M.computeLocateFrame('ST','ST25',{mobile:true,aspect:390/844,viewportHeight:844,hudReserved:210});
+ const desktop=M.computeLocateFrame('ST','ST25',{mobile:false,aspect:1280/720,viewportHeight:720,hudReserved:260});
+ assert.ok(mobile&&mobile.aim[1]<1.25,`天樞 mobile 應含腹部 aim.y=${mobile?.aim[1]}`);
+ assert.ok(desktop&&desktop.distance>0.5);
+ for(const code of M.questAvatarLocateCodes('ST')){
+  const m=M.computeLocateFrame('ST',code,{mobile:true,aspect:390/844,viewportHeight:844,hudReserved:210});
+  assert.ok(m,`${code} 應能計算鏡頭`);
+ }
 });
 
 await test('關卡中 HUD 不遮蔽全螢幕',async()=>{

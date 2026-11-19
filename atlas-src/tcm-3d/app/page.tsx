@@ -9,7 +9,7 @@ import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,isPracti
 import MeridianQuestPanel from './quest/MeridianQuestPanel';
 import {readLocalProgress} from './quest/quest-progress';
 import {bootstrapQuestProgress} from './quest/quest-sync';
-import {questLocateFramingCode} from './quest/quest-data';
+import {computeLocateFrame,questLocateViewForAnswer} from './quest/quest-locate-frame';
 import type {MeridianQuestId,QuestProgressV1} from './quest/types';
 
 const CharacterScene=lazy(()=>import('./character-scene'));
@@ -182,36 +182,35 @@ export default function Home(){
   window.location.href='/';
  },[launch.fromIsland]);
 
- const closeQuest=useCallback(()=>{setQuestOpen(false);setSimulation(s=>({...s,meridianFilter:'all',dragging:false,running:false,framePointCode:null}));},[]);
+ const closeQuest=useCallback(()=>{setQuestOpen(false);setSimulation(s=>({...s,meridianFilter:'all',dragging:false,running:false,framePointCode:null,frameLocate:null}));},[]);
  const onQuestPlaying=useCallback((active:boolean,_id:MeridianQuestId|null)=>{setQuestPlaying(active);if(active)pause('經絡闖關進行中。');},[pause]);
- const onQuestMeridian=useCallback((id:MeridianQuestId|null)=>{setSimulation(s=>({...s,meridianFilter:id??'all',showPoints:true,dragging:false,running:false,customTarget:null,framePointCode:null}));},[]);
+ const onQuestMeridian=useCallback((id:MeridianQuestId|null)=>{setSimulation(s=>({...s,meridianFilter:id??'all',showPoints:true,dragging:false,running:false,customTarget:null,framePointCode:null,frameLocate:null}));},[]);
  const onQuestHint=useCallback((answerCode:string|null)=>{
   if(!answerCode)return;
   const target=POINT_BY_CODE.get(answerCode);
   if(!target)return;
   const proxy=POINTS.find(p=>avatarCodes.has(p.code)&&p.code!==answerCode&&p.region===target.region);
   if(proxy){
-   setSimulation(s=>({...s,pointCode:proxy.code,side:1,focus:s.focus+1,pickMode:'point',customTarget:null}));
+   setSimulation(s=>({...s,pointCode:proxy.code,side:1,frameLocate:null,framePointCode:null,focus:s.focus+1,pickMode:'point',customTarget:null}));
    return;
   }
-  setSimulation(s=>({...s,pointCode:null,focus:s.focus+1,customTarget:null}));
+  setSimulation(s=>({...s,pointCode:null,frameLocate:null,framePointCode:null,focus:s.focus+1,customTarget:null}));
   const view=target.region==='head'?'front':target.region==='waist'?'back':'three-quarter';
   setState(s=>({...s,view,rotate:false,reset:s.reset+1}));
  },[avatarCodes]);
- const onQuestLocateFraming=useCallback((meridianId:MeridianQuestId,excludeCode:string)=>{
-  const proxy=questLocateFramingCode(meridianId,excludeCode);
-  if(!proxy){
-   setState(s=>({...s,view:'three-quarter',rotate:false,reset:s.reset+1}));
-   setSimulation(s=>({...s,pointCode:null,framePointCode:null,focus:s.focus+1,customTarget:null,dragging:false,running:false}));
-   return;
-  }
-  const row=POINT_BY_CODE.get(proxy);
-  const view=row?.region==='head'?'front':row?.region==='waist'?'back':'three-quarter';
+ const onQuestLocateFraming=useCallback((meridianId:MeridianQuestId,answerCode:string)=>{
+  const mobile=typeof window!=='undefined'&&(window.innerWidth<768||(window.innerWidth<=1100&&window.innerHeight<=500));
+  const w=typeof window!=='undefined'?window.innerWidth:1280;
+  const h=typeof window!=='undefined'?window.innerHeight:720;
+  const frame=computeLocateFrame(meridianId,answerCode,{mobile,aspect:w/h,viewportHeight:h,hudReserved:mobile?210:260});
+  const view=questLocateViewForAnswer(answerCode);
   setState(s=>({...s,view,rotate:false,reset:s.reset+1}));
-  setSimulation(s=>({...s,pointCode:null,framePointCode:proxy,frameSide:1,focus:s.focus+1,pickMode:'point',customTarget:null,dragging:false,running:false}));
+  setSimulation(s=>({
+   ...s,pointCode:null,framePointCode:null,frameLocate:frame,focus:s.focus+1,pickMode:'point',customTarget:null,dragging:false,running:false,
+  }));
  },[]);
  const onQuestHighlight=useCallback((code:string|null)=>{
-  if(!code){setSimulation(s=>({...s,pointCode:null,framePointCode:null}));return;}
+  if(!code){setSimulation(s=>({...s,pointCode:null,framePointCode:null,frameLocate:null}));return;}
   setSimulation(s=>({...s,pointCode:code,side:1,framePointCode:null,focus:s.focus+1,pickMode:'point',customTarget:null}));
  },[]);
  const onQuestPracticeOutfit=useCallback(()=>{if(outfitId!=='study-body')switchOutfit('study-body');},[outfitId]);

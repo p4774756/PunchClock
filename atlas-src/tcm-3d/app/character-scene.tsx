@@ -817,6 +817,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const practiceOutfit=ANIME_OUTFITS.find(o=>o.id==='study-body')!;
   const points=avatarPracticePoints(avatar);
   const el=host.current!;let disposed=false,frame=0,dirty=true,ready=false,lastView='',lastReset=-1,lastFocus=-1;
+  let locateLerp:{t0:number;fromT:[number,number,number];fromP:[number,number,number];toT:[number,number,number];toP:[number,number,number]}|null=null;
   let renderer:T.WebGLRenderer;
   try{renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});}
   catch{onError('無法啟動 3D 視圖，請使用支持 WebGL 的瀏覽器。');return;}
@@ -987,7 +988,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const cancel=(e:PointerEvent)=>tap.cancel(e.pointerId);
   const pickQuestMarker=(clientX:number,clientY:number)=>{
    const rect=renderer.domElement.getBoundingClientRect();
-   const minPx=el.clientWidth<=720?18:10;
+   const minPx=el.clientWidth<=720?24:10;
    let best:T.Mesh|null=null,bestD=minPx;
    for(const m of teaching.markers){
     if(!m.visible)continue;
@@ -1046,22 +1047,55 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(controls.autoRotate)dirty=true;
 
    if(ready&&!teaching.isAnchored()&&characterRoot.children.length)teaching.anchor(characterRoot);
-   if(teaching.focus(simState,camera,controls)){lastFocus=simState.focus;dirty=true;}
-   else if(simState.focus&&lastFocus!==simState.focus&&ready){
+   const beginLocateLerp=(fl:NonNullable<typeof simState.frameLocate>)=>{
+    const aim=new T.Vector3().fromArray(fl.aim);
+    const viewDir=new T.Vector3().fromArray(fl.viewDir).normalize();
+    const camEnd=aim.clone().addScaledVector(viewDir,fl.distance);
+    locateLerp={
+     t0:performance.now(),
+     fromT:[controls.target.x,controls.target.y,controls.target.z],
+     fromP:[camera.position.x,camera.position.y,camera.position.z],
+     toT:[aim.x,aim.y,aim.z],
+     toP:[camEnd.x,camEnd.y,camEnd.z],
+    };
+    dirty=true;
+   };
+   if(simState.focus&&lastFocus!==simState.focus&&ready&&questMode&&simState.frameLocate){
+    lastFocus=simState.focus;
+    beginLocateLerp(simState.frameLocate);
+   }else if(teaching.focus(simState,camera,controls)){
+    lastFocus=simState.focus;locateLerp=null;dirty=true;
+   }else if(simState.focus&&lastFocus!==simState.focus&&ready){
     // Pre-anchor fallback: same framing rules as teaching-overlay (do not ride the surface normal).
     lastFocus=simState.focus;
-    const frameCode=simState.framePointCode??simState.pointCode;
-    const frameSide=simState.framePointCode?(simState.frameSide??1):simState.side;
-    const target=frameCode?avatarPointTarget(avatar,frameCode,frameSide):null;
-    if(target){
-     const aim=new T.Vector3().fromArray(target.position);
-     const normal=new T.Vector3().fromArray(target.normal).normalize();
-     const {viewDir,distance,aimAdjust}=focusViewFromNormal(frameCode,normal,frameSide);
-     aim.add(aimAdjust);
-     controls.target.copy(aim);
-     camera.position.copy(aim).addScaledVector(viewDir,distance);
-     controls.update();dirty=true;
+    if(simState.frameLocate){
+     beginLocateLerp(simState.frameLocate);
+    }else{
+     const frameCode=simState.framePointCode??simState.pointCode;
+     const frameSide=simState.framePointCode?(simState.frameSide??1):simState.side;
+     const target=frameCode?avatarPointTarget(avatar,frameCode,frameSide):null;
+     if(target){
+      const aim=new T.Vector3().fromArray(target.position);
+      const normal=new T.Vector3().fromArray(target.normal).normalize();
+      const {viewDir,distance,aimAdjust}=focusViewFromNormal(frameCode,normal,frameSide);
+      aim.add(aimAdjust);
+      controls.target.copy(aim);
+      camera.position.copy(aim).addScaledVector(viewDir,distance);
+      controls.update();dirty=true;
+     }
     }
+   }
+   if(locateLerp){
+    const u=Math.min(1,(performance.now()-locateLerp.t0)/420);
+    const ease=u*u*(3-2*u);
+    controls.target.x=locateLerp.fromT[0]+(locateLerp.toT[0]-locateLerp.fromT[0])*ease;
+    controls.target.y=locateLerp.fromT[1]+(locateLerp.toT[1]-locateLerp.fromT[1])*ease;
+    controls.target.z=locateLerp.fromT[2]+(locateLerp.toT[2]-locateLerp.fromT[2])*ease;
+    camera.position.x=locateLerp.fromP[0]+(locateLerp.toP[0]-locateLerp.fromP[0])*ease;
+    camera.position.y=locateLerp.fromP[1]+(locateLerp.toP[1]-locateLerp.fromP[1])*ease;
+    camera.position.z=locateLerp.fromP[2]+(locateLerp.toP[2]-locateLerp.fromP[2])*ease;
+    controls.update();dirty=true;
+    if(u>=1)locateLerp=null;
    }
 
    if(questMode){
