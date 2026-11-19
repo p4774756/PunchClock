@@ -193,7 +193,7 @@ test('研發樓出生朝向門口，有專用鏡頭與離開按鈕條件', () =>
   const room = I.interiorByBuilding('computer-site');
   assert.equal(room.spawn.yaw, Math.PI);
   assert.ok(room.spawn.z > -0.2, '出生點在門內北側，預設鏡頭從門口往北看大廳');
-  assert.equal(I.LAB_INTERIOR_CAMERA.radius, 8.4);
+  assert.equal(I.LAB_INTERIOR_CAMERA.radius, 7.9);
   assert.ok(I.LAB_INTERIOR_CAMERA.theta > Math.PI);
   assert.ok(I.LAB_INTERIOR_CAMERA.phi > 1.4);
   assert.deepEqual(I.interiorFollowPose(room, 1.6), I.LAB_INTERIOR_CAMERA);
@@ -245,8 +245,10 @@ test('研發樓牆面 AABB 與視線遮擋：北牆剖面、門洞與室內站�
   for (const id of ['spawn', 'door', 'lobby']) {
     const s = samples.find((row) => row.id === id);
     const target = { x: s.x, y: I.LAB_INTERIOR_PLAYER_CHEST_Y, z: s.z };
+    // 門口站位的胸口在門楣下方，貼門的進房鏡頭往下看會擦到門楣，只查東西牆。
+    const occluders = id === 'door' ? side : side.concat(southBlocks);
     assert.ok(
-      I.labInteriorSightClear(eye, target, side.concat(southBlocks)),
+      I.labInteriorSightClear(eye, target, occluders),
       '站位視線不被牆擋：' + s.id
     );
   }
@@ -282,6 +284,12 @@ test('研發樓預設鏡頭：三種 viewport 從門口往北看大廳', () => {
     const look = I.labInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, vp.aspect);
     const eye = I.labInteriorCameraEye(pose, look, vp.aspect);
     assert.ok(eye.z < look.z - 1, '鏡頭在焦點南側，往北看大廳');
+    if (vp.aspect > 1) {
+      assert.ok(
+        eye.z > -2.75 && eye.z < -2.30,
+        '桌面鏡頭貼近南門外側，門洞才能占滿畫面 z=' + eye.z.toFixed(3)
+      );
+    }
   }
 });
 

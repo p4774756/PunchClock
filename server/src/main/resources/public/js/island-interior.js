@@ -48,10 +48,10 @@ export const INTERIOR_HINT_EXPLORE_TOUCH = '用左下角搖桿移動 · 拖曳�
 export const INTERIOR_HINT_INSIDE_DESK = 'WASD 或方向鍵移動 · Esc 或走到門口離開 · 工具列可一鍵離開';
 export const INTERIOR_HINT_INSIDE_TOUCH = '搖桿移動 · 按右下「離開」出去';
 
-/** 研發樓進房預設鏡頭（桌面／橫向）：站在南側往北看大廳，避開中央數據柱。 */
-export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 8.4, theta: Math.PI + 0.36, phi: 1.46 });
+/** 研發樓進房預設鏡頭（桌面／橫向）：貼在南側門外往北看大廳，讓門洞占滿畫面並避開中央數據柱。 */
+export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 7.9, theta: Math.PI + 0.36, phi: 1.46 });
 
-export const LAB_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 7.0, theta: Math.PI + 0.32, phi: 1.45 });
+export const LAB_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 6.85, theta: Math.PI + 0.32, phi: 1.45 });
 
 /** 鏡頭大廳焦點（桌面）；每幀與角色胸口混合，讓進房先看到挑高大廳而不是南牆特寫。 */
 export const LAB_INTERIOR_LOOK_DESKTOP = Object.freeze({ x: 1.65, y: G + 1.55, z: 6.6 });
@@ -148,7 +148,7 @@ export function labInteriorCameraForAspect(aspect) {
   const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
   if (a < 0.72) return LAB_INTERIOR_CAMERA_MOBILE;
   if (a > 1.72) {
-    return Object.freeze({ radius: 8.6, theta: LAB_INTERIOR_CAMERA.theta, phi: 1.46 });
+    return Object.freeze({ radius: 8.0, theta: LAB_INTERIOR_CAMERA.theta, phi: 1.46 });
   }
   return LAB_INTERIOR_CAMERA;
 }
