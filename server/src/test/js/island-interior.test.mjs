@@ -519,3 +519,21 @@ test('賭場 21 點互動區在牌桌西側走道，進門不觸發', () => {
   assert.equal(X.hitInteractZone(bjInteract.x, bjInteract.z, zones).action, 'openCasinoBlackjack');
   session.exit(1000);
 });
+
+test('賭場大廳遠大於舊房間，進房鏡頭站在門內往北看', () => {
+  const room = I.interiorByBuilding('casino');
+  assert.ok(room.floor.maxX - room.floor.minX >= 16, '大廳寬度遠大於外觀盒子');
+  assert.ok(room.floor.maxZ - room.floor.minZ >= 14, '大廳進深遠大於舊房間');
+  const viewports = [1280 / 720, 1440 / 900, 390 / 844];
+  for (let i = 0; i < viewports.length; i++) {
+    const aspect = viewports[i];
+    const pose = I.casinoInteriorCameraForAspect(aspect);
+    const look = I.casinoInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, aspect);
+    const eye = I.casinoInteriorCameraEye(pose, look, aspect);
+    assert.ok(eye.z < look.z - 1, '鏡頭在焦點南側，往北看大廳');
+    assert.ok(eye.z >= room.floor.minZ && eye.z <= room.floor.minZ + 1.1, '鏡頭在南門內側 z=' + eye.z.toFixed(3));
+    assert.ok(eye.y < 4.4, '鏡頭低於天花 y=' + eye.y.toFixed(3));
+  }
+  assert.equal(I.interiorFollowPose(room, 1.6), I.CASINO_INTERIOR_CAMERA);
+  assert.equal(I.interiorCameraFov(room), I.CASINO_FOV_DEG);
+});

@@ -76,6 +76,7 @@ import {
   labInteriorFollowDistance,
   labInteriorLookTarget,
   labInteriorRuntimeLookAt,
+  casinoInteriorRuntimeLookAt,
   interiorCameraFov
 } from './island-interior.js';
 import {
@@ -802,7 +803,7 @@ function boot() {
     nightFactor: () => dayNight.mix,
     followDistance: (radius, aspect) => {
       if (rooms.inside()) {
-        if (rooms.room() && rooms.room().id === 'lab-room') {
+        if (rooms.room() && (rooms.room().id === 'lab-room' || rooms.room().id === 'casino-room')) {
           return labInteriorFollowDistance(radius, aspect);
         }
         return interiorExploreFollowDistance(radius, aspect);
@@ -1190,6 +1191,11 @@ function boot() {
       pose = custom || INTERIOR_POSE;
       if (room && room.id === 'lab-room') {
         const focal = labInteriorRuntimeLookAt(room, player, camera.aspect);
+        lookX = focal.x;
+        lookY = focal.y;
+        lookZ = focal.z;
+      } else if (room && room.id === 'casino-room') {
+        const focal = casinoInteriorRuntimeLookAt(room, player, camera.aspect);
         lookX = focal.x;
         lookY = focal.y;
         lookZ = focal.z;
