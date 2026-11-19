@@ -13,6 +13,9 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
+import java.awt.AWTEvent;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -28,7 +31,11 @@ import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.MouseInfo;
+import java.awt.PointerInfo;
 import java.awt.Toolkit;
+import java.awt.Window;
+import java.awt.event.AWTEventListener;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -87,6 +94,11 @@ public final class DesktopPetWindow extends JFrame {
     private Rectangle bubbleBounds;
     private int controlGroundY;
     private static final long CARE_PERSIST_MS = 30_000L;
+    private JPopupMenu openPetMenu;
+    private Timer menuAutoCloseTimer;
+    private long menuPointerLeftAt = -1L;
+    private AWTEventListener menuEventListener;
+    private boolean suppressMenuOnRelease;
 
     DesktopPetWindow(DesktopPetSettings settings) {
         super("桌面寵物");
@@ -147,7 +159,16 @@ public final class DesktopPetWindow extends JFrame {
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosed(WindowEvent e) {
+                hidePetMenu();
                 stopMotion();
+            }
+        });
+        addWindowFocusListener(new WindowAdapter() {
+            @Override
+            public void windowLostFocus(WindowEvent e) {
+                // 等焦點轉到選單的 HeavyWeight 視窗後再判斷，避免一打開就被自己關掉。
+                Window opposite = e.getOppositeWindow();
+                SwingUtilities.invokeLater(() -> maybeHidePetMenuAfterFocusLost(opposite));
             }
         });
         timer = new Timer(DesktopPetAnimation.TICK_MS, event -> onTick());
@@ -500,6 +521,11 @@ public final class DesktopPetWindow extends JFrame {
         return new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
+                if (PetMenuDismiss.shouldCloseOnEscape(petMenuVisible(), e.getKeyCode())) {
+                    hidePetMenu();
+                    e.consume();
+                    return;
+                }
                 if (!control.isActive()) {
                     return;
                 }
@@ -651,6 +677,10 @@ public final class DesktopPetWindow extends JFrame {
             public void mouseReleased(MouseEvent e) {
                 if (SwingUtilities.isRightMouseButton(e)) {
                     if ((e.getModifiersEx() & InputEvent.SHIFT_DOWN_MASK) == 0) {
+                        if (suppressMenuOnRelease) {
+                            suppressMenuOnRelease = false;
+                            return;
+                        }
                         showPetMenu(e);
                     }
                     return;
@@ -691,7 +721,11 @@ public final class DesktopPetWindow extends JFrame {
                             noticeReleased.run();
                         }
                     }
-                    showPetMenu(e);
+                    if (suppressMenuOnRelease) {
+                        suppressMenuOnRelease = false;
+                    } else {
+                        showPetMenu(e);
+                    }
                 } else if (animation.isNotice()) {
                     noticeOpen = null;
                     animation.poke();
@@ -718,6 +752,10 @@ public final class DesktopPetWindow extends JFrame {
 
     private void showPetMenu(MouseEvent e) {
         if (animation.isCarried() || animation.isSettling()) {
+            return;
+        }
+        if (PetMenuDismiss.shouldCloseOnToggle(petMenuVisible())) {
+            hidePetMenu();
             return;
         }
         Font font = UiFonts.chinesePlain(13);
@@ -756,7 +794,199 @@ public final class DesktopPetWindow extends JFrame {
             repaint();
         });
         menu.add(debugItem);
+        menu.addPopupMenuListener(new PopupMenuListener() {
+            @Override
+            public void popupMenuWillBecomeVisible(PopupMenuEvent event) {
+            }
+
+            @Override
+            public void popupMenuWillBecomeInvisible(PopupMenuEvent event) {
+                if (openPetMenu == menu) {
+                    cleanupPetMenu();
+                }
+            }
+
+            @Override
+            public void popupMenuCanceled(PopupMenuEvent event) {
+                if (openPetMenu == menu) {
+                    cleanupPetMenu();
+                }
+            }
+        });
+        armPetMenu(menu);
         menu.show(stage, e.getX(), e.getY());
+    }
+
+    boolean petMenuVisible() {
+        return openPetMenu != null && openPetMenu.isVisible();
+    }
+
+    void showPetMenuAt(int x, int y) {
+        requireEdt();
+        showPetMenu(new MouseEvent(
+                stage, MouseEvent.MOUSE_RELEASED, System.currentTimeMillis(), 0,
+                x, y, 1, false, MouseEvent.BUTTON3));
+    }
+
+    void hidePetMenu() {
+        JPopupMenu menu = openPetMenu;
+        if (menu != null && menu.isVisible()) {
+            menu.setVisible(false);
+            return;
+        }
+        cleanupPetMenu();
+    }
+
+    private void armPetMenu(JPopupMenu menu) {
+        cleanupPetMenu();
+        openPetMenu = menu;
+        suppressMenuOnRelease = false;
+        menuPointerLeftAt = -1L;
+        if (!control.isActive()) {
+            setFocusableWindowState(true);
+            toFront();
+            requestFocus();
+        }
+        menuEventListener = ev -> onPetMenuAwtEvent(ev);
+        Toolkit.getDefaultToolkit().addAWTEventListener(
+                menuEventListener, AWTEvent.MOUSE_EVENT_MASK | AWTEvent.KEY_EVENT_MASK);
+        menuAutoCloseTimer = new Timer(200, ev -> tickPetMenuAutoClose());
+        menuAutoCloseTimer.setRepeats(true);
+        menuAutoCloseTimer.start();
+    }
+
+    private void cleanupPetMenu() {
+        if (menuEventListener != null) {
+            Toolkit.getDefaultToolkit().removeAWTEventListener(menuEventListener);
+            menuEventListener = null;
+        }
+        if (menuAutoCloseTimer != null) {
+            menuAutoCloseTimer.stop();
+            menuAutoCloseTimer = null;
+        }
+        menuPointerLeftAt = -1L;
+        openPetMenu = null;
+        if (!control.isActive()) {
+            setFocusableWindowState(false);
+            stage.setFocusable(false);
+        }
+    }
+
+    private void onPetMenuAwtEvent(AWTEvent ev) {
+        if (!petMenuVisible()) {
+            return;
+        }
+        if (ev instanceof KeyEvent) {
+            KeyEvent key = (KeyEvent) ev;
+            if (key.getID() == KeyEvent.KEY_PRESSED
+                    && PetMenuDismiss.shouldCloseOnEscape(true, key.getKeyCode())) {
+                hidePetMenu();
+                key.consume();
+            }
+            return;
+        }
+        if (!(ev instanceof MouseEvent)) {
+            return;
+        }
+        MouseEvent mouse = (MouseEvent) ev;
+        if (mouse.getID() != MouseEvent.MOUSE_PRESSED) {
+            return;
+        }
+        boolean inside = isEventInsideMenu(mouse);
+        if (isEventOnPet(mouse)) {
+            return;
+        }
+        if (PetMenuDismiss.shouldCloseOnOutsideClick(true, inside)) {
+            hidePetMenu();
+        }
+    }
+
+    private void tickPetMenuAutoClose() {
+        if (!petMenuVisible()) {
+            return;
+        }
+        boolean inside = isPointerOverMenu();
+        long now = System.currentTimeMillis();
+        menuPointerLeftAt = PetMenuDismiss.updateLeftAt(inside, menuPointerLeftAt, now);
+        if (PetMenuDismiss.shouldAutoClose(true, inside, menuPointerLeftAt, now)) {
+            hidePetMenu();
+        }
+    }
+
+    private boolean isEventInsideMenu(MouseEvent mouse) {
+        if (openPetMenu == null) {
+            return false;
+        }
+        Object src = mouse.getSource();
+        if (src instanceof java.awt.Component) {
+            java.awt.Component component = (java.awt.Component) src;
+            if (component == openPetMenu || openPetMenu.isAncestorOf(component)) {
+                return true;
+            }
+            Window sourceWindow = SwingUtilities.getWindowAncestor(component);
+            if (isPetMenuWindow(sourceWindow)) {
+                return true;
+            }
+        }
+        try {
+            Point onScreen = mouse.getLocationOnScreen();
+            Point origin = openPetMenu.getLocationOnScreen();
+            Rectangle bounds = new Rectangle(origin, openPetMenu.getSize());
+            return bounds.contains(onScreen);
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
+    private boolean isEventOnPet(MouseEvent mouse) {
+        Object src = mouse.getSource();
+        if (src == this || src == stage) {
+            return true;
+        }
+        if (src instanceof java.awt.Component) {
+            java.awt.Component component = (java.awt.Component) src;
+            return component == this || isAncestorOf(component) || stage.isAncestorOf(component);
+        }
+        return false;
+    }
+
+    private boolean isPointerOverMenu() {
+        if (openPetMenu == null || !openPetMenu.isVisible()) {
+            return false;
+        }
+        PointerInfo info = MouseInfo.getPointerInfo();
+        if (info == null) {
+            return false;
+        }
+        try {
+            Point origin = openPetMenu.getLocationOnScreen();
+            Rectangle bounds = new Rectangle(origin, openPetMenu.getSize());
+            return bounds.contains(info.getLocation());
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
+    private void maybeHidePetMenuAfterFocusLost(Window opposite) {
+        if (!petMenuVisible()) {
+            return;
+        }
+        Window focused = java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
+        boolean stayedOnMenu = isPetMenuWindow(opposite) || isPetMenuWindow(focused) || isPointerOverMenu();
+        if (PetMenuDismiss.shouldCloseOnFocusLost(true, stayedOnMenu)) {
+            hidePetMenu();
+        }
+    }
+
+    private boolean isPetMenuWindow(Window window) {
+        if (window == null || openPetMenu == null) {
+            return false;
+        }
+        if (window == this) {
+            return true;
+        }
+        Window ancestor = SwingUtilities.getWindowAncestor(openPetMenu);
+        return window == ancestor || window.isAncestorOf(openPetMenu);
     }
 
     private void addCareItem(JPopupMenu menu, String label, DesktopPetCare.Action action,
