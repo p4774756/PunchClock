@@ -1048,6 +1048,8 @@ body.is-exploring .island-npc-talk:not([hidden]) {
 }
 
 .island-more-donate {
+  justify-content: flex-start;
+  gap: 0.5rem;
   white-space: nowrap;
   min-height: 2.75rem;
 }

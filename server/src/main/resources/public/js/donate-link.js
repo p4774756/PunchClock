@@ -61,11 +61,12 @@ export function dismissDonateToast(doc) {
   }
 }
 
-export function showDonateToast(doc) {
+export function showDonateToast(doc, placement = 'island') {
   if (!doc || !doc.body) return null;
   dismissDonateToast(doc);
+  const slot = placement === 'dev' ? 'dev' : 'island';
   const wrap = doc.createElement('div');
-  wrap.className = 'donate-toast maple-window dev-login-toast';
+  wrap.className = `donate-toast maple-window dev-login-toast donate-toast--${slot}`;
   wrap.setAttribute('data-donate-toast', '1');
   wrap.setAttribute('role', 'status');
   const msg = doc.createElement('p');
@@ -89,28 +90,28 @@ export function showDonateToast(doc) {
   return wrap;
 }
 
-export function handleDonateClick(ev, doc, url, configured) {
+export function handleDonateClick(ev, doc, url, configured, placement = 'island') {
   if (isDonateConfigured(url, configured)) return false;
   if (ev) {
     ev.preventDefault();
     ev.stopPropagation();
   }
-  showDonateToast(doc);
+  showDonateToast(doc, placement);
   return true;
 }
 
-function onPlaceholderClick(ev, doc, url, configured) {
-  handleDonateClick(ev, doc, url, configured);
+function onPlaceholderClick(ev, doc, url, configured, placement) {
+  handleDonateClick(ev, doc, url, configured, placement);
 }
 
-export function bindDonateAnchor(anchor, win, doc) {
+export function bindDonateAnchor(anchor, win, doc, placement = 'island') {
   if (!anchor) return;
   const documentRef = doc || (win && win.document);
   const { url, configured } = readDonateConfig(win);
   applyDonateAnchor(anchor, url, configured);
   anchor.addEventListener('click', (ev) => {
     if (anchor.getAttribute('data-donate-placeholder') === '1') {
-      onPlaceholderClick(ev, documentRef, url, configured);
+      onPlaceholderClick(ev, documentRef, url, configured, placement);
     }
   });
 }
@@ -119,7 +120,7 @@ export function mountDonateLinks(win) {
   const doc = win && win.document;
   if (!doc) return;
   const island = doc.getElementById('islandMoreDonate');
-  if (island) bindDonateAnchor(island, win, doc);
+  if (island) bindDonateAnchor(island, win, doc, 'island');
   const dev = doc.getElementById('devMachinesDonate');
-  if (dev) bindDonateAnchor(dev, win, doc);
+  if (dev) bindDonateAnchor(dev, win, doc, 'dev');
 }

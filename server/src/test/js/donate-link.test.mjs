@@ -106,3 +106,12 @@ test('placeholder click shows single toast', () => {
   assert.equal(doc.querySelectorAll('[data-donate-toast]').length, 1);
   assert.equal(D.DONATE_TOAST_MS, 3000);
 });
+
+test('donate toast uses placement class and top slot for dev', () => {
+  const doc = miniDoc();
+  const islandToast = D.showDonateToast(doc, 'island');
+  assert.ok(String(islandToast.className).includes('donate-toast--island'));
+  D.dismissDonateToast(doc);
+  const devToast = D.showDonateToast(doc, 'dev');
+  assert.ok(String(devToast.className).includes('donate-toast--dev'));
+});
