@@ -327,6 +327,28 @@ body.dev-machines-page {
   padding: 0.85rem 1rem 1.1rem;
 }
 
+.dev-machines-donate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+  min-height: 40px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #465a78;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dev-machines-donate:hover,
+.dev-machines-donate:focus-visible {
+  color: #163a70;
+  outline: 2px solid #3a7ac4;
+  outline-offset: 2px;
+}
+
 .dev-machines-guest {
   text-align: center;
   padding: 2rem 1rem;

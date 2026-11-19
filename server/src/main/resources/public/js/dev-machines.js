@@ -1,3 +1,4 @@
+import { mountDonateLinks } from './donate-link.js';
 import {
   buildRunRows,
   createGithubLink,
@@ -307,5 +308,6 @@ export function createDevMachinesPage(opts) {
 }
 
 if (typeof document !== 'undefined' && document.getElementById('devMachinesRoot')) {
+  mountDonateLinks(typeof window !== 'undefined' ? window : document.defaultView);
   createDevMachinesPage();
 }

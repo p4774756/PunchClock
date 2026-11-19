@@ -3,6 +3,7 @@ package com.example.ui.hud;
 import com.example.model.CheckInTask;
 import com.example.model.TaskStatus;
 import com.example.service.SchedulerService;
+import com.example.ui.DonateAction;
 import com.example.ui.UiFonts;
 import com.example.ui.WindowChrome;
 
@@ -50,6 +51,8 @@ public final class AnimeShell extends JPanel {
     private static final String[] NAV = {"首頁", "排程任務", "好友與傳檔", "設定", "日誌"};
     /** 側邊順序和 JTabbedPane 不同：分頁是排程、設定、好友、日誌。 */
     private static final int[] NAV_TO_TAB = {-1, 0, 2, 1, 3};
+    /** 側欄「贊助」熱區，不佔分頁 0–4、也不與 20（打招呼）共用。 */
+    public static final int DONATE_HIT = 21;
 
     private final JTabbedPane tabs;
     private final SchedulerService scheduler;
@@ -60,6 +63,7 @@ public final class AnimeShell extends JPanel {
     private final Timer timer;
     private final boolean reducedMotion = reducedMotion();
     private final Map<String, TaskStatus> seenTasks = new HashMap<>();
+    private final DonateAction donateAction = DonateAction.production();
     private CharacterTheme theme = CharacterTheme.SWEATER;
     /** 軌道版「下一個任務」：約 85% 不透明，文字／邊框另畫。 */
     private static final Color ORBITAL_CARD = new Color(42, 24, 78, 217);
@@ -172,6 +176,11 @@ public final class AnimeShell extends JPanel {
             java.awt.Rectangle row = navRow(navBounds(), id);
             row.grow(2, 2);
             return row;
+        }
+        if (id == DONATE_HIT) {
+            java.awt.Rectangle box = donateBounds(navBounds());
+            box.grow(2, 2);
+            return box;
         }
         if (id == 20) {
             return holdingHome ? new java.awt.Rectangle() : new java.awt.Rectangle(bust);
@@ -398,6 +407,10 @@ public final class AnimeShell extends JPanel {
             }
             return;
         }
+        if (id == DONATE_HIT) {
+            donateAction.run(this);
+            return;
+        }
         if (id == 20) {
             hero.play(AnimeCast.WAVE, 1.8);
             board.sayClick();
@@ -454,6 +467,9 @@ public final class AnimeShell extends JPanel {
                 return i;
             }
         }
+        if (donateBounds(nav).contains(x, y)) {
+            return DONATE_HIT;
+        }
         if (holdingHome) {
             int home = board.hit(x, y);
             if (home >= 0) {
@@ -485,6 +501,7 @@ public final class AnimeShell extends JPanel {
         g.setFont(UiFonts.chinesePlain(12));
         g.setColor(MUTED);
         g.drawString("神器", nav.x + 18, nav.y + 56);
+        paintDonateButton(g, nav);
         int selected = holdingHome ? 0 : navIndexForTab(tabs.getSelectedIndex());
         for (int i = 0; i < NAV.length; i++) {
             java.awt.Rectangle row = navRow(nav, i);
@@ -783,6 +800,58 @@ public final class AnimeShell extends JPanel {
 
     static int tabForNav(int index) {
         return NAV_TO_TAB[index];
+    }
+
+    /** headless 預覽側欄，供 reviewer 截圖（例：1100×720）。 */
+    public static BufferedImage renderSidebarPreview(int width, int height) {
+        AnimeShell shell = new AnimeShell(null, new JTabbedPane());
+        shell.setSize(width, height);
+        shell.doLayout();
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setColor(new Color(28, 20, 48));
+            g.fillRect(0, 0, width, height);
+            shell.paint(g);
+        } finally {
+            g.dispose();
+        }
+        return image;
+    }
+
+    static java.awt.Rectangle navRowBounds(int shellWidth, int shellHeight, int index) {
+        java.awt.Rectangle nav = navBoundsForSize(shellHeight);
+        return navRow(nav, index);
+    }
+
+    static java.awt.Rectangle donateClickBounds(int shellWidth, int shellHeight) {
+        return donateBounds(navBoundsForSize(shellHeight));
+    }
+
+    private static java.awt.Rectangle navBoundsForSize(int shellHeight) {
+        return new java.awt.Rectangle(16, 16, 176, Math.max(0, shellHeight - 32));
+    }
+
+    private static java.awt.Rectangle donateBounds(java.awt.Rectangle nav) {
+        int width = 66;
+        int height = 24;
+        int x = nav.x + nav.width - width - 10;
+        int y = nav.y + 38;
+        return new java.awt.Rectangle(x, y, width, height);
+    }
+
+    private void paintDonateButton(Graphics2D g, java.awt.Rectangle nav) {
+        java.awt.Rectangle box = donateBounds(nav);
+        boolean active = hot == DONATE_HIT;
+        g.setColor(active ? new Color(255, 214, 88) : new Color(255, 201, 72, 210));
+        g.fillRoundRect(box.x, box.y, box.width, box.height, box.height, box.height);
+        g.setColor(active ? new Color(36, 64, 128) : new Color(22, 58, 112));
+        g.drawRoundRect(box.x, box.y, box.width - 1, box.height - 1, box.height, box.height);
+        g.setFont(UiFonts.chinesePlain(11));
+        g.setColor(new Color(22, 58, 112));
+        String label = "♥ 贊助";
+        int tw = g.getFontMetrics().stringWidth(label);
+        g.drawString(label, box.x + (box.width - tw) / 2, box.y + 16);
     }
 
     private static java.awt.Rectangle navRow(java.awt.Rectangle nav, int index) {
