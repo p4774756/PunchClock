@@ -342,10 +342,24 @@ def build(out_path):
     ):
         _residential_block(walls, props, lx, lz, BLOCK, BLOCK, 1.85, mat)
 
-    # SE 珊瑚住宅南牆外：ly 為 Blender Y，face_south 會 +0.52 成招牌平面
-    se_south_y = -GRID - (BLOCK / 2 - 0.08)
-    _mount_sign(b, 'sign_face_snack', GRID, se_south_y - 0.58, 1.98, 2.45, 1.18,
-                roof='roof_tile_red', face_south=True)
+    # SE 珊瑚住宅南牆：與夾娃娃騎樓同掛法（平面在牆南側，勿用 _mount_sign 的 ly+0.52）
+    snack_lx, snack_lz = GRID, -GRID
+    snack_street = -1
+    snack_fy = snack_lz + snack_street * (BLOCK / 2 - 0.08)
+    snack_sw, snack_sh, snack_sz = 2.45, 1.18, 2.08
+    snack_pitch = 0.06
+    snack_y_out = snack_fy + snack_street * 0.48
+    snack_sign = b.part('sign_face_snack')
+    snack_frame = b.part('sign_face_snack_frame')
+    snack_neon = b.part('sign_face_snack_neon')
+    snack_frame.box('roof_tile_red', snack_sw + 0.16, 0.06, snack_sh + 0.12,
+                    snack_lx, snack_y_out, snack_sz, rx=snack_pitch)
+    snack_sign.plane('sign', snack_sw, snack_sh, snack_lx,
+                     snack_y_out + snack_street * 0.05, snack_sz, rx=snack_pitch,
+                     ry=math.pi, **_SIGN_UV)
+    snack_neon.box('neon_glow', snack_sw + 0.12, 0.05, 0.06, snack_lx,
+                   snack_y_out + snack_street * 0.03, snack_sz + snack_sh / 2 - 0.05,
+                   rx=snack_pitch)
 
     for lx, ly in ((-GRID * 0.65, GRID + 0.65), (GRID * 0.65, GRID + 0.65),
                    (-2.5, -GRID - 0.5), (2.8, -GRID - 0.45), (0, GRID + 0.85)):

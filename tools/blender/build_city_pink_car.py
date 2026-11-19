@@ -32,47 +32,43 @@ def build(out_path):
     wheels = b.part('car_wheels')
     glass = b.part('car_glass')
 
-    # 短掀背：全長約 0.95，圓頂、露輪、前圓燈獨立碟片
-    body.box('city_pink_car', 0.72, 0.14, 0.48, 0, 0.02, 0.09)
-    body.box('city_pink_car', 0.76, 0.18, 0.50, 0, 0.0, 0.18)
-    body.box('city_pink_car', 0.74, 0.26, 0.48, 0, 0.0, 0.30)
-    body.box('city_pink_car', 0.70, 0.30, 0.46, 0, 0.01, 0.42)
-    body.box('city_pink_car', 0.64, 0.28, 0.44, 0, 0.02, 0.54)
-    body.box('city_pink_car', 0.52, 0.22, 0.42, 0, 0.02, 0.64)
-    cabin.box('city_pink_roof', 0.58, 0.14, 0.38, 0, 0.0, 0.72)
-    cabin.box('city_pink_roof', 0.46, 0.10, 0.32, 0, -0.02, 0.78)
-    body.box('city_pink_car', 0.40, 0.18, 0.40, 0, -0.36, 0.18, rx=-0.14)
-    body.box('city_pink_car', 0.32, 0.16, 0.38, 0, -0.42, 0.26, rx=-0.18)
-    body.box('city_pink_car', 0.44, 0.18, 0.38, 0, 0.32, 0.30, rx=0.28)
-    body.box('city_pink_car', 0.38, 0.16, 0.36, 0, 0.38, 0.42, rx=0.34)
-    body.box('city_pink_car', 0.28, 0.12, 0.34, 0, 0.42, 0.52, rx=0.40)
+    # Fiat 500：短鼻、單一圓頂泡泡、後段掀背下收，全長約 0.96
+    body.box('city_pink_car', 0.90, 0.11, 0.40, 0, 0.08, 0.36)
+    body.box('city_pink_car', 0.82, 0.18, 0.44, 0, 0.10, 0.22)
+    body.sphere('city_pink_car', 0.22, 0, 0.06, -0.10, seg=12, rings=8)
+    body.box('city_pink_car', 0.52, 0.16, 0.40, 0, 0.12, -0.22, rx=-0.22)
+    body.box('city_pink_car', 0.38, 0.14, 0.36, 0, 0.10, -0.36, rx=-0.38)
+    cabin.sphere('city_pink_roof', 0.30, 0, 0.20, 0.30, sz=0.52, seg=14, rings=9)
+    cabin.sphere('city_pink_roof', 0.20, 0, 0.14, 0.52, sz=0.44, seg=10, rings=7)
 
-    trim.box('city_trim_white', 0.64, 0.04, 0.06, 0, -0.44, 0.14)
-    trim.box('city_trim_white', 0.54, 0.04, 0.06, 0, 0.43, 0.15)
-    trim.box('city_trim_white', 0.58, 0.03, 0.04, 0, -0.44, 0.18)
+    trim.box('city_trim_white', 0.68, 0.05, 0.07, 0, -0.44, -0.06)
+    trim.box('city_trim_white', 0.58, 0.04, 0.06, 0, 0.43, 0.08)
+    trim.box('city_trim_white', 0.62, 0.03, 0.04, 0, -0.44, 0.02)
+    trim.box('city_trim_white', 0.18, 0.03, 0.05, 0, 0.40, -0.28)
 
     for sx in (-1, 1):
-        trim.cyl('windows_glow', 0.078, 0.078, 0.02, sx * 0.34, -0.40, 0.20,
+        trim.cyl('windows_glow', 0.078, 0.078, 0.02, sx * 0.34, -0.40, -0.08,
                  seg=16, rx=math.pi / 2)
-        trim.sphere('city_trim_white', 0.065, sx * 0.34, -0.40, 0.20, seg=12, rings=8)
-        body.box('city_pink_car', 0.10, 0.05, 0.14, sx * 0.38, -0.02, 0.12)
+        trim.sphere('city_trim_white', 0.065, sx * 0.34, -0.40, -0.08, seg=12, rings=8)
+        body.box('city_pink_car', 0.08, 0.04, 0.10, sx * 0.36, -0.02, -0.10)
 
-    glass.box('city_glass_blue', 0.36, 0.02, 0.26, 0, 0.30, 0.52)
-    glass.box('city_glass_blue', 0.30, 0.12, 0.02, 0, 0.28, 0.48)
-    glass.box('city_glass_blue', 0.32, 0.02, 0.28, 0, 0.02, 0.46)
-    for sx in (-0.20, 0.20):
-        glass.box('city_glass_blue', 0.02, 0.12, 0.26, sx, 0.0, 0.44)
-    glass.box('city_glass_blue', 0.22, 0.10, 0.02, 0, -0.16, 0.36)
+    glass.box('city_glass_blue', 0.38, 0.02, 0.22, 0, 0.28, 0.28)
+    glass.box('city_glass_blue', 0.34, 0.14, 0.02, 0, 0.26, 0.22)
+    glass.box('city_glass_blue', 0.30, 0.02, 0.24, 0, 0.04, 0.18)
+    for sx in (-0.18, 0.18):
+        glass.box('city_glass_blue', 0.02, 0.11, 0.24, sx, 0.0, 0.16)
+    glass.box('city_glass_blue', 0.20, 0.09, 0.02, 0, -0.14, -0.08)
+    glass.box('city_glass_blue', 0.16, 0.08, 0.02, 0, 0.12, -0.30)
 
-    for sx in (-0.12, 0.12):
-        trim.sphere('city_traffic_red', 0.042, sx, 0.41, 0.18, seg=10, rings=6)
+    for sx in (-0.10, 0.10):
+        trim.sphere('city_traffic_red', 0.040, sx, 0.41, 0.02, seg=10, rings=6)
+    trim.sphere('city_traffic_red', 0.032, 0, 0.38, -0.38, seg=8, rings=6)
 
-    wheel_offs = [(-0.40, 0.22), (0.40, 0.22), (-0.40, -0.22), (0.40, -0.22)]
+    wheel_offs = [(-0.40, 0.20), (0.40, 0.20), (-0.40, -0.20), (0.40, -0.20)]
     for wx, wz in wheel_offs:
         wheels.cyl('city_traffic_dark', 0.12, 0.12, 0.11, wx, wz, 0.09, seg=16, rx=math.pi / 2)
         wheels.cyl('city_trim_white', 0.070, 0.070, 0.06, wx, wz, 0.09, seg=12, rx=math.pi / 2)
         wheels.cyl('city_trim_white', 0.036, 0.036, 0.04, wx, wz, 0.09, seg=8, rx=math.pi / 2)
-        body.box('city_pink_car', 0.16, 0.08, 0.12, wx, wz, 0.14)
 
     return b.finish(out_path, extras={'model': 'city-pink-car'})
 
