@@ -64,6 +64,10 @@ body.island-body.is-night .island-webgl-notice-inner {
   color: #e6effa;
 }
 
+body.island-body.is-night .island-webgl-notice-card {
+  background: #f8fbff;
+}
+
 .island-webgl-notice-body {
   margin: 0 0 0.95rem;
   font-size: 0.88rem;
@@ -713,6 +717,63 @@ body.island-sheet-open .island-map-sheet {
 .island-chat-line-system {
   color: #465a78;
   font-weight: 500;
+}
+
+.island-npc-talk {
+  position: fixed;
+  z-index: 10080;
+  left: 50%;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: min(26rem, calc(100vw - 2.5rem));
+  max-width: 26rem;
+  font-family: "Noto Sans TC", "Noto Sans CJK TC", sans-serif;
+  cursor: pointer;
+}
+
+.island-npc-talk[hidden] {
+  display: none !important;
+}
+
+.island-npc-talk-body {
+  min-height: 3.2rem;
+  padding: 0.75rem 0.9rem 0.45rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.55;
+  color: #163a70;
+  white-space: pre-wrap;
+}
+
+.island-npc-talk-hint {
+  margin: 0;
+  padding: 0 0.9rem 0.65rem;
+  text-align: right;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #3a7ac4;
+  letter-spacing: 0.06em;
+}
+
+body.island-body.is-night .island-npc-talk-body {
+  color: #e8f2ff;
+}
+
+body.is-exploring .island-npc-talk:not([hidden]) {
+  pointer-events: auto;
+}
+
+@media (max-width: 720px) {
+  body.is-exploring .island-npc-talk:not([hidden]) {
+    left: 50%;
+    right: auto;
+    width: 92vw;
+    max-width: 92vw;
+    bottom: calc(
+      0.85rem + 3.75rem + 0.45rem + 3.75rem + 0.45rem + 3.75rem + 0.55rem
+      + env(safe-area-inset-bottom, 0px)
+    );
+  }
 }
 
 .island-chat-compose {

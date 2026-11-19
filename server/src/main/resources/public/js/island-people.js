@@ -8,15 +8,21 @@ import {
   idleFootY,
   cityWalkerStyles,
   cityScooterAnim,
-  miluPointsFromIdles
+  miluPointsFromIdles,
+  npcTalkProfile,
+  resolveWalkerIslandId
 } from './island-people-data.js';
+
+export { freezeNpcWalker, unfreezeNpcWalker } from './island-people-data.js';
 import { cityWalkerPaths, cityMotoPaths } from './island-city-data.js';
+import { islandAt } from './island-layout.js';
 import {
   createMiluView,
   createMiluState,
   miluStep,
   miluClipPath,
-  screenAxes
+  screenAxes,
+  resolveFacing
 } from './island-milu.js';
 
 export {
@@ -31,6 +37,95 @@ export {
 const sharedTexturesByStyle = new Map();
 let cityScooterShared = null;
 let cityScooterAnchor = null;
+let talkSpawnSerial = 0;
+let lastNpcMotionT = 0;
+
+export function getNpcMotionTime() {
+  return lastNpcMotionT;
+}
+
+export function npcGreetBobY(t0, now, reduced) {
+  if (reduced || !Number.isFinite(t0) || !Number.isFinite(now)) return 0;
+  const elapsed = (now - t0) / 1000;
+  if (elapsed < 0 || elapsed > 0.4) return 0;
+  return Math.abs(Math.sin(elapsed * Math.PI * 10)) * 0.04;
+}
+
+export function npcFacePlayer(state, anim, px, pz, nx, nz, camTheta, seated) {
+  const axes = screenAxes(px - nx, pz - nz, camTheta);
+  const src = state || createMiluState();
+  const facing = resolveFacing(src.facing, axes.x, axes.z, anim, false);
+  if (seated) {
+    return Object.assign({}, src, { mode: 'idle', facing: facing, moving: false });
+  }
+  return Object.assign({}, src, { mode: 'idle', facing: facing, frame: 0, acc: 0 });
+}
+
+export function freezeNpcIdle(idle) {
+  if (!idle) return;
+  idle.talkHold = true;
+}
+
+export function unfreezeNpcIdle(idle) {
+  if (!idle) return;
+  idle.talkHold = false;
+  idle.talkGreetAt = 0;
+}
+
+function talkMeta(style, islandId) {
+  const idx = talkSpawnSerial++;
+  return {
+    talkKey: 'npc-' + idx,
+    spawnIndex: idx,
+    islandId: islandId || 'main',
+    name: npcTalkProfile(style, idx).name,
+    talkable: true,
+    scooter: false
+  };
+}
+
+export function collectTalkableNpcSnapshots(idles, walkers) {
+  const out = [];
+  if (idles) {
+    for (let i = 0; i < idles.length; i++) {
+      const row = idles[i];
+      if (!row || row.talkable === false || !row.obj) continue;
+      out.push({
+        talkKey: row.talkKey,
+        style: row.style,
+        name: row.name,
+        islandId: row.islandId || 'main',
+        x: row.obj.position.x,
+        z: row.obj.position.z,
+        seated: !!row.seated,
+        scooter: false,
+        talkable: true,
+        record: { kind: 'idle', row: row }
+      });
+    }
+  }
+  if (walkers) {
+    for (let i = 0; i < walkers.length; i++) {
+      const row = walkers[i];
+      if (!row || row.talkable === false || row.scooter || !row.obj) continue;
+      const isl = row.islandId;
+      const fallback = islandAt(row.obj.position.x, row.obj.position.z, 0.15);
+      out.push({
+        talkKey: row.talkKey,
+        style: row.style,
+        name: row.name,
+        islandId: isl || (fallback && fallback.id) || 'main',
+        x: row.obj.position.x,
+        z: row.obj.position.z,
+        seated: false,
+        scooter: !!row.scooter,
+        talkable: true,
+        record: { kind: 'walker', row: row }
+      });
+    }
+  }
+  return out;
+}
 
 function startStyleTextureLoad(style, registry) {
   if (sharedTexturesByStyle.has(style)) return;
@@ -216,6 +311,7 @@ function spawnIdleBillboard(scene, idles, def, registry) {
   const inst = createNpcBillboard(def.style);
   inst.view.object.position.set(def.x, idleFootY(def.seated), def.z);
   scene.add(inst.view.object);
+  const meta = talkMeta(def.style, def.islandId || 'main');
   const row = {
     obj: inst.view.object,
     base: inst.view.object.position.y,
@@ -226,7 +322,13 @@ function spawnIdleBillboard(scene, idles, def, registry) {
     view: inst.view,
     anim: inst.anim,
     state: inst.state,
-    npc: inst
+    npc: inst,
+    talkKey: meta.talkKey,
+    spawnIndex: meta.spawnIndex,
+    islandId: meta.islandId,
+    name: meta.name,
+    talkable: meta.talkable,
+    scooter: meta.scooter
   };
   idles.push(row);
   registry.disposers.push(inst);
@@ -237,6 +339,8 @@ function spawnIdleBillboard(scene, idles, def, registry) {
 function spawnWalkerBillboard(scene, walkers, def, extra, registry) {
   const inst = createNpcBillboard(def.style);
   scene.add(inst.view.object);
+  const islandId = resolveWalkerIslandId(def, extra);
+  const meta = talkMeta(def.style, islandId);
   walkers.push({
     obj: inst.view.object,
     path: def.path,
@@ -249,7 +353,13 @@ function spawnWalkerBillboard(scene, walkers, def, extra, registry) {
     anim: inst.anim,
     state: inst.state,
     npc: inst,
-    cityOnly: !!(extra && extra.cityOnly)
+    cityOnly: !!(extra && extra.cityOnly),
+    talkKey: meta.talkKey,
+    spawnIndex: meta.spawnIndex,
+    islandId: meta.islandId,
+    name: meta.name,
+    talkable: meta.talkable,
+    scooter: meta.scooter
   });
   registry.disposers.push(inst);
   return inst;
@@ -265,17 +375,23 @@ export function registerNpcBillboardMotion(loop, ctx) {
 
   loop.register(function updateNpcBillboards(dt, t) {
     if (!camera) return;
+    lastNpcMotionT = t;
+    const now = typeof performance !== 'undefined' ? performance.now() : t * 1000;
     walkers.forEach((walker) => {
       if (!walker.billboard) return;
-      const along = reduced ? walker.offset : walker.offset + t * Math.abs(walker.speed);
+      const held = walker.talkHold;
+      const along = held
+        ? held.along
+        : (reduced ? walker.offset : walker.offset + t * Math.abs(walker.speed));
       const step = sampleWalker(walker, walker.pingpong ? along * walker.path.length : along, t);
       const dx = step.to[0] - step.from[0];
       const dz = step.to[1] - step.from[1];
       const x = step.from[0] + dx * step.blend;
       const z = step.from[1] + dz * step.blend;
-      walker.obj.position.set(x, ground, z);
+      const greetY = npcGreetBobY(walker.talkGreetAt || 0, now, reduced);
+      walker.obj.position.set(x, ground + greetY, z);
       walker.view.faceCamera(camera, x, z);
-      const moving = !reduced && Math.abs(walker.speed) > 0;
+      const moving = !held && !reduced && Math.abs(walker.speed) > 0;
       let wx = dx * step.dir;
       let wz = dz * step.dir;
       if (!wx && !wz && step.vx) {
@@ -283,10 +399,10 @@ export function registerNpcBillboardMotion(loop, ctx) {
         wz = step.vz;
       }
       const axes = screenAxes(wx, wz, camThetaFn());
-      walker.state = miluStep(walker.state, reduced ? 0 : dt, {
+      walker.state = miluStep(walker.state, (held || reduced) ? 0 : dt, {
         moving: moving,
-        screenX: axes.x,
-        screenZ: axes.z,
+        screenX: held ? 0 : axes.x,
+        screenZ: held ? 0 : axes.z,
         anim: walker.anim,
         near: false,
         reduced: reduced
@@ -299,9 +415,9 @@ export function registerNpcBillboardMotion(loop, ctx) {
       const z = item.obj.position.z;
       item.view.faceCamera(camera, x, z);
       if (item.seated) {
-        item.state = npcSeatedStep(item.state, reduced ? 0 : dt, item.anim);
+        item.state = npcSeatedStep(item.state, (item.talkHold || reduced) ? 0 : dt, item.anim);
       } else {
-        item.state = miluStep(item.state, reduced ? 0 : dt, {
+        item.state = miluStep(item.state, (item.talkHold || reduced) ? 0 : dt, {
           moving: false,
           screenX: 0,
           screenZ: 0,
@@ -311,9 +427,14 @@ export function registerNpcBillboardMotion(loop, ctx) {
         });
       }
       item.view.show(npcClipPath(item.state, item.anim, item.seated));
-      if (reduced) return;
-      const bob = item.seated ? 0.004 : 0.012;
-      item.obj.position.y = item.base + Math.sin(t * 1.5 + item.phase) * bob;
+      const greetY = npcGreetBobY(item.talkGreetAt || 0, now, reduced);
+      if (reduced && !greetY) {
+        item.obj.position.y = item.base;
+        return;
+      }
+      const bob = item.talkHold ? 0 : (item.seated ? 0.004 : 0.012);
+      const idleBob = item.talkHold ? 0 : Math.sin(t * 1.5 + item.phase) * bob;
+      item.obj.position.y = item.base + idleBob + greetY;
     });
   });
 }
@@ -354,7 +475,8 @@ export function buildIslandPeople(ctx) {
           path: def.path,
           speed: def.speed,
           pingpong: def.pingpong,
-          offset: Math.random() * 0.5
+          offset: Math.random() * 0.5,
+          island: def.island
         }, null, registry);
       } else {
         spawnIdleBillboard(scene, idles, {
@@ -363,7 +485,8 @@ export function buildIslandPeople(ctx) {
           z: def.z,
           rotY: def.rotY,
           seated: false,
-          phase: def.x * 0.1
+          phase: def.x * 0.1,
+          islandId: def.island || 'main'
         }, registry);
       }
     });
@@ -408,7 +531,9 @@ export function buildIslandPeople(ctx) {
         view: inst.view,
         anim: inst.anim,
         state: inst.state,
-        npc: inst
+        npc: inst,
+        talkable: false,
+        scooter: true
       });
       registry.disposers.push(inst);
     }
@@ -437,6 +562,7 @@ export function buildIslandPeople(ctx) {
     },
     whenReady: whenReady,
     plan,
-    registerBillboardMotion: registerNpcBillboardMotion
+    registerBillboardMotion: registerNpcBillboardMotion,
+    collectTalkableNpcs: () => collectTalkableNpcSnapshots(idles, walkers)
   };
 }
