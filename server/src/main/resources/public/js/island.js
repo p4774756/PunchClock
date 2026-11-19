@@ -1789,6 +1789,7 @@ function boot() {
     ambience: { src: '/audio/ocean-waves.ogg', volume: 0.22 }
   });
 
+  let lastSyncedBgmTrackId = null;
   syncIslandBgm = function syncIslandBgmImpl() {
     if (!islandAudio.available) return;
     const night = dayNight.target >= 1;
@@ -1806,6 +1807,8 @@ function boot() {
       night,
       tracks: ISLAND_BGM_TRACKS
     });
+    if (trackId === lastSyncedBgmTrackId) return;
+    lastSyncedBgmTrackId = trackId;
     islandAudio.setTrack(trackId);
   };
   const audioBtn = document.getElementById('islandAudio');
@@ -2377,7 +2380,8 @@ function boot() {
     openRoadmap: () => roadmap.open(),
     closeRoadmap: () => roadmap.close(),
     isRoadmapOpen: () => roadmap.isOpen(),
-    casinoName: CASINO_NAME
+    casinoName: CASINO_NAME,
+    getBgmTrack: () => islandAudio.currentTrack
   };
 
   resize();

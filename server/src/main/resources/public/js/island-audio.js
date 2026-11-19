@@ -597,7 +597,7 @@ export function createIslandAudio(opts) {
   function setTrack(id) {
     const src = tracks[id];
     if (!src) return;
-    if (currentTrackId === id && audio && !crossfadeOutgoing) {
+    if (currentTrackId === id && audio) {
       if (userInteracted && !muted && !hidden && audio.paused) tryPlay();
       return;
     }

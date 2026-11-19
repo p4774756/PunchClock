@@ -764,6 +764,34 @@ describe('island-audio', () => {
       assert.equal(audio.currentTrack, 'main');
     });
 
+    test('交叉淡出期間同一 id 再呼叫不重啟、不新建 Audio', async () => {
+      let createCount = 0;
+      const storage = fakeStorage();
+      const audio = createIslandAudio({
+        tracks: { main: '/a.ogg', casino: '/b.ogg' },
+        storage,
+        _createAudio: () => {
+          createCount += 1;
+          return fakeAudio();
+        },
+        _forceElementVolume: true
+      });
+      audio.onUserInteraction();
+      await new Promise((r) => setTimeout(r, 10));
+      const countAfterInit = createCount;
+      audio.setTrack('casino');
+      await new Promise((r) => setTimeout(r, 30));
+      const incoming = audio._getAudio();
+      assert.ok(audio._getOutgoingAudio(), 'outgoing during crossfade');
+      const countAfterCrossfade = createCount;
+      audio.setTrack('casino');
+      await new Promise((r) => setTimeout(r, 10));
+      assert.equal(createCount, countAfterCrossfade, 'same id during crossfade must not create Audio');
+      assert.equal(audio._getAudio(), incoming, 'incoming element unchanged');
+      assert.ok(audio._getOutgoingAudio(), 'crossfade must not restart');
+      assert.ok(createCount > countAfterInit, 'initial crossfade should create new element');
+    });
+
     test('換曲時交叉淡出期間可有兩個 element', async () => {
       const storage = fakeStorage();
       const audio = createIslandAudio({
