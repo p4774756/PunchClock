@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { G } from './island-kit.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { G, nightHex } from './island-kit.js';
 import { islandById } from './island-layout.js';
 import {
   DATA_BODY_HEIGHT,
@@ -17,14 +18,120 @@ import {
 export { resolveTcmPickHit };
 
 const BRONZE_POINTS_URL = '/island/tcm-bronze-points.json';
+const BRONZE_FIG_URL = '/models/tcm-bronze-figure.glb';
+
+let bronzeFigScene = null;
+let bronzeFigPromise = null;
+
+function ensureBronzeFigureGlb() {
+  if (bronzeFigScene) return Promise.resolve(bronzeFigScene);
+  if (!bronzeFigPromise) {
+    bronzeFigPromise = new Promise((resolve, reject) => {
+      const loader = new GLTFLoader();
+      loader.load(
+        BRONZE_FIG_URL,
+        (gltf) => {
+          bronzeFigScene = gltf.scene;
+          resolve(bronzeFigScene);
+        },
+        undefined,
+        reject
+      );
+    });
+  }
+  return bronzeFigPromise;
+}
+
+function nightColorFromDay(hex, opts) {
+  const bronze = opts && opts.bronze;
+  const mapped = nightHex(hex);
+  if (mapped !== null && !bronze) return new THREE.Color(mapped);
+  const c = new THREE.Color(hex);
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl);
+  const out = new THREE.Color();
+  if (bronze) {
+    out.setHSL(hsl.h, Math.min(1, hsl.s * 0.62), 0.2 + hsl.l * 0.45);
+  } else {
+    out.setHSL(hsl.h, Math.min(1, hsl.s * 0.78), 0.12 + hsl.l * 0.42);
+  }
+  return out;
+}
+
+function bronzeMaterialFromGltf(oldMat, kit, isBronze) {
+  const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(0xc8a850);
+  const night = nightColorFromDay(day.getHex(), { bronze: isBronze });
+  const emissive = oldMat.emissive ? oldMat.emissive.clone() : new THREE.Color(0x000000);
+  const emissiveI = oldMat.emissiveIntensity != null ? oldMat.emissiveIntensity : 0;
+  const std = new THREE.MeshStandardMaterial({
+    name: oldMat.name || '',
+    color: day.clone(),
+    metalness: oldMat.metalness != null ? oldMat.metalness : (isBronze ? 0.94 : 0.05),
+    roughness: oldMat.roughness != null ? oldMat.roughness : (isBronze ? 0.19 : 0.86),
+    emissive: emissive,
+    emissiveIntensity: emissiveI,
+    flatShading: false
+  });
+  if (oldMat.map) std.map = oldMat.map;
+  if (oldMat.normalMap) std.normalMap = oldMat.normalMap;
+  std.userData.day = day;
+  std.userData.night = night;
+  std.userData.dayE = isBronze ? Math.max(0.03, emissiveI) : 0;
+  std.userData.nightE = isBronze ? Math.max(0.14, emissiveI * 2.6) : 0;
+  kit.addMaterial(std);
+  return std;
+}
+
+function applyBronzeFigureMaterials(root, kit) {
+  root.traverse((obj) => {
+    if (!obj.isMesh) return;
+    const oldMat = obj.material;
+    const matName = (oldMat && oldMat.name) || '';
+    const stone =
+      matName === 'stone' ||
+      matName === 'stone_dark' ||
+      matName === 'stone_band' ||
+      obj.name.indexOf('pedestal') >= 0;
+    const isBronze = !stone;
+    if (oldMat && oldMat.isMeshStandardMaterial) {
+      obj.material = bronzeMaterialFromGltf(oldMat, kit, isBronze);
+    } else if (stone) {
+      obj.material = bronzeMaterialFromGltf(
+        {
+          name: matName,
+          color: new THREE.Color(0xe8dfd2),
+          metalness: 0.04,
+          roughness: 0.82,
+          emissive: new THREE.Color(0x000000),
+          emissiveIntensity: 0
+        },
+        kit,
+        false
+      );
+    } else {
+      obj.material = bronzeMaterialFromGltf(
+        {
+          name: matName || 'bronze',
+          color: new THREE.Color(0xd4ae58),
+          metalness: 0.96,
+          roughness: 0.18,
+          emissive: new THREE.Color(0xffe8b0),
+          emissiveIntensity: 0.05
+        },
+        kit,
+        true
+      );
+    }
+    if (oldMat && typeof oldMat.dispose === 'function' && oldMat !== obj.material) oldMat.dispose();
+    obj.castShadow = true;
+    obj.receiveShadow = true;
+  });
+}
 const LOAD_BUFFER = 1.65;
 const UNLOAD_BUFFER = 3.2;
 const LOAD_RETRY_MS = 30_000;
-const GOLD = 0xd4a84b;
-const GOLD_EMI = 0xffd27a;
 const MARKER = 0xfff1c4;
 const TODAY_MARK = 0xffb15a;
-const BASE_BROWN = 0x4a2e1c;
 
 let styleInjected = false;
 
@@ -61,87 +168,23 @@ function ensureCardStyle(doc) {
   doc.head.appendChild(css);
 }
 
-function goldOpts(extra) {
-  return {
-    night: 0xb8922e,
-    glow: GOLD_EMI,
-    glowAmount: 0.22,
-    shadow: true,
-    ...(extra || {})
-  };
-}
-
 export function buildBronzeFigure(ctx) {
   const kit = ctx.kit;
   const scale = ctx.scale != null ? ctx.scale : 1;
   const interactive = ctx.interactive !== false;
-  const { addMesh, addBox, geo, mat } = kit;
-  const group = new THREE.Group();
+  if (!bronzeFigScene) {
+    throw new Error('bronze GLB not loaded; call ensureBronzeFigureGlb() first');
+  }
+  const group = bronzeFigScene.clone(true);
   group.scale.setScalar(scale * (FIGURE_TARGET_HEIGHT / DATA_BODY_HEIGHT));
-
-  const goldPart = (geometry, x, y, z, rot) => {
-    const m = addMesh(group, geometry, GOLD, x, y, z, goldOpts());
-    if (rot) {
-      if (rot.x) m.rotation.x = rot.x;
-      if (rot.y) m.rotation.y = rot.y;
-      if (rot.z) m.rotation.z = rot.z;
-    }
-    return m;
-  };
-  const limb = (rt, rb, h, x, y, z, rot) => goldPart(geo('cyl', [rt, rb, h, 7, 0]), x, y + h / 2, z, rot);
-
-  addMesh(
-    group,
-    geo('cyl', [0.2, 0.22, 0.06, 8, 0]),
-    BASE_BROWN,
-    0,
-    0.03,
-    0,
-    { night: 0x2a1a10, glow: 0x000000, glowAmount: 0, shadow: true }
-  );
-  addMesh(
-    group,
-    geo('cyl', [0.12, 0.14, 0.05, 8, 0]),
-    BASE_BROWN,
-    0,
-    0.085,
-    0,
-    { night: 0x2a1a10, glow: 0x000000, glowAmount: 0, shadow: true }
-  );
-
-  [-1, 1].forEach((side) => {
-    const sx = side * 0.09;
-    addBox(group, 0.07, 0.04, 0.22, 0x5a3a24, sx, 0.06, 0.02, goldOpts({ glowAmount: 0.08 }));
-    limb(0.052, 0.058, 0.34, sx, 0.08, 0.03 * side, { z: side * 0.05 });
-    limb(0.06, 0.065, 0.44, sx, 0.42, 0.02 * side, { z: side * 0.04 });
-    const shoulderX = side * 0.12;
-    const shoulderY = 1.44;
-    const elbowX = side * 0.21;
-    const elbowY = 1.1;
-    const wristX = side * 0.29;
-    const wristY = 0.9;
-    goldPart(geo('cyl', [0.048, 0.055, 0.38, 7, 0]), (shoulderX + elbowX) / 2, (shoulderY + elbowY) / 2, 0.05 * side, {
-      z: side * 0.55 + 0.08,
-      x: 0.12
-    });
-    goldPart(geo('cyl', [0.042, 0.046, 0.34, 7, 0]), (elbowX + wristX) / 2, (elbowY + wristY) / 2, 0.06 * side, {
-      z: side * 0.32 + 0.16,
-      x: 0.35
-    });
-    addBox(group, 0.05, 0.035, 0.12, GOLD, wristX, 0.82, 0.06 * side, goldOpts({ glowAmount: 0.18 }));
-  });
-
-  addBox(group, 0.22, 0.12, 0.26, GOLD, 0, 0.92, 0, goldOpts());
-  addBox(group, 0.2, 0.28, 0.26, GOLD, 0, 1.1, 0.02, goldOpts());
-  addBox(group, 0.24, 0.2, 0.26, GOLD, 0, 1.34, -0.02, goldOpts());
-  limb(0.052, 0.058, 0.08, 0, 1.46, 0.04);
-  goldPart(geo('sph', [0.12, 8, 7]), 0, 1.62, 0.02);
-
+  applyBronzeFigureMaterials(group, kit);
   if (!interactive) {
     group.userData.tcmDecor = true;
   }
   return group;
 }
+
+export { ensureBronzeFigureGlb };
 
 export function createTcmFigureController(ctx) {
   const scene = ctx.scene;
@@ -262,8 +305,8 @@ export function createTcmFigureController(ctx) {
     todayCode = code;
     if (!pointMesh || !instanceRows.length) return;
     const dummy = new THREE.Object3D();
-    const baseR = reduced ? 0.024 : 0.026;
-    const todayR = reduced ? 0.028 : 0.032;
+    const baseR = reduced ? 0.013 : 0.015;
+    const todayR = reduced ? 0.017 : 0.02;
     for (let i = 0; i < instanceRows.length; i++) {
       const row = instanceRows[i];
       const isToday = row.code === code;
@@ -309,10 +352,10 @@ export function createTcmFigureController(ctx) {
 
   function buildPointMeshes(parent, rows) {
     const count = rows.length;
-    const markerGeo = new THREE.SphereGeometry(0.026, 7, 5);
+    const markerGeo = new THREE.SphereGeometry(0.011, 8, 6);
     const markerMat = kit.mat(MARKER, {
       glow: TODAY_MARK,
-      glowAmount: 0.55,
+      glowAmount: 0.92,
       shadow: false
     });
     ownedGeometries.push(markerGeo);
@@ -359,10 +402,16 @@ export function createTcmFigureController(ctx) {
     return expanded;
   }
 
-  function tryEntranceBronze() {
+  async function tryEntranceBronze() {
     if (entrancePlaced || !getTcmSiteModel) return;
     const model = getTcmSiteModel();
     if (!model) return;
+    try {
+      await ensureBronzeFigureGlb();
+    } catch (err) {
+      console.warn('[Island] 館門銅人 GLB 載入失敗', err);
+      return;
+    }
     const result = replaceEntranceBronzeStatue(model, kit, pickables);
     entrancePlaced = !!result;
     figState.entrance = {
@@ -376,6 +425,7 @@ export function createTcmFigureController(ctx) {
     if (loadFailedAt && getNow() - loadFailedAt < LOAD_RETRY_MS) return;
     loading = true;
     try {
+      await ensureBronzeFigureGlb();
       const res = await fetch(BRONZE_POINTS_URL);
       if (!res.ok) throw new Error('fetch ' + BRONZE_POINTS_URL);
       const records = await res.json();
@@ -473,7 +523,7 @@ export function createTcmFigureController(ctx) {
   };
 }
 
-const ENTRANCE_FIG_SCALE = 0.46;
+const ENTRANCE_FIG_SCALE = 0.50;
 
 export function replaceEntranceBronzeStatue(model, kit, pickables) {
   model.updateMatrixWorld(true);
