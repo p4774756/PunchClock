@@ -2402,6 +2402,7 @@ function boot() {
     scene: () => currentScene(),
     now: () => Date.now(),
     onWelcome: (msg) => {
+      selfLabel.invalidateText();
       peerLayer.setWelcomed(true);
       peerLayer.setSelfId(msg.id || '');
       const input = document.getElementById('islandNickInput');
