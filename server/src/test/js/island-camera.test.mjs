@@ -32,6 +32,10 @@ const {
   exploreSkyPitch,
   explorePitchAlongDrag,
   exploreFollowCameraFrame,
+  exploreViewPitch,
+  exploreLiftDistanceScale,
+  EXPLORE_PLAYER_FEET_Y,
+  EXPLORE_PLAYER_HEAD_Y,
   EXPLORE_PITCH_STEP_MAX,
   INTERIOR_LOOK_UP_PITCH_MAX,
   exploreAimAzimuth,
@@ -81,11 +85,15 @@ test('exploreViewLift：預設 phi 以上為 0，下限為 1', () => {
   assert.ok(mid > 0.4, '中段應有連續仰望帶');
 });
 
-test('極限抬頭仰角在 22°～30° 之間、不得接近 90°（夜間月亮）', () => {
-  const pitch = exploreSkyPitch(LOOK_AT_Y, distFor(1.6), EXPLORE_PHI_MIN, G, 1.6, THETA, MOON_ELEVATION);
-  assert.ok(pitch >= 0.38 && pitch <= 0.52, `pitch=${pitch} 應在 0.38～0.52 rad`);
-  assert.ok(pitch < 1.0, '不得接近正上方');
-  assert.ok(Math.abs(pitch - LOOK_UP_PITCH_MAX) < 0.08);
+test('極限抬頭仰角為正且收進全身時仍對準月亮（夜間）', () => {
+  const aspects = [1280 / 720, MOBILE_ASPECT];
+  for (const aspect of aspects) {
+    const pitch = exploreSkyPitch(LOOK_AT_Y, distFor(aspect), EXPLORE_PHI_MIN, G, aspect, THETA, MOON_ELEVATION);
+    assert.ok(pitch > 0.08 && pitch < 0.55, `aspect=${aspect} pitch=${pitch}`);
+    assert.ok(pitch < 1.0, '不得接近正上方');
+    const ndcY = celestialNdcY(MOON_ELEVATION, pitch, ISLAND_FOV_DEG);
+    assert.ok(Math.abs(ndcY) < 0.92, `月亮應在畫面內 |NDC y|=${ndcY}`);
+  }
 });
 
 test('月亮 NDC y 在抬頭帶內可見（桌面 1.6 與直向 0.48）', () => {
@@ -164,21 +172,29 @@ test('面向月亮時，水平與垂直 NDC 在連續抬頭帶內可見（含 39
   }
 });
 
-test('白天極限抬頭：太陽仰角進入畫面（勿再用月亮 20°）', () => {
+test('白天極限抬頭：理想視線對準太陽，實際 pitch 收在全身入鏡內仍維持仰望', () => {
   const aspects = [1.6, MOBILE_ASPECT];
   const theta = exploreThetaFacing(SUN_AZIMUTH);
   for (const aspect of aspects) {
     const moonish = exploreIdealViewPitch(aspect, MOON_ELEVATION);
     const sunny = exploreIdealViewPitch(aspect, SUN_ELEVATION);
     assert.ok(sunny > moonish + 0.2, '白天理想 pitch 應明顯高於夜間月亮');
+    const idealNdcY = celestialNdcY(SUN_ELEVATION, sunny, ISLAND_FOV_DEG);
+    assert.ok(Math.abs(idealNdcY) < 0.95, '理想 pitch 仍應把太陽收入視野參考');
     const pitch = exploreSkyPitch(
       LOOK_AT_Y, distFor(aspect), EXPLORE_PHI_MIN, G, aspect, theta, SUN_ELEVATION
     );
-    const ndcY = celestialNdcY(SUN_ELEVATION, pitch, ISLAND_FOV_DEG);
+    const viewPitch = exploreViewPitch(
+      EXPLORE_PHI_MIN, LOOK_AT_Y, distFor(aspect), G, aspect, theta, EXPLORE_POSE.phi, true
+    );
+    assert.ok(pitch > 0.08, `極限抬頭理想 pitch=${pitch}`);
+    assert.ok(viewPitch != null && viewPitch < pitch - 0.05,
+      `鏡頭 pitch=${viewPitch} 應低於理想以收進全身`);
     const aim = exploreAimAzimuth(theta, 1, SUN_AZIMUTH);
     const ndcX = celestialNdcX(SUN_AZIMUTH, aim, aspect, ISLAND_FOV_DEG);
-    assert.ok(Math.abs(ndcY) < 0.95, `白天太陽 |NDC y|=${ndcY} aspect=${aspect}`);
-    assert.ok(Math.abs(ndcX) < 0.95, `白天太陽 |NDC x|=${ndcX} aspect=${aspect}`);
+    assert.ok(Math.abs(ndcX) < 0.95, `白天太陽 |NDC x| 視野水平仍對準 aspect=${aspect}`);
+    const frame = explorePlayerNdcInFrame(EXPLORE_PHI_MIN, aspect, SUN_ELEVATION);
+    assert.ok(frame.insideHead && frame.insideFeet, '極限抬頭仍保留全身');
   }
 });
 
@@ -291,6 +307,42 @@ test('從任何起始 phi 往下拖：每步仰角不減少（含越過 phiRest 
         `起點 phi=${phiStart} dy=${samples[i].dyPx} 仰角不得下降 ` +
           `(${samples[i - 1].pitch} → ${samples[i].pitch})`
       );
+    }
+  }
+});
+
+function explorePlayerNdcInFrame(phi, aspect, bodyElevation) {
+  const phiRest = EXPLORE_POSE.phi;
+  const dist = distFor(aspect);
+  const frame = exploreFollowCameraFrame(
+    0, LOOK_AT_Y, 0, dist, phi, THETA, G, aspect, phiRest, true, bodyElevation
+  );
+  const eye = { x: frame.placement.cx, y: frame.placement.cy, z: frame.placement.cz };
+  const look = frame.lookPoint || { x: 0, y: LOOK_AT_Y, z: 0 };
+  const head = I.interiorProjectNdcFromEye(eye, look, 0, EXPLORE_PLAYER_HEAD_Y, 0, aspect);
+  const feet = I.interiorProjectNdcFromEye(eye, look, 0, EXPLORE_PLAYER_FEET_Y, 0, aspect);
+  const inside = (ndc) => ndc.vz > 0.02 && ndc.y >= -0.92 && ndc.y <= 0.98 && ndc.x >= -0.94 && ndc.x <= 0.94;
+  return { head, feet, insideHead: inside(head), insideFeet: inside(feet), frame };
+}
+
+test('戶外抬頭：phiRest／中段／極限抬頭主角頭腳在 1280×720 與 390×844 畫面內（milu 尺寸）', () => {
+  const phiRest = EXPLORE_POSE.phi;
+  const phis = [
+    { label: 'phiRest', phi: phiRest },
+    { label: 'midLift', phi: (EXPLORE_PHI_MIN + phiRest) * 0.5 },
+    { label: 'maxLift', phi: EXPLORE_PHI_MIN }
+  ];
+  const aspects = [{ w: 1280, h: 720 }, { w: 390, h: 844 }];
+  for (const { w, h } of aspects) {
+    const aspect = w / h;
+    for (const { label, phi } of phis) {
+      const r = explorePlayerNdcInFrame(phi, aspect, MOON_ELEVATION);
+      assert.ok(r.insideHead, `${w}×${h} ${label} 頭頂應在畫面內 (y=${r.head.y})`);
+      assert.ok(r.insideFeet, `${w}×${h} ${label} 腳底應在畫面內 (y=${r.feet.y})`);
+      const lift = r.frame.viewLift;
+      if (lift > 0.02) {
+        assert.ok(exploreLiftDistanceScale(aspect, lift) >= 1, '抬頭時距離應略拉遠');
+      }
     }
   }
 });
