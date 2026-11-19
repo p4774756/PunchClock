@@ -25,9 +25,9 @@ export const NPC_BUDGET = Object.freeze({
 
 /** 與 build_npc_women.py 匯出統計同步（無頭重建後請更新）。 */
 export const NPC_GLB_STATS = Object.freeze({
-  bytes: 561732,
+  bytes: 605564,
   trisTotalUnique: 3229,
-  drawCallsEst: 9,
+  drawCallsEst: 24,
   trisPerStyle: Object.freeze({
     summer: 518,
     student: 332,

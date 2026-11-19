@@ -111,6 +111,25 @@ test('importmap 含 SkeletonUtils', () => {
   assert.match(indexHtml, /\/js\/vendor\/SkeletonUtils\.js/);
 });
 
+test('vendor SkeletonUtils 具名匯出可 clone', () => {
+  const vendorPath = join(publicDir, 'js', 'vendor', 'SkeletonUtils.js');
+  const src = readFileSync(vendorPath, 'utf8');
+  assert.match(src, /const SkeletonUtils = \{ retarget, retargetClip, clone \}/);
+  assert.match(src, /export\s*\{[\s\S]*SkeletonUtils/);
+  assert.match(src, /export\s*\{[\s\S]*\bclone\b/);
+});
+
+test('全量行人 draw call 預算', () => {
+  const g = glbJsonChunk(glbPath);
+  const maxPrim = Math.max(...(g.meshes || []).map((m) => (m.primitives || []).length));
+  assert.ok(maxPrim <= D.NPC_BUDGET.MAX_MESHES_PER_INSTANCE);
+  const full = D.npcSpawnPlan({});
+  const inst = D.countNpcInstances(full);
+  const est = inst * maxPrim;
+  assert.ok(est <= D.NPC_BUDGET.MAX_DRAW_CALLS);
+  assert.equal(D.NPC_GLB_STATS.drawCallsEst, est);
+});
+
 test('GLB 每造型 walk／idle 動畫', () => {
   const g = glbJsonChunk(glbPath);
   const names = new Set((g.animations || []).map((a) => a.name));

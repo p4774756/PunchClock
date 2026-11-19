@@ -67,6 +67,10 @@ function buildNpcLibrary(gltf) {
     const style = obj.name.slice(4);
     if (NPC_STYLE_IDS.indexOf(style) === -1) return;
     templates[style] = obj;
+    obj.visible = false;
+    obj.traverse((child) => {
+      child.visible = false;
+    });
   });
   return { templates, clipsByStyle, gltf };
 }
@@ -140,8 +144,8 @@ function createNpcInstance(lib, style, opts, kit) {
   const clips = lib.clipsByStyle[style] || {};
   const idleClip = (opts && opts.seated && clips.sit) ? clips.sit : clips.idle;
   const walkClip = clips.walk;
-  const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
-  const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
+  const idleAction = idleClip ? mixer.clipAction(idleClip, root) : null;
+  const walkAction = walkClip ? mixer.clipAction(walkClip, root) : null;
   if (idleAction) {
     idleAction.play();
   }

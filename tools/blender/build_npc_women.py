@@ -96,27 +96,41 @@ def _uv_box(bm, size, co):
     bmesh.ops.translate(bm, vec=co, verts=bm.verts)
 
 
-def _join_meshes(name, pieces):
-    """pieces: list of (palette_key, bmesh_ops_fn) — 每 piece 面指派對應材質 slot。"""
-    bm = bmesh.new()
-    mat_order = []
-    mat_objs = []
+_NPC_VERTEX_MAT = None
 
-    def slot_for(mat_name):
-        if mat_name not in mat_order:
-            mat_order.append(mat_name)
-            m = bpy.data.materials.get('npc_' + mat_name)
-            if not m:
-                base = PALETTE.get(mat_name, PALETTE['skin'])
-                m = _mat('npc_' + mat_name, base)
-            mat_objs.append(m)
-        return mat_order.index(mat_name)
+
+def _npc_vertex_color_material():
+    """單一材質；頂點色 COLOR_0（glTF）。"""
+    global _NPC_VERTEX_MAT
+    if _NPC_VERTEX_MAT is not None:
+        return _NPC_VERTEX_MAT
+    m = bpy.data.materials.new('npc_vertex_color')
+    m.use_nodes = True
+    nt = m.node_tree
+    bsdf = nt.nodes.get('Principled BSDF')
+    attr = nt.nodes.new('ShaderNodeVertexColor')
+    attr.layer_name = 'COLOR_0'
+    nt.links.new(attr.outputs['Color'], bsdf.inputs['Base Color'])
+    bsdf.inputs['Roughness'].default_value = 0.74
+    _NPC_VERTEX_MAT = m
+    return m
+
+
+def _palette_color_rgba(mat_name):
+    h = PALETTE.get(mat_name, PALETTE['skin'])
+    return hex_rgba(h)
+
+
+def _join_meshes(name, pieces):
+    """pieces: list of (palette_key, bmesh_ops_fn) — 合併為單網格、頂點色分色。"""
+    bm = bmesh.new()
+    color_lay = bm.loops.layers.color.new('COLOR_0')
 
     for mat_name, build_fn in pieces:
         sub = bmesh.new()
         build_fn(sub)
         sub.faces.ensure_lookup_table()
-        slot = slot_for(mat_name)
+        col = _palette_color_rgba(mat_name)
         offset = len(bm.verts)
         for v in sub.verts:
             bm.verts.new(v.co)
@@ -124,7 +138,8 @@ def _join_meshes(name, pieces):
         bm.verts.index_update()
         for face in sub.faces:
             nf = bm.faces.new([bm.verts[offset + v.index] for v in face.verts])
-            nf.material_index = slot
+            for loop in nf.loops:
+                loop[color_lay] = col
         sub.free()
     bm.faces.ensure_lookup_table()
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0001)
@@ -132,9 +147,8 @@ def _join_meshes(name, pieces):
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
+    me.materials.append(_npc_vertex_color_material())
     obj = bpy.data.objects.new(name, me)
-    for m in mat_objs:
-        me.materials.append(m)
     return obj
 
 
@@ -423,23 +437,34 @@ def _make_armature(name):
     return rig
 
 
+def _bone_for_vertex(co, names):
+    x, z = co.x, co.z
+    if z >= 0.72:
+        return 'head' if 'head' in names else 'spine'
+    if z >= 0.48:
+        if abs(x) >= 0.15 and 'upper_arm.L' in names:
+            return 'upper_arm.L' if x > 0 else 'upper_arm.R'
+        return 'spine'
+    if z >= 0.28:
+        if abs(x) >= 0.17 and 'forearm.L' in names:
+            return 'forearm.L' if x > 0 else 'forearm.R'
+        if abs(x) >= 0.13 and 'upper_arm.L' in names:
+            return 'upper_arm.L' if x > 0 else 'upper_arm.R'
+        return 'spine'
+    if z >= 0.11:
+        return 'thigh.L' if x >= 0 else 'thigh.R'
+    return 'shin.L' if x >= 0 else 'shin.R'
+
+
 def _assign_simple_weights(mesh_obj, rig):
-    """熱權重失敗時依高度／左右簡易分骨，確保 glTF 能匯出 skin。"""
+    """依高度／左右分骨（含四肢），確保 glTF skin 正確。"""
     names = {b.name for b in rig.data.bones}
     vgs = mesh_obj.vertex_groups
     for bname in names:
         if bname not in vgs.keys():
             vgs.new(name=bname)
     for v in mesh_obj.data.vertices:
-        co = v.co
-        if co.z >= 0.7:
-            bone = 'head' if 'head' in names else 'spine'
-        elif co.z >= 0.38:
-            bone = 'spine'
-        elif co.z >= 0.14:
-            bone = 'thigh.L' if co.x >= 0 else 'thigh.R'
-        else:
-            bone = 'shin.L' if co.x >= 0 else 'shin.R'
+        bone = _bone_for_vertex(v.co, names)
         if bone not in names:
             bone = 'root'
         vgs[bone].add([v.index], 1.0, 'REPLACE')
@@ -447,12 +472,12 @@ def _assign_simple_weights(mesh_obj, rig):
 
 def _parent_auto(mesh_obj, rig):
     bpy.ops.object.select_all(action='DESELECT')
-    rig.select_set(True)
     mesh_obj.select_set(True)
+    rig.select_set(True)
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.parent_set(type='ARMATURE_AUTO')
-    weighted = sum(len(v.groups) for v in mesh_obj.data.vertices)
-    if weighted == 0:
+    weighted = sum(1 for v in mesh_obj.data.vertices if v.groups)
+    if weighted < len(mesh_obj.data.vertices):
         _assign_simple_weights(mesh_obj, rig)
 
 
@@ -494,15 +519,15 @@ def _animate_walk_idle(rig, style):
     _bake_action(rig, pose, walk)
     for frame, ph in enumerate([0, 6, 12, 18]):
         t = ph / 18.0 * math.pi * 2
-        leg = math.sin(t) * 0.42
-        arm = math.sin(t) * 0.32
+        leg = math.sin(t) * 0.16
+        arm = math.sin(t) * 0.12
         _key_rot_bone(pose, 'thigh.L', frame, 0, leg)
         _key_rot_bone(pose, 'thigh.R', frame, 0, -leg)
         _key_rot_bone(pose, 'shin.L', frame, 0, max(0, leg) * 0.5)
         _key_rot_bone(pose, 'shin.R', frame, 0, max(0, -leg) * 0.5)
         _key_rot_bone(pose, 'upper_arm.L', frame, 0, -arm)
         _key_rot_bone(pose, 'upper_arm.R', frame, 0, arm)
-        rig.pose.bones['root'].location.z = abs(math.sin(t)) * 0.02
+        rig.pose.bones['root'].location.z = abs(math.sin(t)) * 0.006
         rig.pose.bones['root'].keyframe_insert(data_path='location', frame=frame)
 
     idle = bpy.data.actions.new(style + '_idle')
@@ -543,30 +568,28 @@ def _count_tris(obj):
     return sum(len(p.vertices) - 2 for p in obj.data.polygons)
 
 
-def _draw_call_slots(mesh_obj):
-    return len(mesh_obj.data.materials) if mesh_obj.data else 0
+def _primitives_per_mesh(mesh_obj):
+    return 1 if mesh_obj.data and len(mesh_obj.data.polygons) else 0
 
 
 def build_character(style, root_collection):
     mesh = _style_mesh(style)
     rig = _make_armature('npc_' + style)
-    root_collection.objects.link(mesh)
     root_collection.objects.link(rig)
+    root_collection.objects.link(mesh)
     _parent_auto(mesh, rig)
     root = bpy.data.objects.new('npc_' + style, None)
-    root.empty_display_size = 0.2
+    root.empty_display_size = 0.01
     root_collection.objects.link(root)
     rig.parent = root
-    # glTF 匯出要求蒙皮網格必須仍是骨架的子物件
     anims = _animate_walk_idle(rig, style)
     tris = _count_tris(mesh)
-    slots = _draw_call_slots(mesh)
+    slots = _primitives_per_mesh(mesh)
     return root, tris, anims, slots
 
 
 def build(out_path):
     prepare_scene()
-    _ensure_mats()
     coll = bpy.data.collections.new('npc_women')
     bpy.context.scene.collection.children.link(coll)
     stats = {}
@@ -579,7 +602,9 @@ def build(out_path):
         all_actions.extend(actions)
         if tris > 2500:
             print(f'WARN {style} tris={tris} exceeds 2500')
-    draw_est = max(slots_per.values()) if slots_per else 7
+    prim_per = max(slots_per.values()) if slots_per else 1
+    max_instances = 24
+    draw_est = max_instances * prim_per
 
     bpy.context.scene.frame_start = 0
     bpy.context.scene.frame_end = 24
@@ -589,7 +614,7 @@ def build(out_path):
         export_format='GLB',
         use_selection=False,
         export_yup=True,
-        export_apply=True,
+        export_apply=False,
         export_texcoords=True,
         export_normals=True,
         export_materials='EXPORT',
