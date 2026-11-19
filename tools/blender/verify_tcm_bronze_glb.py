@@ -139,9 +139,54 @@ def main():
 
     plaque = mesh_by_node_name(chunk, blob, 'pedestal_plaque')
     if plaque:
-        _, uv = plaque
+        pos, uv = plaque
         ok = uv is not None and len(uv) > 0
         print(f'  plaque TEXCOORD_0={"yes" if ok else "NO"}')
+        if uv and pos:
+            us = [u[0] for u in uv]
+            vs = [u[1] for u in uv]
+            print(
+                f'  plaque front UV sample u=[{min(us):.3f},{max(us):.3f}] '
+                f'v=[{min(vs):.3f},{max(vs):.3f}] (expect v_max≈1.0)'
+            )
+
+    bun = mesh_by_node_name(chunk, blob, 'bronze_hair_bun')
+    body_mesh = mesh_by_node_name(chunk, blob, 'bronze_body')
+    if bun and body_mesh:
+        bpos, _ = bun
+        body_pos, _ = body_mesh
+        cx = 0.5 * (min(p[0] for p in bpos) + max(p[0] for p in bpos))
+        print(f'  bun center_x={cx:.4f} (expect |x|<0.005)')
+        min_gap = 1e9
+        for i in range(0, len(bpos), 6):
+            p = bpos[i]
+            for j in range(0, len(body_pos), 8):
+                q = body_pos[j]
+                d = math.sqrt(sum((p[k] - q[k]) ** 2 for k in range(3)))
+                if d < min_gap:
+                    min_gap = d
+        print(f'  bun→body min distance m={min_gap:.4f} (expect ≤0 embed)')
+
+    mer = mesh_by_node_name(chunk, blob, 'bronze_meridians')
+    if mer and body_mesh:
+        mpos, _ = mer
+        bpos, _ = body_mesh
+        gaps = []
+        step_m, step_b = 12, 18
+        for i in range(0, len(mpos), step_m):
+            p = mpos[i]
+            best = 1e9
+            for j in range(0, len(bpos), step_b):
+                q = bpos[j]
+                d = math.sqrt(sum((p[k] - q[k]) ** 2 for k in range(3)))
+                if d < best:
+                    best = d
+            gaps.append(best)
+        gmax = max(gaps) if gaps else 0
+        print(
+            f'  meridians→body vertex sample gap max mm={gmax*1000:.2f} '
+            '(tube offset; see build log body_gap_max_mm)'
+        )
 
     band = mesh_by_node_name(chunk, blob, 'bronze_sash_band')
     if band:

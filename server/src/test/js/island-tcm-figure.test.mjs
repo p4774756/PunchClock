@@ -224,3 +224,13 @@ test('resolveTcmPickHit：InstancedMesh 回傳穴 instanceKey', () => {
   });
   assert.deepEqual(hit, { type: 'tcm-point', instanceKey: 'C:1', instanceId: 3 });
 });
+
+test('buildPointMeshes 不可引用未定義的裸 renderer', () => {
+  const jsPath = join(root, 'js', 'island-tcm-figure.js');
+  const source = readFileSync(jsPath, 'utf8');
+  const m = source.match(/function buildPointMeshes\([\s\S]*?^  }/m);
+  assert.ok(m, 'buildPointMeshes block');
+  const block = m[0];
+  assert.ok(!/\bensureBronzeEnvMap\s*\(\s*renderer\s*\)/.test(block));
+  assert.ok(/ensureBronzeEnvMap\s*\(\s*ctx\.renderer\s*\)/.test(block));
+});

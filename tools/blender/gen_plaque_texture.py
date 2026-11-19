@@ -8,8 +8,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 W, H = 640, 160
 TEXT = '人體針灸銅人'
-BG = (36, 28, 18, 255)
-FG = (226, 194, 122, 255)
+BG = (58, 42, 24, 255)
+FG = (232, 200, 120, 255)
 
 
 def main():
@@ -26,11 +26,11 @@ def main():
         if not p.is_file():
             continue
         try:
-            font = ImageFont.truetype(str(p), 72, index=0)
+            font = ImageFont.truetype(str(p), 96, index=0)
             break
         except OSError:
             try:
-                font = ImageFont.truetype(str(p), 72)
+                font = ImageFont.truetype(str(p), 96)
                 break
             except OSError:
                 continue
@@ -39,7 +39,7 @@ def main():
     bbox = draw.textbbox((0, 0), TEXT, font=font)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     tx = (W - tw) // 2 - bbox[0]
-    ty = int(H * 0.2) - bbox[1]
+    ty = int((H - th) * 0.5) - bbox[1]
     draw.text((tx, ty), TEXT, font=font, fill=FG)
     bright = sum(
         1

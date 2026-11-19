@@ -206,7 +206,9 @@ function applyBronzeFigureMaterials(root, kit) {
       matName === 'sash_cloth' ||
       matName === 'bronze_sash' ||
       obj.name.indexOf('sash') >= 0;
-    const isBronze = !fabric && !isMeridian;
+    const isPlaque =
+      matName === 'plaque' || obj.name.indexOf('plaque') >= 0;
+    const isBronze = !fabric && !isMeridian && !isPlaque;
     if (isMeridian) {
       obj.material = bronzeMaterialFromGltf(
         oldMat && oldMat.isMeshStandardMaterial
@@ -222,6 +224,11 @@ function applyBronzeFigureMaterials(root, kit) {
         kit,
         { bronze: true, fabric: false, meridian: true }
       );
+    } else if (isPlaque && oldMat && oldMat.isMeshStandardMaterial) {
+      obj.material = bronzeMaterialFromGltf(oldMat, kit, { bronze: false, fabric: false });
+      if (obj.material.metalness > 0.22) obj.material.metalness = 0.18;
+      if (obj.material.roughness < 0.42) obj.material.roughness = 0.5;
+      obj.material.envMapIntensity = 0.35;
     } else if (oldMat && oldMat.isMeshStandardMaterial) {
       obj.material = bronzeMaterialFromGltf(oldMat, kit, { bronze: isBronze, fabric: fabric });
     } else if (fabric) {
@@ -262,10 +269,10 @@ const COURTYARD_FIG_YAW = 0;
 const LOAD_BUFFER = 1.65;
 const UNLOAD_BUFFER = 3.2;
 const LOAD_RETRY_MS = 30_000;
-const MARKER = 0x7a5a26;
+const MARKER = 0x8a6a30;
 const MARKER_VIS_R = 0.0045;
 const TODAY_MARK = 0xffb15a;
-const MARKER_MERIDIAN_DEDUP_M = 0.025;
+const MARKER_MERIDIAN_DEDUP_M = 0.03;
 
 let styleInjected = false;
 
@@ -527,7 +534,7 @@ export function createTcmFigureController(ctx) {
 
   function buildPointMeshes(parent, rows) {
     const count = rows.length;
-    const envMap = ensureBronzeEnvMap(renderer);
+    const envMap = ensureBronzeEnvMap(ctx.renderer);
     const hideSet = markerDedupHideSet(rows, recordsByCode);
     const markerGeo = new THREE.SphereGeometry(MARKER_VIS_R, 8, 6);
     const markerMat = new THREE.MeshStandardMaterial({
