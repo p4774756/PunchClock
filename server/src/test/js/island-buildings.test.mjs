@@ -58,14 +58,14 @@ describe('casino Vegas sign', () => {
     assert.match(buildingsJs, /fillText\('777'/);
   });
 
-  it('casino layout 座標與佔地不變', () => {
+  it('casino layout v2 放大與博弈島半徑', () => {
     const c = buildingById('casino');
-    assert.equal(c.x, 16.35);
-    assert.equal(c.z, -7.4);
-    assert.equal(c.w, 2.4);
-    assert.equal(c.d, 1.9);
+    assert.equal(c.x, 17.0);
+    assert.equal(c.z, -7.35);
+    assert.equal(c.w, 4.2);
+    assert.equal(c.d, 3.4);
     assert.equal(c.yaw, -Math.PI / 2);
-    assert.equal(c.entry.reach, 0.78);
+    assert.equal(c.entry.reach, 0.85);
     assert.equal(c.entry.action, 'enterInterior');
   });
 
@@ -160,7 +160,7 @@ describe('computer-site GLB exterior', () => {
 describe('BUILDINGS footprint dimensions', () => {
   const expected = {
     shop: { w: 4.75, d: 3.2 },
-    casino: { w: 2.4, d: 1.9 },
+    casino: { w: 4.2, d: 3.4 },
     'tcm-site': { w: 2.3, d: 1.8 },
     'computer-site': { w: 3.5, d: 2.8 }
   };

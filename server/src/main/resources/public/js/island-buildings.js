@@ -84,14 +84,15 @@ export function buildIslandBuildings(ctx) {
     g.textBaseline = 'middle';
     g.strokeStyle = '#ff4ec8';
     g.lineWidth = 5;
-    g.strokeText('神之島賭場', w / 2, h / 2 - 24);
+    g.strokeText('神之島賭場', w / 2, h / 2 - 30);
     g.fillStyle = '#ff9ee8';
-    g.fillText('神之島賭場', w / 2, h / 2 - 24);
-    g.font = '700 52px ' + font;
-    g.strokeStyle = '#d4a84b';
-    g.strokeText('777', w / 2, h / 2 + 52);
+    g.fillText('神之島賭場', w / 2, h / 2 - 30);
+    g.font = '700 84px ' + font;
+    g.strokeStyle = '#ff4ec8';
+    g.lineWidth = 6;
+    g.strokeText('777', w / 2, h / 2 + 58);
     g.fillStyle = '#ffe878';
-    g.fillText('777', w / 2, h / 2 + 52);
+    g.fillText('777', w / 2, h / 2 + 58);
   });
   const tcmSignMap = paint(512, 256, (g, w, h) => {
     g.fillStyle = '#3c1e14';
@@ -153,13 +154,17 @@ export function buildIslandBuildings(ctx) {
           const signTex = signMaps[buildingId];
           if (signTex) {
             const labSignNight = buildingId === 'computer-site';
+            const casinoSignNight = buildingId === 'casino';
             obj.material = mat(0xffffff, {
               map: signTex,
-              night: labSignNight ? 0xe8f8ff : 0xfff0dc,
-              glow: labSignNight ? 0x7ec8ea : 0xffb15a,
-              glowAmount: labSignNight ? 1.12 : 0.28,
+              night: labSignNight ? 0xe8f8ff : (casinoSignNight ? 0xffffff : 0xfff0dc),
+              glow: labSignNight ? 0x7ec8ea : (casinoSignNight ? 0xffffff : 0xffb15a),
+              glowAmount: labSignNight ? 1.12 : (casinoSignNight ? 0.12 : 0.28),
               side: THREE.DoubleSide
             });
+            if (casinoSignNight) {
+              obj.material.emissiveMap = signTex;
+            }
           } else {
             obj.material = mat(baseColor, extra);
           }
