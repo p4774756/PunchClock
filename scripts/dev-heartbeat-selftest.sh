@@ -54,4 +54,51 @@ assert_eq "$(json_branch_field 'ai/issue-127')" '"ai/issue-127"' "branch ok"
 assert_eq "$(json_branch_field 'bad branch')" "null" "branch space"
 assert_eq "$(json_branch_field '')" "null" "branch empty"
 
+# --- etime (item 4) ---
+etime_ms() {
+  printf '%s' "$1" | awk '
+    function etime_ms(e,    n, d, h, m, s) {
+      gsub(/^[ \t]+|[ \t]+$/, "", e)
+      n = split(e, p, /[-:]/)
+      if (e ~ /^[0-9]+-[0-9]+:[0-9]+:[0-9]+$/) {
+        d = p[1] + 0; h = p[2] + 0; m = p[3] + 0; s = p[4] + 0
+        return (d * 86400000 + h * 3600000 + m * 60000 + s * 1000)
+      }
+      if (e ~ /^[0-9]+:[0-9]+:[0-9]+$/) {
+        h = p[1] + 0; m = p[2] + 0; s = p[3] + 0
+        return (h * 3600000 + m * 60000 + s * 1000)
+      }
+      if (e ~ /^[0-9]+:[0-9]+$/) {
+        m = p[1] + 0; s = p[2] + 0
+        return (m * 60000 + s * 1000)
+      }
+      return 0
+    }
+    { print etime_ms($0) }
+  '
+}
+
+assert_eq "$(etime_ms '12:34')" "754000" "etime mm:ss"
+assert_eq "$(etime_ms '1:05:07')" "3907000" "etime hh:mm:ss"
+assert_eq "$(etime_ms '1-02:03:04')" "93784000" "etime dd-hh:mm:ss"
+
+# --- run-wt ps parsing (item 5b) ---
+MOCK_GIT_SHORT="deadbeef"
+MOCK_PS_OUTPUT='  12:34 sh /path/run-wt.sh run235-f2 prompt ~/PunchClock-oki/wt-235
+  05:10 sh run-wt.sh run237 other ~/PunchClock-oki/wt-237'
+read_wt_runs
+case "$RUNS_JSON" in
+  *'"issue":235'*) ;;
+  *) fail "runs json missing issue 235" ;;
+esac
+case "$RUNS_JSON" in
+  *'"round":2'*) ;;
+  *) fail "runs json missing round 2 for run235-f2" ;;
+esac
+case "$RUNS_JSON" in
+  *'"round":0'*) ;;
+  *) fail "runs json missing round 0 for run237" ;;
+esac
+assert_eq "$(pick_longest_run_from_json "$RUNS_JSON" | cut -d'|' -f1)" "235" "longest run issue from json"
+
 echo "dev-heartbeat-selftest: ok"

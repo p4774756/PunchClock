@@ -260,12 +260,12 @@ public class PublicIslandAuthTest {
     }
 
     @Test
-    public void guestsCannotReadDevMachines() throws Exception {
+    public void guestsCanReadDevMachinesWithoutSensitivePaths() throws Exception {
         HttpResponse<String> status = send("GET", "/api/dev-machines", null);
-        assertEquals(401, status.statusCode());
-        assertTrue(status.body().contains("請先登入管理員"));
-        assertFalse(status.body().contains("小貓"));
-        assertFalse(status.body().contains("commit"));
+        assertEquals(200, status.statusCode());
+        assertTrue(status.body().contains("\"viewer\":\"guest\""));
+        assertFalse(status.body().contains("/Users/"));
+        assertFalse(status.body().contains("PunchClock-oki/"));
     }
 
     @Test

@@ -122,18 +122,13 @@ public final class DevMachineRoutes {
     }
 
     private void list(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(
-                    "success", false,
-                    "message", "請先登入管理員"
-            ));
-            return;
-        }
+        boolean authed = authService.isAuth(ctx);
         long now = store.currentTimeMillis();
         DevStatusService.View view = devStatusService.get(now);
         DevMachineStore.IssueTitleResolver titles = issue -> issueTitle(view, issue);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("success", true);
+        payload.put("viewer", authed ? "admin" : "guest");
         payload.put("machines", store.listForApi(now, titles));
         ctx.json(payload);
     }
