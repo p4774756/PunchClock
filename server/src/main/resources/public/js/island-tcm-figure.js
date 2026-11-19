@@ -100,7 +100,7 @@ function nightColorFromDay(hex, opts) {
   c.getHSL(hsl);
   const out = new THREE.Color();
   if (bronze) {
-    out.setHSL(hsl.h, Math.min(1, hsl.s * 0.78), 0.2 + hsl.l * 0.36);
+    out.setHSL(hsl.h, Math.min(1, hsl.s * 0.82), 0.28 + hsl.l * 0.4);
   } else {
     out.setHSL(hsl.h, Math.min(1, hsl.s * 0.78), 0.12 + hsl.l * 0.42);
   }
@@ -112,15 +112,22 @@ function bronzeMaterialFromGltf(oldMat, kit, opts) {
   const isBronze = !!o.bronze;
   const isFabric = !!o.fabric;
   const matName = (oldMat.name || '').toLowerCase();
-  const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(isFabric ? 0xd8d0c8 : 0xc89a4a);
+  const day = oldMat.color ? oldMat.color.clone() : new THREE.Color(isFabric ? 0xd8d0c8 : 0xd2a65a);
   if (isBronze && !isFabric) {
-    const hsl = { h: 0, s: 0, l: 0 };
-    day.getHSL(hsl);
-    day.setHSL(
-      Math.min(0.12, Math.max(0.07, hsl.h * 0.9 + 0.05)),
-      Math.min(0.88, hsl.s * 0.95 + 0.12),
-      Math.min(0.42, Math.max(0.28, hsl.l * 0.92))
-    );
+    const hasMap = !!(oldMat.map);
+    if (!hasMap) {
+      day.setHex(0xd2a65a);
+    } else {
+      const hsl = { h: 0, s: 0, l: 0 };
+      day.getHSL(hsl);
+      if (hsl.l < 0.46) {
+        day.setHSL(
+          Math.min(0.12, Math.max(0.07, hsl.h)),
+          Math.min(0.82, Math.max(0.38, hsl.s)),
+          Math.min(0.58, Math.max(0.48, hsl.l * 1.18 + 0.1))
+        );
+      }
+    }
   }
   const night = nightColorFromDay(day.getHex(), { bronze: isBronze && !isFabric });
   const emissive = oldMat.emissive ? oldMat.emissive.clone() : new THREE.Color(0x000000);
@@ -152,8 +159,8 @@ function bronzeMaterialFromGltf(oldMat, kit, opts) {
   std.userData.bronze = isBronze && !isFabric;
   std.userData.dayE = isBronze && !isFabric ? Math.max(0.035, emissiveI) : isFabric ? 0 : 0.012;
   std.userData.nightE = isBronze && !isFabric ? Math.max(0.15, emissiveI * 2.4) : isFabric ? 0 : 0.006;
-  std.userData.dayEnvI = isBronze && !isFabric ? 1.05 : isFabric ? 0 : 0.18;
-  std.userData.nightEnvI = isBronze && !isFabric ? 0.62 : isFabric ? 0 : 0.12;
+  std.userData.dayEnvI = isBronze && !isFabric ? 1.18 : isFabric ? 0 : 0.18;
+  std.userData.nightEnvI = isBronze && !isFabric ? 0.72 : isFabric ? 0 : 0.12;
   std.envMapIntensity = std.userData.dayEnvI;
   if (matName.indexOf('pedestal') >= 0) std.envMapIntensity = 0.88;
   kit.addMaterial(std);
@@ -208,7 +215,7 @@ function applyBronzeFigureMaterials(root, kit) {
       obj.material = bronzeMaterialFromGltf(
         {
           name: matName || 'bronze',
-          color: new THREE.Color(darkPedestal ? 0x9a7238 : 0xc89a4a),
+          color: new THREE.Color(darkPedestal ? 0x9a7238 : 0xd2a65a),
           metalness: 0.9,
           roughness: darkPedestal ? 0.34 : 0.28,
           emissive: new THREE.Color(0xf0c878),
@@ -228,7 +235,8 @@ const COURTYARD_FIG_YAW = 0;
 const LOAD_BUFFER = 1.65;
 const UNLOAD_BUFFER = 3.2;
 const LOAD_RETRY_MS = 30_000;
-const MARKER = 0xfff1c4;
+const MARKER = 0x8a6530;
+const MARKER_VIS_R = 0.005;
 const TODAY_MARK = 0xffb15a;
 
 let styleInjected = false;
@@ -408,8 +416,8 @@ export function createTcmFigureController(ctx) {
     todayCode = code;
     if (!pointMesh || !instanceRows.length) return;
     const dummy = new THREE.Object3D();
-    const baseR = reduced ? 0.013 : 0.015;
-    const todayR = reduced ? 0.017 : 0.02;
+    const baseR = reduced ? 0.0045 : MARKER_VIS_R;
+    const todayR = reduced ? 0.007 : 0.008;
     for (let i = 0; i < instanceRows.length; i++) {
       const row = instanceRows[i];
       const isToday = row.code === code;
@@ -455,10 +463,10 @@ export function createTcmFigureController(ctx) {
 
   function buildPointMeshes(parent, rows) {
     const count = rows.length;
-    const markerGeo = new THREE.SphereGeometry(0.011, 8, 6);
+    const markerGeo = new THREE.SphereGeometry(MARKER_VIS_R, 8, 6);
     const markerMat = kit.mat(MARKER, {
-      glow: TODAY_MARK,
-      glowAmount: 0.92,
+      glow: 0x3a2810,
+      glowAmount: 0.06,
       shadow: false
     });
     ownedGeometries.push(markerGeo);

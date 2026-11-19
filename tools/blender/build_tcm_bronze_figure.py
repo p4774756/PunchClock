@@ -180,93 +180,125 @@ def _make_stripe_tex():
     return path
 
 
+def _hair_face_ok(face, z_hairline=1.618):
+    """髮際線在額上緣；不蓋眉眼，只留頂部與耳上後方薄殼。"""
+    verts = list(face.verts)
+    max_z = max(v.co.z for v in verts)
+    avg_y = sum(v.co.y for v in verts) / len(verts)
+    if max_z < z_hairline - 0.028:
+        return False
+    if avg_y < -0.05 and max_z < z_hairline + 0.006:
+        return False
+    return True
+
+
 def _add_hair(body, mat_hair):
     me = body.data
-    z_cut = 1.58
-    bm = bmesh.new()
-    bm.from_mesh(me)
-    bm.verts.ensure_lookup_table()
-    bm.faces.ensure_lookup_table()
-    has_head = any(all(v.co.z >= z_cut for v in f.verts) for f in bm.faces)
-    bm.free()
-    if not has_head:
-        return None
     shell = bmesh.new()
     shell.from_mesh(me)
     shell.verts.ensure_lookup_table()
     shell.faces.ensure_lookup_table()
-    del_faces = [f for f in shell.faces if not all(v.co.z >= z_cut for v in f.verts)]
+    del_faces = [f for f in shell.faces if not _hair_face_ok(f)]
     if del_faces:
         bmesh.ops.delete(shell, geom=del_faces, context='FACES_ONLY')
+    if not shell.faces:
+        shell.free()
+        return None
     ob_shell = _mesh_from_bm(shell, 'bronze_hair_shell', mat_hair)
     mod = ob_shell.modifiers.new('Solidify', 'SOLIDIFY')
-    mod.thickness = 0.009
-    mod.offset = 1.0
+    mod.thickness = 0.003
+    mod.offset = -0.2
     bpy.context.view_layer.objects.active = ob_shell
     ob_shell.select_set(True)
     bpy.ops.object.modifier_apply(modifier=mod.name)
     ob_shell.select_set(False)
 
     bm_bun = bmesh.new()
-    matrix = Matrix.Translation((0.0, 0.055, 1.66)) @ Matrix.Diagonal((0.042, 0.038, 0.040, 1.0))
-    bmesh.ops.create_uvsphere(bm_bun, u_segments=16, v_segments=12, radius=1.0, matrix=matrix)
+    matrix = (
+        Matrix.Translation((0.028, 0.082, 1.638))
+        @ Matrix.Rotation(math.radians(26), 4, 'X')
+        @ Matrix.Diagonal((0.020, 0.016, 0.018, 1.0))
+    )
+    bmesh.ops.create_uvsphere(bm_bun, u_segments=12, v_segments=8, radius=1.0, matrix=matrix)
     ob_bun = _mesh_from_bm(bm_bun, 'bronze_hair_bun', mat_hair)
     return [ob_shell, ob_bun]
 
 
-def _add_sash(mat_cloth):
-    bm = bmesh.new()
-    z0, z1 = 0.82, 1.02
-    segs = 28
-    inner_r, outer_r = 0.128, 0.148
-    rings = []
-    for z in (z0, z1):
-        inner, outer = [], []
-        for i in range(segs):
-            ang = 2 * math.pi * i / segs
-            c, s = math.cos(ang), math.sin(ang)
-            inner.append(bm.verts.new((inner_r * c, inner_r * s, z)))
-            outer.append(bm.verts.new((outer_r * c, outer_r * s, z)))
-        rings.append((inner, outer))
-    for j in range(segs):
-        k = (j + 1) % segs
-        i0, o0 = rings[0]
-        i1, o1 = rings[1]
-        bm.faces.new([o0[j], o0[k], o1[k], o1[j]])
-        bm.faces.new([i0[j], i1[j], i1[k], i0[k]])
-        bm.faces.new([i0[j], o0[j], o0[k], i0[k]])
-        bm.faces.new([i1[j], i1[k], o1[k], o1[j]])
-    ob = _mesh_from_bm(bm, 'bronze_sash', None)
+def _sash_stripe_mat():
     stripe_path = _make_stripe_tex()
-    mat = _mat_pbr('sash_cloth', 0xffffff, rough=0.6, metal=0.0)
+    mat = _mat_pbr('sash_cloth', 0xffffff, rough=0.62, metal=0.0)
     nt = mat.node_tree
-    for n in list(nt.nodes):
+    bsdf = None
+    for n in nt.nodes:
         if n.type == 'BSDF_PRINCIPLED':
             bsdf = n
             break
-    else:
+    if bsdf is None:
         bsdf = nt.nodes['Principled BSDF']
     tex = nt.nodes.new('ShaderNodeTexImage')
     tex.image = bpy.data.images.load(stripe_path, check_existing=True)
     tex.image.colorspace_settings.name = 'sRGB'
     tex.location = (-300, 0)
     nt.links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
-    ob.data.materials.append(mat)
-    uv = ob.data.uv_layers.active or ob.data.uv_layers.new()
-    for poly in ob.data.polygons:
-        for loop_i in poly.loop_indices:
-            uv.data[loop_i].uv = (loop_i * 0.07, ob.data.loops[loop_i].vertex_index * 0.01)
-    return ob
+    return mat
+
+
+def _add_sash(_body, _mat_cloth):
+    """窄條紋布帶（約 8–10 cm 寬），環繞髖部並於正面垂短布。"""
+    mat = _sash_stripe_mat()
+    hip_mid = 0.908
+    band_half_h = 0.041
+    inner_r, outer_r = 0.120, 0.131
+    segs = 32
+    a0, a1 = math.radians(108), math.radians(-108)
+    bm = bmesh.new()
+    ring_lo, ring_hi = [], []
+    for i in range(segs + 1):
+        ang = a0 + (a1 - a0) * i / segs
+        ca, sa = math.cos(ang), math.sin(ang)
+        ring_lo.append(bm.verts.new((inner_r * ca, inner_r * sa, hip_mid - band_half_h)))
+        ring_hi.append(bm.verts.new((outer_r * ca, outer_r * sa, hip_mid + band_half_h)))
+    for i in range(segs):
+        bm.faces.new([ring_lo[i], ring_lo[i + 1], ring_hi[i + 1], ring_hi[i]])
+    ob_band = _mesh_from_bm(bm, 'bronze_sash_band', mat)
+
+    bm2 = bmesh.new()
+    flap_w, flap_h = 0.082, 0.105
+    y_front = -0.126
+    z_top = hip_mid - band_half_h + 0.008
+    pts = [
+        (-flap_w * 0.15, y_front, z_top),
+        (flap_w * 0.55, y_front, z_top),
+        (flap_w * 0.48, y_front, z_top - flap_h),
+        (-flap_w * 0.08, y_front, z_top - flap_h),
+    ]
+    vs = [bm2.verts.new(p) for p in pts]
+    bm2.faces.new(vs)
+    ob_flap = _mesh_from_bm(bm2, 'bronze_sash_flap', mat)
+
+    for ob in (ob_band, ob_flap):
+        uv = ob.data.uv_layers.active or ob.data.uv_layers.new(name='UVMap')
+        for poly in ob.data.polygons:
+            for li in poly.loop_indices:
+                vid = ob.data.loops[li].vertex_index
+                co = ob.data.vertices[vid].co
+                uv.data[li].uv = (co.z * 2.2 + li * 0.04, math.atan2(co.y, co.x) * 0.35 + co.x * 3.0)
+
+    root = bpy.data.objects.new('bronze_sash', None)
+    bpy.context.scene.collection.objects.link(root)
+    ob_band.parent = root
+    ob_flap.parent = root
+    return root
 
 
 def _plaque_texture():
     w, h = 512, 128
     arr = np.zeros((h, w, 4), dtype=np.float32)
-    arr[:, :, :3] = (0.08, 0.06, 0.04)
+    arr[:, :, :3] = (0.14, 0.11, 0.07)
     arr[:, :, 3] = 1.0
     curve = bpy.data.curves.new('_plaque_curve', type='FONT')
     curve.body = '人體針灸銅人'
-    curve.size = 0.22
+    curve.size = 0.28
     curve.align_x = 'CENTER'
     curve.extrude = 0.012
     ob = bpy.data.objects.new('_plaque_glyph', curve)
@@ -293,7 +325,7 @@ def _plaque_texture():
                     for dx in range(-1, 2):
                         x, y = px + dx, py + dy
                         if 0 <= x < w and 0 <= y < h:
-                            arr[y, x, :3] = (0.86, 0.70, 0.38)
+                            arr[y, x, :3] = (0.94, 0.80, 0.44)
     bpy.data.objects.remove(ob, do_unlink=True)
     img = bpy.data.images.new('plaque_text', w, h, alpha=True)
     img.pixels.foreach_set(arr.ravel())
@@ -311,17 +343,17 @@ def _build_pedestal(mat_dark):
             matrix=Matrix.Translation((cx, cy, cz)) @ Matrix.Diagonal((sx, sy, sz, 1.0)),
         )
 
-    # 三層金座：頂面 z=0，向下延伸（腳底仍貼 y=0 地面）
-    box(0, 0, -0.04, 0.52, 0.46, 0.080)
-    box(0, 0, -0.11, 0.40, 0.34, 0.060)
-    box(0, 0, -0.165, 0.30, 0.26, 0.050)
+    # 三階金座：頂面 z=0，階差明顯（腳底貼地面）
+    box(0, 0, -0.022, 0.54, 0.48, 0.044)
+    box(0, 0, -0.078, 0.44, 0.38, 0.052)
+    box(0, 0, -0.138, 0.34, 0.30, 0.058)
     ped = _mesh_from_bm(bm, 'pedestal', mat_dark)
 
     bm2 = bmesh.new()
     bmesh.ops.create_cube(
         bm2,
         size=1.0,
-        matrix=Matrix.Translation((0, -0.155, -0.055)) @ Matrix.Diagonal((0.22, 0.012, 0.10, 1.0)),
+        matrix=Matrix.Translation((0, -0.218, -0.052)) @ Matrix.Diagonal((0.26, 0.014, 0.115, 1.0)),
     )
     plaque = _mesh_from_bm(bm2, 'pedestal_plaque', None)
     plaque_tex = _plaque_texture()
@@ -413,9 +445,25 @@ def _draw_line(buf, x0, y0, x1, y1, color, width=2):
         _draw_disk(buf, x, y, width, color)
 
 
+def _sort_meridian_records(recs):
+    """沿經脈縱向（頭→足）排序，避免 JSON 順序造成斜線網格。"""
+    return sorted(
+        recs,
+        key=lambda r: (
+            -r['position'][1],
+            r['position'][2],
+            abs(r['position'][0]),
+        ),
+    )
+
+
+def _uv_span_ok(a, b, limit=95):
+    return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 <= limit * limit
+
+
 def _bake_meridian_textures(body, records):
-    base = np.array(hex_rgba(0xc89a4a)[:3], dtype=np.float32)
-    dark = np.array([0.45, 0.32, 0.15], dtype=np.float32)
+    base = np.array(hex_rgba(0xdeb878)[:3], dtype=np.float32)
+    dark = np.array([0.38, 0.27, 0.12], dtype=np.float32)
     col_buf = np.ones((TEX_SIZE, TEX_SIZE, 4), dtype=np.float32)
     col_buf[:, :, :3] = base
     col_buf[:, :, 3] = 1.0
@@ -441,30 +489,35 @@ def _bake_meridian_textures(body, records):
         _, _, uv = hit
         return int(uv.x * (TEX_SIZE - 1)), int((1.0 - uv.y) * (TEX_SIZE - 1))
 
-    for key, pts in groups.items():
+    line_w = 2
+    dot_r = 2
+    for _key, pts in groups.items():
+        ordered = _sort_meridian_records(pts)
         uvs = []
-        for rec in pts:
-            if key[1] == 'm':
-                u = uv_for_rec(rec, 1.0)
-            else:
-                u = uv_for_rec(rec, 1.0)
+        for rec in ordered:
+            u = uv_for_rec(rec, 1.0)
             if u:
                 uvs.append(u)
-                _draw_disk(col_buf, u[0], u[1], 4, dark)
+                _draw_disk(col_buf, u[0], u[1], dot_r, dark)
                 nrm[u[1], u[0], 0] = 0.45
                 nrm[u[1], u[0], 1] = 0.55
         for a, b in zip(uvs, uvs[1:]):
-            _draw_line(col_buf, a[0], a[1], b[0], b[1], dark, 2)
-            _draw_line(nrm, a[0], a[1], b[0], b[1], [0.45, 0.45, 1.0], 2)
-        if key[1] == 'pair':
-            uvs_m = []
-            for rec in pts:
-                u = uv_for_rec(rec, -1.0)
-                if u:
-                    uvs_m.append(u)
-                    _draw_disk(col_buf, u[0], u[1], 4, dark)
-            for a, b in zip(uvs_m, uvs_m[1:]):
-                _draw_line(col_buf, a[0], a[1], b[0], b[1], dark, 2)
+            if not _uv_span_ok(a, b):
+                continue
+            _draw_line(col_buf, a[0], a[1], b[0], b[1], dark, line_w)
+            _draw_line(nrm, a[0], a[1], b[0], b[1], [0.45, 0.45, 1.0], line_w)
+        uvs_m = []
+        for rec in ordered:
+            if rec.get('midline'):
+                continue
+            u = uv_for_rec(rec, -1.0)
+            if u:
+                uvs_m.append(u)
+                _draw_disk(col_buf, u[0], u[1], dot_r, dark)
+        for a, b in zip(uvs_m, uvs_m[1:]):
+            if not _uv_span_ok(a, b):
+                continue
+            _draw_line(col_buf, a[0], a[1], b[0], b[1], dark, line_w)
 
     img_col = bpy.data.images.new('bronze_body_color', TEX_SIZE, TEX_SIZE, alpha=False)
     img_col.colorspace_settings.name = 'sRGB'
@@ -565,7 +618,7 @@ def render_previews(root, out_dir=None):
     bg.inputs[0].default_value = (0.08, 0.10, 0.14, 1)
     bg.inputs[1].default_value = 1.0
     sun = bpy.data.objects.new('preview_sun', bpy.data.lights.new('preview_sun', 'SUN'))
-    sun.data.energy = 2.8
+    sun.data.energy = 3.6
     sun.rotation_euler = (math.radians(55), 0, math.radians(25))
     sc.collection.objects.link(sun)
     cam = bpy.data.objects.new('preview_cam', bpy.data.cameras.new('preview_cam'))
@@ -577,15 +630,17 @@ def render_previews(root, out_dir=None):
         ('front', Vector((0, -2.8, center.z)), 52),
         ('side', Vector((2.8, 0, center.z)), 52),
         ('face', Vector((0, -1.0, bb_max.z - 0.08)), 75),
+        ('pedestal', Vector((0, -1.35, -0.04)), 52),
     ):
-        cam.location = center + off
+        look_at = Vector((0, -0.02, -0.075)) if name == 'pedestal' else center
+        cam.location = look_at + off if name == 'pedestal' else center + off
         cam.data.lens = lens
         sc.render.filepath = os.path.join(out_dir, name + '.png')
         bpy.ops.object.select_all(action='DESELECT')
         cam.select_set(True)
         bpy.context.view_layer.objects.active = root
         bpy.ops.view3d.camera_to_view_selected() if False else None
-        direction = center - cam.location
+        direction = look_at - cam.location
         cam.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
         bpy.ops.render.render(write_still=True)
         print(f'PREVIEW {sc.render.filepath}')
@@ -599,13 +654,13 @@ def build(out_path):
     body = _import_body()
     _optional_decimate(body)
 
-    mat_bronze = _mat_pbr('bronze', 0xc89a4a, rough=0.3, metal=0.9)
-    mat_dark = _mat_pbr('bronze_dark', 0x8a6528, rough=0.32, metal=0.88)
-    mat_hair = _mat_pbr('bronze_hair', 0xc89a4a, rough=0.32, metal=0.9)
+    mat_bronze = _mat_pbr('bronze', 0xdeb878, rough=0.28, metal=0.9)
+    mat_dark = _mat_pbr('bronze_dark', 0x9a7238, rough=0.32, metal=0.88)
+    mat_hair = _mat_pbr('bronze_hair', 0xc8964a, rough=0.3, metal=0.9)
     mat_cloth = _mat_pbr('sash_cloth', 0xffffff, rough=0.6, metal=0.0)
 
     img_col, img_n = _bake_meridian_textures(body, records)
-    mat_body = _mat_pbr('bronze', 0xc89a4a, rough=0.3, metal=0.9, tex=img_col, normal_tex=img_n)
+    mat_body = _mat_pbr('bronze', 0xdeb878, rough=0.28, metal=0.9, tex=img_col, normal_tex=img_n)
     body.data.materials.clear()
     body.data.materials.append(mat_body)
 
@@ -613,7 +668,7 @@ def build(out_path):
     hair = _add_hair(body, mat_hair)
     if hair:
         objs.extend(hair)
-    objs.append(_add_sash(mat_cloth))
+    objs.append(_add_sash(body, mat_cloth))
     objs.extend(_build_pedestal(mat_dark))
 
     root = bpy.data.objects.new('tcm_bronze_figure', None)
