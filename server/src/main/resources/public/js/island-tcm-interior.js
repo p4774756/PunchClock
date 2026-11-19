@@ -136,8 +136,8 @@ export function createInterior(THREE, opts) {
   const northLeft = (width - studyW) / 2;
   wallBox(southLeft, WALL_H, WALL_T, floor.minX + southLeft / 2, wallY, southZ);
   wallBox(southLeft, WALL_H, WALL_T, floor.maxX - southLeft / 2, wallY, southZ);
-  wallBox(northLeft, WALL_H, WALL_T, floor.minX + northLeft / 2, wallY, northZ);
-  wallBox(northLeft, WALL_H, WALL_T, floor.maxX - northLeft / 2, wallY, northZ);
+  // 北牆實心（經絡研習室是另頁，門口不要挖穿看到戶外天空）
+  wallBox(width + WALL_T * 2, WALL_H, WALL_T, cx, wallY, northZ);
   // 南門樑、北門（經絡研習室）樑與門框
   box(doorW + 0.28, 0.16, 0.2, 0x6b3a2a, 0x4a2418, 0, ground + 2.22, southZ + 0.03, 0xc47a48, 0.12, 0.22);
   box(studyW + 0.36, 0.18, 0.22, 0x8a2018, 0x5a1010, 0, ground + 2.35, northZ - 0.03, 0xd45a3a, 0.16, 0.28);
@@ -171,9 +171,9 @@ export function createInterior(THREE, opts) {
     sphere(0.22, 8, 0xffd9a0, 0xffc878, x, ground + 3.22, z, 0xffe2a8, reduced ? 0.35 : 0.55, 0.75);
     cyl(0.16, 0.16, 0.05, 8, 0x8a2018, 0x5a1010, x, ground + 3.42, z, 0xd44840, 0.1, 0.2);
   }
-  lantern(0, 2.4);
-  lantern(0, 5.6);
-  lantern(0, 8.8);
+  lantern(-1.15, 3.2);
+  lantern(1.15, 5.8);
+  lantern(-1.15, 8.6);
   lantern(-4.6, 3.2);
   lantern(4.8, 6.8);
 
