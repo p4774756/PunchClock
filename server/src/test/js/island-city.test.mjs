@@ -1,16 +1,26 @@
 // node --test server/src/test/js/island-city.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadPublicModule } from './load-public-module.mjs';
+import { BUILDING_GLOW } from '../../main/resources/public/js/island-buildings-data.js';
+
+const _models = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..', '..', 'main', 'resources', 'public', 'models'
+);
 
 const here = dirname(fileURLToPath(import.meta.url));
 const citySceneJs = readFileSync(
   join(here, '..', '..', 'main', 'resources', 'public', 'js', 'island-city-scene.js'),
   'utf8'
 );
+
+const M = await loadPublicModule('island-city-materials.js');
 
 const L = await loadPublicModule('island-layout.js');
 const C = await loadPublicModule('island-city-data.js');
@@ -86,6 +96,66 @@ test('城市機車為 milu 看板而非方塊人', () => {
   assert.doesNotMatch(citySceneJs, /0x3a4a5a/);
   assert.doesNotMatch(citySceneJs, /0x5a7ec8/);
   assert.match(citySceneJs, /spawnCityScooterWalkers/);
+});
+
+test('applyCityMaterials 共用 glTF 材質時保留 map 到 traverse 結束', () => {
+  const sharedMap = { image: { width: 4, height: 4 }, disposed: false };
+  const disposed = [];
+  class Color {
+    constructor(v) { this._hex = v; }
+    getHex() { return this._hex; }
+  }
+  class OldMat {
+    constructor() {
+      this.name = 'tex::roof_tile::None::None';
+      this.color = new Color(0xffffff);
+      this.map = sharedMap;
+    }
+    dispose() { disposed.push(this); }
+  }
+  class RuntimeMat {
+    constructor(opts) {
+      this.map = opts.map || null;
+    }
+  }
+  const old = new OldMat();
+  let meshCount = 0;
+  const kit = {
+    mat(color, extra) {
+      return new RuntimeMat(extra || {});
+    }
+  };
+  const model = {
+    traverse(fn) {
+      const a = { isMesh: true, name: 'walls', material: old, castShadow: false, receiveShadow: false, userData: {} };
+      const b = { isMesh: true, name: 'sign_face_arcade_frame', material: old, castShadow: false, receiveShadow: false, userData: {} };
+      fn(a);
+      fn(b);
+      meshCount = 2;
+    }
+  };
+  M.applyCityMaterials(model, kit, {});
+  assert.equal(meshCount, 2);
+  assert.equal(disposed.length, 1, '共用舊材質只 dispose 一次');
+  assert.equal(sharedMap.disposed, false);
+  assert.equal(old.map, sharedMap, 'traverse 期間不得清空共用 map');
+  model.traverse((obj) => {
+    if (!obj.isMesh) return;
+    assert.ok(obj.material.map === sharedMap, obj.name + ' 應保留 atlas map');
+  });
+  assert.doesNotMatch(
+    readFileSync(join(here, '..', '..', 'main', 'resources', 'public', 'js', 'island-city-materials.js'), 'utf8'),
+    /oldMat\.map\s*=\s*null/
+  );
+});
+
+test('city.glb 與 city-pink-car.glb 已建置', () => {
+  const cityPath = path.join(_models, 'city.glb');
+  const carPath = path.join(_models, 'city-pink-car.glb');
+  assert.ok(fs.statSync(cityPath).size > 80_000);
+  assert.ok(fs.statSync(carPath).size > 15_000);
+  assert.ok(BUILDING_GLOW.city);
+  assert.ok(BUILDING_GLOW.city.neon_glow);
 });
 
 test('路人與機車路徑不穿牆、留在城市島', () => {
