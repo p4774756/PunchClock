@@ -27,6 +27,11 @@ PALETTE = {
     'gold':           (0xd4a84b, None),
     'roof_tile':      (0x617488, None),
     'roof_tile_dark': (0x56687c, None),
+    'roof_tile_red':    (0xb85a48, None),
+    'roof_tile_green':  (0x4a9a68, None),
+    'roof_tile_pink':   (0xd878a8, None),
+    'roof_tile_blue':   (0x5a8ab8, None),
+    'roof_tile_orange': (0xd89050, None),
     'roof_ridge':     (0x3b4654, None),
     'windows_glow':   (0xf6e3bd, 0xffb15a),
     'lantern_glow':   (0xd8432f, 0xff7a3a),
@@ -71,6 +76,30 @@ PALETTE = {
     # 棕櫚
     'palm_leaf':      (0x4f8a45, None),
     'umbrella_yellow':(0xf6d35a, None),
+    # 城市島 v2
+    'city_wall_coral':   (0xf4a8a0, None),
+    'city_wall_mint':    (0xb8e8d8, None),
+    'city_wall_lilac':   (0xd4c8f0, None),
+    'city_wall_yellow':  (0xfff0b8, None),
+    'city_wall_teal':    (0x7ec8c0, None),
+    'city_trim_white':   (0xfff7ef, None),
+    'city_asphalt':      (0x5a5a62, None),
+    'city_asphalt_wet':  (0x4a4a58, 0x8899bb),
+    'city_cross_white':  (0xf0f0f0, None),
+    'city_sidewalk':     (0xc9b896, None),
+    'city_rail':         (0xa89272, None),
+    'city_pink_car':     (0xff8ac8, None),
+    'city_pink_roof':    (0xffb8dd, None),
+    'city_glass_blue':   (0x88ccff, None),
+    'city_traffic_dark': (0x2e2e2e, None),
+    'city_traffic_red':  (0xff3b30, None),
+    'city_traffic_yel':  (0xffcc00, None),
+    'city_traffic_grn':  (0x34c759, None),
+    'city_moto_dark':    (0x3a4a5a, None),
+    'city_moto_cream':   (0xf4f0e8, None),
+    'city_vending_grn':  (0x4caf7a, None),
+    'city_sand':         (0xe8d4a8, None),
+    'city_water_edge':   (0x6a9ec8, None),
 }
 
 
@@ -85,6 +114,7 @@ def hex_rgba(h):
 _MATS = {}
 _TEXTURED = {}
 _PALETTE_OVERRIDES = {}
+_ATLAS_IMAGE = None
 _TEX_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'textures')
 
 
@@ -127,6 +157,62 @@ def material_textured(name, base_hex, image_path, emissive_hex=None, roughness=0
     return m
 
 
+def city_atlas_path():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'textures', 'city_atlas.png')
+
+
+def load_city_atlas():
+    global _ATLAS_IMAGE
+    if _ATLAS_IMAGE is not None:
+        return _ATLAS_IMAGE
+    path = city_atlas_path()
+    if not os.path.isfile(path):
+        raise FileNotFoundError('請先執行 tools/blender/gen_city_textures.py')
+    _ATLAS_IMAGE = bpy.data.images.load(path, check_existing=True)
+    _ATLAS_IMAGE.pack()
+    _ATLAS_IMAGE.colorspace_settings.name = 'sRGB'
+    return _ATLAS_IMAGE
+
+
+def material_tex(name, tint_hex=None, emis=None):
+    """圖集材質；tint_hex 可微調底色。"""
+    cache_key = f'tex::{name}::{tint_hex}::{emis}'
+    if cache_key in _MATS and _MATS[cache_key].name in bpy.data.materials:
+        return _MATS[cache_key]
+    base, _ = _PALETTE_OVERRIDES.get(name, PALETTE.get(name, (0xffffff, None)))
+    if tint_hex is not None:
+        base = tint_hex
+    m = bpy.data.materials.new(cache_key[:60])
+    m.use_nodes = True
+    nt = m.node_tree
+    for node in list(nt.nodes):
+        if node.type != 'OUTPUT_MATERIAL':
+            nt.nodes.remove(node)
+    out = nt.nodes['Material Output']
+    bsdf = nt.nodes.new('ShaderNodeBsdfPrincipled')
+    tex = nt.nodes.new('ShaderNodeTexImage')
+    tex.image = load_city_atlas()
+    tex.interpolation = 'Closest' if 'cross' in name or 'sidewalk' in name else 'Linear'
+    mix = nt.nodes.new('ShaderNodeMixRGB')
+    mix.blend_type = 'MULTIPLY'
+    mix.inputs['Fac'].default_value = 0.35 if tint_hex is None else 0.55
+    mix.inputs['Color1'].default_value = (1, 1, 1, 1)
+    mix.inputs['Color2'].default_value = hex_rgba(base)
+    nt.links.new(tex.outputs['Color'], mix.inputs['Color1'])
+    nt.links.new(mix.outputs['Color'], bsdf.inputs['Base Color'])
+    bsdf.inputs['Roughness'].default_value = 0.88
+    if emis is not None:
+        bsdf.inputs['Emission Color'].default_value = hex_rgba(emis)
+        bsdf.inputs['Emission Strength'].default_value = 0.85
+    elif name in PALETTE and PALETTE[name][1] is not None:
+        emis = _PALETTE_OVERRIDES.get(name, PALETTE[name])[1]
+        bsdf.inputs['Emission Color'].default_value = hex_rgba(emis)
+        bsdf.inputs['Emission Strength'].default_value = 0.75
+    nt.links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
+    _MATS[cache_key] = m
+    return m
+
+
 def set_palette_overrides(d=None):
     """單棟建築覆寫調色（每個 GLB 分開匯出，所以同名 windows_glow 可以有不同底色）。"""
     global _PALETTE_OVERRIDES
@@ -156,7 +242,7 @@ def material(name):
 
 def clear_scene():
     """清空物件、網格、材質，重設材質快取。給同一行程連續建多棟用。"""
-    global _MATS, _TEXTURED
+    global _MATS, _TEXTURED, _ATLAS_IMAGE
     for obj in list(bpy.data.objects):
         bpy.data.objects.remove(obj, do_unlink=True)
     for block in (bpy.data.meshes, bpy.data.materials, bpy.data.cameras, bpy.data.lights):
@@ -164,6 +250,7 @@ def clear_scene():
             block.remove(item)
     _MATS = {}
     _TEXTURED = {}
+    _ATLAS_IMAGE = None
     _PALETTE_OVERRIDES = {}
 
 
@@ -201,6 +288,22 @@ class Part:
              @ Matrix.Diagonal((sx, sy, sz, 1)))
         r = bmesh.ops.create_cube(self.bm, size=1.0, matrix=m)
         self._tag(self._faces_of(r['verts']), mat)
+
+    def box_tex(self, mat, region, sx, sy, sz, x, y, z, rz=0.0, rx=0.0, ry=0.0):
+        """立方體六面套用同一圖集 UV 區塊。"""
+        u0, v0, u1, v1 = region
+        quads = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
+        m = (Matrix.Translation((x, y, z))
+             @ Matrix.Rotation(rz, 4, 'Z')
+             @ Matrix.Rotation(ry, 4, 'Y')
+             @ Matrix.Rotation(rx, 4, 'X')
+             @ Matrix.Diagonal((sx, sy, sz, 1)))
+        r = bmesh.ops.create_cube(self.bm, size=1.0, matrix=m)
+        uv = self.uv_layer()
+        for f in self._faces_of(r['verts']):
+            for i, loop in enumerate(f.loops):
+                loop[uv].uv = quads[i % 4]
+        self._tag([f for f in self._faces_of(r['verts'])], mat)
 
     def cyl(self, mat, r1, r2, h, x, y, z, seg=8, rx=0.0, ry=0.0, rz=0.0):
         m = (Matrix.Translation((x, y, z))
@@ -263,6 +366,8 @@ class Part:
             if isinstance(m, str) and m.startswith('tex|'):
                 rel = m[4:]
                 me.materials.append(material_textured(m.replace('|', '_'), 0xffffff, tex_path(rel)))
+            elif isinstance(m, str) and m.startswith('@'):
+                me.materials.append(material_tex(m[1:]))
             else:
                 me.materials.append(material(m))
         for p in me.polygons:
