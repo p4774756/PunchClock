@@ -122,8 +122,8 @@ function bronzeMaterialFromGltf(oldMat, kit, opts) {
     isFabric ? 0xffffff : darkPed ? BRONZE_PED_SRGB : BRONZE_SRGB
   );
   if (o.meridian) {
-    day.setHex(MERIDIAN_SRGB);
     if (oldMat.color) day.copy(oldMat.color);
+    else day.setHex(MERIDIAN_SRGB);
   } else if (isBronze && !isFabric) {
     const hasMap = !!(oldMat.map);
     if (hasMap) {
