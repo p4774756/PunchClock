@@ -183,12 +183,16 @@ class Part:
             self._uv = self.bm.loops.layers.uv.new('UVMap')
         return self._uv
 
-    def plane(self, mat, w, h, x, y, z, rx=0.0, ry=0.0, rz=0.0):
+    def plane(self, mat, w, h, x, y, z, rx=0.0, ry=0.0, rz=0.0, flip_u=False):
         """XZ 平面上寬 w、高 h、法線朝 -Y（正面）的單一面，帶 0..1 UV。"""
         dx, dz = w / 2, h / 2
         local = [(-dx, 0, -dz), (dx, 0, -dz), (dx, 0, dz), (-dx, 0, dz)]
         # glTF / Three.js 的 V=0 在圖上緣；這裡先把 V 對調，匯出後文字才是正的。
-        uvs = [(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]
+        # 北側 back 字牌在 yaw=π 後需水平對調 U 才與南簷 front 同向可讀。
+        if flip_u:
+            uvs = [(1.0, 1.0), (0.0, 1.0), (0.0, 0.0), (1.0, 0.0)]
+        else:
+            uvs = [(0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]
         m = (Matrix.Translation((x, y, z))
              @ Matrix.Rotation(rz, 4, 'Z')
              @ Matrix.Rotation(ry, 4, 'Y')
@@ -385,10 +389,11 @@ class Builder:
         px, py, pz = along(0, y, z, 0.048)
         fr.box(frame, width + 0.10, 0.05, height + 0.10, fx, fy, fz, rx=rx)
         fr.box(board, width + 0.02, 0.02, height + 0.02, bx, by, bz, rx=rx)
-        face.plane('sign', width, height, px, py, pz, rx=rx)
+        face.plane('sign', width, height, px, py, pz, rx=rx, flip_u=(facing == 'back'))
         return (0.0, z, -y)
 
-    def roof_readable_sign(self, width, height, x, y, z, rx=None, ry=0.10, frame='lab_accent', board='sign'):
+    def roof_readable_sign(self, width, height, x, y, z, rx=None, ry=0.10, frame='lab_accent', board='sign',
+                           flip_u=True):
         """屋頂近水平招牌（字朝上），高俯視角可讀；併入既有 sign_face UV。"""
         import math as _math
         if rx is None:
@@ -403,7 +408,7 @@ class Builder:
         px, py, pz = along(x, y, z, 0.040)
         fr.box(frame, width + 0.08, 0.04, height + 0.08, fx, fy, fz, rx=rx, ry=ry)
         fr.box(board, width + 0.02, 0.02, height + 0.02, bx, by, bz, rx=rx, ry=ry)
-        face.plane('sign', width, height, px, py, pz, rx=rx, ry=ry)
+        face.plane('sign', width, height, px, py, pz, rx=rx, ry=ry, flip_u=flip_u)
 
     def finish(self, out_path, extras=None, label_anchor=None, door_local=None):
         root = bpy.data.objects.new(self.name, None)

@@ -254,13 +254,13 @@ def build(out_path):
     rf.box('shop_navy', 0.58, 0.44, 0.04, -0.68, 0.14, roof_y + 0.10, rx=-0.18)
     rf.box('shop_navy_dark', 0.52, 0.40, 0.025, -0.68, 0.14, roof_y + 0.145, rx=-0.18)
 
-    # 衛星碟（加大、朝鏡頭側）
+    # 衛星碟（偏西角，避開屋頂招牌中線「發」）
     ant = b.part('antenna')
-    ax, ay = 0.82, -0.08
+    ax, ay = -1.02, 0.06
     ant.cyl('lab_steel', 0.055, 0.055, 0.40, ax, ay, roof_y + 0.22, seg=8)
-    ant.cyl('lab_panel', 0.44, 0.05, 0.06, ax + 0.08, ay, roof_y + 0.50, seg=12, rx=0.72, ry=0.15)
-    ant.box('lab_steel_dark', 0.03, 0.03, 0.16, ax + 0.04, ay, roof_y + 0.50)
-    b.part('lanterns_glow').sphere('lantern_glow', 0.088, ax + 0.08, ay, roof_y + 0.74, seg=8, rings=5)
+    ant.cyl('lab_panel', 0.44, 0.05, 0.06, ax - 0.08, ay, roof_y + 0.50, seg=12, rx=0.72, ry=-0.22)
+    ant.box('lab_steel_dark', 0.03, 0.03, 0.16, ax - 0.04, ay, roof_y + 0.50)
+    b.part('lanterns_glow').sphere('lantern_glow', 0.070, ax - 0.08, ay, roof_y + 0.72, seg=8, rings=5)
 
     rf.box('lab_grey', 0.60, 0.48, 0.28, -0.66, 0.10, roof_y + 0.22)
     rf.box('lab_steel', 0.56, 0.08, 0.06, -0.66, 0.10, roof_y + 0.40)
@@ -283,10 +283,9 @@ def build(out_path):
     sign_y = BACK - 0.06
     sign_z = roof_y + 0.18
     b.tilted_sign(2.28, 0.78, sign_y, sign_z, rx=2.15, facing='back', frame='lab_accent', board='sign')
-    # 屋頂北半近水平字牌，高俯視仍可讀
-    b.roof_readable_sign(1.72, 0.62, 0.02, BACK - 0.42, roof_y + 0.11, rx=math.pi / 2 - 0.14,
-                         frame='lab_accent', board='sign')
-    b.part('lanterns_glow').sphere('lantern_glow', 0.065, 0.0, BACK - 0.40, roof_y + 0.22, seg=6, rings=4)
+    # 屋頂近水平字牌稍往屋頂中央，z=15 與門口鏡頭仍看得到
+    b.roof_readable_sign(1.72, 0.62, 0.0, BACK - 0.26, roof_y + 0.15, rx=math.pi / 2 - 0.14,
+                         ry=0.06, frame='lab_accent', board='sign')
 
     label_blender = (0.0, sign_y - 0.12, sign_z + 0.26)
     return b.finish(
