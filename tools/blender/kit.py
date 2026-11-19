@@ -48,11 +48,11 @@ PALETTE = {
     'cup_green':      (0x9fd9b4, None),
     'cup_lid':        (0xfffaf6, None),
     'straw':          (0x3a312c, None),
-    # 賭場
-    'cas_wall':       (0x5b3a8c, None),
-    'cas_dark':       (0x3d2468, None),
-    'cas_roof':       (0x2a1848, None),
-    'cas_purple':     (0x7a54b5, None),
+    # 賭場（v3 深色石材；發光仍用 windows_glow / lantern_glow / neon_glow 名稱）
+    'cas_wall':       (0x4a4a54, None),
+    'cas_dark':       (0x2e2e38, None),
+    'cas_roof':       (0x22222c, None),
+    'cas_purple':     (0x5a4a62, None),
     'cas_carpet':     (0x9c2b3a, None),
     'cas_gold_light': (0xf0d078, None),
     # 研發樓
@@ -83,7 +83,48 @@ def hex_rgba(h):
 
 
 _MATS = {}
+_TEXTURED = {}
 _PALETTE_OVERRIDES = {}
+_TEX_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'textures')
+
+
+def tex_path(*parts):
+    return os.path.join(_TEX_ROOT, *parts)
+
+
+def material_textured(name, base_hex, image_path, emissive_hex=None, roughness=0.88, metallic=0.0):
+    """帶 baseColorTexture 的材質（相對路徑或絕對路徑）。"""
+    abspath = image_path if os.path.isabs(image_path) else os.path.abspath(image_path)
+    key = (name, abspath)
+    if key in _TEXTURED and _TEXTURED[key].name in bpy.data.materials:
+        return _TEXTURED[key]
+    if not os.path.isfile(abspath):
+        raise FileNotFoundError(abspath)
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    nodes, links = nt.nodes, nt.links
+    for n in list(nodes):
+        nodes.remove(n)
+    out = nodes.new('ShaderNodeOutputMaterial')
+    bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+    tex = nodes.new('ShaderNodeTexImage')
+    tex.image = bpy.data.images.load(abspath, check_existing=True)
+    tex.image.colorspace_settings.name = 'sRGB'
+    bsdf.inputs['Base Color'].default_value = hex_rgba(base_hex)
+    bsdf.inputs['Roughness'].default_value = roughness
+    bsdf.inputs['Metallic'].default_value = metallic
+    if emissive_hex is not None:
+        bsdf.inputs['Emission Color'].default_value = hex_rgba(emissive_hex)
+        bsdf.inputs['Emission Strength'].default_value = 1.0
+    links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
+    links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
+    out.location = (300, 0)
+    bsdf.location = (0, 0)
+    tex.location = (-300, 0)
+    _TEXTURED[key] = m
+    _MATS[name] = m
+    return m
 
 
 def set_palette_overrides(d=None):
@@ -115,13 +156,14 @@ def material(name):
 
 def clear_scene():
     """清空物件、網格、材質，重設材質快取。給同一行程連續建多棟用。"""
-    global _MATS
+    global _MATS, _TEXTURED
     for obj in list(bpy.data.objects):
         bpy.data.objects.remove(obj, do_unlink=True)
     for block in (bpy.data.meshes, bpy.data.materials, bpy.data.cameras, bpy.data.lights):
         for item in list(block):
             block.remove(item)
     _MATS = {}
+    _TEXTURED = {}
     _PALETTE_OVERRIDES = {}
 
 
@@ -183,6 +225,11 @@ class Part:
             self._uv = self.bm.loops.layers.uv.new('UVMap')
         return self._uv
 
+    def textured_plane(self, tex_subpath, w, h, x, y, z, rx=0.0, ry=0.0, rz=0.0, flip_u=False):
+        """tex_subpath 相對於 tools/blender/textures/，例如 casino/cas_stone.png。"""
+        slot = 'tex|' + tex_subpath.replace('\\', '/')
+        self.plane(slot, w, h, x, y, z, rx=rx, ry=ry, rz=rz, flip_u=flip_u)
+
     def plane(self, mat, w, h, x, y, z, rx=0.0, ry=0.0, rz=0.0, flip_u=False):
         """XZ 平面上寬 w、高 h、法線朝 -Y（正面）的單一面，帶 0..1 UV。"""
         dx, dz = w / 2, h / 2
@@ -211,7 +258,11 @@ class Part:
         self.bm.free()
         self.bm = None
         for m in self.mats:
-            me.materials.append(material(m))
+            if isinstance(m, str) and m.startswith('tex|'):
+                rel = m[4:]
+                me.materials.append(material_textured(m.replace('|', '_'), 0xffffff, tex_path(rel)))
+            else:
+                me.materials.append(material(m))
         for p in me.polygons:
             p.use_smooth = False
         ob = bpy.data.objects.new(self.name, me)

@@ -55,7 +55,7 @@ describe('casino Vegas sign', () => {
     assert.ok(!buildingsJs.includes('signGroup'));
     assert.ok(buildingsJs.includes('casinoSignMap'));
     assert.ok(buildingsJs.includes("signMaps[buildingId]"));
-    assert.match(buildingsJs, /fillText\('777'/);
+    assert.ok(!buildingsJs.match(/casinoSignMap[\s\S]*fillText\('777'/));
   });
 
   it('casino layout v2 放大與博弈島半徑', () => {
@@ -85,7 +85,7 @@ describe('BUILDING_GLOW', () => {
     assert.ok(BUILDING_GLOW.casino);
     assert.deepStrictEqual(BUILDING_GLOW.casino.windows_glow, { color: 0xffc56a, amount: 1.05 });
     assert.deepStrictEqual(BUILDING_GLOW.casino.lantern_glow, { color: 0xffc56a, amount: 1.2 });
-    assert.deepStrictEqual(BUILDING_GLOW.casino.neon_glow, { color: 0xff6ad8, amount: 1.15 });
+    assert.deepStrictEqual(BUILDING_GLOW.casino.neon_glow, { color: 0xff5544, amount: 0.92 });
   });
 
   it('tcm-site has windows_glow and lantern_glow', () => {
@@ -105,7 +105,7 @@ describe('BUILDING_GLOW', () => {
 describe('glowForMaterial', () => {
   it('returns glow info for known building/material pairs', () => {
     assert.deepStrictEqual(glowForMaterial('shop', 'windows_glow'), { color: 0xffb15a, amount: 0.95 });
-    assert.deepStrictEqual(glowForMaterial('casino', 'neon_glow'), { color: 0xff6ad8, amount: 1.15 });
+    assert.deepStrictEqual(glowForMaterial('casino', 'neon_glow'), { color: 0xff5544, amount: 0.92 });
     assert.deepStrictEqual(glowForMaterial('computer-site', 'neon_glow'), { color: 0x3cf0ff, amount: 1.35 });
   });
 
