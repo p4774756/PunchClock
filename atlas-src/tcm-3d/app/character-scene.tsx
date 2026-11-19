@@ -7,11 +7,19 @@ import {
   createDownloadProgressState,
   creepLoadingPercent,
   nextModelDownloadProgress,
+  materialsSlicePercent,
+  nextMonotonicPercent,
   yieldOnce,
   yieldSlice,
   yieldToMain,
 } from './load-progress';
-import {programCount,uploadTexturesIncremental,warmShadersIncremental} from './shader-warm';
+import {
+  groupMeshesByProgram,
+  programCount,
+  textureCount,
+  uploadTexturesIncremental,
+  warmShadersIncremental,
+} from './shader-warm';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
 import {animeOutfit,ANIME_OUTFITS,type AnimeOutfit,type OutfitId} from './outfits';
 import {useEffect,useRef} from 'react';
@@ -400,23 +408,47 @@ const MTOON_TEXTURE_UNIFORM_KEYS=new Set([
 const OUTFIT_SWITCH_START='atlas:outfit-switch-start';
 const OUTFIT_SWITCH_END='atlas:outfit-switch-end';
 
-const collectMeshTextures=(root:T.Object3D)=>{
- const textures=new Set<T.Texture>();
- root.traverseVisible(obj=>{
-  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
-  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
-  for(const mat of mats){
-   const m=mat as T.MeshStandardMaterial & {uniforms?:MToonUniforms;isMToonMaterial?:boolean};
-   if(m.map)textures.add(m.map);
-   if(m.normalMap)textures.add(m.normalMap);
-   if(m.emissiveMap)textures.add(m.emissiveMap);
-   const uni=m.uniforms;
-   if(uni)for(const key of MTOON_TEXTURE_UNIFORM_KEYS){
-    const tex=uni[key]?.value;
-    if(tex&&typeof tex==='object'&&'isTexture' in (tex as object))textures.add(tex as T.Texture);
-   }
+const pushMaterialTextures=(
+ mats:T.Material|Array<T.Material>,
+ textures:Set<T.Texture>,
+ opts?:{includeHidden?:boolean},
+)=>{
+ for(const mat of Array.isArray(mats)?mats:[mats]){
+  const m=mat as T.MeshStandardMaterial & {uniforms?:MToonUniforms;isMToonMaterial?:boolean;gradientMap?:T.Texture|null};
+  if(!m)continue;
+  if(!opts?.includeHidden&&m.visible===false)continue;
+  if(m.map)textures.add(m.map);
+  if(m.normalMap)textures.add(m.normalMap);
+  if(m.emissiveMap)textures.add(m.emissiveMap);
+  if(m.gradientMap)textures.add(m.gradientMap);
+  const uni=m.uniforms;
+  if(uni)for(const key of MTOON_TEXTURE_UNIFORM_KEYS){
+   const tex=uni[key]?.value;
+   if(tex&&typeof tex==='object'&&'isTexture' in (tex as object))textures.add(tex as T.Texture);
   }
+ }
+};
+
+const collectSceneChromeTextures=(scene:T.Scene)=>{
+ const textures=new Set<T.Texture>();
+ scene.traverse(obj=>{
+  if(!obj.userData?.atlasSceneChrome)return;
+  if(obj instanceof T.Mesh)pushMaterialTextures(obj.material,textures);
  });
+ return [...textures];
+};
+
+ /** Include hidden practice rig — traverseVisible skips invisible outfit roots. */
+const collectMeshTextures=(root:T.Object3D,extras:T.Texture[]=[],includeHidden=false)=>{
+ const textures=new Set<T.Texture>();
+ const matOpts=includeHidden?{includeHidden:true}:undefined;
+ root.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  pushMaterialTextures(obj.material,textures,matOpts);
+ });
+ const painted=root.userData.practiceBodySkinMap as T.Texture|undefined;
+ if(painted)textures.add(painted);
+ for(const tex of extras)if(tex)textures.add(tex);
  return [...textures];
 };
 
@@ -871,6 +903,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
  const outfitIdRef=useRef(outfitId);
  outfitIdRef.current=outfitId;
  const outfitBridge=useRef<OutfitBridge|null>(null);
+ const sceneReady=useRef(false);
  const latest=useRef(state);const sim=useRef(simulation);const pointSelect=useRef(onPoint);const toolDrag=useRef(onToolDrag);
  latest.current=state;sim.current=simulation;pointSelect.current=onPoint;toolDrag.current=onToolDrag;
 
@@ -906,14 +939,17 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const fill=new T.DirectionalLight(0xffe2c0,.55);fill.position.set(.2,-.8,1.6);scene.add(fill);
 
   let woodcut:WoodcutBackdrop|null=null;
+  let resolveWoodcut:()=>void;
+  const woodcutReady=new Promise<void>(resolve=>{resolveWoodcut=resolve;});
   const panoramaLoader=new T.TextureLoader();
   panoramaLoader.load(publicAssetUrl(`textures/woodcut-landscape.webp?v=${WOODCUT_LANDSCAPE_DIGEST}`),loaded=>{
    if(disposed)return;
    woodcut=buildWoodcutBackdrop(loaded);
    woodcut.mesh.userData.atlasSceneChrome=true;
    scene.add(woodcut.mesh);
+   resolveWoodcut();
    dirty=true;
-  });
+  },undefined,()=>{resolveWoodcut();});
 
   const ground=makeFeetGround();
   ground.rotation.x=-Math.PI/2;ground.position.y=-.01;ground.userData.atlasSceneChrome=true;scene.add(ground);
@@ -949,11 +985,17 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   let downloadProgressState=createDownloadProgressState();
   let downloadCreepTimer=0;
   let lastProgressAt=performance.now();
+  let progressHighWater=0;
+  let gpuBaselineAfterLoad:{programs:number;textures:number}|null=null;
+  let outfitSwitchAssertPending=false;
 
   const reportProgress=(percent:number,step:AtlasLoadProgress['step'],extra?:string)=>{
+   const pct=nextMonotonicPercent(progressHighWater,percent);
+   if(pct<=progressHighWater&&step!=='done')return;
+   progressHighWater=pct;
    const stepLabel=extra??LOAD_STEP_LABELS[step];
    lastProgressAt=performance.now();
-   onProgress({percent,step,stepLabel});
+   onProgress({percent:pct,step,stepLabel});
   };
 
   const finishOutfitSwitchMeasure=()=>{
@@ -966,6 +1008,19 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    }catch{/* duplicate */}
    performance.clearMarks(OUTFIT_SWITCH_START);
    performance.clearMarks(OUTFIT_SWITCH_END);
+   if(outfitSwitchAssertPending&&gpuBaselineAfterLoad&&practiceModel?.visible){
+    const programs=programCount(renderer);
+    const textures=textureCount(renderer);
+    if(programs>gpuBaselineAfterLoad.programs||textures>gpuBaselineAfterLoad.textures){
+     console.warn(
+      'atlas:outfit-switch-gpu-growth',
+      `programs +${programs-gpuBaselineAfterLoad.programs}`,
+      `textures +${textures-gpuBaselineAfterLoad.textures}`,
+     );
+    }
+    outfitSwitchAssertPending=false;
+    gpuBaselineAfterLoad=null;
+   }
   };
 
   const showOutfit=(id:OutfitId)=>{
@@ -994,29 +1049,76 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    dirty=true;
   };
 
-  const prepareAllMaterials=async(primaryRoot:T.Object3D|null,onPct?:(pct:number)=>void)=>{
-   const textures=new Set<T.Texture>();
-   if(primaryRoot)for(const t of collectMeshTextures(primaryRoot))textures.add(t);
-   if(practiceShell&&practiceBuilt)for(const t of collectMeshTextures(practiceShell))textures.add(t);
-   const texList=[...textures];
+  const countProgramGroups=(roots:T.Object3D[])=>{
+   const meshes=roots.flatMap(r=>{
+    const list:(T.Mesh|T.SkinnedMesh)[]=[];
+    r.traverse(obj=>{
+     if((obj instanceof T.Mesh||obj instanceof T.SkinnedMesh)&&obj.geometry)list.push(obj);
+    });
+    return list.filter(m=>!/Outline/i.test(m.name)&&!/Outline/i.test((m.material as T.Material)?.name??''));
+   });
+   return groupMeshesByProgram(meshes).length;
+  };
+
+  const timeoutAfter=(ms:number)=>new Promise<void>(resolve=>{window.setTimeout(resolve,ms);});
+
+  const prepareAllMaterials=async(primaryRoot:T.Object3D|null,bumpSlice?:()=>void)=>{
+   await Promise.race([woodcutReady,timeoutAfter(25_000)]);
+   if(disposed)return;
+   const warmRoots=[...(primaryRoot?[primaryRoot]:[]),...(practiceShell&&practiceBuilt?[practiceShell]:[])];
+   const chromeExtras:T.Texture[]=[gradient];
+   if(woodcut)chromeExtras.push(woodcut.tex);
+   const texList=[...new Set([
+    ...(primaryRoot?collectMeshTextures(primaryRoot,chromeExtras):chromeExtras),
+    ...(practiceShell&&practiceBuilt?collectMeshTextures(practiceShell,[],true):[]),
+    ...collectMeshTextures(teaching.root,[]),
+    ...collectSceneChromeTextures(scene),
+   ])];
+   const texturesBefore=textureCount(renderer);
    await uploadTexturesIncremental({
     renderer,
     textures:texList,
     disposed:()=>disposed,
-    onSlice:(i,n)=>onPct?.(92+Math.round((i/Math.max(n,1))*3)),
+    onSlice:()=>bumpSlice?.(),
    });
    if(disposed)return;
-   const warmRoots=[...(primaryRoot?[primaryRoot]:[]),...(practiceShell&&practiceBuilt?[practiceShell]:[])];
+   const texturesAfter=textureCount(renderer);
+   if(import.meta.env.DEV&&texturesAfter<texturesBefore+texList.length){
+    console.warn('atlas:texture-upload-incomplete',texturesBefore,texturesAfter,'wanted',texList.length);
+   }
    let warmPrograms=programCount(renderer);
    if(warmRoots.length){
     const warm=await warmShadersIncremental({
      renderer,scene,camera,root:warmRoots[0],roots:warmRoots,disposed:()=>disposed,progressSlices:true,
-     onSlice:(i,n)=>onPct?.(95+Math.round((i/Math.max(n,1))*4)),
+     onSlice:()=>bumpSlice?.(),
     });
     warmPrograms=warm.programsAfter;
    }
+   if(disposed)return;
+   if(schoolModel&&practiceShell&&practiceBuilt){
+    const schoolVis=schoolModel.visible;
+    const practiceVis=practiceShell.visible;
+    schoolModel.visible=false;
+    practiceShell.visible=true;
+    practiceShell.updateMatrixWorld(true);
+    await warmShadersIncremental({
+     renderer,scene,camera,root:practiceShell,roots:[practiceShell],disposed:()=>disposed,progressSlices:true,
+     onSlice:()=>bumpSlice?.(),
+    });
+    schoolModel.visible=schoolVis;
+    practiceShell.visible=practiceVis;
+   }
+   if(disposed)return;
+   const charVisible=characterRoot.visible;
+   characterRoot.visible=false;
+   await warmShadersIncremental({
+    renderer,scene,camera,root:teaching.root,roots:[teaching.root],disposed:()=>disposed,progressSlices:true,
+    keepSceneChrome:true,onSlice:()=>bumpSlice?.(),
+   });
+   characterRoot.visible=charVisible;
    shaderWarmPrograms=warmPrograms;
-   onPct?.(99);
+   gpuBaselineAfterLoad={programs:programCount(renderer),textures:textureCount(renderer)};
+   outfitSwitchAssertPending=!!practiceBuilt;
   };
 
   const schedulePracticeWarm=()=>{
@@ -1074,7 +1176,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   const runLoader=()=>{
   if(avatar.modelStatus==='pending'||!avatar.modelUrl){
-   ready=true;reportProgress(100,'done');fit(latest.current.view);dirty=true;
+   ready=true;sceneReady.current=true;reportProgress(100,'done');fit(latest.current.view);dirty=true;
   }else{
    const loader=new GLTFLoader();
    loader.register(parser=>new VRMLoaderPlugin(parser));
@@ -1165,17 +1267,45 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      reportProgress(92,'materials','準備材質…');
      await yieldToMain();
      if(disposed)return;
+     let matSlice=0;
+     let matTotal=48;
+     const bumpMaterials=()=>{
+      matSlice=Math.min(matTotal,matSlice+1);
+      reportProgress(materialsSlicePercent(matSlice,matTotal),'materials','準備材質…');
+     };
      if(cacheAnimeOutfits&&practiceShell&&!practiceBuilt){
-      await buildPracticeOutfitIncremental(practiceShell,practiceOutfit,gradient,(i,n)=>{
-       reportProgress(92+Math.round((i/n)*4),'materials','準備材質…');
-      });
+      const buildSlices=Math.max(Math.ceil(listOutfitMeshes(practiceShell).length/4)+2,1);
+      matTotal=buildSlices+48;
+      await buildPracticeOutfitIncremental(practiceShell,practiceOutfit,gradient,()=>bumpMaterials());
       if(disposed)return;
       finalizePracticeShell();
      }
-     await prepareAllMaterials(schoolModel??model,pct=>reportProgress(pct,'materials','準備材質…'));
+     const warmRoots=[...(schoolModel??model?[schoolModel??model]:[]),...(practiceShell&&practiceBuilt?[practiceShell]:[])];
+     const chromeExtras:T.Texture[]=[gradient];
+     if(woodcut)chromeExtras.push(woodcut.tex);
+     const texEst=[...new Set([
+      ...collectMeshTextures(schoolModel??model,chromeExtras),
+      ...(practiceShell&&practiceBuilt?collectMeshTextures(practiceShell,[],true):[]),
+      ...collectMeshTextures(teaching.root,[]),
+      ...collectSceneChromeTextures(scene),
+     ])].length;
+     const progEst=
+      countProgramGroups(warmRoots)+
+      countProgramGroups([teaching.root])+
+      (practiceShell&&practiceBuilt&&schoolModel?countProgramGroups([practiceShell]):0);
+     matTotal=Math.max(matTotal,matSlice+texEst+progEst);
+     await prepareAllMaterials(schoolModel??model,bumpMaterials);
+     reportProgress(99,'materials','準備材質…');
+     if(disposed)return;
+     showOutfit(outfitIdRef.current);
+     dirty=true;
+     renderer.render(scene,camera);
+     dirty=false;
+     finishOutfitSwitchMeasure();
+     await yieldToMain();
      if(disposed)return;
      ready=true;
-     showOutfit(outfitIdRef.current);
+     sceneReady.current=true;
      reportProgress(100,'done');
      const launchSim=sim.current;
      if(launchSim.focus>0&&teaching.focus(launchSim,camera,controls,{force:true}))lastFocus=launchSim.focus;
@@ -1329,11 +1459,13 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
  useEffect(()=>{
   let cancelled=false;
   const id=outfitId;
-  let outer=0,inner=0;
-  outer=requestAnimationFrame(()=>{
-   inner=requestAnimationFrame(()=>{if(!cancelled)outfitBridge.current?.setOutfit(id);});
-  });
-  return ()=>{cancelled=true;cancelAnimationFrame(outer);cancelAnimationFrame(inner);};
+  if(sceneReady.current){
+   outfitBridge.current?.setOutfit(id);
+   return ()=>{cancelled=true;};
+  }
+  let outer=0;
+  outer=requestAnimationFrame(()=>{if(!cancelled)outfitBridge.current?.setOutfit(id);});
+  return ()=>{cancelled=true;cancelAnimationFrame(outer);};
  },[outfitId]);
 
  return <div className="scene" ref={host}/>;

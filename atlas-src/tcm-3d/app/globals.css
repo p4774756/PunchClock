@@ -112,6 +112,17 @@
   box-shadow:0 12px 32px rgba(40,32,20,.14);
   color:#3a2e22;
 }
+.rpg-studio .scene-stage:has(.loading-card.woodcut-loading:not(.load-error)){
+  z-index:0;
+}
+.rpg-studio .scene-stage .loading-card.woodcut-loading:not(.load-error){
+  position:relative;
+  z-index:12;
+}
+.rpg-studio .scene-stage:has(.loading-card.woodcut-loading:not(.load-error)) .contact-label{
+  visibility:hidden;
+  pointer-events:none;
+}
 .rpg-studio .loading-card strong{color:#2a2218}
 .rpg-studio .loading-card p,
 .rpg-studio .loading-card small{color:#5a4634}

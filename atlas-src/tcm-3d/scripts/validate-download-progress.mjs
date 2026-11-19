@@ -2,7 +2,9 @@
 import assert from 'node:assert/strict';
 import {
   createDownloadProgressState,
+  materialsSlicePercent,
   nextModelDownloadProgress,
+  nextMonotonicPercent,
   PARSE_PERCENT_START,
   DOWNLOAD_PERCENT_MAX,
 } from '../app/load-progress.ts';
@@ -47,4 +49,11 @@ function runCases() {
 }
 
 runCases();
+
+assert.equal(materialsSlicePercent(0, 10), 92);
+assert.equal(materialsSlicePercent(10, 10), 99);
+assert(materialsSlicePercent(5, 10) > materialsSlicePercent(4, 10));
+assert.equal(nextMonotonicPercent(95, 92), 95);
+assert.equal(nextMonotonicPercent(92, 96), 96);
+
 console.log('download progress mapping passed.');

@@ -162,7 +162,7 @@ export default function Home(){
  const endHold=(event:ReactPointerEvent<HTMLButtonElement>)=>{if(heldPointer.current!==event.pointerId)return;heldPointer.current=null;if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);releaseHold();};
  const onProgress=useCallback((value:AtlasLoadProgress|number)=>{
   const next=typeof value==='number'?{percent:value,step:'download' as const,stepLabel:'載入中…'}:value;
-  setProgress(next.percent);
+  setProgress(prev=>Math.max(prev,next.percent));
   setLoadStep(next.stepLabel);
   if(next.percent===100)setError('');
  },[]);

@@ -49,6 +49,9 @@ export const groupMeshesByProgram = (
 export const programCount = (renderer: T.WebGLRenderer): number =>
   renderer.info?.programs?.length ?? 0;
 
+export const textureCount = (renderer: T.WebGLRenderer): number =>
+  renderer.info?.memory?.textures ?? 0;
+
 const supportsParallelCompile = (renderer: T.WebGLRenderer): boolean => {
   try {
     return renderer.getContext().getExtension('KHR_parallel_shader_compile') != null;
@@ -112,8 +115,10 @@ export const warmShadersIncremental = async (opts: {
   onSlice?: (index: number, total: number) => void;
   /** Use rAF between slices when updating a visible progress bar. */
   progressSlices?: boolean;
+  /** When false (default), panorama/ground chrome is hidden during character warm. */
+  keepSceneChrome?: boolean;
 }): Promise<ShaderWarmResult> => {
-  const {renderer, scene, camera, root, roots, disposed, onSlice, progressSlices} = opts;
+  const {renderer, scene, camera, root, roots, disposed, onSlice, progressSlices, keepSceneChrome} = opts;
   const programsBefore = programCount(renderer);
   const warmRoots = roots?.length ? roots : [root];
   const meshes = warmRoots.flatMap(r => filterWarmMeshes(r));
@@ -131,7 +136,7 @@ export const warmShadersIncremental = async (opts: {
   if (parallel && typeof renderer.compileAsync === 'function') {
     const reps = new Set(groups.map(g => g.mesh));
     const restoreMeshes = setRootMeshVisibility(meshes, reps);
-    const restoreChrome = hideSceneChrome(scene);
+    const restoreChrome = keepSceneChrome ? () => {} : hideSceneChrome(scene);
     try {
       await renderer.compileAsync(scene, camera);
     } catch {
@@ -142,20 +147,23 @@ export const warmShadersIncremental = async (opts: {
     }
     onSlice?.(groups.length, groups.length);
   } else {
-    const reps = new Set(groups.map(g => g.mesh));
-    const restoreMeshes = setRootMeshVisibility(meshes, reps);
     root.updateMatrixWorld(true);
-    const restoreChrome = hideSceneChrome(scene);
-    try {
-      warmScissorRender(renderer, scene, camera);
-    } catch {
-      /* software WebGL */
-    } finally {
-      restoreChrome();
-      restoreMeshes();
+    for (let i = 0; i < groups.length; i++) {
+      if (disposed()) break;
+      const rep = groups[i].mesh;
+      const restoreMeshes = setRootMeshVisibility(meshes, new Set([rep]));
+      const restoreChrome = keepSceneChrome ? () => {} : hideSceneChrome(scene);
+      try {
+        warmScissorRender(renderer, scene, camera);
+      } catch {
+        /* software WebGL */
+      } finally {
+        restoreChrome();
+        restoreMeshes();
+      }
+      onSlice?.(i + 1, groups.length);
+      if (i < groups.length - 1) await yieldBetween();
     }
-    onSlice?.(groups.length, groups.length);
-    await yieldBetween();
   }
 
   visSaved.forEach(({r, visible}) => {

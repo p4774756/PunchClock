@@ -109,3 +109,21 @@ export function creepLoadingPercent(current: number, floor: number, ceiling: num
   const base = Math.max(current, floor);
   return Math.min(ceiling, base + delta);
 }
+
+export const MATERIALS_PERCENT_FLOOR = 92;
+export const MATERIALS_PERCENT_CEILING = 99;
+
+/** Map slice index 1…total into materials phase 92–99% (monotonic within phase). */
+export function materialsSlicePercent(sliceIndex: number, totalSlices: number): number {
+  if (totalSlices <= 0) return MATERIALS_PERCENT_FLOOR;
+  const ratio = Math.min(1, Math.max(0, sliceIndex / totalSlices));
+  return Math.min(
+    MATERIALS_PERCENT_CEILING,
+    MATERIALS_PERCENT_FLOOR + Math.round(ratio * (MATERIALS_PERCENT_CEILING - MATERIALS_PERCENT_FLOOR)),
+  );
+}
+
+/** Progress reporter high-water — never decreases displayed percent. */
+export function nextMonotonicPercent(highWater: number, candidate: number): number {
+  return Math.min(100, Math.max(highWater, candidate));
+}
