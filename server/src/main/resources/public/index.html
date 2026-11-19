@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/css/casino.css">
   <link rel="stylesheet" href="/css/graffiti.css">
   <link rel="stylesheet" href="/css/roadmap.css">
+  <link rel="stylesheet" href="/css/dev-guest-ui.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
@@ -245,6 +246,18 @@
     <div class="island-joystick-base" aria-hidden="true">
       <div class="island-joystick-knob" id="islandJoystickKnob"></div>
     </div>
+  </div>
+
+  <div class="island-npc-talk maple-window" id="islandNpcTalk" hidden role="dialog" aria-modal="true" aria-labelledby="islandNpcTalkTitle">
+    <header class="maple-win-title island-npc-talk-bar">
+      <h2 id="islandNpcTalkTitle"></h2>
+      <button type="button" class="maple-win-close" id="islandNpcTalkClose" aria-label="關閉">
+        <span class="maple-win-close-glyph" aria-hidden="true">×</span>
+        <span class="island-hud-esc-chip island-maple-close-esc" aria-hidden="true">Esc</span>
+      </button>
+    </header>
+    <div class="island-npc-talk-body" id="islandNpcTalkBody"></div>
+    <p class="island-npc-talk-hint" id="islandNpcTalkHint" aria-hidden="true">▼</p>
   </div>
 
   <div class="island-explore-hint" id="islandExploreHint" hidden>

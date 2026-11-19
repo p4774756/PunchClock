@@ -27,6 +27,8 @@ export function promptDomUpdate(prev, next) {
   const wasShow = !!p.visible;
   const label = n.label != null ? String(n.label) : '';
   const prevLabel = p.label != null ? String(p.label) : '';
+  const aria = n.ariaLabel != null ? String(n.ariaLabel) : label;
+  const prevAria = p.ariaLabel != null ? String(p.ariaLabel) : prevLabel;
   const patch = {};
   if (show !== wasShow) {
     patch.hidden = !show;
@@ -34,7 +36,9 @@ export function promptDomUpdate(prev, next) {
   }
   if (label && label !== prevLabel) {
     patch.textContent = label;
-    patch.ariaLabel = label;
+    patch.ariaLabel = aria;
+  } else if (aria && aria !== prevAria) {
+    patch.ariaLabel = aria;
   }
   return patch;
 }
@@ -568,14 +572,16 @@ export function createCasinoController(opts) {
 
   let promptState = {
     visible: promptBtn ? !promptBtn.hidden : false,
-    label: promptBtn ? String(promptBtn.textContent || '') : ''
+    label: promptBtn ? String(promptBtn.textContent || '') : '',
+    ariaLabel: promptBtn ? String(promptBtn.getAttribute('aria-label') || '') : ''
   };
 
-  function setPromptVisible(visible, label) {
+  function setPromptVisible(visible, label, ariaLabel) {
     if (!promptBtn) return;
     const next = {
       visible: !!visible,
-      label: label ? String(label) : promptState.label
+      label: label ? String(label) : promptState.label,
+      ariaLabel: ariaLabel != null ? String(ariaLabel) : (label ? String(label) : promptState.ariaLabel)
     };
     const patch = promptDomUpdate(promptState, next);
     if (Object.keys(patch).length === 0) return;

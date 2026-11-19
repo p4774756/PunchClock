@@ -30,6 +30,10 @@ export function applyOutdoorInteractZone(zone, actions) {
     if (typeof actions.enterTcm === 'function') actions.enterTcm();
     return true;
   }
+  if (zone.action === 'npcTalk') {
+    if (typeof actions.startNpcTalk === 'function') actions.startNpcTalk();
+    return true;
+  }
   if (typeof actions.isClosedHall === 'function' && actions.isClosedHall(zone.action)) {
     actions.showInteriorClosed();
     return true;
@@ -87,7 +91,12 @@ export function buildOutdoorInteractActions(ctx) {
     isClosedHall: (action) => ctx.isClosedHall(action),
     showInteriorClosed: () => ctx.showInteriorClosed(),
     openCasino: () => ctx.casino && ctx.casino.openLobby(),
-    enterTcm: () => ctx.enterTcm && ctx.enterTcm()
+    enterTcm: () => ctx.enterTcm && ctx.enterTcm(),
+    startNpcTalk: () => {
+      if (typeof ctx.startNpcTalk === 'function') return ctx.startNpcTalk();
+      if (typeof ctx.onNpcTalkInteract === 'function') return ctx.onNpcTalkInteract();
+      return false;
+    }
   };
 }
 
@@ -290,9 +299,29 @@ export function handleExploreKeydown(ctx) {
       }
       return true;
     }
+    if (zone && zone.action === 'npcTalk') {
+      const handledTalk = applyOutdoorInteractZone(zone, buildOutdoorInteractActions(ctx));
+      if (handledTalk) return true;
+    }
+    if (!zone && typeof ctx.onNpcTalkInteract === 'function' && ctx.onNpcTalkInteract()) {
+      event.preventDefault();
+      return true;
+    }
     const handled = applyOutdoorInteractZone(zone, buildOutdoorInteractActions(ctx));
     if (!handled && ctx.casino) ctx.casino.openLobby();
     return true;
+  }
+
+  if (ctx.npcTalk && ctx.npcTalk.isOpen && ctx.npcTalk.isOpen()) {
+    const key = event.key || '';
+    const code = event.code || '';
+    if (key === ' ' || code === 'Space' || key === 'Enter' || code === 'Enter') {
+      if (!isTypingTarget(event.target) && focusKind(event.target) !== 'control') {
+        event.preventDefault();
+        ctx.npcTalk.advance();
+        return true;
+      }
+    }
   }
 
   const doc = ctx.document || (typeof document !== 'undefined' ? document : null);
@@ -340,6 +369,10 @@ export function handleExploreKeydown(ctx) {
   }
 
   if (event.key !== 'Escape') return false;
+  if (ctx.npcTalk && ctx.npcTalk.isOpen && ctx.npcTalk.isOpen()) {
+    ctx.npcTalk.close();
+    return true;
+  }
   if (ctx.islandChat && ctx.islandChat.isOpen()) {
     ctx.islandChat.close();
     return true;
