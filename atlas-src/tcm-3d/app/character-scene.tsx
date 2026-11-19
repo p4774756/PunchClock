@@ -28,7 +28,6 @@ import {
   uploadOneTexture,
   warmSchoolCompileFlush,
   warmSchoolOutlineCompileFlush,
-  warmDrawBehindCard,
 } from './shader-warm';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
 import {animeOutfit,ANIME_OUTFITS,type AnimeOutfit,type OutfitId} from './outfits';
@@ -704,6 +703,78 @@ const snapshotMeshAssets=(root:T.Object3D)=>{
  return snap;
 };
 
+const textureRef=(tex:T.Texture|null|undefined)=>{
+ if(!tex)return null;
+ const img=tex.image as {src?:string;uuid?:string}|undefined;
+ return img?.src??tex.name??tex.uuid;
+};
+
+const materialCompareFields=(m:T.Material)=>{
+ const x=m as MToonLike;
+ const u=(m as {uniforms?:MToonUniforms}).uniforms;
+ const ms=m as T.MeshStandardMaterial;
+ return {
+  type:m.type,
+  visible:m.visible,
+  transparent:m.transparent,
+  opacity:m.opacity,
+  depthWrite:m.depthWrite,
+  side:m.side,
+  color:ms.color?.getHexString?.()??null,
+  shadeColorFactor:(()=>{const v=u?.shadeColorFactor?.value??x.shadeColorFactor;if(v instanceof T.Color)return v.getHexString();return v??null;})(),
+  shadingShiftFactor:u?.shadingShiftFactor?.value??x.shadingShiftFactor??null,
+  shadingToonyFactor:u?.shadingToonyFactor?.value??x.shadingToonyFactor??null,
+  giEqualizationFactor:u?.giEqualizationFactor?.value??x.giEqualizationFactor??null,
+  matcapFactor:(()=>{const v=u?.matcapFactor?.value??x.matcapFactor;if(v instanceof T.Color)return v.getHexString();return v??null;})(),
+  emissive:ms.emissive?.getHexString?.()??null,
+  map:textureRef(ms.map??(u?.map?.value as T.Texture|undefined)),
+  shadeMultiplyTexture:textureRef(u?.shadeMultiplyTexture?.value as T.Texture|undefined),
+  matcapTexture:textureRef(u?.matcapTexture?.value as T.Texture|undefined),
+  gradientMap:textureRef((m as {gradientMap?:T.Texture}).gradientMap),
+ };
+};
+
+const namedMeshes=(root:T.Object3D)=>{
+ const map=new Map<string,T.Mesh|T.SkinnedMesh>();
+ root.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const key=obj.name||`mesh-${map.size}`;
+  if(!map.has(key))map.set(key,obj);
+ });
+ return map;
+};
+
+const comparePracticeToMainPath=(
+ built:T.Object3D,
+ clean:T.Object3D,
+ outfit:AnimeOutfit,
+ gradient:T.DataTexture,
+)=>{
+ const ref=cloneSkinnedObject(clean);
+ isolatePracticeRig(ref);
+ finishCharacterLook(ref,outfit,gradient);
+ const mismatches:string[]=[];
+ const refByName=namedMeshes(ref);
+ built.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const key=obj.name||'';
+  const refMesh=refByName.get(key);
+  if(!refMesh){mismatches.push(`missing ref mesh ${key}`);return;}
+  const bm=Array.isArray(obj.material)?obj.material:[obj.material];
+  const rm=Array.isArray(refMesh.material)?refMesh.material:[refMesh.material];
+  if(bm.length!==rm.length){mismatches.push(`${key}: material count ${bm.length} vs ${rm.length}`);return;}
+  for(let i=0;i<bm.length;i++){
+   const a=materialCompareFields(bm[i]);
+   const b=materialCompareFields(rm[i]);
+   for(const k of Object.keys(a) as (keyof typeof a)[]){
+    if(a[k]!==b[k])mismatches.push(`${key}[${i}].${k}: ${String(a[k])} vs ${String(b[k])}`);
+   }
+  }
+ });
+ disposeCharacterRoot(ref);
+ return mismatches;
+};
+
 const assertUniformOutfitUntouched=(before:Map<string,MeshAssetSnapshot>,school:T.Object3D)=>{
  const err:string[]=[];
  school.traverse(obj=>{
@@ -975,21 +1046,44 @@ const listOutfitMeshes=(root:T.Object3D)=>{
  return list;
 };
 
-/** Same material order as main finishCharacterLook; yield around the sync block only. */
+/** Mirrors finishCharacterLook order: outfit meshes → skin/bun → cel on all meshes. */
 const buildPracticeOutfitIncremental=async(
  root:T.Object3D,
  outfit:AnimeOutfit,
  gradient:T.DataTexture,
  onSlice?:(index:number,total:number)=>void,
 )=>{
+ const meshes=listOutfitMeshes(root);
+ const total=Math.max(meshes.length*2+3,1);
+ let step=0;
+ const tick=()=>{step++;onSlice?.(step,total);};
+ const budget=createSliceBudget();
+ for(let i=0;i<meshes.length;i++){
+  applyOutfitMaterialsToObject(meshes[i],outfit);
+  if(sliceBudgetElapsed(budget)>=SLICE_BUDGET_MS||i===meshes.length-1){
+   tick();
+   await yieldForSliceBudget(budget,true);
+   resetSliceBudget(budget);
+  }
+ }
+ if(outfit.practiceBody){
+  const painted=await paintPracticeBodySkinIncremental(root);
+  if(painted)root.userData.practiceBodySkinMap=painted;
+  restyleHairBun(root);
+  tick();
+  await yieldForSliceBudget(budget,true);
+  resetSliceBudget(budget);
+ }
+ const celMeshes=listOutfitMeshes(root);
+ for(let i=0;i<celMeshes.length;i++){
+  applyCelShadingToObject(celMeshes[i],gradient);
+  if(sliceBudgetElapsed(budget)>=SLICE_BUDGET_MS||i===celMeshes.length-1){
+   tick();
+   await yieldForSliceBudget(budget,true);
+   resetSliceBudget(budget);
+  }
+ }
  await yieldOnce();
- const t0=performance.now();
- finishCharacterLook(root,outfit,gradient);
- const ms=Math.round(performance.now()-t0);
- if(ms>=SLICE_BUDGET_MS)console.debug('atlas:phase','build-practice-sync',ms);
- onSlice?.(1,1);
- await yieldOnce();
- await yieldToMain();
 };
 
 const finishCharacterLook=(root:T.Object3D,outfit:AnimeOutfit,gradient:T.DataTexture)=>{
@@ -1080,6 +1174,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   let schoolModel:T.Object3D|null=null;
   let practiceModel:T.Object3D|null=null;
   let practiceShell:T.Object3D|null=null;
+  let practiceCleanTemplate:T.Object3D|null=null;
   let practiceBuilt=false;
   let practiceWarm=false;
   let cacheAnimeOutfitsFlag=false;
@@ -1144,14 +1239,17 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(performance.getEntriesByName(OUTFIT_SWITCH_START,'mark').length)outfitSwitchMeasurePending=true;
   };
 
-  const buildPracticeOutfit=()=>{
+  const finalizePracticeShell=()=>{
    if(practiceBuilt||!practiceShell||disposed)return;
    performance.mark('practice-outfit-build-start');
-   practiceShell.updateMatrixWorld(true);
-   finishCharacterLook(practiceShell,practiceOutfit,gradient);
    const painted=practiceShell.userData.practiceBodySkinMap as T.Texture|undefined;
    if(schoolModel&&painted)assertPracticeBodySkinMaps(practiceShell,schoolModel,painted);
    if(schoolModel&&uniformAssetSnap)assertUniformOutfitUntouched(uniformAssetSnap,schoolModel);
+   if(import.meta.env.DEV&&practiceCleanTemplate&&practiceShell){
+    const mismatches=comparePracticeToMainPath(practiceShell,practiceCleanTemplate,practiceOutfit,gradient);
+    if(mismatches.length)console.warn('atlas:practice-material-compare',mismatches);
+    else console.info('atlas:practice-material-compare','ok');
+   }
    performance.mark('practice-outfit-build-end');
    try{performance.measure('practice-outfit-build','practice-outfit-build-start','practice-outfit-build-end');}catch{/* duplicate measure */}
    practiceModel=practiceShell;
@@ -1159,7 +1257,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    practiceShell.visible=false;
    practiceShell.updateMatrixWorld(true);
    practiceBuilt=true;
-   onPracticeOutfitPreparing?.(false);
+   if(!pendingOutfitId)onPracticeOutfitPreparing?.(false);
    dirty=true;
   };
 
@@ -1207,6 +1305,17 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const buildPostWarmQueue=()=>{
    postWarmQueue=[];
    if(cacheAnimeOutfitsFlag){
+    postWarmQueue.push({name:'build-practice',practiceRelated:true,run:async()=>{
+     await yieldOnce();
+     if(disposed||!practiceShell||practiceBuilt)return;
+     const t0=performance.now();
+     await buildPracticeOutfitIncremental(practiceShell,practiceOutfit,gradient);
+     await yieldOnce();
+     if(disposed)return;
+     finalizePracticeShell();
+     practiceWarm=true;
+     logPhase('build-practice',t0);
+    }});
     postWarmQueue.push({name:'attach-practice-warm',practiceRelated:true,run:async()=>{
      if(disposed||!practiceModel)return;
      const batch:typeof postWarmQueue=[];
@@ -1392,15 +1501,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const setOutfit=(id:OutfitId)=>{
    if(!schoolModel)return;
    if(id==='study-body'&&!practiceBuilt){
+    pendingOutfitId=id;
     onPracticeOutfitPreparing?.(true);
-    requestAnimationFrame(()=>{
-     requestAnimationFrame(()=>{
-      if(disposed||practiceBuilt||!practiceShell)return;
-      buildPracticeOutfit();
-      showOutfit(id);
-      if(ready)teaching.applyCachedAnchors();
-     });
-    });
+    prioritizePracticeWarm();
     return;
    }
    pendingOutfitId=null;
@@ -1511,11 +1614,13 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      if(cacheAnimeOutfits){
       await parseSlice('clone-practice-shell',()=>{
        practiceShell=cloneSkinnedObject(model);
+       if(import.meta.env.DEV)practiceCleanTemplate=cloneSkinnedObject(model);
       });
       await yieldToMain();
       if(disposed)return;
       await parseSlice('isolate-practice',()=>{
        if(practiceShell)isolatePracticeRig(practiceShell);
+       if(practiceCleanTemplate)isolatePracticeRig(practiceCleanTemplate);
       });
       await parseSlice('finish-school-look',()=>finishCharacterLook(model,schoolOutfit,gradient));
       uniformAssetSnap=snapshotMeshAssets(model);
@@ -1552,10 +1657,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      await prepareSchoolCardMaterials(schoolRoot,bumpMaterials);
      reportProgress(99,'materials','準備材質…');
      if(disposed)return;
-     characterRoot.visible=true;
-     await warmDrawBehindCard(renderer,scene,camera,[schoolRoot,characterRoot],()=>disposed,postWarmWarmedKeys);
-     if(disposed)return;
      showOutfit(outfitIdRef.current);
+     characterRoot.visible=true;
      teachingOverlayVisible=true;
      const launchSim=sim.current;
      if(launchSim.focus>0&&teaching.focus(launchSim,camera,controls,{force:true}))lastFocus=launchSim.focus;
@@ -1719,6 +1822,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    disposeCharacterRoot(schoolModel);
    disposeCharacterRoot(practiceModel);
    if(practiceShell&&!practiceBuilt)disposeCharacterRoot(practiceShell);
+   if(practiceCleanTemplate)disposeCharacterRoot(practiceCleanTemplate);
    scene.traverse(o=>{
     if(!(o instanceof T.Mesh))return;
     o.geometry.dispose();
