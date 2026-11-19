@@ -345,10 +345,11 @@ function boot() {
   const life = createIslandLife(THREE, {
     kit: kit,
     reduced: reduced,
-    forceRare: lifeRareParam
+    forceRare: lifeRareParam,
+    forceAll: lifeQs.get('forceAll') === '1',
+    lifeSpout: lifeQs.get('lifeSpout') === '1'
   });
   life.ready.then(() => {
-    window.__islandLifeReady = true;
     window.__islandLifeBox3 = {
       worldSize(kind) {
         const box = new THREE.Box3();
@@ -363,6 +364,39 @@ function boot() {
         box.getSize(s);
         return { x: +s.x.toFixed(2), y: +s.y.toFixed(2), z: +s.z.toFixed(2) };
       }
+    };
+    window.__islandLifeMeshTable = function () {
+      const rows = [];
+      const walkKind = new Map();
+      for (let i = 0; i < life.creatures.length; i++) {
+        const creature = life.creatures[i];
+        const kind = creature.userData && creature.userData.kind;
+        if (!kind) continue;
+        walkKind.set(creature, kind);
+        creature.traverse((child) => {
+          if (child === creature) return;
+          walkKind.set(child, kind);
+        });
+      }
+      life.group.traverse((child) => {
+        if (!child.isMesh) return;
+        const kind = (child.userData && child.userData.kind) || walkKind.get(child);
+        if (!kind) return;
+        const box = new THREE.Box3().setFromObject(child);
+        const sz = new THREE.Vector3();
+        box.getSize(sz);
+        const mat = child.material;
+        const col = mat && mat.color;
+        rows.push({
+          kind: kind,
+          mesh: child.name || '(mesh)',
+          color: col && col.getHexString ? '#' + col.getHexString() : '#?',
+          x: +sz.x.toFixed(2),
+          y: +sz.y.toFixed(2),
+          z: +sz.z.toFixed(2)
+        });
+      });
+      return rows;
     };
     if (lifeQs.get('lifeNight') === '1') {
       dayNight.setTarget(1);
@@ -396,6 +430,10 @@ function boot() {
         camera.updateProjectionMatrix();
       }
     }
+    if (lifeQs.get('lifeSpout') === '1') {
+      life.update(0.016, 0.55);
+    }
+    window.__islandLifeReady = true;
   });
   scene.add(life.group);
   if (worldResult && worldResult.water) {

@@ -18,6 +18,7 @@ import bpy
 from mathutils import Euler, Vector
 
 from creature_common import (
+    append_bmesh,
     clear_all,
     creature_solid_material,
     prim_box,
@@ -36,19 +37,22 @@ COL = {
     'fish_yellow': 0xF5C542,
     'fish_back': 0xD89A1E,
     'fish_eye': 0x1A2830,
-    'gull_white': 0xF8F8FF,
-    'gull_wing': 0xA0A8C0,
-    'gull_beak': 0xF8B038,
+    'gull_white': 0xF4F6F8,
+    'gull_wing': 0x9AA6B2,
+    'gull_tip': 0x2A2A2A,
+    'gull_beak': 0xF2B630,
     'whale_back': 0x3E6E9E,
     'whale_belly': 0xDCE6EC,
     'whale_fin': 0x3A6490,
     'spray': 0xF2FAFF,
     'octo': 0xF08A8A,
     'octo_sucker': 0xF8C8C8,
-    'wen_blue': 0x48B0F0,
-    'wen_white': 0xF0F8FF,
-    'wen_wing': 0x68A8E8,
-    'xuan_shell': 0x2F5D3A,
+    'octo_eye_w': 0xF8F8FF,
+    'wen_blue': 0x3A8FD8,
+    'wen_blue_dk': 0x2A6EB8,
+    'wen_white': 0xE8F0F8,
+    'wen_wing': 0xBFE3FF,
+    'xuan_shell': 0x3C7048,
     'xuan_gold': 0xC9A23A,
     'xuan_body': 0x7C8F6A,
     'snake': 0x3FAF7A,
@@ -159,6 +163,18 @@ def _normalize_longest(target=1.0):
         bpy.ops.object.select_all(action='SELECT')
         bpy.ops.object.transform_apply(scale=True)
         bpy.ops.object.select_all(action='DESELECT')
+
+
+def _orient_long_axis_x():
+    """最長軸對齊 Blender X（export_yup 後為 glTF 左右翼展／體長）。"""
+    mn, mx = _bounds_meshes()
+    dims = mx - mn
+    ax = sorted([('x', dims.x), ('y', dims.y), ('z', dims.z)], key=lambda t: t[1], reverse=True)
+    long_axis = ax[0][0]
+    if long_axis == 'y':
+        _rotate_scene_euler((0.0, math.pi / 2.0, 0.0))
+    elif long_axis == 'z':
+        _rotate_scene_euler((0.0, 0.0, math.pi / 2.0))
 
 
 def _orient_long_axis_z():
@@ -303,6 +319,51 @@ def _bake_meshes_identity(root):
     root.scale = (1.0, 1.0, 1.0)
 
 
+def _tube_along_points(bm, points, radius, segs=7):
+    """圓柱段串成管狀路徑（Blender 座標）。"""
+    for i in range(len(points) - 1):
+        p0 = Vector(points[i])
+        p1 = Vector(points[i + 1])
+        diff = p1 - p0
+        length = diff.length
+        if length < 1e-5:
+            continue
+        mid = (p0 + p1) * 0.5
+        sub = bmesh.new()
+        bmesh.ops.create_cone(
+            sub, cap_ends=True, cap_tris=False, segments=segs,
+            radius1=radius, radius2=radius * 0.97, depth=length,
+        )
+        axis = Vector((0.0, 0.0, 1.0))
+        quat = axis.rotation_difference(diff.normalized())
+        bmesh.ops.rotate(sub, verts=sub.verts, cent=(0.0, 0.0, 0.0),
+                         matrix=quat.to_matrix().to_4x4())
+        bmesh.ops.translate(sub, vec=mid, verts=sub.verts)
+        append_bmesh(bm, sub)
+        sub.free()
+
+
+def _snake_ring_points(turns=1.55, n=28, rad=0.46, head_lift=0.72):
+    pts = []
+    for i in range(n + 1):
+        t = (i / n) * turns * 2.0 * math.pi
+        x = math.cos(t) * rad
+        y = math.sin(t) * rad * 0.82
+        z = 0.06 + head_lift * max(0.0, math.sin(t * 0.65 + 0.9)) ** 1.4
+        pts.append((x, y, z))
+    return pts
+
+
+def _gold_hex_strips(bm, cz=0.26, rad=0.38):
+    for ring in range(4):
+        for i in range(6):
+            ang = (i / 6.0) * math.pi * 2.0 + ring * 0.18
+            r = rad * (0.42 + ring * 0.14)
+            px = math.cos(ang) * r
+            py = math.sin(ang) * r * 0.78
+            prim_ellipsoid(bm, (px, py, cz + ring * 0.035), (0.08, 0.032, 0.018), 4, 3)
+
+
 def export_life(out_path, root):
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or '.', exist_ok=True)
     _bake_meshes_identity(root)
@@ -366,30 +427,39 @@ def build_fish():
 
 def build_seagull():
     clear_all()
-    _import_glb(os.path.join(SRC, 'seagull-flying-polygoogle.glb'))
-    _drop_helpers()
-    _flatten_bake_meshes()
+    _solid_obj(
+        'gull_body',
+        COL['gull_white'],
+        lambda bm: (
+            prim_ellipsoid(bm, (0.0, 0.0, 0.0), (0.1, 0.07, 0.22), 7, 5),
+            prim_ellipsoid(bm, (-0.05, 0.0, -0.12), (0.07, 0.06, 0.08), 5, 4),
+        ),
+    )
+    _solid_obj(
+        'gull_wing',
+        COL['gull_wing'],
+        lambda bm: (
+            prim_ellipsoid(bm, (0.46, 0.0, 0.02), (0.42, 0.025, 0.1), 6, 4),
+            prim_ellipsoid(bm, (-0.46, 0.0, 0.02), (0.42, 0.025, 0.1), 6, 4),
+        ),
+    )
+    _solid_obj(
+        'gull_tip',
+        COL['gull_tip'],
+        lambda bm: (
+            prim_ellipsoid(bm, (0.82, 0.0, 0.03), (0.06, 0.012, 0.05), 4, 3),
+            prim_ellipsoid(bm, (-0.82, 0.0, 0.03), (0.06, 0.012, 0.05), 4, 3),
+        ),
+    )
+    _solid_obj(
+        'gull_beak',
+        COL['gull_beak'],
+        lambda bm: prim_cone(bm, (0.36, 0.0, 0.02), 0.018, 0.09, 4, rot=(0, 0, -math.pi / 2)),
+    )
+    _orient_long_axis_x()
     _center_at_origin()
     root = _make_export_root()
-    for ob in list(_mesh_objs()):
-        if ob.parent != root:
-            ob.parent = root
-    for src in [c for c in root.children if c.type == 'MESH']:
-        _split_src_mesh(
-            src,
-            [
-                ('gull_beak', COL['gull_beak'], 1.0, lambda f: _face_center(f).x > 0.2 and _face_center(f).z > -0.04),
-                ('gull_wing', COL['gull_wing'], 1.0, lambda f: abs(_face_center(f).z) > 0.08 and abs(_face_center(f).x) < 0.18),
-                ('gull_body', COL['gull_white'], 1.0, lambda f: True),
-            ],
-            root,
-        )
     _normalize_longest(1.0)
-    _decimate_scene(400)
-    mn, mx = _bounds_meshes()
-    span = max(mx.x - mn.x, mx.y - mn.y, mx.z - mn.z)
-    if span > 1.05 or span < 0.95:
-        _normalize_longest(1.0)
     export_life(os.path.join(OUT_DIR, 'seagull.glb'), root)
 
 
@@ -408,8 +478,9 @@ def build_whale():
         _split_src_mesh(
             src,
             [
-                ('whale_belly', COL['whale_belly'], 1.0, lambda f: f.normal.y < -0.15 or _face_center(f).y < -0.04),
-                ('whale_fin', COL['whale_fin'], 1.0, lambda f: abs(_face_center(f).x) > 0.25 and abs(_face_center(f).y) < 0.08),
+                ('whale_fin', COL['whale_fin'], 1.0,
+                 lambda f: abs(_face_center(f).x) > 0.22 and abs(_face_center(f).y) < 0.14),
+                ('whale_belly', COL['whale_belly'], 1.0, lambda f: f.normal.y < -0.15),
                 ('whale_back', COL['whale_back'], 1.0, lambda f: True),
             ],
             root,
@@ -419,14 +490,15 @@ def build_whale():
         'whale_spray',
         COL['spray'],
         lambda bm: (
-            prim_cylinder(bm, (0.42, 0.0, 0.22), 0.11, 0.55, 8),
-            prim_cylinder(bm, (0.42, 0.0, 0.58), 0.07, 1.2, 7),
-            prim_ellipsoid(bm, (0.42, 0.0, 1.15), (0.22, 0.2, 0.18), 7, 5),
-            prim_sphere(bm, (0.34, 0.08, 1.22), 0.08, 5, 4),
-            prim_sphere(bm, (0.5, -0.05, 1.18), 0.07, 5, 4),
+            prim_cylinder(bm, (0.42, 0.0, 0.18), 0.13, 0.65, 8),
+            prim_cylinder(bm, (0.42, 0.0, 0.65), 0.09, 1.45, 8),
+            prim_ellipsoid(bm, (0.42, 0.0, 1.35), (0.26, 0.24, 0.22), 8, 6),
+            prim_sphere(bm, (0.32, 0.1, 1.45), 0.11, 6, 5),
+            prim_sphere(bm, (0.52, -0.06, 1.4), 0.1, 6, 5),
+            prim_sphere(bm, (0.42, 0.02, 1.52), 0.08, 5, 4),
         ),
         parent=spray_parent,
-        alpha=0.55,
+        alpha=0.58,
     )
     _normalize_longest(1.0)
     _decimate_scene(620)
@@ -435,36 +507,66 @@ def build_whale():
 
 def build_octopus():
     clear_all()
-    _import_glb(os.path.join(SRC, 'octopus-polygoogle.glb'))
-    _flatten_bake_meshes()
+    _solid_obj(
+        'octo_body',
+        COL['octo'],
+        lambda bm: prim_ellipsoid(bm, (0.0, 0.22, 0.0), (0.24, 0.22, 0.21), 8, 6),
+    )
+    arms_bm = bmesh.new()
+
+    def _arm(ang):
+        cx = math.cos(ang) * 0.06
+        cz = math.sin(ang) * 0.06
+        px = cx + math.cos(ang) * 0.42
+        pz = cz + math.sin(ang) * 0.42
+        _tube_along_points(
+            arms_bm,
+            [(cx, 0.06, cz), (cx + math.cos(ang) * 0.18, -0.02, cz + math.sin(ang) * 0.18),
+             (px, 0.02, pz), (px + math.cos(ang) * 0.08, 0.12, pz + math.sin(ang) * 0.08)],
+            0.042,
+            6,
+        )
+
+    for i in range(8):
+        _arm(i * math.pi / 4.0)
+    me = bpy.data.meshes.new('octo_arms')
+    arms_bm.to_mesh(me)
+    arms_bm.free()
+    arms_ob = bpy.data.objects.new('octo_arms', me)
+    arms_ob.data.materials.append(creature_solid_material(COL['octo'], 'octo_arms_mat'))
+    bpy.context.scene.collection.objects.link(arms_ob)
+
+    suckers_bm = bmesh.new()
+    for i in range(8):
+        ang = i * math.pi / 4.0
+        for j in range(3):
+            r = 0.12 + j * 0.11
+            px = math.cos(ang) * r
+            pz = math.sin(ang) * r
+            prim_sphere(suckers_bm, (px, -0.04, pz), 0.018, 4, 3)
+    me2 = bpy.data.meshes.new('octo_sucker')
+    suckers_bm.to_mesh(me2)
+    suckers_bm.free()
+    suck_ob = bpy.data.objects.new('octo_sucker', me2)
+    suck_ob.data.materials.append(creature_solid_material(COL['octo_sucker'], 'octo_sucker_mat'))
+    bpy.context.scene.collection.objects.link(suck_ob)
+
+    for side, tag in ((-1, 'l'), (1, 'r')):
+        _solid_obj(
+            f'octo_eye_{tag}',
+            COL['octo_eye_w'],
+            lambda bm, side=side: prim_ellipsoid(bm, (0.1 * side, 0.28, 0.18), (0.075, 0.08, 0.075), 6, 5),
+        )
+        _solid_obj(
+            f'octo_pupil_{tag}',
+            COL['black'],
+            lambda bm, side=side: prim_sphere(bm, (0.1 * side, 0.28, 0.24), 0.035, 5, 4),
+        )
+
     _center_at_origin()
     root = _make_export_root()
-    for ob in list(_mesh_objs()):
-        if ob.parent != root:
-            ob.parent = root
-    for src in [c for c in root.children if c.type == 'MESH']:
-        _split_src_mesh(
-            src,
-            [
-                ('octo_sucker', COL['octo_sucker'], 1.0, lambda f: _face_center(f).z < -0.1 and (_face_center(f).x ** 2 + _face_center(f).y ** 2) > 0.04),
-                ('octo_body', COL['octo'], 1.0, lambda f: True),
-            ],
-            root,
-        )
-    _solid_obj(
-        'octo_eye_l',
-        COL['black'],
-        lambda bm: prim_ellipsoid(bm, (-0.09, 0.08, 0.2), (0.05, 0.06, 0.05), 5, 4),
-        parent=root,
-    )
-    _solid_obj(
-        'octo_eye_r',
-        COL['black'],
-        lambda bm: prim_ellipsoid(bm, (0.09, 0.08, 0.2), (0.05, 0.06, 0.05), 5, 4),
-        parent=root,
-    )
     _normalize_longest(1.0)
-    _decimate_scene(720)
+    _decimate_scene(680)
     export_life(os.path.join(OUT_DIR, 'octopus.glb'), root)
 
 
@@ -472,28 +574,35 @@ def build_wenyao():
     clear_all()
     _solid_obj(
         'wen_body',
-        COL['wen_blue'],
-        lambda bm: (
-            prim_ellipsoid(bm, (0.02, 0.0, 0.0), (0.22, 0.09, 0.08), 6, 5),
-            prim_cone(bm, (-0.26, 0.0, 0.0), 0.05, 0.11, 4, rot=(0, 0, math.pi)),
-        ),
+        COL['wen_blue_dk'],
+        lambda bm: prim_ellipsoid(bm, (0.0, 0.0, 0.0), (0.09, 0.36, 0.038), 7, 5),
+    )
+    _solid_obj(
+        'wen_belly',
+        COL['wen_white'],
+        lambda bm: prim_ellipsoid(bm, (0.02, 0.05, -0.015), (0.08, 0.26, 0.04), 6, 4),
     )
     _solid_obj(
         'wen_wing_l',
         COL['wen_wing'],
-        lambda bm: prim_ellipsoid(bm, (0.04, 0.16, 0.02), (0.28, 0.07, 0.05), 5, 4),
+        lambda bm: prim_ellipsoid(bm, (0.45, 0.02, 0.0), (0.34, 0.08, 0.022), 6, 4),
+        alpha=0.85,
     )
     _solid_obj(
         'wen_wing_r',
         COL['wen_wing'],
-        lambda bm: prim_ellipsoid(bm, (0.04, -0.16, 0.02), (0.28, 0.07, 0.05), 5, 4),
+        lambda bm: prim_ellipsoid(bm, (-0.45, 0.02, 0.0), (0.34, 0.08, 0.022), 6, 4),
+        alpha=0.85,
     )
     _solid_obj(
         'wen_tail',
         COL['wen_white'],
-        lambda bm: prim_box(bm, (0.09, 0.02, 0.03), (0.02, 0.08, 0.0)),
+        lambda bm: (
+            prim_ellipsoid(bm, (-0.36, 0.07, 0.0), (0.05, 0.09, 0.04), 4, 3),
+            prim_ellipsoid(bm, (-0.36, -0.07, 0.0), (0.05, 0.09, 0.04), 4, 3),
+        ),
     )
-    _orient_long_axis_z()
+    _orient_long_axis_x()
     _center_at_origin()
     root = _make_export_root()
     _normalize_longest(1.0)
@@ -521,56 +630,44 @@ def build_xuanwu():
         _split_src_mesh(
             src,
             [
-                ('xuan_shell', COL['xuan_shell'], 1.0, lambda f: f.normal.z > 0.25),
+                ('xuan_shell', COL['xuan_shell'], 1.0, lambda f: f.normal.z > 0.12),
                 ('xuan_body', COL['xuan_body'], 1.0, lambda f: True),
             ],
             root,
         )
+    mn, mx = _bounds_meshes()
+    span = max(mx.x - mn.x, mx.y - mn.y, mx.z - mn.z)
+    if span > 1e-4:
+        factor = 0.92 / span
+        for ob in [c for c in root.children if c.type == 'MESH']:
+            ob.scale *= factor
+            bpy.context.view_layer.objects.active = ob
+            ob.select_set(True)
+            bpy.ops.object.transform_apply(scale=True)
+            ob.select_set(False)
+    _center_at_origin()
+    _normalize_longest(1.0)
+    _decimate_scene(950)
     _solid_obj(
         'xuan_gold',
         COL['xuan_gold'],
-        lambda bm: _gold_hex_bumps(bm, 0.0, 0.0, 0.22, 0.42),
+        lambda bm: _gold_hex_strips(bm, cz=0.24, rad=0.38),
         parent=root,
     )
-    before = {ob.name for ob in _mesh_objs()}
-    _import_glb(os.path.join(SRC, 'snake-long-polygoogle.glb'))
-    snake_meshes = [ob for ob in _mesh_objs() if ob.name not in before]
-    bpy.ops.object.select_all(action='DESELECT')
-    for ob in snake_meshes:
-        ob.select_set(True)
-    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-    for ob in list(bpy.data.objects):
-        if ob.type == 'ARMATURE' and ob.name not in before:
-            bpy.data.objects.remove(ob, do_unlink=True)
-    snake_meshes = [ob for ob in _mesh_objs() if ob.name not in before]
-    for ob in snake_meshes:
-        bpy.context.view_layer.objects.active = ob
-        ob.select_set(True)
-        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-        ob.select_set(False)
-    sn_mn, sn_mx = _bounds_meshes(snake_meshes)
-    sn_span = max(sn_mx.x - sn_mn.x, sn_mx.y - sn_mn.y, sn_mx.z - sn_mn.z)
-    if sn_span > 1e-5:
-        _scale_meshes(snake_meshes, 0.82 / sn_span)
-    bpy.ops.object.select_all(action='DESELECT')
-    for ob in snake_meshes:
-        ob.location += Vector((0.02, 0.0, 0.1))
-        ob.rotation_euler = Euler((0.35, 1.15, 0.95))
-        bpy.context.view_layer.objects.active = ob
-        ob.select_set(True)
-        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-        ob.select_set(False)
-        ob.parent = root
-        _split_src_mesh(
-            ob,
-            [
-                ('snake_belly', COL['snake_belly'], 1.0, lambda f: f.normal.y < -0.25),
-                ('snake', COL['snake'], 1.0, lambda f: True),
-            ],
-            root,
-        )
-    _normalize_longest(1.0)
-    _decimate_scene(1150)
+    snake_pts = _snake_ring_points(rad=0.41)
+    _solid_obj(
+        'snake',
+        COL['snake'],
+        lambda bm: _tube_along_points(bm, snake_pts, 0.068, 8),
+        parent=root,
+    )
+    belly_pts = [(p[0], p[1], p[2] - 0.038) for p in snake_pts]
+    _solid_obj(
+        'snake_belly',
+        COL['snake_belly'],
+        lambda bm: _tube_along_points(bm, belly_pts, 0.038, 6),
+        parent=root,
+    )
     export_life(os.path.join(OUT_DIR, 'xuanwu.glb'), root)
 
 
@@ -589,7 +686,7 @@ def build_kunpeng():
         _split_src_mesh(
             src,
             [
-                ('kun_belly', COL['kun_white'], 1.0, lambda f: f.normal.y < -0.1 or _face_center(f).y < 0.0),
+                ('kun_belly', COL['kun_white'], 1.0, lambda f: f.normal.y < -0.12),
                 ('kun_back', COL['kun_blue'], 1.0, lambda f: True),
             ],
             root,
@@ -597,37 +694,60 @@ def build_kunpeng():
     _solid_obj(
         'kun_fin_l',
         COL['kun_fin'],
-        lambda bm: prim_ellipsoid(bm, (0.18, 0.16, 0.1), (0.16, 0.05, 0.12), 5, 4),
+        lambda bm: prim_ellipsoid(bm, (0.14, 0.22, 0.08), (0.2, 0.08, 0.22), 6, 5),
         parent=root,
     )
     _solid_obj(
         'kun_fin_r',
         COL['kun_fin'],
-        lambda bm: prim_ellipsoid(bm, (0.18, -0.16, 0.1), (0.16, 0.05, 0.12), 5, 4),
+        lambda bm: prim_ellipsoid(bm, (0.14, -0.22, 0.08), (0.2, 0.08, 0.22), 6, 5),
         parent=root,
     )
     _solid_obj(
         'kun_tail',
         COL['kun_blue'],
-        lambda bm: prim_ellipsoid(bm, (-0.42, 0.0, 0.02), (0.14, 0.18, 0.06), 5, 4),
+        lambda bm: prim_ellipsoid(bm, (-0.44, 0.0, 0.0), (0.16, 0.28, 0.1), 6, 5),
         parent=root,
     )
     _solid_obj(
         'kun_clouds',
         COL['kun_cloud'],
         lambda bm: (
-            prim_ellipsoid(bm, (-0.55, 0.12, 0.16), (0.28, 0.2, 0.22), 6, 5),
-            prim_sphere(bm, (-0.82, 0.04, 0.12), 0.18, 5, 4),
-            prim_sphere(bm, (-1.05, 0.1, 0.14), 0.2, 5, 4),
-            prim_sphere(bm, (-1.28, -0.02, 0.11), 0.17, 5, 4),
-            prim_sphere(bm, (0.15, 0.08, 0.18), 0.16, 5, 4),
-            prim_sphere(bm, (0.35, -0.1, 0.15), 0.14, 5, 4),
+            prim_sphere(bm, (-0.38, 0.18, -0.08), 0.2, 6, 5),
+            prim_sphere(bm, (-0.62, 0.08, -0.06), 0.22, 6, 5),
+            prim_sphere(bm, (-0.88, 0.14, -0.04), 0.24, 6, 5),
+            prim_sphere(bm, (-1.14, 0.02, -0.02), 0.21, 6, 5),
+            prim_sphere(bm, (-1.38, 0.1, 0.0), 0.2, 6, 5),
+            prim_sphere(bm, (0.12, 0.06, -0.12), 0.18, 5, 4),
+            prim_sphere(bm, (-1.55, -0.06, 0.02), 0.17, 5, 4),
         ),
         parent=root,
         alpha=0.62,
     )
     _normalize_longest(1.0)
-    _decimate_scene(680)
+    for name, sc in (
+        ('kun_fin_l', (2.8, 2.2, 2.6)),
+        ('kun_fin_r', (2.8, 2.2, 2.6)),
+        ('kun_tail', (2.4, 2.2, 2.5)),
+    ):
+        ob = bpy.data.objects.get(name)
+        if not ob:
+            continue
+        ob.scale = sc
+        bpy.context.view_layer.objects.active = ob
+        ob.select_set(True)
+        bpy.ops.object.transform_apply(scale=True)
+        ob.select_set(False)
+    clouds = bpy.data.objects.get('kun_clouds')
+    if clouds:
+        clouds.scale = (1.95, 1.85, 1.75)
+        bpy.context.view_layer.objects.active = clouds
+        clouds.select_set(True)
+        bpy.ops.object.transform_apply(scale=True)
+        clouds.select_set(False)
+    _center_at_origin()
+    _normalize_longest(1.0)
+    _decimate_scene(780)
     export_life(os.path.join(OUT_DIR, 'kunpeng.glb'), root)
 
 

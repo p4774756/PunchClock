@@ -352,6 +352,54 @@ function glbNodeBounds(gltf, binChunk) {
   return { sx, sy, sz, minY, maxY, tris };
 }
 
+function glbMeshNodeBounds(gltf, binChunk, nodeName) {
+  const nodes = gltf.nodes || [];
+  const meshes = gltf.meshes || [];
+  const accessors = gltf.accessors || [];
+  const bufferViews = gltf.bufferViews || [];
+  const world = new Array(nodes.length);
+  const visited = new Set();
+
+  function dfs(i, parent) {
+    if (visited.has(i)) return;
+    visited.add(i);
+    const local = nodeLocalMatrix(nodes[i]);
+    world[i] = parent ? mat4Multiply(parent, local) : local;
+    for (const c of nodes[i].children || []) dfs(c, world[i]);
+  }
+  for (const sc of gltf.scenes || [{ nodes: [0] }]) {
+    for (const root of sc.nodes || []) dfs(root, null);
+  }
+
+  let minX = Infinity; let minY = Infinity; let minZ = Infinity;
+  let maxX = -Infinity; let maxY = -Infinity; let maxZ = -Infinity;
+
+  for (let ni = 0; ni < nodes.length; ni++) {
+    const node = nodes[ni];
+    if ((node.name || '') !== nodeName || node.mesh == null || world[ni] == null) continue;
+    const mesh = meshes[node.mesh];
+    if (!mesh) continue;
+    for (const prim of mesh.primitives || []) {
+      const posAcc = accessors[prim.attributes.POSITION];
+      if (!posAcc) continue;
+      const bv = bufferViews[posAcc.bufferView];
+      const byteOffset = (bv.byteOffset || 0) + (posAcc.byteOffset || 0);
+      const stride = bv.byteStride || 12;
+      const dv = new DataView(binChunk.buffer, binChunk.byteOffset + byteOffset, bv.byteLength);
+      for (let vi = 0; vi < posAcc.count; vi++) {
+        const off = vi * stride;
+        const x = dv.getFloat32(off, true);
+        const y = dv.getFloat32(off + 4, true);
+        const z = dv.getFloat32(off + 8, true);
+        const [wx, wy, wz] = transformPoint(world[ni], x, y, z);
+        minX = Math.min(minX, wx); minY = Math.min(minY, wy); minZ = Math.min(minZ, wz);
+        maxX = Math.max(maxX, wx); maxY = Math.max(maxY, wy); maxZ = Math.max(maxZ, wz);
+      }
+    }
+  }
+  return { sx: maxX - minX, sy: maxY - minY, sz: maxZ - minZ };
+}
+
 function readGlbBin(filePath) {
   const buf = readFileSync(filePath);
   const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
@@ -385,6 +433,15 @@ function assertLifeGlbContract(filePath, horizontalKinds) {
   const b = glbNodeBounds(gltf, bin);
   const longest = Math.max(b.sx, b.sy, b.sz);
   assert.ok(longest >= 0.95 && longest <= 1.05, `${name} longest ${longest}`);
+  for (const node of gltf.nodes || []) {
+    if (node.mesh == null) continue;
+    const meshName = node.name || 'mesh';
+    const mb = glbMeshNodeBounds(gltf, bin, meshName);
+    const mn = Math.min(mb.sx, mb.sy, mb.sz);
+    const mx = Math.max(mb.sx, mb.sy, mb.sz);
+    assert.ok(mn >= 0.01 - 1e-6, `${name} ${meshName} min axis ${mn}`);
+    assert.ok(mx >= 0.05 - 1e-6, `${name} ${meshName} max axis ${mx}`);
+  }
   const kindKey = Object.entries(LIFE_GLB_FILES).find(([, f]) => f === name)?.[0];
   if (horizontalKinds && kindKey && horizontalKinds.has(kindKey)) {
     const ySpan = b.maxY - b.minY;
@@ -410,7 +467,7 @@ describe('island-life GLB 種類 (#226)', () => {
   });
 
   test('每個 GLB 無骨架縮放／無貼圖／正規化最長軸', () => {
-    const horizontal = new Set(['fishSchool', 'whale', 'kunpeng']);
+    const horizontal = new Set(['fishSchool', 'whale', 'kunpeng', 'wenyao', 'birds']);
     let totalBytes = 0;
     for (const kind of LIFE_GLB_KINDS) {
       const file = LIFE_GLB_FILES[kind];
