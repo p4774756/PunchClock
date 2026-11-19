@@ -346,6 +346,9 @@ function boot() {
     reduced: reduced,
     forceRare: lifeRareParam
   });
+  life.ready.then(() => {
+    window.__islandLifeReady = true;
+  });
   scene.add(life.group);
   if (worldResult && worldResult.water) {
     worldResult.water.position.y = -0.78;

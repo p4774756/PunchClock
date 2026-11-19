@@ -62,7 +62,8 @@ COL = {
     'wen_wing': 0x68a8e8,
     'xuan_green': 0x287838,
     'xuan_gold': 0xe8b838,
-    'xuan_snake': 0x4888a8,
+    'xuan_snake': 0x9ed848,
+    'xuan_body': 0x5a8868,
     'kun_white': 0xf4f8ff,
     'kun_blue': 0xb8d8f8,
     'kun_cloud': 0xe8f4ff,
@@ -83,9 +84,8 @@ def _select_hierarchy(obj):
 
 
 def export_life(out_path, root, export_anim=True):
-    """匯出 life GLB；JPEG 貼圖壓縮以符合 ≤300 KB。"""
+    """匯出 life GLB；JPEG 貼圖壓縮以符合 ≤300 KB。模型已正規化最長軸=1，世界尺寸由 JS LIFE_GLB_SCALE。"""
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or '.', exist_ok=True)
-    apply_creature_scale(root)
     print_world_bounds(root, os.path.basename(out_path))
     bpy.ops.object.select_all(action='DESELECT')
     _select_hierarchy(root)
@@ -241,12 +241,21 @@ def _tex_budget():
     creature_common_mod.TEXTURE_SIZE = TEX
 
 
+def _lay_horizon_y(root, euler=(math.pi / 2, 0, math.pi / 2)):
+    """Quaternius 鯨／魚沿 Z 躺平：頭朝 +X、背朝 +Y（export Y-up）。"""
+    root.rotation_euler = Euler(euler)
+    bpy.context.view_layer.objects.active = root
+    root.select_set(True)
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+    root.select_set(False)
+
+
 def build_fish():
     _tex_budget()
     clear_all()
     _import_glb(os.path.join(SRC, 'fish-quaternius.glb'))
     _drop_helpers()
-    _normalize_all(0.58)
+    _normalize_all(1.0)
     for ob in _mesh_objs():
         if 'fish' in ob.name.lower():
             _decimate_obj(ob, 620)
@@ -256,6 +265,8 @@ def build_fish():
 
             _retexture_mesh(ob, paint, 'fish_mat')
     root = _find_armature() or _root_for_export()
+    if root:
+        _lay_horizon_y(root, (0, 0, math.pi / 2))
     export_life(os.path.join(OUT_DIR, 'fish.glb'), root)
 
 
@@ -264,7 +275,7 @@ def build_seagull():
     clear_all()
     _import_glb(os.path.join(SRC, 'seagull-flying-polygoogle.glb'))
     _drop_helpers()
-    _normalize_all(0.55)
+    _normalize_all(1.0)
     for ob in _mesh_objs():
         _decimate_obj(ob, 420)
 
@@ -285,7 +296,7 @@ def build_whale():
     clear_all()
     _import_glb(os.path.join(SRC, 'whale-quaternius.glb'))
     _drop_helpers()
-    _normalize_all(1.85)
+    _normalize_all(1.0)
     for ob in _mesh_objs():
         if 'whale' in ob.name.lower():
             _decimate_obj(ob, 520)
@@ -299,10 +310,24 @@ def build_whale():
 
             _retexture_mesh(ob, paint, 'whale_mat')
     root = _find_armature() or _root_for_export()
+    if root:
+        mn, mx = _bounds_meshes()
+        body_long = max(mx.x - mn.x, mx.y - mn.y, mx.z - mn.z)
+        if body_long > 1.02:
+            _normalize_all(1.0)
+        for ob in _mesh_objs():
+            if 'whale' in ob.name.lower():
+                ob.rotation_euler = Euler((math.pi / 2, 0, 0))
+        bpy.ops.object.select_all(action='SELECT')
+        bpy.ops.object.transform_apply(rotation=True, location=False, scale=False)
+        bpy.ops.object.select_all(action='DESELECT')
     spray = build_colored_mesh('whale_spray', [
         (COL['spray'], lambda bm: (
-            prim_cylinder(bm, (0.7, 0, 0.35), 0.045, 0.75, 5),
-            prim_ellipsoid(bm, (0.7, 0, 0.85), (0.12, 0.12, 0.1), 5, 4),
+            prim_cylinder(bm, (0.38, 0, 0.18), 0.09, 0.55, 6),
+            prim_cylinder(bm, (0.38, 0, 0.52), 0.05, 1.1, 5),
+            prim_ellipsoid(bm, (0.38, 0, 1.05), (0.18, 0.18, 0.14), 6, 5),
+            prim_sphere(bm, (0.32, 0.08, 1.12), 0.07, 5, 4),
+            prim_sphere(bm, (0.44, -0.06, 1.1), 0.06, 5, 4),
         )),
     ])
     spray.parent = root
@@ -314,47 +339,82 @@ def build_octopus():
     _tex_budget()
     clear_all()
     _import_glb(os.path.join(SRC, 'octopus-polygoogle.glb'))
-    _normalize_all(0.38)
+    _normalize_all(1.0)
     for ob in _mesh_objs():
         _decimate_obj(ob, 760)
 
         def paint(co, _n):
-            if co.z < -0.05:
+            if co.z < -0.12 and abs(co.x) + abs(co.y) > 0.2:
                 return _v3(COL['octo_dark'])
             return _v3(COL['octo'])
 
         _retexture_mesh(ob, paint, 'octo_mat')
+    eyes = build_colored_mesh('octo_eyes', [
+        (COL['black'], lambda bm: (
+            prim_ellipsoid(bm, (-0.1, 0.1, 0.22), (0.05, 0.06, 0.05), 5, 4),
+            prim_ellipsoid(bm, (0.1, 0.1, 0.22), (0.05, 0.06, 0.05), 5, 4),
+        )),
+        (0xf0f0f8, lambda bm: (
+            prim_ellipsoid(bm, (-0.1, 0.11, 0.26), (0.018, 0.022, 0.01), 4, 3),
+            prim_ellipsoid(bm, (0.1, 0.11, 0.26), (0.018, 0.022, 0.01), 4, 3),
+        )),
+    ])
     root = _root_for_export()
+    bpy.context.scene.collection.objects.link(eyes)
+    eyes.parent = root
     export_life(os.path.join(OUT_DIR, 'octopus.glb'), root)
+
+
+def _stripe_fish(co):
+    band = int(abs(co.y) * 14 + co.x * 5) % 3
+    return _v3(COL['wen_white']) if band == 0 else _v3(COL['wen_blue'])
 
 
 def build_wenyao():
     _tex_budget()
     clear_all()
-    mesh = build_colored_mesh('wenyao_body', [
+    body = build_colored_mesh('wenyao_body', [
         (COL['wen_blue'], lambda bm: (
-            prim_ellipsoid(bm, (0.02, 0, 0.06), (0.24, 0.1, 0.09), 6, 5),
-            prim_cone(bm, (-0.22, 0, 0.06), 0.05, 0.11, 4, rot=(0, 0, math.pi)),
+            prim_ellipsoid(bm, (0.02, 0, 0), (0.22, 0.09, 0.08), 6, 5),
+            prim_cone(bm, (-0.26, 0, 0), 0.055, 0.12, 4, rot=(0, 0, math.pi)),
         )),
-        (COL['wen_white'], lambda bm: prim_box(bm, (0.06, 0.02, 0.04), (0, 0.1, 0.02))),
-        (COL['wen_wing'], lambda bm: (
-            prim_box(bm, (0.38, 0.08, 0.04), (0, 0.12, 0.06), rot=(0.2, 0.1, 0.15)),
-            prim_box(bm, (0.38, 0.08, 0.04), (0, -0.12, 0.06), rot=(-0.2, -0.1, -0.15)),
-        )),
+        (COL['wen_white'], lambda bm: prim_box(bm, (0.08, 0.02, 0.03), (0.02, 0.08, 0))),
     ])
+    bpy.context.scene.collection.objects.link(body)
+    _import_glb(os.path.join(SRC, 'gull-flying-polygoogle.glb'))
+    wing_meshes = [ob for ob in _mesh_objs() if ob is not body]
+    _normalize_selection(wing_meshes, 0.42)
+    wing_parts = []
+    for ob in wing_meshes:
+        _decimate_obj(ob, 280)
+
+        def paint(co, _n):
+            if abs(co.y) > 0.06 and co.x > -0.05:
+                return _v3(COL['wen_wing'])
+            return _stripe_fish(co)
+
+        _retexture_mesh(ob, paint, 'wen_wing_mat')
+        wing_parts.append(ob)
+    for i, ob in enumerate(wing_parts):
+        side = 1 if i % 2 == 0 else -1
+        ob.location = Vector((0.05, side * 0.14, 0.02))
+        ob.rotation_euler = Euler((0.15, side * 0.25, side * 0.35))
+        ob.scale = Vector((0.85, side * 0.9, 0.75))
     rig = make_armature('wenyao_rig', [
-        ('root', (0, 0, 0), (0.15, 0, 0), None),
-        ('body', (0, 0, 0.04), (0, 0, 0.18), 'root'),
-        ('wing.L', (0, 0.08, 0.06), (0.2, 0.22, 0.06), 'body'),
-        ('wing.R', (0, -0.08, 0.06), (0.2, -0.22, 0.06), 'body'),
-        ('tail', (-0.12, 0, 0.06), (-0.28, 0, 0.06), 'root'),
+        ('root', (0, 0, 0), (0.2, 0, 0), None),
+        ('body', (0, 0, 0.02), (0.12, 0, 0.05), 'root'),
+        ('wing.L', (0.02, 0.12, 0.02), (0.24, 0.28, 0.04), 'body'),
+        ('wing.R', (0.02, -0.12, 0.02), (0.24, -0.28, 0.04), 'body'),
+        ('tail', (-0.16, 0, 0), (-0.32, 0, 0), 'root'),
     ])
-    assign_region_weights(mesh, rig, lambda co, _n:
-        'wing.L' if co.y > 0 and co.x > 0 else ('wing.R' if co.y < 0 and co.x > 0 else ('tail' if co.x < -0.05 else 'body')))
     bpy.context.scene.collection.objects.link(rig)
-    bpy.context.scene.collection.objects.link(mesh)
-    mesh.parent = rig
-    bind_mesh(mesh, rig)
+    body.parent = rig
+    bind_mesh(body, rig)
+    assign_region_weights(body, rig, lambda co, _n:
+        'wing.L' if co.y > 0.05 and co.x > 0 else ('wing.R' if co.y < -0.05 and co.x > 0 else ('tail' if co.x < -0.08 else 'body')))
+    for ob in wing_parts:
+        ob.parent = rig
+    _normalize_all(1.0)
     bake_flap_cycle(rig, ['wing.L', 'wing.R', 'tail'])
     export_life(os.path.join(OUT_DIR, 'wenyao.glb'), rig)
 
@@ -401,37 +461,48 @@ def _normalize_selection(objs, target_max):
     bpy.ops.object.select_all(action='DESELECT')
 
 
+def _hex_gold(co, scale):
+    u = co.x * scale
+    v = (co.y * 0.866 + co.x * 0.5) * scale
+    qi = int(round(u))
+    ri = int(round(v - u / 2))
+    ci = int((u - qi) * 3 + (v - ri) * 3)
+    return ci % 5 == 0 or (qi + ri) % 4 == 0
+
+
 def build_xuanwu():
     _tex_budget()
     clear_all()
     _import_glb(os.path.join(SRC, 'turtle-sea-polygoogle.glb'))
     turtle_meshes = _mesh_objs()
-    _normalize_selection(turtle_meshes, 1.55)
-    turtle = turtle_meshes[0] if turtle_meshes else None
+    _normalize_selection(turtle_meshes, 1.0)
     for ob in turtle_meshes:
         _decimate_obj(ob, 1100)
 
-        def paint_turtle(co, _n):
-            if _n.z > 0.55:
-                h = (math.sin(co.x * 28) * math.cos(co.y * 28) + 1) * 0.5
-                if h > 0.62:
+        def paint_turtle(co, n):
+            if n.z > 0.45:
+                if _hex_gold(co, 5.8):
                     return _v3(COL['xuan_gold'])
                 return _v3(COL['xuan_green'])
-            return _v3(COL['xuan_green'])
+            return _v3(COL['xuan_body'])
 
         _retexture_mesh(ob, paint_turtle, 'turtle_mat')
     _import_glb(os.path.join(SRC, 'snake-long-polygoogle.glb'))
     snake_meshes = [ob for ob in _mesh_objs() if ob not in turtle_meshes]
-    _normalize_selection(snake_meshes, 1.1)
+    _normalize_selection(snake_meshes, 0.95)
     for ob in snake_meshes:
-        ob.location = Vector((0.12, 0, 0.28))
-        ob.rotation_euler = Euler((0.35, 0.12, 0.9))
+        ob.location = Vector((0.05, 0, 0.22))
+        ob.rotation_euler = Euler((0.55, 0.2, 1.05))
         _decimate_obj(ob, 300)
 
-        def paint_snake(_co, _n):
+        def paint_snake(_co, n):
             return _v3(COL['xuan_snake'])
 
         _retexture_mesh(ob, paint_snake, 'snake_mat')
+    mn, mx = _bounds_meshes()
+    longest = max(mx.x - mn.x, mx.y - mn.y, mx.z - mn.z)
+    if longest > 1e-6 and abs(longest - 1.0) > 0.02:
+        _normalize_all(1.0)
     empty = bpy.data.objects.new('xuanwu_root', None)
     bpy.context.scene.collection.objects.link(empty)
     for ob in _mesh_objs():
@@ -444,7 +515,7 @@ def build_kunpeng():
     clear_all()
     _import_glb(os.path.join(SRC, 'whale-quaternius.glb'))
     _drop_helpers()
-    _normalize_all(1.85)
+    _normalize_all(1.0)
     for ob in _mesh_objs():
         if 'whale' not in ob.name.lower():
             continue
@@ -460,15 +531,20 @@ def build_kunpeng():
         _retexture_mesh(ob, paint, 'kun_body')
     clouds = build_colored_mesh('kun_clouds', [
         (COL['kun_cloud'], lambda bm: (
-            prim_sphere(bm, (-0.25, 0.12, 0.18), 0.1, 4, 3),
-            prim_sphere(bm, (0.2, -0.14, 0.2), 0.09, 4, 3),
-            prim_sphere(bm, (-0.9, 0.06, 0.12), 0.12, 4, 3),
-            prim_sphere(bm, (-1.05, -0.08, 0.1), 0.11, 4, 3),
+            prim_ellipsoid(bm, (0.08, 0.06, 0.12), (0.14, 0.1, 0.11), 5, 4),
+            prim_sphere(bm, (-0.18, 0.1, 0.14), 0.11, 4, 3),
+            prim_sphere(bm, (0.22, -0.12, 0.16), 0.1, 4, 3),
+            prim_sphere(bm, (-0.42, 0.04, 0.1), 0.12, 4, 3),
+            prim_sphere(bm, (-0.62, -0.06, 0.08), 0.11, 4, 3),
+            prim_sphere(bm, (-0.85, 0.08, 0.12), 0.13, 4, 3),
+            prim_sphere(bm, (-1.02, -0.1, 0.1), 0.12, 4, 3),
+            prim_sphere(bm, (-1.18, 0.02, 0.09), 0.11, 4, 3),
         )),
         (COL['kun_fin'], lambda bm: (
-            prim_box(bm, (0.22, 0.05, 0.28), (0.14, 0.28, -0.02), rot=(0.45, 0.12, 0)),
-            prim_box(bm, (0.22, 0.05, 0.28), (0.14, -0.28, -0.02), rot=(-0.45, -0.12, 0)),
-            prim_box(bm, (0.42, 0.04, 0.22), (-0.78, 0, 0.04)),
+            prim_box(bm, (0.2, 0.06, 0.26), (0.18, 0.32, -0.02), rot=(0.42, 0.15, 0.08)),
+            prim_box(bm, (0.2, 0.06, 0.26), (0.18, -0.32, -0.02), rot=(-0.42, -0.15, -0.08)),
+            prim_box(bm, (0.38, 0.05, 0.2), (-0.75, 0, 0.05)),
+            prim_box(bm, (0.12, 0.04, 0.32), (-0.92, 0.04, 0.02), rot=(0.2, 0.1, 0.15)),
         )),
     ])
     root = _find_armature()
@@ -494,6 +570,19 @@ def build_kunpeng():
             swim = names[: min(2, len(names))]
         if swim:
             bake_swim_cycle(root, swim)
+        root.rotation_euler = Euler((math.pi / 2, 0, 0))
+        bpy.context.view_layer.objects.active = root
+        root.select_set(True)
+        bpy.ops.object.transform_apply(rotation=True, location=False, scale=False)
+        root.select_set(False)
+    tops = _top_level_objects()
+    if tops:
+        bpy.ops.object.select_all(action='DESELECT')
+        for ob in tops:
+            ob.select_set(True)
+        bpy.context.view_layer.objects.active = tops[0]
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    _normalize_all(1.0)
     export_life(os.path.join(OUT_DIR, 'kunpeng.glb'), root)
 
 

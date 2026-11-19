@@ -34,7 +34,10 @@ const {
   distanceToBoatRoutes,
   LIFE_GLB_KINDS,
   lifeModelPath,
-  LIFE_CREATURE_KINDS
+  LIFE_CREATURE_KINDS,
+  validateLifePanoramaGlbPlacements,
+  LIFE_PANORAMA_CAMERA,
+  LIFE_PANORAMA_VIEWPORT
 } = life;
 
 function mockThreeLite() {
@@ -191,7 +194,7 @@ describe('island-life 稀有一輪一隻', () => {
 
 describe('island-life 純函式', () => {
   test('魚群路徑循環', () => {
-    const anchor = { x: -11.5, z: 9.8, radius: 2.8 };
+    const anchor = { x: -14.5, z: 20.5, radius: 2.6 };
     const p0 = sampleFishSchool(anchor, 0, false);
     const p1 = sampleFishSchool(anchor, 10, false);
     assert.notStrictEqual(p0.x, p1.x);
@@ -201,6 +204,19 @@ describe('island-life 純函式', () => {
   test('海面高度常數合理', () => {
     assert.ok(LIFE_SEA_Y < LIFE_SKY_BASE);
     assert.ok(LIFE_SEA_Y < -0.5);
+  });
+});
+
+describe('island-life 全景投影 (#226 r2)', () => {
+  test('GLB 錨點在 1280×720 全景內且避開島標籤與 HUD', () => {
+    const v = validateLifePanoramaGlbPlacements();
+    assert.equal(v.ok, true, v.problems.join('; '));
+  });
+
+  test('投影函式使用指定相機參數', () => {
+    assert.equal(LIFE_PANORAMA_CAMERA.eye.x, 58.1);
+    assert.equal(LIFE_PANORAMA_VIEWPORT.width, 1280);
+    assert.equal(LIFE_PANORAMA_CAMERA.fovDeg, 25);
   });
 });
 
