@@ -12,7 +12,8 @@ import {
   controlsActive,
   playerVisible,
   hitInteractZone,
-  shouldShowInteractPrompt
+  shouldShowInteractPrompt,
+  hudBlocksInteract
 } from './island-explore.js';
 import {
   PANORAMA,
@@ -132,7 +133,8 @@ import {
   unfreezeNpcWalker,
   freezeNpcIdle,
   unfreezeNpcIdle,
-  npcFacePlayer
+  npcFacePlayer,
+  getNpcMotionTime
 } from './island-people.js';
 import { shouldOfferNpcTalkPrompt, NPC_TALK_ACTION } from './island-people-data.js';
 import { createIslandNpcTalk, npcTalkPromptLabel } from './island-npc-talk.js';
@@ -683,15 +685,21 @@ function boot() {
 
   function exploreHudPanelsOpen() {
     const more = document.getElementById('islandMoreSheet');
-    const mini = document.getElementById('islandMinimap');
-    return !!(more && !more.hidden)
-      || !!(mode.exploring && mini && !mini.hidden)
-      || !!(islandChat && islandChat.isOpen());
+    return hudBlocksInteract({
+      bigMapOpen: false,
+      moreOpen: !!(more && !more.hidden),
+      chatOpen: !!(islandChat && islandChat.isOpen())
+    });
+  }
+
+  function npcMotionT() {
+    const t = getNpcMotionTime();
+    return Number.isFinite(t) && t > 0 ? t : clock.elapsedTime;
   }
 
   function endNpcTalkResume() {
     if (activeNpcRecord && activeNpcRecord.kind === 'walker') {
-      unfreezeNpcWalker(activeNpcRecord.row, clock.elapsedTime);
+      unfreezeNpcWalker(activeNpcRecord.row, npcMotionT(), reduced);
     } else if (activeNpcRecord && activeNpcRecord.kind === 'idle') {
       unfreezeNpcIdle(activeNpcRecord.row);
     }
@@ -711,7 +719,7 @@ function boot() {
     }
     const now = performance.now();
     if (record && record.kind === 'walker') {
-      freezeNpcWalker(record.row, clock.elapsedTime);
+      freezeNpcWalker(record.row, npcMotionT(), reduced);
       record.row.talkGreetAt = now;
       record.row.state = npcFacePlayer(
         record.row.state,
@@ -2681,6 +2689,20 @@ function boot() {
     setMode: setMode,
     setExplore: setExplore,
     isExploring: () => mode.exploring,
+    debugNpcs: perfEnabled && typeof people.collectTalkableNpcs === 'function'
+      ? () => people.collectTalkableNpcs()
+      : undefined,
+    debugTeleport: perfEnabled
+      ? (x, z, yaw) => {
+        player.x = x;
+        player.z = z;
+        if (Number.isFinite(yaw)) player.yaw = yaw;
+        setPlayerAnchor(player.x, P, player.z, player.yaw);
+        localView.object.position.set(player.x, P, player.z);
+        stepMilu(0, P);
+        syncInteractPrompt();
+      }
+      : undefined,
     openCasino: () => casino.openLobby(),
     closeCasino: () => casino.closeLobby(),
     isCasinoOpen: () => casino.isOpen(),

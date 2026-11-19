@@ -1,6 +1,7 @@
 // 行人 NPC 資料與預算（node:test 可載入，不依賴 WebGL）。
 import { G, P } from './island-kit.js';
 import { MILU_ANIM } from './island-milu.js';
+import { islandAt } from './island-layout.js';
 
 export const NPC_STYLE_IDS = Object.freeze([
   'summer',
@@ -172,9 +173,75 @@ export const EAST_PIER_WALK = Object.freeze([
 /** 主島環島 walker 與棧橋路徑 */
 export function mainWalkerDefs() {
   return Object.freeze([
-    { style: 'sport', path: MAIN_RING_WALK, speed: 0.045, pingpong: false, offset: 0.1 },
-    { style: 'student', path: EAST_PIER_WALK, speed: 0.05, pingpong: true, offset: 0.2 }
+    { style: 'sport', path: MAIN_RING_WALK, speed: 0.045, pingpong: false, offset: 0.1, island: 'main' },
+    { style: 'student', path: EAST_PIER_WALK, speed: 0.05, pingpong: true, offset: 0.2, island: 'main' }
   ]);
+}
+
+function sampleNpcWalkerPath(walker, along) {
+  const path = walker.path;
+  const count = path.length;
+  if (walker.pingpong) {
+    const span = Math.max(1, count - 1);
+    const cycle = span * 2;
+    const u = ((along % cycle) + cycle) % cycle;
+    const forward = u <= span;
+    const p = forward ? u : cycle - u;
+    const index = Math.min(span - 1, Math.floor(p));
+    const blend = p - index;
+    return {
+      from: path[index],
+      to: path[index + 1],
+      blend: blend
+    };
+  }
+  const scaled = ((along % 1) + 1) % 1 * count;
+  const index = Math.floor(scaled) % count;
+  const from = path[index];
+  const to = path[(index + 1) % count];
+  const blend = scaled - Math.floor(scaled);
+  return { from: from, to: to, blend: blend };
+}
+
+export function freezeNpcWalker(walker, t, reduced) {
+  if (!walker || walker.talkHold) return;
+  const along = reduced
+    ? walker.offset
+    : walker.offset + t * Math.abs(walker.speed);
+  walker.talkHold = { along: along, greetUntil: 0 };
+}
+
+export function unfreezeNpcWalker(walker, t, reduced) {
+  if (!walker || !walker.talkHold) return;
+  walker.offset = reduced
+    ? walker.talkHold.along
+    : walker.talkHold.along - t * Math.abs(walker.speed);
+  walker.talkHold = null;
+  walker.talkGreetAt = 0;
+}
+
+export function npcWalkerSamplePosition(walker, t, reduced) {
+  if (!walker || !walker.path || !walker.path.length) return { x: 0, z: 0 };
+  const held = walker.talkHold;
+  const along = held
+    ? held.along
+    : (reduced ? walker.offset : walker.offset + t * Math.abs(walker.speed));
+  const scaled = walker.pingpong ? along * walker.path.length : along;
+  const step = sampleNpcWalkerPath(walker, scaled);
+  const x = step.from[0] + (step.to[0] - step.from[0]) * step.blend;
+  const z = step.from[1] + (step.to[1] - step.from[1]) * step.blend;
+  return { x: x, z: z };
+}
+
+export function resolveWalkerIslandId(def, extra) {
+  if (extra && extra.cityOnly) return 'city';
+  const explicit = def && (def.islandId || def.island);
+  if (explicit) return explicit;
+  if (def && def.path && def.path.length) {
+    const hit = islandAt(def.path[0][0], def.path[0][1], 0.15);
+    if (hit && hit.id) return hit.id;
+  }
+  return 'main';
 }
 
 /** 主島靜態／傘桌閒置（x,z 與造型） */
@@ -195,16 +262,16 @@ export function mainIdleDefs() {
 export function islandExtraDefs() {
   return Object.freeze([
     { style: 'tech', x: 1.05, z: 15.25, rotY: -0.35, walker: false, island: 'computer' },
-    { style: 'student', x: 1.0, z: 15.4, rotY: -0.4, walker: true,
+    { style: 'student', x: 1.0, z: 15.4, rotY: -0.4, walker: true, island: 'computer',
       path: [[0.35, 15.9], [1.45, 16.15], [2.15, 15.25]], speed: 0.042, pingpong: true },
     { style: 'fairy', x: -16.2, z: 0.35, rotY: 0.6, walker: false, island: 'tcm' },
-    { style: 'fairy', x: -15.1, z: 1.55, rotY: -1.2, walker: true,
+    { style: 'fairy', x: -15.1, z: 1.55, rotY: -1.2, walker: true, island: 'tcm',
       path: [[-16.35, 0.25], [-14.85, 0.95], [-15.05, 1.75]], speed: 0.04, pingpong: true },
     { style: 'swimsuit', x: 21.35, z: 5.35, rotY: 0.3, walker: false, island: 'beach' },
-    { style: 'swimsuit', x: 22.15, z: 6.25, rotY: -2.0, walker: true,
+    { style: 'swimsuit', x: 22.15, z: 6.25, rotY: -2.0, walker: true, island: 'beach',
       path: [[21.55, 6.05], [22.45, 5.85], [22.05, 6.35]], speed: 0.038, pingpong: true },
     { style: 'idol', x: 15.25, z: -5.45, rotY: 2.35, walker: false, island: 'casino' },
-    { style: 'sport', x: 15.05, z: -7.85, rotY: -0.5, walker: true,
+    { style: 'sport', x: 15.05, z: -7.85, rotY: -0.5, walker: true, island: 'casino',
       path: [[14.55, -7.05], [15.05, -7.55], [14.75, -8.15]], speed: 0.044, pingpong: false }
   ]);
 }
@@ -293,124 +360,133 @@ export const NPC_TALK_CLOSE_DIST = 3;
 export const NPC_TALK_ACTION = 'npcTalk';
 
 const NPC_NAMES = Object.freeze({
-  summer: Object.freeze(['夏蘿', '柚子', '小葵', '晴夏']),
-  student: Object.freeze(['書言', '知予', '靜夏', '予安的筆記']),
-  tech: Object.freeze(['程夏', 'debug 妹', '小艾', 'Commit 娘']),
-  idol: Object.freeze(['星奈', '小響', '玲音', '練歌的米露']),
-  swimsuit: Object.freeze(['海音', '浪花', '汐見', '沙灘步調']),
-  sport: Object.freeze(['小凛', '晨跑姐', '帕卡', '熱血瑩']),
-  fairy: Object.freeze(['綺夢', '紗羽', '若汐', '靈犀'])
+  summer: Object.freeze(['夏蘿', '柚子', '小葵', '晴晴']),
+  student: Object.freeze(['書妍', '知予', '安安', '小語']),
+  tech: Object.freeze(['程程', '艾琳', '小芸', 'Ruby']),
+  idol: Object.freeze(['星奈', '玲音', '小響', 'Mika']),
+  swimsuit: Object.freeze(['海音', '汐見', '小渚', '珊珊']),
+  sport: Object.freeze(['小凜', '瑩瑩', '阿蓁', 'Joy']),
+  fairy: Object.freeze(['綺夢', '紗羽', '若汐', '靈兒'])
 });
 
 const NPC_GENERAL_LINES = Object.freeze({
   summer: Object.freeze([
-    '今天陽光好舒服，散步最開心了！',
-    '你也在找好喝的嗎？這附近選擇超多。',
-    '風吹過來的時候，髮夾差點飛走哈哈。',
-    '神之島的路很好走，適合慢慢逛。',
-    '路過飲料店記得看今日限定喔。',
-    '有看到小地圖嗎？迷路時很好用。'
+    '今天太陽好大，我已經在想等一下要喝什麼了！',
+    '你也出來散步嗎？這種天氣不出門太可惜了。',
+    '我的髮夾剛剛差點被風吹走，嚇死我了哈哈。',
+    '走累了就找個陰涼的地方坐一下吧！',
+    '我最喜歡夏天了，連影子看起來都很有精神。',
+    '你的髮色好可愛，跟今天的天空很配耶。'
   ]),
   student: Object.freeze([
-    '咦，這個角度可以看到整條棧橋耶。',
-    '我在用功…其實是在看雲的形狀啦。',
-    '請問你知道研習室在哪一區嗎？',
-    '筆記本寫滿了，準備去買新的。',
-    '探索模式走路會不會計步啊？好奇。',
-    '剛剛看見郵輪了，好想去船上看風景。'
+    '我在找寫生的角度，這裡的風景好適合畫下來。',
+    '偷偷說，我其實是出來透氣的，作業還沒寫完……',
+    '你知道嗎？島跟島之間有橋，用走的也能逛很遠喔。',
+    '我的筆記本快寫滿了，今天看到的都想記下來。',
+    '等考完試，我要把每座島都逛一遍！',
+    '你看起來很會探險，有推薦的地方嗎？'
   ]),
   tech: Object.freeze([
-    '今天 build 都綠的話就很棒。',
-    '我剛把一個 bug 關掉，心情超好。',
-    '打卡別忘了，不過今天風景也滿療癒的。',
-    '耳機裡是 Lo-fi，配散步剛剛好。',
-    '研發島那邊的燈，晚上特別像 IDE。',
-    '這裡 Wi-Fi 滿穩的，我在等 deploy。'
+    '剛把一個 bug 修掉，出來走走獎勵自己。',
+    '測試全綠的那一刻，比喝咖啡還提神。',
+    '我在等程式跑完，順便出來吹個風。',
+    '記得打卡喔，不然下班會忘記的。',
+    '耳機裡放 Lo-fi，配這片海剛剛好。',
+    '寫程式卡住的時候，起來走一圈常常就想通了。'
   ]),
   idol: Object.freeze([
-    '嘿～要一起打個招呼嗎！',
-    '練歌的時候看到路人會更開心耶。',
-    '今天的步數可以當暖嗓運動吧？',
-    '賭場那邊霓虹好酷，但不會亂跑進去。',
-    '我把微笑練習藏在呼吸裡，秘密。',
-    '你路過的時候，風都變得輕快了。'
+    '嗨嗨～今天也要元氣滿滿喔！',
+    '我在練新歌，你要當我的第一位聽眾嗎？',
+    '舞步練到一半，先出來喘口氣。',
+    '被認出來了嗎？噓——我今天是私下出來散步的。',
+    '唱歌之前要先笑，聲音才會亮起來喔。',
+    '下次有表演，我一定留個好位子給你！'
   ]),
   swimsuit: Object.freeze([
-    '海風鹹鹹的，超有度假感。',
-    '記得防曬，太陽很會照人的喔。',
-    '浮潛要選風小一點再出發比較穩。',
-    '沙灘邊走步履會變慢，正常啦。',
-    '船要開了嗎？我聽到碼頭廣播了。',
-    '這裡水好藍，拍小地圖截圖都好看。'
+    '海風鹹鹹的，好有度假的感覺！',
+    '記得擦防曬喔，這裡的太陽很會偷偷曬人。',
+    '我剛游完一圈，水好清涼。',
+    '撿到一個好漂亮的貝殼——拍張照就好，還是放回去吧。',
+    '坐船去別的島，看海的角度又不一樣喔。',
+    '浪聲聽久了，整個人都放鬆下來了。'
   ]),
   sport: Object.freeze([
-    '晨跑完精神超好，你也好早安！',
-    '步伐別太快，地板燙腳就休息一下。',
-    '我有做暖身，你要不要也甩甩手？',
-    '一圈走完打卡，今天運動達成。',
-    '樓梯別用跑的，膝蓋會抗議的。',
-    '剛剛衝過飲料店，忍住了沒買全糖。'
+    '早安！我剛跑完一圈，精神超好！',
+    '要不要一起做個伸展？手舉高，深呼吸～',
+    '運動完喝水最重要，別等口渴才喝喔。',
+    '我今天的目標是繞完整座島，還差一點！',
+    '慢慢走也是運動，重點是每天都動一動。',
+    '流汗的感覺好舒服，整個人都清醒了。'
   ]),
   fairy: Object.freeze([
-    '氣流柔柔的，像經絡在慢慢走。',
-    '你若靜下來，會聽見葉子翻身。',
-    '穴位不是靠猜，是靠手感與耐心。',
-    '仙氣是形容詞，做事還是要踏實。',
-    '推拿館的銅人很帥，別害羞去看。',
-    '走累了就深呼吸，三次就會輕一點。'
+    '風輕輕的，像有人在幫你順氣呢。',
+    '深呼吸三次，肩膀會鬆一點喔。',
+    '累的時候按一按合谷穴，會舒服很多。',
+    '我喜歡安靜的地方，聽得見葉子的聲音。',
+    '慢慢來就好，身體會告訴你什麼時候該休息。',
+    '你今天氣色不錯，有好好睡覺吧？'
   ])
 });
 
 const NPC_ISLAND_LINES = Object.freeze({
   main: Object.freeze([
-    '飲料店草莓季快結束了，要搶要快。',
-    '手搖五分糖去冰，我心中的正解。',
-    '沙灘傘下面居然有插座，太貼心。',
-    '棧橋盡頭風大，帽子要壓好。',
-    '神之島廣場常常有新人拍照。'
+    '神之島的飲料店你去過了嗎？我每次都點不同口味。',
+    '手搖要半糖少冰，這是我的堅持！',
+    '從棧橋那邊可以搭船去別的島喔。',
+    '廣場的施工進度牌，可以看到島上接下來要蓋什麼。',
+    '塗鴉牆你看過了嗎？你也可以留下一筆喔。'
   ]),
   tcm: Object.freeze([
-    '推拿館今天茶香很放鬆，進去看看？',
-    '銅人身上的點，比地圖還精準。',
-    '經絡研習室要脫鞋，別踩線。',
-    '按完肩頰會熱熱的，是正常反應。',
-    '研究室的門口有穴位海報，很實用。'
+    '推拿館裡面有一間經絡研習室，銅人就在那裡。',
+    '推拿館的師傅手法很好，肩頸卡卡可以去試試。',
+    '你知道百會穴在哪嗎？就在頭頂正中間喔。',
+    '經絡研習室可以看穴位，學起來很有趣。',
+    '這座島飄著藥草香，聞了心情就很平靜。'
   ]),
   computer: Object.freeze([
-    '研發樓冷氣很猛，外套要記得搭。',
-    '寫程式的時候記得站起來走走。',
-    '打卡鐘在門口，遲到會被自己看到。',
-    '加班前我先在島上呼吸幾口。',
-    '測試全綠再說八卦，規矩喔。'
+    '研發樓裡的大家都在寫程式，好認真。',
+    '上班記得打卡，下班也別忘了喔。',
+    '加班前我會先出來走一圈，腦袋比較清楚。',
+    '研發樓晚上燈亮起來，像一整排螢幕。',
+    '這裡的人講話三句不離 bug，我已經習慣了。'
   ]),
   casino: Object.freeze([
-    '賭場霓虹亮起來，像晚上的慶典。',
-    '21 點要穩住情緒，本單純看熱鬧。',
-    '大廳音樂很有節奏，但我不亂下注。',
-    '紅黑籌碼閃啊閃，逛逛就好。',
-    '別在旋轉門前自拍，會卡住。'
+    '賭場的霓虹燈晚上超漂亮，我常來拍照。',
+    '裡面有 21 點，我只看不玩，湊熱鬧就好。',
+    '進賭場記得量力而為，開心最重要。',
+    '晚上這裡最熱鬧，音樂一下就想跳舞。',
+    '門口的燈一閃一閃，好像在跟你打招呼。'
   ]),
   beach: Object.freeze([
-    '海面一望無際，心胸會變大。',
-    '防曬要補，沙灘反射很狡猾。',
-    '浮潛記得結伴，安全最重要。',
-    '貝殼很美但別全撿走，給下一個人。',
-    '浪花聲當白噪音，超助眠。'
+    '沙灘島的海最藍了，一定要來踩踩水。',
+    '浮潛記得找人一起，安全第一。',
+    '貝殼很漂亮，拍照就好，留給下一個人。',
+    '躺在沙灘上聽浪聲，差點睡著。',
+    '太陽下山的時候，這裡的海會變成金色喔。'
   ]),
   city: Object.freeze([
-    '7-11 的咖啡香會從街口飄出來。',
-    '粉紅小車停在轉角，很搶鏡頭。',
-    '港灣風把機車聲吹散一點，舒服。',
-    '街區步行的人很多，慢慢走。',
-    '公車站牌旁的花剛換季，好香。'
+    '城市島的 7-11 什麼都有，我很常來補貨。',
+    '你有看到那台粉紅色的小車嗎？超可愛的！',
+    '港灣那邊風很大，看船進出很療癒。',
+    '這裡的街道一格一格的，走起來像在逛棋盤。',
+    '城市島晚上招牌都亮起來，好熱鬧。'
   ])
 });
 
 const NPC_FAREWELLS = Object.freeze([
-  '先這樣啦，路上小心喔！',
-  '下次再聊，拜拜～',
-  '我去趕路啦，再見！',
-  '祝你有好的一天，回頭見！'
+  '先這樣囉，路上小心！',
+  '下次再聊，掰掰～',
+  '我要繼續走走了，回頭見！',
+  '祝你今天順順利利！'
+]);
+
+export const NPC_LINE_BANNED_FRAGMENTS = Object.freeze([
+  '本單',
+  '小地圖截圖',
+  '仙氣是形容詞',
+  '按完肩頰',
+  '地板燙腳',
+  '探索模式走路會不會計步'
 ]);
 
 export function npcTalkProfile(style, index) {
@@ -447,13 +523,45 @@ function shufflePick(pool, count, rng, skipKey) {
  */
 export function pickNpcLines(style, islandId, lastOpening, rng) {
   const id = NPC_STYLE_IDS.includes(style) ? style : 'summer';
-  const general = (NPC_GENERAL_LINES[id] || []).concat(NPC_ISLAND_LINES[islandId] || []);
-  const bodyCount = 2 + (typeof rng === 'function' && rng() > 0.5 ? 1 : 0);
-  const body = shufflePick(general, bodyCount, rng, lastOpening);
+  const general = (NPC_GENERAL_LINES[id] || []).slice();
+  const island = (NPC_ISLAND_LINES[islandId] || []).slice();
+  const rOpen = typeof rng === 'function' ? rng() : Math.random();
+  const openingFromIsland = island.length > 0 && rOpen < 0.6;
+  const openPool = openingFromIsland ? island : general;
+  let opening = pickOne(openPool, rng);
+  if (lastOpening && opening === lastOpening) {
+    const alt = openPool.filter((line) => line !== lastOpening);
+    opening = pickOne(alt.length ? alt : openPool, rng);
+  }
+  const extraCount = 1 + (typeof rng === 'function' && rng() > 0.5 ? 1 : 0);
+  const restPool = general.filter((line) => line !== opening);
+  const rest = shufflePick(restPool, extraCount, rng);
+  const body = [opening].concat(rest);
   if (!body.length) body.push('今天天氣真好呀。');
-  const openingKey = body[0];
   const farewell = pickOne(NPC_FAREWELLS, rng);
-  return { lines: body.concat([farewell]), openingKey: openingKey };
+  return { lines: body.concat([farewell]), openingKey: opening };
+}
+
+export function npcTalkLinePools(style, islandId) {
+  const id = NPC_STYLE_IDS.includes(style) ? style : 'summer';
+  return {
+    general: (NPC_GENERAL_LINES[id] || []).slice(),
+    island: (NPC_ISLAND_LINES[islandId] || []).slice()
+  };
+}
+
+export function allNpcScriptLinesForTests() {
+  const out = [];
+  for (const style of NPC_STYLE_IDS) {
+    const names = NPC_NAMES[style] || [];
+    out.push(...names);
+    out.push(...(NPC_GENERAL_LINES[style] || []));
+  }
+  for (const key of Object.keys(NPC_ISLAND_LINES)) {
+    out.push(...(NPC_ISLAND_LINES[key] || []));
+  }
+  out.push(...NPC_FAREWELLS);
+  return out;
 }
 
 export function nearestTalkableNpc(px, pz, npcs, radius) {

@@ -261,6 +261,14 @@ export function shouldShowInteractPrompt(ctx) {
   return !!(ctx.zoneId);
 }
 
+/**
+ * 探索 HUD 是否應擋住情境鈕／門口提示（常駐小地圖不算面板）。
+ */
+export function hudBlocksInteract(ctx) {
+  if (!ctx) return false;
+  return !!(ctx.bigMapOpen || ctx.moreOpen || ctx.chatOpen);
+}
+
 /** Enter／E 是否觸發目前互動提示（不搶輸入框與其它可聚焦 UI）。 */
 export function shouldTriggerInteractKey(ctx) {
   if (!ctx || !ctx.promptVisible) return false;

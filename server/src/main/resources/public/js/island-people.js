@@ -9,8 +9,11 @@ import {
   cityWalkerStyles,
   cityScooterAnim,
   miluPointsFromIdles,
-  npcTalkProfile
+  npcTalkProfile,
+  resolveWalkerIslandId
 } from './island-people-data.js';
+
+export { freezeNpcWalker, unfreezeNpcWalker } from './island-people-data.js';
 import { cityWalkerPaths, cityMotoPaths } from './island-city-data.js';
 import { islandAt } from './island-layout.js';
 import {
@@ -35,12 +38,17 @@ const sharedTexturesByStyle = new Map();
 let cityScooterShared = null;
 let cityScooterAnchor = null;
 let talkSpawnSerial = 0;
+let lastNpcMotionT = 0;
+
+export function getNpcMotionTime() {
+  return lastNpcMotionT;
+}
 
 export function npcGreetBobY(t0, now, reduced) {
   if (reduced || !Number.isFinite(t0) || !Number.isFinite(now)) return 0;
   const elapsed = (now - t0) / 1000;
   if (elapsed < 0 || elapsed > 0.4) return 0;
-  return Math.sin(elapsed * Math.PI * 10) * 0.04;
+  return Math.abs(Math.sin(elapsed * Math.PI * 10)) * 0.04;
 }
 
 export function npcFacePlayer(state, anim, px, pz, nx, nz, camTheta, seated) {
@@ -51,19 +59,6 @@ export function npcFacePlayer(state, anim, px, pz, nx, nz, camTheta, seated) {
     return Object.assign({}, src, { mode: 'idle', facing: facing, moving: false });
   }
   return Object.assign({}, src, { mode: 'idle', facing: facing, frame: 0, acc: 0 });
-}
-
-export function freezeNpcWalker(walker, t) {
-  if (!walker || walker.talkHold) return;
-  const along = walker.offset + t * Math.abs(walker.speed);
-  walker.talkHold = { along: along, greetUntil: 0 };
-}
-
-export function unfreezeNpcWalker(walker, t) {
-  if (!walker || !walker.talkHold) return;
-  walker.offset = walker.talkHold.along - t * Math.abs(walker.speed);
-  walker.talkHold = null;
-  walker.talkGreetAt = 0;
 }
 
 export function freezeNpcIdle(idle) {
@@ -344,7 +339,7 @@ function spawnIdleBillboard(scene, idles, def, registry) {
 function spawnWalkerBillboard(scene, walkers, def, extra, registry) {
   const inst = createNpcBillboard(def.style);
   scene.add(inst.view.object);
-  const islandId = def.islandId || (extra && extra.cityOnly ? 'city' : 'main');
+  const islandId = resolveWalkerIslandId(def, extra);
   const meta = talkMeta(def.style, islandId);
   walkers.push({
     obj: inst.view.object,
@@ -380,6 +375,7 @@ export function registerNpcBillboardMotion(loop, ctx) {
 
   loop.register(function updateNpcBillboards(dt, t) {
     if (!camera) return;
+    lastNpcMotionT = t;
     const now = typeof performance !== 'undefined' ? performance.now() : t * 1000;
     walkers.forEach((walker) => {
       if (!walker.billboard) return;
@@ -479,7 +475,8 @@ export function buildIslandPeople(ctx) {
           path: def.path,
           speed: def.speed,
           pingpong: def.pingpong,
-          offset: Math.random() * 0.5
+          offset: Math.random() * 0.5,
+          island: def.island
         }, null, registry);
       } else {
         spawnIdleBillboard(scene, idles, {
