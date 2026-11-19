@@ -15,14 +15,21 @@ const clean=(value:string)=>value.toLowerCase().normalize('NFD').replace(/[\u030
 const HOME_HREF=import.meta.env.BASE_URL.startsWith('/atlas')?'/':'https://tcm.jic.io/';
 const BACK_HOME_LABEL=HOME_HREF==='/'?'回島':'返回首頁';
 const BACK_HOME_ARIA=HOME_HREF==='/'?'回島':'返回中醫首頁';
+const TCM_RETURN_KEY='punchclock.islandTcmReturn';
+const TCM_ISLAND_RETURN={explore:true,target:'island',x:-14.8,z:1.15,yaw:Math.PI/2};
+const TCM_HALL_RETURN={explore:true,target:'hall',buildingId:'tcm-site',x:0,z:8.19,yaw:Math.PI};
 const readLaunchParams=()=>{
- if(typeof window==='undefined')return {set:null as CurriculumSetId|null,code:null as string|null};
+ if(typeof window==='undefined')return {set:null as CurriculumSetId|null,code:null as string|null,fromIsland:false};
  const params=new URLSearchParams(window.location.search);
  const setId=params.get('set');
  const set=curriculumSet(setId)?.id??null;
  const rawCode=params.get('code')??params.get('point');
  const code=rawCode&&POINTS.some(p=>p.code===rawCode)?rawCode:null;
- return {set,code};
+ const fromIsland=params.get('from')==='island';
+ return {set,code,fromIsland};
+};
+const persistTcmReturn=(payload:Record<string,unknown>)=>{
+ try{sessionStorage.setItem(TCM_RETURN_KEY,JSON.stringify(payload));}catch{/* sessionStorage 不可用 */}
 };
 
 function ToolGlyph({tool}:{tool:ToolId}){
@@ -150,12 +157,27 @@ export default function Home(){
  const onPracticeOutfitPreparing=useCallback((preparing:boolean)=>{setPracticePreparing(preparing);},[]);
  const selectedTitle=point?.name??(simulation.customTarget?'自選體表位置':'點選穴位標記');
  const animationStatus=simulation.dragging?'操作中':simulation.running?'演示中':simulation.elapsed>0?'已暫停':'待演示';
+ const goIslandHome=useCallback((event:React.PointerEvent<HTMLAnchorElement>)=>{
+  if(!launch.fromIsland||HOME_HREF!=='/')return;
+  event.preventDefault();
+  persistTcmReturn(TCM_ISLAND_RETURN);
+  window.location.href='/';
+ },[launch.fromIsland]);
+ const goTcmHall=useCallback((event:React.PointerEvent<HTMLAnchorElement>)=>{
+  if(!launch.fromIsland)return;
+  event.preventDefault();
+  persistTcmReturn(TCM_HALL_RETURN);
+  window.location.href='/';
+ },[launch.fromIsland]);
 
  return <main className={`studio rpg-studio is-anime${showOutfitBar?' has-outfit-bar':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
   <header className="studio-header rpg-header">
    <div className="brand-block">
     <a className="brand" href={HOME_HREF} aria-label={BACK_HOME_ARIA}><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室<span className="edition">RPG</span></span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></a>
-    <a className="back-home" href={HOME_HREF}>{BACK_HOME_LABEL}</a>
+    <div className="header-switch-row">
+     {launch.fromIsland&&HOME_HREF==='/'&&<a className="back-home" href="/" onClick={goTcmHall}>回推拿館</a>}
+     <a className="back-home" href={HOME_HREF} onClick={goIslandHome}>{BACK_HOME_LABEL}</a>
+    </div>
    </div>
    <div className="header-actions">
     <div className="header-status"><span className="status-dot"/>穴位練習中<span className="header-divider"/>{currentAvatar.shortName}</div>
