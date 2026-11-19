@@ -39,19 +39,14 @@ export const LIFE_CREATURE_KINDS = Object.freeze([
   'chenghuang'
 ]);
 
-/** 概念圖 12 種：Blender GLB（#199） */
+/** 概念圖 GLB（#226 v3，自授權低多邊模型） */
 export const LIFE_GLB_KINDS = Object.freeze([
   'fishSchool',
   'whale',
   'octopus',
   'wenyao',
-  'chiru',
   'xuanwu',
-  'seaSerpent',
   'birds',
-  'qingniao',
-  'phoenix',
-  'wyvern',
   'kunpeng'
 ]);
 
@@ -70,72 +65,81 @@ const LIFE_GLB_FILES = Object.freeze({
   whale: 'whale.glb',
   octopus: 'octopus.glb',
   wenyao: 'wenyao.glb',
-  chiru: 'chiru.glb',
   xuanwu: 'xuanwu.glb',
-  seaSerpent: 'sea-serpent.glb',
   birds: 'seagull.glb',
-  qingniao: 'qingniao.glb',
-  phoenix: 'phoenix.glb',
-  wyvern: 'wyvern.glb',
   kunpeng: 'kunpeng.glb'
 });
 
-/** 世界尺度 ≈ BOUNDS 最大軸 × 此係數（#199 r2，目標：鯨／鯤 ~10、玄武 ~6.5、魚／鷗 ~1.2） */
-const LIFE_GLB_SCALE = Object.freeze({
-  fishSchool: 1.05,
-  whale: 2.65,
-  octopus: 1.35,
-  wenyao: 1.55,
-  chiru: 1.45,
-  xuanwu: 2.85,
-  seaSerpent: 2.35,
-  birds: 1.05,
-  qingniao: 1.5,
-  phoenix: 1.55,
-  wyvern: 1.65,
-  kunpeng: 2.55
+/** GLB 最長軸已正規化為 1；此係數為世界尺寸目標（#226 r2） */
+export const LIFE_GLB_SCALE = Object.freeze({
+  fishSchool: 1.55,
+  whale: 7.5,
+  octopus: 2.5,
+  wenyao: 2.25,
+  xuanwu: 4.6,
+  birds: 1.65,
+  kunpeng: 9.0
 });
 
 /** 顯示偏移（僅視覺 group；錨點測試仍用 anchor.x/z） */
 const LIFE_KIND_VIEW_OFFSET = Object.freeze({
-  whale: { x: 2.8, z: -3.5 },
-  xuanwu: { x: 9.5, z: 11.5 }
+  whale: { x: 0.5, z: 0.8 },
+  xuanwu: { x: 1.2, z: 0.6 },
+  kunpeng: { x: -1.5, z: 0.5 } // 配合較低飛行高度避開右上 HUD
 });
 
 const LIFE_KIND_YAW = Object.freeze({
-  whale: 0.72,
-  xuanwu: 0.55,
-  kunpeng: -0.42,
+  whale: 0.95,
+  xuanwu: 0.4,
+  kunpeng: 0.35,
   seaSerpent: 0.25,
   chiru: -0.35,
-  wenyao: 0.2
+  wenyao: 0.35
 });
 
-/**  Lambert 色增益（對 UV 貼圖 hand-paint 補飽和） */
-const LIFE_KIND_MATERIAL_GAIN = Object.freeze({
-  whale: 1.28,
-  kunpeng: 1.22,
-  xuanwu: 1.26,
-  octopus: 1.24,
-  chiru: 1.3,
-  wenyao: 1.22,
-  seaSerpent: 1.2,
-  fishSchool: 1.18,
-  birds: 1.15,
-  qingniao: 1.28,
-  phoenix: 1.32,
-  wyvern: 1.2
+/** 全景驗收相機（1280×720 實測） */
+export const LIFE_PANORAMA_VIEWPORT = Object.freeze({
+  width: 1280,
+  height: 720
+});
+
+export const LIFE_PANORAMA_CAMERA = Object.freeze({
+  eye: Object.freeze({ x: 58.1, y: 59.7, z: 81.9 }),
+  dir: Object.freeze({ x: -0.501, y: -0.506, z: -0.702 }),
+  fovDeg: 25
+});
+
+/** 島名標籤與 HUD 禁止重疊的螢幕矩形 */
+export const LIFE_SCREEN_EXCLUSIONS = Object.freeze([
+  Object.freeze({ x: 615, y: 289, w: 72, h: 29 }),
+  Object.freeze({ x: 852, y: 321, w: 72, h: 29 }),
+  Object.freeze({ x: 406, y: 231, w: 99, h: 29 }),
+  Object.freeze({ x: 458, y: 396, w: 72, h: 29 }),
+  Object.freeze({ x: 843, y: 441, w: 72, h: 29 }),
+  Object.freeze({ x: 766, y: 191, w: 72, h: 29 }),
+  Object.freeze({ x: 0, y: 0, w: 240, h: 160 }),
+  Object.freeze({ x: 840, y: 0, w: 440, h: 70 }),
+  Object.freeze({ x: 760, y: 640, w: 520, h: 80 })
+]);
+
+/** 世界半徑估計（AABB 半軸；略大以保守避讓） */
+export const LIFE_KIND_HALF_EXTENTS = Object.freeze({
+  fishSchool: Object.freeze({ x: 2.05, y: 0.22, z: 1.65 }),
+  whale: Object.freeze({ x: 0.95, y: 0.55, z: 3.85 }),
+  octopus: Object.freeze({ x: 1.35, y: 0.65, z: 1.35 }),
+  wenyao: Object.freeze({ x: 1.12, y: 0.4, z: 0.92 }),
+  xuanwu: Object.freeze({ x: 2.65, y: 0.72, z: 2.35 }),
+  birds: Object.freeze({ x: 2.25, y: 0.75, z: 1.45 }),
+  kunpeng: Object.freeze({ x: 1.1, y: 0.9, z: 4.75 })
 });
 
 /** 海面生物：身體或特效露出水面（世界 Y，相對錨點 xz） */
 const LIFE_SEA_MOUNT_Y = Object.freeze({
-  fishSchool: -0.02,
-  whale: 0.42,
-  octopus: 0.12,
-  wenyao: 0.38,
-  chiru: 0.08,
-  xuanwu: 0.28,
-  seaSerpent: 0.22
+  fishSchool: 0.06,
+  whale: 0.55,
+  octopus: 0.42,
+  wenyao: 0.12,
+  xuanwu: 0.32
 });
 
 export function lifeModelPath(kind) {
@@ -151,13 +155,9 @@ const RARE_KINDS = Object.freeze([
   'mermaid',
   'seaDragon',
   'wenyao',
-  'chiru',
   'xuanwu',
-  'seaSerpent',
-  'qingniao',
   'kunpeng',
   'kitsune',
-  'wyvern',
   'bifang',
   'chenghuang'
 ]);
@@ -165,27 +165,22 @@ const RARE_KINDS = Object.freeze([
 /** 固定錨點（世界 xz）；生成物不得改 island-layout 座標。 */
 export function lifePlacementAnchors() {
   return Object.freeze([
-    Object.freeze({ kind: 'fishSchool', x: -11.5, z: 9.8, radius: 2.8, realm: 'sea' }),
+    Object.freeze({ kind: 'fishSchool', x: -14.5, z: 20.5, radius: 2.6, realm: 'sea' }),
     Object.freeze({ kind: 'fishSchool', x: -13.0, z: -15.5, radius: 2.2, realm: 'sea' }),
-    Object.freeze({ kind: 'fishSchool', x: 22.0, z: -15.0, radius: 2.4, realm: 'sea' }),
-    Object.freeze({ kind: 'whale', x: -21.0, z: -10.5, realm: 'sea' }),
-    Object.freeze({ kind: 'octopus', x: 19.2, z: 12.2, realm: 'sea' }),
+    Object.freeze({ kind: 'fishSchool', x: 9.5, z: 25.5, radius: 2.5, realm: 'sea' }),
+    Object.freeze({ kind: 'whale', x: -26.5, z: 7.5, realm: 'sea' }),
+    Object.freeze({ kind: 'octopus', x: 30.5, z: -2.5, realm: 'sea' }),
     Object.freeze({ kind: 'mermaid', x: 25.5, z: 12.0, realm: 'sea' }),
     Object.freeze({ kind: 'seaDragon', x: -23.5, z: -4.5, realm: 'sea' }),
     Object.freeze({ kind: 'jellyfish', x: 12.0, z: 12.5, realm: 'sea' }),
     Object.freeze({ kind: 'jellyfish', x: -10.5, z: -19.8, realm: 'sea' }),
     Object.freeze({ kind: 'jellyfish', x: 28.5, z: -1.5, realm: 'sea' }),
-    Object.freeze({ kind: 'wenyao', x: -26.0, z: -2.0, realm: 'sky' }),
-    Object.freeze({ kind: 'chiru', x: 8.0, z: 16.5, realm: 'sea' }),
-    Object.freeze({ kind: 'xuanwu', x: -30.0, z: -27.0, realm: 'sea' }),
-    Object.freeze({ kind: 'seaSerpent', x: 32.0, z: -14.0, realm: 'sea' }),
-    Object.freeze({ kind: 'birds', x: -10.0, z: 13.5, radius: 5.5, realm: 'sky' }),
-    Object.freeze({ kind: 'birds', x: 23.0, z: -14.5, radius: 4.8, realm: 'sky' }),
-    Object.freeze({ kind: 'qingniao', x: -6.0, z: 18.5, realm: 'sky' }),
-    Object.freeze({ kind: 'kunpeng', x: 28.0, z: 18.0, realm: 'sky' }),
+    Object.freeze({ kind: 'wenyao', x: -15.5, z: 23.0, realm: 'sky' }),
+    Object.freeze({ kind: 'xuanwu', x: -18.0, z: -22.5, realm: 'sea' }),
+    Object.freeze({ kind: 'birds', x: -22.0, z: 8.0, radius: 5.5, realm: 'sky' }),
+    Object.freeze({ kind: 'birds', x: 26.25, z: -13.75, radius: 4.8, realm: 'sky' }),
+    Object.freeze({ kind: 'kunpeng', x: -26.0, z: -2.0, realm: 'sky' }),
     Object.freeze({ kind: 'kitsune', x: -18.0, z: 16.0, realm: 'sky' }),
-    Object.freeze({ kind: 'phoenix', x: -11.5, z: -26.0, realm: 'sky' }),
-    Object.freeze({ kind: 'wyvern', x: 22.0, z: -20.0, realm: 'sky' }),
     Object.freeze({ kind: 'bifang', x: 6.0, z: 20.0, realm: 'sky' }),
     Object.freeze({ kind: 'chenghuang', x: -14.0, z: -12.0, realm: 'sky' })
   ]);
@@ -251,6 +246,126 @@ export function validateLifePlacements() {
     }
     if (!lifePlacementAllowed(a.x, a.z, LIFE_WALK_CLEARANCE)) {
       problems.push('錨點不可放 ' + a.kind + ' @' + a.x + ',' + a.z);
+    }
+  }
+  return Object.freeze({ ok: problems.length === 0, problems: Object.freeze(problems) });
+}
+
+function lifeVec3Norm(v) {
+  const len = Math.hypot(v.x, v.y, v.z) || 1;
+  return { x: v.x / len, y: v.y / len, z: v.z / len };
+}
+
+function lifeVec3Cross(a, b) {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x
+  };
+}
+
+function lifeVec3Dot(a, b) {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+export function lifeCreatureWorldCenter(anchor, kind) {
+  const off = LIFE_KIND_VIEW_OFFSET[kind] || null;
+  const dx = off ? off.x : 0;
+  const dz = off ? off.z : 0;
+  const realm = anchor.realm || 'sea';
+  let y;
+  if (realm === 'sea') {
+    const seaOff = LIFE_SEA_MOUNT_Y[kind];
+    y = LIFE_SEA_Y + (seaOff != null ? seaOff : 0);
+  } else {
+    y = LIFE_SKY_BASE + (kind === 'kunpeng' ? 6 : kind === 'wenyao' ? 5.5 : 6);
+  }
+  return Object.freeze({ x: anchor.x + dx, y: y, z: anchor.z + dz });
+}
+
+export function lifeProjectWorldPoint(wx, wy, wz, cam, viewport) {
+  const eye = cam.eye;
+  const forward = lifeVec3Norm(cam.dir);
+  let right = lifeVec3Cross(forward, { x: 0, y: 1, z: 0 });
+  const rlen = Math.hypot(right.x, right.y, right.z);
+  if (rlen < 1e-6) right = { x: 1, y: 0, z: 0 };
+  else right = { x: right.x / rlen, y: right.y / rlen, z: right.z / rlen };
+  const up = lifeVec3Norm(lifeVec3Cross(right, forward));
+  const rel = { x: wx - eye.x, y: wy - eye.y, z: wz - eye.z };
+  const vz = lifeVec3Dot(rel, forward);
+  if (vz <= 0.05) return null;
+  const vx = lifeVec3Dot(rel, right);
+  const vy = lifeVec3Dot(rel, up);
+  const tanHalf = Math.tan(((cam.fovDeg || 25) * Math.PI) / 180 / 2);
+  const aspect = viewport.width / viewport.height;
+  const ndcX = vx / (vz * tanHalf * aspect);
+  const ndcY = vy / (vz * tanHalf);
+  return Object.freeze({
+    x: (ndcX * 0.5 + 0.5) * viewport.width,
+    y: (1 - (ndcY * 0.5 + 0.5)) * viewport.height
+  });
+}
+
+export function lifeProjectCreatureScreenBox(anchor, kind, cam, viewport) {
+  const center = lifeCreatureWorldCenter(anchor, kind);
+  const half = LIFE_KIND_HALF_EXTENTS[kind];
+  if (!half) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let any = false;
+  const sx = [center.x - half.x, center.x + half.x];
+  const sy = [center.y - half.y, center.y + half.y];
+  const sz = [center.z - half.z, center.z + half.z];
+  for (let ix = 0; ix < 2; ix++) {
+    for (let iy = 0; iy < 2; iy++) {
+      for (let iz = 0; iz < 2; iz++) {
+        const p = lifeProjectWorldPoint(sx[ix], sy[iy], sz[iz], cam, viewport);
+        if (!p) continue;
+        any = true;
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x);
+        maxY = Math.max(maxY, p.y);
+      }
+    }
+  }
+  if (!any) return null;
+  return Object.freeze({ x: minX, y: minY, w: maxX - minX, h: maxY - minY });
+}
+
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+export function lifeCreaturePanoramaPlacementOk(anchor, kind, cam, viewport, exclusions) {
+  const box = lifeProjectCreatureScreenBox(anchor, kind, cam, viewport);
+  if (!box) return { ok: false, reason: 'behind camera or missing extents' };
+  const pad = 4;
+  if (box.x < pad || box.y < pad
+    || box.x + box.w > viewport.width - pad
+    || box.y + box.h > viewport.height - pad) {
+    return { ok: false, reason: 'off screen', box: box };
+  }
+  const blocks = exclusions || LIFE_SCREEN_EXCLUSIONS;
+  for (let i = 0; i < blocks.length; i++) {
+    if (rectsOverlap(box, blocks[i])) {
+      return { ok: false, reason: 'overlap exclusion', box: box };
+    }
+  }
+  return { ok: true, box: box };
+}
+
+export function validateLifePanoramaGlbPlacements() {
+  const cam = LIFE_PANORAMA_CAMERA;
+  const vp = LIFE_PANORAMA_VIEWPORT;
+  const problems = [];
+  for (const anchor of lifePlacementAnchors()) {
+    if (!LIFE_GLB_KINDS.includes(anchor.kind)) continue;
+    const r = lifeCreaturePanoramaPlacementOk(anchor, anchor.kind, cam, vp);
+    if (!r.ok) {
+      problems.push(anchor.kind + '@' + anchor.x + ',' + anchor.z + ': ' + r.reason);
     }
   }
   return Object.freeze({ ok: problems.length === 0, problems: Object.freeze(problems) });
@@ -363,47 +478,69 @@ function forEachMesh(root, fn) {
 
 function isCreatureBodyMesh(mesh) {
   const n = (mesh.name || '').toLowerCase();
-  if (!n || n.includes('icosphere') || n.includes('cube')) return false;
-  return mesh.geometry && mesh.geometry.attributes && mesh.geometry.attributes.position;
+  if (n.includes('icosphere') || n.includes('cube')) return false;
+  return !!(mesh.geometry && mesh.geometry.attributes && mesh.geometry.attributes.position);
 }
 
 function prepareLifeMaterials(THREE, root, kind) {
-  const gain = (kind && LIFE_KIND_MATERIAL_GAIN[kind]) || 1.12;
-  const tint = Math.min(1.45, gain);
   forEachMesh(root, (mesh) => {
-    if (!isCreatureBodyMesh(mesh)) {
-      mesh.visible = false;
-      return;
-    }
+    if (!isCreatureBodyMesh(mesh)) return;
     mesh.castShadow = false;
     mesh.receiveShadow = false;
     const n = (mesh.name || '').toLowerCase();
     const sprayMesh = n.includes('spray');
+    const cloudMesh = n.includes('cloud') || n.includes('kun_cloud');
     const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     for (let i = 0; i < mats.length; i++) {
       const mat = mats[i];
       if (!mat) continue;
-      mat.flatShading = true;
+      const birdMesh = kind === 'birds';
+      mat.flatShading = !birdMesh;
+      if (mat.map) {
+        mat.map.dispose();
+        mat.map = null;
+      }
       if (mesh.geometry && mesh.geometry.attributes.color) {
         mat.vertexColors = true;
-      }
-      if (mat.map) {
-        mat.map.colorSpace = THREE.SRGBColorSpace;
+      } else {
         mat.vertexColors = false;
       }
       if (!mat.color) mat.color = new THREE.Color(0xffffff);
+      if (birdMesh && mat.roughness != null) mat.roughness = 0.8;
+      if (birdMesh && mat.metalness != null) mat.metalness = 0;
       if (sprayMesh) {
-        mat.color.setRGB(0.82, 0.94, 1);
+        mat.color.setRGB(0.95, 0.98, 1);
         mat.transparent = true;
-        mat.opacity = 0.88;
-      } else {
-        mat.color.setRGB(tint, tint, tint);
+        mat.opacity = 0.82;
+      } else if (cloudMesh) {
+        mat.color.setRGB(0.98, 0.99, 1);
+        mat.transparent = true;
+        mat.opacity = 0.68;
       }
       const base = mat.color.clone();
       mat.userData.day = base;
       mat.userData.night = base.clone();
       mat.userData.dayE = mat.emissiveIntensity || 0;
-      mat.userData.nightE = mat.emissiveIntensity || 0;
+      const nightKinds = {
+        fishSchool: 0.22,
+        whale: 0.1,
+        octopus: 0.12,
+        wenyao: 0.14,
+        xuanwu: 0.1,
+        birds: 0.08,
+        kunpeng: 0.16
+      };
+      const nightE = nightKinds[kind] || 0.08;
+      mat.userData.nightE = sprayMesh ? 0.2 : nightE;
+      if (sprayMesh && mat.emissive) mat.emissive.setRGB(0.75, 0.9, 1);
+      if (birdMesh && mat.emissive) {
+        const isTip = n.includes('gull_tip');
+        const isBeak = n.includes('gull_beak');
+        const e = isTip ? 0 : isBeak ? 0.38 : 0.52;
+        mat.emissive.copy(mat.color);
+        mat.emissiveIntensity = e;
+        mat.userData.dayEmissiveMin = e;
+      }
     }
   });
 }
@@ -421,7 +558,7 @@ function applyLifeViewPosition(group, anchor, kind) {
     const seaOff = LIFE_SEA_MOUNT_Y[kind];
     group.position.set(anchor.x + dx, LIFE_SEA_Y + (seaOff != null ? seaOff : 0), anchor.z + dz);
   } else {
-    group.position.set(anchor.x + dx, LIFE_SKY_BASE + (kind === 'kunpeng' ? 12 : 6), anchor.z + dz);
+    group.position.set(anchor.x + dx, LIFE_SKY_BASE + (kind === 'kunpeng' ? 6 : 6), anchor.z + dz);
   }
   const yaw = LIFE_KIND_YAW[kind];
   if (yaw != null) group.rotation.y = yaw;
@@ -432,54 +569,30 @@ function prepSkinnedRoot(THREE, gltf, scale) {
   const root = gltf.scene;
   root.scale.setScalar(scale || 1);
   root.rotation.x = 0;
+  root.rotation.y = 0;
+  root.rotation.z = 0;
   root.traverse((o) => {
     o.frustumCulled = true;
   });
-  let mixer = null;
-  if (gltf.animations && gltf.animations.length > 0 && THREE.AnimationMixer) {
-    mixer = new THREE.AnimationMixer(root);
-    const action = mixer.clipAction(gltf.animations[0]);
-    action.play();
-  }
-  return { root: root, mixer: mixer, animations: gltf.animations || [] };
-}
-
-function firstMeshPair(root) {
-  let geometry = null;
-  let material = null;
-  forEachMesh(root, (mesh) => {
-    if (geometry || !isCreatureBodyMesh(mesh)) return;
-    geometry = mesh.geometry;
-    material = mesh.material;
-  });
-  return { geometry: geometry, material: material };
+  return { root: root, mixer: null, animations: [] };
 }
 
 function buildFishSchoolInstanced(THREE, kit, anchor, fishRoot) {
   const group = new THREE.Group();
   group.userData.kind = 'fishSchool';
   group.userData.anchor = anchor;
-  const pair = firstMeshPair(fishRoot);
-  if (!pair.geometry) return group;
-  const count = 16;
-  const mesh = new THREE.InstancedMesh(pair.geometry, pair.material, count);
-  mesh.castShadow = false;
-  mesh.receiveShadow = false;
-  const dummy = new THREE.Object3D();
-  const cols = [0, 1, 2];
+  const count = 14;
   for (let i = 0; i < count; i++) {
-    dummy.position.set(
-      (i % 4) * 0.42 - 0.63,
-      (i % 3) * 0.12,
-      (Math.floor(i / 4) % 3) * 0.35 - 0.35
+    const fish = fishRoot.clone(true);
+    fish.position.set(
+      (i % 4) * 1.05 - 1.58,
+      (i % 3) * 0.08 - 0.04,
+      (Math.floor(i / 4) % 4) * 0.82 - 1.1
     );
-    dummy.rotation.set(0, (i % 5) * 0.4, 0);
-    dummy.scale.setScalar(1.05 + (i % 4) * 0.14);
-    dummy.updateMatrix();
-    mesh.setMatrixAt(i, dummy.matrix);
+    fish.rotation.set(0, (i % 5) * 0.38 + 0.2, (i % 3) * 0.04);
+    fish.scale.setScalar(0.92 + (i % 4) * 0.12);
+    group.add(fish);
   }
-  mesh.instanceMatrix.needsUpdate = true;
-  group.add(mesh);
   const seaY = LIFE_SEA_MOUNT_Y.fishSchool != null ? LIFE_SEA_MOUNT_Y.fishSchool : -0.02;
   group.position.set(anchor.x, LIFE_SEA_Y + seaY, anchor.z);
   return group;
@@ -489,35 +602,29 @@ function buildBirdsInstanced(THREE, kit, anchor, gullRoot) {
   const group = new THREE.Group();
   group.userData.kind = 'birds';
   group.userData.anchor = anchor;
-  const pair = firstMeshPair(gullRoot);
-  if (!pair.geometry) return group;
   const count = 10;
-  const mesh = new THREE.InstancedMesh(pair.geometry, pair.material, count);
-  mesh.castShadow = false;
-  const dummy = new THREE.Object3D();
   for (let i = 0; i < count; i++) {
-    dummy.position.set(
+    const bird = gullRoot.clone(true);
+    bird.position.set(
       (i % 5) * 0.65 - 1.3,
-      (i % 2) * 0.55 + 0.1,
-      (Math.floor(i / 5)) * 0.9 - 0.45
+      (i % 2) * 0.55 + 0.1 + Math.sin(i * 1.7) * 0.02,
+      Math.floor(i / 5) * 0.9 - 0.45
     );
-    dummy.rotation.set(0, (i % 4) * 0.35, 0);
-    dummy.scale.setScalar(1.1 + (i % 3) * 0.18);
-    dummy.updateMatrix();
-    mesh.setMatrixAt(i, dummy.matrix);
+    bird.rotation.set(Math.sin(i) * 0.06, (i % 4) * 0.35, 0);
+    bird.scale.setScalar(1.1 + (i % 3) * 0.18);
+    group.add(bird);
   }
-  mesh.instanceMatrix.needsUpdate = true;
-  group.add(mesh);
   group.position.set(anchor.x, LIFE_SKY_BASE + 2.5, anchor.z);
   return group;
 }
 
-function mountGlbCreature(THREE, kit, anchor, kind, disposables, mixers) {
+function mountGlbCreature(THREE, kit, anchor, kind, disposables, mixers, opts) {
   const group = new THREE.Group();
   group.userData.kind = kind;
   group.userData.anchor = anchor;
   const scale = LIFE_GLB_SCALE[kind] || 2;
   if (kind === 'phoenix') group.userData.glowKind = true;
+  if (kind === 'whale' && opts && opts.lifeSpout) group.userData.lifeSpout = true;
   applyLifeViewPosition(group, anchor, kind);
   group.userData.glbMount = true;
   group.userData.glbScale = scale;
@@ -909,6 +1016,7 @@ export function createIslandLife(THREE, opts) {
   let lowQuality = !!(opts && opts.lowQuality);
   const forceAll = !!(opts && opts.forceAll);
   const forceRare = opts && opts.forceRare ? String(opts.forceRare) : '';
+  const lifeSpout = !!(opts && opts.lifeSpout);
   const useGlb = !(opts && opts.procedural);
   const disposables = [];
   const creatures = [];
@@ -923,7 +1031,7 @@ export function createIslandLife(THREE, opts) {
     const kind = anchor.kind;
     let obj;
     if (useGlb && LIFE_GLB_KINDS.includes(kind)) {
-      obj = mountGlbCreature(THREE, kit, anchor, kind, disposables, mixers);
+      obj = mountGlbCreature(THREE, kit, anchor, kind, disposables, mixers, opts);
     } else {
       const build = BUILDERS[kind];
       if (!build) continue;
@@ -982,7 +1090,10 @@ export function createIslandLife(THREE, opts) {
       const strength = lifeGlowStrength(node.userData.kind, mixValue, reduced);
       node.traverse((child) => {
         if (child.material && child.material.emissiveIntensity != null) {
-          child.material.emissiveIntensity = strength * (reduced ? 0 : 0.55);
+          const floor = child.material.userData.dayEmissiveMin;
+          const night = strength * (reduced ? 0 : 0.55);
+          child.material.emissiveIntensity =
+            floor != null ? Math.max(floor, night) : night;
         }
         if (child.material && child.material.userData) {
           child.material.userData.nightE = strength * 0.75;
@@ -1035,18 +1146,25 @@ export function createIslandLife(THREE, opts) {
         node.rotation.y = pos.yaw;
       } else if (kind === 'octopus') {
         node.rotation.y = Math.sin(tick.elapsed * 0.25) * 0.15;
+      } else if (kind === 'xuanwu') {
+        node.rotation.y = (LIFE_KIND_YAW.xuanwu || 0) + Math.sin(tick.elapsed * 0.12) * 0.06;
       } else if (kind === 'whale') {
-        const cycle = tick.elapsed % 88;
-        const breach = cycle < 14;
-        const spout = cycle > 1.5 && cycle < 12;
+        node.rotation.x = Math.sin(tick.elapsed * 0.14) * 0.05;
+        const cycle = tick.elapsed % 5.0;
+        const breach = cycle < 1.6;
+        const forceSpout = !!(node.userData.lifeSpout);
+        const spout = forceSpout || (cycle > 0.15 && cycle < 1.75);
         if (node.userData.spray) {
           node.userData.spray.visible = spout;
-          node.userData.spray.scale.setScalar(spout ? 1.15 : 1);
+          const peak = forceSpout ? 1.55 : 1.35 + Math.sin(cycle * 3.2) * 0.1;
+          node.userData.spray.scale.setScalar(spout ? peak : 0.01);
         }
         const vo = node.userData.viewOffset || { x: 0, z: 0 };
         const w = waveHeight(anchor.x + vo.x, anchor.z + vo.z, tick.elapsed, false);
         const whaleBase = LIFE_SEA_MOUNT_Y.whale != null ? LIFE_SEA_MOUNT_Y.whale : 0.42;
         node.position.y = LIFE_SEA_Y + whaleBase + (breach ? 0.32 : -0.02) + w * 0.2;
+        const baseYaw = LIFE_KIND_YAW.whale != null ? LIFE_KIND_YAW.whale : 0;
+        node.rotation.y = baseYaw + Math.sin(tick.elapsed * 0.06) * 0.08;
       } else if (kind === 'seaDragon') {
         node.position.x = anchor.x + Math.sin(tick.elapsed * 0.12) * 1.8;
         node.position.z = anchor.z + Math.cos(tick.elapsed * 0.1) * 1.2;
@@ -1054,12 +1172,16 @@ export function createIslandLife(THREE, opts) {
         const w = waveHeight(anchor.x, anchor.z, tick.elapsed, false);
         node.position.y = LIFE_SEA_Y + 0.08 + w * 0.15 + Math.sin(tick.elapsed * 0.8) * 0.08;
       } else if (kind === 'wenyao') {
-        const along = (tick.elapsed * 0.15) % 1;
-        node.position.x = anchor.x + along * 18;
-        node.position.z = anchor.z + Math.sin(along * Math.PI * 2) * 0.8;
-        const wenyaoBase = LIFE_SEA_MOUNT_Y.wenyao != null ? LIFE_SEA_MOUNT_Y.wenyao : 0.38;
-        node.position.y = LIFE_SEA_Y + wenyaoBase + Math.sin(tick.elapsed * 0.6) * 0.12;
-        node.rotation.y = 0.15;
+        const hopT = (tick.elapsed * 0.42) % 3.6;
+        const arc = Math.sin((hopT / 3.6) * Math.PI);
+        node.position.x = anchor.x + Math.sin(tick.elapsed * 0.18) * 2.5 + hopT * 0.35;
+        node.position.z = anchor.z + Math.cos(tick.elapsed * 0.15) * 1.2;
+        const wenyaoBase = LIFE_SEA_MOUNT_Y.wenyao != null ? LIFE_SEA_MOUNT_Y.wenyao : 0.12;
+        const skyLift = arc * 2.4;
+        node.position.y = LIFE_SEA_Y + wenyaoBase + skyLift + Math.sin(tick.elapsed * 0.6) * 0.08;
+        node.rotation.x = -arc * 0.12;
+        node.rotation.y = 0.35 + Math.sin(tick.elapsed * 0.22) * 0.12;
+        node.rotation.z = Math.sin(tick.elapsed * 0.3) * 0.04;
       } else if (kind === 'chiru') {
         node.position.x = anchor.x + Math.sin(tick.elapsed * 0.2) * 1.2;
         node.rotation.y = Math.sin(tick.elapsed * 0.15) * 0.3;
@@ -1083,6 +1205,7 @@ export function createIslandLife(THREE, opts) {
         const baseYaw = LIFE_KIND_YAW.kunpeng != null ? LIFE_KIND_YAW.kunpeng : 0;
         node.position.x = anchor.x + vo.x + Math.sin(tick.elapsed * 0.04) * 3;
         node.rotation.y = baseYaw + tick.elapsed * 0.05;
+        node.rotation.x = Math.sin(tick.elapsed * 0.07) * 0.05;
       } else if (kind === 'phoenix') {
         node.position.y = LIFE_SKY_BASE + 7 + Math.sin(tick.elapsed * 0.35) * 0.5;
         node.rotation.y = tick.elapsed * 0.06;
@@ -1137,3 +1260,5 @@ export function createIslandLife(THREE, opts) {
     ready
   };
 }
+
+export { prepareLifeMaterials };
