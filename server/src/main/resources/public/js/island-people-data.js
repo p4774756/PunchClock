@@ -1,5 +1,6 @@
 // 行人 NPC 資料與預算（node:test 可載入，不依賴 WebGL）。
 import { G, P } from './island-kit.js';
+import { MILU_ANIM } from './island-milu.js';
 
 export const NPC_STYLE_IDS = Object.freeze([
   'summer',
@@ -11,36 +12,96 @@ export const NPC_STYLE_IDS = Object.freeze([
   'fairy'
 ]);
 
-export const NPC_GLB_URL = '/models/npc-women.glb';
+export const NPC_PET_BASE = '/pet/npc-women/';
 
 export const NPC_BUDGET = Object.freeze({
-  MAX_TRIS_PER_STYLE: 2500,
-  MAX_UNIQUE_TRIS: 17500,
   MAX_INSTANCES: 24,
-  MAX_INSTANCE_TRIS: 60000,
-  MAX_DRAW_CALLS: 48,
-  MAX_GLB_BYTES: 800 * 1024,
-  MAX_MESHES_PER_INSTANCE: 2
+  FRAME_PX: 400,
+  MAX_STYLE_TEXTURE_SETS: 7
 });
 
-/** 與 build_npc_women.py 匯出統計同步（無頭重建後請更新）。 */
-export const NPC_GLB_STATS = Object.freeze({
-  bytes: 710652,
-  trisTotalUnique: 4102,
-  drawCallsEst: 24,
-  trisPerStyle: Object.freeze({
-    summer: 574,
-    student: 498,
-    tech: 486,
-    idol: 658,
-    swimsuit: 586,
-    sport: 474,
-    fairy: 826
-  }),
-  rebuildCmd:
-    '~/.local/bin/blender -b --factory-startup -P tools/blender/build_npc_women.py -- ' +
-    'server/src/main/resources/public/models/npc-women.glb'
+const WALK_CLIPS = Object.freeze({
+  left: Object.freeze(['walk/left_01.png', 'walk/left_02.png', 'walk/left_03.png', 'walk/left_04.png']),
+  right: Object.freeze(['walk/right_01.png', 'walk/right_02.png', 'walk/right_03.png', 'walk/right_04.png']),
+  front: Object.freeze(['walk/front_01.png', 'walk/front_02.png', 'walk/front_03.png', 'walk/front_04.png']),
+  back: Object.freeze(['walk/back_01.png', 'walk/back_02.png', 'walk/back_03.png', 'walk/back_04.png'])
 });
+
+const IDLE_CLIPS = Object.freeze({
+  breath: Object.freeze([
+    'idle/breath_01.png', 'idle/breath_02.png', 'idle/breath_03.png', 'idle/breath_04.png'
+  ]),
+  blink: Object.freeze(['idle/blink_01.png', 'idle/blink_02.png']),
+  backBreath: Object.freeze([
+    'idle/back_breath_01.png', 'idle/back_breath_02.png', 'idle/back_breath_03.png', 'idle/back_breath_04.png'
+  ]),
+  backBlink: Object.freeze(['idle/back_blink_01.png', 'idle/back_blink_02.png'])
+});
+
+const SIT_CLIP = Object.freeze(['sit/sit_01.png', 'sit/sit_02.png']);
+
+const NPC_ANIM_BY_STYLE = Object.freeze(
+  Object.fromEntries(
+    NPC_STYLE_IDS.map((style) => {
+      const hasSit = style === 'student' || style === 'idol' || style === 'sport';
+      return [style, Object.freeze({
+        footV: MILU_ANIM.footV,
+        height: MILU_ANIM.height,
+        shadowRadius: MILU_ANIM.shadowRadius,
+        alphaTest: MILU_ANIM.alphaTest,
+        faceDeadzone: MILU_ANIM.faceDeadzone,
+        faceBucket: MILU_ANIM.faceBucket,
+        faceHysteresis: MILU_ANIM.faceHysteresis,
+        waveNpcRadius: MILU_ANIM.waveNpcRadius,
+        waveZoneExtra: MILU_ANIM.waveZoneExtra,
+        fps: MILU_ANIM.fps,
+        blinkEvery: MILU_ANIM.blinkEvery,
+        baseUrl: NPC_PET_BASE + style + '/',
+        clips: Object.freeze({
+          walk: WALK_CLIPS,
+          idle: Object.freeze({
+            breath: IDLE_CLIPS.breath,
+            blink: IDLE_CLIPS.blink,
+            backBreath: IDLE_CLIPS.backBreath,
+            backBlink: IDLE_CLIPS.backBlink,
+            sit: hasSit ? SIT_CLIP : Object.freeze([])
+          })
+        })
+      })];
+    })
+  )
+);
+
+export function npcWomenAnim(style) {
+  return NPC_ANIM_BY_STYLE[style] || NPC_ANIM_BY_STYLE.summer;
+}
+
+export function npcRequiredFramePaths(style) {
+  const anim = npcWomenAnim(style);
+  const out = [];
+  const seen = Object.create(null);
+  function addList(list) {
+    if (!list) return;
+    for (let i = 0; i < list.length; i++) {
+      const rel = list[i];
+      if (!rel || seen[rel]) continue;
+      seen[rel] = true;
+      out.push(rel);
+    }
+  }
+  const walk = anim.clips.walk || {};
+  const idle = anim.clips.idle || {};
+  addList(walk.left);
+  addList(walk.right);
+  addList(idle.breath);
+  addList(idle.blink);
+  addList(walk.front);
+  addList(walk.back);
+  addList(idle.backBreath);
+  addList(idle.backBlink);
+  addList(idle.sit);
+  return out;
+}
 
 export const MAIN_RING_WALK = Object.freeze([
   [-5.6, 4.7], [-1.8, 6.35], [2.1, 6.4], [5.6, 4.3],
@@ -67,7 +128,7 @@ export function mainIdleDefs() {
     { style: 'summer', x: 0.05, z: 2.25, rotY: Math.PI, seated: false, phase: 0.8, variant: 1 },
     { style: 'idol', x: -0.05, z: 2.9, rotY: Math.PI, seated: false, phase: 1.4 },
     { style: 'summer', x: 0.12, z: 3.55, rotY: Math.PI, seated: false, phase: 2.1, variant: 1 },
-    { style: 'sport', x: -4.85, z: 4.15, rotY: Math.PI, seated: true, phase: 0.5 },
+    { style: 'sport', x: -5.15, z: 5.05, rotY: Math.PI * 0.85, seated: true, phase: 0.5 },
     { style: 'idol', x: -4.85, z: 2.95, rotY: 0, seated: true, phase: 1.6, variant: 1 },
     { style: 'student', x: 4.55, z: 4.08, rotY: Math.PI, seated: true, phase: 2.4 },
     { style: 'swimsuit', x: -0.15, z: 8.45, rotY: 0.15, seated: false, phase: 0.9 }
@@ -77,7 +138,7 @@ export function mainIdleDefs() {
 /** 其他島與城市以外的主場景補點（總量 ≤ 24） */
 export function islandExtraDefs() {
   return Object.freeze([
-    { style: 'tech', x: 0.35, z: 16.35, rotY: Math.PI, walker: false, island: 'computer' },
+    { style: 'tech', x: 1.05, z: 15.25, rotY: -0.35, walker: false, island: 'computer' },
     { style: 'student', x: 1.0, z: 15.4, rotY: -0.4, walker: true,
       path: [[0.35, 15.9], [1.45, 16.15], [2.15, 15.25]], speed: 0.042, pingpong: true },
     { style: 'fairy', x: -16.2, z: 0.35, rotY: 0.6, walker: false, island: 'tcm' },
@@ -86,7 +147,7 @@ export function islandExtraDefs() {
     { style: 'swimsuit', x: 21.35, z: 5.35, rotY: 0.3, walker: false, island: 'beach' },
     { style: 'swimsuit', x: 22.15, z: 6.25, rotY: -2.0, walker: true,
       path: [[21.55, 6.05], [22.45, 5.85], [22.05, 6.35]], speed: 0.038, pingpong: true },
-    { style: 'idol', x: 14.85, z: -6.35, rotY: 0.8, walker: false, island: 'casino' },
+    { style: 'idol', x: 15.25, z: -5.45, rotY: 2.35, walker: false, island: 'casino' },
     { style: 'sport', x: 15.05, z: -7.85, rotY: -0.5, walker: true,
       path: [[14.55, -7.05], [15.05, -7.55], [14.75, -8.15]], speed: 0.044, pingpong: false }
   ]);
@@ -125,15 +186,6 @@ export function countNpcInstances(plan) {
 
 export function idleFootY(seated) {
   return seated ? G : P;
-}
-
-/** GLB 模板在場景中隱藏；SkeletonUtils.clone 會複製 visible，實例需再設回 true。 */
-export function revealNpcInstanceRoot(root) {
-  if (!root) return;
-  root.visible = true;
-  root.traverse((child) => {
-    child.visible = true;
-  });
 }
 
 export function samplePathPoints(path, stepsPerEdge = 6) {

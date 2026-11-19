@@ -814,6 +814,16 @@ function boot() {
     allowSky: () => !rooms.inside(),
     initial: POSES.home
   });
+  if (typeof people.registerBillboardMotion === 'function') {
+    people.registerBillboardMotion(loop, {
+      reduced: reduced,
+      walkers: walkers,
+      idles: idles,
+      P: P,
+      camera: camera,
+      camTheta: () => cam.theta
+    });
+  }
   let animating = false;
   const projected = new THREE.Vector3();
   let activeZone = '';
