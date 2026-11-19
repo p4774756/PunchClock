@@ -38,6 +38,7 @@ public class IslandExploreLogicTest {
     private static final String TCM_VISIT_SCRIPT = "src/test/js/island-tcm-visit.test.mjs";
     private static final String TCM_FIGURE_SCRIPT = "src/test/js/island-tcm-figure.test.mjs";
     private static final String LIFE_SCRIPT = "src/test/js/island-life.test.mjs";
+    private static final String MOBILE_CHROME_SCRIPT = "src/test/js/island-mobile-chrome.test.mjs";
 
     @Test
     public void exploreLogicPassesNodeTests() throws Exception {
@@ -152,6 +153,11 @@ public class IslandExploreLogicTest {
     @Test
     public void islandLifePassesNodeTests() throws Exception {
         runNodeTest(LIFE_SCRIPT, "未安裝 Node.js，略過海空生物邏輯測試");
+    }
+
+    @Test
+    public void mobileChromePassesNodeTests() throws Exception {
+        runNodeTest(MOBILE_CHROME_SCRIPT, "未安裝 Node.js，略過主島手機 HUD 測試");
     }
 
     private void runNodeTest(String scriptPath, String skipMessage) throws Exception {

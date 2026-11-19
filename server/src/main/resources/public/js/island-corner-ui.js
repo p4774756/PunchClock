@@ -44,30 +44,159 @@ export function hudTopRightRect(viewportWidth, viewportHeight, showAudio) {
   return { left, right, top, bottom, width: totalW, height: bottom - top, orbSize: ORB_SIZE };
 }
 
-export function hudActionsRect(viewportWidth, viewportHeight) {
+const EXPLORE_EXIT_MIN_W = 5.5 * REM;
+const INTERACT_BTN_W = 7.5625 * REM;
+
+/** 探索中右下角「退出探索」主按鈕（對齊 island.css）。 */
+export function exploreExitButtonRect(viewportWidth, viewportHeight) {
+  const narrow = viewportWidth <= MOBILE_MAX_WIDTH;
   const margin = hudMargin(viewportWidth);
+  const height = 3.75 * REM;
+  const width = narrow ? EXPLORE_EXIT_MIN_W : 5.85 * REM;
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  const right = viewportWidth - margin;
+  const left = right - width;
+  let bottom;
+  let top;
+  if (narrow) {
+    const layout = exploreHudActionItems(viewportWidth, viewportHeight, {
+      withInteract: true,
+      withSteer: true
+    });
+    const rowGap = 0.45 * REM;
+    const clusterTop = layout.items.length
+      ? Math.min(...layout.items.map((i) => i.top))
+      : layout.actions.top;
+    bottom = clusterTop - rowGap;
+    top = bottom - height;
+  } else {
+    const bottomInset = 1.1 * REM;
+    bottom = viewportHeight - bottomInset;
+    top = bottom - height;
+  }
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    width,
+    height,
+    joy,
+    tr: hudTopRightRect(viewportWidth, viewportHeight, true),
+    actions: hudActionsRect(viewportWidth, viewportHeight, { exploring: true })
+  };
+}
+
+/**
+ * @param {{ exploring?: boolean, withInteract?: boolean, withSteer?: boolean, interactWidth?: number }} [opts]
+ */
+export function hudActionsRect(viewportWidth, viewportHeight, opts) {
+  const exploring = !!(opts && opts.exploring);
+  const withInteract = !!(opts && opts.withInteract);
+  const withSteer = !!(opts && opts.withSteer);
+  const interactWidth = (opts && opts.interactWidth) || INTERACT_BTN_W;
+  const margin = hudMargin(viewportWidth);
+  const narrow = viewportWidth <= MOBILE_MAX_WIDTH;
   const smallOrb = 2.85 * REM;
   const primaryW = 3.75 * REM;
   const primaryH = 3.75 * REM;
   const steerW = smallOrb;
   const gap = 0.45 * REM;
-  const rowW = smallOrb * 2 + gap + primaryW;
-  const bottom = viewportHeight - Math.max(0.7 * REM, 0);
-  const bottomInset = viewportWidth <= MOBILE_MAX_WIDTH ? 0.85 * REM : 1.1 * REM;
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
+  const bottomInset = narrow ? 0.85 * REM : 1.1 * REM;
   const bottomEdge = viewportHeight - bottomInset;
   const top = bottomEdge - primaryH;
   const right = viewportWidth - margin;
-  const left = right - rowW - steerW - gap;
+  let rowW = smallOrb * 2 + gap;
+  if (!(exploring && narrow)) rowW += primaryW;
+  if (withInteract) rowW += gap + interactWidth;
+  if (withSteer) rowW += gap + steerW;
+  let left;
+  if (narrow && exploring) {
+    left = joy.right + 0.55 * REM;
+  } else {
+    const legacyRow = smallOrb * 2 + gap + primaryW;
+    left = right - legacyRow - steerW - gap;
+  }
+  const width = Math.max(0, right - left);
   return {
     left,
     right,
     top,
     bottom: bottomEdge,
-    width: rowW + steerW + gap,
+    width,
     height: primaryH,
+    rowW,
     primary: { width: primaryW, height: primaryH, minTouch: Math.min(primaryW, primaryH) },
-    smallOrb: { width: smallOrb, height: smallOrb + 0.75 * REM, minTouch: smallOrb }
+    smallOrb: { width: smallOrb, height: smallOrb + 0.75 * REM, minTouch: smallOrb },
+    joy
   };
+}
+
+/** 探索中下排地圖／角色／情境／開船各鈕（DOM 順序、flex-end 換行；不含「退出探索」）。 */
+export function exploreHudActionItems(viewportWidth, viewportHeight, opts) {
+  const withInteract = !!(opts && opts.withInteract);
+  const withSteer = !!(opts && opts.withSteer);
+  const interactWidth = (opts && opts.interactWidth) || INTERACT_BTN_W;
+  const actions = hudActionsRect(viewportWidth, viewportHeight, {
+    exploring: true,
+    withInteract,
+    withSteer,
+    interactWidth
+  });
+  const gap = 0.45 * REM;
+  const smallOrb = 2.85 * REM;
+  const primaryH = 3.75 * REM;
+  const specById = {
+    map: { id: 'map', w: smallOrb, h: smallOrb },
+    role: { id: 'role', w: smallOrb, h: smallOrb },
+    interact: { id: 'interact', w: interactWidth, h: primaryH },
+    steer: { id: 'steer', w: smallOrb, h: smallOrb }
+  };
+  const sourceOrder = [
+    specById.map,
+    specById.role,
+    ...(withInteract ? [specById.interact] : []),
+    ...(withSteer ? [specById.steer] : [])
+  ];
+  const rows = [];
+  let row = [];
+  let rowW = 0;
+  for (const spec of sourceOrder) {
+    const need = row.length ? gap + spec.w : spec.w;
+    if (row.length && rowW + need > actions.width + 0.5) {
+      rows.push(row);
+      row = [spec];
+      rowW = spec.w;
+    } else {
+      rowW += need;
+      row.push(spec);
+    }
+  }
+  if (row.length) rows.push(row);
+  const items = [];
+  let rowBottom = actions.bottom;
+  for (let r = rows.length - 1; r >= 0; r--) {
+    const line = rows[r];
+    const rowH = Math.max(...line.map((s) => s.h));
+    let cursor = actions.right;
+    for (let i = line.length - 1; i >= 0; i--) {
+      const spec = line[i];
+      cursor -= spec.w;
+      items.push({
+        id: spec.id,
+        left: cursor,
+        right: cursor + spec.w,
+        top: rowBottom - spec.h,
+        bottom: rowBottom,
+        width: spec.w,
+        height: spec.h
+      });
+      cursor -= gap;
+    }
+    rowBottom -= rowH + gap;
+  }
+  return { actions, items, joy: actions.joy, rows };
 }
 
 export function leaveInteriorRectMobile(viewportWidth, viewportHeight) {
@@ -293,13 +422,13 @@ export function createCornerUi(opts) {
     if (exploreBtn) {
       exploreBtn.setAttribute('aria-pressed', exploring ? 'true' : 'false');
       exploreBtn.setAttribute('aria-label', exploring ? '退出探索模式' : '進入探索模式');
-      const label = exploring ? '退出' : '探索';
+      const label = exploring ? '退出探索' : '探索';
       if (explorePrimaryLabel) explorePrimaryLabel.textContent = label;
       else exploreBtn.textContent = label;
     }
     if (moreExploreRow) {
       moreExploreRow.hidden = !exploring;
-      moreExploreRow.textContent = '退出';
+      moreExploreRow.textContent = '退出探索';
     }
   }
 

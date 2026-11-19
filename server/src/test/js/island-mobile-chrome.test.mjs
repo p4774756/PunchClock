@@ -10,9 +10,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(here, '..', '..', 'main', 'resources', 'public');
 const indexHtml = readFileSync(join(publicDir, 'index.html'), 'utf8');
 const islandCss = readFileSync(join(publicDir, 'css', 'island.css'), 'utf8');
+const islandJs = readFileSync(join(publicDir, 'js/island.js'), 'utf8');
 
 const Corner = await loadPublicModule('island-corner-ui.js');
 const Chat = await loadPublicModule('island-chat.js');
+const Explore = await loadPublicModule('island-explore.js');
+const Interior = await loadPublicModule('island-interior.js');
 
 class FakeClassList {
   constructor() { this.set = new Set(); }
@@ -115,7 +118,10 @@ function makeMobileDom(guest) {
   el('button', { id: 'islandMoreBtn', class: 'island-orb island-orb-menu', 'aria-expanded': 'false' }, hud);
   el('button', { id: 'islandHudRoleBtn', 'aria-expanded': 'false' }, hud);
   el('button', { id: 'islandMapBtn', 'aria-expanded': 'false' }, hud);
-  el('button', { id: 'islandExplore', class: 'island-hud-primary island-hud-explore-entry' }, hud);
+  const exploreEntry = el('button', { id: 'islandExplore', class: 'island-hud-primary island-hud-explore-entry' }, hud);
+  const exploreLabel = doc.createElement('span');
+  exploreLabel.className = 'island-hud-primary-label';
+  exploreEntry.appendChild(exploreLabel);
 
   const targets = el('div', { class: 'island-hud-menu-targets' }, hud);
   el('button', { id: 'islandHome' }, targets);
@@ -222,12 +228,23 @@ test('右下操作叢與搖桿、離開室內不重疊（390×844）', () => {
   const width = 390;
   const height = 844;
   const joy = Corner.joystickRectMobile(width, height);
-  const actions = Corner.hudActionsRect(width, height);
+  const actions = Corner.hudActionsRect(width, height, {
+    exploring: true,
+    withInteract: true,
+    withSteer: true
+  });
   const leave = Corner.leaveInteriorRectMobile(width, height);
+  const joyPad = 0.55 * 16;
+  assert.ok(actions.left >= joy.right + joyPad - 0.5, '探索操作叢左緣在搖桿右側');
   assert.ok(!Corner.rectsIntersect(actions, joy), '操作叢不與搖桿重疊');
   assert.ok(!Corner.rectsIntersect(leave, joy), '離開室內不與搖桿重疊');
   assert.ok(actions.primary.minTouch >= 44, '主情境鈕觸控至少 44px');
   assert.ok(actions.smallOrb.minTouch >= 44, '小圓鈕觸控至少 44px');
+  const layout = Corner.exploreHudActionItems(width, height, { withInteract: true, withSteer: true });
+  for (const item of layout.items) {
+    assert.ok(item.left >= joy.right + joyPad - 0.5, item.id + ' 左緣避開搖桿');
+    assert.ok(!Corner.rectsIntersect(item, joy), item.id + ' 不與搖桿重疊');
+  }
 });
 
 test('chat 無 FAB，探索切換不會露出第二顆聊天', () => {
@@ -415,4 +432,98 @@ test('選單面板含 safe-area 底內距且層級高於搖桿', () => {
   assert.ok(sheetZ && joyZ, '可解析 z-index');
   assert.ok(Number(sheetZ[1]) > Number(joyZ[1]), '選單在搖桿之上');
   assert.match(islandCss, /body\.is-exploring \.island-hud-tr \.island-chat/);
+});
+
+test('探索中不再隱藏 #islandExplore（Concept A 退出探索）', () => {
+  assert.doesNotMatch(
+    islandCss,
+    /body\.is-exploring \.island-hud-explore-entry\s*\{[^}]*display:\s*none/
+  );
+  assert.doesNotMatch(islandJs, /btn\.hidden = exploring/);
+  assert.match(islandJs, /退出探索/);
+});
+
+test('syncExploreHudLabels：探索中顯示「退出探索」', () => {
+  const doc = makeMobileDom(true);
+  const exploreBtn = doc.getElementById('islandExplore');
+  const label = exploreBtn.querySelector('.island-hud-primary-label');
+  const ui = Corner.createCornerUi({
+    document: doc,
+    storage: null,
+    getPresence: () => null,
+    isExploring: () => true,
+    isWelcomed: () => false
+  });
+  ui.syncExploreHudLabels();
+  assert.equal(exploreBtn.getAttribute('aria-label'), '退出探索模式');
+  const visibleLabel = label && label.textContent ? label.textContent : exploreBtn.textContent;
+  assert.equal(visibleLabel, '退出探索');
+  const moreRow = doc.querySelector('.island-more-explore');
+  assert.equal(moreRow.textContent, '退出探索');
+  assert.equal(moreRow.hidden, false);
+});
+
+test('探索按鈕切換（與 island.js click 同路徑）會離開探索', () => {
+  const flow = Explore.createExploreFlow({});
+  flow.dispatch('enter');
+  assert.equal(flow.mode.exploring, true);
+  const clickExploreToggle = () => {
+    const next = !flow.mode.exploring;
+    flow.dispatch(next ? 'enter' : 'exit');
+  };
+  clickExploreToggle();
+  assert.equal(flow.mode.exploring, false);
+});
+
+test('戶外探索提示含 Esc 退出探索', () => {
+  assert.ok(Interior.exploreHintText(false, false).includes('Esc 退出探索'));
+  assert.match(indexHtml, /Esc 退出探索/);
+});
+
+test('探索 HUD：手機操作叢留搖桿間距，退出探索在 flex 流內換行', () => {
+  assert.match(
+    islandCss,
+    /body\.is-exploring \.island-hud-actions[\s\S]*0\.7rem \+ 8rem \+ 0\.55rem/
+  );
+  assert.match(islandCss, /body\.is-exploring \.island-hud-explore-entry[\s\S]*white-space:\s*nowrap/);
+  const mobileExploreHud = /@media \(max-width: 760px\)[\s\S]*body\.is-exploring \.island-hud-explore-entry\s*\{([^}]+)\}/.exec(
+    islandCss
+  );
+  assert.ok(mobileExploreHud, '手機探索退出探索樣式');
+  const block = mobileExploreHud[1];
+  assert.match(block, /flex:\s*0\s+0\s+100%/, '退出探索獨佔一列');
+  assert.doesNotMatch(block, /position:\s*fixed/, '退出探索不用 fixed 脫離 flex');
+});
+
+test('1280×720 與 390×844「退出探索」不與搖桿、右上 HUD、操作叢重疊', () => {
+  const interactW = 121;
+  for (const [w, h] of [[1280, 720], [390, 844]]) {
+    const btn = Corner.exploreExitButtonRect(w, h);
+    const joyPad = w <= Corner.MOBILE_MAX_WIDTH ? 0.55 * 16 : 0;
+    assert.ok(!Corner.rectsIntersect(btn, btn.joy), w + ' 退出探索與搖桿不重疊');
+    assert.ok(!Corner.rectsIntersect(btn, btn.tr), w + ' 退出探索與右上圓鈕不重疊');
+    assert.ok(btn.left >= btn.joy.right + joyPad - 0.5, w + ' 退出探索在搖桿右側');
+    assert.ok(btn.left >= 0 && btn.right <= w + 0.5, w + ' 退出探索在 viewport 內');
+    if (w <= Corner.MOBILE_MAX_WIDTH) {
+      const layout = Corner.exploreHudActionItems(w, h, {
+        withInteract: true,
+        withSteer: true,
+        interactWidth: interactW
+      });
+      for (const item of layout.items) {
+        assert.ok(!Corner.rectsIntersect(item, btn.joy), w + ' ' + item.id + ' 與搖桿不重疊');
+        assert.ok(!Corner.rectsIntersect(item, btn.tr), w + ' ' + item.id + ' 與右上 HUD 不重疊');
+        assert.ok(!Corner.rectsIntersect(item, btn), w + ' ' + item.id + ' 與退出探索不重疊');
+        assert.ok(item.left >= btn.joy.right + joyPad - 0.5, w + ' ' + item.id + ' 左緣避開搖桿');
+      }
+      for (let i = 0; i < layout.items.length; i++) {
+        for (let j = i + 1; j < layout.items.length; j++) {
+          assert.ok(
+            !Corner.rectsIntersect(layout.items[i], layout.items[j]),
+            w + ' ' + layout.items[i].id + ' 與 ' + layout.items[j].id + ' 不重疊'
+          );
+        }
+      }
+    }
+  }
 });
