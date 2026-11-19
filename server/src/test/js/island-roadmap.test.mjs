@@ -107,6 +107,27 @@ test('研發樓螢幕長標題保留 pair 與部分標題', () => {
   assert.ok(fitted.endsWith('…'), '太長時要有省略號');
 });
 
+test('phaseStatus 與 effectivePhaseStatus 一致，標籤與進度條', () => {
+  const phase = (n, done, total) => ({ phase: n, done: false, itemsDone: done, itemsTotal: total });
+  assert.equal(R.phaseStatus(phase(6, 0, 5), 7), 'pending');
+  assert.equal(R.phaseStatus(phase(6, 3, 5), 7), 'progress');
+  assert.equal(R.phaseStatus(phase(6, 5, 5), 7), 'done');
+  assert.equal(R.phaseStatus(phase(7, 0, 5), 7), 'active');
+  assert.equal(R.effectivePhaseStatus(phase(6, 3, 5), 7), R.phaseStatus(phase(6, 3, 5), 7));
+  assert.equal(R.phaseStatus(phase(7, 4, 5), 7), 'active');
+  assert.notEqual(R.phaseStatus(phase(6, 3, 5), 7), 'pending');
+});
+
+test('signCopy：無 current 時取編號最大進行中期', () => {
+  const phases = [
+    { phase: 6, title: '中醫推拿島', done: false, itemsDone: 3, itemsTotal: 5 },
+    { phase: 7, title: '電腦島', done: false, itemsDone: 4, itemsTotal: 5 }
+  ];
+  const copy = R.signCopy({ current: null, phases: phases });
+  assert.equal(copy.headline, '第 7 期進行中');
+  assert.equal(copy.title, '電腦島');
+});
+
 test('子項進度與今日合併', () => {
   const phase = {
     done: false,

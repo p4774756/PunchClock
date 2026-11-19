@@ -112,6 +112,10 @@ body.island-body.is-night .island-webgl-notice-body {
   cursor: grab;
 }
 
+body:has(#islandHudPlayer) .island-brand {
+  display: none;
+}
+
 .island-brand {
   position: fixed;
   z-index: 6;
@@ -992,6 +996,20 @@ body.is-exploring .island-npc-talk:not([hidden]) {
   white-space: nowrap;
 }
 
+.island-more-build {
+  flex-shrink: 0;
+  margin: 0;
+  margin-top: auto;
+  padding: 0.4rem 0.65rem 0.6rem;
+  border-top: 1px solid #a8d0f2;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #465a78;
+  text-align: center;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+}
+
 @media (max-width: 760px) {
   body.island-more-open .island-explore-hint {
     visibility: hidden;
@@ -1286,6 +1304,11 @@ body:not(.is-exploring) .island-minimap {
   flex: none;
 }
 
+.island-minimap-expand-icon {
+  display: block;
+  pointer-events: none;
+}
+
 .island-minimap-body {
   padding: 0.35rem 0.45rem 0.5rem;
   background: #f8fbff;
@@ -1577,7 +1600,7 @@ body.island-map-open .island-minimap {
 .island-hud-player {
   position: fixed;
   z-index: 7;
-  top: max(4.15rem, calc(3.2rem + env(safe-area-inset-top, 0px)));
+  top: max(0.85rem, env(safe-area-inset-top, 0px));
   left: max(0.85rem, env(safe-area-inset-left, 0px));
   display: flex;
   flex-direction: column;
@@ -1609,6 +1632,7 @@ body.island-map-open .island-minimap {
   align-items: center;
   gap: 0.35rem;
   min-height: 2rem;
+  min-width: 0;
   padding: 0.25rem 0.55rem;
   background: #3a7ac4;
   border-bottom: 1px solid #163a70;
@@ -1619,8 +1643,17 @@ body.island-map-open .island-minimap {
   letter-spacing: 0.06em;
 }
 
+.island-hud-player-title-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .island-hud-player-title-mark {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   width: 1.35rem;
@@ -2106,15 +2139,15 @@ body.island-avatar-open .island-avatar-pop {
 }
 
 @media (max-width: 760px) {
+  body.is-exploring #islandMinimap {
+    display: none !important;
+  }
+
   .island-minimap {
     top: calc(max(0.55rem, env(safe-area-inset-top, 0px)) + 3.85rem);
     right: max(0.55rem, env(safe-area-inset-right, 0px));
     width: min(9.5rem, calc(100vw - 11.5rem));
     max-width: min(9.5rem, calc(100vw - 11.5rem));
-  }
-
-  body.is-exploring .island-minimap:not(.island-minimap-mobile-expand) {
-    width: min(8.2rem, calc(100vw - 11.5rem));
   }
 
   body.is-exploring {
@@ -2144,9 +2177,37 @@ body.island-avatar-open .island-avatar-pop {
     max-height: min(10rem, calc(100vh - 9.5rem - 13.35rem - env(safe-area-inset-top, 0px)));
   }
   .island-hud-player {
-    top: max(3.65rem, calc(2.75rem + env(safe-area-inset-top, 0px)));
+    top: max(0.55rem, env(safe-area-inset-top, 0px));
     left: max(0.55rem, env(safe-area-inset-left, 0px));
-    max-width: min(10.5rem, calc(100vw - 9.5rem));
+  }
+
+  .island-hud-player,
+  body.is-exploring .island-hud-player {
+    --island-hud-tr-orbs: 4;
+    --island-hud-tr-gap: 0.28rem;
+    --island-hud-player-tr-gap: 0.375rem;
+    max-width: min(
+      10.5rem,
+      calc(
+        100vw
+        - var(--island-hud-tr-orbs) * 2.85rem
+        - (var(--island-hud-tr-orbs) - 1) * var(--island-hud-tr-gap)
+        - 2 * 0.55rem
+        - var(--island-hud-player-tr-gap)
+      )
+    );
+  }
+
+  .island-hud-player-card {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .island-hud-player-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .island-hud-tr {

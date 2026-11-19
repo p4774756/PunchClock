@@ -146,7 +146,7 @@ import { createLifecycle } from './island-lifecycle.js';
 import { createPeerLayer } from './island-peers.js';
 import { placeBuildingLabels } from './island-labels.js';
 import { createCornerUi } from './island-corner-ui.js';
-import { createMinimapHud } from './island-minimap.js';
+import { createMinimapHud, syncPlayerAreaTitle } from './island-minimap.js';
 import {
   createExplorePointer,
   createExploreKeys,
@@ -1028,6 +1028,9 @@ function boot() {
       corner.syncMoreAudioLabel();
       corner.syncExploreHudLabels();
       corner.closeMore();
+    }
+    if (!exploring) {
+      syncPlayerAreaTitle(document, { interiorRoom: null, player: { x: 0, z: 0 } }, null);
     }
   }
 
