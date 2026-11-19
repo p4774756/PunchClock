@@ -1,7 +1,16 @@
 // node --test server/src/test/js/island-city.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadPublicModule } from './load-public-module.mjs';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const citySceneJs = readFileSync(
+  join(here, '..', '..', 'main', 'resources', 'public', 'js', 'island-city-scene.js'),
+  'utf8'
+);
 
 const L = await loadPublicModule('island-layout.js');
 const C = await loadPublicModule('island-city-data.js');
@@ -71,6 +80,12 @@ test('城市碰撞由資料驅動', () => {
   const cx = (rects[0].minX + rects[0].maxX) / 2;
   const cz = (rects[0].minZ + rects[0].maxZ) / 2;
   assert.ok(L.blocked(cx, cz, 0.29));
+});
+
+test('城市機車為 milu 看板而非方塊人', () => {
+  assert.doesNotMatch(citySceneJs, /0x3a4a5a/);
+  assert.doesNotMatch(citySceneJs, /0x5a7ec8/);
+  assert.match(citySceneJs, /spawnCityScooterWalkers/);
 });
 
 test('路人與機車路徑不穿牆、留在城市島', () => {

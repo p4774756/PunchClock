@@ -132,3 +132,28 @@ test('makePlayerAvatar 仍使用 makePerson', () => {
   assert.match(islandJs, /function makePlayerAvatar/);
   assert.match(islandJs, /makePerson\(/);
 });
+
+test('城市機車騎乘幀獨立於七造型預算', () => {
+  assert.equal(D.NPC_STYLE_IDS.includes('scooter'), false);
+  assert.equal(D.NPC_STYLE_IDS.length, 7);
+  const anim = D.cityScooterAnim();
+  assert.equal(anim.baseUrl, D.NPC_PET_BASE + 'scooter/');
+  assert.equal(anim.footV, M.MILU_ANIM.footV);
+  for (const dir of ['front', 'back', 'left', 'right']) {
+    assert.ok(anim.clips.walk[dir].length >= 2 && anim.clips.walk[dir].length <= 3, dir);
+    for (const rel of anim.clips.walk[dir]) {
+      assert.ok(existsSync(join(petRoot, 'scooter', rel)), 'scooter ' + rel);
+    }
+  }
+  const paths = D.cityScooterFramePaths();
+  assert.ok(paths.length >= 12);
+});
+
+test('機車騎士朝向依螢幕軸', () => {
+  const anim = D.cityScooterAnim();
+  const sticky = false;
+  assert.equal(M.resolveFacing('front', 0, 1, anim, sticky), 'front');
+  assert.equal(M.resolveFacing('front', 0, -1, anim, sticky), 'back');
+  assert.equal(M.resolveFacing('front', 1, 0, anim, sticky), 'right');
+  assert.equal(M.resolveFacing('front', -1, 0, anim, sticky), 'left');
+});
