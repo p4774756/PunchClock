@@ -1,4 +1,4 @@
-// 莫卡賭場 3D 室內：拉斯維加斯霓虹廳（低多邊形、無 PointLight）。
+// 神之島賭場 3D 室內：拉斯維加斯霓虹廳（低多邊形、無 PointLight）。
 
 import { interiorByBuilding } from './island-interior.js';
 

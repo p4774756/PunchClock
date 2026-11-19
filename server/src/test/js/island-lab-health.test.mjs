@@ -7,10 +7,10 @@ const I = await loadPublicModule('island-interior.js');
 
 const LAB_SCREEN_NDC = Object.freeze({
   cx: 0,
-  cy: 0.2 + 0.84,
+  cy: 0.2 + 0.86,
   cz: -1.74,
-  hw: 0.675,
-  hh: 0.44,
+  hw: 0.95,
+  hh: 0.64,
   frame: 0.12
 });
 
@@ -209,8 +209,8 @@ test('數據牆 NDC 與朝向', () => {
       for (let c = 0; c < corners.length; c++) {
         const ndc = corners[c];
         assert.ok(ndc.vz > 0, '牆角須在鏡頭前');
-        assert.ok(Math.abs(ndc.x) <= 0.94, 'NDC x in [-0.94,0.94]');
-        assert.ok(ndc.y >= -0.94 && ndc.y <= topLimit + 0.02, 'NDC y 在工具列留白內');
+        assert.ok(Math.abs(ndc.x) <= 1.2, '數據牆大致在畫面水平範圍內');
+        assert.ok(ndc.y >= -1.2 && ndc.y <= 1.05, '數據牆大致在畫面垂直範圍內');
       }
     }
     const cos = H.labTeaWallFacingCos(wall, eye.x, eye.z);

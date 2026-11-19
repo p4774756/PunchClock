@@ -75,7 +75,8 @@ import {
   shouldShowInteriorLeave,
   labInteriorFollowDistance,
   labInteriorLookTarget,
-  labInteriorRuntimeLookAt
+  labInteriorRuntimeLookAt,
+  interiorCameraFov
 } from './island-interior.js';
 import {
   avatarVisibility,
@@ -1194,6 +1195,11 @@ function boot() {
         lookZ = focal.z;
       }
     }
+    const wantFov = interiorCameraFov(rooms.inside() ? rooms.room() : null);
+    if (camera.fov !== wantFov) {
+      camera.fov = wantFov;
+      camera.updateProjectionMatrix();
+    }
     cam.follow(lookX, lookY, lookZ, pose, instant);
   }
 
@@ -1283,7 +1289,7 @@ function boot() {
     const width = stage.clientWidth || window.innerWidth;
     const height = stage.clientHeight || window.innerHeight;
     camera.aspect = width / Math.max(height, 1);
-    camera.fov = 25;
+    camera.fov = interiorCameraFov(rooms.inside() ? rooms.room() : null);
     camera.updateProjectionMatrix();
     renderer.setSize(width, height, false);
   }
