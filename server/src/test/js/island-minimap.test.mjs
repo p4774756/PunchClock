@@ -365,6 +365,103 @@ test('installMapJumpGhostClickGuard：pointerup 跳島後緊接的 click 被吞�
   assert.equal(bubbled, 1, '超時後 click 應恢復正常');
 });
 
+test('名牌 pointer 跳島後鍵盤 click 仍能跳島', async () => {
+  const jumps = [];
+  const mapSheet = { hidden: false };
+  const pin = {
+    getAttribute(name) {
+      return name === 'data-island' ? 'city' : null;
+    },
+    closest(sel) {
+      return sel === '.island-map-pin' ? pin : null;
+    },
+    setPointerCapture() {}
+  };
+  function eventHost() {
+    const rows = [];
+    return {
+      addEventListener(type, fn) {
+        rows.push({ type, fn });
+      },
+      dispatch(type, init) {
+        const event = Object.assign(
+          {
+            preventDefault() {},
+            stopPropagation() {}
+          },
+          init
+        );
+        for (let i = 0; i < rows.length; i++) {
+          if (rows[i].type === type) rows[i].fn(event);
+        }
+      }
+    };
+  }
+  const mapPins = eventHost();
+  const docListeners = [];
+  const doc = {
+    body: {},
+    addEventListener(type, fn, opts) {
+      docListeners.push({ type, fn, capture: !!(opts && opts.capture) });
+    },
+    removeEventListener(type, fn) {
+      const idx = docListeners.findIndex((row) => row.type === type && row.fn === fn);
+      if (idx >= 0) docListeners.splice(idx, 1);
+    },
+    getElementById(id) {
+      if (id === 'islandMapSheet') return mapSheet;
+      if (id === 'islandMapPins') return mapPins;
+      if (id === 'islandMinimap') return { hidden: true, classList: { toggle() {} } };
+      if (id === 'islandMinimapCollapse') {
+        return { textContent: '−', setAttribute() {}, addEventListener() {} };
+      }
+      if (id === 'islandMinimapExpand') {
+        return { addEventListener() {}, querySelector: () => null, textContent: '', insertAdjacentHTML() {} };
+      }
+      if (
+        id === 'islandMinimapCanvas'
+        || id === 'islandMapCanvas'
+        || id === 'islandMapPlayerCanvas'
+        || id === 'islandMapCanvasWrap'
+      ) {
+        return { getContext: () => null, addEventListener() {}, getBoundingClientRect: () => ({ width: 0, height: 0 }) };
+      }
+      if (id === 'islandMapModeToggle') return { hidden: true, addEventListener() {} };
+      if (id === 'islandHudPlayerTitleText' || id === 'islandMapTitle') return { textContent: '' };
+      return null;
+    },
+    querySelector() { return null; },
+    dispatchCapture(type, event) {
+      for (let i = 0; i < docListeners.length; i++) {
+        const row = docListeners[i];
+        if (row.type === type && row.capture) row.fn(event);
+      }
+    }
+  };
+  const hud = M.createMinimapHud({
+    document: doc,
+    window: { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }) },
+    isExploring: () => true,
+    getPaintState: () => ({ player: { x: 0, z: 0 }, interiorRoom: null }),
+    onJumpToIsland: (id) => jumps.push(id)
+  });
+  const pe = { target: pin, clientX: 100, clientY: 80, pointerId: 1 };
+  mapPins.dispatch('pointerdown', pe);
+  mapPins.dispatch('pointerup', pe);
+  assert.deepEqual(jumps, ['city'], 'pointerup 應跳島一次');
+  const ghostClick = {
+    preventDefault() {},
+    stopPropagation() {},
+    stopImmediatePropagation() {}
+  };
+  doc.dispatchCapture('click', ghostClick);
+  assert.deepEqual(jumps, ['city'], '守護期合成 click 不應再跳島');
+  await new Promise((resolve) => setTimeout(resolve, 650));
+  mapPins.dispatch('click', { target: pin });
+  assert.deepEqual(jumps, ['city', 'city'], '守護結束後鍵盤觸發的 click 應能再跳島');
+  hud.destroy();
+});
+
 test('室內 → 群島：島別與門口座標', () => {
   const cases = [
     ['shop-room', 'main'],

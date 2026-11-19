@@ -1679,7 +1679,6 @@ export function createMinimapHud(opts) {
   }
 
   let pinPointerDown = null;
-  let pinJumpHandledByPointer = false;
   let mapJumpGhostGuard = null;
 
   function jumpToIslandAfterPointer(jumpId) {
@@ -1730,18 +1729,11 @@ export function createMinimapHud(opts) {
       if (jumpId) {
         event.preventDefault();
         event.stopPropagation();
-        pinJumpHandledByPointer = true;
         jumpToIslandAfterPointer(jumpId);
       }
     });
     mapPins.addEventListener('pointercancel', () => { pinPointerDown = null; });
     mapPins.addEventListener('click', (event) => {
-      if (pinJumpHandledByPointer) {
-        pinJumpHandledByPointer = false;
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
       const mapSheet = document.getElementById('islandMapSheet');
       if (!mapSheet || mapSheet.hidden) return;
       const islandId = pinIslandFromEvent(event);
