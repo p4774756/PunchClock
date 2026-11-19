@@ -75,6 +75,61 @@ const supportsParallelCompile = (renderer: T.WebGLRenderer): boolean => {
   }
 };
 
+export type GpuProgram = {
+  name?: string;
+  cacheKey?: string;
+  getUniforms: () => unknown;
+  getAttributes: () => unknown;
+};
+
+export const glFlush = (renderer: T.WebGLRenderer) => {
+  try {
+    renderer.getContext().flush();
+  } catch {
+    /* software WebGL */
+  }
+};
+
+export const programLinkLabel = (program: GpuProgram): string => {
+  const raw = program.cacheKey ?? program.name ?? 'program';
+  return String(raw).slice(0, 40);
+};
+
+const linkedPrograms = new WeakSet<GpuProgram>();
+
+export const linkProgram = (program: GpuProgram): number => {
+  if (linkedPrograms.has(program)) return 0;
+  const t0 = performance.now();
+  try {
+    program.getUniforms();
+    program.getAttributes();
+    linkedPrograms.add(program);
+  } catch {
+    /* software WebGL */
+  }
+  const ms = performance.now() - t0;
+  console.debug('atlas:link', programLinkLabel(program), Math.round(ms));
+  if (ms >= 1000) console.debug('atlas:link-slow', programLinkLabel(program), Math.round(ms));
+  return ms;
+};
+
+/** Link renderer.info.programs[from..] one program per macrotask. */
+export const linkProgramsIncremental = async (
+  renderer: T.WebGLRenderer,
+  fromIndex: number,
+  disposed?: () => boolean,
+): Promise<number> => {
+  const programs = (renderer.info?.programs ?? []) as GpuProgram[];
+  let linked = 0;
+  for (let i = fromIndex; i < programs.length; i++) {
+    if (disposed?.()) break;
+    const ms = linkProgram(programs[i]);
+    if (ms > 0) linked++;
+    if (i < programs.length - 1) await yieldOnce();
+  }
+  return linked;
+};
+
 export const isTextureOnGpu = (renderer: T.WebGLRenderer, texture: T.Texture): boolean => {
   const props = renderer.properties.get(texture) as {__webglTexture?: WebGLTexture} | undefined;
   return props?.__webglTexture !== undefined;
@@ -305,34 +360,90 @@ export const warmShadersIncremental = async (opts: {
   return {programsBefore, programsAfter, groups: groups.length, groupsSkipped, sliceCount};
 };
 
-/** Load card: one compile pass for the visible school rig (no outline-only pass, no readPixels). */
-export const warmSchoolDuringCard = async (
+/** Load card: sync compile + flush (KHR_parallel_shader_compile not trusted on SwiftShader). */
+export const warmSchoolCompileFlush = (
   renderer: T.WebGLRenderer,
   scene: T.Scene,
   camera: T.Camera,
   characterRoot: T.Object3D,
   whileCompiling: () => () => void,
-): Promise<void> => {
+): number => {
   const t0 = performance.now();
+  const before = programCount(renderer);
   const charWasVisible = characterRoot.visible;
   characterRoot.visible = true;
   characterRoot.updateMatrixWorld(true);
   const restoreExtras = whileCompiling();
   const restoreChrome = hideSceneChrome(scene);
   try {
-    if (typeof renderer.compileAsync === 'function') {
-      await renderer.compileAsync(scene, camera);
-    } else {
-      warmScissorRender(renderer, scene, camera);
-    }
+    renderer.compile(scene, camera);
+    glFlush(renderer);
   } catch {
-    warmScissorRender(renderer, scene, camera);
+    try {
+      warmScissorRender(renderer, scene, camera);
+    } catch {
+      /* software WebGL */
+    }
   } finally {
     restoreChrome();
     restoreExtras();
     characterRoot.visible = charWasVisible;
   }
-  console.debug('atlas:phase', 'school-compile', Math.round(performance.now() - t0));
+  console.debug(
+    'atlas:phase',
+    'school-compile-flush',
+    Math.round(performance.now() - t0),
+    'programs',
+    before,
+    '→',
+    programCount(renderer),
+  );
+  return before;
+};
+
+/** @deprecated alias */
+export const warmSchoolDuringCard = warmSchoolCompileFlush;
+
+export const warmSchoolOutlineCompileFlush = (
+  renderer: T.WebGLRenderer,
+  scene: T.Scene,
+  camera: T.Camera,
+  schoolRoot: T.Object3D,
+): number => {
+  const plan = planShaderWarm([schoolRoot], true);
+  if (!plan.groups.length) return programCount(renderer);
+  const t0 = performance.now();
+  const before = programCount(renderer);
+  const reps = new Set(plan.groups.map(g => g.mesh));
+  const visSaved = plan.warmRoots.map(r => ({r, visible: r.visible}));
+  for (const r of plan.warmRoots) {
+    r.visible = true;
+    r.updateMatrixWorld(true);
+  }
+  const restoreMeshes = setRootMeshVisibility(plan.meshes, reps);
+  const restoreChrome = hideSceneChrome(scene);
+  try {
+    renderer.compile(scene, camera);
+    glFlush(renderer);
+  } catch {
+    /* software WebGL */
+  } finally {
+    restoreChrome();
+    restoreMeshes();
+    visSaved.forEach(({r, visible}) => {
+      r.visible = visible;
+    });
+  }
+  console.debug(
+    'atlas:phase',
+    'school-outline-compile-flush',
+    Math.round(performance.now() - t0),
+    'programs',
+    before,
+    '→',
+    programCount(renderer),
+  );
+  return before;
 };
 
 export type ShaderWarmPlan = {
@@ -355,16 +466,17 @@ export const planShaderWarm = (
   return {groups, meshes, warmRoots};
 };
 
-export const warmShaderPlanGroup = async (
+export const compileWarmPlanGroup = (
   renderer: T.WebGLRenderer,
   scene: T.Scene,
   camera: T.Camera,
   plan: ShaderWarmPlan,
   groupIndex: number,
   keepSceneChrome: boolean,
-): Promise<number> => {
+): number => {
   const rep = plan.groups[groupIndex]?.mesh;
-  if (!rep) return 0;
+  if (!rep) return programCount(renderer);
+  const before = programCount(renderer);
   const visSaved = plan.warmRoots.map(r => ({r, visible: r.visible}));
   for (const r of plan.warmRoots) {
     r.visible = true;
@@ -374,7 +486,8 @@ export const warmShaderPlanGroup = async (
   const restoreChrome = keepSceneChrome ? () => {} : hideSceneChrome(scene);
   const t0 = performance.now();
   try {
-    warmScissorRender(renderer, scene, camera);
+    renderer.compile(scene, camera);
+    glFlush(renderer);
   } catch {
     /* software WebGL */
   } finally {
@@ -385,10 +498,43 @@ export const warmShaderPlanGroup = async (
     });
   }
   const ms = performance.now() - t0;
-  const keys = programCacheKeys(renderer);
-  const name = keys.at(-1) ?? plan.groups[groupIndex].key;
-  if (ms > 600) console.debug('atlas:post-warm-slow-program', name, Math.round(ms));
-  return ms;
+  const name = plan.groups[groupIndex].key.slice(0, 40);
+  if (ms > 600) console.debug('atlas:post-warm-slow', `compile:${name}`, Math.round(ms));
+  return before;
+};
+
+export const linkWarmProgramsSince = async (
+  renderer: T.WebGLRenderer,
+  fromIndex: number,
+  label: string,
+): Promise<number> => {
+  const programs = (renderer.info?.programs ?? []) as GpuProgram[];
+  const t0 = performance.now();
+  let slow = 0;
+  for (let i = fromIndex; i < programs.length; i++) {
+    const ms = linkProgram(programs[i]);
+    if (ms >= 600) slow++;
+    if (i < programs.length - 1) await yieldOnce();
+  }
+  const total = performance.now() - t0;
+  console.debug('atlas:post-warm', `link:${label}`, Math.round(total));
+  if (total >= 600) console.debug('atlas:post-warm-slow', `link:${label}`, Math.round(total));
+  return slow;
+};
+
+/** Full warm in one call (compile+flush then link). Prefer split compile/link queue tasks post-card. */
+export const warmShaderPlanGroup = async (
+  renderer: T.WebGLRenderer,
+  scene: T.Scene,
+  camera: T.Camera,
+  plan: ShaderWarmPlan,
+  groupIndex: number,
+  keepSceneChrome: boolean,
+): Promise<number> => {
+  const t0 = performance.now();
+  const before = compileWarmPlanGroup(renderer, scene, camera, plan, groupIndex, keepSceneChrome);
+  await linkWarmProgramsSince(renderer, before, plan.groups[groupIndex]?.key ?? '');
+  return performance.now() - t0;
 };
 
 export const uploadOneTexture = (renderer: T.WebGLRenderer, texture: T.Texture): number => {

@@ -18,14 +18,16 @@ import {
   yieldToMain,
 } from './load-progress';
 import {
+  compileWarmPlanGroup,
   isTextureOnGpu,
+  linkProgramsIncremental,
+  linkWarmProgramsSince,
   planShaderWarm,
   programCount,
   textureCount,
   uploadOneTexture,
-  uploadTexturesIncremental,
-  warmSchoolDuringCard,
-  warmShaderPlanGroup,
+  warmSchoolCompileFlush,
+  warmSchoolOutlineCompileFlush,
 } from './shader-warm';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
 import {animeOutfit,ANIME_OUTFITS,type AnimeOutfit,type OutfitId} from './outfits';
@@ -1189,14 +1191,22 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   const pushShaderWarmTasks=(roots:T.Object3D[],outlineOnly:boolean,prefix:string,practice=false)=>{
    const plan=planShaderWarm(roots,outlineOnly,postWarmWarmedKeys);
-   for(let i=0;i<plan.groups.length;i++){
-    const gi=i;
+   for(let gi=0;gi<plan.groups.length;gi++){
     const key=plan.groups[gi].key;
-    postWarmQueue.push({name:`${prefix}${outlineOnly?'outline:':''}${key}`,practiceRelated:practice,run:async()=>{
+    let programsAtCompile=0;
+    const label=`${prefix}${outlineOnly?'outline:':''}${key.slice(0,24)}`;
+    postWarmQueue.push({name:`${label}:compile`,practiceRelated:practice,run:async()=>{
      if(disposed)return;
-     const ms=await warmShaderPlanGroup(renderer,scene,camera,plan,gi,true);
+     const t0=performance.now();
+     programsAtCompile=compileWarmPlanGroup(renderer,scene,camera,plan,gi,true);
      postWarmWarmedKeys.add(key);
-     console.debug('atlas:post-warm',`${prefix}${key}`,Math.round(ms));
+     const ms=Math.round(performance.now()-t0);
+     console.debug('atlas:post-warm',`${label}:compile`,ms);
+     if(ms>=600)console.debug('atlas:post-warm-slow',`${label}:compile`,ms);
+    }});
+    postWarmQueue.push({name:`${label}:link`,practiceRelated:practice,run:async()=>{
+     if(disposed)return;
+     await linkWarmProgramsSince(renderer,programsAtCompile,label);
     }});
    }
   };
@@ -1204,19 +1214,25 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const buildPostWarmQueue=()=>{
    postWarmQueue=[];
    if(cacheAnimeOutfitsFlag){
-    postWarmQueue.push({name:'clone-practice',run:async()=>{
+    postWarmQueue.push({name:'clone-practice',practiceRelated:true,run:async()=>{
+     await yieldOnce();
      if(disposed||practiceShell||!schoolModel)return;
      const t0=performance.now();
      performance.mark('atlas:phase-clone-practice-start');
      practiceShell=cloneSkinnedObject(schoolModel);
+     await yieldOnce();
+     if(disposed)return;
      isolatePracticeRig(practiceShell);
      performance.mark('atlas:phase-clone-practice-end');
      logPhase('clone-practice',t0);
     }});
     postWarmQueue.push({name:'build-practice',practiceRelated:true,run:async()=>{
+     await yieldOnce();
      if(disposed||!practiceShell||practiceBuilt)return;
      const t0=performance.now();
      await buildPracticeOutfitIncremental(practiceShell,practiceOutfit,gradient);
+     await yieldOnce();
+     if(disposed)return;
      finalizePracticeShell();
      practiceWarm=true;
      logPhase('build-practice',t0);
@@ -1260,19 +1276,6 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     postWarmQueue=saved;
     postWarmQueue=[...items,...postWarmQueue];
    }});
-   const schoolForOutline=schoolModel;
-   if(schoolForOutline){
-    postWarmQueue.push({name:'plan-school-outline',run:async()=>{
-     if(disposed)return;
-     const batch:typeof postWarmQueue=[];
-     const saved=postWarmQueue;
-     postWarmQueue=batch;
-     pushShaderWarmTasks([schoolForOutline],true,'school-outline:',false);
-     const items=batch;
-     postWarmQueue=saved;
-     postWarmQueue=[...items,...postWarmQueue];
-    }});
-   }
    postWarmQueue.push({name:'skin-proxy',run:async()=>{
     if(disposed)return;
     const t0=performance.now();
@@ -1281,21 +1284,20 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    }});
   };
 
-  const drainPostWarmQueue=async(maxItems:number)=>{
-   for(let n=0;n<maxItems&&postWarmQueue.length;n++){
-    const item=postWarmQueue.shift()!;
-    if(item.name==='attach-practice-warm'){
-     await item.run();
-     n--;
-     continue;
-    }
-    const t0=performance.now();
+  const drainPostWarmQueue=async()=>{
+   if(!postWarmQueue.length)return;
+   const item=postWarmQueue.shift()!;
+   if(item.name==='attach-practice-warm'){
     await item.run();
-    const ms=Math.round(performance.now()-t0);
-    console.debug('atlas:post-warm',item.name,ms);
-    if(ms>=600)console.debug('atlas:post-warm-slow',item.name,ms);
-    if(!postWarmBoost&&ms>SLICE_BUDGET_MS)break;
+    await yieldOnce();
+    return;
    }
+   const t0=performance.now();
+   await item.run();
+   const ms=Math.round(performance.now()-t0);
+   console.debug('atlas:post-warm',item.name,ms);
+   if(ms>=600)console.debug('atlas:post-warm-slow',item.name,ms);
+   await yieldOnce();
    if(practiceBuilt&&pendingOutfitId){
     const next=pendingOutfitId;
     pendingOutfitId=null;
@@ -1323,7 +1325,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      requestAnimationFrame(()=>requestIdleCallback(idle,{timeout:500}));
      return;
     }
-    void drainPostWarmQueue(postWarmBoost?48:1).then(()=>{
+    void drainPostWarmQueue().then(()=>{
      if(!disposed&&postWarmQueue.length)requestIdleCallback(idle,{timeout:500});
     });
    };
@@ -1337,7 +1339,29 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const rest=postWarmQueue.filter(q=>!q.practiceRelated);
    postWarmQueue=[...practice,...rest];
    postWarmBoost=true;
-   void drainPostWarmQueue(48);
+   const boost=async()=>{
+    await yieldOnce();
+    while(!disposed&&!practiceBuilt){
+     const idx=postWarmQueue.findIndex(q=>q.practiceRelated);
+     if(idx<0)break;
+     const item=postWarmQueue.splice(idx,1)[0]!;
+     const t0=performance.now();
+     await item.run();
+     const ms=Math.round(performance.now()-t0);
+     console.debug('atlas:post-warm',item.name,ms);
+     if(ms>=600)console.debug('atlas:post-warm-slow',item.name,ms);
+     await yieldOnce();
+     if(practiceBuilt&&pendingOutfitId){
+      const next=pendingOutfitId;
+      pendingOutfitId=null;
+      showOutfit(next);
+      onPracticeOutfitPreparing?.(false);
+      dirty=true;
+     }
+    }
+    postWarmBoost=false;
+   };
+   void boost();
   };
 
   const prepareSchoolCardMaterials=async(
@@ -1353,15 +1377,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     ...collectMeshTextures(primaryRoot,chromeExtras),
     ...collectSceneChromeTextures(scene),
    ])];
-   await uploadTexturesIncremental({
-    renderer,
-    textures:texList,
-    disposed:()=>disposed,
-    progressSlices:false,
-    onSlice:()=>bumpSlice?.(),
-   });
-   if(disposed)return;
-   await warmSchoolDuringCard(renderer,scene,camera,characterRoot,()=>{
+   const whileCompiling=()=>{
     const overlayWas=teachingOverlayVisible;
     teachingOverlayVisible=false;
     const markers=teaching.markers.map(m=>m.visible);
@@ -1370,7 +1386,34 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      teachingOverlayVisible=overlayWas;
      teaching.markers.forEach((m,i)=>{m.visible=markers[i];});
     };
-   });
+   };
+   const programsAtSchoolCompile=warmSchoolCompileFlush(
+    renderer,scene,camera,characterRoot,whileCompiling,
+   );
+   for(const tex of texList){
+    if(disposed)return;
+    if(!isTextureOnGpu(renderer,tex)){
+     const ms=uploadOneTexture(renderer,tex);
+     const img=tex.image as {width?:number;height?:number}|undefined;
+     console.debug(
+      'atlas:texture-upload',
+      tex.name||`tex#${tex.id}`,
+      img?.width??0,
+      img?.height??0,
+      Math.round(ms),
+     );
+     if(ms>=600)console.debug('atlas:post-warm-slow',tex.name||`tex#${tex.id}`,Math.round(ms));
+    }
+    bumpSlice?.();
+    await yieldOnce();
+   }
+   if(disposed)return;
+   warmSchoolOutlineCompileFlush(renderer,scene,camera,primaryRoot);
+   const schoolPlan=planShaderWarm([primaryRoot],false);
+   const outlinePlan=planShaderWarm([primaryRoot],true);
+   for(const g of schoolPlan.groups)postWarmWarmedKeys.add(g.key);
+   for(const g of outlinePlan.groups)postWarmWarmedKeys.add(g.key);
+   await linkProgramsIncremental(renderer,programsAtSchoolCompile,()=>disposed);
    if(disposed)return;
    shaderWarmPrograms=programCount(renderer);
    logPhase('school-card-materials',warmPrepStart);

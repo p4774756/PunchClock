@@ -36,9 +36,20 @@ assert.match(src, /isHairMaterial/, 'hair-specific cel shading to preserve blue-
 assert.match(src, /syncHairBunMaterial/, 'bun materials must track hair MToon chroma');
 assert.match(src, /buildPracticeOutfitIncremental/, 'practice outfit must build incrementally');
 assert.match(src, /startPostCardWarm|prioritizePracticeWarm/, 'practice outfit must warm on idle after load card');
-assert.match(src, /uploadTexturesIncremental/, 'practice warm must upload outfit textures in slices');
-assert.match(src, /warmShaderPlanGroup|warmShadersIncremental/, 'practice warm must shader-warm by program group');
+assert.match(
+  src,
+  /uploadTexturesIncremental|uploadOneTexture|atlas:texture-upload/,
+  'practice warm must upload outfit textures in slices',
+);
+assert.match(
+  src,
+  /compileWarmPlanGroup|warmShaderPlanGroup|warmShadersIncremental/,
+  'practice warm must shader-warm by program group',
+);
 const shaderWarm = await readFile(join(root, 'app/shader-warm.ts'), 'utf8');
+assert.match(shaderWarm, /atlas:link/, 'shader link must log atlas:link during card warm');
+assert.match(shaderWarm, /linkProgramsIncremental/, 'card warm must link programs before first frame');
+assert.match(shaderWarm, /renderer\.compile\(scene, camera\)/, 'school warm must sync compile not compileAsync only');
 assert.match(shaderWarm, /hideSceneChrome/, 'shader warm must hide scene chrome only');
 assert.match(shaderWarm, /atlasSceneChrome/, 'scene chrome must be tagged on panorama/ground');
 assert.match(shaderWarm, /groupMeshesByProgram|materialProgramKey/, 'shader warm must group by program cache key');
