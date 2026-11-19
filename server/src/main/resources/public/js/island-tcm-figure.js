@@ -262,11 +262,45 @@ const COURTYARD_FIG_YAW = 0;
 const LOAD_BUFFER = 1.65;
 const UNLOAD_BUFFER = 3.2;
 const LOAD_RETRY_MS = 30_000;
-const MARKER = 0x5a3e1a;
-const MARKER_VIS_R = 0.007;
+const MARKER = 0x7a5a26;
+const MARKER_VIS_R = 0.0045;
 const TODAY_MARK = 0xffb15a;
+const MARKER_MERIDIAN_DEDUP_M = 0.025;
 
 let styleInjected = false;
+
+function markerDedupHideSet(rows, recordsByCode) {
+  const byKey = new Map();
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rec = recordsByCode[row.code];
+    const mer = (rec && rec.meridian) || '';
+    const side = row.instanceKey.endsWith(':-1') ? -1 : 1;
+    const key = mer + '|' + side;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(row);
+  }
+  const hide = new Set();
+  for (const group of byKey.values()) {
+    const kept = [];
+    for (let g = 0; g < group.length; g++) {
+      const row = group[g];
+      const p = row.position;
+      let dup = false;
+      for (let k = 0; k < kept.length; k++) {
+        const q = kept[k].position;
+        const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+        if (d < MARKER_MERIDIAN_DEDUP_M) {
+          dup = true;
+          hide.add(row.instanceKey);
+          break;
+        }
+      }
+      if (!dup) kept.push(row);
+    }
+  }
+  return hide;
+}
 
 function ensureCardStyle(doc) {
   if (styleInjected) return;
@@ -443,15 +477,18 @@ export function createTcmFigureController(ctx) {
     todayCode = code;
     if (!pointMesh || !instanceRows.length) return;
     const dummy = new THREE.Object3D();
-    const baseR = reduced ? 0.0045 : MARKER_VIS_R;
+    const baseR = MARKER_VIS_R;
     const todayR = reduced ? 0.007 : 0.008;
+    const hideSet = markerDedupHideSet(instanceRows, recordsByCode);
     for (let i = 0; i < instanceRows.length; i++) {
       const row = instanceRows[i];
       const isToday = row.code === code;
       const r = isToday ? todayR : baseR;
       const pos = row.position;
       dummy.position.set(pos[0], pos[1], pos[2]);
-      dummy.scale.set(r / baseR, r / baseR, r / baseR);
+      const hidden = hideSet.has(row.instanceKey) && !isToday;
+      const scaleMul = hidden ? 0 : r / baseR;
+      dummy.scale.set(scaleMul, scaleMul, scaleMul);
       dummy.updateMatrix();
       pointMesh.setMatrixAt(i, dummy.matrix);
       const col = new THREE.Color(isToday ? TODAY_MARK : MARKER);
@@ -490,13 +527,18 @@ export function createTcmFigureController(ctx) {
 
   function buildPointMeshes(parent, rows) {
     const count = rows.length;
+    const envMap = ensureBronzeEnvMap(renderer);
+    const hideSet = markerDedupHideSet(rows, recordsByCode);
     const markerGeo = new THREE.SphereGeometry(MARKER_VIS_R, 8, 6);
-    const markerMat = kit.mat(MARKER, {
-      glow: 0x3a2810,
-      glowAmount: 0.06,
-      shadow: false
+    const markerMat = new THREE.MeshStandardMaterial({
+      color: MARKER,
+      metalness: 0.9,
+      roughness: 0.4,
+      envMap: envMap || null,
+      envMapIntensity: envMap ? 1.0 : 0
     });
     ownedGeometries.push(markerGeo);
+    ownedMaterials.push(markerMat);
     pointMesh = new THREE.InstancedMesh(markerGeo, markerMat, count);
     pointMesh.castShadow = false;
     pointMesh.receiveShadow = false;
@@ -516,7 +558,8 @@ export function createTcmFigureController(ctx) {
       const pos = row.position;
       dummy.position.set(pos[0], pos[1], pos[2]);
       dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(1, 1, 1);
+      const hidden = hideSet.has(row.instanceKey) && row.code !== todayCode;
+      dummy.scale.set(hidden ? 0 : 1, hidden ? 0 : 1, hidden ? 0 : 1);
       dummy.updateMatrix();
       pointMesh.setMatrixAt(i, dummy.matrix);
       pickMesh.setMatrixAt(i, dummy.matrix);

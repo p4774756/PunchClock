@@ -162,41 +162,81 @@ def _tri_count(ob):
 
 
 def _smooth_breast_detail(body):
-    """教學銅人胸部：抹平乳頭／乳暈突起，保留柔和輪廓。"""
+    """教學銅人胸部：強抹乳頭／乳暈區（≈2.5 cm），外圈 4 cm 輕抹。"""
     me = body.data
     bm = bmesh.new()
     bm.from_mesh(me)
     bm.verts.ensure_lookup_table()
-    chest = []
+    nipple_zones = []
+    chest_ring = []
+    hubs = (Vector((0.082, -0.068, 1.198)), Vector((-0.082, -0.068, 1.198)))
     for v in bm.verts:
         x, y, z = v.co.x, v.co.y, v.co.z
-        if z < 1.05 or z > 1.34:
+        if z < 1.04 or z > 1.36:
             continue
-        if y > -0.015:
+        if y > 0.01:
+            continue
+        co = v.co
+        in_nip = False
+        for h in hubs:
+            if (co - h).length <= 0.025:
+                nipple_zones.append(v)
+                in_nip = True
+                break
+        if in_nip:
             continue
         ax = abs(x)
-        if ax < 0.05 or ax > 0.17:
+        if y > 0.0 or ax < 0.03 or ax > 0.20:
             continue
-        chest.append(v)
-    if chest:
-        for _ in range(6):
+        for h in hubs:
+            d = (co - h).length
+            if 0.02 < d <= 0.045:
+                chest_ring.append(v)
+                break
+    if not nipple_zones:
+        for v in bm.verts:
+            x, y, z = v.co.x, v.co.y, v.co.z
+            if z < 1.08 or z > 1.32 or y > -0.02:
+                continue
+            ax = abs(x)
+            if ax < 0.06 or ax > 0.14:
+                continue
+            if -0.12 < y < -0.04:
+                nipple_zones.append(v)
+    if nipple_zones:
+        for _ in range(22):
             bmesh.ops.smooth_vert(
                 bm,
-                verts=chest,
-                factor=0.9,
+                verts=nipple_zones,
+                factor=1.0,
                 use_axis_x=True,
                 use_axis_y=True,
                 use_axis_z=True,
             )
-        for v in chest:
-            if v.co.y < -0.06 and 0.075 < abs(v.co.x) < 0.13:
-                blend = min(1.0, max(0.0, (-0.06 - v.co.y) * 8.0))
-                v.co.y += blend * 0.018
-                v.co.z -= blend * 0.004 * (1.0 if v.co.z > 1.18 else 0.35)
+    if chest_ring:
+        for _ in range(10):
+            bmesh.ops.smooth_vert(
+                bm,
+                verts=chest_ring,
+                factor=0.85,
+                use_axis_x=True,
+                use_axis_y=True,
+                use_axis_z=True,
+            )
+    all_smooth = list({id(v): v for v in nipple_zones + chest_ring}.values())
+    if all_smooth:
+        bmesh.ops.smooth_vert(
+            bm,
+            verts=all_smooth,
+            factor=0.55,
+            use_axis_x=True,
+            use_axis_y=True,
+            use_axis_z=True,
+        )
     bm.to_mesh(me)
     bm.free()
     me.update()
-    print(f'[body] chest smoothed verts={len(chest)}')
+    print(f'[body] chest smooth nipple={len(nipple_zones)} ring={len(chest_ring)}')
 
 
 def _shrinkwrap_to_body(ob, body, offset=0.007):
@@ -232,16 +272,21 @@ def _optional_decimate(body, limit=30000):
 
 
 def _stripe_image():
-    img = bpy.data.images.new('sash_stripe', 256, 256)
-    arr = np.ones((256, 256, 4), dtype=np.float32)
-    colors = [
-        (0.85, 0.12, 0.15, 1.0),
-        (0.95, 0.95, 0.94, 1.0),
-        (0.12, 0.22, 0.65, 1.0),
+    """沿帶長（影像寬向）五寬條紋：紅、白、藍、白、紅。"""
+    w, h = 512, 64
+    img = bpy.data.images.new('sash_stripe', w, h)
+    arr = np.ones((h, w, 4), dtype=np.float32)
+    bands = [
+        (200 / 255.0, 39 / 255.0, 46 / 255.0, 1.0),
+        (242 / 255.0, 238 / 255.0, 230 / 255.0, 1.0),
+        (35 / 255.0, 65 / 255.0, 154 / 255.0, 1.0),
+        (242 / 255.0, 238 / 255.0, 230 / 255.0, 1.0),
+        (200 / 255.0, 39 / 255.0, 46 / 255.0, 1.0),
     ]
-    for row in range(256):
-        band = colors[(row // 18) % 3]
-        arr[row, :, :] = band
+    edges = [int(w * i / 5) for i in range(6)]
+    for bi in range(5):
+        x0, x1 = edges[bi], edges[bi + 1]
+        arr[:, x0:x1, :] = bands[bi]
     img.pixels.foreach_set(arr.ravel())
     img.pack()
     return img
@@ -319,18 +364,6 @@ def _sash_stripe_mat():
     return mat
 
 
-def _stripe_uvs(ob, band_half_h, repeat_u=14.0, repeat_v=22.0):
-    uv = ob.data.uv_layers.active or ob.data.uv_layers.new(name='UVMap')
-    for poly in ob.data.polygons:
-        for li in poly.loop_indices:
-            vid = ob.data.loops[li].vertex_index
-            co = ob.data.vertices[vid].co
-            ang = math.atan2(co.y, co.x)
-            u = (ang / (2 * math.pi) + 0.5) * repeat_u
-            v = ((co.z + band_half_h) / max(band_half_h * 2, 1e-6)) * repeat_v
-            uv.data[li].uv = (u, v)
-
-
 def _hip_outer_radius(body, z_lo=0.86, z_hi=0.96):
     mw = body.matrix_world
     radii = []
@@ -344,42 +377,180 @@ def _hip_outer_radius(body, z_lo=0.86, z_hi=0.96):
     return radii[int(len(radii) * 0.88)]
 
 
+def _body_ray_hit(body, axis_z, angle, max_dist=0.22):
+    """自中軸水平 ray_cast 僅打到 bronze_body（限制長度避開手臂）。"""
+    ca, sa = math.cos(angle), math.sin(angle)
+    origin = Vector((0.0, 0.0, axis_z))
+    direction = Vector((ca, sa, 0.0))
+    inv = body.matrix_world.inverted()
+    lo = inv @ origin
+    ld = (inv.to_3x3() @ direction).normalized()
+    rc = body.ray_cast(lo, ld, distance=max_dist)
+    hit = rc[0]
+    if not hit:
+        return None
+    loc, norm = rc[1], rc[2]
+    wloc = body.matrix_world @ loc
+    wnorm = (body.matrix_world.to_3x3() @ norm).normalized()
+    imw = body.matrix_world.inverted()
+    return imw @ wloc, wnorm, imw.to_3x3() @ wnorm
+
+
+def _torso_surface(body, axis_z, angle, offset=0.006):
+    """由外側探點吸附髖部曲面（避開手臂）。"""
+    ca, sa = math.cos(angle), math.sin(angle)
+    probe = Vector((ca * 0.28, sa * 0.28, axis_z))
+    cpm = _closest_on_body(body, probe)
+    if not cpm:
+        return None
+    wloc, wnorm, _ = cpm
+    if abs(wloc.x) > 0.27 or wloc.z < 0.86 or wloc.z > 1.18:
+        return None
+    inv = body.matrix_world.inverted()
+    loc = inv @ wloc
+    ln = (inv.to_3x3() @ wnorm).normalized()
+    return loc + ln * offset
+
+
+def _band_ring_z(angle):
+    """前低後高斜繞（資料高度前≈1.02、後≈1.10，對應本地 Z）。"""
+    sa = math.sin(angle)
+    return 1.02 - 0.040 * max(0.0, -sa) + 0.080 * max(0.0, sa)
+
+
+def _assign_bm_uvs(bm, uv_map):
+    """uv_map: id(BMVert) -> (u, v)"""
+    layer = bm.loops.layers.uv.new('UVMap')
+    for f in bm.faces:
+        for loop in f.loops:
+            u, v = uv_map.get(id(loop.vert), (0.0, 0.0))
+            loop[layer].uv = (u, v)
+
+
+def _validate_sash_to_body(band_ob, body, offset_nom=0.006):
+    from mathutils.bvhtree import BVHTree
+
+    body_bm = bmesh.new()
+    body_bm.from_mesh(body.data)
+    body_bm.transform(body.matrix_world)
+    bvh = BVHTree.FromBMesh(body_bm)
+    dists = []
+    max_x = 0.0
+    for v in band_ob.data.vertices:
+        wco = band_ob.matrix_world @ v.co
+        max_x = max(max_x, abs(wco.x))
+        nearest, _norm, _idx, _d = bvh.find_nearest(wco)
+        if nearest is not None:
+            dists.append((wco - nearest).length)
+    body_bm.free()
+    if not dists:
+        print('[sash] validate: no distances')
+        return
+    dmin, dmax = min(dists), max(dists)
+    print(
+        f'[sash] body_dist mm=[{dmin * 1000:.1f},{dmax * 1000:.1f}] '
+        f'|x|_max={max_x:.3f} (expect 0.17-0.19, dist 3-12mm)'
+    )
+
+
 def _add_sash(body, _mat_cloth):
-    """紅白藍條紋帶：環繞髖一整圈（前低後高），正面垂短布遮下身。"""
+    """紅白藍條紋帶：ray_cast 貼體環繞，正面垂片。"""
     mat = _sash_stripe_mat()
-    hip_mid = 0.905
-    band_half_h = 0.036
-    mean_r = _hip_outer_radius(body) + 0.012
-    segs = 80
+    segs = 90
+    band_half_h = 0.035
+    offset = 0.006
+    deg_step = 4
+    steps = 360 // deg_step
+    if steps != segs:
+        segs = steps
+
     bm = bmesh.new()
-    ring_lo, ring_hi = [], []
-    for i in range(segs + 1):
-        ang = 2 * math.pi * i / segs
-        ca, sa = math.cos(ang), math.sin(ang)
-        z_tilt = hip_mid - 0.030 * max(0.0, -sa) + 0.024 * max(0.0, sa)
-        ring_lo.append(bm.verts.new(((mean_r - 0.008) * ca, (mean_r - 0.008) * sa, z_tilt - band_half_h)))
-        ring_hi.append(bm.verts.new(((mean_r + 0.008) * ca, (mean_r + 0.008) * sa, z_tilt + band_half_h)))
+    bm.verts.ensure_lookup_table()
+    uv_by_vert = {}
+    grid = []
     for i in range(segs):
-        bm.faces.new([ring_lo[i], ring_lo[i + 1], ring_hi[i + 1], ring_hi[i]])
-    ob_band = _mesh_from_bm(bm, 'bronze_sash_band', mat)
-    _shrinkwrap_to_body(ob_band, body, offset=0.0065)
-    _stripe_uvs(ob_band, band_half_h, repeat_u=18.0, repeat_v=26.0)
+        ang = 2 * math.pi * i / segs
+        axis_z = _band_ring_z(ang)
+        row_verts = []
+        for row, dz in enumerate((-band_half_h, 0.0, band_half_h)):
+            hit = _body_ray_hit(body, axis_z + dz, ang)
+            if hit is None:
+                alt = _torso_surface(body, axis_z + dz, ang, offset)
+                if alt is None:
+                    break
+                co = alt
+            else:
+                loc, _wn, ln = hit
+                co = loc + ln * offset
+            v = bm.verts.new(co)
+            bm.verts.ensure_lookup_table()
+            u = (i / float(segs)) * 4.0
+            v_uv = (dz + band_half_h) / (2.0 * band_half_h)
+            uv_by_vert[id(v)] = (u, v_uv)
+            row_verts.append(v)
+        if len(row_verts) == 3:
+            grid.append(row_verts)
+    bm.verts.index_update()
+
+    for i in range(len(grid)):
+        j = (i + 1) % len(grid)
+        a0, a1, a2 = grid[i]
+        b0, b1, b2 = grid[j]
+        bm.faces.new([a0, b0, b1, a1])
+        bm.faces.new([a1, b1, b2, a2])
+
+    _assign_bm_uvs(bm, uv_by_vert)
+    print(f'[sash] ring_segments={len(grid)} uv_pairs={len(uv_by_vert)}')
+    me = bpy.data.meshes.new('bronze_sash_band')
+    bm.to_mesh(me)
+    bm.free()
+    ob_band = bpy.data.objects.new('bronze_sash_band', me)
+    bpy.context.scene.collection.objects.link(ob_band)
+    ob_band.data.materials.append(mat)
+    for p in me.polygons:
+        p.use_smooth = True
+
+    _validate_sash_to_body(ob_band, body)
 
     bm2 = bmesh.new()
     flap_w, flap_h = 0.12, 0.15
-    y_front = -(mean_r - 0.01)
-    z_top = hip_mid - band_half_h - 0.028
-    pts = [
-        (-flap_w * 0.42, y_front, z_top),
-        (flap_w * 0.42, y_front, z_top),
-        (flap_w * 0.38, y_front, z_top - flap_h),
-        (-flap_w * 0.38, y_front, z_top - flap_h),
-    ]
+    front_ang = -math.pi * 0.5
+    flap_z_top = _band_ring_z(front_ang) - band_half_h * 0.35
+    flap_surf = _torso_surface(body, flap_z_top + flap_h * 0.35, front_ang, 0.008)
+    if flap_surf:
+        base = flap_surf
+        hw = flap_w * 0.5
+        pts = [
+            base + Vector((-hw * 0.88, 0.0, 0.0)),
+            base + Vector((hw * 0.88, 0.0, 0.0)),
+            base + Vector((hw * 0.80, 0.0, -flap_h)),
+            base + Vector((-hw * 0.80, 0.0, -flap_h)),
+        ]
+    else:
+        y_front = -0.17
+        pts = [
+            (-flap_w * 0.42, y_front, flap_z_top),
+            (flap_w * 0.42, y_front, flap_z_top),
+            (flap_w * 0.38, y_front, flap_z_top - flap_h),
+            (-flap_w * 0.38, y_front, flap_z_top - flap_h),
+        ]
     vs = [bm2.verts.new(p) for p in pts]
-    bm2.faces.new(vs)
-    ob_flap = _mesh_from_bm(bm2, 'bronze_sash_flap', mat)
-    _shrinkwrap_to_body(ob_flap, body, offset=0.0075)
-    _stripe_uvs(ob_flap, flap_h * 0.5, repeat_u=1.0, repeat_v=18.0)
+    f = bm2.faces.new(vs)
+    flap_uv = {
+        id(vs[0]): (0.0, 1.0),
+        id(vs[1]): (1.0, 1.0),
+        id(vs[2]): (1.0, 0.0),
+        id(vs[3]): (0.0, 0.0),
+    }
+    _assign_bm_uvs(bm2, flap_uv)
+    me_flap = bpy.data.meshes.new('bronze_sash_flap')
+    bm2.to_mesh(me_flap)
+    bm2.free()
+    ob_flap = bpy.data.objects.new('bronze_sash_flap', me_flap)
+    bpy.context.scene.collection.objects.link(ob_flap)
+    ob_flap.data.materials.append(mat)
+    for p in me_flap.polygons:
+        p.use_smooth = True
 
     root = bpy.data.objects.new('bronze_sash', None)
     bpy.context.scene.collection.objects.link(root)
@@ -440,11 +611,35 @@ def _build_pedestal(mat_dark):
         @ Matrix.Diagonal((plaque_w, 0.012, plaque_h, 1.0)),
     )
     plaque = _mesh_from_bm(bm2, 'pedestal_plaque', None)
+    _assign_plaque_uv(plaque, plaque_w, plaque_h)
     plaque_tex = _plaque_texture()
-    p_mat = _mat_pbr('plaque', 0x5a3e1a, rough=0.32, metal=0.9, tex=plaque_tex)
+    p_mat = _mat_pbr('plaque', 0x5a3e1a, rough=0.45, metal=0.35, tex=plaque_tex)
     plaque.data.materials.append(p_mat)
     plaque.parent = ped_root
     return [ped_root, plaque]
+
+
+def _assign_plaque_uv(plaque, pw, ph):
+    me = plaque.data
+    if not me.uv_layers:
+        me.uv_layers.new(name='UVMap')
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.faces.ensure_lookup_table()
+    layer = bm.loops.layers.uv.active
+    for f in bm.faces:
+        for loop in f.loops:
+            co = loop.vert.co
+            if f.normal.y < -0.5:
+                loop[layer].uv = (
+                    (co.x + pw * 0.5) / pw,
+                    max(0.0, min(1.0, (co.z + ph * 0.5) / ph)),
+                )
+            else:
+                loop[layer].uv = (0.0, 0.0)
+    bm.to_mesh(me)
+    bm.free()
+    me.update()
 
 
 def _face_uv_at_point(mesh, face_idx, world_co, mw):
@@ -521,6 +716,13 @@ def _sort_meridian_records(recs):
     )
 
 
+MIDLINE_MERIDIANS = frozenset({'任脈', '督脈'})
+
+
+def _mirror_path_x(points):
+    return [Vector((-p.x, p.y, p.z)) for p in points]
+
+
 EXTRA_MERIDIAN_WAYPOINTS = [
     [(0, 1.70, 0.05), (0, 1.74, 0.04), (0, 1.72, 0.11), (0, 1.68, 0.14)],
     [(0.055, 1.62, 0.10), (0.050, 1.56, 0.09), (0.045, 1.48, 0.08)],
@@ -581,11 +783,14 @@ def _meridian_paths_from_records(body, records):
             side = -1 if rec['position'][0] < 0 else 1
             groups.setdefault((mer, side), []).append(rec)
     paths = []
-    for _key, pts in groups.items():
+    for key, pts in groups.items():
         ordered = _sort_meridian_records(pts)
         path = _snap_data_path(body, ordered)
         if len(path) >= 2:
             paths.append(path)
+            mer = key[0] if key else ''
+            if mer and mer not in MIDLINE_MERIDIANS:
+                paths.append(_mirror_path_x(path))
     for waypoints in EXTRA_MERIDIAN_WAYPOINTS:
         path = _snap_data_path(body, waypoints)
         if len(path) >= 2:
@@ -831,12 +1036,13 @@ def render_previews(root, out_dir=None):
         ('side', Vector((2.8, 0, center.z)), 52),
         ('back', Vector((0, 2.65, center.z)), 52),
         ('face', Vector((0, -1.0, bb_max.z - 0.08)), 75),
+        ('chest', Vector((0, -0.55, 1.22)), 42),
         ('pedestal', Vector((0, -1.28, PEDESTAL_BASE_H * 0.5)), 58),
     ):
         look_at = (
             Vector((0, -0.22, PEDESTAL_BASE_H * 0.5))
             if name == 'pedestal'
-            else center
+            else (Vector((0, -0.05, 1.20)) if name == 'chest' else center)
         )
         cam.location = look_at + off if name == 'pedestal' else center + off
         cam.data.lens = lens
