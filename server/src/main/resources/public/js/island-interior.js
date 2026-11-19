@@ -20,8 +20,12 @@ const LAB_PHI_MAX = 1.50;
 export const LAB_FOV_DEG = 42;
 export const DEFAULT_INTERIOR_FOV_DEG = 25;
 
+export const CASINO_FOV_DEG = 42;
+
 export function interiorCameraFov(room) {
-  return (room && room.id === 'lab-room') ? LAB_FOV_DEG : DEFAULT_INTERIOR_FOV_DEG;
+  if (room && room.id === 'lab-room') return LAB_FOV_DEG;
+  if (room && room.id === 'casino-room') return CASINO_FOV_DEG;
+  return DEFAULT_INTERIOR_FOV_DEG;
 }
 
 /** 與 island-camera.js exploreCameraPlacement 相同（研發樓 phi≥0.70，無抬頭俯仰混合）。 */
@@ -155,7 +159,56 @@ export function labInteriorCameraForAspect(aspect) {
 
 export function interiorFollowPose(room, aspect) {
   if (room && room.id === 'lab-room') return labInteriorCameraForAspect(aspect);
+  if (room && room.id === 'casino-room') return casinoInteriorCameraForAspect(aspect);
   return null;
+}
+
+/** 賭場進房預設鏡頭：站在南門內側往北看大廳的吊燈、拉霸列與 21 點桌。 */
+export const CASINO_INTERIOR_CAMERA = Object.freeze({ radius: 5.75, theta: Math.PI, phi: 1.35 });
+export const CASINO_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 3.7, theta: Math.PI, phi: 1.32 });
+export const CASINO_INTERIOR_LOOK = Object.freeze({ x: 0.35, y: G + 2.0, z: 7.2 });
+export const CASINO_INTERIOR_LOOK_MOBILE = Object.freeze({ x: 0.25, y: G + 1.9, z: 6.4 });
+
+export function casinoInteriorCameraForAspect(aspect) {
+  const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
+  if (a < 0.72) return CASINO_INTERIOR_CAMERA_MOBILE;
+  if (a > 1.72) {
+    return Object.freeze({ radius: 5.9, theta: CASINO_INTERIOR_CAMERA.theta, phi: CASINO_INTERIOR_CAMERA.phi });
+  }
+  return CASINO_INTERIOR_CAMERA;
+}
+
+export function casinoInteriorLookTarget(room, player, aspect) {
+  const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
+  return a < 0.72 ? CASINO_INTERIOR_LOOK_MOBILE : CASINO_INTERIOR_LOOK;
+}
+
+export function casinoInteriorCameraEye(pose, look, aspect) {
+  const used = pose || casinoInteriorCameraForAspect(aspect);
+  const dist = labInteriorFollowDistance(used.radius, aspect);
+  const place = labExploreCameraPlacement(look.x, look.y, look.z, dist, used.phi, used.theta, G);
+  return Object.freeze({ x: place.cx, y: place.cy, z: place.cz });
+}
+
+function casinoInteriorPlayerLocal(player, origin) {
+  const o = origin || INTERIOR_ORIGIN;
+  if (!player) return { x: 0, z: 0.9 };
+  const x = Number.isFinite(player.x) ? player.x : 0;
+  const z = Number.isFinite(player.z) ? player.z : 0.9;
+  if (Math.abs(z - o.z) < 80) return { x: x - o.x, z: z - o.z };
+  return { x, z };
+}
+
+export function casinoInteriorRuntimeLookAt(room, player, aspect, origin) {
+  if (!room || room.id !== 'casino-room') return null;
+  const o = origin || INTERIOR_ORIGIN;
+  const localPlayer = casinoInteriorPlayerLocal(player, o);
+  const focal = casinoInteriorLookTarget(room, localPlayer, aspect);
+  return Object.freeze({
+    x: focal.x + o.x,
+    y: focal.y,
+    z: focal.z + o.z
+  });
 }
 
 /** 研發樓室內跟隨距離：手機直向不拉回太遠，避免螢幕與門口被切掉。 */
@@ -583,20 +636,20 @@ export const INTERIORS = Object.freeze([
   Object.freeze({
     id: 'casino-room',
     buildingId: 'casino',
-    spawn: Object.freeze({ x: 0, z: 0.2, yaw: 0 }),
-    exit: Object.freeze({ x: 0, z: -1.2, r: 0.55, label: '離開賭場' }),
+    spawn: Object.freeze({ x: 0, z: 0.9, yaw: 0 }),
+    exit: Object.freeze({ x: 0, z: -1.4, r: 0.55, label: '離開賭場' }),
     outside: Object.freeze({ x: 13.12, z: -7.35, yaw: Math.PI / 2 }),
-    floor: Object.freeze({ minX: -3.75, maxX: 3.75, minZ: -1.75, maxZ: 3.15 }),
+    floor: Object.freeze({ minX: -8.5, maxX: 8.5, minZ: -2.0, maxZ: 14.0 }),
     blocks: Object.freeze([
-      Object.freeze({ id: 'slots-row', minX: -3.55, maxX: -1.82, minZ: -0.42, maxZ: 2.58 }),
-      Object.freeze({ id: 'roulette', minX: -0.92, maxX: 0.92, minZ: 1.38, maxZ: 2.72 }),
-      Object.freeze({ id: 'bj-table', minX: 2.02, maxX: 3.48, minZ: 0.72, maxZ: 1.72 }),
-      Object.freeze({ id: 'chip-bar', minX: -0.55, maxX: 0.55, minZ: 0.82, maxZ: 1.18 })
+      Object.freeze({ id: 'slots-row', minX: -7.7, maxX: -4.85, minZ: 0.2, maxZ: 11.4 }),
+      Object.freeze({ id: 'roulette', minX: -1.25, maxX: 1.25, minZ: 8.35, maxZ: 10.75 }),
+      Object.freeze({ id: 'bj-table', minX: 3.45, maxX: 5.55, minZ: 3.55, maxZ: 5.25 }),
+      Object.freeze({ id: 'chip-bar', minX: 3.35, maxX: 5.35, minZ: 8.85, maxZ: 10.15 })
     ]),
     interacts: Object.freeze([
-      Object.freeze({ id: 'casino-bj', x: 1.65, z: 1.22, r: 0.58, label: '玩 21 點', action: 'openCasinoBlackjack' }),
-      Object.freeze({ id: 'casino-slots', x: -1.12, z: 1.05, r: 0.62, label: '拉霸機', action: 'casinoSlots' }),
-      Object.freeze({ id: 'casino-roulette', x: 0.55, z: 0.42, r: 0.48, label: '輪盤桌', action: 'casinoRoulette' })
+      Object.freeze({ id: 'casino-bj', x: 3.05, z: 4.4, r: 0.58, label: '玩 21 點', action: 'openCasinoBlackjack' }),
+      Object.freeze({ id: 'casino-slots', x: -4.25, z: 4.2, r: 0.62, label: '拉霸機', action: 'casinoSlots' }),
+      Object.freeze({ id: 'casino-roulette', x: 0, z: 7.7, r: 0.52, label: '輪盤桌', action: 'casinoRoulette' })
     ])
   })
 ]);
