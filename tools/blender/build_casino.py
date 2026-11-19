@@ -18,6 +18,7 @@ sys.path.insert(0, _HERE)
 import bpy
 import kit
 from kit import Builder, clear_scene, prepare_scene, argv_out, set_palette_overrides, tex_path
+from mathutils import Matrix, Vector
 
 # 佔地對齊 island-layout.js
 W, D = 4.2, 3.4
@@ -35,28 +36,26 @@ def _semicircle_boxes(part, mat, cx, y, z0, radius, nseg, sx, sy, sz, rx=0.0, ry
         part.box(mat, sx, sy, sz, mx, y, mz, rx=rx, ry=ry)
 
 
-def _horiz_tex(part, tex_subpath, size, x, y, z, ry=0.0):
-    """屋頂水平貼圖（法線 +Z），與 computer-site roof_readable_sign 同用 rx=π/2。"""
-    part.textured_plane(tex_subpath, size, size, x, y, z, rx=math.pi / 2, ry=ry)
+def _horiz_tex(part, tex_subpath, w, h, x, y, z, ry=0.0, label='horiz'):
+    """屋頂水平貼圖：rx=-π/2，法線朝 +Z（俯視可見）。"""
+    rx = -math.pi / 2
+    part.textured_plane(tex_subpath, w, h, x, y, z, rx=rx, ry=ry)
+    rot = Matrix.Rotation(ry, 4, 'Y') @ Matrix.Rotation(rx, 4, 'X')
+    n = rot @ Vector((0.0, -1.0, 0.0))
+    print(f'HORIZ_TEX {label}: normal≈({n.x:.3f}, {n.y:.3f}, {n.z:.3f}) expect z≈+1')
 
 
-def _facade_billboard(part, tex_subpath, w, h, north_x, y, z, lean=0.30):
-    """北立面（本地 +X）斜立牌，俯視與北近景可見。"""
-    part.textured_plane(tex_subpath, w, h, north_x + 0.22, y, z, rz=math.pi / 2, rx=-lean)
-
-
-def _marquee_tower(b, north_x, z_base, height, width, roof_top):
+def _marquee_tower(b, north_x, z_base, height, width):
     """獨立高大 marquee 柱：燈泡框 + sign_face（神之島賭場）。"""
     fr = b.part('marquee_tower')
     face = b.part('sign_face')
     bulbs = b.part('marquee_lamps')
     neo = b.part('marquee_neon')
-    # 字牌段高出最上層屋頂 1m+，略仰對 EXPLORE_POSE 俯角
-    pitch = -0.26
-    x_back = north_x + 0.03
-    x_face = north_x + 0.22
-    x_bulb = north_x + 0.26
-    fr.box('cas_dark', 0.18, width + 0.12, height + 0.14, x_back, 0, z_base + height / 2)
+    pitch = -0.12
+    x_back = north_x + 0.06
+    x_face = north_x + 0.14
+    x_bulb = north_x + 0.17
+    fr.box('cas_dark', 0.22, width + 0.12, height + 0.14, x_back, 0, z_base + height / 2)
     fr.box('gold', 0.26, width + 0.22, 0.07, x_back - 0.02, 0, z_base + height + 0.02, rx=pitch)
     fr.box('gold', 0.26, width + 0.22, 0.07, x_back - 0.02, 0, z_base - 0.02, rx=pitch)
     for dy in (-width / 2 - 0.06, width / 2 + 0.06):
@@ -71,10 +70,12 @@ def _marquee_tower(b, north_x, z_base, height, width, roof_top):
         bulbs.sphere('lantern_glow', 0.042, x_bulb, -width / 2 - 0.05, lz, seg=5, rings=4)
         bulbs.sphere('lantern_glow', 0.042, x_bulb, width / 2 + 0.05, lz, seg=5, rings=4)
     sign_h, sign_w = 1.22, 2.42
-    sign_z = roof_top + 1.05 + sign_h * 0.5
-    face.plane('sign', sign_w, sign_h, x_face, 0, sign_z, rz=math.pi / 2, rx=pitch, flip_u=False)
-    fr.box('cas_dark', 0.08, 0.55, 0.55, x_face + 0.04, -sign_w / 2 - 0.38, sign_z + sign_h * 0.22, rx=pitch)
-    neo.box('neon_glow', 0.040, 0.38, 0.38, x_bulb, -sign_w / 2 - 0.38, sign_z + sign_h * 0.22, rx=pitch)
+    face.plane(
+        'sign', sign_w, sign_h, x_face, 0, z_base + height * 0.52,
+        rz=math.pi / 2, rx=pitch, flip_u=False,
+    )
+    fr.box('cas_dark', 0.08, 0.55, 0.55, x_face + 0.04, -sign_w / 2 - 0.38, z_base + height * 0.78, rx=pitch)
+    neo.box('neon_glow', 0.040, 0.38, 0.38, x_bulb, -sign_w / 2 - 0.38, z_base + height * 0.78, rx=pitch)
 
 
 def _textured_poker(b, y, north_x, z_center, tex_name, flip=False):
@@ -184,16 +185,19 @@ def build(out_path):
     arch.textured_plane(
         'casino/cas_arch_gate.png', span + 0.08, 0.74, 0, arch_y - 0.06, door_top + arch_h * 0.52, rx=-0.10
     )
+    _horiz_tex(
+        arch, 'casino/cas_arch_roof.png', span + 0.05, 0.38,
+        0, arch_y - 0.04, door_top + arch_h + 0.08, label='arch_gate_roof',
+    )
     for sx in (-door_w / 2 - 0.22, door_w / 2 + 0.22):
         arch.box('gold', 0.08, 0.10, 2.12, sx, FRONT - 0.06, BASE + 1.18)
         b.part('lanterns_glow').sphere('lantern_glow', 0.10, sx, FRONT - 0.08, BASE + 2.18, seg=6, rings=4)
 
+    sign_z = BASE + 1.92
+    _marquee_tower(b, north_x, BASE + 0.18, 2.55, 2.35)
+
     roof_y = BASE + H + 0.12
     roof_top = roof_y + 0.58
-    sign_h = 1.22
-    sign_z = roof_top + 1.05 + sign_h * 0.5
-    tower_h = max(4.5, sign_z + sign_h * 0.5 - (BASE + 0.14) - 0.12)
-    _marquee_tower(b, north_x, BASE + 0.14, tower_h, 2.35, roof_top)
 
     card_y = 2.32
     _textured_poker(b, -card_y, north_x, BASE + 1.58, 'cas_poker_ah.png')
@@ -228,19 +232,22 @@ def build(out_path):
     for sx, sy in ((-1, -1), (1, -1), (-1, 1), (1, 1)):
         rf.box('gold', 0.12, 0.12, 0.28, sx * (W / 2 + 0.08), sy * (D / 2 + 0.08), roof_y + 0.62)
 
-    # 北簷斜立牌＋屋頂輪盤（預設俯視辨識）
+    # 屋頂水平招牌＋輪盤（預設俯視辨識）
     roof_deco = b.part('roof_deco')
-    eave_z = roof_top + 0.16
-    _facade_billboard(roof_deco, 'casino/cas_poker_ah.png', 0.68, 0.94, north_x, -1.18, eave_z, lean=0.36)
-    _facade_billboard(roof_deco, 'casino/cas_poker_as.png', 0.68, 0.94, north_x, 1.18, eave_z, lean=0.36)
-    _facade_billboard(roof_deco, 'casino/cas_777.png', 1.08, 0.52, north_x, -0.38, eave_z + 0.10, lean=0.28)
-    _facade_billboard(roof_deco, 'casino/cas_dice.png', 0.52, 0.52, north_x, 0.38, eave_z + 0.10, lean=0.28)
-    # 輪盤：水平圓盤法線朝上，直徑 ≥ 2.2 m
+    roof_north_y = HY * 0.38
     wheel = b.part('roulette')
     wheel_z = roof_top + 0.02
-    wheel.cyl('cas_dark', 1.08, 1.08, 0.06, 0, -0.18, wheel_z, seg=18)
-    _horiz_tex(wheel, 'casino/cas_roulette.png', 2.24, 0, -0.18, wheel_z + 0.035)
-    wheel.cyl('gold', 0.14, 0.12, 0.04, 0, -0.18, wheel_z + 0.05, seg=8)
+    wheel_cy = roof_north_y + 0.22
+    _horiz_tex(
+        roof_deco, 'casino/cas_roof_sign.png', 3.35, 1.05,
+        0, roof_north_y - 0.55, roof_top + 0.04, label='roof_sign',
+    )
+    wheel.cyl('cas_dark', 1.10, 1.10, 0.06, 0, wheel_cy, wheel_z, seg=20)
+    _horiz_tex(
+        wheel, 'casino/cas_roulette.png', 2.40, 2.40,
+        0, wheel_cy, wheel_z + 0.035, label='roulette',
+    )
+    wheel.cyl('gold', 0.14, 0.12, 0.04, 0, wheel_cy, wheel_z + 0.05, seg=8)
 
     lp = b.part('lamp_posts')
     for sx in (-0.78, 0.78):
@@ -266,7 +273,7 @@ def build(out_path):
     neo = b.part('neon')
     neo.box('neon_glow', door_w + 0.28, 0.038, 0.038, 0, FRONT - 0.06, door_top - 0.04)
 
-    label_blender = (north_x + 0.22, 0.0, sign_z + 0.08)
+    label_blender = (north_x + 0.14, 0.0, sign_z + 0.08)
 
     return b.finish(
         out_path,

@@ -41,18 +41,43 @@ def _noise_stone(w=512, h=512, seed=193):
     return img
 
 
+def _draw_heart(draw, cx, cy, scale, fill):
+    r = scale * 0.42
+    draw.ellipse((cx - r, cy - r * 1.1, cx, cy + r * 0.35), fill=fill)
+    draw.ellipse((cx, cy - r * 1.1, cx + r, cy + r * 0.35), fill=fill)
+    draw.polygon(
+        [(cx - r * 1.05, cy - r * 0.05), (cx + r * 1.05, cy - r * 0.05), (cx, cy + scale * 0.95)],
+        fill=fill,
+    )
+
+
+def _draw_spade(draw, cx, cy, scale, fill):
+    r = scale * 0.40
+    draw.ellipse((cx - r, cy - r * 1.05, cx, cy + r * 0.2), fill=fill)
+    draw.ellipse((cx, cy - r * 1.05, cx + r, cy + r * 0.2), fill=fill)
+    draw.polygon(
+        [(cx - r * 1.05, cy - r * 0.1), (cx + r * 1.05, cy - r * 0.1), (cx, cy + scale * 0.72)],
+        fill=fill,
+    )
+    stem_w, stem_h = scale * 0.22, scale * 0.55
+    draw.rectangle(
+        (cx - stem_w / 2, cy + scale * 0.48, cx + stem_w / 2, cy + scale * 0.48 + stem_h),
+        fill=fill,
+    )
+
+
 def _poker_card(suit: str, rank: str, color_rgb, w=256, h=352):
     img = Image.new('RGB', (w, h), (0xf8, 0xf4, 0xec))
     draw = ImageDraw.Draw(img)
     draw.rectangle((0, 0, w - 1, h - 1), outline=(0x20, 0x18, 0x14), width=4)
     draw.rectangle((8, 8, w - 9, h - 9), outline=(0xd4, 0xa8, 0x4b), width=2)
-    f_big = _font(112)
     f_sm = _font(52)
     draw.text((18, 10), rank, fill=color_rgb, font=f_sm)
-    draw.text((18, 58), suit, fill=color_rgb, font=f_sm)
-    draw.text((w // 2 - 28, h // 2 - 58), suit, fill=color_rgb, font=f_big)
+    draw_suit = _draw_heart if suit == '♥' else _draw_spade
+    draw_suit(draw, 42, 86, 36, color_rgb)
+    draw_suit(draw, w // 2, h // 2 + 12, 88, color_rgb)
+    draw_suit(draw, w - 42, h - 62, 36, color_rgb)
     draw.text((w - 52, h - 62), rank, fill=color_rgb, font=f_sm)
-    draw.text((w - 52, h - 118), suit, fill=color_rgb, font=f_sm)
     return img
 
 
@@ -100,6 +125,42 @@ def _tex_roulette(w=512, h=512):
     return img
 
 
+def _tex_roof_sign(w=1024, h=512):
+    img = Image.new('RGB', (w, h), (0x10, 0x0c, 0x14))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((12, 12, w - 13, h - 13), outline=(0xd4, 0xa8, 0x4b), width=8)
+    for i in range(24):
+        bx = 20 + i * 42
+        draw.ellipse((bx, 14, bx + 22, 36), fill=(0xff, 0xe8, 0x9a))
+        draw.ellipse((bx, h - 36, bx + 22, h - 14), fill=(0xff, 0xe8, 0x9a))
+    f = _font(118)
+    draw.text(
+        (w // 2 - 382, h // 2 - 68),
+        '神之島賭場',
+        fill=(0xf0, 0xd0, 0x78),
+        font=f,
+        stroke_width=6,
+        stroke_fill=(0x6a, 0x18, 0x28),
+    )
+    return img
+
+
+def _tex_arch_roof(w=512, h=256):
+    img = Image.new('RGB', (w, h), (0x18, 0x10, 0x22))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((4, 4, w - 5, h - 5), outline=(0xd4, 0xa8, 0x4b), width=4)
+    f = _font(96)
+    draw.text(
+        (w // 2 - 142, h // 2 - 58),
+        '神之島',
+        fill=(0xff, 0xee, 0xcc),
+        font=f,
+        stroke_width=5,
+        stroke_fill=(0x6a, 0x18, 0x28),
+    )
+    return img
+
+
 def _tex_arch(w=512, h=200):
     img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
@@ -122,6 +183,8 @@ def main():
     _noise_stone().save(os.path.join(OUT, 'cas_stone.png'))
     _poker_card('♥', 'A', (0xcc, 0x22, 0x33)).save(os.path.join(OUT, 'cas_poker_ah.png'))
     _poker_card('♠', 'A', (0x22, 0x18, 0x20)).save(os.path.join(OUT, 'cas_poker_as.png'))
+    _tex_roof_sign().save(os.path.join(OUT, 'cas_roof_sign.png'))
+    _tex_arch_roof().save(os.path.join(OUT, 'cas_arch_roof.png'))
     _tex_777().save(os.path.join(OUT, 'cas_777.png'))
     _tex_dice().save(os.path.join(OUT, 'cas_dice.png'))
     _tex_roulette().save(os.path.join(OUT, 'cas_roulette.png'))
