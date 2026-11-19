@@ -515,6 +515,29 @@ export function interiorByRoomId(id) {
   return null;
 }
 
+const MINIMAP_EXPAND_SVG =
+  '<svg class="island-minimap-expand-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">'
+  + '<path fill="currentColor" d="M4 4h7v2H6v3H4V4zm13 0v5h-2V6h-3V4h5zM4 15h2v3h3v2H4v-5zm16 0v5h-5v-2h3v-3h2z"/></svg>';
+
+/** 探索中同步左上玩家卡地點標題（與小地圖標題同源）。 */
+export function syncPlayerAreaTitle(doc, state, cache) {
+  if (!doc) return;
+  const textEl = doc.getElementById('islandHudPlayerTitleText');
+  const markEl = doc.querySelector('.island-hud-player-title-mark');
+  if (!textEl && !markEl) return;
+  const st = state || {};
+  const name = resolveAreaName({
+    interiorRoom: st.interiorRoom,
+    x: st.player ? st.player.x : 0,
+    z: st.player ? st.player.z : 0
+  });
+  if (cache && cache.name === name) return;
+  if (cache) cache.name = name;
+  const mark = name ? String(name).charAt(0) : '';
+  if (textEl && textEl.textContent !== name) textEl.textContent = name;
+  if (markEl && markEl.textContent !== mark) markEl.textContent = mark;
+}
+
 export function createMinimapHud(opts) {
   const document = opts.document;
   if (!document) return { tick: function () {}, destroy: function () {} };
@@ -534,6 +557,12 @@ export function createMinimapHud(opts) {
   let collapsed = mobileMq.matches;
   let lastPaint = 0;
   const intervalMs = 100;
+  const playerTitleCache = { name: null };
+  let expandIconReady = false;
+
+  function isMobileViewport() {
+    return mobileMq.matches;
+  }
 
   function hudCtx() {
     return hudCanvas && hudCanvas.getContext ? hudCanvas.getContext('2d') : null;
@@ -543,14 +572,35 @@ export function createMinimapHud(opts) {
     return mapCanvas && mapCanvas.getContext ? mapCanvas.getContext('2d') : null;
   }
 
+  function ensureExpandIcon() {
+    if (!expandBtn || expandIconReady) return;
+    if (expandBtn.querySelector('.island-minimap-expand-icon')) {
+      expandIconReady = true;
+      return;
+    }
+    expandBtn.textContent = '';
+    expandBtn.insertAdjacentHTML('beforeend', MINIMAP_EXPAND_SVG);
+    expandIconReady = true;
+  }
+
   function syncCollapsedUi() {
     if (!root) return;
     root.classList.toggle('island-minimap-collapsed', collapsed);
+    ensureExpandIcon();
     if (collapseBtn) {
       collapseBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-      collapseBtn.textContent = collapsed ? '+' : '−';
+      collapseBtn.textContent = collapsed ? '▾' : '−';
       collapseBtn.setAttribute('aria-label', collapsed ? '展開小地圖' : '縮小小地圖');
     }
+  }
+
+  function syncMinimapVisibility(exploring) {
+    if (!root) return;
+    if (!exploring || isMobileViewport()) {
+      root.hidden = true;
+      return;
+    }
+    root.hidden = false;
   }
 
   function setCollapsed(on) {
@@ -576,8 +626,9 @@ export function createMinimapHud(opts) {
       nightMix: state.nightMix,
       large: false
     };
+    syncPlayerAreaTitle(document, state, playerTitleCache);
     const hctx = hudCtx();
-    if (hctx && !collapsed && root && !root.hidden) paintMinimap(hctx, paintOpts);
+    if (hctx && !collapsed && root && !root.hidden && !isMobileViewport()) paintMinimap(hctx, paintOpts);
     const mapSheet = document.getElementById('islandMapSheet');
     const mctx = mapCtx();
     if (mctx && mapSheet && !mapSheet.hidden) {
@@ -586,11 +637,9 @@ export function createMinimapHud(opts) {
   }
 
   function tick(now) {
-    if (!opts.isExploring || !opts.isExploring()) {
-      if (root) root.hidden = true;
-      return;
-    }
-    if (root) root.hidden = false;
+    const exploring = opts.isExploring && opts.isExploring();
+    syncMinimapVisibility(exploring);
+    if (!exploring) return;
     if (!now) now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     if (now - lastPaint < intervalMs) return;
     lastPaint = now;
@@ -627,7 +676,14 @@ export function createMinimapHud(opts) {
   }
 
   function onMedia() {
-    if (mobileMq.matches && !collapsed) setCollapsed(true);
+    if (isMobileViewport()) {
+      syncMinimapVisibility(opts.isExploring && opts.isExploring());
+      if (!collapsed) setCollapsed(true);
+      return;
+    }
+    collapsed = false;
+    syncCollapsedUi();
+    syncMinimapVisibility(opts.isExploring && opts.isExploring());
   }
   if (mobileMq.addEventListener) mobileMq.addEventListener('change', onMedia);
   else if (mobileMq.addListener) mobileMq.addListener(onMedia);

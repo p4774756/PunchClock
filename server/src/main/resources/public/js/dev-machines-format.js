@@ -94,13 +94,14 @@ export function roadmapItemTotals(phases) {
   return { done, total };
 }
 
-/** 子項全勾視為已完成（即使上級未勾）。 */
+/** done 已完成；active 施工中（current）；progress 進行中（部分完成）；pending 未開工。 */
 export function effectivePhaseStatus(phase, current) {
   if (!phase) return 'pending';
   const pr = phaseItemProgress(phase);
   if (pr.total > 0 && pr.done >= pr.total) return 'done';
   if (phase.done) return 'done';
   if (phase.phase != null && phase.phase === current) return 'active';
+  if (pr.total > 0 && pr.done > 0 && pr.done < pr.total) return 'progress';
   return 'pending';
 }
 

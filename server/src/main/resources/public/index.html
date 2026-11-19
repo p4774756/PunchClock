@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/css/casino.css">
   <link rel="stylesheet" href="/css/graffiti.css">
   <link rel="stylesheet" href="/css/roadmap.css">
+  <link rel="stylesheet" href="/css/dev-guest-ui.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
@@ -27,8 +28,8 @@
     <div class="island-hud-player" id="islandHudPlayer">
       <div class="island-hud-player-card" aria-live="polite">
         <div class="island-hud-player-title" aria-hidden="true">
-          <span class="island-hud-player-title-mark">神</span>
-          <span class="island-hud-player-title-text">神之島</span>
+          <span class="island-hud-player-title-mark" id="islandHudPlayerTitleMark">神</span>
+          <span class="island-hud-player-title-text" id="islandHudPlayerTitleText">神之島</span>
         </div>
         <div class="island-hud-player-body">
           <img class="island-hud-player-thumb" id="islandHudPlayerThumb" src="/pet/milu/idle/breath_01.png" width="44" height="44" alt="" decoding="async">
@@ -96,7 +97,7 @@
         <h2 id="islandMinimapTitle">神之島</h2>
         <div class="island-minimap-win-btns">
           <button type="button" class="maple-win-close island-minimap-collapse" id="islandMinimapCollapse" aria-expanded="true" aria-label="縮小小地圖">−</button>
-          <button type="button" class="maple-win-close island-minimap-expand" id="islandMinimapExpand" aria-label="放大地圖">+</button>
+          <button type="button" class="maple-win-close island-minimap-expand" id="islandMinimapExpand" aria-label="放大地圖"><svg class="island-minimap-expand-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4 4h7v2H6v3H4V4zm13 0v5h-2V6h-3V4h5zM4 15h2v3h3v2H4v-5zm16 0v5h-5v-2h3v-3h2z"/></svg></button>
         </div>
       </header>
       <div class="island-minimap-body" id="islandMinimapBody">
@@ -187,6 +188,7 @@
         <a class="island-more-item" role="menuitem" href="/login" data-guest-only data-island-more-login>登入</a>
         <a class="island-more-item" role="menuitem" href="/logout" data-auth-only data-island-more-logout>登出</a>
       </div>
+      <p class="island-more-build" id="islandMoreBuild">飲料店 · v{{SERVER_VERSION}} · 開店 {{SERVER_BUILD_TIME}}</p>
     </div>
   </section>
 

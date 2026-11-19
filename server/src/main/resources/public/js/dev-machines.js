@@ -27,6 +27,13 @@ function setText(node, text) {
   node.textContent = text == null ? '' : String(text);
 }
 
+/** 管理員已登入時隱藏頁尾「管理員登入」。 */
+export function updateDevMachinesLoginFooter(doc, canLink) {
+  if (!doc || !doc.querySelector) return;
+  const foot = doc.querySelector('.dev-machines-login-footer');
+  if (foot) foot.hidden = !!canLink;
+}
+
 function renderGuestHint(root, show) {
   let hint = root.parentElement && root.parentElement.querySelector('[data-dev-guest-hint]');
   if (!show) {
@@ -231,6 +238,7 @@ function renderMachines(root, payload, devStatus, now, doc) {
   const timeline = devStatus && Array.isArray(devStatus.timeline) ? devStatus.timeline : [];
   renderMerged(root, timeline, now, canLink, d);
   renderGuestHint(root, !canLink);
+  updateDevMachinesLoginFooter(d, canLink);
 }
 
 export function createDevMachinesPage(opts) {

@@ -13,8 +13,14 @@ function miniDoc() {
       className: '',
       classList: {
         _c: new Set(),
-        add(x) { this._c.add(x); },
-        remove(x) { this._c.delete(x); }
+        add(x) {
+          this._c.add(x);
+          n.className = [...this._c].join(' ');
+        },
+        remove(x) {
+          this._c.delete(x);
+          n.className = [...this._c].join(' ');
+        }
       },
       childNodes: [],
       attributes: {},
@@ -116,6 +122,8 @@ test('訪客與管理員連結／toast', () => {
   F.showLoginRequiredToast(doc, '/login');
   const toasts = doc.body.childNodes.filter((n) => n.attributes && n.attributes['data-dev-login-toast']);
   assert.equal(toasts.length, 1);
+  assert.ok(toasts[0].className.includes('dev-login-toast'));
+  assert.ok(toasts[0].className.includes('maple-window'));
   assert.ok(toasts[0].childNodes.some((c) => (c.textContent || '').includes('登入後才能查看連結')));
   assert.ok(toasts[0].childNodes.some((c) => c.href === '/login'));
 
@@ -160,12 +168,23 @@ test('roadmap 開發機狀態鈕與資料來源', () => {
   F.mergeRoadmapDevStatusLink(doc, nav);
   assert.equal(nav.hidden, false);
   const src = doc.createElement('a');
+  src.className = 'roadmap-source';
   F.applyGithubSourceLabel(doc, src, 'https://github.com/p4774756/PunchClock/issues/36', false);
   assert.equal(src.textContent, '資料來源：GitHub #36');
   assert.equal(src.getAttribute('aria-disabled'), 'true');
+  assert.ok(src.className.includes('dev-guest-ref'));
 });
 
-test('今日合併篩選', () => {
+test('effectivePhaseStatus：0/5 pending、3/5 progress、5/5 done、current 0/5 active', () => {
+  const phase = (n, done, total, extra) => Object.assign({ phase: n, done: false, itemsDone: done, itemsTotal: total }, extra);
+  assert.equal(F.effectivePhaseStatus(phase(6, 0, 5), 7), 'pending');
+  assert.equal(F.effectivePhaseStatus(phase(6, 3, 5), 7), 'progress');
+  assert.equal(F.effectivePhaseStatus(phase(6, 5, 5), 7), 'done');
+  assert.equal(F.effectivePhaseStatus(phase(7, 0, 5), 7), 'active');
+  assert.equal(F.effectivePhaseStatus({ phase: 5, done: true, itemsDone: 2, itemsTotal: 5 }, null), 'done');
+});
+
+test('今日合併篩選接受 API 合併與已合併', () => {
   const now = Date.UTC(2026, 10, 19, 8, 6, 0);
   const merged = F.filterMergedToday(
     [{ action: '合併', at: Date.UTC(2026, 10, 19, 8, 6, 0), ref: '#205' }],

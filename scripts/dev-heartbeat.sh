@@ -239,24 +239,41 @@ read_wt_runs() {
       gsub(/"/, "\\\"", s)
       return s
     }
+  function is_run_wt_argv(    sh, script, tok) {
+    sh = $2
+    if (sh ~ /(^|\/)(sh|bash)$/) {
+      script = $3
+      tok = $4
+      if (script ~ /(^|\/)run-wt\.sh$/ && tok ~ /^run[0-9]+(-f[0-9]+)?$/) {
+        run_argv_tok = tok
+        return 1
+      }
+    }
+    script = $2
+    tok = $3
+    if (script ~ /(^|\/)run-wt\.sh$/ && tok ~ /^run[0-9]+(-f[0-9]+)?$/) {
+      run_argv_tok = tok
+      return 1
+    }
+    return 0
+  }
     BEGIN { count = 0 }
-    /run-wt\.sh[[:space:]]+run[0-9]+/ {
+    {
+      if (!is_run_wt_argv()) next
       et = $1
       elapsed = etime_ms(et)
       started = now_ms - elapsed
       issue = 0
       round = 0
-      if (match($0, /run[0-9]+(-f[0-9]+)?/)) {
-        tok = substr($0, RSTART, RLENGTH)
-        sub(/^run/, "", tok)
-        if (match(tok, /^[0-9]+/)) {
-          issue = substr(tok, RSTART, RLENGTH) + 0
-        }
-        if (match(tok, /-f[0-9]+/)) {
-          rpart = substr(tok, RSTART, RLENGTH)
-          sub(/^-f/, "", rpart)
-          round = rpart + 0
-        }
+      tok = run_argv_tok
+      sub(/^run/, "", tok)
+      if (match(tok, /^[0-9]+/)) {
+        issue = substr(tok, RSTART, RLENGTH) + 0
+      }
+      if (match(tok, /-f[0-9]+/)) {
+        rpart = substr(tok, RSTART, RLENGTH)
+        sub(/^-f/, "", rpart)
+        round = rpart + 0
       }
       if (issue < 1) next
       branch = "ai/issue-" issue

@@ -85,7 +85,8 @@ assert_eq "$(etime_ms '1-02:03:04')" "93784000" "etime dd-hh:mm:ss"
 # --- run-wt ps parsing (item 5b) ---
 MOCK_GIT_SHORT="deadbeef"
 MOCK_PS_OUTPUT='  12:34 sh /path/run-wt.sh run235-f2 prompt ~/PunchClock-oki/wt-235
-  05:10 sh run-wt.sh run237 other ~/PunchClock-oki/wt-237'
+  05:10 sh run-wt.sh run237 other ~/PunchClock-oki/wt-237
+  99:99 cursor-agent --fix run-wt.sh run999-f3 in prompt'
 read_wt_runs
 case "$RUNS_JSON" in
   *'"issue":235'*) ;;
@@ -100,5 +101,8 @@ case "$RUNS_JSON" in
   *) fail "runs json missing round 0 for run237" ;;
 esac
 assert_eq "$(pick_longest_run_from_json "$RUNS_JSON" | cut -d'|' -f1)" "235" "longest run issue from json"
+case "$RUNS_JSON" in
+  *'"issue":999'*) fail "runs json must ignore cursor-agent prompt run-wt.sh run999-f3" ;;
+esac
 
 echo "dev-heartbeat-selftest: ok"

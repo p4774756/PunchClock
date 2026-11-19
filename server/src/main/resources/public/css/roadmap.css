@@ -290,6 +290,8 @@
 .roadmap-phase.is-done .roadmap-tag { background: var(--maple-green); }
 .roadmap-phase.is-active { background: #fff8e8; }
 .roadmap-phase.is-active .roadmap-tag { background: var(--maple-gold); color: var(--maple-navy); }
+.roadmap-phase.is-progress { background: #f4f8ff; }
+.roadmap-phase.is-progress .roadmap-tag { background: var(--maple-gold); color: var(--maple-navy); }
 .roadmap-phase.is-pending .roadmap-tag { background: var(--maple-gray); }
 
 .roadmap-phase ul {
@@ -359,6 +361,22 @@
   color: var(--maple-blue-dk);
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+.roadmap-source.dev-guest-ref,
+a.roadmap-source[aria-disabled="true"] {
+  color: var(--maple-muted);
+  text-decoration: none;
+  cursor: help;
+  font-weight: 700;
+}
+
+.roadmap-dev-pair.dev-guest-ref,
+.roadmap-dev-pr.dev-guest-ref,
+.roadmap-today-list .dev-guest-ref {
+  color: var(--maple-muted);
+  text-decoration: none;
+  cursor: help;
 }
 
 .roadmap-btn {
