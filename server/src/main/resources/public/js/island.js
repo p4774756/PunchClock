@@ -2799,8 +2799,25 @@ function boot() {
       }
     },
     isInside: () => rooms.inside(),
-    interiorMinRadius: INTERIOR_POSE.radius
+    interiorMinRadius: INTERIOR_POSE.radius,
+    getInteriorPoseRadius: () => {
+      if (!rooms.inside()) return null;
+      const custom = interiorFollowPose(rooms.room(), camera.aspect);
+      return (custom || INTERIOR_POSE).radius;
+    }
   });
+  if (typeof window !== 'undefined') {
+    window.__islandCam = () => ({
+      radius: cam.radius,
+      targetRadius: cam.targetRadius,
+      theta: cam.theta,
+      targetTheta: cam.targetTheta,
+      phi: cam.phi,
+      targetPhi: cam.targetPhi,
+      mode: mode,
+      inside: rooms.inside()
+    });
+  }
   createExploreJoystick({
     stickRoot: document.getElementById('islandJoystick'),
     stickKnob: document.getElementById('islandJoystickKnob'),
