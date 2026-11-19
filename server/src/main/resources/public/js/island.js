@@ -144,6 +144,10 @@ import { createIslandLife } from './island-life.js';
 import { createFootprintView } from './island-footprints.js';
 import { createLifecycle } from './island-lifecycle.js';
 import { createPeerLayer } from './island-peers.js';
+import {
+  createSelfLabelPlacer,
+  loadSelfNameEnabled
+} from './island-self-label.js';
 import { placeBuildingLabels } from './island-labels.js';
 import { createCornerUi } from './island-corner-ui.js';
 import { createMinimapHud, syncPlayerAreaTitle } from './island-minimap.js';
@@ -655,6 +659,82 @@ function boot() {
   let islandChat = null;
   let peerLayer = null;
   let corner = null;
+  const selfLabel = createSelfLabelPlacer({ document: document });
+  if (typeof window !== 'undefined') {
+    window.__islandSelfLabel = () => {
+      const dbg = selfLabel.getDebug();
+      return Object.assign({}, dbg, {
+        vehicleRoofY: pinkCarMesh && pinkCarMesh.roofY,
+        driving: isDriving()
+      });
+    };
+  }
+
+  function playerGroundY() {
+    if (isSailing() || isSteering()) {
+      return dockedBob(boatElapsed, reduced) + BOAT_DECK_OFFSET;
+    }
+    return P;
+  }
+
+  function selfNameEnabledNow() {
+    if (corner && typeof corner.isSelfNameEnabled === 'function') {
+      return corner.isSelfNameEnabled();
+    }
+    return loadSelfNameEnabled(window.localStorage);
+  }
+
+  let lastSelfLabelScreen = null;
+
+  function placeSelfLabelFrame(partial) {
+    const pack = partial || {};
+    const placed = selfLabel.place({
+      mode: mode,
+      storage: window.localStorage,
+      loadNick: loadNick,
+      selfName: islandPresence && typeof islandPresence.getSelfName === 'function'
+        ? islandPresence.getSelfName()
+        : '',
+      selfNameEnabled: selfNameEnabledNow(),
+      interiorBusy: interiorBusy,
+      uiOverlay: islandUiOpen()
+        || !!(document.getElementById('islandMoreSheet') && !document.getElementById('islandMoreSheet').hidden),
+      miluVisible: localView.object.visible,
+      placeholderVisible: miluPlaceholder.visible,
+      blockVisible: playerMesh.visible,
+      playerX: player.x,
+      playerZ: player.z,
+      groundY: playerGroundY(),
+      P: P,
+      offsetX: 0,
+      offsetZ: 0,
+      passengerScale: boatPassengerScaleFactor(boatState.phase),
+      vehicleState: vehicleState,
+      boatState: boatState,
+      boatPhase: boatState.phase,
+      boatElapsed: boatElapsed,
+      reduced: reduced,
+      width: pack.width,
+      height: pack.height,
+      camera: pack.camera,
+      projected: pack.projected,
+      peers: pack.peers,
+      vehicleRoofY: pinkCarMesh.roofY
+    });
+    if (!placed) {
+      lastSelfLabelScreen = null;
+      return null;
+    }
+    lastSelfLabelScreen = placed.selfNameAbove && placed.labelX != null
+      ? { x: placed.labelX, y: placed.labelY }
+      : null;
+    return {
+      headY: placed.headY,
+      selfNameAbove: placed.selfNameAbove,
+      labelX: placed.labelX,
+      labelY: placed.labelY
+    };
+  }
   let minimapHud = null;
   let peerHideTimer = 0;
 
@@ -1819,7 +1899,42 @@ function boot() {
     dayNight.step(dt);
     loop.tick(dt, clock.elapsedTime);
     renderer.render(scene, camera);
+    placeSelfOverlaysEveryFrame();
     placeLabels();
+  }
+
+  function placeSelfOverlaysEveryFrame() {
+    if (peerLayer && typeof peerLayer.placeSelfOverlays === 'function') {
+      peerLayer.placeSelfOverlays();
+      return;
+    }
+    const w = stage.clientWidth || 1;
+    const h = stage.clientHeight || 1;
+    const placed = placeSelfLabelFrame({
+      width: w,
+      height: h,
+      camera: camera,
+      projected: projected,
+      peers: []
+    });
+    if (!islandChat) return;
+    const bubbleCtx = {
+      x: player.x,
+      y: placed && placed.headY != null ? placed.headY : P + 1.18,
+      z: player.z,
+      visible: !!(mode.exploring && (
+        localView.object.visible || miluPlaceholder.visible || playerMesh.visible
+      )),
+      width: w,
+      height: h,
+      camera: camera,
+      projected: projected,
+      peers: [],
+      selfNameAbove: !!(placed && placed.selfNameAbove),
+      labelX: placed && placed.labelX != null ? placed.labelX : null,
+      labelY: placed && placed.labelY != null ? placed.labelY : null
+    };
+    islandChat.placeBubbles(bubbleCtx);
   }
 
   function start() {
@@ -2489,7 +2604,9 @@ function boot() {
     getCam: () => cam,
     syncPeerCount: () => {
       if (corner) corner.syncPeerCount();
-    }
+    },
+    placeSelfLabel: (partial) => placeSelfLabelFrame(partial),
+    getSelfLabelScreen: () => lastSelfLabelScreen
   });
 
   lifecycle.on('enterExplore', () => {
@@ -2510,6 +2627,7 @@ function boot() {
     scene: () => currentScene(),
     now: () => Date.now(),
     onWelcome: (msg) => {
+      selfLabel.invalidateText();
       peerLayer.setWelcomed(true);
       peerLayer.setSelfId(msg.id || '');
       const input = document.getElementById('islandNickInput');
@@ -2565,6 +2683,8 @@ function boot() {
     isWelcomed: () => peerLayer.getWelcomed(),
     getAudioMuted: () => islandAudio.muted,
     onAvatarChange: (id) => replaceLocalAvatar(id),
+    onNickSaved: () => selfLabel.invalidateText(),
+    onSelfNameToggle: () => selfLabel.invalidateText(),
     closeList: closeListPanel
   });
   corner.syncExploreHudLabels();
@@ -2750,4 +2870,5 @@ function boot() {
   renderer.render(scene, camera);
   placeLabels();
   if (!document.hidden) start();
+
 }
