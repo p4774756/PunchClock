@@ -91,6 +91,7 @@ import {
   miluClipPath,
   miluStep,
   normalizeIslandAvatar,
+  resolveFacing,
   screenAxes
 } from './island-milu.js';
 import { TCM_ATLAS_URL, consumeTcmReturn, writeTcmReturn } from './island-tcm-visit.js';
@@ -126,6 +127,15 @@ import { buildIslandBuildings } from './island-buildings.js';
 import { buildIslandProps, registerSceneMotion } from './island-props.js';
 import { buildIslandBeach } from './island-beach.js';
 import { buildIslandPeople } from './island-people.js';
+import {
+  freezeNpcWalker,
+  unfreezeNpcWalker,
+  freezeNpcIdle,
+  unfreezeNpcIdle,
+  npcFacePlayer
+} from './island-people.js';
+import { shouldOfferNpcTalkPrompt, NPC_TALK_ACTION } from './island-people-data.js';
+import { createIslandNpcTalk, npcTalkPromptLabel } from './island-npc-talk.js';
 import { createIslandSky } from './island-sky.js';
 import { createIslandSea } from './island-sea.js';
 import { createIslandLife } from './island-life.js';
@@ -671,6 +681,91 @@ function boot() {
     return !!(list && !list.hidden) || !!(map && !map.hidden);
   }
 
+  function exploreHudPanelsOpen() {
+    const more = document.getElementById('islandMoreSheet');
+    const mini = document.getElementById('islandMinimap');
+    return !!(more && !more.hidden)
+      || !!(mode.exploring && mini && !mini.hidden)
+      || !!(islandChat && islandChat.isOpen());
+  }
+
+  function endNpcTalkResume() {
+    if (activeNpcRecord && activeNpcRecord.kind === 'walker') {
+      unfreezeNpcWalker(activeNpcRecord.row, clock.elapsedTime);
+    } else if (activeNpcRecord && activeNpcRecord.kind === 'idle') {
+      unfreezeNpcIdle(activeNpcRecord.row);
+    }
+    activeNpcRecord = null;
+  }
+
+  function closeNpcTalkIfOpen() {
+    if (npcTalk && npcTalk.isOpen()) npcTalk.close();
+  }
+
+  function beginNpcTalk(npc) {
+    if (!npc || !npcTalk) return false;
+    const record = npc.record;
+    if (record && record.row && record.row.obj) {
+      npc.x = record.row.obj.position.x;
+      npc.z = record.row.obj.position.z;
+    }
+    const now = performance.now();
+    if (record && record.kind === 'walker') {
+      freezeNpcWalker(record.row, clock.elapsedTime);
+      record.row.talkGreetAt = now;
+      record.row.state = npcFacePlayer(
+        record.row.state,
+        record.row.anim,
+        player.x,
+        player.z,
+        npc.x,
+        npc.z,
+        cam.theta,
+        false
+      );
+    } else if (record && record.kind === 'idle') {
+      freezeNpcIdle(record.row);
+      record.row.talkGreetAt = now;
+      record.row.state = npcFacePlayer(
+        record.row.state,
+        record.row.anim,
+        player.x,
+        player.z,
+        npc.x,
+        npc.z,
+        cam.theta,
+        !!record.row.seated
+      );
+    }
+    activeNpcRecord = record || null;
+    const anim = localView.anim();
+    const axes = screenAxes(npc.x - player.x, npc.z - player.z, cam.theta);
+    miluState = Object.assign({}, miluState, {
+      mode: 'wave',
+      frame: 0,
+      acc: 0,
+      waved: false,
+      facing: resolveFacing(miluState.facing, axes.x, axes.z, anim, false)
+    });
+    npcTalk.open(Object.assign({}, npc));
+    syncInteractPrompt();
+    return true;
+  }
+
+  function onNpcTalkInteract() {
+    if (npcTalk && npcTalk.isOpen()) {
+      npcTalk.advance();
+      syncInteractPrompt();
+      return true;
+    }
+    if (pendingNpcTalk) return beginNpcTalk(pendingNpcTalk);
+    return false;
+  }
+
+  function startNpcTalk() {
+    return onNpcTalkInteract();
+  }
+
   function islandUiOpen() {
     const list = document.getElementById('islandList');
     const mapSheet = document.getElementById('islandMapSheet');
@@ -765,6 +860,9 @@ function boot() {
   }
   let playerBob = 0;
   let activeInteract = '';
+  let pendingNpcTalk = null;
+  let activeNpcRecord = null;
+  let npcTalk = null;
   let boatState = createBoatState('main');
   let boatElapsed = 0;
   const steerBtn = document.getElementById('islandSteer');
@@ -1089,7 +1187,7 @@ function boot() {
       const showDrive = shouldShowInteractPrompt({
         exploring: mode.exploring,
         paused: mode.paused,
-        uiOpen: isSailing() || sheetOpen() || listOrMapOpen(),
+        uiOpen: isSailing() || sheetOpen() || listOrMapOpen() || exploreHudPanelsOpen(),
         lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
         zoneId: activeInteract
       });
@@ -1106,10 +1204,11 @@ function boot() {
       || (zone.stop === 'beach' && boatState.phase === 'docked-beach')
       || (zone.stop === 'city' && boatState.phase === 'docked-city')
     );
+    const hudPanelsOpen = exploreHudPanelsOpen();
     const show = shouldShowInteractPrompt({
       exploring: mode.exploring,
       paused: mode.paused,
-      uiOpen: isSailing() || sheetOpen() || listOrMapOpen(),
+      uiOpen: isSailing() || sheetOpen() || listOrMapOpen() || hudPanelsOpen,
       lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
       zoneId: activeInteract
     });
@@ -1122,6 +1221,57 @@ function boot() {
     if (zone && zone.action === 'openRoadmap') {
       casino.setPromptVisible(false);
       return false;
+    }
+    if (npcTalk && npcTalk.isOpen()) {
+      const stepLabel = npcTalk.interactPromptLabel();
+      activeInteract = 'npc-talk';
+      if (stepLabel) {
+        const showTalk = shouldShowInteractPrompt({
+          exploring: mode.exploring,
+          paused: mode.paused,
+          uiOpen: isSailing() || sheetOpen() || listOrMapOpen() || hudPanelsOpen,
+          lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
+          zoneId: 'npc-talk'
+        });
+        casino.setPromptVisible(showTalk, stepLabel, stepLabel);
+        return showTalk;
+      }
+      casino.setPromptVisible(false);
+      return false;
+    }
+    if (!zone && !rooms.inside()) {
+      const npcs = typeof people.collectTalkableNpcs === 'function' ? people.collectTalkableNpcs() : [];
+      pendingNpcTalk = shouldOfferNpcTalkPrompt({
+        exploring: mode.exploring,
+        paused: mode.paused,
+        indoor: false,
+        driving: false,
+        sailing: isSailing(),
+        steering: false,
+        uiOpen: isSailing() || sheetOpen() || listOrMapOpen() || hudPanelsOpen,
+        lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
+        chatOpen: !!(islandChat && islandChat.isOpen()),
+        talkOpen: false,
+        zone: null,
+        px: player.x,
+        pz: player.z,
+        npcs: npcs,
+        radius: MILU_ANIM.waveNpcRadius
+      });
+      if (pendingNpcTalk) {
+        activeInteract = 'npc-talk';
+        const showTalk = shouldShowInteractPrompt({
+          exploring: mode.exploring,
+          paused: mode.paused,
+          uiOpen: isSailing() || sheetOpen() || listOrMapOpen() || hudPanelsOpen,
+          lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
+          zoneId: 'npc-talk'
+        });
+        casino.setPromptVisible(showTalk, '聊天', npcTalkPromptLabel(pendingNpcTalk.name));
+        return showTalk;
+      }
+    } else {
+      pendingNpcTalk = null;
     }
     casino.setPromptVisible(show, zone && zone.label ? zone.label : '進入賭場');
     return show;
@@ -1140,6 +1290,7 @@ function boot() {
 
   function enterVehicleInteract() {
     if (isDriving() || isSailing() || isSteering()) return;
+    closeNpcTalkIfOpen();
     const next = enterVehicle(vehicleState, player.x, player.z);
     if (!isDrivingPhase(next.phase)) return;
     vehicleState = next;
@@ -1240,6 +1391,7 @@ function boot() {
         followPlayerCamera(instant);
       }
     } else {
+      closeNpcTalkIfOpen();
       if (isDriving()) {
         const pack = exitVehicle(vehicleState, { maxSpeed: 999 });
         vehicleState = pack.state || forceExitVehicle(vehicleState);
@@ -1627,6 +1779,9 @@ function boot() {
       );
     }
     updatePlayer(dt);
+    if (npcTalk && npcTalk.isOpen()) {
+      npcTalk.tick(dt, player);
+    }
     if (roomView && typeof roomView.tick === 'function') roomView.tick(dt);
     if (peerLayer) peerLayer.syncPresence(performance.now());
     cam.step(dt);
@@ -1936,6 +2091,7 @@ function boot() {
   });
   lifecycle.on('visibilityChange', (p) => {
     islandAudio.onVisibilityChange(p.hidden);
+    if (p.hidden) closeNpcTalkIfOpen();
   });
 
   function promptZones() {
@@ -1964,6 +2120,7 @@ function boot() {
   }
 
   function closeOverlayPanels() {
+    closeNpcTalkIfOpen();
     if (casino && casino.isOpen()) casino.closeLobby();
     if (graffiti && graffiti.isOpen()) graffiti.close();
     if (roadmap && roadmap.isOpen()) roadmap.close();
@@ -2124,6 +2281,7 @@ function boot() {
 
   function openGraffiti() {
     if (isSailing() || isSteering()) return;
+    closeNpcTalkIfOpen();
     if (casino && casino.isOpen()) casino.closeLobby();
     if (roadmap && roadmap.isOpen()) roadmap.close();
     if (graffiti) graffiti.open();
@@ -2156,6 +2314,7 @@ function boot() {
 
   function openRoadmap() {
     if (isSailing() || isSteering()) return;
+    closeNpcTalkIfOpen();
     if (casino && casino.isOpen()) casino.closeLobby();
     if (graffiti && graffiti.isOpen()) graffiti.close();
     if (roadmap) roadmap.open();
@@ -2178,6 +2337,10 @@ function boot() {
         return true;
       },
       onPrompt: () => {
+        if (activeInteract === 'npc-talk') {
+          onNpcTalkInteract();
+          return true;
+        }
         if (isSteering()) {
           disembarkSteer();
           return true;
@@ -2362,6 +2525,25 @@ function boot() {
     selfId: () => peerLayer.getSelfId(),
     now: () => Date.now()
   });
+  if (islandChat && typeof islandChat.open === 'function') {
+    const openChat = islandChat.open.bind(islandChat);
+    islandChat.open = function () {
+      closeNpcTalkIfOpen();
+      return openChat();
+    };
+  }
+
+  npcTalk = createIslandNpcTalk({
+    document: document,
+    window: window,
+    reduced: reduced,
+    hooks: {
+      onClose: () => {
+        endNpcTalkResume();
+        syncInteractPrompt();
+      }
+    }
+  });
 
   corner = createCornerUi({
     document: document,
@@ -2419,7 +2601,15 @@ function boot() {
     casino: casino,
     graffiti: graffiti,
     roadmap: roadmap,
-    hitInteractZone: () => hitInteractZone(player.x, player.z, promptZones()),
+    hitInteractZone: () => {
+      if (activeInteract === 'npc-talk' && (pendingNpcTalk || (npcTalk && npcTalk.isOpen()))) {
+        return { id: 'npc-talk', action: NPC_TALK_ACTION, label: '聊天' };
+      }
+      return hitInteractZone(player.x, player.z, promptZones());
+    },
+    npcTalk: npcTalk,
+    onNpcTalkInteract: onNpcTalkInteract,
+    startNpcTalk: startNpcTalk,
     leaveInterior: leaveInterior,
     enterInterior: enterInterior,
     openGraffiti: openGraffiti,
