@@ -41,7 +41,8 @@ test('室內清單完整，手搖店西牆門口可站且不壓櫃台', () => {
 
   assert.equal(L.isClosedHall(L.buildingById('tcm-site').entry.action), false);
   assert.equal(L.buildingById('casino').entry.action, 'enterInterior');
-  assert.equal(I.interiorByBuilding('tcm-site'), null);
+  assert.equal(I.interiorByBuilding('tcm-site').id, 'tcm-room');
+  assert.equal(L.buildingById('tcm-site').entry.action, 'enterTcm');
 });
 
 test('研發樓大廳可走至機房與文物廳', () => {
@@ -536,4 +537,65 @@ test('賭場大廳遠大於舊房間，進房鏡頭站在門內往北看', () =>
   }
   assert.equal(I.interiorFollowPose(room, 1.6), I.CASINO_INTERIOR_CAMERA);
   assert.equal(I.interiorCameraFov(room), I.CASINO_FOV_DEG);
+});
+
+test('推拿館室內遠大於外觀，進房鏡頭站在門內往北看', async () => {
+  const room = I.interiorByBuilding('tcm-site');
+  assert.ok(room);
+  assert.equal(room.id, 'tcm-room');
+  assert.ok(room.floor.maxX - room.floor.minX >= 15, '醫館寬度遠大於外觀盒子');
+  assert.ok(room.floor.maxZ - room.floor.minZ >= 13, '醫館進深遠大於外觀盒子');
+  assert.equal(room.exit.label, '離開推拿館');
+  const T = await loadPublicModule('island-tcm-visit.js');
+  const outside = T.tcmReturnPose();
+  assert.ok(outside);
+  assert.ok(Math.abs(room.outside.x - outside.x) < 1e-9);
+  assert.ok(Math.abs(room.outside.z - outside.z) < 1e-9);
+  assert.ok(Math.abs(room.outside.yaw - outside.yaw) < 1e-9);
+
+  const viewports = [1280 / 720, 1440 / 900, 390 / 844];
+  for (let i = 0; i < viewports.length; i++) {
+    const aspect = viewports[i];
+    const pose = I.tcmInteriorCameraForAspect(aspect);
+    const look = I.tcmInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, aspect);
+    const eye = I.tcmInteriorCameraEye(pose, look, aspect);
+    assert.ok(eye.z < look.z - 1, '鏡頭在焦點南側，往北看醫館');
+    assert.ok(eye.z >= room.floor.minZ + 0.8 && eye.z <= 2.2, '鏡頭深入醫館、不受門框擋住 z=' + eye.z.toFixed(3));
+    assert.ok(eye.y < 4.4, '鏡頭低於天花 y=' + eye.y.toFixed(3));
+  }
+  assert.equal(I.interiorFollowPose(room, 1.6), I.TCM_INTERIOR_CAMERA);
+  assert.equal(I.interiorCameraFov(room), I.TCM_FOV_DEG);
+});
+
+test('推拿館室內可走、可離開，並有進入經絡研習室的互動', () => {
+  const room = I.interiorByBuilding('tcm-site');
+  const session = I.createInteriorSession();
+  const entered = session.enter('tcm-site', 0);
+  assert.equal(entered.ok, true);
+  assert.equal(session.id(), 'tcm-room');
+  assert.equal(I.interiorCanStand(room.spawn.x, room.spawn.z, room, RADIUS), true);
+
+  const zones = session.interactZones();
+  const exit = zones.find((z) => z.action === 'exitInterior');
+  const study = zones.find((z) => z.action === 'enterTcmStudy');
+  assert.ok(exit);
+  assert.equal(exit.label, '離開推拿館');
+  assert.ok(study);
+  assert.equal(study.label, '進入經絡研習室');
+
+  const spawnHit = X.hitInteractZone(room.spawn.x, room.spawn.z, zones);
+  assert.equal(spawnHit, null, '出生點不應命中出口或研習室互動');
+
+  assert.equal(I.interiorCanStand(room.interacts[0].x, room.interacts[0].z, room, RADIUS), true);
+  for (let i = 0; i < zones.length; i++) {
+    for (let j = i + 1; j < zones.length; j++) {
+      const dist = Math.hypot(zones[i].x - zones[j].x, zones[i].z - zones[j].z);
+      assert.ok(dist > zones[i].r + zones[j].r - 0.05,
+        zones[i].id + ' 與 ' + zones[j].id + ' 互動區不重疊');
+    }
+  }
+  const left = session.exit(1000);
+  assert.equal(left.ok, true);
+  assert.ok(Math.abs(left.pose.x - room.outside.x) < 1e-9);
+  assert.ok(Math.abs(left.pose.z - room.outside.z) < 1e-9);
 });

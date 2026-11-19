@@ -77,6 +77,7 @@ import {
   labInteriorLookTarget,
   labInteriorRuntimeLookAt,
   casinoInteriorRuntimeLookAt,
+  tcmInteriorRuntimeLookAt,
   interiorCameraFov
 } from './island-interior.js';
 import {
@@ -723,7 +724,8 @@ function boot() {
   const INTERIOR_MODULES = {
     shop: () => import('./island-shop-interior.js'),
     'computer-site': () => import('./island-lab-interior.js'),
-    casino: () => import('./island-casino-interior.js')
+    casino: () => import('./island-casino-interior.js'),
+    'tcm-site': () => import('./island-tcm-interior.js')
   };
   let arcadeToastTimer = 0;
 
@@ -803,7 +805,7 @@ function boot() {
     nightFactor: () => dayNight.mix,
     followDistance: (radius, aspect) => {
       if (rooms.inside()) {
-        if (rooms.room() && (rooms.room().id === 'lab-room' || rooms.room().id === 'casino-room')) {
+        if (rooms.room() && (rooms.room().id === 'lab-room' || rooms.room().id === 'casino-room' || rooms.room().id === 'tcm-room')) {
           return labInteriorFollowDistance(radius, aspect);
         }
         return interiorExploreFollowDistance(radius, aspect);
@@ -1199,6 +1201,11 @@ function boot() {
         lookX = focal.x;
         lookY = focal.y;
         lookZ = focal.z;
+      } else if (room && room.id === 'tcm-room') {
+        const focal = tcmInteriorRuntimeLookAt(room, player, camera.aspect);
+        lookX = focal.x;
+        lookY = focal.y;
+        lookZ = focal.z;
       }
     }
     const wantFov = interiorCameraFov(rooms.inside() ? rooms.room() : null);
@@ -1590,6 +1597,9 @@ function boot() {
     } else if (followRoom && followRoom.id === 'casino-room') {
       const focal = casinoInteriorRuntimeLookAt(followRoom, player, camera.aspect);
       cam.targetLook.set(focal.x, focal.y, focal.z);
+    } else if (followRoom && followRoom.id === 'tcm-room') {
+      const focal = tcmInteriorRuntimeLookAt(followRoom, player, camera.aspect);
+      cam.targetLook.set(focal.x, focal.y, focal.z);
     } else {
       cam.targetLook.set(player.x, G + 1.05, player.z);
     }
@@ -1953,11 +1963,20 @@ function boot() {
   }
 
   async function enterTcm() {
-    if (!mode.exploring || rooms.inside() || interiorBusy || isSailing() || isSteering()) return;
+    return enterInterior('tcm-site');
+  }
+
+  async function enterTcmStudy() {
+    if (interiorBusy || !mode.exploring || isSailing() || isSteering()) return;
+    if (!rooms.inside() || !rooms.room() || rooms.room().id !== 'tcm-room') return;
+    writeTcmReturn(window.sessionStorage);
+    const ticket = ++interiorGeneration;
+    interiorBusy = true;
     clearMoveInput();
     closeOverlayPanels();
-    writeTcmReturn(window.sessionStorage);
+    placeLabels();
     await fadeTo(true);
+    if (ticket !== interiorGeneration) return;
     window.location.assign(TCM_ATLAS_URL);
   }
 
@@ -2073,6 +2092,10 @@ function boot() {
         }
         if (zone.action === 'enterTcm') {
           enterTcm();
+          return true;
+        }
+        if (zone.action === 'enterTcmStudy') {
+          enterTcmStudy();
           return true;
         }
         if (zone.action === 'openCareerCard') {
@@ -2252,6 +2275,7 @@ function boot() {
     isSteering: () => isSteering(),
     disembarkSteer: () => disembarkSteer(),
     enterTcm: () => enterTcm(),
+    enterTcmStudy: () => enterTcmStudy(),
     openCasinoBlackjack: () => casino.openBlackjackFromInterior(),
     casinoArcadePoke: (kind, claw) => casinoArcadePoke(kind, claw),
     isInside: () => rooms.inside(),

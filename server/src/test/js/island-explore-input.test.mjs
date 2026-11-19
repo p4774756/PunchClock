@@ -456,3 +456,12 @@ test('sail 互動不會落到開賭場', () => {
   assert.equal(sailed, true);
   assert.equal(casinoOpened, false);
 });
+test('室內 applyInteriorInteractZone：進入經絡研習室', () => {
+  let went = false;
+  const actions = {
+    enterTcmStudy: () => { went = true; }
+  };
+  const handled = applyInteriorInteractZone({ action: 'enterTcmStudy' }, actions);
+  assert.equal(handled, true);
+  assert.equal(went, true);
+});

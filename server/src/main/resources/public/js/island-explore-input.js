@@ -59,6 +59,10 @@ export function applyInteriorInteractZone(zone, actions) {
     if (typeof actions.casinoRoulette === 'function') actions.casinoRoulette(zone);
     return true;
   }
+  if (zone.action === 'enterTcmStudy') {
+    if (typeof actions.enterTcmStudy === 'function') actions.enterTcmStudy();
+    return true;
+  }
   return false;
 }
 
@@ -67,7 +71,8 @@ export function buildInteriorInteractActions(ctx) {
     leaveInterior: () => ctx.leaveInterior && ctx.leaveInterior(),
     openCasinoBlackjack: () => ctx.openCasinoBlackjack && ctx.openCasinoBlackjack(),
     casinoSlots: () => ctx.casinoArcadePoke && ctx.casinoArcadePoke('slots'),
-    casinoRoulette: () => ctx.casinoArcadePoke && ctx.casinoArcadePoke('roulette')
+    casinoRoulette: () => ctx.casinoArcadePoke && ctx.casinoArcadePoke('roulette'),
+    enterTcmStudy: () => ctx.enterTcmStudy && ctx.enterTcmStudy()
   };
 }
 
