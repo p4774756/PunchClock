@@ -1,5 +1,12 @@
 import * as T from 'three';
-import {yieldOnce, yieldSlice} from './load-progress';
+import {
+  createSliceBudget,
+  resetSliceBudget,
+  sliceBudgetElapsed,
+  SLICE_BUDGET_MS,
+  yieldForSliceBudget,
+  yieldOnce,
+} from './load-progress';
 
 /** Hide panorama / ground / platform / ring only — never lights or fog. */
 export const hideSceneChrome = (scene: T.Scene) => {
@@ -29,6 +36,9 @@ export const collectRenderableMeshes = (root: T.Object3D): (T.Mesh | T.SkinnedMe
   });
   return meshes;
 };
+
+const isOutlineMesh = (mesh: T.Mesh | T.SkinnedMesh) =>
+  /Outline/i.test(mesh.name) || /Outline/i.test((mesh.material as T.Material)?.name ?? '');
 
 /** One representative mesh per unique material program (type / defines / custom key). */
 export const groupMeshesByProgram = (
@@ -60,6 +70,11 @@ const supportsParallelCompile = (renderer: T.WebGLRenderer): boolean => {
   }
 };
 
+const textureOnGpu = (renderer: T.WebGLRenderer, texture: T.Texture): boolean => {
+  const props = renderer.properties.get(texture) as {__webglTexture?: WebGLTexture} | undefined;
+  return props?.__webglTexture !== undefined;
+};
+
 const warmScissorRender = (renderer: T.WebGLRenderer, scene: T.Scene, camera: T.Camera) => {
   const scissorOn = renderer.getScissorTest();
   renderer.setScissorTest(true);
@@ -79,31 +94,66 @@ const setRootMeshVisibility = (
   });
 };
 
+export type IncrementalWarmStats = {
+  sliceCount: number;
+  itemCount: number;
+  skippedCount: number;
+};
+
 export const uploadTexturesIncremental = async (opts: {
   renderer: T.WebGLRenderer;
   textures: T.Texture[];
   disposed: () => boolean;
   onSlice?: (index: number, total: number) => void;
-}) => {
-  const {renderer, textures, disposed, onSlice} = opts;
-  for (let i = 0; i < textures.length; i++) {
-    if (disposed()) break;
-    try {
-      renderer.initTexture(textures[i]);
-    } catch {
-      /* software WebGL */
-    }
-    onSlice?.(i + 1, textures.length);
-    await yieldSlice();
+  /** Throttled rAF yields so the load bar can repaint. */
+  progressSlices?: boolean;
+}): Promise<IncrementalWarmStats> => {
+  const {renderer, textures, disposed, onSlice, progressSlices} = opts;
+  const pending = textures.filter(tex => !textureOnGpu(renderer, tex));
+  const skippedCount = textures.length - pending.length;
+  if (!pending.length) {
+    return {sliceCount: 0, itemCount: 0, skippedCount};
   }
+
+  const budget = createSliceBudget();
+  let sliceCount = 0;
+  let itemCount = 0;
+  let i = 0;
+  while (i < pending.length) {
+    if (disposed()) break;
+    resetSliceBudget(budget);
+    while (i < pending.length && sliceBudgetElapsed(budget) < SLICE_BUDGET_MS) {
+      try {
+        renderer.initTexture(pending[i]);
+      } catch {
+        /* software WebGL */
+      }
+      i++;
+      itemCount++;
+    }
+    sliceCount++;
+    onSlice?.(sliceCount, pending.length);
+    if (i < pending.length) await yieldForSliceBudget(budget, !!progressSlices);
+  }
+  return {sliceCount, itemCount, skippedCount};
 };
 
-export type ShaderWarmResult = {programsBefore: number; programsAfter: number};
+export type ShaderWarmResult = {
+  programsBefore: number;
+  programsAfter: number;
+  groups: number;
+  groupsSkipped: number;
+  sliceCount: number;
+};
 
-const filterWarmMeshes = (root: T.Object3D) =>
-  collectRenderableMeshes(root).filter(
-    m => !/Outline/i.test(m.name) && !/Outline/i.test((m.material as T.Material)?.name ?? ''),
-  );
+type MeshWarmMode = 'character' | 'outline';
+
+const filterWarmMeshes = (root: T.Object3D, mode: MeshWarmMode) =>
+  collectRenderableMeshes(root).filter(m => {
+    const outline = isOutlineMesh(m);
+    if (mode === 'outline') return outline;
+    return !outline;
+  });
 
 export const warmShadersIncremental = async (opts: {
   renderer: T.WebGLRenderer;
@@ -113,27 +163,60 @@ export const warmShadersIncremental = async (opts: {
   roots?: T.Object3D[];
   disposed: () => boolean;
   onSlice?: (index: number, total: number) => void;
-  /** Use rAF between slices when updating a visible progress bar. */
+  /** Throttled rAF yields for visible progress bar updates. */
   progressSlices?: boolean;
   /** When false (default), panorama/ground chrome is hidden during character warm. */
   keepSceneChrome?: boolean;
+  /** Skip program groups already warmed this session (school + practice share programs). */
+  warmedKeys?: Set<string>;
+  /** Outline pass only — fills MToon outline shaders before the first full frame. */
+  outlineOnly?: boolean;
 }): Promise<ShaderWarmResult> => {
-  const {renderer, scene, camera, root, roots, disposed, onSlice, progressSlices, keepSceneChrome} = opts;
+  const {
+    renderer,
+    scene,
+    camera,
+    root,
+    roots,
+    disposed,
+    onSlice,
+    progressSlices,
+    keepSceneChrome,
+    warmedKeys,
+    outlineOnly,
+  } = opts;
   const programsBefore = programCount(renderer);
   const warmRoots = roots?.length ? roots : [root];
-  const meshes = warmRoots.flatMap(r => filterWarmMeshes(r));
-  if (!meshes.length) return {programsBefore, programsAfter: programsBefore};
+  const mode: MeshWarmMode = outlineOnly ? 'outline' : 'character';
+  const meshes = warmRoots.flatMap(r => filterWarmMeshes(r, mode));
+  if (!meshes.length) {
+    return {programsBefore, programsAfter: programsBefore, groups: 0, groupsSkipped: 0, sliceCount: 0};
+  }
 
-  const groups = groupMeshesByProgram(meshes);
+  let groups = groupMeshesByProgram(meshes);
+  const groupsSkipped = warmedKeys ? groups.filter(g => warmedKeys.has(g.key)).length : 0;
+  if (warmedKeys) groups = groups.filter(g => !warmedKeys.has(g.key));
+  if (!groups.length) {
+    return {
+      programsBefore,
+      programsAfter: programCount(renderer),
+      groups: 0,
+      groupsSkipped,
+      sliceCount: 0,
+    };
+  }
+
   const parallel = supportsParallelCompile(renderer);
-  const yieldBetween = progressSlices ? yieldSlice : yieldOnce;
   const visSaved = warmRoots.map(r => ({r, visible: r.visible}));
   for (const r of warmRoots) {
     r.visible = true;
     r.updateMatrixWorld(true);
   }
 
-  if (parallel && typeof renderer.compileAsync === 'function') {
+  const budget = createSliceBudget();
+  let sliceCount = 0;
+
+  if (parallel && typeof renderer.compileAsync === 'function' && !outlineOnly) {
     const reps = new Set(groups.map(g => g.mesh));
     const restoreMeshes = setRootMeshVisibility(meshes, reps);
     const restoreChrome = keepSceneChrome ? () => {} : hideSceneChrome(scene);
@@ -145,6 +228,8 @@ export const warmShadersIncremental = async (opts: {
       restoreChrome();
       restoreMeshes();
     }
+    for (const g of groups) warmedKeys?.add(g.key);
+    sliceCount = 1;
     onSlice?.(groups.length, groups.length);
   } else {
     root.updateMatrixWorld(true);
@@ -161,8 +246,12 @@ export const warmShadersIncremental = async (opts: {
         restoreChrome();
         restoreMeshes();
       }
+      warmedKeys?.add(groups[i].key);
+      sliceCount++;
       onSlice?.(i + 1, groups.length);
-      if (i < groups.length - 1) await yieldBetween();
+      if (i < groups.length - 1) {
+        await (progressSlices ? yieldForSliceBudget(budget, true) : yieldOnce());
+      }
     }
   }
 
@@ -173,5 +262,5 @@ export const warmShadersIncremental = async (opts: {
   if (import.meta.env.DEV) {
     console.debug('atlas:shader-warm programs', programsBefore, '→', programsAfter);
   }
-  return {programsBefore, programsAfter};
+  return {programsBefore, programsAfter, groups: groups.length, groupsSkipped, sliceCount};
 };

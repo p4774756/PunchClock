@@ -44,6 +44,43 @@ export const yieldOnce = (): Promise<void> =>
     }
   });
 
+/** Wall-clock budget per load slice (textures / program groups). */
+export const SLICE_BUDGET_MS = 12;
+/** Minimum gap before an extra rAF lets the load bar repaint. */
+export const PROGRESS_PAINT_INTERVAL_MS = 200;
+
+export type SliceBudget = {
+  sliceStart: number;
+  lastPaintAt: number;
+};
+
+export const createSliceBudget = (): SliceBudget => ({
+  sliceStart: performance.now(),
+  lastPaintAt: performance.now(),
+});
+
+export const resetSliceBudget = (budget: SliceBudget) => {
+  budget.sliceStart = performance.now();
+};
+
+export const sliceBudgetElapsed = (budget: SliceBudget) => performance.now() - budget.sliceStart;
+
+/**
+ * Yield after a slice: macrotask always; rAF only when progress UI may be stale (≥100 ms).
+ */
+export const yieldForSliceBudget = async (
+  budget: SliceBudget,
+  progressPaint: boolean,
+): Promise<void> => {
+  const now = performance.now();
+  if (progressPaint && now - budget.lastPaintAt >= PROGRESS_PAINT_INTERVAL_MS) {
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    budget.lastPaintAt = performance.now();
+  }
+  await yieldOnce();
+  resetSliceBudget(budget);
+};
+
 export const DOWNLOAD_PERCENT_MIN = 12;
 export const DOWNLOAD_PERCENT_MAX = 78;
 export const PARSE_PERCENT_START = 80;

@@ -10,7 +10,6 @@ import {
   materialsSlicePercent,
   nextMonotonicPercent,
   yieldOnce,
-  yieldSlice,
   yieldToMain,
 } from './load-progress';
 import {
@@ -1062,9 +1061,14 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   const timeoutAfter=(ms:number)=>new Promise<void>(resolve=>{window.setTimeout(resolve,ms);});
 
-  const prepareAllMaterials=async(primaryRoot:T.Object3D|null,bumpSlice?:()=>void)=>{
+  const prepareAllMaterials=async(
+   primaryRoot:T.Object3D|null,
+   bumpSlice?:()=>void,
+   skipTextures?:Set<T.Texture>,
+  )=>{
    await Promise.race([woodcutReady,timeoutAfter(25_000)]);
    if(disposed)return;
+   const warmPrepStart=performance.now();
    const warmRoots=[...(primaryRoot?[primaryRoot]:[]),...(practiceShell&&practiceBuilt?[practiceShell]:[])];
    const chromeExtras:T.Texture[]=[gradient];
    if(woodcut)chromeExtras.push(woodcut.tex);
@@ -1073,49 +1077,49 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     ...(practiceShell&&practiceBuilt?collectMeshTextures(practiceShell,[],true):[]),
     ...collectMeshTextures(teaching.root,[]),
     ...collectSceneChromeTextures(scene),
-   ])];
+   ])].filter(tex=>!skipTextures?.has(tex));
    const texturesBefore=textureCount(renderer);
-   await uploadTexturesIncremental({
+   const warmedKeys=new Set<string>();
+   const texWarm=await uploadTexturesIncremental({
     renderer,
     textures:texList,
     disposed:()=>disposed,
+    progressSlices:true,
     onSlice:()=>bumpSlice?.(),
    });
    if(disposed)return;
    const texturesAfter=textureCount(renderer);
-   if(import.meta.env.DEV&&texturesAfter<texturesBefore+texList.length){
+   if(import.meta.env.DEV&&texturesAfter<texturesBefore+texList.length-texWarm.skippedCount){
     console.warn('atlas:texture-upload-incomplete',texturesBefore,texturesAfter,'wanted',texList.length);
    }
    let warmPrograms=programCount(renderer);
-   if(warmRoots.length){
+   let groupCount=0;
+   let warmSlices=texWarm.sliceCount;
+   const allShaderRoots=[...warmRoots,teaching.root];
+   if(allShaderRoots.length){
     const warm=await warmShadersIncremental({
-     renderer,scene,camera,root:warmRoots[0],roots:warmRoots,disposed:()=>disposed,progressSlices:true,
-     onSlice:()=>bumpSlice?.(),
+      renderer,scene,camera,root:allShaderRoots[0],roots:allShaderRoots,disposed:()=>disposed,
+      progressSlices:true,warmedKeys,keepSceneChrome:true,onSlice:()=>bumpSlice?.(),
     });
     warmPrograms=warm.programsAfter;
-   }
-   if(disposed)return;
-   if(schoolModel&&practiceShell&&practiceBuilt){
-    const schoolVis=schoolModel.visible;
-    const practiceVis=practiceShell.visible;
-    schoolModel.visible=false;
-    practiceShell.visible=true;
-    practiceShell.updateMatrixWorld(true);
-    await warmShadersIncremental({
-     renderer,scene,camera,root:practiceShell,roots:[practiceShell],disposed:()=>disposed,progressSlices:true,
-     onSlice:()=>bumpSlice?.(),
+    groupCount+=warm.groups;
+    warmSlices+=warm.sliceCount;
+    const outlineWarm=await warmShadersIncremental({
+      renderer,scene,camera,root:allShaderRoots[0],roots:allShaderRoots,disposed:()=>disposed,
+      progressSlices:true,warmedKeys,keepSceneChrome:true,outlineOnly:true,onSlice:()=>bumpSlice?.(),
     });
-    schoolModel.visible=schoolVis;
-    practiceShell.visible=practiceVis;
+    groupCount+=outlineWarm.groups;
+    warmSlices+=outlineWarm.sliceCount;
    }
    if(disposed)return;
-   const charVisible=characterRoot.visible;
-   characterRoot.visible=false;
-   await warmShadersIncremental({
-    renderer,scene,camera,root:teaching.root,roots:[teaching.root],disposed:()=>disposed,progressSlices:true,
-    keepSceneChrome:true,onSlice:()=>bumpSlice?.(),
-   });
-   characterRoot.visible=charVisible;
+   console.debug(
+    'atlas:warm-prep',
+    'textures',texList.length,
+    'texSkipped',texWarm.skippedCount,
+    'groups',groupCount,
+    'slices',warmSlices,
+    'ms',Math.round(performance.now()-warmPrepStart),
+   );
    shaderWarmPrograms=warmPrograms;
    gpuBaselineAfterLoad={programs:programCount(renderer),textures:textureCount(renderer)};
    outfitSwitchAssertPending=!!practiceBuilt;
@@ -1273,6 +1277,16 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       matSlice=Math.min(matTotal,matSlice+1);
       reportProgress(materialsSlicePercent(matSlice,matTotal),'materials','準備材質…');
      };
+     const chromeExtrasEarly:T.Texture[]=[gradient];
+     if(woodcut)chromeExtrasEarly.push(woodcut.tex);
+     const earlyTexList=[...new Set(collectMeshTextures(schoolModel??model,chromeExtrasEarly))];
+     const earlyTexUpload=uploadTexturesIncremental({
+      renderer,
+      textures:earlyTexList,
+      disposed:()=>disposed,
+      progressSlices:true,
+      onSlice:()=>bumpMaterials(),
+     });
      if(cacheAnimeOutfits&&practiceShell&&!practiceBuilt){
       const buildSlices=Math.max(Math.ceil(listOutfitMeshes(practiceShell).length/4)+2,1);
       matTotal=buildSlices+48;
@@ -1280,6 +1294,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       if(disposed)return;
       finalizePracticeShell();
      }
+     await earlyTexUpload;
+     if(disposed)return;
      const warmRoots=[...(schoolModel??model?[schoolModel??model]:[]),...(practiceShell&&practiceBuilt?[practiceShell]:[])];
      const chromeExtras:T.Texture[]=[gradient];
      if(woodcut)chromeExtras.push(woodcut.tex);
@@ -1294,10 +1310,11 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       countProgramGroups([teaching.root])+
       (practiceShell&&practiceBuilt&&schoolModel?countProgramGroups([practiceShell]):0);
      matTotal=Math.max(matTotal,matSlice+texEst+progEst);
-     await prepareAllMaterials(schoolModel??model,bumpMaterials);
+     await prepareAllMaterials(schoolModel??model,bumpMaterials,new Set(earlyTexList));
      reportProgress(99,'materials','準備材質…');
      if(disposed)return;
      showOutfit(outfitIdRef.current);
+     teaching.update(sim.current,camera,el.clientWidth,el.clientHeight);
      dirty=true;
      renderer.render(scene,camera);
      dirty=false;
