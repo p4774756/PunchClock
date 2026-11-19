@@ -659,9 +659,17 @@ function boot() {
     return !!(sheet && !sheet.hidden);
   }
 
+  function listOrMapOpen() {
+    const list = document.getElementById('islandList');
+    const map = document.getElementById('islandMapSheet');
+    return !!(list && !list.hidden) || !!(map && !map.hidden);
+  }
+
   function islandUiOpen() {
     const list = document.getElementById('islandList');
-    return sheetOpen() || !!(list && !list.hidden) || casinoOpen() || graffitiOpen() || roadmapOpen()
+    const mapSheet = document.getElementById('islandMapSheet');
+    return sheetOpen() || !!(list && !list.hidden) || !!(mapSheet && !mapSheet.hidden)
+      || casinoOpen() || graffitiOpen() || roadmapOpen()
       || (career && career.isCardOpen());
   }
 
@@ -879,7 +887,10 @@ function boot() {
     if (btn) {
       btn.setAttribute('aria-pressed', exploring ? 'true' : 'false');
       btn.setAttribute('aria-label', exploring ? '退出探索模式' : '進入探索模式');
-      btn.textContent = exploring ? '退出' : '探索';
+      btn.hidden = exploring;
+      const exploreLabel = btn.querySelector('.island-hud-primary-label');
+      if (exploreLabel) exploreLabel.textContent = exploring ? '退出' : '探索';
+      else btn.textContent = exploring ? '退出' : '探索';
     }
     const voyageBlock = casinoOpen() || graffitiOpen() || isSailing();
     if (stick) stick.hidden = !exploring || voyageBlock;
@@ -891,6 +902,7 @@ function boot() {
     if (corner) {
       corner.syncPeerCount();
       corner.syncMoreAudioLabel();
+      corner.syncExploreHudLabels();
       corner.closeMore();
     }
   }
@@ -1077,7 +1089,7 @@ function boot() {
       const showDrive = shouldShowInteractPrompt({
         exploring: mode.exploring,
         paused: mode.paused,
-        uiOpen: isSailing() || sheetOpen() || !!(document.getElementById('islandList') && !document.getElementById('islandList').hidden),
+        uiOpen: isSailing() || sheetOpen() || listOrMapOpen(),
         lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
         zoneId: activeInteract
       });
@@ -1097,7 +1109,7 @@ function boot() {
     const show = shouldShowInteractPrompt({
       exploring: mode.exploring,
       paused: mode.paused,
-      uiOpen: isSailing() || sheetOpen() || !!(document.getElementById('islandList') && !document.getElementById('islandList').hidden),
+      uiOpen: isSailing() || sheetOpen() || listOrMapOpen(),
       lobbyOpen: casinoOpen() || graffitiOpen() || roadmapOpen(),
       zoneId: activeInteract
     });
@@ -1637,6 +1649,22 @@ function boot() {
   });
 
   const list = document.getElementById('islandList');
+  function jumpToIsland(islandId) {
+    const pose = poseForIsland(islandId);
+    if (!pose) return;
+    if (mode.exploring) setExplore(false, true);
+    if (sheetOpen() && typeof window.switchDashTab === 'function') window.switchDashTab('');
+    if (casino && casino.isOpen()) casino.closeLobby();
+    applyPose(pose, true);
+    setActive('');
+    const listEl = document.getElementById('islandList');
+    const listToggle = document.getElementById('islandListBtn');
+    if (listEl) listEl.hidden = true;
+    if (listToggle) listToggle.setAttribute('aria-expanded', 'false');
+    if (corner) corner.closeMap();
+    syncInteractPrompt();
+  }
+
   const listBtn = document.getElementById('islandListBtn');
   if (listBtn && list) {
     listBtn.addEventListener('click', () => {
@@ -1646,18 +1674,13 @@ function boot() {
       syncInteractPrompt();
     });
     list.querySelectorAll('[data-island]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const pose = poseForIsland(btn.getAttribute('data-island'));
-        if (!pose) return;
-        if (mode.exploring) setExplore(false, true);
-        if (sheetOpen() && typeof window.switchDashTab === 'function') window.switchDashTab('');
-        if (casino && casino.isOpen()) casino.closeLobby();
-        applyPose(pose, true);
-        setActive('');
-        list.hidden = true;
-        listBtn.setAttribute('aria-expanded', 'false');
-        syncInteractPrompt();
-      });
+      btn.addEventListener('click', () => jumpToIsland(btn.getAttribute('data-island')));
+    });
+  }
+  const mapSheet = document.getElementById('islandMapSheet');
+  if (mapSheet) {
+    mapSheet.querySelectorAll('[data-island]').forEach((btn) => {
+      btn.addEventListener('click', () => jumpToIsland(btn.getAttribute('data-island')));
     });
   }
   const exploreBtn = document.getElementById('islandExplore');
@@ -1714,7 +1737,11 @@ function boot() {
     audioBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
     audioBtn.setAttribute('aria-label', on ? '靜音背景音樂與海浪聲' : '開啟背景音樂與海浪聲');
     const iconEl = audioBtn.querySelector('.island-tool-audio-icon');
-    if (iconEl) iconEl.textContent = on ? '🔊' : '🔇';
+    if (iconEl) {
+      iconEl.innerHTML = on
+        ? '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 10v4h4l5 4V6L8 10H4zm12.5 2a3.5 3.5 0 0 0-2-3.15v6.3a3.5 3.5 0 0 0 2-3.15z"/></svg>'
+        : '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 10v4h3l5 4V6L8 10H4zm14.3 2.3 2.1 2.1-1.4 1.4-2.1-2.1-2.1 2.1-1.4-1.4 2.1-2.1-2.1-2.1 1.4-1.4 2.1 2.1 2.1-2.1 1.4 1.4-2.1 2.1z"/></svg>';
+    }
     if (corner) corner.syncMoreAudioLabel();
   }
 
@@ -2168,6 +2195,7 @@ function boot() {
     getAudioMuted: () => islandAudio.muted,
     onAvatarChange: (id) => replaceLocalAvatar(id)
   });
+  corner.syncExploreHudLabels();
 
   const exploreKeyCtx = {
     window: window,

@@ -101,42 +101,51 @@ function makeMobileDom(guest) {
   };
   const el = (tag, attrs, parent) => (parent || doc.body).appendChild(new FakeElement(doc, tag, attrs));
 
-  const corner = el('div', { class: 'island-corner' });
-  const avatarWrap = el('div', { class: 'island-avatar-wrap island-corner-dock' }, corner);
-  el('button', { id: 'islandAvatarBtn', class: 'island-tool', 'aria-expanded': 'false' }, avatarWrap);
+  const hud = el('div', { class: 'island-hud' });
+  el('span', { id: 'islandPeerCount', class: 'island-hud-peer-badge', hidden: true }, hud);
+  el('strong', { id: 'islandHudPlayerName' }, hud);
+  el('img', { id: 'islandHudPlayerThumb' }, hud);
+  el('button', { id: 'islandDay', class: 'island-orb island-orb-day', 'aria-pressed': 'true' }, hud);
+  el('button', { id: 'islandNight', class: 'island-orb island-orb-night', 'aria-pressed': 'false' }, hud);
+  el('button', { id: 'islandAudio', class: 'island-orb island-orb-audio', 'aria-pressed': 'true' }, hud);
+  const chatWrap = el('div', { class: 'island-chat-wrap island-hud-chat' }, hud);
+  el('button', { id: 'islandChatBtn', class: 'island-orb island-orb-chat' }, chatWrap);
+  el('div', { id: 'islandChatPanel', hidden: true }, chatWrap);
+  el('button', { id: 'islandMoreBtn', class: 'island-orb island-orb-menu', 'aria-expanded': 'false' }, hud);
+  el('button', { id: 'islandHudRoleBtn', 'aria-expanded': 'false' }, hud);
+  el('button', { id: 'islandMapBtn', 'aria-expanded': 'false' }, hud);
+  el('button', { id: 'islandExplore', class: 'island-hud-primary island-hud-explore-entry' }, hud);
+
+  const targets = el('div', { class: 'island-hud-menu-targets' }, hud);
+  el('button', { id: 'islandHome' }, targets);
+  el('button', { id: 'islandListBtn' }, targets);
+  const nickWrap = el('div', { class: 'island-nick-wrap' }, targets);
+  el('button', { id: 'islandNickBtn' }, nickWrap);
+  el('div', { id: 'islandNickPop', hidden: true }, nickWrap);
+  const avatarWrap = el('div', { class: 'island-avatar-wrap' }, targets);
+  el('button', { id: 'islandAvatarBtn', 'aria-expanded': 'false' }, avatarWrap);
   const avatarPop = el('div', { id: 'islandAvatarPop', class: 'island-avatar-pop', hidden: true }, avatarWrap);
   el('button', { class: 'island-avatar-choice', 'data-island-avatar': 'milu', 'aria-pressed': 'true' }, avatarPop);
   el('button', { class: 'island-avatar-choice', 'data-island-avatar': 'berry', 'aria-pressed': 'false' }, avatarPop);
-  el('button', { id: 'islandExplore', class: 'island-tool island-corner-dock' }, corner);
-  el('button', { id: 'islandHome', class: 'island-tool island-corner-overflow' }, corner);
-  el('button', { id: 'islandListBtn', class: 'island-tool island-corner-overflow' }, corner);
-  el('button', { id: 'islandAudio', class: 'island-tool island-corner-overflow', 'aria-pressed': 'true' }, corner);
-  const nickWrap = el('div', { class: 'island-nick-wrap island-corner-overflow' }, corner);
-  el('button', { id: 'islandNickBtn' }, nickWrap);
-  el('div', { id: 'islandNickPop', hidden: true }, nickWrap);
-  const chatWrap = el('div', { class: 'island-chat-wrap island-corner-dock' }, corner);
-  el('button', { id: 'islandChatBtn' }, chatWrap);
-  el('div', { id: 'islandChatPanel', hidden: true }, chatWrap);
-  el('span', { id: 'islandPeerCount', class: 'island-peer-count island-corner-dock', hidden: true }, corner);
-  el('a', { href: '/login', class: 'island-tool island-corner-overflow', 'data-guest-only': '' }, corner);
-  el('a', { href: '/logout', class: 'island-tool island-corner-overflow', 'data-auth-only': '' }, corner);
-  el('button', { id: 'islandMoreBtn', class: 'island-corner-more-btn island-corner-dock' }, corner);
 
   const more = el('section', { id: 'islandMoreSheet', hidden: true });
   el('button', { id: 'islandMoreScrim' }, more);
   const panel = el('div', { class: 'island-more-panel' }, more);
   el('button', { id: 'islandMoreClose' }, panel);
   const menu = el('div', { class: 'island-more-menu' }, panel);
-  ['islandHome', 'islandListBtn', 'islandNickBtn', 'islandAudio'].forEach((target) => {
-    const row = el('button', { class: 'island-more-item', 'data-island-more-target': target }, menu);
-    if (target === 'islandAudio') {
-      el('small', { id: 'islandMoreAudioStatus' }, row);
-    }
+  el('button', { class: 'island-more-item island-more-explore', 'data-island-more-target': 'islandExplore', hidden: true }, menu);
+  ['islandHome', 'islandListBtn', 'islandNickBtn'].forEach((target) => {
+    el('button', { class: 'island-more-item', 'data-island-more-target': target }, menu);
   });
   el('a', { class: 'island-more-item', 'data-guest-only': '', 'data-island-more-login': '', href: '/login' }, menu);
   el('a', { class: 'island-more-item', 'data-auth-only': '', 'data-island-more-logout': '', href: '/logout' }, menu);
 
-  el('motion', { id: 'islandLabels' });
+  const map = el('section', { id: 'islandMapSheet', hidden: true });
+  el('button', { id: 'islandMapScrim' }, map);
+  const mapPanel = el('div', { class: 'island-map-panel' }, map);
+  el('button', { id: 'islandMapClose' }, mapPanel);
+
+  el('div', { id: 'islandLabels' });
   el('div', { id: 'islandJoystick', class: 'island-joystick' });
   el('input', { id: 'islandChatInput' });
   el('button', { id: 'islandChatSend' });
@@ -149,27 +158,53 @@ function makeMobileDom(guest) {
   return doc;
 }
 
-test('index 不再含 #islandChatFab，有手機「更多」選單', () => {
+test('index 使用 Concept A HUD：玩家卡、右上圓鈕、選單與地圖', () => {
   assert.doesNotMatch(indexHtml, /id="islandChatFab"/);
+  assert.doesNotMatch(indexHtml, />蜜鹿</);
+  assert.match(indexHtml, /id="islandHudPlayer"/);
   assert.match(indexHtml, /id="islandMoreBtn"/);
-  assert.match(indexHtml, /id="islandMoreSheet"/);
-  assert.match(indexHtml, /aria-label="更多"/);
+  assert.match(indexHtml, /aria-label="選單"/);
+  assert.match(indexHtml, /id="islandMapSheet"/);
+  assert.match(indexHtml, /id="islandHudRoleBtn"/);
+  assert.match(indexHtml, /island-hud-player-name[^>]*>milu</);
 });
 
-test('360／390 探索 dock 不溢出 viewport 且不與搖桿相交', () => {
+test('syncAvatarUi：milu 時顯示 milu 而不是蜜鹿', () => {
+  const doc = makeMobileDom(true);
+  const ui = Corner.createCornerUi({
+    document: doc,
+    storage: null,
+    getPresence: () => null,
+    isExploring: () => false,
+    isWelcomed: () => false
+  });
+  ui.syncAvatarUi();
+  assert.equal(doc.getElementById('islandHudPlayerName').textContent, 'milu');
+  assert.equal(doc.getElementById('islandAvatarBtn').textContent, 'milu');
+});
+
+test('360／390 右上 HUD 在 viewport 內且不與搖桿相交', () => {
   for (const width of [360, 390]) {
     const height = 844;
     const joy = Corner.joystickRectMobile(width, height);
-    const bounds = Corner.computeMobileDockBounds(width, height, true, '島上 3 人', true);
-    assert.ok(Corner.dockFitsViewport(bounds, width), width + 'px 探索列在畫面內');
-    assert.equal(bounds.left >= 0, true, width + 'px 左緣不為負');
+    const bounds = Corner.hudTopRightRect(width, height, false);
+    assert.ok(Corner.dockFitsViewport(bounds, width), width + 'px 右上 HUD 在畫面內');
+    assert.ok(bounds.top >= 0, width + 'px 上緣不為負');
     assert.ok(!Corner.rectsIntersect(bounds, joy), width + 'px 不與搖桿重疊');
+    assert.ok(bounds.orbSize >= 44, width + 'px 觸控目標至少 44px');
   }
 });
 
-test('非探索 dock 較短、不含人數徽章時仍放得下', () => {
-  const bounds = Corner.computeMobileDockBounds(360, 780, false, '', false);
-  assert.ok(Corner.dockFitsViewport(bounds, 360));
+test('右下操作叢與搖桿、離開室內不重疊（390×844）', () => {
+  const width = 390;
+  const height = 844;
+  const joy = Corner.joystickRectMobile(width, height);
+  const actions = Corner.hudActionsRect(width, height);
+  const leave = Corner.leaveInteriorRectMobile(width, height);
+  assert.ok(!Corner.rectsIntersect(actions, joy), '操作叢不與搖桿重疊');
+  assert.ok(!Corner.rectsIntersect(leave, joy), '離開室內不與搖桿重疊');
+  assert.ok(actions.primary.minTouch >= 44, '主情境鈕觸控至少 44px');
+  assert.ok(actions.smallOrb.minTouch >= 44, '小圓鈕觸控至少 44px');
 });
 
 test('chat 無 FAB，探索切換不會露出第二顆聊天', () => {
@@ -203,7 +238,7 @@ test('syncPeerCount：探索且 welcomed 才顯示人數', () => {
   assert.match(doc.getElementById('islandPeerCount').textContent, /島上 4 人/);
 });
 
-test('「更多」打開後訪客看得到登入，已登入看得到登出', () => {
+test('選單打開後訪客看得到登入，已登入看得到登出與全景／清單／暱稱', () => {
   const guestDoc = makeMobileDom(true);
   const guestUi = Corner.createCornerUi({
     document: guestDoc,
@@ -231,8 +266,8 @@ test('「更多」打開後訪客看得到登入，已登入看得到登出', ()
   assert.ok(authDoc.querySelector('[data-island-more-logout]'));
 });
 
-test('手機 CSS 隱藏 overflow 列、保留 dock 與安全區', () => {
-  assert.match(islandCss, /\.island-corner-overflow/);
+test('手機 CSS 有 HUD 圓鈕、搖桿安全區與地圖層級', () => {
+  assert.match(islandCss, /\.island-orb/);
   assert.match(islandCss, /safe-area-inset-right/);
   assert.match(islandCss, /safe-area-inset-bottom/);
   assert.doesNotMatch(islandCss, /island-chat-fab/);
@@ -243,13 +278,12 @@ test('探索時聊天面板邊界不與搖桿相交（360／390）', () => {
     const height = width === 360 ? 780 : 844;
     const panel = Corner.chatPanelRectMobileExplore(width, height, 12);
     assert.ok(panel.left >= panel.joy.right - 0.5, width + 'px 面板左緣避開搖桿');
-    assert.ok(panel.bottom <= panel.joy.top + 0.5, width + 'px 面板底在搖桿上緣之上');
     assert.ok(!Corner.rectsIntersect(panel, panel.joy), width + 'px 面板與搖桿不重疊');
     assert.ok(panel.left >= 0 && panel.right <= width + 0.5, width + 'px 面板在 viewport 內');
   }
 });
 
-test('「更多」打開時 body 有 island-more-open，CSS 隱藏搖桿與 dock', () => {
+test('「選單」打開時 body 有 island-more-open，CSS 隱藏搖桿與 HUD', () => {
   const doc = makeMobileDom(true);
   const ui = Corner.createCornerUi({
     document: doc,
@@ -262,7 +296,7 @@ test('「更多」打開時 body 有 island-more-open，CSS 隱藏搖桿與 dock
   assert.equal(doc.body.classList.contains('island-more-open'), true);
   assert.match(
     islandCss,
-    /body\.island-more-open \.island-corner[\s\S]*visibility:\s*hidden/
+    /body\.island-more-open \.island-hud[\s\S]*visibility:\s*hidden/
   );
   assert.match(
     islandCss,
@@ -308,12 +342,7 @@ test('手機角色選單邊界在 viewport 內且探索時不與搖桿相交（3
   }
 });
 
-test('手機 CSS 角色選單 fixed 錨在 dock 上、探索時避開搖桿', () => {
-  assert.match(islandCss, /body\.island-avatar-open \.island-avatar-pop[\s\S]*position:\s*fixed/);
-  assert.match(islandCss, /body\.is-exploring\.island-avatar-open \.island-avatar-pop[\s\S]*0\.7rem \+ 8rem/);
-});
-
-test('選小莓寫入 localStorage 並更新按鈕', () => {
+test('選小莓寫入 localStorage 並更新玩家卡', () => {
   const doc = makeMobileDom(true);
   const storage = { data: {}, getItem(k) { return this.data[k] ?? null; }, setItem(k, v) { this.data[k] = v; } };
   let changed = null;
@@ -329,19 +358,19 @@ test('選小莓寫入 localStorage 並更新按鈕', () => {
   berryBtn.click();
   assert.equal(storage.data['punchclock.island.avatar'], 'berry');
   assert.equal(changed, 'berry');
-  assert.equal(doc.getElementById('islandAvatarBtn').textContent, '小莓');
+  assert.equal(doc.getElementById('islandHudPlayerName').textContent, '小莓');
   const miluBtn = doc.querySelector('[data-island-avatar="milu"]');
   ui.setAvatarOpen(true);
   miluBtn.click();
   assert.equal(storage.data['punchclock.island.avatar'], 'milu');
-  assert.equal(doc.getElementById('islandAvatarBtn').textContent, '蜜鹿');
+  assert.equal(doc.getElementById('islandHudPlayerName').textContent, 'milu');
 });
 
-test('「更多」選單面板含 safe-area 底內距且層級高於搖桿', () => {
+test('選單面板含 safe-area 底內距且層級高於搖桿', () => {
   assert.match(islandCss, /\.island-more-panel[\s\S]*safe-area-inset-bottom/);
   const sheetZ = /\.island-more-sheet\s*\{[^}]*z-index:\s*(\d+)/m.exec(islandCss);
   const joyZ = /\.island-joystick\s*\{[^}]*z-index:\s*(\d+)/m.exec(islandCss);
   assert.ok(sheetZ && joyZ, '可解析 z-index');
-  assert.ok(Number(sheetZ[1]) > Number(joyZ[1]), '更多選單在搖桿之上');
-  assert.match(islandCss, /body\.is-exploring \.island-chat-wrap\s*>\s*\.island-chat/);
+  assert.ok(Number(sheetZ[1]) > Number(joyZ[1]), '選單在搖桿之上');
+  assert.match(islandCss, /body\.is-exploring \.island-hud-tr \.island-chat/);
 });

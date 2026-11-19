@@ -2,50 +2,92 @@ import { cleanNick, loadAvatar, loadNick, normalizeAvatar, saveAvatar } from './
 
 export const MOBILE_MAX_WIDTH = 760;
 const REM = 16;
+export const ORB_SIZE = 2.85 * REM;
+export const ORB_GAP = 0.4 * REM;
+const HUD_MARGIN = 0.55 * REM;
 
-/** 供 Node 測試估算手機 dock 是否落在可視範圍、是否與搖桿重疊（對齊 island.css @760px）。 */
+const AUDIO_ON_SVG =
+  '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 10v4h4l5 4V6L8 10H4zm12.5 2a3.5 3.5 0 0 0-2-3.15v6.3a3.5 3.5 0 0 0 2-3.15z"/></svg>';
+const AUDIO_OFF_SVG =
+  '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 10v4h3l5 4V6L8 10H4zm14.3 2.3 2.1 2.1-1.4 1.4-2.1-2.1-2.1 2.1-1.4-1.4 2.1-2.1-2.1-2.1 1.4-1.4 2.1 2.1 2.1-2.1 1.4 1.4-2.1 2.1z"/></svg>';
+
+/** 供 Node 測試估算手機搖桿與 HUD 是否重疊（對齊 island.css）。 */
 export function joystickRectMobile(viewportWidth, viewportHeight) {
-  const left = 0.7 * REM;
-  const width = 8 * REM;
-  const height = 8 * REM;
-  const bottomInset = 0.85 * REM;
+  const narrow = viewportWidth <= MOBILE_MAX_WIDTH;
+  const left = (narrow ? 0.7 : 1) * REM;
+  const width = (narrow ? 8 : 7.5) * REM;
+  const height = width;
+  const bottomInset = (narrow ? 0.85 : 1.1) * REM;
   const top = viewportHeight - bottomInset - height;
   return { left, right: left + width, top, bottom: viewportHeight - bottomInset, width, height };
 }
 
-function dockToolWidth(label, narrow) {
-  const minW = (narrow ? 2.45 : 2.8) * REM;
-  const pad = (narrow ? 0.45 : 0.6) * REM * 2;
-  const font = (narrow ? 0.7 : 0.75) * REM;
-  const approxChar = font * 0.92;
-  const textW = Array.from(String(label)).length * approxChar;
-  return Math.max(minW, pad + textW);
+function hudMargin(viewportWidth) {
+  return viewportWidth <= MOBILE_MAX_WIDTH ? 0.55 * REM : 0.85 * REM;
 }
 
-export function computeMobileDockBounds(viewportWidth, viewportHeight, exploring, peerLabel, showPeer) {
-  const narrow = viewportWidth <= 400;
-  const margin = 0.55 * REM;
-  const gap = (narrow ? 0.25 : 0.35) * REM;
-  const toolH = 2.25 * REM;
-  const labels = exploring
-    ? (showPeer ? ['退出', '聊天', peerLabel || '島上 1 人', '⋯'] : ['退出', '聊天', '⋯'])
-  : ['探索', '聊天', '⋯'];
-  let totalW = 0;
-  for (let i = 0; i < labels.length; i++) {
-    totalW += dockToolWidth(labels[i], narrow);
-    if (i < labels.length - 1) totalW += gap;
-  }
-  const joy = joystickRectMobile(viewportWidth, viewportHeight);
-  const dockReserve = joy.right + 0.55 * REM;
-  const maxW = viewportWidth - margin - dockReserve;
-  if (totalW > maxW && showPeer && exploring) {
-    const shrink = dockToolWidth(peerLabel || '島上 1 人', true) - dockToolWidth(peerLabel || '島上 1 人', narrow);
-    if (shrink > 0) totalW -= shrink;
-  }
+function orbRowCount(showAudio) {
+  return showAudio ? 4 : 3;
+}
+
+export function hudTopRightRect(viewportWidth, viewportHeight, showAudio) {
+  const margin = hudMargin(viewportWidth);
+  const orbs = orbRowCount(showAudio);
+  const dayNightBlock = ORB_SIZE * 2 + 0.25 * REM;
+  const audioW = showAudio ? ORB_SIZE + ORB_GAP : 0;
+  const chatMenuW = ORB_SIZE * 2 + ORB_GAP;
+  const totalW = dayNightBlock + audioW + chatMenuW;
   const right = viewportWidth - margin;
   const left = right - totalW;
-  const bottom = viewportHeight - 0.7 * REM;
-  return { left, right, top: bottom - toolH, bottom, width: totalW, height: toolH };
+  const top = (viewportWidth <= MOBILE_MAX_WIDTH ? 4.55 : 3.6) * REM;
+  const bottom = top + ORB_SIZE + 0.9 * REM;
+  return { left, right, top, bottom, width: totalW, height: bottom - top, orbSize: ORB_SIZE };
+}
+
+export function hudActionsRect(viewportWidth, viewportHeight) {
+  const margin = hudMargin(viewportWidth);
+  const smallOrb = 2.85 * REM;
+  const primaryW = 3.75 * REM;
+  const primaryH = 3.75 * REM;
+  const steerW = smallOrb;
+  const gap = 0.45 * REM;
+  const rowW = smallOrb * 2 + gap + primaryW;
+  const bottom = viewportHeight - Math.max(0.7 * REM, 0);
+  const bottomInset = viewportWidth <= MOBILE_MAX_WIDTH ? 0.85 * REM : 1.1 * REM;
+  const bottomEdge = viewportHeight - bottomInset;
+  const top = bottomEdge - primaryH;
+  const right = viewportWidth - margin;
+  const left = right - rowW - steerW - gap;
+  return {
+    left,
+    right,
+    top,
+    bottom: bottomEdge,
+    width: rowW + steerW + gap,
+    height: primaryH,
+    primary: { width: primaryW, height: primaryH, minTouch: Math.min(primaryW, primaryH) },
+    smallOrb: { width: smallOrb, height: smallOrb + 0.75 * REM, minTouch: smallOrb }
+  };
+}
+
+export function leaveInteriorRectMobile(viewportWidth, viewportHeight) {
+  const margin = hudMargin(viewportWidth);
+  const width = 5.5 * REM;
+  const height = 2.75 * REM;
+  const actions = hudActionsRect(viewportWidth, viewportHeight);
+  const right = viewportWidth - margin;
+  const left = right - width;
+  const bottom = actions.top - 0.45 * REM;
+  const top = bottom - height;
+  return { left, right, top, bottom, width, height };
+}
+
+/** @deprecated 舊 dock 估算；改為右上 HUD 寬度檢查。 */
+export function computeMobileDockBounds(viewportWidth, viewportHeight, exploring, peerLabel, showPeer) {
+  void exploring;
+  void peerLabel;
+  void showPeer;
+  return hudTopRightRect(viewportWidth, viewportHeight, false);
 }
 
 export function rectsIntersect(a, b) {
@@ -56,33 +98,29 @@ export function dockFitsViewport(bounds, viewportWidth) {
   return bounds.left >= 0 && bounds.right <= viewportWidth + 0.5;
 }
 
-/** 探索中手機聊天面板預期邊界（對齊 island.css @760px body.is-exploring .island-chat）。 */
-/** 手機角色選單預期邊界（對齊 island.css @760px body.island-avatar-open .island-avatar-pop）。 */
 export function avatarPopRectMobile(viewportWidth, viewportHeight, exploring) {
   const popH = 7.15 * REM;
-  const joy = joystickRectMobile(viewportWidth, viewportHeight);
-  const margin = 0.55 * REM;
-  const toolH = 2.25 * REM;
-  const gap = 0.4 * REM;
-  const bottomInset = 0.7 * REM;
+  const actions = hudActionsRect(viewportWidth, viewportHeight);
+  const margin = hudMargin(viewportWidth);
   const left = exploring
-    ? joy.right + 0.55 * REM
+    ? joystickRectMobile(viewportWidth, viewportHeight).right + 0.55 * REM
     : Math.max(margin, 0);
   const right = viewportWidth - margin;
-  const bottom = viewportHeight - bottomInset - toolH - gap;
+  const bottom = actions.top - 0.4 * REM;
   const top = bottom - popH;
+  const joy = joystickRectMobile(viewportWidth, viewportHeight);
   return { left, right, top, bottom, width: right - left, height: popH, joy };
 }
 
 export function chatPanelRectMobileExplore(viewportWidth, viewportHeight, panelHeightRem) {
   const hRem = panelHeightRem > 0 ? panelHeightRem : 12;
   const joy = joystickRectMobile(viewportWidth, viewportHeight);
-  const dockBottom = (0.7 + 2.25 + 0.4) * REM;
-  const joyClear = 0.85 * REM + 8 * REM + 0.35 * REM;
-  const bottomInset = Math.max(dockBottom, joyClear);
-  const left = 0.7 * REM + 8 * REM + 0.55 * REM;
-  const right = viewportWidth - 0.55 * REM;
-  const bottom = viewportHeight - bottomInset;
+  const actions = hudActionsRect(viewportWidth, viewportHeight);
+  const margin = hudMargin(viewportWidth);
+  const bottomInset = Math.max(actions.bottom - actions.top + 0.5 * REM, joy.bottom - joy.top);
+  const left = joy.right + 0.55 * REM;
+  const right = viewportWidth - margin;
+  const bottom = actions.top - 0.35 * REM;
   const top = bottom - hRem * REM;
   return { left, right, top, bottom, width: right - left, height: hRem * REM, joy };
 }
@@ -101,6 +139,11 @@ export function createCornerUi(opts) {
 
   const avatarBtn = document.getElementById('islandAvatarBtn');
   const avatarPop = document.getElementById('islandAvatarPop');
+  const roleBtn = document.getElementById('islandHudRoleBtn');
+  const playerName = document.getElementById('islandHudPlayerName');
+  const playerThumb = document.getElementById('islandHudPlayerThumb');
+  const explorePrimaryLabel = document.querySelector('#islandExplore .island-hud-primary-label');
+  const moreExploreRow = document.querySelector('.island-more-explore');
   const avatarChoices = avatarPop
     ? avatarPop.querySelectorAll('[data-island-avatar]')
     : [];
@@ -114,10 +157,11 @@ export function createCornerUi(opts) {
   const moreSheet = document.getElementById('islandMoreSheet');
   const moreClose = document.getElementById('islandMoreClose');
   const moreScrim = document.getElementById('islandMoreScrim');
-  const moreAudioStatus = document.getElementById('islandMoreAudioStatus');
-  const moreAudioRow = moreSheet
-    ? moreSheet.querySelector('[data-island-more-target="islandAudio"]')
-    : null;
+
+  const mapBtn = document.getElementById('islandMapBtn');
+  const mapSheet = document.getElementById('islandMapSheet');
+  const mapClose = document.getElementById('islandMapClose');
+  const mapScrim = document.getElementById('islandMapScrim');
 
   if (nickInput) {
     const storedNick = loadNickFn(storage);
@@ -125,6 +169,10 @@ export function createCornerUi(opts) {
   }
 
   let selectedAvatar = loadAvatar(storage);
+
+  function avatarDisplayName(id) {
+  return normalizeAvatar(id) === 'berry' ? '小莓' : 'milu';
+  }
 
   function syncAvatarUi() {
     const current = normalizeAvatar(selectedAvatar);
@@ -136,24 +184,34 @@ export function createCornerUi(opts) {
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
     }
+    const name = avatarDisplayName(current);
     if (avatarBtn) {
-      avatarBtn.textContent = current === 'berry' ? '小莓' : '蜜鹿';
-      avatarBtn.setAttribute(
-        'aria-label',
-        '探索角色：' + (current === 'berry' ? '小莓' : '蜜鹿（預設）')
-      );
+      avatarBtn.textContent = name;
+      avatarBtn.setAttribute('aria-label', '探索角色：' + (current === 'berry' ? '小莓' : 'milu（預設）'));
+    }
+    if (playerName) playerName.textContent = name;
+    if (playerThumb) {
+      const thumb = avatarPop
+        ? avatarPop.querySelector('[data-island-avatar="' + current + '"] .island-avatar-thumb')
+        : null;
+      if (thumb && thumb.getAttribute('src')) playerThumb.src = thumb.getAttribute('src');
+    }
+    if (roleBtn) {
+      roleBtn.setAttribute('aria-label', '角色：' + name);
     }
   }
 
   function setAvatarOpen(open) {
-    if (!avatarPop || !avatarBtn) return;
+    if (!avatarPop) return;
     const on = !!open;
     avatarPop.hidden = !on;
-    avatarBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    if (avatarBtn) avatarBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    if (roleBtn) roleBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
     document.body.classList.toggle('island-avatar-open', on);
     if (on) {
       syncAvatarUi();
       setNickOpen(false);
+      setMapOpen(false);
     }
   }
 
@@ -171,8 +229,8 @@ export function createCornerUi(opts) {
 
   syncAvatarUi();
 
-  if (avatarBtn && avatarPop) {
-    avatarBtn.addEventListener('click', () => setAvatarOpen(avatarPop.hidden));
+  if (roleBtn) {
+    roleBtn.addEventListener('click', () => setAvatarOpen(avatarPop && avatarPop.hidden));
   }
   if (avatarChoices) {
     avatarChoices.forEach((btn) => {
@@ -187,8 +245,10 @@ export function createCornerUi(opts) {
     if (!nickPop || !nickBtn) return;
     nickPop.hidden = !open;
     nickBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    document.body.classList.toggle('island-nick-open', open);
     if (open) {
       setAvatarOpen(false);
+      setMapOpen(false);
       if (nickInput) nickInput.focus();
     }
   }
@@ -227,16 +287,30 @@ export function createCornerUi(opts) {
     el.textContent = '島上 ' + count + ' 人';
   }
 
-  function syncMoreAudioLabel() {
-    if (!moreAudioStatus) return;
-    const audioBtn = document.getElementById('islandAudio');
-    if (moreAudioRow) {
-      moreAudioRow.hidden = !audioBtn || audioBtn.hidden;
+  function syncExploreHudLabels() {
+    const exploring = isExploring();
+    const exploreBtn = document.getElementById('islandExplore');
+    if (exploreBtn) {
+      exploreBtn.setAttribute('aria-pressed', exploring ? 'true' : 'false');
+      exploreBtn.setAttribute('aria-label', exploring ? '退出探索模式' : '進入探索模式');
+      const label = exploring ? '退出' : '探索';
+      if (explorePrimaryLabel) explorePrimaryLabel.textContent = label;
+      else exploreBtn.textContent = label;
     }
+    if (moreExploreRow) {
+      moreExploreRow.hidden = !exploring;
+      moreExploreRow.textContent = '退出';
+    }
+  }
+
+  function syncMoreAudioLabel() {
+    const audioBtn = document.getElementById('islandAudio');
+    if (!audioBtn) return;
+    const iconEl = audioBtn.querySelector('.island-tool-audio-icon');
     let muted = false;
     if (typeof getAudioMuted === 'function') muted = !!getAudioMuted();
-    else if (audioBtn) muted = audioBtn.getAttribute('aria-pressed') === 'false';
-    moreAudioStatus.textContent = muted ? '已靜音' : '開啟';
+    else muted = audioBtn.getAttribute('aria-pressed') === 'false';
+    if (iconEl) iconEl.innerHTML = muted ? AUDIO_OFF_SVG : AUDIO_ON_SVG;
   }
 
   function setMoreOpen(open) {
@@ -247,12 +321,31 @@ export function createCornerUi(opts) {
     document.body.classList.toggle('island-more-open', on);
     if (on) {
       setAvatarOpen(false);
+      setMapOpen(false);
       syncMoreAudioLabel();
+      syncExploreHudLabels();
     }
   }
 
   function closeMore() {
     setMoreOpen(false);
+  }
+
+  function setMapOpen(open) {
+    if (!mapSheet || !mapBtn) return;
+    const on = !!open;
+    mapSheet.hidden = !on;
+    mapBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    document.body.classList.toggle('island-map-open', on);
+    if (on) {
+      setAvatarOpen(false);
+      setNickOpen(false);
+      closeMore();
+    }
+  }
+
+  function closeMap() {
+    setMapOpen(false);
   }
 
   function runMoreTarget(id) {
@@ -264,7 +357,7 @@ export function createCornerUi(opts) {
       setNickOpen(true);
       return;
     }
-    if (id === 'islandAvatarBtn') {
+  if (id === 'islandAvatarBtn' || id === 'islandHudRoleBtn') {
       setMoreOpen(false);
       setAvatarOpen(true);
       return;
@@ -292,8 +385,17 @@ export function createCornerUi(opts) {
     });
   }
 
+  if (mapBtn) mapBtn.addEventListener('click', () => setMapOpen(mapSheet && mapSheet.hidden));
+  if (mapClose) mapClose.addEventListener('click', () => closeMap());
+  if (mapScrim) mapScrim.addEventListener('click', () => closeMap());
+
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    if (mapSheet && !mapSheet.hidden) {
+      event.preventDefault();
+      closeMap();
+      return;
+    }
     if (moreSheet && !moreSheet.hidden) {
       event.preventDefault();
       closeMore();
@@ -306,9 +408,12 @@ export function createCornerUi(opts) {
     saveNick: saveNick,
     setMoreOpen: setMoreOpen,
     closeMore: closeMore,
+    setMapOpen: setMapOpen,
+    closeMap: closeMap,
     syncMoreAudioLabel: syncMoreAudioLabel,
     setAvatarOpen: setAvatarOpen,
     syncAvatarUi: syncAvatarUi,
+    syncExploreHudLabels: syncExploreHudLabels,
     currentAvatar: () => normalizeAvatar(selectedAvatar)
   };
 }
