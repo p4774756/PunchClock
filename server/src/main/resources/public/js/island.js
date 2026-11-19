@@ -2143,12 +2143,6 @@ function boot() {
       btn.addEventListener('click', () => jumpToIsland(btn.getAttribute('data-island')));
     });
   }
-  const mapSheet = document.getElementById('islandMapSheet');
-  if (mapSheet) {
-    mapSheet.querySelectorAll('[data-island]').forEach((btn) => {
-      btn.addEventListener('click', () => jumpToIsland(btn.getAttribute('data-island')));
-    });
-  }
   const exploreBtn = document.getElementById('islandExplore');
   if (exploreBtn) {
     exploreBtn.addEventListener('click', () => {
@@ -2786,10 +2780,17 @@ function boot() {
     isExploring: () => mode.exploring,
     openLargeMap: () => corner && corner.setMapOpen(true),
     onMapOpenChange: function () {},
+    onJumpToIsland: (id) => jumpToIsland(id),
     getPaintState: function () {
       const room = rooms.inside() ? rooms.room() : null;
       const interior = rooms.inside();
       let paintPlayer;
+      let worldPlayer;
+      if (isDriving()) {
+        worldPlayer = { x: vehicleState.carX, z: vehicleState.carZ, yaw: vehicleState.carYaw };
+      } else {
+        worldPlayer = { x: player.x, z: player.z, yaw: player.yaw };
+      }
       if (interior) {
         paintPlayer = {
           x: player.x - INTERIOR_ORIGIN.x,
@@ -2797,12 +2798,13 @@ function boot() {
           yaw: player.yaw
         };
       } else if (isDriving()) {
-        paintPlayer = { x: vehicleState.carX, z: vehicleState.carZ, yaw: vehicleState.carYaw };
+        paintPlayer = worldPlayer;
       } else {
-        paintPlayer = { x: player.x, z: player.z, yaw: player.yaw };
+        paintPlayer = worldPlayer;
       }
       return {
         player: paintPlayer,
+        worldPlayer: worldPlayer,
         interiorRoom: interior ? room : null,
         vehicleState: vehicleState,
         boatState: boatState,
