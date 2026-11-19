@@ -46,9 +46,12 @@ export function formatMachineWork(machine, repo) {
   if (m.issue == null) {
     return { text: '閒置', href: null };
   }
-  const title = m.issueTitle ? ' ' + String(m.issueTitle) : '';
   const href = issueUrl(m.issue, repo);
-  return { text: '正在跑 #' + m.issue + title, href: href };
+  if (m.agentRunning === true) {
+    const title = m.issueTitle ? ' ' + String(m.issueTitle) : '';
+    return { text: '正在跑 #' + m.issue + title, href: href };
+  }
+  return { text: '等待 review・#' + m.issue, href: href };
 }
 
 function issueUrl(issue, repo) {
@@ -70,12 +73,15 @@ export function formatBatteryLine(machine) {
   return line;
 }
 
-/** 研發樓螢幕單行：家裡筆電 在線・跑 #126 */
+/** 研發樓螢幕單行：小貓 在線・跑 #126 */
 export function formatLabDevMachineLine(machine) {
   const m = machine || {};
   const label = m.label || m.machine || '';
   if (!m.online) return label + ' 離線';
-  const work = m.issue != null ? '跑 #' + m.issue : '閒置';
+  let work = '閒置';
+  if (m.issue != null) {
+    work = m.agentRunning === true ? '跑 #' + m.issue : '等待 review・#' + m.issue;
+  }
   return label + ' 在線・' + work;
 }
 

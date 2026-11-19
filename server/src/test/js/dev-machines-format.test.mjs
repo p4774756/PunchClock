@@ -17,22 +17,27 @@ test('最後回報與已跑時間格式化', () => {
 test('工作狀態與研發樓兩行', () => {
   const idle = F.formatMachineWork({ online: true, issue: null }, null);
   assert.equal(idle.text, '閒置');
-  const work = F.formatMachineWork({ online: true, issue: 126, issueTitle: '示範' }, 'https://github.com/p4774756/PunchClock');
+  const waiting = F.formatMachineWork({ online: true, issue: 172, agentRunning: false }, null);
+  assert.equal(waiting.text, '等待 review・#172');
+  const work = F.formatMachineWork(
+    { online: true, issue: 126, issueTitle: '示範', agentRunning: true },
+    'https://github.com/p4774756/PunchClock'
+  );
   assert.match(work.text, /#126/);
   assert.ok(work.href.endsWith('/issues/126'));
 
   const lines = F.formatLabDevMachineLines({
     success: true,
     machines: [
-      { label: '家裡筆電', online: true, issue: 126 },
-      { label: '公司筆電', online: false }
+      { label: '小貓', online: true, issue: 126, agentRunning: true },
+      { label: '猛虎', online: false }
     ]
   });
-  assert.deepEqual(lines, ['家裡筆電 在線・跑 #126', '公司筆電 離線']);
+  assert.deepEqual(lines, ['小貓 在線・跑 #126', '猛虎 離線']);
 
   const base = ['【開發進度】', '', '內容', '', '詳細進度請到主島施工告示牌'];
   const merged = F.appendLabMachineLines(base, lines);
-  assert.ok(merged.includes('家裡筆電 在線・跑 #126'));
+  assert.ok(merged.includes('小貓 在線・跑 #126'));
   assert.ok(merged[merged.length - 1].includes('詳細進度'));
 });
 

@@ -74,7 +74,7 @@ public class DevMachineStoreTest {
         assertEquals(2, list.size());
         assertEquals("home", list.get(0).get("machine"));
         assertEquals("office", list.get(1).get("machine"));
-        assertEquals("家裡筆電", list.get(0).get("label"));
+        assertEquals("小貓", list.get(0).get("label"));
     }
 
     private static Map<String, Object> payload(String machine, Integer issue, String branch, long runStartedAt) {
