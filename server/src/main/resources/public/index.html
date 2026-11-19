@@ -71,26 +71,22 @@
     <div class="island-hud-menu-targets" hidden aria-hidden="true">
       <button type="button" class="island-tool" id="islandHome">全景</button>
       <button type="button" class="island-tool" id="islandListBtn" aria-expanded="false" aria-controls="islandList">清單</button>
-      <div class="island-nick-wrap">
-        <button type="button" class="island-tool" id="islandNickBtn" aria-expanded="false" aria-controls="islandNickPop">暱稱</button>
-        <div class="island-nick" id="islandNickPop" hidden>
-          <input type="text" id="islandNickInput" maxlength="12" autocomplete="nickname" enterkeyhint="done" aria-label="暱稱" spellcheck="false">
-          <button type="button" class="island-tool" id="islandNickSave">儲存</button>
-        </div>
-      </div>
-      <div class="island-avatar-wrap">
-        <button type="button" class="island-tool" id="islandAvatarBtn" aria-expanded="false" aria-controls="islandAvatarPop" tabindex="-1">milu</button>
-        <div class="island-avatar-pop" id="islandAvatarPop" hidden role="group" aria-label="選擇探索角色">
-          <button type="button" class="island-avatar-choice" data-island-avatar="milu" aria-pressed="true">
-            <img class="island-avatar-thumb" src="/pet/milu/idle/breath_01.png" width="52" height="52" alt="" decoding="async">
-            <span class="island-avatar-label">milu<small>預設</small></span>
-          </button>
-          <button type="button" class="island-avatar-choice" data-island-avatar="berry" aria-pressed="false">
-            <img class="island-avatar-thumb" src="/pet/berry/idle/breath_01.png" width="52" height="52" alt="" decoding="async">
-            <span class="island-avatar-label">小莓</span>
-          </button>
-        </div>
-      </div>
+      <button type="button" class="island-tool" id="islandNickBtn" aria-expanded="false" aria-controls="islandNickPop">暱稱</button>
+      <button type="button" class="island-tool" id="islandAvatarBtn" aria-expanded="false" aria-controls="islandAvatarPop" tabindex="-1">milu</button>
+    </div>
+    <div class="island-nick" id="islandNickPop" hidden>
+      <input type="text" id="islandNickInput" maxlength="12" autocomplete="nickname" enterkeyhint="done" aria-label="暱稱" spellcheck="false">
+      <button type="button" class="island-tool" id="islandNickSave">儲存</button>
+    </div>
+    <div class="island-avatar-pop" id="islandAvatarPop" hidden role="group" aria-label="選擇探索角色">
+      <button type="button" class="island-avatar-choice" data-island-avatar="milu" aria-pressed="true">
+        <img class="island-avatar-thumb" src="/pet/milu/idle/breath_01.png" width="52" height="52" alt="" decoding="async">
+        <span class="island-avatar-label">milu<small>預設</small></span>
+      </button>
+      <button type="button" class="island-avatar-choice" data-island-avatar="berry" aria-pressed="false">
+        <img class="island-avatar-thumb" src="/pet/berry/idle/breath_01.png" width="52" height="52" alt="" decoding="async">
+        <span class="island-avatar-label">小莓</span>
+      </button>
     </div>
 
     <button type="button" class="island-hud-leave" id="islandLeaveInterior" hidden>離開室內</button>

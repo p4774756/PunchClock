@@ -53,6 +53,7 @@ class FakeElement {
   click() { this.dispatchEvent({ type: 'click', target: this }); }
   dispatchEvent(event) {
     if (!event.target) event.target = this;
+    if (typeof event.preventDefault !== 'function') event.preventDefault = () => {};
     (this.listeners[event.type] || []).slice().forEach((fn) => fn.call(this, event));
   }
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
@@ -119,12 +120,12 @@ function makeMobileDom(guest) {
   const targets = el('div', { class: 'island-hud-menu-targets' }, hud);
   el('button', { id: 'islandHome' }, targets);
   el('button', { id: 'islandListBtn' }, targets);
-  const nickWrap = el('div', { class: 'island-nick-wrap' }, targets);
-  el('button', { id: 'islandNickBtn' }, nickWrap);
-  el('div', { id: 'islandNickPop', hidden: true }, nickWrap);
-  const avatarWrap = el('div', { class: 'island-avatar-wrap' }, targets);
-  el('button', { id: 'islandAvatarBtn', 'aria-expanded': 'false' }, avatarWrap);
-  const avatarPop = el('div', { id: 'islandAvatarPop', class: 'island-avatar-pop', hidden: true }, avatarWrap);
+  el('button', { id: 'islandNickBtn' }, targets);
+  el('button', { id: 'islandAvatarBtn', 'aria-expanded': 'false' }, targets);
+  const nickPop = el('div', { id: 'islandNickPop', class: 'island-nick', hidden: true }, hud);
+  el('input', { id: 'islandNickInput' }, nickPop);
+  el('button', { id: 'islandNickSave' }, nickPop);
+  const avatarPop = el('div', { id: 'islandAvatarPop', class: 'island-avatar-pop', hidden: true }, hud);
   el('button', { class: 'island-avatar-choice', 'data-island-avatar': 'milu', 'aria-pressed': 'true' }, avatarPop);
   el('button', { class: 'island-avatar-choice', 'data-island-avatar': 'berry', 'aria-pressed': 'false' }, avatarPop);
 
@@ -158,6 +159,17 @@ function makeMobileDom(guest) {
   return doc;
 }
 
+function hasMenuTargetsAncestor(node) {
+  for (let p = node && node.parent; p; p = p.parent) {
+    if (typeof p.className === 'string' && p.className.split(/\s+/).includes('island-hud-menu-targets')) return true;
+  }
+  return false;
+}
+
+function popWouldBeVisible(node) {
+  return node && !node.hidden && !hasMenuTargetsAncestor(node);
+}
+
 test('index 使用 Concept A HUD：玩家卡、右上圓鈕、選單與地圖', () => {
   assert.doesNotMatch(indexHtml, /id="islandChatFab"/);
   assert.doesNotMatch(indexHtml, />蜜鹿</);
@@ -167,6 +179,17 @@ test('index 使用 Concept A HUD：玩家卡、右上圓鈕、選單與地圖', 
   assert.match(indexHtml, /id="islandMapSheet"/);
   assert.match(indexHtml, /id="islandHudRoleBtn"/);
   assert.match(indexHtml, /island-hud-player-name[^>]*>milu</);
+});
+
+test('index：角色／暱稱彈層不在隱藏選單靶容器內', () => {
+  const start = indexHtml.indexOf('class="island-hud-menu-targets"');
+  assert.ok(start >= 0, '有 island-hud-menu-targets');
+  const end = indexHtml.indexOf('</div>', start);
+  const targetsHtml = indexHtml.slice(start, end);
+  assert.doesNotMatch(targetsHtml, /id="islandAvatarPop"/);
+  assert.doesNotMatch(targetsHtml, /id="islandNickPop"/);
+  assert.match(indexHtml, /id="islandAvatarPop"/);
+  assert.match(indexHtml, /id="islandNickPop"/);
 });
 
 test('syncAvatarUi：milu 時顯示 milu 而不是蜜鹿', () => {
@@ -319,12 +342,31 @@ test('角色選單打開時 body 有 island-avatar-open，CSS 停用搖桿', () 
   ui.setAvatarOpen(true);
   assert.equal(doc.body.classList.contains('island-avatar-open'), true);
   assert.equal(doc.getElementById('islandAvatarPop').hidden, false);
+  assert.ok(popWouldBeVisible(doc.getElementById('islandAvatarPop')), '角色選單不在 display:none 祖先下');
   assert.match(
     islandCss,
     /body\.island-avatar-open \.island-joystick[\s\S]*pointer-events:\s*none/
   );
   ui.setAvatarOpen(false);
   assert.equal(doc.body.classList.contains('island-avatar-open'), false);
+});
+
+test('右下角色鈕與選單暱稱可開啟彈層且可見', () => {
+  const doc = makeMobileDom(true);
+  const ui = Corner.createCornerUi({
+    document: doc,
+    storage: null,
+    getPresence: () => null,
+    isExploring: () => true,
+    isWelcomed: () => false
+  });
+  doc.getElementById('islandHudRoleBtn').click();
+  assert.ok(popWouldBeVisible(doc.getElementById('islandAvatarPop')), '角色鈕開啟選單可見');
+  ui.setAvatarOpen(false);
+  ui.setMoreOpen(true);
+  doc.querySelector('[data-island-more-target="islandNickBtn"]').click();
+  assert.ok(popWouldBeVisible(doc.getElementById('islandNickPop')), '選單暱稱開啟輸入可見');
+  assert.equal(doc.body.classList.contains('island-nick-open'), true);
 });
 
 test('手機角色選單邊界在 viewport 內且探索時不與搖桿相交（360／390）', () => {
