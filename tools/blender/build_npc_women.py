@@ -84,16 +84,35 @@ def _ensure_mats():
         _mat('npc_' + k, h, emit=em if k == 'cyan' else None)
 
 
+def _append_bmesh(dst, src):
+    """把 sub-bmesh 併入 dst（避免在同一 bmesh 連續 create 時焊到舊頂點）。"""
+    src.verts.ensure_lookup_table()
+    src.faces.ensure_lookup_table()
+    off = len(dst.verts)
+    for v in src.verts:
+        dst.verts.new(v.co)
+    dst.verts.ensure_lookup_table()
+    dst.verts.index_update()
+    for face in src.faces:
+        dst.faces.new([dst.verts[off + v.index] for v in face.verts])
+
+
 def _uv_sphere(bm, co, radius, seg=8, rings=6):
-    bmesh.ops.create_uvsphere(bm, u_segments=seg, v_segments=rings, radius=radius)
-    bmesh.ops.translate(bm, vec=co, verts=bm.verts)
+    sub = bmesh.new()
+    bmesh.ops.create_uvsphere(sub, u_segments=seg, v_segments=rings, radius=radius)
+    bmesh.ops.translate(sub, vec=co, verts=sub.verts)
+    _append_bmesh(bm, sub)
+    sub.free()
 
 
 def _uv_box(bm, size, co):
     sx, sy, sz = size
-    bmesh.ops.create_cube(bm, size=1.0)
-    bmesh.ops.scale(bm, vec=(sx / 2, sy / 2, sz / 2), verts=bm.verts)
-    bmesh.ops.translate(bm, vec=co, verts=bm.verts)
+    sub = bmesh.new()
+    bmesh.ops.create_cube(sub, size=1.0)
+    bmesh.ops.scale(sub, vec=(sx / 2, sy / 2, sz / 2), verts=sub.verts)
+    bmesh.ops.translate(sub, vec=co, verts=sub.verts)
+    _append_bmesh(bm, sub)
+    sub.free()
 
 
 _NPC_VERTEX_MAT = None
@@ -142,7 +161,10 @@ def _join_meshes(name, pieces):
                 loop[color_lay] = col
         sub.free()
     bm.faces.ensure_lookup_table()
-    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0001)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+    loose = [v for v in bm.verts if not v.link_faces]
+    if loose:
+        bmesh.ops.delete(bm, geom=loose, context='VERTS')
     bm.normal_update()
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
@@ -470,15 +492,45 @@ def _assign_simple_weights(mesh_obj, rig):
         vgs[bone].add([v.index], 1.0, 'REPLACE')
 
 
-def _parent_auto(mesh_obj, rig):
+def _bind_mesh(mesh_obj, rig):
+    """僅 Armature modifier + 權重；mesh 不當 rig 子物件，避免 skin＋父子雙重變換。"""
+    for mod in list(mesh_obj.modifiers):
+        if mod.type == 'ARMATURE':
+            mesh_obj.modifiers.remove(mod)
+    mod = mesh_obj.modifiers.new(name='Armature', type='ARMATURE')
+    mod.object = rig
+    _assign_simple_weights(mesh_obj, rig)
+
+
+def _clear_rest_pose(rig):
+    """動畫完成後、匯出前將骨架清回 bind／rest pose。"""
     bpy.ops.object.select_all(action='DESELECT')
-    mesh_obj.select_set(True)
     rig.select_set(True)
     bpy.context.view_layer.objects.active = rig
-    bpy.ops.object.parent_set(type='ARMATURE_AUTO')
-    weighted = sum(1 for v in mesh_obj.data.vertices if v.groups)
-    if weighted < len(mesh_obj.data.vertices):
-        _assign_simple_weights(mesh_obj, rig)
+    prev_mode = rig.mode
+    if prev_mode != 'POSE':
+        bpy.ops.object.mode_set(mode='POSE')
+    bpy.ops.pose.transforms_clear()
+    bpy.ops.object.mode_set(mode='OBJECT')
+    ad = rig.animation_data
+    if ad:
+        ad.action = None
+
+
+def _rest_pose_sane(mesh_obj, rig):
+    """無頭自查：靜態網格是否為緊湊人形（非 translate 累加爆炸）。"""
+    me = mesh_obj.data
+    if not me.vertices:
+        return False
+    xs = [v.co.x for v in me.vertices]
+    ys = [v.co.y for v in me.vertices]
+    zs = [v.co.z for v in me.vertices]
+    x_ext = max(xs) - min(xs)
+    y_ext = max(ys) - min(ys)
+    z_ext = max(zs) - min(zs)
+    if x_ext > 0.62 or y_ext > 0.55 or z_ext > 1.22:
+        return False
+    return max(zs) <= 1.22 and min(zs) >= -0.08
 
 
 def _set_action_fps(frames=24):
@@ -573,16 +625,20 @@ def _primitives_per_mesh(mesh_obj):
 
 
 def build_character(style, root_collection):
+    root = bpy.data.objects.new('npc_' + style, None)
+    root.empty_display_size = 0.01
+    root_collection.objects.link(root)
     mesh = _style_mesh(style)
     rig = _make_armature('npc_' + style)
     root_collection.objects.link(rig)
     root_collection.objects.link(mesh)
-    _parent_auto(mesh, rig)
-    root = bpy.data.objects.new('npc_' + style, None)
-    root.empty_display_size = 0.01
-    root_collection.objects.link(root)
     rig.parent = root
+    mesh.parent = rig
+    _bind_mesh(mesh, rig)
     anims = _animate_walk_idle(rig, style)
+    _clear_rest_pose(rig)
+    if not _rest_pose_sane(mesh, rig):
+        print(f'WARN {style} rest-pose skin check failed')
     tris = _count_tris(mesh)
     slots = _primitives_per_mesh(mesh)
     return root, tris, anims, slots
@@ -608,6 +664,10 @@ def build(out_path):
 
     bpy.context.scene.frame_start = 0
     bpy.context.scene.frame_end = 24
+    bpy.context.scene.frame_set(0)
+    for obj in coll.all_objects:
+        if obj.type == 'ARMATURE':
+            _clear_rest_pose(obj)
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or '.', exist_ok=True)
     bpy.ops.export_scene.gltf(
         filepath=out_path,
