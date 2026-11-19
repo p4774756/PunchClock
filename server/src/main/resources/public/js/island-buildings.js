@@ -71,28 +71,26 @@ export function buildIslandBuildings(ctx) {
     });
   });
   const casinoSignMap = paint(640, 220, (g, w, h) => {
-    g.fillStyle = '#1a0c28';
+    g.fillStyle = '#141018';
     g.fillRect(0, 0, w, h);
-    g.strokeStyle = '#ff6ad8';
+    g.strokeStyle = '#d4a84b';
     g.lineWidth = 8;
     g.strokeRect(10, 10, w - 20, h - 20);
-    g.strokeStyle = '#d4a84b';
-    g.lineWidth = 4;
-    g.strokeRect(18, 18, w - 36, h - 36);
-    g.font = '700 76px ' + font;
+    g.strokeStyle = '#ffe8a8';
+    g.lineWidth = 3;
+    g.strokeRect(20, 20, w - 40, h - 40);
+    g.font = '700 72px ' + font;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.strokeStyle = '#ff4ec8';
+    g.strokeStyle = '#6a1828';
     g.lineWidth = 5;
-    g.strokeText('神之島賭場', w / 2, h / 2 - 30);
-    g.fillStyle = '#ff9ee8';
-    g.fillText('神之島賭場', w / 2, h / 2 - 30);
-    g.font = '700 84px ' + font;
-    g.strokeStyle = '#ff4ec8';
-    g.lineWidth = 6;
-    g.strokeText('777', w / 2, h / 2 + 58);
-    g.fillStyle = '#ffe878';
-    g.fillText('777', w / 2, h / 2 + 58);
+    g.strokeText('神之島賭場', w / 2, h / 2 + 2);
+    g.fillStyle = '#ffeedd';
+    g.fillText('神之島賭場', w / 2, h / 2 + 2);
+    g.font = '700 42px ' + font;
+    g.fillStyle = '#222';
+    g.fillText('♠', w / 2 - 118, h / 2 - 48);
+    g.fillText('♠', w / 2 + 118, h / 2 - 48);
   });
   const tcmSignMap = paint(512, 256, (g, w, h) => {
     g.fillStyle = '#3c1e14';
@@ -169,9 +167,21 @@ export function buildIslandBuildings(ctx) {
             obj.material = mat(baseColor, extra);
           }
         } else {
+          const glbMap = oldMat && oldMat.map;
+          const keepGlbTex = glbMap && (matName && matName.indexOf('tex|') === 0 || glbMap);
+          if (keepGlbTex) extra.map = glbMap;
           obj.material = mat(baseColor, extra);
+          if (keepGlbTex && oldMat.emissiveMap && !extra.glow) {
+            obj.material.emissiveMap = oldMat.emissiveMap;
+          }
         }
-        if (oldMat && typeof oldMat.dispose === 'function') oldMat.dispose();
+        if (oldMat && typeof oldMat.dispose === 'function') {
+          const keepMap = obj.material && obj.material.map === oldMat.map;
+          const keepEm = obj.material && obj.material.emissiveMap === oldMat.emissiveMap;
+          if (keepMap) oldMat.map = null;
+          if (keepEm) oldMat.emissiveMap = null;
+          oldMat.dispose();
+        }
         obj.castShadow = true;
         obj.receiveShadow = true;
       });

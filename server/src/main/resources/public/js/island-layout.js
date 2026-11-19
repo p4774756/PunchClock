@@ -288,9 +288,9 @@ function themeCircle(id, islandId, dx, dz, r) {
 }
 
 export const THEME_CIRCLES = Object.freeze([
-  themeCircle('palm-n', 'casino', 1.15, 3.2, 0.36),
-  themeCircle('palm-s', 'casino', 1.0, -3.25, 0.34),
-  themeCircle('palm-e', 'casino', 3.85, -0.45, 0.34),
+  themeCircle('palm-n', 'casino', -3.05, -2.35, 0.36),
+  themeCircle('palm-s', 'casino', 0.55, -4.55, 0.34),
+  themeCircle('palm-e', 'casino', 3.9, -2.15, 0.34),
   themeCircle('bamboo', 'tcm', 0.35, 2.55, 0.42),
   themeCircle('figure', 'tcm', -0.2, -2.2, 0.46),
   themeCircle('herb', 'tcm', 1.35, 1.75, 0.32),

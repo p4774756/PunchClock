@@ -8,7 +8,7 @@ export const BUILDING_GLOW = Object.freeze({
   casino: Object.freeze({
     windows_glow: { color: 0xffc56a, amount: 1.05 },
     lantern_glow: { color: 0xffc56a, amount: 1.2 },
-    neon_glow: { color: 0xff6ad8, amount: 1.15 }
+    neon_glow: { color: 0xff5544, amount: 0.92 }
   }),
   'tcm-site': Object.freeze({
     windows_glow: { color: 0xffb15a, amount: 0.9 },
