@@ -1,4 +1,5 @@
-import { G } from './island-kit.js';
+import { G, P } from './island-kit.js';
+import { MILU_ANIM } from './island-milu.js';
 import { MOON_ELEVATION } from './island-sky.js';
 
 export const EXPLORE_POSE = { radius: 9.2, theta: 0.35, phi: 0.98 };
@@ -120,13 +121,57 @@ export function interiorPlacementPhi(safePhi, phiRest, viewLift) {
   return rest;
 }
 
-/** 抬頭時鏡頭降到角色肩後（與 viewLift 連續插值）。 */
+/** 2D 主角 billboard 腳底／頭頂（milu／小莓共用 MILU_ANIM.height）。 */
+export const EXPLORE_PLAYER_FEET_Y = P;
+export const EXPLORE_PLAYER_HEAD_Y = P + MILU_ANIM.height;
+/** 抬頭時鏡頭高度混合曲線：較快貼近低機位，中段就能收進全身。 */
+export const EXPLORE_LIFT_HEIGHT_POWER = 3;
+/** 僅在抬頭強度超過此值才夾 pitch，保留抬頭帶前段月亮可見性。 */
+export const EXPLORE_PLAYER_PITCH_CAP_MIN_LIFT = 0.78;
+
+export function exploreLiftCameraHeightBlend(viewLift) {
+  const v = viewLift > 0 ? Math.min(1, viewLift) : 0;
+  if (v <= 0) return 0;
+  return 1 - Math.pow(1 - v, EXPLORE_LIFT_HEIGHT_POWER);
+}
+
+/** 戶外抬頭時鏡頭距離倍率（套用於既有 exploreFollowDistance 結果）。 */
+export function exploreLiftDistanceScale(aspect, viewLift) {
+  const v = viewLift > 0 ? viewLift : 0;
+  if (v <= 0) return 1;
+  const boost = aspect != null && aspect < 0.85 ? 0.18 : 0.12;
+  return 1 + v * boost;
+}
+
+/** 戶外抬頭時略拉遠，配合低機位讓全身留在畫面裡。 */
+export function exploreFollowDistanceForLift(radius, aspect, viewLift) {
+  return exploreFollowDistance(radius, aspect) * exploreLiftDistanceScale(aspect, viewLift);
+}
+
+/**
+ * 在當前鏡頭位置下，視線仰角上限：頭腳 NDC y 留在約 -0.92～0.98 內（與測試投影一致）。
+ */
+export function explorePitchCapForPlayer(placement, aspect) {
+  const halfV = (ISLAND_FOV_DEG * Math.PI / 180) / 2;
+  const h = Math.max(placement.horiz, 0.55);
+  const eyeY = placement.cy;
+  const feetE = Math.atan2(EXPLORE_PLAYER_FEET_Y - eyeY, h);
+  const headE = Math.atan2(EXPLORE_PLAYER_HEAD_Y - eyeY, h);
+  const narrow = aspect != null && aspect < 0.85;
+  const feetBand = halfV * (narrow ? 0.88 : 0.918);
+  const headBand = halfV * (narrow ? 0.95 : 0.968);
+  return Math.min(feetE + feetBand, headE + headBand);
+}
+
+/** 抬頭時鏡頭降到角色後方低處（與 viewLift 連續插值）。 */
 export function exploreFollowCameraY(lookAtY, dist, placementPhi, groundY, viewLift) {
   let cy = lookAtY + dist * Math.cos(placementPhi);
   const eased = viewLift > 0 ? viewLift : 0;
   if (eased > 0) {
-    const lowY = Math.max(groundY + 0.92, lookAtY + 0.48);
-    cy = cy * (1 - eased) + lowY * eased;
+    const lowY = Math.max(groundY + 0.02, lookAtY - 0.80);
+    const heightT = exploreLiftCameraHeightBlend(eased);
+    cy = cy * (1 - heightT) + lowY * heightT;
+    return Math.max(groundY + 0.02, cy);
   }
   return Math.max(groundY + 0.88, cy);
 }
@@ -185,6 +230,29 @@ export function exploreTargetPitch(
   return pitch0 + viewLift * (pitchMax - pitch0);
 }
 
+/**
+ * 實際鏡頭用的視線仰角：在 {@link exploreTargetPitch} 之上收進主角，不影響 NDC／單調測試用的 pitch 值。
+ */
+export function exploreViewPitch(
+  safePhi, lookAtY, dist, groundY, aspect, theta, phiRest, allowSky
+) {
+  const pitch = exploreTargetPitch(
+    safePhi, lookAtY, dist, groundY, aspect, theta, null, phiRest, allowSky
+  );
+  if (pitch == null) return null;
+  const rest = phiRest != null && Number.isFinite(phiRest) ? phiRest : EXPLORE_POSE.phi;
+  const viewLift = exploreViewLift(safePhi, rest);
+  if (viewLift < EXPLORE_PLAYER_PITCH_CAP_MIN_LIFT || allowSky === false) return pitch;
+  const placementPhi = explorePlacementPhi(safePhi, rest, viewLift);
+  const distUse = dist * exploreLiftDistanceScale(aspect, viewLift);
+  const placement = exploreCameraPlacement(
+    0, lookAtY, 0, distUse, placementPhi, theta, groundY, viewLift
+  );
+  const cap = explorePitchCapForPlayer(placement, aspect);
+  if (Number.isFinite(cap) && pitch > cap + 0.01) return cap;
+  return pitch;
+}
+
 /** 沿單向拖曳每 stepPx 取樣視線仰角（純函式，供測試）。totalDyPx 負值＝往上拖。 */
 export function explorePitchAlongDrag(
   phiStart, totalDyPx, stepPx, lookAtY, dist, groundY, aspect, theta, bodyElevation, phiRest, allowSky
@@ -235,18 +303,19 @@ export function exploreSkyPitch(
   lookAtY, dist, safePhi, groundY, aspect, theta, bodyElevation, phiRest, allowSky
 ) {
   const rest = phiRest != null && Number.isFinite(phiRest) ? phiRest : EXPLORE_POSE.phi;
+  const viewLift = exploreViewLift(safePhi, rest);
+  const distUse = allowSky === false ? dist : dist * exploreLiftDistanceScale(aspect, viewLift);
   const pitch = exploreTargetPitch(
     safePhi, lookAtY, dist, groundY, aspect, theta, bodyElevation, rest, allowSky
   );
   if (pitch != null) return pitch;
-  const viewLift = exploreViewLift(safePhi, rest);
   const useInterior = allowSky === false;
   const placementPhi = useInterior
     ? interiorPlacementPhi(safePhi, rest, viewLift)
     : explorePlacementPhi(safePhi, rest, viewLift);
   const liftY = useInterior ? 0 : viewLift;
   const placement = exploreCameraPlacement(
-    0, lookAtY, 0, dist, placementPhi, theta, groundY, liftY
+    0, lookAtY, 0, distUse, placementPhi, theta, groundY, liftY
   );
   const pitchDown = naturalPitchToPlayer(lookAtY, placement);
   if (safePhi >= rest - 1e-6) {
@@ -267,20 +336,26 @@ export function exploreFollowCameraFrame(
   const rest = phiRest != null && Number.isFinite(phiRest) ? phiRest : EXPLORE_POSE.phi;
   const viewLift = exploreViewLift(safePhi, rest);
   const indoor = allowSky === false;
+  const distUse = indoor ? dist : dist * exploreLiftDistanceScale(aspect, viewLift);
   const placementPhi = indoor
     ? interiorPlacementPhi(safePhi, rest, viewLift)
     : explorePlacementPhi(safePhi, rest, viewLift);
   const liftY = indoor ? 0 : viewLift;
   const placement = exploreCameraPlacement(
-    lookAtX, lookAtY, lookAtZ, dist, placementPhi, theta, groundY, liftY
+    lookAtX, lookAtY, lookAtZ, distUse, placementPhi, theta, groundY, liftY
   );
   const pitch = exploreSkyPitch(
     lookAtY, dist, safePhi, groundY, aspect, theta, bodyElevation, rest, allowSky
   );
   let lookPoint = null;
   if (viewLift > 0 && allowSky !== false) {
+    const viewPitch = exploreViewPitch(
+      safePhi, lookAtY, dist, groundY, aspect, theta, rest, allowSky
+    );
     const aim = exploreAimAzimuth(theta, viewLift);
-    lookPoint = exploreLookPointFromPitch(placement, pitch, aim, 72);
+    if (viewPitch != null) {
+      lookPoint = exploreLookPointFromPitch(placement, viewPitch, aim, 72);
+    }
   }
   return { placement, placementPhi, viewLift, pitch, lookPoint };
 }
@@ -322,12 +397,15 @@ export function createCameraRig(THREE, camera, hooks) {
 
   function placeCamera() {
     const aspect = camera.aspect || 1;
-    const dist = followDistance(radius, aspect);
     const followCam = following();
     const safePhi = followCam ? Math.min(EXPLORE_PHI_MAX, Math.max(EXPLORE_PHI_MIN, phi)) : phi;
     const phiRest = followCam ? phiRestHook() : EXPLORE_POSE.phi;
     const allowSky = allowSkyHook();
     const viewLift = followCam ? exploreViewLift(safePhi, phiRest) : 0;
+    const baseDist = followDistance(radius, aspect);
+    const dist = followCam && allowSky
+      ? baseDist * exploreLiftDistanceScale(aspect, viewLift)
+      : baseDist;
     const placementPhi = followCam
       ? (allowSky
         ? explorePlacementPhi(safePhi, phiRest, viewLift)
@@ -339,13 +417,13 @@ export function createCameraRig(THREE, camera, hooks) {
     );
     camera.position.set(placement.cx, placement.cy, placement.cz);
     if (viewLift > 0) {
-      const pitch = exploreTargetPitch(
-        safePhi, lookAt.y, dist, groundY, aspect, theta, celestialElevation(), phiRest, allowSky
+      const viewPitch = exploreViewPitch(
+        safePhi, lookAt.y, baseDist, groundY, aspect, theta, phiRest, allowSky
       );
       // 視線 yaw 永遠跟玩家水平方向（theta+π），不鎖月亮／太陽方位。
       const aim = exploreAimAzimuth(theta, viewLift);
-      if (allowSky) {
-        const point = exploreLookPointFromPitch(placement, pitch, aim, 72);
+      if (allowSky && viewPitch != null) {
+        const point = exploreLookPointFromPitch(placement, viewPitch, aim, 72);
         camera.lookAt(point.x, point.y, point.z);
       } else {
         camera.lookAt(lookAt);
