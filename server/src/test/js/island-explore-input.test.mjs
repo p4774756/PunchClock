@@ -73,9 +73,20 @@ test('getOrbitClamp：室內跟隨鏡頭時帶 indoorMin', () => {
     getMode: () => ({ exploring: true }),
     controlsActive: () => true,
     isInside: () => true,
-    interiorMinRadius: 6.5
+    interiorMinRadius: 5.2
   };
-  assert.deepEqual(getOrbitClamp(ctx), { followCam: true, indoorMin: 6.5 });
+  assert.deepEqual(getOrbitClamp(ctx), { followCam: true, indoorMin: 5.2 });
+});
+
+test('getOrbitClamp：室內下限不高於房間 pose 半徑', () => {
+  const ctx = {
+    getMode: () => ({ exploring: true }),
+    controlsActive: () => true,
+    isInside: () => true,
+    interiorMinRadius: 5.2,
+    getInteriorPoseRadius: () => 3.7
+  };
+  assert.deepEqual(getOrbitClamp(ctx), { followCam: true, indoorMin: 3.7 });
 });
 
 test('getOrbitClamp：室外或非跟隨時 indoorMin 為 null', () => {
@@ -214,6 +225,81 @@ test('畫布兩指捏合：phi／theta 不變、半徑依距離變化', () => {
   const thetaBefore = cam.targetTheta;
   move({ pointerId: 1, clientX: 130, clientY: 300 });
   assert.notEqual(cam.targetTheta, thetaBefore, '2→1 後單指水平拖曳仍有效');
+});
+
+test('createExplorePointer：室內手機 3.7 張開捏合不反向跳', () => {
+  const cam = { targetTheta: 0, targetPhi: 1.1, targetRadius: 3.7 };
+  const listeners = {};
+  const canvas = {
+    style: { cursor: 'grab' },
+    addEventListener(type, fn) { listeners[type] = fn; },
+    removeEventListener() {},
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 390, height: 844 }),
+    setPointerCapture() {},
+    releasePointerCapture() {}
+  };
+  const THREE = {
+    Raycaster: function () {
+      this.setFromCamera = () => {};
+      this.intersectObjects = () => [];
+    },
+    Vector2: function () { this.x = 0; this.y = 0; }
+  };
+  createExplorePointer({
+    canvas: canvas,
+    camera: {},
+    cam: cam,
+    THREE: THREE,
+    getMode: () => ({ exploring: true }),
+    controlsActive: () => true,
+    applyDragPhi: applyDragPhi,
+    isInside: () => true,
+    interiorMinRadius: 5.2,
+    getInteriorPoseRadius: () => 3.7
+  });
+  const down = listeners.pointerdown;
+  const move = listeners.pointermove;
+  down({ pointerId: 1, clientX: 80, clientY: 400 });
+  down({ pointerId: 2, clientX: 200, clientY: 400 });
+  const before = cam.targetRadius;
+  move({ pointerId: 2, clientX: 280, clientY: 400 });
+  assert.ok(cam.targetRadius <= before, '張開不可讓半徑變大');
+  assert.notEqual(cam.targetRadius, 5.2, '不可跳到 INTERIOR_POSE 下限');
+});
+
+test('createExplorePointer：pointerup 後 lostpointercapture 只觸發一次 onAfterDragEnd', () => {
+  const listeners = {};
+  const canvas = {
+    style: { cursor: 'grab' },
+    addEventListener(type, fn) { listeners[type] = fn; },
+    removeEventListener() {},
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 390, height: 844 }),
+    setPointerCapture() {},
+    releasePointerCapture() {}
+  };
+  const THREE = {
+    Raycaster: function () {
+      this.setFromCamera = () => {};
+      this.intersectObjects = () => [];
+    },
+    Vector2: function () { this.x = 0; this.y = 0; }
+  };
+  let dragEnds = 0;
+  createExplorePointer({
+    canvas: canvas,
+    camera: {},
+    cam: { targetTheta: 0, targetPhi: 0, targetRadius: 8 },
+    THREE: THREE,
+    getMode: () => ({ exploring: true }),
+    controlsActive: () => true,
+    applyDragPhi: applyDragPhi,
+    onAfterDragEnd: () => { dragEnds += 1; }
+  });
+  listeners.pointerdown({ pointerId: 5, clientX: 10, clientY: 10 });
+  listeners.pointermove({ pointerId: 5, clientX: 20, clientY: 10 });
+  listeners.pointerup({ pointerId: 5, clientX: 20, clientY: 10 });
+  listeners.lostpointercapture({ pointerId: 5, clientX: 20, clientY: 10 });
+  assert.equal(dragEnds, 1);
 });
 
 test('createExplorePointer：兩指捏合放開不觸發 onZoneClick', () => {

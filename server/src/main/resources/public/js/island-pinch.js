@@ -18,6 +18,22 @@ export function pinchRadiusFromRatio(startRadius, startDist, curDist, minDist = 
   return startRadius * startDist / curDist;
 }
 
+/**
+ * 捏合一步：比例 → clamp → 單調（張開不增大半徑、合攏不減小）。
+ * resetBaseline：碰到夾限時重設起點，避免往回拖無反應。
+ */
+export function pinchOrbitRadiusStep(prevRadius, startRadius, startDist, curDist, clampRaw, minDist = PINCH_MIN_DIST_PX) {
+  const raw = pinchRadiusFromRatio(startRadius, startDist, curDist, minDist);
+  if (!Number.isFinite(prevRadius) || prevRadius <= 0) {
+    return { radius: clampRaw(raw), resetBaseline: false };
+  }
+  let next = clampRaw(raw);
+  if (curDist > startDist) next = Math.min(next, prevRadius);
+  else if (curDist < startDist) next = Math.max(next, prevRadius);
+  const resetBaseline = next !== raw;
+  return { radius: next, resetBaseline };
+}
+
 export function createCanvasPointerState() {
   return {
     pointers: new Map(),
@@ -95,7 +111,7 @@ function afterRemovePointer(state) {
 
 export function onPointerUpState(state, pointerId) {
   if (!state.pointers.has(pointerId)) {
-    return { ended: state.pointers.size === 0, allowClick: false, dragMoved: false, remaining: state.pointers.size };
+    return { ended: false, allowClick: false, dragMoved: false, remaining: state.pointers.size };
   }
   state.pointers.delete(pointerId);
   return afterRemovePointer(state);
@@ -103,7 +119,7 @@ export function onPointerUpState(state, pointerId) {
 
 export function onPointerCancelState(state, pointerId) {
   if (!state.pointers.has(pointerId)) {
-    return { ended: state.pointers.size === 0, dragMoved: false, remaining: state.pointers.size };
+    return { ended: false, dragMoved: false, remaining: state.pointers.size };
   }
   state.pointers.delete(pointerId);
   const out = afterRemovePointer(state);

@@ -4,12 +4,14 @@ import assert from 'node:assert/strict';
 import { loadPublicModule } from './load-public-module.mjs';
 
 const pinch = await loadPublicModule('island-pinch.js');
-const { clampOrbitRadius } = await loadPublicModule('island-explore.js');
+const explore = await loadPublicModule('island-explore.js');
+const { clampOrbitRadius, effectiveInteriorOrbitMin } = explore;
 
 const {
   PINCH_MIN_DIST_PX,
   pointerPairDistance,
   pinchRadiusFromRatio,
+  pinchOrbitRadiusStep,
   createCanvasPointerState,
   onPointerDownState,
   onPointerMoveState,
@@ -32,13 +34,56 @@ test('pinchRadiusFromRatio：距離低於下限不改變', () => {
   assert.equal(pinchRadiusFromRatio(start, PINCH_MIN_DIST_PX - 0.1, 120), start);
 });
 
+test('effectiveInteriorOrbitMin：不高於房間 pose 半徑', () => {
+  assert.equal(effectiveInteriorOrbitMin(5.2, 3.7), 3.7);
+  assert.equal(effectiveInteriorOrbitMin(5.2, 5.9), 5.2);
+  assert.equal(effectiveInteriorOrbitMin(5.2, null), 5.2);
+});
+
+test('pinchOrbitRadiusStep：室內 3.7 張開不會跳到 5.2', () => {
+  const clamp = (raw) => clampOrbitRadius(raw, 0, true, 3.7);
+  const startR = 3.7;
+  const d0 = 120;
+  const spread = pinchOrbitRadiusStep(startR, startR, d0, 200, clamp);
+  assert.ok(spread.radius <= startR, '張開不可讓半徑變大');
+  assert.equal(spread.radius, clamp(pinchRadiusFromRatio(startR, d0, 200)));
+});
+
+test('pinchOrbitRadiusStep：張開單調、合攏單調', () => {
+  const clamp = (raw) => clampOrbitRadius(raw, 0, true, 6.5);
+  let r = 10;
+  const d0 = 100;
+  const spread = pinchOrbitRadiusStep(r, r, d0, 140, clamp);
+  assert.ok(spread.radius <= r);
+  r = spread.radius;
+  const spread2 = pinchOrbitRadiusStep(r, r, d0, 180, clamp);
+  assert.ok(spread2.radius <= r);
+  r = 8;
+  const pinch = pinchOrbitRadiusStep(r, r, d0, 70, clamp);
+  assert.ok(pinch.radius >= r);
+});
+
+test('pinchOrbitRadiusStep：碰下限後往回拖立刻有反應', () => {
+  const interiorMin = 6.5;
+  const clamp = (raw) => clampOrbitRadius(raw, 0, true, interiorMin);
+  const startR = 6.5;
+  const d0 = 100;
+  const atMin = pinchOrbitRadiusStep(startR, startR, d0, 200, clamp);
+  assert.equal(atMin.radius, interiorMin);
+  assert.equal(atMin.resetBaseline, true);
+  const stale = pinchOrbitRadiusStep(atMin.radius, startR, d0, 150, clamp);
+  assert.equal(stale.radius, interiorMin, '未重設基準時往回無反應');
+  const back = pinchOrbitRadiusStep(atMin.radius, atMin.radius, 200, 150, clamp);
+  assert.ok(back.radius > interiorMin, '重設基準後往回應立刻拉遠');
+});
+
 test('pinch + clampOrbitRadius：跟隨鏡頭與室內下限', () => {
-  const interiorMin = 7;
-  const rawWide = pinchRadiusFromRatio(10, 100, 50);
+  const interiorMin = 3.7;
+  const rawWide = pinchRadiusFromRatio(3.7, 100, 50);
   const clamped = clampOrbitRadius(rawWide, 0, true, interiorMin);
   assert.ok(clamped >= interiorMin);
   assert.ok(clamped <= 16);
-  const rawTight = pinchRadiusFromRatio(15, 120, 240);
+  const rawTight = pinchRadiusFromRatio(3.7, 120, 240);
   const clampedIn = clampOrbitRadius(rawTight, 0, true, interiorMin);
   assert.ok(clampedIn >= interiorMin);
 });
@@ -59,6 +104,22 @@ test('狀態機：兩指捏合後放開不觸發 click、moved 為 true', () => 
   const up = onPointerUpState(s, 2);
   assert.equal(up.allowClick, false);
   assert.equal(up.dragMoved, true);
+});
+
+test('狀態機：未知 pointer 的 up／cancel 不算 ended', () => {
+  const s = createCanvasPointerState();
+  assert.deepEqual(onPointerUpState(s, 99), {
+    ended: false,
+    allowClick: false,
+    dragMoved: false,
+    remaining: 0
+  });
+  onPointerDownState(s, 1, 0, 0);
+  onPointerUpState(s, 1);
+  const ghostUp = onPointerUpState(s, 1);
+  assert.equal(ghostUp.ended, false);
+  const ghostCancel = onPointerCancelState(s, 1);
+  assert.equal(ghostCancel.ended, false);
 });
 
 test('狀態機：2→1 指重設 last，續拖不跳', () => {

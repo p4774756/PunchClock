@@ -2,7 +2,8 @@ import {
   MOVE_CODES,
   shouldCaptureMoveKey,
   shouldTriggerInteractKey,
-  clampOrbitRadius
+  clampOrbitRadius,
+  effectiveInteriorOrbitMin
 } from './island-explore.js';
 import {
   createCanvasPointerState,
@@ -10,7 +11,7 @@ import {
   onPointerMoveState,
   onPointerUpState,
   onPointerCancelState,
-  pinchRadiusFromRatio
+  pinchOrbitRadiusStep
 } from './island-pinch.js';
 import { shouldOpenChatKey } from './island-chat.js';
 import { shouldOpenMapWithKey } from './island-minimap.js';
@@ -128,7 +129,11 @@ export function focusKind(target) {
 export function getOrbitClamp(ctx) {
   const mode = ctx.getMode();
   const followCam = ctx.controlsActive(mode);
-  const indoorMin = followCam && ctx.isInside() ? ctx.interiorMinRadius : null;
+  if (!followCam || !ctx.isInside()) {
+    return { followCam: followCam, indoorMin: null };
+  }
+  const poseR = typeof ctx.getInteriorPoseRadius === 'function' ? ctx.getInteriorPoseRadius() : null;
+  const indoorMin = effectiveInteriorOrbitMin(ctx.interiorMinRadius, poseR);
   return { followCam: followCam, indoorMin: indoorMin };
 }
 
@@ -163,8 +168,18 @@ export function createExplorePointer(opts) {
   function applyPinchRadius(curDist) {
     if (ptr.pinchStartRadius == null || ptr.pinchStartDist == null) return;
     const clamp = orbitClamp();
-    const raw = pinchRadiusFromRatio(ptr.pinchStartRadius, ptr.pinchStartDist, curDist);
-    cam.targetRadius = clampOrbitRadius(raw, 0, clamp.followCam, clamp.indoorMin);
+    const step = pinchOrbitRadiusStep(
+      cam.targetRadius,
+      ptr.pinchStartRadius,
+      ptr.pinchStartDist,
+      curDist,
+      (raw) => clampOrbitRadius(raw, 0, clamp.followCam, clamp.indoorMin)
+    );
+    cam.targetRadius = step.radius;
+    if (step.resetBaseline) {
+      ptr.pinchStartRadius = step.radius;
+      ptr.pinchStartDist = curDist;
+    }
   }
 
   function ndc(event) {
