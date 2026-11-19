@@ -108,7 +108,7 @@ import {
   shouldSendPos
 } from './island-presence.js';
 import { createIslandChat } from './island-chat.js';
-import { createIslandAudio } from './island-audio.js';
+import { createIslandAudio, resolveTrackId } from './island-audio.js';
 import { G, P, createSceneKit } from './island-kit.js';
 import { createDayNight } from './island-daynight.js';
 import { createUpdateLoop } from './island-loop.js';
@@ -1284,6 +1284,8 @@ function boot() {
     flow.resetPanel();
   }
 
+  let syncIslandBgm = null;
+
   function setMode(next) {
     const night = next === 'night';
     dayNight.setTarget(night ? 1 : 0);
@@ -1293,6 +1295,7 @@ function boot() {
     if (dayBtn) dayBtn.setAttribute('aria-pressed', night ? 'false' : 'true');
     if (nightBtn) nightBtn.setAttribute('aria-pressed', night ? 'true' : 'false');
     document.body.classList.toggle('is-night', night);
+    if (syncIslandBgm) syncIslandBgm();
   }
 
   function resize() {
@@ -1606,6 +1609,7 @@ function boot() {
     }
     syncInteractPrompt();
     syncFootprints(dt);
+    if (syncIslandBgm) syncIslandBgm();
   }
 
   function frame() {
@@ -1765,12 +1769,48 @@ function boot() {
   if (dayBtn) dayBtn.addEventListener('click', () => setMode('day'));
   if (nightBtn) nightBtn.addEventListener('click', () => setMode('night'));
 
+  const ISLAND_BGM_TRACKS = Object.freeze({
+    main: '/audio/bgm-main.ogg',
+    main_night: '/audio/bgm-main-night.ogg',
+    casino: '/audio/bgm-casino.ogg',
+    casino_night: '/audio/bgm-casino-night.ogg',
+    tcm: '/audio/bgm-tcm.ogg',
+    tcm_night: '/audio/bgm-tcm-night.ogg',
+    computer: '/audio/bgm-computer.ogg',
+    computer_night: '/audio/bgm-computer-night.ogg',
+    city: '/audio/bgm-city.ogg',
+    city_night: '/audio/bgm-city-night.ogg'
+  });
+
   const islandAudio = createIslandAudio({
-    tracks: { main: '/audio/bgm-main.ogg' },
+    tracks: ISLAND_BGM_TRACKS,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
     volume: 0.35,
     ambience: { src: '/audio/ocean-waves.ogg', volume: 0.22 }
   });
+
+  let lastSyncedBgmTrackId = null;
+  syncIslandBgm = function syncIslandBgmImpl() {
+    if (!islandAudio.available) return;
+    const night = dayNight.target >= 1;
+    let islandId = null;
+    let buildingId = null;
+    if (rooms.inside()) {
+      buildingId = rooms.buildingId();
+    } else {
+      const here = islandAt(player.x, player.z);
+      islandId = here ? here.id : null;
+    }
+    const trackId = resolveTrackId({
+      islandId,
+      buildingId,
+      night,
+      tracks: ISLAND_BGM_TRACKS
+    });
+    if (trackId === lastSyncedBgmTrackId) return;
+    lastSyncedBgmTrackId = trackId;
+    islandAudio.setTrack(trackId);
+  };
   const audioBtn = document.getElementById('islandAudio');
 
   function syncAudioButton() {
@@ -2340,7 +2380,8 @@ function boot() {
     openRoadmap: () => roadmap.open(),
     closeRoadmap: () => roadmap.close(),
     isRoadmapOpen: () => roadmap.isOpen(),
-    casinoName: CASINO_NAME
+    casinoName: CASINO_NAME,
+    getBgmTrack: () => islandAudio.currentTrack
   };
 
   resize();

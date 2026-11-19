@@ -22,3 +22,125 @@
 起點與終點都選在浪聲較小的低谷，並把原檔 69.5–71.5 秒以等功率交叉淡化疊回開頭 2 秒，讓結尾接回開頭時沒有斷點。
 再做 70 Hz 高通濾波去除低頻風噪（循環處理，接縫不受濾波影響），峰值正規化到 -3 dBFS，
 以 ffmpeg 轉成 44.1 kHz 立體聲 OGG Vorbis（-q:a 2）。
+
+檔名：bgm-main-night.ogg
+曲名：Bird in Hand Night
+作者：Fupi
+來源：https://opengameart.org/content/bird-in-hand-night
+授權：CC0 1.0 Universal（公眾領域貢獻宣告）
+授權條款：https://creativecommons.org/publicdomain/zero/1.0/
+
+修改說明：
+原曲是 Jason Shaw《Bird in Hand》（https://freepd.com/Page2/，同樣為 CC0）的衍生作品；Fupi 放慢速度、去掉鼓、加強貝斯並加入 wah-wah。
+原檔 bird_in_hand_night.ogg（3 分 12 秒、44.1 kHz 立體聲 Vorbis）前約 56 秒較輕，約 188 秒後淡出。
+截取 56.0–154.0 秒，共 98 秒，並把結尾 2 秒與開頭 2 秒以等功率交叉淡化，得到 94 秒無縫循環。
+再以兩次測量的 loudnorm 對齊既有 bgm-main.ogg（約 −18 LUFS、真峰值約 −2.5 dBTP），
+以 ffmpeg 轉成 44.1 kHz 立體聲 OGG Vorbis（-q:a 3）。
+
+檔名：bgm-casino.ogg
+曲名：Sexy Jazz Loop
+作者：BaDoink
+來源：https://freesound.org/people/BaDoink/sounds/535745/
+授權：CC0 1.0 Universal（公眾領域貢獻宣告）
+授權條款：https://creativecommons.org/publicdomain/zero/1.0/
+
+修改說明：
+原檔為 1 分 51 秒、44.1 kHz 單聲道 WAV；本檔使用 Freesound 官方高品質預覽（完整長度、約 185 kbps MP3），因為原始 WAV 下載需要登入。
+截取 0.0–110.5 秒（去掉結尾極短的音量下滑），並把結尾 1.5 秒與開頭 1.5 秒以等功率交叉淡化，得到 107.5 秒無縫循環。
+再以兩次測量的 loudnorm 對齊既有 bgm-main.ogg（約 −18 LUFS、真峰值約 −2.5 dBTP），
+以 ffmpeg 轉成 44.1 kHz 立體聲 OGG Vorbis（-q:a 3）。
+
+檔名：bgm-casino-night.ogg
+曲名：Moil
+作者：Ruskerdax
+來源：https://opengameart.org/content/moil
+授權：CC0 1.0 Universal（公眾領域貢獻宣告）
+授權條款：https://creativecommons.org/publicdomain/zero/1.0/
+
+修改說明：
+從原檔 ruskerdax_-_moil.mp3（約 3 分 5 秒、44.1 kHz 立體聲、320 kbps）截取 7.0–81.0 秒，共 74 秒。
+開頭約 1.8 秒是靜音，7 秒起樂隊進入；約 86 秒後有一段接近靜音的休息，不適合放進循環。
+把結尾 2 秒與開頭 2 秒以等功率交叉淡化，得到 70 秒無縫循環。
+再以兩次測量的 loudnorm 對齊既有 bgm-main.ogg（約 −18 LUFS、真峰值約 −2.5 dBTP），
+以 ffmpeg 轉成 44.1 kHz 立體聲 OGG Vorbis（-q:a 3）。
+
+檔名：bgm-tcm.ogg
+曲名：Fool's Philosophy
+作者：iamoneabe
+來源：https://opengameart.org/content/fools-philosophy
+授權：CC0 1.0 Universal（公眾領域貢獻宣告）
+授權條款：https://creativecommons.org/publicdomain/zero/1.0/
+
+修改說明：
+從原檔 foolsphilosophy.mp3（約 2 分 42 秒、44.1 kHz 立體聲、320 kbps）截取 0.0–98.0 秒，共 98 秒。
+原檔約 160 秒後淡出，截取區段遠在淡出之前。
+把結尾 2 秒與開頭 2 秒以等功率交叉淡化，得到 94 秒無縫循環。
+再以兩次測量的 loudnorm 對齊既有 bgm-main.ogg（約 −18 LUFS、真峰值約 −2.5 dBTP），
+以 ffmpeg 轉成 44.1 kHz 立體聲 OGG Vorbis（-q:a 3）。
+
+檔名：bgm-tcm-night.ogg
+曲名：guzheng solo
+作者：neolein
+來源：https://freesound.org/people/neolein/sounds/472707/
+授權：CC0 1.0 Universal（公眾領域貢獻宣告）
+授權條款：https://creativecommons.org/publicdomain/zero/1.0/
+
+修改說明：
+原檔為約 1 分 25 秒、44.1 kHz 立體聲 WAV；本檔使用 Freesound 官方高品質預覽（完整長度、約 188 kbps MP3），因為原始 WAV 下載需要登入。
+截取 0.5–80.5 秒，共 80 秒（開頭 0.5 秒較輕，約 82 秒後淡出）。
+把結尾 2 秒與開頭 2 秒以等功率交叉淡化，得到 76 秒無縫循環。
+再以兩次測量的 loudnorm 對齊既有 bgm-main.ogg（約 −18 LUFS、真峰值約 −2.5 dBTP），
+以 ffmpeg 轉成 44.1 kHz 立體聲 OGG Vorbis（-q:a 3）。
+
+檔名：bgm-computer.ogg
+曲名：Dimly lit
+作者：iamoneabe
+來源：https://opengameart.org/content/dimly-lit
+授權：CC0 1.0 Universal（公眾領域貢獻宣告）
+授權條款：https://creativecommons.org/publicdomain/zero/1.0/
+
+修改說明：
+從原檔 dimlylit.mp3（2 分 8 秒、48 kHz 立體聲）截取 0.0–98.0 秒，共 98 秒。
+原曲可循環，節奏週期約 2 秒，因此截取長度取偶數秒。
+把結尾 2 秒與開頭 2 秒以等功率交叉淡化，得到 94 秒無縫循環，並重取樣為 44.1 kHz。
+再以兩次測量的 loudnorm 對齊既有 bgm-main.ogg（約 −18 LUFS、真峰值約 −2.5 dBTP），
+以 ffmpeg 轉成 44.1 kHz 立體聲 OGG Vorbis（-q:a 3）。
+
+檔名：bgm-computer-night.ogg
+曲名：Chill (Loopable)
+作者：Pro Sensory（Alex McCulloch）
+來源：https://opengameart.org/content/chill-loopable
+授權：CC0 1.0 Universal（公眾領域貢獻宣告）
+授權條款：https://creativecommons.org/publicdomain/zero/1.0/
+
+修改說明：
+原檔 chillloopable.mp3（約 67.2 秒、44.1 kHz 立體聲、192 kbps）本身即可循環；原檔真峰值略超過 0 dBTP。
+截取完整 0.0–67.19 秒，並把結尾 1 秒與開頭 1 秒以等功率交叉淡化，得到約 65.2 秒無縫循環。
+再以兩次測量的 loudnorm 對齊既有 bgm-main.ogg（約 −18 LUFS、真峰值約 −2.5 dBTP；同時修正過高峰值），
+以 ffmpeg 轉成 44.1 kHz 立體聲 OGG Vorbis（-q:a 3）。
+
+檔名：bgm-city.ogg
+曲名：Urban Theme
+作者：MintoDog
+來源：https://opengameart.org/content/urban-theme
+授權：CC0 1.0 Universal（公眾領域貢獻宣告）
+授權條款：https://creativecommons.org/publicdomain/zero/1.0/
+
+修改說明：
+原檔 urban_theme_bpm115.ogg（約 87.7 秒、44.1 kHz 立體聲）本身即可循環。
+截取完整 0.0–87.65 秒，並把結尾 1.5 秒與開頭 1.5 秒以等功率交叉淡化，得到約 84.7 秒無縫循環。
+再以兩次測量的 loudnorm 對齊既有 bgm-main.ogg（約 −18 LUFS、真峰值約 −2.5 dBTP），
+以 ffmpeg 轉成 44.1 kHz 立體聲 OGG Vorbis（-q:a 3）。
+
+檔名：bgm-city-night.ogg
+曲名：Streets After Midnight
+作者：Tsorthan Grove
+來源：https://opengameart.org/content/streets-after-midnight
+授權：CC0 1.0 Universal（公眾領域貢獻宣告）
+授權條款：https://creativecommons.org/publicdomain/zero/1.0/
+
+修改說明：
+從原檔 streets_after_midnight.flac（76.8 秒、48 kHz 立體聲 FLAC；作者說明可無縫循環）截取完整長度。
+把結尾 1.5 秒與開頭 1.5 秒以等功率交叉淡化，得到 73.8 秒無縫循環，並重取樣為 44.1 kHz。
+再以兩次測量的 loudnorm 對齊既有 bgm-main.ogg（約 −18 LUFS、真峰值約 −2.5 dBTP），
+以 ffmpeg 轉成 44.1 kHz 立體聲 OGG Vorbis（-q:a 3）。
