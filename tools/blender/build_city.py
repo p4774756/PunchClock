@@ -145,16 +145,16 @@ def _plaza_711(b, walls, props, ground, sign_part, neon_part):
     _facade_extras(walls, props, lx, fy, street, bw, bh, 'city_wall_yellow')
     for ox in (-bw * 0.38, bw * 0.38):
         props.cyl('stone', 0.14, 0.12, 0.28, lx + ox, fy + street * 0.26, 0.15, seg=6)
-    sw, sh = 2.75, 1.42
-    sz = bh + 0.58
+    sw, sh = 1.62, 0.86
+    sz = bh + 0.34
     pitch = 0.06
-    y_out = fy + street * 0.50
+    y_out = fy + street * 0.42
     frame = b.part('sign_face_711_frame')
-    frame.box('roof_tile_green', sw + 0.20, 0.06, sh + 0.16, lx, y_out, sz, rx=pitch)
+    frame.box('roof_tile_green', sw + 0.16, 0.06, sh + 0.12, lx, y_out, sz, rx=pitch)
     sign = b.part('sign_face_711')
-    sign.plane('sign', sw, sh, lx, y_out + street * 0.06, sz, rx=pitch, ry=math.pi, **_SIGN_UV)
+    sign.plane('sign', sw, sh, lx, y_out + street * 0.05, sz, rx=pitch, ry=math.pi, **_SIGN_UV)
     neo = b.part('shop_neon')
-    neo.box('neon_glow', sw + 0.12, 0.05, 0.06, lx, y_out + street * 0.04, sz + sh / 2 - 0.06, rx=pitch)
+    neo.box('neon_glow', sw + 0.08, 0.05, 0.05, lx, y_out + street * 0.03, sz + sh / 2 - 0.05, rx=pitch)
     for sx, szp in ((-1.55, -1.45), (1.55, -1.45), (-1.55, 1.45), (1.55, 1.45)):
         props.cyl('plant', 0.20, 0.16, 0.22, sx, szp, 0.12, seg=7)
     ground.box_tex('@city_sidewalk', _au('city_sidewalk'), 4.55, 4.55, 0.06, lx, lz, 0.042)
@@ -342,8 +342,10 @@ def build(out_path):
     ):
         _residential_block(walls, props, lx, lz, BLOCK, BLOCK, 1.85, mat)
 
-    _mount_sign(b, 'sign_face_snack', GRID, GRID - BLOCK / 2 - 0.2, 2.05, 2.45, 1.18,
-                roof='roof_tile_orange', face_south=True)
+    # SE 珊瑚住宅南牆外：ly 為 Blender Y，face_south 會 +0.52 成招牌平面
+    se_south_y = -GRID - (BLOCK / 2 - 0.08)
+    _mount_sign(b, 'sign_face_snack', GRID, se_south_y - 0.58, 1.98, 2.45, 1.18,
+                roof='roof_tile_red', face_south=True)
 
     for lx, ly in ((-GRID * 0.65, GRID + 0.65), (GRID * 0.65, GRID + 0.65),
                    (-2.5, -GRID - 0.5), (2.8, -GRID - 0.45), (0, GRID + 0.85)):
