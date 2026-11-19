@@ -107,14 +107,6 @@ function formatLocationPrompt(location:string){
  return `哪個穴位位在：${text}`;
 }
 
-function balancedAnswerSlots(count:number,rand:()=>number):number[]{
- const slots:number[]=[];
- while(slots.length<count){
-  for(let p=0;p<4&&slots.length<count;p++)slots.push(p);
- }
- return shuffle(slots,rand);
-}
-
 function rankedSymptoms(
  point:QuestPointRecord,
  meridianId:MeridianQuestId,
@@ -178,18 +170,6 @@ function buildDistractors(
  return pool.slice(0,3);
 }
 
-function orderChoices(codes:string[],answerCode:string,targetIndex:number,rand:()=>number):string[]{
- const answerName=questPointName(answerCode);
- const others=codes.filter(c=>c!==answerCode).map(questPointName);
- const names:(string|null)[]=[null,null,null,null];
- names[targetIndex]=answerName;
- let oi=0;
- for(let i=0;i<4;i++)if(i!==targetIndex)names[i]=others[oi++]??answerName;
- const nameToCode=new Map<string,string>();
- for(const code of codes)nameToCode.set(questPointName(code),code);
- return names.map(n=>nameToCode.get(n!)??answerCode);
-}
-
 function makeChoiceQuestion(
  kind:'indication'|'location',
  point:QuestPointRecord,
@@ -197,7 +177,6 @@ function makeChoiceQuestion(
  bank:Map<MeridianQuestId,QuestPointRecord[]>,
  rand:()=>number,
  used:Set<string>,
- targetIndex:number,
 ):QuestQuestion|null{
  if(kind==='indication'&&!isIndicationEligible(point))return null;
  let symptom:string|null=null;
@@ -214,7 +193,7 @@ function makeChoiceQuestion(
   if(distractors.length<3)return null;
  }
  const rawChoices=[point.code,...distractors.map(d=>d.code)];
- const balanced=orderChoices(rawChoices,point.code,targetIndex,rand);
+ const balanced=shuffle(rawChoices,rand);
  used.add(point.code);
  return {
   kind,
@@ -272,8 +251,6 @@ export function generateStage(
   questions.push({kind:'locate',code,answerCode:code,prompt:`請點出「${name}」`});
  }
 
- const choiceSlots=balancedAnswerSlots(TARGET_QUESTIONS-locateCodes.length,rand);
- let slotIndex=0;
  const indicationPool=shuffle(meridianPool.filter(isIndicationEligible),rand);
  const locationPool=shuffle(meridianPool.filter(p=>p.location?.trim()),rand);
  let safety=0;
@@ -288,14 +265,13 @@ export function generateStage(
    for(let pi=0;pi<pool.length;pi++){
     const point=pool[pi];
     if(!canUseAnswer(point.code,kind,prev))continue;
-    const q=makeChoiceQuestion(kind,point,meridianId,bank,rand,used,choiceSlots[slotIndex]??0);
+    const q=makeChoiceQuestion(kind,point,meridianId,bank,rand,used);
     if(!q)continue;
     pool.splice(pi,1);
     if(kind==='indication')indicationPool.splice(indicationPool.indexOf(point),1);
     else locationPool.splice(locationPool.indexOf(point),1);
     markAnswer(point.code,kind);
     questions.push(q);
-    slotIndex++;
     added=true;
     break;
    }
@@ -310,11 +286,10 @@ export function generateStage(
    const prev=questions.at(-1)?.answerCode??null;
    const kind=isIndicationEligible(p)?'indication':'location';
    if(!canUseAnswer(p.code,kind,prev))continue;
-   const q=makeChoiceQuestion(kind,p,meridianId,bank,rand,used,choiceSlots[slotIndex]??questions.length%4);
+   const q=makeChoiceQuestion(kind,p,meridianId,bank,rand,used);
    if(!q)continue;
    markAnswer(p.code,kind);
    questions.push(q);
-   slotIndex++;
   }
  }
 

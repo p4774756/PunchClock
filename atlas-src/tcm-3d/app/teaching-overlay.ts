@@ -154,7 +154,13 @@ export function createTeachingOverlay(
    const viewDir=new T.Vector3().fromArray(fl.viewDir).normalize();
    controls.target.copy(aim);
    camera.position.copy(aim).addScaledVector(viewDir,fl.distance);
-   controls.update();return true;
+   controls.update();
+   if(fl.viewOffset){
+    const vo=fl.viewOffset;
+    camera.setViewOffset(vo.fullWidth,vo.fullHeight,vo.offsetX,vo.offsetY,vo.width,vo.height);
+    camera.updateProjectionMatrix();
+   }
+   return true;
   }
   const target=resolveFocusTarget(s);if(!target)return false;lastFocus=s.focus;camera.clearViewOffset();
   const aim=new T.Vector3().fromArray(target.position);

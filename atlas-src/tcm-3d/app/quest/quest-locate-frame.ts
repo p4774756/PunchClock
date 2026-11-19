@@ -1,17 +1,13 @@
 import {animePointTarget} from '../character-mode';
-import {POINT_BY_CODE,type RegionId} from '../teaching';
+import {POINT_BY_CODE,type LocateFrameSpec,type LocateViewOffset,type RegionId} from '../teaching';
+import {STUDIO_CAMERA_FOV_DEG} from '../camera-constants';
 import {questAvatarLocateCodes} from './quest-data';
 import type {MeridianQuestId} from './types';
 
-export type LocateFrameSpec={
- aim:[number,number,number];
- distance:number;
- viewDir:[number,number,number];
-};
+export type {LocateFrameSpec,LocateViewOffset} from '../teaching';
 
 type BodyGroup='head-neck'|'chest-abdomen'|'back'|'upper-limb'|'lower-limb';
 
-const FOV_DEG=34;
 const MARKER_WORLD=.026;
 const MIN_TAP_PX=24;
 
@@ -44,19 +40,34 @@ function bboxOf(pos:[number,number,number][],pad=0.15){
  return {center:[cx,cy,cz] as [number,number,number],halfY:dy/2,halfX:Math.max(dx,dz)/2};
 }
 
-function fitDistance(halfY:number,halfX:number,mobile:boolean,aspect:number,viewportHeight:number,hudReserved:number){
- const fov=FOV_DEG*Math.PI/180;
- const visible=Math.max(120,viewportHeight-hudReserved);
- const distY=halfY/Math.tan(fov/2);
- const distX=halfX/(Math.tan(fov/2)*aspect);
- const base=Math.max(distY,distX,0.42);
- return mobile?Math.max(base,visible/(2*Math.tan(fov/2))*.36):Math.max(base,mobile?0.9:.55);
+function fitDistance(halfY:number,halfX:number,aspect:number,viewportHeight:number,hudTop:number,bottomReserved:number){
+ const fov=STUDIO_CAMERA_FOV_DEG*Math.PI/180;
+ const usable=Math.max(0.35,(viewportHeight-hudTop-bottomReserved)/viewportHeight);
+ const distY=halfY/(Math.tan(fov/2)*usable);
+ const distX=halfX/(Math.tan(fov/2)*aspect*0.9);
+ return Math.min(2.2,Math.max(0.35,Math.max(distY,distX)));
 }
 
-function markerPxAt(distance:number,viewportHeight:number,hudReserved:number){
- const fov=FOV_DEG*Math.PI/180;
- const visible=Math.max(120,viewportHeight-hudReserved);
- return (MARKER_WORLD/distance)*visible/(2*Math.tan(fov/2));
+function markerPxAt(distance:number,viewportHeight:number){
+ const fov=STUDIO_CAMERA_FOV_DEG*Math.PI/180;
+ return MARKER_WORLD/(2*distance*Math.tan(fov/2))*viewportHeight;
+}
+
+function viewOffsetFor(viewportWidth:number,viewportHeight:number,hudTop:number,bottomReserved:number):LocateViewOffset{
+ const usableCenter=hudTop+(viewportHeight-hudTop-bottomReserved)/2;
+ const offsetY=Math.max(0,Math.round(usableCenter-viewportHeight/2));
+ return {
+  fullWidth:Math.round(viewportWidth),
+  fullHeight:Math.round(viewportHeight),
+  offsetX:0,
+  offsetY,
+  width:Math.round(viewportWidth),
+  height:Math.round(viewportHeight),
+ };
+}
+
+function aimVerticalNudge(viewportHeight:number,hudTop:number,bottomReserved:number):number{
+ return (bottomReserved-hudTop)/viewportHeight*0.55;
 }
 
 function viewDirFor(region:RegionId|undefined):[number,number,number]{
@@ -76,11 +87,11 @@ export function questLocateViewForAnswer(answerCode:string):'front'|'back'|'thre
 export function computeLocateFrame(
  meridianId:MeridianQuestId,
  answerCode:string,
- opts:{mobile:boolean;aspect:number;viewportHeight:number;hudReserved:number},
+ opts:{mobile:boolean;aspect:number;viewportWidth:number;viewportHeight:number;hudTop:number;bottomReserved:number},
 ):LocateFrameSpec|null{
  const codes=questAvatarLocateCodes(meridianId);
  if(!codes.length)return null;
- let pool=codes;
+ const pool=codes;
  let positions=worldPositions(pool);
  if(!positions.length)return null;
 
@@ -89,15 +100,22 @@ export function computeLocateFrame(
   const pos=worldPositions(list);
   if(!pos.length)return null;
   const {center,halfY,halfX}=bboxOf(pos);
-  const distance=fitDistance(halfY,halfX,opts.mobile,opts.aspect,opts.viewportHeight,opts.hudReserved);
+  const distance=fitDistance(halfY,halfX,opts.aspect,opts.viewportHeight,opts.hudTop,opts.bottomReserved);
   return {center,distance,halfY,halfX};
  };
 
- let fit=tryFit(pool);
+ let fit=tryFit([answerCode])??tryFit(pool);
  if(!fit)return null;
 
  if(opts.mobile){
-  const px=markerPxAt(fit.distance,opts.viewportHeight,opts.hudReserved);
+  let px=markerPxAt(fit.distance,opts.viewportHeight);
+  if(px<MIN_TAP_PX){
+   const single=tryFit([answerCode]);
+   if(single){
+    fit=single;
+    px=markerPxAt(fit.distance,opts.viewportHeight);
+   }
+  }
   if(px<MIN_TAP_PX&&answerRegion){
    const group=regionGroup(answerRegion);
    const grouped=pool.filter(c=>{
@@ -112,5 +130,8 @@ export function computeLocateFrame(
  }
 
  const viewDir=viewDirFor(answerRegion);
- return {aim:fit.center,distance:fit.distance,viewDir};
+ const viewOffset=viewOffsetFor(opts.viewportWidth,opts.viewportHeight,opts.hudTop,opts.bottomReserved);
+ const nudge=aimVerticalNudge(opts.viewportHeight,opts.hudTop,opts.bottomReserved);
+ const aim:[number,number,number]=[fit.center[0],fit.center[1]+nudge,fit.center[2]];
+ return {aim,distance:fit.distance,viewDir,viewOffset};
 }

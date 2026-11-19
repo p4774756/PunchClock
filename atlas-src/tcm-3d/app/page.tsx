@@ -67,6 +67,7 @@ export default function Home(){
  const [questPlaying,setQuestPlaying]=useState(false);
  const [questProgress,setQuestProgress]=useState<QuestProgressV1>(()=>readLocalProgress());
  const questLocate=useRef<((code:string)=>void)|null>(null);
+ const questCurriculumSave=useRef<CurriculumSetId|'all'|null|undefined>(undefined);
  const [outfitId,setOutfitId]=useState<OutfitId>(DEFAULT_OUTFIT_ID);
  const [practicePreparing,setPracticePreparing]=useState(false);
  const currentOutfit=animeOutfit(outfitId);
@@ -182,8 +183,28 @@ export default function Home(){
   window.location.href='/';
  },[launch.fromIsland]);
 
- const closeQuest=useCallback(()=>{setQuestOpen(false);setSimulation(s=>({...s,meridianFilter:'all',dragging:false,running:false,framePointCode:null,frameLocate:null}));},[]);
- const onQuestPlaying=useCallback((active:boolean,_id:MeridianQuestId|null)=>{setQuestPlaying(active);if(active)pause('經絡闖關進行中。');},[pause]);
+ const restoreQuestCurriculum=useCallback(()=>{
+  const restore=questCurriculumSave.current;
+  questCurriculumSave.current=undefined;
+  if(restore===undefined)return;
+  setSimulation(s=>({...s,curriculumSet:restore}));
+ },[]);
+ const closeQuest=useCallback(()=>{
+  setQuestOpen(false);
+  setQuestPlaying(false);
+  restoreQuestCurriculum();
+  setSimulation(s=>({...s,meridianFilter:'all',dragging:false,running:false,framePointCode:null,frameLocate:null}));
+ },[restoreQuestCurriculum]);
+ const onQuestPlaying=useCallback((active:boolean,_id:MeridianQuestId|null)=>{
+  setQuestPlaying(active);
+  if(active){
+   setSimulation(s=>{
+    questCurriculumSave.current=s.curriculumSet??'head-neck-21';
+    return {...s,curriculumSet:'all'};
+   });
+   pause('經絡闖關進行中。');
+  }else restoreQuestCurriculum();
+ },[pause,restoreQuestCurriculum]);
  const onQuestMeridian=useCallback((id:MeridianQuestId|null)=>{setSimulation(s=>({...s,meridianFilter:id??'all',showPoints:true,dragging:false,running:false,customTarget:null,framePointCode:null,frameLocate:null}));},[]);
  const onQuestHint=useCallback((answerCode:string|null)=>{
   if(!answerCode)return;
@@ -202,7 +223,9 @@ export default function Home(){
   const mobile=typeof window!=='undefined'&&(window.innerWidth<768||(window.innerWidth<=1100&&window.innerHeight<=500));
   const w=typeof window!=='undefined'?window.innerWidth:1280;
   const h=typeof window!=='undefined'?window.innerHeight:720;
-  const frame=computeLocateFrame(meridianId,answerCode,{mobile,aspect:w/h,viewportHeight:h,hudReserved:mobile?210:260});
+  const hudTop=mobile?124:136;
+  const bottomReserved=mobile?200:176;
+  const frame=computeLocateFrame(meridianId,answerCode,{mobile,aspect:w/h,viewportWidth:w,viewportHeight:h,hudTop,bottomReserved});
   const view=questLocateViewForAnswer(answerCode);
   setState(s=>({...s,view,rotate:false,reset:s.reset+1}));
   setSimulation(s=>({

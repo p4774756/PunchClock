@@ -119,7 +119,6 @@ function assertStagePlan(id,plan){
  const counts=new Map();
  const kinds=new Map();
  let lastCode=null;
- const choiceSlots=[];
  for(const q of plan.questions){
   const c=counts.get(q.answerCode)??0;
   assert.ok(c+1<=maxDup,`${id} seed ${plan.seed} ${q.answerCode} 重複超過 ${maxDup}`);
@@ -156,14 +155,7 @@ function assertStagePlan(id,plan){
   if(q.kind!=='locate'){
    const idx=q.choices.indexOf(q.answerCode);
    assert.ok(idx>=0);
-   choiceSlots.push(idx);
   }
- }
- if(choiceSlots.length){
-  const freq=[0,0,0,0];
-  for(const i of choiceSlots)freq[i]++;
-  const min=Math.min(...freq),max=Math.max(...freq);
-  assert.ok(max-min<=1,`${id} 正解位置分布差 >1 (${freq})`);
  }
 }
 
@@ -173,6 +165,26 @@ await test('題目產生器 12 關 10 題',async()=>{
   assertStagePlan(id,plan);
   const again=M.generateStage(id,{seed:42});
   assert.deepEqual(plan.questions,again.questions);
+ }
+});
+
+await test('選擇題正解位置 300 seeds 均勻',async()=>{
+ const freq=[0,0,0,0];
+ let total=0;
+ for(const id of M.QUEST_STAGE_ORDER){
+  for(let seed=0;seed<300;seed++){
+   const plan=M.generateStage(id,{seed});
+   for(const q of plan.questions){
+    if(q.kind==='locate')continue;
+    const idx=q.choices.indexOf(q.answerCode);
+    freq[idx]++;
+    total++;
+   }
+  }
+ }
+ for(let i=0;i<4;i++){
+  const pct=freq[i]/total*100;
+  assert.ok(pct>=22&&pct<=28,`正解第 ${i+1} 格比例 ${pct.toFixed(1)}%（目標 22–28%）`);
  }
 });
 
@@ -247,13 +259,17 @@ await test('桌機選關第二排蛇行',async()=>{
 });
 
 await test('找穴位鏡頭框選',async()=>{
- const mobile=M.computeLocateFrame('ST','ST25',{mobile:true,aspect:390/844,viewportHeight:844,hudReserved:210});
- const desktop=M.computeLocateFrame('ST','ST25',{mobile:false,aspect:1280/720,viewportHeight:720,hudReserved:260});
- assert.ok(mobile&&mobile.aim[1]<1.25,`天樞 mobile 應含腹部 aim.y=${mobile?.aim[1]}`);
- assert.ok(desktop&&desktop.distance>0.5);
+ const mobileOpts={mobile:true,aspect:390/844,viewportWidth:390,viewportHeight:844,hudTop:124,bottomReserved:200};
+ const deskOpts={mobile:false,aspect:1280/720,viewportWidth:1280,viewportHeight:720,hudTop:136,bottomReserved:176};
+ const mobile=M.computeLocateFrame('ST','ST25',mobileOpts);
+ const desktop=M.computeLocateFrame('ST','ST25',deskOpts);
+ assert.ok(mobile&&mobile.aim[1]>0.9&&mobile.aim[1]<1.35,`天樞 mobile aim.y=${mobile?.aim[1]}`);
+ assert.ok(desktop&&desktop.distance>=0.35&&desktop.distance<=2.2,`桌機距離 ${desktop?.distance}`);
+ assert.ok(mobile?.viewOffset,'mobile 應有 viewOffset');
  for(const code of M.questAvatarLocateCodes('ST')){
-  const m=M.computeLocateFrame('ST',code,{mobile:true,aspect:390/844,viewportHeight:844,hudReserved:210});
+  const m=M.computeLocateFrame('ST',code,mobileOpts);
   assert.ok(m,`${code} 應能計算鏡頭`);
+  assert.ok(m.distance>=0.35&&m.distance<=2.2,`${code} distance=${m.distance}`);
  }
 });
 

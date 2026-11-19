@@ -22,6 +22,12 @@ export function allQuestStages():QuestStageMeta[]{
  return QUEST_STAGE_ORDER.map(questStageMeta);
 }
 
+/** 選關圓章內兩行經名（6 字全名拆分為 3＋3）。 */
+export function questStageNodeLines(name:string):string{
+ if(name.length<6)return name;
+ return `${name.slice(0,3)}\n${name.slice(3)}`;
+}
+
 export function nextStageId(id:MeridianQuestId):MeridianQuestId|null{
  const i=QUEST_STAGE_ORDER.indexOf(id);
  return i>=0&&i<QUEST_STAGE_ORDER.length-1?QUEST_STAGE_ORDER[i+1]:null;

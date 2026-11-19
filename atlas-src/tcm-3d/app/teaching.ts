@@ -120,7 +120,20 @@ export const LOCATION:Record<string,{text:string;section:string;classic?:string;
 };
 export interface SurfaceTarget {position:Vec3;normal:Vec3;meshId?:string;faceIndex?:number|null;pointCode?:string;pointSide?:1|-1}
 export type ToolDragPhase='start'|'move'|'end'|'cancel';
-export type LocateFrameSpec={aim:[number,number,number];distance:number;viewDir:[number,number,number]};
+export type LocateViewOffset={
+ fullWidth:number;
+ fullHeight:number;
+ offsetX:number;
+ offsetY:number;
+ width:number;
+ height:number;
+};
+export type LocateFrameSpec={
+ aim:[number,number,number];
+ distance:number;
+ viewDir:[number,number,number];
+ viewOffset?:LocateViewOffset;
+};
 
 export interface SimulationState {showMeridians?:boolean;meridianFilter?:string;curriculumSet?:CurriculumSetId|'all'|null;tool:ToolId;release?:number;dragging?:boolean;running:boolean;elapsed:number;amplitude:number;pointCode:string|null;side:1|-1;framePointCode?:string|null;frameSide?:1|-1;frameLocate?:LocateFrameSpec|null;customTarget:SurfaceTarget|null;focus:number;showPoints:boolean;pickMode:'point';effects:boolean}
 export const initialSimulation:SimulationState={showMeridians:false,meridianFilter:'all',curriculumSet:'head-neck-21',tool:'needle',running:false,elapsed:0,amplitude:.55,pointCode:'GV24+',side:1,customTarget:null,focus:0,showPoints:true,pickMode:'point',effects:true};

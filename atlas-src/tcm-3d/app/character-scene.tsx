@@ -14,6 +14,7 @@ import {createTeachingOverlay} from './teaching-overlay';
 import {installSurfaceToolInput} from './surface-tool-input';
 import {focusViewFromNormal} from './focus-view';
 import type {SceneState} from './anatomy';
+import {STUDIO_CAMERA_FOV_DEG} from './camera-constants';
 import type {SimulationState,SurfaceTarget,ToolDragPhase} from './teaching';
 
 export {focusViewFromNormal} from './focus-view';
@@ -828,7 +829,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   el.appendChild(renderer.domElement);
   renderer.domElement.setAttribute('aria-label',`${avatar.name}：拖動旋轉，滾輪縮放，點擊穴位標記。`);
 
-  const scene=new T.Scene(),camera=new T.PerspectiveCamera(34,1,.005,100),controls=new OrbitControls(camera,renderer.domElement);
+  const scene=new T.Scene(),camera=new T.PerspectiveCamera(STUDIO_CAMERA_FOV_DEG,1,.005,100),controls=new OrbitControls(camera,renderer.domElement);
   camera.position.set(0,1.45,2.4);controls.target.set(0,1.35,0);
   controls.enableDamping=true;controls.dampingFactor=.085;controls.minDistance=.2;controls.maxDistance=8;
   controls.maxPolarAngle=Math.PI*.96;controls.addEventListener('change',()=>{dirty=true;});
@@ -1033,6 +1034,23 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    invalidate:()=>{dirty=true;},
   });
   if(questMode)teaching.label.hidden=true;
+  type MqDebugWindow=Window&{__mqDebug?:()=>{markers:{code:string;side:number;screenX:number;screenY:number;inFrustum:boolean}[];hudBottom:number;hintTop:number}};
+  if(questMode)(window as MqDebugWindow).__mqDebug=()=>{
+   const rect=renderer.domElement.getBoundingClientRect();
+   const hudBox=(document.querySelector('.mq-hud-panel')??document.querySelector('.mq-hud'))?.getBoundingClientRect();
+   const hintBox=(document.querySelector('.mq-hint-btn')??document.querySelector('.mq-choices'))?.getBoundingClientRect();
+   const markers=teaching.markers.filter(m=>m.visible).map(m=>{
+    const p=m.position.clone().project(camera);
+    return {
+     code:m.userData.point as string,
+     side:m.userData.side as number,
+     screenX:rect.left+(p.x+1)/2*rect.width,
+     screenY:rect.top+(1-p.y)/2*rect.height,
+     inFrustum:p.z>=-1&&p.z<=1,
+    };
+   });
+   return {markers,hudBottom:hudBox?.bottom??0,hintTop:hintBox?.top??window.innerHeight};
+  };
 
   const animate=()=>{
    if(disposed)return;frame=requestAnimationFrame(animate);
@@ -1047,10 +1065,19 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(controls.autoRotate)dirty=true;
 
    if(ready&&!teaching.isAnchored()&&characterRoot.children.length)teaching.anchor(characterRoot);
+   const applyLocateViewOffset=(fl:NonNullable<typeof simState.frameLocate>)=>{
+    camera.clearViewOffset();
+    if(fl.viewOffset){
+     const vo=fl.viewOffset;
+     camera.setViewOffset(vo.fullWidth,vo.fullHeight,vo.offsetX,vo.offsetY,vo.width,vo.height);
+     camera.updateProjectionMatrix();
+    }
+   };
    const beginLocateLerp=(fl:NonNullable<typeof simState.frameLocate>)=>{
     const aim=new T.Vector3().fromArray(fl.aim);
     const viewDir=new T.Vector3().fromArray(fl.viewDir).normalize();
     const camEnd=aim.clone().addScaledVector(viewDir,fl.distance);
+    applyLocateViewOffset(fl);
     locateLerp={
      t0:performance.now(),
      fromT:[controls.target.x,controls.target.y,controls.target.z],
@@ -1095,7 +1122,10 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     camera.position.y=locateLerp.fromP[1]+(locateLerp.toP[1]-locateLerp.fromP[1])*ease;
     camera.position.z=locateLerp.fromP[2]+(locateLerp.toP[2]-locateLerp.fromP[2])*ease;
     controls.update();dirty=true;
-    if(u>=1)locateLerp=null;
+    if(u>=1){
+     locateLerp=null;
+     if(simState.frameLocate)applyLocateViewOffset(simState.frameLocate);
+    }
    }
 
    if(questMode){
@@ -1115,6 +1145,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   return()=>{
    disposed=true;outfitBridge.current=null;cancelAnimationFrame(frame);observer.disconnect();
+   if(questMode)delete (window as MqDebugWindow).__mqDebug;
    toolInput.dispose();teaching.dispose();controls.dispose();gradient.dispose();
    if(woodcut){
     scene.remove(woodcut.mesh);

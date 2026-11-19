@@ -2,7 +2,7 @@ import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {publicAssetUrl} from '../public-assets';
 import {QUEST_BY_CODE,questAvatarLocateCodes,questAvatarTrunkLocate,questPointName} from './quest-data';
 import {generateStage} from './quest-generator';
-import {allQuestStages,nextStageId,questStageMeta} from './quest-stages';
+import {allQuestStages,nextStageId,questStageMeta,questStageNodeLines} from './quest-stages';
 import {comboBonus,scoreForAnswer,starsFromRun} from './quest-score';
 import {latestPlayableStage,stageUnlocked,writeLocalProgress} from './quest-progress';
 import type {QuestProgressV1} from './types';
@@ -327,7 +327,7 @@ export default function MeridianQuestPanel({
           data-idx={idx}
           onClick={()=>setSelected(st.id)}>
           {!canPlay&&<span className="mq-lock" aria-hidden="true">🔒</span>}
-          <span className="mq-node-name">{st.name}</span>
+          <span className="mq-node-name">{questStageNodeLines(st.name)}</span>
           <span className="mq-node-count">{st.count} 穴</span>
           <span className="mq-stars">{starRow(stars)}</span>
          </button>;

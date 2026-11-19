@@ -59,7 +59,7 @@
 .mq-path-on{stroke:#163A70;stroke-width:3;stroke-linecap:round;pointer-events:none}
 .mq-path-off{stroke:#163A70;stroke-width:3;stroke-linecap:round;stroke-dasharray:7 6;opacity:.42;pointer-events:none}
 .mq-node{
- width:88px;height:88px;margin:0 auto;border:3px solid var(--mq-border);border-radius:50%;background:var(--mq-bg);box-shadow:var(--mq-shadow);
+ width:88px;height:88px;margin:0 auto;border:3px solid var(--mq-border);border-radius:50%;background:var(--mq-bg);box-shadow:var(--mq-shadow);padding:10px 6px 6px;box-sizing:border-box;
  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;text-align:center;padding:8px 6px 6px;cursor:pointer;
  position:relative;box-sizing:border-box;z-index:1;
 }
@@ -182,7 +182,7 @@
  .mq-map-grid .mq-node[data-idx="9"]{grid-column:3;grid-row:2}
  .mq-map-grid .mq-node[data-idx="10"]{grid-column:2;grid-row:2}
  .mq-map-grid .mq-node[data-idx="11"]{grid-column:1;grid-row:2}
- .mq-node-name{font-size:clamp(10px,1.15vw,11px);line-height:1.25;max-height:2.5em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+ .mq-node-name{font-size:10px;line-height:1.22;max-width:72px;margin:0 auto;white-space:pre-line;text-align:center;overflow:hidden;max-height:2.5em}
  .mq-choices{
   left:auto;right:12px;width:min(360px,calc(50vw - 24px));bottom:12px;
  }
