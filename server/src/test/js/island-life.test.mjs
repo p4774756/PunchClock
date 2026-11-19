@@ -204,21 +204,18 @@ describe('island-life 純函式', () => {
   });
 });
 
-describe('island-life GLB 種類 (#199)', () => {
-  test('概念圖 12 種皆有模型路徑', () => {
-    assert.equal(LIFE_GLB_KINDS.length, 12);
+describe('island-life GLB 種類 (#226)', () => {
+  test('每個 GLB 種類皆有對應模型檔', () => {
+    assert.equal(LIFE_GLB_KINDS.length, 7);
     for (const kind of LIFE_GLB_KINDS) {
       const path = lifeModelPath(kind);
       assert.ok(path && path.startsWith('/models/life/'), kind + ' → ' + path);
       assert.ok(existsSync(join(publicRoot, path)), 'missing ' + path);
     }
-  });
-
-  test('青鳥有錨點且為合法 kind', () => {
-    assert.ok(LIFE_CREATURE_KINDS.includes('qingniao'));
-    const anchors = lifePlacementAnchors().filter((a) => a.kind === 'qingniao');
-    assert.equal(anchors.length, 1);
-    assert.equal(anchors[0].realm, 'sky');
+    const removed = ['chiru', 'seaSerpent', 'qingniao', 'phoenix', 'wyvern'];
+    for (const kind of removed) {
+      assert.equal(lifeModelPath(kind), null, kind + ' 不應有 GLB');
+    }
   });
 });
 

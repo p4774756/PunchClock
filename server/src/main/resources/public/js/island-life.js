@@ -39,19 +39,14 @@ export const LIFE_CREATURE_KINDS = Object.freeze([
   'chenghuang'
 ]);
 
-/** 概念圖 12 種：Blender GLB（#199） */
+/** 概念圖 GLB（#226 v3，自授權低多邊模型） */
 export const LIFE_GLB_KINDS = Object.freeze([
   'fishSchool',
   'whale',
   'octopus',
   'wenyao',
-  'chiru',
   'xuanwu',
-  'seaSerpent',
   'birds',
-  'qingniao',
-  'phoenix',
-  'wyvern',
   'kunpeng'
 ]);
 
@@ -70,13 +65,8 @@ const LIFE_GLB_FILES = Object.freeze({
   whale: 'whale.glb',
   octopus: 'octopus.glb',
   wenyao: 'wenyao.glb',
-  chiru: 'chiru.glb',
   xuanwu: 'xuanwu.glb',
-  seaSerpent: 'sea-serpent.glb',
   birds: 'seagull.glb',
-  qingniao: 'qingniao.glb',
-  phoenix: 'phoenix.glb',
-  wyvern: 'wyvern.glb',
   kunpeng: 'kunpeng.glb'
 });
 
@@ -86,14 +76,9 @@ const LIFE_GLB_SCALE = Object.freeze({
   whale: 2.65,
   octopus: 1.35,
   wenyao: 1.55,
-  chiru: 1.45,
-  xuanwu: 2.85,
-  seaSerpent: 2.35,
+  xuanwu: 2.65,
   birds: 1.05,
-  qingniao: 1.5,
-  phoenix: 1.55,
-  wyvern: 1.65,
-  kunpeng: 2.55
+  kunpeng: 2.45
 });
 
 /** 顯示偏移（僅視覺 group；錨點測試仍用 anchor.x/z） */
@@ -113,29 +98,22 @@ const LIFE_KIND_YAW = Object.freeze({
 
 /**  Lambert 色增益（對 UV 貼圖 hand-paint 補飽和） */
 const LIFE_KIND_MATERIAL_GAIN = Object.freeze({
-  whale: 1.28,
-  kunpeng: 1.22,
-  xuanwu: 1.26,
-  octopus: 1.24,
-  chiru: 1.3,
-  wenyao: 1.22,
-  seaSerpent: 1.2,
-  fishSchool: 1.18,
-  birds: 1.15,
-  qingniao: 1.28,
-  phoenix: 1.32,
-  wyvern: 1.2
+  whale: 1.12,
+  kunpeng: 1.1,
+  xuanwu: 1.12,
+  octopus: 1.1,
+  wenyao: 1.1,
+  fishSchool: 1.08,
+  birds: 1.08
 });
 
 /** 海面生物：身體或特效露出水面（世界 Y，相對錨點 xz） */
 const LIFE_SEA_MOUNT_Y = Object.freeze({
-  fishSchool: -0.02,
+  fishSchool: -0.04,
   whale: 0.42,
   octopus: 0.12,
   wenyao: 0.38,
-  chiru: 0.08,
-  xuanwu: 0.28,
-  seaSerpent: 0.22
+  xuanwu: 0.28
 });
 
 export function lifeModelPath(kind) {
@@ -151,13 +129,9 @@ const RARE_KINDS = Object.freeze([
   'mermaid',
   'seaDragon',
   'wenyao',
-  'chiru',
   'xuanwu',
-  'seaSerpent',
-  'qingniao',
   'kunpeng',
   'kitsune',
-  'wyvern',
   'bifang',
   'chenghuang'
 ]);
@@ -167,7 +141,7 @@ export function lifePlacementAnchors() {
   return Object.freeze([
     Object.freeze({ kind: 'fishSchool', x: -11.5, z: 9.8, radius: 2.8, realm: 'sea' }),
     Object.freeze({ kind: 'fishSchool', x: -13.0, z: -15.5, radius: 2.2, realm: 'sea' }),
-    Object.freeze({ kind: 'fishSchool', x: 22.0, z: -15.0, radius: 2.4, realm: 'sea' }),
+    Object.freeze({ kind: 'fishSchool', x: 26.25, z: -15.25, radius: 2.4, realm: 'sea' }),
     Object.freeze({ kind: 'whale', x: -21.0, z: -10.5, realm: 'sea' }),
     Object.freeze({ kind: 'octopus', x: 19.2, z: 12.2, realm: 'sea' }),
     Object.freeze({ kind: 'mermaid', x: 25.5, z: 12.0, realm: 'sea' }),
@@ -176,16 +150,11 @@ export function lifePlacementAnchors() {
     Object.freeze({ kind: 'jellyfish', x: -10.5, z: -19.8, realm: 'sea' }),
     Object.freeze({ kind: 'jellyfish', x: 28.5, z: -1.5, realm: 'sea' }),
     Object.freeze({ kind: 'wenyao', x: -26.0, z: -2.0, realm: 'sky' }),
-    Object.freeze({ kind: 'chiru', x: 8.0, z: 16.5, realm: 'sea' }),
     Object.freeze({ kind: 'xuanwu', x: -30.0, z: -27.0, realm: 'sea' }),
-    Object.freeze({ kind: 'seaSerpent', x: 32.0, z: -14.0, realm: 'sea' }),
     Object.freeze({ kind: 'birds', x: -10.0, z: 13.5, radius: 5.5, realm: 'sky' }),
-    Object.freeze({ kind: 'birds', x: 23.0, z: -14.5, radius: 4.8, realm: 'sky' }),
-    Object.freeze({ kind: 'qingniao', x: -6.0, z: 18.5, realm: 'sky' }),
+    Object.freeze({ kind: 'birds', x: 26.25, z: -13.75, radius: 4.8, realm: 'sky' }),
     Object.freeze({ kind: 'kunpeng', x: 28.0, z: 18.0, realm: 'sky' }),
     Object.freeze({ kind: 'kitsune', x: -18.0, z: 16.0, realm: 'sky' }),
-    Object.freeze({ kind: 'phoenix', x: -11.5, z: -26.0, realm: 'sky' }),
-    Object.freeze({ kind: 'wyvern', x: 22.0, z: -20.0, realm: 'sky' }),
     Object.freeze({ kind: 'bifang', x: 6.0, z: 20.0, realm: 'sky' }),
     Object.freeze({ kind: 'chenghuang', x: -14.0, z: -12.0, realm: 'sky' })
   ]);
@@ -396,6 +365,9 @@ function prepareLifeMaterials(THREE, root, kind) {
         mat.color.setRGB(0.82, 0.94, 1);
         mat.transparent = true;
         mat.opacity = 0.88;
+      } else if (mat.map) {
+        const k = 0.92 + (tint - 1) * 0.35;
+        mat.color.setRGB(k, k, k);
       } else {
         mat.color.setRGB(tint, tint, tint);
       }
@@ -473,7 +445,7 @@ function buildFishSchoolInstanced(THREE, kit, anchor, fishRoot) {
       (i % 3) * 0.12,
       (Math.floor(i / 4) % 3) * 0.35 - 0.35
     );
-    dummy.rotation.set(0, (i % 5) * 0.4, 0);
+    dummy.rotation.set(-0.42, (i % 5) * 0.4, (i % 3) * 0.12);
     dummy.scale.setScalar(1.05 + (i % 4) * 0.14);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);

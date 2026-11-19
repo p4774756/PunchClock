@@ -1,0 +1,15 @@
+海空生物 v3 模型致謝（#226）
+CC0 1.0：https://creativecommons.org/publicdomain/zero/1.0/
+CC-BY 3.0：https://creativecommons.org/licenses/by/3.0/
+
+Whale by Quaternius, CC0 1.0, via Poly Pizza
+Fish by Quaternius, CC0 1.0, via Poly Pizza
+Snake by Quaternius, CC0 1.0, via Poly Pizza
+
+Flying seagull by Poly by Google, CC-BY 3.0, via Poly Pizza
+Flying gull by Poly by Google, CC-BY 3.0, via Poly Pizza
+Turtle by Poly by Google, CC-BY 3.0, via Poly Pizza
+Snake by Poly by Google, CC-BY 3.0, via Poly Pizza
+Octopus by Poly by Google, CC-BY 3.0, via Poly Pizza
+
+來源檔案與網址見 tools/blender/assets/life-src/SOURCE.txt
