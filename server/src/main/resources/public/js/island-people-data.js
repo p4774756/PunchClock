@@ -27,6 +27,13 @@ const WALK_CLIPS = Object.freeze({
   back: Object.freeze(['walk/back_01.png', 'walk/back_02.png', 'walk/back_03.png', 'walk/back_04.png'])
 });
 
+const SCOOTER_WALK_CLIPS = Object.freeze({
+  left: Object.freeze(['walk/left_01.png', 'walk/left_02.png', 'walk/left_03.png']),
+  right: Object.freeze(['walk/right_01.png', 'walk/right_02.png', 'walk/right_03.png']),
+  front: Object.freeze(['walk/front_01.png', 'walk/front_02.png', 'walk/front_03.png']),
+  back: Object.freeze(['walk/back_01.png', 'walk/back_02.png', 'walk/back_03.png'])
+});
+
 const IDLE_CLIPS = Object.freeze({
   breath: Object.freeze([
     'idle/breath_01.png', 'idle/breath_02.png', 'idle/breath_03.png', 'idle/breath_04.png'
@@ -74,6 +81,55 @@ const NPC_ANIM_BY_STYLE = Object.freeze(
 
 export function npcWomenAnim(style) {
   return NPC_ANIM_BY_STYLE[style] || NPC_ANIM_BY_STYLE.summer;
+}
+
+/** 城市機車騎乘看板（不計入 NPC_STYLE_IDS／七套貼圖預算） */
+export function cityScooterAnim() {
+  return Object.freeze({
+    footV: MILU_ANIM.footV,
+    height: MILU_ANIM.height,
+    shadowRadius: MILU_ANIM.shadowRadius,
+    alphaTest: MILU_ANIM.alphaTest,
+    faceDeadzone: MILU_ANIM.faceDeadzone,
+    faceBucket: MILU_ANIM.faceBucket,
+    faceHysteresis: MILU_ANIM.faceHysteresis,
+    waveNpcRadius: MILU_ANIM.waveNpcRadius,
+    waveZoneExtra: MILU_ANIM.waveZoneExtra,
+    fps: MILU_ANIM.fps,
+    blinkEvery: MILU_ANIM.blinkEvery,
+    baseUrl: NPC_PET_BASE + 'scooter/',
+    clips: Object.freeze({
+      walk: SCOOTER_WALK_CLIPS,
+      idle: Object.freeze({
+        breath: Object.freeze(['walk/front_01.png']),
+        blink: Object.freeze([]),
+        backBreath: Object.freeze(['walk/back_01.png']),
+        backBlink: Object.freeze([]),
+        sit: Object.freeze([])
+      })
+    })
+  });
+}
+
+export function cityScooterFramePaths() {
+  const anim = cityScooterAnim();
+  const out = [];
+  const seen = Object.create(null);
+  function addList(list) {
+    if (!list) return;
+    for (let i = 0; i < list.length; i++) {
+      const rel = list[i];
+      if (!rel || seen[rel]) continue;
+      seen[rel] = true;
+      out.push(rel);
+    }
+  }
+  const walk = anim.clips.walk || {};
+  addList(walk.left);
+  addList(walk.right);
+  addList(walk.front);
+  addList(walk.back);
+  return out;
 }
 
 export function npcRequiredFramePaths(style) {

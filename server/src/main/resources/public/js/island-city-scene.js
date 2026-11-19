@@ -13,9 +13,7 @@ import {
   CITY_CENTER,
   CITY_COLUMN_LOCAL,
   CITY_PAVING_SPECS,
-  PINK_CAR_LOCAL,
-  cityWalkerPaths,
-  cityMotoPaths
+  PINK_CAR_LOCAL
 } from './island-city-data.js';
 
 export function buildIslandCity(ctx) {
@@ -174,47 +172,15 @@ export function buildIslandCity(ctx) {
     const spawnCity = () => {
       if (typeof peopleApi.spawnCityWalkers === 'function') {
         peopleApi.spawnCityWalkers();
-        return;
       }
-      const { makePerson } = peopleApi;
-      if (!makePerson) return;
-      const paths = cityWalkerPaths();
-      const shirts = [0xf08a3a, 0x1f4d73, 0x9fd9b4, 0xf4a0c0, 0x7ec8ea, 0xfff7ef];
-      for (let i = 0; i < 6; i++) {
-        const person = makePerson({ shirt: shirts[i % shirts.length] });
-        scene.add(person);
-        walkers.push({
-          obj: person,
-          path: paths[i % paths.length],
-          speed: 0.038 + (i % 3) * 0.006,
-          pingpong: i % 2 === 1,
-          offset: i * 0.17,
-          cityOnly: true
-        });
+      if (typeof peopleApi.spawnCityScooterWalkers === 'function') {
+        peopleApi.spawnCityScooterWalkers();
       }
     };
     if (peopleApi.whenReady && typeof peopleApi.whenReady.then === 'function') {
       peopleApi.whenReady.then(spawnCity).catch(spawnCity);
     } else {
       spawnCity();
-    }
-    const motoPaths = cityMotoPaths();
-    for (let m = 0; m < motoPaths.length; m++) {
-      const moto = new THREE.Group();
-      addBox(moto, 0.55, 0.28, 0.22, 0x3a4a5a, 0, 0.14, 0);
-      addMesh(moto, geo('cyl', [0.12, 0.12, 0.1, 6, 0]), 0x222222, -0.22, 0.12, 0, { rot: [0, 0, Math.PI / 2] });
-      addMesh(moto, geo('cyl', [0.12, 0.12, 0.1, 6, 0]), 0x222222, 0.22, 0.12, 0, { rot: [0, 0, Math.PI / 2] });
-      addMesh(moto, geo('box', [0.2, 0.28, 0.14]), 0x5a7ec8, 0, 0.38, -0.02);
-      addMesh(moto, geo('sph', [0.1, 6, 5]), 0xf3d0b0, 0, 0.55, 0);
-      scene.add(moto);
-      walkers.push({
-        obj: moto,
-        path: motoPaths[m],
-        speed: 0.08,
-        pingpong: true,
-        offset: m * 0.3,
-        cityOnly: true
-      });
     }
   }
 }

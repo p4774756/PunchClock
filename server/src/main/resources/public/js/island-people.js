@@ -7,9 +7,10 @@ import {
   npcSpawnPlan,
   idleFootY,
   cityWalkerStyles,
+  cityScooterAnim,
   miluPointsFromIdles
 } from './island-people-data.js';
-import { cityWalkerPaths } from './island-city-data.js';
+import { cityWalkerPaths, cityMotoPaths } from './island-city-data.js';
 import {
   createMiluView,
   createMiluState,
@@ -28,6 +29,8 @@ export {
 };
 
 const sharedTexturesByStyle = new Map();
+let cityScooterShared = null;
+let cityScooterAnchor = null;
 
 function startStyleTextureLoad(style, registry) {
   if (sharedTexturesByStyle.has(style)) return;
@@ -121,6 +124,53 @@ function sampleWalker(walker, along, t) {
   const dx = to[0] - from[0];
   const dz = to[1] - from[1];
   return { from, to, blend, dir: walker.speed < 0 ? -1 : 1, vx: dx, vz: dz };
+}
+
+function ensureCityScooterTextures(registry) {
+  if (cityScooterShared) return cityScooterShared;
+  const anim = cityScooterAnim();
+  const anchor = createMiluView(THREE, { deferLoad: true, anim: anim });
+  cityScooterShared = anchor.sharedTextures();
+  cityScooterAnchor = anchor;
+  if (registry) registry.textureAnchors.push(anchor);
+  anchor.beginLoad();
+  return cityScooterShared;
+}
+
+function waitForCityScooterTextures() {
+  return new Promise((resolve) => {
+    const map = cityScooterShared;
+    if (!map) {
+      resolve();
+      return;
+    }
+    const poll = () => {
+      const meta = map._miluLoad;
+      if (map.size > 0) resolve();
+      else if (meta && meta.failed) resolve();
+      else setTimeout(poll, 40);
+    };
+    poll();
+  });
+}
+
+function createCityScooterBillboard(registry) {
+  ensureCityScooterTextures(registry);
+  const anim = cityScooterAnim();
+  const view = createMiluView(THREE, {
+    shared: cityScooterShared,
+    anim: anim,
+    deferLoad: false
+  });
+  view.object.name = 'city-scooter';
+  return {
+    view: view,
+    anim: view.anim(),
+    state: createMiluState(),
+    dispose() {
+      view.dispose();
+    }
+  };
 }
 
 function waitForStyleTextures(styles) {
@@ -279,7 +329,11 @@ export function buildIslandPeople(ctx) {
   };
   const stylesNeeded = collectStylesFromPlan(plan);
   stylesNeeded.forEach((style) => startStyleTextureLoad(style, registry));
-  const whenReady = waitForStyleTextures(stylesNeeded);
+  ensureCityScooterTextures(registry);
+  const whenReady = Promise.all([
+    waitForStyleTextures(stylesNeeded),
+    waitForCityScooterTextures()
+  ]);
 
   function makePerson(opts) {
     const inst = createNpcBillboard('summer');
@@ -338,12 +392,35 @@ export function buildIslandPeople(ctx) {
     }
   }
 
+  function spawnCityScooterWalkers() {
+    const motoPaths = cityMotoPaths();
+    for (let m = 0; m < motoPaths.length; m++) {
+      const inst = createCityScooterBillboard(registry);
+      scene.add(inst.view.object);
+      walkers.push({
+        obj: inst.view.object,
+        path: motoPaths[m],
+        speed: 0.08,
+        pingpong: true,
+        offset: m * 0.3,
+        cityOnly: true,
+        billboard: true,
+        view: inst.view,
+        anim: inst.anim,
+        state: inst.state,
+        npc: inst
+      });
+      registry.disposers.push(inst);
+    }
+  }
+
   return {
     makePerson,
     miluStaticPoints() {
       return miluPointsFromIdles(registry.idleRecords.length ? registry.idleRecords : idles);
     },
     spawnCityWalkers,
+    spawnCityScooterWalkers,
     npcDisposeAll() {
       registry.disposers.forEach((d) => d.dispose());
       idles.forEach((item) => {
@@ -355,6 +432,8 @@ export function buildIslandPeople(ctx) {
       registry.textureAnchors.forEach((a) => a.dispose());
       registry.textureAnchors.length = 0;
       sharedTexturesByStyle.clear();
+      cityScooterShared = null;
+      cityScooterAnchor = null;
     },
     whenReady: whenReady,
     plan,
