@@ -7,10 +7,10 @@ const I = await loadPublicModule('island-interior.js');
 
 const LAB_SCREEN_NDC = Object.freeze({
   cx: 0,
-  cy: 0.2 + 0.84,
+  cy: 0.2 + 0.86,
   cz: -1.74,
-  hw: 0.675,
-  hh: 0.44,
+  hw: 0.95,
+  hh: 0.64,
   frame: 0.12
 });
 

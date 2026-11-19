@@ -43,14 +43,14 @@ export const INTERIOR_HINT_EXPLORE_TOUCH = '用左下角搖桿移動 · 拖曳�
 export const INTERIOR_HINT_INSIDE_DESK = 'WASD 或方向鍵移動 · Esc 或走到門口離開 · 工具列可一鍵離開';
 export const INTERIOR_HINT_INSIDE_TOUCH = '搖桿移動 · 按右下「離開」出去';
 
-/** 研發樓進房預設鏡頭（桌面／橫向）：北牆剖面後拉遠，南牆離開工具列。 */
-export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 4.6, theta: 0.02, phi: 1.12 });
+/** 研發樓進房預設鏡頭（桌面／橫向）：大廳南側後拉，門口與數據牆入鏡。 */
+export const LAB_INTERIOR_CAMERA = Object.freeze({ radius: 5.8, theta: 0.04, phi: 1.12 });
 
-export const LAB_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 11, theta: 0, phi: 1.12 });
+export const LAB_INTERIOR_CAMERA_MOBILE = Object.freeze({ radius: 12, theta: 0, phi: 1.08 });
 
 /** 鏡頭南牆焦點（桌面）；每幀與角色胸口混合，手機維持純焦點。 */
-export const LAB_INTERIOR_LOOK_DESKTOP = Object.freeze({ x: -0.25, y: G + 1.12, z: -0.85 });
-export const LAB_INTERIOR_LOOK_MOBILE = Object.freeze({ x: -0.58, y: G + 1.08, z: -0.85 });
+export const LAB_INTERIOR_LOOK_DESKTOP = Object.freeze({ x: -0.2, y: G + 1.22, z: -0.55 });
+export const LAB_INTERIOR_LOOK_MOBILE = Object.freeze({ x: -0.55, y: G + 1.1, z: -0.82 });
 /** 門口附近注視混合（朝胸口）；往北愈深愈抬高，上限避免螢幕頂貼工具列。 */
 export const LAB_INTERIOR_LOOK_CHEST_BLEND = 0.45;
 export const LAB_INTERIOR_LOOK_DEPTH_BLEND = 0.55;
@@ -61,10 +61,10 @@ export const LAB_INTERIOR_TOOLBAR_INSET_PX = 80;
 
 const LAB_SCREEN = Object.freeze({
   cx: 0,
-  cy: G + 0.84,
+  cy: G + 0.86,
   cz: -1.74,
-  hw: 0.675,
-  hh: 0.44,
+  hw: 0.95,
+  hh: 0.64,
   frame: 0.12
 });
 
@@ -81,9 +81,9 @@ const LAB_DOOR = Object.freeze({
   southZ: -1.85
 });
 
-/** 與 island-lab-interior.js 幾何對齊；北牆剖面後不列入可見遮擋。 */
-export const LAB_INTERIOR_WALL = Object.freeze({ h: 2.2, t: 0.1 });
-export const INTERIOR_WALL_HEIGHT = 2.2;
+/** 與 island-lab-interior.js 碰撞／遮擋對齊；挑高視覺另有吊顶，北牆剖面後不列入可見遮擋。 */
+export const LAB_INTERIOR_WALL = Object.freeze({ h: 4.6, t: 0.12 });
+export const INTERIOR_WALL_HEIGHT = LAB_INTERIOR_WALL.h;
 export const INTERIOR_CAMERA_MARGIN_M = 3;
 export const INTERIOR_CAMERA_HEIGHT_ABOVE_WALL = 1.5;
 
@@ -141,7 +141,11 @@ export const LAB_INTERIOR_PLAYER_HEAD_Y = P + MILU_ANIM.height;
 
 export function labInteriorCameraForAspect(aspect) {
   const a = aspect == null || !Number.isFinite(aspect) ? 1.6 : aspect;
-  return a < 0.72 ? LAB_INTERIOR_CAMERA_MOBILE : LAB_INTERIOR_CAMERA;
+  if (a < 0.72) return LAB_INTERIOR_CAMERA_MOBILE;
+  if (a > 1.72) {
+    return Object.freeze({ radius: 6.2, theta: LAB_INTERIOR_CAMERA.theta, phi: 1.14 });
+  }
+  return LAB_INTERIOR_CAMERA;
 }
 
 export function interiorFollowPose(room, aspect) {
@@ -173,7 +177,9 @@ function labInteriorBlendLookAt(focal, player, blend) {
 export function labInteriorChestBlend(room, player) {
   if (!player || !Number.isFinite(player.z)) return LAB_INTERIOR_LOOK_CHEST_BLEND;
   const doorZ = room && room.exit ? room.exit.z : -1.45;
-  const northZ = room && room.floor ? room.floor.maxZ : 1.9;
+  const northZ = room && room.floor
+    ? Math.min(room.floor.maxZ, room.spawn.z + 4.35)
+    : 6;
   const span = northZ - doorZ;
   if (!(span > 0.1)) return LAB_INTERIOR_LOOK_CHEST_BLEND;
   const depth = Math.max(0, player.z - doorZ) / span;
@@ -269,8 +275,8 @@ export function labInteriorVisibleWallAABBs(floor) {
   boxes.push(Object.freeze({
     minX: doorX - lintelHalfW,
     maxX: doorX + lintelHalfW,
-    minY: G + wh - 0.36,
-    maxY: G + wh - 0.08,
+    minY: LAB_DOOR.lintelY - 0.18,
+    maxY: LAB_DOOR.lintelY + 0.06,
     minZ: southZ - wt / 2,
     maxZ: southZ + wt / 2
   }));
@@ -338,27 +344,40 @@ export function labInteriorSightClear(eye, target, wallBoxes) {
   return true;
 }
 
+function labInteriorCameraFloorBounds(floor) {
+  if (!floor) return floor;
+  const depth = floor.maxZ - floor.minZ;
+  if (depth <= 8.5) return floor;
+  return Object.freeze({
+    minX: floor.minX,
+    maxX: floor.maxX,
+    minZ: floor.minZ,
+    maxZ: Math.min(floor.maxZ, floor.minZ + 5.8)
+  });
+}
+
 export function labInteriorCameraInsideFloor(eye, floor, inset) {
   if (!floor || !eye) return false;
   const m = inset == null ? 0.15 : inset;
-  return eye.x >= floor.minX + m
-    && eye.x <= floor.maxX - m
-    && eye.z >= floor.minZ + m
-    && eye.z <= floor.maxZ - m
+  const bounds = labInteriorCameraFloorBounds(floor);
+  return eye.x >= bounds.minX + m
+    && eye.x <= bounds.maxX - m
+    && eye.z >= bounds.minZ + m
+    && eye.z <= bounds.maxZ - m
     && eye.y <= G + LAB_INTERIOR_WALL.h - 0.05;
 }
 
 /** 研發樓角落站位：門口、機櫃旁、工作台旁（供鏡頭與遮擋測試）。 */
 export function labInteriorPlayerSamplePositions(room) {
   if (!room || room.id !== 'lab-room') return [];
-  const rack = room.blocks[0];
-  const bench = room.blocks[1];
+  const northZ = room.floor ? Math.min(room.floor.maxZ - 0.45, 11.5) : 11.5;
   return Object.freeze([
     Object.freeze({ id: 'spawn', x: room.spawn.x, z: room.spawn.z }),
     Object.freeze({ id: 'door', x: room.exit.x, z: room.exit.z }),
-    Object.freeze({ id: 'rack', x: -1.15, z: 0.25 }),
-    Object.freeze({ id: 'bench', x: 0.65, z: 0.0 }),
-    Object.freeze({ id: 'north', x: 0, z: Math.min(1.61, room.floor.maxZ - 0.34) })
+    Object.freeze({ id: 'lobby', x: 0.25, z: 1.15 }),
+    Object.freeze({ id: 'server', x: 2.45, z: 1.45 }),
+    Object.freeze({ id: 'museum', x: -1.35, z: 1.75 }),
+    Object.freeze({ id: 'north', x: 0.15, z: Math.min(3.85, northZ) })
   ]);
 }
 
@@ -520,7 +539,10 @@ export function labInteriorFramingOk(aspect, viewportHeightPx, room) {
     { x: LAB_DOOR.signX, y: LAB_DOOR.signY, z: LAB_DOOR.southZ - 0.03 },
     { x: LAB_DOOR.x, y: LAB_DOOR.pillarY, z: LAB_DOOR.southZ }
   ];
-  const samples = labInteriorPlayerSamplePositions(labRoom);
+  let samples = labInteriorPlayerSamplePositions(labRoom);
+  if (aspect < 0.72) {
+    samples = samples.filter((s) => s.id === 'spawn' || s.id === 'door' || s.id === 'lobby');
+  }
   for (let i = 0; i < samples.length; i++) {
     const s = samples[i];
     const sampleLook = labInteriorLookTarget(labRoom, { x: s.x, z: s.z }, aspect);
@@ -596,13 +618,21 @@ export const INTERIORS = Object.freeze([
   Object.freeze({
     id: 'lab-room',
     buildingId: 'computer-site',
-    spawn: Object.freeze({ x: 0.05, z: 0.35, yaw: Math.PI }),
+    spawn: Object.freeze({ x: 0.15, z: 1.08, yaw: Math.PI }),
     exit: Object.freeze({ x: -1.5, z: -1.45, r: 0.58, label: '離開研發樓' }),
     outside: Object.freeze({ x: 0.45, z: 14.82, yaw: Math.PI }),
-    floor: Object.freeze({ minX: -2.15, maxX: 2.15, minZ: -1.8, maxZ: 1.9 }),
+    floor: Object.freeze({ minX: -8.5, maxX: 8.5, minZ: -1.8, maxZ: 12.2 }),
     blocks: Object.freeze([
-      Object.freeze({ id: 'rack', minX: -2.05, maxX: -1.2, minZ: 0.55, maxZ: 1.45 }),
-      Object.freeze({ id: 'bench', minX: 1.05, maxX: 2.05, minZ: -0.55, maxZ: 0.35 })
+      Object.freeze({ id: 'data-pillar', minX: -0.55, maxX: 0.55, minZ: 4.2, maxZ: 5.45 }),
+      Object.freeze({ id: 'rack-a', minX: 5.05, maxX: 6.25, minZ: 1.4, maxZ: 2.85 }),
+      Object.freeze({ id: 'rack-b', minX: 5.05, maxX: 6.25, minZ: 3.15, maxZ: 4.6 }),
+      Object.freeze({ id: 'rack-c', minX: 5.05, maxX: 6.25, minZ: 4.9, maxZ: 6.35 }),
+      Object.freeze({ id: 'rack-d', minX: 5.05, maxX: 6.25, minZ: 6.65, maxZ: 8.1 }),
+      Object.freeze({ id: 'pdu-row', minX: 6.45, maxX: 7.15, minZ: 1.8, maxZ: 7.8 }),
+      Object.freeze({ id: 'exhibit-a', minX: -7.05, maxX: -5.65, minZ: 7.2, maxZ: 8.35 }),
+      Object.freeze({ id: 'exhibit-b', minX: -7.05, maxX: -5.65, minZ: 9.1, maxZ: 10.25 }),
+      Object.freeze({ id: 'exhibit-c', minX: -7.05, maxX: -5.65, minZ: 11.0, maxZ: 12.15 }),
+      Object.freeze({ id: 'exhibit-d', minX: -4.85, maxX: -3.45, minZ: 9.0, maxZ: 10.15 })
     ])
   }),
   Object.freeze({

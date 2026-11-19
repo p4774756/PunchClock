@@ -44,6 +44,22 @@ test('室內清單完整，手搖店西牆門口可站且不壓櫃台', () => {
   assert.equal(I.interiorByBuilding('tcm-site'), null);
 });
 
+test('研發樓大廳可走至機房與文物廳', () => {
+  const room = I.interiorByBuilding('computer-site');
+  assert.ok(room.floor.maxX - room.floor.minX > 14, '室內寬度遠大於舊盒子');
+  assert.ok(room.floor.maxZ - room.floor.minZ > 12, '室內深度遠大於舊盒子');
+  const samples = I.labInteriorPlayerSamplePositions(room);
+  const lobby = samples.find((s) => s.id === 'lobby');
+  const server = samples.find((s) => s.id === 'server');
+  const museum = samples.find((s) => s.id === 'museum');
+  assert.ok(lobby && server && museum);
+  assert.equal(I.interiorCanStand(lobby.x, lobby.z, room, RADIUS), true);
+  assert.equal(I.interiorCanStand(server.x, server.z, room, RADIUS), true);
+  assert.equal(I.interiorCanStand(museum.x, museum.z, room, RADIUS), true);
+  assert.equal(I.interiorCanStand(3.8, 5.2, room, RADIUS), true, '機房走道');
+  assert.equal(I.interiorCanStand(-4.2, 8.6, room, RADIUS), true, '文物廳深處');
+});
+
 test('研發樓室內完整，門口外可站且不壓進門互動區', () => {
   const room = I.interiorByBuilding('computer-site');
   assert.ok(room);
@@ -177,7 +193,7 @@ test('研發樓出生朝向門口，有專用鏡頭與離開按鈕條件', () =>
   const room = I.interiorByBuilding('computer-site');
   assert.equal(room.spawn.yaw, Math.PI);
   assert.ok(room.spawn.z > -0.2, '出生點略靠房內北側，鏡頭看得到南牆門');
-  assert.deepEqual(I.LAB_INTERIOR_CAMERA, { radius: 4.6, theta: 0.02, phi: 1.12 });
+  assert.deepEqual(I.LAB_INTERIOR_CAMERA, { radius: 5.8, theta: 0.04, phi: 1.12 });
   assert.deepEqual(I.interiorFollowPose(room, 1.6), I.LAB_INTERIOR_CAMERA);
   assert.deepEqual(I.interiorFollowPose(room, 390 / 844), I.LAB_INTERIOR_CAMERA_MOBILE);
   assert.equal(I.interiorFollowPose(I.interiorByBuilding('shop')), null);
@@ -260,7 +276,7 @@ test('研發樓預設鏡頭：三種 viewport 螢幕與門口投影在 NDC 內',
     const topLimit = I.labInteriorScreenTopNdcLimit(vp.height);
     const pose = I.labInteriorCameraForAspect(vp.aspect);
     const look = I.labInteriorLookTarget(room, { x: room.spawn.x, z: room.spawn.z }, vp.aspect);
-    const frameTopY = 0.2 + 0.84 + 0.44 + 0.12;
+    const frameTopY = 0.2 + 0.86 + 0.64 + 0.12;
     const frameTop = I.labInteriorProjectNdc(-0.675 - 0.12, frameTopY, -1.74, pose, look, vp.aspect);
     if (vp.aspect >= 0.72) {
       assert.ok(frameTop.y <= topLimit + 0.02, '螢幕外框上緣 NDC y 不得貼齊工具列');
@@ -302,7 +318,7 @@ test('研發樓桌面注視：南牆焦點與胸口混合，手機維持純焦�
 
   const height = 900;
   const pose = I.labInteriorCameraForAspect(desktopAspect);
-  const frameTopY = 0.2 + 0.84 + 0.44 + 0.12;
+  const frameTopY = 0.2 + 0.86 + 0.64 + 0.12;
   const lim = I.labInteriorScreenTopNdcLimit(height);
   const o = I.INTERIOR_ORIGIN;
   const worldPlayer = { x: player.x + o.x, z: player.z + o.z };

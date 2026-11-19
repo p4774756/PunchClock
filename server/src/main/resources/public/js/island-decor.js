@@ -49,7 +49,7 @@ export const MAIN_ISLAND_GRASS_PATCH_CENTER_Y = G + 0.014;
 export const MAIN_PAVING_GROUP_Y = G + 0.034;
 export const MAIN_PAVING_BRICK_HEIGHT = 0.05;
 
-/** 莫卡手搖 GLB 本地座標（model.position.y = G，不含 G）。正面朝 +Z。 */
+/** 神之島手搖 GLB 本地座標（model.position.y = G，不含 G）。正面朝 +Z。 */
 export const SHOP_GLB_BASE = 0.08;
 export const SHOP_GLB_DEPTH = 3.2;
 export const SHOP_GLB_WALL_H = 1.92;

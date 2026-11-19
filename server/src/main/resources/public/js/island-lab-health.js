@@ -7,10 +7,10 @@ const TEA_FAIL = '製茶機狀態暫時讀不到';
 const TIMELINE_EMPTY = '近 7 天沒有動態';
 /** 機櫃頂數據牆幾何（本地座標；cy 含 groundY）。 */
 export const LAB_TEA_WALL = Object.freeze({
-  cx: -1.18,
-  cz: 0.62,
-  w: 0.5,
-  h: 0.42,
+  cx: 1.2,
+  cz: 2.0,
+  w: 0.56,
+  h: 0.44,
   groundOffsetY: 1.52
 });
 
