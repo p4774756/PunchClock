@@ -10,6 +10,7 @@ import java.awt.event.KeyEvent;
 public final class DesktopPetControl {
 
     public static final String HINT = "操控中";
+    public static final String HINT_REFOCUS = "操控中（點我繼續）";
     public static final int WALK_STEP = DesktopPetAnimation.STEP;
     /** 跳躍頂點上移像素。 */
     public static final int JUMP_LIFT = 28;
@@ -30,7 +31,14 @@ public final class DesktopPetControl {
     }
 
     public String hintText() {
-        return active ? HINT : null;
+        return hintText(true);
+    }
+
+    public String hintText(boolean windowFocused) {
+        if (!active) {
+            return null;
+        }
+        return windowFocused ? HINT : HINT_REFOCUS;
     }
 
     public void enter() {
