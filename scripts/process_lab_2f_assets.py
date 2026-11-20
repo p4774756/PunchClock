@@ -518,6 +518,120 @@ def _assert_back_row_clean(img: Image.Image, empty: Image.Image) -> None:
         raise SystemExit(f"front desks lost their screens ({dark} dark px)")
 
 
+# 來源圖右桌銅人（含底座）。框外是螢幕線，不收進來。
+_BRONZE_BOX = (950, 422, 990, 478)
+_BRONZE_SEEDS = ((966, 442), (964, 450), (960, 432), (972, 465), (968, 428))
+# 左牆層板、書本左側。底座落在板面上，不壓左側植物（x≤99）與書（x≥145）。
+_BRONZE_AT = (109, 148)
+
+
+def _bronze_figure_pixel(rgb: tuple[int, int, int]) -> bool:
+    r, g, b = rgb
+    if r > 242 and g > 230 and b > 214:
+        return False
+    if b > r + 6 and b > 90:
+        return False
+    if r > 228 and g > 198 and b > 165:
+        return False
+    if r > 70 and r >= g - 8 and r > b + 22 and b < 145 and g > 35:
+        return True
+    return 20 < r < 70 and g < 55 and b < 55
+
+
+def _extract_bookshelf_bronze(ref: Image.Image) -> Image.Image:
+    """右桌上的銅人裁成透明圖。只留人像與底座，桌面與螢幕線不要。"""
+    px = ref.load()
+    x0, y0, x1, y1 = _BRONZE_BOX
+    seen: set[tuple[int, int]] = set()
+    q: deque[tuple[int, int]] = deque(s for s in _BRONZE_SEEDS if _bronze_figure_pixel(px[s]))
+    while q:
+        x, y = q.popleft()
+        if (x, y) in seen or not (x0 <= x < x1 and y0 <= y < y1):
+            continue
+        if not _bronze_figure_pixel(px[x, y]):
+            continue
+        seen.add((x, y))
+        q.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
+    w, h = x1 - x0, y1 - y0
+    solid = [[False] * w for _ in range(h)]
+    for x, y in seen:
+        solid[y - y0][x - x0] = True
+    outside = [[False] * w for _ in range(h)]
+    q = deque()
+    for x in range(w):
+        q.append((x, 0))
+        q.append((x, h - 1))
+    for y in range(h):
+        q.append((0, y))
+        q.append((w - 1, y))
+    while q:
+        x, y = q.popleft()
+        if not (0 <= x < w and 0 <= y < h) or outside[y][x] or solid[y][x]:
+            continue
+        outside[y][x] = True
+        q.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
+    for y in range(h):
+        for x in range(w):
+            if not solid[y][x] and not outside[y][x]:
+                seen.add((x + x0, y + y0))
+    # 頭頂左側接到螢幕支架的細線，不是銅人。
+    seen = {p for p in seen if not (p[0] < 959 and p[1] < 431)}
+    by_row: dict[int, list[int]] = {}
+    for x, y in seen:
+        by_row.setdefault(y, []).append(x)
+    trimmed: set[tuple[int, int]] = set()
+    for y, xs in by_row.items():
+        xs.sort()
+        runs: list[list[int]] = [[xs[0]]]
+        for x in xs[1:]:
+            if x <= runs[-1][-1] + 1:
+                runs[-1].append(x)
+            else:
+                runs.append([x])
+        trimmed.update((x, y) for x in max(runs, key=len))
+    keep: set[tuple[int, int]] = set()
+    q = deque([(966, 442)])
+    while q:
+        x, y = q.popleft()
+        if (x, y) in keep or (x, y) not in trimmed:
+            continue
+        keep.add((x, y))
+        q.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
+    if len(keep) < 700:
+        raise SystemExit(f"bronze figure mask too small ({len(keep)} px)")
+    xs = [p[0] for p in keep]
+    ys = [p[1] for p in keep]
+    bx0, by0, bx1, by1 = min(xs), min(ys), max(xs) + 1, max(ys) + 1
+    sprite = Image.new("RGBA", (bx1 - bx0, by1 - by0), (0, 0, 0, 0))
+    sp = sprite.load()
+    for x, y in keep:
+        sp[x - bx0, y - by0] = (*px[x, y], 255)
+    if sprite.size != (33, 54):
+        raise SystemExit(f"bronze figure expected 33x54, got {sprite.size}")
+    return sprite
+
+
+def _place_bookshelf_bronze(img: Image.Image, ref: Image.Image) -> None:
+    sprite = _extract_bookshelf_bronze(ref)
+    img.paste(sprite, _BRONZE_AT, sprite)
+
+
+def _assert_bronze_on_shelf(img: Image.Image) -> None:
+    """書架上要有一塊銅色人像，貼的範圍停在書本左側。"""
+    px = img.load()
+    x0, y0 = _BRONZE_AT
+    if x0 < 40 or x0 + 33 > 145 or y0 < 130 or y0 + 54 > 215:
+        raise SystemExit(f"bronze placement outside the shelf gap: {(x0, y0)}")
+    bronze = 0
+    for y in range(y0, y0 + 54):
+        for x in range(x0, x0 + 33):
+            r, g, b = px[x, y]
+            if 90 < r < 230 and r > g + 8 and r > b + 25 and b < 160:
+                bronze += 1
+    if bronze < 400:
+        raise SystemExit(f"bookshelf bronze missing ({bronze} px)")
+
+
 def build_office_bg() -> Image.Image:
     empty = Image.open(RAW / "office-2f-empty.jpg").convert("RGB")
     ref = Image.open(RAW / "office-2f-desks-ref.jpg").convert("RGB")
@@ -535,6 +649,9 @@ def build_office_bg() -> Image.Image:
     _repair_smears(out, before_people, empty)
     _clear_smeared_back_row(out, empty)
     _assert_back_row_clean(out, empty)
+    _place_bookshelf_bronze(out, ref)
+    _assert_back_row_clean(out, empty)
+    _assert_bronze_on_shelf(out)
     w, h = out.size
     if w > MAX_BG_W:
         nh = int(h * MAX_BG_W / w)
