@@ -14,13 +14,13 @@ RAW = Path(os.environ.get("LAB_2F_RAW", str(Path.home() / "PunchClock-oki" / "as
 OUT = ROOT / "server" / "src" / "main" / "resources" / "public" / "assets" / "lab-2f"
 MAX_BG_W = 1600
 
-CHIBI_NAMES = ("oki", "tiger", "kitten", "reviewer", "artist3d")
+# 立繪表固定五格，只輸出辦公室留下的三個角色（格號 0、1、3）。
+SHEET_COLS = 5
+CHIBI_SLOTS = ((0, "oki"), (1, "tiger"), (3, "reviewer"))
 PORTRAIT_FILES = {
     "oki": "portrait-oki.jpg",
     "tiger": "portrait-tiger.jpg",
-    "kitten": "portrait-kitten.jpg",
     "reviewer": "portrait-reviewer.jpg",
-    "artist3d": "portrait-artist3d.jpg",
 }
 
 # 工位整區（含人；人用下方多邊形依左右鄰近像素抹掉，不蓋螢幕以外的大塊）。
@@ -230,12 +230,10 @@ def _restore_covered_furniture(img: Image.Image, before: Image.Image, empty: Ima
         for x, y, color in grown:
             op[x, y] = color
             keep.add((x, y))
-    # 後排螢幕右側露出的襯衫與頭髮改鋪空景地板，綠椅留著。
-    for y in range(268, 400):
+    # 後排螢幕右側的人與薄荷綠椅背改鋪空景地板。只留洪水認定的螢幕，不把頭髮輪廓當螢幕貼回。
+    for y in range(250, 420):
         for x in range(842, 1005):
             if (x, y) in screen:
-                continue
-            if _green_chair(bp[x, y]):
                 op[x, y] = bp[x, y]
                 continue
             op[x, y] = ep[x, y]
@@ -269,6 +267,151 @@ def _restore_covered_furniture(img: Image.Image, before: Image.Image, empty: Ima
                     op[xx, y] = donor
 
 
+# 螢幕本體（人擋住的部分不在這幾塊裡）。座標對 1280×720 原圖。
+SCREEN_RECTS = (
+    (522, 436, 648, 512),
+    (768, 274, 872, 390),
+)
+
+# 手蓋住鍵盤的範圍，用右側還看得到的鍵面補上。
+KEYBOARD_BANDS = (
+    (496, 512, 572, 548, 86),
+    (742, 356, 868, 408, 0),
+)
+
+
+def _wood_surface(rgb: tuple[int, int, int]) -> bool:
+    r, g, b = rgb
+    return r > 225 and 170 < g < 235 and 140 < b < 210 and r > b + 28 and (r - g) > 28
+
+
+def _bright_chair(rgb: tuple[int, int, int]) -> bool:
+    r, g, b = rgb
+    return b > r + 10 and b > g + 4 and b > 100 and 60 < r < 190 and g < 200
+
+
+def _monitorish(rgb: tuple[int, int, int]) -> bool:
+    r, g, b = rgb
+    if r > 170:
+        return False
+    return 40 < b < 175 and b + 8 >= r and b + 4 >= g and r < 155 and abs(r - g) < 36
+
+
+def _occluding_person(rgb: tuple[int, int, int]) -> bool:
+    r, g, b = rgb
+    if _monitorish(rgb) or _bright_chair(rgb) or _wood_surface(rgb):
+        return False
+    if r > 200 and g > 180 and b > 165 and max(rgb) - min(rgb) < 60:
+        return True
+    if r > 205 and g > 165 and b > 145 and 0 <= (r - g) < 42 and r > b:
+        return True
+    # 深色頭髮、上衣。螢幕已在上面排除。
+    if (r + g + b) < 240 and r < 105 and g < 105 and b < 125 and (b - r) < 36:
+        return True
+    return False
+
+
+def _mint_chair(rgb: tuple[int, int, int]) -> bool:
+    r, g, b = rgb
+    return g > r + 12 and g > 125 and r < 195 and b > 90 and g + 15 >= b
+
+
+def _in_screen(x: int, y: int) -> bool:
+    for x0, y0, x1, y1 in SCREEN_RECTS:
+        if x0 <= x < x1 and y0 <= y < y1:
+            return True
+    return False
+
+
+def _keyboard_shift(x: int, y: int) -> int | None:
+    for x0, y0, x1, y1, shift in KEYBOARD_BANDS:
+        if x0 <= x < x1 and y0 <= y < y1:
+            return shift
+    return None
+
+
+def _flat_len(px, x: int, y: int, w: int) -> int:
+    color = px[x, y]
+    n = 1
+    i = x - 1
+    while i >= 0 and px[i, y] == color:
+        n += 1
+        i -= 1
+    i = x + 1
+    while i < w and px[i, y] == color:
+        n += 1
+        i += 1
+    return n
+
+
+def _screen_tex(rgb: tuple[int, int, int]) -> bool:
+    r, g, b = rgb
+    return r < 155 and g < 175 and 40 < b < 200 and b + 8 >= r and b + 4 >= g and r < 145
+
+
+def _repair_smears(img: Image.Image, before: Image.Image, empty: Image.Image) -> None:
+    """人被抹掉後的平塗，只在螢幕玻璃、鍵盤、椅背各自的小範圍裡補。
+
+    螢幕從同一列、多邊形外還看得到的畫面接過來。椅子與鍵盤只用鄰近的單一顏色，
+    不把整塊紋理鋪到別的物件上。
+    """
+    op = img.load()
+    bp = before.load()
+    ep = empty.load()
+    w, h = img.size
+    mask = Image.new("L", img.size, 0)
+    draw = ImageDraw.Draw(mask)
+    for poly in PERSON_POLYS:
+        draw.polygon(poly, fill=255)
+    mask = mask.filter(ImageFilter.MaxFilter(3))
+    mp = mask.load()
+
+    def nearest(x: int, y: int, pred, reach: int = 48):
+        for dist in range(1, reach):
+            for xx, yy in ((x - dist, y), (x + dist, y), (x, y - dist), (x, y + dist)):
+                if 0 <= xx < w and 0 <= yy < h and not mp[xx, yy] and pred(bp[xx, yy]):
+                    return bp[xx, yy]
+        return None
+
+    def paint_screen(x0, y0, x1, y1, dx):
+        for y in range(y0, y1):
+            for x in range(x0, x1):
+                if not mp[x, y]:
+                    continue
+                sx = x + dx
+                if 0 <= sx < w and not mp[sx, y] and _screen_tex(bp[sx, y]):
+                    op[x, y] = bp[sx, y]
+
+    def paint_flat(x0, y0, x1, y1, pred, reach: int = 48):
+        for y in range(y0, y1):
+            for x in range(x0, x1):
+                if not mp[x, y]:
+                    continue
+                color = nearest(x, y, pred, reach)
+                if color is not None:
+                    op[x, y] = color
+
+    # 前排左螢幕玻璃對齊中間那台。鍵盤、椅背只用多邊形外的顏色。
+    paint_screen(462, 456, 522, 548, 82)
+    paint_flat(468, 520, 630, 556, _keyish)
+    paint_flat(446, 556, 545, 655, _bright_chair)
+    paint_screen(748, 318, 820, 392, 60)
+    paint_flat(700, 350, 860, 425, _keyish, 130)
+    paint_flat(700, 415, 800, 540, _bright_chair)
+    for y in range(340, 500):
+        for x in range(690, 860):
+            if not mp[x, y]:
+                continue
+            r, g, b = op[x, y]
+            if r < 40 and g < 40 and b < 55:
+                color = nearest(x, y, _desk_like, 80)
+                op[x, y] = color if color is not None else ep[x, y]
+    for y in range(240, 560):
+        for x in range(820, 1040):
+            if _mint_chair(bp[x, y]) or _mint_chair(op[x, y]):
+                op[x, y] = ep[x, y]
+
+
 def build_office_bg() -> Image.Image:
     empty = Image.open(RAW / "office-2f-empty.jpg").convert("RGB")
     ref = Image.open(RAW / "office-2f-desks-ref.jpg").convert("RGB")
@@ -283,6 +426,7 @@ def build_office_bg() -> Image.Image:
     before_people = out.copy()
     remove_people(out)
     _restore_covered_furniture(out, before_people, empty)
+    _repair_smears(out, before_people, empty)
     w, h = out.size
     if w > MAX_BG_W:
         nh = int(h * MAX_BG_W / w)
@@ -354,35 +498,18 @@ def extract_chibi(slice_img: Image.Image, target_h: int) -> Image.Image:
 def build_chibis(target_h: int = 220) -> dict[str, Image.Image]:
     sheet = Image.open(RAW / "chibis-sheet.jpg").convert("RGB")
     sw, sh = sheet.size
-    n = len(CHIBI_NAMES)
-    slot_w = sw // n
+    slot_w = sw // SHEET_COLS
     out: dict[str, Image.Image] = {}
-    for i, name in enumerate(CHIBI_NAMES):
+    for i, name in CHIBI_SLOTS:
         left = i * slot_w
-        right = sw if i == n - 1 else (i + 1) * slot_w
+        right = (i + 1) * slot_w
         pad = 4
         crop = sheet.crop((left + pad, pad, right - pad, sh - pad))
         out[name] = extract_chibi(crop, target_h)
     return out
 
 
-def trim_artist_left(img: Image.Image) -> Image.Image:
-    """裁掉左側「3D 美術師」字與果汁機圖示。"""
-    rgb = img.convert("RGB")
-    w, h = rgb.size
-    cut = int(w * 0.34)
-    trimmed = rgb.crop((cut, 0, w, h))
-    avg = trimmed.resize((1, h), Image.Resampling.BILINEAR)
-    out = trimmed.copy()
-    strip = int(trimmed.size[0] * 0.04)
-    for x in range(strip):
-        out.paste(avg, (x, 0))
-    return out
-
-
-def crop_portrait_bust(img: Image.Image, is_artist: bool = False) -> Image.Image:
-    if is_artist:
-        img = trim_artist_left(img)
+def crop_portrait_bust(img: Image.Image) -> Image.Image:
     w, h = img.size
     side = min(w, h)
     left = (w - side) // 2
@@ -429,7 +556,7 @@ def main() -> None:
 
     for key, fname in PORTRAIT_FILES.items():
         src = Image.open(RAW / fname).convert("RGB")
-        bust = crop_portrait_bust(src, is_artist=(key == "artist3d"))
+        bust = crop_portrait_bust(src)
         save_webp(bust, OUT / f"portrait-{key}.webp", quality=88)
 
     print("lab-2f assets written to", OUT)

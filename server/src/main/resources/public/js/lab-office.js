@@ -9,23 +9,19 @@ import {
 } from './lab-office-logic.js';
 
 const SPOT_POS = Object.freeze({
-  'desk-tiger': { x: 32, y: 82 },
-  'desk-kitten': { x: 48, y: 74 },
-  'desk-review': { x: 58, y: 66 },
-  'desk-art': { x: 70, y: 78 },
-  coffee: { x: 82, y: 70 },
-  sofa: { x: 16, y: 72 },
-  balcony: { x: 10, y: 84 },
-  beanbag: { x: 26, y: 88 },
-  meeting: { x: 42, y: 56 }
+  'desk-tiger': { x: 22, y: 80 },
+  'desk-review': { x: 50, y: 64 },
+  coffee: { x: 84, y: 70 },
+  sofa: { x: 16, y: 76 },
+  balcony: { x: 36, y: 86 },
+  beanbag: { x: 68, y: 82 },
+  meeting: { x: 48, y: 48 }
 });
 
 const CHAR_LABEL = Object.freeze({
   oki: '軍師 Oki',
   tiger: '猛虎工程師',
-  kitten: '小貓工程師',
-  reviewer: '獨立審核員',
-  artist3d: '3D 美術師'
+  reviewer: '獨立審核員'
 });
 
 function setText(node, text) {

@@ -9,9 +9,8 @@ test('訪客不可開辦公室', () => {
   assert.equal(L.viewerCanOpenLabOffice(true), true);
 });
 
-test('3D 關鍵字辨識', () => {
-  assert.equal(L.issueTitleLooksArtistic('銅人 GLB 模型'), true);
-  assert.equal(L.issueTitleLooksArtistic('一般打卡 issue'), false);
+test('辦公室只有三人', () => {
+  assert.deepEqual([...L.CHARACTER_IDS], ['oki', 'tiger', 'reviewer']);
 });
 
 test('審核中狀態', () => {
@@ -41,18 +40,27 @@ test('工程師工作中氣泡', () => {
   assert.ok(st.bubble.includes('#254'));
 });
 
-test('五人站位不重疊', () => {
+test('三人站位不重疊', () => {
   const states = L.buildAllCharacterStates({
     machines: {
       machines: [
-        { machine: 'office', online: true },
-        { machine: 'home', online: true }
+        {
+          machine: 'office',
+          online: true,
+          agentRunning: true,
+          issue: 254,
+          round: 4,
+          model: 'grok'
+        },
+        { machine: 'home', online: true, role: 'review', model: 'claude', round: 4 }
       ]
     },
     now: 1_000_000
   });
+  assert.deepEqual(states.map((s) => s.id), ['oki', 'tiger', 'reviewer']);
   const spots = states.map((s) => s.spot);
   assert.equal(new Set(spots).size, spots.length);
   assert.equal(states.find((s) => s.id === 'oki').spot, 'coffee');
-  assert.equal(states.find((s) => s.id === 'artist3d').spot, 'desk-art');
+  assert.equal(states.find((s) => s.id === 'tiger').spot, 'desk-tiger');
+  assert.equal(states.find((s) => s.id === 'reviewer').spot, 'desk-review');
 });

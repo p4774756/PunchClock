@@ -5,9 +5,7 @@ export const LAB_OFFICE_POLL_MS = 30_000;
 export const CHARACTER_IDS = Object.freeze([
   'oki',
   'tiger',
-  'kitten',
-  'reviewer',
-  'artist3d'
+  'reviewer'
 ]);
 
 export const IDLE_SPOTS = Object.freeze([
@@ -16,13 +14,8 @@ export const IDLE_SPOTS = Object.freeze([
   { id: 'balcony', label: '海景陽台' }
 ]);
 
-const ARTIST_KEYWORDS = [
-  '3d', '3D', '銅人', 'blender', 'Blender', 'GLB', 'glb', '經絡', 'atlas', 'TCM', '美術', '模型'
-];
-
 const MACHINE_BY_CHAR = Object.freeze({
-  tiger: 'office',
-  kitten: 'home'
+  tiger: 'office'
 });
 
 export function viewerCanOpenLabOffice(authFlag) {
@@ -36,15 +29,6 @@ export function machineById(machines, id) {
     if (row && row.machine === id) return row;
   }
   return null;
-}
-
-export function issueTitleLooksArtistic(title) {
-  const t = title == null ? '' : String(title);
-  if (!t) return false;
-  for (let i = 0; i < ARTIST_KEYWORDS.length; i++) {
-    if (t.includes(ARTIST_KEYWORDS[i])) return true;
-  }
-  return false;
 }
 
 function primaryRun(machine) {
@@ -176,37 +160,11 @@ export function buildCharacterState(charId, ctx) {
     return out;
   }
 
-  if (charId === 'artist3d') {
-    const list = machines && machines.machines ? machines.machines : [];
-    let activeTitle = '';
-    for (let i = 0; i < list.length; i++) {
-      const row = list[i];
-      if (!row || !row.online) continue;
-      if (row.issueTitle) activeTitle = row.issueTitle;
-      const run = primaryRun(row);
-      if (run && run.issueTitle) activeTitle = run.issueTitle;
-    }
-    const art = issueTitleLooksArtistic(activeTitle);
-    if (art) {
-      out.mode = 'work';
-      out.spot = 'desk-art';
-      out.desk = true;
-      out.accent = true;
-      out.bubble = '3D / 美術任務進行中';
-      return out;
-    }
-    out.mode = 'idle';
-    out.spot = 'desk-art';
-    out.desk = true;
-    out.bubble = '整理工作台';
-    return out;
-  }
-
   const machineId = MACHINE_BY_CHAR[charId];
   const row = machineById(machines, machineId);
   if (isMachineWorking(row)) {
     out.mode = 'work';
-    out.spot = machineId === 'office' ? 'desk-tiger' : 'desk-kitten';
+    out.spot = 'desk-tiger';
     out.desk = true;
     const issue = row.issue || (primaryRun(row) && primaryRun(row).issue);
     const round = row.round != null ? row.round : (primaryRun(row) && primaryRun(row).round);
@@ -234,14 +192,14 @@ export function buildAllCharacterStates(ctx) {
 
 const FLEX_SPOTS = ['sofa', 'balcony', 'beanbag', 'meeting'];
 
-/** 軍師固定咖啡吧、美術固定工作台；其餘空位不可疊在同一點。 */
+/** 軍師固定咖啡吧；有桌子的人固定工位；其餘空位不可疊在同一點。 */
 export function resolveSpotCollisions(states) {
   const list = states || [];
   const used = new Set();
   const flex = [];
   for (let i = 0; i < list.length; i++) {
     const st = list[i];
-    const fixed = st.id === 'oki' || st.id === 'artist3d' || st.desk;
+    const fixed = st.id === 'oki' || st.desk;
     if (fixed) used.add(st.spot);
     else flex.push(st);
   }

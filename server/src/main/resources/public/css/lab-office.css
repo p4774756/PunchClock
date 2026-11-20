@@ -208,13 +208,11 @@
   .lab-office-char img {
     height: 42px;
   }
-  .lab-office-char[data-char="kitten"] { left: 10% !important; top: 86% !important; }
-  .lab-office-char[data-char="tiger"] { left: 30% !important; top: 86% !important; }
-  .lab-office-char[data-char="reviewer"] { left: 50% !important; top: 86% !important; }
-  .lab-office-char[data-char="artist3d"] { left: 70% !important; top: 86% !important; }
-  .lab-office-char[data-char="oki"] { left: 90% !important; top: 86% !important; }
+  .lab-office-char[data-char="tiger"] { left: 18% !important; top: 82% !important; }
+  .lab-office-char[data-char="reviewer"] { left: 50% !important; top: 82% !important; }
+  .lab-office-char[data-char="oki"] { left: 82% !important; top: 82% !important; }
   .lab-office-bubble {
-    max-width: 3.15rem;
+    max-width: 5rem;
     font-size: 10px;
     line-height: 1.2;
     padding: 2px 3px;
