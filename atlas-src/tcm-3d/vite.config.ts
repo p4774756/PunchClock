@@ -1,11 +1,12 @@
 import {fileURLToPath} from 'node:url';
 import {defineConfig} from 'vite';
 import react from '@vitejs/plugin-react';
+import {atlasPreloadPlugin} from './vite-preload-plugin';
 const path=(relative:string)=>fileURLToPath(new URL(relative,import.meta.url));
 export default defineConfig({
  root:path('./web'),
  publicDir:path('./public'),
- plugins:[react()],
+ plugins:[react(),atlasPreloadPlugin('/atlas/tcm-3d/')],
  resolve:{alias:{'@':path('./')}},
  server:{watch:{usePolling:true}},
  build:{
