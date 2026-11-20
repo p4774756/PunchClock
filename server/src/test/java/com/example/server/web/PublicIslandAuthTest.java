@@ -5,6 +5,7 @@ import com.example.server.ServerApp;
 import com.example.server.auth.AdminAuthCookie;
 import com.example.server.store.DevStatusModels;
 import com.example.server.store.DevStatusService;
+import com.example.server.store.RoadmapService;
 import io.javalin.Javalin;
 import org.junit.After;
 import org.junit.Before;
@@ -29,6 +30,10 @@ import static org.junit.Assert.assertTrue;
 /** Phase 1：公開島嶼可逛，管理 API／WS 仍需登入。 */
 public class PublicIslandAuthTest {
 
+    private static final String FAKE_ROADMAP_BODY = "## 分期\n"
+            + "- [x] **Phase 3 群島地基**：地基\n"
+            + "- [ ] **Phase 4 進屋系統**：門口\n";
+
     private Javalin app;
     private HttpClient http;
     private String base;
@@ -43,7 +48,9 @@ public class PublicIslandAuthTest {
                 Collections.emptyList(),
                 Collections.emptySet()
         ), "p4774756/PunchClock");
-        app = new ServerApp(ClientRelease.NONE, fakeDevStatus).start(0);
+        RoadmapService fakeRoadmap = new RoadmapService((repo, issue) -> FAKE_ROADMAP_BODY,
+                "p4774756/PunchClock", 36);
+        app = new ServerApp(ClientRelease.NONE, fakeDevStatus, fakeRoadmap).start(0);
         base = "http://127.0.0.1:" + app.port();
         http = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NEVER)
@@ -218,9 +225,13 @@ public class PublicIslandAuthTest {
         assertTrue(roadmap.body().contains("\"success\""));
         assertTrue(roadmap.body().contains("\"phases\""));
         assertTrue(roadmap.body().contains("\"stale\""));
-        assertFalse(roadmap.body().contains("未登入"));
+        assertTrue(roadmap.body().contains("\"success\":true"));
+        assertTrue(roadmap.body().contains("\"current\""));
+        assertTrue(roadmap.body().contains("\"title\""));
+        assertTrue(roadmap.body().contains("群島地基"));
         assertFalse(roadmap.body().contains("**Phase"));
         assertFalse(roadmap.body().contains("## 分期"));
+        assertFalse(roadmap.body().contains("未登入或權限不足"));
     }
 
     @Test
