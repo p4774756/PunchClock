@@ -4,8 +4,6 @@ import com.example.model.WorkSlot;
 import com.example.service.CheckInHistoryService;
 import com.example.service.PeerAvatar;
 import com.example.service.WindowBackground;
-import com.example.ui.hud.CharacterTheme;
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
@@ -146,13 +144,12 @@ public class PanelFactory {
                 settingsSection("雲端連線", boldFont, cloud),
                 settingsSection("程式更新", boldFont, updates)));
         tabs.addTab("外觀", settingsPage(
-                settingsSection("角色主題", boldFont, characterThemeRow(refs, mainFont)),
                 settingsSection("程式背景", boldFont, backgroundRow(refs, mainFont, boldFont)),
                 settingsSection("桌面寵物", boldFont, desktopPetRow(refs, mainFont, boldFont))));
         tabs.addTab("中繼", settingsPage(
                 settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont))));
         tabs.setToolTipTextAt(SETTINGS_CONNECTION_TAB, "雲端連線與程式更新");
-        tabs.setToolTipTextAt(1, "角色主題、程式背景、桌面寵物、模糊與透明度");
+        tabs.setToolTipTextAt(1, "程式背景、桌面寵物、模糊與透明度");
         tabs.setToolTipTextAt(2, "讓區網內的同事經由這台電腦連到雲端");
         tabs.setSelectedIndex(SETTINGS_CONNECTION_TAB);
         return tabs;
@@ -242,29 +239,6 @@ public class PanelFactory {
         column.add(Box.createVerticalStrut(4));
         column.add(refs.relayHelpArea);
 
-        return column;
-    }
-
-    private static JPanel characterThemeRow(ServerConfigRefs refs, Font mainFont) {
-        refs.characterThemeCombo = new JComboBox<>(CharacterTheme.labels());
-        refs.characterThemeCombo.setFont(mainFont);
-        refs.characterThemeCombo.setPrototypeDisplayValue(CharacterTheme.ORBITAL.label());
-        refs.characterThemeCombo.setToolTipText("切換首頁與功能頁的角色。會立刻套用，重新開啟後恢復。");
-        CandyComboBox.install(refs.characterThemeCombo);
-
-        JLabel hint = new JLabel("切換後立刻套用，下次開啟會恢復這個選擇。");
-        hint.setFont(UiFonts.chinesePlain(12));
-        hint.setForeground(NightTheme.MUTED);
-
-        JPanel column = new JPanel();
-        column.setOpaque(false);
-        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
-        column.setAlignmentX(Component.LEFT_ALIGNMENT);
-        refs.characterThemeCombo.setAlignmentX(Component.LEFT_ALIGNMENT);
-        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        column.add(refs.characterThemeCombo);
-        column.add(Box.createVerticalStrut(4));
-        column.add(hint);
         return column;
     }
 
@@ -514,7 +488,6 @@ public class PanelFactory {
         public JButton checkUpdateButton;
         public JButton applyUpdateButton;
         public JLabel heartbeatStatusLabel;
-        public JComboBox<String> characterThemeCombo;
         public JLabel backgroundPreview;
         public JButton chooseBackgroundButton;
         public JButton clearBackgroundButton;

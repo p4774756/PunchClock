@@ -14,10 +14,8 @@ import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
-import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Cursor;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -64,11 +62,6 @@ public final class AnimeShell extends JPanel {
     private final boolean reducedMotion = reducedMotion();
     private final Map<String, TaskStatus> seenTasks = new HashMap<>();
     private final DonateAction donateAction = DonateAction.production();
-    private CharacterTheme theme = CharacterTheme.SWEATER;
-    /** 軌道版「下一個任務」：約 85% 不透明，文字／邊框另畫。 */
-    private static final Color ORBITAL_CARD = new Color(42, 24, 78, 217);
-    /** 腰部平切線局部遮罩（不透明，避免透出水平切口）。 */
-    private static final Color ORBITAL_WAIST_MASK = new Color(42, 24, 78, 255);
     private HomeActions homeActions;
     private boolean holdingHome = true;
     private boolean useRoom = true;
@@ -76,17 +69,6 @@ public final class AnimeShell extends JPanel {
     private java.awt.Rectangle bust = new java.awt.Rectangle();
     private java.awt.image.BufferedImage homeFigure;
     private java.awt.Rectangle homeFigureBounds;
-    /** 軌道素材縮放快取：場景／全身／側欄半身都很大，重複雙線性縮放會讓 macOS 透明窗閃。 */
-    private BufferedImage orbitalSceneLayer;
-    private int orbitalSceneW = -1;
-    private int orbitalSceneH = -1;
-    private BufferedImage orbitalFigureLayer;
-    private BufferedImage orbitalFigureSource;
-    private int orbitalFigureW = -1;
-    private int orbitalFigureH = -1;
-    private BufferedImage orbitalBustLayer;
-    private int orbitalBustW = -1;
-    private int orbitalBustH = -1;
     private int paintedFrame = -1;
     private long paintedSecond = -1;
     private String paintedHomeKey;
@@ -150,12 +132,8 @@ public final class AnimeShell extends JPanel {
                 }
                 return;
             }
-            // 側欄表情只有毛衣女孩會眨眼；軌道版半身是靜態圖。
             if (frame != paintedFrame) {
                 paintedFrame = frame;
-                if (theme == CharacterTheme.ORBITAL) {
-                    return;
-                }
                 if (bust.isEmpty()) {
                     repaint();
                 } else {
@@ -197,15 +175,9 @@ public final class AnimeShell extends JPanel {
     }
 
     public void setCharacterTheme(CharacterTheme theme) {
-        this.theme = theme == null ? CharacterTheme.SWEATER : theme;
-        board.setReminderFill(this.theme == CharacterTheme.ORBITAL ? ORBITAL_CARD : null);
-        clearOrbitalCaches();
-        if (this.theme == CharacterTheme.ORBITAL) {
-            releaseHomeFigure();
-        }
+        board.setReminderFill(null);
         revalidate();
         repaint();
-        // 非首頁不改窗框留白：設定頁切主題若 relayout，macOS 透明窗後續 hover 會一直閃。
         if (holdingHome) {
             refreshChrome();
         }
@@ -222,7 +194,6 @@ public final class AnimeShell extends JPanel {
     /** 打開原本的分頁：0 排程、1 設定、2 好友與傳檔、3 日誌。 */
     public void openTab(int index) {
         holdingHome = false;
-        clearOrbitalCaches();
         if (index >= 0 && index < tabs.getTabCount() && tabs.getSelectedIndex() != index) {
             tabs.setSelectedIndex(index);
         }
@@ -267,22 +238,7 @@ public final class AnimeShell extends JPanel {
         board.seatReminder(cardInShell, textRightInShell);
     }
 
-    /**
-     * 軌道版角色：軀幹畫在殼層（卡片後面），跨框頭髮由畫布前景補上。
-     */
-    void presentOrbitalFigure(java.awt.Rectangle figureInShell) {
-        homeFigure = OrbitalAssets.shared().foreground();
-        homeFigureBounds = figureInShell == null || figureInShell.width <= 0 || homeFigure == null
-                ? null
-                : new java.awt.Rectangle(figureInShell);
-        prepareHomeLayout();
-        board.seatOrbitalReminderAtWaist(homeFigureBounds);
-        if (board.reminder.height > 0) {
-            dropHomeBubbleBelow(board.reminder.y + board.reminder.height + 8);
-        }
-    }
-
-    /** 換主題或離開首頁時清掉上一張角色，避免毛衣女孩留在軌道版上。 */
+    /** 換主題或離開首頁時清掉上一張角色。 */
     void releaseHomeFigure() {
         homeFigure = null;
         homeFigureBounds = null;
@@ -526,72 +482,13 @@ public final class AnimeShell extends JPanel {
     private void paintHome(Graphics2D g, java.awt.Rectangle area) {
         HomeBrief brief = homeActions == null ? HomeBrief.empty() : homeActions.read();
         board.layout(area);
-        if (theme == CharacterTheme.ORBITAL) {
-            paintOrbitalScene(g);
-            if (homeFigureBounds != null) {
-                board.seatOrbitalReminderAtWaist(homeFigureBounds);
-            } else {
-                board.seatOrbitalReminder();
-            }
-        }
         board.paint(g, brief, hot);
-        // 軌道軀幹先畫，再局部遮切口，最後半透明卡片蓋上。
         paintHomeFigure(g);
-        paintOrbitalWaistMask(g);
         board.paintReminder(g, brief);
         board.paintHomeBubble(g);
     }
 
-    /** 地球、星空、太空站裁在右側舞台；左緣以透明漸層接室內背景。 */
-    private void paintOrbitalScene(Graphics2D g) {
-        java.awt.image.BufferedImage image = OrbitalAssets.shared().stageImage();
-        if (image == null || board.stage.width < 40 || board.stage.height < 40) {
-            return;
-        }
-        int w = board.stage.width;
-        int h = board.stage.height;
-        if (orbitalSceneLayer == null || orbitalSceneW != w || orbitalSceneH != h) {
-            BufferedImage layer = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D lg = layer.createGraphics();
-            try {
-                lg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                OrbitalAssets.drawCover(
-                        lg,
-                        image,
-                        new java.awt.Rectangle(0, 0, w, h),
-                        OrbitalAssets.shared().stageAnchorX(),
-                        OrbitalAssets.shared().stageAnchorY());
-                // 左約 14%：場景 alpha 0→1，只遮 scene 層，室內背景可透出。
-                int fade = Math.max(28, Math.min(140, w * 14 / 100));
-                lg.setComposite(AlphaComposite.DstIn);
-                lg.setPaint(new GradientPaint(
-                        0, 0, new Color(1f, 1f, 1f, 0f),
-                        fade, 0, new Color(1f, 1f, 1f, 1f)));
-                lg.fillRect(0, 0, fade, h);
-            } finally {
-                lg.dispose();
-            }
-            orbitalSceneLayer = layer;
-            orbitalSceneW = w;
-            orbitalSceneH = h;
-        }
-        g.drawImage(orbitalSceneLayer, board.stage.x, board.stage.y, null);
-    }
-
-    private void clearOrbitalCaches() {
-        orbitalSceneLayer = null;
-        orbitalSceneW = -1;
-        orbitalSceneH = -1;
-        orbitalFigureLayer = null;
-        orbitalFigureSource = null;
-        orbitalFigureW = -1;
-        orbitalFigureH = -1;
-        orbitalBustLayer = null;
-        orbitalBustW = -1;
-        orbitalBustH = -1;
-    }
-
-    /** 全身畫在卡片後面；軌道版再裁到卡片上緣內。 */
+    /** 全身畫在卡片後面。 */
     private void paintHomeFigure(Graphics2D g) {
         if (homeFigure == null || homeFigureBounds == null || board.stage.width < 40) {
             return;
@@ -600,103 +497,18 @@ public final class AnimeShell extends JPanel {
         int x = board.stage.x;
         int width = Math.max(0, getWidth() - x);
         g.clipRect(x, 0, width, getHeight());
-        if (theme == CharacterTheme.ORBITAL && board.reminder.height > 40) {
-            // 底緣藏進卡片上段，半透明卡片再靠腰線遮罩補實。
-            int hide = board.reminder.y + Math.max(24, board.reminder.height * 30 / 100);
-            g.clipRect(0, 0, getWidth(), Math.max(0, hide));
+        Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(
+                homeFigure,
+                homeFigureBounds.x,
+                homeFigureBounds.y,
+                homeFigureBounds.width,
+                homeFigureBounds.height,
+                null);
+        if (previous != null) {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous);
         }
-        if (theme == CharacterTheme.ORBITAL) {
-            BufferedImage scaled = scaledOrbitalFigure();
-            if (scaled != null) {
-                g.drawImage(scaled, homeFigureBounds.x, homeFigureBounds.y, null);
-            }
-        } else {
-            Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g.drawImage(
-                    homeFigure,
-                    homeFigureBounds.x,
-                    homeFigureBounds.y,
-                    homeFigureBounds.width,
-                    homeFigureBounds.height,
-                    null);
-            if (previous != null) {
-                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous);
-            }
-        }
-        g.setClip(clip);
-    }
-
-    private BufferedImage scaledOrbitalFigure() {
-        if (homeFigure == null || homeFigureBounds == null || homeFigureBounds.width < 2 || homeFigureBounds.height < 2) {
-            return null;
-        }
-        int w = homeFigureBounds.width;
-        int h = homeFigureBounds.height;
-        // 畫布每次繪製都會 release 再 present 一次，快取只看來源圖與尺寸。
-        if (orbitalFigureLayer == null || orbitalFigureSource != homeFigure
-                || orbitalFigureW != w || orbitalFigureH != h) {
-            BufferedImage layer = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D lg = layer.createGraphics();
-            try {
-                lg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                lg.drawImage(homeFigure, 0, 0, w, h, null);
-            } finally {
-                lg.dispose();
-            }
-            orbitalFigureLayer = layer;
-            orbitalFigureSource = homeFigure;
-            orbitalFigureW = w;
-            orbitalFigureH = h;
-        }
-        return orbitalFigureLayer;
-    }
-
-    private BufferedImage scaledOrbitalBust(BufferedImage portrait, int width, int height) {
-        if (portrait == null || width < 2 || height < 2) {
-            return null;
-        }
-        if (orbitalBustLayer == null || orbitalBustW != width || orbitalBustH != height) {
-            BufferedImage layer = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D lg = layer.createGraphics();
-            try {
-                lg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                lg.drawImage(portrait, 0, 0, width, height, null);
-            } finally {
-                lg.dispose();
-            }
-            orbitalBustLayer = layer;
-            orbitalBustW = width;
-            orbitalBustH = height;
-        }
-        return orbitalBustLayer;
-    }
-
-    /** 在角色平切線畫一條不透明帶，避免 85% 卡片透出水平切口。 */
-    private void paintOrbitalWaistMask(Graphics2D g) {
-        if (theme != CharacterTheme.ORBITAL
-                || homeFigureBounds == null
-                || board.reminder.height < 40) {
-            return;
-        }
-        int cutY = Math.min(
-                homeFigureBounds.y + homeFigureBounds.height - 1,
-                board.reminder.y + board.reminder.height - 4);
-        if (cutY < board.reminder.y + 4 || cutY > board.reminder.y + board.reminder.height - 4) {
-            return;
-        }
-        int band = Math.max(10, board.reminder.height * 12 / 100);
-        int top = Math.max(board.reminder.y, cutY - band / 2);
-        int bottom = Math.min(board.reminder.y + board.reminder.height, cutY + band / 2 + 1);
-        int left = Math.max(board.reminder.x + 2, homeFigureBounds.x - 6);
-        int right = Math.min(board.reminder.x + board.reminder.width - 2, homeFigureBounds.x + homeFigureBounds.width + 6);
-        if (right - left < 24 || bottom - top < 4) {
-            return;
-        }
-        Shape clip = g.getClip();
-        g.clipRect(board.reminder.x, board.reminder.y, board.reminder.width, board.reminder.height);
-        g.setColor(ORBITAL_WAIST_MASK);
-        g.fillRoundRect(left, top, right - left, bottom - top, 10, 10);
         g.setClip(clip);
     }
 
@@ -736,22 +548,6 @@ public final class AnimeShell extends JPanel {
     private void paintBust(Graphics2D g, java.awt.Rectangle nav) {
         bust = new java.awt.Rectangle();
         if (holdingHome) {
-            return;
-        }
-        if (theme == CharacterTheme.ORBITAL) {
-            java.awt.image.BufferedImage portrait = OrbitalAssets.shared().sidebarImage();
-            if (portrait == null) {
-                return;
-            }
-            bust = bustBox(nav, portrait.getWidth(), portrait.getHeight());
-            if (bust.width <= 0) {
-                return;
-            }
-            // 透明半身等比例完整顯示臉與髮頂；縮放結果快取，避免 hover 反覆雙線性縮放。
-            BufferedImage scaled = scaledOrbitalBust(portrait, bust.width, bust.height);
-            if (scaled != null) {
-                g.drawImage(scaled, bust.x, bust.y, null);
-            }
             return;
         }
         if (cast == null) {

@@ -63,6 +63,19 @@ public class CandyWidgetsTest {
     }
 
     @Test
+    public void comboPopupUsesHeavyweightLayer() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            JComboBox<String> hours = new JComboBox<>(new String[] {"甲", "乙"});
+            CandyComboBox.install(hours);
+            assertFalse(hours.isLightWeightPopupEnabled());
+            JComboBox<String> url = new JComboBox<>(new String[] {"https://a"});
+            url.setEditable(true);
+            CandyComboBox.dress(url);
+            assertFalse(url.isLightWeightPopupEnabled());
+        });
+    }
+
+    @Test
     public void comboKeepsModelAfterThemeApply() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             JComboBox<String> hours = new JComboBox<>(new String[] {"00", "01", "13"});
