@@ -107,8 +107,7 @@ public class ConfigPersistenceService {
         public boolean autoApplyUpdate = true;
 
         /**
-         * 角色主題 id。{@code sweater} 為原版毛衣女孩，{@code orbital} 為粉髮女駕駛。
-         * 缺欄位或無法辨識時正規化成原版。
+         * 舊版角色主題 id（已移除選單；讀取時正規化成 {@code sweater}，儲存時不再寫出）。
          */
         public String characterTheme = CharacterTheme.SWEATER.id();
     }
@@ -156,7 +155,10 @@ public class ConfigPersistenceService {
     public void saveConfig(CloudConfig config, Consumer<String> logger) {
         if (config == null) return;
         try {
-            Files.writeString(savePath, gson.toJson(config));
+            com.google.gson.JsonObject json = com.google.gson.JsonParser.parseString(gson.toJson(config))
+                    .getAsJsonObject();
+            json.remove("characterTheme");
+            Files.writeString(savePath, gson.toJson(json));
         } catch (IOException e) {
             if (logger != null) {
                 logger.accept("[警告] 儲存設定失敗: " + e.getMessage());

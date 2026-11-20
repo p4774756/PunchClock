@@ -215,57 +215,6 @@ final class HomeBoard {
         reminderFill = fill;
     }
 
-    /** 軌道版卡片放在右側場景偏下，整張都在舞台裡面。 */
-    void seatOrbitalReminder() {
-        seatOrbitalReminderAtWaist(null);
-    }
-
-    /**
-     * 卡片上緣對齊角色腰部平切線並略為蓋住。
-     * {@code figure} 是殼層座標；沒有角色時退回場景偏下位置。
-     */
-    void seatOrbitalReminderAtWaist(Rectangle figure) {
-        if (stage.width < 140 || stage.height < 120) {
-            return;
-        }
-        int cardW = Math.min(280, Math.max(176, stage.width * 48 / 100));
-        // 先算完整高度用來對齊頂緣，再縮約 15%（頂緣不動）。
-        int fullH = Math.min(118, Math.max(86, stage.height * 15 / 100));
-        int cardH = Math.max(72, Math.round(fullH * 0.85f));
-        int bubbleRoom = 56;
-        int x;
-        int y;
-        if (figure != null && figure.width >= 80 && figure.height >= 80) {
-            // 卡片要比角色腰還寬一點，才能蓋住平切線兩側。
-            cardW = Math.min(stage.width - 20, Math.max(cardW, figure.width * 78 / 100));
-            // 頂緣對齊方式沿用縮短前高度，再縮高度；重疊封頂以免切口掉出卡片。
-            int overlap = Math.min(
-                    Math.max(36, fullH * 42 / 100),
-                    Math.max(36, Math.round(figure.height * 0.14f)));
-            overlap = Math.min(overlap, cardH - 24);
-            x = Math.max(stage.x + 8, Math.min(
-                    stage.x + stage.width - cardW - 8,
-                    figure.x + (figure.width - cardW) / 2));
-            // 上緣蓋住素材底緣；若角色底在舞台外，仍對齊可見腰線。
-            int waist = Math.min(figure.y + figure.height, stage.y + stage.height - 4);
-            y = waist - overlap;
-        } else {
-            x = stage.x + stage.width - cardW - 16;
-            y = stage.y + Math.round(stage.height * 0.56f);
-        }
-        if (x < stage.x + 8) {
-            x = stage.x + 8;
-        }
-        if (y + cardH + bubbleRoom > stage.y + stage.height - 4) {
-            y = stage.y + stage.height - 4 - bubbleRoom - cardH;
-        }
-        if (y < stage.y + 8) {
-            y = stage.y + 8;
-        }
-        seatReminder(new Rectangle(x, y, cardW, cardH), x + cardW - 12);
-        setBubbleFloor(y + cardH + 8);
-    }
-
     /** 把「下一個任務」放在前臂下面。textRight 之後是手指，字不要畫過去。 */
     void seatReminder(Rectangle card, int textRight) {
         seated = card == null || card.width < 80 ? null : new Rectangle(card);

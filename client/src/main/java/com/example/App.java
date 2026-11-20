@@ -393,7 +393,6 @@ public class App extends JFrame {
         WindowChrome.setFramePortrait(this, homePortrait);
 
         bindBackgroundControls();
-        bindCharacterTheme();
 
         // 上方和右側要留給跨出面板的角色，內層紫色面板仍維持原本能排卡片的大小。
         setMinimumSize(new Dimension(1100, 820));
@@ -1727,16 +1726,6 @@ public class App extends JFrame {
 
     private BufferedImage currentBackgroundImage;
 
-    private void bindCharacterTheme() {
-        if (serverRefs.characterThemeCombo == null) {
-            return;
-        }
-        serverRefs.characterThemeCombo.addActionListener(e -> {
-            Object item = serverRefs.characterThemeCombo.getSelectedItem();
-            applyCharacterTheme(CharacterTheme.fromLabel(item == null ? null : item.toString()), true);
-        });
-    }
-
     private void applyCharacterTheme(CharacterTheme theme, boolean persist) {
         CharacterTheme next = theme == null ? CharacterTheme.SWEATER : theme;
         if (homePortrait != null) {
@@ -2335,11 +2324,7 @@ public class App extends JFrame {
     }
 
     private void applyCharacterThemeSelection(ConfigPersistenceService.CloudConfig config) {
-        CharacterTheme theme = CharacterTheme.fromId(config == null ? null : config.characterTheme);
-        if (serverRefs.characterThemeCombo != null) {
-            serverRefs.characterThemeCombo.setSelectedItem(theme.label());
-        }
-        applyCharacterTheme(theme, false);
+        applyCharacterTheme(CharacterTheme.fromId(config == null ? null : config.characterTheme), false);
     }
 
     private void applyRelayConfig(ConfigPersistenceService.CloudConfig config) {
@@ -2493,10 +2478,6 @@ public class App extends JFrame {
         config.trustAllSsl = serverRefs.trustAllSslCheckBox != null
                 && serverRefs.trustAllSslCheckBox.isSelected();
         config.checkForUpdates = isCheckForUpdatesEnabled();
-        if (serverRefs.characterThemeCombo != null && serverRefs.characterThemeCombo.getSelectedItem() != null) {
-            config.characterTheme = CharacterTheme.fromLabel(
-                    serverRefs.characterThemeCombo.getSelectedItem().toString()).id();
-        }
         config.backgroundBlurPercent = currentBackgroundBlurPercent();
         config.backgroundOpacityPercent = currentBackgroundOpacityPercent();
         captureRelayConfigInto(config);

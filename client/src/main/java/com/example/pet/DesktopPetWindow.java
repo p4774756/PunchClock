@@ -1,25 +1,22 @@
 package com.example.pet;
 
 import com.example.ui.CandyTheme;
-import com.example.ui.NightTheme;
 import com.example.ui.UiFonts;
 import com.example.ui.hud.PixelSprite;
 
 import javax.swing.JComponent;
 import javax.swing.JFrame;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JMenuItem;
 import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
+import javax.swing.JWindow;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
-import javax.swing.event.PopupMenuEvent;
-import javax.swing.event.PopupMenuListener;
+import java.awt.Desktop;
 import java.awt.AWTEvent;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.Component;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
@@ -94,11 +91,14 @@ public final class DesktopPetWindow extends JFrame {
     private Rectangle bubbleBounds;
     private int controlGroundY;
     private static final long CARE_PERSIST_MS = 30_000L;
-    private JPopupMenu openPetMenu;
+    private JWindow petMenuWindow;
+    private PetContextMenu petMenuPanel;
     private Timer menuAutoCloseTimer;
     private long menuPointerLeftAt = -1L;
     private AWTEventListener menuEventListener;
     private boolean suppressMenuOnRelease;
+    private boolean controlWindowFocused = true;
+    private Timer controlFocusTimer;
 
     DesktopPetWindow(DesktopPetSettings settings) {
         super("桌面寵物");
@@ -153,6 +153,7 @@ public final class DesktopPetWindow extends JFrame {
         MouseAdapter pointer = pointer();
         stage.addMouseListener(pointer);
         stage.addMouseMotionListener(pointer);
+        installControlKeyBindings();
         KeyAdapter keys = keys();
         stage.addKeyListener(keys);
         addKeyListener(keys);
@@ -165,8 +166,20 @@ public final class DesktopPetWindow extends JFrame {
         });
         addWindowFocusListener(new WindowAdapter() {
             @Override
+            public void windowGainedFocus(WindowEvent e) {
+                if (control.isActive()) {
+                    controlWindowFocused = true;
+                    repaint();
+                }
+            }
+
+            @Override
             public void windowLostFocus(WindowEvent e) {
-                // 等焦點轉到選單的 HeavyWeight 視窗後再判斷，避免一打開就被自己關掉。
+                if (control.isActive()) {
+                    controlWindowFocused = false;
+                    repaint();
+                }
+                // 等焦點轉到選單視窗後再判斷，避免一打開就被自己關掉。
                 Window opposite = e.getOppositeWindow();
                 SwingUtilities.invokeLater(() -> maybeHidePetMenuAfterFocusLost(opposite));
             }
@@ -319,11 +332,11 @@ public final class DesktopPetWindow extends JFrame {
         control.enter();
         animation.setPlayerControl(true);
         controlGroundY = getY();
-        setFocusableWindowState(true);
+        controlWindowFocused = true;
         setAutoRequestFocus(false);
+        setFocusableWindowState(true);
         stage.setFocusable(true);
-        stage.requestFocusInWindow();
-        requestFocus();
+        scheduleControlFocusGrab();
         repaint();
     }
 
@@ -335,6 +348,11 @@ public final class DesktopPetWindow extends JFrame {
         control.exit();
         animation.setPlayerControl(false);
         animation.syncPlayerWalk(0);
+        controlWindowFocused = true;
+        if (controlFocusTimer != null) {
+            controlFocusTimer.stop();
+            controlFocusTimer = null;
+        }
         setFocusableWindowState(false);
         stage.setFocusable(false);
         Point grounded = DesktopPetWindow.clampToScreens(
@@ -346,6 +364,98 @@ public final class DesktopPetWindow extends JFrame {
 
     boolean controlModeActive() {
         return control.isActive();
+    }
+
+    boolean controlBindingsInstalled() {
+        return PetControlKeyBindings.bindingsPresent(getRootPane());
+    }
+
+    private void installControlKeyBindings() {
+        PetControlKeyBindings.install(getRootPane(), new PetControlKeyBindings.Handler() {
+            @Override
+            public boolean controlActive() {
+                return control.isActive();
+            }
+
+            @Override
+            public void onKeyPressed(int vk) {
+                control.applyKeyPressed(vk);
+                if (!control.isActive()) {
+                    exitControlMode();
+                    return;
+                }
+                tickControlMove();
+                repaint();
+            }
+
+            @Override
+            public void onKeyReleased(int vk) {
+                control.applyKeyReleased(vk);
+                animation.syncPlayerWalk(control.walkDirection());
+                repaint();
+            }
+
+            @Override
+            public boolean menuVisible() {
+                return petMenuVisible();
+            }
+
+            @Override
+            public void hideMenu() {
+                hidePetMenu();
+            }
+
+            @Override
+            public void exitControl() {
+                exitControlMode();
+            }
+        });
+    }
+
+    private void scheduleControlFocusGrab() {
+        if (controlFocusTimer != null) {
+            controlFocusTimer.stop();
+            controlFocusTimer = null;
+        }
+        Runnable grab = this::grabControlKeyboardFocus;
+        SwingUtilities.invokeLater(grab);
+        controlFocusTimer = new Timer(48, ev -> {
+            ((Timer) ev.getSource()).stop();
+            controlFocusTimer = null;
+            grab.run();
+        });
+        controlFocusTimer.setRepeats(false);
+        controlFocusTimer.start();
+    }
+
+    private void grabControlKeyboardFocus() {
+        if (!control.isActive()) {
+            return;
+        }
+        requestAppForeground();
+        toFront();
+        setFocusableWindowState(true);
+        stage.setFocusable(true);
+        requestFocus();
+        stage.requestFocusInWindow();
+        controlWindowFocused = isFocused();
+        repaint();
+    }
+
+    private static void requestAppForeground() {
+        if (!Desktop.isDesktopSupported()) {
+            return;
+        }
+        try {
+            Desktop desktop = Desktop.getDesktop();
+            // isDesktopSupported 只代表 Desktop 存在；不支援這個 action 時 requestForeground 會丟例外。
+            if (!desktop.isSupported(Desktop.Action.APP_REQUEST_FOREGROUND)) {
+                return;
+            }
+            desktop.requestForeground(true);
+        } catch (RuntimeException ex) {
+            // 部分環境不支援前景請求。
+        }
     }
 
     Rectangle usableBounds() {
@@ -524,34 +634,7 @@ public final class DesktopPetWindow extends JFrame {
                 if (PetMenuDismiss.shouldCloseOnEscape(petMenuVisible(), e.getKeyCode())) {
                     hidePetMenu();
                     e.consume();
-                    return;
                 }
-                if (!control.isActive()) {
-                    return;
-                }
-                boolean wasActive = control.isActive();
-                control.applyKeyPressed(e.getKeyCode());
-                if (!control.isActive()) {
-                    exitControlMode();
-                    e.consume();
-                    return;
-                }
-                if (wasActive) {
-                    tickControlMove();
-                    repaint();
-                }
-                e.consume();
-            }
-
-            @Override
-            public void keyReleased(KeyEvent e) {
-                if (!control.isActive()) {
-                    return;
-                }
-                control.applyKeyReleased(e.getKeyCode());
-                animation.syncPlayerWalk(control.walkDirection());
-                repaint();
-                e.consume();
             }
         };
     }
@@ -623,6 +706,9 @@ public final class DesktopPetWindow extends JFrame {
                 }
                 if (!SwingUtilities.isLeftMouseButton(e)) {
                     return;
+                }
+                if (control.isActive()) {
+                    grabControlKeyboardFocus();
                 }
                 dragging = false;
                 pressScreen = e.getLocationOnScreen();
@@ -714,7 +800,7 @@ public final class DesktopPetWindow extends JFrame {
                     }
                 } else if (e.getClickCount() >= 2) {
                     summonMainWindow();
-                } else if (careEnabled()) {
+                } else if (careEnabled() && !control.isActive()) {
                     if (animation.isNotice()) {
                         noticeOpen = null;
                         if (noticeReleased != null) {
@@ -758,67 +844,48 @@ public final class DesktopPetWindow extends JFrame {
             hidePetMenu();
             return;
         }
-        Font font = UiFonts.chinesePlain(13);
-        JPopupMenu menu = new JPopupMenu();
-        menu.setLightWeightPopupEnabled(false);
-        menu.setBackground(CandyTheme.NIGHT);
-        JCheckBoxMenuItem controlItem = new JCheckBoxMenuItem("操控模式", control.isActive());
-        controlItem.setFont(font);
-        controlItem.addActionListener(ev -> {
-            if (controlItem.isSelected()) {
-                enterControlMode();
-            } else {
-                exitControlMode();
-            }
-        });
-        menu.add(controlItem);
         if (careEnabled()) {
             care.tick();
             syncCareUi();
-            menu.addSeparator();
-            addCareItem(menu, "餵食", DesktopPetCare.Action.FEED, DesktopPetAnimation.Mode.FEED, font);
-            addCareItem(menu, "摸頭", DesktopPetCare.Action.PAT, DesktopPetAnimation.Mode.PAT, font);
-            addCareItem(menu, "玩耍", DesktopPetCare.Action.PLAY, DesktopPetAnimation.Mode.PLAY, font);
-            menu.addSeparator();
-            JMenuItem status = new JMenuItem(care.statusLine());
-            status.setFont(font);
-            status.setEnabled(false);
-            status.setForeground(NightTheme.MUTED);
-            menu.add(status);
         }
-        menu.addSeparator();
-        JMenuItem debugItem = new JMenuItem(debug ? "關閉除錯" : "顯示除錯");
-        debugItem.setFont(font);
-        debugItem.addActionListener(ev -> {
-            debug = !debug;
-            repaint();
-        });
-        menu.add(debugItem);
-        menu.addPopupMenuListener(new PopupMenuListener() {
+        long now = System.currentTimeMillis();
+        PetContextMenu.Listener listener = new PetContextMenu.Listener() {
             @Override
-            public void popupMenuWillBecomeVisible(PopupMenuEvent event) {
-            }
-
-            @Override
-            public void popupMenuWillBecomeInvisible(PopupMenuEvent event) {
-                if (openPetMenu == menu) {
-                    cleanupPetMenu();
+            public void onToggleControl(boolean enable) {
+                if (enable) {
+                    SwingUtilities.invokeLater(DesktopPetWindow.this::enterControlMode);
+                } else {
+                    exitControlMode();
                 }
             }
 
             @Override
-            public void popupMenuCanceled(PopupMenuEvent event) {
-                if (openPetMenu == menu) {
-                    cleanupPetMenu();
-                }
+            public void onCare(DesktopPetCare.Action action, DesktopPetAnimation.Mode mode) {
+                applyCareAction(action, mode);
             }
-        });
-        armPetMenu(menu);
-        menu.show(stage, e.getX(), e.getY());
+
+            @Override
+            public void onToggleDebug() {
+                debug = !debug;
+                repaint();
+            }
+
+            @Override
+            public void onDismiss() {
+                hidePetMenu();
+            }
+        };
+        PetContextMenu panel = PetContextMenu.build(
+                careEnabled(), control.isActive(), debug, care, now, listener);
+        armPetMenu(panel, e);
     }
 
     boolean petMenuVisible() {
-        return openPetMenu != null && openPetMenu.isVisible();
+        return petMenuWindow != null && petMenuWindow.isVisible();
+    }
+
+    PetContextMenu openPetMenuPanel() {
+        return petMenuPanel;
     }
 
     void showPetMenuAt(int x, int y) {
@@ -829,19 +896,29 @@ public final class DesktopPetWindow extends JFrame {
     }
 
     void hidePetMenu() {
-        JPopupMenu menu = openPetMenu;
-        if (menu != null && menu.isVisible()) {
-            menu.setVisible(false);
-            return;
+        if (petMenuWindow != null && petMenuWindow.isVisible()) {
+            petMenuWindow.setVisible(false);
         }
         cleanupPetMenu();
     }
 
-    private void armPetMenu(JPopupMenu menu) {
+    private void armPetMenu(PetContextMenu panel, MouseEvent e) {
         cleanupPetMenu();
-        openPetMenu = menu;
+        petMenuPanel = panel;
         suppressMenuOnRelease = false;
         menuPointerLeftAt = -1L;
+        petMenuWindow = new JWindow();
+        petMenuWindow.setFocusableWindowState(false);
+        prepareMenuWindowTransparency(petMenuWindow);
+        panel.setDoubleBuffered(false);
+        petMenuWindow.getContentPane().add(panel);
+        petMenuWindow.pack();
+        Point origin = stage.getLocationOnScreen();
+        Dimension size = petMenuWindow.getSize();
+        int sx = origin.x + e.getX();
+        int sy = origin.y + e.getY();
+        Point clamped = PetContextMenu.clampMenuOrigin(sx, sy, size.width, size.height, screenRects());
+        petMenuWindow.setLocation(clamped);
         if (!control.isActive()) {
             setFocusableWindowState(true);
             toFront();
@@ -853,6 +930,7 @@ public final class DesktopPetWindow extends JFrame {
         menuAutoCloseTimer = new Timer(200, ev -> tickPetMenuAutoClose());
         menuAutoCloseTimer.setRepeats(true);
         menuAutoCloseTimer.start();
+        petMenuWindow.setVisible(true);
     }
 
     private void cleanupPetMenu() {
@@ -865,7 +943,11 @@ public final class DesktopPetWindow extends JFrame {
             menuAutoCloseTimer = null;
         }
         menuPointerLeftAt = -1L;
-        openPetMenu = null;
+        if (petMenuWindow != null) {
+            petMenuWindow.dispose();
+            petMenuWindow = null;
+        }
+        petMenuPanel = null;
         if (!control.isActive()) {
             setFocusableWindowState(false);
             stage.setFocusable(false);
@@ -914,13 +996,14 @@ public final class DesktopPetWindow extends JFrame {
     }
 
     private boolean isEventInsideMenu(MouseEvent mouse) {
-        if (openPetMenu == null) {
+        if (petMenuWindow == null) {
             return false;
         }
         Object src = mouse.getSource();
-        if (src instanceof java.awt.Component) {
-            java.awt.Component component = (java.awt.Component) src;
-            if (component == openPetMenu || openPetMenu.isAncestorOf(component)) {
+        if (src instanceof Component) {
+            Component component = (Component) src;
+            if (component == petMenuPanel || component == petMenuWindow
+                    || (petMenuPanel != null && petMenuPanel.isAncestorOf(component))) {
                 return true;
             }
             Window sourceWindow = SwingUtilities.getWindowAncestor(component);
@@ -930,8 +1013,8 @@ public final class DesktopPetWindow extends JFrame {
         }
         try {
             Point onScreen = mouse.getLocationOnScreen();
-            Point origin = openPetMenu.getLocationOnScreen();
-            Rectangle bounds = new Rectangle(origin, openPetMenu.getSize());
+            Point origin = petMenuWindow.getLocationOnScreen();
+            Rectangle bounds = new Rectangle(origin, petMenuWindow.getSize());
             return bounds.contains(onScreen);
         } catch (RuntimeException ex) {
             return false;
@@ -951,7 +1034,7 @@ public final class DesktopPetWindow extends JFrame {
     }
 
     private boolean isPointerOverMenu() {
-        if (openPetMenu == null || !openPetMenu.isVisible()) {
+        if (petMenuWindow == null || !petMenuWindow.isVisible()) {
             return false;
         }
         PointerInfo info = MouseInfo.getPointerInfo();
@@ -959,8 +1042,8 @@ public final class DesktopPetWindow extends JFrame {
             return false;
         }
         try {
-            Point origin = openPetMenu.getLocationOnScreen();
-            Rectangle bounds = new Rectangle(origin, openPetMenu.getSize());
+            Point origin = petMenuWindow.getLocationOnScreen();
+            Rectangle bounds = new Rectangle(origin, petMenuWindow.getSize());
             return bounds.contains(info.getLocation());
         } catch (RuntimeException ex) {
             return false;
@@ -979,25 +1062,10 @@ public final class DesktopPetWindow extends JFrame {
     }
 
     private boolean isPetMenuWindow(Window window) {
-        if (window == null || openPetMenu == null) {
+        if (window == null || petMenuWindow == null) {
             return false;
         }
-        if (window == this) {
-            return true;
-        }
-        Window ancestor = SwingUtilities.getWindowAncestor(openPetMenu);
-        return window == ancestor || window.isAncestorOf(openPetMenu);
-    }
-
-    private void addCareItem(JPopupMenu menu, String label, DesktopPetCare.Action action,
-                             DesktopPetAnimation.Mode mode, Font font) {
-        long remaining = care.cooldownRemaining(action, System.currentTimeMillis());
-        String text = remaining > 0L ? label + "（還要等一下）" : label;
-        JMenuItem item = new JMenuItem(text);
-        item.setFont(font);
-        item.setEnabled(remaining <= 0L);
-        item.addActionListener(ev -> applyCareAction(action, mode));
-        menu.add(item);
+        return window == petMenuWindow;
     }
 
     private void applyCareAction(DesktopPetCare.Action action, DesktopPetAnimation.Mode mode) {
@@ -1096,6 +1164,37 @@ public final class DesktopPetWindow extends JFrame {
             return true;
         } catch (RuntimeException ex) {
             return false;
+        }
+    }
+
+    /**
+     * 選單是獨立 JWindow。只把 content pane 塗透明不夠，圓角與陰影外的像素仍會露出視窗方底。
+     * 與萌寵本體相同：支援 PERPIXEL_TRANSLUCENT 時把視窗底設成全透明，並關掉 root／layered pane 的不透明填色。
+     */
+    static void prepareMenuWindowTransparency(JWindow window) {
+        try {
+            GraphicsDevice device = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+            if (device.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT)) {
+                window.setBackground(new Color(0, 0, 0, 0));
+            }
+        } catch (RuntimeException ex) {
+            // 不支援 per-pixel 時不改視窗底色，選單內容仍畫得出來。
+        }
+        JComponent root = window.getRootPane();
+        root.setOpaque(false);
+        root.setDoubleBuffered(false);
+        root.putClientProperty("Window.shadow", Boolean.FALSE);
+        root.putClientProperty("apple.awt.draggableWindowBackground", Boolean.FALSE);
+        if (window.getLayeredPane() instanceof JComponent) {
+            JComponent layered = (JComponent) window.getLayeredPane();
+            layered.setOpaque(false);
+            layered.setDoubleBuffered(false);
+        }
+        window.getContentPane().setBackground(new Color(0, 0, 0, 0));
+        if (window.getContentPane() instanceof JComponent) {
+            JComponent content = (JComponent) window.getContentPane();
+            content.setOpaque(false);
+            content.setDoubleBuffered(false);
         }
     }
 
@@ -1324,7 +1423,10 @@ public final class DesktopPetWindow extends JFrame {
         }
 
         private void paintControlHint(Graphics2D g) {
-            String text = DesktopPetControl.HINT;
+            String text = control.hintText(controlWindowFocused);
+            if (text == null) {
+                return;
+            }
             g.setFont(UiFonts.chinesePlain(11));
             FontMetrics metrics = g.getFontMetrics();
             int pad = 6;
