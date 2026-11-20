@@ -34,10 +34,15 @@ public final class CandyComboBox {
     private CandyComboBox() {
     }
 
-    /** 一般下拉。可編輯時一併換輸入框外皮，不換掉編輯器本身。 */
-    public static void install(JComboBox<?> combo) {
+    /** heavyweight 彈出清單不會被透明設定區裁切。 */
+    static void enableHeavyPopup(JComboBox<?> combo) {
         combo.putClientProperty(MARK, Boolean.TRUE);
         combo.setLightWeightPopupEnabled(false);
+    }
+
+    /** 一般下拉。可編輯時一併換輸入框外皮，不換掉編輯器本身。 */
+    public static void install(JComboBox<?> combo) {
+        enableHeavyPopup(combo);
         combo.setUI(new ComboUI());
         JTextComponent editor = editorOf(combo);
         if (editor != null) {
@@ -50,7 +55,7 @@ public final class CandyComboBox {
      * 可編輯且已有自己彈出清單的下拉。不重設 UI，避免最近使用項目的刪除失效。
      */
     public static void dress(JComboBox<?> combo) {
-        combo.putClientProperty(MARK, Boolean.TRUE);
+        enableHeavyPopup(combo);
         combo.setOpaque(false);
         combo.setBackground(CandyTheme.FIELD);
         combo.setForeground(CandyTheme.INK);
@@ -179,6 +184,7 @@ public final class CandyComboBox {
         @Override
         public void installUI(JComponent c) {
             super.installUI(c);
+            enableHeavyPopup(comboBox);
             comboBox.setOpaque(false);
             comboBox.setBackground(CandyTheme.FIELD);
             comboBox.setForeground(CandyTheme.INK);

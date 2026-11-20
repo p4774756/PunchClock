@@ -235,12 +235,21 @@ public class ConfigPersistenceServiceTest {
     }
 
     @Test
-    public void saveAndLoad_persistsCharacterTheme() {
+    public void loadConfig_legacyOrbitalFallsBackToSweater() throws Exception {
+        Files.writeString(configFile, "{\"characterTheme\":\"orbital\"}");
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertEquals("sweater", loaded.characterTheme);
+    }
+
+    @Test
+    public void saveConfig_omitsCharacterTheme() throws Exception {
         ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
         config.characterTheme = "orbital";
         configService.saveConfig(config, null);
+        String json = Files.readString(configFile);
+        assertFalse(json.contains("characterTheme"));
         ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
-        assertEquals("orbital", loaded.characterTheme);
+        assertEquals("sweater", loaded.characterTheme);
     }
 
     @Test

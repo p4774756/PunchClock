@@ -10,7 +10,6 @@ import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.Shape;
-import java.awt.geom.Area;
 
 /**
  * 全身圖畫在「下一個任務」卡片後面，手指再畫一次蓋在卡片前面。
@@ -21,52 +20,26 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
     private final AnimeShell shell;
     private final HomeCharacterArt art;
     private final Rectangle bust = new Rectangle();
-    /** 軌道前景等比例繪製後的實際矩形（頂右對齊）。 */
-    private final Rectangle orbitalDrawn = new Rectangle();
     /** 「下一個任務」卡片在畫布上的可見頂緣；與 {@link #bust} 同座標系。 */
     private int cardTopOnCanvas = Integer.MIN_VALUE;
-    /** 視窗控制鈕區域：角色不蓋住，點擊仍可穿透。 */
-    private final Rectangle controlHole = new Rectangle();
-    private CharacterTheme theme = CharacterTheme.SWEATER;
-    /** 跨框前景縮放快取，避免每次整窗重繪都雙線性縮放大幅 PNG。 */
-    private java.awt.image.BufferedImage orbitalOverflowLayer;
-    private int orbitalOverflowW = -1;
-    private int orbitalOverflowH = -1;
 
     public HomePortrait(AnimeShell shell) {
         this.shell = shell;
         this.art = HomeCharacterArt.load();
     }
 
+    /** 僅剩毛衣女孩；保留方法供 App 載入設定。 */
     public void setTheme(CharacterTheme theme) {
-        this.theme = theme == null ? CharacterTheme.SWEATER : theme;
-        orbitalOverflowLayer = null;
-        orbitalOverflowW = -1;
-        orbitalOverflowH = -1;
     }
 
     @Override
     public Insets overflow(int width, int height, boolean maximized) {
-        if (theme == CharacterTheme.ORBITAL) {
-            if (!OrbitalAssets.shared().hasOverflow()) {
-                return new Insets(0, 0, 0, 0);
-            }
-            // 外層尺寸 → 留白，需與 panelOverflow 對齊，否則換頁會改視窗大小閃爍。
-            return OrbitalFrame.forCanvas(width, height, maximized);
-        }
         return HomeCharacterLayout.overflow(width, height, maximized, art != null);
     }
 
     @Override
     public Insets panelOverflow(int panelWidth, int panelHeight) {
-        if (theme != CharacterTheme.ORBITAL) {
-            return null;
-        }
-        if (!OrbitalAssets.shared().hasOverflow()) {
-            // 只有窗內預覽時不要沿用毛衣女孩留白。
-            return new Insets(0, 0, 0, 0);
-        }
-        return OrbitalFrame.forPanel(panelWidth, panelHeight);
+        return null;
     }
 
     @Override
@@ -76,11 +49,6 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
 
     @Override
     public void paintInFront(Graphics2D g, JComponent canvas, Rectangle panel) {
-        if (theme == CharacterTheme.ORBITAL) {
-            // 只補殼層裁掉的跨框頭髮／右緣；軀幹已在卡片後面。
-            drawOrbitalOverflow(g, canvas, panel);
-            return;
-        }
         if (bust.width <= 0 || art == null) {
             return;
         }
@@ -92,9 +60,6 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
     public boolean opaqueAt(JComponent canvas, int x, int y) {
         if (shell == null || !shell.isHoldingHome() || !bust.contains(x, y)) {
             return false;
-        }
-        if (theme == CharacterTheme.ORBITAL) {
-            return opaqueForeground(x, y);
         }
         if (art == null) {
             return false;
@@ -113,16 +78,10 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
 
     private void place(JComponent canvas, Rectangle panel) {
         bust.setBounds(0, 0, 0, 0);
-        orbitalDrawn.setBounds(0, 0, 0, 0);
-        controlHole.setBounds(0, 0, 0, 0);
         if (shell == null || canvas == null || panel == null || !shell.isHoldingHome()) {
             if (shell != null) {
                 shell.releaseHomeFigure();
             }
-            return;
-        }
-        if (theme == CharacterTheme.ORBITAL) {
-            placeOrbital(canvas, panel);
             return;
         }
         if (art == null) {
@@ -171,118 +130,6 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
         }
     }
 
-    /**
-     * 軌道版角色等比例頂右對齊。卡片對齊腰部；頭髮連續蓋過標題列，控制鈕留洞。
-     */
-    private void placeOrbital(JComponent canvas, Rectangle panel) {
-        shell.releaseHomeFigure();
-        Rectangle controls = WindowChrome.chromeControls(canvas);
-        if (controls != null && controls.width > 0) {
-            controlHole.setBounds(controls.x - 6, controls.y - 2, controls.width + 12, controls.height + 6);
-        }
-        if (!OrbitalAssets.shared().hasOverflow()) {
-            return;
-        }
-        shell.prepareHomeLayout();
-        Rectangle stage = stageOnCanvas(canvas);
-        boolean maximized = WindowChrome.isMaximizedFrame(canvas);
-        Rectangle dest = OrbitalFrame.foregroundDest(stage, maximized);
-        java.awt.image.BufferedImage image = OrbitalAssets.shared().foreground();
-        if (dest.width <= 0 || image == null) {
-            return;
-        }
-        Rectangle fitted = OrbitalAssets.fitTopRight(image, dest);
-        bust.setBounds(fitted);
-        orbitalDrawn.setBounds(fitted);
-        try {
-            Point origin = SwingUtilities.convertPoint(shell, 0, 0, canvas);
-            shell.presentOrbitalFigure(new Rectangle(
-                    fitted.x - origin.x,
-                    fitted.y - origin.y,
-                    fitted.width,
-                    fitted.height));
-        } catch (IllegalArgumentException ex) {
-            shell.presentOrbitalFigure(null);
-        }
-    }
-
-    /**
-     * 跨框層：頭髮蓋過標題列、手套貼右框外；避開視窗控制鈕。
-     * 殼層頂緣以下已由 AnimeShell 畫過，這裡往下多畫一點避免接縫。
-     */
-    private void drawOrbitalOverflow(Graphics2D g, JComponent canvas, Rectangle panel) {
-        java.awt.image.BufferedImage image = OrbitalAssets.shared().foreground();
-        if (image == null || orbitalDrawn.width <= 0 || panel == null) {
-            return;
-        }
-        int shellTopOnCanvas;
-        try {
-            Point shellOrigin = SwingUtilities.convertPoint(shell, 0, 0, canvas);
-            shellTopOnCanvas = shellOrigin.y;
-        } catch (IllegalArgumentException ex) {
-            shellTopOnCanvas = panel.y + Math.max(1, WindowChrome.titleBarHeight(canvas));
-        }
-        // 標題列＋殼層上緣重疊帶，讓額前髮連續。
-        int seam = shellTopOnCanvas + 18;
-        Shape previous = g.getClip();
-        Area area = new Area(orbitalDrawn);
-        if (controlHole.width > 0) {
-            area.subtract(new Area(controlHole));
-        }
-        // 只要殼層之上（含標題）與右框外；軀幹留給殼層＋卡片。
-        Area keep = new Area(new Rectangle(
-                orbitalDrawn.x, orbitalDrawn.y, orbitalDrawn.width, Math.max(0, seam - orbitalDrawn.y)));
-        if (panel.width > 0) {
-            int rightEdge = panel.x + panel.width;
-            if (orbitalDrawn.x + orbitalDrawn.width > rightEdge) {
-                keep.add(new Area(new Rectangle(
-                        rightEdge,
-                        Math.max(orbitalDrawn.y, seam),
-                        orbitalDrawn.x + orbitalDrawn.width - rightEdge,
-                        Math.max(0, orbitalDrawn.y + orbitalDrawn.height - seam))));
-            }
-        }
-        area.intersect(keep);
-        // 卡片區絕對不畫前景，避免跨框層蓋回腰線。
-        Rectangle reminder = reminderOnCanvas(canvas);
-        if (reminder != null && reminder.width > 0) {
-            area.subtract(new Area(reminder));
-        }
-        g.setClip(area);
-        java.awt.image.BufferedImage scaled = scaledOrbitalOverflow(image);
-        if (scaled != null) {
-            g.drawImage(scaled, orbitalDrawn.x, orbitalDrawn.y, null);
-        } else {
-            OrbitalAssets.drawFitted(g, image, orbitalDrawn);
-        }
-        g.setClip(previous);
-    }
-
-    private java.awt.image.BufferedImage scaledOrbitalOverflow(java.awt.image.BufferedImage image) {
-        if (image == null || orbitalDrawn.width < 2 || orbitalDrawn.height < 2) {
-            return null;
-        }
-        int w = orbitalDrawn.width;
-        int h = orbitalDrawn.height;
-        if (orbitalOverflowLayer == null || orbitalOverflowW != w || orbitalOverflowH != h) {
-            java.awt.image.BufferedImage layer = new java.awt.image.BufferedImage(
-                    w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-            java.awt.Graphics2D lg = layer.createGraphics();
-            try {
-                lg.setRenderingHint(
-                        java.awt.RenderingHints.KEY_INTERPOLATION,
-                        java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                lg.drawImage(image, 0, 0, w, h, null);
-            } finally {
-                lg.dispose();
-            }
-            orbitalOverflowLayer = layer;
-            orbitalOverflowW = w;
-            orbitalOverflowH = h;
-        }
-        return orbitalOverflowLayer;
-    }
-
     private Rectangle reminderOnCanvas(JComponent canvas) {
         if (shell == null || canvas == null) {
             return null;
@@ -297,43 +144,6 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
         } catch (IllegalArgumentException ex) {
             return null;
         }
-    }
-
-    private boolean opaqueForeground(int x, int y) {
-        java.awt.image.BufferedImage image = OrbitalAssets.shared().foreground();
-        if (image == null || orbitalDrawn.width <= 0) {
-            return false;
-        }
-        if (controlHole.width > 0 && controlHole.contains(x, y)) {
-            return false;
-        }
-        if (!orbitalDrawn.contains(x, y)) {
-            return false;
-        }
-        // 卡片區留給殼層命中，不要被玻璃層吃掉。
-        JComponent canvas = findCanvas();
-        Rectangle reminder = reminderOnCanvas(canvas);
-        if (reminder != null && reminder.contains(x, y)) {
-            return false;
-        }
-        int imageX = (x - orbitalDrawn.x) * image.getWidth() / Math.max(1, orbitalDrawn.width);
-        int imageY = (y - orbitalDrawn.y) * image.getHeight() / Math.max(1, orbitalDrawn.height);
-        if (imageX < 0 || imageY < 0 || imageX >= image.getWidth() || imageY >= image.getHeight()) {
-            return false;
-        }
-        return ((image.getRGB(imageX, imageY) >>> 24) & 0xff) > 24;
-    }
-
-    private JComponent findCanvas() {
-        if (shell == null) {
-            return null;
-        }
-        java.awt.Window window = SwingUtilities.getWindowAncestor(shell);
-        if (!(window instanceof javax.swing.JFrame)) {
-            return null;
-        }
-        Object canvas = ((javax.swing.JFrame) window).getRootPane().getClientProperty("punchclock.canvas");
-        return canvas instanceof JComponent ? (JComponent) canvas : null;
     }
 
     /** 前景層（頭、手臂）下緣，與「下一個任務」卡片可見頂緣對齊（畫布座標）。 */

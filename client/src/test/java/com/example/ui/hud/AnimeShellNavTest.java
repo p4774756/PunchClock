@@ -48,32 +48,6 @@ public class AnimeShellNavTest {
     }
 
     @Test
-    public void orbitalReminderStaysInsideTheStage() {
-        HomeBoard board = new HomeBoard();
-        board.layout(new Rectangle(0, 0, 900, 700));
-        board.seatOrbitalReminder();
-        assertTrue(board.stage.contains(board.reminder));
-        assertTrue(board.reminder.x > board.actions.x + board.actions.width - 4);
-        assertTrue(board.reminder.y > board.stage.y);
-    }
-
-    @Test
-    public void orbitalReminderCoversTheWaistCut() {
-        HomeBoard board = new HomeBoard();
-        board.layout(new Rectangle(0, 0, 900, 700));
-        Rectangle figure = new Rectangle(480, 40, 360, 420);
-        board.seatOrbitalReminderAtWaist(figure);
-        assertTrue(board.stage.contains(board.reminder));
-        assertTrue(board.reminder.y < figure.y + figure.height);
-        int cardH = board.reminder.height;
-        assertTrue("縮短後仍要裝得下三行字", cardH >= 72);
-        assertTrue(figure.y + figure.height <= board.reminder.y + board.reminder.height + 1);
-        assertTrue(board.reminder.y < figure.y + figure.height);
-        assertTrue(board.reminder.width + 8 >= figure.width * 70 / 100);
-        assertTrue(board.reminder.x + board.reminder.width <= board.stage.x + board.stage.width);
-    }
-
-    @Test
     public void donateClickAreaDoesNotOverlapNavRows() {
         int height = 720;
         Rectangle donate = AnimeShell.donateClickBounds(1100, height);

@@ -1,12 +1,11 @@
 package com.example.ui.hud;
 
 /**
- * 首頁與功能頁共用的角色主題。只換素材和呈現，頁面與控制項不變。
- * 舊設定沒有這個欄位、或寫入無法辨識的值時，回到原版。
+ * 首頁與功能頁的角色主題（僅毛衣女孩）。
+ * 舊設定檔的 {@code orbital} 與其它無法辨識的值讀進來時會正規化成 {@code sweater}。
  */
 public enum CharacterTheme {
-    SWEATER("sweater", "原版・毛衣女孩"),
-    ORBITAL("orbital", "軌道觀景窗・粉髮女駕駛");
+    SWEATER("sweater", "原版・毛衣女孩");
 
     private final String id;
     private final String label;
@@ -48,13 +47,5 @@ public enum CharacterTheme {
             }
         }
         return fromId(key);
-    }
-
-    public static String[] labels() {
-        String[] labels = new String[values().length];
-        for (int i = 0; i < labels.length; i++) {
-            labels[i] = values()[i].label;
-        }
-        return labels;
     }
 }
