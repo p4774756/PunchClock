@@ -1,13 +1,9 @@
 package com.example.service;
 
-import com.microsoft.playwright.Browser;
-import com.microsoft.playwright.BrowserContext;
-import com.microsoft.playwright.BrowserType;
-import com.microsoft.playwright.Page;
-import com.microsoft.playwright.Playwright;
+import com.example.service.automation.CheckInBrowserFactory;
+import com.example.service.automation.CheckInPageDriver;
+import com.example.service.automation.CheckInSession;
 import com.microsoft.playwright.TimeoutError;
-import com.microsoft.playwright.options.WaitForSelectorState;
-import com.microsoft.playwright.options.WaitUntilState;
 
 import java.util.function.Consumer;
 
@@ -17,19 +13,27 @@ import java.util.function.Consumer;
  */
 public class AutomationService {
 
-    private static final int NAVIGATE_TIMEOUT_MS = 45_000;
-    private static final int NAVIGATE_MAX_ATTEMPTS = 3;
-    private static final int NAVIGATE_RETRY_DELAY_MS = 5_000;
-    private static final int SELECTOR_TIMEOUT_MS = 15_000;
-    private static final int CLICK_TIMEOUT_MS = 5_000;
-    private static final int HIGHLIGHT_DURATION_MS = 10_000;
-    private static final int LAYOUT_STABLE_MS = 700;
-    private static final int LAYOUT_STABLE_POLL_MS = 150;
-    private static final int LAYOUT_STABLE_MAX_MS = 8_000;
-    private static final int HIGHLIGHT_TRACK_INTERVAL_MS = 120;
+    static final int NAVIGATE_TIMEOUT_MS = 45_000;
+    static final int NAVIGATE_MAX_ATTEMPTS = 3;
+    static final int NAVIGATE_RETRY_DELAY_MS = 5_000;
+    static final int SELECTOR_TIMEOUT_MS = 15_000;
+    static final int CLICK_TIMEOUT_MS = 5_000;
+    static final int HIGHLIGHT_DURATION_MS = 10_000;
+    static final int LAYOUT_STABLE_MS = 700;
+    static final int LAYOUT_STABLE_POLL_MS = 150;
+    static final int LAYOUT_STABLE_MAX_MS = 8_000;
+    static final int HIGHLIGHT_TRACK_INTERVAL_MS = 120;
 
-    private Playwright playwright;
-    private Browser cachedBrowser;
+    private final CheckInBrowserFactory browserFactory;
+
+    public AutomationService() {
+        this(new PlaywrightCheckInFactory());
+    }
+
+    AutomationService(CheckInBrowserFactory browserFactory) {
+        this.browserFactory = browserFactory;
+    }
+
     /**
      * 執行自動打卡任務
      *
@@ -41,15 +45,10 @@ public class AutomationService {
     public synchronized boolean executeCheckIn(String targetUrl, String buttonId, String browserChoice, Consumer<String> logger) {
         log(logger, "⏰ 【觸發】準備啟動自動化瀏覽器 (選擇: " + (browserChoice != null ? browserChoice : "msedge") + ")...");
 
-        BrowserContext context = null;
+        CheckInSession session = null;
         try {
-            ensurePlaywright(logger);
-            String choice = (browserChoice == null) ? "msedge" : browserChoice.trim().toLowerCase();
-            Browser browser = getOrCreateBrowser(choice, logger);
-
-            // 內部測試站常用內部 CA／自簽憑證（且啟用 HSTS），略過憑證錯誤才能自動打卡
-            context = browser.newContext(new Browser.NewContextOptions().setIgnoreHTTPSErrors(true));
-            Page page = context.newPage();
+            session = browserFactory.openSession(browserChoice, logger);
+            CheckInPageDriver page = session.newPage();
 
             log(logger, "網頁導向中：" + targetUrl);
             navigateWithRetry(page, targetUrl, logger);
@@ -65,22 +64,20 @@ public class AutomationService {
 
             log(logger, "等待目標按鈕出現（最多 " + (SELECTOR_TIMEOUT_MS / 1000) + " 秒，Selector: " + selector + "）...");
             try {
-                page.waitForSelector(selector, new Page.WaitForSelectorOptions()
-                        .setState(WaitForSelectorState.VISIBLE)
-                        .setTimeout(SELECTOR_TIMEOUT_MS));
+                page.waitForSelectorVisible(selector, SELECTOR_TIMEOUT_MS);
             } catch (TimeoutError timeoutError) {
                 log(logger, "[失敗] 逾時：找不到可見的目標按鈕（" + selector + "）");
                 return false;
             }
 
             log(logger, "等待頁面版面穩定（避免廣告載入推挤偏移）...");
-            waitForLayoutStable(page, selector);
+            page.waitForLayoutStable(selector, LAYOUT_STABLE_MS, LAYOUT_STABLE_POLL_MS, LAYOUT_STABLE_MAX_MS);
 
             log(logger, "標注目標按鈕（漫畫集中線＋紅框 " + (HIGHLIGHT_DURATION_MS / 1000) + " 秒後點擊，並持續追蹤位置）...");
-            HighlightRenderer.runSequence(page, selector, HIGHLIGHT_DURATION_MS, HIGHLIGHT_TRACK_INTERVAL_MS);
-            HighlightRenderer.remove(page, selector);
+            page.runHighlightSequence(selector, HIGHLIGHT_DURATION_MS, HIGHLIGHT_TRACK_INTERVAL_MS);
+            page.removeHighlight(selector);
 
-            page.click(selector, new Page.ClickOptions().setTimeout(CLICK_TIMEOUT_MS));
+            page.click(selector, CLICK_TIMEOUT_MS);
             log(logger, "[成功] 已成功點擊目標按鈕！");
 
             page.waitForTimeout(5000);
@@ -91,25 +88,22 @@ public class AutomationService {
             log(logger, errorMsg);
             throw new RuntimeException(errorMsg, ex);
         } finally {
-            if (context != null) {
+            if (session != null) {
                 try {
-                    context.close();
-                } catch (Exception ignored) {}
+                    session.close();
+                } catch (Exception ignored) {
+                }
             }
-            closeCachedBrowser();
-            closePlaywright();
         }
     }
 
     /**
      * 導向目標網址；遇到網路層錯誤（net::ERR_*）或載入逾時時，短暫等待後重試。
      */
-    private void navigateWithRetry(Page page, String targetUrl, Consumer<String> logger) {
+    void navigateWithRetry(CheckInPageDriver page, String targetUrl, Consumer<String> logger) {
         for (int attempt = 1; ; attempt++) {
             try {
-                page.navigate(targetUrl, new Page.NavigateOptions()
-                        .setTimeout(NAVIGATE_TIMEOUT_MS)
-                        .setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+                page.navigate(targetUrl, NAVIGATE_TIMEOUT_MS);
                 return;
             } catch (RuntimeException ex) {
                 if (attempt >= NAVIGATE_MAX_ATTEMPTS || !isRetryableNavigateError(ex)) {
@@ -122,7 +116,7 @@ public class AutomationService {
         }
     }
 
-    private static boolean isRetryableNavigateError(Throwable ex) {
+    static boolean isRetryableNavigateError(Throwable ex) {
         if (ex instanceof TimeoutError) {
             return true;
         }
@@ -130,7 +124,7 @@ public class AutomationService {
         return raw != null && raw.contains("net::ERR_");
     }
 
-    private static String summarize(String raw) {
+    static String summarize(String raw) {
         if (raw == null) {
             return "";
         }
@@ -142,88 +136,14 @@ public class AutomationService {
         return raw.length() > 100 ? raw.substring(0, 100) + "..." : raw;
     }
 
-    private void waitForLayoutStable(Page page, String selector) {
-        HighlightRenderer.waitForLayoutStable(page, selector,
-                LAYOUT_STABLE_MS, LAYOUT_STABLE_POLL_MS, LAYOUT_STABLE_MAX_MS);
-    }
-
-    /**
-     * Lazy-init Playwright instance（每次 executeCheckIn 結束後會關閉，下次執行再建立）
-     */
-    private void ensurePlaywright(Consumer<String> logger) {
-        if (playwright == null) {
-            log(logger, "[初始化] 首次初始化 Playwright 引擎...");
-            playwright = Playwright.create();
-        }
-    }
-
-    /**
-     * 建立瀏覽器實例（每次 executeCheckIn 結束後會關閉，下次執行再建立）
-     */
-    private Browser getOrCreateBrowser(String choice, Consumer<String> logger) {
-        closeCachedBrowser();
-
-        BrowserType.LaunchOptions launchOptions = new BrowserType.LaunchOptions().setHeadless(false);
-
-        switch (choice) {
-            case "chrome":
-                log(logger, "[執行] 啟動 本機 Google Chrome 瀏覽器...");
-                launchOptions.setChannel("chrome");
-                cachedBrowser = playwright.chromium().launch(launchOptions);
-                break;
-            case "firefox":
-                log(logger, "[執行] 啟動 內建 Firefox 瀏覽器...");
-                cachedBrowser = playwright.firefox().launch(launchOptions);
-                break;
-            case "webkit":
-                log(logger, "[執行] 啟動 內建 WebKit (Safari核心) 瀏覽器...");
-                cachedBrowser = playwright.webkit().launch(launchOptions);
-                break;
-            case "chromium":
-                log(logger, "[執行] 啟動 內建 Chromium 瀏覽器...");
-                cachedBrowser = playwright.chromium().launch(launchOptions);
-                break;
-            case "msedge":
-            case "edge":
-            default:
-                log(logger, "[執行] 啟動 本機 Microsoft Edge 瀏覽器...");
-                launchOptions.setChannel("msedge");
-                cachedBrowser = playwright.chromium().launch(launchOptions);
-                break;
-        }
-
-        return cachedBrowser;
-    }
-
-    private void closeCachedBrowser() {
-        if (cachedBrowser != null) {
-            try {
-                if (cachedBrowser.isConnected()) {
-                    cachedBrowser.close();
-                }
-            } catch (Exception ignored) {}
-            cachedBrowser = null;
-        }
-    }
-
-    private void closePlaywright() {
-        if (playwright != null) {
-            try {
-                playwright.close();
-            } catch (Exception ignored) {}
-            playwright = null;
-        }
-    }
-
     /**
      * 關閉所有 Playwright 資源（應用程式關閉時呼叫）
      */
     public synchronized void shutdown() {
-        closeCachedBrowser();
-        closePlaywright();
+        browserFactory.shutdown();
     }
 
-    private String formatUserError(Exception ex) {
+    static String formatUserError(Exception ex) {
         String raw = ex.getMessage();
         if (ex instanceof TimeoutError || (raw != null && raw.contains("Timeout") && raw.contains("exceeded"))) {
             return "[失敗] 網頁載入逾時（" + (NAVIGATE_TIMEOUT_MS / 1000)
