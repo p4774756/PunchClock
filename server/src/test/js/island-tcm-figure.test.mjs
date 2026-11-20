@@ -20,17 +20,26 @@ const {
   resolveTcmPickHit,
   acupointNearBronzeBody,
   BRONZE_HEAD_TOP_Y,
+  BRONZE_SURFACE_TOLERANCE,
   markerSurfacePosition,
+  configureBronzeSurface,
+  bronzeSurfaceBodyPosition,
+  bronzeSurfaceInstanceKey,
   meshUsesEntranceBronzeMaterial,
   meshMaterialNames,
   entranceBronzeLocalGuard,
   hideEntranceBronzeMeshes,
   ENTRANCE_BRONZE_MATERIALS,
-  ENTRANCE_FIG_LOCAL
+  ENTRANCE_FIG_LOCAL,
+  BRONZE_BODY_SRGB,
+  BRONZE_HAIR_SRGB,
+  bronzeHairDistinctFromBody
 } = await loadPublicModule('island-tcm-figure-logic.js');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'main', 'resources', 'public');
 const records = JSON.parse(readFileSync(join(root, 'island/tcm-bronze-points.json'), 'utf8'));
+const surfaceDoc = JSON.parse(readFileSync(join(root, 'island/tcm-bronze-surface.json'), 'utf8'));
+configureBronzeSurface(surfaceDoc);
 
 test('定位收錄：BL1 與有定位數量', () => {
   const bl1 = records.find((r) => r.code === 'BL1');
@@ -39,15 +48,19 @@ test('定位收錄：BL1 與有定位數量', () => {
   assert.ok(located.length >= 50, 'located=' + located.length);
 });
 
-test('104 穴標記貼在銅人身體包圍盒內（外擴 0.04）', () => {
+test('104 穴標記貼在銅人體表（±0.02）且落在身體包圍盒內', () => {
   const expanded = expandCurriculumInstances(records);
   assert.equal(expanded.length, 104);
   let maxY = 0;
   for (let i = 0; i < expanded.length; i++) {
     const row = expanded[i];
-    const side = row.instanceKey.endsWith(':-1') ? -1 : 1;
+    const side = row.instanceKey.endsWith(':-1') ? -1 : row.instanceKey.endsWith(':1') ? 1 : 1;
     const rec = records.find((r) => r.code === row.code);
+    const bodyPos = bronzeSurfaceBodyPosition(rec, side);
+    assert.ok(bodyPos, 'missing surface ' + bronzeSurfaceInstanceKey(rec, side));
     const pos = markerSurfacePosition(rec, side);
+    const drift = Math.hypot(pos[0] - bodyPos[0], pos[1] - bodyPos[1], pos[2] - bodyPos[2]);
+    assert.ok(drift <= BRONZE_SURFACE_TOLERANCE + 0.004, row.instanceKey + ' drift=' + drift);
     assert.ok(acupointNearBronzeBody(pos, 0.04), row.instanceKey + ' ' + pos.join(','));
     maxY = Math.max(maxY, pos[1]);
   }
@@ -213,4 +226,47 @@ test('resolveTcmPickHit：InstancedMesh 回傳穴 instanceKey', () => {
     object: { userData: { tcmPointPick: { instanceKeys: ['A:m', 'B:1', 'B:-1', 'C:1'] } } }
   });
   assert.deepEqual(hit, { type: 'tcm-point', instanceKey: 'C:1', instanceId: 3 });
+});
+
+test('銅人材質：頭髮色深於身體、匾額 emissiveMap', () => {
+  assert.ok(bronzeHairDistinctFromBody(BRONZE_HAIR_SRGB, BRONZE_BODY_SRGB));
+  const jsPath = join(root, 'js', 'island-tcm-figure.js');
+  const source = readFileSync(jsPath, 'utf8');
+  assert.ok(/isHair/.test(source));
+  assert.ok(/bronze_hair/.test(source));
+  assert.ok(/emissiveMap\s*=\s*obj\.material\.map/.test(source));
+  assert.ok(/userData\.dayE\s*=\s*0\.45/.test(source));
+  assert.ok(/userData\.nightE\s*=\s*0\.6/.test(source));
+  const glbPath = join(root, 'models', 'tcm-bronze-figure.glb');
+  const buf = readFileSync(glbPath);
+  assert.equal(buf.readUInt32LE(0), 0x46546c67);
+  const jlen = buf.readUInt32LE(12);
+  const chunk = JSON.parse(buf.subarray(20, 20 + jlen).toString('utf8'));
+  const mats = chunk.materials || [];
+  const hair = mats.find((m) => m.name === 'bronze_hair');
+  const body = mats.find((m) => m.name === 'bronze' || m.name === 'bronze.001');
+  assert.ok(hair && body, 'hair/body materials');
+  const linToSrgb8 = (c) => {
+    const x = Math.max(0, Math.min(1, c));
+  const s = x <= 0.0031308 ? x * 12.92 : 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
+    return Math.round(s * 255);
+  };
+  const hairRgb = (hair.pbrMetallicRoughness.baseColorFactor || []).slice(0, 3);
+  const hairHex =
+    (linToSrgb8(hairRgb[0]) << 16)
+    + (linToSrgb8(hairRgb[1]) << 8)
+    + linToSrgb8(hairRgb[2]);
+  assert.ok(bronzeHairDistinctFromBody(hairHex, BRONZE_BODY_SRGB));
+  const plaque = mats.find((m) => m.name === 'plaque');
+  assert.ok(plaque && plaque.pbrMetallicRoughness.baseColorTexture, 'plaque texture');
+});
+
+test('buildPointMeshes 不可引用未定義的裸 renderer', () => {
+  const jsPath = join(root, 'js', 'island-tcm-figure.js');
+  const source = readFileSync(jsPath, 'utf8');
+  const m = source.match(/function buildPointMeshes\([\s\S]*?^  }/m);
+  assert.ok(m, 'buildPointMeshes block');
+  const block = m[0];
+  assert.ok(!/\bensureBronzeEnvMap\s*\(\s*renderer\s*\)/.test(block));
+  assert.ok(/ensureBronzeEnvMap\s*\(\s*ctx\.renderer\s*\)/.test(block));
 });
