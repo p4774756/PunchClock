@@ -47,6 +47,8 @@ public final class DevMachineRoutes {
         app.post("/api/dev-machines/heartbeat", this::heartbeat);
         app.get("/api/dev-machines", this::list);
         app.get("/dev-status", this::devStatusPage);
+        app.get("/office", this::officePage);
+        app.get("/office.html", this::officePage);
     }
 
     private void devStatusPage(Context ctx) {
@@ -54,6 +56,15 @@ public final class DevMachineRoutes {
         ctx.header("Cache-Control", "no-cache, must-revalidate");
         String html = com.example.server.util.DonatePageTokens.apply(readResource("/public/dev-status.html"))
                 .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false");
+        ctx.html(html);
+    }
+
+    private void officePage(Context ctx) {
+        boolean authenticated = authService.isAuth(ctx);
+        ctx.header("Cache-Control", "no-cache, must-revalidate");
+        String html = readResource("/public/office.html")
+                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false")
+                .replace("{{OFFICE_GUEST_ATTR}}", authenticated ? "hidden" : "");
         ctx.html(html);
     }
 

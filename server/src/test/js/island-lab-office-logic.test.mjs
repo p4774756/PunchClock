@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadPublicModule } from './load-public-module.mjs';
 
-const L = await loadPublicModule('island-lab-office-logic.js');
+const L = await loadPublicModule('lab-office-logic.js');
 
 test('訪客不可開辦公室', () => {
   assert.equal(L.viewerCanOpenLabOffice(false), false);
@@ -39,4 +39,20 @@ test('工程師工作中氣泡', () => {
   const st = L.buildCharacterState('tiger', { machines, now: 1_010_000 });
   assert.equal(st.mode, 'work');
   assert.ok(st.bubble.includes('#254'));
+});
+
+test('五人站位不重疊', () => {
+  const states = L.buildAllCharacterStates({
+    machines: {
+      machines: [
+        { machine: 'office', online: true },
+        { machine: 'home', online: true }
+      ]
+    },
+    now: 1_000_000
+  });
+  const spots = states.map((s) => s.spot);
+  assert.equal(new Set(spots).size, spots.length);
+  assert.equal(states.find((s) => s.id === 'oki').spot, 'coffee');
+  assert.equal(states.find((s) => s.id === 'artist3d').spot, 'desk-art');
 });

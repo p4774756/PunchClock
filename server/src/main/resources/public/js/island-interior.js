@@ -836,16 +836,6 @@ export const INTERIORS = Object.freeze([
       Object.freeze({ id: 'exhibit-b', minX: -7.05, maxX: -5.65, minZ: 9.1, maxZ: 10.25 }),
       Object.freeze({ id: 'exhibit-c', minX: -7.05, maxX: -5.65, minZ: 11.0, maxZ: 12.15 }),
       Object.freeze({ id: 'exhibit-d', minX: -4.85, maxX: -3.45, minZ: 9.0, maxZ: 10.15 })
-    ]),
-    interacts: Object.freeze([
-      Object.freeze({
-        id: 'lab-2f-stairs',
-        x: 0.2,
-        z: 11.05,
-        r: 1.0,
-        label: '上研發二樓',
-        action: 'openLabOffice'
-      })
     ])
   }),
   Object.freeze({

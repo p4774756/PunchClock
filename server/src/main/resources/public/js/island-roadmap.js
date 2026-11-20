@@ -608,15 +608,6 @@ export function createRoadmapController(opts) {
     const authed = !!(win && win.PUNCHCLOCK_AUTHENTICATED === true);
     canLinkGithub = viewerCanLink(authed);
     mergeRoadmapDevStatusLink(doc, devMachinesNav, { authenticated: authed });
-    const labBtn = devMachinesNav && devMachinesNav.querySelector('[data-open-lab-office]');
-    if (labBtn && typeof hooks.onLabOffice === 'function') {
-      labBtn.onclick = authed
-        ? (ev) => {
-          if (ev) ev.preventDefault();
-          hooks.onLabOffice();
-        }
-        : null;
-    }
     if (latest) apply(latest);
     if (latestDev) applyDev(latestDev);
   }

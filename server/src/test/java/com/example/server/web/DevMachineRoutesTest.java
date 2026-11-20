@@ -213,7 +213,23 @@ public class DevMachineRoutesTest {
         assertTrue(page.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
         assertFalse(page.body().contains("小貓"));
         assertFalse(page.body().contains("agentRunning"));
+    }
 
+    @Test
+    public void officePageIsStandalone() throws Exception {
+        HttpResponse<String> page = send("GET", "/office", null);
+        assertEquals(200, page.statusCode());
+        assertTrue(page.body().contains("虛擬辦公室需管理員登入"));
+        assertTrue(page.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
+        assertTrue(page.body().contains("/assets/lab-2f/office-bg.webp"));
+        assertTrue(page.body().contains("/js/office-page.js"));
+        assertFalse(page.body().contains("island.js"));
+        assertFalse(page.body().contains("three.module"));
+        assertFalse(page.body().contains("agentRunning"));
+        HttpResponse<String> authed = send("GET", "/office", AdminAuthCookie.header());
+        assertEquals(200, authed.statusCode());
+        assertTrue(authed.body().contains("PUNCHCLOCK_AUTHENTICATED = true"));
+        assertTrue(authed.body().contains("data-office-guest hidden"));
     }
 
     private HttpResponse<String> sendHeartbeat(String auth, String json) throws Exception {

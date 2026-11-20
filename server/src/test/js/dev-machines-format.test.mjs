@@ -186,9 +186,7 @@ test('roadmap 開發機狀態鈕與資料來源', () => {
   F.mergeRoadmapDevStatusLink(doc, nav, { authenticated: true });
   assert.equal(nav.hidden, false);
   assert.equal(nav.childNodes[0].href, '/dev-status');
-  const officeBtn = nav.childNodes.find((n) => n.attributes && n.attributes['data-open-lab-office'] === '1');
-  assert.ok(officeBtn);
-  assert.equal(officeBtn.textContent, '虛擬辦公室');
+  assert.equal(nav.childNodes.length, 1);
   const src = doc.createElement('a');
   src.className = 'roadmap-source';
   F.applyGithubSourceLabel(doc, src, 'https://github.com/p4774756/PunchClock/issues/36', false);

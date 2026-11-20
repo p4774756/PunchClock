@@ -10,6 +10,7 @@ public class LoginNextPathTest {
     @Test
     public void acceptsWhitelistedPaths() {
         assertEquals("/dev-status", LoginNextPath.sanitize("/dev-status"));
+        assertEquals("/office", LoginNextPath.sanitize("/office"));
     }
 
     @Test

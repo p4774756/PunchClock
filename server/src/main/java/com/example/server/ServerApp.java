@@ -164,6 +164,13 @@ public final class ServerApp {
                 sf.location = Location.CLASSPATH;
                 applyIslandStaticCache(sf, ISLAND_STATIC_CACHE);
             });
+            config.staticFiles.add(sf -> {
+                sf.hostedPath = "/assets";
+                sf.directory = "/public/assets";
+                sf.location = Location.CLASSPATH;
+                sf.mimeTypes.add("image/webp", "webp");
+                applyIslandStaticCache(sf, ISLAND_STATIC_CACHE);
+            });
             config.showJavalinBanner = false;
             long maxRequest = PhotoStore.MAX_INCOMING_REQUEST_BYTES;
             config.http.maxRequestSize = maxRequest;

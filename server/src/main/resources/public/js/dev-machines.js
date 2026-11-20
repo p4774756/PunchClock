@@ -1,5 +1,5 @@
 import { mountDonateLinks } from './donate-link.js';
-import { createLabOfficeController } from './island-lab-office.js';
+import { createLabOfficeController } from './lab-office.js';
 import {
   buildRunRows,
   createGithubLink,

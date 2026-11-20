@@ -1,4 +1,4 @@
-// 研發二樓 Live 虛擬辦公室視圖（2D 覆蓋層）
+// 虛擬辦公室視圖（獨立頁與開發機狀態分頁共用，不依賴島嶼／Three.js）
 
 import {
   CHARACTER_IDS,
@@ -6,17 +6,18 @@ import {
   buildAllCharacterStates,
   characterCardData,
   viewerCanOpenLabOffice
-} from './island-lab-office-logic.js';
+} from './lab-office-logic.js';
 
 const SPOT_POS = Object.freeze({
-  'desk-tiger': { x: 41, y: 62 },
-  'desk-kitten': { x: 54, y: 62 },
-  'desk-review': { x: 67, y: 58 },
-  'desk-art': { x: 79, y: 60 },
-  coffee: { x: 20, y: 55 },
-  sofa: { x: 28, y: 72 },
-  balcony: { x: 88, y: 68 },
-  'desk-review-idle': { x: 67, y: 58 }
+  'desk-tiger': { x: 32, y: 82 },
+  'desk-kitten': { x: 48, y: 74 },
+  'desk-review': { x: 58, y: 66 },
+  'desk-art': { x: 70, y: 78 },
+  coffee: { x: 82, y: 70 },
+  sofa: { x: 16, y: 72 },
+  balcony: { x: 10, y: 84 },
+  beanbag: { x: 26, y: 88 },
+  meeting: { x: 42, y: 56 }
 });
 
 const CHAR_LABEL = Object.freeze({
@@ -31,7 +32,27 @@ function setText(node, text) {
   if (node) node.textContent = text == null ? '' : String(text);
 }
 
-function ensureRoot(doc) {
+function posForSpot(spot) {
+  return SPOT_POS[spot] || SPOT_POS.sofa;
+}
+
+const FRAME_HTML =
+  '<div class="lab-office-frame">' +
+  '<header class="lab-office-head">' +
+  '<h2>虛擬辦公室</h2>' +
+  '<button type="button" class="lab-office-close" data-lab-office-close aria-label="關閉">×</button>' +
+  '</header>' +
+  '<div class="lab-office-stage" data-lab-office-stage>' +
+  '<img class="lab-office-bg" src="/assets/lab-2f/office-bg.webp" width="1280" height="720" alt="">' +
+  '<div class="lab-office-chars" data-lab-office-chars></div>' +
+  '</div>' +
+  '<p class="lab-office-foot" data-lab-office-foot>每 30 秒更新 · 僅管理員</p>' +
+  '<div class="lab-office-card-backdrop" data-lab-office-card hidden>' +
+  '<div class="lab-office-card" role="dialog" aria-label="角色詳情"></div>' +
+  '</div>' +
+  '</div>';
+
+function ensureOverlay(doc) {
   let root = doc.getElementById('labOfficeRoot');
   if (root) return root;
   root = doc.createElement('section');
@@ -40,46 +61,29 @@ function ensureRoot(doc) {
   root.hidden = true;
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
-  root.setAttribute('aria-label', '研發二樓虛擬辦公室');
-  root.innerHTML =
-    '<div class="lab-office-frame maple-window">' +
-    '<header class="lab-office-head maple-win-title">' +
-    '<h2>研發二樓 · Live 虛擬辦公室</h2>' +
-    '<button type="button" class="lab-office-close" data-lab-office-close aria-label="關閉">×</button>' +
-    '</header>' +
-    '<div class="lab-office-stage" data-lab-office-stage>' +
-    '<img class="lab-office-bg" src="/assets/lab-2f/office-bg.webp" width="1280" height="720" alt="">' +
-    '<div class="lab-office-chars" data-lab-office-chars></div>' +
-    '<div class="lab-office-card-backdrop" data-lab-office-card hidden>' +
-    '<div class="lab-office-card maple-window" role="dialog" aria-label="角色詳情"></div>' +
-    '</div>' +
-    '</div>' +
-    '<p class="lab-office-foot" data-lab-office-foot>每 30 秒更新 · 僅管理員</p>' +
-  '</div>';
+  root.setAttribute('aria-label', '虛擬辦公室');
+  root.innerHTML = FRAME_HTML;
   doc.body.appendChild(root);
   return root;
-}
-
-function posForSpot(spot) {
-  return SPOT_POS[spot] || SPOT_POS.sofa;
 }
 
 export function createLabOfficeController(opts) {
   const doc = (opts && opts.doc) || globalThis.document;
   const win = (opts && opts.win) || globalThis;
   const hooks = (opts && opts.hooks) || {};
+  const pageMode = !!(opts && opts.page);
   const fetchFn = (opts && opts.fetch) || (win && win.fetch ? win.fetch.bind(win) : null);
-  const root = ensureRoot(doc);
+  const root = (opts && opts.existingRoot) || ensureOverlay(doc);
   const stage = root.querySelector('[data-lab-office-chars]');
   const cardLayer = root.querySelector('[data-lab-office-card]');
   const cardInner = cardLayer && cardLayer.querySelector('.lab-office-card');
   const closeBtn = root.querySelector('[data-lab-office-close]');
   const foot = root.querySelector('[data-lab-office-foot]');
+  const guest = root.querySelector('[data-office-guest]');
   let openState = false;
   let timer = null;
   let machines = null;
   let devStatus = null;
-  let openedAt = 0;
 
   function stopTimer() {
     if (timer != null) {
@@ -106,6 +110,7 @@ export function createLabOfficeController(opts) {
       btn.className = 'lab-office-char' + (st.mode === 'work' ? ' is-work' : '');
       btn.style.left = p.x + '%';
       btn.style.top = p.y + '%';
+      btn.style.zIndex = String(10 + Math.round(p.y));
       btn.setAttribute('data-char', id);
       btn.setAttribute('aria-label', CHAR_LABEL[id] || id);
       const img = doc.createElement('img');
@@ -120,7 +125,9 @@ export function createLabOfficeController(opts) {
       btn.addEventListener('click', () => openCard(id));
       stage.appendChild(btn);
     }
-    if (foot) setText(foot, '每 30 秒更新 · 僅管理員 · ' + new Date(now).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }));
+    if (foot) {
+      setText(foot, '每 30 秒更新 · 僅管理員 · ' + new Date(now).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }));
+    }
   }
 
   function openCard(charId) {
@@ -153,7 +160,7 @@ export function createLabOfficeController(opts) {
         lines.push('#' + data.dev.now.current.issue + ' ' + (data.dev.now.current.title || ''));
       }
     } else {
-      lines.push(data.state.bubble || '待機');
+      lines.push((data.state && data.state.bubble) || '待機');
     }
     for (let i = 0; i < lines.length; i++) {
       const p = doc.createElement('p');
@@ -176,6 +183,7 @@ export function createLabOfficeController(opts) {
       fetchFn('/api/dev-machines').then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetchFn('/api/dev-status').then((r) => (r.ok ? r.json() : null)).catch(() => null)
     ]).then(([m, d]) => {
+      if (!openState) return;
       if (m && m.success !== false) machines = m;
       if (d) devStatus = d;
       renderChars();
@@ -190,17 +198,22 @@ export function createLabOfficeController(opts) {
 
   function setOpen(want) {
     const next = !!want;
-    if (next === openState) return;
+    if (next === openState && next) return;
     openState = next;
-    root.hidden = !next;
-    root.setAttribute('aria-hidden', next ? 'false' : 'true');
+    if (!pageMode) {
+      root.hidden = !next;
+      root.setAttribute('aria-hidden', next ? 'false' : 'true');
+    }
     if (next) {
-      openedAt = Date.now();
       if (!isAuthed()) {
+        openState = false;
+        if (!pageMode) {
+          root.hidden = true;
+        }
         if (typeof hooks.onGuest === 'function') hooks.onGuest();
-        setOpen(false);
         return;
       }
+      if (guest) guest.hidden = true;
       closeCard();
       renderChars();
       refresh();
@@ -213,7 +226,9 @@ export function createLabOfficeController(opts) {
     }
   }
 
-  if (closeBtn) closeBtn.addEventListener('click', () => setOpen(false));
+  if (closeBtn && closeBtn.tagName === 'BUTTON') {
+    closeBtn.addEventListener('click', () => setOpen(false));
+  }
   if (cardLayer) {
     cardLayer.addEventListener('click', (ev) => {
       if (ev.target === cardLayer) closeCard();
@@ -223,7 +238,7 @@ export function createLabOfficeController(opts) {
     if (!openState) return;
     if (ev.key === 'Escape') {
       if (cardLayer && !cardLayer.hidden) closeCard();
-      else setOpen(false);
+      else if (!pageMode) setOpen(false);
     }
   });
 
@@ -241,22 +256,4 @@ export function createLabOfficeController(opts) {
   };
 }
 
-export function mountLabOfficePage(root, opts) {
-  const doc = (opts && opts.doc) || globalThis.document;
-  const win = (opts && opts.win) || globalThis;
-  if (!root || !viewerCanOpenLabOffice(win.PUNCHCLOCK_AUTHENTICATED === true)) {
-    const guest = doc.createElement('p');
-    guest.className = 'lab-office-guest';
-    guest.textContent = '虛擬辦公室僅開放管理員，請先登入。';
-    root.appendChild(guest);
-    return { stop() {} };
-  }
-  const ctrl = createLabOfficeController({ doc, win, hooks: opts && opts.hooks });
-  ctrl.open();
-  root.replaceChildren();
-  const host = doc.getElementById('labOfficeRoot');
-  if (host && host.parentElement !== root) {
-    root.appendChild(host);
-  }
-  return { stop: () => ctrl.destroy(), controller: ctrl };
-}
+export { CHARACTER_IDS };

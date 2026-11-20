@@ -148,10 +148,21 @@ export function buildCharacterState(charId, ctx) {
       let round = '';
       for (let i = 0; i < list.length; i++) {
         const row = list[i];
-        if (row && row.role === 'review' && row.model) model = row.model;
-        if (row && row.round != null) round = 'R' + row.round;
+        if (!row) continue;
+        const run = primaryRun(row);
+        if (row.role === 'review' && row.model) model = row.model;
+        if (run && run.role === 'review') {
+          if (run.model) model = run.model;
+          if (run.round != null) round = 'R' + run.round;
+        }
+        if (row.round != null && (row.role === 'review' || (run && run.role === 'review'))) {
+          round = 'R' + row.round;
+        }
       }
-      out.bubble = '審核中 ' + (round || '') + (model ? ' · ' + model : '');
+      const bits = ['審核中'];
+      if (round) bits.push(round);
+      if (model) bits.push(model);
+      out.bubble = bits.join(' · ');
       return out;
     }
     let verdict = '';
@@ -218,7 +229,37 @@ export function buildCharacterState(charId, ctx) {
 }
 
 export function buildAllCharacterStates(ctx) {
-  return CHARACTER_IDS.map((id) => buildCharacterState(id, ctx));
+  return resolveSpotCollisions(CHARACTER_IDS.map((id) => buildCharacterState(id, ctx)));
+}
+
+const FLEX_SPOTS = ['sofa', 'balcony', 'beanbag', 'meeting'];
+
+/** 軍師固定咖啡吧、美術固定工作台；其餘空位不可疊在同一點。 */
+export function resolveSpotCollisions(states) {
+  const list = states || [];
+  const used = new Set();
+  const flex = [];
+  for (let i = 0; i < list.length; i++) {
+    const st = list[i];
+    const fixed = st.id === 'oki' || st.id === 'artist3d' || st.desk;
+    if (fixed) used.add(st.spot);
+    else flex.push(st);
+  }
+  for (let i = 0; i < flex.length; i++) {
+    const st = flex[i];
+    if (st.spot && st.spot !== 'coffee' && !used.has(st.spot)) {
+      used.add(st.spot);
+      continue;
+    }
+    for (let j = 0; j < FLEX_SPOTS.length; j++) {
+      if (!used.has(FLEX_SPOTS[j])) {
+        st.spot = FLEX_SPOTS[j];
+        used.add(st.spot);
+        break;
+      }
+    }
+  }
+  return list;
 }
 
 export function characterCardData(charId, ctx) {
@@ -241,15 +282,4 @@ export function characterCardData(charId, ctx) {
     data.dev = c.devStatus;
   }
   return data;
-}
-
-export function labOfficeInteractZone() {
-  return Object.freeze({
-    id: 'lab-2f-stairs',
-    x: -6.2,
-    z: 10.9,
-    r: 0.95,
-    label: '上研發二樓',
-    action: 'openLabOffice'
-  });
 }
