@@ -15,9 +15,8 @@ public class HomeCharacterLayoutTest {
 
     @Test
     public void forearmsRestOnTheTaskCard() {
-        Insets overflow = HomeCharacterLayout.overflow(1280, 920, false, true);
         Rectangle canvas = new Rectangle(0, 0, 1280, 920);
-        Rectangle panel = new Rectangle(0, overflow.top, 1280 - overflow.right, 920 - overflow.top);
+        Rectangle panel = new Rectangle(0, 0, 1280, 920);
         Rectangle stage = new Rectangle(panel.x + 460, panel.y + 36, panel.width - 480, panel.height - 60);
         Rectangle controls = new Rectangle(panel.x + panel.width - 140, panel.y + 8, 132, 30);
         HomeCharacterLayout.Box box = HomeCharacterLayout.place(
@@ -75,11 +74,28 @@ public class HomeCharacterLayoutTest {
     }
 
     @Test
-    public void otherPagesAndMaximizeDropTheOverflow() {
+    public void overflowIsAlwaysZero() {
         assertEquals(0, HomeCharacterLayout.overflow(1280, 920, true, true).top);
         assertEquals(0, HomeCharacterLayout.overflow(1280, 920, false, false).right);
         Insets home = HomeCharacterLayout.overflow(1280, 920, false, true);
-        assertTrue(home.top >= 96);
-        assertTrue(home.right >= 48);
+        assertEquals(0, home.top);
+        assertEquals(0, home.right);
+        assertEquals(0, home.left);
+        assertEquals(0, home.bottom);
+    }
+
+    @Test
+    public void restoredPoseFitsInsideThePanel() {
+        Rectangle canvas = new Rectangle(0, 0, 1100, 760);
+        Rectangle panel = new Rectangle(0, 0, 1100, 760);
+        Rectangle stage = new Rectangle(panel.x + 200, panel.y + 36, panel.width - 220, panel.height - 60);
+        Rectangle controls = new Rectangle(panel.x + panel.width - 140, panel.y + 8, 132, 30);
+        HomeCharacterLayout.Box box = HomeCharacterLayout.place(
+                canvas, panel, 40, stage, controls, false, BODY, BODY);
+        assertTrue(panel.contains(box.bust));
+        int hairTop = box.bust.y + Math.round(box.bust.height * HomeCharacterLayout.HAIR_Y);
+        assertTrue(hairTop >= panel.y + 40);
+        assertTrue(box.toeX() <= panel.x + panel.width - 4);
+        assertTrue(box.soleY() <= panel.y + panel.height - 4);
     }
 }

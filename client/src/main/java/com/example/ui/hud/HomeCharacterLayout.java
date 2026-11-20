@@ -40,7 +40,7 @@ public final class HomeCharacterLayout {
     public static final float TOE_X = 0.962f;
     /** 鞋底。 */
     public static final float SOLE_Y = 0.955f;
-    /** 還原視窗右側透明區的比例。切頁時沿用，避免視窗尺寸重算。 */
+    /** 襪尖在素材上的橫向位置；人物寬度以此為右緣對齊面板。 */
     public static final float SOCK_VISIBLE = 0.09f;
     /** 卡片左側留給文字的寬度。 */
     public static final int TEXT_COLUMN = 168;
@@ -98,14 +98,9 @@ public final class HomeCharacterLayout {
         }
     }
 
+    /** 首頁不再外擴透明邊；人物縮放在紫色面板內。 */
     public static Insets overflow(int width, int height, boolean maximized, boolean home) {
-        if (!home || maximized || width < 240 || height < 240) {
-            return new Insets(0, 0, 0, 0);
-        }
-        int top = Math.min(168, Math.max(96, height * 18 / 100));
-        int right = Math.round(width * SOCK_VISIBLE / (1f + SOCK_VISIBLE));
-        right = Math.min(110, Math.max(48, right));
-        return new Insets(top, 0, 0, right);
+        return new Insets(0, 0, 0, 0);
     }
 
     /**
@@ -132,9 +127,6 @@ public final class HomeCharacterLayout {
         int maxH = span(floor - topAnchor, SOLE_Y - anchorY);
         maxH = Math.min(maxH, span(floor - topAnchor, 1f - anchorY));
         maxH = Math.min(maxH, Math.round(200f / Math.max(0.05f, CARD_BOTTOM_Y - LEDGE_Y)));
-        if (!maximized) {
-            maxH = Math.min(maxH, span(topAnchor - canvas.y, CHIN_Y - HAIR_Y));
-        }
         int bodyW = Math.round(maxH * aspect);
         int panelRoom = Math.max(80, panel.width - 28);
         bodyW = Math.min(bodyW, Math.round(panelRoom / TOE_X));
@@ -166,8 +158,39 @@ public final class HomeCharacterLayout {
         }
         if (maximized && y < panel.y) {
             y = panel.y;
-        } else if (!maximized && y + Math.round(bodyH * HAIR_Y) < canvas.y) {
-            y = canvas.y - Math.round(bodyH * HAIR_Y);
+        } else if (!maximized) {
+            int hairTop = y + Math.round(bodyH * HAIR_Y);
+            int minTop = panel.y + title + 2;
+            if (hairTop < minTop) {
+                y += minTop - hairTop;
+            }
+            int panelRight = panel.x + panel.width - 4;
+            int panelBottom = panel.y + panel.height - 4;
+            int overRight = (x + bodyW) - panelRight;
+            if (overRight > 0) {
+                x -= overRight;
+            }
+            int overBottom = (y + Math.round(bodyH * SOLE_Y)) - panelBottom;
+            if (overBottom > 0) {
+                y -= overBottom;
+            }
+            if (x < panel.x + 4) {
+                x = panel.x + 4;
+                int maxW = panel.width - 8;
+                if (bodyW > maxW) {
+                    bodyW = maxW;
+                    bodyH = Math.max(1, Math.round(bodyW / aspect));
+                    y = topAnchor - Math.round(bodyH * anchorY);
+                    hairTop = y + Math.round(bodyH * HAIR_Y);
+                    if (hairTop < minTop) {
+                        y += minTop - hairTop;
+                    }
+                    sole = y + Math.round(bodyH * SOLE_Y);
+                    if (sole > panelBottom) {
+                        y -= sole - panelBottom;
+                    }
+                }
+            }
         }
         Rectangle body = new Rectangle(x, y, bodyW, bodyH);
         int textRight = x + Math.round(bodyW * HAND_LEFT_X) - 8;

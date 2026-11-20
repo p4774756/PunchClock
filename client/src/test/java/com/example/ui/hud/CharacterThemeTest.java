@@ -26,7 +26,8 @@ public class CharacterThemeTest {
     @Test
     public void sweaterKeepsOverflowAndOrbitalUsesFrameMargins() {
         HomePortrait portrait = new HomePortrait(null);
-        assertTrue(portrait.overflow(1280, 920, false).top >= 96);
+        assertEquals(0, portrait.overflow(1280, 920, false).top);
+        assertEquals(0, portrait.overflow(1280, 920, false).right);
         assertNull(portrait.panelOverflow(1100, 760));
 
         portrait.setTheme(CharacterTheme.ORBITAL);
@@ -46,7 +47,7 @@ public class CharacterThemeTest {
 
         portrait.setTheme(CharacterTheme.SWEATER);
         assertNull(portrait.panelOverflow(1100, 760));
-        assertTrue(portrait.overflow(1280, 920, false).right > 0);
+        assertEquals(0, portrait.overflow(1280, 920, false).right);
     }
 
     @Test
