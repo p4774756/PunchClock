@@ -6,9 +6,15 @@ import io.javalin.http.Context;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /** 經穴圖靜態站。不必登入。檔案在磁碟，不打進 jar。 */
 public final class AtlasRoutes {
@@ -16,6 +22,10 @@ public final class AtlasRoutes {
     static final String ROOT_PROPERTY = "punchclock.atlas.root";
     private static final Set<String> APPS = Set.of("tcm-3d");
     private static final Map<String, String> TITLES = Map.of("tcm-3d", "中醫人體");
+    /** Vite／Rolldown 檔名雜湊是 base64url，含 {@code _} 與 {@code -}。 */
+    private static final Pattern FINGERPRINTED_ASSET = Pattern.compile(".+-[0-9A-Za-z_-]{8,}\\.(js|mjs|css)$");
+    private static final Pattern CACHE_BUST_QUERY = Pattern.compile("(?:^|&)v=[^&]+");
+    private static final DateTimeFormatter HTTP_DATE = DateTimeFormatter.RFC_1123_DATE_TIME;
 
     public AtlasRoutes() {
     }
@@ -57,30 +67,121 @@ public final class AtlasRoutes {
             return;
         }
         String fileName = file.getFileName().toString().toLowerCase(Locale.ROOT);
-        boolean glb = fileName.endsWith(".glb");
-        if (!glb) {
-            ctx.minSizeForCompression(Integer.MAX_VALUE);
-            ctx.header("Content-Length", Long.toString(Files.size(file)));
+        long size = Files.size(file);
+        FileTime modified = Files.getLastModifiedTime(file);
+        boolean gzipBody = false;
+        Path bodyPath = file;
+        long bodySize = size;
+
+        if (fileName.endsWith(".glb")) {
+            Path gzPath = Path.of(file.toString() + ".gz");
+            if (Files.isRegularFile(gzPath) && acceptsGzip(ctx)) {
+                gzipBody = true;
+                bodyPath = gzPath;
+                bodySize = Files.size(gzPath);
+            }
         }
+
+        String etag = etagFor(bodyPath, bodySize, modified, gzipBody);
+        String ifNoneMatch = ctx.header("If-None-Match");
+        if (matchesEtag(ifNoneMatch, etag)) {
+            ctx.status(304);
+            ctx.header("ETag", etag);
+            ctx.header("Cache-Control", cacheControl(file, ctx));
+            if (gzipBody) {
+                ctx.header("Vary", "Accept-Encoding");
+            }
+            ctx.header("Last-Modified", formatHttpDate(modified.toInstant()));
+            return;
+        }
+
+        ctx.minSizeForCompression(Integer.MAX_VALUE);
+        ctx.header("Content-Length", Long.toString(bodySize));
         ctx.contentType(contentType(file));
         ctx.header("X-Content-Type-Options", "nosniff");
-        ctx.header("Cache-Control", cacheControl(file));
-        ctx.result(Files.newInputStream(file));
+        ctx.header("Cache-Control", cacheControl(file, ctx));
+        ctx.header("ETag", etag);
+        ctx.header("Last-Modified", formatHttpDate(modified.toInstant()));
+        if (gzipBody) {
+            ctx.header("Content-Encoding", "gzip");
+            ctx.header("Vary", "Accept-Encoding");
+        }
+        if (fileName.endsWith(".glb")) {
+            ctx.contentType("model/gltf-binary");
+        }
+        ctx.result(Files.newInputStream(bodyPath));
     }
 
-    /** HTML 短快取；模型與指紋化靜態檔可長快取，重開頁較快。 */
-    static String cacheControl(Path file) {
-        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
-        if (name.endsWith(".html")) {
+    private static boolean acceptsGzip(Context ctx) {
+        String accept = ctx.header("Accept-Encoding");
+        if (accept == null || accept.isBlank()) {
+            return false;
+        }
+        for (String part : accept.split(",")) {
+            String token = part.trim().toLowerCase(Locale.ROOT);
+            int semi = token.indexOf(';');
+            if (semi >= 0) {
+                token = token.substring(0, semi).trim();
+            }
+            if ("gzip".equals(token)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static String etagFor(Path file, long size, FileTime modified, boolean gzipVariant) {
+        String name = file.getFileName().toString();
+        String tag = Long.toHexString(size) + "-" + Long.toHexString(modified.toMillis());
+        if (gzipVariant || name.endsWith(".gz")) {
+            tag = tag + "-gzip";
+        }
+        return "\"" + tag + "\"";
+    }
+
+    static boolean matchesEtag(String headerValue, String etag) {
+        if (headerValue == null || headerValue.isBlank()) {
+            return false;
+        }
+        for (String token : headerValue.split(",")) {
+            String trimmed = token.trim();
+            if (trimmed.equals(etag) || trimmed.equals("W/" + etag)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static String formatHttpDate(Instant instant) {
+        return HTTP_DATE.format(ZonedDateTime.ofInstant(instant, ZoneOffset.UTC));
+    }
+
+    /** HTML 短快取；指紋化靜態檔與帶 ?v= 資源可長快取。 */
+    static String cacheControl(Path file, Context ctx) {
+        String name = file.getFileName().toString();
+        String lower = name.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".html")) {
             return "private, max-age=0, must-revalidate";
         }
-        if (name.endsWith(".bin") || name.endsWith(".gz") || name.endsWith(".wasm") || name.endsWith(".glb")
-                || name.endsWith(".woff2") || name.endsWith(".png") || name.endsWith(".jpg")
-                || name.endsWith(".jpeg") || name.endsWith(".webp") || name.endsWith(".svg")) {
-            return "private, max-age=604800, immutable";
+        Path parent = file.getParent();
+        if (parent != null && "assets".equals(parent.getFileName().toString()) && FINGERPRINTED_ASSET.matcher(name).matches()) {
+            return "public, max-age=31536000, immutable";
         }
-        if (name.endsWith(".js") || name.endsWith(".mjs") || name.endsWith(".css")) {
+        String query = ctx.queryString();
+        if (query != null && CACHE_BUST_QUERY.matcher(query).find()) {
+            return "public, max-age=31536000, immutable";
+        }
+        if (lower.endsWith(".txt") || lower.endsWith(".md")) {
+            return "private, max-age=300";
+        }
+        if (lower.endsWith(".bin") || lower.endsWith(".wasm")) {
+            return "public, max-age=31536000, immutable";
+        }
+        if (lower.endsWith(".js") || lower.endsWith(".mjs") || lower.endsWith(".css")) {
             return "private, max-age=86400";
+        }
+        if (lower.endsWith(".glb") || lower.endsWith(".glb.gz")) {
+            return "public, max-age=86400";
         }
         return "private, max-age=300";
     }

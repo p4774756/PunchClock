@@ -32,3 +32,7 @@ jobs:
       - run: node scripts/validate-teaching.mjs
       - run: node scripts/validate-bake-merge.mjs
       - run: node scripts/validate-interactions.mjs
+      - run: node scripts/validate-practice-outfit.mjs
+      - run: node scripts/validate-teaching-anchor.mjs
+      - run: node scripts/validate-download-progress.mjs
+      - run: node scripts/validate-anime-model-digest.mjs

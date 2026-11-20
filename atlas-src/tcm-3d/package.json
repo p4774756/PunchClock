@@ -9,7 +9,7 @@
     "dev": "vite --host 127.0.0.1 --port 3016",
     "build": "vite build",
     "build:vercel": "vite build",
-    "build:punchclock": "vite build --base=/atlas/tcm-3d/",
+    "build:punchclock": "node scripts/compute-texture-digests.mjs && node scripts/gzip-anime-model.mjs && vite build --base=/atlas/tcm-3d/",
     "check": "tsc --noEmit",
     "recompress:anime": "node scripts/recompress-anime-glb.mjs --in-place",
     "build:tcm": "vite build --base=/3d/ --outDir ../dist-tcm"

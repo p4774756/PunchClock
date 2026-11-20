@@ -112,6 +112,17 @@
   box-shadow:0 12px 32px rgba(40,32,20,.14);
   color:#3a2e22;
 }
+.rpg-studio .scene-stage:has(.loading-card.woodcut-loading:not(.load-error)){
+  z-index:0;
+}
+.rpg-studio .scene-stage .loading-card.woodcut-loading:not(.load-error){
+  position:relative;
+  z-index:12;
+}
+.rpg-studio .scene-stage:has(.loading-card.woodcut-loading:not(.load-error)) .contact-label{
+  visibility:hidden;
+  pointer-events:none;
+}
 .rpg-studio .loading-card strong{color:#2a2218}
 .rpg-studio .loading-card p,
 .rpg-studio .loading-card small{color:#5a4634}
@@ -120,8 +131,20 @@
   background:#e8d9b8;
   color:#5a4634;
 }
-.rpg-studio .load-track{background:#d6c4a0}
-.rpg-studio .load-track i{background:#5a7a68}
+.rpg-studio .load-track{background:#d6c4a0;position:relative;overflow:hidden}
+.rpg-studio .load-track i{background:#5a7a68;position:relative;display:block;height:100%}
+.rpg-studio .load-track-shimmer i::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,.42) 48%,transparent 100%);
+  animation:atlas-load-shimmer 1.15s ease-in-out infinite;
+  transform:translateX(-120%);
+  will-change:transform,opacity;
+}
+@keyframes atlas-load-shimmer{to{transform:translateX(120%)}}
+@media (prefers-reduced-motion:reduce){
+  .rpg-studio .load-track-shimmer i::after{animation:atlas-load-shimmer-slow 2.6s ease-in-out infinite;opacity:.65}
+}
+@keyframes atlas-load-shimmer-slow{0%,100%{opacity:.35;transform:translateX(-80%)}50%{opacity:.85;transform:translateX(80%)}}
 .rpg-header{
   height:auto;
   min-height:92px;
@@ -205,6 +228,9 @@
   min-height:32px;padding:0 11px;border-radius:10px;font-size:12px;font-weight:700;color:#5f746c;
 }
 .outfit-bar button.selected{background:#1f3b34;color:#fff}
+.outfit-bar button.is-pending{position:relative;padding-right:22px}
+.outfit-bar button .outfit-pending{position:absolute;right:6px;top:50%;width:10px;height:10px;margin-top:-5px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:outfit-spin .7s linear infinite}
+@keyframes outfit-spin{to{transform:rotate(360deg)}}
 .practice-outfit-hint{
   position:absolute;z-index:5;top:168px;right:max(18px,env(safe-area-inset-right,0px));
   margin:0;padding:6px 12px;border-radius:999px;font-size:11px;font-weight:700;color:#7a5a18;
