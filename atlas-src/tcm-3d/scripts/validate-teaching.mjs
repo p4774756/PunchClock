@@ -30,7 +30,7 @@ try {
   const bundlePath = join(temporaryDir, 'entry.mjs');
   const bundle = await build({
     stdin: {
-      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {POINTS,TOOLS,initialSimulation,CURRICULUM_SETS,curriculumSet,isPracticeDeferred,practiceOpenCodes,DEFERRED_PRACTICE_CODES} from './app/teaching'; export {ANIME_POINTS,ANIME_SUPPORTED_CODES,animePointTarget} from './app/character-mode'; export {avatarPracticePoints,animeAvatar,DEFAULT_AVATAR_ID} from './app/avatars'; export {ANIME_OUTFITS} from './app/outfits'; export {focusViewFromNormal} from './app/focus-view';",
+      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {POINTS,TOOLS,initialSimulation,CURRICULUM_SETS,curriculumSet,isPracticeDeferred,practiceOpenCodes,DEFERRED_PRACTICE_CODES,teachingPointMatchesQuery,ZHUYIN_PATTERN,POINT_BY_CODE} from './app/teaching'; export {ANIME_POINTS,ANIME_SUPPORTED_CODES,animePointTarget} from './app/character-mode'; export {avatarPracticePoints,animeAvatar,DEFAULT_AVATAR_ID} from './app/avatars'; export {ANIME_OUTFITS} from './app/outfits'; export {focusViewFromNormal} from './app/focus-view';",
       resolveDir: project, sourcefile: 'validate-teaching-entry.ts', loader: 'ts',
     },
     bundle: true, platform: 'node', format: 'esm', target: 'node22',
@@ -44,7 +44,7 @@ try {
       return {className: '', hidden: false, style: {}, dataset: {}, textContent: '', setAttribute() {}, remove() {}, classList:{toggle(){}}};
     }},
   });
-  const {createTeachingOverlay, POINTS, TOOLS, initialSimulation, CURRICULUM_SETS, curriculumSet, isPracticeDeferred, practiceOpenCodes, DEFERRED_PRACTICE_CODES, ANIME_POINTS, ANIME_SUPPORTED_CODES, animePointTarget, avatarPracticePoints, animeAvatar, DEFAULT_AVATAR_ID, ANIME_OUTFITS, focusViewFromNormal} = await import(pathToFileURL(bundlePath));
+  const {createTeachingOverlay, POINTS, TOOLS, initialSimulation, CURRICULUM_SETS, curriculumSet, isPracticeDeferred, practiceOpenCodes, DEFERRED_PRACTICE_CODES, teachingPointMatchesQuery, ZHUYIN_PATTERN, POINT_BY_CODE, ANIME_POINTS, ANIME_SUPPORTED_CODES, animePointTarget, avatarPracticePoints, animeAvatar, DEFAULT_AVATAR_ID, ANIME_OUTFITS, focusViewFromNormal} = await import(pathToFileURL(bundlePath));
   const camera = new T.PerspectiveCamera(34, 1.6, 0.005, 100);
   camera.position.set(0, 1.4, 2.5);
   camera.lookAt(0, 1.35, 0);
@@ -60,6 +60,44 @@ try {
 
   await test('TOOLS 僅針與指壓', () => {
     assert.deepEqual(TOOLS.map(t => t.id), ['needle', 'finger']);
+  });
+
+  await test('364 穴 zhuyin 非空且格式合法', () => {
+    assert.equal(POINTS.length, 364);
+    for (const point of POINTS) {
+      assert.ok(point.zhuyin, `${point.code} 缺少 zhuyin`);
+      assert.match(point.zhuyin, ZHUYIN_PATTERN, `${point.code} zhuyin 格式不合法：${point.zhuyin}`);
+    }
+  });
+
+  const HOMOPHONE_ZHUYIN = {
+    LI18: 'ㄈㄨˊ ㄊㄨˊ', ST32: 'ㄈㄨˊ ㄊㄨˋ', ST3: 'ㄐㄩˋ ㄌㄧㄠˊ', GB29: 'ㄐㄩ ㄌㄧㄠˊ',
+    SI4: 'ㄨㄢˋ ㄍㄨˇ', GB12: 'ㄨㄢˊ ㄍㄨˇ', KI15: 'ㄓㄨㄥ ㄓㄨˋ', TE3: 'ㄓㄨㄥ ㄓㄨˇ',
+    GB32: 'ㄓㄨㄥ ㄉㄨˊ', LR6: 'ㄓㄨㄥ ㄉㄨ', GV28: 'ㄧㄣˊ ㄐㄧㄠ', CV7: 'ㄧㄣ ㄐㄧㄠ',
+    LR2: 'ㄒㄧㄥˊ ㄐㄧㄢ', GV1: 'ㄔㄤˊ ㄑㄧㄤˊ', LU11: 'ㄕㄠˋ ㄕㄤ', LI4: 'ㄏㄜˊ ㄍㄨˇ',
+    PC3: 'ㄑㄩ ㄗㄜˊ', LI11: 'ㄑㄩ ㄔˊ', SP15: 'ㄉㄚˋ ㄏㄥˊ', LR1: 'ㄉㄚˋ ㄉㄨㄣ', CV14: 'ㄐㄩˋ ㄑㄩㄝˋ',
+  };
+
+  await test('同音不同字與多音字注音', () => {
+  for (const [code, expected] of Object.entries(HOMOPHONE_ZHUYIN)) {
+    const point = POINT_BY_CODE.get(code);
+    assert.ok(point, code);
+    assert.equal(point.zhuyin, expected, `${code} ${point.name}`);
+  }
+  });
+
+  await test('注音搜尋（巨闕）', () => {
+    const cv14 = POINT_BY_CODE.get('CV14');
+    assert.ok(cv14);
+    const hit = q => teachingPointMatchesQuery(cv14, q);
+    assert.equal(hit('ㄐㄩˋ ㄑㄩㄝˋ'), true);
+    assert.equal(hit('ㄐㄩㄑㄩㄝ'), true);
+    assert.equal(hit('ㄐㄩ'), true);
+    assert.equal(hit('巨闕'), true);
+    assert.equal(hit('CV14'), true);
+    assert.equal(hit('cv14'), true);
+    assert.equal(hit('足三里'), false);
+    assert.equal(hit('ST36'), false);
   });
 
   await test('頭頸 21＋軀幹 30 已烘；ST9／CV22 已重新開放', () => {
