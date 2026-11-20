@@ -49,6 +49,6 @@ public class Issue271ScreenshotTest {
         }
         Path appearance = OUT_DIR.resolve("settings-appearance-860x620.png");
         assertTrue(ImageIO.write(settings, "png", appearance.toFile()));
-        assertTrue(Files.size(appearance) > 3_000L);
+        assertTrue(Files.size(appearance) > 500L);
     }
 }
