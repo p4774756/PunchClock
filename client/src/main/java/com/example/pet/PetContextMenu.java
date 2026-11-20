@@ -192,16 +192,12 @@ final class PetContextMenu extends JPanel {
         return statusEnergy;
     }
 
+    /**
+     * 夾到與選單重疊面積最大的那一塊螢幕（與萌寵本體 {@link DesktopPetWindow#clampToScreens} 相同）。
+     * 多螢幕先合成外接矩形再夾，會把選單推到兩塊螢幕之間的空隙。
+     */
     static Point clampMenuOrigin(int x, int y, int menuW, int menuH, Rectangle[] screens) {
-        Rectangle clip = unionScreens(screens);
-        if (clip == null) {
-            return new Point(x, y);
-        }
-        int maxX = clip.x + Math.max(0, clip.width - menuW);
-        int maxY = clip.y + Math.max(0, clip.height - menuH);
-        int cx = Math.max(clip.x, Math.min(x, maxX));
-        int cy = Math.max(clip.y, Math.min(y, maxY));
-        return new Point(cx, cy);
+        return DesktopPetWindow.clampToScreens(x, y, menuW, menuH, screens);
     }
 
     @Override
@@ -400,29 +396,6 @@ final class PetContextMenu extends JPanel {
         long remaining = care.cooldownRemaining(action, nowMs);
         String text = remaining > 0L ? label + "（還要等一下）" : label;
         return new Row(RowKind.CARE, icon, text, remaining <= 0L, false, false, action, mode);
-    }
-
-    private static Rectangle unionScreens(Rectangle[] screens) {
-        if (screens == null || screens.length == 0) {
-            return null;
-        }
-        int x1 = Integer.MAX_VALUE;
-        int y1 = Integer.MAX_VALUE;
-        int x2 = Integer.MIN_VALUE;
-        int y2 = Integer.MIN_VALUE;
-        for (Rectangle r : screens) {
-            if (r == null) {
-                continue;
-            }
-            x1 = Math.min(x1, r.x);
-            y1 = Math.min(y1, r.y);
-            x2 = Math.max(x2, r.x + r.width);
-            y2 = Math.max(y2, r.y + r.height);
-        }
-        if (x1 == Integer.MAX_VALUE) {
-            return null;
-        }
-        return new Rectangle(x1, y1, x2 - x1, y2 - y1);
     }
 
     static void runOnEdt(Runnable task) {

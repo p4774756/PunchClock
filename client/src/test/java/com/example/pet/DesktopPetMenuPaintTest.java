@@ -5,8 +5,14 @@ import org.junit.Assume;
 import org.junit.Test;
 
 import javax.imageio.ImageIO;
+import javax.swing.JComponent;
+import javax.swing.JWindow;
 import javax.swing.SwingUtilities;
 import java.awt.Graphics2D;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -87,6 +93,67 @@ public class DesktopPetMenuPaintTest {
             javax.swing.JPanel root = new javax.swing.JPanel();
             PetControlKeyBindings.install(root, noopHandler());
             assertTrue(PetControlKeyBindings.bindingsPresent(root));
+        });
+    }
+
+    @Test
+    public void clampMenuOriginStaysInsideTheOverlappingScreen() {
+        Rectangle[] staggered = {
+                new Rectangle(0, 0, 1440, 900),
+                new Rectangle(1440, -200, 1920, 1200)
+        };
+        Point nearBottom = PetContextMenu.clampMenuOrigin(200, 850, 208, 286, staggered);
+        assertEquals(200, nearBottom.x);
+        assertEquals(614, nearBottom.y);
+        assertTrue(staggered[0].contains(new Rectangle(nearBottom.x, nearBottom.y, 208, 286)));
+
+        Point straddling = PetContextMenu.clampMenuOrigin(1400, 850, 208, 286, staggered);
+        assertEquals(1440, straddling.x);
+        assertEquals(714, straddling.y);
+        assertTrue(staggered[1].contains(new Rectangle(straddling.x, straddling.y, 208, 286)));
+
+        Point onSecond = PetContextMenu.clampMenuOrigin(2000, 100, 208, 286, staggered);
+        assertEquals(2000, onSecond.x);
+        assertEquals(100, onSecond.y);
+        assertTrue(staggered[1].contains(new Rectangle(onSecond.x, onSecond.y, 208, 286)));
+
+        Rectangle[] one = {new Rectangle(0, 0, 1280, 800)};
+        Point corner = PetContextMenu.clampMenuOrigin(1200, 760, 208, 286, one);
+        assertEquals(1072, corner.x);
+        assertEquals(514, corner.y);
+        assertTrue(one[0].contains(new Rectangle(corner.x, corner.y, 208, 286)));
+
+        Point inside = PetContextMenu.clampMenuOrigin(40, 50, 208, 286, one);
+        assertEquals(40, inside.x);
+        assertEquals(50, inside.y);
+
+        Point none = PetContextMenu.clampMenuOrigin(3, 4, 208, 286, new Rectangle[0]);
+        assertEquals(3, none.x);
+        assertEquals(4, none.y);
+        Point nil = PetContextMenu.clampMenuOrigin(3, 4, 208, 286, null);
+        assertEquals(3, nil.x);
+        assertEquals(4, nil.y);
+    }
+
+    @Test
+    public void menuWindowUsesPerPixelTransparencyWhenSupported() throws Exception {
+        Assume.assumeFalse("headless JVM cannot construct a window",
+                GraphicsEnvironment.isHeadless());
+        GraphicsDevice device = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+        Assume.assumeTrue(device.isWindowTranslucencySupported(
+                GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT));
+        SwingUtilities.invokeAndWait(() -> {
+            JWindow window = new JWindow();
+            try {
+                DesktopPetWindow.prepareMenuWindowTransparency(window);
+                assertNotNull(window.getBackground());
+                assertEquals(0, window.getBackground().getAlpha());
+                assertFalse(window.getRootPane().isOpaque());
+                assertTrue(window.getContentPane() instanceof JComponent);
+                assertFalse(((JComponent) window.getContentPane()).isOpaque());
+            } finally {
+                window.dispose();
+            }
         });
     }
 

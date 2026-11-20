@@ -447,7 +447,12 @@ public final class DesktopPetWindow extends JFrame {
             return;
         }
         try {
-            Desktop.getDesktop().requestForeground(true);
+            Desktop desktop = Desktop.getDesktop();
+            // isDesktopSupported 只代表 Desktop 存在；不支援這個 action 時 requestForeground 會丟例外。
+            if (!desktop.isSupported(Desktop.Action.APP_REQUEST_FOREGROUND)) {
+                return;
+            }
+            desktop.requestForeground(true);
         } catch (RuntimeException ex) {
             // 部分環境不支援前景請求。
         }
@@ -904,10 +909,8 @@ public final class DesktopPetWindow extends JFrame {
         menuPointerLeftAt = -1L;
         petMenuWindow = new JWindow();
         petMenuWindow.setFocusableWindowState(false);
-        petMenuWindow.getContentPane().setBackground(new Color(0, 0, 0, 0));
-        if (petMenuWindow.getContentPane() instanceof JComponent) {
-            ((JComponent) petMenuWindow.getContentPane()).setOpaque(false);
-        }
+        prepareMenuWindowTransparency(petMenuWindow);
+        panel.setDoubleBuffered(false);
         petMenuWindow.getContentPane().add(panel);
         petMenuWindow.pack();
         Point origin = stage.getLocationOnScreen();
@@ -1161,6 +1164,37 @@ public final class DesktopPetWindow extends JFrame {
             return true;
         } catch (RuntimeException ex) {
             return false;
+        }
+    }
+
+    /**
+     * 選單是獨立 JWindow。只把 content pane 塗透明不夠，圓角與陰影外的像素仍會露出視窗方底。
+     * 與萌寵本體相同：支援 PERPIXEL_TRANSLUCENT 時把視窗底設成全透明，並關掉 root／layered pane 的不透明填色。
+     */
+    static void prepareMenuWindowTransparency(JWindow window) {
+        try {
+            GraphicsDevice device = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+            if (device.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT)) {
+                window.setBackground(new Color(0, 0, 0, 0));
+            }
+        } catch (RuntimeException ex) {
+            // 不支援 per-pixel 時不改視窗底色，選單內容仍畫得出來。
+        }
+        JComponent root = window.getRootPane();
+        root.setOpaque(false);
+        root.setDoubleBuffered(false);
+        root.putClientProperty("Window.shadow", Boolean.FALSE);
+        root.putClientProperty("apple.awt.draggableWindowBackground", Boolean.FALSE);
+        if (window.getLayeredPane() instanceof JComponent) {
+            JComponent layered = (JComponent) window.getLayeredPane();
+            layered.setOpaque(false);
+            layered.setDoubleBuffered(false);
+        }
+        window.getContentPane().setBackground(new Color(0, 0, 0, 0));
+        if (window.getContentPane() instanceof JComponent) {
+            JComponent content = (JComponent) window.getContentPane();
+            content.setOpaque(false);
+            content.setDoubleBuffered(false);
         }
     }
 
