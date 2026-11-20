@@ -89,8 +89,8 @@ public class WindowChromeTest {
             frame.validate();
 
             Rectangle stage = WindowChrome.stageBounds(frame);
-            assertTrue("hair needs space above the panel", stage.y >= 96);
-            assertTrue("sock needs space to the right", stage.width < frame.getContentPane().getWidth() - 40);
+            assertEquals(0, stage.y);
+            assertEquals(frame.getContentPane().getWidth(), stage.width);
 
             JPanel title = findMarked(frame.getContentPane(), "punchclock.titleBar");
             assertNotNull(title);
@@ -117,8 +117,8 @@ public class WindowChromeTest {
             assertTrue(frame.getWidth() >= width + 40);
             frame.validate();
             Rectangle resized = WindowChrome.stageBounds(frame);
-            assertTrue(resized.y > 40);
-            assertTrue(resized.x + resized.width < frame.getContentPane().getWidth());
+            assertEquals(0, resized.y);
+            assertEquals(frame.getContentPane().getWidth(), resized.width);
 
             assertNotNull(findButton(frame, "最大化"));
             assertNotNull(findButton(frame, "最小化"));
@@ -140,8 +140,8 @@ public class WindowChromeTest {
                 holder[0].validate();
                 assertFalse(WindowChrome.isMaximized(holder[0]));
                 Rectangle restored = WindowChrome.stageBounds(holder[0]);
-                assertTrue(restored.y >= 96);
-                assertTrue(restored.width < holder[0].getContentPane().getWidth() - 40);
+                assertEquals(0, restored.y);
+                assertEquals(holder[0].getContentPane().getWidth(), restored.width);
             });
             awaitState(holder[0], "最小化", Frame.ICONIFIED, true);
             SwingUtilities.invokeLater(() -> holder[0].setExtendedState(Frame.NORMAL));
@@ -283,22 +283,23 @@ public class WindowChromeTest {
         Rectangle work = new Rectangle(0, 25, 1440, 790);
         Insets none = new Insets(0, 0, 0, 0);
         Insets home = WindowChrome.overflowForPanel(panel.width, panel.height, true);
-        assertTrue(home.top >= 96);
+        assertEquals(0, home.top);
+        assertEquals(0, home.right);
         Rectangle homeWindow = WindowChrome.keepTitleVisible(
                 WindowChrome.windowForPanel(panel, home, none), home, none, 35, work);
         Rectangle awayWindow = WindowChrome.keepTitleVisible(
                 WindowChrome.windowForPanel(panel, none, none), none, none, 35, work);
         assertEquals(panel.x, awayWindow.x);
         assertEquals(panel.y, awayWindow.y);
-        assertEquals(panel.y, homeWindow.y + home.top);
-        assertEquals(panel.x, homeWindow.x + home.left);
+        assertEquals(panel.y, homeWindow.y);
+        assertEquals(panel.x, homeWindow.x);
         Rectangle again = WindowChrome.keepTitleVisible(
                 WindowChrome.windowForPanel(panel, home, none), home, none, 35, work);
         assertEquals(homeWindow, again);
         Insets solved = com.example.ui.hud.HomeCharacterLayout.overflow(
                 homeWindow.width, homeWindow.height, false, true);
-        assertEquals(home.top, solved.top);
-        assertEquals(home.right, solved.right);
+        assertEquals(0, solved.top);
+        assertEquals(0, solved.right);
     }
 
     @Test
