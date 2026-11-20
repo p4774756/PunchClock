@@ -489,7 +489,11 @@ MERIDIAN_BRANCH_JOIN_R = 0.012
 MERIDIAN_REGION_FRAC = 0.40
 MERIDIAN_HEAD_NECK_Z = 1.490
 MERIDIAN_ISLAND_MIN = 0.035
-MERIDIAN_ISLAND_MIN_REGION = 0.060
+MERIDIAN_ISLAND_MIN_REGION = 0.085
+MERIDIAN_ISLAND_FLAT_RATIO = 0.35
+MERIDIAN_ISLAND_FLAT_MAX = 0.110
+MERIDIAN_ISLAND_TEE_MAX = 0.120
+HAIR_CENTER_NO_STREAK = 0.006
 
 _HAIRLINE_CTRL_R = (
     (0.00, 1.6880),
@@ -500,10 +504,14 @@ _HAIRLINE_CTRL_R = (
     (0.80, 1.6225),
     (0.96, 1.6095),
     (1.12, 1.5965),
-    (1.30, 1.5860),
-    (1.52, 1.5785),
-    (1.75, 1.5740),
-    (math.pi, 1.5720),
+    # 後半圈：耳後兩側抬高、後中線壓低，讓頸背髮際成為枕骨下的淺 U，
+    # 不要再是左耳到右耳一條水平硬切帶。
+    (1.30, 1.5850),
+    (1.55, 1.5820),
+    (1.80, 1.5770),
+    (2.15, 1.5700),
+    (2.55, 1.5660),
+    (math.pi, 1.5650),
 )
 
 
@@ -672,7 +680,7 @@ def _boundary_groups(bm):
     return groups
 
 
-def _stitch_slit_pairs(bm, group, max_gap=0.010, min_hops=4):
+def _stitch_slit_pairs(bm, group, max_gap=0.004, min_hops=4):
     """同一條裂縫兩側逐點配對焊接：只配沿邊界鏈相隔夠遠的點，不壓同一側的相鄰列。"""
     verts = list({v.index: v for e in group for v in e.verts}.values())
     nbr = {v.index: set() for v in verts}
@@ -713,7 +721,9 @@ def _stitch_slit_pairs(bm, group, max_gap=0.010, min_hops=4):
         used.add(a.index)
         used.add(b.index)
         mid = (a.co + b.co) * 0.5
-        if abs(a.co.x) < 0.006 and abs(b.co.x) < 0.006:
+        # 只有真正成對落在中線上的點才貼到 x=0；把 ±4 mm 的點一起拉到 0
+        # 會沿後中線掐出一道凹脊。
+        if abs(a.co.x) < 0.0015 and abs(b.co.x) < 0.0015:
             mid.x = 0.0
         b.co = mid
         targetmap[a] = b
@@ -752,7 +762,7 @@ def _fill_hair_shell_holes(ob):
                     f'[hair] shell_hole edges={len(group)} perim_cm={perim * 100:.2f} '
                     f'center=({center.x:.3f},{center.y:.3f},{center.z:.3f})'
                 )
-            if center.y > 0.0 and max(abs(v.co.x) for v in verts) < 0.010:
+            if center.y > 0.0 and max(abs(v.co.x) for v in verts) < 0.006:
                 targetmap.update(_stitch_slit_pairs(bm, group))
         if not targetmap:
             break
@@ -788,6 +798,70 @@ def _fill_hair_shell_holes(ob):
     print(
         f'[hair] shell_holes hole_loops={len(groups) - 1} stitched_pairs={stitched} '
         f'filled_faces={filled} left={left}'
+    )
+
+
+def _smooth_center_seam(ob, half_width=0.009, iters=3, clamp=0.002):
+    """後中焊線局部 Laplacian：把焊接造成的凹脊攤平並重算法線。
+    位移夾在 clamp 內，避免把整條中線往內拉出新的凹溝。"""
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    sel = [
+        v
+        for v in bm.verts
+        if abs(v.co.x) < half_width and v.co.y > 0.0 and v.co.z > 1.54
+    ]
+    moved_max = 0.0
+    for _ in range(iters if sel else 0):
+        new_co = {}
+        for v in sel:
+            ns = [e.other_vert(v) for e in v.link_edges]
+            if len(ns) < 3:
+                continue
+            avg = sum((n.co for n in ns), Vector()) / len(ns)
+            w = 0.35 if abs(v.co.x) < 0.003 else 0.20
+            delta = (avg - v.co) * w
+            if delta.length > clamp:
+                delta *= clamp / delta.length
+            new_co[v] = v.co + delta
+        for v, co in new_co.items():
+            if abs(v.co.x) < 0.0012:
+                co.x = 0.0
+            moved_max = max(moved_max, (co - v.co).length)
+            v.co = co
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(ob.data)
+    bm.free()
+    ob.data.update()
+    print(f'[hair] center_seam_smooth verts={len(sel)} move_max_mm={moved_max * 1000:.2f}')
+
+
+def _center_seam_symmetry_report(ob):
+    """中心接縫驗證：取 x>0 的頂點與其鏡射點比位置與法線夾角。"""
+    mw = ob.matrix_world
+    rot = mw.to_3x3()
+    pos = []
+    neg = []
+    for v in ob.data.vertices:
+        w = mw @ v.co
+        if w.y <= 0.0 or w.z <= 1.56 or abs(w.x) > 0.030 or abs(w.x) < 0.0035:
+            continue
+        n = (rot @ v.normal).normalized()
+        (pos if w.x > 0 else neg).append((w, n))
+    if not pos or not neg:
+        print('[hair] center_seam_symmetry samples=0')
+        return
+    d_max = 0.0
+    ang_max = 0.0
+    for w, n in pos:
+        mirror = Vector((-w.x, w.y, w.z))
+        best = min(neg, key=lambda t: (t[0] - mirror).length)
+        d_max = max(d_max, (best[0] - mirror).length)
+        mn = Vector((-best[1].x, best[1].y, best[1].z))
+        ang_max = max(ang_max, math.degrees(math.acos(max(-1.0, min(1.0, n.dot(mn))))))
+    print(
+        f'[hair] center_seam_symmetry pairs={len(pos)} pos_diff_max_mm={d_max * 1000:.2f} '
+        f'normal_angle_max_deg={ang_max:.2f}'
     )
 
 
@@ -1000,7 +1074,7 @@ def _add_hair(body, mat_hair):
     ob_shell = _mesh_from_bm(shell, 'bronze_hair_shell', mat_hair)
     _mesh_merge_centerline(ob_shell)
     _fill_hair_shell_holes(ob_shell)
-    _verify_back_hair_rays(body, ob_shell)
+    _smooth_center_seam(ob_shell)
     bpy.context.view_layer.update()
     mw_s = ob_shell.matrix_world
     inv_s = mw_s.inverted()
@@ -1008,11 +1082,16 @@ def _add_hair(body, mat_hair):
         w = mw_s @ v.co
         if w.z < 1.58:
             continue
+        # 後中焊線附近不要再被幾何 streak 推成凹脊；髮絲細節交給 normal map。
+        fade = _smoothstep(HAIR_CENTER_NO_STREAK, 0.014, abs(w.x))
+        if fade <= 0.0:
+            continue
         flow = math.atan2(w.y + 0.035, max(w.z - 1.60, 0.015))
-        strike = 0.00028 * math.sin(flow * 13.5 - w.x * 140.0)
+        strike = fade * 0.00028 * math.sin(flow * 13.5 - w.x * 140.0)
         along = Vector((0.05 * math.sin(flow * 2.5), 1.0, 0.10)).normalized()
         v.co = inv_s @ (w + along * strike)
     ob_shell.data.update()
+    _verify_back_hair_rays(body, ob_shell)
 
     shell_gaps = []
     mw_s = ob_shell.matrix_world
@@ -1159,6 +1238,27 @@ def _verify_back_hair_rays(body, hair_ob):
         f'[hair] back_centerline_rays={hit}/{total} miss={len(miss_z)}'
         f' (expect 0 miss){span}'
     )
+    # 後中凹脊量測：沿 x 掃一排射線取命中深度，二階差分的尖峰就是中線被掐出的脊。
+    ridge_max = 0.0
+    ridge_z = 0.0
+    for z in np.arange(1.600, 1.700, 0.004):
+        ys = []
+        for x in (-0.008, -0.006, -0.004, -0.002, 0.0, 0.002, 0.004, 0.006, 0.008):
+            origin = Vector((float(x), 0.09, float(z)))
+            loc = shell_bvh.ray_cast(origin, Vector((0.0, -1.0, 0.0)), 0.25)[0]
+            # 只收後半球的命中點，否則射線會越過髮際打到髮殼內側的前額。
+            ys.append(loc.y if loc is not None and loc.y > 0.0 else None)
+        for i in range(1, len(ys) - 1):
+            if ys[i - 1] is None or ys[i] is None or ys[i + 1] is None:
+                continue
+            d2 = abs(ys[i - 1] + ys[i + 1] - 2.0 * ys[i])
+            if d2 > ridge_max:
+                ridge_max = d2
+                ridge_z = float(z)
+    print(
+        f'[hair] back_center_ridge_max_mm={ridge_max * 1000:.2f} at_z={ridge_z:.4f} '
+        f'(expect ≤1.0)'
+    )
 
 
 def _hair_shell_output_report(ob_shell):
@@ -1195,6 +1295,7 @@ def _hair_shell_output_report(ob_shell):
         f'boundary_loops={loops} boundary_edges={bedges} boundary_turn_max_deg={turn:.2f} '
         f'(expect loose=0 islands=1)'
     )
+    _center_seam_symmetry_report(ob_shell)
 
 
 def _sash_stripe_mat():
@@ -2240,6 +2341,28 @@ def _cull_meridian_mesh_scalp(body, meridian_ob):
     meridian_ob.data.update()
 
 
+def _island_end_points(ws):
+    """連通島的兩個端點：先取離形心最遠的點，再取離它最遠的點。"""
+    if not ws:
+        return []
+    ctr = sum(ws, Vector()) / len(ws)
+    a = max(ws, key=lambda w: (w - ctr).length_squared)
+    b = max(ws, key=lambda w: (w - a).length_squared)
+    c = max(ws, key=lambda w: (w - b).length_squared)
+    return [b, c]
+
+
+def _endpoint_on_island_middle(end, ws, island_ends, skip=0.030):
+    """端點是否落在另一條島的「中段」（離那條島自己的兩端都夠遠）。"""
+    r2 = MERIDIAN_BRANCH_JOIN_R * MERIDIAN_BRANCH_JOIN_R
+    for w in ws:
+        if (w - end).length_squared > r2:
+            continue
+        if all((w - e).length > skip for e in island_ends):
+            return True
+    return False
+
+
 def _cull_meridian_mesh_islands(meridian_ob):
     """切面後殘留的小連通島清理；頭頸／上臂門檻更嚴。"""
     if meridian_ob is None:
@@ -2266,29 +2389,58 @@ def _cull_meridian_mesh_islands(meridian_ob):
                     stack.append(nxt)
         islands.append(comp)
     drop_verts = []
-    kept_len = []
+    kept = []
     dropped = 0
+    flat_dropped = 0
     for comp in islands:
         ws = [mw @ v.co for v in comp]
         lo = Vector((min(w.x for w in ws), min(w.y for w in ws), min(w.z for w in ws)))
         hi = Vector((max(w.x for w in ws), max(w.y for w in ws), max(w.z for w in ws)))
         span = max((hi - lo).length - 2.0 * MERIDIAN_BEVEL_R, 0.0)
         mid = (lo + hi) * 0.5
-        limit = MERIDIAN_ISLAND_MIN
-        if _in_head_neck_region(mid) or _in_upper_arm_region(mid):
-            limit = MERIDIAN_ISLAND_MIN_REGION
+        region = _in_head_neck_region(mid) or _in_upper_arm_region(mid)
+        limit = MERIDIAN_ISLAND_MIN_REGION if region else MERIDIAN_ISLAND_MIN
         if span < limit:
             drop_verts.extend(comp)
             dropped += 1
-        else:
-            kept_len.append(span)
+            continue
+        # 髮區裁切（_cull_meridian_mesh_scalp）在 path 檢查之後才切，會生出新的短殘島：
+        # 頭頸／上臂在這裡再做一次區域檢查，並刪掉以水平為主的短橫線。
+        if (
+            region
+            and span < MERIDIAN_ISLAND_FLAT_MAX
+            and (hi.z - lo.z) / max(span, 1e-9) < MERIDIAN_ISLAND_FLAT_RATIO
+        ):
+            drop_verts.extend(comp)
+            flat_dropped += 1
+            continue
+        kept.append((comp, ws, span, region))
+    # 裁切後的端點再跑一次鄰近檢查：端點貼在別條線中央的短島就是視覺上的 T／Y。
+    ends = [_island_end_points(t[1]) for t in kept]
+    tee_dropped = 0
+    gone = set()
+    for i in sorted(range(len(kept)), key=lambda k: kept[k][2]):
+        span, region = kept[i][2], kept[i][3]
+        if not region or span > MERIDIAN_ISLAND_TEE_MAX:
+            continue
+        if any(
+            _endpoint_on_island_middle(end, kept[j][1], ends[j])
+            for j in range(len(kept))
+            if j != i and j not in gone and kept[j][2] > span
+            for end in ends[i]
+        ):
+            gone.add(i)
+            drop_verts.extend(kept[i][0])
+            tee_dropped += 1
+    kept_len = [t[2] for i, t in enumerate(kept) if i not in gone]
     if drop_verts:
         bmesh.ops.delete(bm, geom=drop_verts, context='VERTS')
     bm.to_mesh(meridian_ob.data)
     bm.free()
     meridian_ob.data.update()
     print(
-        f'[meridians] mesh_islands={len(islands)} dropped={dropped} kept={len(kept_len)} '
+        f'[meridians] mesh_islands={len(islands)} dropped={dropped} '
+        f'flat_dropped={flat_dropped} tee_dropped={tee_dropped} kept={len(kept_len)} '
         f'island_span_min_cm={(min(kept_len) * 100 if kept_len else 0):.2f}'
     )
 
