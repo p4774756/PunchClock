@@ -78,7 +78,7 @@ public final class ServerApp {
     private final GraffitiStore graffitiStore = new GraffitiStore();
     private final GraffitiRoutes graffitiRoutes = new GraffitiRoutes(authService, graffitiStore);
     private final IslandPresenceRoutes islandPresenceRoutes = new IslandPresenceRoutes();
-    private final RoadmapRoutes roadmapRoutes = new RoadmapRoutes(new RoadmapService(new GithubRoadmapClient()));
+    private final RoadmapRoutes roadmapRoutes;
     private final DevStatusRoutes devStatusRoutes;
     private final DevMachineStore devMachineStore = new DevMachineStore();
     private final DevMachineRoutes devMachineRoutes;
@@ -87,15 +87,20 @@ public final class ServerApp {
     private final ClientRelease clientRelease;
 
     public ServerApp() {
-        this(ClientRelease.discover(), null);
+        this(ClientRelease.discover(), null, null);
     }
 
     ServerApp(ClientRelease clientRelease) {
-        this(clientRelease, null);
+        this(clientRelease, null, null);
     }
 
     /** 測試可注入假的 DevStatusService，避免打真實 GitHub。 */
     public ServerApp(ClientRelease clientRelease, DevStatusService devStatusService) {
+        this(clientRelease, devStatusService, null);
+    }
+
+    /** 測試可注入假的 DevStatusService／RoadmapService，避免打真實 GitHub。 */
+    public ServerApp(ClientRelease clientRelease, DevStatusService devStatusService, RoadmapService roadmapService) {
         this.clientRelease = clientRelease == null ? ClientRelease.NONE : clientRelease;
         DevStatusService status = devStatusService != null
                 ? devStatusService
@@ -103,6 +108,9 @@ public final class ServerApp {
         this.devStatusRoutes = new DevStatusRoutes(status);
         this.devMachineRoutes = new DevMachineRoutes(authService, devMachineStore, status, gson);
         this.teaHealthRoutes = new TeaHealthRoutes(serverHealth);
+        this.roadmapRoutes = new RoadmapRoutes(roadmapService != null
+                ? roadmapService
+                : new RoadmapService(new GithubRoadmapClient()));
     }
 
     public static void main(String[] args) {
