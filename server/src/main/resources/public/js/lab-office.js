@@ -3,20 +3,11 @@
 import {
   CHARACTER_IDS,
   LAB_OFFICE_POLL_MS,
+  SPOT_POS,
   buildAllCharacterStates,
   characterCardData,
   viewerCanOpenLabOffice
 } from './lab-office-logic.js';
-
-const SPOT_POS = Object.freeze({
-  'desk-tiger': { x: 22, y: 80 },
-  'desk-review': { x: 50, y: 64 },
-  coffee: { x: 84, y: 70 },
-  sofa: { x: 16, y: 76 },
-  balcony: { x: 36, y: 86 },
-  beanbag: { x: 68, y: 82 },
-  meeting: { x: 48, y: 48 }
-});
 
 const CHAR_LABEL = Object.freeze({
   oki: '軍師 Oki',

@@ -14,6 +14,31 @@ export const IDLE_SPOTS = Object.freeze([
   { id: 'balcony', label: '海景陽台' }
 ]);
 
+/** 與 lab-office.js 站位、lab-office.css 手機覆寫同一組數字。百分比對舞台。 */
+export const SPOT_POS = Object.freeze({
+  'desk-tiger': { x: 22, y: 80 },
+  'desk-review': { x: 50, y: 64 },
+  coffee: { x: 84, y: 70 },
+  sofa: { x: 16, y: 76 },
+  balcony: { x: 36, y: 86 },
+  beanbag: { x: 68, y: 82 },
+  meeting: { x: 48, y: 48 },
+  // 審核員待機：畫面右半、會議室與咖啡吧之間的空地。不要放回沙發（16%）旁邊。
+  'idle-review': { x: 68, y: 86 }
+});
+
+export const MOBILE_CHAR_POS = Object.freeze({
+  tiger: { x: 18, y: 82 },
+  reviewer: { x: 50, y: 82 },
+  oki: { x: 82, y: 82 }
+});
+
+export const SPRITE_NATURAL = Object.freeze({
+  oki: { w: 98, h: 220 },
+  tiger: { w: 99, h: 220 },
+  reviewer: { w: 107, h: 220 }
+});
+
 const MACHINE_BY_CHAR = Object.freeze({
   tiger: 'office'
 });
@@ -155,7 +180,7 @@ export function buildCharacterState(charId, ctx) {
       if (list[i] && list[i].verdict) verdict = list[i].verdict;
     }
     out.mode = 'idle';
-    out.spot = pickIdleSpot(now, charId);
+    out.spot = 'idle-review';
     out.bubble = verdict ? '最近 ' + verdict : '待機中';
     return out;
   }
@@ -240,4 +265,70 @@ export function characterCardData(charId, ctx) {
     data.dev = c.devStatus;
   }
   return data;
+}
+
+function officeStageSize(viewportW, viewportH) {
+  const frameW = Math.min(1280, Math.max(0, viewportW - 16 - 12));
+  const maxH = Math.max(48, viewportH - 120);
+  let h = frameW * 9 / 16;
+  if (h > maxH) h = maxH;
+  return { w: frameW, h: h };
+}
+
+function spriteHeightPx(stageH, viewportW) {
+  if (viewportW <= 520) return 42;
+  return Math.max(48, Math.min(120, stageH * 0.3));
+}
+
+/** 對齊審核量到的氣泡外框：桌機「#254 · R4 · grok-4.7 · 1:35」約 157×28。 */
+function textWidthPx(text, fontSize) {
+  const s = String(text || '');
+  let w = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c > 255) w += fontSize;
+    else if (c === 32) w += fontSize * 0.34;
+    else w += fontSize * 0.62;
+  }
+  return w;
+}
+
+function bubbleMetrics(viewportW) {
+  if (viewportW <= 520) {
+    return { font: 10, lh: 1.2, padX: 3, padY: 2, border: 2, max: 80, min: 54.4 };
+  }
+  return { font: 12, lh: 1.3, padX: 6, padY: 4, border: 2, max: 152, min: 54.4 };
+}
+
+export function rectsIntersect(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+/** 三人與氣泡在舞台上的外框。手機寬走 CSS 覆寫的百分比，桌機走站位。 */
+export function officeLayoutRects(states, viewportW, viewportH) {
+  const stage = officeStageSize(viewportW, viewportH);
+  const hSprite = spriteHeightPx(stage.h, viewportW);
+  const spec = bubbleMetrics(viewportW);
+  const mobile = viewportW <= 520;
+  const rects = [];
+  const list = states || [];
+  for (let i = 0; i < list.length; i++) {
+    const st = list[i];
+    const pos = mobile
+      ? (MOBILE_CHAR_POS[st.id] || MOBILE_CHAR_POS.reviewer)
+      : (SPOT_POS[st.spot] || SPOT_POS.sofa);
+    const ax = stage.w * pos.x / 100;
+    const ay = stage.h * pos.y / 100;
+    const nat = SPRITE_NATURAL[st.id] || { w: 100, h: 220 };
+    const sw = nat.w * hSprite / nat.h;
+    const char = { x: ax - sw / 2, y: ay - hSprite, w: sw, h: hSprite };
+    const raw = textWidthPx(st.bubble, spec.font);
+    const lines = Math.max(1, Math.ceil(raw / spec.max - 1e-6));
+    const contentW = Math.min(spec.max, Math.max(spec.min, raw));
+    const bw = contentW + spec.padX * 2 + spec.border * 2;
+    const bh = lines * spec.font * spec.lh + spec.padY * 2 + spec.border * 2;
+    const bubble = { x: ax - bw / 2, y: char.y - 4 - bh, w: bw, h: bh };
+    rects.push({ id: st.id, spot: st.spot, char: char, bubble: bubble });
+  }
+  return { stage: stage, rects: rects };
 }

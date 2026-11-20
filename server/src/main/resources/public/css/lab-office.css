@@ -174,9 +174,10 @@
 
 .lab-office-card {
   display: grid;
-  grid-template-columns: 108px 1fr;
+  grid-template-columns: 108px minmax(0, 1fr);
   gap: 10px;
   width: min(100%, 480px);
+  max-width: 100%;
   max-height: calc(100% - 12px);
   overflow: auto;
   border: 5px solid #163a70;
@@ -226,16 +227,23 @@
   }
 }
 
+.lab-office-card-body {
+  min-width: 0;
+}
+
 .lab-office-card-body h3 {
   font-size: 1rem;
   color: #163a70;
   margin-bottom: 6px;
+  overflow-wrap: anywhere;
 }
 
 .lab-office-card-line {
   font-size: 13px;
   color: #142440;
   margin-bottom: 4px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .lab-office-foot {

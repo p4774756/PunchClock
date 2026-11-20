@@ -412,6 +412,112 @@ def _repair_smears(img: Image.Image, before: Image.Image, empty: Image.Image) ->
                 op[x, y] = ep[x, y]
 
 
+def _delta(a: tuple[int, int, int], b: tuple[int, int, int]) -> int:
+    return abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2])
+
+
+def _flood_diff(
+    img: Image.Image,
+    empty: Image.Image,
+    seeds: tuple[tuple[int, int], ...],
+    box: tuple[int, int, int, int],
+    thr: int,
+) -> Image.Image:
+    """與空景相差超過門檻的連通區。後排桌椅在來源圖裡有人，差集就是該抹掉的家具。"""
+    bp = img.load()
+    ep = empty.load()
+    x0, y0, x1, y1 = box
+    mask = Image.new("L", img.size, 0)
+    mp = mask.load()
+    seen: set[tuple[int, int]] = set()
+    q: deque[tuple[int, int]] = deque(seeds)
+    while q:
+        x, y = q.popleft()
+        if (x, y) in seen or not (x0 <= x < x1 and y0 <= y < y1):
+            continue
+        seen.add((x, y))
+        if _delta(bp[x, y], ep[x, y]) < thr:
+            continue
+        mp[x, y] = 255
+        q.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
+    return mask
+
+
+def _dilate_in_box(mask: Image.Image, box: tuple[int, int, int, int], radius: int) -> Image.Image:
+    x0, y0, x1, y1 = box
+    crop = mask.crop(box).filter(ImageFilter.MaxFilter(radius * 2 + 1))
+    out = Image.new("L", mask.size, 0)
+    out.paste(crop, (x0, y0))
+    return out
+
+
+def _clear_smeared_back_row(img: Image.Image, empty: Image.Image) -> None:
+    """來源圖後排兩塊都有人。整區改貼空景地板，不留條紋椅背或平塗彎桌。前排工位保留。"""
+    back_box = (640, 240, 1030, 650)
+    back = _flood_diff(
+        img,
+        empty,
+        (
+            (780, 340),
+            (800, 400),
+            (860, 450),
+            (920, 480),
+            (760, 470),
+            (880, 520),
+            (940, 430),
+            (990, 500),
+            (800, 500),
+            (900, 560),
+        ),
+        back_box,
+        22,
+    )
+    back = _dilate_in_box(back, back_box, 12)
+    front_box = (400, 470, 840, 710)
+    front = _flood_diff(
+        img,
+        empty,
+        ((700, 560), (640, 520), (760, 600), (500, 600), (560, 640)),
+        front_box,
+        30,
+    )
+    front = _dilate_in_box(front, front_box, 4)
+    bp = img.load()
+    ep = empty.load()
+    mp = back.load()
+    fp = front.load()
+    x0, y0, x1, y1 = back_box
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            if mp[x, y] and not fp[x, y]:
+                bp[x, y] = ep[x, y]
+
+
+def _assert_back_row_clean(img: Image.Image, empty: Image.Image) -> None:
+    """審核裁圖必須是空景地板，不能留條紋或平塗桌椅。櫃邊與前排螢幕留著。"""
+    px = img.load()
+    ep = empty.load()
+    for y in range(330, 500):
+        for x in range(700, 880):
+            if px[x, y] != ep[x, y]:
+                raise SystemExit(f"glitch box differs from empty floor at {x},{y}")
+    bad = 0
+    for y in range(400, 560):
+        for x in range(860, 980):
+            if _delta(px[x, y], ep[x, y]) > 12:
+                bad += 1
+    if bad:
+        raise SystemExit(f"smear box floor still differs from empty ({bad} px)")
+    dark = 0
+    for y in range(380, 680):
+        for x in range(380, 780):
+            r, g, b = px[x, y]
+            if r < 60 and g < 80 and b < 120:
+                dark += 1
+    if dark < 2000:
+        raise SystemExit(f"front desks lost their screens ({dark} dark px)")
+
+
 def build_office_bg() -> Image.Image:
     empty = Image.open(RAW / "office-2f-empty.jpg").convert("RGB")
     ref = Image.open(RAW / "office-2f-desks-ref.jpg").convert("RGB")
@@ -427,6 +533,8 @@ def build_office_bg() -> Image.Image:
     remove_people(out)
     _restore_covered_furniture(out, before_people, empty)
     _repair_smears(out, before_people, empty)
+    _clear_smeared_back_row(out, empty)
+    _assert_back_row_clean(out, empty)
     w, h = out.size
     if w > MAX_BG_W:
         nh = int(h * MAX_BG_W / w)
