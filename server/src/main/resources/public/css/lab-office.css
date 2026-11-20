@@ -1,0 +1,313 @@
+/* 研發二樓 Live 虛擬辦公室 · 楓之谷平面風 */
+
+.lab-office-root {
+  position: fixed;
+  inset: 0;
+  z-index: 9400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background: #0a1628;
+  font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+}
+
+.lab-office-page {
+  margin: 0;
+  background: #0a1628;
+}
+
+.lab-office-root.is-page {
+  position: relative;
+  min-height: 100vh;
+  z-index: 1;
+}
+
+.lab-office-root[hidden] {
+  display: none !important;
+}
+
+.lab-office-frame {
+  position: relative;
+  width: min(100%, 1280px);
+  max-height: calc(100vh - 16px);
+  border: 6px solid #163a70;
+  outline: 2px solid #a8d0f2;
+  outline-offset: -8px;
+  background: #e6effa;
+  box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.31);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lab-office-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0.5rem 0.75rem;
+  background: #3a7ac4;
+  color: #f8fbff;
+  border-bottom: 4px solid #163a70;
+}
+
+.lab-office-head h1,
+.lab-office-head h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.lab-office-close {
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  min-width: 2rem;
+  min-height: 2rem;
+  border: 3px solid #163a70;
+  background: #f8fbff;
+  color: #163a70;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.55rem;
+}
+
+.lab-office-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 120px);
+  background: #07111f;
+  overflow: hidden;
+  touch-action: manipulation;
+  container-type: size;
+  z-index: 1;
+}
+
+.lab-office-bg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.lab-office-chars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.lab-office-char {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lab-office-char img {
+  display: block;
+  height: clamp(48px, 30cqh, 120px);
+  width: auto;
+  min-width: 28px;
+}
+
+.lab-office-char.is-work img {
+  animation: lab-office-typing 0.45s steps(2) infinite;
+}
+
+@keyframes lab-office-typing {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.lab-office-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 9.5rem;
+  min-width: 3.4rem;
+  padding: 4px 6px;
+  background: #f8fbff;
+  color: #163a70;
+  border: 2px solid #163a70;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: center;
+  white-space: normal;
+  writing-mode: horizontal-tb;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+  z-index: 2;
+}
+
+.lab-office-char:focus-visible {
+  outline: 3px solid #ecc440;
+  outline-offset: 2px;
+}
+
+.lab-office-card-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 22, 40, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  z-index: 5;
+}
+
+.lab-office-card-backdrop[hidden] {
+  display: none !important;
+}
+
+.lab-office-card {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 10px;
+  width: min(100%, 480px);
+  max-width: 100%;
+  max-height: calc(100% - 12px);
+  overflow: auto;
+  border: 5px solid #163a70;
+  background: #f8fbff;
+  border-radius: 6px;
+  padding: 10px;
+  box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.31);
+}
+
+@media (max-width: 520px) {
+  .lab-office-card {
+    grid-template-columns: 84px 1fr;
+    width: calc(100% - 4px);
+    gap: 8px;
+    padding: 8px;
+  }
+}
+
+.lab-office-portrait {
+  width: 100%;
+  max-height: 168px;
+  object-fit: contain;
+  object-position: top center;
+  border: 3px solid #204e96;
+  background: #e6effa;
+}
+
+@media (max-width: 520px) {
+  .lab-office-char img {
+    height: 42px;
+  }
+  .lab-office-char[data-char="tiger"] { left: 18% !important; top: 82% !important; }
+  .lab-office-char[data-char="reviewer"] { left: 50% !important; top: 82% !important; }
+  .lab-office-char[data-char="oki"] { left: 82% !important; top: 82% !important; }
+  .lab-office-bubble {
+    max-width: 5rem;
+    font-size: 10px;
+    line-height: 1.2;
+    padding: 2px 3px;
+    overflow-wrap: anywhere;
+  }
+  .lab-office-portrait {
+    max-height: 112px;
+  }
+  .lab-office-card-line {
+    font-size: 12px;
+  }
+}
+
+.lab-office-card-body {
+  min-width: 0;
+}
+
+.lab-office-card-body h3 {
+  font-size: 1rem;
+  color: #163a70;
+  margin-bottom: 6px;
+  overflow-wrap: anywhere;
+}
+
+.lab-office-card-line {
+  font-size: 13px;
+  color: #142440;
+  margin-bottom: 4px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.lab-office-foot {
+  padding: 0.4rem 0.65rem;
+  text-align: center;
+  font-size: 12px;
+  color: #465a78;
+  background: #d8e6f6;
+  border-top: 3px solid #204e96;
+}
+
+.lab-office-guest {
+  position: absolute;
+  left: 50%;
+  top: 14%;
+  transform: translateX(-50%);
+  z-index: 4;
+  width: min(92%, 320px);
+  margin: 0;
+  padding: 12px 14px;
+  text-align: center;
+  color: #142440;
+  background: #f8fbff;
+  border: 3px solid #163a70;
+  border-radius: 6px;
+  box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.31);
+  line-height: 1.45;
+}
+
+.lab-office-guest[hidden] {
+  display: none !important;
+}
+
+.lab-office-guest p {
+  margin: 0;
+}
+
+.lab-office-guest a {
+  display: inline-block;
+  margin-top: 8px;
+  color: #163a70;
+  font-weight: 700;
+}
+
+.dev-status-tabs {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.dev-status-tab {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 0.35rem 0.9rem;
+  border: 3px solid #163a70;
+  background: #f8fbff;
+  color: #163a70;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.dev-status-tab.is-active {
+  background: #ecc440;
+  border-color: #163a70;
+}

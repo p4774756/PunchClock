@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>虛擬辦公室</title>
+  <link rel="stylesheet" href="/css/lab-office.css">
+</head>
+<body class="lab-office-page">
+  <script>window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};</script>
+  <section class="lab-office-root is-page" id="officePage" aria-label="虛擬辦公室">
+    <div class="lab-office-frame">
+      <header class="lab-office-head">
+        <h1>虛擬辦公室</h1>
+        <a class="lab-office-close" href="/dev-status">機台列表</a>
+      </header>
+      <div class="lab-office-stage" data-lab-office-stage>
+        <img class="lab-office-bg" src="/assets/lab-2f/office-bg.webp" width="1280" height="720" alt="">
+        <div class="lab-office-chars" data-lab-office-chars></div>
+        <div class="lab-office-guest" data-office-guest {{OFFICE_GUEST_ATTR}}>
+          <p>虛擬辦公室需管理員登入</p>
+          <a href="/login?next=/office">登入</a>
+        </div>
+      </div>
+      <p class="lab-office-foot" data-lab-office-foot>僅管理員可查看角色狀態</p>
+      <div class="lab-office-card-backdrop" data-lab-office-card hidden>
+        <div class="lab-office-card" role="dialog" aria-label="角色詳情"></div>
+      </div>
+    </div>
+  </section>
+  <script type="module" src="/js/office-page.js"></script>
+</body>
+</html>

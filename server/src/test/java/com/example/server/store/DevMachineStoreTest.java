@@ -77,6 +77,40 @@ public class DevMachineStoreTest {
         assertEquals("小貓", list.get(0).get("label"));
     }
 
+    @Test
+    public void optionalRoleModelVerdictFields() {
+        DevMachineStore store = new DevMachineStore();
+        Map<String, Object> body = payload("home", 254, "ai/issue-254", 1000L);
+        body.put("role", "review");
+        body.put("round", 2);
+        body.put("model", "claude-opus-5-thinking-high");
+        body.put("verdict", "FAIL");
+        List<Map<String, Object>> runs = List.of(Map.of(
+                "issue", 254,
+                "round", 2,
+                "branch", "ai/issue-254",
+                "startedAt", 1000L,
+                "role", "dev",
+                "model", "gpt-5.2-fast",
+                "verdict", "PASS"
+        ));
+        body.put("runs", runs);
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("home", body));
+        Map<String, Object> home = store.listForApi(System.currentTimeMillis(), issue -> "").get(0);
+        assertEquals("review", home.get("role"));
+        assertEquals(2, home.get("round"));
+        assertEquals("claude-opus-5-thinking-high", home.get("model"));
+        assertEquals("FAIL", home.get("verdict"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> apiRuns = (List<Map<String, Object>>) home.get("runs");
+        assertEquals("dev", apiRuns.get(0).get("role"));
+        assertEquals("PASS", apiRuns.get(0).get("verdict"));
+
+        Map<String, Object> badRole = new HashMap<>(body);
+        badRole.put("role", "hacker");
+        assertEquals(DevMachineStore.ApplyResult.BAD_BODY, store.applyHeartbeat("home", badRole));
+    }
+
     private static Map<String, Object> payload(String machine, Integer issue, String branch, long runStartedAt) {
         Map<String, Object> m = new HashMap<>();
         m.put("machine", machine);

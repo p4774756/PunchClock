@@ -6,6 +6,7 @@
   <title>開發機狀態</title>
   <link rel="stylesheet" href="/css/dev-machines.css">
   <link rel="stylesheet" href="/css/dev-guest-ui.css">
+  <link rel="stylesheet" href="/css/lab-office.css">
 </head>
 <body class="dev-machines-page">
   <script>window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};</script>
@@ -14,6 +15,10 @@
     <header class="dev-machines-header">
       <h1>開發機狀態</h1>
       <p class="dev-machines-sub">每 30 秒更新 · 時間 台北</p>
+      <nav class="dev-status-tabs" role="tablist" aria-label="開發機狀態分頁">
+        <button type="button" class="dev-status-tab is-active" data-dev-tab="machines" aria-pressed="true">機台列表</button>
+        <button type="button" class="dev-status-tab" data-dev-tab="office" aria-pressed="false">虛擬辦公室</button>
+      </nav>
     </header>
     <main class="dev-machines-main">
       <div id="devMachinesRoot" class="dev-machines-root" aria-live="polite"></div>
