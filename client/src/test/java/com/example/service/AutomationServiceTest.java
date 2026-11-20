@@ -117,6 +117,47 @@ public class AutomationServiceTest {
         assertEquals("[失敗] 網頁載入逾時（45 秒）。廣告多的網站可改選 Edge / Chrome（本機）。", msg);
     }
 
+    @Test
+    public void executeCheckIn_success_closesSessionBeforeReturn() {
+        FakeCheckInPage page = new FakeCheckInPage();
+        CleanupFactory factory = new CleanupFactory(page, null);
+        AutomationService service = new AutomationService(factory);
+
+        assertTrue(service.executeCheckIn("https://example.com/punch", "punch-btn", "chromium", null));
+
+        assertEquals(1, factory.sessionCloseCount);
+        assertFalse(factory.contextOpen);
+        assertFalse(factory.browserOpen);
+        assertFalse(factory.playwrightOpen);
+    }
+
+    @Test
+    public void executeCheckIn_openSessionFailsAfterLaunch_closesDriverAndBrowserWhenCheckInEnds() {
+        CleanupFactory factory = new CleanupFactory(
+                new FakeCheckInPage(), new IllegalStateException("newContext failed"));
+        AutomationService service = new AutomationService(factory);
+        List<String> logs = new ArrayList<>();
+
+        try {
+            service.executeCheckIn("https://example.com", "#x", "chrome", msg -> {
+                logs.add(msg);
+                if (msg.contains("執行過程中發生錯誤")) {
+                    assertTrue(factory.playwrightOpen);
+                    assertTrue(factory.browserOpen);
+                }
+            });
+            fail("expected RuntimeException");
+        } catch (RuntimeException ex) {
+            assertTrue(ex.getMessage().contains("執行過程中發生錯誤"));
+            assertTrue(ex.getMessage().contains("newContext failed"));
+        }
+
+        assertEquals(0, factory.sessionCloseCount);
+        assertFalse(factory.playwrightOpen);
+        assertFalse(factory.browserOpen);
+        assertTrue(logs.stream().anyMatch(m -> m.contains("執行過程中發生錯誤")));
+    }
+
     private static Consumer<String> logCapture(List<String> logs) {
         return logs::add;
     }
@@ -149,6 +190,55 @@ public class AutomationServiceTest {
 
         @Override
         public void shutdown() {
+        }
+    }
+
+    /**
+     * 模擬 openSession 已建立 driver／瀏覽器後才失敗。
+     * shutdown 只關 browser 與 Playwright，不關 context（與正式 factory 相同）。
+     */
+    private static final class CleanupFactory implements CheckInBrowserFactory {
+
+        private final FakeCheckInPage page;
+        private final RuntimeException openFailure;
+        boolean playwrightOpen;
+        boolean browserOpen;
+        boolean contextOpen;
+        int sessionCloseCount;
+
+        private CleanupFactory(FakeCheckInPage page, RuntimeException openFailure) {
+            this.page = page;
+            this.openFailure = openFailure;
+        }
+
+        @Override
+        public CheckInSession openSession(String browserChoice, Consumer<String> logger) {
+            playwrightOpen = true;
+            browserOpen = true;
+            if (openFailure != null) {
+                throw openFailure;
+            }
+            contextOpen = true;
+            return new CheckInSession() {
+                @Override
+                public CheckInPageDriver newPage() {
+                    return page;
+                }
+
+                @Override
+                public void close() {
+                    sessionCloseCount++;
+                    contextOpen = false;
+                    browserOpen = false;
+                    playwrightOpen = false;
+                }
+            };
+        }
+
+        @Override
+        public void shutdown() {
+            browserOpen = false;
+            playwrightOpen = false;
         }
     }
 

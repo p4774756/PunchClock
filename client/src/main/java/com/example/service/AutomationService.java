@@ -93,6 +93,13 @@ public class AutomationService {
                     session.close();
                 } catch (Exception ignored) {
                 }
+            } else {
+                // openSession 在回傳 session 前失敗時，Playwright 與瀏覽器仍留在 factory。
+                // 舊 finally 不論 context 有沒有建立，都會在這次打卡結束當下關掉，不等應用程式之後再呼叫。
+                try {
+                    shutdown();
+                } catch (Exception ignored) {
+                }
             }
         }
     }
