@@ -22,7 +22,8 @@ public final class AtlasRoutes {
     static final String ROOT_PROPERTY = "punchclock.atlas.root";
     private static final Set<String> APPS = Set.of("tcm-3d");
     private static final Map<String, String> TITLES = Map.of("tcm-3d", "中醫人體");
-    private static final Pattern FINGERPRINTED_ASSET = Pattern.compile(".+-[0-9a-zA-Z]{8,}\\.(js|mjs|css)$");
+    /** Vite／Rolldown 檔名雜湊是 base64url，含 {@code _} 與 {@code -}。 */
+    private static final Pattern FINGERPRINTED_ASSET = Pattern.compile(".+-[0-9A-Za-z_-]{8,}\\.(js|mjs|css)$");
     private static final Pattern CACHE_BUST_QUERY = Pattern.compile("(?:^|&)v=[^&]+");
     private static final DateTimeFormatter HTTP_DATE = DateTimeFormatter.RFC_1123_DATE_TIME;
 

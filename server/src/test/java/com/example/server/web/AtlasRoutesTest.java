@@ -101,6 +101,36 @@ public class AtlasRoutesTest {
     }
 
     @Test
+    public void viteBase64UrlFingerprintsGetPublicImmutableYear() throws Exception {
+        Path assets = root.resolve("tcm-3d").resolve("assets");
+        Files.writeString(assets.resolve("index-BcE_rmOW.js"), "entry-js");
+        Files.writeString(assets.resolve("page-D9b-Lbef.js"), "page-js");
+        Files.writeString(assets.resolve("index-BfCH3E_e.css"), "entry-css");
+        Files.writeString(assets.resolve("app.js"), "plain-js");
+        String[] fingerprinted = {
+                "/atlas/tcm-3d/assets/index-BcE_rmOW.js",
+                "/atlas/tcm-3d/assets/page-D9b-Lbef.js",
+                "/atlas/tcm-3d/assets/index-BfCH3E_e.css"
+        };
+        for (String path : fingerprinted) {
+            HttpResponse<String> response = send("GET", path, null, null, null);
+            assertEquals(path, 200, response.statusCode());
+            String cache = response.headers().firstValue("cache-control").orElse("");
+            assertTrue(path + " -> " + cache, cache.contains("public"));
+            assertTrue(path + " -> " + cache, cache.contains("31536000"));
+            assertTrue(path + " -> " + cache, cache.contains("immutable"));
+            assertTrue(response.headers().firstValue("etag").isPresent());
+            assertTrue(response.headers().firstValue("last-modified").isPresent());
+            assertFalse("0".equals(response.headers().firstValue("content-length").orElse("0")));
+        }
+        HttpResponse<String> plain = send("GET", "/atlas/tcm-3d/assets/app.js", null, null, null);
+        String plainCache = plain.headers().firstValue("cache-control").orElse("");
+        assertTrue(plainCache.contains("private"));
+        assertTrue(plainCache.contains("max-age=86400"));
+        assertFalse(plainCache.contains("immutable"));
+    }
+
+    @Test
     public void versionedModelGetsYearImmutableAndContentLength() throws Exception {
         byte[] glb = "glb-versioned".getBytes(StandardCharsets.UTF_8);
         Path glbPath = root.resolve("tcm-3d").resolve("models").resolve("anime-assistant.glb");
