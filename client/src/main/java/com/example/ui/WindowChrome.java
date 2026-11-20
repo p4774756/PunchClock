@@ -7,6 +7,7 @@ import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JRootPane;
 import javax.swing.JSlider;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingConstants;
@@ -46,6 +47,7 @@ import java.awt.image.BufferedImage;
 
 import com.example.ui.hud.AnimeShell;
 import com.example.ui.hud.HomePortrait;
+import com.example.ui.hud.ShellDimensions;
 
 /**
  * 自訂標題列與邊緣縮放，讓桌面端可以調整視窗透明度。
@@ -156,6 +158,43 @@ public final class WindowChrome {
         root.putClientProperty("punchclock.outer", stage);
         root.putClientProperty("punchclock.canvas", canvas);
         return new Controls(slider, valueLabel);
+    }
+
+    /**
+     * 迷你橫條拿掉標題列與外框留白，300×56 才是內容區，不會被標題列裁成一條縫。
+     * 同時把最小尺寸改成迷你或小方塊，並寫進 relayout 記得的最小值。
+     */
+    public static void setMiniBar(JFrame frame, boolean mini) {
+        if (frame == null || frame.getRootPane() == null) {
+            return;
+        }
+        JRootPane root = frame.getRootPane();
+        JComponent canvas = (JComponent) root.getClientProperty("punchclock.canvas");
+        JComponent body = (JComponent) root.getClientProperty("punchclock.body");
+        JComponent stage = (JComponent) root.getClientProperty("punchclock.outer");
+        JComponent title = canvas == null ? null : findMarked(canvas, "punchclock.titleBar");
+        if (title != null) {
+            title.setVisible(!mini);
+        }
+        if (body != null) {
+            body.setBorder(mini ? new EmptyBorder(0, 0, 0, 0) : new EmptyBorder(0, 6, 6, 6));
+        }
+        if (stage != null) {
+            if (mini) {
+                stage.setBorder(new EmptyBorder(0, 0, 0, 0));
+            } else {
+                applyWindowBorder(stage, isMaximized(frame));
+            }
+        }
+        Dimension minimum = mini
+                ? new Dimension(ShellDimensions.MINI_WIDTH, ShellDimensions.MINI_HEIGHT)
+                : new Dimension(ShellDimensions.MIN_WIDTH, ShellDimensions.MIN_HEIGHT);
+        frame.setMinimumSize(minimum);
+        root.putClientProperty("punchclock.minimum", new Dimension(minimum));
+        if (canvas != null) {
+            canvas.revalidate();
+            canvas.repaint();
+        }
     }
 
     /**
@@ -372,7 +411,7 @@ public final class WindowChrome {
             portrait = new HomePortrait(shell);
             int bodyTop = titleH + GRIP;
             int bodyH = Math.max(120, height - bodyTop - GRIP);
-            shell.setBounds(GRIP, bodyTop, Math.max(200, width - GRIP * 2), bodyH);
+            shell.setBounds(GRIP, bodyTop, Math.max(120, width - GRIP * 2), bodyH);
             shell.doLayout();
         }
 

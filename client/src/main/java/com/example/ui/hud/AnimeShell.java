@@ -3,7 +3,7 @@ package com.example.ui.hud;
 import com.example.model.CheckInTask;
 import com.example.model.TaskStatus;
 import com.example.service.SchedulerService;
-import com.example.ui.DonateAction;
+import com.example.ui.AppBranding;
 import com.example.ui.UiFonts;
 import com.example.ui.WindowChrome;
 
@@ -19,7 +19,6 @@ import java.awt.Cursor;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.Shape;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -37,39 +36,43 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 打卡程式的外框：房間背景、左側導覽、首頁角色。
- * 排程、好友、設定、日誌仍是原來的面板，只是分頁列收起來。
+ * 小方塊外框：底部分頁圖示、首頁角色與實用泡泡（#274）。
  */
 public final class AnimeShell extends JPanel {
 
     private static final Color INK = new Color(255, 252, 255);
-    private static final Color MUTED = new Color(226, 218, 242);
-    private static final Color PANEL = new Color(54, 42, 96, 228);
-    private static final Color PANEL_EDGE = new Color(214, 198, 255, 150);
-    private static final String[] NAV = {"首頁", "排程任務", "好友與傳檔", "設定", "日誌"};
-    /** 側邊順序和 JTabbedPane 不同：分頁是排程、設定、好友、日誌。 */
-    private static final int[] NAV_TO_TAB = {-1, 0, 2, 1, 3};
-    /** 側欄「贊助」熱區，不佔分頁 0–4、也不與 20（打招呼）共用。 */
-    public static final int DONATE_HIT = 21;
+    private static final Color MUTED = new Color(196, 186, 220);
+    private static final Color TAB_BG = new Color(38, 28, 68, 240);
+    private static final Color TAB_ACTIVE = new Color(255, 122, 168, 220);
+    private static final String[] NAV = {"首頁", "排程", "好友傳檔", "日誌", "設定"};
+    private static final String[] NAV_TIPS = {
+            "首頁：小寶貝與狀態泡泡",
+            "排程任務與打卡紀錄",
+            "好友、聊天與傳檔",
+            "系統日誌",
+            "連線、更新與偏好"
+    };
+    /** 分頁：首頁、排程0、好友2、日誌3、設定1 */
+    private static final int[] NAV_TO_TAB = {-1, 0, 2, 3, 1};
+    public static final int MINI_TOGGLE = 22;
+    public static final int CHARACTER_HIT = 20;
 
     private final JTabbedPane tabs;
     private final SchedulerService scheduler;
-    private final AnimeCast cast = AnimeCast.load();
-    private final HeroMotion hero = new HeroMotion();
+    private final BabyAssets baby = BabyAssets.load();
     private final HomeBoard board = new HomeBoard();
     private final BufferedImage room = loadRoom();
     private final Timer timer;
     private final boolean reducedMotion = reducedMotion();
     private final Map<String, TaskStatus> seenTasks = new HashMap<>();
-    private final DonateAction donateAction = DonateAction.production();
     private HomeActions homeActions;
     private boolean holdingHome = true;
     private boolean useRoom = true;
+    private boolean miniMode;
     private int hot = -1;
-    private java.awt.Rectangle bust = new java.awt.Rectangle();
-    private java.awt.image.BufferedImage homeFigure;
-    private java.awt.Rectangle homeFigureBounds;
-    private int paintedFrame = -1;
+    private String eventFlash = "";
+    private long eventUntil;
+    private java.awt.Rectangle figureBox = new java.awt.Rectangle();
     private long paintedSecond = -1;
     private String paintedHomeKey;
 
@@ -111,39 +114,30 @@ public final class AnimeShell extends JPanel {
         };
         addMouseListener(mouse);
         addMouseMotionListener(mouse);
+        setToolTipText(navTooltip(0));
         timer = new Timer(40, e -> {
-            hero.tick(0.04);
             noticeStatus();
-            int frame = hero.frame();
-            long now = System.currentTimeMillis();
-            long second = now / 1000L;
-            if (holdingHome) {
-                // 首頁每秒只檢查卡片資料；沒變就不重畫。台詞淡入淡出只畫泡泡那一帶。
+            long second = System.currentTimeMillis() / 1000L;
+            if (holdingHome && !miniMode) {
                 if (second != paintedSecond) {
                     paintedSecond = second;
-                    String key = homeActions == null ? "" : homeActions.read().paintKey();
+                    String key = homeActions == null ? "" : homeActions.paintKey();
                     if (!key.equals(paintedHomeKey)) {
                         paintedHomeKey = key;
+                        refreshBubble();
                         repaint(contentBounds());
                     }
                 }
                 if (board.animating()) {
                     repaint(board.bubbleArea());
                 }
-                return;
-            }
-            if (frame != paintedFrame) {
-                paintedFrame = frame;
-                if (bust.isEmpty()) {
-                    repaint();
-                } else {
-                    repaint(bust);
-                }
+            } else if (miniMode && second != paintedSecond) {
+                paintedSecond = second;
+                repaint();
             }
         });
     }
 
-    /** 熱區換了只重畫新舊兩格。macOS 透明窗整塊重繪太慢會閃。 */
     private void repaintHot(int previous, int next) {
         repaint(hotArea(previous));
         repaint(hotArea(next));
@@ -151,36 +145,53 @@ public final class AnimeShell extends JPanel {
 
     private java.awt.Rectangle hotArea(int id) {
         if (id >= 0 && id < NAV.length) {
-            java.awt.Rectangle row = navRow(navBounds(), id);
-            row.grow(2, 2);
-            return row;
+            return tabHitBox(id);
         }
-        if (id == DONATE_HIT) {
-            java.awt.Rectangle box = donateBounds(navBounds());
-            box.grow(2, 2);
-            return box;
+        if (id == MINI_TOGGLE) {
+            return miniToggleBox();
         }
-        if (id == 20) {
-            return holdingHome ? new java.awt.Rectangle() : new java.awt.Rectangle(bust);
+        if (id == CHARACTER_HIT || id == HomeBoard.BUBBLE) {
+            java.awt.Rectangle box = board.hotArea(id);
+            if (box.width > 0) {
+                box.grow(4, 4);
+                return box;
+            }
+            if (figureBox.width > 0) {
+                return new java.awt.Rectangle(figureBox);
+            }
         }
-        java.awt.Rectangle box = board.hotArea(id);
-        if (box.width > 0) {
-            box.grow(2, 2);
-        }
-        return box;
+        return new java.awt.Rectangle();
     }
 
     public boolean isHoldingHome() {
         return holdingHome;
     }
 
+    public boolean isMiniMode() {
+        return miniMode;
+    }
+
+    public void setMiniMode(boolean miniMode) {
+        this.miniMode = miniMode;
+        tabs.setVisible(!miniMode && !holdingHome);
+        revalidate();
+        repaint();
+        refreshChrome();
+    }
+
     public void setCharacterTheme(CharacterTheme theme) {
-        board.setReminderFill(null);
         revalidate();
         repaint();
         if (holdingHome) {
             refreshChrome();
         }
+    }
+
+    public void flashEvent(String text, long millis) {
+        eventFlash = text == null ? "" : text;
+        eventUntil = System.currentTimeMillis() + Math.max(1200L, millis);
+        refreshBubble();
+        repaint(contentBounds());
     }
 
     public void showHome() {
@@ -191,73 +202,39 @@ public final class AnimeShell extends JPanel {
         refreshChrome();
     }
 
-    /** 打開原本的分頁：0 排程、1 設定、2 好友與傳檔、3 日誌。 */
     public void openTab(int index) {
         holdingHome = false;
         if (index >= 0 && index < tabs.getTabCount() && tabs.getSelectedIndex() != index) {
             tabs.setSelectedIndex(index);
         }
-        tabs.setVisible(true);
+        tabs.setVisible(!miniMode);
         revalidate();
         repaint();
         refreshChrome();
     }
 
-    /** 問候氣泡改畫在這個高度下面，避開垂下來的手指。 */
-    void dropHomeBubbleBelow(int yInShell) {
-        board.setBubbleFloor(yInShell);
+    void releaseHomeFigure() {
+        figureBox = new java.awt.Rectangle();
     }
 
-    /** 點到跨在面板外的上半身時，跟點角色一樣打招呼。 */
-    public void greet() {
-        hero.play(AnimeCast.WAVE, 1.8);
-        board.sayClick();
-        repaint();
-    }
-
-    /** 右側放角色和「下一個任務」的區域，座標在這個面板裡。 */
-    java.awt.Rectangle homeStageBounds() {
+    public java.awt.Rectangle homeStageBounds() {
         return new java.awt.Rectangle(board.stage);
     }
 
-    /**
-     * 全身圖和卡片用同一組座標。圖畫在卡片後面，手指由前景層再畫一次。
-     */
-    void presentHomeFigure(
-            java.awt.Rectangle figureInShell,
-            java.awt.Rectangle cardInShell,
-            int textRightInShell,
-            java.awt.image.BufferedImage image) {
-        homeFigure = image;
-        homeFigureBounds = figureInShell == null || figureInShell.width <= 0
-                ? null
-                : new java.awt.Rectangle(figureInShell);
-        if (cardInShell == null || cardInShell.width < 80) {
-            return;
-        }
-        board.seatReminder(cardInShell, textRightInShell);
-    }
-
-    /** 換主題或離開首頁時清掉上一張角色。 */
-    void releaseHomeFigure() {
-        homeFigure = null;
-        homeFigureBounds = null;
-        board.clearSeat();
-    }
-
-    /** 「下一個任務」卡片，座標在這個面板裡。不在首頁時是空的。 */
     public java.awt.Rectangle homeReminderBounds() {
-        if (!holdingHome) {
-            return new java.awt.Rectangle();
-        }
-        // 繪製途中不要重算 layout，否則腰部卡片會跑掉。
-        return new java.awt.Rectangle(board.reminder);
+        return new java.awt.Rectangle();
     }
 
     public void prepareHomeLayout() {
         if (holdingHome) {
             board.layout(contentBounds());
+            layoutFigure();
         }
+    }
+
+    public void greet() {
+        board.sayClick();
+        repaint(board.bubbleArea());
     }
 
     private void refreshChrome() {
@@ -280,7 +257,7 @@ public final class AnimeShell extends JPanel {
         if (holdingHome) {
             return;
         }
-        tabs.setVisible(true);
+        tabs.setVisible(!miniMode);
         revalidate();
         repaint();
         refreshChrome();
@@ -292,28 +269,34 @@ public final class AnimeShell extends JPanel {
         repaint();
     }
 
+    /** 舊版側欄立繪動畫；小寶貝版為 no-op。 */
     public void play(int frame) {
-        hero.play(frame, 2.0);
-        repaint();
     }
 
-    /** 首頁卡片要的真實資料，以及快捷按鈕。沒有設定時卡片顯示空狀態。 */
     public void setHomeActions(HomeActions actions) {
         this.homeActions = actions;
+        refreshBubble();
         repaint();
     }
 
     public interface HomeActions {
         HomeBrief read();
 
+        String moodLine();
+
+        List<CheckInTask> tasks();
+
+        void openLog();
+
         void runTask();
 
         void openChat();
 
-        /** 打開卡片上那位好友的聊天視窗。沒有對象時改去好友頁。 */
         void openRecentFriend();
 
         void sendFile();
+
+        String paintKey();
     }
 
     public static void hideTabStrip(JTabbedPane tabs) {
@@ -342,18 +325,44 @@ public final class AnimeShell extends JPanel {
     }
 
     @Override
+    public String getToolTipText(MouseEvent event) {
+        if (event == null) {
+            return super.getToolTipText();
+        }
+        if (miniMode) {
+            return "點一下展開";
+        }
+        int id = hit(event.getX(), event.getY());
+        if (id >= 0 && id < NAV.length) {
+            return navTooltip(id);
+        }
+        if (id == MINI_TOGGLE) {
+            return "縮成迷你橫條";
+        }
+        return null;
+    }
+
+    @Override
     public void doLayout() {
-        int margin = 16;
-        int gap = 12;
-        int navW = 176;
-        int x = margin + navW + gap;
-        int y = margin;
-        int w = Math.max(0, getWidth() - x - margin);
-        int h = Math.max(0, getHeight() - margin * 2);
-        tabs.setBounds(x, y, w, h);
+        java.awt.Rectangle content = contentBounds();
+        tabs.setBounds(content);
     }
 
     private void activate(int id) {
+        if (miniMode) {
+            setMiniMode(false);
+            if (onMiniExpand != null) {
+                onMiniExpand.run();
+            }
+            return;
+        }
+        if (id == MINI_TOGGLE) {
+            setMiniMode(true);
+            if (onMiniExpand != null) {
+                onMiniExpand.run();
+            }
+            return;
+        }
         if (id >= 0 && id < NAV.length) {
             int tab = NAV_TO_TAB[id];
             if (tab < 0) {
@@ -363,35 +372,32 @@ public final class AnimeShell extends JPanel {
             }
             return;
         }
-        if (id == DONATE_HIT) {
-            donateAction.run(this);
+        if (id == CHARACTER_HIT) {
+            greet();
             return;
         }
-        if (id == 20) {
-            hero.play(AnimeCast.WAVE, 1.8);
-            board.sayClick();
-            repaint();
+        if (id == HomeBoard.BUBBLE && board.bubbleOpensLog()) {
+            if (homeActions != null) {
+                homeActions.openLog();
+            } else {
+                openTab(3);
+            }
             return;
         }
         if (homeActions == null) {
             return;
         }
-        if (id == HomeBoard.SCHEDULE) {
-            openTab(0);
-        } else if (id == HomeBoard.FRIENDS) {
-            homeActions.openRecentFriend();
-        } else if (id == HomeBoard.CHAT) {
-            homeActions.openChat();
-        } else if (id == HomeBoard.RUN) {
-            homeActions.runTask();
-        } else if (id == HomeBoard.FILE) {
-            homeActions.sendFile();
-        }
+    }
+
+    private Runnable onMiniExpand;
+
+    public void setMiniModeHandler(Runnable handler) {
+        onMiniExpand = handler;
     }
 
     private void noticeStatus() {
         Set<String> live = new HashSet<>();
-        for (CheckInTask task : tasks()) {
+        for (CheckInTask task : taskList()) {
             if (task.getId() == null || task.getStatus() == null) {
                 continue;
             }
@@ -401,43 +407,50 @@ public final class AnimeShell extends JPanel {
             if (previous == null || previous == status) {
                 continue;
             }
-            if (status == TaskStatus.CHECKING_IN) {
-                hero.play(AnimeCast.SMILE, 2.4);
-            } else if (status == TaskStatus.SUCCESS) {
-                hero.play(AnimeCast.SMILE, 2.0);
+            if (status == TaskStatus.SUCCESS) {
                 board.sayDone();
-                repaint();
+                repaint(board.bubbleArea());
             } else if (status == TaskStatus.FAILED) {
-                hero.play(AnimeCast.REACT, 2.0);
                 board.sayTrouble();
-                repaint();
+                repaint(board.bubbleArea());
             }
         }
         seenTasks.keySet().retainAll(live);
+        if (eventUntil > 0 && System.currentTimeMillis() > eventUntil) {
+            eventUntil = 0;
+            eventFlash = "";
+            refreshBubble();
+        }
+    }
+
+    private void refreshBubble() {
+        HomeBrief brief = homeActions == null ? HomeBrief.empty() : homeActions.read();
+        List<CheckInTask> tasks = homeActions == null ? List.of() : homeActions.tasks();
+        String mood = homeActions == null ? "" : homeActions.moodLine();
+        String flash = eventUntil > System.currentTimeMillis() ? eventFlash : "";
+        board.setBubble(HomeBubbleFormat.resolve(brief, tasks, flash, mood));
     }
 
     private int hit(int x, int y) {
-        java.awt.Rectangle nav = navBounds();
+        if (miniMode) {
+            return -2;
+        }
         for (int i = 0; i < NAV.length; i++) {
-            if (navRow(nav, i).contains(x, y)) {
+            if (tabHitBox(i).contains(x, y)) {
                 return i;
             }
         }
-        if (donateBounds(nav).contains(x, y)) {
-            return DONATE_HIT;
+        if (miniToggleBox().contains(x, y)) {
+            return MINI_TOGGLE;
         }
         if (holdingHome) {
-            int home = board.hit(x, y);
-            if (home >= 0) {
-                return home;
+            int bubble = board.hit(x, y);
+            if (bubble >= 0) {
+                return bubble;
             }
-            // 右側舞台（角色、泡泡、空白處）都算打招呼。毛衣女孩的身體不在側欄 bust 裡。
-            if (board.stage.contains(x, y)) {
-                return 20;
+            if (figureBox.contains(x, y) || board.stage.contains(x, y)) {
+                return CHARACTER_HIT;
             }
-        }
-        if (bust.contains(x, y)) {
-            return 20;
         }
         return -1;
     }
@@ -448,90 +461,243 @@ public final class AnimeShell extends JPanel {
         Graphics2D g = (Graphics2D) graphics.create();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        if (miniMode) {
+            paintMini(g);
+            g.dispose();
+            return;
+        }
         paintRoom(g);
-        java.awt.Rectangle nav = navBounds();
-        panel(g, nav);
-        g.setFont(UiFonts.chineseBold(18));
-        g.setColor(INK);
-        g.drawString("助手", nav.x + 18, nav.y + 36);
-        g.setFont(UiFonts.chinesePlain(12));
-        g.setColor(MUTED);
-        g.drawString("神器", nav.x + 18, nav.y + 56);
-        paintDonateButton(g, nav);
-        int selected = holdingHome ? 0 : navIndexForTab(tabs.getSelectedIndex());
-        for (int i = 0; i < NAV.length; i++) {
-            java.awt.Rectangle row = navRow(nav, i);
-            if (selected == i) {
-                g.setColor(new Color(255, 122, 168, 220));
-                g.fillRoundRect(row.x, row.y, row.width, row.height, 12, 12);
-            } else if (hot == i) {
-                g.setColor(new Color(255, 255, 255, 36));
-                g.fillRoundRect(row.x, row.y, row.width, row.height, 12, 12);
-            }
-            g.setFont(UiFonts.chinesePlain(15));
-            g.setColor(selected == i ? new Color(48, 18, 36) : INK);
-            g.drawString(NAV[i], row.x + 16, row.y + 24);
-        }
-        paintBust(g, nav);
+        java.awt.Rectangle content = contentBounds();
         if (holdingHome) {
-            paintHome(g, contentBounds());
+            board.layout(content);
+            layoutFigure();
+            paintHome(g, content);
         }
+        paintTabBar(g);
         g.dispose();
     }
 
     private void paintHome(Graphics2D g, java.awt.Rectangle area) {
-        HomeBrief brief = homeActions == null ? HomeBrief.empty() : homeActions.read();
-        board.layout(area);
-        board.paint(g, brief, hot);
-        paintHomeFigure(g);
-        board.paintReminder(g, brief);
-        board.paintHomeBubble(g);
+        paintFigure(g);
+        board.paint(g, hot == HomeBoard.BUBBLE ? HomeBoard.BUBBLE : -1);
     }
 
-    /** 全身畫在卡片後面。 */
-    private void paintHomeFigure(Graphics2D g) {
-        if (homeFigure == null || homeFigureBounds == null || board.stage.width < 40) {
+    private void layoutFigure() {
+        figureBox = new java.awt.Rectangle();
+        if (baby == null || baby.seated() == null || board.stage.width < 40) {
             return;
         }
-        Shape clip = g.getClip();
-        int x = board.stage.x;
-        int width = Math.max(0, getWidth() - x);
-        g.clipRect(x, 0, width, getHeight());
+        BufferedImage img = baby.seated();
+        int maxW = board.stage.width - 16;
+        int maxH = (int) (board.stage.height * 0.72f);
+        double scale = Math.min(maxW / (double) img.getWidth(), maxH / (double) img.getHeight());
+        int w = Math.max(1, (int) Math.round(img.getWidth() * scale));
+        int h = Math.max(1, (int) Math.round(img.getHeight() * scale));
+        int x = board.stage.x + (board.stage.width - w) / 2;
+        int y = board.stage.y + board.stage.height - h - 8;
+        figureBox = new java.awt.Rectangle(x, y, w, h);
+    }
+
+    private void paintFigure(Graphics2D g) {
+        if (figureBox.width <= 0 || baby == null || baby.seated() == null) {
+            return;
+        }
         Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawImage(
-                homeFigure,
-                homeFigureBounds.x,
-                homeFigureBounds.y,
-                homeFigureBounds.width,
-                homeFigureBounds.height,
-                null);
+        g.drawImage(baby.seated(), figureBox.x, figureBox.y, figureBox.width, figureBox.height, null);
         if (previous != null) {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous);
         }
-        g.setClip(clip);
     }
 
-    private void paintRoom(Graphics2D g) {
-        if (!useRoom) {
-            // 使用者自訂背景：讓底下 WindowChrome 畫的背景圖透出來，不要蓋掉。
-            return;
-        }
-        if (room == null) {
-            g.setColor(new Color(28, 20, 48));
-            g.fillRect(0, 0, getWidth(), getHeight());
-            return;
-        }
-        double scale = Math.max(getWidth() / (double) room.getWidth(), getHeight() / (double) room.getHeight());
-        int dw = (int) Math.ceil(room.getWidth() * scale);
-        int dh = (int) Math.ceil(room.getHeight() * scale);
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawImage(room, (getWidth() - dw) / 2, (getHeight() - dh) / 2, dw, dh, null);
-        g.setColor(new Color(16, 10, 32, 36));
+    private void paintMini(Graphics2D g) {
+        g.setColor(new Color(28, 20, 48));
         g.fillRect(0, 0, getWidth(), getHeight());
+        int h = getHeight();
+        int icon = Math.min(Math.max(8, h - 4), 44);
+        int x = 6;
+        int y = (h - icon) / 2;
+        if (baby != null && baby.prone() != null) {
+            BufferedImage img = baby.prone();
+            int w = icon * img.getWidth() / Math.max(1, img.getHeight());
+            w = Math.min(w, 72);
+            g.drawImage(img, x, y, w, icon, null);
+            x += w + 6;
+        }
+        HomeBrief brief = homeActions == null ? HomeBrief.empty() : homeActions.read();
+        boolean online = brief != null && brief.cloudOn;
+        g.setColor(online ? new Color(117, 214, 162) : new Color(160, 148, 188));
+        g.fillOval(x, h / 2 - 5, 10, 10);
+        x += 16;
+        g.setColor(INK);
+        String line;
+        List<CheckInTask> tasks = homeActions == null ? List.of() : homeActions.tasks();
+        CheckInTask next = HomeBubbleFormat.resolve(brief, tasks, "", "").text.contains("失敗")
+                ? null : pickNextForMini(tasks);
+        if (next != null) {
+            line = HomeBubbleFormat.formatNext(next);
+        } else if (brief != null && brief.nextName != null) {
+            line = brief.nextTime + " " + brief.nextName;
+        } else {
+            line = AppBranding.DISPLAY_NAME + " · 點一下展開";
+        }
+        int max = Math.max(40, getWidth() - x - 6);
+        int size = 12;
+        g.setFont(UiFonts.chinesePlain(size));
+        while (size > 10 && g.getFontMetrics().stringWidth(line) > max) {
+            size--;
+            g.setFont(UiFonts.chinesePlain(size));
+        }
+        String shown = g.getFontMetrics().stringWidth(line) <= max ? line : fit(g, line, max);
+        g.drawString(shown, x, h / 2 + 5);
     }
 
-    private List<CheckInTask> tasks() {
+    private static CheckInTask pickNextForMini(List<CheckInTask> tasks) {
+        HomeBubbleFormat.BubbleLine b = HomeBubbleFormat.resolve(HomeBrief.empty(), tasks, "", "");
+        if (b.text.isEmpty()) {
+            return null;
+        }
+        if (tasks == null) {
+            return null;
+        }
+        for (CheckInTask task : tasks) {
+            if (task == null || task.getStatus() == null) {
+                continue;
+            }
+            if (task.getStatus() == TaskStatus.SCHEDULED || task.getStatus() == TaskStatus.CHECKING_IN) {
+                return task;
+            }
+        }
+        return null;
+    }
+
+    private void paintTabBar(Graphics2D g) {
+        java.awt.Rectangle bar = tabBarBounds();
+        g.setColor(TAB_BG);
+        g.fillRect(bar.x, bar.y, bar.width, bar.height);
+        g.setColor(new Color(120, 100, 168));
+        g.drawLine(bar.x, bar.y, bar.x + bar.width, bar.y);
+        int selected = holdingHome ? 0 : navIndexForTab(tabs.getSelectedIndex());
+        for (int i = 0; i < NAV.length; i++) {
+            java.awt.Rectangle box = tabHitBox(i);
+            boolean active = selected == i;
+            boolean hover = hot == i;
+            if (active) {
+                g.setColor(TAB_ACTIVE);
+                g.fillRoundRect(box.x + 2, box.y + 4, box.width - 4, box.height - 8, 10, 10);
+            } else if (hover) {
+                g.setColor(new Color(255, 255, 255, 30));
+                g.fillRoundRect(box.x + 2, box.y + 4, box.width - 4, box.height - 8, 10, 10);
+            }
+            g.setColor(active ? new Color(48, 18, 36) : INK);
+            g.setFont(UiFonts.chinesePlain(11));
+            String glyph = tabGlyph(i);
+            int tw = g.getFontMetrics().stringWidth(glyph);
+            g.drawString(glyph, box.x + (box.width - tw) / 2, box.y + 20);
+            g.setColor(MUTED);
+            g.setFont(UiFonts.chinesePlain(9));
+            String label = NAV[i];
+            int lw = g.getFontMetrics().stringWidth(label);
+            if (lw <= box.width - 4) {
+                g.drawString(label, box.x + (box.width - lw) / 2, box.y + 36);
+            }
+        }
+        java.awt.Rectangle mini = miniToggleBox();
+        boolean miniHot = hot == MINI_TOGGLE;
+        g.setColor(miniHot ? new Color(255, 214, 88) : new Color(255, 255, 255, 40));
+        g.fillRoundRect(mini.x, mini.y, mini.width, mini.height, 8, 8);
+        g.setFont(UiFonts.chinesePlain(10));
+        g.setColor(INK);
+        g.drawString("迷你", mini.x + 6, mini.y + 20);
+    }
+
+    private static String tabGlyph(int index) {
+        switch (index) {
+            case 0:
+                return "⌂";
+            case 1:
+                return "◷";
+            case 2:
+                return "✉";
+            case 3:
+                return "≡";
+            case 4:
+                return "⚙";
+            default:
+                return "·";
+        }
+    }
+
+    private java.awt.Rectangle tabBarBounds() {
+        int h = ShellDimensions.TAB_BAR_HEIGHT;
+        return new java.awt.Rectangle(0, Math.max(0, getHeight() - h), getWidth(), h);
+    }
+
+    private java.awt.Rectangle contentBounds() {
+        java.awt.Rectangle bar = tabBarBounds();
+        return new java.awt.Rectangle(0, 0, getWidth(), Math.max(0, bar.y));
+    }
+
+    java.awt.Rectangle tabHitBox(int index) {
+        java.awt.Rectangle bar = tabBarBounds();
+        int slots = NAV.length + 1;
+        int slotW = Math.max(36, bar.width / slots);
+        int x = index * slotW;
+        return new java.awt.Rectangle(bar.x + x, bar.y, slotW, bar.height);
+    }
+
+    private java.awt.Rectangle miniToggleBox() {
+        java.awt.Rectangle bar = tabBarBounds();
+        int slots = NAV.length + 1;
+        int slotW = Math.max(36, bar.width / slots);
+        int x = NAV.length * slotW;
+        return new java.awt.Rectangle(bar.x + x, bar.y + 8, slotW - 4, bar.height - 16);
+    }
+
+    static int navCount() {
+        return NAV.length;
+    }
+
+    static String navLabel(int index) {
+        return NAV[index];
+    }
+
+    static String navTooltip(int index) {
+        return index >= 0 && index < NAV_TIPS.length ? NAV_TIPS[index] : "";
+    }
+
+    static int tabForNav(int index) {
+        return NAV_TO_TAB[index];
+    }
+
+    static java.awt.Rectangle navRowBounds(int shellWidth, int shellHeight, int index) {
+        AnimeShell shell = new AnimeShell(null, new JTabbedPane());
+        shell.setSize(shellWidth, shellHeight);
+        return shell.tabHitBox(index);
+    }
+
+    public static BufferedImage renderSidebarPreview(int width, int height) {
+        return renderShellPreview(width, height, false);
+    }
+
+    public static BufferedImage renderShellPreview(int width, int height, boolean mini) {
+        AnimeShell shell = new AnimeShell(null, new JTabbedPane());
+        shell.setSize(width, height);
+        shell.doLayout();
+        shell.setMiniMode(mini);
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setColor(new Color(28, 20, 48));
+            g.fillRect(0, 0, width, height);
+            shell.paint(g);
+        } finally {
+            g.dispose();
+        }
+        return image;
+    }
+
+    private List<CheckInTask> taskList() {
         List<CheckInTask> list = new ArrayList<>();
         if (scheduler == null) {
             return list;
@@ -545,120 +711,37 @@ public final class AnimeShell extends JPanel {
         return list;
     }
 
-    private void paintBust(Graphics2D g, java.awt.Rectangle nav) {
-        bust = new java.awt.Rectangle();
-        if (holdingHome) {
+    private void paintRoom(Graphics2D g) {
+        if (!useRoom) {
             return;
         }
-        if (cast == null) {
-            return;
-        }
-        bust = bustBox(nav, cast.frameWidth(), cast.frameHeight());
-        if (bust.width <= 0) {
-            return;
-        }
-        cast.draw(g, hero.frame(), bust.x, bust.y, bust.width, bust.height);
-    }
-
-    /** 側欄底部的小立繪。排程、好友、設定、日誌共用這一個位置。 */
-    private static java.awt.Rectangle bustBox(java.awt.Rectangle nav, int imageW, int imageH) {
-        int top = nav.y + 78 + NAV.length * 48 + 8;
-        int avail = nav.y + nav.height - top - 8;
-        if (avail < 72 || imageW < 1 || imageH < 1) {
-            return new java.awt.Rectangle();
-        }
-        int height = Math.min(avail, 240);
-        int width = height * imageW / imageH;
-        if (width > nav.width - 16) {
-            width = nav.width - 16;
-            height = width * imageH / Math.max(1, imageW);
-        }
-        int x = nav.x + (nav.width - width) / 2;
-        int y = nav.y + nav.height - 8 - height;
-        return new java.awt.Rectangle(x, y, width, height);
-    }
-
-    private java.awt.Rectangle navBounds() {
-        return new java.awt.Rectangle(16, 16, 176, Math.max(0, getHeight() - 32));
-    }
-
-    private java.awt.Rectangle contentBounds() {
-        return new java.awt.Rectangle(204, 16, Math.max(0, getWidth() - 220), Math.max(0, getHeight() - 32));
-    }
-
-    static int navCount() {
-        return NAV.length;
-    }
-
-    static String navLabel(int index) {
-        return NAV[index];
-    }
-
-    static int tabForNav(int index) {
-        return NAV_TO_TAB[index];
-    }
-
-    /** headless 預覽側欄，供 reviewer 截圖（例：1100×720）。 */
-    public static BufferedImage renderSidebarPreview(int width, int height) {
-        AnimeShell shell = new AnimeShell(null, new JTabbedPane());
-        shell.setSize(width, height);
-        shell.doLayout();
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = image.createGraphics();
-        try {
+        if (room == null) {
             g.setColor(new Color(28, 20, 48));
-            g.fillRect(0, 0, width, height);
-            shell.paint(g);
-        } finally {
-            g.dispose();
+            g.fillRect(0, 0, getWidth(), getHeight());
+            return;
         }
-        return image;
+        double scale = Math.max(getWidth() / (double) room.getWidth(), getHeight() / (double) room.getHeight());
+        int dw = (int) Math.ceil(room.getWidth() * scale);
+        int dh = (int) Math.ceil(room.getHeight() * scale);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(room, (getWidth() - dw) / 2, (getHeight() - dh) / 2, dw, dh, null);
+        g.setColor(new Color(16, 10, 32, 48));
+        g.fillRect(0, 0, getWidth(), getHeight());
     }
 
-    static java.awt.Rectangle navRowBounds(int shellWidth, int shellHeight, int index) {
-        java.awt.Rectangle nav = navBoundsForSize(shellHeight);
-        return navRow(nav, index);
-    }
-
-    static java.awt.Rectangle donateClickBounds(int shellWidth, int shellHeight) {
-        return donateBounds(navBoundsForSize(shellHeight));
-    }
-
-    private static java.awt.Rectangle navBoundsForSize(int shellHeight) {
-        return new java.awt.Rectangle(16, 16, 176, Math.max(0, shellHeight - 32));
-    }
-
-    private static java.awt.Rectangle donateBounds(java.awt.Rectangle nav) {
-        int width = 66;
-        int height = 24;
-        int x = nav.x + nav.width - width - 10;
-        int y = nav.y + 38;
-        return new java.awt.Rectangle(x, y, width, height);
-    }
-
-    private void paintDonateButton(Graphics2D g, java.awt.Rectangle nav) {
-        java.awt.Rectangle box = donateBounds(nav);
-        boolean active = hot == DONATE_HIT;
-        g.setColor(active ? new Color(255, 214, 88) : new Color(255, 201, 72, 210));
-        g.fillRoundRect(box.x, box.y, box.width, box.height, box.height, box.height);
-        g.setColor(active ? new Color(36, 64, 128) : new Color(22, 58, 112));
-        g.drawRoundRect(box.x, box.y, box.width - 1, box.height - 1, box.height, box.height);
-        g.setFont(UiFonts.chinesePlain(11));
-        g.setColor(new Color(22, 58, 112));
-        String label = "♥ 贊助";
-        int tw = g.getFontMetrics().stringWidth(label);
-        g.drawString(label, box.x + (box.width - tw) / 2, box.y + 16);
-    }
-
-    private static java.awt.Rectangle navRow(java.awt.Rectangle nav, int index) {
-        return new java.awt.Rectangle(nav.x + 12, nav.y + 78 + index * 48, nav.width - 24, 38);
-    }
-
-    private static void panel(Graphics2D g, java.awt.Rectangle rect) {
-        g.setColor(PANEL);
-        g.fillRoundRect(rect.x, rect.y, rect.width, rect.height, 18, 18);
-        g.setColor(PANEL_EDGE);
-        g.drawRoundRect(rect.x, rect.y, rect.width - 1, rect.height - 1, 18, 18);
+    private static String fit(Graphics2D g, String text, int width) {
+        if (text == null) {
+            return "";
+        }
+        var metrics = g.getFontMetrics();
+        if (metrics.stringWidth(text) <= width) {
+            return text;
+        }
+        String trimmed = text;
+        while (trimmed.length() > 1 && metrics.stringWidth(trimmed + "…") > width) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed + "…";
     }
 
     private static boolean reducedMotion() {

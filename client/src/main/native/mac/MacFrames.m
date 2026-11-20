@@ -6,7 +6,7 @@
 /*
  * 這個 JDK 的 AWTWindow 沒有覆寫 constrainFrameRect:toScreen:。
  * AppKit 因此不允許視窗上緣進入選單列：頭（留白）一貼到螢幕頂，整扇視窗就上不去。
- * 只放行標題以「神器」開頭的無邊框主視窗，其餘對話框仍用系統原本的限制。
+ * 只放行標題以「新光小寶貝」開頭的無邊框主視窗，其餘對話框仍用系統原本的限制。
  */
 
 static NSRect (*ns_constrain)(id, SEL, NSRect, NSScreen *);
@@ -15,7 +15,7 @@ static int installed;
 static NSRect punchclock_constrain(id self, SEL cmd, NSRect rect, NSScreen *screen) {
     NSWindow *window = (NSWindow *)self;
     NSString *title = [window title];
-    BOOL main = (title != nil) && [title hasPrefix:@"\u795e\u5668"];
+    BOOL main = (title != nil) && [title hasPrefix:@"\u65b0\u5149\u5c0f\u5bf6\u8c9d"];
     BOOL borderless = ([window styleMask] & NSWindowStyleMaskTitled) == 0;
     if (main && borderless) {
         return rect;
@@ -24,6 +24,24 @@ static NSRect punchclock_constrain(id self, SEL cmd, NSRect rect, NSScreen *scre
         return ns_constrain(self, cmd, rect, screen);
     }
     return rect;
+}
+
+static void punchclock_apply_display_name(void) {
+    NSString *name = @"\u65b0\u5149\u5c0f\u5bf6\u8c9d";
+    [[NSProcessInfo processInfo] setProcessName:name];
+    if (NSApp == nil) {
+        return;
+    }
+    NSMenu *bar = [NSApp mainMenu];
+    if (bar == nil || [bar numberOfItems] == 0) {
+        return;
+    }
+    NSMenuItem *appItem = [bar itemAtIndex:0];
+    [appItem setTitle:name];
+    NSMenu *appMenu = [appItem submenu];
+    if (appMenu != nil) {
+        [appMenu setTitle:name];
+    }
 }
 
 static void punchclock_install_class(Class cls, SEL sel, const char *types) {
@@ -50,6 +68,7 @@ JNIEXPORT void JNICALL Java_com_example_ui_MacFrames_allowOverflow(JNIEnv *env, 
         return;
     }
     installed = 1;
+    punchclock_apply_display_name();
     SEL sel = @selector(constrainFrameRect:toScreen:);
     Method base = class_getInstanceMethod([NSWindow class], sel);
     if (base == NULL) {

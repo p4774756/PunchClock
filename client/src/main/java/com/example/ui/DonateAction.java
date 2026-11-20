@@ -8,7 +8,7 @@ import java.net.URI;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-/** 神器側欄「贊助」：已設定則開瀏覽器，否則提示準備中。 */
+/** 「贊助」：已設定則開瀏覽器，否則提示準備中。 */
 public final class DonateAction {
 
     static final String PREPARING_MESSAGE = "贊助頁準備中，謝謝你的心意 ♥";

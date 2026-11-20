@@ -22,7 +22,9 @@ import com.example.service.TransferIo;
 import com.example.service.WindowBackground;
 import com.example.pet.DesktopPetEvent;
 import com.example.pet.DesktopPetManager;
+import com.example.ui.AppBranding;
 import com.example.ui.BlackjackWindow;
+import com.example.ui.CompactShellPanels;
 import com.example.ui.FileTransferDialog;
 import com.example.ui.MarqueeBar;
 import com.example.ui.PeerChatWindow;
@@ -42,6 +44,7 @@ import com.example.ui.hud.AnimeShell;
 import com.example.ui.hud.CharacterTheme;
 import com.example.ui.hud.HomeBrief;
 import com.example.ui.hud.HomePortrait;
+import com.example.ui.hud.ShellDimensions;
 import com.example.ui.WindowChrome;
 import com.example.ui.WindowOpacity;
 import com.example.ui.WindowShake;
@@ -112,6 +115,8 @@ public class App extends JFrame {
     private boolean peerFileBusy;
     /** 最近一次心跳回報為在線的同事。傳檔只對這些人直傳。 */
     private final Set<String> onlinePeerIds = new HashSet<>();
+    /** 上一輪心跳已知在線的好友，用於首頁事件泡泡。 */
+    private final Set<String> previousOnlinePeerIds = new HashSet<>();
     /** 標為最愛的好友裝置 ID（存在 config.json）。 */
     private final Set<String> favoritePeerIds = new HashSet<>();
     /** 最近一次心跳看到的其他好友，首頁「最近在線」用。 */
@@ -270,7 +275,7 @@ public class App extends JFrame {
     }
 
     private void initUI() {
-        setTitle("神器  " + AppVersion.displayLabel());
+        setTitle(AppBranding.windowTitle(AppVersion.displayLabel()));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         Font mainFont = UiFonts.chinesePlain(13);
@@ -334,11 +339,11 @@ public class App extends JFrame {
         logTab.setBorder(new EmptyBorder(8, 4, 8, 4));
         logTab.add(logPanel, BorderLayout.CENTER);
 
-        tabs.addTab("排程任務", NightTheme.page(tasksTab, true));
-        tabs.addTab("設定", NightTheme.page(settingsTab, true));
-        tabs.addTab(PanelFactory.PEER_TAB_LABEL, NightTheme.page(peerTab, true));
+        tabs.addTab("排程任務", NightTheme.page(CompactShellPanels.wrap(tasksTab), true));
+        tabs.addTab("設定", NightTheme.page(CompactShellPanels.wrap(settingsTab), true));
+        tabs.addTab(PanelFactory.PEER_TAB_LABEL, NightTheme.page(CompactShellPanels.wrap(peerTab), true));
         NightTheme.apply(logTab);
-        tabs.addTab("系統日誌", logTab);
+        tabs.addTab("系統日誌", CompactShellPanels.wrap(logTab));
         tabs.setOpaque(false);
         tabs.setBackground(new Color(0, 0, 0, 0));
         tabs.setToolTipTextAt(0, "設定目標網址、時間，立即測試");
@@ -352,6 +357,21 @@ public class App extends JFrame {
             @Override
             public HomeBrief read() {
                 return buildHomeBrief();
+            }
+
+            @Override
+            public String moodLine() {
+                return homeMoodLine();
+            }
+
+            @Override
+            public List<CheckInTask> tasks() {
+                return schedulerService == null ? List.of() : schedulerService.getAllTasks();
+            }
+
+            @Override
+            public void openLog() {
+                shell.openTab(3);
             }
 
             @Override
@@ -375,7 +395,13 @@ public class App extends JFrame {
             public void sendFile() {
                 promptSendFile();
             }
+
+            @Override
+            public String paintKey() {
+                return buildHomeBrief().paintKey();
+            }
         });
+        shell.setMiniModeHandler(this::applyMiniModeFrameSize);
         tabs.addChangeListener(e -> {
             if (shell != null) {
                 shell.followTab();
@@ -394,9 +420,9 @@ public class App extends JFrame {
 
         bindBackgroundControls();
 
-        // 上方和右側要留給跨出面板的角色，內層紫色面板仍維持原本能排卡片的大小。
-        setMinimumSize(new Dimension(1100, 820));
-        setSize(1280, 920);
+        setMinimumSize(new Dimension(ShellDimensions.MIN_WIDTH, ShellDimensions.MIN_HEIGHT));
+        Dimension def = ShellDimensions.defaultSize();
+        setSize(def.width, def.height);
         setLocationRelativeTo(null);
 
         bindWindowLayoutPersistence();
@@ -474,8 +500,14 @@ public class App extends JFrame {
 
     private void captureWindowLayoutInto(ConfigPersistenceService.CloudConfig config) {
         if (config == null) return;
-        config.windowWidth = getWidth();
-        config.windowHeight = getHeight();
+        boolean mini = shell != null && shell.isMiniMode();
+        // 迷你橫條不寫進 windowWidth／windowHeight，展開才還得回小方塊尺寸。
+        if (!mini
+                && getWidth() >= ShellDimensions.MIN_WIDTH
+                && getHeight() >= ShellDimensions.MIN_HEIGHT) {
+            config.windowWidth = getWidth();
+            config.windowHeight = getHeight();
+        }
         Point loc = getLocation();
         config.windowX = loc.x;
         config.windowY = loc.y;
@@ -488,12 +520,35 @@ public class App extends JFrame {
                 config.selectedTabIndex = tab;
             }
         }
+        if (shell != null) {
+            config.miniMode = shell.isMiniMode();
+        }
     }
 
     private void applyWindowLayout(ConfigPersistenceService.CloudConfig config) {
-        Dimension min = getMinimumSize();
-        int width = config.windowWidth > 0 ? Math.max(config.windowWidth, min.width) : 1180;
-        int height = config.windowHeight > 0 ? Math.max(config.windowHeight, min.height) : 800;
+        boolean mini = config != null && config.miniMode;
+        int width;
+        int height;
+        if (mini) {
+            WindowChrome.setMiniBar(this, true);
+            if (marqueeBar != null) {
+                marqueeBar.setVisible(false);
+            }
+            Dimension miniSize = ShellDimensions.miniSize();
+            width = miniSize.width;
+            height = miniSize.height;
+        } else {
+            WindowChrome.setMiniBar(this, false);
+            if (marqueeBar != null) {
+                marqueeBar.setVisible(true);
+            }
+            width = config.windowWidth > 0
+                    ? Math.max(config.windowWidth, ShellDimensions.MIN_WIDTH)
+                    : ShellDimensions.DEFAULT_WIDTH;
+            height = config.windowHeight > 0
+                    ? Math.max(config.windowHeight, ShellDimensions.MIN_HEIGHT)
+                    : ShellDimensions.DEFAULT_HEIGHT;
+        }
         setSize(width, height);
 
         if (config.windowWidth > 0 && config.windowHeight > 0
@@ -508,6 +563,58 @@ public class App extends JFrame {
             int index = Math.min(config.selectedTabIndex, mainTabs.getTabCount() - 1);
             mainTabs.setSelectedIndex(index);
         }
+        if (shell != null) {
+            shell.setMiniMode(mini);
+        }
+    }
+
+    private void applyMiniModeFrameSize() {
+        if (shell == null) {
+            return;
+        }
+        ConfigPersistenceService.CloudConfig config =
+                slotController == null ? null : slotController.getConfig();
+        if (shell.isMiniMode()) {
+            if (config != null
+                    && getWidth() >= ShellDimensions.MIN_WIDTH
+                    && getHeight() >= ShellDimensions.MIN_HEIGHT) {
+                config.windowWidth = getWidth();
+                config.windowHeight = getHeight();
+            }
+            WindowChrome.setMiniBar(this, true);
+            if (marqueeBar != null) {
+                marqueeBar.setVisible(false);
+            }
+            Dimension miniSize = ShellDimensions.miniSize();
+            setSize(miniSize.width, miniSize.height);
+        } else {
+            WindowChrome.setMiniBar(this, false);
+            if (marqueeBar != null) {
+                marqueeBar.setVisible(true);
+            }
+            Dimension target = ShellDimensions.defaultSize();
+            if (config != null && config.windowWidth > 0 && config.windowHeight > 0) {
+                target = new Dimension(
+                        Math.max(config.windowWidth, ShellDimensions.MIN_WIDTH),
+                        Math.max(config.windowHeight, ShellDimensions.MIN_HEIGHT));
+            }
+            setSize(target.width, target.height);
+        }
+        rememberWindowLayout();
+    }
+
+    private static String homeMoodLine() {
+        int hour = java.time.LocalTime.now().getHour();
+        if (hour >= 5 && hour < 12) {
+            return "早安～今天也要輕鬆出發。";
+        }
+        if (hour >= 12 && hour < 17) {
+            return "午安，記得喝口水。";
+        }
+        if (hour >= 17 && hour < 23) {
+            return "辛苦了，慢慢收尾吧。";
+        }
+        return "夜深了，別太累喔。";
     }
 
     private static boolean isLocationOnScreen(int x, int y, int width, int height) {
@@ -1209,6 +1316,19 @@ public class App extends JFrame {
             });
         }
         latestPeers = seenPeers;
+        if (shell != null) {
+            for (PeerInfo peer : seenPeers) {
+                if (peer == null || peer.clientId == null) {
+                    continue;
+                }
+                if ("ONLINE".equalsIgnoreCase(peer.status) && !previousOnlinePeerIds.contains(peer.clientId)) {
+                    shell.flashEvent("好友「" + peer.clientId + "」上線了。", 3500L);
+                    break;
+                }
+            }
+        }
+        previousOnlinePeerIds.clear();
+        previousOnlinePeerIds.addAll(onlinePeerIds);
         if (peerRefs.peerTable != null) {
             peerRefs.peerTable.putClientProperty("peer.avatars", peerAvatars);
         }
@@ -1319,6 +1439,7 @@ public class App extends JFrame {
     private void celebrateTransfer() {
         if (shell != null) {
             shell.play(AnimeCast.SMILE);
+            shell.flashEvent("傳檔完成了。", 4000L);
         }
     }
 
@@ -2948,6 +3069,8 @@ public class App extends JFrame {
     }
 
     public static void main(String[] args) {
+        // 必須在 Taskbar／第一個視窗建立工具箱之前，選單列與 Dock 才吃得到名稱。
+        AppBranding.installPlatformName();
         // macOS：改走 Metal 繪圖管線，避免預設 OpenGL 下字零星消失（必須在 AWT 初始化前）
         com.example.ui.MacGraphicsWorkaround.apply();
         // macOS：盡早設定 Dock icon（需在建立視窗前）
