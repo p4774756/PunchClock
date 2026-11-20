@@ -95,8 +95,9 @@ public class NarrowShellLayoutTest {
         });
     }
 
-    /** 380 寬小方塊裡好友表大約 300px，裝置 ID 與欄名都要完整。 */
+    /** 380 寬小方塊裡好友表大約 300px。套用跟畫面上一樣的表頭之後，每欄都要蓋過表頭 preferred 寬。 */
     private static void assertPeerIdsFit(javax.swing.JTable table, int width) {
+        NightTheme.apply(table);
         table.setSize(width, 160);
         table.doLayout();
         int covered = 0;

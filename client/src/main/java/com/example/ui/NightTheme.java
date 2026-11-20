@@ -351,6 +351,9 @@ public final class NightTheme {
                     label.setBackground(CandyTheme.HEADER);
                     label.setForeground(CandyTheme.INK);
                     label.setBorder(new EmptyBorder(6, 8, 6, 8));
+                    if (source.getTableHeader() != null && source.getTableHeader().getFont() != null) {
+                        label.setFont(source.getTableHeader().getFont());
+                    }
                     return label;
                 }
             });

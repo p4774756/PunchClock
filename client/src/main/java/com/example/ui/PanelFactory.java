@@ -577,8 +577,8 @@ public class PanelFactory {
         refs.peerTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         refs.peerTable.getTableHeader().setFont(boldFont);
         refs.peerTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
-        // 狀態／等待任務／版本／最愛固定剛好放下欄名；多出來的寬度全部給裝置 ID。
-        int[] peerColW = {140, 36, 56, 40, 30};
+        // 真正的欄寬在 doLayout 用表頭 renderer 的 preferred 寬重算。這裡先給一個放得下欄名的初值。
+        int[] peerColW = {120, 48, 76, 48, 48};
         for (int i = 0; i < peerColW.length; i++) {
             javax.swing.table.TableColumn column = refs.peerTable.getColumnModel().getColumn(i);
             column.setMinWidth(28);
@@ -849,42 +849,70 @@ public class PanelFactory {
     }
 
     /**
-     * 380 寬時表大約 300px。後面四欄固定寬，裝置 ID 用剩餘寬度；
-     * 仍放不下 company-worker4 時才縮小字級、最後才拿掉頭像，避免畫成「compa...」。
+     * 後面四欄至少放下表頭（套用 NightTheme 之後的 header renderer，含左右 padding）。
+     * 多出來的寬度給裝置 ID；表太窄時先縮裝置 ID（允許省略），最後才壓縮後面四欄。
      */
     private static void layoutPeerColumns(JTable table) {
         int width = table.getWidth();
-        int[] tail = {36, 56, 40, 30};
-        int tailSum = 0;
-        for (int value : tail) {
-            tailSum += value;
+        if (table.getColumnCount() != 5) {
+            return;
         }
-        if (width >= tailSum + 96) {
+        int[] tail = new int[4];
+        int tailSum = 0;
+        for (int i = 0; i < tail.length; i++) {
+            tail[i] = peerColumnPreferredWidth(table, i + 1);
+            tailSum += tail[i];
+        }
+        if (width >= tailSum + 28) {
             applyPeerColumnWidths(table, width - tailSum, tail);
             return;
         }
-        int floor = 28;
         int[] sized = new int[tail.length];
+        int budget = Math.max(0, width - 28);
+        int overflow = Math.max(0, tailSum - budget);
         for (int i = 0; i < sized.length; i++) {
-            sized[i] = floor;
+            sized[i] = tail[i];
         }
-        int id = floor;
-        int leftover = width - floor * (tail.length + 1);
-        if (leftover > 0) {
-            int toId = Math.min(leftover, 96 - floor);
-            id += toId;
-            leftover -= toId;
+        for (int i = sized.length - 1; i >= 0 && overflow > 0; i--) {
+            int reducible = Math.max(0, sized[i] - 28);
+            int cut = Math.min(reducible, overflow);
+            sized[i] -= cut;
+            overflow -= cut;
         }
-        for (int i = 0; i < sized.length && leftover > 0; i++) {
-            int room = tail[i] - floor;
-            int give = Math.min(leftover, room);
-            sized[i] += give;
-            leftover -= give;
+        int used = 0;
+        for (int value : sized) {
+            used += value;
         }
-        if (leftover > 0) {
-            id += leftover;
+        applyPeerColumnWidths(table, Math.max(28, width - used), sized);
+    }
+
+    /** 表頭 renderer 的 preferred 寬。資料欄再取目前列裡最寬的一格。裝置 ID 只看表頭，剩下的寬度給它。 */
+    private static int peerColumnPreferredWidth(JTable table, int columnIndex) {
+        int width = peerHeaderPreferredWidth(table, columnIndex);
+        if (columnIndex == 0) {
+            return width;
         }
-        applyPeerColumnWidths(table, id, sized);
+        for (int row = 0; row < table.getRowCount(); row++) {
+            Component cell = table.prepareRenderer(table.getCellRenderer(row, columnIndex), row, columnIndex);
+            if (cell != null) {
+                width = Math.max(width, cell.getPreferredSize().width);
+            }
+        }
+        return Math.max(28, width);
+    }
+
+    private static int peerHeaderPreferredWidth(JTable table, int columnIndex) {
+        javax.swing.table.JTableHeader header = table.getTableHeader();
+        if (header == null || header.getDefaultRenderer() == null) {
+            return 28;
+        }
+        javax.swing.table.TableColumn column = table.getColumnModel().getColumn(columnIndex);
+        Component painted = header.getDefaultRenderer().getTableCellRendererComponent(
+                table, column.getHeaderValue(), false, false, -1, columnIndex);
+        if (painted == null) {
+            return 28;
+        }
+        return Math.max(28, painted.getPreferredSize().width);
     }
 
     private static void applyPeerColumnWidths(JTable table, int idWidth, int[] tail) {
