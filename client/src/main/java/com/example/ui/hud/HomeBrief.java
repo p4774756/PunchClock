@@ -62,7 +62,7 @@ public final class HomeBrief {
     }
 
     /** 首頁卡片實際畫出來的內容。倒數秒數不畫，不列入，避免每秒整塊重畫。 */
-    String paintKey() {
+    public String paintKey() {
         return done + "|" + waiting + "|" + failed + "|" + cancelled
                 + "|" + nextName + "|" + nextTime + "|" + "執行中".equals(nextLeft)
                 + "|" + onlineFriends + "|" + recentFriend + "|" + recentState
@@ -76,6 +76,16 @@ public final class HomeBrief {
 
     public static HomeBrief empty() {
         return new HomeBrief(0, 0, 0, 0, null, "", "", 0, "還沒有好友", "", null, false, false, "未啟用");
+    }
+
+    /** 單元測試用快照（同套件）。 */
+    static HomeBrief testSnapshot(
+            int done, int waiting, int failed, int cancelled,
+            String nextName, String nextTime, String nextLeft) {
+        return new HomeBrief(
+                done, waiting, failed, cancelled,
+                nextName, nextTime, nextLeft,
+                0, "", "", null, false, false, "未啟用");
     }
 
     /**

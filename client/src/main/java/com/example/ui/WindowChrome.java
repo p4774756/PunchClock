@@ -372,7 +372,7 @@ public final class WindowChrome {
             portrait = new HomePortrait(shell);
             int bodyTop = titleH + GRIP;
             int bodyH = Math.max(120, height - bodyTop - GRIP);
-            shell.setBounds(GRIP, bodyTop, Math.max(200, width - GRIP * 2), bodyH);
+            shell.setBounds(GRIP, bodyTop, Math.max(120, width - GRIP * 2), bodyH);
             shell.doLayout();
         }
 

@@ -65,6 +65,9 @@ public class ConfigPersistenceServiceTest {
         config.workOut.enabled = false;
         config.workOut.hour = 17;
         config.workOut.minute = 45;
+        config.miniMode = true;
+        config.windowWidth = 380;
+        config.windowHeight = 520;
 
         configService.saveConfig(config, null);
         assertTrue(Files.exists(configFile));
@@ -83,6 +86,9 @@ public class ConfigPersistenceServiceTest {
         assertFalse(loaded.workOut.enabled);
         assertEquals(17, loaded.workOut.hour);
         assertEquals(45, loaded.workOut.minute);
+        assertTrue(loaded.miniMode);
+        assertEquals(380, loaded.windowWidth);
+        assertEquals(520, loaded.windowHeight);
     }
 
     @Test

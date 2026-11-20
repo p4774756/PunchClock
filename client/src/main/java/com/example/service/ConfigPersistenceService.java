@@ -71,6 +71,8 @@ public class ConfigPersistenceService {
         public int splitDividerLocation = -1;
         /** 上次開啟的主分頁 index（負值表示使用預設） */
         public int selectedTabIndex = -1;
+        /** 迷你橫條模式（#274） */
+        public boolean miniMode = false;
         /**
          * 視窗透明度百分比：0 為不透明，最高 {@link #MAX_WINDOW_TRANSPARENCY_PERCENT}。
          * 實際不透明度為 100% 減去此值（最透明仍保留 40%）。

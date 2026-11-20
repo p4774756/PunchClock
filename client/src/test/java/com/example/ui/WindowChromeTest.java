@@ -65,7 +65,7 @@ public class WindowChromeTest {
         JFrame[] holder = new JFrame[1];
         int[] closing = {0};
         SwingUtilities.invokeAndWait(() -> {
-            JFrame frame = new JFrame("神器版面");
+            JFrame frame = new JFrame("新光小寶貝版面");
             holder[0] = frame;
             frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
             frame.addWindowListener(new WindowAdapter() {
@@ -75,7 +75,7 @@ public class WindowChromeTest {
                 }
             });
             WindowChrome.Controls controls = WindowChrome.install(
-                    frame, "神器版面", null, new Font(Font.SANS_SERIF, Font.BOLD, 13),
+                    frame, "新光小寶貝版面", null, new Font(Font.SANS_SERIF, Font.BOLD, 13),
                     new Font(Font.SANS_SERIF, Font.PLAIN, 12));
             JTabbedPane tabs = new JTabbedPane();
             AnimeShell shell = new AnimeShell(null, tabs);
@@ -183,9 +183,9 @@ public class WindowChromeTest {
             red.setFocusableWindowState(false);
             red.setVisible(true);
 
-            JFrame frame = new JFrame("神器 版面切換");
+            JFrame frame = new JFrame("新光小寶貝 版面切換");
             holder[0] = frame;
-            WindowChrome.install(frame, "神器 版面切換", null,
+            WindowChrome.install(frame, "新光小寶貝 版面切換", null,
                     new Font(Font.SANS_SERIF, Font.BOLD, 13),
                     new Font(Font.SANS_SERIF, Font.PLAIN, 12));
             JTabbedPane tabs = new JTabbedPane();
@@ -272,9 +272,9 @@ public class WindowChromeTest {
 
     @Test
     public void mainTitleDropsCommitAndTime() {
-        assertEquals("神器 v3.0.0", WindowChrome.mainTitle(
-                "神器  v3.0.0 · a1b2c3d（提交 2026-11-06 14:05）"));
-        assertEquals("神器 v3.0.0", WindowChrome.mainTitle("神器 v3.0.0"));
+        assertEquals("新光小寶貝 v3.0.0", WindowChrome.mainTitle(
+                "新光小寶貝  v3.0.0 · a1b2c3d（提交 2026-11-06 14:05）"));
+        assertEquals("新光小寶貝 v3.0.0", WindowChrome.mainTitle("新光小寶貝 v3.0.0"));
     }
 
     @Test
