@@ -472,6 +472,12 @@ HAIR_SHELL_THICK_MAX = 0.008
 HAIR_SHELL_OFF_BURIED = -0.002
 HAIR_SHELL_OFF_MID = 0.0045
 HAIR_CAP_D_MIN = -0.012
+HAIR_CAP_BACK_D_MIN = -0.020
+EAR_X_MIN = 0.0735
+EAR_Y_LO = -0.058
+EAR_Y_HI = -0.026
+EAR_Z_LO = 1.566
+EAR_Z_HI = 1.626
 HAIR_ZONE_REJECT = -0.005
 MERIDIAN_FRAGMENT_MIN = 0.040
 MERIDIAN_HOOK_MAX_LEN = 0.060
@@ -479,6 +485,11 @@ MERIDIAN_HOOK_TURN_DEG = 90.0
 MERIDIAN_HOOK_TRIM_LEN = 0.015
 MERIDIAN_HOOK_TRIM_TURN = 45.0
 MERIDIAN_BRANCH_MAX_LEN = 0.050
+MERIDIAN_BRANCH_JOIN_R = 0.012
+MERIDIAN_REGION_FRAC = 0.40
+MERIDIAN_HEAD_NECK_Z = 1.490
+MERIDIAN_ISLAND_MIN = 0.035
+MERIDIAN_ISLAND_MIN_REGION = 0.060
 
 _HAIRLINE_CTRL_R = (
     (0.00, 1.6880),
@@ -498,7 +509,9 @@ _HAIRLINE_CTRL_R = (
 
 def _hairline_azimuth(wco):
     rel_y = float(wco.y) - HEAD_REF.y
-    return math.atan2(float(wco.x), max(1e-6, -rel_y))
+    # 不要把 -rel_y 夾在 1e-6：那會讓整個後腦都算成側面，
+    # 正中那一列（x=0）更會被當成前額，髮殼因此沉進頭皮裡。
+    return math.atan2(float(wco.x), -rel_y)
 
 
 def _catmull_rom_1d(keys, x):
@@ -589,14 +602,29 @@ def _print_head_landmarks(body):
     print(f'[head_landmark] hairline_sample_turn_max_deg={max_turn:.2f} (expect ≤15)')
 
 
+def _in_ear_region(co):
+    """耳廓外凸區（量自 _print_head_landmarks：|x|>0.078、y -0.052..-0.031、z 1.573..1.618）。"""
+    return (
+        abs(co.x) > EAR_X_MIN
+        and EAR_Y_LO < co.y < EAR_Y_HI
+        and EAR_Z_LO < co.z < EAR_Z_HI
+    )
+
+
 def _hair_cap_face_ok(face):
     verts = list(face.verts)
-    if max(v.co.z for v in verts) < 1.582:
-        return False
-    if all(v.co.z < 1.598 for v in verts):
-        return False
     center = sum((v.co for v in verts), Vector()) / len(verts)
-    return _hairline_signed_distance(center) > HAIR_CAP_D_MIN
+    if _in_ear_region(center):
+        return False
+    # 後腦（耳後）髮際本來就比前額低，改用髮際曲線當下緣，不要用固定 z 平切。
+    back = center.y > 0.0
+    z_floor, z_any = (1.546, 1.554) if back else (1.582, 1.598)
+    if max(v.co.z for v in verts) < z_floor:
+        return False
+    if all(v.co.z < z_any for v in verts):
+        return False
+    d_min = HAIR_CAP_BACK_D_MIN if back else HAIR_CAP_D_MIN
+    return _hairline_signed_distance(center) > d_min
 
 
 def _mesh_merge_centerline(ob, threshold=0.00012):
@@ -604,18 +632,11 @@ def _mesh_merge_centerline(ob, threshold=0.00012):
     bm = bmesh.new()
     bm.from_mesh(ob.data)
     bm.verts.ensure_lookup_table()
-    seam = [v for v in bm.verts if abs(v.co.x) <= 0.0025 and v.co.y > 0.012 and v.co.z > 1.56]
+    seam = [v for v in bm.verts if abs(v.co.x) <= 0.0012 and v.co.y > 0.015 and v.co.z > 1.58]
     if len(seam) >= 2:
-        bmesh.ops.remove_doubles(bm, verts=seam, dist=0.0009)
-        seam = [
-            v
-            for v in bm.verts
-            if v.is_valid and abs(v.co.x) <= 0.0025 and v.co.y > 0.012 and v.co.z > 1.56
-        ]
-        if len(seam) >= 2:
-            bmesh.ops.remove_doubles(bm, verts=seam, dist=0.0005)
-        for v in bm.verts:
-            if v.is_valid and abs(v.co.x) <= 0.0025 and v.co.y > 0.012 and v.co.z > 1.56:
+        bmesh.ops.remove_doubles(bm, verts=seam, dist=0.0006)
+        for v in seam:
+            if v.is_valid:
                 v.co.x = 0.0
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.to_mesh(ob.data)
@@ -623,169 +644,151 @@ def _mesh_merge_centerline(ob, threshold=0.00012):
     ob.data.update()
 
 
-def _repair_hair_shell_back_seam(ob_shell):
-    """後中 |x|<8mm 局部縫合，不更動髮殼生成參數。"""
-    mw = ob_shell.matrix_world
-    imw = mw.inverted()
+def _boundary_groups(bm):
+    """把 boundary edge 依連通性分組，最長的一組排前面（髮際緣）。"""
+    bm.edges.ensure_lookup_table()
+    boundary = [e for e in bm.edges if e.is_boundary]
+    if not boundary:
+        return []
+    by_vert = {}
+    for e in boundary:
+        for v in e.verts:
+            by_vert.setdefault(v.index, []).append(e)
+    unvisited = {e.index for e in boundary}
+    groups = []
+    while unvisited:
+        stack = [unvisited.pop()]
+        group = []
+        while stack:
+            e = bm.edges[stack.pop()]
+            group.append(e)
+            for v in e.verts:
+                for ne in by_vert.get(v.index, []):
+                    if ne.index in unvisited:
+                        unvisited.remove(ne.index)
+                        stack.append(ne.index)
+        groups.append(group)
+    groups.sort(key=lambda g: sum(e.calc_length() for e in g), reverse=True)
+    return groups
+
+
+def _stitch_slit_pairs(bm, group, max_gap=0.010, min_hops=4):
+    """同一條裂縫兩側逐點配對焊接：只配沿邊界鏈相隔夠遠的點，不壓同一側的相鄰列。"""
+    verts = list({v.index: v for e in group for v in e.verts}.values())
+    nbr = {v.index: set() for v in verts}
+    for e in group:
+        a, b = e.verts[0].index, e.verts[1].index
+        nbr[a].add(b)
+        nbr[b].add(a)
+    hops = {}
+    for v in verts:
+        dist = {v.index: 0}
+        frontier = [v.index]
+        for step in range(1, min_hops):
+            nxt = []
+            for cur in frontier:
+                for o in nbr[cur]:
+                    if o not in dist:
+                        dist[o] = step
+                        nxt.append(o)
+            frontier = nxt
+        hops[v.index] = dist
+    cand = []
+    for i in range(len(verts)):
+        for j in range(i + 1, len(verts)):
+            a, b = verts[i], verts[j]
+            gap = (a.co - b.co).length
+            # 中線貼齊後完全重合的對點一定是同一條縫的兩側，不受鏈上距離限制。
+            if b.index in hops[a.index] and gap > 0.0003:
+                continue
+            if gap <= max_gap:
+                cand.append((gap, i, j))
+    cand.sort(key=lambda t: t[0])
+    targetmap = {}
+    used = set()
+    for _gap, i, j in cand:
+        a, b = verts[i], verts[j]
+        if a.index in used or b.index in used:
+            continue
+        used.add(a.index)
+        used.add(b.index)
+        mid = (a.co + b.co) * 0.5
+        if abs(a.co.x) < 0.006 and abs(b.co.x) < 0.006:
+            mid.x = 0.0
+        b.co = mid
+        targetmap[a] = b
+    return targetmap
+
+
+def _fill_hair_shell_holes(ob):
+    """沿真實 boundary loop 修補：後中裂縫逐點縫合，剩下的封閉小洞補面。"""
     bm = bmesh.new()
-    bm.from_mesh(ob_shell.data)
-    bm.verts.ensure_lookup_table()
-    bm.edges.ensure_lookup_table()
-    y_back = HEAD_REF.y
-    center_verts = []
-    for v in bm.verts:
-        w = mw @ v.co
-        if abs(w.x) <= 0.008 and w.y > y_back and w.z > 1.55:
-            center_verts.append(v)
-    if len(center_verts) >= 2:
-        bmesh.ops.remove_doubles(bm, verts=center_verts, dist=0.003)
-        bm.verts.ensure_lookup_table()
-        center_verts = [v for v in bm.verts if v.is_valid and abs((mw @ v.co).x) <= 0.008]
-        for v in center_verts:
-            w = mw @ v.co
-            w.x = 0.0
-            v.co = imw @ w
-    bm.edges.ensure_lookup_table()
-    boundary = [
-        e
+    bm.from_mesh(ob.data)
+    # 後中線兩側被各自貼到 x=0 後位置完全重合卻沒焊起來，先合併這些重複點。
+    dup = [
+        v
         for e in bm.edges
         if e.is_boundary
-        and abs((mw @ e.verts[0].co).x) < 0.006
-        and abs((mw @ e.verts[1].co).x) < 0.006
-        and (mw @ e.verts[0].co).y > y_back
+        for v in e.verts
+        if abs(v.co.x) < 0.006 and v.co.y > 0.0
     ]
-    if len(boundary) >= 2:
-        loops = {}
-        for e in boundary:
-            for v in e.verts:
-                loops.setdefault(v, []).append(e)
-        edge_groups = []
-        used = set()
-        for e in boundary:
-            if e.index in used:
-                continue
-            group = [e]
-            used.add(e.index)
-            stack = list(e.verts)
-            for _ in range(256):
-                if not stack:
-                    break
-                v = stack.pop()
-                for ne in loops.get(v, []):
-                    if ne.index in used:
-                        continue
-                    used.add(ne.index)
-                    group.append(ne)
-                    stack.append(ne.other_vert(v))
-            if len(group) >= 2:
-                edge_groups.append(group)
-        if len(edge_groups) >= 2:
-            edge_groups.sort(key=lambda g: sum((mw @ e.verts[0].co).z for e in g) / len(g))
-            a, b = edge_groups[0], edge_groups[-1]
-            try:
-                bmesh.ops.bridge_edge_loops(bm, edges=a + b)
-            except RuntimeError:
-                pass
-    loose = [v for v in bm.verts if not v.link_faces]
-    if loose:
-        bmesh.ops.delete(bm, geom=loose, context='VERTS')
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    bm.to_mesh(ob_shell.data)
-    bm.free()
-    ob_shell.data.update()
-
-
-def _add_back_hair_center_band(body, ob_shell):
-    """後中窄帶（退路）：覆蓋圓髻底至髮際的中央縫隙。"""
-    mw_s = ob_shell.matrix_world
-    side_y = {}
-    for v in ob_shell.data.vertices:
-        w = mw_s @ v.co
-        if w.y <= HEAD_REF.y or w.z < 1.555 or w.z > 1.71:
-            continue
-        az = abs(w.x)
-        if az < 0.0025 or az > 0.012:
-            continue
-        zkey = round(w.z, 3)
-        side_y.setdefault(zkey, [])
-        side_y[zkey].append(w.y)
-    if not side_y:
+    if dup:
+        before = len(bm.verts)
+        bmesh.ops.remove_doubles(bm, verts=list({v.index: v for v in dup}.values()), dist=0.0003)
+        print(f'[hair] shell_center_dupes_merged={before - len(bm.verts)}')
+    groups = _boundary_groups(bm)
+    if not groups:
+        bm.free()
         return
-    z_keys = sorted(side_y.keys())
-    half_w = 0.006
-
-    def _y_at(z):
-        if not z_keys:
-            return 0.055
-        if z <= z_keys[0]:
-            return max(side_y[z_keys[0]])
-        if z >= z_keys[-1]:
-            return max(side_y[z_keys[-1]])
-        for i in range(1, len(z_keys)):
-            if z <= z_keys[i]:
-                z0, z1 = z_keys[i - 1], z_keys[i]
-                y0 = max(side_y[z0])
-                y1 = max(side_y[z1])
-                t = (z - z0) / max(z1 - z0, 1e-9)
-                return y0 + (y1 - y0) * t
-        return max(side_y[z_keys[-1]])
-
-    rows = []
-    z_lo, z_hi = 1.562, 1.712
-    n_z = int(round((z_hi - z_lo) / 0.003)) + 1
-    for iz in range(n_z):
-        z = z_lo + iz * 0.003
-        y_outer = _y_at(z) + 0.0006
-        row = [Vector((x, y_outer, z)) for x in (-half_w, 0.0, half_w)]
-        rows.append(row)
-    if len(rows) < 2:
-        return
-    shell_bm = bmesh.new()
-    shell_bm.from_mesh(ob_shell.data)
-    band_bm = bmesh.new()
-    grid = []
-    for row in rows:
-        grid_row = []
-        for wout in row:
-            v = band_bm.verts.new(ob_shell.matrix_world.inverted() @ wout)
-            grid_row.append(v)
-        if len(grid_row) >= 2:
-            grid.append(grid_row)
-    for ir in range(len(grid) - 1):
-        a0, a1 = grid[ir][0], grid[ir][-1]
-        b0, b1 = grid[ir + 1][0], grid[ir + 1][-1]
-        if len(grid[ir]) >= 3 and len(grid[ir + 1]) >= 3:
-            for ic in range(min(len(grid[ir]), len(grid[ir + 1])) - 1):
-                band_bm.faces.new(
-                    [
-                        grid[ir][ic],
-                        grid[ir][ic + 1],
-                        grid[ir + 1][ic + 1],
-                        grid[ir + 1][ic],
-                    ]
+    stitched = 0
+    for _pass in range(4):
+        targetmap = {}
+        for group in _boundary_groups(bm)[1:]:
+            verts = {v for e in group for v in e.verts}
+            center = sum((v.co for v in verts), Vector()) / len(verts)
+            perim = sum(e.calc_length() for e in group)
+            if _pass == 0:
+                print(
+                    f'[hair] shell_hole edges={len(group)} perim_cm={perim * 100:.2f} '
+                    f'center=({center.x:.3f},{center.y:.3f},{center.z:.3f})'
                 )
-    if not band_bm.faces:
-        band_bm.free()
-        shell_bm.free()
-        return
-    bmesh.ops.remove_doubles(band_bm, verts=list(band_bm.verts), dist=0.0003)
-    bmesh.ops.recalc_face_normals(band_bm, faces=band_bm.faces)
-    vmap = {}
-    for v in band_bm.verts:
-        vmap[v] = shell_bm.verts.new(v.co)
-    faces_added = 0
-    for f in band_bm.faces:
+            if center.y > 0.0 and max(abs(v.co.x) for v in verts) < 0.010:
+                targetmap.update(_stitch_slit_pairs(bm, group))
+        if not targetmap:
+            break
+        stitched += len(targetmap)
+        bmesh.ops.weld_verts(bm, targetmap=targetmap)
+    filled = 0
+    left = 0
+    for group in _boundary_groups(bm)[1:]:
+        verts = {v for e in group for v in e.verts}
+        closed = all(sum(1 for e in v.link_edges if e.is_boundary) == 2 for v in verts)
+        perim = sum(e.calc_length() for e in group)
+        if any(_in_ear_region(v.co) for v in verts):
+            left += 1
+            continue
+        if not closed or perim > 0.12:
+            left += 1
+            continue
         try:
-            shell_bm.faces.new([vmap[v] for v in f.verts])
-            faces_added += 1
-        except ValueError:
-            pass
-    band_bm.free()
-    bmesh.ops.recalc_face_normals(shell_bm, faces=shell_bm.faces)
-    shell_bm.to_mesh(ob_shell.data)
-    shell_bm.free()
-    ob_shell.data.update()
-    print(f'[hair] back_center_band rows={len(grid)} faces_added={faces_added} (fallback cover)')
+            res = bmesh.ops.contextual_create(bm, geom=group)
+        except RuntimeError:
+            left += 1
+            continue
+        new_faces = [f for f in res.get('faces', []) if f.is_valid]
+        if not new_faces:
+            left += 1
+            continue
+        bmesh.ops.triangulate(bm, faces=new_faces)
+        filled += len(new_faces)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(ob.data)
+    bm.free()
+    ob.data.update()
+    print(
+        f'[hair] shell_holes hole_loops={len(groups) - 1} stitched_pairs={stitched} '
+        f'filled_faces={filled} left={left}'
+    )
 
 
 def _hair_streak_normal_image():
@@ -947,7 +950,11 @@ def _build_hair_shell_bmesh(body):
     def _face_keep(f):
         ds = [d_map.get(v, -0.02) for v in f.verts]
         avg = sum(ds) / len(ds)
-        return avg > HAIR_CAP_D_MIN or max(ds) > -0.003
+        center = sum((v.co for v in f.verts), Vector()) / len(f.verts)
+        if _in_ear_region(center):
+            return False
+        d_min = HAIR_CAP_BACK_D_MIN if center.y > 0.0 else HAIR_CAP_D_MIN
+        return avg > d_min or max(ds) > -0.003
 
     keep_faces = _largest_face_island(cap.faces, _face_keep)
     del_faces = [f for f in cap.faces if f not in set(keep_faces)]
@@ -968,7 +975,9 @@ def _build_hair_shell_bmesh(body):
         if abs(off) < 0.001 and not (-0.0025 < d < 0.0005):
             near_skin_bad += 1
         wout = wloc + wnorm * off
-        if abs(wloc.x) < 0.003 and wloc.y > 0.015 and d > -0.02:
+        # 只貼齊真正落在中線上的那一列；0.003 會把左右各一列一起壓平，
+        # 在後腦折出一道凹溝，讓銅身從髮殼裡透出來。
+        if abs(wloc.x) < 0.0008 and wloc.y > 0.015 and d > -0.02:
             wout.x = 0.0
         v.co = imw @ wout
     print(f'[hair] shell near_skin_off_band violations={near_skin_bad} (expect 0)')
@@ -990,8 +999,7 @@ def _add_hair(body, mat_hair):
     )
     ob_shell = _mesh_from_bm(shell, 'bronze_hair_shell', mat_hair)
     _mesh_merge_centerline(ob_shell)
-    _repair_hair_shell_back_seam(ob_shell)
-    _add_back_hair_center_band(body, ob_shell)
+    _fill_hair_shell_holes(ob_shell)
     _verify_back_hair_rays(body, ob_shell)
     bpy.context.view_layer.update()
     mw_s = ob_shell.matrix_world
@@ -1118,6 +1126,7 @@ def _add_hair(body, mat_hair):
         f'[{dx*100:.1f},{dy*100:.1f},{dz*100:.1f}] aspect={dims[2]/max(dims[0],1e-9):.3f} '
         f'z_max={max(zs):.4f} head_z_max={head_z_max:.4f} embed_gap_max_mm={embed_gap_max*1000:.2f}'
     )
+    _hair_shell_output_report(ob_shell)
     return [ob_shell, ob_bun]
 
 
@@ -1131,7 +1140,7 @@ def _verify_back_hair_rays(body, hair_ob):
     bm.free()
     total = 0
     hit = 0
-    miss = 0
+    miss_z = []
     for x in (0.0, -0.002, 0.002):
         for z in np.arange(1.562, 1.712, 0.003):
             total += 1
@@ -1139,8 +1148,53 @@ def _verify_back_hair_rays(body, hair_ob):
             if shell_bvh.ray_cast(origin, Vector((0.0, -1.0, 0.0)), 0.25)[0]:
                 hit += 1
             else:
-                miss += 1
-    print(f'[hair] back_centerline_rays={hit}/{total} miss={miss} (expect 0 miss)')
+                miss_z.append((float(x), float(z)))
+    span = ''
+    if miss_z:
+        span = (
+            f' miss_z={min(z for _, z in miss_z):.4f}..{max(z for _, z in miss_z):.4f}'
+            f' miss_x={sorted({round(x, 4) for x, _ in miss_z})}'
+        )
+    print(
+        f'[hair] back_centerline_rays={hit}/{total} miss={len(miss_z)}'
+        f' (expect 0 miss){span}'
+    )
+
+
+def _hair_shell_output_report(ob_shell):
+    """輸出前髮殼體檢：孤立點、狹長面、額外連通島。"""
+    bm = bmesh.new()
+    bm.from_mesh(ob_shell.data)
+    bm.verts.ensure_lookup_table()
+    loose = sum(1 for v in bm.verts if not v.link_faces)
+    slivers = 0
+    for f in bm.faces:
+        area = f.calc_area()
+        perim = sum(e.calc_length() for e in f.edges)
+        if area < 1e-8 or (perim * perim) / max(area, 1e-12) > 400.0:
+            slivers += 1
+    seen = set()
+    islands = 0
+    for v0 in bm.verts:
+        if v0.index in seen:
+            continue
+        seen.add(v0.index)
+        stack = [v0]
+        while stack:
+            cur = stack.pop()
+            for e in cur.link_edges:
+                nxt = e.other_vert(cur)
+                if nxt.index not in seen:
+                    seen.add(nxt.index)
+                    stack.append(nxt)
+        islands += 1
+    _vn, loops, turn, bedges = _hair_shell_quality(bm)
+    bm.free()
+    print(
+        f'[hair] shell_output loose_verts={loose} slivers={slivers} islands={islands} '
+        f'boundary_loops={loops} boundary_edges={bedges} boundary_turn_max_deg={turn:.2f} '
+        f'(expect loose=0 islands=1)'
+    )
 
 
 def _sash_stripe_mat():
@@ -1642,27 +1696,42 @@ def _trim_meridian_hook_endpoints(points):
     return out
 
 
+def _meridian_tee_junctions(paths, radius=MERIDIAN_BRANCH_JOIN_R):
+    """短枝 T／Y 節點數：端點貼在別條路徑身上、而且自己夠短的才算。"""
+    r2 = radius * radius
+    count = 0
+    for i, p in enumerate(paths):
+        if len(p) < 2 or _path_polyline_length(p) >= MERIDIAN_BRANCH_MAX_LEN:
+            continue
+        for end in (p[0], p[-1]):
+            for j, q in enumerate(paths):
+                if i == j:
+                    continue
+                if any((pt - end).length_squared <= r2 for pt in q[1:-1]):
+                    count += 1
+                    break
+    return count
+
+
 def _cull_short_meridian_branches(paths, min_len=MERIDIAN_BRANCH_MAX_LEN):
-    """同一端點 Y/T 短枝：僅保留最長段。"""
-    buckets = {}
-    for p in paths:
-        if len(p) < 2:
+    """短枝清理：端點落在較長路徑附近（空間半徑）即視為 T／Y 枝，不要求共端點。"""
+    ranked = sorted(
+        ((p, _path_polyline_length(p)) for p in paths if len(p) >= 2),
+        key=lambda t: t[1],
+        reverse=True,
+    )
+    r2 = MERIDIAN_BRANCH_JOIN_R * MERIDIAN_BRANCH_JOIN_R
+    keep = []
+    for p, ln in ranked:
+        if ln < min_len and any(
+            (pt - end).length_squared <= r2
+            for end in (p[0], p[-1])
+            for q, _ in keep
+            for pt in q
+        ):
             continue
-        key_a = tuple(round(c, 3) for c in p[0])
-        key_b = tuple(round(c, 3) for c in p[-1])
-        buckets.setdefault(key_a, []).append(p)
-        if key_a != key_b:
-            buckets.setdefault(key_b, []).append(p)
-    drop = set()
-    for group in buckets.values():
-        if len(group) < 2:
-            continue
-        lengths = [(p, _path_polyline_length(p)) for p in group]
-        lengths.sort(key=lambda t: t[1], reverse=True)
-        for p, ln in lengths[1:]:
-            if ln < min_len:
-                drop.add(id(p))
-    return [p for p in paths if id(p) not in drop]
+        keep.append((p, ln))
+    return [p for p, _ in keep]
 
 
 def _prune_meridian_paths(paths):
@@ -1688,33 +1757,68 @@ def _prune_meridian_paths(paths):
     return out
 
 
+def _in_head_neck_region(pt):
+    return pt.z > MERIDIAN_HEAD_NECK_Z
+
+
+def _in_upper_arm_region(pt):
+    return abs(pt.x) > 0.16 and 1.05 < pt.z < 1.45
+
+
+def _path_len_in_region(points, inside):
+    """path 與區域的交段長度（用線段中點判定），不是整段包圍盒。"""
+    total = 0.0
+    for i in range(1, len(points)):
+        a, b = points[i - 1], points[i]
+        if inside((a + b) * 0.5):
+            total += (b - a).length
+    return total
+
+
 def _cull_meridian_regional_fragments(paths):
-    """頭頸／上臂碎段清理（在 prune 之後）。"""
+    """頭頸／上臂碎段清理（在 prune 之後），依區域交段長度判定。"""
     out = []
+    head_dropped = 0
     arm_dropped = 0
+    hairline_z = _hairline_z_at_azimuth(math.pi)
     for p in paths:
         if len(p) < 2:
             continue
         length = _path_polyline_length(p)
-        z_min = min(pt.z for pt in p)
-        z_max = max(pt.z for pt in p)
-        x_abs = max(abs(pt.x) for pt in p)
-        if z_min > 1.50:
+        dz = abs(max(pt.z for pt in p) - min(pt.z for pt in p))
+        head_len = _path_len_in_region(p, _in_head_neck_region)
+        arm_len = _path_len_in_region(p, _in_upper_arm_region)
+        if head_len > MERIDIAN_REGION_FRAC * length:
             if length < 0.06:
+                head_dropped += 1
                 continue
-            dz = abs(z_max - z_min)
             if length < 0.08 and dz / max(length, 1e-9) < 0.35:
+                head_dropped += 1
                 continue
-            hairline_z = _hairline_z_at_azimuth(math.pi)
-            if p[0].z < hairline_z + 0.02 and length < 0.06:
+            if min(pt.z for pt in p) < hairline_z + 0.02 and length < 0.06:
+                head_dropped += 1
                 continue
-        if x_abs > 0.16 and 1.05 < z_min and z_max < 1.45 and length < 0.06:
+        if arm_len > MERIDIAN_REGION_FRAC * length and length < 0.06:
             arm_dropped += 1
             continue
         out.append(p)
+    arm_left = sum(
+        1
+        for p in out
+        if _path_len_in_region(p, _in_upper_arm_region) > 0.0
+        and _path_polyline_length(p) < 0.06
+    )
+    head_left = [
+        _path_polyline_length(p)
+        for p in out
+        if _path_len_in_region(p, _in_head_neck_region)
+        > MERIDIAN_REGION_FRAC * _path_polyline_length(p)
+    ]
     print(
-        f'[meridians] regional_cull paths={len(out)} arm_short_dropped={arm_dropped} '
-        f'upper_arm_short_count=0 (expected)'
+        f'[meridians] regional_cull paths={len(out)} head_short_dropped={head_dropped} '
+        f'arm_short_dropped={arm_dropped} upper_arm_short_count={arm_left} '
+        f'head_neck_len_min_cm={(min(head_left) * 100 if head_left else 0):.2f} '
+        f'tee_junctions={_meridian_tee_junctions(out)} (expect arm=0 tee=0)'
     )
     return out
 
@@ -2136,6 +2240,59 @@ def _cull_meridian_mesh_scalp(body, meridian_ob):
     meridian_ob.data.update()
 
 
+def _cull_meridian_mesh_islands(meridian_ob):
+    """切面後殘留的小連通島清理；頭頸／上臂門檻更嚴。"""
+    if meridian_ob is None:
+        return
+    mw = meridian_ob.matrix_world
+    bm = bmesh.new()
+    bm.from_mesh(meridian_ob.data)
+    bm.verts.ensure_lookup_table()
+    seen = set()
+    islands = []
+    for v0 in bm.verts:
+        if v0.index in seen:
+            continue
+        seen.add(v0.index)
+        stack = [v0]
+        comp = []
+        while stack:
+            cur = stack.pop()
+            comp.append(cur)
+            for e in cur.link_edges:
+                nxt = e.other_vert(cur)
+                if nxt.index not in seen:
+                    seen.add(nxt.index)
+                    stack.append(nxt)
+        islands.append(comp)
+    drop_verts = []
+    kept_len = []
+    dropped = 0
+    for comp in islands:
+        ws = [mw @ v.co for v in comp]
+        lo = Vector((min(w.x for w in ws), min(w.y for w in ws), min(w.z for w in ws)))
+        hi = Vector((max(w.x for w in ws), max(w.y for w in ws), max(w.z for w in ws)))
+        span = max((hi - lo).length - 2.0 * MERIDIAN_BEVEL_R, 0.0)
+        mid = (lo + hi) * 0.5
+        limit = MERIDIAN_ISLAND_MIN
+        if _in_head_neck_region(mid) or _in_upper_arm_region(mid):
+            limit = MERIDIAN_ISLAND_MIN_REGION
+        if span < limit:
+            drop_verts.extend(comp)
+            dropped += 1
+        else:
+            kept_len.append(span)
+    if drop_verts:
+        bmesh.ops.delete(bm, geom=drop_verts, context='VERTS')
+    bm.to_mesh(meridian_ob.data)
+    bm.free()
+    meridian_ob.data.update()
+    print(
+        f'[meridians] mesh_islands={len(islands)} dropped={dropped} kept={len(kept_len)} '
+        f'island_span_min_cm={(min(kept_len) * 100 if kept_len else 0):.2f}'
+    )
+
+
 def _subdivide_long_meridian_edges(ob, max_len=MERIDIAN_EDGE_LEN_MAX, max_passes=12):
     bm = bmesh.new()
     bm.from_mesh(ob.data)
@@ -2184,6 +2341,7 @@ def _build_meridian_mesh(body, records, mat_meridian):
         merged.data.name = 'bronze_meridians'
     tris = _tri_count(merged)
     _cull_meridian_mesh_scalp(body, merged)
+    _cull_meridian_mesh_islands(merged)
 
     if tris > MERIDIAN_MAX_TRIS:
         mod = merged.modifiers.new('Decimate', 'DECIMATE')
