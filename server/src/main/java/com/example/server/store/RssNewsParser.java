@@ -36,11 +36,12 @@ public final class RssNewsParser {
         List<String> raw = parseTitles(xml);
         List<String> out = new ArrayList<>();
         for (String title : raw) {
-            String cleaned = cleanTitle(title);
-            if (cleaned.isEmpty() || NewsFilterConstants.isBlockedTitle(cleaned)) {
+            // 先用完整標題過濾再截斷，否則關鍵字落在 28 字之後就會漏網。
+            String normalized = normalizeTitle(title);
+            if (normalized.isEmpty() || NewsFilterConstants.isBlockedTitle(normalized)) {
                 continue;
             }
-            out.add(cleaned);
+            out.add(truncateTitle(normalized));
             if (out.size() >= maxItems) {
                 break;
             }
@@ -49,6 +50,11 @@ public final class RssNewsParser {
     }
 
     static String cleanTitle(String raw) {
+        return truncateTitle(normalizeTitle(raw));
+    }
+
+    /** 去標籤、實體、來源後綴與控制字元，但不截斷。 */
+    static String normalizeTitle(String raw) {
         if (raw == null) {
             return "";
         }
@@ -60,8 +66,11 @@ public final class RssNewsParser {
         t = decodeEntities(t);
         t = SOURCE_SUFFIX.matcher(t).replaceAll("");
         t = t.replaceAll("\\s+", " ").trim();
-        t = stripControl(t);
-        if (t.isEmpty()) {
+        return stripControl(t);
+    }
+
+    static String truncateTitle(String t) {
+        if (t == null || t.isEmpty()) {
             return "";
         }
         int max = NewsFilterConstants.TITLE_MAX_CHARS;

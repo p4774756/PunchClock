@@ -45,22 +45,61 @@ public final class WorldCalendar {
         return FESTIVAL_BY_DATE.get(isoDate);
     }
 
+    /** 當天或最近剛過（不晚於指定日）的節氣；查無資料回 null。 */
+    public static RecentSolarTerm recentSolarTermForDate(String isoDate) {
+        if (isoDate == null || isoDate.isBlank()) {
+            return null;
+        }
+        String bestDate = null;
+        for (String key : SOLAR_TERMS.keySet()) {
+            if (key.compareTo(isoDate) > 0) {
+                continue;
+            }
+            if (bestDate == null || key.compareTo(bestDate) > 0) {
+                bestDate = key;
+            }
+        }
+        if (bestDate == null) {
+            return null;
+        }
+        return new RecentSolarTerm(SOLAR_TERMS.get(bestDate), bestDate, bestDate.equals(isoDate));
+    }
+
+    public static final class RecentSolarTerm {
+        public final String name;
+        public final String date;
+        public final boolean isToday;
+
+        RecentSolarTerm(String name, String date, boolean isToday) {
+            this.name = name;
+            this.date = date;
+            this.isToday = isToday;
+        }
+    }
+
     public static final class CalendarView {
         public final String date;
         public final String solarTerm;
         public final String festival;
+        /** 當天或最近剛過的節氣名，可能與 solarTerm 不同。 */
+        public final String recentSolarTerm;
+        public final String recentSolarTermDate;
+        public final boolean solarTermIsToday;
 
-        CalendarView(String date, String solarTerm, String festival) {
+        CalendarView(String date, String solarTerm, String festival, RecentSolarTerm recent) {
             this.date = date;
             this.solarTerm = solarTerm;
             this.festival = festival;
+            this.recentSolarTerm = recent == null ? null : recent.name;
+            this.recentSolarTermDate = recent == null ? null : recent.date;
+            this.solarTermIsToday = recent != null && recent.isToday;
         }
     }
 
     public static CalendarView calendarFor(long epochMillis) {
         LocalDate d = todayTaipei(epochMillis);
         String iso = formatDate(d);
-        return new CalendarView(iso, solarTermOn(d), festivalOn(d));
+        return new CalendarView(iso, solarTermOn(d), festivalOn(d), recentSolarTermForDate(iso));
     }
 
     /** 測試：所有節氣日期鍵。 */

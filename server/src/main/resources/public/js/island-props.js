@@ -320,8 +320,21 @@ export function buildBoatMesh(kit) {
 }
 
 export function buildIslandProps(ctx) {
-  const { scene, kit, bobs, clouds, swimmers } = ctx;
+  const { scene, kit, bobs, sways, swimmers } = ctx;
   const { addMesh, addBox, geo, lampLight, addCup } = kit;
+  let swayPhase = 0;
+  function registerSway(group, amp, speed) {
+    if (!sways) return;
+    swayPhase += 1.21;
+    sways.push({
+      obj: group,
+      baseX: group.rotation.x,
+      baseZ: group.rotation.z,
+      phase: swayPhase % (Math.PI * 2),
+      speed: speed,
+      amp: amp
+    });
+  }
   function treeRound(x, z, scale, leaf) {
     const group = new THREE.Group();
     group.position.set(x, G, z);
@@ -330,6 +343,7 @@ export function buildIslandProps(ctx) {
     addMesh(group, geo('sph', [0.58, 6, 5]), leaf, 0, 1.2, 0, { scale: [1.05, 0.82, 1.05], shadow: false });
     addMesh(group, geo('sph', [0.42, 6, 5]), leaf, 0.36, 1.0, 0.08, { scale: [1, 0.8, 1], shadow: false });
     addMesh(group, geo('sph', [0.36, 6, 5]), leaf, -0.32, 1.05, -0.06, { scale: [1, 0.75, 1], shadow: false });
+    registerSway(group, 0.035, 1.25);
     scene.add(group);
   }
   function treeCone(x, z, scale, leaf) {
@@ -339,6 +353,7 @@ export function buildIslandProps(ctx) {
     addMesh(group, geo('cyl', [0.08, 0.12, 0.7, 5, 0]), 0xa56b38, 0, 0.35, 0, { shadow: false });
     addMesh(group, geo('cone', [0.62, 0.7, 7]), leaf, 0, 0.95, 0, { shadow: false });
     addMesh(group, geo('cone', [0.46, 0.55, 7]), leaf, 0, 1.4, 0, { shadow: false });
+    registerSway(group, 0.028, 1.1);
     scene.add(group);
   }
   function treeLayer(x, z, scale, leaf) {
@@ -349,6 +364,7 @@ export function buildIslandProps(ctx) {
     addMesh(group, geo('sph', [0.7, 6, 5]), leaf, 0, 0.95, 0, { scale: [1, 0.42, 1], shadow: false });
     addMesh(group, geo('sph', [0.5, 6, 5]), leaf, 0, 1.28, 0, { scale: [1, 0.45, 1], shadow: false });
     addMesh(group, geo('sph', [0.32, 6, 5]), leaf, 0, 1.55, 0, { scale: [1, 0.5, 1], shadow: false });
+    registerSway(group, 0.04, 1.35);
     scene.add(group);
   }
   [
@@ -603,6 +619,7 @@ export function buildIslandProps(ctx) {
 
   function palmAt(x, z, withUplight) {
     const group = new THREE.Group();
+    const fronds = [];
     group.position.set(x, G, z);
     addMesh(group, geo('cyl', [0.07, 0.11, 1.55, 5, 0]), 0xc4844a, 0, 0.78, 0);
     for (let i = 0; i < 5; i++) {
@@ -610,6 +627,7 @@ export function buildIslandProps(ctx) {
       const frond = addMesh(group, geo('cone', [0.07, 0.85, 4]), 0x6fa84e, Math.cos(a) * 0.22, 1.55, Math.sin(a) * 0.22);
       frond.rotation.z = Math.cos(a) * 0.9;
       frond.rotation.x = Math.sin(a) * 0.9;
+      fronds.push(frond);
     }
     if (withUplight) {
       addMesh(group, geo('sph', [0.14, 6, 5]), 0xffc56a, 0, 0.12, 0, {
@@ -620,6 +638,8 @@ export function buildIslandProps(ctx) {
       });
       lampLight(0, 0.08, 0, 10, group, { localHalo: true });
     }
+    registerSway(group, 0.05, 1.5);
+    fronds.forEach((frond) => registerSway(frond, 0.12, 2.3));
     scene.add(group);
   }
   function bambooAt(x, z) {
@@ -700,27 +720,7 @@ export function buildIslandProps(ctx) {
     else if (prop.id === 'rack') rackAt(prop.x, prop.z);
   });
 
-  function cloud(x, y, z, scale, drift) {
-    const group = new THREE.Group();
-    [[0, 0, 0, 1], [0.85, 0.1, 0.05, 0.7], [-0.75, 0.04, -0.06, 0.58]].forEach(([px, py, pz, s]) => {
-      const puff = addMesh(group, geo('sph', [1, 5, 4]), 0xfffaf8, px, py, pz, {
-        scale: [s, s * 0.72, s],
-        shadow: false,
-        receive: false
-      });
-      puff.castShadow = false;
-    });
-    group.position.set(x, y, z);
-    group.scale.setScalar(scale);
-    group.userData.origin = x;
-    group.userData.drift = drift;
-    scene.add(group);
-    clouds.push(group);
-  }
-  cloud(-20, 11.5, -24, 0.85, 0.12);
-  cloud(6, 13, -30, 0.65, 0.1);
-  cloud(26, 12, -16, 0.5, 0.14);
-  cloud(-30, 14, 2, 0.55, 0.08);
+  // 低模球體拼的雲已移除（#236）：雲層改由 island-weather.js 的柔邊貼圖負責。
 
   function addFish(radius, speed, phase, color, scale) {
     const group = new THREE.Group();
@@ -742,7 +742,7 @@ export function registerSceneMotion(loop, state) {
   const bobs = state.bobs;
   const idles = state.idles;
   const steams = state.steams;
-  const clouds = state.clouds;
+  const sways = state.sways || [];
   const swimmers = state.swimmers;
   const shaker = state.shaker;
   const ground = state.P;
@@ -843,10 +843,18 @@ export function registerSceneMotion(loop, state) {
     if (reduced) return;
     if (shaker) shaker.rotation.y = t * 1.6;
   });
-  loop.register(function updateClouds(dt, t) {
+  // 樹冠與棕櫚葉：storm 要明顯被吹到彎，所以搖擺幅度吃天氣倍率。
+  loop.register(function updateSways(dt, t) {
     if (reduced) return;
-    clouds.forEach((item) => {
-      item.position.x = item.userData.origin + Math.sin(t * item.userData.drift) * 1.4;
+    if (!sways.length) return;
+    const raw = typeof getSwayMul === 'function' ? Number(getSwayMul()) : 1;
+    const mul = Number.isFinite(raw) ? raw : 1;
+    sways.forEach((item) => {
+      const amp = item.amp * mul;
+      const wind = Math.sin(t * item.speed + item.phase);
+      const gust = Math.sin(t * item.speed * 0.41 + item.phase * 1.7) * 0.45;
+      item.obj.rotation.z = item.baseZ + (wind + gust) * amp;
+      item.obj.rotation.x = item.baseX + (wind * 0.5 - gust) * amp * 0.7;
     });
   });
   loop.register(function updateSwimmers(dt, t) {

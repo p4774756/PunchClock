@@ -513,6 +513,8 @@ function prepareLifeMaterials(THREE, root, kind) {
         mat.transparent = true;
         mat.opacity = 0.82;
       } else if (cloudMesh) {
+        // 球體拼出來的雲在空拍視角很廉價（#236），雲一律交給 island-weather.js 的柔邊貼圖。
+        mesh.visible = false;
         mat.color.setRGB(0.98, 0.99, 1);
         mat.transparent = true;
         mat.opacity = 0.68;

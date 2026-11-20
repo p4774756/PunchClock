@@ -141,7 +141,7 @@ import { shouldOfferNpcTalkPrompt, NPC_TALK_ACTION } from './island-people-data.
 import { createIslandNpcTalk, npcTalkPromptLabel } from './island-npc-talk.js';
 import { createIslandSky } from './island-sky.js';
 import { createIslandSea } from './island-sea.js';
-import { createIslandWeather } from './island-weather.js';
+import { createIslandWeather, fogDistancesForCamera } from './island-weather.js';
 import { createIslandLife, LIFE_PANORAMA_CAMERA } from './island-life.js';
 import { createFootprintView } from './island-footprints.js';
 import { createLifecycle } from './island-lifecycle.js';
@@ -240,6 +240,8 @@ function boot() {
   scene.background = skyDay.clone();
   scene.fog = new THREE.Fog(skyDay.clone(), 150, 320);
   const fogBase = { near: 150, far: 320 };
+  const fogWashColor = new THREE.Color(0xc5ced8);
+  let groundWetValue = 0;
 
   const camera = new THREE.PerspectiveCamera(25, 1, 0.4, ISLAND_CAMERA_FAR);
   const clock = new THREE.Clock();
@@ -277,7 +279,7 @@ function boot() {
   const bobs = [];
   const idles = [];
   const walkers = [];
-  const clouds = [];
+  const sways = [];
   const swimmers = [];
   const steams = [];
   const kit = createSceneKit(THREE, { scene: scene, bobs: bobs });
@@ -462,7 +464,7 @@ function boot() {
     scene: scene,
     kit: kit,
     bobs: bobs,
-    clouds: clouds,
+    sways: sways,
     swimmers: swimmers
   });
   const boatMesh = propResult && propResult.boat;
@@ -516,7 +518,7 @@ function boot() {
     bobs: bobs,
     idles: idles,
     steams: steams,
-    clouds: clouds,
+    sways: sways,
     swimmers: swimmers,
     shaker: shaker,
     P: P,
@@ -1004,32 +1006,44 @@ function boot() {
     getIsIndoor: () => rooms.inside(),
     getQualityTier: () => quality.tier,
     getViewportWidth: () => (stage && stage.clientWidth) || window.innerWidth || 1280,
+    getCamera: () => camera,
+    getFocus: () => cam.targetLook,
     onWaveMul: (mul) => sea.setWaveMul(mul),
     onSwayMul: (mul) => {
       swayWeatherMul = mul;
     },
-    onFogBase: (nearMul, farMul, wash, nightMix) => {
-      const mix = nightMix;
-      scene.fog.near = Math.max(20, fogBase.near * nearMul);
-      scene.fog.far = Math.max(scene.fog.near + 40, fogBase.far * farMul);
+    onFogBase: (nearMul, farMul, wash, nightMix, spanMul) => {
+      // 全景鏡頭離場景上百公尺，固定 near/far 會把玩家與主島一起吃掉，
+      // 所以霧距離要跟著鏡頭到注視點的距離走。
+      const look = cam.targetLook;
+      const camDist = Math.hypot(
+        camera.position.x - look.x,
+        camera.position.y - look.y,
+        camera.position.z - look.z
+      );
+      const dist = fogDistancesForCamera(fogBase.near, fogBase.far, nearMul, farMul, camDist, spanMul);
+      scene.fog.near = dist.near;
+      scene.fog.far = dist.far;
       if (wash > 0) {
-        const washCol = new THREE.Color(0xc5ced8);
-        scene.fog.color.copy(scene.background).lerp(washCol, wash * (1 - mix * 0.25));
+        scene.fog.color.copy(scene.background).lerp(fogWashColor, wash * (1 - nightMix * 0.25));
       } else {
         scene.fog.color.copy(scene.background);
       }
     },
     setGroundWet: (wet) => {
-      if (wet <= 0.01) return;
+      const amount = Math.max(0, Math.min(1, Number(wet) || 0));
+      const backToDry = amount === 0 && groundWetValue !== 0;
+      if (!backToDry && Math.abs(amount - groundWetValue) < 0.05) return;
+      groundWetValue = amount;
       kit.forEachMaterial((mat) => {
         if (!mat.userData || !mat.userData.day) return;
-        if (!mat.userData.weatherWetSaved) {
-          mat.userData.weatherWetSaved = true;
+        if (!mat.userData.weatherDryDay) {
           mat.userData.weatherDryDay = mat.userData.day.clone();
         }
-        const base = mat.userData.weatherDryDay;
-        mat.color.copy(base).multiplyScalar(1 - wet * 0.18);
+        // day 是日夜混色的基準，淋濕只壓暗它，天氣轉晴要能原封不動還原。
+        mat.userData.day.copy(mat.userData.weatherDryDay).multiplyScalar(1 - amount * 0.22);
       });
+      dayNight.refresh();
     }
   });
   let roomView = null;
@@ -2998,6 +3012,7 @@ function boot() {
         syncInteractPrompt();
       }
       : undefined,
+    debugEnterInterior: perfEnabled ? (buildingId) => enterInterior(buildingId) : undefined,
     openCasino: () => casino.openLobby(),
     closeCasino: () => casino.closeLobby(),
     isCasinoOpen: () => casino.isOpen(),

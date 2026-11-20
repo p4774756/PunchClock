@@ -586,6 +586,18 @@ function timeBucket(hour) {
   return 'night';
 }
 
+/** 當天節氣直接講；剛過 5 天內的節氣改成「剛過」口吻，再久就不提。 */
+function solarTermMention(calendar, rng) {
+  const cal = calendar || {};
+  if (cal.solarTerm) {
+    return rng() < 0.35 ? '今天是' + cal.solarTerm + '耶～' : '';
+  }
+  if (!cal.recentSolarTerm || !cal.recentSolarTermDate || !cal.date) return '';
+  const days = Math.round((Date.parse(cal.date) - Date.parse(cal.recentSolarTermDate)) / 86400000);
+  if (!Number.isFinite(days) || days < 0 || days > 5) return '';
+  return rng() < 0.3 ? cal.recentSolarTerm + '剛過，天氣要換季囉～' : '';
+}
+
 function pickNewsLine(title, rng) {
   const safe = String(title || '').replace(/[<>&]/g, '');
   if (!safe) return '';
@@ -610,9 +622,8 @@ export function pickContextualWorldLine(style, islandId, world, rng) {
   if (world.festival && WORLD_FESTIVAL_LINES[world.festival]) {
     if (rng() < 0.45) return pickOne(WORLD_FESTIVAL_LINES[world.festival], rng);
   }
-  if (world.calendar && world.calendar.solarTerm && rng() < 0.35) {
-    return '今天是' + world.calendar.solarTerm + '耶～';
-  }
+  const termLine = solarTermMention(world.calendar, rng);
+  if (termLine) return termLine;
 
   if (Number.isFinite(temp)) {
     if (temp > 30 && islandId === 'main' && rng() < 0.55) return pickOne(WORLD_TEMP_HOT, rng);

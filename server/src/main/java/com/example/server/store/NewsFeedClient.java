@@ -1,6 +1,8 @@
 package com.example.server.store;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -50,7 +52,6 @@ public final class NewsFeedClient implements WorldService.NewsFetcher {
         if (body == null) {
             throw new IOException("news rss");
         }
-        body = RssNewsParser.truncateBody(body);
         List<String> titles = RssNewsParser.parseHeadlines(body, NewsFilterConstants.MAX_HEADLINES);
         List<WorldService.NewsHeadline> out = new ArrayList<>();
         for (String title : titles) {
@@ -70,16 +71,39 @@ public final class NewsFeedClient implements WorldService.NewsFetcher {
                     .header("User-Agent", "PunchClock")
                     .GET()
                     .build();
-            HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() != 200) {
-                return null;
+            HttpResponse<InputStream> response = http.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            try (InputStream in = response.body()) {
+                if (response.statusCode() != 200) {
+                    return null;
+                }
+                return readLimited(in, NewsFilterConstants.MAX_RESPONSE_BYTES);
             }
-            return response.body();
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             return null;
         } catch (IOException | RuntimeException ex) {
             return null;
+        }
+    }
+
+    /**
+     * 邊讀邊計數，超過上限立刻放棄這個來源（不先把整份回應配置成 byte[]）。
+     * 超限回 null，讓呼叫端改試備援。
+     */
+    static byte[] readLimited(InputStream in, int maxBytes) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream(Math.min(maxBytes, 64 * 1024));
+        byte[] chunk = new byte[8 * 1024];
+        int total = 0;
+        while (true) {
+            int read = in.read(chunk, 0, chunk.length);
+            if (read < 0) {
+                return buffer.toByteArray();
+            }
+            total += read;
+            if (total > maxBytes) {
+                return null;
+            }
+            buffer.write(chunk, 0, read);
         }
     }
 }

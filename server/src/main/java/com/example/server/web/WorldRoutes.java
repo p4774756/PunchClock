@@ -40,6 +40,9 @@ public final class WorldRoutes {
         calendar.put("date", view.calendar.date);
         calendar.put("solarTerm", view.calendar.solarTerm);
         calendar.put("festival", view.calendar.festival);
+        calendar.put("recentSolarTerm", view.calendar.recentSolarTerm);
+        calendar.put("recentSolarTermDate", view.calendar.recentSolarTermDate);
+        calendar.put("solarTermIsToday", view.calendar.solarTermIsToday);
 
         List<Map<String, Object>> news = new ArrayList<>();
         for (WorldService.NewsHeadline row : view.news) {

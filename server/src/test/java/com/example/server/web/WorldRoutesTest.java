@@ -56,6 +56,8 @@ public class WorldRoutesTest {
         assertTrue(response.body().contains("\"calendar\""));
         assertTrue(response.body().contains("\"news\""));
         assertTrue(response.body().contains("\"kind\":\"clear\""));
+        assertTrue(response.body().contains("\"recentSolarTerm\""));
+        assertTrue(response.body().contains("\"solarTermIsToday\""));
         String cache = response.headers().firstValue("cache-control").orElse("");
         assertTrue(cache.contains("public"));
         assertTrue(cache.contains("max-age=300"));

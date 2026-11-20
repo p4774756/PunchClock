@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class WorldServiceTest {
@@ -128,6 +129,71 @@ public class WorldServiceTest {
         } finally {
             pool.shutdownNow();
         }
+    }
+
+    @Test
+    public void concurrentNewsFetchOnlyOnce() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        CountDownLatch start = new CountDownLatch(1);
+        WorldService service = new WorldService((() -> SAMPLE), (() -> {
+            calls.incrementAndGet();
+            try {
+                start.await();
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted", ex);
+            }
+            return List.of(new WorldService.NewsHeadline("小水獺出生了"));
+        }));
+
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        try {
+            Future<?>[] futures = new Future[4];
+            for (int i = 0; i < 4; i++) {
+                futures[i] = pool.submit(() -> service.loadNews(7_000L));
+            }
+            Thread.sleep(80);
+            assertEquals(1, calls.get());
+            start.countDown();
+            for (Future<?> f : futures) {
+                @SuppressWarnings("unchecked")
+                List<WorldService.NewsHeadline> got = (List<WorldService.NewsHeadline>) f.get();
+                assertEquals(1, got.size());
+            }
+            assertEquals(1, calls.get());
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    public void recentSolarTermFallsBackToLastPassedTerm() {
+        WorldCalendar.RecentSolarTerm today = WorldCalendar.recentSolarTermForDate("2026-11-07");
+        assertEquals("立冬", today.name);
+        assertTrue(today.isToday);
+
+        WorldCalendar.RecentSolarTerm after = WorldCalendar.recentSolarTermForDate("2026-11-20");
+        assertEquals("立冬", after.name);
+        assertEquals("2026-11-07", after.date);
+        assertFalse(after.isToday);
+
+        WorldCalendar.RecentSolarTerm acrossYear = WorldCalendar.recentSolarTermForDate("2027-01-02");
+        assertEquals("冬至", acrossYear.name);
+        assertEquals("2026-12-22", acrossYear.date);
+        assertFalse(acrossYear.isToday);
+
+        assertNull(WorldCalendar.recentSolarTermForDate("2025-12-31"));
+    }
+
+    @Test
+    public void calendarViewCarriesRecentSolarTerm() {
+        long ms = java.time.ZonedDateTime.of(2026, 11, 20, 12, 0, 0, 0, WorldCalendar.TAIPEI)
+                .toInstant().toEpochMilli();
+        WorldCalendar.CalendarView view = WorldCalendar.calendarFor(ms);
+        assertEquals("2026-11-20", view.date);
+        assertNull(view.solarTerm);
+        assertEquals("立冬", view.recentSolarTerm);
+        assertFalse(view.solarTermIsToday);
     }
 
     @Test

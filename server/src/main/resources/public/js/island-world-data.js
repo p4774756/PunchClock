@@ -202,8 +202,24 @@ export function taipeiHour(ms) {
   return Number(fmt.format(ms == null ? Date.now() : ms));
 }
 
+const SOLAR_TERM_DATES = Object.freeze(Object.keys(SOLAR_TERM_BY_DATE).sort());
+
 export function solarTermOnDate(iso) {
   return SOLAR_TERM_BY_DATE[iso] || null;
+}
+
+/** 當天或最近剛過（不晚於 iso）的節氣；查無資料回 null。與 WorldCalendar.recentSolarTermForDate 一致。 */
+export function recentSolarTermForDate(iso) {
+  const key = String(iso || '');
+  if (!key) return null;
+  let found = null;
+  for (let i = 0; i < SOLAR_TERM_DATES.length; i++) {
+    const d = SOLAR_TERM_DATES[i];
+    if (d > key) break;
+    found = d;
+  }
+  if (!found) return null;
+  return { name: SOLAR_TERM_BY_DATE[found], date: found, isToday: found === key };
 }
 
 export function festivalOnDate(iso) {
@@ -212,10 +228,14 @@ export function festivalOnDate(iso) {
 
 export function calendarViewForMs(ms) {
   const date = taipeiDateIso(ms);
+  const recent = recentSolarTermForDate(date);
   return {
     date: date,
     solarTerm: solarTermOnDate(date),
-    festival: festivalOnDate(date)
+    festival: festivalOnDate(date),
+    recentSolarTerm: recent ? recent.name : null,
+    recentSolarTermDate: recent ? recent.date : null,
+    solarTermIsToday: !!(recent && recent.isToday)
   };
 }
 

@@ -6,20 +6,27 @@ import { mainIslandFoamAlpha, mainIslandFoamBaseOpacity } from './island-decor.j
 const SEA_Y = -0.74;
 const WAVE_AMP = 0.02;
 const WAVE_AMP_MAX = 0.035;
+// 風浪：只在 waveMul > 1（雨／暴風）時疊上的高頻碎浪，clear 完全不變。
+const CHOP_AMP = 0.075;
 const FOAM_Y = SEA_Y + WAVE_AMP_MAX + 0.012;
+
+function normMul(mul) {
+  return mul == null || !Number.isFinite(Number(mul)) ? 1 : Math.max(0, Number(mul));
+}
 
 export function waveHeight(x, z, t, reduced, ampMul) {
   if (reduced) return 0;
-  const mul = ampMul == null || !Number.isFinite(Number(ampMul)) ? 1 : Math.max(0, Number(ampMul));
+  const mul = normMul(ampMul);
   const w1 = Math.sin(x * 0.32 + t * 0.45) * 0.55;
   const w2 = Math.sin(z * 0.28 - t * 0.38) * 0.65;
   const w3 = Math.sin((x + z) * 0.22 + t * 0.52) * 0.48;
-  return (w1 + w2 + w3) * WAVE_AMP * mul;
+  const chop = Math.sin(x * 1.05 + t * 2.1) * Math.sin(z * 0.87 - t * 1.7);
+  return (w1 + w2 + w3) * WAVE_AMP * mul + chop * CHOP_AMP * Math.max(0, mul - 1);
 }
 
 export function effectiveWaveAmp(mul) {
-  const m = mul == null || !Number.isFinite(Number(mul)) ? 1 : Math.max(0, Number(mul));
-  return WAVE_AMP * m;
+  const m = normMul(mul);
+  return WAVE_AMP * m * 1.68 + CHOP_AMP * Math.max(0, m - 1);
 }
 
 export function waveAmplitudeMax() {
@@ -41,12 +48,14 @@ export function foamPhase(index) {
 const FOAM_PERIOD = 5.0;
 const FOAM_RANGE = 0.55;
 
-export function foamCycle(t, phase, reduced) {
+export function foamCycle(t, phase, reduced, waveMul) {
   if (reduced) return { scale: 1.0, alpha: 0.38 };
-  const local = ((t + phase) % FOAM_PERIOD) / FOAM_PERIOD;
+  const mul = normMul(waveMul);
+  const storm = Math.min(1.4, Math.max(0, mul - 1));
+  const local = ((t * (1 + storm * 0.6) + phase) % FOAM_PERIOD) / FOAM_PERIOD;
   const push = Math.sin(local * Math.PI);
-  const scale = 1.0 + push * 0.12;
-  const alpha = 0.22 + push * 0.32;
+  const scale = 1.0 + push * (0.12 + storm * 0.07);
+  const alpha = Math.min(0.62, 0.22 + push * 0.32 + storm * 0.12);
   return { scale, alpha };
 }
 
@@ -102,6 +111,10 @@ export function createIslandSea(THREE, opts) {
         float w2 = sin(position.z * 0.28 - uTime * 0.38) * 0.65;
         float w3 = sin((position.x + position.z) * 0.22 + uTime * 0.52) * 0.48;
         transformed.y += (w1 + w2 + w3) * ${WAVE_AMP.toFixed(4)} * uWaveMul;
+        float storm = max(0.0, uWaveMul - 1.0);
+        float chop = sin(position.x * 1.05 + uTime * 2.1) * sin(position.z * 0.87 - uTime * 1.7);
+        float swell = sin((position.x - position.z) * 0.12 + uTime * 0.9) * 0.9;
+        transformed.y += (chop + swell) * ${CHOP_AMP.toFixed(4)} * storm;
       }
       `
     );
@@ -188,7 +201,7 @@ export function createIslandSea(THREE, opts) {
     uniforms.uTime.value = elapsed;
     if (reduced) return;
     foamMeshes.forEach((foam) => {
-      const cycle = foamCycle(elapsed, foam.userData.phase, reduced);
+      const cycle = foamCycle(elapsed, foam.userData.phase, reduced, waveMul);
       foam.scale.setScalar(cycle.scale);
       const islandIdx = foamMeshes.indexOf(foam);
       const island = ISLANDS[islandIdx];

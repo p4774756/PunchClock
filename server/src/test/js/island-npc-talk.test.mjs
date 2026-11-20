@@ -320,6 +320,86 @@ test('新聞標題用 textContent 安全（假 img onerror）', () => {
   assert.ok(line.includes('onerror') === false || !line.includes('<'));
 });
 
+function lcgRng(seed) {
+  let s = seed;
+  return () => {
+    s = (s * 48271) % 2147483647;
+    return s / 2147483647;
+  };
+}
+
+test('低於 15 度會出現保暖台詞', () => {
+  const rng = lcgRng(1234);
+  let cold = false;
+  for (let i = 0; i < 300; i++) {
+    const lines = D.pickNpcLinesWithWorld('summer', 'main', null, rng, {
+      weather: { kind: 'cloudy', tempC: 11 }, hour: 9, calendar: {}, news: []
+    }).lines.join('|');
+    if (lines.includes('多穿一件') || lines.includes('想喝熱的') || lines.includes('手冰冰的')) cold = true;
+  }
+  assert.equal(cold, true);
+});
+
+test('每種節日都能講到自己的台詞', () => {
+  const festivals = ['new-year', 'lantern', 'dragon-boat', 'mid-autumn', 'winter-solstice', 'christmas'];
+  for (const festival of festivals) {
+    const rng = lcgRng(97 + festival.length);
+    let hit = false;
+    for (let i = 0; i < 400; i++) {
+      const line = D.pickContextualWorldLine('summer', 'main', {
+        weather: { kind: 'clear', tempC: 22 },
+        hour: 12,
+        festival: festival,
+        calendar: { festival: festival },
+        news: []
+      }, rng);
+      if (D.allWorldContextLinesForTests().includes(line) && !/天氣|太陽|散步|早|中午|傍晚|夜色|這麼晚/.test(line)) {
+        hit = true;
+      }
+    }
+    assert.equal(hit, true, festival + ' 應該有專屬台詞');
+  }
+});
+
+test('節氣台詞：當天講「今天是」，剛過 5 天內講「剛過」，太久不提', () => {
+  const rng = lcgRng(555);
+  const onDay = { date: '2026-11-07', solarTerm: '立冬', recentSolarTerm: '立冬', recentSolarTermDate: '2026-11-07', solarTermIsToday: true };
+  const justPassed = { date: '2026-11-10', solarTerm: null, recentSolarTerm: '立冬', recentSolarTermDate: '2026-11-07', solarTermIsToday: false };
+  const longAgo = { date: '2026-11-20', solarTerm: null, recentSolarTerm: '立冬', recentSolarTermDate: '2026-11-07', solarTermIsToday: false };
+
+  let sawToday = false;
+  let sawPassed = false;
+  for (let i = 0; i < 400; i++) {
+    const world = { weather: { kind: 'clear', tempC: 22 }, hour: 12, news: [] };
+    if (/今天是立冬耶/.test(D.pickContextualWorldLine('summer', 'main', { ...world, calendar: onDay }, rng))) sawToday = true;
+    if (/^立冬剛過/.test(D.pickContextualWorldLine('summer', 'main', { ...world, calendar: justPassed }, rng))) sawPassed = true;
+    const old = D.pickContextualWorldLine('summer', 'main', { ...world, calendar: longAgo }, rng);
+    assert.ok(!old.includes('立冬'), '節氣過太久不該再提：' + old);
+  }
+  assert.equal(sawToday, true);
+  assert.equal(sawPassed, true);
+});
+
+test('沒有新聞時，1000 次都不會冒出新聞句', () => {
+  const rng = lcgRng(31337);
+  for (let i = 0; i < 1000; i++) {
+    const picked = D.pickNpcLinesWithWorld('tech', 'computer', null, rng, {
+      weather: { kind: 'rain', tempC: 19 },
+      hour: 20,
+      festival: null,
+      calendar: { date: '2026-11-20', solarTerm: null, recentSolarTerm: '立冬', recentSolarTermDate: '2026-11-07', solarTermIsToday: false },
+      news: []
+    });
+    for (const line of picked.lines) {
+      assert.ok(!line.includes('你有看到「'), '第 ' + i + ' 次出現新聞句：' + line);
+    }
+  }
+  const emptyTitles = D.pickContextualWorldLine('summer', 'main', {
+    weather: { kind: 'clear', tempC: 24 }, hour: 12, calendar: {}, news: [{ title: '' }, { title: null }]
+  }, () => 0.01);
+  assert.ok(!emptyTitles.includes('你有看到「'));
+});
+
 test('50 次相鄰開場句不連續相同（with world）', () => {
   let seed = 3;
   const rng = () => {
