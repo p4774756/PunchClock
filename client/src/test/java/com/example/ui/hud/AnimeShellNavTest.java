@@ -2,7 +2,9 @@ package com.example.ui.hud;
 
 import org.junit.Test;
 
+import javax.swing.JTabbedPane;
 import java.awt.Rectangle;
+import java.awt.event.MouseEvent;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -45,6 +47,25 @@ public class AnimeShellNavTest {
         board.layout(new Rectangle(0, 48, 360, 400));
         board.setBubble(new HomeBubbleFormat.BubbleLine("有任務失敗了", true));
         assertTrue(board.bubbleOpensLog());
+    }
+
+    @Test
+    public void navIconsExposeTooltips() {
+        AnimeShell shell = new AnimeShell(null, new JTabbedPane());
+        shell.setSize(ShellDimensions.DEFAULT_WIDTH, ShellDimensions.DEFAULT_HEIGHT);
+        shell.doLayout();
+        for (int i = 0; i < AnimeShell.navCount(); i++) {
+            Rectangle box = AnimeShell.navRowBounds(
+                    ShellDimensions.DEFAULT_WIDTH, ShellDimensions.DEFAULT_HEIGHT, i);
+            MouseEvent event = new MouseEvent(
+                    shell, MouseEvent.MOUSE_MOVED, 0, 0,
+                    box.x + box.width / 2, box.y + box.height / 2,
+                    0, false);
+            assertEquals(AnimeShell.navTooltip(i), shell.getToolTipText(event));
+        }
+        shell.setMiniMode(true);
+        MouseEvent mini = new MouseEvent(shell, MouseEvent.MOUSE_MOVED, 0, 0, 20, 20, 0, false);
+        assertEquals("點一下展開", shell.getToolTipText(mini));
     }
 
     @Test

@@ -101,21 +101,16 @@ public final class HomeBubbleFormat {
         String left = "";
         if (task.getStatus() == TaskStatus.CHECKING_IN) {
             left = "執行中";
-        } else {
-            String countdown = task.getCountdownLabel();
-            if (countdown != null && !countdown.isBlank() && !"—".equals(countdown)) {
-                left = countdown;
-            } else if (when != null) {
-                Duration d = Duration.between(LocalDateTime.now(), when);
-                if (!d.isNegative()) {
-                    long hours = d.toHours();
-                    long mins = d.toMinutesPart();
-                    if (hours > 0) {
-                        left = "還有 " + hours + " 小時";
-                    } else if (mins > 0) {
-                        left = "還有 " + mins + " 分鐘";
-                    }
-                }
+        } else if (when != null) {
+            Duration d = Duration.between(LocalDateTime.now(), when);
+            if (d.isNegative() || d.isZero()) {
+                left = "即將開始";
+            } else if (d.toHours() > 0) {
+                left = "還有 " + d.toHours() + " 小時";
+            } else if (d.toMinutes() > 0) {
+                left = "還有 " + d.toMinutes() + " 分鐘";
+            } else {
+                left = "即將開始";
             }
         }
         StringBuilder sb = new StringBuilder();

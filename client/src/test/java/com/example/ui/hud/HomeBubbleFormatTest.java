@@ -39,6 +39,28 @@ public class HomeBubbleFormatTest {
         assertTrue(text.contains("明天"));
         assertTrue(text.contains("08:55"));
         assertTrue(text.contains("每日排程"));
+        assertTrue(text.contains("還有"));
+        assertTrue(text.contains("小時") || text.contains("分鐘"));
+        assertTrue(!text.matches(".*\\d天.*"));
+        assertTrue(!text.matches(".*\\d{2}:\\d{2}:\\d{2}.*"));
+    }
+
+    @Test
+    public void countdownUsesHoursNotDayClock() {
+        CheckInTask task = task("每日排程", LocalDateTime.now().plusHours(11).plusMinutes(5), TaskStatus.SCHEDULED);
+        String text = HomeBubbleFormat.formatNext(task);
+        assertTrue(text.contains("每日排程"));
+        assertTrue(text.contains("還有 11 小時"));
+    }
+
+    @Test
+    public void crossMonthDateLabel() {
+        LocalDate day = LocalDate.now().plusMonths(1).withDayOfMonth(15);
+        String[] week = {"週日", "週一", "週二", "週三", "週四", "週五", "週六"};
+        int dow = day.getDayOfWeek().getValue() % 7;
+        String expected = day.getMonthValue() + "月" + day.getDayOfMonth() + "日 " + week[dow];
+        assertEquals(expected, HomeBubbleFormat.dayLabel(day.atTime(9, 0)));
+        assertTrue(day.getMonthValue() != LocalDate.now().getMonthValue());
     }
 
     @Test

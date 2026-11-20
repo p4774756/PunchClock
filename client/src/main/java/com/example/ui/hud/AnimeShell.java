@@ -114,6 +114,7 @@ public final class AnimeShell extends JPanel {
         };
         addMouseListener(mouse);
         addMouseMotionListener(mouse);
+        setToolTipText(navTooltip(0));
         timer = new Timer(40, e -> {
             noticeStatus();
             long second = System.currentTimeMillis() / 1000L;
@@ -324,6 +325,24 @@ public final class AnimeShell extends JPanel {
     }
 
     @Override
+    public String getToolTipText(MouseEvent event) {
+        if (event == null) {
+            return super.getToolTipText();
+        }
+        if (miniMode) {
+            return "點一下展開";
+        }
+        int id = hit(event.getX(), event.getY());
+        if (id >= 0 && id < NAV.length) {
+            return navTooltip(id);
+        }
+        if (id == MINI_TOGGLE) {
+            return "縮成迷你橫條";
+        }
+        return null;
+    }
+
+    @Override
     public void doLayout() {
         java.awt.Rectangle content = contentBounds();
         tabs.setBounds(content);
@@ -495,21 +514,21 @@ public final class AnimeShell extends JPanel {
         g.setColor(new Color(28, 20, 48));
         g.fillRect(0, 0, getWidth(), getHeight());
         int h = getHeight();
-        int icon = Math.min(h - 8, 44);
-        int x = 8;
+        int icon = Math.min(Math.max(8, h - 4), 44);
+        int x = 6;
         int y = (h - icon) / 2;
         if (baby != null && baby.prone() != null) {
             BufferedImage img = baby.prone();
             int w = icon * img.getWidth() / Math.max(1, img.getHeight());
+            w = Math.min(w, 72);
             g.drawImage(img, x, y, w, icon, null);
-            x += w + 8;
+            x += w + 6;
         }
         HomeBrief brief = homeActions == null ? HomeBrief.empty() : homeActions.read();
         boolean online = brief != null && brief.cloudOn;
         g.setColor(online ? new Color(117, 214, 162) : new Color(160, 148, 188));
         g.fillOval(x, h / 2 - 5, 10, 10);
         x += 16;
-        g.setFont(UiFonts.chinesePlain(12));
         g.setColor(INK);
         String line;
         List<CheckInTask> tasks = homeActions == null ? List.of() : homeActions.tasks();
@@ -522,8 +541,15 @@ public final class AnimeShell extends JPanel {
         } else {
             line = AppBranding.DISPLAY_NAME + " · 點一下展開";
         }
-        int max = Math.max(40, getWidth() - x - 8);
-        g.drawString(fit(g, line, max), x, h / 2 + 5);
+        int max = Math.max(40, getWidth() - x - 6);
+        int size = 12;
+        g.setFont(UiFonts.chinesePlain(size));
+        while (size > 10 && g.getFontMetrics().stringWidth(line) > max) {
+            size--;
+            g.setFont(UiFonts.chinesePlain(size));
+        }
+        String shown = g.getFontMetrics().stringWidth(line) <= max ? line : fit(g, line, max);
+        g.drawString(shown, x, h / 2 + 5);
     }
 
     private static CheckInTask pickNextForMini(List<CheckInTask> tasks) {

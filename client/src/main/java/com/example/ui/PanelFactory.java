@@ -113,7 +113,7 @@ public class PanelFactory {
                 "下載並重新啟動。設定與排程會保留。");
         refs.applyUpdateButton.setEnabled(false);
 
-        JPanel updateActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        JPanel updateActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         updateActions.setOpaque(false);
         updateActions.setAlignmentX(Component.LEFT_ALIGNMENT);
         updateActions.add(refs.checkUpdateButton);
@@ -191,9 +191,6 @@ public class PanelFactory {
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
         column.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        top.setOpaque(false);
-
         refs.relayEnabledCheckBox = new CandyCheckBox("啟用中繼 Proxy", false);
         refs.relayEnabledCheckBox.setFont(boldFont);
         refs.relayEnabledCheckBox.setToolTipText("讓區網內連不到 Server 的同事，把 Server 網址設成你的 IP，透過你連到雲端");
@@ -215,10 +212,16 @@ public class PanelFactory {
         refs.relayStatusLabel.setFont(mainFont);
         refs.relayStatusLabel.setForeground(NightTheme.MUTED);
 
-        top.add(refs.relayEnabledCheckBox);
-        top.add(portLabel);
-        top.add(refs.relayPortSpinner);
-        top.add(refs.relayStatusLabel);
+        JPanel enableRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        enableRow.setOpaque(false);
+        enableRow.add(refs.relayEnabledCheckBox);
+        JPanel portRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        portRow.setOpaque(false);
+        portRow.add(portLabel);
+        portRow.add(refs.relayPortSpinner);
+        portRow.add(refs.relayStatusLabel);
+        pinRow(enableRow);
+        pinRow(portRow);
 
         refs.relayHelpArea = new JTextArea();
         refs.relayHelpArea.setEditable(false);
@@ -233,9 +236,11 @@ public class PanelFactory {
                 + "你的 App 會幫同事把請求轉發到真正的 Server。");
         fitRelayHelp(refs.relayHelpArea);
 
-        top.setAlignmentX(Component.LEFT_ALIGNMENT);
+        refs.relayHelpArea.setColumns(18);
         refs.relayHelpArea.setAlignmentX(Component.LEFT_ALIGNMENT);
-        column.add(top);
+        column.add(enableRow);
+        column.add(Box.createVerticalStrut(4));
+        column.add(portRow);
         column.add(Box.createVerticalStrut(4));
         column.add(refs.relayHelpArea);
 
@@ -260,11 +265,15 @@ public class PanelFactory {
         clear.setEnabled(false);
         refs.clearBackgroundButton = clear;
 
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        top.setOpaque(false);
-        top.add(refs.backgroundPreview);
-        top.add(refs.chooseBackgroundButton);
-        top.add(refs.clearBackgroundButton);
+        JPanel previewRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        previewRow.setOpaque(false);
+        previewRow.add(refs.backgroundPreview);
+        JPanel backgroundButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        backgroundButtons.setOpaque(false);
+        backgroundButtons.add(refs.chooseBackgroundButton);
+        backgroundButtons.add(refs.clearBackgroundButton);
+        pinRow(previewRow);
+        pinRow(backgroundButtons);
 
         refs.backgroundBlurSlider = new JSlider(0, WindowBackground.MAX_BLUR_PERCENT, 0);
         refs.backgroundBlurSlider.setOpaque(false);
@@ -294,10 +303,10 @@ public class PanelFactory {
         column.setOpaque(false);
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
         column.setAlignmentX(Component.LEFT_ALIGNMENT);
-        top.setAlignmentX(Component.LEFT_ALIGNMENT);
         blurRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         opacityRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        column.add(top);
+        column.add(previewRow);
+        column.add(backgroundButtons);
         column.add(Box.createVerticalStrut(4));
         column.add(blurRow);
         column.add(Box.createVerticalStrut(2));
@@ -327,7 +336,8 @@ public class PanelFactory {
             }
         });
 
-        JLabel hint = new JLabel("可拖曳移動，點一下會打招呼。主視窗最小化時仍會留在桌面。");
+        JLabel hint = new CompactShellPanels.WrappingLabel(
+                "可拖曳移動，點一下會打招呼。主視窗最小化時仍會留在桌面。");
         hint.setFont(mainFont);
         hint.setForeground(NightTheme.MUTED);
 
@@ -459,8 +469,14 @@ public class PanelFactory {
             }
         }
         area.setRows(lines);
+        area.setColumns(18);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
         Dimension pref = area.getPreferredSize();
-        area.setMaximumSize(new Dimension(Integer.MAX_VALUE, pref.height));
+        int textH = Math.max(36, pref.height);
+        area.setMinimumSize(new Dimension(40, textH));
+        area.setPreferredSize(new Dimension(Math.min(pref.width, 300), textH));
+        area.setMaximumSize(new Dimension(Integer.MAX_VALUE, textH));
     }
 
     public static void setBackgroundEffectControlsEnabled(ServerConfigRefs refs, boolean enabled) {
@@ -522,7 +538,8 @@ public class PanelFactory {
         panel.setOpaque(false);
         panel.setBorder(new EmptyBorder(4, 0, 0, 0));
 
-        JLabel hint = new JLabel("只顯示同一伺服器上的好友（不含本機，每 15 秒隨心跳更新）");
+        JLabel hint = new CompactShellPanels.WrappingLabel(
+                "只顯示同一伺服器上的好友（不含本機，每 15 秒隨心跳更新）");
         hint.setFont(mainFont);
         hint.setForeground(NightTheme.MUTED);
         hint.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -546,12 +563,24 @@ public class PanelFactory {
         favoriteColumn.setMaxWidth(80);
         installSelfPeerRowRenderer(refs.peerTable, mainFont, boldFont);
 
+        refs.peerTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+        int[] peerColW = {108, 48, 72, 52, 36};
+        for (int i = 0; i < peerColW.length; i++) {
+            javax.swing.table.TableColumn column = refs.peerTable.getColumnModel().getColumn(i);
+            column.setPreferredWidth(peerColW[i]);
+            column.setMinWidth(28);
+        }
+        favoriteColumn.setMaxWidth(44);
+        favoriteColumn.setMinWidth(32);
+
         JScrollPane tableScroll = new JScrollPane(refs.peerTable);
-        tableScroll.setPreferredSize(new Dimension(400, 180));
+        tableScroll.setPreferredSize(new Dimension(200, 160));
+        tableScroll.setMinimumSize(new Dimension(80, 120));
+        tableScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         markCandyScroll(tableScroll);
         refs.peerTableScroll = tableScroll;
 
-        refs.peerStatusLabel = new JLabel("尚未取得好友列表（請先啟用雲端狀態回報）");
+        refs.peerStatusLabel = new CompactShellPanels.WrappingLabel("尚未取得好友列表（請先啟用雲端狀態回報）");
         refs.peerStatusLabel.setFont(mainFont);
         refs.peerStatusLabel.setForeground(NightTheme.MUTED);
         refs.peerStatusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -572,15 +601,24 @@ public class PanelFactory {
         refs.clearAvatarButton = candyButton(
                 "還原預設", CandyButton.Variant.SECONDARY, mainFont, "改回使用 App 圖示");
 
-        JPanel avatarRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        avatarRow.setOpaque(false);
-        avatarRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel avatarTop = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        avatarTop.setOpaque(false);
         JLabel avatarLabel = new JLabel("大頭照：");
         avatarLabel.setFont(mainFont);
-        avatarRow.add(avatarLabel);
-        avatarRow.add(refs.avatarPreview);
-        avatarRow.add(refs.chooseAvatarButton);
-        avatarRow.add(refs.clearAvatarButton);
+        avatarTop.add(avatarLabel);
+        avatarTop.add(refs.avatarPreview);
+        JPanel avatarButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        avatarButtons.setOpaque(false);
+        avatarButtons.add(refs.chooseAvatarButton);
+        avatarButtons.add(refs.clearAvatarButton);
+        pinRow(avatarTop);
+        pinRow(avatarButtons);
+        JPanel avatarRow = new JPanel();
+        avatarRow.setOpaque(false);
+        avatarRow.setLayout(new BoxLayout(avatarRow, BoxLayout.Y_AXIS));
+        avatarRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        avatarRow.add(avatarTop);
+        avatarRow.add(avatarButtons);
         refs.avatarRow = avatarRow;
 
         String[] workerOptions = {"company-worker", "company-worker2", "company-worker3", "company-worker4"};
@@ -596,9 +634,10 @@ public class PanelFactory {
         if (idEditor != null) {
             idEditor.setFont(mainFont);
         }
-        // 只設 preferred 時，旁邊的說明會把欄位擠回最小寬度，暱稱開頭會被裁掉。
         int idHeight = Math.max(refs.clientIdCombo.getPreferredSize().height, 30);
-        lockComponentSize(refs.clientIdCombo, new Dimension(280, idHeight));
+        refs.clientIdCombo.setMinimumSize(new Dimension(120, idHeight));
+        refs.clientIdCombo.setPreferredSize(new Dimension(280, idHeight));
+        refs.clientIdCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, idHeight));
 
         refs.clientIdApplyButton = candyButton(
                 "套用", CandyButton.Variant.SECONDARY, mainFont, "按 Enter 或「套用」後立即生效並儲存");
@@ -607,52 +646,32 @@ public class PanelFactory {
         refs.clientIdSavedLabel.setFont(mainFont);
         refs.clientIdSavedLabel.setForeground(new Color(144, 230, 176));
         refs.clientIdSavedLabel.setVisible(false);
-        JPanel hintBlock = new JPanel();
-        hintBlock.setOpaque(false);
-        hintBlock.setLayout(new BoxLayout(hintBlock, BoxLayout.Y_AXIS));
-        hintBlock.add(hint);
-        hintBlock.add(Box.createVerticalStrut(2));
-        hintBlock.add(refs.peerStatusLabel);
-        hintBlock.add(refs.openCloudSettingsButton);
-
-        JPanel idRow = new JPanel(new GridBagLayout());
-        idRow.setOpaque(false);
-        idRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        GridBagConstraints idGbc = new GridBagConstraints();
-        idGbc.gridy = 0;
-        idGbc.anchor = GridBagConstraints.WEST;
-        idGbc.insets = new Insets(0, 8, 0, 8);
-        idGbc.gridx = 0;
         JLabel idLabel = new JLabel("裝置 ID：");
         idLabel.setFont(mainFont);
-        idRow.add(idLabel, idGbc);
-        idGbc.gridx = 1;
-        idGbc.insets = new Insets(0, 0, 0, 8);
-        idRow.add(refs.clientIdCombo, idGbc);
-        idGbc.gridx = 2;
-        idGbc.weightx = 0;
-        idGbc.fill = GridBagConstraints.NONE;
-        idGbc.insets = new Insets(0, 0, 0, 8);
-        idRow.add(refs.clientIdApplyButton, idGbc);
-        idGbc.gridx = 3;
-        idGbc.insets = new Insets(0, 0, 0, 16);
-        idRow.add(refs.clientIdSavedLabel, idGbc);
-        idGbc.gridx = 4;
-        idGbc.weightx = 1.0;
-        idGbc.fill = GridBagConstraints.HORIZONTAL;
-        idGbc.insets = new Insets(0, 0, 0, 0);
-        idRow.add(hintBlock, idGbc);
+        JPanel idRow = formRowStretch(idLabel, refs.clientIdCombo);
+        JPanel applyRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        applyRow.setOpaque(false);
+        applyRow.add(refs.clientIdApplyButton);
+        applyRow.add(refs.clientIdSavedLabel);
+        pinRow(applyRow);
 
         refs.openChatButton = candyButton(
                 "開啟聊天", CandyButton.Variant.PRIMARY, boldFont,
                 "和選取的好友開一個小聊天視窗，可傳訊息、圖片、檔案或戳一下（雙擊好友也可以）");
         refs.openChatButton.setEnabled(false);
-        JLabel chatHint = new JLabel("雙擊好友，或選取後按「開啟聊天」；離線排下面，☆ 在同一組排最上面");
+        JLabel chatHint = new CompactShellPanels.WrappingLabel(
+                "雙擊好友，或選取後按「開啟聊天」；離線排下面，☆ 在同一組排最上面");
         chatHint.setFont(mainFont);
         chatHint.setForeground(NightTheme.MUTED);
-        JPanel chatRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel chatButtonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        chatButtonRow.setOpaque(false);
+        chatButtonRow.add(refs.openChatButton);
+        pinRow(chatButtonRow);
+        JPanel chatRow = new JPanel();
         chatRow.setOpaque(false);
-        chatRow.add(refs.openChatButton);
+        chatRow.setLayout(new BoxLayout(chatRow, BoxLayout.Y_AXIS));
+        chatRow.add(chatButtonRow);
+        chatHint.setAlignmentX(Component.LEFT_ALIGNMENT);
         chatRow.add(chatHint);
 
         JPanel south = new JPanel(new BorderLayout(0, 8));
@@ -663,6 +682,15 @@ public class PanelFactory {
         north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
         north.setOpaque(false);
         north.add(idRow);
+        north.add(applyRow);
+        north.add(Box.createVerticalStrut(4));
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        refs.peerStatusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        refs.openCloudSettingsButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+        north.add(hint);
+        north.add(Box.createVerticalStrut(2));
+        north.add(refs.peerStatusLabel);
+        north.add(refs.openCloudSettingsButton);
         north.add(Box.createVerticalStrut(8));
         north.add(avatarRow);
 
@@ -974,21 +1002,26 @@ public class PanelFactory {
         scroll.setMinimumSize(new Dimension(80, header + rowHeight * 4));
         panel.add(scroll, BorderLayout.CENTER);
 
-        refs.emptyLabel = new JLabel("尚無執行紀錄；排程或「立即執行」完成後會顯示在此", SwingConstants.CENTER);
+        refs.emptyLabel = new CompactShellPanels.WrappingLabel(
+                "尚無執行紀錄；排程或「立即執行」完成後會顯示在此");
+        refs.emptyLabel.setHorizontalAlignment(SwingConstants.LEFT);
         refs.emptyLabel.setFont(mainFont);
         refs.emptyLabel.setForeground(NightTheme.MUTED);
 
-        JPanel south = new JPanel(new BorderLayout());
+        JPanel south = new JPanel();
         south.setOpaque(false);
+        south.setLayout(new BoxLayout(south, BoxLayout.Y_AXIS));
         south.setBorder(new EmptyBorder(6, 0, 4, 0));
-        south.add(refs.emptyLabel, BorderLayout.CENTER);
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        refs.emptyLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        south.add(refs.emptyLabel);
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         actions.setOpaque(false);
         refs.clearButton = new CandyButton("清除紀錄", CandyButton.Variant.DANGER, CandyButton.Size.MEDIUM);
         refs.clearButton.setFont(boldFont);
         refs.clearButton.setToolTipText("清空本機執行歷史（不影響目前排程）");
         actions.add(refs.clearButton);
-        south.add(actions, BorderLayout.EAST);
+        pinRow(actions);
+        south.add(actions);
         panel.add(south, BorderLayout.SOUTH);
 
         return panel;
@@ -1019,12 +1052,6 @@ public class PanelFactory {
         int nameRowHeight = Math.max(nameHeight, nameRow.getPreferredSize().height);
         nameRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, nameRowHeight));
 
-        JPanel settings = new JPanel(new GridBagLayout());
-        settings.setOpaque(false);
-        GridBagConstraints sgbc = new GridBagConstraints();
-        sgbc.anchor = GridBagConstraints.CENTER;
-        sgbc.insets = new Insets(4, 2, 4, 8);
-
         refs.enabledCheckBox = new CandyCheckBox("啟用", true);
         refs.enabledCheckBox.setFont(boldFont);
         refs.enabledCheckBox.setToolTipText("勾選後開始自動排程，並鎖定時分與目標網址／Selector；取消勾選後才能修改時間");
@@ -1051,35 +1078,31 @@ public class PanelFactory {
         refs.randomOffsetCheckBox.setFont(mainFont);
         refs.randomOffsetCheckBox.setToolTipText("在設定時間前後隨機 ±5 分鐘，避免每天固定同一秒執行");
 
-        sgbc.gridx = 0;
-        sgbc.gridy = 0;
-        sgbc.gridwidth = 1;
-        sgbc.weightx = 0.0;
-        sgbc.fill = GridBagConstraints.NONE;
-        sgbc.anchor = GridBagConstraints.CENTER;
-        settings.add(refs.enabledCheckBox, sgbc);
-        sgbc.gridx = 1;
-        settings.add(refs.hourCombo, sgbc);
-        sgbc.gridx = 2;
+        JPanel flags = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        flags.setOpaque(false);
+        flags.add(refs.enabledCheckBox);
+        flags.add(refs.randomOffsetCheckBox);
+        pinRow(flags);
+
         JLabel hourUnit = new JLabel("時");
         hourUnit.setFont(mainFont);
-        settings.add(hourUnit, sgbc);
-        sgbc.gridx = 3;
-        settings.add(refs.minuteCombo, sgbc);
-        sgbc.gridx = 4;
         JLabel minUnit = new JLabel("分");
         minUnit.setFont(mainFont);
-        settings.add(minUnit, sgbc);
-        sgbc.gridx = 5;
-        settings.add(refs.randomOffsetCheckBox, sgbc);
-        sgbc.gridx = 6;
-        sgbc.weightx = 1.0;
-        sgbc.fill = GridBagConstraints.HORIZONTAL;
-        JPanel timeSpacer = new JPanel();
-        timeSpacer.setOpaque(false);
-        settings.add(timeSpacer, sgbc);
-        sgbc.weightx = 0.0;
-        sgbc.fill = GridBagConstraints.NONE;
+        JPanel clock = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        clock.setOpaque(false);
+        clock.add(refs.hourCombo);
+        clock.add(hourUnit);
+        clock.add(refs.minuteCombo);
+        clock.add(minUnit);
+        pinRow(clock);
+
+        JPanel settings = new JPanel();
+        settings.setOpaque(false);
+        settings.setLayout(new BoxLayout(settings, BoxLayout.Y_AXIS));
+        settings.setAlignmentX(Component.LEFT_ALIGNMENT);
+        settings.add(flags);
+        settings.add(Box.createVerticalStrut(4));
+        settings.add(clock);
 
         refs.statusLabel = createSlotMetricLabel(mainFont, "—");
         refs.countdownLabel = createSlotMetricLabel(mainFont, "—");
@@ -1096,25 +1119,29 @@ public class PanelFactory {
         mgbc.weightx = 0.25;
         mgbc.gridy = 0;
         mgbc.gridwidth = 1;
+        mgbc.weightx = 0.5;
         mgbc.gridx = 0;
         statusGrid.add(createMetricCell("狀態", refs.statusLabel, mainFont), mgbc);
         mgbc.gridx = 1;
         statusGrid.add(createMetricCell("倒數", refs.countdownLabel, mainFont), mgbc);
-        mgbc.gridx = 2;
-        statusGrid.add(createMetricCell("預計觸發", refs.triggerLabel, mainFont), mgbc);
-        mgbc.gridx = 3;
-        mgbc.insets = new Insets(2, 0, 2, 0);
-        statusGrid.add(createMetricCell("結果", refs.resultLabel, mainFont), mgbc);
         mgbc.gridy = 1;
         mgbc.gridx = 0;
-        mgbc.gridwidth = 4;
+        statusGrid.add(createMetricCell("預計觸發", refs.triggerLabel, mainFont), mgbc);
+        mgbc.gridx = 1;
+        mgbc.insets = new Insets(2, 0, 2, 0);
+        statusGrid.add(createMetricCell("結果", refs.resultLabel, mainFont), mgbc);
+        mgbc.gridy = 2;
+        mgbc.gridx = 0;
+        mgbc.gridwidth = 2;
         mgbc.weightx = 1.0;
         mgbc.insets = new Insets(2, 0, 2, 0);
         statusGrid.add(createMetricCell("鎖定設定", refs.lockedSettingsLabel, mainFont), mgbc);
+        int statusH = statusGrid.getPreferredSize().height;
+        statusGrid.setMinimumSize(new Dimension(0, statusH));
+        statusGrid.setMaximumSize(new Dimension(Integer.MAX_VALUE, statusH));
 
+        pinRow(nameRow);
         settings.setAlignmentX(Component.LEFT_ALIGNMENT);
-        settings.setMaximumSize(new Dimension(Integer.MAX_VALUE, settings.getPreferredSize().height));
-        nameRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JPanel mainCol = new JPanel(new BorderLayout(0, 12));
         mainCol.setOpaque(false);
@@ -1196,7 +1223,7 @@ public class PanelFactory {
         markCandyScroll(scrollPane);
         logPanel.add(scrollPane, BorderLayout.CENTER);
 
-        JPanel logActionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        JPanel logActionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         logActionPanel.setOpaque(false);
         refs.clearLogButton = candyButton("清除 Log", CandyButton.Variant.DANGER, boldFont, "清空日誌內容");
         refs.clearLogButton.addActionListener(e -> refs.logTextArea.setText(""));
@@ -1212,27 +1239,51 @@ public class PanelFactory {
         public JButton clearLogButton;
     }
 
-    /** FlowLayout 列：只鎖定高度，避免被 BoxLayout 壓扁 */
+    /** 一項一列，避免 380px 寬把勾選與按鈕擠到畫面外。 */
     private static JPanel formRow(Component... components) {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        JPanel row = new JPanel();
         row.setOpaque(false);
+        row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        int h = 0;
+        int w = 0;
+        boolean first = true;
         for (Component component : components) {
+            if (!first) {
+                row.add(Box.createVerticalStrut(4));
+                h += 4;
+            }
+            first = false;
+            if (component instanceof JComponent) {
+                ((JComponent) component).setAlignmentX(Component.LEFT_ALIGNMENT);
+            }
             row.add(component);
+            Dimension pref = component.getPreferredSize();
+            h += pref.height;
+            w = Math.max(w, pref.width);
         }
-        int h = Math.max(row.getPreferredSize().height, 36);
+        h = Math.max(h, 28);
         row.setMinimumSize(new Dimension(0, h));
-        row.setPreferredSize(new Dimension(row.getPreferredSize().width, h));
+        row.setPreferredSize(new Dimension(Math.min(w, 300), h));
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
         return row;
     }
 
-    /** Selector + 瀏覽器 + 立即執行同一列。下拉已套上糖果外皮，這裡只鎖定寬高。 */
+    /** 橫列只鎖高度，最小寬度歸零，讓小方塊視窗可以把整列縮進視埠。 */
+    private static void pinRow(JComponent row) {
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        Dimension pref = row.getPreferredSize();
+        int h = Math.max(pref.height, 24);
+        row.setMinimumSize(new Dimension(0, h));
+        row.setPreferredSize(new Dimension(Math.min(pref.width, 300), h));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
+    }
+
+    /** Selector、瀏覽器、立即執行各佔一列，380px 內看得到也能點。 */
     private static JPanel selectorBrowserActionRow(
             Font labelFont, Font fieldFont,
             JComponent selectorField, JComboBox<?> browserCombo, JButton executeButton) {
         final int rowH = 28;
-        final int gap = 8;
 
         selectorField.setFont(fieldFont);
         browserCombo.setFont(fieldFont);
@@ -1241,6 +1292,7 @@ public class PanelFactory {
         lockComponentSize(selectorField, new Dimension(240, fieldH));
 
         int browserW = Math.max(browserCombo.getPreferredSize().width, 148);
+        browserW = Math.min(browserW, 260);
         lockComponentSize(browserCombo, new Dimension(browserW, fieldH));
 
         Dimension buttonPref = executeButton.getPreferredSize();
@@ -1249,29 +1301,38 @@ public class PanelFactory {
         lockComponentSize(executeButton, new Dimension(buttonW, buttonH));
         executeButton.setMargin(new Insets(0, 8, 0, 8));
 
-        JLabel selectorLabel = labeled(labelFont, "Selector：");
-        JLabel browserLabel = labeled(labelFont, "瀏覽器：");
+        JPanel column = new JPanel();
+        column.setOpaque(false);
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+        column.setAlignmentX(Component.LEFT_ALIGNMENT);
+        column.add(stackedField(labeled(labelFont, "Selector："), selectorField));
+        column.add(Box.createVerticalStrut(6));
+        column.add(stackedField(labeled(labelFont, "瀏覽器："), browserCombo));
+        column.add(Box.createVerticalStrut(6));
+        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        buttonRow.setOpaque(false);
+        buttonRow.add(executeButton);
+        pinRow(buttonRow);
+        column.add(buttonRow);
+        return column;
+    }
 
-        FlowLayout flow = new FlowLayout(FlowLayout.LEFT, gap, 0);
-        flow.setAlignOnBaseline(true);
-        JPanel content = new JPanel(flow);
-        content.setOpaque(false);
-        content.add(selectorLabel);
-        content.add(selectorField);
-        content.add(browserLabel);
-        content.add(browserCombo);
-        content.add(executeButton);
-
-        JPanel row = new JPanel(new BorderLayout());
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        row.setOpaque(false);
-        row.add(content, BorderLayout.WEST);
-
-        int h = Math.max(rowH + 4, content.getPreferredSize().height);
-        row.setMinimumSize(new Dimension(0, h));
-        row.setPreferredSize(new Dimension(row.getPreferredSize().width, h));
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
-        return row;
+    private static JPanel stackedField(JLabel label, JComponent field) {
+        JPanel block = new JPanel();
+        block.setOpaque(false);
+        block.setLayout(new BoxLayout(block, BoxLayout.Y_AXIS));
+        block.setAlignmentX(Component.LEFT_ALIGNMENT);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        field.setAlignmentX(Component.LEFT_ALIGNMENT);
+        block.add(label);
+        block.add(Box.createVerticalStrut(2));
+        block.add(field);
+        int h = label.getPreferredSize().height + field.getPreferredSize().height + 4;
+        int w = Math.max(label.getPreferredSize().width, field.getPreferredSize().width);
+        block.setMinimumSize(new Dimension(0, h));
+        block.setPreferredSize(new Dimension(Math.min(w, 280), h));
+        block.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
+        return block;
     }
 
     private static void lockComponentSize(JComponent component, Dimension size) {
@@ -1280,17 +1341,21 @@ public class PanelFactory {
         component.setMaximumSize(size);
     }
 
-    /** 標籤 + 可拉寬輸入欄（網址列） */
+    /** 標籤在上、輸入欄在下，欄位吃滿小方塊寬度。 */
     private static JPanel formRowStretch(JComponent label, JComponent field) {
-        JPanel row = new JPanel(new BorderLayout(8, 4));
+        JPanel row = new JPanel();
         row.setOpaque(false);
+        row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        field.setAlignmentX(Component.LEFT_ALIGNMENT);
         lockFieldHeight(field);
-        row.add(label, BorderLayout.WEST);
-        row.add(field, BorderLayout.CENTER);
-        int h = Math.max(28, Math.max(label.getPreferredSize().height, field.getPreferredSize().height) + 8);
-        row.setMinimumSize(new Dimension(120, h));
-        row.setPreferredSize(new Dimension(400, h));
+        row.add(label);
+        row.add(Box.createVerticalStrut(2));
+        row.add(field);
+        int h = label.getPreferredSize().height + field.getPreferredSize().height + 8;
+        row.setMinimumSize(new Dimension(0, h));
+        row.setPreferredSize(new Dimension(280, h));
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
         return row;
     }

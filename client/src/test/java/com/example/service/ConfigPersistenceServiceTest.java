@@ -68,6 +68,8 @@ public class ConfigPersistenceServiceTest {
         config.miniMode = true;
         config.windowWidth = 380;
         config.windowHeight = 520;
+        config.windowX = 40;
+        config.windowY = 64;
 
         configService.saveConfig(config, null);
         assertTrue(Files.exists(configFile));
@@ -89,6 +91,8 @@ public class ConfigPersistenceServiceTest {
         assertTrue(loaded.miniMode);
         assertEquals(380, loaded.windowWidth);
         assertEquals(520, loaded.windowHeight);
+        assertEquals(40, loaded.windowX);
+        assertEquals(64, loaded.windowY);
     }
 
     @Test

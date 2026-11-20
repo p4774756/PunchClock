@@ -8,6 +8,14 @@ public final class AppBranding {
     private AppBranding() {
     }
 
+    /**
+     * 選單列、關於與 Dock 顯示名稱。必須在 AWT 工具箱建立前呼叫。
+     */
+    public static void installPlatformName() {
+        System.setProperty("apple.awt.application.name", DISPLAY_NAME);
+        System.setProperty("com.apple.mrj.application.apple.menu.about.name", DISPLAY_NAME);
+    }
+
     public static String windowTitle(String versionLabel) {
         if (versionLabel == null || versionLabel.isBlank()) {
             return DISPLAY_NAME;

@@ -500,8 +500,14 @@ public class App extends JFrame {
 
     private void captureWindowLayoutInto(ConfigPersistenceService.CloudConfig config) {
         if (config == null) return;
-        config.windowWidth = getWidth();
-        config.windowHeight = getHeight();
+        boolean mini = shell != null && shell.isMiniMode();
+        // 迷你橫條不寫進 windowWidth／windowHeight，展開才還得回小方塊尺寸。
+        if (!mini
+                && getWidth() >= ShellDimensions.MIN_WIDTH
+                && getHeight() >= ShellDimensions.MIN_HEIGHT) {
+            config.windowWidth = getWidth();
+            config.windowHeight = getHeight();
+        }
         Point loc = getLocation();
         config.windowX = loc.x;
         config.windowY = loc.y;
@@ -520,17 +526,28 @@ public class App extends JFrame {
     }
 
     private void applyWindowLayout(ConfigPersistenceService.CloudConfig config) {
-        Dimension min = getMinimumSize();
         boolean mini = config != null && config.miniMode;
         int width;
         int height;
         if (mini) {
+            WindowChrome.setMiniBar(this, true);
+            if (marqueeBar != null) {
+                marqueeBar.setVisible(false);
+            }
             Dimension miniSize = ShellDimensions.miniSize();
-            width = Math.max(miniSize.width, min.width);
-            height = Math.max(miniSize.height, ShellDimensions.MINI_HEIGHT);
+            width = miniSize.width;
+            height = miniSize.height;
         } else {
-            width = config.windowWidth > 0 ? Math.max(config.windowWidth, min.width) : ShellDimensions.DEFAULT_WIDTH;
-            height = config.windowHeight > 0 ? Math.max(config.windowHeight, min.height) : ShellDimensions.DEFAULT_HEIGHT;
+            WindowChrome.setMiniBar(this, false);
+            if (marqueeBar != null) {
+                marqueeBar.setVisible(true);
+            }
+            width = config.windowWidth > 0
+                    ? Math.max(config.windowWidth, ShellDimensions.MIN_WIDTH)
+                    : ShellDimensions.DEFAULT_WIDTH;
+            height = config.windowHeight > 0
+                    ? Math.max(config.windowHeight, ShellDimensions.MIN_HEIGHT)
+                    : ShellDimensions.DEFAULT_HEIGHT;
         }
         setSize(width, height);
 
@@ -555,17 +572,34 @@ public class App extends JFrame {
         if (shell == null) {
             return;
         }
-        Dimension target = shell.isMiniMode() ? ShellDimensions.miniSize() : ShellDimensions.defaultSize();
-        if (!shell.isMiniMode()) {
-            ConfigPersistenceService.CloudConfig config =
-                    slotController == null ? null : slotController.getConfig();
+        ConfigPersistenceService.CloudConfig config =
+                slotController == null ? null : slotController.getConfig();
+        if (shell.isMiniMode()) {
+            if (config != null
+                    && getWidth() >= ShellDimensions.MIN_WIDTH
+                    && getHeight() >= ShellDimensions.MIN_HEIGHT) {
+                config.windowWidth = getWidth();
+                config.windowHeight = getHeight();
+            }
+            WindowChrome.setMiniBar(this, true);
+            if (marqueeBar != null) {
+                marqueeBar.setVisible(false);
+            }
+            Dimension miniSize = ShellDimensions.miniSize();
+            setSize(miniSize.width, miniSize.height);
+        } else {
+            WindowChrome.setMiniBar(this, false);
+            if (marqueeBar != null) {
+                marqueeBar.setVisible(true);
+            }
+            Dimension target = ShellDimensions.defaultSize();
             if (config != null && config.windowWidth > 0 && config.windowHeight > 0) {
                 target = new Dimension(
                         Math.max(config.windowWidth, ShellDimensions.MIN_WIDTH),
                         Math.max(config.windowHeight, ShellDimensions.MIN_HEIGHT));
             }
+            setSize(target.width, target.height);
         }
-        setSize(target.width, target.height);
         rememberWindowLayout();
     }
 
@@ -3035,6 +3069,8 @@ public class App extends JFrame {
     }
 
     public static void main(String[] args) {
+        // 必須在 Taskbar／第一個視窗建立工具箱之前，選單列與 Dock 才吃得到名稱。
+        AppBranding.installPlatformName();
         // macOS：改走 Metal 繪圖管線，避免預設 OpenGL 下字零星消失（必須在 AWT 初始化前）
         com.example.ui.MacGraphicsWorkaround.apply();
         // macOS：盡早設定 Dock icon（需在建立視窗前）
