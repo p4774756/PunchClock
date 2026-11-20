@@ -630,8 +630,3 @@ a.roadmap-source[aria-disabled="true"] {
     gap: 0.15rem;
   }
 }
-
-body.roadmap-open .island-list,
-body.roadmap-open .island-sheet {
-  visibility: hidden;
-}

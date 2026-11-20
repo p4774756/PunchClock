@@ -28,7 +28,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /** 首頁辦公室公開、管理 API／WS 仍需登入。 */
-public class PublicIslandAuthTest {
+public class PublicOfficeAuthTest {
 
     private static final String FAKE_ROADMAP_BODY = "## 分期\n"
             + "- [x] **Phase 3 群島地基**：地基\n"
@@ -72,7 +72,8 @@ public class PublicIslandAuthTest {
         assertTrue(response.body().contains("office-page.js"));
         assertTrue(response.body().contains("is-guest"));
         assertTrue(response.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
-        assertFalse(response.body().contains("islandCanvas"));
+        assertFalse(response.body().toLowerCase().contains("island"));
+        assertFalse(response.body().contains("神之島"));
         assertFalse(response.body().contains("dashboard.js"));
     }
 
@@ -166,6 +167,18 @@ public class PublicIslandAuthTest {
         HttpResponse<String> response = send("GET", "/login?next=/dev-status", adminCookie());
         assertEquals(302, response.statusCode());
         assertEquals("/dev-status", response.headers().firstValue("location").orElse(""));
+        HttpResponse<String> console = send("GET", "/login?next=/console", adminCookie());
+        assertEquals(302, console.statusCode());
+        assertEquals("/console", console.headers().firstValue("location").orElse(""));
+    }
+
+    @Test
+    public void loginFormKeepsConsoleNext() throws Exception {
+        HttpResponse<String> page = send("GET", "/login?next=/console", null);
+        assertEquals(200, page.statusCode());
+        assertTrue(page.body().contains("name=\"next\" value=\"/console\""));
+        assertTrue(page.body().contains("辦公室"));
+        assertFalse(page.body().contains("神之島"));
     }
 
     @Test

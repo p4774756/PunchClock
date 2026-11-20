@@ -113,25 +113,30 @@ export function createLabOfficeController(opts) {
       if (id === 'whiteboard') {
         href = isAuthed() ? '/dev-status' : '/login?next=%2Fdev-status';
       }
-      const el = doc.createElement('a');
+      const el = doc.createElement(id === 'whiteboard' ? 'div' : 'a');
       el.className = 'lab-office-prop';
       el.style.left = spec.x + '%';
       el.style.top = spec.y + '%';
-      el.href = href;
-      el.setAttribute('aria-label', id === 'whiteboard' ? '白板：開發狀態與主控台' : spec.label);
       const tag = doc.createElement('span');
       tag.className = 'lab-office-prop-label';
       setText(tag, spec.label);
-      el.appendChild(tag);
       if (id === 'whiteboard') {
-        const sub = doc.createElement('span');
+        const main = doc.createElement('a');
+        main.className = 'lab-office-prop-main';
+        main.href = href;
+        main.setAttribute('aria-label', '白板：開發狀態');
+        main.appendChild(tag);
+        const sub = doc.createElement('a');
         sub.className = 'lab-office-prop-label lab-office-prop-sub';
-        const c = doc.createElement('a');
-        c.href = isAuthed() ? '/console' : '/login?next=%2Fconsole';
-        c.textContent = '主控台';
-        c.addEventListener('click', (ev) => ev.stopPropagation());
-        sub.appendChild(c);
+        sub.href = isAuthed() ? '/console' : '/login?next=%2Fconsole';
+        sub.textContent = '主控台';
+        el.setAttribute('aria-label', '白板：開發狀態與主控台');
+        el.appendChild(main);
         el.appendChild(sub);
+      } else {
+        el.href = href;
+        el.setAttribute('aria-label', spec.label);
+        el.appendChild(tag);
       }
       layer.appendChild(el);
     }

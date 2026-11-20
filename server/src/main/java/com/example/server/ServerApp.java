@@ -376,7 +376,6 @@ public final class ServerApp {
         response.put("actions", List.of());
         response.put("peers", clientStore.peerSnapshot(clientId));
         response.put("ackTimestamp", Instant.now().toString());
-        response.put("marquee", Map.of("enabled", false, "text", ""));
         if (clientRelease.isAvailable()
                 && ClientUpdatePolicy.shouldOffer(appVersion, appSourceDigest, appReleaseTime,
                         clientRelease.sourceDigest(), clientRelease.releaseTime())) {

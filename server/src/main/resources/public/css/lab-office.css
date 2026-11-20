@@ -110,13 +110,14 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+  z-index: 2;
 }
 
 .lab-office-props {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 3;
+  z-index: 4;
 }
 
 .lab-office-prop {
@@ -158,10 +159,45 @@
   box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.18);
 }
 
-.lab-office-prop-sub a {
-  color: #204e96;
-  font-size: 10px;
-  text-decoration: underline;
+.lab-office-prop:has(> .lab-office-prop-main)::before {
+  content: none;
+}
+
+.lab-office-prop-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+  text-decoration: none;
+  color: inherit;
+}
+
+.lab-office-prop-main::before {
+  content: '';
+  width: 28px;
+  height: 28px;
+  border: 3px solid #163a70;
+  border-radius: 6px;
+  background: rgba(248, 251, 255, 0.88);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.22);
+}
+
+a.lab-office-prop-sub {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  min-height: 44px;
+  padding: 4px 10px;
+  color: #163a70;
+  font-size: 13px;
+  line-height: 1.2;
+  text-decoration: none;
 }
 
 .lab-office-auth {
@@ -222,6 +258,7 @@
   writing-mode: horizontal-tb;
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
   z-index: 2;
+  pointer-events: none;
 }
 
 .lab-office-char:focus-visible {
@@ -290,6 +327,11 @@
     line-height: 1.2;
     padding: 2px 3px;
     overflow-wrap: anywhere;
+  }
+  a.lab-office-prop-sub {
+    min-width: 76px;
+    min-height: 44px;
+    font-size: 14px;
   }
   .lab-office-portrait {
     max-height: 112px;

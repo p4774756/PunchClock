@@ -84,7 +84,7 @@ body.console-page {
   display: none;
 }
 
-.console-page.island-sheet-open .console-sheet,
+.console-page.console-sheet-open .console-sheet,
 .console-page .console-sheet:not([hidden]) {
   display: block;
 }

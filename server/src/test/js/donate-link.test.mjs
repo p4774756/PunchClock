@@ -112,8 +112,8 @@ test('placeholder click shows single toast', () => {
 
 test('donate toast uses placement class and top slot for dev', () => {
   const doc = miniDoc();
-  const islandToast = D.showDonateToast(doc, 'island');
-  assert.ok(String(islandToast.className).includes('donate-toast--island'));
+  const topToast = D.showDonateToast(doc, 'top');
+  assert.ok(String(topToast.className).includes('donate-toast--top'));
   D.dismissDonateToast(doc);
   const devToast = D.showDonateToast(doc, 'dev');
   assert.ok(String(devToast.className).includes('donate-toast--dev'));
