@@ -105,4 +105,28 @@ case "$RUNS_JSON" in
   *'"issue":999'*) fail "runs json must ignore cursor-agent prompt run-wt.sh run999-f3" ;;
 esac
 
+# --- run-review ps parsing ---
+MOCK_GIT_SHORT="cafebabe"
+MOCK_PS_REVIEW='  08:00 sh /path/run-review.sh run254-v2 prompt.md ~/PunchClock-oki/wt-254 claude-opus-5-thinking-high
+  20:10 sh run-review.sh run247-d1 p ~/PunchClock-oki/wt-247'
+RUNS_JSON="[]"
+read_review_runs
+case "$RUNS_JSON" in
+  *'"role":"review"'*) ;;
+  *) fail "review runs missing role review" ;;
+esac
+case "$RUNS_JSON" in
+  *'"issue":254'*) ;;
+  *) fail "review runs missing issue 254" ;;
+esac
+case "$RUNS_JSON" in
+  *'"round":2'*) ;;
+  *) fail "review runs missing round 2" ;;
+esac
+
+assert_eq "$(json_role_field 'dev')" '"dev"' "json role dev"
+assert_eq "$(json_role_field 'nope')" "null" "json role bad"
+assert_eq "$(json_verdict_field 'PASS')" '"PASS"' "json verdict"
+assert_eq "$(read_review_verdict "$HOME/PunchClock-oki/wt-247")" "FAIL" "read verdict from shots247-self"
+
 echo "dev-heartbeat-selftest: ok"

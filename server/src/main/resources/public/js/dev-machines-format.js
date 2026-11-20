@@ -278,6 +278,34 @@ export function mergeRoadmapDevStatusLink(doc, container, opts) {
     bindGuestDevStatusNav(a, doc, o);
   }
   container.appendChild(a);
+  mergeRoadmapLabOfficeButton(doc, container, o, authed);
+}
+
+/** 施工進度右下角：虛擬辦公室捷徑（與開發機狀態相同登入控管）。 */
+export function mergeRoadmapLabOfficeButton(doc, container, opts, authedFlag) {
+  if (!doc || !container) return;
+  const authed = authedFlag != null ? authedFlag : viewerCanLink(opts && opts.authenticated);
+  const btn = doc.createElement('button');
+  btn.type = 'button';
+  btn.className = 'roadmap-btn roadmap-btn-secondary';
+  btn.textContent = '虛擬辦公室';
+  btn.setAttribute('data-open-lab-office', '1');
+  if (!authed) {
+    const loginHref = (opts && opts.loginHref) || DEV_STATUS_LOGIN_NEXT;
+    const toastMessage = (opts && opts.toastMessage) || '虛擬辦公室需管理員登入後查看';
+    const open = (ev) => {
+      if (ev) ev.preventDefault();
+      showLoginRequiredToast(doc, loginHref, toastMessage);
+    };
+    btn.addEventListener('click', open);
+    btn.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        open(ev);
+      }
+    });
+  }
+  container.appendChild(btn);
 }
 
 function bindGuestDevStatusNav(node, doc, opts) {

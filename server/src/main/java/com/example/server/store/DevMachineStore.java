@@ -20,6 +20,9 @@ public final class DevMachineStore {
     private static final Pattern BRANCH_PATTERN = Pattern.compile("^[A-Za-z0-9._/-]{1,64}$");
     private static final Pattern COMMIT_PATTERN = Pattern.compile("^[0-9a-fA-F]{7,40}$");
     private static final Pattern WORKTREE_PATTERN = Pattern.compile("^[A-Za-z0-9._/~-]{1,128}$");
+    private static final Pattern ROLE_PATTERN = Pattern.compile("^(dev|review)$");
+    private static final Pattern VERDICT_PATTERN = Pattern.compile("^(PASS|FAIL|UNKNOWN)$");
+    private static final Pattern MODEL_PATTERN = Pattern.compile("^[A-Za-z0-9._+-]{1,64}$");
 
     private static final List<String> MACHINE_ORDER = List.of("home", "office");
     private static final Map<String, String> LABELS = Map.of(
@@ -39,14 +42,21 @@ public final class DevMachineStore {
         public final Long startedAt;
         public final String worktree;
         public final String commit;
+        public final String role;
+        public final String model;
+        public final String verdict;
 
-        RunEntry(int issue, int round, String branch, Long startedAt, String worktree, String commit) {
+        RunEntry(int issue, int round, String branch, Long startedAt, String worktree, String commit,
+                 String role, String model, String verdict) {
             this.issue = issue;
             this.round = round;
             this.branch = branch;
             this.startedAt = startedAt;
             this.worktree = worktree;
             this.commit = commit;
+            this.role = role;
+            this.model = model;
+            this.verdict = verdict;
         }
     }
 
@@ -61,10 +71,14 @@ public final class DevMachineStore {
         public final Integer battery;
         public final Boolean charging;
         public final List<RunEntry> runs;
+        public final String role;
+        public final Integer round;
+        public final String model;
+        public final String verdict;
 
         Snapshot(String machine, long lastSeen, Integer issue, String branch, Long runStartedAt,
                  boolean agentRunning, String commit, Integer battery, Boolean charging,
-                 List<RunEntry> runs) {
+                 List<RunEntry> runs, String role, Integer round, String model, String verdict) {
             this.machine = machine;
             this.lastSeen = lastSeen;
             this.issue = issue;
@@ -75,6 +89,10 @@ public final class DevMachineStore {
             this.battery = battery;
             this.charging = charging;
             this.runs = runs == null ? List.of() : List.copyOf(runs);
+            this.role = role;
+            this.round = round;
+            this.model = model;
+            this.verdict = verdict;
         }
     }
 
@@ -126,7 +144,11 @@ public final class DevMachineStore {
                 parsed.commit,
                 parsed.battery,
                 parsed.charging,
-                parsed.runs
+                parsed.runs,
+                parsed.role,
+                parsed.round,
+                parsed.model,
+                parsed.verdict
         );
         byMachine.put(machine, next);
         return ApplyResult.OK;
@@ -166,6 +188,18 @@ public final class DevMachineStore {
                 if (snap.charging != null) {
                     row.put("charging", snap.charging);
                 }
+                if (snap.role != null) {
+                    row.put("role", snap.role);
+                }
+                if (snap.round != null) {
+                    row.put("round", snap.round);
+                }
+                if (snap.model != null) {
+                    row.put("model", snap.model);
+                }
+                if (snap.verdict != null) {
+                    row.put("verdict", snap.verdict);
+                }
                 row.put("runs", runsForApi(snap.runs, titles));
             }
             out.add(row);
@@ -189,6 +223,15 @@ public final class DevMachineStore {
             }
             if (run.commit != null) {
                 row.put("commit", run.commit);
+            }
+            if (run.role != null) {
+                row.put("role", run.role);
+            }
+            if (run.model != null) {
+                row.put("model", run.model);
+            }
+            if (run.verdict != null) {
+                row.put("verdict", run.verdict);
             }
             String title = titles == null ? "" : titles.title(run.issue);
             if (title != null && !title.isEmpty()) {
@@ -241,9 +284,14 @@ public final class DevMachineStore {
         final Integer battery;
         final Boolean charging;
         final List<RunEntry> runs;
+        final String role;
+        final Integer round;
+        final String model;
+        final String verdict;
 
         private Parsed(boolean valid, Integer issue, String branch, Long runStartedAt, boolean agentRunning,
-                       String commit, Integer battery, Boolean charging, List<RunEntry> runs) {
+                       String commit, Integer battery, Boolean charging, List<RunEntry> runs,
+                       String role, Integer round, String model, String verdict) {
             this.valid = valid;
             this.issue = issue;
             this.branch = branch;
@@ -253,6 +301,10 @@ public final class DevMachineStore {
             this.battery = battery;
             this.charging = charging;
             this.runs = runs == null ? List.of() : runs;
+            this.role = role;
+            this.round = round;
+            this.model = model;
+            this.verdict = verdict;
         }
 
         static Parsed from(Map<String, Object> fields) {
@@ -358,12 +410,81 @@ public final class DevMachineStore {
                 }
                 runs = parsedRuns.entries;
             }
-            return new Parsed(true, issue, branch, runStartedAt, agentRunning, commit, battery, charging, runs);
+            String role = parseRole(fields.get("role"));
+            if (fields.containsKey("role") && role == null && fields.get("role") != null) {
+                return invalid();
+            }
+            Integer round = parseMachineRound(fields.get("round"));
+            if (fields.containsKey("round") && round == null && fields.get("round") != null) {
+                return invalid();
+            }
+            String model = parseModel(fields.get("model"));
+            if (fields.containsKey("model") && model == null && fields.get("model") != null) {
+                return invalid();
+            }
+            String verdict = parseVerdict(fields.get("verdict"));
+            if (fields.containsKey("verdict") && verdict == null && fields.get("verdict") != null) {
+                return invalid();
+            }
+            return new Parsed(true, issue, branch, runStartedAt, agentRunning, commit, battery, charging, runs,
+                    role, round, model, verdict);
         }
 
         static Parsed invalid() {
-            return new Parsed(false, null, null, null, false, null, null, null, List.of());
+            return new Parsed(false, null, null, null, false, null, null, null, List.of(),
+                    null, null, null, null);
         }
+    }
+
+    private static String parseRole(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        String s = String.valueOf(raw);
+        if (!ROLE_PATTERN.matcher(s).matches()) {
+            return null;
+        }
+        return s;
+    }
+
+    private static Integer parseMachineRound(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        if (!(raw instanceof Number)) {
+            return null;
+        }
+        Number num = (Number) raw;
+        if (!isWholeNumber(num)) {
+            return null;
+        }
+        int n = num.intValue();
+        if (n < 0 || n > 9) {
+            return null;
+        }
+        return n;
+    }
+
+    private static String parseModel(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        String s = String.valueOf(raw);
+        if (!MODEL_PATTERN.matcher(s).matches()) {
+            return null;
+        }
+        return s;
+    }
+
+    private static String parseVerdict(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        String s = String.valueOf(raw);
+        if (!VERDICT_PATTERN.matcher(s).matches()) {
+            return null;
+        }
+        return s;
     }
 
     private static final class ParseRuns {
@@ -477,7 +598,19 @@ public final class DevMachineStore {
                 commit = s.toLowerCase();
             }
         }
-        return new RunEntry(issue, round, branch, startedAt, worktree, commit);
+        String role = parseRole(map.get("role"));
+        if (map.containsKey("role") && role == null && map.get("role") != null) {
+            return null;
+        }
+        String model = parseModel(map.get("model"));
+        if (map.containsKey("model") && model == null && map.get("model") != null) {
+            return null;
+        }
+        String verdict = parseVerdict(map.get("verdict"));
+        if (map.containsKey("verdict") && verdict == null && map.get("verdict") != null) {
+            return null;
+        }
+        return new RunEntry(issue, round, branch, startedAt, worktree, commit, role, model, verdict);
     }
 
     private static boolean isWholeNumber(Number num) {

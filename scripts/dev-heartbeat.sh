@@ -111,6 +111,65 @@ json_started_field() {
   esac
 }
 
+json_string_field() {
+  s=$1
+  if [ -z "$s" ]; then
+    printf 'null'
+    return
+  fi
+  if printf '%s' "$s" | LC_ALL=C grep -Eq '^[A-Za-z0-9._+-]{1,64}$'; then
+    printf '"%s"' "$s"
+  else
+    printf 'null'
+  fi
+}
+
+json_role_field() {
+  r=$1
+  case "$r" in
+    dev|review) printf '"%s"' "$r" ;;
+    *) printf 'null' ;;
+  esac
+}
+
+json_verdict_field() {
+  v=$1
+  case "$v" in
+    PASS|FAIL|UNKNOWN) printf '"%s"' "$v" ;;
+    *) printf 'null' ;;
+  esac
+}
+
+# 僅上報 PASS / FAIL / UNKNOWN（讀 REVIEW-round*.md 第一行 VERDICT:）
+read_review_verdict() {
+  wt=$1
+  if [ -z "$wt" ]; then
+    return
+  fi
+  base=$(basename "$wt")
+  issue=$(printf '%s' "$base" | sed -n 's/^wt-\([0-9][0-9]*\).*/\1/p')
+  if [ -z "$issue" ]; then
+    return
+  fi
+  dir="$HOME/PunchClock-oki/shots${issue}-self"
+  if [ ! -d "$dir" ]; then
+    return
+  fi
+  latest=""
+  for f in "$dir"/REVIEW-round*.md; do
+    [ -f "$f" ] || continue
+    latest=$f
+  done
+  if [ -z "$latest" ]; then
+    return
+  fi
+  line=$(sed -n '1p' "$latest")
+  verdict=$(printf '%s' "$line" | sed -n 's/^VERDICT:[[:space:]]*\([A-Z]*\).*/\1/p')
+  case "$verdict" in
+    PASS|FAIL|UNKNOWN) printf '%s' "$verdict" ;;
+  esac
+}
+
 read_battery() {
   if ! command -v pmset >/dev/null 2>&1; then
     return
@@ -321,7 +380,7 @@ read_wt_runs() {
     if [ -n "$wt" ]; then
       wt_json=$(printf ',"worktree":"%s"' "$wt")
     fi
-    part=$(printf '{"issue":%s,"round":%s,"branch":"%s","startedAt":%s%s%s}' \
+    part=$(printf '{"issue":%s,"round":%s,"branch":"%s","startedAt":%s,"role":"dev"%s%s}' \
       "$issue" "$round" "$branch" "$started" "$wt_json" "$commit_json")
     json="$json$sep$part"
     sep=","
@@ -330,6 +389,143 @@ $tsv
 EOF
   json="$json]"
   RUNS_JSON="$json"
+}
+
+# 解析 ps 中的 run-review.sh <name> <prompt> <worktree> [model]
+read_review_runs() {
+  extra_json=""
+  if [ -n "$MOCK_PS_REVIEW" ]; then
+    ps_out="$MOCK_PS_REVIEW"
+  else
+    ps_out=$(ps -axo etime=,command= 2>/dev/null)
+  fi
+  [ -z "$ps_out" ] && return 0
+  now_ms=$(date +%s)000
+  tsv=$(printf '%s\n' "$ps_out" | awk -v now_ms="$now_ms" '
+    function etime_ms(e,    n, d, h, m, s) {
+      gsub(/^[ \t]+|[ \t]+$/, "", e)
+      n = split(e, p, /[-:]/)
+      if (e ~ /^[0-9]+-[0-9]+:[0-9]+:[0-9]+$/) {
+        d = p[1] + 0; h = p[2] + 0; m = p[3] + 0; s = p[4] + 0
+        return (d * 86400000 + h * 3600000 + m * 60000 + s * 1000)
+      }
+      if (e ~ /^[0-9]+:[0-9]+:[0-9]+$/) {
+        h = p[1] + 0; m = p[2] + 0; s = p[3] + 0
+        return (h * 3600000 + m * 60000 + s * 1000)
+      }
+      if (e ~ /^[0-9]+:[0-9]+$/) {
+        m = p[1] + 0; s = p[2] + 0
+        return (m * 60000 + s * 1000)
+      }
+      return 0
+    }
+    function parse_name(name,    issue, role, round) {
+      issue = 0; role = "dev"; round = 0
+      if (match(name, /^run[0-9]+/)) {
+        sub(/^run/, "", name)
+        if (match(name, /^[0-9]+/)) {
+          issue = substr(name, RSTART, RLENGTH) + 0
+          name = substr(name, RSTART + RLENGTH)
+        }
+      }
+      if (match(name, /^-[dvD]([0-9]+)/)) {
+        letter = substr(name, RSTART + 1, 1)
+        if (tolower(letter) == "v") role = "review"
+        else role = "dev"
+        round = substr(name, RSTART + 2, RLENGTH - 2) + 0
+      } else if (match(name, /^-f([0-9]+)/)) {
+        round = substr(name, RSTART + 2, RLENGTH - 2) + 0
+        role = "dev"
+      }
+      return issue "|" role "|" round
+    }
+    BEGIN { count = 0 }
+    {
+      line = $0
+      if (line !~ /run-review\.sh/) next
+      et = $1
+      started = now_ms - etime_ms(et)
+      n = split(line, parts, /[ \t]+/)
+      job = ""; wt = ""; model = ""
+      for (i = 1; i <= n; i++) {
+        if (parts[i] ~ /run-review\.sh$/) {
+          if (i + 1 <= n) job = parts[i + 1]
+          for (j = i + 2; j <= n; j++) {
+            if (parts[j] ~ /^(\/|~)/) {
+              wt = parts[j]
+              if (j + 1 <= n && parts[j + 1] !~ /^(\/|~)/ && parts[j + 1] !~ /\.(md|txt|sh)$/) {
+                model = parts[j + 1]
+              }
+              break
+            }
+          }
+          break
+        }
+      }
+      if (job == "") next
+      split(parse_name(job), pr, /\|/)
+      issue = pr[1] + 0
+      role = pr[2]
+      round = pr[3] + 0
+      if (issue < 1) next
+      branch = "ai/issue-" issue
+      key = issue SUBSEP role
+      if (!(key in best_started) || started > best_started[key]) {
+        best_started[key] = started
+        best_issue[key] = issue
+        best_round[key] = round
+        best_branch[key] = branch
+        best_wt[key] = wt
+        best_role[key] = role
+        best_model[key] = model
+      }
+    }
+    END {
+      for (k in best_started) {
+        if (count >= 12) continue
+        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+          best_issue[k], best_round[k], best_branch[k], best_started[k], best_wt[k], best_role[k], best_model[k]
+        count++
+      }
+    }
+  ')
+  [ -z "$tsv" ] && return 0
+  extra="["
+  sep=""
+  while IFS='	' read -r issue round branch started wt role model; do
+    [ -z "$issue" ] && continue
+    commit_json=""
+    if [ -n "$wt" ]; then
+      sha=$(worktree_head_short "$wt") || sha=""
+      if [ -n "$sha" ]; then
+        commit_json=$(printf ',"commit":"%s"' "$sha")
+      fi
+    fi
+    wt_json=""
+    if [ -n "$wt" ]; then
+      wt_json=$(printf ',"worktree":"%s"' "$wt")
+    fi
+    verdict=$(read_review_verdict "$wt")
+    role_json=$(json_role_field "$role")
+    model_json=$(json_string_field "$model")
+    verdict_json=$(json_verdict_field "$verdict")
+    part=$(printf '{"issue":%s,"round":%s,"branch":"%s","startedAt":%s,"role":%s,"model":%s,"verdict":%s%s%s}' \
+      "$issue" "$round" "$branch" "$started" "$role_json" "$model_json" "$verdict_json" "$wt_json" "$commit_json")
+    extra="$extra$sep$part"
+    sep=","
+  done <<EOF
+$tsv
+EOF
+  extra="$extra]"
+  if [ "$RUNS_JSON" = "[]" ] || [ -z "$RUNS_JSON" ]; then
+    RUNS_JSON="$extra"
+    return
+  fi
+  merged=$(printf '%s' "$RUNS_JSON" | sed 's/]$//')
+  inner=$(printf '%s' "$extra" | sed 's/^\[//;s/\]$//')
+  if [ -n "$inner" ]; then
+    RUNS_JSON="${merged},${inner}]"
+  fi
 }
 
 git_commit() {
@@ -361,6 +557,7 @@ do_beat() {
   fi
   read_run
   read_wt_runs
+  read_review_runs
   if [ -z "$ISSUE" ] && [ "$RUNS_JSON" != "[]" ]; then
   picked=$(pick_longest_run_from_json "$RUNS_JSON")
     if [ -n "$picked" ]; then
@@ -382,8 +579,56 @@ do_beat() {
   branch_json=$(json_branch_field "$BRANCH")
   started_json=$(json_started_field "$STARTED")
   runs_json="$RUNS_JSON"
-  payload=$(printf '{"machine":"%s","issue":%s,"branch":%s,"runStartedAt":%s,"agentRunning":%s,"runs":%s%s%s}' \
-    "$machine" "$issue_json" "$branch_json" "$started_json" "$agent" "$runs_json" "$COMMIT_JSON" "$BATTERY_JSON")
+  role_json="null"
+  round_json="null"
+  model_json="null"
+  verdict_json="null"
+  if [ -n "$ISSUE" ]; then
+    wt_guess="$HOME/PunchClock-oki/wt-${ISSUE}"
+    v=$(read_review_verdict "$wt_guess")
+    verdict_json=$(json_verdict_field "$v")
+  fi
+  if [ "$RUNS_JSON" != "[]" ]; then
+    primary=$(printf '%s' "$RUNS_JSON" | awk '
+      function grab(s, key,    pat) {
+        pat = "\"" key "\":"
+        if (match(s, pat "[0-9]+")) return substr(s, RSTART + length(key) + 3, RLENGTH - length(key) - 3)
+        if (match(s, pat "\"[^\"]+\"")) return substr(s, RSTART + length(key) + 3, RLENGTH - length(key) - 4)
+        return ""
+      }
+      BEGIN { st = -1 }
+      {
+        s = $0
+        if (match(s, /"startedAt":([0-9]+)/)) {
+          t = substr(s, RSTART + 13, RLENGTH - 13) + 0
+          if (st < 0 || t > st) {
+            st = t
+            role = grab(s, "role")
+            round = grab(s, "round")
+            model = grab(s, "model")
+          }
+        }
+      }
+      END {
+        if (role != "") printf "%s|%s|%s", role, round, model
+      }
+    ')
+    if [ -n "$primary" ]; then
+      pr_role=$(printf '%s' "$primary" | cut -d'|' -f1)
+      pr_round=$(printf '%s' "$primary" | cut -d'|' -f2)
+      pr_model=$(printf '%s' "$primary" | cut -d'|' -f3)
+      role_json=$(json_role_field "$pr_role")
+      case "$pr_round" in
+        ''|*[!0-9]*) round_json="null" ;;
+        *) round_json="$pr_round" ;;
+      esac
+      model_json=$(json_string_field "$pr_model")
+    fi
+  fi
+  payload=$(printf '{"machine":"%s","issue":%s,"branch":%s,"runStartedAt":%s,"agentRunning":%s,"role":%s,"round":%s,"model":%s,"verdict":%s,"runs":%s%s%s}' \
+    "$machine" "$issue_json" "$branch_json" "$started_json" "$agent" \
+    "$role_json" "$round_json" "$model_json" "$verdict_json" \
+    "$runs_json" "$COMMIT_JSON" "$BATTERY_JSON")
   if ! command -v curl >/dev/null 2>&1; then
     exit 0
   fi

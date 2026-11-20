@@ -64,6 +64,8 @@ import { createCasinoController, CASINO_NAME, promptDomUpdate } from './island-c
 import { createGraffitiController } from './island-graffiti.js';
 import { applyIslandOpenRoadmapParam } from './dev-machines-format.js';
 import { createRoadmapController } from './island-roadmap.js';
+import { createLabOfficeController } from './island-lab-office.js';
+import { showLoginRequiredToast } from './dev-machines-format.js';
 import {
   INTERIOR_ORIGIN,
   ISLAND_CAMERA_FAR,
@@ -1009,6 +1011,24 @@ function boot() {
 
   function roadmapOpen() {
     return !!(roadmap && roadmap.isOpen());
+  }
+
+  let labOffice = null;
+
+  function labOfficeOpen() {
+    return !!(labOffice && labOffice.isOpen());
+  }
+
+  function openLabOffice() {
+    if (!labOffice) return;
+    if (window.PUNCHCLOCK_AUTHENTICATED !== true) {
+      showLoginRequiredToast(document, '/login?next=/', '虛擬辦公室需管理員登入後查看');
+      return;
+    }
+    if (roadmap && roadmap.isOpen()) roadmap.close();
+    if (graffiti && graffiti.isOpen()) graffiti.close();
+    if (casino && casino.isOpen()) casino.closeLobby();
+    labOffice.open();
   }
 
   const flow = createExploreFlow({
@@ -2340,6 +2360,7 @@ function boot() {
     if (casino && casino.isOpen()) casino.closeLobby();
     if (graffiti && graffiti.isOpen()) graffiti.close();
     if (roadmap && roadmap.isOpen()) roadmap.close();
+    if (labOffice && labOffice.isOpen()) labOffice.close();
     if (sheetOpen() && typeof window.switchDashTab === 'function') window.switchDashTab('');
     const list = document.getElementById('islandList');
     const listBtn = document.getElementById('islandListBtn');
@@ -2599,6 +2620,10 @@ function boot() {
           enterTcmStudy();
           return true;
         }
+        if (zone.action === 'openLabOffice') {
+          openLabOffice();
+          return true;
+        }
         if (zone.action === 'openCareerCard') {
           career.showCard(zone.entryId);
           return true;
@@ -2655,7 +2680,13 @@ function boot() {
           flow.lobbyChanged(false);
         }
       },
-      onData: (data, copy) => paintRoadmapSign(copy)
+      onData: (data, copy) => paintRoadmapSign(copy),
+      onLabOffice: () => openLabOffice()
+    }
+  });
+  labOffice = createLabOfficeController({
+    hooks: {
+      onGuest: () => showLoginRequiredToast(document, '/login?next=/', '虛擬辦公室需管理員登入後查看')
     }
   });
   roadmap.refresh();

@@ -1,0 +1,230 @@
+/* 研發二樓 Live 虛擬辦公室 · 楓之谷平面風（無漸層／無外光暈／無 backdrop-filter） */
+
+.lab-office-root {
+  position: fixed;
+  inset: 0;
+  z-index: 9400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background: #0a1628;
+}
+
+.lab-office-root[hidden] {
+  display: none !important;
+}
+
+.lab-office-frame {
+  position: relative;
+  width: min(100%, 1280px);
+  max-height: calc(100vh - 16px);
+  border: 6px solid #163a70;
+  outline: 2px solid #a8d0f2;
+  outline-offset: -8px;
+  background: #e6effa;
+  box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.31);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lab-office-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0.5rem 0.75rem;
+  background: #3a7ac4;
+  color: #f8fbff;
+  border-bottom: 4px solid #163a70;
+}
+
+.lab-office-head h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.lab-office-close {
+  font-family: inherit;
+  font-size: 1.35rem;
+  line-height: 1;
+  min-width: 2rem;
+  min-height: 2rem;
+  border: 3px solid #163a70;
+  background: #f8fbff;
+  color: #163a70;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.lab-office-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 120px);
+  background: #07111f;
+  overflow: hidden;
+  touch-action: manipulation;
+}
+
+.lab-office-bg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.lab-office-chars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.lab-office-char {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lab-office-char img {
+  display: block;
+  height: clamp(72px, 18vw, 140px);
+  width: auto;
+}
+
+.lab-office-char.is-work img {
+  animation: lab-office-typing 0.45s steps(2) infinite;
+}
+
+@keyframes lab-office-typing {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.lab-office-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  max-width: 160px;
+  padding: 4px 6px;
+  background: #f8fbff;
+  color: #163a70;
+  border: 2px solid #163a70;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: center;
+  white-space: normal;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25);
+}
+
+.lab-office-char:focus-visible {
+  outline: 3px solid #ecc440;
+  outline-offset: 2px;
+}
+
+.lab-office-card-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 22, 40, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  z-index: 5;
+}
+
+.lab-office-card-backdrop[hidden] {
+  display: none !important;
+}
+
+.lab-office-card {
+  display: grid;
+  grid-template-columns: minmax(120px, 38%) 1fr;
+  gap: 12px;
+  width: min(100%, 520px);
+  border: 5px solid #163a70;
+  background: #f8fbff;
+  border-radius: 6px;
+  padding: 10px;
+  box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.31);
+}
+
+@media (max-width: 520px) {
+  .lab-office-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lab-office-portrait {
+  width: 100%;
+  height: auto;
+  border: 3px solid #204e96;
+  background: #e6effa;
+}
+
+.lab-office-card-body h3 {
+  font-size: 1rem;
+  color: #163a70;
+  margin-bottom: 6px;
+}
+
+.lab-office-card-line {
+  font-size: 13px;
+  color: #142440;
+  margin-bottom: 4px;
+}
+
+.lab-office-foot {
+  padding: 0.4rem 0.65rem;
+  text-align: center;
+  font-size: 12px;
+  color: #465a78;
+  background: #d8e6f6;
+  border-top: 3px solid #204e96;
+}
+
+.lab-office-guest {
+  padding: 1rem;
+  text-align: center;
+  color: #f8fbff;
+}
+
+.dev-status-tabs {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.dev-status-tab {
+  font-family: inherit;
+  font-size: 14px;
+  padding: 0.35rem 0.9rem;
+  border: 3px solid #163a70;
+  background: #f8fbff;
+  color: #163a70;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.dev-status-tab.is-active {
+  background: #ecc440;
+  border-color: #163a70;
+}
+
+.roadmap-dev-machines-nav {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}

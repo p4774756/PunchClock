@@ -1,4 +1,5 @@
 import { mountDonateLinks } from './donate-link.js';
+import { createLabOfficeController } from './island-lab-office.js';
 import {
   buildRunRows,
   createGithubLink,
@@ -248,13 +249,32 @@ function renderMachines(root, payload, devStatus, now, doc) {
   updateDevMachinesLoginFooter(d, canLink);
 }
 
+export function bindDevStatusTabs(doc, onTab) {
+  if (!doc || !doc.querySelectorAll) return;
+  const tabs = doc.querySelectorAll('[data-dev-tab]');
+  tabs.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-dev-tab') || 'machines';
+      tabs.forEach((el) => {
+        const active = el.getAttribute('data-dev-tab') === id;
+        el.classList.toggle('is-active', active);
+        el.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      if (typeof onTab === 'function') onTab(id);
+    });
+  });
+}
+
 export function createDevMachinesPage(opts) {
   const doc = (opts && opts.doc) || document;
+  const win = (opts && opts.win) || (typeof window !== 'undefined' ? window : null);
   const fetchFn = (opts && opts.fetch) || (globalThis.fetch ? globalThis.fetch.bind(globalThis) : null);
   const root = doc.getElementById('devMachinesRoot');
   let timer = null;
   let lastGood = null;
   let lastDev = null;
+  let activeTab = 'machines';
+  let officeCtrl = null;
 
   function stopTimer() {
     if (timer != null) {
@@ -270,14 +290,53 @@ export function createDevMachinesPage(opts) {
 
   function onVisibility() {
     if (doc.hidden) stopTimer();
-    else {
+    else if (activeTab === 'machines') {
       refresh();
       schedule();
+    } else if (officeCtrl) {
+      officeCtrl.refresh();
     }
   }
 
+  function showMachinesView() {
+    if (root) root.hidden = false;
+    const host = doc.getElementById('labOfficeRoot');
+    if (host) host.hidden = true;
+    if (officeCtrl) officeCtrl.close();
+  }
+
+  function showOfficeView() {
+    if (!isAdminViewer()) {
+      renderGuestLoginPanel(root, doc);
+      return;
+    }
+    if (root) {
+      root.replaceChildren();
+      root.hidden = true;
+    }
+    if (!officeCtrl) {
+      officeCtrl = createLabOfficeController({ doc, win });
+    }
+    officeCtrl.open();
+  }
+
+  function onTab(id) {
+    activeTab = id === 'office' ? 'office' : 'machines';
+    if (activeTab === 'office') {
+      stopTimer();
+      showOfficeView();
+    } else {
+      showMachinesView();
+      refresh();
+      if (!doc.hidden) schedule();
+    }
+  }
+
+  bindDevStatusTabs(doc, onTab);
+
   function refresh() {
     if (!fetchFn || !root) return;
+    if (activeTab === 'office') return;
     if (!isAdminViewer()) {
       renderGuestLoginPanel(root, doc);
       stopTimer();
