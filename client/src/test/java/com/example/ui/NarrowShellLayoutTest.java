@@ -89,7 +89,37 @@ public class NarrowShellLayoutTest {
             assertTrue(covered <= refs.peerTable.getWidth() + 2);
             assertTrue(refs.peerHintLabel.getWidth() <= VIEW_W);
             assertTrue(refs.peerHintLabel.getWidth() > 40);
+            refs.peerTableModel.addRow(new Object[]{"company-worker2", "在線", 0, "3.0.0", "☆"});
+            refs.peerTableModel.addRow(new Object[]{"company-worker3", "離線", 2, "3.0.0", "★"});
+            assertPeerIdsFit(refs.peerTable, 300);
         });
+    }
+
+    /** 380 寬小方塊裡好友表大約 300px，裝置 ID 與欄名都要完整。 */
+    private static void assertPeerIdsFit(javax.swing.JTable table, int width) {
+        table.setSize(width, 160);
+        table.doLayout();
+        int covered = 0;
+        javax.swing.table.JTableHeader header = table.getTableHeader();
+        for (int i = 0; i < table.getColumnCount(); i++) {
+            javax.swing.table.TableColumn column = table.getColumnModel().getColumn(i);
+            int colW = column.getWidth();
+            assertTrue("col " + i + " width " + colW, colW >= 28);
+            covered += colW;
+            java.awt.Component painted = header.getDefaultRenderer().getTableCellRendererComponent(
+                    table, column.getHeaderValue(), false, false, -1, i);
+            assertTrue("header " + column.getHeaderValue() + " pref " + painted.getPreferredSize().width
+                            + " col " + colW,
+                    painted.getPreferredSize().width <= colW);
+        }
+        assertTrue(covered <= table.getWidth() + 2);
+        for (int row = 0; row < table.getRowCount(); row++) {
+            java.awt.Component cell = table.prepareRenderer(table.getCellRenderer(row, 0), row, 0);
+            int colW = table.getColumnModel().getColumn(0).getWidth();
+            assertTrue("id row " + row + " pref " + cell.getPreferredSize().width + " col " + colW,
+                    cell.getPreferredSize().width <= colW);
+            assertEquals(String.valueOf(table.getValueAt(row, 0)), ((javax.swing.JLabel) cell).getText());
+        }
     }
 
     private static JScrollPane layout(JComponent body) {

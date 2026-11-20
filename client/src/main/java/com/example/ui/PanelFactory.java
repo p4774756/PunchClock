@@ -552,26 +552,40 @@ public class PanelFactory {
                 return false;
             }
         };
-        refs.peerTable = new JTable(refs.peerTableModel);
+        refs.peerTable = new JTable(refs.peerTableModel) {
+            private boolean layingOutPeerColumns;
+
+            @Override
+            public void doLayout() {
+                if (layingOutPeerColumns) {
+                    return;
+                }
+                if (getWidth() <= 0 || getColumnCount() != 5) {
+                    super.doLayout();
+                    return;
+                }
+                layingOutPeerColumns = true;
+                try {
+                    layoutPeerColumns(this);
+                } finally {
+                    layingOutPeerColumns = false;
+                }
+            }
+        };
         refs.peerTable.setFont(mainFont);
         refs.peerTable.setRowHeight(44);
         refs.peerTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         refs.peerTable.getTableHeader().setFont(boldFont);
-        javax.swing.table.TableColumn favoriteColumn =
-                refs.peerTable.getColumnModel().getColumn(PEER_FAVORITE_COLUMN);
-        favoriteColumn.setPreferredWidth(64);
-        favoriteColumn.setMaxWidth(80);
-        installSelfPeerRowRenderer(refs.peerTable, mainFont, boldFont);
-
         refs.peerTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
-        int[] peerColW = {108, 48, 72, 52, 36};
+        // 狀態／等待任務／版本／最愛固定剛好放下欄名；多出來的寬度全部給裝置 ID。
+        int[] peerColW = {140, 36, 56, 40, 30};
         for (int i = 0; i < peerColW.length; i++) {
             javax.swing.table.TableColumn column = refs.peerTable.getColumnModel().getColumn(i);
-            column.setPreferredWidth(peerColW[i]);
             column.setMinWidth(28);
+            column.setMaxWidth(Integer.MAX_VALUE);
+            column.setPreferredWidth(peerColW[i]);
         }
-        favoriteColumn.setMaxWidth(44);
-        favoriteColumn.setMinWidth(32);
+        installSelfPeerRowRenderer(refs.peerTable, mainFont, boldFont);
 
         JScrollPane tableScroll = new JScrollPane(refs.peerTable);
         tableScroll.setPreferredSize(new Dimension(200, 160));
@@ -720,12 +734,15 @@ public class PanelFactory {
                 if (c instanceof JLabel) {
                     JLabel label = (JLabel) c;
                     label.setFont(self && column == 0 ? boldFont : mainFont);
-                    label.setBorder(new EmptyBorder(4, column == 0 ? 8 : 6, 4, 4));
+                    label.setBorder(new EmptyBorder(4, column == 0 ? 4 : 4, 4, column == 0 ? 2 : 4));
                     label.setIcon(column == 0 ? friendFace(tbl, row, faces) : null);
-                    label.setIconTextGap(8);
+                    label.setIconTextGap(column == 0 ? 4 : 8);
                     label.setHorizontalAlignment(favoriteColumn ? SwingConstants.CENTER : SwingConstants.LEADING);
                     if (favoriteColumn) {
-                        label.setFont(UiFonts.chineseBold(18));
+                        label.setFont(UiFonts.chineseBold(16));
+                    }
+                    if (column == 0) {
+                        fitPeerIdLabel(label, tbl, self, boldFont, mainFont);
                     }
                 }
                 if (isSelected) {
@@ -831,8 +848,85 @@ public class PanelFactory {
         return displayId;
     }
 
+    /**
+     * 380 寬時表大約 300px。後面四欄固定寬，裝置 ID 用剩餘寬度；
+     * 仍放不下 company-worker4 時才縮小字級、最後才拿掉頭像，避免畫成「compa...」。
+     */
+    private static void layoutPeerColumns(JTable table) {
+        int width = table.getWidth();
+        int[] tail = {36, 56, 40, 30};
+        int tailSum = 0;
+        for (int value : tail) {
+            tailSum += value;
+        }
+        if (width >= tailSum + 96) {
+            applyPeerColumnWidths(table, width - tailSum, tail);
+            return;
+        }
+        int floor = 28;
+        int[] sized = new int[tail.length];
+        for (int i = 0; i < sized.length; i++) {
+            sized[i] = floor;
+        }
+        int id = floor;
+        int leftover = width - floor * (tail.length + 1);
+        if (leftover > 0) {
+            int toId = Math.min(leftover, 96 - floor);
+            id += toId;
+            leftover -= toId;
+        }
+        for (int i = 0; i < sized.length && leftover > 0; i++) {
+            int room = tail[i] - floor;
+            int give = Math.min(leftover, room);
+            sized[i] += give;
+            leftover -= give;
+        }
+        if (leftover > 0) {
+            id += leftover;
+        }
+        applyPeerColumnWidths(table, id, sized);
+    }
+
+    private static void applyPeerColumnWidths(JTable table, int idWidth, int[] tail) {
+        javax.swing.table.TableColumnModel model = table.getColumnModel();
+        setPeerColumnWidth(model.getColumn(0), Math.max(28, idWidth));
+        for (int i = 0; i < tail.length; i++) {
+            setPeerColumnWidth(model.getColumn(i + 1), Math.max(28, tail[i]));
+        }
+    }
+
+    private static void setPeerColumnWidth(javax.swing.table.TableColumn column, int width) {
+        if (column.getWidth() != width) {
+            column.setWidth(width);
+        }
+        if (column.getPreferredWidth() != width) {
+            column.setPreferredWidth(width);
+        }
+    }
+
+    private static void fitPeerIdLabel(JLabel label, JTable table, boolean self, Font boldFont, Font mainFont) {
+        int available = table.getColumnModel().getColumn(0).getWidth();
+        if (available <= 0) {
+            return;
+        }
+        int size = mainFont.getSize();
+        while (size > 10 && label.getPreferredSize().width > available) {
+            size--;
+            label.setFont(self ? UiFonts.chineseBold(size) : UiFonts.chinesePlain(size));
+        }
+        if (label.getPreferredSize().width > available && label.getIcon() != null) {
+            label.setIcon(null);
+            size = mainFont.getSize();
+            label.setFont(self ? boldFont : mainFont);
+            while (size > 10 && label.getPreferredSize().width > available) {
+                size--;
+                label.setFont(self ? UiFonts.chineseBold(size) : UiFonts.chinesePlain(size));
+            }
+        }
+    }
+
     private static Icon friendFaceIcon(String id, String encoded, boolean online) {
-        int size = 28;
+        int size = 18;
         BufferedImage face = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = face.createGraphics();
         try {
@@ -844,17 +938,18 @@ public class PanelFactory {
                 g.setColor(faceColor(id));
                 g.fillOval(1, 1, size - 2, size - 2);
                 g.setColor(NightTheme.INK);
-                g.setFont(UiFonts.chineseBold(13));
+                g.setFont(UiFonts.chineseBold(11));
                 String letter = faceLetter(id);
                 FontMetrics metrics = g.getFontMetrics();
                 int x = (size - metrics.stringWidth(letter)) / 2;
                 int y = (size - metrics.getHeight()) / 2 + metrics.getAscent();
                 g.drawString(letter, x, y);
             }
+            int dot = 7;
             g.setColor(new Color(28, 20, 48));
-            g.fillOval(size - 11, size - 11, 10, 10);
+            g.fillOval(size - dot - 1, size - dot - 1, dot, dot);
             g.setColor(online ? new Color(120, 210, 150) : new Color(120, 108, 148));
-            g.fillOval(size - 9, size - 9, 6, 6);
+            g.fillOval(size - dot + 1, size - dot + 1, dot - 4, dot - 4);
         } finally {
             g.dispose();
         }
