@@ -14,7 +14,10 @@ import com.example.server.store.GithubDevStatusClient;
 import com.example.server.store.GithubRoadmapClient;
 import com.example.server.store.GraffitiStore;
 import com.example.server.store.MarqueeStore;
+import com.example.server.store.NewsFeedClient;
+import com.example.server.store.OpenMeteoClient;
 import com.example.server.store.RoadmapService;
+import com.example.server.store.WorldService;
 import com.example.server.store.PhotoStore;
 import com.example.server.store.RelayStore;
 import com.example.server.util.IpResolver;
@@ -31,6 +34,7 @@ import com.example.server.web.DevStatusRoutes;
 import com.example.server.store.DevMachineStore;
 import com.example.server.web.RoadmapRoutes;
 import com.example.server.web.TeaHealthRoutes;
+import com.example.server.web.WorldRoutes;
 import com.example.server.web.RouteSupport;
 import com.example.server.web.LoginNextPath;
 import com.example.server.web.LoginPageRenderer;
@@ -84,6 +88,8 @@ public final class ServerApp {
     private final DevMachineRoutes devMachineRoutes;
     private final AtlasRoutes atlasRoutes = new AtlasRoutes();
     private final TeaHealthRoutes teaHealthRoutes;
+    private final WorldRoutes worldRoutes =
+            new WorldRoutes(new WorldService(new OpenMeteoClient(), new NewsFeedClient()));
     private final ClientRelease clientRelease;
 
     public ServerApp() {
@@ -211,6 +217,7 @@ public final class ServerApp {
         devStatusRoutes.register(app);
         devMachineRoutes.register(app);
         teaHealthRoutes.register(app);
+        worldRoutes.register(app);
         atlasRoutes.register(app);
         app.get("/api/status", this::status);
         app.get("/api/health/history", this::healthHistory);

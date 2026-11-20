@@ -141,6 +141,7 @@ import { shouldOfferNpcTalkPrompt, NPC_TALK_ACTION } from './island-people-data.
 import { createIslandNpcTalk, npcTalkPromptLabel } from './island-npc-talk.js';
 import { createIslandSky } from './island-sky.js';
 import { createIslandSea } from './island-sea.js';
+import { createIslandWeather } from './island-weather.js';
 import { createIslandLife, LIFE_PANORAMA_CAMERA } from './island-life.js';
 import { createFootprintView } from './island-footprints.js';
 import { createLifecycle } from './island-lifecycle.js';
@@ -238,6 +239,7 @@ function boot() {
   const skyNight = new THREE.Color(0x1a3e86);
   scene.background = skyDay.clone();
   scene.fog = new THREE.Fog(skyDay.clone(), 150, 320);
+  const fogBase = { near: 150, far: 320 };
 
   const camera = new THREE.PerspectiveCamera(25, 1, 0.4, ISLAND_CAMERA_FAR);
   const clock = new THREE.Clock();
@@ -296,8 +298,8 @@ function boot() {
     const decorNight = new THREE.Color(exploreSkyColorHex(t));
     scene.background.copy(skyDay).lerp(decorNight, t);
     scene.fog.color.copy(scene.background);
-    scene.fog.near = 150 + (100 - 150) * t;
-    scene.fog.far = 320 + (240 - 320) * t;
+    fogBase.near = 150 + (100 - 150) * t;
+    fogBase.far = 320 + (240 - 320) * t;
     hemi.color.copy(hemiDay).lerp(hemiNight, t);
     hemi.groundColor.copy(groundDay).lerp(groundNight, t);
     const light = exploreLightAtMix(t);
@@ -507,6 +509,7 @@ function boot() {
     requestAnimationFrame: (cb) => window.requestAnimationFrame(cb),
     cancelAnimationFrame: (id) => window.cancelAnimationFrame(id)
   });
+  let swayWeatherMul = 1;
   registerSceneMotion(loop, {
     reduced: reduced,
     walkers: walkers,
@@ -516,7 +519,8 @@ function boot() {
     clouds: clouds,
     swimmers: swimmers,
     shaker: shaker,
-    P: P
+    P: P,
+    getSwayMul: () => swayWeatherMul
   });
   loop.register(function updateSea(dt, elapsed) {
     sea.update(dt, elapsed);
@@ -988,6 +992,46 @@ function boot() {
   let graffiti = null;
   let roadmap = null;
   const rooms = createInteriorSession();
+  const baseSunIntensity = sun.intensity;
+  let islandWeather = createIslandWeather({
+    THREE: THREE,
+    reduced: reduced,
+    scene: scene,
+    sun: sun,
+    loop: loop,
+    baseSunIntensity: baseSunIntensity,
+    getNightMix: () => dayNight.mix,
+    getIsIndoor: () => rooms.inside(),
+    getQualityTier: () => quality.tier,
+    getViewportWidth: () => (stage && stage.clientWidth) || window.innerWidth || 1280,
+    onWaveMul: (mul) => sea.setWaveMul(mul),
+    onSwayMul: (mul) => {
+      swayWeatherMul = mul;
+    },
+    onFogBase: (nearMul, farMul, wash, nightMix) => {
+      const mix = nightMix;
+      scene.fog.near = Math.max(20, fogBase.near * nearMul);
+      scene.fog.far = Math.max(scene.fog.near + 40, fogBase.far * farMul);
+      if (wash > 0) {
+        const washCol = new THREE.Color(0xc5ced8);
+        scene.fog.color.copy(scene.background).lerp(washCol, wash * (1 - mix * 0.25));
+      } else {
+        scene.fog.color.copy(scene.background);
+      }
+    },
+    setGroundWet: (wet) => {
+      if (wet <= 0.01) return;
+      kit.forEachMaterial((mat) => {
+        if (!mat.userData || !mat.userData.day) return;
+        if (!mat.userData.weatherWetSaved) {
+          mat.userData.weatherWetSaved = true;
+          mat.userData.weatherDryDay = mat.userData.day.clone();
+        }
+        const base = mat.userData.weatherDryDay;
+        mat.color.copy(base).multiplyScalar(1 - wet * 0.18);
+      });
+    }
+  });
   let roomView = null;
   let interiorBusy = false;
   let interiorGeneration = 0;
@@ -1959,10 +2003,12 @@ function boot() {
       if (sample.tierDirection === 'down') perfTierChanges.down += 1;
       if (sample.tierDirection === 'up') perfTierChanges.up += 1;
       if (perfRolling) perfRolling.push(performance.now(), sample.fps);
+      const weatherLine = islandWeather ? islandWeather.formatPerfLine() : '';
       perfEl.textContent = formatExplorePerfOverlay(
         sample,
         perfRolling ? perfRolling.snapshot() : null,
-        perfTierChanges
+        perfTierChanges,
+        weatherLine
       );
     }
     updatePlayer(dt);
@@ -2756,6 +2802,17 @@ function boot() {
     document: document,
     window: window,
     reduced: reduced,
+    getWorld: () => {
+      if (!islandWeather) return null;
+      const ws = islandWeather.getWorldState();
+      return {
+        weather: ws.weather,
+        hour: ws.hour,
+        festival: ws.festival,
+        calendar: ws.calendar,
+        news: ws.news
+      };
+    },
     hooks: {
       onClose: () => {
         endNpcTalkResume();

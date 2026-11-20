@@ -1,6 +1,6 @@
 // 探索模式路人對話：楓之谷風視窗與打字機；可測邏輯盡量純函式。
 import {
-  pickNpcLines,
+  pickNpcLinesWithWorld,
   npcTalkShouldClose,
   NPC_TALK_CLOSE_DIST
 } from './island-people-data.js';
@@ -41,8 +41,8 @@ export function talkDialogAdvance(state) {
   return 'next-line';
 }
 
-export function createTalkSession(npc, rng, reduced, lastOpening) {
-  const picked = pickNpcLines(npc.style, npc.islandId, lastOpening, rng);
+export function createTalkSession(npc, rng, reduced, lastOpening, world) {
+  const picked = pickNpcLinesWithWorld(npc.style, npc.islandId, lastOpening, rng, world);
   return {
     talkKey: npc.talkKey,
     name: npc.name,
@@ -123,7 +123,8 @@ export function createIslandNpcTalk(options) {
     if (session) close();
     const last = lastOpeningByKey[npc.talkKey];
     const rng = typeof opts.rng === 'function' ? opts.rng : Math.random;
-    session = createTalkSession(npc, rng, reduced, last);
+    const world = typeof opts.getWorld === 'function' ? opts.getWorld() : null;
+    session = createTalkSession(npc, rng, reduced, last, world);
     session.greetT0 = win && win.performance ? win.performance.now() : 0;
     lastOpeningByKey[npc.talkKey] = session.openingKey;
     setVisible(true);

@@ -138,10 +138,11 @@ export function createFpsRollingStats(windowMs) {
 }
 
 /** ?perf=1 左上角面板文字（繁中）。 */
-export function formatExplorePerfOverlay(sample, rolling, tierChanges) {
+export function formatExplorePerfOverlay(sample, rolling, tierChanges, extraLine) {
   const lines = [
     '幀率約 ' + Math.round(sample.fps) + ' · 畫質：' + sample.label
   ];
+  if (extraLine) lines.push(String(extraLine));
   const r = rolling && rolling.count > 0 ? rolling : null;
   if (r) {
     lines.push(

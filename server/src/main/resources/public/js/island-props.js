@@ -811,10 +811,13 @@ export function registerSceneMotion(loop, state) {
       }
     });
   });
+  const getSwayMul = state.getSwayMul;
   loop.register(function updateBobs(dt, t) {
     if (reduced) return;
+    const sway = typeof getSwayMul === 'function' ? getSwayMul() : 1;
+    const mul = Number.isFinite(Number(sway)) ? Number(sway) : 1;
     bobs.forEach((bob) => {
-      bob.obj.position.y = bob.base + Math.sin(t * 1.6 + bob.phase) * bob.amp;
+      bob.obj.position.y = bob.base + Math.sin(t * 1.6 + bob.phase) * bob.amp * mul;
     });
   });
   loop.register(function updateIdles(dt, t) {

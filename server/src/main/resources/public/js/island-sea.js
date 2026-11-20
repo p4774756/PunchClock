@@ -8,12 +8,18 @@ const WAVE_AMP = 0.02;
 const WAVE_AMP_MAX = 0.035;
 const FOAM_Y = SEA_Y + WAVE_AMP_MAX + 0.012;
 
-export function waveHeight(x, z, t, reduced) {
+export function waveHeight(x, z, t, reduced, ampMul) {
   if (reduced) return 0;
+  const mul = ampMul == null || !Number.isFinite(Number(ampMul)) ? 1 : Math.max(0, Number(ampMul));
   const w1 = Math.sin(x * 0.32 + t * 0.45) * 0.55;
   const w2 = Math.sin(z * 0.28 - t * 0.38) * 0.65;
   const w3 = Math.sin((x + z) * 0.22 + t * 0.52) * 0.48;
-  return (w1 + w2 + w3) * WAVE_AMP;
+  return (w1 + w2 + w3) * WAVE_AMP * mul;
+}
+
+export function effectiveWaveAmp(mul) {
+  const m = mul == null || !Number.isFinite(Number(mul)) ? 1 : Math.max(0, Number(mul));
+  return WAVE_AMP * m;
 }
 
 export function waveAmplitudeMax() {
@@ -68,16 +74,23 @@ export function createIslandSea(THREE, opts) {
   seaMat.userData.dayE = 0;
   seaMat.userData.nightE = 0;
 
-  const uniforms = { uTime: { value: 0 }, uReduced: { value: reduced ? 1.0 : 0.0 } };
+  let waveMul = 1;
+  const uniforms = {
+    uTime: { value: 0 },
+    uReduced: { value: reduced ? 1.0 : 0.0 },
+    uWaveMul: { value: 1.0 }
+  };
   seaMat.onBeforeCompile = function (shader) {
     shader.uniforms.uTime = uniforms.uTime;
     shader.uniforms.uReduced = uniforms.uReduced;
+    shader.uniforms.uWaveMul = uniforms.uWaveMul;
     shader.vertexShader = shader.vertexShader.replace(
       '#include <common>',
       `
       #include <common>
       uniform float uTime;
       uniform float uReduced;
+      uniform float uWaveMul;
       `
     );
     shader.vertexShader = shader.vertexShader.replace(
@@ -88,7 +101,7 @@ export function createIslandSea(THREE, opts) {
         float w1 = sin(position.x * 0.32 + uTime * 0.45) * 0.55;
         float w2 = sin(position.z * 0.28 - uTime * 0.38) * 0.65;
         float w3 = sin((position.x + position.z) * 0.22 + uTime * 0.52) * 0.48;
-        transformed.y += (w1 + w2 + w3) * ${WAVE_AMP.toFixed(4)};
+        transformed.y += (w1 + w2 + w3) * ${WAVE_AMP.toFixed(4)} * uWaveMul;
       }
       `
     );
@@ -166,6 +179,11 @@ export function createIslandSea(THREE, opts) {
     });
   }
 
+  function setWaveMul(mul) {
+    waveMul = mul == null || !Number.isFinite(Number(mul)) ? 1 : Math.max(0, Number(mul));
+    uniforms.uWaveMul.value = waveMul;
+  }
+
   function update(dt, elapsed) {
     uniforms.uTime.value = elapsed;
     if (reduced) return;
@@ -202,6 +220,7 @@ export function createIslandSea(THREE, opts) {
     group,
     update,
     setMix,
+    setWaveMul,
     setVisible,
     dispose
   };

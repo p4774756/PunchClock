@@ -261,3 +261,76 @@ test('talkDialogAdvance 與打字機', () => {
   const tick = T.advanceTypewriter({ line: '一二三四', shown: 0, reduced: false }, 0.05);
   assert.ok(tick.shown >= 1);
 });
+
+test('情境台詞比例 25～45%（1000 次）', () => {
+  const world = {
+    weather: { kind: 'rain', tempC: 22 },
+    hour: 14,
+    festival: null,
+    calendar: {},
+    news: [{ title: '測試新聞' }]
+  };
+  const worldLines = new Set(D.allWorldContextLinesForTests());
+  let seed = 11;
+  const rng = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  let hits = 0;
+  for (let i = 0; i < 1000; i++) {
+    const picked = D.pickNpcLinesWithWorld('summer', 'main', null, rng, world);
+    const contextual = picked.lines.some((line) => worldLines.has(line) || /你有看到「/.test(line) || /^今天是.+耶/.test(line));
+    if (contextual) hits += 1;
+  }
+  const ratio = hits / 1000;
+  assert.ok(ratio >= 0.25 && ratio <= 0.45, 'ratio=' + ratio);
+});
+
+test('rain 時可能出現沒帶傘；高溫 main 出現冰的', () => {
+  let seed = 99;
+  const rng = () => {
+    seed = (seed * 48271) % 2147483647;
+    return seed / 2147483647;
+  };
+  let umbrella = false;
+  let hot = false;
+  for (let i = 0; i < 200; i++) {
+    const rainLines = D.pickNpcLinesWithWorld('summer', 'main', null, rng, {
+      weather: { kind: 'rain', tempC: 20 }, hour: 12, calendar: {}, news: []
+    }).lines.join('|');
+    if (rainLines.includes('沒帶傘')) umbrella = true;
+    const hotLines = D.pickNpcLinesWithWorld('summer', 'main', null, rng, {
+      weather: { kind: 'clear', tempC: 33 }, hour: 13, calendar: {}, news: []
+    }).lines.join('|');
+    if (hotLines.includes('來杯冰的')) hot = true;
+  }
+  assert.equal(umbrella, true);
+  assert.equal(hot, true);
+});
+
+test('新聞標題用 textContent 安全（假 img onerror）', () => {
+  const evil = '<img src=x onerror=alert(1)>';
+  const line = D.pickContextualWorldLine('summer', 'main', {
+    weather: { kind: 'clear', tempC: 24 },
+    hour: 12,
+    calendar: {},
+    news: [{ title: evil }]
+  }, () => 0.05);
+  assert.ok(!line.includes('<img'));
+  assert.ok(line.includes('onerror') === false || !line.includes('<'));
+});
+
+test('50 次相鄰開場句不連續相同（with world）', () => {
+  let seed = 3;
+  const rng = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  let last = null;
+  const world = { weather: { kind: 'clear', tempC: 24 }, hour: 10, calendar: {}, news: [] };
+  for (let i = 0; i < 50; i++) {
+    const picked = D.pickNpcLinesWithWorld('sport', 'main', last, rng, world);
+    if (last) assert.notEqual(picked.openingKey, last);
+    last = picked.openingKey;
+  }
+});

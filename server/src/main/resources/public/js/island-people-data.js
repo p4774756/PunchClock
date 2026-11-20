@@ -542,6 +542,119 @@ export function pickNpcLines(style, islandId, lastOpening, rng) {
   return { lines: body.concat([farewell]), openingKey: opening };
 }
 
+export const WORLD_LINE_RATIO = 0.35;
+export const WORLD_NEWS_RATIO = 0.1;
+
+const WORLD_WEATHER_LINES = Object.freeze({
+  rain: ['今天沒帶傘，好煩喔～', '毛毛雨還好，大雨就糟了。', '路上有點滑，小心腳步喔！'],
+  storm: ['颱風天還出來逛，你膽子很大耶！', '風好大，帽子快飛走了啦！', '希望待會雨小一點～'],
+  fog: ['霧好濃，小心別走丟了。', '遠處看不太清楚耶。', '慢慢走，注意安全！'],
+  cloudy: ['雲好多，太陽躲起來了。', '今天天色暗暗的，還挺涼。', '好像要下雨了？'],
+  clear: ['天氣真好，心情也跟著亮！', '太陽出來了，真舒服～', '這種天最適合散步！']
+});
+
+const WORLD_TEMP_HOT = Object.freeze(['好熱～來杯冰的吧！飲料店就在那邊', '熱到想躲陰影裡～', '記得補水喔！']);
+const WORLD_TEMP_COLD = Object.freeze(['好冷，想喝熱的。', '風有點涼，多穿一件吧。', '手冰冰的，去室內暖暖！']);
+
+const WORLD_TIME_LINES = Object.freeze({
+  morning: ['早啊！今天也要加油喔～', '早上空氣真新鮮！'],
+  noon: ['中午了，吃飯了沒？', '太陽正烈，找個陰涼處吧！'],
+  evening: ['傍晚風好舒服～', '夕陽快下山了耶！'],
+  night: ['這麼晚還沒睡呀？', '夜色好美，別太晚回家喔。']
+});
+
+const WORLD_FESTIVAL_LINES = Object.freeze({
+  'new-year': ['新年快樂！紅包拿了嗎？', '恭喜發財，今年順順的！'],
+  lantern: ['元宵快到了，想吃湯圓嗎？', '花燈亮起來一定很漂亮！'],
+  'dragon-boat': ['端午要到了，粽子香好好聞～', '划龍舟好熱鬧，你有看過嗎？'],
+  'mid-autumn': ['今晚月亮好圓～', '中秋就是要烤肉加月餅呀！'],
+  'winter-solstice': ['冬至要吃湯圓喔！', '今天冬至，記得吃點暖的～'],
+  christmas: ['聖誕快樂！有沒有收到禮物？', '街上好有節慶感喔～']
+});
+
+const WORLD_STYLE_WEATHER = Object.freeze({
+  tech: { rain: '下雨天最適合在研發樓寫 code～', storm: '颱風天還在測試？你好認真！' },
+  tcm: { rain: '雨天濕氣重，推拿出來暖暖身吧。', clear: '晴天空曠，最適合活動筋骨～' }
+});
+
+function timeBucket(hour) {
+  const h = Number(hour);
+  if (!Number.isFinite(h)) return 'noon';
+  if (h >= 5 && h < 11) return 'morning';
+  if (h >= 11 && h < 17) return 'noon';
+  if (h >= 17 && h < 22) return 'evening';
+  return 'night';
+}
+
+function pickNewsLine(title, rng) {
+  const safe = String(title || '').replace(/[<>&]/g, '');
+  if (!safe) return '';
+  return '欸，你有看到「' + safe + '」嗎？';
+}
+
+/** 純函式：依世界狀態挑一句情境台詞，無則回傳空字串。 */
+export function pickContextualWorldLine(style, islandId, world, rng) {
+  if (!world || typeof rng !== 'function') return '';
+  const w = world.weather || {};
+  const kind = String(w.kind || 'clear');
+  const temp = Number(w.tempC);
+  const id = NPC_STYLE_IDS.includes(style) ? style : 'summer';
+
+  if (typeof rng === 'function' && rng() < WORLD_NEWS_RATIO && world.news && world.news.length) {
+    const idx = Math.floor(rng() * world.news.length);
+    const title = world.news[idx] && world.news[idx].title;
+    const line = pickNewsLine(title, rng);
+    if (line) return line;
+  }
+
+  if (world.festival && WORLD_FESTIVAL_LINES[world.festival]) {
+    if (rng() < 0.45) return pickOne(WORLD_FESTIVAL_LINES[world.festival], rng);
+  }
+  if (world.calendar && world.calendar.solarTerm && rng() < 0.35) {
+    return '今天是' + world.calendar.solarTerm + '耶～';
+  }
+
+  if (Number.isFinite(temp)) {
+    if (temp > 30 && islandId === 'main' && rng() < 0.55) return pickOne(WORLD_TEMP_HOT, rng);
+    if (temp < 15 && rng() < 0.45) return pickOne(WORLD_TEMP_COLD, rng);
+  }
+
+  const custom = WORLD_STYLE_WEATHER[id] && WORLD_STYLE_WEATHER[id][kind];
+  if (custom && rng() < 0.4) return custom;
+
+  const tb = timeBucket(world.hour);
+  if (rng() < 0.3) return pickOne(WORLD_TIME_LINES[tb], rng);
+
+  const pool = WORLD_WEATHER_LINES[kind] || WORLD_WEATHER_LINES.clear;
+  return pickOne(pool, rng);
+}
+
+export function allWorldContextLinesForTests() {
+  const out = [];
+  for (const key of Object.keys(WORLD_WEATHER_LINES)) out.push(...WORLD_WEATHER_LINES[key]);
+  out.push(...WORLD_TEMP_HOT, ...WORLD_TEMP_COLD);
+  for (const key of Object.keys(WORLD_TIME_LINES)) out.push(...WORLD_TIME_LINES[key]);
+  for (const key of Object.keys(WORLD_FESTIVAL_LINES)) out.push(...WORLD_FESTIVAL_LINES[key]);
+  for (const style of Object.keys(WORLD_STYLE_WEATHER)) {
+    const row = WORLD_STYLE_WEATHER[style];
+    for (const key of Object.keys(row)) out.push(row[key]);
+  }
+  return out;
+}
+
+export function pickNpcLinesWithWorld(style, islandId, lastOpening, rng, world) {
+  const base = pickNpcLines(style, islandId, lastOpening, rng);
+  if (!world || typeof rng !== 'function' || rng() > WORLD_LINE_RATIO) {
+    return base;
+  }
+  const line = pickContextualWorldLine(style, islandId, world, rng);
+  if (!line) return base;
+  const lines = base.lines.slice();
+  const insertAt = Math.min(Math.max(1, 1 + Math.floor(rng() * 2)), lines.length - 1);
+  lines[insertAt] = line;
+  return { lines: lines, openingKey: base.openingKey };
+}
+
 export function npcTalkLinePools(style, islandId) {
   const id = NPC_STYLE_IDS.includes(style) ? style : 'summer';
   return {
