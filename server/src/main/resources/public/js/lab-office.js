@@ -3,8 +3,10 @@
 import {
   CHARACTER_IDS,
   LAB_OFFICE_POLL_MS,
+  OFFICE_PROP_POS,
   SPOT_POS,
   buildAllCharacterStates,
+  buildCharacterStatesFromPublic,
   characterCardData,
   viewerCanOpenLabOffice
 } from './lab-office-logic.js';
@@ -59,8 +61,10 @@ export function createLabOfficeController(opts) {
   const win = (opts && opts.win) || globalThis;
   const hooks = (opts && opts.hooks) || {};
   const pageMode = !!(opts && opts.page);
+  const allowGuest = opts && opts.allowGuest !== false;
   const fetchFn = (opts && opts.fetch) || (win && win.fetch ? win.fetch.bind(win) : null);
   const root = (opts && opts.existingRoot) || ensureOverlay(doc);
+  const stageWrap = root.querySelector('[data-lab-office-stage]') || root.querySelector('.lab-office-stage');
   const stage = root.querySelector('[data-lab-office-chars]');
   const cardLayer = root.querySelector('[data-lab-office-card]');
   const cardInner = cardLayer && cardLayer.querySelector('.lab-office-card');
@@ -71,6 +75,14 @@ export function createLabOfficeController(opts) {
   let timer = null;
   let machines = null;
   let devStatus = null;
+  let publicPayload = null;
+
+  const PROP_LINK = Object.freeze({
+    clock: '/download#checkin',
+    bookshelf: '/atlas/tcm-3d/',
+    whiteboard: null,
+    desk: '/download'
+  });
 
   function stopTimer() {
     if (timer != null) {
@@ -83,10 +95,54 @@ export function createLabOfficeController(opts) {
     return viewerCanOpenLabOffice(win && win.PUNCHCLOCK_AUTHENTICATED === true);
   }
 
+  function renderProps() {
+    if (!stageWrap) return;
+    let layer = stageWrap.querySelector('[data-lab-office-props]');
+    if (!layer) {
+      layer = doc.createElement('div');
+      layer.className = 'lab-office-props';
+      layer.setAttribute('data-lab-office-props', '');
+      stageWrap.appendChild(layer);
+    }
+    layer.replaceChildren();
+    const ids = Object.keys(OFFICE_PROP_POS);
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i];
+      const spec = OFFICE_PROP_POS[id];
+      let href = PROP_LINK[id] || '#';
+      if (id === 'whiteboard') {
+        href = isAuthed() ? '/dev-status' : '/login?next=%2Fdev-status';
+      }
+      const el = doc.createElement('a');
+      el.className = 'lab-office-prop';
+      el.style.left = spec.x + '%';
+      el.style.top = spec.y + '%';
+      el.href = href;
+      el.setAttribute('aria-label', id === 'whiteboard' ? '白板：開發狀態與主控台' : spec.label);
+      const tag = doc.createElement('span');
+      tag.className = 'lab-office-prop-label';
+      setText(tag, spec.label);
+      el.appendChild(tag);
+      if (id === 'whiteboard') {
+        const sub = doc.createElement('span');
+        sub.className = 'lab-office-prop-label lab-office-prop-sub';
+        const c = doc.createElement('a');
+        c.href = isAuthed() ? '/console' : '/login?next=%2Fconsole';
+        c.textContent = '主控台';
+        c.addEventListener('click', (ev) => ev.stopPropagation());
+        sub.appendChild(c);
+        el.appendChild(sub);
+      }
+      layer.appendChild(el);
+    }
+  }
+
   function renderChars() {
     if (!stage) return;
     const now = Date.now();
-    const states = buildAllCharacterStates({ machines, devStatus, now });
+    const states = isAuthed()
+      ? buildAllCharacterStates({ machines, devStatus, now })
+      : buildCharacterStatesFromPublic(publicPayload, now);
     stage.replaceChildren();
     for (let i = 0; i < states.length; i++) {
       const st = states[i];
@@ -112,13 +168,37 @@ export function createLabOfficeController(opts) {
       btn.addEventListener('click', () => openCard(id));
       stage.appendChild(btn);
     }
+    renderProps();
     if (foot) {
-      setText(foot, '每 30 秒更新 · 僅管理員 · ' + new Date(now).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }));
+      const modeLabel = isAuthed() ? '管理員' : '訪客';
+      setText(foot, '每 30 秒更新 · ' + modeLabel + ' · ' + new Date(now).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }));
     }
   }
 
   function openCard(charId) {
     if (!cardLayer || !cardInner) return;
+    if (!isAuthed()) {
+      const row = publicPayload && publicPayload.characters ? publicPayload.characters[charId] : null;
+      cardInner.replaceChildren();
+      const body = doc.createElement('div');
+      body.className = 'lab-office-card-body';
+      const h = doc.createElement('h3');
+      setText(h, CHAR_LABEL[charId] || charId);
+      body.appendChild(h);
+      const p = doc.createElement('p');
+      p.className = 'lab-office-card-line';
+      setText(p, (row && row.status) || '待機');
+      body.appendChild(p);
+      if (row && row.updatedAt) {
+        const t = doc.createElement('p');
+        t.className = 'lab-office-card-line';
+        setText(t, '更新 ' + new Date(row.updatedAt).toLocaleString('zh-TW'));
+        body.appendChild(t);
+      }
+      cardInner.appendChild(body);
+      cardLayer.hidden = false;
+      return;
+    }
     const data = characterCardData(charId, { machines, devStatus, now: Date.now() });
     cardInner.replaceChildren();
     const portrait = doc.createElement('img');
@@ -165,21 +245,32 @@ export function createLabOfficeController(opts) {
   }
 
   function refresh() {
-    if (!fetchFn || !openState || !isAuthed()) return;
-    Promise.all([
-      fetchFn('/api/dev-machines').then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      fetchFn('/api/dev-status').then((r) => (r.ok ? r.json() : null)).catch(() => null)
-    ]).then(([m, d]) => {
-      if (!openState) return;
-      if (m && m.success !== false) machines = m;
-      if (d) devStatus = d;
-      renderChars();
-    });
+    if (!fetchFn || !openState) return;
+    if (isAuthed()) {
+      Promise.all([
+        fetchFn('/api/dev-machines').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetchFn('/api/dev-status').then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      ]).then(([m, d]) => {
+        if (!openState) return;
+        if (m && m.success !== false) machines = m;
+        if (d) devStatus = d;
+        renderChars();
+      });
+      return;
+    }
+    fetchFn('/api/office/public')
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((payload) => {
+        if (!openState) return;
+        if (payload && payload.success !== false) publicPayload = payload;
+        renderChars();
+      });
   }
 
   function schedule() {
     stopTimer();
-    if (!openState || !isAuthed()) return;
+    if (!openState) return;
     timer = setInterval(refresh, LAB_OFFICE_POLL_MS);
   }
 
@@ -192,7 +283,7 @@ export function createLabOfficeController(opts) {
       root.setAttribute('aria-hidden', next ? 'false' : 'true');
     }
     if (next) {
-      if (!isAuthed()) {
+      if (!isAuthed() && !(pageMode && allowGuest)) {
         openState = false;
         if (!pageMode) {
           root.hidden = true;

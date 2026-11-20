@@ -2,7 +2,6 @@ package com.example.server;
 
 import com.example.BuildInfo;
 import com.example.ClientUpdatePolicy;
-import com.example.MarqueeNotice;
 import com.example.PeerFileRules;
 import com.example.ReleaseNotes;
 import com.example.server.auth.AuthService;
@@ -12,8 +11,8 @@ import com.example.server.store.ClientStore;
 import com.example.server.store.DevStatusService;
 import com.example.server.store.GithubDevStatusClient;
 import com.example.server.store.GithubRoadmapClient;
+import com.example.server.store.DevStatusService;
 import com.example.server.store.GraffitiStore;
-import com.example.server.store.MarqueeStore;
 import com.example.server.store.RoadmapService;
 import com.example.server.store.PhotoStore;
 import com.example.server.store.RelayStore;
@@ -22,8 +21,8 @@ import com.example.server.web.AtlasRoutes;
 import com.example.server.web.ChatRoutes;
 import com.example.server.web.DashboardBroadcaster;
 import com.example.server.web.GraffitiRoutes;
-import com.example.server.web.IslandPresenceRoutes;
-import com.example.server.web.MarqueeRoutes;
+import com.example.server.web.OfficePublicRoutes;
+import com.example.server.web.PublicDownloadRoutes;
 import com.example.server.web.PhotoRoutes;
 import com.example.server.web.RelayRoutes;
 import com.example.server.web.DevMachineRoutes;
@@ -57,9 +56,8 @@ public final class ServerApp {
 
     private static final BuildInfo BUILD_INFO = BuildInfo.load(ServerApp.class, "/server-build.properties");
     private static final String SERVER_VERSION = BUILD_INFO.version();
-    private static final String ISLAND_STATIC_CACHE = "public, max-age=86400";
-    private static final String ISLAND_JS_CSS_CACHE = "no-cache";
-    private static final String DASHBOARD_CACHE = "no-cache, must-revalidate";
+    private static final String STATIC_JS_CSS_CACHE = "no-cache";
+    private static final String PAGE_CACHE = "no-cache, must-revalidate";
 
     private final AuthService authService = new AuthService();
     private final ClientStore clientStore = new ClientStore();
@@ -72,14 +70,13 @@ public final class ServerApp {
             authService, clientStore, relayStore, gson, broadcaster, this::statusUpdatePayload);
     private final ChatRoutes chatRoutes = new ChatRoutes(
             authService, clientStore, gson, broadcaster, this::statusUpdatePayload);
-    private final MarqueeStore marqueeStore = new MarqueeStore();
-    private final MarqueeRoutes marqueeRoutes = new MarqueeRoutes(authService, marqueeStore);
     private final PhotoRoutes photoRoutes = new PhotoRoutes(authService);
     private final GraffitiStore graffitiStore = new GraffitiStore();
     private final GraffitiRoutes graffitiRoutes = new GraffitiRoutes(authService, graffitiStore);
-    private final IslandPresenceRoutes islandPresenceRoutes = new IslandPresenceRoutes();
     private final RoadmapRoutes roadmapRoutes;
+    private final DevStatusService devStatusService;
     private final DevStatusRoutes devStatusRoutes;
+    private final OfficePublicRoutes officePublicRoutes;
     private final DevMachineStore devMachineStore = new DevMachineStore();
     private final DevMachineRoutes devMachineRoutes;
     private final AtlasRoutes atlasRoutes = new AtlasRoutes();
@@ -105,7 +102,9 @@ public final class ServerApp {
         DevStatusService status = devStatusService != null
                 ? devStatusService
                 : new DevStatusService(new GithubDevStatusClient());
+        this.devStatusService = status;
         this.devStatusRoutes = new DevStatusRoutes(status);
+        this.officePublicRoutes = new OfficePublicRoutes(devMachineStore, status);
         this.devMachineRoutes = new DevMachineRoutes(authService, devMachineStore, status, gson);
         this.teaHealthRoutes = new TeaHealthRoutes(serverHealth);
         this.roadmapRoutes = new RoadmapRoutes(roadmapService != null
@@ -127,49 +126,20 @@ public final class ServerApp {
                 sf.hostedPath = "/css";
                 sf.directory = "/public/css";
                 sf.location = Location.CLASSPATH;
-                applyIslandStaticCache(sf, ISLAND_JS_CSS_CACHE);
+                applyStaticCache(sf, STATIC_JS_CSS_CACHE);
             });
             config.staticFiles.add(sf -> {
                 sf.hostedPath = "/js";
                 sf.directory = "/public/js";
                 sf.location = Location.CLASSPATH;
-                applyIslandStaticCache(sf, ISLAND_JS_CSS_CACHE);
-            });
-            // 探索模式看板角色。圖檔由 Maven 從桌面端 resources 複製，不另存一份。
-            config.staticFiles.add(sf -> {
-                sf.hostedPath = "/pet";
-                sf.directory = "/public/pet";
-                sf.location = Location.CLASSPATH;
-                applyIslandStaticCache(sf, ISLAND_STATIC_CACHE);
-            });
-            // 島嶼背景音樂
-            config.staticFiles.add(sf -> {
-                sf.hostedPath = "/audio";
-                sf.directory = "/public/audio";
-                sf.location = Location.CLASSPATH;
-                applyIslandStaticCache(sf, ISLAND_STATIC_CACHE);
-            });
-            // 建築 3D 模型（GLB）
-            config.staticFiles.add(sf -> {
-                sf.hostedPath = "/models";
-                sf.directory = "/public/models";
-                sf.location = Location.CLASSPATH;
-                sf.mimeTypes.add("model/gltf-binary", "glb");
-                applyIslandStaticCache(sf, ISLAND_STATIC_CACHE);
-            });
-            // 島嶼資料（銅人穴位 JSON 等）
-            config.staticFiles.add(sf -> {
-                sf.hostedPath = "/island";
-                sf.directory = "/public/island";
-                sf.location = Location.CLASSPATH;
-                applyIslandStaticCache(sf, ISLAND_STATIC_CACHE);
+                applyStaticCache(sf, STATIC_JS_CSS_CACHE);
             });
             config.staticFiles.add(sf -> {
                 sf.hostedPath = "/assets";
                 sf.directory = "/public/assets";
                 sf.location = Location.CLASSPATH;
                 sf.mimeTypes.add("image/webp", "webp");
-                applyIslandStaticCache(sf, ISLAND_STATIC_CACHE);
+                applyStaticCache(sf, "public, max-age=86400");
             });
             config.showJavalinBanner = false;
             long maxRequest = PhotoStore.MAX_INCOMING_REQUEST_BYTES;
@@ -186,8 +156,8 @@ public final class ServerApp {
         int boundPort = app.port();
         System.out.println("Server v" + SERVER_VERSION + " listening on port " + boundPort
                 + " (built " + serverBuildLabel() + ")");
-        System.out.println("- Web Dashboard: http://localhost:" + boundPort
-                + " (public island; management login required)");
+        System.out.println("- Web office: http://localhost:" + boundPort + "/");
+        System.out.println("- Admin console: http://localhost:" + boundPort + "/console");
         System.out.println("- Heartbeat API: POST /api/heartbeat (Bearer token required)");
         System.out.println("- Protocol: HTTP heartbeat for workers; Dashboard WS for status push only");
         System.out.println("- Peer relay: /api/peer/relay (both online, in-memory only, no disk, max "
@@ -220,8 +190,9 @@ public final class ServerApp {
         relayRoutes.register(app);
         chatRoutes.register(app);
         photoRoutes.register(app);
-        marqueeRoutes.register(app);
         graffitiRoutes.register(app);
+        officePublicRoutes.register(app);
+        new PublicDownloadRoutes(clientRelease).register(app);
         roadmapRoutes.register(app);
         devStatusRoutes.register(app);
         devMachineRoutes.register(app);
@@ -232,8 +203,12 @@ public final class ServerApp {
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
         app.post("/api/clients/{clientId}/cancel-task/{taskId}", this::cancelTask);
         app.delete("/api/clients/{clientId}", this::deleteClient);
-        app.get("/", this::dashboard);
+        app.get("/", this::officeHome);
+        app.get("/console", this::adminConsole);
+        app.get("/console.html", ctx -> ctx.redirect("/console"));
         app.get("/index.html", ctx -> ctx.redirect("/"));
+        app.get("/office", ctx -> ctx.redirect("/"));
+        app.get("/office.html", ctx -> ctx.redirect("/"));
     }
 
     private void registerWebSocket(Javalin app) {
@@ -249,7 +224,6 @@ public final class ServerApp {
             });
             ws.onClose(broadcaster::remove);
         });
-        islandPresenceRoutes.register(app);
     }
 
     private void loginGet(Context ctx) {
@@ -402,11 +376,7 @@ public final class ServerApp {
         response.put("actions", List.of());
         response.put("peers", clientStore.peerSnapshot(clientId));
         response.put("ackTimestamp", Instant.now().toString());
-        MarqueeNotice marquee = marqueeStore.current();
-        Map<String, Object> marqueeBody = new LinkedHashMap<>();
-        marqueeBody.put("enabled", marquee.enabled);
-        marqueeBody.put("text", marquee.text);
-        response.put("marquee", marqueeBody);
+        response.put("marquee", Map.of("enabled", false, "text", ""));
         if (clientRelease.isAvailable()
                 && ClientUpdatePolicy.shouldOffer(appVersion, appSourceDigest, appReleaseTime,
                         clientRelease.sourceDigest(), clientRelease.releaseTime())) {
@@ -526,18 +496,27 @@ public final class ServerApp {
     }
 
 
-    private void dashboard(Context ctx) {
+    private void officeHome(Context ctx) {
         boolean authenticated = authService.isAuth(ctx);
-        String html = com.example.server.util.DonatePageTokens.apply(readResource("/public/index.html")
+        String html = readResource("/public/index.html")
+                .replace("{{AUTH_BODY_CLASS}}", authenticated ? "is-authenticated" : "is-guest")
+                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false");
+        ctx.header("Cache-Control", PAGE_CACHE);
+        ctx.html(html);
+    }
+
+    private void adminConsole(Context ctx) {
+        boolean authenticated = authService.isAuth(ctx);
+        String html = com.example.server.util.DonatePageTokens.apply(readResource("/public/console.html")
                 .replace("{{SERVER_VERSION}}", SERVER_VERSION)
                 .replace("{{SERVER_BUILD_TIME}}", serverBuildLabel())
                 .replace("{{AUTH_BODY_CLASS}}", authenticated ? "is-authenticated" : "is-guest")
                 .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false"));
-        ctx.header("Cache-Control", DASHBOARD_CACHE);
+        ctx.header("Cache-Control", PAGE_CACHE);
         ctx.html(html);
     }
 
-    private static void applyIslandStaticCache(StaticFileConfig sf, String cacheControl) {
+    private static void applyStaticCache(StaticFileConfig sf, String cacheControl) {
         if (sf.headers == null) {
             sf.headers = new HashMap<>();
         }

@@ -17,6 +17,14 @@
   background: #0a1628;
 }
 
+.is-guest [data-auth-only] {
+  display: none !important;
+}
+
+.is-authenticated [data-guest-only] {
+  display: none !important;
+}
+
 .lab-office-root.is-page {
   position: relative;
   min-height: 100vh;
@@ -102,6 +110,70 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.lab-office-props {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.lab-office-prop {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-decoration: none;
+  color: #163a70;
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+  padding: 4px;
+}
+
+.lab-office-prop::before {
+  content: '';
+  width: 28px;
+  height: 28px;
+  border: 3px solid #163a70;
+  border-radius: 6px;
+  background: rgba(248, 251, 255, 0.88);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.22);
+}
+
+.lab-office-prop-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.2;
+  max-width: 5.5rem;
+  background: rgba(248, 251, 255, 0.92);
+  border: 2px solid #163a70;
+  border-radius: 4px;
+  padding: 1px 4px;
+  box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.18);
+}
+
+.lab-office-prop-sub a {
+  color: #204e96;
+  font-size: 10px;
+  text-decoration: underline;
+}
+
+.lab-office-auth {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lab-office-auth a {
+  color: #f8fbff;
+  font-weight: 700;
+  font-size: 14px;
 }
 
 .lab-office-char {

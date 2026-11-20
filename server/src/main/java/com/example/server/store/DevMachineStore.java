@@ -246,6 +246,18 @@ public final class DevMachineStore {
         return clock.now();
     }
 
+    /** 內部快照列表（供公開辦公室狀態推算；不含 issue 標題等 API 欄位）。 */
+    public List<Snapshot> machineSnapshots() {
+        List<Snapshot> out = new ArrayList<>();
+        for (String machine : MACHINE_ORDER) {
+            Snapshot snap = byMachine.get(machine);
+            if (snap != null) {
+                out.add(snap);
+            }
+        }
+        return Collections.unmodifiableList(out);
+    }
+
     public boolean isOnline(String machine, long now) {
         Snapshot snap = byMachine.get(machine);
         return snap != null && now - snap.lastSeen <= ONLINE_WINDOW_MS;

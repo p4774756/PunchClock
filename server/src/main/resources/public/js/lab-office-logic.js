@@ -47,6 +47,42 @@ export function viewerCanOpenLabOffice(authFlag) {
   return authFlag === true;
 }
 
+/** 首頁可點物件（百分比座標，對舞台）。 */
+export const OFFICE_PROP_POS = Object.freeze({
+  clock: { x: 8, y: 58, label: '打卡機' },
+  bookshelf: { x: 78, y: 42, label: '書櫃' },
+  whiteboard: { x: 48, y: 38, label: '白板' },
+  desk: { x: 62, y: 72, label: '下載 App' }
+});
+
+export function buildCharacterStatesFromPublic(publicPayload, now) {
+  const chars = publicPayload && publicPayload.characters ? publicPayload.characters : {};
+  const list = [];
+  for (let i = 0; i < CHARACTER_IDS.length; i++) {
+    const id = CHARACTER_IDS[i];
+    const row = chars[id] || {};
+    const status = String(row.status || '待機');
+    const base = {
+      id,
+      mode: status === '工作中' ? 'work' : status === '審核中' ? 'work' : 'idle',
+      bubble: status,
+      desk: status === '工作中' && (id === 'tiger' || id === 'reviewer'),
+      accent: false,
+      spot: pickIdleSpot(now, id)
+    };
+    if (id === 'oki') {
+      base.spot = 'coffee';
+      base.mode = status === '工作中' ? 'plan' : 'idle';
+    } else if (id === 'tiger' && status === '工作中') {
+      base.spot = 'desk-tiger';
+    } else if (id === 'reviewer' && status === '審核中') {
+      base.spot = 'desk-review';
+    }
+    list.push(base);
+  }
+  return resolveSpotCollisions(list);
+}
+
 export function machineById(machines, id) {
   const list = machines && machines.machines ? machines.machines : [];
   for (let i = 0; i < list.length; i++) {

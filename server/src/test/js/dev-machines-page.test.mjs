@@ -10,9 +10,9 @@ const F = await loadPublicModule('dev-machines-format.js');
 
 const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
 
-test('主島載入 dev-guest-ui，toast 樣式類名存在', () => {
-  const indexHtml = readFileSync(join(publicRoot, 'index.html'), 'utf8');
-  assert.match(indexHtml, /href="\/css\/dev-guest-ui\.css"/);
+test('主控台載入 dev-guest-ui，toast 樣式類名存在', () => {
+  const consoleHtml = readFileSync(join(publicRoot, 'console.html'), 'utf8');
+  assert.match(consoleHtml, /href="\/css\/dev-guest-ui\.css"/);
   const css = readFileSync(join(publicRoot, 'css/dev-guest-ui.css'), 'utf8');
   assert.match(css, /\.dev-login-toast/);
   assert.match(css, /z-index:\s*10000/);
