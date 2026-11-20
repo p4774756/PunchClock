@@ -26,8 +26,7 @@ import {
   programCount,
   textureCount,
   uploadOneTexture,
-  warmSchoolCompileFlush,
-  warmSchoolOutlineCompileFlush,
+  uploadTexturesIncremental,
 } from './shader-warm';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
 import {animeOutfit,ANIME_OUTFITS,type AnimeOutfit,type OutfitId} from './outfits';
@@ -1200,7 +1199,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const pct=nextMonotonicPercent(progressHighWater,percent);
    if(pct<=progressHighWater&&step!=='done')return;
    progressHighWater=pct;
-   const stepLabel=extra??LOAD_STEP_LABELS[step];
+   const stepLabel=extra??(step==='download'?`下載模型 ${pct}%`:LOAD_STEP_LABELS[step]);
    lastProgressAt=performance.now();
    onProgress({percent:pct,step,stepLabel});
   };
@@ -1307,6 +1306,18 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(cacheAnimeOutfitsFlag){
     postWarmQueue.push({name:'build-practice',practiceRelated:true,run:async()=>{
      await yieldOnce();
+     if(disposed||practiceBuilt)return;
+     if(!practiceShell&&schoolModel){
+      const tClone=performance.now();
+      if(import.meta.env.DEV){
+       practiceCleanTemplate=cloneSkinnedObject(schoolModel);
+       isolatePracticeRig(practiceCleanTemplate);
+      }
+      practiceShell=cloneSkinnedObject(schoolModel);
+      isolatePracticeRig(practiceShell);
+      logPhase('clone-practice-shell',tClone);
+      await yieldOnce();
+     }
      if(disposed||!practiceShell||practiceBuilt)return;
      const t0=performance.now();
      await buildPracticeOutfitIncremental(practiceShell,practiceOutfit,gradient);
@@ -1443,58 +1454,68 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    void boost();
   };
 
-  const prepareSchoolCardMaterials=async(
-   primaryRoot:T.Object3D,
-   bumpSlice?:()=>void,
-  )=>{
-   await Promise.race([woodcutReady,timeoutAfter(25_000)]);
+  const prepareSchoolCardMaterials=async(primaryRoot:T.Object3D)=>{
+   await Promise.race([woodcutReady,timeoutAfter(1_500)]);
    if(disposed)return;
    const warmPrepStart=performance.now();
+   performance.mark('atlas:shader-warm-start');
    const chromeExtras:T.Texture[]=[gradient];
    if(woodcut)chromeExtras.push(woodcut.tex);
    const texList=[...new Set([
     ...collectMeshTextures(primaryRoot,chromeExtras),
     ...collectSceneChromeTextures(scene),
    ])];
-   const whileCompiling=()=>{
-    const overlayWas=teachingOverlayVisible;
-    teachingOverlayVisible=false;
-    const markers=teaching.markers.map(m=>m.visible);
-    teaching.markers.forEach(m=>{m.visible=false;});
-    return()=>{
-     teachingOverlayVisible=overlayWas;
-     teaching.markers.forEach((m,i)=>{m.visible=markers[i];});
-    };
+   const charPlan=planShaderWarm([primaryRoot],false,postWarmWarmedKeys);
+   const outlinePlan=planShaderWarm([primaryRoot],true,postWarmWarmedKeys);
+   const steps=Math.max(1,texList.length+charPlan.groups.length+outlinePlan.groups.length+1);
+   let step=0;
+   const bump=()=>{
+    step+=1;
+    reportProgress(materialsSlicePercent(step,steps),'materials','準備材質…');
    };
-   const programsAtSchoolCompile=warmSchoolCompileFlush(
-    renderer,scene,camera,characterRoot,whileCompiling,
-   );
-   for(const tex of texList){
+   const teachingWas=teaching.root.visible;
+   teaching.root.visible=false;
+   teachingOverlayVisible=false;
+   const charWas=characterRoot.visible;
+   characterRoot.visible=true;
+   try{
+    await uploadTexturesIncremental({
+     renderer,
+     textures:texList,
+     disposed:()=>disposed,
+     progressSlices:true,
+     onSlice:()=>bump(),
+    });
     if(disposed)return;
-    if(!isTextureOnGpu(renderer,tex)){
-     const ms=uploadOneTexture(renderer,tex);
-     const img=tex.image as {width?:number;height?:number}|undefined;
-     console.debug(
-      'atlas:texture-upload',
-      tex.name||`tex#${tex.id}`,
-      img?.width??0,
-      img?.height??0,
-      Math.round(ms),
-     );
-     if(ms>=600)console.debug('atlas:post-warm-slow',tex.name||`tex#${tex.id}`,Math.round(ms));
-    }
-    bumpSlice?.();
-    await yieldOnce();
+    const runPlan=async(plan:ReturnType<typeof planShaderWarm>)=>{
+     for(let i=0;i<plan.groups.length;i++){
+      if(disposed)return;
+      const before=compileWarmPlanGroup(renderer,scene,camera,plan,i,false);
+      postWarmWarmedKeys.add(plan.groups[i].key);
+      await linkProgramsIncremental(renderer,before,()=>disposed);
+      bump();
+      await yieldToMain();
+     }
+    };
+    await runPlan(charPlan);
+    if(disposed)return;
+    await runPlan(outlinePlan);
+    if(disposed)return;
+    const chromeBefore=programCount(renderer);
+    characterRoot.visible=false;
+    teaching.root.visible=true;
+    try{renderer.compile(scene,camera);}catch{/* software WebGL */}
+    await linkProgramsIncremental(renderer,chromeBefore,()=>disposed);
+    bump();
+    await yieldToMain();
+   }finally{
+    characterRoot.visible=charWas;
+    teaching.root.visible=teachingWas;
    }
    if(disposed)return;
-   warmSchoolOutlineCompileFlush(renderer,scene,camera,primaryRoot);
-   const schoolPlan=planShaderWarm([primaryRoot],false);
-   const outlinePlan=planShaderWarm([primaryRoot],true);
-   for(const g of schoolPlan.groups)postWarmWarmedKeys.add(g.key);
-   for(const g of outlinePlan.groups)postWarmWarmedKeys.add(g.key);
-   await linkProgramsIncremental(renderer,programsAtSchoolCompile,()=>disposed);
-   if(disposed)return;
    shaderWarmPrograms=programCount(renderer);
+   performance.mark('atlas:shader-warm-end');
+   try{performance.measure('atlas:shader-warm','atlas:shader-warm-start','atlas:shader-warm-end');}catch{/* duplicate */}
    logPhase('school-card-materials',warmPrepStart);
   };
 
@@ -1612,16 +1633,6 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       await parseSlice('vrm-combine-skeletons',()=>VRMUtils.combineSkeletons(gltf.scene));
      }
      if(cacheAnimeOutfits){
-      await parseSlice('clone-practice-shell',()=>{
-       practiceShell=cloneSkinnedObject(model);
-       if(import.meta.env.DEV)practiceCleanTemplate=cloneSkinnedObject(model);
-      });
-      await yieldToMain();
-      if(disposed)return;
-      await parseSlice('isolate-practice',()=>{
-       if(practiceShell)isolatePracticeRig(practiceShell);
-       if(practiceCleanTemplate)isolatePracticeRig(practiceCleanTemplate);
-      });
       await parseSlice('finish-school-look',()=>finishCharacterLook(model,schoolOutfit,gradient));
       uniformAssetSnap=snapshotMeshAssets(model);
       schoolModel=model;
@@ -1642,19 +1653,13 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      const anchorT0=performance.now();
      teaching.anchor(characterRoot);
      logPhase('anchor',anchorT0);
+     performance.mark('atlas:cpu-ready');
+     try{performance.measure('atlas:cpu-after-download','atlas:phase-gltf-loaded','atlas:cpu-ready');}catch{/* duplicate */}
      reportProgress(92,'materials','準備材質…');
      await yieldToMain();
      if(disposed)return;
      const schoolRoot=schoolModel??model;
-     let matSlice=0;
-     const chromeExtras:T.Texture[]=[gradient];
-     if(woodcut)chromeExtras.push(woodcut.tex);
-     const matTotal=Math.max(8,[...new Set(collectMeshTextures(schoolRoot,chromeExtras))].length+2);
-     const bumpMaterials=()=>{
-      matSlice=Math.min(matTotal,matSlice+1);
-      reportProgress(materialsSlicePercent(matSlice,matTotal),'materials','準備材質…');
-     };
-     await prepareSchoolCardMaterials(schoolRoot,bumpMaterials);
+     await prepareSchoolCardMaterials(schoolRoot);
      reportProgress(99,'materials','準備材質…');
      if(disposed)return;
      showOutfit(outfitIdRef.current);

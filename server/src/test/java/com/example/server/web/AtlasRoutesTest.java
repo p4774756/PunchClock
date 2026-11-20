@@ -92,7 +92,29 @@ public class AtlasRoutesTest {
         assertEquals(200, response.statusCode());
         assertTrue(response.headers().firstValue("cache-control").orElse("").contains("public"));
         assertTrue(response.headers().firstValue("cache-control").orElse("").contains("31536000"));
+        assertTrue(response.headers().firstValue("cache-control").orElse("").contains("immutable"));
         assertTrue(response.headers().firstValue("etag").isPresent());
+        assertTrue(response.headers().firstValue("last-modified").isPresent());
+        String etag = response.headers().firstValue("etag").orElseThrow();
+        HttpResponse<String> cached = send("GET", "/atlas/tcm-3d/assets/index-a1b2c3d4.js", null, etag, null);
+        assertEquals(304, cached.statusCode());
+    }
+
+    @Test
+    public void versionedModelGetsYearImmutableAndContentLength() throws Exception {
+        byte[] glb = "glb-versioned".getBytes(StandardCharsets.UTF_8);
+        Path glbPath = root.resolve("tcm-3d").resolve("models").resolve("anime-assistant.glb");
+        Files.write(glbPath, glb);
+        HttpResponse<byte[]> response = sendBytes(
+                "GET", "/atlas/tcm-3d/models/anime-assistant.glb?v=abc123", null, null, null);
+        assertEquals(200, response.statusCode());
+        assertEquals(Integer.toString(glb.length), response.headers().firstValue("content-length").orElse(""));
+        String cache = response.headers().firstValue("cache-control").orElse("");
+        assertTrue(cache.contains("public"));
+        assertTrue(cache.contains("31536000"));
+        assertTrue(cache.contains("immutable"));
+        assertTrue(response.headers().firstValue("etag").isPresent());
+        assertTrue(response.headers().firstValue("last-modified").isPresent());
     }
 
     @Test

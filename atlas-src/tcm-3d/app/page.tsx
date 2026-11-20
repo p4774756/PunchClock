@@ -54,7 +54,7 @@ export default function Home(){
   const code=preferred??initialSimulation.pointCode;
   return {...initialSimulation,curriculumSet:set,pointCode:code,side:1,focus:preferred?1:0};
  });
- const [progress,setProgress]=useState(4),[loadStep,setLoadStep]=useState(LOAD_STEP_LABELS.program),[error,setError]=useState('');
+ const [progress,setProgress]=useState(6),[loadStep,setLoadStep]=useState(LOAD_STEP_LABELS.program),[error,setError]=useState('');
  const [region,setRegion]=useState<RegionId|'all'>('all'),[query,setQuery]=useState('');
  const [toolsExpanded,setToolsExpanded]=useState(false);
  const [mobilePanel,setMobilePanel]=useState<'library'|'selection'|null>(null);
@@ -235,7 +235,7 @@ export default function Home(){
    const pending=outfit.id==='study-body'&&practicePreparing&&outfitId==='study-body';
    return <button key={outfit.id} type="button" className={`${outfitId===outfit.id?'selected':''}${pending?' is-pending':''}`} aria-pressed={outfitId===outfit.id} title={outfit.blurb} onPointerDown={e=>{if(e.button!==0)return; switchOutfit(outfit.id,e.currentTarget);}} onClick={e=>{if(e.detail===0)switchOutfit(outfit.id,e.currentTarget);}}>{outfit.shortName}{pending&&<span className="outfit-pending" aria-hidden="true"/>}</button>;
   })}</nav>}
-  {practicePreparing&&outfitId==='study-body'&&<p className="practice-outfit-hint surface" role="status" aria-live="polite">換裝中…</p>}
+  {practicePreparing&&outfitId==='study-body'&&<p className="practice-outfit-hint surface" role="status" aria-live="polite">準備中…</p>}
 
   <aside className={`library-panel surface ${mobilePanel==='library'?'mobile-expanded':''}`} aria-label="穴位庫">
    <button className="mobile-panel-heading" aria-expanded={mobilePanel==='library'} onClick={()=>setMobilePanel(p=>p==='library'?null:'library')}><span><Layers3 size={16}/>穴位庫</span><ChevronDown size={17}/></button>
