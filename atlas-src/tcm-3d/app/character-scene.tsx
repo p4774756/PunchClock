@@ -14,6 +14,7 @@ import {PointerTap} from './pointer-tap';
 import {createTeachingOverlay} from './teaching-overlay';
 import {installSurfaceToolInput} from './surface-tool-input';
 import {focusViewFromNormal} from './focus-view';
+import {isHeadLateralLocate,locateViewDirCandidates} from './quest/quest-locate-frame';
 import type {SceneState} from './anatomy';
 import {STUDIO_CAMERA_FOV_DEG} from './camera-constants';
 import type {SimulationState,SurfaceTarget,ToolDragPhase} from './teaching';
@@ -821,7 +822,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const el=host.current!;let disposed=false,frame=0,dirty=true,ready=false,lastView='',lastReset=-1,lastFocus=-1;
   let locateLerp:{t0:number;fromT:[number,number,number];fromP:[number,number,number];toT:[number,number,number];toP:[number,number,number]}|null=null;
   let renderer:T.WebGLRenderer;
-  try{renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});}
+  try{renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance',preserveDrawingBuffer:questMode});}
   catch{onError('無法啟動 3D 視圖，請使用支持 WebGL 的瀏覽器。');return;}
   renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<768?1.5:2));
   // Parchment clear matches panorama top／bottom fade (no box lid).
@@ -863,7 +864,79 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    points,
    resolvePoint:(code,side)=>avatarPointTarget(avatar,code,side),
   });
+  if(questMode)teaching.setQuestMarkerStyle(true);
   el.appendChild(teaching.label);
+
+  let markerSet:WeakSet<T.Object3D>=new WeakSet();
+  const occluderRoots:T.Object3D[]=[];
+  const locateHairSaved=new Map<T.Object3D,boolean>();
+  const locateMouthSaved=new Map<T.Object3D,boolean>();
+  let locateHairSuppressed=false;
+  const refreshMarkerSet=()=>{
+   markerSet=new WeakSet(teaching.markers);
+  };
+  refreshMarkerSet();
+  const collectOccluders=()=>{
+   occluderRoots.length=0;
+   characterRoot.traverse(obj=>{
+    if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+    if(!obj.visible)return;
+    if(markerSet.has(obj))return;
+    if(obj.userData.point)return;
+    const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+    if(mats.every(m=>m&&!m.visible))return;
+    occluderRoots.push(obj);
+   });
+  };
+  const isHairOccluder=(obj:T.Object3D)=>{
+   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return false;
+   const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+   const label=`${obj.name||''} ${mats.map(m=>m?.name||'').join(' ')}`;
+   return /HAIR|HairBack|PracticeHair|髪/i.test(label);
+  };
+  const isMouthOccluder=(obj:T.Object3D)=>{
+   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return false;
+   const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+   const label=`${obj.name||''} ${mats.map(m=>m?.name||'').join(' ')}`;
+   return /FaceMouth|Teeth|Tongue|口腔/i.test(label);
+  };
+  const setLocateHairSuppress=(on:boolean)=>{
+   if(on===locateHairSuppressed)return;
+   if(!on){
+    for(const [obj,was] of locateHairSaved)obj.visible=was;
+    locateHairSaved.clear();
+    locateHairSuppressed=false;
+    return;
+   }
+   characterRoot.traverse(obj=>{
+    if(!isHairOccluder(obj))return;
+    if(!locateHairSaved.has(obj))locateHairSaved.set(obj,obj.visible);
+    obj.visible=false;
+   });
+   locateHairSuppressed=true;
+  };
+  const setLocateMouthHide=(on:boolean)=>{
+   if(!on){
+    for(const [obj,was] of locateMouthSaved)obj.visible=was;
+    locateMouthSaved.clear();
+    return;
+   }
+   characterRoot.traverse(obj=>{
+    if(!isMouthOccluder(obj))return;
+    if(!locateMouthSaved.has(obj))locateMouthSaved.set(obj,obj.visible);
+    obj.visible=false;
+   });
+  };
+  const syncLocateOccluderFx=(fl:SimulationState['frameLocate'])=>{
+   const active=questMode&&!!fl?.answerCode;
+   if(!active){
+    setLocateHairSuppress(false);
+    setLocateMouthHide(false);
+    return;
+   }
+   setLocateHairSuppress(true);
+   setLocateMouthHide(isHeadLateralLocate(fl!.answerCode!));
+  };
 
   // Finger-pressure feedback uses teaching-overlay halo/patch only.
   // Do not patch VRM MToon onBeforeCompile — injecting into Face/Body skin
@@ -882,7 +955,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(schoolModel)schoolModel.visible=id==='school';
    if(practiceModel)practiceModel.visible=id==='study-body';
    characterRoot.updateMatrixWorld(true);
-   if(ready)teaching.reanchor(characterRoot);
+   if(ready){teaching.reanchor(characterRoot);refreshMarkerSet();}
    dirty=true;
   };
 
@@ -912,7 +985,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       if(disposed||practiceBuilt||!practiceShell)return;
       buildPracticeOutfit();
       showOutfit(id);
-      if(ready)teaching.reanchor(characterRoot);
+      if(ready){teaching.reanchor(characterRoot);refreshMarkerSet();}
      });
     });
     return;
@@ -1003,15 +1076,11 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   };
   const markerOccluded=(m:T.Mesh)=>{
    if(!ready)return true;
-   const fl=sim.current.frameLocate;
-   if(questMode&&fl){
-    const p=m.position.clone().project(camera);
-    if(p.z<-1||p.z>1)return true;
-    if(fl.viewDir[2]>=-.25)return false;
-   }
-   if(!markerFacingCamera(m))return true;
-   const skins=teaching.getSkinMeshes();
-   if(!skins.length)return false;
+   if(!questMode&&!markerFacingCamera(m))return true;
+   characterRoot.updateMatrixWorld(true);
+   if(vrm)vrm.update(0);
+   collectOccluders();
+   if(!occluderRoots.length)return false;
    const target=m.position.clone();
    const camPos=camera.position.clone();
    const dir=target.clone().sub(camPos);
@@ -1019,13 +1088,18 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(dist<1e-4)return false;
    dir.normalize();
    raycaster.set(camPos,dir);
-   raycaster.far=dist-.01;
+   raycaster.far=Math.max(dist-.003,.001);
    raycaster.near=0.001;
-   return raycaster.intersectObjects(skins,true).length>0;
+   const hits=raycaster.intersectObjects(occluderRoots,true);
+   for(const h of hits){
+    if(locateHairSuppressed&&isHairOccluder(h.object))continue;
+    return true;
+   }
+   return false;
   };
   const pickQuestMarker=(clientX:number,clientY:number)=>{
    const rect=renderer.domElement.getBoundingClientRect();
-   const minPx=el.clientWidth<=720?24:10;
+   const minPx=questMode?(el.clientWidth<=720?8:6):(el.clientWidth<=720?24:10);
    let best:T.Mesh|null=null,bestD=minPx;
    for(const m of teaching.markers){
     if(!m.visible||markerOccluded(m))continue;
@@ -1041,11 +1115,21 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(!tap.up(e.pointerId,e.clientX,e.clientY)||!ready)return;
    const rect=renderer.domElement.getBoundingClientRect();
    pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);
-   raycaster.setFromCamera(pointer,camera);
-   let hit=raycaster.intersectObjects(teaching.markers.filter(m=>m.visible&&!markerOccluded(m)),false)[0];
-   if(!hit&&questMode){
+   let hit:T.Intersection|null=null;
+   if(questMode){
     const near=pickQuestMarker(e.clientX,e.clientY);
-    if(near)hit={object:near,distance:0,point:new T.Vector3(),face:null,instanceId:null as unknown as number} as T.Intersection;
+    if(near){
+     const p=near.position.clone().project(camera);
+     const sx=rect.left+(p.x+1)/2*rect.width;
+     const sy=rect.top+(1-p.y)/2*rect.height;
+     const snap=el.clientWidth<=720?8:6;
+     if(Math.hypot(e.clientX-sx,e.clientY-sy)<=snap){
+      hit={object:near,distance:0,point:new T.Vector3(),face:null,instanceId:null as unknown as number} as T.Intersection;
+     }
+    }
+   }else{
+    raycaster.setFromCamera(pointer,camera);
+    hit=raycaster.intersectObjects(teaching.markers.filter(m=>m.visible&&!markerOccluded(m)),false)[0]??null;
    }
    if(hit)pointSelect.current(hit.object.userData.point,hit.object.userData.side);
   };
@@ -1079,6 +1163,46 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    }
   };
   const clamp=(n:number,lo:number,hi:number)=>Math.max(lo,Math.min(hi,n));
+  const groupMarkersVisible=(fl:NonNullable<SimulationState['frameLocate']>)=>{
+   const codes=new Set(fl.frameCodes??[fl.answerCode!]);
+   refreshMarkerSet();
+   for(const m of teaching.markers){
+    if(!m.visible)continue;
+    const code=m.userData.point as string;
+    if(!codes.has(code))continue;
+    const p=m.position.clone().project(camera);
+    if(p.z<-1||p.z>1)return false;
+    if(markerOccluded(m))return false;
+   }
+   return true;
+  };
+  const applyLocateCamera=(fl:NonNullable<SimulationState['frameLocate']>)=>{
+   const aim=new T.Vector3().fromArray(fl.aim);
+   const viewDir=new T.Vector3().fromArray(fl.viewDir).normalize();
+   controls.target.copy(aim);
+   camera.position.copy(aim).addScaledVector(viewDir,fl.distance);
+   controls.update();
+   applyLocateViewOffset(fl);
+  };
+  const pickLocateViewDir=(fl:NonNullable<SimulationState['frameLocate']>)=>{
+   if(!fl.answerCode||!fl.frameCodes?.length)return;
+   const cands=locateViewDirCandidates(fl.answerCode,fl.frameCodes);
+   for(const dir of cands){
+    fl.viewDir=dir;
+    applyLocateCamera(fl);
+    const answer=teaching.markers.find(m=>m.userData.point===fl.answerCode);
+    if(answer&&!markerOccluded(answer)&&groupMarkersVisible(fl))return;
+   }
+   if(!locateHairSuppressed){
+    setLocateHairSuppress(true);
+    for(const dir of cands){
+     fl.viewDir=dir;
+     applyLocateCamera(fl);
+     const answer=teaching.markers.find(m=>m.userData.point===fl.answerCode);
+     if(answer&&!markerOccluded(answer)&&groupMarkersVisible(fl))return;
+    }
+   }
+  };
   const refineLocateView=(fl:NonNullable<SimulationState['frameLocate']>)=>{
    if(!fl.viewOffset||!fl.answerCode)return;
    const desktop=fl.viewOffset.fullWidth>=720;
@@ -1116,13 +1240,43 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    applyLocateViewOffset(fl);
    dirty=true;
   };
+  const finalizeLocateFrame=(fl:NonNullable<SimulationState['frameLocate']>)=>{
+   syncLocateOccluderFx(fl);
+   pickLocateViewDir(fl);
+   refineLocateView(fl);
+  };
   type MqDebugWindow=Window&{__mqRefineLocate?:()=>void;__mqDebug?:()=>{
    markers:{code:string;side:number;screenX:number;screenY:number;inFrustum:boolean;occluded:boolean}[];
    hudBottom:number;hintTop:number;usableMid:number;frameCenter:{screenX:number;screenY:number}|null;
-  }};
-  if(questMode)(window as MqDebugWindow).__mqRefineLocate=()=>{
-   if(sim.current.frameLocate)refineLocateView(sim.current.frameLocate);
+  };__mqMarkerPixelBest?:(code:string)=>{best:number;maxG:number;r:number;g:number;b:number}|null};
+  const sampleMarkerPixel=(code:string)=>{
+   const m=teaching.markers.find(x=>x.userData.point===code&&x.visible);
+   if(!m||!ready)return null;
+   dirty=true;
+   renderer.render(scene,camera);
+   const p=m.position.clone().project(camera);
+   const w=renderer.domElement.width,h=renderer.domElement.height;
+   const cx=Math.round((p.x+1)/2*w),cy=Math.round((1-p.y)/2*h);
+   const gl=renderer.getContext() as WebGLRenderingContext;
+   let best=999,maxG=0,r=0,g=0,b=0,hasGreen=false;
+   for(let dx=-18;dx<=18;dx++)for(let dy=-18;dy<=18;dy++){
+    const x=cx+dx,y=cy+dy;
+    if(x<0||y<0||x>=w||y>=h)continue;
+    const buf=new Uint8Array(4);
+    gl.readPixels(x,h-1-y,1,1,gl.RGBA,gl.UNSIGNED_BYTE,buf);
+    const score=Math.abs(buf[0]-61)+Math.abs(buf[1]-255)+Math.abs(buf[2]-90);
+    const ring=Math.abs(buf[0]-22)+Math.abs(buf[1]-58)+Math.abs(buf[2]-112);
+    const s=Math.min(score,ring);
+    if(buf[1]>maxG)maxG=buf[1];
+    if(buf[1]>=175&&buf[1]>buf[0]+28&&buf[1]>buf[2]+22)hasGreen=true;
+    if(s<best){best=s;r=buf[0];g=buf[1];b=buf[2];}
+   }
+   return {best,maxG,r,g,b,hasGreen};
   };
+  if(questMode)(window as MqDebugWindow).__mqRefineLocate=()=>{
+   if(sim.current.frameLocate)finalizeLocateFrame(sim.current.frameLocate);
+  };
+  if(questMode)(window as MqDebugWindow).__mqMarkerPixelBest=sampleMarkerPixel;
   if(questMode)(window as MqDebugWindow).__mqDebug=()=>{
    const rect=renderer.domElement.getBoundingClientRect();
    const hudBox=(document.querySelector('.mq-hud-panel')??document.querySelector('.mq-hud'))?.getBoundingClientRect();
@@ -1186,6 +1340,10 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     };
     dirty=true;
    };
+   if(questMode&&simState.frameLocate!==lastSimulation?.frameLocate){
+    syncLocateOccluderFx(simState.frameLocate);
+    if(!simState.frameLocate)setLocateHairSuppress(false);
+   }
    if(simState.focus&&lastFocus!==simState.focus&&ready&&questMode&&simState.frameLocate){
     lastFocus=simState.focus;
     beginLocateLerp(simState.frameLocate);
@@ -1227,7 +1385,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       applyLocateViewOffset(simState.frameLocate);
       if(questMode&&lastRefinedLocate!==simState.focus){
        lastRefinedLocate=simState.focus;
-       refineLocateView(simState.frameLocate);
+       finalizeLocateFrame(simState.frameLocate);
       }
      }
     }
@@ -1250,7 +1408,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   return()=>{
    disposed=true;outfitBridge.current=null;cancelAnimationFrame(frame);observer.disconnect();
-   if(questMode){delete (window as MqDebugWindow).__mqDebug;delete (window as MqDebugWindow).__mqRefineLocate;}
+   setLocateHairSuppress(false);
+   setLocateMouthHide(false);
+   if(questMode){delete (window as MqDebugWindow).__mqDebug;delete (window as MqDebugWindow).__mqRefineLocate;delete (window as MqDebugWindow).__mqMarkerPixelBest;}
    toolInput.dispose();teaching.dispose();controls.dispose();gradient.dispose();
    if(woodcut){
     scene.remove(woodcut.mesh);

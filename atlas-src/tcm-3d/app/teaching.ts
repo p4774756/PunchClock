@@ -134,6 +134,8 @@ export type LocateFrameSpec={
  viewDir:[number,number,number];
  viewOffset?:LocateViewOffset;
  answerCode?:string;
+ /** 同群組框選的標記 code（找穴題鏡頭評分用）。 */
+ frameCodes?:string[];
 };
 
 export interface SimulationState {showMeridians?:boolean;meridianFilter?:string;curriculumSet?:CurriculumSetId|'all'|null;tool:ToolId;release?:number;dragging?:boolean;running:boolean;elapsed:number;amplitude:number;pointCode:string|null;side:1|-1;framePointCode?:string|null;frameSide?:1|-1;frameLocate?:LocateFrameSpec|null;customTarget:SurfaceTarget|null;focus:number;showPoints:boolean;pickMode:'point';effects:boolean}

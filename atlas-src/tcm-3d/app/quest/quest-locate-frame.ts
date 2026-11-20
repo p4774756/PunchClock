@@ -121,9 +121,78 @@ function answerVerticalPan(answerCode:string,center:[number,number,number],dista
  return Math.round(dy*pxPerWorld*.55);
 }
 
+const HEAD_LATERAL_CODES=new Set([
+ 'TE17','TE21','TE23','GB1','GB2','SI19','SI18','GB14','EX-HN5','ST6','LI20',
+]);
+
+export function isBackLocate(code:string):boolean{
+ const t=animePointTarget(code,1);
+ if(!t)return false;
+ if(t.normal[2]>.15)return true;
+ const region=POINT_BY_CODE.get(code)?.region;
+ return region==='waist';
+}
+
+export function isHeadLateralLocate(code:string):boolean{
+ const region=POINT_BY_CODE.get(code)?.region;
+ if(region!=='head'&&!HEAD_LATERAL_CODES.has(code))return false;
+ if(HEAD_LATERAL_CODES.has(code))return true;
+ const t=animePointTarget(code,1);
+ if(!t)return false;
+ const [nx,,nz]=t.normal;
+ return Math.abs(nx)>.32&&Math.abs(nz)<.55;
+}
+
+/** 頭側顳／耳穴：3/4 前方（略高於耳），不可側後方。 */
+export function headLateralViewDir(answerCode:string):[number,number,number]{
+ const t=animePointTarget(answerCode,1);
+ const sign=Math.sign(t?.position[0]??t?.normal[0]??1)||1;
+ const ear=/^(SI19|TE17|TE21|GB2|GB1)$/u.test(answerCode);
+ const v=new T.Vector3(-sign*(ear?.38:.48),ear?.1:.14,-.9).normalize();
+ return [v.x,v.y,v.z];
+}
+
+export function backLocateViewDirs():[number,number,number][]{
+ const raw=[
+  new T.Vector3(0,.08,.96),
+  new T.Vector3(.22,.12,.92),
+  new T.Vector3(-.22,.12,.92),
+  new T.Vector3(.12,.18,.95),
+  new T.Vector3(-.12,.18,.95),
+ ];
+ return raw.map(v=>{v.normalize();return [v.x,v.y,v.z] as [number,number,number];});
+}
+
+export function locateViewDirCandidates(answerCode:string,frameCodes:string[]):[number,number,number][]{
+ if(isBackLocate(answerCode))return backLocateViewDirs();
+ if(!isHeadLateralLocate(answerCode)){
+  return [viewDirFromCodes(frameCodes,answerCode)];
+ }
+ const t=animePointTarget(answerCode,1);
+ const sign=Math.sign(t?.position[0]??t?.normal[0]??1)||1;
+ const raw=[
+  new T.Vector3(-sign*.48,.14,-.86),
+  new T.Vector3(-sign*.26,.12,-.94),
+  new T.Vector3(-sign*.62,.16,-.72),
+  new T.Vector3(-sign*.18,.1,-.98),
+  new T.Vector3(0,.08,-1),
+ ];
+ const seen=new Set<string>(),out:[number,number,number][]=[];
+ for(const v of raw){
+  v.normalize();
+  const key=v.toArray().map(n=>n.toFixed(2)).join(',');
+  if(seen.has(key))continue;
+  seen.add(key);
+  out.push([v.x,v.y,v.z]);
+ }
+ return out;
+}
+
 function viewDirFromCodes(codes:string[],answerCode:string):[number,number,number]{
+ if(isHeadLateralLocate(answerCode))return headLateralViewDir(answerCode);
  const t0=animePointTarget(answerCode,1);
- if(t0&&t0.normal[2]>.2){
+ const region=POINT_BY_CODE.get(answerCode)?.region;
+ if(t0&&t0.normal[2]>.2&&region!=='head'){
   const {viewDir}=focusViewFromNormal(answerCode,new T.Vector3().fromArray(t0.normal).normalize(),1);
   return [viewDir.x,viewDir.y,viewDir.z];
  }
@@ -163,6 +232,7 @@ function framePositions(codes:string[],group:BodyGroup){
 }
 
 export function questLocateViewForAnswer(answerCode:string):'front'|'back'|'three-quarter'{
+ if(isHeadLateralLocate(answerCode))return 'three-quarter';
  const side=viewSideForCode(answerCode);
  if(side==='back')return 'back';
  if(side==='side')return 'three-quarter';
@@ -200,5 +270,5 @@ export function computeLocateFrame(
  const extraPan=opts.mobile?answerVerticalPan(answerCode,center,distance,opts.viewportHeight):0;
  const viewOffset=viewOffsetFor(opts.viewportWidth,opts.viewportHeight,opts.hudTop,opts.bottomReserved,jitterX,jitterY,extraPan);
 
- return {aim:center,distance,viewDir,viewOffset,answerCode};
+ return {aim:center,distance,viewDir,viewOffset,answerCode,frameCodes};
 }

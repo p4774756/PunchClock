@@ -16,12 +16,31 @@ export function createTeachingOverlay(
  const sphere=new T.SphereGeometry(.0042,14,10);
  const normalMat=new T.MeshStandardMaterial({color:'#4e958b',emissive:'#24463e',emissiveIntensity:.15,roughness:.3});
  const activeMat=new T.MeshStandardMaterial({color:'#e9ae58',emissive:'#b17830',emissiveIntensity:.4,roughness:.3});
+ const questDotMat=new T.MeshBasicMaterial({color:0x3DFF5A,depthTest:false,depthWrite:false,visible:false});
+ const makeQuestSpriteMat=()=>{
+  const px=new Uint8Array(64*64*4);
+  const cx=32,cy=32,ro=20,ri=13;
+  for(let y=0;y<64;y++)for(let x=0;x<64;x++){
+   const d=Math.hypot(x-cx,y-cy);
+   const i=(y*64+x)*4;
+   if(d<=ro&&d>=ri){px[i]=0x16;px[i+1]=0x3a;px[i+2]=0x70;px[i+3]=255;}
+   else if(d<ri){px[i]=0x3d;px[i+1]=0xff;px[i+2]=0x5a;px[i+3]=255;}
+  }
+  const tex=new T.DataTexture(px,64,64,T.RGBAFormat);
+  tex.magFilter=T.NearestFilter;tex.minFilter=T.NearestFilter;tex.needsUpdate=true;
+  return new T.SpriteMaterial({map:tex,depthTest:false,depthWrite:false,toneMapped:false});
+ };
+ const questSpriteMat=makeQuestSpriteMat();
+ const questSprites=new Map<T.Mesh,T.Sprite>();
+ const markerRings=new Map<T.Mesh,T.Mesh>();
+ let questMarkerStyle=false;
  const markers:T.Mesh[]=[];
  for(const point of opts.points)for(const side of point.midline?[1 as const]:[1 as const,-1 as const]){
   const seed=opts.resolvePoint(point.code,side);
   if(!seed)continue;
   const dot=new T.Mesh(sphere,normalMat);dot.userData={point:point.code,side};
   dot.position.fromArray(seed.position).addScaledVector(new T.Vector3().fromArray(seed.normal).normalize(),.003);
+  dot.renderOrder=600;
   dots.add(dot);markers.push(dot);surface.set(`${point.code}:${side}`,seed);
  }
  const instruments=new Map<ToolId,T.Group>();
@@ -100,8 +119,10 @@ export function createTeachingOverlay(
    const selected=dot.userData.point===s.pointCode&&(dot.userData.side===s.side||opts.points.find(p=>p.code===s.pointCode)?.midline);
    const meridianOk=!s.meridianFilter||s.meridianFilter==='all'||POINT_BY_CODE.get(dot.userData.point)?.meridianId===s.meridianFilter;
    dot.visible=meridianOk&&allowedByCurriculum(dot.userData.point);
-   dot.material=selected?activeMat:normalMat;
-   dot.scale.setScalar(selected?1.35:1);
+   dot.material=questMarkerStyle?questDotMat:(selected?activeMat:normalMat);
+   dot.scale.setScalar(questMarkerStyle?1:(selected?1.35:1));
+   const spr=questSprites.get(dot);
+   if(spr)spr.visible=questMarkerStyle&&dot.visible;
   }
   label.hidden=!target||!root.visible;
   if(!target)return null;
@@ -182,11 +203,40 @@ export function createTeachingOverlay(
   controls.update();return true;
  };
  const getDraggables=(tool:ToolId)=>{const meshes:T.Object3D[]=[];instruments.get(tool)?.traverseVisible(o=>{if(o instanceof T.Mesh)meshes.push(o);});return meshes;};
+ const setQuestMarkerStyle=(on:boolean)=>{
+  if(questMarkerStyle===on)return;
+  questMarkerStyle=on;
+  for(const dot of markers){
+   if(on){
+    dot.material=questDotMat;
+    let spr=questSprites.get(dot);
+    if(!spr){
+     spr=new T.Sprite(questSpriteMat);
+     spr.renderOrder=820;
+     spr.center.set(.5,.5);
+     dot.add(spr);
+     questSprites.set(dot,spr);
+    }
+    spr.visible=true;
+    spr.scale.set(.034,.034,1);
+    const ring=markerRings.get(dot);
+    if(ring)ring.visible=false;
+   }else{
+    dot.material=normalMat;
+    const ring=markerRings.get(dot);
+    if(ring)ring.visible=false;
+    const spr=questSprites.get(dot);
+    if(spr)spr.visible=false;
+    dot.scale.setScalar(1);
+   }
+  }
+ };
  return {
-  root,markers,label,anchor,reanchor,update,focus,getTarget,getDraggables,snapTarget,
+  root,markers,label,anchor,reanchor,update,focus,getTarget,getDraggables,snapTarget,setQuestMarkerStyle,
   getSkinMeshes:()=>skinMeshes,
   isAnchored:()=>anchored,
   dispose:()=>{
+   questDotMat.dispose();questSpriteMat.dispose();
    normalMat.dispose();activeMat.dispose();sphere.dispose();
    instruments.forEach(g=>g.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}}));
   },
