@@ -298,11 +298,30 @@ export function createDevMachinesPage(opts) {
     }
   }
 
+  function setActiveTab(id) {
+    activeTab = id === 'office' ? 'office' : 'machines';
+    if (!doc.querySelectorAll) return;
+    const tabs = doc.querySelectorAll('[data-dev-tab]');
+    tabs.forEach((el) => {
+      const active = el.getAttribute('data-dev-tab') === activeTab;
+      el.classList.toggle('is-active', active);
+      el.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  }
+
   function showMachinesView() {
     if (root) root.hidden = false;
     const host = doc.getElementById('labOfficeRoot');
     if (host) host.hidden = true;
     if (officeCtrl) officeCtrl.close();
+  }
+
+  function returnToMachineList() {
+    if (activeTab !== 'office') return;
+    setActiveTab('machines');
+    if (root) root.hidden = false;
+    refresh();
+    if (!doc.hidden) schedule();
   }
 
   function showOfficeView() {
@@ -315,13 +334,17 @@ export function createDevMachinesPage(opts) {
       root.hidden = true;
     }
     if (!officeCtrl) {
-      officeCtrl = createLabOfficeController({ doc, win });
+      officeCtrl = createLabOfficeController({
+        doc,
+        win,
+        hooks: { onClose: returnToMachineList }
+      });
     }
     officeCtrl.open();
   }
 
   function onTab(id) {
-    activeTab = id === 'office' ? 'office' : 'machines';
+    setActiveTab(id);
     if (activeTab === 'office') {
       stopTimer();
       showOfficeView();

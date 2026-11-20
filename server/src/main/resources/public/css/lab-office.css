@@ -205,10 +205,20 @@
 }
 
 @media (max-width: 520px) {
+  .lab-office-char img {
+    height: 42px;
+  }
+  .lab-office-char[data-char="kitten"] { left: 10% !important; top: 86% !important; }
+  .lab-office-char[data-char="tiger"] { left: 30% !important; top: 86% !important; }
+  .lab-office-char[data-char="reviewer"] { left: 50% !important; top: 86% !important; }
+  .lab-office-char[data-char="artist3d"] { left: 70% !important; top: 86% !important; }
+  .lab-office-char[data-char="oki"] { left: 90% !important; top: 86% !important; }
   .lab-office-bubble {
-    max-width: 6.4rem;
-    font-size: 11px;
-    line-height: 1.25;
+    max-width: 3.15rem;
+    font-size: 10px;
+    line-height: 1.2;
+    padding: 2px 3px;
+    overflow-wrap: anywhere;
   }
   .lab-office-portrait {
     max-height: 112px;
