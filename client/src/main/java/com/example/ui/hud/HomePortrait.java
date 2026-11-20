@@ -54,7 +54,6 @@ public final class HomePortrait implements WindowChrome.FramePortrait {
             // 外層尺寸 → 留白，需與 panelOverflow 對齊，否則換頁會改視窗大小閃爍。
             return OrbitalFrame.forCanvas(width, height, maximized);
         }
-        // 留白不跟著換頁收掉。收掉會改透明視窗的大小，macOS 會先閃一幀空白。
         return HomeCharacterLayout.overflow(width, height, maximized, art != null);
     }
 

@@ -8,6 +8,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
+import javax.swing.JTabbedPane;
 import javax.swing.SwingConstants;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
@@ -42,6 +43,9 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
+
+import com.example.ui.hud.AnimeShell;
+import com.example.ui.hud.HomePortrait;
 
 /**
  * 自訂標題列與邊緣縮放，讓桌面端可以調整視窗透明度。
@@ -327,6 +331,21 @@ public final class WindowChrome {
         }
     }
 
+    /**
+     * headless 首頁預覽：不建立 {@link JFrame}，把標題區、殼層與角色畫進點陣圖。
+     */
+    public static BufferedImage renderHomePreview(int width, int height) {
+        HomePreview preview = new HomePreview(width, height);
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            preview.paintPreview(g);
+        } finally {
+            g.dispose();
+        }
+        return image;
+    }
+
     public static void setWallpaperEffects(JFrame frame, int blurPercent, int opacityPercent) {
         if (frame == null) {
             return;
@@ -334,6 +353,38 @@ public final class WindowChrome {
         Object outer = frame.getRootPane().getClientProperty("punchclock.outer");
         if (outer instanceof WallpaperPanel) {
             ((WallpaperPanel) outer).setEffects(blurPercent, opacityPercent);
+        }
+    }
+
+    private static final class HomePreview extends JPanel {
+        private final AnimeShell shell;
+        private final HomePortrait portrait;
+        private final int titleH;
+        private final Rectangle panel;
+
+        HomePreview(int width, int height) {
+            super(null);
+            setSize(width, height);
+            titleH = TitleBarSliderUI.HEIGHT + 9;
+            panel = new Rectangle(0, 0, width, height);
+            JTabbedPane tabs = new JTabbedPane();
+            shell = new AnimeShell(null, tabs);
+            portrait = new HomePortrait(shell);
+            int bodyTop = titleH + GRIP;
+            int bodyH = Math.max(120, height - bodyTop - GRIP);
+            shell.setBounds(GRIP, bodyTop, Math.max(200, width - GRIP * 2), bodyH);
+            shell.doLayout();
+        }
+
+        void paintPreview(Graphics2D g) {
+            g.setColor(BAR_BG);
+            g.fillRect(0, 0, getWidth(), getHeight());
+            g.setColor(BAR_BORDER);
+            g.drawLine(0, titleH, getWidth(), titleH);
+            g.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+            portrait.paintBehind(g, this, panel);
+            shell.paint(g);
+            portrait.paintInFront(g, this, panel);
         }
     }
 
@@ -758,8 +809,7 @@ public final class WindowChrome {
     }
 
     /**
-     * 角色留白。軌道版若自訂了面板留白就用那一組，否則沿用毛衣女孩公式。
-     * 沒有跨框時留白是 0，視窗縮回紫色面板。
+     * 角色留白。軌道版若自訂了面板留白就用那一組；毛衣女孩已無外擴透明邊。
      */
     static Insets overflowAround(FrameCanvas canvas, int panelWidth, int panelHeight) {
         if (canvas == null || !wantsHomeOverflow(canvas)) {
@@ -772,46 +822,9 @@ public final class WindowChrome {
         return overflowForPanel(panelWidth, panelHeight, true);
     }
 
-    /**
-     * 由面板大小反推留白，使 {@link com.example.ui.hud.HomeCharacterLayout#overflow}
-     * 用算出來的外層尺寸會得到同一組留白。
-     */
+    /** 首頁視窗與紫色面板同大，不再外擴透明邊。 */
     static Insets overflowForPanel(int panelWidth, int panelHeight, boolean home) {
-        if (!home || panelWidth < 80 || panelHeight < 80) {
-            return new Insets(0, 0, 0, 0);
-        }
-        int top = clampedTop(panelHeight);
-        int right = clampedRight(panelWidth);
-        Insets fitted = com.example.ui.hud.HomeCharacterLayout.overflow(
-                panelWidth + right, panelHeight + top, false, true);
-        if (fitted.top != top || fitted.right != right) {
-            top = fitted.top;
-            right = fitted.right;
-            fitted = com.example.ui.hud.HomeCharacterLayout.overflow(
-                    panelWidth + right, panelHeight + top, false, true);
-        }
-        return fitted;
-    }
-
-    private static int clampedTop(int panelHeight) {
-        for (int top = 96; top <= 168; top++) {
-            if ((panelHeight + top) * 18 / 100 == top) {
-                return top;
-            }
-        }
-        return (panelHeight + 168) * 18 / 100 >= 168 ? 168 : 96;
-    }
-
-    private static int clampedRight(int panelWidth) {
-        float scale = com.example.ui.hud.HomeCharacterLayout.SOCK_VISIBLE
-                / (1f + com.example.ui.hud.HomeCharacterLayout.SOCK_VISIBLE);
-        for (int right = 48; right <= 110; right++) {
-            if (Math.round((panelWidth + right) * scale) == right) {
-                return right;
-            }
-        }
-        int raw = Math.round((panelWidth + 110) * scale);
-        return raw >= 110 ? 110 : 48;
+        return new Insets(0, 0, 0, 0);
     }
 
     static Rectangle windowForPanel(Rectangle panel, Insets overflow, Insets frameInsets) {
@@ -1238,7 +1251,7 @@ public final class WindowChrome {
     }
 
     /**
-     * 透明底。紫色面板放在留白之內，角色可以畫到面板外面，視窗一移動就跟著走。
+     * 無跨框留白時用不透明底；軌道版仍有留白時維持透明底。
      */
     private static final class FrameCanvas extends JPanel {
         private final JFrame frame;
@@ -1270,6 +1283,8 @@ public final class WindowChrome {
             int y = Math.max(0, overflow.top);
             int w = Math.max(0, getWidth() - overflow.left - overflow.right);
             int h = Math.max(0, getHeight() - overflow.top - overflow.bottom);
+            boolean margin = overflow.top > 0 || overflow.right > 0 || overflow.left > 0 || overflow.bottom > 0;
+            setOpaque(!margin);
             stage.setBounds(x, y, w, h);
             stage.doLayout();
         }
@@ -1278,16 +1293,25 @@ public final class WindowChrome {
         public void paint(Graphics g) {
             Graphics2D behind = (Graphics2D) g.create();
             try {
-                behind.setComposite(AlphaComposite.Src);
-                behind.setColor(new Color(0, 0, 0, 0));
-                // 只清髒區，避免局部重繪時整窗透明重填造成閃爍。
                 java.awt.Rectangle clip = behind.getClipBounds();
-                if (clip != null) {
-                    behind.fillRect(clip.x, clip.y, clip.width, clip.height);
+                if (isOpaque()) {
+                    behind.setColor(BAR_BG);
+                    if (clip != null) {
+                        behind.fillRect(clip.x, clip.y, clip.width, clip.height);
+                    } else {
+                        behind.fillRect(0, 0, getWidth(), getHeight());
+                    }
                 } else {
-                    behind.fillRect(0, 0, getWidth(), getHeight());
+                    behind.setComposite(AlphaComposite.Src);
+                    behind.setColor(new Color(0, 0, 0, 0));
+                    // 只清髒區，避免局部重繪時整窗透明重填造成閃爍。
+                    if (clip != null) {
+                        behind.fillRect(clip.x, clip.y, clip.width, clip.height);
+                    } else {
+                        behind.fillRect(0, 0, getWidth(), getHeight());
+                    }
+                    behind.setComposite(AlphaComposite.SrcOver);
                 }
-                behind.setComposite(AlphaComposite.SrcOver);
                 if (portrait != null) {
                     portrait.paintBehind(behind, this, stage.getBounds());
                 }
