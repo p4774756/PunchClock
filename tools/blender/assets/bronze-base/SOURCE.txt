@@ -1,0 +1,28 @@
+針灸銅人底模來源與授權
+======================
+
+來源：MakeHuman 1.x 系統素材
+  https://github.com/makehumancommunity/makehuman （master，makehuman/data/）
+取用日期：2026-11-19（Asia/Taipei）
+
+授權：CC0 1.0 Universal（公眾領域貢獻）
+  依 makehuman/license.txt 第 C 節：base mesh、proxies、targets、modifiers、rigs 與權重等素材以 CC0 1.0 釋出；
+  第 D 節：MakeHuman 的輸出不含程式邏輯，使用不受限制。
+  各 .target 檔頭亦註明 "This asset was explicitly released as CC0 in september 2020"。
+  CC0 全文：https://creativecommons.org/publicdomain/zero/1.0/
+
+mh-src/ 內檔案（原樣保留，未修改）：
+  base.obj                        <- makehuman/data/3dobjs/base.obj
+  default.mhskel                  <- makehuman/data/rigs/default.mhskel
+  default_weights.mhw             <- makehuman/data/rigs/default_weights.mhw
+  caucasian-female-young.target   <- makehuman/data/targets/macrodetails/
+  asian-female-young.target       <- makehuman/data/targets/macrodetails/
+  african-female-young.target     <- makehuman/data/targets/macrodetails/（未套用，保留備用）
+  universal-female-young-averagemuscle-minweight.target <- makehuman/data/targets/macrodetails/
+  female-young-averagemuscle-averageweight-maxheight.target <- makehuman/data/targets/macrodetails/height/
+  female-young-averagemuscle-averageweight-idealproportions.target <- makehuman/data/targets/macrodetails/proportions/
+
+衍生檔：
+  mh-female-base.glb <- tools/blender/prep_bronze_base_mesh.py 以 mh-src/ 產出
+  重建：~/.local/bin/blender -b --factory-startup -P tools/blender/prep_bronze_base_mesh.py -- \
+          tools/blender/assets/bronze-base/mh-src tools/blender/assets/bronze-base/mh-female-base.glb
