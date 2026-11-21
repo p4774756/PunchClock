@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>虛擬辦公室 · 新光小寶貝</title>
   <link rel="stylesheet" href="/css/lab-office.css">
+  <link rel="stylesheet" href="/css/guestbook.css">
 </head>
 <body class="lab-office-page {{AUTH_BODY_CLASS}}">
   <script>window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};</script>
@@ -25,6 +26,64 @@
       <div class="lab-office-card-backdrop" data-lab-office-card hidden>
         <div class="lab-office-card" role="dialog" aria-label="角色詳情"></div>
       </div>
+    </div>
+  </section>
+  <section id="guestbookBoard" class="guestbook-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="訪客簽名簿">
+    <div class="guestbook-book">
+      <header class="guestbook-book-head">
+        <h2>訪客簽名簿</h2>
+        <button type="button" class="btn btn-ghost" data-guestbook-close aria-label="關閉">關閉</button>
+      </header>
+      <div class="guestbook-pages">
+        <div class="guestbook-page guestbook-page-form">
+          <h3 class="guestbook-page-title">填寫</h3>
+          <div class="guestbook-field">
+            <label for="guestbookNickname">暱稱</label>
+            <input id="guestbookNickname" data-guestbook-nickname maxlength="20" autocomplete="nickname" required aria-required="true">
+          </div>
+          <div class="guestbook-field">
+            <label for="guestbookMessage">留言</label>
+            <textarea id="guestbookMessage" data-guestbook-message maxlength="200" required aria-required="true" placeholder="最多 200 字"></textarea>
+          </div>
+          <input type="text" class="guestbook-honeypot" data-guestbook-honeypot name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <div class="guestbook-doodle-wrap">
+            <p class="guestbook-doodle-label">小塗鴉（可不畫）</p>
+            <canvas class="guestbook-canvas" data-guestbook-paint width="240" height="120" aria-label="小塗鴉畫布"></canvas>
+          </div>
+          <div class="guestbook-tools" role="group" aria-label="畫筆">
+            <button type="button" class="guestbook-swatch" data-guestbook-color="#1f2430" style="background:#1f2430" aria-label="黑色"></button>
+            <button type="button" class="guestbook-swatch" data-guestbook-color="#e03c3c" style="background:#e03c3c" aria-label="紅色"></button>
+            <button type="button" class="guestbook-swatch" data-guestbook-color="#2563eb" style="background:#2563eb" aria-label="藍色"></button>
+            <button type="button" class="guestbook-swatch" data-guestbook-color="#22a06b" style="background:#22a06b" aria-label="綠色"></button>
+            <button type="button" class="guestbook-swatch" data-guestbook-color="#f4a0c0" style="background:#f4a0c0" aria-label="粉色"></button>
+            <button type="button" class="guestbook-swatch" data-guestbook-color="#f06a2a" style="background:#f06a2a" aria-label="橘色"></button>
+            <button type="button" class="btn btn-ghost guestbook-brush" data-guestbook-brush="2" aria-label="細筆">細</button>
+            <button type="button" class="btn btn-ghost guestbook-brush" data-guestbook-brush="8" aria-label="粗筆">粗</button>
+            <button type="button" class="btn btn-ghost" data-guestbook-eraser aria-pressed="false">橡皮擦</button>
+            <button type="button" class="btn btn-ghost" data-guestbook-clear>清除</button>
+          </div>
+          <div class="guestbook-emoji-row" role="group" aria-label="表情">
+            <button type="button" class="btn btn-ghost guestbook-emoji" data-guestbook-emoji="smile" aria-label="笑臉">☺</button>
+            <button type="button" class="btn btn-ghost guestbook-emoji" data-guestbook-emoji="heart" aria-label="愛心">♥</button>
+            <button type="button" class="btn btn-ghost guestbook-emoji" data-guestbook-emoji="thumbs" aria-label="讚">讚</button>
+            <button type="button" class="btn btn-ghost guestbook-emoji" data-guestbook-emoji="angry" aria-label="生氣">怒</button>
+          </div>
+          <button type="button" class="btn guestbook-submit" data-guestbook-submit>簽名</button>
+          <p class="guestbook-status" data-guestbook-status role="status"></p>
+        </div>
+        <div class="guestbook-page guestbook-page-list">
+          <h3 class="guestbook-page-title">最新留言</h3>
+          <div class="guestbook-list" data-guestbook-list aria-live="polite"></div>
+        </div>
+      </div>
+      <footer class="guestbook-foot">
+        <span>一分鐘可留一則</span>
+        <div class="guestbook-pager">
+          <button type="button" class="btn btn-ghost" data-guestbook-prev aria-label="上一頁">‹</button>
+          <span data-guestbook-page> 1/1 </span>
+          <button type="button" class="btn btn-ghost" data-guestbook-next aria-label="下一頁">›</button>
+        </div>
+      </footer>
     </div>
   </section>
   <script type="module" src="/js/office-page.js"></script>

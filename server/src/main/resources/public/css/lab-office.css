@@ -120,7 +120,8 @@
   z-index: 4;
 }
 
-.lab-office-prop {
+.lab-office-prop,
+button.lab-office-prop {
   position: absolute;
   transform: translate(-50%, -50%);
   pointer-events: auto;
@@ -134,6 +135,13 @@
   min-height: 44px;
   justify-content: center;
   padding: 4px;
+}
+
+button.lab-office-prop {
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  background: transparent;
 }
 
 .lab-office-prop::before {
