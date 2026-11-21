@@ -3,11 +3,15 @@ package com.example.ui;
 import com.example.model.CheckInHistoryEntry;
 
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ListModel;
 import javax.swing.ScrollPaneConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
+import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -18,12 +22,12 @@ import java.awt.event.MouseEvent;
 import java.util.regex.Pattern;
 
 /**
- * 執行紀錄分成時間、名稱、狀態、來源、結果。完整內容放在提示，不另砍欄位。
+ * 執行紀錄分成時間、名稱、狀態、來源、結果。列內可橫滑；點列可在下方看全文。
  */
 public final class CandyHistoryColumns {
 
     public static final String[] TITLES = {"時間", "名稱", "狀態", "來源", "結果"};
-    private static final int[] WEIGHTS = {176, 120, 132, 84, 160};
+    private static final int[] WEIGHTS = {176, 120, 132, 84, 200};
     private static final int GAP = 8;
     private static final Pattern SPLIT = Pattern.compile(Pattern.quote(CheckInHistoryEntry.DISPLAY_SEPARATOR));
 
@@ -64,6 +68,18 @@ public final class CandyHistoryColumns {
         return widths;
     }
 
+    public static int tableWidth() {
+        int sum = 0;
+        for (int weight : WEIGHTS) {
+            sum += weight;
+        }
+        return GAP * 2 + sum + GAP * 4;
+    }
+
+    static int[] fixedColumnWidths() {
+        return WEIGHTS.clone();
+    }
+
     public static String tip(String line) {
         String[] columns = split(line);
         StringBuilder html = new StringBuilder("<html>");
@@ -77,9 +93,21 @@ public final class CandyHistoryColumns {
         return html.toString();
     }
 
+    public static String plainDetail(String line) {
+        String[] columns = split(line);
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < TITLES.length; i++) {
+            if (i > 0) {
+                text.append("\n");
+            }
+            text.append(TITLES[i]).append("：").append(columns[i] == null ? "" : columns[i]);
+        }
+        return text.toString();
+    }
+
     public static void attach(JScrollPane scroll, Font headerFont) {
         scroll.putClientProperty(CandyScrollBar.MARK, Boolean.TRUE);
-        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         scroll.setBorder(new EmptyBorder(0, 0, 0, 0));
         scroll.setOpaque(false);
@@ -101,6 +129,8 @@ public final class CandyHistoryColumns {
     }
 
     public static final class View extends JList<String> {
+        private final JLabel detail = new CompactShellPanels.WrappingLabel("");
+
         public View(ListModel<String> model) {
             super(model);
             setOpaque(false);
@@ -111,6 +141,9 @@ public final class CandyHistoryColumns {
             setFixedCellHeight(30);
             setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
             setCellRenderer(new Cell());
+            detail.setOpaque(false);
+            detail.setVisible(false);
+            detail.setBorder(new EmptyBorder(4, 8, 0, 8));
             addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
                 @Override
                 public void mouseMoved(MouseEvent e) {
@@ -123,12 +156,48 @@ public final class CandyHistoryColumns {
                     putClientProperty("candy.hover", -1);
                     repaint();
                 }
+
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (!SwingUtilities.isLeftMouseButton(e)) {
+                        return;
+                    }
+                    int index = locationToIndex(e.getPoint());
+                    if (index < 0) {
+                        return;
+                    }
+                    java.awt.Rectangle bounds = getCellBounds(index, index);
+                    if (bounds == null || !bounds.contains(e.getPoint())) {
+                        return;
+                    }
+                    Object value = getModel().getElementAt(index);
+                    String line = value == null ? "" : value.toString();
+                    if (line.isEmpty()) {
+                        return;
+                    }
+                    setSelectedIndex(index);
+                    detail.setText(plainDetail(line));
+                    detail.setFont(getFont());
+                    detail.setForeground(CandyTheme.INK);
+                    detail.setVisible(true);
+                    firePropertyChange("candy.history.detail", false, true);
+                }
             });
+        }
+
+        public JComponent detailPane() {
+            return detail;
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            Dimension base = super.getPreferredSize();
+            return new Dimension(Math.max(base.width, tableWidth()), base.height);
         }
 
         @Override
         public boolean getScrollableTracksViewportWidth() {
-            return true;
+            return false;
         }
 
         @Override
@@ -158,6 +227,16 @@ public final class CandyHistoryColumns {
         }
     }
 
+    /** 執行記錄區：清單橫滑，點列後在下方顯示全文。 */
+    public static JPanel wrapWithDetail(View list) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setOpaque(false);
+        panel.add(list, BorderLayout.CENTER);
+        list.detail.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(list.detail, BorderLayout.SOUTH);
+        return panel;
+    }
+
     private static final class Cell extends JComponent implements javax.swing.ListCellRenderer<String> {
         private String[] columns = {"", "", "", "", ""};
         private boolean selected;
@@ -179,7 +258,7 @@ public final class CandyHistoryColumns {
 
         @Override
         public Dimension getPreferredSize() {
-            return new Dimension(120, 30);
+            return new Dimension(tableWidth(), 30);
         }
 
         @Override
@@ -199,7 +278,7 @@ public final class CandyHistoryColumns {
             g.fillRoundRect(4, 2, Math.max(1, getWidth() - 8), Math.max(1, getHeight() - 4), 8, 8);
             g.setFont(getFont());
             FontMetrics metrics = g.getFontMetrics();
-            int[] widths = widths(getWidth());
+            int[] widths = fixedColumnWidths();
             int x = GAP;
             int y = (getHeight() - metrics.getHeight()) / 2 + metrics.getAscent();
             for (int i = 0; i < columns.length; i++) {
@@ -228,7 +307,7 @@ public final class CandyHistoryColumns {
     private static final class Header extends JComponent {
         @Override
         public Dimension getPreferredSize() {
-            return new Dimension(120, 24);
+            return new Dimension(tableWidth(), 24);
         }
 
         @Override
@@ -241,7 +320,7 @@ public final class CandyHistoryColumns {
             g.setFont(getFont() != null ? getFont().deriveFont(Font.BOLD, 12f) : UiFonts.chineseBold(12));
             g.setColor(CandyTheme.LAVENDER);
             FontMetrics metrics = g.getFontMetrics();
-            int[] widths = widths(getWidth());
+            int[] widths = fixedColumnWidths();
             int x = GAP;
             int y = (getHeight() - metrics.getHeight()) / 2 + metrics.getAscent();
             for (int i = 0; i < TITLES.length; i++) {
