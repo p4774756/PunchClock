@@ -30,7 +30,7 @@ try {
   const bundlePath = join(temporaryDir, 'entry.mjs');
   const bundle = await build({
     stdin: {
-      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {POINTS,TOOLS,initialSimulation,CURRICULUM_SETS,curriculumSet,isPracticeDeferred,practiceOpenCodes,DEFERRED_PRACTICE_CODES,teachingPointMatchesQuery,libraryPointResults,ZHUYIN_PATTERN,POINT_BY_CODE} from './app/teaching'; export {ANIME_POINTS,ANIME_SUPPORTED_CODES,animePointTarget} from './app/character-mode'; export {avatarPracticePoints,animeAvatar,DEFAULT_AVATAR_ID} from './app/avatars'; export {ANIME_OUTFITS} from './app/outfits'; export {focusViewFromNormal} from './app/focus-view';",
+      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {POINTS,TOOLS,initialSimulation,CURRICULUM_SETS,curriculumSet,isPracticeDeferred,practiceOpenCodes,DEFERRED_PRACTICE_CODES,teachingPointMatchesQuery,libraryPointResults,ZHUYIN_PATTERN,POINT_BY_CODE} from './app/teaching'; export {ANIME_POINTS,ANIME_SUPPORTED_CODES,animePointTarget} from './app/character-mode'; export {avatarPracticePoints,animeAvatar,DEFAULT_AVATAR_ID} from './app/avatars'; export {ANIME_OUTFITS,isTorsoClothPeekPoint} from './app/outfits'; export {focusViewFromNormal} from './app/focus-view';",
       resolveDir: project, sourcefile: 'validate-teaching-entry.ts', loader: 'ts',
     },
     bundle: true, platform: 'node', format: 'esm', target: 'node22',
@@ -44,7 +44,7 @@ try {
       return {className: '', hidden: false, style: {}, dataset: {}, textContent: '', setAttribute() {}, remove() {}, classList:{toggle(){}}};
     }},
   });
-  const {createTeachingOverlay, POINTS, TOOLS, initialSimulation, CURRICULUM_SETS, curriculumSet, isPracticeDeferred, practiceOpenCodes, DEFERRED_PRACTICE_CODES, teachingPointMatchesQuery, libraryPointResults, ZHUYIN_PATTERN, POINT_BY_CODE, ANIME_POINTS, ANIME_SUPPORTED_CODES, animePointTarget, avatarPracticePoints, animeAvatar, DEFAULT_AVATAR_ID, ANIME_OUTFITS, focusViewFromNormal} = await import(pathToFileURL(bundlePath));
+  const {createTeachingOverlay, POINTS, TOOLS, initialSimulation, CURRICULUM_SETS, curriculumSet, isPracticeDeferred, practiceOpenCodes, DEFERRED_PRACTICE_CODES, teachingPointMatchesQuery, libraryPointResults, ZHUYIN_PATTERN, POINT_BY_CODE, ANIME_POINTS, ANIME_SUPPORTED_CODES, animePointTarget, avatarPracticePoints, animeAvatar, DEFAULT_AVATAR_ID, ANIME_OUTFITS, isTorsoClothPeekPoint, focusViewFromNormal} = await import(pathToFileURL(bundlePath));
   const camera = new T.PerspectiveCamera(34, 1.6, 0.005, 100);
   camera.position.set(0, 1.4, 2.5);
   camera.lookAt(0, 1.35, 0);
@@ -140,6 +140,10 @@ try {
     assert.equal(practicePoints.length, 51);
     assert.equal(ANIME_OUTFITS.length, 2);
     assert.deepEqual(ANIME_OUTFITS.map(o => o.id), ['school', 'study-body']);
+    assert.equal(isTorsoClothPeekPoint('ST17'), true);
+    assert.equal(isTorsoClothPeekPoint('BL23'), true);
+    assert.equal(isTorsoClothPeekPoint('ST2'), false);
+    assert.equal(isTorsoClothPeekPoint(null), false);
     for (const code of lesson.codes) {
       assert.ok(ANIME_SUPPORTED_CODES.has(code), `缺少烘點 ${code}`);
       const target = animePointTarget(code, 1);

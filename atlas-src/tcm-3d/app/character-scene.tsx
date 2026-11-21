@@ -29,7 +29,7 @@ import {
   uploadTexturesIncremental,
 } from './shader-warm';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
-import {animeOutfit,ANIME_OUTFITS,type AnimeOutfit,type OutfitId} from './outfits';
+import {animeOutfit,ANIME_OUTFITS,CLOTH_GARMENT_MATERIAL_TOKENS,isTorsoClothPeekPoint,type AnimeOutfit,type OutfitId} from './outfits';
 import {useEffect,useRef} from 'react';
 import * as T from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
@@ -609,26 +609,57 @@ const paintPracticeBodySkin=(root:T.Object3D)=>{
    if(!torso)continue;
    const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
    writeUvTriangleFill(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2,skinRgb);
-   const yMin=Math.min(a.y,b.y,c.y),yMax=Math.max(a.y,b.y,c.y);
-   if(yMax>=.8&&yMin<=1.24){
-    writeUvTriangleCloth(data,canvas.width,canvas.height,flipY,u0,v0,a,u1,v1,b,u2,v2,c,(x,y,z)=>inPracticeBra(x,y,z)||inPracticeShorts(x,y,z),PRACTICE_TEAL_SRGB);
-   }
-   touched++;
-  }
-  for(let i=0;i<index.count;i+=3){
-   const i0=index.getX(i),i1=index.getX(i+1),i2=index.getX(i+2);
-   a.fromBufferAttribute(pos,i0).applyMatrix4(mesh.matrixWorld);
-   b.fromBufferAttribute(pos,i1).applyMatrix4(mesh.matrixWorld);
-   c.fromBufferAttribute(pos,i2).applyMatrix4(mesh.matrixWorld);
-   const cx=(a.x+b.x+c.x)/3,cy=(a.y+b.y+c.y)/3,cz=(a.z+b.z+c.z)/3;
-   const shoulder=inOuterShoulderWorld(a.x,a.y,a.z)||inOuterShoulderWorld(b.x,b.y,b.z)||inOuterShoulderWorld(c.x,c.y,c.z)||inOuterShoulderWorld(cx,cy,cz);
-   if(!shoulder)continue;
-   const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
-   writeUvTriangleShoulderFix(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2,fallbackSkin);
    touched++;
   }
  }
+ snapshotPracticeClothPeekMaps(root,data,'skin');
+ for(const mesh of skinMeshes){
+   const geom=mesh.geometry;
+   const pos=geom.getAttribute('position');
+   const uv=geom.getAttribute('uv');
+   const index=geom.index;
+   if(!pos||!uv||!index)continue;
+   mesh.updateMatrixWorld(true);
+   const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
+   for(let i=0;i<index.count;i+=3){
+    const i0=index.getX(i),i1=index.getX(i+1),i2=index.getX(i+2);
+    a.fromBufferAttribute(pos,i0).applyMatrix4(mesh.matrixWorld);
+    b.fromBufferAttribute(pos,i1).applyMatrix4(mesh.matrixWorld);
+    c.fromBufferAttribute(pos,i2).applyMatrix4(mesh.matrixWorld);
+    const cx=(a.x+b.x+c.x)/3,cy=(a.y+b.y+c.y)/3,cz=(a.z+b.z+c.z)/3;
+    const torso=inTorsoSkinBand(a.x,a.y,a.z)||inTorsoSkinBand(b.x,b.y,b.z)||inTorsoSkinBand(c.x,c.y,c.z)||inTorsoSkinBand(cx,cy,cz);
+    if(!torso)continue;
+    const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
+    const yMin=Math.min(a.y,b.y,c.y),yMax=Math.max(a.y,b.y,c.y);
+    if(yMax>=.8&&yMin<=1.24){
+     writeUvTriangleCloth(data,canvas.width,canvas.height,flipY,u0,v0,a,u1,v1,b,u2,v2,c,(x,y,z)=>inPracticeBra(x,y,z)||inPracticeShorts(x,y,z),PRACTICE_TEAL_SRGB);
+    }
+    touched++;
+   }
+  }
+  for(const mesh of skinMeshes){
+   const geom=mesh.geometry;
+   const pos=geom.getAttribute('position');
+   const uv=geom.getAttribute('uv');
+   const index=geom.index;
+   if(!pos||!uv||!index)continue;
+   mesh.updateMatrixWorld(true);
+   const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
+   for(let i=0;i<index.count;i+=3){
+    const i0=index.getX(i),i1=index.getX(i+1),i2=index.getX(i+2);
+    a.fromBufferAttribute(pos,i0).applyMatrix4(mesh.matrixWorld);
+    b.fromBufferAttribute(pos,i1).applyMatrix4(mesh.matrixWorld);
+    c.fromBufferAttribute(pos,i2).applyMatrix4(mesh.matrixWorld);
+    const cx=(a.x+b.x+c.x)/3,cy=(a.y+b.y+c.y)/3,cz=(a.z+b.z+c.z)/3;
+    const shoulder=inOuterShoulderWorld(a.x,a.y,a.z)||inOuterShoulderWorld(b.x,b.y,b.z)||inOuterShoulderWorld(c.x,c.y,c.z)||inOuterShoulderWorld(cx,cy,cz);
+    if(!shoulder)continue;
+    const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
+    writeUvTriangleShoulderFix(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2,fallbackSkin);
+    touched++;
+   }
+  }
  if(!touched)return;
+ snapshotPracticeClothPeekMaps(root,data,'painted');
  ctx.putImageData(data,0,0);
  const next=src.clone();
  next.image=canvas;
@@ -794,6 +825,170 @@ const assertUniformOutfitUntouched=(before:Map<string,MeshAssetSnapshot>,school:
 const isOutlineMaterial=(m:T.Material)=>{
  const x=m as MToonLike & {isOutline?:boolean};
  return !!(x.isOutline||/Outline/i.test(m.name||''));
+};
+
+const CLOTH_PEEK_RADIUS=.13;
+const CLOTH_PEEK_FEATHER=.042;
+const CLOTH_PEEK_PATCH_KEY='atlasClothPeekPatch';
+
+type ClothPeekUniforms={
+ center:{value:T.Vector3};
+ radius:{value:number};
+ feather:{value:number};
+ active:{value:number};
+};
+
+/** MToon + ACES — same band as validate-practice-outfit.mjs teal probe. */
+const isPracticeClothRgb=(r:number,g:number,b:number)=>
+ r<=28&&g>=58&&g<=92&&b>=66&&b<=92;
+
+const isClothGarmentSurface=(mat:T.Material,obj:T.Object3D)=>{
+ if(isOutlineMaterial(mat))return false;
+ const name=materialLabel(mat,obj);
+ if(/Body_00_SKIN|Face_00/i.test(name))return false;
+ return CLOTH_GARMENT_MATERIAL_TOKENS.some(token=>name.includes(token));
+};
+
+const injectClothPeekFragment=(fragment:string,snippet:string)=>{
+ if(fragment.includes('#include <dithering_fragment>'))return fragment.replace('#include <dithering_fragment>',`${snippet}\n#include <dithering_fragment>`);
+ if(fragment.includes('#include <colorspace_fragment>'))return fragment.replace('#include <colorspace_fragment>',`${snippet}\n#include <colorspace_fragment>`);
+ if(fragment.includes('#include <output_fragment>'))return fragment.replace('#include <output_fragment>',`${snippet}\n#include <output_fragment>`);
+ return fragment.replace(/\}\s*$/,`${snippet}\n}`);
+};
+
+const attachClothPeekShader=(mat:T.Material)=>{
+ const m=mat as T.MeshStandardMaterial & {userData:Record<string,unknown>};
+ if(m.userData[CLOTH_PEEK_PATCH_KEY])return m.userData[CLOTH_PEEK_PATCH_KEY] as ClothPeekUniforms;
+ const peek:ClothPeekUniforms={
+  center:{value:new T.Vector3()},
+  radius:{value:CLOTH_PEEK_RADIUS},
+  feather:{value:CLOTH_PEEK_FEATHER},
+  active:{value:0},
+ };
+ m.userData[CLOTH_PEEK_PATCH_KEY]=peek;
+ const prevCompile=m.onBeforeCompile;
+ const peekFrag=`
+  float atlasPeekDist=distance(vAtlasClothPeekWorld,atlasClothPeekCenter);
+  float atlasPeekFade=atlasClothPeekActive*(1.0-smoothstep(atlasClothPeekRadius-atlasClothPeekFeather,atlasClothPeekRadius+atlasClothPeekFeather,atlasPeekDist));
+  if(atlasPeekFade>0.02){
+   if(atlasPeekFade>0.88)discard;
+   diffuseColor.a*=1.0-atlasPeekFade;
+  }
+ `;
+ m.onBeforeCompile=(shader,renderer)=>{
+  prevCompile?.call(m,shader,renderer);
+  shader.uniforms.atlasClothPeekCenter=peek.center;
+  shader.uniforms.atlasClothPeekRadius=peek.radius;
+  shader.uniforms.atlasClothPeekFeather=peek.feather;
+  shader.uniforms.atlasClothPeekActive=peek.active;
+  if(!shader.vertexShader.includes('vAtlasClothPeekWorld'))shader.vertexShader=`varying vec3 vAtlasClothPeekWorld;\n${shader.vertexShader}`;
+  if(!shader.fragmentShader.includes('vAtlasClothPeekWorld'))shader.fragmentShader=`varying vec3 vAtlasClothPeekWorld;\n${shader.fragmentShader}`;
+  if(!shader.vertexShader.includes('vAtlasClothPeekWorld =')){
+   if(shader.vertexShader.includes('#include <skinning_vertex>')){
+    shader.vertexShader=shader.vertexShader.replace('#include <skinning_vertex>','#include <skinning_vertex>\nvAtlasClothPeekWorld=(modelMatrix*vec4(transformed,1.0)).xyz;');
+   }else{
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvAtlasClothPeekWorld=(modelMatrix*vec4(transformed,1.0)).xyz;');
+   }
+  }
+  shader.fragmentShader=injectClothPeekFragment(shader.fragmentShader,peekFrag);
+ };
+ m.customProgramCacheKey=()=>`${mat.uuid}:cloth-peek`;
+ m.needsUpdate=true;
+ return peek;
+};
+
+const installClothGarmentPeek=(root:T.Object3D,sink:Set<T.Material>)=>{
+ root.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  for(const mat of mats){
+   if(!isClothGarmentSurface(mat,obj))continue;
+   attachClothPeekShader(mat);
+   sink.add(mat);
+  }
+ });
+};
+
+const snapshotPracticeClothPeekMaps=(root:T.Object3D,data:ImageData,phase:'skin'|'painted')=>{
+ const key=phase==='skin'?'practiceClothPeekSkinBase':'practiceClothPeekBaseline';
+ root.userData[key]=new ImageData(new Uint8ClampedArray(data.data),data.width,data.height);
+};
+
+const carvePracticeClothPeek=(painted:ImageData,skinBase:ImageData,root:T.Object3D,center:T.Vector3,radius:number)=>{
+ const outer=radius+CLOTH_PEEK_FEATHER;
+ const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
+ const dist3=(x:number,y:number,z:number)=>{
+  const dx=x-center.x,dy=y-center.y,dz=z-center.z;
+  return Math.sqrt(dx*dx+dy*dy+dz*dz);
+ };
+ root.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  if(!mats.some(m=>/Body_00_SKIN/i.test(m.name||'')&&!/Outline/i.test(m.name||'')))return;
+  const geom=obj.geometry;
+  const pos=geom.getAttribute('position');
+  const uv=geom.getAttribute('uv');
+  const index=geom.index;
+  if(!pos||!uv||!index)return;
+  obj.updateMatrixWorld(true);
+  const w=painted.width,h=painted.height;
+  const toX=(u:number)=>Math.min(w-1,Math.max(0,Math.round(u*(w-1))));
+  const flipY=!!(root.userData.practiceBodySkinMap as T.Texture|undefined)?.flipY;
+  const toYf=(v:number)=>Math.min(h-1,Math.max(0,Math.round((flipY?1-v:v)*(h-1))));
+  for(let i=0;i<index.count;i+=3){
+   const i0=index.getX(i),i1=index.getX(i+1),i2=index.getX(i+2);
+   a.fromBufferAttribute(pos,i0).applyMatrix4(obj.matrixWorld);
+   b.fromBufferAttribute(pos,i1).applyMatrix4(obj.matrixWorld);
+   c.fromBufferAttribute(pos,i2).applyMatrix4(obj.matrixWorld);
+   const cx=(a.x+b.x+c.x)/3,cy=(a.y+b.y+c.y)/3,cz=(a.z+b.z+c.z)/3;
+   const near=dist3(a.x,a.y,a.z)<=outer||dist3(b.x,b.y,b.z)<=outer||dist3(c.x,c.y,c.z)<=outer||dist3(cx,cy,cz)<=outer;
+   if(!near)continue;
+   const triDist=Math.min(dist3(a.x,a.y,a.z),dist3(b.x,b.y,b.z),dist3(c.x,c.y,c.z),dist3(cx,cy,cz));
+   const peel=1-Math.max(0,Math.min(1,(triDist-radius)/CLOTH_PEEK_FEATHER));
+   if(peel<=0)continue;
+   const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
+   const x0=toX(u0),y0=toYf(v0),x1=toX(u1),y1=toYf(v1),x2=toX(u2),y2=toYf(v2);
+   const minX=Math.max(0,Math.min(x0,x1,x2)),maxX=Math.min(w-1,Math.max(x0,x1,x2));
+   const minY=Math.max(0,Math.min(y0,y1,y2)),maxY=Math.min(h-1,Math.max(y0,y1,y2));
+   const area=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);
+   if(area===0)continue;
+   for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+    const w0=((x1-x)*(y2-y)-(x2-x)*(y1-y))/area;
+    const w1=((x2-x)*(y0-y)-(x0-x)*(y2-y))/area;
+    const w2=1-w0-w1;
+    if(w0<-.02||w1<-.02||w2<-.02)continue;
+    const idx=(y*w+x)*4;
+    const r=painted.data[idx],g=painted.data[idx+1],b0=painted.data[idx+2];
+    if(!isPracticeClothRgb(r,g,b0))continue;
+    const mix=peel;
+    if(mix>=0.95){
+     painted.data[idx]=skinBase.data[idx];
+     painted.data[idx+1]=skinBase.data[idx+1];
+     painted.data[idx+2]=skinBase.data[idx+2];
+     painted.data[idx+3]=skinBase.data[idx+3];
+    }else{
+     painted.data[idx]=Math.round(skinBase.data[idx]*mix+r*(1-mix));
+     painted.data[idx+1]=Math.round(skinBase.data[idx+1]*mix+g*(1-mix));
+     painted.data[idx+2]=Math.round(skinBase.data[idx+2]*mix+b0*(1-mix));
+    }
+   }
+  }
+ });
+};
+
+const refreshPracticeClothPeekTexture=(root:T.Object3D,active:boolean,center:T.Vector3)=>{
+ const painted=root.userData.practiceBodySkinMap as T.Texture|undefined;
+ const baseline=root.userData.practiceClothPeekBaseline as ImageData|undefined;
+ const skinBase=root.userData.practiceClothPeekSkinBase as ImageData|undefined;
+ if(!painted?.image||!baseline||!skinBase)return;
+ const canvas=painted.image as HTMLCanvasElement;
+ const ctx=canvas.getContext('2d',{willReadFrequently:true});
+ if(!ctx)return;
+ const data=new ImageData(new Uint8ClampedArray(baseline.data),baseline.width,baseline.height);
+ if(active)carvePracticeClothPeek(data,skinBase,root,center,CLOTH_PEEK_RADIUS);
+ ctx.putImageData(data,0,0);
+ painted.needsUpdate=true;
+ bindPracticeBodySkinMaps(root);
 };
 
 const syncMaterialRenderState=(dst:T.Material,src:T.Material)=>{
@@ -1127,9 +1322,10 @@ const buildPracticeOutfitIncremental=async(
  await yieldOnce();
 };
 
-const finishCharacterLook=(root:T.Object3D,outfit:AnimeOutfit,gradient:T.DataTexture)=>{
+const finishCharacterLook=(root:T.Object3D,outfit:AnimeOutfit,gradient:T.DataTexture,clothPeekMaterials?:Set<T.Material>)=>{
  applyOutfitMaterials(root,outfit);
  applyCelShading(root,gradient);
+ if(clothPeekMaterials)installClothGarmentPeek(root,clothPeekMaterials);
 };
 
 type OutfitBridge={setOutfit:(id:OutfitId)=>void};
@@ -1221,6 +1417,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   let postWarmScheduled=false;
   let postWarmWarmedKeys=new Set<string>();
   let uniformAssetSnap:Map<string,MeshAssetSnapshot>|null=null;
+  const clothPeekMaterials=new Set<T.Material>();
+  const clothPeekCenter=new T.Vector3();
+  let lastClothPeekKey='';
   let lastFrame=performance.now();
   let modelVisibleMarked=false;
   let pendingOutfitId:OutfitId|null=null;
@@ -1267,6 +1466,31 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    }
   };
 
+  const syncClothPeek=()=>{
+   if(!ready)return;
+   const simState=sim.current;
+   const outfitKey=outfitIdRef.current;
+   const active=isTorsoClothPeekPoint(simState.pointCode);
+   clothPeekCenter.set(0,1.2,0);
+   if(active&&simState.pointCode){
+    const target=avatarPointTarget(avatar,simState.pointCode,simState.side);
+    if(target)clothPeekCenter.fromArray(target.position);
+   }
+   const peekKey=`${active?1:0}|${simState.pointCode??''}|${simState.side}|${outfitKey}|${clothPeekCenter.x.toFixed(3)}|${clothPeekCenter.y.toFixed(3)}|${clothPeekCenter.z.toFixed(3)}`;
+   if(peekKey===lastClothPeekKey)return;
+   lastClothPeekKey=peekKey;
+   for(const mat of clothPeekMaterials){
+    const peek=mat.userData[CLOTH_PEEK_PATCH_KEY] as ClothPeekUniforms|undefined;
+    if(!peek)continue;
+    peek.center.value.copy(clothPeekCenter);
+    peek.active.value=active?1:0;
+   }
+   if(practiceModel&&practiceBuilt){
+    refreshPracticeClothPeekTexture(practiceModel,active&&outfitKey==='study-body',clothPeekCenter);
+   }
+   dirty=true;
+  };
+
   const showOutfit=(id:OutfitId)=>{
    if(schoolModel)schoolModel.visible=id==='school';
    if(practiceModel){
@@ -1277,6 +1501,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    }
    characterRoot.updateMatrixWorld(true);
    if(ready)teaching.applyCachedAnchors();
+   lastClothPeekKey='';
+   syncClothPeek();
    dirty=true;
    if(performance.getEntriesByName(OUTFIT_SWITCH_START,'mark').length)outfitSwitchMeasurePending=true;
   };
@@ -1301,6 +1527,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    practiceShell.visible=false;
    practiceShell.updateMatrixWorld(true);
    practiceBuilt=true;
+   installClothGarmentPeek(practiceModel,clothPeekMaterials);
+   lastClothPeekKey='';
    if(!pendingOutfitId)onPracticeOutfitPreparing?.(false);
    dirty=true;
   };
@@ -1682,14 +1910,14 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       await parseSlice('vrm-combine-skeletons',()=>VRMUtils.combineSkeletons(gltf.scene));
      }
      if(cacheAnimeOutfits){
-      await parseSlice('finish-school-look',()=>finishCharacterLook(model,schoolOutfit,gradient));
+      await parseSlice('finish-school-look',()=>finishCharacterLook(model,schoolOutfit,gradient,clothPeekMaterials));
       uniformAssetSnap=snapshotMeshAssets(model);
       schoolModel=model;
       schoolModel.visible=outfitIdRef.current==='school';
       characterRoot.clear();
       characterRoot.add(schoolModel);
      }else{
-      await parseSlice('finish-look',()=>finishCharacterLook(model,animeOutfit(outfitIdRef.current),gradient));
+      await parseSlice('finish-look',()=>finishCharacterLook(model,animeOutfit(outfitIdRef.current),gradient,clothPeekMaterials));
       schoolModel=model;
       characterRoot.clear();
       characterRoot.add(model);
@@ -1786,6 +2014,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(ready){
     const response=teaching.update(simState,camera,el.clientWidth,el.clientHeight,teachingOverlayVisible);
     if(lastSimulation!==simState||simState.running||response?.settling){dirty=true;lastSimulation=simState;}
+    syncClothPeek();
    }
 
    if(ready&&!postWarmScheduled){

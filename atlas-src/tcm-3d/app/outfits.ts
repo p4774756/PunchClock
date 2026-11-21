@@ -1,6 +1,19 @@
 import {ANIME_MODEL_URL} from './character-mode';
+import {POINT_BY_CODE,type RegionId} from './teaching';
 
 export type OutfitId='school'|'study-body';
+
+/** Chest／abdomen／back／waist points whose markers sit under uniform or practice cloth. */
+const TORSO_CLOTH_PEEK_REGIONS=new Set<RegionId>(['abdomen','waist']);
+
+export function isTorsoClothPeekPoint(code:string|null|undefined){
+ if(!code)return false;
+ const point=POINT_BY_CODE.get(code);
+ return !!point&&TORSO_CLOTH_PEEK_REGIONS.has(point.region);
+}
+
+/** VRoid garment material name tokens (surface pass only — outlines stay for the peek halo). */
+export const CLOTH_GARMENT_MATERIAL_TOKENS=['Tops','Bottoms','Accessory','CLOTH'] as const;
 
 export interface AnimeOutfit{
  id:OutfitId;

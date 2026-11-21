@@ -73,6 +73,10 @@ assert.match(src, /atlas:outfit-switch/, 'outfit switch must performance.measure
 assert.match(src, /atlas:model-visible/, 'first model frame must performance.measure atlas:model-visible');
 assert.match(src, /practice-outfit-build-start/, 'practice outfit build must performance.mark start');
 assert.match(src, /performance\.measure\(['"]practice-outfit-build/, 'practice outfit build must performance.measure');
+assert.match(src, /isTorsoClothPeekPoint/, 'torso cloth peek must gate on abdomen/waist points only');
+assert.match(src, /installClothGarmentPeek/, 'school uniform must peek garment surfaces locally');
+assert.match(src, /refreshPracticeClothPeekTexture/, 'practice teal must peel locally without global transparency');
+assert.doesNotMatch(src, /Body_00_SKIN[\s\S]{0,80}onBeforeCompile/, 'must not patch Body skin onBeforeCompile');
 
 console.log('practice outfit visual guards passed.');
 
