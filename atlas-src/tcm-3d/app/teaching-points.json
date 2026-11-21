@@ -1485,21 +1485,21 @@
     "meridian": "足陽明胃經",
     "meridianId": "ST",
     "position": [
-      0.0367,
-      1.5028,
-      0.0115
+      0.017,
+      1.49298,
+      0.01999
     ],
     "normal": [
-      0.034,
-      0,
-      0.0395
+      0.02251,
+      0.24544,
+      0.96915
     ],
     "region": "shoulder",
     "midline": false,
     "reviewed": true,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "依角色模型胸骨上窩／舌骨／結喉／頦唇溝／鎖骨上窩重新對位；教學示意，非臨床取穴。",
+    "positionProvenance": "依角色模型結喉旁前緣重新對位：旁開約 1.5 寸、略低於廉泉、頸前皮膚；教學示意，非臨床取穴。",
     "originalPosition": [
       0.045,
       1.53,
@@ -1573,20 +1573,20 @@
     "meridianId": "ST",
     "position": [
       0.045,
-      1.4676,
-      0.0364
+      1.4726,
+      0.02041
     ],
     "normal": [
-      0,
-      0,
-      1
+      0.02038,
+      0.9856,
+      0.16787
     ],
     "region": "shoulder",
     "midline": false,
     "reviewed": true,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "依角色模型胸骨上窩／舌骨／結喉／頦唇溝／鎖骨上窩重新對位；教學示意，非臨床取穴。",
+    "positionProvenance": "依角色模型鎖骨上窩底重新對位：乳中線、窩底深度，不是鎖骨前坡；教學示意，非臨床取穴。",
     "originalPosition": [
       0.065,
       1.455,

@@ -338,6 +338,39 @@ try {
     assert.ok(Math.abs(sides[0].point.y - sides[1].point.y) < 0.004, `缺盆左右高度差 ${Math.abs(sides[0].point.y - sides[1].point.y).toFixed(4)}，應對稱落在鎖骨上窩`);
   });
 
+  await test('課堂目錄人迎／缺盆跟上角色頸前緣與鎖骨上窩', () => {
+    const catalog = code => POINT_BY_CODE.get(code);
+    const anime = code => animeJson.points.find(p => p.code === code);
+    const cv23 = catalog('CV23').position;
+    const cv22 = catalog('CV22').position;
+    const st9 = catalog('ST9').position;
+    const st12 = catalog('ST12').position;
+    const a23 = anime('CV23').position;
+    const a9 = anime('ST9').position;
+    const a12 = anime('ST12').position;
+    const cun = st12[0] / 4;
+    assert.ok(Math.abs(st9[0] - a9[0]) < 0.001, `課堂人迎 x=${st9[0]} 應跟上角色頸前緣 ${a9[0]}`);
+    assert.ok(Math.abs(st9[0] / cun - 1.5) < 0.12, `人迎旁開 ${(st9[0] / cun).toFixed(2)} 寸，應約 1.5 寸`);
+    assert.ok(Math.abs(st9[2] + a9[2]) < 0.001, `課堂人迎 z=${st9[2]} 應為頸前（角色 z=${a9[2]}）`);
+    assert.ok(cv23[1] > st9[1], `課堂人迎 y=${st9[1]} 應略低於廉泉 ${cv23[1]}`);
+    assert.ok(st9[1] > cv22[1], '課堂人迎應高於天突');
+    assert.ok(Math.abs((cv23[1] - st9[1]) - (a23[1] - a9[1])) < 0.001, '課堂人迎與廉泉的高度差應與角色一致');
+    assert.ok(Math.abs(st12[0] - a12[0]) < 0.001, '課堂缺盆 x 應與角色乳中線一致');
+    assert.ok(Math.abs(st12[2] + a12[2]) < 0.001, `課堂缺盆 z=${st12[2]} 應為窩底（角色 z=${a12[2]}），不是鎖骨前坡`);
+    // 目錄與角色的垂直原點不同；沿用上一輪已對齊的高度差，再加上這一輪窩底上移。
+    const fossaLift = a12[1] - 1.318;
+    assert.ok(Math.abs(st12[1] - (1.4676 + fossaLift)) < 0.001, '課堂缺盆高度應落在鎖骨上窩，而不是鎖骨前坡');
+    const len = v => Math.hypot(v[0], v[1], v[2]);
+    const n9 = catalog('ST9').normal;
+    const n12 = catalog('ST12').normal;
+    assert.ok(n9[2] / len(n9) > 0.9, '課堂人迎法線應朝前');
+    assert.ok(n12[1] / len(n12) > 0.85, '課堂缺盆法線應朝上');
+    for (const code of ['ST10', 'ST11', 'LI17', 'LI18', 'SI16']) {
+      assert.ok(catalog(code), code);
+      assert.equal(anime(code), undefined, `${code} 不應烘到角色`);
+    }
+  });
+
   await test('天宗 SI11 在肩胛區、較舊種子內側且偏後', () => {
     const si11 = animeJson.points.find(p => p.code === 'SI11');
     assert.ok(si11);
