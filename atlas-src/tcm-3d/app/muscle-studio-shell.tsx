@@ -115,11 +115,14 @@ export default function MuscleStudioShell({
     </div>
    )}
    <div className="muscle-attribution-strip" role="contentinfo">
-    <span>Z-Anatomy · CC BY-SA 4.0</span>
-    <span>BodyParts3D · CC BY 4.0</span>
-    <a href={`${import.meta.env.BASE_URL}ATTRIBUTION.md`} target="_blank" rel="noreferrer">
-     署名
-    </a>
+    <div className="muscle-attribution-credits">
+     <span>Z-Anatomy · CC BY-SA 4.0</span>
+     <span>BodyParts3D · CC BY 4.0</span>
+     <a href={`${import.meta.env.BASE_URL}ATTRIBUTION.md`} target="_blank" rel="noreferrer">
+      署名
+     </a>
+    </div>
+    <span>BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan</span>
    </div>
    {musclePick && (
     <aside className="muscle-info-panel surface" aria-live="polite">

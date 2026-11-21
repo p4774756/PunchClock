@@ -243,23 +243,35 @@ export default function MuscleStudioScene({
 
   const raycaster = new T.Raycaster();
   const pointer = new T.Vector2();
+  const pickSphere = new T.Sphere(new T.Vector3(), 0.022);
+  const pickSlack = 0.06;
+  for (const dot of markers) {
+   dot.raycast = (caster: T.Raycaster, intersects: T.Intersection[]) => {
+    const inverse = new T.Matrix4().copy(dot.matrixWorld).invert();
+    const localRay = caster.ray.clone().applyMatrix4(inverse);
+    const localHit = new T.Vector3();
+    if (!localRay.intersectSphere(pickSphere, localHit)) return;
+    const worldHit = localHit.applyMatrix4(dot.matrixWorld);
+    intersects.push({distance: caster.ray.origin.distanceTo(worldHit), point: worldHit, object: dot});
+   };
+  }
   const pick = (clientX: number, clientY: number) => {
    const rect = renderer.domElement.getBoundingClientRect();
    pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
    pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
    raycaster.setFromCamera(pointer, camera);
+   const pointHits = raycaster.intersectObjects(markers, false);
    const muscleHits = raycaster.intersectObjects([...parts.values()], true);
    const muscle = muscleHits.find(h => h.object.userData.muscleMesh);
+   const point = pointHits[0];
+   if (point && (!muscle || point.distance <= muscle.distance + pickSlack)) {
+    onPointPick(point.object.userData.point as string);
+    onMusclePick(null);
+    return;
+   }
    if (muscle) {
     const name = muscle.object.name || muscle.object.parent?.name || 'mesh';
     onMusclePick({meshName: name, info: muscleInfoForMesh(name)});
-    return;
-   }
-   const pointHits = raycaster.intersectObjects(markers, false);
-   if (pointHits[0]) {
-    const code = pointHits[0].object.userData.point as string;
-    onPointPick(code);
-    onMusclePick(null);
     return;
    }
    onMusclePick(null);

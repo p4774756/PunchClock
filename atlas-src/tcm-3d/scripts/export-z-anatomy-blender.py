@@ -48,6 +48,35 @@ def mesh_center(obj):
     return (sum(v.x for v in coords) / n, sum(v.y for v in coords) / n, sum(v.z for v in coords) / n)
 
 
+# Upper limb is classified by TA name. A center-only split put the humerus and
+# deltoid into head-neck (high Z) and the radius, ulna, and hand into trunk.
+ARM_BONE_RE = re.compile(
+    r"^(Humerus|Radius|Ulna|Clavicle|Scapula)\.[lr]$"
+    r"|metacarpal bone\.[lr]$"
+    r"|phalanx of (?:first|second|third|fourth|fifth) finger of hand\.[lr]$"
+    r"|^(?:Capitate|Hamate|Lunate|Pisiform|Scaphoid|Trapezium|Trapezoid|Triquetrum) bone\.[lr]$",
+    re.I,
+)
+ARM_SOFT_RE = re.compile(
+    r"deltoid|biceps brachii|triceps brachii|brachialis|coracobrachialis|brachioradialis|anconeus|"
+    r"antebrachial fascia|brachial fascia|intermuscular septum of arm|"
+    r"of hand|metacarpal ligament|palmar aponeurosis|retinaculum of wrist|"
+    r"flexor carpi|extensor carpi|flexor digitorum|extensor digitorum|flexor digiti|extensor digiti|"
+    r"flexor pollicis|extensor pollicis|abductor pollicis|adductor pollicis|opponens|"
+    r"palmaris longus|pronator|supinator|interossei|lumbrical|"
+    r"bicipitoradial|subdeltoid|coracobrachial bursa|subacromial bursa|subcutaneous acromial|"
+    r"infraspinatus|subscapularis|supraspinatus|teres major|teres minor|intertubercular tendon|"
+    r"tendon sheath",
+    re.I,
+)
+ARM_DENY_RE = re.compile(
+    r"femoris|gastrocnemius|gluteus|sartorius|pectoralis|trapezius|latissimus|"
+    r"levator scapulae|subclavius|of foot|digitorum longus|digitorum brevis|"
+    r"hallucis|fibularis|tibialis|plantar",
+    re.I,
+)
+
+
 def region_for_center(x, y, z):
     # Z-Anatomy world: Z is superior–inferior (probe ≈ −0.07…1.71).
     if z > 1.38:
@@ -61,6 +90,13 @@ def region_for_center(x, y, z):
     if abs(y) > 0.14 and abs(x) > 0.28 and 0.5 < z < 1.35:
         return "arm"
     return "trunk"
+
+
+def region_for_object(obj):
+    name = obj.name or ""
+    if not ARM_DENY_RE.search(name) and (ARM_BONE_RE.search(name) or ARM_SOFT_RE.search(name)):
+        return "arm"
+    return region_for_center(*mesh_center(obj))
 
 
 def muscle_depth(obj, colls):
@@ -78,12 +114,16 @@ def muscle_depth(obj, colls):
 def export_objects(objects, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     bpy.ops.object.select_all(action="DESELECT")
+    selected = []
     for obj in objects:
         if obj.name not in bpy.context.view_layer.objects:
             continue
         obj.hide_set(False)
         obj.hide_viewport = False
         obj.select_set(True)
+        selected.append(obj)
+    if not selected:
+        return False
     bpy.ops.export_scene.gltf(
         filepath=path,
         export_format="GLB",
@@ -96,8 +136,9 @@ def export_objects(objects, path):
         export_draco_position_quantization=12,
         export_draco_normal_quantization=8,
     )
-    for obj in objects:
+    for obj in selected:
         obj.select_set(False)
+    return True
 
 
 def main():
@@ -113,7 +154,7 @@ def main():
     buckets = {r: {layer: [] for layer in LAYERS} for r in REGIONS}
     for obj in allowed:
         layer = "skeleton" if obj in skel else muscle_depth(obj, object_collections(obj))
-        reg = region_for_center(*mesh_center(obj))
+        reg = region_for_object(obj)
         buckets[reg][layer].append(obj)
 
     manifest_parts = []
@@ -125,7 +166,9 @@ def main():
                 continue
             fname = f"{reg}-{layer}.glb"
             fpath = os.path.join(OUT_DIR, fname)
-            export_objects(objs, fpath)
+            if not export_objects(objs, fpath):
+                print(f"skip empty {fname}")
+                continue
             manifest_parts.append({
                 "id": f"{reg}-{layer}",
                 "rawFile": fname,

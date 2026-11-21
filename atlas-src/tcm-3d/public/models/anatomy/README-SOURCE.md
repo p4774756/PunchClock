@@ -11,4 +11,9 @@ Rebuild (optional, not run in CI):
 2. `blender -b work/z-anatomy/Z-Anatomy/Startup.blend -P scripts/export-z-anatomy-blender.py`
 3. `node scripts/compress-anatomy-models.mjs`
 
-Upstream attribution also requires **BodyParts3D** credit (CC BY 4.0). See `public/ATTRIBUTION.md`.
+Upstream attribution lists both the current BodyParts3D credit and the sentence Z-Anatomy still requires:
+
+- `"BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International"`
+- `"BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan"`
+
+See `public/ATTRIBUTION.md`.

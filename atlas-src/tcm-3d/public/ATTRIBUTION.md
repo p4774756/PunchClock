@@ -37,8 +37,8 @@
   建議標註：`"Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0"`
 - 上游 **BodyParts3D**（The Database Center for Life Science）：官方現行 **CC BY 4.0**（2025-02-27 更新）
   https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html
-  建議標註：`"BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International"`
-  Z-Anatomy 文件亦提及舊式 `CC-BY-SA 2.1 Japan` 標示，畫面與本檔同時載明官方現行與 Z-Anatomy 要求文句。
+  官方現行標註：`"BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International"`
+  Z-Anatomy 要求同時保留的標註文句：`"BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan"`
 - 衍生 GLB 目錄：`public/models/anatomy/`（gzip 壓縮供 lazy-load）
 - 肌解文案：`data/muscle-catalog.json`（自撰繁中摘要，非整段複製外部百科）
 - 穴位—肌肉對照：`data/acupoint-muscles.json`（人工整理，穴位座標仍為目錄示意）
