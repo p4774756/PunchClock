@@ -23,6 +23,7 @@ import com.example.service.WindowBackground;
 import com.example.pet.DesktopPetEvent;
 import com.example.pet.DesktopPetManager;
 import com.example.ui.AppBranding;
+import com.example.ui.AppIconImages;
 import com.example.ui.BlackjackWindow;
 import com.example.ui.CompactShellPanels;
 import com.example.ui.FileTransferDialog;
@@ -246,11 +247,13 @@ public class App extends JFrame {
     }
 
     private void applyAppIcon() {
-        appIconImage = loadAppIcon();
-        if (appIconImage == null) {
+        java.util.List<Image> icons = AppIconImages.loadAll();
+        if (icons.isEmpty()) {
+            appIconImage = null;
             return;
         }
-        setIconImage(appIconImage);
+        appIconImage = icons.get(icons.size() - 1);
+        setIconImages(icons);
         try {
             if (Taskbar.isTaskbarSupported()) {
                 Taskbar taskbar = Taskbar.getTaskbar();
@@ -264,14 +267,7 @@ public class App extends JFrame {
     }
 
     private static Image loadAppIcon() {
-        try (java.io.InputStream in = App.class.getResourceAsStream("/app-icon.png")) {
-            if (in == null) {
-                return null;
-            }
-            return javax.imageio.ImageIO.read(in);
-        } catch (Exception ex) {
-            return null;
-        }
+        return AppIconImages.primary();
     }
 
     private void initUI() {
@@ -418,7 +414,6 @@ public class App extends JFrame {
         homePortrait = new HomePortrait(shell);
         WindowChrome.setFramePortrait(this, homePortrait);
 
-        bindBackgroundControls();
 
         setMinimumSize(new Dimension(ShellDimensions.MIN_WIDTH, ShellDimensions.MIN_HEIGHT));
         Dimension def = ShellDimensions.defaultSize();
@@ -1890,21 +1885,9 @@ public class App extends JFrame {
     }
 
     private void applyBackgroundFromConfig(ConfigPersistenceService.CloudConfig config) {
-        BufferedImage image = null;
-        int blur = 0;
-        int opacity = WindowBackground.DEFAULT_OPACITY_PERCENT;
-        if (config != null) {
-            blur = WindowBackground.clampBlurPercent(config.backgroundBlurPercent);
-            opacity = WindowBackground.clampOpacityPercent(config.backgroundOpacityPercent);
-            if (config.customBackground) {
-                image = WindowBackground.load(backgroundFile());
-                if (image == null) {
-                    config.customBackground = false;
-                }
-            }
+        if (shell != null) {
+            shell.setUseRoom(true);
         }
-        syncBackgroundSliders(blur, opacity);
-        applyWindowBackground(image, blur, opacity);
     }
 
     private void syncBackgroundSliders(int blur, int opacity) {
@@ -2196,19 +2179,7 @@ public class App extends JFrame {
             }
             appendLog(on ? "[設定] 已開啟桌面寵物" : "[設定] 已關閉桌面寵物");
         });
-        bindPetToggle(serverRefs.desktopPetNotifyMessage, desktopPetManager.settings().notifyMessage(),
-                desktopPetManager.settings()::setNotifyMessage);
-        bindPetToggle(serverRefs.desktopPetNotifyFile, desktopPetManager.settings().notifyFile(),
-                desktopPetManager.settings()::setNotifyFile);
-        bindPetToggle(serverRefs.desktopPetNotifyTask, desktopPetManager.settings().notifyTask(),
-                desktopPetManager.settings()::setNotifyTask);
-        bindPetToggle(serverRefs.desktopPetNotifySound, desktopPetManager.settings().notifySound(),
-                desktopPetManager.settings()::setNotifySound);
-        if (serverRefs.desktopPetCursorReact != null) {
-            serverRefs.desktopPetCursorReact.setSelected(desktopPetManager.settings().cursorReact());
-            serverRefs.desktopPetCursorReact.addActionListener(e ->
-                    desktopPetManager.setCursorReactEnabled(serverRefs.desktopPetCursorReact.isSelected()));
-        }
+        desktopPetManager.setCursorReactEnabled(true);
         if (serverRefs.desktopPetCare != null) {
             serverRefs.desktopPetCare.setSelected(desktopPetManager.settings().careEnabled());
             serverRefs.desktopPetCare.addActionListener(e ->
@@ -2894,19 +2865,7 @@ public class App extends JFrame {
 
     /** 依目前寬度把換行後的高度撐開，長句子才不會被裁掉。 */
     private static void fitUpdateDetail(JTextArea area) {
-        int width = area.getWidth();
-        if (width < 80 && area.getParent() != null) {
-            width = area.getParent().getWidth() - 24;
-        }
-        if (width < 80) {
-            width = 460;
-        }
-        area.setSize(width, Short.MAX_VALUE);
-        Dimension pref = area.getPreferredSize();
-        int height = Math.max(pref.height, area.getFontMetrics(area.getFont()).getHeight());
-        area.setPreferredSize(new Dimension(width, height));
-        area.setMinimumSize(new Dimension(0, height));
-        area.setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
+        PanelFactory.fitRelayHelp(area);
     }
 
     private void refreshUpdateButtons() {

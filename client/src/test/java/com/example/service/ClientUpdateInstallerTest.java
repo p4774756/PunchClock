@@ -32,7 +32,7 @@ public class ClientUpdateInstallerTest {
     @Test
     public void ideLaunchInstallsToDefaultJarUnderPunchclockDir() {
         assertEquals(ClientUpdateInstaller.defaultJar(), ClientUpdateInstaller.installTarget());
-        assertEquals("punchclock-client-standalone.jar", ClientUpdateInstaller.defaultJar().getFileName().toString());
+        assertEquals("SKLbaby.jar", ClientUpdateInstaller.defaultJar().getFileName().toString());
         assertEquals(".punchclock", ClientUpdateInstaller.defaultJar().getParent().getFileName().toString());
     }
 }

@@ -284,8 +284,13 @@ public class SkipDatesDialog extends JDialog {
         });
         combo.setSelectedItem(selected);
         CandyComboBox.install(combo);
-        combo.setPrototypeDisplayValue(pad2 ? 31 : 2099);
-        Dimension size = combo.getPreferredSize();
+        FontMetrics fm = combo.getFontMetrics(font);
+        String sample = pad2 ? "31" : "2099";
+        int textW = fm.stringWidth(sample);
+        int chromePad = 44;
+        int w = Math.max(combo.getPreferredSize().width, textW + chromePad);
+        int h = Math.max(30, combo.getPreferredSize().height);
+        Dimension size = new Dimension(w, h);
         combo.setMinimumSize(size);
         combo.setPreferredSize(size);
         combo.setMaximumSize(size);

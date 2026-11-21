@@ -76,7 +76,7 @@ public class PanelFactory {
         cloud.add(Box.createVerticalStrut(10));
         cloud.add(formRowStretch(serverUrlLabel, refs.serverUrlCombo));
         cloud.add(Box.createVerticalStrut(10));
-        cloud.add(formRow(
+        cloud.add(wrapFlowRow(
                 refs.enableServerCheckBox,
                 refs.trustAllSslCheckBox,
                 refs.heartbeatStatusLabel));
@@ -131,7 +131,7 @@ public class PanelFactory {
         updates.add(refs.updateCheckedAtLabel);
         updates.add(Box.createVerticalStrut(4));
         updates.add(refs.updateStatusDetail);
-        updates.add(Box.createVerticalStrut(8));
+        updates.add(Box.createVerticalStrut(12));
         updates.add(updateActions);
 
         JTabbedPane tabs = new JTabbedPane();
@@ -144,12 +144,11 @@ public class PanelFactory {
                 settingsSection("雲端連線", boldFont, cloud),
                 settingsSection("程式更新", boldFont, updates)));
         tabs.addTab("外觀", settingsPage(
-                settingsSection("程式背景", boldFont, backgroundRow(refs, mainFont, boldFont)),
                 settingsSection("桌面寵物", boldFont, desktopPetRow(refs, mainFont, boldFont))));
         tabs.addTab("中繼", settingsPage(
                 settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont))));
         tabs.setToolTipTextAt(SETTINGS_CONNECTION_TAB, "雲端連線與程式更新");
-        tabs.setToolTipTextAt(1, "程式背景、桌面寵物、模糊與透明度");
+        tabs.setToolTipTextAt(1, "桌面寵物");
         tabs.setToolTipTextAt(2, "讓區網內的同事經由這台電腦連到雲端");
         tabs.setSelectedIndex(SETTINGS_CONNECTION_TAB);
         return tabs;
@@ -356,45 +355,21 @@ public class PanelFactory {
         column.add(Box.createVerticalStrut(4));
         column.add(hint);
         column.add(Box.createVerticalStrut(6));
-        refs.desktopPetNotifyMessage = new CandySwitch();
-        refs.desktopPetNotifyFile = new CandySwitch();
-        refs.desktopPetNotifyTask = new CandySwitch();
-        refs.desktopPetNotifySound = new CandySwitch();
-        refs.desktopPetCursorReact = new CandySwitch();
-        refs.desktopPetNotifyMessage.setSelected(true);
-        refs.desktopPetNotifyFile.setSelected(true);
-        refs.desktopPetNotifyTask.setSelected(true);
-        refs.desktopPetCursorReact.setSelected(true);
-        column.add(petOption(refs.desktopPetNotifyMessage, "新訊息提醒",
-                "收到同事訊息時揮手提醒，不顯示訊息內容。", boldFont));
-        column.add(petOption(refs.desktopPetNotifyFile, "檔案傳輸提醒",
-                "檔案送出或收到時揮手提醒。", boldFont));
-        column.add(petOption(refs.desktopPetNotifyTask, "任務與排程提醒",
-                "任務完成或排程時間到時揮手提醒。", boldFont));
-        column.add(petOption(refs.desktopPetNotifySound, "提示音",
-                "提醒真正出現時才響一聲。預設關閉。", boldFont));
-        column.add(petOption(refs.desktopPetCursorReact, "Cursor 狀態反應",
-                "本機 Cursor agent 思考、改檔、完成或出錯時，喵露做出對應動作。預設開啟。", boldFont));
         refs.desktopPetCare = new CandySwitch();
         refs.desktopPetCare.setSelected(true);
         column.add(petOption(refs.desktopPetCare, "養成",
                 "飽足、心情、精神會隨時間下降。點喵露可餵食、摸頭、玩耍。預設開啟。", boldFont));
-        refs.desktopPetSwitch.addItemListener(e -> applyDesktopPetOptionEnabled(refs));
-        applyDesktopPetOptionEnabled(refs);
+        refs.desktopPetSwitch.addItemListener(e -> applyDesktopPetCareEnabled(refs));
+        applyDesktopPetCareEnabled(refs);
         return column;
     }
 
-    /** 總開關關掉時，提醒與提示音不能改，原來的勾選留著。 */
-    private static void applyDesktopPetOptionEnabled(ServerConfigRefs refs) {
+    /** 總開關關掉時，養成不能改，原來的勾選留著。 */
+    private static void applyDesktopPetCareEnabled(ServerConfigRefs refs) {
         if (refs == null || refs.desktopPetSwitch == null) {
             return;
         }
         boolean on = refs.desktopPetSwitch.isSelected();
-        setPetOptionEnabled(refs.desktopPetNotifyMessage, on);
-        setPetOptionEnabled(refs.desktopPetNotifyFile, on);
-        setPetOptionEnabled(refs.desktopPetNotifyTask, on);
-        setPetOptionEnabled(refs.desktopPetNotifySound, on);
-        setPetOptionEnabled(refs.desktopPetCursorReact, on);
         setPetOptionEnabled(refs.desktopPetCare, on);
     }
 
@@ -459,23 +434,17 @@ public class PanelFactory {
         if (area == null) {
             return;
         }
-        String text = area.getText();
-        int lines = 1;
-        if (text != null) {
-            for (int i = 0; i < text.length(); i++) {
-                if (text.charAt(i) == '\n') {
-                    lines++;
-                }
-            }
-        }
-        area.setRows(lines);
-        area.setColumns(18);
         area.setLineWrap(true);
         area.setWrapStyleWord(true);
+        if (area.getColumns() <= 0) {
+            area.setColumns(18);
+        }
+        int width = Math.min(300, Math.max(160, area.getColumns() * 9));
+        area.setSize(new Dimension(width, Short.MAX_VALUE));
         Dimension pref = area.getPreferredSize();
-        int textH = Math.max(36, pref.height);
-        area.setMinimumSize(new Dimension(40, textH));
-        area.setPreferredSize(new Dimension(Math.min(pref.width, 300), textH));
+        int textH = Math.max(36, pref.height + 2);
+        area.setMinimumSize(new Dimension(0, textH));
+        area.setPreferredSize(new Dimension(width, textH));
         area.setMaximumSize(new Dimension(Integer.MAX_VALUE, textH));
     }
 
@@ -615,24 +584,10 @@ public class PanelFactory {
         refs.clearAvatarButton = candyButton(
                 "還原預設", CandyButton.Variant.SECONDARY, mainFont, "改回使用 App 圖示");
 
-        JPanel avatarTop = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        avatarTop.setOpaque(false);
         JLabel avatarLabel = new JLabel("大頭照：");
         avatarLabel.setFont(mainFont);
-        avatarTop.add(avatarLabel);
-        avatarTop.add(refs.avatarPreview);
-        JPanel avatarButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        avatarButtons.setOpaque(false);
-        avatarButtons.add(refs.chooseAvatarButton);
-        avatarButtons.add(refs.clearAvatarButton);
-        pinRow(avatarTop);
-        pinRow(avatarButtons);
-        JPanel avatarRow = new JPanel();
-        avatarRow.setOpaque(false);
-        avatarRow.setLayout(new BoxLayout(avatarRow, BoxLayout.Y_AXIS));
-        avatarRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        avatarRow.add(avatarTop);
-        avatarRow.add(avatarButtons);
+        JPanel avatarRow = wrapFlowRow(
+                avatarLabel, refs.avatarPreview, refs.chooseAvatarButton, refs.clearAvatarButton);
         refs.avatarRow = avatarRow;
 
         String[] workerOptions = {"company-worker", "company-worker2", "company-worker3", "company-worker4"};
@@ -650,8 +605,8 @@ public class PanelFactory {
         }
         int idHeight = Math.max(refs.clientIdCombo.getPreferredSize().height, 30);
         refs.clientIdCombo.setMinimumSize(new Dimension(120, idHeight));
-        refs.clientIdCombo.setPreferredSize(new Dimension(280, idHeight));
-        refs.clientIdCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, idHeight));
+        refs.clientIdCombo.setPreferredSize(new Dimension(200, idHeight));
+        refs.clientIdCombo.setMaximumSize(new Dimension(220, idHeight));
 
         refs.clientIdApplyButton = candyButton(
                 "套用", CandyButton.Variant.SECONDARY, mainFont, "按 Enter 或「套用」後立即生效並儲存");
@@ -662,12 +617,8 @@ public class PanelFactory {
         refs.clientIdSavedLabel.setVisible(false);
         JLabel idLabel = new JLabel("裝置 ID：");
         idLabel.setFont(mainFont);
-        JPanel idRow = formRowStretch(idLabel, refs.clientIdCombo);
-        JPanel applyRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        applyRow.setOpaque(false);
-        applyRow.add(refs.clientIdApplyButton);
-        applyRow.add(refs.clientIdSavedLabel);
-        pinRow(applyRow);
+        JPanel idRow = wrapFlowRow(
+                idLabel, refs.clientIdCombo, refs.clientIdApplyButton, refs.clientIdSavedLabel);
 
         refs.openChatButton = candyButton(
                 "開啟聊天", CandyButton.Variant.PRIMARY, boldFont,
@@ -696,8 +647,7 @@ public class PanelFactory {
         north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
         north.setOpaque(false);
         north.add(idRow);
-        north.add(applyRow);
-        north.add(Box.createVerticalStrut(4));
+        north.add(Box.createVerticalStrut(8));
         hint.setAlignmentX(Component.LEFT_ALIGNMENT);
         refs.peerStatusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         refs.openCloudSettingsButton.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -1071,15 +1021,11 @@ public class PanelFactory {
 
         JPanel shared = createCollapsibleGroupPanel("共用排程設定", sharedContent, boldFont, false);
 
-        refs.skipDatesButton = new CandyButton("跳過日期", CandyButton.Variant.SECONDARY, CandyButton.Size.MEDIUM);
-        refs.skipDatesButton.setFont(boldFont);
+        refs.skipDatesButton = new CandyButton("跳過日期", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+        refs.skipDatesButton.setFont(mainFont);
         refs.skipDatesButton.setToolTipText("指定日期不執行；時分維持原設定");
 
-        JPanel skipRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        skipRow.setOpaque(false);
-        skipRow.add(refs.skipDatesButton);
-
-        refs.workIn = createSlotCard(WorkSlot.WORK_IN_NAME, mainFont, boldFont);
+        refs.workIn = createSlotCard(WorkSlot.WORK_IN_NAME, mainFont, boldFont, refs.skipDatesButton);
 
         GridBagConstraints rootGbc = new GridBagConstraints();
         rootGbc.gridx = 0;
@@ -1091,8 +1037,6 @@ public class PanelFactory {
         root.add(shared, rootGbc);
         rootGbc.gridy = 1;
         rootGbc.insets = new Insets(4, 0, 12, 0);
-        root.add(skipRow, rootGbc);
-        rootGbc.gridy = 2;
         root.add(refs.workIn.panel, rootGbc);
 
         return root;
@@ -1158,7 +1102,7 @@ public class PanelFactory {
         public JButton clearButton;
     }
 
-    private static SlotCardRefs createSlotCard(String title, Font mainFont, Font boldFont) {
+    private static SlotCardRefs createSlotCard(String title, Font mainFont, Font boldFont, JButton skipDatesButton) {
         SlotCardRefs refs = new SlotCardRefs();
         refs.panel = new CandyPanel();
         refs.panel.setLayout(new BorderLayout(0, 4));
@@ -1167,11 +1111,16 @@ public class PanelFactory {
         refs.nameField.setFont(mainFont);
         refs.nameField.setToolTipText("這個排程的名稱。改完後，本機和後台的任務卡都會顯示這個名字。最多 24 個字。");
         int nameHeight = Math.max(30, refs.nameField.getPreferredSize().height);
-        lockComponentSize(refs.nameField, new Dimension(240, nameHeight));
-        JPanel nameRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        nameRow.setOpaque(false);
-        nameRow.add(labeled(mainFont, "名稱"));
-        nameRow.add(refs.nameField);
+        lockComponentSize(refs.nameField, new Dimension(200, nameHeight));
+        refs.nameApplyButton = candyButton("套用", CandyButton.Variant.SECONDARY, mainFont,
+                "儲存排程名稱（也可按 Enter）");
+        refs.nameApplyButton.setEnabled(false);
+        refs.nameSavedLabel = new JLabel("已儲存");
+        refs.nameSavedLabel.setFont(mainFont);
+        refs.nameSavedLabel.setForeground(new Color(144, 230, 176));
+        refs.nameSavedLabel.setVisible(false);
+        JPanel nameRow = wrapFlowRow(
+                labeled(mainFont, "名稱"), refs.nameField, refs.nameApplyButton, refs.nameSavedLabel);
         nameRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         int nameRowHeight = Math.max(nameHeight, nameRow.getPreferredSize().height);
         nameRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, nameRowHeight));
@@ -1202,31 +1151,26 @@ public class PanelFactory {
         refs.randomOffsetCheckBox.setFont(mainFont);
         refs.randomOffsetCheckBox.setToolTipText("在設定時間前後隨機 ±5 分鐘，避免每天固定同一秒執行");
 
-        JPanel flags = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        flags.setOpaque(false);
-        flags.add(refs.enabledCheckBox);
-        flags.add(refs.randomOffsetCheckBox);
-        pinRow(flags);
-
         JLabel hourUnit = new JLabel("時");
         hourUnit.setFont(mainFont);
         JLabel minUnit = new JLabel("分");
         minUnit.setFont(mainFont);
-        JPanel clock = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-        clock.setOpaque(false);
-        clock.add(refs.hourCombo);
-        clock.add(hourUnit);
-        clock.add(refs.minuteCombo);
-        clock.add(minUnit);
-        pinRow(clock);
+        JPanel scheduleRow = wrapFlowRow(
+                refs.enabledCheckBox,
+                refs.randomOffsetCheckBox,
+                refs.hourCombo,
+                hourUnit,
+                refs.minuteCombo,
+                minUnit);
+        if (skipDatesButton != null) {
+            scheduleRow.add(skipDatesButton);
+        }
 
         JPanel settings = new JPanel();
         settings.setOpaque(false);
         settings.setLayout(new BoxLayout(settings, BoxLayout.Y_AXIS));
         settings.setAlignmentX(Component.LEFT_ALIGNMENT);
-        settings.add(flags);
-        settings.add(Box.createVerticalStrut(4));
-        settings.add(clock);
+        settings.add(scheduleRow);
 
         refs.statusLabel = createSlotMetricLabel(mainFont, "—");
         refs.countdownLabel = createSlotMetricLabel(mainFont, "—");
@@ -1325,6 +1269,8 @@ public class PanelFactory {
         public JLabel triggerLabel;
         public JLabel resultLabel;
         public JLabel lockedSettingsLabel;
+        public JButton nameApplyButton;
+        public JLabel nameSavedLabel;
     }
 
     // ==================== 分組 3: 系統日誌 ====================
@@ -1361,6 +1307,17 @@ public class PanelFactory {
     public static class LogPanelRefs {
         public JTextArea logTextArea;
         public JButton clearLogButton;
+    }
+
+    private static JPanel wrapFlowRow(Component... components) {
+        JPanel row = new JPanel(new WrapLayout(FlowLayout.LEFT, 8, 4));
+        row.setOpaque(false);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        for (Component component : components) {
+            row.add(component);
+        }
+        pinRow(row);
+        return row;
     }
 
     /** 一項一列，避免 380px 寬把勾選與按鈕擠到畫面外。 */

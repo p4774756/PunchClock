@@ -47,7 +47,10 @@ public final class ClientRelease {
         if (env != null && !env.isBlank()) {
             return readOrNone(Path.of(env.trim()));
         }
-        Path dockerPath = Path.of("/app/client/punchclock-client-standalone.jar");
+        Path dockerPath = Path.of("/app/client/SKLbaby.jar");
+        if (!Files.isRegularFile(dockerPath)) {
+            dockerPath = Path.of("/app/client/punchclock-client-standalone.jar");
+        }
         if (Files.isRegularFile(dockerPath)) {
             return readOrNone(dockerPath);
         }
