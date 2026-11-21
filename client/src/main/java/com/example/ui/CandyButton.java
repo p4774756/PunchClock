@@ -47,6 +47,8 @@ public final class CandyButton extends JButton {
     }
 
     public enum Size {
+        /** 380px 小方塊裡跟其他控制項擠同一列時用，字還是原來的字級。 */
+        COMPACT(2, 1, 4, 8),
         SMALL(3, 2, 10, 10),
         MEDIUM(4, 3, 14, 12),
         LARGE(5, 4, 18, 14);
@@ -172,7 +174,7 @@ public final class CandyButton extends JButton {
             int width = text + icon + buttonSize.padH * 2 + SHADOW * 2;
             int face = metrics.getHeight() + buttonSize.padV * 2;
             int height = TOP + face + buttonSize.depth + PRESS + SHADOW;
-            return new Dimension(Math.max(width, 72), height);
+            return new Dimension(Math.max(width, 48), height);
         }
 
         @Override

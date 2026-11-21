@@ -29,20 +29,22 @@ public class Issue305Round2LayoutTest {
             PanelFactory.PeerInteractionRefs refs = new PanelFactory.PeerInteractionRefs();
             PanelFactory.createPeerInteractionPanel(refs, fonts.main, fonts.bold);
 
-            layoutRow(refs.avatarRow, 293);
-            assertInside(refs.avatarRow, "avatar-293");
-            assertSameBand(refs.avatarRow, "avatar-293");
+            layoutRow(refs.avatarRow, 269);
+            assertInside(refs.avatarRow, "avatar-269");
+            assertSameBand(refs.avatarRow, "avatar-269");
 
-            layoutRow(refs.avatarRow, 253);
-            assertInside(refs.avatarRow, "avatar-253");
+            layoutRow(refs.avatarRow, 245);
+            assertInside(refs.avatarRow, "avatar-245");
+            assertSameBand(refs.avatarRow, "avatar-245");
 
             JComponent idRow = (JComponent) refs.clientIdCombo.getParent();
-            layoutRow(idRow, 293);
-            assertInside(idRow, "id-293");
-            assertSameBand(idRow, "id-293");
+            layoutRow(idRow, 269);
+            assertInside(idRow, "id-269");
+            assertSameBand(idRow, "id-269");
 
-            layoutRow(idRow, 253);
-            assertInside(idRow, "id-253");
+            layoutRow(idRow, 229);
+            assertInside(idRow, "id-229");
+            assertSameBand(idRow, "id-229");
         });
     }
 
@@ -54,11 +56,13 @@ public class Issue305Round2LayoutTest {
             PanelFactory.createServerConfigBody(refs, fonts.main, fonts.bold, fonts.field);
             refs.heartbeatStatusLabel.setText("[正常] HTTP POST 正常");
             JComponent row = (JComponent) refs.enableServerCheckBox.getParent();
-            layoutRow(row, 288);
-            assertInside(row, "cloud-288");
-            assertSameBand(row, "cloud-288");
-            layoutRow(row, 248);
-            assertInside(row, "cloud-248");
+            layoutRow(row, 264);
+            assertInside(row, "cloud-264");
+            assertSameBand(row, "cloud-264");
+            assertEquals(13, refs.enableServerCheckBox.getFont().getSize());
+            layoutRow(row, 224);
+            assertInside(row, "cloud-224");
+            assertSameBand(row, "cloud-224");
         });
     }
 
@@ -73,22 +77,33 @@ public class Issue305Round2LayoutTest {
             JComponent schedule = (JComponent) hourGroup.getParent();
             JComponent nameRow = (JComponent) refs.workIn.nameField.getParent();
 
-            layoutRow(schedule, 297);
-            layoutRow(nameRow, 297);
-            assertInside(schedule, "schedule-297");
+            layoutRow(schedule, 273);
+            layoutRow(nameRow, 273);
+            assertInside(schedule, "schedule-273");
             assertTrue("hour/minute split " + bounds(hourGroup) + " " + bounds(minuteGroup),
                     Math.abs(hourGroup.getY() - minuteGroup.getY()) < 8);
+            assertSameBand(hourGroup, minuteGroup, "schedule-273");
             hourGroup.doLayout();
             minuteGroup.doLayout();
             assertShowsDigits(refs.workIn.hourCombo, "00");
             assertShowsDigits(refs.workIn.minuteCombo, "00");
-            assertInside(nameRow, "name-297");
+            assertInside(nameRow, "name-273");
             assertTrue("skip parent " + refs.skipDatesButton.getParent(),
                     refs.skipDatesButton.getParent() == nameRow);
+            assertTrue("skip right of name " + bounds(refs.skipDatesButton) + " " + bounds(refs.workIn.nameField),
+                    refs.skipDatesButton.getX() + refs.skipDatesButton.getWidth()
+                            > refs.workIn.nameField.getX() + refs.workIn.nameField.getWidth());
+            assertSameBand(refs.workIn.nameField, refs.skipDatesButton, "skip-name-273");
+
+            refs.skipDatesButton.setText("跳過日期（2）");
+            layoutRow(schedule, 273);
+            layoutRow(nameRow, 273);
+            assertSameBand(refs.workIn.nameField, refs.skipDatesButton, "skip2-name-273");
+            assertInside(nameRow, "name-skip2-273");
 
             refs.workIn.nameSavedLabel.setVisible(true);
-            layoutRow(nameRow, 297);
-            assertInside(nameRow, "name-saved-297");
+            layoutRow(nameRow, 273);
+            assertInside(nameRow, "name-saved-273");
             assertTrue(refs.workIn.nameSavedLabel.isVisible());
             assertTrue(refs.workIn.nameSavedLabel.getWidth() > 0);
             assertTrue(refs.workIn.nameSavedLabel.getHeight() > 0);
