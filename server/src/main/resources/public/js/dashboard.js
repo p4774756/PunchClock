@@ -1067,7 +1067,7 @@
       }
     }
 
-    const ISLAND_ZONES = ['devices', 'system', 'photos'];
+    const CONSOLE_ZONES = ['devices', 'system', 'photos'];
     const isAuthenticated = document.body.classList.contains('is-authenticated')
       || window.PUNCHCLOCK_AUTHENTICATED === true;
 
@@ -1076,23 +1076,13 @@
       return panel ? (panel.getAttribute('data-label') || tabId) : tabId;
     }
 
-    function setActiveIslandChrome(next) {
-      const list = document.getElementById('islandList');
-      const listBtn = document.getElementById('islandListBtn');
-      if (list && next) {
-        list.hidden = true;
-        if (listBtn) listBtn.setAttribute('aria-expanded', 'false');
-      }
-      document.querySelectorAll('.island-label, .island-list button[data-tab]').forEach(btn => {
+    function setActiveConsoleChrome(next) {
+      document.querySelectorAll('.console-tab[data-tab]').forEach(btn => {
         const active = btn.getAttribute('data-tab') === next;
         btn.classList.toggle('is-active', active);
         btn.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
-      document.body.classList.toggle('island-sheet-open', !!next);
-      if (window.PunchClockIsland) {
-        if (next) window.PunchClockIsland.focus(next);
-        else window.PunchClockIsland.reset();
-      }
+      document.body.classList.toggle('console-sheet-open', !!next);
     }
 
     function showGuestLoginGate(tabId) {
@@ -1106,20 +1096,20 @@
           panel.setAttribute('hidden', '');
         }
       });
-      const sheet = document.getElementById('islandSheet');
-      const title = document.getElementById('islandSheetTitle');
-      const hint = document.getElementById('islandGuestGateHint');
+      const sheet = document.getElementById('consoleSheet');
+      const title = document.getElementById('consoleSheetTitle');
+      const hint = document.getElementById('consoleGuestHint');
       const label = zoneLabel(tabId);
       if (sheet) sheet.hidden = false;
       if (title) title.textContent = label;
-      if (hint) hint.textContent = '登入後可操作「' + label + '」。訪客可繼續逛島嶼與公開導覽。';
-      setActiveIslandChrome(tabId);
+      if (hint) hint.textContent = '登入後可操作「' + label + '」。';
+      setActiveConsoleChrome(tabId);
     }
 
     function switchDashTab(tabId) {
       const panels = document.querySelectorAll('.dash-panel');
       if (!panels.length) return;
-      const next = ISLAND_ZONES.indexOf(tabId) >= 0 ? tabId : '';
+      const next = CONSOLE_ZONES.indexOf(tabId) >= 0 ? tabId : '';
       if (!isAuthenticated && next) {
         showGuestLoginGate(next);
         return;
@@ -1133,8 +1123,8 @@
           panel.setAttribute('hidden', '');
         }
       });
-      const sheet = document.getElementById('islandSheet');
-      const title = document.getElementById('islandSheetTitle');
+      const sheet = document.getElementById('consoleSheet');
+      const title = document.getElementById('consoleSheetTitle');
       if (sheet) {
         if (next) {
           sheet.hidden = false;
@@ -1151,7 +1141,7 @@
       if (isAuthenticated && next === 'system') {
         window.requestAnimationFrame(() => drawHealthHistoryChart());
       }
-      setActiveIslandChrome(next);
+      setActiveConsoleChrome(next);
     }
 
     function bindDashTabs() {
@@ -1162,7 +1152,7 @@
       if (isAuthenticated) {
         try {
           const saved = window.sessionStorage.getItem('punchclock.dashTab');
-          if (ISLAND_ZONES.indexOf(saved) >= 0) initial = saved;
+          if (CONSOLE_ZONES.indexOf(saved) >= 0) initial = saved;
         } catch (e) {}
       }
       switchDashTab(initial);
@@ -1549,110 +1539,10 @@
       });
     }
 
-    let marqueeLive = { enabled: false, text: '' };
-    let marqueeSaving = false;
-    let marqueeError = '';
-
-    function renderMarquee() {
-      const text = document.getElementById('marqueeText');
-      const showBtn = document.getElementById('marqueeShowBtn');
-      const hideBtn = document.getElementById('marqueeHideBtn');
-      const status = document.getElementById('marqueeStatus');
-      const draft = text ? text.value.trim() : '';
-      const liveOn = !!(marqueeLive.enabled && marqueeLive.text);
-      const same = draft === marqueeLive.text;
-      if (showBtn) showBtn.disabled = marqueeSaving || !draft || (liveOn && same);
-      if (hideBtn) {
-        hideBtn.hidden = !liveOn;
-        hideBtn.disabled = marqueeSaving;
-      }
-      if (!status) return;
-      if (marqueeError) {
-        status.textContent = marqueeError;
-        return;
-      }
-      if (!liveOn) {
-        status.textContent = '桌面端現在沒有跑馬燈。';
-      } else if (!same) {
-        status.textContent = '這句還沒換上。按換上這句之後，大約 15 秒才會換。';
-      } else {
-        status.textContent = '桌面端正在顯示這句。';
-      }
-    }
-
-    async function fetchMarquee() {
-      const text = document.getElementById('marqueeText');
-      if (!text) return;
-      try {
-        const res = await fetch('/api/marquee', { credentials: 'same-origin' });
-        const data = await res.json();
-        if (!data.success) return;
-        marqueeLive = { enabled: !!data.enabled, text: data.text || '' };
-        text.value = marqueeLive.text;
-        if (data.maxChars) text.maxLength = data.maxChars;
-        marqueeError = '';
-        renderMarquee();
-      } catch (e) {
-        console.error('Fetch marquee error', e);
-      }
-    }
-
-    async function saveMarquee(wantOn, event) {
-      if (event) event.preventDefault();
-      const text = document.getElementById('marqueeText');
-      const status = document.getElementById('marqueeStatus');
-      if (!text || marqueeSaving) return;
-      const draft = text.value;
-      if (wantOn && !draft.trim()) {
-        marqueeError = '先寫一句要顯示的話';
-        renderMarquee();
-        return;
-      }
-      const textToSave = wantOn ? draft : (draft.trim() ? draft : marqueeLive.text);
-      marqueeSaving = true;
-      marqueeError = '';
-      renderMarquee();
-      try {
-        const res = await fetch('/api/marquee', {
-          method: 'PUT',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: wantOn, text: textToSave })
-        });
-        const data = await res.json();
-        if (!data.success) {
-          marqueeError = data.message || '沒有儲存';
-          return;
-        }
-        marqueeLive = { enabled: !!data.enabled, text: data.text || '' };
-        text.value = marqueeLive.text;
-      } catch (e) {
-        marqueeError = '沒有儲存，請再試一次';
-        if (status) status.textContent = marqueeError;
-      } finally {
-        marqueeSaving = false;
-        renderMarquee();
-      }
-    }
-
-    function bindMarqueeForm() {
-      const form = document.getElementById('marqueeForm');
-      const text = document.getElementById('marqueeText');
-      const hideBtn = document.getElementById('marqueeHideBtn');
-      if (form) form.addEventListener('submit', event => saveMarquee(true, event));
-      if (hideBtn) hideBtn.addEventListener('click', () => saveMarquee(false));
-      if (text) text.addEventListener('input', () => {
-        marqueeError = '';
-        renderMarquee();
-      });
-    }
-
     bindDashTabs();
     if (isAuthenticated) {
       fetchStatus();
       fetchPhotos();
-      fetchMarquee();
-      bindMarqueeForm();
       connectWebSocket();
       bindPhotoActions();
       window.addEventListener('resize', drawHealthHistoryChart);

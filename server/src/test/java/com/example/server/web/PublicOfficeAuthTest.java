@@ -1,0 +1,272 @@
+package com.example.server.web;
+
+import com.example.server.ClientRelease;
+import com.example.server.ServerApp;
+import com.example.server.auth.AdminAuthCookie;
+import com.example.server.store.DevStatusModels;
+import com.example.server.store.DevStatusService;
+import com.example.server.store.RoadmapService;
+import io.javalin.Javalin;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.WebSocket;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+/** 首頁辦公室公開、管理 API／WS 仍需登入。 */
+public class PublicOfficeAuthTest {
+
+    private static final String FAKE_ROADMAP_BODY = "## 分期\n"
+            + "- [x] **Phase 3 群島地基**：地基\n"
+            + "- [ ] **Phase 4 進屋系統**：門口\n";
+
+    private Javalin app;
+    private HttpClient http;
+    private String base;
+
+    @Before
+    public void setUp() {
+        DevStatusService fakeDevStatus = new DevStatusService(repo -> new DevStatusModels.Snapshot(
+                Collections.singletonList(new DevStatusModels.IssueRow(
+                        50, "測試票", true, 1_000L, 2_000L, null,
+                        Collections.singletonList("queue:1"))),
+                Collections.emptyList(),
+                Collections.emptySet()
+        ), "p4774756/PunchClock");
+        RoadmapService fakeRoadmap = new RoadmapService((repo, issue) -> FAKE_ROADMAP_BODY,
+                "p4774756/PunchClock", 36);
+        app = new ServerApp(ClientRelease.NONE, fakeDevStatus, fakeRoadmap).start(0);
+        base = "http://127.0.0.1:" + app.port();
+        http = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .connectTimeout(Duration.ofSeconds(5))
+                .build();
+    }
+
+    @After
+    public void tearDown() {
+        if (app != null) {
+            app.stop();
+        }
+    }
+
+    @Test
+    public void guestsCanOpenOfficeHome() throws Exception {
+        HttpResponse<String> response = send("GET", "/", null);
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("lab-office-page"));
+        assertTrue(response.body().contains("office-page.js"));
+        assertTrue(response.body().contains("is-guest"));
+        assertTrue(response.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
+        assertFalse(response.body().toLowerCase().contains("island"));
+        assertFalse(response.body().contains("神之島"));
+        assertFalse(response.body().contains("dashboard.js"));
+    }
+
+    @Test
+    public void publicOfficeEndpointWithoutLogin() throws Exception {
+        HttpResponse<String> response = send("GET", "/api/office/public", null);
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("\"characters\""));
+        assertTrue(response.body().contains("\"oki\""));
+        assertFalse(response.body().contains("#"));
+    }
+
+    @Test
+    public void graffitiAndRoadmapPanelsLoadOnConsole() throws Exception {
+        HttpResponse<String> graffitiJs = send("GET", "/js/graffiti-panel.js", null);
+        assertEquals(200, graffitiJs.statusCode());
+        assertTrue(graffitiJs.body().contains("createGraffitiController"));
+        HttpResponse<String> roadmapJs = send("GET", "/js/roadmap-panel.js", null);
+        assertEquals(200, roadmapJs.statusCode());
+        assertTrue(roadmapJs.body().contains("createRoadmapController"));
+    }
+
+    @Test
+    public void dashboardHtmlStaysShortCache() throws Exception {
+        HttpResponse<String> home = send("GET", "/", null);
+        assertEquals(200, home.statusCode());
+        String cache = home.headers().firstValue("cache-control").orElse("");
+        assertTrue(cache.contains("no-cache") || cache.contains("must-revalidate"));
+    }
+
+    @Test
+    public void guestsCanReadAndSubmitGraffitiWithoutLogin() throws Exception {
+        HttpResponse<String> list = send("GET", "/api/graffiti", null);
+        assertEquals(200, list.statusCode());
+        assertTrue(list.body().contains("\"items\""));
+        assertNoManagementPayload(list.body());
+    }
+
+    @Test
+    public void guestsCanReadRoadmapWithoutLogin() throws Exception {
+        HttpResponse<String> roadmap = send("GET", "/api/roadmap", null);
+        assertEquals(200, roadmap.statusCode());
+        assertTrue(roadmap.body().contains("\"success\""));
+        assertFalse(roadmap.body().contains("未登入或權限不足"));
+    }
+
+    @Test
+    public void guestsCanReadDevStatusWithoutLogin() throws Exception {
+        HttpResponse<String> status = send("GET", "/api/dev-status", null);
+        assertEquals(200, status.statusCode());
+        assertFalse(status.body().contains("未登入"));
+        assertFalse(status.body().contains("agentRunning"));
+    }
+
+    @Test
+    public void guestsCanReadTeaHealthWithoutSensitiveFields() throws Exception {
+        HttpResponse<String> response = send("GET", "/api/tea-health", null);
+        assertEquals(200, response.statusCode());
+        assertFalse(response.body().contains("\"clients\""));
+        assertFalse(response.body().contains("未登入"));
+    }
+
+    @Test
+    public void guestsAreDeniedDevMachinesApi() throws Exception {
+        HttpResponse<String> status = send("GET", "/api/dev-machines", null);
+        assertEquals(401, status.statusCode());
+        assertTrue(status.body().contains("請先登入"));
+    }
+
+    @Test
+    public void consoleServesDashboard() throws Exception {
+        HttpResponse<String> page = send("GET", "/console", adminCookie());
+        assertEquals(200, page.statusCode());
+        assertTrue(page.body().contains("dashboard.js"));
+        assertTrue(page.body().contains("clientContainer"));
+        assertTrue(page.body().contains("dashboard.js"));
+        assertTrue(page.body().contains("panel-devices"));
+    }
+
+    @Test
+    public void downloadPageIsPublic() throws Exception {
+        HttpResponse<String> page = send("GET", "/download", null);
+        assertEquals(200, page.statusCode());
+        assertTrue(page.body().contains("Java"));
+        assertFalse(page.body().contains("secret"));
+        assertFalse(page.body().contains("Bearer"));
+    }
+
+    @Test
+    public void loginNextRedirectsWhenAlreadyAuthed() throws Exception {
+        HttpResponse<String> response = send("GET", "/login?next=/dev-status", adminCookie());
+        assertEquals(302, response.statusCode());
+        assertEquals("/dev-status", response.headers().firstValue("location").orElse(""));
+        HttpResponse<String> console = send("GET", "/login?next=/console", adminCookie());
+        assertEquals(302, console.statusCode());
+        assertEquals("/console", console.headers().firstValue("location").orElse(""));
+    }
+
+    @Test
+    public void loginFormKeepsConsoleNext() throws Exception {
+        HttpResponse<String> page = send("GET", "/login?next=/console", null);
+        assertEquals(200, page.statusCode());
+        assertTrue(page.body().contains("name=\"next\" value=\"/console\""));
+        assertTrue(page.body().contains("辦公室"));
+        assertFalse(page.body().contains("神之島"));
+    }
+
+    @Test
+    public void indexHtmlRedirectsToPublicHome() throws Exception {
+        HttpResponse<String> response = send("GET", "/index.html", null);
+        assertEquals(302, response.statusCode());
+        assertEquals("/", response.headers().firstValue("location").orElse(""));
+    }
+
+    @Test
+    public void signedInAdminSeesAuthenticatedHome() throws Exception {
+        String cookie = adminCookie();
+        HttpResponse<String> response = send("GET", "/", cookie);
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("is-authenticated"));
+        assertTrue(response.body().contains("PUNCHCLOCK_AUTHENTICATED = true"));
+        assertTrue(response.body().contains("href=\"/logout\""));
+    }
+
+    @Test
+    public void guestsAreDeniedManagementApis() throws Exception {
+        assertDeniedManagement(send("GET", "/api/status", null));
+        assertDeniedManagement(send("GET", "/api/health/history", null));
+        assertDeniedManagement(send("GET", "/api/photos", null));
+        assertDeniedManagement(send("POST", "/api/clients/demo/cancel-schedule", null));
+    }
+
+    @Test
+    public void signedInAdminCanReadStatusAndLogoutRevokesAccess() throws Exception {
+        String cookie = adminCookie();
+        HttpResponse<String> status = send("GET", "/api/status", cookie);
+        assertEquals(200, status.statusCode());
+        assertTrue(status.body().contains("\"clients\""));
+
+        HttpResponse<String> logout = send("GET", "/logout", cookie);
+        assertEquals(302, logout.statusCode());
+        assertDeniedManagement(send("GET", "/api/status", null));
+    }
+
+    @Test
+    public void dashboardWebSocketRejectsGuests() throws Exception {
+        CompletableFuture<Integer> closed = new CompletableFuture<>();
+        URI uri = URI.create(base.replace("http://", "ws://") + "/ws/dashboard");
+        http.newWebSocketBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .buildAsync(uri, new WebSocket.Listener() {
+                    @Override
+                    public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+                        closed.complete(statusCode);
+                        return null;
+                    }
+
+                    @Override
+                    public void onError(WebSocket webSocket, Throwable error) {
+                        closed.completeExceptionally(error);
+                    }
+                })
+                .get(5, TimeUnit.SECONDS);
+        assertTrue("guest dashboard ws should close", closed.get(5, TimeUnit.SECONDS) != null);
+    }
+
+    private void assertDeniedManagement(HttpResponse<String> response) {
+        assertEquals(401, response.statusCode());
+        assertNoManagementPayload(response.body());
+    }
+
+    private void assertNoManagementPayload(String body) {
+        assertFalse(body.contains("\"serverVersion\""));
+        assertFalse(body.contains("\"photos\""));
+    }
+
+    private HttpResponse<String> send(String method, String path, String cookie) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(base + path))
+                .timeout(Duration.ofSeconds(5));
+        if (cookie != null) {
+            builder.header("Cookie", cookie);
+        }
+        if ("GET".equals(method)) {
+            builder.GET();
+        } else if ("POST".equals(method)) {
+            builder.POST(HttpRequest.BodyPublishers.noBody());
+        } else {
+            throw new IllegalArgumentException(method);
+        }
+        return http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    }
+
+    private String adminCookie() {
+        return AdminAuthCookie.header();
+    }
+}
