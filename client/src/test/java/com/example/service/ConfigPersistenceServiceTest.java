@@ -181,14 +181,16 @@ public class ConfigPersistenceServiceTest {
     }
 
     @Test
-    public void saveAndLoad_persistsCustomBackgroundFlag() {
+    public void saveAndLoad_persistsCustomBackgroundFlag() throws Exception {
         ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
         config.customBackground = true;
         config.backgroundBlurPercent = 40;
         config.backgroundOpacityPercent = 60;
         configService.saveConfig(config, null);
+        String json = Files.readString(configFile);
+        assertFalse(json.contains("\"customBackground\": true"));
         ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
-        assertTrue(loaded.customBackground);
+        assertFalse(loaded.customBackground);
         assertEquals(40, loaded.backgroundBlurPercent);
         assertEquals(60, loaded.backgroundOpacityPercent);
     }

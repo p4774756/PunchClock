@@ -1,10 +1,13 @@
 package com.example.ui;
 
+import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Insets;
+import java.awt.LayoutManager;
+import javax.swing.BoxLayout;
 
 /**
  * FlowLayout that wraps and reports the correct preferred height after wrapping.
@@ -19,27 +22,43 @@ public class WrapLayout extends FlowLayout {
 
     @Override
     public Dimension preferredLayoutSize(Container target) {
-        return layoutSize(target, true);
+        return layoutSize(target, true, targetWidth(target));
+    }
+
+    public Dimension preferredLayoutSize(Container target, int width) {
+        return layoutSize(target, true, width);
     }
 
     @Override
     public Dimension minimumLayoutSize(Container target) {
-        Dimension minimum = layoutSize(target, false);
+        Dimension minimum = layoutSize(target, false, targetWidth(target));
         minimum.width -= (getHgap() + 1);
         return minimum;
     }
 
-    private Dimension layoutSize(Container target, boolean preferred) {
+    /**
+     * 直向 Box／Border 在問 preferred 時，子元件寬度還是上一輪的。
+     * 用父層目前的內寬，這一輪才排得出換行後的高度。
+     */
+    public int targetWidth(Container target) {
+        int width = target.getWidth();
+        Container parent = target.getParent();
+        if (parent != null && parent.getWidth() > 0) {
+            LayoutManager layout = parent.getLayout();
+            if (layout instanceof BoxLayout || layout instanceof BorderLayout) {
+                Insets parentInsets = parent.getInsets();
+                int inner = parent.getWidth() - parentInsets.left - parentInsets.right;
+                if (inner > 0) {
+                    return inner;
+                }
+            }
+        }
+        return width > 0 ? width : Integer.MAX_VALUE;
+    }
+
+    private Dimension layoutSize(Container target, boolean preferred, int targetWidth) {
         synchronized (target.getTreeLock()) {
-            int targetWidth = target.getWidth();
-            Container container = target;
-            while (container.getSize().width == 0 && container.getParent() != null) {
-                container = container.getParent();
-            }
-            if (targetWidth == 0) {
-                targetWidth = container.getSize().width;
-            }
-            if (targetWidth == 0) {
+            if (targetWidth <= 0) {
                 targetWidth = Integer.MAX_VALUE;
             }
 

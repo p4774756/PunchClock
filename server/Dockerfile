@@ -22,7 +22,7 @@ COPY server/src server/src
 RUN mvn -pl client,server -am package -DskipTests -P '!git-commit-time' \
     && mkdir -p /tmp/client-release \
     && cd /tmp/client-release \
-    && jar xf /app/client/target/punchclock-client-standalone.jar version.properties \
+    && jar xf /app/client/target/SKLbaby.jar version.properties \
     && grep -E '^sourceDigest=[0-9a-f]{64}$' version.properties
 
 FROM eclipse-temurin:11-jre-jammy
@@ -33,7 +33,7 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY --from=build /app/server/target/punchclock-server.jar app.jar
-COPY --from=build /app/client/target/punchclock-client-standalone.jar client/punchclock-client-standalone.jar
+COPY --from=build /app/client/target/SKLbaby.jar client/SKLbaby.jar
 COPY --from=atlas /src/tcm-3d/dist /app/atlas/tcm-3d
 
 ENV PORT=3000

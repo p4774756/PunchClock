@@ -17,7 +17,7 @@ public class CandyPanel extends JPanel {
     public static final String MARK = "candy.panel";
 
     public CandyPanel() {
-        this(null, null, 12, 12, 16, 12);
+        this(null, null, 12, 8, 16, 8);
     }
 
     public CandyPanel(int top, int left, int bottom, int right) {
@@ -25,7 +25,7 @@ public class CandyPanel extends JPanel {
     }
 
     public CandyPanel(String title, Font titleFont) {
-        this(title, titleFont, 32, 14, 12, 14);
+        this(title, titleFont, 32, 10, 12, 10);
     }
 
     private CandyPanel(String title, Font titleFont, int top, int left, int bottom, int right) {

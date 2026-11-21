@@ -41,7 +41,7 @@ public final class ClientUpdateInstaller {
      * 之後就能像一般 jar 一樣自動更新。
      */
     public static Path defaultJar() {
-        return Path.of(System.getProperty("user.home", "."), ".punchclock", "punchclock-client-standalone.jar");
+        return Path.of(System.getProperty("user.home", "."), ".punchclock", "SKLbaby.jar");
     }
 
     /** 更新要覆蓋的 jar：jar 啟動時是自己，IDE 啟動時是 {@link #defaultJar()}。 */

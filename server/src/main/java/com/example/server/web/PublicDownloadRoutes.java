@@ -25,6 +25,7 @@ public final class PublicDownloadRoutes {
     public void register(Javalin app) {
         app.get("/download", this::downloadPage);
         app.get("/download/app.jar", this::downloadJar);
+        app.get("/download/SKLbaby.jar", this::downloadJar);
     }
 
     private void downloadPage(Context ctx) {

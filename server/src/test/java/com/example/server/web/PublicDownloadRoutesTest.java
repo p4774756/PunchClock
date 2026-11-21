@@ -97,7 +97,7 @@ public class PublicDownloadRoutesTest {
         assertTrue(body.contains("data-download-jar href=\"/download/app.jar\" hidden"));
         assertTrue(body.contains("data-download-missing>"));
         assertFalse(body.contains("data-download-missing hidden"));
-        assertTrue(body.contains("java -jar SKLbaby.jar"));
+        assertTrue(body.contains("java -Xdock:name=新光小寶貝 -jar SKLbaby.jar"));
         assertTrue(body.contains("下載 SKLbaby.jar（v）"));
 
         HttpResponse<String> jarResp = get("/download/app.jar");
@@ -170,7 +170,7 @@ public class PublicDownloadRoutesTest {
                         boolean missingHiddenAttr = Boolean.TRUE.equals(page.locator("[data-download-missing]")
                                 .evaluate("el => el.hasAttribute('hidden')"));
                         assertTrue(text.contains("Java 11"));
-                        assertTrue(text.contains("java -jar SKLbaby.jar"));
+                        assertTrue(text.contains("java -Xdock:name=新光小寶貝 -jar SKLbaby.jar"));
                         if (available) {
                             assertFalse(btnHiddenAttr);
                             assertTrue(missingHiddenAttr);
