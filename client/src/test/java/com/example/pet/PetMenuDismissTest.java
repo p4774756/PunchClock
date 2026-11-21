@@ -25,6 +25,12 @@ public class PetMenuDismissTest {
     }
 
     @Test
+    public void escapeCannotArriveUntilThePetWindowTakesFocus() {
+        assertTrue(PetMenuDismiss.needsKeyboardFocus(false));
+        assertFalse(PetMenuDismiss.needsKeyboardFocus(true));
+    }
+
+    @Test
     public void focusLostClosesUnlessFocusMovedToMenu() {
         assertFalse(PetMenuDismiss.shouldCloseOnFocusLost(false, false));
         assertTrue(PetMenuDismiss.shouldCloseOnFocusLost(true, false));
