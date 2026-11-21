@@ -1,21 +1,22 @@
 /* Retro punch-clock login — navy grid, cream time card */
 :root {
-  --navy-deep: #0c1526;
-  --navy-mid: #132238;
-  --grid-line: rgba(120, 160, 200, 0.14);
-  --cream-slip: #f3ead6;
-  --cream-warm: #e8dfc4;
-  --slip-edge: #c4b48e;
-  --text-ink: #1e3d5c;
-  --text-muted: #5a6f85;
-  --amber: #e5a82a;
-  --amber-hover: #cf9618;
+  --navy-deep: #081628;
+  --navy-mid: #10243c;
+  --grid-line: rgba(130, 168, 206, 0.16);
+  --cream-slip: #f4ecda;
+  --cream-warm: #f6e4c0;
+  --slip-edge: #c4b08a;
+  --text-ink: #1a3350;
+  --text-muted: #5c6e82;
+  --amber: #e2a31f;
+  --amber-hover: #cf9316;
   --amber-text: #1a3050;
   --white: #ffffff;
-  --line: #b8c4d0;
+  --line: #b7c3cf;
   --bad: #c62828;
   --sans: "微軟正黑體", "Microsoft JhengHei", "PingFang TC", sans-serif;
-  --radius: 6px;
+  --serif: "Songti TC", "PMingLiU", "Songti SC", "Noto Serif TC", "Times New Roman", serif;
+  --radius: 4px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -24,13 +25,13 @@ body.login-page {
   font-family: var(--sans);
   color: var(--text-ink);
   font-size: 14px;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.3px;
   min-height: 100vh;
   background-color: var(--navy-deep);
   background-image:
     linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: 22px 22px;
+  background-size: 28px 28px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -38,18 +39,29 @@ body.login-page {
 
 .login-scene {
   flex: 1;
-  width: min(400px, calc(100% - 1.5rem));
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 2rem 0 1rem;
+  justify-content: center;
+  padding: 1.75rem 0 1rem;
+}
+
+/* Clock, slot, and card are one machine. Width is the clock. */
+.punch-unit {
+  width: min(360px, calc(100% - 1.5rem));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .punch-clock {
   width: 100%;
-  max-width: 320px;
-  flex-shrink: 0;
+  position: relative;
   z-index: 2;
+  pointer-events: none;
+  /* Sit the lip on the card; shadow paints outside the box. */
+  filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.42));
 }
 
 .punch-clock-svg {
@@ -60,72 +72,112 @@ body.login-page {
 
 .punch-slip {
   position: relative;
-  width: 100%;
-  max-width: 340px;
-  margin-top: -6px;
   z-index: 1;
+  /* Narrower than the clock, aligned with the paper slot. */
+  width: 78.1%;
+  /* Tuck the top edge into the slot mouth (percent of unit width). */
+  margin-top: -2.5%;
   display: flex;
-  background: linear-gradient(180deg, var(--cream-warm) 0%, var(--cream-slip) 8%, var(--cream-slip) 100%);
+  background: linear-gradient(180deg, #f8e6bf 0%, var(--cream-warm) 22px, var(--cream-slip) 64px, #f7f1e4 100%);
   border: 1px solid var(--slip-edge);
-  border-radius: 2px 2px 8px 8px;
+  border-top: none;
+  border-radius: 0 0 2px 2px;
   box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.45),
-    0 2px 0 rgba(255, 255, 255, 0.35) inset;
+    0 16px 28px rgba(0, 0, 0, 0.38),
+    0 1px 0 rgba(255, 255, 255, 0.45) inset;
+}
+
+/* Warm light spilled from the slot onto the card. */
+.punch-slip::before {
+  content: "";
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: 0;
+  height: 46px;
+  background: radial-gradient(ellipse 72% 100% at 50% 0%,
+    rgba(255, 214, 120, 1) 0%,
+    rgba(255, 186, 70, 0.72) 34%,
+    rgba(255, 176, 60, 0) 70%);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .punch-holes {
-  width: 28px;
+  position: relative;
+  z-index: 3;
+  width: 26px;
   flex-shrink: 0;
   background:
-    radial-gradient(circle at 50% 12px, var(--navy-mid) 3px, transparent 3.5px) 0 0 / 100% 20px repeat-y;
-  border-right: 1px dashed rgba(30, 61, 92, 0.15);
-  min-height: 100%;
+    radial-gradient(circle at 50% 16px, var(--navy-deep) 4.2px, transparent 4.7px) 0 10px / 100% 22px repeat-y;
+  border-right: 1px solid rgba(30, 50, 70, 0.08);
 }
 
 .punch-slip-inner {
+  position: relative;
+  z-index: 3;
   flex: 1;
-  padding: 1.35rem 1.25rem 1.5rem 1rem;
+  min-width: 0;
+  padding: 1.55rem 0.95rem 1.25rem 0.75rem;
 }
 
 .slip-title {
-  font-size: clamp(1.35rem, 4vw, 1.65rem);
+  font-family: var(--serif);
+  font-size: clamp(1.85rem, 2.6vw, 2.25rem);
   font-weight: 700;
   color: var(--text-ink);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.22em;
+  padding-left: 0.22em;
   text-align: center;
+  line-height: 1.15;
 }
 
 .slip-sub {
-  margin-top: 0.35rem;
-  margin-bottom: 1.15rem;
-  font-size: 0.82rem;
+  margin: 0.28rem 0 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
   text-align: center;
 }
 
+.slip-rule {
+  height: 1px;
+  width: 86%;
+  margin: 0.42rem auto;
+  background: rgba(36, 52, 70, 0.55);
+  border: 0;
+}
+
+.slip-sub + .slip-rule {
+  margin-top: 0.38rem;
+  margin-bottom: 0.85rem;
+}
+
 .form-group {
-  margin-bottom: 1rem;
+  margin-bottom: 0.85rem;
 }
 
 .form-group label {
   display: block;
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   font-weight: 700;
   color: var(--text-ink);
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.35rem;
 }
 
-.pwd-wrapper {
-  position: relative;
+.pwd-row {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  gap: 0.4rem;
 }
 
 .form-input {
-  width: 100%;
-  padding: 0.55rem 3.25rem 0.55rem 0.75rem;
-  border-radius: 4px;
-  border: 1px solid var(--line);
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  padding: 0.45rem 0.55rem;
+  border-radius: 3px;
+  border: 1px solid #9aabbc;
   font-family: var(--sans);
   font-size: 0.95rem;
   color: var(--text-ink);
@@ -146,49 +198,52 @@ body.login-page {
 }
 
 .btn-toggle-pwd {
-  position: absolute;
-  right: 4px;
+  flex: 0 0 auto;
+  min-width: 3rem;
   background: var(--white);
-  border: 1px solid var(--line);
+  border: 1px solid #9aabbc;
   cursor: pointer;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--text-muted);
-  padding: 0.35rem 0.55rem;
-  border-radius: 4px;
+  padding: 0 0.5rem;
+  border-radius: 3px;
   font-family: var(--sans);
 }
 
 .btn-toggle-pwd:hover {
   color: var(--text-ink);
-  border-color: #8aa4bc;
+  border-color: #7f96aa;
 }
 
 .btn-submit {
-  width: 100%;
-  padding: 0.7rem;
-  background: var(--amber);
+  display: block;
+  width: 92%;
+  margin: 0.15rem auto 0;
+  padding: 0.52rem 0.6rem;
+  background: linear-gradient(180deg, #f0be45 0%, var(--amber) 48%, #d39616 100%);
   color: var(--amber-text);
-  border: 1px solid #c99620;
-  border-radius: var(--radius);
+  border: 1px solid #c49216;
+  border-radius: 3px;
   font-family: var(--sans);
   font-weight: 700;
-  font-size: 1rem;
-  letter-spacing: 0.08em;
+  font-size: 0.98rem;
+  letter-spacing: 0.12em;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
-  margin-top: 0.25rem;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 1px 0 rgba(255, 236, 180, 0.65) inset,
+    0 2px 0 rgba(120, 80, 10, 0.18);
 }
 
 .btn-submit:hover:not(:disabled) {
-  background: var(--amber-hover);
+  background: linear-gradient(180deg, #e8b43a 0%, var(--amber-hover) 100%);
   border-color: var(--amber-hover);
 }
 
 .btn-submit:active:not(:disabled) {
   transform: translateY(1px);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 0 rgba(120, 80, 10, 0.18);
 }
 
 .btn-submit:disabled {
@@ -206,7 +261,7 @@ body.login-page {
   font-size: 0.82rem;
   padding: 10px 12px;
   border-radius: var(--radius);
-  margin-bottom: 1rem;
+  margin-bottom: 0.85rem;
   text-align: center;
   font-weight: 700;
   line-height: 1.45;
@@ -214,9 +269,9 @@ body.login-page {
 
 .back-office {
   display: block;
-  margin-top: 1.1rem;
+  margin-top: 0.85rem;
   text-align: center;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
   text-decoration: none;
   transition: color 0.15s;
@@ -230,30 +285,31 @@ body.login-page {
 .site-footer {
   text-align: center;
   font-size: 0.75rem;
-  color: rgba(180, 200, 220, 0.55);
-  padding: 0.75rem 1rem 1.25rem;
+  color: rgba(186, 204, 222, 0.62);
+  padding: 0.85rem 1rem 1.35rem;
   width: 100%;
+  letter-spacing: 0.04em;
 }
 
 @media (max-width: 480px) {
   .login-scene {
-    padding-top: 1.25rem;
-    width: calc(100% - 1rem);
+    padding-top: 1.1rem;
+    justify-content: flex-start;
   }
 
-  .punch-clock {
-    max-width: 280px;
-  }
-
-  .punch-slip {
-    max-width: none;
+  .punch-unit {
+    width: calc(100% - 1.15rem);
   }
 
   .punch-slip-inner {
-    padding: 1.1rem 0.9rem 1.25rem 0.75rem;
+    padding: 1.35rem 0.7rem 1.1rem 0.6rem;
   }
 
   .punch-holes {
     width: 22px;
+  }
+
+  .slip-title {
+    font-size: 1.8rem;
   }
 }
