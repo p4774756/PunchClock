@@ -1423,7 +1423,7 @@ public final class DesktopPetWindow extends JFrame {
     static final int MAIN_AVOID_GAP = 6;
 
     /**
-     * macOS {@link Type#POPUP} 會被 AppKit 裁進前景主視窗。寵物外框與主視窗重疊時左側常直接被切掉。
+     * macOS {@link Type#POPUP} 會被 AppKit 裁進前景主視窗（其他平台重疊時也會擋住角色）。
      * 往最近的不重疊角落微移，仍落在同一螢幕可用區。
      */
     static Point nudgeOutsideMainWindow(
@@ -1434,7 +1434,7 @@ public final class DesktopPetWindow extends JFrame {
             Rectangle main,
             Rectangle usable,
             Rectangle[] screens) {
-        if (!keepsAppInBackground() || main == null || main.isEmpty() || windowWidth < 1 || windowHeight < 1) {
+        if (main == null || main.isEmpty() || windowWidth < 1 || windowHeight < 1) {
             return new Point(x, y);
         }
         Rectangle pet = new Rectangle(x, y, windowWidth, windowHeight);
