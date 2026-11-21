@@ -15,7 +15,7 @@ public final class ShellDimensions {
     public static final int MINI_WIDTH = 300;
     public static final int MINI_HEIGHT = 56;
 
-    public static final int TAB_BAR_HEIGHT = 52;
+    public static final int TAB_BAR_HEIGHT = 60;
 
     private ShellDimensions() {
     }
