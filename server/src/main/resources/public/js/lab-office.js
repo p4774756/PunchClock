@@ -78,6 +78,7 @@ export function createLabOfficeController(opts) {
   let publicPayload = null;
 
   const PROP_LINK = Object.freeze({
+    guestbook: null,
     clock: '/download#checkin',
     bookshelf: '/atlas/tcm-3d/',
     whiteboard: null,
@@ -112,6 +113,21 @@ export function createLabOfficeController(opts) {
       let href = PROP_LINK[id] || '#';
       if (id === 'whiteboard') {
         href = isAuthed() ? '/dev-status' : '/login?next=%2Fdev-status';
+      }
+      if (id === 'guestbook') {
+        const btn = doc.createElement('button');
+        btn.type = 'button';
+        btn.className = 'lab-office-prop lab-office-prop-guestbook';
+        btn.style.left = spec.x + '%';
+        btn.style.top = spec.y + '%';
+        btn.setAttribute('data-open-guestbook', '');
+        btn.setAttribute('aria-label', spec.label);
+        const tag = doc.createElement('span');
+        tag.className = 'lab-office-prop-label';
+        setText(tag, spec.label);
+        btn.appendChild(tag);
+        layer.appendChild(btn);
+        continue;
       }
       const el = doc.createElement(id === 'whiteboard' ? 'div' : 'a');
       el.className = 'lab-office-prop';

@@ -49,6 +49,7 @@ export function viewerCanOpenLabOffice(authFlag) {
 
 /** 首頁可點物件（百分比座標，對舞台）。 */
 export const OFFICE_PROP_POS = Object.freeze({
+  guestbook: { x: 20, y: 66, label: '簽名簿' },
   clock: { x: 8, y: 58, label: '打卡機' },
   bookshelf: { x: 78, y: 42, label: '書櫃' },
   whiteboard: { x: 48, y: 38, label: '白板' },
