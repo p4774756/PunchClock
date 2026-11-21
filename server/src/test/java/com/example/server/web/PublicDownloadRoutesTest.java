@@ -4,8 +4,15 @@ import com.example.server.ClientRelease;
 import com.example.server.ServerApp;
 import com.example.server.store.DevStatusModels;
 import com.example.server.store.DevStatusService;
+import com.microsoft.playwright.Browser;
+import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Page;
+import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.options.BoundingBox;
+import com.microsoft.playwright.options.WaitUntilState;
 import io.javalin.Javalin;
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -26,6 +33,8 @@ import java.util.jar.JarOutputStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class PublicDownloadRoutesTest {
@@ -93,6 +102,109 @@ public class PublicDownloadRoutesTest {
 
         HttpResponse<String> jarResp = get("/download/app.jar");
         assertEquals(404, jarResp.statusCode());
+
+        HttpResponse<String> css = get("/css/download.css");
+        assertEquals(200, css.statusCode());
+        String flat = css.body().replaceAll("\\s+", " ");
+        assertTrue(flat.contains(
+                ".download-btn[hidden], .download-unavailable[hidden] { display: none !important; }"));
+    }
+
+    @Test
+    public void noReleaseHidesDownloadButtonByComputedStyle() throws Exception {
+        Assume.assumeTrue("Playwright headless browser not available", chromiumAvailable());
+        startWithoutRelease();
+        assertDownloadVisibility(false);
+    }
+
+    @Test
+    public void availableReleaseHidesMissingMessageByComputedStyle() throws Exception {
+        Assume.assumeTrue("Playwright headless browser not available", chromiumAvailable());
+        startWithRelease();
+        assertDownloadVisibility(true);
+    }
+
+    private static Boolean chromiumReady;
+
+    /** 無瀏覽器時略過；不寫死瀏覽器路徑，沿用 PLAYWRIGHT_BROWSERS_PATH。 */
+    private static boolean chromiumAvailable() {
+        if (chromiumReady != null) {
+            return chromiumReady;
+        }
+        try (Playwright playwright = Playwright.create()) {
+            Browser browser = playwright.chromium().launch(
+                    new BrowserType.LaunchOptions().setHeadless(true));
+            browser.close();
+            chromiumReady = true;
+        } catch (Throwable ex) {
+            chromiumReady = false;
+        }
+        return chromiumReady;
+    }
+
+    /**
+     * HTML 上的 hidden 會被 .download-btn { display: inline-block } 蓋掉，
+     * 所以要看 computed style 與 innerText，不能只搜字串 hidden。
+     */
+    private void assertDownloadVisibility(boolean available) {
+        try (Playwright playwright = Playwright.create()) {
+            Browser browser = playwright.chromium().launch(
+                    new BrowserType.LaunchOptions().setHeadless(true));
+            try {
+                int[][] sizes = {{1280, 900}, {390, 844}};
+                for (int[] wh : sizes) {
+                    Page page = browser.newPage(new Browser.NewPageOptions().setViewportSize(wh[0], wh[1]));
+                    try {
+                        page.navigate(base + "/download", new Page.NavigateOptions()
+                                .setWaitUntil(WaitUntilState.LOAD));
+                        int clientWidth = ((Number) page.evaluate(
+                                "() => document.documentElement.clientWidth")).intValue();
+                        assertEquals(wh[0], clientWidth);
+                        String text = page.locator("body").innerText();
+                        String btnDisplay = String.valueOf(page.locator("[data-download-jar]")
+                                .evaluate("el => getComputedStyle(el).display"));
+                        String missingDisplay = String.valueOf(page.locator("[data-download-missing]")
+                                .evaluate("el => getComputedStyle(el).display"));
+                        boolean btnHiddenAttr = Boolean.TRUE.equals(page.locator("[data-download-jar]")
+                                .evaluate("el => el.hasAttribute('hidden')"));
+                        boolean missingHiddenAttr = Boolean.TRUE.equals(page.locator("[data-download-missing]")
+                                .evaluate("el => el.hasAttribute('hidden')"));
+                        assertTrue(text.contains("Java 11"));
+                        assertTrue(text.contains("java -jar SKLbaby.jar"));
+                        if (available) {
+                            assertFalse(btnHiddenAttr);
+                            assertTrue(missingHiddenAttr);
+                            assertEquals("inline-block", btnDisplay);
+                            assertEquals("none", missingDisplay);
+                            assertTrue(page.locator("[data-download-jar]").isVisible());
+                            assertTrue(page.locator("[data-download-missing]").isHidden());
+                            assertTrue(text.contains("下載 SKLbaby.jar（v1.8.0）"));
+                            assertFalse(text.contains("尚未附帶"));
+                            assertNotNull(page.locator("[data-download-jar]").boundingBox());
+                            assertNull(page.locator("[data-download-missing]").boundingBox());
+                        } else {
+                            assertTrue(btnHiddenAttr);
+                            assertFalse(missingHiddenAttr);
+                            assertEquals("none", btnDisplay);
+                            assertFalse("none".equals(missingDisplay));
+                            assertTrue(page.locator("[data-download-jar]").isHidden());
+                            assertTrue(page.locator("[data-download-missing]").isVisible());
+                            assertFalse(text.contains("下載 SKLbaby.jar"));
+                            assertTrue(text.contains("伺服器尚未附帶可下載的桌面端，請向管理員索取。"));
+                            assertNull(page.locator("[data-download-jar]").boundingBox());
+                            BoundingBox missingBox = page.locator("[data-download-missing]").boundingBox();
+                            assertNotNull(missingBox);
+                            assertTrue(missingBox.width > 0);
+                            assertTrue(missingBox.height > 0);
+                        }
+                    } finally {
+                        page.close();
+                    }
+                }
+            } finally {
+                browser.close();
+            }
+        }
     }
 
     private void startWithRelease() throws Exception {
