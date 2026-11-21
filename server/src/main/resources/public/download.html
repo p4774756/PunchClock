@@ -14,11 +14,10 @@
       <a class="lab-office-close" href="/">回辦公室</a>
     </header>
     <div class="download-body">
-      <p>把上班、下班等打卡交給小幫手自動處理。電腦需已安裝 <strong>Java {{JAVA_VERSION}}</strong> 或以上。</p>
-      <script>window.PUNCHCLOCK_CLIENT_AVAILABLE = {{CLIENT_AVAILABLE}};</script>
+      <p>打卡與排程在桌面端完成。需要已安裝 <strong>Java {{JAVA_VERSION}}</strong> 或以上。</p>
       <div class="download-actions" data-download-actions>
-        <a class="download-btn" data-download-jar href="/download/app.jar" hidden>下載 jar（v{{CLIENT_VERSION}}）</a>
-        <p class="download-unavailable" data-download-missing hidden>伺服器尚未附帶可下載的桌面端，請向管理員索取。</p>
+        <a class="download-btn" data-download-jar href="/download/app.jar"{{JAR_HIDDEN}}>下載 SKLbaby.jar（v{{CLIENT_VERSION}}）</a>
+        <p class="download-unavailable" data-download-missing{{MISSING_HIDDEN}}>伺服器尚未附帶可下載的桌面端，請向管理員索取。</p>
       </div>
       <h2>macOS 首次開啟</h2>
       <ol>
