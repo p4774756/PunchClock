@@ -13,6 +13,7 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.Insets;
 import java.awt.Rectangle;
 
 /** 380px 小方塊分頁：緊湊邊距、寬度跟著視埠、僅垂直捲動。 */
@@ -39,9 +40,24 @@ public final class CompactShellPanels {
     public static final class WrappingLabel extends JLabel {
 
         private static final int WRAP = 300;
+        private int wrapWidth = WRAP;
 
         public WrappingLabel(String text) {
             super(text);
+        }
+
+        /** 同一列被均分時，用這個寬度折行，避免沿用 300px 把高度算成一行。 */
+        public void setWrapWidth(int width) {
+            int next = width > 20 ? width : WRAP;
+            if (next == wrapWidth) {
+                return;
+            }
+            wrapWidth = next;
+            View view = (View) getClientProperty(BasicHTML.propertyKey);
+            if (view != null) {
+                view.setSize(wrapWidth, Integer.MAX_VALUE);
+            }
+            revalidate();
         }
 
         @Override
@@ -56,17 +72,17 @@ public final class CompactShellPanels {
         @Override
         public Dimension getPreferredSize() {
             Dimension single = super.getPreferredSize();
-            if (single.width <= WRAP) {
+            if (single.width <= wrapWidth) {
                 return single;
             }
             View view = (View) getClientProperty(BasicHTML.propertyKey);
             if (view == null) {
-                return new Dimension(WRAP, single.height);
+                return new Dimension(wrapWidth, single.height);
             }
-            view.setSize(WRAP, Integer.MAX_VALUE);
+            view.setSize(wrapWidth, Integer.MAX_VALUE);
             int w = (int) Math.ceil(view.getPreferredSpan(View.X_AXIS));
             int h = (int) Math.ceil(view.getPreferredSpan(View.Y_AXIS));
-            return new Dimension(Math.min(WRAP, Math.max(1, w)), Math.max(single.height, h));
+            return new Dimension(Math.min(wrapWidth, Math.max(1, w)), Math.max(single.height, h));
         }
 
         @Override
@@ -125,7 +141,14 @@ public final class CompactShellPanels {
             return;
         }
         if (root.getBorder() instanceof EmptyBorder) {
-            root.setBorder(new EmptyBorder(4, 6, 4, 6));
+            Insets in = ((EmptyBorder) root.getBorder()).getBorderInsets();
+            int top = Math.min(in.top, 4);
+            int left = Math.min(in.left, 4);
+            int bottom = Math.min(in.bottom, 6);
+            int right = Math.min(in.right, 4);
+            if (top != in.top || left != in.left || bottom != in.bottom || right != in.right) {
+                root.setBorder(new EmptyBorder(top, left, bottom, right));
+            }
         }
         if (root instanceof Container) {
             for (Component child : ((Container) root).getComponents()) {

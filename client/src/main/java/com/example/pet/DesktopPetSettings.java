@@ -30,6 +30,8 @@ public final class DesktopPetSettings {
     static final String KEY_CARE_FROZEN = "desktopPet.care.frozen";
 
     private final Preferences prefs;
+    /** 執行期開關；不再寫入偏好，預設開啟。 */
+    private boolean cursorReactLive = true;
 
     public DesktopPetSettings() {
         this(Preferences.userNodeForPackage(DesktopPetSettings.class));
@@ -85,49 +87,46 @@ public final class DesktopPetSettings {
         }
     }
 
-    /** 沒存過時預設開啟。總開關關掉時這個值仍保留。 */
+    /** 固定開啟；設定頁不再提供開關。 */
     public boolean notifyMessage() {
-        return readFlag(KEY_NOTIFY_MESSAGE, true);
+        return true;
     }
 
     public void setNotifyMessage(boolean on) {
-        writeFlag(KEY_NOTIFY_MESSAGE, on);
+        // 不再寫入偏好；舊鍵略過。
     }
 
-    /** 收到與送出檔案共用。沒存過時預設開啟。 */
+    /** 固定開啟。 */
     public boolean notifyFile() {
-        return readFlag(KEY_NOTIFY_FILE, true);
+        return true;
     }
 
     public void setNotifyFile(boolean on) {
-        writeFlag(KEY_NOTIFY_FILE, on);
     }
 
-    /** 任務完成與排程時間到共用。沒存過時預設開啟。 */
+    /** 固定開啟。 */
     public boolean notifyTask() {
-        return readFlag(KEY_NOTIFY_TASK, true);
+        return true;
     }
 
     public void setNotifyTask(boolean on) {
-        writeFlag(KEY_NOTIFY_TASK, on);
     }
 
-    /** 沒存過時預設關閉。 */
+    /** 固定關閉。 */
     public boolean notifySound() {
-        return readFlag(KEY_NOTIFY_SOUND, false);
+        return false;
     }
 
     public void setNotifySound(boolean on) {
-        writeFlag(KEY_NOTIFY_SOUND, on);
     }
 
-    /** Cursor agent 狀態反應。沒存過時預設開啟。 */
+    /** 執行期 Cursor 反應；預設開啟，不讀寫偏好。 */
     public boolean cursorReact() {
-        return readFlag(KEY_CURSOR_REACT, true);
+        return cursorReactLive;
     }
 
     public void setCursorReact(boolean on) {
-        writeFlag(KEY_CURSOR_REACT, on);
+        cursorReactLive = on;
     }
 
     /** 養成。沒存過時預設開啟。總開關關掉時這個值仍保留。 */

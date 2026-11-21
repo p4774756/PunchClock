@@ -97,7 +97,7 @@ public final class ClientUpdateCoordinator {
         return notice;
     }
 
-    /** 例如 {@code v3.0.0 · bbbbbbb（建置 2026-11-07 15:30）}。 */
+    /** 例如 {@code v4.0.0 · bbbbbbb（建置 2026-11-07 15:30）}。 */
     public static String describe(UpdateNotice notice) {
         if (notice == null) {
             return "";
@@ -138,7 +138,7 @@ public final class ClientUpdateCoordinator {
                 return;
             }
             if (!actions.canInstall()) {
-                actions.warn("目前不是以 jar 啟動，無法就地更新。請改為執行 punchclock-client-standalone.jar。");
+                actions.warn("目前不是以 jar 啟動，無法就地更新。請改為執行 SKLbaby.jar。");
                 return;
             }
             // 下載期間可能剛好到了打卡時間：等閒置才重啟，免得砍掉執行中的打卡、或讓排程落在重啟空窗。

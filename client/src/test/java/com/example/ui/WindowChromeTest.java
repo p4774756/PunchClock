@@ -272,9 +272,9 @@ public class WindowChromeTest {
 
     @Test
     public void mainTitleDropsCommitAndTime() {
-        assertEquals("新光小寶貝 v3.0.0", WindowChrome.mainTitle(
-                "新光小寶貝  v3.0.0 · a1b2c3d（提交 2026-11-06 14:05）"));
-        assertEquals("新光小寶貝 v3.0.0", WindowChrome.mainTitle("新光小寶貝 v3.0.0"));
+        assertEquals("新光小寶貝 v4.0.0", WindowChrome.mainTitle(
+                "新光小寶貝  v4.0.0 · a1b2c3d（提交 2026-11-06 14:05）"));
+        assertEquals("新光小寶貝 v4.0.0", WindowChrome.mainTitle("新光小寶貝 v4.0.0"));
     }
 
     @Test

@@ -43,7 +43,7 @@ public class AppTest {
     }
 
     private static PeerInfo peer(String clientId, String status) {
-        return new PeerInfo(clientId, status, "3.0.0", 0, 0, "");
+        return new PeerInfo(clientId, status, "4.0.0", 0, 0, "");
     }
 
     @Test

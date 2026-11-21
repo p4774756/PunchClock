@@ -53,6 +53,7 @@ public class SlotController {
     private boolean suppressUiSave;
     private boolean historyMenusBound;
     private ShopStrip shopStrip;
+    private Timer slotNameSavedTimer;
 
     public SlotController(
             JFrame owner,
@@ -314,8 +315,43 @@ public class SlotController {
                     commitSlotName(kind);
                 }
             });
+            refs.nameField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+                private void refresh() {
+                    updateSlotNameApplyState(kind);
+                }
+
+                @Override
+                public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                    refresh();
+                }
+
+                @Override
+                public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                    refresh();
+                }
+
+                @Override
+                public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                    refresh();
+                }
+            });
+        }
+        if (refs.nameApplyButton != null) {
+            refs.nameApplyButton.addActionListener(e -> commitSlotName(kind));
         }
         syncSlotEditorsEnabled(refs);
+        updateSlotNameApplyState(kind);
+    }
+
+    private void updateSlotNameApplyState(WorkSlot.Kind kind) {
+        PanelFactory.SlotCardRefs refs = refsFor(kind);
+        if (refs == null || refs.nameApplyButton == null || refs.nameField == null) {
+            return;
+        }
+        CheckInTask task = schedulerService.getTask(kind.id);
+        String saved = task == null ? WorkSlot.normalizeName(kind, kind.displayName) : task.getName();
+        refs.nameApplyButton.setEnabled(
+                SlotNameApplyUi.isApplyEnabled(kind, refs.nameField.getText(), saved));
     }
 
     /** 啟用中鎖定時分／隨機偏移，避免誤改正在排程的設定 */
@@ -649,7 +685,7 @@ public class SlotController {
             return;
         }
         int count = config.skipDates == null ? 0 : config.skipDates.size();
-        slotRefs.skipDatesButton.setText(count <= 0 ? "跳過日期" : "跳過日期 (" + count + ")");
+        slotRefs.skipDatesButton.setText(count <= 0 ? "跳過日期" : "跳過日期（" + count + "）");
     }
 
     /** 現在就跑一次。只有一個任務時直接確認；多個才讓使用者挑。不改原本的排程時間。 */
@@ -1045,6 +1081,24 @@ public class SlotController {
         appendLog.accept("[排程] 任務名稱已改為「" + next + "」");
         onSlotStateChanged.run();
         heartbeatService.sendHeartbeat(appendLog, null);
+        showSlotNameSavedFeedback(refs);
+        updateSlotNameApplyState(kind);
+    }
+
+    private void showSlotNameSavedFeedback(PanelFactory.SlotCardRefs refs) {
+        if (refs == null || refs.nameSavedLabel == null) {
+            return;
+        }
+        if (slotNameSavedTimer != null) {
+            slotNameSavedTimer.stop();
+        }
+        refs.nameSavedLabel.setVisible(true);
+        slotNameSavedTimer = new Timer(1800, e -> {
+            ((Timer) e.getSource()).stop();
+            refs.nameSavedLabel.setVisible(false);
+        });
+        slotNameSavedTimer.setRepeats(false);
+        slotNameSavedTimer.start();
     }
 
     private String slotLabel(WorkSlot.Kind kind) {
