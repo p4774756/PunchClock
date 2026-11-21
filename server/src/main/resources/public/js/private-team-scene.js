@@ -150,10 +150,10 @@ function softShadowTexture() {
   canvas.height = 64;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, 128, 64);
-  const g = ctx.createRadialGradient(64, 32, 4, 64, 32, 58);
-  g.addColorStop(0, 'rgba(20, 36, 64, 0.38)');
-  g.addColorStop(0.55, 'rgba(20, 36, 64, 0.14)');
-  g.addColorStop(1, 'rgba(20, 36, 64, 0)');
+  const g = ctx.createRadialGradient(64, 32, 2, 64, 32, 60);
+  g.addColorStop(0, 'rgba(10, 18, 36, 0.55)');
+  g.addColorStop(0.55, 'rgba(10, 18, 36, 0.22)');
+  g.addColorStop(1, 'rgba(10, 18, 36, 0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 64);
   const tex = new THREE.CanvasTexture(canvas);
@@ -345,13 +345,13 @@ export function mountPrivateTeamScene(canvas, opts) {
   const shadowMat = new THREE.MeshBasicMaterial({
     map: softShadowTexture(),
     transparent: true,
-    depthWrite: false,
-    opacity: 0.85
+    depthWrite: false
   });
-  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.68, 0.32), shadowMat);
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.16, 0.6), shadowMat);
   shadow.rotation.x = -Math.PI / 2;
-  shadow.position.set(0, 0.048, 0.06);
-  shadow.renderOrder = 0;
+  // 地毯盒中心 y=0.04、厚 0.03，頂面在 y=0.055。陰影要高於頂面，並落在椅輪與腳前的地毯上。
+  shadow.position.set(0.08, 0.072, 0.22);
+  shadow.renderOrder = 1;
   secretaryRoot.add(shadow);
 
   let secretarySprite = null;
