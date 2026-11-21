@@ -656,69 +656,47 @@ public final class AnimeShell extends JPanel {
         g.drawLine(bar.x, bar.y, bar.x + bar.width, bar.y);
         int selected = holdingHome ? 0 : navIndexForTab(tabs.getSelectedIndex());
         for (int i = 0; i < NAV.length; i++) {
-            java.awt.Rectangle box = tabHitBox(i);
-            boolean active = selected == i;
-            boolean hover = hot == i;
-            if (active) {
-                g.setColor(TAB_ACTIVE);
-                g.fillRoundRect(box.x + 2, box.y + 4, box.width - 4, box.height - 8, 10, 10);
-            } else if (hover) {
-                g.setColor(new Color(255, 255, 255, 30));
-                g.fillRoundRect(box.x + 2, box.y + 4, box.width - 4, box.height - 8, 10, 10);
-            }
-            g.setColor(active ? new Color(48, 18, 36) : INK);
-            g.setFont(UiFonts.chinesePlain(14));
-            String glyph = tabGlyph(i);
-            int tw = g.getFontMetrics().stringWidth(glyph);
-            g.drawString(glyph, box.x + (box.width - tw) / 2, box.y + 22);
-            g.setColor(MUTED);
-            g.setFont(UiFonts.chinesePlain(11));
-            String label = NAV[i];
-            int lw = g.getFontMetrics().stringWidth(label);
-            if (lw <= box.width - 4) {
-                g.drawString(label, box.x + (box.width - lw) / 2, box.y + 42);
-            }
+            paintNavSlot(g, tabHitBox(i), TabNavIcon.navIconId(i), NAV[i], selected == i, hot == i, false);
         }
         int miniIndex = NAV.length;
-        java.awt.Rectangle mini = tabHitBox(miniIndex);
-        boolean miniActive = miniMode;
-        boolean miniHot = hot == MINI_TOGGLE;
-        if (miniActive) {
-            g.setColor(TAB_ACTIVE);
-            g.fillRoundRect(mini.x + 2, mini.y + 4, mini.width - 4, mini.height - 8, 10, 10);
-        } else if (miniHot) {
-            g.setColor(new Color(255, 255, 255, 42));
-            g.fillRoundRect(mini.x + 2, mini.y + 4, mini.width - 4, mini.height - 8, 10, 10);
-        }
-        g.setColor(miniActive ? new Color(48, 18, 36) : INK);
-        g.setFont(UiFonts.chinesePlain(14));
-        String miniGlyph = "▬";
-        int mgw = g.getFontMetrics().stringWidth(miniGlyph);
-        g.drawString(miniGlyph, mini.x + (mini.width - mgw) / 2, mini.y + 22);
-        g.setColor(MUTED);
-        g.setFont(UiFonts.chinesePlain(11));
-        String miniLabel = "迷你";
-        int mlw = g.getFontMetrics().stringWidth(miniLabel);
-        if (mlw <= mini.width - 4) {
-            g.drawString(miniLabel, mini.x + (mini.width - mlw) / 2, mini.y + 42);
-        }
+        paintNavSlot(
+                g,
+                tabHitBox(miniIndex),
+                TabNavIcon.MINI_ICON_ID,
+                "迷你",
+                miniMode,
+                hot == MINI_TOGGLE,
+                true);
     }
 
-    private static String tabGlyph(int index) {
-        switch (index) {
-            case 0:
-                return "⌂";
-            case 1:
-                return "◷";
-            case 2:
-                return "✉";
-            case 3:
-                return "≡";
-            case 4:
-                return "⚙";
-            default:
-                return "·";
+    private void paintNavSlot(
+            Graphics2D g,
+            java.awt.Rectangle box,
+            String iconId,
+            String label,
+            boolean active,
+            boolean hover,
+            boolean miniSlot) {
+        if (active) {
+            g.setColor(TAB_ACTIVE);
+            g.fillRoundRect(box.x + 2, box.y + 4, box.width - 4, box.height - 8, 10, 10);
+        } else if (hover) {
+            g.setColor(new Color(255, 255, 255, miniSlot ? 42 : 30));
+            g.fillRoundRect(box.x + 2, box.y + 4, box.width - 4, box.height - 8, 10, 10);
         }
+        Color ink = active ? Color.WHITE : MUTED;
+        g.setFont(UiFonts.chinesePlain(11));
+        java.awt.FontMetrics labelMetrics = g.getFontMetrics();
+        int iconSize = TabNavIcon.ICON_SIZE;
+        int gap = TabNavIcon.ICON_GAP;
+        int stack = iconSize + gap + labelMetrics.getHeight();
+        int top = box.y + Math.max(6, (box.height - stack) / 2);
+        int iconX = box.x + (box.width - iconSize) / 2;
+        TabNavIcon.draw(g, iconId, iconX, top, iconSize, ink);
+        g.setColor(ink);
+        int labelY = top + iconSize + gap + labelMetrics.getAscent();
+        int lw = labelMetrics.stringWidth(label);
+        g.drawString(label, box.x + (box.width - lw) / 2, labelY);
     }
 
     private java.awt.Rectangle tabBarBounds() {
@@ -770,10 +748,24 @@ public final class AnimeShell extends JPanel {
     }
 
     public static BufferedImage renderShellPreview(int width, int height, boolean mini) {
-        AnimeShell shell = new AnimeShell(null, new JTabbedPane());
+        return renderShellPreview(width, height, mini, 0);
+    }
+
+    /** headless 預覽；{@code navIndex} 為底欄高亮分頁（0=首頁）。 */
+    public static BufferedImage renderShellPreview(int width, int height, boolean mini, int navIndex) {
+        JTabbedPane pane = new JTabbedPane();
+        for (int i = 0; i < 4; i++) {
+            pane.addTab("", new JPanel());
+        }
+        AnimeShell shell = new AnimeShell(null, pane);
         shell.setSize(width, height);
         shell.doLayout();
         shell.setMiniMode(mini);
+        if (navIndex <= 0) {
+            shell.showHome();
+        } else if (navIndex < NAV.length) {
+            shell.openTab(tabForNav(navIndex));
+        }
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = image.createGraphics();
         try {
