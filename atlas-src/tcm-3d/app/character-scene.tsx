@@ -827,15 +827,19 @@ const isOutlineMaterial=(m:T.Material)=>{
  return !!(x.isOutline||/Outline/i.test(m.name||''));
 };
 
-const CLOTH_PEEK_RADIUS=.13;
-const CLOTH_PEEK_FEATHER=.042;
-const CLOTH_PEEK_PATCH_KEY='atlasClothPeekPatch';
+const CLOTH_PEEK_RADIUS=.058;
+const CLOTH_PEEK_FEATHER=.016;
+/** Hair window is a touch wider so the ink ring on the cloth is not covered. */
+const HAIR_PEEK_RADIUS=.074;
+const clothPeekByMaterial=new WeakMap<T.Material,ClothPeekUniforms>();
 
 type ClothPeekUniforms={
  center:{value:T.Vector3};
  radius:{value:number};
  feather:{value:number};
  active:{value:number};
+ /** 1 sketch the cloth in place; 2 discard hair in the same window. */
+ mode:{value:number};
 };
 
 /** MToon + ACES — same band as validate-practice-outfit.mjs teal probe. */
@@ -849,50 +853,68 @@ const isClothGarmentSurface=(mat:T.Material,obj:T.Object3D)=>{
  return CLOTH_GARMENT_MATERIAL_TOKENS.some(token=>name.includes(token));
 };
 
-const injectClothPeekFragment=(fragment:string,snippet:string)=>{
- if(fragment.includes('#include <dithering_fragment>'))return fragment.replace('#include <dithering_fragment>',`${snippet}\n#include <dithering_fragment>`);
- if(fragment.includes('#include <colorspace_fragment>'))return fragment.replace('#include <colorspace_fragment>',`${snippet}\n#include <colorspace_fragment>`);
- if(fragment.includes('#include <output_fragment>'))return fragment.replace('#include <output_fragment>',`${snippet}\n#include <output_fragment>`);
- return fragment.replace(/\}\s*$/,`${snippet}\n}`);
-};
+const CLOTH_PEEK_FRAG_ANCHOR='#ifdef OPAQUE\n    diffuseColor.a = 1.0;\n  #endif\n\n  gl_FragColor = vec4( col, diffuseColor.a );';
+const CLOTH_PEEK_FRAG_BODY=`{
+    float atlasPeekDist=distance(vAtlasClothPeekWorld,atlasClothPeekCenter);
+    float atlasPeek=atlasClothPeekActive*(1.0-smoothstep(atlasClothPeekRadius-atlasClothPeekFeather,atlasClothPeekRadius,atlasPeekDist));
+    if(atlasClothPeekMode>1.5){
+      if(atlasPeek>0.04)discard;
+    }else if(atlasPeek>0.001){
+      vec3 atlasInk=vec3(0.145,0.118,0.098);
+      vec3 atlasPaper=vec3(0.93,0.90,0.84);
+      float atlasEdge=smoothstep(0.035,0.14,length(fwidth(diffuseColor.rgb)));
+      float atlasRing=smoothstep(0.10,0.22,atlasPeek)*(1.0-smoothstep(0.22,0.38,atlasPeek));
+      float atlasRingInner=smoothstep(0.62,0.72,atlasPeek)*(1.0-smoothstep(0.72,0.82,atlasPeek));
+      float atlasLine=clamp(max(atlasEdge,max(atlasRing,atlasRingInner)),0.0,1.0);
+      col=mix(col,mix(atlasPaper,atlasInk,atlasLine),smoothstep(0.0,0.2,atlasPeek));
+    }
+  }`;
 
-const attachClothPeekShader=(mat:T.Material)=>{
- const m=mat as T.MeshStandardMaterial & {userData:Record<string,unknown>};
- if(m.userData[CLOTH_PEEK_PATCH_KEY])return m.userData[CLOTH_PEEK_PATCH_KEY] as ClothPeekUniforms;
+const attachClothPeekShader=(mat:T.Material,mode:1|2)=>{
+ const existing=clothPeekByMaterial.get(mat);
+ if(existing){
+  existing.mode.value=mode;
+  return existing;
+ }
  const peek:ClothPeekUniforms={
   center:{value:new T.Vector3()},
-  radius:{value:CLOTH_PEEK_RADIUS},
+  radius:{value:mode===2?HAIR_PEEK_RADIUS:CLOTH_PEEK_RADIUS},
   feather:{value:CLOTH_PEEK_FEATHER},
   active:{value:0},
+  mode:{value:mode},
  };
- m.userData[CLOTH_PEEK_PATCH_KEY]=peek;
+ clothPeekByMaterial.set(mat,peek);
+ const m=mat as T.Material & {customProgramCacheKey?:()=>string};
  const prevCompile=m.onBeforeCompile;
- const peekFrag=`
-  float atlasPeekDist=distance(vAtlasClothPeekWorld,atlasClothPeekCenter);
-  float atlasPeekFade=atlasClothPeekActive*(1.0-smoothstep(atlasClothPeekRadius-atlasClothPeekFeather,atlasClothPeekRadius+atlasClothPeekFeather,atlasPeekDist));
-  if(atlasPeekFade>0.02){
-   if(atlasPeekFade>0.88)discard;
-   diffuseColor.a*=1.0-atlasPeekFade;
-  }
- `;
+ const prevKey=m.customProgramCacheKey?.bind(m);
  m.onBeforeCompile=(shader,renderer)=>{
   prevCompile?.call(m,shader,renderer);
+  if(!shader.fragmentShader.includes(CLOTH_PEEK_FRAG_ANCHOR))return;
+  if(!shader.fragmentShader.includes('atlasClothPeekCenter')){
+   shader.fragmentShader=`uniform vec3 atlasClothPeekCenter;\nuniform float atlasClothPeekRadius;\nuniform float atlasClothPeekFeather;\nuniform float atlasClothPeekActive;\nuniform float atlasClothPeekMode;\nvarying vec3 vAtlasClothPeekWorld;\n${shader.fragmentShader}`;
+  }
+  if(!shader.fragmentShader.includes('atlasPeekDist')){
+   shader.fragmentShader=shader.fragmentShader.replace(
+    CLOTH_PEEK_FRAG_ANCHOR,
+    `#ifdef OPAQUE\n    diffuseColor.a = 1.0;\n  #endif\n${CLOTH_PEEK_FRAG_BODY}\n  gl_FragColor = vec4( col, diffuseColor.a );`,
+   );
+  }
+  if(!shader.vertexShader.includes('vAtlasClothPeekWorld'))shader.vertexShader=`varying vec3 vAtlasClothPeekWorld;\n${shader.vertexShader}`;
+  if(!shader.vertexShader.includes('vAtlasClothPeekWorld =')){
+   const write='vAtlasClothPeekWorld=(modelMatrix*vec4(transformed,1.0)).xyz;';
+   if(shader.vertexShader.includes('#include <skinning_vertex>')){
+    shader.vertexShader=shader.vertexShader.replace('#include <skinning_vertex>',`#include <skinning_vertex>\n${write}`);
+   }else if(shader.vertexShader.includes('#include <begin_vertex>')){
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>\n${write}`);
+   }
+  }
   shader.uniforms.atlasClothPeekCenter=peek.center;
   shader.uniforms.atlasClothPeekRadius=peek.radius;
   shader.uniforms.atlasClothPeekFeather=peek.feather;
   shader.uniforms.atlasClothPeekActive=peek.active;
-  if(!shader.vertexShader.includes('vAtlasClothPeekWorld'))shader.vertexShader=`varying vec3 vAtlasClothPeekWorld;\n${shader.vertexShader}`;
-  if(!shader.fragmentShader.includes('vAtlasClothPeekWorld'))shader.fragmentShader=`varying vec3 vAtlasClothPeekWorld;\n${shader.fragmentShader}`;
-  if(!shader.vertexShader.includes('vAtlasClothPeekWorld =')){
-   if(shader.vertexShader.includes('#include <skinning_vertex>')){
-    shader.vertexShader=shader.vertexShader.replace('#include <skinning_vertex>','#include <skinning_vertex>\nvAtlasClothPeekWorld=(modelMatrix*vec4(transformed,1.0)).xyz;');
-   }else{
-    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvAtlasClothPeekWorld=(modelMatrix*vec4(transformed,1.0)).xyz;');
-   }
-  }
-  shader.fragmentShader=injectClothPeekFragment(shader.fragmentShader,peekFrag);
+  shader.uniforms.atlasClothPeekMode=peek.mode;
  };
- m.customProgramCacheKey=()=>`${mat.uuid}:cloth-peek`;
+ m.customProgramCacheKey=()=>`${prevKey?prevKey():m.uuid}|atlas-cloth-peek`;
  m.needsUpdate=true;
  return peek;
 };
@@ -902,8 +924,13 @@ const installClothGarmentPeek=(root:T.Object3D,sink:Set<T.Material>)=>{
   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
   const mats=Array.isArray(obj.material)?obj.material:[obj.material];
   for(const mat of mats){
+   if(isHairMaterial(mat)){
+    attachClothPeekShader(mat,2);
+    sink.add(mat);
+    continue;
+   }
    if(!isClothGarmentSurface(mat,obj))continue;
-   attachClothPeekShader(mat);
+   attachClothPeekShader(mat,1);
    sink.add(mat);
   }
  });
@@ -944,33 +971,33 @@ const carvePracticeClothPeek=(painted:ImageData,skinBase:ImageData,root:T.Object
    const near=dist3(a.x,a.y,a.z)<=outer||dist3(b.x,b.y,b.z)<=outer||dist3(c.x,c.y,c.z)<=outer||dist3(cx,cy,cz)<=outer;
    if(!near)continue;
    const triDist=Math.min(dist3(a.x,a.y,a.z),dist3(b.x,b.y,b.z),dist3(c.x,c.y,c.z),dist3(cx,cy,cz));
-   const peel=1-Math.max(0,Math.min(1,(triDist-radius)/CLOTH_PEEK_FEATHER));
-   if(peel<=0)continue;
+   if(triDist>radius)continue;
    const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
    const x0=toX(u0),y0=toYf(v0),x1=toX(u1),y1=toYf(v1),x2=toX(u2),y2=toYf(v2);
    const minX=Math.max(0,Math.min(x0,x1,x2)),maxX=Math.min(w-1,Math.max(x0,x1,x2));
    const minY=Math.max(0,Math.min(y0,y1,y2)),maxY=Math.min(h-1,Math.max(y0,y1,y2));
    const area=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);
    if(area===0)continue;
+   const smooth=(e0:number,e1:number,x:number)=>{const t=Math.max(0,Math.min(1,(x-e0)/Math.max(1e-4,e1-e0)));return t*t*(3-2*t);};
    for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
     const w0=((x1-x)*(y2-y)-(x2-x)*(y1-y))/area;
     const w1=((x2-x)*(y0-y)-(x0-x)*(y2-y))/area;
     const w2=1-w0-w1;
     if(w0<-.02||w1<-.02||w2<-.02)continue;
+    const wx=a.x*w0+b.x*w1+c.x*w2,wy=a.y*w0+b.y*w1+c.y*w2,wz=a.z*w0+b.z*w1+c.z*w2;
+    const fade=1-smooth(radius-CLOTH_PEEK_FEATHER,radius,dist3(wx,wy,wz));
+    if(fade<=0.001)continue;
     const idx=(y*w+x)*4;
     const r=painted.data[idx],g=painted.data[idx+1],b0=painted.data[idx+2];
     if(!isPracticeClothRgb(r,g,b0))continue;
-    const mix=peel;
-    if(mix>=0.95){
-     painted.data[idx]=skinBase.data[idx];
-     painted.data[idx+1]=skinBase.data[idx+1];
-     painted.data[idx+2]=skinBase.data[idx+2];
-     painted.data[idx+3]=skinBase.data[idx+3];
-    }else{
-     painted.data[idx]=Math.round(skinBase.data[idx]*mix+r*(1-mix));
-     painted.data[idx+1]=Math.round(skinBase.data[idx+1]*mix+g*(1-mix));
-     painted.data[idx+2]=Math.round(skinBase.data[idx+2]*mix+b0*(1-mix));
-    }
+    const ring=smooth(0.10,0.22,fade)*(1-smooth(0.22,0.38,fade));
+    const ringInner=smooth(0.62,0.72,fade)*(1-smooth(0.72,0.82,fade));
+    const line=Math.max(ring,ringInner);
+    const cover=smooth(0,0.2,fade);
+    const sr=37*line+237*(1-line),sg=30*line+230*(1-line),sb=25*line+214*(1-line);
+    painted.data[idx]=Math.round(r*(1-cover)+sr*cover);
+    painted.data[idx+1]=Math.round(g*(1-cover)+sg*cover);
+    painted.data[idx+2]=Math.round(b0*(1-cover)+sb*cover);
    }
   }
  });
@@ -1480,9 +1507,10 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(peekKey===lastClothPeekKey)return;
    lastClothPeekKey=peekKey;
    for(const mat of clothPeekMaterials){
-    const peek=mat.userData[CLOTH_PEEK_PATCH_KEY] as ClothPeekUniforms|undefined;
-    if(!peek)continue;
-    peek.center.value.copy(clothPeekCenter);
+    const peek=clothPeekByMaterial.get(mat);
+    const center=peek?.center.value;
+    if(!peek||!center?.isVector3)continue;
+    center.copy(clothPeekCenter);
     peek.active.value=active?1:0;
    }
    if(practiceModel&&practiceBuilt){

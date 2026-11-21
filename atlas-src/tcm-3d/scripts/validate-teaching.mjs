@@ -142,7 +142,10 @@ try {
     assert.deepEqual(ANIME_OUTFITS.map(o => o.id), ['school', 'study-body']);
     assert.equal(isTorsoClothPeekPoint('ST17'), true);
     assert.equal(isTorsoClothPeekPoint('BL23'), true);
+    assert.equal(isTorsoClothPeekPoint('SI11'), true);
+    assert.equal(isTorsoClothPeekPoint('SI12'), true);
     assert.equal(isTorsoClothPeekPoint('ST2'), false);
+    assert.equal(isTorsoClothPeekPoint('GB21'), false);
     assert.equal(isTorsoClothPeekPoint(null), false);
     for (const code of lesson.codes) {
       assert.ok(ANIME_SUPPORTED_CODES.has(code), `缺少烘點 ${code}`);
