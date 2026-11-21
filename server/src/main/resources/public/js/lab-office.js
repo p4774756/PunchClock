@@ -6,6 +6,8 @@ import {
   OFFICE_PROP_POS,
   OFFICE_CONSOLE_POS,
   SPOT_POS,
+  imagePointToStage,
+  officeStageSize,
   buildAllCharacterStates,
   buildCharacterStatesFromPublic,
   characterCardData,
@@ -87,14 +89,43 @@ export function createLabOfficeController(opts) {
     desk: '/download'
   });
 
+  function stageBox() {
+    if (stageWrap && stageWrap.getBoundingClientRect) {
+      const r = stageWrap.getBoundingClientRect();
+      if (r.width > 8 && r.height > 8) return { w: r.width, h: r.height };
+    }
+    const vw = (win && win.innerWidth) || 1280;
+    const vh = (win && win.innerHeight) || 720;
+    return officeStageSize(vw, vh);
+  }
+
   function applyPropBox(el, spec) {
     if (!el || !spec) return;
-    const w = spec.w == null ? 12 : spec.w;
-    const h = spec.h == null ? 14 : spec.h;
-    el.style.setProperty('--prop-w', w + '%');
-    el.style.setProperty('--prop-h', h + '%');
-    el.style.left = spec.x + '%';
-    el.style.top = spec.y + '%';
+    const stage = stageBox();
+    const p = imagePointToStage(spec.ix, spec.iy, stage.w, stage.h);
+    el.style.left = p.x + '%';
+    el.style.top = p.y + '%';
+    el.style.setProperty('--tip-ox', (spec.ox || 0) + 'px');
+    el.style.setProperty('--tip-oy', (spec.oy || 0) + 'px');
+  }
+
+  function placeProps() {
+    if (!stageWrap) return;
+    const layer = stageWrap.querySelector('[data-lab-office-props]');
+    if (!layer) return;
+    const nodes = layer.querySelectorAll('.lab-office-prop');
+    for (let i = 0; i < nodes.length; i++) {
+      const id = nodes[i].getAttribute('data-prop');
+      const spec = id === 'console' ? OFFICE_CONSOLE_POS : OFFICE_PROP_POS[id];
+      applyPropBox(nodes[i], spec);
+    }
+  }
+
+  function appendMark(el) {
+    const mark = doc.createElement('span');
+    mark.className = 'lab-office-prop-mark';
+    mark.setAttribute('aria-hidden', 'true');
+    el.appendChild(mark);
   }
 
   function appendHint(el, label, extraHtml) {
@@ -182,9 +213,11 @@ export function createLabOfficeController(opts) {
         const btn = doc.createElement('button');
         btn.type = 'button';
         btn.className = 'lab-office-prop lab-office-prop-guestbook';
+        btn.setAttribute('data-prop', id);
         applyPropBox(btn, spec);
         btn.setAttribute('data-open-guestbook', '');
         btn.setAttribute('aria-label', spec.label);
+        appendMark(btn);
         appendHint(btn, spec.label);
         btn.addEventListener('click', (ev) => {
           if (!isCoarsePointer()) return;
@@ -202,12 +235,14 @@ export function createLabOfficeController(opts) {
       }
       const el = doc.createElement('a');
       el.className = 'lab-office-prop';
+      el.setAttribute('data-prop', id);
       applyPropBox(el, spec);
       if (id === 'whiteboard') {
         href = isAuthed() ? '/dev-status' : '/login?next=%2Fdev-status';
       }
       el.href = href;
       el.setAttribute('aria-label', id === 'whiteboard' ? '白板：開發狀態' : spec.label);
+      appendMark(el);
       appendHint(el, spec.label);
       bindCoarseActivate(el, href);
       layer.appendChild(el);
@@ -215,12 +250,15 @@ export function createLabOfficeController(opts) {
     const consoleHref = isAuthed() ? '/console' : '/login?next=%2Fconsole';
     const consoleEl = doc.createElement('a');
     consoleEl.className = 'lab-office-prop lab-office-prop-console';
+    consoleEl.setAttribute('data-prop', 'console');
     applyPropBox(consoleEl, OFFICE_CONSOLE_POS);
     consoleEl.href = consoleHref;
     consoleEl.setAttribute('aria-label', OFFICE_CONSOLE_POS.label);
+    appendMark(consoleEl);
     appendHint(consoleEl, OFFICE_CONSOLE_POS.label);
     bindCoarseActivate(consoleEl, consoleHref);
     layer.appendChild(consoleEl);
+    placeProps();
   }
 
   function renderChars() {
@@ -391,6 +429,13 @@ export function createLabOfficeController(opts) {
       closeCard();
       if (typeof hooks.onClose === 'function') hooks.onClose();
     }
+  }
+
+  if (stageWrap && win && win.ResizeObserver) {
+    const ro = new win.ResizeObserver(() => placeProps());
+    ro.observe(stageWrap);
+  } else if (win && win.addEventListener) {
+    win.addEventListener('resize', () => placeProps());
   }
 
   if (closeBtn && closeBtn.tagName === 'BUTTON') {

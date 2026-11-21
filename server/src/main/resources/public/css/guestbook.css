@@ -378,8 +378,3 @@ body.guestbook-open {
     box-shadow: inset 0 6px 8px -6px rgba(200, 120, 110, 0.25);
   }
 }
-
-.lab-office-prop-guestbook:is(:hover, :focus-visible, .is-primed) {
-  box-shadow: 0 0 0 2px rgba(232, 131, 122, 0.55), 0 0 14px rgba(232, 131, 122, 0.35);
-  background: radial-gradient(ellipse at center, rgba(255, 248, 240, 0.35) 0%, transparent 72%);
-}

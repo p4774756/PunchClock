@@ -37,17 +37,25 @@ export function viewerCanOpenLabOffice(authFlag) {
   return authFlag === true;
 }
 
-/** 首頁可點物件（百分比座標＋命中框，對舞台）。對到新背景的家具，不是舊海景。 */
+/** 熱點命中框（px）。視覺標記更小，不再用 44px 把手機熱點撐到人身上。 */
+export const OFFICE_PROP_HIT = 14;
+
+/**
+ * 家具錨點是背景圖百分比（1280×720），不是舞台百分比。
+ * ox/oy 是完整名稱中心相對錨點的位移（px），只在滑過或輕觸時使用。
+ */
 export const OFFICE_PROP_POS = Object.freeze({
-  guestbook: { x: 12, y: 69, w: 9, h: 12, label: '簽名簿' },
-  clock: { x: 18, y: 63, w: 11, h: 16, label: '打卡機' },
-  bookshelf: { x: 34, y: 34, w: 12, h: 18, label: '書櫃' },
-  whiteboard: { x: 15, y: 40, w: 11, h: 14, label: '白板' },
-  desk: { x: 66, y: 68, w: 12, h: 14, label: '下載 App' }
+  guestbook: { ix: 24, iy: 76, ox: 14, oy: 22, label: '簽名簿' },
+  clock: { ix: 4, iy: 66, ox: 12, oy: 30, label: '打卡機' },
+  bookshelf: { ix: 33, iy: 26, ox: 0, oy: -18, label: '書櫃' },
+  whiteboard: { ix: 11, iy: 36, ox: 0, oy: -18, label: '白板' },
+  desk: { ix: 60, iy: 67, ox: 0, oy: 34, label: '下載 App' }
 });
 
-/** 白板旁主控台小熱點（百分比）。 */
-export const OFFICE_CONSOLE_POS = Object.freeze({ x: 20, y: 45, w: 8, h: 10, label: '主控台' });
+/** 窗邊電腦上的主控台。 */
+export const OFFICE_CONSOLE_POS = Object.freeze({
+  ix: 73, iy: 44, ox: 0, oy: -18, label: '主控台'
+});
 
 function isOnlineRow(row, now) {
   if (!row || !row.online) return false;
@@ -379,7 +387,7 @@ export function characterCardData(charId, ctx) {
   return data;
 }
 
-function officeStageSize(viewportW, viewportH) {
+export function officeStageSize(viewportW, viewportH) {
   const frameW = Math.min(1280, Math.max(0, viewportW - 16 - 12));
   const maxH = Math.max(48, viewportH - 120);
   let h = frameW * 9 / 16;
@@ -438,4 +446,71 @@ export function officeLayoutRects(states, viewportW, viewportH) {
     rects.push({ id: st.id, spot: st.spot, char: char, bubble: bubble });
   }
   return { stage: stage, rects: rects };
+}
+
+/** object-fit: cover、object-position: center，把背景圖百分比換成舞台座標。 */
+export function imagePointToStage(ix, iy, stageW, stageH) {
+  const scale = Math.max(stageW / 1280, stageH / 720);
+  const dispW = 1280 * scale;
+  const dispH = 720 * scale;
+  const ox = (stageW - dispW) / 2;
+  const oy = (stageH - dispH) / 2;
+  const px = ox + (Number(ix) / 100) * dispW;
+  const py = oy + (Number(iy) / 100) * dispH;
+  return {
+    x: stageW ? (px / stageW) * 100 : 0,
+    y: stageH ? (py / stageH) * 100 : 0,
+    px: px,
+    py: py
+  };
+}
+
+function propLabelSize(text, viewportW) {
+  const mobile = viewportW <= 520;
+  const font = mobile ? 10 : 11;
+  const padX = mobile ? 4 : 6;
+  const padY = mobile ? 1 : 2;
+  const border = 2;
+  const lh = 1.15;
+  return {
+    w: Math.ceil(textWidthPx(text, font) + padX * 2 + border * 2),
+    h: Math.ceil(font * lh + padY * 2 + border * 2)
+  };
+}
+
+/** 熱點命中框與（滑過時才出現的）名稱框，舞台像素。 */
+export function officePropLayout(viewportW, viewportH) {
+  const stage = officeStageSize(viewportW, viewportH);
+  const specs = [];
+  const ids = Object.keys(OFFICE_PROP_POS);
+  for (let i = 0; i < ids.length; i++) {
+    specs.push({ id: ids[i], spec: OFFICE_PROP_POS[ids[i]] });
+  }
+  specs.push({ id: 'console', spec: OFFICE_CONSOLE_POS });
+  const props = [];
+  for (let i = 0; i < specs.length; i++) {
+    const spec = specs[i].spec;
+    const p = imagePointToStage(spec.ix, spec.iy, stage.w, stage.h);
+    const hit = {
+      x: p.px - OFFICE_PROP_HIT / 2,
+      y: p.py - OFFICE_PROP_HIT / 2,
+      w: OFFICE_PROP_HIT,
+      h: OFFICE_PROP_HIT
+    };
+    const ls = propLabelSize(spec.label, viewportW);
+    const ox = spec.ox || 0;
+    const oy = spec.oy || 0;
+    props.push({
+      id: specs[i].id,
+      label: spec.label,
+      hit: hit,
+      name: {
+        x: p.px + ox - ls.w / 2,
+        y: p.py + oy - ls.h / 2,
+        w: ls.w,
+        h: ls.h
+      }
+    });
+  }
+  return { stage: stage, props: props };
 }
