@@ -44,6 +44,7 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * 透明、無邊框的桌面寵物視窗。
@@ -90,6 +91,8 @@ public final class DesktopPetWindow extends JFrame {
     private Runnable noticePump;
     private Runnable noticeOpen;
     private Runnable summonMain;
+    /** 主視窗螢幕座標。macOS POPUP 會被裁進主視窗矩形，呼喚時要避開重疊。 */
+    private Supplier<Rectangle> mainBoundsSupplier = () -> null;
     private Runnable persistCare;
     private DesktopPetCare care;
     private long lastCarePersistAt;
@@ -267,11 +270,12 @@ public final class DesktopPetWindow extends JFrame {
 
     void showPet() {
         requireEdt();
+        refreshFit();
         if (!placed) {
             setLocation(initialLocation());
             placed = true;
         }
-        refreshFit();
+        nudgeAwayFromMainWindow();
         validate();
         if (!isVisible()) {
             setVisible(true);
@@ -511,6 +515,13 @@ public final class DesktopPetWindow extends JFrame {
         this.summonMain = summonMain;
     }
 
+    /**
+     * 提供目前主視窗在螢幕上的外框。主視窗最小化或尚未顯示時應回傳 null。
+     */
+    void setMainBoundsSupplier(Supplier<Rectangle> mainBoundsSupplier) {
+        this.mainBoundsSupplier = mainBoundsSupplier != null ? mainBoundsSupplier : () -> null;
+    }
+
     boolean showNotice(String phrase, Runnable open) {
         requireEdt();
         if (!animation.showNotice(phrase)) {
@@ -708,12 +719,43 @@ public final class DesktopPetWindow extends JFrame {
      */
     private Point initialLocation() {
         Rectangle[] screens = screenRects();
+        int windowWidth = Math.max(1, getWidth());
+        int windowHeight = Math.max(1, getHeight());
         Point origin = settings.hasPosition()
                 ? new Point(settings.x(), settings.y())
-                : defaultSpot(usableBounds(), WIDTH, HEIGHT);
+                : defaultSpot(usableBounds(), windowWidth, windowHeight);
         Point window = new Point(origin.x + view.x, origin.y + view.y);
-        return clampToScreens(
-                window.x, window.y, Math.max(1, getWidth()), Math.max(1, getHeight()), screens);
+        Point clamped = clampToScreens(window.x, window.y, windowWidth, windowHeight, screens);
+        return nudgeOutsideMainWindow(
+                clamped.x, clamped.y, windowWidth, windowHeight, mainWindowBounds(), usableBounds(), screens);
+    }
+
+    private Rectangle mainWindowBounds() {
+        try {
+            Rectangle bounds = mainBoundsSupplier.get();
+            if (bounds == null || bounds.width < 1 || bounds.height < 1) {
+                return null;
+            }
+            return bounds;
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    void nudgeAwayFromMainWindow() {
+        int windowWidth = Math.max(1, getWidth());
+        int windowHeight = Math.max(1, getHeight());
+        Point next = nudgeOutsideMainWindow(
+                getX(),
+                getY(),
+                windowWidth,
+                windowHeight,
+                mainWindowBounds(),
+                usableBounds(),
+                screenRects());
+        if (next.x != getX() || next.y != getY()) {
+            setLocation(next);
+        }
     }
 
     private void rememberLocation() {
@@ -1376,6 +1418,63 @@ public final class DesktopPetWindow extends JFrame {
         return new Point(
                 Math.max(target.x, Math.min(x, maxX)),
                 Math.max(target.y, Math.min(y, maxY)));
+    }
+
+    static final int MAIN_AVOID_GAP = 6;
+
+    /**
+     * macOS {@link Type#POPUP} 會被 AppKit 裁進前景主視窗。寵物外框與主視窗重疊時左側常直接被切掉。
+     * 往最近的不重疊角落微移，仍落在同一螢幕可用區。
+     */
+    static Point nudgeOutsideMainWindow(
+            int x,
+            int y,
+            int windowWidth,
+            int windowHeight,
+            Rectangle main,
+            Rectangle usable,
+            Rectangle[] screens) {
+        if (!keepsAppInBackground() || main == null || main.isEmpty() || windowWidth < 1 || windowHeight < 1) {
+            return new Point(x, y);
+        }
+        Rectangle pet = new Rectangle(x, y, windowWidth, windowHeight);
+        if (!pet.intersects(main)) {
+            return new Point(x, y);
+        }
+        int gap = MAIN_AVOID_GAP;
+        Point best = null;
+        long bestDistance = Long.MAX_VALUE;
+        int[][] proposals = {
+            {main.x + main.width + gap, y},
+            {main.x - gap - windowWidth, y},
+            {x, main.y + main.height + gap},
+            {x, main.y - gap - windowHeight},
+        };
+        for (int[] proposal : proposals) {
+            Point candidate = clampToScreens(proposal[0], proposal[1], windowWidth, windowHeight, screens);
+            Rectangle placed = new Rectangle(candidate.x, candidate.y, windowWidth, windowHeight);
+            if (placed.intersects(main)) {
+                continue;
+            }
+            long distance = distanceSquared(x, y, candidate.x, candidate.y);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+        if (best != null) {
+            return best;
+        }
+        if (usable != null && usable.width > 0 && usable.height > 0) {
+            return defaultSpot(usable, windowWidth, windowHeight);
+        }
+        return new Point(x, y);
+    }
+
+    private static long distanceSquared(int x1, int y1, int x2, int y2) {
+        long dx = (long) x1 - x2;
+        long dy = (long) y1 - y2;
+        return dx * dx + dy * dy;
     }
 
     static HorizontalStep stepHorizontal(int x, int dx, int minX, int maxX) {
