@@ -19,6 +19,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
@@ -122,6 +123,57 @@ public class GuestbookRoutesTest {
     }
 
     @Test
+    public void hiddenDoodleReturns404ForGuests() throws Exception {
+        byte[] webp = webpFixture();
+        String b64 = java.util.Base64.getEncoder().encodeToString(webp);
+        String json = "{\"nickname\":\"藏圖\",\"message\":\"doodle\",\"doodle\":\"data:image/webp;base64," + b64 + "\"}";
+        HttpResponse<String> created = send("POST", "/api/guestbook", "application/json", json.getBytes(StandardCharsets.UTF_8), null);
+        assertEquals(201, created.statusCode());
+        String id = idOf(created.body());
+
+        HttpResponse<byte[]> visible = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/guestbook/" + id + ".webp"))
+                        .timeout(Duration.ofSeconds(5))
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, visible.statusCode());
+
+        send("POST", "/api/guestbook/" + id + "/hide", null, null, "Cookie", adminCookie);
+
+        HttpResponse<byte[]> guest = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/guestbook/" + id + ".webp"))
+                        .timeout(Duration.ofSeconds(5))
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(404, guest.statusCode());
+
+        HttpResponse<byte[]> admin = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/api/guestbook/" + id + ".webp"))
+                        .timeout(Duration.ofSeconds(5))
+                        .header("Cookie", adminCookie)
+                        .GET()
+                        .build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, admin.statusCode());
+    }
+
+    @Test
+    public void acceptsWebpDoodleAndRejectsBadWebp() throws Exception {
+        String bad = "{\"nickname\":\"w2\",\"message\":\"nope\",\"doodle\":\"data:image/webp;base64,AAAA\"}";
+        HttpResponse<String> rejected = send("POST", "/api/guestbook", "application/json", bad.getBytes(StandardCharsets.UTF_8), null);
+        assertEquals(400, rejected.statusCode());
+
+        byte[] ok = webpFixture();
+        String b64 = java.util.Base64.getEncoder().encodeToString(ok);
+        String json = "{\"nickname\":\"webp\",\"message\":\"ok\",\"doodle\":\"data:image/webp;base64," + b64 + "\"}";
+        HttpResponse<String> created = send("POST", "/api/guestbook", "application/json", json.getBytes(StandardCharsets.UTF_8), null);
+        assertEquals(201, created.statusCode());
+        assertTrue(created.body().contains(".webp"));
+    }
+
+    @Test
     public void statsRequiresAuth() throws Exception {
         HttpResponse<String> denied = send("GET", "/api/guestbook/stats", null, null, null);
         assertEquals(401, denied.statusCode());
@@ -156,6 +208,13 @@ public class GuestbookRoutesTest {
         int start = key + 6;
         int end = json.indexOf('"', start);
         return json.substring(start, end);
+    }
+
+    private static byte[] webpFixture() throws Exception {
+        try (InputStream in = GuestbookRoutesTest.class.getResourceAsStream("/guestbook/doodle-240x120.webp")) {
+            assertTrue(in != null);
+            return in.readAllBytes();
+        }
     }
 
     private static byte[] png(int width, int height) throws Exception {
