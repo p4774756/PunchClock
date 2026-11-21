@@ -21,20 +21,17 @@ public final class SklbabyLauncher {
     private SklbabyLauncher() {}
 
     public static void main(String[] args) throws Exception {
-        Path bundled = ClientUpdateInstaller.bundledJar();
-        if (bundled == null || !Files.isRegularFile(bundled)) {
+        LaunchChoice choice = chooseLaunch();
+        if (choice.chosen == null) {
             App.main(args);
             return;
         }
-        System.setProperty(ClientUpdateInstaller.BUNDLED_JAR_PROPERTY, bundled.toAbsolutePath().normalize().toString());
-        Path userJar = ClientUpdateInstaller.userAppJar();
-        Path chosen = pickJar(bundled, userJar);
         try {
-            launchWithJar(chosen, args);
+            launchWithJar(choice.chosen, args);
         } catch (Throwable primary) {
-            if (userJar != null && chosen.equals(userJar)) {
-                quarantineBrokenUserJar(userJar);
-                launchWithJar(bundled, args);
+            if (choice.userJar != null && choice.chosen.equals(choice.userJar)) {
+                quarantineBrokenUserJar(choice.userJar);
+                launchWithJar(choice.bundled, args);
                 return;
             }
             if (primary instanceof Exception) {
@@ -44,6 +41,42 @@ public final class SklbabyLauncher {
                 throw (Error) primary;
             }
             throw new Exception(primary);
+        }
+    }
+
+    /**
+     * 安裝版才選 jar：把內建路徑寫進系統屬性，並在使用者資料夾有較新 jar 時選它。
+     * 不是安裝版時 {@link LaunchChoice#chosen} 為 null，呼叫端直接走 {@link App#main}。
+     */
+    static LaunchChoice chooseLaunch() {
+        Path bundled = ClientUpdateInstaller.bundledJar();
+        if (bundled == null || !Files.isRegularFile(bundled)) {
+            return LaunchChoice.plain();
+        }
+        Path normalized = bundled.toAbsolutePath().normalize();
+        System.setProperty(ClientUpdateInstaller.BUNDLED_JAR_PROPERTY, normalized.toString());
+        Path userJar = ClientUpdateInstaller.userAppJar();
+        return new LaunchChoice(normalized, userJar, pickJar(normalized, userJar));
+    }
+
+    static URLClassLoader loaderFor(Path jar) throws Exception {
+        URL url = jar.toAbsolutePath().normalize().toUri().toURL();
+        return new URLClassLoader(new URL[] {url}, ClassLoader.getPlatformClassLoader());
+    }
+
+    static final class LaunchChoice {
+        final Path bundled;
+        final Path userJar;
+        final Path chosen;
+
+        private LaunchChoice(Path bundled, Path userJar, Path chosen) {
+            this.bundled = bundled;
+            this.userJar = userJar;
+            this.chosen = chosen;
+        }
+
+        static LaunchChoice plain() {
+            return new LaunchChoice(null, null, null);
         }
     }
 
@@ -72,8 +105,7 @@ public final class SklbabyLauncher {
     }
 
     static void launchWithJar(Path jar, String[] args) throws Exception {
-        URL url = jar.toAbsolutePath().normalize().toUri().toURL();
-        URLClassLoader loader = new URLClassLoader(new URL[] {url}, ClassLoader.getPlatformClassLoader());
+        URLClassLoader loader = loaderFor(jar);
         Thread.currentThread().setContextClassLoader(loader);
         Class<?> appClass = Class.forName("com.example.App", true, loader);
         Method main = appClass.getMethod("main", String[].class);

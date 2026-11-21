@@ -14,20 +14,24 @@ VERSION="${3:-4.0.0}"
 trim_playwright_driver() {
   local target="$1"
   local pkg="$2"
-  # Playwright driver 內含各平台 node 執行檔；安裝包只留目標平台，避免上百 MB。
+  # 各平台 node 執行檔單顆壓縮後仍約 30–40MB，留下會讓安裝檔超過 60MB。
+  # 只留目標平台的 driver JavaScript；node 改由安裝版在第一次打卡時下載。
   if [[ "$pkg" == "dmg" ]]; then
     local arch
     arch="$(uname -m)"
     if [[ "$arch" == "arm64" ]]; then
       zip -d "$target" \
-        'driver/linux/*' 'driver/linux-arm64/*' 'driver/win32_x64/*' 'driver/mac/*' >/dev/null 2>&1 || true
+        'driver/linux/*' 'driver/linux-arm64/*' 'driver/win32_x64/*' 'driver/mac/*' \
+        'driver/mac-arm64/node' >/dev/null 2>&1 || true
     else
       zip -d "$target" \
-        'driver/linux/*' 'driver/linux-arm64/*' 'driver/win32_x64/*' 'driver/mac-arm64/*' >/dev/null 2>&1 || true
+        'driver/linux/*' 'driver/linux-arm64/*' 'driver/win32_x64/*' 'driver/mac-arm64/*' \
+        'driver/mac/node' >/dev/null 2>&1 || true
     fi
   elif [[ "$pkg" == "exe" ]]; then
     zip -d "$target" \
-      'driver/linux/*' 'driver/linux-arm64/*' 'driver/mac/*' 'driver/mac-arm64/*' >/dev/null 2>&1 || true
+      'driver/linux/*' 'driver/linux-arm64/*' 'driver/mac/*' 'driver/mac-arm64/*' \
+      'driver/win32_x64/node.exe' >/dev/null 2>&1 || true
   fi
 }
 
@@ -43,6 +47,15 @@ PACK_JAR="$DESKTOP_BUILD/SKLbaby-pack.jar"
 cp "$JAR" "$PACK_JAR"
 trim_playwright_driver "$PACK_JAR" "$PACKAGE_TYPE"
 
+if jar tf "$PACK_JAR" | grep -E 'driver/.*/node(\.exe)?$' >/dev/null; then
+  echo "Playwright node binary is still inside the pack jar" >&2
+  exit 1
+fi
+if ! jar tf "$PACK_JAR" | grep -E 'driver/.*/package/package.json$' >/dev/null; then
+  echo "Playwright driver package is missing from the pack jar" >&2
+  exit 1
+fi
+
 MODULES="$(jdeps --print-module-deps --ignore-missing-deps --multi-release 11 -q "$PACK_JAR")"
 # jlink 最少要含 desktop／http；jdeps 若漏掉則補上。
 for extra in java.desktop java.net.http java.sql java.naming jdk.crypto.ec; do
@@ -56,7 +69,7 @@ jlink \
   --strip-debug \
   --no-man-pages \
   --no-header-files \
-  --compress=2 \
+  --compress=zip-9 \
   --output "$RUNTIME_IMAGE"
 
 INPUT_DIR="$DESKTOP_BUILD/input"
@@ -72,29 +85,45 @@ JPACKAGE_ARGS=(
   --main-jar SKLbaby.jar
   --main-class "$MAIN_CLASS"
   --runtime-image "$RUNTIME_IMAGE"
-  --dest "$DESKTOP_BUILD"
   --icon "$ICON"
   --java-options "-Dfile.encoding=UTF-8"
   --java-options "-Djava.awt.headless=false"
 )
 
+OUT_FILE=""
 if [[ "$PACKAGE_TYPE" == "dmg" ]]; then
-  JPACKAGE_ARGS+=(--type dmg)
-  OUT_NAME="SKLbaby-mac.dmg"
+  STAGE="$DESKTOP_BUILD/dmg-root"
+  rm -rf "$STAGE"
+  mkdir -p "$STAGE"
+  jpackage "${JPACKAGE_ARGS[@]}" --type app-image --dest "$STAGE"
+  OUT_FILE="$DESKTOP_BUILD/SKLbaby-mac.dmg"
+  rm -f "$OUT_FILE"
+  # UDZO 對已壓縮的 jar 幫助不大；UDBZ 能再壓 runtime 裡的 libjvm。
+  hdiutil create -quiet -volname "$APP_NAME" -srcfolder "$STAGE" -ov -format UDBZ "$OUT_FILE"
 elif [[ "$PACKAGE_TYPE" == "exe" ]]; then
-  JPACKAGE_ARGS+=(--type exe --win-dir-chooser --win-menu --win-shortcut)
-  OUT_NAME="SKLbaby-win.exe"
+  jpackage "${JPACKAGE_ARGS[@]}" --type exe --win-dir-chooser --win-menu --win-shortcut --dest "$DESKTOP_BUILD"
+  produced="$DESKTOP_BUILD/${APP_NAME}-${VERSION}.exe"
+  if [[ ! -f "$produced" ]]; then
+    echo "jpackage did not produce $produced" >&2
+    exit 1
+  fi
+  OUT_FILE="$DESKTOP_BUILD/SKLbaby-win.exe"
+  mv -f "$produced" "$OUT_FILE"
 else
   echo "Unsupported package type: $PACKAGE_TYPE" >&2
   exit 1
 fi
 
-jpackage "${JPACKAGE_ARGS[@]}"
-
-FOUND="$(find "$DESKTOP_BUILD" -maxdepth 1 -type f \( -name '*.dmg' -o -name '*.exe' \) | head -n 1)"
-if [[ -z "$FOUND" ]]; then
+if [[ ! -f "$OUT_FILE" ]]; then
   echo "jpackage did not produce an installer" >&2
   exit 1
 fi
-mv -f "$FOUND" "$DESKTOP_BUILD/$OUT_NAME"
-echo "Built $DESKTOP_BUILD/$OUT_NAME"
+
+bytes="$(wc -c < "$OUT_FILE" | tr -d ' ')"
+echo "Built $OUT_FILE ($bytes bytes)"
+max_bytes=$((60 * 1024 * 1024))
+min_bytes=$((15 * 1024 * 1024))
+if (( bytes > max_bytes || bytes < min_bytes )); then
+  echo "Installer size $bytes is outside 15–60 MiB" >&2
+  exit 1
+fi
