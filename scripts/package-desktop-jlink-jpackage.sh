@@ -116,10 +116,16 @@ if [[ "$PACKAGE_TYPE" == "dmg" ]]; then
   # UDZO 對已壓縮的 jar 幫助不大；UDBZ 能再壓 runtime 裡的 libjvm。
   hdiutil create -quiet -volname "$APP_NAME" -srcfolder "$STAGE" -ov -format UDBZ "$OUT_FILE"
 elif [[ "$PACKAGE_TYPE" == "exe" ]]; then
+  rm -f "$DESKTOP_BUILD"/*.exe
   jpackage "${JPACKAGE_ARGS[@]}" --type exe --win-dir-chooser --win-menu --win-shortcut --dest "$DESKTOP_BUILD"
   produced="$DESKTOP_BUILD/${APP_NAME}-${VERSION}.exe"
+  # Windows 上腳本與檔名編碼可能對不上中文，改抓這次唯一的 exe。
   if [[ ! -f "$produced" ]]; then
-    echo "jpackage did not produce $produced" >&2
+    produced="$(find "$DESKTOP_BUILD" -maxdepth 1 -type f -name '*.exe' -print | head -n 1)"
+  fi
+  if [[ -z "${produced}" || ! -f "$produced" ]]; then
+    echo "jpackage did not produce an exe in $DESKTOP_BUILD" >&2
+    ls -la "$DESKTOP_BUILD" >&2 || true
     exit 1
   fi
   OUT_FILE="$DESKTOP_BUILD/SKLbaby-win.exe"
