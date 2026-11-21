@@ -124,6 +124,70 @@ json_string_field() {
   fi
 }
 
+# 顯示名稱／位置：UTF-8 字元數 1..24（不是 byte）。拒絕控制字元、換行與不合法 UTF-8。
+# 空值為 null。寫進 JSON 時跳脫雙引號與反斜線。
+# od／awk 的 LC_ALL=C 只為了逐 byte 解 UTF-8，不用 [[:print:]] 判斷字元。
+json_display_field() {
+  s=$1
+  if [ -z "$s" ]; then
+    printf 'null'
+    return
+  fi
+  printf '%s' "$s" | LC_ALL=C od -An -v -tu1 | LC_ALL=C awk '
+    function fail() { bad = 1; exit }
+    BEGIN { n = 0; out = ""; bad = 0; need = 0; lead = 0; seen2 = 0; bytes = 0; acc = "" }
+    {
+      for (i = 1; i <= NF; i++) {
+        b = $i + 0
+        bytes++
+        if (bytes > 96) fail()
+        if (need > 0) {
+          if (b < 128 || b > 191) fail()
+          if (seen2 == 0) {
+            seen2 = 1
+            if (lead == 224 && b < 160) fail()
+            if (lead == 237 && b > 159) fail()
+            if (lead == 240 && b < 144) fail()
+            if (lead == 244 && b > 143) fail()
+            if (lead == 194 && b < 160) fail()
+          }
+          acc = acc sprintf("%c", b)
+          need--
+          if (need == 0) {
+            n++
+            if (n > 24) fail()
+            out = out acc
+            acc = ""
+            lead = 0
+            seen2 = 0
+          }
+          continue
+        }
+        if (b < 32 || b == 127) fail()
+        if (b < 128) {
+          n++
+          if (n > 24) fail()
+          if (b == 34) out = out "\\\""
+          else if (b == 92) out = out "\\\\"
+          else out = out sprintf("%c", b)
+          continue
+        }
+        acc = sprintf("%c", b)
+        lead = b
+        seen2 = 0
+        if (b >= 194 && b <= 223) need = 1
+        else if (b >= 224 && b <= 239) need = 2
+        else if (b >= 240 && b <= 244) need = 3
+        else fail()
+      }
+    }
+    END {
+      if (bad || need != 0 || n < 1) print "null"
+      else print "\"" out "\""
+    }
+  '
+}
+
 json_role_field() {
   r=$1
   case "$r" in
@@ -627,18 +691,8 @@ do_beat() {
   fi
   display_name=$(pick_env DEV_STATUS_DISPLAY_NAME)
   location_tag=$(pick_env DEV_STATUS_LOCATION)
-  display_json="null"
-  location_json="null"
-  if [ -n "$display_name" ]; then
-    if printf '%s' "$display_name" | LC_ALL=C grep -Eq '^[[:print:][:space:]]{1,24}$'; then
-      display_json=$(printf '"%s"' "$display_name")
-    fi
-  fi
-  if [ -n "$location_tag" ]; then
-    if printf '%s' "$location_tag" | LC_ALL=C grep -Eq '^[[:print:][:space:]]{1,24}$'; then
-      location_json=$(printf '"%s"' "$location_tag")
-    fi
-  fi
+  display_json=$(json_display_field "$display_name")
+  location_json=$(json_display_field "$location_tag")
   payload=$(printf '{"machine":"%s","displayName":%s,"location":%s,"issue":%s,"branch":%s,"runStartedAt":%s,"agentRunning":%s,"role":%s,"round":%s,"model":%s,"verdict":%s,"runs":%s%s%s}' \
     "$machine" "$display_json" "$location_json" "$issue_json" "$branch_json" "$started_json" "$agent" \
     "$role_json" "$round_json" "$model_json" "$verdict_json" \

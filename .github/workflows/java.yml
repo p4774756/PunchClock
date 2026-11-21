@@ -29,3 +29,6 @@ jobs:
 
       - name: Office layout node tests
         run: node --test server/src/test/js/lab-office-layout.test.mjs server/src/test/js/lab-office-card-fit.test.mjs server/src/test/js/dev-machines-format.test.mjs
+
+      - name: Dev heartbeat selftest
+        run: sh scripts/dev-heartbeat-selftest.sh

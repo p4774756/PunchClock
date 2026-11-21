@@ -54,6 +54,78 @@ assert_eq "$(json_branch_field 'ai/issue-127')" '"ai/issue-127"' "branch ok"
 assert_eq "$(json_branch_field 'bad branch')" "null" "branch space"
 assert_eq "$(json_branch_field '')" "null" "branch empty"
 
+# --- display name / location (Unicode characters, not bytes) ---
+repeat_char() {
+  ch=$1
+  count=$2
+  out=""
+  i=0
+  while [ "$i" -lt "$count" ]; do
+    out="${out}${ch}"
+    i=$((i + 1))
+  done
+  printf '%s' "$out"
+}
+
+assert_display_cases() {
+  loc=$1
+  assert_eq "$(json_display_field '黑熊')" '"黑熊"' "$loc display 黑熊"
+  assert_eq "$(json_display_field '家用房間')" '"家用房間"' "$loc location 家用房間"
+  assert_eq "$(json_display_field '猛虎')" '"猛虎"' "$loc display 猛虎"
+  assert_eq "$(json_display_field '家用')" '"家用"' "$loc location 家用"
+  assert_eq "$(json_display_field '')" "null" "$loc display empty"
+  assert_eq "$(json_display_field "$(printf '黑\n熊')")" "null" "$loc newline rejected"
+  assert_eq "$(json_display_field "$(printf 'a\tb')")" "null" "$loc tab rejected"
+  assert_eq "$(json_display_field "$(printf 'a\rb')")" "null" "$loc cr rejected"
+  assert_eq "$(json_display_field "$(printf 'a\177b')")" "null" "$loc del rejected"
+  name24=$(repeat_char '熊' 24)
+  name25=$(repeat_char '熊' 25)
+  assert_eq "$(json_display_field "$name24")" "\"${name24}\"" "$loc 24 han chars"
+  assert_eq "$(json_display_field "$name25")" "null" "$loc 25 han chars"
+  # 9 個中文字是 27 bytes，仍須通過（上限以字元計）
+  name9=$(repeat_char '熊' 9)
+  assert_eq "$(json_display_field "$name9")" "\"${name9}\"" "$loc 9 han chars over 24 bytes"
+  assert_eq "$(json_display_field 'abcdefghijklmnopqrstuvwx')" '"abcdefghijklmnopqrstuvwx"' "$loc 24 ascii"
+  assert_eq "$(json_display_field 'abcdefghijklmnopqrstuvwxy')" "null" "$loc 25 ascii"
+  assert_eq "$(json_display_field 'a"b')" '"a\"b"' "$loc escape quote"
+  assert_eq "$(json_display_field 'a\b')" '"a\\b"' "$loc escape backslash"
+  assert_eq "$(json_display_field 'a\"b')" '"a\\\"b"' "$loc escape quote and backslash"
+  display_json=$(json_display_field '黑熊')
+  location_json=$(json_display_field '家用房間')
+  payload=$(printf '{"displayName":%s,"location":%s}' "$display_json" "$location_json")
+  assert_eq "$payload" '{"displayName":"黑熊","location":"家用房間"}' "$loc assembled han payload"
+  display_json=$(json_display_field 'say "hi"')
+  payload=$(printf '{"displayName":%s}' "$display_json")
+  assert_eq "$payload" '{"displayName":"say \"hi\""}' "$loc assembled escaped quote"
+  display_json=$(json_display_field 'a\b')
+  payload=$(printf '{"displayName":%s}' "$display_json")
+  assert_eq "$payload" '{"displayName":"a\\b"}' "$loc assembled escaped backslash"
+  display_json=$(json_display_field "$(printf '猛\n虎')")
+  payload=$(printf '{"displayName":%s}' "$display_json")
+  assert_eq "$payload" '{"displayName":null}' "$loc assembled control is null"
+}
+
+saved_lc_all=${LC_ALL-}
+LC_ALL=C
+export LC_ALL
+assert_display_cases "C"
+if printf '測' | LC_ALL=en_US.UTF-8 wc -m 2>/dev/null | awk '{exit !($1==1)}'; then
+  LC_ALL=en_US.UTF-8
+  export LC_ALL
+  assert_display_cases "en_US.UTF-8"
+fi
+if printf '測' | LC_ALL=C.UTF-8 wc -m 2>/dev/null | awk '{exit !($1==1)}'; then
+  LC_ALL=C.UTF-8
+  export LC_ALL
+  assert_display_cases "C.UTF-8"
+fi
+if [ -n "$saved_lc_all" ]; then
+  LC_ALL=$saved_lc_all
+  export LC_ALL
+else
+  unset LC_ALL
+fi
+
 # --- etime (item 4) ---
 etime_ms() {
   printf '%s' "$1" | awk '
@@ -127,6 +199,19 @@ esac
 assert_eq "$(json_role_field 'dev')" '"dev"' "json role dev"
 assert_eq "$(json_role_field 'nope')" "null" "json role bad"
 assert_eq "$(json_verdict_field 'PASS')" '"PASS"' "json verdict"
-assert_eq "$(read_review_verdict "$HOME/PunchClock-oki/wt-247")" "FAIL" "read verdict from shots247-self"
+# 本機 shots 仍保留；CI 沒有這份目錄時改走下面的暫存 HOME。
+if [ -d "$HOME/PunchClock-oki/shots247-self" ]; then
+  assert_eq "$(read_review_verdict "$HOME/PunchClock-oki/wt-247")" "FAIL" "read verdict from shots247-self"
+fi
+prev_home=$HOME
+mock_home=$(mktemp -d)
+mkdir -p "$mock_home/PunchClock-oki/shots247-self"
+printf 'VERDICT: FAIL\n' > "$mock_home/PunchClock-oki/shots247-self/REVIEW-round1.md"
+HOME=$mock_home
+assert_eq "$(read_review_verdict "$mock_home/PunchClock-oki/wt-247")" "FAIL" "read verdict from mock shots"
+printf 'VERDICT: PASS\nnotes\n' > "$mock_home/PunchClock-oki/shots247-self/REVIEW-round2.md"
+assert_eq "$(read_review_verdict "$mock_home/PunchClock-oki/wt-247")" "PASS" "read latest mock verdict"
+HOME=$prev_home
+rm -rf "$mock_home"
 
 echo "dev-heartbeat-selftest: ok"
