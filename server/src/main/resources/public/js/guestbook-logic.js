@@ -58,3 +58,37 @@ export function emojiGlyph(key) {
   if (key === 'angry') return '怒';
   return '';
 }
+
+/** 從 location.search 解析 ?open=（供深連結開啟簽名簿）。 */
+export function parseGuestbookOpenParam(search) {
+  const raw = search == null ? '' : String(search);
+  const qs = raw.startsWith('?') ? raw.slice(1) : raw;
+  if (!qs) return '';
+  try {
+    return new URLSearchParams(qs).get('open') || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+export function shouldOpenGuestbookFromSearch(search) {
+  return parseGuestbookOpenParam(search) === 'guestbook';
+}
+
+export function applyGuestbookOpenParam(win, openFn) {
+  if (!win || !win.location || typeof openFn !== 'function') return false;
+  if (!shouldOpenGuestbookFromSearch(win.location.search)) return false;
+  openFn();
+  try {
+    const url = new URL(win.location.href);
+    url.searchParams.delete('open');
+    const q = url.searchParams.toString();
+    const next = url.pathname + (q ? '?' + q : '') + (url.hash || '');
+    if (win.history && typeof win.history.replaceState === 'function') {
+      win.history.replaceState(null, '', next);
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  return true;
+}

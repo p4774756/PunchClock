@@ -33,6 +33,7 @@ public class AnimeShellNavTest {
         for (int i = 0; i < AnimeShell.navCount(); i++) {
             Rectangle a = AnimeShell.navRowBounds(w, h, i);
             assertTrue(a.width > 20);
+            assertTrue(a.width * (AnimeShell.navCount() + 1) <= w + 4);
             assertTrue(a.y + a.height <= h);
             for (int j = i + 1; j < AnimeShell.navCount(); j++) {
                 Rectangle b = AnimeShell.navRowBounds(w, h, j);

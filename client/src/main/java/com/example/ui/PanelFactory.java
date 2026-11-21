@@ -1113,7 +1113,8 @@ public class PanelFactory {
         refs.historyList.setVisibleRowCount(HISTORY_VISIBLE_ROWS);
         refs.historyList.setToolTipText("本機最近排程成功／失敗紀錄（不含取消）");
 
-        JScrollPane scroll = new JScrollPane(refs.historyList);
+        JPanel historyBody = CandyHistoryColumns.wrapWithDetail(refs.historyList);
+        JScrollPane scroll = new JScrollPane(historyBody);
         CandyHistoryColumns.attach(scroll, boldFont);
         // 欄位在格子裡省略，完整內容在提示。不要為了長字把整頁撐寬。
         // 高度含欄位標題，整頁仍一起捲；標題若算進列高，畫面上就只剩一筆。
@@ -1152,7 +1153,7 @@ public class PanelFactory {
 
     public static class CheckInHistoryRefs {
         public DefaultListModel<String> listModel;
-        public JList<String> historyList;
+        public CandyHistoryColumns.View historyList;
         public JLabel emptyLabel;
         public JButton clearButton;
     }

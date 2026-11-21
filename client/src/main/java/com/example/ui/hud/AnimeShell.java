@@ -4,6 +4,7 @@ import com.example.model.CheckInTask;
 import com.example.model.TaskStatus;
 import com.example.service.SchedulerService;
 import com.example.ui.AppBranding;
+import com.example.ui.MiniBarDrag;
 import com.example.ui.UiFonts;
 import com.example.ui.WindowChrome;
 
@@ -18,15 +19,23 @@ import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.Toolkit;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -61,8 +70,10 @@ public final class AnimeShell extends JPanel {
     private final SchedulerService scheduler;
     private final BabyAssets baby = BabyAssets.load();
     private final HomeBoard board = new HomeBoard();
-    private final BufferedImage room = loadRoom();
+    private final Map<HomePoolPhase.Phase, BufferedImage> poolBackgrounds = loadPoolBackgrounds();
     private final Timer timer;
+    private Clock clock = Clock.systemDefaultZone();
+    private HomePoolPhase.Phase paintedPhase;
     private final boolean reducedMotion = reducedMotion();
     private final Map<String, TaskStatus> seenTasks = new HashMap<>();
     private HomeActions homeActions;
@@ -75,6 +86,9 @@ public final class AnimeShell extends JPanel {
     private java.awt.Rectangle figureBox = new java.awt.Rectangle();
     private long paintedSecond = -1;
     private String paintedHomeKey;
+    private Point miniPressScreen;
+    private Rectangle miniStartBounds;
+    private boolean miniDragging;
 
     public AnimeShell(SchedulerService scheduler, JTabbedPane tabs) {
         super(null);
@@ -109,7 +123,54 @@ public final class AnimeShell extends JPanel {
 
             @Override
             public void mousePressed(MouseEvent e) {
+                if (miniMode && SwingUtilities.isLeftMouseButton(e)) {
+                    miniDragging = false;
+                    miniPressScreen = e.getLocationOnScreen();
+                    java.awt.Window window = SwingUtilities.getWindowAncestor(AnimeShell.this);
+                    miniStartBounds = window == null ? null : window.getBounds();
+                    return;
+                }
                 activate(hit(e.getX(), e.getY()));
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (!miniMode || !SwingUtilities.isLeftMouseButton(e) || miniPressScreen == null) {
+                    return;
+                }
+                Point now = e.getLocationOnScreen();
+                if (!miniDragging && MiniBarDrag.isClick(miniPressScreen, now)) {
+                    activate(-2);
+                }
+                miniDragging = false;
+                miniPressScreen = null;
+                miniStartBounds = null;
+            }
+
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                if (!miniMode || miniPressScreen == null || miniStartBounds == null) {
+                    return;
+                }
+                Point now = e.getLocationOnScreen();
+                int dx = now.x - miniPressScreen.x;
+                int dy = now.y - miniPressScreen.y;
+                if (!miniDragging) {
+                    if (MiniBarDrag.isClick(dx, dy)) {
+                        return;
+                    }
+                    miniDragging = true;
+                }
+                java.awt.Window window = SwingUtilities.getWindowAncestor(AnimeShell.this);
+                if (!(window instanceof JFrame)) {
+                    return;
+                }
+                JFrame frame = (JFrame) window;
+                int x = miniStartBounds.x + dx;
+                int y = miniStartBounds.y + dy;
+                Point clamped = MiniBarDrag.clampLocation(
+                        x, y, miniStartBounds.width, miniStartBounds.height, screenRects());
+                frame.setLocation(clamped);
             }
         };
         addMouseListener(mouse);
@@ -125,6 +186,11 @@ public final class AnimeShell extends JPanel {
                     if (!key.equals(paintedHomeKey)) {
                         paintedHomeKey = key;
                         refreshBubble();
+                        repaint(contentBounds());
+                    }
+                    HomePoolPhase.Phase phase = currentPhase();
+                    if (phase != paintedPhase) {
+                        paintedPhase = phase;
                         repaint(contentBounds());
                     }
                 }
@@ -395,6 +461,17 @@ public final class AnimeShell extends JPanel {
         onMiniExpand = handler;
     }
 
+    /** 測試用：注入時鐘以固定泳池時段。 */
+    public void setClockForTests(Clock testClock) {
+        clock = testClock == null ? Clock.systemDefaultZone() : testClock;
+        paintedPhase = null;
+        repaint();
+    }
+
+    public HomePoolPhase.Phase currentPhase() {
+        return HomePoolPhase.phase(clock);
+    }
+
     private void noticeStatus() {
         Set<String> live = new HashSet<>();
         for (CheckInTask task : taskList()) {
@@ -590,25 +667,25 @@ public final class AnimeShell extends JPanel {
                 g.fillRoundRect(box.x + 2, box.y + 4, box.width - 4, box.height - 8, 10, 10);
             }
             g.setColor(active ? new Color(48, 18, 36) : INK);
-            g.setFont(UiFonts.chinesePlain(11));
+            g.setFont(UiFonts.chinesePlain(14));
             String glyph = tabGlyph(i);
             int tw = g.getFontMetrics().stringWidth(glyph);
-            g.drawString(glyph, box.x + (box.width - tw) / 2, box.y + 20);
+            g.drawString(glyph, box.x + (box.width - tw) / 2, box.y + 22);
             g.setColor(MUTED);
-            g.setFont(UiFonts.chinesePlain(9));
+            g.setFont(UiFonts.chinesePlain(11));
             String label = NAV[i];
             int lw = g.getFontMetrics().stringWidth(label);
             if (lw <= box.width - 4) {
-                g.drawString(label, box.x + (box.width - lw) / 2, box.y + 36);
+                g.drawString(label, box.x + (box.width - lw) / 2, box.y + 42);
             }
         }
         java.awt.Rectangle mini = miniToggleBox();
         boolean miniHot = hot == MINI_TOGGLE;
         g.setColor(miniHot ? new Color(255, 214, 88) : new Color(255, 255, 255, 40));
         g.fillRoundRect(mini.x, mini.y, mini.width, mini.height, 8, 8);
-        g.setFont(UiFonts.chinesePlain(10));
+        g.setFont(UiFonts.chinesePlain(11));
         g.setColor(INK);
-        g.drawString("迷你", mini.x + 6, mini.y + 20);
+        g.drawString("迷你", mini.x + 6, mini.y + 22);
     }
 
     private static String tabGlyph(int index) {
@@ -715,18 +792,58 @@ public final class AnimeShell extends JPanel {
         if (!useRoom) {
             return;
         }
-        if (room == null) {
+        HomePoolPhase.Phase phase = currentPhase();
+        paintedPhase = phase;
+        BufferedImage background = poolBackgrounds.get(phase);
+        if (background == null) {
             g.setColor(new Color(28, 20, 48));
             g.fillRect(0, 0, getWidth(), getHeight());
             return;
         }
-        double scale = Math.max(getWidth() / (double) room.getWidth(), getHeight() / (double) room.getHeight());
-        int dw = (int) Math.ceil(room.getWidth() * scale);
-        int dh = (int) Math.ceil(room.getHeight() * scale);
+        double scale = Math.max(
+                getWidth() / (double) background.getWidth(),
+                getHeight() / (double) background.getHeight());
+        int dw = (int) Math.ceil(background.getWidth() * scale);
+        int dh = (int) Math.ceil(background.getHeight() * scale);
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawImage(room, (getWidth() - dw) / 2, (getHeight() - dh) / 2, dw, dh, null);
+        g.drawImage(background, (getWidth() - dw) / 2, (getHeight() - dh) / 2, dw, dh, null);
         g.setColor(new Color(16, 10, 32, 48));
         g.fillRect(0, 0, getWidth(), getHeight());
+    }
+
+    private static Map<HomePoolPhase.Phase, BufferedImage> loadPoolBackgrounds() {
+        EnumMap<HomePoolPhase.Phase, BufferedImage> images = new EnumMap<>(HomePoolPhase.Phase.class);
+        for (HomePoolPhase.Phase phase : HomePoolPhase.Phase.values()) {
+            images.put(phase, loadImage(HomePoolPhase.resourcePath(phase)));
+        }
+        return images;
+    }
+
+    private static BufferedImage loadImage(String resource) {
+        try (InputStream in = AnimeShell.class.getResourceAsStream(resource)) {
+            if (in == null) {
+                return null;
+            }
+            return ImageIO.read(in);
+        } catch (IOException ex) {
+            return null;
+        }
+    }
+
+    private static Rectangle[] screenRects() {
+        GraphicsDevice[] devices = GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices();
+        Rectangle[] screens = new Rectangle[devices.length];
+        for (int i = 0; i < devices.length; i++) {
+            GraphicsConfiguration gc = devices[i].getDefaultConfiguration();
+            Rectangle bounds = gc.getBounds();
+            java.awt.Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+            screens[i] = new Rectangle(
+                    bounds.x + insets.left,
+                    bounds.y + insets.top,
+                    Math.max(1, bounds.width - insets.left - insets.right),
+                    Math.max(1, bounds.height - insets.top - insets.bottom));
+        }
+        return screens;
     }
 
     private static String fit(Graphics2D g, String text, int width) {
@@ -764,14 +881,4 @@ public final class AnimeShell extends JPanel {
         }
     }
 
-    private static BufferedImage loadRoom() {
-        try (InputStream in = AnimeShell.class.getResourceAsStream("/hud/anime/room.jpg")) {
-            if (in == null) {
-                return null;
-            }
-            return ImageIO.read(in);
-        } catch (IOException ex) {
-            return null;
-        }
-    }
 }

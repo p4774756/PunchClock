@@ -29,6 +29,7 @@ public final class CompactShellPanels {
         scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
+        ShellWheelForwarder.install(scroll, body);
         return scroll;
     }
 

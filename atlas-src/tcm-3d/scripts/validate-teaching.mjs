@@ -30,7 +30,7 @@ try {
   const bundlePath = join(temporaryDir, 'entry.mjs');
   const bundle = await build({
     stdin: {
-      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {POINTS,TOOLS,initialSimulation,CURRICULUM_SETS,curriculumSet,isPracticeDeferred,practiceOpenCodes,DEFERRED_PRACTICE_CODES,teachingPointMatchesQuery,ZHUYIN_PATTERN,POINT_BY_CODE} from './app/teaching'; export {ANIME_POINTS,ANIME_SUPPORTED_CODES,animePointTarget} from './app/character-mode'; export {avatarPracticePoints,animeAvatar,DEFAULT_AVATAR_ID} from './app/avatars'; export {ANIME_OUTFITS} from './app/outfits'; export {focusViewFromNormal} from './app/focus-view';",
+      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {POINTS,TOOLS,initialSimulation,CURRICULUM_SETS,curriculumSet,isPracticeDeferred,practiceOpenCodes,DEFERRED_PRACTICE_CODES,teachingPointMatchesQuery,libraryPointResults,ZHUYIN_PATTERN,POINT_BY_CODE} from './app/teaching'; export {ANIME_POINTS,ANIME_SUPPORTED_CODES,animePointTarget} from './app/character-mode'; export {avatarPracticePoints,animeAvatar,DEFAULT_AVATAR_ID} from './app/avatars'; export {ANIME_OUTFITS} from './app/outfits'; export {focusViewFromNormal} from './app/focus-view';",
       resolveDir: project, sourcefile: 'validate-teaching-entry.ts', loader: 'ts',
     },
     bundle: true, platform: 'node', format: 'esm', target: 'node22',
@@ -44,7 +44,7 @@ try {
       return {className: '', hidden: false, style: {}, dataset: {}, textContent: '', setAttribute() {}, remove() {}, classList:{toggle(){}}};
     }},
   });
-  const {createTeachingOverlay, POINTS, TOOLS, initialSimulation, CURRICULUM_SETS, curriculumSet, isPracticeDeferred, practiceOpenCodes, DEFERRED_PRACTICE_CODES, teachingPointMatchesQuery, ZHUYIN_PATTERN, POINT_BY_CODE, ANIME_POINTS, ANIME_SUPPORTED_CODES, animePointTarget, avatarPracticePoints, animeAvatar, DEFAULT_AVATAR_ID, ANIME_OUTFITS, focusViewFromNormal} = await import(pathToFileURL(bundlePath));
+  const {createTeachingOverlay, POINTS, TOOLS, initialSimulation, CURRICULUM_SETS, curriculumSet, isPracticeDeferred, practiceOpenCodes, DEFERRED_PRACTICE_CODES, teachingPointMatchesQuery, libraryPointResults, ZHUYIN_PATTERN, POINT_BY_CODE, ANIME_POINTS, ANIME_SUPPORTED_CODES, animePointTarget, avatarPracticePoints, animeAvatar, DEFAULT_AVATAR_ID, ANIME_OUTFITS, focusViewFromNormal} = await import(pathToFileURL(bundlePath));
   const camera = new T.PerspectiveCamera(34, 1.6, 0.005, 100);
   camera.position.set(0, 1.4, 2.5);
   camera.lookAt(0, 1.35, 0);
@@ -77,8 +77,9 @@ try {
     LR2: 'ㄒㄧㄥˊ ㄐㄧㄢ', GV1: 'ㄔㄤˊ ㄑㄧㄤˊ', LU11: 'ㄕㄠˋ ㄕㄤ', LI4: 'ㄏㄜˊ ㄍㄨˇ',
     PC3: 'ㄑㄩ ㄗㄜˊ', LI11: 'ㄑㄩ ㄔˊ', SP15: 'ㄉㄚˋ ㄏㄥˊ', LR1: 'ㄉㄚˋ ㄉㄨㄣ', CV14: 'ㄐㄩˋ ㄑㄩㄝˋ',
     BL2: 'ㄘㄨㄢˊ ㄓㄨˊ', BL4: 'ㄑㄩ ㄔㄚ', BL5: 'ㄨˇ ㄔㄨˋ',
-    CV17: 'ㄉㄢˋ ㄓㄨㄥ', ST6: 'ㄐㄧㄚˊ ㄔㄜ', BL28: 'ㄆㄤˊ ㄍㄨㄤ ㄩˊ', LR5: 'ㄌㄧˇ ㄍㄡ', BL45: 'ㄧ ㄒㄧˇ',
+    CV17: 'ㄉㄢˋ ㄓㄨㄥ', ST6: 'ㄐㄧㄚˊ ㄔㄜ', BL28: 'ㄆㄤˊ ㄍㄨㄤ ㄩˊ', LR5: 'ㄌㄧˇ ㄍㄡ', BL45: 'ㄧ ㄒㄧ',
     KI9: 'ㄓㄨˊ ㄅㄧㄣ', TE19: 'ㄌㄨˊ ㄒㄧˊ', LR14: 'ㄑㄧˊ ㄇㄣˊ', KI13: 'ㄑㄧˋ ㄒㄩㄝˋ',
+    TE18: 'ㄑㄧˋ ㄇㄞˋ', LI7: 'ㄨㄣ ㄌㄧㄡˋ', KI7: 'ㄈㄨˋ ㄌㄧㄡˋ', SP10: 'ㄒㄩㄝˋ ㄏㄞˇ',
   };
 
   await test('同音不同字與多音字注音', () => {
@@ -101,6 +102,26 @@ try {
     assert.equal(hit('cv14'), true);
     assert.equal(hit('足三里'), false);
     assert.equal(hit('ST36'), false);
+  });
+
+  await test('穴位庫有輸入時搜完整目錄', () => {
+    const codes = new Set(animeAvatar(DEFAULT_AVATAR_ID).points.map(p => p.code));
+    const quiet = libraryPointResults('', 'all', 'all', 'head-neck-21', codes);
+    assert.equal(quiet.length, 21);
+    assert.equal(quiet.every(p => codes.has(p.code)), true);
+    assert.equal(quiet.some(p => p.code === 'TE18'), false);
+    const qiyi = libraryPointResults('ㄑㄧˋ', 'all', 'all', 'head-neck-21', codes).map(p => p.code);
+    assert.ok(qiyi.includes('TE18'), 'ㄑㄧˋ 應含瘛脈 TE18');
+    assert.ok(qiyi.includes('ST1'), 'ㄑㄧˋ 仍含已烘的承泣');
+    const liou = libraryPointResults('ㄌㄧㄡˋ', 'all', 'all', 'head-neck-21', codes).map(p => p.code).sort();
+    assert.deepEqual(liou, ['KI7', 'LI7']);
+    const yixi = libraryPointResults('ㄧ ㄒㄧ', 'all', 'all', 'head-neck-21', codes).map(p => p.code);
+    assert.ok(yixi.includes('BL45'), 'ㄧ ㄒㄧ 應含譩譆');
+    for (const setId of ['trunk-30', 'common-10']) {
+      const again = libraryPointResults('ㄌㄧㄡˋ', 'all', 'all', setId, codes).map(p => p.code);
+      assert.ok(again.includes('LI7') && again.includes('KI7'), setId);
+      assert.ok(libraryPointResults('ㄑㄧˋ', 'all', 'all', setId, codes).some(p => p.code === 'TE18'), setId);
+    }
   });
 
   await test('頭頸 21＋軀幹 30 已烘；ST9／CV22 已重新開放', () => {

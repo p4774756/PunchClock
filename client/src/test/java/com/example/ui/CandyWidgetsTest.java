@@ -199,8 +199,9 @@ public class CandyWidgetsTest {
             PanelFactory.CheckInHistoryRefs refs = new PanelFactory.CheckInHistoryRefs();
             PanelFactory.createCheckInHistoryPanel(refs, fonts.main, fonts.bold);
             refs.listModel.addElement(line);
-            JScrollPane scroll = (JScrollPane) refs.historyList.getParent().getParent();
-            assertEquals(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER, scroll.getHorizontalScrollBarPolicy());
+            JScrollPane scroll = (JScrollPane) refs.historyList.getParent().getParent().getParent();
+            assertEquals(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED, scroll.getHorizontalScrollBarPolicy());
+            assertFalse(refs.historyList.getScrollableTracksViewportWidth());
             assertTrue(Boolean.TRUE.equals(scroll.getClientProperty(CandyScrollBar.MARK)));
             NightTheme.apply(scroll.getParent());
             assertTrue(scroll.getVerticalScrollBar().getUI().getClass().getName().contains("CandyScrollBar"));

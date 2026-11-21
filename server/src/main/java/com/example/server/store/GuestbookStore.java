@@ -50,7 +50,7 @@ public final class GuestbookStore {
     public static final String NICKNAME_MESSAGE = "暱稱必填，最多 20 字";
     public static final String MESSAGE_MESSAGE = "留言必填，最多 200 字";
     public static final String EMOJI_MESSAGE = "表情代碼不正確";
-    public static final String DOODLE_MESSAGE = "只接受 " + DOODLE_WIDTH + "×" + DOODLE_HEIGHT + " 的 PNG，且不超過 50 KB";
+    public static final String DOODLE_MESSAGE = "只接受 " + DOODLE_WIDTH + "×" + DOODLE_HEIGHT + " 的 PNG 或 WebP，且不超過 50 KB";
     public static final String RATE_MINUTE_MESSAGE = "一分鐘內只能留一則，請稍後再試";
     public static final String RATE_DAY_MESSAGE = "今日留言已達上限（" + DAILY_MAX + " 則），明天再來";
     public static final String FULL_MESSAGE = "簽名簿已滿";
@@ -143,6 +143,43 @@ public final class GuestbookStore {
         return new Page(slice, pg, totalPages, total);
     }
 
+    /** 讀塗鴉檔；隱藏留言僅管理員可讀。 */
+    public synchronized byte[] readDoodleBytes(String id, boolean admin) {
+        Item item = find(id);
+        if (item == null || item.doodleId == null) {
+            return null;
+        }
+        if (item.hidden && !admin) {
+            return null;
+        }
+        if (!validId(id) || directory == null) {
+            return null;
+        }
+        String ext = doodleExtension(item);
+        Path file = directory.resolve(id + "." + ext);
+        if (!Files.isRegularFile(file)) {
+            return null;
+        }
+        try {
+            return Files.readAllBytes(file);
+        } catch (IOException ex) {
+            return null;
+        }
+    }
+
+    public synchronized String readDoodleContentType(String id, boolean admin) {
+        Item item = find(id);
+        if (item == null || item.doodleId == null) {
+            return null;
+        }
+        if (item.hidden && !admin) {
+            return null;
+        }
+        return "webp".equals(doodleExtension(item)) ? "image/webp" : "image/png";
+    }
+
+    /** @deprecated 測試用；不檢查隱藏。 */
+    @Deprecated
     public synchronized byte[] readDoodlePng(String id) {
         if (!validId(id) || directory == null) {
             return null;
@@ -184,15 +221,28 @@ public final class GuestbookStore {
             return Result.fail(429, rate.message);
         }
         byte[] doodleBytes = null;
+        String doodleFormat = null;
         if (req.doodleRaw != null && req.doodleRaw.length > 0) {
             if (req.doodleRaw.length > DOODLE_MAX_BYTES) {
                 return Result.fail(413, DOODLE_MESSAGE);
             }
-            BufferedImage decoded = decodePng(req.doodleRaw);
-            if (decoded == null || decoded.getWidth() != DOODLE_WIDTH || decoded.getHeight() != DOODLE_HEIGHT) {
+            if (isPng(req.doodleRaw)) {
+                BufferedImage decoded = decodePng(req.doodleRaw);
+                if (decoded == null || decoded.getWidth() != DOODLE_WIDTH || decoded.getHeight() != DOODLE_HEIGHT) {
+                    return Result.fail(400, DOODLE_MESSAGE);
+                }
+                doodleBytes = reencodePng(decoded);
+                doodleFormat = "png";
+            } else if (isWebP(req.doodleRaw)) {
+                int[] size = webpDimensions(req.doodleRaw);
+                if (size == null || size[0] != DOODLE_WIDTH || size[1] != DOODLE_HEIGHT) {
+                    return Result.fail(400, DOODLE_MESSAGE);
+                }
+                doodleBytes = req.doodleRaw;
+                doodleFormat = "webp";
+            } else {
                 return Result.fail(400, DOODLE_MESSAGE);
             }
-            doodleBytes = reencode(decoded);
             if (doodleBytes == null || doodleBytes.length > DOODLE_MAX_BYTES) {
                 return Result.fail(400, DOODLE_MESSAGE);
             }
@@ -205,9 +255,10 @@ public final class GuestbookStore {
         item.createdAt = now;
         item.hidden = false;
         item.doodleId = doodleBytes != null ? item.id : null;
+        item.doodleFormat = doodleFormat;
         try {
             if (doodleBytes != null) {
-                writePng(item.id, doodleBytes);
+                writeDoodle(item.id, doodleFormat, doodleBytes);
             }
             items.add(0, item);
             saveIndex();
@@ -249,6 +300,7 @@ public final class GuestbookStore {
         if (directory != null) {
             try {
                 Files.deleteIfExists(directory.resolve(id + ".png"));
+                Files.deleteIfExists(directory.resolve(id + ".webp"));
             } catch (IOException ignored) {
             }
         }
@@ -306,7 +358,7 @@ public final class GuestbookStore {
                 return null;
             }
             String meta = src.substring(0, comma).toLowerCase();
-            if (!meta.contains("image/png")) {
+            if (!meta.contains("image/png") && !meta.contains("image/webp")) {
                 return null;
             }
             src = src.substring(comma + 1);
@@ -406,12 +458,27 @@ public final class GuestbookStore {
         }
     }
 
-    private void writePng(String id, byte[] png) throws IOException {
+    private void writeDoodle(String id, String format, byte[] data) throws IOException {
+        String ext = "webp".equals(format) ? "webp" : "png";
         Files.createDirectories(directory);
-        Path dest = directory.resolve(id + ".png");
-        Path tmp = directory.resolve(id + ".png.tmp");
-        Files.write(tmp, png);
+        Path dest = directory.resolve(id + "." + ext);
+        Path tmp = directory.resolve(id + "." + ext + ".tmp");
+        Files.write(tmp, data);
         moveReplace(tmp, dest);
+    }
+
+    public static String doodleExtension(Item item) {
+        if (item != null && "webp".equals(item.doodleFormat)) {
+            return "webp";
+        }
+        return "png";
+    }
+
+    public static String doodleUrlFor(Item item) {
+        if (item == null || item.doodleId == null) {
+            return null;
+        }
+        return "/api/guestbook/" + item.doodleId + "." + doodleExtension(item);
     }
 
     private void saveIndex() throws IOException {
@@ -435,14 +502,57 @@ public final class GuestbookStore {
         }
     }
 
-    private static BufferedImage decodePng(byte[] raw) {
-        if (raw.length < PNG_MAGIC.length) {
-            return null;
+    static boolean isPng(byte[] raw) {
+        if (raw == null || raw.length < PNG_MAGIC.length) {
+            return false;
         }
         for (int i = 0; i < PNG_MAGIC.length; i++) {
             if (raw[i] != PNG_MAGIC[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static boolean isWebP(byte[] raw) {
+        if (raw == null || raw.length < 16) {
+            return false;
+        }
+        return raw[0] == 'R' && raw[1] == 'I' && raw[2] == 'F' && raw[3] == 'F'
+                && raw[8] == 'W' && raw[9] == 'E' && raw[10] == 'B' && raw[11] == 'P';
+    }
+
+    /** VP8 / VP8L / VP8X 解析寬高；無法解析回 null。 */
+    static int[] webpDimensions(byte[] raw) {
+        if (!isWebP(raw) || raw.length < 30) {
+            return null;
+        }
+        if (raw[12] == 'V' && raw[13] == 'P' && raw[14] == '8' && raw[15] == 'X') {
+            int w = 1 + ((raw[24] & 0xFF) | ((raw[25] & 0xFF) << 8) | ((raw[26] & 0xFF) << 16));
+            int h = 1 + ((raw[27] & 0xFF) | ((raw[28] & 0xFF) << 8) | ((raw[29] & 0xFF) << 16));
+            return new int[] {w, h};
+        }
+        if (raw[12] == 'V' && raw[13] == 'P' && raw[14] == '8' && raw[15] == 'L') {
+            int bits = (raw[21] & 0xFF) | ((raw[22] & 0xFF) << 8) | ((raw[23] & 0xFF) << 16) | ((raw[24] & 0xFF) << 24);
+            int w = (bits & 0x3FFF) + 1;
+            int h = ((bits >> 14) & 0x3FFF) + 1;
+            return new int[] {w, h};
+        }
+        if (raw[12] == 'V' && raw[13] == 'P' && raw[14] == '8' && raw[15] == ' ') {
+            int base = 20;
+            if (raw.length < base + 10) {
                 return null;
             }
+            int w = ((raw[base + 7] & 0xFF) << 8 | (raw[base + 6] & 0xFF)) & 0x3FFF;
+            int h = ((raw[base + 9] & 0xFF) << 8 | (raw[base + 8] & 0xFF)) & 0x3FFF;
+            return new int[] {w, h};
+        }
+        return null;
+    }
+
+    private static BufferedImage decodePng(byte[] raw) {
+        if (!isPng(raw)) {
+            return null;
         }
         Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("png");
         if (!readers.hasNext()) {
@@ -467,7 +577,7 @@ public final class GuestbookStore {
         }
     }
 
-    private static byte[] reencode(BufferedImage source) {
+    private static byte[] reencodePng(BufferedImage source) {
         BufferedImage clean = new BufferedImage(DOODLE_WIDTH, DOODLE_HEIGHT, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = clean.createGraphics();
         try {
@@ -513,6 +623,8 @@ public final class GuestbookStore {
         public boolean hidden;
         /** 有塗鴉時與 id 相同，否則 null。 */
         public String doodleId;
+        /** png 或 webp；舊資料缺省視為 png。 */
+        public String doodleFormat;
     }
 
     public static final class Page {
