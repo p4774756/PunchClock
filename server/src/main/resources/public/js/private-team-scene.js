@@ -145,10 +145,16 @@ function bubbleTexture() {
 
 function buildArm(side) {
   const pivot = new THREE.Group();
-  pivot.position.set(side * 0.36, 0.5, 0.16);
-  const arm = cyl(0.075, 0.06, 0.5, 8, COL.skin);
-  arm.position.set(0, -0.22, 0.02);
-  arm.rotation.x = 0.85;
+  pivot.position.set(side * 0.34, 0.5, 0);
+  const hand = side < 0
+    ? new THREE.Vector3(-0.87, 0.29, -0.18)
+    : new THREE.Vector3(0.47, 0.3, -0.26);
+  const dir = hand.clone().sub(pivot.position);
+  const len = dir.length();
+  dir.normalize();
+  const arm = cyl(0.075, 0.06, len, 8, COL.skin);
+  arm.position.copy(dir).multiplyScalar(len * 0.5);
+  arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
   pivot.add(arm);
   return pivot;
 }
@@ -430,15 +436,9 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (!running) return;
     raf = win.requestAnimationFrame(tick);
     const elapsed = (now - t0) / 1000;
-    const cycle = 2.4;
-    const sawL = (elapsed % cycle) / cycle;
-    const sawR = ((elapsed + cycle * 0.5) % cycle) / cycle;
-    sec.armL.position.y = 0.38 + sawL * 0.55;
-    sec.armR.position.y = 0.38 + sawR * 0.55;
-    sec.armL.rotation.z = 0.15 + sawL * 1.15;
-    sec.armR.rotation.z = -0.15 - sawR * 1.15;
-    sec.armL.rotation.x = sawL * 0.9;
-    sec.armR.rotation.x = sawR * 0.9;
+    const tap = Math.sin(elapsed * 8) * 0.12;
+    sec.armL.rotation.set(tap, 0, 0);
+    sec.armR.rotation.set(-tap, 0, 0);
 
     const bubblePhase = (Math.sin(elapsed * 2.2) + 1) / 2;
     bubble.position.y = 1.82 + bubblePhase * 0.08;
