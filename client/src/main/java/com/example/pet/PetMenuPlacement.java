@@ -26,32 +26,54 @@ final class PetMenuPlacement {
             host = screens[0];
         }
         HorizontalSide hSide = pickHorizontal(pet, menuW, menuH, host, screens);
-        Point seed = seedPoint(pet, menuW, menuH, hSide);
-        Point clamped = DesktopPetWindow.clampToScreens(seed.x, seed.y, menuW, menuH, screens);
-        if (!overlapsPet(clamped.x, clamped.y, menuW, menuH, pet)) {
-            return clamped;
+        Point horizontal = horizontalIfClear(pet, menuW, menuH, hSide, screens);
+        if (horizontal != null) {
+            return horizontal;
         }
         HorizontalSide other = hSide == HorizontalSide.RIGHT ? HorizontalSide.LEFT : HorizontalSide.RIGHT;
-        Point altSeed = seedPoint(pet, menuW, menuH, other);
-        Point alt = DesktopPetWindow.clampToScreens(altSeed.x, altSeed.y, menuW, menuH, screens);
-        if (!overlapsPet(alt.x, alt.y, menuW, menuH, pet)) {
+        Point alt = horizontalIfClear(pet, menuW, menuH, other, screens);
+        if (alt != null) {
             return alt;
         }
+        // 左右都塞不下才改上下，而且要選剩餘空間較大的那一側。
         VerticalSide vSide = pickVertical(pet, menuW, menuH, host);
-        Point below = DesktopPetWindow.clampToScreens(
-                pet.x, pet.y + pet.height + GAP, menuW, menuH, screens);
-        if (!overlapsPet(below.x, below.y, menuW, menuH, pet)) {
-            return below;
+        Point preferred = verticalIfClear(pet, menuW, menuH, vSide, screens);
+        if (preferred != null) {
+            return preferred;
         }
-        Point above = DesktopPetWindow.clampToScreens(
-                pet.x, pet.y - menuH - GAP, menuW, menuH, screens);
-        if (!overlapsPet(above.x, above.y, menuW, menuH, pet)) {
-            return above;
+        VerticalSide otherVertical = vSide == VerticalSide.BELOW ? VerticalSide.ABOVE : VerticalSide.BELOW;
+        Point fallback = verticalIfClear(pet, menuW, menuH, otherVertical, screens);
+        if (fallback != null) {
+            return fallback;
         }
-        if (vSide == VerticalSide.BELOW) {
-            return below;
+        return verticalPoint(pet, menuH, vSide, menuW, screens);
+    }
+
+    private static Point horizontalIfClear(
+            Rectangle pet, int menuW, int menuH, HorizontalSide side, Rectangle[] screens) {
+        Point seed = seedPoint(pet, menuW, menuH, side);
+        Point clamped = DesktopPetWindow.clampToScreens(seed.x, seed.y, menuW, menuH, screens);
+        if (overlapsPet(clamped.x, clamped.y, menuW, menuH, pet)) {
+            return null;
         }
-        return above;
+        return clamped;
+    }
+
+    private static Point verticalIfClear(
+            Rectangle pet, int menuW, int menuH, VerticalSide side, Rectangle[] screens) {
+        Point clamped = verticalPoint(pet, menuH, side, menuW, screens);
+        if (overlapsPet(clamped.x, clamped.y, menuW, menuH, pet)) {
+            return null;
+        }
+        return clamped;
+    }
+
+    private static Point verticalPoint(
+            Rectangle pet, int menuH, VerticalSide side, int menuW, Rectangle[] screens) {
+        int y = side == VerticalSide.BELOW
+                ? pet.y + pet.height + GAP
+                : pet.y - menuH - GAP;
+        return DesktopPetWindow.clampToScreens(pet.x, y, menuW, menuH, screens);
     }
 
     private enum HorizontalSide { LEFT, RIGHT }

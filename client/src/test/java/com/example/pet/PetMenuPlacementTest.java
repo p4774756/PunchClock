@@ -98,6 +98,90 @@ public class PetMenuPlacementTest {
   }
 
   @Test
+  public void placesMenuBelowWhenNeitherSideFits() {
+    Rectangle screen = new Rectangle(0, 0, 480, 900);
+    int petX = 150;
+    int petY = 220;
+    int petW = 180;
+    int petH = 160;
+    Point placed = PetMenuPlacement.placeBesidePet(
+            petX, petY, petW, petH, MENU_W, MENU_H, new Rectangle[] {screen});
+    assertEquals(new Point(150, 388), placed);
+    assertTrue(placed.y >= petY + petH + PetMenuPlacement.GAP);
+    assertTrue(screen.contains(new Rectangle(placed.x, placed.y, MENU_W, MENU_H)));
+    assertNoOverlap(placed, petX, petY, petW, petH);
+  }
+
+  @Test
+  public void placesMenuAboveWhenBelowWouldCoverThePet() {
+    Rectangle screen = new Rectangle(0, 0, 480, 900);
+    int petX = 150;
+    int petY = 620;
+    int petW = 180;
+    int petH = 160;
+    Point placed = PetMenuPlacement.placeBesidePet(
+            petX, petY, petW, petH, MENU_W, MENU_H, new Rectangle[] {screen});
+    assertEquals(new Point(150, 326), placed);
+    assertTrue(placed.y + MENU_H <= petY - PetMenuPlacement.GAP);
+    assertTrue(screen.contains(new Rectangle(placed.x, placed.y, MENU_W, MENU_H)));
+    assertNoOverlap(placed, petX, petY, petW, petH);
+  }
+
+  @Test
+  public void prefersVerticalSideWithMoreRemainingRoom() {
+    Rectangle screen = new Rectangle(0, 0, 480, 1400);
+    int petX = 150;
+    int petY = 780;
+    int petW = 180;
+    int petH = 100;
+    Point placed = PetMenuPlacement.placeBesidePet(
+            petX, petY, petW, petH, MENU_W, MENU_H, new Rectangle[] {screen});
+    assertEquals(new Point(150, 486), placed);
+    assertTrue(placed.y + MENU_H <= petY - PetMenuPlacement.GAP);
+    assertTrue(screen.contains(new Rectangle(placed.x, placed.y, MENU_W, MENU_H)));
+    assertNoOverlap(placed, petX, petY, petW, petH);
+  }
+
+  @Test
+  public void prefersBelowWhenLowerSideHasMoreRoom() {
+    Rectangle screen = new Rectangle(0, 0, 480, 1400);
+    int petX = 150;
+    int petY = 400;
+    int petW = 180;
+    int petH = 100;
+    Point placed = PetMenuPlacement.placeBesidePet(
+            petX, petY, petW, petH, MENU_W, MENU_H, new Rectangle[] {screen});
+    assertEquals(new Point(150, 508), placed);
+    assertTrue(placed.y >= petY + petH + PetMenuPlacement.GAP);
+    assertTrue(screen.contains(new Rectangle(placed.x, placed.y, MENU_W, MENU_H)));
+    assertNoOverlap(placed, petX, petY, petW, petH);
+  }
+
+  @Test
+  public void dragReleaseClampGetsAFreshMenuThatDoesNotCoverThePet() {
+    Rectangle[] screens = {new Rectangle(0, 0, 1440, 900)};
+    int petW = 137;
+    int petH = 176;
+    int y = 480;
+    Point hung = DesktopPetWindow.clampDragToScreens(1416, y, petW, petH, screens);
+    assertEquals(1416, hung.x);
+    assertEquals(y, hung.y);
+    Point settled = DesktopPetWindow.clampToScreens(hung.x, hung.y, petW, petH, screens);
+    assertEquals(1303, settled.x);
+    assertEquals(y, settled.y);
+    Point menuAtDrag = PetMenuPlacement.placeBesidePet(
+            hung.x, hung.y, petW, petH, MENU_W, MENU_H, screens);
+    Rectangle staleMenu = new Rectangle(menuAtDrag.x, menuAtDrag.y, MENU_W, MENU_H);
+    Rectangle settledPet = new Rectangle(settled.x, settled.y, petW, petH);
+    assertTrue(staleMenu.intersects(settledPet));
+    Point menuAfter = PetMenuPlacement.placeBesidePet(
+            settled.x, settled.y, petW, petH, MENU_W, MENU_H, screens);
+    assertFalse(new Rectangle(menuAfter.x, menuAfter.y, MENU_W, MENU_H).intersects(settledPet));
+    assertTrue(screens[0].contains(new Rectangle(menuAfter.x, menuAfter.y, MENU_W, MENU_H)));
+    assertNoOverlap(menuAfter, settled.x, settled.y, petW, petH);
+  }
+
+  @Test
   public void clampMenuOriginStillWorksForLegacyCallers() {
     Point corner = PetContextMenu.clampMenuOrigin(1200, 760, MENU_W, MENU_H, new Rectangle[] {SINGLE});
     assertEquals(1056, corner.x);

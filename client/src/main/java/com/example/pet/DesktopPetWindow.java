@@ -794,10 +794,7 @@ public final class DesktopPetWindow extends JFrame {
                         getHeight(),
                         screenRects());
                 setLocation(clamped);
-                if (petMenuVisible()) {
-                    placePetMenuWindow();
-                    petMenuWindow.toFront();
-                }
+                followOpenPetMenu();
                 repaint();
             }
 
@@ -822,6 +819,8 @@ public final class DesktopPetWindow extends JFrame {
                     animation.releaseCarry();
                     Point clamped = clampToScreens(getX(), getY(), getWidth(), getHeight(), screenRects());
                     setLocation(clamped);
+                    // 拖曳允許只留一點在螢幕內；放開會把整扇拉回。看板要跟著這一下，否則停在舊座標蓋住角色。
+                    followOpenPetMenu();
                     rememberLocation();
                     if (noticePump != null) {
                         noticePump.run();
@@ -962,9 +961,7 @@ public final class DesktopPetWindow extends JFrame {
         petMenuWindow.getContentPane().add(panel);
         petMenuWindow.pack();
         placePetMenuWindow();
-        if (!control.isActive()) {
-            setFocusableWindowState(true);
-        }
+        claimMenuKeyboardFocus();
         menuEventListener = ev -> onPetMenuAwtEvent(ev);
         Toolkit.getDefaultToolkit().addAWTEventListener(
                 menuEventListener, AWTEvent.MOUSE_EVENT_MASK | AWTEvent.KEY_EVENT_MASK);
@@ -972,6 +969,27 @@ public final class DesktopPetWindow extends JFrame {
         menuAutoCloseTimer.setRepeats(true);
         menuAutoCloseTimer.start();
         petMenuWindow.setVisible(true);
+        petMenuWindow.toFront();
+    }
+
+    /** 看板不收鍵，Esc 要打到寵物視窗。還沒有焦點時主動要；呼叫端接著把看板顯示並 toFront。 */
+    private void claimMenuKeyboardFocus() {
+        if (!control.isActive()) {
+            setFocusableWindowState(true);
+            stage.setFocusable(true);
+        }
+        if (!PetMenuDismiss.needsKeyboardFocus(isFocused())) {
+            return;
+        }
+        requestFocus();
+        stage.requestFocusInWindow();
+    }
+
+    private void followOpenPetMenu() {
+        if (!petMenuVisible()) {
+            return;
+        }
+        placePetMenuWindow();
         petMenuWindow.toFront();
     }
 
