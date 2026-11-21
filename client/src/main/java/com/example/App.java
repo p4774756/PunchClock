@@ -2165,6 +2165,13 @@ public class App extends JFrame {
         try {
             desktopPetManager = new DesktopPetManager();
             desktopPetManager.setSummonMain(() -> WindowShake.bringToFront(this));
+            desktopPetManager.setMainBoundsSupplier(() -> {
+                if ((getExtendedState() & Frame.ICONIFIED) != 0 || !isShowing()) {
+                    return null;
+                }
+                Point onScreen = getLocationOnScreen();
+                return new Rectangle(onScreen.x, onScreen.y, getWidth(), getHeight());
+            });
         } catch (RuntimeException ex) {
             appendLog("[設定] 無法讀取桌面寵物設定");
             return;

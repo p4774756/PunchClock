@@ -4,8 +4,10 @@ import javax.swing.SwingUtilities;
 import java.awt.GraphicsEnvironment;
 import java.awt.HeadlessException;
 import java.awt.Toolkit;
+import java.awt.Rectangle;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
+import java.util.function.Supplier;
 
 /**
  * 桌面寵物的啟用、停用與結束。同一隻寵物只會有一個視窗，監聽器不重複註冊。
@@ -21,6 +23,7 @@ public final class DesktopPetManager {
     private DesktopPetWindow window;
     private DesktopPetHookServer hookServer;
     private Runnable summonMain;
+    private Supplier<Rectangle> mainBoundsSupplier;
     private boolean active;
     private boolean closed;
 
@@ -103,6 +106,14 @@ public final class DesktopPetManager {
         this.summonMain = summonMain;
         if (window != null) {
             window.setSummonMain(summonMain);
+        }
+    }
+
+    /** 主視窗螢幕外框。主視窗最小化時請回傳 null，寵物才不會被誤推走。 */
+    public void setMainBoundsSupplier(Supplier<Rectangle> mainBoundsSupplier) {
+        this.mainBoundsSupplier = mainBoundsSupplier;
+        if (window != null) {
+            window.setMainBoundsSupplier(mainBoundsSupplier);
         }
     }
 
@@ -241,6 +252,7 @@ public final class DesktopPetManager {
                 window.setNoticeReleased(bridge::releaseShowing);
                 window.setNoticePump(bridge::pump);
                 window.setSummonMain(summonMain);
+                window.setMainBoundsSupplier(mainBoundsSupplier);
                 window.bindCare(care, this::persistCare);
             }
             window.syncCareUi();
