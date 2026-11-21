@@ -271,6 +271,8 @@ public final class DesktopPetWindow extends JFrame {
             setLocation(initialLocation());
             placed = true;
         }
+        refreshFit();
+        validate();
         if (!isVisible()) {
             setVisible(true);
         }
@@ -1427,7 +1429,14 @@ public final class DesktopPetWindow extends JFrame {
             view = next;
             Dimension size = new Dimension(view.width, view.height);
             stage.setPreferredSize(size);
+            stage.setMinimumSize(size);
+            stage.setMaximumSize(size);
+            stage.setSize(view.width, view.height);
             setSize(view.width, view.height);
+            java.awt.Container root = getContentPane();
+            if (root != null) {
+                root.setSize(view.width, view.height);
+            }
             if (placed) {
                 setLocation(getX() + dx, getY() + dy);
             }
@@ -1453,6 +1462,19 @@ public final class DesktopPetWindow extends JFrame {
         if (fittedShell == null) {
             fittedShell = shellFor(milu);
         }
+        return viewForPose(milu, fittedShell, animation);
+    }
+
+    /**
+     * 依目前姿勢決定視窗在邏輯畫布上的露出區塊。測試用同一套規則渲染到 {@link BufferedImage}。
+     */
+    static Rectangle viewForPose(
+            DesktopPetSpriteLoader.Frames milu,
+            Rectangle fittedShell,
+            DesktopPetAnimation animation) {
+        if (milu == null || fittedShell == null) {
+            return new Rectangle(0, 0, WIDTH, HEIGHT);
+        }
         DesktopPetSpriteLoader.Sprite frame = milu.spriteFor(animation);
         if (frame == null || frame.image == null) {
             return new Rectangle(fittedShell);
@@ -1462,6 +1484,67 @@ public final class DesktopPetWindow extends JFrame {
             return new Rectangle(fittedShell);
         }
         return clipToCanvas(unionRect(fittedShell, raw));
+    }
+
+    /**
+     * 把喵露與影子畫進與實際視窗同尺寸的緩衝圖（headless 驗收用）。
+     *
+     * @param drawViewportBorder 為 true 時在視窗外框畫粉線
+     */
+    static BufferedImage paintMiluViewport(
+            Rectangle view,
+            DesktopPetSpriteLoader.Frames milu,
+            DesktopPetAnimation animation,
+            boolean drawViewportBorder) {
+        if (view == null || view.width < 1 || view.height < 1) {
+            return new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        }
+        BufferedImage image = new BufferedImage(view.width, view.height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setComposite(AlphaComposite.Src);
+            g.setColor(new Color(0, 0, 0, 0));
+            g.fillRect(0, 0, view.width, view.height);
+            g.setComposite(AlphaComposite.SrcOver);
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.translate(-view.x, -view.y);
+            paintMiluShadow(g, WIDTH);
+            int x = (WIDTH - DesktopPetSpriteLoader.DISPLAY) / 2;
+            DesktopPetSpriteLoader.Sprite frame = milu.spriteFor(animation);
+            DesktopPetSpriteLoader.draw(
+                    g,
+                    frame.image,
+                    x,
+                    BUBBLE_SLOT,
+                    DesktopPetSpriteLoader.DISPLAY,
+                    frame.offsetX,
+                    frame.offsetY);
+        } finally {
+            g.dispose();
+        }
+        if (drawViewportBorder) {
+            Graphics2D border = image.createGraphics();
+            try {
+                border.setColor(new Color(255, 64, 96, 220));
+                border.drawRect(0, 0, Math.max(0, view.width - 1), Math.max(0, view.height - 1));
+            } finally {
+                border.dispose();
+            }
+        }
+        return image;
+    }
+
+    static void assertOpaqueWithinViewport(BufferedImage viewport, int threshold) {
+        Rectangle bounds = opaqueBounds(viewport, threshold);
+        if (bounds.width < 1 || bounds.height < 1) {
+            throw new AssertionError("no opaque pixels");
+        }
+        if (bounds.x < 0 || bounds.y < 0
+                || bounds.x + bounds.width > viewport.getWidth()
+                || bounds.y + bounds.height > viewport.getHeight()) {
+            throw new AssertionError(
+                    "opaque " + bounds + " outside " + viewport.getWidth() + "x" + viewport.getHeight());
+        }
     }
 
     private Rectangle pixelBody() {
