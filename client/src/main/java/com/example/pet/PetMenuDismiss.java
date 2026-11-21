@@ -20,6 +20,14 @@ final class PetMenuDismiss {
         return menuVisible && keyCode == KeyEvent.VK_ESCAPE;
     }
 
+    /**
+     * 看板本身不收鍵。Esc 只會進已取得鍵盤焦點的寵物視窗；
+     * 視窗還沒有焦點時，按鍵不會進這個行程，開啟時必須主動要焦點。
+     */
+    static boolean needsKeyboardFocus(boolean petWindowFocused) {
+        return !petWindowFocused;
+    }
+
     static boolean shouldCloseOnFocusLost(boolean menuVisible, boolean focusMovedToMenu) {
         return menuVisible && !focusMovedToMenu;
     }

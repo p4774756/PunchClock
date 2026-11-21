@@ -203,6 +203,14 @@ final class PetContextMenu extends JPanel {
         return DesktopPetWindow.clampToScreens(x, y, menuW, menuH, screens);
     }
 
+    /** 看板放在寵物旁、不與本體重疊；詳見 {@link PetMenuPlacement}。 */
+    static Point placeBesidePet(
+            int petX, int petY, int petW, int petH,
+            int menuW, int menuH,
+            Rectangle[] screens) {
+        return PetMenuPlacement.placeBesidePet(petX, petY, petW, petH, menuW, menuH, screens);
+    }
+
     @Override
     protected void paintComponent(Graphics graphics) {
         Graphics2D g = (Graphics2D) graphics.create();

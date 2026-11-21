@@ -794,6 +794,7 @@ public final class DesktopPetWindow extends JFrame {
                         getHeight(),
                         screenRects());
                 setLocation(clamped);
+                followOpenPetMenu();
                 repaint();
             }
 
@@ -818,6 +819,8 @@ public final class DesktopPetWindow extends JFrame {
                     animation.releaseCarry();
                     Point clamped = clampToScreens(getX(), getY(), getWidth(), getHeight(), screenRects());
                     setLocation(clamped);
+                    // 拖曳允許只留一點在螢幕內；放開會把整扇拉回。看板要跟著這一下，否則停在舊座標蓋住角色。
+                    followOpenPetMenu();
                     rememberLocation();
                     if (noticePump != null) {
                         noticePump.run();
@@ -946,23 +949,19 @@ public final class DesktopPetWindow extends JFrame {
         petMenuPanel = panel;
         suppressMenuOnRelease = false;
         menuPointerLeftAt = -1L;
-        petMenuWindow = new JWindow();
+        petMenuWindow = new JWindow(this);
         petMenuWindow.setFocusableWindowState(false);
+        try {
+            petMenuWindow.setAlwaysOnTop(true);
+        } catch (SecurityException ex) {
+            // 沒有置頂權限時仍顯示選單。
+        }
         prepareMenuWindowTransparency(petMenuWindow);
         panel.setDoubleBuffered(false);
         petMenuWindow.getContentPane().add(panel);
         petMenuWindow.pack();
-        Point origin = stage.getLocationOnScreen();
-        Dimension size = petMenuWindow.getSize();
-        int sx = origin.x + e.getX();
-        int sy = origin.y + e.getY();
-        Point clamped = PetContextMenu.clampMenuOrigin(sx, sy, size.width, size.height, screenRects());
-        petMenuWindow.setLocation(clamped);
-        if (!control.isActive()) {
-            setFocusableWindowState(true);
-            toFront();
-            requestFocus();
-        }
+        placePetMenuWindow();
+        claimMenuKeyboardFocus();
         menuEventListener = ev -> onPetMenuAwtEvent(ev);
         Toolkit.getDefaultToolkit().addAWTEventListener(
                 menuEventListener, AWTEvent.MOUSE_EVENT_MASK | AWTEvent.KEY_EVENT_MASK);
@@ -970,6 +969,40 @@ public final class DesktopPetWindow extends JFrame {
         menuAutoCloseTimer.setRepeats(true);
         menuAutoCloseTimer.start();
         petMenuWindow.setVisible(true);
+        petMenuWindow.toFront();
+    }
+
+    /** 看板不收鍵，Esc 要打到寵物視窗。還沒有焦點時主動要；呼叫端接著把看板顯示並 toFront。 */
+    private void claimMenuKeyboardFocus() {
+        if (!control.isActive()) {
+            setFocusableWindowState(true);
+            stage.setFocusable(true);
+        }
+        if (!PetMenuDismiss.needsKeyboardFocus(isFocused())) {
+            return;
+        }
+        requestFocus();
+        stage.requestFocusInWindow();
+    }
+
+    private void followOpenPetMenu() {
+        if (!petMenuVisible()) {
+            return;
+        }
+        placePetMenuWindow();
+        petMenuWindow.toFront();
+    }
+
+    private void placePetMenuWindow() {
+        if (petMenuWindow == null) {
+            return;
+        }
+        Dimension size = petMenuWindow.getSize();
+        Point origin = getLocationOnScreen();
+        Point placed = PetContextMenu.placeBesidePet(
+                origin.x, origin.y, getWidth(), getHeight(),
+                size.width, size.height, screenRects());
+        petMenuWindow.setLocation(placed);
     }
 
     private void cleanupPetMenu() {
