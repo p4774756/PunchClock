@@ -8,9 +8,11 @@ import com.example.ui.UiFonts;
 import org.junit.Assume;
 import org.junit.Test;
 
+import javax.imageio.ImageIO;
 import javax.swing.JFrame;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
+import java.awt.Color;
 import java.awt.Frame;
 import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
@@ -18,6 +20,8 @@ import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -152,8 +156,11 @@ public class DesktopPetTest {
                 new Rectangle(800, 0, 800, 600)
         };
         Point dragTop = DesktopPetWindow.clampDragToScreens(100, -80, 260, 260, screens);
-        int contentTop = Math.max(0, DesktopPetWindow.BUBBLE_SLOT - 14);
-        assertTrue(dragTop.y + contentTop <= screens[0].y);
+        assertEquals(screens[0].y, dragTop.y);
+        Rectangle menuBar = new Rectangle(0, 25, 1440, 800);
+        Point onBar = DesktopPetWindow.clampDragToScreens(
+                100, -80, 140, 180, 0, new Rectangle[] {menuBar});
+        assertEquals(menuBar.y, onBar.y);
 
         Point inside = DesktopPetWindow.clampToScreens(100, 80, 220, 210, screens);
         assertEquals(100, inside.x);
@@ -175,6 +182,149 @@ public class DesktopPetTest {
         DesktopPetWindow.HorizontalStep returning = DesktopPetWindow.stepHorizontal(-10, 2, 0, 100);
         assertEquals(0, returning.x);
         assertFalse(returning.bounce);
+    }
+
+    @Test
+    public void fittedWindowPutsTheHeadOnTheMenuBar() throws Exception {
+        DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
+        assertNotNull(frames);
+        DesktopPetSpriteLoader.Sprite[] sprites = frames.allSprites();
+        assertTrue(sprites.length > 0);
+        DesktopPetSpriteLoader.Sprite idle = sprites[0];
+        Rectangle body = DesktopPetWindow.miluBodyOnCanvas(idle.image, idle.offsetX, idle.offsetY);
+        Rectangle shell = DesktopPetWindow.shellFor(frames);
+        assertEquals(body.y, shell.y);
+        assertTrue(shell.y >= 40);
+        assertTrue(shell.width < DesktopPetWindow.WIDTH - 40);
+        assertTrue(shell.height < DesktopPetWindow.HEIGHT - 40);
+        assertTrue(shell.width * shell.height < DesktopPetWindow.WIDTH * DesktopPetWindow.HEIGHT / 2);
+        assertTrue(shell.contains(body.x, body.y));
+        assertTrue(shell.y + shell.height >= body.y + body.height);
+
+        BufferedImage crop = renderCrop(idle, shell);
+        assertEquals(0, DesktopPetWindow.visibleTopInset(crop));
+        assertEquals(shell.y, transparentRowsAbove(idle, shell.y));
+
+        Rectangle menu = new Rectangle(0, 25, 1440, 860);
+        Point parked = DesktopPetWindow.clampDragToScreens(
+                40, -200, shell.width, shell.height, 0, new Rectangle[] {menu});
+        assertEquals(menu.y, parked.y);
+        assertEquals(menu.y, parked.y + DesktopPetWindow.visibleTopInset(crop));
+
+        for (DesktopPetSpriteLoader.Sprite sprite : sprites) {
+            if (sprite == null || sprite.name == null) {
+                continue;
+            }
+            String name = sprite.name;
+            boolean everyday = name.startsWith("idle/") || name.startsWith("walk/")
+                    || name.startsWith("wave/") || name.startsWith("grab/")
+                    || name.startsWith("struggle/") || name.startsWith("release/")
+                    || name.startsWith("think/") || name.startsWith("busy/")
+                    || name.startsWith("worry/") || name.startsWith("feed/")
+                    || name.startsWith("sit/") || name.startsWith("drag/");
+            if (!everyday) {
+                continue;
+            }
+            Rectangle bounds = DesktopPetWindow.miluBodyOnCanvas(sprite.image, sprite.offsetX, sprite.offsetY);
+            assertTrue(name + " " + bounds + " vs " + shell,
+                    DesktopPetWindow.poseFitsShell(shell, bounds));
+        }
+
+        if (!"true".equals(System.getenv("CI"))) {
+            Path out = Path.of(System.getProperty("user.home"), "PunchClock-oki", "shots297-self", "dev2");
+            Files.createDirectories(out);
+            ImageIO.write(crop, "png", out.resolve("pet-idle-fit.png").toFile());
+            ImageIO.write(renderCanvas(idle, shell), "png", out.resolve("pet-idle-on-canvas.png").toFile());
+            ImageIO.write(renderAtMenuBar(crop), "png", out.resolve("pet-head-at-menubar.png").toFile());
+            Files.writeString(out.resolve("pet-fit-metrics.txt"),
+                    "shell=" + shell.x + "," + shell.y + " " + shell.width + "x" + shell.height
+                            + " body=" + body.x + "," + body.y + " " + body.width + "x" + body.height
+                            + " inset=" + DesktopPetWindow.visibleTopInset(crop)
+                            + " menuHeadY=" + (parked.y + DesktopPetWindow.visibleTopInset(crop))
+                            + System.lineSeparator());
+        }
+    }
+
+    private static int transparentRowsAbove(DesktopPetSpriteLoader.Sprite sprite, int top) {
+        BufferedImage canvas = renderCanvas(sprite, null);
+        int rows = 0;
+        for (int y = 0; y < top && y < canvas.getHeight(); y++) {
+            for (int x = 0; x < canvas.getWidth(); x++) {
+                if (((canvas.getRGB(x, y) >>> 24) & 0xff) > 16) {
+                    return -1;
+                }
+            }
+            rows++;
+        }
+        return rows;
+    }
+
+    private static BufferedImage renderCanvas(DesktopPetSpriteLoader.Sprite sprite, Rectangle shell) {
+        BufferedImage canvas = new BufferedImage(
+                DesktopPetWindow.WIDTH, DesktopPetWindow.HEIGHT, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = canvas.createGraphics();
+        try {
+            int x = (DesktopPetWindow.WIDTH - DesktopPetSpriteLoader.DISPLAY) / 2;
+            DesktopPetSpriteLoader.draw(
+                    g, sprite.image, x, DesktopPetWindow.BUBBLE_SLOT,
+                    DesktopPetSpriteLoader.DISPLAY, sprite.offsetX, sprite.offsetY);
+            DesktopPetWindow.paintMiluShadow(g, DesktopPetWindow.WIDTH);
+            if (shell != null) {
+                g.setColor(new Color(255, 64, 96, 220));
+                g.drawRect(shell.x, shell.y, shell.width - 1, shell.height - 1);
+            }
+        } finally {
+            g.dispose();
+        }
+        return canvas;
+    }
+
+    private static BufferedImage renderCrop(DesktopPetSpriteLoader.Sprite sprite, Rectangle shell) {
+        BufferedImage crop = new BufferedImage(shell.width, shell.height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = crop.createGraphics();
+        try {
+            g.translate(-shell.x, -shell.y);
+            int x = (DesktopPetWindow.WIDTH - DesktopPetSpriteLoader.DISPLAY) / 2;
+            DesktopPetSpriteLoader.draw(
+                    g, sprite.image, x, DesktopPetWindow.BUBBLE_SLOT,
+                    DesktopPetSpriteLoader.DISPLAY, sprite.offsetX, sprite.offsetY);
+            DesktopPetWindow.paintMiluShadow(g, DesktopPetWindow.WIDTH);
+        } finally {
+            g.dispose();
+        }
+        return crop;
+    }
+
+    private static BufferedImage renderAtMenuBar(BufferedImage crop) {
+        int width = Math.max(360, crop.getWidth() + 80);
+        int height = crop.getHeight() + 80;
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            g.setColor(new Color(232, 236, 240));
+            g.fillRect(0, 0, width, height);
+            g.setColor(new Color(36, 40, 48));
+            g.fillRect(0, 0, width, 25);
+            g.setColor(Color.WHITE);
+            g.drawString("menu", 12, 17);
+            int x = 40;
+            int y = 25;
+            for (int py = 0; py < crop.getHeight(); py++) {
+                for (int px = 0; px < crop.getWidth(); px++) {
+                    int argb = crop.getRGB(px, py);
+                    int alpha = (argb >>> 24) & 0xff;
+                    if (alpha < 16) {
+                        continue;
+                    }
+                    image.setRGB(x + px, y + py, argb | 0xff000000);
+                }
+            }
+            g.setColor(new Color(220, 48, 72));
+            g.drawLine(0, 25, width, 25);
+        } finally {
+            g.dispose();
+        }
+        return image;
     }
 
     @Test
@@ -701,11 +851,11 @@ public class DesktopPetTest {
         Graphics2D graphics = shot.createGraphics();
         pet.stage().paint(graphics);
         graphics.dispose();
-        assertEquals(0, shot.getRGB(1, 1) >>> 24);
+        assertTrue(pet.getWidth() < DesktopPetWindow.WIDTH - 40);
+        assertTrue(pet.getHeight() < DesktopPetWindow.HEIGHT - 40);
+        assertEquals(0, DesktopPetWindow.visibleTopInset(shot));
         int opaque = 0;
-        int top = DesktopPetWindow.BUBBLE_SLOT;
-        int bottom = Math.min(shot.getHeight(), top + DesktopPetSpriteLoader.DISPLAY);
-        for (int y = top; y < bottom; y++) {
+        for (int y = 0; y < shot.getHeight(); y++) {
             for (int x = 0; x < shot.getWidth(); x++) {
                 if (((shot.getRGB(x, y) >>> 24) & 0xff) > 16) {
                     opaque++;
@@ -887,8 +1037,8 @@ public class DesktopPetTest {
                         0, 1, MouseEvent.BUTTON1));
                 assertEquals(parkedX, pet.getX());
                 assertEquals(parkedY, pet.getY());
-                assertEquals(parkedX, settings.x());
-                assertEquals(parkedY, settings.y());
+                assertEquals(parkedX - pet.viewOriginX(), settings.x());
+                assertEquals(parkedY - pet.viewOriginY(), settings.y());
                 assertTrue(pet.animation().isSettling());
                 for (int i = 0; i < DesktopPetAnimation.RELEASE_TICKS; i++) {
                     pet.tickOnce();
@@ -1228,7 +1378,7 @@ public class DesktopPetTest {
                         0, 1, MouseEvent.BUTTON1));
                 assertEquals(CarryPhase.RELEASE, pet.animation().carryPhase());
                 assertSame(frames.release(0), pet.currentImage());
-                assertEquals(homeX + 90, settings.x());
+                assertEquals(homeX + 90 - pet.viewOriginX(), settings.x());
                 pet.tickOnce();
                 pet.tickOnce();
                 assertSame(frames.release(1), pet.currentImage());
