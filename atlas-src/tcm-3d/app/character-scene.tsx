@@ -79,7 +79,9 @@ type MToonLike=T.Material & {
  matcapFactor?:T.Color;
 };
 
-const isHairMaterial=(mat:T.Material)=>/HAIR|HairBack|PracticeHairBun/i.test(mat.name||'');
+/** Material name or the mesh that carries it (Hair001 / outline shells). */
+const isHairMaterial=(mat:T.Material,obj?:T.Object3D)=>
+ /HAIR|HairBack|PracticeHairBun|髪/i.test(`${mat.name||''} ${obj?.name||''}`);
 
 /** TV anime cel look: sharp shade bands + ink outline; keep #75 hide／hair／practice intact. */
 const applyCelShadingToObject=(obj:T.Object3D,gradient:T.DataTexture)=>{
@@ -829,8 +831,13 @@ const isOutlineMaterial=(m:T.Material)=>{
 
 const CLOTH_PEEK_RADIUS=.058;
 const CLOTH_PEEK_FEATHER=.016;
-/** Hair window is a touch wider so the ink ring on the cloth is not covered. */
-const HAIR_PEEK_RADIUS=.074;
+/**
+ * View-plane radius for hair only. Long hair sits in front of 天宗, so a world
+ * sphere on the cloth misses the strands that cover the ink ring.
+ */
+const HAIR_PEEK_RADIUS=.082;
+/** How far in front of the point (view axis) hair may be and still be cleared. */
+const HAIR_PEEK_DEPTH=.24;
 const clothPeekByMaterial=new WeakMap<T.Material,ClothPeekUniforms>();
 
 type ClothPeekUniforms={
@@ -858,7 +865,11 @@ const CLOTH_PEEK_FRAG_BODY=`{
     float atlasPeekDist=distance(vAtlasClothPeekWorld,atlasClothPeekCenter);
     float atlasPeek=atlasClothPeekActive*(1.0-smoothstep(atlasClothPeekRadius-atlasClothPeekFeather,atlasClothPeekRadius,atlasPeekDist));
     if(atlasClothPeekMode>1.5){
-      if(atlasPeek>0.04)discard;
+      vec3 atlasFragView=-vViewPosition;
+      vec3 atlasCenterView=(viewMatrix*vec4(atlasClothPeekCenter,1.0)).xyz;
+      float atlasLateral=distance(atlasFragView.xy,atlasCenterView.xy);
+      float atlasAlong=abs(atlasFragView.z-atlasCenterView.z);
+      if(atlasClothPeekActive>0.5 && atlasLateral<atlasClothPeekRadius && atlasAlong<${HAIR_PEEK_DEPTH.toFixed(2)})discard;
     }else if(atlasPeek>0.001){
       vec3 atlasInk=vec3(0.145,0.118,0.098);
       vec3 atlasPaper=vec3(0.93,0.90,0.84);
@@ -924,7 +935,7 @@ const installClothGarmentPeek=(root:T.Object3D,sink:Set<T.Material>)=>{
   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
   const mats=Array.isArray(obj.material)?obj.material:[obj.material];
   for(const mat of mats){
-   if(isHairMaterial(mat)){
+   if(isHairMaterial(mat,obj)){
     attachClothPeekShader(mat,2);
     sink.add(mat);
     continue;

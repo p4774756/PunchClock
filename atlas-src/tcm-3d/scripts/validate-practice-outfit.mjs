@@ -77,6 +77,9 @@ assert.match(src, /isTorsoClothPeekPoint/, 'torso cloth peek must gate on torso 
 assert.match(src, /installClothGarmentPeek/, 'school uniform must peek garment surfaces locally');
 assert.match(src, /refreshPracticeClothPeekTexture/, 'practice teal must peel locally without global transparency');
 assert.match(src, /uniform vec3 atlasClothPeekCenter/, 'cloth peek uniforms must be declared in the shader');
+assert.match(src, /atlasLateral/, 'hair over a torso point must clear on the view plane');
+assert.match(src, /vViewPosition/, 'hair discard must use the skinned view position');
+assert.match(src, /isHairMaterial\(mat,obj\)/, 'hair peek must see the mesh name, not only the material');
 assert.match(src, /gl_FragColor = vec4\( col, diffuseColor\.a \)/, 'cloth peek must run in MToon main before output');
 assert.doesNotMatch(src, /dithering_fragment/, 'cloth peek must not inject into postCorrection dithering');
 assert.doesNotMatch(src, /Body_00_SKIN[\s\S]{0,80}onBeforeCompile/, 'must not patch Body skin onBeforeCompile');
