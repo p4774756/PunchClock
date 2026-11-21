@@ -13,9 +13,13 @@ const REQUIRED_LANDMARKS = [
   'left_elbow_crease', 'right_elbow_crease', 'left_wrist_crease', 'right_wrist_crease',
   'left_knee', 'right_knee', 'left_medial_malleolus', 'right_medial_malleolus',
   'left_lateral_malleolus', 'right_lateral_malleolus',
-  'anterior_hairline', 'posterior_hairline', 'yintang',
-  'laryngeal_prominence', 'pupil_left', 'nasal_ala', 'mouth_corner',
+  'anterior_hairline', 'posterior_hairline', 'vertex', 'yintang',
+  'laryngeal_prominence', 'larynx_suprahyoid', 'mentolabial_groove', 'philtrum_upper_third',
+  'pupil_left', 'infraorbital_rim', 'infraorbital_foramen', 'nose_tip', 'nasal_ala', 'mouth_corner',
 ];
+
+/** 前髮際至百會 5 寸，百會至後髮際 7 寸。 */
+const SCALP_FRONT_CUN = 5;
 
 const SPINE_SUPERIOR_TO_INFERIOR = [
   'GV14', 'GV13', 'GV12', 'GV11', 'GV10', 'GV9', 'GV8', 'GV7', 'GV6', 'GV5', 'GV4', 'GV3',
@@ -40,10 +44,21 @@ function fmtPos(p) {
   return `[${p.map(v => Number(v).toFixed(4)).join(', ')}]`;
 }
 
+function quantize(value, digits, mode) {
+  const f = 10 ** digits;
+  const scaled = value * f;
+  return (mode === 'round' ? Math.round(scaled) : Math.trunc(scaled)) / f;
+}
+
+/** 任一分量在 1–4 位小數被四捨五入或截斷，即視為同一穴座標的複本。各分量精度可以不同。 */
 function isRoundedCopy(landmark, actual) {
-  return [3, 4].some(d => {
-    const f = 10 ** d;
-    return landmark.every((v, i) => Math.abs(v - Math.round(actual[i] * f) / f) < 1e-9);
+  if (!Array.isArray(landmark) || landmark.length !== actual.length) return false;
+  return landmark.every((value, i) => {
+    if (Math.abs(value - actual[i]) < 1e-9) return true;
+    return [1, 2, 3, 4].some(digits => (
+      Math.abs(value - quantize(actual[i], digits, 'round')) < 1e-9
+      || Math.abs(value - quantize(actual[i], digits, 'trunc')) < 1e-9
+    ));
   });
 }
 
@@ -104,12 +119,13 @@ function cunScalars(landmarks, spans, boneSpans, rules) {
     const cun = boneSpans[span.boneSpan];
     const front = landmarks[span.from];
     const back = landmarks[span.to];
+    const crown = landmarks.vertex;
+    assert.ok(crown, '頭弧缺少頭頂地標 vertex');
     const baihui = rules.find(rule => rule.code === 'GV20');
     assert.equal(baihui?.scalpFrom, 'anterior_hairline');
-    const crownY = front[1] + baihui.scalpCun * scalars.headFront;
-    const crownZ = front[2] + (baihui.scalpCun / cun) * (back[2] - front[2]);
-    const arc = Math.hypot(crownY - front[1], crownZ - front[2])
-      + Math.hypot(back[1] - crownY, back[2] - crownZ);
+    assert.equal(baihui?.scalpCun, SCALP_FRONT_CUN);
+    const arc = Math.hypot(crown[0] - front[0], crown[1] - front[1], crown[2] - front[2])
+      + Math.hypot(back[0] - crown[0], back[1] - crown[1], back[2] - crown[2]);
     assert.ok(arc > 1e-6, '前髮際至後髮際弧長為零');
     scalars.headArc = arc / cun;
   }
@@ -152,16 +168,19 @@ function expectedFromRule(rule, landmarks, scalars, boneSpans, expectedByCode) {
     return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
   }
   if (rule.scalpFrom) {
-    const origin = landmarks[rule.scalpFrom];
-    const otherName = rule.scalpFrom === 'posterior_hairline' ? 'anterior_hairline' : 'posterior_hairline';
-    const other = landmarks[otherName];
+    const front = landmarks.anterior_hairline;
+    const crown = landmarks.vertex;
+    const back = landmarks.posterior_hairline;
+    assert.ok(front && crown && back, `${rule.code} 缺少頭弧地標`);
     const total = boneSpans.hairline_front_to_back;
-    const frac = rule.scalpCun / total;
-    return [
-      0,
-      origin[1] + rule.scalpCun * scalars.headFront,
-      origin[2] + frac * (other[2] - origin[2]),
-    ];
+    const backCun = total - SCALP_FRONT_CUN;
+    const cunFromFront = rule.scalpFrom === 'anterior_hairline'
+      ? rule.scalpCun
+      : total - rule.scalpCun;
+    if (cunFromFront <= SCALP_FRONT_CUN) {
+      return lerp(front, crown, cunFromFront / SCALP_FRONT_CUN);
+    }
+    return lerp(crown, back, (cunFromFront - SCALP_FRONT_CUN) / backCun);
   }
   if (rule.spinous) {
     const a = landmarks[rule.spinous.from];
@@ -257,8 +276,21 @@ function assertGeometry(spaceKey, landmarks, scalars, expected, boneSpans) {
   assert.ok(cv16.every((v, i) => Math.abs(v - xiphoid[i]) < 1e-6), `${spaceKey} 中庭應在胸劍結合`);
   const gv20 = expected.get('GV20');
   const hair = landmarks.anterior_hairline;
-  const expectY = hair[1] + 5 * scalars.headFront;
-  assert.ok(Math.abs(gv20[1] - expectY) < 1e-6, `${spaceKey} 百會應為前髮際直上 5 寸`);
+  const crown = landmarks.vertex;
+  assert.ok(
+    Math.abs(gv20[1] - crown[1]) < 1e-6 && Math.abs(gv20[2] - crown[2]) < 1e-6,
+    `${spaceKey} 百會應在前髮際沿頭弧 5 寸的頭頂`,
+  );
+  assert.ok(gv20[1] <= crown[1] + 1e-6, `${spaceKey} 百會應在位置不可高過頭頂`);
+  assert.ok(expected.get('CV24')[1] > expected.get('CV23')[1], `${spaceKey} 承漿應高於廉泉`);
+  assert.ok(expected.get('GV25')[1] > expected.get('GV26')[1], `${spaceKey} 素髎應高於水溝`);
+  assert.ok(landmarks.nose_tip[1] > landmarks.philtrum_upper_third[1], `${spaceKey} 鼻尖應高於人中溝`);
+  assert.ok(Math.abs(expected.get('ST1')[0] - landmarks.pupil_left[0]) < 1e-6, `${spaceKey} 承泣應在瞳孔直下`);
+  assert.ok(Math.abs(expected.get('ST2')[0] - landmarks.pupil_left[0]) < 1e-6, `${spaceKey} 四白應在瞳孔直下`);
+  assert.ok(expected.get('CV17')[1] > expected.get('CV16')[1], `${spaceKey} 膻中應高於中庭`);
+  assert.ok(expected.get('ST17')[1] > expected.get('ST18')[1], `${spaceKey} 乳中應高於乳根`);
+  assert.ok(landmarks.xiphoid[1] < landmarks.left_nipple[1], `${spaceKey} 劍突應低於乳頭`);
+  assert.ok(landmarks.larynx_suprahyoid[1] < landmarks.mentolabial_groove[1], `${spaceKey} 舌骨上緣應低於頦唇溝`);
   const verticalShortcut = Math.abs(hair[1] - landmarks.posterior_hairline[1]) / boneSpans.hairline_front_to_back;
   assert.ok(scalars.headArc > verticalShortcut, `${spaceKey} 前髮際至後髮際不可只取垂直差`);
   const lateral = scalars.lateral;
@@ -294,13 +326,36 @@ async function modelExists() {
   }
 }
 
+async function animeModelBounds() {
+  const {readFileSync} = await import('node:fs');
+  const T = await import('three');
+  const {GLTFLoader} = await import('three/examples/jsm/loaders/GLTFLoader.js');
+  globalThis.self = globalThis;
+  globalThis.URL = URL;
+  globalThis.webkitURL = URL;
+  if (!globalThis.document) {
+    globalThis.document = {createElementNS: () => ({style: {}, setAttribute() {}, getContext() { return null; }})};
+  }
+  const buffer = readFileSync(join(project, 'public/models/anime-assistant.glb')).buffer;
+  const gltf = await new Promise((res, rej) => new GLTFLoader().parse(buffer, '', res, rej));
+  gltf.scene.updateMatrixWorld(true);
+  const box = new T.Box3().setFromObject(gltf.scene);
+  const upper = gltf.scene.getObjectByName('J_Bip_C_UpperChest');
+  assert.ok(upper, '缺少上胸骨骨骼');
+  const upperPos = new T.Vector3();
+  upper.getWorldPosition(upperPos);
+  return {maxY: box.max.y, upperChestY: upperPos.y};
+}
+
 /**
  * @param {{writeReport?: boolean, thresholdCun?: number}} [opts]
  */
 export async function runCunValidation(opts = {}) {
   const config = JSON.parse(await readFile(join(project, 'data/cun-validation.json'), 'utf8'));
   const threshold = opts.thresholdCun ?? config.thresholdCun ?? 0.3;
-  const worsen = config.worsenSlackCun ?? 0.08;
+  assert.equal(config.worsenSlackCun ?? 0, 0, '清單內偏差變大即失敗，不得留放寬');
+  assert.equal(isRoundedCopy([0, 1.02, -0.1], [0, 1.02, -0.10554]), true);
+  assert.equal(isRoundedCopy([0.055, 1.195, -0.12], [0.055, 1.195, -0.12613]), true);
   const animeJson = JSON.parse(await readFile(join(project, 'app/anime-points.json'), 'utf8'));
   const catalog = JSON.parse(await readFile(join(project, 'app/teaching-points.json'), 'utf8'));
   const catalogBy = new Map(catalog.map(p => [p.code, p]));
@@ -317,6 +372,11 @@ export async function runCunValidation(opts = {}) {
   assert.equal(config.spaces.catalog.landmarks.navel?.sourcePoint, 'CV8');
   assert.equal(config.spaces.catalog.landmarks.suprasternal_notch?.sourcePoint, 'CV22');
   assert.equal(config.spaces.catalog.landmarks.left_nipple?.sourcePoint, 'ST17');
+  assert.equal(config.spaces.anime.landmarks.navel?.sourcePoint, 'CV8');
+  assert.equal(config.spaces.anime.landmarks.left_nipple?.sourcePoint, 'ST17');
+  assert.equal(config.rules.find(rule => rule.code === 'GV25')?.at, 'nose_tip');
+  assert.equal(config.rules.find(rule => rule.code === 'ST1')?.atLevel?.xFrom, 'pupil_left');
+  assert.equal(config.rules.find(rule => rule.code === 'ST2')?.atLevel?.xFrom, 'pupil_left');
   assert.equal(config.spaces.anime.landmarks.baihui, undefined);
   assert.equal(config.spaces.catalog.landmarks.baihui, undefined);
 
@@ -332,6 +392,19 @@ export async function runCunValidation(opts = {}) {
     const expected = computeExpected(config.rules, landmarks, scalars, config.boneSpans);
     assertGeometry(spaceKey, landmarks, scalars, expected, config.boneSpans);
     spaces[spaceKey] = {landmarks, scalars, expected, spans: space.spans};
+  }
+
+  if (hasModel) {
+    const bounds = await animeModelBounds();
+    const gv20 = spaces.anime.expected.get('GV20');
+    assert.ok(
+      gv20[1] <= bounds.maxY + 1e-4,
+      `百會應在位置 y=${gv20[1].toFixed(4)} 不高出模型頭頂 ${bounds.maxY.toFixed(4)}`,
+    );
+    assert.ok(
+      spaces.anime.landmarks.xiphoid[1] < bounds.upperChestY,
+      `劍突應低於上胸骨（${spaces.anime.landmarks.xiphoid[1].toFixed(3)} < ${bounds.upperChestY.toFixed(3)}）`,
+    );
   }
 
   const rows = [];
@@ -354,13 +427,23 @@ export async function runCunValidation(opts = {}) {
     const spaceKey = onAnime ? 'anime' : 'catalog';
     const space = spaces[spaceKey];
     const rawAt = rule.at ? config.spaces[spaceKey].landmarks[rule.at] : null;
+    let actual = point.position.slice();
+    if (onAnime && !point.midline) actual = [Math.abs(actual[0]), actual[1], actual[2]];
     if (rawAt && !Array.isArray(rawAt) && rawAt.sourcePoint === code) {
-      failures.push(`${code} 用地標穴自己的座標驗自己`);
+      rows.push({
+        code,
+        name,
+        source,
+        rule: ruleSummary(rule),
+        expected: actual.slice(),
+        actual,
+        deviationCun: 0,
+        status: '地標來源',
+        note: '本身即地標，不與自身座標比對',
+      });
       continue;
     }
 
-    let actual = point.position.slice();
-    if (onAnime && !point.midline) actual = [Math.abs(actual[0]), actual[1], actual[2]];
     const expected = space.expected.get(code).slice();
     if (rule.at && Array.isArray(config.spaces[spaceKey].landmarks[rule.at])
       && isRoundedCopy(space.landmarks[rule.at], actual)) {
@@ -368,16 +451,17 @@ export async function runCunValidation(opts = {}) {
     }
     const dev = deviationCun(actual, expected, space.scalars, rule);
     const allow = config.knownExceedances?.find(entry => entry.code === code && entry.source === spaceKey);
-    let status = dev <= threshold ? 'OK' : '超標';
-    if (allow) {
-      const cap = allow.maxDeviationCun ?? threshold;
-      if (dev <= cap) status = '已知超標（允許）';
-      else if (dev > cap + worsen) {
+    let status = 'OK';
+    if (dev > threshold) {
+      const cap = allow?.maxDeviationCun;
+      if (allow && dev <= cap + 5e-7) status = '已知超標（允許）';
+      else if (allow) {
         status = '惡化';
-        failures.push(`${code} 偏差惡化：${dev.toFixed(3)} 寸 > 允許 ${cap.toFixed(3)}（${allow.reason ?? ''}）`);
-      } else status = '已知超標（允許）';
-    } else if (dev > threshold) {
-      failures.push(`${code}（${name}）偏差 ${dev.toFixed(3)} 寸 > 門檻 ${threshold} [${source}]`);
+        failures.push(`${code} 偏差惡化：${dev.toFixed(3)} 寸 > 允許 ${Number(cap).toFixed(3)}（${allow.reason ?? ''}）`);
+      } else {
+        status = '超標';
+        failures.push(`${code}（${name}）偏差 ${dev.toFixed(3)} 寸 > 門檻 ${threshold} [${source}]`);
+      }
     }
 
     rows.push({

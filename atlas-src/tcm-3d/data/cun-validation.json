@@ -1,6 +1,6 @@
 {
   "thresholdCun": 0.3,
-  "worsenSlackCun": 0.08,
+  "worsenSlackCun": 0,
   "boneSpans": {
     "hairline_front_to_back": 12,
     "hairline_front_to_yintang": 3,
@@ -19,31 +19,27 @@
         "anterior": "z"
       },
       "landmarks": {
-        "navel": [
-          0,
-          1.02,
-          -0.1
-        ],
+        "navel": {
+          "sourcePoint": "CV8",
+          "role": "landmark-source"
+        },
         "xiphoid": [
           0,
-          1.26,
-          -0.1
+          1.16,
+          -0.11311
         ],
         "pubis_rim": [
           0,
           0.87,
           -0.1
         ],
-        "left_nipple": [
-          0.055,
-          1.195,
-          -0.12
-        ],
-        "right_nipple": [
-          -0.055,
-          1.195,
-          -0.12
-        ],
+        "left_nipple": {
+          "sourcePoint": "ST17",
+          "role": "landmark-source"
+        },
+        "right_nipple": {
+          "mirror": "left_nipple"
+        },
         "suprasternal_notch": [
           0,
           1.334,
@@ -56,8 +52,8 @@
         ],
         "larynx_suprahyoid": [
           0,
-          1.452,
-          -0.038
+          1.38,
+          -0.02684
         ],
         "laryngeal_prominence": [
           0,
@@ -74,6 +70,11 @@
           1.505,
           0.095
         ],
+        "vertex": [
+          0,
+          1.6249,
+          0.02
+        ],
         "c7_spinous": [
           0,
           1.31,
@@ -88,6 +89,11 @@
           0,
           1.431,
           -0.045
+        ],
+        "nose_tip": [
+          0,
+          1.44,
+          -0.10732
         ],
         "left_clavicle_mid": [
           0.0609,
@@ -163,6 +169,16 @@
           0.0314,
           1.4813,
           -0.08
+        ],
+        "infraorbital_rim": [
+          0.0314,
+          1.46,
+          -0.08077
+        ],
+        "infraorbital_foramen": [
+          0.0314,
+          1.44,
+          -0.08699
         ],
         "nasal_ala": [
           0.0421,
@@ -272,8 +288,8 @@
         },
         "xiphoid": [
           0,
-          1.267,
-          0.104
+          1.224,
+          0.103
         ],
         "pubis_rim": [
           0,
@@ -293,13 +309,13 @@
         },
         "mentolabial_groove": [
           0,
-          1.485,
-          0.085
+          1.534,
+          0.088
         ],
         "larynx_suprahyoid": [
           0,
-          1.515,
-          0.072
+          1.496,
+          0.028
         ],
         "laryngeal_prominence": [
           0,
@@ -316,6 +332,11 @@
           1.52,
           -0.115
         ],
+        "vertex": [
+          0,
+          1.706,
+          -0.018
+        ],
         "c7_spinous": [
           0,
           1.31,
@@ -330,6 +351,11 @@
           0,
           1.478,
           0.092
+        ],
+        "nose_tip": [
+          0,
+          1.562,
+          0.108
         ],
         "left_clavicle_mid": [
           0.034,
@@ -383,6 +409,16 @@
           0.03,
           1.61,
           0.068
+        ],
+        "infraorbital_rim": [
+          0.03,
+          1.588,
+          0.071
+        ],
+        "infraorbital_foramen": [
+          0.03,
+          1.574,
+          0.076
         ],
         "nasal_ala": [
           0.038,
@@ -904,10 +940,9 @@
     {
       "code": "GV25",
       "midline": true,
-      "ref": "philtrum_upper_third",
-      "verticalCun": -0.5,
-      "span": "upperAbdomen",
-      "summary": "鼻尖上方、人中溝上段"
+      "at": "nose_tip",
+      "span": "headFront",
+      "summary": "鼻尖"
     },
     {
       "code": "GV27",
@@ -927,18 +962,22 @@
     },
     {
       "code": "ST1",
-      "ref": "yintang",
-      "verticalCun": -2,
-      "lateralCun": 1.2,
-      "span": "upperAbdomen",
+      "atLevel": {
+        "xFrom": "pupil_left",
+        "yFrom": "infraorbital_rim",
+        "zFrom": "infraorbital_rim"
+      },
+      "span": "headFront",
       "summary": "瞳孔直下、眶下緣"
     },
     {
       "code": "ST2",
-      "ref": "yintang",
-      "verticalCun": -2.5,
-      "lateralCun": 1.2,
-      "span": "upperAbdomen",
+      "atLevel": {
+        "xFrom": "pupil_left",
+        "yFrom": "infraorbital_foramen",
+        "zFrom": "infraorbital_foramen"
+      },
+      "span": "headFront",
       "summary": "瞳孔直下、眶下孔"
     },
     {
@@ -1139,445 +1178,385 @@
     {
       "code": "CV1",
       "source": "catalog",
-      "maxDeviationCun": 5.574,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "CV10",
-      "source": "catalog",
-      "maxDeviationCun": 0.419,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "CV11",
-      "source": "catalog",
-      "maxDeviationCun": 0.629,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "CV12",
-      "source": "catalog",
-      "maxDeviationCun": 0.84,
+      "maxDeviationCun": 5.573614,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV13",
       "source": "catalog",
-      "maxDeviationCun": 1.069,
+      "maxDeviationCun": 0.373382,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV14",
       "source": "anime",
-      "maxDeviationCun": 1.894,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "CV15",
-      "source": "catalog",
-      "maxDeviationCun": 1.423,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "CV16",
-      "source": "catalog",
-      "maxDeviationCun": 2.013,
+      "maxDeviationCun": 1.512705,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV17",
       "source": "anime",
-      "maxDeviationCun": 0.683,
+      "maxDeviationCun": 1.128727,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV18",
       "source": "catalog",
-      "maxDeviationCun": 3.194,
+      "maxDeviationCun": 1.943435,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV19",
       "source": "catalog",
-      "maxDeviationCun": 3.867,
+      "maxDeviationCun": 2.920523,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV2",
       "source": "catalog",
-      "maxDeviationCun": 0.736,
+      "maxDeviationCun": 0.735534,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV20",
       "source": "catalog",
-      "maxDeviationCun": 4.561,
+      "maxDeviationCun": 3.852278,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV21",
       "source": "catalog",
-      "maxDeviationCun": 4.446,
+      "maxDeviationCun": 3.987042,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV23",
       "source": "anime",
-      "maxDeviationCun": 3.093,
+      "maxDeviationCun": 0.900447,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV24",
       "source": "anime",
-      "maxDeviationCun": 1.698,
+      "maxDeviationCun": 1.712285,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV3",
       "source": "catalog",
-      "maxDeviationCun": 0.585,
+      "maxDeviationCun": 0.585448,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV4",
       "source": "catalog",
-      "maxDeviationCun": 0.468,
+      "maxDeviationCun": 0.468322,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV7",
       "source": "catalog",
-      "maxDeviationCun": 0.363,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "CV8",
-      "source": "anime",
-      "maxDeviationCun": 0.403,
+      "maxDeviationCun": 0.363025,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV1",
       "source": "catalog",
-      "maxDeviationCun": 2.135,
+      "maxDeviationCun": 2.134884,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV10",
       "source": "catalog",
-      "maxDeviationCun": 2.817,
+      "maxDeviationCun": 3.407645,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV11",
       "source": "catalog",
-      "maxDeviationCun": 3.055,
+      "maxDeviationCun": 3.683754,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV12",
       "source": "catalog",
-      "maxDeviationCun": 3.273,
+      "maxDeviationCun": 3.947411,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV13",
       "source": "catalog",
-      "maxDeviationCun": 3.657,
+      "maxDeviationCun": 4.418347,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV14",
       "source": "anime",
-      "maxDeviationCun": 1.962,
+      "maxDeviationCun": 1.962182,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV15",
       "source": "anime",
-      "maxDeviationCun": 3.969,
+      "maxDeviationCun": 3.844413,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV16",
       "source": "anime",
-      "maxDeviationCun": 3.685,
+      "maxDeviationCun": 3.419869,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV17",
       "source": "catalog",
-      "maxDeviationCun": 2.226,
+      "maxDeviationCun": 0.774105,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV18",
       "source": "catalog",
-      "maxDeviationCun": 3.097,
+      "maxDeviationCun": 0.990376,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV19",
       "source": "catalog",
-      "maxDeviationCun": 4.139,
+      "maxDeviationCun": 1.010428,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV2",
       "source": "catalog",
-      "maxDeviationCun": 0.891,
+      "maxDeviationCun": 0.891358,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV20",
       "source": "anime",
-      "maxDeviationCun": 3.136,
+      "maxDeviationCun": 0.852975,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV21",
       "source": "catalog",
-      "maxDeviationCun": 3.57,
+      "maxDeviationCun": 2.977419,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV22",
       "source": "catalog",
-      "maxDeviationCun": 3.98,
+      "maxDeviationCun": 3.628698,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV23",
       "source": "anime",
-      "maxDeviationCun": 2.191,
+      "maxDeviationCun": 2.169786,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV24",
       "source": "catalog",
-      "maxDeviationCun": 3.561,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "GV25",
-      "source": "catalog",
-      "maxDeviationCun": 3.493,
+      "maxDeviationCun": 3.484518,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV26",
       "source": "anime",
-      "maxDeviationCun": 3.941,
+      "maxDeviationCun": 3.947407,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV27",
       "source": "catalog",
-      "maxDeviationCun": 2.919,
+      "maxDeviationCun": 3.377082,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV28",
       "source": "catalog",
-      "maxDeviationCun": 2.732,
+      "maxDeviationCun": 2.991356,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV3",
       "source": "catalog",
-      "maxDeviationCun": 0.625,
+      "maxDeviationCun": 0.728371,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV4",
       "source": "anime",
-      "maxDeviationCun": 4.38,
+      "maxDeviationCun": 4.379636,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV5",
       "source": "catalog",
-      "maxDeviationCun": 0.625,
+      "maxDeviationCun": 0.760017,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV6",
       "source": "catalog",
-      "maxDeviationCun": 1.224,
+      "maxDeviationCun": 1.487819,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV7",
       "source": "catalog",
-      "maxDeviationCun": 1.844,
+      "maxDeviationCun": 2.242267,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV8",
       "source": "catalog",
-      "maxDeviationCun": 2.476,
+      "maxDeviationCun": 3.00795,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV9",
       "source": "catalog",
-      "maxDeviationCun": 2.594,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "ST1",
-      "source": "anime",
-      "maxDeviationCun": 1.545,
+      "maxDeviationCun": 3.142537,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST10",
       "source": "catalog",
-      "maxDeviationCun": 3.431,
+      "maxDeviationCun": 3.43093,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST11",
       "source": "catalog",
-      "maxDeviationCun": 3.135,
+      "maxDeviationCun": 2.913318,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST12",
       "source": "anime",
-      "maxDeviationCun": 2.241,
+      "maxDeviationCun": 1.637796,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST13",
       "source": "catalog",
-      "maxDeviationCun": 3.599,
+      "maxDeviationCun": 3.366159,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST14",
       "source": "catalog",
-      "maxDeviationCun": 2.947,
+      "maxDeviationCun": 2.007506,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST15",
       "source": "catalog",
-      "maxDeviationCun": 2.629,
+      "maxDeviationCun": 1.390653,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST16",
       "source": "catalog",
-      "maxDeviationCun": 2.336,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "ST17",
-      "source": "anime",
-      "maxDeviationCun": 0.446,
+      "maxDeviationCun": 0.807361,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST18",
       "source": "catalog",
-      "maxDeviationCun": 1.767,
+      "maxDeviationCun": 0.359454,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST19",
       "source": "catalog",
-      "maxDeviationCun": 1.405,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "ST2",
-      "source": "anime",
-      "maxDeviationCun": 1.406,
+      "maxDeviationCun": 0.923061,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST20",
       "source": "catalog",
-      "maxDeviationCun": 1.347,
+      "maxDeviationCun": 0.899173,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST21",
       "source": "catalog",
-      "maxDeviationCun": 1.305,
+      "maxDeviationCun": 0.928164,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST22",
       "source": "catalog",
-      "maxDeviationCun": 1.269,
+      "maxDeviationCun": 0.989457,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST23",
       "source": "catalog",
-      "maxDeviationCun": 1.037,
+      "maxDeviationCun": 0.90572,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST24",
       "source": "catalog",
-      "maxDeviationCun": 0.939,
+      "maxDeviationCun": 0.894784,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST25",
       "source": "anime",
-      "maxDeviationCun": 1.65,
+      "maxDeviationCun": 1.745455,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST26",
       "source": "catalog",
-      "maxDeviationCun": 0.88,
+      "maxDeviationCun": 0.880189,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST27",
       "source": "catalog",
-      "maxDeviationCun": 0.896,
+      "maxDeviationCun": 0.896384,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST28",
       "source": "catalog",
-      "maxDeviationCun": 0.936,
+      "maxDeviationCun": 0.935552,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST29",
       "source": "catalog",
-      "maxDeviationCun": 0.988,
+      "maxDeviationCun": 0.988082,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST30",
       "source": "catalog",
-      "maxDeviationCun": 1.094,
+      "maxDeviationCun": 1.09392,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST4",
       "source": "anime",
-      "maxDeviationCun": 0.441,
+      "maxDeviationCun": 0.441126,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST6",
       "source": "anime",
-      "maxDeviationCun": 3.9,
+      "maxDeviationCun": 3.882284,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST9",
       "source": "anime",
-      "maxDeviationCun": 0.468,
+      "maxDeviationCun": 0.46845,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     }
   ]

@@ -8,4 +8,5 @@ if (!passed) {
 }
 const ok = rows.filter(r => r.status === 'OK').length;
 const known = rows.filter(r => r.status.startsWith('已知')).length;
-console.log(`骨度分寸校驗通過：${rows.length} 穴受檢（${ok} 在門檻內，${known} 已知超標允許）。`);
+const landmark = rows.filter(r => r.status === '地標來源').length;
+console.log(`骨度分寸校驗通過：${rows.length} 穴受檢（${ok} 在門檻內，${known} 已知超標允許，${landmark} 為地標本身）。`);

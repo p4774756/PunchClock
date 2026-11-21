@@ -17,7 +17,7 @@ for (const r of rows) {
   config.knownExceedances.push({
     code: r.code,
     source,
-    maxDeviationCun: +r.deviationCun.toFixed(3),
+    maxDeviationCun: +r.deviationCun.toFixed(6),
     reason: '現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標',
   });
 }
