@@ -144,7 +144,7 @@
       const scheduled = countScheduledTasks(tasks);
       const names = taskNamesLabel(tasks);
       const named = names ? names + ' · ' : '';
-      return '營業中 · ' + transportLabel + ' · ' + named + total + ' 杯待做 · ' + scheduled + ' 杯在排隊';
+      return '辦公室上班中 · ' + transportLabel + ' · ' + named + total + ' 筆待辦 · ' + scheduled + ' 筆排程中';
     }
 
     function buildCancelAllButtonHtml(clientId, isConnected, tasks) {
@@ -373,7 +373,7 @@
       }
 
       const taskCountEl = root.querySelector('.metric-value[data-role="task-count"]');
-      if (taskCountEl) taskCountEl.textContent = tasks.length + ' 杯';
+      if (taskCountEl) taskCountEl.textContent = tasks.length + ' 筆';
 
       const msgEl = root.querySelector('.metric-value[data-role="latest-message"]');
       if (msgEl) {
@@ -463,7 +463,7 @@
           }
           (c.tasks || []).forEach((t) => {
             if (!t) return;
-            appendLog(c.clientId, '[' + timeStr + '] 這杯【' + (t.name || t.id) + '】狀態：' + taskStatusLabel(t.status));
+            appendLog(c.clientId, '[' + timeStr + '] 這筆任務【' + (t.name || t.id) + '】狀態：' + taskStatusLabel(t.status));
           });
         } else if (prevStateKey === undefined) {
           if (c.message && c.message.trim() !== '') {
@@ -830,7 +830,7 @@
     function buildTaskListInnerHtml(c, isConnected) {
       const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
       if (tasks.length === 0) {
-        return '<p class="empty-tasks">櫃檯現在沒有單，等下一杯</p>';
+        return '<p class="empty-tasks">目前沒有排程任務</p>';
       }
       tasks.sort((a, b) => (a.actualTime || a.targetTime || '').localeCompare(b.actualTime || b.targetTime || ''));
       let cardsHtml = '';
@@ -885,7 +885,7 @@
       const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
       if (tasks.length === 0) {
         host.removeAttribute('data-task-ids');
-        host.innerHTML = '<p class="empty-tasks">櫃檯現在沒有單，等下一杯</p>';
+        host.innerHTML = '<p class="empty-tasks">目前沒有排程任務</p>';
         return;
       }
       tasks.sort((a, b) => (a.actualTime || a.targetTime || '').localeCompare(b.actualTime || b.targetTime || ''));
@@ -904,7 +904,7 @@
     function renderClients() {
       const container = document.getElementById('clientContainer');
       if (!clientData || clientData.length === 0) {
-        container.innerHTML = '<div class="empty-state"><p>還沒有門市連上來</p><p>請打開桌面端，並勾選雲端狀態回報</p></div>';
+        container.innerHTML = '<div class="empty-state"><p>還沒有設備連上來</p><p>請打開桌面端，並勾選雲端狀態回報</p></div>';
         return;
       }
 
@@ -951,11 +951,11 @@
           '<div class="device-body ' + bodyClass + '">' +
             '<div class="metrics">' +
               '<div class="metric"><span class="metric-label">上次打卡</span><span class="metric-value heartbeat-value" data-client-id="' + escapeHtml(c.clientId) + '">' + formatHeartbeat(c.lastSeen) + '</span></div>' +
-              '<div class="metric"><span class="metric-label">待做</span><span class="metric-value" data-role="task-count">' + tasks.length + ' 杯</span></div>' +
+              '<div class="metric"><span class="metric-label">待辦</span><span class="metric-value" data-role="task-count">' + tasks.length + ' 筆</span></div>' +
               '<div class="metric"><span class="metric-label">最新動態</span><span class="metric-value" data-role="latest-message" style="color:' + statusColor + ';font-size:0.88rem;">' + safeMsg + '</span></div>' +
             '</div>' +
             '<div>' +
-              '<div class="section-label">點單</div>' +
+              '<div class="section-label">任務</div>' +
               '<div class="task-list" data-role="task-list" data-task-ids="' + escapeHtml(tasks.map((t) => t.id).join('|')) + '">' + tasksInnerHtml + '</div>' +
               '<div class="action-row">' +
                 cancelAllBtnHtml +
@@ -963,8 +963,8 @@
             '</div>' +
             '<div>' +
               '<div class="log-head">' +
-                '<div class="section-label" style="margin:0">店內筆記</div>' +
-                '<button class="btn btn-ghost" onclick="clearClientLog(\'' + c.clientId + '\')">擦掉</button>' +
+                '<div class="section-label" style="margin:0">設備紀錄</div>' +
+                '<button class="btn btn-ghost" onclick="clearClientLog(\'' + c.clientId + '\')">清空</button>' +
               '</div>' +
               '<div class="log-box" id="log-' + c.clientId + '">' + logContent + '</div>' +
             '</div>' +
@@ -985,7 +985,7 @@
       clientLogs[clientId] = [];
       const c = clientData.find((x) => x.clientId === clientId);
       logSkipCount[clientId] = (c && Array.isArray(c.eventLog)) ? c.eventLog.length : 0;
-      lastLogFingerprints[clientId] = '[' + new Date().toLocaleTimeString('zh-TW') + '] 筆記擦掉了';
+      lastLogFingerprints[clientId] = '[' + new Date().toLocaleTimeString('zh-TW') + '] 紀錄已清空';
       const box = document.getElementById('log-' + clientId);
       if (box) {
         box.innerHTML = escapeHtml(lastLogFingerprints[clientId]);
@@ -993,7 +993,7 @@
     }
 
     function deleteClient(clientId) {
-      if (confirm('確定要把【' + clientId + '】從門市名單拿掉嗎？')) {
+      if (confirm('確定要把【' + clientId + '】從設備名單移除嗎？')) {
         fetch('/api/clients/' + encodeURIComponent(clientId), { method: 'DELETE' })
           .then(res => res.json())
           .then(data => { if (!data.success) alert(data.message || '刪除失敗'); })
@@ -1003,11 +1003,11 @@
 
     function remoteCancelTask(clientId, taskId) {
       if (isTaskCancelPending(clientId, taskId)) return;
-      if (!confirm('確定要取消【' + clientId + '】的這杯【' + taskId + '】嗎？')) return;
+      if (!confirm('確定要取消【' + clientId + '】的這筆任務【' + taskId + '】嗎？')) return;
 
       markTaskCancelPending(clientId, taskId);
       refreshTaskCancelUi(clientId, taskId);
-      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在把這杯抽掉 (' + taskId + ')…');
+      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在取消這筆任務 (' + taskId + ')…');
       fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-task/' + encodeURIComponent(taskId), { method: 'POST' })
         .then(res => res.json())
         .then(data => {
@@ -1016,7 +1016,7 @@
           } else {
             clearTaskCancelPending(clientId, taskId);
             refreshTaskCancelUi(clientId, taskId);
-            alert(data.message || '這杯沒取消成');
+            alert(data.message || '這筆任務沒取消成');
           }
         }).catch(err => {
           clearTaskCancelPending(clientId, taskId);
@@ -1030,11 +1030,11 @@
       const c = clientData.find((x) => x.clientId === clientId);
       const tasks = c && Array.isArray(c.tasks) ? c.tasks : [];
       if (!hasCancellableTasks(tasks)) return;
-      if (!confirm('確定要把【' + clientId + '】的單全部抽掉嗎？')) return;
+      if (!confirm('確定要取消【' + clientId + '】的全部任務嗎？')) return;
 
       markCancelAllPending(clientId);
       refreshCancelAllUi(clientId);
-      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在把全部的單抽掉…');
+      appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在取消全部任務…');
       try {
         const res = await fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-schedule', { method: 'POST' });
         const data = await res.json();
@@ -1174,7 +1174,7 @@
       const grid = document.getElementById('photoGrid');
       if (!grid) return;
       if (!photoData.length) {
-        grid.innerHTML = '<p class="empty-tasks">牆上還沒有簡報。</p>';
+        grid.innerHTML = '<p class="empty-tasks">簡報牆上還沒有簡報。</p>';
         return;
       }
       let html = '';
@@ -1193,7 +1193,7 @@
           + '<span class="pdf-card-name">' + escapeHtml(p.filename) + '</span>'
           + '</button>'
           + '<div class="photo-card-actions">'
-          + '<button type="button" class="btn btn-ghost-danger" onclick="deletePhoto(\'' + escapeHtml(p.id) + '\')">拿下來</button>'
+          + '<button type="button" class="btn btn-ghost-danger" onclick="deletePhoto(\'' + escapeHtml(p.id) + '\')">移除</button>'
           + '</div>'
           + '</div>';
       }
@@ -1379,7 +1379,7 @@
     }
 
     async function deletePhoto(photoId) {
-      if (!confirm('確定要把這份簡報從飲品牆上拿下來嗎？')) return;
+      if (!confirm('確定要把這份簡報從簡報牆移除嗎？')) return;
       try {
         const res = await fetch('/api/photos/' + encodeURIComponent(photoId), {
           method: 'DELETE',
@@ -1399,7 +1399,7 @@
     }
 
     async function clearAllPhotos() {
-      if (!confirm('確定要把飲品牆上的簡報都拿下來嗎？')) return;
+      if (!confirm('確定要把簡報牆上的簡報全部移除嗎？')) return;
       try {
         const res = await fetch('/api/photos', { method: 'DELETE', credentials: 'same-origin' });
         const data = await res.json();

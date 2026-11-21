@@ -93,7 +93,7 @@ public class GraffitiRoutesTest {
 
         HttpResponse<String> removed = send("DELETE", "/api/graffiti/" + id, null, null, "Cookie", AdminAuthCookie.header());
         assertEquals(200, removed.statusCode());
-        assertTrue(removed.body().contains("已從牆上拿下"));
+        assertTrue(removed.body().contains("已從簽到本移除"));
 
         HttpResponse<String> gone = send("GET", "/api/graffiti/" + id + ".png", null, null, null);
         assertEquals(404, gone.statusCode());

@@ -54,13 +54,13 @@ public final class GraffitiRoutes {
     private void png(Context ctx) {
         String file = ctx.pathParam("file");
         if (file == null || !file.endsWith(".png")) {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到這幅塗鴉"));
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到這則簽到"));
             return;
         }
         String id = file.substring(0, file.length() - 4);
         byte[] png = store.readPng(id);
         if (png == null) {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到這幅塗鴉"));
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到這則簽到"));
             return;
         }
         ctx.contentType("image/png");
@@ -130,10 +130,10 @@ public final class GraffitiRoutes {
         }
         String id = ctx.pathParam("id");
         if (!store.delete(id)) {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到這幅塗鴉"));
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到這則簽到"));
             return;
         }
-        ctx.json(Map.of("success", true, "message", "已從牆上拿下"));
+        ctx.json(Map.of("success", true, "message", "已從簽到本移除"));
     }
 
     private static Map<String, Object> itemJson(GraffitiStore.Item item) {

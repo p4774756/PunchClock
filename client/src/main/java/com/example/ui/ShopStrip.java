@@ -16,11 +16,11 @@ import java.awt.geom.RoundRectangle2D;
 public final class ShopStrip extends JPanel {
 
     public enum Mood {
-        IDLE("還沒開始搖", "排程設好就會自己營業"),
-        WAITING("等下一杯", "時間到了會自己去點"),
-        SHAKING("搖杯中", "正在幫你按打卡"),
-        DONE("上一杯好了", "打卡成功"),
-        FAILED("這杯沒搖成", "看一下日誌");
+        IDLE("尚未開始", "排程設好就會自動執行"),
+        WAITING("等待下一筆", "時間到了會自動執行"),
+        SHAKING("執行中", "正在幫你按打卡"),
+        DONE("這筆完成了", "打卡成功"),
+        FAILED("這筆任務沒完成", "看一下日誌");
 
         final String title;
         final String detail;

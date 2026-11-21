@@ -20,11 +20,11 @@
       <small>v{{SERVER_VERSION}} · {{SERVER_BUILD_TIME}}</small>
     </div>
     <nav class="console-nav" aria-label="分頁">
-      <button type="button" class="console-tab" data-tab="devices">點單</button>
-      <button type="button" class="console-tab" data-tab="system">製茶機</button>
-      <button type="button" class="console-tab" data-tab="photos">飲品牆</button>
+      <button type="button" class="console-tab" data-tab="devices">任務</button>
+      <button type="button" class="console-tab" data-tab="system">伺服器</button>
+      <button type="button" class="console-tab" data-tab="photos">簡報牆</button>
       <button type="button" class="console-tab" data-open-roadmap>施工進度</button>
-      <button type="button" class="console-tab" data-open-graffiti>塗鴉牆</button>
+      <button type="button" class="console-tab" data-open-graffiti>簽到本</button>
       <a class="console-tab console-link" href="/dev-status">開發機狀態</a>
       <a class="console-tab console-link" href="/">辦公室</a>
     </nav>
@@ -33,18 +33,18 @@
       <a href="/logout" data-auth-only>登出</a>
     </div>
   </header>
-  <section id="graffitiBoard" class="graffiti-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="塗鴉牆">
+  <section id="graffitiBoard" class="graffiti-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="簽到本">
     <div class="graffiti-panel">
       <header class="graffiti-head">
         <div>
-          <h2>塗鴉牆</h2>
-          <p>畫一幅小圖，署名可留可不留。送出就貼上，只有站長能拿下來。</p>
+          <h2>簽到本</h2>
+          <p>畫一幅小圖，署名可留可不留。送出就貼上，只有管理員能移除。</p>
         </div>
         <button type="button" class="btn btn-ghost" data-graffiti-back aria-label="返回主控台">返回主控台</button>
       </header>
       <div class="graffiti-studio">
         <div>
-          <canvas class="graffiti-canvas" data-graffiti-paint width="512" height="256" aria-label="塗鴉畫布"></canvas>
+          <canvas class="graffiti-canvas" data-graffiti-paint width="512" height="256" aria-label="簽到畫布"></canvas>
           <div class="graffiti-tools" role="group" aria-label="畫筆">
             <button type="button" class="graffiti-swatch" data-graffiti-color="#1f2430" style="background:#1f2430" aria-label="墨色"></button>
             <button type="button" class="graffiti-swatch" data-graffiti-color="#f06a2a" style="background:#f06a2a" aria-label="橘色"></button>
@@ -64,11 +64,11 @@
           <div class="graffiti-sign">
             <label for="graffitiSignature">署名</label>
             <input id="graffitiSignature" data-graffiti-signature maxlength="12" autocomplete="nickname" placeholder="路過的旅人" aria-label="署名，選填，最多 12 字">
-            <button type="button" class="btn btn-primary" data-graffiti-submit>貼上牆</button>
+            <button type="button" class="btn btn-primary" data-graffiti-submit>貼上簽到本</button>
           </div>
           <p class="graffiti-status" data-graffiti-status role="status"></p>
         </div>
-        <div class="graffiti-list" data-graffiti-list aria-label="塗鴉列表"></div>
+        <div class="graffiti-list" data-graffiti-list aria-label="簽到列表"></div>
       </div>
     </div>
   </section>
@@ -132,7 +132,7 @@
   </section>
   <section id="consoleSheet" class="console-sheet" hidden>
     <header class="maple-win-title console-sheet-bar">
-      <h2 id="consoleSheetTitle">點單</h2>
+      <h2 id="consoleSheetTitle">任務</h2>
       <button type="button" class="maple-win-close" id="consoleSheetClose" aria-label="關閉">
         <span class="maple-win-close-glyph" aria-hidden="true">×</span>
         <span class="console-esc-chip" aria-hidden="true">Esc</span>
@@ -142,70 +142,70 @@
       <div class="shell dash-panel" id="panel-guest-gate" data-label="需登入" role="tabpanel" hidden>
         <div class="content-panel content-panel-full">
           <section class="console-guest-gate" aria-label="登入後可操作">
-            <p class="console-guest-gate-lead">這是店長功能。</p>
-            <p class="console-guest-gate-hint" id="consoleGuestHint">登入後可操作點單、製茶機與飲品牆。</p>
+            <p class="console-guest-gate-lead">這是管理員功能。</p>
+            <p class="console-guest-gate-hint" id="consoleGuestHint">登入後可操作任務、伺服器狀態與簡報牆。</p>
             <a class="btn btn-primary" href="/login?next=/console">前往登入</a>
           </section>
         </div>
       </div>
 
-      <div class="shell dash-panel" id="panel-devices" data-label="點單" role="tabpanel" hidden>
+      <div class="shell dash-panel" id="panel-devices" data-label="任務" role="tabpanel" hidden>
         <div class="content-panel content-panel-full">
           <main id="clientContainer">
-            <div class="empty-state"><p>茶葉還在醒…</p><p>今天的單子正在排上櫃檯</p></div>
+            <div class="empty-state"><p>還沒有設備連上來</p><p>等桌面端連上並回報狀態後，任務會出現在這裡</p></div>
           </main>
         </div>
       </div>
 
-      <div class="shell dash-panel" id="panel-system" data-label="製茶機" role="tabpanel" hidden>
+      <div class="shell dash-panel" id="panel-system" data-label="伺服器" role="tabpanel" hidden>
         <div class="content-panel content-panel-full">
-          <section class="system-status" aria-label="製茶機">
+          <section class="system-status" aria-label="伺服器狀態">
             </form>
             <div class="system-status-head">
-              <div class="section-label" style="margin:0;border:0;padding:0">製茶機</div>
-              <p class="system-status-hint">看看製茶機順不順；每分鐘記一筆，大約留三天</p>
+              <div class="section-label" style="margin:0;border:0;padding:0">伺服器</div>
+              <p class="system-status-hint">查看伺服器狀態；每分鐘記一筆，大約留三天</p>
             </div>
-            <div class="server-health" id="serverHealth" aria-label="製茶機">
-              <div class="health-card"><span class="health-label">搖杯</span><strong id="healthCpu">載入中</strong></div>
-              <div class="health-card"><span class="health-label">排隊</span><strong id="healthLoad">—</strong></div>
-              <div class="health-card"><span class="health-label">茶桶</span><strong id="healthHeap">—</strong></div>
-              <div class="health-card"><span class="health-label">工作台</span><strong id="healthOsMem">—</strong></div>
-              <div class="health-card"><span class="health-label">冰箱</span><strong id="healthDisk" title="">—</strong></div>
-              <div class="health-card"><span class="health-label">開店至今</span><strong id="healthUptime">—</strong></div>
+            <div class="server-health" id="serverHealth" aria-label="伺服器狀態">
+              <div class="health-card"><span class="health-label">負載</span><strong id="healthCpu">載入中</strong></div>
+              <div class="health-card"><span class="health-label">排程</span><strong id="healthLoad">—</strong></div>
+              <div class="health-card"><span class="health-label">堆積</span><strong id="healthHeap">—</strong></div>
+              <div class="health-card"><span class="health-label">系統記憶體</span><strong id="healthOsMem">—</strong></div>
+              <div class="health-card"><span class="health-label">磁碟</span><strong id="healthDisk" title="">—</strong></div>
+              <div class="health-card"><span class="health-label">運行時間</span><strong id="healthUptime">—</strong></div>
             </div>
-            <section class="health-history" aria-label="營業曲線">
+            <section class="health-history" aria-label="負載曲線">
               <div class="health-history-head">
                 <div>
-                  <div class="section-label" style="margin:0;border:0;padding:0">營業曲線</div>
-                  <p class="health-history-hint">每分鐘畫一筆，大約留三天（打烊後若有備份會自動還原）</p>
+                  <div class="section-label" style="margin:0;border:0;padding:0">負載曲線</div>
+                  <p class="health-history-hint">每分鐘畫一筆，大約留三天（重啟後若有備份會自動還原）</p>
                 </div>
                 <div class="health-legend" aria-hidden="true">
-                  <span><i class="swatch swatch-cpu"></i>搖杯</span>
-                  <span><i class="swatch swatch-heap"></i>茶桶</span>
-                  <span><i class="swatch swatch-os"></i>工作台</span>
+                  <span><i class="swatch swatch-cpu"></i>負載</span>
+                  <span><i class="swatch swatch-heap"></i>堆積</span>
+                  <span><i class="swatch swatch-os"></i>系統記憶體</span>
                 </div>
               </div>
-              <canvas id="healthHistoryChart" width="960" height="220" role="img" aria-label="營業曲線"></canvas>
+              <canvas id="healthHistoryChart" width="960" height="220" role="img" aria-label="負載曲線"></canvas>
               <p class="health-history-empty" id="healthHistoryEmpty">還沒有紀錄，等一分鐘就開始畫</p>
             </section>
           </section>
         </div>
       </div>
 
-      <div class="shell dash-panel" id="panel-photos" data-label="飲品牆" role="tabpanel" hidden>
+      <div class="shell dash-panel" id="panel-photos" data-label="簡報牆" role="tabpanel" hidden>
         <div class="content-panel content-panel-full">
-          <section class="photo-gallery" aria-label="飲品牆">
+          <section class="photo-gallery" aria-label="簡報牆">
             <div class="photo-gallery-head">
               <div>
-                <div class="section-label" style="margin:0;border:0;padding:0">飲品牆</div>
-                <p class="photo-gallery-hint">PDF、PowerPoint 和 Pages 可以貼在這裡，點開用瀏覽器翻頁（打烊重開還在）</p>
+                <div class="section-label" style="margin:0;border:0;padding:0">簡報牆</div>
+                <p class="photo-gallery-hint">PDF、PowerPoint 和 Pages 可以貼在這裡，點開用瀏覽器翻頁（重啟後還在）</p>
               </div>
               <div class="photo-actions">
                 <label class="btn btn-ghost" for="photoUploadInput">
                   <input type="file" id="photoUploadInput" accept=".pdf,.ppt,.pptx,.pages" multiple hidden>
                   選一份簡報
                 </label>
-                <button type="button" class="btn btn-ghost-danger" id="clearAllPhotosBtn">整面清掉</button>
+                <button type="button" class="btn btn-ghost-danger" id="clearAllPhotosBtn">全部移除</button>
               </div>
             </div>
             <div class="photo-upload-status" id="photoUploadStatus" hidden role="status" aria-live="polite">
@@ -218,7 +218,7 @@
               </div>
             </div>
             <div class="photo-grid" id="photoGrid">
-              <p class="empty-tasks">牆上還沒有簡報。</p>
+              <p class="empty-tasks">簡報牆上還沒有簡報。</p>
             </div>
           </section>
         </div>

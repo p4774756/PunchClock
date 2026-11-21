@@ -1,4 +1,4 @@
-// 塗鴉牆純邏輯（不依賴 Three.js）。署名整理、空白畫布、牆面格子供 node:test。
+// 簽到本純邏輯（不依賴 Three.js）。署名整理、空白畫布、牆面格子供 node:test。
 // 面板本身用 pointer events，手機上畫的時候不讓頁面跟著捲。
 
 export const GRAFFITI_WIDTH = 512;
@@ -236,7 +236,7 @@ export function createGraffitiController(opts) {
         const empty = doc.createElement('p');
         empty.className = 'graffiti-empty';
         empty.setAttribute('data-graffiti-empty', '');
-        empty.textContent = '牆上還是空白的。';
+        empty.textContent = '簽到本還是空白的。';
         listEl.appendChild(empty);
       }
       items.forEach((item) => {
@@ -247,7 +247,7 @@ export function createGraffitiController(opts) {
       nextBefore = body && body.nextBefore != null ? body.nextBefore : null;
       if (!nextBefore) listDone = true;
     } catch (err) {
-      setStatus('塗鴉清單暫時讀不到');
+      setStatus('簽到清單暫時讀不到');
     } finally {
       loading = false;
     }
@@ -263,7 +263,7 @@ export function createGraffitiController(opts) {
   }
 
   async function removeItem(id, card) {
-    if (!win.confirm('確定刪掉這幅塗鴉？')) return;
+    if (!win.confirm('確定刪掉這則簽到？')) return;
     const res = await win.fetch('/api/graffiti/' + encodeURIComponent(id), { method: 'DELETE' });
     if (!res.ok) {
       setStatus('沒能刪掉');
@@ -272,12 +272,12 @@ export function createGraffitiController(opts) {
     delete seen[id];
     if (card && card.parentNode) card.parentNode.removeChild(card);
     if (typeof hooks.onWallChange === 'function') hooks.onWallChange();
-    setStatus('已從牆上拿下');
+    setStatus('已從簽到本移除');
   }
 
   async function submit() {
     if (!paint || blank()) {
-      setStatus('先在牆上畫一點再送出');
+      setStatus('先在簽到本上畫一點再送出');
       return;
     }
     const name = signatureInput ? signatureInput.value : '';
@@ -299,7 +299,7 @@ export function createGraffitiController(opts) {
       const res = await win.fetch('/api/graffiti', { method: 'POST', body: form });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setStatus(body && body.message ? body.message : '沒能留在牆上');
+        setStatus(body && body.message ? body.message : '沒能貼上簽到本');
         return;
       }
       clearPaint();
@@ -307,9 +307,9 @@ export function createGraffitiController(opts) {
       if (signatureInput) signatureInput.value = '';
       if (body.item) prependItem(body.item);
       if (typeof hooks.onWallChange === 'function') hooks.onWallChange();
-      setStatus('已留在牆上');
+      setStatus('已貼上簽到本');
     } catch (err) {
-      setStatus('沒能留在牆上');
+      setStatus('沒能貼上簽到本');
     } finally {
       if (submitBtn) submitBtn.disabled = false;
     }
