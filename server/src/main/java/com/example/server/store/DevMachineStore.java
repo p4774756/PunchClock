@@ -13,22 +13,20 @@ import java.util.regex.Pattern;
 public final class DevMachineStore {
 
     public static final long ONLINE_WINDOW_MS = 3L * 60L * 1000L;
+    /** 超過此時間未回報的機器不再出現在清單（長於在線窗）。 */
+    public static final long STALE_WINDOW_MS = 72L * 60L * 60L * 1000L;
     public static final long MIN_REPORT_INTERVAL_MS = 10L * 1000L;
     public static final int MAX_BODY_BYTES = 8192;
     public static final int MAX_RUNS = 12;
 
+    private static final Pattern MACHINE_PATTERN = Pattern.compile("^[a-z][a-z0-9-]{0,31}$");
+    private static final Pattern DISPLAY_PATTERN = Pattern.compile("^[\\p{L}\\p{N}\\s._·-]{1,24}$");
     private static final Pattern BRANCH_PATTERN = Pattern.compile("^[A-Za-z0-9._/-]{1,64}$");
     private static final Pattern COMMIT_PATTERN = Pattern.compile("^[0-9a-fA-F]{7,40}$");
     private static final Pattern WORKTREE_PATTERN = Pattern.compile("^[A-Za-z0-9._/~-]{1,128}$");
     private static final Pattern ROLE_PATTERN = Pattern.compile("^(dev|review)$");
     private static final Pattern VERDICT_PATTERN = Pattern.compile("^(PASS|FAIL|UNKNOWN)$");
     private static final Pattern MODEL_PATTERN = Pattern.compile("^[A-Za-z0-9._+-]{1,64}$");
-
-    private static final List<String> MACHINE_ORDER = List.of("home", "office");
-    private static final Map<String, String> LABELS = Map.of(
-            "home", "小貓",
-            "office", "猛虎"
-    );
 
     @FunctionalInterface
     public interface Clock {
@@ -62,6 +60,8 @@ public final class DevMachineStore {
 
     public static final class Snapshot {
         public final String machine;
+        public final String displayName;
+        public final String location;
         public final long lastSeen;
         public final Integer issue;
         public final String branch;
@@ -76,10 +76,12 @@ public final class DevMachineStore {
         public final String model;
         public final String verdict;
 
-        Snapshot(String machine, long lastSeen, Integer issue, String branch, Long runStartedAt,
-                 boolean agentRunning, String commit, Integer battery, Boolean charging,
+        Snapshot(String machine, String displayName, String location, long lastSeen, Integer issue, String branch,
+                 Long runStartedAt, boolean agentRunning, String commit, Integer battery, Boolean charging,
                  List<RunEntry> runs, String role, Integer round, String model, String verdict) {
             this.machine = machine;
+            this.displayName = displayName;
+            this.location = location;
             this.lastSeen = lastSeen;
             this.issue = issue;
             this.branch = branch;
@@ -114,11 +116,14 @@ public final class DevMachineStore {
     }
 
     public static boolean isAllowedMachine(String machine) {
-        return machine != null && LABELS.containsKey(machine);
+        return machine != null && MACHINE_PATTERN.matcher(machine).matches();
     }
 
-    public static String labelFor(String machine) {
-        return LABELS.getOrDefault(machine, machine);
+    public static String labelFor(Snapshot snap) {
+        if (snap != null && snap.displayName != null && !snap.displayName.isEmpty()) {
+            return snap.displayName;
+        }
+        return snap == null ? "" : snap.machine;
     }
 
     public ApplyResult applyHeartbeat(String machine, Map<String, Object> fields) {
@@ -134,8 +139,14 @@ public final class DevMachineStore {
         if (!parsed.valid) {
             return ApplyResult.BAD_BODY;
         }
+        String displayName = parsed.displayName != null ? parsed.displayName
+                : (previous != null ? previous.displayName : null);
+        String location = parsed.location != null ? parsed.location
+                : (previous != null ? previous.location : null);
         Snapshot next = new Snapshot(
                 machine,
+                displayName,
+                location,
                 now,
                 parsed.issue,
                 parsed.branch,
@@ -156,19 +167,24 @@ public final class DevMachineStore {
 
     public List<Map<String, Object>> listForApi(long now, IssueTitleResolver titles) {
         List<Map<String, Object>> out = new ArrayList<>();
-        for (String machine : MACHINE_ORDER) {
-            Snapshot snap = byMachine.get(machine);
-            boolean online = snap != null && now - snap.lastSeen <= ONLINE_WINDOW_MS;
+        List<Snapshot> snaps = new ArrayList<>(byMachine.values());
+        snaps.sort(Comparator.comparing((Snapshot s) -> labelFor(s), String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(s -> s.machine));
+        for (Snapshot snap : snaps) {
+            if (snap == null || snap.lastSeen <= 0 || now - snap.lastSeen > STALE_WINDOW_MS) {
+                continue;
+            }
+            String machine = snap.machine;
+            boolean online = now - snap.lastSeen <= ONLINE_WINDOW_MS;
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("machine", machine);
-            row.put("label", labelFor(machine));
-            row.put("online", online);
-            if (snap == null) {
-                row.put("lastSeen", null);
-            } else {
-                row.put("lastSeen", snap.lastSeen);
+            row.put("label", labelFor(snap));
+            if (snap.location != null && !snap.location.isEmpty()) {
+                row.put("location", snap.location);
             }
-            if (online && snap != null) {
+            row.put("online", online);
+            row.put("lastSeen", snap.lastSeen);
+            if (online) {
                 row.put("issue", snap.issue);
                 if (snap.issue != null) {
                     String title = titles == null ? "" : titles.title(snap.issue);
@@ -248,10 +264,10 @@ public final class DevMachineStore {
 
     /** 內部快照列表（供公開辦公室狀態推算；不含 issue 標題等 API 欄位）。 */
     public List<Snapshot> machineSnapshots() {
+        long now = clock.now();
         List<Snapshot> out = new ArrayList<>();
-        for (String machine : MACHINE_ORDER) {
-            Snapshot snap = byMachine.get(machine);
-            if (snap != null) {
+        for (Snapshot snap : byMachine.values()) {
+            if (snap != null && snap.lastSeen > 0 && now - snap.lastSeen <= STALE_WINDOW_MS) {
                 out.add(snap);
             }
         }
@@ -286,8 +302,21 @@ public final class DevMachineStore {
         return path.substring(start + 1, end);
     }
 
+    private static String parseDisplayField(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        String s = String.valueOf(raw).trim();
+        if (s.isEmpty() || !DISPLAY_PATTERN.matcher(s).matches()) {
+            return null;
+        }
+        return s;
+    }
+
     private static final class Parsed {
         final boolean valid;
+        final String displayName;
+        final String location;
         final Integer issue;
         final String branch;
         final Long runStartedAt;
@@ -301,10 +330,12 @@ public final class DevMachineStore {
         final String model;
         final String verdict;
 
-        private Parsed(boolean valid, Integer issue, String branch, Long runStartedAt, boolean agentRunning,
-                       String commit, Integer battery, Boolean charging, List<RunEntry> runs,
-                       String role, Integer round, String model, String verdict) {
+        private Parsed(boolean valid, String displayName, String location, Integer issue, String branch,
+                       Long runStartedAt, boolean agentRunning, String commit, Integer battery, Boolean charging,
+                       List<RunEntry> runs, String role, Integer round, String model, String verdict) {
             this.valid = valid;
+            this.displayName = displayName;
+            this.location = location;
             this.issue = issue;
             this.branch = branch;
             this.runStartedAt = runStartedAt;
@@ -438,12 +469,26 @@ public final class DevMachineStore {
             if (fields.containsKey("verdict") && verdict == null && fields.get("verdict") != null) {
                 return invalid();
             }
-            return new Parsed(true, issue, branch, runStartedAt, agentRunning, commit, battery, charging, runs,
-                    role, round, model, verdict);
+            String displayName = null;
+            if (fields.containsKey("displayName")) {
+                displayName = parseDisplayField(fields.get("displayName"));
+                if (fields.get("displayName") != null && displayName == null) {
+                    return invalid();
+                }
+            }
+            String location = null;
+            if (fields.containsKey("location")) {
+                location = parseDisplayField(fields.get("location"));
+                if (fields.get("location") != null && location == null) {
+                    return invalid();
+                }
+            }
+            return new Parsed(true, displayName, location, issue, branch, runStartedAt, agentRunning, commit, battery,
+                    charging, runs, role, round, model, verdict);
         }
 
         static Parsed invalid() {
-            return new Parsed(false, null, null, null, false, null, null, null, List.of(),
+            return new Parsed(false, null, null, null, null, null, false, null, null, null, List.of(),
                     null, null, null, null);
         }
     }

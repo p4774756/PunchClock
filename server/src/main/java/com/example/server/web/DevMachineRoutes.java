@@ -110,7 +110,7 @@ public final class DevMachineRoutes {
         if (result == DevMachineStore.ApplyResult.BAD_MACHINE) {
             ctx.status(HttpStatus.BAD_REQUEST).json(Map.of(
                     "success", false,
-                    "message", "machine 不在白名單"
+                    "message", "machine id 無效"
             ));
             return;
         }

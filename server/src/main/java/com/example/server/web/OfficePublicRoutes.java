@@ -61,17 +61,18 @@ public final class OfficePublicRoutes {
         }
 
         static String coarseStatus(String charId, List<DevMachineStore.Snapshot> machines,
-                                     DevStatusModels.Document doc, long now) {
+                                   DevStatusModels.Document doc, long now) {
             if ("reviewer".equals(charId)) {
-                if (anyReviewActive(machines, now)) {
-                    return "審核中";
+                int n = countReviewActive(machines, now);
+                if (n > 0) {
+                    return n == 1 ? "審核中" : "審核中 ×" + n;
                 }
                 return "待機";
             }
             if ("tiger".equals(charId)) {
-                DevMachineStore.Snapshot office = byMachine(machines, "office");
-                if (isWorking(office, now)) {
-                    return "工作中";
+                int n = countActiveLoops(machines, now);
+                if (n > 0) {
+                    return n == 1 ? "工作中" : "工作中 ×" + n;
                 }
                 return "待機";
             }
@@ -79,32 +80,36 @@ public final class OfficePublicRoutes {
                 if (doc != null && doc.now != null && doc.now.current != null && doc.now.current.issue > 0) {
                     return "工作中";
                 }
-                return "待機";
+                int q = doc != null && doc.now != null && doc.now.queue != null ? doc.now.queue.size() : 0;
+                return "佇列 " + q;
             }
             return "待機";
         }
 
         static long updatedAtMs(String charId, List<DevMachineStore.Snapshot> machines,
-                                DevStatusModels.Document doc, long fallback) {
+                                DevStatusModels.Document doc, long now) {
             if ("tiger".equals(charId)) {
-                DevMachineStore.Snapshot office = byMachine(machines, "office");
-                if (office != null && office.lastSeen > 0) {
-                    return office.lastSeen;
+                long best = 0;
+                for (DevMachineStore.Snapshot row : machines) {
+                    if (row == null || !isOnline(row, now)) {
+                        continue;
+                    }
+                    if (hasActiveWork(row) && row.lastSeen > best) {
+                        best = row.lastSeen;
+                    }
+                }
+                if (best > 0) {
+                    return best;
                 }
             }
             if ("reviewer".equals(charId)) {
                 long best = 0;
                 for (DevMachineStore.Snapshot row : machines) {
-                    if (row == null) {
+                    if (row == null || !isOnline(row, now)) {
                         continue;
                     }
-                    if ("review".equals(row.role) && row.lastSeen > best) {
+                    if (countReviewOnMachine(row) > 0 && row.lastSeen > best) {
                         best = row.lastSeen;
-                    }
-                    for (DevMachineStore.RunEntry run : row.runs) {
-                        if ("review".equals(run.role) && row.lastSeen > best) {
-                            best = row.lastSeen;
-                        }
                     }
                 }
                 if (best > 0) {
@@ -117,27 +122,15 @@ public final class OfficePublicRoutes {
                     return updated;
                 }
             }
-            return fallback;
-        }
-
-        private static DevMachineStore.Snapshot byMachine(List<DevMachineStore.Snapshot> machines, String id) {
-            if (machines == null) {
-                return null;
-            }
-            for (DevMachineStore.Snapshot row : machines) {
-                if (row != null && id.equals(row.machine)) {
-                    return row;
-                }
-            }
-            return null;
+            return now;
         }
 
         private static boolean isOnline(DevMachineStore.Snapshot row, long now) {
             return row != null && row.lastSeen > 0 && now - row.lastSeen <= DevMachineStore.ONLINE_WINDOW_MS;
         }
 
-        private static boolean isWorking(DevMachineStore.Snapshot row, long now) {
-            if (row == null || !isOnline(row, now)) {
+        private static boolean hasActiveWork(DevMachineStore.Snapshot row) {
+            if (row == null) {
                 return false;
             }
             if (row.agentRunning) {
@@ -146,32 +139,70 @@ public final class OfficePublicRoutes {
             if (row.issue != null && row.issue > 0) {
                 return true;
             }
-            for (DevMachineStore.RunEntry run : row.runs) {
-                if (run != null && run.issue > 0) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        private static boolean anyReviewActive(List<DevMachineStore.Snapshot> machines, long now) {
-            if (machines == null) {
-                return false;
-            }
-            for (DevMachineStore.Snapshot row : machines) {
-                if (row == null || !isOnline(row, now)) {
-                    continue;
-                }
-                if ("review".equals(row.role)) {
-                    return true;
-                }
+            if (row.runs != null) {
                 for (DevMachineStore.RunEntry run : row.runs) {
-                    if (run != null && "review".equals(run.role)) {
+                    if (run != null && run.issue > 0) {
                         return true;
                     }
                 }
             }
             return false;
+        }
+
+        static int countActiveLoops(List<DevMachineStore.Snapshot> machines, long now) {
+            if (machines == null) {
+                return 0;
+            }
+            int total = 0;
+            for (DevMachineStore.Snapshot row : machines) {
+                if (row == null || !isOnline(row, now)) {
+                    continue;
+                }
+                int onMachine = loopsOnMachine(row);
+                if (onMachine > 0) {
+                    total += onMachine;
+                }
+            }
+            return total;
+        }
+
+        private static int loopsOnMachine(DevMachineStore.Snapshot row) {
+            if (row.runs != null && !row.runs.isEmpty()) {
+                return row.runs.size();
+            }
+            if (row.agentRunning || (row.issue != null && row.issue > 0)) {
+                return 1;
+            }
+            return 0;
+        }
+
+        static int countReviewActive(List<DevMachineStore.Snapshot> machines, long now) {
+            if (machines == null) {
+                return 0;
+            }
+            int total = 0;
+            for (DevMachineStore.Snapshot row : machines) {
+                if (row == null || !isOnline(row, now)) {
+                    continue;
+                }
+                total += countReviewOnMachine(row);
+            }
+            return total;
+        }
+
+        private static int countReviewOnMachine(DevMachineStore.Snapshot row) {
+            int n = 0;
+            if (row.runs != null) {
+                for (DevMachineStore.RunEntry run : row.runs) {
+                    if (run != null && "review".equals(run.role)) {
+                        n++;
+                    }
+                }
+            }
+            if (n == 0 && "review".equals(row.role)) {
+                n = 1;
+            }
+            return n;
         }
     }
 }
