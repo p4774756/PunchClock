@@ -1027,7 +1027,14 @@ const applyOutfitMaterialsToObject=(obj:T.Object3D,outfit:AnimeOutfit)=>{
    m.needsUpdate=true;
   }
  }
- if(outfit.practiceBody&&isPracticeUniformMesh(obj,outfit))obj.visible=false;
+ if(outfit.practiceBody){
+  const surfacesNoOutline=mats.filter(m=>!isOutlineMaterial(m));
+  const hasBodySkin=surfacesNoOutline.some(m=>/Body_00_SKIN/i.test(m.name||''));
+  const anyHide=surfacesNoOutline.some(m=>outfit.hideMaterials.some(token=>materialLabel(m,obj).includes(token)));
+  if(/Tops|Bottoms|Accessory/i.test(obj.name||''))obj.visible=false;
+  else if(anyHide&&!hasBodySkin)obj.visible=false;
+  else if(isPracticeUniformMesh(obj,outfit))obj.visible=false;
+ }
 };
 
 const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
@@ -1036,7 +1043,37 @@ const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
   const painted=paintPracticeBodySkin(root);
   if(painted)root.userData.practiceBodySkinMap=painted;
   restyleHairBun(root);
+  bindPracticeBodySkinMaps(root);
  }
+};
+
+/** Re-attach painted canvas to every lit Body_00_SKIN after clone / warm. */
+const bindPracticeBodySkinMaps=(root:T.Object3D)=>{
+ const painted=root.userData.practiceBodySkinMap as T.Texture|undefined;
+ if(!painted?.image)return false;
+ root.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  for(const mat of mats){
+   const m=mat as T.MeshStandardMaterial;
+   if(!/Body_00_SKIN/i.test(m.name||'')||/Outline/i.test(m.name||''))continue;
+   setMToonBodyMap(m,painted);
+  }
+ });
+ return true;
+};
+
+const syncPracticeOutfitVisibility=(root:T.Object3D,outfit:AnimeOutfit)=>{
+ root.traverse(obj=>applyOutfitMaterialsToObject(obj,outfit));
+};
+
+const ensurePracticeOutfitReady=(practice:T.Object3D,school:T.Object3D|null,outfit:AnimeOutfit)=>{
+ syncPracticeOutfitVisibility(practice,outfit);
+ if(!bindPracticeBodySkinMaps(practice))return false;
+ const painted=practice.userData.practiceBodySkinMap as T.Texture|undefined;
+ if(!painted?.image)return false;
+ if(school)assertPracticeBodySkinMaps(practice,school,painted);
+ return true;
 };
 
 const listOutfitMeshes=(root:T.Object3D)=>{
@@ -1066,8 +1103,13 @@ const buildPracticeOutfitIncremental=async(
   }
  }
  if(outfit.practiceBody){
-  const painted=await paintPracticeBodySkinIncremental(root);
-  if(painted)root.userData.practiceBodySkinMap=painted;
+  let painted=await paintPracticeBodySkinIncremental(root);
+  const syncPainted=paintPracticeBodySkin(root);
+  if(syncPainted)painted=syncPainted;
+  if(painted){
+   root.userData.practiceBodySkinMap=painted;
+   bindPracticeBodySkinMaps(root);
+  }
   restyleHairBun(root);
   tick();
   await yieldForSliceBudget(budget,true);
@@ -1231,7 +1273,12 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   const showOutfit=(id:OutfitId)=>{
    if(schoolModel)schoolModel.visible=id==='school';
-   if(practiceModel)practiceModel.visible=id==='study-body';
+   if(practiceModel){
+    if(id==='study-body'&&practiceBuilt){
+     ensurePracticeOutfitReady(practiceModel,schoolModel,practiceOutfit);
+     practiceModel.visible=true;
+    }else practiceModel.visible=id==='study-body';
+   }
    characterRoot.updateMatrixWorld(true);
    if(ready)teaching.applyCachedAnchors();
    dirty=true;
@@ -1241,8 +1288,10 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const finalizePracticeShell=()=>{
    if(practiceBuilt||!practiceShell||disposed)return;
    performance.mark('practice-outfit-build-start');
-   const painted=practiceShell.userData.practiceBodySkinMap as T.Texture|undefined;
-   if(schoolModel&&painted)assertPracticeBodySkinMaps(practiceShell,schoolModel,painted);
+   if(!ensurePracticeOutfitReady(practiceShell,schoolModel,practiceOutfit)){
+    console.warn('atlas:practice-outfit-build','incomplete — will retry');
+    return;
+   }
    if(schoolModel&&uniformAssetSnap)assertUniformOutfitUntouched(uniformAssetSnap,schoolModel);
    if(import.meta.env.DEV&&practiceCleanTemplate&&practiceShell){
     const mismatches=comparePracticeToMainPath(practiceShell,practiceCleanTemplate,practiceOutfit,gradient);
@@ -1336,6 +1385,10 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      pushTextureWarmTasks(collectMeshTextures(practiceModel,[],true),'practice-tex:',true);
      pushShaderWarmTasks([practiceModel],false,'practice-prog:',true);
      pushShaderWarmTasks([practiceModel],true,'practice-',true);
+     batch.push({name:'practice-outfit-sync',practiceRelated:true,run:async()=>{
+      if(disposed||!practiceModel)return;
+      ensurePracticeOutfitReady(practiceModel,schoolModel,practiceOutfit);
+     }});
      const inserted=batch;
      postWarmQueue=saveQueue;
      postWarmQueue=[...inserted,...postWarmQueue];
