@@ -288,32 +288,69 @@ export function buildAllCharacterStates(ctx) {
   return resolveSpotCollisions(CHARACTER_IDS.map((id) => buildCharacterState(id, ctx)));
 }
 
-const FLEX_SPOTS = ['sofa', 'lounge', 'beanbag', 'meeting'];
+const FLEX_SPOTS = ['sofa', 'lounge', 'beanbag', 'meeting', 'idle-review'];
 
-/** 工位固定；其餘空位不可疊在同一點。 */
+const CLEAR_VIEWPORTS = [
+  { w: 1280, h: 720 },
+  { w: 390, h: 844 }
+];
+
+function spotOverlapsPlaced(candidate, placed) {
+  if (!placed.length) return false;
+  const probe = placed.concat([candidate]);
+  for (let v = 0; v < CLEAR_VIEWPORTS.length; v++) {
+    const vp = CLEAR_VIEWPORTS[v];
+    const rects = officeLayoutRects(probe, vp.w, vp.h).rects;
+    const mine = rects[rects.length - 1];
+    for (let i = 0; i < rects.length - 1; i++) {
+      const other = rects[i];
+      if (rectsIntersect(mine.char, other.char)
+        || rectsIntersect(mine.bubble, other.bubble)
+        || rectsIntersect(mine.bubble, other.char)
+        || rectsIntersect(other.bubble, mine.char)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** 工位與第一個咖啡點只留一人；其餘空位在桌機與手機都不可疊到。 */
 export function resolveSpotCollisions(states) {
   const list = states || [];
   const used = new Set();
+  const placed = [];
   const flex = [];
   for (let i = 0; i < list.length; i++) {
     const st = list[i];
-    const fixed = st.desk || st.spot === 'coffee' || st.spot === 'desk-oki';
-    if (fixed) used.add(st.spot);
-    else flex.push(st);
+    const claimCoffee = st.spot === 'coffee' && !used.has('coffee');
+    const anchored = !!(st.desk || st.spot === 'desk-oki' || claimCoffee);
+    if (anchored && st.spot && !used.has(st.spot)) {
+      used.add(st.spot);
+      placed.push(st);
+    } else {
+      flex.push(st);
+    }
   }
   for (let i = 0; i < flex.length; i++) {
     const st = flex[i];
-    if (st.spot && st.spot !== 'coffee' && !used.has(st.spot)) {
-      used.add(st.spot);
-      continue;
-    }
+    const candidates = [];
+    if (st.spot && !used.has(st.spot)) candidates.push(st.spot);
     for (let j = 0; j < FLEX_SPOTS.length; j++) {
-      if (!used.has(FLEX_SPOTS[j])) {
-        st.spot = FLEX_SPOTS[j];
-        used.add(st.spot);
+      const id = FLEX_SPOTS[j];
+      if (!used.has(id) && candidates.indexOf(id) < 0) candidates.push(id);
+    }
+    let chosen = candidates.length ? candidates[candidates.length - 1] : (st.spot || 'sofa');
+    for (let j = 0; j < candidates.length; j++) {
+      const probe = { id: st.id, spot: candidates[j], bubble: st.bubble };
+      if (!spotOverlapsPlaced(probe, placed)) {
+        chosen = candidates[j];
         break;
       }
     }
+    st.spot = chosen;
+    if (chosen) used.add(chosen);
+    placed.push(st);
   }
   return list;
 }

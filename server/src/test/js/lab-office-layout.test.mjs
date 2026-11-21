@@ -118,6 +118,91 @@ test('審核員待機點在畫面右半', () => {
   }
 });
 
+function publicPayload(statuses) {
+  const characters = {};
+  const ids = ['oki', 'tiger', 'reviewer'];
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i];
+    characters[id] = { status: statuses[id], updatedAt: '2026-11-21T03:56:00.000Z' };
+  }
+  return { success: true, characters };
+}
+
+function assertSeparated(states, label) {
+  assert.equal(states.length, 3, label);
+  const spots = states.map((s) => s.spot);
+  assert.equal(new Set(spots).size, 3, label + ' ' + spots.join(','));
+  for (const vp of VIEWPORTS) {
+    const { rects } = L.officeLayoutRects(states, vp.w, vp.h);
+    for (const [a, b] of pairs(rects)) {
+      assert.equal(
+        L.rectsIntersect(a.char, b.char),
+        false,
+        label + ' ' + vp.name + ' 角色 ' + a.id + '@' + a.spot + '/' + b.id + '@' + b.spot
+      );
+      assert.equal(
+        L.rectsIntersect(a.bubble, b.bubble),
+        false,
+        label + ' ' + vp.name + ' 氣泡 ' + a.id + '/' + b.id
+      );
+      assert.equal(
+        L.rectsIntersect(a.bubble, b.char),
+        false,
+        label + ' ' + vp.name + ' 氣泡壓到 ' + b.id
+      );
+      assert.equal(
+        L.rectsIntersect(b.bubble, a.char),
+        false,
+        label + ' ' + vp.name + ' 氣泡壓到 ' + a.id
+      );
+    }
+  }
+}
+
+test('訪客閒置三人站開，含曾全部疊在咖啡機的時間窗', () => {
+  const scenes = [
+    { name: '全員閒置', oki: '佇列 0', tiger: '待機', reviewer: '待機' },
+    { name: 'Oki 工作其他人閒置', oki: '工作中', tiger: '待機', reviewer: '待機' },
+    { name: '三人各有狀態', oki: '佇列 0', tiger: '工作中 ×4', reviewer: '審核中 ×2' },
+    { name: '只有猛虎工作', oki: '佇列 0', tiger: '工作中', reviewer: '待機' },
+    { name: '只有審核', oki: '佇列 3', tiger: '待機', reviewer: '審核中' },
+    { name: '並行條數', oki: '佇列 0', tiger: '工作中 ×5', reviewer: '審核中 ×2' }
+  ];
+  const nows = [];
+  for (let k = 0; k < 9; k++) nows.push(k * 180_000);
+  nows.push(Date.parse('2026-11-21T03:56:00.000Z'));
+  for (const scene of scenes) {
+    for (let n = 0; n < nows.length; n++) {
+      const now = nows[n];
+      const states = L.buildCharacterStatesFromPublic(publicPayload(scene), now);
+      const label = scene.name + ' ' + now;
+      assertSeparated(states, label);
+      const byId = (id) => states.find((s) => s.id === id);
+      if (scene.oki.startsWith('佇列') || scene.oki === '待機') {
+        assert.equal(byId('oki').spot, 'coffee', label);
+      }
+      if (scene.oki === '工作中') assert.equal(byId('oki').spot, 'desk-oki', label);
+      if (scene.tiger.startsWith('工作中')) assert.equal(byId('tiger').spot, 'desk-tiger', label);
+      if (scene.reviewer.startsWith('審核中')) assert.equal(byId('reviewer').spot, 'desk-review', label);
+    }
+  }
+});
+
+test('管理員全員閒置也不疊在咖啡機', () => {
+  const nows = [0, 180_000, 360_000, 540_000, 1_090_000, Date.parse('2026-11-21T03:56:00.000Z')];
+  for (let i = 0; i < nows.length; i++) {
+    const now = nows[i];
+    const states = L.buildAllCharacterStates({
+      machines: { machines: [] },
+      devStatus: { now: { queue: [], current: null } },
+      now
+    });
+    assert.equal(states.find((s) => s.id === 'oki').spot, 'coffee');
+    assert.equal(states.find((s) => s.id === 'reviewer').spot, 'idle-review');
+    assertSeparated(states, 'admin-idle ' + now);
+  }
+});
+
 test('桌機與手機三人及氣泡兩兩不相交', () => {
   const nows = [0, 180_000, 360_000, 540_000, 1_090_000];
   for (const scene of SCENES) {
