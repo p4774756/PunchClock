@@ -45,6 +45,7 @@ const scene=gltf.scene;
 scene.updateMatrixWorld(true);
 const wp=name=>{const o=scene.getObjectByName(name);const v=new T.Vector3();o.getWorldPosition(v);return v;};
 const head=wp('J_Bip_C_Head'),neck=wp('J_Bip_C_Neck'),eyeL=wp('J_Adj_L_FaceEye'),eyeR=wp('J_Adj_R_FaceEye');
+const shoulderL=wp('J_Bip_L_Shoulder');
 const eyeMid=eyeL.clone().add(eyeR).multiplyScalar(.5);
 const projectMeshes=[];
 scene.traverse(o=>{
@@ -80,15 +81,15 @@ const seeds={
  LI20:[.018*L,eyeMid.y-.04,eyeMid.z-.04],GB14:[.03*L,eyeMid.y+.055,eyeMid.z-.02],'EX-HN4':[.03*L,eyeMid.y+.036,eyeMid.z-.03],
  ST1:[.028*L,eyeMid.y-.02,eyeMid.z-.02],ST2:[.03*L,eyeMid.y-.035,eyeMid.z-.03],ST3:[.032*L,eyeMid.y-.055,eyeMid.z-.035],
  ST4:[.034*L,eyeMid.y-.075,eyeMid.z-.025],
- // 人迎：與結喉上緣平齊、SCM 前緣（略低於廉泉）。
- ST9:[.038*L,neck.y+.012,neck.z-.04],TE23:[.055*L,eyeMid.y+.02,eyeMid.z+.005],
+ // 人迎：結喉上緣旁的頸前緣（前頸皮膚在此高度只到約 x=0.017，再外就是側極）。法線朝前，勿把種子放到頸外側。
+ ST9:[.017*L,neck.y+.013,neck.z-.05],TE23:[.055*L,eyeMid.y+.02,eyeMid.z+.005],
  'EX-HN5':[.06*L,eyeMid.y+.01,eyeMid.z+.02],GB1:[.07*L,eyeMid.y-.005,eyeMid.z-.08],SI18:[.05*L,eyeMid.y-.05,eyeMid.z+.01],
  // Weekly trunk／head-neck 30 (#75). Teaching catalog coords → anime skin snap.
  TE21:[.07*L,eyeMid.y+.005,eyeMid.z+.015],SI19:[.065*L,eyeMid.y,eyeMid.z+.02],GB2:[.065*L,eyeMid.y-.02,eyeMid.z+.015],
  ST6:[.055*L,eyeMid.y-.06,eyeMid.z-.005],TE17:[.065*L,eyeMid.y-.025,eyeMid.z+.05],
  GB21:[.1*L,neck.y-.02,neck.z+.02],
- // 缺盆：鎖骨上窩、鎖骨上方（乳中線），勿落鎖骨下胸壁。
- ST12:[.045*L,1.318,neck.z-.042],
+ // 缺盆：肩骨略上方、鎖骨前坡之後的上窩底（法線朝上）。勿把 Y 壓在肩骨高度，否則仍停在鎖骨前坡，左右吸附會一側滑到鎖骨下。
+ ST12:[.045*L,shoulderL.y+.015,neck.z-.038],
  GV16:[0,head.y+.01,head.z+.1],GB20:[.028*L,1.435,.09],GV15:[0,neck.y+.04,neck.z+.095],
  BL10:[.022*L,neck.y+.015,neck.z+.095],
  // 大椎：C7 棘突下、約肩線；BL14／BL43（T4）與 SI11 在其下方。
@@ -110,7 +111,8 @@ const preferFor=(code,arr)=>{
  if(code==='GB26')return new T.Vector3(arr[0],0,-.15).normalize();
  if(code==='GB1')return new T.Vector3(arr[0],0,-1).normalize();
  if(code==='CV22')return new T.Vector3(0,0,-1);
- if(code==='ST9')return new T.Vector3(arr[0],-.05,-1).normalize();
+ if(code==='ST9')return new T.Vector3(0,-.05,-1).normalize();
+ if(code==='ST12')return new T.Vector3(0,1,-.15).normalize();
  if(code==='GV14')return new T.Vector3(0,0,1);
  if(code==='SI11')return new T.Vector3(arr[0]*.25,-.05,1).normalize();
  const catalog=teachingByCode.get(code);

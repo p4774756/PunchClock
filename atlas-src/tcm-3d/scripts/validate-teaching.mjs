@@ -213,7 +213,7 @@ try {
     assert.ok(gv14.position[1] > bl14.position[1], `GV14 y=${gv14.position[1]} 應高於 BL14 y=${bl14.position[1]}`);
   });
 
-  await test('頸胸五穴（#284）：頦唇溝／喉結／胸骨上窩／鎖骨上窩相對高度', async () => {
+  await test('頸胸五穴：頦唇溝／喉結前緣／胸骨上窩／鎖骨上窩', async () => {
     const {readFileSync} = await import('node:fs');
     const {GLTFLoader} = await import('three/examples/jsm/loaders/GLTFLoader.js');
     globalThis.self = globalThis;
@@ -248,9 +248,73 @@ try {
     assert.ok(cv22[1] > shoulderY - 0.01, `天突 y=${cv22[1]} 應在鎖骨線上方（肩≈${shoulderY.toFixed(3)}）`);
     assert.ok(cv22[1] < neckY, `天突應低於頸骨（neck≈${neckY.toFixed(3)}）`);
     assert.ok(cv22[1] > upperChestY + 0.08, `天突不可落在鎖骨下上胸（上胸≈${upperChestY.toFixed(3)}）`);
-    assert.ok(st12[1] >= shoulderY - 0.003, `缺盆 y=${st12[1]} 應在鎖骨上方`);
-    assert.ok(st12[1] < cv22[1] + 0.02, '缺盆不應明顯低於天突而落到胸壁');
-    assert.ok(Math.abs(st9[2]) < 0.05, `人迎應在頸前（z=${st9[2]}）`);
+    const st9n = animeJson.points.find(p => p.code === 'ST9').normal;
+    const st12n = animeJson.points.find(p => p.code === 'ST12').normal;
+    const skins = [];
+    gltf.scene.traverse(o => {
+      if (!o.isMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      if (mats.some(m => /Face_00_SKIN|Body_00_SKIN|FaceMouth/i.test(m?.name || ''))) skins.push(o);
+    });
+    const ray = new T.Raycaster();
+    const frontHit = (x, y) => {
+      ray.set(new T.Vector3(x, y, -0.16), new T.Vector3(0, 0, 1));
+      ray.far = 0.35;
+      const hit = ray.intersectObjects(skins, false)[0];
+      assert.ok(hit, `頸前射線未命中 x=${x} y=${y}`);
+      const outward = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+      return {point: hit.point, normal: outward};
+    };
+    let anteriorBorder = 0;
+    for (let x = 0.008; x <= 0.04; x += 0.001) {
+      const hit = frontHit(x, st9[1]);
+      if (hit.normal.z < -0.7 && Math.abs(hit.normal.x) < 0.5) anteriorBorder = x;
+    }
+    assert.ok(anteriorBorder > 0.012 && anteriorBorder < 0.02, `頸前緣 x≈${anteriorBorder.toFixed(3)} 應落在喉結旁`);
+    assert.ok(st9[0] <= anteriorBorder + 0.001, `人迎 x=${st9[0]} 已過頸前緣（約 ${anteriorBorder.toFixed(3)}），偏到頸側`);
+    assert.ok(st9[0] >= anteriorBorder - 0.004, `人迎 x=${st9[0]} 應靠近頸前緣（約 ${anteriorBorder.toFixed(3)}）`);
+    assert.ok(st9[2] < -0.015, `人迎 z=${st9[2]} 應在頸前，不可偏到側極之後`);
+    assert.ok(st9n[2] < -0.75 && st9n[0] < 0.45, `人迎法線應朝前（n=${st9n.join(',')}）`);
+    let fossaY = null;
+    for (let y = shoulderY - 0.02; y <= neckY; y += 0.002) {
+      ray.set(new T.Vector3(st12[0], y, -0.16), new T.Vector3(0, 0, 1));
+      ray.far = 0.35;
+      const hit = ray.intersectObjects(skins, false)[0];
+      if (!hit) break;
+      const outward = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+      if (fossaY == null && outward.y > 0.85) fossaY = hit.point.y;
+      else if (fossaY != null && outward.y < 0.5) break;
+    }
+    assert.ok(fossaY != null && fossaY > shoulderY, `鎖骨上窩底 y≈${fossaY} 應高於肩骨`);
+    assert.ok(st12[1] >= fossaY - 0.002, `缺盆 y=${st12[1]} 仍在鎖骨前坡，窩底約 ${fossaY.toFixed(3)}`);
+    assert.ok(st12[1] < fossaY + 0.012, `缺盆 y=${st12[1]} 高出鎖骨上窩底（約 ${fossaY.toFixed(3)}），不是窩裡`);
+    assert.ok(st12[1] > cv22[1] - 0.02, `缺盆 y=${st12[1]} 不可明顯低於天突（${cv22[1]}）而落到胸壁`);
+    assert.ok(st12[2] > -0.032, `缺盆 z=${st12[2]} 應退入鎖骨上窩，不可停在鎖骨前坡`);
+    assert.ok(st12n[1] > 0.85, `缺盆法線應朝上（鎖骨上窩），ny=${st12n[1]}`);
+    const snapSide = (position, normal) => {
+      const n = normal.clone().normalize();
+      const origin = position.clone().addScaledVector(n, 0.08);
+      ray.set(origin, n.clone().negate());
+      ray.far = 0.2;
+      const hits = ray.intersectObjects(skins, false);
+      const hit = hits.find(h => h.point.distanceTo(position) < 0.08) ?? hits[0];
+      assert.ok(hit, '吸附未命中皮膚');
+      const outward = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+      if (outward.dot(n) < 0) outward.negate();
+      return {point: hit.point, normal: outward};
+    };
+    const sides = [];
+    for (const side of [1, -1]) {
+      const hit = snapSide(
+        new T.Vector3(-st12[0] * side, st12[1], st12[2]),
+        new T.Vector3(-st12n[0] * side, st12n[1], st12n[2]),
+      );
+      sides.push(hit);
+      assert.ok(hit.normal.y > 0.85, `缺盆側 ${side} 吸附後法線未朝上 ny=${hit.normal.y.toFixed(3)}`);
+      assert.ok(hit.point.y >= fossaY - 0.004, `缺盆側 ${side} y=${hit.point.y.toFixed(3)} 落到鎖骨上窩以下`);
+      assert.ok(hit.point.z > -0.034, `缺盆側 ${side} z=${hit.point.z.toFixed(3)} 仍在鎖骨前坡`);
+    }
+    assert.ok(Math.abs(sides[0].point.y - sides[1].point.y) < 0.004, `缺盆左右高度差 ${Math.abs(sides[0].point.y - sides[1].point.y).toFixed(4)}，應對稱落在鎖骨上窩`);
   });
 
   await test('天宗 SI11 在肩胛區、較舊種子內側且偏後', () => {
@@ -277,7 +341,7 @@ try {
     // After overlay.anchor(), ST9 hit normal is ~[-0.06, 0.98, -0.17] (y≈0.984).
     const up = new T.Vector3(-0.06, 0.98, -0.17).normalize();
     assert.ok(up.y > 0.85, '測試法線必須能觸發舊的 normal.y>.85 分支');
-    for (const code of ['ST9', 'CV22', 'CV23']) {
+    for (const code of ['ST9', 'CV22', 'CV23', 'ST12']) {
       const framed = focusViewFromNormal(code, up.clone(), 1);
       assert.ok(framed.distance < 0.45, `${code} distance=${framed.distance} 應 < 0.45（不可為 1.35）`);
       assert.notEqual(framed.distance, 1.35, `${code} 不可落入 GV20 遠距`);
