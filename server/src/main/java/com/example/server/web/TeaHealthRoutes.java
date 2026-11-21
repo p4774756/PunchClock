@@ -7,7 +7,7 @@ import io.javalin.http.Context;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** 公開製茶機健康快照：僅 CPU／記憶體等安全欄位，不含 clients／diskPath。 */
+/** 公開伺服器健康快照：僅 CPU／記憶體等安全欄位，不含 clients／diskPath。 */
 public final class TeaHealthRoutes {
 
     private final ServerHealth serverHealth;

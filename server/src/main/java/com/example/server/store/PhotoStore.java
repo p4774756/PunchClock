@@ -274,7 +274,7 @@ public final class PhotoStore {
             return UploadResult.fail("單份簡報不可超過 60 MB");
         }
         if (storageDir == null) {
-            return UploadResult.fail("伺服器沒有飲品牆目錄，無法留簡報");
+            return UploadResult.fail("伺服器沒有簡報牆目錄，無法留簡報");
         }
         if (slideCount() >= MAX_PHOTOS) {
             return UploadResult.fail("已達上限 " + MAX_PHOTOS + " 份，請先清掉一些");

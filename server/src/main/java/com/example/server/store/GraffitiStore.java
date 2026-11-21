@@ -41,9 +41,9 @@ public final class GraffitiStore {
     public static final int RATE_MAX = 3;
     public static final long RATE_WINDOW_MS = 10L * 60L * 1000L;
     public static final String ANONYMOUS = "路過的旅人";
-    public static final String FULL_MESSAGE = "塗鴉牆已經滿了";
-    public static final String RATE_MESSAGE = "畫太快了，十分鐘內最多三幅";
-    public static final String SIZE_MESSAGE = "塗鴉太大了";
+    public static final String FULL_MESSAGE = "簽到本已經滿了";
+    public static final String RATE_MESSAGE = "簽太快，十分鐘內最多三則";
+    public static final String SIZE_MESSAGE = "簽到圖太大了";
     public static final String IMAGE_MESSAGE = "只接受 512×256 的 PNG";
     public static final String SIGNATURE_MESSAGE = "署名最多 12 個字";
 
@@ -169,7 +169,7 @@ public final class GraffitiStore {
             saveIndex();
         } catch (IOException ex) {
             items.remove(item);
-            return Result.fail(500, "塗鴉沒能留住，請再試一次");
+            return Result.fail(500, "簽到沒能留下，請再試一次");
         }
         return Result.ok(item);
     }
@@ -400,7 +400,7 @@ public final class GraffitiStore {
         }
 
         static Result ok(Item item) {
-            return new Result(true, 200, "已留在牆上", item);
+            return new Result(true, 200, "已貼上簽到本", item);
         }
 
         static Result fail(int status, String message) {

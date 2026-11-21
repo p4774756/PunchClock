@@ -248,7 +248,7 @@ public class PhotoStoreTest {
         PhotoStore memory = new PhotoStore(null);
         PhotoStore.UploadResult refused = memory.savePdf("週會.pages", pdf);
         assertFalse(refused.ok);
-        assertEquals("伺服器沒有飲品牆目錄，無法留簡報", refused.message);
+        assertEquals("伺服器沒有簡報牆目錄，無法留簡報", refused.message);
 
         PhotoStore.UploadResult saved = store.savePdf("週會.pages", pdf);
         assertTrue(saved.ok);

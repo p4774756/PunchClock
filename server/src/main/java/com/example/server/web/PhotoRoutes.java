@@ -61,7 +61,7 @@ public final class PhotoRoutes {
             }
             if (!photoStore.isPersistent()) {
                 ctx.status(HttpStatus.BAD_REQUEST).json(Map.of(
-                        "success", false, "message", "伺服器沒有飲品牆目錄，無法留簡報"));
+                        "success", false, "message", "伺服器沒有簡報牆目錄，無法留簡報"));
                 return;
             }
             SlidePrep.Result prepared = slides.prepare(uploaded.filename(), data);
@@ -309,7 +309,7 @@ public final class PhotoRoutes {
         }
         String photoId = ctx.pathParam("photoId");
         if (photoStore.delete(photoId)) {
-            ctx.json(Map.of("success", true, "message", "已從飲品牆拿下來"));
+            ctx.json(Map.of("success", true, "message", "已從簡報牆移除"));
         } else {
             ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到這份簡報"));
         }
