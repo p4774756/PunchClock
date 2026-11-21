@@ -235,7 +235,8 @@
 
 .pt-hud-dl-label {
   position: absolute;
-  top: calc(100% + 4px);
+  top: auto;
+  bottom: calc(100% + 4px);
   right: 0;
   font-size: 0.7rem;
   font-weight: 800;

@@ -12,18 +12,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * 驗收首頁私人團隊 3D 一角。需先啟動 server 並設 {@code PUNCHCLOCK_BASE}。
+ * 驗收首頁私人團隊 3D 一角。需先啟動 server，並設 {@code PUNCHCLOCK_BASE} 與 {@code PUNCHCLOCK_SHOTS_DIR}。
  */
-public class PrivateTeamShots334Test {
+public class PrivateTeamSceneShotsTest {
 
     @Test
     public void capturePrivateTeamScreens() throws Exception {
         String base = System.getenv("PUNCHCLOCK_BASE");
         Assume.assumeTrue(base != null && !base.isEmpty());
         String outDir = System.getenv("PUNCHCLOCK_SHOTS_DIR");
-        if (outDir == null || outDir.isEmpty()) {
-            outDir = System.getProperty("user.home") + "/PunchClock-oki/shots334-self/dev1";
-        }
+        Assume.assumeTrue(outDir != null && !outDir.isEmpty());
         Path dir = Path.of(outDir);
         Files.createDirectories(dir);
 

@@ -4,13 +4,11 @@ const COL = {
   wood: 0xc9a66b,
   woodDk: 0xa07840,
   wall: 0xd8e4f4,
-  wallDk: 0xb8c8dc,
   rug: 0x6a8fd4,
   rugEdge: 0xa8d0f2,
   desk: 0x8b6914,
   chair: 0x4a5568,
   screen: 0x1a2438,
-  screenGlow: 0x5cb8ff,
   progress: 0x2e9a4a,
   hair: 0xf4a8c8,
   skin: 0xffe0d4,
@@ -20,14 +18,17 @@ const COL = {
   mug: 0xf8fbff,
   sky: 0x9ec8f0,
   skyNight: 0x1a2848,
-  building: 0x5a6a88,
+  building: 0x4a5c7a,
   buildingLit: 0xf8dc6e,
-  navy: 0x163a70
+  navy: 0x163a70,
+  frame: 0x243044
 };
 
-function box(w, h, d, color) {
+function box(w, h, d, color, basic) {
   const g = new THREE.BoxGeometry(w, h, d);
-  const m = new THREE.MeshLambertMaterial({ color });
+  const m = basic
+    ? new THREE.MeshBasicMaterial({ color })
+    : new THREE.MeshLambertMaterial({ color });
   return new THREE.Mesh(g, m);
 }
 
@@ -37,46 +38,50 @@ function cyl(rt, rb, h, seg, color) {
   return new THREE.Mesh(g, m);
 }
 
-function labelTexture(text, w, h, opts) {
+function labelTexture(text, w, h) {
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = opts && opts.bg ? opts.bg : '#f8fbff';
+  ctx.fillStyle = '#f8fbff';
   ctx.fillRect(0, 0, w, h);
-  if (opts && opts.border) {
-    ctx.strokeStyle = '#163a70';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(4, 4, w - 8, h - 8);
-  }
-  ctx.fillStyle = opts && opts.color ? opts.color : '#163a70';
-  ctx.font = 'bold ' + (opts && opts.fontSize ? opts.fontSize : 28) + 'px "Noto Sans TC", sans-serif';
+  ctx.strokeStyle = '#163a70';
+  ctx.lineWidth = 18;
+  ctx.strokeRect(10, 10, w - 20, h - 20);
+  ctx.fillStyle = '#163a70';
+  ctx.font = 'bold 92px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, w / 2, h / 2);
+  ctx.fillText(text, w / 2, h / 2 + 4);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
-function screenTexture(isDay, pulse) {
+function makeScreenPainter() {
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 96;
+  canvas.width = 160;
+  canvas.height = 110;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#1a2438';
-  ctx.fillRect(0, 0, 128, 96);
-  const glow = isDay ? '#5cb8ff' : '#78c8ff';
-  const a = 0.35 + pulse * 0.25;
-  ctx.fillStyle = 'rgba(92, 184, 255, ' + a + ')';
-  ctx.fillRect(12, 14, 104, 68);
-  ctx.fillStyle = glow;
-  ctx.fillRect(20, 24, 40, 8);
-  ctx.fillRect(20, 38, 70, 6);
-  ctx.fillRect(20, 50, 56, 6);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  const mat = new THREE.MeshBasicMaterial({ map: tex });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.38), mat);
+  mesh.position.z = 0.04;
+  function draw(isDay, pulse) {
+    ctx.fillStyle = '#121a2c';
+    ctx.fillRect(0, 0, 160, 110);
+    const glow = isDay ? '#7ec8ff' : '#b9e2ff';
+    ctx.fillStyle = 'rgba(94, 186, 255, ' + (0.45 + pulse * 0.45) + ')';
+    ctx.fillRect(12, 14, 136, 82);
+    ctx.fillStyle = glow;
+    const slide = (pulse * 28) | 0;
+    ctx.fillRect(22, 26, 48 + slide, 10);
+    ctx.fillRect(22, 46, 90, 8);
+    ctx.fillRect(22, 64, 62 + (18 - slide / 2), 8);
+    tex.needsUpdate = true;
+  }
+  return { mesh, draw };
 }
 
 function progressTexture(pct) {
@@ -98,26 +103,29 @@ function progressTexture(pct) {
   return tex;
 }
 
-function bubbleTexture(alpha) {
+function bubbleTexture() {
   const canvas = document.createElement('canvas');
-  canvas.width = 96;
-  canvas.height = 48;
+  canvas.width = 256;
+  canvas.height = 128;
   const ctx = canvas.getContext('2d');
-  ctx.globalAlpha = alpha;
+  ctx.clearRect(0, 0, 256, 128);
   ctx.fillStyle = '#f8fbff';
   ctx.strokeStyle = '#163a70';
-  ctx.lineWidth = 4;
-  const r = 10;
-  const x = 8;
-  const y = 6;
-  const w = 80;
-  const h = 30;
+  ctx.lineWidth = 10;
+  const x = 16;
+  const y = 12;
+  const w = 224;
+  const h = 78;
+  const r = 22;
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.lineTo(x + w - r, y);
   ctx.quadraticCurveTo(x + w, y, x + w, y + r);
   ctx.lineTo(x + w, y + h - r);
   ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + 150, y + h);
+  ctx.lineTo(x + 118, y + h + 26);
+  ctx.lineTo(x + 108, y + h);
   ctx.lineTo(x + r, y + h);
   ctx.quadraticCurveTo(x, y + h, x, y + h - r);
   ctx.lineTo(x, y + r);
@@ -126,48 +134,82 @@ function bubbleTexture(alpha) {
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = '#163a70';
-  ctx.font = 'bold 22px sans-serif';
+  ctx.font = 'bold 72px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('…', 48, 20);
+  ctx.fillText('…', 128, 50);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
+function buildArm(side) {
+  const pivot = new THREE.Group();
+  pivot.position.set(side * 0.36, 0.5, 0.16);
+  const arm = cyl(0.075, 0.06, 0.5, 8, COL.skin);
+  arm.position.set(0, -0.22, 0.02);
+  arm.rotation.x = 0.85;
+  pivot.add(arm);
+  return pivot;
+}
+
 function buildSecretary() {
   const g = new THREE.Group();
-  const body = box(0.42, 0.38, 0.32, COL.shirt);
-  body.position.y = 0.52;
+  const torsoH = 0.4;
+  const torsoY = 0.52;
+  const midBack = torsoY;
+  const body = box(0.4, torsoH, 0.28, COL.shirt);
+  body.position.set(0, torsoY, 0.02);
   g.add(body);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), new THREE.MeshLambertMaterial({ color: COL.skin }));
-  head.position.set(0, 0.92, 0.02);
+  const headY = 0.94;
+  const headR = 0.2;
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(headR, 12, 10),
+    new THREE.MeshLambertMaterial({ color: COL.skin })
+  );
+  head.position.set(0, headY, 0.08);
   g.add(head);
 
-  const hair = box(0.44, 0.42, 0.36, COL.hair);
-  hair.position.set(0, 0.9, -0.06);
+  const hairTop = headY + headR + 0.06;
+  const hairBottom = midBack - torsoH * 0.22;
+  const hairH = hairTop - hairBottom;
+  const hair = new THREE.Mesh(
+    new THREE.BoxGeometry(0.52, hairH, 0.26),
+    new THREE.MeshBasicMaterial({ color: COL.hair })
+  );
+  hair.position.set(0, (hairTop + hairBottom) / 2, -0.18);
   g.add(hair);
 
-  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), new THREE.MeshLambertMaterial({ color: COL.navy }));
-  eyeL.position.set(-0.06, 0.94, 0.16);
-  const eyeR = eyeL.clone();
-  eyeR.position.x = 0.06;
+  const eyeMat = new THREE.MeshLambertMaterial({ color: COL.navy });
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), eyeMat);
+  eyeL.position.set(-0.07, 0.98, 0.24);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), eyeMat);
+  eyeR.position.set(0.07, 0.98, 0.24);
   g.add(eyeL, eyeR);
 
-  const smile = box(0.1, 0.02, 0.02, COL.navy);
-  smile.position.set(0, 0.86, 0.17);
+  const smile = box(0.11, 0.025, 0.03, COL.navy);
+  smile.position.set(0, 0.88, 0.26);
   g.add(smile);
 
-  const armL = cyl(0.05, 0.05, 0.28, 8, COL.skin);
-  armL.position.set(-0.3, 0.58, 0.1);
-  armL.rotation.z = 0.35;
-  const armR = cyl(0.05, 0.05, 0.28, 8, COL.skin);
-  armR.position.set(0.3, 0.58, 0.1);
-  armR.rotation.z = -0.35;
+  const armL = buildArm(-1);
+  const armR = buildArm(1);
   g.add(armL, armR);
 
   return { group: g, armL, armR };
+}
+
+function addMonitor(root, camera, x, z) {
+  const group = new THREE.Group();
+  group.position.set(x, 0.86, z);
+  const bezel = box(0.64, 0.46, 0.05, 0x1a2438);
+  const painter = makeScreenPainter();
+  const stand = box(0.1, 0.28, 0.08, 0x2a3648);
+  stand.position.y = -0.34;
+  group.add(bezel, painter.mesh, stand);
+  group.lookAt(camera.position.x, 1.15, camera.position.z);
+  root.add(group);
+  return painter;
 }
 
 export function mountPrivateTeamScene(canvas, opts) {
@@ -182,11 +224,11 @@ export function mountPrivateTeamScene(canvas, opts) {
   scene.background = new THREE.Color(0x0a1628);
 
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
-  camera.position.set(5.2, 4.4, 5.8);
-  camera.lookAt(0.2, 0.7, 0);
+  camera.position.set(4.8, 4.8, 6.2);
+  camera.lookAt(0.15, 0.85, 0.05);
 
-  const amb = new THREE.AmbientLight(0xffffff, 0.65);
-  const dir = new THREE.DirectionalLight(0xfff4e8, 0.85);
+  const amb = new THREE.AmbientLight(0xffffff, 0.72);
+  const dir = new THREE.DirectionalLight(0xfff4e8, 0.9);
   dir.position.set(4, 8, 5);
   scene.add(amb, dir);
 
@@ -206,106 +248,153 @@ export function mountPrivateTeamScene(canvas, opts) {
   const rug = box(2.4, 0.03, 1.6, COL.rug);
   rug.position.set(0.1, 0.04, 0.1);
   root.add(rug);
-  const edges = [
-    [1.22, 0.05, 0.02, 2.42, 0.06, 0.02],
-    [-1.02, 0.05, 0.02, 2.42, 0.06, 0.02],
-    [0.1, 0.05, 0.82, 0.02, 0.06, 1.62],
-    [0.1, 0.05, -0.62, 0.02, 0.06, 1.62]
-  ];
-  edges.forEach((e) => {
-    const edge = box(e[3], e[4], e[5], COL.rugEdge);
-    edge.position.set(e[0], e[1], e[2]);
+  const edgeMat = new THREE.MeshBasicMaterial({ color: COL.rugEdge });
+  [
+    [2.4, 0.045, 0.07, 0.1, 0.075, 0.9],
+    [2.4, 0.045, 0.07, 0.1, 0.075, -0.7],
+    [0.07, 0.045, 1.6, -1.1, 0.075, 0.1],
+    [0.07, 0.045, 1.6, 1.3, 0.075, 0.1]
+  ].forEach((e) => {
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(e[0], e[1], e[2]), edgeMat);
+    edge.position.set(e[3], e[4], e[5]);
     root.add(edge);
   });
 
-  const wall = box(5.2, 2.4, 0.12, COL.wall);
-  wall.position.set(0, 1.2, -1.15);
-  root.add(wall);
+  function wallPiece(w, h, x, y) {
+    const m = box(w, h, 0.12, COL.wall);
+    m.position.set(x, y, -1.15);
+    root.add(m);
+  }
+  wallPiece(2.45, 2.4, -1.375, 1.2);
+  wallPiece(0.75, 2.4, 2.225, 1.2);
+  wallPiece(2.0, 0.95, 0.85, 0.475);
+  wallPiece(2.0, 0.35, 0.85, 2.225);
 
-  const winGroup = new THREE.Group();
-  const winFrame = box(2.2, 1.2, 0.08, COL.wallDk);
-  winFrame.position.set(0.8, 1.45, -1.08);
-  winGroup.add(winFrame);
-  const glass = box(2.0, 1.0, 0.02, COL.sky);
-  glass.position.set(0.8, 1.45, -1.02);
-  glass.name = 'windowGlass';
-  winGroup.add(glass);
+  const skyMat = new THREE.MeshBasicMaterial({ color: COL.sky });
+  const windowSky = new THREE.Mesh(new THREE.PlaneGeometry(2.15, 1.25), skyMat);
+  windowSky.position.set(0.85, 1.5, -1.52);
+  windowSky.name = 'windowSky';
+  root.add(windowSky);
 
   const skyline = new THREE.Group();
   skyline.name = 'skyline';
-  const offsets = [-0.7, -0.35, 0, 0.35, 0.65, 0.95];
-  const heights = [0.45, 0.7, 0.55, 0.85, 0.5, 0.65];
-  offsets.forEach((ox, i) => {
-    const b = box(0.22, heights[i], 0.08, COL.building);
-    b.position.set(0.8 + ox, 1.0 + heights[i] / 2, -0.95);
+  const buildingSpecs = [
+    { x: 0.08, w: 0.26, h: 0.36 },
+    { x: 0.40, w: 0.32, h: 0.7 },
+    { x: 0.74, w: 0.2, h: 0.46 },
+    { x: 1.08, w: 0.36, h: 0.86 },
+    { x: 1.46, w: 0.24, h: 0.52 },
+    { x: 1.74, w: 0.18, h: 0.32 }
+  ];
+  const buildingShades = [0x516484, 0x3e516e, 0x5a6d90, 0x445878, 0x4c6286, 0x3a4c68];
+  buildingSpecs.forEach((spec, i) => {
+    const b = box(spec.w, spec.h, 0.14, buildingShades[i]);
+    b.position.set(spec.x, 1.02 + spec.h / 2, -1.36);
     b.name = 'building';
     skyline.add(b);
+    const cols = spec.w > 0.28 ? 2 : 1;
+    const rows = spec.h > 0.6 ? 3 : 2;
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows; r++) {
+        const lit = box(0.05, 0.05, 0.02, 0xd5e2f2, true);
+        const ox = (c - (cols - 1) / 2) * 0.1;
+        const oy = (r - (rows - 1) / 2) * 0.14;
+        lit.position.set(spec.x + ox, 1.02 + spec.h / 2 + oy, -1.28);
+        lit.name = 'bwin';
+        skyline.add(lit);
+      }
+    }
   });
-  winGroup.add(skyline);
-  root.add(winGroup);
+  root.add(skyline);
+
+  const glassMat = new THREE.MeshLambertMaterial({
+    color: COL.sky,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false
+  });
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.02, 0.02), glassMat);
+  glass.position.set(0.85, 1.5, -1.08);
+  glass.name = 'windowGlass';
+  root.add(glass);
+
+  function frameBar(w, h, x, y) {
+    const m = box(w, h, 0.08, COL.frame);
+    m.position.set(x, y, -1.02);
+    root.add(m);
+  }
+  frameBar(0.1, 1.18, -0.15, 1.5);
+  frameBar(0.1, 1.18, 1.85, 1.5);
+  frameBar(2.1, 0.1, 0.85, 2.05);
+  frameBar(2.1, 0.1, 0.85, 0.95);
+  frameBar(0.06, 1.0, 0.85, 1.5);
+  frameBar(1.9, 0.06, 0.85, 1.5);
 
   const progMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(1.0, 0.6),
     new THREE.MeshBasicMaterial({ map: progressTexture(0.62) })
   );
-  progMesh.position.set(-1.5, 1.55, -1.04);
+  progMesh.position.set(-1.55, 1.55, -1.04);
   root.add(progMesh);
 
-  const desk = box(1.5, 0.08, 0.7, COL.desk);
-  desk.position.set(0.05, 0.45, 0.15);
+  const desk = box(2.5, 0.08, 0.9, COL.desk);
+  desk.position.set(0.1, 0.46, 0.18);
   root.add(desk);
 
-  const monitorL = box(0.42, 0.32, 0.04, 0x2a3648);
-  monitorL.position.set(-0.25, 0.78, 0.05);
-  const monitorR = monitorL.clone();
-  monitorR.position.x = 0.35;
-  root.add(monitorL, monitorR);
+  const monitorL = addMonitor(root, camera, -0.85, 0.22);
+  const monitorR = addMonitor(root, camera, 0.95, 0.28);
 
-  const scrL = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.36, 0.26),
-    new THREE.MeshBasicMaterial({ map: screenTexture(true, 0.5) })
+  const mug = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.075, 0.18, 12),
+    new THREE.MeshBasicMaterial({ color: COL.mug })
   );
-  scrL.position.set(-0.25, 0.78, 0.08);
-  const scrR = scrL.clone();
-  scrR.position.x = 0.35;
-  scrL.name = 'screenL';
-  scrR.name = 'screenR';
-  root.add(scrL, scrR);
-
-  const mug = cyl(0.06, 0.05, 0.12, 10, COL.mug);
-  mug.position.set(0.65, 0.55, 0.2);
-  root.add(mug);
+  mug.position.set(-0.42, 0.64, 0.46);
+  const mugHandle = new THREE.Mesh(
+    new THREE.TorusGeometry(0.05, 0.015, 6, 10),
+    new THREE.MeshBasicMaterial({ color: COL.mug })
+  );
+  mugHandle.position.set(-0.5, 0.64, 0.46);
+  mugHandle.rotation.y = Math.PI / 2;
+  root.add(mug, mugHandle);
 
   const pot = cyl(0.1, 0.08, 0.12, 10, COL.pot);
-  pot.position.set(-1.0, 0.52, 0.45);
-  const plant = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.28, 6), new THREE.MeshLambertMaterial({ color: COL.plant }));
-  plant.position.set(-1.0, 0.78, 0.45);
+  pot.position.set(-1.35, 0.12, 0.55);
+  const plant = new THREE.Mesh(
+    new THREE.ConeGeometry(0.18, 0.28, 6),
+    new THREE.MeshLambertMaterial({ color: COL.plant })
+  );
+  plant.position.set(-1.35, 0.34, 0.55);
   root.add(pot, plant);
 
-  const chairSeat = box(0.38, 0.06, 0.36, COL.chair);
-  chairSeat.position.set(0.05, 0.32, 0.55);
+  const chairSeat = box(0.4, 0.06, 0.36, COL.chair);
+  chairSeat.position.set(0.05, 0.32, 0.62);
   root.add(chairSeat);
 
   const sec = buildSecretary();
-  sec.group.position.set(0.05, 0.28, 0.48);
+  sec.group.position.set(0.05, 0.28, 0.5);
   root.add(sec.group);
 
   const namePlate = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.55, 0.18),
-    new THREE.MeshBasicMaterial({ map: labelTexture('私人秘書', 256, 80, { border: true, fontSize: 32 }) })
+    new THREE.PlaneGeometry(1.15, 0.4),
+    new THREE.MeshBasicMaterial({
+      map: labelTexture('私人秘書', 640, 220),
+      side: THREE.DoubleSide
+    })
   );
-  namePlate.position.set(0.05, 0.62, 0.42);
-  namePlate.rotation.x = -0.15;
+  namePlate.position.set(0.95, 0.86, 0.95);
   root.add(namePlate);
+  const nameStand = box(0.08, 0.36, 0.08, COL.navy);
+  nameStand.position.set(0.95, 0.58, 0.95);
+  root.add(nameStand);
 
   const bubbleMat = new THREE.MeshBasicMaterial({
-    map: bubbleTexture(1),
+    map: bubbleTexture(),
     transparent: true,
-    opacity: 1,
     depthWrite: false
   });
-  const bubble = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 0.22), bubbleMat);
-  bubble.position.set(0.05, 1.22, 0.5);
+  const bubble = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.36), bubbleMat);
+  bubble.position.set(0.55, 1.85, 0.85);
+  bubble.renderOrder = 3;
   root.add(bubble);
 
   let dayMode = true;
@@ -325,16 +414,14 @@ export function mountPrivateTeamScene(canvas, opts) {
   function setDayMode(next) {
     dayMode = !!next;
     scene.background.setHex(dayMode ? 0x0a1628 : 0x050a14);
-    amb.intensity = dayMode ? 0.65 : 0.35;
-      dir.intensity = dayMode ? 0.85 : 0.45;
+    amb.intensity = dayMode ? 0.72 : 0.32;
+    dir.intensity = dayMode ? 0.9 : 0.4;
     dir.color.setHex(dayMode ? 0xfff4e8 : 0xc8d8ff);
-    const glassMesh = winGroup.getObjectByName('windowGlass');
-    if (glassMesh && glassMesh.material) {
-      glassMesh.material.color.setHex(dayMode ? COL.sky : COL.skyNight);
-    }
-    skyline.children.forEach((b, i) => {
-      if (b.name === 'building') {
-        b.material.color.setHex(dayMode ? COL.building : (i % 2 === 0 ? COL.buildingLit : COL.building));
+    glassMat.color.setHex(dayMode ? COL.sky : COL.skyNight);
+    skyMat.color.setHex(dayMode ? COL.sky : COL.skyNight);
+    skyline.children.forEach((b) => {
+      if (b.name === 'bwin' && b.material) {
+        b.material.color.setHex(dayMode ? 0xd5e2f2 : COL.buildingLit);
       }
     });
   }
@@ -343,22 +430,27 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (!running) return;
     raf = win.requestAnimationFrame(tick);
     const elapsed = (now - t0) / 1000;
-    const type = Math.sin(elapsed * 6);
-    sec.armL.rotation.x = type * 0.25;
-    sec.armR.rotation.x = -type * 0.25;
+    const cycle = 2.4;
+    const sawL = (elapsed % cycle) / cycle;
+    const sawR = ((elapsed + cycle * 0.5) % cycle) / cycle;
+    sec.armL.position.y = 0.38 + sawL * 0.55;
+    sec.armR.position.y = 0.38 + sawR * 0.55;
+    sec.armL.rotation.z = 0.15 + sawL * 1.15;
+    sec.armR.rotation.z = -0.15 - sawR * 1.15;
+    sec.armL.rotation.x = sawL * 0.9;
+    sec.armR.rotation.x = sawR * 0.9;
 
     const bubblePhase = (Math.sin(elapsed * 2.2) + 1) / 2;
-    bubbleMat.opacity = 0.45 + bubblePhase * 0.55;
-    bubbleMat.map = bubbleTexture(bubbleMat.opacity);
-    bubbleMat.needsUpdate = true;
+    bubble.position.y = 1.82 + bubblePhase * 0.08;
+    bubbleMat.opacity = 0.82 + bubblePhase * 0.18;
 
     const pulse = (Math.sin(elapsed * 3) + 1) / 2;
-    [scrL, scrR].forEach((s) => {
-      s.material.map = screenTexture(dayMode, pulse);
-      s.material.needsUpdate = true;
-    });
+    monitorL.draw(dayMode, pulse);
+    monitorR.draw(dayMode, pulse * 0.75 + 0.1);
 
-    root.rotation.y = Math.sin(elapsed * 0.12) * 0.06;
+    root.rotation.y = Math.sin(elapsed * 0.12) * 0.04;
+    bubble.lookAt(camera.position);
+    namePlate.lookAt(camera.position);
 
     renderer.render(scene, camera);
   }
