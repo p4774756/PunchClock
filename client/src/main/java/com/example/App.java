@@ -2570,6 +2570,7 @@ public class App extends JFrame {
         config.trustAllSsl = serverRefs.trustAllSslCheckBox != null
                 && serverRefs.trustAllSslCheckBox.isSelected();
         config.checkForUpdates = isCheckForUpdatesEnabled();
+        config.customBackground = false;
         config.backgroundBlurPercent = currentBackgroundBlurPercent();
         config.backgroundOpacityPercent = currentBackgroundOpacityPercent();
         captureRelayConfigInto(config);

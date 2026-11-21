@@ -222,8 +222,8 @@ public class CandyWidgetsTest {
             assertEquals(240, refs.buttonIdCombo.getPreferredSize().width);
             assertTrue(refs.browserCombo.getPreferredSize().width >= 148);
             assertTrue(refs.workIn.hourCombo.getPreferredSize().height <= 42);
-            assertTrue(refs.workIn.hourCombo.getPreferredSize().width >= 84);
-            assertTrue(refs.workIn.minuteCombo.getPreferredSize().width >= 84);
+            assertTrue(refs.workIn.hourCombo.getPreferredSize().width >= 56);
+            assertTrue(refs.workIn.minuteCombo.getPreferredSize().width >= 56);
             assertTrue(refs.workIn.nameField.getPreferredSize().height <= 42);
             assertTrue(refs.workIn.enabledCheckBox instanceof CandyCheckBox);
             assertTrue(refs.workIn.randomOffsetCheckBox instanceof CandyCheckBox);
@@ -304,13 +304,13 @@ public class CandyWidgetsTest {
 
             PanelFactory.PeerInteractionRefs peers = new PanelFactory.PeerInteractionRefs();
             JPanel peer = PanelFactory.createPeerInteractionPanel(peers, fonts.main, fonts.bold);
-            assertEquals(200, peers.clientIdCombo.getPreferredSize().width);
+            assertEquals(148, peers.clientIdCombo.getPreferredSize().width);
             assertTrue(peers.clientIdCombo.getPreferredSize().height >= 30);
             assertTrue(peers.openChatButton.getUI().getClass().getName().contains("CandyButton"));
             assertTrue(Boolean.TRUE.equals(peers.peerTableScroll.getClientProperty(CandyScrollBar.MARK)));
             NightTheme.apply(peer);
             assertTrue(peers.clientIdCombo.getUI().getClass().getName().contains("CandyComboBox"));
-            assertEquals(200, peers.clientIdCombo.getPreferredSize().width);
+            assertEquals(148, peers.clientIdCombo.getPreferredSize().width);
             JTextField idEditor = (JTextField) peers.clientIdCombo.getEditor().getEditorComponent();
             idEditor.setText("皮卡丘");
             assertEquals("皮卡丘", idEditor.getText());

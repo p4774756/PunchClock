@@ -8,9 +8,12 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import javax.swing.text.View;
 
 /**
  * UI 面板工廠 — 負責建構各區塊的 Swing 面板
@@ -67,7 +70,7 @@ public class PanelFactory {
         refs.heartbeatStatusLabel = new JLabel("[離線] 未連線 (已停用)", SwingConstants.LEFT);
         refs.heartbeatStatusLabel.setFont(boldFont);
         refs.heartbeatStatusLabel.setForeground(NightTheme.MUTED);
-        refs.heartbeatStatusLabel.setBorder(new EmptyBorder(0, 12, 0, 12));
+        refs.heartbeatStatusLabel.setBorder(null);
 
         JPanel cloud = new JPanel();
         cloud.setOpaque(false);
@@ -76,10 +79,13 @@ public class PanelFactory {
         cloud.add(Box.createVerticalStrut(10));
         cloud.add(formRowStretch(serverUrlLabel, refs.serverUrlCombo));
         cloud.add(Box.createVerticalStrut(10));
-        cloud.add(wrapFlowRow(
+        // 預設內容寬約 288px，13px 三項約 470px。間距交給核取方塊自己的內距，字級再往下收到放得下為止。
+        JPanel cloudFlags = wrapFlowRow(0, 2,
                 refs.enableServerCheckBox,
                 refs.trustAllSslCheckBox,
-                refs.heartbeatStatusLabel));
+                refs.heartbeatStatusLabel);
+        installSingleLineFont(cloudFlags, 13, 7);
+        cloud.add(cloudFlags);
 
         refs.updateStatusTitle = new JLabel("尚未檢查更新");
         refs.updateStatusTitle.setFont(boldFont);
@@ -429,7 +435,7 @@ public class PanelFactory {
         return row;
     }
 
-    /** 說明只有幾行，依內容撐高，不另開捲動。 */
+    /** 說明只有幾行，依折行後的實際高度撐開，不另開捲動。文字或寬度變了要重算。 */
     public static void fitRelayHelp(JTextArea area) {
         if (area == null) {
             return;
@@ -439,13 +445,66 @@ public class PanelFactory {
         if (area.getColumns() <= 0) {
             area.setColumns(18);
         }
-        int width = Math.min(300, Math.max(160, area.getColumns() * 9));
-        area.setSize(new Dimension(width, Short.MAX_VALUE));
-        Dimension pref = area.getPreferredSize();
-        int textH = Math.max(36, pref.height + 2);
-        area.setMinimumSize(new Dimension(0, textH));
-        area.setPreferredSize(new Dimension(width, textH));
-        area.setMaximumSize(new Dimension(Integer.MAX_VALUE, textH));
+        ensureRelayHelpRefit(area);
+        applyRelayHelpHeight(area);
+    }
+
+    private static void ensureRelayHelpRefit(JTextArea area) {
+        if (Boolean.TRUE.equals(area.getClientProperty("relayHelpListener"))) {
+            return;
+        }
+        area.putClientProperty("relayHelpListener", Boolean.TRUE);
+        area.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                applyRelayHelpHeight(area);
+            }
+        });
+    }
+
+    /**
+     * 清掉上次鎖死的 preferred size，再用目前寬度量折行高度。
+     * 否則第二次呼叫會一直拿到舊高度，長文被裁掉。
+     */
+    private static void applyRelayHelpHeight(JTextArea area) {
+        if (area == null || Boolean.TRUE.equals(area.getClientProperty("relayHelpBusy"))) {
+            return;
+        }
+        int width = area.getWidth();
+        if (width <= 1 && area.getParent() != null && area.getParent().getWidth() > 1) {
+            Insets parentInsets = area.getParent().getInsets();
+            width = area.getParent().getWidth() - parentInsets.left - parentInsets.right;
+        }
+        if (width <= 1) {
+            int columns = Math.max(1, area.getColumns());
+            width = Math.min(300, Math.max(160, columns * 9));
+        }
+        String token = width + "\n" + area.getText();
+        if (token.equals(area.getClientProperty("relayHelpToken"))) {
+            return;
+        }
+        area.putClientProperty("relayHelpBusy", Boolean.TRUE);
+        try {
+            area.setPreferredSize(null);
+            area.setMinimumSize(null);
+            area.setMaximumSize(null);
+            Insets insets = area.getInsets();
+            int inner = Math.max(8, width - insets.left - insets.right);
+            View root = area.getUI().getRootView(area);
+            root.setSize(inner, Integer.MAX_VALUE);
+            int textH = (int) Math.ceil(root.getPreferredSpan(View.Y_AXIS));
+            int height = Math.max(36, textH + insets.top + insets.bottom + 8);
+            area.setMinimumSize(new Dimension(0, height));
+            area.setPreferredSize(new Dimension(width, height));
+            area.setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
+            area.putClientProperty("relayHelpToken", token);
+            Container parent = area.getParent();
+            if (parent != null) {
+                parent.revalidate();
+            }
+        } finally {
+            area.putClientProperty("relayHelpBusy", Boolean.FALSE);
+        }
     }
 
     public static void setBackgroundEffectControlsEnabled(ServerConfigRefs refs, boolean enabled) {
@@ -586,7 +645,7 @@ public class PanelFactory {
 
         JLabel avatarLabel = new JLabel("大頭照：");
         avatarLabel.setFont(mainFont);
-        JPanel avatarRow = wrapFlowRow(
+        JPanel avatarRow = wrapFlowRow(4, 4,
                 avatarLabel, refs.avatarPreview, refs.chooseAvatarButton, refs.clearAvatarButton);
         refs.avatarRow = avatarRow;
 
@@ -605,8 +664,8 @@ public class PanelFactory {
         }
         int idHeight = Math.max(refs.clientIdCombo.getPreferredSize().height, 30);
         refs.clientIdCombo.setMinimumSize(new Dimension(120, idHeight));
-        refs.clientIdCombo.setPreferredSize(new Dimension(200, idHeight));
-        refs.clientIdCombo.setMaximumSize(new Dimension(220, idHeight));
+        refs.clientIdCombo.setPreferredSize(new Dimension(148, idHeight));
+        refs.clientIdCombo.setMaximumSize(new Dimension(148, idHeight));
 
         refs.clientIdApplyButton = candyButton(
                 "套用", CandyButton.Variant.SECONDARY, mainFont, "按 Enter 或「套用」後立即生效並儲存");
@@ -617,7 +676,7 @@ public class PanelFactory {
         refs.clientIdSavedLabel.setVisible(false);
         JLabel idLabel = new JLabel("裝置 ID：");
         idLabel.setFont(mainFont);
-        JPanel idRow = wrapFlowRow(
+        JPanel idRow = wrapFlowRow(4, 4,
                 idLabel, refs.clientIdCombo, refs.clientIdApplyButton, refs.clientIdSavedLabel);
 
         refs.openChatButton = candyButton(
@@ -1107,11 +1166,11 @@ public class PanelFactory {
         refs.panel = new CandyPanel();
         refs.panel.setLayout(new BorderLayout(0, 4));
 
-        refs.nameField = new CandyTextField(title, 12);
+        refs.nameField = new CandyTextField(title, 10);
         refs.nameField.setFont(mainFont);
         refs.nameField.setToolTipText("這個排程的名稱。改完後，本機和後台的任務卡都會顯示這個名字。最多 24 個字。");
         int nameHeight = Math.max(30, refs.nameField.getPreferredSize().height);
-        lockComponentSize(refs.nameField, new Dimension(200, nameHeight));
+        lockComponentSize(refs.nameField, new Dimension(136, nameHeight));
         refs.nameApplyButton = candyButton("套用", CandyButton.Variant.SECONDARY, mainFont,
                 "儲存排程名稱（也可按 Enter）");
         refs.nameApplyButton.setEnabled(false);
@@ -1119,11 +1178,9 @@ public class PanelFactory {
         refs.nameSavedLabel.setFont(mainFont);
         refs.nameSavedLabel.setForeground(new Color(144, 230, 176));
         refs.nameSavedLabel.setVisible(false);
-        JPanel nameRow = wrapFlowRow(
+        JPanel nameRow = wrapFlowRow(4, 4,
                 labeled(mainFont, "名稱"), refs.nameField, refs.nameApplyButton, refs.nameSavedLabel);
         nameRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        int nameRowHeight = Math.max(nameHeight, nameRow.getPreferredSize().height);
-        nameRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, nameRowHeight));
 
         refs.enabledCheckBox = new CandyCheckBox("啟用", true);
         refs.enabledCheckBox.setFont(boldFont);
@@ -1136,7 +1193,7 @@ public class PanelFactory {
         refs.hourCombo.setPrototypeDisplayValue("00");
         refs.hourCombo.setToolTipText("預定執行的小時（00–23）");
         CandyComboBox.install(refs.hourCombo);
-        lockComboSize(refs.hourCombo, 84);
+        lockComboSize(refs.hourCombo, 56);
 
         String[] minutes = new String[60];
         for (int i = 0; i < 60; i++) minutes[i] = String.format("%02d", i);
@@ -1145,7 +1202,7 @@ public class PanelFactory {
         refs.minuteCombo.setPrototypeDisplayValue("00");
         refs.minuteCombo.setToolTipText("預定執行的分鐘（00–59）");
         CandyComboBox.install(refs.minuteCombo);
-        lockComboSize(refs.minuteCombo, 84);
+        lockComboSize(refs.minuteCombo, 56);
 
         refs.randomOffsetCheckBox = new CandyCheckBox("±5 分隨機", true);
         refs.randomOffsetCheckBox.setFont(mainFont);
@@ -1155,15 +1212,16 @@ public class PanelFactory {
         hourUnit.setFont(mainFont);
         JLabel minUnit = new JLabel("分");
         minUnit.setFont(mainFont);
-        JPanel scheduleRow = wrapFlowRow(
+        JPanel hourGroup = inlinePair(refs.hourCombo, hourUnit);
+        JPanel minuteGroup = inlinePair(refs.minuteCombo, minUnit);
+        JPanel scheduleRow = wrapFlowRow(1, 4,
                 refs.enabledCheckBox,
                 refs.randomOffsetCheckBox,
-                refs.hourCombo,
-                hourUnit,
-                refs.minuteCombo,
-                minUnit);
+                hourGroup,
+                minuteGroup);
         if (skipDatesButton != null) {
-            scheduleRow.add(skipDatesButton);
+            nameRow.add(skipDatesButton);
+            installSkipDatesPlacement(scheduleRow, nameRow, skipDatesButton);
         }
 
         JPanel settings = new JPanel();
@@ -1208,7 +1266,6 @@ public class PanelFactory {
         statusGrid.setMinimumSize(new Dimension(0, statusH));
         statusGrid.setMaximumSize(new Dimension(Integer.MAX_VALUE, statusH));
 
-        pinRow(nameRow);
         settings.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JPanel mainCol = new JPanel(new BorderLayout(0, 12));
@@ -1309,15 +1366,274 @@ public class PanelFactory {
         public JButton clearLogButton;
     }
 
+    /**
+     * 寬度夠就維持原本字級；不夠就逐級縮小，盡量排成同一橫列。
+     * 最小字級仍放不下就換行，不再縮到看不清。
+     */
+    private static void installSingleLineFont(JPanel row, int maxSize, int minSize) {
+        Component[] kids = row.getComponents();
+        Font[] fonts = new Font[kids.length];
+        for (int i = 0; i < kids.length; i++) {
+            fonts[i] = kids[i].getFont();
+        }
+        row.putClientProperty("wrap.fit", (Runnable) () -> {
+            if (Boolean.TRUE.equals(row.getClientProperty("lineFitBusy"))) {
+                return;
+            }
+            int width = row.getWidth();
+            Object hinted = row.getClientProperty("wrap.width");
+            if (hinted instanceof Integer && (Integer) hinted > 0) {
+                width = (Integer) hinted;
+            } else if (row.getLayout() instanceof WrapLayout) {
+                width = ((WrapLayout) row.getLayout()).targetWidth(row);
+            }
+            if (width <= 0 || width == Integer.MAX_VALUE) {
+                return;
+            }
+            row.putClientProperty("lineFitBusy", Boolean.TRUE);
+            try {
+                int chosen = minSize;
+                for (int size = maxSize; size >= minSize; size--) {
+                    applyPointSize(kids, fonts, size);
+                    if (singleLineOuterWidth(row) <= width) {
+                        chosen = size;
+                        break;
+                    }
+                }
+                applyPointSize(kids, fonts, chosen);
+            } finally {
+                row.putClientProperty("lineFitBusy", Boolean.FALSE);
+            }
+        });
+    }
+
+    private static void applyPointSize(Component[] kids, Font[] fonts, int size) {
+        for (int i = 0; i < kids.length; i++) {
+            kids[i].setFont(fonts[i].deriveFont((float) size));
+        }
+    }
+
+    private static int singleLineOuterWidth(JPanel row) {
+        int hgap = 0;
+        if (row.getLayout() instanceof FlowLayout) {
+            hgap = ((FlowLayout) row.getLayout()).getHgap();
+        }
+        int used = 0;
+        int seen = 0;
+        for (Component child : row.getComponents()) {
+            if (!child.isVisible()) {
+                continue;
+            }
+            if (seen > 0) {
+                used += hgap;
+            }
+            used += child.getPreferredSize().width;
+            seen++;
+        }
+        return used + hgap * 2;
+    }
+
     private static JPanel wrapFlowRow(Component... components) {
-        JPanel row = new JPanel(new WrapLayout(FlowLayout.LEFT, 8, 4));
-        row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return wrapFlowRow(8, 4, components);
+    }
+
+    /**
+     * 橫向排列，寬度不夠就換行，高度跟著目前寬度長高。
+     * 不要在這裡把高度鎖成組裝當下的一行，否則第二列會被裁掉。
+     */
+    private static JPanel wrapFlowRow(int hgap, int vgap, Component... components) {
+        JPanel row = new WrappingRow(hgap, vgap);
         for (Component component : components) {
             row.add(component);
         }
+        return row;
+    }
+
+    /** 時與分貼在下拉旁邊，不要再被外層間距拆開。 */
+    private static JPanel inlinePair(Component left, Component right) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        row.setOpaque(false);
+        row.add(left);
+        row.add(right);
         pinRow(row);
         return row;
+    }
+
+    /**
+     * 跳過日期優先跟時分同一列；該列放不下就放到名稱列右側。
+     * 寬度在排版後才知道，所以等這一列真的有寬度再決定。
+     */
+    private static void installSkipDatesPlacement(JPanel scheduleRow, JPanel nameRow, JButton skip) {
+        Runnable place = () -> {
+            int width = scheduleRow.getWidth();
+            JPanel target = (width > 0 && skipFitsOnSchedule(scheduleRow, skip, width))
+                    ? scheduleRow : nameRow;
+            if (skip.getParent() == target) {
+                return;
+            }
+            if (skip.getParent() != null) {
+                skip.getParent().remove(skip);
+            }
+            target.add(skip);
+            scheduleRow.revalidate();
+            nameRow.revalidate();
+        };
+        scheduleRow.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                place.run();
+            }
+        });
+        skip.addPropertyChangeListener("text", event -> place.run());
+    }
+
+    private static boolean skipFitsOnSchedule(JPanel scheduleRow, JButton skip, int width) {
+        int hgap = 0;
+        if (scheduleRow.getLayout() instanceof FlowLayout) {
+            hgap = ((FlowLayout) scheduleRow.getLayout()).getHgap();
+        }
+        int max = width - hgap * 2;
+        int used = 0;
+        int seen = 0;
+        for (Component child : scheduleRow.getComponents()) {
+            if (!child.isVisible() || child == skip) {
+                continue;
+            }
+            if (seen > 0) {
+                used += hgap;
+            }
+            used += child.getPreferredSize().width;
+            seen++;
+        }
+        if (seen > 0) {
+            used += hgap;
+        }
+        used += skip.getPreferredSize().width;
+        return used <= max;
+    }
+
+    /**
+     * 換行列。preferred／maximum 高度跟目前寬度走，BoxLayout 才不會把第二列裁掉。
+     */
+    private static int relayoutDepth;
+
+    /** 這一列長高之後，把同層後面的元件往下推，並把高度一路補到捲動內容。 */
+    private static void pushDown(Component grown, int extra) {
+        Container parent = grown.getParent();
+        if (parent == null) {
+            return;
+        }
+        boolean after = false;
+        for (Component kid : parent.getComponents()) {
+            if (kid == grown) {
+                after = true;
+                continue;
+            }
+            if (after && kid.isVisible()) {
+                kid.setLocation(kid.getX(), kid.getY() + extra);
+            }
+        }
+        if (parent instanceof javax.swing.JViewport) {
+            javax.swing.JViewport viewport = (javax.swing.JViewport) parent;
+            Dimension want = grown.getSize();
+            Dimension have = viewport.getViewSize();
+            if (have == null || have.height + 1 < want.height) {
+                viewport.setViewSize(want);
+            }
+            return;
+        }
+        Insets insets = parent.getInsets();
+        int bottom = insets.top;
+        for (Component kid : parent.getComponents()) {
+            if (!kid.isVisible()) {
+                continue;
+            }
+            bottom = Math.max(bottom, kid.getY() + kid.getHeight());
+        }
+        bottom += insets.bottom;
+        int grow = bottom - parent.getHeight();
+        if (grow <= 1) {
+            return;
+        }
+        parent.setSize(parent.getWidth(), bottom);
+        pushDown(parent, grow);
+    }
+
+    private static final class WrappingRow extends JPanel {
+        WrappingRow(int hgap, int vgap) {
+            super(new WrapLayout(FlowLayout.LEFT, hgap, vgap));
+            setOpaque(false);
+            setAlignmentX(Component.LEFT_ALIGNMENT);
+        }
+
+        @Override
+        public void doLayout() {
+            putClientProperty("wrap.width", getWidth());
+            runFit();
+            super.doLayout();
+            growIfClipped();
+        }
+
+        /**
+         * 父層問高度時寬度常常還是 0 或上一輪的，先被排成一行。
+         * 這裡寬度已經確定，高度不夠就自己長高，並把後面的元件往下推。
+         */
+        private void growIfClipped() {
+            if (relayoutDepth > 0 || getWidth() <= 0) {
+                return;
+            }
+            int need = heightForWidth(getWidth());
+            int extra = need - getHeight();
+            if (extra <= 1) {
+                return;
+            }
+            relayoutDepth++;
+            try {
+                setBounds(getX(), getY(), getWidth(), need);
+                pushDown(this, extra);
+            } finally {
+                relayoutDepth--;
+            }
+        }
+
+        private int heightForWidth(int width) {
+            putClientProperty("wrap.width", width);
+            runFit();
+            if (getLayout() instanceof WrapLayout) {
+                return ((WrapLayout) getLayout()).preferredLayoutSize(this, width).height;
+            }
+            return getPreferredSize().height;
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            int width = getLayout() instanceof WrapLayout
+                    ? ((WrapLayout) getLayout()).targetWidth(this) : getWidth();
+            putClientProperty("wrap.width", width);
+            runFit();
+            return getLayout().preferredLayoutSize(this);
+        }
+
+        private void runFit() {
+            Object hook = getClientProperty("wrap.fit");
+            if (hook instanceof Runnable) {
+                ((Runnable) hook).run();
+            }
+        }
+
+        @Override
+        public Dimension getMinimumSize() {
+            Dimension min = getPreferredSize();
+            min.width = 0;
+            return min;
+        }
+
+        @Override
+        public Dimension getMaximumSize() {
+            Dimension max = getPreferredSize();
+            max.width = Integer.MAX_VALUE;
+            return max;
+        }
     }
 
     /** 一項一列，避免 380px 寬把勾選與按鈕擠到畫面外。 */
