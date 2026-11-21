@@ -8,8 +8,13 @@ import com.microsoft.playwright.options.WaitUntilState;
 import org.junit.Assume;
 import org.junit.Test;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 
 /**
  * 驗收 #296 簽名簿外觀截圖。
@@ -27,6 +32,18 @@ public class GuestbookShots296Test {
         }
         Path dir = Path.of(outDir);
         Files.createDirectories(dir);
+
+        try {
+            HttpResponse<Void> ping = HttpClient.newHttpClient().send(
+                    HttpRequest.newBuilder(URI.create(base + "/"))
+                            .timeout(Duration.ofSeconds(3))
+                            .GET()
+                            .build(),
+                    HttpResponse.BodyHandlers.discarding());
+            Assume.assumeTrue("Server not reachable", ping.statusCode() > 0 && ping.statusCode() < 500);
+        } catch (Exception ex) {
+            Assume.assumeNoException("Server not reachable", ex);
+        }
 
         try (Playwright pw = Playwright.create()) {
             Browser browser;
