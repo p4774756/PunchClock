@@ -2,16 +2,16 @@ import * as T from 'three';
 
 /**
  * Shared focus framing for teaching overlay and character-scene fallback.
- * Point-code specials must win before normal.y heuristics: after overlay
- * anchor(), ST9’s skin hit normal is nearly (0,1,0) and would otherwise
- * inherit GV20’s far 1.35 framing.
+ * Point-code specials must win before normal.y heuristics: a supraclavicular
+ * or neck hit whose skin normal points up would otherwise inherit GV20’s
+ * far 1.35 framing.
  */
 export const focusViewFromNormal=(pointCode:string|null|undefined,normal:T.Vector3,side:1|-1)=>{
  const viewDir=new T.Vector3();
  let distance=.62;
  let aimAdjust=new T.Vector3();
- if(pointCode==='ST9'||pointCode==='CV22'||pointCode==='CV23'){
-  // 人迎／天突／廉泉：近距正前方（勿被朝上皮膚法線導進百會遠距）
+ if(pointCode==='ST9'||pointCode==='CV22'||pointCode==='CV23'||pointCode==='ST12'){
+  // 人迎／天突／廉泉／缺盆：近距正前方（缺盆窩底法線朝上，勿導進百會遠距）
   viewDir.set(Math.sign(normal.x||side)*.12,.03,-1).normalize();
   aimAdjust.set(0,.015,-.008);
   distance=.34;

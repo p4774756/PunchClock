@@ -96,7 +96,7 @@ public class DevMachineRoutesTest {
         HttpResponse<String> badAuth = sendHeartbeat("Bearer wrong", "{\"machine\":\"home\"}");
         assertEquals(401, badAuth.statusCode());
 
-        HttpResponse<String> badMachine = sendHeartbeat("Bearer " + TOKEN, "{\"machine\":\"other\"}");
+        HttpResponse<String> badMachine = sendHeartbeat("Bearer " + TOKEN, "{\"machine\":\"Bad-ID\"}");
         assertEquals(400, badMachine.statusCode());
 
         byte[] huge = new byte[DevMachineStore.MAX_BODY_BYTES + 1];
@@ -118,7 +118,7 @@ public class DevMachineRoutesTest {
     public void guestAndAdminListWithViewer() throws Exception {
         clock.set(2_000_000L);
         sendHeartbeat("Bearer " + TOKEN,
-                "{\"machine\":\"home\",\"issue\":126,\"branch\":\"ai/issue-126\",\"runStartedAt\":1000,"
+                "{\"machine\":\"home\",\"displayName\":\"小貓\",\"issue\":126,\"branch\":\"ai/issue-126\",\"runStartedAt\":1000,"
                         + "\"agentRunning\":true,\"commit\":\"abcdef1\","
                         + "\"runs\":[{\"issue\":235,\"round\":0,\"branch\":\"ai/issue-235\",\"startedAt\":1000,"
                         + "\"worktree\":\"~/PunchClock-oki/wt-235\",\"commit\":\"abc1234\"}]}");

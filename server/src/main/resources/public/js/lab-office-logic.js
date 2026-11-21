@@ -11,50 +11,106 @@ export const CHARACTER_IDS = Object.freeze([
 export const IDLE_SPOTS = Object.freeze([
   { id: 'sofa', label: '沙發撸貓' },
   { id: 'coffee', label: '咖啡吧' },
-  { id: 'balcony', label: '海景陽台' }
+  { id: 'lounge', label: '休憩區' }
 ]);
 
-/** 與 lab-office.js 站位、lab-office.css 手機覆寫同一組數字。百分比對舞台。 */
+/** 百分比對舞台（桌機與手機同一組，對到城市夜景家具）。錨點是角色腳底／坐姿下緣。 */
 export const SPOT_POS = Object.freeze({
-  'desk-tiger': { x: 22, y: 80 },
-  'desk-review': { x: 50, y: 64 },
-  coffee: { x: 84, y: 70 },
-  sofa: { x: 16, y: 76 },
-  balcony: { x: 36, y: 86 },
-  beanbag: { x: 68, y: 82 },
-  meeting: { x: 48, y: 48 },
-  // 審核員待機：畫面右半、會議室與咖啡吧之間的空地。不要放回沙發（16%）旁邊。
-  'idle-review': { x: 68, y: 86 }
-});
-
-export const MOBILE_CHAR_POS = Object.freeze({
-  tiger: { x: 18, y: 82 },
-  reviewer: { x: 50, y: 82 },
-  oki: { x: 82, y: 82 }
+  'desk-oki': { x: 44, y: 43 },
+  'desk-tiger': { x: 49, y: 79 },
+  'desk-review': { x: 63, y: 51 },
+  coffee: { x: 11, y: 76 },
+  sofa: { x: 23, y: 63 },
+  lounge: { x: 30, y: 82 },
+  beanbag: { x: 18, y: 86 },
+  meeting: { x: 38, y: 88 },
+  'idle-review': { x: 71, y: 84 }
 });
 
 export const SPRITE_NATURAL = Object.freeze({
-  oki: { w: 98, h: 220 },
-  tiger: { w: 99, h: 220 },
-  reviewer: { w: 107, h: 220 }
-});
-
-const MACHINE_BY_CHAR = Object.freeze({
-  tiger: 'office'
+  oki: { w: 217, h: 434 },
+  tiger: { w: 274, h: 424 },
+  reviewer: { w: 244, h: 422 }
 });
 
 export function viewerCanOpenLabOffice(authFlag) {
   return authFlag === true;
 }
 
-/** 首頁可點物件（百分比座標，對舞台）。 */
+/** 首頁可點物件（百分比座標，對舞台）。對到新背景的家具，不是舊海景。 */
 export const OFFICE_PROP_POS = Object.freeze({
-  guestbook: { x: 20, y: 66, label: '簽名簿' },
-  clock: { x: 8, y: 58, label: '打卡機' },
-  bookshelf: { x: 78, y: 42, label: '書櫃' },
-  whiteboard: { x: 48, y: 38, label: '白板' },
-  desk: { x: 62, y: 72, label: '下載 App' }
+  guestbook: { x: 12, y: 69, label: '簽名簿' },
+  clock: { x: 18, y: 63, label: '打卡機' },
+  bookshelf: { x: 34, y: 34, label: '書櫃' },
+  whiteboard: { x: 15, y: 40, label: '白板' },
+  desk: { x: 66, y: 68, label: '下載 App' }
 });
+
+function isOnlineRow(row, now) {
+  if (!row || !row.online) return false;
+  const seen = Number(row.lastSeen);
+  if (Number.isFinite(seen) && seen > 0 && Number.isFinite(now)) {
+    return now - seen <= 180_000;
+  }
+  return !!row.online;
+}
+
+function loopsOnMachine(row) {
+  const runs = row && row.runs ? row.runs : [];
+  if (runs.length) return runs.length;
+  if (row && (row.agentRunning || row.issue)) return 1;
+  return 0;
+}
+
+export function countActiveLoops(machinesPayload, now) {
+  const list = machinesPayload && machinesPayload.machines ? machinesPayload.machines : [];
+  let total = 0;
+  for (let i = 0; i < list.length; i++) {
+    const row = list[i];
+    if (!isOnlineRow(row, now)) continue;
+    const n = loopsOnMachine(row);
+    if (n > 0) total += n;
+  }
+  return total;
+}
+
+function countReviewOnMachine(row) {
+  const runs = row && row.runs ? row.runs : [];
+  let n = 0;
+  for (let i = 0; i < runs.length; i++) {
+    if (runs[i] && runs[i].role === 'review') n++;
+  }
+  if (!n && row && row.role === 'review') n = 1;
+  return n;
+}
+
+export function countReviewActive(machinesPayload, now) {
+  const list = machinesPayload && machinesPayload.machines ? machinesPayload.machines : [];
+  let total = 0;
+  for (let i = 0; i < list.length; i++) {
+    const row = list[i];
+    if (!isOnlineRow(row, now)) continue;
+    total += countReviewOnMachine(row);
+  }
+  return total;
+}
+
+export function chibiAssetPath(charId, mode) {
+  const work = mode === 'work';
+  return '/assets/lab-2f/chibi-' + charId + (work ? '-work' : '-idle') + '.png';
+}
+
+export function tigerBubbleText(machinesPayload, now) {
+  const n = countActiveLoops(machinesPayload, now);
+  if (n <= 0) return '待機中';
+  return n === 1 ? '工作中' : '工作中 ×' + n;
+}
+
+export function reviewerBubbleText(machinesPayload, now) {
+  const n = countReviewActive(machinesPayload, now);
+  if (n <= 0) return '待機中';
+  return n === 1 ? '審核中' : '審核中 ×' + n;
+}
 
 export function buildCharacterStatesFromPublic(publicPayload, now) {
   const chars = publicPayload && publicPayload.characters ? publicPayload.characters : {};
@@ -63,21 +119,31 @@ export function buildCharacterStatesFromPublic(publicPayload, now) {
     const id = CHARACTER_IDS[i];
     const row = chars[id] || {};
     const status = String(row.status || '待機');
+    const working = status.startsWith('工作中');
+    const reviewing = status.startsWith('審核中');
     const base = {
       id,
-      mode: status === '工作中' ? 'work' : status === '審核中' ? 'work' : 'idle',
+      mode: working || reviewing ? 'work' : 'idle',
       bubble: status,
-      desk: status === '工作中' && (id === 'tiger' || id === 'reviewer'),
+      desk: false,
       accent: false,
       spot: pickIdleSpot(now, id)
     };
     if (id === 'oki') {
-      base.spot = 'coffee';
-      base.mode = status === '工作中' ? 'plan' : 'idle';
-    } else if (id === 'tiger' && status === '工作中') {
+      if (working) {
+        base.spot = 'desk-oki';
+        base.mode = 'work';
+        base.desk = true;
+      } else {
+        base.spot = 'coffee';
+        base.mode = status.startsWith('佇列') ? 'plan' : 'idle';
+      }
+    } else if (id === 'tiger' && working) {
       base.spot = 'desk-tiger';
-    } else if (id === 'reviewer' && status === '審核中') {
+      base.desk = true;
+    } else if (id === 'reviewer' && reviewing) {
       base.spot = 'desk-review';
+      base.desk = true;
     }
     list.push(base);
   }
@@ -117,15 +183,7 @@ export function isMachineWorking(machine) {
 }
 
 export function anyReviewActive(machinesPayload) {
-  const list = machinesPayload && machinesPayload.machines ? machinesPayload.machines : [];
-  for (let i = 0; i < list.length; i++) {
-    const row = list[i];
-    if (!row || !row.online) continue;
-    if (row.role === 'review') return true;
-    const run = primaryRun(row);
-    if (run && run.role === 'review') return true;
-  }
-  return false;
+  return countReviewActive(machinesPayload, Date.now()) > 0;
 }
 
 export function pickIdleSpot(seedMs, charId) {
@@ -172,43 +230,26 @@ export function buildCharacterState(charId, ctx) {
   if (charId === 'oki') {
     const q = dev && dev.now && dev.now.queue ? dev.now.queue.length : 0;
     const cur = dev && dev.now && dev.now.current ? dev.now.current : null;
-    const nx = dev && dev.now && dev.now.next ? dev.now.next : null;
-    const parts = ['佇列 ' + q];
-    if (cur && cur.issue) parts.push('進行 #' + cur.issue);
-    else if (nx && nx.issue) parts.push('下一 #' + nx.issue);
-    out.mode = 'plan';
-    out.spot = 'coffee';
-    out.bubble = parts.join(' · ');
-    out.desk = false;
+    const working = !!(cur && cur.issue);
+    out.bubble = working ? '工作中' : '佇列 ' + q;
+    if (working) {
+      out.mode = 'work';
+      out.spot = 'desk-oki';
+      out.desk = true;
+    } else {
+      out.mode = 'plan';
+      out.spot = 'coffee';
+    }
     return out;
   }
 
   if (charId === 'reviewer') {
-    const reviewOn = anyReviewActive(machines);
-    if (reviewOn) {
+    const reviewN = countReviewActive(machines, now);
+    if (reviewN > 0) {
       out.mode = 'work';
       out.spot = 'desk-review';
       out.desk = true;
-      const list = machines && machines.machines ? machines.machines : [];
-      let model = '';
-      let round = '';
-      for (let i = 0; i < list.length; i++) {
-        const row = list[i];
-        if (!row) continue;
-        const run = primaryRun(row);
-        if (row.role === 'review' && row.model) model = row.model;
-        if (run && run.role === 'review') {
-          if (run.model) model = run.model;
-          if (run.round != null) round = 'R' + run.round;
-        }
-        if (row.round != null && (row.role === 'review' || (run && run.role === 'review'))) {
-          round = 'R' + row.round;
-        }
-      }
-      const bits = ['審核中'];
-      if (round) bits.push(round);
-      if (model) bits.push(model);
-      out.bubble = bits.join(' · ');
+      out.bubble = reviewerBubbleText(machines, now);
       return out;
     }
     let verdict = '';
@@ -222,29 +263,24 @@ export function buildCharacterState(charId, ctx) {
     return out;
   }
 
-  const machineId = MACHINE_BY_CHAR[charId];
-  const row = machineById(machines, machineId);
-  if (isMachineWorking(row)) {
-    out.mode = 'work';
-    out.spot = 'desk-tiger';
-    out.desk = true;
-    const issue = row.issue || (primaryRun(row) && primaryRun(row).issue);
-    const round = row.round != null ? row.round : (primaryRun(row) && primaryRun(row).round);
-    const model = row.model || (primaryRun(row) && primaryRun(row).model);
-    const started = row.runStartedAt || (primaryRun(row) && primaryRun(row).startedAt);
-    const bits = [];
-    if (issue) bits.push('#' + issue);
-    if (round != null) bits.push('R' + round);
-    if (model) bits.push(model);
-    const elapsed = formatElapsed(started, now);
-    if (elapsed) bits.push(elapsed);
-    out.bubble = bits.join(' · ') || '工作中';
+  if (charId === 'tiger') {
+    const n = countActiveLoops(machines, now);
+    if (n > 0) {
+      out.mode = 'work';
+      out.spot = 'desk-tiger';
+      out.desk = true;
+      out.bubble = tigerBubbleText(machines, now);
+      return out;
+    }
+    const anyOnline = machines && machines.machines
+      ? machines.machines.some((row) => isOnlineRow(row, now))
+      : false;
+    out.mode = 'idle';
+    out.spot = pickIdleSpot(now, charId);
+    out.bubble = anyOnline ? '待機中' : '離線';
     return out;
   }
 
-  out.mode = 'idle';
-  out.spot = pickIdleSpot(now, charId);
-  out.bubble = row && row.online ? '待機中' : '離線';
   return out;
 }
 
@@ -252,32 +288,69 @@ export function buildAllCharacterStates(ctx) {
   return resolveSpotCollisions(CHARACTER_IDS.map((id) => buildCharacterState(id, ctx)));
 }
 
-const FLEX_SPOTS = ['sofa', 'balcony', 'beanbag', 'meeting'];
+const FLEX_SPOTS = ['sofa', 'lounge', 'beanbag', 'meeting', 'idle-review'];
 
-/** 軍師固定咖啡吧；有桌子的人固定工位；其餘空位不可疊在同一點。 */
+const CLEAR_VIEWPORTS = [
+  { w: 1280, h: 720 },
+  { w: 390, h: 844 }
+];
+
+function spotOverlapsPlaced(candidate, placed) {
+  if (!placed.length) return false;
+  const probe = placed.concat([candidate]);
+  for (let v = 0; v < CLEAR_VIEWPORTS.length; v++) {
+    const vp = CLEAR_VIEWPORTS[v];
+    const rects = officeLayoutRects(probe, vp.w, vp.h).rects;
+    const mine = rects[rects.length - 1];
+    for (let i = 0; i < rects.length - 1; i++) {
+      const other = rects[i];
+      if (rectsIntersect(mine.char, other.char)
+        || rectsIntersect(mine.bubble, other.bubble)
+        || rectsIntersect(mine.bubble, other.char)
+        || rectsIntersect(other.bubble, mine.char)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** 工位與第一個咖啡點只留一人；其餘空位在桌機與手機都不可疊到。 */
 export function resolveSpotCollisions(states) {
   const list = states || [];
   const used = new Set();
+  const placed = [];
   const flex = [];
   for (let i = 0; i < list.length; i++) {
     const st = list[i];
-    const fixed = st.id === 'oki' || st.desk;
-    if (fixed) used.add(st.spot);
-    else flex.push(st);
+    const claimCoffee = st.spot === 'coffee' && !used.has('coffee');
+    const anchored = !!(st.desk || st.spot === 'desk-oki' || claimCoffee);
+    if (anchored && st.spot && !used.has(st.spot)) {
+      used.add(st.spot);
+      placed.push(st);
+    } else {
+      flex.push(st);
+    }
   }
   for (let i = 0; i < flex.length; i++) {
     const st = flex[i];
-    if (st.spot && st.spot !== 'coffee' && !used.has(st.spot)) {
-      used.add(st.spot);
-      continue;
-    }
+    const candidates = [];
+    if (st.spot && !used.has(st.spot)) candidates.push(st.spot);
     for (let j = 0; j < FLEX_SPOTS.length; j++) {
-      if (!used.has(FLEX_SPOTS[j])) {
-        st.spot = FLEX_SPOTS[j];
-        used.add(st.spot);
+      const id = FLEX_SPOTS[j];
+      if (!used.has(id) && candidates.indexOf(id) < 0) candidates.push(id);
+    }
+    let chosen = candidates.length ? candidates[candidates.length - 1] : (st.spot || 'sofa');
+    for (let j = 0; j < candidates.length; j++) {
+      const probe = { id: st.id, spot: candidates[j], bubble: st.bubble };
+      if (!spotOverlapsPlaced(probe, placed)) {
+        chosen = candidates[j];
         break;
       }
     }
+    st.spot = chosen;
+    if (chosen) used.add(chosen);
+    placed.push(st);
   }
   return list;
 }
@@ -290,15 +363,14 @@ export function characterCardData(charId, ctx) {
     id: charId,
     state: base,
     machine: null,
+    machines: null,
     portrait: '/assets/lab-2f/portrait-' + charId + '.webp',
-    chibi: '/assets/lab-2f/chibi-' + charId + '.png'
+    chibi: chibiAssetPath(charId, base.mode)
   };
-  const machineId = MACHINE_BY_CHAR[charId];
-  if (machineId) {
-    data.machine = machineById(machines, machineId);
+  if (charId === 'tiger') {
+    data.machines = machines && machines.machines ? machines.machines.slice() : [];
   }
   if (charId === 'oki') {
-    data.machine = null;
     data.dev = c.devStatus;
   }
   return data;
@@ -313,11 +385,10 @@ function officeStageSize(viewportW, viewportH) {
 }
 
 function spriteHeightPx(stageH, viewportW) {
-  if (viewportW <= 520) return 42;
-  return Math.max(48, Math.min(120, stageH * 0.3));
+  if (viewportW <= 520) return 44;
+  return Math.max(48, Math.min(112, stageH * 0.24));
 }
 
-/** 對齊審核量到的氣泡外框：桌機「#254 · R4 · grok-4.7 · 1:35」約 157×28。 */
 function textWidthPx(text, fontSize) {
   const s = String(text || '');
   let w = 0;
@@ -332,28 +403,24 @@ function textWidthPx(text, fontSize) {
 
 function bubbleMetrics(viewportW) {
   if (viewportW <= 520) {
-    return { font: 10, lh: 1.2, padX: 3, padY: 2, border: 2, max: 80, min: 54.4 };
+    return { font: 10, lh: 1.2, padX: 3, padY: 2, border: 2, max: 74, min: 32 };
   }
-  return { font: 12, lh: 1.3, padX: 6, padY: 4, border: 2, max: 152, min: 54.4 };
+  return { font: 12, lh: 1.3, padX: 6, padY: 4, border: 2, max: 152, min: 48 };
 }
 
 export function rectsIntersect(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-/** 三人與氣泡在舞台上的外框。手機寬走 CSS 覆寫的百分比，桌機走站位。 */
 export function officeLayoutRects(states, viewportW, viewportH) {
   const stage = officeStageSize(viewportW, viewportH);
   const hSprite = spriteHeightPx(stage.h, viewportW);
   const spec = bubbleMetrics(viewportW);
-  const mobile = viewportW <= 520;
   const rects = [];
   const list = states || [];
   for (let i = 0; i < list.length; i++) {
     const st = list[i];
-    const pos = mobile
-      ? (MOBILE_CHAR_POS[st.id] || MOBILE_CHAR_POS.reviewer)
-      : (SPOT_POS[st.spot] || SPOT_POS.sofa);
+    const pos = SPOT_POS[st.spot] || SPOT_POS.sofa;
     const ax = stage.w * pos.x / 100;
     const ay = stage.h * pos.y / 100;
     const nat = SPRITE_NATURAL[st.id] || { w: 100, h: 220 };
