@@ -19,9 +19,9 @@ export const SPOT_POS = Object.freeze({
   'desk-oki': { x: 44, y: 43 },
   'desk-tiger': { x: 49, y: 79 },
   'desk-review': { x: 63, y: 51 },
-  coffee: { x: 11, y: 76 },
+  coffee: { x: 17, y: 76 },
   sofa: { x: 23, y: 63 },
-  lounge: { x: 30, y: 82 },
+  lounge: { x: 34, y: 82 },
   beanbag: { x: 18, y: 86 },
   meeting: { x: 38, y: 88 },
   'idle-review': { x: 71, y: 84 }
@@ -37,16 +37,17 @@ export function viewerCanOpenLabOffice(authFlag) {
   return authFlag === true;
 }
 
-/** 熱點命中框（px）。視覺標記更小，不再用 44px 把手機熱點撐到人身上。 */
+/** 未指定物品範圍的熱點，沿用小圓點命中（px）。視覺標記仍是 10px。 */
 export const OFFICE_PROP_HIT = 14;
 
 /**
  * 家具錨點是背景圖百分比（1280×720），不是舞台百分比。
- * ox/oy 是完整名稱中心相對錨點的位移（px），只在滑過或輕觸時使用。
+ * iw/ih 是物品命中框的圖片像素（跟著 object-fit 縮放），蓋住該物品。
+ * ox/oy 是完整名稱中心相對錨點的位移（px）；窄螢幕用 oxNarrow/oyNarrow。
  */
 export const OFFICE_PROP_POS = Object.freeze({
-  guestbook: { ix: 24, iy: 76, ox: 14, oy: 22, label: '簽名簿' },
-  clock: { ix: 4, iy: 66, ox: 12, oy: 30, label: '打卡機' },
+  guestbook: { ix: 28.13, iy: 66.39, iw: 44, ih: 28, ox: 0, oy: -26, oxNarrow: -14, oyNarrow: 30, label: '簽名簿' },
+  clock: { ix: 10.78, iy: 71.53, iw: 52, ih: 58, ox: 0, oy: -40, oxNarrow: 0, oyNarrow: 20, label: '打卡機' },
   bookshelf: { ix: 33, iy: 26, ox: 0, oy: -18, label: '書櫃' },
   whiteboard: { ix: 11, iy: 36, ox: 0, oy: -18, label: '白板' },
   desk: { ix: 60, iy: 67, ox: 0, oy: 34, label: '下載 App' }
@@ -478,6 +479,34 @@ function propLabelSize(text, viewportW) {
   };
 }
 
+function coverScale(stageW, stageH) {
+  return Math.max(stageW / 1280, stageH / 720);
+}
+
+/** 熱點在舞台上的命中框、名稱框，以及名稱用的 CSS 位移。 */
+export function propFrame(spec, stageW, stageH, viewportW) {
+  const p = imagePointToStage(spec.ix, spec.iy, stageW, stageH);
+  const scale = coverScale(stageW, stageH);
+  const w = spec.iw ? spec.iw * scale : OFFICE_PROP_HIT;
+  const h = spec.ih ? spec.ih * scale : OFFICE_PROP_HIT;
+  const ls = propLabelSize(spec.label, viewportW);
+  const narrow = viewportW <= 520;
+  const ox = narrow && spec.oxNarrow != null ? spec.oxNarrow : (spec.ox || 0);
+  const oy = narrow && spec.oyNarrow != null ? spec.oyNarrow : (spec.oy || 0);
+  return {
+    x: p.x,
+    y: p.y,
+    px: p.px,
+    py: p.py,
+    width: w,
+    height: h,
+    ox: ox,
+    oy: oy,
+    hit: { x: p.px - w / 2, y: p.py - h / 2, w: w, h: h },
+    name: { x: p.px + ox - ls.w / 2, y: p.py + oy - ls.h / 2, w: ls.w, h: ls.h }
+  };
+}
+
 /** 熱點命中框與（滑過時才出現的）名稱框，舞台像素。 */
 export function officePropLayout(viewportW, viewportH) {
   const stage = officeStageSize(viewportW, viewportH);
@@ -489,27 +518,12 @@ export function officePropLayout(viewportW, viewportH) {
   specs.push({ id: 'console', spec: OFFICE_CONSOLE_POS });
   const props = [];
   for (let i = 0; i < specs.length; i++) {
-    const spec = specs[i].spec;
-    const p = imagePointToStage(spec.ix, spec.iy, stage.w, stage.h);
-    const hit = {
-      x: p.px - OFFICE_PROP_HIT / 2,
-      y: p.py - OFFICE_PROP_HIT / 2,
-      w: OFFICE_PROP_HIT,
-      h: OFFICE_PROP_HIT
-    };
-    const ls = propLabelSize(spec.label, viewportW);
-    const ox = spec.ox || 0;
-    const oy = spec.oy || 0;
+    const frame = propFrame(specs[i].spec, stage.w, stage.h, viewportW);
     props.push({
       id: specs[i].id,
-      label: spec.label,
-      hit: hit,
-      name: {
-        x: p.px + ox - ls.w / 2,
-        y: p.py + oy - ls.h / 2,
-        w: ls.w,
-        h: ls.h
-      }
+      label: specs[i].spec.label,
+      hit: frame.hit,
+      name: frame.name
     });
   }
   return { stage: stage, props: props };

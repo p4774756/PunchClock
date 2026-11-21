@@ -6,7 +6,7 @@ import {
   OFFICE_PROP_POS,
   OFFICE_CONSOLE_POS,
   SPOT_POS,
-  imagePointToStage,
+  propFrame,
   officeStageSize,
   buildAllCharacterStates,
   buildCharacterStatesFromPublic,
@@ -102,11 +102,16 @@ export function createLabOfficeController(opts) {
   function applyPropBox(el, spec) {
     if (!el || !spec) return;
     const stage = stageBox();
-    const p = imagePointToStage(spec.ix, spec.iy, stage.w, stage.h);
-    el.style.left = p.x + '%';
-    el.style.top = p.y + '%';
-    el.style.setProperty('--tip-ox', (spec.ox || 0) + 'px');
-    el.style.setProperty('--tip-oy', (spec.oy || 0) + 'px');
+    const vw = (win && win.innerWidth) || stage.w;
+    const frame = propFrame(spec, stage.w, stage.h, vw);
+    el.style.left = frame.x + '%';
+    el.style.top = frame.y + '%';
+    if (spec.iw && spec.ih) {
+      el.style.width = frame.width + 'px';
+      el.style.height = frame.height + 'px';
+    }
+    el.style.setProperty('--tip-ox', frame.ox + 'px');
+    el.style.setProperty('--tip-oy', frame.oy + 'px');
   }
 
   function placeProps() {

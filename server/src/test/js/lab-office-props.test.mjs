@@ -32,8 +32,16 @@ test('主控台獨立熱點座標存在', () => {
   assert.ok(L.OFFICE_CONSOLE_POS);
   assert.ok(L.OFFICE_CONSOLE_POS.label);
   assert.ok(L.OFFICE_PROP_POS.guestbook);
-  assert.ok(L.OFFICE_PROP_POS.clock.ix > 0);
+  assert.ok(L.OFFICE_PROP_POS.clock.ix > 8, '打卡機落在櫃面招牌，不在左側板');
+  assert.ok(L.OFFICE_PROP_POS.guestbook.iy < 72, '簽名簿落在茶几上的書');
+  assert.ok(L.OFFICE_PROP_POS.clock.iw >= 40 && L.OFFICE_PROP_POS.clock.ih >= 40);
+  assert.ok(L.OFFICE_PROP_POS.guestbook.iw >= 36 && L.OFFICE_PROP_POS.guestbook.ih >= 24);
   assert.equal(L.OFFICE_PROP_HIT, 14);
+  const deskHit = L.officePropLayout(1280, 720);
+  const clockHit = deskHit.props.find((p) => p.id === 'clock').hit;
+  const guestHit = deskHit.props.find((p) => p.id === 'guestbook').hit;
+  assert.ok(clockHit.w > 40 && clockHit.h > 40, '桌機打卡機命中蓋住招牌');
+  assert.ok(guestHit.w > 30 && guestHit.h > 20, '桌機簽名簿命中蓋住書');
   assert.doesNotMatch(css, /min-width:\s*44px/);
   assert.doesNotMatch(css, /min-height:\s*44px/);
 });
