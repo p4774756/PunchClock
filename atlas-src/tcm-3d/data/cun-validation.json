@@ -31,7 +31,7 @@
         "pubis_rim": [
           0,
           0.87,
-          -0.1
+          -0.07487
         ],
         "left_nipple": {
           "sourcePoint": "ST17",
@@ -48,7 +48,7 @@
         "mentolabial_groove": [
           0,
           1.414,
-          -0.068
+          -0.09119
         ],
         "larynx_suprahyoid": [
           0,
@@ -63,32 +63,32 @@
         "anterior_hairline": [
           0,
           1.575,
-          -0.04
+          -0.08642
         ],
         "posterior_hairline": [
           0,
           1.505,
-          0.095
+          0.11342
         ],
         "vertex": [
           0,
           1.6249,
-          0.02
+          0.02023
         ],
         "c7_spinous": [
           0,
-          1.31,
-          0.08
+          1.3115,
+          0.0535
         ],
         "occipital_protuberance": [
           0,
           1.435,
-          0.095
+          0.07309
         ],
         "philtrum_upper_third": [
           0,
           1.431,
-          -0.045
+          -0.10071
         ],
         "nose_tip": [
           0,
@@ -98,12 +98,27 @@
         "left_clavicle_mid": [
           0.0609,
           1.3091,
-          -0.038
+          -0.03829
         ],
         "right_clavicle_mid": [
           -0.0609,
           1.3091,
-          -0.038
+          -0.03802
+        ],
+        "left_masseter_prominence": [
+          0.0565,
+          1.419,
+          -0.02872
+        ],
+        "left_supraclavicular_fossa": [
+          0.055,
+          1.3211,
+          -0.02825
+        ],
+        "left_infraclavicular": [
+          0.055,
+          1.3011,
+          -0.04847
         ],
         "left_elbow_crease": [
           0.3274,
@@ -158,17 +173,17 @@
         "qishe_anchor": [
           0.0221,
           1.32,
-          -0.032
+          -0.05124
         ],
         "yintang": [
           0,
           1.505,
-          -0.095
+          -0.09358
         ],
         "pupil_left": [
-          0.0314,
-          1.4813,
-          -0.08
+          0.0298,
+          1.481,
+          -0.0802
         ],
         "infraorbital_rim": [
           0.0314,
@@ -188,32 +203,37 @@
         "mouth_corner": [
           0.0358,
           1.406,
-          -0.0679
+          -0.06863
         ],
         "t5_spinous": [
           0,
           1.23,
-          0.088
+          0.05464
         ],
         "t9_spinous": [
           0,
           1.12,
-          0.092
+          0.02224
         ],
         "l2_spinous": [
           0,
-          1.02,
-          0.1
+          1.0215,
+          0.0402
         ],
         "l4_spinous": [
           0,
           0.98,
-          0.102
+          0.05421
         ],
         "s2_sacrum": [
           0,
           0.9,
-          0.105
+          0.06393
+        ],
+        "sternum_nipple_mid": [
+          0,
+          1.195,
+          -0.11061
         ]
       },
       "spans": [
@@ -365,6 +385,26 @@
         "right_clavicle_mid": {
           "mirror": "left_clavicle_mid"
         },
+        "left_masseter_prominence": [
+          0.06251,
+          1.54108,
+          0.07228
+        ],
+        "left_supraclavicular_fossa": [
+          0.067,
+          1.463,
+          0.035
+        ],
+        "left_infraclavicular": [
+          0.067,
+          1.408,
+          0.048
+        ],
+        "sternum_nipple_mid": [
+          0,
+          1.26112,
+          0.10019
+        ],
         "left_elbow_crease": {
           "sourcePoint": "LU5"
         },
@@ -590,12 +630,13 @@
     {
       "code": "CV17",
       "midline": true,
-      "midpointOf": [
+      "midpointYOf": [
         "left_nipple",
         "right_nipple"
       ],
+      "zFrom": "sternum_nipple_mid",
       "span": "chest",
-      "summary": "兩乳連線中點"
+      "summary": "兩乳連線中點、胸骨正中"
     },
     {
       "code": "CV18",
@@ -999,10 +1040,8 @@
     },
     {
       "code": "ST6",
-      "ref": "mentolabial_groove",
-      "verticalCun": 0.8,
-      "lateralCun": 1.5,
-      "span": "upperAbdomen",
+      "at": "left_masseter_prominence",
+      "span": "headFront",
       "summary": "下頜角前、咬肌隆起"
     },
     {
@@ -1029,15 +1068,13 @@
     },
     {
       "code": "ST12",
-      "ref": "left_clavicle_mid",
-      "lateralAbsCun": 4,
+      "at": "left_supraclavicular_fossa",
       "span": "chest",
       "summary": "鎖骨上窩、前正中線旁開 4 寸"
     },
     {
       "code": "ST13",
-      "ref": "left_clavicle_mid",
-      "lateralAbsCun": 4,
+      "at": "left_infraclavicular",
       "span": "chest",
       "summary": "鎖骨下緣、前正中線旁開 4 寸"
     },
@@ -1194,12 +1231,6 @@
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
-      "code": "CV17",
-      "source": "anime",
-      "maxDeviationCun": 1.128727,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
       "code": "CV18",
       "source": "catalog",
       "maxDeviationCun": 1.943435,
@@ -1233,12 +1264,6 @@
       "code": "CV23",
       "source": "anime",
       "maxDeviationCun": 0.900447,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "CV24",
-      "source": "anime",
-      "maxDeviationCun": 1.712285,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
@@ -1290,21 +1315,15 @@
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
-      "code": "GV14",
-      "source": "anime",
-      "maxDeviationCun": 1.962182,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
       "code": "GV15",
       "source": "anime",
-      "maxDeviationCun": 3.844413,
+      "maxDeviationCun": 4.113539,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV16",
       "source": "anime",
-      "maxDeviationCun": 3.419869,
+      "maxDeviationCun": 3.515788,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
@@ -1334,7 +1353,7 @@
     {
       "code": "GV20",
       "source": "anime",
-      "maxDeviationCun": 0.852975,
+      "maxDeviationCun": 0.843199,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
@@ -1352,19 +1371,13 @@
     {
       "code": "GV23",
       "source": "anime",
-      "maxDeviationCun": 2.169786,
+      "maxDeviationCun": 0.584699,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV24",
       "source": "catalog",
       "maxDeviationCun": 3.484518,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "GV26",
-      "source": "anime",
-      "maxDeviationCun": 3.947407,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
@@ -1383,12 +1396,6 @@
       "code": "GV3",
       "source": "catalog",
       "maxDeviationCun": 0.728371,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "GV4",
-      "source": "anime",
-      "maxDeviationCun": 4.379636,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
@@ -1436,13 +1443,13 @@
     {
       "code": "ST12",
       "source": "anime",
-      "maxDeviationCun": 1.637796,
+      "maxDeviationCun": 0.92935,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST13",
       "source": "catalog",
-      "maxDeviationCun": 3.366159,
+      "maxDeviationCun": 1.917472,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
@@ -1473,6 +1480,12 @@
       "code": "ST19",
       "source": "catalog",
       "maxDeviationCun": 0.923061,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
+    },
+    {
+      "code": "ST2",
+      "source": "anime",
+      "maxDeviationCun": 0.307865,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
@@ -1536,6 +1549,12 @@
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
+      "code": "ST3",
+      "source": "anime",
+      "maxDeviationCun": 0.368995,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
+    },
+    {
       "code": "ST30",
       "source": "catalog",
       "maxDeviationCun": 1.09392,
@@ -1544,13 +1563,7 @@
     {
       "code": "ST4",
       "source": "anime",
-      "maxDeviationCun": 0.441126,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
-    },
-    {
-      "code": "ST6",
-      "source": "anime",
-      "maxDeviationCun": 3.882284,
+      "maxDeviationCun": 0.439497,
       "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {

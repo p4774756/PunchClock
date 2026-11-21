@@ -16,6 +16,7 @@ const REQUIRED_LANDMARKS = [
   'anterior_hairline', 'posterior_hairline', 'vertex', 'yintang',
   'laryngeal_prominence', 'larynx_suprahyoid', 'mentolabial_groove', 'philtrum_upper_third',
   'pupil_left', 'infraorbital_rim', 'infraorbital_foramen', 'nose_tip', 'nasal_ala', 'mouth_corner',
+  'left_masseter_prominence', 'left_supraclavicular_fossa', 'left_infraclavicular', 'sternum_nipple_mid',
 ];
 
 /** 前髮際至百會 5 寸，百會至後髮際 7 寸。 */
@@ -167,6 +168,15 @@ function expectedFromRule(rule, landmarks, scalars, boneSpans, expectedByCode) {
     assert.ok(a && b, rule.code);
     return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
   }
+  if (rule.midpointYOf) {
+    const a = landmarks[rule.midpointYOf[0]];
+    const b = landmarks[rule.midpointYOf[1]];
+    assert.ok(a && b, rule.code);
+    const y = (a[1] + b[1]) / 2;
+    const zLm = rule.zFrom ? landmarks[rule.zFrom] : null;
+    assert.ok(zLm, `${rule.code} 缺少 zFrom 地標`);
+    return [0, y, zLm[2]];
+  }
   if (rule.scalpFrom) {
     const front = landmarks.anterior_hairline;
     const crown = landmarks.vertex;
@@ -288,6 +298,19 @@ function assertGeometry(spaceKey, landmarks, scalars, expected, boneSpans) {
   assert.ok(Math.abs(expected.get('ST1')[0] - landmarks.pupil_left[0]) < 1e-6, `${spaceKey} 承泣應在瞳孔直下`);
   assert.ok(Math.abs(expected.get('ST2')[0] - landmarks.pupil_left[0]) < 1e-6, `${spaceKey} 四白應在瞳孔直下`);
   assert.ok(expected.get('CV17')[1] > expected.get('CV16')[1], `${spaceKey} 膻中應高於中庭`);
+  const nipMidY = (landmarks.left_nipple[1] + landmarks.right_nipple[1]) / 2;
+  assert.ok(
+    Math.abs(landmarks.sternum_nipple_mid[1] - nipMidY) < 1e-3,
+    `${spaceKey} 膻中胸骨地標 y 應與兩乳頭連線等高`,
+  );
+  assert.ok(
+    Math.abs(expected.get('ST12')[0] - expected.get('ST13')[0]) < 1e-5
+      && Math.hypot(
+        expected.get('ST12')[1] - expected.get('ST13')[1],
+        expected.get('ST12')[2] - expected.get('ST13')[2],
+      ) > 1e-4,
+    `${spaceKey} 缺盆與氣戶應同乳中線但不可重合`,
+  );
   assert.ok(expected.get('ST17')[1] > expected.get('ST18')[1], `${spaceKey} 乳中應高於乳根`);
   assert.ok(landmarks.xiphoid[1] < landmarks.left_nipple[1], `${spaceKey} 劍突應低於乳頭`);
   assert.ok(landmarks.larynx_suprahyoid[1] < landmarks.mentolabial_groove[1], `${spaceKey} 舌骨上緣應低於頦唇溝`);
@@ -324,6 +347,54 @@ async function modelExists() {
   } catch {
     return false;
   }
+}
+
+const SKIN_MAT = /Face_00_SKIN|Body_00_SKIN|FaceMouth/i;
+
+async function loadAnimeSkinMeshes() {
+  const {readFileSync} = await import('node:fs');
+  const T = await import('three');
+  const {GLTFLoader} = await import('three/examples/jsm/loaders/GLTFLoader.js');
+  globalThis.self = globalThis;
+  globalThis.URL = URL;
+  globalThis.webkitURL = URL;
+  if (!globalThis.document) {
+    globalThis.document = {createElementNS: () => ({style: {}, setAttribute() {}, getContext() { return null; }})};
+  }
+  const buffer = readFileSync(join(project, 'public/models/anime-assistant.glb')).buffer;
+  const gltf = await new Promise((res, rej) => new GLTFLoader().parse(buffer, '', res, rej));
+  gltf.scene.updateMatrixWorld(true);
+  const skins = [];
+  gltf.scene.traverse(o => {
+    if (!o.isMesh) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    if (mats.some(m => SKIN_MAT.test(m?.name || ''))) skins.push(o);
+  });
+  assert.ok(skins.length > 0, '缺少皮膚網格');
+  const tri = new T.Triangle();
+  const closest = new T.Vector3();
+  const a = new T.Vector3();
+  const b = new T.Vector3();
+  const c = new T.Vector3();
+  const distToSkin = (point) => {
+    let best = Infinity;
+    const probe = new T.Vector3(point[0], point[1], point[2]);
+    for (const mesh of skins) {
+      const pos = mesh.geometry.getAttribute('position');
+      const index = mesh.geometry.index;
+      if (!pos || !index) continue;
+      for (let i = 0; i < index.count; i += 3) {
+        a.fromBufferAttribute(pos, index.getX(i)).applyMatrix4(mesh.matrixWorld);
+        b.fromBufferAttribute(pos, index.getX(i + 1)).applyMatrix4(mesh.matrixWorld);
+        c.fromBufferAttribute(pos, index.getX(i + 2)).applyMatrix4(mesh.matrixWorld);
+        tri.set(a, b, c);
+        tri.closestPointToPoint(probe, closest);
+        best = Math.min(best, probe.distanceTo(closest));
+      }
+    }
+    return best;
+  };
+  return {distToSkin};
 }
 
 async function animeModelBounds() {
@@ -377,6 +448,11 @@ export async function runCunValidation(opts = {}) {
   assert.equal(config.rules.find(rule => rule.code === 'GV25')?.at, 'nose_tip');
   assert.equal(config.rules.find(rule => rule.code === 'ST1')?.atLevel?.xFrom, 'pupil_left');
   assert.equal(config.rules.find(rule => rule.code === 'ST2')?.atLevel?.xFrom, 'pupil_left');
+  assert.equal(config.rules.find(rule => rule.code === 'ST6')?.at, 'left_masseter_prominence');
+  assert.equal(config.rules.find(rule => rule.code === 'CV17')?.midpointYOf?.[0], 'left_nipple');
+  assert.equal(config.rules.find(rule => rule.code === 'CV17')?.zFrom, 'sternum_nipple_mid');
+  assert.equal(config.rules.find(rule => rule.code === 'ST12')?.at, 'left_supraclavicular_fossa');
+  assert.equal(config.rules.find(rule => rule.code === 'ST13')?.at, 'left_infraclavicular');
   assert.equal(config.spaces.anime.landmarks.baihui, undefined);
   assert.equal(config.spaces.catalog.landmarks.baihui, undefined);
 
@@ -394,6 +470,7 @@ export async function runCunValidation(opts = {}) {
     spaces[spaceKey] = {landmarks, scalars, expected, spans: space.spans};
   }
 
+  let landmarkSkinRows = [];
   if (hasModel) {
     const bounds = await animeModelBounds();
     const gv20 = spaces.anime.expected.get('GV20');
@@ -405,6 +482,19 @@ export async function runCunValidation(opts = {}) {
       spaces.anime.landmarks.xiphoid[1] < bounds.upperChestY,
       `劍突應低於上胸骨（${spaces.anime.landmarks.xiphoid[1].toFixed(3)} < ${bounds.upperChestY.toFixed(3)}）`,
     );
+    const {distToSkin} = await loadAnimeSkinMeshes();
+    const rawAnime = config.spaces.anime.landmarks;
+    const skinCheckNames = [
+      'anterior_hairline', 'posterior_hairline', 'philtrum_upper_third', 'c7_spinous', 't9_spinous', 'l2_spinous',
+      'pubis_rim', 'sternum_nipple_mid', 'left_masseter_prominence', 'left_supraclavicular_fossa', 'left_infraclavicular',
+    ];
+    for (const name of skinCheckNames) {
+      const lm = spaces.anime.landmarks[name];
+      assert.ok(lm, `少女地標 ${name} 缺失`);
+      const mm = distToSkin(lm) * 1000;
+      landmarkSkinRows.push({name, mm});
+      assert.ok(mm < 5.01, `少女地標 ${name} 離皮膚 ${mm.toFixed(2)} mm（需 < 5 mm）`);
+    }
   }
 
   const rows = [];
@@ -483,10 +573,16 @@ export async function runCunValidation(opts = {}) {
     `門檻：${threshold} 寸；受檢 ${rows.length} 穴`,
     spanReport('少女', spaces.anime.scalars, config.boneSpans, spaces.anime.spans),
     spanReport('目錄', spaces.catalog.scalars, config.boneSpans, spaces.catalog.spans),
+  ];
+  if (landmarkSkinRows.length) {
+    lines.push('', '## 少女地標離皮距離（mm）', '', '| 地標 | 距皮膚 mm |', '| --- | ---: |');
+    for (const row of landmarkSkinRows) lines.push(`| ${row.name} | ${row.mm.toFixed(2)} |`);
+  }
+  lines.push(
     '',
     '| 代碼 | 名稱 | 來源 | 規則 | 應在位置 | 現有位置 | 偏差(寸) | 狀態 |',
     '| --- | --- | --- | --- | --- | --- | ---: | --- |',
-  ];
+  );
   for (const row of rows) {
     const note = row.note ? `；${row.note}` : '';
     lines.push(`| ${row.code} | ${row.name} | ${row.source} | ${row.rule} | ${fmtPos(row.expected)} | ${fmtPos(row.actual)} | ${row.deviationCun.toFixed(3)} | ${row.status}${note} |`);
