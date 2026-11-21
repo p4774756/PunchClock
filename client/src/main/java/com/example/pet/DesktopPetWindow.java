@@ -44,6 +44,7 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * 透明、無邊框的桌面寵物視窗。
@@ -90,6 +91,8 @@ public final class DesktopPetWindow extends JFrame {
     private Runnable noticePump;
     private Runnable noticeOpen;
     private Runnable summonMain;
+    /** 主視窗螢幕外框。最小化時為 null。呼喚與外框變大時用來避開重疊。 */
+    private Supplier<Rectangle> mainBoundsSupplier = () -> null;
     private Runnable persistCare;
     private DesktopPetCare care;
     private long lastCarePersistAt;
@@ -267,14 +270,17 @@ public final class DesktopPetWindow extends JFrame {
 
     void showPet() {
         requireEdt();
+        refreshFit();
         if (!placed) {
             setLocation(initialLocation());
             placed = true;
         }
-        refreshFit();
+        nudgeAwayFromMainWindow();
         validate();
         if (!isVisible()) {
             setVisible(true);
+            // 主視窗已經在前面時，只設 alwaysOnTop 不會把這扇 POPUP 排上去。
+            toFront();
         }
         if (!timer.isRunning()) {
             timer.start();
@@ -511,6 +517,13 @@ public final class DesktopPetWindow extends JFrame {
         this.summonMain = summonMain;
     }
 
+    /**
+     * 提供目前主視窗在螢幕上的外框。主視窗最小化或尚未顯示時應回傳 null。
+     */
+    void setMainBoundsSupplier(Supplier<Rectangle> mainBoundsSupplier) {
+        this.mainBoundsSupplier = mainBoundsSupplier != null ? mainBoundsSupplier : () -> null;
+    }
+
     boolean showNotice(String phrase, Runnable open) {
         requireEdt();
         if (!animation.showNotice(phrase)) {
@@ -582,6 +595,12 @@ public final class DesktopPetWindow extends JFrame {
             return;
         }
         onTick();
+    }
+
+    /** 停掉走路計時，讓螢幕擷圖對得上這一格。 */
+    void holdStill() {
+        requireEdt();
+        stopMotion();
     }
 
     private void stopMotion() {
@@ -708,12 +727,43 @@ public final class DesktopPetWindow extends JFrame {
      */
     private Point initialLocation() {
         Rectangle[] screens = screenRects();
+        int windowWidth = Math.max(1, getWidth());
+        int windowHeight = Math.max(1, getHeight());
         Point origin = settings.hasPosition()
                 ? new Point(settings.x(), settings.y())
-                : defaultSpot(usableBounds(), WIDTH, HEIGHT);
+                : defaultSpot(usableBounds(), windowWidth, windowHeight);
         Point window = new Point(origin.x + view.x, origin.y + view.y);
-        return clampToScreens(
-                window.x, window.y, Math.max(1, getWidth()), Math.max(1, getHeight()), screens);
+        Point clamped = clampToScreens(window.x, window.y, windowWidth, windowHeight, screens);
+        return nudgeOutsideMainWindow(
+                clamped.x, clamped.y, windowWidth, windowHeight, mainWindowBounds(), usableBounds(), screens);
+    }
+
+    private Rectangle mainWindowBounds() {
+        try {
+            Rectangle bounds = mainBoundsSupplier.get();
+            if (bounds == null || bounds.width < 1 || bounds.height < 1) {
+                return null;
+            }
+            return bounds;
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    void nudgeAwayFromMainWindow() {
+        int windowWidth = Math.max(1, getWidth());
+        int windowHeight = Math.max(1, getHeight());
+        Point next = nudgeOutsideMainWindow(
+                getX(),
+                getY(),
+                windowWidth,
+                windowHeight,
+                mainWindowBounds(),
+                usableBounds(),
+                screenRects());
+        if (next.x != getX() || next.y != getY()) {
+            setLocation(next);
+        }
     }
 
     private void rememberLocation() {
@@ -1378,6 +1428,135 @@ public final class DesktopPetWindow extends JFrame {
                 Math.max(target.y, Math.min(y, maxY)));
     }
 
+    static final int MAIN_AVOID_GAP = 6;
+
+    /**
+     * 呼喚時把寵物移出主視窗外框，並把整扇留在螢幕裡。
+     * 外框變大後的平移可能不再和主視窗相交，但仍會伸出螢幕右緣；不相交時也要拉回來。
+     * 四個方向都放不進螢幕時，改挑重疊最少的落點。
+     */
+    static Point nudgeOutsideMainWindow(
+            int x,
+            int y,
+            int windowWidth,
+            int windowHeight,
+            Rectangle main,
+            Rectangle usable,
+            Rectangle[] screens) {
+        Point onScreen = clampToScreens(x, y, windowWidth, windowHeight, screens);
+        if (main == null || main.isEmpty() || windowWidth < 1 || windowHeight < 1) {
+            return onScreen;
+        }
+        Rectangle pet = new Rectangle(onScreen.x, onScreen.y, windowWidth, windowHeight);
+        if (!pet.intersects(main)) {
+            return onScreen;
+        }
+        x = onScreen.x;
+        y = onScreen.y;
+        int gap = MAIN_AVOID_GAP;
+        Point best = null;
+        long bestDistance = Long.MAX_VALUE;
+        int[][] proposals = {
+            {main.x + main.width + gap, y},
+            {main.x - gap - windowWidth, y},
+            {x, main.y + main.height + gap},
+            {x, main.y - gap - windowHeight},
+        };
+        for (int[] proposal : proposals) {
+            Point candidate = clampToScreens(proposal[0], proposal[1], windowWidth, windowHeight, screens);
+            Rectangle placed = new Rectangle(candidate.x, candidate.y, windowWidth, windowHeight);
+            if (placed.intersects(main)) {
+                continue;
+            }
+            long distance = distanceSquared(x, y, candidate.x, candidate.y);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+        if (best != null) {
+            return best;
+        }
+        return clearestSpot(x, y, windowWidth, windowHeight, main, usable, screens);
+    }
+
+    /**
+     * 微移失敗時的落點。能完全避開就避開；螢幕剩下的縫比寵物小，就貼著空出的那一側，讓重疊面積最小。
+     */
+    private static Point clearestSpot(
+            int x,
+            int y,
+            int windowWidth,
+            int windowHeight,
+            Rectangle main,
+            Rectangle usable,
+            Rectangle[] screens) {
+        java.util.ArrayList<Point> candidates = new java.util.ArrayList<Point>();
+        if (usable != null && usable.width > 0 && usable.height > 0) {
+            candidates.add(defaultSpot(usable, windowWidth, windowHeight));
+            candidates.add(new Point(usable.x, usable.y));
+            candidates.add(new Point(
+                    Math.max(usable.x, usable.x + usable.width - windowWidth), usable.y));
+            candidates.add(new Point(
+                    usable.x, Math.max(usable.y, usable.y + usable.height - windowHeight)));
+            candidates.add(new Point(
+                    Math.max(usable.x, usable.x + usable.width - windowWidth),
+                    Math.max(usable.y, usable.y + usable.height - windowHeight)));
+        }
+        if (screens != null) {
+            for (Rectangle screen : screens) {
+                if (screen == null) {
+                    continue;
+                }
+                candidates.add(new Point(screen.x, screen.y));
+                candidates.add(new Point(
+                        Math.max(screen.x, screen.x + screen.width - windowWidth), screen.y));
+                candidates.add(new Point(
+                        screen.x, Math.max(screen.y, screen.y + screen.height - windowHeight)));
+                candidates.add(new Point(
+                        Math.max(screen.x, screen.x + screen.width - windowWidth),
+                        Math.max(screen.y, screen.y + screen.height - windowHeight)));
+            }
+        }
+        Point bestClear = null;
+        long bestClearDistance = Long.MAX_VALUE;
+        Point bestPartial = null;
+        long bestPartialArea = Long.MAX_VALUE;
+        long bestPartialDistance = Long.MAX_VALUE;
+        for (Point raw : candidates) {
+            Point candidate = clampToScreens(raw.x, raw.y, windowWidth, windowHeight, screens);
+            Rectangle placed = new Rectangle(candidate.x, candidate.y, windowWidth, windowHeight);
+            long distance = distanceSquared(x, y, candidate.x, candidate.y);
+            if (!placed.intersects(main)) {
+                if (distance < bestClearDistance) {
+                    bestClearDistance = distance;
+                    bestClear = candidate;
+                }
+                continue;
+            }
+            Rectangle overlap = placed.intersection(main);
+            long area = (long) Math.max(0, overlap.width) * Math.max(0, overlap.height);
+            if (area < bestPartialArea || (area == bestPartialArea && distance < bestPartialDistance)) {
+                bestPartialArea = area;
+                bestPartialDistance = distance;
+                bestPartial = candidate;
+            }
+        }
+        if (bestClear != null) {
+            return bestClear;
+        }
+        if (bestPartial != null) {
+            return bestPartial;
+        }
+        return new Point(x, y);
+    }
+
+    private static long distanceSquared(int x1, int y1, int x2, int y2) {
+        long dx = (long) x1 - x2;
+        long dy = (long) y1 - y2;
+        return dx * dx + dy * dy;
+    }
+
     static HorizontalStep stepHorizontal(int x, int dx, int minX, int maxX) {
         if (maxX < minX) {
             maxX = minX;
@@ -1439,6 +1618,8 @@ public final class DesktopPetWindow extends JFrame {
             }
             if (placed) {
                 setLocation(getX() + dx, getY() + dy);
+                // 影格到達後視窗會從佔位長成角色外框，右緣會再伸進主視窗。
+                nudgeAwayFromMainWindow();
             }
             if (isDisplayable()) {
                 validate();
@@ -1496,7 +1677,19 @@ public final class DesktopPetWindow extends JFrame {
             DesktopPetSpriteLoader.Frames milu,
             DesktopPetAnimation animation,
             boolean drawViewportBorder) {
-        if (view == null || view.width < 1 || view.height < 1) {
+        return paintMiluViewport(view, milu, animation, drawViewportBorder, 0, 0, 0, 1);
+    }
+
+    static BufferedImage paintMiluViewport(
+            Rectangle view,
+            DesktopPetSpriteLoader.Frames milu,
+            DesktopPetAnimation animation,
+            boolean drawViewportBorder,
+            double pivotX,
+            double pivotY,
+            double radians,
+            double scale) {
+        if (view == null || view.width < 1 || view.height < 1 || milu == null) {
             return new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         }
         BufferedImage image = new BufferedImage(view.width, view.height, BufferedImage.TYPE_INT_ARGB);
@@ -1509,16 +1702,7 @@ public final class DesktopPetWindow extends JFrame {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.translate(-view.x, -view.y);
             paintMiluShadow(g, WIDTH);
-            int x = (WIDTH - DesktopPetSpriteLoader.DISPLAY) / 2;
-            DesktopPetSpriteLoader.Sprite frame = milu.spriteFor(animation);
-            DesktopPetSpriteLoader.draw(
-                    g,
-                    frame.image,
-                    x,
-                    BUBBLE_SLOT,
-                    DesktopPetSpriteLoader.DISPLAY,
-                    frame.offsetX,
-                    frame.offsetY);
+            paintMiluSprite(g, milu, animation, pivotX, pivotY, radians, scale);
         } finally {
             g.dispose();
         }
@@ -1532,6 +1716,44 @@ public final class DesktopPetWindow extends JFrame {
             }
         }
         return image;
+    }
+
+    /**
+     * 把角色畫進已平移到邏輯畫布的 Graphics。拖曳時繞抓取點旋轉並縮小，避免貼到視窗邊。
+     */
+    private static void paintMiluSprite(
+            Graphics2D g,
+            DesktopPetSpriteLoader.Frames milu,
+            DesktopPetAnimation animation,
+            double pivotX,
+            double pivotY,
+            double radians,
+            double scale) {
+        Graphics2D layer = g;
+        boolean tilted = Math.abs(radians) > 1e-4 && scale > 0 && scale < 1.0001;
+        if (tilted) {
+            layer = (Graphics2D) g.create();
+            layer.translate(pivotX, pivotY);
+            layer.rotate(radians);
+            layer.scale(scale, scale);
+            layer.translate(-pivotX, -pivotY);
+        }
+        try {
+            int x = (WIDTH - DesktopPetSpriteLoader.DISPLAY) / 2;
+            DesktopPetSpriteLoader.Sprite frame = milu.spriteFor(animation);
+            DesktopPetSpriteLoader.draw(
+                    layer,
+                    frame.image,
+                    x,
+                    BUBBLE_SLOT,
+                    DesktopPetSpriteLoader.DISPLAY,
+                    frame.offsetX,
+                    frame.offsetY);
+        } finally {
+            if (layer != g) {
+                layer.dispose();
+            }
+        }
     }
 
     static void assertOpaqueWithinViewport(BufferedImage viewport, int threshold) {
@@ -1745,27 +1967,85 @@ public final class DesktopPetWindow extends JFrame {
                     g.fillRoundRect(0, 0, Math.max(1, getWidth()), Math.max(1, getHeight()), 16, 16);
                 }
                 g.setComposite(AlphaComposite.SrcOver);
-                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                Graphics2D canvas = (Graphics2D) g.create();
-                try {
-                    canvas.translate(-view.x, -view.y);
-                    if (milu != null || miluFailed) {
-                        paintShadow(canvas);
-                        paintSprite(canvas);
-                    }
-                    paintBubble(canvas);
-                    if (debug && milu != null) {
-                        paintDebug(canvas);
-                    }
-                } finally {
-                    canvas.dispose();
-                }
+                // 拖曳旋轉做在緩衝上，再整張貼回。貼回的是角色原色，螢幕上才對得起來。
+                BufferedImage frame = renderLiveFrame();
+                g.setRenderingHint(
+                        RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                g.drawImage(frame, 0, 0, null);
                 if (control.isActive()) {
                     paintControlHint(g);
                 }
             } finally {
                 g.dispose();
             }
+        }
+
+        /**
+         * 在一張沒有螢幕縮放的緩衝上畫完整隻。拖曳時的旋轉也做在這張圖上，再整張貼回視窗。
+         */
+        private BufferedImage renderLiveFrame() {
+            if (milu == null) {
+                BufferedImage image = new BufferedImage(
+                        Math.max(1, view.width), Math.max(1, view.height), BufferedImage.TYPE_INT_ARGB);
+                Graphics2D canvas = image.createGraphics();
+                try {
+                    canvas.setComposite(AlphaComposite.Src);
+                    canvas.setColor(new Color(0, 0, 0, 0));
+                    canvas.fillRect(0, 0, image.getWidth(), image.getHeight());
+                    canvas.setComposite(AlphaComposite.SrcOver);
+                    canvas.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    canvas.translate(-view.x, -view.y);
+                    if (miluFailed) {
+                        paintShadow(canvas);
+                        paintSprite(canvas);
+                    }
+                    paintBubble(canvas);
+                } finally {
+                    canvas.dispose();
+                }
+                return image;
+            }
+            double radians = 0;
+            double scale = 1;
+            double pivotX = 0;
+            double pivotY = 0;
+            if (grabInStage != null) {
+                radians = Math.toRadians(animation.leanDegrees());
+                if (Math.abs(radians) >= 1e-4) {
+                    int size = DesktopPetSpriteLoader.DISPLAY;
+                    int spriteX = (WIDTH - size) / 2;
+                    int spriteY = BUBBLE_SLOT;
+                    pivotX = grabInStage.x + view.x;
+                    pivotY = grabInStage.y + view.y;
+                    scale = fitScale(
+                            spriteX - view.x, spriteY - view.y, size,
+                            grabInStage.x, grabInStage.y, radians,
+                            Math.max(1, view.width), Math.max(1, view.height), 2);
+                }
+            }
+            BufferedImage image = paintMiluViewport(view, milu, animation, false, pivotX, pivotY, radians, scale);
+            Graphics2D extra = image.createGraphics();
+            try {
+                extra.translate(-view.x, -view.y);
+                paintBubble(extra);
+                if (debug) {
+                    paintDebug(extra);
+                }
+                if (Math.abs(radians) >= 1e-4) {
+                    // 拖曳時外圈留白。貼著外框的影子像素會讓視窗邊看起來被切了一刀。
+                    extra.setTransform(new java.awt.geom.AffineTransform());
+                    extra.setComposite(AlphaComposite.Src);
+                    extra.setColor(new Color(0, 0, 0, 0));
+                    int margin = 2;
+                    extra.fillRect(0, 0, image.getWidth(), margin);
+                    extra.fillRect(0, image.getHeight() - margin, image.getWidth(), margin);
+                    extra.fillRect(0, 0, margin, image.getHeight());
+                    extra.fillRect(image.getWidth() - margin, 0, margin, image.getHeight());
+                }
+            } finally {
+                extra.dispose();
+            }
+            return image;
         }
 
         private void paintShadow(Graphics2D g) {
