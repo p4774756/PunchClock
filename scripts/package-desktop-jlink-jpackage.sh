@@ -16,25 +16,38 @@ VERSION="${VERSION%%-*}"
 trim_playwright_driver() {
   local target="$1"
   local pkg="$2"
-  # 各平台 node 執行檔單顆壓縮後仍約 30–40MB，留下會讓安裝檔超過 60MB。
-  # 只留目標平台的 driver JavaScript；node 改由安裝版在第一次打卡時下載。
-  if [[ "$pkg" == "dmg" ]]; then
-    local arch
-    arch="$(uname -m)"
-    if [[ "$arch" == "arm64" ]]; then
-      zip -d "$target" \
-        'driver/linux/*' 'driver/linux-arm64/*' 'driver/win32_x64/*' 'driver/mac/*' \
-        'driver/mac-arm64/node' >/dev/null 2>&1 || true
-    else
-      zip -d "$target" \
-        'driver/linux/*' 'driver/linux-arm64/*' 'driver/win32_x64/*' 'driver/mac-arm64/*' \
-        'driver/mac/node' >/dev/null 2>&1 || true
-    fi
-  elif [[ "$pkg" == "exe" ]]; then
-    zip -d "$target" \
-      'driver/linux/*' 'driver/linux-arm64/*' 'driver/mac/*' 'driver/mac-arm64/*' \
-      'driver/win32_x64/node.exe' >/dev/null 2>&1 || true
+  # Windows runner 的 Git Bash 不一定有 zip。用 Python 重寫 jar：
+  # 只留目標平台的 driver JavaScript，拿掉 node 執行檔（單顆約 30–40MB）。
+  local py="python3"
+  if ! command -v python3 >/dev/null 2>&1; then
+    py="python"
   fi
+  "$py" - "$target" "$pkg" "$(uname -m)" << 'PY'
+import os
+import sys
+import zipfile
+
+target, pkg, arch = sys.argv[1], sys.argv[2], sys.argv[3]
+if pkg == "exe":
+    keep = "win32_x64"
+elif arch == "arm64":
+    keep = "mac-arm64"
+else:
+    keep = "mac"
+node_names = {"node", "node.exe"}
+tmp = target + ".trim"
+with zipfile.ZipFile(target, "r") as src, zipfile.ZipFile(tmp, "w") as dst:
+    for info in src.infolist():
+        parts = info.filename.split("/")
+        if len(parts) >= 2 and parts[0] == "driver":
+            if parts[1] != keep or parts[-1] in node_names:
+                continue
+        out = zipfile.ZipInfo(filename=info.filename, date_time=info.date_time)
+        out.compress_type = info.compress_type
+        out.external_attr = info.external_attr
+        dst.writestr(out, src.read(info.filename))
+os.replace(tmp, target)
+PY
 }
 
 if [[ ! -f "$JAR" ]]; then
