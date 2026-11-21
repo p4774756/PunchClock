@@ -179,9 +179,9 @@ const makeFeetGround=()=>{
  canvas.width=256;canvas.height=256;
  const ctx=canvas.getContext('2d')!;
  const g=ctx.createRadialGradient(128,128,0,128,128,128);
- g.addColorStop(0,'rgba(232,220,196,1)');
- g.addColorStop(.42,'rgba(232,220,196,.75)');
- g.addColorStop(1,'rgba(232,220,196,0)');
+ g.addColorStop(0,'rgba(0,0,0,0.08)');
+ g.addColorStop(.34,'rgba(0,0,0,0.025)');
+ g.addColorStop(1,'rgba(0,0,0,0)');
  ctx.fillStyle=g;ctx.fillRect(0,0,256,256);
  const map=new T.CanvasTexture(canvas);
  map.colorSpace=T.SRGBColorSpace;
