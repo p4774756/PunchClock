@@ -456,6 +456,12 @@ try {
     }
   });
 
+  await test('骨度分寸規則校驗（第一期）', async () => {
+    const {runCunValidation} = await import('./lib/cun-validate.mjs');
+    const {passed, failures} = await runCunValidation({writeReport: true});
+    assert.ok(passed, failures.join('\n'));
+  });
+
   overlay.dispose();
 } finally {
   if (Object.getOwnPropertyDescriptor(globalThis, 'document')) delete globalThis.document;
