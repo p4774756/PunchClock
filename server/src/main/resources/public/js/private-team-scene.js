@@ -1,5 +1,10 @@
 import * as THREE from './vendor/three.module.js';
 
+export const SECRETARY_SPRITE_URL = '/assets/private-team/secretary.webp';
+
+/** 立繪在場景中的高度（公尺比例）；寬度依紋理長寬比計算 */
+const SECRETARY_SPRITE_HEIGHT = 1.42;
+
 const COL = {
   wood: 0xc9a66b,
   woodDk: 0xa07840,
@@ -7,12 +12,8 @@ const COL = {
   rug: 0x6a8fd4,
   rugEdge: 0xa8d0f2,
   desk: 0x8b6914,
-  chair: 0x4a5568,
   screen: 0x1a2438,
   progress: 0x2e9a4a,
-  hair: 0xf4a8c8,
-  skin: 0xffe0d4,
-  shirt: 0x8a96a8,
   plant: 0x3d8b4a,
   pot: 0x8b5a3c,
   mug: 0xf8fbff,
@@ -143,71 +144,36 @@ function bubbleTexture() {
   return tex;
 }
 
-function buildArm(side) {
-  const pivot = new THREE.Group();
-  pivot.position.set(side * 0.34, 0.5, 0);
-  const hand = side < 0
-    ? new THREE.Vector3(-0.87, 0.29, -0.18)
-    : new THREE.Vector3(0.47, 0.3, -0.26);
-  const dir = hand.clone().sub(pivot.position);
-  const len = dir.length();
-  dir.normalize();
-  const arm = cyl(0.075, 0.06, len, 8, COL.skin);
-  arm.position.copy(dir).multiplyScalar(len * 0.5);
-  arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-  pivot.add(arm);
-  return pivot;
+function softShadowTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 128, 64);
+  const g = ctx.createRadialGradient(64, 32, 2, 64, 32, 60);
+  g.addColorStop(0, 'rgba(10, 18, 36, 0.55)');
+  g.addColorStop(0.55, 'rgba(10, 18, 36, 0.22)');
+  g.addColorStop(1, 'rgba(10, 18, 36, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 64);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
-function buildSecretary() {
-  const g = new THREE.Group();
-  const torsoH = 0.4;
-  const torsoY = 0.52;
-  const midBack = torsoY;
-  const body = box(0.4, torsoH, 0.28, COL.shirt);
-  body.position.set(0, torsoY, 0.02);
-  g.add(body);
-
-  const headY = 0.94;
-  const headR = 0.2;
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(headR, 12, 10),
-    new THREE.MeshLambertMaterial({ color: COL.skin })
-  );
-  head.position.set(0, headY, 0.08);
-  g.add(head);
-
-  const hairTop = headY + headR + 0.06;
-  const hairBottom = midBack - torsoH * 0.22;
-  const hairH = hairTop - hairBottom;
-  const hair = new THREE.Mesh(
-    new THREE.BoxGeometry(0.52, hairH, 0.26),
-    new THREE.MeshBasicMaterial({ color: COL.hair })
-  );
-  hair.position.set(0, (hairTop + hairBottom) / 2, -0.18);
-  g.add(hair);
-
-  const eyeMat = new THREE.MeshLambertMaterial({ color: COL.navy });
-  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), eyeMat);
-  eyeL.position.set(-0.07, 0.98, 0.24);
-  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), eyeMat);
-  eyeR.position.set(0.07, 0.98, 0.24);
-  g.add(eyeL, eyeR);
-
-  const smile = box(0.11, 0.025, 0.03, COL.navy);
-  smile.position.set(0, 0.88, 0.26);
-  g.add(smile);
-
-  const armL = buildArm(-1);
-  const armR = buildArm(1);
-  g.add(armL, armR);
-
-  return { group: g, armL, armR };
+function spriteAspectFromTexture(tex) {
+  const img = tex && tex.image;
+  if (img && img.width > 0 && img.height > 0) {
+    return img.width / img.height;
+  }
+  return 526 / 768;
 }
 
-function addMonitor(root, camera, x, z) {
+function addMonitor(root, camera, x, z, scale) {
   const group = new THREE.Group();
+  const s = scale == null ? 1 : scale;
   group.position.set(x, 0.86, z);
+  group.scale.set(s, s, s);
   const bezel = box(0.64, 0.46, 0.05, 0x1a2438);
   const painter = makeScreenPainter();
   const stand = box(0.1, 0.28, 0.08, 0x2a3648);
@@ -347,8 +313,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   desk.position.set(0.1, 0.46, 0.18);
   root.add(desk);
 
-  const monitorL = addMonitor(root, camera, -0.85, 0.22);
-  const monitorR = addMonitor(root, camera, 0.95, 0.28);
+  const monitorL = addMonitor(root, camera, -0.92, 0.2, 0.92);
+  const monitorR = addMonitor(root, camera, 0.72, 0.22, 0.88);
 
   const mug = new THREE.Mesh(
     new THREE.CylinderGeometry(0.09, 0.075, 0.18, 12),
@@ -372,13 +338,49 @@ export function mountPrivateTeamScene(canvas, opts) {
   plant.position.set(-1.35, 0.34, 0.55);
   root.add(pot, plant);
 
-  const chairSeat = box(0.4, 0.06, 0.36, COL.chair);
-  chairSeat.position.set(0.05, 0.32, 0.62);
-  root.add(chairSeat);
+  const secretaryRoot = new THREE.Group();
+  secretaryRoot.position.set(0.04, 0, 0.62);
+  root.add(secretaryRoot);
 
-  const sec = buildSecretary();
-  sec.group.position.set(0.05, 0.28, 0.5);
-  root.add(sec.group);
+  const shadowMat = new THREE.MeshBasicMaterial({
+    map: softShadowTexture(),
+    transparent: true,
+    depthWrite: false
+  });
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.16, 0.6), shadowMat);
+  shadow.rotation.x = -Math.PI / 2;
+  // 地毯盒中心 y=0.04、厚 0.03，頂面在 y=0.055。陰影要高於頂面，並落在椅輪與腳前的地毯上。
+  shadow.position.set(0.08, 0.072, 0.22);
+  shadow.renderOrder = 1;
+  secretaryRoot.add(shadow);
+
+  let secretarySprite = null;
+  const spriteBaseY = SECRETARY_SPRITE_HEIGHT / 2 + 0.02;
+  const loader = new THREE.TextureLoader();
+  loader.load(
+    SECRETARY_SPRITE_URL,
+    (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.premultiplyAlpha = true;
+      const aspect = spriteAspectFromTexture(tex);
+      const spriteW = SECRETARY_SPRITE_HEIGHT * aspect;
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        alphaTest: 0.06,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+      secretarySprite = new THREE.Mesh(new THREE.PlaneGeometry(spriteW, SECRETARY_SPRITE_HEIGHT), mat);
+      secretarySprite.position.set(0, spriteBaseY, 0);
+      secretarySprite.renderOrder = 2;
+      secretaryRoot.add(secretarySprite);
+    },
+    undefined,
+    () => {
+      /* 紋理失敗時略過人物，其餘場景照常 */
+    }
+  );
 
   const namePlate = new THREE.Mesh(
     new THREE.PlaneGeometry(1.15, 0.4),
@@ -387,10 +389,10 @@ export function mountPrivateTeamScene(canvas, opts) {
       side: THREE.DoubleSide
     })
   );
-  namePlate.position.set(0.95, 0.86, 0.95);
+  namePlate.position.set(-0.95, 0.62, 0.72);
   root.add(namePlate);
-  const nameStand = box(0.08, 0.36, 0.08, COL.navy);
-  nameStand.position.set(0.95, 0.58, 0.95);
+  const nameStand = box(0.08, 0.22, 0.08, COL.navy);
+  nameStand.position.set(-0.95, 0.5, 0.72);
   root.add(nameStand);
 
   const bubbleMat = new THREE.MeshBasicMaterial({
@@ -399,7 +401,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     depthWrite: false
   });
   const bubble = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.36), bubbleMat);
-  bubble.position.set(0.55, 1.85, 0.85);
+  bubble.position.set(0.38, 2.08, 0.72);
   bubble.renderOrder = 3;
   root.add(bubble);
 
@@ -436,12 +438,17 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (!running) return;
     raf = win.requestAnimationFrame(tick);
     const elapsed = (now - t0) / 1000;
-    const tap = Math.sin(elapsed * 8) * 0.12;
-    sec.armL.rotation.set(tap, 0, 0);
-    sec.armR.rotation.set(-tap, 0, 0);
+    const breath = Math.sin(elapsed * 1.65) * 0.014;
+    const typeNudge = Math.sin(elapsed * 7.2) * 0.008;
+    const lean = Math.sin(elapsed * 7.2 + 0.4) * 0.018;
+    if (secretarySprite) {
+      secretarySprite.position.y = spriteBaseY + breath + typeNudge;
+      secretarySprite.rotation.z = lean;
+      secretarySprite.lookAt(camera.position);
+    }
 
     const bubblePhase = (Math.sin(elapsed * 2.2) + 1) / 2;
-    bubble.position.y = 1.82 + bubblePhase * 0.08;
+    bubble.position.y = 1.98 + bubblePhase * 0.07;
     bubbleMat.opacity = 0.82 + bubblePhase * 0.18;
 
     const pulse = (Math.sin(elapsed * 3) + 1) / 2;

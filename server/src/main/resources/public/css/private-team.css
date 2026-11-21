@@ -83,6 +83,8 @@
   border: 2px solid var(--maple-navy, #163a70);
   border-radius: 4px;
   background: #e8f2fc;
+  object-fit: cover;
+  display: block;
 }
 
 .pt-hud-card-body {
