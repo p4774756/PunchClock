@@ -1,6 +1,7 @@
 import { filterMergedToday } from './dev-machines-format.js';
-import { drawSecretaryAvatar } from './private-team-avatar.js';
 import { mountPrivateTeamScene } from './private-team-scene.js';
+
+export const SECRETARY_AVATAR_URL = '/assets/private-team/secretary-avatar.webp';
 
 const DAY_KEY = 'punchclock-private-team-day';
 
@@ -62,7 +63,7 @@ export function mountPrivateTeamPage(opts) {
     const authed = !!(win.PUNCHCLOCK_AUTHENTICATED);
     hud.innerHTML =
       '<div class="pt-hud-card maple-window">' +
-      '<canvas class="pt-hud-avatar" width="52" height="52" aria-hidden="true"></canvas>' +
+      '<img class="pt-hud-avatar" src="' + SECRETARY_AVATAR_URL + '" alt="" aria-hidden="true" decoding="async">' +
       '<div class="pt-hud-card-body">' +
       '<p class="pt-hud-name">私人秘書</p>' +
       '<p class="pt-hud-line" data-pt-merged>工作中・今天完成 — 件</p>' +
@@ -88,12 +89,6 @@ export function mountPrivateTeamPage(opts) {
       '<a class="pt-hud-download" href="/download" aria-label="下載 App">' + DL_SVG +
       '<span class="pt-hud-dl-label">下載 App</span></a></div>';
     stage.appendChild(hud);
-  }
-
-  const avatarCanvas = hud.querySelector('.pt-hud-avatar');
-  if (avatarCanvas) {
-    const ctx = avatarCanvas.getContext('2d');
-    if (ctx) drawSecretaryAvatar(ctx, 52);
   }
 
   const mergedEl = hud.querySelector('[data-pt-merged]');
