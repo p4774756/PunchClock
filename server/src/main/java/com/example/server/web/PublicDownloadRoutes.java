@@ -31,13 +31,43 @@ public final class PublicDownloadRoutes {
     private void downloadPage(Context ctx) {
         boolean available = clientRelease.isAvailable();
         String version = available ? clientRelease.version() : "";
+        String macUrl = desktopEnv("DESKTOP_MAC_DOWNLOAD_URL");
+        String winUrl = desktopEnv("DESKTOP_WIN_DOWNLOAD_URL");
+        boolean desktopKnown = !macUrl.isEmpty() || !winUrl.isEmpty();
         String html = readResource("/public/download.html")
                 .replace("{{JAR_HIDDEN}}", available ? "" : " hidden")
                 .replace("{{MISSING_HIDDEN}}", available ? " hidden" : "")
+                .replace("{{MAC_HIDDEN}}", macUrl.isEmpty() ? " hidden" : "")
+                .replace("{{WIN_HIDDEN}}", winUrl.isEmpty() ? " hidden" : "")
+                .replace("{{DESKTOP_MISSING_HIDDEN}}", desktopKnown ? " hidden" : "")
+                .replace("{{DESKTOP_MAC_URL}}", escapeHtml(macUrl))
+                .replace("{{DESKTOP_WIN_URL}}", escapeHtml(winUrl))
+                .replace("{{DESKTOP_MAC_JS}}", jsStringLiteral(macUrl))
+                .replace("{{DESKTOP_WIN_JS}}", jsStringLiteral(winUrl))
                 .replace("{{CLIENT_VERSION}}", escapeHtml(version))
                 .replace("{{JAVA_VERSION}}", "11");
         ctx.header("Cache-Control", "no-cache, must-revalidate");
         ctx.html(html);
+    }
+
+    private static String desktopEnv(String key) {
+        String raw = System.getenv(key);
+        if (raw == null) {
+            return "";
+        }
+        String trimmed = raw.trim();
+        if (trimmed.isEmpty() || trimmed.contains("${")) {
+            return "";
+        }
+        return trimmed;
+    }
+
+    private static String jsStringLiteral(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return "''";
+        }
+        return "\"" + raw.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\r", "\\r").replace("\n", "\\n") + "\"";
     }
 
     private void downloadJar(Context ctx) {

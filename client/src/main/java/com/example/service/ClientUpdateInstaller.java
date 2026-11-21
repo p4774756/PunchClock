@@ -13,28 +13,162 @@ import java.util.Locale;
  */
 public final class ClientUpdateInstaller {
 
-    private ClientUpdateInstaller() {}
+  /** 安裝版啟動器寫入：內建 jar 的絕對路徑。 */
+  public static final String BUNDLED_JAR_PROPERTY = "sklbaby.bundled.jar";
 
-    public static Path updateDir() {
-        return Path.of(System.getProperty("user.home", "."), ".punchclock", "updates");
+  /**
+   * jpackage 原生啟動器設定的路徑。Temurin 21 設成執行檔
+   * （macOS 為 {@code Contents/MacOS/新光小寶貝}，Windows 為 {@code .exe}），不是目錄。
+   */
+  public static final String JPACKAGE_APP_PATH_PROPERTY = "jpackage.app-path";
+
+  static final String APP_JAR_NAME = "SKLbaby.jar";
+
+  private ClientUpdateInstaller() {}
+
+  public static Path updateDir() {
+    if (isPackagedInstall()) {
+      return userDataRoot().resolve("updates");
     }
+    return Path.of(System.getProperty("user.home", "."), ".punchclock", "updates");
+  }
 
-    /** 不是用 jar 啟動（例如 IDE）時回 null。 */
-    public static Path runningJar() {
-        try {
-            CodeSource source = ClientUpdateInstaller.class.getProtectionDomain().getCodeSource();
-            if (source == null || source.getLocation() == null) {
-                return null;
-            }
-            Path path = Path.of(source.getLocation().toURI());
-            if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jar")) {
-                return path;
-            }
-        } catch (Exception ignored) {
-            return null;
+  public static Path userDataRoot() {
+    return Path.of(System.getProperty("user.home", "."), ".sklbaby");
+  }
+
+  /** 安裝版自動更新的 jar 目標（不寫回安裝目錄）。 */
+  public static Path userAppJar() {
+    return userDataRoot().resolve("app").resolve(APP_JAR_NAME);
+  }
+
+  public static boolean isPackagedInstall() {
+    String bundled = System.getProperty(BUNDLED_JAR_PROPERTY, "").trim();
+    if (!bundled.isEmpty()) {
+      return true;
+    }
+    return bundledJarFromImage() != null;
+  }
+
+  /** jpackage 映像內的 jar；非安裝版為 null。 */
+  public static Path bundledJar() {
+    Path fromImage = bundledJarFromImage();
+    if (fromImage != null) {
+      return fromImage;
+    }
+    String raw = System.getProperty(BUNDLED_JAR_PROPERTY, "").trim();
+    if (raw.isEmpty()) {
+      return null;
+    }
+    Path path = Path.of(raw);
+    return Files.isRegularFile(path) ? path : null;
+  }
+
+  /**
+   * 由 {@code jpackage.app-path} 找出內建 jar。
+   * 路徑必須是已存在的執行檔或目錄；只有字串、檔案不在時不當成安裝版。
+   */
+  private static Path bundledJarFromImage() {
+    Path appPath = jpackageAppPath();
+    if (appPath == null) {
+      return null;
+    }
+    Path located = locateBundledJar(appPath);
+    if (located != null) {
+      return located;
+    }
+    return resolveJarBesideLauncher();
+  }
+
+  private static Path jpackageAppPath() {
+    String appPath = System.getProperty(JPACKAGE_APP_PATH_PROPERTY, "").trim();
+    if (appPath.isEmpty()) {
+      return null;
+    }
+    Path path = Path.of(appPath);
+    if (Files.isDirectory(path) || Files.isRegularFile(path)) {
+      return path;
+    }
+    return null;
+  }
+
+  static Path locateBundledJar(Path appPath) {
+    if (Files.isRegularFile(appPath)) {
+      Path mac = jarBesideMacExecutable(appPath);
+      if (mac != null) {
+        return mac;
+      }
+      Path parent = appPath.getParent();
+      if (parent != null) {
+        Path windows = parent.resolve("app").resolve(APP_JAR_NAME);
+        if (Files.isRegularFile(windows)) {
+          return windows.toAbsolutePath().normalize();
         }
-        return null;
+      }
+      return null;
     }
+    if (Files.isDirectory(appPath)) {
+      Path contents = appPath.resolve("Contents").resolve("app").resolve(APP_JAR_NAME);
+      if (Files.isRegularFile(contents)) {
+        return contents.toAbsolutePath().normalize();
+      }
+      Path direct = appPath.resolve("app").resolve(APP_JAR_NAME);
+      if (Files.isRegularFile(direct)) {
+        return direct.toAbsolutePath().normalize();
+      }
+    }
+    return null;
+  }
+
+  /** {@code Foo.app/Contents/MacOS/Foo} → {@code Foo.app/Contents/app/SKLbaby.jar}。 */
+  private static Path jarBesideMacExecutable(Path executable) {
+    Path macOs = executable.getParent();
+    if (macOs == null || macOs.getFileName() == null || !"MacOS".equals(macOs.getFileName().toString())) {
+      return null;
+    }
+    Path contents = macOs.getParent();
+    if (contents == null || contents.getFileName() == null || !"Contents".equals(contents.getFileName().toString())) {
+      return null;
+    }
+    Path jar = contents.resolve("app").resolve(APP_JAR_NAME);
+    if (!Files.isRegularFile(jar)) {
+      return null;
+    }
+    return jar.toAbsolutePath().normalize();
+  }
+
+  private static Path resolveJarBesideLauncher() {
+    try {
+      CodeSource source = ClientUpdateInstaller.class.getProtectionDomain().getCodeSource();
+      if (source == null || source.getLocation() == null) {
+        return null;
+      }
+      Path path = Path.of(source.getLocation().toURI());
+      if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jar")) {
+        return path.toAbsolutePath().normalize();
+      }
+    } catch (Exception ignored) {
+      return null;
+    }
+    return null;
+  }
+
+  /** 不是用 jar 啟動（例如 IDE）時回 null。 */
+  public static Path runningJar() {
+    try {
+      CodeSource source = ClientUpdateInstaller.class.getProtectionDomain().getCodeSource();
+      if (source == null || source.getLocation() == null) {
+        return null;
+      }
+      Path path = Path.of(source.getLocation().toURI());
+      if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jar")) {
+        return path;
+      }
+    } catch (Exception ignored) {
+      return null;
+    }
+    return null;
+  }
 
     /**
      * 不是用 jar 啟動（例如 IDE）時，更新後的 jar 放這裡：下載後改用 {@code java -jar} 啟動它，
@@ -46,6 +180,9 @@ public final class ClientUpdateInstaller {
 
     /** 更新要覆蓋的 jar：jar 啟動時是自己，IDE 啟動時是 {@link #defaultJar()}。 */
     public static Path installTarget() {
+        if (isPackagedInstall()) {
+            return userAppJar();
+        }
         Path running = runningJar();
         return running != null ? running : defaultJar();
     }

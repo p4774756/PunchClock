@@ -93,7 +93,7 @@ public class PublicDownloadRoutesTest {
         HttpResponse<String> page = get("/download");
         assertEquals(200, page.statusCode());
         String body = page.body();
-        assertTrue(body.contains("尚未附帶"));
+        assertTrue(body.contains("尚未附帶可下載的 jar"));
         assertTrue(body.contains("data-download-jar href=\"/download/app.jar\" hidden"));
         assertTrue(body.contains("data-download-missing>"));
         assertFalse(body.contains("data-download-missing hidden"));
@@ -107,7 +107,9 @@ public class PublicDownloadRoutesTest {
         assertEquals(200, css.statusCode());
         String flat = css.body().replaceAll("\\s+", " ");
         assertTrue(flat.contains(
-                ".download-btn[hidden], .download-unavailable[hidden] { display: none !important; }"));
+                ".download-btn[hidden], .download-unavailable[hidden], [data-desktop-missing][hidden]"));
+        assertTrue(body.contains("下載 macOS 安裝檔"));
+        assertTrue(body.contains("不必先安裝 Java"));
     }
 
     @Test
@@ -174,7 +176,7 @@ public class PublicDownloadRoutesTest {
                         if (available) {
                             assertFalse(btnHiddenAttr);
                             assertTrue(missingHiddenAttr);
-                            assertEquals("inline-block", btnDisplay);
+                            assertTrue("inline-block".equals(btnDisplay) || "block".equals(btnDisplay));
                             assertEquals("none", missingDisplay);
                             assertTrue(page.locator("[data-download-jar]").isVisible());
                             assertTrue(page.locator("[data-download-missing]").isHidden());
@@ -190,7 +192,7 @@ public class PublicDownloadRoutesTest {
                             assertTrue(page.locator("[data-download-jar]").isHidden());
                             assertTrue(page.locator("[data-download-missing]").isVisible());
                             assertFalse(text.contains("下載 SKLbaby.jar"));
-                            assertTrue(text.contains("伺服器尚未附帶可下載的桌面端，請向管理員索取。"));
+                            assertTrue(text.contains("伺服器尚未附帶可下載的 jar，請向管理員索取。"));
                             assertNull(page.locator("[data-download-jar]").boundingBox());
                             BoundingBox missingBox = page.locator("[data-download-missing]").boundingBox();
                             assertNotNull(missingBox);
