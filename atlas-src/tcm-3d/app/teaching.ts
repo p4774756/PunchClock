@@ -5,7 +5,7 @@ export type ToolId='needle'|'finger';
 export type Vec3=[number,number,number];
 export type RegionId='head'|'shoulder'|'arm'|'abdomen'|'waist'|'leg';
 export const MERIDIANS=rawMeridians;
-export interface TeachingPoint {meridianId:string;surfaceUnavailable?:boolean;code:string;name:string;pinyin:string;meridian:string;position:Vec3;normal:Vec3;region:RegionId;midline:boolean;reviewed:boolean;source:string;positionProvenance:string}
+export interface TeachingPoint {meridianId:string;surfaceUnavailable?:boolean;code:string;name:string;pinyin:string;zhuyin:string;meridian:string;position:Vec3;normal:Vec3;region:RegionId;midline:boolean;reviewed:boolean;source:string;positionProvenance:string}
 export const POINTS=rawPoints as TeachingPoint[];
 export const POINT_BY_CODE=new Map(POINTS.map(p=>[p.code,p]));
 export const STANDARD='https://zynj.shutcm.edu.cn/_upload/article/files/66/b4/b34a95604d04b0bf686251b2d317/368ea8b0-187c-48a7-a402-ffdf1e11bb99.pdf';
@@ -124,3 +124,28 @@ export interface SimulationState {showMeridians?:boolean;meridianFilter?:string;
 export const initialSimulation:SimulationState={showMeridians:false,meridianFilter:'all',curriculumSet:'head-neck-21',tool:'needle',running:false,elapsed:0,amplitude:.55,pointCode:'GV24+',side:1,customTarget:null,focus:0,showPoints:true,pickMode:'point',effects:true};
 export function pointTarget(code:string,side:1|-1):SurfaceTarget{const p=POINT_BY_CODE.get(code)!;return {position:[p.midline?p.position[0]:p.position[0]*side,p.position[1],p.position[2]],normal:[p.normal[0]*side,p.normal[1],p.normal[2]]};}
 export function classifyRegion(p:Vec3):RegionId{return p[1]>1.52?'head':p[1]>1.3?'shoulder':Math.abs(p[0])>.18?'arm':p[1]>.8?(p[2]<-.025?'waist':'abdomen'):'leg';}
+
+const ZHUYIN_TONE_MARKS=/[\u02CA\u02C7\u02CB\u02D9]/g;
+const SEARCH_WS=/[\s\-_]+/g;
+export const ZHUYIN_PATTERN=/^[\u3105-\u3129\u02CA\u02C7\u02CB\u02D9 ]+$/;
+
+/** Strip zhuyin spaces and tone marks for prefix / bare-syllable search. */
+export function stripZhuyin(value:string){return value.replace(SEARCH_WS,'').replace(ZHUYIN_TONE_MARKS,'');}
+export function normalizePointCode(value:string){return value.trim().toLowerCase().replace(SEARCH_WS,'');}
+
+export function teachingPointMatchesQuery(point:Pick<TeachingPoint,'code'|'name'|'zhuyin'>,rawQuery:string){
+ const query=rawQuery.trim();
+ if(!query)return true;
+ const code=normalizePointCode(point.code);
+ const codeQ=normalizePointCode(query);
+ if(codeQ&&code.includes(codeQ))return true;
+ if(point.name.includes(query))return true;
+ if(!point.zhuyin)return false;
+ const compactQuery=query.replace(SEARCH_WS,'');
+ const compactZhuyin=point.zhuyin.replace(SEARCH_WS,'');
+ if(compactQuery&&compactZhuyin.includes(compactQuery))return true;
+ const bareQuery=stripZhuyin(query);
+ const bareZhuyin=stripZhuyin(point.zhuyin);
+ if(bareQuery&&bareZhuyin.includes(bareQuery))return true;
+ return false;
+}
