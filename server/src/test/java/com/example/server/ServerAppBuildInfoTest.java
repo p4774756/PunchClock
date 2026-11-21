@@ -1,9 +1,7 @@
 package com.example.server;
 
-import com.example.server.auth.AdminAuthCookie;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import io.javalin.Javalin;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -23,21 +21,23 @@ public class ServerAppBuildInfoTest {
 
     private static final String TOKEN = "punchclock-dev-secret";
 
-    private Javalin app;
+    private AdminTestServer server;
     private HttpClient http;
     private String base;
+    private String adminCookie;
 
     @Before
-    public void setUp() {
-        app = new ServerApp().start(0);
-        base = "http://127.0.0.1:" + app.port();
+    public void setUp() throws Exception {
+        server = AdminTestServer.builder().start();
+        base = server.baseUrl();
         http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        adminCookie = server.loginCookie(http);
     }
 
     @After
     public void tearDown() {
-        if (app != null) {
-            app.stop();
+        if (server != null) {
+            server.stop();
         }
     }
 
@@ -67,7 +67,7 @@ public class ServerAppBuildInfoTest {
 
         HttpResponse<String> status = http.send(
                 HttpRequest.newBuilder(URI.create(base + "/api/status"))
-                        .header("Cookie", adminCookie())
+                        .header("Cookie", adminCookie)
                         .GET().timeout(Duration.ofSeconds(5)).build(),
                 HttpResponse.BodyHandlers.ofString());
         assertEquals(200, status.statusCode());
@@ -77,7 +77,4 @@ public class ServerAppBuildInfoTest {
         assertEquals("2026-09-24T07:58:00Z", client.get("appReleaseTime").getAsString());
     }
 
-    private String adminCookie() {
-        return AdminAuthCookie.header();
-    }
 }

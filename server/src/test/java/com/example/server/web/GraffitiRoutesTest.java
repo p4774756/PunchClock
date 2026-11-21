@@ -1,7 +1,6 @@
 package com.example.server.web;
 
-import com.example.server.auth.AdminAuthCookie;
-import com.example.server.auth.AuthService;
+import com.example.server.AdminTestServer;
 import com.example.server.store.GraffitiStore;
 import io.javalin.Javalin;
 import io.javalin.config.SizeUnit;
@@ -36,19 +35,23 @@ public class GraffitiRoutesTest {
     private Javalin app;
     private HttpClient http;
     private String base;
+    private String adminCookie;
 
     @Before
     public void setUp() throws Exception {
         GraffitiStore store = new GraffitiStore(folder.getRoot().toPath());
+        AdminTestServer.IsolatedAuth auth = AdminTestServer.isolatedAuth();
         app = Javalin.create(config -> {
             config.showJavalinBanner = false;
             config.jetty.multipartConfig.maxFileSize(1, SizeUnit.MB);
             config.jetty.multipartConfig.maxTotalRequestSize(1, SizeUnit.MB);
             config.jetty.multipartConfig.maxInMemoryFileSize(1, SizeUnit.MB);
         }).start(0);
-        new GraffitiRoutes(new AuthService(), store).register(app);
+        AdminTestServer.registerLogin(app, auth.authService());
+        new GraffitiRoutes(auth.authService(), store).register(app);
         base = "http://127.0.0.1:" + app.port();
         http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        adminCookie = AdminTestServer.loginCookie(base, auth.adminPassword(), http);
     }
 
     @After
@@ -91,7 +94,7 @@ public class GraffitiRoutesTest {
         assertEquals(401, denied.statusCode());
         assertTrue(denied.body().contains("未登入或權限不足"));
 
-        HttpResponse<String> removed = send("DELETE", "/api/graffiti/" + id, null, null, "Cookie", AdminAuthCookie.header());
+        HttpResponse<String> removed = send("DELETE", "/api/graffiti/" + id, null, null, "Cookie", adminCookie);
         assertEquals(200, removed.statusCode());
         assertTrue(removed.body().contains("已從牆上拿下"));
 

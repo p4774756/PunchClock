@@ -4,7 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import io.javalin.Javalin;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -48,22 +47,22 @@ public class PeerMessageReliabilityTest {
 
     enum SendStatus { OK, NON_200, TIMEOUT, ERROR }
 
-    private Javalin app;
+    private AdminTestServer server;
     private String base;
     private HttpClient http;
     private final AtomicInteger heartbeatFailures = new AtomicInteger();
 
     @Before
     public void setUp() {
-        app = new ServerApp().start(0);
-        base = "http://127.0.0.1:" + app.port();
+        server = AdminTestServer.builder().start();
+        base = server.baseUrl();
         http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     }
 
     @After
     public void tearDown() {
-        if (app != null) {
-            app.stop();
+        if (server != null) {
+            server.stop();
         }
     }
 
@@ -248,16 +247,7 @@ public class PeerMessageReliabilityTest {
     }
 
     private String login() throws Exception {
-        HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(base + "/login"))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString("password=secret"))
-                .build(), HttpResponse.BodyHandlers.ofString());
-        for (String header : r.headers().allValues("Set-Cookie")) {
-            if (header.startsWith("auth=")) {
-                return header.split(";", 2)[0];
-            }
-        }
-        throw new IllegalStateException("login failed: " + r.statusCode());
+        return server.loginCookie(http);
     }
 
     private void getStatus(String cookie) {

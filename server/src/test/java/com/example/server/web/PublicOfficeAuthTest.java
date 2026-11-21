@@ -1,12 +1,10 @@
 package com.example.server.web;
 
+import com.example.server.AdminTestServer;
 import com.example.server.ClientRelease;
-import com.example.server.ServerApp;
-import com.example.server.auth.AdminAuthCookie;
 import com.example.server.store.DevStatusModels;
 import com.example.server.store.DevStatusService;
 import com.example.server.store.RoadmapService;
-import io.javalin.Javalin;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -34,12 +32,13 @@ public class PublicOfficeAuthTest {
             + "- [x] **Phase 3 群島地基**：地基\n"
             + "- [ ] **Phase 4 進屋系統**：門口\n";
 
-    private Javalin app;
+    private AdminTestServer server;
     private HttpClient http;
     private String base;
+    private String adminCookie;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         DevStatusService fakeDevStatus = new DevStatusService(repo -> new DevStatusModels.Snapshot(
                 Collections.singletonList(new DevStatusModels.IssueRow(
                         50, "測試票", true, 1_000L, 2_000L, null,
@@ -49,18 +48,23 @@ public class PublicOfficeAuthTest {
         ), "p4774756/PunchClock");
         RoadmapService fakeRoadmap = new RoadmapService((repo, issue) -> FAKE_ROADMAP_BODY,
                 "p4774756/PunchClock", 36);
-        app = new ServerApp(ClientRelease.NONE, fakeDevStatus, fakeRoadmap).start(0);
-        base = "http://127.0.0.1:" + app.port();
+        server = AdminTestServer.builder()
+                .clientRelease(ClientRelease.NONE)
+                .devStatusService(fakeDevStatus)
+                .roadmapService(fakeRoadmap)
+                .start();
+        base = server.baseUrl();
         http = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
+        adminCookie = server.loginCookie(http);
     }
 
     @After
     public void tearDown() {
-        if (app != null) {
-            app.stop();
+        if (server != null) {
+            server.stop();
         }
     }
 
@@ -145,7 +149,7 @@ public class PublicOfficeAuthTest {
 
     @Test
     public void consoleServesDashboard() throws Exception {
-        HttpResponse<String> page = send("GET", "/console", adminCookie());
+        HttpResponse<String> page = send("GET", "/console", adminCookie);
         assertEquals(200, page.statusCode());
         assertTrue(page.body().contains("dashboard.js"));
         assertTrue(page.body().contains("clientContainer"));
@@ -164,10 +168,10 @@ public class PublicOfficeAuthTest {
 
     @Test
     public void loginNextRedirectsWhenAlreadyAuthed() throws Exception {
-        HttpResponse<String> response = send("GET", "/login?next=/dev-status", adminCookie());
+        HttpResponse<String> response = send("GET", "/login?next=/dev-status", adminCookie);
         assertEquals(302, response.statusCode());
         assertEquals("/dev-status", response.headers().firstValue("location").orElse(""));
-        HttpResponse<String> console = send("GET", "/login?next=/console", adminCookie());
+        HttpResponse<String> console = send("GET", "/login?next=/console", adminCookie);
         assertEquals(302, console.statusCode());
         assertEquals("/console", console.headers().firstValue("location").orElse(""));
     }
@@ -190,7 +194,7 @@ public class PublicOfficeAuthTest {
 
     @Test
     public void signedInAdminSeesAuthenticatedHome() throws Exception {
-        String cookie = adminCookie();
+        String cookie = adminCookie;
         HttpResponse<String> response = send("GET", "/", cookie);
         assertEquals(200, response.statusCode());
         assertTrue(response.body().contains("is-authenticated"));
@@ -208,7 +212,7 @@ public class PublicOfficeAuthTest {
 
     @Test
     public void signedInAdminCanReadStatusAndLogoutRevokesAccess() throws Exception {
-        String cookie = adminCookie();
+        String cookie = adminCookie;
         HttpResponse<String> status = send("GET", "/api/status", cookie);
         assertEquals(200, status.statusCode());
         assertTrue(status.body().contains("\"clients\""));
@@ -264,9 +268,5 @@ public class PublicOfficeAuthTest {
             throw new IllegalArgumentException(method);
         }
         return http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-    }
-
-    private String adminCookie() {
-        return AdminAuthCookie.header();
     }
 }

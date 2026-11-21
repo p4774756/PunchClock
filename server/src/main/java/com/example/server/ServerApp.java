@@ -4,6 +4,7 @@ import com.example.BuildInfo;
 import com.example.ClientUpdatePolicy;
 import com.example.PeerFileRules;
 import com.example.ReleaseNotes;
+import com.example.server.auth.AuthConfig;
 import com.example.server.auth.AuthService;
 import com.example.server.health.HealthHistoryStore;
 import com.example.server.health.ServerHealth;
@@ -59,54 +60,74 @@ public final class ServerApp {
     private static final String STATIC_JS_CSS_CACHE = "no-cache";
     private static final String PAGE_CACHE = "no-cache, must-revalidate";
 
-    private final AuthService authService = new AuthService();
-    private final ClientStore clientStore = new ClientStore();
-    private final RelayStore relayStore = new RelayStore();
-    private final ServerHealth serverHealth = new ServerHealth();
-    private final HealthHistoryStore healthHistoryStore = new HealthHistoryStore();
-    private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
-    private final DashboardBroadcaster broadcaster = new DashboardBroadcaster(gson);
-    private final RelayRoutes relayRoutes = new RelayRoutes(
-            authService, clientStore, relayStore, gson, broadcaster, this::statusUpdatePayload);
-    private final ChatRoutes chatRoutes = new ChatRoutes(
-            authService, clientStore, gson, broadcaster, this::statusUpdatePayload);
-    private final PhotoRoutes photoRoutes = new PhotoRoutes(authService);
-    private final GraffitiStore graffitiStore = new GraffitiStore();
-    private final GraffitiRoutes graffitiRoutes = new GraffitiRoutes(authService, graffitiStore);
+    private final AuthService authService;
+    private final ClientStore clientStore;
+    private final RelayStore relayStore;
+    private final ServerHealth serverHealth;
+    private final HealthHistoryStore healthHistoryStore;
+    private final Gson gson;
+    private final DashboardBroadcaster broadcaster;
+    private final RelayRoutes relayRoutes;
+    private final ChatRoutes chatRoutes;
+    private final PhotoRoutes photoRoutes;
+    private final GraffitiStore graffitiStore;
+    private final GraffitiRoutes graffitiRoutes;
     private final RoadmapRoutes roadmapRoutes;
     private final DevStatusService devStatusService;
     private final DevStatusRoutes devStatusRoutes;
     private final OfficePublicRoutes officePublicRoutes;
-    private final DevMachineStore devMachineStore = new DevMachineStore();
+    private final DevMachineStore devMachineStore;
     private final DevMachineRoutes devMachineRoutes;
-    private final AtlasRoutes atlasRoutes = new AtlasRoutes();
+    private final AtlasRoutes atlasRoutes;
     private final TeaHealthRoutes teaHealthRoutes;
     private final ClientRelease clientRelease;
 
     public ServerApp() {
-        this(ClientRelease.discover(), null, null);
+        this(ClientRelease.discover(), null, null, null);
     }
 
     ServerApp(ClientRelease clientRelease) {
-        this(clientRelease, null, null);
+        this(clientRelease, null, null, null);
     }
 
     /** 測試可注入假的 DevStatusService，避免打真實 GitHub。 */
     public ServerApp(ClientRelease clientRelease, DevStatusService devStatusService) {
-        this(clientRelease, devStatusService, null);
+        this(clientRelease, devStatusService, null, null);
     }
 
     /** 測試可注入假的 DevStatusService／RoadmapService，避免打真實 GitHub。 */
     public ServerApp(ClientRelease clientRelease, DevStatusService devStatusService, RoadmapService roadmapService) {
+        this(clientRelease, devStatusService, roadmapService, null);
+    }
+
+    /** 測試可注入 {@link AuthService}（例如隔離的 {@link AuthConfig}）。 */
+    ServerApp(ClientRelease clientRelease, DevStatusService devStatusService, RoadmapService roadmapService,
+              AuthService authService) {
         this.clientRelease = clientRelease == null ? ClientRelease.NONE : clientRelease;
+        this.authService = authService != null ? authService : new AuthService();
+        this.clientStore = new ClientStore();
+        this.relayStore = new RelayStore();
+        this.serverHealth = new ServerHealth();
+        this.healthHistoryStore = new HealthHistoryStore();
+        this.gson = new GsonBuilder().disableHtmlEscaping().create();
+        this.broadcaster = new DashboardBroadcaster(gson);
+        this.relayRoutes = new RelayRoutes(
+                this.authService, clientStore, relayStore, gson, broadcaster, this::statusUpdatePayload);
+        this.chatRoutes = new ChatRoutes(
+                this.authService, clientStore, gson, broadcaster, this::statusUpdatePayload);
+        this.photoRoutes = new PhotoRoutes(this.authService);
+        this.graffitiStore = new GraffitiStore();
+        this.graffitiRoutes = new GraffitiRoutes(this.authService, graffitiStore);
         DevStatusService status = devStatusService != null
                 ? devStatusService
                 : new DevStatusService(new GithubDevStatusClient());
         this.devStatusService = status;
         this.devStatusRoutes = new DevStatusRoutes(status);
+        this.devMachineStore = new DevMachineStore();
         this.officePublicRoutes = new OfficePublicRoutes(devMachineStore, status);
-        this.devMachineRoutes = new DevMachineRoutes(authService, devMachineStore, status, gson);
+        this.devMachineRoutes = new DevMachineRoutes(this.authService, devMachineStore, status, gson);
         this.teaHealthRoutes = new TeaHealthRoutes(serverHealth);
+        this.atlasRoutes = new AtlasRoutes();
         this.roadmapRoutes = new RoadmapRoutes(roadmapService != null
                 ? roadmapService
                 : new RoadmapService(new GithubRoadmapClient()));
