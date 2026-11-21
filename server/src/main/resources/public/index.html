@@ -3,30 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>虛擬辦公室 · 新光小寶貝</title>
+  <title>我的私人團隊 · 新光小寶貝</title>
   <link rel="stylesheet" href="/css/lab-office.css">
   <link rel="stylesheet" href="/css/guestbook.css">
   <link rel="stylesheet" href="/css/roadmap.css">
   <link rel="stylesheet" href="/css/dev-guest-ui.css">
+  <link rel="stylesheet" href="/css/private-team.css">
 </head>
 <body class="lab-office-page {{AUTH_BODY_CLASS}}">
   <script>window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};</script>
-  <section class="lab-office-root is-page" id="officePage" aria-label="虛擬辦公室">
+  <nav class="private-team-sr-auth" aria-hidden="true">
+    <a href="/login?next=/" data-guest-only>登入</a>
+    <a href="/logout" data-auth-only>登出</a>
+  </nav>
+  <section class="lab-office-root is-page private-team-page" id="officePage" aria-label="我的私人團隊">
     <div class="lab-office-frame">
-      <header class="lab-office-head">
-        <h1>虛擬辦公室</h1>
-        <div class="lab-office-auth">
-          <a href="/login?next=/" data-guest-only>登入</a>
-          <a href="/logout" data-auth-only>登出</a>
-        </div>
-      </header>
-      <div class="lab-office-stage" data-lab-office-stage>
-        <img class="lab-office-bg" src="/assets/lab-2f/office-bg.webp" width="1280" height="720" alt="">
-        <div class="lab-office-chars" data-lab-office-chars></div>
-      </div>
-      <p class="lab-office-foot" data-lab-office-foot>每 30 秒更新</p>
-      <div class="lab-office-card-backdrop" data-lab-office-card hidden>
-        <div class="lab-office-card" role="dialog" aria-label="角色詳情"></div>
+      <div class="lab-office-stage" data-private-team-stage>
+        <!-- 3D 場景與 HUD 由 office-page.js 掛載 -->
       </div>
     </div>
   </section>
