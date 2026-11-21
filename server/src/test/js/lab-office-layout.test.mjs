@@ -75,13 +75,37 @@ function pairs(rects) {
   return out;
 }
 
-test('手機站位與 CSS 覆寫一致', () => {
-  for (const id of ['tiger', 'reviewer', 'oki']) {
-    const pos = L.MOBILE_CHAR_POS[id];
-    const re = new RegExp(
-      'data-char="' + id + '"\\]\\s*\\{\\s*left:\\s*' + pos.x + '%\\s*!important;\\s*top:\\s*' + pos.y + '%'
-    );
-    assert.match(css, re, id);
+test('手機沿用家具站位，不再釘死底列', () => {
+  assert.doesNotMatch(css, /data-char="[^"]+"\][^{]*\{[^}]*!important/);
+  const now = 1_090_000;
+  const work = L.buildAllCharacterStates({
+    machines: {
+      machines: [TIGER_WORKING, { ...REVIEW_WORKING, lastSeen: now - 20_000 }]
+    },
+    devStatus: { now: { queue: [1], current: { issue: 1, title: '辦公室' } } },
+    now
+  });
+  const idle = L.buildAllCharacterStates({
+    machines: { machines: [] },
+    devStatus: { now: { queue: [], current: null } },
+    now
+  });
+  const byId = (list, id) => list.find((s) => s.id === id);
+  assert.equal(byId(work, 'oki').spot, 'desk-oki');
+  assert.equal(byId(work, 'tiger').spot, 'desk-tiger');
+  assert.equal(byId(work, 'reviewer').spot, 'desk-review');
+  assert.equal(byId(idle, 'oki').spot, 'coffee');
+  assert.notEqual(byId(idle, 'tiger').spot, 'desk-tiger');
+  assert.equal(L.chibiAssetPath('oki', 'plan'), L.chibiAssetPath('oki', 'idle'));
+  assert.notEqual(L.chibiAssetPath('oki', 'work'), L.chibiAssetPath('oki', 'idle'));
+  const phone = L.officeLayoutRects(work, 390, 844);
+  const desk = L.officeLayoutRects(work, 1280, 720);
+  for (let i = 0; i < work.length; i++) {
+    assert.equal(phone.rects[i].spot, desk.rects[i].spot);
+    const pos = L.SPOT_POS[phone.rects[i].spot];
+    const ax = phone.stage.w * pos.x / 100;
+    const mid = phone.rects[i].char.x + phone.rects[i].char.w / 2;
+    assert.ok(Math.abs(mid - ax) < 1.5, phone.rects[i].id);
   }
 });
 

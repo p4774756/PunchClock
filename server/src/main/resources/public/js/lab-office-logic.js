@@ -14,42 +14,36 @@ export const IDLE_SPOTS = Object.freeze([
   { id: 'lounge', label: '休憩區' }
 ]);
 
-/** 與 lab-office.js 站位、lab-office.css 手機覆寫同一組數字。百分比對舞台。 */
+/** 百分比對舞台（桌機與手機同一組，對到城市夜景家具）。錨點是角色腳底／坐姿下緣。 */
 export const SPOT_POS = Object.freeze({
-  'desk-oki': { x: 14, y: 58 },
-  'desk-tiger': { x: 46, y: 66 },
-  'desk-review': { x: 58, y: 62 },
-  coffee: { x: 78, y: 72 },
-  sofa: { x: 28, y: 78 },
-  lounge: { x: 88, y: 76 },
-  beanbag: { x: 34, y: 82 },
-  meeting: { x: 52, y: 44 },
-  'idle-review': { x: 72, y: 84 }
-});
-
-export const MOBILE_CHAR_POS = Object.freeze({
-  oki: { x: 18, y: 82 },
-  tiger: { x: 50, y: 82 },
-  reviewer: { x: 82, y: 82 }
+  'desk-oki': { x: 44, y: 43 },
+  'desk-tiger': { x: 49, y: 79 },
+  'desk-review': { x: 63, y: 51 },
+  coffee: { x: 11, y: 76 },
+  sofa: { x: 23, y: 63 },
+  lounge: { x: 30, y: 82 },
+  beanbag: { x: 18, y: 86 },
+  meeting: { x: 38, y: 88 },
+  'idle-review': { x: 71, y: 84 }
 });
 
 export const SPRITE_NATURAL = Object.freeze({
-  oki: { w: 98, h: 220 },
-  tiger: { w: 99, h: 220 },
-  reviewer: { w: 107, h: 220 }
+  oki: { w: 217, h: 434 },
+  tiger: { w: 274, h: 424 },
+  reviewer: { w: 244, h: 422 }
 });
 
 export function viewerCanOpenLabOffice(authFlag) {
   return authFlag === true;
 }
 
-/** 首頁可點物件（百分比座標，對舞台）。 */
+/** 首頁可點物件（百分比座標，對舞台）。對到新背景的家具，不是舊海景。 */
 export const OFFICE_PROP_POS = Object.freeze({
-  guestbook: { x: 10, y: 68, label: '簽名簿' },
-  clock: { x: 6, y: 54, label: '打卡機' },
-  bookshelf: { x: 20, y: 40, label: '書櫃' },
-  whiteboard: { x: 54, y: 34, label: '白板' },
-  desk: { x: 44, y: 64, label: '下載 App' }
+  guestbook: { x: 12, y: 69, label: '簽名簿' },
+  clock: { x: 18, y: 63, label: '打卡機' },
+  bookshelf: { x: 34, y: 34, label: '書櫃' },
+  whiteboard: { x: 15, y: 40, label: '白板' },
+  desk: { x: 66, y: 68, label: '下載 App' }
 });
 
 function isOnlineRow(row, now) {
@@ -102,7 +96,7 @@ export function countReviewActive(machinesPayload, now) {
 }
 
 export function chibiAssetPath(charId, mode) {
-  const work = mode === 'work' || mode === 'plan';
+  const work = mode === 'work';
   return '/assets/lab-2f/chibi-' + charId + (work ? '-work' : '-idle') + '.png';
 }
 
@@ -354,8 +348,8 @@ function officeStageSize(viewportW, viewportH) {
 }
 
 function spriteHeightPx(stageH, viewportW) {
-  if (viewportW <= 520) return 42;
-  return Math.max(48, Math.min(120, stageH * 0.3));
+  if (viewportW <= 520) return 44;
+  return Math.max(48, Math.min(112, stageH * 0.24));
 }
 
 function textWidthPx(text, fontSize) {
@@ -372,9 +366,9 @@ function textWidthPx(text, fontSize) {
 
 function bubbleMetrics(viewportW) {
   if (viewportW <= 520) {
-    return { font: 10, lh: 1.2, padX: 3, padY: 2, border: 2, max: 80, min: 54.4 };
+    return { font: 10, lh: 1.2, padX: 3, padY: 2, border: 2, max: 74, min: 32 };
   }
-  return { font: 12, lh: 1.3, padX: 6, padY: 4, border: 2, max: 152, min: 54.4 };
+  return { font: 12, lh: 1.3, padX: 6, padY: 4, border: 2, max: 152, min: 48 };
 }
 
 export function rectsIntersect(a, b) {
@@ -385,14 +379,11 @@ export function officeLayoutRects(states, viewportW, viewportH) {
   const stage = officeStageSize(viewportW, viewportH);
   const hSprite = spriteHeightPx(stage.h, viewportW);
   const spec = bubbleMetrics(viewportW);
-  const mobile = viewportW <= 520;
   const rects = [];
   const list = states || [];
   for (let i = 0; i < list.length; i++) {
     const st = list[i];
-    const pos = mobile
-      ? (MOBILE_CHAR_POS[st.id] || MOBILE_CHAR_POS.reviewer)
-      : (SPOT_POS[st.spot] || SPOT_POS.sofa);
+    const pos = SPOT_POS[st.spot] || SPOT_POS.sofa;
     const ax = stage.w * pos.x / 100;
     const ay = stage.h * pos.y / 100;
     const nat = SPRITE_NATURAL[st.id] || { w: 100, h: 220 };
