@@ -1,7 +1,1 @@
-(function () {
-  const available = window.PUNCHCLOCK_CLIENT_AVAILABLE === true;
-  const jar = document.querySelector('[data-download-jar]');
-  const missing = document.querySelector('[data-download-missing]');
-  if (available && jar) jar.hidden = false;
-  if (!available && missing) missing.hidden = false;
-})();
+/** 下載區塊顯示由伺服器在 HTML 上設定 hidden；此檔保留供日後擴充。 */

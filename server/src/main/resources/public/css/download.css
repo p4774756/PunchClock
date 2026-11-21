@@ -45,6 +45,12 @@
   background: #204e96;
 }
 
+/* author display 會蓋過 UA 的 [hidden]；沒有檔時按鈕不可見。 */
+.download-btn[hidden],
+.download-unavailable[hidden] {
+  display: none !important;
+}
+
 .download-unavailable {
   color: #6a5060;
 }
