@@ -279,6 +279,8 @@ public final class DesktopPetWindow extends JFrame {
         validate();
         if (!isVisible()) {
             setVisible(true);
+            // 主視窗已經在前面時，只設 alwaysOnTop 不會把這扇 POPUP 排上去。
+            toFront();
         }
         if (!timer.isRunning()) {
             timer.start();
@@ -593,6 +595,12 @@ public final class DesktopPetWindow extends JFrame {
             return;
         }
         onTick();
+    }
+
+    /** 停掉走路計時，讓螢幕擷圖對得上這一格。 */
+    void holdStill() {
+        requireEdt();
+        stopMotion();
     }
 
     private void stopMotion() {
@@ -1423,9 +1431,9 @@ public final class DesktopPetWindow extends JFrame {
     static final int MAIN_AVOID_GAP = 6;
 
     /**
-     * 呼喚時把寵物移出主視窗外框，避免疊在左緣上看起來像被切半。
-     * 系統不會把視窗外的像素裁掉；外框仍要分開，主視窗才不會蓋住角色。
-     * 四個方向都放不進螢幕時，改挑重疊最少的螢幕角落，不再無條件丟回預設點。
+     * 呼喚時把寵物移出主視窗外框，並把整扇留在螢幕裡。
+     * 外框變大後的平移可能不再和主視窗相交，但仍會伸出螢幕右緣；不相交時也要拉回來。
+     * 四個方向都放不進螢幕時，改挑重疊最少的落點。
      */
     static Point nudgeOutsideMainWindow(
             int x,
@@ -1435,13 +1443,16 @@ public final class DesktopPetWindow extends JFrame {
             Rectangle main,
             Rectangle usable,
             Rectangle[] screens) {
+        Point onScreen = clampToScreens(x, y, windowWidth, windowHeight, screens);
         if (main == null || main.isEmpty() || windowWidth < 1 || windowHeight < 1) {
-            return new Point(x, y);
+            return onScreen;
         }
-        Rectangle pet = new Rectangle(x, y, windowWidth, windowHeight);
+        Rectangle pet = new Rectangle(onScreen.x, onScreen.y, windowWidth, windowHeight);
         if (!pet.intersects(main)) {
-            return new Point(x, y);
+            return onScreen;
         }
+        x = onScreen.x;
+        y = onScreen.y;
         int gap = MAIN_AVOID_GAP;
         Point best = null;
         long bestDistance = Long.MAX_VALUE;
@@ -1956,8 +1967,7 @@ public final class DesktopPetWindow extends JFrame {
                     g.fillRoundRect(0, 0, Math.max(1, getWidth()), Math.max(1, getHeight()), 16, 16);
                 }
                 g.setComposite(AlphaComposite.SrcOver);
-                // 活視窗的 Graphics 帶著螢幕縮放。在那上面直接把 400px 影格雙三次縮成 200px，
-                // 角色像素不會留下來，只剩影子邊緣。先在沒有裝置變換的緩衝畫完整隻，再原寸貼上。
+                // 拖曳旋轉做在緩衝上，再整張貼回。貼回的是角色原色，螢幕上才對得起來。
                 BufferedImage frame = renderLiveFrame();
                 g.setRenderingHint(
                         RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);

@@ -5,10 +5,13 @@ import org.junit.Test;
 
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
+import java.awt.AWTException;
 import java.awt.Frame;
 import java.awt.GraphicsEnvironment;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.Robot;
+import java.awt.Toolkit;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.prefs.AbstractPreferences;
@@ -66,6 +69,17 @@ public class Issue347PetMainOverlapTest {
   }
 
   @Test
+  public void nudgePullsClearPetBackOntoScreen() {
+    Rectangle screen = new Rectangle(0, 0, 1440, 900);
+    Rectangle main = new Rectangle(924, 459, 500, 340);
+    Point nudged = DesktopPetWindow.nudgeOutsideMainWindow(
+        1329, 259, 137, 176, main, screen, new Rectangle[] {screen});
+    Rectangle placed = new Rectangle(nudged.x, nudged.y, 137, 176);
+    assertFalse(placed.intersects(main));
+    assertTrue("whole pet window must sit on the screen " + placed, screen.contains(placed));
+  }
+
+  @Test
   public void summonPaintStaysWholeWhenMainWouldOverlap() throws Exception {
     DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
     assertNotNull(frames);
@@ -89,11 +103,15 @@ public class Issue347PetMainOverlapTest {
     Assume.assumeFalse("needs display", GraphicsEnvironment.isHeadless());
     DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
     assertNotNull(frames);
-    SwingUtilities.invokeAndWait(() -> {
-      JFrame main = new JFrame("issue347-main");
-      DesktopPetSettings settings = new DesktopPetSettings(new MemoryPreferences());
-      DesktopPetManager manager = new DesktopPetManager(settings);
-      try {
+    JFrame[] mainBox = new JFrame[1];
+    DesktopPetManager[] managerBox = new DesktopPetManager[1];
+    try {
+      SwingUtilities.invokeAndWait(() -> {
+        JFrame main = new JFrame("issue347-main");
+        DesktopPetSettings settings = new DesktopPetSettings(new MemoryPreferences());
+        DesktopPetManager manager = new DesktopPetManager(settings);
+        mainBox[0] = main;
+        managerBox[0] = manager;
         main.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         Rectangle shell = DesktopPetWindow.viewForPose(
             frames, DesktopPetWindow.shellFor(frames), new DesktopPetAnimation());
@@ -102,6 +120,7 @@ public class Issue347PetMainOverlapTest {
         main.setSize(420, 340);
         main.setLocation(defaultSpot.x - shell.width / 2, defaultSpot.y - 20);
         main.setVisible(true);
+        manager.setCursorReactEnabled(false);
         manager.setMainBoundsSupplier(() -> {
           Point loc = main.getLocationOnScreen();
           return new Rectangle(loc.x, loc.y, main.getWidth(), main.getHeight());
@@ -117,15 +136,33 @@ public class Issue347PetMainOverlapTest {
             main.getWidth(),
             main.getHeight());
         Rectangle petBounds = new Rectangle(
-            pet.getLocationOnScreen().x, pet.getLocationOnScreen().y, pet.getWidth(), pet.getHeight());
+            pet.getX(), pet.getY(), pet.getWidth(), pet.getHeight());
         assertFalse("summoned pet must not overlap main", petBounds.intersects(mainBounds));
+        pet.holdStill();
+        pet.toFront();
         assertLivePetIsWhole(pet, frames);
-      } finally {
-        manager.shutdown();
-        main.setVisible(false);
-        main.dispose();
-      }
-    });
+      });
+      Thread.sleep(300);
+      SwingUtilities.invokeAndWait(() -> {
+        DesktopPetWindow pet = managerBox[0].window();
+        Rectangle petBounds = new Rectangle(
+            pet.getLocationOnScreen().x, pet.getLocationOnScreen().y, pet.getWidth(), pet.getHeight());
+        Rectangle screen = pet.getGraphicsConfiguration().getBounds();
+        assertTrue("summoned pet must sit fully on screen " + petBounds + " screen " + screen,
+            screen.contains(petBounds));
+        assertScreenShowsPet(pet, null);
+      });
+    } finally {
+      SwingUtilities.invokeAndWait(() -> {
+        if (managerBox[0] != null) {
+          managerBox[0].shutdown();
+        }
+        if (mainBox[0] != null) {
+          mainBox[0].setVisible(false);
+          mainBox[0].dispose();
+        }
+      });
+    }
   }
 
   @Test
@@ -133,17 +170,23 @@ public class Issue347PetMainOverlapTest {
     Assume.assumeFalse("needs display", GraphicsEnvironment.isHeadless());
     DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
     assertNotNull(frames);
-    SwingUtilities.invokeAndWait(() -> {
-      JFrame main = new JFrame("issue347-overlap");
-      DesktopPetSettings settings = new DesktopPetSettings(new MemoryPreferences());
-      DesktopPetManager manager = new DesktopPetManager(settings);
-      try {
+    JFrame[] mainBox = new JFrame[1];
+    DesktopPetManager[] managerBox = new DesktopPetManager[1];
+    Rectangle[] mainBoundsBox = new Rectangle[1];
+    try {
+      SwingUtilities.invokeAndWait(() -> {
+        JFrame main = new JFrame("issue347-overlap");
+        DesktopPetSettings settings = new DesktopPetSettings(new MemoryPreferences());
+        DesktopPetManager manager = new DesktopPetManager(settings);
+        mainBox[0] = main;
+        managerBox[0] = manager;
         main.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         main.setAutoRequestFocus(false);
         main.setFocusableWindowState(false);
         main.setSize(420, 340);
         main.setLocation(80, 80);
         main.setVisible(true);
+        manager.setCursorReactEnabled(false);
         manager.setMainBoundsSupplier(() -> null);
         manager.setCareEnabled(false);
         assertTrue(manager.setEnabled(true));
@@ -158,17 +201,29 @@ public class Issue347PetMainOverlapTest {
         pet.setBounds(cutX, cutY, pet.getWidth(), pet.getHeight());
         Rectangle petBounds = new Rectangle(pet.getX(), pet.getY(), pet.getWidth(), pet.getHeight());
         Rectangle mainBounds = new Rectangle(main.getX(), main.getY(), main.getWidth(), main.getHeight());
+        mainBoundsBox[0] = mainBounds;
         assertTrue("fixture should straddle the main left edge pet=" + petBounds + " main=" + mainBounds,
             petBounds.intersects(mainBounds));
         assertEquals(shell.width, petBounds.width);
         assertEquals(shell.height, petBounds.height);
+        assertTrue(pet.getGraphicsConfiguration().getBounds().contains(petBounds));
+        pet.holdStill();
+        pet.toFront();
         assertLivePetIsWhole(pet, frames);
-      } finally {
-        manager.shutdown();
-        main.setVisible(false);
-        main.dispose();
-      }
-    });
+      });
+      Thread.sleep(300);
+      SwingUtilities.invokeAndWait(() -> assertScreenShowsPet(managerBox[0].window(), mainBoundsBox[0]));
+    } finally {
+      SwingUtilities.invokeAndWait(() -> {
+        if (managerBox[0] != null) {
+          managerBox[0].shutdown();
+        }
+        if (mainBox[0] != null) {
+          mainBox[0].setVisible(false);
+          mainBox[0].dispose();
+        }
+      });
+    }
   }
 
   private static void assertLivePetIsWhole(DesktopPetWindow pet, DesktopPetSpriteLoader.Frames frames) {
@@ -213,15 +268,21 @@ public class Issue347PetMainOverlapTest {
     Assume.assumeFalse("needs display", GraphicsEnvironment.isHeadless());
     DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
     assertNotNull(frames);
-    SwingUtilities.invokeAndWait(() -> {
-      JFrame main = new JFrame("issue347-min");
-      DesktopPetSettings settings = new DesktopPetSettings(new MemoryPreferences());
-      DesktopPetManager manager = new DesktopPetManager(settings);
-      try {
+    JFrame[] mainBox = new JFrame[1];
+    DesktopPetManager[] managerBox = new DesktopPetManager[1];
+    DesktopPetWindow[] petBox = new DesktopPetWindow[1];
+    try {
+      SwingUtilities.invokeAndWait(() -> {
+        JFrame main = new JFrame("issue347-min");
+        DesktopPetSettings settings = new DesktopPetSettings(new MemoryPreferences());
+        DesktopPetManager manager = new DesktopPetManager(settings);
+        mainBox[0] = main;
+        managerBox[0] = manager;
         main.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         main.setSize(400, 300);
         main.setLocation(60, 60);
         main.setVisible(true);
+        manager.setCursorReactEnabled(false);
         manager.setMainBoundsSupplier(() -> {
           if ((main.getExtendedState() & Frame.ICONIFIED) != 0) {
             return null;
@@ -232,19 +293,97 @@ public class Issue347PetMainOverlapTest {
         manager.setCareEnabled(false);
         assertTrue(manager.setEnabled(true));
         DesktopPetWindow pet = manager.window();
+        petBox[0] = pet;
         pet.useFrames(frames);
+        pet.holdStill();
         int parkedX = main.getLocationOnScreen().x + 40;
         int parkedY = main.getLocationOnScreen().y + 40;
         pet.setLocation(parkedX, parkedY);
         main.setExtendedState(Frame.ICONIFIED);
         pet.nudgeAwayFromMainWindow();
         assertEqualsPoint(parkedX, parkedY, pet.getX(), pet.getY());
-      } finally {
-        manager.shutdown();
-        main.setVisible(false);
-        main.dispose();
+        assertTrue(pet.isShowing());
+      });
+      Thread.sleep(400);
+      SwingUtilities.invokeAndWait(() -> {
+        assertTrue(petBox[0].isShowing());
+        petBox[0].toFront();
+        assertScreenShowsPet(petBox[0], null);
+      });
+    } finally {
+      SwingUtilities.invokeAndWait(() -> {
+        if (managerBox[0] != null) {
+          managerBox[0].shutdown();
+        }
+        if (mainBox[0] != null) {
+          mainBox[0].setVisible(false);
+          mainBox[0].dispose();
+        }
+      });
+    }
+  }
+
+  /**
+   * 螢幕上的不透明像素要對上緩衝。跨在主視窗左緣時，切線左右都要對上。
+   */
+  private static void assertScreenShowsPet(DesktopPetWindow pet, Rectangle mainBounds) {
+    Toolkit.getDefaultToolkit().sync();
+    BufferedImage buffer = new BufferedImage(pet.getWidth(), pet.getHeight(), BufferedImage.TYPE_INT_ARGB);
+    Graphics2D graphics = buffer.createGraphics();
+    try {
+      pet.stage().paint(graphics);
+    } finally {
+      graphics.dispose();
+    }
+    BufferedImage shot;
+    try {
+      shot = new Robot().createScreenCapture(pet.getBounds());
+    } catch (AWTException ex) {
+      throw new AssertionError("screen capture failed", ex);
+    }
+    assertEquals(buffer.getWidth(), shot.getWidth());
+    assertEquals(buffer.getHeight(), shot.getHeight());
+    int cut = mainBounds == null ? -1 : mainBounds.x - pet.getX();
+    int[] left = new int[2];
+    int[] right = new int[2];
+    int[] all = new int[2];
+    for (int y = 0; y < buffer.getHeight(); y++) {
+      for (int x = 0; x < buffer.getWidth(); x++) {
+        int argb = buffer.getRGB(x, y);
+        if (((argb >>> 24) & 0xff) <= 180) {
+          continue;
+        }
+        int screen = shot.getRGB(x, y);
+        boolean close = Math.abs(((screen >> 16) & 0xff) - ((argb >> 16) & 0xff)) < 48
+            && Math.abs(((screen >> 8) & 0xff) - ((argb >> 8) & 0xff)) < 48
+            && Math.abs((screen & 0xff) - (argb & 0xff)) < 48;
+        all[0]++;
+        if (close) {
+          all[1]++;
+        }
+        if (cut >= 0) {
+          if (x < cut) {
+            left[0]++;
+            if (close) {
+              left[1]++;
+            }
+          } else {
+            right[0]++;
+            if (close) {
+              right[1]++;
+            }
+          }
+        }
       }
-    });
+    }
+    assertTrue("screen should show the character opaque=" + all[0] + " matched=" + all[1],
+        all[0] > 1000 && all[1] * 4 > all[0] * 3);
+    if (cut >= 0) {
+      assertTrue("left of the main edge should stay on screen left=" + left[0] + "/" + left[1],
+          left[0] > 400 && left[1] * 4 > left[0] * 3);
+      assertTrue("right of the main edge should stay on screen right=" + right[0] + "/" + right[1],
+          right[0] > 400 && right[1] * 4 > right[0] * 3);
+    }
   }
 
   private static void assertEqualsPoint(int expectedX, int expectedY, int actualX, int actualY) {
