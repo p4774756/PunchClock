@@ -13,6 +13,9 @@ import java.nio.file.Files;
 /** 訪客可下載桌面端 jar（無心跳密鑰；與 /api/client-release 授權分開）。 */
 public final class PublicDownloadRoutes {
 
+    /** 公開下載的檔名（URL 仍為 /download/app.jar）。 */
+    static final String PUBLIC_JAR_FILENAME = "SKLbaby.jar";
+
     private final ClientRelease clientRelease;
 
     public PublicDownloadRoutes(ClientRelease clientRelease) {
@@ -29,7 +32,8 @@ public final class PublicDownloadRoutes {
         boolean available = clientRelease.isAvailable();
         String version = available ? clientRelease.version() : "";
         String html = readResource("/public/download.html")
-                .replace("{{CLIENT_AVAILABLE}}", available ? "true" : "false")
+                .replace("{{JAR_HIDDEN}}", available ? "" : " hidden")
+                .replace("{{MISSING_HIDDEN}}", available ? " hidden" : "")
                 .replace("{{CLIENT_VERSION}}", escapeHtml(version))
                 .replace("{{JAVA_VERSION}}", "11");
         ctx.header("Cache-Control", "no-cache, must-revalidate");
@@ -56,7 +60,7 @@ public final class PublicDownloadRoutes {
         }
         ctx.minSizeForCompression(Integer.MAX_VALUE);
         ctx.contentType("application/java-archive");
-        ctx.header("Content-Disposition", "attachment; filename=\"SKLbaby.jar\"");
+        ctx.header("Content-Disposition", "attachment; filename=\"" + PUBLIC_JAR_FILENAME + "\"");
         ctx.header("Content-Length", String.valueOf(clientRelease.size()));
         ctx.header("X-Content-Type-Options", "nosniff");
         ctx.result(stream);
