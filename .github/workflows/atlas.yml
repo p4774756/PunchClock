@@ -36,3 +36,6 @@ jobs:
       - run: node scripts/validate-teaching-anchor.mjs
       - run: node scripts/validate-download-progress.mjs
       - run: node scripts/validate-anime-model-digest.mjs
+      - run: node scripts/validate-anatomy-lazy.mjs
+      - run: node scripts/validate-anatomy-arm.mjs
+      - run: node scripts/validate-acupoint-muscles.mjs

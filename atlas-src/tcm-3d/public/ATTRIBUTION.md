@@ -26,3 +26,21 @@
   https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html
 
 穴位名稱與編號採用 GB/T 12346—2021。工程座標未經執業醫師逐穴校核，不代表標準取穴精度。
+
+## 肌肉分層解剖（選用模式）— CC BY-SA 4.0 衍生
+
+「肌肉分層」模式使用自 **Z-Anatomy** 匯出並簡化後的骨骼與肌肉 GLB（不含內臟、血管、淋巴、內耳或腎臟網格）。原始 `Z-Anatomy.zip` 不隨倉庫釋出。
+
+- Z-Anatomy：https://www.z-anatomy.com/
+  https://github.com/Z-Anatomy/Models-of-human-anatomy
+  授權：Creative Commons Attribution-ShareAlike 4.0 International（CC BY-SA 4.0）
+  建議標註：`"Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0"`
+- 上游 **BodyParts3D**（The Database Center for Life Science）：官方現行 **CC BY 4.0**（2025-02-27 更新）
+  https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html
+  官方現行標註：`"BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International"`
+  Z-Anatomy 要求同時保留的標註文句：`"BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan"`
+- 衍生 GLB 目錄：`public/models/anatomy/`（gzip 壓縮供 lazy-load）
+- 肌解文案：`data/muscle-catalog.json`（自撰繁中摘要，非整段複製外部百科）
+- 穴位—肌肉對照：`data/acupoint-muscles.json`（人工整理，穴位座標仍為目錄示意）
+
+僅在使用者切換至「肌肉分層」時才下載上述 GLB；預設少女穴位練習模式不載入。

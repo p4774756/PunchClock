@@ -1,0 +1,135 @@
+{
+  "source": "Z-Anatomy (CC BY-SA 4.0) via Blender export; BodyParts3D upstream CC BY 4.0",
+  "initialLoad": [
+    "arm-muscle-superficial",
+    "arm-skeleton",
+    "head-neck-muscle-superficial",
+    "head-neck-skeleton",
+    "leg-muscle-superficial",
+    "leg-skeleton",
+    "trunk-muscle-superficial",
+    "trunk-skeleton"
+  ],
+  "lazyRegions": [
+    "head-neck",
+    "trunk",
+    "arm",
+    "leg"
+  ],
+  "parts": [
+    {
+      "id": "arm-muscle-deep",
+      "url": "models/anatomy/arm-muscle-deep.glb.gz",
+      "region": "arm",
+      "layer": "muscle-deep",
+      "bytes": 334899,
+      "rawBytes": 510964,
+      "digest": "31a0fe27b816"
+    },
+    {
+      "id": "arm-muscle-superficial",
+      "url": "models/anatomy/arm-muscle-superficial.glb.gz",
+      "region": "arm",
+      "layer": "muscle-superficial",
+      "bytes": 138419,
+      "rawBytes": 157348,
+      "digest": "f3b3f72a4c44"
+    },
+    {
+      "id": "arm-skeleton",
+      "url": "models/anatomy/arm-skeleton.glb.gz",
+      "region": "arm",
+      "layer": "skeleton",
+      "bytes": 110856,
+      "rawBytes": 145320,
+      "digest": "948d8efee90e"
+    },
+    {
+      "id": "head-neck-muscle-deep",
+      "url": "models/anatomy/head-neck-muscle-deep.glb.gz",
+      "region": "head-neck",
+      "layer": "muscle-deep",
+      "bytes": 1142338,
+      "rawBytes": 1238184,
+      "digest": "bfc6c09bc199"
+    },
+    {
+      "id": "head-neck-muscle-superficial",
+      "url": "models/anatomy/head-neck-muscle-superficial.glb.gz",
+      "region": "head-neck",
+      "layer": "muscle-superficial",
+      "bytes": 629720,
+      "rawBytes": 665664,
+      "digest": "aa7582321484"
+    },
+    {
+      "id": "head-neck-skeleton",
+      "url": "models/anatomy/head-neck-skeleton.glb.gz",
+      "region": "head-neck",
+      "layer": "skeleton",
+      "bytes": 815520,
+      "rawBytes": 1030564,
+      "digest": "a4e931df9996"
+    },
+    {
+      "id": "leg-muscle-deep",
+      "url": "models/anatomy/leg-muscle-deep.glb.gz",
+      "region": "leg",
+      "layer": "muscle-deep",
+      "bytes": 229277,
+      "rawBytes": 347028,
+      "digest": "1953aa95e852"
+    },
+    {
+      "id": "leg-muscle-superficial",
+      "url": "models/anatomy/leg-muscle-superficial.glb.gz",
+      "region": "leg",
+      "layer": "muscle-superficial",
+      "bytes": 94515,
+      "rawBytes": 115764,
+      "digest": "b083e0edf4ea"
+    },
+    {
+      "id": "leg-skeleton",
+      "url": "models/anatomy/leg-skeleton.glb.gz",
+      "region": "leg",
+      "layer": "skeleton",
+      "bytes": 62386,
+      "rawBytes": 84832,
+      "digest": "bb2ac642e237"
+    },
+    {
+      "id": "trunk-muscle-deep",
+      "url": "models/anatomy/trunk-muscle-deep.glb.gz",
+      "region": "trunk",
+      "layer": "muscle-deep",
+      "bytes": 298771,
+      "rawBytes": 441824,
+      "digest": "ccf94edcf915"
+    },
+    {
+      "id": "trunk-muscle-superficial",
+      "url": "models/anatomy/trunk-muscle-superficial.glb.gz",
+      "region": "trunk",
+      "layer": "muscle-superficial",
+      "bytes": 242157,
+      "rawBytes": 262900,
+      "digest": "5850711194c7"
+    },
+    {
+      "id": "trunk-skeleton",
+      "url": "models/anatomy/trunk-skeleton.glb.gz",
+      "region": "trunk",
+      "layer": "skeleton",
+      "bytes": 85689,
+      "rawBytes": 91392,
+      "digest": "84d1316729ba"
+    }
+  ],
+  "totalGzipBytes": 4184547,
+  "initialGzipBytes": 2179262,
+  "limits": {
+    "firstBootMax": 3145728,
+    "totalMax": 12582912
+  }
+}

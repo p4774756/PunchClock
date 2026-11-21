@@ -7,9 +7,11 @@ import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState,type CSSProp
 import {flushSync} from 'react-dom';
 import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Focus,Info,Layers3,MapPin,Maximize2,Pause,Play,RotateCcw,RotateCw,Search,SlidersHorizontal,X} from 'lucide-react';
 import type {SceneState,View} from './anatomy';
+import {STUDIO_VIEW_LABEL,type StudioView} from './studio-view';
 import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,isPracticeDeferred,libraryPointResults,LOCATION,POINTS,POINT_BY_CODE,MERIDIANS,pointInCurriculum,practiceOpenCodes,REGIONS,STANDARD,TOOLS,type CurriculumSetId,type RegionId,type SimulationState,type SurfaceTarget,type ToolId,type ToolDragPhase} from './teaching';
 
 const CharacterScene=lazy(()=>import('./character-scene'));
+const MuscleStudioShell=lazy(()=>import('./muscle-studio-shell'));
 
 const initialScene:SceneState={explode:0,visible:[],selected:[],isolate:false,view:'front',rotate:false,reset:0};
 const VIEW_LABELS:Record<View,string>={'three-quarter':'斜視',front:'正面',back:'背面',side:'側面'};
@@ -51,6 +53,7 @@ export default function Home(){
  const [toolsExpanded,setToolsExpanded]=useState(false);
  const [mobilePanel,setMobilePanel]=useState<'library'|'selection'|null>(null);
  const [about,setAbout]=useState(false),[holding,setHolding]=useState(false);
+ const [studioView,setStudioView]=useState<StudioView>('character');
  const [outfitId,setOutfitId]=useState<OutfitId>(DEFAULT_OUTFIT_ID);
  const [practicePreparing,setPracticePreparing]=useState(false);
  const currentOutfit=animeOutfit(outfitId);
@@ -93,7 +96,8 @@ export default function Home(){
   const current=`${window.location.search}${window.location.hash}`;
   if(next!==current)window.history.replaceState(null,'',`${window.location.pathname}${next}`);
  },[activeLesson,simulation.pointCode]);
- useEffect(()=>{if(!simulation.running)return;let frame=0,last=performance.now();const tick=(now:number)=>{const delta=Math.min((now-last)/1000,.1);last=now;setSimulation(s=>s.running?{...s,elapsed:s.elapsed+delta}:s);frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[simulation.running]);
+ useEffect(()=>{if(studioView==='muscle'){setProgress(p=>p<6?6:p);return;}if(!simulation.running)return;let frame=0,last=performance.now();const tick=(now:number)=>{const delta=Math.min((now-last)/1000,.1);last=now;setSimulation(s=>s.running?{...s,elapsed:s.elapsed+delta}:s);frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[simulation.running,studioView]);
+ useEffect(()=>{if(studioView==='muscle'){setProgress(6);setError('');setLoadStep(LOAD_STEP_LABELS.program);}},[studioView]);
  const pause=useCallback((message='演示已暫停，當前畫面保持。')=>{heldPointer.current=null;setHolding(false);setSimulation(s=>({...s,dragging:false,running:false}));setFeedback(message);},[]);
  const releaseHold=useCallback(()=>{heldPointer.current=null;setHolding(false);setSimulation(s=>({...s,dragging:false,running:false,release:(s.release??0)+1}));setFeedback('已鬆開，皮膚與器具逐漸回彈。');},[]);
  useEffect(()=>{const blur=()=>pause('窗口已離開，演示自動暫停。');const visibility=()=>{if(document.hidden)blur();};window.addEventListener('blur',blur);document.addEventListener('visibilitychange',visibility);return()=>{window.removeEventListener('blur',blur);document.removeEventListener('visibilitychange',visibility);};},[pause]);
@@ -172,24 +176,39 @@ export default function Home(){
  const onPracticeOutfitPreparing=useCallback((preparing:boolean)=>{setPracticePreparing(preparing);},[]);
  const selectedTitle=point?.name??(simulation.customTarget?'自選體表位置':'點選穴位標記');
  const animationStatus=simulation.dragging?'操作中':simulation.running?'演示中':simulation.elapsed>0?'已暫停':'待演示';
- return <main className={`studio rpg-studio is-anime${showOutfitBar?' has-outfit-bar':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
+ const switchStudioView=(next:StudioView)=>{
+  if(next===studioView)return;
+  pause(next==='muscle'?'已切換肌肉分層模式；僅此時載入解剖 GLB。':'已回到穴位練習模式。');
+  setStudioView(next);
+  setState(s=>({...s,rotate:false,reset:s.reset+1}));
+ };
+ return <main className={`studio rpg-studio is-anime${studioView==='muscle'?' is-muscle':''}${showOutfitBar && studioView==='character'?' has-outfit-bar':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
   <header className="studio-header rpg-header">
    <div className="brand-block">
     <a className="brand" href={HOME_HREF} aria-label={BACK_HOME_ARIA}><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室<span className="edition">RPG</span></span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></a>
     <div className="header-switch-row">
      <a className="back-home" href={HOME_HREF} aria-label={BACK_HOME_ARIA}>{BACK_HOME_LABEL}</a>
+     <nav className="studio-view-switch" aria-label="研習室模式">
+      {(['character','muscle'] as StudioView[]).map(id=><button key={id} type="button" className={studioView===id?'selected':''} aria-pressed={studioView===id} onClick={()=>switchStudioView(id)}>{STUDIO_VIEW_LABEL[id]}</button>)}
+     </nav>
     </div>
    </div>
    <div className="header-actions">
-    <div className="header-status"><span className="status-dot"/>穴位練習中<span className="header-divider"/>{currentAvatar.shortName}</div>
+    <div className="header-status"><span className="status-dot"/>{studioView==='muscle'?'肌肉分層':'穴位練習中'}<span className="header-divider"/>{studioView==='muscle'?'開源解剖示意':currentAvatar.shortName}</div>
     <button className="source-button" onClick={()=>setAbout(true)}><Info size={16}/><span>來源與許可</span></button>
    </div>
   </header>
 
   <section className="scene-stage" aria-label="3D 人體教學視窗">
-   <Suspense fallback={null}><CharacterScene key={DEFAULT_AVATAR_ID} state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={DEFAULT_AVATAR_ID} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onError={onError} onPracticeOutfitPreparing={onPracticeOutfitPreparing}/></Suspense>
-   <div className="scene-guide"><span className="guide-cross">+</span><span>{currentAvatar.shortName} · {currentOutfit.shortName}</span></div>
-   {(progress<100||error)&&(
+   {studioView==='character'?(
+    <>
+     <Suspense fallback={null}><CharacterScene key={DEFAULT_AVATAR_ID} state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={DEFAULT_AVATAR_ID} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onError={onError} onPracticeOutfitPreparing={onPracticeOutfitPreparing}/></Suspense>
+     <div className="scene-guide"><span className="guide-cross">+</span><span>{currentAvatar.shortName} · {currentOutfit.shortName}</span></div>
+    </>
+   ):(
+    <Suspense fallback={null}><MuscleStudioShell view={state.view} rotate={state.rotate} resetToken={state.reset} onViewChange={changeView} onRotateToggle={()=>{pause();setState(s=>({...s,rotate:!s.rotate}));}} onReset={fullBody} onProgress={onProgress} onError={onError} progress={progress} loadError={error}/></Suspense>
+   )}
+   {studioView==='character'&&(progress<100||error)&&(
     <div className={error?'loading-card woodcut-loading load-error':'loading-card woodcut-loading'} role="status">
      <span className="loading-symbol">{error?(<Info size={23}/>):(<Layers3 size={23}/>)}</span>
      <strong>{error?'模型暫未就緒':('正在迎接'+currentAvatar.shortName)}</strong>
@@ -198,7 +217,7 @@ export default function Home(){
      {error&&<button className="text-button" onClick={()=>window.location.reload()}>重新加載</button>}
     </div>
    )}
-   <div className="scene-mode-hint"><span className="tiny-dot"/>{animePointReady?'點選金色穴位 · 抓住工具移動 · 拖動旋轉 · 滾動縮放':avatarLessonNote(currentAvatar,simulation.pointCode)}</div>
+   <div className="scene-mode-hint"><span className="tiny-dot"/>{studioView==='muscle'?'拖動旋轉 · 滾輪縮放 · 層級切換看淺／深肌與骨 · 點肌肉或穴位':(animePointReady?'點選金色穴位 · 抓住工具移動 · 拖動旋轉 · 滾動縮放':avatarLessonNote(currentAvatar,simulation.pointCode))}</div>
   </section>
 
   <nav className="camera-bar surface" aria-label="人體視角">
@@ -268,6 +287,7 @@ export default function Home(){
    <h2 id="source-title">讓每一層，有據可查。</h2><p className="dialog-intro">這是供課堂討論與交互驗證的工程預覽。標準文字、角色模型與操作動畫分別保留來源和狀態。</p>
    <section><h3>穴位定位</h3><p>以 GB/T 12346—2021《經穴名稱與定位》為主要核查來源。本版研習室只在角色身上顯示已烘上的穴位（頭頸 21＋頭胸腹背腰 30，共 51；含人迎、天突）。`teaching-points.json` 仍保留完整目錄與歷史解剖空間座標，供之後每週加穴對位參考，並不代表解剖銅人模型仍在頁面中。</p><a href={STANDARD} target="_blank" rel="noreferrer">查閱國家標準正文<ArrowUpRight size={13}/></a></section>
    <section><h3>動漫角色</h3><p>研習室角色為 VRoid Studio β 版樣本「Sendagaya Shino」（pixiv Inc.，CC0 1.0）。換裝可切「制服」與「練習裝」（深青運動內衣＋高腰短褲、高包頭）；胸腹背腰與人迎／天突請用練習裝，針與指壓打在真實皮膚上。</p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">CC0 1.0 說明<ArrowUpRight size={13}/></a><a href={publicAssetUrl('/ATTRIBUTION.md')} target="_blank" rel="noreferrer">署名細節<ArrowUpRight size={13}/></a></section>
+   <section><h3>肌肉分層解剖</h3><p>可選「肌肉分層」模式載入自現行 Z-Anatomy（CC BY-SA 4.0）衍生的骨骼與肌肉 GLB，並標註上游 BodyParts3D。官方現行是 CC BY 4.0：BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International。Z-Anatomy 要求同時保留：BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan。未開啟此模式時不會下載解剖模型。衍生幾何以 CC BY-SA 4.0 釋出，不含內耳、腎臟或內臟網格。</p><a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0<ArrowUpRight size={13}/></a><a href="https://www.z-anatomy.com/" target="_blank" rel="noreferrer">Z-Anatomy<ArrowUpRight size={13}/></a><a href="https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html" target="_blank" rel="noreferrer">BodyParts3D 許可<ArrowUpRight size={13}/></a></section>
    <section><h3>工具與局部反饋</h3><p>針具接觸與指壓形變為教學視覺示意，不預測療效，也不提供真人操作參數。</p><a href="https://www.nccih.nih.gov/health/acupuncture-effectiveness-and-safety" target="_blank" rel="noreferrer">NCCIH：針灸資料<ArrowUpRight size={13}/></a><a href="https://www.mskcc.org/cancer-care/patient-education/acupressure-pain-and-headaches" target="_blank" rel="noreferrer">MSK：指壓資料<ArrowUpRight size={13}/></a></section>
    <button className="dialog-done" onClick={()=>setAbout(false)}>返回研習室</button>
   </dialog>
