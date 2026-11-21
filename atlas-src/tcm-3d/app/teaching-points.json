@@ -1144,7 +1144,7 @@
     "meridianId": "LI",
     "position": [
       0.047033491718861745,
-      1.4856957814638525,
+      1.5207,
       0.0377737178043478
     ],
     "normal": [
@@ -1157,7 +1157,7 @@
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "與本區已上身穴同步上移，對齊模型頸胸交界；仍屬教學示意。",
     "originalPosition": [
       0.065,
       1.51,
@@ -1173,7 +1173,7 @@
     "meridianId": "LI",
     "position": [
       0.04342770004319328,
-      1.5175791524835196,
+      1.5526,
       0.047774550195969684
     ],
     "normal": [
@@ -1186,7 +1186,7 @@
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "與本區已上身穴同步上移，對齊模型頸胸交界；仍屬教學示意。",
     "originalPosition": [
       0.06,
       1.545,
@@ -1485,21 +1485,21 @@
     "meridian": "足陽明胃經",
     "meridianId": "ST",
     "position": [
-      0.034,
-      1.469,
-      0.0195
+      0.017,
+      1.49298,
+      0.01999
     ],
     "normal": [
-      0.034,
-      0,
-      0.0395
+      0.02251,
+      0.24544,
+      0.96915
     ],
     "region": "shoulder",
     "midline": false,
     "reviewed": true,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "課堂核對通過（陸／一頭頸部基準穴，2026-11-09）。依教材文字定位對到此模型皮膚；仍屬教學示意，非臨床取穴證明。",
+    "positionProvenance": "依角色模型結喉旁前緣重新對位：旁開約 1.5 寸、略低於廉泉、頸前皮膚；教學示意，非臨床取穴。",
     "originalPosition": [
       0.045,
       1.53,
@@ -1515,7 +1515,7 @@
     "meridianId": "ST",
     "position": [
       0.03180659949342679,
-      1.4787492962572346,
+      1.5137,
       0.06973452106100601
     ],
     "normal": [
@@ -1528,7 +1528,7 @@
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "與本區已上身穴同步上移，對齊模型頸胸交界；仍屬教學示意。",
     "originalPosition": [
       0.047,
       1.505,
@@ -1544,7 +1544,7 @@
     "meridianId": "ST",
     "position": [
       0.034597537753370405,
-      1.4552724318599364,
+      1.4903,
       0.06662416166844806
     ],
     "normal": [
@@ -1557,7 +1557,7 @@
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "與本區已上身穴同步上移，對齊模型頸胸交界；仍屬教學示意。",
     "originalPosition": [
       0.05,
       1.48,
@@ -1572,21 +1572,21 @@
     "meridian": "足陽明胃經",
     "meridianId": "ST",
     "position": [
-      0.04893847132503248,
-      1.432459534131548,
-      0.06124512105860511
+      0.045,
+      1.4726,
+      0.02041
     ],
     "normal": [
-      0,
-      0,
-      1
+      0.02038,
+      0.9856,
+      0.16787
     ],
     "region": "shoulder",
     "midline": false,
-    "reviewed": false,
+    "reviewed": true,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "依角色模型鎖骨上窩底重新對位：乳中線、窩底深度，不是鎖骨前坡；教學示意，非臨床取穴。",
     "originalPosition": [
       0.065,
       1.455,
@@ -4177,7 +4177,7 @@
     "meridianId": "SI",
     "position": [
       0.036823023282754705,
-      1.5019686011145907,
+      1.537,
       -0.027700812437767036
     ],
     "normal": [
@@ -4190,7 +4190,7 @@
     "reviewed": false,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "舊銅人逐穴種子，經同區域參考點加權姿態適配；運行時射線吸附皮膚。未經逐穴專業審核。",
+    "positionProvenance": "與本區已上身穴同步上移，對齊模型頸胸交界；仍屬教學示意。",
     "originalPosition": [
       0.055,
       1.53,
@@ -11537,8 +11537,8 @@
     "meridianId": "CV",
     "position": [
       0,
-      1.4041,
-      0.0479
+      1.444,
+      0.0246
     ],
     "normal": [
       0,
@@ -11550,7 +11550,7 @@
     "reviewed": true,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "課堂核對通過（陸／一頭頸部基準穴，2026-11-09）。依教材文字定位對到此模型皮膚；仍屬教學示意，非臨床取穴證明。",
+    "positionProvenance": "依角色模型胸骨上窩／舌骨／結喉／頦唇溝／鎖骨上窩重新對位；教學示意，非臨床取穴。",
     "originalPosition": [
       0,
       1.465,
@@ -11566,8 +11566,8 @@
     "meridianId": "CV",
     "position": [
       0,
-      1.4693,
-      0.0293
+      1.5013,
+      0.0234
     ],
     "normal": [
       0,
@@ -11579,7 +11579,7 @@
     "reviewed": true,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "課堂核對通過（陸／一頭頸部基準穴，2026-11-09）。依教材文字定位對到此模型皮膚；仍屬教學示意，非臨床取穴證明。",
+    "positionProvenance": "依角色模型胸骨上窩／舌骨／結喉／頦唇溝／鎖骨上窩重新對位；教學示意，非臨床取穴。",
     "originalPosition": [
       0,
       1.545,
@@ -11595,8 +11595,8 @@
     "meridianId": "CV",
     "position": [
       0,
-      1.5164211988449097,
-      0.08270200341939926
+      1.5394,
+      0.0912
     ],
     "normal": [
       0,
@@ -11608,7 +11608,7 @@
     "reviewed": true,
     "generated": true,
     "source": "https://www.ntcamsac.ac.cn/cms/content?id=353",
-    "positionProvenance": "課堂核對通過（陸／一頭頸部基準穴，2026-11-09）。依教材文字定位對到此模型皮膚；仍屬教學示意，非臨床取穴證明。",
+    "positionProvenance": "依角色模型胸骨上窩／舌骨／結喉／頦唇溝／鎖骨上窩重新對位；教學示意，非臨床取穴。",
     "originalPosition": [
       0,
       1.6,
