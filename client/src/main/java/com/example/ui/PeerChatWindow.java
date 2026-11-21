@@ -145,7 +145,12 @@ public class PeerChatWindow extends JFrame {
         this.readOnly = readOnly;
         this.textOnly = textOnly;
         if (appIcon != null) {
-            setIconImage(appIcon);
+            java.util.List<Image> icons = AppIconImages.loadAll();
+            if (!icons.isEmpty()) {
+                setIconImages(icons);
+            } else {
+                setIconImage(appIcon);
+            }
         }
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 

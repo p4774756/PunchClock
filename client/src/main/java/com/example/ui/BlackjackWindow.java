@@ -96,7 +96,12 @@ public final class BlackjackWindow extends JFrame {
         this.host = host;
         this.session = session;
         if (appIcon != null) {
-            setIconImage(appIcon);
+            java.util.List<Image> icons = AppIconImages.loadAll();
+            if (!icons.isEmpty()) {
+                setIconImages(icons);
+            } else {
+                setIconImage(appIcon);
+            }
         }
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
