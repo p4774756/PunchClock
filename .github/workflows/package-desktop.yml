@@ -89,7 +89,7 @@ jobs:
       - name: Build .ico
         shell: bash
         run: |
-          npm install --no-save to-ico
+          npm install --no-save to-ico pngjs
           node scripts/package-desktop-windows-icon.mjs design/issue-305/app-icon.png build/desktop/app-icon.ico
 
       - name: jlink + jpackage (.exe)

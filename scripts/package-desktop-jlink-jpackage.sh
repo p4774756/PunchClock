@@ -10,6 +10,8 @@ MAIN_CLASS="com.example.SklbabyLauncher"
 ICON="${1:?icon file (.icns or .ico)}"
 PACKAGE_TYPE="${2:?dmg|exe}"
 VERSION="${3:-4.0.0}"
+# jpackage 只接受數字版號。tag v4.0.0-r2 這類重跑標記去掉後綴。
+VERSION="${VERSION%%-*}"
 
 trim_playwright_driver() {
   local target="$1"
