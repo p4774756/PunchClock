@@ -133,6 +133,14 @@ export const ZHUYIN_PATTERN=/^[\u3105-\u3129\u02CA\u02C7\u02CB\u02D9 ]+$/;
 export function stripZhuyin(value:string){return value.replace(SEARCH_WS,'').replace(ZHUYIN_TONE_MARKS,'');}
 export function normalizePointCode(value:string){return value.trim().toLowerCase().replace(SEARCH_WS,'');}
 
+/** Lesson list stays on baked points. A typed query searches the full 364-point catalog. */
+export function libraryPointResults(query:string,region:RegionId|'all',meridianFilter:string|null|undefined,curriculumSetId:string|null|undefined,avatarCodes:ReadonlySet<string>){
+ const trimmed=query.trim();
+ const lesson=trimmed?undefined:curriculumSet(curriculumSetId);
+ const ordered=trimmed?POINTS:(lesson?lesson.codes.map(code=>POINTS.find(p=>p.code===code)!).filter(Boolean):POINTS.filter(p=>avatarCodes.has(p.code)));
+ return ordered.filter(p=>(trimmed||avatarCodes.has(p.code))&&(!meridianFilter||meridianFilter==='all'||p.meridianId===meridianFilter)&&(region==='all'||p.region===region)&&teachingPointMatchesQuery(p,query));
+}
+
 export function teachingPointMatchesQuery(point:Pick<TeachingPoint,'code'|'name'|'zhuyin'>,rawQuery:string){
  const query=rawQuery.trim();
  if(!query)return true;

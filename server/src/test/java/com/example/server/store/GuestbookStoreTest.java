@@ -9,6 +9,7 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
@@ -77,6 +78,32 @@ public class GuestbookStoreTest {
     }
 
     @Test
+    public void acceptsWebpAndBlocksHiddenDoodles() throws Exception {
+        byte[] webp = loadWebpFixture();
+        assertTrue(GuestbookStore.isWebP(webp));
+        int[] dim = GuestbookStore.webpDimensions(webp);
+        assertNotNull(dim);
+        assertEquals(GuestbookStore.DOODLE_WIDTH, dim[0]);
+        assertEquals(GuestbookStore.DOODLE_HEIGHT, dim[1]);
+
+        GuestbookStore store = new GuestbookStore(folder.getRoot().toPath(), 20);
+        GuestbookStore.AddRequest req = new GuestbookStore.AddRequest();
+        req.nickname = "W";
+        req.message = "P";
+        req.doodleRaw = webp;
+        GuestbookStore.Result ok = store.add(req, "3.3.3.3", 10_000_000L);
+        assertTrue(ok.ok);
+        assertEquals("webp", ok.item.doodleFormat);
+
+        byte[] read = store.readDoodleBytes(ok.item.id, false);
+        assertNotNull(read);
+
+        store.hide(ok.item.id);
+        assertNull(store.readDoodleBytes(ok.item.id, false));
+        assertNotNull(store.readDoodleBytes(ok.item.id, true));
+    }
+
+    @Test
     public void hideAndDeleteRemoveFromPublicList() throws Exception {
         GuestbookStore store = new GuestbookStore(folder.getRoot().toPath(), 20);
         GuestbookStore.AddRequest req = new GuestbookStore.AddRequest();
@@ -96,6 +123,13 @@ public class GuestbookStoreTest {
         assertNull(store.readDoodlePng(id));
         adminPage = store.list(1, 5, true);
         assertTrue(adminPage.items.isEmpty());
+    }
+
+    private static byte[] loadWebpFixture() throws Exception {
+        try (InputStream in = GuestbookStoreTest.class.getResourceAsStream("/guestbook/doodle-240x120.webp")) {
+            assertNotNull(in);
+            return in.readAllBytes();
+        }
     }
 
   private static byte[] png(int width, int height) throws Exception {

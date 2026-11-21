@@ -16,3 +16,9 @@ test('日期格式', () => {
   const s = G.formatGuestDate(Date.UTC(2026, 10, 21, 4, 0));
   assert.match(s, /^11\/21$/);
 });
+
+test('?open=guestbook 深連結', () => {
+  assert.equal(G.parseGuestbookOpenParam('?open=guestbook'), 'guestbook');
+  assert.equal(G.shouldOpenGuestbookFromSearch('?open=guestbook'), true);
+  assert.equal(G.shouldOpenGuestbookFromSearch('?open=roadmap'), false);
+});

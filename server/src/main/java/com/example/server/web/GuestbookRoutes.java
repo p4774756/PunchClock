@@ -67,19 +67,29 @@ public final class GuestbookRoutes {
 
     private void png(Context ctx) {
         String file = ctx.pathParam("file");
-        if (file == null || !file.endsWith(".png")) {
+        if (file == null) {
             ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到塗鴉"));
             return;
         }
-        String id = file.substring(0, file.length() - 4);
-        byte[] png = store.readDoodlePng(id);
-        if (png == null) {
+        String id;
+        if (file.endsWith(".png")) {
+            id = file.substring(0, file.length() - 4);
+        } else if (file.endsWith(".webp")) {
+            id = file.substring(0, file.length() - 5);
+        } else {
             ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到塗鴉"));
             return;
         }
-        ctx.contentType("image/png");
+        boolean admin = authService.isAuth(ctx);
+        byte[] data = store.readDoodleBytes(id, admin);
+        if (data == null) {
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到塗鴉"));
+            return;
+        }
+        String type = store.readDoodleContentType(id, admin);
+        ctx.contentType(type != null ? type : "image/png");
         ctx.header("Cache-Control", "public, max-age=86400");
-        ctx.result(png);
+        ctx.result(data);
     }
 
     private void create(Context ctx) {
@@ -173,11 +183,7 @@ public final class GuestbookRoutes {
         json.put("message", item.message);
         json.put("emoji", item.emoji);
         json.put("createdAt", item.createdAt);
-        if (item.doodleId != null) {
-            json.put("doodleUrl", "/api/guestbook/" + item.doodleId + ".png");
-        } else {
-            json.put("doodleUrl", null);
-        }
+        json.put("doodleUrl", GuestbookStore.doodleUrlFor(item));
         if (admin) {
             json.put("hidden", item.hidden);
         }
