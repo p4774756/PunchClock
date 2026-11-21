@@ -1150,10 +1150,6 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   const ground=makeFeetGround();
   ground.rotation.x=-Math.PI/2;ground.position.y=-.01;ground.userData.atlasSceneChrome=true;scene.add(ground);
-  const platform=new T.Mesh(new T.CylinderGeometry(.62,.64,.024,80),new T.MeshBasicMaterial({color:0xe8d8b8}));
-  platform.position.y=-.008;platform.userData.atlasSceneChrome=true;scene.add(platform);
-  const ring=new T.Mesh(new T.RingGeometry(.57,.575,96),new T.MeshBasicMaterial({color:0x6a5238,transparent:true,opacity:.35,side:T.DoubleSide}));
-  ring.rotation.x=-Math.PI/2;ring.position.y=.001;ring.userData.atlasSceneChrome=true;scene.add(ring);
 
   const gradient=toonGradient();
   const characterRoot=new T.Group();characterRoot.visible=false;scene.add(characterRoot);
