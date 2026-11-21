@@ -14,14 +14,24 @@
       <a class="lab-office-close" href="/">回辦公室</a>
     </header>
     <div class="download-body">
-      <p>打卡與排程在桌面端完成。需要已安裝 <strong>Java {{JAVA_VERSION}}</strong> 或以上。</p>
+      <p>打卡與排程在桌面端完成。可下載安裝檔（內建 Java，雙擊即可），或下載 jar 自行用 Java 執行。</p>
       <div class="download-actions" data-download-actions>
-        <a class="download-btn" data-download-jar href="/download/app.jar"{{JAR_HIDDEN}}>下載 SKLbaby.jar（v{{CLIENT_VERSION}}）</a>
-        <p class="download-unavailable" data-download-missing{{MISSING_HIDDEN}}>伺服器尚未附帶可下載的桌面端，請向管理員索取。</p>
+        <a class="download-btn" data-download-mac href="{{DESKTOP_MAC_URL}}"{{MAC_HIDDEN}}>下載 macOS 安裝檔（.dmg）</a>
+        <a class="download-btn" data-download-win href="{{DESKTOP_WIN_URL}}"{{WIN_HIDDEN}}>下載 Windows 安裝檔（.exe）</a>
+        <span class="download-unavailable" data-desktop-missing{{DESKTOP_MISSING_HIDDEN}}>安裝檔尚未提供，請稍後再試或向管理員索取。</span>
+        <a class="download-btn download-btn-jar" data-download-jar href="/download/app.jar"{{JAR_HIDDEN}}>下載 SKLbaby.jar（v{{CLIENT_VERSION}}）</a>
+        <p class="download-unavailable" data-download-missing{{MISSING_HIDDEN}}>伺服器尚未附帶可下載的 jar，請向管理員索取。</p>
       </div>
-      <h2>macOS 首次開啟</h2>
+      <h2>安裝檔（macOS／Windows）</h2>
+      <p>下載後雙擊安裝或執行即可，<strong>不必先安裝 Java</strong>。安裝檔尚未數位簽章，首次開啟請依下列方式通過系統提示。</p>
+      <ul>
+        <li><strong>macOS</strong>：在 App 或安裝程式上<strong>右鍵 → 打開</strong>，通過 Gatekeeper 提示後即可使用。</li>
+        <li><strong>Windows</strong>：若 SmartScreen 顯示「Windows 已保護你的電腦」，請按<strong>更多資訊</strong>，再選<strong>仍要執行</strong>。</li>
+      </ul>
+      <h2>jar 檔（進階）</h2>
+      <p>需要已安裝 <strong>Java {{JAVA_VERSION}}</strong> 或以上。</p>
       <ol>
-        <li>下載完成後在 Finder 找到 jar 檔。</li>
+        <li>下載完成後在 Finder 或檔案總管找到 jar 檔。</li>
         <li>第一次執行請在 jar 上<strong>右鍵 → 打開</strong>，通過安全性提示。</li>
         <li>之後可在終端機執行：<code>java -Xdock:name=新光小寶貝 -jar SKLbaby.jar</code></li>
       </ol>
@@ -30,6 +40,7 @@
       <p class="download-foot"><a href="/">← 虛擬辦公室首頁</a></p>
     </div>
   </section>
+  <script>window.PUNCHCLOCK_DESKTOP_MAC_URL = {{DESKTOP_MAC_JS}};window.PUNCHCLOCK_DESKTOP_WIN_URL = {{DESKTOP_WIN_JS}};</script>
   <script src="/js/download-page.js"></script>
 </body>
 </html>

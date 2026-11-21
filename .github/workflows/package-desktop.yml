@@ -1,0 +1,120 @@
+name: Package desktop installers
+
+on:
+  push:
+    tags:
+      - "v*"
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (jlink/jpackage)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build shade jar (bytecode 11)
+        run: mvn -B -q -pl client -am package -DskipTests
+
+      - name: Build .icns
+        run: |
+          chmod +x scripts/package-desktop-macos-icon.sh
+          scripts/package-desktop-macos-icon.sh design/issue-305/app-icon.png build/desktop/app-icon.icns
+
+      - name: jlink + jpackage (.dmg)
+        run: |
+          chmod +x scripts/package-desktop-jlink-jpackage.sh
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then VERSION="$(mvn -q -pl client -DforceStdout help:evaluate -Dexpression=project.version)"; fi
+          scripts/package-desktop-jlink-jpackage.sh build/desktop/app-icon.icns dmg "$VERSION"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SKLbaby-mac-dmg
+          path: build/desktop/SKLbaby-mac.dmg
+          if-no-files-found: error
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" build/desktop/SKLbaby-mac.dmg --clobber
+
+      - name: Upload to GitHub Release (dispatch)
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          gh release upload "$TAG" build/desktop/SKLbaby-mac.dmg --clobber
+
+  package-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (jlink/jpackage)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Set up Node (ico)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build shade jar (bytecode 11)
+        shell: bash
+        run: mvn -B -q -pl client -am package -DskipTests
+
+      - name: Build .ico
+        shell: bash
+        run: |
+          npm install --no-save to-ico
+          node scripts/package-desktop-windows-icon.mjs design/issue-305/app-icon.png build/desktop/app-icon.ico
+
+      - name: jlink + jpackage (.exe)
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then VERSION="$(mvn -q -pl client -DforceStdout help:evaluate -Dexpression=project.version)"; fi
+          bash scripts/package-desktop-jlink-jpackage.sh build/desktop/app-icon.ico exe "$VERSION"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SKLbaby-win-exe
+          path: build/desktop/SKLbaby-win.exe
+          if-no-files-found: error
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" build/desktop/SKLbaby-win.exe --clobber
+
+      - name: Upload to GitHub Release (dispatch)
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          gh release upload "$TAG" build/desktop/SKLbaby-win.exe --clobber

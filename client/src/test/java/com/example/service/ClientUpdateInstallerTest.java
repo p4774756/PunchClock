@@ -31,8 +31,18 @@ public class ClientUpdateInstallerTest {
 
     @Test
     public void ideLaunchInstallsToDefaultJarUnderPunchclockDir() {
-        assertEquals(ClientUpdateInstaller.defaultJar(), ClientUpdateInstaller.installTarget());
-        assertEquals("SKLbaby.jar", ClientUpdateInstaller.defaultJar().getFileName().toString());
-        assertEquals(".punchclock", ClientUpdateInstaller.defaultJar().getParent().getFileName().toString());
+        String bundled = System.getProperty(ClientUpdateInstaller.BUNDLED_JAR_PROPERTY);
+        System.clearProperty(ClientUpdateInstaller.BUNDLED_JAR_PROPERTY);
+        try {
+            assertEquals(ClientUpdateInstaller.defaultJar(), ClientUpdateInstaller.installTarget());
+            assertEquals("SKLbaby.jar", ClientUpdateInstaller.defaultJar().getFileName().toString());
+            assertEquals(".punchclock", ClientUpdateInstaller.defaultJar().getParent().getFileName().toString());
+        } finally {
+            if (bundled == null) {
+                System.clearProperty(ClientUpdateInstaller.BUNDLED_JAR_PROPERTY);
+            } else {
+                System.setProperty(ClientUpdateInstaller.BUNDLED_JAR_PROPERTY, bundled);
+            }
+        }
     }
 }

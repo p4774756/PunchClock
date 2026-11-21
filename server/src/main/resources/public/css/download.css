@@ -28,6 +28,10 @@
 
 .download-actions {
   margin: 1rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.65rem;
+  align-items: center;
 }
 
 .download-btn {
@@ -47,7 +51,8 @@
 
 /* author display 會蓋過 UA 的 [hidden]；沒有檔時按鈕不可見。 */
 .download-btn[hidden],
-.download-unavailable[hidden] {
+.download-unavailable[hidden],
+[data-desktop-missing][hidden] {
   display: none !important;
 }
 
