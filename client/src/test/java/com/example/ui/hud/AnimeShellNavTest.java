@@ -6,8 +6,14 @@ import javax.swing.JTabbedPane;
 import java.awt.Rectangle;
 import java.awt.event.MouseEvent;
 
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class AnimeShellNavTest {
 
@@ -73,6 +79,46 @@ public class AnimeShellNavTest {
     public void shellPreviewRendersWithoutError() {
         assertTrue(AnimeShell.renderShellPreview(380, 520, false).getWidth() > 0);
         assertTrue(AnimeShell.renderShellPreview(300, 56, true).getWidth() > 0);
+    }
+
+    @Test
+    public void navLucideIconsLoad() {
+        for (int i = 0; i < AnimeShell.navCount(); i++) {
+            TabNavIcon icon = TabNavIcon.load(TabNavIcon.navIconId(i));
+            assertNotNull(icon);
+            assertTrue("icon " + i, icon.ready());
+            assertTrue(icon.partCount() > 0);
+        }
+        TabNavIcon mini = TabNavIcon.load(TabNavIcon.MINI_ICON_ID);
+        assertNotNull(mini);
+        assertTrue(mini.ready());
+    }
+
+    @Test
+    public void glyphStringsRetired() {
+        try {
+            AnimeShell.class.getDeclaredMethod("tabGlyph", int.class);
+            fail("tabGlyph should be removed");
+        } catch (NoSuchMethodException expected) {
+            // expected
+        }
+    }
+
+    @Test
+    public void navLabelsFitAtMinimumWidth() {
+        BufferedImage scratch = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = scratch.createGraphics();
+        try {
+            g.setFont(com.example.ui.UiFonts.chinesePlain(11));
+            FontMetrics fm = g.getFontMetrics();
+            int slotW = Math.max(36, ShellDimensions.MIN_WIDTH / (AnimeShell.navCount() + 1));
+            for (int i = 0; i < AnimeShell.navCount(); i++) {
+                assertTrue(fm.stringWidth(AnimeShell.navLabel(i)) <= slotW);
+            }
+            assertTrue(fm.stringWidth("迷你") <= slotW);
+        } finally {
+            g.dispose();
+        }
     }
 
 }

@@ -1,0 +1,31 @@
+PunchClock client — third-party notices
+========================================
+
+Lucide Icons
+------------
+Portions of the bottom navigation bar use stroke icons from the Lucide icon set.
+
+  Source: https://lucide.dev
+  Repository: https://github.com/lucide-icons/lucide
+  License: ISC
+
+  Icons bundled in client/src/main/resources/hud/nav/ (home, calendar-clock,
+  folder-up, notebook-text, settings, minimize-2) are derived from Lucide SVG
+  exports for a 24×24 viewBox.
+
+  ISC License
+
+  Copyright (c) for portions of Lucide are held by the Lucide contributors.
+  See the Lucide repository for per-file copyright notices.
+
+  Permission to use, copy, modify, and/or distribute this software for any
+  purpose with or without fee is hereby granted, provided that the above
+  copyright notice and this permission notice appear in all copies.
+
+  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+  OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+  CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
