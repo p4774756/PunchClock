@@ -214,6 +214,43 @@ public class PublicOfficeAuthTest {
     }
 
     @Test
+    public void lockedLoginWarningHasNoEmoji() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            HttpResponse<String> posted = postLogin("not-the-admin-password");
+            assertEquals(302, posted.statusCode());
+        }
+        HttpResponse<String> page = send("GET", "/login", null);
+        assertEquals(200, page.statusCode());
+        String body = page.body();
+        assertTrue(body.contains("[警告] 嘗試錯誤過多！帳號已鎖定，請等待"));
+        assertTrue(body.contains("id=\"lockAlert\""));
+        assertTrue(body.contains("id=\"countdown\""));
+        assertTrue(body.contains("冷卻鎖定中"));
+        assertTrue(body.contains("id=\"password\""));
+        assertTrue(body.contains("disabled"));
+        assertTrue(body.contains("← 回到辦公室"));
+        assertTrue(body.contains("管理主控台"));
+        assertFalse(body.contains("⛔"));
+        assertFalse(body.contains(">登入</button>"));
+        assertFalse(containsEmoji(body));
+    }
+
+    @Test
+    public void wrongPasswordAlertHasNoEmoji() throws Exception {
+        HttpResponse<String> posted = postLogin("not-the-admin-password");
+        assertEquals(302, posted.statusCode());
+        HttpResponse<String> page = send("GET", "/login?error=1", null);
+        assertEquals(200, page.statusCode());
+        String body = page.body();
+        assertTrue(body.contains("[警告] 密碼錯誤！剩餘嘗試次數：4 次 (滿5次鎖定15分鐘)"));
+        assertTrue(body.contains(">登入</button>"));
+        assertTrue(body.contains("← 回到辦公室"));
+        assertFalse(body.contains("⛔"));
+        assertFalse(body.contains("冷卻鎖定中"));
+        assertFalse(containsEmoji(body));
+    }
+
+    @Test
     public void indexHtmlRedirectsToPublicHome() throws Exception {
         HttpResponse<String> response = send("GET", "/index.html", null);
         assertEquals(302, response.statusCode());
@@ -280,6 +317,24 @@ public class PublicOfficeAuthTest {
     private void assertNoManagementPayload(String body) {
         assertFalse(body.contains("\"serverVersion\""));
         assertFalse(body.contains("\"photos\""));
+    }
+
+    private HttpResponse<String> postLogin(String password) throws Exception {
+        String form = "password=" + java.net.URLEncoder.encode(password, StandardCharsets.UTF_8);
+        HttpRequest request = HttpRequest.newBuilder(URI.create(base + "/login"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .timeout(Duration.ofSeconds(5))
+                .POST(HttpRequest.BodyPublishers.ofString(form))
+                .build();
+        return http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    }
+
+    /** 登入頁允許箭頭與省略號，其餘表情符號不得出現。 */
+    private static boolean containsEmoji(String text) {
+        return text.codePoints().anyMatch(cp ->
+                (cp >= 0x1F300 && cp <= 0x1FAFF)
+                        || (cp >= 0x2600 && cp <= 0x27BF)
+                        || cp == 0xFE0F);
     }
 
     private HttpResponse<String> send(String method, String path, String cookie) throws Exception {

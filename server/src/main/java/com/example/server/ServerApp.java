@@ -271,7 +271,7 @@ public final class ServerApp {
             int mins = lockStatus.remainingSec / 60;
             int secs = lockStatus.remainingSec % 60;
             String timeDisplay = mins > 0 ? mins + " 分 " + secs + " 秒" : secs + " 秒";
-            alertMessage = "<div class=\"error-alert\" id=\"lockAlert\">⛔ 嘗試錯誤過多！帳號已鎖定，請等待 <span id=\"countdown\">"
+            alertMessage = "<div class=\"error-alert\" id=\"lockAlert\">[警告] 嘗試錯誤過多！帳號已鎖定，請等待 <span id=\"countdown\">"
                     + timeDisplay + "</span>。</div>";
         } else if ("1".equals(ctx.queryParam("error"))) {
             int remainingAttempts = Math.max(0, 5 - lockStatus.attempts);

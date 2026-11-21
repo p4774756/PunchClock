@@ -37,7 +37,7 @@ Worker 走 HTTP 心跳。Dashboard 用 REST 下指令，WebSocket 只推 `STATUS
 
 心跳帶 `appVersion`、`appReleaseTime`、`appSourceDigest`。摘要與伺服器上的 jar 不同，且客戶端不是 `dev`、有送摘要時，回應帶 `update`（`version`、`sourceDigest`、`releaseTime`、`sha256`、`size`、`path`）。
 
-jar 來自 `CLIENT_JAR_PATH`，否則是 Docker image 裡的 `/app/client/punchclock-client-standalone.jar`。沒有可發布的 jar 時，啟動 log 顯示 `Client release: none`，心跳不帶 `update`。桌面端怎麼套用更新見根目錄 README「桌面端自動更新」。
+jar 來自 `CLIENT_JAR_PATH`，否則是 Docker image 裡的 `/app/client/SKLbaby.jar`。沒有可發布的 jar 時，啟動 log 顯示 `Client release: none`，心跳不帶 `update`。桌面端怎麼套用更新見根目錄 README「桌面端自動更新」。
 
 ## 測試
 
