@@ -89,8 +89,8 @@ public class NarrowShellLayoutTest {
             assertTrue(covered <= refs.peerTable.getWidth() + 2);
             assertTrue(refs.peerHintLabel.getWidth() <= VIEW_W);
             assertTrue(refs.peerHintLabel.getWidth() > 40);
-            refs.peerTableModel.addRow(new Object[]{"company-worker2", "在線", 0, "3.0.0", "☆"});
-            refs.peerTableModel.addRow(new Object[]{"company-worker3", "離線", 2, "3.0.0", "★"});
+            refs.peerTableModel.addRow(new Object[]{"company-worker2", "在線", 0, "4.0.0", "☆"});
+            refs.peerTableModel.addRow(new Object[]{"company-worker3", "離線", 2, "4.0.0", "★"});
             assertPeerIdsFit(refs.peerTable, 300);
         });
     }

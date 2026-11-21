@@ -679,13 +679,29 @@ public final class AnimeShell extends JPanel {
                 g.drawString(label, box.x + (box.width - lw) / 2, box.y + 42);
             }
         }
-        java.awt.Rectangle mini = miniToggleBox();
+        int miniIndex = NAV.length;
+        java.awt.Rectangle mini = tabHitBox(miniIndex);
+        boolean miniActive = miniMode;
         boolean miniHot = hot == MINI_TOGGLE;
-        g.setColor(miniHot ? new Color(255, 214, 88) : new Color(255, 255, 255, 40));
-        g.fillRoundRect(mini.x, mini.y, mini.width, mini.height, 8, 8);
+        if (miniActive) {
+            g.setColor(TAB_ACTIVE);
+            g.fillRoundRect(mini.x + 2, mini.y + 4, mini.width - 4, mini.height - 8, 10, 10);
+        } else if (miniHot) {
+            g.setColor(new Color(255, 255, 255, 42));
+            g.fillRoundRect(mini.x + 2, mini.y + 4, mini.width - 4, mini.height - 8, 10, 10);
+        }
+        g.setColor(miniActive ? new Color(48, 18, 36) : INK);
+        g.setFont(UiFonts.chinesePlain(14));
+        String miniGlyph = "▬";
+        int mgw = g.getFontMetrics().stringWidth(miniGlyph);
+        g.drawString(miniGlyph, mini.x + (mini.width - mgw) / 2, mini.y + 22);
+        g.setColor(MUTED);
         g.setFont(UiFonts.chinesePlain(11));
-        g.setColor(INK);
-        g.drawString("迷你", mini.x + 6, mini.y + 22);
+        String miniLabel = "迷你";
+        int mlw = g.getFontMetrics().stringWidth(miniLabel);
+        if (mlw <= mini.width - 4) {
+            g.drawString(miniLabel, mini.x + (mini.width - mlw) / 2, mini.y + 42);
+        }
     }
 
     private static String tabGlyph(int index) {
@@ -724,11 +740,7 @@ public final class AnimeShell extends JPanel {
     }
 
     private java.awt.Rectangle miniToggleBox() {
-        java.awt.Rectangle bar = tabBarBounds();
-        int slots = NAV.length + 1;
-        int slotW = Math.max(36, bar.width / slots);
-        int x = NAV.length * slotW;
-        return new java.awt.Rectangle(bar.x + x, bar.y + 8, slotW - 4, bar.height - 16);
+        return tabHitBox(NAV.length);
     }
 
     static int navCount() {

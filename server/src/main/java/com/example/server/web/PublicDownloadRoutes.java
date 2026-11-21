@@ -22,6 +22,7 @@ public final class PublicDownloadRoutes {
     public void register(Javalin app) {
         app.get("/download", this::downloadPage);
         app.get("/download/app.jar", this::downloadJar);
+        app.get("/download/SKLbaby.jar", this::downloadJar);
     }
 
     private void downloadPage(Context ctx) {
@@ -55,7 +56,7 @@ public final class PublicDownloadRoutes {
         }
         ctx.minSizeForCompression(Integer.MAX_VALUE);
         ctx.contentType("application/java-archive");
-        ctx.header("Content-Disposition", "attachment; filename=\"punchclock-client-standalone.jar\"");
+        ctx.header("Content-Disposition", "attachment; filename=\"SKLbaby.jar\"");
         ctx.header("Content-Length", String.valueOf(clientRelease.size()));
         ctx.header("X-Content-Type-Options", "nosniff");
         ctx.result(stream);
