@@ -10,7 +10,7 @@ import {
   type SliceBudget,
 } from './load-progress';
 
-/** Hide panorama / ground / platform / ring only — never lights or fog. */
+/** Hide panorama / feet ground chrome only — never lights or fog. */
 export const hideSceneChrome = (scene: T.Scene) => {
   const saved: {obj: T.Object3D; visible: boolean}[] = [];
   scene.traverse(obj => {
