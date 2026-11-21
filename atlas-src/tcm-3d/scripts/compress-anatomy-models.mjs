@@ -65,7 +65,7 @@ for (const file of rawFiles.sort()) {
 
 const skeletonParts = parts.filter(p => p.layer === 'skeleton');
 const initialParts = parts.filter(
- p => p.layer === 'skeleton' || (p.layer === 'muscle-superficial' && p.region === 'trunk'),
+ p => p.layer === 'skeleton' || p.layer === 'muscle-superficial',
 );
 const initialBytes = initialParts.reduce((n, p) => n + p.bytes, 0);
 

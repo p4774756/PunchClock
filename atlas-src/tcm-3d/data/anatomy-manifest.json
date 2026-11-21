@@ -1,8 +1,11 @@
 {
   "source": "Z-Anatomy (CC BY-SA 4.0) via Blender export; BodyParts3D upstream CC BY 4.0",
   "initialLoad": [
+    "arm-muscle-superficial",
     "arm-skeleton",
+    "head-neck-muscle-superficial",
     "head-neck-skeleton",
+    "leg-muscle-superficial",
     "leg-skeleton",
     "trunk-muscle-superficial",
     "trunk-skeleton"
@@ -124,7 +127,7 @@
     }
   ],
   "totalGzipBytes": 4184547,
-  "initialGzipBytes": 1316608,
+  "initialGzipBytes": 2179262,
   "limits": {
     "firstBootMax": 3145728,
     "totalMax": 12582912

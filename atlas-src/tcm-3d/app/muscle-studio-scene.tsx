@@ -6,6 +6,7 @@ import {DRACOLoader} from 'three/examples/jsm/loaders/DRACOLoader.js';
 import {PointerTap} from './pointer-tap';
 import {
  ANATOMY_MANIFEST,
+ anatomyInitialPartIds,
  anatomyPartUrl,
  type AnatomyLayer,
  type AnatomyPart,
@@ -35,6 +36,8 @@ interface Props {
  onPointPick: (code: string) => void;
  onProgress: (p: AtlasLoadProgress | number) => void;
  onError: (msg: string) => void;
+ /** 載入卡卸下後才補深層，避免第一次可轉前就把深層算進傳輸。 */
+ releaseRest: boolean;
 }
 
 const LAYER_OPACITY: Record<MuscleLayerStep, Record<AnatomyLayer, number>> = {
@@ -73,8 +76,13 @@ export default function MuscleStudioScene({
  onPointPick,
  onProgress,
  onError,
+ releaseRest,
 }: Props) {
  const mountRef = useRef<HTMLDivElement>(null);
+ const layerRef = useRef(layer);
+ layerRef.current = layer;
+ const releaseRef = useRef(releaseRest);
+ releaseRef.current = releaseRest;
  const stateRef = useRef<{
   renderer: T.WebGLRenderer;
   scene: T.Scene;
@@ -183,9 +191,11 @@ export default function MuscleStudioScene({
    markers.push(dot);
   }
 
+  let cancelled = false;
   const loadPart = async (part: AnatomyPart) => {
    const url = anatomyPartUrl(part);
    const res = await fetch(url);
+   if (cancelled) return;
    if (!res.ok) throw new Error(`fetch ${part.id}`);
    let glbBuf: ArrayBuffer;
    if (part.url.endsWith('.gz')) {
@@ -194,9 +204,11 @@ export default function MuscleStudioScene({
    } else {
     glbBuf = await res.arrayBuffer();
    }
+   if (cancelled) return;
    const gltf = await new Promise<T.Group>((resolve, reject) => {
     loader.parse(glbBuf, '', g => resolve(g.scene), reject);
    });
+   if (cancelled) return;
    gltf.name = part.id;
    gltf.traverse(obj => {
     if (obj instanceof T.Mesh) {
@@ -211,33 +223,55 @@ export default function MuscleStudioScene({
    root.add(gltf);
    parts.set(part.id, gltf);
    loaded.add(part.id);
+   applyLayer(layerRef.current);
   };
 
-  const total = ANATOMY_MANIFEST.parts.length;
-  let done = 0;
-  const tick = () => {
-   const pct = total ? Math.min(100, Math.round((done / total) * 100)) : 100;
+  const initialIds = anatomyInitialPartIds();
+  const partById = new Map(ANATOMY_MANIFEST.parts.map(part => [part.id, part]));
+  const initialParts = ANATOMY_MANIFEST.initialLoad
+   .map(id => partById.get(id))
+   .filter((part): part is AnatomyPart => !!part);
+  const laterParts = ANATOMY_MANIFEST.parts.filter(part => !initialIds.has(part.id));
+  const bootTotal = initialParts.length || 1;
+  let bootDone = 0;
+  const reportBoot = () => {
+   const pct = Math.min(99, Math.round((bootDone / bootTotal) * 100));
    onProgress({percent: pct, step: 'download', stepLabel: '載入解剖分層模型…'});
   };
 
   (async () => {
    try {
-    const order = [
-     ...ANATOMY_MANIFEST.parts.filter(p => p.layer === 'skeleton'),
-     ...ANATOMY_MANIFEST.parts.filter(p => p.layer === 'muscle-superficial' && p.region === 'trunk'),
-     ...ANATOMY_MANIFEST.parts.filter(
-      p => !(p.layer === 'skeleton') && !(p.layer === 'muscle-superficial' && p.region === 'trunk'),
-     ),
-    ];
-    for (const part of order.length ? order : ANATOMY_MANIFEST.parts) {
+    reportBoot();
+    for (const part of initialParts) {
+     if (cancelled) return;
      await loadPart(part);
-     done += 1;
-     tick();
+     if (cancelled) return;
+     bootDone += 1;
+     reportBoot();
     }
-    applyLayer(layer);
+    if (cancelled) return;
+    applyLayer(layerRef.current);
     onProgress(100);
-   } catch (e) {
-    onError('肌肉分層模型載入失敗，請稍後重試。');
+    await new Promise<void>(resolve => {
+     const wait = () => {
+      if (cancelled || releaseRef.current) resolve();
+      else requestAnimationFrame(wait);
+     };
+     wait();
+    });
+    if (cancelled) return;
+    // 卡片卸下後再等一拍，深層請求才不會擠進載入卡消失前的觀察窗。
+    await new Promise(resolve => setTimeout(resolve, 600));
+    for (const part of laterParts) {
+     if (cancelled) return;
+     try {
+      await loadPart(part);
+     } catch {
+      // 深層在可以旋轉之後才補；失敗不蓋住已經能轉的骨架與淺層肌。
+     }
+    }
+   } catch {
+    if (!cancelled) onError('肌肉分層模型載入失敗，請稍後重試。');
    }
   })();
 
@@ -319,6 +353,7 @@ export default function MuscleStudioScene({
   window.addEventListener('resize', onResize);
 
   return () => {
+   cancelled = true;
    window.removeEventListener('resize', onResize);
    cancelAnimationFrame(stateRef.current?.raf ?? 0);
    renderer.domElement.removeEventListener('pointerdown', onPointerDown);

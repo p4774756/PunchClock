@@ -1,4 +1,4 @@
-import {lazy, Suspense, useCallback, useState} from 'react';
+import {lazy, Suspense, useCallback, useEffect, useState} from 'react';
 import {Eye, EyeOff, Info, Layers3, RotateCcw, X} from 'lucide-react';
 import type {View} from './anatomy';
 import type {MuscleLayerStep, MusclePick} from './muscle-studio-scene';
@@ -41,6 +41,14 @@ export default function MuscleStudioShell({
  const [showPoints, setShowPoints] = useState(true);
  const [pointCode, setPointCode] = useState<string | null>('ST36');
  const [musclePick, setMusclePick] = useState<MusclePick | null>(null);
+ const [bootArmed, setBootArmed] = useState(false);
+ const [releaseRest, setReleaseRest] = useState(false);
+ useEffect(() => {
+  if (progress < 100) setBootArmed(true);
+ }, [progress]);
+ useEffect(() => {
+  if (bootArmed && progress >= 100 && !loadError) setReleaseRest(true);
+ }, [bootArmed, progress, loadError]);
 
  const point = pointCode ? POINT_BY_CODE.get(pointCode) : null;
  const location = pointCode ? LOCATION[pointCode] : null;
@@ -67,6 +75,7 @@ export default function MuscleStudioShell({
      }}
      onProgress={onProgress}
      onError={onError}
+     releaseRest={releaseRest}
     />
    </Suspense>
    <div className="muscle-layer-bar surface" role="group" aria-label="解剖分層">

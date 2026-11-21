@@ -1,6 +1,6 @@
 # Anatomy GLB derivatives (CC BY-SA 4.0)
 
-Compressed `.glb.gz` files in this directory are derived from **Z-Anatomy** `Startup.blend`  
+Compressed `.glb.gz` files in this directory are derived from **Z-Anatomy** `Startup.blend`
 (https://github.com/Z-Anatomy/Models-of-human-anatomy, CC BY-SA 4.0).
 
 They include simplified **skeleton** and **muscle** meshes only (no viscera, vessels, lymph, inner ear, or kidney).

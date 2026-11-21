@@ -78,5 +78,25 @@ if (!manifest.parts.some(p => p.id === 'arm-muscle-superficial')) {
 }
 if (manifest.totalGzipBytes > manifest.limits.totalMax) throw new Error('anatomy gzip total over budget');
 if (manifest.initialGzipBytes > manifest.limits.firstBootMax) throw new Error('anatomy first-open gzip over budget');
+const initialSum = manifest.parts
+ .filter(p => manifest.initialLoad.includes(p.id))
+ .reduce((n, p) => n + p.bytes, 0);
+if (initialSum !== manifest.initialGzipBytes) {
+ throw new Error(`initialGzipBytes ${manifest.initialGzipBytes} != parts ${initialSum}`);
+}
+for (const p of manifest.parts) {
+ const inFirstOpen = p.layer === 'skeleton' || p.layer === 'muscle-superficial';
+ if (manifest.initialLoad.includes(p.id) !== inFirstOpen) {
+  throw new Error(`${p.id} should ${inFirstOpen ? '' : 'not '}be in the first-open set`);
+ }
+}
+if (!scene.includes('anatomyInitialPartIds()')) {
+ throw new Error('muscle studio must gate the first open on anatomyInitialPartIds()');
+}
+const cardClear = scene.indexOf('onProgress(100)');
+const laterLoop = scene.indexOf('for (const part of laterParts)');
+if (cardClear < 0 || laterLoop < 0 || cardClear > laterLoop) {
+ throw new Error('loading card must clear before deep anatomy parts download');
+}
 
 console.log(`Upper-limb slices and BodyParts3D credit ok (arm skeleton nodes ${armBone.length}).`);
