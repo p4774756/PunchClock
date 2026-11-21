@@ -794,6 +794,10 @@ public final class DesktopPetWindow extends JFrame {
                         getHeight(),
                         screenRects());
                 setLocation(clamped);
+                if (petMenuVisible()) {
+                    placePetMenuWindow();
+                    petMenuWindow.toFront();
+                }
                 repaint();
             }
 
@@ -946,22 +950,20 @@ public final class DesktopPetWindow extends JFrame {
         petMenuPanel = panel;
         suppressMenuOnRelease = false;
         menuPointerLeftAt = -1L;
-        petMenuWindow = new JWindow();
+        petMenuWindow = new JWindow(this);
         petMenuWindow.setFocusableWindowState(false);
+        try {
+            petMenuWindow.setAlwaysOnTop(true);
+        } catch (SecurityException ex) {
+            // 沒有置頂權限時仍顯示選單。
+        }
         prepareMenuWindowTransparency(petMenuWindow);
         panel.setDoubleBuffered(false);
         petMenuWindow.getContentPane().add(panel);
         petMenuWindow.pack();
-        Point origin = stage.getLocationOnScreen();
-        Dimension size = petMenuWindow.getSize();
-        int sx = origin.x + e.getX();
-        int sy = origin.y + e.getY();
-        Point clamped = PetContextMenu.clampMenuOrigin(sx, sy, size.width, size.height, screenRects());
-        petMenuWindow.setLocation(clamped);
+        placePetMenuWindow();
         if (!control.isActive()) {
             setFocusableWindowState(true);
-            toFront();
-            requestFocus();
         }
         menuEventListener = ev -> onPetMenuAwtEvent(ev);
         Toolkit.getDefaultToolkit().addAWTEventListener(
@@ -970,6 +972,19 @@ public final class DesktopPetWindow extends JFrame {
         menuAutoCloseTimer.setRepeats(true);
         menuAutoCloseTimer.start();
         petMenuWindow.setVisible(true);
+        petMenuWindow.toFront();
+    }
+
+    private void placePetMenuWindow() {
+        if (petMenuWindow == null) {
+            return;
+        }
+        Dimension size = petMenuWindow.getSize();
+        Point origin = getLocationOnScreen();
+        Point placed = PetContextMenu.placeBesidePet(
+                origin.x, origin.y, getWidth(), getHeight(),
+                size.width, size.height, screenRects());
+        petMenuWindow.setLocation(placed);
     }
 
     private void cleanupPetMenu() {
