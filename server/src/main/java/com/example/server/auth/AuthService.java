@@ -4,6 +4,7 @@ import io.javalin.http.Context;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,12 +17,22 @@ public final class AuthService {
     private final String adminPassword;
     private final String authCookieValue;
     private final String heartbeatSecret;
+    private final Clock clock;
     private final Map<String, LoginAttempt> loginAttempts = new ConcurrentHashMap<>();
 
     public AuthService() {
-        adminPassword = envOrDefault("ADMIN_PASSWORD", "secret");
-        heartbeatSecret = envOrDefault("HEARTBEAT_SECRET", "punchclock-dev-secret");
-        authCookieValue = sha256HexPrefix("punchclock-admin:" + adminPassword, 32);
+        this(AuthConfig.fromEnv());
+    }
+
+    public AuthService(AuthConfig config) {
+        this(config, Clock.systemUTC());
+    }
+
+    public AuthService(AuthConfig config, Clock clock) {
+        this.adminPassword = config.adminPassword();
+        this.heartbeatSecret = config.heartbeatSecret();
+        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.authCookieValue = sha256HexPrefix("punchclock-admin:" + adminPassword, 32);
     }
 
     public String authCookieValue() {
@@ -53,11 +64,12 @@ public final class AuthService {
         if (record == null) {
             return new LoginLockStatus(false, 0, 0);
         }
-        if (record.lockUntil > 0 && record.lockUntil > System.currentTimeMillis()) {
-            int remainingSec = (int) Math.ceil((record.lockUntil - System.currentTimeMillis()) / 1000.0);
+        long now = clock.millis();
+        if (record.lockUntil > 0 && record.lockUntil > now) {
+            int remainingSec = (int) Math.ceil((record.lockUntil - now) / 1000.0);
             return new LoginLockStatus(true, remainingSec, record.attempts);
         }
-        if (record.lockUntil > 0 && record.lockUntil <= System.currentTimeMillis()) {
+        if (record.lockUntil > 0 && record.lockUntil <= now) {
             loginAttempts.remove(ip);
             return new LoginLockStatus(false, 0, 0);
         }
@@ -68,7 +80,7 @@ public final class AuthService {
         LoginAttempt record = loginAttempts.getOrDefault(ip, new LoginAttempt());
         record.attempts += 1;
         if (record.attempts >= MAX_ATTEMPTS) {
-            record.lockUntil = System.currentTimeMillis() + LOCK_MS;
+            record.lockUntil = clock.millis() + LOCK_MS;
         }
         loginAttempts.put(ip, record);
     }
@@ -126,11 +138,6 @@ public final class AuthService {
             sb.append(String.format("%02x", b));
         }
         return sb.toString();
-    }
-
-    private static String envOrDefault(String key, String defaultValue) {
-        String value = System.getenv(key);
-        return value == null || value.isEmpty() ? defaultValue : value;
     }
 
     private static final class LoginAttempt {

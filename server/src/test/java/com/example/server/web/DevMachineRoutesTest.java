@@ -1,6 +1,6 @@
 package com.example.server.web;
 
-import com.example.server.auth.AdminAuthCookie;
+import com.example.server.AdminTestServer;
 import com.example.server.auth.AuthService;
 import com.example.server.auth.DevStatusTokenAuth;
 import com.example.server.store.DevMachineStore;
@@ -33,10 +33,11 @@ public class DevMachineRoutesTest {
     private Javalin app;
     private HttpClient http;
     private String base;
+    private String adminCookie;
     private final AtomicLong clock = new AtomicLong(2_000_000L);
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         DevStatusService fakeStatus = new DevStatusService(repo -> new DevStatusModels.Snapshot(
                 Collections.singletonList(new DevStatusModels.IssueRow(
                         126, "測試 issue", true, 1L, 2L, null, Collections.emptyList())),
@@ -46,17 +47,20 @@ public class DevMachineRoutesTest {
         Gson gson = new GsonBuilder().disableHtmlEscaping().create();
         DevMachineStore store = new DevMachineStore(clock::get);
         clock.set(2_000_000L);
+        AdminTestServer.IsolatedAuth auth = AdminTestServer.isolatedAuth();
         DevMachineRoutes routes = new DevMachineRoutes(
-                new AuthService(),
+                auth.authService(),
                 new DevStatusTokenAuth(TOKEN),
                 store,
                 fakeStatus,
                 gson
         );
         app = Javalin.create(config -> config.showJavalinBanner = false).start(0);
+        AdminTestServer.registerLogin(app, auth.authService());
         routes.register(app);
         base = "http://127.0.0.1:" + app.port();
         http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        adminCookie = AdminTestServer.loginCookie(base, auth.adminPassword(), http);
     }
 
     @After
@@ -127,7 +131,7 @@ public class DevMachineRoutesTest {
         assertFalse(guest.body().contains("\"wt-235\""));
         assertFalse(guest.body().contains("unit-test-dev-status-token"));
 
-        HttpResponse<String> admin = send("GET", "/api/dev-machines", AdminAuthCookie.header());
+        HttpResponse<String> admin = send("GET", "/api/dev-machines", adminCookie);
         assertEquals(200, admin.statusCode());
         assertTrue(admin.body().contains("\"viewer\":\"admin\""));
         assertTrue(admin.body().contains("\"issueTitle\":\"測試 issue\""));
@@ -144,7 +148,7 @@ public class DevMachineRoutesTest {
                 + "{\"issue\":239,\"round\":1,\"branch\":\"ai/issue-239\",\"startedAt\":1000}]"
                 + ",\"agentRunning\":true}";
         assertEquals(200, sendHeartbeat("Bearer " + TOKEN, threeRuns).statusCode());
-        HttpResponse<String> list = send("GET", "/api/dev-machines", AdminAuthCookie.header());
+        HttpResponse<String> list = send("GET", "/api/dev-machines", adminCookie);
         assertTrue(list.body().contains("\"round\":0"));
         assertTrue(list.body().contains("\"round\":2"));
         int idx239 = list.body().indexOf("\"issue\":239");
@@ -191,7 +195,7 @@ public class DevMachineRoutesTest {
                 "{\"machine\":\"office\",\"issue\":50,\"branch\":\"ai/issue-50\",\"runStartedAt\":500,"
                         + "\"agentRunning\":false}");
         assertEquals(200, legacy.statusCode());
-        HttpResponse<String> body = send("GET", "/api/dev-machines", AdminAuthCookie.header());
+        HttpResponse<String> body = send("GET", "/api/dev-machines", adminCookie);
         assertTrue(body.body().contains("\"runs\":[]"));
     }
 
@@ -201,7 +205,7 @@ public class DevMachineRoutesTest {
                 "{\"machine\":\"home\",\"runs\":[{\"issue\":1,\"round\":0,\"branch\":\"ai/issue-1\"}],"
                         + "\"agentRunning\":true}");
         clock.set(2_000_000L + DevMachineStore.ONLINE_WINDOW_MS + 5);
-        HttpResponse<String> list = send("GET", "/api/dev-machines", AdminAuthCookie.header());
+        HttpResponse<String> list = send("GET", "/api/dev-machines", adminCookie);
         assertFalse(list.body().contains("\"runs\""));
     }
 

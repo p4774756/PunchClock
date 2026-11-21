@@ -1,8 +1,6 @@
 package com.example.server.web;
 
-import com.example.server.ServerApp;
-import com.example.server.auth.AdminAuthCookie;
-import io.javalin.Javalin;
+import com.example.server.AdminTestServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,10 +23,11 @@ import static org.junit.Assert.assertTrue;
 
 public class AtlasRoutesTest {
 
-    private Javalin app;
+    private AdminTestServer server;
     private HttpClient http;
     private String base;
     private Path root;
+    private String adminCookie;
 
     @Before
     public void setUp() throws Exception {
@@ -41,18 +40,19 @@ public class AtlasRoutesTest {
         Files.writeString(appDir.resolve("models").resolve("body.txt"), "model-bytes");
         Files.writeString(root.resolve("secret.txt"), "do-not-leak");
         System.setProperty(AtlasRoutes.ROOT_PROPERTY, root.toString());
-        app = new ServerApp().start(0);
-        base = "http://127.0.0.1:" + app.port();
+        server = AdminTestServer.builder().start();
+        base = server.baseUrl();
         http = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
+        adminCookie = server.loginCookie(http);
     }
 
     @After
     public void tearDown() throws Exception {
-        if (app != null) {
-            app.stop();
+        if (server != null) {
+            server.stop();
         }
         System.clearProperty(AtlasRoutes.ROOT_PROPERTY);
         if (root != null) {
@@ -149,7 +149,7 @@ public class AtlasRoutesTest {
 
     @Test
     public void signedInUserCanReadThePageAndANestedFile() throws Exception {
-        String cookie = adminCookie();
+        String cookie = adminCookie;
         HttpResponse<String> page = send("GET", "/atlas/tcm-3d/", cookie, null, null);
         assertEquals(200, page.statusCode());
         assertTrue(page.body().contains("atlas-ok"));
@@ -197,13 +197,13 @@ public class AtlasRoutesTest {
 
     @Test
     public void pathEscapeDoesNotLeaveTheAppDirectory() throws Exception {
-        HttpResponse<String> response = send("GET", "/atlas/tcm-3d/../secret.txt", adminCookie(), null, null);
+        HttpResponse<String> response = send("GET", "/atlas/tcm-3d/../secret.txt", adminCookie, null, null);
         assertFalse(response.body().contains("do-not-leak"));
     }
 
     @Test
     public void unknownAppIsNotFound() throws Exception {
-        HttpResponse<String> response = send("GET", "/atlas/other/", adminCookie(), null, null);
+        HttpResponse<String> response = send("GET", "/atlas/other/", adminCookie, null, null);
         assertEquals(404, response.statusCode());
     }
 
@@ -235,7 +235,4 @@ public class AtlasRoutesTest {
         return builder.build();
     }
 
-    private String adminCookie() {
-        return AdminAuthCookie.header();
-    }
 }

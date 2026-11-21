@@ -5,7 +5,6 @@ import com.example.service.BlackjackInvitePolicy;
 import com.example.service.BlackjackSession;
 import com.example.service.HeartbeatService;
 import com.example.service.LunchChallenge;
-import io.javalin.Javalin;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,15 +39,17 @@ public class BlackjackServerIntegrationTest {
 
     private static final long WAIT_SECONDS = 10;
 
-    private Javalin app;
+    private AdminTestServer server;
+    private HttpClient http;
     private String base;
     private Desk alice;
     private Desk bob;
 
     @Before
     public void setUp() throws Exception {
-        app = new ServerApp().start(0);
-        base = "http://127.0.0.1:" + app.port();
+        server = AdminTestServer.builder().start();
+        base = server.baseUrl();
+        http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
         alice = new Desk("alice");
         bob = new Desk("bob");
         alice.pump();
@@ -57,9 +58,11 @@ public class BlackjackServerIntegrationTest {
 
     @After
     public void tearDown() {
+        if (server != null) {
+            server.stop();
+        }
         if (alice != null) alice.close();
         if (bob != null) bob.close();
-        if (app != null) app.stop();
     }
 
     @Test(timeout = 30_000)
@@ -215,14 +218,7 @@ public class BlackjackServerIntegrationTest {
 
     @Test(timeout = 30_000)
     public void dashboardCancelReachesClientThroughHeartbeat() throws Exception {
-        HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
-        HttpResponse<String> login = http.send(HttpRequest.newBuilder(URI.create(base + "/login"))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString("password=secret")).build(),
-                HttpResponse.BodyHandlers.ofString());
-        String cookie = login.headers().allValues("Set-Cookie").stream()
-                .filter(h -> h.startsWith("auth=")).map(h -> h.split(";", 2)[0]).findFirst().orElse(null);
-        assertNotNull("登入失敗", cookie);
+        String cookie = server.loginCookie(http);
         HttpResponse<String> cancel = http.send(HttpRequest.newBuilder(
                         URI.create(base + "/api/clients/bob/cancel-task/t-1"))
                 .timeout(Duration.ofSeconds(5))
