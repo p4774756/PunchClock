@@ -39,6 +39,8 @@ Worker 走 HTTP 心跳。Dashboard 用 REST 下指令，WebSocket 只推 `STATUS
 
 jar 來自 `CLIENT_JAR_PATH`，否則是 Docker image 裡的 `/app/client/SKLbaby.jar`。沒有可發布的 jar 時，啟動 log 顯示 `Client release: none`，心跳不帶 `update`。桌面端怎麼套用更新見根目錄 README「桌面端自動更新」。
 
+公開下載頁 `GET /download` 另可連到 GitHub Release 的 macOS（`SKLbaby-mac.dmg`）與 Windows（`SKLbaby-win.exe`）安裝檔；可選用環境變數 `DESKTOP_MAC_DOWNLOAD_URL`／`DESKTOP_WIN_DOWNLOAD_URL` 覆寫按鈕網址。安裝檔不打進 Docker image。
+
 ## 測試
 
 ```bash

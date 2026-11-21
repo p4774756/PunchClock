@@ -33,6 +33,7 @@ public final class PlaywrightCheckInFactory implements CheckInBrowserFactory {
 
     private void ensurePlaywright(Consumer<String> logger) {
         if (playwright == null) {
+            PlaywrightNodeSupport.ensureNodeForPackagedApp(logger);
             log(logger, "[初始化] 首次初始化 Playwright 引擎...");
             playwright = Playwright.create();
         }
