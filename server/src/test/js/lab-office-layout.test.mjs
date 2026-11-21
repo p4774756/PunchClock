@@ -13,8 +13,9 @@ const css = readFileSync(
 );
 
 const TIGER_WORKING = {
-  machine: 'office',
+  machine: 'tiger',
   online: true,
+  lastSeen: 1_080_000,
   agentRunning: true,
   issue: 254,
   round: 4,
@@ -35,8 +36,13 @@ const REVIEW_WORKING = {
 
 function statesFor(opts) {
   const machines = [];
-  if (opts.tiger) machines.push(opts.tiger === 'work' ? TIGER_WORKING : { machine: 'office', online: true });
-  if (opts.review) machines.push(opts.review === 'work' ? REVIEW_WORKING : { machine: 'home', online: true });
+  const now = opts.now == null ? 1_090_000 : opts.now;
+  if (opts.tiger) {
+    machines.push(opts.tiger === 'work' ? TIGER_WORKING : { machine: 'tiger', online: true, lastSeen: now - 30_000 });
+  }
+  if (opts.review) {
+    machines.push(opts.review === 'work' ? { ...REVIEW_WORKING, lastSeen: now - 20_000 } : { machine: 'home', online: true, lastSeen: now - 30_000 });
+  }
   return L.buildAllCharacterStates({
     machines: { machines },
     devStatus: {
@@ -45,7 +51,7 @@ function statesFor(opts) {
         current: { issue: 254, title: '虛擬辦公室' }
       }
     },
-    now: opts.now == null ? 1_090_000 : opts.now
+    now
   });
 }
 

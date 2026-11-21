@@ -33,7 +33,7 @@ public class OfficePublicRoutesTest {
     private static final Pattern ISSUE_HASH = Pattern.compile("#\\d+");
     private static final Set<String> ALLOWED_TOP = Set.of("success", "characters");
     private static final Set<String> ALLOWED_CHAR = Set.of("status", "updatedAt");
-    private static final Set<String> ALLOWED_STATUS = Set.of("工作中", "審核中", "待機");
+    private static final Pattern ALLOWED_STATUS = Pattern.compile("^(工作中( ×\\d+)?|審核中( ×\\d+)?|待機|佇列 \\d+)$");
 
     private Javalin app;
     private HttpClient http;
@@ -58,13 +58,13 @@ public class OfficePublicRoutesTest {
         http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("machine", "office");
+        body.put("machine", "tiger");
         body.put("agentRunning", true);
         body.put("issue", 257);
         body.put("model", "composer-2.5");
         body.put("branch", "ai/issue-257");
         body.put("worktree", "/Users/tina/secret");
-        store.applyHeartbeat("office", body);
+        store.applyHeartbeat("tiger", body);
     }
 
     @After
@@ -94,7 +94,7 @@ public class OfficePublicRoutesTest {
                 assertTrue("unexpected char field: " + key, ALLOWED_CHAR.contains(key));
             }
             String status = row.get("status").getAsString();
-            assertTrue(ALLOWED_STATUS.contains(status));
+            assertTrue("status: " + status, ALLOWED_STATUS.matcher(status).matches());
             String blob = row.toString();
             assertFalse(blob, ISSUE_HASH.matcher(blob).find());
             assertFalse(blob, blob.contains("composer"));

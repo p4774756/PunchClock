@@ -625,8 +625,22 @@ do_beat() {
       model_json=$(json_string_field "$pr_model")
     fi
   fi
-  payload=$(printf '{"machine":"%s","issue":%s,"branch":%s,"runStartedAt":%s,"agentRunning":%s,"role":%s,"round":%s,"model":%s,"verdict":%s,"runs":%s%s%s}' \
-    "$machine" "$issue_json" "$branch_json" "$started_json" "$agent" \
+  display_name=$(pick_env DEV_STATUS_DISPLAY_NAME)
+  location_tag=$(pick_env DEV_STATUS_LOCATION)
+  display_json="null"
+  location_json="null"
+  if [ -n "$display_name" ]; then
+    if printf '%s' "$display_name" | LC_ALL=C grep -Eq '^[[:print:][:space:]]{1,24}$'; then
+      display_json=$(printf '"%s"' "$display_name")
+    fi
+  fi
+  if [ -n "$location_tag" ]; then
+    if printf '%s' "$location_tag" | LC_ALL=C grep -Eq '^[[:print:][:space:]]{1,24}$'; then
+      location_json=$(printf '"%s"' "$location_tag")
+    fi
+  fi
+  payload=$(printf '{"machine":"%s","displayName":%s,"location":%s,"issue":%s,"branch":%s,"runStartedAt":%s,"agentRunning":%s,"role":%s,"round":%s,"model":%s,"verdict":%s,"runs":%s%s%s}' \
+    "$machine" "$display_json" "$location_json" "$issue_json" "$branch_json" "$started_json" "$agent" \
     "$role_json" "$round_json" "$model_json" "$verdict_json" \
     "$runs_json" "$COMMIT_JSON" "$BATTERY_JSON")
   if ! command -v curl >/dev/null 2>&1; then

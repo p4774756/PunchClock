@@ -8,6 +8,7 @@ import {
   buildAllCharacterStates,
   buildCharacterStatesFromPublic,
   characterCardData,
+  chibiAssetPath,
   viewerCanOpenLabOffice
 } from './lab-office-logic.js';
 
@@ -178,7 +179,7 @@ export function createLabOfficeController(opts) {
       btn.setAttribute('data-char', id);
       btn.setAttribute('aria-label', CHAR_LABEL[id] || id);
       const img = doc.createElement('img');
-      img.src = '/assets/lab-2f/chibi-' + id + '.png';
+      img.src = chibiAssetPath(id, st.mode);
       img.alt = '';
       img.decoding = 'async';
       btn.appendChild(img);
@@ -232,14 +233,17 @@ export function createLabOfficeController(opts) {
     setText(h, CHAR_LABEL[charId] || charId);
     body.appendChild(h);
     const lines = [];
-    if (data.machine) {
-      lines.push(data.machine.online ? '在線' : '離線');
-      if (data.machine.battery != null) lines.push('電量 ' + data.machine.battery + '%');
-      if (data.machine.charging) lines.push('充電中');
-      if (data.machine.issue) lines.push('任務 #' + data.machine.issue);
-      if (data.machine.branch) lines.push(data.machine.branch);
-      if (data.machine.commit) lines.push('commit ' + data.machine.commit);
-      if (data.machine.model) lines.push('模型 ' + data.machine.model);
+    if (charId === 'tiger' && Array.isArray(data.machines)) {
+      const online = data.machines.filter((m) => m && m.online);
+      lines.push('回報中 ' + online.length + ' 台');
+      for (let mi = 0; mi < online.length; mi++) {
+        const m = online[mi];
+        const label = m.label || m.machine || '機器';
+        const loc = m.location ? ' · ' + m.location : '';
+        const runs = Array.isArray(m.runs) ? m.runs.length : 0;
+        const bit = runs ? label + loc + ' · ' + runs + ' 條' : label + loc;
+        lines.push(bit);
+      }
       if (data.state && data.state.bubble) lines.push(data.state.bubble);
     } else if (charId === 'oki' && data.dev && data.dev.now) {
       const q = data.dev.now.queue ? data.dev.now.queue.length : 0;

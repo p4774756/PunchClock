@@ -19,12 +19,15 @@ public class DevMachineStoreTest {
         AtomicLong clock = new AtomicLong(100_000L);
         DevMachineStore store = new DevMachineStore(clock::get);
         Map<String, Object> body = payload("home", 50, "ai/issue-50", 90_000L);
+        body.put("displayName", "小貓");
         assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("home", body));
         List<Map<String, Object>> list = store.listForApi(100_000L, issue -> "標題");
+        assertEquals(1, list.size());
         Map<String, Object> home = list.get(0);
         assertTrue((Boolean) home.get("online"));
         assertEquals(50, home.get("issue"));
         assertEquals("標題", home.get("issueTitle"));
+        assertEquals("小貓", home.get("label"));
     }
 
     @Test
@@ -56,7 +59,7 @@ public class DevMachineStoreTest {
     @Test
     public void rejectsUnknownMachineAndBadFields() {
         DevMachineStore store = new DevMachineStore();
-        assertEquals(DevMachineStore.ApplyResult.BAD_MACHINE, store.applyHeartbeat("laptop", payload("laptop", 1, "a", 1L)));
+        assertEquals(DevMachineStore.ApplyResult.BAD_MACHINE, store.applyHeartbeat("Bad-ID", payload("x", 1, "a", 1L)));
         Map<String, Object> badBranch = new HashMap<>();
         badBranch.put("machine", "home");
         badBranch.put("branch", "bad branch!");
@@ -68,13 +71,17 @@ public class DevMachineStoreTest {
     }
 
     @Test
-    public void listOrderIsFixedAndBounded() {
-        DevMachineStore store = new DevMachineStore();
-        List<Map<String, Object>> list = store.listForApi(System.currentTimeMillis(), issue -> "");
-        assertEquals(2, list.size());
-        assertEquals("home", list.get(0).get("machine"));
-        assertEquals("office", list.get(1).get("machine"));
-        assertEquals("小貓", list.get(0).get("label"));
+    public void listOnlyReportedWithinStaleWindow() {
+        AtomicLong clock = new AtomicLong(100_000L);
+        DevMachineStore store = new DevMachineStore(clock::get);
+        assertEquals(0, store.listForApi(clock.get(), issue -> "").size());
+
+        store.applyHeartbeat("home", payload("home", 1, "a", 1L));
+        store.applyHeartbeat("bear", payload("bear", 2, "b", 1L));
+        assertEquals(2, store.listForApi(clock.get(), issue -> "").size());
+
+        clock.set(100_000L + DevMachineStore.STALE_WINDOW_MS + 1);
+        assertEquals(0, store.listForApi(clock.get(), issue -> "").size());
     }
 
     @Test
@@ -109,6 +116,18 @@ public class DevMachineStoreTest {
         Map<String, Object> badRole = new HashMap<>(body);
         badRole.put("role", "hacker");
         assertEquals(DevMachineStore.ApplyResult.BAD_BODY, store.applyHeartbeat("home", badRole));
+    }
+
+    @Test
+    public void displayNameAndLocationFromHeartbeat() {
+        DevMachineStore store = new DevMachineStore();
+        Map<String, Object> body = payload("tiger", 1, "a", 1L);
+        body.put("displayName", "猛虎");
+        body.put("location", "家用");
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", body));
+        Map<String, Object> row = store.listForApi(System.currentTimeMillis(), issue -> "").get(0);
+        assertEquals("猛虎", row.get("label"));
+        assertEquals("家用", row.get("location"));
     }
 
     private static Map<String, Object> payload(String machine, Integer issue, String branch, long runStartedAt) {

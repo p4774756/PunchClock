@@ -8,11 +8,6 @@ const GITHUB_REPO = 'https://github.com/p4774756/PunchClock';
 const LOGIN_PATH = '/login';
 const TOAST_MS = 4000;
 
-export const MACHINE_ROLE = {
-  office: '辦公室 Mac',
-  home: '家用 Mac'
-};
-
 /** 今日 00:00（台北）對應的 UTC 時間戳。 */
 export function taipeiTodayStartMs(nowMs) {
   const now = Number(nowMs);
@@ -56,12 +51,8 @@ export function formatTaipeiClock(ms) {
 }
 
 export function machineRole(machine) {
-  const key = machine && machine.machine ? String(machine.machine) : '';
-  if (key && MACHINE_ROLE[key]) return MACHINE_ROLE[key];
-  const label = machine && machine.label ? String(machine.label) : '';
-  if (label === '猛虎') return MACHINE_ROLE.office;
-  if (label === '小貓') return MACHINE_ROLE.home;
-  return '';
+  const loc = machine && machine.location != null ? String(machine.location).trim() : '';
+  return loc;
 }
 
 /** 期別子項進度（優先 API 欄位）。 */
@@ -233,7 +224,7 @@ export function formatLabDevMachineLine(machine) {
 
 export function formatLabDevMachineLines(data) {
   if (!data || data.success === false || !Array.isArray(data.machines)) return [];
-  return data.machines.slice(0, 2).map(formatLabDevMachineLine);
+  return data.machines.map(formatLabDevMachineLine);
 }
 
 /** 在既有螢幕行下方、detailHint 之前插入筆電狀態（最多 2 行） */
