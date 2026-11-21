@@ -297,7 +297,7 @@ function bindGuestDevStatusNav(node, doc, opts) {
 }
 
 /** 從 location.search 解析 ?open= 參數（純函式，可供測試）。 */
-export function parseIslandOpenParam(search) {
+export function parseRoadmapOpenParam(search) {
   const raw = search == null ? '' : String(search);
   const qs = raw.startsWith('?') ? raw.slice(1) : raw;
   if (!qs) return '';
@@ -309,11 +309,11 @@ export function parseIslandOpenParam(search) {
 }
 
 export function shouldOpenRoadmapFromSearch(search) {
-  return parseIslandOpenParam(search) === 'roadmap';
+  return parseRoadmapOpenParam(search) === 'roadmap';
 }
 
-/** 島嶼首頁載入後若帶 open=roadmap，開路線圖並清掉 query。 */
-export function applyIslandOpenRoadmapParam(win, openRoadmapFn) {
+/** 帶 open=roadmap 時開路線圖並清掉 query。 */
+export function applyRoadmapOpenParam(win, openRoadmapFn) {
   if (!win || !win.location || typeof openRoadmapFn !== 'function') return false;
   if (!shouldOpenRoadmapFromSearch(win.location.search)) return false;
   openRoadmapFn();

@@ -61,10 +61,10 @@ export function dismissDonateToast(doc) {
   }
 }
 
-export function showDonateToast(doc, placement = 'island') {
+export function showDonateToast(doc, placement = 'top') {
   if (!doc || !doc.body) return null;
   dismissDonateToast(doc);
-  const slot = placement === 'dev' ? 'dev' : 'island';
+  const slot = placement === 'dev' ? 'dev' : 'top';
   const wrap = doc.createElement('div');
   wrap.className = `donate-toast maple-window dev-login-toast donate-toast--${slot}`;
   wrap.setAttribute('data-donate-toast', '1');
@@ -90,7 +90,7 @@ export function showDonateToast(doc, placement = 'island') {
   return wrap;
 }
 
-export function handleDonateClick(ev, doc, url, configured, placement = 'island') {
+export function handleDonateClick(ev, doc, url, configured, placement = 'top') {
   if (isDonateConfigured(url, configured)) return false;
   if (ev) {
     ev.preventDefault();
@@ -104,7 +104,7 @@ function onPlaceholderClick(ev, doc, url, configured, placement) {
   handleDonateClick(ev, doc, url, configured, placement);
 }
 
-export function bindDonateAnchor(anchor, win, doc, placement = 'island') {
+export function bindDonateAnchor(anchor, win, doc, placement = 'top') {
   if (!anchor) return;
   const documentRef = doc || (win && win.document);
   const { url, configured } = readDonateConfig(win);
@@ -119,8 +119,6 @@ export function bindDonateAnchor(anchor, win, doc, placement = 'island') {
 export function mountDonateLinks(win) {
   const doc = win && win.document;
   if (!doc) return;
-  const island = doc.getElementById('islandMoreDonate');
-  if (island) bindDonateAnchor(island, win, doc, 'island');
   const dev = doc.getElementById('devMachinesDonate');
   if (dev) bindDonateAnchor(dev, win, doc, 'dev');
 }

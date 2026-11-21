@@ -1,0 +1,60 @@
+.download-page {
+  min-height: 100vh;
+}
+
+.download-root {
+  width: min(100%, 640px);
+  margin: 0 auto;
+  border: 6px solid #163a70;
+  outline: 2px solid #a8d0f2;
+  outline-offset: -8px;
+  background: #f8fbff;
+  box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.31);
+  border-radius: 6px;
+}
+
+.download-body {
+  padding: 1rem 1.15rem 1.5rem;
+  color: #142440;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.download-body h2 {
+  font-size: 1rem;
+  color: #163a70;
+  margin: 1.1rem 0 0.4rem;
+}
+
+.download-actions {
+  margin: 1rem 0;
+}
+
+.download-btn {
+  display: inline-block;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  color: #f8fbff;
+  background: #3a7ac4;
+  border: 3px solid #163a70;
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.download-btn:hover {
+  background: #204e96;
+}
+
+.download-unavailable {
+  color: #6a5060;
+}
+
+.download-foot {
+  margin-top: 1.25rem;
+  font-size: 14px;
+}
+
+.download-foot a {
+  color: #163a70;
+  font-weight: 700;
+}

@@ -5,11 +5,6 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadPublicModule } from './load-public-module.mjs';
 
-const islandCss = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'main', 'resources', 'public', 'css', 'island.css'),
-  'utf8'
-);
-
 const D = await loadPublicModule('donate-link.js');
 
 function miniDoc() {
@@ -115,22 +110,10 @@ test('placeholder click shows single toast', () => {
   assert.equal(D.DONATE_TOAST_MS, 3000);
 });
 
-test('island menu donate row overrides space-between with higher-specificity flex-start', () => {
-  const genericBlock = islandCss.search(
-    /\.island-maple-row,\s*\n\.island-more-item,[\s\S]*?justify-content:\s*space-between/
-  );
-  assert.ok(genericBlock >= 0, 'generic island-more-item flex rule');
-  const donateRule =
-    /\.island-more-menu\s+\.island-more-item\.island-more-donate\s*\{[^}]*justify-content:\s*flex-start/s;
-  const match = donateRule.exec(islandCss);
-  assert.ok(match, 'donate flex-start rule with higher specificity');
-  assert.ok(match.index > genericBlock, 'donate rule must follow generic island-more-item rule');
-});
-
 test('donate toast uses placement class and top slot for dev', () => {
   const doc = miniDoc();
-  const islandToast = D.showDonateToast(doc, 'island');
-  assert.ok(String(islandToast.className).includes('donate-toast--island'));
+  const topToast = D.showDonateToast(doc, 'top');
+  assert.ok(String(topToast.className).includes('donate-toast--top'));
   D.dismissDonateToast(doc);
   const devToast = D.showDonateToast(doc, 'dev');
   assert.ok(String(devToast.className).includes('donate-toast--dev'));

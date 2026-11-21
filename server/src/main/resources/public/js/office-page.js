@@ -1,16 +1,14 @@
-// 獨立虛擬辦公室頁。訪客不打開發機 API。
+// 首頁與 /office 虛擬辦公室。訪客只打 /api/office/public。
 
 import { createLabOfficeController } from './lab-office.js';
 
-const authed = typeof window !== 'undefined' && window.PUNCHCLOCK_AUTHENTICATED === true;
-if (authed) {
-  const root = document.getElementById('officePage');
-  if (root) {
-    createLabOfficeController({
-      doc: document,
-      win: window,
-      existingRoot: root,
-      page: true
-    }).open();
-  }
+const root = document.getElementById('officePage');
+if (root) {
+  createLabOfficeController({
+    doc: document,
+    win: window,
+    existingRoot: root,
+    page: true,
+    allowGuest: true
+  }).open();
 }

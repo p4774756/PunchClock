@@ -222,16 +222,16 @@ test('管理員點路線圖開發機狀態鈕可導頁', () => {
 });
 
 test('open=roadmap 參數解析與深連結', () => {
-  assert.equal(F.parseIslandOpenParam(''), '');
-  assert.equal(F.parseIslandOpenParam('?open=roadmap'), 'roadmap');
+  assert.equal(F.parseRoadmapOpenParam(''), '');
+  assert.equal(F.parseRoadmapOpenParam('?open=roadmap'), 'roadmap');
   assert.equal(F.shouldOpenRoadmapFromSearch('?open=roadmap&x=1'), true);
-  assert.equal(F.shouldOpenRoadmapFromSearch('?open=casino'), false);
+  assert.equal(F.shouldOpenRoadmapFromSearch('?open=nope'), false);
   let opened = false;
   const win = {
     location: { href: 'http://localhost/?open=roadmap', search: '?open=roadmap', pathname: '/', hash: '' },
     history: { replaceState: (_a, _b, url) => { win._url = url; } }
   };
-  assert.equal(F.applyIslandOpenRoadmapParam(win, () => { opened = true; }), true);
+  assert.equal(F.applyRoadmapOpenParam(win, () => { opened = true; }), true);
   assert.equal(opened, true);
   assert.equal(win._url, '/');
 });
