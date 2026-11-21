@@ -34,6 +34,7 @@
         <h2>訪客簽名簿</h2>
         <button type="button" class="btn btn-ghost" data-guestbook-close aria-label="關閉">關閉</button>
       </header>
+      <div class="guestbook-book-open">
       <div class="guestbook-pages">
         <div class="guestbook-page guestbook-page-form">
           <h3 class="guestbook-page-title">填寫</h3>
@@ -57,16 +58,32 @@
             <button type="button" class="guestbook-swatch" data-guestbook-color="#22a06b" style="background:#22a06b" aria-label="綠色"></button>
             <button type="button" class="guestbook-swatch" data-guestbook-color="#f4a0c0" style="background:#f4a0c0" aria-label="粉色"></button>
             <button type="button" class="guestbook-swatch" data-guestbook-color="#f06a2a" style="background:#f06a2a" aria-label="橘色"></button>
-            <button type="button" class="btn btn-ghost guestbook-brush" data-guestbook-brush="2" aria-label="細筆">細</button>
-            <button type="button" class="btn btn-ghost guestbook-brush" data-guestbook-brush="8" aria-label="粗筆">粗</button>
-            <button type="button" class="btn btn-ghost" data-guestbook-eraser aria-pressed="false">橡皮擦</button>
-            <button type="button" class="btn btn-ghost" data-guestbook-clear>清除</button>
+            <button type="button" class="guestbook-icon-btn guestbook-brush" data-guestbook-brush="2" aria-label="細筆" title="細筆">
+              <svg class="guestbook-pixel-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="11" width="3" height="3" fill="#5c4a3a"/><rect x="5" y="8" width="3" height="3" fill="#8b6914"/><rect x="8" y="5" width="3" height="3" fill="#2563eb"/><rect x="11" y="2" width="3" height="3" fill="#1a3550"/></svg>
+            </button>
+            <button type="button" class="guestbook-icon-btn guestbook-brush" data-guestbook-brush="8" aria-label="粗筆" title="粗筆">
+              <svg class="guestbook-pixel-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="11" width="5" height="4" fill="#5c4a3a"/><rect x="4" y="7" width="5" height="4" fill="#8b6914"/><rect x="7" y="3" width="5" height="4" fill="#2563eb"/></svg>
+            </button>
+            <button type="button" class="guestbook-icon-btn" data-guestbook-eraser aria-pressed="false" aria-label="橡皮擦" title="橡皮擦">
+              <svg class="guestbook-pixel-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="9" width="10" height="4" fill="#f4a0c0"/><rect x="4" y="5" width="8" height="4" fill="#f4c8d8"/><rect x="6" y="2" width="4" height="3" fill="#fff"/></svg>
+            </button>
+            <button type="button" class="guestbook-icon-btn" data-guestbook-clear aria-label="清除畫布" title="清除">
+              <svg class="guestbook-pixel-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" fill="#fff" stroke="#c45a52" stroke-width="1"/><rect x="5" y="7" width="6" height="2" fill="#e03c3c"/></svg>
+            </button>
           </div>
           <div class="guestbook-emoji-row" role="group" aria-label="表情">
-            <button type="button" class="btn btn-ghost guestbook-emoji" data-guestbook-emoji="smile" aria-label="笑臉">☺</button>
-            <button type="button" class="btn btn-ghost guestbook-emoji" data-guestbook-emoji="heart" aria-label="愛心">♥</button>
-            <button type="button" class="btn btn-ghost guestbook-emoji" data-guestbook-emoji="thumbs" aria-label="讚">讚</button>
-            <button type="button" class="btn btn-ghost guestbook-emoji" data-guestbook-emoji="angry" aria-label="生氣">怒</button>
+            <button type="button" class="guestbook-icon-btn guestbook-emoji" data-guestbook-emoji="smile" aria-label="笑臉" title="笑臉">
+              <svg class="guestbook-pixel-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="2" height="2" fill="#1a3550"/><rect x="10" y="4" width="2" height="2" fill="#1a3550"/><rect x="4" y="10" width="2" height="1" fill="#1a3550"/><rect x="6" y="11" width="4" height="1" fill="#1a3550"/><rect x="10" y="10" width="2" height="1" fill="#1a3550"/><rect x="3" y="2" width="10" height="12" fill="none" stroke="#f6d35a" stroke-width="1"/></svg>
+            </button>
+            <button type="button" class="guestbook-icon-btn guestbook-emoji" data-guestbook-emoji="heart" aria-label="愛心" title="愛心">
+              <svg class="guestbook-pixel-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="2" height="2" fill="#e03c3c"/><rect x="10" y="4" width="2" height="2" fill="#e03c3c"/><rect x="2" y="6" width="4" height="2" fill="#e03c3c"/><rect x="10" y="6" width="4" height="2" fill="#e03c3c"/><rect x="2" y="8" width="12" height="2" fill="#e03c3c"/><rect x="4" y="10" width="8" height="2" fill="#e03c3c"/><rect x="6" y="12" width="4" height="2" fill="#e03c3c"/></svg>
+            </button>
+            <button type="button" class="guestbook-icon-btn guestbook-emoji" data-guestbook-emoji="thumbs" aria-label="讚" title="讚">
+              <svg class="guestbook-pixel-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="5" height="8" fill="#f6d35a"/><rect x="8" y="2" width="5" height="5" fill="#f6d35a"/><rect x="3" y="11" width="5" height="3" fill="#5c4a3a"/></svg>
+            </button>
+            <button type="button" class="guestbook-icon-btn guestbook-emoji" data-guestbook-emoji="angry" aria-label="生氣" title="生氣">
+              <svg class="guestbook-pixel-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="5" width="3" height="1" fill="#1a3550"/><rect x="10" y="5" width="3" height="1" fill="#1a3550"/><rect x="4" y="3" width="2" height="1" fill="#e03c3c"/><rect x="10" y="3" width="2" height="1" fill="#e03c3c"/><rect x="5" y="10" width="6" height="1" fill="#1a3550"/><rect x="4" y="11" width="2" height="1" fill="#1a3550"/><rect x="10" y="11" width="2" height="1" fill="#1a3550"/></svg>
+            </button>
           </div>
           <button type="button" class="btn guestbook-submit" data-guestbook-submit>簽名</button>
           <p class="guestbook-status" data-guestbook-status role="status"></p>
@@ -75,6 +92,8 @@
           <h3 class="guestbook-page-title">最新留言</h3>
           <div class="guestbook-list" data-guestbook-list aria-live="polite"></div>
         </div>
+      </div>
+      <div class="guestbook-ribbon" aria-hidden="true"></div>
       </div>
       <footer class="guestbook-foot">
         <span>一分鐘可留一則</span>

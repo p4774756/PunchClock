@@ -2,8 +2,10 @@
 
 import { createLabOfficeController } from './lab-office.js';
 import { createGuestbookController } from './guestbook-panel.js';
+import { applyGuestbookOpenParam } from './guestbook-logic.js';
 
-createGuestbookController({});
+const guestbook = createGuestbookController({});
+applyGuestbookOpenParam(window, () => guestbook.open());
 
 const root = document.getElementById('officePage');
 if (root) {
