@@ -2,6 +2,12 @@
 
 import { createLabOfficeController } from './lab-office.js';
 import { createGuestbookController } from './guestbook-panel.js';
+import { createRoadmapController } from './roadmap-panel.js';
+import { applyRoadmapOpenParam } from './dev-machines-format.js';
+
+const roadmap = createRoadmapController({});
+applyRoadmapOpenParam(window, () => roadmap.open());
+roadmap.refresh();
 
 createGuestbookController({});
 

@@ -443,9 +443,15 @@ export function createRoadmapController(opts) {
     });
   }
 
-  tabButtons.forEach((btn) => {
-    btn.addEventListener('click', () => setTab(btn.getAttribute('data-roadmap-tab')));
-  });
+  const tablist = root && root.querySelector('.roadmap-tabs');
+  if (tablist) {
+    tablist.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-roadmap-tab]');
+      if (!btn || !root.contains(btn)) return;
+      ev.preventDefault();
+      setTab(btn.getAttribute('data-roadmap-tab'));
+    });
+  }
   setTab('phases');
 
   function setOpen(next) {
