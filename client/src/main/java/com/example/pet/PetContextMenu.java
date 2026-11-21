@@ -12,6 +12,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
@@ -27,7 +28,9 @@ import java.util.List;
  */
 final class PetContextMenu extends JPanel {
 
-    static final int WIDTH = 196;
+    static final int WIDTH = 212;
+    private static final int LABEL_COL = 38;
+    private static final int ICON_SLOT = 26;
     static final int PAD_H = 12;
     static final int PAD_TOP = 10;
     static final int PAD_BOTTOM = 10;
@@ -54,7 +57,7 @@ final class PetContextMenu extends JPanel {
 
     static final class Row {
         final RowKind kind;
-        final String icon;
+        final PetMenuIcons.Kind icon;
         final String label;
         final boolean enabled;
         final boolean checked;
@@ -62,7 +65,7 @@ final class PetContextMenu extends JPanel {
         final DesktopPetCare.Action careAction;
         final DesktopPetAnimation.Mode careMode;
 
-        Row(RowKind kind, String icon, String label, boolean enabled, boolean checked, boolean muted,
+        Row(RowKind kind, PetMenuIcons.Kind icon, String label, boolean enabled, boolean checked, boolean muted,
             DesktopPetCare.Action careAction, DesktopPetAnimation.Mode careMode) {
             this.kind = kind;
             this.icon = icon;
@@ -161,18 +164,18 @@ final class PetContextMenu extends JPanel {
             mood = snap.mood;
             energy = snap.energy;
         }
-        rows.add(new Row(RowKind.STATUS, "", "", false, false, false, null, null));
-        rows.add(new Row(RowKind.CONTROL, "🎮", "操控模式", true, controlOn, false, null, null));
+        rows.add(new Row(RowKind.STATUS, null, "", false, false, false, null, null));
+        rows.add(new Row(RowKind.CONTROL, PetMenuIcons.Kind.CONTROL, "操控模式", true, controlOn, false, null, null));
         if (careEnabled && care != null) {
-            rows.add(rowForCare("🍙", "餵食", DesktopPetCare.Action.FEED,
+            rows.add(rowForCare(PetMenuIcons.Kind.FEED, "餵食", DesktopPetCare.Action.FEED,
                     DesktopPetAnimation.Mode.FEED, care, nowMs));
-            rows.add(rowForCare("🤚", "摸頭", DesktopPetCare.Action.PAT,
+            rows.add(rowForCare(PetMenuIcons.Kind.PAT, "摸頭", DesktopPetCare.Action.PAT,
                     DesktopPetAnimation.Mode.PAT, care, nowMs));
-            rows.add(rowForCare("🎾", "玩耍", DesktopPetCare.Action.PLAY,
+            rows.add(rowForCare(PetMenuIcons.Kind.PLAY, "玩耍", DesktopPetCare.Action.PLAY,
                     DesktopPetAnimation.Mode.PLAY, care, nowMs));
         }
         String debugLabel = debugOn ? "關閉除錯" : "顯示除錯";
-        rows.add(new Row(RowKind.DEBUG, "🐞", debugLabel, true, false, true, null, null));
+        rows.add(new Row(RowKind.DEBUG, PetMenuIcons.Kind.DEBUG, debugLabel, true, false, true, null, null));
         return new PetContextMenu(rows, hunger, mood, energy, listener);
     }
 
@@ -238,9 +241,9 @@ final class PetContextMenu extends JPanel {
                 int textY = y + (ROW_H + metrics.getAscent() - metrics.getDescent()) / 2;
                 g.setColor(row.muted ? MUTED : (row.enabled ? INK : MUTED));
                 int tx = ox + PAD_H;
-                if (row.icon != null && !row.icon.isEmpty()) {
-                    g.drawString(row.icon, tx, textY);
-                    tx += metrics.stringWidth(row.icon) + 6;
+                if (row.icon != null) {
+                    paintMenuIcon(g, row.icon, tx, y, ROW_H);
+                    tx += ICON_SLOT;
                 }
                 g.drawString(row.label, tx, textY);
                 if (row.kind == RowKind.CONTROL && row.checked) {
@@ -299,13 +302,22 @@ final class PetContextMenu extends JPanel {
         paintBarRow(g, ox + PAD_H, y, barW, barH, "精神", statusEnergy, BAR_ENERGY, metrics);
     }
 
+    private void paintMenuIcon(Graphics2D g, PetMenuIcons.Kind kind, int x, int rowY, int rowH) {
+        Image icon = PetMenuIcons.iconFor(kind, g.getTransform().getScaleX());
+        if (icon == null) {
+            return;
+        }
+        int size = PetMenuIcons.displaySize();
+        int iy = rowY + (rowH - size) / 2;
+        g.drawImage(icon, x, iy, size, size, null);
+    }
+
     private void paintBarRow(Graphics2D g, int x, int y, int barW, int barH,
                                String label, int value, Color fill, FontMetrics metrics) {
-        g.setColor(MUTED);
+        g.setColor(INK);
         g.drawString(label, x, y);
-        int labelW = metrics.stringWidth(label) + 6;
-        int bx = x + labelW;
-        int bw = Math.max(20, barW - labelW - 28);
+        int bx = x + LABEL_COL;
+        int bw = Math.max(24, barW - LABEL_COL - 22);
         int by = y - metrics.getAscent() + 2;
         g.setColor(BAR_TRACK);
         g.fillRoundRect(bx, by, bw, barH, barH, barH);
@@ -391,7 +403,7 @@ final class PetContextMenu extends JPanel {
         }
     }
 
-    private static Row rowForCare(String icon, String label, DesktopPetCare.Action action,
+    private static Row rowForCare(PetMenuIcons.Kind icon, String label, DesktopPetCare.Action action,
                                   DesktopPetAnimation.Mode mode, DesktopPetCare care, long nowMs) {
         long remaining = care.cooldownRemaining(action, nowMs);
         String text = remaining > 0L ? label + "（還要等一下）" : label;

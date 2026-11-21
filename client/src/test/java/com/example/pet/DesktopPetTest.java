@@ -64,16 +64,13 @@ public class DesktopPetTest {
         again.setNotifySound(true);
         again.setCursorReact(false);
         DesktopPetSettings restored = new DesktopPetSettings(prefs);
-        assertFalse(restored.notifyMessage());
-        assertFalse(restored.notifyFile());
-        assertFalse(restored.notifyTask());
-        assertTrue(restored.notifySound());
-        assertFalse(restored.cursorReact());
-        assertEquals("false", prefs.get(DesktopPetSettings.KEY_NOTIFY_MESSAGE, null));
-        assertEquals("false", prefs.get(DesktopPetSettings.KEY_NOTIFY_FILE, null));
-        assertEquals("false", prefs.get(DesktopPetSettings.KEY_NOTIFY_TASK, null));
-        assertEquals("true", prefs.get(DesktopPetSettings.KEY_NOTIFY_SOUND, null));
-        assertEquals("false", prefs.get(DesktopPetSettings.KEY_CURSOR_REACT, null));
+        assertTrue(restored.notifyMessage());
+        assertTrue(restored.notifyFile());
+        assertTrue(restored.notifyTask());
+        assertFalse(restored.notifySound());
+        assertTrue(restored.cursorReact());
+        prefs.put(DesktopPetSettings.KEY_NOTIFY_MESSAGE, "false");
+        assertTrue(new DesktopPetSettings(prefs).notifyMessage());
 
         again.setEnabled(false);
         assertFalse(new DesktopPetSettings(prefs).isEnabled());
@@ -341,40 +338,15 @@ public class DesktopPetTest {
             assertEquals("桌面寵物", refs.desktopPetSwitch.getAccessibleContext().getAccessibleName());
             assertTrue(refs.desktopPetSwitch.getToolTipText().contains("最小化"));
             assertTrue(tabs.getToolTipTextAt(1).contains("桌面寵物"));
-            assertTrue(refs.desktopPetNotifyMessage.isSelected());
-            assertTrue(refs.desktopPetNotifyFile.isSelected());
-            assertTrue(refs.desktopPetNotifyTask.isSelected());
-            assertFalse(refs.desktopPetNotifySound.isSelected());
-            assertEquals("新訊息提醒", refs.desktopPetNotifyMessage.getAccessibleContext().getAccessibleName());
-            assertEquals("檔案傳輸提醒", refs.desktopPetNotifyFile.getAccessibleContext().getAccessibleName());
-            assertEquals("任務與排程提醒", refs.desktopPetNotifyTask.getAccessibleContext().getAccessibleName());
-            assertEquals("提示音", refs.desktopPetNotifySound.getAccessibleContext().getAccessibleName());
-            assertEquals("Cursor 狀態反應", refs.desktopPetCursorReact.getAccessibleContext().getAccessibleName());
+            assertNull(refs.desktopPetNotifyMessage);
             assertEquals("養成", refs.desktopPetCare.getAccessibleContext().getAccessibleName());
             assertTrue(refs.desktopPetCare.isSelected());
-            assertFalse(refs.desktopPetNotifyMessage.isEnabled());
-            assertFalse(refs.desktopPetNotifyFile.isEnabled());
-            assertFalse(refs.desktopPetNotifyTask.isEnabled());
-            assertFalse(refs.desktopPetNotifySound.isEnabled());
-            assertFalse(refs.desktopPetCursorReact.isEnabled());
             assertFalse(refs.desktopPetCare.isEnabled());
             refs.desktopPetSwitch.setSelected(true);
-            assertTrue(refs.desktopPetNotifyMessage.isEnabled());
-            assertTrue(refs.desktopPetNotifyFile.isEnabled());
-            assertTrue(refs.desktopPetNotifyTask.isEnabled());
-            assertTrue(refs.desktopPetNotifySound.isEnabled());
-            assertTrue(refs.desktopPetCursorReact.isEnabled());
             assertTrue(refs.desktopPetCare.isEnabled());
-            assertTrue(refs.desktopPetNotifyMessage.isSelected());
-            assertFalse(refs.desktopPetNotifySound.isSelected());
-            assertTrue(refs.desktopPetCursorReact.isSelected());
             assertTrue(refs.desktopPetCare.isSelected());
             refs.desktopPetSwitch.setSelected(false);
-            assertFalse(refs.desktopPetNotifyMessage.isEnabled());
-            assertFalse(refs.desktopPetCursorReact.isEnabled());
             assertFalse(refs.desktopPetCare.isEnabled());
-            assertTrue(refs.desktopPetNotifyMessage.isSelected());
-            assertTrue(refs.desktopPetCursorReact.isSelected());
             assertTrue(refs.desktopPetCare.isSelected());
         });
     }
@@ -1482,20 +1454,6 @@ public class DesktopPetTest {
             assertEquals("任務完成！", surface.phrase);
             bridge.noticeEndedAt(3_300L);
             assertEquals(0, bridge.waitingCount());
-
-            settings.setNotifyFile(false);
-            int blocked = surface.shows;
-            bridge.offerAt(DesktopPetEvent.FILE_SENT, null, 8_000L);
-            assertEquals(blocked, surface.shows);
-            settings.setNotifyFile(true);
-
-            settings.setNotifySound(true);
-            int sounds = surface.sounds;
-            bridge.offerAt(DesktopPetEvent.SCHEDULE_REMINDER, null, 8_000L);
-            assertEquals("時間到囉～！", surface.phrase);
-            assertEquals(sounds + 1, surface.sounds);
-            bridge.offerAt(DesktopPetEvent.SCHEDULE_REMINDER, null, 8_100L);
-            assertEquals(sounds + 1, surface.sounds);
 
             surface.phrase = null;
             surface.enabled = false;

@@ -160,6 +160,8 @@ public class ConfigPersistenceService {
             com.google.gson.JsonObject json = com.google.gson.JsonParser.parseString(gson.toJson(config))
                     .getAsJsonObject();
             json.remove("characterTheme");
+            // 自訂程式背景已移除。舊檔仍讀得進來，但新版存檔不再把它寫成啟用。
+            json.addProperty("customBackground", false);
             Files.writeString(savePath, gson.toJson(json));
         } catch (IOException e) {
             if (logger != null) {

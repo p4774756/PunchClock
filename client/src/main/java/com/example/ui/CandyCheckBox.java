@@ -15,7 +15,12 @@ import java.awt.GradientPaint;
 public class CandyCheckBox extends JCheckBox {
 
     public static final String MARK = "candy.check";
-    private static final int BOX = 16;
+    /** 同一列均分時由版面寫入欄寬，文字依這個寬度折行。 */
+    public static final String WRAP_COL = "wrap.col";
+    private static final int BOX = 14;
+    private static final int BOX_X = 2;
+    private static final int TEXT_GAP = 4;
+    private static final int TAIL = 2;
 
     public CandyCheckBox(String text, boolean selected) {
         super(text, selected);
@@ -55,7 +60,7 @@ public class CandyCheckBox extends JCheckBox {
             boolean pressed = enabled && button.getModel().isPressed();
             float hover = enabled ? CandyTheme.hover(button) : 0f;
             int boxY = Math.max(2, (c.getHeight() - BOX) / 2);
-            int boxX = 3;
+            int boxX = BOX_X;
             if (hover > 0f) {
                 g.setColor(new java.awt.Color(255, 192, 222, Math.round(80 * hover)));
                 g.fillRoundRect(boxX - 3, boxY - 3, BOX + 6, BOX + 6, 10, 10);
@@ -92,10 +97,16 @@ public class CandyCheckBox extends JCheckBox {
             String text = button.getText() == null ? "" : button.getText();
             g.setFont(button.getFont());
             FontMetrics metrics = g.getFontMetrics();
-            int textX = boxX + BOX + 8;
-            int textY = (c.getHeight() - metrics.getHeight()) / 2 + metrics.getAscent();
+            int textX = boxX + BOX + TEXT_GAP;
+            int textWidth = Math.max(8, c.getWidth() - textX - TAIL);
             g.setColor(enabled ? CandyTheme.INK : CandyTheme.MUTED);
-            g.drawString(text, textX, textY);
+            java.util.List<String> lines = wrapLines(text, metrics, textWidth);
+            int block = lines.size() * metrics.getHeight();
+            int textY = Math.max(metrics.getAscent(), (c.getHeight() - block) / 2 + metrics.getAscent());
+            for (String line : lines) {
+                g.drawString(line, textX, textY);
+                textY += metrics.getHeight();
+            }
             g.dispose();
         }
 
@@ -105,7 +116,51 @@ public class CandyCheckBox extends JCheckBox {
             FontMetrics metrics = c.getFontMetrics(c.getFont());
             String text = button.getText() == null ? "" : button.getText();
             int textWidth = metrics.stringWidth(text);
-            return new java.awt.Dimension(3 + BOX + 8 + textWidth + 6, Math.max(24, metrics.getHeight() + 8));
+            int natural = BOX_X + BOX + TEXT_GAP + textWidth + TAIL;
+            Object col = c.getClientProperty(WRAP_COL);
+            if (col instanceof Integer && (Integer) col > 0) {
+                int inner = Math.max(8, (Integer) col - (BOX_X + BOX + TEXT_GAP) - TAIL);
+                int lines = wrapLines(text, metrics, inner).size();
+                int height = Math.max(metrics.getHeight() + 8, lines * metrics.getHeight() + 6);
+                return new java.awt.Dimension((Integer) col, height);
+            }
+            return new java.awt.Dimension(natural, Math.max(24, metrics.getHeight() + 8));
+        }
+
+        private static java.util.List<String> wrapLines(String text, FontMetrics metrics, int width) {
+            java.util.ArrayList<String> lines = new java.util.ArrayList<>();
+            if (text == null || text.isEmpty()) {
+                lines.add("");
+                return lines;
+            }
+            if (metrics.stringWidth(text) <= width) {
+                lines.add(text);
+                return lines;
+            }
+            StringBuilder line = new StringBuilder();
+            for (int i = 0; i < text.length(); i++) {
+                char ch = text.charAt(i);
+                line.append(ch);
+                if (metrics.stringWidth(line.toString()) > width && line.length() > 1) {
+                    line.deleteCharAt(line.length() - 1);
+                    int space = line.lastIndexOf(" ");
+                    if (space > 0) {
+                        String rest = line.substring(space + 1);
+                        line.setLength(space);
+                        lines.add(line.toString());
+                        line.setLength(0);
+                        line.append(rest);
+                    } else {
+                        lines.add(line.toString());
+                        line.setLength(0);
+                    }
+                    line.append(ch);
+                }
+            }
+            if (line.length() > 0) {
+                lines.add(line.toString());
+            }
+            return lines;
         }
     }
 }
