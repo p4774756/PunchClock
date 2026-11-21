@@ -213,6 +213,46 @@ try {
     assert.ok(gv14.position[1] > bl14.position[1], `GV14 y=${gv14.position[1]} 應高於 BL14 y=${bl14.position[1]}`);
   });
 
+  await test('頸胸五穴（#284）：頦唇溝／喉結／胸骨上窩／鎖骨上窩相對高度', async () => {
+    const {readFileSync} = await import('node:fs');
+    const {GLTFLoader} = await import('three/examples/jsm/loaders/GLTFLoader.js');
+    globalThis.self = globalThis;
+    globalThis.URL = URL;
+    globalThis.webkitURL = URL;
+    if (!globalThis.document) {
+      globalThis.document = {createElementNS: () => ({style: {}, setAttribute() {}, getContext() { return null; }})};
+    }
+    const buffer = readFileSync(join(project, 'public/models/anime-assistant.glb')).buffer;
+    const gltf = await new Promise((res, rej) => new GLTFLoader().parse(buffer, '', res, rej));
+    gltf.scene.updateMatrixWorld(true);
+    const boneY = name => {
+      const o = gltf.scene.getObjectByName(name);
+      assert.ok(o, `missing bone ${name}`);
+      const v = new T.Vector3();
+      o.getWorldPosition(v);
+      return v.y;
+    };
+    const shoulderY = Math.max(boneY('J_Bip_L_Shoulder'), boneY('J_Bip_R_Shoulder'));
+    const neckY = boneY('J_Bip_C_Neck');
+    const upperChestY = boneY('J_Bip_C_UpperChest');
+    const pos = code => animeJson.points.find(p => p.code === code).position;
+    const cv24 = pos('CV24');
+    const cv23 = pos('CV23');
+    const st9 = pos('ST9');
+    const cv22 = pos('CV22');
+    const st12 = pos('ST12');
+    assert.ok(cv24[1] > 1.4, `承漿 y=${cv24[1]} 應在頦唇溝`);
+    assert.ok(cv24[1] > cv23[1] + 0.035, '承漿應明顯高於廉泉');
+    assert.ok(cv23[1] > st9[1] + 0.005, '廉泉應略高於人迎');
+    assert.ok(st9[1] > cv22[1] + 0.015, '人迎應高於天突');
+    assert.ok(cv22[1] > shoulderY - 0.01, `天突 y=${cv22[1]} 應在鎖骨線上方（肩≈${shoulderY.toFixed(3)}）`);
+    assert.ok(cv22[1] < neckY, `天突應低於頸骨（neck≈${neckY.toFixed(3)}）`);
+    assert.ok(cv22[1] > upperChestY + 0.08, `天突不可落在鎖骨下上胸（上胸≈${upperChestY.toFixed(3)}）`);
+    assert.ok(st12[1] >= shoulderY - 0.003, `缺盆 y=${st12[1]} 應在鎖骨上方`);
+    assert.ok(st12[1] < cv22[1] + 0.02, '缺盆不應明顯低於天突而落到胸壁');
+    assert.ok(Math.abs(st9[2]) < 0.05, `人迎應在頸前（z=${st9[2]}）`);
+  });
+
   await test('天宗 SI11 在肩胛區、較舊種子內側且偏後', () => {
     const si11 = animeJson.points.find(p => p.code === 'SI11');
     assert.ok(si11);
