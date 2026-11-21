@@ -245,7 +245,6 @@ public class PublicOfficeAuthTest {
     public void guestsAreDeniedManagementApis() throws Exception {
         assertDeniedManagement(send("GET", "/api/status", null));
         assertDeniedManagement(send("GET", "/api/health/history", null));
-        assertDeniedManagement(send("GET", "/api/photos", null));
         assertDeniedManagement(send("POST", "/api/clients/demo/cancel-schedule", null));
     }
 

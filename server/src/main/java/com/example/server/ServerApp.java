@@ -16,7 +16,6 @@ import com.example.server.store.DevStatusService;
 import com.example.server.store.GraffitiStore;
 import com.example.server.store.GuestbookStore;
 import com.example.server.store.RoadmapService;
-import com.example.server.store.PhotoStore;
 import com.example.server.store.RelayStore;
 import com.example.server.util.IpResolver;
 import com.example.server.web.AtlasRoutes;
@@ -26,7 +25,6 @@ import com.example.server.web.GraffitiRoutes;
 import com.example.server.web.GuestbookRoutes;
 import com.example.server.web.OfficePublicRoutes;
 import com.example.server.web.PublicDownloadRoutes;
-import com.example.server.web.PhotoRoutes;
 import com.example.server.web.RelayRoutes;
 import com.example.server.web.DevMachineRoutes;
 import com.example.server.web.DevStatusRoutes;
@@ -61,6 +59,7 @@ public final class ServerApp {
     private static final String SERVER_VERSION = BUILD_INFO.version();
     private static final String STATIC_JS_CSS_CACHE = "no-cache";
     private static final String PAGE_CACHE = "no-cache, must-revalidate";
+    private static final long MAX_HTTP_REQUEST_BYTES = 64L * 1024L * 1024L;
 
     private final AuthService authService;
     private final ClientStore clientStore;
@@ -71,7 +70,6 @@ public final class ServerApp {
     private final DashboardBroadcaster broadcaster;
     private final RelayRoutes relayRoutes;
     private final ChatRoutes chatRoutes;
-    private final PhotoRoutes photoRoutes;
     private final GraffitiStore graffitiStore;
     private final GraffitiRoutes graffitiRoutes;
     private final GuestbookStore guestbookStore;
@@ -119,7 +117,6 @@ public final class ServerApp {
                 this.authService, clientStore, relayStore, gson, broadcaster, this::statusUpdatePayload);
         this.chatRoutes = new ChatRoutes(
                 this.authService, clientStore, gson, broadcaster, this::statusUpdatePayload);
-        this.photoRoutes = new PhotoRoutes(this.authService);
         this.graffitiStore = new GraffitiStore();
         this.graffitiRoutes = new GraffitiRoutes(this.authService, graffitiStore);
         this.guestbookStore = new GuestbookStore();
@@ -169,7 +166,7 @@ public final class ServerApp {
                 applyStaticCache(sf, "public, max-age=86400");
             });
             config.showJavalinBanner = false;
-            long maxRequest = PhotoStore.MAX_INCOMING_REQUEST_BYTES;
+            long maxRequest = MAX_HTTP_REQUEST_BYTES;
             config.http.maxRequestSize = maxRequest;
             config.jetty.multipartConfig.maxFileSize(maxRequest, SizeUnit.BYTES);
             config.jetty.multipartConfig.maxTotalRequestSize(maxRequest, SizeUnit.BYTES);
@@ -216,7 +213,6 @@ public final class ServerApp {
         app.get("/api/client-release/jar", this::clientReleaseJar);
         relayRoutes.register(app);
         chatRoutes.register(app);
-        photoRoutes.register(app);
         graffitiRoutes.register(app);
         guestbookRoutes.register(app);
         officePublicRoutes.register(app);
