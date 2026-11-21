@@ -18,7 +18,7 @@ for (const r of rows) {
     code: r.code,
     source,
     maxDeviationCun: +r.deviationCun.toFixed(3),
-    reason: '第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標',
+    reason: '現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標',
   });
 }
 config.knownExceedances.sort((a, b) => a.code.localeCompare(b.code));

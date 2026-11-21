@@ -59,6 +59,11 @@
           1.452,
           -0.038
         ],
+        "laryngeal_prominence": [
+          0,
+          1.3479,
+          -0.0226
+        ],
         "anterior_hairline": [
           0,
           1.575,
@@ -85,29 +90,89 @@
           -0.045
         ],
         "left_clavicle_mid": [
-          0.045,
-          1.47,
-          -0.035
+          0.0609,
+          1.3091,
+          -0.038
         ],
-        "ren_ying_height": [
-          0.017,
-          1.453,
-          -0.05
+        "right_clavicle_mid": [
+          -0.0609,
+          1.3091,
+          -0.038
+        ],
+        "left_elbow_crease": [
+          0.3274,
+          1.2905,
+          -0.0244
+        ],
+        "right_elbow_crease": [
+          -0.3274,
+          1.2905,
+          -0.0244
+        ],
+        "left_wrist_crease": [
+          0.5409,
+          1.29,
+          -0.0408
+        ],
+        "right_wrist_crease": [
+          -0.5409,
+          1.29,
+          -0.0408
+        ],
+        "left_knee": [
+          0.0558,
+          0.53,
+          -0.0365
+        ],
+        "right_knee": [
+          -0.0558,
+          0.53,
+          -0.0365
+        ],
+        "left_medial_malleolus": [
+          0.028,
+          0.105,
+          0.012
+        ],
+        "right_medial_malleolus": [
+          -0.028,
+          0.105,
+          0.012
+        ],
+        "left_lateral_malleolus": [
+          0.0737,
+          0.105,
+          0.0274
+        ],
+        "right_lateral_malleolus": [
+          -0.0737,
+          0.105,
+          0.0274
         ],
         "qishe_anchor": [
-          0.038,
-          1.45,
-          -0.03
+          0.0221,
+          1.32,
+          -0.032
         ],
         "yintang": [
           0,
           1.505,
-          -0.02
+          -0.095
         ],
-        "baihui": [
-          0,
-          1.622,
-          0.04
+        "pupil_left": [
+          0.0314,
+          1.4813,
+          -0.08
+        ],
+        "nasal_ala": [
+          0.0421,
+          1.4261,
+          -0.0772
+        ],
+        "mouth_corner": [
+          0.0358,
+          1.406,
+          -0.0679
         ],
         "t5_spinous": [
           0,
@@ -135,33 +200,62 @@
           0.105
         ]
       },
-      "cunFrom": [
+      "spans": [
         {
-          "axis": "vertical",
-          "from": "xiphoid",
-          "to": "navel",
-          "cun": 8,
-          "verticalKind": "torso"
-        },
-        {
-          "axis": "vertical",
-          "from": "navel",
-          "to": "pubis_rim",
-          "cun": 5,
-          "verticalKind": "torso"
-        },
-        {
-          "axis": "lateral",
-          "from": "midline",
-          "to": "left_nipple",
-          "cun": 4
-        },
-        {
-          "axis": "vertical",
+          "id": "headFront",
+          "boneSpan": "hairline_front_to_yintang",
           "from": "anterior_hairline",
           "to": "yintang",
-          "cun": 3,
-          "verticalKind": "head"
+          "measure": "vertical"
+        },
+        {
+          "id": "headArc",
+          "boneSpan": "hairline_front_to_back",
+          "from": "anterior_hairline",
+          "to": "posterior_hairline",
+          "measure": "hairArc"
+        },
+        {
+          "id": "chest",
+          "boneSpan": "suprasternal_to_xiphoid",
+          "from": "suprasternal_notch",
+          "to": "xiphoid",
+          "measure": "vertical"
+        },
+        {
+          "id": "upperAbdomen",
+          "boneSpan": "xiphoid_to_navel",
+          "from": "xiphoid",
+          "to": "navel",
+          "measure": "vertical"
+        },
+        {
+          "id": "lowerAbdomen",
+          "boneSpan": "navel_to_pubis",
+          "from": "navel",
+          "to": "pubis_rim",
+          "measure": "vertical"
+        },
+        {
+          "id": "lateral",
+          "boneSpan": "nipple_to_nipple",
+          "from": "right_nipple",
+          "to": "left_nipple",
+          "measure": "lateral"
+        },
+        {
+          "id": "forearm",
+          "boneSpan": "elbow_crease_to_wrist",
+          "from": "left_elbow_crease",
+          "to": "left_wrist_crease",
+          "measure": "distance"
+        },
+        {
+          "id": "leg",
+          "boneSpan": "knee_to_lateral_malleolus",
+          "from": "left_knee",
+          "to": "left_lateral_malleolus",
+          "measure": "distance"
         }
       ]
     },
@@ -172,11 +266,10 @@
         "anterior": "z"
       },
       "landmarks": {
-        "navel": [
-          0,
-          1.0258,
-          0.1117
-        ],
+        "navel": {
+          "sourcePoint": "CV8",
+          "role": "landmark-source"
+        },
         "xiphoid": [
           0,
           1.267,
@@ -187,21 +280,17 @@
           0.876,
           0.112
         ],
-        "left_nipple": [
-          0.0672,
-          1.2611,
-          0.104
-        ],
-        "right_nipple": [
-          -0.0672,
-          1.2611,
-          0.104
-        ],
-        "suprasternal_notch": [
-          0,
-          1.444,
-          0.0246
-        ],
+        "left_nipple": {
+          "sourcePoint": "ST17",
+          "role": "landmark-source"
+        },
+        "right_nipple": {
+          "mirror": "left_nipple"
+        },
+        "suprasternal_notch": {
+          "sourcePoint": "CV22",
+          "role": "landmark-source"
+        },
         "mentolabial_groove": [
           0,
           1.485,
@@ -211,6 +300,11 @@
           0,
           1.515,
           0.072
+        ],
+        "laryngeal_prominence": [
+          0,
+          1.488,
+          0.04
         ],
         "anterior_hairline": [
           0,
@@ -238,29 +332,67 @@
           0.092
         ],
         "left_clavicle_mid": [
-          0.045,
-          1.4726,
-          0.0204
-        ],
-        "ren_ying_height": [
           0.034,
-          1.5,
-          0.085
-        ],
-        "qishe_anchor": [
-          0.038,
-          1.465,
+          1.45,
           0.03
+        ],
+        "right_clavicle_mid": {
+          "mirror": "left_clavicle_mid"
+        },
+        "left_elbow_crease": {
+          "sourcePoint": "LU5"
+        },
+        "right_elbow_crease": {
+          "mirror": "left_elbow_crease"
+        },
+        "left_wrist_crease": {
+          "sourcePoint": "PC7"
+        },
+        "right_wrist_crease": {
+          "mirror": "left_wrist_crease"
+        },
+        "left_knee": {
+          "sourcePoint": "ST35"
+        },
+        "right_knee": {
+          "mirror": "left_knee"
+        },
+        "left_medial_malleolus": {
+          "sourcePoint": "KI3"
+        },
+        "right_medial_malleolus": {
+          "mirror": "left_medial_malleolus"
+        },
+        "left_lateral_malleolus": {
+          "sourcePoint": "BL60"
+        },
+        "right_lateral_malleolus": {
+          "mirror": "left_lateral_malleolus"
+        },
+        "qishe_anchor": [
+          0.02,
+          1.452,
+          0.028
         ],
         "yintang": [
           0,
           1.555,
-          0.04
+          0.075
         ],
-        "baihui": [
-          0,
-          1.717,
-          -0.024
+        "pupil_left": [
+          0.03,
+          1.61,
+          0.068
+        ],
+        "nasal_ala": [
+          0.038,
+          1.55,
+          0.08
+        ],
+        "mouth_corner": [
+          0.028,
+          1.538,
+          0.07
         ],
         "t5_spinous": [
           0,
@@ -288,33 +420,62 @@
           -0.116
         ]
       },
-      "cunFrom": [
+      "spans": [
         {
-          "axis": "vertical",
-          "from": "xiphoid",
-          "to": "navel",
-          "cun": 8,
-          "verticalKind": "torso"
-        },
-        {
-          "axis": "vertical",
-          "from": "navel",
-          "to": "pubis_rim",
-          "cun": 5,
-          "verticalKind": "torso"
-        },
-        {
-          "axis": "lateral",
-          "from": "midline",
-          "to": "left_nipple",
-          "cun": 4
-        },
-        {
-          "axis": "vertical",
+          "id": "headFront",
+          "boneSpan": "hairline_front_to_yintang",
           "from": "anterior_hairline",
           "to": "yintang",
-          "cun": 3,
-          "verticalKind": "head"
+          "measure": "vertical"
+        },
+        {
+          "id": "headArc",
+          "boneSpan": "hairline_front_to_back",
+          "from": "anterior_hairline",
+          "to": "posterior_hairline",
+          "measure": "hairArc"
+        },
+        {
+          "id": "chest",
+          "boneSpan": "suprasternal_to_xiphoid",
+          "from": "suprasternal_notch",
+          "to": "xiphoid",
+          "measure": "vertical"
+        },
+        {
+          "id": "upperAbdomen",
+          "boneSpan": "xiphoid_to_navel",
+          "from": "xiphoid",
+          "to": "navel",
+          "measure": "vertical"
+        },
+        {
+          "id": "lowerAbdomen",
+          "boneSpan": "navel_to_pubis",
+          "from": "navel",
+          "to": "pubis_rim",
+          "measure": "vertical"
+        },
+        {
+          "id": "lateral",
+          "boneSpan": "nipple_to_nipple",
+          "from": "right_nipple",
+          "to": "left_nipple",
+          "measure": "lateral"
+        },
+        {
+          "id": "forearm",
+          "boneSpan": "elbow_crease_to_wrist",
+          "from": "left_elbow_crease",
+          "to": "left_wrist_crease",
+          "measure": "distance"
+        },
+        {
+          "id": "leg",
+          "boneSpan": "knee_to_lateral_malleolus",
+          "from": "left_knee",
+          "to": "left_lateral_malleolus",
+          "measure": "distance"
         }
       ]
     }
@@ -324,6 +485,7 @@
       "code": "CV8",
       "midline": true,
       "at": "navel",
+      "span": "upperAbdomen",
       "summary": "臍中"
     },
     {
@@ -331,6 +493,7 @@
       "midline": true,
       "ref": "navel",
       "verticalCun": 1,
+      "span": "upperAbdomen",
       "summary": "臍中上 1 寸"
     },
     {
@@ -338,6 +501,7 @@
       "midline": true,
       "ref": "navel",
       "verticalCun": 2,
+      "span": "upperAbdomen",
       "summary": "臍中上 2 寸"
     },
     {
@@ -345,6 +509,7 @@
       "midline": true,
       "ref": "navel",
       "verticalCun": 3,
+      "span": "upperAbdomen",
       "summary": "臍中上 3 寸"
     },
     {
@@ -352,6 +517,7 @@
       "midline": true,
       "ref": "navel",
       "verticalCun": 4,
+      "span": "upperAbdomen",
       "summary": "臍中上 4 寸"
     },
     {
@@ -359,6 +525,7 @@
       "midline": true,
       "ref": "navel",
       "verticalCun": 5,
+      "span": "upperAbdomen",
       "summary": "臍中上 5 寸"
     },
     {
@@ -366,21 +533,23 @@
       "midline": true,
       "ref": "navel",
       "verticalCun": 6,
-      "summary": "臍中上 6 寸（標準）"
+      "span": "upperAbdomen",
+      "summary": "臍中上 6 寸"
     },
     {
       "code": "CV15",
       "midline": true,
       "ref": "xiphoid",
       "verticalCun": -1,
+      "span": "upperAbdomen",
       "summary": "劍突下 1 寸"
     },
     {
       "code": "CV16",
       "midline": true,
-      "ref": "xiphoid",
-      "verticalCun": -2,
-      "summary": "胸劍聯合下約 2 寸"
+      "at": "xiphoid",
+      "span": "chest",
+      "summary": "胸劍結合、第5肋間"
     },
     {
       "code": "CV17",
@@ -389,52 +558,64 @@
         "left_nipple",
         "right_nipple"
       ],
+      "span": "chest",
       "summary": "兩乳連線中點"
     },
     {
       "code": "CV18",
+      "span": "chest",
+      "chestSurface": true,
       "midline": true,
-      "ref": "left_nipple",
-      "verticalCun": 1,
-      "summary": "膻中上 1 寸"
+      "ref": "suprasternal_notch",
+      "verticalCun": -5.5,
+      "summary": "第3肋間、前正中線"
     },
     {
       "code": "CV19",
+      "span": "chest",
+      "chestSurface": true,
       "midline": true,
-      "ref": "left_nipple",
-      "verticalCun": 2,
-      "summary": "膻中上 2 寸"
+      "ref": "suprasternal_notch",
+      "verticalCun": -3.75,
+      "summary": "第2肋間、前正中線"
     },
     {
       "code": "CV20",
+      "span": "chest",
+      "chestSurface": true,
       "midline": true,
-      "ref": "xiphoid",
-      "verticalCun": -3,
-      "summary": "胸劍聯合下 3 寸"
+      "ref": "suprasternal_notch",
+      "verticalCun": -2,
+      "summary": "第1肋間、前正中線"
     },
     {
       "code": "CV21",
+      "span": "chest",
+      "chestSurface": true,
       "midline": true,
-      "ref": "xiphoid",
-      "verticalCun": -4,
-      "summary": "胸劍聯合下 4 寸"
+      "ref": "suprasternal_notch",
+      "verticalCun": -1,
+      "summary": "天突下 1 寸"
     },
     {
       "code": "CV22",
       "midline": true,
       "at": "suprasternal_notch",
+      "span": "chest",
       "summary": "胸骨上窩中央"
     },
     {
       "code": "CV23",
       "midline": true,
       "at": "larynx_suprahyoid",
-      "summary": "喉結上舌骨上緣"
+      "span": "upperAbdomen",
+      "summary": "喉結上、舌骨上緣"
     },
     {
       "code": "CV24",
       "midline": true,
       "at": "mentolabial_groove",
+      "span": "upperAbdomen",
       "summary": "頦唇溝正中"
     },
     {
@@ -442,6 +623,7 @@
       "midline": true,
       "ref": "navel",
       "verticalCun": -1,
+      "span": "lowerAbdomen",
       "summary": "臍中下 1 寸"
     },
     {
@@ -449,6 +631,7 @@
       "midline": true,
       "ref": "navel",
       "verticalCun": -1.5,
+      "span": "lowerAbdomen",
       "summary": "臍中下 1.5 寸"
     },
     {
@@ -456,6 +639,7 @@
       "midline": true,
       "ref": "navel",
       "verticalCun": -2,
+      "span": "lowerAbdomen",
       "summary": "臍中下 2 寸"
     },
     {
@@ -463,6 +647,7 @@
       "midline": true,
       "ref": "navel",
       "verticalCun": -3,
+      "span": "lowerAbdomen",
       "summary": "臍中下 3 寸"
     },
     {
@@ -470,12 +655,14 @@
       "midline": true,
       "ref": "navel",
       "verticalCun": -4,
+      "span": "lowerAbdomen",
       "summary": "臍中下 4 寸"
     },
     {
       "code": "CV2",
       "midline": true,
       "at": "pubis_rim",
+      "span": "lowerAbdomen",
       "summary": "恥骨聯合上緣"
     },
     {
@@ -483,858 +670,915 @@
       "midline": true,
       "ref": "pubis_rim",
       "verticalCun": -0.5,
-      "summary": "會陰（恥骨下）"
+      "span": "lowerAbdomen",
+      "summary": "會陰"
     },
     {
       "code": "GV14",
       "midline": true,
       "at": "c7_spinous",
-      "summary": "C7 棘突下",
-      "posterior": true
+      "span": "upperAbdomen",
+      "summary": "第7頸椎棘突下"
     },
     {
-      "code": "GV15",
+      "code": "GV13",
+      "spinous": {
+        "from": "c7_spinous",
+        "to": "t5_spinous",
+        "numer": 1,
+        "denom": 5
+      },
       "midline": true,
-      "ref": "occipital_protuberance",
-      "verticalCun": -0.5,
-      "summary": "風府下 0.5 寸",
-      "posterior": true
+      "span": "upperAbdomen",
+      "summary": "第1胸椎棘突下"
     },
     {
-      "code": "GV16",
+      "code": "GV12",
+      "spinous": {
+        "from": "c7_spinous",
+        "to": "t5_spinous",
+        "numer": 3,
+        "denom": 5
+      },
       "midline": true,
-      "at": "occipital_protuberance",
-      "summary": "枕外隆凸下凹陷",
-      "posterior": true
+      "span": "upperAbdomen",
+      "summary": "第3胸椎棘突下"
     },
     {
-      "code": "GV17",
+      "code": "GV11",
       "midline": true,
-      "ref": "occipital_protuberance",
-      "verticalCun": -1,
-      "summary": "風府下 1 寸",
-      "posterior": true
+      "at": "t5_spinous",
+      "span": "upperAbdomen",
+      "summary": "第5胸椎棘突下"
     },
     {
-      "code": "GV20",
+      "code": "GV10",
+      "spinous": {
+        "from": "t5_spinous",
+        "to": "t9_spinous",
+        "numer": 1,
+        "denom": 4
+      },
       "midline": true,
-      "at": "baihui",
-      "summary": "百會",
-      "posterior": true
+      "span": "upperAbdomen",
+      "summary": "第6胸椎棘突下"
     },
     {
-      "code": "GV21",
+      "code": "GV9",
+      "spinous": {
+        "from": "t5_spinous",
+        "to": "t9_spinous",
+        "numer": 2,
+        "denom": 4
+      },
       "midline": true,
-      "ref": "baihui",
-      "verticalCun": -0.5,
-      "summary": "百會前 0.5 寸",
-      "posterior": true
+      "span": "upperAbdomen",
+      "summary": "第7胸椎棘突下"
     },
     {
-      "code": "GV22",
+      "code": "GV8",
       "midline": true,
-      "ref": "baihui",
-      "verticalCun": -1,
-      "summary": "百會前 1 寸",
-      "posterior": true
+      "at": "t9_spinous",
+      "span": "upperAbdomen",
+      "summary": "第9胸椎棘突下"
     },
     {
-      "code": "GV23",
+      "code": "GV7",
+      "spinous": {
+        "from": "t9_spinous",
+        "to": "l2_spinous",
+        "numer": 1,
+        "denom": 5
+      },
       "midline": true,
-      "ref": "anterior_hairline",
-      "verticalCun": 1,
-      "verticalKind": "head",
-      "summary": "前髮際上 1 寸",
-      "posterior": true
+      "span": "upperAbdomen",
+      "summary": "第10胸椎棘突下"
     },
     {
-      "code": "GV24",
+      "code": "GV6",
+      "spinous": {
+        "from": "t9_spinous",
+        "to": "l2_spinous",
+        "numer": 2,
+        "denom": 5
+      },
       "midline": true,
-      "ref": "anterior_hairline",
-      "verticalCun": 0.5,
-      "verticalKind": "head",
-      "summary": "前髮際上 0.5 寸",
-      "posterior": true
+      "span": "upperAbdomen",
+      "summary": "第11胸椎棘突下"
     },
     {
-      "code": "GV24+",
+      "code": "GV5",
+      "spinous": {
+        "from": "t9_spinous",
+        "to": "l2_spinous",
+        "numer": 4,
+        "denom": 5
+      },
       "midline": true,
-      "at": "yintang",
-      "summary": "印堂（前髮際下 3 寸）",
-      "posterior": true
-    },
-    {
-      "code": "GV25",
-      "midline": true,
-      "ref": "philtrum_upper_third",
-      "verticalCun": -0.5,
-      "summary": "人中上",
-      "posterior": true
-    },
-    {
-      "code": "GV26",
-      "midline": true,
-      "at": "philtrum_upper_third",
-      "summary": "人中溝上 1/3",
-      "posterior": true
-    },
-    {
-      "code": "GV27",
-      "midline": true,
-      "ref": "philtrum_upper_third",
-      "verticalCun": -0.8,
-      "summary": "上唇下",
-      "posterior": true
-    },
-    {
-      "code": "GV28",
-      "midline": true,
-      "ref": "philtrum_upper_third",
-      "verticalCun": -1.2,
-      "summary": "齦交區",
-      "posterior": true
+      "span": "upperAbdomen",
+      "summary": "第1腰椎棘突下"
     },
     {
       "code": "GV4",
       "midline": true,
       "at": "l2_spinous",
-      "summary": "L2 棘突下（與臍相平）",
-      "posterior": true
+      "span": "upperAbdomen",
+      "summary": "第2腰椎棘突下"
     },
     {
       "code": "GV3",
       "midline": true,
       "at": "l4_spinous",
-      "summary": "L4 棘突下",
-      "posterior": true
+      "span": "upperAbdomen",
+      "summary": "第4腰椎棘突下"
     },
     {
       "code": "GV2",
       "midline": true,
       "at": "s2_sacrum",
-      "summary": "骶管裂孔／骶角間",
-      "posterior": true
+      "span": "lowerAbdomen",
+      "summary": "骶管裂孔"
     },
     {
       "code": "GV1",
       "midline": true,
       "ref": "s2_sacrum",
       "verticalCun": -0.8,
-      "summary": "尾骨端",
-      "posterior": true
+      "span": "lowerAbdomen",
+      "summary": "尾骨端"
     },
     {
-      "code": "GV5",
+      "code": "GV24+",
       "midline": true,
-      "ref": "l2_spinous",
-      "verticalCun": 0.8,
-      "summary": "L1 上",
-      "posterior": true
+      "at": "yintang",
+      "span": "headFront",
+      "summary": "兩眉頭連線中點"
     },
     {
-      "code": "GV6",
+      "code": "GV24",
       "midline": true,
-      "ref": "l2_spinous",
-      "verticalCun": 1.6,
-      "summary": "T12 上",
-      "posterior": true
+      "scalpFrom": "anterior_hairline",
+      "scalpCun": 0.5,
+      "span": "headFront",
+      "summary": "前髮際正中直上 0.5 寸"
     },
     {
-      "code": "GV7",
+      "code": "GV23",
       "midline": true,
-      "at": "t9_spinous",
-      "summary": "T10 棘突下",
-      "posterior": true
+      "scalpFrom": "anterior_hairline",
+      "scalpCun": 1,
+      "span": "headFront",
+      "summary": "前髮際正中直上 1 寸"
     },
     {
-      "code": "GV8",
+      "code": "GV22",
       "midline": true,
-      "at": "t9_spinous",
-      "summary": "T9 棘突下",
-      "posterior": true
+      "scalpFrom": "anterior_hairline",
+      "scalpCun": 2,
+      "span": "headFront",
+      "summary": "前髮際正中直上 2 寸"
     },
     {
-      "code": "GV9",
+      "code": "GV21",
       "midline": true,
-      "ref": "c7_spinous",
-      "verticalCun": -2.5,
-      "summary": "T7 下",
-      "posterior": true
+      "scalpFrom": "anterior_hairline",
+      "scalpCun": 3.5,
+      "span": "headFront",
+      "summary": "前髮際正中直上 3.5 寸"
     },
     {
-      "code": "GV10",
+      "code": "GV20",
       "midline": true,
-      "ref": "c7_spinous",
-      "verticalCun": -3.2,
-      "summary": "T6 下",
-      "posterior": true
-    },
-    {
-      "code": "GV11",
-      "midline": true,
-      "at": "t5_spinous",
-      "summary": "T5 棘突下",
-      "posterior": true
-    },
-    {
-      "code": "GV12",
-      "midline": true,
-      "ref": "c7_spinous",
-      "verticalCun": -4.8,
-      "summary": "T3 下",
-      "posterior": true
-    },
-    {
-      "code": "GV13",
-      "midline": true,
-      "ref": "c7_spinous",
-      "verticalCun": -1.2,
-      "summary": "T1 下",
-      "posterior": true
-    },
-    {
-      "code": "GV18",
-      "midline": true,
-      "ref": "occipital_protuberance",
-      "verticalCun": -1.5,
-      "summary": "強間",
-      "posterior": true
+      "scalpFrom": "anterior_hairline",
+      "scalpCun": 5,
+      "span": "headFront",
+      "summary": "前髮際正中直上 5 寸"
     },
     {
       "code": "GV19",
       "midline": true,
-      "ref": "occipital_protuberance",
-      "verticalCun": -2,
-      "summary": "後頂",
-      "posterior": true
+      "scalpFrom": "posterior_hairline",
+      "scalpCun": 5.5,
+      "span": "headFront",
+      "summary": "後髮際正中直上 5.5 寸"
     },
     {
-      "code": "ST9",
-      "at": "ren_ying_height",
-      "summary": "喉結上緣旁開 1.5 寸（頸前緣）"
+      "code": "GV18",
+      "midline": true,
+      "scalpFrom": "posterior_hairline",
+      "scalpCun": 4,
+      "span": "headFront",
+      "summary": "後髮際正中直上 4 寸"
     },
     {
-      "code": "ST10",
-      "along": {
-        "to": "qishe_anchor",
-        "fraction": 0.5
-      },
-      "ref": "ren_ying_height",
-      "summary": "人迎–氣舍中點"
+      "code": "GV17",
+      "midline": true,
+      "scalpFrom": "posterior_hairline",
+      "scalpCun": 2.5,
+      "span": "headFront",
+      "summary": "後髮際正中直上 2.5 寸"
     },
     {
-      "code": "ST11",
-      "at": "qishe_anchor",
-      "summary": "胸鎖關節上緣凹陷"
+      "code": "GV16",
+      "midline": true,
+      "scalpFrom": "posterior_hairline",
+      "scalpCun": 1,
+      "span": "headFront",
+      "summary": "後髮際正中直上 1 寸"
     },
     {
-      "code": "ST12",
-      "ref": "suprasternal_notch",
-      "lateralCun": 4,
-      "verticalCun": 0.8,
-      "summary": "鎖骨上窩、乳中線"
+      "code": "GV15",
+      "midline": true,
+      "scalpFrom": "posterior_hairline",
+      "scalpCun": 0.5,
+      "span": "headFront",
+      "summary": "後髮際正中直上 0.5 寸"
+    },
+    {
+      "code": "GV26",
+      "midline": true,
+      "at": "philtrum_upper_third",
+      "span": "upperAbdomen",
+      "summary": "人中溝上 1/3"
+    },
+    {
+      "code": "GV25",
+      "midline": true,
+      "ref": "philtrum_upper_third",
+      "verticalCun": -0.5,
+      "span": "upperAbdomen",
+      "summary": "鼻尖上方、人中溝上段"
+    },
+    {
+      "code": "GV27",
+      "midline": true,
+      "ref": "philtrum_upper_third",
+      "verticalCun": -0.8,
+      "span": "upperAbdomen",
+      "summary": "上唇上方"
+    },
+    {
+      "code": "GV28",
+      "midline": true,
+      "ref": "philtrum_upper_third",
+      "verticalCun": -1.2,
+      "span": "upperAbdomen",
+      "summary": "上唇內齦交"
     },
     {
       "code": "ST1",
       "ref": "yintang",
       "verticalCun": -2,
       "lateralCun": 1.2,
-      "summary": "瞳孔直下眶下緣"
+      "span": "upperAbdomen",
+      "summary": "瞳孔直下、眶下緣"
     },
     {
       "code": "ST2",
       "ref": "yintang",
       "verticalCun": -2.5,
       "lateralCun": 1.2,
-      "summary": "眶下孔凹陷"
+      "span": "upperAbdomen",
+      "summary": "瞳孔直下、眶下孔"
     },
     {
       "code": "ST3",
-      "ref": "yintang",
-      "verticalCun": -3,
-      "lateralCun": 1.5,
-      "summary": "鼻孔旁 0.8 寸"
+      "atLevel": {
+        "xFrom": "pupil_left",
+        "yFrom": "nasal_ala",
+        "zFrom": "nasal_ala"
+      },
+      "span": "headFront",
+      "summary": "橫平鼻翼下緣、瞳孔直下"
     },
     {
       "code": "ST4",
-      "ref": "mentolabial_groove",
+      "ref": "mouth_corner",
       "lateralCun": 0.4,
-      "summary": "口角外 0.4 寸"
+      "span": "headFront",
+      "summary": "口角旁 0.4 寸"
     },
     {
       "code": "ST6",
       "ref": "mentolabial_groove",
       "verticalCun": 0.8,
       "lateralCun": 1.5,
-      "summary": "咬肌隆起前"
+      "span": "upperAbdomen",
+      "summary": "下頜角前、咬肌隆起"
+    },
+    {
+      "code": "ST9",
+      "ref": "laryngeal_prominence",
+      "lateralAbsCun": 1.5,
+      "span": "headFront",
+      "summary": "喉結旁開 1.5 寸"
+    },
+    {
+      "code": "ST10",
+      "midpointOfRules": [
+        "ST9",
+        "ST11"
+      ],
+      "span": "headFront",
+      "summary": "人迎與氣舍連線中點"
+    },
+    {
+      "code": "ST11",
+      "at": "qishe_anchor",
+      "span": "chest",
+      "summary": "鎖骨胸骨端上緣凹陷"
+    },
+    {
+      "code": "ST12",
+      "ref": "left_clavicle_mid",
+      "lateralAbsCun": 4,
+      "span": "chest",
+      "summary": "鎖骨上窩、前正中線旁開 4 寸"
     },
     {
       "code": "ST13",
       "ref": "left_clavicle_mid",
-      "lateralCun": 0,
-      "verticalCun": -0.5,
-      "summary": "鎖骨下、氣戶"
+      "lateralAbsCun": 4,
+      "span": "chest",
+      "summary": "鎖骨下緣、前正中線旁開 4 寸"
     },
     {
       "code": "ST14",
-      "ref": "left_nipple",
-      "verticalCun": 1,
-      "lateralCun": 0,
-      "summary": "乳上肋骨間"
+      "sameLevelAs": "CV20",
+      "lateralAbsCun": 4,
+      "zFrom": "left_nipple",
+      "span": "chest",
+      "summary": "第1肋間、前正中線旁開 4 寸"
     },
     {
       "code": "ST15",
-      "ref": "left_nipple",
-      "verticalCun": 0.5,
-      "lateralCun": -0.5,
-      "summary": "屋翳"
+      "sameLevelAs": "CV19",
+      "lateralAbsCun": 4,
+      "zFrom": "left_nipple",
+      "span": "chest",
+      "summary": "第2肋間、前正中線旁開 4 寸"
     },
     {
       "code": "ST16",
-      "ref": "left_nipple",
-      "verticalCun": 0,
-      "lateralCun": -0.5,
-      "summary": "膺窗"
+      "sameLevelAs": "CV18",
+      "lateralAbsCun": 4,
+      "zFrom": "left_nipple",
+      "span": "chest",
+      "summary": "第3肋間、前正中線旁開 4 寸"
     },
     {
       "code": "ST17",
       "at": "left_nipple",
-      "summary": "乳頭中央"
+      "span": "chest",
+      "summary": "乳頭中央、前正中線旁開 4 寸"
     },
     {
       "code": "ST18",
-      "ref": "left_nipple",
-      "verticalCun": -1,
-      "lateralCun": 0,
-      "summary": "乳根 5 肋間"
+      "sameLevelAs": "CV16",
+      "lateralAbsCun": 4,
+      "zFrom": "left_nipple",
+      "span": "chest",
+      "summary": "第5肋間、前正中線旁開 4 寸"
     },
     {
       "code": "ST19",
       "ref": "navel",
-      "verticalCun": 5,
+      "verticalCun": 6,
       "lateralCun": 2,
-      "summary": "不容"
+      "span": "upperAbdomen",
+      "summary": "臍中上 6 寸、旁開 2 寸"
     },
     {
       "code": "ST20",
       "ref": "navel",
-      "verticalCun": 4.5,
+      "verticalCun": 5,
       "lateralCun": 2,
-      "summary": "承滿"
+      "span": "upperAbdomen",
+      "summary": "臍中上 5 寸、旁開 2 寸"
     },
     {
       "code": "ST21",
       "ref": "navel",
       "verticalCun": 4,
       "lateralCun": 2,
-      "summary": "梁門"
+      "span": "upperAbdomen",
+      "summary": "臍中上 4 寸、旁開 2 寸"
     },
     {
       "code": "ST22",
       "ref": "navel",
-      "verticalCun": 3.5,
+      "verticalCun": 3,
       "lateralCun": 2,
-      "summary": "關門"
+      "span": "upperAbdomen",
+      "summary": "臍中上 3 寸、旁開 2 寸"
     },
     {
       "code": "ST23",
       "ref": "navel",
-      "verticalCun": 3,
+      "verticalCun": 2,
       "lateralCun": 2,
-      "summary": "太乙"
+      "span": "upperAbdomen",
+      "summary": "臍中上 2 寸、旁開 2 寸"
     },
     {
       "code": "ST24",
       "ref": "navel",
-      "verticalCun": 2.5,
+      "verticalCun": 1,
       "lateralCun": 2,
-      "summary": "滑肉門"
+      "span": "upperAbdomen",
+      "summary": "臍中上 1 寸、旁開 2 寸"
     },
     {
       "code": "ST25",
       "ref": "navel",
       "lateralCun": 2,
-      "summary": "臍旁 2 寸"
+      "span": "upperAbdomen",
+      "summary": "臍中旁開 2 寸"
     },
     {
       "code": "ST26",
       "ref": "navel",
       "verticalCun": -1,
       "lateralCun": 2,
-      "summary": "外陵"
+      "span": "lowerAbdomen",
+      "summary": "臍中下 1 寸、旁開 2 寸"
     },
     {
       "code": "ST27",
       "ref": "navel",
-      "verticalCun": -1.5,
+      "verticalCun": -2,
       "lateralCun": 2,
-      "summary": "大巨"
+      "span": "lowerAbdomen",
+      "summary": "臍中下 2 寸、旁開 2 寸"
     },
     {
       "code": "ST28",
       "ref": "navel",
-      "verticalCun": -2,
+      "verticalCun": -3,
       "lateralCun": 2,
-      "summary": "水道"
+      "span": "lowerAbdomen",
+      "summary": "臍中下 3 寸、旁開 2 寸"
     },
     {
       "code": "ST29",
       "ref": "navel",
-      "verticalCun": -2.5,
+      "verticalCun": -4,
       "lateralCun": 2,
-      "summary": "歸來"
+      "span": "lowerAbdomen",
+      "summary": "臍中下 4 寸、旁開 2 寸"
     },
     {
       "code": "ST30",
       "ref": "pubis_rim",
       "lateralCun": 2,
-      "summary": "氣衝"
+      "span": "lowerAbdomen",
+      "summary": "恥骨聯合上緣旁開 2 寸"
     }
   ],
   "knownExceedances": [
     {
       "code": "CV1",
       "source": "catalog",
-      "maxDeviationCun": 5.577,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 5.574,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV10",
       "source": "catalog",
-      "maxDeviationCun": 0.41,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.419,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV11",
       "source": "catalog",
-      "maxDeviationCun": 0.615,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.629,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV12",
       "source": "catalog",
-      "maxDeviationCun": 0.821,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.84,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV13",
       "source": "catalog",
-      "maxDeviationCun": 1.045,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 1.069,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV14",
       "source": "anime",
       "maxDeviationCun": 1.894,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV15",
       "source": "catalog",
-      "maxDeviationCun": 1.439,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 1.423,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV16",
       "source": "catalog",
-      "maxDeviationCun": 0.704,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 2.013,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV17",
       "source": "anime",
       "maxDeviationCun": 0.683,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV18",
       "source": "catalog",
-      "maxDeviationCun": 0.494,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.194,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV19",
       "source": "catalog",
-      "maxDeviationCun": 0.604,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.867,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV2",
       "source": "catalog",
       "maxDeviationCun": 0.736,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV20",
       "source": "catalog",
-      "maxDeviationCun": 5.404,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 4.561,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV21",
       "source": "catalog",
-      "maxDeviationCun": 7.378,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 4.446,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV23",
       "source": "anime",
       "maxDeviationCun": 3.093,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV24",
       "source": "anime",
       "maxDeviationCun": 1.698,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV3",
       "source": "catalog",
       "maxDeviationCun": 0.585,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV4",
       "source": "catalog",
-      "maxDeviationCun": 0.467,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.468,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV7",
       "source": "catalog",
-      "maxDeviationCun": 0.362,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.363,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "CV8",
       "source": "anime",
       "maxDeviationCun": 0.403,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV1",
       "source": "catalog",
-      "maxDeviationCun": 2.087,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 2.135,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV10",
       "source": "catalog",
-      "maxDeviationCun": 2.422,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 2.817,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV11",
       "source": "catalog",
-      "maxDeviationCun": 3.073,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.055,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV12",
       "source": "catalog",
-      "maxDeviationCun": 6.435,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.273,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV13",
       "source": "catalog",
-      "maxDeviationCun": 4.327,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.657,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV14",
       "source": "anime",
       "maxDeviationCun": 1.962,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV15",
       "source": "anime",
-      "maxDeviationCun": 2.258,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.969,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV16",
       "source": "anime",
-      "maxDeviationCun": 1.065,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.685,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV17",
       "source": "catalog",
-      "maxDeviationCun": 6.547,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 2.226,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV18",
       "source": "catalog",
-      "maxDeviationCun": 8.469,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.097,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV19",
       "source": "catalog",
-      "maxDeviationCun": 10.782,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 4.139,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV2",
       "source": "catalog",
-      "maxDeviationCun": 0.892,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.891,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
+    },
+    {
+      "code": "GV20",
+      "source": "anime",
+      "maxDeviationCun": 3.136,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV21",
       "source": "catalog",
-      "maxDeviationCun": 9.143,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.57,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV22",
       "source": "catalog",
-      "maxDeviationCun": 10.572,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.98,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV23",
       "source": "anime",
-      "maxDeviationCun": 2.832,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 2.191,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV24",
       "source": "catalog",
-      "maxDeviationCun": 12.072,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
-    },
-    {
-      "code": "GV24+",
-      "source": "anime",
-      "maxDeviationCun": 5.43,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.561,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV25",
       "source": "catalog",
-      "maxDeviationCun": 13.539,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.493,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV26",
       "source": "anime",
       "maxDeviationCun": 3.941,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV27",
       "source": "catalog",
-      "maxDeviationCun": 12.514,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 2.919,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV28",
       "source": "catalog",
-      "maxDeviationCun": 13.665,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 2.732,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV3",
       "source": "catalog",
-      "maxDeviationCun": 0.628,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.625,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV4",
       "source": "anime",
       "maxDeviationCun": 4.38,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV5",
       "source": "catalog",
-      "maxDeviationCun": 0.489,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.625,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV6",
       "source": "catalog",
-      "maxDeviationCun": 1.611,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 1.224,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV7",
       "source": "catalog",
-      "maxDeviationCun": 1.2,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 1.844,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV8",
       "source": "catalog",
-      "maxDeviationCun": 2.492,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 2.476,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "GV9",
       "source": "catalog",
-      "maxDeviationCun": 0.623,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 2.594,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST1",
       "source": "anime",
-      "maxDeviationCun": 4.517,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 1.545,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST10",
       "source": "catalog",
-      "maxDeviationCun": 1.295,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.431,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST11",
       "source": "catalog",
-      "maxDeviationCun": 2.347,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.135,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST12",
       "source": "anime",
-      "maxDeviationCun": 1.434,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 2.241,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST13",
       "source": "catalog",
-      "maxDeviationCun": 3.689,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 3.599,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST14",
       "source": "catalog",
-      "maxDeviationCun": 1.946,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 2.947,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST15",
       "source": "catalog",
-      "maxDeviationCun": 1.485,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 2.629,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST16",
       "source": "catalog",
-      "maxDeviationCun": 1.062,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 2.336,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST17",
       "source": "anime",
       "maxDeviationCun": 0.446,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
+    },
+    {
+      "code": "ST18",
+      "source": "catalog",
+      "maxDeviationCun": 1.767,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST19",
       "source": "catalog",
-      "maxDeviationCun": 0.925,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 1.405,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST2",
       "source": "anime",
-      "maxDeviationCun": 4.932,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 1.406,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST20",
       "source": "catalog",
-      "maxDeviationCun": 1.014,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 1.347,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST21",
       "source": "catalog",
-      "maxDeviationCun": 1.293,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 1.305,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST22",
       "source": "catalog",
-      "maxDeviationCun": 1.66,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 1.269,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST23",
       "source": "catalog",
-      "maxDeviationCun": 1.785,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 1.037,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST24",
       "source": "catalog",
-      "maxDeviationCun": 2.054,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.939,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST25",
       "source": "anime",
       "maxDeviationCun": 1.65,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST26",
       "source": "catalog",
-      "maxDeviationCun": 0.882,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.88,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST27",
       "source": "catalog",
-      "maxDeviationCun": 0.991,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.896,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST28",
       "source": "catalog",
-      "maxDeviationCun": 1.284,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.936,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST29",
       "source": "catalog",
-      "maxDeviationCun": 1.664,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
-    },
-    {
-      "code": "ST3",
-      "source": "anime",
-      "maxDeviationCun": 4.707,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.988,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST30",
       "source": "catalog",
-      "maxDeviationCun": 1.096,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 1.094,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST4",
       "source": "anime",
-      "maxDeviationCun": 2.18,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.441,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST6",
       "source": "anime",
       "maxDeviationCun": 3.9,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     },
     {
       "code": "ST9",
       "source": "anime",
-      "maxDeviationCun": 3.886,
-      "reason": "第一期基準既有偏差；修點另開單，勿為通過校驗硬移座標"
+      "maxDeviationCun": 0.468,
+      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
     }
   ]
 }
