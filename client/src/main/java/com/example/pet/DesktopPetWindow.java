@@ -749,7 +749,7 @@ public final class DesktopPetWindow extends JFrame {
                 if (!dragging) {
                     return;
                 }
-                Point clamped = clampToScreens(
+                Point clamped = clampDragToScreens(
                         now.x - grabOffset.x,
                         now.y - grabOffset.y,
                         getWidth(),
@@ -1223,6 +1223,46 @@ public final class DesktopPetWindow extends JFrame {
         return new Point(Math.max(usable.x, x), Math.max(usable.y, y));
     }
 
+    /** 拖曳時以角色可見區塊為準，頭頂可貼近選單列下緣。 */
+    static Point clampDragToScreens(int x, int y, int windowWidth, int windowHeight, Rectangle[] screens) {
+        if (screens == null || screens.length == 0) {
+            return new Point(x, y);
+        }
+        int contentTop = Math.max(0, BUBBLE_SLOT - 14);
+        int contentHeight = DesktopPetSpriteLoader.DISPLAY + 28;
+        Rectangle content = new Rectangle(x, y + contentTop, windowWidth, contentHeight);
+        Rectangle host = null;
+        int bestArea = -1;
+        for (Rectangle screen : screens) {
+            if (screen == null) {
+                continue;
+            }
+            Rectangle hit = screen.intersection(content);
+            int area = Math.max(0, hit.width) * Math.max(0, hit.height);
+            if (area > bestArea) {
+                bestArea = area;
+                host = screen;
+            }
+        }
+        if (host == null) {
+            host = screens[0];
+        }
+        int minVisible = 24;
+        int minX = host.x - windowWidth + minVisible;
+        int maxX = host.x + host.width - minVisible;
+        int minY = host.y - contentTop;
+        int maxY = host.y + host.height - Math.min(minVisible, windowHeight);
+        if (maxX < minX) {
+            minX = maxX = host.x;
+        }
+        if (maxY < minY) {
+            minY = maxY = host.y;
+        }
+        return new Point(
+                Math.max(minX, Math.min(x, maxX)),
+                Math.max(minY, Math.min(y, maxY)));
+    }
+
     static Point clampToScreens(int x, int y, int windowWidth, int windowHeight, Rectangle[] screens) {
         if (screens == null || screens.length == 0) {
             return new Point(x, y);
@@ -1287,6 +1327,39 @@ public final class DesktopPetWindow extends JFrame {
         @Override
         public boolean isOpaque() {
             return false;
+        }
+
+        @Override
+        public boolean contains(int x, int y) {
+            if (!super.contains(x, y)) {
+                return false;
+            }
+            if (bubbleBounds != null && bubbleBounds.contains(x, y)) {
+                return true;
+            }
+            if (control.isActive()) {
+                int boxW = 120;
+                int boxH = 24;
+                int bx = getWidth() - boxW - 6;
+                if (x >= bx && x <= bx + boxW && y >= 6 && y <= 6 + boxH) {
+                    return true;
+                }
+            }
+            return spriteHit(x, y);
+        }
+
+        private boolean spriteHit(int x, int y) {
+            int size = milu != null
+                    ? DesktopPetSpriteLoader.DISPLAY
+                    : sprite.frameWidth() * SCALE;
+            int spriteX = (getWidth() - size) / 2;
+            int spriteY = milu != null ? BUBBLE_SLOT : getHeight() - size - 12 + animation.bob();
+            int pad = 6;
+            int left = spriteX - pad;
+            int right = spriteX + size + pad;
+            int top = Math.max(0, spriteY - 16);
+            int bottom = spriteY + size + 16;
+            return x >= left && x <= right && y >= top && y <= bottom;
         }
 
         @Override

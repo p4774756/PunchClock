@@ -151,6 +151,10 @@ public class DesktopPetTest {
                 new Rectangle(0, 0, 800, 600),
                 new Rectangle(800, 0, 800, 600)
         };
+        Point dragTop = DesktopPetWindow.clampDragToScreens(100, -80, 260, 260, screens);
+        int contentTop = Math.max(0, DesktopPetWindow.BUBBLE_SLOT - 14);
+        assertTrue(dragTop.y + contentTop <= screens[0].y);
+
         Point inside = DesktopPetWindow.clampToScreens(100, 80, 220, 210, screens);
         assertEquals(100, inside.x);
         assertEquals(80, inside.y);
