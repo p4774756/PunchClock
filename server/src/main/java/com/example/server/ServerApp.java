@@ -24,6 +24,7 @@ import com.example.server.web.ChatRoutes;
 import com.example.server.web.DashboardBroadcaster;
 import com.example.server.web.GraffitiRoutes;
 import com.example.server.web.GuestbookRoutes;
+import com.example.server.web.OfficeCheckinRoutes;
 import com.example.server.web.OfficePublicRoutes;
 import com.example.server.web.PublicDownloadRoutes;
 import com.example.server.web.PhotoRoutes;
@@ -80,6 +81,7 @@ public final class ServerApp {
     private final DevStatusService devStatusService;
     private final DevStatusRoutes devStatusRoutes;
     private final OfficePublicRoutes officePublicRoutes;
+    private final OfficeCheckinRoutes officeCheckinRoutes;
     private final DevMachineStore devMachineStore;
     private final DevMachineRoutes devMachineRoutes;
     private final AtlasRoutes atlasRoutes;
@@ -131,6 +133,7 @@ public final class ServerApp {
         this.devStatusRoutes = new DevStatusRoutes(status);
         this.devMachineStore = new DevMachineStore();
         this.officePublicRoutes = new OfficePublicRoutes(devMachineStore, status);
+        this.officeCheckinRoutes = new OfficeCheckinRoutes(clientStore, this.authService);
         this.devMachineRoutes = new DevMachineRoutes(this.authService, devMachineStore, status, gson);
         this.teaHealthRoutes = new TeaHealthRoutes(serverHealth);
         this.atlasRoutes = new AtlasRoutes();
@@ -220,6 +223,7 @@ public final class ServerApp {
         graffitiRoutes.register(app);
         guestbookRoutes.register(app);
         officePublicRoutes.register(app);
+        officeCheckinRoutes.register(app);
         new PublicDownloadRoutes(clientRelease).register(app);
         roadmapRoutes.register(app);
         devStatusRoutes.register(app);

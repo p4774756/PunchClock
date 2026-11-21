@@ -4,6 +4,7 @@ import {
   CHARACTER_IDS,
   LAB_OFFICE_POLL_MS,
   OFFICE_PROP_POS,
+  OFFICE_CONSOLE_POS,
   SPOT_POS,
   buildAllCharacterStates,
   buildCharacterStatesFromPublic,
@@ -80,11 +81,73 @@ export function createLabOfficeController(opts) {
 
   const PROP_LINK = Object.freeze({
     guestbook: null,
-    clock: '/download#checkin',
+    clock: '/checkin',
     bookshelf: '/atlas/tcm-3d/',
     whiteboard: null,
     desk: '/download'
   });
+
+  function applyPropBox(el, spec) {
+    if (!el || !spec) return;
+    const w = spec.w == null ? 12 : spec.w;
+    const h = spec.h == null ? 14 : spec.h;
+    el.style.setProperty('--prop-w', w + '%');
+    el.style.setProperty('--prop-h', h + '%');
+    el.style.left = spec.x + '%';
+    el.style.top = spec.y + '%';
+  }
+
+  function appendHint(el, label, extraHtml) {
+    const hint = doc.createElement('span');
+    hint.className = 'lab-office-prop-hint';
+    hint.setAttribute('aria-hidden', 'true');
+    const name = doc.createElement('span');
+    name.className = 'lab-office-prop-hint-name';
+    setText(name, label);
+    hint.appendChild(name);
+    if (extraHtml) {
+      const extra = doc.createElement('span');
+      extra.className = 'lab-office-prop-hint-extra';
+      extra.innerHTML = extraHtml;
+      hint.appendChild(extra);
+    }
+    el.appendChild(hint);
+  }
+
+  function isCoarsePointer() {
+    return !!(win && win.matchMedia && win.matchMedia('(pointer: coarse)').matches);
+  }
+
+  function bindCoarseActivate(el, href) {
+    if (!el || !href) return;
+    let primed = false;
+    let timer = null;
+    const clear = () => {
+      primed = false;
+      el.classList.remove('is-primed');
+      if (timer != null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+    el.addEventListener('click', (ev) => {
+      if (!isCoarsePointer()) return;
+      if (!primed) {
+        ev.preventDefault();
+        primed = true;
+        el.classList.add('is-primed');
+        timer = setTimeout(clear, 4200);
+        return;
+      }
+      clear();
+      if (href.charAt(0) === '/') {
+        win.location.assign(href);
+      } else {
+        win.location.assign(href);
+      }
+    });
+    el.addEventListener('blur', clear);
+  }
 
   function stopTimer() {
     if (timer != null) {
@@ -119,44 +182,45 @@ export function createLabOfficeController(opts) {
         const btn = doc.createElement('button');
         btn.type = 'button';
         btn.className = 'lab-office-prop lab-office-prop-guestbook';
-        btn.style.left = spec.x + '%';
-        btn.style.top = spec.y + '%';
+        applyPropBox(btn, spec);
         btn.setAttribute('data-open-guestbook', '');
         btn.setAttribute('aria-label', spec.label);
-        const tag = doc.createElement('span');
-        tag.className = 'lab-office-prop-label';
-        setText(tag, spec.label);
-        btn.appendChild(tag);
+        appendHint(btn, spec.label);
+        btn.addEventListener('click', (ev) => {
+          if (!isCoarsePointer()) return;
+          if (!btn.classList.contains('is-primed')) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            btn.classList.add('is-primed');
+            setTimeout(() => btn.classList.remove('is-primed'), 4200);
+            return;
+          }
+          btn.classList.remove('is-primed');
+        }, true);
         layer.appendChild(btn);
         continue;
       }
-      const el = doc.createElement(id === 'whiteboard' ? 'div' : 'a');
+      const el = doc.createElement('a');
       el.className = 'lab-office-prop';
-      el.style.left = spec.x + '%';
-      el.style.top = spec.y + '%';
-      const tag = doc.createElement('span');
-      tag.className = 'lab-office-prop-label';
-      setText(tag, spec.label);
+      applyPropBox(el, spec);
       if (id === 'whiteboard') {
-        const main = doc.createElement('a');
-        main.className = 'lab-office-prop-main';
-        main.href = href;
-        main.setAttribute('aria-label', '白板：開發狀態');
-        main.appendChild(tag);
-        const sub = doc.createElement('a');
-        sub.className = 'lab-office-prop-label lab-office-prop-sub';
-        sub.href = isAuthed() ? '/console' : '/login?next=%2Fconsole';
-        sub.textContent = '主控台';
-        el.setAttribute('aria-label', '白板：開發狀態與主控台');
-        el.appendChild(main);
-        el.appendChild(sub);
-      } else {
-        el.href = href;
-        el.setAttribute('aria-label', spec.label);
-        el.appendChild(tag);
+        href = isAuthed() ? '/dev-status' : '/login?next=%2Fdev-status';
       }
+      el.href = href;
+      el.setAttribute('aria-label', id === 'whiteboard' ? '白板：開發狀態' : spec.label);
+      appendHint(el, spec.label);
+      bindCoarseActivate(el, href);
       layer.appendChild(el);
     }
+    const consoleHref = isAuthed() ? '/console' : '/login?next=%2Fconsole';
+    const consoleEl = doc.createElement('a');
+    consoleEl.className = 'lab-office-prop lab-office-prop-console';
+    applyPropBox(consoleEl, OFFICE_CONSOLE_POS);
+    consoleEl.href = consoleHref;
+    consoleEl.setAttribute('aria-label', OFFICE_CONSOLE_POS.label);
+    appendHint(consoleEl, OFFICE_CONSOLE_POS.label);
+    bindCoarseActivate(consoleEl, consoleHref);
+    layer.appendChild(consoleEl);
   }
 
   function renderChars() {

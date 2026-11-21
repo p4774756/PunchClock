@@ -37,14 +37,17 @@ export function viewerCanOpenLabOffice(authFlag) {
   return authFlag === true;
 }
 
-/** 首頁可點物件（百分比座標，對舞台）。對到新背景的家具，不是舊海景。 */
+/** 首頁可點物件（百分比座標＋命中框，對舞台）。對到新背景的家具，不是舊海景。 */
 export const OFFICE_PROP_POS = Object.freeze({
-  guestbook: { x: 12, y: 69, label: '簽名簿' },
-  clock: { x: 18, y: 63, label: '打卡機' },
-  bookshelf: { x: 34, y: 34, label: '書櫃' },
-  whiteboard: { x: 15, y: 40, label: '白板' },
-  desk: { x: 66, y: 68, label: '下載 App' }
+  guestbook: { x: 12, y: 69, w: 9, h: 12, label: '簽名簿' },
+  clock: { x: 18, y: 63, w: 11, h: 16, label: '打卡機' },
+  bookshelf: { x: 34, y: 34, w: 12, h: 18, label: '書櫃' },
+  whiteboard: { x: 15, y: 40, w: 11, h: 14, label: '白板' },
+  desk: { x: 66, y: 68, w: 12, h: 14, label: '下載 App' }
 });
+
+/** 白板旁主控台小熱點（百分比）。 */
+export const OFFICE_CONSOLE_POS = Object.freeze({ x: 20, y: 45, w: 8, h: 10, label: '主控台' });
 
 function isOnlineRow(row, now) {
   if (!row || !row.online) return false;

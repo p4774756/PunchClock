@@ -166,6 +166,32 @@ public class PublicOfficeAuthTest {
         assertTrue(page.body().contains("Java"));
         assertFalse(page.body().contains("secret"));
         assertFalse(page.body().contains("Bearer"));
+        assertFalse(page.body().contains("門口打卡機對應"));
+    }
+
+    @Test
+    public void checkinPageAndPublicApiForGuests() throws Exception {
+        HttpResponse<String> page = send("GET", "/checkin", null);
+        assertEquals(200, page.statusCode());
+        assertTrue(page.body().contains("checkin-page"));
+        assertTrue(page.body().contains("checkin-page.js"));
+        assertFalse(page.body().contains("PUNCHCLOCK_AUTHENTICATED = true"));
+
+        HttpResponse<String> api = send("GET", "/api/office/checkin/public", null);
+        assertEquals(200, api.statusCode());
+        assertTrue(api.body().contains("\"tasks\""));
+        assertTrue(api.body().contains("detailRequiresLogin"));
+        assertFalse(api.body().contains("clientId"));
+        assertFalse(api.body().contains("targetUrl"));
+    }
+
+    @Test
+    public void checkinDetailRequiresLogin() throws Exception {
+        HttpResponse<String> denied = send("GET", "/api/office/checkin", null);
+        assertEquals(401, denied.statusCode());
+        HttpResponse<String> ok = send("GET", "/api/office/checkin", adminCookie);
+        assertEquals(200, ok.statusCode());
+        assertTrue(ok.body().contains("\"clients\""));
     }
 
     @Test

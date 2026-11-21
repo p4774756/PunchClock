@@ -126,89 +126,82 @@ button.lab-office-prop {
   transform: translate(-50%, -50%);
   pointer-events: auto;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  text-decoration: none;
-  color: #163a70;
+  justify-content: center;
+  width: var(--prop-w, 12%);
+  height: var(--prop-h, 14%);
   min-width: 44px;
   min-height: 44px;
-  justify-content: center;
-  padding: 4px;
+  max-width: 42%;
+  max-height: 46%;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  text-decoration: none;
+  color: #163a70;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  animation: lab-office-prop-idle 5.5s ease-in-out infinite;
+  box-shadow: none;
 }
 
 button.lab-office-prop {
-  border: none;
   font: inherit;
-  cursor: pointer;
-  background: transparent;
 }
 
 .lab-office-prop::before {
-  content: '';
-  width: 18px;
-  height: 18px;
-  border: 2px solid rgba(22, 58, 112, 0.72);
-  border-radius: 6px;
-  background: rgba(248, 251, 255, 0.18);
-  box-shadow: none;
-}
-
-.lab-office-prop-label {
-  font-size: 11px;
-  font-weight: 700;
-  text-align: center;
-  line-height: 1.2;
-  max-width: 5.5rem;
-  background: rgba(248, 251, 255, 0.46);
-  border: 1px solid rgba(22, 58, 112, 0.45);
-  border-radius: 4px;
-  padding: 0 3px;
-  box-shadow: none;
-}
-
-.lab-office-prop:has(> .lab-office-prop-main)::before {
   content: none;
 }
 
-.lab-office-prop-main {
+.lab-office-prop-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  min-width: 44px;
-  min-height: 44px;
-  justify-content: center;
-  text-decoration: none;
-  color: inherit;
-}
-
-.lab-office-prop-main::before {
-  content: '';
-  width: 18px;
-  height: 18px;
-  border: 2px solid rgba(22, 58, 112, 0.72);
-  border-radius: 6px;
-  background: rgba(248, 251, 255, 0.18);
-  box-shadow: none;
-}
-
-a.lab-office-prop-sub {
-  position: relative;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 52px;
-  min-height: 28px;
-  padding: 2px 6px;
-  color: #163a70;
-  font-size: 12px;
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 700;
   line-height: 1.2;
-  text-decoration: none;
-  background: rgba(248, 251, 255, 0.46);
-  border: 1px solid rgba(22, 58, 112, 0.45);
-  border-radius: 4px;
+  color: #163a70;
+  background: rgba(248, 251, 255, 0.92);
+  border: 2px solid rgba(168, 208, 242, 0.95);
+  border-radius: 6px;
+  box-shadow: 0 0 10px rgba(168, 208, 242, 0.55);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.16s ease;
+  white-space: nowrap;
+  z-index: 6;
+}
+
+.lab-office-prop:is(:hover, :focus-visible, .is-primed) {
+  animation: none;
+  box-shadow: 0 0 0 2px rgba(168, 208, 242, 0.55), 0 0 14px rgba(168, 208, 242, 0.45);
+  background: radial-gradient(ellipse at center, rgba(168, 208, 242, 0.22) 0%, transparent 70%);
+}
+
+.lab-office-prop:is(:hover, :focus-visible, .is-primed) .lab-office-prop-hint {
+  opacity: 1;
+}
+
+.lab-office-prop:focus-visible {
+  outline: 3px solid #ecc440;
+  outline-offset: 2px;
+}
+
+@keyframes lab-office-prop-idle {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(168, 208, 242, 0);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(168, 208, 242, 0.28);
+  }
 }
 
 .lab-office-auth {
@@ -337,15 +330,9 @@ a.lab-office-prop-sub {
     overflow-wrap: anywhere;
     background: rgba(248, 251, 255, 0.88);
   }
-  a.lab-office-prop-sub {
-    min-width: 44px;
-    min-height: 24px;
-    font-size: 11px;
-    padding: 1px 4px;
-  }
-  .lab-office-prop-label {
+  .lab-office-prop-hint {
     font-size: 10px;
-    background: rgba(248, 251, 255, 0.4);
+    padding: 2px 5px;
   }
   .lab-office-portrait {
     max-height: 112px;
