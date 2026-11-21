@@ -1,6 +1,21 @@
 import {ANIME_MODEL_URL} from './character-mode';
+import {POINT_BY_CODE,type RegionId} from './teaching';
 
 export type OutfitId='school'|'study-body';
+
+/** Chest／abdomen／back／waist. Upper-back 天宗一帶 is shoulder or arm in the catalog, not abdomen. */
+const TORSO_CLOTH_PEEK_REGIONS=new Set<RegionId>(['abdomen','waist']);
+const TORSO_CLOTH_PEEK_CODES=new Set(['SI9','SI11','SI12','SI13','SI14','SI15','BL11','BL12','BL13']);
+
+export function isTorsoClothPeekPoint(code:string|null|undefined){
+ if(!code)return false;
+ if(TORSO_CLOTH_PEEK_CODES.has(code))return true;
+ const point=POINT_BY_CODE.get(code);
+ return !!point&&TORSO_CLOTH_PEEK_REGIONS.has(point.region);
+}
+
+/** VRoid garment material name tokens (surface pass only — outlines stay for the peek halo). */
+export const CLOTH_GARMENT_MATERIAL_TOKENS=['Tops','Bottoms','Accessory','CLOTH'] as const;
 
 export interface AnimeOutfit{
  id:OutfitId;
