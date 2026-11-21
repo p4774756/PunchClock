@@ -18,6 +18,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["app/**/*.ts", "app/**/*.tsx", "web/**/*.ts", "web/**/*.tsx", "vite.config.ts"],
+  "include": ["app/**/*.ts", "app/**/*.tsx", "web/**/*.ts", "web/**/*.tsx", "vite.config.ts", "data/**/*.json"],
   "exclude": ["node_modules", "dist", "components"]
 }
