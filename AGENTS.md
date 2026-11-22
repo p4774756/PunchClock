@@ -4,13 +4,13 @@
 
 ## 這是什麼
 
-自動化上班打卡系統：桌面端排程並用 Playwright 自動點擊打卡網站；伺服器收心跳、提供 Web 監控，遠端只能取消任務（不能建立排程）。
+Java 多模組專案（Swing 桌面端 + Javalin 伺服器）：桌面端負責本機排程、Playwright 瀏覽器自動化、心跳與傳檔；伺服器收心跳、提供 Web 監控，遠端只能取消任務（不能建立排程）。
 
 ## 模組地圖
 
 | 路徑 | 職責 | 入口 |
 |------|------|------|
-| `client/` | 排程、UI、自動打卡、心跳、傳檔、網路工具、中繼 Proxy | `com.example.App` |
+| `client/` | 排程、UI、任務自動化、心跳、傳檔、網路工具、中繼 Proxy | `com.example.App` |
 | `server/` | 心跳、Dashboard、peer 訊息／傳檔、取消指令、經穴圖靜態站 | `com.example.server.ServerApp` |
 | `shared/` | 跨端共用（`PeerFileRules`、`ChatProtocol`、`ClientUpdatePolicy`） | — |
 | `atlas-src/tcm-3d/` | 中醫 3D 經絡穴道（Vite／Three.js）；本機先 `./scripts/build-atlas.sh`；角色模型 `anime-assistant.glb` | `/atlas/tcm-3d/` |
@@ -52,7 +52,7 @@
 | 要做的事 | 優先看 |
 |----------|--------|
 | 排程／任務槽 UI | `SlotController`、`PanelFactory`、`App` |
-| 自動打卡流程 | `AutomationService`、`SchedulerService` |
+| 排程與自動化 | `AutomationService`、`SchedulerService` |
 | 雲端心跳／遠端取消 | `HeartbeatService`、`HeartbeatResponseParser`、`ServerApp.heartbeat` |
 | 同事訊息／聊天 | `PeerMessageClient`、`ChatRoutes`、`ChatStore` |
 | 字型／對話框 | `UiFonts` |
