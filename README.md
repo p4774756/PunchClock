@@ -1,6 +1,6 @@
 # PunchClock
 
-自動化上班打卡系統，由桌面端排程工具與遠端監控伺服器組成。
+新光小寶貝（PunchClock）由 Java 桌面端與 Javalin 伺服器組成：虛擬辦公室、好友傳檔、經絡研習與遠端狀態監控。
 
 ## 架構
 
@@ -8,10 +8,7 @@
 ┌─────────────────┐   HTTP 心跳 + Bearer    ┌──────────────────┐   REST 取消指令   ┌─────────────┐
 │  PunchClock     │ ─────────────────────► │  server          │ ◄─────────────── │  Web 控制台  │
 │  (Java 桌面端)   │ ◄── action / actions ── │  (Javalin 伺服器)  │ ── WS 狀態推送 ─► │  (瀏覽器)    │
-└────────┬────────┘                        └──────────────────┘                   └─────────────┘
-         │ Playwright
-         ▼
-   打卡網站 (自動點擊)
+└─────────────────┘                        └──────────────────┘                   └─────────────┘
 ```
 
 **通訊協定：** Worker 統一走 HTTP 心跳；Dashboard 用 REST 下指令、WebSocket 只推狀態。詳見 [`server/README.md`](server/README.md)。
@@ -20,7 +17,7 @@
 
 | 模組 | 說明 | 技術 |
 | ------ | ------ | ------ |
-| [`client/`](client/) | 桌面端：排程、自動打卡、任務管理 | Java 11、Swing、Playwright |
+| [`client/`](client/) | 桌面端：排程、任務管理、好友與傳檔 | Java 11、Swing、Playwright |
 | [`server/`](server/) | 伺服器：心跳接收、Web 監控、遠端控制 | Java 11、Javalin、WebSocket |
 | [`shared/`](shared/) | 共用程式（`PeerFileRules` 等） | Java 11 |
 
@@ -95,7 +92,7 @@ Dashboard「學習 → 中醫人體」連到 `/atlas/tcm-3d/`，靜態站來自 
 
 | 首頁 | 排程任務 |
 | ------ | ------ |
-| ![首頁：今日排程、好友動態與快捷操作](docs/screenshots/home.png) | ![排程任務：自訂名稱、Selector 與執行記錄](docs/screenshots/schedule.png) |
+| ![首頁：今日排程、好友動態與快捷操作](docs/screenshots/home.png) | ![排程任務：自訂名稱、時間與執行記錄](docs/screenshots/schedule.png) |
 | 好友與傳檔 | 設定 |
 | ![好友與傳檔：裝置 ID、好友與傳檔紀錄](docs/screenshots/friends.png) | ![設定：雲端連線與程式更新](docs/screenshots/settings.png) |
 | 日誌 | |
@@ -106,7 +103,7 @@ Dashboard「學習 → 中醫人體」連到 `/atlas/tcm-3d/`，靜態站來自 
 ### 桌面端
 
 - 多任務排程（支援單次新增、批量建立週一至週五）。排程名稱可自訂，後台任務卡顯示同一個名字
-- 隨機時間浮動（±5 分鐘，避免固定時間打卡）
+- 隨機時間浮動（±5 分鐘，避免固定時間執行）
 - 任務編輯、重新排定、立即執行
 - 本地任務持久化（`~/.punchclock/tasks.json`）
 - 視窗透明度（標題列滑桿，設定會寫入 `~/.punchclock/config.json`）
@@ -119,7 +116,7 @@ Dashboard「學習 → 中醫人體」連到 `/atlas/tcm-3d/`，靜態站來自 
 ### 桌面端自動更新
 
 - **運作方式：** 桌面端每次心跳會帶上版本與原始碼摘要（`client/src/main`、`shared/src/main` 與兩個 `pom.xml` 的 SHA-256）。伺服器 Docker image 內附同一次 commit 打包的 `SKLbaby.jar`；摘要不同時，心跳回應會帶 `update`。「設定 → 連線 → 程式更新」的「自動檢查更新」預設開啟：有新版只顯示在這一區下方（新版號、大小、這次修改），不跳視窗。要升級按「現在更新」。關閉自動檢查後，背景不再改這段狀態，仍可用「檢查更新」手動問一次。
-- **現在更新：** 跳出「程式更新」小視窗顯示下載進度（已下載／總大小、百分比），可按「取消」中止。下載到 `~/.punchclock/updates/`，校驗大小與 SHA-256 後，由 `apply-update.bat`／`apply-update.sh` 等程式結束、換掉原本的 jar 並重新啟動；設定與排程保留。若正在打卡，或十分鐘內有排程，會等那段結束再重開（最多約 30 分鐘），避免打到一半被關掉。
+- **現在更新：** 跳出「程式更新」小視窗顯示下載進度（已下載／總大小、百分比），可按「取消」中止。下載到 `~/.punchclock/updates/`，校驗大小與 SHA-256 後，由 `apply-update.bat`／`apply-update.sh` 等程式結束、換掉原本的 jar 並重新啟動；設定與排程保留。若程式忙碌或十分鐘內有已排工作，會等那段結束再重開（最多約 30 分鐘），避免中途被關掉。
 - **限制：** 以 `java -jar SKLbaby.jar` 啟動時，覆蓋正在跑的 jar 再重開；jar 所在資料夾要有寫入權限。IDE 直接跑（版本 `dev`、沒有原始碼摘要）不會收到更新通知。若 classpath 上已是打包過、摘要有值的程式，按「現在更新」後把 jar 寫到 `~/.punchclock/SKLbaby.jar`，結束後用 `java -jar` 啟動它，之後請執行那份 jar。更新失敗時看 `~/.punchclock/updates/apply-update.log`。
 - **安裝版（.dmg／.exe）：** GitHub Release 或網站下載頁可取得 macOS／Windows 安裝檔（內建 Java，尚未簽章；macOS 請右鍵 → 打開，Windows SmartScreen 選「更多資訊」→「仍要執行」）。自動更新仍只下載 `SKLbaby.jar` 到 `~/.sklbaby/app/`（不寫回安裝目錄）；啟動失敗會退回安裝內建 jar。CI 見 `.github/workflows/package-desktop.yml`。推 `v*` tag 會自動建立 Release 並上傳 `SKLbaby-mac.dmg`、`SKLbaby-win.exe`、`SKLbaby.jar`。
 - **打包乾跑：** 在 GitHub Actions 選 workflow「Package desktop installers」、以 `workflow_dispatch` 手動執行。只會留下 workflow artifact（同上三檔對應的 dmg／exe／jar），不會建立或更新正式 Release。下載 artifact 核對檔名與大小（安裝檔腳本限 15–60 MiB）。正式發版請推 tag，不要用乾跑取代。
