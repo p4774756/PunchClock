@@ -3,9 +3,9 @@ import {ANIME_DEFAULT_SET} from './character-mode';
 import {DEFAULT_AVATAR_ID,animeAvatar,avatarLessonNote,avatarPracticeOpen,avatarSupportsPoint,avatarSupportedCodes} from './avatars';
 import {ANIME_OUTFITS,DEFAULT_OUTFIT_ID,animeOutfit,type OutfitId} from './outfits';
 import {LOAD_STEP_LABELS,type AtlasLoadProgress} from './load-progress';
-import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState,type CSSProperties,type PointerEvent as ReactPointerEvent} from 'react';
+import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
 import {flushSync} from 'react-dom';
-import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Focus,Info,Layers3,MapPin,Maximize2,Pause,Play,RotateCcw,RotateCw,Search,SlidersHorizontal,X} from 'lucide-react';
+import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Focus,Info,Layers3,MapPin,Maximize2,RotateCw,Search,SlidersHorizontal,X} from 'lucide-react';
 import type {SceneState,View} from './anatomy';
 import {acupointMuscleNote} from './acupoint-muscles';
 import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,isPracticeDeferred,libraryPointResults,LOCATION,POINTS,POINT_BY_CODE,MERIDIANS,pointInCurriculum,practiceOpenCodes,REGIONS,STANDARD,TOOLS,type CurriculumSetId,type RegionId,type SimulationState,type SurfaceTarget,type ToolId,type ToolDragPhase} from './teaching';
@@ -70,9 +70,8 @@ export default function Home(){
  });
  const [progress,setProgress]=useState(6),[loadStep,setLoadStep]=useState(LOAD_STEP_LABELS.program),[error,setError]=useState('');
  const [region,setRegion]=useState<RegionId|'all'>('all'),[query,setQuery]=useState('');
- const [toolsExpanded,setToolsExpanded]=useState(false);
  const [mobilePanel,setMobilePanel]=useState<'library'|'selection'|null>(null);
- const [about,setAbout]=useState(false),[holding,setHolding]=useState(false);
+ const [about,setAbout]=useState(false);
  const [outfitId,setOutfitId]=useState<OutfitId>(DEFAULT_OUTFIT_ID);
  const [practicePreparing,setPracticePreparing]=useState(false);
  const currentOutfit=animeOutfit(outfitId);
@@ -86,10 +85,9 @@ export default function Home(){
   }
   if(launch.code&&avatarPracticeOpen(currentAvatar,launch.code))return `已開啟穴位 ${launch.code}。`;
   if(launch.code)return avatarLessonNote(currentAvatar,launch.code);
-  return '選擇穴位與工具，開始一次課堂演示。';
+  return '選擇穴位，拖動針具或抓住移動手柄練習。';
  });
  const dialog=useRef<HTMLDialogElement>(null),searchInput=useRef<HTMLInputElement>(null);
- const heldPointer=useRef<number|null>(null);
  const draggedPoint=useRef<{code:string;name:string}|null>(null);
  const bootedUrl=useRef(false);
  const point=POINTS.find(p=>p.code===simulation.pointCode);
@@ -100,7 +98,6 @@ export default function Home(){
  const lessonIndex=activeLesson&&simulation.pointCode?lessonOpenCodes.indexOf(simulation.pointCode):-1;
  const lessonProgress=activeLesson&&lessonIndex>=0?{name:activeLesson.shortName,index:lessonIndex+1,total:lessonOpenCodes.length}:null;
  const hasTarget=!!point||!!simulation.customTarget;
- const canPlayDemo=hasTarget&&(!!simulation.customTarget||animePointReady)&&progress===100&&!error;
  const location=point?LOCATION[point.code]:null;
  const muscleNear=point&&location?.text?acupointMuscleNote(point.code):null;
  const results=useMemo(()=>libraryPointResults(query,region,simulation.meridianFilter,simulation.curriculumSet,avatarCodes),[query,region,simulation.meridianFilter,simulation.curriculumSet,avatarCodes]);
@@ -118,8 +115,7 @@ export default function Home(){
  },[activeLesson,simulation.pointCode]);
  useEffect(()=>{stripLegacyMuscleStudio();},[]);
  useEffect(()=>{if(!simulation.running)return;let frame=0,last=performance.now();const tick=(now:number)=>{const delta=Math.min((now-last)/1000,.1);last=now;setSimulation(s=>s.running?{...s,elapsed:s.elapsed+delta}:s);frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[simulation.running]);
- const pause=useCallback((message='演示已暫停，當前畫面保持。')=>{heldPointer.current=null;setHolding(false);setSimulation(s=>({...s,dragging:false,running:false}));setFeedback(message);},[]);
- const releaseHold=useCallback(()=>{heldPointer.current=null;setHolding(false);setSimulation(s=>({...s,dragging:false,running:false,release:(s.release??0)+1}));setFeedback('已鬆開，皮膚與器具逐漸回彈。');},[]);
+ const pause=useCallback((message='演示已暫停，當前畫面保持。')=>{setSimulation(s=>({...s,dragging:false,running:false}));setFeedback(message);},[]);
  useEffect(()=>{const blur=()=>pause('窗口已離開，演示自動暫停。');const visibility=()=>{if(document.hidden)blur();};window.addEventListener('blur',blur);document.addEventListener('visibilitychange',visibility);return()=>{window.removeEventListener('blur',blur);document.removeEventListener('visibilitychange',visibility);};},[pause]);
  useEffect(()=>{if(about){dialog.current?.showModal();pause('已打開來源與許可，演示暫停。');}else dialog.current?.close();},[about,pause]);
  useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){setAbout(false);setMobilePanel(null);pause();}if(event.key==='/'&&!(event.target instanceof HTMLInputElement)&&!(event.target instanceof HTMLTextAreaElement)){event.preventDefault();setMobilePanel('library');searchInput.current?.focus();}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[pause]);
@@ -158,11 +154,11 @@ export default function Home(){
    setMobilePanel('selection');
    return;
   }
-  prepareFocus();setHolding(false);heldPointer.current=null;
+  prepareFocus();
   setSimulation(s=>({...s,pointCode:code,side:next.midline?1:side,customTarget:null,dragging:false,running:false,elapsed:0,focus:s.focus+1,pickMode:'point'}));
   const tip=(code==='ST9'||code==='CV22')&&outfitId!=='study-body'
-   ?`已選擇${next.name} ${next.code}。請切「練習裝」露出頸前皮膚再演示。`
-   :`已選擇${next.name} ${next.code}，可播放針／指壓演示。`;
+   ?`已選擇${next.name} ${next.code}。請切「練習裝」露出頸前皮膚再操作。`
+   :`已選擇${next.name} ${next.code}，可拖動針具或移動手柄練習。`;
   setFeedback(tip);
   setMobilePanel(null);
  };
@@ -173,19 +169,15 @@ export default function Home(){
   if(i<0){setFeedback('目前穴位不在此課程可練習列表內。');return;}
   choosePoint(list[(i+dir+list.length)%list.length].code);
  };
- const chooseTool=(id:ToolId)=>{setHolding(false);heldPointer.current=null;setSimulation(s=>({...s,tool:id,dragging:false,running:false,elapsed:0}));setFeedback(`已切換為${TOOLS.find(t=>t.id===id)!.name}，演示回到起點。`);};
  const chooseSide=(side:1|-1)=>{if(point?.midline)return;prepareFocus();setSimulation(s=>({...s,side,dragging:false,running:false,elapsed:0,focus:s.focus+1}));setFeedback(`已切換到患者${side===1?'左':'右'}側。`);};
  const onToolDrag=useCallback((target:SurfaceTarget|null,phase:ToolDragPhase)=>{
   if(phase==='start'){draggedPoint.current=null;setState(s=>({...s,rotate:false}));setSimulation(s=>({...s,dragging:true,running:true,elapsed:Math.max(.01,s.elapsed)}));setFeedback('正在操作工具：拖到穴位附近可自動選中。');}
   else if(phase==='move'&&target){const selected=target.pointCode?POINTS.find(p=>p.code===target.pointCode):null;draggedPoint.current=selected?{code:selected.code,name:selected.name}:null;setSimulation(s=>selected?{...s,customTarget:null,pointCode:selected.code,side:selected.midline?1:(target.pointSide??s.side),pickMode:'point',dragging:true}:{...s,customTarget:target,pointCode:null,pickMode:'point',dragging:true});}
-  else if(phase==='end'||phase==='cancel'){setSimulation(s=>({...s,dragging:false,running:false,release:(s.release??0)+1}));const selected=draggedPoint.current;setFeedback(phase==='cancel'?'工具移動已結束，已恢復人體旋轉。':selected?`已選中${selected.name} ${selected.code}，可繼續演示。`:'工具已停在新的皮膚位置，可繼續拖動或播放演示。');draggedPoint.current=null;}
+  else if(phase==='end'||phase==='cancel'){setSimulation(s=>({...s,dragging:false,running:false,release:(s.release??0)+1}));const selected=draggedPoint.current;setFeedback(phase==='cancel'?'工具移動已結束，已恢復人體旋轉。':selected?`已選中${selected.name} ${selected.code}，可繼續拖動工具。`:'工具已停在新的皮膚位置，可繼續拖動。');draggedPoint.current=null;}
  },[]);
  const changeView=(view:View)=>{pause(`已切換為${VIEW_LABELS[view]}。`);setState(s=>({...s,view,rotate:false,reset:s.reset+1}));};
  const fullBody=()=>{pause('已回到全身視角。');setState(s=>({...s,explode:0,isolate:false,selected:[],rotate:false,reset:s.reset+1}));};
  const focusTarget=()=>{if(!hasTarget)return;prepareFocus();pause('已聚焦當前教學位置。');setSimulation(s=>({...s,focus:s.focus+1}));};
- const play=(restart=false)=>{if(!canPlayDemo)return;setState(s=>({...s,explode:0,rotate:false,isolate:false}));setSimulation(s=>({...s,running:true,elapsed:restart?0:s.elapsed,focus:s.focus+1}));setFeedback(`${tool.name}演示進行中：${tool.effect}。`);};
- const startHold=(event:ReactPointerEvent<HTMLButtonElement>)=>{if(!canPlayDemo)return;event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);heldPointer.current=event.pointerId;setHolding(true);play();};
- const endHold=(event:ReactPointerEvent<HTMLButtonElement>)=>{if(heldPointer.current!==event.pointerId)return;heldPointer.current=null;if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);releaseHold();};
  const onProgress=useCallback((value:AtlasLoadProgress|number)=>{
   const next=typeof value==='number'?{percent:value,step:'download' as const,stepLabel:'載入中…'}:value;
   setProgress(prev=>Math.max(prev,next.percent));
@@ -270,7 +262,7 @@ export default function Home(){
        <div className="meridian-navigation-buttons"><button onClick={()=>stepLesson(-1)}>上一穴</button><button onClick={()=>stepLesson(1)}>下一穴</button></div>
       </div>
       <div className={`review-note ${animePointReady?'is-reviewed':''}`}><span className="review-dot"/><span>{animePointReady?`${currentAvatar.shortName}已對應並完成檢查`:'尚未烘到角色'}<small>動漫視圖標記為教學示意。</small></span></div>
-     </>:simulation.customTarget?<div className="pain-card"><div className="pain-target"><MapPin size={23}/><Check size={12}/></div><h2>當前工具接觸位置</h2><p>拖動器具或「移動工具」手柄，在皮膚上自由操作。</p><small>自主教學選擇，不自動推薦療法。</small></div>:<div className="pain-card"><div className="pain-target"><MapPin size={23}/></div><h2>點選金色穴位開始</h2><p>選中穴位後可播放針或指壓演示。</p></div>}
+     </>:simulation.customTarget?<div className="pain-card"><div className="pain-target"><MapPin size={23}/><Check size={12}/></div><h2>當前工具接觸位置</h2><p>拖動器具或「移動工具」手柄，在皮膚上自由操作。</p><small>自主教學選擇，不自動推薦療法。</small></div>:<div className="pain-card"><div className="pain-target"><MapPin size={23}/></div><h2>點選金色穴位開始</h2><p>選中穴位後可拖動針具或移動手柄練習。</p></div>}
      <div className="tool-summary"><span className="tool-summary-icon"><ToolGlyph tool={tool.id}/></span><div><small>當前工具</small><h2>{tool.name}<span>{tool.effect}</span></h2></div></div><p className="tool-note">{tool.note}</p>
      <div className="amplitude-control"><label htmlFor="amplitude"><span><SlidersHorizontal size={13}/>演示幅度</span><output>{simulation.amplitude<.35?'輕':simulation.amplitude<.7?'中':'強'}</output></label><input id="amplitude" type="range" min="0.15" max="1" step="0.01" value={simulation.amplitude} onChange={e=>{setSimulation(s=>({...s,amplitude:Number(e.target.value)}));setFeedback('已調整動畫幅度，僅改變視覺反饋強弱。');}}/><small>僅調整動畫，不對應實際操作力度。</small></div>
      <label className="effect-toggle"><span>顯示局部視覺反饋</span><input type="checkbox" checked={simulation.effects} onChange={()=>{setSimulation(s=>({...s,effects:!s.effects}));setFeedback(simulation.effects?'已隱藏局部視覺反饋，仍可觀察工具。':'已開啟局部視覺反饋。');}}/><span className="switch-track" aria-hidden="true"/></label>
@@ -278,13 +270,6 @@ export default function Home(){
     <div className="selection-bottom"><span className={`play-state ${simulation.running?'running':''}`}><span/>{animationStatus}</span><span>皮膚反應模擬 · 參數未作人體校準</span></div>
    </div>
   </aside>
-
-  <section className={`tool-dock surface ${toolsExpanded?'tools-open':''}`} aria-label="工具與演示控制">
-   <button className="mobile-tools-toggle" aria-expanded={toolsExpanded} aria-controls="tool-palette" onClick={()=>{setToolsExpanded(v=>!v);setMobilePanel(null);}}><ToolGlyph tool={tool.id}/><span>{tool.name}</span><ChevronDown size={14}/></button>
-   <div id="tool-palette" className="dock-tools dock-tools-two" role="group" aria-label="選擇演示工具">{TOOLS.map(t=><button className={`tool-button ${simulation.tool===t.id?'selected':''}`} key={t.id} aria-pressed={simulation.tool===t.id} onClick={()=>{chooseTool(t.id);setToolsExpanded(false);}} title={t.effect}><ToolGlyph tool={t.id}/><span>{t.name}</span><i/></button>)}</div>
-   <div className="dock-separator"/>
-   <div className="playback-controls"><button className={`play-button ${simulation.running?'playing':''}`} disabled={!canPlayDemo} onClick={()=>simulation.running?pause():play()}>{simulation.running?<Pause size={15} fill="currentColor"/>:<Play size={15} fill="currentColor"/>}<span>{simulation.running?'暫停':'播放演示'}</span></button><div className="secondary-playback"><button className={`hold-button ${holding?'holding':''}`} disabled={!canPlayDemo} onPointerDown={startHold} onPointerUp={endHold} onPointerCancel={endHold} onLostPointerCapture={()=>{if(heldPointer.current!==null)releaseHold();}} onKeyDown={e=>{if((e.key===' '||e.key==='Enter')&&!e.repeat&&canPlayDemo){e.preventDefault();setHolding(true);play();}}} onKeyUp={e=>{if((e.key===' '||e.key==='Enter')&&holding){e.preventDefault();releaseHold();}}} onBlur={()=>{if(holding)pause();}}>按住演示</button><button className="replay-button" disabled={!canPlayDemo} onClick={()=>play(true)} aria-label="從頭重播演示" title="從頭重播"><RotateCcw size={14}/></button></div></div>
-  </section>
 
   <footer className="studio-footer"><span className="status-message" role="status" aria-live="polite">{feedback}</span><span className="footer-scope">經絡研習室<span>·</span>動漫對應示意</span></footer>
   <dialog ref={dialog} className="source-dialog" onCancel={()=>setAbout(false)} onClose={()=>setAbout(false)} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)setAbout(false);}}} aria-labelledby="source-title">
