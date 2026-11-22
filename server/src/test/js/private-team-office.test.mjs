@@ -9,6 +9,7 @@ const {
   formatOfficeClock,
   fillStatusCard,
   isSafePublicText,
+  secretarySpriteUrlForStatus,
   taskProgressFromTiger
 } = await loadPublicModule('private-team-office.js');
 
@@ -38,6 +39,14 @@ test('tigerFromPublic 解析公開欄位', () => {
   assert.equal(t.active.length, 1);
   assert.equal(t.completedToday.length, 1);
   assert.equal(tigerFromPublic({ success: false }), null);
+});
+
+test('secretarySpriteUrlForStatus 對應三張立繪', () => {
+  assert.equal(secretarySpriteUrlForStatus('工作中'), '/assets/private-team/secretary-typing-a.webp');
+  assert.equal(secretarySpriteUrlForStatus('工作中 ×3'), '/assets/private-team/secretary-typing-a.webp');
+  assert.equal(secretarySpriteUrlForStatus('待命中'), '/assets/private-team/secretary-idle-tea.webp');
+  assert.equal(secretarySpriteUrlForStatus('待機'), '/assets/private-team/secretary-idle-tea.webp');
+  assert.equal(secretarySpriteUrlForStatus('休息中'), '/assets/private-team/secretary-sleep.webp');
 });
 
 test('bubbleTextForStatus 僅三態與工作中倍數', () => {

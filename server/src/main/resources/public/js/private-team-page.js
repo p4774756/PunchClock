@@ -2,6 +2,7 @@ import { mountPrivateTeamScene } from './private-team-scene.js';
 import {
   bubbleTextForStatus,
   fillStatusCard,
+  secretarySpriteUrlForStatus,
   taskProgressFromTiger,
   tigerFromPublic
 } from './private-team-office.js';
@@ -397,6 +398,7 @@ export function mountPrivateTeamPage(opts) {
   function applyTiger(tiger) {
     if (!tiger) return;
     tigerView = tiger;
+    scene.setSecretarySprite(secretarySpriteUrlForStatus(tigerView.status));
     scene.setBubbleText(bubbleLabel());
     refreshCanvasA11y();
     applyTaskBar(tiger);
