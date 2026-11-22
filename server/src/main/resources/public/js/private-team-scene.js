@@ -37,16 +37,18 @@ export function privateTeamSceneLighting(dayMode) {
       point: 0,
       spot: 0,
       bulbOpacity: 0,
-      haloOpacity: 0
+      haloOpacity: 0,
+      shadeEmissive: 0
     };
   }
   return {
     amb: 0.28,
     dir: 0.35,
-    point: 1.42,
-    spot: 0.88,
+    point: 1.35,
+    spot: 8,
     bulbOpacity: 0.9,
-    haloOpacity: 0.62
+    haloOpacity: 0.62,
+    shadeEmissive: 0.72
   };
 }
 
@@ -376,23 +378,26 @@ export function mountPrivateTeamScene(canvas, opts) {
   mugHandle.rotation.y = Math.PI / 2;
   root.add(mug, mugHandle);
 
+  // 桌面前右側：座在右、臂伸向桌心、燈罩離立繪與左右螢幕。
   const lampGroup = new THREE.Group();
-  lampGroup.position.set(0.24, 0.5, 0.38);
-  const lampBase = cyl(0.07, 0.09, 0.05, 12, COL.lampBase);
-  lampBase.position.y = 0.025;
+  lampGroup.position.set(1.2, 0.504, 0.5);
+  lampGroup.rotation.y = 1.4;
+  const lampBase = cyl(0.07, 0.095, 0.045, 12, COL.lampBase);
+  lampBase.position.y = 0.022;
   lampGroup.add(lampBase);
-  const lampStem = cyl(0.018, 0.018, 0.2, 8, COL.lampMetal);
-  lampStem.position.y = 0.15;
+  const lampStem = cyl(0.016, 0.016, 0.1, 8, COL.lampMetal);
+  lampStem.position.y = 0.09;
   lampGroup.add(lampStem);
-  const lampArm = box(0.15, 0.018, 0.018, COL.lampMetal);
-  lampArm.position.set(0.05, 0.28, 0.02);
-  lampArm.rotation.z = -0.52;
+  const lampArm = box(0.22, 0.028, 0.028, COL.lampMetal);
+  lampArm.position.set(0.07, 0.16, 0);
+  lampArm.rotation.z = -0.22;
   lampGroup.add(lampArm);
+  const lampShadeMat = new THREE.MeshLambertMaterial({ color: COL.lampShade, emissive: 0x000000 });
   const lampShade = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.065, 0.095, 0.085, 12, 1, true),
-    new THREE.MeshLambertMaterial({ color: COL.lampShade, side: THREE.DoubleSide })
+    new THREE.CylinderGeometry(0.05, 0.085, 0.075, 12),
+    lampShadeMat
   );
-  lampShade.position.set(0.1, 0.31, 0.035);
+  lampShade.position.set(0.16, 0.19, 0);
   lampGroup.add(lampShade);
   const lampBulbMat = new THREE.MeshBasicMaterial({
     color: 0xfff2d8,
@@ -400,8 +405,8 @@ export function mountPrivateTeamScene(canvas, opts) {
     opacity: 0,
     depthWrite: false
   });
-  const lampBulb = new THREE.Mesh(new THREE.SphereGeometry(0.034, 10, 10), lampBulbMat);
-  lampBulb.position.set(0.1, 0.285, 0.035);
+  const lampBulb = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 10), lampBulbMat);
+  lampBulb.position.set(0.16, 0.142, 0);
   lampGroup.add(lampBulb);
   const lampHaloMat = new THREE.MeshBasicMaterial({
     map: lampGlowTexture(),
@@ -410,22 +415,23 @@ export function mountPrivateTeamScene(canvas, opts) {
     depthWrite: false,
     blending: THREE.AdditiveBlending
   });
-  const lampHalo = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 0.48), lampHaloMat);
-  lampHalo.position.set(0.1, 0.27, 0.04);
+  const lampHalo = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.36), lampHaloMat);
+  lampHalo.position.set(0.16, 0.18, 0.02);
   lampGroup.add(lampHalo);
   root.add(lampGroup);
 
-  const lampLightPos = new THREE.Vector3(0.34, 0.81, 0.415);
-  const lampPoint = new THREE.PointLight(0xffc888, 0, 5.5, 1.75);
-  lampPoint.position.copy(lampLightPos);
-  scene.add(lampPoint);
-  const lampSpot = new THREE.SpotLight(0xffd8a8, 0, 9, Math.PI / 3.1, 0.36, 1.15);
-  lampSpot.position.copy(lampLightPos);
+  const lampLightLocal = new THREE.Vector3(0.16, 0.17, 0);
+  const lampPoint = new THREE.PointLight(0xffc888, 0, 5.2, 1.6);
+  lampPoint.position.copy(lampLightLocal);
+  lampGroup.add(lampPoint);
+  const lampSpot = new THREE.SpotLight(0xffc888, 0, 9, Math.PI / 2.8, 0.5, 1);
+  lampSpot.position.copy(lampLightLocal);
   const lampTarget = new THREE.Object3D();
-  lampTarget.position.set(0.06, 0.52, 0.56);
-  scene.add(lampTarget);
+  lampGroup.add(lampTarget);
+  lampGroup.updateMatrixWorld(true);
+  lampTarget.position.copy(lampGroup.worldToLocal(new THREE.Vector3(0.28, 0.5, 0.38)));
   lampSpot.target = lampTarget;
-  scene.add(lampSpot);
+  lampGroup.add(lampSpot);
 
   let lampPointBase = 0;
   let lampSpotBase = 0;
@@ -593,6 +599,8 @@ export function mountPrivateTeamScene(canvas, opts) {
     lampSpot.intensity = lighting.spot;
     lampBulbMat.opacity = lighting.bulbOpacity;
     lampHaloMat.opacity = lighting.haloOpacity;
+    lampShadeMat.emissive.setHex(0xffb060);
+    lampShadeMat.emissiveIntensity = lighting.shadeEmissive;
   }
 
   function tick(now) {

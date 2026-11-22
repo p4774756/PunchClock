@@ -10,9 +10,11 @@ test('privateTeamSceneLighting 白天關燈、夜晚暖光偏暗', () => {
   assert.equal(day.point, 0);
   assert.equal(day.spot, 0);
   assert.equal(day.bulbOpacity, 0);
+  assert.equal(day.shadeEmissive, 0);
   assert.ok(night.point > 0);
   assert.ok(night.spot > 0);
   assert.ok(night.haloOpacity > 0);
+  assert.ok(night.shadeEmissive > 0);
   assert.ok(night.amb < day.amb);
   assert.ok(night.dir < day.dir);
 });
