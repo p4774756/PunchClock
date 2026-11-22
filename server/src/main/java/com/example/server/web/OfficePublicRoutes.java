@@ -98,7 +98,7 @@ public final class OfficePublicRoutes {
                 return "待命中";
             }
             if ("oki".equals(charId)) {
-                if (doc != null && doc.now != null && doc.now.current != null && doc.now.current.issue > 0) {
+                if (hasInProgress(doc)) {
                     return "工作中";
                 }
                 int q = doc != null && doc.now != null && doc.now.queue != null ? doc.now.queue.size() : 0;
@@ -129,8 +129,8 @@ public final class OfficePublicRoutes {
                     return best;
                 }
             }
-            if ("oki".equals(charId) && doc != null && doc.now != null && doc.now.current != null) {
-                long updated = doc.now.current.updatedAt;
+            if ("oki".equals(charId) && doc != null && doc.now != null) {
+                long updated = latestCurrentUpdatedAt(doc);
                 if (updated > 0) {
                     return updated;
                 }
@@ -307,7 +307,7 @@ public final class OfficePublicRoutes {
             if (row.runs != null && !row.runs.isEmpty()) {
                 int n = 0;
                 for (DevMachineStore.RunEntry run : row.runs) {
-                    if (run != null && run.issue > 0 && !"review".equals(run.role)) {
+                    if (run != null && run.issue > 0) {
                         n++;
                     }
                 }
@@ -317,6 +317,31 @@ public final class OfficePublicRoutes {
                 return 1;
             }
             return 0;
+        }
+
+        private static boolean hasInProgress(DevStatusModels.Document doc) {
+            if (doc == null || doc.now == null || doc.now.current == null) {
+                return false;
+            }
+            for (DevStatusModels.Item item : doc.now.current) {
+                if (item != null && item.issue > 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static long latestCurrentUpdatedAt(DevStatusModels.Document doc) {
+            if (doc == null || doc.now == null || doc.now.current == null) {
+                return 0;
+            }
+            long best = 0;
+            for (DevStatusModels.Item item : doc.now.current) {
+                if (item != null && item.updatedAt > best) {
+                    best = item.updatedAt;
+                }
+            }
+            return best;
         }
 
         static int countReviewActive(List<DevMachineStore.Snapshot> machines, long now) {

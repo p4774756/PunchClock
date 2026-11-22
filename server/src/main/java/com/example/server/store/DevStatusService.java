@@ -170,7 +170,7 @@ public final class DevStatusService {
 
     static Document emptyDocument() {
         return new Document(
-                new NowBlock(null, null, Collections.emptyList()),
+                new NowBlock(Collections.emptyList(), null, Collections.emptyList()),
                 Collections.emptyList(),
                 Collections.emptyList(),
                 new Stats("本週（週一 00:00 起，台北）", 0, 0)

@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -52,6 +53,13 @@ public class DevStatusMapperTest {
     }
 
     @Test
+    public void closedIssueDraftPrIsNotWorking() {
+        IssueRow closed = issue(307, false, Collections.emptyList());
+        PullRow draft = pull(400, true, true, false, set(307));
+        assertEquals(DevStatusModels.STATUS_MERGED, DevStatusMapper.statusFor(closed, draft, true));
+    }
+
+    @Test
     public void queueCurrentAndNextPreferWorkingOverBareQueued() {
         IssueRow q1 = issue(10, true, Arrays.asList("queue:1"));
         IssueRow q2 = issue(20, true, Arrays.asList("queue:2"));
@@ -63,10 +71,95 @@ public class DevStatusMapperTest {
                 Collections.emptySet()
         );
         Document doc = DevStatusMapper.map(snap, "p4774756/PunchClock", 1_700_000_000_000L);
-        assertEquals(20, doc.now.current.issue);
-        assertEquals(DevStatusModels.STATUS_REVIEW, doc.now.current.status);
+        assertEquals(1, doc.now.current.size());
+        assertEquals(20, doc.now.current.get(0).issue);
+        assertEquals(DevStatusModels.STATUS_REVIEW, doc.now.current.get(0).status);
+        assertEquals(10, doc.now.next.issue);
+        assertEquals(2, doc.now.queue.size());
+        assertEquals(10, doc.now.queue.get(0).item.issue);
+        assertEquals(30, doc.now.queue.get(1).item.issue);
+    }
+
+    @Test
+    public void twoParallelInProgressNextIsFirstQueuedOnly() {
+        IssueRow q1 = issue(10, true, Arrays.asList("queue:1"));
+        IssueRow q2 = issue(20, true, Arrays.asList("queue:2"));
+        IssueRow q3 = issue(30, true, Arrays.asList("queue:3"));
+        PullRow draft = pull(201, true, true, false, set(10));
+        PullRow review = pull(202, true, false, false, set(20));
+        Snapshot snap = new Snapshot(
+                Arrays.asList(q1, q2, q3),
+                Arrays.asList(draft, review),
+                set(10)
+        );
+        Document doc = DevStatusMapper.map(snap, "p4774756/PunchClock", 1_700_000_000_000L);
+        assertEquals(Arrays.asList(10, 20), doc.now.current.stream().map(i -> i.issue).collect(Collectors.toList()));
         assertEquals(30, doc.now.next.issue);
-        assertEquals(3, doc.now.queue.size());
+        assertEquals(1, doc.now.queue.size());
+        assertEquals(30, doc.now.queue.get(0).item.issue);
+    }
+
+    @Test
+    public void inProgressWithoutQueueLabelAppearsInCurrent() {
+        IssueRow q1 = issue(10, true, Arrays.asList("queue:1"));
+        IssueRow branchOnly = issue(40, true, Collections.emptyList());
+        Snapshot snap = new Snapshot(
+                Arrays.asList(q1, branchOnly),
+                Collections.emptyList(),
+                set(40)
+        );
+        Document doc = DevStatusMapper.map(snap, "p4774756/PunchClock", 1_700_000_000_000L);
+        assertEquals(Collections.singletonList(40), doc.now.current.stream().map(i -> i.issue).collect(Collectors.toList()));
+        assertEquals(10, doc.now.next.issue);
+        assertEquals(1, doc.now.queue.size());
+    }
+
+    @Test
+    public void queuedWithBranchIsWorkingInCurrentNotQueue() {
+        IssueRow q341 = issue(341, true, Arrays.asList("queue:9"));
+        Snapshot snap = new Snapshot(
+                Collections.singletonList(q341),
+                Collections.emptyList(),
+                set(341)
+        );
+        Document doc = DevStatusMapper.map(snap, "p4774756/PunchClock", 1_700_000_000_000L);
+        assertEquals(1, doc.now.current.size());
+        assertEquals(341, doc.now.current.get(0).issue);
+        assertEquals(DevStatusModels.STATUS_WORKING, doc.now.current.get(0).status);
+        assertTrue(doc.now.queue.isEmpty());
+        assertNull(doc.now.next);
+    }
+
+    @Test
+    public void closedLeftoverBranchWithoutMergedPrIsNotWorking() {
+        IssueRow closed = issue(307, false, Collections.emptyList());
+        Snapshot snap = new Snapshot(
+                Collections.singletonList(closed),
+                Collections.emptyList(),
+                set(307)
+        );
+        Document doc = DevStatusMapper.map(snap, "p4774756/PunchClock", 1_700_000_000_000L);
+        assertEquals(1, doc.items.size());
+        assertEquals(DevStatusModels.STATUS_MERGED, doc.items.get(0).status);
+        assertTrue(doc.now.queue.isEmpty());
+        assertTrue(doc.now.current.isEmpty());
+    }
+
+    @Test
+    public void inProgressSortsQueuedFirstThenIssueNumber() {
+        IssueRow q50 = issue(50, true, Arrays.asList("queue:2"));
+        IssueRow q80 = issue(80, true, Collections.emptyList());
+        IssueRow q40 = issue(40, true, Collections.emptyList());
+        IssueRow q10 = issue(10, true, Arrays.asList("queue:1"));
+        Snapshot snap = new Snapshot(
+                Arrays.asList(q50, q80, q40, q10),
+                Collections.emptyList(),
+                set(50, 80, 40)
+        );
+        Document doc = DevStatusMapper.map(snap, "p4774756/PunchClock", 1_700_000_000_000L);
+        assertEquals(Arrays.asList(50, 40, 80), doc.now.current.stream().map(i -> i.issue).collect(Collectors.toList()));
+        assertEquals(10, doc.now.next.issue);
+        assertEquals(1, doc.now.queue.size());
     }
 
     @Test
@@ -75,7 +168,7 @@ public class DevStatusMapperTest {
         IssueRow q2 = issue(20, true, Arrays.asList("queue:2"));
         Snapshot snap = new Snapshot(Arrays.asList(q1, q2), Collections.emptyList(), Collections.emptySet());
         Document doc = DevStatusMapper.map(snap, "p4774756/PunchClock", 1_700_000_000_000L);
-        assertNull(doc.now.current);
+        assertTrue(doc.now.current.isEmpty());
         assertEquals(10, doc.now.next.issue);
         assertEquals(DevStatusModels.STATUS_QUEUED, doc.now.next.status);
     }
@@ -93,7 +186,7 @@ public class DevStatusMapperTest {
         assertEquals(1, doc.items.size());
         assertEquals(DevStatusModels.STATUS_MERGED, doc.items.get(0).status);
         assertTrue(doc.now.queue.isEmpty());
-        assertNull(doc.now.current);
+        assertTrue(doc.now.current.isEmpty());
     }
 
     @Test
@@ -103,7 +196,6 @@ public class DevStatusMapperTest {
                 pull(12, true, false, false, set(5)),
                 pull(8, false, false, true, set(5))
         );
-        // 已合併優先
         assertEquals(8, DevStatusMapper.pickPull(5, pulls, index(pulls)).number);
 
         List<PullRow> openOnly = Arrays.asList(
@@ -115,7 +207,7 @@ public class DevStatusMapperTest {
 
     @Test
     public void weekStatsAndTimelineUseTaipeiWeek() {
-        long weekStart = DevStatusMapper.weekStartTaipei(1_731_600_000_000L); // around Nov 2024
+        long weekStart = DevStatusMapper.weekStartTaipei(1_731_600_000_000L);
         IssueRow open = issue(40, true, Collections.emptyList());
         PullRow merged = new PullRow(99, "done", false, false, true,
                 weekStart - 1000, weekStart + 1000, weekStart + 1000, weekStart + 1000, set(40));
