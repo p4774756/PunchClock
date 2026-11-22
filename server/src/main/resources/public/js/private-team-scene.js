@@ -447,6 +447,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   const spriteBaseY = SECRETARY_SPRITE_HEIGHT / 2 + 0.02;
   let spriteAnimMode = 'idle';
   let currentSpriteUrl = '';
+  // 請求一發出就記下目標。較慢的舊圖回呼不得蓋掉這次要的姿勢。
+  let desiredSpriteUrl = '';
+  let spriteLoadSeq = 0;
   const loader = new THREE.TextureLoader();
 
   function spriteAnimModeForUrl(url) {
@@ -497,18 +500,29 @@ export function mountPrivateTeamScene(canvas, opts) {
     spriteAnimMode = spriteAnimModeForUrl(url);
   }
 
+  function disposeUnusedSpriteTexture(tex) {
+    if (tex && typeof tex.dispose === 'function') tex.dispose();
+  }
+
   function setSecretarySprite(url) {
     const next = url == null ? '' : String(url).trim();
-    if (!next || next === currentSpriteUrl) return;
+    if (!next || next === desiredSpriteUrl) return;
+    desiredSpriteUrl = next;
+    const seq = ++spriteLoadSeq;
     loader.load(
       next,
       (tex) => {
+        if (seq !== spriteLoadSeq || desiredSpriteUrl !== next) {
+          disposeUnusedSpriteTexture(tex);
+          return;
+        }
         if (secretarySprite) retextureSecretarySprite(tex, next);
         else mountSecretarySprite(tex, next);
       },
       undefined,
       () => {
-        /* 紋理失敗時略過人物，其餘場景照常 */
+        /* 紋理失敗時略過人物，其餘場景照常，並允許同一個 URL 再試 */
+        if (seq === spriteLoadSeq) desiredSpriteUrl = currentSpriteUrl;
       }
     );
   }
@@ -617,13 +631,16 @@ export function mountPrivateTeamScene(canvas, opts) {
     const typeNudge = Math.sin(elapsed * 7.2) * 0.008;
     const lean = Math.sin(elapsed * 7.2 + 0.4) * 0.018;
     if (secretarySprite) {
-      let extraY = breath;
+      let extraY = 0;
       let leanZ = 0;
-      if (spriteAnimMode === 'working') {
-        extraY += typeNudge;
-        leanZ = lean;
-      } else if (spriteAnimMode === 'sleep') {
-        extraY = reducedMotion ? 0 : breath * 0.45;
+      if (!reducedMotion) {
+        extraY = breath;
+        if (spriteAnimMode === 'working') {
+          extraY += typeNudge;
+          leanZ = lean;
+        } else if (spriteAnimMode === 'sleep') {
+          extraY = breath * 0.45;
+        }
       }
       secretarySprite.position.y = spriteBaseY + extraY;
       secretarySprite.rotation.z = leanZ;
