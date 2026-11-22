@@ -153,41 +153,6 @@
         </div>
       </div>
 
-      <div class="shell dash-panel" id="panel-system" data-label="伺服器" role="tabpanel" hidden>
-        <div class="content-panel content-panel-full">
-          <section class="system-status" aria-label="伺服器狀態">
-            </form>
-            <div class="system-status-head">
-              <div class="section-label" style="margin:0;border:0;padding:0">伺服器</div>
-              <p class="system-status-hint">查看伺服器狀態；每分鐘記一筆，大約留三天</p>
-            </div>
-            <div class="server-health" id="serverHealth" aria-label="伺服器狀態">
-              <div class="health-card"><span class="health-label">負載</span><strong id="healthCpu">載入中</strong></div>
-              <div class="health-card"><span class="health-label">排程</span><strong id="healthLoad">—</strong></div>
-              <div class="health-card"><span class="health-label">堆積</span><strong id="healthHeap">—</strong></div>
-              <div class="health-card"><span class="health-label">系統記憶體</span><strong id="healthOsMem">—</strong></div>
-              <div class="health-card"><span class="health-label">磁碟</span><strong id="healthDisk" title="">—</strong></div>
-              <div class="health-card"><span class="health-label">運行時間</span><strong id="healthUptime">—</strong></div>
-            </div>
-            <section class="health-history" aria-label="負載曲線">
-              <div class="health-history-head">
-                <div>
-                  <div class="section-label" style="margin:0;border:0;padding:0">負載曲線</div>
-                  <p class="health-history-hint">每分鐘畫一筆，大約留三天（重啟後若有備份會自動還原）</p>
-                </div>
-                <div class="health-legend" aria-hidden="true">
-                  <span><i class="swatch swatch-cpu"></i>負載</span>
-                  <span><i class="swatch swatch-heap"></i>堆積</span>
-                  <span><i class="swatch swatch-os"></i>系統記憶體</span>
-                </div>
-              </div>
-              <canvas id="healthHistoryChart" width="960" height="220" role="img" aria-label="負載曲線"></canvas>
-              <p class="health-history-empty" id="healthHistoryEmpty">還沒有紀錄，等一分鐘就開始畫</p>
-            </section>
-          </section>
-        </div>
-      </div>
-
     </div>
   </section>
   <script src="/js/dash-tab.js"></script>
