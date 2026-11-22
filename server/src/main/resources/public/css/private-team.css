@@ -51,6 +51,37 @@
   touch-action: none;
 }
 
+.lab-office-stage.pt-roadmap-open .private-team-hud,
+.lab-office-stage.pt-roadmap-open .private-team-canvas,
+.lab-office-stage.pt-roadmap-open .pt-prog-hit,
+.lab-office-stage.pt-roadmap-open .pt-status-backdrop {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.pt-prog-hit {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 4;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: transparent;
+  font-size: 1px;
+  line-height: 1;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.pt-prog-hit:focus-visible {
+  outline: 3px solid var(--maple-gold, #ecc440);
+  outline-offset: 2px;
+}
+
 .private-team-hud {
   position: absolute;
   inset: 0;
@@ -222,47 +253,6 @@
   border-radius: 4px;
   padding: 0.05rem 0.35rem;
   white-space: nowrap;
-}
-
-.pt-hud-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 168px;
-  padding: 0.35rem 0;
-  background: var(--maple-white, #f8fbff);
-  border: 3px solid var(--maple-navy, #163a70);
-  border-radius: 6px;
-  box-shadow: var(--maple-shadow, 3px 4px 0 rgba(0, 0, 0, 0.31));
-  z-index: 20;
-}
-
-.pt-hud-menu[hidden] {
-  display: none !important;
-}
-
-.pt-hud-menu a,
-.pt-hud-menu button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 0.45rem 0.65rem;
-  border: none;
-  background: transparent;
-  font: inherit;
-  font-weight: 700;
-  color: var(--maple-ink, #142440);
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.pt-hud-menu a:hover,
-.pt-hud-menu button:hover {
-  background: var(--maple-track, #d6e8f6);
-}
-
-.pt-hud-menu-wrap {
-  position: relative;
 }
 
 /* ---- 構想 A：左上秘書角色框 + 右上身分名牌 ---- */

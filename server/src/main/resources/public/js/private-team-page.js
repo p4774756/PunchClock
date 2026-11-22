@@ -141,6 +141,9 @@ export function mountPrivateTeamPage(opts) {
   if (!stage) return { destroy() {} };
 
   const authed = !!(win.PUNCHCLOCK_AUTHENTICATED);
+  const pageHooks = (opts && opts.hooks) || {};
+  const openRoadmap =
+    typeof pageHooks.openRoadmap === 'function' ? pageHooks.openRoadmap : null;
 
   let canvas = stage.querySelector('[data-private-team-canvas]');
   if (!canvas) {
@@ -180,6 +183,17 @@ export function mountPrivateTeamPage(opts) {
     stage.appendChild(hud);
   }
   mountDeployVersion(hud, win, doc);
+
+  let progHit = stage.querySelector('[data-pt-prog-hit]');
+  if (!progHit) {
+    progHit = doc.createElement('button');
+    progHit.type = 'button';
+    progHit.className = 'pt-prog-hit';
+    progHit.setAttribute('data-pt-prog-hit', '');
+    progHit.setAttribute('aria-label', '進度看板，開啟施工進度');
+    progHit.textContent = '進度';
+    stage.appendChild(progHit);
+  }
 
   let cardBackdrop = stage.querySelector('[data-pt-status-card]');
   let cardBody = null;
@@ -249,10 +263,46 @@ export function mountPrivateTeamPage(opts) {
     if (closeBtn) closeBtn.focus({ preventScroll: true });
   }
 
+  function openRoadmapFromBoard() {
+    if (!openRoadmap) return;
+    closeStatusCard();
+    closeIdentityMenu();
+    closeTaskHint();
+    openRoadmap();
+  }
+
+  let roadmapOpen = false;
+
+  function placeProgHit(rect) {
+    if (!progHit || !rect) return;
+    const left = Number(rect.left);
+    const top = Number(rect.top);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (![left, top, width, height].every(Number.isFinite) || width < 1 || height < 1) return;
+    progHit.style.left = left.toFixed(1) + 'px';
+    progHit.style.top = top.toFixed(1) + 'px';
+    progHit.style.width = width.toFixed(1) + 'px';
+    progHit.style.height = height.toFixed(1) + 'px';
+  }
+
+  function setRoadmapOpen(open) {
+    roadmapOpen = !!open;
+    stage.classList.toggle('pt-roadmap-open', roadmapOpen);
+    scene.setSceneInputEnabled(!roadmapOpen);
+    if (roadmapOpen) {
+      closeStatusCard();
+      closeIdentityMenu();
+      closeTaskHint();
+    }
+  }
+
   const scene = mountPrivateTeamScene(canvas, {
     win,
     doc,
-    onActivate: openStatusCard
+    onActivate: openStatusCard,
+    onOpenProgress: openRoadmapFromBoard,
+    onProgressBoardRect: placeProgHit
   });
 
   let dayMode = readDayPref(win);
@@ -327,6 +377,13 @@ export function mountPrivateTeamPage(opts) {
     });
   }
 
+  if (progHit) {
+    progHit.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      openRoadmapFromBoard();
+    });
+  }
+
   doc.addEventListener('click', (ev) => {
     if (identityMenu && identityMenuOpen) {
       if (!identityMenu.contains(ev.target) && !identityBtn.contains(ev.target)) {
@@ -370,7 +427,12 @@ export function mountPrivateTeamPage(opts) {
         return;
       }
     }
-    if (!cardOpen && (ev.key === 'Enter' || ev.key === ' ') && ev.target === canvas) {
+    if (
+      !roadmapOpen &&
+      !cardOpen &&
+      (ev.key === 'Enter' || ev.key === ' ') &&
+      ev.target === canvas
+    ) {
       ev.preventDefault();
       openStatusCard();
     }
@@ -420,12 +482,14 @@ export function mountPrivateTeamPage(opts) {
   const poll = win.setInterval(refreshOfficePublic, 60_000);
 
   return {
+    setRoadmapOpen,
     destroy() {
       win.clearInterval(poll);
       doc.removeEventListener('keydown', onKeyDown);
       closeIdentityMenu();
       closeTaskHint();
       closeStatusCard();
+      setRoadmapOpen(false);
       scene.destroy();
     }
   };
