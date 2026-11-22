@@ -1299,10 +1299,8 @@ public class App extends JFrame {
                 onlinePeerIds.add(peer.clientId);
             }
             friendCount++;
-            String statusLabel = online ? "在線" : "離線";
             peerRefs.peerTableModel.addRow(new Object[]{
                     peer.clientId,
-                    statusLabel,
                     peer.scheduledCount,
                     peer.appVersion.isBlank() ? "—" : peer.appVersion,
                     favoritePeerIds.contains(peer.clientId)
@@ -1326,6 +1324,11 @@ public class App extends JFrame {
         previousOnlinePeerIds.addAll(onlinePeerIds);
         if (peerRefs.peerTable != null) {
             peerRefs.peerTable.putClientProperty("peer.avatars", peerAvatars);
+            java.util.Map<String, Boolean> onlineById = new java.util.LinkedHashMap<>();
+            for (PeerInfo peer : seenPeers) {
+                onlineById.put(peer.clientId, "ONLINE".equalsIgnoreCase(peer.status));
+            }
+            peerRefs.peerTable.putClientProperty(PanelFactory.PEER_ONLINE_CLIENT_KEY, onlineById);
         }
 
         if (peerRefs.peerStatusLabel != null) {
@@ -1408,6 +1411,9 @@ public class App extends JFrame {
             return;
         }
         peerRefs.peerTableModel.setRowCount(0);
+        if (peerRefs.peerTable != null) {
+            peerRefs.peerTable.putClientProperty(PanelFactory.PEER_ONLINE_CLIENT_KEY, new java.util.LinkedHashMap<>());
+        }
     }
 
     private void setPeerInteractionEnabled(boolean enabled) {

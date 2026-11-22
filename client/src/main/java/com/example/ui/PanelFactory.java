@@ -641,8 +641,11 @@ public class PanelFactory {
 
     // ==================== 裝置互動 ====================
 
+    /** 好友表在線／離線；key 為裝置 ID（不含「（本機）」），value 為是否在線。 */
+    public static final String PEER_ONLINE_CLIENT_KEY = "peer.online";
+
     /** 好友列表「最愛」欄的 model 索引（最後一欄，不影響第 0 欄的裝置 ID）。 */
-    public static final int PEER_FAVORITE_COLUMN = 4;
+    public static final int PEER_FAVORITE_COLUMN = 3;
     public static final String PEER_FAVORITE_ON = "★";
     public static final String PEER_FAVORITE_OFF = "☆";
     private static final Color PEER_FAVORITE_GOLD = new Color(255, 208, 96);
@@ -660,7 +663,7 @@ public class PanelFactory {
         refs.peerHintLabel = hint;
 
         refs.peerTableModel = new javax.swing.table.DefaultTableModel(
-                new Object[]{"裝置 ID", "狀態", "等待任務", "版本", "最愛"}, 0) {
+                new Object[]{"裝置 ID", "等待任務", "版本", "最愛"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -674,7 +677,7 @@ public class PanelFactory {
                 if (layingOutPeerColumns) {
                     return;
                 }
-                if (getWidth() <= 0 || getColumnCount() != 5) {
+                if (getWidth() <= 0 || getColumnCount() != 4) {
                     super.doLayout();
                     return;
                 }
@@ -692,7 +695,7 @@ public class PanelFactory {
         refs.peerTable.getTableHeader().setFont(boldFont);
         refs.peerTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         // 真正的欄寬在 doLayout 用表頭 renderer 的 preferred 寬重算。這裡先給一個放得下欄名的初值。
-        int[] peerColW = {120, 48, 76, 48, 48};
+        int[] peerColW = {120, 76, 48, 48};
         for (int i = 0; i < peerColW.length; i++) {
             javax.swing.table.TableColumn column = refs.peerTable.getColumnModel().getColumn(i);
             column.setMinWidth(28);
@@ -700,6 +703,7 @@ public class PanelFactory {
             column.setPreferredWidth(peerColW[i]);
         }
         installSelfPeerRowRenderer(refs.peerTable, mainFont, boldFont);
+        installPeerTableHeaderRenderers(refs.peerTable, boldFont);
 
         JScrollPane tableScroll = new JScrollPane(refs.peerTable);
         tableScroll.setPreferredSize(new Dimension(200, 160));
@@ -834,13 +838,14 @@ public class PanelFactory {
                 boolean self = isSelfPeerRow(tbl, row);
                 boolean hover = !isSelected && row == hoverRow(tbl);
                 boolean favoriteColumn = column == PEER_FAVORITE_COLUMN;
+                boolean centerColumn = column > 0;
                 if (c instanceof JLabel) {
                     JLabel label = (JLabel) c;
                     label.setFont(self && column == 0 ? boldFont : mainFont);
                     label.setBorder(new EmptyBorder(4, column == 0 ? 4 : 4, 4, column == 0 ? 2 : 4));
                     label.setIcon(column == 0 ? friendFace(tbl, row, faces) : null);
                     label.setIconTextGap(column == 0 ? 4 : 8);
-                    label.setHorizontalAlignment(favoriteColumn ? SwingConstants.CENTER : SwingConstants.LEADING);
+                    label.setHorizontalAlignment(centerColumn ? SwingConstants.CENTER : SwingConstants.LEADING);
                     if (favoriteColumn) {
                         label.setFont(UiFonts.chineseBold(16));
                     }
@@ -920,11 +925,7 @@ public class PanelFactory {
     private static Icon friendFace(JTable table, int row, java.util.Map<String, Icon> faces) {
         Object idValue = table.getValueAt(row, 0);
         String id = idValue == null ? "" : String.valueOf(idValue);
-        boolean online = false;
-        if (table.getColumnCount() > 1) {
-            Object status = table.getValueAt(row, 1);
-            online = status != null && "在線".equals(String.valueOf(status));
-        }
+        boolean online = peerRowOnline(table, peerIdOf(id));
         String encoded = "";
         Object stored = table.getClientProperty("peer.avatars");
         if (stored instanceof java.util.Map) {
@@ -951,16 +952,48 @@ public class PanelFactory {
         return displayId;
     }
 
+    @SuppressWarnings("unchecked")
+    static boolean peerRowOnline(JTable table, String peerId) {
+        Object stored = table.getClientProperty(PEER_ONLINE_CLIENT_KEY);
+        if (!(stored instanceof java.util.Map)) {
+            return false;
+        }
+        Object flag = ((java.util.Map<String, Boolean>) stored).get(peerId);
+        return flag instanceof Boolean && (Boolean) flag;
+    }
+
+    private static void installPeerTableHeaderRenderers(JTable table, Font boldFont) {
+        javax.swing.table.TableColumnModel model = table.getColumnModel();
+        for (int columnIndex = 0; columnIndex < model.getColumnCount(); columnIndex++) {
+            final boolean center = columnIndex > 0;
+            model.getColumn(columnIndex).setHeaderRenderer(new javax.swing.table.DefaultTableCellRenderer() {
+                @Override
+                public Component getTableCellRendererComponent(
+                        JTable source, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                    JLabel label = (JLabel) super.getTableCellRendererComponent(
+                            source, value, isSelected, hasFocus, row, column);
+                    label.setOpaque(true);
+                    label.setBackground(CandyTheme.HEADER);
+                    label.setForeground(CandyTheme.INK);
+                    label.setBorder(new EmptyBorder(6, 8, 6, 8));
+                    label.setFont(boldFont);
+                    label.setHorizontalAlignment(center ? SwingConstants.CENTER : SwingConstants.LEADING);
+                    return label;
+                }
+            });
+        }
+    }
+
     /**
-     * 後面四欄至少放下表頭（套用 NightTheme 之後的 header renderer，含左右 padding）。
-     * 多出來的寬度給裝置 ID；表太窄時先縮裝置 ID（允許省略），最後才壓縮後面四欄。
+     * 後面三欄至少放下表頭（套用 NightTheme 之後的 header renderer，含左右 padding）。
+     * 多出來的寬度給裝置 ID；表太窄時先縮裝置 ID（允許省略），最後才壓縮後面三欄。
      */
     private static void layoutPeerColumns(JTable table) {
         int width = table.getWidth();
-        if (table.getColumnCount() != 5) {
+        if (table.getColumnCount() != 4) {
             return;
         }
-        int[] tail = new int[4];
+        int[] tail = new int[3];
         int tailSum = 0;
         for (int i = 0; i < tail.length; i++) {
             tail[i] = peerColumnPreferredWidth(table, i + 1);
