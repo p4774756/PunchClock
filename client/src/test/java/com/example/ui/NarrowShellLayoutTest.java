@@ -2,19 +2,29 @@ package com.example.ui;
 
 import org.junit.Test;
 
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Point;
+import java.awt.image.BufferedImage;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -24,6 +34,8 @@ public class NarrowShellLayoutTest {
 
     private static final int VIEW_W = 320;
     private static final int VIEW_H = 720;
+    private static final Color PEER_ONLINE_DOT = new Color(120, 210, 150);
+    private static final Color PEER_OFFLINE_DOT = new Color(120, 108, 148);
 
     @Test
     public void scheduleControlsStayInsideViewport() throws Exception {
@@ -79,20 +91,76 @@ public class NarrowShellLayoutTest {
             assertFits(scroll, refs.clientIdApplyButton);
             assertTrue(refs.peerTable.getWidth() > 0);
             assertTrue(refs.peerTable.getWidth() <= VIEW_W);
-            assertEquals(5, refs.peerTable.getColumnCount());
+            assertEquals(4, refs.peerTable.getColumnCount());
             int covered = 0;
             for (int i = 0; i < refs.peerTable.getColumnCount(); i++) {
                 int colW = refs.peerTable.getColumnModel().getColumn(i).getWidth();
                 assertTrue("col " + i + " width " + colW, colW >= 28);
                 covered += colW;
+                Object header = refs.peerTable.getColumnModel().getColumn(i).getHeaderValue();
+                assertFalse("狀態".equals(header));
             }
             assertTrue(covered <= refs.peerTable.getWidth() + 2);
             assertTrue(refs.peerHintLabel.getWidth() <= VIEW_W);
             assertTrue(refs.peerHintLabel.getWidth() > 40);
-            refs.peerTableModel.addRow(new Object[]{"company-worker2", "在線", 0, "4.0.0", "☆"});
-            refs.peerTableModel.addRow(new Object[]{"company-worker3", "離線", 2, "4.0.0", "★"});
+            Map<String, Boolean> online = new LinkedHashMap<>();
+            online.put("company-worker2", true);
+            online.put("company-worker3", false);
+            refs.peerTable.putClientProperty(PanelFactory.PEER_ONLINE_CLIENT_KEY, online);
+            refs.peerTableModel.addRow(new Object[]{"company-worker2", 0, "4.0.0", "☆"});
+            refs.peerTableModel.addRow(new Object[]{"company-worker3", 2, "4.0.0", "★"});
             assertPeerIdsFit(refs.peerTable, 300);
+            assertPeerColumnAlignments(refs.peerTable);
+            assertPeerOnlineDotsDiffer(refs.peerTable);
+            assertEquals("★", refs.peerTableModel.getValueAt(1, PanelFactory.PEER_FAVORITE_COLUMN));
+            refs.peerTableModel.setValueAt(PanelFactory.PEER_FAVORITE_OFF, 1, PanelFactory.PEER_FAVORITE_COLUMN);
+            assertEquals("☆", refs.peerTableModel.getValueAt(1, PanelFactory.PEER_FAVORITE_COLUMN));
         });
+    }
+
+    private static void assertPeerColumnAlignments(javax.swing.JTable table) {
+        for (int col = 0; col < table.getColumnCount(); col++) {
+            Component cell = table.prepareRenderer(table.getCellRenderer(0, col), 0, col);
+            assertTrue(cell instanceof JLabel);
+            int align = ((JLabel) cell).getHorizontalAlignment();
+            if (col == 0) {
+                assertEquals(SwingConstants.LEADING, align);
+            } else {
+                assertEquals(SwingConstants.CENTER, align);
+            }
+            javax.swing.table.TableColumn column = table.getColumnModel().getColumn(col);
+            Component header = column.getHeaderRenderer().getTableCellRendererComponent(
+                    table, column.getHeaderValue(), false, false, -1, col);
+            assertTrue(header instanceof JLabel);
+            int headerAlign = ((JLabel) header).getHorizontalAlignment();
+            if (col == 0) {
+                assertEquals(SwingConstants.LEADING, headerAlign);
+            } else {
+                assertEquals(SwingConstants.CENTER, headerAlign);
+            }
+        }
+    }
+
+    private static void assertPeerOnlineDotsDiffer(javax.swing.JTable table) {
+        Color online = dotColor(table, 0);
+        Color offline = dotColor(table, 1);
+        assertColorNear(PEER_ONLINE_DOT, online);
+        assertColorNear(PEER_OFFLINE_DOT, offline);
+        assertNotEquals(online.getRGB(), offline.getRGB());
+    }
+
+    private static Color dotColor(javax.swing.JTable table, int row) {
+        Component cell = table.prepareRenderer(table.getCellRenderer(row, 0), row, 0);
+        Icon icon = ((JLabel) cell).getIcon();
+        assertTrue(icon instanceof ImageIcon);
+        BufferedImage face = (BufferedImage) ((ImageIcon) icon).getImage();
+        return new Color(face.getRGB(13, 13), true);
+    }
+
+    private static void assertColorNear(Color expected, Color actual) {
+        assertTrue(Math.abs(expected.getRed() - actual.getRed()) <= 8);
+        assertTrue(Math.abs(expected.getGreen() - actual.getGreen()) <= 8);
+        assertTrue(Math.abs(expected.getBlue() - actual.getBlue()) <= 8);
     }
 
     /** 380 寬小方塊裡好友表大約 300px。套用跟畫面上一樣的表頭之後，每欄都要蓋過表頭 preferred 寬。 */
@@ -107,7 +175,11 @@ public class NarrowShellLayoutTest {
             int colW = column.getWidth();
             assertTrue("col " + i + " width " + colW, colW >= 28);
             covered += colW;
-            java.awt.Component painted = header.getDefaultRenderer().getTableCellRendererComponent(
+            javax.swing.table.TableCellRenderer headerRenderer = column.getHeaderRenderer();
+            if (headerRenderer == null) {
+                headerRenderer = header.getDefaultRenderer();
+            }
+            java.awt.Component painted = headerRenderer.getTableCellRendererComponent(
                     table, column.getHeaderValue(), false, false, -1, i);
             assertTrue("header " + column.getHeaderValue() + " pref " + painted.getPreferredSize().width
                             + " col " + colW,
