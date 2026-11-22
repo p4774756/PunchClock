@@ -6,8 +6,6 @@ import com.example.PeerFileRules;
 import com.example.ReleaseNotes;
 import com.example.server.auth.AuthConfig;
 import com.example.server.auth.AuthService;
-import com.example.server.health.HealthHistoryStore;
-import com.example.server.health.ServerHealth;
 import com.example.server.store.ClientStore;
 import com.example.server.store.DevStatusService;
 import com.example.server.store.GithubDevStatusClient;
@@ -28,7 +26,6 @@ import com.example.server.web.DevMachineRoutes;
 import com.example.server.web.DevStatusRoutes;
 import com.example.server.store.DevMachineStore;
 import com.example.server.web.RoadmapRoutes;
-import com.example.server.web.TeaHealthRoutes;
 import com.example.server.web.RouteSupport;
 import com.example.server.web.LoginNextPath;
 import com.example.server.web.LoginPageRenderer;
@@ -62,8 +59,6 @@ public final class ServerApp {
     private final AuthService authService;
     private final ClientStore clientStore;
     private final RelayStore relayStore;
-    private final ServerHealth serverHealth;
-    private final HealthHistoryStore healthHistoryStore;
     private final Gson gson;
     private final DashboardBroadcaster broadcaster;
     private final RelayRoutes relayRoutes;
@@ -77,7 +72,6 @@ public final class ServerApp {
     private final DevMachineStore devMachineStore;
     private final DevMachineRoutes devMachineRoutes;
     private final AtlasRoutes atlasRoutes;
-    private final TeaHealthRoutes teaHealthRoutes;
     private final ClientRelease clientRelease;
 
     public ServerApp() {
@@ -105,8 +99,6 @@ public final class ServerApp {
         this.authService = authService != null ? authService : new AuthService();
         this.clientStore = new ClientStore();
         this.relayStore = new RelayStore();
-        this.serverHealth = new ServerHealth();
-        this.healthHistoryStore = new HealthHistoryStore();
         this.gson = new GsonBuilder().disableHtmlEscaping().create();
         this.broadcaster = new DashboardBroadcaster(gson);
         this.relayRoutes = new RelayRoutes(
@@ -123,7 +115,6 @@ public final class ServerApp {
         this.devMachineStore = new DevMachineStore();
         this.officePublicRoutes = new OfficePublicRoutes(devMachineStore, status);
         this.devMachineRoutes = new DevMachineRoutes(this.authService, devMachineStore, status, gson);
-        this.teaHealthRoutes = new TeaHealthRoutes(serverHealth);
         this.atlasRoutes = new AtlasRoutes();
         this.roadmapRoutes = new RoadmapRoutes(roadmapService != null
                 ? roadmapService
@@ -137,8 +128,6 @@ public final class ServerApp {
 
     public Javalin start(int port) {
         clientStore.startOfflineMonitor(broadcaster::broadcast);
-        healthHistoryStore.start(() -> serverHealth.snapshot(relayStore));
-
         Javalin app = Javalin.create(config -> {
             config.staticFiles.add(sf -> {
                 sf.hostedPath = "/css";
@@ -180,7 +169,6 @@ public final class ServerApp {
         System.out.println("- Protocol: HTTP heartbeat for workers; Dashboard WS for status push only");
         System.out.println("- Peer relay: /api/peer/relay (both online, in-memory only, no disk, max "
                 + PeerFileRules.MAX_SIZE_LABEL + ")");
-        System.out.println("- Health history: GET /api/health/history (login, keep 3 days)");
         if (clientRelease.isAvailable()) {
             System.out.println("- Client release: v" + clientRelease.version()
                     + " " + clientRelease.sourceDigest().substring(0, 8)
@@ -213,10 +201,8 @@ public final class ServerApp {
         roadmapRoutes.register(app);
         devStatusRoutes.register(app);
         devMachineRoutes.register(app);
-        teaHealthRoutes.register(app);
         atlasRoutes.register(app);
         app.get("/api/status", this::status);
-        app.get("/api/health/history", this::healthHistory);
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
         app.post("/api/clients/{clientId}/cancel-task/{taskId}", this::cancelTask);
         app.delete("/api/clients/{clientId}", this::deleteClient);
@@ -464,17 +450,7 @@ public final class ServerApp {
         payload.put("serverBuildTime", BUILD_INFO.buildTimeIso());
         payload.put("totalClients", clientStore.clients().size());
         payload.put("clients", clientStore.publicClientsSnapshot());
-        payload.put("serverHealth", serverHealth.snapshot(relayStore));
-        payload.put("healthHistory", healthHistoryStore.summary());
         ctx.json(payload);
-    }
-
-    private void healthHistory(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
-            return;
-        }
-        ctx.json(healthHistoryStore.summary());
     }
 
     private void cancelSchedule(Context ctx) {
@@ -549,7 +525,6 @@ public final class ServerApp {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "STATUS_UPDATE");
         payload.put("clients", clientStore.publicClientsSnapshot());
-        payload.put("serverHealth", serverHealth.snapshot(relayStore));
         return payload;
     }
 

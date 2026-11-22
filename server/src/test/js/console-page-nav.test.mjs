@@ -12,6 +12,7 @@ test('主控台頂欄為任務、施工進度、辦公室', () => {
   assert.match(html, /data-open-roadmap/);
   assert.match(html, /href="\/">辦公室<\/a>/);
   assert.doesNotMatch(html, /data-tab="system"/);
+  assert.doesNotMatch(html, /id="panel-system"/);
   assert.doesNotMatch(html, /href="\/dev-status"/);
   assert.doesNotMatch(html, /開發機狀態/);
 });

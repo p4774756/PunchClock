@@ -135,14 +135,6 @@ public class PublicOfficeAuthTest {
     }
 
     @Test
-    public void guestsCanReadTeaHealthWithoutSensitiveFields() throws Exception {
-        HttpResponse<String> response = send("GET", "/api/tea-health", null);
-        assertEquals(200, response.statusCode());
-        assertFalse(response.body().contains("\"clients\""));
-        assertFalse(response.body().contains("未登入"));
-    }
-
-    @Test
     public void guestsAreDeniedDevMachinesApi() throws Exception {
         HttpResponse<String> status = send("GET", "/api/dev-machines", null);
         assertEquals(401, status.statusCode());
@@ -245,7 +237,6 @@ public class PublicOfficeAuthTest {
     @Test
     public void guestsAreDeniedManagementApis() throws Exception {
         assertDeniedManagement(send("GET", "/api/status", null));
-        assertDeniedManagement(send("GET", "/api/health/history", null));
         assertDeniedManagement(send("POST", "/api/clients/demo/cancel-schedule", null));
     }
 
