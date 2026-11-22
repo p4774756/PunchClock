@@ -228,8 +228,9 @@ export function buildCharacterState(charId, ctx) {
 
   if (charId === 'oki') {
     const q = dev && dev.now && dev.now.queue ? dev.now.queue.length : 0;
-    const cur = dev && dev.now && dev.now.current ? dev.now.current : null;
-    const working = !!(cur && cur.issue);
+    const curRaw = dev && dev.now ? dev.now.current : null;
+    const curList = Array.isArray(curRaw) ? curRaw : (curRaw ? [curRaw] : []);
+    const working = curList.some((cur) => cur && cur.issue);
     out.bubble = working ? '工作中' : '佇列 ' + q;
     if (working) {
       out.mode = 'work';

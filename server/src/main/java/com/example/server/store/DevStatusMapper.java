@@ -142,6 +142,9 @@ public final class DevStatusMapper {
         if (pull != null && pull.merged) {
             return DevStatusModels.STATUS_MERGED;
         }
+        if (!issue.open) {
+            return DevStatusModels.STATUS_MERGED;
+        }
         if (pull != null && pull.open && !pull.draft) {
             return DevStatusModels.STATUS_REVIEW;
         }
@@ -187,17 +190,19 @@ public final class DevStatusMapper {
             }
         }
 
-        // 已合併票的分支不算進行中
-        Set<Integer> mergedIssues = new HashSet<>();
+        // 已關閉或已合併票的分支不算進行中
+        Set<Integer> branchInactive = new HashSet<>();
         for (IssueRow issue : issues) {
             PullRow pull = pickPull(issue.number, pulls, byIssue);
-            if (pull != null && pull.merged) {
-                mergedIssues.add(issue.number);
+            if (!issue.open) {
+                branchInactive.add(issue.number);
+            } else if (pull != null && pull.merged) {
+                branchInactive.add(issue.number);
             }
         }
         Set<Integer> activeBranches = new HashSet<>();
         for (Integer n : branches) {
-            if (n != null && !mergedIssues.contains(n)) {
+            if (n != null && !branchInactive.contains(n)) {
                 activeBranches.add(n);
             }
         }
@@ -235,6 +240,38 @@ public final class DevStatusMapper {
         }
         items.sort(Comparator.comparingInt((Item i) -> i.issue).reversed());
 
+        Map<Integer, Integer> issueQueueOrder = new HashMap<>();
+        for (IssueRow issue : issues) {
+            if (!issue.open) {
+                continue;
+            }
+            Integer order = queueOrder(issue.labels);
+            if (order != null) {
+                issueQueueOrder.put(issue.number, order);
+            }
+        }
+
+        List<Item> current = new ArrayList<>();
+        for (IssueRow issue : issues) {
+            if (!issue.open) {
+                continue;
+            }
+            Item item = itemsByIssue.get(issue.number);
+            if (item == null) {
+                continue;
+            }
+            String status = item.status;
+            if (DevStatusModels.STATUS_WORKING.equals(status) || DevStatusModels.STATUS_REVIEW.equals(status)) {
+                current.add(item);
+            }
+        }
+        current.sort(inProgressOrder(issueQueueOrder));
+
+        Set<Integer> inProgressIssues = new HashSet<>();
+        for (Item item : current) {
+            inProgressIssues.add(item.issue);
+        }
+
         List<QueueEntry> queue = new ArrayList<>();
         for (IssueRow issue : issues) {
             if (!issue.open) {
@@ -242,6 +279,9 @@ public final class DevStatusMapper {
             }
             Integer order = queueOrder(issue.labels);
             if (order == null) {
+                continue;
+            }
+            if (inProgressIssues.contains(issue.number)) {
                 continue;
             }
             Item item = itemsByIssue.get(issue.number);
@@ -266,23 +306,8 @@ public final class DevStatusMapper {
         queue.sort(Comparator.comparingInt((QueueEntry q) -> q.order)
                 .thenComparingInt(q -> q.item.issue));
 
-        Item current = null;
-        int currentIndex = -1;
-        for (int i = 0; i < queue.size(); i++) {
-            QueueEntry entry = queue.get(i);
-            String status = entry.item.status;
-            if (DevStatusModels.STATUS_WORKING.equals(status) || DevStatusModels.STATUS_REVIEW.equals(status)) {
-                current = entry.item;
-                currentIndex = i;
-                break;
-            }
-        }
         Item next = null;
-        if (currentIndex >= 0) {
-            if (currentIndex + 1 < queue.size()) {
-                next = queue.get(currentIndex + 1).item;
-            }
-        } else if (!queue.isEmpty()) {
+        if (!queue.isEmpty()) {
             next = queue.get(0).item;
         }
 
@@ -336,6 +361,26 @@ public final class DevStatusMapper {
         }
 
         return new Document(new NowBlock(current, next, queue), items, timeline, stats);
+    }
+
+    /** 有 queue 標籤的進行中在前（依 queue 序），其餘依 issue 編號升冪。 */
+    private static Comparator<Item> inProgressOrder(Map<Integer, Integer> queueOrders) {
+        return (a, b) -> {
+            Integer qa = queueOrders.get(a.issue);
+            Integer qb = queueOrders.get(b.issue);
+            boolean aQueued = qa != null;
+            boolean bQueued = qb != null;
+            if (aQueued != bQueued) {
+                return aQueued ? -1 : 1;
+            }
+            if (aQueued) {
+                int byOrder = Integer.compare(qa, qb);
+                if (byOrder != 0) {
+                    return byOrder;
+                }
+            }
+            return Integer.compare(a.issue, b.issue);
+        };
     }
 
     private static Integer primaryClosedIssue(PullRow pull) {

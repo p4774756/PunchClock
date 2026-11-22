@@ -495,6 +495,30 @@ a.roadmap-source[aria-disabled="true"] {
   font-size: 0.88rem;
 }
 
+.roadmap-dev-current-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.roadmap-dev-current-entry .roadmap-dev-title {
+  margin-top: 0.15rem;
+}
+
+.roadmap-dev-queue-toggle {
+  margin-top: 0.45rem;
+  border: 2px solid var(--maple-navy);
+  background: var(--maple-blue-lt);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  min-height: 44px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--maple-navy);
+  cursor: pointer;
+  width: 100%;
+}
+
 .roadmap-dev-mid {
   display: grid;
   grid-template-columns: 1.4fr 1fr;

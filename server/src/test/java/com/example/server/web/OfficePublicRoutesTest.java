@@ -23,6 +23,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,6 +117,27 @@ public class OfficePublicRoutesTest {
         assertEquals("休息中", tiger.get("status").getAsString());
         assertTrue(TIGER_STATUS.matcher(tiger.get("status").getAsString()).matches());
         assertEquals(0, tiger.getAsJsonArray("active").size());
+    }
+
+    @Test
+    public void tigerReviewRunNotStandby() throws Exception {
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 374);
+        run.put("round", 2);
+        run.put("branch", "ai/issue-374");
+        run.put("role", "review");
+        run.put("startedAt", 9_000_000L - 300_000L);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", false);
+        body.put("runs", Collections.singletonList(run));
+        body.put("battery", 80);
+        body.put("charging", true);
+        store.applyHeartbeat("tiger", body);
+
+        assertEquals("工作中", fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .get("status").getAsString());
     }
 
     @Test

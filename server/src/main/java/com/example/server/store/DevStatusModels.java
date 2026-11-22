@@ -157,12 +157,15 @@ public final class DevStatusModels {
     }
 
     public static final class NowBlock {
-        public final Item current;
+        /** 全部進行中（實作中或審核中）；可為空，不為 null。 */
+        public final List<Item> current;
         public final Item next;
         public final List<QueueEntry> queue;
 
-        public NowBlock(Item current, Item next, List<QueueEntry> queue) {
-            this.current = current;
+        public NowBlock(List<Item> current, Item next, List<QueueEntry> queue) {
+            this.current = current == null
+                    ? Collections.emptyList()
+                    : Collections.unmodifiableList(new ArrayList<>(current));
             this.next = next;
             this.queue = queue == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(queue));
         }
