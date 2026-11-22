@@ -1,4 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&display=swap");
+@import url("maple-close-x.css");
 
 :root {
   --maple-navy: #163a70;
@@ -78,20 +79,6 @@ body.roadmap-open {
   font-size: 1.05rem;
   font-weight: 700;
   color: #fff;
-}
-
-.roadmap-close-x {
-  width: 28px;
-  height: 28px;
-  border: 2px solid var(--maple-navy);
-  border-radius: 4px;
-  background: var(--maple-gold);
-  color: var(--maple-navy);
-  font-size: 1.15rem;
-  font-weight: 800;
-  line-height: 1;
-  cursor: pointer;
-  box-shadow: 1px 2px 0 rgba(0, 0, 0, 0.25);
 }
 
 .roadmap-banner {

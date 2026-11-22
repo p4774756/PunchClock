@@ -68,24 +68,6 @@
   margin: 0;
 }
 
-.lab-office-close {
-  font-family: inherit;
-  font-size: 1rem;
-  line-height: 1;
-  min-width: 2rem;
-  min-height: 2rem;
-  border: 3px solid #163a70;
-  background: #f8fbff;
-  color: #163a70;
-  border-radius: 4px;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.2rem 0.55rem;
-}
-
 .lab-office-stage {
   position: relative;
   width: 100%;
