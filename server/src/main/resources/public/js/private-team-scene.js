@@ -392,17 +392,20 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
   );
 
+  const nameTagX = 0.58;
+  const nameTagY = 1.74;
+  const nameTagZ = 0.74;
   const namePlate = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.92, 0.32),
+    new THREE.PlaneGeometry(1.0, 0.32),
     new THREE.MeshBasicMaterial({
-      map: labelTexture('私人秘書', 640, 220),
+      map: labelTexture('私人秘書', 700, 220),
       side: THREE.DoubleSide
     })
   );
-  namePlate.position.set(0.78, 1.9, 0.74);
+  namePlate.position.set(nameTagX, nameTagY, nameTagZ);
   root.add(namePlate);
   const nameStand = box(0.06, 0.16, 0.06, COL.navy);
-  nameStand.position.set(0.78, 1.8, 0.74);
+  nameStand.position.set(nameTagX, nameTagY - 0.1, nameTagZ);
   root.add(nameStand);
 
   const bubbleDrawer = makeBubbleDrawer();
@@ -412,7 +415,10 @@ export function mountPrivateTeamScene(canvas, opts) {
     depthWrite: false
   });
   const bubble = new THREE.Mesh(new THREE.PlaneGeometry(0.82, 0.36), bubbleMat);
-  bubble.position.set(0.38, 2.08, 0.72);
+  const bubbleFloatMin = 2.2;
+  const bubbleFloatSpan = 0.07;
+  const bubbleRestY = bubbleFloatMin + bubbleFloatSpan / 2;
+  bubble.position.set(nameTagX, bubbleRestY, 0.7);
   bubble.renderOrder = 3;
   bubble.name = 'secretaryBubble';
   root.add(bubble);
@@ -499,11 +505,11 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
 
     if (reducedMotion) {
-      bubble.position.y = 2.02;
+      bubble.position.y = bubbleRestY;
       bubbleMat.opacity = 0.92;
     } else {
       const bubblePhase = (Math.sin(elapsed * 2.2) + 1) / 2;
-      bubble.position.y = 1.98 + bubblePhase * 0.07;
+      bubble.position.y = bubbleFloatMin + bubblePhase * bubbleFloatSpan;
       bubbleMat.opacity = 0.82 + bubblePhase * 0.18;
     }
 
