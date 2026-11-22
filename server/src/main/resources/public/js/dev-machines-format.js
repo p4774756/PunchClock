@@ -422,11 +422,62 @@ export function createGithubLink(doc, opts) {
   return span;
 }
 
+export function parseRoadmapSearchQuery(raw) {
+  const q = (raw == null ? '' : String(raw)).trim();
+  if (!q) return { kind: 'none' };
+  let m = /^i(\d+)$/i.exec(q);
+  if (m) return { kind: 'issue', n: Number(m[1]) };
+  m = /^#?(\d+)$/.exec(q);
+  if (m) return { kind: 'issue', n: Number(m[1]) };
+  m = /^p(\d+)$/i.exec(q);
+  if (m) return { kind: 'pr', n: Number(m[1]) };
+  m = /^pr\s*#?\s*(\d+)$/i.exec(q);
+  if (m) return { kind: 'pr', n: Number(m[1]) };
+  return { kind: 'text', text: q.toLowerCase() };
+}
+
+export function roadmapItemMatchesSearch(query, item) {
+  if (!query || query.kind === 'none') return true;
+  if (!item) return false;
+  const issue = item.issue != null ? Number(item.issue) : null;
+  const pr = item.pr != null ? Number(item.pr) : null;
+  const title = (item.text == null ? '' : String(item.text)).toLowerCase();
+  if (query.kind === 'issue') return issue === query.n;
+  if (query.kind === 'pr') return pr === query.n;
+  if (query.kind === 'text') return title.includes(query.text);
+  return false;
+}
+
+export function devStatusItemMatchesSearch(query, item) {
+  if (!query || query.kind === 'none') return true;
+  if (!item) return false;
+  const issue = item.issue != null ? Number(item.issue) : null;
+  const pr = item.pr != null ? Number(item.pr) : null;
+  const title = (item.title == null ? '' : String(item.title)).toLowerCase();
+  const pair = (item.pair == null ? '' : String(item.pair)).toLowerCase();
+  const ref = (item.ref == null ? '' : String(item.ref)).toLowerCase();
+  if (query.kind === 'issue') {
+    return issue === query.n || pair.includes('i' + query.n) || ref.includes('i' + query.n);
+  }
+  if (query.kind === 'pr') {
+    return pr === query.n || pair.includes('p' + query.n) || ref.includes('p' + query.n);
+  }
+  if (query.kind === 'text') {
+    return title.includes(query.text) || pair.includes(query.text) || ref.includes(query.text);
+  }
+  return false;
+}
+
 export function applyGithubSourceLabel(doc, el, href, canLink) {
   if (!doc || !el) return;
-  const url = href || GITHUB_REPO + '/issues/36';
-  const match = /\/issues\/(\d+)\s*$/.exec(url);
-  const label = '資料來源：GitHub #' + (match ? match[1] : '36');
+  const url = href || GITHUB_REPO + '/milestones';
+  let label;
+  if (/\/milestones\/?$/.test(url)) {
+    label = '資料來源：GitHub Milestones';
+  } else {
+    const match = /\/issues\/(\d+)\s*$/.exec(url);
+    label = '資料來源：GitHub #' + (match ? match[1] : '');
+  }
   el.classList.remove('dev-guest-ref');
   el.removeAttribute('role');
   el.removeAttribute('tabindex');

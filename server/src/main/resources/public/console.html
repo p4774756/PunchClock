@@ -89,8 +89,12 @@
         <button type="button" class="roadmap-tab is-active" data-roadmap-tab="phases" role="tab" aria-pressed="true">路線圖</button>
         <button type="button" class="roadmap-tab" data-roadmap-tab="dev" role="tab" aria-pressed="false">開發進度</button>
       </div>
+      <div class="roadmap-search">
+        <input type="search" class="roadmap-search-input" data-roadmap-search placeholder="搜尋 i349、#349、p372 或標題關鍵字" autocomplete="off" enterkeyhint="search" />
+        <button type="button" class="roadmap-search-clear" data-roadmap-search-clear hidden>清除</button>
+        <p class="roadmap-search-empty" data-roadmap-search-empty hidden>找不到</p>
+      </div>
       <div class="roadmap-layout">
-        <aside class="roadmap-today-panel maple-window" data-roadmap-today aria-label="今日完成"></aside>
         <div class="roadmap-main-stack">
           <div class="roadmap-tab-panel" data-roadmap-panel="phases">
             <div class="roadmap-list" data-roadmap-list></div>
@@ -121,7 +125,7 @@
       </div>
       <p class="roadmap-note" data-roadmap-note></p>
       <footer class="roadmap-foot">
-        <a class="roadmap-source" data-roadmap-source href="https://github.com/p4774756/PunchClock/issues/36" target="_blank" rel="noopener noreferrer">資料來源：GitHub #36</a>
+        <a class="roadmap-source" data-roadmap-source href="https://github.com/p4774756/PunchClock/milestones" target="_blank" rel="noopener noreferrer">資料來源：GitHub Milestones</a>
         <span class="roadmap-dev-machines-nav" data-dev-machines-nav hidden></span>
       </footer>
     </div>

@@ -153,8 +153,8 @@ test('roadmap 不再顯示開發機狀態鈕', () => {
   assert.equal(nav.childNodes.length, 0);
   const src = doc.createElement('a');
   src.className = 'roadmap-source';
-  F.applyGithubSourceLabel(doc, src, 'https://github.com/p4774756/PunchClock/issues/36', false);
-  assert.equal(src.textContent, '資料來源：GitHub #36');
+  F.applyGithubSourceLabel(doc, src, 'https://github.com/p4774756/PunchClock/milestones', false);
+  assert.equal(src.textContent, '資料來源：GitHub Milestones');
   assert.equal(src.getAttribute('aria-disabled'), 'true');
   assert.ok(src.className.includes('dev-guest-ref'));
 });
@@ -351,4 +351,19 @@ test('今日合併篩選接受 API 合併與已合併', () => {
     now
   );
   assert.equal(merged.length, 1);
+});
+
+test('施工進度搜尋：i349／p373／中文／找不到', () => {
+  const item349 = { text: '移除 App 21 點', issue: 349, pr: null, done: false };
+  const item339 = { text: '某單', issue: 339, pr: 373, done: true };
+  const q349 = F.parseRoadmapSearchQuery('i349');
+  const q373 = F.parseRoadmapSearchQuery('p373');
+  const qText = F.parseRoadmapSearchQuery('移除 App');
+  const qMiss = F.parseRoadmapSearchQuery('zzz999');
+  assert.equal(F.roadmapItemMatchesSearch(q349, item349), true);
+  assert.equal(F.roadmapItemMatchesSearch(q349, item339), false);
+  assert.equal(F.roadmapItemMatchesSearch(q373, item339), true);
+  assert.equal(F.roadmapItemMatchesSearch(q373, item349), false);
+  assert.equal(F.roadmapItemMatchesSearch(qText, item349), true);
+  assert.equal(F.roadmapItemMatchesSearch(qMiss, item349), false);
 });

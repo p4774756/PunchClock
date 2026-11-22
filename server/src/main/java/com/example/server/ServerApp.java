@@ -9,7 +9,7 @@ import com.example.server.auth.AuthService;
 import com.example.server.store.ClientStore;
 import com.example.server.store.DevStatusService;
 import com.example.server.store.GithubDevStatusClient;
-import com.example.server.store.GithubRoadmapClient;
+import com.example.server.store.GithubMilestoneClient;
 import com.example.server.store.DevStatusService;
 import com.example.server.store.GraffitiStore;
 import com.example.server.store.RoadmapService;
@@ -118,7 +118,7 @@ public final class ServerApp {
         this.atlasRoutes = new AtlasRoutes();
         this.roadmapRoutes = new RoadmapRoutes(roadmapService != null
                 ? roadmapService
-                : new RoadmapService(new GithubRoadmapClient()));
+                : new RoadmapService(new GithubMilestoneClient()));
     }
 
     public static void main(String[] args) {
