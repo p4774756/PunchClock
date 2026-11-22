@@ -20,4 +20,8 @@ test('主控台頂欄為任務、施工進度、辦公室', () => {
 test('首頁選單仍保留訪客施工進度', () => {
   const js = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
   assert.match(js, /data-pt-open-roadmap/);
+  assert.doesNotMatch(js, /開發機狀態/);
+  assert.doesNotMatch(js, /pt-hud-card/);
+  assert.doesNotMatch(js, /\/api\/dev-status/);
+  assert.match(js, /\/api\/office\/public/);
 });
