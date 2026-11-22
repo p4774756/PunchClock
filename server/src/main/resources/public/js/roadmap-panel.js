@@ -130,11 +130,14 @@ function renderRoadmapItemLi(doc, item, canLink, query, highlight) {
 function appendPhaseItems(doc, parent, items, canLink, query) {
   const open = items.filter((it) => it && !it.done);
   const done = items.filter((it) => it && it.done);
-  const ul = doc.createElement('ul');
-  open.forEach((item) => {
-    const hit = !query || query.kind === 'none' || roadmapItemMatchesSearch(query, item);
-    ul.appendChild(renderRoadmapItemLi(doc, item, canLink, query, hit && query && query.kind !== 'none'));
-  });
+  if (open.length) {
+    const ul = doc.createElement('ul');
+    open.forEach((item) => {
+      const hit = !query || query.kind === 'none' || roadmapItemMatchesSearch(query, item);
+      ul.appendChild(renderRoadmapItemLi(doc, item, canLink, query, hit && query && query.kind !== 'none'));
+    });
+    parent.appendChild(ul);
+  }
   if (done.length) {
     const bucket = doc.createElement('details');
     bucket.className = 'roadmap-done-bucket';
@@ -153,7 +156,6 @@ function appendPhaseItems(doc, parent, items, canLink, query) {
     bucket.appendChild(inner);
     parent.appendChild(bucket);
   }
-  if (open.length) parent.appendChild(ul);
 }
 
 function shouldDefaultOpen(phase, status) {
