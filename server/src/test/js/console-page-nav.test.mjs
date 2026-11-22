@@ -15,6 +15,8 @@ test('主控台頂欄為任務、施工進度、辦公室', () => {
   assert.doesNotMatch(html, /id="panel-system"/);
   assert.doesNotMatch(html, /href="\/dev-status"/);
   assert.doesNotMatch(html, /開發機狀態/);
+  const css = readFileSync(join(publicRoot, 'css/console.css'), 'utf8');
+  assert.match(css, /\.console-auth a\[href="\/logout"\]\s*\{[^}]*display:\s*none\s*!important/);
 });
 
 test('首頁 HUD 右上身分膠囊與左上任務頭像', () => {

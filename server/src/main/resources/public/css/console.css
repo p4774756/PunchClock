@@ -67,6 +67,11 @@ body.console-page {
   font-weight: 700;
 }
 
+/* 登出只留在首頁右上身分膠囊，主控台頂欄不顯示 */
+.console-auth a[href="/logout"] {
+  display: none !important;
+}
+
 .is-guest [data-auth-only] {
   display: none !important;
 }
