@@ -252,9 +252,7 @@ body.roadmap-open {
 .roadmap-done-bucket summary::-webkit-details-marker { display: none; }
 
 .roadmap-phase .is-search-hit,
-.roadmap-dev-table tr.is-search-hit,
-.roadmap-dev-queue-list li.is-search-hit,
-.roadmap-dev-timeline li.is-search-hit {
+.roadmap-dev-queue-list li.is-search-hit {
   background: rgba(255, 214, 92, 0.45);
   border-radius: 4px;
 }
@@ -532,96 +530,6 @@ a.roadmap-source[aria-disabled="true"] {
   font-size: 0.95rem;
 }
 
-.roadmap-dev-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-bottom: 0.45rem;
-}
-
-.roadmap-dev-filter-btn {
-  border: 2px solid var(--maple-navy);
-  background: var(--maple-blue-lt);
-  border-radius: 6px;
-  padding: 0.35rem 0.7rem;
-  min-height: 44px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--maple-navy);
-  cursor: pointer;
-}
-
-.roadmap-dev-filter-btn[aria-pressed="true"] {
-  background: var(--maple-navy);
-  color: var(--maple-white);
-}
-
-.roadmap-dev-table-wrap {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  background: var(--maple-white);
-  border: 2px solid var(--maple-navy);
-  border-radius: 6px;
-}
-
-.roadmap-dev-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.86rem;
-  min-width: 32rem;
-}
-
-.roadmap-dev-table th,
-.roadmap-dev-table td {
-  padding: 0.45rem 0.55rem;
-  text-align: left;
-  border-bottom: 1px solid rgba(22, 58, 112, 0.1);
-  vertical-align: top;
-}
-
-.roadmap-dev-table th {
-  font-size: 0.78rem;
-  color: var(--maple-muted);
-  font-weight: 700;
-  background: var(--maple-blue-lt);
-}
-
-.roadmap-dev-num { white-space: nowrap; }
-
-.roadmap-dev-time {
-  white-space: nowrap;
-  color: var(--maple-muted);
-  font-size: 0.8rem;
-}
-
-.roadmap-dev-timeline {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.roadmap-dev-timeline li {
-  display: grid;
-  grid-template-columns: minmax(8.5rem, auto) auto minmax(4rem, auto) 1fr;
-  gap: 0.35rem 0.5rem;
-  align-items: baseline;
-  background: var(--maple-white);
-  border: 1px solid rgba(22, 58, 112, 0.12);
-  border-radius: 6px;
-  padding: 0.4rem 0.55rem;
-  font-size: 0.86rem;
-}
-
-.roadmap-dev-timeline time {
-  color: var(--maple-muted);
-  font-size: 0.78rem;
-}
-
-.roadmap-dev-action { font-weight: 800; }
-
 .roadmap-dev-queue-list {
   margin: 0;
   padding: 0;
@@ -683,9 +591,5 @@ a.roadmap-source[aria-disabled="true"] {
   .roadmap-dev-focus,
   .roadmap-dev-mid {
     grid-template-columns: 1fr;
-  }
-  .roadmap-dev-timeline li {
-    grid-template-columns: 1fr;
-    gap: 0.15rem;
   }
 }
