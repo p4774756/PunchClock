@@ -476,6 +476,7 @@
       overflow: hidden;
       max-width: 100%;
       box-shadow: 2px 3px 0 rgba(22, 58, 112, 0.2);
+      cursor: pointer;
     }
 
     .device + .device { margin-top: 0.75rem; }
@@ -536,7 +537,8 @@
       text-overflow: ellipsis;
     }
 
-    .fold-hint {
+    .fold-hint,
+    .app-version-hint {
       font-size: 0.75rem;
       color: #204e96;
       font-weight: 700;

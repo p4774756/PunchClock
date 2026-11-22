@@ -32,7 +32,8 @@ function syncRoadmapUrl(open) {
     const path = window.location.pathname || '/console';
     if (open) {
       if (!shouldOpenRoadmapFromSearch(window.location.search || '')) {
-        window.history.pushState({ punchclockRoadmap: true }, '', buildConsoleRoadmapUrl(path));
+        const hash = window.location.hash || '';
+        window.history.pushState({ punchclockRoadmap: true }, '', buildConsoleRoadmapUrl(path) + hash);
         roadmapHistoryDepth += 1;
       }
       return;

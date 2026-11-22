@@ -496,7 +496,7 @@
       if (head) {
         head.setAttribute('aria-expanded', expanded ? 'true' : 'false');
       }
-      const foldHint = root.querySelector('.device-id .fold-hint');
+      const foldHint = root.querySelector('[data-fold-label]');
       if (foldHint) foldHint.textContent = deviceFoldText(expanded);
       const chevronSlot = root.querySelector('.device-chevron-slot');
       if (chevronSlot) chevronSlot.innerHTML = deviceChevronHtml(expanded);
@@ -759,10 +759,10 @@
       if (!c.appVersion) return '';
       const releaseMs = Date.parse(c.appReleaseTime || '');
       if (!Number.isFinite(releaseMs)) {
-        return '<span class="fold-hint" title="舊版 app 未回報版本時間">v' + escapeHtml(c.appVersion) + '</span>';
+        return '<span class="app-version-hint" title="舊版 app 未回報版本時間">v' + escapeHtml(c.appVersion) + '</span>';
       }
       const full = new Date(releaseMs).toLocaleString('zh-TW', { hour12: false });
-      return '<span class="fold-hint" title="app 版本時間（最後一次 commit）' + escapeHtml(full) + '">v'
+      return '<span class="app-version-hint" title="app 版本時間（最後一次 commit）' + escapeHtml(full) + '">v'
         + escapeHtml(c.appVersion) + ' · ' + formatChartTime(releaseMs) + '</span>';
     }
 
@@ -970,7 +970,7 @@
               '<span class="device-chevron-slot" aria-hidden="true">' + chevronHtml + '</span>' +
               '<strong>' + escapeHtml(c.clientId) + '</strong>' +
               buildAppVersionHintHtml(c) +
-              '<span class="fold-hint">' + foldText + '</span>' +
+              '<span class="fold-hint" data-fold-label>' + foldText + '</span>' +
             '</div>' +
             '<div class="device-head-right">' +
               '<span class="chip ' + badgeClass + '">' + liveDot + badgeText + '</span>' +
@@ -1131,11 +1131,7 @@
       try {
         const path = window.location.pathname || '/console';
         const hash = tabId ? '#' + tabId : '';
-        let search = window.location.search || '';
-        if (search.indexOf('open=roadmap') >= 0) {
-          search = search.replace(/^\?open=roadmap&?/, '?').replace(/&open=roadmap/, '');
-          if (search === '?') search = '';
-        }
+        const search = window.location.search || '';
         const next = path + search + hash;
         if (window.location.pathname + window.location.search + window.location.hash !== next) {
           window.history.replaceState(null, '', next);
@@ -1196,7 +1192,9 @@
           window.sessionStorage.setItem('punchclock.dashTab', next);
         }
       } catch (e) {}
-      setActiveConsoleChrome(next);
+      const roadmapApi = window.PunchclockConsoleRoadmap;
+      const roadmapOpen = !!(roadmapApi && typeof roadmapApi.isOpen === 'function' && roadmapApi.isOpen());
+      setActiveConsoleChrome(next, { roadmapOpen: roadmapOpen });
       if (isAuthenticated && next) {
         writeConsoleUrlForTab(next);
       }
@@ -1268,9 +1266,6 @@
         if (!device) return;
         if (ev.target.closest('.device-head-right button')) return;
         if (ev.target.closest('.device-body button, .device-body a, .device-body input, .log-box, .task-list')) return;
-        const body = device.querySelector('.device-body');
-        const isCollapsed = body && body.classList.contains('collapsed');
-        if (!isCollapsed && !ev.target.closest('.device-head')) return;
         const clientId = device.getAttribute('data-client-id');
         if (!clientId) return;
         toggleCollapse(clientId);
