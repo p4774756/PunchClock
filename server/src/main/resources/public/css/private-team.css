@@ -118,52 +118,6 @@
   max-width: calc(100% - 20px);
 }
 
-.pt-hud-iconcol {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.pt-hud-sqbtn {
-  width: 48px;
-  height: 48px;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 3px solid var(--maple-navy, #163a70);
-  outline: 1px solid var(--maple-blue-lt, #a8d0f2);
-  outline-offset: -4px;
-  border-radius: 6px;
-  background: var(--maple-blue-lt, #a8d0f2);
-  cursor: pointer;
-  box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.31);
-}
-
-.pt-hud-sqbtn.is-day {
-  background: var(--maple-gold, #ecc440);
-}
-
-.pt-hud-sqbtn svg {
-  display: block;
-  width: 24px;
-  height: 24px;
-}
-
-.pt-hud-sqbtn-label {
-  font-size: 0.7rem;
-  font-weight: 800;
-  color: var(--maple-white, #f8fbff);
-  background: var(--maple-blue, #3a7ac4);
-  border: 2px solid var(--maple-navy, #163a70);
-  border-radius: 4px;
-  padding: 0.05rem 0.35rem;
-  line-height: 1.2;
-}
-
 .pt-hud-br {
   position: absolute;
   right: max(10px, env(safe-area-inset-right, 0px));
@@ -772,15 +726,6 @@
   .pt-status-card {
     width: calc(100% - 4px);
     padding: 0.75rem 0.8rem 0.9rem;
-  }
-
-  .pt-hud-sqbtn {
-    width: 44px;
-    height: 44px;
-  }
-
-  .pt-hud-sqbtn-label {
-    font-size: 0.62rem;
   }
 
   .pt-hud-atlas {

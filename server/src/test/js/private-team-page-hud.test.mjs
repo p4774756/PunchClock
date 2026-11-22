@@ -25,6 +25,8 @@ test('私人秘書 HUD 標記與身分文案', () => {
   assert.match(js, /登入/);
   assert.doesNotMatch(js, /pt-hud-identity/);
   assert.doesNotMatch(js, /AUTH_ABBREV/);
+  assert.doesNotMatch(js, /data-pt-daynight/);
+  assert.doesNotMatch(js, /punchclock-private-team-day/);
 });
 
 test('任務細條僅在有公開計數時顯示', () => {

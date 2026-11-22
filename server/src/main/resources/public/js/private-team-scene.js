@@ -19,7 +19,6 @@ const COL = {
   plant: 0x3d8b4a,
   pot: 0x8b5a3c,
   mug: 0xf8fbff,
-  sky: 0x9ec8f0,
   skyNight: 0x1a2848,
   building: 0x4a5c7a,
   buildingLit: 0xf8dc6e,
@@ -29,19 +28,8 @@ const COL = {
   lampShade: 0xe2cfb0
 };
 
-/** 日夜全域與檯燈強度（供 setDayMode 與單測） */
-export function privateTeamSceneLighting(dayMode) {
-  if (dayMode) {
-    return {
-      amb: 0.72,
-      dir: 0.9,
-      point: 0,
-      spot: 0,
-      bulbOpacity: 0,
-      haloOpacity: 0,
-      shadeEmissive: 0
-    };
-  }
+/** 夜間全域與檯燈強度（供單測） */
+export function privateTeamSceneLighting() {
   return {
     amb: 0.28,
     dir: 0.35,
@@ -77,10 +65,10 @@ function makeScreenPainter() {
   const mat = new THREE.MeshBasicMaterial({ map: tex });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.38), mat);
   mesh.position.z = 0.04;
-  function draw(isDay, pulse) {
+  function draw(pulse) {
     ctx.fillStyle = '#121a2c';
     ctx.fillRect(0, 0, 160, 110);
-    const glow = isDay ? '#7ec8ff' : '#b9e2ff';
+    const glow = '#b9e2ff';
     ctx.fillStyle = 'rgba(94, 186, 255, ' + (0.45 + pulse * 0.45) + ')';
     ctx.fillRect(12, 14, 136, 82);
     ctx.fillStyle = glow;
@@ -223,14 +211,14 @@ export function mountPrivateTeamScene(canvas, opts) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a1628);
+  scene.background = new THREE.Color(0x050a14);
 
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
   camera.position.set(4.8, 4.8, 6.2);
   camera.lookAt(0.15, 0.85, 0.05);
 
-  const amb = new THREE.AmbientLight(0xffffff, 0.72);
-  const dir = new THREE.DirectionalLight(0xfff4e8, 0.9);
+  const amb = new THREE.AmbientLight(0xffffff, 0.28);
+  const dir = new THREE.DirectionalLight(0xc8d8ff, 0.35);
   dir.position.set(4, 8, 5);
   scene.add(amb, dir);
 
@@ -272,7 +260,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   wallPiece(2.0, 0.95, 0.85, 0.475);
   wallPiece(2.0, 0.35, 0.85, 2.225);
 
-  const skyMat = new THREE.MeshBasicMaterial({ color: COL.sky });
+  const skyMat = new THREE.MeshBasicMaterial({ color: COL.skyNight });
   const windowSky = new THREE.Mesh(new THREE.PlaneGeometry(2.15, 1.25), skyMat);
   windowSky.position.set(0.85, 1.5, -1.52);
   windowSky.name = 'windowSky';
@@ -298,7 +286,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     const rows = spec.h > 0.6 ? 3 : 2;
     for (let c = 0; c < cols; c++) {
       for (let r = 0; r < rows; r++) {
-        const lit = box(0.05, 0.05, 0.02, 0xd5e2f2, true);
+        const lit = box(0.05, 0.05, 0.02, COL.buildingLit, true);
         const ox = (c - (cols - 1) / 2) * 0.1;
         const oy = (r - (rows - 1) / 2) * 0.14;
         lit.position.set(spec.x + ox, 1.02 + spec.h / 2 + oy, -1.28);
@@ -310,7 +298,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(skyline);
 
   const glassMat = new THREE.MeshLambertMaterial({
-    color: COL.sky,
+    color: COL.skyNight,
     transparent: true,
     opacity: 0.22,
     depthWrite: false
@@ -374,7 +362,11 @@ export function mountPrivateTeamScene(canvas, opts) {
   lampArm.position.set(0.07, 0.16, 0);
   lampArm.rotation.z = -0.22;
   lampGroup.add(lampArm);
-  const lampShadeMat = new THREE.MeshLambertMaterial({ color: COL.lampShade, emissive: 0x000000 });
+  const lampShadeMat = new THREE.MeshLambertMaterial({
+    color: COL.lampShade,
+    emissive: 0xffb060,
+    emissiveIntensity: 0.72
+  });
   const lampShade = new THREE.Mesh(
     new THREE.CylinderGeometry(0.05, 0.085, 0.075, 12),
     lampShadeMat
@@ -384,7 +376,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const lampBulbMat = new THREE.MeshBasicMaterial({
     color: 0xfff2d8,
     transparent: true,
-    opacity: 0,
+    opacity: 0.9,
     depthWrite: false
   });
   const lampBulb = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 10), lampBulbMat);
@@ -393,7 +385,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const lampHaloMat = new THREE.MeshBasicMaterial({
     map: lampGlowTexture(),
     transparent: true,
-    opacity: 0,
+    opacity: 0.62,
     depthWrite: false,
     blending: THREE.AdditiveBlending
   });
@@ -403,10 +395,10 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(lampGroup);
 
   const lampLightLocal = new THREE.Vector3(0.16, 0.17, 0);
-  const lampPoint = new THREE.PointLight(0xffc888, 0, 5.2, 1.6);
+  const lampPoint = new THREE.PointLight(0xffc888, 1.35, 5.2, 1.6);
   lampPoint.position.copy(lampLightLocal);
   lampGroup.add(lampPoint);
-  const lampSpot = new THREE.SpotLight(0xffc888, 0, 9, Math.PI / 2.8, 0.5, 1);
+  const lampSpot = new THREE.SpotLight(0xffc888, 8, 9, Math.PI / 2.8, 0.5, 1);
   lampSpot.position.copy(lampLightLocal);
   const lampTarget = new THREE.Object3D();
   lampGroup.add(lampTarget);
@@ -415,9 +407,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   lampSpot.target = lampTarget;
   lampGroup.add(lampSpot);
 
-  let lampPointBase = 0;
-  let lampSpotBase = 0;
-  let lampHaloBase = 0;
+  let lampPointBase = 1.35;
+  let lampSpotBase = 8;
+  let lampHaloBase = 0.62;
 
   const pot = cyl(0.1, 0.08, 0.12, 10, COL.pot);
   pot.position.set(-1.35, 0.12, 0.55);
@@ -612,7 +604,6 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   canvas.addEventListener('pointerdown', handlePointerDown);
 
-  let dayMode = true;
   let running = true;
   let reducedMotion = false;
   if (typeof win.matchMedia === 'function') {
@@ -638,31 +629,6 @@ export function mountPrivateTeamScene(canvas, opts) {
     renderer.setSize(w, h, false);
     camera.aspect = w / Math.max(h, 1);
     camera.updateProjectionMatrix();
-  }
-
-  function setDayMode(next) {
-    dayMode = !!next;
-    scene.background.setHex(dayMode ? 0x0a1628 : 0x050a14);
-    const lighting = privateTeamSceneLighting(dayMode);
-    amb.intensity = lighting.amb;
-    dir.intensity = lighting.dir;
-    dir.color.setHex(dayMode ? 0xfff4e8 : 0xc8d8ff);
-    glassMat.color.setHex(dayMode ? COL.sky : COL.skyNight);
-    skyMat.color.setHex(dayMode ? COL.sky : COL.skyNight);
-    skyline.children.forEach((b) => {
-      if (b.name === 'bwin' && b.material) {
-        b.material.color.setHex(dayMode ? 0xd5e2f2 : COL.buildingLit);
-      }
-    });
-    lampPointBase = lighting.point;
-    lampSpotBase = lighting.spot;
-    lampHaloBase = lighting.haloOpacity;
-    lampPoint.intensity = lighting.point;
-    lampSpot.intensity = lighting.spot;
-    lampBulbMat.opacity = lighting.bulbOpacity;
-    lampHaloMat.opacity = lighting.haloOpacity;
-    lampShadeMat.emissive.setHex(0xffb060);
-    lampShadeMat.emissiveIntensity = lighting.shadeEmissive;
   }
 
   function tick(now) {
@@ -699,10 +665,10 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
 
     const pulse = (Math.sin(elapsed * 3) + 1) / 2;
-    monitorL.draw(dayMode, pulse);
-    monitorR.draw(dayMode, pulse * 0.75 + 0.1);
+    monitorL.draw(pulse);
+    monitorR.draw(pulse * 0.75 + 0.1);
 
-    if (!dayMode && lampPointBase > 0) {
+    if (lampPointBase > 0) {
       const lampPulse = reducedMotion ? 1 : 0.93 + ((Math.sin(elapsed * 3.6) + 1) / 2) * 0.07;
       lampPoint.intensity = lampPointBase * lampPulse;
       lampSpot.intensity = lampSpotBase * lampPulse;
@@ -729,7 +695,6 @@ export function mountPrivateTeamScene(canvas, opts) {
   raf = win.requestAnimationFrame(tick);
 
   return {
-    setDayMode,
     resize,
     setBubbleText(text) {
       bubbleDrawer.draw(text);
