@@ -490,22 +490,29 @@ public final class ServerApp {
 
     private void officeHome(Context ctx) {
         boolean authenticated = authService.isAuth(ctx);
-        String html = readResource("/public/index.html")
-                .replace("{{AUTH_BODY_CLASS}}", authenticated ? "is-authenticated" : "is-guest")
-                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false");
+        String html = applyAuthPageTokens(applyServerBuildTokens(readResource("/public/index.html")), authenticated);
         ctx.header("Cache-Control", PAGE_CACHE);
         ctx.html(html);
     }
 
     private void adminConsole(Context ctx) {
         boolean authenticated = authService.isAuth(ctx);
-        String html = com.example.server.util.DonatePageTokens.apply(readResource("/public/console.html")
-                .replace("{{SERVER_VERSION}}", SERVER_VERSION)
-                .replace("{{SERVER_BUILD_TIME}}", serverBuildLabel())
-                .replace("{{AUTH_BODY_CLASS}}", authenticated ? "is-authenticated" : "is-guest")
-                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false"));
+        String html = com.example.server.util.DonatePageTokens.apply(
+                applyAuthPageTokens(applyServerBuildTokens(readResource("/public/console.html")), authenticated));
         ctx.header("Cache-Control", PAGE_CACHE);
         ctx.html(html);
+    }
+
+    private static String applyServerBuildTokens(String html) {
+        return html
+                .replace("{{SERVER_VERSION}}", SERVER_VERSION)
+                .replace("{{SERVER_BUILD_TIME}}", serverBuildLabel());
+    }
+
+    private static String applyAuthPageTokens(String html, boolean authenticated) {
+        return html
+                .replace("{{AUTH_BODY_CLASS}}", authenticated ? "is-authenticated" : "is-guest")
+                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false");
     }
 
     private static void applyStaticCache(StaticFileConfig sf, String cacheControl) {

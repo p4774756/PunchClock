@@ -10,7 +10,11 @@
   <link rel="stylesheet" href="/css/private-team.css">
 </head>
 <body class="lab-office-page {{AUTH_BODY_CLASS}}">
-  <script>window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};</script>
+  <script>
+    window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};
+    window.PUNCHCLOCK_SERVER_VERSION = "{{SERVER_VERSION}}";
+    window.PUNCHCLOCK_SERVER_BUILD_TIME = "{{SERVER_BUILD_TIME}}";
+  </script>
   <nav class="private-team-sr-auth" aria-hidden="true">
     <a href="/login?next=/" data-guest-only tabindex="-1">登入</a>
     <a href="/logout" data-auth-only tabindex="-1">登出</a>
