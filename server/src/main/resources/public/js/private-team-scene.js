@@ -383,16 +383,16 @@ export function mountPrivateTeamScene(canvas, opts) {
   );
 
   const namePlate = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.15, 0.4),
+    new THREE.PlaneGeometry(0.92, 0.32),
     new THREE.MeshBasicMaterial({
       map: labelTexture('私人秘書', 640, 220),
       side: THREE.DoubleSide
     })
   );
-  namePlate.position.set(-0.95, 0.62, 0.72);
+  namePlate.position.set(0.78, 1.9, 0.74);
   root.add(namePlate);
-  const nameStand = box(0.08, 0.22, 0.08, COL.navy);
-  nameStand.position.set(-0.95, 0.5, 0.72);
+  const nameStand = box(0.06, 0.16, 0.06, COL.navy);
+  nameStand.position.set(0.78, 1.8, 0.74);
   root.add(nameStand);
 
   const bubbleMat = new THREE.MeshBasicMaterial({
