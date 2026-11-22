@@ -49,6 +49,7 @@ public final class DevStatusService {
     private final String source;
 
     private Document cached;
+    private Snapshot cachedSnapshot;
     private long fetchedAt;
     private boolean failing;
     private long lastFailureAt;
@@ -67,6 +68,14 @@ public final class DevStatusService {
     public static String repoProperty() {
         String repo = System.getProperty("punchclock.devstatus.repo", DEFAULT_REPO);
         return repo == null || repo.isBlank() ? DEFAULT_REPO : repo.trim();
+    }
+
+    /** 觸發同步後回傳最新 GitHub 快照（供辦公室公開 API 口語查詢）。 */
+    public Snapshot githubSnapshot(long now) {
+        get(now);
+        synchronized (this) {
+            return cachedSnapshot;
+        }
     }
 
     public View get(long now) {
@@ -119,6 +128,7 @@ public final class DevStatusService {
             Document document = DevStatusMapper.map(snapshot, repo, now);
             synchronized (this) {
                 cached = document;
+                cachedSnapshot = snapshot;
                 fetchedAt = now;
                 failing = false;
                 return view(false, now, document, null);
