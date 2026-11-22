@@ -22,6 +22,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Python deps (secretary sprite alpha checks)
+        run: pip install pillow numpy
+
       - name: Maven test
         env:
           NODE_BINARY: node
