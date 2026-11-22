@@ -19,16 +19,27 @@ test('主控台頂欄為任務、施工進度、辦公室', () => {
   assert.match(css, /\.console-auth a\[href="\/logout"\]\s*\{[^}]*display:\s*none\s*!important/);
 });
 
-test('首頁 HUD 右上身分膠囊與左上任務頭像', () => {
+test('首頁 HUD 楓之谷角色框與身分名牌', () => {
   const js = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
+  const css = readFileSync(join(publicRoot, 'css/private-team.css'), 'utf8');
   assert.doesNotMatch(js, /data-pt-menu-toggle/);
   assert.doesNotMatch(js, /data-pt-open-roadmap/);
   assert.match(js, /data-pt-task-btn/);
-  assert.match(js, /data-pt-identity-toggle|pt-hud-identity-guest/);
+  assert.match(js, /secretary-avatar\.webp/);
+  assert.match(js, /私人秘書/);
+  assert.match(js, /data-pt-task-bar/);
+  assert.match(js, /data-pt-identity-toggle/);
+  assert.match(js, /pt-hud-id-plate/);
+  assert.match(js, /管理員/);
+  assert.match(js, /線上/);
+  assert.match(js, /訪客/);
   assert.match(js, /\/login\?next=%2F/);
   assert.match(js, /\/login\?next=%2Fconsole/);
   assert.doesNotMatch(js, /開發機狀態/);
   assert.doesNotMatch(js, /pt-hud-card/);
+  assert.doesNotMatch(js, /pt-hud-id-abbrev/);
   assert.doesNotMatch(js, /\/api\/dev-status/);
   assert.match(js, /\/api\/office\/public/);
+  assert.match(css, /\.pt-hud-task/);
+  assert.match(css, /\.pt-hud-id-plate/);
 });

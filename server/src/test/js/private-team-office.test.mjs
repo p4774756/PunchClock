@@ -8,8 +8,19 @@ const {
   capsulesForActive,
   formatOfficeClock,
   fillStatusCard,
-  isSafePublicText
+  isSafePublicText,
+  taskProgressFromTiger
 } = await loadPublicModule('private-team-office.js');
+
+test('taskProgressFromTiger 以進行中與今日完成計算', () => {
+  assert.equal(taskProgressFromTiger(null), null);
+  assert.equal(taskProgressFromTiger({ active: [], completedToday: [] }), null);
+  const p = taskProgressFromTiger({
+    active: [{ issue: 1 }],
+    completedToday: [{ issue: 2 }, { issue: 3 }]
+  });
+  assert.deepEqual(p, { completed: 2, total: 3, fraction: 2 / 3 });
+});
 
 test('tigerFromPublic 解析公開欄位', () => {
   const body = {
