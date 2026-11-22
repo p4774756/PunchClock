@@ -8,6 +8,40 @@ import {
 const DAY_KEY = 'punchclock-private-team-day';
 const AUTH_ABBREV = '管';
 
+function deployVersionLabel(win) {
+  const ver = win && typeof win.PUNCHCLOCK_SERVER_VERSION === 'string'
+    ? win.PUNCHCLOCK_SERVER_VERSION.trim()
+    : '';
+  const bt = win && typeof win.PUNCHCLOCK_SERVER_BUILD_TIME === 'string'
+    ? win.PUNCHCLOCK_SERVER_BUILD_TIME.trim()
+    : '';
+  if (!ver || !bt || ver.includes('{{') || bt.includes('{{')) {
+    return '';
+  }
+  return 'v' + ver + ' · ' + bt;
+}
+
+function mountDeployVersion(hud, win, doc) {
+  if (!hud) return;
+  let el = hud.querySelector('[data-pt-deploy-ver]');
+  if (!el) {
+    el = doc.createElement('p');
+    el.className = 'pt-hud-deploy-ver';
+    el.setAttribute('data-pt-deploy-ver', '');
+    hud.appendChild(el);
+  }
+  const label = deployVersionLabel(win);
+  if (!label) {
+    el.textContent = '';
+    el.hidden = true;
+    el.setAttribute('aria-hidden', 'true');
+    return;
+  }
+  el.textContent = label;
+  el.hidden = false;
+  el.removeAttribute('aria-hidden');
+}
+
 const SUN_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="none" stroke="#163a70" stroke-width="2"/><g stroke="#163a70" stroke-width="2" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.2" y1="4.2" x2="6.4" y2="6.4"/><line x1="17.6" y1="17.6" x2="19.8" y2="19.8"/><line x1="4.2" y1="19.8" x2="6.4" y2="17.6"/><line x1="17.6" y1="6.4" x2="19.8" y2="4.2"/></g></svg>';
 
@@ -101,9 +135,11 @@ export function mountPrivateTeamPage(opts) {
       '<div class="pt-hud-br">' +
       '<a class="pt-hud-atlas" href="/atlas/tcm-3d/">' + PERSON_SVG + '<span>經絡研習室</span></a>' +
       '<a class="pt-hud-download" href="/download" aria-label="下載 App">' + DL_SVG +
-      '<span class="pt-hud-dl-label">下載 App</span></a></div>';
+      '<span class="pt-hud-dl-label">下載 App</span></a></div>' +
+      '<p class="pt-hud-deploy-ver" data-pt-deploy-ver hidden aria-hidden="true"></p>';
     stage.appendChild(hud);
   }
+  mountDeployVersion(hud, win, doc);
 
   let cardBackdrop = stage.querySelector('[data-pt-status-card]');
   let cardBody = null;

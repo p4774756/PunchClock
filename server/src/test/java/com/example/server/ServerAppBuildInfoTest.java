@@ -12,8 +12,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -75,6 +78,38 @@ public class ServerAppBuildInfoTest {
         assertNotNull(Instant.parse(payload.get("serverBuildTime").getAsString()));
         JsonObject client = payload.getAsJsonArray("clients").get(0).getAsJsonObject();
         assertEquals("2026-09-24T07:58:00Z", client.get("appReleaseTime").getAsString());
+    }
+
+    @Test
+    public void officeHomeAndConsoleHtmlShareReplacedServerBuildTokens() throws Exception {
+        HttpResponse<String> home = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/")).GET().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> console = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/console")).GET().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, home.statusCode());
+        assertEquals(200, console.statusCode());
+
+        String homeBody = home.body();
+        String consoleBody = console.body();
+        assertFalse(homeBody.contains("{{SERVER_VERSION}}"));
+        assertFalse(homeBody.contains("{{SERVER_BUILD_TIME}}"));
+        assertFalse(consoleBody.contains("{{SERVER_VERSION}}"));
+        assertFalse(consoleBody.contains("{{SERVER_BUILD_TIME}}"));
+
+        Matcher small = Pattern.compile("<small>(v[^<]+)</small>").matcher(consoleBody);
+        assertTrue("console 標題下應有部署版本行", small.find());
+        String consoleLabel = small.group(1);
+
+        Matcher verInLine = Pattern.compile("^v(.+?) · (.+)$").matcher(consoleLabel);
+        assertTrue(verInLine.matches());
+        String ver = verInLine.group(1);
+        String buildTime = verInLine.group(2);
+
+        assertTrue(homeBody.contains("PUNCHCLOCK_SERVER_VERSION = \"" + ver + "\""));
+        assertTrue(homeBody.contains("PUNCHCLOCK_SERVER_BUILD_TIME = \"" + buildTime + "\""));
+        assertTrue(consoleBody.contains("v" + ver + " · " + buildTime));
     }
 
 }
