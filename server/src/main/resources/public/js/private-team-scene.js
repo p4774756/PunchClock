@@ -22,8 +22,35 @@ const COL = {
   building: 0x4a5c7a,
   buildingLit: 0xf8dc6e,
   navy: 0x163a70,
-  frame: 0x243044
+  frame: 0x243044,
+  lampBase: 0x4a3c30,
+  lampMetal: 0x6a5a48,
+  lampShade: 0xe2cfb0
 };
+
+/** 日夜全域與檯燈強度（供 setDayMode 與單測） */
+export function privateTeamSceneLighting(dayMode) {
+  if (dayMode) {
+    return {
+      amb: 0.72,
+      dir: 0.9,
+      point: 0,
+      spot: 0,
+      bulbOpacity: 0,
+      haloOpacity: 0,
+      shadeEmissive: 0
+    };
+  }
+  return {
+    amb: 0.28,
+    dir: 0.35,
+    point: 1.35,
+    spot: 8,
+    bulbOpacity: 0.9,
+    haloOpacity: 0.62,
+    shadeEmissive: 0.72
+  };
+}
 
 function box(w, h, d, color, basic) {
   const g = new THREE.BoxGeometry(w, h, d);
@@ -148,6 +175,22 @@ function makeBubbleDrawer() {
   }
   draw('…');
   return { tex, draw };
+}
+
+function lampGlowTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 62);
+  g.addColorStop(0, 'rgba(255, 228, 180, 0.9)');
+  g.addColorStop(0.4, 'rgba(255, 196, 120, 0.35)');
+  g.addColorStop(1, 'rgba(255, 170, 90, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 function softShadowTexture() {
@@ -335,6 +378,65 @@ export function mountPrivateTeamScene(canvas, opts) {
   mugHandle.rotation.y = Math.PI / 2;
   root.add(mug, mugHandle);
 
+  // 桌面前右側：座在右、臂伸向桌心、燈罩離立繪與左右螢幕。
+  const lampGroup = new THREE.Group();
+  lampGroup.position.set(1.2, 0.504, 0.5);
+  lampGroup.rotation.y = 1.4;
+  const lampBase = cyl(0.07, 0.095, 0.045, 12, COL.lampBase);
+  lampBase.position.y = 0.022;
+  lampGroup.add(lampBase);
+  const lampStem = cyl(0.016, 0.016, 0.1, 8, COL.lampMetal);
+  lampStem.position.y = 0.09;
+  lampGroup.add(lampStem);
+  const lampArm = box(0.22, 0.028, 0.028, COL.lampMetal);
+  lampArm.position.set(0.07, 0.16, 0);
+  lampArm.rotation.z = -0.22;
+  lampGroup.add(lampArm);
+  const lampShadeMat = new THREE.MeshLambertMaterial({ color: COL.lampShade, emissive: 0x000000 });
+  const lampShade = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.085, 0.075, 12),
+    lampShadeMat
+  );
+  lampShade.position.set(0.16, 0.19, 0);
+  lampGroup.add(lampShade);
+  const lampBulbMat = new THREE.MeshBasicMaterial({
+    color: 0xfff2d8,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false
+  });
+  const lampBulb = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 10), lampBulbMat);
+  lampBulb.position.set(0.16, 0.142, 0);
+  lampGroup.add(lampBulb);
+  const lampHaloMat = new THREE.MeshBasicMaterial({
+    map: lampGlowTexture(),
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  const lampHalo = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.36), lampHaloMat);
+  lampHalo.position.set(0.16, 0.18, 0.02);
+  lampGroup.add(lampHalo);
+  root.add(lampGroup);
+
+  const lampLightLocal = new THREE.Vector3(0.16, 0.17, 0);
+  const lampPoint = new THREE.PointLight(0xffc888, 0, 5.2, 1.6);
+  lampPoint.position.copy(lampLightLocal);
+  lampGroup.add(lampPoint);
+  const lampSpot = new THREE.SpotLight(0xffc888, 0, 9, Math.PI / 2.8, 0.5, 1);
+  lampSpot.position.copy(lampLightLocal);
+  const lampTarget = new THREE.Object3D();
+  lampGroup.add(lampTarget);
+  lampGroup.updateMatrixWorld(true);
+  lampTarget.position.copy(lampGroup.worldToLocal(new THREE.Vector3(0.28, 0.5, 0.38)));
+  lampSpot.target = lampTarget;
+  lampGroup.add(lampSpot);
+
+  let lampPointBase = 0;
+  let lampSpotBase = 0;
+  let lampHaloBase = 0;
+
   const pot = cyl(0.1, 0.08, 0.12, 10, COL.pot);
   pot.position.set(-1.35, 0.12, 0.55);
   const plant = new THREE.Mesh(
@@ -479,8 +581,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   function setDayMode(next) {
     dayMode = !!next;
     scene.background.setHex(dayMode ? 0x0a1628 : 0x050a14);
-    amb.intensity = dayMode ? 0.72 : 0.32;
-    dir.intensity = dayMode ? 0.9 : 0.4;
+    const lighting = privateTeamSceneLighting(dayMode);
+    amb.intensity = lighting.amb;
+    dir.intensity = lighting.dir;
     dir.color.setHex(dayMode ? 0xfff4e8 : 0xc8d8ff);
     glassMat.color.setHex(dayMode ? COL.sky : COL.skyNight);
     skyMat.color.setHex(dayMode ? COL.sky : COL.skyNight);
@@ -489,6 +592,15 @@ export function mountPrivateTeamScene(canvas, opts) {
         b.material.color.setHex(dayMode ? 0xd5e2f2 : COL.buildingLit);
       }
     });
+    lampPointBase = lighting.point;
+    lampSpotBase = lighting.spot;
+    lampHaloBase = lighting.haloOpacity;
+    lampPoint.intensity = lighting.point;
+    lampSpot.intensity = lighting.spot;
+    lampBulbMat.opacity = lighting.bulbOpacity;
+    lampHaloMat.opacity = lighting.haloOpacity;
+    lampShadeMat.emissive.setHex(0xffb060);
+    lampShadeMat.emissiveIntensity = lighting.shadeEmissive;
   }
 
   function tick(now) {
@@ -517,9 +629,17 @@ export function mountPrivateTeamScene(canvas, opts) {
     monitorL.draw(dayMode, pulse);
     monitorR.draw(dayMode, pulse * 0.75 + 0.1);
 
+    if (!dayMode && lampPointBase > 0) {
+      const lampPulse = reducedMotion ? 1 : 0.93 + ((Math.sin(elapsed * 3.6) + 1) / 2) * 0.07;
+      lampPoint.intensity = lampPointBase * lampPulse;
+      lampSpot.intensity = lampSpotBase * lampPulse;
+      lampHaloMat.opacity = lampHaloBase * (reducedMotion ? 1 : 0.88 + ((Math.sin(elapsed * 3.6 + 0.8) + 1) / 2) * 0.12);
+    }
+
     root.rotation.y = Math.sin(elapsed * 0.12) * 0.04;
     bubble.lookAt(camera.position);
     namePlate.lookAt(camera.position);
+    lampHalo.lookAt(camera.position);
 
     renderer.render(scene, camera);
   }
