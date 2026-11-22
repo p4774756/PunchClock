@@ -38,5 +38,4 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
-/public/models/anatomy/raw/
 *.tsbuildinfo
