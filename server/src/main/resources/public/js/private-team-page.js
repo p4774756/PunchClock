@@ -7,8 +7,6 @@ import {
   tigerFromPublic
 } from './private-team-office.js';
 
-const DAY_KEY = 'punchclock-private-team-day';
-
 function deployVersionLabel(win) {
   const ver = win && typeof win.PUNCHCLOCK_SERVER_VERSION === 'string'
     ? win.PUNCHCLOCK_SERVER_VERSION.trim()
@@ -42,9 +40,6 @@ function mountDeployVersion(hud, win, doc) {
   el.hidden = false;
   el.removeAttribute('aria-hidden');
 }
-
-const SUN_SVG =
-  '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="none" stroke="#163a70" stroke-width="2"/><g stroke="#163a70" stroke-width="2" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.2" y1="4.2" x2="6.4" y2="6.4"/><line x1="17.6" y1="17.6" x2="19.8" y2="19.8"/><line x1="4.2" y1="19.8" x2="6.4" y2="17.6"/><line x1="17.6" y1="6.4" x2="19.8" y2="4.2"/></g></svg>';
 
 const PERSON_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3.5" fill="none" stroke="#163a70" stroke-width="2"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6" fill="none" stroke="#163a70" stroke-width="2" stroke-linecap="round"/></svg>';
@@ -118,21 +113,6 @@ function identityHudMarkup(authed) {
   );
 }
 
-function readDayPref(win) {
-  try {
-    const v = win.localStorage.getItem(DAY_KEY);
-    if (v === 'night') return false;
-    if (v === 'day') return true;
-  } catch (_e) { /* ignore */ }
-  return true;
-}
-
-function writeDayPref(win, day) {
-  try {
-    win.localStorage.setItem(DAY_KEY, day ? 'day' : 'night');
-  } catch (_e) { /* ignore */ }
-}
-
 export function mountPrivateTeamPage(opts) {
   const doc = (opts && opts.doc) || globalThis.document;
   const win = (opts && opts.win) || globalThis;
@@ -169,12 +149,7 @@ export function mountPrivateTeamPage(opts) {
       '<p class="pt-hud-task-hint-text">先登入才能看任務</p>' +
       '<a class="pt-hud-task-hint-login" href="/login?next=%2Fconsole">登入</a>' +
       '</div></div>' +
-      '<div class="pt-hud-tr">' +
-      '<div class="pt-hud-iconcol"><button type="button" class="pt-hud-sqbtn is-day" data-pt-daynight aria-label="日夜切換">' +
-      SUN_SVG +
-      '</button><span class="pt-hud-sqbtn-label">日夜</span></div>' +
-      identityHudMarkup(authed) +
-      '</div>' +
+      '<div class="pt-hud-tr">' + identityHudMarkup(authed) + '</div>' +
       '<div class="pt-hud-br">' +
       '<a class="pt-hud-atlas" href="/atlas/tcm-3d/">' + PERSON_SVG + '<span>經絡研習室</span></a>' +
       '<a class="pt-hud-download" href="/download" aria-label="下載 App">' + DL_SVG +
@@ -215,7 +190,6 @@ export function mountPrivateTeamPage(opts) {
   cardBody = cardBackdrop.querySelector('[data-pt-status-body]');
   closeBtn = cardBackdrop.querySelector('[data-pt-status-close]');
 
-  const dayBtn = hud.querySelector('[data-pt-daynight]');
   const taskBtn = hud.querySelector('[data-pt-task-btn]');
   const taskHint = hud.querySelector('[data-pt-task-hint]');
   const identityBtn = hud.querySelector('[data-pt-identity-toggle]');
@@ -305,14 +279,8 @@ export function mountPrivateTeamPage(opts) {
     onProgressBoardRect: placeProgHit
   });
 
-  let dayMode = readDayPref(win);
-  scene.setDayMode(dayMode);
   scene.setBubbleText(bubbleLabel());
   refreshCanvasA11y();
-  if (dayBtn) {
-    dayBtn.classList.toggle('is-day', dayMode);
-    dayBtn.classList.toggle('is-night', !dayMode);
-  }
 
   function closeTaskHint() {
     if (!taskHint || !taskHintOpen) return;
@@ -342,16 +310,6 @@ export function mountPrivateTeamPage(opts) {
     identityMenu.hidden = !open;
     identityMenuOpen = open;
     identityBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
-
-  if (dayBtn) {
-    dayBtn.addEventListener('click', () => {
-      dayMode = !dayMode;
-      scene.setDayMode(dayMode);
-      dayBtn.classList.toggle('is-day', dayMode);
-      dayBtn.classList.toggle('is-night', !dayMode);
-      writeDayPref(win, dayMode);
-    });
   }
 
   if (taskBtn) {
