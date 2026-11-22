@@ -146,8 +146,12 @@ public final class DevMachineRoutes {
             return from;
         }
         if (view.document.now != null) {
-            if (view.document.now.current != null && view.document.now.current.issue == issue) {
-                return nullToEmpty(view.document.now.current.title);
+            if (view.document.now.current != null) {
+                for (Item item : view.document.now.current) {
+                    if (item != null && item.issue == issue) {
+                        return nullToEmpty(item.title);
+                    }
+                }
             }
             if (view.document.now.next != null && view.document.now.next.issue == issue) {
                 return nullToEmpty(view.document.now.next.title);

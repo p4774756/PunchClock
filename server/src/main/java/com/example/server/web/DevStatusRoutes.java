@@ -33,7 +33,6 @@ public final class DevStatusRoutes {
         body.put("fetchedAt", view.fetchedAt);
         body.put("source", view.source);
         body.put("now", nowMap(view));
-        body.put("items", itemsList(view.document.items));
         body.put("timeline", timelineList(view.document.timeline));
         body.put("stats", statsMap(view));
         body.put("message", view.message);
@@ -42,7 +41,14 @@ public final class DevStatusRoutes {
 
     private static Map<String, Object> nowMap(DevStatusService.View view) {
         Map<String, Object> now = new LinkedHashMap<>();
-        now.put("current", itemMap(view.document.now.current));
+        List<Map<String, Object>> current = new ArrayList<>();
+        for (Item item : view.document.now.current) {
+            Map<String, Object> row = itemMap(item);
+            if (row != null) {
+                current.add(row);
+            }
+        }
+        now.put("current", current);
         now.put("next", itemMap(view.document.now.next));
         List<Map<String, Object>> queue = new ArrayList<>();
         for (QueueEntry entry : view.document.now.queue) {
@@ -54,17 +60,6 @@ public final class DevStatusRoutes {
         }
         now.put("queue", queue);
         return now;
-    }
-
-    private static List<Map<String, Object>> itemsList(List<Item> items) {
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (Item item : items) {
-            Map<String, Object> row = itemMap(item);
-            if (row != null) {
-                out.add(row);
-            }
-        }
-        return out;
     }
 
     private static List<Map<String, Object>> timelineList(List<TimelineEvent> events) {
