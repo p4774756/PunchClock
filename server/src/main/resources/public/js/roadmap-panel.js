@@ -3,17 +3,18 @@
 import {
   applyGithubSourceLabel,
   createGithubLink,
+  devStatusItemMatchesSearch,
   effectivePhaseStatus,
-  filterMergedToday,
-  formatTaipeiClock,
   mergeRoadmapDevStatusLink,
+  parseRoadmapSearchQuery,
   phaseItemProgress,
+  roadmapItemMatchesSearch,
   roadmapItemTotals,
   shouldShowDevStatusNavLink,
   viewerCanLink
 } from './dev-machines-format.js';
 
-export { effectivePhaseStatus, phaseItemProgress, filterMergedToday, roadmapItemTotals };
+export { effectivePhaseStatus, phaseItemProgress, roadmapItemTotals };
 
 export function signCopy(doc) {
   const phases = (doc && doc.phases) || [];
@@ -57,8 +58,6 @@ function phaseStatusLabel(status) {
   return STATUS_LABEL[status] || STATUS_LABEL.pending;
 }
 export const DEV_STATUS_FILTERS = ['全部', '排隊', '實作中', '審核中', '已合併', '路線圖'];
-const TODAY_PREVIEW = 8;
-
 function progressPercent(done, total) {
   if (!total || total <= 0) return 0;
   return Math.max(0, Math.min(100, Math.round((done / total) * 100)));
@@ -80,13 +79,81 @@ function phaseMark(status) {
 }
 
 function normalizeItem(item) {
-  if (item == null) return { text: '', done: false, issue: null };
-  if (typeof item === 'string') return { text: item, done: false, issue: null };
+  if (item == null) return { text: '', done: false, issue: null, pr: null };
+  if (typeof item === 'string') return { text: item, done: false, issue: null, pr: null };
   return {
     text: item.text == null ? '' : String(item.text),
     done: !!item.done,
-    issue: item.issue != null ? item.issue : null
+    issue: item.issue != null ? item.issue : null,
+    pr: item.pr != null ? item.pr : null
   };
+}
+
+function renderRoadmapItemLi(doc, item, canLink, query, highlight) {
+  const li = doc.createElement('li');
+  if (highlight) li.classList.add('is-search-hit');
+  const box = doc.createElement('span');
+  box.className = 'roadmap-check' + (item.done ? ' is-on' : '');
+  box.setAttribute('aria-hidden', 'true');
+  li.appendChild(box);
+  const text = doc.createElement('span');
+  text.className = 'roadmap-item-text';
+  if (item.issue != null) {
+    text.appendChild(doc.createTextNode(item.text + ' '));
+    text.appendChild(linkEl(
+      doc,
+      null,
+      'https://github.com/p4774756/PunchClock/issues/' + item.issue,
+      '#' + item.issue,
+      canLink
+    ));
+  } else {
+    text.textContent = item.text;
+  }
+  if (item.pr != null) {
+    text.appendChild(doc.createTextNode(' '));
+    text.appendChild(linkEl(
+      doc,
+      'roadmap-dev-pr',
+      'https://github.com/p4774756/PunchClock/pull/' + item.pr,
+      'p' + item.pr,
+      canLink
+    ));
+  }
+  li.appendChild(text);
+  if (query && query.kind !== 'none' && !roadmapItemMatchesSearch(query, item)) {
+    li.hidden = true;
+  }
+  return li;
+}
+
+function appendPhaseItems(doc, parent, items, canLink, query) {
+  const open = items.filter((it) => it && !it.done);
+  const done = items.filter((it) => it && it.done);
+  const ul = doc.createElement('ul');
+  open.forEach((item) => {
+    const hit = !query || query.kind === 'none' || roadmapItemMatchesSearch(query, item);
+    ul.appendChild(renderRoadmapItemLi(doc, item, canLink, query, hit && query && query.kind !== 'none'));
+  });
+  if (done.length) {
+    const bucket = doc.createElement('details');
+    bucket.className = 'roadmap-done-bucket';
+    const hasVisibleDone = query && query.kind !== 'none'
+      ? done.some((item) => roadmapItemMatchesSearch(query, item))
+      : true;
+    bucket.open = !!(query && query.kind !== 'none' && hasVisibleDone);
+    const summary = doc.createElement('summary');
+    summary.textContent = '已完成 ' + done.length + ' 項';
+    bucket.appendChild(summary);
+    const inner = doc.createElement('ul');
+    done.forEach((item) => {
+      const hit = !query || query.kind === 'none' || roadmapItemMatchesSearch(query, item);
+      inner.appendChild(renderRoadmapItemLi(doc, item, canLink, query, hit && query && query.kind !== 'none'));
+    });
+    bucket.appendChild(inner);
+    parent.appendChild(bucket);
+  }
+  if (open.length) parent.appendChild(ul);
 }
 
 function shouldDefaultOpen(phase, status) {
@@ -94,46 +161,6 @@ function shouldDefaultOpen(phase, status) {
   if (status === 'active' || status === 'progress') return true;
   const pr = phaseItemProgress(phase);
   return pr.total > 0 && pr.done > 0 && pr.done < pr.total;
-}
-
-function renderTodayPanel(doc, root, timeline, now, canLink) {
-  if (!root) return;
-  clearChildren(root);
-  const head = doc.createElement('header');
-  head.className = 'maple-win-title';
-  const h = doc.createElement('h3');
-  h.textContent = '今日完成';
-  head.appendChild(h);
-  root.appendChild(head);
-  const body = doc.createElement('div');
-  body.className = 'roadmap-today-body';
-  const list = filterMergedToday(timeline, now);
-  const note = doc.createElement('p');
-  note.className = 'roadmap-today-note';
-  note.textContent = '今日已合併 ' + list.length + ' 項';
-  body.appendChild(note);
-  if (!list.length) {
-    body.appendChild(textEl(doc, 'p', 'roadmap-dev-empty', '今日尚無合併紀錄'));
-  } else {
-    const ul = doc.createElement('ul');
-    ul.className = 'roadmap-today-list';
-    list.slice(0, TODAY_PREVIEW).forEach((row) => {
-      const li = doc.createElement('li');
-      const time = doc.createElement('time');
-      time.textContent = formatTaipeiClock(row.at);
-      li.appendChild(time);
-      const line = doc.createElement('div');
-      if (row.url) {
-        line.appendChild(linkEl(doc, null, row.url, (row.ref || '') + ' ' + (row.title || ''), canLink));
-      } else {
-        line.textContent = (row.ref || '') + ' ' + (row.title || '');
-      }
-      li.appendChild(line);
-      ul.appendChild(li);
-    });
-    body.appendChild(ul);
-  }
-  root.appendChild(body);
 }
 
 /** 台北時間（UTC+8），附「台北」標籤。 */
@@ -293,18 +320,22 @@ function renderFocusCard(doc, root, label, item, canLink) {
   root.appendChild(textEl(doc, 'span', 'roadmap-dev-status', item.status || ''));
 }
 
-function renderQueue(doc, root, queue, canLink) {
+function renderQueue(doc, root, queue, canLink, query) {
   if (!root) return;
   clearChildren(root);
   const list = Array.isArray(queue) ? queue : [];
-  if (!list.length) {
+  const visible = query && query.kind !== 'none'
+    ? list.filter((row) => row && devStatusItemMatchesSearch(query, row))
+    : list;
+  if (!visible.length) {
     root.appendChild(textEl(doc, 'p', 'roadmap-dev-empty', '尚無排隊標籤'));
     return;
   }
   const ol = doc.createElement('ol');
   ol.className = 'roadmap-dev-queue-list';
-  list.forEach((entry) => {
+  visible.forEach((entry) => {
     const li = doc.createElement('li');
+    if (query && query.kind !== 'none') li.classList.add('is-search-hit');
     const order = entry && entry.order != null ? entry.order : '';
     const item = entry || {};
     li.appendChild(textEl(doc, 'span', 'roadmap-dev-order', String(order)));
@@ -316,11 +347,14 @@ function renderQueue(doc, root, queue, canLink) {
   root.appendChild(ol);
 }
 
-function renderTable(doc, root, items, canLink) {
+function renderTable(doc, root, items, canLink, query) {
   if (!root) return;
   clearChildren(root);
   const list = Array.isArray(items) ? items : [];
-  if (!list.length) {
+  const visible = query && query.kind !== 'none'
+    ? list.filter((row) => devStatusItemMatchesSearch(query, row))
+    : list;
+  if (!visible.length) {
     root.appendChild(textEl(doc, 'p', 'roadmap-dev-empty', '沒有符合的項目'));
     return;
   }
@@ -334,9 +368,10 @@ function renderTable(doc, root, items, canLink) {
   thead.appendChild(hr);
   table.appendChild(thead);
   const tbody = doc.createElement('tbody');
-  list.forEach((item) => {
+  visible.forEach((item) => {
     if (!item) return;
     const tr = doc.createElement('tr');
+    if (query && query.kind !== 'none') tr.classList.add('is-search-hit');
     const num = doc.createElement('td');
     num.className = 'roadmap-dev-num';
     if (item.issueUrl) num.appendChild(linkEl(doc, null, item.issueUrl, item.pair || ('i' + item.issue), canLink));
@@ -355,19 +390,29 @@ function renderTable(doc, root, items, canLink) {
   root.appendChild(table);
 }
 
-function renderTimeline(doc, root, events, canLink) {
+function renderTimeline(doc, root, events, canLink, query) {
   if (!root) return;
   clearChildren(root);
   const list = Array.isArray(events) ? events : [];
-  if (!list.length) {
+  const visible = query && query.kind !== 'none'
+    ? list.filter((event) => event && devStatusItemMatchesSearch(query, {
+      issue: event.issue,
+      pr: event.pr,
+      title: event.title,
+      ref: event.ref,
+      pair: event.ref
+    }))
+    : list;
+  if (!visible.length) {
     root.appendChild(textEl(doc, 'p', 'roadmap-dev-empty', '近 7 天沒有動態'));
     return;
   }
   const ul = doc.createElement('ul');
   ul.className = 'roadmap-dev-timeline';
-  list.forEach((event) => {
+  visible.forEach((event) => {
     if (!event) return;
     const li = doc.createElement('li');
+    if (query && query.kind !== 'none') li.classList.add('is-search-hit');
     li.appendChild(textEl(doc, 'time', null, formatTaipeiTime(event.at)));
     li.appendChild(textEl(doc, 'span', 'roadmap-dev-action', event.action || ''));
     const ref = event.url
@@ -413,7 +458,9 @@ export function createRoadmapController(opts) {
   const backBtn = root && root.querySelector('[data-roadmap-back]');
   const totalLabel = root && root.querySelector('[data-roadmap-total-label]');
   const totalBar = root && root.querySelector('[data-roadmap-total-bar]');
-  const todayEl = root && root.querySelector('[data-roadmap-today]');
+  const searchInput = root && root.querySelector('[data-roadmap-search]');
+  const searchClear = root && root.querySelector('[data-roadmap-search-clear]');
+  const searchEmpty = root && root.querySelector('[data-roadmap-search-empty]');
   const tabButtons = root ? root.querySelectorAll('[data-roadmap-tab]') : [];
   const tabPanels = root ? root.querySelectorAll('[data-roadmap-panel]') : [];
   const currentEl = root && root.querySelector('[data-dev-current]');
@@ -432,6 +479,23 @@ export function createRoadmapController(opts) {
   let statusFilter = '全部';
   let activeTab = 'phases';
   let canLinkGithub = false;
+  let searchRaw = '';
+
+  function searchQuery() {
+    return parseRoadmapSearchQuery(searchRaw);
+  }
+
+  function updateSearchChrome() {
+    const active = searchRaw.trim().length > 0;
+    if (searchClear) searchClear.hidden = !active;
+  }
+
+  function repaintSearchEmpty(anyHit) {
+    if (!searchEmpty) return;
+    const q = searchQuery();
+    searchEmpty.hidden = q.kind === 'none' || anyHit;
+    searchEmpty.textContent = '找不到';
+  }
 
   function setTab(tab) {
     activeTab = tab === 'dev' ? 'dev' : 'phases';
@@ -456,6 +520,27 @@ export function createRoadmapController(opts) {
     });
   }
   setTab('phases');
+
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      searchRaw = searchInput.value || '';
+      updateSearchChrome();
+      if (latest) apply(latest);
+      if (latestDev) applyDev(latestDev);
+    });
+  }
+  if (searchClear) {
+    searchClear.addEventListener('click', () => {
+      searchRaw = '';
+      if (searchInput) searchInput.value = '';
+      updateSearchChrome();
+      if (searchEmpty) searchEmpty.hidden = true;
+      if (latest) apply(latest);
+      if (latestDev) applyDev(latestDev);
+      if (searchInput && typeof searchInput.focus === 'function') searchInput.focus();
+    });
+  }
+  updateSearchChrome();
 
   function lockBackground(want) {
     const body = doc && doc.body;
@@ -501,11 +586,12 @@ export function createRoadmapController(opts) {
       }
     }
     if (sourceEl) {
-      const href = latest && latest.source ? latest.source : 'https://github.com/p4774756/PunchClock/issues/36';
+      const href = latest && latest.source ? latest.source : 'https://github.com/p4774756/PunchClock/milestones';
       applyGithubSourceLabel(doc, sourceEl, href, canLinkGithub);
     }
     const phases = (latest && latest.phases) || [];
     const current = latest ? latest.current : null;
+    const query = searchQuery();
     const totals = roadmapItemTotals(phases);
     if (totalLabel) {
       totalLabel.textContent = '子項合計 ' + totals.done + '/' + totals.total;
@@ -514,13 +600,20 @@ export function createRoadmapController(opts) {
     setBar(totalBar, totals.done, totals.total, totalStatus);
     if (listEl) {
       while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+      let anyPhaseHit = false;
       phases.forEach((phase) => {
         if (!phase) return;
+        const items = (phase.items || []).map(normalizeItem);
+        const phaseMatches = query.kind === 'none' || items.some((item) => roadmapItemMatchesSearch(query, item));
+        if (query.kind !== 'none' && !phaseMatches) {
+          return;
+        }
+        if (query.kind !== 'none' && phaseMatches) anyPhaseHit = true;
         const status = effectivePhaseStatus(phase, current);
         const pr = phaseItemProgress(phase);
         const row = doc.createElement('details');
         row.className = 'roadmap-phase is-' + status;
-        row.open = shouldDefaultOpen(phase, status);
+        row.open = query.kind !== 'none' && phaseMatches ? true : shouldDefaultOpen(phase, status);
         const summary = doc.createElement('summary');
         const mark = doc.createElement('span');
         mark.className = 'roadmap-mark';
@@ -551,39 +644,33 @@ export function createRoadmapController(opts) {
         summary.appendChild(ratio);
         summary.appendChild(tag);
         row.appendChild(summary);
-        const items = (phase.items || []).map(normalizeItem);
         if (items.length) {
-          const ul = doc.createElement('ul');
-          items.forEach((item) => {
-            const li = doc.createElement('li');
-            const box = doc.createElement('span');
-            box.className = 'roadmap-check' + (item.done ? ' is-on' : '');
-            box.setAttribute('aria-hidden', 'true');
-            li.appendChild(box);
-            const text = doc.createElement('span');
-            if (item.issue != null) {
-              text.appendChild(doc.createTextNode(item.text + ' '));
-              const issueLink = linkEl(
-                doc,
-                null,
-                'https://github.com/p4774756/PunchClock/issues/' + item.issue,
-                '#' + item.issue,
-                canLinkGithub
-              );
-              text.appendChild(issueLink);
-            } else {
-              text.textContent = item.text;
-            }
-            li.appendChild(text);
-            ul.appendChild(li);
-          });
-          row.appendChild(ul);
+          appendPhaseItems(doc, row, items, canLinkGithub, query);
         }
         if (phase.progressNote) {
           row.appendChild(textEl(doc, 'p', 'roadmap-phase-note', phase.progressNote));
         }
         listEl.appendChild(row);
       });
+      let devHit = false;
+      if (latestDev && query.kind !== 'none') {
+        const now = latestDev.now || {};
+        const queue = Array.isArray(now.queue) ? now.queue : [];
+        const devItems = Array.isArray(latestDev.items) ? latestDev.items : [];
+        const timeline = Array.isArray(latestDev.timeline) ? latestDev.timeline : [];
+        devHit = (now.current && devStatusItemMatchesSearch(query, now.current))
+          || (now.next && devStatusItemMatchesSearch(query, now.next))
+          || queue.some((row) => devStatusItemMatchesSearch(query, row))
+          || devItems.some((row) => devStatusItemMatchesSearch(query, row))
+          || timeline.some((row) => devStatusItemMatchesSearch(query, {
+            issue: row.issue,
+            pr: row.pr,
+            title: row.title,
+            ref: row.ref,
+            pair: row.ref
+          }));
+      }
+      repaintSearchEmpty(anyPhaseHit || devHit || query.kind === 'none');
     }
     if (typeof hooks.onData === 'function') hooks.onData(latest, copy);
   }
@@ -601,13 +688,42 @@ export function createRoadmapController(opts) {
       }
     }
     const now = (latestDev && latestDev.now) || {};
-    renderFocusCard(doc, currentEl, '現在在做', now.current || null, canLinkGithub);
-    renderFocusCard(doc, nextEl, '下一張', now.next || null, canLinkGithub);
-    renderQueue(doc, queueEl, now.queue || [], canLinkGithub);
-    renderTable(doc, tableEl, filterDevItems(latestDev && latestDev.items, statusFilter), canLinkGithub);
-    renderTimeline(doc, timelineEl, latestDev && latestDev.timeline, canLinkGithub);
+    const query = searchQuery();
+    const current = query.kind === 'none' || !now.current || devStatusItemMatchesSearch(query, now.current)
+      ? now.current || null
+      : null;
+    const next = query.kind === 'none' || !now.next || devStatusItemMatchesSearch(query, now.next)
+      ? now.next || null
+      : null;
+    renderFocusCard(doc, currentEl, '現在在做', current, canLinkGithub);
+    renderFocusCard(doc, nextEl, '下一張', next, canLinkGithub);
+    renderQueue(doc, queueEl, now.queue || [], canLinkGithub, query);
+    renderTable(doc, tableEl, filterDevItems(latestDev && latestDev.items, statusFilter), canLinkGithub, query);
+    renderTimeline(doc, timelineEl, latestDev && latestDev.timeline, canLinkGithub, query);
     renderStats(doc, statsEl, latestDev && latestDev.stats);
-    renderTodayPanel(doc, todayEl, latestDev && latestDev.timeline, Date.now(), canLinkGithub);
+    if (query.kind !== 'none') {
+      let anyPhaseHit = false;
+      const phases = (latest && latest.phases) || [];
+      phases.forEach((phase) => {
+        const items = (phase && phase.items ? phase.items : []).map(normalizeItem);
+        if (items.some((item) => roadmapItemMatchesSearch(query, item))) anyPhaseHit = true;
+      });
+      const queue = Array.isArray(now.queue) ? now.queue : [];
+      const devItems = filterDevItems(latestDev && latestDev.items, statusFilter);
+      const timeline = Array.isArray(latestDev && latestDev.timeline) ? latestDev.timeline : [];
+      const devHit = (current && devStatusItemMatchesSearch(query, current))
+        || (next && devStatusItemMatchesSearch(query, next))
+        || queue.some((row) => devStatusItemMatchesSearch(query, row))
+        || devItems.some((row) => devStatusItemMatchesSearch(query, row))
+        || timeline.some((row) => devStatusItemMatchesSearch(query, {
+          issue: row.issue,
+          pr: row.pr,
+          title: row.title,
+          ref: row.ref,
+          pair: row.ref
+        }));
+      repaintSearchEmpty(anyPhaseHit || devHit);
+    }
   }
 
   function ensureFilters() {
@@ -623,7 +739,7 @@ export function createRoadmapController(opts) {
         filterEl.querySelectorAll('button').forEach((el) => {
           el.setAttribute('aria-pressed', el.textContent === statusFilter ? 'true' : 'false');
         });
-        renderTable(doc, tableEl, filterDevItems(latestDev && latestDev.items, statusFilter), canLinkGithub);
+        renderTable(doc, tableEl, filterDevItems(latestDev && latestDev.items, statusFilter), canLinkGithub, searchQuery());
       });
       filterEl.appendChild(btn);
     });

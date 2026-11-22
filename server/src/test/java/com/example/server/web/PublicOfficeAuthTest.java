@@ -28,9 +28,6 @@ import static org.junit.Assert.assertTrue;
 /** 首頁辦公室公開、管理 API／WS 仍需登入。 */
 public class PublicOfficeAuthTest {
 
-    private static final String FAKE_ROADMAP_BODY = "## 分期\n"
-            + "- [x] **Phase 3 群島地基**：地基\n"
-            + "- [ ] **Phase 4 進屋系統**：門口\n";
 
     private AdminTestServer server;
     private HttpClient http;
@@ -46,8 +43,14 @@ public class PublicOfficeAuthTest {
                 Collections.emptyList(),
                 Collections.emptySet()
         ), "p4774756/PunchClock");
-        RoadmapService fakeRoadmap = new RoadmapService((repo, issue) -> FAKE_ROADMAP_BODY,
-                "p4774756/PunchClock", 36);
+        RoadmapService fakeRoadmap = new RoadmapService(repo -> new com.example.server.store.RoadmapModels.Document(
+                4,
+                java.util.Collections.singletonList(new com.example.server.store.RoadmapModels.Phase(
+                        4, "測試期", false,
+                        java.util.Collections.singletonList(new com.example.server.store.RoadmapModels.Item("子項", false, 1, null)),
+                        0, 1, null)),
+                null),
+                "p4774756/PunchClock");
         server = AdminTestServer.builder()
                 .clientRelease(ClientRelease.NONE)
                 .devStatusService(fakeDevStatus)

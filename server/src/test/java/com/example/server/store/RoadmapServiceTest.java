@@ -3,6 +3,8 @@ package com.example.server.store;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
@@ -12,25 +14,45 @@ import static org.junit.Assert.assertTrue;
 
 public class RoadmapServiceTest {
 
-    private static final String BODY = "## 分期\n"
-            + "- [x] **Phase 3 群島地基**：地基\n"
-            + "- [ ] **Phase 4 進屋系統**：門口\n";
+    private static RoadmapModels.Document sampleDoc() {
+        RoadmapModels.Phase p3 = new RoadmapModels.Phase(
+                3,
+                "後台",
+                true,
+                Collections.singletonList(new RoadmapModels.Item("舊項", true, 1, 10)),
+                1,
+                1,
+                null
+        );
+        RoadmapModels.Phase p4 = new RoadmapModels.Phase(
+                4,
+                "桌面端 App",
+                false,
+                Arrays.asList(
+                        new RoadmapModels.Item("進行中", false, 49, null),
+                        new RoadmapModels.Item("已完成", true, 48, 12)
+                ),
+                1,
+                2,
+                null
+        );
+        return new RoadmapModels.Document(4, Arrays.asList(p3, p4), null);
+    }
 
     @Test
     public void cachesForTenMinutesThenRefetches() throws Exception {
         AtomicInteger calls = new AtomicInteger();
-        RoadmapService service = new RoadmapService((repo, issue) -> {
+        RoadmapService service = new RoadmapService(repo -> {
             calls.incrementAndGet();
             assertEquals("p4774756/PunchClock", repo);
-            assertEquals(36, issue);
-            return BODY;
-        }, "p4774756/PunchClock", 36);
+            return sampleDoc();
+        }, "p4774756/PunchClock");
 
         RoadmapService.View first = service.get(1_000L);
         assertFalse(first.stale);
         assertEquals(Integer.valueOf(4), first.current);
         assertEquals(1_000L, first.fetchedAt);
-        assertEquals("https://github.com/p4774756/PunchClock/issues/36", first.source);
+        assertEquals("https://github.com/p4774756/PunchClock/milestones", first.source);
         assertNull(first.message);
         assertEquals(1, calls.get());
 
@@ -48,12 +70,12 @@ public class RoadmapServiceTest {
     @Test
     public void failureKeepsLastSuccessAndMarksStale() {
         AtomicInteger calls = new AtomicInteger();
-        RoadmapService service = new RoadmapService((repo, issue) -> {
+        RoadmapService service = new RoadmapService(repo -> {
             if (calls.incrementAndGet() == 1) {
-                return BODY;
+                return sampleDoc();
             }
             throw new IOException("rate limit");
-        }, "p4774756/PunchClock", 36);
+        }, "p4774756/PunchClock");
 
         assertEquals(Integer.valueOf(4), service.get(5_000L).current);
         RoadmapService.View stale = service.get(5_000L + RoadmapService.TTL_MS);
@@ -66,9 +88,9 @@ public class RoadmapServiceTest {
 
     @Test
     public void firstFailureReturnsEmptyListAndMessage() {
-        RoadmapService service = new RoadmapService((repo, issue) -> {
+        RoadmapService service = new RoadmapService(repo -> {
             throw new IOException("down");
-        }, "p4774756/PunchClock", 36);
+        }, "p4774756/PunchClock");
 
         RoadmapService.View view = service.get(9L);
         assertFalse(view.stale);
@@ -81,10 +103,10 @@ public class RoadmapServiceTest {
     @Test
     public void failureBackoffDoesNotCallFetcherAgain() {
         AtomicInteger calls = new AtomicInteger();
-        RoadmapService service = new RoadmapService((repo, issue) -> {
+        RoadmapService service = new RoadmapService(repo -> {
             calls.incrementAndGet();
             throw new IOException("rate limit");
-        }, "p4774756/PunchClock", 36);
+        }, "p4774756/PunchClock");
 
         RoadmapService.View first = service.get(1_000L);
         assertEquals(RoadmapService.UNAVAILABLE, first.message);
@@ -103,12 +125,12 @@ public class RoadmapServiceTest {
     @Test
     public void staleResultIsHeldThroughFailureBackoff() {
         AtomicInteger calls = new AtomicInteger();
-        RoadmapService service = new RoadmapService((repo, issue) -> {
+        RoadmapService service = new RoadmapService(repo -> {
             if (calls.incrementAndGet() == 1) {
-                return BODY;
+                return sampleDoc();
             }
             throw new IOException("rate limit");
-        }, "p4774756/PunchClock", 36);
+        }, "p4774756/PunchClock");
 
         assertEquals(Integer.valueOf(4), service.get(5_000L).current);
         long failedAt = 5_000L + RoadmapService.TTL_MS;
