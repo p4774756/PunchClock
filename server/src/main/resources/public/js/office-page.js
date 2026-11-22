@@ -1,4 +1,4 @@
-// 首頁「我的私人團隊」3D 一角。訪客簽名簿仍可由 ?open=guestbook 開啟。
+// 首頁「私人秘書」3D 一角。訪客簽名簿仍可由 ?open=guestbook 開啟。
 
 import { createGuestbookController } from './guestbook-panel.js';
 import { applyGuestbookOpenParam } from './guestbook-logic.js';
