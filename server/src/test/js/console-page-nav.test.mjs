@@ -15,11 +15,18 @@ test('主控台頂欄為任務、施工進度、辦公室', () => {
   assert.doesNotMatch(html, /id="panel-system"/);
   assert.doesNotMatch(html, /href="\/dev-status"/);
   assert.doesNotMatch(html, /開發機狀態/);
+  const css = readFileSync(join(publicRoot, 'css/console.css'), 'utf8');
+  assert.match(css, /\.console-auth a\[href="\/logout"\]\s*\{[^}]*display:\s*none\s*!important/);
 });
 
-test('首頁選單仍保留訪客施工進度', () => {
+test('首頁 HUD 右上身分膠囊與左上任務頭像', () => {
   const js = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
-  assert.match(js, /data-pt-open-roadmap/);
+  assert.doesNotMatch(js, /data-pt-menu-toggle/);
+  assert.doesNotMatch(js, /data-pt-open-roadmap/);
+  assert.match(js, /data-pt-task-btn/);
+  assert.match(js, /data-pt-identity-toggle|pt-hud-identity-guest/);
+  assert.match(js, /\/login\?next=%2F/);
+  assert.match(js, /\/login\?next=%2Fconsole/);
   assert.doesNotMatch(js, /開發機狀態/);
   assert.doesNotMatch(js, /pt-hud-card/);
   assert.doesNotMatch(js, /\/api\/dev-status/);

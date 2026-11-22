@@ -6,18 +6,40 @@ import {
 } from './private-team-office.js';
 
 const DAY_KEY = 'punchclock-private-team-day';
+const AUTH_ABBREV = '管';
 
 const SUN_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="none" stroke="#163a70" stroke-width="2"/><g stroke="#163a70" stroke-width="2" stroke-linecap="round"><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.2" y1="4.2" x2="6.4" y2="6.4"/><line x1="17.6" y1="17.6" x2="19.8" y2="19.8"/><line x1="4.2" y1="19.8" x2="6.4" y2="17.6"/><line x1="17.6" y1="6.4" x2="19.8" y2="4.2"/></g></svg>';
 
-const MENU_SVG =
-  '<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7" stroke="#163a70" stroke-width="2.5" stroke-linecap="round"/><line x1="4" y1="12" x2="20" y2="12" stroke="#163a70" stroke-width="2.5" stroke-linecap="round"/><line x1="4" y1="17" x2="20" y2="17" stroke="#163a70" stroke-width="2.5" stroke-linecap="round"/></svg>';
-
 const PERSON_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3.5" fill="none" stroke="#163a70" stroke-width="2"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6" fill="none" stroke="#163a70" stroke-width="2" stroke-linecap="round"/></svg>';
 
+const PERSON_SVG_GUEST =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3.5" fill="none" stroke="#7a8a9c" stroke-width="2"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6" fill="none" stroke="#7a8a9c" stroke-width="2" stroke-linecap="round"/></svg>';
+
 const DL_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><path d="M8 12l4 4 4-4" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="18" width="14" height="2" fill="#fff"/></svg>';
+
+function identityHudMarkup(authed) {
+  if (authed) {
+    return (
+      '<div class="pt-hud-id-wrap">' +
+      '<button type="button" class="pt-hud-identity pt-hud-identity-auth" data-pt-identity-toggle aria-label="帳號選單" aria-expanded="false">' +
+      '<span class="pt-hud-id-abbrev">' + AUTH_ABBREV + '</span>' +
+      '<span class="pt-hud-id-dot" aria-hidden="true"></span>' +
+      '</button>' +
+      '<div class="pt-hud-id-menu" data-pt-identity-menu hidden role="menu">' +
+      '<a href="/console" role="menuitem">主控台</a>' +
+      '<a href="/logout" role="menuitem">登出</a>' +
+      '</div></div>'
+    );
+  }
+  return (
+    '<a class="pt-hud-identity pt-hud-identity-guest" href="/login?next=%2F" aria-label="訪客登入">' +
+    PERSON_SVG_GUEST +
+    '<span>訪客</span></a>'
+  );
+}
 
 function readDayPref(win) {
   try {
@@ -38,9 +60,10 @@ export function mountPrivateTeamPage(opts) {
   const doc = (opts && opts.doc) || globalThis.document;
   const win = (opts && opts.win) || globalThis;
   const fetchFn = (opts && opts.fetch) || (win.fetch ? win.fetch.bind(win) : null);
-  const hooks = (opts && opts.hooks) || {};
   const stage = doc.querySelector('[data-private-team-stage]');
   if (!stage) return { destroy() {} };
+
+  const authed = !!(win.PUNCHCLOCK_AUTHENTICATED);
 
   let canvas = stage.querySelector('[data-private-team-canvas]');
   if (!canvas) {
@@ -59,22 +82,22 @@ export function mountPrivateTeamPage(opts) {
     hud = doc.createElement('div');
     hud.className = 'private-team-hud';
     hud.setAttribute('aria-label', '操作介面');
-    const authed = !!(win.PUNCHCLOCK_AUTHENTICATED);
     hud.innerHTML =
+      '<div class="pt-hud-tl">' +
+      '<div class="pt-hud-iconcol">' +
+      '<button type="button" class="pt-hud-sqbtn" data-pt-task-btn aria-label="任務">' +
+      PERSON_SVG +
+      '</button></div>' +
+      '<div class="pt-hud-task-hint" data-pt-task-hint hidden role="dialog" aria-label="登入提示">' +
+      '<p class="pt-hud-task-hint-text">先登入才能看任務</p>' +
+      '<a class="pt-hud-task-hint-login" href="/login?next=%2Fconsole">登入</a>' +
+      '</div></div>' +
       '<div class="pt-hud-tr">' +
       '<div class="pt-hud-iconcol"><button type="button" class="pt-hud-sqbtn is-day" data-pt-daynight aria-label="日夜切換">' +
       SUN_SVG +
       '</button><span class="pt-hud-sqbtn-label">日夜</span></div>' +
-      '<div class="pt-hud-iconcol pt-hud-menu-wrap">' +
-      '<button type="button" class="pt-hud-sqbtn" data-pt-menu-toggle aria-label="選單" aria-expanded="false">' +
-      MENU_SVG +
-      '</button><span class="pt-hud-sqbtn-label">選單</span>' +
-      '<div class="pt-hud-menu" data-pt-menu hidden role="menu">' +
-      '<button type="button" role="menuitem" data-pt-open-roadmap>施工進度</button>' +
-      (authed
-        ? '<a href="/console" role="menuitem">主控台</a><a href="/logout" role="menuitem">登出</a>'
-        : '<a href="/login?next=%2F" role="menuitem">登入</a>') +
-      '</div></div></div>' +
+      identityHudMarkup(authed) +
+      '</div>' +
       '<div class="pt-hud-br">' +
       '<a class="pt-hud-atlas" href="/atlas/tcm-3d/">' + PERSON_SVG + '<span>經絡研習室</span></a>' +
       '<a class="pt-hud-download" href="/download" aria-label="下載 App">' + DL_SVG +
@@ -103,12 +126,15 @@ export function mountPrivateTeamPage(opts) {
   closeBtn = cardBackdrop.querySelector('[data-pt-status-close]');
 
   const dayBtn = hud.querySelector('[data-pt-daynight]');
-  const menuBtn = hud.querySelector('[data-pt-menu-toggle]');
-  const menuPanel = hud.querySelector('[data-pt-menu]');
-  const roadmapBtn = hud.querySelector('[data-pt-open-roadmap]');
+  const taskBtn = hud.querySelector('[data-pt-task-btn]');
+  const taskHint = hud.querySelector('[data-pt-task-hint]');
+  const identityBtn = hud.querySelector('[data-pt-identity-toggle]');
+  const identityMenu = hud.querySelector('[data-pt-identity-menu]');
 
   let tigerView = { status: '待命中', active: [], completedToday: [] };
   let cardOpen = false;
+  let taskHintOpen = false;
+  let identityMenuOpen = false;
   let lastFocus = null;
 
   function bubbleLabel() {
@@ -159,17 +185,34 @@ export function mountPrivateTeamPage(opts) {
     dayBtn.classList.toggle('is-night', !dayMode);
   }
 
-  function closeMenu() {
-    if (!menuPanel || !menuBtn) return;
-    menuPanel.hidden = true;
-    menuBtn.setAttribute('aria-expanded', 'false');
+  function closeTaskHint() {
+    if (!taskHint || !taskHintOpen) return;
+    taskHintOpen = false;
+    taskHint.hidden = true;
   }
 
-  function toggleMenu() {
-    if (!menuPanel || !menuBtn) return;
-    const open = menuPanel.hidden;
-    menuPanel.hidden = !open;
-    menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  function openTaskHint() {
+    if (!taskHint || taskHintOpen) return;
+    closeIdentityMenu();
+    taskHintOpen = true;
+    taskHint.hidden = false;
+  }
+
+  function closeIdentityMenu() {
+    if (!identityMenu || !identityBtn) return;
+    if (!identityMenuOpen) return;
+    identityMenuOpen = false;
+    identityMenu.hidden = true;
+    identityBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleIdentityMenu() {
+    if (!identityMenu || !identityBtn) return;
+    closeTaskHint();
+    const open = identityMenu.hidden;
+    identityMenu.hidden = !open;
+    identityMenuOpen = open;
+    identityBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
   if (dayBtn) {
@@ -182,25 +225,41 @@ export function mountPrivateTeamPage(opts) {
     });
   }
 
-  if (menuBtn) {
-    menuBtn.addEventListener('click', (ev) => {
+  if (taskBtn) {
+    taskBtn.addEventListener('click', (ev) => {
       ev.stopPropagation();
-      toggleMenu();
+      if (authed) {
+        closeTaskHint();
+        win.location.href = '/console';
+        return;
+      }
+      if (taskHintOpen) {
+        closeTaskHint();
+      } else {
+        openTaskHint();
+      }
+    });
+  }
+
+  if (identityBtn) {
+    identityBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      toggleIdentityMenu();
     });
   }
 
   doc.addEventListener('click', (ev) => {
-    if (!menuPanel || menuPanel.hidden) return;
-    if (menuPanel.contains(ev.target) || (menuBtn && menuBtn.contains(ev.target))) return;
-    closeMenu();
+    if (identityMenu && identityMenuOpen) {
+      if (!identityMenu.contains(ev.target) && !identityBtn.contains(ev.target)) {
+        closeIdentityMenu();
+      }
+    }
+    if (taskHint && taskHintOpen) {
+      if (!taskHint.contains(ev.target) && !(taskBtn && taskBtn.contains(ev.target))) {
+        closeTaskHint();
+      }
+    }
   });
-
-  if (roadmapBtn) {
-    roadmapBtn.addEventListener('click', () => {
-      closeMenu();
-      if (typeof hooks.openRoadmap === 'function') hooks.openRoadmap();
-    });
-  }
 
   if (closeBtn) {
     closeBtn.addEventListener('click', () => closeStatusCard());
@@ -215,10 +274,22 @@ export function mountPrivateTeamPage(opts) {
   }
 
   function onKeyDown(ev) {
-    if (ev.key === 'Escape' && cardOpen) {
-      ev.preventDefault();
-      closeStatusCard();
-      return;
+    if (ev.key === 'Escape') {
+      if (cardOpen) {
+        ev.preventDefault();
+        closeStatusCard();
+        return;
+      }
+      if (identityMenuOpen) {
+        ev.preventDefault();
+        closeIdentityMenu();
+        return;
+      }
+      if (taskHintOpen) {
+        ev.preventDefault();
+        closeTaskHint();
+        return;
+      }
     }
     if (!cardOpen && (ev.key === 'Enter' || ev.key === ' ') && ev.target === canvas) {
       ev.preventDefault();
@@ -253,7 +324,8 @@ export function mountPrivateTeamPage(opts) {
     destroy() {
       win.clearInterval(poll);
       doc.removeEventListener('keydown', onKeyDown);
-      closeMenu();
+      closeIdentityMenu();
+      closeTaskHint();
       closeStatusCard();
       scene.destroy();
     }
