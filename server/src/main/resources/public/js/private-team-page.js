@@ -1,7 +1,9 @@
-import { filterMergedToday } from './dev-machines-format.js';
 import { mountPrivateTeamScene } from './private-team-scene.js';
-
-export const SECRETARY_AVATAR_URL = '/assets/private-team/secretary-avatar.webp';
+import {
+  bubbleTextForStatus,
+  fillStatusCard,
+  tigerFromPublic
+} from './private-team-office.js';
 
 const DAY_KEY = 'punchclock-private-team-day';
 
@@ -32,12 +34,6 @@ function writeDayPref(win, day) {
   } catch (_e) { /* ignore */ }
 }
 
-function setMergedLabel(el, n) {
-  if (!el) return;
-  const val = Number.isFinite(n) && n >= 0 ? String(n) : '—';
-  el.textContent = '工作中・今天完成 ' + val + ' 件';
-}
-
 export function mountPrivateTeamPage(opts) {
   const doc = (opts && opts.doc) || globalThis.document;
   const win = (opts && opts.win) || globalThis;
@@ -51,8 +47,11 @@ export function mountPrivateTeamPage(opts) {
     canvas = doc.createElement('canvas');
     canvas.className = 'private-team-canvas';
     canvas.setAttribute('data-private-team-canvas', '');
-    canvas.setAttribute('aria-hidden', 'true');
+    canvas.setAttribute('tabindex', '0');
     stage.insertBefore(canvas, stage.firstChild);
+  } else {
+    canvas.removeAttribute('aria-hidden');
+    canvas.setAttribute('tabindex', '0');
   }
 
   let hud = stage.querySelector('.private-team-hud');
@@ -62,13 +61,6 @@ export function mountPrivateTeamPage(opts) {
     hud.setAttribute('aria-label', '操作介面');
     const authed = !!(win.PUNCHCLOCK_AUTHENTICATED);
     hud.innerHTML =
-      '<div class="pt-hud-card maple-window">' +
-      '<img class="pt-hud-avatar" src="' + SECRETARY_AVATAR_URL + '" alt="" aria-hidden="true" decoding="async">' +
-      '<div class="pt-hud-card-body">' +
-      '<p class="pt-hud-name">私人秘書</p>' +
-      '<p class="pt-hud-line" data-pt-merged>工作中・今天完成 — 件</p>' +
-      '<span class="pt-hud-badge">線上</span>' +
-      '</div></div>' +
       '<div class="pt-hud-tr">' +
       '<div class="pt-hud-iconcol"><button type="button" class="pt-hud-sqbtn is-day" data-pt-daynight aria-label="日夜切換">' +
       SUN_SVG +
@@ -79,7 +71,6 @@ export function mountPrivateTeamPage(opts) {
       '</button><span class="pt-hud-sqbtn-label">選單</span>' +
       '<div class="pt-hud-menu" data-pt-menu hidden role="menu">' +
       '<button type="button" role="menuitem" data-pt-open-roadmap>施工進度</button>' +
-      '<a href="/dev-status" role="menuitem">開發機狀態</a>' +
       (authed
         ? '<a href="/console" role="menuitem">主控台</a><a href="/logout" role="menuitem">登出</a>'
         : '<a href="/login?next=%2F" role="menuitem">登入</a>') +
@@ -91,15 +82,78 @@ export function mountPrivateTeamPage(opts) {
     stage.appendChild(hud);
   }
 
-  const mergedEl = hud.querySelector('[data-pt-merged]');
+  let cardBackdrop = stage.querySelector('[data-pt-status-card]');
+  let cardBody = null;
+  let closeBtn = null;
+  if (!cardBackdrop) {
+    cardBackdrop = doc.createElement('div');
+    cardBackdrop.className = 'pt-status-backdrop';
+    cardBackdrop.setAttribute('data-pt-status-card', '');
+    cardBackdrop.hidden = true;
+    cardBackdrop.innerHTML =
+      '<div class="pt-status-card maple-window" role="dialog" aria-modal="true" aria-labelledby="pt-status-title" tabindex="-1">' +
+      '<button type="button" class="pt-status-close" data-pt-status-close aria-label="關閉工作狀態">×</button>' +
+      '<h2 id="pt-status-title" class="pt-status-title">猛虎・工作狀態</h2>' +
+      '<div class="pt-status-body" data-pt-status-body></div>' +
+      '</div>';
+    stage.appendChild(cardBackdrop);
+  }
+  const cardDialog = cardBackdrop.querySelector('.pt-status-card');
+  cardBody = cardBackdrop.querySelector('[data-pt-status-body]');
+  closeBtn = cardBackdrop.querySelector('[data-pt-status-close]');
+
   const dayBtn = hud.querySelector('[data-pt-daynight]');
   const menuBtn = hud.querySelector('[data-pt-menu-toggle]');
   const menuPanel = hud.querySelector('[data-pt-menu]');
   const roadmapBtn = hud.querySelector('[data-pt-open-roadmap]');
 
-  const scene = mountPrivateTeamScene(canvas, { win, doc });
+  let tigerView = { status: '待命中', active: [], completedToday: [] };
+  let cardOpen = false;
+  let lastFocus = null;
+
+  function bubbleLabel() {
+    return bubbleTextForStatus(tigerView.status);
+  }
+
+  function refreshCanvasA11y() {
+    const label = bubbleLabel();
+    canvas.setAttribute(
+      'aria-label',
+      '私人秘書場景，目前' + label + '。點選秘書或泡泡，或按 Enter 查看工作狀態。'
+    );
+  }
+
+  function closeStatusCard() {
+    if (!cardOpen) return;
+    cardOpen = false;
+    cardBackdrop.hidden = true;
+    if (lastFocus && typeof lastFocus.focus === 'function') {
+      try {
+        lastFocus.focus({ preventScroll: true });
+      } catch (_e) { /* ignore */ }
+    }
+    lastFocus = null;
+  }
+
+  function openStatusCard() {
+    if (cardOpen) return;
+    lastFocus = doc.activeElement;
+    fillStatusCard(doc, cardBody, tigerView);
+    cardOpen = true;
+    cardBackdrop.hidden = false;
+    if (closeBtn) closeBtn.focus({ preventScroll: true });
+  }
+
+  const scene = mountPrivateTeamScene(canvas, {
+    win,
+    doc,
+    onActivate: openStatusCard
+  });
+
   let dayMode = readDayPref(win);
   scene.setDayMode(dayMode);
+  scene.setBubbleText(bubbleLabel());
+  refreshCanvasA11y();
   if (dayBtn) {
     dayBtn.classList.toggle('is-day', dayMode);
     dayBtn.classList.toggle('is-night', !dayMode);
@@ -148,27 +202,59 @@ export function mountPrivateTeamPage(opts) {
     });
   }
 
-  function refreshMerged() {
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => closeStatusCard());
+  }
+
+  cardBackdrop.addEventListener('click', (ev) => {
+    if (ev.target === cardBackdrop) closeStatusCard();
+  });
+
+  if (cardDialog) {
+    cardDialog.addEventListener('click', (ev) => ev.stopPropagation());
+  }
+
+  function onKeyDown(ev) {
+    if (ev.key === 'Escape' && cardOpen) {
+      ev.preventDefault();
+      closeStatusCard();
+      return;
+    }
+    if (!cardOpen && (ev.key === 'Enter' || ev.key === ' ') && ev.target === canvas) {
+      ev.preventDefault();
+      openStatusCard();
+    }
+  }
+  doc.addEventListener('keydown', onKeyDown);
+
+  function applyTiger(tiger) {
+    if (!tiger) return;
+    tigerView = tiger;
+    scene.setBubbleText(bubbleLabel());
+    refreshCanvasA11y();
+    if (cardOpen) fillStatusCard(doc, cardBody, tigerView);
+  }
+
+  function refreshOfficePublic() {
     if (!fetchFn) return;
-    fetchFn('/api/dev-status')
+    fetchFn('/api/office/public')
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null)
       .then((body) => {
-        if (!body || !Array.isArray(body.timeline)) {
-          setMergedLabel(mergedEl, null);
-          return;
-        }
-        const list = filterMergedToday(body.timeline, Date.now());
-        setMergedLabel(mergedEl, list.length);
+        const tiger = tigerFromPublic(body);
+        applyTiger(tiger || { status: '待命中', active: [], completedToday: [] });
       });
   }
-  refreshMerged();
-  const poll = win.setInterval(refreshMerged, 60_000);
+
+  refreshOfficePublic();
+  const poll = win.setInterval(refreshOfficePublic, 60_000);
 
   return {
     destroy() {
       win.clearInterval(poll);
+      doc.removeEventListener('keydown', onKeyDown);
       closeMenu();
+      closeStatusCard();
       scene.destroy();
     }
   };

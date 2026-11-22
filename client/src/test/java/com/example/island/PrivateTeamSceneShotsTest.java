@@ -48,7 +48,6 @@ public class PrivateTeamSceneShotsTest {
         page.navigate(base + "/", new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
         page.waitForSelector(".private-team-hud");
         page.waitForSelector("[data-private-team-canvas]");
-        page.waitForSelector("img.pt-hud-avatar");
         page.waitForTimeout(2200);
         page.screenshot(new Page.ScreenshotOptions().setPath(dir.resolve(filename)));
         page.close();

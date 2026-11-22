@@ -104,44 +104,50 @@ function progressTexture(pct) {
   return tex;
 }
 
-function bubbleTexture() {
+function makeBubbleDrawer() {
   const canvas = document.createElement('canvas');
-  canvas.width = 256;
+  canvas.width = 320;
   canvas.height = 128;
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, 256, 128);
-  ctx.fillStyle = '#f8fbff';
-  ctx.strokeStyle = '#163a70';
-  ctx.lineWidth = 10;
-  const x = 16;
-  const y = 12;
-  const w = 224;
-  const h = 78;
-  const r = 22;
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + 150, y + h);
-  ctx.lineTo(x + 118, y + h + 26);
-  ctx.lineTo(x + 108, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = '#163a70';
-  ctx.font = 'bold 72px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('…', 128, 50);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  function draw(text) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#f8fbff';
+    ctx.strokeStyle = '#163a70';
+    ctx.lineWidth = 10;
+    const x = 16;
+    const y = 12;
+    const w = 288;
+    const h = 78;
+    const r = 22;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + 182, y + h);
+    ctx.lineTo(x + 150, y + h + 26);
+    ctx.lineTo(x + 140, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    const label = text == null || String(text).trim() === '' ? '…' : String(text);
+    const size = label.length > 6 ? 46 : label.length > 4 ? 52 : 60;
+    ctx.fillStyle = '#163a70';
+    ctx.font = 'bold ' + size + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, canvas.width / 2, 50);
+    tex.needsUpdate = true;
+  }
+  draw('…');
+  return { tex, draw };
 }
 
 function softShadowTexture() {
@@ -374,7 +380,11 @@ export function mountPrivateTeamScene(canvas, opts) {
       secretarySprite = new THREE.Mesh(new THREE.PlaneGeometry(spriteW, SECRETARY_SPRITE_HEIGHT), mat);
       secretarySprite.position.set(0, spriteBaseY, 0);
       secretarySprite.renderOrder = 2;
+      secretarySprite.name = 'secretarySprite';
       secretaryRoot.add(secretarySprite);
+      if (clickables.indexOf(secretarySprite) === -1) {
+        clickables.push(secretarySprite);
+      }
     },
     undefined,
     () => {
@@ -395,18 +405,59 @@ export function mountPrivateTeamScene(canvas, opts) {
   nameStand.position.set(0.78, 1.8, 0.74);
   root.add(nameStand);
 
+  const bubbleDrawer = makeBubbleDrawer();
   const bubbleMat = new THREE.MeshBasicMaterial({
-    map: bubbleTexture(),
+    map: bubbleDrawer.tex,
     transparent: true,
     depthWrite: false
   });
-  const bubble = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.36), bubbleMat);
+  const bubble = new THREE.Mesh(new THREE.PlaneGeometry(0.82, 0.36), bubbleMat);
   bubble.position.set(0.38, 2.08, 0.72);
   bubble.renderOrder = 3;
+  bubble.name = 'secretaryBubble';
   root.add(bubble);
+
+  const clickables = [bubble];
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  const onActivate = typeof (opts && opts.onActivate) === 'function' ? opts.onActivate : null;
+
+  function pickSecretary(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return false;
+    pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(clickables, false);
+    return hits.length > 0;
+  }
+
+  function handlePointerDown(ev) {
+    if (!onActivate) return;
+    if (pickSecretary(ev.clientX, ev.clientY)) {
+      ev.preventDefault();
+      onActivate();
+    }
+  }
+
+  canvas.addEventListener('pointerdown', handlePointerDown);
 
   let dayMode = true;
   let running = true;
+  let reducedMotion = false;
+  if (typeof win.matchMedia === 'function') {
+    const mq = win.matchMedia('(prefers-reduced-motion: reduce)');
+    reducedMotion = !!mq.matches;
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', () => {
+        reducedMotion = !!mq.matches;
+      });
+    } else if (typeof mq.addListener === 'function') {
+      mq.addListener(() => {
+        reducedMotion = !!mq.matches;
+      });
+    }
+  }
   let raf = 0;
   let t0 = performance.now();
 
@@ -447,9 +498,14 @@ export function mountPrivateTeamScene(canvas, opts) {
       secretarySprite.lookAt(camera.position);
     }
 
-    const bubblePhase = (Math.sin(elapsed * 2.2) + 1) / 2;
-    bubble.position.y = 1.98 + bubblePhase * 0.07;
-    bubbleMat.opacity = 0.82 + bubblePhase * 0.18;
+    if (reducedMotion) {
+      bubble.position.y = 2.02;
+      bubbleMat.opacity = 0.92;
+    } else {
+      const bubblePhase = (Math.sin(elapsed * 2.2) + 1) / 2;
+      bubble.position.y = 1.98 + bubblePhase * 0.07;
+      bubbleMat.opacity = 0.82 + bubblePhase * 0.18;
+    }
 
     const pulse = (Math.sin(elapsed * 3) + 1) / 2;
     monitorL.draw(dayMode, pulse);
@@ -473,10 +529,17 @@ export function mountPrivateTeamScene(canvas, opts) {
   return {
     setDayMode,
     resize,
+    setBubbleText(text) {
+      bubbleDrawer.draw(text);
+    },
+    setReducedMotion(next) {
+      reducedMotion = !!next;
+    },
     destroy() {
       running = false;
       win.cancelAnimationFrame(raf);
       win.removeEventListener('resize', resize);
+      canvas.removeEventListener('pointerdown', handlePointerDown);
       renderer.dispose();
     }
   };
