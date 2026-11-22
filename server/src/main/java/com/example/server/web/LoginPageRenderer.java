@@ -62,7 +62,7 @@ public final class LoginPageRenderer {
                 + "          <button type=\"submit\" id=\"btnSubmit\" class=\"btn btn-primary btn-submit\" "
                 + (locked ? "disabled" : "") + ">" + (locked ? "冷卻鎖定中…" : "登入") + "</button>\n"
                 + "        </form>\n"
-                + "        <a class=\"back-office\" href=\"/\">← 回到辦公室</a>\n"
+                + "        <a class=\"back-office\" href=\"/\">← 回辦公室</a>\n"
                 + "      </div>\n"
                 + "    </section>\n"
                 + "  </main>\n"

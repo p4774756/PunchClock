@@ -195,7 +195,7 @@ public class PublicOfficeAuthTest {
         assertTrue(body.contains("冷卻鎖定中"));
         assertTrue(body.contains("id=\"password\""));
         assertTrue(body.contains("disabled"));
-        assertTrue(body.contains("← 回到辦公室"));
+        assertTrue(body.contains("← 回辦公室"));
         assertTrue(body.contains("管理主控台"));
         assertFalse(body.contains("⛔"));
         assertFalse(body.contains(">登入</button>"));
@@ -211,7 +211,7 @@ public class PublicOfficeAuthTest {
         String body = page.body();
         assertTrue(body.contains("[警告] 密碼錯誤！剩餘嘗試次數：4 次 (滿5次鎖定15分鐘)"));
         assertTrue(body.contains(">登入</button>"));
-        assertTrue(body.contains("← 回到辦公室"));
+        assertTrue(body.contains("← 回辦公室"));
         assertFalse(body.contains("⛔"));
         assertFalse(body.contains("冷卻鎖定中"));
         assertFalse(containsEmoji(body));
