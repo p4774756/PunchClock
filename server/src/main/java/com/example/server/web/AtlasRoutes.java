@@ -31,6 +31,8 @@ public final class AtlasRoutes {
     }
 
     public void register(Javalin app) {
+        app.get("/atlas", ctx -> ctx.redirect("/atlas/tcm-3d/"));
+        app.get("/atlas/", ctx -> ctx.redirect("/atlas/tcm-3d/"));
         app.get("/atlas/{app}", ctx -> serve(ctx, ""));
         app.get("/atlas/{app}/", ctx -> serve(ctx, ""));
         app.get("/atlas/{app}/<path>", ctx -> serve(ctx, ctx.pathParam("path")));
@@ -241,7 +243,7 @@ public final class AtlasRoutes {
         return "<!DOCTYPE html><html lang=\"zh-Hant\"><head><meta charset=\"utf-8\"><title>經穴圖</title></head>"
                 + "<body style=\"font-family:sans-serif;padding:2rem\">"
                 + "<p>" + escape(message) + "</p>"
-                + "<p><a href=\"/\">回店面</a></p></body></html>";
+                + "<p><a href=\"/\">回辦公室</a></p></body></html>";
     }
 
     private static String escape(String value) {

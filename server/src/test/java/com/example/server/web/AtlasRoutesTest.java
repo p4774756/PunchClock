@@ -205,6 +205,17 @@ public class AtlasRoutesTest {
     public void unknownAppIsNotFound() throws Exception {
         HttpResponse<String> response = send("GET", "/atlas/other/", adminCookie, null, null);
         assertEquals(404, response.statusCode());
+        assertTrue(response.body().contains("回辦公室"));
+        assertFalse(response.body().contains("回店面"));
+    }
+
+    @Test
+    public void atlasRootRedirectsToTcm3d() throws Exception {
+        for (String path : new String[] {"/atlas", "/atlas/"}) {
+            HttpResponse<String> response = send("GET", path, null, null, null);
+            assertEquals(path, 302, response.statusCode());
+            assertEquals("/atlas/tcm-3d/", response.headers().firstValue("location").orElse(""));
+        }
     }
 
     private HttpResponse<String> send(String method, String path, String cookie, String ifNoneMatch, String acceptEncoding)
