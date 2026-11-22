@@ -163,9 +163,9 @@ public class PublicOfficeAuthTest {
 
     @Test
     public void loginNextRedirectsWhenAlreadyAuthed() throws Exception {
-        HttpResponse<String> response = send("GET", "/login?next=/dev-status", adminCookie);
+        HttpResponse<String> response = send("GET", "/login?next=/?open=roadmap", adminCookie);
         assertEquals(302, response.statusCode());
-        assertEquals("/dev-status", response.headers().firstValue("location").orElse(""));
+        assertEquals("/?open=roadmap", response.headers().firstValue("location").orElse(""));
         HttpResponse<String> console = send("GET", "/login?next=/console", adminCookie);
         assertEquals(302, console.statusCode());
         assertEquals("/console", console.headers().firstValue("location").orElse(""));

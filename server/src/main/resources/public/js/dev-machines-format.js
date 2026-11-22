@@ -105,7 +105,7 @@ export function shouldFetchDevMachines(authenticated) {
 }
 
 export function shouldShowDevStatusNavLink() {
-  return true;
+  return false;
 }
 
 export function viewerCanLink(viewerOrAuth) {

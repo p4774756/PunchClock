@@ -17,6 +17,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Collections;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -66,13 +67,10 @@ public class DonateLinkPageTest {
     }
 
     @Test
-    public void devStatusIncludesDonateFooterForGuests() throws Exception {
-        System.setProperty("punchclock.donateUrl", "https://ko-fi.com/x?a=1&b=2");
+    public void devStatusRedirectsToHome() throws Exception {
         HttpResponse<String> response = send("GET", "/dev-status", null);
-        String body = response.body();
-        assertTrue(body.contains("id=\"devMachinesDonate\""));
-        assertTrue(body.contains("PUNCHCLOCK_DONATE"));
-        assertFalse(body.contains("example.com/donate"));
+        assertEquals(301, response.statusCode());
+        assertEquals("/", response.headers().firstValue("location").orElse(""));
     }
 
     @Test

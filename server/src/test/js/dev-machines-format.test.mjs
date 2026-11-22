@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { loadPublicModule } from './load-public-module.mjs';
 
 const F = await loadPublicModule('dev-machines-format.js');
-const D = await loadPublicModule('dev-machines.js');
 
 function miniDoc() {
   const nodes = [];
@@ -108,7 +107,7 @@ test('研發樓單行 runs 上限', () => {
 test('訪客與管理員連結／toast', () => {
   assert.equal(F.shouldFetchDevMachines(false), false);
   assert.equal(F.shouldFetchDevMachines(true), true);
-  assert.equal(F.shouldShowDevStatusNavLink(false), true);
+  assert.equal(F.shouldShowDevStatusNavLink(), false);
 
   const doc = miniDoc();
   const guest = F.createGithubLink(doc, { text: '#235', href: 'https://github.com/p4774756/PunchClock/issues/235', canLink: false });
@@ -136,7 +135,7 @@ test('訪客與管理員連結／toast', () => {
   F.createGithubLink(doc, { text: '#1', href: 'https://github.com/x/issues/1', canLink: false });
 });
 
-test('buildRunRows 與 renderCard 訪客無 href', () => {
+test('buildRunRows 訪客無 href', () => {
   const doc = miniDoc();
   const now = 1_700_000_000_000;
   const ul = F.buildRunRows(doc, [{ issue: 235, round: 2, branch: 'ai/issue-235', startedAt: now - 60000, commit: 'abc1234567', issueTitle: '標題' }], now, { canLink: false });
@@ -144,81 +143,20 @@ test('buildRunRows 與 renderCard 訪客無 href', () => {
   const flat = doc.nodes.map((n) => n.tagName + (n.href || '') + (n.textContent || '')).join('|');
   assert.ok(!flat.includes('github.com'));
   assert.ok(F.formatShortSha('abcdef123456') === 'abcdef1');
-
-  const cardGuest = D.renderCard(doc, {
-    label: '小貓',
-    online: true,
-    runs: [{ issue: 235, round: 0, branch: 'ai/issue-235', startedAt: now }],
-    agentRunning: true
-  }, now, { viewer: 'guest' });
-  const guestNodes = doc.nodes.map((n) => n.tagName + (n.href || '')).join('|');
-  assert.ok(!guestNodes.includes('github.com'));
-
-  const cardAdmin = D.renderCard(doc, {
-    label: '小貓',
-    online: true,
-    runs: [{ issue: 235, round: 0, branch: 'ai/issue-235', startedAt: now }],
-    agentRunning: true
-  }, now, { viewer: 'admin' });
-  assert.ok(doc.nodes.some((n) => n.href && n.href.includes('github.com')));
 });
 
-function navWithCapture(doc) {
-  const nav = doc.createElement('span');
-  const listeners = new Map();
-  const origCreate = doc.createElement.bind(doc);
-  doc.createElement = (tag) => {
-  const node = origCreate(tag);
-    if (tag === 'a') {
-      node.addEventListener = (ev, fn) => {
-        if (!listeners.has(node)) listeners.set(node, {});
-        listeners.get(node)[ev] = fn;
-      };
-    }
-    return node;
-  };
-  return { nav, listeners, restore: () => { doc.createElement = origCreate; } };
-}
-
-test('roadmap 開發機狀態鈕與資料來源', () => {
+test('roadmap 不再顯示開發機狀態鈕', () => {
   const doc = miniDoc();
   const nav = doc.createElement('span');
   F.mergeRoadmapDevStatusLink(doc, nav, { authenticated: true });
-  assert.equal(nav.hidden, false);
-  assert.equal(nav.childNodes[0].href, '/dev-status');
-  assert.equal(nav.childNodes.length, 1);
+  assert.equal(nav.hidden, true);
+  assert.equal(nav.childNodes.length, 0);
   const src = doc.createElement('a');
   src.className = 'roadmap-source';
   F.applyGithubSourceLabel(doc, src, 'https://github.com/p4774756/PunchClock/issues/36', false);
   assert.equal(src.textContent, '資料來源：GitHub #36');
   assert.equal(src.getAttribute('aria-disabled'), 'true');
   assert.ok(src.className.includes('dev-guest-ref'));
-});
-
-test('訪客點路線圖開發機狀態鈕跳 toast 不導頁', () => {
-  const doc = miniDoc();
-  const { nav, listeners, restore } = navWithCapture(doc);
-  F.mergeRoadmapDevStatusLink(doc, nav, { authenticated: false });
-  const link = nav.childNodes[0];
-  assert.equal(link.href, '/dev-status');
-  let prevented = false;
-  const clickFn = listeners.get(link)?.click;
-  assert.equal(typeof clickFn, 'function');
-  clickFn({ preventDefault: () => { prevented = true; } });
-  assert.equal(prevented, true);
-  const toasts = doc.body.childNodes.filter((n) => n.attributes && n.attributes['data-dev-login-toast']);
-  assert.equal(toasts.length, 1);
-  assert.ok(toasts[0].childNodes.some((c) => (c.textContent || '') === '開發機狀態需登入後查看'));
-  restore();
-});
-
-test('管理員點路線圖開發機狀態鈕可導頁', () => {
-  const doc = miniDoc();
-  const { nav, listeners, restore } = navWithCapture(doc);
-  F.mergeRoadmapDevStatusLink(doc, nav, { authenticated: true });
-  const link = nav.childNodes[0];
-  assert.equal(listeners.get(link)?.click, undefined);
-  restore();
 });
 
 test('open=roadmap 參數解析與深連結', () => {

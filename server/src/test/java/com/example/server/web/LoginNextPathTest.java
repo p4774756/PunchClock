@@ -9,7 +9,6 @@ public class LoginNextPathTest {
 
     @Test
     public void acceptsWhitelistedPaths() {
-        assertEquals("/dev-status", LoginNextPath.sanitize("/dev-status"));
         assertEquals("/office", LoginNextPath.sanitize("/office"));
         assertEquals("/console", LoginNextPath.sanitize("/console"));
         assertEquals("/", LoginNextPath.sanitize("/"));
@@ -39,6 +38,7 @@ public class LoginNextPathTest {
         assertNull(LoginNextPath.sanitize("javascript:alert(1)"));
         assertNull(LoginNextPath.sanitize("/console?next=/evil"));
         assertNull(LoginNextPath.sanitize("/console#evil"));
+        assertNull(LoginNextPath.sanitize("/dev-status"));
         assertNull(LoginNextPath.sanitize("/dev-status?open=roadmap"));
     }
 }
