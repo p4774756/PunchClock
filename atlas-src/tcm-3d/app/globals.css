@@ -47,7 +47,7 @@
  .selection-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:0;padding-right:5px;padding-bottom:12px;margin:0}
  .selection-title{margin-top:5px}.selection-title h1{font-size:24px}.mode-control{margin-top:8px}.selection-bottom{min-height:34px;font-size:10px}
  .tab-body{flex:1;min-height:0}.point-list{flex:1;height:auto;max-height:none;min-height:75px;overflow-y:auto}.search-box{height:40px;margin:9px 15px}.search-box input,.meridian-controls select{font-size:16px}.panel-tabs button{height:42px}.meridian-controls{padding-block:5px}.meridian-controls small{display:none}.meridian-controls select{padding:6px}.region-disclosure{padding-block:0}.point-row{min-height:48px}.point-list-foot{min-height:32px}
- .studio-footer{position:absolute;bottom:calc(48px + env(safe-area-inset-bottom,0px));left:12px;right:12px;inset-inline:12px;padding:0;background:none;display:block}.footer-scope{display:none}.status-message{display:block;font-size:10px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .studio-footer{position:absolute;bottom:calc(96px + env(safe-area-inset-bottom,0px));left:12px;right:12px;inset-inline:12px;padding:0;background:none;display:block;z-index:3}.footer-scope{display:none}.status-message{display:block;font-size:10px;line-height:1.45;text-align:center;white-space:normal}
  .scene-mode-hint{display:none}.source-dialog{max-height:calc(100dvh - 40px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}.loading-card{top:45%}
 }
 @media(max-width:1100px) and (max-height:500px) and (orientation:landscape){
@@ -56,7 +56,7 @@
  .pain-entry{top:calc(56px + env(safe-area-inset-top,0px));min-height:36px}
  .library-panel,.selection-panel{width:150px;bottom:calc(10px + env(safe-area-inset-bottom,0px))}.library-panel{left:calc(10px + env(safe-area-inset-left,0px))}.selection-panel{right:calc(10px + env(safe-area-inset-right,0px))}
  .mobile-expanded.library-panel,.mobile-expanded.selection-panel{top:calc(52px + env(safe-area-inset-top,0px));bottom:calc(44px + env(safe-area-inset-bottom,0px));height:auto;max-height:none;width:310px;left:auto;right:calc(10px + env(safe-area-inset-right,0px))}
- .mobile-expanded.library-panel{left:calc(10px + env(safe-area-inset-left,0px));right:auto}.studio-footer{display:none}
+ .mobile-expanded.library-panel{left:calc(10px + env(safe-area-inset-left,0px));right:auto}.studio-footer{display:block;bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 }
 
 /* —— 經絡研習室：風格 2 水彩面板＋風格 4 宣紙木刻底 —— */
