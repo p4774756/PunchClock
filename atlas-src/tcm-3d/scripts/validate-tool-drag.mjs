@@ -148,12 +148,13 @@ test('演示目標為少女皮膚，不再寫死 FJ2810／integumentary', () => 
 });
 
 const pageSource = await readFile(new URL('../app/page.tsx', import.meta.url), 'utf8');
-test('頁面只留少女與針／指壓工具列，無解剖切換', () => {
+test('頁面只留少女教學場景，無底部工具列與解剖切換', () => {
   assert.doesNotMatch(pageSource, /切回解剖模型/);
   assert.doesNotMatch(pageSource, /anime-capability-card/);
   assert.doesNotMatch(pageSource, /AnatomyScene|switchModelMode/);
+  assert.doesNotMatch(pageSource, /tool-dock/);
   assert.match(pageSource, /CharacterScene/);
-  assert.match(pageSource, /canPlayDemo/);
+  assert.match(pageSource, /onToolDrag/);
 });
 
 console.log(`${passed} 項工具拖動與少女演示檢查通過。`);
