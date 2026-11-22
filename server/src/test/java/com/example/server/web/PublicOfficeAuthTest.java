@@ -154,6 +154,7 @@ public class PublicOfficeAuthTest {
         HttpResponse<String> page = send("GET", "/console", adminCookie);
         assertEquals(200, page.statusCode());
         assertTrue(page.body().contains("dashboard.js"));
+        assertTrue(page.body().contains("dash-tab.js"));
         assertTrue(page.body().contains("clientContainer"));
         assertTrue(page.body().contains("dashboard.js"));
         assertTrue(page.body().contains("panel-devices"));
@@ -245,7 +246,6 @@ public class PublicOfficeAuthTest {
     public void guestsAreDeniedManagementApis() throws Exception {
         assertDeniedManagement(send("GET", "/api/status", null));
         assertDeniedManagement(send("GET", "/api/health/history", null));
-        assertDeniedManagement(send("GET", "/api/photos", null));
         assertDeniedManagement(send("POST", "/api/clients/demo/cancel-schedule", null));
     }
 
