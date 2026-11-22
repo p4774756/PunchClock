@@ -2,11 +2,11 @@ import { mountPrivateTeamScene } from './private-team-scene.js';
 import {
   bubbleTextForStatus,
   fillStatusCard,
+  taskProgressFromTiger,
   tigerFromPublic
 } from './private-team-office.js';
 
 const DAY_KEY = 'punchclock-private-team-day';
-const AUTH_ABBREV = '管';
 
 function deployVersionLabel(win) {
   const ver = win && typeof win.PUNCHCLOCK_SERVER_VERSION === 'string'
@@ -48,19 +48,61 @@ const SUN_SVG =
 const PERSON_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3.5" fill="none" stroke="#163a70" stroke-width="2"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6" fill="none" stroke="#163a70" stroke-width="2" stroke-linecap="round"/></svg>';
 
-const PERSON_SVG_GUEST =
-  '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3.5" fill="none" stroke="#7a8a9c" stroke-width="2"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6" fill="none" stroke="#7a8a9c" stroke-width="2" stroke-linecap="round"/></svg>';
-
 const DL_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><path d="M8 12l4 4 4-4" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="18" width="14" height="2" fill="#fff"/></svg>';
 
+const FRAME_CORNER_SVG =
+  '<svg viewBox="0 0 22 22" fill="none" aria-hidden="true">' +
+  '<path d="M3 19 V6 Q3 3 6 3 H19" stroke="#f3e3a6" stroke-width="2.4" stroke-linecap="square"/>' +
+  '<path d="M6 19 V8 Q6 6 8 6 H19" stroke="#8a6a28" stroke-width="1.2"/>' +
+  '<rect x="2" y="2" width="4.2" height="4.2" fill="#f3e3a6" stroke="#8a6a28" stroke-width="0.8"/></svg>';
+
+const TASK_BADGE_SVG =
+  '<svg viewBox="0 0 42 42" aria-hidden="true">' +
+  '<polygon points="21,2 39,12 39,30 21,40 3,30 3,12" fill="#d4b35c" stroke="#8a6a28" stroke-width="1.6"/>' +
+  '<polygon points="21,7 35,15 35,27 21,35 7,27 7,15" fill="#f3e3a6"/></svg>';
+
+function frameCornerSpans() {
+  return (
+    '<span class="pt-a-corner pt-a-corner-tl" aria-hidden="true">' + FRAME_CORNER_SVG + '</span>' +
+    '<span class="pt-a-corner pt-a-corner-tr" aria-hidden="true">' + FRAME_CORNER_SVG + '</span>' +
+    '<span class="pt-a-corner pt-a-corner-bl" aria-hidden="true">' + FRAME_CORNER_SVG + '</span>' +
+    '<span class="pt-a-corner pt-a-corner-br" aria-hidden="true">' + FRAME_CORNER_SVG + '</span>'
+  );
+}
+
+function taskHudMarkup() {
+  return (
+    '<button type="button" class="pt-hud-task" data-pt-task-btn aria-label="任務">' +
+    '<span class="pt-a-frame">' +
+    '<span class="pt-a-frame-inner">' +
+    '<img src="/assets/private-team/secretary-avatar.webp" alt="" aria-hidden="true" width="192" height="192" decoding="async">' +
+    '</span>' +
+    frameCornerSpans() +
+    '<span class="pt-a-badge" aria-hidden="true">' + TASK_BADGE_SVG + '<span>任</span></span>' +
+    '</span>' +
+    '<span class="pt-a-plate">' +
+    '<span class="pt-a-name">私人秘書</span>' +
+    '<span class="pt-a-bar-row" data-pt-task-bar hidden>' +
+    '<span class="pt-a-bar-label">任務</span>' +
+    '<span class="pt-a-bar" aria-hidden="true"><i data-pt-task-bar-fill></i></span>' +
+    '<span class="pt-a-bar-count" data-pt-task-bar-count></span>' +
+    '</span></span></button>'
+  );
+}
+
 function identityHudMarkup(authed) {
+  const idBody =
+    '<span class="pt-a-id-gem" aria-hidden="true"></span>' +
+    '<span class="pt-a-id-text">' +
+    '<span class="pt-a-id-role">' + (authed ? '管理員' : '訪客') + '</span>' +
+    '<span class="pt-a-id-sub">' + (authed ? '線上' : '登入') + '</span>' +
+    '</span>';
   if (authed) {
     return (
       '<div class="pt-hud-id-wrap">' +
-      '<button type="button" class="pt-hud-identity pt-hud-identity-auth" data-pt-identity-toggle aria-label="帳號選單" aria-expanded="false">' +
-      '<span class="pt-hud-id-abbrev">' + AUTH_ABBREV + '</span>' +
-      '<span class="pt-hud-id-dot" aria-hidden="true"></span>' +
+      '<button type="button" class="pt-hud-id-plate" data-pt-identity-toggle aria-label="帳號" aria-expanded="false">' +
+      idBody +
       '</button>' +
       '<div class="pt-hud-id-menu" data-pt-identity-menu hidden role="menu">' +
       '<a href="/console" role="menuitem">主控台</a>' +
@@ -69,9 +111,9 @@ function identityHudMarkup(authed) {
     );
   }
   return (
-    '<a class="pt-hud-identity pt-hud-identity-guest" href="/login?next=%2F" aria-label="訪客登入">' +
-    PERSON_SVG_GUEST +
-    '<span>訪客</span></a>'
+    '<a class="pt-hud-id-plate is-guest" href="/login?next=%2F" aria-label="帳號">' +
+    idBody +
+    '</a>'
   );
 }
 
@@ -118,10 +160,7 @@ export function mountPrivateTeamPage(opts) {
     hud.setAttribute('aria-label', '操作介面');
     hud.innerHTML =
       '<div class="pt-hud-tl">' +
-      '<div class="pt-hud-iconcol">' +
-      '<button type="button" class="pt-hud-sqbtn" data-pt-task-btn aria-label="任務">' +
-      PERSON_SVG +
-      '</button></div>' +
+      taskHudMarkup() +
       '<div class="pt-hud-task-hint" data-pt-task-hint hidden role="dialog" aria-label="登入提示">' +
       '<p class="pt-hud-task-hint-text">先登入才能看任務</p>' +
       '<a class="pt-hud-task-hint-login" href="/login?next=%2Fconsole">登入</a>' +
@@ -166,6 +205,9 @@ export function mountPrivateTeamPage(opts) {
   const taskHint = hud.querySelector('[data-pt-task-hint]');
   const identityBtn = hud.querySelector('[data-pt-identity-toggle]');
   const identityMenu = hud.querySelector('[data-pt-identity-menu]');
+  const taskBarRow = hud.querySelector('[data-pt-task-bar]');
+  const taskBarFill = hud.querySelector('[data-pt-task-bar-fill]');
+  const taskBarCount = hud.querySelector('[data-pt-task-bar-count]');
 
   let tigerView = { status: '待命中', active: [], completedToday: [] };
   let cardOpen = false;
@@ -334,11 +376,30 @@ export function mountPrivateTeamPage(opts) {
   }
   doc.addEventListener('keydown', onKeyDown);
 
+  function applyTaskBar(tiger) {
+    if (!taskBarRow) return;
+    const prog = taskProgressFromTiger(tiger);
+    if (!prog) {
+      taskBarRow.hidden = true;
+      if (taskBarFill) taskBarFill.style.width = '0%';
+      if (taskBarCount) taskBarCount.textContent = '';
+      return;
+    }
+    taskBarRow.hidden = false;
+    if (taskBarFill) {
+      taskBarFill.style.width = Math.round(prog.fraction * 100) + '%';
+    }
+    if (taskBarCount) {
+      taskBarCount.textContent = prog.completed + '/' + prog.total;
+    }
+  }
+
   function applyTiger(tiger) {
     if (!tiger) return;
     tigerView = tiger;
     scene.setBubbleText(bubbleLabel());
     refreshCanvasA11y();
+    applyTaskBar(tiger);
     if (cardOpen) fillStatusCard(doc, cardBody, tigerView);
   }
 

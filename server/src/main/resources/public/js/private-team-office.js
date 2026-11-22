@@ -15,6 +15,20 @@ export function tigerFromPublic(body) {
   };
 }
 
+/** 今日任務細條：以公開辦公室資料的進行中＋今日完成筆數計算；無資料則 null。 */
+export function taskProgressFromTiger(tiger) {
+  if (!tiger || typeof tiger !== 'object') return null;
+  const active = Array.isArray(tiger.active) ? tiger.active.length : 0;
+  const completed = Array.isArray(tiger.completedToday) ? tiger.completedToday.length : 0;
+  const total = active + completed;
+  if (total <= 0) return null;
+  return {
+    completed,
+    total,
+    fraction: Math.min(1, completed / total)
+  };
+}
+
 /** 3D 泡泡用短標（工作中／待命中／休息中；保留「工作中 ×N」）。 */
 export function bubbleTextForStatus(status) {
   const s = status == null ? '' : String(status).trim();
