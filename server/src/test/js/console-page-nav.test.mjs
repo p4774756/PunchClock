@@ -24,8 +24,11 @@ test('首頁 HUD 楓之谷角色框與身分名牌', () => {
   const css = readFileSync(join(publicRoot, 'css/private-team.css'), 'utf8');
   assert.doesNotMatch(js, /data-pt-menu-toggle/);
   assert.doesNotMatch(js, /data-pt-open-roadmap/);
-  assert.doesNotMatch(js, /施工進度/);
+  assert.doesNotMatch(js, /role="menuitem">施工進度/);
+  assert.doesNotMatch(js, />施工進度</);
+  assert.match(js, /進度看板，開啟施工進度/);
   assert.match(js, /data-pt-prog-hit/);
+  assert.match(js, /onProgressBoardRect/);
   assert.match(js, /onOpenProgress/);
   assert.match(js, /setRoadmapOpen/);
   assert.match(js, /openRoadmapFromBoard/);
@@ -49,6 +52,7 @@ test('首頁 HUD 楓之谷角色框與身分名牌', () => {
   assert.match(css, /\.pt-hud-id-plate/);
   assert.match(css, /\.pt-roadmap-open/);
   assert.match(css, /\.pt-prog-hit/);
+  assert.doesNotMatch(css, /\.pt-prog-hit\s*\{[^}]*top:\s*26%/);
 });
 
 test('牆上進度看板與施工進度彈窗遮罩', () => {
@@ -56,6 +60,8 @@ test('牆上進度看板與施工進度彈窗遮罩', () => {
   const officeJs = readFileSync(join(publicRoot, 'js/office-page.js'), 'utf8');
   assert.match(sceneJs, /progressBoard/);
   assert.match(sceneJs, /onOpenProgress/);
+  assert.match(sceneJs, /onProgressBoardRect/);
+  assert.match(sceneJs, /progressBoardScreenRect/);
   assert.match(sceneJs, /setSceneInputEnabled/);
   assert.doesNotMatch(sceneJs, /pickSecretary/);
   assert.match(officeJs, /onChange/);

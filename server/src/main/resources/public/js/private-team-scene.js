@@ -549,9 +549,41 @@ export function mountPrivateTeamScene(canvas, opts) {
   const clickables = [bubble, progMesh];
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
+  const boardCorner = new THREE.Vector3();
   const onActivate = typeof (opts && opts.onActivate) === 'function' ? opts.onActivate : null;
   const onOpenProgress = typeof (opts && opts.onOpenProgress) === 'function' ? opts.onOpenProgress : null;
+  const onProgressBoardRect = typeof (opts && opts.onProgressBoardRect) === 'function' ? opts.onProgressBoardRect : null;
   let sceneInputEnabled = true;
+
+  function progressBoardScreenRect() {
+    const stage = canvas.parentElement || canvas;
+    const stageRect = stage.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    if (!canvasRect.width || !canvasRect.height) return null;
+    camera.updateWorldMatrix(true, false);
+    const hw = 0.5;
+    const hh = 0.3;
+    const corners = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < corners.length; i++) {
+      boardCorner.set(corners[i][0], corners[i][1], 0);
+      progMesh.localToWorld(boardCorner);
+      boardCorner.project(camera);
+      const x = (boardCorner.x * 0.5 + 0.5) * canvasRect.width + (canvasRect.left - stageRect.left);
+      const y = (-boardCorner.y * 0.5 + 0.5) * canvasRect.height + (canvasRect.top - stageRect.top);
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+    const width = maxX - minX;
+    const height = maxY - minY;
+    if (!(width > 0) || !(height > 0)) return null;
+    return { left: minX, top: minY, width: width, height: height };
+  }
 
   function pickTarget(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
@@ -678,6 +710,10 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
 
     root.rotation.y = Math.sin(elapsed * 0.12) * 0.04;
+    if (onProgressBoardRect) {
+      const boardRect = progressBoardScreenRect();
+      if (boardRect) onProgressBoardRect(boardRect);
+    }
     bubble.lookAt(camera.position);
     lampHalo.lookAt(camera.position);
 

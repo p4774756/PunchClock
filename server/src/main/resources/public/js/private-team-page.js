@@ -273,6 +273,19 @@ export function mountPrivateTeamPage(opts) {
 
   let roadmapOpen = false;
 
+  function placeProgHit(rect) {
+    if (!progHit || !rect) return;
+    const left = Number(rect.left);
+    const top = Number(rect.top);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (![left, top, width, height].every(Number.isFinite) || width < 1 || height < 1) return;
+    progHit.style.left = left.toFixed(1) + 'px';
+    progHit.style.top = top.toFixed(1) + 'px';
+    progHit.style.width = width.toFixed(1) + 'px';
+    progHit.style.height = height.toFixed(1) + 'px';
+  }
+
   function setRoadmapOpen(open) {
     roadmapOpen = !!open;
     stage.classList.toggle('pt-roadmap-open', roadmapOpen);
@@ -288,7 +301,8 @@ export function mountPrivateTeamPage(opts) {
     win,
     doc,
     onActivate: openStatusCard,
-    onOpenProgress: openRoadmapFromBoard
+    onOpenProgress: openRoadmapFromBoard,
+    onProgressBoardRect: placeProgHit
   });
 
   let dayMode = readDayPref(win);
