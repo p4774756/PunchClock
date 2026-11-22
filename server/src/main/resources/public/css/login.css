@@ -110,21 +110,6 @@ body.login-page .console-head {
   line-height: 1.45;
 }
 
-.back-office {
-  display: block;
-  margin-top: 0.9rem;
-  text-align: center;
-  font-size: 0.82rem;
-  color: var(--maple-muted, #465a78);
-  text-decoration: none;
-  transition: color 0.15s;
-}
-
-.back-office:hover {
-  color: var(--blue, #096597);
-  text-decoration: underline;
-}
-
 body.login-page .site-footer {
   flex-shrink: 0;
   width: 100%;
