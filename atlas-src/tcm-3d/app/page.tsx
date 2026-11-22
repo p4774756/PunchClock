@@ -199,7 +199,7 @@ export default function Home(){
  return <main className={`studio rpg-studio is-anime${showOutfitBar?' has-outfit-bar':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
   <header className="studio-header rpg-header">
    <div className="brand-block">
-    <a className="brand" href={HOME_HREF} aria-label={BACK_HOME_ARIA}><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室<span className="edition">RPG</span></span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></a>
+    <div className="brand" aria-hidden="true"><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室<span className="edition">RPG</span></span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></div>
     <div className="header-switch-row">
      <a className="back-home" href={HOME_HREF} aria-label={BACK_HOME_ARIA}>{BACK_HOME_LABEL}</a>
     </div>
