@@ -1,6 +1,8 @@
 import * as THREE from './vendor/three.module.js';
 
-export const SECRETARY_SPRITE_URL = '/assets/private-team/secretary.webp';
+export const SECRETARY_SPRITE_URL_TYPING = '/assets/private-team/secretary-typing-a.webp';
+export const SECRETARY_SPRITE_URL_IDLE = '/assets/private-team/secretary-idle-tea.webp';
+export const SECRETARY_SPRITE_URL_SLEEP = '/assets/private-team/secretary-sleep.webp';
 
 /** 立繪在場景中的高度（公尺比例）；寬度依紋理長寬比計算 */
 const SECRETARY_SPRITE_HEIGHT = 1.42;
@@ -443,35 +445,75 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   let secretarySprite = null;
   const spriteBaseY = SECRETARY_SPRITE_HEIGHT / 2 + 0.02;
+  let spriteAnimMode = 'idle';
+  let currentSpriteUrl = '';
   const loader = new THREE.TextureLoader();
-  loader.load(
-    SECRETARY_SPRITE_URL,
-    (tex) => {
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.premultiplyAlpha = true;
-      const aspect = spriteAspectFromTexture(tex);
-      const spriteW = SECRETARY_SPRITE_HEIGHT * aspect;
-      const mat = new THREE.MeshBasicMaterial({
-        map: tex,
-        transparent: true,
-        alphaTest: 0.06,
-        depthWrite: false,
-        side: THREE.DoubleSide
-      });
-      secretarySprite = new THREE.Mesh(new THREE.PlaneGeometry(spriteW, SECRETARY_SPRITE_HEIGHT), mat);
-      secretarySprite.position.set(0, spriteBaseY, 0);
-      secretarySprite.renderOrder = 2;
-      secretarySprite.name = 'secretarySprite';
-      secretaryRoot.add(secretarySprite);
-      if (clickables.indexOf(secretarySprite) === -1) {
-        clickables.push(secretarySprite);
-      }
-    },
-    undefined,
-    () => {
-      /* 紋理失敗時略過人物，其餘場景照常 */
+
+  function spriteAnimModeForUrl(url) {
+    if (url === SECRETARY_SPRITE_URL_TYPING) return 'working';
+    if (url === SECRETARY_SPRITE_URL_SLEEP) return 'sleep';
+    return 'idle';
+  }
+
+  function mountSecretarySprite(tex, url) {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.premultiplyAlpha = true;
+    const aspect = spriteAspectFromTexture(tex);
+    const spriteW = SECRETARY_SPRITE_HEIGHT * aspect;
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      transparent: true,
+      alphaTest: 0.06,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    secretarySprite = new THREE.Mesh(new THREE.PlaneGeometry(spriteW, SECRETARY_SPRITE_HEIGHT), mat);
+    secretarySprite.position.set(0, spriteBaseY, 0);
+    secretarySprite.renderOrder = 2;
+    secretarySprite.name = 'secretarySprite';
+    secretaryRoot.add(secretarySprite);
+    if (clickables.indexOf(secretarySprite) === -1) {
+      clickables.push(secretarySprite);
     }
-  );
+    currentSpriteUrl = url;
+    spriteAnimMode = spriteAnimModeForUrl(url);
+  }
+
+  function retextureSecretarySprite(tex, url) {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.premultiplyAlpha = true;
+    const aspect = spriteAspectFromTexture(tex);
+    const spriteW = SECRETARY_SPRITE_HEIGHT * aspect;
+    const prev = secretarySprite.geometry;
+    secretarySprite.geometry = new THREE.PlaneGeometry(spriteW, SECRETARY_SPRITE_HEIGHT);
+    if (prev) prev.dispose();
+    const oldMap = secretarySprite.material.map;
+    secretarySprite.material.map = tex;
+    secretarySprite.material.needsUpdate = true;
+    if (oldMap && oldMap !== tex) oldMap.dispose();
+    secretarySprite.position.set(0, spriteBaseY, 0);
+    secretarySprite.rotation.set(0, 0, 0);
+    currentSpriteUrl = url;
+    spriteAnimMode = spriteAnimModeForUrl(url);
+  }
+
+  function setSecretarySprite(url) {
+    const next = url == null ? '' : String(url).trim();
+    if (!next || next === currentSpriteUrl) return;
+    loader.load(
+      next,
+      (tex) => {
+        if (secretarySprite) retextureSecretarySprite(tex, next);
+        else mountSecretarySprite(tex, next);
+      },
+      undefined,
+      () => {
+        /* 紋理失敗時略過人物，其餘場景照常 */
+      }
+    );
+  }
+
+  setSecretarySprite(SECRETARY_SPRITE_URL_IDLE);
 
   const secretaryBubbleX = 0.58;
   const bubbleDrawer = makeBubbleDrawer();
@@ -575,8 +617,16 @@ export function mountPrivateTeamScene(canvas, opts) {
     const typeNudge = Math.sin(elapsed * 7.2) * 0.008;
     const lean = Math.sin(elapsed * 7.2 + 0.4) * 0.018;
     if (secretarySprite) {
-      secretarySprite.position.y = spriteBaseY + breath + typeNudge;
-      secretarySprite.rotation.z = lean;
+      let extraY = breath;
+      let leanZ = 0;
+      if (spriteAnimMode === 'working') {
+        extraY += typeNudge;
+        leanZ = lean;
+      } else if (spriteAnimMode === 'sleep') {
+        extraY = reducedMotion ? 0 : breath * 0.45;
+      }
+      secretarySprite.position.y = spriteBaseY + extraY;
+      secretarySprite.rotation.z = leanZ;
       secretarySprite.lookAt(camera.position);
     }
 
@@ -624,6 +674,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     setReducedMotion(next) {
       reducedMotion = !!next;
     },
+    setSecretarySprite,
     destroy() {
       running = false;
       win.cancelAnimationFrame(raf);
