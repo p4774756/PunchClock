@@ -88,7 +88,7 @@ public class PeerClientHeartbeatIntegrationTest {
     }
 
     @Test(timeout = 30_000)
-    public void legacyBlackjackPayloadDoesNotAppearAsChat() throws Exception {
+    public void retiredGamePayloadDoesNotAppearAsChat() throws Exception {
         String payload = "GAME|bj|v1|invite|room-test|42";
         assertTrue(alice.send("bob", payload));
         bob.pump();

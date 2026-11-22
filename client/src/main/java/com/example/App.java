@@ -1434,12 +1434,12 @@ public class App extends JFrame {
     }
 
     /** 舊版客戶端仍可能送出的 21 點協定字串；靜默忽略。 */
-    static boolean isLegacyBlackjackPeerMessage(String text) {
+    static boolean isQuietlyIgnoredPeerText(String text) {
         return text != null && text.startsWith("GAME|bj|v1|");
     }
 
     private void showPeerMessage(String fromId, String text, Long sentAtMs, String avatar) {
-        if (isLegacyBlackjackPeerMessage(text)) {
+        if (isQuietlyIgnoredPeerText(text)) {
             return;
         }
         String timeLabel = formatPeerMessageTime(sentAtMs);
