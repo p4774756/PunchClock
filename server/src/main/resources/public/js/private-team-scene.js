@@ -21,7 +21,6 @@ const COL = {
   skyNight: 0x1a2848,
   building: 0x4a5c7a,
   buildingLit: 0xf8dc6e,
-  navy: 0x163a70,
   frame: 0x243044,
   lampBase: 0x4a3c30,
   lampMetal: 0x6a5a48,
@@ -64,26 +63,6 @@ function cyl(rt, rb, h, seg, color) {
   const g = new THREE.CylinderGeometry(rt, rb, h, seg);
   const m = new THREE.MeshLambertMaterial({ color });
   return new THREE.Mesh(g, m);
-}
-
-function labelTexture(text, w, h) {
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#f8fbff';
-  ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = '#163a70';
-  ctx.lineWidth = 18;
-  ctx.strokeRect(10, 10, w - 20, h - 20);
-  ctx.fillStyle = '#163a70';
-  ctx.font = 'bold 92px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, w / 2, h / 2 + 4);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
 }
 
 function makeScreenPainter() {
@@ -494,22 +473,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
   );
 
-  const nameTagX = 0.58;
-  const nameTagY = 1.74;
-  const nameTagZ = 0.74;
-  const namePlate = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.0, 0.32),
-    new THREE.MeshBasicMaterial({
-      map: labelTexture('私人秘書', 700, 220),
-      side: THREE.DoubleSide
-    })
-  );
-  namePlate.position.set(nameTagX, nameTagY, nameTagZ);
-  root.add(namePlate);
-  const nameStand = box(0.06, 0.16, 0.06, COL.navy);
-  nameStand.position.set(nameTagX, nameTagY - 0.1, nameTagZ);
-  root.add(nameStand);
-
+  const secretaryBubbleX = 0.58;
   const bubbleDrawer = makeBubbleDrawer();
   const bubbleMat = new THREE.MeshBasicMaterial({
     map: bubbleDrawer.tex,
@@ -517,10 +481,10 @@ export function mountPrivateTeamScene(canvas, opts) {
     depthWrite: false
   });
   const bubble = new THREE.Mesh(new THREE.PlaneGeometry(0.82, 0.36), bubbleMat);
-  const bubbleFloatMin = 2.2;
+  const bubbleFloatMin = 1.68;
   const bubbleFloatSpan = 0.07;
   const bubbleRestY = bubbleFloatMin + bubbleFloatSpan / 2;
-  bubble.position.set(nameTagX, bubbleRestY, 0.7);
+  bubble.position.set(secretaryBubbleX, bubbleRestY, 0.7);
   bubble.renderOrder = 3;
   bubble.name = 'secretaryBubble';
   root.add(bubble);
@@ -638,7 +602,6 @@ export function mountPrivateTeamScene(canvas, opts) {
 
     root.rotation.y = Math.sin(elapsed * 0.12) * 0.04;
     bubble.lookAt(camera.position);
-    namePlate.lookAt(camera.position);
     lampHalo.lookAt(camera.position);
 
     renderer.render(scene, camera);
