@@ -336,6 +336,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     new THREE.PlaneGeometry(1.0, 0.6),
     new THREE.MeshBasicMaterial({ map: progressTexture(0.62) })
   );
+  progMesh.name = 'progressBoard';
   progMesh.position.set(-1.55, 1.55, -1.04);
   root.add(progMesh);
 
@@ -545,27 +546,36 @@ export function mountPrivateTeamScene(canvas, opts) {
   bubble.name = 'secretaryBubble';
   root.add(bubble);
 
-  const clickables = [bubble];
+  const clickables = [bubble, progMesh];
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const onActivate = typeof (opts && opts.onActivate) === 'function' ? opts.onActivate : null;
+  const onOpenProgress = typeof (opts && opts.onOpenProgress) === 'function' ? opts.onOpenProgress : null;
+  let sceneInputEnabled = true;
 
-  function pickSecretary(clientX, clientY) {
+  function pickTarget(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) return false;
+    if (!rect.width || !rect.height) return null;
     pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
     const hits = raycaster.intersectObjects(clickables, false);
-    return hits.length > 0;
+    if (!hits.length) return null;
+    const obj = hits[0].object;
+    if (obj === progMesh) return 'progress';
+    return 'secretary';
   }
 
   function handlePointerDown(ev) {
-    if (!onActivate) return;
-    if (pickSecretary(ev.clientX, ev.clientY)) {
-      ev.preventDefault();
-      onActivate();
+    if (!sceneInputEnabled) return;
+    const target = pickTarget(ev.clientX, ev.clientY);
+    if (!target) return;
+    ev.preventDefault();
+    if (target === 'progress') {
+      if (onOpenProgress) onOpenProgress();
+      return;
     }
+    if (onActivate) onActivate();
   }
 
   canvas.addEventListener('pointerdown', handlePointerDown);
@@ -692,6 +702,9 @@ export function mountPrivateTeamScene(canvas, opts) {
       reducedMotion = !!next;
     },
     setSecretarySprite,
+    setSceneInputEnabled(next) {
+      sceneInputEnabled = !!next;
+    },
     destroy() {
       running = false;
       win.cancelAnimationFrame(raf);
