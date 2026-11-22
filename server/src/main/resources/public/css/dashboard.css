@@ -471,14 +471,22 @@
 
     .device {
       background: var(--white);
-      border: 1px solid var(--line-soft);
-      border-radius: var(--radius);
+      border: 3px solid #163a70;
+      border-radius: 4px;
       overflow: hidden;
       max-width: 100%;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+      box-shadow: 2px 3px 0 rgba(22, 58, 112, 0.2);
     }
 
     .device + .device { margin-top: 0.75rem; }
+
+    .device.device-is-collapsed {
+      cursor: pointer;
+    }
+
+    .device.device-is-collapsed:hover {
+      background: #f5f0d4;
+    }
 
     .device-head {
       display: flex;
@@ -488,18 +496,35 @@
       padding: 0.85rem 1.1rem;
       cursor: pointer;
       user-select: none;
-      background: var(--surface-alt);
-      border-bottom: 1px solid var(--line-soft);
+      background: #ecc440;
+      border-bottom: 3px solid #163a70;
       transition: background 0.15s;
     }
 
-    .device-head:hover { background: #e8e8ea; }
+    .device-head:hover,
+    .device-head:focus-visible {
+      background: #f5d868;
+      outline: 3px solid #3a7ac4;
+      outline-offset: -3px;
+    }
 
     .device-id {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 0.65rem;
       min-width: 0;
+    }
+
+    .device-chevron-slot {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: #163a70;
+    }
+
+    .device-chevron {
+      display: block;
     }
 
     .device-id strong {
@@ -513,8 +538,8 @@
 
     .fold-hint {
       font-size: 0.75rem;
-      color: var(--text-muted);
-      font-weight: 500;
+      color: #204e96;
+      font-weight: 700;
       white-space: nowrap;
     }
 

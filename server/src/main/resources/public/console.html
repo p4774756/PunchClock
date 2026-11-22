@@ -21,13 +21,11 @@
     </div>
     <nav class="console-nav" aria-label="分頁">
       <button type="button" class="console-tab" data-tab="devices">任務</button>
-      <button type="button" class="console-tab" data-tab="system">伺服器</button>
       <button type="button" class="console-tab" data-open-roadmap>施工進度</button>
-      <a class="console-tab console-link" href="/dev-status">開發機狀態</a>
       <a class="console-tab console-link" href="/">辦公室</a>
     </nav>
     <div class="console-auth">
-      <a href="/login?next=/console" data-guest-only>登入</a>
+      <a href="/login?next=%2Fconsole%23devices" data-guest-only>登入</a>
       <a href="/logout" data-auth-only>登出</a>
     </div>
   </header>
@@ -141,8 +139,8 @@
         <div class="content-panel content-panel-full">
           <section class="console-guest-gate" aria-label="登入後可操作">
             <p class="console-guest-gate-lead">這是管理員功能。</p>
-            <p class="console-guest-gate-hint" id="consoleGuestHint">登入後可操作任務與伺服器狀態。</p>
-            <a class="btn btn-primary" href="/login?next=/console">前往登入</a>
+            <p class="console-guest-gate-hint" id="consoleGuestHint">登入後可操作任務。</p>
+            <a class="btn btn-primary" href="/login?next=%2Fconsole%23devices">前往登入</a>
           </section>
         </div>
       </div>
@@ -193,6 +191,7 @@
     </div>
   </section>
   <script src="/js/dash-tab.js"></script>
+  <script type="module" src="/js/device-fold.js"></script>
   <script src="/js/dashboard.js"></script>
   <script type="module" src="/js/console-boot.js"></script>
 </body>
