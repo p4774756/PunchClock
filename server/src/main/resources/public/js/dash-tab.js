@@ -1,8 +1,8 @@
 // 已登入主控台的起始分頁。簡報牆移除後，舊的 photos 改開任務。
 (function (root) {
-  const ZONES = ['devices', 'system'];
+  const ZONES = ['devices'];
   const DEFAULT_TAB = 'devices';
-  const REMOVED = { photos: true };
+  const REMOVED = { photos: true, system: true };
 
   function normalizeDashTabToken(raw) {
     if (raw == null) return '';

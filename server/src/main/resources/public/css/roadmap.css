@@ -34,6 +34,19 @@
   display: none !important;
 }
 
+html:has(body.roadmap-open) {
+  overflow: hidden;
+  overflow: clip;
+}
+
+body.roadmap-open {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  overflow: hidden;
+  overflow: clip;
+}
+
 .roadmap-panel.maple-window {
   width: min(1120px, 100%);
   max-height: min(100%, 920px);

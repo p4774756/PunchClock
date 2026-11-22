@@ -366,11 +366,7 @@
         headChip.innerHTML = (isConnected ? '<span class="dot dot-live"></span>' : '<span class="dot"></span>') + badgeText;
       }
 
-      const foldHints = root.querySelectorAll('.device-id .fold-hint');
-      const foldHint = foldHints.length ? foldHints[foldHints.length - 1] : null;
-      if (foldHint) {
-        foldHint.textContent = expandedClients.has(c.clientId) ? '收合' : '展開';
-      }
+      syncDeviceFoldChrome(root, c.clientId);
 
       const taskCountEl = root.querySelector('.metric-value[data-role="task-count"]');
       if (taskCountEl) taskCountEl.textContent = tasks.length + ' 筆';
@@ -475,6 +471,37 @@
       });
     }
 
+    function deviceFoldHelpers() {
+      return (typeof window !== 'undefined' && window.PunchclockDeviceFold) || {};
+    }
+
+    function deviceChevronHtml(expanded) {
+      const fn = deviceFoldHelpers().deviceChevronMarkup;
+      return typeof fn === 'function' ? fn(expanded) : '';
+    }
+
+    function deviceFoldText(expanded) {
+      const fn = deviceFoldHelpers().deviceFoldLabel;
+      return typeof fn === 'function' ? fn(expanded) : (expanded ? '收合' : '展開');
+    }
+
+    function syncDeviceFoldChrome(root, clientId) {
+      if (!root) return;
+      const expanded = expandedClients.has(clientId);
+      const collapsed = !expanded;
+      const body = root.querySelector('.device-body');
+      const head = root.querySelector('.device-head');
+      if (body) body.classList.toggle('collapsed', collapsed);
+      root.classList.toggle('device-is-collapsed', collapsed);
+      if (head) {
+        head.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      }
+      const foldHint = root.querySelector('[data-fold-label]');
+      if (foldHint) foldHint.textContent = deviceFoldText(expanded);
+      const chevronSlot = root.querySelector('.device-chevron-slot');
+      if (chevronSlot) chevronSlot.innerHTML = deviceChevronHtml(expanded);
+    }
+
     function toggleCollapse(clientId) {
       if (expandedClients.has(clientId)) {
         expandedClients.delete(clientId);
@@ -486,12 +513,7 @@
         renderClients();
         return;
       }
-      const body = root.querySelector('.device-body');
-      const hints = root.querySelectorAll('.device-id .fold-hint');
-      const foldHint = hints.length ? hints[hints.length - 1] : null;
-      const collapsed = !expandedClients.has(clientId);
-      if (body) body.classList.toggle('collapsed', collapsed);
-      if (foldHint) foldHint.textContent = collapsed ? '展開' : '收合';
+      syncDeviceFoldChrome(root, clientId);
     }
 
     function connectWebSocket() {
@@ -737,10 +759,10 @@
       if (!c.appVersion) return '';
       const releaseMs = Date.parse(c.appReleaseTime || '');
       if (!Number.isFinite(releaseMs)) {
-        return '<span class="fold-hint" title="舊版 app 未回報版本時間">v' + escapeHtml(c.appVersion) + '</span>';
+        return '<span class="app-version-hint" title="舊版 app 未回報版本時間">v' + escapeHtml(c.appVersion) + '</span>';
       }
       const full = new Date(releaseMs).toLocaleString('zh-TW', { hour12: false });
-      return '<span class="fold-hint" title="app 版本時間（最後一次 commit）' + escapeHtml(full) + '">v'
+      return '<span class="app-version-hint" title="app 版本時間（最後一次 commit）' + escapeHtml(full) + '">v'
         + escapeHtml(c.appVersion) + ' · ' + formatChartTime(releaseMs) + '</span>';
     }
 
@@ -930,25 +952,32 @@
           '<button class="btn btn-ghost-danger" onclick="deleteClient(\'' + c.clientId + '\')" title="移除離線設備紀錄">移除</button>'
         );
         const cancelAllBtnHtml = buildCancelAllButtonHtml(c.clientId, isConnected, tasks);
-        const foldText = isCollapsed ? '展開' : '收合';
+        const foldText = deviceFoldText(!isCollapsed);
         const bodyClass = isCollapsed ? 'collapsed' : '';
+        const bodyDomId = 'device-body-' + escapeHtml(c.clientId).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const headDomId = 'device-head-' + escapeHtml(c.clientId).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const ariaExpanded = isCollapsed ? 'false' : 'true';
+        const collapsedSectionClass = isCollapsed ? ' device-is-collapsed' : '';
         const statusColor = getStatusColor(c.status);
         const safeMsg = escapeHtml(cleanMessage(c.message));
         const liveDot = isConnected ? '<span class="dot dot-live"></span>' : '<span class="dot"></span>';
+        const chevronHtml = deviceChevronHtml(!isCollapsed);
 
-        html += '<section class="device" data-client-id="' + escapeHtml(c.clientId) + '">' +
-          '<div class="device-head" onclick="toggleCollapse(\'' + c.clientId + '\')">' +
+        html += '<section class="device' + collapsedSectionClass + '" data-client-id="' + escapeHtml(c.clientId) + '">' +
+          '<div class="device-head" id="' + headDomId + '" role="button" tabindex="0"' +
+            ' aria-expanded="' + ariaExpanded + '" aria-controls="' + bodyDomId + '">' +
             '<div class="device-id">' +
+              '<span class="device-chevron-slot" aria-hidden="true">' + chevronHtml + '</span>' +
               '<strong>' + escapeHtml(c.clientId) + '</strong>' +
               buildAppVersionHintHtml(c) +
-              '<span class="fold-hint">' + foldText + '</span>' +
+              '<span class="fold-hint" data-fold-label>' + foldText + '</span>' +
             '</div>' +
-            '<div class="device-head-right" onclick="event.stopPropagation()">' +
+            '<div class="device-head-right">' +
               '<span class="chip ' + badgeClass + '">' + liveDot + badgeText + '</span>' +
               deleteBtnHtml +
             '</div>' +
           '</div>' +
-          '<div class="device-body ' + bodyClass + '">' +
+          '<div class="device-body ' + bodyClass + '" id="' + bodyDomId + '">' +
             '<div class="metrics">' +
               '<div class="metric"><span class="metric-label">上次打卡</span><span class="metric-value heartbeat-value" data-client-id="' + escapeHtml(c.clientId) + '">' + formatHeartbeat(c.lastSeen) + '</span></div>' +
               '<div class="metric"><span class="metric-label">待辦</span><span class="metric-value" data-role="task-count">' + tasks.length + ' 筆</span></div>' +
@@ -1067,22 +1096,47 @@
       }
     }
 
-    const CONSOLE_ZONES = ['devices', 'system'];
+    const CONSOLE_ZONES = ['devices'];
     const isAuthenticated = document.body.classList.contains('is-authenticated')
       || window.PUNCHCLOCK_AUTHENTICATED === true;
+    let suppressConsoleHashWrite = false;
+    let currentConsoleTab = 'devices';
 
     function zoneLabel(tabId) {
       const panel = document.getElementById('panel-' + tabId);
       return panel ? (panel.getAttribute('data-label') || tabId) : tabId;
     }
 
-    function setActiveConsoleChrome(next) {
+    function setActiveConsoleChrome(next, opts) {
+      const roadmapOpen = !!(opts && opts.roadmapOpen);
+      currentConsoleTab = next || 'devices';
       document.querySelectorAll('.console-tab[data-tab]').forEach(btn => {
-        const active = btn.getAttribute('data-tab') === next;
+        const active = !roadmapOpen && btn.getAttribute('data-tab') === next;
         btn.classList.toggle('is-active', active);
         btn.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
+      document.querySelectorAll('.console-tab[data-open-roadmap]').forEach(btn => {
+        btn.classList.toggle('is-active', roadmapOpen);
+        btn.setAttribute('aria-pressed', roadmapOpen ? 'true' : 'false');
+      });
       document.body.classList.toggle('console-sheet-open', !!next);
+    }
+
+    window.PunchclockConsoleChrome = {
+      setRoadmapOpen: (open) => setActiveConsoleChrome(currentConsoleTab || 'devices', { roadmapOpen: !!open })
+    };
+
+    function writeConsoleUrlForTab(tabId) {
+      if (!isAuthenticated || suppressConsoleHashWrite) return;
+      try {
+        const path = window.location.pathname || '/console';
+        const hash = tabId ? '#' + tabId : '';
+        const search = window.location.search || '';
+        const next = path + search + hash;
+        if (window.location.pathname + window.location.search + window.location.hash !== next) {
+          window.history.replaceState(null, '', next);
+        }
+      } catch (e) {}
     }
 
     function showGuestLoginGate(tabId) {
@@ -1138,10 +1192,12 @@
           window.sessionStorage.setItem('punchclock.dashTab', next);
         }
       } catch (e) {}
-      if (isAuthenticated && next === 'system') {
-        window.requestAnimationFrame(() => drawHealthHistoryChart());
+      const roadmapApi = window.PunchclockConsoleRoadmap;
+      const roadmapOpen = !!(roadmapApi && typeof roadmapApi.isOpen === 'function' && roadmapApi.isOpen());
+      setActiveConsoleChrome(next, { roadmapOpen: roadmapOpen });
+      if (isAuthenticated && next) {
+        writeConsoleUrlForTab(next);
       }
-      setActiveConsoleChrome(next);
     }
 
     function readSavedDashTab() {
@@ -1184,14 +1240,66 @@
 
     function bindDashTabs() {
       document.querySelectorAll('[data-tab]').forEach(el => {
-        el.addEventListener('click', () => switchDashTab(el.getAttribute('data-tab')));
+        el.addEventListener('click', () => {
+          if (window.PunchclockConsoleRoadmap && typeof window.PunchclockConsoleRoadmap.close === 'function') {
+            window.PunchclockConsoleRoadmap.close();
+          }
+          switchDashTab(el.getAttribute('data-tab'));
+        });
       });
-      const initial = isAuthenticated ? initialAuthenticatedDashTab() : '';
+      const initial = isAuthenticated ? initialAuthenticatedDashTab() : 'devices';
       if (isAuthenticated) forgetRemovedDashHash();
       switchDashTab(initial);
     }
 
+    function bindClientContainerFold() {
+      const container = document.getElementById('clientContainer');
+      if (!container || container.getAttribute('data-fold-bound') === 'yes') return;
+      container.setAttribute('data-fold-bound', 'yes');
+      const shouldToggleKey = (key) => {
+        const fn = deviceFoldHelpers().shouldToggleDeviceFold;
+        if (typeof fn === 'function') return fn(key);
+        return key === 'Enter' || key === ' ';
+      };
+      container.addEventListener('click', (ev) => {
+        const device = ev.target.closest('.device');
+        if (!device) return;
+        if (ev.target.closest('.device-head-right button')) return;
+        if (ev.target.closest('.device-body button, .device-body a, .device-body input, .log-box, .task-list')) return;
+        const clientId = device.getAttribute('data-client-id');
+        if (!clientId) return;
+        toggleCollapse(clientId);
+      });
+      container.addEventListener('keydown', (ev) => {
+        const head = ev.target.closest('.device-head');
+        if (!head || !shouldToggleKey(ev.key)) return;
+        ev.preventDefault();
+        const device = head.closest('.device');
+        const clientId = device && device.getAttribute('data-client-id');
+        if (clientId) toggleCollapse(clientId);
+      });
+    }
+
+    function bindConsoleHashNav() {
+      if (!isAuthenticated) return;
+      window.addEventListener('hashchange', () => {
+        const api = window.PunchclockDashTab;
+        if (!api || typeof api.resolveInitialDashTab !== 'function') return;
+        suppressConsoleHashWrite = true;
+        try {
+          const tab = api.resolveInitialDashTab(readSavedDashTab(), readDashTabHash());
+          if (tab && tab !== currentConsoleTab) {
+            switchDashTab(tab);
+          }
+        } finally {
+          suppressConsoleHashWrite = false;
+        }
+      });
+    }
+
     bindDashTabs();
+    bindClientContainerFold();
+    bindConsoleHashNav();
     if (isAuthenticated) {
       fetchStatus();
       connectWebSocket();

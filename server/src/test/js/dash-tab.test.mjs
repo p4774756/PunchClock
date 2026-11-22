@@ -12,33 +12,29 @@ test('沒有已存分頁時預設開任務', () => {
   assert.equal(resolveInitialDashTab('   ', '#'), 'devices');
 });
 
-test('簡報牆的 session 或 hash 改開任務', () => {
+test('簡報牆或伺服器的 session 或 hash 改開任務', () => {
   assert.equal(resolveInitialDashTab('photos', ''), 'devices');
   assert.equal(resolveInitialDashTab('panel-photos', ''), 'devices');
   assert.equal(resolveInitialDashTab('', '#photos'), 'devices');
   assert.equal(resolveInitialDashTab('', '#panel-photos'), 'devices');
-  assert.equal(resolveInitialDashTab('system', '#photos'), 'devices');
-  assert.equal(resolveInitialDashTab('system', '#panel-photos'), 'devices');
+  assert.equal(resolveInitialDashTab('system', ''), 'devices');
+  assert.equal(resolveInitialDashTab('', '#system'), 'devices');
+  assert.equal(resolveInitialDashTab('', '#panel-system'), 'devices');
+  assert.equal(resolveInitialDashTab('devices', '#system'), 'devices');
   assert.equal(isRemovedDashTab('#photos'), true);
-  assert.equal(isRemovedDashTab('#panel-photos'), true);
-  assert.equal(isRemovedDashTab('photos'), true);
+  assert.equal(isRemovedDashTab('#system'), true);
+  assert.equal(isRemovedDashTab('system'), true);
 });
 
-test('仍有效的伺服器分頁會從 session 或 hash 還原', () => {
-  assert.equal(resolveInitialDashTab('system', ''), 'system');
-  assert.equal(resolveInitialDashTab('system', '#'), 'system');
-  assert.equal(resolveInitialDashTab('', '#system'), 'system');
-  assert.equal(resolveInitialDashTab('', '#panel-system'), 'system');
-  assert.equal(resolveInitialDashTab('devices', '#system'), 'system');
-  assert.equal(resolveInitialDashTab('photos', '#system'), 'system');
-  assert.equal(resolveInitialDashTab('photos', '#panel-system'), 'system');
+test('hash 仍會還原任務分頁', () => {
+  assert.equal(resolveInitialDashTab('', '#devices'), 'devices');
+  assert.equal(resolveInitialDashTab('', '#panel-devices'), 'devices');
+  assert.equal(resolveInitialDashTab('devices', '#'), 'devices');
 });
 
-test('未知分頁沒有可用值時預設開任務，合法 session 仍優先於未知 hash', () => {
+test('未知分頁沒有可用值時預設開任務', () => {
   assert.equal(resolveInitialDashTab('nope', ''), 'devices');
   assert.equal(resolveInitialDashTab('', '#nope'), 'devices');
   assert.equal(resolveInitialDashTab('nope', '#ghost'), 'devices');
-  assert.equal(resolveInitialDashTab('system', '#nope'), 'system');
-  assert.equal(isRemovedDashTab('#system'), false);
   assert.equal(isRemovedDashTab(''), false);
 });

@@ -12,6 +12,10 @@ public class LoginNextPathTest {
         assertEquals("/dev-status", LoginNextPath.sanitize("/dev-status"));
         assertEquals("/office", LoginNextPath.sanitize("/office"));
         assertEquals("/console", LoginNextPath.sanitize("/console"));
+        assertEquals("/", LoginNextPath.sanitize("/"));
+        assertEquals("/console#devices", LoginNextPath.sanitize("/console#devices"));
+        assertEquals("/console?open=roadmap", LoginNextPath.sanitize("/console?open=roadmap"));
+        assertEquals("/?open=roadmap", LoginNextPath.sanitize("/?open=roadmap"));
     }
 
     @Test
@@ -33,5 +37,8 @@ public class LoginNextPathTest {
         assertNull(LoginNextPath.sanitize("/\u0000x"));
         assertNull(LoginNextPath.sanitize("/開發"));
         assertNull(LoginNextPath.sanitize("javascript:alert(1)"));
+        assertNull(LoginNextPath.sanitize("/console?next=/evil"));
+        assertNull(LoginNextPath.sanitize("/console#evil"));
+        assertNull(LoginNextPath.sanitize("/dev-status?open=roadmap"));
     }
 }

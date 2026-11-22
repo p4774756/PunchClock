@@ -51,6 +51,12 @@ body.console-page {
   border-color: #163a70;
 }
 
+.console-tab[data-open-roadmap].is-active {
+  background: #ecc440;
+  color: #163a70;
+  border-color: #163a70;
+}
+
 .console-link {
   display: inline-flex;
   align-items: center;
