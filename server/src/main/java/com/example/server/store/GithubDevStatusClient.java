@@ -112,7 +112,11 @@ public final class GithubDevStatusClient implements DevStatusService.Fetcher {
                     }
                 }
             }
-            out.add(new IssueRow(number, title, open, created, updated, closed, labels));
+            String body = obj.has("body") && !obj.get("body").isJsonNull()
+                    ? obj.get("body").getAsString()
+                    : "";
+            String secretaryLine = SecretarySpeech.extractFromIssueBody(body);
+            out.add(new IssueRow(number, title, open, created, updated, closed, labels, secretaryLine));
         }
     }
 

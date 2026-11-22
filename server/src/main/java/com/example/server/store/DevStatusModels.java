@@ -30,9 +30,16 @@ public final class DevStatusModels {
         public final long updatedAt;
         public final Long closedAt;
         public final List<String> labels;
+        /** 正文擷取的「秘書說」一句；不含全文。 */
+        public final String secretaryLine;
 
         public IssueRow(int number, String title, boolean open, long createdAt, long updatedAt,
                         Long closedAt, List<String> labels) {
+            this(number, title, open, createdAt, updatedAt, closedAt, labels, null);
+        }
+
+        public IssueRow(int number, String title, boolean open, long createdAt, long updatedAt,
+                        Long closedAt, List<String> labels, String secretaryLine) {
             this.number = number;
             this.title = title == null ? "" : title;
             this.open = open;
@@ -40,6 +47,7 @@ public final class DevStatusModels {
             this.updatedAt = updatedAt;
             this.closedAt = closedAt;
             this.labels = labels == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(labels));
+            this.secretaryLine = secretaryLine;
         }
     }
 
