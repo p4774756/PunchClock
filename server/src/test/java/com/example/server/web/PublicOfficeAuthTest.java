@@ -154,6 +154,7 @@ public class PublicOfficeAuthTest {
         HttpResponse<String> page = send("GET", "/console", adminCookie);
         assertEquals(200, page.statusCode());
         assertTrue(page.body().contains("dashboard.js"));
+        assertTrue(page.body().contains("dash-tab.js"));
         assertTrue(page.body().contains("clientContainer"));
         assertTrue(page.body().contains("dashboard.js"));
         assertTrue(page.body().contains("panel-devices"));

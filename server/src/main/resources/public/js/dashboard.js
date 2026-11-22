@@ -1144,18 +1144,50 @@
       setActiveConsoleChrome(next);
     }
 
+    function readSavedDashTab() {
+      try {
+        return window.sessionStorage.getItem('punchclock.dashTab');
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function readDashTabHash() {
+      try {
+        return (window.location && window.location.hash) || '';
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function forgetRemovedDashHash() {
+      const api = window.PunchclockDashTab;
+      if (!api || typeof api.isRemovedDashTab !== 'function' || !api.isRemovedDashTab(readDashTabHash())) {
+        return;
+      }
+      try {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      } catch (e) {}
+    }
+
+    function initialAuthenticatedDashTab() {
+      const api = window.PunchclockDashTab;
+      const resolve = api && api.resolveInitialDashTab;
+      if (typeof resolve !== 'function') return 'devices';
+      try {
+        const next = resolve(readSavedDashTab(), readDashTabHash());
+        return CONSOLE_ZONES.indexOf(next) >= 0 ? next : 'devices';
+      } catch (e) {
+        return 'devices';
+      }
+    }
+
     function bindDashTabs() {
       document.querySelectorAll('[data-tab]').forEach(el => {
         el.addEventListener('click', () => switchDashTab(el.getAttribute('data-tab')));
       });
-      let initial = '';
-      if (isAuthenticated) {
-        try {
-          let saved = window.sessionStorage.getItem('punchclock.dashTab');
-          if (saved === 'photos') saved = 'devices';
-          if (CONSOLE_ZONES.indexOf(saved) >= 0) initial = saved;
-        } catch (e) {}
-      }
+      const initial = isAuthenticated ? initialAuthenticatedDashTab() : '';
+      if (isAuthenticated) forgetRemovedDashHash();
       switchDashTab(initial);
     }
 
