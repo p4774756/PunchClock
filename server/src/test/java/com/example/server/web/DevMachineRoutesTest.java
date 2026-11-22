@@ -210,11 +210,10 @@ public class DevMachineRoutesTest {
     }
 
     @Test
-    public void devStatusPageAndPublicDevStatusExcludeMachineFields() throws Exception {
+    public void devStatusRedirectsToHomeWithoutMachineFields() throws Exception {
         HttpResponse<String> page = send("GET", "/dev-status", null);
-        assertEquals(200, page.statusCode());
-        assertTrue(page.body().contains("開發機狀態"));
-        assertTrue(page.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
+        assertEquals(301, page.statusCode());
+        assertEquals("/", page.headers().firstValue("location").orElse(""));
         assertFalse(page.body().contains("小貓"));
         assertFalse(page.body().contains("agentRunning"));
     }

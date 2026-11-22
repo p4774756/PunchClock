@@ -68,32 +68,9 @@ public class RoadmapShots292Test {
 
                 page.navigate(base + "/dev-status",
                         new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
-                Locator progress = page.locator("a.dev-btn-action", new Page.LocatorOptions().setHasText("施工進度"));
-                if (progress.count() > 0) {
-                    if (touch[i]) {
-                        progress.first().tap();
-                    } else {
-                        progress.first().click();
-                    }
-                }
-                page.waitForSelector("#roadmapBoard:not([hidden])", new Page.WaitForSelectorOptions().setTimeout(8000));
-                page.screenshot(new Page.ScreenshotOptions().setPath(dir.resolve("dev-status-" + tag + "-roadmap-open.png")));
-
-                page.navigate(base + "/dev-status",
-                        new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
-                Locator home = page.locator("a.dev-btn-action", new Page.LocatorOptions().setHasText("返回辦公室"));
-                if (home.count() > 0) {
-                    if (touch[i]) {
-                        home.first().tap();
-                    } else {
-                        home.first().click();
-                    }
-                }
-                page.waitForURL("**/");
-                page.waitForTimeout(400);
-                boolean roadmapVisible = page.locator("#roadmapBoard:not([hidden])").count() > 0;
-                org.junit.Assert.assertFalse("返回辦公室不應自動開施工進度", roadmapVisible);
-                page.screenshot(new Page.ScreenshotOptions().setPath(dir.resolve("dev-status-" + tag + "-home-only.png")));
+                org.junit.Assert.assertTrue("舊 /dev-status 應導回首頁", page.url().endsWith("/")
+                        || page.url().endsWith("/?open=roadmap"));
+                page.screenshot(new Page.ScreenshotOptions().setPath(dir.resolve("dev-status-" + tag + "-redirect.png")));
                 page.close();
             }
             browser.close();

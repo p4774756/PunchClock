@@ -12,9 +12,7 @@ import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 
-import java.io.InputStream;
 import java.lang.reflect.Type;
-import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,15 +44,12 @@ public final class DevMachineRoutes {
     public void register(Javalin app) {
         app.post("/api/dev-machines/heartbeat", this::heartbeat);
         app.get("/api/dev-machines", this::list);
-        app.get("/dev-status", this::devStatusPage);
+        app.get("/dev-status", this::devStatusRedirect);
     }
 
-    private void devStatusPage(Context ctx) {
-        boolean authenticated = authService.isAuth(ctx);
-        ctx.header("Cache-Control", "no-cache, must-revalidate");
-        String html = com.example.server.util.DonatePageTokens.apply(readResource("/public/dev-status.html"))
-                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false");
-        ctx.html(html);
+    private void devStatusRedirect(Context ctx) {
+        ctx.status(HttpStatus.MOVED_PERMANENTLY);
+        ctx.header("Location", "/");
     }
 
     private void heartbeat(Context ctx) {
@@ -183,16 +178,5 @@ public final class DevMachineRoutes {
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
-    }
-
-    private static String readResource(String path) {
-        try (InputStream in = com.example.server.ServerApp.class.getResourceAsStream(path)) {
-            if (in == null) {
-                throw new IllegalStateException("Missing resource: " + path);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to read resource: " + path, e);
-        }
     }
 }

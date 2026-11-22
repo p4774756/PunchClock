@@ -415,27 +415,3 @@ a.lab-office-prop-sub {
   color: #163a70;
   font-weight: 700;
 }
-
-.dev-status-tabs {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin: 0.5rem 0 0.75rem;
-}
-
-.dev-status-tab {
-  font-family: inherit;
-  font-size: 14px;
-  padding: 0.35rem 0.9rem;
-  border: 3px solid #163a70;
-  background: #f8fbff;
-  color: #163a70;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.dev-status-tab.is-active {
-  background: #ecc440;
-  border-color: #163a70;
-}

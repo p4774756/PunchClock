@@ -46,13 +46,8 @@ public class LabOfficeShots254Test {
                     }
                 }
                 page.navigate(base + "/dev-status", new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
-                page.screenshot(new Page.ScreenshotOptions().setPath(dir.resolve("dev-status-" + tag + ".png")));
-                var officeTab = page.locator("[data-dev-tab=\"office\"]");
-                if (officeTab.count() > 0) {
-                    officeTab.first().click();
-                    page.waitForTimeout(800);
-                    page.screenshot(new Page.ScreenshotOptions().setPath(dir.resolve("dev-office-" + tag + ".png")));
-                }
+                org.junit.Assert.assertTrue(page.url().endsWith("/") || page.url().matches(".*/\\?.*"));
+                page.screenshot(new Page.ScreenshotOptions().setPath(dir.resolve("dev-status-redirect-" + tag + ".png")));
                 page.navigate(base + "/", new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
                 page.evaluate("() => { const b = document.querySelector('[data-open-roadmap]'); if (b) b.click(); }");
                 page.waitForTimeout(600);
