@@ -14,7 +14,6 @@ import com.example.server.store.GithubDevStatusClient;
 import com.example.server.store.GithubRoadmapClient;
 import com.example.server.store.DevStatusService;
 import com.example.server.store.GraffitiStore;
-import com.example.server.store.GuestbookStore;
 import com.example.server.store.RoadmapService;
 import com.example.server.store.RelayStore;
 import com.example.server.util.IpResolver;
@@ -22,7 +21,6 @@ import com.example.server.web.AtlasRoutes;
 import com.example.server.web.ChatRoutes;
 import com.example.server.web.DashboardBroadcaster;
 import com.example.server.web.GraffitiRoutes;
-import com.example.server.web.GuestbookRoutes;
 import com.example.server.web.OfficePublicRoutes;
 import com.example.server.web.PublicDownloadRoutes;
 import com.example.server.web.RelayRoutes;
@@ -72,8 +70,6 @@ public final class ServerApp {
     private final ChatRoutes chatRoutes;
     private final GraffitiStore graffitiStore;
     private final GraffitiRoutes graffitiRoutes;
-    private final GuestbookStore guestbookStore;
-    private final GuestbookRoutes guestbookRoutes;
     private final RoadmapRoutes roadmapRoutes;
     private final DevStatusService devStatusService;
     private final DevStatusRoutes devStatusRoutes;
@@ -119,8 +115,6 @@ public final class ServerApp {
                 this.authService, clientStore, gson, broadcaster, this::statusUpdatePayload);
         this.graffitiStore = new GraffitiStore();
         this.graffitiRoutes = new GraffitiRoutes(this.authService, graffitiStore);
-        this.guestbookStore = new GuestbookStore();
-        this.guestbookRoutes = new GuestbookRoutes(this.authService, guestbookStore);
         DevStatusService status = devStatusService != null
                 ? devStatusService
                 : new DevStatusService(new GithubDevStatusClient());
@@ -214,7 +208,6 @@ public final class ServerApp {
         relayRoutes.register(app);
         chatRoutes.register(app);
         graffitiRoutes.register(app);
-        guestbookRoutes.register(app);
         officePublicRoutes.register(app);
         new PublicDownloadRoutes(clientRelease).register(app);
         roadmapRoutes.register(app);

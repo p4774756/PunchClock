@@ -39,7 +39,6 @@ export function viewerCanOpenLabOffice(authFlag) {
 
 /** 首頁可點物件（百分比座標，對舞台）。對到新背景的家具，不是舊海景。 */
 export const OFFICE_PROP_POS = Object.freeze({
-  guestbook: { x: 12, y: 69, label: '簽名簿' },
   clock: { x: 18, y: 63, label: '打卡機' },
   bookshelf: { x: 34, y: 34, label: '書櫃' },
   whiteboard: { x: 15, y: 40, label: '白板' },

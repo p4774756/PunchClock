@@ -357,21 +357,6 @@ export function createDevMachinesPage(opts) {
 
   bindDevStatusTabs(doc, onTab);
 
-  function updateGuestbookStatsHint() {
-    const sub = doc.querySelector('.dev-machines-sub');
-    if (!sub || !fetchFn || !isAdminViewer()) return;
-    fetchFn('/api/guestbook/stats')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((body) => {
-        if (!body || body.success === false) return;
-        const base = '每 30 秒更新 · 時間 台北';
-        const tail = body.today > 0 ? ' · 簽名簿近 24h ' + body.today + ' 則' : '';
-        setText(sub, base + tail);
-        sub.hidden = false;
-      })
-      .catch(() => {});
-  }
-
   function refresh() {
     if (!fetchFn || !root) return;
     if (activeTab === 'office') return;
@@ -380,7 +365,6 @@ export function createDevMachinesPage(opts) {
       stopTimer();
       return;
     }
-    updateGuestbookStatsHint();
     const now = Date.now();
     Promise.all([
       fetchFn('/api/dev-machines').then((res) => {
