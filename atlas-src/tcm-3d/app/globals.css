@@ -368,31 +368,4 @@
   .outfit-bar{top:calc(56px + env(safe-area-inset-top,0px))}
   .rpg-studio.is-anime.has-outfit-bar .anime-fallback{top:calc(56px + env(safe-area-inset-top,0px))}
 }
-.rpg-studio.is-muscle .library-panel,.rpg-studio.is-muscle .selection-panel,.rpg-studio.is-muscle .tool-dock,.rpg-studio.is-muscle .outfit-bar{display:none!important}
-.rpg-studio .studio-view-switch{display:flex;gap:6px;align-items:center}
-.rpg-studio .studio-view-switch button{height:34px;padding:0 12px;border-radius:9px;border:1px solid #c8d9d1;background:#f4f8f6;font-size:12px;color:#3d5a50}
-.rpg-studio .studio-view-switch button.selected{background:#dceee5;border-color:#8ebfae;color:#1a4f42}
-.muscle-canvas-host{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
-.muscle-layer-bar{position:absolute;z-index:6;left:50%;bottom:132px;transform:translateX(-50%);display:flex;flex-wrap:wrap;align-items:center;gap:6px;max-width:min(92vw,520px);padding:8px 12px}
-.muscle-layer-eyebrow{display:flex;align-items:center;gap:5px;font-size:11px;color:#5f746c;width:100%}
-.muscle-skin-note{font-size:10px;color:#819984;margin:0;width:100%}
-.muscle-layer-bar button{height:34px;padding:0 11px;border-radius:8px;border:1px solid #c5d6ce;background:#f7faf7;font-size:12px;color:#3f574d}
-.muscle-layer-bar button.selected{background:#dceee5;border-color:#8ebfae;color:#1a4f42}
-.muscle-attribution-strip{position:absolute;z-index:5;left:18px;bottom:64px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;max-width:min(560px,calc(100% - 36px));font-size:10px;line-height:1.45;color:#6a8478}
-.muscle-attribution-credits{display:flex;flex-wrap:wrap;gap:10px}
-.muscle-attribution-strip a{color:#3f6d5c;text-decoration:underline}
-.muscle-info-panel,.muscle-point-panel{position:absolute;z-index:7;top:120px;right:22px;width:min(300px,calc(100% - 44px));padding:14px 16px}
-.muscle-info-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-.muscle-info-head h2{font-size:17px;color:#1a332c;margin:0}
-.muscle-info-en{font-size:12px;color:#5f746c;margin:6px 0 10px}
-.muscle-info-panel dl div{margin-bottom:8px}
-.muscle-info-panel dt{font-size:10px;color:#819984;margin-bottom:2px}
-.muscle-info-panel dd{font-size:12px;color:#243f36;margin:0;line-height:1.55}
-.muscle-point-zhuyin{font-size:11px;color:#66766d;margin:4px 0}
-.muscle-point-loc{font-size:12px;line-height:1.7;color:#243f36}
-.muscle-point-near{font-size:12px;color:#2f584a;display:flex;align-items:flex-start;gap:6px;margin-top:10px}
-@media(max-width:767px){
- .muscle-layer-bar{bottom:176px;width:calc(100% - 28px);padding:8px 10px}
- .muscle-attribution-strip{bottom:92px;left:14px;max-width:calc(100% - 28px)}
- .muscle-info-panel,.muscle-point-panel{top:auto;right:14px;left:14px;bottom:248px;width:auto}
-}
+.location-card .acupoint-muscle-near{font-size:12px;color:#2f584a;display:flex;align-items:flex-start;gap:6px;margin-top:10px;line-height:1.65}
