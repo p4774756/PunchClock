@@ -165,7 +165,18 @@
   border:2px solid currentColor;border-right-color:transparent;border-radius:50%;
   animation:outfit-spin .7s linear infinite;
 }
-@keyframes outfit-spin{to{transform:rotate(360deg)}}.practice-outfit-hint{
+@keyframes outfit-spin{to{transform:rotate(360deg)}}.rpg-studio .outfit-bar{
+  position:absolute;z-index:8;left:50%;transform:translateX(-50%);
+  bottom:calc(12px + env(safe-area-inset-bottom,0px));
+  display:flex;flex-wrap:wrap;justify-content:center;gap:6px;max-width:min(96vw,420px);
+  padding:6px 8px;border-radius:12px;
+  background:rgba(22,58,112,.82);border:2px solid var(--maple-gold,#ecc440);
+  pointer-events:auto;box-shadow:0 4px 14px rgba(0,0,0,.22);
+}.rpg-studio .outfit-bar button{
+  min-height:34px;padding:0 12px;border-radius:999px;border:1px solid rgba(236,196,64,.45);
+  background:rgba(255,255,255,.08);color:#f5f8fc;font-size:12px;font-weight:700;cursor:pointer;
+}.rpg-studio .outfit-bar button.is-active{background:var(--maple-gold,#ecc440);color:var(--maple-navy,#163a70);border-color:var(--maple-navy,#163a70)}
+.practice-outfit-hint{
   position:absolute;z-index:7;
   top:calc(96px + env(safe-area-inset-top,0px));
   right:calc(62px + env(safe-area-inset-right,0px));
@@ -173,7 +184,7 @@
   color:var(--maple-navy,#163a70);background:var(--maple-gold,#ecc440);
   border:2px solid var(--maple-navy,#163a70);pointer-events:none;
   box-shadow:1px 2px 0 rgba(0,0,0,.18);
-}.rpg-studio .camera-bar,.rpg-studio .outfit-bar{display:none!important}.rpg-studio .library-panel .library-rail-only{display:none!important}.rpg-studio .selection-panel{display:none!important}/* 穴位庫：深藍金框可內滾視窗（#432） */
+}.rpg-studio .camera-bar{display:none!important}.rpg-studio:not(.has-outfit-bar) .outfit-bar{display:none!important}.rpg-studio .library-panel .library-rail-only{display:none!important}.rpg-studio .selection-panel{display:none!important}/* 穴位庫：深藍金框可內滾視窗（#432） */
 .rpg-studio .library-panel:not(.mobile-expanded){display:none!important}.rpg-studio .library-panel{
   position:absolute;z-index:12;pointer-events:auto;
   display:flex;flex-direction:column;overflow:hidden;

@@ -30,7 +30,9 @@ import {
   uploadTexturesIncremental,
 } from './shader-warm';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
-import {animeOutfit,ANIME_OUTFITS,CLOTH_GARMENT_MATERIAL_TOKENS,isTorsoClothPeekPoint,type AnimeOutfit,type OutfitId} from './outfits';
+import {applyAdultClothStyle,applyAdultSheerOuter,paintAdultSwimSkin,resetAdultSheerTopsOpaque,snapshotAdultClothMaps} from './adult-outfit-paint';
+import {animeOutfitForAvatar,outfitNeedsAltBuild,outfitsForAvatar,type OutfitId} from './avatar-outfits';
+import {CLOTH_GARMENT_MATERIAL_TOKENS,isTorsoClothPeekPoint,type AnimeOutfit} from './outfits';
 import {useEffect,useRef} from 'react';
 import * as T from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
@@ -1249,6 +1251,15 @@ const applyOutfitMaterialsToObject=(obj:T.Object3D,outfit:AnimeOutfit)=>{
   m.visible=!hide;
   if(hide){m.needsUpdate=true;continue;}
   if(m.map&&!m.isMToonMaterial){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
+  if(outfit.sheerOuter&&/Tops/i.test(name)){
+   m.transparent=true;
+   m.opacity=0.42;
+   m.depthWrite=false;
+   m.side=T.DoubleSide;
+   obj.renderOrder=2;
+   m.needsUpdate=true;
+   continue;
+  }
   if(outfit.practiceBody){
    /* hair / bun handled separately */
   }else if(/HAIR|髪|HairBack/i.test(name)){
@@ -1276,10 +1287,17 @@ const applyOutfitMaterialsToObject=(obj:T.Object3D,outfit:AnimeOutfit)=>{
 
 const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
  root.traverse((obj:T.Object3D)=>applyOutfitMaterialsToObject(obj,outfit));
+ if(outfit.adultPaint){
+  const painted=paintAdultSwimSkin(root,outfit.adultPaint);
+  if(painted)root.userData.practiceBodySkinMap=painted;
+  if(outfit.sheerOuter)applyAdultSheerOuter(root);
+  bindPracticeBodySkinMaps(root);
+  return;
+ }
  if(outfit.practiceBody){
   const painted=paintPracticeBodySkin(root);
   if(painted)root.userData.practiceBodySkinMap=painted;
-  restyleHairBun(root);
+  if(!outfit.skipHairRestyle)restyleHairBun(root);
   bindPracticeBodySkinMaps(root);
  }
 };
@@ -1339,7 +1357,17 @@ const buildPracticeOutfitIncremental=async(
    resetSliceBudget(budget);
   }
  }
- if(outfit.practiceBody){
+ if(outfit.adultPaint){
+  const painted=paintAdultSwimSkin(root,outfit.adultPaint);
+  if(painted){
+   root.userData.practiceBodySkinMap=painted;
+   bindPracticeBodySkinMaps(root);
+  }
+  if(outfit.sheerOuter)applyAdultSheerOuter(root);
+  tick();
+  await yieldForSliceBudget(budget,true);
+  resetSliceBudget(budget);
+ }else if(outfit.practiceBody){
   let painted=await paintPracticeBodySkinIncremental(root);
   const syncPainted=paintPracticeBodySkin(root);
   if(syncPainted)painted=syncPainted;
@@ -1347,7 +1375,7 @@ const buildPracticeOutfitIncremental=async(
    root.userData.practiceBodySkinMap=painted;
    bindPracticeBodySkinMaps(root);
   }
-  restyleHairBun(root);
+  if(!outfit.skipHairRestyle)restyleHairBun(root);
   tick();
   await yieldForSliceBudget(budget,true);
   resetSliceBudget(budget);
@@ -1383,8 +1411,11 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
  useEffect(()=>{
   const avatar=animeAvatar(avatarId);
-  const schoolOutfit=ANIME_OUTFITS.find(o=>o.id==='school')!;
-  const practiceOutfit=ANIME_OUTFITS.find(o=>o.id==='study-body')!;
+  const avatarOutfits=outfitsForAvatar(avatar.id);
+  const schoolOutfit=avatarOutfits[0];
+  const assistantPracticeOutfit=avatar.id==='assistant'?avatarOutfits.find(o=>o.id==='study-body')??null:null;
+  const adultPracticeOutfit=avatar.id==='adult'?avatarOutfits.find(o=>o.id==='practice')??null:null;
+  const adultSheerOutfit=avatar.id==='adult'?avatarOutfits.find(o=>o.id==='sheer')??null:null;
   const points=avatarPracticePoints(avatar);
   const el=host.current!;let disposed=false,frame=0,dirty=true,ready=false,lastView='',lastReset=-1,lastFocus=-1;
   let focusTween:{start:number;fromTarget:T.Vector3;fromPos:T.Vector3;toTarget:T.Vector3;toPos:T.Vector3}|null=null;
@@ -1463,8 +1494,12 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   let practiceShell:T.Object3D|null=null;
   let practiceCleanTemplate:T.Object3D|null=null;
   let practiceBuilt=false;
+  let sheerModel:T.Object3D|null=null;
+  let sheerShell:T.Object3D|null=null;
+  let sheerBuilt=false;
   let practiceWarm=false;
   let cacheAnimeOutfitsFlag=false;
+  let adultClothBaseline:Map<T.Material,T.Texture>|null=null;
   let postWarmQueue:{name:string;run:()=>Promise<void>;practiceRelated?:boolean}[]=[];
   let postWarmBoost=false;
   let postWarmSkipFrames=0;
@@ -1546,13 +1581,41 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    dirty=true;
   };
 
+  const altOutfitReadyFor=(id:OutfitId|null)=>{
+   if(!id||!outfitNeedsAltBuild(avatar.id,id))return true;
+   if(avatar.id==='assistant')return practiceBuilt;
+   if(id==='practice')return practiceBuilt;
+   if(id==='sheer')return sheerBuilt;
+   return true;
+  };
+
   const showOutfit=(id:OutfitId)=>{
-   if(schoolModel)schoolModel.visible=id==='school';
-   if(practiceModel){
-    if(id==='study-body'&&practiceBuilt){
-     ensurePracticeOutfitReady(practiceModel,schoolModel,practiceOutfit);
-     practiceModel.visible=true;
-    }else practiceModel.visible=id==='study-body';
+   if(avatar.id==='adult'){
+    const onBase=id==='suit'||id==='casual';
+    if(schoolModel){
+     schoolModel.visible=onBase;
+     if(onBase&&adultClothBaseline)applyAdultClothStyle(schoolModel,id==='suit'?'suit':'casual',adultClothBaseline);
+    }
+    if(practiceModel){
+     if(id==='practice'&&practiceBuilt&&adultPracticeOutfit){
+      ensurePracticeOutfitReady(practiceModel,schoolModel,adultPracticeOutfit);
+      practiceModel.visible=true;
+     }else practiceModel.visible=false;
+    }
+    if(sheerModel){
+     if(id==='sheer'&&sheerBuilt&&adultSheerOutfit){
+      ensurePracticeOutfitReady(sheerModel,schoolModel,adultSheerOutfit);
+      sheerModel.visible=true;
+     }else sheerModel.visible=false;
+    }
+   }else{
+    if(schoolModel)schoolModel.visible=id==='school';
+    if(practiceModel&&assistantPracticeOutfit){
+     if(id==='study-body'&&practiceBuilt){
+      ensurePracticeOutfitReady(practiceModel,schoolModel,assistantPracticeOutfit);
+      practiceModel.visible=true;
+     }else practiceModel.visible=id==='study-body';
+    }
    }
    characterRoot.updateMatrixWorld(true);
    if(ready)teaching.applyCachedAnchors();
@@ -1562,27 +1625,33 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(performance.getEntriesByName(OUTFIT_SWITCH_START,'mark').length)outfitSwitchMeasurePending=true;
   };
 
-  const finalizePracticeShell=()=>{
-   if(practiceBuilt||!practiceShell||disposed)return;
+  const finalizeAltShell=(shell:T.Object3D,outfit:AnimeOutfit,kind:'practice'|'sheer')=>{
+   const built=kind==='practice'?practiceBuilt:sheerBuilt;
+   if(built||disposed)return;
    performance.mark('practice-outfit-build-start');
-   if(!ensurePracticeOutfitReady(practiceShell,schoolModel,practiceOutfit)){
+   if(!ensurePracticeOutfitReady(shell,schoolModel,outfit)){
     console.warn('atlas:practice-outfit-build','incomplete — will retry');
     return;
    }
-   if(schoolModel&&uniformAssetSnap)assertUniformOutfitUntouched(uniformAssetSnap,schoolModel);
-   if(import.meta.env.DEV&&practiceCleanTemplate&&practiceShell){
-    const mismatches=comparePracticeToMainPath(practiceShell,practiceCleanTemplate,practiceOutfit,gradient);
+   if(schoolModel&&uniformAssetSnap&&kind==='practice'&&avatar.id==='assistant')assertUniformOutfitUntouched(uniformAssetSnap,schoolModel);
+   if(import.meta.env.DEV&&practiceCleanTemplate&&kind==='practice'&&avatar.id==='assistant'){
+    const mismatches=comparePracticeToMainPath(shell,practiceCleanTemplate,outfit,gradient);
     if(mismatches.length)console.warn('atlas:practice-material-compare',mismatches);
     else console.info('atlas:practice-material-compare','ok');
    }
    performance.mark('practice-outfit-build-end');
    try{performance.measure('practice-outfit-build','practice-outfit-build-start','practice-outfit-build-end');}catch{/* duplicate measure */}
-   practiceModel=practiceShell;
-   if(!practiceShell.parent)characterRoot.add(practiceShell);
-   practiceShell.visible=false;
-   practiceShell.updateMatrixWorld(true);
-   practiceBuilt=true;
-   installClothGarmentPeek(practiceModel,clothPeekMaterials);
+   if(kind==='practice'){
+    practiceModel=shell;
+    practiceBuilt=true;
+   }else{
+    sheerModel=shell;
+    sheerBuilt=true;
+   }
+   if(!shell.parent)characterRoot.add(shell);
+   shell.visible=false;
+   shell.updateMatrixWorld(true);
+   if(kind==='practice')installClothGarmentPeek(practiceModel!,clothPeekMaterials);
    lastClothPeekKey='';
    if(!pendingOutfitId)onPracticeOutfitPreparing?.(false);
    dirty=true;
@@ -1632,12 +1701,15 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const buildPostWarmQueue=()=>{
    postWarmQueue=[];
    if(cacheAnimeOutfitsFlag){
+    const altOutfit=avatar.id==='adult'?adultPracticeOutfit:assistantPracticeOutfit;
+    const sheerOutfit=avatar.id==='adult'?adultSheerOutfit:null;
+    if(altOutfit){
     postWarmQueue.push({name:'build-practice',practiceRelated:true,run:async()=>{
      await yieldOnce();
      if(disposed||practiceBuilt)return;
      if(!practiceShell&&schoolModel){
       const tClone=performance.now();
-      if(import.meta.env.DEV){
+      if(import.meta.env.DEV&&avatar.id==='assistant'){
        practiceCleanTemplate=cloneSkinnedObject(schoolModel);
        isolatePracticeRig(practiceCleanTemplate);
       }
@@ -1648,25 +1720,24 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      }
      if(disposed||!practiceShell||practiceBuilt)return;
      const t0=performance.now();
-     await buildPracticeOutfitIncremental(practiceShell,practiceOutfit,gradient);
+     await buildPracticeOutfitIncremental(practiceShell,altOutfit,gradient);
      await yieldOnce();
      if(disposed)return;
-     finalizePracticeShell();
+     finalizeAltShell(practiceShell,altOutfit,'practice');
      practiceWarm=true;
      logPhase('build-practice',t0);
     }});
     postWarmQueue.push({name:'attach-practice-warm',practiceRelated:true,run:async()=>{
      if(disposed||!practiceModel)return;
      const batch:typeof postWarmQueue=[];
-     const pushTo=(tasks:typeof postWarmQueue)=>{batch.push(...tasks);};
      const saveQueue=postWarmQueue;
      postWarmQueue=batch;
      pushTextureWarmTasks(collectMeshTextures(practiceModel,[],true),'practice-tex:',true);
      pushShaderWarmTasks([practiceModel],false,'practice-prog:',true);
      pushShaderWarmTasks([practiceModel],true,'practice-',true);
      batch.push({name:'practice-outfit-sync',practiceRelated:true,run:async()=>{
-      if(disposed||!practiceModel)return;
-      ensurePracticeOutfitReady(practiceModel,schoolModel,practiceOutfit);
+      if(disposed||!practiceModel||!altOutfit)return;
+      ensurePracticeOutfitReady(practiceModel,schoolModel,altOutfit);
      }});
      const inserted=batch;
      postWarmQueue=saveQueue;
@@ -1677,6 +1748,23 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       postWarmQueue=[...practice,...rest];
      }
     }});
+    }
+    if(sheerOutfit){
+     postWarmQueue.push({name:'build-sheer',practiceRelated:true,run:async()=>{
+      await yieldOnce();
+      if(disposed||sheerBuilt)return;
+      if(!sheerShell&&schoolModel){
+       sheerShell=cloneSkinnedObject(schoolModel);
+       isolatePracticeRig(sheerShell);
+       await yieldOnce();
+      }
+      if(disposed||!sheerShell||sheerBuilt)return;
+      await buildPracticeOutfitIncremental(sheerShell,sheerOutfit,gradient);
+      await yieldOnce();
+      if(disposed)return;
+      finalizeAltShell(sheerShell,sheerOutfit,'sheer');
+     }});
+    }
    }
    postWarmQueue.push({name:'plan-teaching-tex',run:async()=>{
     if(disposed)return;
@@ -1720,7 +1808,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    console.debug('atlas:post-warm',item.name,ms);
    if(ms>=600)console.debug('atlas:post-warm-slow',item.name,ms);
    await yieldOnce();
-   if(practiceBuilt&&pendingOutfitId){
+   if(pendingOutfitId&&altOutfitReadyFor(pendingOutfitId)){
     const next=pendingOutfitId;
     pendingOutfitId=null;
     showOutfit(next);
@@ -1730,7 +1818,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(!postWarmQueue.length){
     postWarmBoost=false;
     gpuBaselineAfterLoad={programs:programCount(renderer),textures:textureCount(renderer)};
-    outfitSwitchAssertPending=practiceBuilt;
+    outfitSwitchAssertPending=practiceBuilt||sheerBuilt;
    }
   };
 
@@ -1755,7 +1843,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   };
 
   const prioritizePracticeWarm=()=>{
-   if(practiceBuilt||disposed)return;
+   if(disposed)return;
+   if(!pendingOutfitId||altOutfitReadyFor(pendingOutfitId))return;
    if(!postWarmQueue.length)buildPostWarmQueue();
    const practice=postWarmQueue.filter(q=>q.practiceRelated);
    const rest=postWarmQueue.filter(q=>!q.practiceRelated);
@@ -1763,7 +1852,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    postWarmBoost=true;
    const boost=async()=>{
     await yieldOnce();
-    while(!disposed&&!practiceBuilt){
+    while(!disposed&&!altOutfitReadyFor(pendingOutfitId)){
      const idx=postWarmQueue.findIndex(q=>q.practiceRelated);
      if(idx<0)break;
      const item=postWarmQueue.splice(idx,1)[0]!;
@@ -1773,7 +1862,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      console.debug('atlas:post-warm',item.name,ms);
      if(ms>=600)console.debug('atlas:post-warm-slow',item.name,ms);
      await yieldOnce();
-     if(practiceBuilt&&pendingOutfitId){
+     if(pendingOutfitId&&altOutfitReadyFor(pendingOutfitId)){
       const next=pendingOutfitId;
       pendingOutfitId=null;
       showOutfit(next);
@@ -1853,11 +1942,14 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
   const setOutfit=(id:OutfitId)=>{
    if(!schoolModel)return;
-   if(id==='study-body'&&!practiceBuilt){
-    pendingOutfitId=id;
-    onPracticeOutfitPreparing?.(true);
-    prioritizePracticeWarm();
-    return;
+   if(outfitNeedsAltBuild(avatar.id,id)){
+    const built=avatar.id==='adult'?(id==='practice'?practiceBuilt:sheerBuilt):practiceBuilt;
+    if(!built){
+     pendingOutfitId=id;
+     onPracticeOutfitPreparing?.(true);
+     prioritizePracticeWarm();
+     return;
+    }
    }
    pendingOutfitId=null;
    onPracticeOutfitPreparing?.(false);
@@ -1894,7 +1986,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const isAdultModel=!!modelUrl?.includes('anime-adult.glb');
    const isAnimeModel=isAssistantModel||isAdultModel;
    const cacheAnimeOutfits=avatar.hasOutfits&&isAssistantModel;
-   cacheAnimeOutfitsFlag=cacheAnimeOutfits;
+   const cacheAdultOutfits=avatar.hasOutfits&&isAdultModel;
+   cacheAnimeOutfitsFlag=cacheAnimeOutfits||cacheAdultOutfits;
    let downloadPct=0;
    const gzipBytes=isAssistantModel?ANIME_MODEL_GZIP_BYTES||0:isAdultModel?ANIME_ADULT_MODEL_GZIP_BYTES||0:0;
    const rawBytes=isAssistantModel?ANIME_MODEL_BYTES:isAdultModel?ANIME_ADULT_MODEL_BYTES:ANIME_MODEL_BYTES;
@@ -1973,8 +2066,18 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       schoolModel.visible=outfitIdRef.current==='school';
       characterRoot.clear();
       characterRoot.add(schoolModel);
+     }else if(cacheAdultOutfits){
+      adultClothBaseline=snapshotAdultClothMaps(model);
+      const launchOutfit=animeOutfitForAvatar('adult',outfitIdRef.current);
+      const launchStyle=launchOutfit.adultCloth??'suit';
+      applyAdultClothStyle(model,launchStyle,adultClothBaseline);
+      await parseSlice('finish-adult-look',()=>finishCharacterLook(model,launchOutfit,gradient,clothPeekMaterials));
+      schoolModel=model;
+      schoolModel.visible=launchOutfit.adultCloth==='suit'||launchOutfit.adultCloth==='casual';
+      characterRoot.clear();
+      characterRoot.add(schoolModel);
      }else{
-      await parseSlice('finish-look',()=>finishCharacterLook(model,animeOutfit(outfitIdRef.current),gradient,clothPeekMaterials));
+      await parseSlice('finish-look',()=>finishCharacterLook(model,animeOutfitForAvatar(avatar.id,outfitIdRef.current),gradient,clothPeekMaterials));
       schoolModel=model;
       characterRoot.clear();
       characterRoot.add(model);
@@ -2174,7 +2277,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    characterRoot.clear();
    disposeCharacterRoot(schoolModel);
    disposeCharacterRoot(practiceModel);
+   disposeCharacterRoot(sheerModel);
    if(practiceShell&&!practiceBuilt)disposeCharacterRoot(practiceShell);
+   if(sheerShell&&!sheerBuilt)disposeCharacterRoot(sheerShell);
    if(practiceCleanTemplate)disposeCharacterRoot(practiceCleanTemplate);
    scene.traverse(o=>{
     if(!(o instanceof T.Mesh))return;

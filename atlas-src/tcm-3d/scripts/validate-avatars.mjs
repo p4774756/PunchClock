@@ -32,7 +32,7 @@ assert.match(page, /key=\{avatarId\}/, 'avatar switch must remount CharacterScen
 
 const avatarsSrc = readFileSync(join(root, 'app/avatars.ts'), 'utf8');
 assert.match(avatarsSrc, /id:'adult'/, 'adult avatar entry required');
-assert.match(avatarsSrc, /hasOutfits:\s*false/, 'adult must not offer outfits');
+assert.match(avatarsSrc, /id:'adult'[\s\S]*hasOutfits:\s*true/, 'adult must offer outfits');
 
 assert.match(avatarsSrc, /DEFAULT_AVATAR_ID:AvatarId='assistant'/, 'default must be assistant');
 assert.match(avatarsSrc, /points:\s*\[\]/, 'adult points start empty');

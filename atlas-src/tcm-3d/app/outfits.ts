@@ -1,7 +1,11 @@
 import {ANIME_MODEL_URL} from './character-mode';
 import {POINT_BY_CODE,type RegionId} from './teaching';
 
-export type OutfitId='school'|'study-body';
+import type {AvatarId} from './avatars';
+
+export type AssistantOutfitId='school'|'study-body';
+/** @deprecated Use OutfitId from avatar-outfits.ts */
+export type OutfitId=AssistantOutfitId;
 
 /** Chest／abdomen／back／waist. Upper-back 天宗一帶 is shoulder or arm in the catalog, not abdomen. */
 const TORSO_CLOTH_PEEK_REGIONS=new Set<RegionId>(['abdomen','waist']);
@@ -18,7 +22,9 @@ export function isTorsoClothPeekPoint(code:string|null|undefined){
 export const CLOTH_GARMENT_MATERIAL_TOKENS=['Tops','Bottoms','Accessory','CLOTH'] as const;
 
 export interface AnimeOutfit{
- id:OutfitId;
+ id:AssistantOutfitId|import('./adult-outfits').AdultOutfitId;
+ /** When set, this row only applies to the matching avatar. */
+ avatarId?:AvatarId;
  name:string;
  shortName:string;
  blurb:string;
@@ -32,11 +38,20 @@ export interface AnimeOutfit{
   * paint teal sports bra＋shorts into the skin map, and restyle hair into a high bun.
   */
  practiceBody?:boolean;
+ /** Adult suit／casual retexture on the base rig (no clone). */
+ adultCloth?:'suit'|'casual';
+ /** Adult painted swimsuit on skin (practice or sheer inner). */
+ adultPaint?:'sport'|'sheer-inner';
+ /** Semi-transparent white shirt over opaque inner paint. */
+ sheerOuter?:boolean;
+ /** Do not restyle hair into practice bun (adult keeps shoulder-length hair). */
+ skipHairRestyle?:boolean;
 }
 
 export const ANIME_OUTFITS:AnimeOutfit[]=[
  {
   id:'school',
+  avatarId:'assistant',
   name:'制服研習裝',
   shortName:'制服',
   blurb:'Sendagaya 原裝制服。頸前或軀幹穴被擋住時可切「練習裝」。',
@@ -48,6 +63,7 @@ export const ANIME_OUTFITS:AnimeOutfit[]=[
  },
  {
   id:'study-body',
+  avatarId:'assistant',
   name:'軀幹練習裝',
   shortName:'練習裝',
   blurb:'深青運動內衣＋高腰短褲畫在皮膚貼圖上，盤高包頭；露出頸前、胸腹、背腰供針／指壓。',
