@@ -453,7 +453,7 @@ function makeNightSkylineLayerTexture(layer) {
   const rand = privateTeamSeededRand(layer === 'far' ? 11 : layer === 'mid' ? 23 : 37);
   const baseY = canvas.height * (layer === 'far' ? 0.78 : layer === 'mid' ? 0.62 : 0.5);
   const maxH = canvas.height * (layer === 'far' ? 0.2 : layer === 'mid' ? 0.36 : 0.46);
-  const fog = layer === 'far' ? 0.52 : layer === 'mid' ? 0.82 : 1;
+  const fog = layer === 'far' ? 0.38 : layer === 'mid' ? 0.68 : 1;
   let x = -12;
   while (x < canvas.width + 8) {
     const bw = (layer === 'near' ? 34 : 26) + rand() * (layer === 'near' ? 48 : 32);
@@ -494,11 +494,19 @@ function makeNightSkylineLayerTexture(layer) {
     x += bw - rand() * 10;
   }
   if (layer === 'far') {
-    const mist = ctx.createLinearGradient(0, canvas.height * 0.45, 0, canvas.height);
+    const mist = ctx.createLinearGradient(0, canvas.height * 0.32, 0, canvas.height);
     mist.addColorStop(0, 'rgba(0,0,0,0)');
-    mist.addColorStop(0.6, 'rgba(18,28,48,0.18)');
-    mist.addColorStop(1, 'rgba(12,20,36,0.42)');
+    mist.addColorStop(0.45, 'rgba(14,22,40,0.28)');
+    mist.addColorStop(0.75, 'rgba(20,32,54,0.48)');
+    mist.addColorStop(1, 'rgba(16,26,44,0.62)');
     ctx.fillStyle = mist;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  if (layer === 'mid') {
+    const midMist = ctx.createLinearGradient(0, canvas.height * 0.55, 0, canvas.height);
+    midMist.addColorStop(0, 'rgba(0,0,0,0)');
+    midMist.addColorStop(1, 'rgba(18,28,48,0.22)');
+    ctx.fillStyle = midMist;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   const tex = new THREE.CanvasTexture(canvas);
@@ -546,7 +554,7 @@ function makeWindowRainTexture(lineCount) {
     const x = rand() * canvas.width;
     const len = 12 + rand() * 28;
     const w = 0.6 + rand() * 0.9;
-    ctx.strokeStyle = 'rgba(175,195,230,' + (0.15 + rand() * 0.22) + ')';
+    ctx.strokeStyle = 'rgba(175,195,230,' + (0.22 + rand() * 0.32) + ')';
     ctx.lineWidth = w;
     ctx.beginPath();
     ctx.moveTo(x, rand() * canvas.height * 0.3);
@@ -567,23 +575,23 @@ function makeWindowGlassStreakTexture() {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const rand = privateTeamSeededRand(113);
-  for (let i = 0; i < 9; i++) {
+  for (let i = 0; i < 14; i++) {
     const x = rand() * canvas.width;
     const y0 = rand() * canvas.height * 0.35;
     const len = 40 + rand() * 120;
-    ctx.strokeStyle = 'rgba(200,220,245,' + (0.08 + rand() * 0.14) + ')';
-    ctx.lineWidth = 1 + rand() * 2.2;
+    ctx.strokeStyle = 'rgba(200,220,245,' + (0.12 + rand() * 0.22) + ')';
+    ctx.lineWidth = 1 + rand() * 2.4;
     ctx.beginPath();
     ctx.moveTo(x, y0);
     ctx.lineTo(x + 4 + rand() * 8, y0 + len);
     ctx.stroke();
   }
-  for (let d = 0; d < 6; d++) {
+  for (let d = 0; d < 14; d++) {
     const dx = rand() * canvas.width;
     const dy = rand() * canvas.height;
-    const r = 2 + rand() * 4;
+    const r = 2 + rand() * 5;
     const g = ctx.createRadialGradient(dx, dy, 0, dx, dy, r);
-    g.addColorStop(0, 'rgba(210,230,250,0.18)');
+    g.addColorStop(0, 'rgba(210,230,250,0.28)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.fillRect(dx - r, dy - r, r * 2, r * 2);
@@ -623,6 +631,80 @@ function makeSkylineFlickerLightsTexture() {
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return { tex, lights, paint, rand: privateTeamSeededRand(91) };
+}
+
+function makeWindowStreetTrafficTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const rand = privateTeamSeededRand(131);
+  const groundY = canvas.height * 0.72;
+  ctx.fillStyle = 'rgba(28,36,52,0.55)';
+  ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+  for (let lx = 36; lx < canvas.width; lx += 88 + rand() * 40) {
+    const poleH = 48 + rand() * 22;
+    ctx.strokeStyle = 'rgba(60,70,88,0.75)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(lx, groundY);
+    ctx.lineTo(lx, groundY - poleH);
+    ctx.stroke();
+    const lampG = ctx.createRadialGradient(lx, groundY - poleH, 0, lx, groundY - poleH, 18);
+    lampG.addColorStop(0, 'rgba(255,228,150,0.85)');
+    lampG.addColorStop(0.45, 'rgba(255,210,120,0.35)');
+    lampG.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = lampG;
+    ctx.fillRect(lx - 22, groundY - poleH - 22, 44, 44);
+  }
+  for (let t = 0; t < 28; t++) {
+    const tx = rand() * canvas.width;
+    const ty = groundY + 4 + rand() * 10;
+    const warm = rand() > 0.22;
+    ctx.fillStyle = warm
+      ? 'rgba(255,72,58,' + (0.55 + rand() * 0.4) + ')'
+      : 'rgba(230,240,255,' + (0.35 + rand() * 0.45) + ')';
+    ctx.fillRect(tx, ty, 2.5 + rand() * 4, 1.2 + rand() * 1.5);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeWindowMoonlightFloorTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 384;
+  canvas.height = 240;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const cols = 3;
+  const rows = 2;
+  const padX = 18;
+  const padY = 14;
+  const cellW = (canvas.width - padX * 2) / cols;
+  const cellH = (canvas.height - padY * 2) / rows;
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const cx = padX + col * cellW + cellW / 2;
+      const cy = padY + row * cellH + cellH / 2;
+      const rw = cellW * 0.42;
+      const rh = cellH * 0.38;
+      const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, Math.max(rw, rh));
+      g.addColorStop(0, 'rgba(185,205,235,0.42)');
+      g.addColorStop(0.55, 'rgba(120,150,195,0.16)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 function stepSkylineFlickerLights(flicker) {
@@ -994,43 +1076,43 @@ function makeProgressBoardDrawer() {
 function makeBubbleDrawer() {
   const canvas = document.createElement('canvas');
   canvas.width = 320;
-  canvas.height = 128;
+  canvas.height = 112;
   const ctx = canvas.getContext('2d');
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   function draw(text) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#f8fbff';
-    ctx.strokeStyle = '#163a70';
-    ctx.lineWidth = 10;
-    const x = 16;
-    const y = 12;
-    const w = 288;
-    const h = 78;
-    const r = 22;
+    const x = 20;
+    const y = 16;
+    const w = 272;
+    const h = 56;
+    const r = h / 2;
     ctx.beginPath();
     ctx.moveTo(x + r, y);
     ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + 182, y + h);
-    ctx.lineTo(x + 150, y + h + 26);
-    ctx.lineTo(x + 140, y + h);
+    ctx.arc(x + w - r, y + r, r, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(x + 168, y + h);
+    ctx.lineTo(x + 154, y + h + 12);
+    ctx.lineTo(x + 148, y + h);
     ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.arc(x + r, y + r, r, Math.PI / 2, -Math.PI / 2);
     ctx.closePath();
+    ctx.fillStyle = 'rgba(18,32,58,0.74)';
     ctx.fill();
+    ctx.strokeStyle = '#c9a850';
+    ctx.lineWidth = 2.2;
     ctx.stroke();
+    ctx.fillStyle = '#52d86e';
+    ctx.beginPath();
+    ctx.arc(x + 22, y + r, 5, 0, Math.PI * 2);
+    ctx.fill();
     const label = text == null || String(text).trim() === '' ? '…' : String(text);
-    const size = label.length > 6 ? 46 : label.length > 4 ? 52 : 60;
-    ctx.fillStyle = '#163a70';
-    ctx.font = 'bold ' + size + 'px sans-serif';
+    const size = label.length > 6 ? 26 : label.length > 4 ? 30 : 34;
+    ctx.fillStyle = '#e6f0ff';
+    ctx.font = size + 'px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(label, canvas.width / 2, 50);
+    ctx.fillText(label, x + w / 2 + 6, y + r);
     tex.needsUpdate = true;
   }
   draw('…');
@@ -1553,7 +1635,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const rainMat = new THREE.MeshBasicMaterial({
     map: rainTex,
     transparent: true,
-    opacity: 0.34,
+    opacity: 0.46,
     depthWrite: false
   });
   const windowRainBack = new THREE.Mesh(new THREE.PlaneGeometry(winW + 0.04, winH - 0.06), rainMat);
@@ -1568,12 +1650,28 @@ export function mountPrivateTeamScene(canvas, opts) {
     new THREE.MeshBasicMaterial({
       map: streakTex,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.42,
       depthWrite: false
     })
   );
   windowGlassStreaks.visible = false;
   windowGlassStreaks.name = 'windowGlassStreaks';
+
+  const streetTrafficTex = makeWindowStreetTrafficTexture();
+  const windowStreetTraffic = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW + 0.06, winH * 0.24),
+    new THREE.MeshBasicMaterial({
+      map: streetTrafficTex,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  windowStreetTraffic.position.set(0, winBottom + winH * 0.14, backZ - WALL_THICK - 0.047);
+  windowStreetTraffic.name = 'windowStreetTraffic';
+  root.add(windowStreetTraffic);
+
   const glassY = winBottom + winH / 2;
 
   const glassMat = new THREE.MeshLambertMaterial({
@@ -1617,31 +1715,85 @@ export function mountPrivateTeamScene(canvas, opts) {
   });
 
   function frameBar(w, h, x, y) {
-    const m = box(w, h, 0.06, COL.frame);
-    m.position.set(x, y, backZ + 0.05);
+    const m = box(w, h, 0.09, COL.frame);
+    m.position.set(x, y, backZ + 0.06);
     root.add(m);
   }
-  frameBar(0.08, winH, winLeft - 0.04, glassY);
-  frameBar(0.08, winH, winRight + 0.04, glassY);
-  frameBar(winW + 0.12, 0.08, 0, winBottom - 0.02);
-  frameBar(winW + 0.12, 0.08, 0, winTop + 0.02);
-  frameBar(0.06, winH, -paneW / 2 - 0.02, glassY);
-  frameBar(0.06, winH, paneW / 2 + 0.02, glassY);
-  frameBar(winW + 0.12, 0.035, 0, glassY);
+  frameBar(0.11, winH, winLeft - 0.055, glassY);
+  frameBar(0.11, winH, winRight + 0.055, glassY);
+  frameBar(winW + 0.14, 0.1, 0, winBottom - 0.02);
+  frameBar(winW + 0.14, 0.1, 0, winTop + 0.02);
+  frameBar(0.09, winH, -paneW / 2 - 0.02, glassY);
+  frameBar(0.09, winH, paneW / 2 + 0.02, glassY);
+  frameBar(winW + 0.14, 0.05, 0, glassY);
 
-  const windowWash = new THREE.Mesh(
-    new THREE.PlaneGeometry(2.8, 1.35),
-    new THREE.MeshBasicMaterial({
-      color: 0x5a78b0,
+  const sillZ = backZ + 0.13;
+  const sillY = winBottom + 0.03;
+  const windowSill = box(winW + 0.04, 0.06, 0.16, COL.frame);
+  windowSill.position.set(0, sillY, sillZ);
+  windowSill.name = 'windowSill';
+  root.add(windowSill);
+
+  const sillPlantX = -0.38;
+  const sillPlantPot = cyl(0.045, 0.038, 0.055, 8, COL.pot);
+  sillPlantPot.position.set(sillPlantX, sillY + 0.05, sillZ + 0.06);
+  sillPlantPot.name = 'windowSillPlant';
+  root.add(sillPlantPot);
+  const sillLeafMat = new THREE.MeshLambertMaterial({ color: COL.plant });
+  for (let pi = 0; pi < 4; pi++) {
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.032, 5, 4), sillLeafMat);
+    const pa = (pi / 4) * Math.PI * 2;
+    leaf.position.set(
+      sillPlantX + Math.cos(pa) * 0.038,
+      sillY + 0.1 + (pi % 2) * 0.025,
+      sillZ + 0.06 + Math.sin(pa) * 0.032
+    );
+    leaf.scale.set(0.9, 0.45, 0.8);
+    root.add(leaf);
+  }
+
+  const sillMugX = 0.4;
+  const windowSillMug = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.048, 0.04, 0.1, 10),
+    new THREE.MeshLambertMaterial({ color: COL.mug })
+  );
+  windowSillMug.position.set(sillMugX, sillY + 0.07, sillZ + 0.07);
+  windowSillMug.name = 'windowSillMug';
+  root.add(windowSillMug);
+
+  const windowSillMugSteamPuffs = [];
+  const windowSillMugSteam = new THREE.Group();
+  windowSillMugSteam.position.set(sillMugX, sillY + 0.13, sillZ + 0.08);
+  windowSillMugSteam.name = 'windowSillMugSteam';
+  for (let si = 0; si < 3; si++) {
+    const puffMat = new THREE.MeshBasicMaterial({
+      color: 0xf0f6ff,
       transparent: true,
-      opacity: 0.12,
+      opacity: 0.06,
+      depthWrite: false
+    });
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.022 + si * 0.006, 5, 4), puffMat);
+    puff.position.set((si - 1) * 0.028, si * 0.032, 0);
+    windowSillMugSteam.add(puff);
+    windowSillMugSteamPuffs.push(puff);
+  }
+  root.add(windowSillMugSteam);
+
+  const moonTex = makeWindowMoonlightFloorTexture();
+  const windowMoonlight = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.55, 0.92),
+    new THREE.MeshBasicMaterial({
+      map: moonTex,
+      transparent: true,
+      opacity: 0.82,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     })
   );
-  windowWash.rotation.x = -Math.PI / 2;
-  windowWash.position.set(0, 0.022, -1.05);
-  root.add(windowWash);
+  windowMoonlight.rotation.x = -Math.PI / 2;
+  windowMoonlight.position.set(0, 0.022, -1.02);
+  windowMoonlight.name = 'windowMoonlight';
+  root.add(windowMoonlight);
 
   const progressDrawer = makeProgressBoardDrawer();
   const progMesh = new THREE.Mesh(
@@ -2036,7 +2188,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     transparent: true,
     depthWrite: false
   });
-  const bubble = new THREE.Mesh(new THREE.PlaneGeometry(0.82, 0.36), bubbleMat);
+  const bubble = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.3), bubbleMat);
   const bubbleFloatMin = 1.68;
   const bubbleFloatSpan = 0.07;
   const bubbleRestY = bubbleFloatMin + bubbleFloatSpan / 2;
@@ -2479,11 +2631,20 @@ export function mountPrivateTeamScene(canvas, opts) {
         steamPuffs[si].material.opacity = 0;
       }
       rippleMat.opacity = 0.16;
+      for (let mi = 0; mi < windowSillMugSteamPuffs.length; mi++) {
+        windowSillMugSteamPuffs[mi].material.opacity = 0.045 + mi * 0.018;
+        windowSillMugSteamPuffs[mi].position.y = mi * 0.032 + 0.018;
+      }
     } else {
       for (let si = 0; si < steamPuffs.length; si++) {
         const steamPhase = (Math.sin(elapsed * 1.4 + si * 0.7) + 1) / 2;
         steamPuffs[si].material.opacity = 0.04 + steamPhase * 0.06;
         steamPuffs[si].position.y = si * 0.045 + steamPhase * 0.025;
+      }
+      for (let mi = 0; mi < windowSillMugSteamPuffs.length; mi++) {
+        const mugPhase = (Math.sin(elapsed * 0.85 + mi * 1.1) + 1) / 2;
+        windowSillMugSteamPuffs[mi].material.opacity = 0.03 + mugPhase * 0.07;
+        windowSillMugSteamPuffs[mi].position.y = mi * 0.028 + mugPhase * 0.055;
       }
       waterRippleTex.offset.x = (elapsed * 0.03) % 1;
       waterRippleTex.offset.y = (elapsed * 0.045) % 1;
@@ -2513,6 +2674,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
 
     if (privateTeamWindowAmbientMotionEnabled(reducedMotion)) {
+      streetTrafficTex.offset.x = (elapsed * 0.06) % 1;
       cloudTex.offset.x = (elapsed * 0.014) % 1;
       if (now - lastSkylineFlickerMs >= 300) {
         lastSkylineFlickerMs = now;
