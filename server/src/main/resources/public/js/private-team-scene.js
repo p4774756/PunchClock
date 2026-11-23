@@ -101,6 +101,12 @@ export function clampPrivateTeamZoom(z) {
   return Math.min(PRIVATE_TEAM_ZOOM_MAX, Math.max(PRIVATE_TEAM_ZOOM_MIN, n));
 }
 
+/** 雙指捏合縮放倍率（距離變大＝拉近，變小＝拉遠） */
+export function privateTeamPinchZoomFactor(pinchStartZoom, pinchStartDist, dist) {
+  if (!(pinchStartDist > 0) || !(dist > 0)) return pinchStartZoom;
+  return pinchStartZoom * (pinchStartDist / dist);
+}
+
 /** 夜間全域與檯燈強度（供單測） */
 export function privateTeamSceneLighting() {
   return {
@@ -931,7 +937,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     if (pinchActive && activePointers.size >= 2 && pinchStartDist > 0) {
       const dist = pointerDistance();
-      applyZoom(pinchStartZoom * (dist / pinchStartDist));
+      applyZoom(privateTeamPinchZoomFactor(pinchStartZoom, pinchStartDist, dist));
       ev.preventDefault();
     }
   }
