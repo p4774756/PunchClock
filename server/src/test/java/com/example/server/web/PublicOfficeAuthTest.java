@@ -194,6 +194,19 @@ public class PublicOfficeAuthTest {
     }
 
     @Test
+    public void atlasLoginNextRedirectsToHomeModal() throws Exception {
+        HttpResponse<String> slash = send("GET", "/login?next=/atlas/tcm-3d/", null);
+        assertEquals(302, slash.statusCode());
+        assertEquals("/?open=atlas-login", slash.headers().firstValue("location").orElse(""));
+        HttpResponse<String> noslash = send("GET", "/login?next=/atlas/tcm-3d", null);
+        assertEquals(302, noslash.statusCode());
+        assertEquals("/?open=atlas-login", noslash.headers().firstValue("location").orElse(""));
+        HttpResponse<String> authed = send("GET", "/login?next=/atlas/tcm-3d/", adminCookie);
+        assertEquals(302, authed.statusCode());
+        assertEquals("/atlas/tcm-3d/", authed.headers().firstValue("location").orElse(""));
+    }
+
+    @Test
     public void lockedLoginWarningHasNoEmoji() throws Exception {
         for (int i = 0; i < 5; i++) {
             HttpResponse<String> posted = postLogin("not-the-admin-password");

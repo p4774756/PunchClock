@@ -187,6 +187,44 @@ test('open=tasks 參數解析與深連結', () => {
   assert.equal(win._url, '/');
 });
 
+test('open=atlas-login 參數解析與深連結', () => {
+  assert.equal(F.shouldOpenAtlasLoginFromSearch('?open=atlas-login'), true);
+  assert.equal(F.shouldOpenAtlasLoginFromSearch('?open=tasks'), false);
+  let login = false;
+  let atlas = false;
+  const win = {
+    location: {
+      href: 'http://localhost/?open=atlas-login',
+      search: '?open=atlas-login',
+      pathname: '/',
+      hash: ''
+    },
+    history: { replaceState: (_a, _b, url) => { win._url = url; } }
+  };
+  assert.equal(
+    F.applyAtlasLoginOpenParam(win, {
+      isAuthed: () => false,
+      openLoginForAtlas: () => { login = true; },
+      openAtlas: () => { atlas = true; }
+    }),
+    true
+  );
+  assert.equal(login, true);
+  assert.equal(atlas, false);
+  assert.equal(win._url, '/');
+  atlas = false;
+  win.location.search = '?open=atlas-login';
+  assert.equal(
+    F.applyAtlasLoginOpenParam(win, {
+      isAuthed: () => true,
+      openLoginForAtlas: () => { login = true; },
+      openAtlas: () => { atlas = true; }
+    }),
+    true
+  );
+  assert.equal(atlas, true);
+});
+
 test('effectivePhaseStatus：0/5 pending、3/5 progress、5/5 done、current 0/5 active', () => {
   const phase = (n, done, total, extra) => Object.assign({ phase: n, done: false, itemsDone: done, itemsTotal: total }, extra);
   assert.equal(F.effectivePhaseStatus(phase(6, 0, 5), 7), 'pending');

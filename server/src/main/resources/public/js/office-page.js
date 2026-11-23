@@ -2,7 +2,11 @@
 
 import { createRoadmapController } from './roadmap-panel.js';
 import { createHomeTasksController } from './home-tasks-panel.js';
-import { applyRoadmapOpenParam, applyTasksOpenParam } from './dev-machines-format.js';
+import {
+  applyAtlasLoginOpenParam,
+  applyRoadmapOpenParam,
+  applyTasksOpenParam
+} from './dev-machines-format.js';
 import { mountPrivateTeamPage } from './private-team-page.js';
 
 let privateTeam = null;
@@ -52,5 +56,12 @@ privateTeam = mountPrivateTeamPage({
 applyRoadmapOpenParam(window, () => roadmap.open());
 applyTasksOpenParam(window, () => {
   if (window.PUNCHCLOCK_AUTHENTICATED) openTasksFromHud();
+});
+applyAtlasLoginOpenParam(window, {
+  isAuthed: () => !!window.PUNCHCLOCK_AUTHENTICATED,
+  openAtlas: () => {
+    window.location.assign('/atlas/tcm-3d/');
+  },
+  openLoginForAtlas: () => privateTeam.openLoginForAtlas()
 });
 roadmap.refresh();

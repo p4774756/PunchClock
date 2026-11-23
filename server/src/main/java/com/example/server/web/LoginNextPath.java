@@ -14,7 +14,7 @@ public final class LoginNextPath {
     private static final Pattern SAFE_HASH = Pattern.compile("^#(?:devices|panel-devices|system|panel-system)$");
 
     private static final Pattern SAFE_QUERY = Pattern.compile(
-            "^\\?(?:open=(?:roadmap|tasks))(?:&[a-zA-Z0-9_.%-]+=[a-zA-Z0-9_.%-]*)*$");
+            "^\\?(?:open=(?:roadmap|tasks|atlas-login))(?:&[a-zA-Z0-9_.%-]+=[a-zA-Z0-9_.%-]*)*$");
 
     private LoginNextPath() {
     }

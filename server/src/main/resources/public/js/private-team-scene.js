@@ -2153,6 +2153,9 @@ export function mountPrivateTeamScene(canvas, opts) {
     setProgressBoard(view) {
       progressDrawer.draw(view);
     },
+    setAtlasNameplateText(text) {
+      if (nameplateDrawer) nameplateDrawer.draw(text == null ? '' : String(text));
+    },
     setSceneInputEnabled(next) {
       sceneInputEnabled = !!next;
     },
