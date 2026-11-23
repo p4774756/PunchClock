@@ -177,6 +177,35 @@ case "$RUNS_JSON" in
   *'"issue":999'*) fail "runs json must ignore cursor-agent prompt run-wt.sh run999-f3" ;;
 esac
 
+# --- chain dev ps parsing ---
+MOCK_GIT_SHORT="beefcafe"
+MOCK_PS_OUTPUT=""
+MOCK_PS_CHAIN='  03:10 sh /path/chainmed.sh 9474 356
+  02:05 sh /path/chainmed.sh 9475 348
+  01:40 sh /path/loopfast.sh 351 needsha 9476
+  00:50 sh /path/chainrun.sh 9476 med:351 355
+  99:99 cursor-agent -p --model x run-wt.sh run888 fake'
+RUNS_JSON="[]"
+read_chain_runs
+case "$RUNS_JSON" in
+  *'"issue":356'*) ;;
+  *) fail "chain runs json missing issue 356" ;;
+esac
+case "$RUNS_JSON" in
+  *'"issue":348'*) ;;
+  *) fail "chain runs json missing issue 348" ;;
+esac
+case "$RUNS_JSON" in
+  *'"issue":351'*) ;;
+  *) fail "chain runs json missing issue 351" ;;
+esac
+case "$RUNS_JSON" in
+  *'"issue":888'*) fail "chain runs must ignore cursor-agent run-wt in prompt" ;;
+esac
+case "$RUNS_JSON" in
+  *'"issue":355'*) fail "chain runs must not parse chainrun queued specs as active runs" ;;
+esac
+
 # --- run-review ps parsing ---
 MOCK_GIT_SHORT="cafebabe"
 MOCK_PS_REVIEW='  08:00 sh /path/run-review.sh run254-v2 prompt.md ~/PunchClock-oki/wt-254 claude-opus-5-thinking-high

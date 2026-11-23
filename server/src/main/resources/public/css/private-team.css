@@ -592,9 +592,11 @@ button.pt-hud-id-plate {
 
 .pt-status-card {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: min(100%, 440px);
   max-height: min(78vh, 520px);
-  overflow: visible;
+  overflow: hidden;
   padding: 0.85rem 0.95rem 1rem;
   background: var(--maple-white, #f8fbff);
   border: 4px solid var(--maple-navy, #163a70);
@@ -628,6 +630,15 @@ button.pt-hud-id-plate {
   font-size: 1.05rem;
   font-weight: 800;
   color: var(--maple-navy, #163a70);
+  flex: 0 0 auto;
+}
+
+.pt-status-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
 }
 
 .pt-status-section + .pt-status-section {
