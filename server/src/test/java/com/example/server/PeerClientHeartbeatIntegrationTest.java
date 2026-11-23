@@ -75,11 +75,12 @@ public class PeerClientHeartbeatIntegrationTest {
     @Test(timeout = 30_000)
     public void dashboardCancelReachesClientThroughHeartbeat() throws Exception {
         String cookie = server.loginCookie(http);
-        HttpResponse<String> cancel = http.send(HttpRequest.newBuilder(
-                        URI.create(base + "/api/clients/bob/cancel-task/t-1"))
-                .timeout(Duration.ofSeconds(5))
-                .header("Cookie", cookie)
-                .POST(HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> cancel = http.send(
+                server.writeRequest(cookie, HttpRequest.newBuilder(
+                        URI.create(base + "/api/clients/bob/cancel-task/t-1")))
+                        .timeout(Duration.ofSeconds(5))
+                        .POST(HttpRequest.BodyPublishers.noBody()).build(),
+                HttpResponse.BodyHandlers.ofString());
         assertEquals(200, cancel.statusCode());
         assertTrue(alice.send("bob", "取消之後的訊息"));
         bob.pump();

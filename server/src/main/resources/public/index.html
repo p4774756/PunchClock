@@ -20,8 +20,11 @@
 </head>
 <body class="lab-office-page {{AUTH_BODY_CLASS}}">
   <script>
+    window.PUNCHCLOCK_AUTH_PRESENT = {{AUTH_PRESENT_JS_BOOL}};
     window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};
+    window.PUNCHCLOCK_MUST_CHANGE_PASSWORD = {{MUST_CHANGE_JS_BOOL}};
     window.PUNCHCLOCK_AUTH_ROLE = "{{AUTH_ROLE}}";
+    window.PUNCHCLOCK_CSRF_TOKEN = "{{CSRF_TOKEN_JS}}";
     window.PUNCHCLOCK_SERVER_VERSION = "{{SERVER_VERSION}}";
     window.PUNCHCLOCK_SERVER_BUILD_TIME = "{{SERVER_BUILD_TIME}}";
   </script>
@@ -72,11 +75,11 @@
   <section id="loginBoard" class="roadmap-board pt-login-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="home-login-title">
     <div class="roadmap-panel maple-window login-sheet pt-login-panel">
       <header class="maple-win-title roadmap-win-head">
-        <h2 id="home-login-title">管理員登入</h2>
+        <h2 id="home-login-title">後台登入</h2>
         <button type="button" class="roadmap-close-x" data-login-close aria-label="關閉">×</button>
       </header>
       <div class="login-sheet-body">
-        <p class="login-lead">管理員請先登入</p>
+        <p class="login-lead">請先登入後台</p>
         <div data-login-alert></div>
         <form data-login-form class="form-signin" method="post" action="/login">
           <div class="form-group">
@@ -92,6 +95,76 @@
           </div>
           <button type="submit" class="btn btn-primary btn-submit" data-login-submit>登入</button>
         </form>
+      </div>
+    </div>
+  </section>
+  <section id="changePasswordBoard" class="roadmap-board pt-login-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="home-change-pwd-title">
+    <div class="roadmap-panel maple-window login-sheet pt-login-panel">
+      <header class="maple-win-title roadmap-win-head">
+        <h2 id="home-change-pwd-title">變更密碼</h2>
+      </header>
+      <div class="login-sheet-body">
+        <p class="login-lead">首次登入須先設定新密碼，完成後才能使用任務與管理功能。</p>
+        <div data-change-pwd-alert></div>
+        <form data-change-pwd-form class="form-signin">
+          <div class="form-group">
+            <label for="home-change-pwd-new">新密碼</label>
+            <input type="password" id="home-change-pwd-new" class="form-input" data-change-pwd-new required autocomplete="new-password" />
+          </div>
+          <div class="form-group">
+            <label for="home-change-pwd-confirm">確認新密碼</label>
+            <input type="password" id="home-change-pwd-confirm" class="form-input" data-change-pwd-confirm required autocomplete="new-password" />
+          </div>
+          <button type="submit" class="btn btn-primary btn-submit" data-change-pwd-submit>儲存並繼續</button>
+        </form>
+      </div>
+    </div>
+  </section>
+  <section id="accountsBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="帳號">
+    <div class="roadmap-panel maple-window home-tasks-panel">
+      <header class="maple-win-title roadmap-win-head">
+        <h2>帳號</h2>
+        <button type="button" class="roadmap-close-x" data-accounts-close aria-label="關閉">×</button>
+      </header>
+      <div class="home-tasks-body home-accounts-body" data-accounts-root>
+        <p data-accounts-loading hidden>載入中…</p>
+        <div data-accounts-member hidden>
+          <h3 class="section-label">修改密碼</h3>
+          <div data-accounts-member-alert></div>
+          <form data-accounts-member-form class="form-signin">
+            <div class="form-group">
+              <label for="accounts-member-new">新密碼</label>
+              <input type="password" id="accounts-member-new" class="form-input" data-accounts-member-new required autocomplete="new-password" />
+            </div>
+            <button type="submit" class="btn btn-primary">儲存</button>
+          </form>
+        </div>
+        <div data-accounts-admin hidden>
+          <div data-accounts-admin-alert></div>
+          <form data-accounts-create class="form-signin accounts-create-form">
+            <h3 class="section-label">新增帳號</h3>
+            <div class="form-group">
+              <label for="accounts-create-user">使用者名稱</label>
+              <input type="text" id="accounts-create-user" class="form-input" data-accounts-create-user required autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label for="accounts-create-role">角色</label>
+              <select id="accounts-create-role" class="form-input" data-accounts-create-role>
+                <option value="member">成員</option>
+                <option value="admin">管理員</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="accounts-create-pwd">暫時密碼</label>
+              <input type="password" id="accounts-create-pwd" class="form-input" data-accounts-create-pwd required autocomplete="new-password" />
+            </div>
+            <button type="submit" class="btn btn-primary">建立</button>
+          </form>
+          <div class="accounts-list-wrap">
+            <h3 class="section-label">帳號列表</h3>
+            <div data-accounts-list class="accounts-list"></div>
+          </div>
+        </div>
       </div>
     </div>
   </section>

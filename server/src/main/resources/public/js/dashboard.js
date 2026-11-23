@@ -109,6 +109,67 @@
       return getStatusBadgeHtml(status);
     }
 
+    function adminWriteFetch(url, options) {
+      if (typeof window.PunchClockAdminWriteFetch === 'function') {
+        return window.PunchClockAdminWriteFetch(url, options);
+      }
+      const opts = Object.assign({}, options || {});
+      opts.credentials = 'same-origin';
+      const headers = Object.assign({}, opts.headers || {});
+      if (window.PUNCHCLOCK_CSRF_TOKEN) {
+        headers['X-Csrf-Token'] = window.PUNCHCLOCK_CSRF_TOKEN;
+      }
+      opts.headers = headers;
+      return fetch(url, opts);
+    }
+
+    function isDashboardAdmin() {
+      return window.PUNCHCLOCK_AUTH_ROLE === 'admin';
+    }
+
+    function buildDeviceAccountLineHtml(c) {
+      const unbound = c.unbound === true || !c.accountUsername;
+      if (unbound) {
+        return '<span class="device-account-line chip chip-muted">未綁定</span>';
+      }
+      const dn = c.displayName ? escapeHtml(c.displayName) + ' · ' : '';
+      return '<span class="device-account-line">' + dn + escapeHtml(c.accountUsername || '') + '</span>';
+    }
+
+    function buildAssignDeviceHtml(c) {
+      if (!isDashboardAdmin() || !(c.unbound === true || !c.accountUsername)) {
+        return '';
+      }
+      const safeId = escapeHtml(c.clientId).replace(/'/g, "\\'");
+      return (
+        '<div class="device-assign-row">' +
+        '<input type="text" class="form-input device-assign-input" placeholder="帳號" id="assign-user-' + escapeHtml(c.clientId) + '" />' +
+        '<button type="button" class="btn btn-ghost" onclick="assignDeviceToAccount(\'' + safeId + '\')">指派帳號</button>' +
+        '</div>'
+      );
+    }
+
+    window.assignDeviceToAccount = function assignDeviceToAccount(clientId) {
+      const input = document.getElementById('assign-user-' + clientId);
+      const username = input && input.value ? input.value.trim() : '';
+      if (!username) {
+        alert('請輸入要指派的帳號名稱');
+        return;
+      }
+      adminWriteFetch('/api/devices/' + encodeURIComponent(clientId) + '/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ username })
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (!data.success) {
+            alert(data.message || '指派失敗');
+          }
+        })
+        .catch((err) => console.error(err));
+    };
+
     function buildCancelButtonHtml(clientId, taskId, isConnected, taskStatus) {
       if (!isConnected || taskStatus !== 'SCHEDULED') return '';
       if (isTaskCancelPending(clientId, taskId)) return '';
@@ -743,6 +804,7 @@
             '<div class="device-id">' +
               '<span class="device-chevron-slot" aria-hidden="true">' + chevronHtml + '</span>' +
               '<strong>' + escapeHtml(c.clientId) + '</strong>' +
+              buildDeviceAccountLineHtml(c) +
               buildAppVersionHintHtml(c) +
               '<span class="fold-hint" data-fold-label>' + foldText + '</span>' +
             '</div>' +
@@ -752,6 +814,7 @@
             '</div>' +
           '</div>' +
           '<div class="device-body ' + bodyClass + '" id="' + bodyDomId + '">' +
+            buildAssignDeviceHtml(c) +
             '<div class="metrics">' +
               '<div class="metric"><span class="metric-label">最後心跳</span><span class="metric-value heartbeat-value" data-client-id="' + escapeHtml(c.clientId) + '">' + formatHeartbeat(c.lastSeen) + '</span></div>' +
               '<div class="metric"><span class="metric-label">待辦</span><span class="metric-value" data-role="task-count">' + tasks.length + ' 筆</span></div>' +
@@ -797,7 +860,7 @@
 
     function deleteClient(clientId) {
       if (confirm('確定要把【' + clientId + '】從設備名單移除嗎？')) {
-        fetch('/api/clients/' + encodeURIComponent(clientId), { method: 'DELETE' })
+        adminWriteFetch('/api/clients/' + encodeURIComponent(clientId), { method: 'DELETE' })
           .then(res => res.json())
           .then(data => { if (!data.success) alert(data.message || '刪除失敗'); })
           .catch(err => console.error(err));
@@ -811,7 +874,7 @@
       markTaskCancelPending(clientId, taskId);
       refreshTaskCancelUi(clientId, taskId);
       appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在取消這筆任務 (' + taskId + ')…');
-      fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-task/' + encodeURIComponent(taskId), { method: 'POST' })
+      adminWriteFetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-task/' + encodeURIComponent(taskId), { method: 'POST' })
         .then(res => res.json())
         .then(data => {
           if (data.success) {
@@ -839,7 +902,7 @@
       refreshCancelAllUi(clientId);
       appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在取消全部任務…');
       try {
-        const res = await fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-schedule', { method: 'POST' });
+        const res = await adminWriteFetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-schedule', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
           appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已送出取消囉，等對方收到就會全部取消');

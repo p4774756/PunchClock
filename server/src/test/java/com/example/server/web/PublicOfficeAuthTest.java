@@ -307,6 +307,7 @@ public class PublicOfficeAuthTest {
         HttpRequest request = HttpRequest.newBuilder(URI.create(base + "/login"))
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Accept", "application/json")
+                .header("Origin", base)
                 .timeout(Duration.ofSeconds(5))
                 .POST(HttpRequest.BodyPublishers.ofString(form))
                 .build();
@@ -352,6 +353,7 @@ public class PublicOfficeAuthTest {
         HttpRequest request = HttpRequest.newBuilder(URI.create(base + "/login"))
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Accept", "application/json")
+                .header("Origin", base)
                 .timeout(Duration.ofSeconds(5))
                 .POST(HttpRequest.BodyPublishers.ofString(form))
                 .build();
@@ -362,6 +364,7 @@ public class PublicOfficeAuthTest {
         String form = "password=" + java.net.URLEncoder.encode(password, StandardCharsets.UTF_8);
         HttpRequest request = HttpRequest.newBuilder(URI.create(base + "/login"))
                 .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Origin", base)
                 .timeout(Duration.ofSeconds(5))
                 .POST(HttpRequest.BodyPublishers.ofString(form))
                 .build();

@@ -13,6 +13,7 @@ export function wireHomeLoginModal(opts) {
   const win = (opts && opts.win) || globalThis;
   const fetchFn = (opts && opts.fetch) || (win.fetch ? win.fetch.bind(win) : null);
   const onAuthed = typeof (opts && opts.onAuthed) === 'function' ? opts.onAuthed : null;
+  const onMustChangePassword = typeof (opts && opts.onMustChangePassword) === 'function' ? opts.onMustChangePassword : null;
   const onOpenChange = typeof (opts && opts.onOpenChange) === 'function' ? opts.onOpenChange : null;
 
   const board = doc.getElementById('loginBoard');
@@ -185,8 +186,18 @@ export function wireHomeLoginModal(opts) {
       .catch(() => ({ ok: false, status: 0, data: null }))
       .then((result) => {
         if (result.ok && result.data && result.data.success) {
+          if (result.data.csrfToken && win.PunchClockSetCsrfToken) {
+            win.PunchClockSetCsrfToken(result.data.csrfToken);
+          } else if (result.data.csrfToken) {
+            win.PUNCHCLOCK_CSRF_TOKEN = result.data.csrfToken;
+          }
           close();
-          if (onAuthed) onAuthed();
+          if (result.data.mustChangePassword) {
+            if (onMustChangePassword) onMustChangePassword(result.data);
+            if (onAuthed) onAuthed(result.data);
+            return;
+          }
+          if (onAuthed) onAuthed(result.data);
           return;
         }
         applyFailurePayload(result.data);

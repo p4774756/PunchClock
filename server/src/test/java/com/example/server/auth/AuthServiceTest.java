@@ -71,6 +71,7 @@ public class AuthServiceTest {
             HttpResponse<String> response = http.send(
                     HttpRequest.newBuilder(URI.create(base + "/login"))
                             .header("Content-Type", "application/x-www-form-urlencoded")
+                            .header("Origin", base)
                             .POST(HttpRequest.BodyPublishers.ofString(body))
                             .timeout(Duration.ofSeconds(5))
                             .build(),

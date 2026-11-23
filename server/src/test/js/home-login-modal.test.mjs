@@ -293,7 +293,7 @@ test('首頁登入浮動視窗標記與 fetch JSON', () => {
   assert.match(html, /id="loginBoard"/);
   assert.match(html, /roadmap-close-x/);
   assert.match(html, /data-login-form/);
-  assert.match(html, /管理員登入/);
+  assert.match(html, /後台登入/);
   assert.match(js, /Accept: 'application\/json'/);
   assert.match(js, /credentials: 'same-origin'/);
   assert.match(js, /POST/);
@@ -406,20 +406,32 @@ test('左頭像提示的登入打開彈窗，重畫膠囊不加第二次 listene
   doc.body.innerHTML = LOGIN_BOARD_HTML;
   const win = {
     PUNCHCLOCK_AUTHENTICATED: false,
+    PUNCHCLOCK_AUTH_ROLE: 'admin',
     setInterval(fn, ms) { return setInterval(fn, ms); },
     clearInterval(id) { clearInterval(id); },
-    location: { href: '' }
+    location: { href: '' },
+    __openChangePassword() {}
   };
   const page = mountPrivateTeamPage({
     doc,
     win,
     fetch(url) {
-      if (String(url).includes('/login')) {
+      const path = String(url);
+      if (path.includes('/login')) {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: () => Promise.resolve({ success: true })
+          json: () => Promise.resolve({ success: true, role: 'admin', mustChangePassword: false })
         });
+      }
+      if (path.includes('/api/office/public')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ characters: { oki: { status: '待命中', active: [], completedToday: [] } } })
+        });
+      }
+      if (path.includes('/api/dev-status')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ issues: [] }) });
       }
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
     }

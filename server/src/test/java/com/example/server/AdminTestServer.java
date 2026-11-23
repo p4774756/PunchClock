@@ -68,6 +68,23 @@ public final class AdminTestServer {
         return baseUrl;
     }
 
+    public String csrfForAuthCookie(String authCookie) {
+        if (authCookie == null || !authCookie.startsWith("auth=")) {
+            return "";
+        }
+        String sessionId = authCookie.substring(5);
+        return authService.csrfTokenForSession(sessionId).orElse("");
+    }
+
+    public HttpRequest.Builder writeRequest(String cookie, HttpRequest.Builder builder) {
+        builder.header("Origin", originHeaderValue());
+        builder.header("X-Csrf-Token", csrfForAuthCookie(cookie));
+        if (cookie != null) {
+            builder.header("Cookie", cookie);
+        }
+        return builder;
+    }
+
     public void stop() {
         if (app != null) {
             app.stop();
@@ -96,6 +113,7 @@ public final class AdminTestServer {
         HttpResponse<String> response = http.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/login"))
                         .header("Content-Type", "application/x-www-form-urlencoded")
+                        .header("Origin", baseUrl)
                         .POST(HttpRequest.BodyPublishers.ofString(body))
                         .timeout(java.time.Duration.ofSeconds(10))
                         .build(),
@@ -116,6 +134,9 @@ public final class AdminTestServer {
     }
 
     private static void loginPost(Context ctx, AuthService authService) {
+        if (!authService.enforceBrowserWrite(ctx)) {
+            return;
+        }
         String username = ctx.formParam("username");
         if (username == null || username.isBlank()) {
             username = "root";

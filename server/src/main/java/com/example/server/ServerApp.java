@@ -220,6 +220,7 @@ public final class ServerApp {
         devMachineRoutes.register(app);
         atlasRoutes.register(app);
         app.get("/api/status", this::status);
+        app.get("/api/session", this::sessionInfo);
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
         app.post("/api/clients/{clientId}/cancel-task/{taskId}", this::cancelTask);
         app.delete("/api/clients/{clientId}", this::deleteClient);
@@ -272,6 +273,9 @@ public final class ServerApp {
     }
 
     private void loginPost(Context ctx) {
+        if (!authService.enforceBrowserWrite(ctx)) {
+            return;
+        }
         String ip = IpResolver.clientIp(ctx);
         String nextSafe = LoginNextPath.sanitize(ctx.formParam("next"));
         boolean json = wantsJsonLogin(ctx);
@@ -295,6 +299,7 @@ public final class ServerApp {
                 body.put("success", true);
                 body.put("mustChangePassword", loggedIn.get().mustChangePassword);
                 body.put("role", loggedIn.get().role);
+                authService.csrfTokenForSession(loggedIn.get().sessionId).ifPresent(t -> body.put("csrfToken", t));
                 ctx.status(HttpStatus.OK).json(body);
                 return;
             }
@@ -355,6 +360,9 @@ public final class ServerApp {
     }
 
     private void logoutPost(Context ctx) {
+        if (!authService.enforceAdminWrite(ctx)) {
+            return;
+        }
         logoutAndRespond(ctx, wantsJsonLogin(ctx));
     }
 
@@ -505,6 +513,21 @@ public final class ServerApp {
 
 
 
+    private void sessionInfo(Context ctx) {
+        Optional<AuthService.AuthUser> user = authService.currentUser(ctx);
+        if (user.isEmpty()) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入"));
+            return;
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", true);
+        body.put("username", user.get().username);
+        body.put("role", user.get().role);
+        body.put("mustChangePassword", user.get().mustChangePassword);
+        authService.csrfTokenForSession(user.get().sessionId).ifPresent(t -> body.put("csrfToken", t));
+        ctx.json(body);
+    }
+
     private void status(Context ctx) {
         AuthService.AuthUser user = authService.currentUser(ctx).orElse(null);
         if (user == null) {
@@ -528,6 +551,9 @@ public final class ServerApp {
     }
 
     private void cancelSchedule(Context ctx) {
+        if (!authService.enforceAdminWrite(ctx)) {
+            return;
+        }
         AuthService.AuthUser user = authService.currentUser(ctx).orElse(null);
         if (user == null || user.mustChangePassword) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
@@ -544,6 +570,9 @@ public final class ServerApp {
     }
 
     private void cancelTask(Context ctx) {
+        if (!authService.enforceAdminWrite(ctx)) {
+            return;
+        }
         AuthService.AuthUser user = authService.currentUser(ctx).orElse(null);
         if (user == null || user.mustChangePassword) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
@@ -561,6 +590,9 @@ public final class ServerApp {
     }
 
     private void deleteClient(Context ctx) {
+        if (!authService.enforceAdminWrite(ctx)) {
+            return;
+        }
         AuthService.AuthUser user = authService.currentUser(ctx).orElse(null);
         if (user == null || user.mustChangePassword) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
@@ -580,11 +612,32 @@ public final class ServerApp {
 
     private void officeHome(Context ctx) {
         Optional<AuthService.AuthUser> user = authService.currentUser(ctx);
-        boolean authenticated = user.filter(u -> !u.mustChangePassword).isPresent();
+        boolean sessionPresent = user.isPresent();
+        boolean tasksUnlocked = user.filter(u -> !u.mustChangePassword).isPresent();
+        boolean mustChangePassword = user.map(u -> u.mustChangePassword).orElse(false);
         String role = user.map(u -> u.role).orElse("guest");
-        String html = applyAuthPageTokens(applyServerBuildTokens(readResource("/public/index.html")), authenticated, role);
+        String csrfJs = "";
+        if (user.isPresent()) {
+            csrfJs = authService.csrfTokenForSession(user.get().sessionId)
+                    .map(ServerApp::escapeForJsString)
+                    .orElse("");
+        }
+        String html = applyAuthPageTokens(
+                applyServerBuildTokens(readResource("/public/index.html")),
+                sessionPresent,
+                tasksUnlocked,
+                mustChangePassword,
+                role);
+        html = html.replace("{{CSRF_TOKEN_JS}}", csrfJs);
         ctx.header("Cache-Control", PAGE_CACHE);
         ctx.html(html);
+    }
+
+    private static String escapeForJsString(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private void adminConsole(Context ctx) {
@@ -597,11 +650,14 @@ public final class ServerApp {
                 .replace("{{SERVER_BUILD_TIME}}", serverBuildLabel());
     }
 
-    private static String applyAuthPageTokens(String html, boolean authenticated, String role) {
+    private static String applyAuthPageTokens(String html, boolean sessionPresent, boolean tasksUnlocked,
+                                              boolean mustChangePassword, String role) {
         String safeRole = role == null || role.isEmpty() ? "guest" : role;
         return html
-                .replace("{{AUTH_BODY_CLASS}}", authenticated ? "is-authenticated" : "is-guest")
-                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false")
+                .replace("{{AUTH_BODY_CLASS}}", sessionPresent ? "is-authenticated" : "is-guest")
+                .replace("{{AUTH_PRESENT_JS_BOOL}}", sessionPresent ? "true" : "false")
+                .replace("{{AUTH_JS_BOOL}}", tasksUnlocked ? "true" : "false")
+                .replace("{{MUST_CHANGE_JS_BOOL}}", mustChangePassword ? "true" : "false")
                 .replace("{{AUTH_ROLE}}", safeRole);
     }
 

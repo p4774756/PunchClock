@@ -48,7 +48,7 @@ public final class AccountRoutes {
     }
 
     private void createAccount(Context ctx) {
-        if (!requireAdmin(ctx)) {
+        if (!authService.enforceAdminWrite(ctx) || !requireAdmin(ctx)) {
             return;
         }
         Map<String, Object> body = parseBody(ctx);
@@ -61,7 +61,7 @@ public final class AccountRoutes {
     }
 
     private void patchAccount(Context ctx) {
-        if (!requireAdmin(ctx)) {
+        if (!authService.enforceAdminWrite(ctx) || !requireAdmin(ctx)) {
             return;
         }
         String username = ctx.pathParam("username");
@@ -90,7 +90,7 @@ public final class AccountRoutes {
     }
 
     private void deleteAccount(Context ctx) {
-        if (!requireAdmin(ctx)) {
+        if (!authService.enforceAdminWrite(ctx) || !requireAdmin(ctx)) {
             return;
         }
         String username = ctx.pathParam("username");
@@ -103,6 +103,9 @@ public final class AccountRoutes {
     }
 
     private void changePassword(Context ctx) {
+        if (!authService.enforceAdminWrite(ctx)) {
+            return;
+        }
         Optional<AuthService.AuthUser> user = authService.currentUser(ctx);
         if (user.isEmpty()) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入"));
@@ -115,7 +118,14 @@ public final class AccountRoutes {
         if (result == AccountStore.OperationResult.OK) {
             authService.revokeAllSessionsForUser(user.get().username);
             Optional<AuthService.AuthUser> fresh = authService.login(user.get().username, newPassword);
-            fresh.ifPresent(u -> authService.applyAuthCookie(ctx, u.sessionId));
+            if (fresh.isPresent()) {
+                authService.applyAuthCookie(ctx, fresh.get().sessionId);
+                Map<String, Object> ok = new LinkedHashMap<>();
+                ok.put("success", true);
+                authService.csrfTokenForSession(fresh.get().sessionId).ifPresent(t -> ok.put("csrfToken", t));
+                ctx.json(ok);
+                return;
+            }
         }
         respondAccountOp(ctx, result);
     }
@@ -140,7 +150,7 @@ public final class AccountRoutes {
     }
 
     private void assignDevice(Context ctx) {
-        if (!requireAdmin(ctx)) {
+        if (!authService.enforceAdminWrite(ctx) || !requireAdmin(ctx)) {
             return;
         }
         Map<String, Object> body = parseBody(ctx);
@@ -150,6 +160,9 @@ public final class AccountRoutes {
     }
 
     private void displayName(Context ctx) {
+        if (!authService.enforceAdminWrite(ctx)) {
+            return;
+        }
         Optional<AuthService.AuthUser> user = authService.currentUser(ctx);
         if (user.isEmpty()) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入"));

@@ -385,7 +385,56 @@
       outline-offset: -3px;
     }
 
-    .device-id {
+    .device-account-line {
+  margin-left: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: normal;
+}
+
+.device-assign-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.device-assign-input {
+  max-width: 12rem;
+}
+
+.accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.accounts-row {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem;
+}
+
+.accounts-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.accounts-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.accounts-create-form {
+  margin-bottom: 1rem;
+}
+
+.device-id {
       display: flex;
       align-items: center;
       gap: 0.65rem;
@@ -924,4 +973,53 @@
 
     @media (max-width: 720px) {
       .chat-layout { grid-template-columns: 1fr; }
+    }
+
+    .device-account-line {
+      margin-left: 0.5rem;
+      font-size: 0.82rem;
+      font-weight: normal;
+    }
+
+    .device-assign-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin: 0.5rem 0 0.75rem;
+    }
+
+    .device-assign-input {
+      max-width: 12rem;
+    }
+
+    .accounts-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    .accounts-row {
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 6px;
+      padding: 0.65rem 0.75rem;
+    }
+
+    .accounts-row-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .accounts-row-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    .accounts-create-form {
+      margin-bottom: 1rem;
     }

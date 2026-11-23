@@ -5,6 +5,7 @@ import com.example.server.store.AppTokenStore;
 import com.example.server.store.DeviceBindingStore;
 import io.javalin.http.Context;
 import io.javalin.http.Cookie;
+import io.javalin.http.HttpStatus;
 import io.javalin.http.SameSite;
 
 import java.nio.charset.StandardCharsets;
@@ -106,6 +107,38 @@ public final class AuthService {
 
     public boolean isAuth(Context ctx) {
         return currentUser(ctx).filter(u -> !u.mustChangePassword).isPresent();
+    }
+
+    /** 已登入之 Cookie 寫入：同源檢查 + CSRF。允許 {@code mustChangePassword} 改密碼。 */
+    public boolean enforceAdminWrite(Context ctx) {
+        Optional<AuthUser> user = currentUser(ctx);
+        if (user.isEmpty()) {
+            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入"));
+            return false;
+        }
+        if (!AdminOriginGuard.allowBrowserWrite(ctx, config)) {
+            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", "來源驗證失敗"));
+            return false;
+        }
+        String csrf = ctx.header("X-Csrf-Token");
+        if (!sessionStore.verifyCsrf(user.get().sessionId, csrf)) {
+            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", "CSRF 驗證失敗"));
+            return false;
+        }
+        return true;
+    }
+
+    /** 登入等尚無 session CSRF 的瀏覽器寫入。 */
+    public boolean enforceBrowserWrite(Context ctx) {
+        if (!AdminOriginGuard.allowBrowserWrite(ctx, config)) {
+            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", "來源驗證失敗"));
+            return false;
+        }
+        return true;
+    }
+
+    public Optional<String> csrfTokenForSession(String sessionId) {
+        return sessionStore.csrfTokenFor(sessionId);
     }
 
     public boolean isAuthFromCookieHeader(String cookieHeader) {

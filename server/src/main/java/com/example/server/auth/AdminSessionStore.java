@@ -22,12 +22,14 @@ public final class AdminSessionStore {
         public final String username;
         public final String role;
         public final long createdAt;
+        final String csrfToken;
         private final AtomicLong lastSeen;
 
-        SessionRecord(String username, String role, long createdAt, long lastSeen) {
+        SessionRecord(String username, String role, long createdAt, long lastSeen, String csrfToken) {
             this.username = username;
             this.role = role;
             this.createdAt = createdAt;
+            this.csrfToken = csrfToken;
             this.lastSeen = new AtomicLong(lastSeen);
         }
 
@@ -80,10 +82,37 @@ public final class AdminSessionStore {
         byte[] id = new byte[SESSION_ID_BYTES];
         random.nextBytes(id);
         String sessionId = Base64.getUrlEncoder().withoutPadding().encodeToString(id);
+        byte[] csrfBytes = new byte[SESSION_ID_BYTES];
+        random.nextBytes(csrfBytes);
+        String csrfToken = Base64.getUrlEncoder().withoutPadding().encodeToString(csrfBytes);
         String key = sha256Hex(sessionId);
         long now = clock.millis();
-        byKey.put(key, new SessionRecord(username, role, now, now));
+        byKey.put(key, new SessionRecord(username, role, now, now, csrfToken));
         return sessionId;
+    }
+
+    public Optional<String> csrfTokenFor(String sessionId) {
+        if (!isValidCookieFormat(sessionId)) {
+            return Optional.empty();
+        }
+        SessionRecord record = byKey.get(sha256Hex(sessionId));
+        if (record == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(record.csrfToken);
+    }
+
+    public boolean verifyCsrf(String sessionId, String token) {
+        if (token == null || token.isEmpty()) {
+            return false;
+        }
+        Optional<String> expected = csrfTokenFor(sessionId);
+        if (expected.isEmpty()) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                expected.get().getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                token.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     public Optional<SessionRecord> resolve(String sessionId, boolean touch) {

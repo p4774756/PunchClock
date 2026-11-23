@@ -88,11 +88,17 @@ function taskHudMarkup() {
   );
 }
 
-function identityHudMarkup(authed) {
+function identityRoleLabel(win, authed) {
+  if (!authed) return '訪客';
+  const role = win && win.PUNCHCLOCK_AUTH_ROLE;
+  return role === 'admin' ? '管理員' : '成員';
+}
+
+function identityHudMarkup(authed, win) {
   const idBody =
     '<span class="pt-a-id-gem" aria-hidden="true"></span>' +
     '<span class="pt-a-id-text">' +
-    '<span class="pt-a-id-role">' + (authed ? '管理員' : '訪客') + '</span>' +
+    '<span class="pt-a-id-role">' + identityRoleLabel(win, authed) + '</span>' +
     '<span class="pt-a-id-sub">' + (authed ? '線上' : '登入') + '</span>' +
     '</span>';
   if (authed) {
@@ -102,7 +108,8 @@ function identityHudMarkup(authed) {
       idBody +
       '</button>' +
       '<div class="pt-hud-id-menu" data-pt-identity-menu hidden role="menu">' +
-      '<a href="/logout" role="menuitem">登出</a>' +
+      '<button type="button" role="menuitem" data-pt-open-accounts>帳號</button>' +
+      '<button type="button" role="menuitem" data-pt-logout>登出</button>' +
       '</div></div>'
     );
   }
@@ -120,7 +127,7 @@ export function mountPrivateTeamPage(opts) {
   const stage = doc.querySelector('[data-private-team-stage]');
   if (!stage) return { destroy() {} };
 
-  let sessionAuthed = !!(win.PUNCHCLOCK_AUTHENTICATED);
+  let sessionAuthed = !!(win.PUNCHCLOCK_AUTH_PRESENT || win.PUNCHCLOCK_AUTHENTICATED);
   if (win.PUNCHCLOCK_AUTH_ROLE !== 'admin') {
     doc.querySelectorAll('[data-admin-only]').forEach((el) => {
       el.hidden = true;
@@ -133,6 +140,7 @@ export function mountPrivateTeamPage(opts) {
     typeof pageHooks.openRoadmap === 'function' ? pageHooks.openRoadmap : null;
   const openTasks = typeof pageHooks.openTasks === 'function' ? pageHooks.openTasks : null;
   const closeTasks = typeof pageHooks.closeTasks === 'function' ? pageHooks.closeTasks : null;
+  const openAccounts = typeof pageHooks.openAccounts === 'function' ? pageHooks.openAccounts : null;
 
   let canvas = stage.querySelector('[data-private-team-canvas]');
   if (!canvas) {
@@ -158,7 +166,7 @@ export function mountPrivateTeamPage(opts) {
       '<p class="pt-hud-task-hint-text">先登入才能看任務</p>' +
       '<button type="button" class="pt-hud-task-hint-login" data-pt-open-login>登入</button>' +
       '</div></div>' +
-      '<div class="pt-hud-tr" data-pt-hud-tr>' + identityHudMarkup(sessionAuthed) + '</div>' +
+      '<div class="pt-hud-tr" data-pt-hud-tr>' + identityHudMarkup(sessionAuthed, win) + '</div>' +
       '<div class="pt-hud-br">' +
       '<a class="pt-hud-download" href="/download" aria-label="下載 App">' + DL_SVG +
       '<span class="pt-hud-dl-label">下載 App</span></a></div>' +
@@ -248,22 +256,68 @@ export function mountPrivateTeamPage(opts) {
         toggleIdentityMenu();
       });
     }
+    const openAccountsBtn = hud.querySelector('[data-pt-open-accounts]');
+    if (openAccountsBtn) {
+      openAccountsBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        closeIdentityMenu();
+        if (openAccounts) openAccounts();
+      });
+    }
+    const logoutBtn = hud.querySelector('[data-pt-logout]');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        closeIdentityMenu();
+        const doLogout = win.PunchClockAdminWriteFetch
+          ? win.PunchClockAdminWriteFetch('/logout', { method: 'POST', headers: { Accept: 'application/json' } })
+          : fetchFn('/logout', { method: 'POST', credentials: 'same-origin' });
+        Promise.resolve(doLogout)
+          .then(() => {
+            win.location.assign('/');
+          })
+          .catch(() => {
+            win.location.assign('/logout');
+          });
+      });
+    }
     bindOpenLoginHandlers(hud);
   }
 
-  function applySessionAuthed() {
+  function applySessionAuthed(payload) {
     sessionAuthed = true;
-    win.PUNCHCLOCK_AUTHENTICATED = true;
+    win.PUNCHCLOCK_AUTH_PRESENT = true;
+    const mustChange = !!(payload && payload.mustChangePassword);
+    win.PUNCHCLOCK_MUST_CHANGE_PASSWORD = mustChange;
+    win.PUNCHCLOCK_AUTHENTICATED = !mustChange;
+    if (payload && payload.role) {
+      win.PUNCHCLOCK_AUTH_ROLE = payload.role;
+    }
     if (doc.body) {
       doc.body.classList.remove('is-guest');
       doc.body.classList.add('is-authenticated');
     }
     if (identityTr) {
-      identityTr.innerHTML = identityHudMarkup(true);
+      identityTr.innerHTML = identityHudMarkup(true, win);
       identityMenuOpen = false;
       mountIdentitySection();
     }
     closeTaskHint();
+    if (!mustChange && pendingOpenTasksAfterLogin) {
+      pendingOpenTasksAfterLogin = false;
+      if (openTasks) openTasks();
+    }
+  }
+
+  function onPasswordChanged() {
+    win.PUNCHCLOCK_MUST_CHANGE_PASSWORD = false;
+    win.PUNCHCLOCK_AUTHENTICATED = true;
+    sessionAuthed = true;
+    if (identityTr) {
+      identityTr.innerHTML = identityHudMarkup(true, win);
+      identityMenuOpen = false;
+      mountIdentitySection();
+    }
     if (pendingOpenTasksAfterLogin) {
       pendingOpenTasksAfterLogin = false;
       if (openTasks) openTasks();
@@ -423,6 +477,11 @@ export function mountPrivateTeamPage(opts) {
     win,
     fetch: fetchFn,
     onAuthed: applySessionAuthed,
+    onMustChangePassword: () => {
+      if (typeof win.__openChangePassword === 'function') {
+        win.__openChangePassword();
+      }
+    },
     onOpenChange: (open) => {
       loginOpen = !!open;
       stage.classList.toggle('pt-login-open', loginOpen);
@@ -620,6 +679,7 @@ export function mountPrivateTeamPage(opts) {
   return {
     setRoadmapOpen,
     setTasksOpen,
+    onPasswordChanged,
     destroy() {
       win.clearInterval(poll);
       doc.removeEventListener('keydown', onKeyDown);
