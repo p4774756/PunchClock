@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { loadPublicModule } from './load-public-module.mjs';
 
 const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
-const { privateTeamSceneLighting } = await loadPublicModule('private-team-scene.js');
+const { privateTeamSceneLighting, PRIVATE_TEAM_TRAY_SURFACE_Y, PRIVATE_TEAM_WATER_Y } =
+  await loadPublicModule('private-team-scene.js');
 
 test('privateTeamSceneLighting 夜晚暖光檯燈', () => {
   const night = privateTeamSceneLighting();
@@ -25,4 +26,25 @@ test('首頁秘書場景已移除名牌、泡泡錨點下移', () => {
   assert.doesNotMatch(src, /namePlate|nameStand/);
   assert.match(src, /bubbleFloatMin = 1\.68/);
   assert.doesNotMatch(src, /bubbleFloatMin = 2\.2/);
+});
+
+test('下沉浴缸、托盤與雙螢幕支架', () => {
+  assert.ok(PRIVATE_TEAM_TRAY_SURFACE_Y > 0.45 && PRIVATE_TEAM_TRAY_SURFACE_Y < 0.52);
+  assert.ok(PRIVATE_TEAM_WATER_Y < PRIVATE_TEAM_TRAY_SURFACE_Y);
+  assert.ok(PRIVATE_TEAM_WATER_Y > 0.4 && PRIVATE_TEAM_WATER_Y < 0.5);
+  const src = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
+  assert.match(src, /bathtubWater/);
+  assert.match(src, /bathtubRim/);
+  assert.match(src, /bathtubFront/);
+  assert.match(src, /bathtubInnerFront/);
+  assert.match(src, /keyboardTray/);
+  assert.match(src, /addMonitor\(root, secretaryLook, -0\.34/);
+  assert.match(src, /addMonitor\(root, secretaryLook, 0\.34/);
+  assert.match(src, /basePlate/);
+  assert.match(src, /bathPillow/);
+  assert.match(src, /applyUnderwaterTint/);
+  assert.doesNotMatch(src, /rug-weave/);
+  assert.doesNotMatch(src, /rugEdge/);
+  assert.doesNotMatch(src, /remove_secretary_chair_for_bathtub/);
+  assert.match(src, /tubSteam/);
 });

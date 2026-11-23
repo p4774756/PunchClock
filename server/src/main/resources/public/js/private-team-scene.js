@@ -65,6 +65,12 @@ export function secretaryTypingDisplayUrl(statusBaseUrl, useTypingB, reducedMoti
 export const PRIVATE_TEAM_ZOOM_MIN = 0.72;
 export const PRIVATE_TEAM_ZOOM_MAX = 2.05;
 
+/** 鍵盤托盤上緣（與原桌面高度相近） */
+export const PRIVATE_TEAM_TRAY_SURFACE_Y = 0.498;
+
+/** 浴缸水面高度（約齊腰，略高於托盤，鍵盤仍露出） */
+export const PRIVATE_TEAM_WATER_Y = 0.468;
+
 /** 立繪在場景中的高度（公尺比例）；寬度依紋理長寬比計算 */
 const SECRETARY_SPRITE_HEIGHT = 1.42;
 
@@ -78,10 +84,16 @@ const COL = {
   woodDk: 0xa07840,
   wall: 0x243248,
   wallDk: 0x1a2438,
-  rug: 0x6a8fd4,
-  rugEdge: 0xa8d0f2,
   desk: 0x8b6914,
+  tub: 0x7a7268,
+  tubInner: 0x24343c,
+  tubRim: 0x9a9084,
+  water: 0x2c7a88,
+  waterHi: 0xc4f0f2,
+  towel: 0xefe4d4,
+  towelDk: 0xddcbb3,
   screen: 0x1a2438,
+  screenStand: 0x2a3648,
   progress: 0x2e9a4a,
   plant: 0x3d8b4a,
   pot: 0xc4a882,
@@ -166,12 +178,140 @@ function extrudedRoundedPlate(hw, hh, depth, radius, mat) {
   return new THREE.Mesh(geo, mat);
 }
 
+function extrudedRoundedRing(hw, hh, inHw, inHh, depth, radius, mat) {
+  const shape = roundedRectShape(hw, hh, radius);
+  const hole = roundedRectShape(inHw, inHh, Math.max(0.02, radius * 0.55));
+  shape.holes.push(hole);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: depth,
+    bevelEnabled: true,
+    bevelThickness: 0.01,
+    bevelSize: 0.01,
+    bevelSegments: 2,
+    curveSegments: 6
+  });
+  geo.rotateX(-Math.PI / 2);
+  return new THREE.Mesh(geo, mat);
+}
+
 function loadRepeatTex(loader, file, rx, ry) {
   const tex = loader.load(TEX_BASE + file);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.repeat.set(rx, ry);
   return tex;
+}
+
+function makeStoneTileTexture(repeatX, repeatY) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#94897b';
+  ctx.fillRect(0, 0, 128, 128);
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 4; col++) {
+      const shade = 140 + ((row * 3 + col * 5) % 7) * 5;
+      ctx.fillStyle = 'rgb(' + (shade + 8) + ',' + (shade - 2) + ',' + (shade - 14) + ')';
+      ctx.fillRect(col * 32 + 2, row * 32 + 2, 28, 28);
+    }
+  }
+  ctx.strokeStyle = '#5c564e';
+  ctx.lineWidth = 3;
+  for (let i = 0; i <= 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * 32, 0);
+    ctx.lineTo(i * 32, 128);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, i * 32);
+    ctx.lineTo(128, i * 32);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.repeat.set(repeatX, repeatY);
+  tex.anisotropy = 4;
+  return tex;
+}
+
+function makeWaterRippleTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 128, 128);
+  const g = ctx.createRadialGradient(64, 64, 8, 64, 64, 62);
+  g.addColorStop(0, 'rgba(255,255,255,0.0)');
+  g.addColorStop(0.35, 'rgba(220,250,255,0.28)');
+  g.addColorStop(0.55, 'rgba(255,255,255,0.0)');
+  g.addColorStop(0.78, 'rgba(200,240,245,0.22)');
+  g.addColorStop(1, 'rgba(255,255,255,0.0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.repeat.set(2.2, 1.6);
+  return tex;
+}
+
+function applyUnderwaterTint(mat, waterYUniform) {
+  mat.alphaTest = 0.02;
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uWaterY = waterYUniform;
+    shader.vertexShader = 'varying vec3 vWorldPos;\n' + shader.vertexShader.replace(
+      '#include <project_vertex>',
+      'vec4 worldPos = modelMatrix * vec4(transformed, 1.0);\n  vWorldPos = worldPos.xyz;\n  #include <project_vertex>'
+    );
+    shader.fragmentShader = 'uniform float uWaterY;\nvarying vec3 vWorldPos;\n' + shader.fragmentShader.replace(
+      '#include <dithering_fragment>',
+      [
+        '#include <dithering_fragment>',
+        'float sub = uWaterY - vWorldPos.y;',
+        'if (sub > 0.0) {',
+        '  float fade = smoothstep(0.0, 0.08, sub);',
+        '  gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(0.22, 0.48, 0.58), fade);',
+        '  gl_FragColor.a *= 1.0 - 0.97 * smoothstep(0.015, 0.12, sub);',
+        '  if (gl_FragColor.a < 0.03) discard;',
+        '}'
+      ].join('\n')
+    );
+  };
+  mat.customProgramCacheKey = () => 'secretary-underwater-tint-v2';
+}
+
+function addBathPillow(sprite) {
+  if (sprite.getObjectByName('bathPillow')) return;
+  const group = new THREE.Group();
+  group.name = 'bathPillow';
+  group.position.set(0.31, -0.1, 0.03);
+  function towelBox(w, h, d, color) {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(w, h, d),
+      new THREE.MeshBasicMaterial({ color })
+    );
+    mesh.renderOrder = 1;
+    return mesh;
+  }
+  const cushion = towelBox(0.34, 0.54, 0.075, COL.towel);
+  cushion.name = 'bathPillowCushion';
+  cushion.position.set(0.05, 0, 0);
+  const roll = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.055, 0.055, 0.26, 14),
+    new THREE.MeshBasicMaterial({ color: COL.towelDk })
+  );
+  roll.name = 'bathPillowRoll';
+  roll.rotation.z = Math.PI / 2;
+  roll.position.set(0.04, 0.2, 0.015);
+  roll.renderOrder = 1;
+  const fold = towelBox(0.16, 0.22, 0.055, COL.towelDk);
+  fold.name = 'bathPillowFold';
+  fold.position.set(-0.1, 0.08, 0.01);
+  fold.rotation.z = -0.18;
+  group.add(cushion, roll, fold);
+  sprite.add(group);
 }
 
 function makeScreenPainter() {
@@ -306,16 +446,25 @@ function spriteAspectFromTexture(tex) {
   return 526 / 768;
 }
 
-function addMonitor(root, lookTarget, x, z, scale) {
+function addMonitor(root, lookTarget, x, z, scale, traySurfaceY) {
   const group = new THREE.Group();
   const s = scale == null ? 1 : scale;
+  const trayY = traySurfaceY == null ? PRIVATE_TEAM_TRAY_SURFACE_Y : traySurfaceY;
   group.position.set(x, 0.86, z);
   group.scale.set(s, s, s);
-  const bezel = box(0.64, 0.46, 0.05, COL.screen);
+  const bezel = box(0.58, 0.42, 0.05, COL.screen);
   const painter = makeScreenPainter();
-  const stand = box(0.1, 0.28, 0.08, 0x2a3648);
-  stand.position.y = -0.34;
-  group.add(bezel, painter.mesh, stand);
+  const mountLocalY = trayY - group.position.y;
+  const bezelBottom = -0.21;
+  const standBottom = mountLocalY + 0.008;
+  const standH = Math.max(0.08, bezelBottom - standBottom);
+  const stand = box(0.09, standH, 0.07, COL.screenStand);
+  stand.position.y = (bezelBottom + standBottom) / 2;
+  const basePlate = box(0.15, 0.018, 0.11, COL.screenStand);
+  basePlate.position.y = standBottom - 0.009;
+  const bracket = box(0.04, standH * 0.55, 0.05, COL.screenStand);
+  bracket.position.set(0, standBottom + standH * 0.22, 0.04);
+  group.add(bezel, painter.mesh, stand, basePlate, bracket);
   group.lookAt(lookTarget.x, lookTarget.y, lookTarget.z);
   root.add(group);
 
@@ -323,7 +472,7 @@ function addMonitor(root, lookTarget, x, z, scale) {
   screenGlow.position.set(0, 0.05, 0.12);
   group.add(screenGlow);
 
-  return { painter, screenGlow };
+  return { painter, screenGlow, group };
 }
 
 function addLowPolyPlant(root, x, z) {
@@ -384,7 +533,6 @@ export function mountPrivateTeamScene(canvas, opts) {
   const wallTex = loadRepeatTex(texLoader, 'wall.webp', 2.2, 1.4);
   const floorTex = loadRepeatTex(texLoader, 'floor-wood.webp', 2.4, 2.4);
   const deskTex = loadRepeatTex(texLoader, 'desk-wood.webp', 2.2, 1.2);
-  const rugTex = loadRepeatTex(texLoader, 'rug-weave.webp', 2.2, 1.4);
 
   const root = new THREE.Group();
   scene.add(root);
@@ -394,14 +542,121 @@ export function mountPrivateTeamScene(canvas, opts) {
   floor.position.y = 0;
   root.add(floor);
 
-  const rugMat = new THREE.MeshLambertMaterial({ map: rugTex, color: COL.rug });
-  const rug = extrudedRoundedPlate(1.2, 0.8, 0.028, 0.06, rugMat);
-  rug.position.set(0, 0.038, 0.06);
-  root.add(rug);
-  const edgeMat = new THREE.MeshLambertMaterial({ color: COL.rugEdge });
-  const rugEdge = extrudedRoundedPlate(1.22, 0.82, 0.01, 0.06, edgeMat);
-  rugEdge.position.set(0, 0.048, 0.06);
-  root.add(rugEdge);
+  const TRAY_THICK = 0.036;
+  const TRAY_TOP_Y = PRIVATE_TEAM_TRAY_SURFACE_Y;
+  const trayZ = 0.12;
+  const WATER_Y = PRIVATE_TEAM_WATER_Y;
+  const RIM_TOP_Y = 0.62;
+  const TUB_CX = 0;
+  const TUB_CZ = 0.64;
+  const TUB_HW = 0.84;
+  const TUB_HD = 0.52;
+  const WALL_T = 0.08;
+  const IN_HW = TUB_HW - WALL_T;
+  const IN_HD = TUB_HD - WALL_T;
+  const outerH = RIM_TOP_Y - 0.02;
+  const outerMidY = 0.02 + outerH / 2;
+  const tileTex = makeStoneTileTexture(8, 3);
+  const tileSideTex = makeStoneTileTexture(8, 4);
+  const outerMat = new THREE.MeshLambertMaterial({ map: tileSideTex, color: COL.tub });
+  const innerMat = new THREE.MeshLambertMaterial({ color: COL.tubInner });
+  const rimMat = new THREE.MeshLambertMaterial({ map: tileTex, color: COL.tubRim });
+  const waterYUniform = { value: WATER_Y };
+
+  const tubFloor = box(IN_HW * 2 - 0.02, 0.03, IN_HD * 2 - 0.02, COL.tubInner);
+  tubFloor.position.set(TUB_CX, 0.03, TUB_CZ);
+  tubFloor.name = 'bathtubFloor';
+  root.add(tubFloor);
+
+  const frontZ = TUB_CZ + TUB_HD - WALL_T / 2;
+  const backZTub = TUB_CZ - TUB_HD + WALL_T / 2;
+  const tubFront = box(TUB_HW * 2, outerH, WALL_T, COL.tub);
+  tubFront.material = outerMat.clone();
+  tubFront.position.set(TUB_CX, outerMidY, frontZ);
+  tubFront.name = 'bathtubFront';
+  root.add(tubFront);
+  const tubBack = box(TUB_HW * 2, outerH, WALL_T, COL.tub);
+  tubBack.material = outerMat.clone();
+  tubBack.position.set(TUB_CX, outerMidY, backZTub);
+  tubBack.name = 'bathtubBack';
+  root.add(tubBack);
+  const tubLeft = box(WALL_T, outerH, TUB_HD * 2 - WALL_T * 2, COL.tub);
+  tubLeft.material = outerMat.clone();
+  tubLeft.position.set(TUB_CX - TUB_HW + WALL_T / 2, outerMidY, TUB_CZ);
+  tubLeft.name = 'bathtubLeft';
+  root.add(tubLeft);
+  const tubRight = box(WALL_T, outerH, TUB_HD * 2 - WALL_T * 2, COL.tub);
+  tubRight.material = outerMat.clone();
+  tubRight.position.set(TUB_CX + TUB_HW - WALL_T / 2, outerMidY, TUB_CZ);
+  tubRight.name = 'bathtubRight';
+  root.add(tubRight);
+
+  const rim = extrudedRoundedRing(TUB_HW + 0.03, TUB_HD + 0.03, IN_HW, IN_HD, 0.055, 0.07, rimMat);
+  rim.position.set(TUB_CX, RIM_TOP_Y - 0.045, TUB_CZ);
+  rim.name = 'bathtubRim';
+  root.add(rim);
+  const liningH = RIM_TOP_Y - 0.08;
+  const liningY = 0.04 + liningH / 2;
+  const liningT = 0.02;
+  function addLining(name, w, h, d, x, y, z) {
+    const mesh = box(w, h, d, COL.tubInner);
+    mesh.position.set(x, y, z);
+    mesh.name = name;
+    root.add(mesh);
+    return mesh;
+  }
+  addLining('bathtubInnerFront', IN_HW * 2, liningH, liningT, TUB_CX, liningY, TUB_CZ + IN_HD - liningT / 2);
+  addLining('bathtubInnerBack', IN_HW * 2, liningH, liningT, TUB_CX, liningY, TUB_CZ - IN_HD + liningT / 2);
+  addLining('bathtubInnerLeft', liningT, liningH, IN_HD * 2 - liningT * 2, TUB_CX - IN_HW + liningT / 2, liningY, TUB_CZ);
+  addLining('bathtubInnerRight', liningT, liningH, IN_HD * 2 - liningT * 2, TUB_CX + IN_HW - liningT / 2, liningY, TUB_CZ);
+
+  const waterMat = new THREE.MeshLambertMaterial({
+    color: COL.water,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false
+  });
+  const water = extrudedRoundedPlate(IN_HW - 0.02, IN_HD - 0.02, 0.012, 0.05, waterMat);
+  water.position.set(TUB_CX, WATER_Y, TUB_CZ);
+  water.name = 'bathtubWater';
+  water.renderOrder = 1;
+  root.add(water);
+  const waterRippleTex = makeWaterRippleTexture();
+  const rippleMat = new THREE.MeshBasicMaterial({
+    map: waterRippleTex,
+    color: COL.waterHi,
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false
+  });
+  const waterRipple = extrudedRoundedPlate(IN_HW - 0.04, IN_HD - 0.04, 0.004, 0.05, rippleMat);
+  waterRipple.position.set(TUB_CX, WATER_Y + 0.008, TUB_CZ);
+  waterRipple.name = 'bathtubWaterHighlight';
+  waterRipple.renderOrder = 1;
+  root.add(waterRipple);
+
+  const trayMat = new THREE.MeshLambertMaterial({ map: deskTex, color: COL.desk });
+  const tray = extrudedRoundedPlate(0.54, 0.26, TRAY_THICK, 0.04, trayMat);
+  tray.position.set(0, TRAY_TOP_Y - TRAY_THICK, trayZ);
+  tray.name = 'keyboardTray';
+  root.add(tray);
+  const steamPuffs = [];
+  const steamGroup = new THREE.Group();
+  steamGroup.position.set(-0.08, WATER_Y + 0.04, TUB_CZ + 0.22);
+  steamGroup.name = 'tubSteam';
+  for (let si = 0; si < 4; si++) {
+    const puffMat = new THREE.MeshBasicMaterial({
+      color: 0xf8fbff,
+      transparent: true,
+      opacity: 0.07,
+      depthWrite: false
+    });
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.035 + si * 0.008, 6, 5), puffMat);
+    puff.position.set((si - 1.5) * 0.055, si * 0.045, 0);
+    steamGroup.add(puff);
+    steamPuffs.push(puff);
+  }
+  root.add(steamGroup);
 
   const wallMat = new THREE.MeshLambertMaterial({ map: wallTex, color: 0xd8e4f4 });
   const backZ = -FLOOR_HALF;
@@ -521,29 +776,27 @@ export function mountPrivateTeamScene(canvas, opts) {
   progMesh.rotation.y = Math.PI / 2;
   root.add(progMesh);
 
-  const deskMat = new THREE.MeshLambertMaterial({ map: deskTex, color: COL.desk });
-  const desk = extrudedRoundedPlate(1.08, 0.43, 0.075, 0.05, deskMat);
-  desk.position.set(0, 0.468, 0.04);
-  root.add(desk);
-
-  const secretaryLook = new THREE.Vector3(0.02, 1.02, 0.78);
-  const monitor = addMonitor(root, secretaryLook, 0.02, -0.1, 1);
+  const secretaryLook = new THREE.Vector3(0.02, 1.02, 0.56);
+  const monitors = [
+    addMonitor(root, secretaryLook, -0.34, -0.06, 0.92, TRAY_TOP_Y),
+    addMonitor(root, secretaryLook, 0.34, -0.06, 0.92, TRAY_TOP_Y)
+  ];
 
   const mug = new THREE.Mesh(
     new THREE.CylinderGeometry(0.09, 0.075, 0.18, 12),
     new THREE.MeshBasicMaterial({ color: COL.mug })
   );
-  mug.position.set(-0.38, 0.58, 0.38);
+  mug.position.set(-0.38, TRAY_TOP_Y + 0.09, 0.32);
   const mugHandle = new THREE.Mesh(
     new THREE.TorusGeometry(0.05, 0.015, 6, 10),
     new THREE.MeshBasicMaterial({ color: COL.mug })
   );
-  mugHandle.position.set(-0.46, 0.58, 0.38);
+  mugHandle.position.set(-0.46, TRAY_TOP_Y + 0.09, 0.32);
   mugHandle.rotation.y = Math.PI / 2;
   root.add(mug, mugHandle);
 
   const lampGroup = new THREE.Group();
-  lampGroup.position.set(0.92, 0.512, 0.42);
+  lampGroup.position.set(0.78, TRAY_TOP_Y + 0.016, 0.36);
   lampGroup.rotation.y = 1.35;
   const lampBase = cyl(0.07, 0.095, 0.045, 12, COL.lampBase);
   lampBase.position.y = 0.022;
@@ -609,7 +862,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   addLowPolyPlant(root, -1.15, 0.82);
 
   const secretaryRoot = new THREE.Group();
-  secretaryRoot.position.set(0.02, 0, 0.78);
+  secretaryRoot.position.set(0.02, 0, 0.56);
   root.add(secretaryRoot);
 
   const shadowMat = new THREE.MeshBasicMaterial({
@@ -780,15 +1033,17 @@ export function mountPrivateTeamScene(canvas, opts) {
     const mat = new THREE.MeshBasicMaterial({
       map: tex,
       transparent: true,
-      alphaTest: 0.06,
+      alphaTest: 0.02,
       depthWrite: false,
       side: THREE.DoubleSide
     });
+    applyUnderwaterTint(mat, waterYUniform);
     secretarySprite = new THREE.Mesh(new THREE.PlaneGeometry(spriteW, SECRETARY_SPRITE_HEIGHT), mat);
     secretarySprite.position.set(0, spriteBaseY, 0);
     secretarySprite.renderOrder = 2;
     secretarySprite.name = 'secretarySprite';
     secretaryRoot.add(secretarySprite);
+    addBathPillow(secretarySprite);
     if (clickables.indexOf(secretarySprite) === -1) {
       clickables.push(secretarySprite);
     }
@@ -1072,8 +1327,26 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
 
     const pulse = (Math.sin(elapsed * 3) + 1) / 2;
-    monitor.painter.draw(pulse);
-    monitor.screenGlow.intensity = 0.22 + pulse * 0.12;
+    for (let mi = 0; mi < monitors.length; mi++) {
+      monitors[mi].painter.draw(pulse);
+      monitors[mi].screenGlow.intensity = 0.22 + pulse * 0.12;
+    }
+
+    if (reducedMotion) {
+      for (let si = 0; si < steamPuffs.length; si++) {
+        steamPuffs[si].material.opacity = 0;
+      }
+      rippleMat.opacity = 0.16;
+    } else {
+      for (let si = 0; si < steamPuffs.length; si++) {
+        const steamPhase = (Math.sin(elapsed * 1.4 + si * 0.7) + 1) / 2;
+        steamPuffs[si].material.opacity = 0.04 + steamPhase * 0.06;
+        steamPuffs[si].position.y = si * 0.045 + steamPhase * 0.025;
+      }
+      waterRippleTex.offset.x = (elapsed * 0.03) % 1;
+      waterRippleTex.offset.y = (elapsed * 0.045) % 1;
+      rippleMat.opacity = 0.2 + ((Math.sin(elapsed * 1.1) + 1) / 2) * 0.12;
+    }
 
     if (lampPointBase > 0) {
       const lampPulse = reducedMotion ? 1 : 0.93 + ((Math.sin(elapsed * 3.6) + 1) / 2) * 0.07;
