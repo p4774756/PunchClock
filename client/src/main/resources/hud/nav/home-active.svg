@@ -1,18 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
-  <defs>
-    <linearGradient id="n-fill" x1="0.25" y1="0" x2="0.75" y2="1"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="100%" stop-color="#FFF3F8"/></linearGradient><linearGradient id="n-acc" x1="0.25" y1="0" x2="0.75" y2="1"><stop offset="0%" stop-color="#FFE4F0"/><stop offset="100%" stop-color="#FF9EC4"/></linearGradient>
-<clipPath id="n-clip"><path d="M5.15 10.4 C4.55 8.2 3.55 4.55 3.35 4.35 C3.15 4.15 3.55 3.95 6.15 4.85 C7.85 5.45 8.85 8.55 8.85 9.85 Z"/><path d="M18.85 10.4 C19.45 8.2 20.45 4.55 20.65 4.35 C20.85 4.15 20.45 3.95 17.85 4.85 C16.15 5.45 15.15 8.55 15.15 9.85 Z"/><path d="M12 21.15 C6.55 21.15 2.85 17.15 2.85 13.05 C2.85 8.85 6.75 6.15 12 6.15 C17.25 6.15 21.15 8.85 21.15 13.05 C21.15 17.15 17.45 21.15 12 21.15 Z"/></clipPath>
-  </defs>
-  <path d="M5.15 10.4 C4.55 8.2 3.55 4.55 3.35 4.35 C3.15 4.15 3.55 3.95 6.15 4.85 C7.85 5.45 8.85 8.55 8.85 9.85 Z" fill="url(#n-fill)"/>
-<path d="M18.85 10.4 C19.45 8.2 20.45 4.55 20.65 4.35 C20.85 4.15 20.45 3.95 17.85 4.85 C16.15 5.45 15.15 8.55 15.15 9.85 Z" fill="url(#n-fill)"/>
-<path d="M5.55 9.55 C5.15 7.85 4.55 5.55 4.55 5.45 C6.25 5.95 7.55 7.95 7.75 9.15 Z" fill="url(#n-acc)"/>
-<path d="M18.45 9.55 C18.85 7.85 19.45 5.55 19.45 5.45 C17.75 5.95 16.45 7.95 16.25 9.15 Z" fill="url(#n-acc)"/>
-<path d="M12 21.15 C6.55 21.15 2.85 17.15 2.85 13.05 C2.85 8.85 6.75 6.15 12 6.15 C17.25 6.15 21.15 8.85 21.15 13.05 C21.15 17.15 17.45 21.15 12 21.15 Z" fill="url(#n-fill)"/>
-<g clip-path="url(#n-clip)"><ellipse cx="9" cy="9.5" rx="9.2" ry="5.6" fill="#ffffff" fill-opacity="0.38"/><ellipse cx="7.8" cy="8.5" rx="4.6" ry="2.1" fill="#ffffff" fill-opacity="0.5"/></g>
-<path d="M7.35 12.85 C 8.55 11.717 9.75 11.717 10.95 12.85" fill="none" stroke="#E14B82" stroke-width="1.55" stroke-linecap="round"/>
-<path d="M13.05 12.85 C 14.25 11.717 15.45 11.717 16.65 12.85" fill="none" stroke="#E14B82" stroke-width="1.55" stroke-linecap="round"/>
-<path d="M12 14.35 C11.35 14.35 10.95 14.85 12 15.45 C13.05 14.85 12.65 14.35 12 14.35 Z" fill="url(#n-acc)"/>
-<path d="M10.15 16.35 C 11.383 17.483 12.617 17.483 13.85 16.35" fill="none" stroke="#E14B82" stroke-width="1.35" stroke-linecap="round"/>
-<ellipse cx="7.15" cy="16.35" rx="1.55" ry="1.0" fill="url(#n-acc)" fill-opacity="0.85"/>
-<ellipse cx="16.85" cy="16.35" rx="1.55" ry="1.0" fill="url(#n-acc)" fill-opacity="0.85"/>
+  <ellipse cx="12.15" cy="21.2" rx="8" ry="1.5" fill="#000000" fill-opacity="0.20"/>
+<path d="M 19.015 17.95 L 12.433 21.75 L 12.433 15.95 L 19.015 12.15 Z" fill="#FFE4F0"/>
+<path d="M 4.812 17.35 L 12.433 21.75 L 12.433 15.95 L 4.812 11.55 Z" fill="#FFE8F0"/>
+<path d="M 11.394 7.75 L 19.015 12.15 L 12.433 15.95 L 4.812 11.55 Z" fill="#FFF8FB"/>
+<path d="M 17.04 19.11 L 15.005 20.285 L 15.005 16.885 L 17.04 15.71 Z" fill="#FF5F96"/>
+<path d="M 6.96 16.46 L 8.822 17.535 L 8.822 15.385 L 6.96 14.31 Z" fill="#FFFFFF"/>
+<path d="M 6.951 15.53 L 8.813 16.605 L 8.813 16.325 L 6.951 15.25 Z" fill="#FFE8F0"/>
+<path d="M 7.761 16.933 L 8.003 17.073 L 8.003 14.922 L 7.761 14.782 Z" fill="#FFE8F0"/>
+<path d="M 19.881 12.15 L 12.433 16.45 L 12.433 15.7 L 19.881 11.4 Z" fill="#FF5F96"/>
+<path d="M 3.946 11.55 L 12.433 16.45 L 12.433 15.7 L 3.946 10.8 Z" fill="#FF5F96"/>
+<path d="M 11.394 6.5 L 19.881 11.4 L 12.433 15.7 L 3.946 10.8 Z" fill="#FF9EC4"/>
+<path d="M 20.747 14.65 L 19.379 15.44 L 19.379 15.84 L 20.747 15.05 Z" fill="#FFE8F0"/>
+<path d="M 19.145 12.175 L 20.747 14.65 L 19.379 15.44 L 17.776 12.965 Z" fill="#FFFFFF"/>
+<path d="M 19.379 15.44 L 18.01 16.23 L 18.01 16.63 L 19.379 15.84 Z" fill="#FFE4F0"/>
+<path d="M 17.776 12.965 L 19.379 15.44 L 18.01 16.23 L 16.408 13.755 Z" fill="#FF5F96"/>
+<path d="M 18.01 16.23 L 16.642 17.02 L 16.642 17.42 L 18.01 16.63 Z" fill="#FFE8F0"/>
+<path d="M 16.408 13.755 L 18.01 16.23 L 16.642 17.02 L 15.04 14.545 Z" fill="#FFFFFF"/>
+<path d="M 16.642 17.02 L 15.274 17.81 L 15.274 18.21 L 16.642 17.42 Z" fill="#FFE4F0"/>
+<path d="M 15.04 14.545 L 16.642 17.02 L 15.274 17.81 L 13.671 15.335 Z" fill="#FF5F96"/>
+<path d="M 15.274 17.81 L 13.905 18.6 L 13.905 19 L 15.274 18.21 Z" fill="#FFE8F0"/>
+<path d="M 13.671 15.335 L 15.274 17.81 L 13.905 18.6 L 12.303 16.125 Z" fill="#FFFFFF"/>
 </svg>
