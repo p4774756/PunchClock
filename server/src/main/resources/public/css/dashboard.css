@@ -552,13 +552,13 @@
     .task-card {
       border: 1px solid var(--line-soft);
       border-radius: var(--radius);
-      padding: 0.75rem 0.85rem;
+      padding: 0.85rem 0.95rem;
       background: var(--white);
       min-width: 0;
     }
 
     .task-card:nth-child(even) {
-      background: var(--surface-alt);
+      background: #f7f5ef;
     }
 
     .task-card-top {
@@ -603,9 +603,9 @@
     }
 
     .task-field dt {
-      font-size: 0.75rem;
+      font-size: 0.82rem;
       font-weight: 700;
-      color: var(--text-muted);
+      color: var(--text-dark);
       margin: 0;
       padding-top: 0.1rem;
       text-align: right;
@@ -614,40 +614,44 @@
     .task-field dd {
       margin: 0;
       min-width: 0;
-      font-size: 0.85rem;
+      font-size: 0.92rem;
+      color: var(--text-dark);
+      line-height: 1.4;
     }
 
     .task-countdown {
       font-family: var(--mono);
-      font-size: 0.8rem;
+      font-size: 0.86rem;
       font-weight: 700;
-      color: var(--blue);
+      color: #0e4d73;
     }
 
     .task-card-actions .task-countdown {
-      padding: 0.25rem 0.55rem;
+      padding: 0.3rem 0.6rem;
       border-radius: var(--radius-pill);
-      border: 1px solid rgba(9, 101, 151, 0.3);
-      background: var(--blue-soft);
+      border: 1px solid #163a70;
+      background: #eef6fc;
+      color: #163a70;
       white-space: nowrap;
     }
 
     .time-actual {
       font-family: var(--mono);
-      font-size: 0.78rem;
-      color: var(--warn);
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #9a5a00;
       overflow-wrap: anywhere;
     }
 
     .task-url, .task-sel {
       font-family: var(--mono);
-      font-size: 0.75rem;
-      color: var(--text-muted);
+      font-size: 0.82rem;
+      color: #3d4f5c;
       overflow-wrap: anywhere;
       word-break: break-word;
     }
 
-    .task-sel { color: var(--blue-deep); }
+    .task-sel { color: #163a70; font-weight: 600; }
 
     @media (min-width: 860px) {
       .task-card-fields { grid-template-columns: 1fr 1fr; }

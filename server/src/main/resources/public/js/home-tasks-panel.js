@@ -9,7 +9,6 @@ export function createHomeTasksController(opts) {
   }
   const officeModal = opts && opts.officeModal;
   const root = doc && doc.getElementById ? doc.getElementById('tasksBoard') : null;
-  const closeBtn = root && root.querySelector('[data-tasks-close]');
   const panel = root && root.querySelector('.home-tasks-panel');
   let openState = false;
 
@@ -28,23 +27,26 @@ export function createHomeTasksController(opts) {
     if (typeof hooks.onChange === 'function') hooks.onChange({ open: want });
   }
 
-  function closeFromBackdrop(ev) {
-    if (!root || ev.target !== root) return;
+  function onRootClick(ev) {
+    if (!ev || !root || ev.target !== root) return;
     setOpen(false);
   }
 
-  if (closeBtn) {
-    closeBtn.addEventListener('click', (ev) => {
+  function onPanelClick(ev) {
+    const closeEl = ev && ev.target && ev.target.closest && ev.target.closest('[data-tasks-close]');
+    if (closeEl) {
       ev.preventDefault();
       setOpen(false);
-    });
+      return;
+    }
+    ev.stopPropagation();
   }
 
   if (root) {
-    root.addEventListener('click', closeFromBackdrop);
+    root.addEventListener('click', onRootClick);
   }
   if (panel) {
-    panel.addEventListener('click', (ev) => ev.stopPropagation());
+    panel.addEventListener('click', onPanelClick);
   }
 
   function onEscapeKey(ev) {
