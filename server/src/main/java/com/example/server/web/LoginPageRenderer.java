@@ -28,6 +28,8 @@ public final class LoginPageRenderer {
                 + "  <meta charset=\"UTF-8\">\n"
                 + "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
                 + "  <title>PunchClock · 管理員登入</title>\n"
+                + "  <link rel=\"icon\" href=\"/favicon.ico\" sizes=\"any\">\n"
+                + "  <link rel=\"icon\" href=\"/favicon.svg\" type=\"image/svg+xml\">\n"
                 + "  <link rel=\"stylesheet\" href=\"/css/dashboard.css\">\n"
                 + "  <link rel=\"stylesheet\" href=\"/css/console.css\">\n"
                 + "  <link rel=\"stylesheet\" href=\"/css/roadmap.css\">\n"

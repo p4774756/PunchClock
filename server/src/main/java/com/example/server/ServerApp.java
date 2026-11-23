@@ -22,6 +22,7 @@ import com.example.server.web.DashboardBroadcaster;
 import com.example.server.web.GraffitiRoutes;
 import com.example.server.web.OfficePublicRoutes;
 import com.example.server.web.PublicDownloadRoutes;
+import com.example.server.web.PublicFaviconRoutes;
 import com.example.server.web.RelayRoutes;
 import com.example.server.web.DevMachineRoutes;
 import com.example.server.web.DevStatusRoutes;
@@ -215,6 +216,7 @@ public final class ServerApp {
         devStatusRoutes.register(app);
         devMachineRoutes.register(app);
         atlasRoutes.register(app);
+        PublicFaviconRoutes.register(app);
         app.get("/api/status", this::status);
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
         app.post("/api/clients/{clientId}/cancel-task/{taskId}", this::cancelTask);
