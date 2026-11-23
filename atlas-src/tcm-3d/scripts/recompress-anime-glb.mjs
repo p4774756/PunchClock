@@ -10,7 +10,10 @@ import sharp from 'sharp';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const modelPath = join(root, 'public/models/anime-assistant.glb');
-const digestPath = join(root, 'app/anime-model-digest.ts');
+const digestPathFor = outputPath =>
+  outputPath.includes('anime-adult')
+    ? join(root, 'app/anime-adult-model-digest.ts')
+    : join(root, 'app/anime-model-digest.ts');
 
 const GLB_MAGIC = 0x46546c67;
 const GLB_JSON = 0x4e4f534a;
@@ -138,7 +141,13 @@ async function main() {
   }
   const final = readFileSync(written);
   const digest = createHash('sha256').update(final).digest('hex').slice(0, 12);
-  writeFileSync(digestPath, `/** Content digest for anime-assistant.glb (cache bust). */\nexport const ANIME_MODEL_DIGEST='${digest}';\nexport const ANIME_MODEL_BYTES=${final.length};\n`);
+  const digestPath = digestPathFor(written);
+  const digestBase = written.includes('anime-adult') ? 'anime-adult' : 'anime-assistant';
+  const exportPrefix = digestBase === 'anime-adult' ? 'ANIME_ADULT_MODEL' : 'ANIME_MODEL';
+  writeFileSync(
+    digestPath,
+    `/** Content digest for ${digestBase}.glb (cache bust). */\nexport const ${exportPrefix}_DIGEST='${digest}';\nexport const ${exportPrefix}_BYTES=${final.length};\n`,
+  );
   const gzip = Number(process.env.STAT_GZIP);
   console.log(`寫入 ${written}`);
   console.log(`原始位元組：${final.length}`);

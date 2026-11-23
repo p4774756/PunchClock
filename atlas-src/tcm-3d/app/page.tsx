@@ -1,6 +1,6 @@
 import {publicAssetUrl} from './public-assets';
 import {ANIME_DEFAULT_SET} from './character-mode';
-import {DEFAULT_AVATAR_ID,animeAvatar,avatarLessonNote,avatarPracticeOpen,avatarSupportsPoint,avatarSupportedCodes} from './avatars';
+import {ANIME_AVATARS,DEFAULT_AVATAR_ID,animeAvatar,type AvatarId,avatarLessonNote,avatarPracticeOpen,avatarSupportsPoint,avatarSupportedCodes} from './avatars';
 import {ANIME_OUTFITS,DEFAULT_OUTFIT_ID,animeOutfit,type OutfitId} from './outfits';
 import {LOAD_STEP_LABELS,type AtlasLoadProgress} from './load-progress';
 import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
@@ -58,7 +58,8 @@ function ToolGlyph({tool}:{tool:ToolId}){
 export default function Home(){
  const launch=useMemo(()=>readLaunchParams(),[]);
  const [state,setState]=useState<SceneState>(()=>launch.set||launch.code?{...initialScene,view:'front'}:initialScene);
- const currentAvatar=animeAvatar(DEFAULT_AVATAR_ID);
+ const [avatarId,setAvatarId]=useState<AvatarId>(DEFAULT_AVATAR_ID);
+ const currentAvatar=animeAvatar(avatarId);
  const avatarCodes=useMemo(()=>avatarSupportedCodes(currentAvatar),[currentAvatar]);
  const [simulation,setSimulation]=useState<SimulationState>(()=>{
   const set=launch.set??'all';
@@ -215,6 +216,16 @@ export default function Home(){
  const loadingHint=error?'':progress<100?loadStep||('載入 '+currentOutfit.name+' 與已對應穴位標記。'):'正在繪製第一幅畫面…';
  const onError=useCallback((_message:string)=>{setError('3D 模型加載出現問題，請檢查網絡與瀏覽器 WebGL 支持後重試。');setSimulation(s=>({...s,dragging:false,running:false}));},[]);
  const onPracticeOutfitPreparing=useCallback((preparing:boolean)=>{setPracticePreparing(preparing);},[]);
+ const selectAvatar=useCallback((next:AvatarId)=>{
+  if(next===avatarId)return;
+  pause(`已切換為${animeAvatar(next).shortName}。`);
+  setAvatarId(next);
+  setScenePainted(false);
+  setProgress(6);
+  setLoadStep(LOAD_STEP_LABELS.program);
+  setError('');
+  setSimulation(s=>({...s,dragging:false,running:false,customTarget:null}));
+ },[avatarId,pause]);
  const selectedTitle=point?.name??(simulation.customTarget?'自選體表位置':'點選穴位標記');
  const outfitPending=practicePreparing&&outfitId==='study-body';
  const dialogBlurb=useMemo(()=>{
@@ -230,14 +241,17 @@ export default function Home(){
     <div className="brand" aria-hidden="true"><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室</span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></div>
    </div>
    <div className="header-actions">
+    <div className="model-switch" role="group" aria-label="角色切換">
+     {ANIME_AVATARS.map(avatar=><button key={avatar.id} type="button" className={avatarId===avatar.id?'selected':''} aria-pressed={avatarId===avatar.id} onClick={()=>selectAvatar(avatar.id)}>{avatar.shortName}</button>)}
+    </div>
     <div className="header-status"><span className="status-dot"/>穴位練習中<span className="header-divider"/>{currentAvatar.shortName}</div>
     <a className="roadmap-close-x" href={HOME_HREF} aria-label={BACK_HOME_ARIA}>×</a>
    </div>
   </header>
 
   <section className="scene-stage" aria-label="3D 人體教學視窗">
-   <Suspense fallback={null}><CharacterScene key={DEFAULT_AVATAR_ID} state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={DEFAULT_AVATAR_ID} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onFrameReady={onFrameReady} onError={onError} onPracticeOutfitPreparing={onPracticeOutfitPreparing}/></Suspense>
-   <div className="scene-guide"><span className="guide-cross">+</span><span>{currentAvatar.shortName} · {currentOutfit.shortName}</span></div>
+   <Suspense fallback={null}><CharacterScene key={avatarId} state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={avatarId} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onFrameReady={onFrameReady} onError={onError} onPracticeOutfitPreparing={onPracticeOutfitPreparing}/></Suspense>
+   <div className="scene-guide"><span className="guide-cross">+</span><span>{currentAvatar.shortName}{showOutfitBar?` · ${currentOutfit.shortName}`:''}</span></div>
    {loadingVisible&&(
     <div className={error?'loading-card woodcut-loading load-error':'loading-card woodcut-loading'} role="status">
      <span className="loading-symbol">{error?(<Info size={23}/>):(<Layers3 size={23}/>)}</span>
@@ -328,7 +342,8 @@ export default function Home(){
    <div className="dialog-heading"><span className="eyebrow">資料、許可與當前邊界</span><button className="icon-button" onClick={()=>setAbout(false)} aria-label="關閉來源與許可" autoFocus><X size={19}/></button></div>
    <h2 id="source-title">讓每一層，有據可查。</h2><p className="dialog-intro">這裡整理了經絡研習室引用的標準、角色與教具來源，方便課堂查證與討論。</p>
    <section><h3>穴位定位</h3><p>以 GB/T 12346—2021《經穴名稱與定位》為主要核查來源。研習室目前只在角色身上顯示已對位完成的穴位（頭頸 21 穴、頭胸腹背腰 30 穴，共 51 穴；含人迎、天突）。其餘經穴名稱仍在我們的教學目錄中，會依課堂進度陸續烘上並對到角色皮膚。</p><a href={STANDARD} target="_blank" rel="noreferrer">查閱國家標準正文<ArrowUpRight size={13}/></a></section>
-   <section><h3>動漫角色</h3><p>研習室角色為 VRoid Studio β 版樣本「Sendagaya Shino」（pixiv Inc.，CC0 1.0）。換裝可切「制服」與「練習裝」（深青運動內衣＋高腰短褲、高包頭）；胸腹背腰與人迎／天突請用練習裝，針與指壓打在真實皮膚上。</p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">CC0 1.0 說明<ArrowUpRight size={13}/></a><a href={publicAssetUrl('/ATTRIBUTION.md')} target="_blank" rel="noreferrer">署名細節<ArrowUpRight size={13}/></a></section>
+   <section><h3>原本角色（CC0）</h3><p>Sendagaya Shino 為 VRoid Studio β 版樣本（pixiv Inc.，CC0 1.0）。換裝可切「制服」與「練習裝」（深青運動內衣＋高腰短褲、高包頭）；胸腹背腰與人迎／天突請用練習裝，針與指壓打在真實皮膚上。</p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">CC0 1.0 說明<ArrowUpRight size={13}/></a></section>
+   <section><h3>成年角色（VRoid 官方樣本）</h3><p>AvatarSample_A 依 <a href="https://vroid.pixiv.help/hc/en-us/articles/4402394424089-VRoidPreset-A-Z" target="_blank" rel="noreferrer">VRoid 官方樣本利用條件</a> 使用與改作（<strong>不是 CC0</strong>，著作權未放棄）。可營利／非營利使用與免費再發布；不可當成 CC0、不可販售模型檔，也不可讓人誤以為 pixiv 官方背書本產品。髮色為研習室改作（純黑側分瀏海）。</p><a href="https://hub.vroid.com/en/characters/2843975675147313744/models/5644550979324015604" target="_blank" rel="noreferrer">官方介紹頁<ArrowUpRight size={13}/></a><a href={publicAssetUrl('/ATTRIBUTION.md')} target="_blank" rel="noreferrer">署名細節<ArrowUpRight size={13}/></a></section>
    <section><h3>工具與局部反饋</h3><p>針具接觸與指壓形變為教學視覺示意，不預測療效，也不提供真人操作參數。</p><a href="https://www.nccih.nih.gov/health/acupuncture-effectiveness-and-safety" target="_blank" rel="noreferrer">NCCIH：針灸資料<ArrowUpRight size={13}/></a><a href="https://www.mskcc.org/cancer-care/patient-education/acupressure-pain-and-headaches" target="_blank" rel="noreferrer">MSK：指壓資料<ArrowUpRight size={13}/></a></section>
    <button className="dialog-done" onClick={()=>setAbout(false)}>返回研習室</button>
   </dialog>

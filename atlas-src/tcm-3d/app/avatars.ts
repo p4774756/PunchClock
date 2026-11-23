@@ -1,8 +1,11 @@
+import {ANIME_ADULT_MODEL_DIGEST} from './anime-adult-model-digest';
 import {ANIME_MODEL_URL,ANIME_POINTS,type AnimePoint} from './character-mode';
 import type {SurfaceTarget} from './teaching';
 import {POINT_BY_CODE,isPracticeDeferred} from './teaching';
 
-export type AvatarId='assistant';
+export type AvatarId='assistant'|'adult';
+
+const ANIME_ADULT_MODEL_URL=`/models/anime-adult.glb?v=${ANIME_ADULT_MODEL_DIGEST}`;
 
 export interface AnimeAvatar{
  id:AvatarId;
@@ -30,6 +33,17 @@ export const ANIME_AVATARS:AnimeAvatar[]=[
   points:ANIME_POINTS,
   hasOutfits:true,
   blurb:'Sendagaya Shino 研習室助教（制服／練習裝）。',
+ },
+ {
+  id:'adult',
+  name:'成年角色',
+  shortName:'成年角色',
+  modelUrl:ANIME_ADULT_MODEL_URL,
+  modelStatus:'ready',
+  expectedModelPath:'atlas-src/tcm-3d/public/models/anime-adult.glb',
+  points:[],
+  hasOutfits:false,
+  blurb:'VRoid 官方樣本 AvatarSample_A（黑髮側分瀏海）；穴位尚未對位。',
  },
 ];
 
@@ -73,7 +87,10 @@ export function avatarPracticePoints(avatar:AnimeAvatar){
 
 export function avatarLessonNote(avatar:AnimeAvatar,code:string|null|undefined){
  if(avatar.modelStatus==='pending')return `${avatar.name} 的 3D 模型尚未加入，請把 .glb 放到 ${avatar.expectedModelPath}。`;
- if(!code)return `${avatar.name} 目前提供已對應穴位練習。`;
+ if(!code){
+  if(avatar.points.length===0)return `${avatar.name} 的穴位尚未對位，之後依課堂進度加入。`;
+  return `${avatar.name} 目前提供已對應穴位練習。`;
+ }
  if(avatarSupportsPoint(avatar,code))return `此穴已在${avatar.name}完成對應，可點選標記練習。`;
  const name=POINT_BY_CODE.get(code)?.name??code;
  return `${name} 尚未烘到${avatar.name}身上，之後依課堂進度加入。`;
