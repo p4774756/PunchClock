@@ -49,6 +49,7 @@ import {tuneCharacterTextures} from './character-texture-tune';
 import {clearAvatarSceneCache,stashAvatarRig,takeAvatarRig,type CachedAvatarRig} from './avatar-scene-cache';
 import {installSurfaceToolInput} from './surface-tool-input';
 import {focusViewFromNormal} from './focus-view';
+import {buildStudyDecor, type StudyDecor} from './study-decor';
 import type {SceneState} from './anatomy';
 import type {SimulationState,SurfaceTarget,ToolDragPhase} from './teaching';
 
@@ -1506,8 +1507,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    dirty=true;
   },undefined,()=>{resolveWoodcut();});
 
-  const ground=makeFeetGround();
-  ground.rotation.x=-Math.PI/2;ground.position.y=-.01;ground.userData.atlasSceneChrome=true;scene.add(ground);
+  const studyDecor:StudyDecor=buildStudyDecor();
+  scene.fog=studyDecor.fog;
+  scene.add(studyDecor.group);
 
   const gradient=toonGradient();
   const characterRoot=new T.Group();characterRoot.visible=false;scene.add(characterRoot);
@@ -2193,9 +2195,11 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const hit=raycaster.intersectObjects(teaching.markers.filter(m=>m.visible),false)[0];
    if(hit)pointSelect.current(hit.object.userData.point,hit.object.userData.side);
   };
+  const reducedMotionMq=typeof matchMedia==='function'?matchMedia('(prefers-reduced-motion: reduce)'):null;
   const animate=()=>{
    if(disposed)return;frame=requestAnimationFrame(animate);
    const now=performance.now();const delta=Math.min(.05,(now-lastFrame)/1000);lastFrame=now;
+   studyDecor.update(delta,!!reducedMotionMq?.matches);
    if(vrm)vrm.update(delta);
    adultPointBindings?.refresh();
    const s=latest.current,simState=sim.current;
@@ -2350,6 +2354,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    }
    teaching.dispose();
    gradient.dispose();
+   studyDecor.dispose();
+   scene.fog=null;
    if(woodcut){
     scene.remove(woodcut.mesh);
     disposeWoodcutBackdrop(woodcut);
