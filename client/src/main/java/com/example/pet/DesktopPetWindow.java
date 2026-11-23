@@ -155,7 +155,7 @@ public final class DesktopPetWindow extends JFrame {
             }
         }
         stage.setOpaque(false);
-        stage.setDoubleBuffered(false);
+        stage.setDoubleBuffered(perPixel);
         stage.setFocusable(false);
         stage.setPreferredSize(new Dimension(WIDTH, HEIGHT));
         stage.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -1647,7 +1647,7 @@ public final class DesktopPetWindow extends JFrame {
             return pixelBody();
         }
         if (fittedShell == null) {
-            fittedShell = shellFor(milu);
+            fittedShell = stableShellFor(milu);
         }
         return viewForPose(milu, fittedShell, animation);
     }
@@ -1662,7 +1662,7 @@ public final class DesktopPetWindow extends JFrame {
         if (milu == null) {
             return new Rectangle(0, 0, WIDTH, HEIGHT);
         }
-        return shellForViewport(milu, animation);
+        return stableShellFor(milu);
     }
 
     /**
@@ -1843,6 +1843,25 @@ public final class DesktopPetWindow extends JFrame {
         return clipToCanvas(idle);
     }
 
+    /** 全部動作影格 union 的穩定外框；換 mode 時視窗不再 resize。 */
+    static Rectangle stableShellFor(DesktopPetSpriteLoader.Frames frames) {
+        if (frames == null) {
+            return new Rectangle(0, 0, WIDTH, HEIGHT);
+        }
+        Rectangle union = null;
+        for (DesktopPetSpriteLoader.Sprite sprite : frames.allSprites()) {
+            if (sprite == null || sprite.image == null) {
+                continue;
+            }
+            Rectangle raw = cachedBody(sprite.image, sprite.offsetX, sprite.offsetY);
+            union = union == null ? raw : unionRect(union, raw);
+        }
+        if (union == null) {
+            return new Rectangle(0, 0, WIDTH, HEIGHT);
+        }
+        return clipToCanvas(union);
+    }
+
     private static boolean covered(Rectangle shell, Rectangle raw) {
         if (shell == null || raw == null) {
             return false;
@@ -2014,21 +2033,22 @@ public final class DesktopPetWindow extends JFrame {
         protected void paintComponent(Graphics graphics) {
             Graphics2D g = (Graphics2D) graphics.create();
             try {
-                g.setComposite(AlphaComposite.Src);
-                if (perPixel) {
-                    g.setColor(new Color(0, 0, 0, 0));
-                    g.fillRect(0, 0, getWidth(), getHeight());
-                } else {
-                    g.setColor(CandyTheme.NIGHT);
-                    g.fillRoundRect(0, 0, Math.max(1, getWidth()), Math.max(1, getHeight()), 16, 16);
-                }
-                g.setComposite(AlphaComposite.SrcOver);
-                // 拖曳旋轉做在緩衝上，再整張貼回。貼回的是角色原色，螢幕上才對得起來。
                 BufferedImage frame = renderLiveFrame();
                 g.setRenderingHint(
                         RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-                g.drawImage(frame, 0, 0, null);
+                if (perPixel) {
+                    // 緩衝已畫好角色；用 Src 整張貼上，不在螢幕上先清成全透明。
+                    g.setComposite(AlphaComposite.Src);
+                    g.drawImage(frame, 0, 0, null);
+                } else {
+                    g.setComposite(AlphaComposite.Src);
+                    g.setColor(CandyTheme.NIGHT);
+                    g.fillRoundRect(0, 0, Math.max(1, getWidth()), Math.max(1, getHeight()), 16, 16);
+                    g.setComposite(AlphaComposite.SrcOver);
+                    g.drawImage(frame, 0, 0, null);
+                }
                 if (control.isActive()) {
+                    g.setComposite(AlphaComposite.SrcOver);
                     paintControlHint(g);
                 }
             } finally {
