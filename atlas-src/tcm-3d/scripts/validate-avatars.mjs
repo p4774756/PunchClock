@@ -28,7 +28,20 @@ assert.doesNotMatch(
   /CharacterScene key=\{`\$\{avatarId\}-\$\{outfitId\}`\}/,
   'outfit switch must not remount CharacterScene',
 );
-assert.match(page, /key=\{avatarId\}/, 'avatar switch must remount CharacterScene');
+// Avatar switch used to remount via key={avatarId}, which disposed the WebGL
+// renderer and forced a full reload. The cache keeps CharacterScene mounted
+// and stashes / restores a rig keyed by avatarId instead.
+const remountsOnAvatar = /<CharacterScene\b[^>]*key=\{avatarId\}/.test(page);
+const sceneSrc = readFileSync(join(root, 'app/character-scene.tsx'), 'utf8');
+const cacheSrc = readFileSync(join(root, 'app/avatar-scene-cache.ts'), 'utf8');
+const cachedByAvatar =
+  /takeAvatarRig\(\s*avatarId\s*\)/.test(sceneSrc) &&
+  /stashAvatarRig\(\s*avatarId\s*,/.test(sceneSrc) &&
+  /Map\s*<\s*AvatarId\s*,/.test(cacheSrc);
+assert.ok(
+  remountsOnAvatar || cachedByAvatar,
+  'avatar switch must remount CharacterScene (key={avatarId}) or keep a per-avatar rig cache (stash/take by avatarId)',
+);
 
 const avatarsSrc = readFileSync(join(root, 'app/avatars.ts'), 'utf8');
 assert.match(avatarsSrc, /id:'adult'/, 'adult avatar entry required');
