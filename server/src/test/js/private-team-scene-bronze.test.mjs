@@ -73,7 +73,7 @@ test('場景不再寫死 62% 進度條', () => {
   assert.match(src, /施工進度/);
 });
 
-test('施工進度板 meta／今日進度字級與高對比色（小螢幕可讀）', () => {
+test('施工進度板 meta／今日工作量字級與高對比色（小螢幕可讀）', () => {
   const src = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
   const drawer = src.slice(src.indexOf('function makeProgressBoardDrawer'), src.indexOf('function makeBubbleDrawer'));
   assert.doesNotMatch(drawer, /#a8b4c8/);

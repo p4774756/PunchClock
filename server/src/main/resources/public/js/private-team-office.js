@@ -85,8 +85,9 @@ export function progressBoardViewFromTiger(tiger, queueCount) {
     view.metaLine = '今日已完成 ' + completed + ' 項';
   }
   if (todayTotal > 0) {
-    view.todayLabel = '今日進度';
+    view.todayLabel = '今日工作量';
     view.todayFraction = Math.min(1, completed / todayTotal);
+    view.todayCountText = completed + '/' + todayTotal;
   }
   return view;
 }

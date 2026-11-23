@@ -41,7 +41,8 @@ test('首頁 HUD 楓之谷角色框與身分名牌', () => {
   assert.match(js, /data-pt-task-bar/);
   assert.match(js, /data-pt-identity-toggle/);
   assert.match(js, /pt-hud-id-plate/);
-  assert.match(js, /管理員/);
+  assert.match(js, /已登入/);
+  assert.doesNotMatch(js, /管理員/);
   assert.match(js, /線上/);
   assert.match(js, /訪客/);
   assert.match(js, /data-pt-open-login/);
@@ -57,6 +58,7 @@ test('首頁 HUD 楓之谷角色框與身分名牌', () => {
   assert.match(css, /\.pt-hud-id-plate/);
   assert.match(css, /\.pt-roadmap-open/);
   assert.match(css, /\.pt-prog-hit/);
+  assert.match(css, /\.pt-prog-hit[\s\S]*cursor:\s*pointer/);
   assert.doesNotMatch(css, /\.pt-prog-hit\s*\{[^}]*top:\s*26%/);
 });
 

@@ -98,7 +98,7 @@ function renderRoadmapItemLi(doc, item, canLink, query, highlight) {
   const li = doc.createElement('li');
   if (highlight) li.classList.add('is-search-hit');
   const box = doc.createElement('span');
-  box.className = 'roadmap-check' + (item.done ? ' is-on' : '');
+  box.className = 'roadmap-state' + (item.done ? ' is-on' : '');
   box.setAttribute('aria-hidden', 'true');
   li.appendChild(box);
   const text = doc.createElement('span');
@@ -421,7 +421,7 @@ export function createRoadmapController(opts) {
     const query = searchQuery();
     const totals = roadmapItemTotals(phases);
     if (totalLabel) {
-      totalLabel.textContent = '子項合計 ' + totals.done + '/' + totals.total;
+      totalLabel.textContent = '里程碑子項 ' + totals.done + '/' + totals.total;
     }
     const totalStatus = totals.total > 0 && totals.done >= totals.total ? 'done' : 'active';
     setBar(totalBar, totals.done, totals.total, totalStatus);

@@ -704,9 +704,11 @@ function makeProgressBoardDrawer() {
       ctx.font = 'bold 20px sans-serif';
       ctx.fillStyle = '#f5e6a8';
       ctx.fillText(todayLabel, ix + 16, barY);
+      const countText =
+        bag.todayCountText == null ? '' : String(bag.todayCountText).trim();
       const pct = Math.round(frac * 100);
-      const pctText = pct + '%';
-      ctx.fillText(pctText, ix + iw - 16 - ctx.measureText(pctText).width, barY);
+      const rightText = countText || pct + '%';
+      ctx.fillText(rightText, ix + iw - 16 - ctx.measureText(rightText).width, barY);
       const barH = 14;
       const barTop = barY + 24;
       ctx.fillStyle = '#243248';

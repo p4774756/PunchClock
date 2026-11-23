@@ -1,8 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadPublicModule } from './load-public-module.mjs';
 
+const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
+
 const Roadmap = await loadPublicModule('roadmap-panel.js');
+
+test('施工進度清單用圓點狀態標記而非假核取方塊', () => {
+  const js = readFileSync(join(publicRoot, 'js/roadmap-panel.js'), 'utf8');
+  const css = readFileSync(join(publicRoot, 'css/roadmap.css'), 'utf8');
+  assert.match(js, /roadmap-state/);
+  assert.doesNotMatch(js, /roadmap-check/);
+  assert.match(js, /里程碑子項/);
+  assert.match(css, /\.roadmap-state/);
+  assert.doesNotMatch(css, /\.roadmap-check/);
+});
 
 test('formatLabDevScreenLines 可列多筆現在在做', () => {
   const lines = Roadmap.formatLabDevScreenLines({
