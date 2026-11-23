@@ -21,7 +21,7 @@ public final class MiniBarDrag {
     if (press == null || release == null) {
       return true;
     }
-    return isClick(release.x - press.x, release.y - release.y);
+    return isClick(release.x - press.x, release.y - press.y);
   }
 
   /** 拖曳後至少保留一部分在任一螢幕可見範圍內。 */

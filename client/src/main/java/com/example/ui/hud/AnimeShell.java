@@ -63,7 +63,6 @@ public final class AnimeShell extends JPanel {
     };
     /** 分頁：首頁、排程0、好友2、日誌3、設定1 */
     private static final int[] NAV_TO_TAB = {-1, 0, 2, 3, 1};
-    public static final int MINI_TOGGLE = 22;
     public static final int CHARACTER_HIT = 20;
 
     private final JTabbedPane tabs;
@@ -89,6 +88,7 @@ public final class AnimeShell extends JPanel {
     private Point miniPressScreen;
     private Rectangle miniStartBounds;
     private boolean miniDragging;
+    private int friendNavUnread;
 
     public AnimeShell(SchedulerService scheduler, JTabbedPane tabs) {
         super(null);
@@ -213,9 +213,6 @@ public final class AnimeShell extends JPanel {
         if (id >= 0 && id < NAV.length) {
             return tabHitBox(id);
         }
-        if (id == MINI_TOGGLE) {
-            return miniToggleBox();
-        }
         if (id == CHARACTER_HIT || id == HomeBoard.BUBBLE) {
             java.awt.Rectangle box = board.hotArea(id);
             if (box.width > 0) {
@@ -251,6 +248,15 @@ public final class AnimeShell extends JPanel {
         if (holdingHome) {
             refreshChrome();
         }
+    }
+
+    public void setFriendNavUnread(int count) {
+        int next = Math.max(0, count);
+        if (friendNavUnread == next) {
+            return;
+        }
+        friendNavUnread = next;
+        repaint(tabHitBox(2));
     }
 
     public void flashEvent(String text, long millis) {
@@ -402,9 +408,6 @@ public final class AnimeShell extends JPanel {
         if (id >= 0 && id < NAV.length) {
             return navTooltip(id);
         }
-        if (id == MINI_TOGGLE) {
-            return "縮成迷你橫條";
-        }
         return null;
     }
 
@@ -417,13 +420,6 @@ public final class AnimeShell extends JPanel {
     private void activate(int id) {
         if (miniMode) {
             setMiniMode(false);
-            if (onMiniExpand != null) {
-                onMiniExpand.run();
-            }
-            return;
-        }
-        if (id == MINI_TOGGLE) {
-            setMiniMode(true);
             if (onMiniExpand != null) {
                 onMiniExpand.run();
             }
@@ -516,9 +512,6 @@ public final class AnimeShell extends JPanel {
             if (tabHitBox(i).contains(x, y)) {
                 return i;
             }
-        }
-        if (miniToggleBox().contains(x, y)) {
-            return MINI_TOGGLE;
         }
         if (holdingHome) {
             int bubble = board.hit(x, y);
@@ -657,16 +650,27 @@ public final class AnimeShell extends JPanel {
         int selected = holdingHome ? 0 : navIndexForTab(tabs.getSelectedIndex());
         for (int i = 0; i < NAV.length; i++) {
             paintNavSlot(g, tabHitBox(i), TabNavIcon.navIconId(i), NAV[i], selected == i, hot == i, false);
+            if (i == 2 && friendNavUnread > 0) {
+                paintNavUnreadBadge(g, tabHitBox(i));
+            }
         }
-        int miniIndex = NAV.length;
-        paintNavSlot(
-                g,
-                tabHitBox(miniIndex),
-                TabNavIcon.MINI_ICON_ID,
-                "迷你",
-                miniMode,
-                hot == MINI_TOGGLE,
-                true);
+    }
+
+    private void paintNavUnreadBadge(Graphics2D g, java.awt.Rectangle box) {
+        int badge = 8;
+        int x = box.x + box.width - badge - 6;
+        int y = box.y + 6;
+        g.setColor(new Color(255, 122, 168));
+        g.fillOval(x, y, badge, badge);
+        if (friendNavUnread > 1) {
+            g.setColor(Color.WHITE);
+            g.setFont(UiFonts.latinBold(8));
+            String label = friendNavUnread > 9 ? "9+" : String.valueOf(friendNavUnread);
+            java.awt.FontMetrics fm = g.getFontMetrics();
+            int tx = x + (badge - fm.stringWidth(label)) / 2;
+            int ty = y + (badge + fm.getAscent() - fm.getDescent()) / 2;
+            g.drawString(label, tx, ty);
+        }
     }
 
     private void paintNavSlot(
@@ -711,14 +715,10 @@ public final class AnimeShell extends JPanel {
 
     java.awt.Rectangle tabHitBox(int index) {
         java.awt.Rectangle bar = tabBarBounds();
-        int slots = NAV.length + 1;
+        int slots = NAV.length;
         int slotW = Math.max(36, bar.width / slots);
         int x = index * slotW;
         return new java.awt.Rectangle(bar.x + x, bar.y, slotW, bar.height);
-    }
-
-    private java.awt.Rectangle miniToggleBox() {
-        return tabHitBox(NAV.length);
     }
 
     static int navCount() {

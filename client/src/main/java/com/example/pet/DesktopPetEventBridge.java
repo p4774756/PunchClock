@@ -20,8 +20,6 @@ public final class DesktopPetEventBridge {
 
         /** @return 泡泡是否真的畫出來了 */
         boolean showNotice(String phrase, Runnable open);
-
-        void playSound();
     }
 
     private final DesktopPetSettings settings;
@@ -150,13 +148,6 @@ public final class DesktopPetEventBridge {
         }
         policy.markShown(item.event, nowMs);
         showing = item.event;
-        if (settings.notifySound()) {
-            try {
-                surface.playSound();
-            } catch (RuntimeException ex) {
-                // 聲音失敗時提醒已經在畫面上。
-            }
-        }
         return true;
     }
 

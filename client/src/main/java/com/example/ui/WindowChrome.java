@@ -89,25 +89,7 @@ public final class WindowChrome {
         MacFrames.install();
         frame.setUndecorated(true);
 
-        JSlider slider = new JSlider(WindowOpacity.MIN_TRANSPARENCY_PERCENT, WindowOpacity.MAX_TRANSPARENCY_PERCENT, 0);
-        slider.setOpaque(false);
-        slider.setFocusable(false);
-        slider.setPaintTicks(false);
-        slider.setPaintLabels(false);
-        slider.setMajorTickSpacing(20);
-        // 不用系統 Aqua 滑桿：它的圓鈕會畫出元件底邊，被標題列裁成只剩一點。
-        slider.setUI(new TitleBarSliderUI(slider));
-        slider.setPreferredSize(new Dimension(140, TitleBarSliderUI.HEIGHT));
-        slider.setMinimumSize(new Dimension(100, TitleBarSliderUI.HEIGHT));
-        slider.setToolTipText("向右越透明，方便同時看到後面的畫面。最透明仍保留 40% 不透明度，以免點不到。");
-
-        JLabel valueLabel = new JLabel(WindowOpacity.formatPercentLabel(0));
-        valueLabel.setFont(controlFont);
-        valueLabel.setForeground(MUTED_FG);
-        valueLabel.setPreferredSize(new Dimension(56, 22));
-        valueLabel.setHorizontalAlignment(SwingConstants.LEFT);
-
-        JPanel titleBar = createTitleBar(frame, title, icon, titleFont, controlFont, slider, valueLabel);
+        JPanel titleBar = createTitleBar(frame, title, icon, titleFont, controlFont);
         titleBar.putClientProperty("punchclock.titleBar", Boolean.TRUE);
         ResizeSupport resize = new ResizeSupport(frame);
 
@@ -157,7 +139,45 @@ public final class WindowChrome {
         root.putClientProperty("punchclock.body", body);
         root.putClientProperty("punchclock.outer", stage);
         root.putClientProperty("punchclock.canvas", canvas);
-        return new Controls(slider, valueLabel);
+        return new Controls(null, null);
+    }
+
+    /** 設定「外觀」分頁用的視窗透明度滑桿（與標題列脫鉤）。 */
+    public static JSlider createTransparencySlider(Font controlFont) {
+        JSlider slider = new JSlider(WindowOpacity.MIN_TRANSPARENCY_PERCENT, WindowOpacity.MAX_TRANSPARENCY_PERCENT, 0);
+        slider.setOpaque(false);
+        slider.setFocusable(false);
+        slider.setPaintTicks(true);
+        slider.setPaintLabels(false);
+        slider.setMajorTickSpacing(20);
+        slider.setUI(new TitleBarSliderUI(slider));
+        slider.setPreferredSize(new Dimension(200, TitleBarSliderUI.HEIGHT));
+        slider.setMinimumSize(new Dimension(140, TitleBarSliderUI.HEIGHT));
+        slider.setToolTipText("向右越透明，方便同時看到後面的畫面。最透明仍保留 40% 不透明度，以免點不到。");
+        return slider;
+    }
+
+    public static JLabel createTransparencyValueLabel(Font controlFont, int percent) {
+        JLabel valueLabel = new JLabel(WindowOpacity.formatPercentLabel(percent));
+        valueLabel.setFont(controlFont);
+        valueLabel.setForeground(MUTED_FG);
+        valueLabel.setPreferredSize(new Dimension(56, 22));
+        valueLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        return valueLabel;
+    }
+
+    private static Runnable titleBarMiniToggle;
+
+    /** 一般模式點標題列（位移小於門檻）切換迷你；由 App 註冊。 */
+    public static void setTitleBarMiniToggle(JFrame frame, Runnable toggle) {
+        titleBarMiniToggle = toggle;
+        if (frame == null || frame.getRootPane() == null) {
+            return;
+        }
+        JComponent bar = findMarked(frame.getRootPane(), "punchclock.titleBar");
+        if (bar != null) {
+            bar.putClientProperty("punchclock.titleMiniToggle", toggle);
+        }
     }
 
     /**
@@ -513,16 +533,15 @@ public final class WindowChrome {
             String title,
             Image icon,
             Font titleFont,
-            Font controlFont,
-            JSlider slider,
-            JLabel valueLabel) {
+            Font controlFont) {
         JPanel bar = new JPanel();
         bar.setBackground(BAR_BG);
         bar.setBorder(new CompoundBorder(
                 BorderFactory.createMatteBorder(0, 0, 1, 0, BAR_BORDER),
                 new EmptyBorder(4, 8, 4, 4)));
-        int barHeight = TitleBarSliderUI.HEIGHT + 4 + 4 + 1;
+        int barHeight = 28;
         bar.setPreferredSize(new Dimension(720, barHeight));
+        bar.setToolTipText("點一下縮成迷你橫條");
 
         JComponent iconLabel = null;
         if (icon != null) {
@@ -535,17 +554,6 @@ public final class WindowChrome {
             iconLabel.setPreferredSize(new Dimension(18, 18));
         }
         TitleName titleLabel = new TitleName(title, titleFont);
-
-        JLabel transparencyLabel = new JLabel("透明度");
-        transparencyLabel.setFont(controlFont);
-        transparencyLabel.setForeground(MUTED_FG);
-        transparencyLabel.setToolTipText(slider.getToolTipText());
-
-        JPanel center = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        center.setOpaque(false);
-        center.add(transparencyLabel);
-        center.add(slider);
-        center.add(valueLabel);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         buttons.setOpaque(false);
@@ -561,15 +569,14 @@ public final class WindowChrome {
         buttons.add(max);
         buttons.add(close);
 
-        bar.setLayout(new TitleBarLayout(iconLabel, titleLabel, center, buttons, slider));
+        bar.setLayout(new TitleBarLayout(iconLabel, titleLabel, buttons));
         if (iconLabel != null) {
             bar.add(iconLabel);
         }
         bar.add(titleLabel);
-        bar.add(center);
         bar.add(buttons);
 
-        DragSupport drag = new DragSupport(frame);
+        DragSupport drag = new DragSupport(frame, buttons);
         MouseAdapter dragAdapter = drag.adapter();
         bar.addMouseListener(dragAdapter);
         bar.addMouseMotionListener(dragAdapter);
@@ -647,23 +654,16 @@ public final class WindowChrome {
         }
     }
 
-    /**
-     * 標題在左、視窗按鈕在右。透明度滑桿放在中段、角色左側。
-     * 縮窄時先收起 commit，主標題、滑桿和按鈕維持完整可見。
-     */
+    /** 標題在左、視窗按鈕在右。 */
     private static final class TitleBarLayout implements LayoutManager {
         private final JComponent icon;
         private final TitleName title;
-        private final JComponent sliderGroup;
         private final JComponent buttons;
-        private final JSlider slider;
 
-        TitleBarLayout(JComponent icon, TitleName title, JComponent sliderGroup, JComponent buttons, JSlider slider) {
+        TitleBarLayout(JComponent icon, TitleName title, JComponent buttons) {
             this.icon = icon;
             this.title = title;
-            this.sliderGroup = sliderGroup;
             this.buttons = buttons;
-            this.slider = slider;
         }
 
         @Override
@@ -676,12 +676,12 @@ public final class WindowChrome {
 
         @Override
         public Dimension preferredLayoutSize(Container parent) {
-            return new Dimension(720, TitleBarSliderUI.HEIGHT + 13);
+            return new Dimension(720, 32);
         }
 
         @Override
         public Dimension minimumLayoutSize(Container parent) {
-            return new Dimension(360, TitleBarSliderUI.HEIGHT + 13);
+            return new Dimension(360, 32);
         }
 
         @Override
@@ -695,51 +695,12 @@ public final class WindowChrome {
             buttons.setBounds(x0 + innerW - buttonW, y0, buttonW, innerH);
 
             FontMetrics metrics = title.getFontMetrics(title.getFont());
-            int mainW = title.main.isEmpty() ? 0 : metrics.stringWidth(title.main);
             int iconW = icon == null ? 0 : 18;
             int textGap = iconW == 0 ? 0 : 8;
-            int reserved = iconW + textGap + mainW;
-
-            int labelW = 0;
-            int valueW = 0;
-            for (Component child : sliderGroup.getComponents()) {
-                if (child == slider) {
-                    continue;
-                }
-                Dimension pref = child.getPreferredSize();
-                if (labelW == 0) {
-                    labelW = pref.width;
-                } else {
-                    valueW = pref.width;
-                }
-            }
-            int gaps = 6 * 4;
-            int rightLimit = x0 + innerW - buttonW - 8;
-            int leftLimit = x0 + reserved + 8;
-            int room = rightLimit - leftLimit - labelW - valueW - gaps;
-            int track = Math.max(72, Math.min(140, room));
-            if (slider.getPreferredSize().width != track) {
-                slider.setPreferredSize(new Dimension(track, TitleBarSliderUI.HEIGHT));
-            }
-            int groupW = labelW + track + valueW + gaps;
-            int characterLimit = x0 + Math.round(innerW * 0.56f);
-            int left = x0 + Math.max(0, (innerW - groupW) / 2);
-            if (left < leftLimit) {
-                left = leftLimit;
-            }
-            if (characterLimit - groupW >= leftLimit && left + groupW > characterLimit) {
-                left = characterLimit - groupW;
-            }
-            if (left + groupW > rightLimit) {
-                left = Math.max(leftLimit, rightLimit - groupW);
-            }
-            int width = Math.max(40, Math.min(groupW, rightLimit - left));
-            sliderGroup.setBounds(left, y0, width, innerH);
-
-            int textRoom = Math.max(0, left - 8 - (x0 + iconW + textGap));
-            title.fit(metrics, Math.max(textRoom, mainW));
+            int textRoom = Math.max(40, innerW - buttonW - iconW - textGap - 16);
+            title.fit(metrics, textRoom);
             int shownW = title.shown.isEmpty() ? 0 : metrics.stringWidth(title.shown);
-            int textW = title.shown.equals(title.main) || textRoom >= shownW ? shownW : Math.min(shownW, textRoom);
+            int textW = Math.min(textRoom, Math.max(0, shownW));
             if (icon != null) {
                 int iconY = y0 + Math.max(0, (innerH - 18) / 2);
                 icon.setBounds(x0, iconY, iconW, 18);
@@ -930,48 +891,69 @@ public final class WindowChrome {
 
     private static final class DragSupport {
         private final JFrame frame;
+        private final JComponent chromeButtons;
         private Point pressOnScreen;
         private Rectangle startBounds;
         private boolean dragging;
 
-        DragSupport(JFrame frame) {
+        DragSupport(JFrame frame, JComponent chromeButtons) {
             this.frame = frame;
+            this.chromeButtons = chromeButtons;
         }
 
         MouseAdapter adapter() {
             return new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent e) {
-                    if (e.getButton() != MouseEvent.BUTTON1) {
+                    if (e.getButton() != MouseEvent.BUTTON1 || overChromeControls(e)) {
                         return;
                     }
-                    if (e.getClickCount() == 2) {
-                        toggleMaximize(frame);
-                        dragging = false;
-                        return;
-                    }
+                    dragging = false;
                     pressOnScreen = e.getLocationOnScreen();
                     startBounds = frame.getBounds();
-                    dragging = true;
                 }
 
                 @Override
                 public void mouseReleased(MouseEvent e) {
+                    if (e.getButton() != MouseEvent.BUTTON1 || pressOnScreen == null) {
+                        dragging = false;
+                        return;
+                    }
+                    if (!dragging && !overChromeControls(e)) {
+                        Point now = e.getLocationOnScreen();
+                        if (MiniBarDrag.isClick(pressOnScreen, now)) {
+                            Runnable toggle = titleBarMiniToggle;
+                            if (toggle == null && e.getComponent() instanceof JComponent) {
+                                Object prop = ((JComponent) e.getComponent()).getClientProperty("punchclock.titleMiniToggle");
+                                if (prop instanceof Runnable) {
+                                    toggle = (Runnable) prop;
+                                }
+                            }
+                            if (toggle != null) {
+                                toggle.run();
+                            }
+                        }
+                    }
                     dragging = false;
+                    pressOnScreen = null;
+                    startBounds = null;
                 }
 
                 @Override
                 public void mouseDragged(MouseEvent e) {
-                    if (!dragging || pressOnScreen == null || startBounds == null) {
+                    if (pressOnScreen == null || startBounds == null) {
                         return;
                     }
                     Point now = e.getLocationOnScreen();
                     int dx = now.x - pressOnScreen.x;
                     int dy = now.y - pressOnScreen.y;
-                    if (isMaximized(frame)) {
-                        if (Math.abs(dx) < 4 && Math.abs(dy) < 4) {
+                    if (!dragging) {
+                        if (MiniBarDrag.isClick(dx, dy)) {
                             return;
                         }
+                        dragging = true;
+                    }
+                    if (isMaximized(frame)) {
                         frame.setExtendedState(Frame.NORMAL);
                         Rectangle restored = frame.getBounds();
                         int x = now.x - restored.width / 2;
@@ -983,6 +965,14 @@ public final class WindowChrome {
                     }
                     frame.setLocation(startBounds.x + dx,
                             placeY(frame, startBounds.y + dy, startBounds.width, startBounds.height));
+                }
+
+                private boolean overChromeControls(MouseEvent e) {
+                    if (chromeButtons == null || !chromeButtons.isShowing()) {
+                        return false;
+                    }
+                    Point p = SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), chromeButtons);
+                    return chromeButtons.contains(p);
                 }
             };
         }
