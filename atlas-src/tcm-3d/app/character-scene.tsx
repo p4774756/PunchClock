@@ -1256,7 +1256,7 @@ const applyOutfitMaterialsToObject=(obj:T.Object3D,outfit:AnimeOutfit)=>{
    m.opacity=0.42;
    m.depthWrite=false;
    m.side=T.DoubleSide;
-   m.renderOrder=2;
+   obj.renderOrder=2;
    m.needsUpdate=true;
    continue;
   }

@@ -266,7 +266,7 @@ export const applyAdultSheerOuter=(root:T.Object3D)=>{
     const white=tintCanvas(map,SHEER_INNER);
     if(white)setGarmentMap(m,white);
    }
-   m.renderOrder=2;
+   obj.renderOrder=2;
    m.needsUpdate=true;
   }
  });
@@ -283,7 +283,7 @@ export const resetAdultSheerTopsOpaque=(root:T.Object3D,baseline:Map<T.Material,
    m.transparent=false;
    m.opacity=1;
    m.depthWrite=true;
-   m.renderOrder=0;
+   obj.renderOrder=0;
    const base=baseline.get(m);
    if(base)setGarmentMap(m,base);
   }
