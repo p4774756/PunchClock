@@ -2,7 +2,7 @@
   "model": "anime-assistant.glb",
   "character": "Sendagaya Shino",
   "license": "CC0 1.0 (VRoid Studio beta sample)",
-  "set": "head-neck-21+trunk-30",
+  "set": "head-neck-21+trunk-30+back-shu-14",
   "faceAxis": "-Z",
   "sideConvention": "position.x>0 means anatomical left; anime runtime flips X to -X for left",
   "note": "穴位依解剖比例與臉部／軀幹骨骼標誌吸附到角色皮膚；教學示意，非臨床取穴。合併寫入，不會清空既有穴。",
@@ -42,6 +42,57 @@
       "set": "trunk-30"
     },
     {
+      "code": "BL11",
+      "name": "大杼",
+      "midline": false,
+      "position": [
+        0.03,
+        1.297,
+        0.05804
+      ],
+      "normal": [
+        0.255,
+        0.29597,
+        0.92053
+      ],
+      "reviewed": true,
+      "set": "back-shu-14"
+    },
+    {
+      "code": "BL12",
+      "name": "風門",
+      "midline": false,
+      "position": [
+        0.03,
+        1.284,
+        0.06184
+      ],
+      "normal": [
+        0.33158,
+        -0.00655,
+        0.9434
+      ],
+      "reviewed": true,
+      "set": "back-shu-14"
+    },
+    {
+      "code": "BL13",
+      "name": "肺俞",
+      "midline": false,
+      "position": [
+        0.03,
+        1.271,
+        0.06141
+      ],
+      "normal": [
+        0.30818,
+        -0.03863,
+        0.95054
+      ],
+      "reviewed": true,
+      "set": "back-shu-14"
+    },
+    {
       "code": "BL14",
       "name": "厥陰俞",
       "midline": false,
@@ -59,6 +110,91 @@
       "set": "trunk-30"
     },
     {
+      "code": "BL15",
+      "name": "心俞",
+      "midline": false,
+      "position": [
+        0.03,
+        1.235,
+        0.0586
+      ],
+      "normal": [
+        0.20633,
+        -0.1713,
+        0.96337
+      ],
+      "reviewed": true,
+      "set": "back-shu-14"
+    },
+    {
+      "code": "BL16",
+      "name": "督俞",
+      "midline": false,
+      "position": [
+        0.03,
+        1.211,
+        0.05402
+      ],
+      "normal": [
+        0.16728,
+        -0.20529,
+        0.9643
+      ],
+      "reviewed": true,
+      "set": "back-shu-14"
+    },
+    {
+      "code": "BL17",
+      "name": "膈俞",
+      "midline": false,
+      "position": [
+        0.03,
+        1.187,
+        0.04624
+      ],
+      "normal": [
+        0.08868,
+        -0.3851,
+        0.91861
+      ],
+      "reviewed": true,
+      "set": "back-shu-14"
+    },
+    {
+      "code": "BL18",
+      "name": "肝俞",
+      "midline": false,
+      "position": [
+        0.03,
+        1.139,
+        0.02945
+      ],
+      "normal": [
+        0.18462,
+        -0.25924,
+        0.948
+      ],
+      "reviewed": true,
+      "set": "back-shu-14"
+    },
+    {
+      "code": "BL19",
+      "name": "膽俞",
+      "midline": false,
+      "position": [
+        0.03,
+        1.115,
+        0.02209
+      ],
+      "normal": [
+        0.11229,
+        -0.30127,
+        0.9469
+      ],
+      "reviewed": true,
+      "set": "back-shu-14"
+    },
+    {
       "code": "BL2",
       "name": "攢竹",
       "midline": false,
@@ -74,6 +210,57 @@
       ],
       "reviewed": true,
       "set": "head-neck-21"
+    },
+    {
+      "code": "BL20",
+      "name": "脾俞",
+      "midline": false,
+      "position": [
+        0.03,
+        1.091,
+        0.01727
+      ],
+      "normal": [
+        0.11631,
+        0.0084,
+        0.99318
+      ],
+      "reviewed": true,
+      "set": "back-shu-14"
+    },
+    {
+      "code": "BL21",
+      "name": "胃俞",
+      "midline": false,
+      "position": [
+        0.03,
+        1.067,
+        0.01983
+      ],
+      "normal": [
+        0.11036,
+        0.34653,
+        0.93152
+      ],
+      "reviewed": true,
+      "set": "back-shu-14"
+    },
+    {
+      "code": "BL22",
+      "name": "三焦俞",
+      "midline": false,
+      "position": [
+        0.03,
+        1.043,
+        0.02859
+      ],
+      "normal": [
+        0.12578,
+        0.38688,
+        0.91351
+      ],
+      "reviewed": true,
+      "set": "back-shu-14"
     },
     {
       "code": "BL23",

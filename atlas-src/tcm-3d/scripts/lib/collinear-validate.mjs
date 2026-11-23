@@ -19,7 +19,7 @@ export const COLLINEAR_GROUPS = [
   {name: '臍平列', axis: 'y', codes: ['CV8', 'KI16', 'ST25', 'SP15', 'GB26'], anchor: 'CV8'},
   {name: '第2腰椎列', axis: 'y', codes: ['GV4', 'BL23', 'BL52'], anchor: 'GV4'},
   {name: '背部第4胸椎列', axis: 'y', codes: ['SI11', 'BL43', 'BL14'], anchor: 'BL14'},
-  {name: '背部旁開1.5寸', axis: 'x', codes: ['BL14', 'BL23'], anchor: 'BL14'},
+  {name: '背部第一側線（旁開1.5寸）', axis: 'x', codes: ['BL11', 'BL12', 'BL13', 'BL14', 'BL15', 'BL16', 'BL17', 'BL18', 'BL19', 'BL20', 'BL21', 'BL22', 'BL23'], anchor: 'BL14'},
   {name: '背部旁開3寸', axis: 'x', codes: ['BL43', 'BL52'], anchor: 'BL43'},
   {name: '瞳孔直線', axis: 'x', codes: ['GB14', 'EX-HN4', 'ST1', 'ST2', 'ST3', 'ST4'], anchor: 'ST1'},
   {name: '睛明／攢竹', axis: 'x', codes: ['BL1', 'BL2'], anchor: 'BL1'},

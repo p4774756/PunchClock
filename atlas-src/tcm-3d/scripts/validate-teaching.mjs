@@ -21,6 +21,10 @@ const TRUNK_30 = [
   'CV17','KI23','ST17','PC1','SP18','CV14','CV8','KI16','ST25','SP15','GB26',
   'BL14','BL43','SI11','SI9','GV4','BL23','BL52',
 ];
+const BACK_SHU_14 = [
+  'BL11','BL12','BL13','BL14','BL15','BL16','BL17','BL18','BL19','BL20','BL21','BL22','BL23','BL52',
+];
+const BACK_SHU_FIRST_LINE = BACK_SHU_14.filter(c => c !== 'BL52');
 const HEAD_NECK_21 = [
   'GV20','GV23','GV24+','GV26','CV24','CV23','CV22','BL2','BL1','LI20','GB14','EX-HN4','ST1','ST2','ST3','ST4','ST9','TE23','EX-HN5','GB1','SI18',
 ];
@@ -52,6 +56,7 @@ try {
   const state = overrides => ({...initialSimulation, ...overrides});
   const scene = new T.Scene();
   const practicePoints = avatarPracticePoints(animeAvatar(DEFAULT_AVATAR_ID));
+  const animeJson = JSON.parse(await readFile(join(project, 'app/anime-points.json'), 'utf8'));
   const overlay = createTeachingOverlay(scene, {
     points: practicePoints,
     resolvePoint: (code, side) => animePointTarget(code, side),
@@ -117,7 +122,7 @@ try {
     assert.deepEqual(liou, ['KI7', 'LI7']);
     const yixi = libraryPointResults('ㄧ ㄒㄧ', 'all', 'all', 'head-neck-21', codes).map(p => p.code);
     assert.ok(yixi.includes('BL45'), 'ㄧ ㄒㄧ 應含譩譆');
-    for (const setId of ['trunk-30', 'common-10']) {
+    for (const setId of ['trunk-30', 'back-shu-14', 'common-10']) {
       const again = libraryPointResults('ㄌㄧㄡˋ', 'all', 'all', setId, codes).map(p => p.code);
       assert.ok(again.includes('LI7') && again.includes('KI7'), setId);
       assert.ok(libraryPointResults('ㄑㄧˋ', 'all', 'all', setId, codes).some(p => p.code === 'TE18'), setId);
@@ -128,8 +133,8 @@ try {
     const lesson = curriculumSet('head-neck-21');
     assert.ok(lesson);
     assert.equal(lesson.codes.length, 21);
-    assert.equal(ANIME_POINTS.length, 51);
-    assert.equal(ANIME_SUPPORTED_CODES.size, 51);
+    assert.equal(ANIME_POINTS.length, 62);
+    assert.equal(ANIME_SUPPORTED_CODES.size, 62);
     assert.equal(DEFERRED_PRACTICE_CODES.size, 0);
     assert.equal(isPracticeDeferred('ST9'), false);
     assert.equal(isPracticeDeferred('CV22'), false);
@@ -137,7 +142,7 @@ try {
     assert.equal(open.length, 21);
     assert.ok(open.includes('ST9'));
     assert.ok(open.includes('CV22'));
-    assert.equal(practicePoints.length, 51);
+    assert.equal(practicePoints.length, 62);
     assert.equal(ANIME_OUTFITS.length, 2);
     assert.deepEqual(ANIME_OUTFITS.map(o => o.id), ['school', 'study-body']);
     assert.equal(isTorsoClothPeekPoint('ST17'), true);
@@ -218,13 +223,39 @@ try {
   await test('課堂集合順序不變', () => {
     assert.equal(CURRICULUM_SETS[0].id, 'head-neck-21');
     assert.equal(CURRICULUM_SETS[1].id, 'trunk-30');
+    assert.equal(CURRICULUM_SETS[2].id, 'back-shu-14');
     assert.equal(initialSimulation.tool, 'needle');
     assert.equal(initialSimulation.pointCode, 'GV24+');
   });
 
-  const animeJson = JSON.parse(await readFile(join(project, 'app/anime-points.json'), 'utf8'));
-  await test('anime-points.json 含原 21 加本週 30', () => {
-    assert.equal(animeJson.points.length, 51);
+  await test('背俞 14 已烘、口訣與第一側線排列', () => {
+    const lesson = curriculumSet('back-shu-14');
+    assert.ok(lesson);
+    assert.equal(lesson.codes.length, 14);
+    assert.deepEqual([...lesson.codes], BACK_SHU_14);
+    assert.match(lesson.lesson, /大風肺厥心督膈/);
+    assert.match(lesson.lesson, /第 8 胸椎不取穴/);
+    for (const code of BACK_SHU_14) {
+      assert.ok(ANIME_SUPPORTED_CODES.has(code), `缺少 ${code}`);
+    }
+    const byCode = new Map(animeJson.points.map(p => [p.code, p]));
+    const xs = BACK_SHU_FIRST_LINE.map(c => byCode.get(c).position[0]);
+    assert.ok(Math.max(...xs) - Math.min(...xs) < 0.0015, '第一側線旁開應共線');
+    const ys = BACK_SHU_FIRST_LINE.map(c => byCode.get(c).position[1]);
+    for (let i = 1; i < ys.length; i++) {
+      assert.ok(ys[i - 1] > ys[i], `${BACK_SHU_FIRST_LINE[i - 1]} 應高於 ${BACK_SHU_FIRST_LINE[i]}`);
+    }
+    const stepAvg = (ys[0] - ys[ys.length - 1]) / (ys.length - 1);
+    const t8Gap = ys[6] - ys[7];
+    assert.ok(t8Gap > stepAvg * 1.35, `T7→T9（跳過 T8）間距應大於平均椎間距`);
+    const bl23 = byCode.get('BL23');
+    const bl52 = byCode.get('BL52');
+    assert.ok(Math.abs(bl23.position[1] - bl52.position[1]) < 0.0015, '腎俞與志室應同高');
+    assert.ok(byCode.get('GV14').position[1] > byCode.get('BL11').position[1], '大椎應高於大杼');
+  });
+
+  await test('anime-points.json 含頭頸 21、軀幹 30 與背俞 11', () => {
+    assert.equal(animeJson.points.length, 62);
     const codes = new Set(animeJson.points.map(p => p.code));
     for (const code of HEAD_NECK_21) assert.ok(codes.has(code), `lost ${code}`);
     for (const code of TRUNK_30) assert.ok(codes.has(code), `missing ${code}`);

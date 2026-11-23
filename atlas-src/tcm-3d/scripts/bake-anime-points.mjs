@@ -99,15 +99,20 @@ const seeds={
  BL10:[.022*L,neck.y+.036,neck.z+.095],
  // 大椎：C7 棘突下、約肩線；BL14／BL43（T4）與 SI11 在其下方。
  GV14:[0,1.31,.08],
+ // 背部第一側線（旁開 1.5 寸）：T1～T7、跳過 T8、T9～L2；Y 依 BL14／BL23 錨點與椎序插值。
+ BL11:[.03*L,1.297,.09],BL12:[.03*L,1.284,.09],BL13:[.03*L,1.271,.09],
  // 第 4 肋間：乳頭高度 y≈1.195、x≈0.055；ST17 在乳頭，KI23 正中旁開，PC1／SP18 再外。
  CV17:[0,1.195,-.12],KI23:[CUN_LATERAL*2*L,1.195,-.12],ST17:[.055*L,1.195,-.13],PC1:[CUN_LATERAL*5*L,1.195,-.11],SP18:[CUN_LATERAL*6*L,1.195,-.09],
  CV14:[0,1.15,-.1],CV8:[0,1.02,-.1],KI16:[CUN_LATERAL*.5*L,1.02,-.1],ST25:[CUN_LATERAL*2*L,1.02,-.1],SP15:[.055*L,1.02,-.08],GB26:[.12*L,1.02,-.04],
- BL14:[.03*L,1.259,.09],BL43:[.055*L,1.259,.095],
+ BL14:[.03*L,1.259,.09],BL15:[.03*L,1.235,.09],BL16:[.03*L,1.211,.09],BL17:[.03*L,1.187,.09],
+ BL18:[.03*L,1.139,.09],BL19:[.03*L,1.115,.09],BL20:[.03*L,1.091,.09],BL21:[.03*L,1.067,.09],BL22:[.03*L,1.043,.09],
+ BL43:[.055*L,1.259,.095],
  // 天宗：與 T4 列同高（天宗／膏肓／厥陰俞）
  SI11:[.085*L,1.259,.095],SI9:[.15*L,1.31,.05],
  GV4:[0,1.02,.11],BL23:[.03*L,1.02,.1],BL52:[.055*L,1.02,.1],
 };
 const midline=new Set(['GV20','GV23','GV24+','GV26','CV24','CV23','CV22','GV16','GV15','GV14','CV17','CV14','CV8','GV4']);
+const backShuSet=new Set(['BL11','BL12','BL13','BL15','BL16','BL17','BL18','BL19','BL20','BL21','BL22']);
 const trunkSet=new Set(['TE21','SI19','GB2','ST6','TE17','GB21','ST12','GV16','GB20','GV15','BL10','GV14','CV17','KI23','ST17','PC1','SP18','CV14','CV8','KI16','ST25','SP15','GB26','BL14','BL43','SI11','SI9','GV4','BL23','BL52']);
 
 const preferFor=(code,arr)=>{
@@ -149,7 +154,7 @@ for(const code of targetCodes){
  else {pos[0]=0;}
  const catalogPoint=teachingByCode.get(code);
  const name=catalogPoint?.name??byCode.get(code)?.name??code;
- const defaultSet=trunkSet.has(code)?'trunk-30':'head-neck-21';
+ const defaultSet=backShuSet.has(code)?'back-shu-14':trunkSet.has(code)?'trunk-30':'head-neck-21';
  const entry={code,name,midline:midline.has(code)||!!catalogPoint?.midline,position:pos,normal:nor,reviewed:true,set:byCode.get(code)?.set??defaultSet};
  byCode.set(code,entry);
  updated.push(code);
@@ -179,10 +184,10 @@ const realignGroup=(codes,axis,anchor,fixed)=>{
   byCode.set(code,{...e,position:np,normal:nor});
  }
 };
-for(const row of [
- ['x',['ST12','ST17','SP15'],'ST17'],
+if(!codesFilter) for(const row of [
+  ['x',['ST12','ST17','SP15'],'ST17'],
  ['x',['KI23','ST25'],'ST25'],
- ['x',['BL14','BL23'],'BL14'],
+ ['x',['BL11','BL12','BL13','BL14','BL15','BL16','BL17','BL18','BL19','BL20','BL21','BL22','BL23'],'BL14'],
  ['x',['BL43','BL52'],'BL43'],
  ['x',['GB14','EX-HN4','ST1','ST2','ST3','ST4'],'ST1',{fixedX:pupilLineX}],
  ['x',['BL1','BL2'],'BL1'],
@@ -198,6 +203,7 @@ for(const row of [
  realignGroup(codes,axis,anchor,fixed);
 }
 
+if(!codesFilter){
 const si18=byCode.get('SI18'),gb1=byCode.get('GB1');
 if(si18&&gb1){
  const pos=gb1.position.slice();
@@ -210,10 +216,27 @@ if(si18&&gb1){
   byCode.set('GB1',{...gb1,position:np,normal:nor});
  }
 }
+}
+
+if(codesFilter){
+ const blLine=['BL11','BL12','BL13','BL14','BL15','BL16','BL17','BL18','BL19','BL20','BL21','BL22','BL23'];
+ realignGroup(blLine,'x','BL14');
+ for(const code of blLine){
+  if(!(code in seeds))continue;
+  const e=byCode.get(code);
+  if(!e)continue;
+  const seed=new T.Vector3(...e.position);
+  const hit=snap(seed,preferFor(code,e.position));
+  if(!hit)continue;
+  const np=hit.position.slice(),nor=hit.normal.slice();
+  np[0]=e.position[0];nor[0]=Math.abs(nor[0]);
+  byCode.set(code,{...e,position:np,normal:nor});
+ }
+}
 
 const points=[...byCode.values()].sort((a,b)=>a.code.localeCompare(b.code));
 const payload={
- model:'anime-assistant.glb',character:'Sendagaya Shino',license:'CC0 1.0 (VRoid Studio beta sample)',set:'head-neck-21+trunk-30',
+ model:'anime-assistant.glb',character:'Sendagaya Shino',license:'CC0 1.0 (VRoid Studio beta sample)',set:'head-neck-21+trunk-30+back-shu-14',
  faceAxis:'-Z',sideConvention:'position.x>0 means anatomical left; anime runtime flips X to -X for left',
  note:'穴位依解剖比例與臉部／軀幹骨骼標誌吸附到角色皮膚；教學示意，非臨床取穴。合併寫入，不會清空既有穴。',
  points,
