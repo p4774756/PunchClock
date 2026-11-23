@@ -63,11 +63,6 @@ const FRAME_CORNER_SVG =
   '<path d="M6 19 V8 Q6 6 8 6 H19" stroke="#8a6a28" stroke-width="1.2"/>' +
   '<rect x="2" y="2" width="4.2" height="4.2" fill="#f3e3a6" stroke="#8a6a28" stroke-width="0.8"/></svg>';
 
-const TASK_BADGE_SVG =
-  '<svg viewBox="0 0 42 42" aria-hidden="true">' +
-  '<polygon points="21,2 39,12 39,30 21,40 3,30 3,12" fill="#d4b35c" stroke="#8a6a28" stroke-width="1.6"/>' +
-  '<polygon points="21,7 35,15 35,27 21,35 7,27 7,15" fill="#f3e3a6"/></svg>';
-
 function frameCornerSpans() {
   return (
     '<span class="pt-a-corner pt-a-corner-tl" aria-hidden="true">' + FRAME_CORNER_SVG + '</span>' +
@@ -85,12 +80,11 @@ function taskHudMarkup() {
     '<img src="/assets/private-team/secretary-avatar.webp" alt="" aria-hidden="true" width="192" height="192" decoding="async">' +
     '</span>' +
     frameCornerSpans() +
-    '<span class="pt-a-badge" aria-hidden="true">' + TASK_BADGE_SVG + '<span>任</span></span>' +
     '</span>' +
     '<span class="pt-a-plate">' +
     '<span class="pt-a-name">私人女秘書</span>' +
     '<span class="pt-a-bar-row" data-pt-task-bar hidden>' +
-    '<span class="pt-a-bar-label">任務</span>' +
+    '<span class="pt-a-bar-label">今日完成</span>' +
     '<span class="pt-a-bar" aria-hidden="true"><i data-pt-task-bar-fill></i></span>' +
     '<span class="pt-a-bar-count" data-pt-task-bar-count></span>' +
     '</span></span></button>'
@@ -110,8 +104,8 @@ function identityHudMarkup(authed) {
       '<button type="button" class="pt-hud-id-plate" data-pt-identity-toggle aria-label="帳號" aria-expanded="false">' +
       idBody +
       '</button>' +
-      '<div class="pt-hud-id-menu" data-pt-identity-menu hidden role="menu">' +
-      '<a href="/logout" role="menuitem">登出</a>' +
+      '<div class="pt-hud-id-menu maple-window" data-pt-identity-menu hidden role="menu">' +
+      '<a href="/logout" class="pt-hud-id-logout" role="menuitem">登出</a>' +
       '</div></div>'
     );
   }
@@ -650,11 +644,16 @@ export function mountPrivateTeamPage(opts) {
     const prog = taskProgressFromTiger(tiger);
     if (!prog) {
       taskBarRow.hidden = true;
+      taskBarRow.removeAttribute('aria-label');
       if (taskBarFill) taskBarFill.style.width = '0%';
       if (taskBarCount) taskBarCount.textContent = '';
       return;
     }
     taskBarRow.hidden = false;
+    taskBarRow.setAttribute(
+      'aria-label',
+      '今日完成 ' + prog.completed + '／' + prog.total + '（不含排隊）'
+    );
     if (taskBarFill) {
       taskBarFill.style.width = Math.round(prog.fraction * 100) + '%';
     }

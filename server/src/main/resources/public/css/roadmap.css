@@ -301,28 +301,30 @@ body.roadmap-open {
   display: none;
 }
 
-.roadmap-check {
-  width: 14px;
-  height: 14px;
+.roadmap-state {
+  width: 10px;
+  height: 10px;
   flex-shrink: 0;
+  margin-top: 0.35rem;
+  border-radius: 50%;
+  background: var(--maple-track);
   border: 2px solid var(--maple-navy);
-  border-radius: 3px;
-  margin-top: 0.15rem;
-  background: var(--maple-white);
   position: relative;
+  box-sizing: border-box;
 }
 
-.roadmap-check.is-on {
-  background: var(--maple-navy);
+.roadmap-state.is-on {
+  background: var(--maple-green);
+  border-color: var(--maple-green);
 }
 
-.roadmap-check.is-on::after {
+.roadmap-state.is-on::after {
   content: "";
   position: absolute;
-  left: 3px;
-  top: 1px;
-  width: 4px;
-  height: 7px;
+  left: 2px;
+  top: 0;
+  width: 3px;
+  height: 6px;
   border: solid #fff;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);

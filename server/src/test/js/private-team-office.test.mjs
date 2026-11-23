@@ -41,8 +41,9 @@ test('progressBoardViewFromTiger 單號與今日進度', () => {
   assert.equal(active.statusLine, '進行中');
   assert.equal(active.phraseLine, '牆上進度面板');
   assert.match(active.metaLine, /第 2 輪/);
-  assert.equal(active.todayLabel, '今日進度');
+  assert.equal(active.todayLabel, '今日工作量');
   assert.equal(active.todayFraction, 1 / 4);
+  assert.equal(active.todayCountText, '1/4');
   const bad = progressBoardViewFromTiger(
     { active: [{ issue: 9, phrase: 'ai/issue-9 hack' }], completedToday: [] },
     0

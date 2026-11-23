@@ -16,6 +16,9 @@ test('私人女秘書 HUD 標記與身分文案', () => {
   assert.match(js, /alt="" aria-hidden="true"/);
   assert.match(js, /<span class="pt-a-name">私人女秘書<\/span>/);
   assert.match(js, /data-pt-task-bar/);
+  assert.match(js, /今日完成/);
+  assert.doesNotMatch(js, /pt-a-badge/);
+  assert.match(js, /pt-hud-id-logout/);
   assert.match(js, /taskProgressFromTiger/);
   assert.match(js, /pt-hud-id-plate/);
   assert.match(js, /data-pt-identity-toggle[^>]*aria-label="帳號"/);
