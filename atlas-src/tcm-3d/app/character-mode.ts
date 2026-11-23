@@ -1,3 +1,4 @@
+import adultPoints from './adult-points.json';
 import animePoints from './anime-points.json';
 import type {CurriculumSetId, SurfaceTarget, Vec3} from './teaching';
 import {POINT_BY_CODE} from './teaching';
@@ -16,6 +17,8 @@ import {ANIME_MODEL_DIGEST} from './anime-model-digest';
 
 export const ANIME_MODEL_URL=`/models/anime-assistant.glb?v=${ANIME_MODEL_DIGEST}`;
 export const ANIME_POINTS=(animePoints.points as AnimePoint[]);
+export const ADULT_POINTS=(adultPoints.points as AnimePoint[]);
+export const ADULT_SUPPORTED_CODES=new Set(ADULT_POINTS.map(p=>p.code));
 export const ANIME_POINT_BY_CODE=new Map(ANIME_POINTS.map(p=>[p.code,p]));
 export const ANIME_SUPPORTED_CODES=new Set(ANIME_POINTS.map(p=>p.code));
 export const ANIME_DEFAULT_SET:CurriculumSetId='head-neck-21';

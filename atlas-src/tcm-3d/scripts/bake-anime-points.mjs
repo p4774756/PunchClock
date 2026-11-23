@@ -12,8 +12,10 @@
  * (never clears points that lack a seed this run).
  *
  * Flags: --codes A,B,C   --dry-run
+ *        --model relpath (default public/models/anime-assistant.glb)
+ *        --output relpath (default app/anime-points.json)
  */
-import {readFileSync,writeFileSync} from 'node:fs';
+import {existsSync,readFileSync,writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname,join} from 'node:path';
 import * as T from 'three';
@@ -29,6 +31,16 @@ const args=process.argv.slice(2);
 const dryRun=args.includes('--dry-run');
 const codesArg=args.find(a=>a.startsWith('--codes='))??(args.includes('--codes')?args[args.indexOf('--codes')+1]:null);
 const codesFilter=codesArg?codesArg.split(',').map(s=>s.trim()).filter(Boolean):null;
+const argVal=flag=>{
+ const eq=args.find(a=>a.startsWith(`--${flag}=`));
+ if(eq)return eq.slice(flag.length+3);
+ const i=args.indexOf(`--${flag}`);
+ return i>=0?args[i+1]:null;
+};
+const modelRel=argVal('model')??'public/models/anime-assistant.glb';
+const outputRel=argVal('output')??'app/anime-points.json';
+const outputPath=join(rootDir,outputRel);
+const isAdultBake=modelRel.includes('anime-adult');
 
 const teaching=JSON.parse(readFileSync(join(rootDir,'app/teaching-points.json'),'utf8'));
 const teachingByCode=new Map((Array.isArray(teaching)?teaching:teaching.points||[]).map(p=>[p.code,p]));
@@ -36,10 +48,12 @@ const teachingByCode=new Map((Array.isArray(teaching)?teaching:teaching.points||
 const catalog=Array.isArray(teaching)?teaching:teaching.points||[];
 for(const p of catalog)teachingByCode.set(p.code,p);
 
-const existing=JSON.parse(readFileSync(join(rootDir,'app/anime-points.json'),'utf8'));
+const existing=existsSync(outputPath)
+ ?JSON.parse(readFileSync(outputPath,'utf8'))
+ :{points:[]};
 const byCode=new Map((existing.points||[]).map(p=>[p.code,{...p}]));
 
-const buffer=readFileSync(join(rootDir,'public/models/anime-assistant.glb')).buffer;
+const buffer=readFileSync(join(rootDir,modelRel)).buffer;
 const gltf=await new Promise((res,rej)=>new GLTFLoader().parse(buffer,'',res,rej));
 const scene=gltf.scene;
 scene.updateMatrixWorld(true);
@@ -305,7 +319,12 @@ if(codesFilter){
 }
 
 const points=[...byCode.values()].sort((a,b)=>a.code.localeCompare(b.code));
-const payload={
+const payload=isAdultBake?{
+ model:'anime-adult.glb',character:'AvatarSample_A (VRoid official sample)',license:'VRoid official sample terms (not CC0)',set:'head-neck-21+trunk-30+back-shu-14+hip-sacral-6+arm-joints-15',
+ faceAxis:'-Z',sideConvention:'position.x>0 means anatomical left; anime runtime flips X to -X for left',
+ note:'穴位依 J_Bip_*／J_Adj_* 骨骼世界座標種子＋皮膚射線吸附；與少女共用種子表，骨骼名稱與 AvatarSample_A 一致。教學示意，非臨床取穴。合併寫入，不會清空既有穴。',
+ points,
+}:{
  model:'anime-assistant.glb',character:'Sendagaya Shino',license:'CC0 1.0 (VRoid Studio beta sample)',set:'head-neck-21+trunk-30+back-shu-14+hip-sacral-6+arm-joints-15',
  faceAxis:'-Z',sideConvention:'position.x>0 means anatomical left; anime runtime flips X to -X for left',
  note:'穴位依解剖比例與臉部／軀幹骨骼標誌吸附到角色皮膚；教學示意，非臨床取穴。合併寫入，不會清空既有穴。',
@@ -317,5 +336,5 @@ if(dryRun){
  process.exit(0);
 }
 
-writeFileSync(join(rootDir,'app/anime-points.json'),JSON.stringify(payload,null,2)+'\n');
-console.log(`merged ${updated.length} point(s) [${updated.join(',')}]; total ${points.length}`);
+writeFileSync(outputPath,JSON.stringify(payload,null,2)+'\n');
+console.log(`merged ${updated.length} point(s) [${updated.join(',')}]; total ${points.length} → ${outputRel}`);
