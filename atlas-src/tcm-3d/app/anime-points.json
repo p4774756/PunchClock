@@ -2,7 +2,7 @@
   "model": "anime-assistant.glb",
   "character": "Sendagaya Shino",
   "license": "CC0 1.0 (VRoid Studio beta sample)",
-  "set": "head-neck-21+trunk-30+back-shu-14+hip-sacral-6",
+  "set": "head-neck-21+trunk-30+back-shu-14+hip-sacral-6+arm-joints-15",
   "faceAxis": "-Z",
   "sideConvention": "position.x>0 means anatomical left; anime runtime flips X to -X for left",
   "note": "穴位依解剖比例與臉部／軀幹骨骼標誌吸附到角色皮膚；教學示意，非臨床取穴。合併寫入，不會清空既有穴。",
@@ -773,6 +773,40 @@
       "set": "trunk-30"
     },
     {
+      "code": "HT3",
+      "name": "少海",
+      "midline": false,
+      "position": [
+        0.33737,
+        1.29555,
+        -0.02206
+      ],
+      "normal": [
+        0.09995,
+        0.25139,
+        -0.96271
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
+    },
+    {
+      "code": "HT7",
+      "name": "神門",
+      "midline": false,
+      "position": [
+        0.55894,
+        1.28999,
+        -0.05256
+      ],
+      "normal": [
+        0.41077,
+        0.49197,
+        -0.76761
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
+    },
+    {
       "code": "KI16",
       "name": "肓俞",
       "midline": false,
@@ -807,6 +841,40 @@
       "set": "trunk-30"
     },
     {
+      "code": "LI11",
+      "name": "曲池",
+      "midline": false,
+      "position": [
+        0.32654,
+        1.29555,
+        0.0308
+      ],
+      "normal": [
+        0.01634,
+        0.4817,
+        0.87618
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
+    },
+    {
+      "code": "LI15",
+      "name": "肩髃",
+      "midline": false,
+      "position": [
+        0.08,
+        1.31052,
+        -0.02969
+      ],
+      "normal": [
+        0.04412,
+        0.63316,
+        -0.77277
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
+    },
+    {
       "code": "LI20",
       "name": "迎香",
       "midline": false,
@@ -824,6 +892,57 @@
       "set": "head-neck-21"
     },
     {
+      "code": "LI5",
+      "name": "陽溪",
+      "midline": false,
+      "position": [
+        0.51972,
+        1.28999,
+        0.00966
+      ],
+      "normal": [
+        0.042,
+        -0.596,
+        0.80189
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
+    },
+    {
+      "code": "LU5",
+      "name": "尺澤",
+      "midline": false,
+      "position": [
+        0.32737,
+        1.29555,
+        -0.02303
+      ],
+      "normal": [
+        0.09994,
+        0.25139,
+        -0.96271
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
+    },
+    {
+      "code": "LU9",
+      "name": "太淵",
+      "midline": false,
+      "position": [
+        0.51894,
+        1.28999,
+        -0.03286
+      ],
+      "normal": [
+        0.07355,
+        0.20275,
+        -0.97646
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
+    },
+    {
       "code": "PC1",
       "name": "天池",
       "midline": false,
@@ -839,6 +958,57 @@
       ],
       "reviewed": true,
       "set": "trunk-30"
+    },
+    {
+      "code": "PC3",
+      "name": "曲澤",
+      "midline": false,
+      "position": [
+        0.31537,
+        1.29555,
+        -0.02376
+      ],
+      "normal": [
+        0.03222,
+        0.25094,
+        -0.96747
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
+    },
+    {
+      "code": "PC7",
+      "name": "大陵",
+      "midline": false,
+      "position": [
+        0.54094,
+        1.28999,
+        -0.0402
+      ],
+      "normal": [
+        0.57607,
+        0.37775,
+        -0.72488
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
+    },
+    {
+      "code": "SI10",
+      "name": "臑俞",
+      "midline": false,
+      "position": [
+        0.1579,
+        1.27989,
+        0.03684
+      ],
+      "normal": [
+        0.16317,
+        -0.30266,
+        0.93903
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
     },
     {
       "code": "SI11",
@@ -890,6 +1060,40 @@
       ],
       "reviewed": true,
       "set": "trunk-30"
+    },
+    {
+      "code": "SI5",
+      "name": "陽穀",
+      "midline": false,
+      "position": [
+        0.60815,
+        1.28999,
+        0.01773
+      ],
+      "normal": [
+        0.00839,
+        0.59482,
+        0.80382
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
+    },
+    {
+      "code": "SI8",
+      "name": "小海",
+      "midline": false,
+      "position": [
+        0.34134,
+        1.29555,
+        0.0313
+      ],
+      "normal": [
+        0.07548,
+        0.33897,
+        0.93776
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
     },
     {
       "code": "SI9",
@@ -1113,6 +1317,40 @@
       "set": "head-neck-21"
     },
     {
+      "code": "TE10",
+      "name": "天井",
+      "midline": false,
+      "position": [
+        0.31294,
+        1.3094,
+        0.00608
+      ],
+      "normal": [
+        0.0647,
+        0.91688,
+        0.39389
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
+    },
+    {
+      "code": "TE14",
+      "name": "肩髎",
+      "midline": false,
+      "position": [
+        0.11463,
+        1.32222,
+        0.0258
+      ],
+      "normal": [
+        0.23125,
+        0.74022,
+        0.63134
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
+    },
+    {
       "code": "TE17",
       "name": "翳風",
       "midline": false,
@@ -1162,6 +1400,23 @@
       ],
       "reviewed": true,
       "set": "head-neck-21"
+    },
+    {
+      "code": "TE4",
+      "name": "陽池",
+      "midline": false,
+      "position": [
+        0.53405,
+        1.28999,
+        0.00877
+      ],
+      "normal": [
+        0.048,
+        -0.62132,
+        0.78208
+      ],
+      "reviewed": true,
+      "set": "arm-joints-15"
     }
   ]
 }
