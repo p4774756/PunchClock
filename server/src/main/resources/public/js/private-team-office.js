@@ -8,6 +8,24 @@ const DONE_PREVIEW_LIMIT = 3;
 const QUEUE_PREVIEW_LIMIT = 5;
 const VAGUE_PHRASES = new Set(['完成一項工作', '正在處理一項工作']);
 
+/** 今日完成列穩定鍵（供輪詢差量比對新完成，不需另打 dev-status）。 */
+export function completedTodayKeys(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((row, i) => {
+    if (!row || typeof row !== 'object') return 'idx:' + i;
+    if (row.issue != null && String(row.issue).trim() !== '') return 'issue:' + row.issue;
+    if (row.pr != null && String(row.pr).trim() !== '') return 'pr:' + row.pr;
+    if (row.at) return 'at:' + String(row.at);
+    return 'idx:' + i;
+  });
+}
+
+export function hasNewCompletedToday(previousKeys, completedToday) {
+  if (!Array.isArray(previousKeys)) return false;
+  const nextKeys = completedTodayKeys(completedToday);
+  return nextKeys.some((k) => previousKeys.indexOf(k) === -1);
+}
+
 export function tigerFromPublic(body) {
   if (!body || body.success !== true || !body.characters) return null;
   const tiger = body.characters.tiger;

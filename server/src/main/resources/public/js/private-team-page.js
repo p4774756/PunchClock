@@ -2,8 +2,10 @@ import { wireHomeLoginModal } from './home-login-modal.js';
 import { mountPrivateTeamScene } from './private-team-scene.js';
 import {
   bubbleTextForStatus,
+  completedTodayKeys,
   fetchSecretaryDevQueue,
   fillStatusCard,
+  hasNewCompletedToday,
   secretarySpriteUrlForStatus,
   taskProgressFromTiger,
   tigerFromPublic
@@ -203,6 +205,7 @@ export function mountPrivateTeamPage(opts) {
   const taskBarCount = hud.querySelector('[data-pt-task-bar-count]');
 
   let tigerView = { status: '待命中', active: [], completedToday: [] };
+  let seenCompletedKeys = null;
   let devQueue = [];
   const statusUi = { doneExpanded: false, queueExpanded: false };
   let cardOpen = false;
@@ -528,6 +531,7 @@ export function mountPrivateTeamPage(opts) {
       ev.target === canvas
     ) {
       ev.preventDefault();
+      scene.playSecretaryWave();
       openStatusCard();
     }
   }
@@ -553,6 +557,10 @@ export function mountPrivateTeamPage(opts) {
 
   function applyTiger(tiger) {
     if (!tiger) return;
+    if (seenCompletedKeys != null && hasNewCompletedToday(seenCompletedKeys, tiger.completedToday)) {
+      scene.playSecretaryYeah();
+    }
+    seenCompletedKeys = completedTodayKeys(tiger.completedToday);
     tigerView = tiger;
     scene.setSecretarySprite(secretarySpriteUrlForStatus(tigerView.status));
     scene.setBubbleText(bubbleLabel());
