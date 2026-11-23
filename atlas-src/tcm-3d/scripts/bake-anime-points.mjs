@@ -219,8 +219,10 @@ if(missing.length){
  process.exit(1);
 }
 
+const skipResnap=codesFilter?new Set(['LU9','PC7','HT7','TE4','SI5','PC3','HT3']):null;
 const updated=[];
 for(const code of targetCodes){
+ if(skipResnap?.has(code)&&byCode.has(code))continue;
  const arr=seeds[code];
  const seed=new T.Vector3(...arr);
  const prefer=preferFor(code,arr);
@@ -311,45 +313,125 @@ const nudgeRadialSpread=(anchor,offsets)=>{
   if(!e)continue;
   const spread=Math.abs(dz??0);
   const targetZ=zRef+(dz??0);
-  const pos=e.position.slice();
-  pos[0]=xRef;
-  pos[2]=targetZ;
+  const yBase=ref.position[1];
+  const dorsalWrist=wristCreased.has(code)&&zRef>0&&targetZ>0;
+  const yOff={TE4:.022,SI5:-.018,PC3:-.012,HT3:.012}[code]??0;
+  const palmWrist=wristCreased.has(code)&&zRef<0&&targetZ<0;
+  const posY=dorsalWrist||palmWrist?yBase:yBase+yOff;
+  const pos=[xRef,posY,targetZ];
   const hit=snap(new T.Vector3(...pos),preferFor(code,pos));
   if(!hit)continue;
   let np=hit.position.slice(),nor=hit.normal.slice();
   np[0]=xRef;
-  const wristCollapsed=wristCreased.has(code)&&spread>0&&Math.abs(np[2]-zRef)<spread*.35;
-  const elbowMissed=!wristCreased.has(code)&&spread>0&&Math.abs(np[2]-targetZ)>spread*.5;
-  if(wristCollapsed||elbowMissed){
+  const sameHemisphere=targetZ*zRef>0;
+  const wrongSide=wristCreased.has(code)&&sameHemisphere&&np[2]*zRef<0;
+  const radialShort=spread>0&&Math.abs(np[2]-zRef)<spread*.55;
+  const offTarget=spread>0&&Math.abs(np[2]-targetZ)>spread*.45;
+  const needsNudge=spread>0&&(wrongSide||radialShort||offTarget);
+  if(needsNudge){
    const hit2=snap(new T.Vector3(xRef,np[1],targetZ),preferFor(code,[xRef,np[1],targetZ]));
    const needHit=targetZ*zRef>=0?spread*0.1:spread*0.4;
    if(hit2&&Math.abs(hit2.position[2]-np[2])>=needHit){np=hit2.position.slice();nor=hit2.normal.slice();}
-   else if(wristCollapsed){
-    const y0=ref.position[1];
+   if(wristCreased.has(code)){
     let pick=null,bestPick=0;
-    for(const dy of [0,.004,-.004,.008,-.008,.012,-.012,.016,-.016]){
-     const h=snap(new T.Vector3(xRef,y0+dy,targetZ),preferFor(code,[xRef,y0+dy,targetZ]));
+    const dyList=dorsalWrist?[0,.004,-.004,.008,-.008,.012,-.012,.016,-.016,.02,-.02]:[0,.004,-.004,.008,-.008];
+    for(const dy of dyList){
+     const h=snap(new T.Vector3(xRef,yBase+dy,targetZ),preferFor(code,[xRef,yBase+dy,targetZ]));
      if(!h)continue;
-     const needRad=targetZ*zRef>=0?spread*.15:spread*.3;
+     if(palmWrist&&Math.abs(h.position[1]-yBase)>.008)continue;
+     const needRad=dorsalWrist?spread*.3:spread*.3;
      const radial=Math.abs(h.position[2]-zRef),toward=Math.abs(h.position[2]-targetZ);
-     if(radial<needRad||toward>Math.abs(np[2]-targetZ)+1e-6)continue;
+     if(radial<needRad)continue;
+     if(sameHemisphere&&h.position[2]*zRef<0)continue;
+     if(radial>bestPick){pick=h;bestPick=radial;}
+    }
+    if(pick){np=pick.position.slice();nor=pick.normal.slice();}
+    else if(hit2&&!(sameHemisphere&&hit2.position[2]*zRef<0)){np=hit2.position.slice();nor=hit2.normal.slice();}
+    if(dorsalWrist){
+     const yAnchor=yBase+(code==='TE4'?-.012:code==='SI5'?0:.004);
+     const yTry=pick?.position[1]??hit2?.position[1]??yAnchor;
+     let onSkin=null,bestScore=-Infinity;
+     for(const dy of [0,.004,-.004,.008,-.008,.012,-.012]){
+      const h=snap(new T.Vector3(xRef,yTry+dy,targetZ),preferFor(code,[xRef,yTry+dy,targetZ]));
+      if(!h||h.position[2]*zRef<0)continue;
+      const radial=Math.abs(h.position[2]-zRef);
+      const toward=Math.abs(h.position[2]-targetZ);
+      const score=radial-toward*.25;
+      if(radial<spread*.3||score<=bestScore)continue;
+      onSkin=h;bestScore=score;
+     }
+     if(onSkin){np=onSkin.position.slice();nor=onSkin.normal.slice();}
+     else if(hit2&&hit2.position[2]*zRef>=0){np=hit2.position.slice();nor=hit2.normal.slice();}
+     else{
+      const h=snap(new T.Vector3(xRef,yBase,targetZ),preferFor(code,[xRef,yBase,targetZ]));
+      if(h&&h.position[2]*zRef>=0){np=h.position.slice();nor=h.normal.slice();}
+     }
+    }
+   }else{
+    let pick=null,bestPick=0;
+    const yTry=yBase+yOff;
+    for(const dy of [0,.004,-.004,.008,-.008,.012,-.012,.016,-.016]){
+     const h=snap(new T.Vector3(xRef,yTry+dy,targetZ),preferFor(code,[xRef,yTry+dy,targetZ]));
+     if(!h)continue;
+     if(sameHemisphere&&h.position[2]*zRef<0)continue;
+     const radial=Math.abs(h.position[2]-zRef);
+     if(radial<spread*.4)continue;
      if(radial>bestPick){pick=h;bestPick=radial;}
     }
     if(pick){np=pick.position.slice();nor=pick.normal.slice();}
     else if(hit2){np=hit2.position.slice();nor=hit2.normal.slice();}
+    else np[2]+=(targetZ-np[2])*.65;
    }
-   else if(hit2){np=hit2.position.slice();nor=hit2.normal.slice();}
-   else if(elbowMissed)np[2]+=(targetZ-np[2])*.65;
+   if(!dorsalWrist){
+    const skinHit=snap(new T.Vector3(xRef,np[1],np[2]),preferFor(code,[xRef,np[1],np[2]]));
+    if(skinHit&&!(sameHemisphere&&skinHit.position[2]*zRef<0)&&Math.abs(skinHit.position[2]-zRef)>=spread*.35){
+     np=skinHit.position.slice();nor=skinHit.normal.slice();
+     np[0]=xRef;
+    }
+   }
   }
   np[0]=xRef;
   nor[0]=Math.abs(nor[0]);
   byCode.set(code,{...e,position:np,normal:nor});
  }
 };
+const radialYz=(a,b)=>Math.hypot(a.position[1]-b.position[1],a.position[2]-b.position[2]);
+const minPalmRadial=()=>{
+ const lu9=byCode.get('LU9'),pc7=byCode.get('PC7'),ht7=byCode.get('HT7');
+ if(!lu9||!pc7||!ht7)return 0;
+ return Math.min(radialYz(lu9,pc7),radialYz(lu9,ht7),radialYz(pc7,ht7));
+};
 const armRadialTweak=()=>{
- nudgeRadialSpread('LU5',{PC3:.013,HT3:.024});
- nudgeRadialSpread('LU9',{PC7:.01,HT7:.018});
- nudgeRadialSpread('LI5',{TE4:.006,SI5:.01});
+ nudgeRadialSpread('LU5',{PC3:.026,HT3:.036});
+ if(minPalmRadial()<0.007)nudgeRadialSpread('LU9',{PC7:.01,HT7:.018});
+ nudgeRadialSpread('LI5',{TE4:.013,SI5:.026});
+ const li5=byCode.get('LI5');
+ const dorsalResnap=(code,dzHints,yBias,peers)=>{
+  const e=byCode.get(code);
+  if(!li5||!e)return;
+  let best=null,bestScore=0;
+  const dzList=Array.isArray(dzHints)?dzHints:[dzHints];
+  const peerPts=(peers??[]).map(c=>byCode.get(c)).filter(Boolean);
+  for(const dz of dzList){
+   for(const dy of [yBias,0,yBias*.5,-yBias*.5,yBias*1.5,-yBias*1.5,-.02,.02,.016,-.016,.012,-.012]){
+    const pos=[li5.position[0],li5.position[1]+dy,li5.position[2]+dz];
+    const hit=snap(new T.Vector3(...pos),preferFor(code,pos));
+    if(!hit)continue;
+    const radial=radialYz(li5,{position:hit.position});
+    if(radial<0.007)continue;
+    let minPeer=Infinity;
+    for(const p of peerPts)minPeer=Math.min(minPeer,radialYz(p,{position:hit.position}));
+    if(peerPts.length&&minPeer<0.007)continue;
+    const score=peerPts.length?minPeer:radial;
+    if(score>bestScore){best=hit;bestScore=score;}
+   }
+  }
+  if(!best)return;
+  const np=best.position.slice();np[0]=li5.position[0];
+  byCode.set(code,{...e,position:np,normal:[Math.abs(best.normal[0]),best.normal[1],best.normal[2]]});
+ };
+ dorsalResnap('SI5',[-.025,-.022,-.018,-.015,-.012,.008,.01,.012,.014],-.017,[]);
+ dorsalResnap('TE4',[-.03,-.028,-.022,-.018,.004,.006,.008],.014,['SI5']);
  const lu5=byCode.get('LU5'),pc3=byCode.get('PC3'),ht3=byCode.get('HT3');
  if(lu5&&pc3&&ht3){
   const zLu=lu5.position[2],yLu=lu5.position[1];
@@ -360,7 +442,8 @@ const armRadialTweak=()=>{
    const hit=snap(new T.Vector3(...pos),preferFor(code,pos));
    if(!hit)return;
    const np=hit.position.slice();
-   np[0]=lu5.position[0];np[2]=e.position[2];
+   np[0]=lu5.position[0];
+   if(Math.abs(hit.position[2]-e.position[2])<=.003)np[2]=e.position[2];
    byCode.set(code,{...e,position:np,normal:[Math.abs(hit.normal[0]),hit.normal[1],hit.normal[2]]});
   };
   elbowY('PC3',-.006);

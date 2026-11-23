@@ -522,7 +522,10 @@ try {
         : [new T.Vector3(-p.position[0], p.position[1], p.position[2]), new T.Vector3(p.position[0], p.position[1], p.position[2])];
       let best = Infinity;
       for (const world of candidates) best = Math.min(best, distToSkin(world));
-      assert.ok(best < 0.002, `${p.code} 距皮膚 ${(best * 1000).toFixed(2)} mm（需 < 2 mm）`);
+      assert.ok(
+        best < 0.002,
+        `${p.code} 距皮膚 ${(best * 1000).toFixed(2)} mm（需 < 2.00 mm）`,
+      );
     }
   });
 
