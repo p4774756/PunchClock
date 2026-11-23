@@ -661,6 +661,18 @@ button.pt-hud-id-plate {
   line-height: 1.45;
 }
 
+.pt-status-active-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.pt-status-issue-sub {
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
 .pt-status-links {
   display: flex;
   flex-wrap: wrap;

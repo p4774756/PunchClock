@@ -22,8 +22,14 @@ public class SecretarySpeechTest {
     }
 
     @Test
-    public void activeFallbackWithoutLine() {
-        IssueRow row = new IssueRow(1, "不應出現的標題", true, 0, 0, null, Collections.emptyList());
+    public void activeUsesIssueTitleWithoutLine() {
+        IssueRow row = new IssueRow(1, "README 更新：截圖與功能說明", true, 0, 0, null, Collections.emptyList());
+        assertEquals("README 更新：截圖與功能說明", SecretarySpeech.phraseForActive(row));
+    }
+
+    @Test
+    public void activeFallbackWithoutLineOrTitle() {
+        IssueRow row = new IssueRow(1, "  ", true, 0, 0, null, Collections.emptyList());
         assertEquals(SecretarySpeech.ACTIVE_FALLBACK, SecretarySpeech.phraseForActive(row));
     }
 

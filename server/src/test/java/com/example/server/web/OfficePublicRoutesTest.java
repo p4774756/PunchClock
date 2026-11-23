@@ -198,7 +198,8 @@ public class OfficePublicRoutesTest {
 
         JsonObject active = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
                 .getAsJsonArray("active").get(0).getAsJsonObject();
-        assertEquals(SecretarySpeech.ACTIVE_FALLBACK, active.get("phrase").getAsString());
+        assertEquals("秘密標題", active.get("phrase").getAsString());
+        assertEquals("秘密標題", active.get("title").getAsString());
     }
 
     @Test
