@@ -114,6 +114,12 @@
   pointer-events: none;
 }
 
+.lab-office-stage.pt-login-open .pt-hud-download,
+.lab-office-stage.pt-login-open .pt-hud-deploy-ver {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .pt-prog-hit {
   position: absolute;
   left: 0;
@@ -551,7 +557,7 @@ button.pt-hud-id-plate {
 
 .pt-hud-task-hint {
   padding: 0.55rem 0.65rem;
-  max-width: 220px;
+  max-width: min(240px, 92vw);
   background: var(--maple-white, #f8fbff);
   border: 3px solid var(--maple-navy, #163a70);
   border-radius: 6px;
@@ -563,8 +569,26 @@ button.pt-hud-id-plate {
   display: none !important;
 }
 
+.pt-hud-task-hint-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+}
+
+.pt-hud-task-hint-close {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -0.35rem -0.35rem -0.35rem 0;
+  font-size: 1.2rem;
+}
+
 .pt-hud-task-hint-text {
-  margin: 0 0 0.45rem;
+  margin: 0;
+  flex: 1 1 auto;
   font-size: 0.86rem;
   font-weight: 700;
   color: var(--maple-ink, #142440);
