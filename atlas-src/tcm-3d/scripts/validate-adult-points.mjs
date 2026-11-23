@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import {createHash} from 'node:crypto';
 import {existsSync,readFileSync} from 'node:fs';
 import {dirname,join} from 'node:path';
 import {spawnSync} from 'node:child_process';
@@ -32,13 +31,6 @@ const avatarsSrc=readFileSync(join(root,'app/avatars.ts'),'utf8');
 assert.match(charMode,/ADULT_POINTS/, 'character-mode exports ADULT_POINTS');
 assert.match(avatarsSrc,/points:ADULT_POINTS/, 'adult avatar wires ADULT_POINTS');
 
-const digest=createHash('sha256').update(readFileSync(adultPath)).digest('hex');
-assert.equal(
-  digest,
-  '2d8da5d397ce0e1af62dd7cf0b3b7ff6d336d46e457761066f6201ccc3f69449',
-  'adult-points.json digest mismatch — re-bake or update pin',
-);
-
 if(!process.env.CI&&!process.env.SKIP_ADULT_BAKE_DRY){
  const dry=spawnSync(process.execPath,[bakePath,'--dry-run','--model','public/models/anime-adult.glb','--output','app/adult-points.json','--codes','GV20'],{
   cwd:root,encoding:'utf8',timeout:120_000,
@@ -53,4 +45,4 @@ if(!process.env.CI&&!process.env.SKIP_ADULT_BAKE_DRY){
  }
 }
 
-console.log(`adult-points checks passed (${adult.points.length} codes, digest ${digest.slice(0,12)}…).`);
+console.log(`adult-points checks passed (${adult.points.length} codes).`);

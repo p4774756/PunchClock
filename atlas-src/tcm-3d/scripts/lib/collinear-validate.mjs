@@ -27,8 +27,8 @@ export const COLLINEAR_GROUPS = [
   {name: '啞門平天柱', axis: 'y', codes: ['GV15', 'BL10'], anchor: 'GV15'},
   {name: '外眼角直線（x）', axis: 'x', codes: ['TE23', 'SI18'], anchor: 'SI18'},
   {name: '耳前線（側面 z）', axis: 'z', codes: ['TE21', 'SI19', 'GB2']},
-  {name: '肘橫紋列', axis: 'y', codes: ['LU5', 'PC3', 'HT3', 'LI11', 'SI8'], anchor: 'LU5'},
-  {name: '腕橫紋列', axis: 'y', codes: ['LU9', 'PC7', 'HT7', 'LI5', 'TE4', 'SI5'], anchor: 'LU9'},
+  {name: '肘橫紋列', axis: 'x', codes: ['LU5', 'PC3', 'HT3', 'LI11', 'SI8'], anchor: 'LU5'},
+  {name: '腕橫紋列', axis: 'x', codes: ['LU9', 'PC7', 'HT7', 'LI5', 'TE4', 'SI5'], anchor: 'PC7'},
   {name: '薦骨腰俞同高列', axis: 'y', codes: ['GV2', 'BL34', 'BL30', 'BL54'], anchor: 'GV2'},
 ];
 
@@ -158,6 +158,86 @@ export function validateCollinearSeeds(animeJson, opts = {}) {
     if (nx > backMidlineMaxNx + 1e-9) {
       failures.push(`${code} 後背正中法線 |normal.x|=${nx.toFixed(3)}（須 < ${backMidlineMaxNx}）`);
     }
+  }
+
+  const armFail = validateArmJointAxes(animeJson);
+  failures.push(...armFail.failures);
+
+  return {passed: failures.length === 0, failures};
+}
+
+/** 肘腕橫紋：近遠端（X）共線、橈尺（Z）須明顯分開；陽穀不可落在掌指關節。 */
+export function validateArmJointAxes(animeJson) {
+  const byCode = pointMap(animeJson.points || []);
+  const failures = [];
+  const spread = (codes, axis) => {
+    const idx = axisIndex(axis);
+    const vals = codes.map(c => {
+      const p = byCode.get(c);
+      if (!p) throw new Error(`缺少穴 ${c}`);
+      return axis === 'x' ? Math.abs(p.position[idx]) : p.position[idx];
+    });
+    return Math.max(...vals) - Math.min(...vals);
+  };
+  const elbowPalm = ['LU5', 'PC3', 'HT3'];
+  const wristLine = ['LU9', 'PC7', 'HT7', 'LI5', 'TE4', 'SI5'];
+  const minRadialSepM = 0.008;
+  const maxProximalDriftM = 0.012;
+  const si5MaxX = 0.565;
+  const radialSpan = (a, b) => Math.hypot(a.position[1] - b.position[1], a.position[2] - b.position[2]);
+
+  if (elbowPalm.every(c => byCode.has(c))) {
+    const xSpr = spread(elbowPalm, 'x');
+    const yzSpr = Math.max(
+      radialSpan(byCode.get('LU5'), byCode.get('PC3')),
+      radialSpan(byCode.get('LU5'), byCode.get('HT3')),
+      radialSpan(byCode.get('PC3'), byCode.get('HT3')),
+    );
+    if (xSpr > maxProximalDriftM + 1e-9) {
+      failures.push(`肘掌側三穴 X 落差 ${(xSpr * 1000).toFixed(2)} mm（應 ≤ ${maxProximalDriftM * 1000} mm）`);
+    }
+    if (yzSpr < minRadialSepM - 1e-9) {
+      failures.push(`肘掌側三穴橈尺落差 ${(yzSpr * 1000).toFixed(2)} mm（須 ≥ ${minRadialSepM * 1000} mm）`);
+    }
+    const lu5 = byCode.get('LU5');
+    const ht3 = byCode.get('HT3');
+    if (lu5 && ht3 && ht3.position[2] <= lu5.position[2] + 1e-6) {
+      failures.push('尺澤 LU5 與少海 HT3 未沿 +Z 尺側分開');
+    }
+    if (xSpr >= yzSpr - 0.002) {
+      failures.push(`肘掌側三穴 X 落差應小於橈尺（x ${(xSpr * 1000).toFixed(2)} mm，橈尺 ${(yzSpr * 1000).toFixed(2)} mm）`);
+    }
+  }
+
+  if (wristLine.every(c => byCode.has(c))) {
+    const xSpr = spread(wristLine, 'x');
+    const zSpr = spread(wristLine, 'z');
+    if (xSpr > maxProximalDriftM + 1e-9) {
+      failures.push(`腕六穴 X 落差 ${(xSpr * 1000).toFixed(2)} mm（應 ≤ ${maxProximalDriftM * 1000} mm）`);
+    }
+    if (zSpr < minRadialSepM - 1e-9) {
+      failures.push(`腕六穴 Z 落差 ${(zSpr * 1000).toFixed(2)} mm（橈尺須 ≥ ${minRadialSepM * 1000} mm）`);
+    }
+    if (xSpr >= zSpr - 0.002) {
+      failures.push(`腕六穴 X 落差應明顯小於 Z（x ${(xSpr * 1000).toFixed(2)} mm，z ${(zSpr * 1000).toFixed(2)} mm）`);
+    }
+  }
+
+  const si5 = byCode.get('SI5');
+  if (si5 && si5.position[0] > si5MaxX + 1e-9) {
+    failures.push(`陽穀 SI5 x=${si5.position[0].toFixed(5)} 過遠端（掌指關節約 0.60，應留在腕橫紋）`);
+  }
+
+  const si10 = byCode.get('SI10');
+  const si11 = byCode.get('SI11');
+  const si10MaxX = 0.12;
+  if (si10 && si10.position[0] > si10MaxX + 1e-9) {
+    failures.push(`臑俞 SI10 x=${si10.position[0].toFixed(5)} 偏上臂上臂遠端（應 ≤ ${si10MaxX}，靠近肩胛／天宗）`);
+  }
+  if (si10 && si11 && si10.position[0] > si11.position[0] + 0.025 + 1e-9) {
+    failures.push(
+      `臑俞 SI10 x=${si10.position[0].toFixed(5)} 較天宗 SI11 x=${si11.position[0].toFixed(5)} 外偏過多`,
+    );
   }
 
   return {passed: failures.length === 0, failures};

@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -11,13 +10,23 @@ assert.match(assistantDigest, /ANIME_MODEL_DIGEST='bc1400d08d6b'/, 'assistant di
 assert.match(assistantDigest, /ANIME_MODEL_BYTES=5681108/, 'assistant byte size must stay unchanged');
 
 const pointsJson = readFileSync(join(root, 'app/anime-points.json'), 'utf8');
-const pointsHash = createHash('sha256').update(pointsJson).digest('hex');
-assert.equal(
-  pointsHash,
-  '75b6d3b61008c672de0a92ff728493a1f80c4a845ab9ecabadf92b89de85ac5d',
-  'anime-points.json must not change on this branch',
-);
-JSON.parse(pointsJson);
+const anime = JSON.parse(pointsJson);
+assert.equal(anime.model, 'anime-assistant.glb');
+assert.equal(anime.faceAxis, '-Z');
+assert.ok(Array.isArray(anime.points), 'anime-points.points must be an array');
+assert.ok(anime.points.length >= 83, `anime-points must not shrink below 83, got ${anime.points.length}`);
+const codes = new Set();
+for (const pt of anime.points) {
+  assert.ok(pt && typeof pt.code === 'string' && pt.code, 'point missing code');
+  assert.ok(typeof pt.name === 'string' && pt.name, `${pt.code} missing name`);
+  assert.ok(Array.isArray(pt.position) && pt.position.length === 3 && pt.position.every((n) => Number.isFinite(n)), `${pt.code} position`);
+  assert.ok(Array.isArray(pt.normal) && pt.normal.length === 3 && pt.normal.every((n) => Number.isFinite(n)), `${pt.code} normal`);
+  assert.ok(!codes.has(pt.code), `duplicate code ${pt.code}`);
+  codes.add(pt.code);
+}
+for (const code of ['LU5','PC3','HT3','LI11','TE10','SI8','LU9','PC7','HT7','LI5','TE4','SI5','LI15','TE14','SI10','SI9','SI11']) {
+  assert.ok(codes.has(code), `required baked code missing: ${code}`);
+}
 
 const page = readFileSync(join(root, 'app/page.tsx'), 'utf8');
 assert.match(page, /ANIME_AVATARS/, 'page must render avatar list');
