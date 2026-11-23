@@ -54,7 +54,49 @@ test('窗景含雲層、樓燈閃爍、飛機燈與夜雨，且 reducedMotion �
   assert.match(src, /windowAirplane/);
   assert.match(src, /windowRainBack/);
   assert.match(src, /windowGlassStreaks/);
+  assert.match(src, /windowStreetTraffic/);
+  assert.match(src, /makeWindowStreetTrafficTexture/);
   assert.match(src, /privateTeamWindowAmbientMotionEnabled\(reducedMotion\)/);
+  assert.match(src, /streetTrafficTex\.offset\.x/);
   assert.equal(privateTeamWindowAmbientMotionEnabled(true), false);
   assert.equal(privateTeamWindowAmbientMotionEnabled(false), true);
+});
+
+test('窗台物件、杯口熱氣與六格月光斑，雨跡比舊版更明顯', () => {
+  const src = readFileSync(scenePath, 'utf8');
+  assert.match(src, /windowSill/);
+  assert.match(src, /windowSillPlant/);
+  assert.match(src, /windowSillMug/);
+  assert.match(src, /windowSillMugSteam/);
+  assert.match(src, /makeWindowMoonlightFloorTexture/);
+  assert.match(src, /windowMoonlight/);
+  assert.doesNotMatch(src, /windowWash/);
+  assert.match(src, /windowSillMugSteamPuffs/);
+  assert.match(src, /opacity:\s*0\.46/);
+  assert.match(src, /opacity:\s*0\.42/);
+  assert.match(src, /for \(let d = 0; d < 14; d\+\+\)/);
+});
+
+test('reducedMotion 時杯口熱氣靜態、車流 offset 僅在環境動態開啟時位移', () => {
+  const src = readFileSync(scenePath, 'utf8');
+  assert.match(
+    src,
+    /if \(reducedMotion\)[\s\S]*windowSillMugSteamPuffs[\s\S]*material\.opacity/
+  );
+  assert.match(src, /streetTrafficTex\.offset\.x = \(elapsed \* 0\.06\) % 1/);
+  assert.match(
+    src,
+    /if \(privateTeamWindowAmbientMotionEnabled\(reducedMotion\)\) \{[\s\S]*streetTrafficTex\.offset\.x/
+  );
+});
+
+test('秘書泡泡為深藍膠囊，名牌仍為白底藍邊', () => {
+  const src = readFileSync(scenePath, 'utf8');
+  const bubbleBlock = src.slice(src.indexOf('function makeBubbleDrawer'), src.indexOf('function makeNameplateDrawer'));
+  assert.doesNotMatch(bubbleBlock, /#f8fbff/);
+  assert.doesNotMatch(bubbleBlock, /lineWidth = 10/);
+  assert.match(bubbleBlock, /rgba\(18,32,58/);
+  const nameplateBlock = src.slice(src.indexOf('function makeNameplateDrawer'), src.indexOf('export function bronzeBodyMaterialFrom'));
+  assert.match(nameplateBlock, /#f8fbff/);
+  assert.match(nameplateBlock, /#163a70/);
 });
