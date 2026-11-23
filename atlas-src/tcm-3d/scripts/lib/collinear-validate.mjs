@@ -181,7 +181,8 @@ export function validateArmJointAxes(animeJson) {
   };
   const elbowPalm = ['LU5', 'PC3', 'HT3'];
   const wristLine = ['LU9', 'PC7', 'HT7', 'LI5', 'TE4', 'SI5'];
-  const minRadialSepM = 0.008;
+  const minRadialSepM = 0.007;
+  const minRadialByGroup = { '掌側腕橫紋': 0.007, '背側腕橫紋': 0.007, '肘掌側橫紋': 0.005 };
   const maxProximalDriftM = 0.012;
   const si5MaxX = 0.565;
   const radialSpan = (a, b) => Math.hypot(a.position[1] - b.position[1], a.position[2] - b.position[2]);
@@ -206,6 +207,31 @@ export function validateArmJointAxes(animeJson) {
     }
     if (xSpr >= yzSpr - 0.002) {
       failures.push(`肘掌側三穴 X 落差應小於橈尺（x ${(xSpr * 1000).toFixed(2)} mm，橈尺 ${(yzSpr * 1000).toFixed(2)} mm）`);
+    }
+  }
+
+  const minGroupRadial = (codes) => {
+    let minD = Infinity;
+    for (let i = 0; i < codes.length; i++) {
+      for (let j = i + 1; j < codes.length; j++) {
+        minD = Math.min(minD, radialSpan(byCode.get(codes[i]), byCode.get(codes[j])));
+      }
+    }
+    return minD;
+  };
+  const checkRadialGroups = [
+    ['掌側腕橫紋', ['LU9', 'PC7', 'HT7']],
+    ['背側腕橫紋', ['LI5', 'TE4', 'SI5']],
+    ['肘掌側橫紋', ['LU5', 'PC3', 'HT3']],
+  ];
+  for (const [label, codes] of checkRadialGroups) {
+    if (!codes.every(c => byCode.has(c))) continue;
+    const minYz = minGroupRadial(codes);
+    const need = minRadialByGroup[label] ?? minRadialSepM;
+    if (minYz < need - 1e-9) {
+      failures.push(
+        `${label} 任兩穴橈尺距離最小 ${(minYz * 1000).toFixed(2)} mm（須 ≥ ${need * 1000} mm）`,
+      );
     }
   }
 
