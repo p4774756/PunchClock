@@ -1,14 +1,14 @@
 .news-panel .news-list {
   list-style: none;
   margin: 0;
-  padding: 0.35rem 0 0;
+  padding: 0.35rem 0.95rem 0;
   max-height: min(62vh, 28rem);
   overflow-y: auto;
 }
 
 .news-list-row {
   border-bottom: 1px solid rgba(22, 58, 112, 0.12);
-  padding: 0.55rem 0.1rem;
+  padding: 0.55rem 0.35rem;
 }
 
 .news-list-title {
@@ -42,6 +42,7 @@
 
 .news-panel .news-note {
   margin: 0.5rem 0 0;
+  padding: 0 0.95rem;
   font-size: 0.85rem;
   color: var(--maple-muted);
 }
