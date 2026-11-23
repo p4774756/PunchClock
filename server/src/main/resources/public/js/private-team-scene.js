@@ -729,14 +729,62 @@ export function isBronzeBodyMaterialName(name) {
   return n === 'bronze_body' || n === 'bronze.001';
 }
 
+export function isBronzePedestalMesh(meshName, matName) {
+  const mat = (matName || '').toLowerCase();
+  const mesh = (meshName || '').toLowerCase();
+  if (mat.indexOf('pedestal') >= 0 || mat.indexOf('plaque') >= 0) return true;
+  if (mesh.indexOf('pedestal') >= 0 || mesh.indexOf('plaque') >= 0) return true;
+  return false;
+}
+
 export function shouldSkipBronzeMaterialCoerce(matName, meshName) {
   const mat = (matName || '').toLowerCase();
   const mesh = (meshName || '').toLowerCase();
   if (mat.indexOf('sash') >= 0) return true;
-  if (mat.indexOf('pedestal') >= 0 || mat.indexOf('plaque') >= 0) return true;
+  if (isBronzePedestalMesh(meshName, matName)) return true;
   if (mat.indexOf('meridian') >= 0 || mat.indexOf('bronze_dark') >= 0) return true;
-  if (mesh.indexOf('pedestal') >= 0 || mesh.indexOf('plaque') >= 0) return true;
   return false;
+}
+
+/** 不含台座／牌子的人像 native 高（腳踏台座面到髮頂；GLB 量測約 1.728） */
+export const BRONZE_FIGURE_NATIVE_HEIGHT = 1.728;
+/** 整件含台座 native 高（約 1.92）；勿與 BRONZE_FIGURE_NATIVE_HEIGHT 混用 */
+export const BRONZE_ASSEMBLY_NATIVE_HEIGHT = 1.92;
+export const BRONZE_NAMEPLATE_OFFSET_Y = 0.08;
+
+export function bronzeScaleForFigureHeight(figureNativeHeight) {
+  const h =
+    figureNativeHeight != null && Number(figureNativeHeight) > 0.01
+      ? Number(figureNativeHeight)
+      : BRONZE_FIGURE_NATIVE_HEIGHT;
+  return SECRETARY_SPRITE_HEIGHT / h;
+}
+
+export function bronzeAssemblyDisplayHeight(figureNativeHeight = BRONZE_FIGURE_NATIVE_HEIGHT) {
+  return BRONZE_ASSEMBLY_NATIVE_HEIGHT * bronzeScaleForFigureHeight(figureNativeHeight);
+}
+
+export function bronzeFigureNativeHeightFromModel(model) {
+  const box = new THREE.Box3();
+  const piece = new THREE.Box3();
+  let any = false;
+  model.traverse((obj) => {
+    if (!obj.isMesh) return;
+    let matName = '';
+    if (obj.material) {
+      const m = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+      matName = m && m.name ? m.name : '';
+    }
+    if (isBronzePedestalMesh(obj.name, matName)) return;
+    piece.setFromObject(obj);
+    if (any) box.union(piece);
+    else {
+      box.copy(piece);
+      any = true;
+    }
+  });
+  if (!any) return BRONZE_FIGURE_NATIVE_HEIGHT;
+  return Math.max(0.01, box.max.y - box.min.y);
 }
 
 export function isBronzeHairMaterial(matName, meshName) {
@@ -920,8 +968,6 @@ function makeBubbleDrawer() {
 }
 
 const BRONZE_GLB_URL = '/models/tcm-bronze-figure.glb';
-const BRONZE_NATIVE_HEIGHT = 1.72;
-const BRONZE_DISPLAY_HEIGHT = SECRETARY_SPRITE_HEIGHT;
 
 function makeNameplateDrawer() {
   const canvas = document.createElement('canvas');
@@ -1640,7 +1686,11 @@ export function mountPrivateTeamScene(canvas, opts) {
   });
   const atlasNameplate = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.17), nameplateMat);
   atlasNameplate.userData.pickRole = 'atlas';
-  atlasNameplate.position.set(0, BRONZE_DISPLAY_HEIGHT + 0.08, 0.1);
+  atlasNameplate.position.set(
+    0,
+    bronzeAssemblyDisplayHeight() + BRONZE_NAMEPLATE_OFFSET_Y,
+    0.1
+  );
   atlasNameplate.renderOrder = 2;
   atlasRoot.add(atlasNameplate);
 
@@ -1944,12 +1994,13 @@ export function mountPrivateTeamScene(canvas, opts) {
         model.traverse((obj) => {
           if (obj.isMesh) obj.userData.pickRole = 'atlas';
         });
-        const bounds = new THREE.Box3().setFromObject(model);
-        const modelHeight = Math.max(0.01, bounds.max.y - bounds.min.y);
-        const scale = BRONZE_DISPLAY_HEIGHT / (modelHeight || BRONZE_NATIVE_HEIGHT);
+        const figureHeight = bronzeFigureNativeHeightFromModel(model);
+        const scale = bronzeScaleForFigureHeight(figureHeight);
         model.scale.setScalar(scale);
-        bounds.setFromObject(model);
+        const bounds = new THREE.Box3().setFromObject(model);
         model.position.y = -bounds.min.y;
+        bounds.setFromObject(model);
+        atlasNameplate.position.y = bounds.max.y + BRONZE_NAMEPLATE_OFFSET_Y;
         if (!bronzeEnvMap) {
           bronzeEnvMap = makeBronzeEnvMap(renderer);
           if (bronzeEnvMap) scene.environment = bronzeEnvMap;
