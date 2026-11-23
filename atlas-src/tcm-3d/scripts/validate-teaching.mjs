@@ -133,8 +133,8 @@ try {
     const lesson = curriculumSet('head-neck-21');
     assert.ok(lesson);
     assert.equal(lesson.codes.length, 21);
-    assert.equal(ANIME_POINTS.length, 62);
-    assert.equal(ANIME_SUPPORTED_CODES.size, 62);
+    assert.equal(ANIME_POINTS.length, 68);
+    assert.equal(ANIME_SUPPORTED_CODES.size, 68);
     assert.equal(DEFERRED_PRACTICE_CODES.size, 0);
     assert.equal(isPracticeDeferred('ST9'), false);
     assert.equal(isPracticeDeferred('CV22'), false);
@@ -142,7 +142,7 @@ try {
     assert.equal(open.length, 21);
     assert.ok(open.includes('ST9'));
     assert.ok(open.includes('CV22'));
-    assert.equal(practicePoints.length, 62);
+    assert.equal(practicePoints.length, 68);
     assert.equal(ANIME_OUTFITS.length, 2);
     assert.deepEqual(ANIME_OUTFITS.map(o => o.id), ['school', 'study-body']);
     assert.equal(isTorsoClothPeekPoint('ST17'), true);
@@ -255,7 +255,7 @@ try {
   });
 
   await test('anime-points.json 含頭頸 21、軀幹 30 與背俞 11', () => {
-    assert.equal(animeJson.points.length, 62);
+    assert.equal(animeJson.points.length, 68);
     const codes = new Set(animeJson.points.map(p => p.code));
     for (const code of HEAD_NECK_21) assert.ok(codes.has(code), `lost ${code}`);
     for (const code of TRUNK_30) assert.ok(codes.has(code), `missing ${code}`);

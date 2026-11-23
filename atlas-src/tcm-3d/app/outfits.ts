@@ -5,7 +5,7 @@ export type OutfitId='school'|'study-body';
 
 /** Chest／abdomen／back／waist. Upper-back 天宗一帶 is shoulder or arm in the catalog, not abdomen. */
 const TORSO_CLOTH_PEEK_REGIONS=new Set<RegionId>(['abdomen','waist']);
-const TORSO_CLOTH_PEEK_CODES=new Set(['SI9','SI11','SI12','SI13','SI14','SI15','BL11','BL12','BL13']);
+const TORSO_CLOTH_PEEK_CODES=new Set(['SI9','SI11','SI12','SI13','SI14','SI15','BL11','BL12','BL13','GB30']);
 
 export function isTorsoClothPeekPoint(code:string|null|undefined){
  if(!code)return false;

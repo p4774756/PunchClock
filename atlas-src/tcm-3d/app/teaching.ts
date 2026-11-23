@@ -20,7 +20,7 @@ export const REGIONS:{id:RegionId;name:string;example:string}[]=[
  {id:'waist',name:'腰背',example:'BL23'}, {id:'leg',name:'膝腿足',example:'ST36'},
 ];
 /** Classroom lesson sets. Textbook sets first; interim practice sets fill gaps between classes. */
-export type CurriculumSetId='head-neck-21'|'trunk-30'|'back-shu-14'|'common-10';
+export type CurriculumSetId='head-neck-21'|'trunk-30'|'back-shu-14'|'hip-sacral-6'|'common-10';
 export interface CurriculumSet {id:CurriculumSetId;name:string;shortName:string;lesson:string;codes:readonly string[];status:'reviewed'|'pending'}
 export const CURRICULUM_SETS:CurriculumSet[]=[
  {id:'head-neck-21',name:'基準穴 · 頭頸部',shortName:'頭頸 21',lesson:'陸／一 頭頸部基準穴',status:'reviewed',codes:[
@@ -33,6 +33,9 @@ export const CURRICULUM_SETS:CurriculumSet[]=[
  ]},
  {id:'back-shu-14',name:'課堂 · 背部膀胱經俞穴',shortName:'背俞 14',lesson:'口訣：大風肺厥心督膈，肝膽脾胃三焦腎（第 8 胸椎不取穴）。',status:'pending',codes:[
   'BL11','BL12','BL13','BL14','BL15','BL16','BL17','BL18','BL19','BL20','BL21','BL22','BL23','BL52',
+ ]},
+ {id:'hip-sacral-6',name:'課堂 · 薦骨臀髖',shortName:'臀髖 6',lesson:'2026-11-22 薦骨四穴與髖關節兩穴',status:'pending',codes:[
+  'GV2','BL34','BL30','BL54','GB30','SP12',
  ]},
  {id:'common-10',name:'常用穴 · 暫代練習',shortName:'常用 10',lesson:'課堂空檔暫代：合谷、足三里等；週日教材到後再接下一節基準穴',status:'pending',codes:[
   'LI4','ST36','SP6','LR3','PC6','TE5','GB20','GB21','BL40','KI1',
@@ -131,6 +134,12 @@ export const LOCATION:Record<string,{text:string;section:string;classic?:string;
  BL20:{text:'第 11 胸椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.20'},
  BL21:{text:'第 12 胸椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.21'},
  BL22:{text:'第 1 腰椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.22'},
+ GV2:{text:'薦骨正中，左右第四骶骨孔連線中點（骶管裂孔）。',section:'',curriculum:'2026-11-22 薦骨四穴與髖關節兩穴'},
+ BL34:{text:'第四骶后孔（骶骨孔）。',section:'',curriculum:'2026-11-22 薦骨四穴與髖關節兩穴'},
+ BL30:{text:'第四骶椎棘突下，後正中線旁開 1.5 寸（與腰俞同高）。',section:'',curriculum:'2026-11-22 薦骨四穴與髖關節兩穴'},
+ BL54:{text:'與腰俞同高，後正中線旁開 3 寸（白環俞再旁開 1.5 寸；與志室同側線）。',section:'',curriculum:'2026-11-22 薦骨四穴與髖關節兩穴'},
+ GB30:{text:'側臥屈膝、腳跟抵臀時髖部；站姿示意向臀部外下與股骨頸外側之間。',section:'',curriculum:'2026-11-22 薦骨四穴與髖關節兩穴'},
+ SP12:{text:'腹股溝外側，股動脈搏動處稍外側。',section:'',curriculum:'2026-11-22 薦骨四穴與髖關節兩穴'},
 };
 export interface SurfaceTarget {position:Vec3;normal:Vec3;meshId?:string;faceIndex?:number|null;pointCode?:string;pointSide?:1|-1}
 export type ToolDragPhase='start'|'move'|'end'|'cancel';
