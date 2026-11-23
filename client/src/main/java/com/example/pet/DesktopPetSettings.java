@@ -14,7 +14,6 @@ public final class DesktopPetSettings {
     static final String KEY_NOTIFY_MESSAGE = "desktopPet.notify.message";
     static final String KEY_NOTIFY_FILE = "desktopPet.notify.file";
     static final String KEY_NOTIFY_TASK = "desktopPet.notify.task";
-    static final String KEY_NOTIFY_SOUND = "desktopPet.notify.sound";
     static final String KEY_CURSOR_REACT = "desktopPet.cursor.react";
     static final String KEY_CARE_SCHEMA = "desktopPet.care.schema";
     static final String KEY_CARE_ENABLED = "desktopPet.care.enabled";
@@ -110,14 +109,6 @@ public final class DesktopPetSettings {
     }
 
     public void setNotifyTask(boolean on) {
-    }
-
-    /** 固定關閉。 */
-    public boolean notifySound() {
-        return false;
-    }
-
-    public void setNotifySound(boolean on) {
     }
 
     /** 執行期 Cursor 反應；預設開啟，不讀寫偏好。 */

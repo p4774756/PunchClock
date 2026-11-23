@@ -3,7 +3,6 @@ package com.example.pet;
 import javax.swing.SwingUtilities;
 import java.awt.GraphicsEnvironment;
 import java.awt.HeadlessException;
-import java.awt.Toolkit;
 import java.awt.Rectangle;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
@@ -345,18 +344,6 @@ public final class DesktopPetManager {
         }
     }
 
-    private void playSound() {
-        Thread worker = new Thread(() -> {
-            try {
-                Toolkit.getDefaultToolkit().beep();
-            } catch (RuntimeException ex) {
-                // 沒有音效裝置時安靜略過。
-            }
-        }, "milu-notice-sound");
-        worker.setDaemon(true);
-        worker.start();
-    }
-
     private final class PetSurface implements DesktopPetEventBridge.Surface {
         @Override
         public boolean petEnabled() {
@@ -379,11 +366,6 @@ public final class DesktopPetManager {
                 return false;
             }
             return window.showNotice(phrase, open);
-        }
-
-        @Override
-        public void playSound() {
-            DesktopPetManager.this.playSound();
         }
     }
 }
