@@ -449,7 +449,7 @@ function makeBubbleDrawer() {
 
 const BRONZE_GLB_URL = '/models/tcm-bronze-figure.glb';
 const BRONZE_NATIVE_HEIGHT = 1.72;
-const BRONZE_DISPLAY_HEIGHT = 0.82;
+const BRONZE_DISPLAY_HEIGHT = SECRETARY_SPRITE_HEIGHT;
 
 function makeNameplateDrawer() {
   const canvas = document.createElement('canvas');
@@ -524,6 +524,48 @@ function makeBronzeEnvMap(renderer) {
   srcTex.dispose();
   pmrem.dispose();
   return envMap;
+}
+
+function bronzeBodyMaterialFrom(root) {
+  let bodyMat = null;
+  if (!root) return null;
+  root.traverse((obj) => {
+    if (bodyMat || !obj.isMesh || !obj.material) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (let i = 0; i < mats.length; i++) {
+      const m = mats[i];
+      if (m && m.isMeshStandardMaterial && (m.name || '').toLowerCase() === 'bronze_body') {
+        bodyMat = m;
+        return;
+      }
+    }
+  });
+  return bodyMat;
+}
+
+function coerceBronzeHumanMaterials(root) {
+  const bodyMat = bronzeBodyMaterialFrom(root);
+  if (!bodyMat) return;
+  root.traverse((obj) => {
+    if (!obj.isMesh || !obj.material) return;
+    const meshName = (obj.name || '').toLowerCase();
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (let i = 0; i < mats.length; i++) {
+      const m = mats[i];
+      if (!m || !m.isMeshStandardMaterial) continue;
+      const matName = (m.name || '').toLowerCase();
+      if (matName.indexOf('sash') >= 0) continue;
+      if (matName.indexOf('pedestal') >= 0 || matName.indexOf('plaque') >= 0) continue;
+      if (meshName.indexOf('pedestal') >= 0 || meshName.indexOf('plaque') >= 0) continue;
+      const isHair = matName.indexOf('hair') >= 0 || meshName.indexOf('hair') >= 0;
+      const needsCoerce = isHair || (m.metalness < 0.45 && matName.indexOf('bronze') >= 0);
+      if (!needsCoerce) continue;
+      m.color.copy(bodyMat.color);
+      m.metalness = bodyMat.metalness;
+      m.roughness = bodyMat.roughness;
+      m.needsUpdate = true;
+    }
+  });
 }
 
 function applyBronzeEnvMap(root, envMap, intensityStore) {
@@ -1015,7 +1057,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   atlasRoot.name = 'atlasBronzeDisplay';
   atlasRoot.userData.pickRole = 'atlas';
   atlasRoot.position.set(1.28, 0, -0.58);
-  atlasRoot.rotation.y = 2.42;
+  atlasRoot.rotation.y = 0.4;
   root.add(atlasRoot);
 
   const nameplateDrawer = makeNameplateDrawer();
@@ -1026,7 +1068,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   });
   const atlasNameplate = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.17), nameplateMat);
   atlasNameplate.userData.pickRole = 'atlas';
-  atlasNameplate.position.set(0, 0.9, 0.1);
+  atlasNameplate.position.set(0, BRONZE_DISPLAY_HEIGHT + 0.08, 0.1);
   atlasNameplate.renderOrder = 2;
   atlasRoot.add(atlasNameplate);
 
@@ -1336,6 +1378,7 @@ export function mountPrivateTeamScene(canvas, opts) {
           bronzeEnvMap = makeBronzeEnvMap(renderer);
           if (bronzeEnvMap) scene.environment = bronzeEnvMap;
         }
+        coerceBronzeHumanMaterials(model);
         applyBronzeEnvMap(model, bronzeEnvMap, bronzeEnvBase);
         atlasRoot.add(model);
       } catch (err) {
