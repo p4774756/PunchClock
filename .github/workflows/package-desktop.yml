@@ -1,7 +1,8 @@
 # 小寶貝桌面安裝檔：push tag v* 會建 Release 並上傳 SKLbaby-mac-arm.dmg、SKLbaby-mac-intel.dmg、
 # SKLbaby-win.exe、SKLbaby.jar。
 # workflow_dispatch 乾跑：Actions →「Package desktop installers」→ Run workflow，只產 workflow artifact、
-# 不建正式 Release。完成後在該次 run 下載 artifact，核對檔名與大小（腳本限 15–60 MiB）。
+# 不建正式 Release。可選 upload_to_release（既有 tag，例如 v4.0.3）僅上傳 SKLbaby-win.exe（--clobber），
+# 不動 tag、不覆蓋該 Release 上已有的 dmg／jar。完成後在該次 run 下載 artifact，核對檔名與大小（腳本限 15–60 MiB）。
 # 不要用 workflow_dispatch 取代正式發版。
 
 name: Package desktop installers
@@ -13,6 +14,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      upload_to_release:
+        description: "Existing release tag (e.g. v4.0.3) — upload SKLbaby-win.exe only; leave empty for dry-run"
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -227,3 +233,11 @@ jobs:
         run: |
           TAG="${{ github.event.release.tag_name }}"
           gh release upload "$TAG" build/desktop/SKLbaby-win.exe --clobber
+
+      - name: Upload to existing Release (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.upload_to_release != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.inputs.upload_to_release }}" build/desktop/SKLbaby-win.exe --clobber

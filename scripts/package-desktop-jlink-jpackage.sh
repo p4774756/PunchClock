@@ -93,8 +93,14 @@ rm -rf "$INPUT_DIR"
 mkdir -p "$INPUT_DIR"
 cp "$PACK_JAR" "$INPUT_DIR/SKLbaby.jar"
 
+# Windows jpackage 對非 ASCII --name 會失敗；macOS 仍用「小寶貝」。
+JPACKAGE_NAME="$APP_NAME"
+if [[ "$PACKAGE_TYPE" == "exe" ]]; then
+  JPACKAGE_NAME="SKLbaby"
+fi
+
 JPACKAGE_ARGS=(
-  --name "$APP_NAME"
+  --name "$JPACKAGE_NAME"
   --app-version "$VERSION"
   --vendor "PunchClock"
   --input "$INPUT_DIR"
@@ -128,8 +134,9 @@ if [[ "$PACKAGE_TYPE" == "dmg" ]]; then
   hdiutil create -quiet -volname "$APP_NAME" -srcfolder "$STAGE" -ov -format UDBZ "$OUT_FILE"
 elif [[ "$PACKAGE_TYPE" == "exe" ]]; then
   rm -f "$DESKTOP_BUILD"/*.exe
+  JPACKAGE_ARGS+=(--description "SKLbaby desktop client")
   jpackage "${JPACKAGE_ARGS[@]}" --type exe --win-dir-chooser --win-menu --win-shortcut --dest "$DESKTOP_BUILD"
-  produced="$DESKTOP_BUILD/${APP_NAME}-${VERSION}.exe"
+  produced="$DESKTOP_BUILD/${JPACKAGE_NAME}-${VERSION}.exe"
   # Windows 上腳本與檔名編碼可能對不上中文，改抓這次唯一的 exe。
   if [[ ! -f "$produced" ]]; then
     produced="$(find "$DESKTOP_BUILD" -maxdepth 1 -type f -name '*.exe' -print | head -n 1)"
