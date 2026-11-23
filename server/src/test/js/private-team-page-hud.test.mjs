@@ -55,6 +55,10 @@ test('左下部署版本列標明網站與 App', () => {
   assert.match(css, /\.pt-hud-deploy-ver[\s\S]*font-size:\s*0\.72rem/);
   assert.match(css, /\.pt-hud-deploy-ver[\s\S]*rgba\(248,\s*251,\s*255,\s*0\.78\)/);
   assert.match(css, /\.pt-hud-deploy-ver[\s\S]*white-space:\s*nowrap/);
+  assert.match(
+    css,
+    /@media \(max-width:\s*520px\)[\s\S]*\.pt-hud-deploy-ver[\s\S]*white-space:\s*normal/
+  );
   const win = {
     PUNCHCLOCK_SERVER_VERSION: '4.0.0',
     PUNCHCLOCK_SERVER_BUILD_TIME: '2026-11-23 20:16',
@@ -65,7 +69,15 @@ test('左下部署版本列標明網站與 App', () => {
     '網站 v4.0.0 · 2026-11-23 20:16 · App v4.0.2'
   );
   assert.equal(
+    deployVersionLabel(win, { compact: true }),
+    '網站 v4.0.0 · 11-23 20:16 · App v4.0.2'
+  );
+  assert.equal(
     deployVersionLabel({ ...win, PUNCHCLOCK_CLIENT_VERSION: '' }),
     '網站 v4.0.0 · 2026-11-23 20:16'
+  );
+  assert.equal(
+    deployVersionLabel({ ...win, PUNCHCLOCK_CLIENT_VERSION: '' }, { compact: true }),
+    '網站 v4.0.0 · 11-23 20:16'
   );
 });

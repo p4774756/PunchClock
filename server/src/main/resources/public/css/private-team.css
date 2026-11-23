@@ -959,6 +959,16 @@ button.pt-hud-id-plate {
   .pt-a-id-sub {
     font-size: 0.55rem;
   }
+
+  .pt-hud-deploy-ver {
+    max-width: calc(100% - 4.5rem);
+    font-size: 0.66rem;
+    line-height: 1.2;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    padding-right: 0.25rem;
+  }
 }
 
 @media (max-width: 400px) {

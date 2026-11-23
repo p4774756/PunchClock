@@ -13,15 +13,19 @@ import {
   tigerFromPublic
 } from './private-team-office.js';
 
-export function deployVersionLabel(win) {
+export function deployVersionLabel(win, opts) {
   const ver = win && typeof win.PUNCHCLOCK_SERVER_VERSION === 'string'
     ? win.PUNCHCLOCK_SERVER_VERSION.trim()
     : '';
-  const bt = win && typeof win.PUNCHCLOCK_SERVER_BUILD_TIME === 'string'
+  let bt = win && typeof win.PUNCHCLOCK_SERVER_BUILD_TIME === 'string'
     ? win.PUNCHCLOCK_SERVER_BUILD_TIME.trim()
     : '';
   if (!ver || !bt || ver.includes('{{') || bt.includes('{{')) {
     return '';
+  }
+  if (opts && opts.compact) {
+    const short = /^(\d{4})-(\d{2}-\d{2})(\s+\d{2}:\d{2}(?:\s|$).*)/.exec(bt);
+    if (short) bt = short[2] + short[3];
   }
   let label = '網站 v' + ver + ' · ' + bt;
   const appVer = win && typeof win.PUNCHCLOCK_CLIENT_VERSION === 'string'
@@ -42,7 +46,8 @@ function mountDeployVersion(hud, win, doc) {
     el.setAttribute('data-pt-deploy-ver', '');
     hud.appendChild(el);
   }
-  const label = deployVersionLabel(win);
+  const narrow = (win.innerWidth || 1024) <= 520;
+  const label = deployVersionLabel(win, { compact: narrow });
   if (!label) {
     el.textContent = '';
     el.hidden = true;
