@@ -47,6 +47,10 @@ const wp=name=>{const o=scene.getObjectByName(name);const v=new T.Vector3();o.ge
 const head=wp('J_Bip_C_Head'),neck=wp('J_Bip_C_Neck'),eyeL=wp('J_Adj_L_FaceEye'),eyeR=wp('J_Adj_R_FaceEye');
 const shoulderL=wp('J_Bip_L_Shoulder');
 const eyeMid=eyeL.clone().add(eyeR).multiplyScalar(.5);
+const CUN_LATERAL=.055/4;
+const pupilLineX=.0298;
+const pupilX=pupilLineX;
+const outerCanthusX=.055;
 const projectMeshes=[];
 scene.traverse(o=>{
  if(!o.isMesh)return;
@@ -77,30 +81,31 @@ const seeds={
  // 廉泉：喉結上、舌骨上緣凹陷（勿贴近頸根）。
  CV23:[0,neck.y+.022,neck.z-.038],
  // 天突：胸骨上窩中央（兩鎖骨內側端之間），勿落鎖骨下上胸。
- CV22:[0,neck.y-.008,neck.z-.028],BL2:[.012*L,eyeMid.y+.03,eyeMid.z-.02],BL1:[.018*L,eyeMid.y+.005,eyeMid.z-.015],
- LI20:[.018*L,eyeMid.y-.04,eyeMid.z-.04],GB14:[.03*L,eyeMid.y+.055,eyeMid.z-.02],'EX-HN4':[.03*L,eyeMid.y+.036,eyeMid.z-.03],
- ST1:[.028*L,eyeMid.y-.02,eyeMid.z-.02],ST2:[.03*L,eyeMid.y-.035,eyeMid.z-.03],ST3:[.032*L,eyeMid.y-.055,eyeMid.z-.035],
- ST4:[.034*L,eyeMid.y-.075,eyeMid.z-.025],
+ CV22:[0,neck.y-.008,neck.z-.028],BL2:[.018*L,eyeMid.y+.03,eyeMid.z-.02],BL1:[.018*L,eyeMid.y+.005,eyeMid.z-.015],
+ LI20:[.018*L,eyeMid.y-.04,eyeMid.z-.04],GB14:[pupilX*L,eyeMid.y+.055,eyeMid.z-.02],'EX-HN4':[pupilX*L,eyeMid.y+.036,eyeMid.z-.03],
+ ST1:[pupilX*L,eyeMid.y-.02,eyeMid.z-.02],ST2:[pupilX*L,eyeMid.y-.035,eyeMid.z-.03],ST3:[pupilX*L,eyeMid.y-.055,eyeMid.z-.035],
+ ST4:[pupilX*L,eyeMid.y-.075,eyeMid.z-.025],
  // 人迎：結喉上緣旁的頸前緣（前頸皮膚在此高度只到約 x=0.017，再外就是側極）。法線朝前，勿把種子放到頸外側。
- ST9:[.017*L,neck.y+.013,neck.z-.05],TE23:[.055*L,eyeMid.y+.02,eyeMid.z+.005],
- 'EX-HN5':[.06*L,eyeMid.y+.01,eyeMid.z+.02],GB1:[.07*L,eyeMid.y-.005,eyeMid.z-.08],SI18:[.05*L,eyeMid.y-.05,eyeMid.z+.01],
+ ST9:[.017*L,neck.y+.013,neck.z-.05],TE23:[outerCanthusX*L,eyeMid.y+.02,eyeMid.z+.005],
+ 'EX-HN5':[.06*L,eyeMid.y+.01,eyeMid.z+.02],GB1:[(outerCanthusX+CUN_LATERAL*.5)*L,eyeMid.y-.005,eyeMid.z-.08],SI18:[outerCanthusX*L,eyeMid.y-.05,eyeMid.z+.01],
  // Weekly trunk／head-neck 30 (#75). Teaching catalog coords → anime skin snap.
  TE21:[.07*L,eyeMid.y+.005,eyeMid.z+.015],SI19:[.065*L,eyeMid.y,eyeMid.z+.02],GB2:[.065*L,eyeMid.y-.02,eyeMid.z+.015],
  ST6:[.055*L,eyeMid.y-.06,eyeMid.z-.005],TE17:[.065*L,eyeMid.y-.025,eyeMid.z+.05],
  GB21:[.1*L,neck.y-.02,neck.z+.02],
  // 缺盆：肩骨略上方、鎖骨前坡之後的上窩底（法線朝上）。勿把 Y 壓在肩骨高度，否則仍停在鎖骨前坡，左右吸附會一側滑到鎖骨下。
- ST12:[.045*L,shoulderL.y+.015,neck.z-.038],
- GV16:[0,head.y+.01,head.z+.1],GB20:[.028*L,1.435,.09],GV15:[0,neck.y+.04,neck.z+.095],
- BL10:[.022*L,neck.y+.015,neck.z+.095],
+ // 缺盆與乳中同 x（旁開四寸線，以 ST17 為準）。
+ ST12:[.055*L,shoulderL.y+.015,neck.z-.038],
+ GV16:[0,head.y+.01,head.z+.1],GB20:[.028*L,head.y+.01,.09],GV15:[0,neck.y+.04,neck.z+.095],
+ BL10:[.022*L,neck.y+.036,neck.z+.095],
  // 大椎：C7 棘突下、約肩線；BL14／BL43（T4）與 SI11 在其下方。
  GV14:[0,1.31,.08],
  // 第 4 肋間：乳頭高度 y≈1.195、x≈0.055；ST17 在乳頭，KI23 正中旁開，PC1／SP18 再外。
- CV17:[0,1.195,-.12],KI23:[.03*L,1.195,-.12],ST17:[.055*L,1.195,-.13],PC1:[.075*L,1.195,-.11],SP18:[.095*L,1.195,-.09],
- CV14:[0,1.15,-.1],CV8:[0,1.02,-.1],KI16:[.02*L,1.02,-.1],ST25:[.05*L,1.015,-.1],SP15:[.09*L,1.015,-.08],GB26:[.12*L,1.015,-.04],
- BL14:[.03*L,1.26,.09],BL43:[.055*L,1.25,.095],
- // 天宗：肩胛岡下窩中央（略內、略高於舊種子，避免偏外偏低）
- SI11:[.085*L,1.265,.095],SI9:[.15*L,1.31,.05],
- GV4:[0,1.02,.11],BL23:[.03*L,1.05,.1],BL52:[.055*L,1.04,.1],
+ CV17:[0,1.195,-.12],KI23:[CUN_LATERAL*2*L,1.195,-.12],ST17:[.055*L,1.195,-.13],PC1:[CUN_LATERAL*5*L,1.195,-.11],SP18:[CUN_LATERAL*6*L,1.195,-.09],
+ CV14:[0,1.15,-.1],CV8:[0,1.02,-.1],KI16:[CUN_LATERAL*.5*L,1.02,-.1],ST25:[CUN_LATERAL*2*L,1.02,-.1],SP15:[.055*L,1.02,-.08],GB26:[.12*L,1.02,-.04],
+ BL14:[.03*L,1.259,.09],BL43:[.055*L,1.259,.095],
+ // 天宗：與 T4 列同高（天宗／膏肓／厥陰俞）
+ SI11:[.085*L,1.259,.095],SI9:[.15*L,1.31,.05],
+ GV4:[0,1.02,.11],BL23:[.03*L,1.02,.1],BL52:[.055*L,1.02,.1],
 };
 const midline=new Set(['GV20','GV23','GV24+','GV26','CV24','CV23','CV22','GV16','GV15','GV14','CV17','CV14','CV8','GV4']);
 const trunkSet=new Set(['TE21','SI19','GB2','ST6','TE17','GB21','ST12','GV16','GB20','GV15','BL10','GV14','CV17','KI23','ST17','PC1','SP18','CV14','CV8','KI16','ST25','SP15','GB26','BL14','BL43','SI11','SI9','GV4','BL23','BL52']);
@@ -148,6 +153,62 @@ for(const code of targetCodes){
  const entry={code,name,midline:midline.has(code)||!!catalogPoint?.midline,position:pos,normal:nor,reviewed:true,set:byCode.get(code)?.set??defaultSet};
  byCode.set(code,entry);
  updated.push(code);
+}
+
+/** 沿皮膚重吸附：直線組只改 x、水平組只改 y（共線校正）。 */
+const realignGroup=(codes,axis,anchor,fixed)=>{
+ const idx=axis==='x'?0:axis==='y'?1:2;
+ const ref=byCode.get(anchor);
+ if(!ref)return;
+ const refVal=fixed?.fixedX??(fixed?.fixedY??(ref.midline&&axis==='x'?0:(axis==='x'?Math.abs(ref.position[idx]):ref.position[idx])));
+ for(const code of codes){
+  if(code===anchor&&!(fixed&&(fixed.fixedX!=null||fixed.fixedY!=null)))continue;
+  const e=byCode.get(code);
+  if(!e)continue;
+  const pos=e.position.slice();
+  if(axis==='x')pos[0]=e.midline?0:refVal;
+  else pos[idx]=refVal;
+  const seed=new T.Vector3(...pos);
+  const hit=snap(seed,preferFor(code,pos));
+  if(!hit)continue;
+  const np=hit.position.slice(),nor=hit.normal.slice();
+  if(!midline.has(code)){np[0]=Math.abs(np[0]);nor[0]=Math.abs(nor[0]);}
+  else{np[0]=0;}
+  if(axis==='x'&&!e.midline)np[0]=refVal;
+  else if(axis==='y')np[1]=refVal;
+  byCode.set(code,{...e,position:np,normal:nor});
+ }
+};
+for(const row of [
+ ['x',['ST12','ST17','SP15'],'ST17'],
+ ['x',['KI23','ST25'],'ST25'],
+ ['x',['BL14','BL23'],'BL14'],
+ ['x',['BL43','BL52'],'BL43'],
+ ['x',['GB14','EX-HN4','ST1','ST2','ST3','ST4'],'ST1',{fixedX:pupilLineX}],
+ ['x',['BL1','BL2'],'BL1'],
+ ['x',['TE23','SI18'],'SI18'],
+ ['y',['CV8','KI16','ST25','SP15','GB26'],'CV8'],
+ ['y',['GV4','BL23','BL52'],'GV4'],
+ ['y',['SI11','BL43','BL14'],'BL14'],
+ ['y',['CV17','KI23','ST17','PC1','SP18'],'ST17'],
+ ['y',['GV16','GB20'],'GV16'],
+ ['y',['GV15','BL10'],'GV15'],
+]){
+ const [axis,codes,anchor,fixed]=row;
+ realignGroup(codes,axis,anchor,fixed);
+}
+
+const si18=byCode.get('SI18'),gb1=byCode.get('GB1');
+if(si18&&gb1){
+ const pos=gb1.position.slice();
+ pos[0]=si18.position[0]+CUN_LATERAL*.5;
+ const hit=snap(new T.Vector3(...pos),preferFor('GB1',pos));
+ if(hit){
+  const targetX=si18.position[0]+CUN_LATERAL*.5;
+  const np=hit.position.slice(),nor=hit.normal.slice();
+  np[0]=targetX;nor[0]=Math.abs(nor[0]);
+  byCode.set('GB1',{...gb1,position:np,normal:nor});
+ }
 }
 
 const points=[...byCode.values()].sort((a,b)=>a.code.localeCompare(b.code));

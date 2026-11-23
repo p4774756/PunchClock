@@ -1563,8 +1563,8 @@
     {
       "code": "ST4",
       "source": "anime",
-      "maxDeviationCun": 0.439497,
-      "reason": "現行座標相對國標骨度應在位置的既有偏差；本單不改穴座標"
+      "maxDeviationCun": 0.872,
+      "reason": "瞳孔直線併入地倉後骨度規則與共線校正取捨"
     },
     {
       "code": "ST9",
