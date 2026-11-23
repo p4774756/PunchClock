@@ -321,6 +321,18 @@ export function renderQueueList(doc, queue, ui) {
   return root;
 }
 
+/** 依捲動位置切換狀態卡內文上下可捲提示（搭配 .pt-status-scroll）。 */
+export function syncStatusBodyScroll(scrollEl, bodyEl) {
+  if (!scrollEl || !bodyEl || typeof scrollEl.classList?.toggle !== 'function') return;
+  const maxScroll = bodyEl.scrollHeight - bodyEl.clientHeight;
+  const canScroll = maxScroll > 2;
+  const scrollTop = bodyEl.scrollTop || 0;
+  const atBottom = scrollTop >= maxScroll - 2;
+  const atTop = scrollTop <= 1;
+  scrollEl.classList.toggle('can-scroll-below', canScroll && !atBottom);
+  scrollEl.classList.toggle('can-scroll-above', canScroll && !atTop);
+}
+
 export function fillStatusCard(doc, bodyEl, view, opts) {
   if (!bodyEl) return;
   bodyEl.replaceChildren();
