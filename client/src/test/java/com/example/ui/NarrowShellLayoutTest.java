@@ -118,6 +118,77 @@ public class NarrowShellLayoutTest {
         });
     }
 
+    @Test
+    public void appearanceTransparencySliderKeepsTrackAtMinWidth() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            Fonts fonts = fonts();
+            PanelFactory.ServerConfigRefs refs = new PanelFactory.ServerConfigRefs();
+            JTabbedPane tabs = PanelFactory.createServerConfigBody(refs, fonts.main, fonts.bold, fonts.field);
+            tabs.setSelectedIndex(1);
+            JPanel page = new JPanel(new BorderLayout());
+            page.setOpaque(false);
+            page.add(tabs, BorderLayout.CENTER);
+            JScrollPane scroll = layout(page);
+            assertTrue(refs.windowTransparencySlider.getWidth() >= 100);
+            Point sliderLoc = SwingUtilities.convertPoint(
+                    refs.windowTransparencySlider.getParent(),
+                    refs.windowTransparencySlider.getLocation(),
+                    scroll.getViewport());
+            Point hintLoc = hintUnderTransparency(scroll, refs);
+            assertTrue("說明應在滑桿下方", hintLoc.y >= sliderLoc.y + refs.windowTransparencySlider.getHeight() - 2);
+            FontMetrics fm = refs.homeIllustrationCombo.getFontMetrics(refs.homeIllustrationCombo.getFont());
+            assertTrue(refs.homeIllustrationCombo.getWidth()
+                    >= fm.stringWidth(com.example.ui.hud.HomeIllustration.POOL_C.label()));
+            NightTheme.apply(refs.homeIllustrationCombo);
+            assertTrue(refs.homeIllustrationCombo.getUI().getClass().getName().contains("CandyComboBox"));
+        });
+    }
+
+    @Test
+    public void logTabFillsViewportHeight() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            Fonts fonts = fonts();
+            PanelFactory.LogPanelRefs refs = new PanelFactory.LogPanelRefs();
+            JPanel logPanel = PanelFactory.createLogPanel(refs, fonts.main, fonts.bold);
+            JPanel logTab = new JPanel(new BorderLayout());
+            logTab.setOpaque(false);
+            logTab.add(logPanel, BorderLayout.CENTER);
+            JScrollPane scroll = layoutFill(logTab, 520);
+            assertTrue(logPanel.getHeight() >= scroll.getViewport().getHeight() - 8);
+        });
+    }
+
+    private static Point hintUnderTransparency(JScrollPane scroll, PanelFactory.ServerConfigRefs refs) {
+        Component walk = refs.windowTransparencySlider.getParent();
+        while (walk != null && !(walk instanceof CompactShellPanels.WrappingLabel)) {
+            walk = walk.getParent();
+        }
+        if (walk == null) {
+            for (Component c : findDescendants(refs.windowTransparencySlider.getParent())) {
+                if (c instanceof CompactShellPanels.WrappingLabel) {
+                    walk = c;
+                    break;
+                }
+            }
+        }
+        assertTrue(walk instanceof JLabel);
+        return SwingUtilities.convertPoint(walk.getParent(), walk.getLocation(), scroll.getViewport());
+    }
+
+    private static java.util.List<Component> findDescendants(Container root) {
+        java.util.List<Component> out = new java.util.ArrayList<>();
+        if (root == null) {
+            return out;
+        }
+        for (Component child : root.getComponents()) {
+            out.add(child);
+            if (child instanceof Container) {
+                out.addAll(findDescendants((Container) child));
+            }
+        }
+        return out;
+    }
+
     private static void assertPeerColumnAlignments(javax.swing.JTable table) {
         for (int col = 0; col < table.getColumnCount(); col++) {
             Component cell = table.prepareRenderer(table.getCellRenderer(0, col), 0, col);
@@ -193,6 +264,18 @@ public class NarrowShellLayoutTest {
                     cell.getPreferredSize().width <= colW);
             assertEquals(String.valueOf(table.getValueAt(row, 0)), ((javax.swing.JLabel) cell).getText());
         }
+    }
+
+    private static JScrollPane layoutFill(JComponent body, int viewH) {
+        JScrollPane scroll = CompactShellPanels.wrapFill(body, true);
+        Component view = scroll.getViewport().getView();
+        view.setBounds(0, 0, VIEW_W, viewH);
+        scroll.setBounds(0, 0, VIEW_W, viewH);
+        scroll.getViewport().setBounds(0, 0, VIEW_W, viewH);
+        if (view instanceof Container) {
+            layoutTree((Container) view);
+        }
+        return scroll;
     }
 
     private static JScrollPane layout(JComponent body) {

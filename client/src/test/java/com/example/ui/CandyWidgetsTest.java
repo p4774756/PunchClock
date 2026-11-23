@@ -162,11 +162,11 @@ public class CandyWidgetsTest {
     @Test
     public void scrollBarHidesArrowButtonsAndStaysOnSchedulePageOnly() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
-            JScrollPane schedule = (JScrollPane) NightTheme.page(new JPanel(), true);
+            JScrollPane schedule = CompactShellPanels.wrap(new JPanel(), true);
             assertTrue(schedule.getVerticalScrollBar().getUI().getClass().getName().contains("CandyScrollBar"));
             assertEquals(CandyTheme.SCROLL_WIDTH, schedule.getVerticalScrollBar().getPreferredSize().width);
             assertEquals(0, schedule.getVerticalScrollBar().getComponent(0).getPreferredSize().width);
-            JScrollPane other = (JScrollPane) NightTheme.page(new JPanel(), false);
+            JScrollPane other = CompactShellPanels.wrap(new JPanel(), false);
             assertFalse(other.getVerticalScrollBar().getUI().getClass().getName().contains("CandyScrollBar"));
         });
     }

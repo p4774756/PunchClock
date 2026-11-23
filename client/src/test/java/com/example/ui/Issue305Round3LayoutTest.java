@@ -320,9 +320,9 @@ public class Issue305Round3LayoutTest {
         tabs.setFont(UiFonts.latinBold(13));
         tabs.setTabLayoutPolicy(JTabbedPane.WRAP_TAB_LAYOUT);
         tabs.setUI(new BasicTabbedPaneUI());
-        tabs.addTab("排程任務", NightTheme.page(CompactShellPanels.wrap(tasksTab), true));
-        tabs.addTab("設定", NightTheme.page(CompactShellPanels.wrap(settingsTab), true));
-        tabs.addTab(PanelFactory.PEER_TAB_LABEL, NightTheme.page(CompactShellPanels.wrap(peerTab), true));
+        tabs.addTab("排程任務", CompactShellPanels.wrap(tasksTab, true));
+        tabs.addTab("設定", CompactShellPanels.wrap(settingsTab, true));
+        tabs.addTab(PanelFactory.PEER_TAB_LABEL, CompactShellPanels.wrap(peerTab, true));
         tabs.setBorder(new EmptyBorder(8, 8, 8, 8));
         AnimeShell.hideTabStrip(tabs);
         AnimeShell shell = new AnimeShell(null, tabs);

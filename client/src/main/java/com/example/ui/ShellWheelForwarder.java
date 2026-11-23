@@ -3,6 +3,7 @@ package com.example.ui;
 import javax.swing.JComponent;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
+import javax.swing.JSlider;
 import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.awt.Container;
@@ -48,6 +49,9 @@ public final class ShellWheelForwarder {
             return;
         }
         Component source = event.getComponent();
+        if (source instanceof JSlider && ((JSlider) source).hasFocus()) {
+            return;
+        }
         JScrollPane inner = enclosingScrollPane(source);
         if (inner != null && inner != outer && innerCanScrollVertically(inner, event)) {
             scrollVertically(inner, event);
@@ -57,7 +61,9 @@ public final class ShellWheelForwarder {
         if (outerCanScrollVertically(outer, event)) {
             scrollVertically(outer, event);
         }
-        event.consume();
+        if (effectiveWheelRotation(event) != 0) {
+            event.consume();
+        }
     }
 
     private static JScrollPane enclosingScrollPane(Component source) {
@@ -74,7 +80,7 @@ public final class ShellWheelForwarder {
         if (bar == null || bar.getMaximum() <= bar.getVisibleAmount()) {
             return false;
         }
-        return canScroll(bar, event.getWheelRotation());
+        return canScroll(bar, effectiveWheelRotation(event));
     }
 
     private static boolean outerCanScrollVertically(JScrollPane outer, MouseWheelEvent event) {
@@ -82,7 +88,22 @@ public final class ShellWheelForwarder {
         if (bar == null) {
             return false;
         }
-        return canScroll(bar, event.getWheelRotation());
+        return canScroll(bar, effectiveWheelRotation(event));
+    }
+
+    static int effectiveWheelRotation(MouseWheelEvent event) {
+        int rot = event.getWheelRotation();
+        if (rot != 0) {
+            return rot;
+        }
+        double precise = event.getPreciseWheelRotation();
+        if (precise > 0.0001d) {
+            return 1;
+        }
+        if (precise < -0.0001d) {
+            return -1;
+        }
+        return 0;
     }
 
     private static boolean canScroll(JScrollBar bar, int wheelRotation) {
@@ -101,9 +122,21 @@ public final class ShellWheelForwarder {
         if (bar == null) {
             return;
         }
-        int next = bar.getValue() + event.getUnitsToScroll();
+        int delta = event.getWheelRotation() != 0
+                ? event.getUnitsToScroll()
+                : scrollUnitsFromPrecise(event);
+        int next = bar.getValue() + delta;
         int max = Math.max(bar.getMinimum(), bar.getMaximum() - bar.getVisibleAmount());
         bar.setValue(Math.max(bar.getMinimum(), Math.min(next, max)));
         SwingUtilities.invokeLater(pane::revalidate);
+    }
+
+    private static int scrollUnitsFromPrecise(MouseWheelEvent event) {
+        double precise = event.getPreciseWheelRotation();
+        if (Math.abs(precise) < 0.0001d) {
+            return 0;
+        }
+        int amount = Math.max(1, (int) Math.round(Math.abs(precise) * event.getScrollAmount()));
+        return precise > 0 ? amount : -amount;
     }
 }

@@ -329,12 +329,18 @@ public class PanelFactory {
         });
         refs.homeIllustrationCombo.setFont(mainFont);
         refs.homeIllustrationCombo.setSelectedItem(HomeIllustration.ROOM_B.label());
-        CandyComboBox.dress(refs.homeIllustrationCombo);
+        CandyComboBox.install(refs.homeIllustrationCombo);
         refs.homeIllustrationCombo.setToolTipText("首頁背景插畫：B 夜晚房間或 C 頂樓泳池");
+        FontMetrics comboMetrics = refs.homeIllustrationCombo.getFontMetrics(mainFont);
+        int comboMinW = Math.max(
+                comboMetrics.stringWidth(HomeIllustration.ROOM_B.label()),
+                comboMetrics.stringWidth(HomeIllustration.POOL_C.label())) + 48;
+        stretchComboWidth(refs.homeIllustrationCombo, comboMinW);
 
         JLabel title = new JLabel("選擇插畫");
         title.setFont(mainFont);
         title.setLabelFor(refs.homeIllustrationCombo);
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel hint = new CompactShellPanels.WrappingLabel(
                 "角色已畫在場景裡；B 為預設夜晚房間，C 為頂樓泳池。");
@@ -345,13 +351,11 @@ public class PanelFactory {
         column.setOpaque(false);
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
         column.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        row.setOpaque(false);
-        row.add(title);
-        row.add(refs.homeIllustrationCombo);
-        pinRow(row);
+        refs.homeIllustrationCombo.setAlignmentX(Component.LEFT_ALIGNMENT);
         hint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        column.add(row);
+        column.add(title);
+        column.add(Box.createVerticalStrut(4));
+        column.add(refs.homeIllustrationCombo);
         column.add(Box.createVerticalStrut(4));
         column.add(hint);
         return column;
@@ -367,14 +371,29 @@ public class PanelFactory {
         hint.setFont(mainFont);
         hint.setForeground(NightTheme.MUTED);
 
+        JLabel opacityLabel = new JLabel("透明度：");
+        opacityLabel.setFont(mainFont);
+        opacityLabel.setLabelFor(refs.windowTransparencySlider);
+
+        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        header.setOpaque(false);
+        header.setAlignmentX(Component.LEFT_ALIGNMENT);
+        header.add(opacityLabel);
+        header.add(refs.windowTransparencyValueLabel);
+
+        int sliderH = refs.windowTransparencySlider.getPreferredSize().height;
+        refs.windowTransparencySlider.setAlignmentX(Component.LEFT_ALIGNMENT);
+        refs.windowTransparencySlider.setMaximumSize(new Dimension(Integer.MAX_VALUE, sliderH));
+        refs.windowTransparencySlider.setMinimumSize(new Dimension(100, sliderH));
+
         JPanel column = new JPanel();
         column.setOpaque(false);
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
         column.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JPanel row = sliderRow(mainFont, "透明度：", refs.windowTransparencySlider, refs.windowTransparencyValueLabel);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
         hint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        column.add(row);
+        column.add(header);
+        column.add(Box.createVerticalStrut(4));
+        column.add(refs.windowTransparencySlider);
         column.add(Box.createVerticalStrut(4));
         column.add(hint);
         return column;
@@ -2166,6 +2185,14 @@ public class PanelFactory {
         row.setPreferredSize(new Dimension(280, h));
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
         return row;
+    }
+
+    private static void stretchComboWidth(JComboBox<?> combo, int minWidth) {
+        int h = Math.max(combo.getPreferredSize().height, 30);
+        int w = Math.max(combo.getPreferredSize().width, minWidth);
+        combo.setMinimumSize(new Dimension(minWidth, h));
+        combo.setPreferredSize(new Dimension(w, h));
+        combo.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
     }
 
     /** 鎖定下拉選單尺寸，避免窄欄位擠壓時分選單。中文數字需要比「00」的測量值更寬。 */

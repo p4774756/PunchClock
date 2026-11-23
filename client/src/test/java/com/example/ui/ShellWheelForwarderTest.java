@@ -3,9 +3,11 @@ package com.example.ui;
 import org.junit.Assume;
 import org.junit.Test;
 
+import javax.swing.JComboBox;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
+import javax.swing.JSlider;
 import javax.swing.SwingUtilities;
 import java.awt.Dimension;
 import java.awt.event.MouseWheelEvent;
@@ -80,6 +82,102 @@ public class ShellWheelForwarderTest {
             ShellWheelForwarder.handle(outer, event);
             assertTrue(innerBar.getValue() > innerBefore);
             assertEquals(outerBefore, outerBar.getValue());
+        });
+    }
+
+    @Test
+    public void preciseWheelScrollsOuterWhenRotationIsZero() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            JPanel tall = new JPanel();
+            tall.setPreferredSize(new Dimension(300, 1200));
+            JScrollPane outer = CompactShellPanels.wrap(tall);
+            outer.setSize(320, 400);
+            outer.validate();
+
+            JScrollBar outerBar = outer.getVerticalScrollBar();
+            Assume.assumeTrue(outerBar.getMaximum() > outerBar.getVisibleAmount());
+            int before = outerBar.getValue();
+            MouseWheelEvent event = new MouseWheelEvent(
+                    tall,
+                    MouseWheelEvent.MOUSE_WHEEL,
+                    System.currentTimeMillis(),
+                    0,
+                    40,
+                    40,
+                    40,
+                    40,
+                    0,
+                    false,
+                    MouseWheelEvent.WHEEL_UNIT_SCROLL,
+                    3,
+                    0,
+                    0.5d);
+            ShellWheelForwarder.handle(outer, event);
+            assertTrue(outerBar.getValue() > before);
+        });
+    }
+
+    @Test
+    public void unfocusedSliderForwardsWheelToOuter() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            JPanel tall = new JPanel();
+            tall.setPreferredSize(new Dimension(300, 1200));
+            JSlider slider = new JSlider(0, 100, 50);
+            tall.setLayout(new java.awt.BorderLayout());
+            tall.add(slider, java.awt.BorderLayout.NORTH);
+            JScrollPane outer = CompactShellPanels.wrap(tall);
+            outer.setSize(320, 400);
+            outer.validate();
+
+            JScrollBar outerBar = outer.getVerticalScrollBar();
+            int beforeSlider = slider.getValue();
+            int beforeOuter = outerBar.getValue();
+            MouseWheelEvent event = new MouseWheelEvent(
+                    slider,
+                    MouseWheelEvent.MOUSE_WHEEL,
+                    System.currentTimeMillis(),
+                    0,
+                    40,
+                    40,
+                    0,
+                    false,
+                    MouseWheelEvent.WHEEL_UNIT_SCROLL,
+                    3,
+                    1);
+            ShellWheelForwarder.handle(outer, event);
+            assertEquals(beforeSlider, slider.getValue());
+            assertTrue(outerBar.getValue() > beforeOuter);
+        });
+    }
+
+    @Test
+    public void wheelOverComboScrollsOuter() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            JPanel tall = new JPanel();
+            tall.setPreferredSize(new Dimension(300, 1200));
+            JComboBox<String> combo = new JComboBox<>(new String[] {"甲", "乙"});
+            tall.setLayout(new java.awt.BorderLayout());
+            tall.add(combo, java.awt.BorderLayout.NORTH);
+            JScrollPane outer = CompactShellPanels.wrap(tall);
+            outer.setSize(320, 400);
+            outer.validate();
+
+            JScrollBar outerBar = outer.getVerticalScrollBar();
+            int before = outerBar.getValue();
+            MouseWheelEvent event = new MouseWheelEvent(
+                    combo,
+                    MouseWheelEvent.MOUSE_WHEEL,
+                    System.currentTimeMillis(),
+                    0,
+                    40,
+                    40,
+                    0,
+                    false,
+                    MouseWheelEvent.WHEEL_UNIT_SCROLL,
+                    3,
+                    1);
+            ShellWheelForwarder.handle(outer, event);
+            assertTrue(outerBar.getValue() > before);
         });
     }
 }
