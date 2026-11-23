@@ -4,6 +4,8 @@ import com.example.server.AdminTestServer;
 import com.example.server.ClientRelease;
 import com.example.server.store.DevStatusModels;
 import com.example.server.store.DevStatusService;
+import com.example.server.store.NewsModels;
+import com.example.server.store.NewsService;
 import com.example.server.store.RoadmapService;
 import org.junit.After;
 import org.junit.Before;
@@ -20,6 +22,7 @@ import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -33,6 +36,8 @@ public class PublicOfficeAuthTest {
     private HttpClient http;
     private String base;
     private String adminCookie;
+    private final AtomicInteger roadmapFetches = new AtomicInteger();
+    private final AtomicInteger newsFetches = new AtomicInteger();
 
     @Before
     public void setUp() throws Exception {
@@ -43,18 +48,26 @@ public class PublicOfficeAuthTest {
                 Collections.emptyList(),
                 Collections.emptySet()
         ), "p4774756/PunchClock");
-        RoadmapService fakeRoadmap = new RoadmapService(repo -> new com.example.server.store.RoadmapModels.Document(
-                4,
-                java.util.Collections.singletonList(new com.example.server.store.RoadmapModels.Phase(
-                        4, "測試期", false,
-                        java.util.Collections.singletonList(new com.example.server.store.RoadmapModels.Item("子項", false, 1, null)),
-                        0, 1, null)),
-                null),
-                "p4774756/PunchClock");
+        RoadmapService fakeRoadmap = new RoadmapService(repo -> {
+            roadmapFetches.incrementAndGet();
+            return new com.example.server.store.RoadmapModels.Document(
+                    4,
+                    java.util.Collections.singletonList(new com.example.server.store.RoadmapModels.Phase(
+                            4, "測試期", false,
+                            java.util.Collections.singletonList(new com.example.server.store.RoadmapModels.Item("子項", false, 1, null)),
+                            0, 1, null)),
+                    null);
+        }, "p4774756/PunchClock");
+        NewsService fakeNews = new NewsService(() -> {
+            newsFetches.incrementAndGet();
+            return new NewsModels.Feed(Collections.singletonList(
+                    new NewsModels.Item("測試頭條", "測試來源", "2025-01-01T00:00:00Z", "https://example.test/news")));
+        });
         server = AdminTestServer.builder()
                 .clientRelease(ClientRelease.NONE)
                 .devStatusService(fakeDevStatus)
                 .roadmapService(fakeRoadmap)
+                .newsService(fakeNews)
                 .start();
         base = server.baseUrl();
         http = HttpClient.newBuilder()
@@ -126,6 +139,8 @@ public class PublicOfficeAuthTest {
 
     @Test
     public void guestsCanReadRoadmapWithoutLogin() throws Exception {
+        roadmapFetches.set(0);
+        newsFetches.set(0);
         HttpResponse<String> roadmap = send("GET", "/api/roadmap", null);
         assertEquals(200, roadmap.statusCode());
         assertTrue(roadmap.body().contains("\"success\""));
@@ -135,6 +150,10 @@ public class PublicOfficeAuthTest {
         assertEquals(200, news.statusCode());
         assertTrue(news.body().contains("\"success\""));
         assertFalse(news.body().contains("未登入或權限不足"));
+
+        assertEquals("路線圖應只走記憶體假資料", 1, roadmapFetches.get());
+        assertEquals("新聞應只走記憶體假資料", 1, newsFetches.get());
+        assertTrue(news.body().contains("測試頭條"));
     }
 
     @Test
