@@ -85,10 +85,6 @@
           <div class="roadmap-progress-track"><span class="roadmap-progress-bar" data-roadmap-total-bar></span></div>
         </div>
       </div>
-      <div class="roadmap-tabs" role="tablist" aria-label="施工進度分頁">
-        <button type="button" class="roadmap-tab is-active" data-roadmap-tab="phases" role="tab" aria-pressed="true">路線圖</button>
-        <button type="button" class="roadmap-tab" data-roadmap-tab="dev" role="tab" aria-pressed="false">開發進度</button>
-      </div>
       <div class="roadmap-search">
         <input type="search" class="roadmap-search-input" data-roadmap-search placeholder="搜尋 i349、#349、p372 或標題關鍵字" autocomplete="off" enterkeyhint="search" />
         <button type="button" class="roadmap-search-clear" data-roadmap-search-clear hidden>清除</button>
@@ -96,32 +92,12 @@
       </div>
       <div class="roadmap-layout">
         <div class="roadmap-main-stack">
-          <div class="roadmap-tab-panel" data-roadmap-panel="phases">
-            <div class="roadmap-list" data-roadmap-list></div>
-          </div>
-          <section class="roadmap-tab-panel roadmap-dev" data-roadmap-panel="dev" hidden aria-label="開發進度">
-            <p class="roadmap-dev-note" data-dev-note></p>
-            <div class="roadmap-dev-focus">
-              <div class="roadmap-dev-card" data-dev-current></div>
-              <div class="roadmap-dev-card" data-dev-next></div>
-            </div>
-            <div class="roadmap-dev-mid">
-              <div class="roadmap-dev-queue-block">
-                <h4 class="roadmap-dev-sub">排隊</h4>
-                <div data-dev-queue></div>
-              </div>
-              <div class="roadmap-dev-stats-block">
-                <h4 class="roadmap-dev-sub">本週</h4>
-                <div data-dev-stats></div>
-              </div>
-            </div>
-          </section>
+          <div class="roadmap-list" data-roadmap-list></div>
         </div>
       </div>
       <p class="roadmap-note" data-roadmap-note></p>
       <footer class="roadmap-foot">
         <a class="roadmap-source" data-roadmap-source href="https://github.com/p4774756/PunchClock/milestones" target="_blank" rel="noopener noreferrer">資料來源：GitHub Milestones</a>
-        <span class="roadmap-dev-machines-nav" data-dev-machines-nav hidden></span>
       </footer>
     </div>
   </section>

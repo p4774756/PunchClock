@@ -41,9 +41,21 @@ public final class SecretarySpeech {
     }
 
     public static String phraseForCompleted(IssueRow issue) {
-        String fromIssue = issue == null ? null : sanitizePhrase(issue.secretaryLine);
+        if (issue == null) {
+            return COMPLETED_FALLBACK;
+        }
+        String fromIssue = sanitizePhrase(issue.secretaryLine);
         if (fromIssue != null) {
-            return fromIssue;
+            if (fromIssue.startsWith("正在")) {
+                fromIssue = fromIssue.substring(2).trim();
+            }
+            if (!fromIssue.isEmpty() && !COMPLETED_FALLBACK.equals(fromIssue) && !ACTIVE_FALLBACK.equals(fromIssue)) {
+                return fromIssue;
+            }
+        }
+        String title = issue.title == null ? "" : issue.title.trim();
+        if (!title.isEmpty()) {
+            return title;
         }
         return COMPLETED_FALLBACK;
     }

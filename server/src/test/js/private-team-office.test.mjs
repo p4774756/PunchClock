@@ -6,9 +6,11 @@ const {
   tigerFromPublic,
   bubbleTextForStatus,
   capsulesForActive,
+  devQueueFromStatus,
   formatOfficeClock,
   fillStatusCard,
   isSafePublicText,
+  phraseForDoneDisplay,
   secretarySpriteUrlForStatus,
   taskProgressFromTiger
 } = await loadPublicModule('private-team-office.js');
@@ -73,6 +75,21 @@ test('formatOfficeClock 台北時鐘', () => {
   assert.match(clock, /^\d{2}:\d{2}$/);
 });
 
+test('phraseForDoneDisplay 去掉正在與空泛句', () => {
+  assert.equal(phraseForDoneDisplay({ phrase: '正在整理', title: '標題' }), '整理');
+  assert.equal(phraseForDoneDisplay({ phrase: '完成一項工作', title: 'Issue 標題' }), 'Issue 標題');
+  assert.equal(phraseForDoneDisplay({ phrase: '收工一句' }), '收工一句');
+});
+
+test('devQueueFromStatus 解析排隊', () => {
+  const q = devQueueFromStatus({
+    success: true,
+    now: { queue: [{ title: '甲', pr: 1 }, { title: '乙', pr: 2 }] }
+  });
+  assert.equal(q.length, 2);
+  assert.equal(q[0].title, '甲');
+});
+
 test('fillStatusCard 產出連結與膠囊', () => {
   const doc = {
     createElement(tag) {
@@ -85,21 +102,26 @@ test('fillStatusCard 產出連結與膠囊', () => {
   };
   const body = doc.createElement('div');
   fillStatusCard(doc, body, {
-    status: '工作中',
-    active: [{
-      phrase: '做秘書小卡',
-      issue: 386,
-      issueUrl: 'https://github.com/p4774756/PunchClock/issues/386',
-      pr: 400,
-      prUrl: 'https://github.com/p4774756/PunchClock/pull/400',
-      round: 1,
-      minutes: 3,
-      model: 'composer-2.5'
-    }],
-    completedToday: []
+    tiger: {
+      status: '工作中',
+      active: [{
+        phrase: '做秘書小卡',
+        issue: 386,
+        issueUrl: 'https://github.com/p4774756/PunchClock/issues/386',
+        pr: 400,
+        prUrl: 'https://github.com/p4774756/PunchClock/pull/400',
+        round: 1,
+        minutes: 3,
+        model: 'composer-2.5'
+      }],
+      completedToday: []
+    },
+    queue: [{ title: '排隊項目', pr: 401 }]
   });
   const flat = JSON.stringify(body);
   assert.ok(flat.includes('正在進行'));
+  assert.ok(flat.includes('排隊'));
   assert.ok(flat.includes('今天完成'));
   assert.ok(flat.includes('composer-2.5'));
+  assert.ok(flat.includes('排隊項目'));
 });

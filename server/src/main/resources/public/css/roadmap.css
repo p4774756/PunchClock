@@ -145,34 +145,6 @@ body.roadmap-open {
 .roadmap-progress-bar.is-done { background: var(--maple-green); }
 .roadmap-progress-bar.is-pending { background: var(--maple-gray); }
 
-.roadmap-tabs {
-  display: flex;
-  gap: 0.35rem;
-  margin: 0 0.75rem 0.45rem;
-  position: relative;
-  z-index: 3;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.roadmap-tab {
-  min-height: 44px;
-  padding: 0.35rem 0.85rem;
-  border: 2px solid var(--maple-navy);
-  border-radius: 6px 6px 0 0;
-  background: var(--maple-blue-lt);
-  font-weight: 700;
-  color: var(--maple-navy);
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
-.roadmap-tab.is-active {
-  background: var(--maple-white);
-  border-bottom-color: var(--maple-white);
-  margin-bottom: -1px;
-}
-
 .roadmap-search {
   display: flex;
   flex-wrap: wrap;
@@ -238,8 +210,7 @@ body.roadmap-open {
 
 .roadmap-done-bucket summary::-webkit-details-marker { display: none; }
 
-.roadmap-phase .is-search-hit,
-.roadmap-dev-queue-list li.is-search-hit {
+.roadmap-phase .is-search-hit {
   background: rgba(255, 214, 92, 0.45);
   border-radius: 4px;
 }
@@ -393,7 +364,6 @@ a.roadmap-source[aria-disabled="true"] {
   font-weight: 700;
 }
 
-.roadmap-dev-pair.dev-guest-ref,
 .roadmap-dev-pr.dev-guest-ref,
 .roadmap-item-text .dev-guest-ref {
   color: var(--maple-muted);
@@ -421,138 +391,6 @@ a.roadmap-source[aria-disabled="true"] {
   color: var(--maple-navy);
 }
 
-.roadmap-dev {
-  margin-top: 0.25rem;
-}
-
-.roadmap-dev-note {
-  min-height: 1.1em;
-  margin: 0 0 0.55rem;
-  color: #8a5a12;
-  font-size: 0.85rem;
-}
-
-.roadmap-dev-focus {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.55rem;
-}
-
-.roadmap-dev-card {
-  background: var(--maple-white);
-  border: 2px solid var(--maple-navy);
-  border-radius: 6px;
-  padding: 0.65rem 0.75rem;
-  min-height: 5.5rem;
-}
-
-.roadmap-dev-kicker {
-  display: block;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--maple-muted);
-  margin-bottom: 0.25rem;
-}
-
-.roadmap-dev-pair {
-  color: var(--maple-blue-dk);
-  font-weight: 800;
-  text-decoration: none;
-}
-
-.roadmap-dev-title,
-.roadmap-dev-qtitle {
-  margin: 0.25rem 0 0.35rem;
-  font-size: 0.92rem;
-  line-height: 1.35;
-}
-
-.roadmap-dev-status {
-  display: inline-block;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--maple-gold);
-}
-
-.roadmap-dev-empty {
-  margin: 0.2rem 0;
-  color: var(--maple-muted);
-  font-size: 0.88rem;
-}
-
-.roadmap-dev-current-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-}
-
-.roadmap-dev-current-entry .roadmap-dev-title {
-  margin-top: 0.15rem;
-}
-
-.roadmap-dev-queue-toggle {
-  margin-top: 0.45rem;
-  border: 2px solid var(--maple-navy);
-  background: var(--maple-blue-lt);
-  border-radius: 6px;
-  padding: 0.35rem 0.75rem;
-  min-height: 44px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--maple-navy);
-  cursor: pointer;
-  width: 100%;
-}
-
-.roadmap-dev-mid {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 0.65rem;
-  margin-top: 0.35rem;
-  align-items: start;
-}
-
-.roadmap-dev-sub {
-  margin: 0.95rem 0 0.4rem;
-  font-size: 0.95rem;
-}
-
-.roadmap-dev-queue-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.roadmap-dev-queue-list li {
-  display: grid;
-  grid-template-columns: 1.6rem minmax(4.5rem, auto) 1fr auto;
-  gap: 0.4rem;
-  align-items: baseline;
-  background: var(--maple-white);
-  border: 1px solid rgba(22, 58, 112, 0.12);
-  border-radius: 6px;
-  padding: 0.4rem 0.55rem;
-}
-
-.roadmap-dev-stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-
-.roadmap-dev-stats-grid > div {
-  background: var(--maple-white);
-  border: 1px solid rgba(22, 58, 112, 0.12);
-  border-radius: 6px;
-  padding: 0.7rem 0.8rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
 @media (max-width: 719px) {
   .roadmap-board {
     padding: 0;
@@ -574,9 +412,5 @@ a.roadmap-source[aria-disabled="true"] {
   .roadmap-phase-progress,
   .roadmap-ratio {
     grid-column: 2 / -1;
-  }
-  .roadmap-dev-focus,
-  .roadmap-dev-mid {
-    grid-template-columns: 1fr;
   }
 }

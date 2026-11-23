@@ -3,14 +3,11 @@
 import {
   applyGithubSourceLabel,
   createGithubLink,
-  devStatusItemMatchesSearch,
   effectivePhaseStatus,
-  mergeRoadmapDevStatusLink,
   parseRoadmapSearchQuery,
   phaseItemProgress,
   roadmapItemMatchesSearch,
   roadmapItemTotals,
-  shouldShowDevStatusNavLink,
   viewerCanLink
 } from './dev-machines-format.js';
 
@@ -54,11 +51,18 @@ export function phaseStatus(phase, current) {
 
 const STATUS_LABEL = { done: '已完成', active: '施工中', progress: '進行中', pending: '未開工' };
 
+function linkEl(doc, className, href, text, canLink) {
+  return createGithubLink(doc, {
+    className: className || 'dev-link',
+    href: href || '#',
+    text: text == null ? '' : String(text),
+    canLink: canLink
+  });
+}
+
 function phaseStatusLabel(status) {
   return STATUS_LABEL[status] || STATUS_LABEL.pending;
 }
-const QUEUE_PREVIEW_LIMIT = 5;
-
 function progressPercent(done, total) {
   if (!total || total <= 0) return 0;
   return Math.max(0, Math.min(100, Math.round((done / total) * 100)));
@@ -239,11 +243,6 @@ function normalizeCurrentList(raw) {
   return [];
 }
 
-function currentMatchesSearch(query, list) {
-  if (!query || query.kind === 'none') return true;
-  return list.some((row) => devStatusItemMatchesSearch(query, row));
-}
-
 /** 研發樓室內螢幕用的純文字行（Canvas 繪製，不含 DOM）。 */
 export function formatLabDevScreenLines(data, opts) {
   const maxQueue = (opts && opts.maxQueue) || 3;
@@ -308,120 +307,11 @@ export function formatLabDevScreenLines(data, opts) {
   return lines;
 }
 
-function clearChildren(el) {
-  if (!el) return;
-  while (el.firstChild) el.removeChild(el.firstChild);
-}
-
 function textEl(doc, tag, className, text) {
   const el = doc.createElement(tag);
   if (className) el.className = className;
   el.textContent = text == null ? '' : String(text);
   return el;
-}
-
-function linkEl(doc, className, href, text, canLink) {
-  return createGithubLink(doc, {
-    className: className || 'dev-link',
-    href: href || '#',
-    text: text == null ? '' : String(text),
-    canLink: canLink
-  });
-}
-
-function renderFocusCard(doc, root, label, item, canLink) {
-  if (!root) return;
-  clearChildren(root);
-  root.appendChild(textEl(doc, 'span', 'roadmap-dev-kicker', label));
-  if (!item) {
-    root.appendChild(textEl(doc, 'p', 'roadmap-dev-empty', '目前沒有'));
-    return;
-  }
-  const pair = linkEl(doc, 'roadmap-dev-pair', item.issueUrl || item.prUrl || '#', item.pair || '', canLink);
-  root.appendChild(pair);
-  root.appendChild(textEl(doc, 'p', 'roadmap-dev-title', item.title || ''));
-  root.appendChild(textEl(doc, 'span', 'roadmap-dev-status', item.status || ''));
-}
-
-function renderCurrentBlock(doc, root, label, items, canLink) {
-  if (!root) return;
-  clearChildren(root);
-  root.appendChild(textEl(doc, 'span', 'roadmap-dev-kicker', label));
-  const list = Array.isArray(items) ? items.filter(Boolean) : [];
-  if (!list.length) {
-    root.appendChild(textEl(doc, 'p', 'roadmap-dev-empty', '目前沒有'));
-    return;
-  }
-  const stack = doc.createElement('div');
-  stack.className = 'roadmap-dev-current-stack';
-  list.forEach((item) => {
-    const block = doc.createElement('div');
-    block.className = 'roadmap-dev-current-entry';
-    block.appendChild(linkEl(doc, 'roadmap-dev-pair', item.issueUrl || item.prUrl || '#', item.pair || '', canLink));
-    block.appendChild(textEl(doc, 'p', 'roadmap-dev-title', item.title || ''));
-    block.appendChild(textEl(doc, 'span', 'roadmap-dev-status', item.status || ''));
-    stack.appendChild(block);
-  });
-  root.appendChild(stack);
-}
-
-function renderQueue(doc, root, queue, canLink, query, queueOpts) {
-  if (!root) return;
-  clearChildren(root);
-  const list = Array.isArray(queue) ? queue : [];
-  const visible = query && query.kind !== 'none'
-    ? list.filter((row) => row && devStatusItemMatchesSearch(query, row))
-    : list;
-  if (!visible.length) {
-    root.appendChild(textEl(doc, 'p', 'roadmap-dev-empty', '尚無排隊標籤'));
-    return;
-  }
-  const expanded = !!(queueOpts && queueOpts.expanded);
-  const shown = expanded || visible.length <= QUEUE_PREVIEW_LIMIT
-    ? visible
-    : visible.slice(0, QUEUE_PREVIEW_LIMIT);
-  const ol = doc.createElement('ol');
-  ol.className = 'roadmap-dev-queue-list';
-  shown.forEach((entry) => {
-    const li = doc.createElement('li');
-    if (query && query.kind !== 'none') li.classList.add('is-search-hit');
-    const order = entry && entry.order != null ? entry.order : '';
-    const item = entry || {};
-    li.appendChild(textEl(doc, 'span', 'roadmap-dev-order', String(order)));
-    li.appendChild(linkEl(doc, 'roadmap-dev-pair', item.issueUrl || '#', item.pair || '', canLink));
-    li.appendChild(textEl(doc, 'span', 'roadmap-dev-qtitle', item.title || ''));
-    li.appendChild(textEl(doc, 'span', 'roadmap-dev-status', item.status || ''));
-    ol.appendChild(li);
-  });
-  root.appendChild(ol);
-  if (visible.length > QUEUE_PREVIEW_LIMIT) {
-    const btn = doc.createElement('button');
-    btn.type = 'button';
-    btn.className = 'roadmap-dev-queue-toggle';
-    btn.textContent = expanded ? '收合' : ('顯示全部（' + visible.length + '）');
-    btn.addEventListener('click', () => {
-      if (queueOpts && typeof queueOpts.onToggle === 'function') queueOpts.onToggle();
-    });
-    root.appendChild(btn);
-  }
-}
-
-function renderStats(doc, root, stats) {
-  if (!root) return;
-  clearChildren(root);
-  const s = stats || {};
-  root.appendChild(textEl(doc, 'p', 'roadmap-dev-week', s.weekLabel || '本週（週一 00:00 起，台北）'));
-  const grid = doc.createElement('div');
-  grid.className = 'roadmap-dev-stats-grid';
-  const merged = doc.createElement('div');
-  merged.appendChild(textEl(doc, 'strong', null, String(s.mergedThisWeek != null ? s.mergedThisWeek : 0)));
-  merged.appendChild(textEl(doc, 'span', null, '本週合併'));
-  const open = doc.createElement('div');
-  open.appendChild(textEl(doc, 'strong', null, String(s.openIssues != null ? s.openIssues : 0)));
-  open.appendChild(textEl(doc, 'span', null, '未關閉 issue'));
-  grid.appendChild(merged);
-  grid.appendChild(open);
-  root.appendChild(grid);
 }
 
 export function createRoadmapController(opts) {
@@ -442,20 +332,9 @@ export function createRoadmapController(opts) {
   const searchInput = root && root.querySelector('[data-roadmap-search]');
   const searchClear = root && root.querySelector('[data-roadmap-search-clear]');
   const searchEmpty = root && root.querySelector('[data-roadmap-search-empty]');
-  const tabButtons = root ? root.querySelectorAll('[data-roadmap-tab]') : [];
-  const tabPanels = root ? root.querySelectorAll('[data-roadmap-panel]') : [];
-  const currentEl = root && root.querySelector('[data-dev-current]');
-  const nextEl = root && root.querySelector('[data-dev-next]');
-  const queueEl = root && root.querySelector('[data-dev-queue]');
-  const statsEl = root && root.querySelector('[data-dev-stats]');
-  const devNoteEl = root && root.querySelector('[data-dev-note]');
-  const devMachinesNav = root && root.querySelector('[data-dev-machines-nav]');
   const win = (opts && opts.win) || globalThis;
   let openState = false;
   let latest = null;
-  let latestDev = null;
-  let queueExpanded = false;
-  let activeTab = 'phases';
   let canLinkGithub = false;
   let searchRaw = '';
 
@@ -475,36 +354,11 @@ export function createRoadmapController(opts) {
     searchEmpty.textContent = '找不到';
   }
 
-  function setTab(tab) {
-    activeTab = tab === 'dev' ? 'dev' : 'phases';
-    tabButtons.forEach((btn) => {
-      const on = btn.getAttribute('data-roadmap-tab') === activeTab;
-      btn.classList.toggle('is-active', on);
-      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
-    tabPanels.forEach((panel) => {
-      const show = panel.getAttribute('data-roadmap-panel') === activeTab;
-      panel.hidden = !show;
-    });
-  }
-
-  const tablist = root && root.querySelector('.roadmap-tabs');
-  if (tablist) {
-    tablist.addEventListener('click', (ev) => {
-      const btn = ev.target.closest('[data-roadmap-tab]');
-      if (!btn || !root.contains(btn)) return;
-      ev.preventDefault();
-      setTab(btn.getAttribute('data-roadmap-tab'));
-    });
-  }
-  setTab('phases');
-
   if (searchInput) {
     searchInput.addEventListener('input', () => {
       searchRaw = searchInput.value || '';
       updateSearchChrome();
       if (latest) apply(latest);
-      if (latestDev) applyDev(latestDev);
     });
   }
   if (searchClear) {
@@ -514,7 +368,6 @@ export function createRoadmapController(opts) {
       updateSearchChrome();
       if (searchEmpty) searchEmpty.hidden = true;
       if (latest) apply(latest);
-      if (latestDev) applyDev(latestDev);
       if (searchInput && typeof searchInput.focus === 'function') searchInput.focus();
     });
   }
@@ -630,73 +483,15 @@ export function createRoadmapController(opts) {
         }
         listEl.appendChild(row);
       });
-      let devHit = false;
-      if (latestDev && query.kind !== 'none') {
-        const now = latestDev.now || {};
-        const queue = Array.isArray(now.queue) ? now.queue : [];
-        const currentList = normalizeCurrentList(now.current);
-        devHit = currentList.some((row) => devStatusItemMatchesSearch(query, row))
-          || (now.next && devStatusItemMatchesSearch(query, now.next))
-          || queue.some((row) => devStatusItemMatchesSearch(query, row));
-      }
-      repaintSearchEmpty(anyPhaseHit || devHit || query.kind === 'none');
+      repaintSearchEmpty(anyPhaseHit || query.kind === 'none');
     }
     if (typeof hooks.onData === 'function') hooks.onData(latest, copy);
-  }
-
-  function applyDev(data) {
-    latestDev = data || null;
-    if (devNoteEl) {
-      const msg = emptyDevStatusMessage(latestDev);
-      if (latestDev && latestDev.message) {
-        devNoteEl.textContent = msg;
-      } else if (latestDev && latestDev.stale) {
-        devNoteEl.textContent = '顯示的是上次讀到的開發進度';
-      } else {
-        devNoteEl.textContent = '';
-      }
-    }
-    const now = (latestDev && latestDev.now) || {};
-    const query = searchQuery();
-    let currentList = normalizeCurrentList(now.current);
-    if (query.kind !== 'none') {
-      currentList = currentList.filter((row) => devStatusItemMatchesSearch(query, row));
-    }
-    const next = query.kind === 'none' || !now.next || devStatusItemMatchesSearch(query, now.next)
-      ? now.next || null
-      : null;
-    renderCurrentBlock(doc, currentEl, '現在在做', currentList, canLinkGithub);
-    renderFocusCard(doc, nextEl, '下一張', next, canLinkGithub);
-    renderQueue(doc, queueEl, now.queue || [], canLinkGithub, query, {
-      expanded: queueExpanded,
-      onToggle: () => {
-        queueExpanded = !queueExpanded;
-        applyDev(latestDev);
-      }
-    });
-    renderStats(doc, statsEl, latestDev && latestDev.stats);
-    if (query.kind !== 'none') {
-      let anyPhaseHit = false;
-      const phases = (latest && latest.phases) || [];
-      phases.forEach((phase) => {
-        const items = (phase && phase.items ? phase.items : []).map(normalizeItem);
-        if (items.some((item) => roadmapItemMatchesSearch(query, item))) anyPhaseHit = true;
-      });
-      const queue = Array.isArray(now.queue) ? now.queue : [];
-      const allCurrent = normalizeCurrentList(now.current);
-      const devHit = currentMatchesSearch(query, allCurrent)
-        || (next && devStatusItemMatchesSearch(query, next))
-        || queue.some((row) => devStatusItemMatchesSearch(query, row));
-      repaintSearchEmpty(anyPhaseHit || devHit);
-    }
   }
 
   function refreshAuthChrome() {
     const authed = !!(win && win.PUNCHCLOCK_AUTHENTICATED === true);
     canLinkGithub = viewerCanLink(authed);
-    mergeRoadmapDevStatusLink(doc, devMachinesNav, { authenticated: authed });
     if (latest) apply(latest);
-    if (latestDev) applyDev(latestDev);
   }
 
   function refresh() {
@@ -707,11 +502,6 @@ export function createRoadmapController(opts) {
       apply(body);
     }).catch(() => {
       apply({ success: false, phases: [], message: '暫時讀不到施工進度', stale: false, current: null });
-    });
-    fetchFn('/api/dev-status').then((res) => res.json()).then((body) => {
-      applyDev(body);
-    }).catch(() => {
-      applyDev({ success: false, stale: false, now: { current: [], next: null, queue: [] }, timeline: [], stats: { weekLabel: '本週（週一 00:00 起，台北）', mergedThisWeek: 0, openIssues: 0 }, message: '暫時讀不到開發進度' });
     });
   }
 
@@ -737,7 +527,6 @@ export function createRoadmapController(opts) {
     close() { setOpen(false); },
     isOpen() { return openState; },
     refresh: refresh,
-    apply: apply,
-    applyDev: applyDev
+    apply: apply
   };
 }
