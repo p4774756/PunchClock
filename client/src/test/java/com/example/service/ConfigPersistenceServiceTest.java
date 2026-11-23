@@ -265,6 +265,39 @@ public class ConfigPersistenceServiceTest {
     }
 
     @Test
+    public void loadConfig_missingHomeIllustrationDefaultsToB() {
+        ConfigPersistenceService.CloudConfig config = configService.loadConfig(null);
+        assertEquals("b", config.homeIllustration);
+    }
+
+    @Test
+    public void saveAndLoad_persistsHomeIllustration() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.homeIllustration = "c";
+        configService.saveConfig(config, null);
+
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertEquals("c", loaded.homeIllustration);
+    }
+
+    @Test
+    public void loadConfig_unknownHomeIllustrationFallsBackToB() throws Exception {
+        Files.writeString(configFile, "{\"homeIllustration\":\"day\"}");
+        ConfigPersistenceService.CloudConfig loaded = configService.loadConfig(null);
+        assertEquals("b", loaded.homeIllustration);
+    }
+
+    @Test
+    public void saveConfig_writesHomeIllustration() throws Exception {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.homeIllustration = "c";
+        configService.saveConfig(config, null);
+        String json = Files.readString(configFile);
+        assertTrue(json.contains("\"homeIllustration\""));
+        assertTrue(json.contains("\"c\""));
+    }
+
+    @Test
     public void loadConfig_missingTransparencyDefaultsToOpaque() {
         ConfigPersistenceService.CloudConfig config = configService.loadConfig(null);
         assertEquals(0, config.windowTransparencyPercent);
