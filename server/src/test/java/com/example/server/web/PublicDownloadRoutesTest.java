@@ -1,5 +1,6 @@
 package com.example.server.web;
 
+import com.example.ClientUpdatePolicy;
 import com.example.server.ClientRelease;
 import com.example.server.ServerApp;
 import com.example.server.store.DevStatusModels;
@@ -16,20 +17,13 @@ import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Collections;
-import java.util.Properties;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -39,86 +33,72 @@ import static org.junit.Assert.assertTrue;
 
 public class PublicDownloadRoutesTest {
 
-    private static final String DIGEST =
+    private static final String SHA =
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    private static final String DOWNLOAD =
+            "https://github.com/p4774756/PunchClock/releases/download/v1.8.0/SKLbaby.jar";
 
     private Javalin app;
     private HttpClient http;
     private String base;
-    private Path jar;
 
     @Before
-    public void setUp() throws Exception {
-        http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    public void setUp() {
+        http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).followRedirects(HttpClient.Redirect.NEVER).build();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() {
         if (app != null) {
             app.stop();
             app = null;
         }
-        if (jar != null) {
-            Files.deleteIfExists(jar);
-            jar = null;
-        }
     }
 
     @Test
-    public void downloadPageShowsJarWhenReleaseAvailable() throws Exception {
+    public void downloadPageLinksToGithubWhenReleaseAvailable() throws Exception {
         startWithRelease();
         HttpResponse<String> page = get("/download");
         assertEquals(200, page.statusCode());
         String body = page.body();
         assertTrue(body.contains("SKLbaby.jar"));
         assertTrue(body.contains("下載 SKLbaby.jar（v1.8.0）"));
-        assertTrue(body.contains("Java 11"));
-        assertFalse(body.contains("punchclock-client-standalone"));
+        assertTrue(body.contains(DOWNLOAD));
         assertTrue(body.contains("data-download-missing hidden"));
-        assertTrue(body.matches("(?s).*data-download-jar href=\"/download/app.jar\">.*"));
-
-        HttpResponse<byte[]> jarResp = http.send(
-                HttpRequest.newBuilder(URI.create(base + "/download/app.jar"))
-                        .GET().timeout(Duration.ofSeconds(5)).build(),
-                HttpResponse.BodyHandlers.ofByteArray());
-        assertEquals(200, jarResp.statusCode());
-        String disposition = jarResp.headers().firstValue("content-disposition").orElse("");
-        assertTrue(disposition.contains("filename=\"SKLbaby.jar\""));
-        assertFalse(disposition.contains("secret"));
+        assertFalse(body.contains("punchclock-client-standalone"));
     }
 
     @Test
-    public void downloadPageShowsMissingWhenNoRelease() throws Exception {
+    public void downloadJarRedirectsToGithub() throws Exception {
+        startWithRelease();
+        HttpResponse<Void> jarResp = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/download/app.jar"))
+                        .GET().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.discarding());
+        assertEquals(302, jarResp.statusCode());
+        assertEquals(DOWNLOAD, jarResp.headers().firstValue("Location").orElse(""));
+    }
+
+    @Test
+    public void downloadJarFallsBackToLatestWhenNoRelease() throws Exception {
+        startWithoutRelease();
+        HttpResponse<Void> jarResp = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/download/SKLbaby.jar"))
+                        .GET().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.discarding());
+        assertEquals(302, jarResp.statusCode());
+        assertEquals(ClientUpdatePolicy.GITHUB_LATEST_JAR_URL, jarResp.headers().firstValue("Location").orElse(""));
+    }
+
+    @Test
+    public void downloadPageShowsLatestLinkWithoutRelease() throws Exception {
         startWithoutRelease();
         HttpResponse<String> page = get("/download");
         assertEquals(200, page.statusCode());
         String body = page.body();
-        assertTrue(body.contains("尚未附帶可下載的 jar"));
-        assertTrue(body.contains("data-download-jar href=\"/download/app.jar\" hidden"));
-        assertTrue(body.contains("data-download-missing>"));
-        assertFalse(body.contains("data-download-missing hidden"));
-        assertTrue(body.contains("java -Xdock:name=新光小寶貝 -jar SKLbaby.jar"));
+        assertTrue(body.contains(ClientUpdatePolicy.GITHUB_LATEST_JAR_URL));
+        assertTrue(body.contains("data-download-missing hidden"));
         assertTrue(body.contains("下載 SKLbaby.jar（v）"));
-
-        HttpResponse<String> jarResp = get("/download/app.jar");
-        assertEquals(404, jarResp.statusCode());
-
-        HttpResponse<String> css = get("/css/download.css");
-        assertEquals(200, css.statusCode());
-        String flat = css.body().replaceAll("\\s+", " ");
-        assertTrue(flat.contains(
-                ".download-btn[hidden], .download-unavailable[hidden], [data-desktop-missing][hidden]"));
-        assertTrue(body.contains("Mac（Apple 晶片 M1 以後）"));
-        assertTrue(body.contains("Mac（Intel）"));
-        assertTrue(body.contains("關於這台 Mac"));
-        assertTrue(body.contains("不必先安裝 Java"));
-    }
-
-    @Test
-    public void noReleaseHidesDownloadButtonByComputedStyle() throws Exception {
-        Assume.assumeTrue("Playwright headless browser not available", chromiumAvailable());
-        startWithoutRelease();
-        assertDownloadVisibility(false);
     }
 
     @Test
@@ -130,7 +110,6 @@ public class PublicDownloadRoutesTest {
 
     private static Boolean chromiumReady;
 
-    /** 無瀏覽器時略過；不寫死瀏覽器路徑，沿用 PLAYWRIGHT_BROWSERS_PATH。 */
     private static boolean chromiumAvailable() {
         if (chromiumReady != null) {
             return chromiumReady;
@@ -146,64 +125,27 @@ public class PublicDownloadRoutesTest {
         return chromiumReady;
     }
 
-    /**
-     * HTML 上的 hidden 會被 .download-btn { display: inline-block } 蓋掉，
-     * 所以要看 computed style 與 innerText，不能只搜字串 hidden。
-     */
     private void assertDownloadVisibility(boolean available) {
         try (Playwright playwright = Playwright.create()) {
             Browser browser = playwright.chromium().launch(
                     new BrowserType.LaunchOptions().setHeadless(true));
             try {
-                int[][] sizes = {{1280, 900}, {390, 844}};
-                for (int[] wh : sizes) {
-                    Page page = browser.newPage(new Browser.NewPageOptions().setViewportSize(wh[0], wh[1]));
-                    try {
-                        page.navigate(base + "/download", new Page.NavigateOptions()
-                                .setWaitUntil(WaitUntilState.LOAD));
-                        int clientWidth = ((Number) page.evaluate(
-                                "() => document.documentElement.clientWidth")).intValue();
-                        assertEquals(wh[0], clientWidth);
-                        String text = page.locator("body").innerText();
-                        String btnDisplay = String.valueOf(page.locator("[data-download-jar]")
-                                .evaluate("el => getComputedStyle(el).display"));
-                        String missingDisplay = String.valueOf(page.locator("[data-download-missing]")
-                                .evaluate("el => getComputedStyle(el).display"));
-                        boolean btnHiddenAttr = Boolean.TRUE.equals(page.locator("[data-download-jar]")
-                                .evaluate("el => el.hasAttribute('hidden')"));
-                        boolean missingHiddenAttr = Boolean.TRUE.equals(page.locator("[data-download-missing]")
-                                .evaluate("el => el.hasAttribute('hidden')"));
-                        assertTrue(text.contains("Java 11"));
-                        assertTrue(text.contains("java -Xdock:name=新光小寶貝 -jar SKLbaby.jar"));
-                        if (available) {
-                            assertFalse(btnHiddenAttr);
-                            assertTrue(missingHiddenAttr);
-                            assertTrue("inline-block".equals(btnDisplay) || "block".equals(btnDisplay));
-                            assertEquals("none", missingDisplay);
-                            assertTrue(page.locator("[data-download-jar]").isVisible());
-                            assertTrue(page.locator("[data-download-missing]").isHidden());
-                            assertTrue(text.contains("下載 SKLbaby.jar（v1.8.0）"));
-                            assertFalse(text.contains("尚未附帶"));
-                            assertNotNull(page.locator("[data-download-jar]").boundingBox());
-                            assertNull(page.locator("[data-download-missing]").boundingBox());
-                        } else {
-                            assertTrue(btnHiddenAttr);
-                            assertFalse(missingHiddenAttr);
-                            assertEquals("none", btnDisplay);
-                            assertFalse("none".equals(missingDisplay));
-                            assertTrue(page.locator("[data-download-jar]").isHidden());
-                            assertTrue(page.locator("[data-download-missing]").isVisible());
-                            assertFalse(text.contains("下載 SKLbaby.jar"));
-                            assertTrue(text.contains("伺服器尚未附帶可下載的 jar，請向管理員索取。"));
-                            assertNull(page.locator("[data-download-jar]").boundingBox());
-                            BoundingBox missingBox = page.locator("[data-download-missing]").boundingBox();
-                            assertNotNull(missingBox);
-                            assertTrue(missingBox.width > 0);
-                            assertTrue(missingBox.height > 0);
-                        }
-                    } finally {
-                        page.close();
+                Page page = browser.newPage();
+                try {
+                    page.navigate(base + "/download", new Page.NavigateOptions()
+                            .setWaitUntil(WaitUntilState.LOAD));
+                    String text = page.locator("body").innerText();
+                    boolean missingHiddenAttr = Boolean.TRUE.equals(page.locator("[data-download-missing]")
+                            .evaluate("el => el.hasAttribute('hidden')"));
+                    assertTrue(missingHiddenAttr);
+                    assertTrue(page.locator("[data-download-jar]").isVisible());
+                    if (available) {
+                        assertTrue(text.contains("下載 SKLbaby.jar（v1.8.0）"));
+                        assertNotNull(page.locator("[data-download-jar]").boundingBox());
                     }
+                    assertNull(page.locator("[data-download-missing]").boundingBox());
+                } finally {
+                    page.close();
                 }
             } finally {
                 browser.close();
@@ -211,18 +153,14 @@ public class PublicDownloadRoutesTest {
         }
     }
 
-    private void startWithRelease() throws Exception {
-        jar = Files.createTempFile("public-download", ".jar");
-        writeJar(jar);
-        ClientRelease release = ClientRelease.fromJar(jar);
-        DevStatusService devStatus = emptyDevStatus();
-        app = new ServerApp(release, devStatus).start(0);
+    private void startWithRelease() {
+        ClientRelease release = new ClientRelease("1.8.0", "2026-10-20T07:58:00Z", SHA, 100L, DOWNLOAD, List.of());
+        app = new ServerApp(release, emptyDevStatus()).start(0);
         base = "http://127.0.0.1:" + app.port();
     }
 
     private void startWithoutRelease() {
-        DevStatusService devStatus = emptyDevStatus();
-        app = new ServerApp(ClientRelease.NONE, devStatus).start(0);
+        app = new ServerApp(ClientRelease.NONE, emptyDevStatus()).start(0);
         base = "http://127.0.0.1:" + app.port();
     }
 
@@ -239,21 +177,5 @@ public class PublicDownloadRoutesTest {
                 HttpRequest.newBuilder(URI.create(base + path))
                         .GET().timeout(Duration.ofSeconds(5)).build(),
                 HttpResponse.BodyHandlers.ofString());
-    }
-
-    private static void writeJar(Path path) throws Exception {
-        Properties props = new Properties();
-        props.setProperty("version", "1.8.0");
-        props.setProperty("sourceDigest", DIGEST);
-        props.setProperty("buildTime", Instant.parse("2026-10-20T07:58:00Z").toString());
-        try (OutputStream out = Files.newOutputStream(path);
-             JarOutputStream jos = new JarOutputStream(out)) {
-            jos.putNextEntry(new JarEntry("version.properties"));
-            props.store(jos, "");
-            jos.closeEntry();
-            jos.putNextEntry(new JarEntry("release-notes.txt"));
-            jos.write("note\n".getBytes(StandardCharsets.UTF_8));
-            jos.closeEntry();
-        }
     }
 }

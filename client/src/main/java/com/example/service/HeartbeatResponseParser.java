@@ -177,15 +177,17 @@ final class HeartbeatResponseParser {
         }
         JsonObject update = json.getAsJsonObject("update");
         String version = jsonString(update, "version");
-        String digest = BuildInfo.normalizeDigest(jsonString(update, "sourceDigest"));
         String sha256 = BuildInfo.normalizeDigest(jsonString(update, "sha256"));
         String path = jsonString(update, "path");
         long size = jsonLong(update, "size");
-        if (digest.isEmpty() || sha256.isEmpty() || size <= 0 || !ClientUpdatePolicy.JAR_PATH.equals(path)) {
+        if (sha256.isEmpty() || size <= 0 || !ClientUpdatePolicy.isAllowedClientUpdateUrl(path)) {
+            return null;
+        }
+        if (version.isEmpty() || !version.matches("\\d+\\.\\d+\\.\\d+")) {
             return null;
         }
         return new HeartbeatService.UpdateNotice(
-                version, digest, jsonString(update, "releaseTime"), sha256, size, path,
+                version, "", jsonString(update, "releaseTime"), sha256, size, path,
                 jsonChanges(update), jsonInt(update, "changesMore"));
     }
 

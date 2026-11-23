@@ -22,28 +22,29 @@ import static org.junit.Assert.assertTrue;
 public class ClientUpdateCoordinatorTest {
 
     private static final String LOCAL = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    private static final String OTHER = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    private static final String GITHUB_PATH =
+            "https://github.com/p4774756/PunchClock/releases/download/v1.8.0/SKLbaby.jar";
 
     @Test
-    public void offerIgnoresSameOrEmptyDigestAndDoesNotDownload() throws Exception {
+    public void offerIgnoresSameOrOlderVersionAndDoesNotDownload() throws Exception {
         FakeActions actions = new FakeActions();
-        actions.local = LOCAL;
+        actions.localVersion = "1.8.0";
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
 
         assertNull(coordinator.offer(null));
-        assertNull(coordinator.offer(notice("", null)));
-        assertNull(coordinator.offer(notice(LOCAL, sampleJar(actions))));
+        assertNull(coordinator.offer(notice("1.8.0", null)));
+        assertNull(coordinator.offer(notice("1.7.9", sampleJar(actions))));
         assertEquals(0, actions.downloads.get());
         assertTrue(actions.installed.isEmpty());
     }
 
     @Test
-    public void offerReturnsNewerBuildEvenWhenBusy() throws Exception {
+    public void offerReturnsNewerVersionEvenWhenBusy() throws Exception {
         FakeActions actions = new FakeActions();
-        actions.local = LOCAL;
+        actions.localVersion = "1.8.0";
         actions.idleDefault = false;
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
-        UpdateNotice notice = notice(OTHER, sampleJar(actions));
+        UpdateNotice notice = notice("1.9.0", sampleJar(actions));
 
         assertSame(notice, coordinator.offer(notice));
         assertEquals(0, actions.downloads.get());
@@ -51,10 +52,10 @@ public class ClientUpdateCoordinatorTest {
 
     @Test
     public void describeIncludesBuildTime() {
-        UpdateNotice notice = new UpdateNotice("2.0.2", OTHER, "2026-10-20T07:58:00Z", LOCAL, 1,
-                "/api/client-release/jar");
+        UpdateNotice notice = new UpdateNotice("2.0.2", "", "2026-10-20T07:58:00Z", LOCAL, 1,
+                "https://github.com/p4774756/PunchClock/releases/download/v2.0.2/SKLbaby.jar");
         String label = ClientUpdateCoordinator.describe(notice);
-        assertTrue(label, label.startsWith("v2.0.2 · bbbbbbb（建置 2026-10-"));
+        assertTrue(label, label.startsWith("v2.0.2（建置 2026-10-"));
     }
 
     @Test
@@ -64,7 +65,8 @@ public class ClientUpdateCoordinatorTest {
         Path jar = sampleJar(actions);
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
 
-        assertTrue(coordinator.apply(notice(OTHER, jar)));
+        actions.localVersion = "1.0.0";
+        assertTrue(coordinator.apply(notice("2.0.0", jar)));
 
         assertEquals(1, actions.installed.size());
         assertTrue(actions.restarted);
@@ -80,8 +82,8 @@ public class ClientUpdateCoordinatorTest {
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, command -> {
         });
 
-        assertTrue(coordinator.apply(notice(OTHER, sampleJar(actions))));
-        assertFalse(coordinator.apply(notice(OTHER, actions.jar)));
+        assertTrue(coordinator.apply(notice("1.8.0", sampleJar(actions))));
+        assertFalse(coordinator.apply(notice("1.8.0", actions.jar)));
         assertEquals(0, actions.downloads.get());
     }
 
@@ -97,7 +99,7 @@ public class ClientUpdateCoordinatorTest {
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(
                 actions, Runnable::run, millis -> sleeps.incrementAndGet(), 10, 1_000);
 
-        coordinator.apply(notice(OTHER, jar));
+        coordinator.apply(notice("1.8.0", jar));
 
         assertEquals("兩次輪詢後才閒置", 2, sleeps.get());
         assertEquals(1, actions.installed.size());
@@ -116,7 +118,7 @@ public class ClientUpdateCoordinatorTest {
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(
                 actions, Runnable::run, millis -> sleeps.incrementAndGet(), 10, 30);
 
-        coordinator.apply(notice(OTHER, jar));
+        coordinator.apply(notice("1.8.0", jar));
 
         assertEquals(3, sleeps.get());
         assertTrue(actions.installed.isEmpty());
@@ -130,7 +132,7 @@ public class ClientUpdateCoordinatorTest {
         actions.idleDefault = true;
         actions.finished = false;
         Path again = sampleJar(actions);
-        coordinator.apply(notice(OTHER, again));
+        coordinator.apply(notice("1.8.0", again));
         assertEquals(2, actions.downloads.get());
         assertTrue(actions.restarted);
     }
@@ -139,9 +141,10 @@ public class ClientUpdateCoordinatorTest {
     public void badHashDoesNotRestart() throws Exception {
         FakeActions actions = new FakeActions();
         actions.canInstall = true;
+        actions.localVersion = "1.0.0";
         Path jar = sampleJar(actions);
-        UpdateNotice notice = notice(OTHER, jar);
-        UpdateNotice bad = new UpdateNotice(notice.version, notice.sourceDigest, LOCAL, notice.size, notice.path);
+        UpdateNotice notice = notice("1.8.0", jar);
+        UpdateNotice bad = new UpdateNotice(notice.version, "", LOCAL, notice.size, notice.path);
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
 
         coordinator.apply(bad);
@@ -160,7 +163,7 @@ public class ClientUpdateCoordinatorTest {
         Path jar = sampleJar(actions);
         ClientUpdateCoordinator coordinator = new ClientUpdateCoordinator(actions, Runnable::run);
 
-        coordinator.apply(notice(OTHER, jar));
+        coordinator.apply(notice("1.8.0", jar));
 
         assertTrue(actions.installed.isEmpty());
         assertFalse(actions.restarted);
@@ -170,11 +173,11 @@ public class ClientUpdateCoordinatorTest {
 
         actions.cancelDownload = false;
         actions.finished = false;
-        coordinator.apply(notice(OTHER, jar));
+        coordinator.apply(notice("1.8.0", jar));
         assertTrue(actions.restarted);
     }
 
-    private static UpdateNotice notice(String digest, Path jar) {
+    private static UpdateNotice notice(String version, Path jar) {
         String sha = LOCAL;
         long size = 1;
         if (jar != null) {
@@ -185,7 +188,7 @@ public class ClientUpdateCoordinatorTest {
                 throw new RuntimeException(ex);
             }
         }
-        return new UpdateNotice("1.8.0", digest, sha, size, "/api/client-release/jar");
+        return new UpdateNotice(version, "", sha, size, GITHUB_PATH.replace("v1.8.0", "v" + version));
     }
 
     private static Path sampleJar(FakeActions actions) throws Exception {
@@ -198,6 +201,7 @@ public class ClientUpdateCoordinatorTest {
 
     private static final class FakeActions implements ClientUpdateCoordinator.Actions {
         String local = "";
+        String localVersion = "1.0.0";
         /** 依序回傳；用完後回傳 idleDefault。 */
         final Deque<Boolean> idleSequence = new ArrayDeque<>();
         boolean idleDefault = true;
@@ -215,6 +219,11 @@ public class ClientUpdateCoordinatorTest {
         @Override
         public String localDigest() {
             return local;
+        }
+
+        @Override
+        public String localVersion() {
+            return localVersion;
         }
 
         @Override

@@ -25,6 +25,8 @@ public final class ClientUpdateCoordinator {
     public interface Actions {
         String localDigest();
 
+        String localVersion();
+
         /** 目前執行中的版本標示，例如 {@code v2.0.2 · a1b2c3d}。 */
         String localLabel();
 
@@ -90,8 +92,7 @@ public final class ClientUpdateCoordinator {
         if (notice == null) {
             return null;
         }
-        String digest = notice.sourceDigest;
-        if (digest == null || digest.isEmpty() || digest.equals(safe(actions.localDigest()))) {
+        if (!ClientUpdatePolicy.shouldOffer(safe(actions.localVersion()), notice.version)) {
             return null;
         }
         return notice;

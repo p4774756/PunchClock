@@ -133,7 +133,7 @@ public class App extends JFrame {
     /** 「現在更新」下載或等待重啟中。 */
     private boolean updateApplying;
     /** 已經寫進日誌的新版摘要，避免每次心跳都再記一次。 */
-    private String announcedUpdateDigest = "";
+    private String announcedUpdateVersion = "";
     /** 上次成功問到伺服器版本的時間。失敗的檢查不覆寫。 */
     private LocalDateTime lastUpdateCheckAt;
     /** 已寫進設定檔的「上次檢查」分鐘，避免心跳每 15 秒就重存。 */
@@ -2372,6 +2372,11 @@ public class App extends JFrame {
             }
 
             @Override
+            public String localVersion() {
+                return AppVersion.VERSION;
+            }
+
+            @Override
             public String localLabel() {
                 return AppVersion.buildLabel();
             }
@@ -2599,10 +2604,10 @@ public class App extends JFrame {
     }
 
     private void announceOffer(UpdateNotice notice) {
-        if (notice.sourceDigest.equals(announcedUpdateDigest)) {
+        if (notice.version.equals(announcedUpdateVersion)) {
             return;
         }
-        announcedUpdateDigest = notice.sourceDigest;
+        announcedUpdateVersion = notice.version;
         appendLog("[更新] 發現新版 " + ClientUpdateCoordinator.describe(notice)
                 + "，目前 " + AppVersion.displayLabel() + "。要升級請到設定按「現在更新」");
         if (!notice.changes.isEmpty()) {

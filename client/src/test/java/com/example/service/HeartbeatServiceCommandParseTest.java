@@ -198,35 +198,32 @@ public class HeartbeatServiceCommandParseTest {
     }
 
     @Test
-    public void parseUpdateNotice_requiresDigestHashSizeAndFixedPath() {
-        String digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    public void parseUpdateNotice_requiresGithubUrlHashAndSize() {
         String sha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-        String body = "{\"update\":{\"version\":\"1.8.0\",\"sourceDigest\":\"" + digest
-                + "\",\"sha256\":\"" + sha + "\",\"size\":12,\"path\":\"/api/client-release/jar\"}}";
+        String path = "https://github.com/p4774756/PunchClock/releases/download/v1.8.0/SKLbaby.jar";
+        String body = "{\"update\":{\"version\":\"1.8.0\",\"sha256\":\"" + sha
+                + "\",\"size\":12,\"path\":\"" + path + "\"}}";
         HeartbeatService.UpdateNotice notice = HeartbeatService.parseUpdateNotice(body);
         assertNotNull(notice);
         assertEquals("1.8.0", notice.version);
-        assertEquals(digest, notice.sourceDigest);
+        assertEquals("", notice.sourceDigest);
         assertEquals(sha, notice.sha256);
         assertEquals(12L, notice.size);
-        assertEquals("舊 server 沒帶 releaseTime", "", notice.releaseTime);
+        assertEquals(path, notice.path);
 
-        String withTime = "{\"update\":{\"version\":\"1.8.0\",\"sourceDigest\":\"" + digest
-                + "\",\"releaseTime\":\"2026-10-20T07:58:00Z\",\"sha256\":\"" + sha
-                + "\",\"size\":12,\"path\":\"/api/client-release/jar\"}}";
+        String withTime = "{\"update\":{\"version\":\"1.8.0\",\"releaseTime\":\"2026-10-20T07:58:00Z\",\"sha256\":\""
+                + sha + "\",\"size\":12,\"path\":\"" + path + "\"}}";
         assertEquals("2026-10-20T07:58:00Z", HeartbeatService.parseUpdateNotice(withTime).releaseTime);
-        assertTrue(HeartbeatService.parseUpdateNotice(withTime).changes.isEmpty());
 
-        String withChanges = "{\"update\":{\"version\":\"1.8.0\",\"sourceDigest\":\"" + digest
-                + "\",\"sha256\":\"" + sha + "\",\"size\":12,\"path\":\"/api/client-release/jar\","
-                + "\"changes\":[\"  聊天視窗只晃一下  \",\"\",\"bad\\nline\"],\"changesMore\":2}}";
+        String withChanges = "{\"update\":{\"version\":\"1.8.0\",\"sha256\":\"" + sha + "\",\"size\":12,\"path\":\""
+                + path + "\",\"changes\":[\"  聊天視窗只晃一下  \",\"\",\"bad\\nline\"],\"changesMore\":2}}";
         HeartbeatService.UpdateNotice detailed = HeartbeatService.parseUpdateNotice(withChanges);
         assertEquals(List.of("聊天視窗只晃一下", "bad line"), detailed.changes);
         assertEquals(2, detailed.changesMore);
 
         assertNull(HeartbeatService.parseUpdateNotice(
-                "{\"update\":{\"version\":\"1.8.0\",\"sourceDigest\":\"" + digest
-                        + "\",\"sha256\":\"" + sha + "\",\"size\":12,\"path\":\"https://evil.example/jar\"}}"));
+                "{\"update\":{\"version\":\"1.8.0\",\"sha256\":\"" + sha + "\",\"size\":12,"
+                        + "\"path\":\"https://evil.example/jar\"}}"));
         assertNull(HeartbeatService.parseUpdateNotice("{\"success\":true}"));
     }
 }

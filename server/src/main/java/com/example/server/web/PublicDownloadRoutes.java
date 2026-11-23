@@ -1,25 +1,28 @@
 package com.example.server.web;
 
+import com.example.ClientUpdatePolicy;
 import com.example.server.ClientRelease;
+import com.example.server.store.ClientReleaseService;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
-import io.javalin.http.HttpStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import java.time.Instant;
 
-/** 訪客可下載桌面端 jar（無心跳密鑰；與 /api/client-release 授權分開）。 */
+/** 訪客下載桌面端 jar；檔案導向 GitHub 最新 Release。 */
 public final class PublicDownloadRoutes {
 
     /** 公開下載的檔名（URL 仍為 /download/app.jar）。 */
     static final String PUBLIC_JAR_FILENAME = "SKLbaby.jar";
 
-    private final ClientRelease clientRelease;
+    private final ClientReleaseService clientReleaseService;
 
-    public PublicDownloadRoutes(ClientRelease clientRelease) {
-        this.clientRelease = clientRelease == null ? ClientRelease.NONE : clientRelease;
+    public PublicDownloadRoutes(ClientReleaseService clientReleaseService) {
+        this.clientReleaseService = clientReleaseService == null
+                ? ClientReleaseService.fixed(ClientRelease.NONE)
+                : clientReleaseService;
     }
 
     public void register(Javalin app) {
@@ -29,8 +32,9 @@ public final class PublicDownloadRoutes {
     }
 
     private void downloadPage(Context ctx) {
-        boolean available = clientRelease.isAvailable();
-        String version = available ? clientRelease.version() : "";
+        ClientRelease release = clientReleaseService.get(Instant.now().toEpochMilli());
+        String version = release.isAvailable() ? release.version() : "";
+        String jarUrl = release.isAvailable() ? release.downloadUrl() : ClientUpdatePolicy.GITHUB_LATEST_JAR_URL;
         String macArmUrl = desktopEnv("DESKTOP_MAC_ARM_DOWNLOAD_URL");
         if (macArmUrl.isEmpty()) {
             macArmUrl = desktopEnv("DESKTOP_MAC_DOWNLOAD_URL");
@@ -39,8 +43,8 @@ public final class PublicDownloadRoutes {
         String winUrl = desktopEnv("DESKTOP_WIN_DOWNLOAD_URL");
         boolean desktopKnown = !macArmUrl.isEmpty() || !macIntelUrl.isEmpty() || !winUrl.isEmpty();
         String html = readResource("/public/download.html")
-                .replace("{{JAR_HIDDEN}}", available ? "" : " hidden")
-                .replace("{{MISSING_HIDDEN}}", available ? " hidden" : "")
+                .replace("{{JAR_HIDDEN}}", "")
+                .replace("{{MISSING_HIDDEN}}", " hidden")
                 .replace("{{MAC_ARM_HIDDEN}}", macArmUrl.isEmpty() ? " hidden" : "")
                 .replace("{{MAC_INTEL_HIDDEN}}", macIntelUrl.isEmpty() ? " hidden" : "")
                 .replace("{{WIN_HIDDEN}}", winUrl.isEmpty() ? " hidden" : "")
@@ -53,6 +57,7 @@ public final class PublicDownloadRoutes {
                 .replace("{{DESKTOP_MAC_JS}}", jsStringLiteral(macArmUrl))
                 .replace("{{DESKTOP_WIN_JS}}", jsStringLiteral(winUrl))
                 .replace("{{CLIENT_VERSION}}", escapeHtml(version))
+                .replace("{{JAR_DOWNLOAD_URL}}", escapeHtml(jarUrl))
                 .replace("{{JAVA_VERSION}}", "11");
         ctx.header("Cache-Control", "no-cache, must-revalidate");
         ctx.html(html);
@@ -79,29 +84,9 @@ public final class PublicDownloadRoutes {
     }
 
     private void downloadJar(Context ctx) {
-        if (!clientRelease.isAvailable()) {
-            ctx.status(HttpStatus.NOT_FOUND).json(java.util.Map.of(
-                    "success", false,
-                    "message", "目前沒有可下載的桌面端"
-            ));
-            return;
-        }
-        InputStream stream;
-        try {
-            stream = Files.newInputStream(clientRelease.jar());
-        } catch (IOException ex) {
-            ctx.status(HttpStatus.NOT_FOUND).json(java.util.Map.of(
-                    "success", false,
-                    "message", "桌面端檔案不存在"
-            ));
-            return;
-        }
-        ctx.minSizeForCompression(Integer.MAX_VALUE);
-        ctx.contentType("application/java-archive");
-        ctx.header("Content-Disposition", "attachment; filename=\"" + PUBLIC_JAR_FILENAME + "\"");
-        ctx.header("Content-Length", String.valueOf(clientRelease.size()));
-        ctx.header("X-Content-Type-Options", "nosniff");
-        ctx.result(stream);
+        ClientRelease release = clientReleaseService.get(Instant.now().toEpochMilli());
+        String target = release.isAvailable() ? release.downloadUrl() : ClientUpdatePolicy.GITHUB_LATEST_JAR_URL;
+        ctx.redirect(target);
     }
 
     private static String readResource(String path) {
