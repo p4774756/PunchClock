@@ -42,6 +42,14 @@ test('progressBoardViewFromTiger 單號與今日進度', () => {
   assert.equal(active.statusLine, '進行中');
   assert.equal(active.phraseLine, '牆上進度面板');
   assert.match(active.metaLine, /第 2 輪/);
+  const staged = progressBoardViewFromTiger(
+    {
+      active: [{ issue: 576, phrase: '牆上進度面板', stage: '開發中', round: 1 }],
+      completedToday: []
+    },
+    0
+  );
+  assert.match(staged.metaLine, /開發中/);
   assert.equal(active.todayLabel, '今日工作量');
   assert.equal(active.todayFraction, 1 / 4);
   assert.equal(active.todayCountText, '1/4');
@@ -107,6 +115,12 @@ test('bubbleTextForStatus 僅三態與工作中倍數', () => {
 });
 
 test('capsulesForActive 與禁止字樣', () => {
+  assert.deepEqual(capsulesForActive({ stage: '等 CI', round: 2, minutes: 12, model: 'grok-4.7-high' }), [
+    '等 CI',
+    '第 2 輪',
+    '已跑 12 分',
+    'grok-4.7-high'
+  ]);
   assert.deepEqual(capsulesForActive({ round: 2, minutes: 12, model: 'grok-4.7-high' }), [
     '第 2 輪',
     '已跑 12 分',

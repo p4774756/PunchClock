@@ -338,6 +338,133 @@ public class OfficePublicRoutesTest {
     }
 
     @Test
+    public void activeDevStageOnHeartbeatRun() throws Exception {
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 576);
+        run.put("round", 1);
+        run.put("branch", "ai/issue-576");
+        run.put("startedAt", 9_000_000L - 90_000L);
+        run.put("role", "dev");
+        run.put("model", "composer-2.5");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", true);
+        body.put("runs", Collections.singletonList(run));
+        store.applyHeartbeat("tiger", body);
+
+        JsonObject active = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("active").get(0).getAsJsonObject();
+        assertEquals("開發中", active.get("stage").getAsString());
+    }
+
+    @Test
+    public void activeReviewStageAppearsInTigerActive() throws Exception {
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 374);
+        run.put("round", 2);
+        run.put("branch", "ai/issue-374");
+        run.put("role", "review");
+        run.put("startedAt", 9_000_000L - 120_000L);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", true);
+        body.put("runs", Collections.singletonList(run));
+        store.applyHeartbeat("tiger", body);
+
+        JsonObject active = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("active").get(0).getAsJsonObject();
+        assertEquals("審查中", active.get("stage").getAsString());
+    }
+
+    @Test
+    public void chainRunWithoutAgentShowsWaitCiNotRest() throws Exception {
+        status = new DevStatusService(repo -> githubWithIssue(556, null,
+                new DevStatusModels.PullRow(560, "pr", true, false, false, 0, 0, 8_999_000L, null,
+                        new HashSet<>(Collections.singletonList(556)))));
+        startApp();
+
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 556);
+        run.put("round", 0);
+        run.put("branch", "ai/issue-556");
+        run.put("startedAt", 9_000_000L - 300_000L);
+        run.put("role", "dev");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", false);
+        body.put("runs", Collections.singletonList(run));
+        store.applyHeartbeat("tiger", body);
+
+        JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
+        assertEquals("工作中", tiger.get("status").getAsString());
+        assertEquals("等 CI", tiger.getAsJsonArray("active").get(0).getAsJsonObject().get("stage").getAsString());
+    }
+
+    @Test
+    public void fixingStageAfterReviewFail() throws Exception {
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 501);
+        run.put("round", 2);
+        run.put("branch", "ai/issue-501");
+        run.put("startedAt", 9_000_000L - 60_000L);
+        run.put("role", "dev");
+        run.put("model", "composer-2.5");
+        run.put("verdict", "FAIL");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", true);
+        body.put("verdict", "FAIL");
+        body.put("runs", Collections.singletonList(run));
+        store.applyHeartbeat("tiger", body);
+
+        assertEquals("修正中", fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("active").get(0).getAsJsonObject().get("stage").getAsString());
+    }
+
+    @Test
+    public void mergingStageWhenChecksPassed() throws Exception {
+        status = new DevStatusService(repo -> githubWithIssue(566, null,
+                new DevStatusModels.PullRow(570, "pr", true, false, false, 0, 0, 8_999_000L, null,
+                        new HashSet<>(Collections.singletonList(566)))));
+        startApp();
+
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 566);
+        run.put("round", 0);
+        run.put("branch", "ai/issue-566");
+        run.put("startedAt", 9_000_000L - 180_000L);
+        run.put("role", "dev");
+        run.put("verdict", "PASS");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", false);
+        body.put("runs", Collections.singletonList(run));
+        store.applyHeartbeat("tiger", body);
+
+        assertEquals("合併中", fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("active").get(0).getAsJsonObject().get("stage").getAsString());
+    }
+
+    @Test
+    public void heartbeatRunStageLiteralOverridesInference() throws Exception {
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 580);
+        run.put("round", 1);
+        run.put("branch", "ai/issue-580");
+        run.put("startedAt", 9_000_000L - 60_000L);
+        run.put("role", "dev");
+        run.put("stage", "合併中");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", true);
+        body.put("runs", Collections.singletonList(run));
+        store.applyHeartbeat("tiger", body);
+
+        assertEquals("合併中", fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("active").get(0).getAsJsonObject().get("stage").getAsString());
+    }
+
+    @Test
     public void publicOfficeWhitelistWithoutSecrets() throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("machine", "tiger");

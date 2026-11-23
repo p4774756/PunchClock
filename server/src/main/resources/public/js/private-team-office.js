@@ -171,6 +171,9 @@ export function formatOfficeClock(isoOrMs) {
 export function capsulesForActive(row) {
   const item = row && typeof row === 'object' ? row : {};
   const out = [];
+  if (item.stage && isSafePublicText(item.stage)) {
+    out.push(String(item.stage));
+  }
   const round = Number(item.round);
   if (Number.isFinite(round) && round > 0) {
     out.push('第 ' + round + ' 輪');

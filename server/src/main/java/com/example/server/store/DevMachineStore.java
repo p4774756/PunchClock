@@ -31,6 +31,8 @@ public final class DevMachineStore {
     private static final Pattern WORKTREE_PATTERN = Pattern.compile("^[A-Za-z0-9._/~-]{1,128}$");
     private static final Pattern ROLE_PATTERN = Pattern.compile("^(dev|review)$");
     private static final Pattern VERDICT_PATTERN = Pattern.compile("^(PASS|FAIL|UNKNOWN)$");
+    private static final Pattern STAGE_PATTERN = Pattern.compile(
+            "^(開發中|等 CI|審查中|修正中|合併中)$");
     private static final Pattern MODEL_PATTERN = Pattern.compile("^[A-Za-z0-9._+-]{1,64}$");
 
     @FunctionalInterface
@@ -58,9 +60,10 @@ public final class DevMachineStore {
         public final String role;
         public final String model;
         public final String verdict;
+        public final String stage;
 
         RunEntry(int issue, int round, String branch, Long startedAt, String worktree, String commit,
-                 String role, String model, String verdict) {
+                 String role, String model, String verdict, String stage) {
             this.issue = issue;
             this.round = round;
             this.branch = branch;
@@ -70,6 +73,7 @@ public final class DevMachineStore {
             this.role = role;
             this.model = model;
             this.verdict = verdict;
+            this.stage = stage;
         }
     }
 
@@ -334,6 +338,9 @@ public final class DevMachineStore {
             }
             if (run.verdict != null) {
                 row.put("verdict", run.verdict);
+            }
+            if (run.stage != null) {
+                row.put("stage", run.stage);
             }
             String title = titles == null ? "" : titles.title(run.issue);
             if (title != null && !title.isEmpty()) {
@@ -833,7 +840,22 @@ public final class DevMachineStore {
         if (map.containsKey("verdict") && verdict == null && map.get("verdict") != null) {
             return null;
         }
-        return new RunEntry(issue, round, branch, startedAt, worktree, commit, role, model, verdict);
+        String stage = parseStage(map.get("stage"));
+        if (map.containsKey("stage") && stage == null && map.get("stage") != null) {
+            return null;
+        }
+        return new RunEntry(issue, round, branch, startedAt, worktree, commit, role, model, verdict, stage);
+    }
+
+    private static String parseStage(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        String s = String.valueOf(raw).trim();
+        if (s.isEmpty() || !STAGE_PATTERN.matcher(s).matches()) {
+            return null;
+        }
+        return s;
     }
 
     private static boolean isWholeNumber(Number num) {
