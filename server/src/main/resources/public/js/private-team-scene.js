@@ -516,11 +516,11 @@ function applyUnderwaterTint(mat, waterYUniform) {
   mat.customProgramCacheKey = () => 'secretary-underwater-tint-v2';
 }
 
-function addBathPillow(sprite) {
-  if (sprite.getObjectByName('bathPillow')) return;
+function addBathPillow(parent) {
+  if (parent.getObjectByName('bathPillow')) return;
   const group = new THREE.Group();
   group.name = 'bathPillow';
-  group.position.set(0.31, -0.1, 0.03);
+  group.position.set(0.04, 0.48, -0.3);
   function towelBox(w, h, d, color) {
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(w, h, d),
@@ -529,23 +529,24 @@ function addBathPillow(sprite) {
     mesh.renderOrder = 1;
     return mesh;
   }
-  const cushion = towelBox(0.34, 0.54, 0.075, COL.towel);
+  const cushion = towelBox(0.42, 0.3, 0.1, COL.towel);
   cushion.name = 'bathPillowCushion';
-  cushion.position.set(0.05, 0, 0);
+  cushion.position.set(0, 0.02, 0.03);
+  cushion.rotation.x = 0.24;
   const roll = new THREE.Mesh(
     new THREE.CylinderGeometry(0.055, 0.055, 0.26, 14),
     new THREE.MeshBasicMaterial({ color: COL.towelDk })
   );
   roll.name = 'bathPillowRoll';
   roll.rotation.z = Math.PI / 2;
-  roll.position.set(0.04, 0.2, 0.015);
+  roll.position.set(0.06, 0.17, 0.05);
   roll.renderOrder = 1;
-  const fold = towelBox(0.16, 0.22, 0.055, COL.towelDk);
+  const fold = towelBox(0.14, 0.18, 0.05, COL.towelDk);
   fold.name = 'bathPillowFold';
-  fold.position.set(-0.1, 0.08, 0.01);
+  fold.position.set(-0.14, 0.05, 0.04);
   fold.rotation.z = -0.18;
   group.add(cushion, roll, fold);
-  sprite.add(group);
+  parent.add(group);
 }
 
 function makeScreenPainter() {
@@ -1432,6 +1433,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   shadow.position.set(0.06, 0.072, -0.42);
   shadow.renderOrder = 1;
   secretaryRoot.add(shadow);
+  addBathPillow(secretaryRoot);
 
   let secretarySprite = null;
   const spriteBaseY = SECRETARY_SPRITE_HEIGHT / 2 + 0.02;
@@ -1602,7 +1604,6 @@ export function mountPrivateTeamScene(canvas, opts) {
     secretarySprite.renderOrder = 2;
     secretarySprite.name = 'secretarySprite';
     secretaryRoot.add(secretarySprite);
-    addBathPillow(secretarySprite);
     secretarySprite.userData.pickRole = 'secretary';
     if (clickables.indexOf(secretarySprite) === -1) {
       clickables.push(secretarySprite);
