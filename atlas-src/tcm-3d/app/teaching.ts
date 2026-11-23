@@ -20,7 +20,7 @@ export const REGIONS:{id:RegionId;name:string;example:string}[]=[
  {id:'waist',name:'腰背',example:'BL23'}, {id:'leg',name:'膝腿足',example:'ST36'},
 ];
 /** Classroom lesson sets. Textbook sets first; interim practice sets fill gaps between classes. */
-export type CurriculumSetId='head-neck-21'|'trunk-30'|'back-shu-14'|'hip-sacral-6'|'arm-joints-15'|'common-10';
+export type CurriculumSetId='head-neck-21'|'trunk-30'|'back-shu-14'|'hip-sacral-6'|'arm-joints-15';
 export interface CurriculumSet {id:CurriculumSetId;name:string;shortName:string;lesson:string;codes:readonly string[];status:'reviewed'|'pending'}
 export const CURRICULUM_SETS:CurriculumSet[]=[
  {id:'head-neck-21',name:'基準穴 · 頭頸部',shortName:'頭頸 21',lesson:'陸／一 頭頸部基準穴',status:'reviewed',codes:[
@@ -39,9 +39,6 @@ export const CURRICULUM_SETS:CurriculumSet[]=[
  ]},
  {id:'arm-joints-15',name:'課堂 · 肩肘腕關節',shortName:'肩肘腕 15',lesson:'2026-11-22 肩 3、肘 6、腕 6 關節穴',status:'pending',codes:[
   'LI15','TE14','SI10','LU5','PC3','HT3','LI11','TE10','SI8','LU9','PC7','HT7','LI5','TE4','SI5',
- ]},
- {id:'common-10',name:'常用穴 · 暫代練習',shortName:'常用 10',lesson:'課堂空檔暫代：合谷、足三里等；週日教材到後再接下一節基準穴',status:'pending',codes:[
-  'LI4','ST36','SP6','LR3','PC6','TE5','GB20','GB21','BL40','KI1',
  ]},
 ];
 export const CURRICULUM_BY_ID=new Map(CURRICULUM_SETS.map(set=>[set.id,set]));

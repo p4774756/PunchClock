@@ -122,7 +122,7 @@ try {
     assert.deepEqual(liou, ['KI7', 'LI7']);
     const yixi = libraryPointResults('ㄧ ㄒㄧ', 'all', 'all', 'head-neck-21', codes).map(p => p.code);
     assert.ok(yixi.includes('BL45'), 'ㄧ ㄒㄧ 應含譩譆');
-    for (const setId of ['trunk-30', 'back-shu-14', 'common-10']) {
+    for (const setId of ['trunk-30', 'back-shu-14']) {
       const again = libraryPointResults('ㄌㄧㄡˋ', 'all', 'all', setId, codes).map(p => p.code);
       assert.ok(again.includes('LI7') && again.includes('KI7'), setId);
       assert.ok(libraryPointResults('ㄑㄧˋ', 'all', 'all', setId, codes).some(p => p.code === 'TE18'), setId);
@@ -221,9 +221,12 @@ try {
   });
 
   await test('課堂集合順序不變', () => {
+    assert.equal(CURRICULUM_SETS.length, 5);
+    assert.equal(CURRICULUM_SETS.some(s => s.id === 'common-10'), false);
     assert.equal(CURRICULUM_SETS[0].id, 'head-neck-21');
     assert.equal(CURRICULUM_SETS[1].id, 'trunk-30');
     assert.equal(CURRICULUM_SETS[2].id, 'back-shu-14');
+    assert.equal(CURRICULUM_SETS[3].id, 'hip-sacral-6');
     assert.equal(CURRICULUM_SETS[4].id, 'arm-joints-15');
     assert.equal(initialSimulation.tool, 'needle');
     assert.equal(initialSimulation.pointCode, 'GV24+');
