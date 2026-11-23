@@ -210,6 +210,7 @@ export function mountPrivateTeamPage(opts) {
   let identityMenuOpen = false;
   let loginOpen = false;
   let pendingOpenTasksAfterLogin = false;
+  let pendingOpenAtlasAfterLogin = false;
   let lastFocus = null;
 
   function bindOpenLoginHandlers(root) {
@@ -258,9 +259,16 @@ export function mountPrivateTeamPage(opts) {
       mountIdentitySection();
     }
     closeTaskHint();
+    if (typeof scene.setAtlasNameplateText === 'function') {
+      scene.setAtlasNameplateText('經絡研習室');
+    }
     if (pendingOpenTasksAfterLogin) {
       pendingOpenTasksAfterLogin = false;
       if (openTasks) openTasks();
+    }
+    if (pendingOpenAtlasAfterLogin) {
+      pendingOpenAtlasAfterLogin = false;
+      openAtlasRoom();
     }
   }
 
@@ -330,9 +338,25 @@ export function mountPrivateTeamPage(opts) {
     win.location.assign('/atlas/tcm-3d/');
   }
 
+  function openLoginForAtlas() {
+    if (sessionAuthed) {
+      openAtlasRoom();
+      return;
+    }
+    pendingOpenAtlasAfterLogin = true;
+    closeTaskHint();
+    closeIdentityMenu();
+    closeStatusCard();
+    loginModal.open();
+  }
+
   function onSceneActivate(role) {
     if (role === 'atlas') {
-      openAtlasRoom();
+      if (sessionAuthed) {
+        openAtlasRoom();
+      } else {
+        openLoginForAtlas();
+      }
       return;
     }
     openStatusCard();
@@ -611,6 +635,7 @@ export function mountPrivateTeamPage(opts) {
   return {
     setRoadmapOpen,
     setTasksOpen,
+    openLoginForAtlas,
     destroy() {
       win.clearInterval(poll);
       doc.removeEventListener('keydown', onKeyDown);

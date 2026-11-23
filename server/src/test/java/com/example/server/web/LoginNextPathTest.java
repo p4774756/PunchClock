@@ -16,6 +16,7 @@ public class LoginNextPathTest {
         assertEquals("/console?open=roadmap", LoginNextPath.sanitize("/console?open=roadmap"));
         assertEquals("/?open=roadmap", LoginNextPath.sanitize("/?open=roadmap"));
         assertEquals("/?open=tasks", LoginNextPath.sanitize("/?open=tasks"));
+        assertEquals("/?open=atlas-login", LoginNextPath.sanitize("/?open=atlas-login"));
         assertEquals("/atlas/tcm-3d", LoginNextPath.sanitize("/atlas/tcm-3d"));
         assertEquals("/atlas/tcm-3d/", LoginNextPath.sanitize("/atlas/tcm-3d/"));
     }

@@ -75,9 +75,8 @@ public class AtlasRoutesTest {
         HttpResponse<String> response = send("GET", "/atlas/tcm-3d/", null, null, null);
         assertEquals(302, response.statusCode());
         String location = response.headers().firstValue("location").orElse("");
-        assertTrue(location.contains("/login"));
-        assertTrue(location.contains("next="));
-        assertTrue(location.contains("/atlas/tcm-3d"));
+        assertEquals("/?open=atlas-login", location);
+        assertFalse(response.body().contains("atlas-ok"));
     }
 
     @Test

@@ -183,6 +183,14 @@ function createDocument() {
       }
       return false;
     };
+    node.closest = (sel) => {
+      let current = node;
+      while (current) {
+        if (current.nodeType === 1 && matches(current, sel)) return current;
+        current = current.parent;
+      }
+      return null;
+    };
     node.addEventListener = (type, fn) => {
       (node._on[type] || (node._on[type] = [])).push(fn);
     };
@@ -301,7 +309,7 @@ test('首頁登入浮動視窗標記與 fetch JSON', () => {
   assert.doesNotMatch(js, /剩餘嘗試次數：4/);
 });
 
-test('登入彈窗錯誤用 textContent，解析失敗不寫死剩餘 4 次', async () => {
+test('登入彈窗錯誤用 textContent，解析失敗不寫死剩餘 4 次', { concurrency: false }, async () => {
   const { wireHomeLoginModal } = await import(
     'data:text/javascript;base64,' + Buffer.from(readFileSync(join(publicRoot, 'js/home-login-modal.js'), 'utf8')).toString('base64')
   );
@@ -386,14 +394,14 @@ test('登入彈窗錯誤用 textContent，解析失敗不寫死剩餘 4 次', as
   modal.destroy();
 });
 
-test('左頭像提示的登入打開彈窗，重畫膠囊不加第二次 listener', async () => {
+test('左頭像提示的登入打開彈窗，重畫膠囊不加第二次 listener', { concurrency: false }, async () => {
   const raw = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
   const withoutScene = raw.replace(
     /import\s+\{\s*mountPrivateTeamScene\s*\}\s+from\s+['"]\.\/private-team-scene\.js['"];\s*/,
     ''
   );
   assert.equal(withoutScene.includes('private-team-scene'), false);
-  const source = ('function mountPrivateTeamScene(){return {setSceneInputEnabled(){},setBubbleText(){},setSecretarySprite(){},destroy(){}};}\n' +
+  const source = ('function mountPrivateTeamScene(canvas,opts){globalThis.__ptOnActivate=opts&&opts.onActivate;return {setSceneInputEnabled(){},setBubbleText(){},setSecretarySprite(){},setProgressBoard(){},setAtlasNameplateText(t){globalThis.__ptAtlasNp=String(t);},noteTigerStatus(){},destroy(){}};}\n' +
     withoutScene).replace(/from\s+(['"])\.\/([^'"]+)\1/g, (all, quote, dep) => {
     const bundled = bundleSource(dep);
     const url = 'data:text/javascript;base64,' + Buffer.from(bundled).toString('base64');
@@ -404,11 +412,13 @@ test('左頭像提示的登入打開彈窗，重畫膠囊不加第二次 listene
   );
   const doc = createDocument();
   doc.body.innerHTML = LOGIN_BOARD_HTML;
+  const loc = { href: '', pathname: '/', search: '', hash: '' };
+  loc.assign = (url) => { loc.href = String(url); };
   const win = {
     PUNCHCLOCK_AUTHENTICATED: false,
     setInterval(fn, ms) { return setInterval(fn, ms); },
     clearInterval(id) { clearInterval(id); },
-    location: { href: '' }
+    location: loc
   };
   const page = mountPrivateTeamPage({
     doc,
@@ -430,6 +440,12 @@ test('左頭像提示的登入打開彈窗，重畫膠囊不加第二次 listene
   const guest = doc.querySelector('.pt-hud-id-plate');
   const board = doc.getElementById('loginBoard');
   const stage = doc.querySelector('[data-private-team-stage]');
+  const activate = globalThis.__ptOnActivate;
+  assert.equal(typeof activate, 'function');
+  activate('atlas');
+  assert.equal(board.hidden, false);
+  assert.equal(loc.href, '');
+  board.querySelector('[data-login-close]').click();
   assert.ok(hint);
   assert.equal(hint._on.click.length, 1);
   task.click();
@@ -438,7 +454,7 @@ test('左頭像提示的登入打開彈窗，重畫膠囊不加第二次 listene
   assert.equal(board.hidden, false);
   assert.equal(doc.querySelector('[data-pt-task-hint]').hidden, true);
   assert.equal(stage.classList.contains('pt-login-open'), true);
-  assert.equal(win.location.href, '');
+  assert.equal(loc.href, '');
   doc.querySelector('[data-login-close]').click();
   assert.equal(board.hidden, true);
   guest.click();
@@ -452,7 +468,15 @@ test('左頭像提示的登入打開彈窗，重畫膠囊不加第二次 listene
   hint.click();
   assert.equal(board.hidden, false);
   assert.equal(hint._on.click.length, 1);
+  delete globalThis.__ptOnActivate;
+  delete globalThis.__ptAtlasNp;
   page.destroy();
+});
+
+test('登入成功後依 pending 進研習室', () => {
+  const js = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
+  assert.match(js, /pendingOpenAtlasAfterLogin/);
+  assert.match(js, /if \(pendingOpenAtlasAfterLogin\)[\s\S]*openAtlasRoom\(\)/);
 });
 
 test('登入彈窗不藏場景，窄螢幕不跟施工進度貼頂', () => {

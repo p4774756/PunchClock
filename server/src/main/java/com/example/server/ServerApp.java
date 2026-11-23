@@ -247,6 +247,10 @@ public final class ServerApp {
             ctx.redirect(nextSafe != null ? nextSafe : "/");
             return;
         }
+        if (nextSafe != null && nextSafe.startsWith("/atlas/tcm-3d")) {
+            ctx.redirect("/?open=atlas-login");
+            return;
+        }
         String ip = IpResolver.clientIp(ctx);
         AuthService.LoginLockStatus lockStatus = authService.getLoginLockStatus(ip);
         String alertMessage = "";

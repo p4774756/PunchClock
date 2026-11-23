@@ -51,7 +51,7 @@ public final class AtlasRoutes {
         }
         if (!authService.isAuth(ctx)) {
             if (isHtmlNavigation(relativePath)) {
-                ctx.redirect("/login?next=/atlas/" + appId + "/");
+                ctx.redirect("/?open=atlas-login");
                 return;
             }
             ctx.status(HttpStatus.UNAUTHORIZED);
