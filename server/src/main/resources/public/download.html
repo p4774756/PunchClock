@@ -17,8 +17,10 @@
     <div class="download-body">
       <p>在此下載新光小寶貝桌面端。可下載安裝檔（內建 Java，雙擊即可），或下載 jar 自行用 Java 執行。</p>
       <div class="download-actions" data-download-actions>
-        <a class="download-btn" data-download-mac href="{{DESKTOP_MAC_URL}}"{{MAC_HIDDEN}}>下載 macOS 安裝檔（.dmg）</a>
+        <a class="download-btn" data-download-mac-arm href="{{DESKTOP_MAC_ARM_URL}}"{{MAC_ARM_HIDDEN}}>Mac（Apple 晶片 M1 以後）</a>
+        <a class="download-btn" data-download-mac-intel href="{{DESKTOP_MAC_INTEL_URL}}"{{MAC_INTEL_HIDDEN}}>Mac（Intel）</a>
         <a class="download-btn" data-download-win href="{{DESKTOP_WIN_URL}}"{{WIN_HIDDEN}}>下載 Windows 安裝檔（.exe）</a>
+        <p class="download-mac-hint" data-download-mac-hint>不確定晶片類型？請點蘋果選單 &gt; 關於這台 Mac，在「晶片」或「處理器」欄位查看。</p>
         <span class="download-unavailable" data-desktop-missing{{DESKTOP_MISSING_HIDDEN}}>安裝檔尚未提供，請稍後再試或向管理員索取。</span>
         <a class="download-btn download-btn-jar" data-download-jar href="/download/app.jar"{{JAR_HIDDEN}}>下載 SKLbaby.jar（v{{CLIENT_VERSION}}）</a>
         <p class="download-unavailable" data-download-missing{{MISSING_HIDDEN}}>伺服器尚未附帶可下載的 jar，請向管理員索取。</p>
@@ -38,7 +40,7 @@
       </ol>
     </div>
   </section>
-  <script>window.PUNCHCLOCK_DESKTOP_MAC_URL = {{DESKTOP_MAC_JS}};window.PUNCHCLOCK_DESKTOP_WIN_URL = {{DESKTOP_WIN_JS}};</script>
+  <script>window.PUNCHCLOCK_DESKTOP_MAC_ARM_URL = {{DESKTOP_MAC_ARM_JS}};window.PUNCHCLOCK_DESKTOP_MAC_INTEL_URL = {{DESKTOP_MAC_INTEL_JS}};window.PUNCHCLOCK_DESKTOP_MAC_URL = {{DESKTOP_MAC_JS}};window.PUNCHCLOCK_DESKTOP_WIN_URL = {{DESKTOP_WIN_JS}};</script>
   <script src="/js/download-page.js"></script>
 </body>
 </html>

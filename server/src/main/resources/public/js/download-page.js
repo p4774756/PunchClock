@@ -1,37 +1,37 @@
 /**
- * 若伺服器未注入安裝檔網址，向 GitHub Releases 查詢 SKLbaby-mac.dmg／SKLbaby-win.exe。
+ * 若伺服器未注入安裝檔網址，向 GitHub Releases 查詢 SKLbaby-mac-arm.dmg／SKLbaby-mac-intel.dmg／SKLbaby-win.exe。
  */
 (function () {
-  var MAC_NAME = 'SKLbaby-mac.dmg';
+  var MAC_ARM_NAME = 'SKLbaby-mac-arm.dmg';
+  var MAC_INTEL_NAME = 'SKLbaby-mac-intel.dmg';
+  var MAC_ARM_LEGACY = 'SKLbaby-mac.dmg';
   var WIN_NAME = 'SKLbaby-win.exe';
   var REPO = 'p4774756/PunchClock';
 
-  var macBtn = document.querySelector('[data-download-mac]');
+  var macArmBtn = document.querySelector('[data-download-mac-arm]');
+  var macIntelBtn = document.querySelector('[data-download-mac-intel]');
   var winBtn = document.querySelector('[data-download-win]');
   var missing = document.querySelector('[data-desktop-missing]');
-  if (!macBtn || !winBtn) {
+  if (!macArmBtn || !macIntelBtn || !winBtn) {
     return;
   }
 
-  var macUrl = (window.PUNCHCLOCK_DESKTOP_MAC_URL || '').trim();
+  var macArmUrl = (window.PUNCHCLOCK_DESKTOP_MAC_ARM_URL || window.PUNCHCLOCK_DESKTOP_MAC_URL || '').trim();
+  var macIntelUrl = (window.PUNCHCLOCK_DESKTOP_MAC_INTEL_URL || '').trim();
   var winUrl = (window.PUNCHCLOCK_DESKTOP_WIN_URL || '').trim();
 
-  function showDesktopButtons(mac, win) {
-    var any = false;
-    if (mac) {
-      macBtn.href = mac;
-      macBtn.removeAttribute('hidden');
-      any = true;
-    } else {
-      macBtn.setAttribute('hidden', 'hidden');
+  function setBtn(btn, url) {
+    if (url) {
+      btn.href = url;
+      btn.removeAttribute('hidden');
+      return true;
     }
-    if (win) {
-      winBtn.href = win;
-      winBtn.removeAttribute('hidden');
-      any = true;
-    } else {
-      winBtn.setAttribute('hidden', 'hidden');
-    }
+    btn.setAttribute('hidden', 'hidden');
+    return false;
+  }
+
+  function showDesktopButtons(macArm, macIntel, win) {
+    var any = setBtn(macArmBtn, macArm) | setBtn(macIntelBtn, macIntel) | setBtn(winBtn, win);
     if (missing) {
       if (any) {
         missing.setAttribute('hidden', 'hidden');
@@ -54,8 +54,16 @@
     return '';
   }
 
-  if (macUrl || winUrl) {
-    showDesktopButtons(macUrl, winUrl);
+  function macArmFromRelease(release) {
+    var url = assetUrl(release, MAC_ARM_NAME);
+    if (url) {
+      return url;
+    }
+    return assetUrl(release, MAC_ARM_LEGACY);
+  }
+
+  if (macArmUrl || macIntelUrl || winUrl) {
+    showDesktopButtons(macArmUrl, macIntelUrl, winUrl);
     return;
   }
 
@@ -69,9 +77,13 @@
       return resp.json();
     })
     .then(function (release) {
-      showDesktopButtons(assetUrl(release, MAC_NAME), assetUrl(release, WIN_NAME));
+      showDesktopButtons(
+        macArmFromRelease(release),
+        assetUrl(release, MAC_INTEL_NAME),
+        assetUrl(release, WIN_NAME)
+      );
     })
     .catch(function () {
-      showDesktopButtons('', '');
+      showDesktopButtons('', '', '');
     });
 })();
