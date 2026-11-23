@@ -1462,8 +1462,10 @@ public final class DesktopPetWindow extends JFrame {
         x = onScreen.x;
         y = onScreen.y;
         int gap = MAIN_AVOID_GAP;
-        Point best = null;
-        long bestDistance = Long.MAX_VALUE;
+        Point bestHoriz = null;
+        long bestHorizDistance = Long.MAX_VALUE;
+        Point bestVert = null;
+        long bestVertDistance = Long.MAX_VALUE;
         int[][] proposals = {
             {main.x + main.width + gap, y},
             {main.x - gap - windowWidth, y},
@@ -1476,14 +1478,29 @@ public final class DesktopPetWindow extends JFrame {
             if (placed.intersects(main)) {
                 continue;
             }
+            boolean horizClear = placed.x >= main.x + main.width + gap
+                    || placed.x + placed.width <= main.x - gap;
+            boolean vertClear = placed.y >= main.y + main.height + gap
+                    || placed.y + placed.height <= main.y - gap;
+            if (!horizClear && !vertClear) {
+                continue;
+            }
             long distance = distanceSquared(x, y, candidate.x, candidate.y);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                best = candidate;
+            if (horizClear) {
+                if (distance < bestHorizDistance) {
+                    bestHorizDistance = distance;
+                    bestHoriz = candidate;
+                }
+            } else if (distance < bestVertDistance) {
+                bestVertDistance = distance;
+                bestVert = candidate;
             }
         }
-        if (best != null) {
-            return best;
+        if (bestHoriz != null) {
+            return bestHoriz;
+        }
+        if (bestVert != null) {
+            return bestVert;
         }
         return clearestSpot(x, y, windowWidth, windowHeight, main, usable, screens);
     }
@@ -1535,7 +1552,7 @@ public final class DesktopPetWindow extends JFrame {
             Point candidate = clampToScreens(raw.x, raw.y, windowWidth, windowHeight, screens);
             Rectangle placed = new Rectangle(candidate.x, candidate.y, windowWidth, windowHeight);
             long distance = distanceSquared(x, y, candidate.x, candidate.y);
-            if (!placed.intersects(main)) {
+            if (!placed.intersects(main) && clearsMainWithGap(placed, main, MAIN_AVOID_GAP)) {
                 if (distance < bestClearDistance) {
                     bestClearDistance = distance;
                     bestClear = candidate;
@@ -1557,6 +1574,20 @@ public final class DesktopPetWindow extends JFrame {
             return bestPartial;
         }
         return new Point(x, y);
+    }
+
+    private static boolean clearsMainWithGap(Rectangle placed, Rectangle main, int gap) {
+        if (main == null || main.isEmpty() || placed == null) {
+            return true;
+        }
+        if (placed.intersects(main)) {
+            return false;
+        }
+        boolean horizClear = placed.x >= main.x + main.width + gap
+                || placed.x + placed.width <= main.x - gap;
+        boolean vertClear = placed.y >= main.y + main.height + gap
+                || placed.y + placed.height <= main.y - gap;
+        return horizClear || vertClear;
     }
 
     private static long distanceSquared(int x1, int y1, int x2, int y2) {
