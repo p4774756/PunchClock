@@ -12,7 +12,7 @@ import {
   tigerFromPublic
 } from './private-team-office.js';
 
-function deployVersionLabel(win) {
+export function deployVersionLabel(win) {
   const ver = win && typeof win.PUNCHCLOCK_SERVER_VERSION === 'string'
     ? win.PUNCHCLOCK_SERVER_VERSION.trim()
     : '';
@@ -22,7 +22,14 @@ function deployVersionLabel(win) {
   if (!ver || !bt || ver.includes('{{') || bt.includes('{{')) {
     return '';
   }
-  return 'v' + ver + ' · ' + bt;
+  let label = '網站 v' + ver + ' · ' + bt;
+  const appVer = win && typeof win.PUNCHCLOCK_CLIENT_VERSION === 'string'
+    ? win.PUNCHCLOCK_CLIENT_VERSION.trim()
+    : '';
+  if (appVer && !appVer.includes('{{')) {
+    label += ' · App v' + appVer;
+  }
+  return label;
 }
 
 function mountDeployVersion(hud, win, doc) {
