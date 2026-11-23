@@ -14,11 +14,6 @@ export const TOOLS:{id:ToolId;name:string;verb:string;effect:string;color:string
  {id:'needle',name:'針',verb:'針刺動作演示',effect:'進針動作與局部反饋',color:'#687d94',note:'展示針具朝向與接觸位置；不提供真人進針深度或角度。'},
  {id:'finger',name:'指壓',verb:'按壓演示',effect:'局部壓放與形變',color:'#4d857b',note:'形變與光圈為教學反饋，演示幅度不對應人體按壓力。'},
 ];
-export const REGIONS:{id:RegionId;name:string;example:string}[]=[
- {id:'head',name:'頭面',example:'ST2'}, {id:'shoulder',name:'肩頸',example:'GB21'},
- {id:'arm',name:'手臂',example:'PC6'}, {id:'abdomen',name:'胸腹',example:'CV12'},
- {id:'waist',name:'腰背',example:'BL23'}, {id:'leg',name:'膝腿足',example:'ST36'},
-];
 /** Classroom lesson sets. Textbook sets first; interim practice sets fill gaps between classes. */
 export type CurriculumSetId='head-neck-21'|'trunk-30'|'back-shu-14'|'hip-sacral-6'|'arm-joints-15';
 export interface CurriculumSet {id:CurriculumSetId;name:string;shortName:string;lesson:string;codes:readonly string[];status:'reviewed'|'pending'}
@@ -172,11 +167,11 @@ export function stripZhuyin(value:string){return value.replace(SEARCH_WS,'').rep
 export function normalizePointCode(value:string){return value.trim().toLowerCase().replace(SEARCH_WS,'');}
 
 /** Lesson list stays on baked points. A typed query searches the full 364-point catalog. */
-export function libraryPointResults(query:string,region:RegionId|'all',meridianFilter:string|null|undefined,curriculumSetId:string|null|undefined,avatarCodes:ReadonlySet<string>){
+export function libraryPointResults(query:string,meridianFilter:string|null|undefined,curriculumSetId:string|null|undefined,avatarCodes:ReadonlySet<string>){
  const trimmed=query.trim();
  const lesson=trimmed||curriculumSetId==='all'?undefined:curriculumSet(curriculumSetId);
  const ordered=trimmed?POINTS:(lesson?lesson.codes.map(code=>POINTS.find(p=>p.code===code)!).filter(Boolean):POINTS.filter(p=>avatarCodes.has(p.code)));
- return ordered.filter(p=>(trimmed||avatarCodes.has(p.code))&&(!meridianFilter||meridianFilter==='all'||p.meridianId===meridianFilter)&&(region==='all'||p.region===region)&&teachingPointMatchesQuery(p,query));
+ return ordered.filter(p=>(trimmed||avatarCodes.has(p.code))&&(!meridianFilter||meridianFilter==='all'||p.meridianId===meridianFilter)&&teachingPointMatchesQuery(p,query));
 }
 
 export type MeridianPathSide='midline'|1|-1;

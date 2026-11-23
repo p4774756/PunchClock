@@ -8,7 +8,7 @@ import {flushSync} from 'react-dom';
 import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Filter,Focus,Info,Layers3,MapPin,Maximize2,RotateCw,ScanFace,Search,Shirt,X} from 'lucide-react';
 import type {SceneState,View} from './anatomy';
 import {acupointMuscleNote} from './acupoint-muscles';
-import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,isPracticeDeferred,libraryPointResults,LOCATION,POINTS,POINT_BY_CODE,MERIDIANS,meridianControlsHint,meridianLinesEnabled,pointInCurriculum,practiceOpenCodes,REGIONS,STANDARD,TOOLS,type CurriculumSetId,type RegionId,type SimulationState,type SurfaceTarget,type ToolId,type ToolDragPhase} from './teaching';
+import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,isPracticeDeferred,libraryPointResults,LOCATION,POINTS,POINT_BY_CODE,MERIDIANS,meridianControlsHint,meridianLinesEnabled,pointInCurriculum,practiceOpenCodes,STANDARD,TOOLS,type CurriculumSetId,type SimulationState,type SurfaceTarget,type ToolId,type ToolDragPhase} from './teaching';
 
 const CharacterScene=lazy(()=>import('./character-scene'));
 
@@ -70,7 +70,7 @@ export default function Home(){
   return {...initialSimulation,curriculumSet:set,pointCode:code,side:1,focus:preferred?1:0};
  });
  const [progress,setProgress]=useState(6),[loadStep,setLoadStep]=useState(LOAD_STEP_LABELS.program),[scenePainted,setScenePainted]=useState(false),[error,setError]=useState('');
- const [region,setRegion]=useState<RegionId|'all'>('all'),[query,setQuery]=useState('');
+ const [query,setQuery]=useState('');
  const [mobilePanel,setMobilePanel]=useState<'library'|null>(null);
  const [libraryFilterOpen,setLibraryFilterOpen]=useState(false);
  const [dialogExpanded,setDialogExpanded]=useState(false);
@@ -112,7 +112,7 @@ export default function Home(){
  const hasTarget=!!point||!!simulation.customTarget;
  const location=point?LOCATION[point.code]:null;
  const muscleNear=point&&location?.text?acupointMuscleNote(point.code):null;
- const results=useMemo(()=>libraryPointResults(query,region,simulation.meridianFilter,simulation.curriculumSet,avatarCodes),[query,region,simulation.meridianFilter,simulation.curriculumSet,avatarCodes]);
+ const results=useMemo(()=>libraryPointResults(query,simulation.meridianFilter,simulation.curriculumSet,avatarCodes),[query,simulation.meridianFilter,simulation.curriculumSet,avatarCodes]);
  const meridianHint=useMemo(()=>meridianControlsHint(simulation.meridianFilter,avatarCodes),[simulation.meridianFilter,avatarCodes]);
  const singleMeridian=!!simulation.meridianFilter&&simulation.meridianFilter!=='all';
  const meridianLinesOn=meridianLinesEnabled(simulation.meridianFilter,simulation.showMeridians);
@@ -215,7 +215,6 @@ export default function Home(){
  };
  const selectCurriculumAll=()=>{
   if(simulation.curriculumSet==='all')return;
-  setRegion('all');
   setQuery('');
   prepareFocus();
   setSimulation(s=>({...s,curriculumSet:'all',meridianFilter:'all',dragging:false,running:false,elapsed:0,pickMode:'point'}));
@@ -225,7 +224,6 @@ export default function Home(){
   if(simulation.curriculumSet===set.id)return;
   const open=practiceOpenCodes(set.codes.filter(c=>avatarCodes.has(c)));
   if(!open.length){setFeedback(`${set.shortName} 尚未烘到角色身上。`);return;}
-  setRegion('all');
   setQuery('');
   prepareFocus();
   setSimulation(s=>({...s,curriculumSet:set.id,meridianFilter:'all',pointCode:open[0]??s.pointCode,side:1,customTarget:null,dragging:false,running:false,elapsed:0,focus:s.focus+1,pickMode:'point'}));
@@ -323,16 +321,14 @@ export default function Home(){
        <button type="button" className="library-filter-btn" aria-expanded={libraryFilterOpen} aria-controls="library-filter-sheet" onClick={()=>setLibraryFilterOpen(v=>!v)}><Filter size={14} aria-hidden="true"/><span>篩選</span></button>
       </div>
       {libraryFilterOpen&&<div id="library-filter-sheet" className="library-filter-sheet" role="region" aria-label="篩選條件">
-       <div className="section-label">選擇身體區域<button type="button" className={region==='all'?'current':''} onClick={()=>{setRegion('all');setFeedback('正在顯示全部已烘穴位。');}}>全部</button></div>
-       <div className="region-grid">{REGIONS.map(r=><button type="button" className={region===r.id?'selected':''} key={r.id} aria-pressed={region===r.id} onClick={()=>{setRegion(r.id);setQuery('');if(avatarCodes.has(r.example))choosePoint(r.example);}}>{r.name}</button>)}</div>
-       <div className="meridian-controls"><label>十四經脈<select aria-label="選擇經脈" value={simulation.meridianFilter??'all'} onChange={e=>{setRegion('all');setQuery('');const v=e.target.value;setSimulation(s=>({...s,meridianFilter:v,showMeridians:v!=='all'}));}}><option value="all">全部經脈 · {practiceCodes.size} 可練</option>{MERIDIANS.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label><small>{meridianHint}</small></div>
+       <div className="meridian-controls"><label>十四經脈<select aria-label="選擇經脈" value={simulation.meridianFilter??'all'} onChange={e=>{setQuery('');const v=e.target.value;setSimulation(s=>({...s,meridianFilter:v,showMeridians:v!=='all'}));}}><option value="all">全部經脈 · {practiceCodes.size} 可練</option>{MERIDIANS.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label><small>{meridianHint}</small></div>
       </div>}
       <div className="curriculum-controls library-curriculum-scroll" role="group" aria-label="課堂基準穴">
        <button type="button" className={simulation.curriculumSet==='all'?'selected':''} aria-pressed={simulation.curriculumSet==='all'} onClick={selectCurriculumAll}>全部 {practiceCodes.size}</button>
        {CURRICULUM_SETS.filter(set=>set.id===ANIME_DEFAULT_SET||set.codes.some(c=>avatarCodes.has(c))).map(set=><button type="button" key={set.id} className={simulation.curriculumSet===set.id?'selected':''} aria-pressed={simulation.curriculumSet===set.id} onClick={()=>selectCurriculumLesson(set)}>{set.shortName}</button>)}
       </div>
      </div>
-     <div className="point-list">{results.map(p=>{const badge=curriculumBadge(p.code);const deferred=isPracticeDeferred(p.code)||!avatarCodes.has(p.code);return <button key={p.code} type="button" className={`point-row ${p.code===simulation.pointCode?'selected':''} ${pointInCurriculum(p.code,activeLesson?.id)?'curriculum-point':''} ${p.reviewed&&!deferred?'reviewed-point':''} ${deferred?'is-deferred':''}`} onClick={()=>choosePoint(p.code)} aria-pressed={p.code===simulation.pointCode} aria-disabled={deferred||undefined} title={deferred?avatarLessonNote(currentAvatar,p.code):undefined}><span className="point-dot"/><span className="point-row-copy"><span className="point-name">{p.name}{badge&&<em className={`curriculum-badge ${deferred?'is-deferred':p.reviewed?'is-reviewed':''}`}>{badge}</em>}<span>{p.zhuyin}</span></span><small>{p.meridian}</small></span><span className="point-code">{p.code}</span></button>;})}{results.length===0&&<div className="empty-state"><Search size={20}/><p>未找到匹配穴位</p><button className="text-button" type="button" onClick={()=>{setQuery('');setRegion('all');setSimulation(s=>({...s,curriculumSet:'all',meridianFilter:'all'}));}}>查看全部已烘穴位</button></div>}</div>
+     <div className="point-list">{results.map(p=>{const badge=curriculumBadge(p.code);const deferred=isPracticeDeferred(p.code)||!avatarCodes.has(p.code);return <button key={p.code} type="button" className={`point-row ${p.code===simulation.pointCode?'selected':''} ${pointInCurriculum(p.code,activeLesson?.id)?'curriculum-point':''} ${p.reviewed&&!deferred?'reviewed-point':''} ${deferred?'is-deferred':''}`} onClick={()=>choosePoint(p.code)} aria-pressed={p.code===simulation.pointCode} aria-disabled={deferred||undefined} title={deferred?avatarLessonNote(currentAvatar,p.code):undefined}><span className="point-dot"/><span className="point-row-copy"><span className="point-name">{p.name}{badge&&<em className={`curriculum-badge ${deferred?'is-deferred':p.reviewed?'is-reviewed':''}`}>{badge}</em>}<span>{p.zhuyin}</span></span><small>{p.meridian}</small></span><span className="point-code">{p.code}</span></button>;})}{results.length===0&&<div className="empty-state"><Search size={20}/><p>未找到匹配穴位</p><button className="text-button" type="button" onClick={()=>{setQuery('');setSimulation(s=>({...s,curriculumSet:'all',meridianFilter:'all'}));}}>查看全部已烘穴位</button></div>}</div>
      <div className="point-list-foot"><span>可練習 {practiceCodes.size} 穴 · 胸腹背腰切練習裝</span><span className="meridian-toggle">{singleMeridian&&<button type="button" className={`icon-button text-toggle ${meridianLinesOn?'selected':''}`} aria-label={meridianLinesOn?'隱藏體表連線':'顯示體表連線'} aria-pressed={meridianLinesOn} onClick={()=>{setSimulation(s=>({...s,showMeridians:meridianLinesOn?false:true}));setFeedback(meridianLinesOn?'已隱藏體表連線。':'已顯示體表連線。');}}>連線</button>}<button type="button" className="icon-button" aria-label={simulation.showPoints?'隱藏穴位點':'顯示穴位點'} aria-pressed={simulation.showPoints} onClick={()=>{setSimulation(s=>({...s,showPoints:!s.showPoints}));setFeedback(simulation.showPoints?'已隱藏穴位點。':'已顯示穴位點。');}}>{simulation.showPoints?<Eye size={15}/>:<EyeOff size={15}/>}</button></span></div>
     </div>
    </div>
