@@ -11,10 +11,15 @@ WORKDIR /app
 COPY pom.xml .
 COPY shared/pom.xml shared/pom.xml
 COPY shared/src shared/src
+# 根 pom 仍列出 client 模組，必須留下 pom 讓 Maven 能讀 reactor。
+# 桌面端改從 GitHub Release 下載，所以不複製 client 原始碼、也不打進映像。
+COPY client/pom.xml client/pom.xml
 COPY server/pom.xml server/pom.xml
 COPY server/src server/src
 
-RUN mvn -pl server -am package -DskipTests -P '!git-commit-time'
+# -pl shared,server：不要 also-make client（沒有原始碼，且會把 Playwright 打進多餘的 shade jar）。
+# -Dmaven.test.skip：略過測試編譯；只加 -DskipTests 仍會編測試，而 server 測試依賴 client 類別。
+RUN mvn -pl shared,server package -Dmaven.test.skip=true -P '!git-commit-time'
 
 FROM eclipse-temurin:11-jre-jammy
 # 飲品牆把 PowerPoint 轉成 PDF。同時只轉一份。Pages 只取檔內預覽，不經 LibreOffice。
