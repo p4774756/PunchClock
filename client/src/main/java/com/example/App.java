@@ -37,6 +37,7 @@ import com.example.model.CheckInHistoryEntry;
 import com.example.model.CheckInTask;
 import com.example.ui.hud.AnimeCast;
 import com.example.ui.hud.AnimeShell;
+import com.example.ui.hud.BabyAssets;
 import com.example.ui.hud.CharacterTheme;
 import com.example.ui.hud.HomeIllustration;
 import com.example.ui.hud.HomeBrief;
@@ -261,6 +262,19 @@ public class App extends JFrame {
         return AppIconImages.primary();
     }
 
+    /** 自繪標題列用趴姿小寶貝；載不到時沿用 App 圖示。 */
+    private Image titleBarIconImage() {
+        try {
+            BufferedImage prone = BabyAssets.load().prone();
+            if (prone != null) {
+                return prone;
+            }
+        } catch (RuntimeException ignored) {
+            // classpath 缺資源時不阻斷開窗
+        }
+        return appIconImage;
+    }
+
     private void initUI() {
         setTitle(AppBranding.windowTitle(AppVersion.displayLabel()));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -270,7 +284,7 @@ public class App extends JFrame {
         Font fieldFont = UiFonts.latinPlain(13);
         NightTheme.installLook();
 
-        WindowChrome.install(this, getTitle(), appIconImage, boldFont, mainFont);
+        WindowChrome.install(this, getTitle(), titleBarIconImage(), boldFont, mainFont);
         JPanel content = WindowChrome.bodyOf(this);
 
         JTabbedPane tabs = new JTabbedPane();

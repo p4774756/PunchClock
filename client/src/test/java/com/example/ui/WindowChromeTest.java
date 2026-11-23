@@ -1,6 +1,7 @@
 package com.example.ui;
 
 import com.example.ui.hud.AnimeShell;
+import com.example.ui.hud.BabyAssets;
 import com.example.ui.hud.HomePortrait;
 import org.junit.Assume;
 import org.junit.Test;
@@ -18,8 +19,10 @@ import java.awt.Font;
 import java.awt.Frame;
 import java.awt.GraphicsEnvironment;
 import java.awt.Insets;
+import java.awt.Dimension;
 import java.awt.Rectangle;
 import java.awt.Robot;
+import java.awt.image.BufferedImage;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -275,6 +278,17 @@ public class WindowChromeTest {
         Rectangle stage = WindowChrome.stageBounds(frame);
         java.awt.Point origin = frame.getContentPane().getLocationOnScreen();
         return new Rectangle(origin.x + stage.x, origin.y + stage.y, stage.width, stage.height);
+    }
+
+    @Test
+    public void titleBarIconKeepsProneAspectRatio() {
+        BufferedImage prone = BabyAssets.load().prone();
+        assertNotNull(prone);
+        Dimension size = WindowChrome.titleBarIconSize(prone);
+        assertEquals(WindowChrome.TITLE_BAR_ICON_HEIGHT, size.height);
+        assertTrue("趴姿圖示寬度應大於高度", size.width > size.height);
+        int expectedW = WindowChrome.TITLE_BAR_ICON_HEIGHT * prone.getWidth() / prone.getHeight();
+        assertEquals(expectedW, size.width);
     }
 
     @Test
