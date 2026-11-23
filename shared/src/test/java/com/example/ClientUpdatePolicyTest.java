@@ -34,10 +34,10 @@ public class ClientUpdatePolicyTest {
 
     @Test
     public void allowedDownloadUrlsAcceptGithubReleaseAndRedirectHosts() {
-        String url = ClientUpdatePolicy.GITHUB_JAR_DOWNLOAD_PREFIX + "v4.0.2/XiaoBaobei.jar";
+        String url = ClientUpdatePolicy.GITHUB_JAR_DOWNLOAD_PREFIX + "v4.0.2/SKLbaby.jar";
         assertTrue(ClientUpdatePolicy.isAllowedClientUpdateUrl(url));
         assertTrue(ClientUpdatePolicy.isAllowedClientUpdateUrl(
-                ClientUpdatePolicy.GITHUB_JAR_DOWNLOAD_PREFIX + "v4.0.2/SKLbaby.jar"));
+                ClientUpdatePolicy.GITHUB_JAR_DOWNLOAD_PREFIX + "v4.0.2/XiaoBaobei.jar"));
         assertTrue(ClientUpdatePolicy.isAllowedClientUpdateUrl(
                 "https://objects.githubusercontent.com/github-production-release-asset-2e65be/123/456"));
         assertTrue(ClientUpdatePolicy.isAllowedGithubHost("github.com"));
