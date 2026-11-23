@@ -78,6 +78,10 @@ public final class DevStatusService {
         }
     }
 
+    public String repo() {
+        return repo;
+    }
+
     public View get(long now) {
         CompletableFuture<View> pending;
         boolean leader;

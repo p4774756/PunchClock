@@ -396,6 +396,137 @@ public final class DevStatusMapper {
         return best == Integer.MAX_VALUE ? null : best;
     }
 
+    /**
+     * 合併約 3 分鐘內開發機心跳的 runs 至「現在在做」；與 GitHub 項目以 issue 去重。
+     */
+    public static Document withFreshMachineRuns(Document doc, Snapshot snapshot, String repo, long nowMs,
+            List<DevMachineStore.Snapshot> machines) {
+        if (doc == null || doc.now == null || machines == null || machines.isEmpty()) {
+            return doc;
+        }
+        Map<Integer, DevMachineStore.RunEntry> freshRuns = new LinkedHashMap<>();
+        for (DevMachineStore.Snapshot machine : machines) {
+            if (machine == null || machine.lastSeen <= 0
+                    || nowMs - machine.lastSeen > DevMachineStore.ONLINE_WINDOW_MS) {
+                continue;
+            }
+            if (machine.runs == null || machine.runs.isEmpty()) {
+                continue;
+            }
+            for (DevMachineStore.RunEntry run : machine.runs) {
+                if (run == null || run.issue <= 0 || run.issue == DevStatusModels.ROADMAP_ISSUE) {
+                    continue;
+                }
+                freshRuns.putIfAbsent(run.issue, run);
+            }
+        }
+        if (freshRuns.isEmpty()) {
+            return doc;
+        }
+        String safeRepo = repo == null || repo.isBlank() ? DevStatusService.DEFAULT_REPO : repo.trim();
+        List<PullRow> pulls = snapshot == null ? Collections.emptyList() : snapshot.pulls;
+        Map<Integer, List<PullRow>> byIssue = new HashMap<>();
+        for (PullRow pull : pulls) {
+            for (Integer closes : pull.closesIssues) {
+                byIssue.computeIfAbsent(closes, k -> new ArrayList<>()).add(pull);
+            }
+        }
+        Set<Integer> inCurrent = new HashSet<>();
+        List<Item> current = new ArrayList<>();
+        for (Item item : doc.now.current) {
+            if (item != null && inCurrent.add(item.issue)) {
+                current.add(item);
+            }
+        }
+        Map<Integer, Integer> issueQueueOrder = issueQueueOrders(snapshot);
+        for (Map.Entry<Integer, DevMachineStore.RunEntry> entry : freshRuns.entrySet()) {
+            int issue = entry.getKey();
+            if (inCurrent.contains(issue)) {
+                continue;
+            }
+            IssueRow issueRow = findIssueRow(snapshot, issue);
+            if (issueRow != null && !issueRow.open) {
+                continue;
+            }
+            DevMachineStore.RunEntry run = entry.getValue();
+            current.add(itemForHeartbeatRun(issue, run, safeRepo, nowMs, doc.items, snapshot, byIssue));
+            inCurrent.add(issue);
+        }
+        if (current.size() == doc.now.current.size()) {
+            return doc;
+        }
+        current.sort(inProgressOrder(issueQueueOrder));
+        List<QueueEntry> queue = new ArrayList<>();
+        for (QueueEntry entry : doc.now.queue) {
+            if (entry != null && !inCurrent.contains(entry.item.issue)) {
+                queue.add(entry);
+            }
+        }
+        Item next = queue.isEmpty() ? null : queue.get(0).item;
+        NowBlock now = new NowBlock(current, next, queue);
+        return new Document(now, doc.items, doc.timeline, doc.stats);
+    }
+
+    public static String statusFromHeartbeatRun(String role, int round) {
+        String kind = "review".equals(role) ? "審核中" : "開發中";
+        return kind + " 第 " + round + " 輪";
+    }
+
+    private static Map<Integer, Integer> issueQueueOrders(Snapshot snapshot) {
+        Map<Integer, Integer> issueQueueOrder = new HashMap<>();
+        if (snapshot == null) {
+            return issueQueueOrder;
+        }
+        for (IssueRow issue : snapshot.issues) {
+            if (!issue.open) {
+                continue;
+            }
+            Integer order = queueOrder(issue.labels);
+            if (order != null) {
+                issueQueueOrder.put(issue.number, order);
+            }
+        }
+        return issueQueueOrder;
+    }
+
+    private static IssueRow findIssueRow(Snapshot snapshot, int issue) {
+        if (snapshot == null || snapshot.issues == null) {
+            return null;
+        }
+        for (IssueRow row : snapshot.issues) {
+            if (row != null && row.number == issue) {
+                return row;
+            }
+        }
+        return null;
+    }
+
+    private static Item itemForHeartbeatRun(int issue, DevMachineStore.RunEntry run, String repo, long nowMs,
+            List<Item> items, Snapshot snapshot, Map<Integer, List<PullRow>> byIssue) {
+        String status = statusFromHeartbeatRun(run.role, run.round);
+        long updated = run.startedAt != null ? run.startedAt : nowMs;
+        for (Item existing : items) {
+            if (existing != null && existing.issue == issue) {
+                return new Item(existing.pair, issue, existing.pr, existing.title, status, updated,
+                        existing.issueUrl, existing.prUrl);
+            }
+        }
+        IssueRow issueRow = findIssueRow(snapshot, issue);
+        PullRow pull = snapshot == null ? null : pickPull(issue, snapshot.pulls, byIssue);
+        Integer prNum = pull == null ? null : Integer.valueOf(pull.number);
+        String title = issueRow == null ? "" : issueRow.title;
+        return new Item(
+                formatPair(issue, prNum),
+                issue,
+                prNum,
+                title,
+                status,
+                updated,
+                issueUrl(repo, issue),
+                prNum == null ? null : prUrl(repo, prNum)
+        );
+    }
+
     /** 測試用：小寫 locale 無關。 */
     public static String normalizeStatus(String status) {
         return status == null ? "" : status.trim().toLowerCase(Locale.ROOT);

@@ -111,8 +111,8 @@ public final class ServerApp {
                 ? devStatusService
                 : new DevStatusService(new GithubDevStatusClient());
         this.devStatusService = status;
-        this.devStatusRoutes = new DevStatusRoutes(status);
         this.devMachineStore = new DevMachineStore();
+        this.devStatusRoutes = new DevStatusRoutes(status, devMachineStore);
         this.officePublicRoutes = new OfficePublicRoutes(devMachineStore, status);
         this.devMachineRoutes = new DevMachineRoutes(this.authService, devMachineStore, status, gson);
         this.atlasRoutes = new AtlasRoutes();
