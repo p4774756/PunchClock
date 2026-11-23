@@ -20,7 +20,7 @@ export const REGIONS:{id:RegionId;name:string;example:string}[]=[
  {id:'waist',name:'腰背',example:'BL23'}, {id:'leg',name:'膝腿足',example:'ST36'},
 ];
 /** Classroom lesson sets. Textbook sets first; interim practice sets fill gaps between classes. */
-export type CurriculumSetId='head-neck-21'|'trunk-30'|'common-10';
+export type CurriculumSetId='head-neck-21'|'trunk-30'|'back-shu-14'|'common-10';
 export interface CurriculumSet {id:CurriculumSetId;name:string;shortName:string;lesson:string;codes:readonly string[];status:'reviewed'|'pending'}
 export const CURRICULUM_SETS:CurriculumSet[]=[
  {id:'head-neck-21',name:'基準穴 · 頭頸部',shortName:'頭頸 21',lesson:'陸／一 頭頸部基準穴',status:'reviewed',codes:[
@@ -30,6 +30,9 @@ export const CURRICULUM_SETS:CurriculumSet[]=[
   'TE21','SI19','GB2','ST6','TE17','GB21','ST12','GV16','GB20','GV15','BL10','GV14',
   'CV17','KI23','ST17','PC1','SP18','CV14','CV8','KI16','ST25','SP15','GB26',
   'BL14','BL43','SI11','SI9','GV4','BL23','BL52',
+ ]},
+ {id:'back-shu-14',name:'課堂 · 背部膀胱經俞穴',shortName:'背俞 14',lesson:'口訣：大風肺厥心督膈，肝膽脾胃三焦腎（第 8 胸椎不取穴）。',status:'pending',codes:[
+  'BL11','BL12','BL13','BL14','BL15','BL16','BL17','BL18','BL19','BL20','BL21','BL22','BL23','BL52',
  ]},
  {id:'common-10',name:'常用穴 · 暫代練習',shortName:'常用 10',lesson:'課堂空檔暫代：合谷、足三里等；週日教材到後再接下一節基準穴',status:'pending',codes:[
   'LI4','ST36','SP6','LR3','PC6','TE5','GB20','GB21','BL40','KI1',
@@ -117,6 +120,17 @@ export const LOCATION:Record<string,{text:string;section:string;classic?:string;
  SI9:{text:'腋後紋頭上 1 寸（肩後／腋後）。',section:'',curriculum:'陸／頭頸 22～33 與胸腹背腰'},
  GV4:{text:'第 2 腰椎棘突下，與臍相平。',section:'',curriculum:'陸／頭頸 22～33 與胸腹背腰'},
  BL52:{text:'第 2 腰椎棘突下，後正中線旁開 3 寸。',section:'',curriculum:'陸／頭頸 22～33 與胸腹背腰'},
+ BL11:{text:'第 1 胸椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.11'},
+ BL12:{text:'第 2 胸椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.12'},
+ BL13:{text:'第 3 胸椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.13'},
+ BL15:{text:'第 5 胸椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.15'},
+ BL16:{text:'第 6 胸椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.16'},
+ BL17:{text:'第 7 胸椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.17'},
+ BL18:{text:'第 9 胸椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.18'},
+ BL19:{text:'第 10 胸椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.19'},
+ BL20:{text:'第 11 胸椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.20'},
+ BL21:{text:'第 12 胸椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.21'},
+ BL22:{text:'第 1 腰椎棘突下，後正中線旁開 1.5 寸。',section:'5.7.22'},
 };
 export interface SurfaceTarget {position:Vec3;normal:Vec3;meshId?:string;faceIndex?:number|null;pointCode?:string;pointSide?:1|-1}
 export type ToolDragPhase='start'|'move'|'end'|'cancel';
