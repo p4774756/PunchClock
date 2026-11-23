@@ -2,6 +2,7 @@ import { wireHomeLoginModal } from './home-login-modal.js';
 import { mountPrivateTeamScene } from './private-team-scene.js';
 import {
   bubbleTextForStatus,
+  fetchSecretaryDevQueue,
   fillStatusCard,
   secretarySpriteUrlForStatus,
   taskProgressFromTiger,
@@ -202,6 +203,8 @@ export function mountPrivateTeamPage(opts) {
   const taskBarCount = hud.querySelector('[data-pt-task-bar-count]');
 
   let tigerView = { status: '待命中', active: [], completedToday: [] };
+  let devQueue = [];
+  const statusUi = { doneExpanded: false, queueExpanded: false };
   let cardOpen = false;
   let taskHintOpen = false;
   let identityMenuOpen = false;
@@ -294,10 +297,30 @@ export function mountPrivateTeamPage(opts) {
     lastFocus = null;
   }
 
+  function statusCardUiOpts() {
+    return {
+      canLinkGithub: sessionAuthed,
+      doneExpanded: statusUi.doneExpanded,
+      queueExpanded: statusUi.queueExpanded,
+      onToggleDone: () => {
+        statusUi.doneExpanded = !statusUi.doneExpanded;
+        paintStatusCard();
+      },
+      onToggleQueue: () => {
+        statusUi.queueExpanded = !statusUi.queueExpanded;
+        paintStatusCard();
+      }
+    };
+  }
+
+  function paintStatusCard() {
+    fillStatusCard(doc, cardBody, { tiger: tigerView, queue: devQueue }, statusCardUiOpts());
+  }
+
   function openStatusCard() {
     if (cardOpen) return;
     lastFocus = doc.activeElement;
-    fillStatusCard(doc, cardBody, tigerView);
+    paintStatusCard();
     cardOpen = true;
     cardBackdrop.hidden = false;
     if (closeBtn) closeBtn.focus({ preventScroll: true });
@@ -535,7 +558,15 @@ export function mountPrivateTeamPage(opts) {
     scene.setBubbleText(bubbleLabel());
     refreshCanvasA11y();
     applyTaskBar(tiger);
-    if (cardOpen) fillStatusCard(doc, cardBody, tigerView);
+    if (cardOpen) paintStatusCard();
+  }
+
+  function refreshDevQueue() {
+    if (!fetchFn) return;
+    fetchSecretaryDevQueue(fetchFn).then((rows) => {
+      devQueue = rows;
+      if (cardOpen) paintStatusCard();
+    });
   }
 
   function refreshOfficePublic() {
@@ -550,7 +581,11 @@ export function mountPrivateTeamPage(opts) {
   }
 
   refreshOfficePublic();
-  const poll = win.setInterval(refreshOfficePublic, 60_000);
+  refreshDevQueue();
+  const poll = win.setInterval(() => {
+    refreshOfficePublic();
+    refreshDevQueue();
+  }, 60_000);
 
   return {
     setRoadmapOpen,

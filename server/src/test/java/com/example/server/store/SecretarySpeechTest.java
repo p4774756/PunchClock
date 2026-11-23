@@ -28,6 +28,18 @@ public class SecretarySpeechTest {
     }
 
     @Test
+    public void completedFallsBackToIssueTitle() {
+        IssueRow row = new IssueRow(413, "排隊搬進秘書卡", true, 0, 0, null, Collections.emptyList());
+        assertEquals("排隊搬進秘書卡", SecretarySpeech.phraseForCompleted(row));
+    }
+
+    @Test
+    public void completedStripsLeadingProgressive() {
+        IssueRow row = new IssueRow(5, "標題", true, 0, 0, null, Collections.emptyList(), "正在寫 API");
+        assertEquals("寫 API", SecretarySpeech.phraseForCompleted(row));
+    }
+
+    @Test
     public void rejectsPathInPhrase() {
         assertNull(SecretarySpeech.sanitizePhrase("see /Users/tina/secret"));
     }
