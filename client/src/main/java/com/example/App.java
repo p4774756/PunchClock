@@ -945,7 +945,7 @@ public class App extends JFrame {
             shell.openTab(2);
             return;
         }
-        ensureChatWindow(recent.clientId).showAndFocus();
+        openChatForUser(recent.clientId);
     }
 
     private void promptSendFile() {
