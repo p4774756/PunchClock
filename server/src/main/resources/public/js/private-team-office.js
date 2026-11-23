@@ -74,8 +74,10 @@ export function progressBoardViewFromTiger(tiger, queueCount) {
     if (Number.isFinite(issue) && issue > 0) {
       view.issueLine = '#' + issue;
     }
-    const phrase = active.phrase && isSafePublicText(active.phrase) ? String(active.phrase).trim() : '';
-    view.phraseLine = phrase || (active.title && isSafePublicText(active.title) ? String(active.title).trim() : '進行中');
+    view.phraseLine = phraseForActiveDisplay(active);
+    if (view.phraseLine === ACTIVE_DISPLAY_FALLBACK) {
+      view.phraseLine = '進行中';
+    }
     const caps = capsulesForActive(active);
     if (caps.length) view.metaLine = caps.join(' · ');
     view.statusLine = '進行中';
@@ -171,6 +173,20 @@ export function phraseForDoneDisplay(row) {
   return phrase;
 }
 
+const ACTIVE_DISPLAY_FALLBACK = '正在處理一項工作';
+
+/** 進行中主文：空泛 phrase 時改顯示 title。 */
+export function phraseForActiveDisplay(row) {
+  const item = row && typeof row === 'object' ? row : {};
+  const phrase = item.phrase && isSafePublicText(item.phrase) ? String(item.phrase).trim() : '';
+  if (phrase && !VAGUE_PHRASES.has(phrase)) {
+    return phrase;
+  }
+  const title = item.title && isSafePublicText(item.title) ? String(item.title).trim() : '';
+  if (title) return title;
+  return phrase || ACTIVE_DISPLAY_FALLBACK;
+}
+
 function el(doc, tag, className, text) {
   const node = doc.createElement(tag);
   if (className) node.className = className;
@@ -195,10 +211,10 @@ function linkPr(doc, item, canLink) {
   return a;
 }
 
-function linkIssue(doc, item) {
+function linkIssue(doc, item, linkClass) {
   const issue = Number(item.issue);
   if (!Number.isFinite(issue) || issue <= 0) return null;
-  const a = el(doc, 'a', 'pt-status-link');
+  const a = el(doc, 'a', linkClass || 'pt-status-link');
   a.textContent = '#' + issue;
   const href = item.issueUrl && isSafePublicText(item.issueUrl) ? String(item.issueUrl) : '';
   if (href) {
@@ -213,10 +229,10 @@ function linkIssue(doc, item) {
 
 export function renderActiveBlock(doc, item) {
   const wrap = el(doc, 'div', 'pt-status-active-item');
-  const phrase = item && item.phrase && isSafePublicText(item.phrase) ? String(item.phrase) : '';
-  wrap.appendChild(el(doc, 'p', 'pt-status-phrase', phrase || '正在處理任務'));
+  const headline = phraseForActiveDisplay(item);
+  wrap.appendChild(el(doc, 'p', 'pt-status-phrase pt-status-active-title', headline));
   const links = el(doc, 'div', 'pt-status-links');
-  const issueLink = linkIssue(doc, item || {});
+  const issueLink = linkIssue(doc, item || {}, 'pt-status-link pt-status-issue-sub');
   const prLink = linkPr(doc, item || {}, true);
   if (issueLink) links.appendChild(issueLink);
   if (prLink) links.appendChild(prLink);

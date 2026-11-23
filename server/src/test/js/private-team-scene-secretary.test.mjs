@@ -11,11 +11,21 @@ const {
   SECRETARY_SPRITE_URL_TYPING_B,
   SECRETARY_SPRITE_URL_WAVE,
   SECRETARY_SPRITE_URL_YEAH,
-  SECRETARY_DANCE_FRAME_INDICES,
+  SECRETARY_SPRITE_URL_IDLE,
+  SECRETARY_SPRITE_URL_READ,
+  SECRETARY_SPRITE_URL_PHONE,
+  SECRETARY_CLAP_SPRITE_A,
+  SECRETARY_CLAP_SPRITE_B,
+  SECRETARY_CELEBRATE_STEPS,
   SECRETARY_DANCE_DURATION_MS,
-  secretaryDanceFrameUrl,
+  SECRETARY_STANDBY_IDLE_URLS,
+  secretaryCelebrateFrameUrlAt,
+  secretaryCelebrateJumpOffsetAt,
   secretaryTypingDisplayUrl,
-  shouldTriggerIdleStandbyDance
+  shouldTriggerIdleStandbyDance,
+  pickNextStandbyIdleUrl,
+  shouldIgnoreStandbyIdleSpriteUpdate,
+  isSecretaryStandbyIdleUrl
 } = await loadPublicModule('private-team-scene.js');
 
 const {
@@ -55,11 +65,61 @@ test('場景含揮手與比耶素材鍵', () => {
   assert.match(src, new RegExp(SECRETARY_SPRITE_URL_YEAH.replace(/\//g, '\\/')));
 });
 
-test('慶祝舞格序與路徑', () => {
-  assert.deepEqual(SECRETARY_DANCE_FRAME_INDICES, [1, 2, 3, 4, 5, 3, 4, 2]);
-  assert.equal(SECRETARY_DANCE_DURATION_MS, 8 * 120 * 3);
-  assert.equal(secretaryDanceFrameUrl(1), '/assets/private-team/secretary-dance-1.webp');
-  assert.equal(secretaryDanceFrameUrl(0), '');
+test('慶祝拍手比讚小跳序列與時長', () => {
+  assert.deepEqual(
+    SECRETARY_CELEBRATE_STEPS.map((s) => s.kind),
+    ['frame', 'frame', 'frame', 'frame', 'frame', 'jump']
+  );
+  assert.equal(SECRETARY_CLAP_SPRITE_A, '/assets/private-team/secretary-clap-a.webp');
+  assert.equal(SECRETARY_CLAP_SPRITE_B, '/assets/private-team/secretary-clap-b.webp');
+  assert.equal(SECRETARY_CELEBRATE_STEPS[4].url, SECRETARY_SPRITE_URL_YEAH);
+  assert.equal(SECRETARY_DANCE_DURATION_MS, 250 * 4 + 700 + 450);
+  assert.equal(secretaryCelebrateFrameUrlAt(0), SECRETARY_CLAP_SPRITE_A);
+  assert.equal(secretaryCelebrateFrameUrlAt(400), SECRETARY_CLAP_SPRITE_B);
+  assert.equal(secretaryCelebrateFrameUrlAt(1000), SECRETARY_SPRITE_URL_YEAH);
+  assert.equal(secretaryCelebrateFrameUrlAt(SECRETARY_DANCE_DURATION_MS), '');
+  assert.ok(secretaryCelebrateJumpOffsetAt(1925) > 0.05);
+  assert.equal(secretaryCelebrateJumpOffsetAt(500), 0);
+});
+
+test('待命立繪輪替選擇', () => {
+  assert.deepEqual(SECRETARY_STANDBY_IDLE_URLS, [
+    SECRETARY_SPRITE_URL_IDLE,
+    SECRETARY_SPRITE_URL_READ,
+    SECRETARY_SPRITE_URL_PHONE
+  ]);
+  for (const cur of SECRETARY_STANDBY_IDLE_URLS) {
+    for (let ri = 0; ri < 20; ri++) {
+      const next = pickNextStandbyIdleUrl(cur, ri);
+      assert.ok(SECRETARY_STANDBY_IDLE_URLS.includes(next));
+      assert.notEqual(next, cur);
+    }
+  }
+  assert.equal(pickNextStandbyIdleUrl(SECRETARY_SPRITE_URL_IDLE, 0), SECRETARY_SPRITE_URL_READ);
+  assert.equal(pickNextStandbyIdleUrl(SECRETARY_SPRITE_URL_IDLE, 1), SECRETARY_SPRITE_URL_PHONE);
+  assert.equal(pickNextStandbyIdleUrl(SECRETARY_SPRITE_URL_READ, 0), SECRETARY_SPRITE_URL_IDLE);
+  assert.equal(pickNextStandbyIdleUrl(SECRETARY_SPRITE_URL_READ, 1), SECRETARY_SPRITE_URL_PHONE);
+  assert.ok(isSecretaryStandbyIdleUrl(SECRETARY_SPRITE_URL_PHONE));
+  assert.equal(isSecretaryStandbyIdleUrl(SECRETARY_SPRITE_URL_TYPING), false);
+});
+
+test('心跳待命預設喝茶不蓋輪替姿勢', () => {
+  assert.equal(
+    shouldIgnoreStandbyIdleSpriteUpdate(SECRETARY_SPRITE_URL_READ, SECRETARY_SPRITE_URL_IDLE),
+    true
+  );
+  assert.equal(
+    shouldIgnoreStandbyIdleSpriteUpdate(SECRETARY_SPRITE_URL_PHONE, SECRETARY_SPRITE_URL_IDLE),
+    true
+  );
+  assert.equal(
+    shouldIgnoreStandbyIdleSpriteUpdate(SECRETARY_SPRITE_URL_IDLE, SECRETARY_SPRITE_URL_IDLE),
+    false
+  );
+  assert.equal(
+    shouldIgnoreStandbyIdleSpriteUpdate(SECRETARY_SPRITE_URL_TYPING, SECRETARY_SPRITE_URL_IDLE),
+    false
+  );
 });
 
 test('待命閒置起舞條件', () => {
@@ -81,6 +141,6 @@ test('待命閒置起舞條件', () => {
   );
   const src = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
   assert.match(src, /playSecretaryDance/);
-  assert.match(src, /secretary-dance-/);
-  assert.match(src, /preloadSecretaryDanceFrames/);
+  assert.match(src, /secretary-clap-/);
+  assert.match(src, /preloadSecretaryCelebrateFrames/);
 });

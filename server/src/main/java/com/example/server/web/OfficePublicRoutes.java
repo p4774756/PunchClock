@@ -168,6 +168,10 @@ public final class OfficePublicRoutes {
             Map<String, Object> row = new LinkedHashMap<>();
             IssueRow issueRow = findIssue(github, issue);
             row.put("phrase", SecretarySpeech.phraseForActive(issueRow));
+            String publicTitle = publicIssueTitle(issueRow);
+            if (publicTitle != null) {
+                row.put("title", publicTitle);
+            }
             row.put("issue", issue);
             row.put("issueUrl", issueUrl(repo, issue));
             PullRow pull = findPullForIssue(github, issue);
@@ -217,6 +221,10 @@ public final class OfficePublicRoutes {
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("at", Instant.ofEpochMilli(pull.mergedAt).toString());
                 row.put("phrase", SecretarySpeech.phraseForCompleted(issueRow));
+                String publicTitle = publicIssueTitle(issueRow);
+                if (publicTitle != null) {
+                    row.put("title", publicTitle);
+                }
                 row.put("issue", issue);
                 row.put("issueUrl", issueUrl(repo, issue));
                 row.put("pr", pull.number);
@@ -244,6 +252,14 @@ public final class OfficePublicRoutes {
                 }
             }
             return null;
+        }
+
+        static String publicIssueTitle(IssueRow issueRow) {
+            if (issueRow == null || issueRow.title == null) {
+                return null;
+            }
+            String clean = SecretarySpeech.sanitizePhrase(issueRow.title.trim());
+            return clean == null || clean.isEmpty() ? null : clean;
         }
 
         static PullRow findPullForIssue(Snapshot github, int issue) {

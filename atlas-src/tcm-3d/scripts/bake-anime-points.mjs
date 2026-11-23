@@ -118,7 +118,7 @@ const seeds={
  SI11:[.085*L,1.259,.095],SI9:[.15*L,1.31,.05],
  GV4:[0,1.02,.11],BL23:[.03*L,1.02,.1],BL52:[.055*L,1.02,.1],
  // 臀髖 6（2026-11-22）：薦骨四穴在命門／腎俞下方；環跳為站姿臀外下（側臥屈膝腳跟抵臀換算）。
- GV2:[0,0.905,.095],BL34:[.03*L,0.905,.095],BL30:[.03*L,0.905,.095],BL54:[.055*L,0.905,.095],
+ GV2:[0,0.905,.095],BL34:[.015*L,0.905,.092],BL30:[.03*L,0.905,.095],BL54:[.055*L,0.905,.095],
  GB30:[.105*L,0.915,.045],SP12:[.055*L,0.885,-.11],
  // 肩肘腕 15（2026-11-22）：角色為垂臂略外展站姿，取穴動作只作骨性標誌再換算皮膚位置。
  // 掌側由橈至尺：肺／心包／心；手背：大腸／三焦／小腸。
@@ -144,6 +144,23 @@ const armJointsSet=new Set(['LI15','TE14','SI10','LU5','PC3','HT3','LI11','TE10'
 const backShuSet=new Set(['BL11','BL12','BL13','BL15','BL16','BL17','BL18','BL19','BL20','BL21','BL22']);
 const trunkSet=new Set(['TE21','SI19','GB2','ST6','TE17','GB21','ST12','GV16','GB20','GV15','BL10','GV14','CV17','KI23','ST17','PC1','SP18','CV14','CV8','KI16','ST25','SP15','GB26','BL14','BL43','SI11','SI9','GV4','BL23','BL52']);
 
+/** Midline bake: x=0 and rear-facing normal so runtime snap does not slide off the spine. */
+const finalizeMidlineHit=(code,pos,nor)=>{
+ if(!midline.has(code))return {pos,nor};
+ let p=pos.slice(),n=nor.slice();
+ p[0]=0;
+ if(Math.abs(n[0])>.12){
+  const rear=new T.Vector3(0,0,1);
+  const hit=snap(new T.Vector3(p[0],p[1],p[2]),rear);
+  if(hit){p=hit.position.slice();n=hit.normal.slice();p[0]=0;}
+ }
+ n[0]=0;
+ const len=Math.hypot(n[1],n[2]);
+ if(len>1e-6)n=[0,n[1]/len,n[2]/len];
+ else n=[0,0,1];
+ return {pos:p,nor:n};
+};
+
 const preferFor=(code,arr)=>{
  // Hand overrides where catalog normals misfire on the anime silhouette.
  if(code==='GB20')return new T.Vector3(arr[0]*.35,-.2,1).normalize();
@@ -152,7 +169,7 @@ const preferFor=(code,arr)=>{
  if(code==='CV22')return new T.Vector3(0,0,-1);
  if(code==='ST9')return new T.Vector3(0,-.05,-1).normalize();
  if(code==='ST12')return new T.Vector3(0,1,-.15).normalize();
- if(code==='GV14')return new T.Vector3(0,0,1);
+ if(code==='GV14'||code==='GV2')return new T.Vector3(0,0,1);
  if(code==='SI11')return new T.Vector3(arr[0]*.25,-.05,1).normalize();
  if(code==='GB30')return new T.Vector3(arr[0]*.45,-.15,1).normalize();
  if(code==='SP12')return new T.Vector3(0,-.05,-1).normalize();
@@ -189,9 +206,9 @@ for(const code of targetCodes){
  const seed=new T.Vector3(...arr);
  const prefer=preferFor(code,arr);
  const hit=snap(seed,prefer)??{position:arr.map(v=>+v.toFixed(5)),normal:prefer.toArray().map(v=>+v.toFixed(5)),meshId:'anime-skin'};
- const pos=hit.position.slice(),nor=hit.normal.slice();
+ let pos=hit.position.slice(),nor=hit.normal.slice();
  if(!midline.has(code)){pos[0]=Math.abs(pos[0]);nor[0]=Math.abs(nor[0]);}
- else {pos[0]=0;}
+ else ({pos,nor}=finalizeMidlineHit(code,pos,nor));
  const catalogPoint=teachingByCode.get(code);
  const name=catalogPoint?.name??byCode.get(code)?.name??code;
  const defaultSet=armJointsSet.has(code)?'arm-joints-15':hipSacralSet.has(code)?'hip-sacral-6':backShuSet.has(code)?'back-shu-14':trunkSet.has(code)?'trunk-30':'head-neck-21';
@@ -216,9 +233,9 @@ const realignGroup=(codes,axis,anchor,fixed)=>{
   const seed=new T.Vector3(...pos);
   const hit=snap(seed,preferFor(code,pos));
   if(!hit)continue;
-  const np=hit.position.slice(),nor=hit.normal.slice();
+  let np=hit.position.slice(),nor=hit.normal.slice();
   if(!midline.has(code)){np[0]=Math.abs(np[0]);nor[0]=Math.abs(nor[0]);}
-  else{np[0]=0;}
+  else ({pos:np,nor}=finalizeMidlineHit(code,np,nor));
   if(axis==='x'&&!e.midline)np[0]=refVal;
   else if(axis==='y')np[1]=refVal;
   byCode.set(code,{...e,position:np,normal:nor});
@@ -235,7 +252,7 @@ if(!codesFilter) for(const row of [
  ['y',['CV8','KI16','ST25','SP15','GB26'],'CV8'],
  ['y',['GV4','BL23','BL52'],'GV4'],
  ['y',['GV2','BL34','BL30','BL54'],'GV2'],
- ['x',['BL34','BL30'],'BL23'],
+ ['x',['BL30'],'BL23'],
  ['x',['BL54'],'BL52'],
  ['y',['SI11','BL43','BL14'],'BL14'],
  ['y',['CV17','KI23','ST17','PC1','SP18'],'ST17'],
@@ -269,7 +286,7 @@ if(codesFilter){
  const sacralLine=['GV2','BL34','BL30','BL54'];
  if(sacralLine.some(c=>codesFilter.includes(c))){
   realignGroup(sacralLine,'y','GV2');
-  realignGroup(['BL34','BL30'],'x','BL23');
+  realignGroup(['BL30'],'x','BL23');
   realignGroup(['BL54'],'x','BL52');
  }
  const blLine=['BL11','BL12','BL13','BL14','BL15','BL16','BL17','BL18','BL19','BL20','BL21','BL22','BL23'];

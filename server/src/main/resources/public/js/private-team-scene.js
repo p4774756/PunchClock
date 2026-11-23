@@ -5,25 +5,71 @@ export const SECRETARY_SPRITE_URL_TYPING_B = '/assets/private-team/secretary-typ
 export const SECRETARY_SPRITE_URL_WAVE = '/assets/private-team/secretary-wave.webp';
 export const SECRETARY_SPRITE_URL_YEAH = '/assets/private-team/secretary-yeah.webp';
 export const SECRETARY_SPRITE_URL_IDLE = '/assets/private-team/secretary-idle-tea.webp';
+export const SECRETARY_SPRITE_URL_READ = '/assets/private-team/secretary-read.webp';
+export const SECRETARY_SPRITE_URL_PHONE = '/assets/private-team/secretary-phone.webp';
 export const SECRETARY_SPRITE_URL_SLEEP = '/assets/private-team/secretary-sleep.webp';
+
+export const SECRETARY_STANDBY_IDLE_URLS = [
+  SECRETARY_SPRITE_URL_IDLE,
+  SECRETARY_SPRITE_URL_READ,
+  SECRETARY_SPRITE_URL_PHONE
+];
+export const SECRETARY_IDLE_ROTATE_MS = 2 * 60 * 1000;
 
 const SECRETARY_TYPING_FRAME_MS = 500;
 const SECRETARY_WAVE_MS = 3000;
 const SECRETARY_YEAH_MS = 2500;
 
-/** 慶祝舞 8 格路徑（5 張圖重複索引）；登記供後續單直接切幀。 */
-export const SECRETARY_DANCE_FRAME_INDICES = [1, 2, 3, 4, 5, 3, 4, 2];
-export const SECRETARY_DANCE_FRAME_MS = 120;
-export const SECRETARY_DANCE_LOOPS = 3;
-export const SECRETARY_DANCE_DURATION_MS =
-  SECRETARY_DANCE_FRAME_INDICES.length * SECRETARY_DANCE_FRAME_MS * SECRETARY_DANCE_LOOPS;
+export const SECRETARY_CLAP_SPRITE_A = '/assets/private-team/secretary-clap-a.webp';
+export const SECRETARY_CLAP_SPRITE_B = '/assets/private-team/secretary-clap-b.webp';
+
+/** 慶祝：拍手兩下 → 比讚 → 小跳（只播一次）。 */
+export const SECRETARY_CELEBRATE_STEPS = [
+  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_A, ms: 250 },
+  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_B, ms: 250 },
+  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_A, ms: 250 },
+  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_B, ms: 250 },
+  { kind: 'frame', url: SECRETARY_SPRITE_URL_YEAH, ms: 700 },
+  { kind: 'jump', ms: 450 }
+];
+export const SECRETARY_DANCE_DURATION_MS = SECRETARY_CELEBRATE_STEPS.reduce((sum, s) => sum + s.ms, 0);
 export const SECRETARY_IDLE_DANCE_AFTER_MS = 4 * 60 * 1000;
 export const SECRETARY_IDLE_DANCE_COOLDOWN_MS = 5 * 60 * 1000;
 
-export function secretaryDanceFrameUrl(frameIndex) {
-  const n = Number(frameIndex);
-  if (!Number.isFinite(n) || n < 1) return '';
-  return '/assets/private-team/secretary-dance-' + n + '.webp';
+export function secretaryCelebrateStateAt(elapsedMs) {
+  const t0 = Number(elapsedMs);
+  if (!Number.isFinite(t0) || t0 < 0) {
+    return { kind: 'frame', url: SECRETARY_CELEBRATE_STEPS[0].url, jumpT: null };
+  }
+  if (t0 >= SECRETARY_DANCE_DURATION_MS) {
+    return { kind: 'done', url: '', jumpT: null };
+  }
+  let t = t0;
+  let lastUrl = SECRETARY_CELEBRATE_STEPS[0].url;
+  for (let i = 0; i < SECRETARY_CELEBRATE_STEPS.length; i++) {
+    const step = SECRETARY_CELEBRATE_STEPS[i];
+    if (t < step.ms) {
+      if (step.kind === 'frame') {
+        return { kind: 'frame', url: step.url, jumpT: null };
+      }
+      return { kind: 'jump', url: lastUrl, jumpT: t / step.ms };
+    }
+    t -= step.ms;
+    if (step.kind === 'frame') lastUrl = step.url;
+  }
+  return { kind: 'done', url: '', jumpT: null };
+}
+
+export function secretaryCelebrateFrameUrlAt(elapsedMs) {
+  const st = secretaryCelebrateStateAt(elapsedMs);
+  if (st.kind === 'done') return '';
+  return st.url;
+}
+
+export function secretaryCelebrateJumpOffsetAt(elapsedMs) {
+  const st = secretaryCelebrateStateAt(elapsedMs);
+  if (st.kind !== 'jump' || st.jumpT == null) return 0;
+  return Math.sin(st.jumpT * Math.PI) * 0.11;
 }
 
 export function isStandbyTigerStatus(status) {
@@ -60,6 +106,29 @@ export function secretaryTypingDisplayUrl(statusBaseUrl, useTypingB, reducedMoti
     return SECRETARY_SPRITE_URL_TYPING_B;
   }
   return base;
+}
+
+export function isSecretaryStandbyIdleUrl(url) {
+  const u = url == null ? '' : String(url).trim();
+  return SECRETARY_STANDBY_IDLE_URLS.includes(u);
+}
+
+/** 心跳輪詢仍傳待命預設喝茶圖時，勿蓋掉輪替中的看書／講電話。 */
+export function shouldIgnoreStandbyIdleSpriteUpdate(currentUrl, incomingUrl) {
+  const cur = currentUrl == null ? '' : String(currentUrl).trim();
+  const inc = incomingUrl == null ? '' : String(incomingUrl).trim();
+  if (inc !== SECRETARY_SPRITE_URL_IDLE || cur === SECRETARY_SPRITE_URL_IDLE) return false;
+  return isSecretaryStandbyIdleUrl(cur);
+}
+
+/** 待命立繪輪替：從三張中選，不連續同一張（randomInt 供單測固定種子）。 */
+export function pickNextStandbyIdleUrl(currentUrl, randomInt) {
+  const cur = currentUrl == null ? '' : String(currentUrl).trim();
+  const pool = SECRETARY_STANDBY_IDLE_URLS.filter((u) => u !== cur);
+  if (pool.length === 0) return SECRETARY_STANDBY_IDLE_URLS[0];
+  const ri = Number(randomInt);
+  const idx = Number.isFinite(ri) ? Math.abs(Math.floor(ri)) % pool.length : 0;
+  return pool[idx];
 }
 
 export const PRIVATE_TEAM_ZOOM_MIN = 0.72;
@@ -306,6 +375,119 @@ function makeWaterRippleTexture() {
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.repeat.set(2.2, 1.6);
+  return tex;
+}
+
+function privateTeamSeededRand(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (Math.imul(s, 16807) + 1) >>> 0;
+    return (s & 0x7fffffff) / 0x7fffffff;
+  };
+}
+
+/** 落地窗外天際線平面層深度（愈大愈靠後），供單測鎖定多層景深。 */
+export const PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z = [0.04, 0.09, 0.14];
+
+export function makeNightWindowSkyTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 640;
+  canvas.height = 400;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  grad.addColorStop(0, '#080e1c');
+  grad.addColorStop(0.5, '#101a30');
+  grad.addColorStop(0.82, '#1a2c48');
+  grad.addColorStop(1, '#253a5c');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const horizonGlow = ctx.createLinearGradient(0, canvas.height * 0.62, 0, canvas.height);
+  horizonGlow.addColorStop(0, 'rgba(0,0,0,0)');
+  horizonGlow.addColorStop(0.45, 'rgba(70,90,130,0.12)');
+  horizonGlow.addColorStop(0.85, 'rgba(110,85,55,0.18)');
+  horizonGlow.addColorStop(1, 'rgba(80,60,40,0.14)');
+  ctx.fillStyle = horizonGlow;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const moonX = canvas.width * 0.76;
+  const moonY = canvas.height * 0.2;
+  const moonG = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 34);
+  moonG.addColorStop(0, 'rgba(228,232,242,0.32)');
+  moonG.addColorStop(0.55, 'rgba(190,200,220,0.07)');
+  moonG.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = moonG;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const rand = privateTeamSeededRand(503);
+  for (let i = 0; i < 48; i++) {
+    const sx = rand() * canvas.width;
+    const sy = rand() * canvas.height * 0.58;
+    const br = rand() * 1.1 + 0.35;
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.12 + rand() * 0.45) + ')';
+    ctx.fillRect(sx, sy, br, br);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeNightSkylineLayerTexture(layer) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 640;
+  canvas.height = 320;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const rand = privateTeamSeededRand(layer === 'far' ? 11 : layer === 'mid' ? 23 : 37);
+  const baseY = canvas.height * (layer === 'far' ? 0.78 : layer === 'mid' ? 0.62 : 0.5);
+  const maxH = canvas.height * (layer === 'far' ? 0.2 : layer === 'mid' ? 0.36 : 0.46);
+  const fog = layer === 'far' ? 0.52 : layer === 'mid' ? 0.82 : 1;
+  let x = -12;
+  while (x < canvas.width + 8) {
+    const bw = (layer === 'near' ? 34 : 26) + rand() * (layer === 'near' ? 48 : 32);
+    const bh = maxH * (0.32 + rand() * 0.68);
+    const tone = 22 + rand() * (layer === 'far' ? 18 : 30);
+    ctx.fillStyle =
+      'rgba(' +
+      (tone + 14) +
+      ',' +
+      (tone + 22) +
+      ',' +
+      (tone + 38) +
+      ',' +
+      fog +
+      ')';
+    ctx.fillRect(x, baseY - bh, bw, bh);
+    const cols = Math.max(1, Math.floor(bw / 13));
+    const rows = Math.max(1, Math.floor(bh / 15));
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows; r++) {
+        if (rand() < (layer === 'far' ? 0.72 : 0.38)) continue;
+        const warm = rand() > 0.4;
+        const wx = x + 5 + c * 12 + rand() * 2;
+        const wy = baseY - bh + 5 + r * 14 + rand();
+        const ww = 3.5 + rand() * 3;
+        const wh = 4 + rand() * 4;
+        ctx.fillStyle = warm
+          ? 'rgba(245,205,100,' + (0.35 + rand() * 0.55) + ')'
+          : 'rgba(175,205,228,' + (0.28 + rand() * 0.42) + ')';
+        ctx.fillRect(wx, wy, ww, wh);
+      }
+    }
+    if (layer === 'near' && rand() > 0.55) {
+      ctx.fillStyle = 'rgba(40,48,62,0.9)';
+      const rw = bw * (0.5 + rand() * 0.35);
+      ctx.fillRect(x + (bw - rw) / 2, baseY - bh - 4 - rand() * 6, rw, 4 + rand() * 5);
+    }
+    x += bw - rand() * 10;
+  }
+  if (layer === 'far') {
+    const mist = ctx.createLinearGradient(0, canvas.height * 0.45, 0, canvas.height);
+    mist.addColorStop(0, 'rgba(0,0,0,0)');
+    mist.addColorStop(0.6, 'rgba(18,28,48,0.18)');
+    mist.addColorStop(1, 'rgba(12,20,36,0.42)');
+    ctx.fillStyle = mist;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
@@ -1036,52 +1218,47 @@ export function mountPrivateTeamScene(canvas, opts) {
   wallSlab(winW, winBottom, 0, winBottom / 2, backZ - WALL_THICK / 2);
   wallSlab(WALL_THICK, wallH, leftX + WALL_THICK / 2, wallY, 0, FLOOR_SIZE);
 
-  const skyMat = new THREE.MeshBasicMaterial({ color: COL.skyNight });
-  const windowSky = new THREE.Mesh(new THREE.PlaneGeometry(winW + 0.2, winH + 0.2), skyMat);
+  const skyTex = makeNightWindowSkyTexture();
+  const windowSky = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW + 0.2, winH + 0.2),
+    new THREE.MeshBasicMaterial({ map: skyTex })
+  );
   windowSky.position.set(0, winBottom + winH / 2, backZ - WALL_THICK - 0.02);
   windowSky.name = 'windowSky';
   root.add(windowSky);
 
   const skyline = new THREE.Group();
   skyline.name = 'skyline';
-  const buildingSpecs = [
-    { x: -1.0, w: 0.28, h: 0.38 },
-    { x: -0.58, w: 0.34, h: 0.74 },
-    { x: -0.2, w: 0.22, h: 0.48 },
-    { x: 0.18, w: 0.38, h: 0.88 },
-    { x: 0.58, w: 0.26, h: 0.54 },
-    { x: 0.92, w: 0.2, h: 0.34 }
+  const skylineCenterY = winBottom + winH / 2;
+  const skylineLayers = [
+    { name: 'skylineFar', layer: 'far', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[0], hScale: 0.82, yBias: -0.06 },
+    { name: 'skylineMid', layer: 'mid', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[1], hScale: 0.92, yBias: -0.02 },
+    { name: 'skylineNear', layer: 'near', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[2], hScale: 1, yBias: 0.04 }
   ];
-  const buildingShades = [0x516484, 0x3e516e, 0x5a6d90, 0x445878, 0x4c6286, 0x3a4c68];
-  const skylineY = winBottom + winH / 2;
-  buildingSpecs.forEach((spec, i) => {
-    const b = box(spec.w, spec.h, 0.14, buildingShades[i]);
-    b.position.set(spec.x, skylineY - winH / 2 + 0.12 + spec.h / 2, backZ - WALL_THICK - 0.06);
-    b.name = 'building';
-    skyline.add(b);
-    const cols = spec.w > 0.28 ? 2 : 1;
-    const rows = spec.h > 0.6 ? 3 : 2;
-    for (let c = 0; c < cols; c++) {
-      for (let r = 0; r < rows; r++) {
-        const lit = box(0.05, 0.05, 0.02, COL.buildingLit, true);
-        const ox = (c - (cols - 1) / 2) * 0.1;
-        const oy = (r - (rows - 1) / 2) * 0.14;
-        lit.position.set(
-          spec.x + ox,
-          skylineY - winH / 2 + 0.12 + spec.h / 2 + oy,
-          backZ - WALL_THICK + 0.02
-        );
-        lit.name = 'bwin';
-        skyline.add(lit);
-      }
-    }
+  skylineLayers.forEach((cfg) => {
+    const layerTex = makeNightSkylineLayerTexture(cfg.layer);
+    const layerMat = new THREE.MeshBasicMaterial({
+      map: layerTex,
+      transparent: true,
+      depthWrite: false,
+      opacity: cfg.layer === 'far' ? 0.88 : 1
+    });
+    const layerMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(winW + 0.12, winH * cfg.hScale),
+      layerMat
+    );
+    layerMesh.position.set(0, skylineCenterY + cfg.yBias, backZ - WALL_THICK - cfg.z);
+    layerMesh.name = cfg.name;
+    skyline.add(layerMesh);
   });
   root.add(skyline);
 
   const glassMat = new THREE.MeshLambertMaterial({
-    color: COL.skyNight,
+    color: 0x8aa0c0,
+    emissive: 0x1a2838,
+    emissiveIntensity: 0.22,
     transparent: true,
-    opacity: 0.2,
+    opacity: 0.11,
     depthWrite: false
   });
   const paneW = (winW - 0.12) / 3;
@@ -1109,9 +1286,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   const windowWash = new THREE.Mesh(
     new THREE.PlaneGeometry(2.8, 1.35),
     new THREE.MeshBasicMaterial({
-      color: 0x6a8ec8,
+      color: 0x5a78b0,
       transparent: true,
-      opacity: 0.13,
+      opacity: 0.12,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     })
@@ -1267,6 +1444,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   let dancePlayback = null;
   let tigerStatus = '待命中';
   let standbySinceMs = performance.now();
+  let lastIdleRotateMs = null;
   let lastIdleDanceMs = null;
   let danceDisplayFrame = -1;
   let currentSpriteUrl = '';
@@ -1274,14 +1452,19 @@ export function mountPrivateTeamScene(canvas, opts) {
   let spriteLoadSeq = 0;
   const loader = new THREE.TextureLoader();
 
-  (function preloadSecretaryDanceFrames() {
+  (function preloadSecretaryCelebrateFrames() {
     const seen = new Set();
-    for (let i = 0; i < SECRETARY_DANCE_FRAME_INDICES.length; i++) {
-      const idx = SECRETARY_DANCE_FRAME_INDICES[i];
-      const url = secretaryDanceFrameUrl(idx);
+    for (let i = 0; i < SECRETARY_CELEBRATE_STEPS.length; i++) {
+      const step = SECRETARY_CELEBRATE_STEPS[i];
+      if (step.kind !== 'frame') continue;
+      const url = step.url;
       if (!url || seen.has(url)) continue;
       seen.add(url);
       loader.load(url, () => {}, undefined, () => {});
+    }
+    for (let i = 0; i < SECRETARY_STANDBY_IDLE_URLS.length; i++) {
+      const url = SECRETARY_STANDBY_IDLE_URLS[i];
+      if (url) loader.load(url, () => {}, undefined, () => {});
     }
   })();
 
@@ -1324,14 +1507,6 @@ export function mountPrivateTeamScene(canvas, opts) {
     applySecretarySpriteUrl(resolveRestSpriteUrl());
   }
 
-  function secretaryDanceUrlAtElapsed(elapsedMs) {
-    const perLoop = SECRETARY_DANCE_FRAME_INDICES.length * SECRETARY_DANCE_FRAME_MS;
-    const total = perLoop * SECRETARY_DANCE_LOOPS;
-    if (elapsedMs >= total) return '';
-    const frameInSeq = Math.floor(elapsedMs / SECRETARY_DANCE_FRAME_MS) % SECRETARY_DANCE_FRAME_INDICES.length;
-    return secretaryDanceFrameUrl(SECRETARY_DANCE_FRAME_INDICES[frameInSeq]);
-  }
-
   function stopSecretaryDance() {
     dancePlayback = null;
     danceDisplayFrame = -1;
@@ -1345,7 +1520,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     overlayPending = null;
     dancePlayback = { startMs: t };
     danceDisplayFrame = -1;
-    const url = secretaryDanceUrlAtElapsed(0);
+    const url = secretaryCelebrateFrameUrlAt(0);
     if (url) applySecretarySpriteUrl(url);
   }
 
@@ -1355,9 +1530,13 @@ export function mountPrivateTeamScene(canvas, opts) {
     const wasStandby = isStandbyTigerStatus(tigerStatus);
     tigerStatus = next;
     if (isStandbyTigerStatus(tigerStatus)) {
-      if (!wasStandby || standbySinceMs == null) standbySinceMs = t;
+      if (!wasStandby || standbySinceMs == null) {
+        standbySinceMs = t;
+        lastIdleRotateMs = t;
+      }
     } else {
       standbySinceMs = null;
+      lastIdleRotateMs = null;
     }
   }
 
@@ -1454,7 +1633,9 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   function setSecretarySprite(url) {
     const next = url == null ? '' : String(url).trim();
-    if (!next || next === statusBaseUrl) return;
+    if (!next) return;
+    if (shouldIgnoreStandbyIdleSpriteUpdate(statusBaseUrl, next)) return;
+    if (next === statusBaseUrl) return;
     statusBaseUrl = next;
     typingShowB = false;
     lastTypingFlipMs = performance.now();
@@ -1749,14 +1930,32 @@ export function mountPrivateTeamScene(canvas, opts) {
         reducedMotion = !!mq.matches;
         typingShowB = false;
         if (reducedMotion && dancePlayback) stopSecretaryDance();
-        else refreshSecretaryDisplay();
+        if (
+          reducedMotion &&
+          isStandbyTigerStatus(tigerStatus) &&
+          isSecretaryStandbyIdleUrl(statusBaseUrl) &&
+          statusBaseUrl !== SECRETARY_SPRITE_URL_IDLE
+        ) {
+          statusBaseUrl = SECRETARY_SPRITE_URL_IDLE;
+          lastIdleRotateMs = null;
+        }
+        refreshSecretaryDisplay();
       });
     } else if (typeof mq.addListener === 'function') {
       mq.addListener(() => {
         reducedMotion = !!mq.matches;
         typingShowB = false;
         if (reducedMotion && dancePlayback) stopSecretaryDance();
-        else refreshSecretaryDisplay();
+        if (
+          reducedMotion &&
+          isStandbyTigerStatus(tigerStatus) &&
+          isSecretaryStandbyIdleUrl(statusBaseUrl) &&
+          statusBaseUrl !== SECRETARY_SPRITE_URL_IDLE
+        ) {
+          statusBaseUrl = SECRETARY_SPRITE_URL_IDLE;
+          lastIdleRotateMs = null;
+        }
+        refreshSecretaryDisplay();
       });
     }
   }
@@ -1782,14 +1981,18 @@ export function mountPrivateTeamScene(canvas, opts) {
     raf = win.requestAnimationFrame(tick);
     if (dancePlayback) {
       const elapsed = now - dancePlayback.startMs;
-      const frameNo = Math.floor(elapsed / SECRETARY_DANCE_FRAME_MS);
-      const totalFrames = SECRETARY_DANCE_FRAME_INDICES.length * SECRETARY_DANCE_LOOPS;
-      if (frameNo >= totalFrames) {
+      if (elapsed >= SECRETARY_DANCE_DURATION_MS) {
         stopSecretaryDance();
-      } else if (frameNo !== danceDisplayFrame) {
-        danceDisplayFrame = frameNo;
-        const url = secretaryDanceUrlAtElapsed(elapsed);
-        if (url) applySecretarySpriteUrl(url);
+      } else {
+        const st = secretaryCelebrateStateAt(elapsed);
+        if (st.kind !== 'done') {
+          const frameKey = st.kind === 'jump' ? 'jump' : st.url;
+          if (frameKey !== danceDisplayFrame) {
+            danceDisplayFrame = frameKey;
+            if (st.url) applySecretarySpriteUrl(st.url);
+          }
+          dancePlayback.jumpOffset = secretaryCelebrateJumpOffsetAt(elapsed);
+        }
       }
     } else if (
       shouldTriggerIdleStandbyDance({
@@ -1816,6 +2019,19 @@ export function mountPrivateTeamScene(canvas, opts) {
       lastTypingFlipMs = now;
       typingShowB = !typingShowB;
       refreshSecretaryDisplay();
+    } else if (
+      !overlayActive &&
+      !dancePlayback &&
+      !reducedMotion &&
+      isStandbyTigerStatus(tigerStatus) &&
+      isSecretaryStandbyIdleUrl(statusBaseUrl) &&
+      lastIdleRotateMs != null &&
+      now - lastIdleRotateMs >= SECRETARY_IDLE_ROTATE_MS
+    ) {
+      lastIdleRotateMs = now;
+      statusBaseUrl = pickNextStandbyIdleUrl(statusBaseUrl, Math.floor(Math.random() * 1e6));
+      refreshPoseAnimMode();
+      refreshSecretaryDisplay();
     }
     const elapsed = (now - t0) / 1000;
     const breath = Math.sin(elapsed * 1.65) * 0.014;
@@ -1825,12 +2041,16 @@ export function mountPrivateTeamScene(canvas, opts) {
       let extraY = 0;
       let leanZ = 0;
       if (!reducedMotion) {
-        extraY = breath;
-        if (spriteAnimMode === 'working') {
-          extraY += typeNudge;
-          leanZ = lean;
-        } else if (spriteAnimMode === 'sleep') {
-          extraY = breath * 0.45;
+        if (dancePlayback && dancePlayback.jumpOffset) {
+          extraY = dancePlayback.jumpOffset;
+        } else {
+          extraY = breath;
+          if (spriteAnimMode === 'working') {
+            extraY += typeNudge;
+            leanZ = lean;
+          } else if (spriteAnimMode === 'sleep') {
+            extraY = breath * 0.45;
+          }
         }
       }
       secretarySprite.position.y = spriteBaseY + extraY;
