@@ -68,7 +68,7 @@ export default function Home(){
   const code=preferred??initialSimulation.pointCode;
   return {...initialSimulation,curriculumSet:set,pointCode:code,side:1,focus:preferred?1:0};
  });
- const [progress,setProgress]=useState(6),[loadStep,setLoadStep]=useState(LOAD_STEP_LABELS.program),[error,setError]=useState('');
+ const [progress,setProgress]=useState(6),[loadStep,setLoadStep]=useState(LOAD_STEP_LABELS.program),[scenePainted,setScenePainted]=useState(false),[error,setError]=useState('');
  const [region,setRegion]=useState<RegionId|'all'>('all'),[query,setQuery]=useState('');
  const [mobilePanel,setMobilePanel]=useState<'library'|null>(null);
  const [libraryFilterOpen,setLibraryFilterOpen]=useState(false);
@@ -210,6 +210,9 @@ export default function Home(){
   setLoadStep(next.stepLabel);
   if(next.percent===100)setError('');
  },[]);
+ const onFrameReady=useCallback(()=>setScenePainted(true),[]);
+ const loadingVisible=!!error||(!scenePainted||progress<100);
+ const loadingHint=error?'':progress<100?loadStep||('載入 '+currentOutfit.name+' 與已對應穴位標記。'):'正在繪製第一幅畫面…';
  const onError=useCallback((_message:string)=>{setError('3D 模型加載出現問題，請檢查網絡與瀏覽器 WebGL 支持後重試。');setSimulation(s=>({...s,dragging:false,running:false}));},[]);
  const onPracticeOutfitPreparing=useCallback((preparing:boolean)=>{setPracticePreparing(preparing);},[]);
  const selectedTitle=point?.name??(simulation.customTarget?'自選體表位置':'點選穴位標記');
@@ -233,14 +236,14 @@ export default function Home(){
   </header>
 
   <section className="scene-stage" aria-label="3D 人體教學視窗">
-   <Suspense fallback={null}><CharacterScene key={DEFAULT_AVATAR_ID} state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={DEFAULT_AVATAR_ID} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onError={onError} onPracticeOutfitPreparing={onPracticeOutfitPreparing}/></Suspense>
+   <Suspense fallback={null}><CharacterScene key={DEFAULT_AVATAR_ID} state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={DEFAULT_AVATAR_ID} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onFrameReady={onFrameReady} onError={onError} onPracticeOutfitPreparing={onPracticeOutfitPreparing}/></Suspense>
    <div className="scene-guide"><span className="guide-cross">+</span><span>{currentAvatar.shortName} · {currentOutfit.shortName}</span></div>
-   {(progress<100||error)&&(
+   {loadingVisible&&(
     <div className={error?'loading-card woodcut-loading load-error':'loading-card woodcut-loading'} role="status">
      <span className="loading-symbol">{error?(<Info size={23}/>):(<Layers3 size={23}/>)}</span>
      <strong>{error?'模型暫未就緒':('正在迎接'+currentAvatar.shortName)}</strong>
-     <p>{error||(loadStep||('載入 '+currentOutfit.name+' 與已對應穴位標記。'))}</p>
-     {!error&&<><div className="load-track load-track-shimmer"><i style={{width:progress+'%'}}/></div><small>{progress}%</small></>}
+     <p>{error||loadingHint}</p>
+     {!error&&<><div className="load-track load-track-shimmer"><i style={{width:Math.max(progress,scenePainted?100:progress)+'%'}}/></div><small>{scenePainted?100:progress}%</small></>}
      {error&&<button className="text-button" onClick={()=>window.location.reload()}>重新加載</button>}
     </div>
    )}
@@ -249,12 +252,12 @@ export default function Home(){
 
   <nav className="studio-tool-rail" aria-label="視角與工具">
    <button type="button" className="studio-tool-btn" aria-label={`人體視角：${VIEW_LABELS[state.view]}，點擊切換`} title={`視角 ${VIEW_LABELS[state.view]}`} onClick={cycleView}><ScanFace size={18} aria-hidden="true"/><span className="studio-tool-tag">{VIEW_LABELS[state.view]}</span></button>
-   <button type="button" className="studio-tool-btn" aria-label="全身視角" title="全身" onClick={fullBody}><Maximize2 size={17} aria-hidden="true"/></button>
-   <button type="button" className="studio-tool-btn" aria-label="聚焦當前穴位" title="聚焦" disabled={!hasTarget} onClick={focusTarget}><Focus size={17} aria-hidden="true"/></button>
-   <button type="button" className={`studio-tool-btn${state.rotate?' is-active':''}`} aria-label={state.rotate?'停止自動旋轉':'自動旋轉'} aria-pressed={state.rotate} title={state.rotate?'停止旋轉':'自動旋轉'} onClick={()=>{pause();setState(s=>({...s,rotate:!s.rotate}));setFeedback(state.rotate?'自動旋轉已停止。':'正在自動旋轉。');}}><RotateCw size={17} aria-hidden="true"/></button>
-   {showOutfitBar&&<button type="button" className={`studio-tool-btn${outfitPending?' is-pending':''}${outfitId==='study-body'?' is-active':''}`} aria-label={outfitPending?'練習裝準備中':`換裝：${currentOutfit.shortName}，點擊切換`} aria-pressed={outfitId==='study-body'} title={outfitPending?'準備中…':`${currentOutfit.shortName} · ${currentOutfit.blurb??''}`} onClick={toggleOutfit}><Shirt size={17} aria-hidden="true"/>{outfitPending&&<span className="studio-tool-pending" aria-hidden="true"/>}</button>}
-   <button type="button" className="studio-tool-btn" aria-label="來源與許可" title="來源與許可" onClick={()=>setAbout(true)}><Info size={17} aria-hidden="true"/></button>
-   <button type="button" className={`studio-tool-btn${mobilePanel==='library'?' is-active':''}`} aria-label="穴位庫" aria-expanded={mobilePanel==='library'} title="穴位庫" onClick={toggleLibrary}><Layers3 size={17} aria-hidden="true"/></button>
+   <button type="button" className="studio-tool-btn" aria-label="全身視角" title="全身" onClick={fullBody}><Maximize2 size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">全身</span></button>
+   <button type="button" className="studio-tool-btn" aria-label="聚焦當前穴位" title="聚焦" disabled={!hasTarget} onClick={focusTarget}><Focus size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">聚焦</span></button>
+   <button type="button" className={`studio-tool-btn${state.rotate?' is-active':''}`} aria-label={state.rotate?'停止自動旋轉':'自動旋轉'} aria-pressed={state.rotate} title={state.rotate?'停止旋轉':'自動旋轉'} onClick={()=>{pause();setState(s=>({...s,rotate:!s.rotate}));setFeedback(state.rotate?'自動旋轉已停止。':'正在自動旋轉。');}}><RotateCw size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">{state.rotate?'停轉':'旋轉'}</span></button>
+   {showOutfitBar&&<button type="button" className={`studio-tool-btn${outfitPending?' is-pending':''}${outfitId==='study-body'?' is-active':''}`} aria-label={outfitPending?'練習裝準備中':`換裝：${currentOutfit.shortName}，點擊切換`} aria-pressed={outfitId==='study-body'} title={outfitPending?'準備中…':`${currentOutfit.shortName} · ${currentOutfit.blurb??''}`} onClick={toggleOutfit}><Shirt size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">換裝</span>{outfitPending&&<span className="studio-tool-pending" aria-hidden="true"/>}</button>}
+   <button type="button" className="studio-tool-btn" aria-label="來源與許可" title="來源與許可" onClick={()=>setAbout(true)}><Info size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">來源</span></button>
+   <button type="button" className={`studio-tool-btn${mobilePanel==='library'?' is-active':''}`} aria-label="穴位庫" aria-expanded={mobilePanel==='library'} title="穴位庫" onClick={toggleLibrary}><Layers3 size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">穴庫</span></button>
   </nav>
   {outfitPending&&<p className="practice-outfit-hint" role="status" aria-live="polite">準備中…</p>}
 
@@ -323,8 +326,8 @@ export default function Home(){
   </section>
   <dialog ref={dialog} className="source-dialog" onCancel={()=>setAbout(false)} onClose={()=>setAbout(false)} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)setAbout(false);}}} aria-labelledby="source-title">
    <div className="dialog-heading"><span className="eyebrow">資料、許可與當前邊界</span><button className="icon-button" onClick={()=>setAbout(false)} aria-label="關閉來源與許可" autoFocus><X size={19}/></button></div>
-   <h2 id="source-title">讓每一層，有據可查。</h2><p className="dialog-intro">這是供課堂討論與交互驗證的工程預覽。標準文字、角色模型與操作動畫分別保留來源和狀態。</p>
-   <section><h3>穴位定位</h3><p>以 GB/T 12346—2021《經穴名稱與定位》為主要核查來源。本版研習室只在角色身上顯示已烘上的穴位（頭頸 21＋頭胸腹背腰 30，共 51；含人迎、天突）。`teaching-points.json` 仍保留完整目錄與歷史解剖空間座標，供之後每週加穴對位參考，並不代表解剖銅人模型仍在頁面中。</p><a href={STANDARD} target="_blank" rel="noreferrer">查閱國家標準正文<ArrowUpRight size={13}/></a></section>
+   <h2 id="source-title">讓每一層，有據可查。</h2><p className="dialog-intro">這裡整理了經絡研習室引用的標準、角色與教具來源，方便課堂查證與討論。</p>
+   <section><h3>穴位定位</h3><p>以 GB/T 12346—2021《經穴名稱與定位》為主要核查來源。研習室目前只在角色身上顯示已對位完成的穴位（頭頸 21 穴、頭胸腹背腰 30 穴，共 51 穴；含人迎、天突）。其餘經穴名稱仍在我們的教學目錄中，會依課堂進度陸續烘上並對到角色皮膚。</p><a href={STANDARD} target="_blank" rel="noreferrer">查閱國家標準正文<ArrowUpRight size={13}/></a></section>
    <section><h3>動漫角色</h3><p>研習室角色為 VRoid Studio β 版樣本「Sendagaya Shino」（pixiv Inc.，CC0 1.0）。換裝可切「制服」與「練習裝」（深青運動內衣＋高腰短褲、高包頭）；胸腹背腰與人迎／天突請用練習裝，針與指壓打在真實皮膚上。</p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">CC0 1.0 說明<ArrowUpRight size={13}/></a><a href={publicAssetUrl('/ATTRIBUTION.md')} target="_blank" rel="noreferrer">署名細節<ArrowUpRight size={13}/></a></section>
    <section><h3>工具與局部反饋</h3><p>針具接觸與指壓形變為教學視覺示意，不預測療效，也不提供真人操作參數。</p><a href="https://www.nccih.nih.gov/health/acupuncture-effectiveness-and-safety" target="_blank" rel="noreferrer">NCCIH：針灸資料<ArrowUpRight size={13}/></a><a href="https://www.mskcc.org/cancer-care/patient-education/acupressure-pain-and-headaches" target="_blank" rel="noreferrer">MSK：指壓資料<ArrowUpRight size={13}/></a></section>
    <button className="dialog-done" onClick={()=>setAbout(false)}>返回研習室</button>
