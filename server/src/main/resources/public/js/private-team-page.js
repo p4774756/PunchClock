@@ -45,9 +45,6 @@ function mountDeployVersion(hud, win, doc) {
   el.removeAttribute('aria-hidden');
 }
 
-const PERSON_SVG =
-  '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3.5" fill="none" stroke="#163a70" stroke-width="2"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6" fill="none" stroke="#163a70" stroke-width="2" stroke-linecap="round"/></svg>';
-
 const DL_SVG =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><path d="M8 12l4 4 4-4" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="18" width="14" height="2" fill="#fff"/></svg>';
 
@@ -156,7 +153,6 @@ export function mountPrivateTeamPage(opts) {
       '</div></div>' +
       '<div class="pt-hud-tr" data-pt-hud-tr>' + identityHudMarkup(sessionAuthed) + '</div>' +
       '<div class="pt-hud-br">' +
-      '<a class="pt-hud-atlas" href="/atlas/tcm-3d/">' + PERSON_SVG + '<span>經絡研習室</span></a>' +
       '<a class="pt-hud-download" href="/download" aria-label="下載 App">' + DL_SVG +
       '<span class="pt-hud-dl-label">下載 App</span></a></div>' +
       '<p class="pt-hud-deploy-ver" data-pt-deploy-ver hidden aria-hidden="true"></p>';
@@ -329,6 +325,18 @@ export function mountPrivateTeamPage(opts) {
     if (closeBtn) closeBtn.focus({ preventScroll: true });
   }
 
+  function openAtlasRoom() {
+    win.location.assign('/atlas/tcm-3d/');
+  }
+
+  function onSceneActivate(role) {
+    if (role === 'atlas') {
+      openAtlasRoom();
+      return;
+    }
+    openStatusCard();
+  }
+
   function openRoadmapFromBoard() {
     if (!openRoadmap) return;
     closeStatusCard();
@@ -390,7 +398,7 @@ export function mountPrivateTeamPage(opts) {
   const scene = mountPrivateTeamScene(canvas, {
     win,
     doc,
-    onActivate: openStatusCard,
+    onActivate: onSceneActivate,
     onOpenProgress: openRoadmapFromBoard,
     onProgressBoardRect: placeProgHit
   });

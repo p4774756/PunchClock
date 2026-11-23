@@ -405,6 +405,105 @@ function makeBubbleDrawer() {
   return { tex, draw };
 }
 
+const BRONZE_GLB_URL = '/models/tcm-bronze-figure.glb';
+const BRONZE_NATIVE_HEIGHT = 1.72;
+const BRONZE_DISPLAY_HEIGHT = 0.82;
+
+function makeNameplateDrawer() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 280;
+  canvas.height = 88;
+  const ctx = canvas.getContext('2d');
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  function draw(text) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const label = text == null || String(text).trim() === '' ? '…' : String(text);
+    ctx.fillStyle = '#f8fbff';
+    ctx.strokeStyle = '#163a70';
+    ctx.lineWidth = 8;
+    const x = 10;
+    const y = 10;
+    const w = 260;
+    const h = 64;
+    const r = 14;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    const size = label.length > 5 ? 34 : 40;
+    ctx.fillStyle = '#163a70';
+    ctx.font = 'bold ' + size + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, canvas.width / 2, 42);
+    tex.needsUpdate = true;
+  }
+  draw('經絡研習室');
+  return { tex, draw };
+}
+
+function makeBronzeEnvMap(renderer) {
+  if (!renderer) return null;
+  const w = 512;
+  const h = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx2d = canvas.getContext('2d');
+  const sky = ctx2d.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#f8f2e8');
+  sky.addColorStop(0.28, '#e8dfd0');
+  sky.addColorStop(0.55, '#b8a080');
+  sky.addColorStop(0.82, '#585048');
+  sky.addColorStop(1, '#282420');
+  ctx2d.fillStyle = sky;
+  ctx2d.fillRect(0, 0, w, h);
+  const sunSpot = ctx2d.createRadialGradient(w * 0.68, h * 0.26, 0, w * 0.68, h * 0.26, w * 0.4);
+  sunSpot.addColorStop(0, 'rgba(255,215,150,0.92)');
+  sunSpot.addColorStop(1, 'rgba(255,215,150,0)');
+  ctx2d.fillStyle = sunSpot;
+  ctx2d.fillRect(0, 0, w, h);
+  const srcTex = new THREE.CanvasTexture(canvas);
+  srcTex.colorSpace = THREE.SRGBColorSpace;
+  srcTex.mapping = THREE.EquirectangularReflectionMapping;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  const envMap = pmrem.fromEquirectangular(srcTex).texture;
+  srcTex.dispose();
+  pmrem.dispose();
+  return envMap;
+}
+
+function applyBronzeEnvMap(root, envMap, intensityStore) {
+  if (!envMap || !root) return;
+  root.traverse((obj) => {
+    if (!obj.isMesh || !obj.material) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (let i = 0; i < mats.length; i++) {
+      const m = mats[i];
+      if (!m || !m.isMeshStandardMaterial) continue;
+      const isMetal = m.metalness >= 0.45;
+      const isFabric = (m.name || '').toLowerCase().indexOf('sash') >= 0;
+      if (!isMetal || isFabric) continue;
+      m.envMap = envMap;
+      const base = isMetal ? 1.28 : 0.85;
+      if (intensityStore) intensityStore.set(m, base);
+      m.envMapIntensity = base;
+      m.needsUpdate = true;
+    }
+  });
+}
+
 function lampGlowTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 128;
@@ -861,6 +960,29 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   addLowPolyPlant(root, -1.15, 0.82);
 
+  const atlasRoot = new THREE.Group();
+  atlasRoot.name = 'atlasBronzeDisplay';
+  atlasRoot.userData.pickRole = 'atlas';
+  atlasRoot.position.set(1.28, 0, -0.58);
+  atlasRoot.rotation.y = 2.42;
+  root.add(atlasRoot);
+
+  const nameplateDrawer = makeNameplateDrawer();
+  const nameplateMat = new THREE.MeshBasicMaterial({
+    map: nameplateDrawer.tex,
+    transparent: true,
+    depthWrite: false
+  });
+  const atlasNameplate = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.17), nameplateMat);
+  atlasNameplate.userData.pickRole = 'atlas';
+  atlasNameplate.position.set(0, 0.9, 0.1);
+  atlasNameplate.renderOrder = 2;
+  atlasRoot.add(atlasNameplate);
+
+  let bronzeEnvMap = null;
+  const bronzeEnvBase = new WeakMap();
+  let bronzeHover = false;
+
   const secretaryRoot = new THREE.Group();
   secretaryRoot.position.set(0.02, 0, 0.56);
   root.add(secretaryRoot);
@@ -1044,6 +1166,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     secretarySprite.name = 'secretarySprite';
     secretaryRoot.add(secretarySprite);
     addBathPillow(secretarySprite);
+    secretarySprite.userData.pickRole = 'secretary';
     if (clickables.indexOf(secretarySprite) === -1) {
       clickables.push(secretarySprite);
     }
@@ -1098,9 +1221,12 @@ export function mountPrivateTeamScene(canvas, opts) {
   bubble.position.set(secretaryBubbleX, bubbleRestY, 0.72);
   bubble.renderOrder = 3;
   bubble.name = 'secretaryBubble';
+  bubble.userData.pickRole = 'secretary';
   root.add(bubble);
 
-  const clickables = [bubble, progMesh];
+  progMesh.userData.pickRole = 'progress';
+
+  const clickables = [bubble, progMesh, atlasRoot];
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const boardCorner = new THREE.Vector3();
@@ -1108,6 +1234,66 @@ export function mountPrivateTeamScene(canvas, opts) {
   const onOpenProgress = typeof (opts && opts.onOpenProgress) === 'function' ? opts.onOpenProgress : null;
   const onProgressBoardRect = typeof (opts && opts.onProgressBoardRect) === 'function' ? opts.onProgressBoardRect : null;
   let sceneInputEnabled = true;
+
+  function pickRoleFromObject(obj) {
+    let cur = obj;
+    while (cur) {
+      const role = cur.userData && cur.userData.pickRole;
+      if (role) return role;
+      cur = cur.parent;
+    }
+    return null;
+  }
+
+  function setBronzeHover(next) {
+    bronzeHover = !!next;
+    if (!atlasRoot) return;
+    atlasRoot.traverse((obj) => {
+      if (!obj.isMesh || !obj.material) return;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (let i = 0; i < mats.length; i++) {
+        const m = mats[i];
+        if (!m || !m.isMeshStandardMaterial) continue;
+        const base = bronzeEnvBase.get(m);
+        if (base == null) continue;
+        m.envMapIntensity = bronzeHover && !reducedMotion ? base + 0.22 : base;
+      }
+    });
+  }
+
+  function beginAtlasBronzeLoad() {
+    void (async () => {
+      try {
+        const mod = await import('./vendor/GLTFLoader.js');
+        const GLTFLoader = mod.GLTFLoader;
+        const loader = new GLTFLoader();
+        const gltf = await new Promise((resolve, reject) => {
+          loader.load(BRONZE_GLB_URL, resolve, undefined, reject);
+        });
+        if (!running) return;
+        const model = gltf.scene;
+        model.traverse((obj) => {
+          if (obj.isMesh) obj.userData.pickRole = 'atlas';
+        });
+        const bounds = new THREE.Box3().setFromObject(model);
+        const modelHeight = Math.max(0.01, bounds.max.y - bounds.min.y);
+        const scale = BRONZE_DISPLAY_HEIGHT / (modelHeight || BRONZE_NATIVE_HEIGHT);
+        model.scale.setScalar(scale);
+        bounds.setFromObject(model);
+        model.position.y = -bounds.min.y;
+        if (!bronzeEnvMap) {
+          bronzeEnvMap = makeBronzeEnvMap(renderer);
+          if (bronzeEnvMap) scene.environment = bronzeEnvMap;
+        }
+        applyBronzeEnvMap(model, bronzeEnvMap, bronzeEnvBase);
+        atlasRoot.add(model);
+      } catch (err) {
+        console.warn('[PrivateTeam] 銅人載入失敗', err);
+      }
+    })();
+  }
+
+  beginAtlasBronzeLoad();
 
   const activePointers = new Map();
   let pinchActive = false;
@@ -1158,11 +1344,9 @@ export function mountPrivateTeamScene(canvas, opts) {
     pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObjects(clickables, false);
+    const hits = raycaster.intersectObjects(clickables, true);
     if (!hits.length) return null;
-    const obj = hits[0].object;
-    if (obj === progMesh) return 'progress';
-    return 'secretary';
+    return pickRoleFromObject(hits[0].object);
   }
 
   function handlePointerDown(ev) {
@@ -1183,8 +1367,12 @@ export function mountPrivateTeamScene(canvas, opts) {
       if (onOpenProgress) onOpenProgress();
       return;
     }
+    if (target === 'atlas') {
+      if (onActivate) onActivate('atlas');
+      return;
+    }
     playSecretaryWave();
-    if (onActivate) onActivate();
+    if (onActivate) onActivate('secretary');
   }
 
   function handlePointerMove(ev) {
@@ -1194,6 +1382,13 @@ export function mountPrivateTeamScene(canvas, opts) {
       const dist = pointerDistance();
       applyZoom(privateTeamPinchZoomFactor(pinchStartZoom, pinchStartDist, dist));
       ev.preventDefault();
+      return;
+    }
+    if (!pinchActive && sceneInputEnabled) {
+      const hover = pickTarget(ev.clientX, ev.clientY);
+      const pointerOn = hover === 'atlas' || hover === 'secretary' || hover === 'progress';
+      canvas.style.cursor = pointerOn ? 'pointer' : '';
+      setBronzeHover(hover === 'atlas');
     }
   }
 
@@ -1362,6 +1557,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
     bubble.lookAt(camera.position);
     lampHalo.lookAt(camera.position);
+    if (atlasNameplate) atlasNameplate.lookAt(camera.position);
 
     renderer.render(scene, camera);
   }
@@ -1409,6 +1605,8 @@ export function mountPrivateTeamScene(canvas, opts) {
       canvas.removeEventListener('pointerup', handlePointerUp);
       canvas.removeEventListener('pointercancel', handlePointerUp);
       canvas.removeEventListener('wheel', onWheel);
+      if (bronzeEnvMap) bronzeEnvMap.dispose();
+      scene.environment = null;
       renderer.dispose();
     }
   };
