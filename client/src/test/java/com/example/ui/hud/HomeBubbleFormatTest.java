@@ -64,6 +64,16 @@ public class HomeBubbleFormatTest {
     }
 
     @Test
+    public void hidesCheckInLinesWhenUiHidden() {
+        HomeBrief brief = HomeBrief.testSnapshot(1, 0, 2, 0, "任務", "08:00", "");
+        CheckInTask next = task("每日", LocalDateTime.now().plusHours(2), TaskStatus.SCHEDULED);
+        HomeBubbleFormat.BubbleLine line = HomeBubbleFormat.resolve(brief, List.of(next), "", "", false);
+        assertTrue(!line.openLog);
+        assertTrue(!line.text.contains("失敗"));
+        assertTrue(!line.text.contains("每日"));
+    }
+
+    @Test
     public void allDoneMessageWhenNoWaiting() {
         HomeBrief brief = HomeBrief.testSnapshot(2, 0, 0, 0, null, "", "");
         HomeBubbleFormat.BubbleLine line = HomeBubbleFormat.resolve(brief, List.of(), "", "");

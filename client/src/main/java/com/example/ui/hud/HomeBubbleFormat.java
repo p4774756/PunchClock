@@ -39,16 +39,27 @@ public final class HomeBubbleFormat {
             List<CheckInTask> tasks,
             String eventFlash,
             String moodLine) {
-        if (brief != null && brief.failed > 0) {
-            return new BubbleLine("有任務失敗了，點我查看日誌。", true);
-        }
-        CheckInTask next = pickNext(tasks);
-        if (next != null) {
-            return new BubbleLine(formatNext(next), false);
-        }
-        if (brief != null && brief.hasWork() && brief.waiting == 0 && brief.failed == 0
-                && brief.done > 0) {
-            return new BubbleLine("今天的排程都完成了，做得好 ♡", false);
+        return resolve(brief, tasks, eventFlash, moodLine, true);
+    }
+
+    public static BubbleLine resolve(
+            HomeBrief brief,
+            List<CheckInTask> tasks,
+            String eventFlash,
+            String moodLine,
+            boolean showCheckIn) {
+        if (showCheckIn) {
+            if (brief != null && brief.failed > 0) {
+                return new BubbleLine("有任務失敗了，點我查看日誌。", true);
+            }
+            CheckInTask next = pickNext(tasks);
+            if (next != null) {
+                return new BubbleLine(formatNext(next), false);
+            }
+            if (brief != null && brief.hasWork() && brief.waiting == 0 && brief.failed == 0
+                    && brief.done > 0) {
+                return new BubbleLine("今天的排程都完成了，做得好 ♡", false);
+            }
         }
         if (eventFlash != null && !eventFlash.isBlank()) {
             return new BubbleLine(eventFlash.trim(), false);

@@ -102,6 +102,22 @@ public class AnimeShellNavTest {
     }
 
     @Test
+    public void hiddenCheckInUiOmitsScheduleNavSlot() {
+        JTabbedPane tabs = new JTabbedPane();
+        for (int i = 0; i < 4; i++) {
+            tabs.addTab("", new javax.swing.JPanel());
+        }
+        AnimeShell shell = new AnimeShell(null, tabs);
+        shell.setCheckInUiVisible(false);
+        assertEquals(4, shell.visibleNavSlotCountForTests());
+        assertEquals("好友傳檔", AnimeShell.navLabel(shell.navIdForSlotForTests(1)));
+        shell.openTab(0);
+        assertTrue(shell.isHoldingHome());
+        shell.setCheckInUiVisible(true);
+        assertEquals(5, shell.visibleNavSlotCountForTests());
+    }
+
+    @Test
     public void navLabelsFitAtMinimumWidth() {
         BufferedImage scratch = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = scratch.createGraphics();

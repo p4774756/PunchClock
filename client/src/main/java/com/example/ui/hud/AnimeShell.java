@@ -86,6 +86,7 @@ public final class AnimeShell extends JPanel {
     private Rectangle miniStartBounds;
     private boolean miniDragging;
     private int friendNavUnread;
+    private boolean checkInUiVisible = true;
 
     public AnimeShell(SchedulerService scheduler, JTabbedPane tabs) {
         super(null);
@@ -248,7 +249,10 @@ public final class AnimeShell extends JPanel {
             return;
         }
         friendNavUnread = next;
-        repaint(tabHitBox(2));
+        int slot = navSlotForId(2);
+        if (slot >= 0) {
+            repaint(tabHitBox(slot));
+        }
     }
 
     public void flashEvent(String text, long millis) {
@@ -267,6 +271,10 @@ public final class AnimeShell extends JPanel {
     }
 
     public void openTab(int index) {
+        if (!checkInUiVisible && index == 0) {
+            showHome();
+            return;
+        }
         holdingHome = false;
         if (index >= 0 && index < tabs.getTabCount() && tabs.getSelectedIndex() != index) {
             tabs.setSelectedIndex(index);
@@ -308,13 +316,60 @@ public final class AnimeShell extends JPanel {
         }
     }
 
-    private static int navIndexForTab(int tab) {
+    private int navIndexForTab(int tab) {
         for (int i = 0; i < NAV_TO_TAB.length; i++) {
             if (NAV_TO_TAB[i] == tab) {
-                return i;
+                return navSlotForId(i);
             }
         }
         return 0;
+    }
+
+    public void setCheckInUiVisible(boolean visible) {
+        if (checkInUiVisible == visible) {
+            return;
+        }
+        checkInUiVisible = visible;
+        if (!visible && !holdingHome && tabs.getSelectedIndex() == 0) {
+            showHome();
+        }
+        refreshBubble();
+        revalidate();
+        repaint();
+        refreshChrome();
+    }
+
+    boolean checkInUiVisibleForTests() {
+        return checkInUiVisible;
+    }
+
+    int visibleNavSlotCountForTests() {
+        return navSlotCount();
+    }
+
+    int navIdForSlotForTests(int slot) {
+        return navIdForSlot(slot);
+    }
+
+    private int navSlotCount() {
+        return checkInUiVisible ? NAV.length : NAV.length - 1;
+    }
+
+    private int navIdForSlot(int slot) {
+        if (checkInUiVisible || slot < 1) {
+            return slot;
+        }
+        return slot + 1;
+    }
+
+    private int navSlotForId(int id) {
+        if (checkInUiVisible || id <= 0) {
+            return id;
+        }
+        if (id == 1) {
+            return -1;
+        }
+        return id - 1;
     }
 
     public void followTab() {
@@ -474,6 +529,9 @@ public final class AnimeShell extends JPanel {
             if (previous == null || previous == status) {
                 continue;
             }
+            if (!checkInUiVisible) {
+                continue;
+            }
             if (status == TaskStatus.SUCCESS) {
                 board.sayDone();
                 repaint(board.bubbleArea());
@@ -495,16 +553,16 @@ public final class AnimeShell extends JPanel {
         List<CheckInTask> tasks = homeActions == null ? List.of() : homeActions.tasks();
         String mood = homeActions == null ? "" : homeActions.moodLine();
         String flash = eventUntil > System.currentTimeMillis() ? eventFlash : "";
-        board.setBubble(HomeBubbleFormat.resolve(brief, tasks, flash, mood));
+        board.setBubble(HomeBubbleFormat.resolve(brief, tasks, flash, mood, checkInUiVisible));
     }
 
     private int hit(int x, int y) {
         if (miniMode) {
             return -2;
         }
-        for (int i = 0; i < NAV.length; i++) {
-            if (tabHitBox(i).contains(x, y)) {
-                return i;
+        for (int slot = 0; slot < navSlotCount(); slot++) {
+            if (tabHitBox(slot).contains(x, y)) {
+                return navIdForSlot(slot);
             }
         }
         if (holdingHome) {
@@ -567,11 +625,14 @@ public final class AnimeShell extends JPanel {
         g.setColor(INK);
         String line;
         List<CheckInTask> tasks = homeActions == null ? List.of() : homeActions.tasks();
-        CheckInTask next = HomeBubbleFormat.resolve(brief, tasks, "", "").text.contains("失敗")
-                ? null : pickNextForMini(tasks);
+        CheckInTask next = null;
+        if (checkInUiVisible) {
+            next = HomeBubbleFormat.resolve(brief, tasks, "", "", true).text.contains("失敗")
+                    ? null : pickNextForMini(tasks);
+        }
         if (next != null) {
             line = HomeBubbleFormat.formatNext(next);
-        } else if (brief != null && brief.nextName != null) {
+        } else if (checkInUiVisible && brief != null && brief.nextName != null) {
             line = brief.nextTime + " " + brief.nextName;
         } else {
             line = AppBranding.DISPLAY_NAME + " · 點一下展開";
@@ -613,10 +674,11 @@ public final class AnimeShell extends JPanel {
         g.setColor(new Color(120, 100, 168));
         g.drawLine(bar.x, bar.y, bar.x + bar.width, bar.y);
         int selected = holdingHome ? 0 : navIndexForTab(tabs.getSelectedIndex());
-        for (int i = 0; i < NAV.length; i++) {
-            paintNavSlot(g, tabHitBox(i), TabNavIcon.navIconId(i), NAV[i], selected == i, hot == i, false);
-            if (i == 2 && friendNavUnread > 0) {
-                paintNavUnreadBadge(g, tabHitBox(i));
+        for (int slot = 0; slot < navSlotCount(); slot++) {
+            int id = navIdForSlot(slot);
+            paintNavSlot(g, tabHitBox(slot), TabNavIcon.navIconId(id), NAV[id], selected == slot, hot == id, false);
+            if (id == 2 && friendNavUnread > 0) {
+                paintNavUnreadBadge(g, tabHitBox(slot));
             }
         }
     }
@@ -678,11 +740,11 @@ public final class AnimeShell extends JPanel {
         return new java.awt.Rectangle(0, 0, getWidth(), Math.max(0, bar.y));
     }
 
-    java.awt.Rectangle tabHitBox(int index) {
+    java.awt.Rectangle tabHitBox(int slot) {
         java.awt.Rectangle bar = tabBarBounds();
-        int slots = NAV.length;
+        int slots = navSlotCount();
         int slotW = Math.max(36, bar.width / slots);
-        int x = index * slotW;
+        int x = slot * slotW;
         return new java.awt.Rectangle(bar.x + x, bar.y, slotW, bar.height);
     }
 
