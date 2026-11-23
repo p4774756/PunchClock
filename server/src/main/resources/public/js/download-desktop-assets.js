@@ -1,9 +1,9 @@
 /** 桌面安裝檔按鈕：伺服器注入網址或查 GitHub Releases latest（與 download-page 共用）。 */
 
 const REPO = 'p4774756/PunchClock';
-const MAC_ARM_NAMES = ['XiaoBaobei-mac-arm.dmg', 'XiaoBaobei-mac.dmg', 'SKLbaby-mac-arm.dmg', 'SKLbaby-mac.dmg'];
-const MAC_INTEL_NAMES = ['XiaoBaobei-mac-intel.dmg', 'SKLbaby-mac-intel.dmg'];
-const WIN_NAMES = ['XiaoBaobei-win.exe', 'SKLbaby-win.exe'];
+const MAC_ARM_NAMES = ['SKLbaby-mac-arm.dmg', 'SKLbaby-mac.dmg', 'XiaoBaobei-mac-arm.dmg', 'XiaoBaobei-mac.dmg'];
+const MAC_INTEL_NAMES = ['SKLbaby-mac-intel.dmg', 'XiaoBaobei-mac-intel.dmg'];
+const WIN_NAMES = ['SKLbaby-win.exe', 'XiaoBaobei-win.exe'];
 
 function assetUrl(release, filename) {
   if (!release || !release.assets) return '';

@@ -14,8 +14,8 @@ import java.util.regex.Pattern;
 public final class ClientUpdatePolicy {
 
     public static final String GITHUB_REPO = "p4774756/PunchClock";
-    public static final String RELEASE_JAR_FILENAME = "XiaoBaobei.jar";
-    public static final String LEGACY_RELEASE_JAR_FILENAME = "SKLbaby.jar";
+    public static final String RELEASE_JAR_FILENAME = "SKLbaby.jar";
+    public static final String LEGACY_RELEASE_JAR_FILENAME = "XiaoBaobei.jar";
     public static final String GITHUB_JAR_DOWNLOAD_PREFIX =
             "https://github.com/" + GITHUB_REPO + "/releases/download/";
     public static final String GITHUB_LATEST_JAR_URL =
