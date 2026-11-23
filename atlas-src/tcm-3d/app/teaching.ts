@@ -20,7 +20,7 @@ export const REGIONS:{id:RegionId;name:string;example:string}[]=[
  {id:'waist',name:'腰背',example:'BL23'}, {id:'leg',name:'膝腿足',example:'ST36'},
 ];
 /** Classroom lesson sets. Textbook sets first; interim practice sets fill gaps between classes. */
-export type CurriculumSetId='head-neck-21'|'trunk-30'|'back-shu-14'|'hip-sacral-6'|'common-10';
+export type CurriculumSetId='head-neck-21'|'trunk-30'|'back-shu-14'|'hip-sacral-6'|'arm-joints-15'|'common-10';
 export interface CurriculumSet {id:CurriculumSetId;name:string;shortName:string;lesson:string;codes:readonly string[];status:'reviewed'|'pending'}
 export const CURRICULUM_SETS:CurriculumSet[]=[
  {id:'head-neck-21',name:'基準穴 · 頭頸部',shortName:'頭頸 21',lesson:'陸／一 頭頸部基準穴',status:'reviewed',codes:[
@@ -36,6 +36,9 @@ export const CURRICULUM_SETS:CurriculumSet[]=[
  ]},
  {id:'hip-sacral-6',name:'課堂 · 薦骨臀髖',shortName:'臀髖 6',lesson:'2026-11-22 薦骨四穴與髖關節兩穴',status:'pending',codes:[
   'GV2','BL34','BL30','BL54','GB30','SP12',
+ ]},
+ {id:'arm-joints-15',name:'課堂 · 肩肘腕關節',shortName:'肩肘腕 15',lesson:'2026-11-22 肩 3、肘 6、腕 6 關節穴',status:'pending',codes:[
+  'LI15','TE14','SI10','LU5','PC3','HT3','LI11','TE10','SI8','LU9','PC7','HT7','LI5','TE4','SI5',
  ]},
  {id:'common-10',name:'常用穴 · 暫代練習',shortName:'常用 10',lesson:'課堂空檔暫代：合谷、足三里等；週日教材到後再接下一節基準穴',status:'pending',codes:[
   'LI4','ST36','SP6','LR3','PC6','TE5','GB20','GB21','BL40','KI1',
@@ -140,6 +143,21 @@ export const LOCATION:Record<string,{text:string;section:string;classic?:string;
  BL54:{text:'與腰俞同高，後正中線旁開 3 寸（白環俞再旁開 1.5 寸；與志室同側線）。',section:'',curriculum:'2026-11-22 薦骨四穴與髖關節兩穴'},
  GB30:{text:'側臥屈膝、腳跟抵臀時髖部；站姿示意向臀部外下與股骨頸外側之間。',section:'',curriculum:'2026-11-22 薦骨四穴與髖關節兩穴'},
  SP12:{text:'腹股溝外側，股動脈搏動處稍外側。',section:'',curriculum:'2026-11-22 薦骨四穴與髖關節兩穴'},
+ LI15:{text:'手臂往前平舉時肩關節前面的凹陷；站姿示意向肩峰前方換算。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ TE14:{text:'手臂往外平舉時肩膀外端後側的凹陷；站姿示意向肩峰後外側換算。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ SI10:{text:'從腋後皺紋上端往上推到肩胛岡下緣、稍偏外；站姿示意向肩胛岡下後外。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ LU5:{text:'肘橫紋上，肘窩大筋（肱二頭肌腱）外側（肺經）。屈肘找橫紋再換算站姿皮膚。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ PC3:{text:'肘橫紋上，大筋內側（心包經）。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ HT3:{text:'屈肘後肘橫紋內側端盡頭（心經）。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ LI11:{text:'屈肘後肘橫紋外側端與肱骨外上髁之間（大腸經）。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ TE10:{text:'屈肘約 45 度，肘尖（尺骨鷹嘴）往上 1 寸凹陷（三焦經）。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ SI8:{text:'屈肘時肘尖與內上髁之間、尺神經溝一帶凹陷（小腸經）。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ LU9:{text:'腕橫紋橈側端，橈動脈橈側（肺經）。掌側由拇指往小指：肺、心包、心。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ PC7:{text:'掌側腕橫紋正中（心包經）。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ HT7:{text:'腕橫紋尺側，豌豆骨旁凹陷（心經）。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ LI5:{text:'拇指上翹時手背腕部兩筋之間（大腸經；講義作陽谿）。手背：大腸、三焦、小腸。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ TE4:{text:'手背腕橫紋正中（三焦經）。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
+ SI5:{text:'手背腕橫紋尺側凹陷（小腸經；講義作陽谷）。',section:'',curriculum:'2026-11-22 肩肘腕關節 15 穴'},
 };
 export interface SurfaceTarget {position:Vec3;normal:Vec3;meshId?:string;faceIndex?:number|null;pointCode?:string;pointSide?:1|-1}
 export type ToolDragPhase='start'|'move'|'end'|'cancel';

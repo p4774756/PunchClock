@@ -27,6 +27,8 @@ export const COLLINEAR_GROUPS = [
   {name: '啞門平天柱', axis: 'y', codes: ['GV15', 'BL10'], anchor: 'GV15'},
   {name: '外眼角直線（x）', axis: 'x', codes: ['TE23', 'SI18'], anchor: 'SI18'},
   {name: '耳前線（側面 z）', axis: 'z', codes: ['TE21', 'SI19', 'GB2']},
+  {name: '肘橫紋列', axis: 'y', codes: ['LU5', 'PC3', 'HT3', 'LI11', 'SI8'], anchor: 'LU5'},
+  {name: '腕橫紋列', axis: 'y', codes: ['LU9', 'PC7', 'HT7', 'LI5', 'TE4', 'SI5'], anchor: 'LU9'},
 ];
 
 /** Chest / abdomen lateral cun from midline; anchor ST17 = 4 cun at x. */

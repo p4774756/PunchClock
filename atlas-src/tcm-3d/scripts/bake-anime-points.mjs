@@ -46,6 +46,13 @@ scene.updateMatrixWorld(true);
 const wp=name=>{const o=scene.getObjectByName(name);const v=new T.Vector3();o.getWorldPosition(v);return v;};
 const head=wp('J_Bip_C_Head'),neck=wp('J_Bip_C_Neck'),eyeL=wp('J_Adj_L_FaceEye'),eyeR=wp('J_Adj_R_FaceEye');
 const shoulderL=wp('J_Bip_L_Shoulder');
+const upperArmL=wp('J_Bip_L_UpperArm');
+const lowerArmL=wp('J_Bip_L_LowerArm');
+const handL=wp('J_Bip_L_Hand');
+const elbowX=Math.abs(lowerArmL.x);
+const elbowY=(upperArmL.y+lowerArmL.y)/2;
+const wristX=Math.abs(handL.x);
+const wristY=handL.y;
 const eyeMid=eyeL.clone().add(eyeR).multiplyScalar(.5);
 const CUN_LATERAL=.055/4;
 const pupilLineX=.0298;
@@ -113,9 +120,27 @@ const seeds={
  // 臀髖 6（2026-11-22）：薦骨四穴在命門／腎俞下方；環跳為站姿臀外下（側臥屈膝腳跟抵臀換算）。
  GV2:[0,0.905,.095],BL34:[.03*L,0.905,.095],BL30:[.03*L,0.905,.095],BL54:[.055*L,0.905,.095],
  GB30:[.105*L,0.915,.045],SP12:[.055*L,0.885,-.11],
+ // 肩肘腕 15（2026-11-22）：角色為垂臂略外展站姿，取穴動作只作骨性標誌再換算皮膚位置。
+ // 掌側由橈至尺：肺／心包／心；手背：大腸／三焦／小腸。
+ LI15:[(.08)*L,shoulderL.y-.005,shoulderL.z-.04],
+ TE14:[(.12)*L,shoulderL.y,shoulderL.z+.06],
+ SI10:[(.16)*L,shoulderL.y-.04,shoulderL.z+.07],
+ LU5:[elbowX*L,elbowY,lowerArmL.z-.04],
+ PC3:[(elbowX-.012)*L,elbowY-.004,lowerArmL.z-.045],
+ HT3:[(elbowX+.01)*L,elbowY-.004,lowerArmL.z-.048],
+ LI11:[elbowX*L,elbowY,lowerArmL.z+.028],
+ TE10:[elbowX*L,elbowY+.015,lowerArmL.z+.017],
+ SI8:[(elbowX+.015)*L,elbowY-.002,lowerArmL.z+.038],
+ LU9:[(wristX-.022)*L,wristY,handL.z-.038],
+ PC7:[wristX*L,wristY,handL.z-.042],
+ HT7:[(wristX+.018)*L,wristY,handL.z-.04],
+ LI5:[(wristX-.028)*L,wristY,handL.z+.022],
+ TE4:[wristX*L,wristY,handL.z+.025],
+ SI5:[(wristX+.022)*L,wristY,handL.z+.02],
 };
 const midline=new Set(['GV20','GV23','GV24+','GV26','CV24','CV23','CV22','GV16','GV15','GV14','CV17','CV14','CV8','GV4','GV2']);
 const hipSacralSet=new Set(['GV2','BL34','BL30','BL54','GB30','SP12']);
+const armJointsSet=new Set(['LI15','TE14','SI10','LU5','PC3','HT3','LI11','TE10','SI8','LU9','PC7','HT7','LI5','TE4','SI5']);
 const backShuSet=new Set(['BL11','BL12','BL13','BL15','BL16','BL17','BL18','BL19','BL20','BL21','BL22']);
 const trunkSet=new Set(['TE21','SI19','GB2','ST6','TE17','GB21','ST12','GV16','GB20','GV15','BL10','GV14','CV17','KI23','ST17','PC1','SP18','CV14','CV8','KI16','ST25','SP15','GB26','BL14','BL43','SI11','SI9','GV4','BL23','BL52']);
 
@@ -131,6 +156,15 @@ const preferFor=(code,arr)=>{
  if(code==='SI11')return new T.Vector3(arr[0]*.25,-.05,1).normalize();
  if(code==='GB30')return new T.Vector3(arr[0]*.45,-.15,1).normalize();
  if(code==='SP12')return new T.Vector3(0,-.05,-1).normalize();
+ if(code==='LI15')return new T.Vector3(0,0,-1);
+ if(code==='TE14')return new T.Vector3(arr[0],-.15,1).normalize();
+ if(code==='SI10')return new T.Vector3(arr[0]*.3,-.1,1).normalize();
+ if(['LU5','PC3','HT3'].includes(code))return new T.Vector3(0,0,-1);
+ if(code==='LI11')return new T.Vector3(arr[0],0,.2).normalize();
+ if(code==='TE10')return new T.Vector3(0,-.05,1).normalize();
+ if(code==='SI8')return new T.Vector3(arr[0]*.3,-.05,1).normalize();
+ if(['LU9','PC7','HT7'].includes(code))return new T.Vector3(0,0,-1);
+ if(['LI5','TE4','SI5'].includes(code))return new T.Vector3(arr[0],0,.15).normalize();
  const catalog=teachingByCode.get(code);
  if(catalog?.normal?.length===3){
   // Catalog: +X anatomical left, +Z front. Anime seeds: L=-1 world X, −Z front.
@@ -160,7 +194,7 @@ for(const code of targetCodes){
  else {pos[0]=0;}
  const catalogPoint=teachingByCode.get(code);
  const name=catalogPoint?.name??byCode.get(code)?.name??code;
- const defaultSet=hipSacralSet.has(code)?'hip-sacral-6':backShuSet.has(code)?'back-shu-14':trunkSet.has(code)?'trunk-30':'head-neck-21';
+ const defaultSet=armJointsSet.has(code)?'arm-joints-15':hipSacralSet.has(code)?'hip-sacral-6':backShuSet.has(code)?'back-shu-14':trunkSet.has(code)?'trunk-30':'head-neck-21';
  const entry={code,name,midline:midline.has(code)||!!catalogPoint?.midline,position:pos,normal:nor,reviewed:true,set:byCode.get(code)?.set??defaultSet};
  byCode.set(code,entry);
  updated.push(code);
@@ -228,6 +262,10 @@ if(si18&&gb1){
 }
 
 if(codesFilter){
+ const elbowLine=['LU5','PC3','HT3','LI11','SI8'];
+ if(elbowLine.some(c=>codesFilter.includes(c))) realignGroup(elbowLine,'y','LU5');
+ const wristLine=['LU9','PC7','HT7','LI5','TE4','SI5'];
+ if(wristLine.some(c=>codesFilter.includes(c))) realignGroup(wristLine,'y','LU9');
  const sacralLine=['GV2','BL34','BL30','BL54'];
  if(sacralLine.some(c=>codesFilter.includes(c))){
   realignGroup(sacralLine,'y','GV2');
@@ -251,7 +289,7 @@ if(codesFilter){
 
 const points=[...byCode.values()].sort((a,b)=>a.code.localeCompare(b.code));
 const payload={
- model:'anime-assistant.glb',character:'Sendagaya Shino',license:'CC0 1.0 (VRoid Studio beta sample)',set:'head-neck-21+trunk-30+back-shu-14+hip-sacral-6',
+ model:'anime-assistant.glb',character:'Sendagaya Shino',license:'CC0 1.0 (VRoid Studio beta sample)',set:'head-neck-21+trunk-30+back-shu-14+hip-sacral-6+arm-joints-15',
  faceAxis:'-Z',sideConvention:'position.x>0 means anatomical left; anime runtime flips X to -X for left',
  note:'穴位依解剖比例與臉部／軀幹骨骼標誌吸附到角色皮膚；教學示意，非臨床取穴。合併寫入，不會清空既有穴。',
  points,
