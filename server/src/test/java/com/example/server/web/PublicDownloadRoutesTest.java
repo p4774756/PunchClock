@@ -36,7 +36,7 @@ public class PublicDownloadRoutesTest {
     private static final String SHA =
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     private static final String DOWNLOAD =
-            "https://github.com/p4774756/PunchClock/releases/download/v1.8.0/SKLbaby.jar";
+            "https://github.com/p4774756/PunchClock/releases/download/v1.8.0/XiaoBaobei.jar";
 
     private Javalin app;
     private HttpClient http;
@@ -61,8 +61,9 @@ public class PublicDownloadRoutesTest {
         HttpResponse<String> page = get("/download");
         assertEquals(200, page.statusCode());
         String body = page.body();
-        assertTrue(body.contains("SKLbaby.jar"));
-        assertTrue(body.contains("下載 SKLbaby.jar（v1.8.0）"));
+        assertTrue(body.contains("下載小寶貝"));
+        assertTrue(body.contains("XiaoBaobei.jar"));
+        assertTrue(body.contains("下載 XiaoBaobei.jar（v1.8.0）"));
         assertTrue(body.contains(DOWNLOAD));
         assertTrue(body.contains("data-download-missing hidden"));
         assertFalse(body.contains("punchclock-client-standalone"));
@@ -98,7 +99,7 @@ public class PublicDownloadRoutesTest {
         String body = page.body();
         assertTrue(body.contains(ClientUpdatePolicy.GITHUB_LATEST_JAR_URL));
         assertTrue(body.contains("data-download-missing hidden"));
-        assertTrue(body.contains("下載 SKLbaby.jar（v）"));
+        assertTrue(body.contains("下載 XiaoBaobei.jar（v）"));
     }
 
     @Test
@@ -140,7 +141,7 @@ public class PublicDownloadRoutesTest {
                     assertTrue(missingHiddenAttr);
                     assertTrue(page.locator("[data-download-jar]").isVisible());
                     if (available) {
-                        assertTrue(text.contains("下載 SKLbaby.jar（v1.8.0）"));
+                        assertTrue(text.contains("下載 XiaoBaobei.jar（v1.8.0）"));
                         assertNotNull(page.locator("[data-download-jar]").boundingBox());
                     }
                     assertNull(page.locator("[data-download-missing]").boundingBox());
