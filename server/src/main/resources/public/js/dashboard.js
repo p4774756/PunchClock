@@ -350,8 +350,7 @@
 
       const isConnected = c.status !== 'OFFLINE';
       const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
-      const transportLabel = c.transport === 'http' ? 'HTTP' : (c.transport || '-');
-      const badgeText = buildDeviceHeadBadgeText(isConnected, transportLabel, tasks);
+      const badgeText = buildDeviceHeadBadgeText(isConnected, undefined, tasks);
 
       const headChip = root.querySelector('.device-head-right .chip');
       if (headChip) {
@@ -712,8 +711,7 @@
         const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
 
         const badgeClass = buildDeviceHeadChipClass(isConnected, tasks);
-        const transportLabel = c.transport === 'http' ? 'HTTP' : (c.transport || '-');
-        const badgeText = buildDeviceHeadBadgeText(isConnected, transportLabel, tasks);
+        const badgeText = buildDeviceHeadBadgeText(isConnected, undefined, tasks);
 
         const logLines = visibleLogLines(c);
         const logContent = logLines.length > 0
