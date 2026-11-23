@@ -39,7 +39,7 @@ const SPAN_LABEL = {
   leg: '膝中至外踝尖',
 };
 
-const PHASE_EXCLUDED = ['KI23', 'PC1', 'SP18', 'KI16', 'SP15', 'GB26'];
+const PHASE_EXCLUDED = ['GB26'];
 
 function fmtPos(p) {
   return `[${p.map(v => Number(v).toFixed(4)).join(', ')}]`;
