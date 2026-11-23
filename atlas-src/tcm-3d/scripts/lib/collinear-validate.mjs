@@ -29,6 +29,7 @@ export const COLLINEAR_GROUPS = [
   {name: '耳前線（側面 z）', axis: 'z', codes: ['TE21', 'SI19', 'GB2']},
   {name: '肘橫紋列', axis: 'y', codes: ['LU5', 'PC3', 'HT3', 'LI11', 'SI8'], anchor: 'LU5'},
   {name: '腕橫紋列', axis: 'y', codes: ['LU9', 'PC7', 'HT7', 'LI5', 'TE4', 'SI5'], anchor: 'LU9'},
+  {name: '薦骨腰俞同高列', axis: 'y', codes: ['GV2', 'BL34', 'BL30', 'BL54'], anchor: 'GV2'},
 ];
 
 /** Chest / abdomen lateral cun from midline; anchor ST17 = 4 cun at x. */
@@ -115,6 +116,47 @@ export function validateCollinearSeeds(animeJson, opts = {}) {
       if (errCun > CUN_TOLERANCE) {
         failures.push(`瞳子髎 GB1 應為外眼角線 +0.5 寸（誤差 ${errCun.toFixed(2)} 寸）`);
       }
+    }
+  }
+
+  const hipSacral = ['GV2', 'BL34', 'BL30', 'BL54'];
+  const hipPresent = hipSacral.filter(c => byCode.has(c));
+  const minSepM = 0.008;
+  for (let i = 0; i < hipPresent.length; i++) {
+    for (let j = i + 1; j < hipPresent.length; j++) {
+      const a = byCode.get(hipPresent[i]);
+      const b = byCode.get(hipPresent[j]);
+      const dx = a.position[0] - b.position[0];
+      const dy = a.position[1] - b.position[1];
+      const dz = a.position[2] - b.position[2];
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (dist < minSepM - 1e-9) {
+        failures.push(`${hipPresent[i]} 與 ${hipPresent[j]} 距離 ${(dist * 1000).toFixed(2)} mm（臀薦區須 ≥ ${minSepM * 1000} mm）`);
+      }
+    }
+  }
+
+  const bl34 = byCode.get('BL34');
+  const bl30 = byCode.get('BL30');
+  if (bl34 && bl30 && bl34.position[0] >= bl30.position[0] - 0.004) {
+    failures.push(`下髎 BL34 應比白環俞 BL30 更靠正中（x ${bl34.position[0]} vs ${bl30.position[0]}）`);
+  }
+
+  const midlineMaxM = 0.002;
+  for (const code of ['GV2']) {
+    const p = byCode.get(code);
+    if (p?.midline && Math.abs(p.position[0]) > midlineMaxM + 1e-9) {
+      failures.push(`${code} 正中線 |x|=${Math.abs(p.position[0]) * 1000} mm（須 < ${midlineMaxM * 1000} mm）`);
+    }
+  }
+
+  const backMidlineMaxNx = 0.2;
+  for (const code of ['GV2', 'GV4', 'GV14']) {
+    const p = byCode.get(code);
+    if (!p) continue;
+    const nx = Math.abs(p.normal?.[0] ?? 0);
+    if (nx > backMidlineMaxNx + 1e-9) {
+      failures.push(`${code} 後背正中法線 |normal.x|=${nx.toFixed(3)}（須 < ${backMidlineMaxNx}）`);
     }
   }
 
