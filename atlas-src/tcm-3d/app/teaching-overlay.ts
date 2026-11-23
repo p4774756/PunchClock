@@ -163,6 +163,18 @@ export function createTeachingOverlay(
   lastMeridianKey='';
   anchored=true;
  };
+ /** Adult rig: re-resolve dot + surface from bone bindings (standing pose, not T-pose bake). */
+ const syncResolvedPoints=(resolve:(code:string,side:1|-1)=>SurfaceTarget|null)=>{
+  for(const dot of markers){
+   const code=dot.userData.point as string;
+   const side=dot.userData.side as 1|-1;
+   const target=resolve(code,side);
+   if(!target)continue;
+   applySeed(dot,target);
+  }
+  lastMeridianKey='';
+  anchored=true;
+ };
  const reanchor=(characterRoot:T.Object3D)=>{
   if(anchorSnapshot?.size){applyCachedAnchors();return;}
   anchored=false;
@@ -303,7 +315,7 @@ export function createTeachingOverlay(
  };
  const getDraggables=(tool:ToolId)=>{const meshes:T.Object3D[]=[];instruments.get(tool)?.traverseVisible(o=>{if(o instanceof T.Mesh)meshes.push(o);});return meshes;};
  return {
-  root,markers,label,anchor,reanchor,applyCachedAnchors,ensureSkinProxyBake,update,focus,computeFocusPose,getTarget,getDraggables,snapTarget,
+  root,markers,label,anchor,reanchor,applyCachedAnchors,syncResolvedPoints,ensureSkinProxyBake,update,focus,computeFocusPose,getTarget,getDraggables,snapTarget,
   getSkinMeshes:()=>skinMeshes,
   isAnchored:()=>anchored,
   hasSkinProxies:()=>raycastTargets.length>0,

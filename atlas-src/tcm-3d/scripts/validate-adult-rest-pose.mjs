@@ -135,7 +135,7 @@ const resolveY = (code) => {
 };
 const li15y = resolveY('LI15');
 const armBelowShoulderMin = 0.18;
-for (const code of ['LU9', 'LI11', 'HT7']) {
+for (const code of ['LU5', 'LU9', 'LI5', 'LI11', 'HT7']) {
   const y = resolveY(code);
   assert.ok(
     y < li15y - armBelowShoulderMin,

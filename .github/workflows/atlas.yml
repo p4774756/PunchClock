@@ -36,6 +36,7 @@ jobs:
       - run: node scripts/validate-practice-outfit.mjs
       - run: node scripts/validate-adult-outfits.mjs
       - run: node scripts/validate-avatars.mjs
+      - run: node scripts/validate-avatar-scene-restore.mjs
       - run: node scripts/validate-adult-points.mjs
       - run: node scripts/validate-adult-rest-pose.mjs
       - run: node scripts/validate-teaching-anchor.mjs

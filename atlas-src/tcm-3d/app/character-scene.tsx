@@ -47,6 +47,7 @@ import {applyAdultStandingPose,primeAdultStandingPose} from './adult-rest-pose';
 import {buildAdultPointBindings,type AdultPointBindings} from './adult-point-bindings';
 import {tuneCharacterTextures} from './character-texture-tune';
 import {clearAvatarSceneCache,stashAvatarRig,takeAvatarRig,type CachedAvatarRig} from './avatar-scene-cache';
+import {detachCharacterModels,reparentCharacterModel,restoreTeachingOverlay,stashTeachingOverlay} from './avatar-scene-restore';
 import {installSurfaceToolInput} from './surface-tool-input';
 import {focusViewFromNormal} from './focus-view';
 import {buildStudyDecor, type StudyDecor} from './study-decor';
@@ -1523,7 +1524,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     return avatarPointTarget(avatar,code,side);
    },
   });
-  if(!restored?.teaching)el.appendChild(teaching.label);
+  if(restored?.teaching)restoreTeachingOverlay(teaching,scene,el);
+  else el.appendChild(teaching.label);
 
   // Finger-pressure feedback uses teaching-overlay halo/patch only.
   // Do not patch VRM MToon onBeforeCompile — injecting into Face/Body skin
@@ -2102,10 +2104,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       if(isAdultModel){
        const adultVrm=vrm;
        await parseSlice('adult-rest-pose',()=>{
-        adultPointBindings=buildAdultPointBindings(adultVrm,avatar,characterRoot);
-        applyAdultStandingPose(adultVrm);
         tuneCharacterTextures(model,renderer.capabilities.getMaxAnisotropy());
-        adultVrm.update(0);
        });
       }else{
        tuneCharacterTextures(model,renderer.capabilities.getMaxAnisotropy());
@@ -2118,6 +2117,11 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       schoolModel.visible=outfitIdRef.current==='school';
       characterRoot.clear();
       characterRoot.add(schoolModel);
+      if(isAdultModel&&vrm){
+       applyAdultStandingPose(vrm);
+       vrm.update(0);
+       adultPointBindings=buildAdultPointBindings(vrm,avatar,characterRoot);
+      }
      }else if(cacheAdultOutfits){
       adultClothBaseline=snapshotAdultClothMaps(model);
       const launchOutfit=animeOutfitForAvatar('adult',outfitIdRef.current);
@@ -2128,6 +2132,11 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       schoolModel.visible=launchOutfit.adultCloth==='suit'||launchOutfit.adultCloth==='casual';
       characterRoot.clear();
       characterRoot.add(schoolModel);
+      if(isAdultModel&&vrm){
+       applyAdultStandingPose(vrm);
+       vrm.update(0);
+       adultPointBindings=buildAdultPointBindings(vrm,avatar,characterRoot);
+      }
      }else{
       await parseSlice('finish-look',()=>finishCharacterLook(model,animeOutfitForAvatar(avatar.id,outfitIdRef.current),gradient,clothPeekMaterials));
       schoolModel=model;
@@ -2141,6 +2150,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      if(disposed)return;
      const anchorT0=performance.now();
      teaching.anchor(characterRoot);
+     if(adultPointBindings){
+      teaching.syncResolvedPoints((code,side)=>adultPointBindings!.resolve(code,side)??avatarPointTarget(avatar,code,side));
+     }
      logPhase('anchor',anchorT0);
      performance.mark('atlas:cpu-ready');
      try{performance.measure('atlas:cpu-after-download','atlas:phase-gltf-loaded','atlas:cpu-ready');}catch{/* duplicate */}
@@ -2205,6 +2217,9 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     vrm.update(delta);
    }
    adultPointBindings?.refresh();
+   if(adultPointBindings){
+    teaching.syncResolvedPoints((code,side)=>adultPointBindings!.resolve(code,side)??avatarPointTarget(avatar,code,side));
+   }
    const s=latest.current,simState=sim.current;
    toolInput?.update();
    if(s.view!==lastView||s.reset!==lastReset){focusTween=null;fit(s.view);lastView=s.view;lastReset=s.reset;}
@@ -2318,15 +2333,21 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    });
    animate();
    if(restored?.ready){
-    if(vrm&&adultPointBindings)applyAdultStandingPose(vrm);
-    if(schoolModel&&!schoolModel.parent)characterRoot.add(schoolModel);
-    if(practiceModel&&!practiceModel.parent)characterRoot.add(practiceModel);
-    if(sheerModel&&!sheerModel.parent)characterRoot.add(sheerModel);
+    if(vrm&&avatar.id==='adult'){
+     applyAdultStandingPose(vrm);
+     adultPointBindings=buildAdultPointBindings(vrm,avatar,characterRoot);
+    }
+    reparentCharacterModel(schoolModel,characterRoot);
+    reparentCharacterModel(practiceModel,characterRoot);
+    reparentCharacterModel(sheerModel,characterRoot);
     characterRoot.visible=true;
     teachingOverlayVisible=true;
-    teaching.root.visible=true;
+    restoreTeachingOverlay(teaching,scene,el);
     showOutfit(outfitIdRef.current);
-    teaching.applyCachedAnchors();
+    if(adultPointBindings){
+     adultPointBindings.refresh();
+     teaching.syncResolvedPoints((code,side)=>adultPointBindings!.resolve(code,side)??avatarPointTarget(avatar,code,side));
+    }else teaching.applyCachedAnchors();
     fit(latest.current.view);
     reportProgress(100,'done');
     dirty=true;
@@ -2351,8 +2372,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      clothPeekMaterials,ready,skinProxyBakeScheduled,postWarmScheduled,postWarmQueueLen:postWarmQueue.length,
     };
     stashAvatarRig(avatarId,rig);
-    teaching.root.visible=false;
-    characterRoot.clear();
+    stashTeachingOverlay(teaching);
+    detachCharacterModels(characterRoot);
     if(glReady&&renderer?.domElement.parentElement)renderer.domElement.remove();
     return;
    }
