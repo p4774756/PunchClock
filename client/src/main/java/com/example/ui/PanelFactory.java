@@ -151,6 +151,7 @@ public class PanelFactory {
         tabs.addTab("外觀", settingsPage(
                 settingsSection("視窗透明度", boldFont, windowTransparencyRow(refs, mainFont, boldFont)),
                 settingsSection("首頁插畫", boldFont, homeIllustrationRow(refs, mainFont, boldFont)),
+                settingsSection("打卡介面", boldFont, checkInUiRow(refs, mainFont, boldFont)),
                 settingsSection("桌面寵物", boldFont, desktopPetRow(refs, mainFont, boldFont))));
         tabs.setToolTipTextAt(1, "視窗透明度與桌面寵物");
         tabs.addTab("中繼", settingsPage(
@@ -374,6 +375,50 @@ public class PanelFactory {
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
         hint.setAlignmentX(Component.LEFT_ALIGNMENT);
         column.add(row);
+        column.add(Box.createVerticalStrut(4));
+        column.add(hint);
+        return column;
+    }
+
+    private static JPanel checkInUiRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
+        refs.checkInUiVisibleSwitch = new CandySwitch();
+        refs.checkInUiVisibleSwitch.setSelected(true);
+        refs.checkInUiVisibleSwitch.setFont(boldFont);
+        refs.checkInUiVisibleSwitch.getAccessibleContext().setAccessibleName("顯示打卡介面");
+        String tip = "關閉後隱藏排程分頁與首頁打卡資訊；已設定的自動打卡仍會在背景執行。";
+        refs.checkInUiVisibleSwitch.setToolTipText(tip);
+
+        JLabel title = new JLabel("顯示打卡");
+        title.setFont(boldFont);
+        title.setLabelFor(refs.checkInUiVisibleSwitch);
+        title.setToolTipText(tip);
+        title.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        title.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (refs.checkInUiVisibleSwitch.isEnabled()) {
+                    refs.checkInUiVisibleSwitch.doClick();
+                }
+            }
+        });
+
+        JLabel hint = new CompactShellPanels.WrappingLabel(
+                "辦公室想低調時可關閉。切換後仍可在這裡重新開啟。");
+        hint.setFont(mainFont);
+        hint.setForeground(NightTheme.MUTED);
+
+        JPanel line = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        line.setOpaque(false);
+        line.add(refs.checkInUiVisibleSwitch);
+        line.add(title);
+
+        JPanel column = new JPanel();
+        column.setOpaque(false);
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+        column.setAlignmentX(Component.LEFT_ALIGNMENT);
+        line.setAlignmentX(Component.LEFT_ALIGNMENT);
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        column.add(line);
         column.add(Box.createVerticalStrut(4));
         column.add(hint);
         return column;
@@ -687,6 +732,7 @@ public class PanelFactory {
         public JSlider backgroundOpacitySlider;
         public JLabel backgroundOpacityValueLabel;
         public JComboBox<String> homeIllustrationCombo;
+        public JToggleButton checkInUiVisibleSwitch;
         public JToggleButton desktopPetSwitch;
         public JSlider windowTransparencySlider;
         public JLabel windowTransparencyValueLabel;

@@ -297,6 +297,7 @@ public class App extends JFrame {
         JTabbedPane settingsTabs = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont, fieldFont);
         bindWindowTransparencySlider();
         bindHomeIllustrationCombo();
+        bindCheckInUiSwitch();
         JPanel settingsTab = new JPanel(new BorderLayout());
         settingsTab.setOpaque(false);
         settingsTab.setBorder(new EmptyBorder(4, 4, 4, 4));
@@ -356,6 +357,9 @@ public class App extends JFrame {
 
             @Override
             public List<CheckInTask> tasks() {
+                if (!isCheckInUiVisible()) {
+                    return List.of();
+                }
                 return schedulerService == null ? List.of() : schedulerService.getAllTasks();
             }
 
@@ -422,6 +426,18 @@ public class App extends JFrame {
 
         bindWindowLayoutPersistence();
         bindCloudEventListeners();
+    }
+
+    private void bindCheckInUiSwitch() {
+        if (serverRefs.checkInUiVisibleSwitch == null) {
+            return;
+        }
+        serverRefs.checkInUiVisibleSwitch.addActionListener(e -> {
+            if (suppressConfigSave) {
+                return;
+            }
+            applyCheckInUiVisibility(serverRefs.checkInUiVisibleSwitch.isSelected(), true);
+        });
     }
 
     private void bindHomeIllustrationCombo() {
@@ -907,11 +923,36 @@ public class App extends JFrame {
                 cloudLabel = "連線中";
             }
         }
-        List<CheckInTask> tasks = schedulerService == null ? List.of() : schedulerService.getAllTasks();
-        List<CheckInHistoryEntry> history = historyService == null ? List.of() : historyService.getRecent();
+        boolean showCheckIn = isCheckInUiVisible();
+        List<CheckInTask> tasks = showCheckIn && schedulerService != null
+                ? schedulerService.getAllTasks() : List.of();
+        List<CheckInHistoryEntry> history = showCheckIn && historyService != null
+                ? historyService.getRecent() : List.of();
         return HomeBrief.collect(
                 tasks, history, onlinePeerIds.size(), recentName, recentState,
                 recentFace, recentKnown, cloud, cloudLabel);
+    }
+
+    private boolean isCheckInUiVisible() {
+        if (serverRefs.checkInUiVisibleSwitch != null) {
+            return serverRefs.checkInUiVisibleSwitch.isSelected();
+        }
+        if (slotController != null && slotController.getConfig() != null) {
+            return slotController.getConfig().checkInUiVisible;
+        }
+        return true;
+    }
+
+    private void applyCheckInUiVisibility(boolean visible, boolean persist) {
+        if (slotController != null && slotController.getConfig() != null) {
+            slotController.getConfig().checkInUiVisible = visible;
+        }
+        if (shell != null) {
+            shell.setCheckInUiVisible(visible);
+        }
+        if (persist) {
+            saveCloudConfig();
+        }
     }
 
     private BufferedImage recentFace(PeerInfo recent) {
@@ -2078,9 +2119,9 @@ public class App extends JFrame {
         }
         if (slotController != null) {
             slotController.setTaskCompletedListener(task ->
-                    notifyPet(DesktopPetEvent.TASK_COMPLETED, this::showScheduleFromPet));
+                    notifyPet(DesktopPetEvent.TASK_COMPLETED, this::openScheduleIfVisible));
             slotController.setScheduleDueListener(task ->
-                    notifyPet(DesktopPetEvent.SCHEDULE_REMINDER, this::showScheduleFromPet));
+                    notifyPet(DesktopPetEvent.SCHEDULE_REMINDER, this::openScheduleIfVisible));
         }
         if (serverRefs.desktopPetSwitch.isSelected()) {
             desktopPetManager.setEnabled(true);
@@ -2108,6 +2149,13 @@ public class App extends JFrame {
             return;
         }
         openChatForUser(peerId);
+    }
+
+    private void openScheduleIfVisible() {
+        if (!isCheckInUiVisible()) {
+            return;
+        }
+        showScheduleFromPet();
     }
 
     private void showScheduleFromPet() {
@@ -2240,6 +2288,7 @@ public class App extends JFrame {
             applyServerConfig(config);
             slotController.loadConfigToUi(config);
             applyWindowLayout(config);
+            applyCheckInUiSelection(config);
             applyWindowTransparencyFromConfig(config);
             applyAvatarFromConfig(config);
             applyBackgroundFromConfig(config);
@@ -2309,6 +2358,20 @@ public class App extends JFrame {
 
     private void applyCharacterThemeSelection(ConfigPersistenceService.CloudConfig config) {
         applyCharacterTheme(CharacterTheme.fromId(config == null ? null : config.characterTheme), false);
+    }
+
+    private void applyCheckInUiSelection(ConfigPersistenceService.CloudConfig config) {
+        boolean visible = config == null || config.checkInUiVisible;
+        if (serverRefs.checkInUiVisibleSwitch != null) {
+            boolean previous = suppressConfigSave;
+            suppressConfigSave = true;
+            try {
+                serverRefs.checkInUiVisibleSwitch.setSelected(visible);
+            } finally {
+                suppressConfigSave = previous;
+            }
+        }
+        applyCheckInUiVisibility(visible, false);
     }
 
     private void applyHomeIllustrationSelection(ConfigPersistenceService.CloudConfig config) {
@@ -2488,6 +2551,9 @@ public class App extends JFrame {
         List<String> favorites = new ArrayList<>(favoritePeerIds);
         java.util.Collections.sort(favorites);
         config.favoritePeers = favorites;
+        if (serverRefs.checkInUiVisibleSwitch != null) {
+            config.checkInUiVisible = serverRefs.checkInUiVisibleSwitch.isSelected();
+        }
         configPersistenceService.saveConfig(config, null);
     }
 

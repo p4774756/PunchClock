@@ -116,6 +116,9 @@ public class ConfigPersistenceService {
 
         /** 首頁全幅插畫：{@code b} 夜晚房間、{@code c} 頂樓泳池。 */
         public String homeIllustration = HomeIllustration.ROOM_B.id();
+
+        /** 是否顯示打卡相關介面（排程分頁、首頁摘要等）；隱藏時背景排程仍會執行。 */
+        public boolean checkInUiVisible = true;
     }
 
     private static SlotSettings defaultWorkIn() {
@@ -187,9 +190,13 @@ public class ConfigPersistenceService {
                 normalize(config);
                 return config;
             }
-            CloudConfig config = gson.fromJson(json, CloudConfig.class);
+            com.google.gson.JsonObject root = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
+            CloudConfig config = gson.fromJson(root, CloudConfig.class);
             if (config == null) {
                 return new CloudConfig();
+            }
+            if (!root.has("checkInUiVisible")) {
+                config.checkInUiVisible = true;
             }
             normalize(config);
             if (logger != null) {

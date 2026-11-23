@@ -46,6 +46,7 @@ public class ConfigPersistenceServiceTest {
         assertTrue(config.autoApplyUpdate);
         assertNotNull(config.skipDates);
         assertTrue(config.skipDates.isEmpty());
+        assertTrue(config.checkInUiVisible);
     }
 
     @Test
@@ -329,6 +330,24 @@ public class ConfigPersistenceServiceTest {
                 "2026-10-07", "2026-10-05", "2026-10-05", "2026-10-01", "bad", " 2026-10-06 "));
         ConfigPersistenceService.normalizeSkipDates(config, LocalDate.of(2026, 10, 5));
         assertEquals(List.of("2026-10-05", "2026-10-06", "2026-10-07"), config.skipDates);
+    }
+
+    @Test
+    public void loadConfig_missingCheckInUiVisibleDefaultsToShown() throws Exception {
+        Files.writeString(configFile, "{\"serverUrl\":\"http://localhost:3000\"}");
+        assertTrue(configService.loadConfig(null).checkInUiVisible);
+    }
+
+    @Test
+    public void saveAndLoad_persistsCheckInUiVisible() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.checkInUiVisible = false;
+        configService.saveConfig(config, null);
+        assertFalse(configService.loadConfig(null).checkInUiVisible);
+
+        config.checkInUiVisible = true;
+        configService.saveConfig(config, null);
+        assertTrue(configService.loadConfig(null).checkInUiVisible);
     }
 
     @Test
