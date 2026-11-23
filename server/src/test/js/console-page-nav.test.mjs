@@ -41,8 +41,10 @@ test('首頁 HUD 楓之谷角色框與身分名牌', () => {
   assert.match(js, /管理員/);
   assert.match(js, /線上/);
   assert.match(js, /訪客/);
-  assert.match(js, /\/login\?next=%2F/);
-  assert.match(js, /\/login\?next=%2Fconsole/);
+  assert.match(js, /data-pt-open-login/);
+  assert.match(js, /wireHomeLoginModal/);
+  assert.doesNotMatch(js, /role="menuitem">主控台/);
+  assert.doesNotMatch(js, /\/login\?next=%2F/);
   assert.doesNotMatch(js, /開發機狀態/);
   assert.doesNotMatch(js, /pt-hud-card/);
   assert.doesNotMatch(js, /pt-hud-id-abbrev/);

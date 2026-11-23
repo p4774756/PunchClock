@@ -54,7 +54,11 @@
 .lab-office-stage.pt-roadmap-open .private-team-hud,
 .lab-office-stage.pt-roadmap-open .private-team-canvas,
 .lab-office-stage.pt-roadmap-open .pt-prog-hit,
-.lab-office-stage.pt-roadmap-open .pt-status-backdrop {
+.lab-office-stage.pt-roadmap-open .pt-status-backdrop,
+.lab-office-stage.pt-login-open .private-team-hud,
+.lab-office-stage.pt-login-open .private-team-canvas,
+.lab-office-stage.pt-login-open .pt-prog-hit,
+.lab-office-stage.pt-login-open .pt-status-backdrop {
   visibility: hidden;
   pointer-events: none;
 }
@@ -400,6 +404,12 @@
   color: var(--maple-blue-lt, #a8d0f2);
   font-variant-numeric: tabular-nums;
   flex: 0 0 auto;
+}
+
+button.pt-hud-id-plate {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 2px solid #c9a64a;
 }
 
 .pt-hud-id-plate {

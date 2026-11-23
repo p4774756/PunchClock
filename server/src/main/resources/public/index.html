@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/css/roadmap.css">
   <link rel="stylesheet" href="/css/dev-guest-ui.css">
   <link rel="stylesheet" href="/css/private-team.css">
+  <link rel="stylesheet" href="/css/login.css">
 </head>
 <body class="lab-office-page {{AUTH_BODY_CLASS}}">
   <script>
@@ -80,6 +81,28 @@
         <a class="roadmap-source" data-roadmap-source href="https://github.com/p4774756/PunchClock/milestones" target="_blank" rel="noopener noreferrer">資料來源：GitHub Milestones</a>
         <span class="roadmap-dev-machines-nav" data-dev-machines-nav hidden></span>
       </footer>
+    </div>
+  </section>
+  <section id="loginBoard" class="roadmap-board pt-login-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="home-login-title">
+    <div class="roadmap-panel maple-window login-sheet pt-login-panel">
+      <header class="maple-win-title roadmap-win-head">
+        <h2 id="home-login-title">管理員登入</h2>
+        <button type="button" class="roadmap-close-x" data-login-close aria-label="關閉">×</button>
+      </header>
+      <div class="login-sheet-body">
+        <p class="login-lead">管理員請先登入</p>
+        <div data-login-alert></div>
+        <form data-login-form class="form-signin" method="post" action="/login">
+          <div class="form-group">
+            <label for="home-login-password">密碼</label>
+            <div class="pwd-row">
+              <input type="password" id="home-login-password" name="password" class="form-input" data-login-password required autocomplete="current-password" />
+              <button type="button" class="btn btn-ghost btn-toggle-pwd" data-login-toggle-pwd title="顯示/隱藏密碼">顯示</button>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-submit" data-login-submit>登入</button>
+        </form>
+      </div>
     </div>
   </section>
   <script type="module" src="/js/office-page.js"></script>

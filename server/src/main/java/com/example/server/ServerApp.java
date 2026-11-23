@@ -254,7 +254,13 @@ public final class ServerApp {
     private void loginPost(Context ctx) {
         String ip = IpResolver.clientIp(ctx);
         String nextSafe = LoginNextPath.sanitize(ctx.formParam("next"));
-        if (authService.getLoginLockStatus(ip).isLocked()) {
+        boolean json = wantsJsonLogin(ctx);
+        AuthService.LoginLockStatus lockBefore = authService.getLoginLockStatus(ip);
+        if (lockBefore.isLocked()) {
+            if (json) {
+                respondLoginJsonFailure(ctx, lockBefore);
+                return;
+            }
             ctx.redirect(loginUrlWithNext(null));
             return;
         }
@@ -262,11 +268,48 @@ public final class ServerApp {
         if (authService.checkAdminPassword(password)) {
             authService.clearLoginAttempt(ip);
             setAuthCookie(ctx, authService.authCookieValue());
+            if (json) {
+                ctx.status(HttpStatus.OK).json(Map.of("success", true));
+                return;
+            }
             ctx.redirect(nextSafe != null ? nextSafe : "/");
             return;
         }
         authService.recordLoginFailure(ip);
+        AuthService.LoginLockStatus lockAfter = authService.getLoginLockStatus(ip);
+        if (json) {
+            respondLoginJsonFailure(ctx, lockAfter);
+            return;
+        }
         ctx.redirect(loginUrlWithNext(nextSafe, true));
+    }
+
+    private static boolean wantsJsonLogin(Context ctx) {
+        String accept = ctx.header("Accept");
+        return accept != null && accept.toLowerCase().contains("application/json");
+    }
+
+    private static void respondLoginJsonFailure(Context ctx, AuthService.LoginLockStatus lockStatus) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("locked", lockStatus.isLocked());
+        if (lockStatus.isLocked()) {
+            body.put("remainingSec", lockStatus.remainingSec);
+            body.put("message", loginLockMessage(lockStatus.remainingSec));
+            ctx.status(HttpStatus.FORBIDDEN).json(body);
+            return;
+        }
+        int remainingAttempts = Math.max(0, 5 - lockStatus.attempts);
+        body.put("remainingAttempts", remainingAttempts);
+        body.put("message", "[警告] 密碼錯誤！剩餘嘗試次數：" + remainingAttempts + " 次 (滿5次鎖定15分鐘)");
+        ctx.status(HttpStatus.UNAUTHORIZED).json(body);
+    }
+
+    private static String loginLockMessage(int remainingSec) {
+        int mins = remainingSec / 60;
+        int secs = remainingSec % 60;
+        String timeDisplay = mins > 0 ? mins + " 分 " + secs + " 秒" : secs + " 秒";
+        return "[警告] 嘗試錯誤過多！帳號已鎖定，請等待 " + timeDisplay + "。";
     }
 
     private static String loginUrlWithNext(String nextSafe) {

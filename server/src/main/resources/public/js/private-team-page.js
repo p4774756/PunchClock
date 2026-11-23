@@ -1,3 +1,4 @@
+import { wireHomeLoginModal } from './home-login-modal.js';
 import { mountPrivateTeamScene } from './private-team-scene.js';
 import {
   bubbleTextForStatus,
@@ -101,15 +102,14 @@ function identityHudMarkup(authed) {
       idBody +
       '</button>' +
       '<div class="pt-hud-id-menu" data-pt-identity-menu hidden role="menu">' +
-      '<a href="/console" role="menuitem">主控台</a>' +
       '<a href="/logout" role="menuitem">登出</a>' +
       '</div></div>'
     );
   }
   return (
-    '<a class="pt-hud-id-plate is-guest" href="/login?next=%2F" aria-label="帳號">' +
+    '<button type="button" class="pt-hud-id-plate is-guest" data-pt-open-login aria-label="帳號">' +
     idBody +
-    '</a>'
+    '</button>'
   );
 }
 
@@ -120,7 +120,7 @@ export function mountPrivateTeamPage(opts) {
   const stage = doc.querySelector('[data-private-team-stage]');
   if (!stage) return { destroy() {} };
 
-  const authed = !!(win.PUNCHCLOCK_AUTHENTICATED);
+  let sessionAuthed = !!(win.PUNCHCLOCK_AUTHENTICATED);
   const pageHooks = (opts && opts.hooks) || {};
   const openRoadmap =
     typeof pageHooks.openRoadmap === 'function' ? pageHooks.openRoadmap : null;
@@ -147,9 +147,9 @@ export function mountPrivateTeamPage(opts) {
       taskHudMarkup() +
       '<div class="pt-hud-task-hint" data-pt-task-hint hidden role="dialog" aria-label="登入提示">' +
       '<p class="pt-hud-task-hint-text">先登入才能看任務</p>' +
-      '<a class="pt-hud-task-hint-login" href="/login?next=%2Fconsole">登入</a>' +
+      '<button type="button" class="pt-hud-task-hint-login" data-pt-open-login>登入</button>' +
       '</div></div>' +
-      '<div class="pt-hud-tr">' + identityHudMarkup(authed) + '</div>' +
+      '<div class="pt-hud-tr" data-pt-hud-tr>' + identityHudMarkup(sessionAuthed) + '</div>' +
       '<div class="pt-hud-br">' +
       '<a class="pt-hud-atlas" href="/atlas/tcm-3d/">' + PERSON_SVG + '<span>經絡研習室</span></a>' +
       '<a class="pt-hud-download" href="/download" aria-label="下載 App">' + DL_SVG +
@@ -192,8 +192,9 @@ export function mountPrivateTeamPage(opts) {
 
   const taskBtn = hud.querySelector('[data-pt-task-btn]');
   const taskHint = hud.querySelector('[data-pt-task-hint]');
-  const identityBtn = hud.querySelector('[data-pt-identity-toggle]');
-  const identityMenu = hud.querySelector('[data-pt-identity-menu]');
+  let identityTr = hud.querySelector('[data-pt-hud-tr]');
+  let identityBtn = hud.querySelector('[data-pt-identity-toggle]');
+  let identityMenu = hud.querySelector('[data-pt-identity-menu]');
   const taskBarRow = hud.querySelector('[data-pt-task-bar]');
   const taskBarFill = hud.querySelector('[data-pt-task-bar-fill]');
   const taskBarCount = hud.querySelector('[data-pt-task-bar-count]');
@@ -202,7 +203,60 @@ export function mountPrivateTeamPage(opts) {
   let cardOpen = false;
   let taskHintOpen = false;
   let identityMenuOpen = false;
+  let loginOpen = false;
   let lastFocus = null;
+
+  function bindOpenLoginHandlers(root) {
+    if (!root) return;
+    const nodes = root.querySelectorAll('[data-pt-open-login]');
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      node.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        closeTaskHint();
+        closeIdentityMenu();
+        closeStatusCard();
+        loginModal.open();
+      });
+    }
+  }
+
+  function mountIdentitySection() {
+    identityBtn = hud.querySelector('[data-pt-identity-toggle]');
+    identityMenu = hud.querySelector('[data-pt-identity-menu]');
+    if (identityBtn) {
+      identityBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        toggleIdentityMenu();
+      });
+    }
+    bindOpenLoginHandlers(identityTr || hud);
+  }
+
+  function applySessionAuthed() {
+    sessionAuthed = true;
+    win.PUNCHCLOCK_AUTHENTICATED = true;
+    if (doc.body) {
+      doc.body.classList.remove('is-guest');
+      doc.body.classList.add('is-authenticated');
+    }
+    if (identityTr) {
+      identityTr.innerHTML = identityHudMarkup(true);
+      identityMenuOpen = false;
+      mountIdentitySection();
+    }
+    closeTaskHint();
+  }
+
+  let loginModal = {
+    open() {},
+    close() {},
+    destroy() {},
+    isOpen() {
+      return false;
+    }
+  };
 
   function bubbleLabel() {
     return bubbleTextForStatus(tigerView.status);
@@ -242,6 +296,7 @@ export function mountPrivateTeamPage(opts) {
     closeStatusCard();
     closeIdentityMenu();
     closeTaskHint();
+    loginModal.close();
     openRoadmap();
   }
 
@@ -263,11 +318,12 @@ export function mountPrivateTeamPage(opts) {
   function setRoadmapOpen(open) {
     roadmapOpen = !!open;
     stage.classList.toggle('pt-roadmap-open', roadmapOpen);
-    scene.setSceneInputEnabled(!roadmapOpen);
+    scene.setSceneInputEnabled(!roadmapOpen && !loginOpen);
     if (roadmapOpen) {
       closeStatusCard();
       closeIdentityMenu();
       closeTaskHint();
+      loginModal.close();
     }
   }
 
@@ -281,6 +337,23 @@ export function mountPrivateTeamPage(opts) {
 
   scene.setBubbleText(bubbleLabel());
   refreshCanvasA11y();
+
+  loginModal = wireHomeLoginModal({
+    doc,
+    win,
+    fetch: fetchFn,
+    onAuthed: applySessionAuthed,
+    onOpenChange: (open) => {
+      loginOpen = !!open;
+      stage.classList.toggle('pt-login-open', loginOpen);
+      scene.setSceneInputEnabled(!loginOpen && !roadmapOpen);
+      if (loginOpen) {
+        closeStatusCard();
+        closeIdentityMenu();
+        closeTaskHint();
+      }
+    }
+  });
 
   function closeTaskHint() {
     if (!taskHint || !taskHintOpen) return;
@@ -315,7 +388,7 @@ export function mountPrivateTeamPage(opts) {
   if (taskBtn) {
     taskBtn.addEventListener('click', (ev) => {
       ev.stopPropagation();
-      if (authed) {
+      if (sessionAuthed) {
         closeTaskHint();
         win.location.href = '/console';
         return;
@@ -328,12 +401,7 @@ export function mountPrivateTeamPage(opts) {
     });
   }
 
-  if (identityBtn) {
-    identityBtn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      toggleIdentityMenu();
-    });
-  }
+  mountIdentitySection();
 
   if (progHit) {
     progHit.addEventListener('click', (ev) => {
@@ -369,6 +437,11 @@ export function mountPrivateTeamPage(opts) {
 
   function onKeyDown(ev) {
     if (ev.key === 'Escape') {
+      if (loginOpen) {
+        ev.preventDefault();
+        loginModal.close();
+        return;
+      }
       if (cardOpen) {
         ev.preventDefault();
         closeStatusCard();
@@ -444,6 +517,7 @@ export function mountPrivateTeamPage(opts) {
     destroy() {
       win.clearInterval(poll);
       doc.removeEventListener('keydown', onKeyDown);
+      loginModal.destroy();
       closeIdentityMenu();
       closeTaskHint();
       closeStatusCard();
