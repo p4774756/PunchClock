@@ -1,6 +1,6 @@
 # PunchClock
 
-新光小寶貝（PunchClock）由 Java 桌面端與 Javalin 伺服器組成：虛擬辦公室、好友傳檔、經絡研習與遠端狀態監控。
+小寶貝（PunchClock）由 Java 桌面端與 Javalin 伺服器組成：虛擬辦公室、好友傳檔、經絡研習與遠端狀態監控。
 
 ## 架構
 
@@ -38,7 +38,7 @@ java -jar server/target/punchclock-server.jar
 
 ```bash
 mvn -pl client -am package -DskipTests
-java -jar client/target/SKLbaby.jar
+java -jar client/target/XiaoBaobei.jar
 ```
 
 首次執行 Playwright 會自動下載瀏覽器驅動，請確保網路暢通。
@@ -65,7 +65,7 @@ java -jar client/target/SKLbaby.jar
   mvn -pl client -am package -DskipTests -P '!git-commit-time'
   ```
 
-  或在網路正常的電腦打包好 `SKLbaby.jar` 再帶過去執行。
+  或在網路正常的電腦打包好 `XiaoBaobei.jar` 再帶過去執行。
 
 ### 5. 中醫人體（經絡穴道）
 
@@ -88,7 +88,7 @@ Dashboard「學習 → 中醫人體」連到 `/atlas/tcm-3d/`，靜態站來自 
 
 ## 操作畫面
 
-桌面端目前的樣子。視窗標題是「新光小寶貝」。
+桌面端目前的樣子。視窗標題是「小寶貝」。
 
 | 首頁 | 排程任務 |
 | ------ | ------ |
@@ -111,14 +111,14 @@ Dashboard「學習 → 中醫人體」連到 `/atlas/tcm-3d/`，靜態站來自 
 - 同事傳檔：任意副檔名、可傳資料夾（自動壓 ZIP）、傳檔紀錄可在過期前重複下載或手動清除。兩邊都在線時可改走直傳，檔案只在伺服器記憶體轉手，不寫入磁碟
 - 中繼 Proxy：讓區網內連不到雲端的同事透過你的電腦轉發心跳等請求
 - 跟同事一對一聊天，或跟後台說話。對話在伺服器重啟後清空
-- 程式更新：伺服器向 GitHub 最新 Release 查詢 `SKLbaby.jar`。有較新版時顯示在設定頁下方，由使用者按「現在更新」（詳見下方「桌面端自動更新」）
+- 程式更新：伺服器向 GitHub 最新 Release 查詢 `XiaoBaobei.jar`（仍接受舊版 `SKLbaby.jar` asset）。有較新版時顯示在設定頁下方，由使用者按「現在更新」（詳見下方「桌面端自動更新」）
 
 ### 桌面端自動更新
 
 - **運作方式：** 桌面端每次心跳會帶上 `appVersion`（語意化版號）。伺服器快取 GitHub `releases/latest`（約 10 分鐘）；Release 版號比本機新時，心跳回應帶 `update`，下載網址為 GitHub asset 絕對路徑。「設定 → 連線 → 程式更新」的「自動檢查更新」預設開啟：有新版只顯示在這一區下方（新版號、大小、Release 說明前幾行），不跳視窗。要升級按「現在更新」。關閉自動檢查後，背景不再改這段狀態，仍可用「檢查更新」手動問一次。
 - **現在更新：** 跳出「程式更新」小視窗顯示下載進度（已下載／總大小、百分比），可按「取消」中止。下載到 `~/.punchclock/updates/`，校驗大小與 SHA-256 後，由 `apply-update.bat`／`apply-update.sh` 等程式結束、換掉原本的 jar 並重新啟動；設定與排程保留。若程式忙碌或十分鐘內有已排工作，會等那段結束再重開（最多約 30 分鐘），避免中途被關掉。
-- **限制：** 以 `java -jar SKLbaby.jar` 啟動時，覆蓋正在跑的 jar 再重開；jar 所在資料夾要有寫入權限。IDE 直接跑（版本 `dev`、沒有原始碼摘要）不會收到更新通知。若 classpath 上已是打包過、摘要有值的程式，按「現在更新」後把 jar 寫到 `~/.punchclock/SKLbaby.jar`，結束後用 `java -jar` 啟動它，之後請執行那份 jar。更新失敗時看 `~/.punchclock/updates/apply-update.log`。
-- **安裝版（.dmg／.exe）：** GitHub Release 或網站下載頁可取得 macOS（`SKLbaby-mac-arm.dmg`／`SKLbaby-mac-intel.dmg`）與 Windows 安裝檔（內建 Java，尚未簽章；macOS 請右鍵 → 打開，Windows SmartScreen 選「更多資訊」→「仍要執行」）。自動更新仍只下載 `SKLbaby.jar` 到 `~/.sklbaby/app/`（不寫回安裝目錄）；啟動失敗會退回安裝內建 jar。CI 見 `.github/workflows/package-desktop.yml`。推 `v*` tag 會自動建立 Release 並上傳上述兩個 macOS dmg、`SKLbaby-win.exe`、`SKLbaby.jar`。
+- **限制：** 以 `java -jar XiaoBaobei.jar` 啟動時，覆蓋正在跑的 jar 再重開；jar 所在資料夾要有寫入權限。IDE 直接跑（版本 `dev`、沒有原始碼摘要）不會收到更新通知。若 classpath 上已是打包過、摘要有值的程式，按「現在更新」後把 jar 寫到 `~/.punchclock/SKLbaby.jar`，結束後用 `java -jar` 啟動它，之後請執行那份 jar。更新失敗時看 `~/.punchclock/updates/apply-update.log`。
+- **安裝版（.dmg／.exe）：** GitHub Release 或網站下載頁可取得 macOS（`XiaoBaobei-mac-arm.dmg`／`XiaoBaobei-mac-intel.dmg`）與 Windows 安裝檔（內建 Java，尚未簽章；macOS 請右鍵 → 打開，Windows SmartScreen 選「更多資訊」→「仍要執行」）。自動更新仍只下載 release jar 到 `~/.sklbaby/app/SKLbaby.jar`（不寫回安裝目錄）；啟動失敗會退回安裝內建 jar。CI 見 `.github/workflows/package-desktop.yml`。推 `v*` tag 會自動建立 Release 並上傳上述兩個 macOS dmg、`XiaoBaobei-win.exe`、`XiaoBaobei.jar`。
 - **打包乾跑：** 在 GitHub Actions 選 workflow「Package desktop installers」、以 `workflow_dispatch` 手動執行。只會留下 workflow artifact（arm／intel dmg、exe、jar），不會建立或更新正式 Release。下載 artifact 核對檔名與大小（安裝檔腳本限 15–60 MiB）。正式發版請推 tag，不要用乾跑取代。
 - **發版：** 推 `v*` tag 並建立 GitHub Release（見 `package-desktop.yml`）後，桌面端才會收到新版通知；一般合併部署 server 不會觸發 jar 更新。
 - **本機測試：** 以較舊版號的 jar 連上臨時 server；server 會向 GitHub 讀最新 Release。啟動 log 出現 `Client release: v… from GitHub` 代表已讀到 Release metadata。

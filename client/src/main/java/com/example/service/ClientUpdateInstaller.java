@@ -18,7 +18,8 @@ public final class ClientUpdateInstaller {
 
   /**
    * jpackage 原生啟動器設定的路徑。Temurin 21 設成執行檔
-   * （macOS 為 {@code Contents/MacOS/新光小寶貝}，Windows 為 {@code .exe}），不是目錄。
+   * （macOS 為 {@code Contents/MacOS/小寶貝} 等，舊安裝仍可能是 {@code 新光小寶貝}；Windows 為 {@code .exe}），
+   * 不是目錄。實際路徑以 {@value #JPACKAGE_APP_PATH_PROPERTY} 為準，勿寫死名稱查找。
    */
   public static final String JPACKAGE_APP_PATH_PROPERTY = "jpackage.app-path";
 

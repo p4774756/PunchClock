@@ -50,6 +50,37 @@ public class PackagedClientUpdateInstallerTest {
     }
 
     @Test
+    public void newMacInstallResolvesBundledJarAndUserInstallTarget() throws Exception {
+        Path root = Files.createTempDirectory("sklbaby-mac-new");
+        Path executable = root.resolve("小寶貝.app/Contents/MacOS/小寶貝");
+        Path bundled = root.resolve("小寶貝.app/Contents/app/SKLbaby.jar");
+        Files.createDirectories(executable.getParent());
+        Files.createDirectories(bundled.getParent());
+        Files.writeString(executable, "launcher");
+        Files.writeString(bundled, "bundled");
+        Path home = Files.createTempDirectory("sklbaby-mac-new-home");
+        withImage(executable, home, () -> {
+            assertEquals(bundled.toAbsolutePath().normalize(), ClientUpdateInstaller.bundledJar());
+            assertEquals(home.resolve(".sklbaby/app/SKLbaby.jar"), ClientUpdateInstaller.installTarget());
+        });
+    }
+
+    @Test
+    public void newWindowsInstallResolvesJarBesideAppDirectory() throws Exception {
+        Path root = Files.createTempDirectory("sklbaby-win-new");
+        Path executable = root.resolve("小寶貝.exe");
+        Path bundled = root.resolve("app/SKLbaby.jar");
+        Files.createDirectories(bundled.getParent());
+        Files.writeString(executable, "launcher");
+        Files.writeString(bundled, "bundled");
+        Path home = Files.createTempDirectory("sklbaby-win-new-home");
+        withImage(executable, home, () -> {
+            assertEquals(bundled.toAbsolutePath().normalize(), ClientUpdateInstaller.bundledJar());
+            assertEquals(home.resolve(".sklbaby/app/SKLbaby.jar"), ClientUpdateInstaller.installTarget());
+        });
+    }
+
+    @Test
     public void windowsExecutableAppPathResolvesJarBesideAppDirectory() throws Exception {
         Path root = Files.createTempDirectory("sklbaby-win-app");
         Path executable = root.resolve("新光小寶貝.exe");

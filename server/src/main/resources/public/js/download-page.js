@@ -1,11 +1,15 @@
 /**
- * 若伺服器未注入安裝檔網址，向 GitHub Releases 查詢 SKLbaby-mac-arm.dmg／SKLbaby-mac-intel.dmg／SKLbaby-win.exe。
+ * 若伺服器未注入安裝檔網址，向 GitHub Releases 查詢 XiaoBaobei 安裝檔（仍接受舊 SKLbaby-* 檔名）。
  */
 (function () {
-  var MAC_ARM_NAME = 'SKLbaby-mac-arm.dmg';
-  var MAC_INTEL_NAME = 'SKLbaby-mac-intel.dmg';
-  var MAC_ARM_LEGACY = 'SKLbaby-mac.dmg';
-  var WIN_NAME = 'SKLbaby-win.exe';
+  var MAC_ARM_NAME = 'XiaoBaobei-mac-arm.dmg';
+  var MAC_INTEL_NAME = 'XiaoBaobei-mac-intel.dmg';
+  var MAC_ARM_LEGACY = 'XiaoBaobei-mac.dmg';
+  var MAC_ARM_OLD = 'SKLbaby-mac-arm.dmg';
+  var MAC_INTEL_OLD = 'SKLbaby-mac-intel.dmg';
+  var MAC_ARM_OLD_LEGACY = 'SKLbaby-mac.dmg';
+  var WIN_NAME = 'XiaoBaobei-win.exe';
+  var WIN_OLD = 'SKLbaby-win.exe';
   var REPO = 'p4774756/PunchClock';
 
   var macArmBtn = document.querySelector('[data-download-mac-arm]');
@@ -54,12 +58,26 @@
     return '';
   }
 
-  function macArmFromRelease(release) {
-    var url = assetUrl(release, MAC_ARM_NAME);
-    if (url) {
-      return url;
+  function firstAssetUrl(release, names) {
+    for (var i = 0; i < names.length; i++) {
+      var url = assetUrl(release, names[i]);
+      if (url) {
+        return url;
+      }
     }
-    return assetUrl(release, MAC_ARM_LEGACY);
+    return '';
+  }
+
+  function macArmFromRelease(release) {
+    return firstAssetUrl(release, [MAC_ARM_NAME, MAC_ARM_LEGACY, MAC_ARM_OLD, MAC_ARM_OLD_LEGACY]);
+  }
+
+  function macIntelFromRelease(release) {
+    return firstAssetUrl(release, [MAC_INTEL_NAME, MAC_INTEL_OLD]);
+  }
+
+  function winFromRelease(release) {
+    return firstAssetUrl(release, [WIN_NAME, WIN_OLD]);
   }
 
   if (macArmUrl || macIntelUrl || winUrl) {
@@ -79,8 +97,8 @@
     .then(function (release) {
       showDesktopButtons(
         macArmFromRelease(release),
-        assetUrl(release, MAC_INTEL_NAME),
-        assetUrl(release, WIN_NAME)
+        macIntelFromRelease(release),
+        winFromRelease(release)
       );
     })
     .catch(function () {

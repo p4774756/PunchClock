@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>下載新光小寶貝桌面端</title>
+  <title>下載小寶貝桌面端</title>
   <link rel="stylesheet" href="/css/lab-office.css">
   <link rel="stylesheet" href="/css/maple-close-x.css">
   <link rel="stylesheet" href="/css/download.css">
@@ -11,18 +11,18 @@
 <body class="lab-office-page download-page">
   <section class="download-root" aria-label="下載桌面端">
     <header class="lab-office-head">
-      <h1>下載新光小寶貝</h1>
+      <h1>下載小寶貝</h1>
       <a class="roadmap-close-x" href="/" aria-label="回辦公室">×</a>
     </header>
     <div class="download-body">
-      <p>在此下載新光小寶貝桌面端。可下載安裝檔（內建 Java，雙擊即可），或下載 jar 自行用 Java 執行。</p>
+      <p>在此下載小寶貝桌面端。可下載安裝檔（內建 Java，雙擊即可），或下載 jar 自行用 Java 執行。</p>
       <div class="download-actions" data-download-actions>
         <a class="download-btn" data-download-mac-arm href="{{DESKTOP_MAC_ARM_URL}}"{{MAC_ARM_HIDDEN}}>Mac（Apple 晶片 M1 以後）</a>
         <a class="download-btn" data-download-mac-intel href="{{DESKTOP_MAC_INTEL_URL}}"{{MAC_INTEL_HIDDEN}}>Mac（Intel）</a>
         <a class="download-btn" data-download-win href="{{DESKTOP_WIN_URL}}"{{WIN_HIDDEN}}>下載 Windows 安裝檔（.exe）</a>
         <p class="download-mac-hint" data-download-mac-hint>不確定晶片類型？請點蘋果選單 &gt; 關於這台 Mac，在「晶片」或「處理器」欄位查看。</p>
         <span class="download-unavailable" data-desktop-missing{{DESKTOP_MISSING_HIDDEN}}>安裝檔尚未提供，請稍後再試或向管理員索取。</span>
-        <a class="download-btn download-btn-jar" data-download-jar href="{{JAR_DOWNLOAD_URL}}"{{JAR_HIDDEN}}>下載 SKLbaby.jar（v{{CLIENT_VERSION}}）</a>
+        <a class="download-btn download-btn-jar" data-download-jar href="{{JAR_DOWNLOAD_URL}}"{{JAR_HIDDEN}}>下載 XiaoBaobei.jar（v{{CLIENT_VERSION}}）</a>
         <p class="download-unavailable" data-download-missing{{MISSING_HIDDEN}}>伺服器尚未附帶可下載的 jar，請向管理員索取。</p>
       </div>
       <h2>安裝檔（macOS／Windows）</h2>
@@ -36,7 +36,7 @@
       <ol>
         <li>下載完成後在 Finder 或檔案總管找到 jar 檔。</li>
         <li>第一次執行請在 jar 上<strong>右鍵 → 打開</strong>，通過安全性提示。</li>
-        <li>之後可在終端機執行：<code>java -Xdock:name=新光小寶貝 -jar SKLbaby.jar</code></li>
+        <li>之後可在終端機執行：<code>java -Xdock:name=小寶貝 -jar XiaoBaobei.jar</code></li>
       </ol>
     </div>
   </section>
