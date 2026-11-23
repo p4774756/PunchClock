@@ -80,8 +80,9 @@ export default function Home(){
  const outfitId=avatarId==='adult'?adultOutfitId:assistantOutfitId;
  const setOutfitId=avatarId==='adult'?setAdultOutfitId:setAssistantOutfitId;
  const [practicePreparing,setPracticePreparing]=useState(false);
- const [outfitPickerFocus,setOutfitPickerFocus]=useState(false);
+ const [outfitPickerOpen,setOutfitPickerOpen]=useState(false);
  const outfitBarRef=useRef<HTMLDivElement>(null);
+ const outfitShirtRef=useRef<HTMLButtonElement>(null);
  const avatarOutfitList=useMemo(()=>outfitsForAvatar(avatarId),[avatarId]);
  const currentOutfit=animeOutfitForAvatar(avatarId,outfitId);
  const showOutfitBar=currentAvatar.hasOutfits&&avatarOutfitList.length>1;
@@ -128,24 +129,30 @@ export default function Home(){
  const pause=useCallback((message='演示已暫停，當前畫面保持。')=>{setSimulation(s=>({...s,dragging:false,running:false}));setFeedback(message);},[]);
  useEffect(()=>{const blur=()=>pause('窗口已離開，演示自動暫停。');const visibility=()=>{if(document.hidden)blur();};window.addEventListener('blur',blur);document.addEventListener('visibilitychange',visibility);return()=>{window.removeEventListener('blur',blur);document.removeEventListener('visibilitychange',visibility);};},[pause]);
  useEffect(()=>{if(about){dialog.current?.showModal();pause('已打開來源與許可，演示暫停。');}else dialog.current?.close();},[about,pause]);
- useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){if(libraryFilterOpen){setLibraryFilterOpen(false);return;}setAbout(false);setMobilePanel(null);setDialogExpanded(false);pause();}if(event.key==='/'&&!(event.target instanceof HTMLInputElement)&&!(event.target instanceof HTMLTextAreaElement)){event.preventDefault();setMobilePanel('library');requestAnimationFrame(()=>searchInput.current?.focus());}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[pause,libraryFilterOpen]);
+ useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){if(outfitPickerOpen){setOutfitPickerOpen(false);return;}if(libraryFilterOpen){setLibraryFilterOpen(false);return;}setAbout(false);setMobilePanel(null);setDialogExpanded(false);pause();}if(event.key==='/'&&!(event.target instanceof HTMLInputElement)&&!(event.target instanceof HTMLTextAreaElement)){event.preventDefault();setMobilePanel('library');requestAnimationFrame(()=>searchInput.current?.focus());}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[pause,libraryFilterOpen,outfitPickerOpen]);
 
  const prepareFocus=()=>setState(s=>({...s,explode:0,rotate:false,isolate:false,selected:[]}));
  useEffect(()=>{
-  if(!outfitPickerFocus)return;
-  const timer=window.setTimeout(()=>setOutfitPickerFocus(false),4000);
-  return ()=>clearTimeout(timer);
- },[outfitPickerFocus]);
+  if(!outfitPickerOpen)return;
+  const onPointer=(event:PointerEvent)=>{
+   const t=event.target;
+   if(!(t instanceof Node))return;
+   if(outfitBarRef.current?.contains(t)||outfitShirtRef.current?.contains(t))return;
+   setOutfitPickerOpen(false);
+  };
+  window.addEventListener('pointerdown',onPointer,true);
+  return ()=>window.removeEventListener('pointerdown',onPointer,true);
+ },[outfitPickerOpen]);
  const toggleOutfit=()=>{
   if(!showOutfitBar)return;
-  if(avatarId==='adult'){
-   setOutfitPickerFocus(true);
-   setFeedback(`換裝：目前為「${currentOutfit.shortName}」。請在畫面下方換裝列選擇。`);
-   requestAnimationFrame(()=>outfitBarRef.current?.querySelector<HTMLButtonElement>('button.is-active,button')?.focus());
-   return;
-  }
-  const next=outfitId==='school'?'study-body':'school';
-  switchOutfit(next);
+  setOutfitPickerOpen(open=>{
+   const next=!open;
+   if(next){
+    setFeedback(`換裝：目前為「${currentOutfit.shortName}」。請在選單中選擇。`);
+    requestAnimationFrame(()=>outfitBarRef.current?.querySelector<HTMLButtonElement>('button.is-active,button')?.focus());
+   }
+   return next;
+  });
  };
  const switchOutfit=(id:OutfitId)=>{
   if(id===outfitId||!currentAvatar.hasOutfits||!outfitBelongsToAvatar(avatarId,id))return;
@@ -157,6 +164,7 @@ export default function Home(){
   const next=animeOutfitForAvatar(avatarId,id);
   setError('');
   setFeedback(`已換裝：${next.name}。`);
+  setOutfitPickerOpen(false);
   requestAnimationFrame(()=>{
    setTimeout(()=>{
     flushSync(()=>setOutfitId(id));
@@ -237,6 +245,7 @@ export default function Home(){
   if(next===avatarId)return;
   pause(`已切換為${animeAvatar(next).shortName}。`);
   setAvatarId(next);
+  setOutfitPickerOpen(false);
   if(next==='adult')setAdultOutfitId(defaultOutfitForAvatar('adult'));
   setScenePainted(false);
   setProgress(6);
@@ -253,7 +262,7 @@ export default function Home(){
   }
   return feedback;
  },[point,location,feedback]);
- return <main className={`studio rpg-studio is-anime${showOutfitBar?' has-outfit-bar':''}${outfitPickerFocus?' outfit-picker-focus':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
+ return <main className={`studio rpg-studio is-anime${outfitPickerOpen?' outfit-picker-open':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
   <header className="studio-header rpg-header">
    <div className="brand-block">
     <div className="brand" aria-hidden="true"><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室</span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></div>
@@ -280,11 +289,6 @@ export default function Home(){
     </div>
    )}
    <div className="scene-mode-hint"><span className="tiny-dot"/>{animePointReady?'點選金色穴位 · 抓住工具移動 · 拖動旋轉 · 滾動縮放':avatarLessonNote(currentAvatar,simulation.pointCode)}</div>
-   {showOutfitBar&&(
-    <div className="outfit-bar" ref={outfitBarRef} role="group" aria-label="換裝">
-     {avatarOutfitList.map(o=><button key={o.id} type="button" className={outfitId===o.id?'is-active':''} aria-pressed={outfitId===o.id} title={outfitPending&&outfitNeedsAltBuild(avatarId,o.id as OutfitId)?'準備中…':`${o.shortName} · ${o.blurb}`} disabled={outfitPending&&outfitId!==o.id} onClick={()=>switchOutfit(o.id as OutfitId)}>{o.shortName}</button>)}
-    </div>
-   )}
   </section>
 
   <nav className="studio-tool-rail" aria-label="視角與工具">
@@ -292,7 +296,12 @@ export default function Home(){
    <button type="button" className="studio-tool-btn" aria-label="全身視角" title="全身" onClick={fullBody}><Maximize2 size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">全身</span></button>
    <button type="button" className="studio-tool-btn" aria-label="聚焦當前穴位" title="聚焦" disabled={!hasTarget} onClick={focusTarget}><Focus size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">聚焦</span></button>
    <button type="button" className={`studio-tool-btn${state.rotate?' is-active':''}`} aria-label={state.rotate?'停止自動旋轉':'自動旋轉'} aria-pressed={state.rotate} title={state.rotate?'停止旋轉':'自動旋轉'} onClick={()=>{pause();setState(s=>({...s,rotate:!s.rotate}));setFeedback(state.rotate?'自動旋轉已停止。':'正在自動旋轉。');}}><RotateCw size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">{state.rotate?'停轉':'旋轉'}</span></button>
-   {showOutfitBar&&<button type="button" className={`studio-tool-btn${outfitPending?' is-pending':''}${avatarId==='adult'?(outfitPickerFocus?' is-active':''):outfitId==='study-body'?' is-active':''}`} aria-label={outfitPending?'練習裝準備中':`換裝：${currentOutfit.shortName}${avatarId==='adult'?'，點擊開啟換裝列':'，點擊切換'}`} aria-pressed={avatarId==='adult'?outfitPickerFocus:outfitId==='study-body'} title={outfitPending?'準備中…':`${currentOutfit.shortName} · ${currentOutfit.blurb??''}`} onClick={toggleOutfit}><Shirt size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">換裝</span>{outfitPending&&<span className="studio-tool-pending" aria-hidden="true"/>}</button>}
+   {showOutfitBar&&<div className="outfit-picker-anchor">
+    {outfitPickerOpen&&<div className="outfit-bar" ref={outfitBarRef} role="group" aria-label="換裝">
+     {avatarOutfitList.map(o=><button key={o.id} type="button" className={outfitId===o.id?'is-active':''} aria-pressed={outfitId===o.id} title={outfitPending&&outfitNeedsAltBuild(avatarId,o.id as OutfitId)?'準備中…':`${o.shortName} · ${o.blurb}`} disabled={outfitPending&&outfitId!==o.id} onClick={()=>switchOutfit(o.id as OutfitId)}>{o.shortName}</button>)}
+    </div>}
+    <button ref={outfitShirtRef} type="button" className={`studio-tool-btn${outfitPending?' is-pending':''}${outfitPickerOpen?' is-active':''}`} aria-label={outfitPending?'練習裝準備中':`換裝：${currentOutfit.shortName}，點擊開啟選單`} aria-expanded={outfitPickerOpen} aria-haspopup="true" title={outfitPending?'準備中…':`${currentOutfit.shortName} · ${currentOutfit.blurb??''}`} onClick={toggleOutfit}><Shirt size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop studio-tool-tag-outfit">{currentOutfit.shortName}</span><span className="studio-tool-outfit-pip" aria-hidden="true">{currentOutfit.shortName}</span>{outfitPending&&<span className="studio-tool-pending" aria-hidden="true"/>}</button>
+   </div>}
    <button type="button" className="studio-tool-btn" aria-label="來源與許可" title="來源與許可" onClick={()=>setAbout(true)}><Info size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">來源</span></button>
    <button type="button" className={`studio-tool-btn${mobilePanel==='library'?' is-active':''}`} aria-label="穴位庫" aria-expanded={mobilePanel==='library'} title="穴位庫" onClick={toggleLibrary}><Layers3 size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">穴庫</span></button>
   </nav>

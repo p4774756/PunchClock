@@ -77,8 +77,14 @@ const waitLoadDone = async (page) => {
     },
     {timeout: 180_000},
   );
-  await page.waitForSelector('.outfit-bar button', {timeout: 30_000});
+  await page.getByRole('button', {name: /換裝：.*點擊開啟選單/}).waitFor({timeout: 30_000});
   await page.waitForTimeout(200);
+};
+
+const openOutfitMenu = async page => {
+  const shirt = page.getByRole('button', {name: /換裝：.*點擊開啟選單/});
+  if ((await shirt.getAttribute('aria-expanded')) !== 'true') await shirt.click();
+  await page.waitForSelector('.outfit-bar button', {timeout: 10_000});
 };
 
 const measureClick = async (page, label) => {
@@ -91,6 +97,7 @@ const measureClick = async (page, label) => {
   });
   const practiceBtn = page.locator('.outfit-bar button').filter({hasText: '練習裝'});
   const schoolBtn = page.locator('.outfit-bar button').filter({hasText: '制服'});
+  await openOutfitMenu(page);
   await practiceBtn.click({force: true, noWaitAfter: true});
   const pressedHandle = await page.waitForFunction(
     () => {
@@ -103,8 +110,10 @@ const measureClick = async (page, label) => {
   );
   const pressedMs = await pressedHandle.jsonValue();
   await page.waitForTimeout(400);
+  await openOutfitMenu(page);
   await schoolBtn.click({force: true});
   await page.waitForTimeout(400);
+  await openOutfitMenu(page);
   await practiceBtn.click({force: true});
   await page
     .waitForFunction(() => performance.getEntriesByName('atlas:outfit-switch').length > 0, {

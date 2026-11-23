@@ -146,12 +146,20 @@ const runPixelCheck = async () => {
       () => performance.getEntriesByName('practice-outfit-build').length > 0,
       {timeout: 300_000},
     );
+    const openOutfitMenu = async () => {
+      const shirt = page.getByRole('button', {name: /換裝：.*點擊開啟選單/});
+      if ((await shirt.getAttribute('aria-expanded')) !== 'true') await shirt.click();
+      await page.waitForSelector('.outfit-bar button', {timeout: 10_000});
+    };
     const practiceBtn = page.locator('.outfit-bar button').filter({hasText: '練習裝'});
     const schoolBtn = page.locator('.outfit-bar button').filter({hasText: '制服'});
+    await openOutfitMenu();
     await practiceBtn.click({force: true});
     await page.waitForTimeout(2500);
+    await openOutfitMenu();
     await schoolBtn.click({force: true});
     await page.waitForTimeout(800);
+    await openOutfitMenu();
     await practiceBtn.click({force: true});
     await page.waitForTimeout(3000);
     const canvas = page.locator('.scene canvas');
