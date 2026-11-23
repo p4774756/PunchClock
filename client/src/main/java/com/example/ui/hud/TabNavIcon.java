@@ -25,7 +25,6 @@ final class TabNavIcon {
 
     static final int ICON_SIZE = 20;
     static final int ICON_GAP = 4;
-    static final String MINI_ICON_ID = "minimize-2";
 
     private static final String[] NAV_ICON_IDS = {
             "home", "calendar-clock", "folder-up", "notebook-text", "settings"

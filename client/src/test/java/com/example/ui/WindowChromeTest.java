@@ -28,31 +28,34 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class WindowChromeTest {
 
     @Test
-    public void installProvidesSliderAndBody() throws Exception {
+    public void installProvidesBodyAndTransparencySliderFactory() throws Exception {
         Assume.assumeFalse("headless JVM cannot create frames", GraphicsEnvironment.isHeadless());
 
         JFrame[] holder = new JFrame[1];
-        WindowChrome.Controls[] controls = new WindowChrome.Controls[1];
         SwingUtilities.invokeAndWait(() -> {
             JFrame frame = new JFrame();
             holder[0] = frame;
-            controls[0] = WindowChrome.install(
+            WindowChrome.install(
                     frame, "透明度測試", null, new Font(Font.SANS_SERIF, Font.BOLD, 13),
                     new Font(Font.SANS_SERIF, Font.PLAIN, 12));
         });
         try {
-            assertNotNull(controls[0]);
-            assertNotNull(controls[0].transparencySlider);
-            assertEquals(0, controls[0].transparencySlider.getMinimum());
-            assertEquals(WindowOpacity.MAX_TRANSPARENCY_PERCENT, controls[0].transparencySlider.getMaximum());
+            javax.swing.JSlider slider = WindowChrome.createTransparencySlider(
+                    new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+            assertEquals(0, slider.getMinimum());
+            assertEquals(WindowOpacity.MAX_TRANSPARENCY_PERCENT, slider.getMaximum());
             JPanel body = WindowChrome.bodyOf(holder[0]);
             assertNotNull(body);
             assertTrue(holder[0].isUndecorated());
+            JPanel title = findMarked(holder[0].getContentPane(), "punchclock.titleBar");
+            assertNotNull(title);
+            assertNull(findSlider(holder[0].getContentPane()));
             WindowChrome.setWallpaper(holder[0], null);
         } finally {
             SwingUtilities.invokeAndWait(() -> holder[0].dispose());
@@ -74,15 +77,17 @@ public class WindowChromeTest {
                     closing[0]++;
                 }
             });
-            WindowChrome.Controls controls = WindowChrome.install(
+            WindowChrome.install(
                     frame, "新光小寶貝版面", null, new Font(Font.SANS_SERIF, Font.BOLD, 13),
                     new Font(Font.SANS_SERIF, Font.PLAIN, 12));
             JTabbedPane tabs = new JTabbedPane();
             AnimeShell shell = new AnimeShell(null, tabs);
             WindowChrome.bodyOf(frame).add(shell);
             WindowChrome.setFramePortrait(frame, new HomePortrait(shell));
-            controls.transparencySlider.addChangeListener(e ->
-                    WindowOpacity.applyTransparencyPercent(frame, controls.transparencySlider.getValue()));
+            javax.swing.JSlider transparencySlider = WindowChrome.createTransparencySlider(
+                    new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+            transparencySlider.addChangeListener(e ->
+                    WindowOpacity.applyTransparencyPercent(frame, transparencySlider.getValue()));
             frame.setSize(1280, 920);
             frame.setLocation(80, 60);
             frame.setVisible(true);
@@ -151,10 +156,12 @@ public class WindowChromeTest {
                 Thread.sleep(40);
             }
             assertEquals(0, holder[0].getExtendedState() & Frame.ICONIFIED);
+            final javax.swing.JSlider[] sliderRef = new javax.swing.JSlider[1];
             SwingUtilities.invokeAndWait(() -> {
-                javax.swing.JSlider slider = findSlider(holder[0].getContentPane());
-                assertNotNull(slider);
-                slider.setValue(20);
+                sliderRef[0] = WindowChrome.createTransparencySlider(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+                sliderRef[0].addChangeListener(e ->
+                        WindowOpacity.applyTransparencyPercent(holder[0], sliderRef[0].getValue()));
+                sliderRef[0].setValue(20);
                 assertEquals(WindowOpacity.toOpacity(20), holder[0].getOpacity(), 0.02);
                 findButton(holder[0], "關閉").doClick();
                 assertEquals(1, closing[0]);

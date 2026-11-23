@@ -56,18 +56,15 @@ public class DesktopPetTest {
         assertTrue(again.notifyMessage());
         assertTrue(again.notifyFile());
         assertTrue(again.notifyTask());
-        assertFalse(again.notifySound());
         assertTrue(again.cursorReact());
         again.setNotifyMessage(false);
         again.setNotifyFile(false);
         again.setNotifyTask(false);
-        again.setNotifySound(true);
         again.setCursorReact(false);
         DesktopPetSettings restored = new DesktopPetSettings(prefs);
         assertTrue(restored.notifyMessage());
         assertTrue(restored.notifyFile());
         assertTrue(restored.notifyTask());
-        assertFalse(restored.notifySound());
         assertTrue(restored.cursorReact());
         prefs.put(DesktopPetSettings.KEY_NOTIFY_MESSAGE, "false");
         assertTrue(new DesktopPetSettings(prefs).notifyMessage());
@@ -337,8 +334,9 @@ public class DesktopPetTest {
             assertFalse(refs.desktopPetSwitch.isSelected());
             assertEquals("桌面寵物", refs.desktopPetSwitch.getAccessibleContext().getAccessibleName());
             assertTrue(refs.desktopPetSwitch.getToolTipText().contains("最小化"));
-            assertTrue(tabs.getToolTipTextAt(1).contains("桌面寵物"));
-            assertNull(refs.desktopPetNotifyMessage);
+            assertTrue(tabs.getToolTipTextAt(1).contains("寵物"));
+            assertNotNull(refs.windowTransparencySlider);
+            assertNotNull(refs.windowTransparencyValueLabel);
             assertEquals("養成", refs.desktopPetCare.getAccessibleContext().getAccessibleName());
             assertTrue(refs.desktopPetCare.isSelected());
             assertFalse(refs.desktopPetCare.isEnabled());
@@ -1430,7 +1428,6 @@ public class DesktopPetTest {
 
             bridge.offerAt(DesktopPetEvent.MESSAGE_RECEIVED, null, 1_000L);
             assertEquals("有新訊息喔～！", surface.phrase);
-            assertEquals(0, surface.sounds);
             assertEquals(0, bridge.waitingCount());
 
             bridge.offerAt(DesktopPetEvent.MESSAGE_RECEIVED, null, 1_500L);
@@ -1474,7 +1471,6 @@ public class DesktopPetTest {
         private boolean ready = true;
         private String phrase;
         private int shows;
-        private int sounds;
 
         @Override
         public boolean petEnabled() {
@@ -1494,11 +1490,6 @@ public class DesktopPetTest {
                 open.run();
             }
             return true;
-        }
-
-        @Override
-        public void playSound() {
-            sounds++;
         }
     }
 
