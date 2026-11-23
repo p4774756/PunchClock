@@ -22,7 +22,6 @@ public final class DesktopPetEventBridge {
         boolean showNotice(String phrase, Runnable open);
     }
 
-    private final DesktopPetSettings settings;
     private final DesktopPetNotificationPolicy policy;
     private final Surface surface;
     private final ArrayDeque<Item> waiting = new ArrayDeque<>();
@@ -32,7 +31,6 @@ public final class DesktopPetEventBridge {
         if (settings == null || surface == null) {
             throw new IllegalArgumentException("bridge");
         }
-        this.settings = settings;
         this.policy = new DesktopPetNotificationPolicy(settings);
         this.surface = surface;
     }

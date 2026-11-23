@@ -1,6 +1,5 @@
 package com.example.server.web;
 
-import com.example.DonateLink;
 import com.example.server.ClientRelease;
 import com.example.server.ServerApp;
 import com.example.server.store.DevStatusModels;
@@ -18,7 +17,6 @@ import java.time.Duration;
 import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class DonateLinkPageTest {

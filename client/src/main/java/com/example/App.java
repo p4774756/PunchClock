@@ -32,7 +32,6 @@ import com.example.ui.PanelFactory;
 import com.example.ui.PanelFactory.*;
 import com.example.ui.ClientIdApplyUi;
 import com.example.ui.RecentValuesHelper;
-import com.example.PeerFileRules;
 import com.example.ui.SlotController;
 import com.example.model.CheckInHistoryEntry;
 import com.example.model.CheckInTask;
@@ -126,7 +125,6 @@ public class App extends JFrame {
     private String cachedAvatarId = "";
     private String cachedAvatarEncoded = "";
     private BufferedImage cachedAvatar;
-    private WindowChrome.Controls windowChrome;
     private DesktopPetManager desktopPetManager;
     private boolean loggedOpacityUnsupported;
     private ClientUpdateCoordinator updateCoordinator;
@@ -272,8 +270,7 @@ public class App extends JFrame {
         Font fieldFont = UiFonts.latinPlain(13);
         NightTheme.installLook();
 
-        windowChrome = WindowChrome.install(
-                this, getTitle(), appIconImage, boldFont, mainFont);
+        WindowChrome.install(this, getTitle(), appIconImage, boldFont, mainFont);
         JPanel content = WindowChrome.bodyOf(this);
 
         JTabbedPane tabs = new JTabbedPane();
@@ -1779,53 +1776,9 @@ public class App extends JFrame {
         }
     }
 
-    private void bindBackgroundControls() {
-        if (serverRefs.chooseBackgroundButton != null) {
-            serverRefs.chooseBackgroundButton.addActionListener(e -> chooseWindowBackground());
-        }
-        if (serverRefs.clearBackgroundButton != null) {
-            serverRefs.clearBackgroundButton.addActionListener(e -> clearWindowBackground());
-        }
-        if (serverRefs.backgroundBlurSlider != null) {
-            serverRefs.backgroundBlurSlider.addChangeListener(e -> {
-                int blur = serverRefs.backgroundBlurSlider.getValue();
-                if (serverRefs.backgroundBlurValueLabel != null) {
-                    serverRefs.backgroundBlurValueLabel.setText(blur + "%");
-                }
-                if (!serverRefs.backgroundBlurSlider.getValueIsAdjusting()) {
-                    applyBackgroundEffectsFromUi(true);
-                }
-            });
-        }
-        if (serverRefs.backgroundOpacitySlider != null) {
-            serverRefs.backgroundOpacitySlider.addChangeListener(e -> {
-                int opacity = serverRefs.backgroundOpacitySlider.getValue();
-                if (serverRefs.backgroundOpacityValueLabel != null) {
-                    serverRefs.backgroundOpacityValueLabel.setText(opacity + "%");
-                }
-                applyBackgroundEffectsFromUi(!serverRefs.backgroundOpacitySlider.getValueIsAdjusting());
-            });
-        }
-    }
-
     private void applyBackgroundFromConfig(ConfigPersistenceService.CloudConfig config) {
         if (shell != null) {
             shell.setUseRoom(true);
-        }
-    }
-
-    private void syncBackgroundSliders(int blur, int opacity) {
-        if (serverRefs.backgroundBlurSlider != null) {
-            serverRefs.backgroundBlurSlider.setValue(blur);
-        }
-        if (serverRefs.backgroundBlurValueLabel != null) {
-            serverRefs.backgroundBlurValueLabel.setText(blur + "%");
-        }
-        if (serverRefs.backgroundOpacitySlider != null) {
-            serverRefs.backgroundOpacitySlider.setValue(opacity);
-        }
-        if (serverRefs.backgroundOpacityValueLabel != null) {
-            serverRefs.backgroundOpacityValueLabel.setText(opacity + "%");
         }
     }
 
@@ -2125,15 +2078,6 @@ public class App extends JFrame {
         if (serverRefs.desktopPetSwitch.isSelected()) {
             desktopPetManager.setEnabled(true);
         }
-    }
-
-    private void bindPetToggle(javax.swing.JToggleButton button, boolean selected,
-                               java.util.function.Consumer<Boolean> save) {
-        if (button == null || save == null) {
-            return;
-        }
-        button.setSelected(selected);
-        button.addActionListener(e -> save.accept(button.isSelected()));
     }
 
     private void notifyPet(DesktopPetEvent event, Runnable open) {

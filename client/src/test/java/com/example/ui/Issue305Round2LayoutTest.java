@@ -11,6 +11,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Rectangle;
+import java.awt.geom.Rectangle2D;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -209,9 +210,11 @@ public class Issue305Round2LayoutTest {
     private static void assertFullyVisible(JTextArea area, String label) {
         area.setSize(new Dimension(Math.max(1, area.getWidth()), area.getPreferredSize().height));
         try {
-            Rectangle start = area.modelToView(0);
+            Rectangle2D start2d = area.modelToView2D(0);
             int last = Math.max(0, area.getText().length() - 1);
-            Rectangle end = area.modelToView(last);
+            Rectangle2D end2d = area.modelToView2D(last);
+            Rectangle start = start2d != null ? start2d.getBounds() : null;
+            Rectangle end = end2d != null ? end2d.getBounds() : null;
             assertNotNull(start);
             assertNotNull(end);
             assertTrue(label + " end " + end + " area " + area.getWidth() + "x" + area.getHeight(),

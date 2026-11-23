@@ -17,19 +17,16 @@ public final class DonateAction {
     private final Function<String, Boolean> isConfigured;
     private final BiConsumer<URI, Component> browse;
     private final Runnable showPreparing;
-    private final BiConsumer<Component, String> showUrlCopy;
 
     public DonateAction(
             Function<String, String> resolveUrl,
             Function<String, Boolean> isConfigured,
             BiConsumer<URI, Component> browse,
-            Runnable showPreparing,
-            BiConsumer<Component, String> showUrlCopy) {
+            Runnable showPreparing) {
         this.resolveUrl = resolveUrl;
         this.isConfigured = isConfigured;
         this.browse = browse;
         this.showPreparing = showPreparing;
-        this.showUrlCopy = showUrlCopy;
     }
 
     public static DonateAction production() {
@@ -57,12 +54,7 @@ public final class DonateAction {
                         }
                     }
                 },
-                () -> {},
-                (p, url) -> {
-                    if (p != null) {
-                        UiFonts.showMessage(p, url, "贊助網址", javax.swing.JOptionPane.INFORMATION_MESSAGE);
-                    }
-                });
+                () -> {});
     }
 
     public void run(Component parent) {

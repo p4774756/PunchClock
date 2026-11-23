@@ -24,7 +24,6 @@ final class HomeBoard {
     private static final Color PANEL = new Color(54, 42, 96, 228);
     private static final Color PANEL_EDGE = new Color(142, 116, 178, 170);
     private static final int FADE_MS = 240;
-    private static final long IDLE_HOLD_MS = 12_000L;
     private static final String[] CLICK_LINES = {
             "嘿嘿，找我有事嗎？",
             "我一直都在這裡喔～",

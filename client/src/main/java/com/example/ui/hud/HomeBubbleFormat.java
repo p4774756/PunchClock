@@ -9,7 +9,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * 首頁泡泡實用文案：任務失敗 &gt; 下一個任務 &gt; 今日完成 &gt; 事件 &gt; 氣氛話。
