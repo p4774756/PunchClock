@@ -134,6 +134,7 @@ export function mountPrivateTeamPage(opts) {
     typeof pageHooks.openDownload === 'function' ? pageHooks.openDownload : null;
   const closeDownload =
     typeof pageHooks.closeDownload === 'function' ? pageHooks.closeDownload : null;
+  const openNews = typeof pageHooks.openNews === 'function' ? pageHooks.openNews : null;
 
   let canvas = stage.querySelector('[data-private-team-canvas]');
   if (!canvas) {
@@ -399,12 +400,22 @@ export function mountPrivateTeamPage(opts) {
     openRoadmap();
   }
 
+  function openNewsFromTv() {
+    if (!openNews) return;
+    closeStatusCard();
+    closeIdentityMenu();
+    closeTaskHint();
+    loginModal.close();
+    openNews();
+  }
+
   let roadmapOpen = false;
   let tasksOpen = false;
   let downloadOpen = false;
+  let newsOpen = false;
 
   function syncSceneOverlay() {
-    const sceneBlocked = roadmapOpen || tasksOpen || downloadOpen;
+    const sceneBlocked = roadmapOpen || tasksOpen || downloadOpen || newsOpen;
     stage.classList.toggle('pt-roadmap-open', sceneBlocked);
     scene.setSceneInputEnabled(!sceneBlocked && !loginOpen);
   }
@@ -432,6 +443,10 @@ export function mountPrivateTeamPage(opts) {
       loginModal.close({ fromManager: true, silent: true });
       if (tasksOpen && closeTasks) closeTasks();
       if (closeDownload) closeDownload();
+      if (newsOpen) {
+        newsOpen = false;
+        syncSceneOverlay();
+      }
     }
   }
 
@@ -448,6 +463,10 @@ export function mountPrivateTeamPage(opts) {
         syncSceneOverlay();
       }
       if (closeDownload) closeDownload();
+      if (newsOpen) {
+        newsOpen = false;
+        syncSceneOverlay();
+      }
     }
   }
 
@@ -464,6 +483,27 @@ export function mountPrivateTeamPage(opts) {
         roadmapOpen = false;
         syncSceneOverlay();
       }
+      if (newsOpen) {
+        newsOpen = false;
+        syncSceneOverlay();
+      }
+    }
+  }
+
+  function setNewsOpen(open) {
+    newsOpen = !!open;
+    syncSceneOverlay();
+    if (newsOpen) {
+      closeStatusCard();
+      closeIdentityMenu();
+      closeTaskHint();
+      loginModal.close({ fromManager: true, silent: true });
+      if (tasksOpen && closeTasks) closeTasks();
+      if (closeDownload) closeDownload();
+      if (roadmapOpen) {
+        roadmapOpen = false;
+        syncSceneOverlay();
+      }
     }
   }
 
@@ -472,6 +512,7 @@ export function mountPrivateTeamPage(opts) {
     doc,
     onActivate: onSceneActivate,
     onOpenProgress: openRoadmapFromBoard,
+    onOpenNews: openNewsFromTv,
     onProgressBoardRect: placeProgHit
   });
 
@@ -487,7 +528,7 @@ export function mountPrivateTeamPage(opts) {
     onOpenChange: (open) => {
       loginOpen = !!open;
       stage.classList.toggle('pt-login-open', loginOpen);
-      scene.setSceneInputEnabled(!loginOpen && !roadmapOpen && !tasksOpen);
+      scene.setSceneInputEnabled(!loginOpen && !roadmapOpen && !tasksOpen && !newsOpen);
       if (loginOpen) {
         closeStatusCard();
         closeIdentityMenu();
@@ -730,17 +771,31 @@ export function mountPrivateTeamPage(opts) {
       });
   }
 
+  function refreshNewsFeed() {
+    if (!fetchFn) return;
+    fetchFn('/api/news')
+      .then((r) => (r && r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((body) => {
+        const items = body && body.items ? body.items : [];
+        scene.setNewsFeed(items);
+      });
+  }
+
   refreshOfficePublic();
   refreshDevQueue();
+  refreshNewsFeed();
   const poll = win.setInterval(() => {
     refreshOfficePublic();
     refreshDevQueue();
   }, 60_000);
+  const newsPoll = win.setInterval(refreshNewsFeed, 15 * 60 * 1000);
 
   return {
     setRoadmapOpen,
     setTasksOpen,
     setDownloadOpen,
+    setNewsOpen,
     openLoginForAtlas,
     getLoginModal() {
       return loginModal;
@@ -750,6 +805,7 @@ export function mountPrivateTeamPage(opts) {
     },
     destroy() {
       win.clearInterval(poll);
+      win.clearInterval(newsPoll);
       doc.removeEventListener('keydown', onKeyDown);
       loginModal.destroy();
       closeIdentityMenu();
@@ -757,6 +813,7 @@ export function mountPrivateTeamPage(opts) {
       closeStatusCard();
       setRoadmapOpen(false);
       setTasksOpen(false);
+      setNewsOpen(false);
       if (closeTasks) closeTasks();
       scene.destroy();
     }

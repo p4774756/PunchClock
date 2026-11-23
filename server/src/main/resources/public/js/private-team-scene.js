@@ -721,6 +721,25 @@ function makeScreenPainter() {
 
 export const PROGRESS_BOARD_PLANE_W = 1.05;
 export const PROGRESS_BOARD_PLANE_H = 0.65625;
+export const PROGRESS_BOARD_CENTER_Z = 0.1;
+export const NEWS_TV_PLANE_W = 0.88;
+export const NEWS_TV_PLANE_H = 0.495;
+export const NEWS_TV_CENTER_Z = 1.14;
+export const NEWS_TV_ROTATE_MS = 8000;
+
+export function newsTvGapFromProgressBoard() {
+  const progHalf = PROGRESS_BOARD_PLANE_W / 2;
+  const tvHalf = NEWS_TV_PLANE_W / 2;
+  return NEWS_TV_CENTER_Z - (PROGRESS_BOARD_CENTER_Z + progHalf) - tvHalf;
+}
+
+export function newsTickerScrollEnabled(reducedMotion, win) {
+  if (reducedMotion) return false;
+  const w = win || globalThis;
+  const coarse = typeof w.matchMedia === 'function' && w.matchMedia('(pointer: coarse)').matches;
+  const narrow = (w.innerWidth || 1024) < 640;
+  return !(coarse || narrow);
+}
 
 export const BRONZE_POLISHED_GOLD = 0xcda864;
 
@@ -826,6 +845,57 @@ function wrapBoardLine(ctx, text, maxW, maxLines) {
     lines[maxLines - 1] = ellipsizeLine(ctx, lines[maxLines - 1], maxW);
   }
   return lines;
+}
+
+function makeNewsTvDrawer() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 288;
+  const ctx = canvas.getContext('2d');
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  let lastKey = '';
+  function draw(state) {
+    const bag = state && typeof state === 'object' ? state : {};
+    const title = bag.title == null ? '' : String(bag.title);
+    const scroll = !!bag.scroll;
+    const offset = Number(bag.scrollX) || 0;
+    const key = title + '|' + (scroll ? Math.floor(offset * 2) : 'static');
+    if (key === lastKey) return;
+    lastKey = key;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#101a28';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(120, 168, 232, 0.1)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillStyle = '#8aaed0';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('即時新聞', 12, 10);
+    ctx.font = 'bold 26px sans-serif';
+    ctx.fillStyle = '#e8f2ff';
+    const maxW = canvas.width - 24;
+    const y = 44;
+    if (!title) {
+      ctx.fillText('載入中…', 12, y);
+    } else if (!scroll) {
+      const lines = wrapBoardLine(ctx, title, maxW, 3);
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], 12, y + i * 32);
+      }
+    } else {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(8, 38, canvas.width - 16, canvas.height - 46);
+      ctx.clip();
+      ctx.fillText(title, 12 - offset, y);
+      ctx.restore();
+    }
+    tex.needsUpdate = true;
+  }
+  draw({ title: '', scroll: false, scrollX: 0 });
+  return { tex, draw };
 }
 
 function makeProgressBoardDrawer() {
@@ -1586,6 +1656,32 @@ export function mountPrivateTeamScene(canvas, opts) {
   progressGlow.position.set(leftX + WALL_THICK + 0.12, 1.52, 0.24);
   root.add(progressGlow);
 
+  const newsDrawer = makeNewsTvDrawer();
+  const newsTvY = 1.52;
+  const newsTvX = leftX + WALL_THICK + 0.05;
+  const newsFrameMat = new THREE.MeshBasicMaterial({ color: 0x2a2420 });
+  const newsTvGroup = new THREE.Group();
+  newsTvGroup.name = 'newsTv';
+  newsTvGroup.position.set(newsTvX, newsTvY, NEWS_TV_CENTER_Z);
+  newsTvGroup.rotation.y = Math.PI / 2;
+  const newsScreen = new THREE.Mesh(
+    new THREE.PlaneGeometry(NEWS_TV_PLANE_W, NEWS_TV_PLANE_H),
+    new THREE.MeshBasicMaterial({ map: newsDrawer.tex })
+  );
+  newsScreen.name = 'newsTvScreen';
+  newsScreen.userData.pickRole = 'news';
+  const framePad = 0.028;
+  const frameBack = new THREE.Mesh(
+    new THREE.PlaneGeometry(NEWS_TV_PLANE_W + framePad * 2, NEWS_TV_PLANE_H + framePad * 2),
+    newsFrameMat
+  );
+  frameBack.position.z = -0.008;
+  newsTvGroup.add(frameBack, newsScreen);
+  root.add(newsTvGroup);
+  const newsGlow = new THREE.PointLight(0x90b8e8, 0.12, 2.2, 2);
+  newsGlow.position.set(newsTvX + 0.06, newsTvY, NEWS_TV_CENTER_Z + 0.12);
+  root.add(newsGlow);
+
   const monitorLook = new THREE.Vector3(0.02, 1.02, 0.72);
   const monitors = [addMonitor(root, monitorLook, -0.96, 0.94, 0.98, 0.02)];
 
@@ -1665,6 +1761,13 @@ export function mountPrivateTeamScene(canvas, opts) {
   let lampHaloBase = lighting.haloOpacity;
 
   let reducedMotion = false;
+  let newsItems = [];
+  let newsIndex = 0;
+  let newsRotateAt = 0;
+  let newsScrollX = 0;
+  let newsTitleWidth = 0;
+  let newsMeasureCtx = null;
+  let lastFrameMs = 0;
 
   addLowPolyPlant(root, -1.15, 0.82);
 
@@ -1945,12 +2048,13 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   progMesh.userData.pickRole = 'progress';
 
-  const clickables = [bubble, progMesh, atlasRoot];
+  const clickables = [bubble, progMesh, newsScreen, atlasRoot];
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const boardCorner = new THREE.Vector3();
   const onActivate = typeof (opts && opts.onActivate) === 'function' ? opts.onActivate : null;
   const onOpenProgress = typeof (opts && opts.onOpenProgress) === 'function' ? opts.onOpenProgress : null;
+  const onOpenNews = typeof (opts && opts.onOpenNews) === 'function' ? opts.onOpenNews : null;
   const onProgressBoardRect = typeof (opts && opts.onProgressBoardRect) === 'function' ? opts.onProgressBoardRect : null;
   let sceneInputEnabled = true;
 
@@ -2088,6 +2192,10 @@ export function mountPrivateTeamScene(canvas, opts) {
       if (onOpenProgress) onOpenProgress();
       return;
     }
+    if (target === 'news') {
+      if (onOpenNews) onOpenNews();
+      return;
+    }
     if (target === 'atlas') {
       if (onActivate) onActivate('atlas');
       return;
@@ -2155,7 +2263,8 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
     if (!pinchActive && sceneInputEnabled && !orbitDragged) {
       const hover = pickTarget(ev.clientX, ev.clientY);
-      const pointerOn = hover === 'atlas' || hover === 'secretary' || hover === 'progress';
+      const pointerOn =
+        hover === 'atlas' || hover === 'secretary' || hover === 'progress' || hover === 'news';
       canvas.style.cursor = pointerOn ? 'pointer' : '';
       setBronzeHover(hover === 'atlas');
     }
@@ -2268,6 +2377,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   function tick(now) {
     if (!running) return;
     raf = win.requestAnimationFrame(tick);
+    const frameDt = lastFrameMs ? now - lastFrameMs : 0;
+    lastFrameMs = now;
     if (animationPaused) return;
     if (dancePlayback) {
       const elapsed = now - dancePlayback.startMs;
@@ -2443,6 +2554,40 @@ export function mountPrivateTeamScene(canvas, opts) {
       applyCameraView();
     }
 
+    if (newsItems.length) {
+      const scrollOn = newsTickerScrollEnabled(reducedMotion, win);
+      const current = newsItems[newsIndex % newsItems.length];
+      const title = current && current.title ? String(current.title) : '';
+      if (!newsRotateAt) newsRotateAt = now;
+      if (now - newsRotateAt >= NEWS_TV_ROTATE_MS) {
+        newsIndex = (newsIndex + 1) % newsItems.length;
+        newsRotateAt = now;
+        newsScrollX = 0;
+        newsTitleWidth = 0;
+      }
+      if (scrollOn && title) {
+        if (!newsMeasureCtx) {
+          const measureCanvas = doc.createElement('canvas');
+          newsMeasureCtx = measureCanvas.getContext('2d');
+        }
+        if (!newsTitleWidth && newsMeasureCtx) {
+          newsMeasureCtx.font = 'bold 26px sans-serif';
+          newsTitleWidth = newsMeasureCtx.measureText(title).width;
+        }
+        const need = Math.max(0, newsTitleWidth - (512 - 36));
+        if (need > 8) {
+          const dt = frameDt > 0 ? Math.min(0.05, frameDt / 1000) : 0.016;
+          newsScrollX += dt * 42;
+          if (newsScrollX > need + 48) newsScrollX = 0;
+        } else {
+          newsScrollX = 0;
+        }
+      } else {
+        newsScrollX = 0;
+      }
+      newsDrawer.draw({ title, scroll: scrollOn, scrollX: newsScrollX });
+    }
+
     if (onProgressBoardRect) {
       const boardRect = progressBoardScreenRect();
       if (boardRect) onProgressBoardRect(boardRect);
@@ -2487,6 +2632,21 @@ export function mountPrivateTeamScene(canvas, opts) {
     noteTigerStatus,
     setProgressBoard(view) {
       progressDrawer.draw(view);
+    },
+    setNewsFeed(items) {
+      newsItems = Array.isArray(items)
+        ? items.filter((row) => row && row.title)
+        : [];
+      newsIndex = 0;
+      newsRotateAt = 0;
+      newsScrollX = 0;
+      newsTitleWidth = 0;
+      const title = newsItems[0] && newsItems[0].title ? String(newsItems[0].title) : '';
+      newsDrawer.draw({
+        title,
+        scroll: newsTickerScrollEnabled(reducedMotion, win),
+        scrollX: 0
+      });
     },
     setAtlasNameplateText(text) {
       if (nameplateDrawer) nameplateDrawer.draw(text == null ? '' : String(text));
