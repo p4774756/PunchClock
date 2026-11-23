@@ -311,6 +311,10 @@ export function shouldOpenAtlasLoginFromSearch(search) {
   return parseRoadmapOpenParam(search) === 'atlas-login';
 }
 
+export function shouldOpenDownloadFromSearch(search) {
+  return parseRoadmapOpenParam(search) === 'download';
+}
+
 function stripOpenSearchFromUrl(win) {
   try {
     const url = new URL(win.location.href);
@@ -339,6 +343,15 @@ export function applyTasksOpenParam(win, openTasksFn) {
   if (!win || !win.location || typeof openTasksFn !== 'function') return false;
   if (!shouldOpenTasksFromSearch(win.location.search)) return false;
   openTasksFn();
+  stripOpenSearchFromUrl(win);
+  return true;
+}
+
+/** 帶 open=download 時開下載浮窗並清掉 query。 */
+export function applyDownloadOpenParam(win, openDownloadFn) {
+  if (!win || !win.location || typeof openDownloadFn !== 'function') return false;
+  if (!shouldOpenDownloadFromSearch(win.location.search)) return false;
+  openDownloadFn();
   stripOpenSearchFromUrl(win);
   return true;
 }

@@ -333,6 +333,7 @@ export function createRoadmapController(opts) {
   const searchClear = root && root.querySelector('[data-roadmap-search-clear]');
   const searchEmpty = root && root.querySelector('[data-roadmap-search-empty]');
   const win = (opts && opts.win) || globalThis;
+  const officeModal = opts && opts.officeModal;
   let openState = false;
   let latest = null;
   let canLinkGithub = false;
@@ -373,22 +374,7 @@ export function createRoadmapController(opts) {
   }
   updateSearchChrome();
 
-  function lockBackground(want) {
-    const body = doc && doc.body;
-    if (!body || !body.style) return;
-    if (want) {
-      const y = win && typeof win.scrollY === 'number' ? win.scrollY : 0;
-      if (body.dataset) body.dataset.roadmapScrollY = String(y);
-      body.style.top = (-y) + 'px';
-      return;
-    }
-    const y = body.dataset ? Number(body.dataset.roadmapScrollY || 0) : 0;
-    body.style.top = '';
-    if (body.dataset) delete body.dataset.roadmapScrollY;
-    if (win && typeof win.scrollTo === 'function') win.scrollTo(0, Number.isFinite(y) ? y : 0);
-  }
-
-  function setOpen(next) {
+  function setOpen(next, meta) {
     const want = !!next;
     if (want === openState) return;
     openState = want;
@@ -396,11 +382,21 @@ export function createRoadmapController(opts) {
       root.hidden = !want;
       root.setAttribute('aria-hidden', want ? 'false' : 'true');
     }
-    if (doc.body) doc.body.classList.toggle('roadmap-open', want);
-    lockBackground(want);
+    if (officeModal) {
+      if (want) officeModal.notifyOpened('roadmap', meta && meta.trigger);
+      else if (!meta || !meta.silent) officeModal.notifyClosed('roadmap');
+    } else if (doc.body) doc.body.classList.toggle('roadmap-open', want);
     if (typeof hooks.onChange === 'function') hooks.onChange({ open: want });
     if (want) refresh();
   }
+
+  function closeFromBackdrop(ev) {
+    if (!root || ev.target !== root) return;
+    setOpen(false);
+  }
+  if (root) root.addEventListener('click', closeFromBackdrop);
+  const panelRoot = root && root.querySelector('.roadmap-panel');
+  if (panelRoot) panelRoot.addEventListener('click', (ev) => ev.stopPropagation());
 
   function apply(data) {
     latest = data || null;
@@ -523,8 +519,22 @@ export function createRoadmapController(opts) {
   }
 
   return {
-    open() { setOpen(true); },
-    close() { setOpen(false); },
+    root,
+    open(meta) { setOpen(true, meta); },
+    close(meta) {
+      if (meta && (meta.fromManager || meta.silent)) {
+        if (!openState) return;
+        openState = false;
+        if (root) {
+          root.hidden = true;
+          root.setAttribute('aria-hidden', 'true');
+        }
+        if (!meta.silent && officeModal) officeModal.notifyClosed('roadmap');
+        if (typeof hooks.onChange === 'function') hooks.onChange({ open: false });
+        return;
+      }
+      setOpen(false);
+    },
     isOpen() { return openState; },
     refresh: refresh,
     apply: apply

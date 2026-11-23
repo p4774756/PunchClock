@@ -14,6 +14,7 @@ export function wireHomeLoginModal(opts) {
   const fetchFn = (opts && opts.fetch) || (win.fetch ? win.fetch.bind(win) : null);
   const onAuthed = typeof (opts && opts.onAuthed) === 'function' ? opts.onAuthed : null;
   const onOpenChange = typeof (opts && opts.onOpenChange) === 'function' ? opts.onOpenChange : null;
+  const officeModal = opts && opts.officeModal;
 
   const board = doc.getElementById('loginBoard');
   if (!board) {
@@ -32,10 +33,17 @@ export function wireHomeLoginModal(opts) {
   let lockTimer = null;
   let lockRemainingSec = 0;
 
-  function setOpen(next) {
-    open = !!next;
+  function setOpen(next, meta) {
+    const want = !!next;
+    if (want === open) return;
+    open = want;
     board.hidden = !open;
     board.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if (open) {
+      if (officeModal) officeModal.notifyOpened('login', meta && meta.trigger);
+    } else if (!meta || !meta.silent) {
+      if (officeModal) officeModal.notifyClosed('login');
+    }
     if (onOpenChange) onOpenChange(open);
   }
 
@@ -128,11 +136,21 @@ export function wireHomeLoginModal(opts) {
     if (toggleBtn) toggleBtn.textContent = '顯示';
   }
 
-  function close() {
+  function close(meta) {
+    if (meta && (meta.fromManager || meta.silent)) {
+      if (!open) return;
+      open = false;
+      board.hidden = true;
+      board.setAttribute('aria-hidden', 'true');
+      resetFormFields();
+      if (!meta.silent && officeModal) officeModal.notifyClosed('login');
+      if (onOpenChange) onOpenChange(false);
+      return;
+    }
     if (!open) return;
     setOpen(false);
     resetFormFields();
-    if (lastFocus && typeof lastFocus.focus === 'function') {
+    if (!officeModal && lastFocus && typeof lastFocus.focus === 'function') {
       try {
         lastFocus.focus({ preventScroll: true });
       } catch (_e) { /* ignore */ }
@@ -140,11 +158,11 @@ export function wireHomeLoginModal(opts) {
     lastFocus = null;
   }
 
-  function openModal() {
+  function openModal(trigger) {
     if (open) return;
-    lastFocus = doc.activeElement;
+    lastFocus = trigger || doc.activeElement;
     resetFormFields();
-    setOpen(true);
+    setOpen(true, { trigger });
     if (pwdInput && !pwdInput.disabled) {
       try {
         pwdInput.focus({ preventScroll: true });
@@ -225,6 +243,7 @@ export function wireHomeLoginModal(opts) {
   doc.addEventListener('keydown', onDocKey);
 
   return {
+    root: board,
     open: openModal,
     close,
     isOpen() {

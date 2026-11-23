@@ -25,6 +25,8 @@ test('私人女秘書 HUD 標記與身分文案', () => {
   assert.match(js, /登入/);
   assert.doesNotMatch(js, /pt-hud-identity/);
   assert.doesNotMatch(js, /AUTH_ABBREV/);
+  assert.match(js, /data-pt-open-download/);
+  assert.doesNotMatch(js, /href="\/download"/);
   assert.doesNotMatch(js, /data-pt-daynight/);
   assert.doesNotMatch(js, /punchclock-private-team-day/);
 });

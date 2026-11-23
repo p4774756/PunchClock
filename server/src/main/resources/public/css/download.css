@@ -2,6 +2,12 @@
   min-height: 100vh;
 }
 
+.download-root,
+.home-download-panel,
+.home-download-panel * {
+  box-sizing: border-box;
+}
+
 .download-root {
   width: min(100%, 640px);
   margin: 0 auto;
@@ -11,6 +17,12 @@
   background: #f8fbff;
   box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.31);
   border-radius: 6px;
+}
+
+.home-download-panel .download-body {
+  max-height: min(70vh, 520px);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .download-body {

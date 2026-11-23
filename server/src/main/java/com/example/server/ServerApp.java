@@ -5,6 +5,7 @@ import com.example.ClientUpdatePolicy;
 import com.example.PeerFileRules;
 import com.example.server.auth.AuthConfig;
 import com.example.server.auth.AuthService;
+import com.example.server.ClientRelease;
 import com.example.server.store.ClientReleaseService;
 import com.example.server.store.ClientStore;
 import com.example.server.store.DevStatusService;
@@ -521,7 +522,10 @@ public final class ServerApp {
 
     private void officeHome(Context ctx) {
         boolean authenticated = authService.isAuth(ctx);
-        String html = applyAuthPageTokens(applyServerBuildTokens(readResource("/public/index.html")), authenticated);
+        ClientRelease release = clientReleaseService.get(Instant.now().toEpochMilli());
+        String html = applyAuthPageTokens(applyServerBuildTokens(
+                PublicDownloadRoutes.applyHomeDownloadTokens(readResource("/public/index.html"), release)),
+                authenticated);
         ctx.header("Cache-Control", PAGE_CACHE);
         ctx.html(html);
     }

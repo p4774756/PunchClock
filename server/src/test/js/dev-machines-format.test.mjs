@@ -187,6 +187,18 @@ test('open=tasks 參數解析與深連結', () => {
   assert.equal(win._url, '/');
 });
 
+test('open=download 參數解析與深連結', () => {
+  assert.equal(F.shouldOpenDownloadFromSearch('?open=download'), true);
+  let opened = false;
+  const win = {
+    location: { href: 'http://localhost/?open=download', search: '?open=download', pathname: '/', hash: '' },
+    history: { replaceState: (_a, _b, url) => { win._url = url; } }
+  };
+  assert.equal(F.applyDownloadOpenParam(win, () => { opened = true; }), true);
+  assert.equal(opened, true);
+  assert.equal(win._url, '/');
+});
+
 test('open=atlas-login 參數解析與深連結', () => {
   assert.equal(F.shouldOpenAtlasLoginFromSearch('?open=atlas-login'), true);
   assert.equal(F.shouldOpenAtlasLoginFromSearch('?open=tasks'), false);
