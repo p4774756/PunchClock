@@ -7,6 +7,7 @@ import {
   fillStatusCard,
   hasNewCompletedToday,
   secretarySpriteUrlForStatus,
+  progressBoardViewFromTiger,
   taskProgressFromTiger,
   tigerFromPublic
 } from './private-team-office.js';
@@ -576,6 +577,7 @@ export function mountPrivateTeamPage(opts) {
     scene.setBubbleText(bubbleLabel());
     refreshCanvasA11y();
     applyTaskBar(tiger);
+    scene.setProgressBoard(progressBoardViewFromTiger(tiger, devQueue.length));
     if (cardOpen) paintStatusCard();
   }
 
@@ -583,6 +585,7 @@ export function mountPrivateTeamPage(opts) {
     if (!fetchFn) return;
     fetchSecretaryDevQueue(fetchFn).then((rows) => {
       devQueue = rows;
+      scene.setProgressBoard(progressBoardViewFromTiger(tigerView, devQueue.length));
       if (cardOpen) paintStatusCard();
     });
   }

@@ -52,6 +52,43 @@ export function fetchSecretaryDevQueue(fetchFn) {
     .then((body) => devQueueFromStatus(body || {}));
 }
 
+/** 3D 左牆進度面板文案（須先 isSafePublicText 過濾）。 */
+export function progressBoardViewFromTiger(tiger, queueCount) {
+  const bag = tiger && typeof tiger === 'object' ? tiger : { status: '', active: [], completedToday: [] };
+  const actives = Array.isArray(bag.active) ? bag.active : [];
+  const active = actives.length ? actives[0] : null;
+  const completed = Array.isArray(bag.completedToday) ? bag.completedToday.length : 0;
+  const activeN = actives.length;
+  const queue = Math.max(0, Number(queueCount) || 0);
+  const todayTotal = completed + activeN + queue;
+  const view = {
+    statusLine: '待命中',
+    issueLine: '',
+    phraseLine: '',
+    metaLine: '',
+    todayLabel: '',
+    todayFraction: null
+  };
+  if (active) {
+    const issue = Number(active.issue);
+    if (Number.isFinite(issue) && issue > 0) {
+      view.issueLine = '#' + issue;
+    }
+    const phrase = active.phrase && isSafePublicText(active.phrase) ? String(active.phrase).trim() : '';
+    view.phraseLine = phrase || (active.title && isSafePublicText(active.title) ? String(active.title).trim() : '進行中');
+    const caps = capsulesForActive(active);
+    if (caps.length) view.metaLine = caps.join(' · ');
+    view.statusLine = '進行中';
+  } else if (completed > 0) {
+    view.metaLine = '今日已完成 ' + completed + ' 項';
+  }
+  if (todayTotal > 0) {
+    view.todayLabel = '今日進度';
+    view.todayFraction = Math.min(1, completed / todayTotal);
+  }
+  return view;
+}
+
 /** 今日任務細條：以公開辦公室資料的進行中＋今日完成筆數計算；無資料則 null。 */
 export function taskProgressFromTiger(tiger) {
   if (!tiger || typeof tiger !== 'object') return null;
