@@ -108,7 +108,9 @@ public class PublicDownloadRoutesTest {
         String flat = css.body().replaceAll("\\s+", " ");
         assertTrue(flat.contains(
                 ".download-btn[hidden], .download-unavailable[hidden], [data-desktop-missing][hidden]"));
-        assertTrue(body.contains("下載 macOS 安裝檔"));
+        assertTrue(body.contains("Mac（Apple 晶片 M1 以後）"));
+        assertTrue(body.contains("Mac（Intel）"));
+        assertTrue(body.contains("關於這台 Mac"));
         assertTrue(body.contains("不必先安裝 Java"));
     }
 

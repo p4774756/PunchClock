@@ -31,18 +31,26 @@ public final class PublicDownloadRoutes {
     private void downloadPage(Context ctx) {
         boolean available = clientRelease.isAvailable();
         String version = available ? clientRelease.version() : "";
-        String macUrl = desktopEnv("DESKTOP_MAC_DOWNLOAD_URL");
+        String macArmUrl = desktopEnv("DESKTOP_MAC_ARM_DOWNLOAD_URL");
+        if (macArmUrl.isEmpty()) {
+            macArmUrl = desktopEnv("DESKTOP_MAC_DOWNLOAD_URL");
+        }
+        String macIntelUrl = desktopEnv("DESKTOP_MAC_INTEL_DOWNLOAD_URL");
         String winUrl = desktopEnv("DESKTOP_WIN_DOWNLOAD_URL");
-        boolean desktopKnown = !macUrl.isEmpty() || !winUrl.isEmpty();
+        boolean desktopKnown = !macArmUrl.isEmpty() || !macIntelUrl.isEmpty() || !winUrl.isEmpty();
         String html = readResource("/public/download.html")
                 .replace("{{JAR_HIDDEN}}", available ? "" : " hidden")
                 .replace("{{MISSING_HIDDEN}}", available ? " hidden" : "")
-                .replace("{{MAC_HIDDEN}}", macUrl.isEmpty() ? " hidden" : "")
+                .replace("{{MAC_ARM_HIDDEN}}", macArmUrl.isEmpty() ? " hidden" : "")
+                .replace("{{MAC_INTEL_HIDDEN}}", macIntelUrl.isEmpty() ? " hidden" : "")
                 .replace("{{WIN_HIDDEN}}", winUrl.isEmpty() ? " hidden" : "")
                 .replace("{{DESKTOP_MISSING_HIDDEN}}", desktopKnown ? " hidden" : "")
-                .replace("{{DESKTOP_MAC_URL}}", escapeHtml(macUrl))
+                .replace("{{DESKTOP_MAC_ARM_URL}}", escapeHtml(macArmUrl))
+                .replace("{{DESKTOP_MAC_INTEL_URL}}", escapeHtml(macIntelUrl))
                 .replace("{{DESKTOP_WIN_URL}}", escapeHtml(winUrl))
-                .replace("{{DESKTOP_MAC_JS}}", jsStringLiteral(macUrl))
+                .replace("{{DESKTOP_MAC_ARM_JS}}", jsStringLiteral(macArmUrl))
+                .replace("{{DESKTOP_MAC_INTEL_JS}}", jsStringLiteral(macIntelUrl))
+                .replace("{{DESKTOP_MAC_JS}}", jsStringLiteral(macArmUrl))
                 .replace("{{DESKTOP_WIN_JS}}", jsStringLiteral(winUrl))
                 .replace("{{CLIENT_VERSION}}", escapeHtml(version))
                 .replace("{{JAVA_VERSION}}", "11");

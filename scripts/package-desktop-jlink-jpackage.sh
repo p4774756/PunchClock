@@ -10,6 +10,7 @@ MAIN_CLASS="com.example.SklbabyLauncher"
 ICON="${1:?icon file (.icns or .ico)}"
 PACKAGE_TYPE="${2:?dmg|exe}"
 VERSION="${3:-4.0.0}"
+DMG_NAME="${4:-SKLbaby-mac.dmg}"
 # jpackage 只接受數字版號。tag v4.0.0-r2 這類重跑標記去掉後綴。
 VERSION="${VERSION%%-*}"
 
@@ -111,7 +112,17 @@ if [[ "$PACKAGE_TYPE" == "dmg" ]]; then
   rm -rf "$STAGE"
   mkdir -p "$STAGE"
   jpackage "${JPACKAGE_ARGS[@]}" --type app-image --dest "$STAGE"
-  OUT_FILE="$DESKTOP_BUILD/SKLbaby-mac.dmg"
+  APP_BUNDLE="$STAGE/$APP_NAME.app"
+  PLIST="$APP_BUNDLE/Contents/Info.plist"
+  if [[ -f "$PLIST" ]]; then
+    # JDK 21 支援 macOS 11+；避免 jpackage 設過高的最低版本導致 macOS 12 無法開啟。
+    if /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion 11.0" "$PLIST" 2>/dev/null; then
+      :
+    else
+      /usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 11.0" "$PLIST"
+    fi
+  fi
+  OUT_FILE="$DESKTOP_BUILD/$DMG_NAME"
   rm -f "$OUT_FILE"
   # UDZO 對已壓縮的 jar 幫助不大；UDBZ 能再壓 runtime 裡的 libjvm。
   hdiutil create -quiet -volname "$APP_NAME" -srcfolder "$STAGE" -ov -format UDBZ "$OUT_FILE"
