@@ -1,11 +1,11 @@
 import {publicAssetUrl} from './public-assets';
 import {ANIME_DEFAULT_SET} from './character-mode';
 import {ANIME_AVATARS,DEFAULT_AVATAR_ID,animeAvatar,type AvatarId,avatarLessonNote,avatarPracticeOpen,avatarSupportsPoint,avatarSupportedCodes} from './avatars';
-import {ANIME_OUTFITS,DEFAULT_OUTFIT_ID,animeOutfit,type OutfitId} from './outfits';
+import {defaultOutfitForAvatar,outfitBelongsToAvatar,outfitNeedsAltBuild,outfitsForAvatar,animeOutfitForAvatar,type OutfitId} from './avatar-outfits';
 import {LOAD_STEP_LABELS,type AtlasLoadProgress} from './load-progress';
 import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
 import {flushSync} from 'react-dom';
-import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Filter,Focus,Info,Layers3,MapPin,Maximize2,RotateCw,ScanFace,Search,Shirt,X} from 'lucide-react';
+import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Filter,Focus,Info,Layers3,MapPin,Maximize2,RotateCw,ScanFace,Search,X} from 'lucide-react';
 import type {SceneState,View} from './anatomy';
 import {acupointMuscleNote} from './acupoint-muscles';
 import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,isPracticeDeferred,libraryPointResults,LOCATION,POINTS,POINT_BY_CODE,MERIDIANS,pointInCurriculum,practiceOpenCodes,REGIONS,STANDARD,TOOLS,type CurriculumSetId,type RegionId,type SimulationState,type SurfaceTarget,type ToolId,type ToolDragPhase} from './teaching';
@@ -75,10 +75,14 @@ export default function Home(){
  const [libraryFilterOpen,setLibraryFilterOpen]=useState(false);
  const [dialogExpanded,setDialogExpanded]=useState(false);
  const [about,setAbout]=useState(false);
- const [outfitId,setOutfitId]=useState<OutfitId>(DEFAULT_OUTFIT_ID);
+ const [assistantOutfitId,setAssistantOutfitId]=useState<OutfitId>('school');
+ const [adultOutfitId,setAdultOutfitId]=useState<OutfitId>('suit');
+ const outfitId=avatarId==='adult'?adultOutfitId:assistantOutfitId;
+ const setOutfitId=avatarId==='adult'?setAdultOutfitId:setAssistantOutfitId;
  const [practicePreparing,setPracticePreparing]=useState(false);
- const currentOutfit=animeOutfit(outfitId);
- const showOutfitBar=currentAvatar.hasOutfits&&ANIME_OUTFITS.length>1;
+ const avatarOutfitList=useMemo(()=>outfitsForAvatar(avatarId),[avatarId]);
+ const currentOutfit=animeOutfitForAvatar(avatarId,outfitId);
+ const showOutfitBar=currentAvatar.hasOutfits&&avatarOutfitList.length>1;
  const practiceCodes=useMemo(()=>new Set(practiceOpenCodes(avatarCodes)),[avatarCodes]);
  const [feedback,setFeedback]=useState(()=>{
   if(launch.set){
@@ -126,13 +130,13 @@ export default function Home(){
 
  const prepareFocus=()=>setState(s=>({...s,explode:0,rotate:false,isolate:false,selected:[]}));
  const switchOutfit=(id:OutfitId)=>{
-  if(id===outfitId||!currentAvatar.hasOutfits)return;
+  if(id===outfitId||!currentAvatar.hasOutfits||!outfitBelongsToAvatar(avatarId,id))return;
   performance.clearMarks('atlas:outfit-switch-start');
   performance.clearMarks('atlas:outfit-switch-end');
   performance.clearMarks('atlas:outfit-pressed');
   performance.mark('atlas:outfit-switch-start');
   performance.mark('atlas:outfit-pressed');
-  const next=animeOutfit(id);
+  const next=animeOutfitForAvatar(avatarId,id);
   setError('');
   setFeedback(`已換裝：${next.name}。`);
   requestAnimationFrame(()=>{
@@ -172,11 +176,6 @@ export default function Home(){
  },[]);
  const changeView=(view:View)=>{pause(`已切換為${VIEW_LABELS[view]}。`);setState(s=>({...s,view,rotate:false,reset:s.reset+1}));};
  const cycleView=()=>{const i=VIEW_CYCLE.indexOf(state.view);changeView(VIEW_CYCLE[(i+1)%VIEW_CYCLE.length]);};
- const toggleOutfit=()=>{
-  if(!showOutfitBar)return;
-  const next=outfitId==='school'?'study-body':'school';
-  switchOutfit(next);
- };
  const toggleLibrary=()=>{
   setLibraryFilterOpen(false);
   setMobilePanel(p=>{
@@ -220,6 +219,7 @@ export default function Home(){
   if(next===avatarId)return;
   pause(`已切換為${animeAvatar(next).shortName}。`);
   setAvatarId(next);
+  if(next==='adult')setAdultOutfitId(defaultOutfitForAvatar('adult'));
   setScenePainted(false);
   setProgress(6);
   setLoadStep(LOAD_STEP_LABELS.program);
@@ -227,7 +227,7 @@ export default function Home(){
   setSimulation(s=>({...s,dragging:false,running:false,customTarget:null}));
  },[avatarId,pause]);
  const selectedTitle=point?.name??(simulation.customTarget?'自選體表位置':'點選穴位標記');
- const outfitPending=practicePreparing&&outfitId==='study-body';
+ const outfitPending=practicePreparing&&outfitNeedsAltBuild(avatarId,outfitId);
  const dialogBlurb=useMemo(()=>{
   if(point&&location?.text){
    const lead=location.text.trim().split(/[。；!\n]/)[0]?.trim()||location.text.trim();
@@ -235,7 +235,7 @@ export default function Home(){
   }
   return feedback;
  },[point,location,feedback]);
- return <main className="studio rpg-studio is-anime" style={{'--tool-color':tool.color} as CSSProperties}>
+ return <main className={`studio rpg-studio is-anime${showOutfitBar?' has-outfit-bar':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
   <header className="studio-header rpg-header">
    <div className="brand-block">
     <div className="brand" aria-hidden="true"><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室</span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></div>
@@ -262,6 +262,11 @@ export default function Home(){
     </div>
    )}
    <div className="scene-mode-hint"><span className="tiny-dot"/>{animePointReady?'點選金色穴位 · 抓住工具移動 · 拖動旋轉 · 滾動縮放':avatarLessonNote(currentAvatar,simulation.pointCode)}</div>
+   {showOutfitBar&&(
+    <div className="outfit-bar" role="group" aria-label="換裝">
+     {avatarOutfitList.map(o=><button key={o.id} type="button" className={outfitId===o.id?'is-active':''} aria-pressed={outfitId===o.id} title={outfitPending&&outfitNeedsAltBuild(avatarId,o.id as OutfitId)?'準備中…':`${o.shortName} · ${o.blurb}`} disabled={outfitPending&&outfitId!==o.id} onClick={()=>switchOutfit(o.id as OutfitId)}>{o.shortName}</button>)}
+    </div>
+   )}
   </section>
 
   <nav className="studio-tool-rail" aria-label="視角與工具">
@@ -269,7 +274,6 @@ export default function Home(){
    <button type="button" className="studio-tool-btn" aria-label="全身視角" title="全身" onClick={fullBody}><Maximize2 size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">全身</span></button>
    <button type="button" className="studio-tool-btn" aria-label="聚焦當前穴位" title="聚焦" disabled={!hasTarget} onClick={focusTarget}><Focus size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">聚焦</span></button>
    <button type="button" className={`studio-tool-btn${state.rotate?' is-active':''}`} aria-label={state.rotate?'停止自動旋轉':'自動旋轉'} aria-pressed={state.rotate} title={state.rotate?'停止旋轉':'自動旋轉'} onClick={()=>{pause();setState(s=>({...s,rotate:!s.rotate}));setFeedback(state.rotate?'自動旋轉已停止。':'正在自動旋轉。');}}><RotateCw size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">{state.rotate?'停轉':'旋轉'}</span></button>
-   {showOutfitBar&&<button type="button" className={`studio-tool-btn${outfitPending?' is-pending':''}${outfitId==='study-body'?' is-active':''}`} aria-label={outfitPending?'練習裝準備中':`換裝：${currentOutfit.shortName}，點擊切換`} aria-pressed={outfitId==='study-body'} title={outfitPending?'準備中…':`${currentOutfit.shortName} · ${currentOutfit.blurb??''}`} onClick={toggleOutfit}><Shirt size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">換裝</span>{outfitPending&&<span className="studio-tool-pending" aria-hidden="true"/>}</button>}
    <button type="button" className="studio-tool-btn" aria-label="來源與許可" title="來源與許可" onClick={()=>setAbout(true)}><Info size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">來源</span></button>
    <button type="button" className={`studio-tool-btn${mobilePanel==='library'?' is-active':''}`} aria-label="穴位庫" aria-expanded={mobilePanel==='library'} title="穴位庫" onClick={toggleLibrary}><Layers3 size={17} aria-hidden="true"/><span className="studio-tool-tag studio-tool-tag-desktop">穴庫</span></button>
   </nav>
@@ -343,7 +347,7 @@ export default function Home(){
    <h2 id="source-title">讓每一層，有據可查。</h2><p className="dialog-intro">這裡整理了經絡研習室引用的標準、角色與教具來源，方便課堂查證與討論。</p>
    <section><h3>穴位定位</h3><p>以 GB/T 12346—2021《經穴名稱與定位》為主要核查來源。研習室目前只在角色身上顯示已對位完成的穴位（頭頸 21 穴、頭胸腹背腰 30 穴，共 51 穴；含人迎、天突）。其餘經穴名稱仍在我們的教學目錄中，會依課堂進度陸續烘上並對到角色皮膚。</p><a href={STANDARD} target="_blank" rel="noreferrer">查閱國家標準正文<ArrowUpRight size={13}/></a></section>
    <section><h3>原本角色（CC0）</h3><p>Sendagaya Shino 為 VRoid Studio β 版樣本（pixiv Inc.，CC0 1.0）。換裝可切「制服」與「練習裝」（深青運動內衣＋高腰短褲、高包頭）；胸腹背腰與人迎／天突請用練習裝，針與指壓打在真實皮膚上。</p><a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">CC0 1.0 說明<ArrowUpRight size={13}/></a></section>
-   <section><h3>成年角色（VRoid 官方樣本）</h3><p>AvatarSample_A 依 <a href="https://vroid.pixiv.help/hc/en-us/articles/4402394424089-VRoidPreset-A-Z" target="_blank" rel="noreferrer">VRoid 官方樣本利用條件</a> 使用與改作（<strong>不是 CC0</strong>，著作權未放棄）。可營利／非營利使用與免費再發布；不可當成 CC0、不可販售模型檔，也不可讓人誤以為 pixiv 官方背書本產品。髮色為研習室改作（純黑側分瀏海）。</p><a href="https://hub.vroid.com/en/characters/2843975675147313744/models/5644550979324015604" target="_blank" rel="noreferrer">官方介紹頁<ArrowUpRight size={13}/></a><a href={publicAssetUrl('/ATTRIBUTION.md')} target="_blank" rel="noreferrer">署名細節<ArrowUpRight size={13}/></a></section>
+   <section><h3>成年角色（VRoid 官方樣本）</h3><p>AvatarSample_A 依 <a href="https://vroid.pixiv.help/hc/en-us/articles/4402394424089-VRoidPreset-A-Z" target="_blank" rel="noreferrer">VRoid 官方樣本利用條件</a> 使用與改作（<strong>不是 CC0</strong>，著作權未放棄）。可營利／非營利使用與免費再發布；不可當成 CC0、不可販售模型檔，也不可讓人誤以為 pixiv 官方背書本產品。髮色為研習室改作（純黑側分瀏海）。換裝可切套裝、休閒、練習裝；薄紗僅手動選取，重新整理後回到套裝。</p><a href="https://hub.vroid.com/en/characters/2843975675147313744/models/5644550979324015604" target="_blank" rel="noreferrer">官方介紹頁<ArrowUpRight size={13}/></a><a href={publicAssetUrl('/ATTRIBUTION.md')} target="_blank" rel="noreferrer">署名細節<ArrowUpRight size={13}/></a></section>
    <section><h3>工具與局部反饋</h3><p>針具接觸與指壓形變為教學視覺示意，不預測療效，也不提供真人操作參數。</p><a href="https://www.nccih.nih.gov/health/acupuncture-effectiveness-and-safety" target="_blank" rel="noreferrer">NCCIH：針灸資料<ArrowUpRight size={13}/></a><a href="https://www.mskcc.org/cancer-care/patient-education/acupressure-pain-and-headaches" target="_blank" rel="noreferrer">MSK：指壓資料<ArrowUpRight size={13}/></a></section>
    <button className="dialog-done" onClick={()=>setAbout(false)}>返回研習室</button>
   </dialog>

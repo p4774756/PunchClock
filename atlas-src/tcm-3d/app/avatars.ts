@@ -42,8 +42,8 @@ export const ANIME_AVATARS:AnimeAvatar[]=[
   modelStatus:'ready',
   expectedModelPath:'atlas-src/tcm-3d/public/models/anime-adult.glb',
   points:[],
-  hasOutfits:false,
-  blurb:'VRoid 官方樣本 AvatarSample_A（黑髮側分瀏海）；穴位尚未對位。',
+  hasOutfits:true,
+  blurb:'VRoid 官方樣本（黑髮側分瀏海）；套裝／休閒／練習裝／薄紗可切換。',
  },
 ];
 
