@@ -315,7 +315,7 @@ export const hideAdultSportGarments=(root:T.Object3D)=>{
  root.traverse(obj=>{
   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
   const mats=Array.isArray(obj.material)?obj.material:[obj.material];
-  const label=mats.map(m=>`${m.name||''} ${obj.name||''}`).join(' ');
+  const label=`${mats.map(m=>`${m.name||''}`).join(' ')} ${obj.name||''}`;
   if(/Body_00_SKIN|Face_00/i.test(label))return;
   if(!/Tops|Bottoms|Shoes|Accessory|Skirt|Dress|OnePiece|Lace/i.test(label))return;
   obj.visible=false;
@@ -331,7 +331,53 @@ export const hideAdultSportGarments=(root:T.Object3D)=>{
  });
 };
 
+/** Hide lace bottoms so sheer uses fine net tops only (not sport lace circles). */
+export const hideAdultSheerLaceGarments=(root:T.Object3D)=>{
+ root.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  const label=`${mats.map(m=>`${m.name||''}`).join(' ')} ${obj.name||''}`;
+  if(/Body_00_SKIN|Face_00/i.test(label))return;
+  if(/Bottoms|Lace|Skirt|Dress|OnePiece/i.test(label)){
+   obj.visible=false;
+   for(const mat of mats){
+    const m=mat as T.MeshStandardMaterial;
+    m.visible=false;
+    m.needsUpdate=true;
+   }
+  }
+ });
+};
+
+const makeAdultSheerNetMap=(src:T.Texture):T.Texture|null=>{
+ const img=src.image as CanvasImageSource & {width:number;height:number}|null;
+ if(!img?.width||!img.height)return null;
+ const w=Math.min(512,img.width),h=Math.min(512,img.height);
+ const canvas=document.createElement('canvas');
+ canvas.width=w;canvas.height=h;
+ const ctx=canvas.getContext('2d');
+ if(!ctx)return null;
+ ctx.clearRect(0,0,w,h);
+ ctx.fillStyle='rgba(248,246,242,0.12)';
+ ctx.fillRect(0,0,w,h);
+ ctx.strokeStyle='rgba(255,255,255,0.42)';
+ ctx.lineWidth=1;
+ const step=14;
+ for(let x=0;x<=w;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+ for(let y=0;y<=h;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+ const next=src.clone();
+ next.image=canvas;
+ next.colorSpace=T.SRGBColorSpace;
+ next.wrapS=T.RepeatWrapping;
+ next.wrapT=T.RepeatWrapping;
+ resetMapUv(next);
+ next.repeat.set(3.4,3.4);
+ next.needsUpdate=true;
+ return next;
+};
+
 export const applyAdultSheerOuter=(root:T.Object3D)=>{
+ hideAdultSheerLaceGarments(root);
  root.traverse(obj=>{
   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
   const mats=Array.isArray(obj.material)?obj.material:[obj.material];
@@ -341,20 +387,13 @@ export const applyAdultSheerOuter=(root:T.Object3D)=>{
    if(!/Tops/i.test(label)||/Outline/i.test(label))continue;
    m.visible=true;
    m.transparent=true;
-   m.opacity=0.34;
+   m.opacity=0.32;
    m.depthWrite=false;
-   m.alphaTest=0.08;
+   m.alphaTest=0.06;
    m.side=T.DoubleSide;
    const map=findGarmentMap(m);
-   if(map){
-    resetMapUv(map);
-    const white=tintCanvas(map,SHEER_INNER,{preserveAlpha:true,keep:.035});
-    if(white){
-     resetMapUv(white);
-     white.repeat.set(2.8,2.8);
-     setGarmentMap(m,white);
-    }
-   }
+   const net=map?makeAdultSheerNetMap(map):null;
+   if(net)setGarmentMap(m,net);
    obj.renderOrder=2;
    m.needsUpdate=true;
   }

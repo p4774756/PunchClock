@@ -10,8 +10,9 @@ const SKIN_MESH_HINT=/Face_00_SKIN|Body_00_SKIN|FaceMouth/i;
 /** Teaching overlay for the anime assistant: needle / finger on selected skin points. */
 export function createTeachingOverlay(
  scene:T.Scene,
- opts:{points:AnimePoint[];resolvePoint:(code:string,side:1|-1)=>SurfaceTarget|null},
+ opts:{points:AnimePoint[];resolvePoint:(code:string,side:1|-1)=>SurfaceTarget|null;skipSkinRaycastRefine?:boolean},
 ){
+ const skipSkinRaycastRefine=!!opts.skipSkinRaycastRefine;
  const root=new T.Group(),dots=new T.Group(),meridians=new T.Group(),contact=new T.Group();root.add(dots,meridians,contact);scene.add(root);
  const meridianMaterials=new Map<string,T.LineBasicMaterial>();
  const surface=new Map<string,SurfaceTarget>();
@@ -37,6 +38,16 @@ export function createTeachingOverlay(
  const patch=new T.Mesh(new T.CircleGeometry(.03,64),new T.MeshBasicMaterial({color:'#79b8a6',transparent:true,opacity:.12,side:T.DoubleSide,depthWrite:false}));patch.position.z=.001;contact.add(patch);
  const pulses=Array.from({length:3},()=>{const mesh=new T.Mesh(new T.RingGeometry(.019,.020,64),new T.MeshBasicMaterial({color:'#5c9c91',transparent:true,opacity:0,side:T.DoubleSide,depthWrite:false}));mesh.position.z=.002;contact.add(mesh);return mesh;});
  const axis=new T.Vector3(0,0,1),n=new T.Vector3(),v=new T.Vector3(),origin=new T.Vector3();
+ const worldFromOverlayLocal=(local:[number,number,number],out:T.Vector3)=>{
+  out.fromArray(local);
+  if(root.parent)root.parent.localToWorld(out);
+  return out;
+ };
+ const selectedMarker=(s:SimulationState)=>{
+  if(!s.pointCode)return null;
+  const midline=!!(POINT_BY_CODE.get(s.pointCode)?.midline||opts.points.find(p=>p.code===s.pointCode)?.midline);
+  return markers.find(m=>m.userData.point===s.pointCode&&(midline||m.userData.side===s.side))??null;
+ };
  const ray=new T.Raycaster();let anchored=false,lastFocus=-1,lastRelease=0,releaseAt=-1;
  let skinMeshes:T.Object3D[]=[];
  let raycastTargets:T.Object3D[]=[];
@@ -129,7 +140,7 @@ export function createTeachingOverlay(
   anchored=true;
  };
  const refineAnchorsFromProxies=()=>{
-  if(!raycastTargets.length)return;
+  if(skipSkinRaycastRefine||!raycastTargets.length)return;
   performance.mark('atlas:anchor-start');
   for(const dot of markers){
    const seed=surface.get(`${dot.userData.point}:${dot.userData.side}`)??opts.resolvePoint(dot.userData.point,dot.userData.side);
@@ -252,7 +263,10 @@ export function createTeachingOverlay(
   if(!showPickRing)pickRing.visible=false;
   label.hidden=!target||!root.visible;
   if(!target)return null;
-  contact.position.fromArray(target.position);n.fromArray(target.normal).normalize();contact.quaternion.setFromUnitVectors(axis,n);
+  const activeDot=s.customTarget?null:selectedMarker(s);
+  if(activeDot)contact.position.copy(activeDot.position);
+  else contact.position.fromArray(target.position);
+  n.fromArray(target.normal).normalize();contact.quaternion.setFromUnitVectors(axis,n);
   const tool=TOOLS.find(t=>t.id===s.tool)!;
   if((s.release??0)!==lastRelease){lastRelease=s.release??0;releaseAt=performance.now();}
   if(s.running||s.elapsed===0)releaseAt=-1;
@@ -273,7 +287,7 @@ export function createTeachingOverlay(
   halo.material.opacity=active>0?.18:.65;halo.material.color.set(tool.color);
   patch.material.color.set(skinColor);patch.material.opacity=s.effects&&active>0?.1+cycle*.09*active:0;
   for(let i=0;i<pulses.length;i++){const m=pulses[i];m.material.opacity=0;}
-  v.copy(contact.position).project(camera);
+  contact.getWorldPosition(v).project(camera);
   label.hidden=label.hidden||v.z<-1||v.z>1;
   label.style.left=`${(v.x+1)*width/2+20}px`;
   label.style.top=`${(1-v.y)*height/2-18}px`;
@@ -293,7 +307,10 @@ export function createTeachingOverlay(
  const computeFocusPose=(s:SimulationState,camera:T.PerspectiveCamera):FocusPose|null=>{
   if(!s.focus||!anchored)return null;
   const target=getTarget(s);if(!target)return null;
-  const aim=new T.Vector3().fromArray(target.position);
+  const aim=new T.Vector3();
+  const activeDot=s.customTarget?null:selectedMarker(s);
+  if(activeDot)activeDot.getWorldPosition(aim);
+  else worldFromOverlayLocal(target.position,aim);
   n.fromArray(target.normal).normalize();
   let distance=.62;
   if(s.customTarget){

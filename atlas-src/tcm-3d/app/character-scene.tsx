@@ -1383,13 +1383,14 @@ const buildPracticeOutfitIncremental=async(
    resetSliceBudget(budget);
   }
  }
- if(outfit.adultPaint){
+  if(outfit.adultPaint){
   const painted=paintAdultSwimSkin(root,outfit.adultPaint);
   if(painted){
    root.userData.practiceBodySkinMap=painted;
    bindPracticeBodySkinMaps(root);
   }
-  if(outfit.sheerOuter)applyAdultSheerOuter(root);
+  if(outfit.adultPaint==='sport')hideAdultSportGarments(root);
+  else if(outfit.sheerOuter)applyAdultSheerOuter(root);
   tick();
   await yieldForSliceBudget(budget,true);
   resetSliceBudget(budget);
@@ -1520,6 +1521,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   let adultPointBindings:AdultPointBindings|null=restored?.adultPointBindings??null;
   const teaching=restored?.teaching??createTeachingOverlay(scene,{
    points,
+   skipSkinRaycastRefine:avatar.id==='adult',
    resolvePoint:(code,side)=>{
     if(adultPointBindings)return adultPointBindings.resolve(code,side)??avatarPointTarget(avatar,code,side);
     return avatarPointTarget(avatar,code,side);

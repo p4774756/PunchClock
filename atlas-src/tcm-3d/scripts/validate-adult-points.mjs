@@ -37,6 +37,9 @@ const sceneSrc=readFileSync(join(root,'app/character-scene.tsx'),'utf8');
 assert.match(charMode,/ADULT_POINTS/, 'character-mode exports ADULT_POINTS');
 assert.match(avatarsSrc,/points:ADULT_POINTS/, 'adult avatar wires ADULT_POINTS');
 assert.match(sceneSrc,/syncResolvedPoints/, 'adult acupoints must follow bones after standing pose');
+const overlaySrc=readFileSync(join(root,'app/teaching-overlay.ts'),'utf8');
+assert.match(overlaySrc,/getWorldPosition/, 'focus camera must follow marker world positions');
+assert.match(sceneSrc,/skipSkinRaycastRefine:avatar\.id==='adult'/, 'adult must skip skin raycast re-snap');
 
 if(!process.env.CI&&!process.env.SKIP_ADULT_BAKE_DRY){
  const dry=spawnSync(process.execPath,[bakePath,'--dry-run','--model','public/models/anime-adult.glb','--output','app/adult-points.json','--codes','GV20'],{
@@ -226,5 +229,18 @@ assert.ok(
   pointBox.max.y <= meshBox.max.y + 0.08 && pointBox.min.y >= meshBox.min.y - 0.08,
   'acupoint AABB must track standing mesh, not origin',
 );
+
+const focusWorldY = (code, side = 1) => {
+  const target = prodBindings.resolve(code, side);
+  assert.ok(target, `${code} must resolve for focus chain`);
+  const aim = new T.Vector3().fromArray(target.position);
+  characterRoot.localToWorld(aim);
+  return aim.y;
+};
+const gvY = focusWorldY('GV24+', 1);
+const lu5Y = focusWorldY('LU5', 1);
+assert.ok(gvY > meshBox.min.y + meshH * 0.72, `GV24+ focus y=${gvY.toFixed(3)} must sit in head band`);
+assert.ok(lu5Y > meshBox.min.y + meshH * 0.42, `LU5 focus y=${lu5Y.toFixed(3)} must be above waist, not feet`);
+assert.ok(lu5Y < gvY - 0.08, `LU5 focus y=${lu5Y.toFixed(3)} must sit below GV24+ y=${gvY.toFixed(3)}`);
 
 console.log(`adult-points checks passed (${adult.points.length} codes).`);
