@@ -5,6 +5,7 @@ import {
   completedTodayKeys,
   fetchSecretaryDevQueue,
   fillStatusCard,
+  syncStatusBodyScroll,
   hasNewCompletedToday,
   secretarySpriteUrlForStatus,
   progressBoardViewFromTiger,
@@ -189,6 +190,7 @@ export function mountPrivateTeamPage(opts) {
 
   let cardBackdrop = stage.querySelector('[data-pt-status-card]');
   let cardBody = null;
+  let cardScroll = null;
   let closeBtn = null;
   if (!cardBackdrop) {
     cardBackdrop = doc.createElement('div');
@@ -199,13 +201,25 @@ export function mountPrivateTeamPage(opts) {
       '<div class="pt-status-card maple-window" role="dialog" aria-modal="true" aria-labelledby="pt-status-title" tabindex="-1">' +
       '<button type="button" class="pt-status-close" data-pt-status-close aria-label="關閉工作狀態">×</button>' +
       '<h2 id="pt-status-title" class="pt-status-title">私人女秘書・工作狀態</h2>' +
+      '<div class="pt-status-scroll" data-pt-status-scroll>' +
       '<div class="pt-status-body" data-pt-status-body></div>' +
+      '</div>' +
       '</div>';
     stage.appendChild(cardBackdrop);
   }
   const cardDialog = cardBackdrop.querySelector('.pt-status-card');
+  cardScroll = cardBackdrop.querySelector('[data-pt-status-scroll]');
   cardBody = cardBackdrop.querySelector('[data-pt-status-body]');
   closeBtn = cardBackdrop.querySelector('[data-pt-status-close]');
+
+  function refreshStatusBodyScroll() {
+    syncStatusBodyScroll(cardScroll, cardBody);
+  }
+
+  if (cardBody && cardBody.getAttribute('data-pt-scroll-bound') !== '1') {
+    cardBody.setAttribute('data-pt-scroll-bound', '1');
+    cardBody.addEventListener('scroll', refreshStatusBodyScroll, { passive: true });
+  }
 
   const taskBtn = hud.querySelector('[data-pt-task-btn]');
   const taskHint = hud.querySelector('[data-pt-task-hint]');
@@ -338,6 +352,11 @@ export function mountPrivateTeamPage(opts) {
 
   function paintStatusCard() {
     fillStatusCard(doc, cardBody, { tiger: tigerView, queue: devQueue }, statusCardUiOpts());
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(refreshStatusBodyScroll);
+    } else {
+      refreshStatusBodyScroll();
+    }
   }
 
   function openStatusCard() {

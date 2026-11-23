@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadPublicModule } from './load-public-module.mjs';
+
+const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
 
 const {
   tigerFromPublic,
@@ -9,6 +14,7 @@ const {
   devQueueFromStatus,
   formatOfficeClock,
   fillStatusCard,
+  syncStatusBodyScroll,
   isSafePublicText,
   phraseForDoneDisplay,
   phraseForActiveDisplay,
@@ -196,6 +202,82 @@ test('fillStatusCard 產出連結與膠囊', () => {
   assert.ok(flat.includes('今天完成'));
   assert.ok(flat.includes('composer-2.5'));
   assert.ok(flat.includes('排隊項目'));
+});
+
+function mockClassList() {
+  const set = new Set();
+  return {
+    toggle(cls, on) {
+      if (on) set.add(cls);
+      else set.delete(cls);
+    },
+    has(cls) {
+      return set.has(cls);
+    }
+  };
+}
+
+test('syncStatusBodyScroll 可捲時標示上下提示', () => {
+  const scroll = { classList: mockClassList() };
+  const body = { scrollHeight: 480, clientHeight: 200, scrollTop: 0 };
+  syncStatusBodyScroll(scroll, body);
+  assert.ok(scroll.classList.has('can-scroll-below'));
+  assert.equal(scroll.classList.has('can-scroll-above'), false);
+  body.scrollTop = 285;
+  syncStatusBodyScroll(scroll, body);
+  assert.equal(scroll.classList.has('can-scroll-below'), false);
+  assert.ok(scroll.classList.has('can-scroll-above'));
+  body.scrollTop = 40;
+  syncStatusBodyScroll(scroll, body);
+  assert.ok(scroll.classList.has('can-scroll-below'));
+  assert.ok(scroll.classList.has('can-scroll-above'));
+});
+
+test('狀態卡 CSS 與頁面結構支援內文捲動提示', () => {
+  const css = readFileSync(join(publicRoot, 'css/private-team.css'), 'utf8');
+  const pageJs = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
+  assert.match(css, /\.pt-status-scroll[\s\S]*can-scroll-below::after/);
+  assert.match(css, /\.pt-status-body[\s\S]*overflow-y:\s*auto/);
+  assert.match(css, /\.pt-status-body[\s\S]*padding-bottom:/);
+  assert.match(pageJs, /data-pt-status-scroll/);
+  assert.match(pageJs, /syncStatusBodyScroll/);
+});
+
+test('fillStatusCard 多筆進行中仍含今天完成與顯示全部', () => {
+  const doc = {
+    createElement(tag) {
+      const node = { tagName: tag.toUpperCase(), className: '', childNodes: [], textContent: '', attributes: {} };
+      node.appendChild = (c) => node.childNodes.push(c);
+      node.setAttribute = (k, v) => { node.attributes[k] = v; };
+      node.replaceChildren = () => { node.childNodes = []; };
+      return node;
+    }
+  };
+  const body = doc.createElement('div');
+  const actives = [501, 502, 503].map((issue) => ({
+    phrase: '正在處理一項工作',
+    title: '公開標題 ' + issue,
+    issue,
+    round: 1,
+    minutes: 5,
+    model: 'composer-2.5'
+  }));
+  const completed = [
+    { phrase: '收工甲', issue: 401 },
+    { phrase: '收工乙', issue: 402 },
+    { phrase: '收工丙', issue: 403 },
+    { phrase: '收工丁', issue: 404 }
+  ];
+  const queue = Array.from({ length: 6 }, (_, i) => ({ title: '排隊任務 ' + (i + 1), pr: 600 + i }));
+  fillStatusCard(doc, body, {
+    tiger: { status: '工作中 ×3', active: actives, completedToday: completed },
+    queue
+  });
+  const flat = JSON.stringify(body);
+  assert.ok(flat.includes('今天完成'));
+  assert.ok(flat.includes('顯示全部'));
+  assert.ok(flat.includes('公開標題 501'));
+  assert.ok(flat.includes('顯示全部（6）'));
 });
 
 test('fillStatusCard 休息中台詞不含猛虎', () => {
