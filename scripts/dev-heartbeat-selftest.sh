@@ -206,6 +206,23 @@ case "$RUNS_JSON" in
   *'"issue":355'*) fail "chain runs must not parse chainrun queued specs as active runs" ;;
 esac
 
+# --- waiter queue ps parsing ---
+MOCK_PS_WAITERS='  12:00 sh /path/chain-9477-after559-i566-waiter.sh
+  01:00 sh chain-8000-after100-i200-waiter.sh'
+read_waiter_queued
+case "$QUEUED_JSON" in
+  *'"issue":566'*) ;;
+  *) fail "waiter queue json missing issue 566" ;;
+esac
+case "$QUEUED_JSON" in
+  *'"afterIssue":559'*) ;;
+  *) fail "waiter queue json missing afterIssue 559" ;;
+esac
+
+MOCK_DEV_CHAINS=1
+dev_chains_running || fail "dev_chains_running should be true when mocked"
+unset MOCK_DEV_CHAINS
+
 # --- run-review ps parsing ---
 MOCK_GIT_SHORT="cafebabe"
 MOCK_PS_REVIEW='  08:00 sh /path/run-review.sh run254-v2 prompt.md ~/PunchClock-oki/wt-254 claude-opus-5-thinking-high

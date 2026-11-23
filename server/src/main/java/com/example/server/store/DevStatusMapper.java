@@ -397,6 +397,89 @@ public final class DevStatusMapper {
     }
 
     /**
+     * 合併本機 waiter（心跳 queued）至 now.queue；與 GitHub 隊列、進行中項目以 issue 去重。
+     */
+    public static Document withHeartbeatQueued(Document doc, List<DevMachineStore.Snapshot> machines,
+                                               Snapshot snapshot, String repo, long nowMs) {
+        if (doc == null || doc.now == null || machines == null || machines.isEmpty()) {
+            return doc;
+        }
+        String safeRepo = repo == null || repo.isBlank() ? DevStatusService.DEFAULT_REPO : repo.trim();
+        Set<Integer> inProgress = new HashSet<>();
+        if (doc.now.current != null) {
+            for (Item item : doc.now.current) {
+                if (item != null && item.issue > 0) {
+                    inProgress.add(item.issue);
+                }
+            }
+        }
+        Set<Integer> inQueue = new HashSet<>();
+        List<QueueEntry> queue = new ArrayList<>();
+        if (doc.now.queue != null) {
+            for (QueueEntry entry : doc.now.queue) {
+                if (entry == null || entry.item == null || entry.item.issue <= 0) {
+                    continue;
+                }
+                inQueue.add(entry.item.issue);
+                queue.add(entry);
+            }
+        }
+        List<PullRow> pulls = snapshot == null ? Collections.emptyList() : snapshot.pulls;
+        Map<Integer, List<PullRow>> byIssue = new HashMap<>();
+        for (PullRow pull : pulls) {
+            for (Integer closes : pull.closesIssues) {
+                byIssue.computeIfAbsent(closes, k -> new ArrayList<>()).add(pull);
+            }
+        }
+        int syntheticOrder = 10_000;
+        for (DevMachineStore.Snapshot machine : machines) {
+            if (machine == null || machine.lastSeen <= 0
+                    || nowMs - machine.lastSeen > DevMachineStore.ONLINE_WINDOW_MS) {
+                continue;
+            }
+            List<DevMachineStore.QueuedEntry> heartbeatQueued = machine.queued;
+            if (heartbeatQueued == null || heartbeatQueued.isEmpty()) {
+                continue;
+            }
+            for (DevMachineStore.QueuedEntry q : heartbeatQueued) {
+                if (q == null || q.issue <= 0 || inProgress.contains(q.issue) || inQueue.contains(q.issue)) {
+                    continue;
+                }
+                IssueRow issueRow = findIssueRow(snapshot, q.issue);
+                if (issueRow != null && !issueRow.open) {
+                    continue;
+                }
+                PullRow pull = pickPull(q.issue, pulls, byIssue);
+                boolean branch = snapshot != null && snapshot.activeBranches != null
+                        && snapshot.activeBranches.contains(q.issue);
+                String status = issueRow == null ? "排隊中" : statusFor(issueRow, pull, branch);
+                Integer prNum = pull == null ? null : Integer.valueOf(pull.number);
+                String title = issueRow == null ? ("等待 #" + q.issue) : issueRow.title;
+                Item item = new Item(
+                        formatPair(q.issue, prNum),
+                        q.issue,
+                        prNum,
+                        title,
+                        status,
+                        nowMs,
+                        issueUrl(safeRepo, q.issue),
+                        prNum == null ? null : prUrl(safeRepo, prNum)
+                );
+                queue.add(new QueueEntry(syntheticOrder++, item));
+                inQueue.add(q.issue);
+            }
+        }
+        if (queue.size() == (doc.now.queue == null ? 0 : doc.now.queue.size())) {
+            return doc;
+        }
+        queue.sort(Comparator.comparingInt((QueueEntry q) -> q.order)
+                .thenComparingInt(q -> q.item.issue));
+        Item next = queue.isEmpty() ? doc.now.next : queue.get(0).item;
+        NowBlock now = new NowBlock(doc.now.current, next, queue);
+        return new Document(now, doc.items, doc.timeline, doc.stats);
+    }
+
+    /**
      * 合併約 3 分鐘內開發機心跳的 runs 至「現在在做」；與 GitHub 項目以 issue 去重。
      */
     public static Document withFreshMachineRuns(Document doc, Snapshot snapshot, String repo, long nowMs,
