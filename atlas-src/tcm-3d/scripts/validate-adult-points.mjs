@@ -4,6 +4,11 @@ import {existsSync,readFileSync} from 'node:fs';
 import {dirname,join} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import * as T from 'three';
+import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
+import {VRMLoaderPlugin,VRMUtils} from '@pixiv/three-vrm';
+import {VRMHumanBoneName} from '@pixiv/three-vrm-core';
+import {applyAdultStandingPose} from '../app/adult-rest-pose.ts';
 
 const root=join(dirname(fileURLToPath(import.meta.url)),'..');
 const adultPath=join(root,'app/adult-points.json');
@@ -28,8 +33,10 @@ assert.ok(trunk.length>=20,`trunk-30 on adult: ${trunk.length}`);
 
 const charMode=readFileSync(join(root,'app/character-mode.ts'),'utf8');
 const avatarsSrc=readFileSync(join(root,'app/avatars.ts'),'utf8');
+const sceneSrc=readFileSync(join(root,'app/character-scene.tsx'),'utf8');
 assert.match(charMode,/ADULT_POINTS/, 'character-mode exports ADULT_POINTS');
 assert.match(avatarsSrc,/points:ADULT_POINTS/, 'adult avatar wires ADULT_POINTS');
+assert.match(sceneSrc,/syncResolvedPoints/, 'adult acupoints must follow bones after standing pose');
 
 if(!process.env.CI&&!process.env.SKIP_ADULT_BAKE_DRY){
  const dry=spawnSync(process.execPath,[bakePath,'--dry-run','--model','public/models/anime-adult.glb','--output','app/adult-points.json','--codes','GV20'],{
@@ -43,6 +50,140 @@ if(!process.env.CI&&!process.env.SKIP_ADULT_BAKE_DRY){
  }else{
   assert.equal(dry.status,0,dry.stderr||dry.stdout);
  }
+}
+
+globalThis.self = globalThis;
+globalThis.URL = URL;
+globalThis.webkitURL = URL;
+if (!globalThis.document) {
+  globalThis.document = {createElementNS: () => ({style: {}, setAttribute() {}, getContext() { return null; }})};
+}
+
+const BONE_PRIORITY = [
+  VRMHumanBoneName.LeftHand, VRMHumanBoneName.RightHand,
+  VRMHumanBoneName.LeftLowerArm, VRMHumanBoneName.RightLowerArm,
+  VRMHumanBoneName.LeftUpperArm, VRMHumanBoneName.RightUpperArm,
+  VRMHumanBoneName.LeftShoulder, VRMHumanBoneName.RightShoulder,
+  VRMHumanBoneName.Head, VRMHumanBoneName.Neck, VRMHumanBoneName.UpperChest,
+  VRMHumanBoneName.Chest, VRMHumanBoneName.Spine, VRMHumanBoneName.Hips,
+  VRMHumanBoneName.LeftUpperLeg, VRMHumanBoneName.RightUpperLeg,
+  VRMHumanBoneName.LeftLowerLeg, VRMHumanBoneName.RightLowerLeg,
+  VRMHumanBoneName.LeftFoot, VRMHumanBoneName.RightFoot,
+];
+
+const pointByCode = new Map(adult.points.map((p) => [p.code, p]));
+const avatarPointTarget = (code, side) => {
+  const p = pointByCode.get(code);
+  if (!p) return null;
+  return {
+    position: [p.midline ? 0 : -p.position[0] * side, p.position[1], p.position[2]],
+    normal: [p.midline ? p.normal[0] : -p.normal[0] * side, p.normal[1], p.normal[2]],
+  };
+};
+
+const buildPointBindings = (vrm, characterRoot) => {
+  characterRoot.updateMatrixWorld(true);
+  const invRoot = new T.Matrix4().copy(characterRoot.matrixWorld).invert();
+  const table = new Map();
+  const seedWorld = new T.Vector3();
+  const bonePos = new T.Vector3();
+  const _inv = new T.Matrix4();
+  const _n = new T.Vector3();
+  for (const point of adult.points) {
+    for (const side of point.midline ? [1] : [1, -1]) {
+      const seed = avatarPointTarget(point.code, side);
+      if (!seed) continue;
+      seedWorld.fromArray(seed.position).applyMatrix4(characterRoot.matrixWorld);
+      let best = null;
+      let bestD = Infinity;
+      for (const name of BONE_PRIORITY) {
+        const node = vrm.humanoid.getNormalizedBoneNode(name);
+        if (!node) continue;
+        node.getWorldPosition(bonePos);
+        const d = bonePos.distanceToSquared(seedWorld);
+        if (d < bestD) {
+          bestD = d;
+          best = name;
+        }
+      }
+      if (!best) continue;
+      const boneNode = vrm.humanoid.getNormalizedBoneNode(best);
+      _inv.copy(boneNode.matrixWorld).invert();
+      const localPos = seedWorld.clone().applyMatrix4(_inv);
+      _n.fromArray(seed.normal).transformDirection(characterRoot.matrixWorld).normalize();
+      const localNormal = _n.clone().transformDirection(_inv).normalize();
+      table.set(`${point.code}:${side}`, {bone: best, localPos, localNormal});
+    }
+  }
+  const resolve = (code, side) => {
+    const bind = table.get(`${code}:${side}`);
+    if (!bind) return avatarPointTarget(code, side);
+    const node = vrm.humanoid.getNormalizedBoneNode(bind.bone);
+    if (!node) return avatarPointTarget(code, side);
+    node.updateMatrixWorld(true);
+    const pos = bind.localPos.clone().applyMatrix4(node.matrixWorld);
+    invRoot.copy(characterRoot.matrixWorld).invert();
+    pos.applyMatrix4(invRoot);
+    return {
+      position: pos.toArray(),
+      normal: bind.localNormal.clone().transformDirection(node.matrixWorld).transformDirection(invRoot).normalize().toArray(),
+    };
+  };
+  return {resolve, refresh: () => { vrm.scene.updateMatrixWorld(true); }};
+};
+
+const loader = new GLTFLoader();
+loader.register((parser) => new VRMLoaderPlugin(parser));
+const glbBuf = readFileSync(glbPath);
+const gltf = await new Promise((resolve, reject) => {
+  loader.parse(glbBuf.buffer, '', resolve, reject);
+});
+const vrm = gltf.userData.vrm;
+assert.ok(vrm, 'adult glb must expose VRM');
+VRMUtils.removeUnnecessaryVertices(gltf.scene);
+VRMUtils.combineSkeletons(gltf.scene);
+const characterRoot = new T.Group();
+characterRoot.add(vrm.scene);
+const bindings = buildPointBindings(vrm, characterRoot);
+applyAdultStandingPose(vrm);
+vrm.update(0);
+characterRoot.updateMatrixWorld(true);
+bindings.refresh();
+
+const resolveY = (code, side = 1) => {
+  const target = bindings.resolve(code, side);
+  assert.ok(target, `${code} must resolve after standing pose`);
+  return target.position[1];
+};
+const li15y = resolveY('LI15');
+const armBelowShoulderMin = 0.15;
+for (const code of ['LU5', 'LU9', 'LI5', 'LI11', 'HT7']) {
+  const y = resolveY(code);
+  assert.ok(
+    y < li15y - armBelowShoulderMin,
+    `${code} y=${y.toFixed(3)} must be clearly below LI15 y=${li15y.toFixed(3)} after standing pose`,
+  );
+}
+
+const SKIN = /Body_00_SKIN|Face_00_SKIN/i;
+const skinMeshes = [];
+vrm.scene.traverse((obj) => {
+  if (!(obj instanceof T.SkinnedMesh)) return;
+  const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+  const label = `${mats.map((m) => m?.name || '').join(' ')} ${obj.name || ''}`;
+  if (SKIN.test(label)) skinMeshes.push(obj);
+});
+assert.ok(skinMeshes.length >= 1, 'arm skin meshes expected');
+const ray = new T.Raycaster();
+for (const code of ['LU5', 'LI5']) {
+  const target = bindings.resolve(code, 1);
+  assert.ok(target, code);
+  const pos = new T.Vector3().fromArray(target.position);
+  const n = new T.Vector3().fromArray(target.normal).normalize();
+  ray.set(pos.clone().addScaledVector(n, 0.02), n.clone().negate());
+  ray.far = 0.12;
+  const hit = ray.intersectObjects(skinMeshes, false)[0];
+  assert.ok(hit && hit.point.distanceTo(pos) < 0.04, `${code} must sit near arm skin, not T-pose air`);
 }
 
 console.log(`adult-points checks passed (${adult.points.length} codes).`);
