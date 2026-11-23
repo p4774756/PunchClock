@@ -43,6 +43,8 @@ test('下沉浴缸、托盤與單螢幕支架', () => {
   assert.doesNotMatch(src, /addMonitor\(root, monitorLook, -0\.68/);
   assert.match(src, /basePlate/);
   assert.match(src, /bathPillow/);
+  assert.doesNotMatch(src, /addBathPillow\(secretarySprite\)/);
+  assert.match(src, /addBathPillow\(secretaryRoot\)/);
   assert.match(src, /applyUnderwaterTint/);
   assert.doesNotMatch(src, /rug-weave/);
   assert.doesNotMatch(src, /rugEdge/);
