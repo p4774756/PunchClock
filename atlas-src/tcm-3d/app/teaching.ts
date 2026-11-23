@@ -177,7 +177,7 @@ export function normalizePointCode(value:string){return value.trim().toLowerCase
 /** Lesson list stays on baked points. A typed query searches the full 364-point catalog. */
 export function libraryPointResults(query:string,region:RegionId|'all',meridianFilter:string|null|undefined,curriculumSetId:string|null|undefined,avatarCodes:ReadonlySet<string>){
  const trimmed=query.trim();
- const lesson=trimmed?undefined:curriculumSet(curriculumSetId);
+ const lesson=trimmed||curriculumSetId==='all'?undefined:curriculumSet(curriculumSetId);
  const ordered=trimmed?POINTS:(lesson?lesson.codes.map(code=>POINTS.find(p=>p.code===code)!).filter(Boolean):POINTS.filter(p=>avatarCodes.has(p.code)));
  return ordered.filter(p=>(trimmed||avatarCodes.has(p.code))&&(!meridianFilter||meridianFilter==='all'||p.meridianId===meridianFilter)&&(region==='all'||p.region===region)&&teachingPointMatchesQuery(p,query));
 }
