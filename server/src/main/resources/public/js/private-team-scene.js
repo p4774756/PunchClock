@@ -182,13 +182,20 @@ export function clampPrivateTeamZoom(z) {
   return Math.min(PRIVATE_TEAM_ZOOM_MAX, Math.max(PRIVATE_TEAM_ZOOM_MIN, n));
 }
 
+/** 窄螢幕直向（含手機直立） */
+export function privateTeamNarrowPortrait(width, height) {
+  const w = Number(width);
+  const h = Number(height);
+  if (!(w > 0) || !(h > 0)) return false;
+  return w < 640 && h > w;
+}
+
 /** 首次載入預設鏡頭距離：窄螢幕直向拉遠，桌面／橫向維持約 1 */
 export function privateTeamDefaultZoom(width, height) {
   const w = Number(width);
   const h = Number(height);
   if (!(w > 0) || !(h > 0)) return 1;
-  const narrowPortrait = w < 640 && h > w;
-  if (narrowPortrait) return clampPrivateTeamZoom(1.58);
+  if (privateTeamNarrowPortrait(w, h)) return clampPrivateTeamZoom(1.58);
   return 1;
 }
 
@@ -200,15 +207,37 @@ export function privateTeamPinchZoomFactor(pinchStartZoom, pinchStartDist, dist)
 
 /** 水平拖曳視角左右上限（度） */
 export const PRIVATE_TEAM_YAW_MAX_DEG = 35;
+/** 窄螢幕直向加大偏航，讓左右牆面與銅人可滑進畫面 */
+export const PRIVATE_TEAM_YAW_MAX_DEG_NARROW_PORTRAIT = 52;
 export const PRIVATE_TEAM_DRAG_THRESHOLD_PX = 6;
 export const PRIVATE_TEAM_YAW_RETURN_MS = 600;
+export const PRIVATE_TEAM_PAN_HINT_DISMISS_KEY = 'punchclock-pt-pan-seen';
 
 const PRIVATE_TEAM_YAW_MAX_RAD = (PRIVATE_TEAM_YAW_MAX_DEG * Math.PI) / 180;
+
+export function privateTeamYawMaxRadians(width, height) {
+  const deg = privateTeamNarrowPortrait(width, height)
+    ? PRIVATE_TEAM_YAW_MAX_DEG_NARROW_PORTRAIT
+    : PRIVATE_TEAM_YAW_MAX_DEG;
+  return (deg * Math.PI) / 180;
+}
+
+/** 桌面／橫向鬆手後回正；窄螢幕直向維持視角 */
+export function privateTeamOrbitYawReturnEnabled(width, height) {
+  return !privateTeamNarrowPortrait(width, height);
+}
 
 export function clampPrivateTeamYaw(radians) {
   const n = Number(radians);
   if (!Number.isFinite(n)) return 0;
   return Math.min(PRIVATE_TEAM_YAW_MAX_RAD, Math.max(-PRIVATE_TEAM_YAW_MAX_RAD, n));
+}
+
+export function clampPrivateTeamYawViewport(radians, width, height) {
+  const n = Number(radians);
+  if (!Number.isFinite(n)) return 0;
+  const max = privateTeamYawMaxRadians(width, height);
+  return Math.min(max, Math.max(-max, n));
 }
 
 /** 位移未超過門檻時仍視為點擊（不觸發旋轉） */
@@ -217,11 +246,49 @@ export function privateTeamDragExceedsThreshold(dx, dy) {
 }
 
 /** 依水平拖曳距離與畫布寬度換算繞 camLook 的偏航角 */
-export function privateTeamYawFromDragDelta(deltaX, canvasWidth, startYaw) {
+export function privateTeamYawFromDragDelta(deltaX, canvasWidth, startYaw, canvasHeight) {
   const w = Math.max(Number(canvasWidth), 1);
+  const h = Number(canvasHeight);
   const base = Number(startYaw);
-  const scale = (2 * PRIVATE_TEAM_YAW_MAX_RAD) / w;
-  return clampPrivateTeamYaw((Number.isFinite(base) ? base : 0) + Number(deltaX) * scale);
+  const maxRad =
+    Number.isFinite(h) && h > 0 ? privateTeamYawMaxRadians(w, h) : PRIVATE_TEAM_YAW_MAX_RAD;
+  const scale = (2 * maxRad) / w;
+  const next = (Number.isFinite(base) ? base : 0) + Number(deltaX) * scale;
+  if (Number.isFinite(h) && h > 0) return clampPrivateTeamYawViewport(next, w, h);
+  return clampPrivateTeamYaw(next);
+}
+
+export function privateTeamPanHintShouldShow(narrowPortrait, dismissed) {
+  return !!narrowPortrait && !dismissed;
+}
+
+/** 拖曳釋放後的慣性（rad/ms）；reduced motion 時應略過 */
+export function privateTeamYawDragVelocityRadPerMs(deltaPx, dtMs, canvasWidth, canvasHeight) {
+  const dt = Number(dtMs);
+  const dx = Number(deltaPx);
+  if (!Number.isFinite(dt) || dt < 12 || !Number.isFinite(dx)) return 0;
+  const w = Math.max(Number(canvasWidth), 1);
+  const h = Number(canvasHeight);
+  if (!(h > 0)) return 0;
+  const maxRad = privateTeamYawMaxRadians(w, h);
+  const scale = (2 * maxRad) / w;
+  return (dx / dt) * scale * 0.38;
+}
+
+export function privateTeamYawMomentumTick(yaw, velRadPerMs, dtMs, canvasWidth, canvasHeight) {
+  const dt = Number(dtMs);
+  let v = Number(velRadPerMs);
+  let y = Number(yaw);
+  if (!Number.isFinite(y) || !Number.isFinite(v) || !(dt > 0)) return { yaw: 0, vel: 0 };
+  const w = Math.max(Number(canvasWidth), 1);
+  const h = Number(canvasHeight);
+  if (!(h > 0)) return { yaw: y, vel: 0 };
+  y = clampPrivateTeamYawViewport(y + v * dt, w, h);
+  v *= Math.exp(-5.2 * (dt / 1000));
+  const maxRad = privateTeamYawMaxRadians(w, h);
+  if (Math.abs(y) >= maxRad - 1e-5) v = 0;
+  if (Math.abs(v) < 1e-5) v = 0;
+  return { yaw: y, vel: v };
 }
 
 export function privateTeamYawReturnProgress(elapsedMs, reducedMotion) {
@@ -1459,6 +1526,60 @@ export function mountPrivateTeamScene(canvas, opts) {
   let yawRadians = 0;
   let yawReturnFrom = 0;
   let yawReturnStartMs = null;
+  let yawMomentumVel = 0;
+  let panHintEl = null;
+  let panHintHideTimer = 0;
+
+  function sceneViewportSize() {
+    const parent = canvas.parentElement;
+    const w = parent ? parent.clientWidth : win.innerWidth || 0;
+    const h = parent ? parent.clientHeight : win.innerHeight || 0;
+    return { w, h };
+  }
+
+  function panHintDismissed() {
+    try {
+      return win.localStorage.getItem(PRIVATE_TEAM_PAN_HINT_DISMISS_KEY) === '1';
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function dismissPanHint(persist) {
+    if (panHintHideTimer) {
+      win.clearTimeout(panHintHideTimer);
+      panHintHideTimer = 0;
+    }
+    if (panHintEl) {
+      panHintEl.hidden = true;
+      panHintEl.setAttribute('aria-hidden', 'true');
+    }
+    if (persist) {
+      try {
+        win.localStorage.setItem(PRIVATE_TEAM_PAN_HINT_DISMISS_KEY, '1');
+      } catch (_e) { /* noop */ }
+    }
+  }
+
+  function syncPanHint() {
+    const stage = canvas.parentElement;
+    if (!stage) return;
+    const vp = sceneViewportSize();
+    const show = privateTeamPanHintShouldShow(privateTeamNarrowPortrait(vp.w, vp.h), panHintDismissed());
+    if (!show) {
+      if (panHintEl) panHintEl.hidden = true;
+      return;
+    }
+    if (!panHintEl) {
+      panHintEl = doc.createElement('div');
+      panHintEl.className = 'pt-pan-hint';
+      panHintEl.textContent = '左右滑動';
+      panHintEl.setAttribute('aria-hidden', 'true');
+      stage.appendChild(panHintEl);
+      panHintHideTimer = win.setTimeout(() => dismissPanHint(true), 9000);
+    }
+    panHintEl.hidden = false;
+  }
 
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
   function applyCameraView() {
@@ -2355,6 +2476,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   let orbitStartYaw = 0;
   let orbitDragged = false;
   let orbitPendingRole = null;
+  let orbitLastMoveMs = 0;
+  let orbitLastClientX = 0;
 
   function pointerDistance() {
     const pts = [...activePointers.values()];
@@ -2447,7 +2570,10 @@ export function mountPrivateTeamScene(canvas, opts) {
     orbitStartYaw = yawRadians;
     orbitDragged = false;
     orbitPendingRole = pickTarget(ev.clientX, ev.clientY);
+    orbitLastMoveMs = performance.now();
+    orbitLastClientX = ev.clientX;
     yawReturnStartMs = null;
+    yawMomentumVel = 0;
     if (orbitPendingRole) {
       ev.preventDefault();
     }
@@ -2478,7 +2604,16 @@ export function mountPrivateTeamScene(canvas, opts) {
       }
       if (orbitDragged) {
         const rect = canvas.getBoundingClientRect();
-        yawRadians = privateTeamYawFromDragDelta(dx, rect.width, orbitStartYaw);
+        const vp = sceneViewportSize();
+        const now = performance.now();
+        orbitLastClientX = ev.clientX;
+        orbitLastMoveMs = now;
+        yawRadians = privateTeamYawFromDragDelta(
+          dx,
+          rect.width,
+          orbitStartYaw,
+          vp.h || rect.height
+        );
         applyCameraView();
         ev.preventDefault();
         canvas.style.cursor = 'grabbing';
@@ -2507,9 +2642,26 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (ev.pointerId === orbitPointerId) {
       if (!orbitDragged && orbitPendingRole) {
         activatePickRole(orbitPendingRole);
-      } else if (orbitDragged && Math.abs(yawRadians) > 1e-6) {
-        yawReturnFrom = yawRadians;
-        yawReturnStartMs = performance.now();
+      } else if (orbitDragged) {
+        dismissPanHint(true);
+        const vp = sceneViewportSize();
+        const rect = canvas.getBoundingClientRect();
+        if (privateTeamOrbitYawReturnEnabled(vp.w, vp.h) && Math.abs(yawRadians) > 1e-6) {
+          yawReturnFrom = yawRadians;
+          yawReturnStartMs = performance.now();
+        } else if (
+          privateTeamNarrowPortrait(vp.w, vp.h) &&
+          !reducedMotion
+        ) {
+          const dt = Math.max(performance.now() - orbitLastMoveMs, 16);
+          const recentDx = ev.clientX - orbitLastClientX;
+          yawMomentumVel = privateTeamYawDragVelocityRadPerMs(
+            recentDx,
+            dt,
+            rect.width,
+            vp.h || rect.height
+          );
+        }
       }
       resetOrbitGesture();
       canvas.style.cursor = '';
@@ -2597,6 +2749,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       applyZoom(privateTeamDefaultZoom(w, h));
       defaultZoomApplied = true;
     }
+    syncPanHint();
   }
 
   function tick(now) {
@@ -2776,6 +2929,24 @@ export function mountPrivateTeamScene(canvas, opts) {
       windowSkylineFlicker.visible = false;
       airplaneGroup.visible = false;
       airplaneActive = false;
+    }
+
+    if (Math.abs(yawMomentumVel) > 1e-6 && !reducedMotion) {
+      const vp = sceneViewportSize();
+      if (privateTeamNarrowPortrait(vp.w, vp.h)) {
+        const motion = privateTeamYawMomentumTick(
+          yawRadians,
+          yawMomentumVel,
+          frameDt,
+          vp.w,
+          vp.h
+        );
+        yawRadians = motion.yaw;
+        yawMomentumVel = motion.vel;
+        applyCameraView();
+      } else {
+        yawMomentumVel = 0;
+      }
     }
 
     if (yawReturnStartMs != null) {

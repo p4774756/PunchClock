@@ -60,6 +60,40 @@
   touch-action: none;
 }
 
+.pt-pan-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 16%;
+  transform: translateX(-50%);
+  z-index: 3;
+  pointer-events: none;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: rgba(210, 224, 255, 0.38);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+  user-select: none;
+}
+
+.pt-pan-hint::before,
+.pt-pan-hint::after {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin: 0 0.55em;
+  border-top: 1.5px solid rgba(210, 224, 255, 0.35);
+  border-right: 1.5px solid rgba(210, 224, 255, 0.35);
+  vertical-align: 0.05em;
+}
+
+.pt-pan-hint::before {
+  transform: rotate(-135deg);
+}
+
+.pt-pan-hint::after {
+  transform: rotate(45deg);
+}
+
 .lab-office-stage.pt-roadmap-open .private-team-hud,
 .lab-office-stage.pt-roadmap-open .private-team-canvas,
 .lab-office-stage.pt-roadmap-open .pt-prog-hit,
