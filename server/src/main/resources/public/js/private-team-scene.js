@@ -119,6 +119,48 @@ export function privateTeamPinchZoomFactor(pinchStartZoom, pinchStartDist, dist)
   return pinchStartZoom * (pinchStartDist / dist);
 }
 
+/** 水平拖曳視角左右上限（度） */
+export const PRIVATE_TEAM_YAW_MAX_DEG = 35;
+export const PRIVATE_TEAM_DRAG_THRESHOLD_PX = 6;
+export const PRIVATE_TEAM_YAW_RETURN_MS = 600;
+
+const PRIVATE_TEAM_YAW_MAX_RAD = (PRIVATE_TEAM_YAW_MAX_DEG * Math.PI) / 180;
+
+export function clampPrivateTeamYaw(radians) {
+  const n = Number(radians);
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(PRIVATE_TEAM_YAW_MAX_RAD, Math.max(-PRIVATE_TEAM_YAW_MAX_RAD, n));
+}
+
+/** 位移未超過門檻時仍視為點擊（不觸發旋轉） */
+export function privateTeamDragExceedsThreshold(dx, dy) {
+  return Math.hypot(Number(dx), Number(dy)) > PRIVATE_TEAM_DRAG_THRESHOLD_PX;
+}
+
+/** 依水平拖曳距離與畫布寬度換算繞 camLook 的偏航角 */
+export function privateTeamYawFromDragDelta(deltaX, canvasWidth, startYaw) {
+  const w = Math.max(Number(canvasWidth), 1);
+  const base = Number(startYaw);
+  const scale = (2 * PRIVATE_TEAM_YAW_MAX_RAD) / w;
+  return clampPrivateTeamYaw((Number.isFinite(base) ? base : 0) + Number(deltaX) * scale);
+}
+
+export function privateTeamYawReturnProgress(elapsedMs, reducedMotion) {
+  if (reducedMotion) return 1;
+  const t = Number(elapsedMs);
+  if (!Number.isFinite(t) || t <= 0) return 0;
+  if (t >= PRIVATE_TEAM_YAW_RETURN_MS) return 1;
+  const u = t / PRIVATE_TEAM_YAW_RETURN_MS;
+  return 1 - (1 - u) * (1 - u);
+}
+
+export function privateTeamYawAtReturn(startYaw, progress) {
+  const y = Number(startYaw);
+  const p = Math.min(1, Math.max(0, Number(progress)));
+  if (!Number.isFinite(y)) return 0;
+  return y * (1 - p);
+}
+
 /** 夜間全域與檯燈強度（供單測） */
 export function privateTeamSceneLighting() {
   return {
@@ -611,14 +653,23 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   const camLook = new THREE.Vector3(0, 0.92, -0.08);
   const camBase = new THREE.Vector3(3.25, 3.5, 4.15);
+  const camYawAxis = new THREE.Vector3(0, 1, 0);
   let zoomFactor = 1;
+  let yawRadians = 0;
+  let yawReturnFrom = 0;
+  let yawReturnStartMs = null;
 
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
-  function applyZoom(factor) {
-    zoomFactor = clampPrivateTeamZoom(factor);
+  function applyCameraView() {
+    zoomFactor = clampPrivateTeamZoom(zoomFactor);
     const dir = camBase.clone().sub(camLook);
+    dir.applyAxisAngle(camYawAxis, yawRadians);
     camera.position.copy(camLook).add(dir.multiplyScalar(zoomFactor));
     camera.lookAt(camLook);
+  }
+  function applyZoom(factor) {
+    zoomFactor = clampPrivateTeamZoom(factor);
+    applyCameraView();
   }
   applyZoom(1);
 
@@ -1299,6 +1350,12 @@ export function mountPrivateTeamScene(canvas, opts) {
   let pinchActive = false;
   let pinchStartDist = 0;
   let pinchStartZoom = 1;
+  let orbitPointerId = null;
+  let orbitStartX = 0;
+  let orbitStartY = 0;
+  let orbitStartYaw = 0;
+  let orbitDragged = false;
+  let orbitPendingRole = null;
 
   function pointerDistance() {
     const pts = [...activePointers.values()];
@@ -1349,20 +1406,14 @@ export function mountPrivateTeamScene(canvas, opts) {
     return pickRoleFromObject(hits[0].object);
   }
 
-  function handlePointerDown(ev) {
-    if (!sceneInputEnabled) return;
-    activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-    if (activePointers.size >= 2) {
-      pinchActive = true;
-      pinchStartDist = pointerDistance();
-      pinchStartZoom = zoomFactor;
-      ev.preventDefault();
-      return;
-    }
-    if (pinchActive) return;
-    const target = pickTarget(ev.clientX, ev.clientY);
+  function resetOrbitGesture() {
+    orbitPointerId = null;
+    orbitPendingRole = null;
+    orbitDragged = false;
+  }
+
+  function activatePickRole(target) {
     if (!target) return;
-    ev.preventDefault();
     if (target === 'progress') {
       if (onOpenProgress) onOpenProgress();
       return;
@@ -1375,6 +1426,30 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (onActivate) onActivate('secretary');
   }
 
+  function handlePointerDown(ev) {
+    if (!sceneInputEnabled) return;
+    activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (activePointers.size >= 2) {
+      pinchActive = true;
+      pinchStartDist = pointerDistance();
+      pinchStartZoom = zoomFactor;
+      resetOrbitGesture();
+      ev.preventDefault();
+      return;
+    }
+    if (pinchActive) return;
+    orbitPointerId = ev.pointerId;
+    orbitStartX = ev.clientX;
+    orbitStartY = ev.clientY;
+    orbitStartYaw = yawRadians;
+    orbitDragged = false;
+    orbitPendingRole = pickTarget(ev.clientX, ev.clientY);
+    yawReturnStartMs = null;
+    if (orbitPendingRole) {
+      ev.preventDefault();
+    }
+  }
+
   function handlePointerMove(ev) {
     if (!activePointers.has(ev.pointerId)) return;
     activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
@@ -1384,7 +1459,31 @@ export function mountPrivateTeamScene(canvas, opts) {
       ev.preventDefault();
       return;
     }
-    if (!pinchActive && sceneInputEnabled) {
+    if (
+      !pinchActive &&
+      sceneInputEnabled &&
+      orbitPointerId === ev.pointerId &&
+      activePointers.size === 1
+    ) {
+      const dx = ev.clientX - orbitStartX;
+      const dy = ev.clientY - orbitStartY;
+      if (!orbitDragged && privateTeamDragExceedsThreshold(dx, dy)) {
+        orbitDragged = true;
+        try {
+          canvas.setPointerCapture(ev.pointerId);
+        } catch (_e) { /* noop */ }
+      }
+      if (orbitDragged) {
+        const rect = canvas.getBoundingClientRect();
+        yawRadians = privateTeamYawFromDragDelta(dx, rect.width, orbitStartYaw);
+        applyCameraView();
+        ev.preventDefault();
+        canvas.style.cursor = 'grabbing';
+        setBronzeHover(false);
+        return;
+      }
+    }
+    if (!pinchActive && sceneInputEnabled && !orbitDragged) {
       const hover = pickTarget(ev.clientX, ev.clientY);
       const pointerOn = hover === 'atlas' || hover === 'secretary' || hover === 'progress';
       canvas.style.cursor = pointerOn ? 'pointer' : '';
@@ -1401,6 +1500,21 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
 
   function handlePointerUp(ev) {
+    if (ev.pointerId === orbitPointerId) {
+      if (!orbitDragged && orbitPendingRole) {
+        activatePickRole(orbitPendingRole);
+      } else if (orbitDragged && Math.abs(yawRadians) > 1e-6) {
+        yawReturnFrom = yawRadians;
+        yawReturnStartMs = performance.now();
+      }
+      resetOrbitGesture();
+      canvas.style.cursor = '';
+      try {
+        if (canvas.hasPointerCapture(ev.pointerId)) {
+          canvas.releasePointerCapture(ev.pointerId);
+        }
+      } catch (_e) { /* noop */ }
+    }
     clearPointer(ev);
   }
 
@@ -1549,6 +1663,17 @@ export function mountPrivateTeamScene(canvas, opts) {
       lampSpot.intensity = lampSpotBase * lampPulse;
       lampHaloMat.opacity =
         lampHaloBase * (reducedMotion ? 1 : 0.88 + ((Math.sin(elapsed * 3.6 + 0.8) + 1) / 2) * 0.12);
+    }
+
+    if (yawReturnStartMs != null) {
+      const progress = privateTeamYawReturnProgress(now - yawReturnStartMs, reducedMotion);
+      yawRadians = privateTeamYawAtReturn(yawReturnFrom, progress);
+      if (progress >= 1) {
+        yawRadians = 0;
+        yawReturnStartMs = null;
+        yawReturnFrom = 0;
+      }
+      applyCameraView();
     }
 
     if (onProgressBoardRect) {
