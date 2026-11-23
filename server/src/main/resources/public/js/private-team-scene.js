@@ -392,23 +392,156 @@ function makeScreenPainter() {
   return { mesh, draw };
 }
 
-function progressTexture(pct) {
+export const PROGRESS_BOARD_PLANE_W = 1.05;
+export const PROGRESS_BOARD_PLANE_H = 0.65625;
+
+export const BRONZE_POLISHED_GOLD = 0xcda864;
+
+export function isBronzeBodyMaterialName(name) {
+  const n = (name || '').toLowerCase();
+  return n === 'bronze_body' || n === 'bronze.001';
+}
+
+export function shouldSkipBronzeMaterialCoerce(matName, meshName) {
+  const mat = (matName || '').toLowerCase();
+  const mesh = (meshName || '').toLowerCase();
+  if (mat.indexOf('sash') >= 0) return true;
+  if (mat.indexOf('pedestal') >= 0 || mat.indexOf('plaque') >= 0) return true;
+  if (mat.indexOf('meridian') >= 0 || mat.indexOf('bronze_dark') >= 0) return true;
+  if (mesh.indexOf('pedestal') >= 0 || mesh.indexOf('plaque') >= 0) return true;
+  return false;
+}
+
+export function isBronzeHairMaterial(matName, meshName) {
+  const mat = (matName || '').toLowerCase();
+  const mesh = (meshName || '').toLowerCase();
+  return mat.indexOf('hair') >= 0 || mesh.indexOf('hair') >= 0;
+}
+
+function ellipsizeLine(ctx, text, maxW) {
+  const s = text == null ? '' : String(text);
+  if (!s) return '';
+  if (ctx.measureText(s).width <= maxW) return s;
+  let out = s;
+  while (out.length > 1 && ctx.measureText(out + '…').width > maxW) {
+    out = out.slice(0, -1);
+  }
+  return out + '…';
+}
+
+function wrapBoardLine(ctx, text, maxW, maxLines) {
+  const s = text == null ? '' : String(text).trim();
+  if (!s) return [];
+  const words = s.split(/\s+/);
+  const lines = [];
+  let cur = '';
+  for (let i = 0; i < words.length; i++) {
+    const tryLine = cur ? cur + ' ' + words[i] : words[i];
+    if (ctx.measureText(tryLine).width <= maxW) {
+      cur = tryLine;
+      continue;
+    }
+    if (cur) lines.push(cur);
+    cur = words[i];
+    if (lines.length >= maxLines - 1) break;
+  }
+  if (cur && lines.length < maxLines) lines.push(cur);
+  if (lines.length > maxLines) lines.length = maxLines;
+  if (lines.length === maxLines && words.length > 1) {
+    lines[maxLines - 1] = ellipsizeLine(ctx, lines[maxLines - 1], maxW);
+  }
+  return lines;
+}
+
+function makeProgressBoardDrawer() {
   const canvas = document.createElement('canvas');
-  canvas.width = 200;
-  canvas.height = 120;
+  canvas.width = 512;
+  canvas.height = 320;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#1a2438';
-  ctx.fillRect(0, 0, 200, 120);
-  ctx.fillStyle = '#8a96a8';
-  ctx.font = 'bold 18px sans-serif';
-  ctx.fillText('進度', 12, 28);
-  ctx.fillStyle = '#2e4a3a';
-  ctx.fillRect(12, 40, 176, 20);
-  ctx.fillStyle = '#2e9a4a';
-  ctx.fillRect(12, 40, Math.max(8, 176 * pct), 20);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  function draw(view) {
+    const bag = view && typeof view === 'object' ? view : {};
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#a8823c';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#6a5028';
+    ctx.fillRect(6, 6, canvas.width - 12, canvas.height - 12);
+    ctx.fillStyle = '#141c28';
+    ctx.fillRect(14, 14, canvas.width - 28, canvas.height - 28);
+    const ix = 28;
+    const iy = 28;
+    const iw = canvas.width - 56;
+    const ih = canvas.height - 56;
+    ctx.fillStyle = '#121a2c';
+    ctx.fillRect(ix, iy, iw, ih);
+    ctx.fillStyle = '#ecc440';
+    ctx.font = 'bold 34px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('施工進度', ix + 16, iy + 14);
+    const status = bag.statusLine == null ? '待命中' : String(bag.statusLine);
+    ctx.font = 'bold 26px sans-serif';
+    ctx.fillStyle = status === '進行中' ? '#9ed4ff' : '#d8c090';
+    ctx.fillText(status, ix + iw - 16 - ctx.measureText(status).width, iy + 18);
+    let y = iy + 58;
+    const issueLine = bag.issueLine == null ? '' : String(bag.issueLine);
+    if (issueLine) {
+      ctx.font = 'bold 40px sans-serif';
+      ctx.fillStyle = '#f2e2b8';
+      ctx.fillText(issueLine, ix + 16, y);
+      y += 48;
+    }
+    const phrase = bag.phraseLine == null ? '' : String(bag.phraseLine);
+    if (phrase) {
+      ctx.font = '22px sans-serif';
+      ctx.fillStyle = '#e8edf8';
+      const lines = wrapBoardLine(ctx, phrase, iw - 32, 2);
+      for (let li = 0; li < lines.length; li++) {
+        ctx.fillText(lines[li], ix + 16, y);
+        y += 28;
+      }
+    } else if (status === '待命中') {
+      ctx.font = '24px sans-serif';
+      ctx.fillStyle = '#c8d0e0';
+      ctx.fillText('待命中', ix + 16, y);
+      y += 34;
+    }
+    const meta = bag.metaLine == null ? '' : String(bag.metaLine);
+    if (meta) {
+      ctx.font = '18px sans-serif';
+      ctx.fillStyle = '#a8b4c8';
+      ctx.fillText(ellipsizeLine(ctx, meta, iw - 32), ix + 16, y);
+      y += 26;
+    }
+    const todayLabel = bag.todayLabel == null ? '' : String(bag.todayLabel);
+    const frac = Number(bag.todayFraction);
+    if (todayLabel && Number.isFinite(frac)) {
+      const barY = iy + ih - 52;
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillStyle = '#c9b878';
+      ctx.fillText(todayLabel, ix + 16, barY);
+      const pct = Math.round(frac * 100);
+      const pctText = pct + '%';
+      ctx.fillText(pctText, ix + iw - 16 - ctx.measureText(pctText).width, barY);
+      const barH = 14;
+      const barTop = barY + 24;
+      ctx.fillStyle = '#243248';
+      ctx.fillRect(ix + 16, barTop, iw - 32, barH);
+      ctx.fillStyle = '#ecc440';
+      ctx.fillRect(ix + 16, barTop, Math.max(6, (iw - 32) * frac), barH);
+    }
+    tex.needsUpdate = true;
+  }
+  draw({
+    statusLine: '待命中',
+    issueLine: '',
+    phraseLine: '',
+    metaLine: '',
+    todayLabel: '',
+    todayFraction: null
+  });
+  return { tex, draw };
 }
 
 function makeBubbleDrawer() {
@@ -535,15 +668,22 @@ function makeBronzeEnvMap(renderer) {
   return envMap;
 }
 
-function bronzeBodyMaterialFrom(root) {
+export function bronzeBodyMaterialFrom(root) {
   let bodyMat = null;
   if (!root) return null;
   root.traverse((obj) => {
     if (bodyMat || !obj.isMesh || !obj.material) return;
+    const meshName = (obj.name || '').toLowerCase();
     const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
     for (let i = 0; i < mats.length; i++) {
       const m = mats[i];
-      if (m && m.isMeshStandardMaterial && (m.name || '').toLowerCase() === 'bronze_body') {
+      if (!m || !m.isMeshStandardMaterial) continue;
+      const matName = m.name || '';
+      if (isBronzeBodyMaterialName(matName)) {
+        bodyMat = m;
+        return;
+      }
+      if (meshName === 'bronze_body' && (matName || '').toLowerCase().indexOf('bronze') >= 0) {
         bodyMat = m;
         return;
       }
@@ -552,22 +692,30 @@ function bronzeBodyMaterialFrom(root) {
   return bodyMat;
 }
 
-function coerceBronzeHumanMaterials(root) {
+export function coerceBronzeHumanMaterials(root) {
+  if (!root) return;
   const bodyMat = bronzeBodyMaterialFrom(root);
-  if (!bodyMat) return;
+  const gold = new THREE.Color(BRONZE_POLISHED_GOLD);
+  const hairMetal = 0.9;
+  const hairRough = 0.3;
   root.traverse((obj) => {
     if (!obj.isMesh || !obj.material) return;
-    const meshName = (obj.name || '').toLowerCase();
+    const meshName = obj.name || '';
     const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
     for (let i = 0; i < mats.length; i++) {
       const m = mats[i];
       if (!m || !m.isMeshStandardMaterial) continue;
-      const matName = (m.name || '').toLowerCase();
-      if (matName.indexOf('sash') >= 0) continue;
-      if (matName.indexOf('pedestal') >= 0 || matName.indexOf('plaque') >= 0) continue;
-      if (meshName.indexOf('pedestal') >= 0 || meshName.indexOf('plaque') >= 0) continue;
-      const isHair = matName.indexOf('hair') >= 0 || meshName.indexOf('hair') >= 0;
-      const needsCoerce = isHair || (m.metalness < 0.45 && matName.indexOf('bronze') >= 0);
+      const matName = m.name || '';
+      if (shouldSkipBronzeMaterialCoerce(matName, meshName)) continue;
+      if (isBronzeHairMaterial(matName, meshName)) {
+        m.color.copy(gold);
+        m.metalness = hairMetal;
+        m.roughness = hairRough;
+        m.needsUpdate = true;
+        continue;
+      }
+      if (!bodyMat) continue;
+      const needsCoerce = m.metalness < 0.45 && (matName || '').toLowerCase().indexOf('bronze') >= 0;
       if (!needsCoerce) continue;
       m.color.copy(bodyMat.color);
       m.metalness = bodyMat.metalness;
@@ -972,20 +1120,21 @@ export function mountPrivateTeamScene(canvas, opts) {
   windowWash.position.set(0, 0.022, -1.05);
   root.add(windowWash);
 
+  const progressDrawer = makeProgressBoardDrawer();
   const progMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.0, 0.6),
-    new THREE.MeshBasicMaterial({ map: progressTexture(0.62) })
+    new THREE.PlaneGeometry(PROGRESS_BOARD_PLANE_W, PROGRESS_BOARD_PLANE_H),
+    new THREE.MeshBasicMaterial({ map: progressDrawer.tex })
   );
   progMesh.name = 'progressBoard';
-  progMesh.position.set(leftX + WALL_THICK + 0.04, 1.52, 0.1);
+  progMesh.position.set(leftX + WALL_THICK + 0.05, 1.52, 0.1);
   progMesh.rotation.y = Math.PI / 2;
   root.add(progMesh);
+  const progressGlow = new THREE.PointLight(0xc8a850, 0.16, 2.4, 2);
+  progressGlow.position.set(leftX + WALL_THICK + 0.12, 1.52, 0.24);
+  root.add(progressGlow);
 
   const monitorLook = new THREE.Vector3(0.02, 1.02, 0.72);
-  const monitors = [
-    addMonitor(root, monitorLook, -0.82, 1.02, 0.92, RIM_TOP_Y),
-    addMonitor(root, monitorLook, -0.68, 1.14, 0.92, RIM_TOP_Y)
-  ];
+  const monitors = [addMonitor(root, monitorLook, -0.96, 0.94, 0.98, 0.02)];
 
   const mug = new THREE.Mesh(
     new THREE.CylinderGeometry(0.09, 0.075, 0.18, 12),
@@ -1430,8 +1579,8 @@ export function mountPrivateTeamScene(canvas, opts) {
     const canvasRect = canvas.getBoundingClientRect();
     if (!canvasRect.width || !canvasRect.height) return null;
     camera.updateWorldMatrix(true, false);
-    const hw = 0.5;
-    const hh = 0.3;
+    const hw = PROGRESS_BOARD_PLANE_W / 2;
+    const hh = PROGRESS_BOARD_PLANE_H / 2;
     const corners = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
     let minX = Infinity;
     let minY = Infinity;
@@ -1781,6 +1930,9 @@ export function mountPrivateTeamScene(canvas, opts) {
     playSecretaryYeah,
     playSecretaryDance,
     noteTigerStatus,
+    setProgressBoard(view) {
+      progressDrawer.draw(view);
+    },
     setSceneInputEnabled(next) {
       sceneInputEnabled = !!next;
     },

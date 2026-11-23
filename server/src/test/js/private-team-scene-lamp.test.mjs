@@ -28,7 +28,7 @@ test('首頁秘書場景已移除名牌、泡泡錨點下移', () => {
   assert.doesNotMatch(src, /bubbleFloatMin = 2\.2/);
 });
 
-test('下沉浴缸、托盤與雙螢幕支架', () => {
+test('下沉浴缸、托盤與單螢幕支架', () => {
   assert.ok(PRIVATE_TEAM_TRAY_SURFACE_Y > 0.45 && PRIVATE_TEAM_TRAY_SURFACE_Y < 0.52);
   assert.ok(PRIVATE_TEAM_WATER_Y < PRIVATE_TEAM_TRAY_SURFACE_Y);
   assert.ok(PRIVATE_TEAM_WATER_Y > 0.4 && PRIVATE_TEAM_WATER_Y < 0.5);
@@ -38,9 +38,9 @@ test('下沉浴缸、托盤與雙螢幕支架', () => {
   assert.match(src, /bathtubFront/);
   assert.match(src, /bathtubInnerFront/);
   assert.match(src, /keyboardTray/);
-  assert.match(src, /addMonitor\(root, monitorLook, -0\.82/);
-  assert.match(src, /addMonitor\(root, monitorLook, -0\.68/);
-  assert.match(src, /RIM_TOP_Y\)/);
+  assert.match(src, /addMonitor\(root, monitorLook, -0\.96, 0\.94, 0\.98, 0\.02\)/);
+  assert.equal((src.match(/addMonitor\(root, monitorLook/g) || []).length, 1);
+  assert.doesNotMatch(src, /addMonitor\(root, monitorLook, -0\.68/);
   assert.match(src, /basePlate/);
   assert.match(src, /bathPillow/);
   assert.match(src, /applyUnderwaterTint/);
