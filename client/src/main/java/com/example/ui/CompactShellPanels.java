@@ -23,13 +23,57 @@ public final class CompactShellPanels {
     }
 
     public static JScrollPane wrap(JComponent body) {
+        return wrap(body, false);
+    }
+
+    /** @param candyBars 主分頁用粉紫糖果捲軸（與 {@link NightTheme#page} 相同標記）。 */
+    public static JScrollPane wrap(JComponent body, boolean candyBars) {
         tighten(body);
+        if (candyBars) {
+            NightTheme.apply(body);
+        }
         JScrollPane scroll = new JScrollPane(new TrackingView(body));
         scroll.setBorder(new EmptyBorder(0, 0, 0, 0));
         scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
-        scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
+        if (candyBars) {
+            scroll.putClientProperty(CandyScrollBar.MARK, Boolean.TRUE);
+            CandyScrollBar.install(scroll);
+            scroll.getVerticalScrollBar().setUnitIncrement(18);
+            scroll.setOpaque(true);
+            scroll.setBackground(NightTheme.PANEL);
+            scroll.getViewport().setOpaque(true);
+            scroll.getViewport().setBackground(NightTheme.PANEL);
+        } else {
+            scroll.setOpaque(false);
+            scroll.getViewport().setOpaque(false);
+        }
+        ShellWheelForwarder.install(scroll, body);
+        return scroll;
+    }
+
+    /** 內容應隨視窗高度拉長的分頁（例如系統日誌）。 */
+    public static JScrollPane wrapFill(JComponent body, boolean candyBars) {
+        tighten(body);
+        if (candyBars) {
+            NightTheme.apply(body);
+        }
+        JScrollPane scroll = new JScrollPane(new FillTrackingView(body));
+        scroll.setBorder(new EmptyBorder(0, 0, 0, 0));
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+        if (candyBars) {
+            scroll.putClientProperty(CandyScrollBar.MARK, Boolean.TRUE);
+            CandyScrollBar.install(scroll);
+            scroll.getVerticalScrollBar().setUnitIncrement(18);
+            scroll.setOpaque(true);
+            scroll.setBackground(NightTheme.PANEL);
+            scroll.getViewport().setOpaque(true);
+            scroll.getViewport().setBackground(NightTheme.PANEL);
+        } else {
+            scroll.setOpaque(false);
+            scroll.getViewport().setOpaque(false);
+        }
         ShellWheelForwarder.install(scroll, body);
         return scroll;
     }
@@ -133,6 +177,40 @@ public final class CompactShellPanels {
         @Override
         public boolean getScrollableTracksViewportHeight() {
             return false;
+        }
+    }
+
+    private static final class FillTrackingView extends JPanel implements Scrollable {
+
+        FillTrackingView(JComponent body) {
+            super(new BorderLayout());
+            setOpaque(false);
+            add(body, BorderLayout.CENTER);
+        }
+
+        @Override
+        public Dimension getPreferredScrollableViewportSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return 16;
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return Math.max(16, visibleRect.height - 16);
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return true;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight() {
+            return true;
         }
     }
 

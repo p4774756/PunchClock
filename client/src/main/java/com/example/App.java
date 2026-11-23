@@ -330,11 +330,10 @@ public class App extends JFrame {
         logTab.setBorder(new EmptyBorder(8, 4, 8, 4));
         logTab.add(logPanel, BorderLayout.CENTER);
 
-        tabs.addTab("排程任務", NightTheme.page(CompactShellPanels.wrap(tasksTab), true));
-        tabs.addTab("設定", NightTheme.page(CompactShellPanels.wrap(settingsTab), true));
-        tabs.addTab(PanelFactory.PEER_TAB_LABEL, NightTheme.page(CompactShellPanels.wrap(peerTab), true));
-        NightTheme.apply(logTab);
-        tabs.addTab("系統日誌", CompactShellPanels.wrap(logTab));
+        tabs.addTab("排程任務", CompactShellPanels.wrap(tasksTab, true));
+        tabs.addTab("設定", CompactShellPanels.wrap(settingsTab, true));
+        tabs.addTab(PanelFactory.PEER_TAB_LABEL, CompactShellPanels.wrap(peerTab, true));
+        tabs.addTab("系統日誌", CompactShellPanels.wrapFill(logTab, true));
         tabs.setOpaque(false);
         tabs.setBackground(new Color(0, 0, 0, 0));
         tabs.setToolTipTextAt(0, "設定目標網址、時間，立即測試");
