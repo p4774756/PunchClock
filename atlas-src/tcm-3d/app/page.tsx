@@ -5,7 +5,7 @@ import {ANIME_OUTFITS,DEFAULT_OUTFIT_ID,animeOutfit,type OutfitId} from './outfi
 import {LOAD_STEP_LABELS,type AtlasLoadProgress} from './load-progress';
 import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
 import {flushSync} from 'react-dom';
-import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Focus,Info,Layers3,MapPin,Maximize2,RotateCw,Search,SlidersHorizontal,X} from 'lucide-react';
+import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Focus,Info,Layers3,MapPin,Maximize2,RotateCw,ScanFace,Search,Shirt,SlidersHorizontal,X} from 'lucide-react';
 import type {SceneState,View} from './anatomy';
 import {acupointMuscleNote} from './acupoint-muscles';
 import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,isPracticeDeferred,libraryPointResults,LOCATION,POINTS,POINT_BY_CODE,MERIDIANS,pointInCurriculum,practiceOpenCodes,REGIONS,STANDARD,TOOLS,type CurriculumSetId,type RegionId,type SimulationState,type SurfaceTarget,type ToolId,type ToolDragPhase} from './teaching';
@@ -14,6 +14,7 @@ const CharacterScene=lazy(()=>import('./character-scene'));
 
 const initialScene:SceneState={explode:0,visible:[],selected:[],isolate:false,view:'front',rotate:false,reset:0};
 const VIEW_LABELS:Record<View,string>={'three-quarter':'斜視',front:'正面',back:'背面',side:'側面'};
+const VIEW_CYCLE:View[]=['front','back','side','three-quarter'];
 const HOME_HREF=import.meta.env.BASE_URL.startsWith('/atlas')?'/':'https://tcm.jic.io/';
 const BACK_HOME_ARIA=HOME_HREF==='/'?'回辦公室':'返回中醫首頁';
 const readLaunchParams=()=>{
@@ -120,17 +121,8 @@ export default function Home(){
  useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){setAbout(false);setMobilePanel(null);pause();}if(event.key==='/'&&!(event.target instanceof HTMLInputElement)&&!(event.target instanceof HTMLTextAreaElement)){event.preventDefault();setMobilePanel('library');searchInput.current?.focus();}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[pause]);
 
  const prepareFocus=()=>setState(s=>({...s,explode:0,rotate:false,isolate:false,selected:[]}));
- const switchOutfit=(id:OutfitId,btn?:HTMLButtonElement)=>{
+ const switchOutfit=(id:OutfitId)=>{
   if(id===outfitId||!currentAvatar.hasOutfits)return;
-  if(btn){
-   const bar=btn.closest('.outfit-bar');
-   bar?.querySelectorAll('button[type="button"]').forEach(b=>{
-    b.classList.remove('selected');
-    b.setAttribute('aria-pressed','false');
-   });
-   btn.classList.add('selected');
-   btn.setAttribute('aria-pressed','true');
-  }
   performance.clearMarks('atlas:outfit-switch-start');
   performance.clearMarks('atlas:outfit-switch-end');
   performance.clearMarks('atlas:outfit-pressed');
@@ -175,6 +167,19 @@ export default function Home(){
   else if(phase==='end'||phase==='cancel'){setSimulation(s=>({...s,dragging:false,running:false,release:(s.release??0)+1}));const selected=draggedPoint.current;setFeedback(phase==='cancel'?'工具移動已結束，已恢復人體旋轉。':selected?`已選中${selected.name} ${selected.code}，可繼續拖動工具。`:'工具已停在新的皮膚位置，可繼續拖動。');draggedPoint.current=null;}
  },[]);
  const changeView=(view:View)=>{pause(`已切換為${VIEW_LABELS[view]}。`);setState(s=>({...s,view,rotate:false,reset:s.reset+1}));};
+ const cycleView=()=>{const i=VIEW_CYCLE.indexOf(state.view);changeView(VIEW_CYCLE[(i+1)%VIEW_CYCLE.length]);};
+ const toggleOutfit=()=>{
+  if(!showOutfitBar)return;
+  const next=outfitId==='school'?'study-body':'school';
+  switchOutfit(next);
+ };
+ const toggleLibrary=()=>{
+  setMobilePanel(p=>{
+   const open=p!=='library';
+   if(open)requestAnimationFrame(()=>searchInput.current?.focus());
+   return open?'library':null;
+  });
+ };
  const fullBody=()=>{pause('已回到全身視角。');setState(s=>({...s,explode:0,isolate:false,selected:[],rotate:false,reset:s.reset+1}));};
  const focusTarget=()=>{if(!hasTarget)return;prepareFocus();pause('已聚焦當前教學位置。');setSimulation(s=>({...s,focus:s.focus+1}));};
  const onProgress=useCallback((value:AtlasLoadProgress|number)=>{
@@ -187,14 +192,14 @@ export default function Home(){
  const onPracticeOutfitPreparing=useCallback((preparing:boolean)=>{setPracticePreparing(preparing);},[]);
  const selectedTitle=point?.name??(simulation.customTarget?'自選體表位置':'點選穴位標記');
  const animationStatus=simulation.dragging?'操作中':simulation.running?'演示中':simulation.elapsed>0?'已暫停':'待演示';
- return <main className={`studio rpg-studio is-anime${showOutfitBar?' has-outfit-bar':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
+ const outfitPending=practicePreparing&&outfitId==='study-body';
+ return <main className="studio rpg-studio is-anime" style={{'--tool-color':tool.color} as CSSProperties}>
   <header className="studio-header rpg-header">
    <div className="brand-block">
     <div className="brand" aria-hidden="true"><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室</span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></div>
    </div>
    <div className="header-actions">
     <div className="header-status"><span className="status-dot"/>穴位練習中<span className="header-divider"/>{currentAvatar.shortName}</div>
-    <button className="source-button" onClick={()=>setAbout(true)}><Info size={16}/><span>來源與許可</span></button>
     <a className="roadmap-close-x" href={HOME_HREF} aria-label={BACK_HOME_ARIA}>×</a>
    </div>
   </header>
@@ -214,19 +219,19 @@ export default function Home(){
    <div className="scene-mode-hint"><span className="tiny-dot"/>{animePointReady?'點選金色穴位 · 抓住工具移動 · 拖動旋轉 · 滾動縮放':avatarLessonNote(currentAvatar,simulation.pointCode)}</div>
   </section>
 
-  <nav className="camera-bar surface" aria-label="人體視角">
-   {(['front','back','side','three-quarter'] as View[]).map(view=><button key={view} className={state.view===view?'selected':''} aria-pressed={state.view===view} onClick={()=>changeView(view)}>{VIEW_LABELS[view]}</button>)}
-   <span className="control-divider"/><button onClick={fullBody} title="顯示全身"><Maximize2 size={14}/><span>全身</span></button><button onClick={focusTarget} disabled={!hasTarget} title="聚焦當前穴位"><Focus size={14}/><span>聚焦</span></button><button className={`icon-button ${state.rotate?'selected':''}`} aria-label={state.rotate?'停止旋轉':'自動旋轉'} aria-pressed={state.rotate} onClick={()=>{pause();setState(s=>({...s,rotate:!s.rotate}));setFeedback(state.rotate?'自動旋轉已停止。':'正在自動旋轉。');}}><RotateCw size={15}/></button>
+  <nav className="studio-tool-rail" aria-label="視角與工具">
+   <button type="button" className="studio-tool-btn" aria-label={`人體視角：${VIEW_LABELS[state.view]}，點擊切換`} title={`視角 ${VIEW_LABELS[state.view]}`} onClick={cycleView}><ScanFace size={18} aria-hidden="true"/><span className="studio-tool-tag">{VIEW_LABELS[state.view]}</span></button>
+   <button type="button" className="studio-tool-btn" aria-label="全身視角" title="全身" onClick={fullBody}><Maximize2 size={17} aria-hidden="true"/></button>
+   <button type="button" className="studio-tool-btn" aria-label="聚焦當前穴位" title="聚焦" disabled={!hasTarget} onClick={focusTarget}><Focus size={17} aria-hidden="true"/></button>
+   <button type="button" className={`studio-tool-btn${state.rotate?' is-active':''}`} aria-label={state.rotate?'停止自動旋轉':'自動旋轉'} aria-pressed={state.rotate} title={state.rotate?'停止旋轉':'自動旋轉'} onClick={()=>{pause();setState(s=>({...s,rotate:!s.rotate}));setFeedback(state.rotate?'自動旋轉已停止。':'正在自動旋轉。');}}><RotateCw size={17} aria-hidden="true"/></button>
+   {showOutfitBar&&<button type="button" className={`studio-tool-btn${outfitPending?' is-pending':''}${outfitId==='study-body'?' is-active':''}`} aria-label={outfitPending?'練習裝準備中':`換裝：${currentOutfit.shortName}，點擊切換`} aria-pressed={outfitId==='study-body'} title={outfitPending?'準備中…':`${currentOutfit.shortName} · ${currentOutfit.blurb??''}`} onClick={toggleOutfit}><Shirt size={17} aria-hidden="true"/>{outfitPending&&<span className="studio-tool-pending" aria-hidden="true"/>}</button>}
+   <button type="button" className="studio-tool-btn" aria-label="來源與許可" title="來源與許可" onClick={()=>setAbout(true)}><Info size={17} aria-hidden="true"/></button>
+   <button type="button" className={`studio-tool-btn${mobilePanel==='library'?' is-active':''}`} aria-label="穴位庫" aria-expanded={mobilePanel==='library'} title="穴位庫" onClick={toggleLibrary}><Layers3 size={17} aria-hidden="true"/></button>
   </nav>
-
-  {showOutfitBar&&<nav className="outfit-bar surface" aria-label="動漫服裝"><span className="outfit-label">換裝</span>{ANIME_OUTFITS.map(outfit=>{
-   const pending=outfit.id==='study-body'&&practicePreparing&&outfitId==='study-body';
-   return <button key={outfit.id} type="button" className={`${outfitId===outfit.id?'selected':''}${pending?' is-pending':''}`} aria-pressed={outfitId===outfit.id} title={outfit.blurb} onPointerDown={e=>{if(e.button!==0)return; switchOutfit(outfit.id,e.currentTarget);}} onClick={e=>{if(e.detail===0)switchOutfit(outfit.id,e.currentTarget);}}>{outfit.shortName}{pending&&<span className="outfit-pending" aria-hidden="true"/>}</button>;
-  })}</nav>}
-  {practicePreparing&&outfitId==='study-body'&&<p className="practice-outfit-hint surface" role="status" aria-live="polite">準備中…</p>}
+  {outfitPending&&<p className="practice-outfit-hint" role="status" aria-live="polite">準備中…</p>}
 
   <aside className={`library-panel surface ${mobilePanel==='library'?'mobile-expanded':''}`} aria-label="穴位庫">
-   <button className="mobile-panel-heading" aria-expanded={mobilePanel==='library'} onClick={()=>setMobilePanel(p=>p==='library'?null:'library')}><span><Layers3 size={16}/>穴位庫</span><ChevronDown size={17}/></button>
+   <button type="button" className="mobile-panel-heading library-rail-only" tabIndex={-1} aria-hidden="true" disabled><span><Layers3 size={16}/>穴位庫</span><ChevronDown size={17}/></button>
    <div className="panel-content">
     <div className="panel-tabs" role="tablist" aria-label="學習內容"><button role="tab" aria-selected className="selected" id="points-tab" aria-controls="points-panel">穴位<span>{practiceCodes.size}</span></button></div>
     <div className="tab-body" id="points-panel" role="tabpanel" aria-labelledby="points-tab">
