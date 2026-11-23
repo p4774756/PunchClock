@@ -93,7 +93,7 @@ function identityHudMarkup(authed) {
   const idBody =
     '<span class="pt-a-id-gem" aria-hidden="true"></span>' +
     '<span class="pt-a-id-text">' +
-    '<span class="pt-a-id-role">' + (authed ? '管理員' : '訪客') + '</span>' +
+    '<span class="pt-a-id-role">' + (authed ? '已登入' : '訪客') + '</span>' +
     '<span class="pt-a-id-sub">' + (authed ? '線上' : '登入') + '</span>' +
     '</span>';
   if (authed) {
@@ -154,7 +154,10 @@ export function mountPrivateTeamPage(opts) {
       '<div class="pt-hud-tl">' +
       taskHudMarkup() +
       '<div class="pt-hud-task-hint" data-pt-task-hint hidden role="dialog" aria-label="登入提示">' +
+      '<div class="pt-hud-task-hint-head">' +
       '<p class="pt-hud-task-hint-text">先登入才能看任務</p>' +
+      '<button type="button" class="roadmap-close-x pt-hud-task-hint-close" data-pt-task-hint-close aria-label="關閉">×</button>' +
+      '</div>' +
       '<button type="button" class="pt-hud-task-hint-login" data-pt-open-login>登入</button>' +
       '</div></div>' +
       '<div class="pt-hud-tr" data-pt-hud-tr>' + identityHudMarkup(sessionAuthed) + '</div>' +
@@ -516,6 +519,15 @@ export function mountPrivateTeamPage(opts) {
       } else {
         openTaskHint();
       }
+    });
+  }
+
+  const taskHintClose = hud.querySelector('[data-pt-task-hint-close]');
+  if (taskHintClose) {
+    taskHintClose.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      closeTaskHint();
     });
   }
 

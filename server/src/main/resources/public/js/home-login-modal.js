@@ -1,4 +1,4 @@
-/** 首頁「管理員登入」浮動視窗（外觀對齊 #roadmapBoard）。 */
+/** 首頁登入浮動視窗（外觀對齊 #roadmapBoard）。 */
 
 function lockTimeDisplay(remainingSec) {
   const mins = Math.floor(remainingSec / 60);

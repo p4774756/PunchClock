@@ -224,7 +224,9 @@ public class PublicOfficeAuthTest {
         assertTrue(body.contains("aria-label=\"回辦公室\""));
         assertTrue(body.contains("roadmap-close-x"));
         assertFalse(body.contains("← 回辦公室"));
-        assertTrue(body.contains("管理主控台"));
+        assertTrue(body.contains("私人女秘書"));
+        assertFalse(body.contains("管理主控台"));
+        assertFalse(body.contains("PunchClock ·"));
         assertFalse(body.contains("⛔"));
         assertFalse(body.contains(">登入</button>"));
         assertFalse(containsEmoji(body));

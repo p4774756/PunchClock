@@ -301,7 +301,10 @@ test('首頁登入浮動視窗標記與 fetch JSON', () => {
   assert.match(html, /id="loginBoard"/);
   assert.match(html, /roadmap-close-x/);
   assert.match(html, /data-login-form/);
-  assert.match(html, /管理員登入/);
+  assert.match(html, /id="home-login-title">登入</);
+  assert.match(html, /login-lead">請先登入</);
+  assert.doesNotMatch(html, /管理員登入/);
+  assert.doesNotMatch(html, /管理員請先登入/);
   assert.match(js, /Accept: 'application\/json'/);
   assert.match(js, /credentials: 'same-origin'/);
   assert.match(js, /POST/);
@@ -450,6 +453,12 @@ test('左頭像提示的登入打開彈窗，重畫膠囊不加第二次 listene
   assert.equal(hint._on.click.length, 1);
   task.click();
   assert.equal(doc.querySelector('[data-pt-task-hint]').hidden, false);
+  const hintClose = doc.querySelector('[data-pt-task-hint-close]');
+  assert.ok(hintClose);
+  hintClose.click();
+  assert.equal(doc.querySelector('[data-pt-task-hint]').hidden, true);
+  task.click();
+  assert.equal(doc.querySelector('[data-pt-task-hint]').hidden, false);
   hint.click();
   assert.equal(board.hidden, false);
   assert.equal(doc.querySelector('[data-pt-task-hint]').hidden, true);
@@ -463,7 +472,7 @@ test('左頭像提示的登入打開彈窗，重畫膠囊不加第二次 listene
   board.querySelector('[data-login-form]').dispatchEvent({ type: 'submit' });
   await flush();
   assert.equal(board.hidden, true);
-  assert.equal(doc.querySelector('.pt-a-id-role').textContent, '管理員');
+  assert.equal(doc.querySelector('.pt-a-id-role').textContent, '已登入');
   assert.equal(hint._on.click.length, 1);
   hint.click();
   assert.equal(board.hidden, false);
@@ -487,6 +496,11 @@ test('登入彈窗不藏場景，窄螢幕不跟施工進度貼頂', () => {
   assert.ok(loginOpen.length >= 1);
   assert.ok(loginOpen.some((block) => block.sel.includes('.private-team-canvas')));
   for (const block of loginOpen) {
+    if (block.sel.includes('.pt-hud-download') || block.sel.includes('.pt-hud-deploy-ver')) {
+      assert.match(block.body, /visibility\s*:\s*hidden/);
+      assert.match(block.body, /pointer-events\s*:\s*none/);
+      continue;
+    }
     assert.doesNotMatch(block.body, /visibility\s*:\s*hidden/);
     assert.match(block.body, /pointer-events\s*:\s*none/);
   }
