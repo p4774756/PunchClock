@@ -303,11 +303,11 @@ export function shouldOpenRoadmapFromSearch(search) {
   return parseRoadmapOpenParam(search) === 'roadmap';
 }
 
-/** 帶 open=roadmap 時開路線圖並清掉 query。 */
-export function applyRoadmapOpenParam(win, openRoadmapFn) {
-  if (!win || !win.location || typeof openRoadmapFn !== 'function') return false;
-  if (!shouldOpenRoadmapFromSearch(win.location.search)) return false;
-  openRoadmapFn();
+export function shouldOpenTasksFromSearch(search) {
+  return parseRoadmapOpenParam(search) === 'tasks';
+}
+
+function stripOpenSearchFromUrl(win) {
   try {
     const url = new URL(win.location.href);
     url.searchParams.delete('open');
@@ -319,6 +319,23 @@ export function applyRoadmapOpenParam(win, openRoadmapFn) {
   } catch (e) {
     /* ignore */
   }
+}
+
+/** 帶 open=roadmap 時開路線圖並清掉 query。 */
+export function applyRoadmapOpenParam(win, openRoadmapFn) {
+  if (!win || !win.location || typeof openRoadmapFn !== 'function') return false;
+  if (!shouldOpenRoadmapFromSearch(win.location.search)) return false;
+  openRoadmapFn();
+  stripOpenSearchFromUrl(win);
+  return true;
+}
+
+/** 帶 open=tasks 時開任務視窗並清掉 query（訪客不自動開內容）。 */
+export function applyTasksOpenParam(win, openTasksFn) {
+  if (!win || !win.location || typeof openTasksFn !== 'function') return false;
+  if (!shouldOpenTasksFromSearch(win.location.search)) return false;
+  openTasksFn();
+  stripOpenSearchFromUrl(win);
   return true;
 }
 

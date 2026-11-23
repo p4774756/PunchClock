@@ -57,13 +57,11 @@ public class DonateLinkPageTest {
     }
 
     @Test
-    public void guestConsoleIncludesEscapedDonateLink() throws Exception {
+    public void guestConsoleRedirectsToHomeTasks() throws Exception {
         System.setProperty("punchclock.donateUrl", "https://ko-fi.com/demo?ref=1&src=2");
         HttpResponse<String> response = send("GET", "/console", null);
-        String body = response.body();
-        assertTrue(body.contains("PUNCHCLOCK_DONATE"));
-        assertTrue(body.contains("ko-fi.com/demo"));
-        assertTrue(body.contains("\"configured\":true"));
+        assertEquals(302, response.statusCode());
+        assertEquals("/?open=tasks", response.headers().firstValue("location").orElse(""));
     }
 
     @Test
@@ -77,9 +75,8 @@ public class DonateLinkPageTest {
     public void placeholderMarksUnconfigured() throws Exception {
         System.clearProperty("punchclock.donateUrl");
         HttpResponse<String> response = send("GET", "/console", null);
-        String body = response.body();
-        assertTrue(body.contains(DonateLink.PLACEHOLDER_URL) || body.contains("example.com"));
-        assertTrue(body.contains("\"configured\":false"));
+        assertEquals(302, response.statusCode());
+        assertEquals("/?open=tasks", response.headers().firstValue("location").orElse(""));
     }
 
     private HttpResponse<String> send(String method, String path, String cookie) throws Exception {

@@ -31,7 +31,10 @@ test('首頁 HUD 楓之谷角色框與身分名牌', () => {
   assert.match(js, /onProgressBoardRect/);
   assert.match(js, /onOpenProgress/);
   assert.match(js, /setRoadmapOpen/);
+  assert.match(js, /setTasksOpen/);
   assert.match(js, /openRoadmapFromBoard/);
+  assert.match(js, /openTasks/);
+  assert.doesNotMatch(js, /location\.href = '\/console'/);
   assert.match(js, /data-pt-task-btn/);
   assert.match(js, /secretary-avatar\.webp/);
   assert.match(js, /私人秘書/);
@@ -68,4 +71,17 @@ test('牆上進度看板與施工進度彈窗遮罩', () => {
   assert.doesNotMatch(sceneJs, /pickSecretary/);
   assert.match(officeJs, /onChange/);
   assert.match(officeJs, /setRoadmapOpen/);
+  assert.match(officeJs, /createHomeTasksController/);
+  assert.match(officeJs, /applyTasksOpenParam/);
+});
+
+test('首頁任務浮動視窗結構', () => {
+  const html = readFileSync(join(publicRoot, 'index.html'), 'utf8');
+  assert.match(html, /id="tasksBoard"/);
+  assert.match(html, /roadmap-close-x/);
+  assert.match(html, /data-tasks-close/);
+  assert.match(html, /id="panel-devices"/);
+  assert.match(html, /id="clientContainer"/);
+  assert.match(html, /dashboard\.css/);
+  assert.match(html, /dashboard\.js/);
 });
