@@ -279,7 +279,6 @@ export default function Home(){
      </>}
     </div>
     <div className="rpg-dialog-controls">
-     <button type="button" className={`rpg-dialog-lib-btn${mobilePanel==='library'?' is-active':''}`} aria-label="穴位庫" aria-expanded={mobilePanel==='library'} onClick={toggleLibrary}>穴位庫</button>
      <button type="button" className="rpg-nav-btn" disabled={!point} onClick={()=>stepLesson(-1)}>上一穴</button>
      <button type="button" className="rpg-nav-btn" disabled={!point} onClick={()=>stepLesson(1)}>下一穴</button>
      <button type="button" className="rpg-dialog-expand" aria-expanded={dialogExpanded} aria-label={dialogExpanded?'收合穴位詳情':'展開穴位詳情'} onClick={()=>setDialogExpanded(v=>!v)}><ChevronDown size={17} aria-hidden="true"/></button>
