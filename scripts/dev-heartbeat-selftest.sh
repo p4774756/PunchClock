@@ -243,4 +243,19 @@ assert_eq "$(read_review_verdict "$mock_home/PunchClock-oki/wt-247")" "PASS" "re
 HOME=$prev_home
 rm -rf "$mock_home"
 
+# --- do_beat must return, not exit (so cmd_loop can continue) ---
+in_do_beat=false
+while IFS= read -r line; do
+  if [ "$in_do_beat" = false ]; then
+    case "$line" in
+      do_beat\(\)) in_do_beat=true ;;
+    esac
+    continue
+  fi
+  case "$line" in
+    \}) in_do_beat=false ;;
+    *exit\ 0*) fail "do_beat must use return 0, not exit 0: $line" ;;
+  esac
+done < "$SCRIPT_DIR/dev-heartbeat.sh"
+
 echo "dev-heartbeat-selftest: ok"

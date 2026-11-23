@@ -119,6 +119,27 @@ public class DevMachineStoreTest {
     }
 
     @Test
+    public void utf8MachineIdAllowed() {
+        DevMachineStore store = new DevMachineStore();
+        Map<String, Object> body = payload("x", 1, "a", 1L);
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("猛虎", body));
+        Map<String, Object> row = store.listForApi(System.currentTimeMillis(), issue -> "").get(0);
+        assertEquals("猛虎", row.get("machine"));
+    }
+
+    @Test
+    public void rejectsIllegalMachineIds() {
+        DevMachineStore store = new DevMachineStore();
+        Map<String, Object> body = payload("x", 1, "a", 1L);
+        assertEquals(DevMachineStore.ApplyResult.BAD_MACHINE, store.applyHeartbeat("Bad-ID", body));
+        assertEquals(DevMachineStore.ApplyResult.BAD_MACHINE, store.applyHeartbeat("", body));
+        String longId = "a".repeat(33);
+        assertEquals(DevMachineStore.ApplyResult.BAD_MACHINE, store.applyHeartbeat(longId, body));
+        assertEquals(DevMachineStore.ApplyResult.BAD_MACHINE,
+                store.applyHeartbeat("ab\u0001cd", body));
+    }
+
+    @Test
     public void displayNameAndLocationFromHeartbeat() {
         DevMachineStore store = new DevMachineStore();
         Map<String, Object> body = payload("tiger", 1, "a", 1L);

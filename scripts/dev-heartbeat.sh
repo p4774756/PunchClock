@@ -744,7 +744,7 @@ git_commit() {
 
 do_beat() {
   if ! load_env; then
-    exit 0
+    return 0
   fi
   warn_perms
   url=$(pick_env DEV_STATUS_URL)
@@ -754,7 +754,7 @@ do_beat() {
   token=$(pick_env DEV_STATUS_TOKEN)
   machine=$(pick_env DEV_STATUS_MACHINE)
   if [ -z "$token" ] || [ -z "$machine" ]; then
-    exit 0
+    return 0
   fi
   read_run
   read_wt_runs
@@ -836,7 +836,7 @@ do_beat() {
     "$role_json" "$round_json" "$model_json" "$verdict_json" \
     "$runs_json" "$COMMIT_JSON" "$BATTERY_JSON")
   if ! command -v curl >/dev/null 2>&1; then
-    exit 0
+    return 0
   fi
   http_code=$(printf 'header = "Authorization: Bearer %s"\n' "$token" | curl -sS -K - \
     -o /dev/null \
@@ -849,7 +849,7 @@ do_beat() {
     200|201|204) ;;
     *) echo "dev-heartbeat: POST $url failed http=${http_code:-unknown}" >&2 ;;
   esac
-  exit 0
+  return 0
 }
 
 cmd_start() {
