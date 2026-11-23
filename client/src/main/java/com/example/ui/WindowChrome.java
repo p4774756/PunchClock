@@ -63,8 +63,24 @@ public final class WindowChrome {
     private static final Color CLOSE_HOVER = new Color(239, 68, 68);
     private static final Color BUTTON_HOVER = new Color(82, 64, 124);
     private static final int GRIP = 6;
+    /** 標題列左側圖示槽高度（與 {@link TitleBarLayout} 共用）。 */
+    static final int TITLE_BAR_ICON_HEIGHT = 18;
 
     private WindowChrome() {
+    }
+
+    /** 依固定高度等比例縮放標題列圖示，寬約 28px（趴姿橫圖）。 */
+    static Dimension titleBarIconSize(Image icon) {
+        if (icon == null) {
+            return new Dimension(0, 0);
+        }
+        int iw = icon.getWidth(null);
+        int ih = icon.getHeight(null);
+        if (iw <= 0 || ih <= 0) {
+            return new Dimension(TITLE_BAR_ICON_HEIGHT, TITLE_BAR_ICON_HEIGHT);
+        }
+        int w = TITLE_BAR_ICON_HEIGHT * iw / Math.max(1, ih);
+        return new Dimension(w, TITLE_BAR_ICON_HEIGHT);
     }
 
     /** 標題列上的透明度控制，供主視窗綁定設定持久化。 */
@@ -545,13 +561,22 @@ public final class WindowChrome {
 
         JComponent iconLabel = null;
         if (icon != null) {
+            final Image paintIcon = icon;
             iconLabel = new JComponent() {
                 @Override
                 protected void paintComponent(Graphics g) {
-                    g.drawImage(icon, 0, 0, getWidth(), getHeight(), this);
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    try {
+                        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                        g2.drawImage(paintIcon, 0, 0, getWidth(), getHeight(), this);
+                    } finally {
+                        g2.dispose();
+                    }
                 }
             };
-            iconLabel.setPreferredSize(new Dimension(18, 18));
+            iconLabel.setPreferredSize(titleBarIconSize(icon));
+            iconLabel.setOpaque(false);
         }
         TitleName titleLabel = new TitleName(title, titleFont);
 
@@ -695,15 +720,16 @@ public final class WindowChrome {
             buttons.setBounds(x0 + innerW - buttonW, y0, buttonW, innerH);
 
             FontMetrics metrics = title.getFontMetrics(title.getFont());
-            int iconW = icon == null ? 0 : 18;
+            int iconW = icon == null ? 0 : icon.getPreferredSize().width;
+            int iconH = icon == null ? 0 : icon.getPreferredSize().height;
             int textGap = iconW == 0 ? 0 : 8;
             int textRoom = Math.max(40, innerW - buttonW - iconW - textGap - 16);
             title.fit(metrics, textRoom);
             int shownW = title.shown.isEmpty() ? 0 : metrics.stringWidth(title.shown);
             int textW = Math.min(textRoom, Math.max(0, shownW));
             if (icon != null) {
-                int iconY = y0 + Math.max(0, (innerH - 18) / 2);
-                icon.setBounds(x0, iconY, iconW, 18);
+                int iconY = y0 + Math.max(0, (innerH - iconH) / 2);
+                icon.setBounds(x0, iconY, iconW, iconH);
             }
             title.setBounds(x0 + iconW + textGap, y0, textW, innerH);
         }
