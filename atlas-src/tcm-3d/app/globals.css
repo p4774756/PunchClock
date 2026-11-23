@@ -179,7 +179,7 @@
   background:linear-gradient(180deg,#1a4080 0%,var(--maple-navy,#163a70) 100%);
   box-shadow:0 6px 0 rgba(0,0,0,.22),0 16px 36px rgba(10,24,48,.35);
   color:#f5f8fc;
-}.rpg-studio .library-panel.surface{background-image:none;backdrop-filter:none}.rpg-studio .library-window-bar{
+}.rpg-studio .library-panel.surface{background:linear-gradient(180deg,#1a4080 0%,var(--maple-navy,#163a70) 100%);backdrop-filter:none}.rpg-studio .library-window-bar{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:8px 10px 8px 14px;flex-shrink:0;
 }.rpg-studio .library-window-title{
@@ -202,11 +202,11 @@
   width:min(360px,calc(100vw - 100px));
   max-height:calc(100dvh - 104px - var(--rpg-dialog-offset, 92px) - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
  }
-}.rpg-studio .panel-tabs button{font-size:13px;color:#6a7f76}.rpg-studio .panel-tabs button.selected{color:#1f3b34}.rpg-studio .panel-tabs button.selected:after{background:var(--accent)}.rpg-studio .panel-tabs span{background:#eef6f2;color:#4f7468;font-size:10px}.rpg-studio .search-box{
+}.rpg-studio .panel-tabs button{font-size:13px;color:#6a7f76}.rpg-studio .panel-tabs button.selected{color:#1f3b34}.rpg-studio .panel-tabs button.selected:after{background:var(--accent)}.rpg-studio .panel-tabs span{background:#dce8e2;color:#1a332c;font-size:10px;font-weight:700}.rpg-studio .search-box{
   background:#f7faf4;border:1px solid #c5d4c8;border-radius:10px;color:#4f655c;height:40px;
 }.rpg-studio .search-box input{font-size:13px;color:var(--ink)}.rpg-studio .curriculum-controls button{
   background:#f7faf4;border-color:#c5d4c8;border-radius:999px;color:#1a332c;font-size:12px;min-height:34px;
-}.rpg-studio .curriculum-controls button.selected{background:#dceee5;border-color:#8ebfae;color:#1a4f42}.rpg-studio .curriculum-note{color:#66766d;font-size:12px}.lesson-progress-card{
+}.rpg-studio .curriculum-controls button.selected{background:#dceee5;border-color:#8ebfae;color:#1a4f42}.rpg-studio .curriculum-note{color:#3a5249;font-size:12px}.rpg-studio .library-panel .region-disclosure summary{color:#3a5249;font-weight:600}.lesson-progress-card{
   margin:10px 15px 0;padding:12px;border-radius:14px;background:linear-gradient(180deg,#fffdf8,#f7f0e4);
   border:1px solid #e6d7b4;box-shadow:0 6px 16px rgba(33,29,29,.06);
 }.lesson-progress-card strong{display:block;font-size:13px;color:#7a5a18;margin-bottom:8px}.lesson-progress-actions{display:flex;gap:8px}.lesson-progress-actions button,.meridian-navigation-buttons button{
