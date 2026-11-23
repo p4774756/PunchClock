@@ -83,6 +83,20 @@ export function createTeachingOverlay(
    if(hit){
     const outward=(hit.face?.normal.clone()??n.clone()).transformDirection(hit.object.matrixWorld);
     if(outward.dot(n)<0)outward.negate();
+    const midlinePoint=opts.points.find(p=>p.code===dot.userData.point)?.midline;
+    if(midlinePoint&&Math.abs(hit.point.x)>.002){
+     const rear=new T.Vector3(0,0,1);
+     ray.set(new T.Vector3(0,hit.point.y,hit.point.z).addScaledVector(rear,-.12),rear);ray.far=.25;
+     const midHit=ray.intersectObjects(raycastTargets,false)[0];
+     if(midHit){
+      hit=midHit;
+      const o=(hit.face?.normal.clone()??rear).transformDirection(hit.object.matrixWorld);
+      if(o.dot(rear)<0)o.negate();
+      outward.copy(o);
+      hit.point.x=0;
+     }else hit.point.x=0;
+    }
+    if(midlinePoint){outward.x=0;outward.normalize();}
     const hitMat=(hit.object as T.Mesh).material;
     const meshId=(Array.isArray(hitMat)?hitMat[0]:hitMat)?.name||hit.object.name||'anime-skin';
     const target:SurfaceTarget={position:hit.point.toArray() as [number,number,number],normal:outward.toArray() as [number,number,number],meshId,faceIndex:hit.faceIndex};
