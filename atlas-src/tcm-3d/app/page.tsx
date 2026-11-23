@@ -15,7 +15,6 @@ const CharacterScene=lazy(()=>import('./character-scene'));
 const initialScene:SceneState={explode:0,visible:[],selected:[],isolate:false,view:'front',rotate:false,reset:0};
 const VIEW_LABELS:Record<View,string>={'three-quarter':'斜視',front:'正面',back:'背面',side:'側面'};
 const HOME_HREF=import.meta.env.BASE_URL.startsWith('/atlas')?'/':'https://tcm.jic.io/';
-const BACK_HOME_LABEL=HOME_HREF==='/'?'回辦公室':'返回首頁';
 const BACK_HOME_ARIA=HOME_HREF==='/'?'回辦公室':'返回中醫首頁';
 const readLaunchParams=()=>{
  if(typeof window==='undefined')return {set:null as CurriculumSetId|null,code:null as string|null};
@@ -191,14 +190,12 @@ export default function Home(){
  return <main className={`studio rpg-studio is-anime${showOutfitBar?' has-outfit-bar':''}`} style={{'--tool-color':tool.color} as CSSProperties}>
   <header className="studio-header rpg-header">
    <div className="brand-block">
-    <div className="brand" aria-hidden="true"><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室<span className="edition">RPG</span></span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></div>
-    <div className="header-switch-row">
-     <a className="back-home" href={HOME_HREF} aria-label={BACK_HOME_ARIA}>{BACK_HOME_LABEL}</a>
-    </div>
+    <div className="brand" aria-hidden="true"><span className="brand-mark">經</span><span><span className="brand-name">經絡研習室</span><span className="brand-subtitle">中醫人體 · 動漫助教</span></span></div>
    </div>
    <div className="header-actions">
     <div className="header-status"><span className="status-dot"/>穴位練習中<span className="header-divider"/>{currentAvatar.shortName}</div>
     <button className="source-button" onClick={()=>setAbout(true)}><Info size={16}/><span>來源與許可</span></button>
+    <a className="roadmap-close-x" href={HOME_HREF} aria-label={BACK_HOME_ARIA}>×</a>
    </div>
   </header>
 
