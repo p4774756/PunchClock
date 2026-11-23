@@ -722,6 +722,15 @@ public final class DesktopPetWindow extends JFrame {
         return view.y;
     }
 
+    Rectangle currentView() {
+        return new Rectangle(view);
+    }
+
+    void fitViewport() {
+        requireEdt();
+        refreshFit();
+    }
+
     /**
      * 存的是邏輯畫布原點，不是視窗外框。舊版 260 視窗的左上角就是畫布原點，已經存過的位置不用搬。
      */
@@ -1618,8 +1627,6 @@ public final class DesktopPetWindow extends JFrame {
             }
             if (placed) {
                 setLocation(getX() + dx, getY() + dy);
-                // 影格到達後視窗會從佔位長成角色外框，右緣會再伸進主視窗。
-                nudgeAwayFromMainWindow();
             }
             if (isDisplayable()) {
                 validate();
@@ -1653,18 +1660,50 @@ public final class DesktopPetWindow extends JFrame {
             DesktopPetSpriteLoader.Frames milu,
             Rectangle fittedShell,
             DesktopPetAnimation animation) {
-        if (milu == null || fittedShell == null) {
+        if (milu == null) {
             return new Rectangle(0, 0, WIDTH, HEIGHT);
         }
-        DesktopPetSpriteLoader.Sprite frame = milu.spriteFor(animation);
-        if (frame == null || frame.image == null) {
-            return new Rectangle(fittedShell);
+        return shellForViewport(milu, animation);
+    }
+
+    /**
+     * 與 {@link Stage#contains(int, int)} 相同：將舞台座標換成邏輯畫布後判斷是否點在角色上（headless 測試用）。
+     */
+    static boolean hitMiluAtStage(Rectangle view, DesktopPetAnimation animation, int stageX, int stageY) {
+        if (view == null || stageX < 0 || stageY < 0 || stageX >= view.width || stageY >= view.height) {
+            return false;
         }
-        Rectangle raw = cachedBody(frame.image, frame.offsetX, frame.offsetY);
-        if (covered(fittedShell, raw)) {
-            return new Rectangle(fittedShell);
+        int canvasX = stageX + view.x;
+        int canvasY = stageY + view.y;
+        return miluSpriteHit(canvasX, canvasY, animation);
+    }
+
+    private static boolean miluSpriteHit(int x, int y, DesktopPetAnimation animation) {
+        int size = DesktopPetSpriteLoader.DISPLAY;
+        int spriteX = (WIDTH - size) / 2;
+        int spriteY = BUBBLE_SLOT + animation.bob();
+        int pad = 6;
+        int left = spriteX - pad;
+        int right = spriteX + size + pad;
+        int top = Math.max(0, spriteY - 16);
+        int bottom = spriteY + size + 16;
+        return x >= left && x <= right && y >= top && y <= bottom;
+    }
+
+    /** 同一動作模式內固定的視野外框（該模式所有影格的 union）。 */
+    static Rectangle shellForViewport(DesktopPetSpriteLoader.Frames milu, DesktopPetAnimation animation) {
+        Rectangle union = null;
+        for (DesktopPetSpriteLoader.Sprite sprite : milu.viewportSprites(animation)) {
+            if (sprite == null || sprite.image == null) {
+                continue;
+            }
+            Rectangle raw = cachedBody(sprite.image, sprite.offsetX, sprite.offsetY);
+            union = union == null ? raw : unionRect(union, raw);
         }
-        return clipToCanvas(unionRect(fittedShell, raw));
+        if (union == null) {
+            return clipToCanvas(shellFor(milu));
+        }
+        return clipToCanvas(union);
     }
 
     /**
@@ -1693,7 +1732,32 @@ public final class DesktopPetWindow extends JFrame {
             return new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         }
         BufferedImage image = new BufferedImage(view.width, view.height, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = image.createGraphics();
+        paintMiluViewport(image, view, milu, animation, pivotX, pivotY, radians, scale);
+        if (drawViewportBorder) {
+            Graphics2D border = image.createGraphics();
+            try {
+                border.setColor(new Color(255, 64, 96, 220));
+                border.drawRect(0, 0, Math.max(0, view.width - 1), Math.max(0, view.height - 1));
+            } finally {
+                border.dispose();
+            }
+        }
+        return image;
+    }
+
+    static void paintMiluViewport(
+            BufferedImage target,
+            Rectangle view,
+            DesktopPetSpriteLoader.Frames milu,
+            DesktopPetAnimation animation,
+            double pivotX,
+            double pivotY,
+            double radians,
+            double scale) {
+        if (target == null || view == null || view.width < 1 || view.height < 1 || milu == null) {
+            return;
+        }
+        Graphics2D g = target.createGraphics();
         try {
             g.setComposite(AlphaComposite.Src);
             g.setColor(new Color(0, 0, 0, 0));
@@ -1706,16 +1770,6 @@ public final class DesktopPetWindow extends JFrame {
         } finally {
             g.dispose();
         }
-        if (drawViewportBorder) {
-            Graphics2D border = image.createGraphics();
-            try {
-                border.setColor(new Color(255, 64, 96, 220));
-                border.drawRect(0, 0, Math.max(0, view.width - 1), Math.max(0, view.height - 1));
-            } finally {
-                border.dispose();
-            }
-        }
-        return image;
     }
 
     /**
@@ -1914,6 +1968,8 @@ public final class DesktopPetWindow extends JFrame {
     }
 
     private final class Stage extends JPanel {
+        private BufferedImage liveFrameBuffer;
+
         @Override
         public boolean isOpaque() {
             return false;
@@ -1937,15 +1993,16 @@ public final class DesktopPetWindow extends JFrame {
             if (bubbleBounds != null && bubbleBounds.contains(canvasX, canvasY)) {
                 return true;
             }
-            return spriteHit(canvasX, canvasY);
+            if (milu != null) {
+                return miluSpriteHit(canvasX, canvasY, animation);
+            }
+            return legacySpriteHit(canvasX, canvasY);
         }
 
-        private boolean spriteHit(int x, int y) {
-            int size = milu != null
-                    ? DesktopPetSpriteLoader.DISPLAY
-                    : sprite.frameWidth() * SCALE;
+        private boolean legacySpriteHit(int x, int y) {
+            int size = sprite.frameWidth() * SCALE;
             int spriteX = (WIDTH - size) / 2;
-            int spriteY = milu != null ? BUBBLE_SLOT : HEIGHT - size - 12 + animation.bob();
+            int spriteY = HEIGHT - size - 12 + animation.bob();
             int pad = 6;
             int left = spriteX - pad;
             int right = spriteX + size + pad;
@@ -2023,7 +2080,13 @@ public final class DesktopPetWindow extends JFrame {
                             Math.max(1, view.width), Math.max(1, view.height), 2);
                 }
             }
-            BufferedImage image = paintMiluViewport(view, milu, animation, false, pivotX, pivotY, radians, scale);
+            int w = Math.max(1, view.width);
+            int h = Math.max(1, view.height);
+            if (liveFrameBuffer == null || liveFrameBuffer.getWidth() != w || liveFrameBuffer.getHeight() != h) {
+                liveFrameBuffer = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+            }
+            paintMiluViewport(liveFrameBuffer, view, milu, animation, pivotX, pivotY, radians, scale);
+            BufferedImage image = liveFrameBuffer;
             Graphics2D extra = image.createGraphics();
             try {
                 extra.translate(-view.x, -view.y);

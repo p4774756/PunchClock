@@ -524,6 +524,11 @@ public final class DesktopPetAnimation {
         updateFrame();
     }
 
+    void forceSleep() {
+        enter(Mode.SLEEP);
+        updateFrame();
+    }
+
     /** 操控模式：有方向就走，沒有就待機。 */
     public void syncPlayerWalk(int direction) {
         if (!playerControl) {
