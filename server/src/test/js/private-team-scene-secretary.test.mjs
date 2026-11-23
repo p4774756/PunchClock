@@ -11,7 +11,11 @@ const {
   SECRETARY_SPRITE_URL_TYPING_B,
   SECRETARY_SPRITE_URL_WAVE,
   SECRETARY_SPRITE_URL_YEAH,
-  secretaryTypingDisplayUrl
+  SECRETARY_DANCE_FRAME_INDICES,
+  SECRETARY_DANCE_DURATION_MS,
+  secretaryDanceFrameUrl,
+  secretaryTypingDisplayUrl,
+  shouldTriggerIdleStandbyDance
 } = await loadPublicModule('private-team-scene.js');
 
 const {
@@ -49,4 +53,34 @@ test('場景含揮手與比耶素材鍵', () => {
   assert.match(src, /playSecretaryYeah/);
   assert.match(src, new RegExp(SECRETARY_SPRITE_URL_WAVE.replace(/\//g, '\\/')));
   assert.match(src, new RegExp(SECRETARY_SPRITE_URL_YEAH.replace(/\//g, '\\/')));
+});
+
+test('慶祝舞格序與路徑', () => {
+  assert.deepEqual(SECRETARY_DANCE_FRAME_INDICES, [1, 2, 3, 4, 5, 3, 4, 2]);
+  assert.equal(SECRETARY_DANCE_DURATION_MS, 8 * 120 * 3);
+  assert.equal(secretaryDanceFrameUrl(1), '/assets/private-team/secretary-dance-1.webp');
+  assert.equal(secretaryDanceFrameUrl(0), '');
+});
+
+test('待命閒置起舞條件', () => {
+  const now = 1_000_000;
+  const base = {
+    status: '待命中',
+    standbySinceMs: now - 4 * 60 * 1000,
+    now,
+    lastIdleDanceMs: null,
+    dancing: false,
+    reducedMotion: false
+  };
+  assert.equal(shouldTriggerIdleStandbyDance(base), true);
+  assert.equal(shouldTriggerIdleStandbyDance({ ...base, status: '工作中' }), false);
+  assert.equal(shouldTriggerIdleStandbyDance({ ...base, reducedMotion: true }), false);
+  assert.equal(
+    shouldTriggerIdleStandbyDance({ ...base, lastIdleDanceMs: now - 2 * 60 * 1000 }),
+    false
+  );
+  const src = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
+  assert.match(src, /playSecretaryDance/);
+  assert.match(src, /secretary-dance-/);
+  assert.match(src, /preloadSecretaryDanceFrames/);
 });

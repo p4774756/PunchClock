@@ -11,6 +11,49 @@ const SECRETARY_TYPING_FRAME_MS = 500;
 const SECRETARY_WAVE_MS = 3000;
 const SECRETARY_YEAH_MS = 2500;
 
+/** 慶祝舞 8 格路徑（5 張圖重複索引）；登記供後續單直接切幀。 */
+export const SECRETARY_DANCE_FRAME_INDICES = [1, 2, 3, 4, 5, 3, 4, 2];
+export const SECRETARY_DANCE_FRAME_MS = 120;
+export const SECRETARY_DANCE_LOOPS = 3;
+export const SECRETARY_DANCE_DURATION_MS =
+  SECRETARY_DANCE_FRAME_INDICES.length * SECRETARY_DANCE_FRAME_MS * SECRETARY_DANCE_LOOPS;
+export const SECRETARY_IDLE_DANCE_AFTER_MS = 4 * 60 * 1000;
+export const SECRETARY_IDLE_DANCE_COOLDOWN_MS = 5 * 60 * 1000;
+
+export function secretaryDanceFrameUrl(frameIndex) {
+  const n = Number(frameIndex);
+  if (!Number.isFinite(n) || n < 1) return '';
+  return '/assets/private-team/secretary-dance-' + n + '.webp';
+}
+
+export function isStandbyTigerStatus(status) {
+  const s = status == null ? '' : String(status).trim();
+  return s === '待命中' || s === '待機';
+}
+
+/** 待命夠久且冷卻後是否該起舞（純函式，供單測）。 */
+export function shouldTriggerIdleStandbyDance({
+  status,
+  standbySinceMs,
+  now,
+  lastIdleDanceMs,
+  dancing,
+  reducedMotion
+}) {
+  if (reducedMotion || dancing) return false;
+  if (!isStandbyTigerStatus(status)) return false;
+  const since = Number(standbySinceMs);
+  const t = Number(now);
+  if (!Number.isFinite(since) || !Number.isFinite(t) || t - since < SECRETARY_IDLE_DANCE_AFTER_MS) {
+    return false;
+  }
+  const last = lastIdleDanceMs == null ? null : Number(lastIdleDanceMs);
+  if (last != null && Number.isFinite(last) && t - last < SECRETARY_IDLE_DANCE_COOLDOWN_MS) {
+    return false;
+  }
+  return true;
+}
+
 export function secretaryTypingDisplayUrl(statusBaseUrl, useTypingB, reducedMotion) {
   const base = statusBaseUrl == null ? '' : String(statusBaseUrl);
   if (base === SECRETARY_SPRITE_URL_TYPING && useTypingB && !reducedMotion) {
@@ -582,10 +625,26 @@ export function mountPrivateTeamScene(canvas, opts) {
   let lastTypingFlipMs = 0;
   let overlayActive = null;
   let overlayPending = null;
+  let dancePlayback = null;
+  let tigerStatus = '待命中';
+  let standbySinceMs = performance.now();
+  let lastIdleDanceMs = null;
+  let danceDisplayFrame = -1;
   let currentSpriteUrl = '';
   let desiredSpriteUrl = '';
   let spriteLoadSeq = 0;
   const loader = new THREE.TextureLoader();
+
+  (function preloadSecretaryDanceFrames() {
+    const seen = new Set();
+    for (let i = 0; i < SECRETARY_DANCE_FRAME_INDICES.length; i++) {
+      const idx = SECRETARY_DANCE_FRAME_INDICES[i];
+      const url = secretaryDanceFrameUrl(idx);
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      loader.load(url, () => {}, undefined, () => {});
+    }
+  })();
 
   function refreshPoseAnimMode() {
     spriteAnimMode = spriteAnimModeForUrl(statusBaseUrl);
@@ -618,11 +677,49 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
 
   function refreshSecretaryDisplay() {
+    if (dancePlayback) return;
     if (overlayActive) {
       applySecretarySpriteUrl(overlayActive.url);
       return;
     }
     applySecretarySpriteUrl(resolveRestSpriteUrl());
+  }
+
+  function secretaryDanceUrlAtElapsed(elapsedMs) {
+    const perLoop = SECRETARY_DANCE_FRAME_INDICES.length * SECRETARY_DANCE_FRAME_MS;
+    const total = perLoop * SECRETARY_DANCE_LOOPS;
+    if (elapsedMs >= total) return '';
+    const frameInSeq = Math.floor(elapsedMs / SECRETARY_DANCE_FRAME_MS) % SECRETARY_DANCE_FRAME_INDICES.length;
+    return secretaryDanceFrameUrl(SECRETARY_DANCE_FRAME_INDICES[frameInSeq]);
+  }
+
+  function stopSecretaryDance() {
+    dancePlayback = null;
+    danceDisplayFrame = -1;
+    refreshSecretaryDisplay();
+  }
+
+  function playSecretaryDance(now) {
+    if (reducedMotion) return;
+    const t = Number.isFinite(now) ? now : performance.now();
+    overlayActive = null;
+    overlayPending = null;
+    dancePlayback = { startMs: t };
+    danceDisplayFrame = -1;
+    const url = secretaryDanceUrlAtElapsed(0);
+    if (url) applySecretarySpriteUrl(url);
+  }
+
+  function noteTigerStatus(status, now) {
+    const next = status == null ? '' : String(status).trim() || '待命中';
+    const t = Number.isFinite(now) ? now : performance.now();
+    const wasStandby = isStandbyTigerStatus(tigerStatus);
+    tigerStatus = next;
+    if (isStandbyTigerStatus(tigerStatus)) {
+      if (!wasStandby || standbySinceMs == null) standbySinceMs = t;
+    } else {
+      standbySinceMs = null;
+    }
   }
 
   function endSecretaryOverlay(now) {
@@ -651,10 +748,12 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
 
   function playSecretaryWave() {
+    if (dancePlayback) return;
     enqueueSecretaryOverlay(SECRETARY_SPRITE_URL_WAVE, SECRETARY_WAVE_MS, performance.now());
   }
 
   function playSecretaryYeah() {
+    if (dancePlayback) return;
     if (overlayActive && overlayActive.url === SECRETARY_SPRITE_URL_YEAH) {
       return;
     }
@@ -871,13 +970,15 @@ export function mountPrivateTeamScene(canvas, opts) {
       mq.addEventListener('change', () => {
         reducedMotion = !!mq.matches;
         typingShowB = false;
-        refreshSecretaryDisplay();
+        if (reducedMotion && dancePlayback) stopSecretaryDance();
+        else refreshSecretaryDisplay();
       });
     } else if (typeof mq.addListener === 'function') {
       mq.addListener(() => {
         reducedMotion = !!mq.matches;
         typingShowB = false;
-        refreshSecretaryDisplay();
+        if (reducedMotion && dancePlayback) stopSecretaryDance();
+        else refreshSecretaryDisplay();
       });
     }
   }
@@ -897,10 +998,35 @@ export function mountPrivateTeamScene(canvas, opts) {
   function tick(now) {
     if (!running) return;
     raf = win.requestAnimationFrame(tick);
+    if (dancePlayback) {
+      const elapsed = now - dancePlayback.startMs;
+      const frameNo = Math.floor(elapsed / SECRETARY_DANCE_FRAME_MS);
+      const totalFrames = SECRETARY_DANCE_FRAME_INDICES.length * SECRETARY_DANCE_LOOPS;
+      if (frameNo >= totalFrames) {
+        stopSecretaryDance();
+      } else if (frameNo !== danceDisplayFrame) {
+        danceDisplayFrame = frameNo;
+        const url = secretaryDanceUrlAtElapsed(elapsed);
+        if (url) applySecretarySpriteUrl(url);
+      }
+    } else if (
+      shouldTriggerIdleStandbyDance({
+        status: tigerStatus,
+        standbySinceMs,
+        now,
+        lastIdleDanceMs,
+        dancing: false,
+        reducedMotion
+      })
+    ) {
+      lastIdleDanceMs = now;
+      playSecretaryDance(now);
+    }
     if (overlayActive && now >= overlayActive.until) {
       endSecretaryOverlay(now);
     } else if (
       !overlayActive &&
+      !dancePlayback &&
       !reducedMotion &&
       statusBaseUrl === SECRETARY_SPRITE_URL_TYPING &&
       now - lastTypingFlipMs >= SECRETARY_TYPING_FRAME_MS
@@ -984,11 +1110,14 @@ export function mountPrivateTeamScene(canvas, opts) {
     setReducedMotion(next) {
       reducedMotion = !!next;
       typingShowB = false;
-      refreshSecretaryDisplay();
+      if (reducedMotion && dancePlayback) stopSecretaryDance();
+      else refreshSecretaryDisplay();
     },
     setSecretarySprite,
     playSecretaryWave,
     playSecretaryYeah,
+    playSecretaryDance,
+    noteTigerStatus,
     setSceneInputEnabled(next) {
       sceneInputEnabled = !!next;
     },

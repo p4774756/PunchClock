@@ -557,11 +557,13 @@ export function mountPrivateTeamPage(opts) {
 
   function applyTiger(tiger) {
     if (!tiger) return;
+    const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     if (seenCompletedKeys != null && hasNewCompletedToday(seenCompletedKeys, tiger.completedToday)) {
-      scene.playSecretaryYeah();
+      scene.playSecretaryDance(now);
     }
     seenCompletedKeys = completedTodayKeys(tiger.completedToday);
     tigerView = tiger;
+    scene.noteTigerStatus(tiger.status, now);
     scene.setSecretarySprite(secretarySpriteUrlForStatus(tigerView.status));
     scene.setBubbleText(bubbleLabel());
     refreshCanvasA11y();
