@@ -25,7 +25,7 @@ mvn -B -DskipTests package
 # --- Playwright browsers for the desktop client's automation ------------------
 # install-deps needs root for apt; the browser download runs as the agent user
 # so the cache lands in ~/.cache/ms-playwright.
-PLAYWRIGHT_CP="client/target/SKLbaby.jar"
+PLAYWRIGHT_CP="client/target/XiaoBaobei.jar"
 sudo env "PATH=$PATH" java -cp "$PLAYWRIGHT_CP" com.microsoft.playwright.CLI install-deps chromium
 java -cp "$PLAYWRIGHT_CP" com.microsoft.playwright.CLI install chromium
 

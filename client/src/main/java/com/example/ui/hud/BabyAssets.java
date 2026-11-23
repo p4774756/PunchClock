@@ -5,7 +5,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 
-/** 新光小寶貝坐姿／趴姿去背圖（#274）。 */
+/** 小寶貝坐姿／趴姿去背圖（#274）。 */
 public final class BabyAssets {
 
     private final BufferedImage seated;

@@ -19,8 +19,8 @@ public class ClientReleaseTest {
                 + "\"tag_name\":\"v4.0.2\","
                 + "\"published_at\":\"2026-11-01T12:00:00Z\","
                 + "\"body\":\"第一行\\n\\n第二行\","
-                + "\"assets\":[{\"name\":\"SKLbaby.jar\",\"size\":12345,"
-                + "\"browser_download_url\":\"https://github.com/p4774756/PunchClock/releases/download/v4.0.2/SKLbaby.jar\","
+                + "\"assets\":[{\"name\":\"XiaoBaobei.jar\",\"size\":12345,"
+                + "\"browser_download_url\":\"https://github.com/p4774756/PunchClock/releases/download/v4.0.2/XiaoBaobei.jar\","
                 + "\"digest\":\"sha256:" + DIGEST + "\"}]"
                 + "}";
         ClientRelease release = ClientRelease.fromGithub(JsonParser.parseString(json).getAsJsonObject());
@@ -30,6 +30,21 @@ public class ClientReleaseTest {
         assertEquals(12345L, release.size());
         assertEquals(2, release.changeLines().size());
         assertEquals("第一行", release.changeLines().get(0));
+    }
+
+    @Test
+    public void fallsBackToLegacySklbabyJarAsset() {
+        String json = "{"
+                + "\"tag_name\":\"v4.0.2\","
+                + "\"published_at\":\"2026-11-01T12:00:00Z\","
+                + "\"body\":\"\","
+                + "\"assets\":[{\"name\":\"SKLbaby.jar\",\"size\":99,"
+                + "\"browser_download_url\":\"https://github.com/p4774756/PunchClock/releases/download/v4.0.2/SKLbaby.jar\","
+                + "\"digest\":\"sha256:" + DIGEST + "\"}]"
+                + "}";
+        ClientRelease release = ClientRelease.fromGithub(JsonParser.parseString(json).getAsJsonObject());
+        assertTrue(release.isAvailable());
+        assertEquals("4.0.2", release.version());
     }
 
     @Test

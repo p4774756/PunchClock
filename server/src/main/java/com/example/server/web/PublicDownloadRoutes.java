@@ -15,7 +15,7 @@ import java.time.Instant;
 public final class PublicDownloadRoutes {
 
     /** 公開下載的檔名（URL 仍為 /download/app.jar）。 */
-    static final String PUBLIC_JAR_FILENAME = "SKLbaby.jar";
+    static final String PUBLIC_JAR_FILENAME = ClientUpdatePolicy.RELEASE_JAR_FILENAME;
 
     private final ClientReleaseService clientReleaseService;
 
@@ -28,6 +28,7 @@ public final class PublicDownloadRoutes {
     public void register(Javalin app) {
         app.get("/download", this::downloadPage);
         app.get("/download/app.jar", this::downloadJar);
+        app.get("/download/XiaoBaobei.jar", this::downloadJar);
         app.get("/download/SKLbaby.jar", this::downloadJar);
     }
 

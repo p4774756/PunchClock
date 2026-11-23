@@ -1,6 +1,7 @@
 package com.example.server;
 
 import com.example.BuildInfo;
+import com.example.ClientUpdatePolicy;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -9,10 +10,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** GitHub 最新 Release 上的 SKLbaby.jar 中繼資料。 */
+/** GitHub 最新 Release 上的桌面 jar 中繼資料（{@link ClientUpdatePolicy#RELEASE_JAR_FILENAME}）。 */
 public final class ClientRelease {
 
-    public static final String JAR_ASSET = "SKLbaby.jar";
+    public static final String JAR_ASSET = ClientUpdatePolicy.RELEASE_JAR_FILENAME;
+    public static final String LEGACY_JAR_ASSET = ClientUpdatePolicy.LEGACY_RELEASE_JAR_FILENAME;
 
     public static final ClientRelease NONE = new ClientRelease("", "", "", 0L, "", List.of());
 
@@ -48,12 +50,21 @@ public final class ClientRelease {
             return NONE;
         }
         JsonArray assets = release.getAsJsonArray("assets");
+        ClientRelease fromPrimary = releaseFromJarAsset(assets, version, published, changes, JAR_ASSET);
+        if (fromPrimary.isAvailable()) {
+            return fromPrimary;
+        }
+        return releaseFromJarAsset(assets, version, published, changes, LEGACY_JAR_ASSET);
+    }
+
+    private static ClientRelease releaseFromJarAsset(JsonArray assets, String version, String published,
+                                                     List<String> changes, String jarName) {
         for (JsonElement el : assets) {
             if (el == null || !el.isJsonObject()) {
                 continue;
             }
             JsonObject asset = el.getAsJsonObject();
-            if (!JAR_ASSET.equals(text(asset, "name"))) {
+            if (!jarName.equals(text(asset, "name"))) {
                 continue;
             }
             long size = asset.has("size") && !asset.get("size").isJsonNull() ? asset.get("size").getAsLong() : 0L;
