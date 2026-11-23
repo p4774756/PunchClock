@@ -59,6 +59,7 @@ public final class PublicDownloadRoutes {
                 .replace("{{HOME_WIN_URL}}", escapeHtml(winUrl))
                 .replace("{{HOME_JAR_URL}}", escapeHtml(jarUrl))
                 .replace("{{HOME_CLIENT_VERSION}}", escapeHtml(version))
+                .replace("{{HOME_CLIENT_VERSION_JS}}", jsStringLiteral(version))
                 .replace("{{DESKTOP_MAC_ARM_JS}}", jsStringLiteral(macArmUrl))
                 .replace("{{DESKTOP_MAC_INTEL_JS}}", jsStringLiteral(macIntelUrl))
                 .replace("{{DESKTOP_MAC_JS}}", jsStringLiteral(macArmUrl))
