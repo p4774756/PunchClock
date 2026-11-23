@@ -5,7 +5,7 @@ import {ANIME_OUTFITS,DEFAULT_OUTFIT_ID,animeOutfit,type OutfitId} from './outfi
 import {LOAD_STEP_LABELS,type AtlasLoadProgress} from './load-progress';
 import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState,type CSSProperties} from 'react';
 import {flushSync} from 'react-dom';
-import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Focus,Info,Layers3,MapPin,Maximize2,RotateCw,ScanFace,Search,Shirt,SlidersHorizontal,X} from 'lucide-react';
+import {ArrowUpRight,Check,ChevronDown,Eye,EyeOff,Focus,Info,Layers3,MapPin,Maximize2,RotateCw,ScanFace,Search,Shirt,X} from 'lucide-react';
 import type {SceneState,View} from './anatomy';
 import {acupointMuscleNote} from './acupoint-muscles';
 import {CURRICULUM_SETS,curriculumBadge,curriculumSet,initialSimulation,isPracticeDeferred,libraryPointResults,LOCATION,POINTS,POINT_BY_CODE,MERIDIANS,pointInCurriculum,practiceOpenCodes,REGIONS,STANDARD,TOOLS,type CurriculumSetId,type RegionId,type SimulationState,type SurfaceTarget,type ToolId,type ToolDragPhase} from './teaching';
@@ -192,7 +192,6 @@ export default function Home(){
  const onError=useCallback((_message:string)=>{setError('3D 模型加載出現問題，請檢查網絡與瀏覽器 WebGL 支持後重試。');setSimulation(s=>({...s,dragging:false,running:false}));},[]);
  const onPracticeOutfitPreparing=useCallback((preparing:boolean)=>{setPracticePreparing(preparing);},[]);
  const selectedTitle=point?.name??(simulation.customTarget?'自選體表位置':'點選穴位標記');
- const animationStatus=simulation.dragging?'操作中':simulation.running?'演示中':simulation.elapsed>0?'已暫停':'待演示';
  const outfitPending=practicePreparing&&outfitId==='study-body';
  const dialogBlurb=useMemo(()=>{
   if(point&&location?.text){
@@ -292,11 +291,8 @@ export default function Home(){
       {lessonProgress&&<p className="lesson-progress-inline">{lessonProgress.name} · 第 {lessonProgress.index}／{lessonProgress.total} 穴</p>}
       <div className={`review-note ${animePointReady?'is-reviewed':''}`}><span className="review-dot"/><span>{animePointReady?`${currentAvatar.shortName}已對應並完成檢查`:'尚未烘到角色'}<small>動漫視圖標記為教學示意。</small></span></div>
      </>:simulation.customTarget?<div className="pain-card"><div className="pain-target"><MapPin size={23}/><Check size={12}/></div><h2>當前工具接觸位置</h2><p>拖動器具或「移動工具」手柄，在皮膚上自由操作。</p><small>自主教學選擇，不自動推薦療法。</small></div>:<div className="pain-card"><div className="pain-target"><MapPin size={23}/></div><h2>點選金色穴位開始</h2><p>選中穴位後可拖動針具或移動手柄練習。</p></div>}
-     <div className="tool-summary"><span className="tool-summary-icon"><ToolGlyph tool={tool.id}/></span><div><small>當前工具</small><h2>{tool.name}<span>{tool.effect}</span></h2></div></div><p className="tool-note">{tool.note}</p>
-     <div className="amplitude-control"><label htmlFor="amplitude"><span><SlidersHorizontal size={13}/>演示幅度</span><output>{simulation.amplitude<.35?'輕':simulation.amplitude<.7?'中':'強'}</output></label><input id="amplitude" type="range" min="0.15" max="1" step="0.01" value={simulation.amplitude} onChange={e=>{setSimulation(s=>({...s,amplitude:Number(e.target.value)}));setFeedback('已調整動畫幅度，僅改變視覺反饋強弱。');}}/><small>僅調整動畫，不對應實際操作力度。</small></div>
-     <label className="effect-toggle"><span>顯示局部視覺反饋</span><input type="checkbox" checked={simulation.effects} onChange={()=>{setSimulation(s=>({...s,effects:!s.effects}));setFeedback(simulation.effects?'已隱藏局部視覺反饋，仍可觀察工具。':'已開啟局部視覺反饋。');}}/><span className="switch-track" aria-hidden="true"/></label>
+     <div className="tool-summary"><span className="tool-summary-icon"><ToolGlyph tool={tool.id}/></span><span className="tool-summary-name">{tool.name}</span></div>
     </div>
-    <div className="selection-bottom"><span className={`play-state ${simulation.running?'running':''}`}><span/>{animationStatus}</span><span>皮膚反應模擬 · 參數未作人體校準</span></div>
    </div>}
   </section>
   <dialog ref={dialog} className="source-dialog" onCancel={()=>setAbout(false)} onClose={()=>setAbout(false)} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)setAbout(false);}}} aria-labelledby="source-title">
