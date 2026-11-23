@@ -150,6 +150,10 @@ test('phraseForActiveDisplay 空泛句改標題', () => {
   );
   assert.equal(phraseForActiveDisplay({ phrase: '秘書口語', title: '標題' }), '秘書口語');
   assert.equal(phraseForActiveDisplay({ title: '只有標題' }), '只有標題');
+  assert.equal(
+    phraseForActiveDisplay({ phrase: '正在處理一項工作', issue: 571 }),
+    ''
+  );
 });
 
 test('renderActiveBlock 標題主文與次要單號', () => {

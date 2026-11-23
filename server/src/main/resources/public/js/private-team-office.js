@@ -213,6 +213,10 @@ export function phraseForActiveDisplay(row) {
   }
   const title = item.title && isSafePublicText(item.title) ? String(item.title).trim() : '';
   if (title) return title;
+  if (phrase && VAGUE_PHRASES.has(phrase)) {
+    const issue = Number(item.issue);
+    if (Number.isFinite(issue) && issue > 0) return '';
+  }
   return phrase || ACTIVE_DISPLAY_FALLBACK;
 }
 

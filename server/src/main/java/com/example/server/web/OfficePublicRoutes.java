@@ -74,8 +74,8 @@ public final class OfficePublicRoutes {
                 if ("tiger".equals(id)) {
                     DevMachineStore.Snapshot tiger = findSecretaryMachine(machines, now);
                     String machineId = secretaryMachineId(tiger);
-                    row.put("active", buildActive(now, store, machineId, tiger, doc, github, repo));
-                    row.put("queue", buildTigerQueue(now, store, machineId, tiger, doc, github, repo));
+                    row.put("active", buildActive(now, store, machineId, tiger, doc, github, repo, devStatusService));
+                    row.put("queue", buildTigerQueue(now, store, machineId, tiger, doc, github, repo, devStatusService));
                     row.put("completedToday", buildCompletedToday(now, github, repo));
                 }
                 characters.put(id, row);
@@ -152,15 +152,16 @@ public final class OfficePublicRoutes {
 
         static List<Map<String, Object>> buildActive(long now, DevMachineStore store, String machineId,
                                                    DevMachineStore.Snapshot tiger, DevStatusModels.Document doc,
-                                                   Snapshot github, String repo) {
+                                                   Snapshot github, String repo, DevStatusService devStatusService) {
             List<Map<String, Object>> out = new ArrayList<>();
             Set<Integer> seen = new HashSet<>();
-            appendRunsToActive(now, effectiveRuns(now, store, machineId, tiger), out, seen, github, repo, tiger);
+            appendRunsToActive(now, effectiveRuns(now, store, machineId, tiger), out, seen, github, repo, tiger,
+                    devStatusService);
             if (out.isEmpty() && tiger != null && isOnline(tiger, now)
                     && (tiger.agentRunning || (tiger.issue != null && tiger.issue > 0))) {
                 int issue = tiger.issue != null ? tiger.issue : 0;
                 if (issue > 0 && seen.add(issue)) {
-                    out.add(activeEntryFromMachine(now, issue, tiger, github, repo));
+                    out.add(activeEntryFromMachine(now, issue, tiger, github, repo, devStatusService));
                 }
             }
             if (out.isEmpty() && doc != null && doc.now != null && doc.now.current != null) {
@@ -168,7 +169,7 @@ public final class OfficePublicRoutes {
                     if (item == null || item.issue <= 0 || !seen.add(item.issue)) {
                         continue;
                     }
-                    out.add(activeFromGithubItem(now, item, github, repo));
+                    out.add(activeFromGithubItem(now, item, github, repo, devStatusService));
                 }
             }
             return Collections.unmodifiableList(out);
@@ -176,7 +177,8 @@ public final class OfficePublicRoutes {
 
         private static void appendRunsToActive(long now, List<DevMachineStore.RunEntry> runs,
                                                List<Map<String, Object>> out, Set<Integer> seen,
-                                               Snapshot github, String repo, DevMachineStore.Snapshot tiger) {
+                                               Snapshot github, String repo, DevMachineStore.Snapshot tiger,
+                                               DevStatusService devStatusService) {
             if (runs == null || runs.isEmpty()) {
                 return;
             }
@@ -187,17 +189,24 @@ public final class OfficePublicRoutes {
                 if (run == null || run.issue <= 0 || !seen.add(run.issue)) {
                     continue;
                 }
-                out.add(activeEntry(now, run, agentRunning, machineVerdict, machineRole, github, repo));
+                out.add(activeEntry(now, run, agentRunning, machineVerdict, machineRole, github, repo,
+                        devStatusService));
             }
         }
 
         private static Map<String, Object> activeFromGithubItem(long now, DevStatusModels.Item item,
-                                                                Snapshot github, String repo) {
-            IssueRow issueRow = findIssue(github, item.issue);
+                                                                Snapshot github, String repo,
+                                                                DevStatusService devStatusService) {
+            IssueRow issueRow = resolveIssue(devStatusService, now, github, item.issue);
             Map<String, Object> row = new LinkedHashMap<>();
-            row.put("phrase", item.title != null && !item.title.isEmpty()
-                    ? SecretarySpeech.sanitizePhrase(item.title.trim())
-                    : SecretarySpeech.phraseForActive(issueRow));
+            if (item.title != null && !item.title.isEmpty()) {
+                String fromItem = SecretarySpeech.sanitizePhrase(item.title.trim());
+                if (fromItem != null && !fromItem.isEmpty()) {
+                    row.put("phrase", fromItem);
+                }
+            } else {
+                putActivePhrase(row, item.issue, issueRow);
+            }
             String publicTitle = publicIssueTitle(issueRow);
             if (publicTitle != null) {
                 row.put("title", publicTitle);
@@ -219,12 +228,16 @@ public final class OfficePublicRoutes {
 
         static List<Map<String, Object>> buildTigerQueue(long now, DevMachineStore store, String machineId,
                                                          DevMachineStore.Snapshot tiger, DevStatusModels.Document doc,
-                                                         Snapshot github, String repo) {
+                                                         Snapshot github, String repo, DevStatusService devStatusService) {
             List<Map<String, Object>> out = new ArrayList<>();
             Set<Integer> seen = new HashSet<>();
+            Set<Integer> activeIssues = activeIssueNumbers(now, store, machineId, tiger);
             if (doc != null && doc.now != null && doc.now.queue != null) {
                 for (DevStatusModels.QueueEntry entry : doc.now.queue) {
                     if (entry == null || entry.item == null || entry.item.issue <= 0) {
+                        continue;
+                    }
+                    if (activeIssues.contains(entry.item.issue)) {
                         continue;
                     }
                     if (seen.add(entry.item.issue)) {
@@ -233,10 +246,10 @@ public final class OfficePublicRoutes {
                 }
             }
             for (DevMachineStore.QueuedEntry q : effectiveQueued(now, store, machineId, tiger)) {
-                if (q == null || q.issue <= 0 || !seen.add(q.issue)) {
+                if (q == null || q.issue <= 0 || activeIssues.contains(q.issue) || !seen.add(q.issue)) {
                     continue;
                 }
-                IssueRow issueRow = findIssue(github, q.issue);
+                IssueRow issueRow = resolveIssue(devStatusService, now, github, q.issue);
                 String title = publicIssueTitle(issueRow);
                 if (title == null && issueRow != null && issueRow.title != null) {
                     title = SecretarySpeech.sanitizePhrase(issueRow.title.trim());
@@ -349,13 +362,45 @@ public final class OfficePublicRoutes {
             return doc != null && doc.now != null && doc.now.queue != null && !doc.now.queue.isEmpty();
         }
 
+        private static Set<Integer> activeIssueNumbers(long now, DevMachineStore store, String machineId,
+                                                       DevMachineStore.Snapshot tiger) {
+            Set<Integer> out = new HashSet<>();
+            for (DevMachineStore.RunEntry run : effectiveRuns(now, store, machineId, tiger)) {
+                if (run != null && run.issue > 0) {
+                    out.add(run.issue);
+                }
+            }
+            if (tiger != null && isOnline(tiger, now)) {
+                if (tiger.issue != null && tiger.issue > 0) {
+                    out.add(tiger.issue);
+                }
+            }
+            return out;
+        }
+
+        private static void putActivePhrase(Map<String, Object> row, int issue, IssueRow issueRow) {
+            String publicTitle = publicIssueTitle(issueRow);
+            String phrase = SecretarySpeech.phraseForActive(issueRow);
+            if (SecretarySpeech.ACTIVE_FALLBACK.equals(phrase)) {
+                if (publicTitle != null && !publicTitle.isEmpty()) {
+                    phrase = publicTitle;
+                } else if (issue > 0) {
+                    return;
+                }
+            }
+            if (phrase != null && !phrase.isEmpty()) {
+                row.put("phrase", phrase);
+            }
+        }
+
         private static Map<String, Object> activeEntry(long now, DevMachineStore.RunEntry run,
                                                        boolean machineAgentRunning, String machineVerdict,
-                                                       String machineRole, Snapshot github, String repo) {
+                                                       String machineRole, Snapshot github, String repo,
+                                                       DevStatusService devStatusService) {
             Map<String, Object> row = new LinkedHashMap<>();
             int issue = run.issue;
-            IssueRow issueRow = findIssue(github, issue);
-            row.put("phrase", SecretarySpeech.phraseForActive(issueRow));
+            IssueRow issueRow = resolveIssue(devStatusService, now, github, issue);
+            putActivePhrase(row, issue, issueRow);
             String publicTitle = publicIssueTitle(issueRow);
             if (publicTitle != null) {
                 row.put("title", publicTitle);
@@ -383,10 +428,11 @@ public final class OfficePublicRoutes {
 
         private static Map<String, Object> activeEntryFromMachine(long now, int issue,
                                                                   DevMachineStore.Snapshot tiger,
-                                                                  Snapshot github, String repo) {
+                                                                  Snapshot github, String repo,
+                                                                  DevStatusService devStatusService) {
             Map<String, Object> row = new LinkedHashMap<>();
-            IssueRow issueRow = findIssue(github, issue);
-            row.put("phrase", SecretarySpeech.phraseForActive(issueRow));
+            IssueRow issueRow = resolveIssue(devStatusService, now, github, issue);
+            putActivePhrase(row, issue, issueRow);
             String publicTitle = publicIssueTitle(issueRow);
             if (publicTitle != null) {
                 row.put("title", publicTitle);
@@ -474,6 +520,17 @@ public final class OfficePublicRoutes {
                 }
             }
             return null;
+        }
+
+        static IssueRow resolveIssue(DevStatusService devStatusService, long now, Snapshot github, int issue) {
+            IssueRow row = findIssue(github, issue);
+            if (row != null) {
+                return row;
+            }
+            if (devStatusService == null || issue <= 0) {
+                return null;
+            }
+            return devStatusService.issueForOffice(now, github, issue);
         }
 
         static String publicIssueTitle(IssueRow issueRow) {

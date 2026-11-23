@@ -127,32 +127,77 @@ read_waiter_queued() {
   [ -z "$ps_out" ] && return 0
   tsv=$(printf '%s\n' "$ps_out" | awk '
     BEGIN { count = 0 }
+    function emit(issue, after,    key) {
+      if (issue < 1) return
+      key = issue SUBSEP after
+      if (key in seen) return
+      seen[key] = 1
+      if (count >= 12) return
+      count++
+      printf "%s\t%s\n", issue, after
+    }
+  function append_issues(spec, after) {
+      n = split(spec, parts, "-")
+      for (i = 1; i <= n; i++) {
+        issue = parts[i] + 0
+        emit(issue, after)
+      }
+    }
     {
       line = $0
       if (line !~ /waiter\.sh/) next
-      issue = 0
       after = 0
-      if (match(line, /i[0-9]+-waiter/)) {
-        tok = substr(line, RSTART, RLENGTH)
-        sub(/^i/, "", tok)
-        sub(/-waiter.*/, "", tok)
-        issue = tok + 0
-      }
       if (match(line, /after[0-9]+/)) {
         tok = substr(line, RSTART, RLENGTH)
         sub(/^after/, "", tok)
         after = tok + 0
       }
-      if (issue < 1) next
-      key = issue SUBSEP after
-      if (!(key in seen)) {
-        seen[key] = 1
-        if (count >= 12) next
-        count++
-        printf "%s\t%s\n", issue, after
+      if (match(line, /-i[0-9][0-9-]*-waiter/)) {
+        tok = substr(line, RSTART + 2, RLENGTH - 2)
+        sub(/-waiter.*/, "", tok)
+        append_issues(tok, after)
+        next
+      }
+      if (match(line, /i[0-9]+-then-[0-9]+-waiter/)) {
+        tok = substr(line, RSTART, RLENGTH)
+        sub(/^i/, "", tok)
+        sub(/-waiter.*/, "", tok)
+        gsub(/-then-/, "-", tok)
+        append_issues(tok, after)
+        next
+      }
+      if (match(line, /i[0-9]+-waiter/)) {
+        tok = substr(line, RSTART, RLENGTH)
+        sub(/^i/, "", tok)
+        sub(/-waiter.*/, "", tok)
+        emit(tok + 0, after)
       }
     }
   ')
+  [ -z "$tsv" ] && return 0
+  if [ -n "$RUNS_JSON" ] && [ "$RUNS_JSON" != "[]" ]; then
+    active_pat=$(printf '%s' "$RUNS_JSON" | awk '
+      {
+        s = $0
+        pat = ","
+        while (match(s, /"issue":([0-9]+)/)) {
+          iss = substr(s, RSTART + 8, RLENGTH - 8) + 0
+          if (iss > 0) pat = pat iss ","
+          s = substr(s, RSTART + RLENGTH)
+        }
+        if (pat != ",") print pat
+      }
+    ')
+    if [ -n "$active_pat" ]; then
+      tsv=$(printf '%s\n' "$tsv" | awk -v active="$active_pat" '
+        {
+          issue = $1 + 0
+          if (index(active, "," issue ",") > 0) next
+          print $0
+        }
+      ')
+    fi
+  fi
   [ -z "$tsv" ] && return 0
   json="["
   sep=""

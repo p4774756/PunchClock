@@ -1,14 +1,17 @@
 package com.example.server.store;
 
 import com.example.server.store.DevStatusModels.Document;
+import com.example.server.store.DevStatusModels.IssueRow;
 import com.example.server.store.DevStatusModels.NowBlock;
 import com.example.server.store.DevStatusModels.Snapshot;
 import com.example.server.store.DevStatusModels.Stats;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -23,9 +26,12 @@ public final class DevStatusService {
     public static final String UNAVAILABLE = "暫時讀不到開發進度";
     public static final String DEFAULT_REPO = "p4774756/PunchClock";
 
-    @FunctionalInterface
     public interface Fetcher {
         Snapshot fetch(String repo) throws IOException;
+
+        default IssueRow fetchIssue(String repo, int number) throws IOException {
+            return null;
+        }
     }
 
     public static final class View {
@@ -48,12 +54,16 @@ public final class DevStatusService {
     private final String repo;
     private final String source;
 
+    private static final long OFFICE_ISSUE_TTL_MS = 5L * 60L * 1000L;
+
     private Document cached;
     private Snapshot cachedSnapshot;
     private long fetchedAt;
     private boolean failing;
     private long lastFailureAt;
     private CompletableFuture<View> inFlight;
+    private final Map<Integer, IssueRow> officeIssueCache = new ConcurrentHashMap<>();
+    private final Map<Integer, Long> officeIssueFetchedAt = new ConcurrentHashMap<>();
 
     public DevStatusService(Fetcher fetcher) {
         this(fetcher, repoProperty());
@@ -75,6 +85,37 @@ public final class DevStatusService {
         get(now);
         synchronized (this) {
             return cachedSnapshot;
+        }
+    }
+
+    /**
+     * 快照缺票時補抓單一 issue（辦公室進行中／排隊標題）；失敗或無資料回 null。
+     */
+    public IssueRow issueForOffice(long now, Snapshot github, int issue) {
+        if (issue <= 0) {
+            return null;
+        }
+        if (github != null && github.issues != null) {
+            for (IssueRow row : github.issues) {
+                if (row != null && row.number == issue) {
+                    return row;
+                }
+            }
+        }
+        IssueRow cachedRow = officeIssueCache.get(issue);
+        Long cachedAt = officeIssueFetchedAt.get(issue);
+        if (cachedRow != null && cachedAt != null && now - cachedAt < OFFICE_ISSUE_TTL_MS) {
+            return cachedRow;
+        }
+        try {
+            IssueRow fetched = fetcher.fetchIssue(repo, issue);
+            if (fetched != null) {
+                officeIssueCache.put(issue, fetched);
+                officeIssueFetchedAt.put(issue, now);
+            }
+            return fetched;
+        } catch (IOException ex) {
+            return cachedRow;
         }
     }
 
