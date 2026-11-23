@@ -188,30 +188,6 @@
   z-index: 4;
 }
 
-.pt-hud-atlas {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  min-height: 48px;
-  padding: 0.45rem 0.85rem;
-  border: 3px solid var(--maple-navy, #163a70);
-  outline: 1px solid var(--maple-blue-lt, #a8d0f2);
-  outline-offset: -4px;
-  border-radius: 6px;
-  background: var(--maple-gold, #ecc440);
-  box-shadow: inset 0 1px 0 var(--maple-gold-hi, #f8dc6e), 2px 3px 0 rgba(0, 0, 0, 0.31);
-  color: var(--maple-ink, #142440);
-  font-weight: 800;
-  text-decoration: none;
-  font-size: 0.95rem;
-}
-
-.pt-hud-atlas svg {
-  width: 22px;
-  height: 22px;
-  flex: 0 0 auto;
-}
-
 .pt-hud-download {
   width: 48px;
   height: 48px;
@@ -822,11 +798,6 @@ button.pt-hud-id-plate {
   .pt-status-card {
     width: calc(100% - 4px);
     padding: 0.75rem 0.8rem 0.9rem;
-  }
-
-  .pt-hud-atlas {
-    font-size: 0.85rem;
-    padding: 0.4rem 0.65rem;
   }
 
   .pt-a-bar-row {

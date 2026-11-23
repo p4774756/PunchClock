@@ -154,6 +154,13 @@ public final class ServerApp {
                 sf.mimeTypes.add("image/webp", "webp");
                 applyStaticCache(sf, "public, max-age=86400");
             });
+            config.staticFiles.add(sf -> {
+                sf.hostedPath = "/models";
+                sf.directory = "/public/models";
+                sf.location = Location.CLASSPATH;
+                sf.mimeTypes.add("model/gltf-binary", "glb");
+                applyStaticCache(sf, "public, max-age=86400");
+            });
             config.showJavalinBanner = false;
             long maxRequest = MAX_HTTP_REQUEST_BYTES;
             config.http.maxRequestSize = maxRequest;
