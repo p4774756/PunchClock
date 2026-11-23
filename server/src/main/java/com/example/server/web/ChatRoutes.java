@@ -9,7 +9,6 @@ import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 
 import java.util.Map;
-import java.util.function.Supplier;
 
 /** 同事訊息。 */
 public final class ChatRoutes {
@@ -18,16 +17,16 @@ public final class ChatRoutes {
     private final ClientStore clientStore;
     private final Gson gson;
     private final DashboardBroadcaster broadcaster;
-    private final Supplier<Map<String, Object>> statusUpdates;
+    private final Runnable statusBroadcast;
 
     public ChatRoutes(AuthService authService, ClientStore clientStore,
                Gson gson, DashboardBroadcaster broadcaster,
-               Supplier<Map<String, Object>> statusUpdates) {
+               Runnable statusBroadcast) {
         this.authService = authService;
         this.clientStore = clientStore;
         this.gson = gson;
         this.broadcaster = broadcaster;
-        this.statusUpdates = statusUpdates;
+        this.statusBroadcast = statusBroadcast;
     }
 
     public void register(Javalin app) {
@@ -43,9 +42,14 @@ public final class ChatRoutes {
         if (body == null) {
             body = Map.of();
         }
+        String fromClientId = RouteSupport.stringOrNull(body.get("fromClientId"));
+        if (!authService.clientMayUseFromClientId(ctx, fromClientId)) {
+            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", "fromClientId 不符"));
+            return;
+        }
         PeerResult result = clientStore.queuePeerMessage(
                 RouteSupport.stringOrNull(body.get("toClientId")),
-                RouteSupport.stringOrNull(body.get("fromClientId")),
+                fromClientId,
                 RouteSupport.stringOrNull(body.get("text")),
                 RouteSupport.stringOrNull(body.get("avatar")),
                 RouteSupport.stringOrNull(body.get("image"))
@@ -54,7 +58,7 @@ public final class ChatRoutes {
             ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", result.message));
             return;
         }
-        broadcaster.broadcast(statusUpdates.get());
+        statusBroadcast.run();
         ctx.json(Map.of("success", true, "message", result.message));
     }
 }

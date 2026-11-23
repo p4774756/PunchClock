@@ -77,7 +77,7 @@ test('牆上進度看板與施工進度彈窗遮罩', () => {
 
 test('首頁經絡研習室後備連結可進 Tab 序', () => {
   const html = readFileSync(join(publicRoot, 'index.html'), 'utf8');
-  assert.match(html, /href="\/atlas\/tcm-3d\/" tabindex="0">經絡研習室<\/a>/);
+  assert.match(html, /href="\/atlas\/tcm-3d\/" data-admin-only[^>]*>經絡研習室<\/a>/);
   assert.match(html, /href="\/login\?next=\/"[^>]*tabindex="-1"/);
   assert.match(html, /href="\/logout"[^>]*tabindex="-1"/);
 });

@@ -266,7 +266,7 @@ public class PublicOfficeAuthTest {
 
         HttpResponse<String> logout = send("GET", "/logout", cookie);
         assertEquals(302, logout.statusCode());
-        assertDeniedManagement(send("GET", "/api/status", null));
+        assertDeniedManagement(send("GET", "/api/status", cookie));
     }
 
     @Test

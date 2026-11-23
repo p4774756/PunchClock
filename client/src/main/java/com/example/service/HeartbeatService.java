@@ -112,6 +112,7 @@ public class HeartbeatService implements HeartbeatEvents {
     private String serverUrl = "";
     private String clientId = "company-worker";
     private String heartbeatToken = "punchclock-dev-secret";
+    private String appLoginToken = "";
     private String currentStatus = "ONLINE";
     private String message = null;
     private boolean isServiceActive = false;
@@ -221,6 +222,14 @@ public class HeartbeatService implements HeartbeatEvents {
         }
     }
 
+    public void setAppLoginToken(String token) {
+        this.appLoginToken = token == null ? "" : token.trim();
+    }
+
+    public String getAppLoginToken() {
+        return appLoginToken == null ? "" : appLoginToken;
+    }
+
     public void setAvatarEncoded(String encoded) {
         this.avatarEncoded = encoded != null ? encoded.trim() : "";
     }
@@ -295,6 +304,9 @@ public class HeartbeatService implements HeartbeatEvents {
         payload.put("heartbeatSeq", heartbeatSeq.incrementAndGet());
         payload.put("avatar", avatarEncoded == null ? "" : avatarEncoded);
         payload.put("capabilities", List.of(PeerFileRules.CAPABILITY_RELAY));
+        if (appLoginToken != null && !appLoginToken.isEmpty()) {
+            payload.put("appToken", appLoginToken);
+        }
 
         String jsonBody = gson.toJson(payload);
 

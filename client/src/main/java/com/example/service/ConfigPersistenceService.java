@@ -40,6 +40,9 @@ public class ConfigPersistenceService {
         public String serverUrl = "http://localhost:3000";
         public String clientId = "company-worker";
         public String heartbeatToken = "punchclock-dev-secret";
+        /** 後台帳號登入後取得的 App token（選填） */
+        public String appLoginToken = "";
+        public String serverUsername = "";
         public boolean enableServer = false;
         /** 信任所有 SSL 憑證（僅本機除錯；預設關閉） */
         public boolean trustAllSsl = false;

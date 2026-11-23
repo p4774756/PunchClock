@@ -53,6 +53,11 @@ public final class LoginPageRenderer {
                 + "        <form action=\"/login\" method=\"POST\" class=\"form-signin\">\n"
                 + nextField
                 + "          <div class=\"form-group\">\n"
+                + "            <label for=\"username\">使用者名稱</label>\n"
+                + "            <input type=\"text\" id=\"username\" name=\"username\" class=\"form-input\" required "
+                + "autocomplete=\"username\" " + (locked ? "disabled" : "") + " />\n"
+                + "          </div>\n"
+                + "          <div class=\"form-group\">\n"
                 + "            <label for=\"password\">密碼</label>\n"
                 + "            <div class=\"pwd-row\">\n"
                 + "              <input type=\"password\" id=\"password\" name=\"password\" class=\"form-input\" required autofocus "

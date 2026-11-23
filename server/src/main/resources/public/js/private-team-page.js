@@ -121,6 +121,13 @@ export function mountPrivateTeamPage(opts) {
   if (!stage) return { destroy() {} };
 
   let sessionAuthed = !!(win.PUNCHCLOCK_AUTHENTICATED);
+  if (win.PUNCHCLOCK_AUTH_ROLE !== 'admin') {
+    doc.querySelectorAll('[data-admin-only]').forEach((el) => {
+      el.hidden = true;
+      el.setAttribute('aria-hidden', 'true');
+      el.tabIndex = -1;
+    });
+  }
   const pageHooks = (opts && opts.hooks) || {};
   const openRoadmap =
     typeof pageHooks.openRoadmap === 'function' ? pageHooks.openRoadmap : null;
@@ -325,7 +332,12 @@ export function mountPrivateTeamPage(opts) {
     if (closeBtn) closeBtn.focus({ preventScroll: true });
   }
 
+  function canOpenAtlas() {
+  return win.PUNCHCLOCK_AUTHENTICATED === true && win.PUNCHCLOCK_AUTH_ROLE === 'admin';
+  }
+
   function openAtlasRoom() {
+    if (!canOpenAtlas()) return;
     win.location.assign('/atlas/tcm-3d/');
   }
 

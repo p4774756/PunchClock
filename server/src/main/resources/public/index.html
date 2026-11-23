@@ -21,13 +21,14 @@
 <body class="lab-office-page {{AUTH_BODY_CLASS}}">
   <script>
     window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};
+    window.PUNCHCLOCK_AUTH_ROLE = "{{AUTH_ROLE}}";
     window.PUNCHCLOCK_SERVER_VERSION = "{{SERVER_VERSION}}";
     window.PUNCHCLOCK_SERVER_BUILD_TIME = "{{SERVER_BUILD_TIME}}";
   </script>
   <nav class="private-team-sr-auth" aria-hidden="true">
     <a href="/login?next=/" data-guest-only tabindex="-1">登入</a>
     <a href="/logout" data-auth-only tabindex="-1">登出</a>
-    <a href="/atlas/tcm-3d/" tabindex="0">經絡研習室</a>
+    <a href="/atlas/tcm-3d/" data-admin-only tabindex="0">經絡研習室</a>
   </nav>
   <section class="lab-office-root is-page private-team-page" id="officePage" aria-label="私人女秘書">
     <div class="lab-office-frame">
@@ -78,6 +79,10 @@
         <p class="login-lead">管理員請先登入</p>
         <div data-login-alert></div>
         <form data-login-form class="form-signin" method="post" action="/login">
+          <div class="form-group">
+            <label for="home-login-username">使用者名稱</label>
+            <input type="text" id="home-login-username" name="username" class="form-input" data-login-username required autocomplete="username" />
+          </div>
           <div class="form-group">
             <label for="home-login-password">密碼</label>
             <div class="pwd-row">

@@ -75,9 +75,30 @@ public class PanelFactory {
         JPanel cloud = new JPanel();
         cloud.setOpaque(false);
         cloud.setLayout(new BoxLayout(cloud, BoxLayout.Y_AXIS));
+        refs.serverUsernameField = new JTextField(12);
+        refs.serverUsernameField.setFont(fieldFont);
+        refs.serverUsernameField.setToolTipText("後台帳號（選填）；填寫後可按「登入帳號」換取 App token 以綁定設備");
+        CandyTextField.install(refs.serverUsernameField, false);
+        refs.serverAccountPasswordField = new JPasswordField(12);
+        refs.serverAccountPasswordField.setFont(fieldFont);
+        refs.serverAccountPasswordField.setToolTipText("後台密碼僅用於換取 token，不會寫入設定檔");
+        CandyTextField.install(refs.serverAccountPasswordField, true);
+        refs.fetchAppTokenButton = candyButton("登入帳號", CandyButton.Variant.SECONDARY, mainFont,
+                "以帳號密碼向伺服器換取 App token，供心跳綁定");
+        JLabel accountUserLabel = new JLabel("後台帳號：");
+        accountUserLabel.setFont(mainFont);
+        JLabel accountPwdLabel = new JLabel("後台密碼：");
+        accountPwdLabel.setFont(mainFont);
+
         cloud.add(formRow(tokenLabel, refs.heartbeatTokenField));
         cloud.add(Box.createVerticalStrut(10));
         cloud.add(formRowStretch(serverUrlLabel, refs.serverUrlCombo));
+        cloud.add(Box.createVerticalStrut(10));
+        cloud.add(formRow(accountUserLabel, refs.serverUsernameField));
+        cloud.add(Box.createVerticalStrut(6));
+        cloud.add(formRow(accountPwdLabel, refs.serverAccountPasswordField));
+        cloud.add(Box.createVerticalStrut(6));
+        cloud.add(formRow(refs.fetchAppTokenButton, new JLabel("")));
         cloud.add(Box.createVerticalStrut(10));
         // 兩個勾選與狀態列同一橫列。欄位均分後在格子裡折行，字級維持 13，不縮到看不清。
         JPanel cloudFlags = new SameLineRow(
@@ -609,6 +630,9 @@ public class PanelFactory {
     public static class ServerConfigRefs {
         public JComboBox<String> serverUrlCombo;
         public JPasswordField heartbeatTokenField;
+        public JTextField serverUsernameField;
+        public JPasswordField serverAccountPasswordField;
+        public JButton fetchAppTokenButton;
         public JCheckBox enableServerCheckBox;
         public JCheckBox trustAllSslCheckBox;
         public JCheckBox checkForUpdatesCheckBox;

@@ -1,54 +1,176 @@
 package com.example.server.auth;
 
+import com.example.server.store.AccountStore;
+import com.example.server.store.AppTokenStore;
+import com.example.server.store.DeviceBindingStore;
 import io.javalin.http.Context;
+import io.javalin.http.Cookie;
+import io.javalin.http.SameSite;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class AuthService {
 
     private static final int MAX_ATTEMPTS = 5;
     private static final long LOCK_MS = 15L * 60L * 1000L;
+    private static final int COOKIE_MAX_AGE_SEC = 60 * 60 * 24;
 
-    private final String adminPassword;
-    private final String authCookieValue;
-    private final String heartbeatSecret;
+    public static final class AuthUser {
+        public final String username;
+        public final String role;
+        public final boolean mustChangePassword;
+        public final String sessionId;
+
+        public AuthUser(String username, String role, boolean mustChangePassword, String sessionId) {
+            this.username = username;
+            this.role = role;
+            this.mustChangePassword = mustChangePassword;
+            this.sessionId = sessionId;
+        }
+
+        public boolean isAdmin() {
+            return AccountStore.ROLE_ADMIN.equals(role);
+        }
+    }
+
+    private final AuthConfig config;
+    private final AccountStore accountStore;
+    private final AppTokenStore appTokenStore;
+    private final DeviceBindingStore deviceBindingStore;
+    private final AdminSessionStore sessionStore;
     private final Clock clock;
     private final Map<String, LoginAttempt> loginAttempts = new ConcurrentHashMap<>();
 
     public AuthService() {
-        this(AuthConfig.fromEnv());
+        this(AuthConfig.fromEnv(), null);
     }
 
     public AuthService(AuthConfig config) {
-        this(config, Clock.systemUTC());
+        this(config, null);
     }
 
-    public AuthService(AuthConfig config, Clock clock) {
-        this.adminPassword = config.adminPassword();
-        this.heartbeatSecret = config.heartbeatSecret();
+    public AuthService(AuthConfig config, Path accountDataDir) {
+        this(config, accountDataDir, Clock.systemUTC());
+    }
+
+    public AuthService(AuthConfig config, Path accountDataDir, Clock clock) {
+        this.config = config;
         this.clock = clock == null ? Clock.systemUTC() : clock;
-        this.authCookieValue = sha256HexPrefix("punchclock-admin:" + adminPassword, 32);
+        Path dir = accountDataDir;
+        this.accountStore = new AccountStore(dir, config);
+        this.appTokenStore = new AppTokenStore(dir);
+        this.deviceBindingStore = new DeviceBindingStore(dir);
+        this.sessionStore = new AdminSessionStore(this.clock);
     }
 
+    public AccountStore accountStore() {
+        return accountStore;
+    }
+
+    public AppTokenStore appTokenStore() {
+        return appTokenStore;
+    }
+
+    public DeviceBindingStore deviceBindingStore() {
+        return deviceBindingStore;
+    }
+
+    public AdminSessionStore sessionStore() {
+        return sessionStore;
+    }
+
+    public String heartbeatSecret() {
+        return config.heartbeatSecret();
+    }
+
+    /** 僅測試相容：舊版 deterministic cookie 值（生產 session 不再使用）。 */
+    @Deprecated
     public String authCookieValue() {
-        return authCookieValue;
+        return sha256HexPrefix("punchclock-admin:" + config.adminPassword(), 32);
+    }
+
+    public Optional<AuthUser> currentUser(Context ctx) {
+        String cookie = ctx.cookie("auth");
+        if (cookie == null) {
+            cookie = parseCookieHeader(ctx.header("Cookie")).get("auth");
+        }
+        return resolveUser(cookie, true);
     }
 
     public boolean isAuth(Context ctx) {
-        String cookie = ctx.cookie("auth");
-        if (authCookieValue.equals(cookie)) {
-            return true;
-        }
-        return isAuthFromCookieHeader(ctx.header("Cookie"));
+        return currentUser(ctx).filter(u -> !u.mustChangePassword).isPresent();
     }
 
     public boolean isAuthFromCookieHeader(String cookieHeader) {
-        return authCookieValue.equals(parseCookieHeader(cookieHeader).get("auth"));
+        String cookie = parseCookieHeader(cookieHeader).get("auth");
+        return resolveUser(cookie, false).filter(u -> !u.mustChangePassword).isPresent();
+    }
+
+    public Optional<AuthUser> resolveUser(String sessionId, boolean touch) {
+        if (sessionId == null || sessionId.isEmpty()) {
+            return Optional.empty();
+        }
+        if (!AdminSessionStore.isValidCookieFormat(sessionId)) {
+            return Optional.empty();
+        }
+        Optional<AdminSessionStore.SessionRecord> session = sessionStore.resolve(sessionId, touch);
+        if (session.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<AccountStore.Account> account = accountStore.find(session.get().username);
+        if (account.isEmpty() || !account.get().enabled) {
+            sessionStore.revoke(sessionId);
+            return Optional.empty();
+        }
+        return Optional.of(new AuthUser(
+                account.get().username,
+                account.get().role,
+                account.get().mustChangePassword,
+                sessionId));
+    }
+
+    public Optional<AuthUser> login(String username, String password) {
+        if (!accountStore.verifyPassword(username, password)) {
+            return Optional.empty();
+        }
+        Optional<AccountStore.Account> account = accountStore.find(username);
+        if (account.isEmpty()) {
+            return Optional.empty();
+        }
+        String sessionId = sessionStore.createSession(username, account.get().role);
+        return Optional.of(new AuthUser(username, account.get().role, account.get().mustChangePassword, sessionId));
+    }
+
+    public void logout(String sessionId) {
+        sessionStore.revoke(sessionId);
+    }
+
+    public void revokeAllSessionsForUser(String username) {
+        sessionStore.revokeAllForUser(username);
+        appTokenStore.revokeAllForUser(username);
+    }
+
+    public Optional<String> loginApp(String username, String password) {
+        if (!accountStore.verifyPassword(username, password)) {
+            return Optional.empty();
+        }
+        Optional<AccountStore.Account> account = accountStore.find(username);
+        if (account.isEmpty() || account.get().mustChangePassword) {
+            return Optional.empty();
+        }
+        appTokenStore.revokeAllForUser(username);
+        return Optional.of(appTokenStore.issueToken(username));
+    }
+
+    public Optional<String> resolveAppUsername(String token) {
+        return appTokenStore.resolveUsername(token);
     }
 
     public boolean isHeartbeatAuthorized(Context ctx) {
@@ -56,7 +178,39 @@ public final class AuthService {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return false;
         }
-        return heartbeatSecret.equals(authHeader.substring(7));
+        return config.heartbeatSecret().equals(authHeader.substring(7));
+    }
+
+    public boolean clientMayUseFromClientId(Context ctx, String fromClientId) {
+        if (fromClientId == null || fromClientId.isEmpty()) {
+            return false;
+        }
+        if (!deviceBindingStore.isBound(fromClientId)) {
+            return true;
+        }
+        String caller = com.example.server.web.RouteSupport.uploadRequester(ctx);
+        return !caller.isEmpty() && fromClientId.equals(caller);
+    }
+
+    public void applyAuthCookie(Context ctx, String sessionId) {
+        Cookie cookie = new Cookie("auth", sessionId);
+        cookie.setMaxAge(COOKIE_MAX_AGE_SEC);
+        cookie.setHttpOnly(true);
+        cookie.setSameSite(SameSite.LAX);
+        if (isHttps(ctx) || cookieSecureEnv()) {
+            cookie.setSecure(true);
+        }
+        cookie.setPath("/");
+        ctx.cookie(cookie);
+    }
+
+    public void clearAuthCookie(Context ctx) {
+        Cookie cookie = new Cookie("auth", "");
+        cookie.setMaxAge(0);
+        cookie.setHttpOnly(true);
+        cookie.setSameSite(SameSite.LAX);
+        cookie.setPath("/");
+        ctx.cookie(cookie);
     }
 
     public LoginLockStatus getLoginLockStatus(String ip) {
@@ -90,7 +244,7 @@ public final class AuthService {
     }
 
     public boolean checkAdminPassword(String password) {
-        return adminPassword.equals(password);
+        return accountStore.verifyPassword("root", password);
     }
 
     public boolean isHttps(Context ctx) {
@@ -102,6 +256,14 @@ public final class AuthService {
             return proto.split(",")[0].trim().equalsIgnoreCase("https");
         }
         return false;
+    }
+
+    private static boolean cookieSecureEnv() {
+        String v = System.getenv("COOKIE_SECURE");
+        if (v == null) {
+            return false;
+        }
+        return "true".equalsIgnoreCase(v) || "1".equals(v);
     }
 
     private static Map<String, String> parseCookieHeader(String cookieHeader) {

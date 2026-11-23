@@ -1888,6 +1888,9 @@ public class App extends JFrame {
             serverRefs.applyUpdateButton.addActionListener(e -> applyOfferedUpdate());
         }
         showUpdateUnchecked();
+        if (serverRefs.fetchAppTokenButton != null) {
+            serverRefs.fetchAppTokenButton.addActionListener(e -> fetchAppLoginToken());
+        }
         if (serverRefs.serverUrlCombo != null) {
             RecentValuesHelper.attachTextChangeListener(serverRefs.serverUrlCombo, this::saveCloudConfig);
             java.awt.Component serverEditor = serverRefs.serverUrlCombo.getEditor().getEditorComponent();
@@ -2173,6 +2176,10 @@ public class App extends JFrame {
             serverRefs.heartbeatTokenField.setText(config.heartbeatToken);
             heartbeatService.setHeartbeatToken(config.heartbeatToken);
         }
+        if (serverRefs.serverUsernameField != null && config.serverUsername != null) {
+            serverRefs.serverUsernameField.setText(config.serverUsername);
+        }
+        heartbeatService.setAppLoginToken(config.appLoginToken);
         if (serverRefs.enableServerCheckBox != null) {
             serverRefs.enableServerCheckBox.setSelected(config.enableServer);
         }
@@ -2344,6 +2351,10 @@ public class App extends JFrame {
         if (serverRefs.heartbeatTokenField != null) {
             config.heartbeatToken = new String(serverRefs.heartbeatTokenField.getPassword());
         }
+        if (serverRefs.serverUsernameField != null) {
+            config.serverUsername = serverRefs.serverUsernameField.getText().trim();
+        }
+        config.appLoginToken = heartbeatService.getAppLoginToken();
         config.enableServer = serverRefs.enableServerCheckBox != null
                 && serverRefs.enableServerCheckBox.isSelected();
         config.trustAllSsl = serverRefs.trustAllSslCheckBox != null
@@ -2766,12 +2777,52 @@ public class App extends JFrame {
         }
     }
 
+    private void fetchAppLoginToken() {
+        if (serverRefs.serverUsernameField == null || serverRefs.serverAccountPasswordField == null) {
+            return;
+        }
+        String username = serverRefs.serverUsernameField.getText().trim();
+        String password = new String(serverRefs.serverAccountPasswordField.getPassword());
+        String serverUrl = serverRefs.serverUrlCombo != null
+                ? RecentValuesHelper.getValue(serverRefs.serverUrlCombo)
+                : "";
+        if (username.isEmpty() || password.isEmpty() || serverUrl.isBlank()) {
+            UiFonts.showMessage(this, "請填 Server 網址、後台帳號與密碼。", "登入帳號", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        serverRefs.fetchAppTokenButton.setEnabled(false);
+        final String user = username;
+        final String pass = password;
+        final String base = serverUrl;
+        new Thread(() -> {
+            try {
+                String token = com.example.service.AppLoginClient.fetchToken(base, user, pass);
+                SwingUtilities.invokeLater(() -> {
+                    heartbeatService.setAppLoginToken(token);
+                    saveCloudConfig();
+                    appendLog("[連線] 已取得 App 帳號 token（已寫入設定）");
+                    serverRefs.fetchAppTokenButton.setEnabled(true);
+                });
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> {
+                    appendLog("[連線] 帳號登入失敗：" + ex.getMessage());
+                    UiFonts.showMessage(App.this, "帳號登入失敗：" + ex.getMessage(), "登入帳號",
+                            JOptionPane.ERROR_MESSAGE);
+                    serverRefs.fetchAppTokenButton.setEnabled(true);
+                });
+            }
+        }, "app-login").start();
+    }
+
     private void applyHeartbeatTokenFromUI() {
         if (serverRefs.heartbeatTokenField != null) {
             char[] tokenChars = serverRefs.heartbeatTokenField.getPassword();
             if (tokenChars.length > 0) {
                 heartbeatService.setHeartbeatToken(new String(tokenChars));
             }
+        }
+        if (slotController != null && slotController.getConfig() != null) {
+            heartbeatService.setAppLoginToken(slotController.getConfig().appLoginToken);
         }
     }
 

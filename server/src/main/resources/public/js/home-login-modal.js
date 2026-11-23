@@ -168,7 +168,9 @@ export function wireHomeLoginModal(opts) {
     if (!fetchFn || !pwdInput) return;
     if (pwdInput.disabled) return;
     const password = pwdInput.value || '';
+    const usernameEl = board.querySelector('[data-login-username]');
     const body = new URLSearchParams();
+    body.set('username', usernameEl && usernameEl.value ? usernameEl.value.trim() : 'root');
     body.set('password', password);
     fetchFn('/login', {
       method: 'POST',

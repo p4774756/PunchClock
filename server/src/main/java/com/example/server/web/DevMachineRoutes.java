@@ -120,10 +120,18 @@ public final class DevMachineRoutes {
     }
 
     private void list(Context ctx) {
-        if (!authService.isAuth(ctx)) {
+        AuthService.AuthUser user = authService.currentUser(ctx).orElse(null);
+        if (user == null) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of(
                     "success", false,
                     "message", "請先登入"
+            ));
+            return;
+        }
+        if (!user.isAdmin()) {
+            ctx.status(HttpStatus.FORBIDDEN).json(Map.of(
+                    "success", false,
+                    "message", "權限不足"
             ));
             return;
         }

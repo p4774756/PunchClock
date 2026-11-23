@@ -27,17 +27,17 @@ public final class RelayRoutes {
     private final RelayStore relayStore;
     private final Gson gson;
     private final DashboardBroadcaster broadcaster;
-    private final Supplier<Map<String, Object>> statusUpdates;
+    private final Runnable statusBroadcast;
 
     public RelayRoutes(AuthService authService, ClientStore clientStore, RelayStore relayStore,
                 Gson gson, DashboardBroadcaster broadcaster,
-                Supplier<Map<String, Object>> statusUpdates) {
+                Runnable statusBroadcast) {
         this.authService = authService;
         this.clientStore = clientStore;
         this.relayStore = relayStore;
         this.gson = gson;
         this.broadcaster = broadcaster;
-        this.statusUpdates = statusUpdates;
+        this.statusBroadcast = statusBroadcast;
     }
 
     public void register(Javalin app) {
@@ -63,6 +63,11 @@ public final class RelayRoutes {
         }
         if (body == null) {
             ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", "請求格式錯誤"));
+            return;
+        }
+        String fromClientId = RouteSupport.stringOrNull(body.get("fromClientId"));
+        if (!authService.clientMayUseFromClientId(ctx, fromClientId)) {
+            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", "fromClientId 不符"));
             return;
         }
         String to = PeerFileRules.normalizeClientId(RouteSupport.stringOrNull(body.get("toClientId")));
@@ -92,7 +97,7 @@ public final class RelayRoutes {
                 ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("success", false, "message", queued.message));
                 return;
             }
-            broadcaster.broadcast(statusUpdates.get());
+            statusBroadcast.run();
             respondRelay(ctx, result, result.fromClientId, queued.message);
             return;
         }
@@ -118,7 +123,7 @@ public final class RelayRoutes {
         String requester = RouteSupport.uploadRequester(ctx);
         RelayStore.Result result = relayStore.accept(ctx.pathParam("relayId"), requester);
         if (result.ok()) {
-            broadcaster.broadcast(statusUpdates.get());
+            statusBroadcast.run();
         }
         respondRelay(ctx, result, requester, null);
     }
@@ -184,7 +189,7 @@ public final class RelayRoutes {
         String requester = RouteSupport.uploadRequester(ctx);
         RelayStore.Result result = relayStore.complete(ctx.pathParam("relayId"), requester);
         if (result.ok()) {
-            broadcaster.broadcast(statusUpdates.get());
+            statusBroadcast.run();
         }
         respondRelay(ctx, result, requester, null);
     }
@@ -197,7 +202,7 @@ public final class RelayRoutes {
         String requester = RouteSupport.uploadRequester(ctx);
         RelayStore.Result result = relayStore.cancel(ctx.pathParam("relayId"), requester);
         if (result.ok()) {
-            broadcaster.broadcast(statusUpdates.get());
+            statusBroadcast.run();
         }
         respondRelay(ctx, result, requester, null);
     }

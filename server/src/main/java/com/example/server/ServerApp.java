@@ -15,6 +15,7 @@ import com.example.server.store.GraffitiStore;
 import com.example.server.store.RoadmapService;
 import com.example.server.store.RelayStore;
 import com.example.server.util.IpResolver;
+import com.example.server.web.AccountRoutes;
 import com.example.server.web.AtlasRoutes;
 import com.example.server.web.ChatRoutes;
 import com.example.server.web.DashboardBroadcaster;
@@ -45,6 +46,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import io.javalin.http.staticfiles.StaticFileConfig;
 
 public final class ServerApp {
@@ -108,9 +111,9 @@ public final class ServerApp {
         this.gson = new GsonBuilder().disableHtmlEscaping().create();
         this.broadcaster = new DashboardBroadcaster(gson);
         this.relayRoutes = new RelayRoutes(
-                this.authService, clientStore, relayStore, gson, broadcaster, this::statusUpdatePayload);
+                this.authService, clientStore, relayStore, gson, broadcaster, this::broadcastStatusUpdates);
         this.chatRoutes = new ChatRoutes(
-                this.authService, clientStore, gson, broadcaster, this::statusUpdatePayload);
+                this.authService, clientStore, gson, broadcaster, this::broadcastStatusUpdates);
         this.graffitiStore = new GraffitiStore();
         this.graffitiRoutes = new GraffitiRoutes(this.authService, graffitiStore);
         DevStatusService status = devStatusService != null
@@ -121,7 +124,7 @@ public final class ServerApp {
         this.devStatusRoutes = new DevStatusRoutes(status, devMachineStore);
         this.officePublicRoutes = new OfficePublicRoutes(devMachineStore, status);
         this.devMachineRoutes = new DevMachineRoutes(this.authService, devMachineStore, status, gson);
-        this.atlasRoutes = new AtlasRoutes();
+        this.atlasRoutes = new AtlasRoutes(this.authService);
         this.roadmapRoutes = new RoadmapRoutes(roadmapService != null
                 ? roadmapService
                 : new RoadmapService(new GithubMilestoneClient()));
@@ -133,7 +136,7 @@ public final class ServerApp {
     }
 
     public Javalin start(int port) {
-        clientStore.startOfflineMonitor(broadcaster::broadcast);
+        clientStore.startOfflineMonitor(ignored -> broadcastStatusUpdates());
         Javalin app = Javalin.create(config -> {
             config.staticFiles.add(sf -> {
                 sf.hostedPath = "/css";
@@ -197,7 +200,9 @@ public final class ServerApp {
     private void registerRoutes(Javalin app) {
         app.get("/login", this::loginGet);
         app.post("/login", this::loginPost);
-        app.get("/logout", this::logout);
+        app.post("/logout", this::logoutPost);
+        app.get("/logout", this::logoutGet);
+        new AccountRoutes(authService).register(app);
         app.get("/ping", ctx -> ctx.json(Map.of(
                 "message", "pong",
                 "timestamp", Instant.now().toString(),
@@ -229,13 +234,16 @@ public final class ServerApp {
     private void registerWebSocket(Javalin app) {
         app.ws("/ws/dashboard", ws -> {
             ws.onConnect(ctx -> {
-                if (!authService.isAuthFromCookieHeader(ctx.header("Cookie"))) {
+                String cookie = parseAuthCookie(ctx.header("Cookie"));
+                Optional<AuthService.AuthUser> user = authService.resolveUser(cookie, true);
+                if (user.isEmpty() || user.get().mustChangePassword) {
                     ctx.session.close();
                     return;
                 }
-                broadcaster.add(ctx);
+                String sessionKey = authService.sessionStore().sessionKey(cookie);
+                broadcaster.add(ctx, sessionKey);
                 System.out.println("[WebSocket Dashboard] Dashboard 畫面已連線");
-                broadcaster.sendInitialSnapshot(ctx, this::statusUpdatePayload);
+                broadcaster.sendInitialSnapshot(ctx, () -> statusUpdatePayloadFor(user.get()));
             });
             ws.onClose(broadcaster::remove);
         });
@@ -276,12 +284,18 @@ public final class ServerApp {
             ctx.redirect(loginUrlWithNext(null));
             return;
         }
+        String username = RouteSupport.stringOrDefault(ctx.formParam("username"), "root");
         String password = ctx.formParam("password");
-        if (authService.checkAdminPassword(password)) {
+        Optional<AuthService.AuthUser> loggedIn = authService.login(username, password);
+        if (loggedIn.isPresent()) {
             authService.clearLoginAttempt(ip);
-            setAuthCookie(ctx, authService.authCookieValue());
+            authService.applyAuthCookie(ctx, loggedIn.get().sessionId);
             if (json) {
-                ctx.status(HttpStatus.OK).json(Map.of("success", true));
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("success", true);
+                body.put("mustChangePassword", loggedIn.get().mustChangePassword);
+                body.put("role", loggedIn.get().role);
+                ctx.status(HttpStatus.OK).json(body);
                 return;
             }
             ctx.redirect(nextSafe != null ? nextSafe : "/");
@@ -336,8 +350,26 @@ public final class ServerApp {
         return url;
     }
 
-    private void logout(Context ctx) {
-        clearAuthCookie(ctx);
+    private void logoutGet(Context ctx) {
+        logoutAndRespond(ctx, false);
+    }
+
+    private void logoutPost(Context ctx) {
+        logoutAndRespond(ctx, wantsJsonLogin(ctx));
+    }
+
+    private void logoutAndRespond(Context ctx, boolean json) {
+        String cookie = ctx.cookie("auth");
+        if (cookie != null) {
+            String sessionKey = authService.sessionStore().sessionKey(cookie);
+            authService.logout(cookie);
+            broadcaster.closeSession(sessionKey);
+        }
+        authService.clearAuthCookie(ctx);
+        if (json) {
+            ctx.status(HttpStatus.OK).json(Map.of("success", true));
+            return;
+        }
         ctx.redirect("/");
     }
 
@@ -363,12 +395,18 @@ public final class ServerApp {
         List<Map<String, Object>> tasks = RouteSupport.tasksFromBody(body.get("tasks"));
         ClientStore.normalizeReportedTaskNames(tasks);
 
+        String appToken = RouteSupport.stringOrNull(body.get("appToken"));
+        if (appToken != null && !appToken.isEmpty()) {
+            authService.resolveAppUsername(appToken).ifPresent(user ->
+                    authService.deviceBindingStore().bindAppLogin(clientId, user));
+        }
+
         Map<String, Object> heartbeatBody = body;
         String clientIp = IpResolver.clientIp(ctx);
         boolean stale = clientStore.withMetadataLock(() -> recordHeartbeat(
                 heartbeatBody, tasks, clientId, status, message, appVersion, appReleaseTime, appSourceDigest, clientIp));
 
-        broadcaster.broadcast(statusUpdatePayload());
+        broadcastStatusUpdates();
 
         writeHeartbeatResponse(ctx, clientId, !stale, appVersion, appReleaseTime, appSourceDigest);
     }
@@ -421,6 +459,7 @@ public final class ServerApp {
             }
         }
         ClientStore.applyCapabilities(clientInfo, body);
+        clientInfo.putAll(authService.deviceBindingStore().accountFieldsForApi(clientId));
         clientStore.setClient(clientId, clientInfo);
         return false;
     }
@@ -467,57 +506,83 @@ public final class ServerApp {
 
 
     private void status(Context ctx) {
-        if (!authService.isAuth(ctx)) {
+        AuthService.AuthUser user = authService.currentUser(ctx).orElse(null);
+        if (user == null) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
             return;
         }
+        if (user.mustChangePassword) {
+            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", "請先變更密碼"));
+            return;
+        }
+        List<Map<String, Object>> clients = filteredClientsFor(user);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("serverTimestamp", Instant.now().toString());
         payload.put("serverVersion", SERVER_VERSION);
         payload.put("serverBuildTime", BUILD_INFO.buildTimeIso());
-        payload.put("totalClients", clientStore.clients().size());
-        payload.put("clients", clientStore.publicClientsSnapshot());
+        payload.put("username", user.username);
+        payload.put("role", user.role);
+        payload.put("totalClients", clients.size());
+        payload.put("clients", clients);
         ctx.json(payload);
     }
 
     private void cancelSchedule(Context ctx) {
-        if (!authService.isAuth(ctx)) {
+        AuthService.AuthUser user = authService.currentUser(ctx).orElse(null);
+        if (user == null || user.mustChangePassword) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
             return;
         }
         String clientId = ctx.pathParam("clientId");
+        if (!mayManageClient(user, clientId)) {
+            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", "權限不足"));
+            return;
+        }
         clientStore.queueClientAction(clientId, "CANCEL_SCHEDULE");
-        broadcaster.broadcast(statusUpdatePayload());
+        broadcastStatusUpdates();
         ctx.json(Map.of("success", true, "message", "已成功將【取消所有排程】指令派送至 " + clientId + " 佇列"));
     }
 
     private void cancelTask(Context ctx) {
-        if (!authService.isAuth(ctx)) {
+        AuthService.AuthUser user = authService.currentUser(ctx).orElse(null);
+        if (user == null || user.mustChangePassword) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
             return;
         }
         String clientId = ctx.pathParam("clientId");
+        if (!mayManageClient(user, clientId)) {
+            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", "權限不足"));
+            return;
+        }
         String taskId = ctx.pathParam("taskId");
         clientStore.queueClientAction(clientId, "CANCEL_TASK:" + taskId);
-        broadcaster.broadcast(statusUpdatePayload());
+        broadcastStatusUpdates();
         ctx.json(Map.of("success", true, "message", "已成功將【取消任務 " + taskId + "】指令派送至 " + clientId + " 佇列"));
     }
 
     private void deleteClient(Context ctx) {
-        if (!authService.isAuth(ctx)) {
+        AuthService.AuthUser user = authService.currentUser(ctx).orElse(null);
+        if (user == null || user.mustChangePassword) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
             return;
         }
         String clientId = ctx.pathParam("clientId");
+        if (!mayManageClient(user, clientId)) {
+            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", "權限不足"));
+            return;
+        }
         clientStore.deleteClient(clientId);
-        broadcaster.broadcast(statusUpdatePayload());
+        authService.deviceBindingStore().unbind(clientId);
+        broadcastStatusUpdates();
         ctx.json(Map.of("success", true, "message", "已移除設備紀錄：" + clientId));
     }
 
 
     private void officeHome(Context ctx) {
-        boolean authenticated = authService.isAuth(ctx);
-        String html = applyAuthPageTokens(applyServerBuildTokens(readResource("/public/index.html")), authenticated);
+        Optional<AuthService.AuthUser> user = authService.currentUser(ctx);
+        boolean authenticated = user.filter(u -> !u.mustChangePassword).isPresent();
+        String role = user.map(u -> u.role).orElse("guest");
+        String html = applyAuthPageTokens(applyServerBuildTokens(readResource("/public/index.html")), authenticated, role);
         ctx.header("Cache-Control", PAGE_CACHE);
         ctx.html(html);
     }
@@ -532,10 +597,12 @@ public final class ServerApp {
                 .replace("{{SERVER_BUILD_TIME}}", serverBuildLabel());
     }
 
-    private static String applyAuthPageTokens(String html, boolean authenticated) {
+    private static String applyAuthPageTokens(String html, boolean authenticated, String role) {
+        String safeRole = role == null || role.isEmpty() ? "guest" : role;
         return html
                 .replace("{{AUTH_BODY_CLASS}}", authenticated ? "is-authenticated" : "is-guest")
-                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false");
+                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false")
+                .replace("{{AUTH_ROLE}}", safeRole);
     }
 
     private static void applyStaticCache(StaticFileConfig sf, String cacheControl) {
@@ -552,19 +619,72 @@ public final class ServerApp {
     }
 
     private Map<String, Object> statusUpdatePayload() {
+        return statusUpdatePayloadFor(null);
+    }
+
+    private Map<String, Object> statusUpdatePayloadFor(AuthService.AuthUser user) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "STATUS_UPDATE");
-        payload.put("clients", clientStore.publicClientsSnapshot());
+        if (user == null) {
+            payload.put("clients", clientStore.publicClientsSnapshot());
+        } else {
+            payload.put("clients", filteredClientsFor(user));
+        }
         return payload;
     }
 
-
-    private void setAuthCookie(Context ctx, String value) {
-        ctx.cookie("auth", value, 60 * 60 * 24);
+    private void broadcastStatusUpdates() {
+        broadcaster.broadcastForEach(sessionKey -> statusUpdatePayloadFor(resolveUserForSessionKey(sessionKey)));
     }
 
-    private void clearAuthCookie(Context ctx) {
-        ctx.removeCookie("auth");
+    private AuthService.AuthUser resolveUserForSessionKey(String sessionKey) {
+        if (sessionKey == null) {
+            return null;
+        }
+        return authService.sessionStore().resolveByKey(sessionKey).flatMap(record ->
+                authService.accountStore().find(record.username).map(a ->
+                        new AuthService.AuthUser(a.username, a.role, a.mustChangePassword, ""))).orElse(null);
+    }
+
+    private List<Map<String, Object>> filteredClientsFor(AuthService.AuthUser user) {
+        List<Map<String, Object>> all = clientStore.publicClientsSnapshot();
+        List<Map<String, Object>> enriched = new java.util.ArrayList<>();
+        for (Map<String, Object> client : all) {
+            Map<String, Object> copy = new LinkedHashMap<>(client);
+            String clientId = String.valueOf(client.get("clientId"));
+            copy.putAll(authService.deviceBindingStore().accountFieldsForApi(clientId));
+            enriched.add(copy);
+        }
+        if (user.isAdmin()) {
+            return enriched;
+        }
+        return enriched.stream()
+                .filter(c -> user.username.equals(String.valueOf(c.getOrDefault("accountUsername", ""))))
+                .collect(Collectors.toList());
+    }
+
+    private boolean mayManageClient(AuthService.AuthUser user, String clientId) {
+        if (user.isAdmin()) {
+            return true;
+        }
+        String owner = authService.deviceBindingStore().usernameFor(clientId);
+        return user.username.equals(owner);
+    }
+
+    private static String parseAuthCookie(String cookieHeader) {
+        if (cookieHeader == null) {
+            return null;
+        }
+        for (String part : cookieHeader.split(";")) {
+            int idx = part.indexOf('=');
+            if (idx < 0) {
+                continue;
+            }
+            if ("auth".equals(part.substring(0, idx).trim())) {
+                return part.substring(idx + 1).trim();
+            }
+        }
+        return null;
     }
 
     private static String readResource(String path) {

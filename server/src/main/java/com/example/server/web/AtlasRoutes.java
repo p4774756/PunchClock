@@ -1,7 +1,9 @@
 package com.example.server.web;
 
+import com.example.server.auth.AuthService;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
+import io.javalin.http.HttpStatus;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -27,7 +29,14 @@ public final class AtlasRoutes {
     private static final Pattern CACHE_BUST_QUERY = Pattern.compile("(?:^|&)v=[^&]+");
     private static final DateTimeFormatter HTTP_DATE = DateTimeFormatter.RFC_1123_DATE_TIME;
 
+    private final AuthService authService;
+
     public AtlasRoutes() {
+        this(null);
+    }
+
+    public AtlasRoutes(AuthService authService) {
+        this.authService = authService;
     }
 
     public void register(Javalin app) {
@@ -39,6 +48,13 @@ public final class AtlasRoutes {
     }
 
     private void serve(Context ctx, String relativePath) throws IOException {
+        if (authService != null) {
+            AuthService.AuthUser user = authService.currentUser(ctx).orElse(null);
+            if (user == null || !user.isAdmin()) {
+                ctx.status(HttpStatus.FORBIDDEN).html(page("需要管理員登入"));
+                return;
+            }
+        }
         String appId = ctx.pathParam("app");
         if (!APPS.contains(appId)) {
             ctx.status(404).html(page("沒有這份經穴圖"));

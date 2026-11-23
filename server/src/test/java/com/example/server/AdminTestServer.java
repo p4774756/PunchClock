@@ -2,6 +2,7 @@ package com.example.server;
 
 import com.example.server.auth.AuthConfig;
 import com.example.server.auth.AuthService;
+import com.example.server.store.AccountDataPaths;
 import com.example.server.store.DevStatusService;
 import com.example.server.store.RoadmapService;
 import io.javalin.Javalin;
@@ -13,7 +14,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.SecureRandom;
+import java.util.Optional;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,12 +34,17 @@ public final class AdminTestServer {
     private final AuthService authService;
     private final Javalin app;
     private final String baseUrl;
+    private final Path accountDataDir;
+    private final boolean ownedAccountDataDir;
 
-    private AdminTestServer(String adminPassword, AuthService authService, Javalin app, String baseUrl) {
+    private AdminTestServer(String adminPassword, AuthService authService, Javalin app, String baseUrl,
+                            Path accountDataDir, boolean ownedAccountDataDir) {
         this.adminPassword = adminPassword;
         this.authService = authService;
         this.app = app;
         this.baseUrl = baseUrl;
+        this.accountDataDir = accountDataDir;
+        this.ownedAccountDataDir = ownedAccountDataDir;
     }
 
     public Javalin app() {
@@ -63,6 +72,11 @@ public final class AdminTestServer {
         if (app != null) {
             app.stop();
         }
+        String prop = System.getProperty(AccountDataPaths.DIR_PROPERTY);
+        if (ownedAccountDataDir && accountDataDir != null
+                && accountDataDir.toString().equals(prop)) {
+            System.clearProperty(AccountDataPaths.DIR_PROPERTY);
+        }
     }
 
     /**
@@ -73,7 +87,12 @@ public final class AdminTestServer {
     }
 
     public static String loginCookie(String baseUrl, String adminPassword, HttpClient http) throws Exception {
-        String body = "password=" + URLEncoder.encode(adminPassword, StandardCharsets.UTF_8);
+        return loginCookie(baseUrl, "root", adminPassword, http);
+    }
+
+    public static String loginCookie(String baseUrl, String username, String password, HttpClient http) throws Exception {
+        String body = "username=" + URLEncoder.encode(username, StandardCharsets.UTF_8)
+                + "&password=" + URLEncoder.encode(password, StandardCharsets.UTF_8);
         HttpResponse<String> response = http.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/login"))
                         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -97,9 +116,14 @@ public final class AdminTestServer {
     }
 
     private static void loginPost(Context ctx, AuthService authService) {
+        String username = ctx.formParam("username");
+        if (username == null || username.isBlank()) {
+            username = "root";
+        }
         String password = ctx.formParam("password");
-        if (authService.checkAdminPassword(password)) {
-            ctx.cookie("auth", authService.authCookieValue(), 60 * 60 * 24);
+        Optional<AuthService.AuthUser> user = authService.login(username, password);
+        if (user.isPresent()) {
+            authService.applyAuthCookie(ctx, user.get().sessionId);
             ctx.redirect("/");
             return;
         }
@@ -116,6 +140,7 @@ public final class AdminTestServer {
         private RoadmapService roadmapService;
         private String heartbeatSecret = DEFAULT_HEARTBEAT_SECRET;
         private String fixedAdminPassword;
+        private Path accountDataDir;
 
         public Builder clientRelease(ClientRelease clientRelease) {
             this.clientRelease = clientRelease;
@@ -143,16 +168,32 @@ public final class AdminTestServer {
             return this;
         }
 
+        /** 固定帳號檔目錄（整合測試共用同一批帳號時）。 */
+        public Builder accountDataDir(Path accountDataDir) {
+            this.accountDataDir = accountDataDir;
+            return this;
+        }
+
         public AdminTestServer start() {
             String password = fixedAdminPassword != null ? fixedAdminPassword : randomAdminPassword();
             Map<String, String> env = new HashMap<>();
             env.put("ADMIN_PASSWORD", password);
             env.put("HEARTBEAT_SECRET", heartbeatSecret);
-            AuthService auth = new AuthService(AuthConfig.from(env));
+            boolean ownedDir = accountDataDir == null;
+            Path accountDir = accountDataDir;
+            try {
+                if (accountDir == null) {
+                    accountDir = Files.createTempDirectory("punchclock-accounts-test");
+                }
+            } catch (Exception ex) {
+                throw new IllegalStateException(ex);
+            }
+            System.setProperty(AccountDataPaths.DIR_PROPERTY, accountDir.toString());
+            AuthService auth = new AuthService(AuthConfig.from(env), accountDir);
             ServerApp serverApp = new ServerApp(clientRelease, devStatusService, roadmapService, auth);
             Javalin javalin = serverApp.start(0);
             String base = "http://127.0.0.1:" + javalin.port();
-            return new AdminTestServer(password, auth, javalin, base);
+            return new AdminTestServer(password, auth, javalin, base, accountDir, ownedDir);
         }
     }
 
@@ -165,10 +206,15 @@ public final class AdminTestServer {
     /** 單一路由測試：隨機密碼的 {@link AuthService} 與對應密碼（僅存於測試記憶體）。 */
     public static IsolatedAuth isolatedAuth() {
         String password = randomAdminPassword();
-        AuthService auth = new AuthService(AuthConfig.from(Map.of(
-                "ADMIN_PASSWORD", password,
-                "HEARTBEAT_SECRET", DEFAULT_HEARTBEAT_SECRET)));
-        return new IsolatedAuth(password, auth);
+        try {
+            Path dir = Files.createTempDirectory("punchclock-accounts-isolated");
+            AuthService auth = new AuthService(AuthConfig.from(Map.of(
+                    "ADMIN_PASSWORD", password,
+                    "HEARTBEAT_SECRET", DEFAULT_HEARTBEAT_SECRET)), dir);
+            return new IsolatedAuth(password, auth);
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     public static final class IsolatedAuth {
