@@ -3,15 +3,14 @@ PunchClock client — third-party notices
 
 Lucide Icons
 ------------
-Portions of the bottom navigation bar use stroke icons from the Lucide icon set.
+The window minimize control uses a stroke icon from the Lucide icon set.
 
   Source: https://lucide.dev
   Repository: https://github.com/lucide-icons/lucide
   License: ISC
 
-  Icons bundled in client/src/main/resources/hud/nav/ (home, calendar-clock,
-  folder-up, notebook-text, settings, minimize-2) are derived from Lucide SVG
-  exports for a 24×24 viewBox.
+  minimize-2.svg in client/src/main/resources/hud/nav/ is derived from a Lucide
+  SVG export for a 24×24 viewBox.
 
   ISC License
 
@@ -29,3 +28,7 @@ Portions of the bottom navigation bar use stroke icons from the Lucide icon set.
   WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
   OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
   CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+Bottom navigation tab icons (home, calendar-clock, folder-up, notebook-text,
+settings, and their active variants) are original vector artwork created for
+PunchClock and are not derived from Lucide.

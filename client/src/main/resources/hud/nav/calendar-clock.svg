@@ -1,1 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"><path d="M16 2v3"/><path d="M17 15.5v1.7l1 .625"/><path d="M21 8.936V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.935"/><path d="M3 9h9.873"/><path d="M8 2v3"/><circle cx="17" cy="17" r="5"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <linearGradient id="n-fill" x1="0.25" y1="0" x2="0.8" y2="1"><stop offset="0%" stop-color="#FFC399"/><stop offset="100%" stop-color="#FF8A4F"/></linearGradient><linearGradient id="n-acc" x1="0.25" y1="0" x2="0.8" y2="1"><stop offset="0%" stop-color="#FFF0E4"/><stop offset="100%" stop-color="#FFC399"/></linearGradient>
+<clipPath id="n-clip"><circle cx='12' cy='13.55' r='8.4'/></clipPath>
+  </defs>
+  <ellipse cx='7.05' cy='5.15' rx='2.7' ry='2.4' fill="url(#n-acc)"/>
+<ellipse cx='16.95' cy='5.15' rx='2.7' ry='2.4' fill="url(#n-acc)"/>
+<path d="M11.15 2.35 H12.85 C13.25 2.35 13.55 2.65 13.55 3.05 V5.35 H10.45 V3.05 C10.45 2.65 10.75 2.35 11.15 2.35 Z" fill="url(#n-acc)"/>
+<circle cx='12' cy='13.55' r='8.4' fill="url(#n-fill)"/>
+<g clip-path="url(#n-clip)"><ellipse cx="9" cy="10.2" rx="9.2" ry="5.6" fill="#ffffff" fill-opacity="0.38"/><ellipse cx="7.8" cy="9.2" rx="4.6" ry="2.1" fill="#ffffff" fill-opacity="0.5"/></g>
+<circle cx='12' cy='13.55' r='6.35' fill="url(#n-acc)"/>
+<path d="M12 13.55 L12 8.85 M12 13.55 L16.35 12.15" fill="none" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round"/>
+<circle cx="12" cy="13.55" r="1.2" fill="#FFFFFF"/>
+</svg>

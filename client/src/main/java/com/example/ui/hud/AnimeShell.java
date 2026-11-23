@@ -715,7 +715,7 @@ public final class AnimeShell extends JPanel {
             g.setColor(new Color(255, 255, 255, miniSlot ? 42 : 30));
             g.fillRoundRect(box.x + 2, box.y + 4, box.width - 4, box.height - 8, 10, 10);
         }
-        Color ink = active ? Color.WHITE : MUTED;
+        Color labelInk = active ? Color.WHITE : navLabelColor(iconId);
         g.setFont(UiFonts.chinesePlain(11));
         java.awt.FontMetrics labelMetrics = g.getFontMetrics();
         int iconSize = TabNavIcon.ICON_SIZE;
@@ -723,8 +723,8 @@ public final class AnimeShell extends JPanel {
         int stack = iconSize + gap + labelMetrics.getHeight();
         int top = box.y + Math.max(6, (box.height - stack) / 2);
         int iconX = box.x + (box.width - iconSize) / 2;
-        TabNavIcon.draw(g, iconId, iconX, top, iconSize, ink);
-        g.setColor(ink);
+        TabNavIcon.draw(g, iconId, iconX, top, iconSize, active);
+        g.setColor(labelInk);
         int labelY = top + iconSize + gap + labelMetrics.getAscent();
         int lw = labelMetrics.stringWidth(label);
         g.drawString(label, box.x + (box.width - lw) / 2, labelY);
@@ -754,6 +754,25 @@ public final class AnimeShell extends JPanel {
 
     static String navLabel(int index) {
         return NAV[index];
+    }
+
+    static Color navLabelColor(String iconId) {
+        if ("home".equals(iconId)) {
+            return new Color(0xFF, 0xB3, 0xCC);
+        }
+        if ("calendar-clock".equals(iconId)) {
+            return new Color(0xFF, 0xC4, 0xA8);
+        }
+        if ("folder-up".equals(iconId)) {
+            return new Color(0x8F, 0xDF, 0xC0);
+        }
+        if ("notebook-text".equals(iconId)) {
+            return new Color(0xC9, 0xB6, 0xF0);
+        }
+        if ("settings".equals(iconId)) {
+            return new Color(0xA8, 0xD4, 0xF5);
+        }
+        return MUTED;
     }
 
     static String navTooltip(int index) {
