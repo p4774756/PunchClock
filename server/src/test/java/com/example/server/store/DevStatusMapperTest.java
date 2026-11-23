@@ -9,8 +9,10 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -220,6 +222,95 @@ public class DevStatusMapperTest {
         assertEquals(1, doc.stats.mergedThisWeek);
         assertEquals(1, doc.stats.openIssues);
         assertTrue(doc.timeline.stream().anyMatch(e -> "合併".equals(e.action)));
+    }
+
+    @Test
+    public void freshHeartbeatRunAddsQueuedIssueToCurrent() {
+        IssueRow queued = issue(427, true, Arrays.asList("queue:38"));
+        Snapshot snap = new Snapshot(Collections.singletonList(queued), Collections.emptyList(), Collections.emptySet());
+        Document base = DevStatusMapper.map(snap, "p4774756/PunchClock", 1_000_000L);
+        assertTrue(base.now.current.isEmpty());
+
+        DevMachineStore machines = new DevMachineStore(() -> 2_000_000L);
+        Map<String, Object> hb = new HashMap<>();
+        hb.put("agentRunning", true);
+        hb.put("runs", List.of(Map.of(
+                "issue", 427,
+                "round", 2,
+                "branch", "ai/issue-427",
+                "startedAt", 1_999_000L,
+                "role", "dev"
+        )));
+        assertEquals(DevMachineStore.ApplyResult.OK, machines.applyHeartbeat("tiger", hb));
+
+        Document merged = DevStatusMapper.withFreshMachineRuns(
+                base, snap, "p4774756/PunchClock", 2_000_000L, machines.machineSnapshots());
+        assertEquals(1, merged.now.current.size());
+        assertEquals(427, merged.now.current.get(0).issue);
+        assertEquals("開發中 第 2 輪", merged.now.current.get(0).status);
+        assertTrue(merged.now.queue.isEmpty());
+    }
+
+    @Test
+    public void staleHeartbeatDoesNotAddIssueToCurrent() {
+        IssueRow queued = issue(427, true, Arrays.asList("queue:38"));
+        Snapshot snap = new Snapshot(Collections.singletonList(queued), Collections.emptyList(), Collections.emptySet());
+        Document base = DevStatusMapper.map(snap, "p4774756/PunchClock", 1_000_000L);
+
+        DevMachineStore machines = new DevMachineStore(() -> 5_000_000L);
+        Map<String, Object> hb = new HashMap<>();
+        hb.put("agentRunning", true);
+        hb.put("runs", List.of(Map.of(
+                "issue", 427,
+                "round", 1,
+                "branch", "ai/issue-427",
+                "startedAt", 1_000_000L,
+                "role", "review"
+        )));
+        machines.applyHeartbeat("tiger", hb);
+        machines.applyHeartbeat("tiger", hb);
+        long staleNow = 5_000_000L + DevMachineStore.ONLINE_WINDOW_MS + 1;
+
+        Document merged = DevStatusMapper.withFreshMachineRuns(
+                base, snap, "p4774756/PunchClock", staleNow, machines.machineSnapshots());
+        assertTrue(merged.now.current.isEmpty());
+        assertEquals(1, merged.now.queue.size());
+    }
+
+    @Test
+    public void heartbeatSkipsWhenGithubAlreadyHasIssueInCurrent() {
+        IssueRow open = issue(380, true, Collections.emptyList());
+        IssueRow review = issue(410, true, Collections.emptyList());
+        PullRow pr380 = pull(500, true, false, false, set(380));
+        PullRow pr410 = pull(501, true, false, false, set(410));
+        Snapshot snap = new Snapshot(
+                Arrays.asList(open, review),
+                Arrays.asList(pr380, pr410),
+                Collections.emptySet()
+        );
+        Document base = DevStatusMapper.map(snap, "p4774756/PunchClock", 1_000_000L);
+        assertEquals(2, base.now.current.size());
+
+        DevMachineStore machines = new DevMachineStore(() -> 1_001_000L);
+        Map<String, Object> hb = new HashMap<>();
+        hb.put("agentRunning", true);
+        hb.put("runs", List.of(
+                Map.of("issue", 380, "round", 3, "branch", "ai/issue-380", "startedAt", 1_000_500L, "role", "review"),
+                Map.of("issue", 410, "round", 1, "branch", "ai/issue-410", "startedAt", 1_000_500L, "role", "review")
+        ));
+        machines.applyHeartbeat("tiger", hb);
+
+        Document merged = DevStatusMapper.withFreshMachineRuns(
+                base, snap, "p4774756/PunchClock", 1_001_000L, machines.machineSnapshots());
+        assertEquals(2, merged.now.current.size());
+        assertEquals(DevStatusModels.STATUS_REVIEW, merged.now.current.get(0).status);
+        assertEquals(DevStatusModels.STATUS_REVIEW, merged.now.current.get(1).status);
+    }
+
+    @Test
+    public void statusFromHeartbeatRunUsesShortLabels() {
+        assertEquals("開發中 第 0 輪", DevStatusMapper.statusFromHeartbeatRun("dev", 0));
+        assertEquals("審核中 第 5 輪", DevStatusMapper.statusFromHeartbeatRun("review", 5));
     }
 
     @Test
