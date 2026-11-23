@@ -43,7 +43,22 @@ const setSkinMap=(m:T.MeshStandardMaterial,tex:T.Texture)=>{
  m.needsUpdate=true;
 };
 
-const tintCanvas=(src:T.Texture,rgb:Rgb,solid=false):T.Texture|null=>{
+type TintOpts={solid?:boolean;preserveAlpha?:boolean;keep?:number};
+
+const resetMapUv=(tex:T.Texture)=>{
+ tex.repeat.set(1,1);
+ tex.offset.set(0,0);
+ tex.wrapS=T.ClampToEdgeWrapping;
+ tex.wrapT=T.ClampToEdgeWrapping;
+ tex.matrix.identity();
+ tex.needsUpdate=true;
+};
+
+const tintCanvas=(src:T.Texture,rgb:Rgb,opts:TintOpts|boolean=false):T.Texture|null=>{
+ const o=typeof opts==='boolean'?{solid:opts}:{...opts};
+ const solid=!!o.solid;
+ const preserveAlpha=!!o.preserveAlpha;
+ const keep=solid?0:o.keep??.15;
  if(!src?.image)return null;
  const img=src.image as CanvasImageSource & {width:number;height:number};
  const canvas=document.createElement('canvas');
@@ -52,13 +67,18 @@ const tintCanvas=(src:T.Texture,rgb:Rgb,solid=false):T.Texture|null=>{
  if(!ctx)return null;
  try{ctx.drawImage(img,0,0);}catch{return null;}
  const data=ctx.getImageData(0,0,canvas.width,canvas.height);
- const keep=solid?.04:.15;
  for(let i=0;i<data.data.length;i+=4){
-  if(data.data[i+3]<16)continue;
-  data.data[i]=Math.round(data.data[i]*keep+rgb.r*(1-keep));
-  data.data[i+1]=Math.round(data.data[i+1]*keep+rgb.g*(1-keep));
-  data.data[i+2]=Math.round(data.data[i+2]*keep+rgb.b*(1-keep));
-  data.data[i+3]=255;
+  const a=data.data[i+3];
+  if(a<16)continue;
+  if(solid){
+   data.data[i]=rgb.r;data.data[i+1]=rgb.g;data.data[i+2]=rgb.b;
+   data.data[i+3]=255;
+  }else{
+   data.data[i]=Math.round(data.data[i]*keep+rgb.r*(1-keep));
+   data.data[i+1]=Math.round(data.data[i+1]*keep+rgb.g*(1-keep));
+   data.data[i+2]=Math.round(data.data[i+2]*keep+rgb.b*(1-keep));
+   if(!preserveAlpha)data.data[i+3]=255;
+  }
  }
  ctx.putImageData(data,0,0);
  const next=src.clone();
@@ -67,8 +87,25 @@ const tintCanvas=(src:T.Texture,rgb:Rgb,solid=false):T.Texture|null=>{
  next.generateMipmaps=true;
  next.minFilter=T.LinearMipmapLinearFilter;
  next.magFilter=T.LinearFilter;
+ resetMapUv(next);
  next.needsUpdate=true;
  return next;
+};
+
+const textureHasSoftAlpha=(tex:T.Texture):boolean=>{
+ const img=tex.image as {width?:number;height?:number}|null;
+ if(!img?.width||!img?.height)return false;
+ const canvas=document.createElement('canvas');
+ canvas.width=img.width;canvas.height=img.height;
+ const ctx=canvas.getContext('2d',{willReadFrequently:true});
+ if(!ctx)return false;
+ try{ctx.drawImage(img as CanvasImageSource,0,0);}catch{return false;}
+ const data=ctx.getImageData(0,0,canvas.width,canvas.height);
+ for(let i=3;i<data.data.length;i+=4){
+  const a=data.data[i];
+  if(a>=24&&a<248)return true;
+ }
+ return false;
 };
 
 const isInnerTop=(token:string)=>/Inner|Tops_01|Shirt|Blouse/i.test(token)&&!/Outer|Cardigan|Jacket|Coat/i.test(token);
@@ -111,20 +148,28 @@ export const applyAdultClothStyle=(root:T.Object3D,style:Style,baseline:Map<T.Ma
    const label=`${m.name||''} ${obj.name||''}`;
    if(!/Tops|Bottoms|Shoes/i.test(label)||/Outline/i.test(label))continue;
    m.visible=true;
-   m.transparent=false;
-   m.opacity=1;
-   m.depthWrite=true;
    const base=baseline.get(m)??findGarmentMap(m);
    if(!base)return;
+   resetMapUv(base);
    const token=label;
    const flat=style==='suit'&&(/Tops/i.test(label)||isInnerTop(token));
-   const painted=tintCanvas(base,slotRgb(token,style),flat);
+   const painted=tintCanvas(base,slotRgb(token,style),flat?{solid:true}:{preserveAlpha:true,keep:.12});
    if(painted){
     setGarmentMap(m,painted);
+    const lace=!flat&&textureHasSoftAlpha(painted);
+    m.transparent=lace;
+    m.opacity=1;
+    m.depthWrite=!lace;
+    m.alphaTest=0;
     if(m.map){
      m.map.colorSpace=T.SRGBColorSpace;
      m.map.anisotropy=Math.max(m.map.anisotropy??1,4);
+     resetMapUv(m.map);
     }
+   }else{
+    m.transparent=false;
+    m.opacity=1;
+    m.depthWrite=true;
    }
   }
  });
@@ -172,7 +217,7 @@ const writeUvTriangleFill=(data:ImageData,width:number,height:number,flipY:boole
  }
 };
 
-const writeUvTriangleCloth=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,wa:T.Vector3,u1:number,v1:number,wb:T.Vector3,u2:number,v2:number,wc:T.Vector3,pred:(x:number,y:number,z:number)=>boolean,rgb:Rgb)=>{
+const writeUvTriangleCloth=(data:ImageData,width:number,height:number,flipY:boolean,u0:number,v0:number,wa:T.Vector3,u1:number,v1:number,wb:T.Vector3,u2:number,v2:number,wc:T.Vector3,pred:(x:number,y:number,z:number)=>boolean,rgb:Rgb,minBlend=0)=>{
  const toX=(u:number)=>Math.min(width-1,Math.max(0,Math.round(u*(width-1))));
  const toY=(v:number)=>Math.min(height-1,Math.max(0,Math.round((flipY?1-v:v)*(height-1))));
  const x0=toX(u0),y0=toY(v0),x1=toX(u1),y1=toY(v1),x2=toX(u2),y2=toY(v2);
@@ -193,7 +238,8 @@ const writeUvTriangleCloth=(data:ImageData,width:number,height:number,flipY:bool
   const wz=w0*wa.z+w1*wb.z+w2*wc.z;
   if(!pred(wx,wy,wz))continue;
   const i=(y*width+x)*4;
-  const blend=Math.min(1,Math.max(smooth(0.34,0.66,w0),Math.max(smooth(0.34,0.66,w1),smooth(0.34,0.66,w2))));
+  let blend=Math.min(1,Math.max(smooth(0.34,0.66,w0),Math.max(smooth(0.34,0.66,w1),smooth(0.34,0.66,w2))));
+  if(minBlend>0)blend=Math.max(blend,minBlend);
   data.data[i]=Math.round(data.data[i]*(1-blend)+rgb.r*blend);
   data.data[i+1]=Math.round(data.data[i+1]*(1-blend)+rgb.g*blend);
   data.data[i+2]=Math.round(data.data[i+2]*(1-blend)+rgb.b*blend);
@@ -242,8 +288,9 @@ export const paintAdultSwimSkin=(root:T.Object3D,kind:'sport'|'sheer-inner')=>{
    c.fromBufferAttribute(pos,i2).applyMatrix4(mesh.matrixWorld);
    const u0=uv.getX(i0),v0=uv.getY(i0),u1=uv.getX(i1),v1=uv.getY(i1),u2=uv.getX(i2),v2=uv.getY(i2);
    writeUvTriangleFill(data,canvas.width,canvas.height,flipY,u0,v0,u1,v1,u2,v2,skinRgb);
-   writeUvTriangleCloth(data,canvas.width,canvas.height,flipY,u0,v0,a,u1,v1,b,u2,v2,c,topPred,rgb);
-   writeUvTriangleCloth(data,canvas.width,canvas.height,flipY,u0,v0,a,u1,v1,b,u2,v2,c,shortsPred,rgb);
+   const fill=kind==='sport'?.94:0;
+   writeUvTriangleCloth(data,canvas.width,canvas.height,flipY,u0,v0,a,u1,v1,b,u2,v2,c,topPred,rgb,fill);
+   writeUvTriangleCloth(data,canvas.width,canvas.height,flipY,u0,v0,a,u1,v1,b,u2,v2,c,shortsPred,rgb,fill);
   }
  }
  ctx.putImageData(data,0,0);
@@ -275,10 +322,12 @@ export const applyAdultSheerOuter=(root:T.Object3D)=>{
    m.transparent=true;
    m.opacity=0.42;
    m.depthWrite=false;
+   m.alphaTest=0;
    m.side=T.DoubleSide;
    const map=findGarmentMap(m);
    if(map){
-    const white=tintCanvas(map,SHEER_INNER);
+    resetMapUv(map);
+    const white=tintCanvas(map,SHEER_INNER,{preserveAlpha:true,keep:.06});
     if(white)setGarmentMap(m,white);
    }
    obj.renderOrder=2;
