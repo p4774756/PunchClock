@@ -1,8 +1,9 @@
 import * as T from 'three';
 
 const SKIN_FILL=new T.Color(232/255,198/255,178/255);
-const SUIT_TOPS={r:176,g:178,b:182};
-const SUIT_BOTTOMS={r:156,g:158,b:164};
+const SUIT_TOPS={r:42,g:46,b:58};
+const SUIT_SHIRT={r:248,g:246,b:242};
+const SUIT_BOTTOMS={r:58,g:62,b:72};
 const SUIT_SHOES={r:62,g:58,b:56};
 const CASUAL_TOPS={r:252,g:252,b:252};
 const CASUAL_BOTTOMS={r:136,g:184,b:226};
@@ -42,7 +43,7 @@ const setSkinMap=(m:T.MeshStandardMaterial,tex:T.Texture)=>{
  m.needsUpdate=true;
 };
 
-const tintCanvas=(src:T.Texture,rgb:Rgb):T.Texture|null=>{
+const tintCanvas=(src:T.Texture,rgb:Rgb,solid=false):T.Texture|null=>{
  if(!src?.image)return null;
  const img=src.image as CanvasImageSource & {width:number;height:number};
  const canvas=document.createElement('canvas');
@@ -51,25 +52,32 @@ const tintCanvas=(src:T.Texture,rgb:Rgb):T.Texture|null=>{
  if(!ctx)return null;
  try{ctx.drawImage(img,0,0);}catch{return null;}
  const data=ctx.getImageData(0,0,canvas.width,canvas.height);
+ const keep=solid?.04:.15;
  for(let i=0;i<data.data.length;i+=4){
   if(data.data[i+3]<16)continue;
-  data.data[i]=Math.round(data.data[i]*0.15+rgb.r*0.85);
-  data.data[i+1]=Math.round(data.data[i+1]*0.15+rgb.g*0.85);
-  data.data[i+2]=Math.round(data.data[i+2]*0.15+rgb.b*0.85);
+  data.data[i]=Math.round(data.data[i]*keep+rgb.r*(1-keep));
+  data.data[i+1]=Math.round(data.data[i+1]*keep+rgb.g*(1-keep));
+  data.data[i+2]=Math.round(data.data[i+2]*keep+rgb.b*(1-keep));
   data.data[i+3]=255;
  }
  ctx.putImageData(data,0,0);
  const next=src.clone();
  next.image=canvas;
- next.colorSpace=src.colorSpace??T.SRGBColorSpace;
+ next.colorSpace=T.SRGBColorSpace;
+ next.generateMipmaps=true;
+ next.minFilter=T.LinearMipmapLinearFilter;
+ next.magFilter=T.LinearFilter;
  next.needsUpdate=true;
  return next;
 };
+
+const isInnerTop=(token:string)=>/Inner|Tops_01|Shirt|Blouse/i.test(token)&&!/Outer|Cardigan|Jacket|Coat/i.test(token);
 
 const slotRgb=(token:string,style:Style):Rgb=>{
  if(style==='suit'){
   if(/Shoes/i.test(token))return SUIT_SHOES;
   if(/Bottoms/i.test(token))return SUIT_BOTTOMS;
+  if(isInnerTop(token))return SUIT_SHIRT;
   return SUIT_TOPS;
  }
  if(/Shoes/i.test(token))return CASUAL_SHOES;
@@ -109,8 +117,15 @@ export const applyAdultClothStyle=(root:T.Object3D,style:Style,baseline:Map<T.Ma
    const base=baseline.get(m)??findGarmentMap(m);
    if(!base)return;
    const token=label;
-   const painted=tintCanvas(base,slotRgb(token,style));
-   if(painted)setGarmentMap(m,painted);
+   const flat=style==='suit'&&(/Tops/i.test(label)||isInnerTop(token));
+   const painted=tintCanvas(base,slotRgb(token,style),flat);
+   if(painted){
+    setGarmentMap(m,painted);
+    if(m.map){
+     m.map.colorSpace=T.SRGBColorSpace;
+     m.map.anisotropy=Math.max(m.map.anisotropy??1,4);
+    }
+   }
   }
  });
 };
