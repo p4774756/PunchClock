@@ -51,7 +51,7 @@ public class HeartbeatServiceCommandParseTest {
     }
 
     @Test
-    public void parseServerCommand_supportsPeerMessageAndPoke() throws Exception {
+    public void parseServerCommand_supportsPeerMessageAndIgnoresLegacyPoke() throws Exception {
         HeartbeatService service = new HeartbeatService();
         List<String> received = new ArrayList<>();
         service.setCommandListener(received::add);
@@ -67,24 +67,8 @@ public class HeartbeatServiceCommandParseTest {
                 + "}";
         method.invoke(service, body, (Consumer<String>) msg -> {});
 
-        assertEquals(2, received.size());
-        assertTrue(received.contains("MSG|worker-a|1693728000000||記得打卡"));
-        assertTrue(received.contains("POKE|worker-b|1693728001000|"));
-    }
-
-    @Test
-    public void parseServerCommand_peerPokeWithoutTimestamp_stillWorks() throws Exception {
-        HeartbeatService service = new HeartbeatService();
-        List<String> received = new ArrayList<>();
-        service.setCommandListener(received::add);
-
-        Method method = HeartbeatService.class.getDeclaredMethod(
-                "parseServerCommand", String.class, Consumer.class);
-        method.setAccessible(true);
-        method.invoke(service, "{\"actions\":[\"POKE|worker-b\"]}", (Consumer<String>) msg -> {});
-
         assertEquals(1, received.size());
-        assertEquals("POKE|worker-b||", received.get(0));
+        assertTrue(received.contains("MSG|worker-a|1693728000000||記得打卡"));
     }
 
     @Test
@@ -145,9 +129,8 @@ public class HeartbeatServiceCommandParseTest {
                         + "\"POKE|worker-b|1693728001000|abcXYZ012\"]}",
                 (Consumer<String>) msg -> {});
 
-        assertEquals(2, received.size());
+        assertEquals(1, received.size());
         assertTrue(received.contains("MSG|worker-a|1693728000000|abcXYZ012|記得打卡"));
-        assertTrue(received.contains("POKE|worker-b|1693728001000|abcXYZ012"));
     }
 
     @Test

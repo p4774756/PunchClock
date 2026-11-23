@@ -216,13 +216,6 @@ public class App extends JFrame {
                     String text = parts.length >= 6 ? parts[5] : "";
                     SwingUtilities.invokeLater(() -> showPeerImageMessage(fromId, text, image, sentAtMs, avatar));
                 }
-            } else if (command.startsWith("POKE|")) {
-                // POKE|fromId|sentAtMs|avatar（sentAtMs／avatar 可為空）
-                String[] parts = command.split("\\|", 4);
-                String fromId = parts.length > 1 && !parts[1].isBlank() ? parts[1] : "同事";
-                Long sentAtMs = parts.length >= 3 ? parseEpochMillis(parts[2]) : null;
-                String avatar = parts.length >= 4 ? parts[3] : "";
-                SwingUtilities.invokeLater(() -> showPeerPoke(fromId, sentAtMs, avatar));
             } else if (command.startsWith("RELAY|")) {
                 // RELAY|base64fromId|relayId|size|kind|sentAtMs|filename（filename 可含 |）
                 String[] parts = command.split("\\|", 7);
@@ -338,7 +331,7 @@ public class App extends JFrame {
         tabs.setBackground(new Color(0, 0, 0, 0));
         tabs.setToolTipTextAt(0, "設定目標網址、時間，立即測試");
         tabs.setToolTipTextAt(1, "雲端連線、程式更新、角色、背景、桌面寵物與中繼 Proxy");
-        tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、戳一下、傳檔案／資料夾與傳檔狀態");
+        tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、傳檔案／資料夾與傳檔狀態");
         tabs.setToolTipTextAt(3, "查看與清除系統日誌");
         AnimeShell.hideTabStrip(tabs);
         tabs.setBorder(new EmptyBorder(8, 8, 8, 8));
@@ -689,7 +682,7 @@ public class App extends JFrame {
         ensureChatWindow(peerId).showAndFocus();
     }
 
-    /** 收到戳一下或傳檔時只把聊天視窗帶到前面，不拉主視窗。 */
+    /** 收到傳檔時只把聊天視窗帶到前面，不拉主視窗。 */
     private PeerChatWindow focusChat(String peerId) {
         PeerChatWindow window = ensureChatWindow(peerId);
         WindowShake.bringToFront(window);
@@ -790,23 +783,6 @@ public class App extends JFrame {
                             chatNote(peerId, "訊息沒有送出，請確認雲端連線");
                         }
                         done.accept(sent);
-                    }));
-        }
-
-        @Override
-        public void poke(String peerId) {
-            if (!onlinePeerIds.contains(peerId)) {
-                appendLog("[訊息] 【" + peerId + "】目前不在線，無法戳一下");
-                chatNote(peerId, "對方目前離線，上線後才能戳");
-                return;
-            }
-            heartbeatService.sendPeerPoke(peerId, App.this::appendLog, ok ->
-                    SwingUtilities.invokeLater(() -> {
-                        if (Boolean.TRUE.equals(ok)) {
-                            chatAppend(peerId, chatStore.addPoke(peerId, true, null));
-                        } else {
-                            chatNote(peerId, "戳一下沒有送出，請確認雲端連線");
-                        }
                     }));
         }
 
@@ -1466,26 +1442,6 @@ public class App extends JFrame {
         notifyPet(DesktopPetEvent.MESSAGE_RECEIVED, () -> openPetChat(fromId));
     }
 
-    private void showPeerPoke(String fromId, Long sentAtMs, String avatar) {
-        String timeLabel = formatPeerMessageTime(sentAtMs);
-        appendLog("[通知] 【戳】（" + timeLabel + "）【" + fromId + "】戳了你！");
-        if (shell != null) {
-            shell.play(AnimeCast.WAVE);
-        }
-        rememberPeerAvatar(fromId, avatar);
-        PeerChatStore.Entry entry = chatStore.addPoke(fromId, false, sentAtMs);
-        Toolkit.getDefaultToolkit().beep();
-        PeerChatWindow window = chatWindows.get(fromId);
-        if (window == null) {
-            window = ensureChatWindow(fromId);
-        } else {
-            window.append(entry);
-        }
-        WindowShake.bringToFront(window);
-        window.showAndFocus();
-        WindowShake.shake(window, null);
-    }
-
     private void showPeerRelayOffer(String fromId, String relayId, String filename, long size,
                                     boolean folder, Long sentAtMs) {
         String timeLabel = formatPeerMessageTime(sentAtMs);
@@ -1631,7 +1587,7 @@ public class App extends JFrame {
             }
             refreshAvatarPreview(encoded);
             saveCloudConfig();
-            appendLog("[設定] 已更新訊息大頭照，對方下次收到訊息／戳一下時會看到");
+            appendLog("[設定] 已更新訊息大頭照，對方下次收到訊息或圖片時會看到");
         } catch (Exception ex) {
             appendLog("[失敗] 無法使用這張大頭照：" + ex.getMessage());
             UiFonts.showWarning(

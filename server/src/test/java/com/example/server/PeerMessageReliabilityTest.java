@@ -140,7 +140,6 @@ public class PeerMessageReliabilityTest {
             noise.submit(() -> {
                 while (!stop.get()) {
                     send("alice", "carol", "noise");
-                    sendPoke("alice", "bob");
                 }
             });
             noise.submit(() -> {
@@ -198,20 +197,6 @@ public class PeerMessageReliabilityTest {
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
                 .build();
-    }
-
-    private void sendPoke(String from, String to) {
-        try {
-            http.send(HttpRequest.newBuilder(URI.create(base + "/api/peer/poke"))
-                    .timeout(REQUEST_TIMEOUT)
-                    .header("Authorization", "Bearer " + TOKEN)
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(
-                            "{\"fromClientId\":\"" + from + "\",\"toClientId\":\"" + to + "\"}"))
-                    .build(), HttpResponse.BodyHandlers.discarding());
-        } catch (Exception ignored) {
-            // 背景噪音，失敗不影響判定
-        }
     }
 
     /** 回傳這次心跳取走的 actions；非 200 或例外時丟出。 */

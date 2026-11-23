@@ -17,7 +17,7 @@ public final class PeerChatStore {
     public enum Kind {
         /** 文字、圖片訊息 */
         MESSAGE,
-        /** 戳一下 */
+        /** 舊版戳一下紀錄（僅相容，不再新增） */
         POKE,
         /** 系統提示（傳檔狀態等） */
         NOTE
@@ -64,10 +64,6 @@ public final class PeerChatStore {
     public synchronized Entry addMessage(String peerId, boolean outgoing, String text, String imageEncoded,
                                          Long timeMs, String speaker) {
         return add(new Entry(peerId, outgoing, Kind.MESSAGE, text, imageEncoded, resolve(timeMs), speaker));
-    }
-
-    public synchronized Entry addPoke(String peerId, boolean outgoing, Long timeMs) {
-        return add(new Entry(peerId, outgoing, Kind.POKE, "", "", resolve(timeMs)));
     }
 
     public synchronized Entry addNote(String peerId, String text, Long timeMs) {

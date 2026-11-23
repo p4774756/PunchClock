@@ -9,6 +9,7 @@ import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.image.BufferedImage;
+import java.lang.reflect.Constructor;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 
@@ -43,17 +44,21 @@ public class PeerChatTranscriptTest {
     }
 
     @Test
-    public void rendersPokeAndNote() throws Exception {
+    public void skipsLegacyPokeAndRendersNote() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             PeerChatStore store = new PeerChatStore();
             PeerChatTranscript t = new PeerChatTranscript("alice", "SansSerif", 13);
             t.setSize(480, 320);
-            t.append(store.addPoke("alice", false, 1_000L));
-            t.append(store.addPoke("alice", true, 2_000L));
+            try {
+                t.append(legacyPokeEntry("alice", false, 1_000L));
+                t.append(legacyPokeEntry("alice", true, 2_000L));
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
+            }
             t.append(store.addNote("alice", "已直傳「a.txt」", 3_000L));
 
-            assertEquals("center", t.sideOf("戳了你一下"));
-            assertEquals("center", t.sideOf("你戳了對方一下"));
+            assertEquals("", t.sideOf("戳了你一下"));
+            assertEquals("", t.sideOf("你戳了對方一下"));
             assertEquals("right", t.sideOf("已直傳"));
             assertEquals("本機", PeerChatTranscript.sourceLabel(store.addNote("alice", "已直傳「b.txt」", 4_000L), "alice"));
             assertEquals("alice", PeerChatTranscript.sourceLabel(store.addNote("alice", "對方傳來「b.txt」", 5_000L), "alice"));
@@ -148,6 +153,15 @@ public class PeerChatTranscriptTest {
         assertTrue(PeerChatTranscript.formatTime(now, zone).matches("\\d{2}:\\d{2}:\\d{2}"));
         long longAgo = 86_400_000L * 400;
         assertTrue(PeerChatTranscript.formatTime(longAgo, zone).matches("\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"));
+    }
+
+    private static PeerChatStore.Entry legacyPokeEntry(String peerId, boolean outgoing, long timeMs)
+            throws Exception {
+        Constructor<PeerChatStore.Entry> ctor = PeerChatStore.Entry.class.getDeclaredConstructor(
+                String.class, boolean.class, PeerChatStore.Kind.class,
+                String.class, String.class, long.class);
+        ctor.setAccessible(true);
+        return ctor.newInstance(peerId, outgoing, PeerChatStore.Kind.POKE, "", "", timeMs);
     }
 
     private static boolean hasIcon(Component component) {

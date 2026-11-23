@@ -13,7 +13,7 @@ import javax.swing.RootPaneContainer;
 import javax.swing.SwingUtilities;
 
 /**
- * 同事「戳一下」時的視窗晃動（類似即時通訊軟體的視窗震動）。
+ * 聊天視窗晃動與帶到前景（類似即時通訊軟體的視窗震動）。
  *
  * <p>同時移動頂層視窗與內部 layered pane。部分 Linux 視窗管理員會忽略或合併
  * 連續的 {@code setLocation}，內部平移仍能讓使用者看到晃動。</p>

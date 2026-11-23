@@ -725,12 +725,12 @@ public class PanelFactory {
         refs.avatarPreview = new JLabel();
         refs.avatarPreview.setPreferredSize(new Dimension(44, 44));
         refs.avatarPreview.setMinimumSize(new Dimension(44, 44));
-        refs.avatarPreview.setToolTipText("傳送訊息或戳一下時，對方對話框會顯示這張大頭照");
+        refs.avatarPreview.setToolTipText("傳送訊息或圖片時，對方對話框會顯示這張大頭照");
 
         refs.chooseAvatarButton = new CandyButton(
                 "選擇大頭照", CandyButton.Variant.SECONDARY, CandyButton.Size.COMPACT);
         refs.chooseAvatarButton.setFont(boldFont);
-        refs.chooseAvatarButton.setToolTipText("從本機選一張照片，對方收到訊息／戳一下時會看到");
+        refs.chooseAvatarButton.setToolTipText("從本機選一張照片，對方收到訊息或圖片時會看到");
 
         refs.clearAvatarButton = new CandyButton(
                 "還原預設", CandyButton.Variant.SECONDARY, CandyButton.Size.COMPACT);
@@ -779,7 +779,7 @@ public class PanelFactory {
 
         refs.openChatButton = candyButton(
                 "開啟聊天", CandyButton.Variant.PRIMARY, boldFont,
-                "和選取的好友開一個小聊天視窗，可傳訊息、圖片、檔案或戳一下（雙擊好友也可以）");
+                "和選取的好友開一個小聊天視窗，可傳訊息、圖片、檔案（雙擊好友也可以）");
         refs.openChatButton.setEnabled(false);
         JLabel chatHint = new CompactShellPanels.WrappingLabel(
                 "雙擊好友，或選取後按「開啟聊天」；離線排下面，☆ 在同一組排最上面");

@@ -108,10 +108,6 @@ public class PeerChatWindowTest {
             }
 
             @Override
-            public void poke(String peerId) {
-            }
-
-            @Override
             public boolean sendQueuedFiles(String peerId, Component owner, List<Path> files) {
                 if (!allowSend[0]) {
                     return false;
