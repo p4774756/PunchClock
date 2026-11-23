@@ -929,6 +929,20 @@ function wrapBoardLine(ctx, text, maxW, maxLines) {
   return lines;
 }
 
+function newsTvRelativeTime(iso, nowMs) {
+  if (!iso) return '';
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  const diff = Math.max(0, nowMs - t);
+  const min = Math.floor(diff / 60_000);
+  if (min < 1) return '剛剛';
+  if (min < 60) return min + ' 分鐘前';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + ' 小時前';
+  const day = Math.floor(hr / 24);
+  return day + ' 天前';
+}
+
 function makeNewsTvDrawer() {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
@@ -939,44 +953,103 @@ function makeNewsTvDrawer() {
   let lastKey = '';
   function draw(state) {
     const bag = state && typeof state === 'object' ? state : {};
-    const title = bag.title == null ? '' : String(bag.title);
-    const scroll = !!bag.scroll;
-    const offset = Number(bag.scrollX) || 0;
-    const key = title + '|' + (scroll ? Math.floor(offset * 2) : 'static');
+    const items = Array.isArray(bag.items) ? bag.items : [];
+    const index = Number(bag.index) || 0;
+    const tickerScroll = !!bag.tickerScroll;
+    const tickerOffset = Number(bag.tickerOffset) || 0;
+    const nowMs = Number(bag.nowMs) || Date.now();
+    const key =
+      items.length +
+      '|' +
+      index +
+      '|' +
+      items
+        .slice(0, 6)
+        .map((row) => (row && row.title) || '')
+        .join('\u0001') +
+      '|' +
+      (tickerScroll ? Math.floor(tickerOffset * 2) : 'static');
     if (key === lastKey) return;
     lastKey = key;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const w = canvas.width;
+    const h = canvas.height;
+    const pad = 12;
+    const tickerH = 34;
+    ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = '#101a28';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = 'rgba(120, 168, 232, 0.1)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.font = 'bold 18px sans-serif';
-    ctx.fillStyle = '#8aaed0';
+    ctx.fillRect(0, 0, w, h);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText('即時新聞', 12, 10);
-    ctx.font = 'bold 26px sans-serif';
-    ctx.fillStyle = '#e8f2ff';
-    const maxW = canvas.width - 24;
-    const y = 44;
-    if (!title) {
-      ctx.fillText('載入中…', 12, y);
-    } else if (!scroll) {
-      const lines = wrapBoardLine(ctx, title, maxW, 3);
-      for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], 12, y + i * 32);
-      }
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillStyle = '#8aaed0';
+    ctx.fillText('即時新聞', pad, 10);
+    const current = items.length ? items[index % items.length] : null;
+    const src = current && current.source != null ? String(current.source) : '';
+    const rel = current ? newsTvRelativeTime(current.publishedAt, nowMs) : '';
+    const metaLine = [src, rel].filter(Boolean).join(' · ');
+    if (metaLine) {
+      ctx.font = '15px sans-serif';
+      ctx.fillStyle = '#7a9ec8';
+      ctx.fillText(ellipsizeLine(ctx, metaLine, w - pad * 2), pad, 22);
+    }
+    ctx.strokeStyle = 'rgba(120, 168, 232, 0.35)';
+    ctx.beginPath();
+    ctx.moveTo(pad, 40);
+    ctx.lineTo(w - pad, 40);
+    ctx.stroke();
+    const rowH = 44;
+    const startY = 46;
+    const listMaxW = w - pad * 2 - 12;
+    if (!items.length) {
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillStyle = '#e8f2ff';
+      ctx.fillText('載入中…', pad + 6, startY + 10);
     } else {
+      const rows = Math.min(4, items.length);
+      for (let row = 0; row < rows; row++) {
+        const idx = (index + row) % items.length;
+        const item = items[idx];
+        const title = item && item.title ? String(item.title) : '';
+        const y = startY + row * rowH;
+        const hi = row === 0;
+        if (hi) {
+          ctx.fillStyle = '#6eb4ff';
+          ctx.fillRect(pad, y + 6, 3, rowH - 14);
+          ctx.font = 'bold 21px sans-serif';
+          ctx.fillStyle = '#eef6ff';
+        } else {
+          ctx.font = '18px sans-serif';
+          ctx.fillStyle = '#9eb8d8';
+        }
+        ctx.fillText(ellipsizeLine(ctx, title, listMaxW), pad + (hi ? 10 : 6), y + 26);
+      }
+    }
+    ctx.fillStyle = 'rgba(8, 14, 24, 0.88)';
+    ctx.fillRect(0, h - tickerH, w, tickerH);
+    const tickerParts = [];
+    for (let ti = 0; ti < items.length; ti++) {
+      const t = items[ti] && items[ti].title ? String(items[ti].title) : '';
+      if (t) tickerParts.push(t);
+    }
+    const tickerText = tickerParts.length ? tickerParts.join('   ·   ') : '即時新聞';
+    ctx.font = 'bold 17px sans-serif';
+    ctx.fillStyle = '#c8dcf4';
+    const tickerY = h - tickerH + 21;
+    if (tickerScroll && tickerText) {
       ctx.save();
       ctx.beginPath();
-      ctx.rect(8, 38, canvas.width - 16, canvas.height - 46);
+      ctx.rect(pad, h - tickerH + 2, w - pad * 2, tickerH - 4);
       ctx.clip();
-      ctx.fillText(title, 12 - offset, y);
+      ctx.fillText(tickerText, pad - tickerOffset, tickerY);
       ctx.restore();
+    } else {
+      ctx.fillText(ellipsizeLine(ctx, tickerText, w - pad * 2), pad, tickerY);
     }
     tex.needsUpdate = true;
   }
-  draw({ title: '', scroll: false, scrollX: 0 });
+  draw({ items: [], index: 0, tickerScroll: false, tickerOffset: 0, nowMs: Date.now() });
   return { tex, draw };
 }
 
@@ -1917,7 +1990,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   let newsIndex = 0;
   let newsRotateAt = 0;
   let newsScrollX = 0;
-  let newsTitleWidth = 0;
+  let newsTickerWidth = 0;
   let newsMeasureCtx = null;
   let lastFrameMs = 0;
 
@@ -2718,25 +2791,28 @@ export function mountPrivateTeamScene(canvas, opts) {
 
     if (newsItems.length) {
       const scrollOn = newsTickerScrollEnabled(reducedMotion, win);
-      const current = newsItems[newsIndex % newsItems.length];
-      const title = current && current.title ? String(current.title) : '';
       if (!newsRotateAt) newsRotateAt = now;
       if (now - newsRotateAt >= NEWS_TV_ROTATE_MS) {
         newsIndex = (newsIndex + 1) % newsItems.length;
         newsRotateAt = now;
         newsScrollX = 0;
-        newsTitleWidth = 0;
+        newsTickerWidth = 0;
       }
-      if (scrollOn && title) {
+      let tickerLine = '';
+      for (let ni = 0; ni < newsItems.length; ni++) {
+        const nt = newsItems[ni] && newsItems[ni].title ? String(newsItems[ni].title) : '';
+        if (nt) tickerLine += (tickerLine ? '   ·   ' : '') + nt;
+      }
+      if (scrollOn && tickerLine) {
         if (!newsMeasureCtx) {
           const measureCanvas = doc.createElement('canvas');
           newsMeasureCtx = measureCanvas.getContext('2d');
         }
-        if (!newsTitleWidth && newsMeasureCtx) {
-          newsMeasureCtx.font = 'bold 26px sans-serif';
-          newsTitleWidth = newsMeasureCtx.measureText(title).width;
+        if (!newsTickerWidth && newsMeasureCtx) {
+          newsMeasureCtx.font = 'bold 17px sans-serif';
+          newsTickerWidth = newsMeasureCtx.measureText(tickerLine).width;
         }
-        const need = Math.max(0, newsTitleWidth - (512 - 36));
+        const need = Math.max(0, newsTickerWidth - (512 - 24));
         if (need > 8) {
           const dt = frameDt > 0 ? Math.min(0.05, frameDt / 1000) : 0.016;
           newsScrollX += dt * 42;
@@ -2747,7 +2823,13 @@ export function mountPrivateTeamScene(canvas, opts) {
       } else {
         newsScrollX = 0;
       }
-      newsDrawer.draw({ title, scroll: scrollOn, scrollX: newsScrollX });
+      newsDrawer.draw({
+        items: newsItems,
+        index: newsIndex,
+        tickerScroll: scrollOn,
+        tickerOffset: newsScrollX,
+        nowMs: Date.now()
+      });
     }
 
     if (onProgressBoardRect) {
@@ -2802,12 +2884,13 @@ export function mountPrivateTeamScene(canvas, opts) {
       newsIndex = 0;
       newsRotateAt = 0;
       newsScrollX = 0;
-      newsTitleWidth = 0;
-      const title = newsItems[0] && newsItems[0].title ? String(newsItems[0].title) : '';
+      newsTickerWidth = 0;
       newsDrawer.draw({
-        title,
-        scroll: newsTickerScrollEnabled(reducedMotion, win),
-        scrollX: 0
+        items: newsItems,
+        index: 0,
+        tickerScroll: newsTickerScrollEnabled(reducedMotion, win),
+        tickerOffset: 0,
+        nowMs: Date.now()
       });
     },
     setAtlasNameplateText(text) {
