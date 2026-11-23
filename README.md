@@ -1,25 +1,30 @@
 # PunchClock
 
-小寶貝（PunchClock）由 Java 桌面端與 Javalin 伺服器組成：虛擬辦公室、好友傳檔、經絡研習與遠端狀態監控。
+小寶貝（PunchClock）由 Java 桌面端與 Javalin 伺服器組成：公開的 2D 虛擬辦公室網站、桌面排程與傳檔、經絡研習室，以及管理主控台。
 
 ## 架構
 
 ```text
 ┌─────────────────┐   HTTP 心跳 + Bearer    ┌──────────────────┐   REST 取消指令   ┌─────────────┐
-│  PunchClock     │ ─────────────────────► │  server          │ ◄─────────────── │  Web 控制台  │
-│  (Java 桌面端)   │ ◄── action / actions ── │  (Javalin 伺服器)  │ ── WS 狀態推送 ─► │  (瀏覽器)    │
+│  桌面端          │ ─────────────────────► │  server          │ ◄─────────────── │  管理主控台   │
+│  XiaoBaobei.jar │ ◄── action / actions ── │  (Javalin)       │ ── WS 狀態推送 ─► │  /console   │
 └─────────────────┘                        └──────────────────┘                   └─────────────┘
+         │                                           │
+         │                                           ├── GET /  公開虛擬辦公室
+         │                                           ├── /atlas/tcm-3d/  經絡研習室（免登入）
+         │                                           └── /download  安裝檔與 jar
 ```
 
-**通訊協定：** Worker 統一走 HTTP 心跳；Dashboard 用 REST 下指令、WebSocket 只推狀態。詳見 [`server/README.md`](server/README.md)。
+**通訊協定：** 桌面端走 HTTP 心跳；主控台用 REST 下指令、WebSocket 只推狀態。路由見 [`server/README.md`](server/README.md)。
 
-遠端僅支援「取消全部 / 取消單一任務」；排程請在桌面端本機建立。
+遠端僅支援「取消全部／取消單一任務」；排程請在桌面端本機建立。
 
 | 模組 | 說明 | 技術 |
 | ------ | ------ | ------ |
-| [`client/`](client/) | 桌面端：排程、任務管理、好友與傳檔 | Java 11、Swing、Playwright |
-| [`server/`](server/) | 伺服器：心跳接收、Web 監控、遠端控制 | Java 11、Javalin、WebSocket |
+| [`client/`](client/) | 桌面端：排程、好友傳檔、連線與外觀 | Java 11、Swing、Playwright |
+| [`server/`](server/) | 伺服器：心跳、網站、主控台 | Java 11、Javalin、WebSocket |
 | [`shared/`](shared/) | 共用程式（`PeerFileRules` 等） | Java 11 |
+| [`atlas-src/tcm-3d/`](atlas-src/tcm-3d/) | 經絡研習室靜態站（建置後掛在 server） | Vite、Three.js |
 
 ## 快速開始
 
@@ -30,162 +35,120 @@ mvn -pl server -am package -DskipTests
 java -jar server/target/punchclock-server.jar
 ```
 
-伺服器預設監聽 `http://localhost:3000`。開啟瀏覽器登入 Web 控制台（預設密碼：`secret`）。
+預設 `http://localhost:3000`。**首頁 `/` 是公開虛擬辦公室**；管理主控台在 `/console`（或先開 `/login`）。
 
 ### 2. 啟動桌面端
 
-**前置需求：** JDK 11+、Maven 3.6+
+**前置：** JDK 11+、Maven 3.6+
 
 ```bash
 mvn -pl client -am package -DskipTests
 java -jar client/target/XiaoBaobei.jar
 ```
 
-首次執行 Playwright 會自動下載瀏覽器驅動，請確保網路暢通。
+首次執行 Playwright 會下載瀏覽器驅動。
 
 ### 3. 連線設定
 
-在桌面端「設定」分頁：
+桌面端「設定 → 連線」：
 
 1. 勾選「啟用雲端單向狀態回報」
-2. 填入 Server 網址，例如 `http://localhost:3000`
-3. 填入心跳 Token（需與伺服器 `HEARTBEAT_SECRET` 一致，本機預設 `punchclock-dev-secret`）
-4. 點擊「測試連線」確認成功
+2. Server 網址，例如 `http://localhost:3000`
+3. 心跳 Token 與伺服器 `HEARTBEAT_SECRET` 一致（本機預設 `punchclock-dev-secret`）
+4. 「測試連線」確認成功
 
-裝置 ID（預設 `company-worker`）在「好友與傳檔」。
+裝置 ID 在「好友傳檔」分頁（預設 `company-worker`）。
 
 ### 4. 公司受限網路
 
-- **SSL 攔截（PKIX 錯誤）：** 公司網路若會解開 HTTPS 重新簽章，Java 會出現 `PKIX path building failed`。勾選「信任所有 SSL（除錯）」可略過憑證驗證，心跳與中繼 Proxy 共用此設定（啟用雲端時會鎖定，需先取消雲端才能修改）。僅建議在已知有 SSL 攔截的環境使用。
-- **需要 Proxy：** 心跳與中繼預設不讀系統 Proxy；公司要求走 Proxy 時，啟動加 `-Djava.net.useSystemProxies=true`，或 `-Dhttps.proxyHost=主機 -Dhttps.proxyPort=埠`。
-- **中繼 Proxy：** 同事連不到雲端、但你可以時，在「設定」勾選「啟用中繼 Proxy」（預設埠 `8888`），同事把 Server 網址改成 `http://你的IP:8888`，請求會經由你的電腦轉發到雲端。
-- **建置時抓不到 `git-commit-id-maven-plugin`：** 這個 plugin 只用來在 app 顯示最後一次 commit 時間，抓不到時改用建置時間。VS Code／Eclipse 會自動略過；命令列加 `-P '!git-commit-time'`：
+- **SSL 攔截：** 勾選「信任所有 SSL（除錯）」可略過憑證驗證（心跳與中繼共用；啟用雲端時會鎖定）。僅建議在已知有 SSL 攔截的環境使用。
+- **Proxy：** 加 `-Djava.net.useSystemProxies=true`，或 `-Dhttps.proxyHost=… -Dhttps.proxyPort=…`。
+- **中繼 Proxy：** 「設定」勾選後（預設埠 `8888`），同事把 Server 網址改成 `http://你的IP:8888` 即可轉發。
+- **建置抓不到 git-commit plugin：** 命令列加 `-P '!git-commit-time'`，或在網路正常的環境打包 jar 再帶過去。
 
-  ```bash
-  mvn -pl client -am package -DskipTests -P '!git-commit-time'
-  ```
+### 5. 公開網站
 
-  或在網路正常的電腦打包好 `XiaoBaobei.jar` 再帶過去執行。
+- **虛擬辦公室**（`GET /`）：2D 場景。書櫃進入經絡研習室；桌面上的入口可開「下載 App」（`/download`）；白板／告示牌可查看施工進度。
+- **經絡研習室**（`/atlas/tcm-3d/`，免登入）：穴位練習用角色模型，搜尋支援穴名、注音或編號。本機須先 `./scripts/build-atlas.sh`（需 Node.js ≥ 22），否則會提示尚未建置。開發檢查與烘焙流程見 `atlas-src/tcm-3d` 目錄內文件。
+- **下載頁**（`/download`）：macOS／Windows 安裝檔（若 Release 或環境變數有提供）與 `XiaoBaobei.jar`（仍接受舊檔名 `SKLbaby.jar`）。安裝檔未簽章：macOS 右鍵→打開；Windows SmartScreen「更多資訊」→「仍要執行」。
 
-### 5. 中醫人體（經絡穴道）
+### 6. 管理主控台
 
-Dashboard「學習 → 中醫人體」連到 `/atlas/tcm-3d/`，靜態站來自 `atlas-src/tcm-3d/`（須先登入）。本機要先建置一次，否則會看到「還沒建置」：
-
-```bash
-./scripts/build-atlas.sh
-```
-
-前置：Node.js ≥ 22。建好後重開或重整 server，開啟：
-
-- 頭頸基準穴：`http://localhost:3000/atlas/tcm-3d/?set=head-neck-21`
-- 常用穴練習：`http://localhost:3000/atlas/tcm-3d/?set=common-10`
-
-也可：`npm --prefix atlas-src/tcm-3d run build:punchclock`。Docker／Render 會在 image 建置時一併編譯。
-
-角色模型為 `anime-assistant.glb`（CC0）；穴位只顯示已烘到角色身上的穴（目前頭頸 21）。之後每週加穴：`node atlas-src/tcm-3d/scripts/bake-anime-points.mjs --codes …`（合併寫入，不清空既有穴）。
-
-改動 `atlas-src/tcm-3d/` 時，GitHub Actions（`Atlas`）會跑 `npm run check`、`validate-tool-drag`、`validate-teaching`。
+`/login` 登入後進 `/console`（芥末黃／藍色、粗框線）。目前分頁：**任務**、**施工進度**、**辦公室**（連回首頁）。仍為共用管理員密碼（`ADMIN_PASSWORD`）。
 
 ## 操作畫面
 
-桌面端目前的樣子。視窗標題是「小寶貝」。
+### 桌面端
 
-| 首頁 | 排程任務 |
+視窗標題為產品名「小寶貝」與版號。側欄：**首頁、排程、好友傳檔、日誌、設定**（含連線、外觀、中繼、程式更新）。
+
+| 首頁 | 排程 |
 | ------ | ------ |
-| ![首頁：今日排程、好友動態與快捷操作](docs/screenshots/home.png) | ![排程任務：自訂名稱、時間與執行記錄](docs/screenshots/schedule.png) |
-| 好友與傳檔 | 設定 |
-| ![好友與傳檔：裝置 ID、好友與傳檔紀錄](docs/screenshots/friends.png) | ![設定：雲端連線與程式更新](docs/screenshots/settings.png) |
-| 日誌 | |
-| ![日誌：系統日誌](docs/screenshots/log.png) | |
+| ![首頁](docs/screenshots/home.jpg) | ![排程](docs/screenshots/schedule.jpg) |
+| 好友傳檔 | 設定（外觀） |
+| ![好友傳檔](docs/screenshots/friends.jpg) | ![設定](docs/screenshots/settings.jpg) |
+| 日誌 | 迷你模式 |
+| ![日誌](docs/screenshots/log.jpg) | ![迷你模式](docs/screenshots/mini.jpg) |
+
+### 網站（桌機 1280／手機 390）
+
+| 虛擬辦公室 | 經絡研習室 |
+| ------ | ------ |
+| ![辦公室桌機](docs/screenshots/web/office-desktop.jpg) | ![研習室桌機](docs/screenshots/web/atlas-desktop.jpg) |
+| 下載頁 | 登入 |
+| ![下載桌機](docs/screenshots/web/download-desktop.jpg) | ![登入桌機](docs/screenshots/web/login-desktop.jpg) |
+| 主控台任務 | 施工進度 |
+| ![主控台](docs/screenshots/web/console-tasks-desktop.jpg) | ![施工進度](docs/screenshots/web/roadmap-desktop.jpg) |
+
+手機版範例：![辦公室手機](docs/screenshots/web/office-mobile.jpg)
 
 ## 主要功能
 
 ### 桌面端
 
-- 多任務排程（支援單次新增、批量建立週一至週五）。排程名稱可自訂，後台任務卡顯示同一個名字
-- 隨機時間浮動（±5 分鐘，避免固定時間執行）
-- 任務編輯、重新排定、立即執行
-- 本地任務持久化（`~/.punchclock/tasks.json`）
-- 視窗透明度（標題列滑桿，設定會寫入 `~/.punchclock/config.json`）
-- 支援 Edge、Chrome、Chromium、Firefox、WebKit
-- 同事傳檔：任意副檔名、可傳資料夾（自動壓 ZIP）、傳檔紀錄可在過期前重複下載或手動清除。兩邊都在線時可改走直傳，檔案只在伺服器記憶體轉手，不寫入磁碟
-- 中繼 Proxy：讓區網內連不到雲端的同事透過你的電腦轉發心跳等請求
-- 跟同事一對一聊天，或跟後台說話。對話在伺服器重啟後清空
-- 程式更新：伺服器向 GitHub 最新 Release 查詢 `XiaoBaobei.jar`（仍接受舊版 `SKLbaby.jar` asset）。有較新版時顯示在設定頁下方，由使用者按「現在更新」（詳見下方「桌面端自動更新」）
+- 多任務排程（單次／批量週一至週五）、±5 分鐘隨機浮動、編輯與立即執行
+- 本機持久化（`~/.punchclock/tasks.json`）
+- 外觀：桌布、透明度、**桌面寵物**、**迷你模式**（底欄縮成窄條，不干擾焦點）
+- Playwright 支援多種瀏覽器引擎
+- 同事傳檔（含資料夾 ZIP）、直傳、一對一聊天
+- 中繼 Proxy 轉發雲端請求
+- 程式更新：見下方精簡說明
+
+### 伺服器
+
+- 裝置狀態即時時顯示、遠端取消任務
+- 傳檔暫存約 6 小時
+- 3 分鐘無心跳視為離線
+- 登入失敗 5 次鎖定 15 分鐘
 
 ### 桌面端自動更新
 
-- **運作方式：** 桌面端每次心跳會帶上 `appVersion`（語意化版號）。伺服器快取 GitHub `releases/latest`（約 10 分鐘）；Release 版號比本機新時，心跳回應帶 `update`，下載網址為 GitHub asset 絕對路徑。「設定 → 連線 → 程式更新」的「自動檢查更新」預設開啟：有新版只顯示在這一區下方（新版號、大小、Release 說明前幾行），不跳視窗。要升級按「現在更新」。關閉自動檢查後，背景不再改這段狀態，仍可用「檢查更新」手動問一次。
-- **現在更新：** 跳出「程式更新」小視窗顯示下載進度（已下載／總大小、百分比），可按「取消」中止。下載到 `~/.punchclock/updates/`，校驗大小與 SHA-256 後，由 `apply-update.bat`／`apply-update.sh` 等程式結束、換掉原本的 jar 並重新啟動；設定與排程保留。若程式忙碌或十分鐘內有已排工作，會等那段結束再重開（最多約 30 分鐘），避免中途被關掉。
-- **限制：** 以 `java -jar XiaoBaobei.jar` 啟動時，覆蓋正在跑的 jar 再重開；jar 所在資料夾要有寫入權限。IDE 直接跑（版本 `dev`、沒有原始碼摘要）不會收到更新通知。若 classpath 上已是打包過、摘要有值的程式，按「現在更新」後把 jar 寫到 `~/.punchclock/SKLbaby.jar`，結束後用 `java -jar` 啟動它，之後請執行那份 jar。更新失敗時看 `~/.punchclock/updates/apply-update.log`。
-- **安裝版（.dmg／.exe）：** GitHub Release 或網站下載頁可取得 macOS（`XiaoBaobei-mac-arm.dmg`／`XiaoBaobei-mac-intel.dmg`）與 Windows 安裝檔（內建 Java，尚未簽章；macOS 請右鍵 → 打開，Windows SmartScreen 選「更多資訊」→「仍要執行」）。自動更新仍只下載 release jar 到 `~/.sklbaby/app/SKLbaby.jar`（不寫回安裝目錄）；啟動失敗會退回安裝內建 jar。CI 見 `.github/workflows/package-desktop.yml`。推 `v*` tag 會自動建立 Release 並上傳上述兩個 macOS dmg、`XiaoBaobei-win.exe`、`XiaoBaobei.jar`。
-- **打包乾跑：** 在 GitHub Actions 選 workflow「Package desktop installers」、以 `workflow_dispatch` 手動執行。只會留下 workflow artifact（arm／intel dmg、exe、jar），不會建立或更新正式 Release。下載 artifact 核對檔名與大小（安裝檔腳本限 15–60 MiB）。正式發版請推 tag，不要用乾跑取代。
-- **發版：** 推 `v*` tag 並建立 GitHub Release（見 `package-desktop.yml`）後，桌面端才會收到新版通知；一般合併部署 server 不會觸發 jar 更新。
-- **本機測試：** 以較舊版號的 jar 連上臨時 server；server 會向 GitHub 讀最新 Release。啟動 log 出現 `Client release: v… from GitHub` 代表已讀到 Release metadata。
-
-### server
-
-- 即時顯示所有連線裝置狀態
-- 遠端取消排程 / 取消單一任務
-- 傳檔狀態（等待收取／已下載）、過期前可下載、可手動清除；暫存保留 6 小時
-- 伺服器運行狀態（CPU、JVM／系統記憶體、傳檔暫存用量）
-- 3 分鐘無心跳自動判定離線
-- 登入保護（5 次失敗鎖定 15 分鐘）
-
-### Web 控制台
-
-後台是一座手搖店島。點島上的區域，或用右上角「清單」，打開對應面板。
-
-| 區域 | 內容 |
-| ------ | ------ |
-| 點單 | 裝置狀態、遠端取消排程或單一任務 |
-| 店內廣播 | 跟桌面端一對一說話。只放伺服器記憶體，重啟後清空 |
-| 外帶架 | 傳檔暫存，約 6 小時；過期前可下載，也可手動清除 |
-| 製茶機 | CPU、JVM／系統記憶體、磁碟空間。每分鐘取樣，保留約 3 天。有掛載 `/var/data` 時寫在那裡，否則寫在 `~/.punchclock/server-health-history.json` |
-| 飲品牆 | 照片、筆記與連結。預設只放記憶體，重啟後清空；設定 `PHOTO_STORAGE_DIR` 後改存該目錄 |
+- 心跳帶 `appVersion`；伺服器快取 GitHub `releases/latest`，有較新版時在「設定 → 程式更新」顯示（預設自動檢查，不跳視窗）。
+- 「現在更新」下載到 `~/.punchclock/updates/`，校驗後替換 jar 並重啟；忙碌或即將執行任務時會延後。
+- 以 `java -jar` 啟動才適用；安裝版（`.dmg`／`.exe`）改寫入 `~/.sklbaby/app/SKLbaby.jar`，詳見設定頁說明。
+- 正式發版需推 `v*` tag 建立 GitHub Release（見 `.github/workflows/package-desktop.yml`）。
 
 ## 部署建議
 
-將 server 部署至雲端（如 Render、Railway、VPS），桌面端填入對應的 HTTPS 網址即可。
+雲端部署 server 後，桌面端填入 HTTPS 網址即可。
 
-**Render（Docker）：**
-
-| 欄位 | 值 |
-| ------ | ----- |
-| Runtime | **Docker**（不是 Node） |
-| Dockerfile Path | `server/Dockerfile` |
-| Root Directory | （留空） |
-
-或使用根目錄 [`render.yaml`](render.yaml) 一鍵部署。
-
-**環境變數：**
+**Render（Docker）：** Runtime 選 Docker，`server/Dockerfile`；或使用根目錄 [`render.yaml`](render.yaml)。
 
 | 變數 | 說明 | 預設值 |
 | ------ | ------ | -------- |
-| `PORT` | 伺服器監聽埠 | `3000` |
-| `HEARTBEAT_SECRET` | 心跳 API Bearer token | `punchclock-dev-secret` |
-| `ADMIN_PASSWORD` | Web 控制台管理員密碼 | `secret` |
-| `PUNCHCLOCK_GITHUB_TOKEN` | 選填；提高 GitHub API 速率，供 Release 查詢與開發進度 | （空） |
-| `PHOTO_STORAGE_DIR` | 飲品牆目錄。沒設時照片和筆記只在記憶體，重啟後清空 | （空） |
+| `PORT` | 監聽埠 | `3000` |
+| `HEARTBEAT_SECRET` | 心跳 Bearer | `punchclock-dev-secret` |
+| `ADMIN_PASSWORD` | 主控台密碼 | `secret` |
+| `PUNCHCLOCK_GITHUB_TOKEN` | 選填；Release 查詢與施工進度 API | （空） |
 
-生產環境請務必修改 `HEARTBEAT_SECRET` 與 `ADMIN_PASSWORD`。
+生產環境請修改 `HEARTBEAT_SECRET` 與 `ADMIN_PASSWORD`。
 
 ## 開發
 
 ```bash
-# 全部測試
 mvn test
-
-# 只測桌面端
 mvn -pl client -am test
-
-# 只測伺服器
 mvn -pl server -am test
 ```
 
-## VS Code 除錯
-
-工作區 launch configuration：
-
-- **App (desktop)** — 啟動 Swing 桌面端
-- **Server (Javalin)** — 啟動監控伺服器
+VS Code：`.vscode/launch.json` 的 **App (desktop)**、**Server (Javalin)**。
