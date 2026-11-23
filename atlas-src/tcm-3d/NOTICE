@@ -9,11 +9,22 @@ All source code (`app/`, `scripts/`, `web/`, build configuration) is MIT license
 See [LICENSE](LICENSE). It derives from ashemag / Human Atlas (MIT); the original
 copyright notice is retained in [public/CODE-LICENSE.txt](public/CODE-LICENSE.txt).
 
-## Character model — CC0 1.0
+## Character model — Sendagaya Shino (CC0 1.0)
 
 `public/models/anime-assistant.glb` is derived from the VRoid Studio β sample
 「Sendagaya Shino」(pixiv Inc.), released under CC0 1.0. See
 [public/ATTRIBUTION.md](public/ATTRIBUTION.md).
+
+## Character model — AvatarSample_A (VRoid preset terms, not CC0)
+
+`public/models/anime-adult.glb` is derived from the VRoid official sample
+**AvatarSample_A** (pixiv Inc.). It is **not** CC0; use, modification, and
+gratis redistribution are governed by the
+[VRoid preset terms](https://vroid.pixiv.help/hc/en-us/articles/4402394424089-VRoidPreset-A-Z).
+Model page:
+<https://hub.vroid.com/en/characters/2843975675147313744/models/5644550979324015604>.
+Hair color was adapted in-repo (pure black); do not sell the `.glb` or imply
+pixiv endorsement. Keep this notice separate from the Shino CC0 section above.
 
 ## Acupoint catalog
 

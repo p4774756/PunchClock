@@ -1,3 +1,4 @@
+import {ANIME_ADULT_MODEL_BYTES,ANIME_ADULT_MODEL_GZIP_BYTES} from './anime-adult-model-digest';
 import {ANIME_MODEL_BYTES,ANIME_MODEL_GZIP_BYTES} from './anime-model-digest';
 import {WOODCUT_LANDSCAPE_DIGEST} from './texture-digests';
 import {publicAssetUrl} from './public-assets';
@@ -1889,12 +1890,14 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const loader=new GLTFLoader();
    loader.register(parser=>new VRMLoaderPlugin(parser));
    const modelUrl=schoolOutfit.modelUrl||avatar.modelUrl;
-   const isAnimeModel=!!modelUrl?.includes('anime-assistant.glb');
-   const cacheAnimeOutfits=avatar.hasOutfits&&isAnimeModel;
+   const isAssistantModel=!!modelUrl?.includes('anime-assistant.glb');
+   const isAdultModel=!!modelUrl?.includes('anime-adult.glb');
+   const isAnimeModel=isAssistantModel||isAdultModel;
+   const cacheAnimeOutfits=avatar.hasOutfits&&isAssistantModel;
    cacheAnimeOutfitsFlag=cacheAnimeOutfits;
    let downloadPct=0;
-   const gzipBytes=isAnimeModel?ANIME_MODEL_GZIP_BYTES||0:0;
-   const rawBytes=isAnimeModel?ANIME_MODEL_BYTES:ANIME_MODEL_BYTES;
+   const gzipBytes=isAssistantModel?ANIME_MODEL_GZIP_BYTES||0:isAdultModel?ANIME_ADULT_MODEL_GZIP_BYTES||0:0;
+   const rawBytes=isAssistantModel?ANIME_MODEL_BYTES:isAdultModel?ANIME_ADULT_MODEL_BYTES:ANIME_MODEL_BYTES;
    const reportDownload=(loaded:number,total:number)=>{
     const result=nextModelDownloadProgress(loaded,total,gzipBytes,rawBytes,downloadProgressState);
     downloadProgressState=result.state;
@@ -1912,7 +1915,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    };
    const seedPreloadedDownload=()=>{
     if(!isAnimeModel||typeof performance==='undefined')return;
-    const needle='anime-assistant.glb';
+    const needle=isAdultModel?'anime-adult.glb':'anime-assistant.glb';
     for(const entry of performance.getEntriesByType('resource')){
      if(!entry.name.includes(needle))continue;
      const rt=entry as PerformanceResourceTiming;
