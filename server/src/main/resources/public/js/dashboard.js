@@ -147,6 +147,9 @@
       if (pendingCancelAllClients.has(clientId)) {
         return '<button class="btn btn-danger btn-pending" data-role="cancel-all" disabled title="已送出取消全部指令，等候桌面端心跳確認">取消中…</button>';
       }
+      if ((tasks || []).length < 2) {
+        return '';
+      }
       const canCancel = isConnected && hasCancellableTasks(tasks);
       const disabled = canCancel ? '' : 'disabled';
       const title = canCancel ? '' : ' title="現在沒有在做的可以取消"';
@@ -756,7 +759,7 @@
           '</div>' +
           '<div class="device-body ' + bodyClass + '" id="' + bodyDomId + '">' +
             '<div class="metrics">' +
-              '<div class="metric"><span class="metric-label">上次打卡</span><span class="metric-value heartbeat-value" data-client-id="' + escapeHtml(c.clientId) + '">' + formatHeartbeat(c.lastSeen) + '</span></div>' +
+              '<div class="metric"><span class="metric-label">最後心跳</span><span class="metric-value heartbeat-value" data-client-id="' + escapeHtml(c.clientId) + '">' + formatHeartbeat(c.lastSeen) + '</span></div>' +
               '<div class="metric"><span class="metric-label">待辦</span><span class="metric-value" data-role="task-count">' + tasks.length + ' 筆</span></div>' +
               '<div class="metric"><span class="metric-label">最新動態</span><span class="metric-value" data-role="latest-message" style="color:' + statusColor + ';font-size:0.88rem;">' + safeMsg + '</span></div>' +
             '</div>' +
