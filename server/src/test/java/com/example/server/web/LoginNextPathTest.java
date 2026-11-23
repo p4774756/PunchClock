@@ -15,6 +15,7 @@ public class LoginNextPathTest {
         assertEquals("/console#devices", LoginNextPath.sanitize("/console#devices"));
         assertEquals("/console?open=roadmap", LoginNextPath.sanitize("/console?open=roadmap"));
         assertEquals("/?open=roadmap", LoginNextPath.sanitize("/?open=roadmap"));
+        assertEquals("/?open=tasks", LoginNextPath.sanitize("/?open=tasks"));
     }
 
     @Test

@@ -208,7 +208,7 @@ public final class ServerApp {
         app.delete("/api/clients/{clientId}", this::deleteClient);
         app.get("/", this::officeHome);
         app.get("/console", this::adminConsole);
-        app.get("/console.html", ctx -> ctx.redirect("/console"));
+        app.get("/console.html", ctx -> ctx.redirect("/?open=tasks"));
         app.get("/index.html", ctx -> ctx.redirect("/"));
         app.get("/office", ctx -> ctx.redirect("/"));
         app.get("/office.html", ctx -> ctx.redirect("/"));
@@ -539,11 +539,7 @@ public final class ServerApp {
     }
 
     private void adminConsole(Context ctx) {
-        boolean authenticated = authService.isAuth(ctx);
-        String html = com.example.server.util.DonatePageTokens.apply(
-                applyAuthPageTokens(applyServerBuildTokens(readResource("/public/console.html")), authenticated));
-        ctx.header("Cache-Control", PAGE_CACHE);
-        ctx.html(html);
+        ctx.redirect("/?open=tasks");
     }
 
     private static String applyServerBuildTokens(String html) {

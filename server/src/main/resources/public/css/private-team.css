@@ -59,6 +59,30 @@
   pointer-events: none;
 }
 
+.home-tasks-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: min(92vh, 720px);
+  width: min(96vw, 54rem);
+}
+
+.home-tasks-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.75rem 1rem 1rem;
+  background: var(--maple-white, #f8fbff);
+}
+
+.home-tasks-body .dash-panel.is-active,
+.home-tasks-body #panel-devices.is-active {
+  display: block;
+}
+
+.home-tasks-body #clientContainer {
+  min-height: 12rem;
+}
+
 /* 登入彈窗留著辦公室場景，只停用背後指標。遮罩在 .roadmap-board。 */
 .lab-office-stage.pt-login-open .private-team-hud,
 .lab-office-stage.pt-login-open .private-team-hud > *,

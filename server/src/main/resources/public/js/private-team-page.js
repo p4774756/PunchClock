@@ -124,6 +124,8 @@ export function mountPrivateTeamPage(opts) {
   const pageHooks = (opts && opts.hooks) || {};
   const openRoadmap =
     typeof pageHooks.openRoadmap === 'function' ? pageHooks.openRoadmap : null;
+  const openTasks = typeof pageHooks.openTasks === 'function' ? pageHooks.openTasks : null;
+  const closeTasks = typeof pageHooks.closeTasks === 'function' ? pageHooks.closeTasks : null;
 
   let canvas = stage.querySelector('[data-private-team-canvas]');
   if (!canvas) {
@@ -204,6 +206,7 @@ export function mountPrivateTeamPage(opts) {
   let taskHintOpen = false;
   let identityMenuOpen = false;
   let loginOpen = false;
+  let pendingOpenTasksAfterLogin = false;
   let lastFocus = null;
 
   function bindOpenLoginHandlers(root) {
@@ -219,6 +222,9 @@ export function mountPrivateTeamPage(opts) {
         closeTaskHint();
         closeIdentityMenu();
         closeStatusCard();
+        if (node.closest('[data-pt-task-hint]')) {
+          pendingOpenTasksAfterLogin = true;
+        }
         loginModal.open();
       });
     }
@@ -249,6 +255,10 @@ export function mountPrivateTeamPage(opts) {
       mountIdentitySection();
     }
     closeTaskHint();
+    if (pendingOpenTasksAfterLogin) {
+      pendingOpenTasksAfterLogin = false;
+      if (openTasks) openTasks();
+    }
   }
 
   let loginModal = {
@@ -303,6 +313,13 @@ export function mountPrivateTeamPage(opts) {
   }
 
   let roadmapOpen = false;
+  let tasksOpen = false;
+
+  function syncSceneOverlay() {
+    const sceneBlocked = roadmapOpen || tasksOpen;
+    stage.classList.toggle('pt-roadmap-open', sceneBlocked);
+    scene.setSceneInputEnabled(!sceneBlocked && !loginOpen);
+  }
 
   function placeProgHit(rect) {
     if (!progHit || !rect) return;
@@ -319,13 +336,28 @@ export function mountPrivateTeamPage(opts) {
 
   function setRoadmapOpen(open) {
     roadmapOpen = !!open;
-    stage.classList.toggle('pt-roadmap-open', roadmapOpen);
-    scene.setSceneInputEnabled(!roadmapOpen && !loginOpen);
+    syncSceneOverlay();
     if (roadmapOpen) {
       closeStatusCard();
       closeIdentityMenu();
       closeTaskHint();
       loginModal.close();
+      if (tasksOpen && closeTasks) closeTasks();
+    }
+  }
+
+  function setTasksOpen(open) {
+    tasksOpen = !!open;
+    syncSceneOverlay();
+    if (tasksOpen) {
+      closeStatusCard();
+      closeIdentityMenu();
+      closeTaskHint();
+      loginModal.close();
+      if (roadmapOpen && openRoadmap) {
+        roadmapOpen = false;
+        syncSceneOverlay();
+      }
     }
   }
 
@@ -348,7 +380,7 @@ export function mountPrivateTeamPage(opts) {
     onOpenChange: (open) => {
       loginOpen = !!open;
       stage.classList.toggle('pt-login-open', loginOpen);
-      scene.setSceneInputEnabled(!loginOpen && !roadmapOpen);
+      scene.setSceneInputEnabled(!loginOpen && !roadmapOpen && !tasksOpen);
       if (loginOpen) {
         closeStatusCard();
         closeIdentityMenu();
@@ -392,7 +424,7 @@ export function mountPrivateTeamPage(opts) {
       ev.stopPropagation();
       if (sessionAuthed) {
         closeTaskHint();
-        win.location.href = '/console';
+        if (openTasks) openTasks();
         return;
       }
       if (taskHintOpen) {
@@ -439,6 +471,11 @@ export function mountPrivateTeamPage(opts) {
 
   function onKeyDown(ev) {
     if (ev.key === 'Escape') {
+      if (tasksOpen) {
+        ev.preventDefault();
+        if (closeTasks) closeTasks();
+        return;
+      }
       if (loginOpen) {
         ev.preventDefault();
         loginModal.close();
@@ -462,6 +499,7 @@ export function mountPrivateTeamPage(opts) {
     }
     if (
       !roadmapOpen &&
+      !tasksOpen &&
       !cardOpen &&
       (ev.key === 'Enter' || ev.key === ' ') &&
       ev.target === canvas
@@ -516,6 +554,7 @@ export function mountPrivateTeamPage(opts) {
 
   return {
     setRoadmapOpen,
+    setTasksOpen,
     destroy() {
       win.clearInterval(poll);
       doc.removeEventListener('keydown', onKeyDown);
@@ -524,6 +563,8 @@ export function mountPrivateTeamPage(opts) {
       closeTaskHint();
       closeStatusCard();
       setRoadmapOpen(false);
+      setTasksOpen(false);
+      if (closeTasks) closeTasks();
       scene.destroy();
     }
   };

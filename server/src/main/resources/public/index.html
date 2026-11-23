@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/css/dev-guest-ui.css">
   <link rel="stylesheet" href="/css/private-team.css">
   <link rel="stylesheet" href="/css/login.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
 </head>
 <body class="lab-office-page {{AUTH_BODY_CLASS}}">
   <script>
@@ -105,6 +106,26 @@
       </div>
     </div>
   </section>
+  <section id="tasksBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="任務">
+    <div class="roadmap-panel maple-window home-tasks-panel">
+      <header class="maple-win-title roadmap-win-head">
+        <h2>任務</h2>
+        <button type="button" class="roadmap-close-x" data-tasks-close aria-label="關閉">×</button>
+      </header>
+      <div class="home-tasks-body">
+        <div class="shell dash-panel" id="panel-devices" data-label="任務" role="tabpanel" hidden>
+          <div class="content-panel content-panel-full">
+            <main id="clientContainer">
+              <div class="empty-state"><p>還沒有設備連上來</p><p>等桌面端連上並回報狀態後，任務會出現在這裡</p></div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <script src="/js/dash-tab.js"></script>
+  <script type="module" src="/js/device-fold.js"></script>
+  <script src="/js/dashboard.js"></script>
   <script type="module" src="/js/office-page.js"></script>
 </body>
 </html>

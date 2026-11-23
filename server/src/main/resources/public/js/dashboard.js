@@ -879,6 +879,15 @@
     let suppressConsoleHashWrite = false;
     let currentConsoleTab = 'devices';
 
+    function onConsolePage() {
+      try {
+        const path = window.location.pathname || '';
+        return path === '/console' || path.endsWith('/console');
+      } catch (e) {
+        return false;
+      }
+    }
+
     function zoneLabel(tabId) {
       const panel = document.getElementById('panel-' + tabId);
       return panel ? (panel.getAttribute('data-label') || tabId) : tabId;
@@ -904,7 +913,7 @@
     };
 
     function writeConsoleUrlForTab(tabId) {
-      if (!isAuthenticated || suppressConsoleHashWrite) return;
+      if (!isAuthenticated || suppressConsoleHashWrite || !onConsolePage()) return;
       try {
         const path = window.location.pathname || '/console';
         const hash = tabId ? '#' + tabId : '';
@@ -1058,7 +1067,7 @@
     }
 
     function bindConsoleHashNav() {
-      if (!isAuthenticated) return;
+      if (!isAuthenticated || !onConsolePage()) return;
       window.addEventListener('hashchange', () => {
         const api = window.PunchclockDashTab;
         if (!api || typeof api.resolveInitialDashTab !== 'function') return;

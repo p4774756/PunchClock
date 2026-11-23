@@ -174,6 +174,19 @@ test('open=roadmap 參數解析與深連結', () => {
   assert.equal(win._url, '/');
 });
 
+test('open=tasks 參數解析與深連結', () => {
+  assert.equal(F.shouldOpenTasksFromSearch('?open=tasks'), true);
+  assert.equal(F.shouldOpenTasksFromSearch('?open=roadmap'), false);
+  let opened = false;
+  const win = {
+    location: { href: 'http://localhost/?open=tasks', search: '?open=tasks', pathname: '/', hash: '' },
+    history: { replaceState: (_a, _b, url) => { win._url = url; } }
+  };
+  assert.equal(F.applyTasksOpenParam(win, () => { opened = true; }), true);
+  assert.equal(opened, true);
+  assert.equal(win._url, '/');
+});
+
 test('effectivePhaseStatus：0/5 pending、3/5 progress、5/5 done、current 0/5 active', () => {
   const phase = (n, done, total, extra) => Object.assign({ phase: n, done: false, itemsDone: done, itemsTotal: total }, extra);
   assert.equal(F.effectivePhaseStatus(phase(6, 0, 5), 7), 'pending');

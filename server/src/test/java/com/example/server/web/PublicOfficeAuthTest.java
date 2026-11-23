@@ -85,7 +85,8 @@ public class PublicOfficeAuthTest {
         assertTrue(response.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
         assertFalse(response.body().toLowerCase().contains("island"));
         assertFalse(response.body().contains("神之島"));
-        assertFalse(response.body().contains("dashboard.js"));
+        assertTrue(response.body().contains("tasksBoard"));
+        assertTrue(response.body().contains("dashboard.js"));
     }
 
     @Test
@@ -147,14 +148,18 @@ public class PublicOfficeAuthTest {
     }
 
     @Test
-    public void consoleServesDashboard() throws Exception {
+    public void consoleRedirectsToHomeTasks() throws Exception {
         HttpResponse<String> page = send("GET", "/console", adminCookie);
-        assertEquals(200, page.statusCode());
-        assertTrue(page.body().contains("dashboard.js"));
-        assertTrue(page.body().contains("dash-tab.js"));
-        assertTrue(page.body().contains("clientContainer"));
-        assertTrue(page.body().contains("dashboard.js"));
-        assertTrue(page.body().contains("panel-devices"));
+        assertEquals(302, page.statusCode());
+        assertEquals("/?open=tasks", page.headers().firstValue("location").orElse(""));
+        HttpResponse<String> home = send("GET", "/", adminCookie);
+        assertEquals(200, home.statusCode());
+        assertTrue(home.body().contains("dashboard.js"));
+        assertTrue(home.body().contains("dash-tab.js"));
+        assertTrue(home.body().contains("clientContainer"));
+        assertTrue(home.body().contains("panel-devices"));
+        assertTrue(home.body().contains("tasksBoard"));
+        assertTrue(home.body().contains("data-tasks-close"));
     }
 
     @Test
@@ -171,6 +176,9 @@ public class PublicOfficeAuthTest {
         HttpResponse<String> response = send("GET", "/login?next=/?open=roadmap", adminCookie);
         assertEquals(302, response.statusCode());
         assertEquals("/?open=roadmap", response.headers().firstValue("location").orElse(""));
+        HttpResponse<String> tasksNext = send("GET", "/login?next=/?open=tasks", adminCookie);
+        assertEquals(302, tasksNext.statusCode());
+        assertEquals("/?open=tasks", tasksNext.headers().firstValue("location").orElse(""));
         HttpResponse<String> console = send("GET", "/login?next=/console", adminCookie);
         assertEquals(302, console.statusCode());
         assertEquals("/console", console.headers().firstValue("location").orElse(""));
