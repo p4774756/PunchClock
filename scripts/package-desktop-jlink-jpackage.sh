@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-JAR="$ROOT/client/target/XiaoBaobei.jar"
+JAR="$ROOT/client/target/SKLbaby.jar"
 RUNTIME_IMAGE="$ROOT/build/desktop-runtime"
 DESKTOP_BUILD="$ROOT/build/desktop"
 APP_NAME="小寶貝"
@@ -10,7 +10,7 @@ MAIN_CLASS="com.example.SklbabyLauncher"
 ICON="${1:?icon file (.icns or .ico)}"
 PACKAGE_TYPE="${2:?dmg|exe}"
 VERSION="${3:-4.0.0}"
-DMG_NAME="${4:-XiaoBaobei-mac.dmg}"
+DMG_NAME="${4:-SKLbaby-mac.dmg}"
 # jpackage 只接受數字版號。tag v4.0.0-r2 這類重跑標記去掉後綴。
 VERSION="${VERSION%%-*}"
 
@@ -139,7 +139,7 @@ elif [[ "$PACKAGE_TYPE" == "exe" ]]; then
     ls -la "$DESKTOP_BUILD" >&2 || true
     exit 1
   fi
-  OUT_FILE="$DESKTOP_BUILD/XiaoBaobei-win.exe"
+  OUT_FILE="$DESKTOP_BUILD/SKLbaby-win.exe"
   mv -f "$produced" "$OUT_FILE"
 else
   echo "Unsupported package type: $PACKAGE_TYPE" >&2
