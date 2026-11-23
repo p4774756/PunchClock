@@ -43,7 +43,7 @@ import type {VRMCore} from '@pixiv/three-vrm-core';
 import {MToonMaterialOutlineWidthMode} from '@pixiv/three-vrm-materials-mtoon';
 import {PointerTap} from './pointer-tap';
 import {createTeachingOverlay} from './teaching-overlay';
-import {applyAdultStandingPose} from './adult-rest-pose';
+import {applyAdultStandingPose,primeAdultStandingPose} from './adult-rest-pose';
 import {buildAdultPointBindings,type AdultPointBindings} from './adult-point-bindings';
 import {tuneCharacterTextures} from './character-texture-tune';
 import {clearAvatarSceneCache,stashAvatarRig,takeAvatarRig,type CachedAvatarRig} from './avatar-scene-cache';
@@ -2200,7 +2200,10 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(disposed)return;frame=requestAnimationFrame(animate);
    const now=performance.now();const delta=Math.min(.05,(now-lastFrame)/1000);lastFrame=now;
    studyDecor.update(delta,!!reducedMotionMq?.matches);
-   if(vrm)vrm.update(delta);
+   if(vrm){
+    if(adultPointBindings)primeAdultStandingPose(vrm);
+    vrm.update(delta);
+   }
    adultPointBindings?.refresh();
    const s=latest.current,simState=sim.current;
    toolInput?.update();
@@ -2315,6 +2318,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    });
    animate();
    if(restored?.ready){
+    if(vrm&&adultPointBindings)applyAdultStandingPose(vrm);
     if(schoolModel&&!schoolModel.parent)characterRoot.add(schoolModel);
     if(practiceModel&&!practiceModel.parent)characterRoot.add(practiceModel);
     if(sheerModel&&!sheerModel.parent)characterRoot.add(sheerModel);
