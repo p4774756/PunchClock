@@ -119,28 +119,22 @@
       return (tasks || []).some((t) => t.status === 'SCHEDULED' || t.status === 'CHECKING_IN');
     }
 
-    function countScheduledTasks(tasks) {
-      return (tasks || []).filter((t) => t.status === 'SCHEDULED').length;
-    }
-
-    function taskNamesLabel(tasks) {
-      const names = [];
-      (tasks || []).forEach((t) => {
-        const name = t && t.name ? String(t.name).trim() : '';
-        if (name) names.push(name);
-      });
-      if (!names.length) return '';
-      if (names.length <= 2) return names.join('、');
-      return names[0] + '、' + names[1] + ' 等';
+    function deviceHeadBadgeHelpers() {
+      const g = typeof window !== 'undefined' ? window : globalThis;
+      return (g && g.PunchclockDeviceHeadBadge) || {};
     }
 
     function buildDeviceHeadBadgeText(isConnected, transportLabel, tasks) {
-      if (!isConnected) return '離線';
-      const total = (tasks || []).length;
-      const scheduled = countScheduledTasks(tasks);
-      const names = taskNamesLabel(tasks);
-      const named = names ? names + ' · ' : '';
-      return '辦公室上班中 · ' + transportLabel + ' · ' + named + total + ' 筆待辦 · ' + scheduled + ' 筆排程中';
+      const fn = deviceHeadBadgeHelpers().buildDeviceHeadBadgeText;
+      return typeof fn === 'function'
+        ? fn(isConnected, transportLabel, tasks)
+        : (isConnected ? '辦公室上班中' : '離線');
+    }
+
+    function buildDeviceHeadChipClass(isConnected, tasks) {
+      const fn = deviceHeadBadgeHelpers().buildDeviceHeadChipClass;
+      if (typeof fn === 'function') return fn(isConnected, tasks);
+      return isConnected ? 'chip-online' : 'chip-offline';
     }
 
     function buildCancelAllButtonHtml(clientId, isConnected, tasks) {
@@ -361,7 +355,7 @@
 
       const headChip = root.querySelector('.device-head-right .chip');
       if (headChip) {
-        headChip.className = 'chip ' + (isConnected ? 'chip-online' : 'chip-offline');
+        headChip.className = 'chip ' + buildDeviceHeadChipClass(isConnected, tasks);
         headChip.innerHTML = (isConnected ? '<span class="dot dot-live"></span>' : '<span class="dot"></span>') + badgeText;
       }
 
@@ -717,7 +711,7 @@
         const isCollapsed = !expandedClients.has(c.clientId);
         const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
 
-        const badgeClass = isConnected ? 'chip-online' : 'chip-offline';
+        const badgeClass = buildDeviceHeadChipClass(isConnected, tasks);
         const transportLabel = c.transport === 'http' ? 'HTTP' : (c.transport || '-');
         const badgeText = buildDeviceHeadBadgeText(isConnected, transportLabel, tasks);
 

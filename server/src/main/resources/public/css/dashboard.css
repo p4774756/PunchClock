@@ -297,6 +297,12 @@
       border-color: rgba(198, 40, 40, 0.25);
     }
 
+    .chip-idle {
+      color: var(--text-muted);
+      background: var(--white);
+      border-color: var(--line);
+    }
+
     .dot {
       width: 7px;
       height: 7px;
