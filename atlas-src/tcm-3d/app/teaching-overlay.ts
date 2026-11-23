@@ -2,7 +2,7 @@ import * as T from 'three';
 import {createInstrument,updateInstrument} from './instruments';
 import {focusViewFromNormal} from './focus-view';
 import {buildSkinRaycastProxiesIncremental} from './skin-raycast-proxy';
-import {POINTS,POINT_BY_CODE,TOOLS,curriculumSet,type SimulationState,type SurfaceTarget,type ToolId} from './teaching';
+import {MERIDIANS,POINTS,POINT_BY_CODE,TOOLS,curriculumSet,meridianLinePaths,meridianLinesEnabled,type SimulationState,type SurfaceTarget,type ToolId,type MeridianPathSide} from './teaching';
 import type {AnimePoint} from './character-mode';
 
 const SKIN_MESH_HINT=/Face_00_SKIN|Body_00_SKIN|FaceMouth/i;
@@ -12,7 +12,8 @@ export function createTeachingOverlay(
  scene:T.Scene,
  opts:{points:AnimePoint[];resolvePoint:(code:string,side:1|-1)=>SurfaceTarget|null},
 ){
- const root=new T.Group(),dots=new T.Group(),contact=new T.Group();root.add(dots,contact);scene.add(root);
+ const root=new T.Group(),dots=new T.Group(),meridians=new T.Group(),contact=new T.Group();root.add(dots,meridians,contact);scene.add(root);
+ const meridianMaterials=new Map<string,T.LineBasicMaterial>();
  const surface=new Map<string,SurfaceTarget>();
  const sphere=new T.SphereGeometry(.0042,14,10);
  const normalMat=new T.MeshStandardMaterial({color:'#4e958b',emissive:'#24463e',emissiveIntensity:.22,roughness:.35,metalness:0});
@@ -113,6 +114,7 @@ export function createTeachingOverlay(
   applySeed(dot,seed);
  };
  let proxyBakePromise:Promise<void>|null=null;
+ let lastMeridianKey='';
  const anchor=(characterRoot:T.Object3D)=>{
   if(anchored)return;
   skinMeshes=collectSkins(characterRoot);
@@ -133,6 +135,7 @@ export function createTeachingOverlay(
    if(seed)snapDot(dot,seed);
   }
   anchorSnapshot=new Map(surface);
+  lastMeridianKey='';
   performance.mark('atlas:anchor-end');
   try{performance.measure('atlas:anchor','atlas:anchor-start','atlas:anchor-end');}catch{/* duplicate */}
  };
@@ -157,6 +160,7 @@ export function createTeachingOverlay(
    v.fromArray(target.position);n.fromArray(target.normal).normalize();
    dot.position.copy(v).addScaledVector(n,.003);
   }
+  lastMeridianKey='';
   anchored=true;
  };
  const reanchor=(characterRoot:T.Object3D)=>{
@@ -164,9 +168,57 @@ export function createTeachingOverlay(
   anchored=false;
   anchor(characterRoot);
  };
+ const markerPosition=(code:string,side:MeridianPathSide)=>{
+  const want=side==='midline'?1:side;
+  const dot=markers.find(m=>m.userData.point===code&&m.userData.side===want);
+  return dot?dot.position.clone():null;
+ };
+ const meridianColor=(id:string)=>{
+  const hex=MERIDIANS.find(m=>m.id===id)?.color??'#7aa8c4';
+  let mat=meridianMaterials.get(hex);
+  if(!mat){
+   mat=new T.LineBasicMaterial({color:hex,transparent:true,opacity:.62,depthTest:true,depthWrite:false});
+   meridianMaterials.set(hex,mat);
+  }
+  return mat;
+ };
+ const clearMeridianLines=()=>{
+  while(meridians.children.length){
+   const child=meridians.children[0];
+   meridians.remove(child);
+   if(child instanceof T.Line){
+    child.geometry.dispose();
+   }
+  }
+ };
+ const syncMeridianLines=(s:SimulationState)=>{
+  const bakedCodes=new Set(opts.points.map(p=>p.code));
+  const enabled=meridianLinesEnabled(s.meridianFilter,s.showMeridians);
+  const key=enabled?`${s.meridianFilter}:${s.showMeridians}:${[...bakedCodes].sort().join(',')}`:'off';
+  if(key===lastMeridianKey)return;
+  lastMeridianKey=key;
+  clearMeridianLines();
+  meridians.visible=enabled&&s.showPoints;
+  if(!enabled){return;}
+  const paths=meridianLinePaths(s.meridianFilter,bakedCodes);
+  const mat=meridianColor(s.meridianFilter!);
+  for(const path of paths){
+   const verts:T.Vector3[]=[];
+   for(const code of path.codes){
+    const pos=markerPosition(code,path.side);
+    if(pos)verts.push(pos);
+   }
+   if(verts.length<2)continue;
+   const line=new T.Line(new T.BufferGeometry().setFromPoints(verts),mat);
+   line.renderOrder=11;
+   meridians.add(line);
+  }
+ };
  const update=(s:SimulationState,camera:T.Camera,width:number,height:number,show=true)=>{
   activeCurriculum=curriculumSet(s.curriculumSet==='all'?undefined:s.curriculumSet);
   root.visible=show;dots.visible=s.showPoints;
+  syncMeridianLines(s);
+  meridians.visible=meridianLinesEnabled(s.meridianFilter,s.showMeridians)&&s.showPoints&&show;
   const target=getTarget(s);contact.visible=!!target;
   let showPickRing=false;
   for(const dot of markers){
@@ -256,6 +308,9 @@ export function createTeachingOverlay(
   isAnchored:()=>anchored,
   hasSkinProxies:()=>raycastTargets.length>0,
   dispose:()=>{
+   clearMeridianLines();
+   meridianMaterials.forEach(m=>m.dispose());
+   meridianMaterials.clear();
    normalMat.dispose();activeMat.dispose();sphere.dispose();
    pickRing.geometry.dispose();(pickRing.material as T.Material).dispose();
    instruments.forEach(g=>g.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}}));
