@@ -676,8 +676,8 @@ function makeProgressBoardDrawer() {
     }
     const phrase = bag.phraseLine == null ? '' : String(bag.phraseLine);
     if (phrase) {
-      ctx.font = '22px sans-serif';
-      ctx.fillStyle = '#e8edf8';
+      ctx.font = '23px sans-serif';
+      ctx.fillStyle = '#f2f6fc';
       const lines = wrapBoardLine(ctx, phrase, iw - 32, 2);
       for (let li = 0; li < lines.length; li++) {
         ctx.fillText(lines[li], ix + 16, y);
@@ -691,17 +691,17 @@ function makeProgressBoardDrawer() {
     }
     const meta = bag.metaLine == null ? '' : String(bag.metaLine);
     if (meta) {
-      ctx.font = '18px sans-serif';
-      ctx.fillStyle = '#a8b4c8';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.fillStyle = '#e2eaf6';
       ctx.fillText(ellipsizeLine(ctx, meta, iw - 32), ix + 16, y);
-      y += 26;
+      y += 28;
     }
     const todayLabel = bag.todayLabel == null ? '' : String(bag.todayLabel);
     const frac = Number(bag.todayFraction);
     if (todayLabel && Number.isFinite(frac)) {
       const barY = iy + ih - 52;
-      ctx.font = 'bold 18px sans-serif';
-      ctx.fillStyle = '#c9b878';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.fillStyle = '#f5e6a8';
       ctx.fillText(todayLabel, ix + 16, barY);
       const pct = Math.round(frac * 100);
       const pctText = pct + '%';
