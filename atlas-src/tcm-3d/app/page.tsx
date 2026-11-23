@@ -239,7 +239,10 @@ export default function Home(){
   {outfitPending&&<p className="practice-outfit-hint" role="status" aria-live="polite">準備中…</p>}
 
   <aside className={`library-panel surface ${mobilePanel==='library'?'mobile-expanded':''}`} aria-label="穴位庫">
-   <button type="button" className="mobile-panel-heading library-rail-only" tabIndex={-1} aria-hidden="true" disabled><span><Layers3 size={16}/>穴位庫</span><ChevronDown size={17}/></button>
+   <div className="library-window-bar">
+    <span className="library-window-title">穴位庫</span>
+    <button type="button" className="roadmap-close-x" aria-label="關閉穴位庫" onClick={toggleLibrary}>×</button>
+   </div>
    <div className="panel-content">
     <div className="panel-tabs" role="tablist" aria-label="學習內容"><button role="tab" aria-selected className="selected" id="points-tab" aria-controls="points-panel">穴位<span>{practiceCodes.size}</span></button></div>
     <div className="tab-body" id="points-panel" role="tabpanel" aria-labelledby="points-tab">
