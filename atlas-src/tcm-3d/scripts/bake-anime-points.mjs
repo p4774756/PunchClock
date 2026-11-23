@@ -129,7 +129,7 @@ const seeds={
  BL18:[.03*L,1.139,.09],BL19:[.03*L,1.115,.09],BL20:[.03*L,1.091,.09],BL21:[.03*L,1.067,.09],BL22:[.03*L,1.043,.09],
  BL43:[.055*L,1.259,.095],
  // 天宗：與 T4 列同高（天宗／膏肓／厥陰俞）
- SI11:[.085*L,1.259,.095],SI9:[.15*L,1.31,.05],
+ SI11:[.085*L,1.259,.095],SI9:[.11*L,1.31,.085],
  GV4:[0,1.02,.11],BL23:[.03*L,1.02,.1],BL52:[.055*L,1.02,.1],
  // 臀髖 6（2026-11-22）：薦骨四穴在命門／腎俞下方；環跳為站姿臀外下（側臥屈膝腳跟抵臀換算）。
  GV2:[0,0.905,.095],BL34:[.015*L,0.905,.092],BL30:[.03*L,0.905,.095],BL54:[.055*L,0.905,.095],
@@ -138,7 +138,8 @@ const seeds={
  // 肘／腕橫紋穴共用關節 X；橈尺分開走 Z。掌側肺／心包／心；手背大腸／三焦／小腸。
  LI15:[(.08)*L,shoulderL.y-.005,shoulderL.z-.04],
  TE14:[(.12)*L,shoulderL.y,shoulderL.z+.06],
- SI10:[(.16)*L,shoulderL.y-.04,shoulderL.z+.07],
+ // 臑俞：靠肩胛／天宗量級 X，Z 朝後（腋後皺襞上、肩胛岡下）；勿沿上臂 X 外推。
+ SI10:[.095*L,1.252,.105],
  LU5:[elbowX*L,elbowY,lowerArmL.z-.048],
  PC3:[elbowX*L,elbowY-.004,lowerArmL.z-.012],
  HT3:[elbowX*L,elbowY-.004,lowerArmL.z+.032],
@@ -189,7 +190,8 @@ const preferFor=(code,arr)=>{
  if(code==='SP12')return new T.Vector3(0,-.05,-1).normalize();
  if(code==='LI15')return new T.Vector3(0,0,-1);
  if(code==='TE14')return new T.Vector3(arr[0],-.15,1).normalize();
- if(code==='SI10')return new T.Vector3(arr[0]*.3,-.1,1).normalize();
+ if(code==='SI10')return new T.Vector3(arr[0]*.15,-.05,1).normalize();
+ if(code==='SI9')return new T.Vector3(arr[0]*.2,-.08,1).normalize();
  if(code==='LU5')return new T.Vector3(0,0,-1);
  if(code==='PC3')return new T.Vector3(0,0,-1);
  if(code==='HT3')return new T.Vector3(.12,.06,-1).normalize();
@@ -379,17 +381,19 @@ if(codesFilter){
   realignGroup(['BL54'],'x','BL52');
  }
  const blLine=['BL11','BL12','BL13','BL14','BL15','BL16','BL17','BL18','BL19','BL20','BL21','BL22','BL23'];
- realignGroup(blLine,'x','BL14');
- for(const code of blLine){
-  if(!(code in seeds))continue;
-  const e=byCode.get(code);
-  if(!e)continue;
-  const seed=new T.Vector3(...e.position);
-  const hit=snap(seed,preferFor(code,e.position));
-  if(!hit)continue;
-  const np=hit.position.slice(),nor=hit.normal.slice();
-  np[0]=e.position[0];nor[0]=Math.abs(nor[0]);
-  byCode.set(code,{...e,position:np,normal:nor});
+ if(blLine.some(c=>codesFilter.includes(c))){
+  realignGroup(blLine,'x','BL14');
+  for(const code of blLine){
+   if(!(code in seeds))continue;
+   const e=byCode.get(code);
+   if(!e)continue;
+   const seed=new T.Vector3(...e.position);
+   const hit=snap(seed,preferFor(code,e.position));
+   if(!hit)continue;
+   const np=hit.position.slice(),nor=hit.normal.slice();
+   np[0]=e.position[0];nor[0]=Math.abs(nor[0]);
+   byCode.set(code,{...e,position:np,normal:nor});
+  }
  }
 }
 

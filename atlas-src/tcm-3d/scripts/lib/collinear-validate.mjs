@@ -228,6 +228,18 @@ export function validateArmJointAxes(animeJson) {
     failures.push(`陽穀 SI5 x=${si5.position[0].toFixed(5)} 過遠端（掌指關節約 0.60，應留在腕橫紋）`);
   }
 
+  const si10 = byCode.get('SI10');
+  const si11 = byCode.get('SI11');
+  const si10MaxX = 0.12;
+  if (si10 && si10.position[0] > si10MaxX + 1e-9) {
+    failures.push(`臑俞 SI10 x=${si10.position[0].toFixed(5)} 偏上臂上臂遠端（應 ≤ ${si10MaxX}，靠近肩胛／天宗）`);
+  }
+  if (si10 && si11 && si10.position[0] > si11.position[0] + 0.025 + 1e-9) {
+    failures.push(
+      `臑俞 SI10 x=${si10.position[0].toFixed(5)} 較天宗 SI11 x=${si11.position[0].toFixed(5)} 外偏過多`,
+    );
+  }
+
   return {passed: failures.length === 0, failures};
 }
 
