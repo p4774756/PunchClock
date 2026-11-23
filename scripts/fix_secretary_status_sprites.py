@@ -36,8 +36,11 @@ def dilate(mask: np.ndarray, radius: int = 1) -> np.ndarray:
     ys, xs = np.where(mask)
     if len(xs) == 0:
         return out
+    r2 = radius * radius
     for dy in range(-radius, radius + 1):
         for dx in range(-radius, radius + 1):
+            if dy * dy + dx * dx > r2:
+                continue
             yy = ys + dy
             xx = xs + dx
             ok = (yy >= 0) & (yy < h) & (xx >= 0) & (xx < w)
@@ -186,29 +189,252 @@ def strip_bottom_band(alpha: np.ndarray, rgb: np.ndarray, band_px: int, y_min: O
     return a
 
 
-def heal_left_foot(alpha: np.ndarray, rgb: np.ndarray) -> np.ndarray:
+def is_matte_rgb(rgb: np.ndarray) -> np.ndarray:
+    """Cool or neutral near-white, including roughly (225, 230, 237)."""
+    r = rgb[:, :, 0].astype(np.int16)
+    g = rgb[:, :, 1].astype(np.int16)
+    b = rgb[:, :, 2].astype(np.int16)
+    mn = np.minimum(np.minimum(r, g), b)
+    mx = np.maximum(np.maximum(r, g), b)
+    chroma = mx - mn
+    cool = (mn >= 205) & (chroma <= 36) & ((b + 8) >= r)
+    pure = (mn >= 242) & (chroma <= 18)
+    return cool | pure
+
+
+def is_saturated_skin(rgb: np.ndarray, alpha: np.ndarray) -> np.ndarray:
+    r = rgb[:, :, 0].astype(np.int16)
+    g = rgb[:, :, 1].astype(np.int16)
+    b = rgb[:, :, 2].astype(np.int16)
+    return (alpha > 180) & (r > 175) & (g > 130) & ((r - b) >= 28) & ~is_matte_rgb(rgb)
+
+
+def _shift(mask: np.ndarray, dy: int, dx: int) -> np.ndarray:
+    out = np.zeros_like(mask)
+    h, w = mask.shape[:2]
+    ys = slice(max(0, dy), h + min(0, dy))
+    xs = slice(max(0, dx), w + min(0, dx))
+    ys2 = slice(max(0, -dy), h + min(0, -dy))
+    xs2 = slice(max(0, -dx), w + min(0, -dx))
+    out[ys2, xs2] = mask[ys, xs]
+    return out
+
+
+def _paint_from_skin(rgb: np.ndarray, alpha: np.ndarray, fill: np.ndarray) -> None:
+    """Color new pixels from nearby skin so the fill does not stay near-white."""
+    r = rgb[:, :, 0].astype(np.int16)
+    b = rgb[:, :, 2].astype(np.int16)
+    strong = is_saturated_skin(rgb, alpha) & ((r - b) >= 30)
+    soft = (alpha > 160) & (r > 150) & ((r - b) >= 14) & ~is_matte_rgb(rgb)
+    ys, xs = np.where(fill)
+    h, w = alpha.shape
+    for y, x in zip(ys.tolist(), xs.tolist()):
+        cols = []
+        for dy in range(-10, 11):
+            yy = y + dy
+            if yy < 0 or yy >= h:
+                continue
+            row = strong[yy]
+            for dx in range(-10, 11):
+                xx = x + dx
+                if 0 <= xx < w and row[xx]:
+                    cols.append(rgb[yy, xx])
+        if not cols:
+            for dy in range(-12, 13):
+                yy = y + dy
+                if yy < 0 or yy >= h:
+                    continue
+                row = soft[yy]
+                for dx in range(-12, 13):
+                    xx = x + dx
+                    if 0 <= xx < w and row[xx]:
+                        cols.append(rgb[yy, xx])
+        if not cols:
+            continue
+        rgb[y, x] = np.median(np.stack(cols, axis=0), axis=0).astype(np.uint8)
+        alpha[y, x] = 255
+
+
+def _clear_matte_specks(alpha: np.ndarray, rgb: np.ndarray, region: np.ndarray) -> None:
+    matte_all = is_matte_rgb(rgb)
+    matte = matte_all & (alpha >= 40) & region
+    if not int(matte.sum()):
+        return
+    seen = np.zeros_like(matte)
+    h, w = alpha.shape
+    ys, xs = np.where(matte)
+    for y0, x0 in zip(ys, xs):
+        if seen[y0, x0]:
+            continue
+        q = deque([(int(x0), int(y0))])
+        seen[y0, x0] = True
+        comp: List[Tuple[int, int]] = []
+        touches_body = False
+        while q:
+            x, y = q.popleft()
+            comp.append((x, y))
+            for nx, ny in (
+                (x - 1, y),
+                (x + 1, y),
+                (x, y - 1),
+                (x, y + 1),
+                (x - 1, y - 1),
+                (x + 1, y - 1),
+                (x - 1, y + 1),
+                (x + 1, y + 1),
+            ):
+                if not (0 <= nx < w and 0 <= ny < h):
+                    continue
+                if matte[ny, nx] and not seen[ny, nx]:
+                    seen[ny, nx] = True
+                    q.append((nx, ny))
+                elif alpha[ny, nx] > 160 and not matte_all[ny, nx]:
+                    touches_body = True
+        if len(comp) <= 80 and not touches_body:
+            for x, y in comp:
+                alpha[y, x] = 0
+
+
+def _fill_foot_slits(alpha: np.ndarray, region: np.ndarray, max_width: int = 14) -> np.ndarray:
+    """Fill narrow transparent slits that have opaque foot on both sides."""
+    opq = alpha > 180
+    fill = np.zeros_like(opq)
+    h, w = alpha.shape
+    ys, xs = np.where(region)
+    if len(xs) == 0:
+        return fill
+    y0, y1 = int(ys.min()), int(ys.max()) + 1
+    x1 = int(xs.max()) + 1
+    for y in range(y0, y1):
+        row = opq[y, :x1]
+        xs_op = np.where(row)[0]
+        if len(xs_op) < 2:
+            continue
+        for i in range(len(xs_op) - 1):
+            gap_l = int(xs_op[i]) + 1
+            gap_r = int(xs_op[i + 1])
+            width = gap_r - gap_l
+            if width <= 0 or width > max_width:
+                continue
+            if not region[y, gap_l:gap_r].all():
+                continue
+            if int((alpha[y, gap_l:gap_r] > 12).sum()):
+                continue
+            above = max(y0, y - 10)
+            below = min(h, y + 11)
+            supported = False
+            for x in range(gap_l, gap_r):
+                if int(opq[above:y, x].sum()) or int(opq[y + 1 : below, x].sum()):
+                    supported = True
+                    break
+            if supported:
+                fill[y, gap_l:gap_r] = True
+    return fill
+
+
+def _disk_close(mask: np.ndarray, radius: int) -> np.ndarray:
+    return ~dilate(~dilate(mask, radius), radius)
+
+
+def _close_foot_notches(alpha: np.ndarray, y1: int, radius: int = 11) -> np.ndarray:
+    """Fill stair notches and the straight seam inside the left foot only."""
+    h, w = alpha.shape
+    roi = np.zeros_like(alpha, dtype=bool)
+    roi[max(0, y1 - 100) : y1, : min(w, 180)] = True
+    closed = _disk_close(alpha > 180, radius)
+    return closed & roi & (alpha < 12)
+
+
+def _lift_foot_stairs(alpha: np.ndarray, y_sole: int, x0: int, x1: int, y_window: int = 120) -> np.ndarray:
+    """Raise local stair notches on the sole's top edge without cascading along a slope."""
+    fill = np.zeros_like(alpha, dtype=bool)
+    span = x1 - x0
+    if span <= 0 or y_sole < y_window:
+        return fill
+    tops = np.full(span, -1, np.int32)
+    y_from = y_sole - y_window
+    for x in range(x0, x1):
+        col = alpha[y_from : y_sole + 1, x] > 180
+        idx = np.where(col)[0]
+        if len(idx) == 0 or int(idx[-1]) < y_window - 28:
+            continue
+        i = len(idx) - 1
+        while i > 0 and int(idx[i]) == int(idx[i - 1]) + 1:
+            i -= 1
+        tops[x - x0] = y_from + int(idx[i])
+    for i in range(span):
+        if tops[i] < 0:
+            continue
+        higher: List[int] = []
+        for d in (-2, -1, 1, 2):
+            j = i + d
+            if 0 <= j < span and tops[j] >= 0 and int(tops[i] - tops[j]) >= 8:
+                higher.append(int(tops[j]))
+        if not higher:
+            continue
+        target = max(min(higher), int(tops[i]) - 18)
+        if target < int(tops[i]):
+            fill[target : int(tops[i]), x0 + i] = alpha[target : int(tops[i]), x0 + i] < 12
+    return fill
+
+
+def repair_foot_and_fringe(alpha: np.ndarray, rgb: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     a = alpha.copy()
-    bb = content_bbox(a, 24)
+    c = rgb.copy()
+    bb = content_bbox(a, 16)
     if bb is None:
-        return a
+        return a, c
     _, _, _, y1 = bb
     h, w = a.shape
-    region = np.zeros_like(a, dtype=bool)
-    region[int(y1 * 0.52) : y1, : min(w, 150)] = True
-    fringe = region & near_white_mask(rgb, a) & adjacent_to(a == 0)
-    a[fringe] = 0
-    gap = region & (a < 12) & dilate(a > 200, 2)
-    for y, x in zip(*np.where(gap)):
-        if y >= h - 44:
-            continue
-        n = sum(
-            1
-            for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1))
-            if 0 <= nx < w and 0 <= ny < h and a[ny, nx] > 180
-        )
-        if n >= 2:
-            a[y, x] = 255
-    return a
+    y1 = min(y1, h)
+    foot = np.zeros_like(a, dtype=bool)
+    foot[max(0, y1 - 110) : y1, : min(w, 220)] = True
+    _clear_matte_specks(a, c, foot)
+
+    # Peel the chair-edge band and the foot halo before closing, so the close is the last contour edit.
+    y_cut = max(0, y1 - 46)
+    for _ in range(6):
+        matte = is_matte_rgb(c) & (a >= 40)
+        exterior = flood_from_edges(a < 12)
+        below = np.zeros_like(a, dtype=bool)
+        below[:-1] |= exterior[1:]
+        if h > 2:
+            below[:-2] |= exterior[2:]
+        zone = np.zeros_like(a, dtype=bool)
+        zone[y_cut:y1, :] = True
+        drop = matte & below & zone
+        if not int(drop.sum()):
+            break
+        a[drop] = 0
+    for _ in range(8):
+        matte = is_matte_rgb(c) & (a >= 40) & foot
+        exterior = flood_from_edges(a < 12)
+        drop = matte & dilate(exterior, 1)
+        if not int(drop.sum()):
+            break
+        a[drop] = 0
+    _clear_matte_specks(a, c, foot)
+
+    bb2 = content_bbox(a, 16)
+    if bb2 is not None:
+        y1 = min(bb2[3], h)
+    matte = is_matte_rgb(c) & (a >= 40) & foot
+    skin = is_saturated_skin(c, a)
+    left = np.zeros_like(matte)
+    right = np.zeros_like(matte)
+    for d in range(1, 7):
+        left[:, d:] |= skin[:, :-d]
+        right[:, :-d] |= skin[:, d:]
+    seam = matte & left & right
+    if int(seam.sum()):
+        _paint_from_skin(c, a, seam)
+
+    fill = _fill_foot_slits(a, foot, max_width=8)
+    fill |= _close_foot_notches(a, y1, radius=11)
+    fill &= a < 12
+    if int(fill.sum()):
+        _paint_from_skin(c, a, fill)
+    return a, c
 
 
 def snap_alpha(alpha: np.ndarray) -> np.ndarray:
@@ -219,20 +445,14 @@ def snap_alpha(alpha: np.ndarray) -> np.ndarray:
 
 
 def fix_sprite(im: Image.Image, sleep: bool = False) -> Image.Image:
+    del sleep  # status sprites share one repair; sleep keeps the parameter for callers
     arr = np.array(im.convert("RGBA"))
     rgb = arr[:, :, :3].copy()
-    alpha = arr[:, :, 3]
-    fringe = near_white_mask(rgb, alpha)
-    alpha[fringe] = 0
-    alpha, rgb = inpaint_holes(alpha, rgb, max_passes=120 if sleep else 96)
-    alpha = scrub_desk_scraps(alpha, rgb)
-    alpha = heal_left_foot(alpha, rgb)
-    if sleep:
-        alpha = strip_bottom_band(alpha, rgb, 40, y_min=728)
-    else:
-        alpha = strip_bottom_band(alpha, rgb, 40)
+    alpha = arr[:, :, 3].copy()
+    alpha, rgb = repair_foot_and_fringe(alpha, rgb)
+    alpha, rgb = inpaint_holes(alpha, rgb, max_passes=48)
     alpha = snap_alpha(alpha)
-    return Image.fromarray(np.dstack([rgb, alpha]).astype(np.uint8), "RGBA")
+    return Image.fromarray(np.dstack([rgb, alpha]).astype(np.uint8))
 
 
 def save_webp(im: Image.Image, path: Path) -> None:
@@ -296,7 +516,106 @@ def check_sprite(path: Path) -> List[str]:
     )
     if int(semi_mask.sum()) > 30:
         errs.append(f"{path.name}: visible near-white fringe {int(semi_mask.sum())} px (limit 30)")
+    errs.extend(_edge_defect_errors(path.name, alpha, rgb))
     return errs
+
+
+def _matte_run_stats(band: np.ndarray) -> Tuple[int, int]:
+    count = int(band.sum())
+    longest = 0
+    ys, xs = np.where(band)
+    if len(xs) == 0:
+        return 0, 0
+    for y in range(int(ys.min()), int(ys.max()) + 1):
+        row = np.where(band[y])[0]
+        if len(row) == 0:
+            continue
+        run = 1
+        best = 1
+        for i in range(1, len(row)):
+            if int(row[i]) == int(row[i - 1]) + 1:
+                run += 1
+                best = max(best, run)
+            else:
+                run = 1
+        longest = max(longest, best)
+    return count, longest
+
+
+def _edge_defect_errors(name: str, alpha: np.ndarray, rgb: np.ndarray) -> List[str]:
+    """Chair-edge fringe and left-foot contour defects the round-1 threshold missed."""
+    errs: List[str] = []
+    bb = content_bbox(alpha, 16)
+    if bb is None:
+        return errs
+    h, w = alpha.shape
+    _, _, _, y1 = bb
+    # Underside of the figure, not only the image's last 40 rows. Colors near (225, 230, 237) count.
+    y_cut = max(0, y1 - 40)
+    matte = is_matte_rgb(rgb) & (alpha >= 40)
+    exterior = flood_from_edges(alpha < 12)
+    below = np.zeros_like(alpha, dtype=bool)
+    if h > 1:
+        below[:-1] |= exterior[1:]
+    zone = np.zeros_like(alpha, dtype=bool)
+    zone[y_cut:y1, :] = True
+    band_n, longest = _matte_run_stats(matte & below & zone)
+    if band_n > 60:
+        errs.append(f"{name}: chair-edge matte band {band_n} px (limit 60)")
+    if longest > 22:
+        errs.append(f"{name}: chair-edge matte run {longest} px (limit 22)")
+
+    foot = np.zeros_like(alpha, dtype=bool)
+    foot[max(0, y1 - 110) : y1, : min(w, 200)] = True
+    specks = _detached_matte_count(alpha, rgb, foot)
+    if specks > 12:
+        errs.append(f"{name}: detached foot matte specks {specks} px (limit 12)")
+    halo = matte & foot & dilate(exterior, 1)
+    halo_n = int(halo.sum())
+    if halo_n > 28:
+        errs.append(f"{name}: left-foot matte halo {halo_n} px (limit 28)")
+    notches = int(_close_foot_notches(alpha, y1, radius=11).sum())
+    if notches > 90:
+        errs.append(f"{name}: left-foot open notches {notches} px (limit 90)")
+    return errs
+
+
+def _detached_matte_count(alpha: np.ndarray, rgb: np.ndarray, region: np.ndarray) -> int:
+    matte_all = is_matte_rgb(rgb)
+    matte = matte_all & (alpha >= 40) & region
+    seen = np.zeros_like(matte)
+    h, w = alpha.shape
+    count = 0
+    for y0, x0 in zip(*np.where(matte)):
+        if seen[y0, x0]:
+            continue
+        q = deque([(int(x0), int(y0))])
+        seen[y0, x0] = True
+        comp: List[Tuple[int, int]] = []
+        touches_body = False
+        while q:
+            x, y = q.popleft()
+            comp.append((x, y))
+            for nx, ny in (
+                (x - 1, y),
+                (x + 1, y),
+                (x, y - 1),
+                (x, y + 1),
+                (x - 1, y - 1),
+                (x + 1, y - 1),
+                (x - 1, y + 1),
+                (x + 1, y + 1),
+            ):
+                if not (0 <= nx < w and 0 <= ny < h):
+                    continue
+                if matte[ny, nx] and not seen[ny, nx]:
+                    seen[ny, nx] = True
+                    q.append((nx, ny))
+                elif alpha[ny, nx] > 160 and not matte_all[ny, nx]:
+                    touches_body = True
+        if len(comp) <= 80 and not touches_body:
+            count += len(comp)
+    return count
 
 
 def run_fix(extra: bool = False) -> None:
