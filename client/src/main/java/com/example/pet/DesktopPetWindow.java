@@ -155,7 +155,7 @@ public final class DesktopPetWindow extends JFrame {
             }
         }
         stage.setOpaque(false);
-        stage.setDoubleBuffered(false);
+        stage.setDoubleBuffered(perPixel);
         stage.setFocusable(false);
         stage.setPreferredSize(new Dimension(WIDTH, HEIGHT));
         stage.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -1462,8 +1462,10 @@ public final class DesktopPetWindow extends JFrame {
         x = onScreen.x;
         y = onScreen.y;
         int gap = MAIN_AVOID_GAP;
-        Point best = null;
-        long bestDistance = Long.MAX_VALUE;
+        Point bestHoriz = null;
+        long bestHorizDistance = Long.MAX_VALUE;
+        Point bestVert = null;
+        long bestVertDistance = Long.MAX_VALUE;
         int[][] proposals = {
             {main.x + main.width + gap, y},
             {main.x - gap - windowWidth, y},
@@ -1476,14 +1478,29 @@ public final class DesktopPetWindow extends JFrame {
             if (placed.intersects(main)) {
                 continue;
             }
+            boolean horizClear = placed.x >= main.x + main.width + gap
+                    || placed.x + placed.width <= main.x - gap;
+            boolean vertClear = placed.y >= main.y + main.height + gap
+                    || placed.y + placed.height <= main.y - gap;
+            if (!horizClear && !vertClear) {
+                continue;
+            }
             long distance = distanceSquared(x, y, candidate.x, candidate.y);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                best = candidate;
+            if (horizClear) {
+                if (distance < bestHorizDistance) {
+                    bestHorizDistance = distance;
+                    bestHoriz = candidate;
+                }
+            } else if (distance < bestVertDistance) {
+                bestVertDistance = distance;
+                bestVert = candidate;
             }
         }
-        if (best != null) {
-            return best;
+        if (bestHoriz != null) {
+            return bestHoriz;
+        }
+        if (bestVert != null) {
+            return bestVert;
         }
         return clearestSpot(x, y, windowWidth, windowHeight, main, usable, screens);
     }
@@ -1535,7 +1552,7 @@ public final class DesktopPetWindow extends JFrame {
             Point candidate = clampToScreens(raw.x, raw.y, windowWidth, windowHeight, screens);
             Rectangle placed = new Rectangle(candidate.x, candidate.y, windowWidth, windowHeight);
             long distance = distanceSquared(x, y, candidate.x, candidate.y);
-            if (!placed.intersects(main)) {
+            if (!placed.intersects(main) && clearsMainWithGap(placed, main, MAIN_AVOID_GAP)) {
                 if (distance < bestClearDistance) {
                     bestClearDistance = distance;
                     bestClear = candidate;
@@ -1557,6 +1574,20 @@ public final class DesktopPetWindow extends JFrame {
             return bestPartial;
         }
         return new Point(x, y);
+    }
+
+    private static boolean clearsMainWithGap(Rectangle placed, Rectangle main, int gap) {
+        if (main == null || main.isEmpty() || placed == null) {
+            return true;
+        }
+        if (placed.intersects(main)) {
+            return false;
+        }
+        boolean horizClear = placed.x >= main.x + main.width + gap
+                || placed.x + placed.width <= main.x - gap;
+        boolean vertClear = placed.y >= main.y + main.height + gap
+                || placed.y + placed.height <= main.y - gap;
+        return horizClear || vertClear;
     }
 
     private static long distanceSquared(int x1, int y1, int x2, int y2) {
@@ -1598,8 +1629,8 @@ public final class DesktopPetWindow extends JFrame {
     }
 
     /**
-     * 把視窗縮到角色加影子。上緣對齊可見頭頂，拖到頂時頭頂就在選單列下緣。
-     * 換成較寬的動作才再長大，平常影格落在外框裡就不改座標。
+     * 把視窗縮到角色外框（{@link #stableShellFor} 全動作 union）。上緣對齊可見頭頂。
+     * 外框已固定時不再 {@code setSize}；僅首次或 union 改變時才調整尺寸與原點。
      */
     private void refreshFit() {
         if (fitting) {
@@ -1647,13 +1678,14 @@ public final class DesktopPetWindow extends JFrame {
             return pixelBody();
         }
         if (fittedShell == null) {
-            fittedShell = shellFor(milu);
+            fittedShell = stableShellFor(milu);
         }
         return viewForPose(milu, fittedShell, animation);
     }
 
     /**
-     * 依目前姿勢決定視窗在邏輯畫布上的露出區塊。測試用同一套規則渲染到 {@link BufferedImage}。
+     * 視窗在邏輯畫布上的露出區塊；測試與 {@link #paintMiluViewport} 共用。
+     * {@code fittedShell}、{@code animation} 保留給既有測試呼叫端，實際一律 {@link #stableShellFor}。
      */
     static Rectangle viewForPose(
             DesktopPetSpriteLoader.Frames milu,
@@ -1662,7 +1694,7 @@ public final class DesktopPetWindow extends JFrame {
         if (milu == null) {
             return new Rectangle(0, 0, WIDTH, HEIGHT);
         }
-        return shellForViewport(milu, animation);
+        return stableShellFor(milu);
     }
 
     /**
@@ -1843,6 +1875,25 @@ public final class DesktopPetWindow extends JFrame {
         return clipToCanvas(idle);
     }
 
+    /** 全部動作影格 union 的穩定外框；換 mode 時視窗不再 resize。 */
+    static Rectangle stableShellFor(DesktopPetSpriteLoader.Frames frames) {
+        if (frames == null) {
+            return new Rectangle(0, 0, WIDTH, HEIGHT);
+        }
+        Rectangle union = null;
+        for (DesktopPetSpriteLoader.Sprite sprite : frames.allSprites()) {
+            if (sprite == null || sprite.image == null) {
+                continue;
+            }
+            Rectangle raw = cachedBody(sprite.image, sprite.offsetX, sprite.offsetY);
+            union = union == null ? raw : unionRect(union, raw);
+        }
+        if (union == null) {
+            return new Rectangle(0, 0, WIDTH, HEIGHT);
+        }
+        return clipToCanvas(union);
+    }
+
     private static boolean covered(Rectangle shell, Rectangle raw) {
         if (shell == null || raw == null) {
             return false;
@@ -2014,21 +2065,22 @@ public final class DesktopPetWindow extends JFrame {
         protected void paintComponent(Graphics graphics) {
             Graphics2D g = (Graphics2D) graphics.create();
             try {
-                g.setComposite(AlphaComposite.Src);
-                if (perPixel) {
-                    g.setColor(new Color(0, 0, 0, 0));
-                    g.fillRect(0, 0, getWidth(), getHeight());
-                } else {
-                    g.setColor(CandyTheme.NIGHT);
-                    g.fillRoundRect(0, 0, Math.max(1, getWidth()), Math.max(1, getHeight()), 16, 16);
-                }
-                g.setComposite(AlphaComposite.SrcOver);
-                // 拖曳旋轉做在緩衝上，再整張貼回。貼回的是角色原色，螢幕上才對得起來。
                 BufferedImage frame = renderLiveFrame();
                 g.setRenderingHint(
                         RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-                g.drawImage(frame, 0, 0, null);
+                if (perPixel) {
+                    // 緩衝已畫好角色；用 Src 整張貼上，不在螢幕上先清成全透明。
+                    g.setComposite(AlphaComposite.Src);
+                    g.drawImage(frame, 0, 0, null);
+                } else {
+                    g.setComposite(AlphaComposite.Src);
+                    g.setColor(CandyTheme.NIGHT);
+                    g.fillRoundRect(0, 0, Math.max(1, getWidth()), Math.max(1, getHeight()), 16, 16);
+                    g.setComposite(AlphaComposite.SrcOver);
+                    g.drawImage(frame, 0, 0, null);
+                }
                 if (control.isActive()) {
+                    g.setComposite(AlphaComposite.SrcOver);
                     paintControlHint(g);
                 }
             } finally {
