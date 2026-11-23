@@ -320,6 +320,89 @@ public final class DesktopPetSpriteLoader {
             return play[Math.floorMod(index, play.length)].image;
         }
 
+        /**
+         * 同一個動作模式內可能輪播的影格全集。用來算固定視窗外框，避免循環動畫每格 resize。
+         */
+        Sprite[] viewportSprites(DesktopPetAnimation animation) {
+            List<Sprite> list = new ArrayList<Sprite>();
+            Sprite[] carry = carryClip(animation.carryPhase());
+            if (carry != null && carry.length > 0) {
+                addAll(list, carry);
+                return list.toArray(new Sprite[0]);
+            }
+            if (animation.isCarried()) {
+                addAll(list, drag);
+                return list.toArray(new Sprite[0]);
+            }
+            DesktopPetAnimation.Mode mode = animation.mode();
+            if (mode == DesktopPetAnimation.Mode.FEED) {
+                addAll(list, feed);
+                addAll(list, sit);
+                appendIdleFallback(list);
+                return list.toArray(new Sprite[0]);
+            }
+            if (mode == DesktopPetAnimation.Mode.PAT) {
+                addAll(list, pat);
+                addAll(list, wave);
+                appendIdleFallback(list);
+                return list.toArray(new Sprite[0]);
+            }
+            if (mode == DesktopPetAnimation.Mode.PLAY) {
+                addAll(list, play);
+                addAll(list, walkLeft);
+                addAll(list, walkRight);
+                appendIdleFallback(list);
+                return list.toArray(new Sprite[0]);
+            }
+            if (mode == DesktopPetAnimation.Mode.REACT) {
+                addAll(list, wave);
+                appendIdleFallback(list);
+                return list.toArray(new Sprite[0]);
+            }
+            if (mode == DesktopPetAnimation.Mode.THINK) {
+                addAll(list, think);
+                addAll(list, sit);
+                appendIdleFallback(list);
+                return list.toArray(new Sprite[0]);
+            }
+            if (mode == DesktopPetAnimation.Mode.BUSY) {
+                addAll(list, busy);
+                addAll(list, sit);
+                appendIdleFallback(list);
+                return list.toArray(new Sprite[0]);
+            }
+            if (mode == DesktopPetAnimation.Mode.WORRY) {
+                addAll(list, worry);
+                addAll(list, sit);
+                appendIdleFallback(list);
+                return list.toArray(new Sprite[0]);
+            }
+            if (mode == DesktopPetAnimation.Mode.WALK) {
+                addAll(list, walkLeft);
+                addAll(list, walkRight);
+                appendIdleFallback(list);
+                return list.toArray(new Sprite[0]);
+            }
+            if (mode == DesktopPetAnimation.Mode.SIT) {
+                addAll(list, sit);
+                appendIdleFallback(list);
+                return list.toArray(new Sprite[0]);
+            }
+            if (mode == DesktopPetAnimation.Mode.SLEEP) {
+                addAll(list, sleep);
+                appendIdleFallback(list);
+                return list.toArray(new Sprite[0]);
+            }
+            appendIdleFallback(list);
+            return list.toArray(new Sprite[0]);
+        }
+
+        private void appendIdleFallback(List<Sprite> list) {
+            addAll(list, breath);
+            list.add(blink1);
+            list.add(blink2);
+        }
+
         public Sprite spriteFor(DesktopPetAnimation animation) {
             Sprite[] carry = carryClip(animation.carryPhase());
             if (carry != null && carry.length > 0) {
