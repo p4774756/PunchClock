@@ -149,7 +149,39 @@ export function buildCharacterStatesFromPublic(publicPayload, now) {
   return resolveSpotCollisions(list);
 }
 
+const DEFAULT_SECRETARY_MACHINE = 'tiger';
+
+export function configuredSecretaryMachine() {
+  const override = typeof globalThis !== 'undefined' ? globalThis.__OFFICE_SECRETARY_MACHINE : null;
+  if (typeof override === 'string' && override.trim()) {
+    return override.trim();
+  }
+  return DEFAULT_SECRETARY_MACHINE;
+}
+
+export function findSecretaryMachine(machinesPayload, now) {
+  const list = machinesPayload && machinesPayload.machines ? machinesPayload.machines : [];
+  const preferred = configuredSecretaryMachine();
+  let fallback = null;
+  let bestSeen = -1;
+  for (let i = 0; i < list.length; i++) {
+    const row = list[i];
+    if (!isOnlineRow(row, now)) continue;
+    if (row.machine === preferred) return row;
+    const seen = Number(row.lastSeen);
+    if (Number.isFinite(seen) && seen > bestSeen) {
+      bestSeen = seen;
+      fallback = row;
+    }
+  }
+  return fallback;
+}
+
 export function machineById(machines, id) {
+  if (id === 'tiger') {
+    const now = Number.isFinite(machines && machines.now) ? machines.now : Date.now();
+    return findSecretaryMachine(machines, now);
+  }
   const list = machines && machines.machines ? machines.machines : [];
   for (let i = 0; i < list.length; i++) {
     const row = list[i];

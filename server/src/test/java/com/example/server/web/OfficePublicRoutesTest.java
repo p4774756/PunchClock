@@ -231,23 +231,53 @@ public class OfficePublicRoutesTest {
     }
 
     @Test
-    public void nonTigerMachineNeverSuppliesTigerCharacter() throws Exception {
+    public void onlineDevMachineSuppliesTigerWhenPreferredAbsent() throws Exception {
         Map<String, Object> home = new LinkedHashMap<>();
         home.put("machine", "home");
-        home.put("displayName", "猛虎");
+        home.put("displayName", "私人女秘書");
         home.put("agentRunning", true);
         home.put("issue", 999);
         store.applyHeartbeat("home", home);
 
-        Map<String, Object> homeAlias = new LinkedHashMap<>();
-        homeAlias.put("machine", "home");
-        homeAlias.put("displayName", "私人女秘書");
-        homeAlias.put("agentRunning", true);
-        homeAlias.put("issue", 998);
-        store.applyHeartbeat("home", homeAlias);
+        JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
+        assertEquals("工作中", tiger.get("status").getAsString());
+        assertEquals(1, tiger.getAsJsonArray("active").size());
+    }
+
+    @Test
+    public void utf8MachineIdSuppliesTigerWithoutLeakingId() throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "猛虎");
+        body.put("displayName", "小秘書");
+        body.put("agentRunning", true);
+        body.put("issue", 497);
+        body.put("branch", "ai/issue-497");
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("猛虎", body));
 
         JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
-        assertEquals("休息中", tiger.get("status").getAsString());
+        assertEquals("工作中", tiger.get("status").getAsString());
+        HttpResponse<String> response = http.send(HttpRequest.newBuilder(URI.create(base + "/api/office/public"))
+                .timeout(Duration.ofSeconds(5))
+                .GET()
+                .build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        assertNoForbidden(response.body());
+    }
+
+    @Test
+    public void prefersConfiguredMachineWhenBothOnline() throws Exception {
+        Map<String, Object> home = new LinkedHashMap<>();
+        home.put("machine", "home");
+        home.put("agentRunning", true);
+        home.put("issue", 100);
+        store.applyHeartbeat("home", home);
+
+        Map<String, Object> tigerBody = new LinkedHashMap<>();
+        tigerBody.put("machine", "tiger");
+        tigerBody.put("agentRunning", false);
+        store.applyHeartbeat("tiger", tigerBody);
+
+        JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
+        assertEquals("待命中", tiger.get("status").getAsString());
         assertEquals(0, tiger.getAsJsonArray("active").size());
     }
 

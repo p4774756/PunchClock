@@ -25,6 +25,7 @@ public final class OfficePublicRoutes {
 
     private static final List<String> CHARACTER_IDS = List.of("oki", "tiger", "reviewer");
     private static final ZoneId TAIPEI = ZoneId.of("Asia/Taipei");
+    private static final String DEFAULT_SECRETARY_MACHINE = "tiger";
 
     private final DevMachineStore devMachineStore;
     private final DevStatusService devStatusService;
@@ -64,7 +65,7 @@ public final class OfficePublicRoutes {
                 row.put("status", status);
                 row.put("updatedAt", Instant.ofEpochMilli(updatedAtMs).toString());
                 if ("tiger".equals(id)) {
-                    DevMachineStore.Snapshot tiger = findTigerMachine(machines);
+                    DevMachineStore.Snapshot tiger = findSecretaryMachine(machines, now);
                     row.put("active", buildActive(now, tiger, github, repo));
                     row.put("completedToday", buildCompletedToday(now, github, repo));
                 }
@@ -87,7 +88,7 @@ public final class OfficePublicRoutes {
                 return "待機";
             }
             if ("tiger".equals(charId)) {
-                DevMachineStore.Snapshot tiger = findTigerMachine(machines);
+                DevMachineStore.Snapshot tiger = findSecretaryMachine(machines, now);
                 if (tiger == null || !isOnline(tiger, now)) {
                     return "休息中";
                 }
@@ -110,7 +111,7 @@ public final class OfficePublicRoutes {
         static long updatedAtMs(String charId, List<DevMachineStore.Snapshot> machines,
                                 DevStatusModels.Document doc, long now) {
             if ("tiger".equals(charId)) {
-                DevMachineStore.Snapshot tiger = findTigerMachine(machines);
+                DevMachineStore.Snapshot tiger = findSecretaryMachine(machines, now);
                 if (tiger != null && isOnline(tiger, now) && tiger.lastSeen > 0) {
                     return tiger.lastSeen;
                 }
@@ -269,23 +270,37 @@ public final class OfficePublicRoutes {
             return "https://github.com/" + repo + "/pull/" + pr;
         }
 
-        static DevMachineStore.Snapshot findTigerMachine(List<DevMachineStore.Snapshot> machines) {
-            if (machines == null) {
-                return null;
-            }
-            for (DevMachineStore.Snapshot row : machines) {
-                if (isTigerMachine(row)) {
-                    return row;
+        static String configuredSecretaryMachine() {
+            String raw = System.getenv("OFFICE_SECRETARY_MACHINE");
+            if (raw != null) {
+                String trimmed = raw.trim();
+                if (!trimmed.isEmpty() && DevMachineStore.isAllowedMachine(trimmed)) {
+                    return trimmed;
                 }
             }
-            return null;
+            return DEFAULT_SECRETARY_MACHINE;
         }
 
-        static boolean isTigerMachine(DevMachineStore.Snapshot row) {
-            if (row == null) {
-                return false;
+        static DevMachineStore.Snapshot findSecretaryMachine(List<DevMachineStore.Snapshot> machines, long now) {
+            if (machines == null || machines.isEmpty()) {
+                return null;
             }
-            return "tiger".equals(row.machine);
+            String preferred = configuredSecretaryMachine();
+            DevMachineStore.Snapshot fallback = null;
+            long bestLastSeen = -1L;
+            for (DevMachineStore.Snapshot row : machines) {
+                if (row == null || !isOnline(row, now)) {
+                    continue;
+                }
+                if (preferred.equals(row.machine)) {
+                    return row;
+                }
+                if (row.lastSeen > bestLastSeen) {
+                    bestLastSeen = row.lastSeen;
+                    fallback = row;
+                }
+            }
+            return fallback;
         }
 
         private static boolean isOnline(DevMachineStore.Snapshot row, long now) {
@@ -293,7 +308,7 @@ public final class OfficePublicRoutes {
         }
 
         static int countActiveLoops(List<DevMachineStore.Snapshot> machines, long now) {
-            DevMachineStore.Snapshot tiger = findTigerMachine(machines);
+            DevMachineStore.Snapshot tiger = findSecretaryMachine(machines, now);
             if (tiger == null || !isOnline(tiger, now)) {
                 return 0;
             }

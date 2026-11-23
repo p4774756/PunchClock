@@ -19,7 +19,9 @@ public final class DevMachineStore {
     public static final int MAX_BODY_BYTES = 8192;
     public static final int MAX_RUNS = 12;
 
-    private static final Pattern MACHINE_PATTERN = Pattern.compile("^[a-z][a-z0-9-]{0,31}$");
+    private static final Pattern MACHINE_ASCII = Pattern.compile("^[a-z][a-z0-9-]{0,31}$");
+    private static final Pattern MACHINE_UNICODE = Pattern.compile("^[\\p{L}\\p{N}]{1,32}$");
+    private static final int MAX_MACHINE_CHARS = 32;
     private static final Pattern DISPLAY_PATTERN = Pattern.compile("^[\\p{L}\\p{N}\\s._·-]{1,24}$");
     private static final Pattern BRANCH_PATTERN = Pattern.compile("^[A-Za-z0-9._/-]{1,64}$");
     private static final Pattern COMMIT_PATTERN = Pattern.compile("^[0-9a-fA-F]{7,40}$");
@@ -116,7 +118,26 @@ public final class DevMachineStore {
     }
 
     public static boolean isAllowedMachine(String machine) {
-        return machine != null && MACHINE_PATTERN.matcher(machine).matches();
+        if (machine == null || machine.isEmpty()) {
+            return false;
+        }
+        if (machine.length() > MAX_MACHINE_CHARS) {
+            return false;
+        }
+        for (int i = 0; i < machine.length(); ) {
+            int cp = machine.codePointAt(i);
+            if (Character.isISOControl(cp)) {
+                return false;
+            }
+            i += Character.charCount(cp);
+        }
+        if (MACHINE_ASCII.matcher(machine).matches()) {
+            return true;
+        }
+        if (machine.codePoints().allMatch(cp -> cp < 128)) {
+            return false;
+        }
+        return MACHINE_UNICODE.matcher(machine).matches();
     }
 
     public static String labelFor(Snapshot snap) {
