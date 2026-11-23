@@ -48,10 +48,6 @@ def dilate(mask: np.ndarray, radius: int = 1) -> np.ndarray:
     return out
 
 
-def adjacent_to(mask: np.ndarray) -> np.ndarray:
-    return dilate(mask, 1) & ~mask
-
-
 def flood_from_edges(mask: np.ndarray) -> np.ndarray:
     h, w = mask.shape
     seen = np.zeros((h, w), dtype=bool)
@@ -102,13 +98,6 @@ def is_brown_rgb(r: int, g: int, b: int) -> bool:
     return (g - b) >= 12 and (r - b) >= 22 and b < 205 and r < 245
 
 
-def near_white_mask(rgb: np.ndarray, alpha: np.ndarray) -> np.ndarray:
-    r = rgb[:, :, 0]
-    g = rgb[:, :, 1]
-    b = rgb[:, :, 2]
-    return (alpha > 0) & (alpha < 250) & (r >= 230) & (g >= 228) & (b >= 224)
-
-
 def inpaint_holes(alpha: np.ndarray, rgb: np.ndarray, max_passes: int = 96) -> Tuple[np.ndarray, np.ndarray]:
     a = alpha.copy()
     c = rgb.copy()
@@ -145,50 +134,6 @@ def inpaint_holes(alpha: np.ndarray, rgb: np.ndarray, max_passes: int = 96) -> T
     return a, c
 
 
-def scrub_desk_scraps(alpha: np.ndarray, rgb: np.ndarray) -> np.ndarray:
-    a = alpha.copy()
-    r = rgb[:, :, 0].astype(np.int16)
-    g = rgb[:, :, 1].astype(np.int16)
-    b = rgb[:, :, 2].astype(np.int16)
-    bright_skin = (r > 232) & (b > 176) & ((r - g) < 32)
-    tan = (
-        (r > 188)
-        & (r < 250)
-        & (g > 150)
-        & (b < 196)
-        & ((g - b) >= 10)
-        & ((r - b) >= 22)
-        & ((r - g) >= 30)
-        & ~bright_skin
-    )
-    bb = content_bbox(a, 20)
-    if bb is None:
-        return a
-    y_cut = bb[1] + int((bb[3] - bb[1]) * 0.62)
-    low = np.zeros(a.shape, dtype=bool)
-    low[y_cut:, :] = True
-    for _ in range(4):
-        fringe = (a > 0) & tan & low & adjacent_to(a == 0)
-        if not fringe.any():
-            break
-        a[fringe] = 0
-    return a
-
-
-def strip_bottom_band(alpha: np.ndarray, rgb: np.ndarray, band_px: int, y_min: Optional[int] = None) -> np.ndarray:
-    a = alpha.copy()
-    h = a.shape[0]
-    y0 = y_min if y_min is not None else max(0, h - band_px)
-    r = rgb[:, :, 0]
-    g = rgb[:, :, 1]
-    b = rgb[:, :, 2]
-    bot = np.zeros_like(a, dtype=bool)
-    bot[y0:, :] = True
-    drop = bot & (r >= 228) & (g >= 226) & (b >= 222) & (a > 24)
-    a[drop] = 0
-    return a
-
-
 def is_matte_rgb(rgb: np.ndarray) -> np.ndarray:
     """Cool or neutral near-white, including roughly (225, 230, 237)."""
     r = rgb[:, :, 0].astype(np.int16)
@@ -207,17 +152,6 @@ def is_saturated_skin(rgb: np.ndarray, alpha: np.ndarray) -> np.ndarray:
     g = rgb[:, :, 1].astype(np.int16)
     b = rgb[:, :, 2].astype(np.int16)
     return (alpha > 180) & (r > 175) & (g > 130) & ((r - b) >= 28) & ~is_matte_rgb(rgb)
-
-
-def _shift(mask: np.ndarray, dy: int, dx: int) -> np.ndarray:
-    out = np.zeros_like(mask)
-    h, w = mask.shape[:2]
-    ys = slice(max(0, dy), h + min(0, dy))
-    xs = slice(max(0, dx), w + min(0, dx))
-    ys2 = slice(max(0, -dy), h + min(0, -dy))
-    xs2 = slice(max(0, -dx), w + min(0, -dx))
-    out[ys2, xs2] = mask[ys, xs]
-    return out
 
 
 def _paint_from_skin(rgb: np.ndarray, alpha: np.ndarray, fill: np.ndarray) -> None:
@@ -345,39 +279,6 @@ def _close_foot_notches(alpha: np.ndarray, y1: int, radius: int = 11) -> np.ndar
     return closed & roi & (alpha < 12)
 
 
-def _lift_foot_stairs(alpha: np.ndarray, y_sole: int, x0: int, x1: int, y_window: int = 120) -> np.ndarray:
-    """Raise local stair notches on the sole's top edge without cascading along a slope."""
-    fill = np.zeros_like(alpha, dtype=bool)
-    span = x1 - x0
-    if span <= 0 or y_sole < y_window:
-        return fill
-    tops = np.full(span, -1, np.int32)
-    y_from = y_sole - y_window
-    for x in range(x0, x1):
-        col = alpha[y_from : y_sole + 1, x] > 180
-        idx = np.where(col)[0]
-        if len(idx) == 0 or int(idx[-1]) < y_window - 28:
-            continue
-        i = len(idx) - 1
-        while i > 0 and int(idx[i]) == int(idx[i - 1]) + 1:
-            i -= 1
-        tops[x - x0] = y_from + int(idx[i])
-    for i in range(span):
-        if tops[i] < 0:
-            continue
-        higher: List[int] = []
-        for d in (-2, -1, 1, 2):
-            j = i + d
-            if 0 <= j < span and tops[j] >= 0 and int(tops[i] - tops[j]) >= 8:
-                higher.append(int(tops[j]))
-        if not higher:
-            continue
-        target = max(min(higher), int(tops[i]) - 18)
-        if target < int(tops[i]):
-            fill[target : int(tops[i]), x0 + i] = alpha[target : int(tops[i]), x0 + i] < 12
-    return fill
-
-
 def repair_foot_and_fringe(alpha: np.ndarray, rgb: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     a = alpha.copy()
     c = rgb.copy()
@@ -444,8 +345,7 @@ def snap_alpha(alpha: np.ndarray) -> np.ndarray:
     return a
 
 
-def fix_sprite(im: Image.Image, sleep: bool = False) -> Image.Image:
-    del sleep  # status sprites share one repair; sleep keeps the parameter for callers
+def fix_sprite(im: Image.Image) -> Image.Image:
     arr = np.array(im.convert("RGBA"))
     rgb = arr[:, :, :3].copy()
     alpha = arr[:, :, 3].copy()
@@ -627,8 +527,7 @@ def run_fix(extra: bool = False) -> None:
         if not path.exists():
             print(f"skip missing {name}", file=sys.stderr)
             continue
-        sleep = name == "secretary-sleep.webp"
-        im = fix_sprite(Image.open(path), sleep=sleep)
+        im = fix_sprite(Image.open(path))
         save_webp(im, path)
         print(f"wrote {name}")
 
