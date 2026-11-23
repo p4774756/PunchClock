@@ -11,19 +11,56 @@ const SECRETARY_TYPING_FRAME_MS = 500;
 const SECRETARY_WAVE_MS = 3000;
 const SECRETARY_YEAH_MS = 2500;
 
-/** 慶祝舞 8 格路徑（5 張圖重複索引）；登記供後續單直接切幀。 */
-export const SECRETARY_DANCE_FRAME_INDICES = [1, 2, 3, 4, 5, 3, 4, 2];
-export const SECRETARY_DANCE_FRAME_MS = 120;
-export const SECRETARY_DANCE_LOOPS = 3;
-export const SECRETARY_DANCE_DURATION_MS =
-  SECRETARY_DANCE_FRAME_INDICES.length * SECRETARY_DANCE_FRAME_MS * SECRETARY_DANCE_LOOPS;
+export const SECRETARY_CLAP_SPRITE_A = '/assets/private-team/secretary-clap-a.webp';
+export const SECRETARY_CLAP_SPRITE_B = '/assets/private-team/secretary-clap-b.webp';
+
+/** 慶祝：拍手兩下 → 比讚 → 小跳（只播一次）。 */
+export const SECRETARY_CELEBRATE_STEPS = [
+  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_A, ms: 250 },
+  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_B, ms: 250 },
+  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_A, ms: 250 },
+  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_B, ms: 250 },
+  { kind: 'frame', url: SECRETARY_SPRITE_URL_YEAH, ms: 700 },
+  { kind: 'jump', ms: 450 }
+];
+export const SECRETARY_DANCE_DURATION_MS = SECRETARY_CELEBRATE_STEPS.reduce((sum, s) => sum + s.ms, 0);
 export const SECRETARY_IDLE_DANCE_AFTER_MS = 4 * 60 * 1000;
 export const SECRETARY_IDLE_DANCE_COOLDOWN_MS = 5 * 60 * 1000;
 
-export function secretaryDanceFrameUrl(frameIndex) {
-  const n = Number(frameIndex);
-  if (!Number.isFinite(n) || n < 1) return '';
-  return '/assets/private-team/secretary-dance-' + n + '.webp';
+export function secretaryCelebrateStateAt(elapsedMs) {
+  const t0 = Number(elapsedMs);
+  if (!Number.isFinite(t0) || t0 < 0) {
+    return { kind: 'frame', url: SECRETARY_CELEBRATE_STEPS[0].url, jumpT: null };
+  }
+  if (t0 >= SECRETARY_DANCE_DURATION_MS) {
+    return { kind: 'done', url: '', jumpT: null };
+  }
+  let t = t0;
+  let lastUrl = SECRETARY_CELEBRATE_STEPS[0].url;
+  for (let i = 0; i < SECRETARY_CELEBRATE_STEPS.length; i++) {
+    const step = SECRETARY_CELEBRATE_STEPS[i];
+    if (t < step.ms) {
+      if (step.kind === 'frame') {
+        return { kind: 'frame', url: step.url, jumpT: null };
+      }
+      return { kind: 'jump', url: lastUrl, jumpT: t / step.ms };
+    }
+    t -= step.ms;
+    if (step.kind === 'frame') lastUrl = step.url;
+  }
+  return { kind: 'done', url: '', jumpT: null };
+}
+
+export function secretaryCelebrateFrameUrlAt(elapsedMs) {
+  const st = secretaryCelebrateStateAt(elapsedMs);
+  if (st.kind === 'done') return '';
+  return st.url;
+}
+
+export function secretaryCelebrateJumpOffsetAt(elapsedMs) {
+  const st = secretaryCelebrateStateAt(elapsedMs);
+  if (st.kind !== 'jump' || st.jumpT == null) return 0;
+  return Math.sin(st.jumpT * Math.PI) * 0.11;
 }
 
 export function isStandbyTigerStatus(status) {
@@ -1274,11 +1311,12 @@ export function mountPrivateTeamScene(canvas, opts) {
   let spriteLoadSeq = 0;
   const loader = new THREE.TextureLoader();
 
-  (function preloadSecretaryDanceFrames() {
+  (function preloadSecretaryCelebrateFrames() {
     const seen = new Set();
-    for (let i = 0; i < SECRETARY_DANCE_FRAME_INDICES.length; i++) {
-      const idx = SECRETARY_DANCE_FRAME_INDICES[i];
-      const url = secretaryDanceFrameUrl(idx);
+    for (let i = 0; i < SECRETARY_CELEBRATE_STEPS.length; i++) {
+      const step = SECRETARY_CELEBRATE_STEPS[i];
+      if (step.kind !== 'frame') continue;
+      const url = step.url;
       if (!url || seen.has(url)) continue;
       seen.add(url);
       loader.load(url, () => {}, undefined, () => {});
@@ -1324,14 +1362,6 @@ export function mountPrivateTeamScene(canvas, opts) {
     applySecretarySpriteUrl(resolveRestSpriteUrl());
   }
 
-  function secretaryDanceUrlAtElapsed(elapsedMs) {
-    const perLoop = SECRETARY_DANCE_FRAME_INDICES.length * SECRETARY_DANCE_FRAME_MS;
-    const total = perLoop * SECRETARY_DANCE_LOOPS;
-    if (elapsedMs >= total) return '';
-    const frameInSeq = Math.floor(elapsedMs / SECRETARY_DANCE_FRAME_MS) % SECRETARY_DANCE_FRAME_INDICES.length;
-    return secretaryDanceFrameUrl(SECRETARY_DANCE_FRAME_INDICES[frameInSeq]);
-  }
-
   function stopSecretaryDance() {
     dancePlayback = null;
     danceDisplayFrame = -1;
@@ -1345,7 +1375,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     overlayPending = null;
     dancePlayback = { startMs: t };
     danceDisplayFrame = -1;
-    const url = secretaryDanceUrlAtElapsed(0);
+    const url = secretaryCelebrateFrameUrlAt(0);
     if (url) applySecretarySpriteUrl(url);
   }
 
@@ -1782,14 +1812,18 @@ export function mountPrivateTeamScene(canvas, opts) {
     raf = win.requestAnimationFrame(tick);
     if (dancePlayback) {
       const elapsed = now - dancePlayback.startMs;
-      const frameNo = Math.floor(elapsed / SECRETARY_DANCE_FRAME_MS);
-      const totalFrames = SECRETARY_DANCE_FRAME_INDICES.length * SECRETARY_DANCE_LOOPS;
-      if (frameNo >= totalFrames) {
+      if (elapsed >= SECRETARY_DANCE_DURATION_MS) {
         stopSecretaryDance();
-      } else if (frameNo !== danceDisplayFrame) {
-        danceDisplayFrame = frameNo;
-        const url = secretaryDanceUrlAtElapsed(elapsed);
-        if (url) applySecretarySpriteUrl(url);
+      } else {
+        const st = secretaryCelebrateStateAt(elapsed);
+        if (st.kind !== 'done') {
+          const frameKey = st.kind === 'jump' ? 'jump' : st.url;
+          if (frameKey !== danceDisplayFrame) {
+            danceDisplayFrame = frameKey;
+            if (st.url) applySecretarySpriteUrl(st.url);
+          }
+          dancePlayback.jumpOffset = secretaryCelebrateJumpOffsetAt(elapsed);
+        }
       }
     } else if (
       shouldTriggerIdleStandbyDance({
@@ -1825,12 +1859,16 @@ export function mountPrivateTeamScene(canvas, opts) {
       let extraY = 0;
       let leanZ = 0;
       if (!reducedMotion) {
-        extraY = breath;
-        if (spriteAnimMode === 'working') {
-          extraY += typeNudge;
-          leanZ = lean;
-        } else if (spriteAnimMode === 'sleep') {
-          extraY = breath * 0.45;
+        if (dancePlayback && dancePlayback.jumpOffset) {
+          extraY = dancePlayback.jumpOffset;
+        } else {
+          extraY = breath;
+          if (spriteAnimMode === 'working') {
+            extraY += typeNudge;
+            leanZ = lean;
+          } else if (spriteAnimMode === 'sleep') {
+            extraY = breath * 0.45;
+          }
         }
       }
       secretarySprite.position.y = spriteBaseY + extraY;
