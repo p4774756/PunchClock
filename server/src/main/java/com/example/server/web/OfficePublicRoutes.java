@@ -1,6 +1,7 @@
 package com.example.server.web;
 
 import com.example.server.store.DevMachineStore;
+import com.example.server.store.OfficeActiveStage;
 import com.example.server.store.DevStatusMapper;
 import com.example.server.store.DevStatusModels;
 import com.example.server.store.DevStatusModels.IssueRow;
@@ -154,13 +155,12 @@ public final class OfficePublicRoutes {
                                                    Snapshot github, String repo) {
             List<Map<String, Object>> out = new ArrayList<>();
             Set<Integer> seen = new HashSet<>();
-            appendRunsToActive(now, effectiveRuns(now, store, machineId, tiger), out, seen, github, repo);
+            appendRunsToActive(now, effectiveRuns(now, store, machineId, tiger), out, seen, github, repo, tiger);
             if (out.isEmpty() && tiger != null && isOnline(tiger, now)
                     && (tiger.agentRunning || (tiger.issue != null && tiger.issue > 0))) {
                 int issue = tiger.issue != null ? tiger.issue : 0;
                 if (issue > 0 && seen.add(issue)) {
-                    out.add(activeEntry(now, issue, tiger.round != null ? tiger.round : 0, tiger.runStartedAt,
-                            tiger.model, github, repo));
+                    out.add(activeEntryFromMachine(now, issue, tiger, github, repo));
                 }
             }
             if (out.isEmpty() && doc != null && doc.now != null && doc.now.current != null) {
@@ -176,15 +176,18 @@ public final class OfficePublicRoutes {
 
         private static void appendRunsToActive(long now, List<DevMachineStore.RunEntry> runs,
                                                List<Map<String, Object>> out, Set<Integer> seen,
-                                               Snapshot github, String repo) {
+                                               Snapshot github, String repo, DevMachineStore.Snapshot tiger) {
             if (runs == null || runs.isEmpty()) {
                 return;
             }
+            boolean agentRunning = tiger != null && tiger.agentRunning;
+            String machineVerdict = tiger != null ? tiger.verdict : null;
+            String machineRole = tiger != null ? tiger.role : null;
             for (DevMachineStore.RunEntry run : runs) {
-                if (run == null || run.issue <= 0 || "review".equals(run.role) || !seen.add(run.issue)) {
+                if (run == null || run.issue <= 0 || !seen.add(run.issue)) {
                     continue;
                 }
-                out.add(activeEntry(now, run.issue, run.round, run.startedAt, run.model, github, repo));
+                out.add(activeEntry(now, run, agentRunning, machineVerdict, machineRole, github, repo));
             }
         }
 
@@ -209,6 +212,8 @@ public final class OfficePublicRoutes {
             if (minutes > 0) {
                 row.put("minutes", minutes);
             }
+            PullRow pull = findPullForIssue(github, item.issue);
+            row.put("stage", OfficeActiveStage.forGithubItem(item, pull));
             return row;
         }
 
@@ -344,8 +349,41 @@ public final class OfficePublicRoutes {
             return doc != null && doc.now != null && doc.now.queue != null && !doc.now.queue.isEmpty();
         }
 
-        private static Map<String, Object> activeEntry(long now, int issue, int round, Long startedAt,
-                                                         String model, Snapshot github, String repo) {
+        private static Map<String, Object> activeEntry(long now, DevMachineStore.RunEntry run,
+                                                       boolean machineAgentRunning, String machineVerdict,
+                                                       String machineRole, Snapshot github, String repo) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            int issue = run.issue;
+            IssueRow issueRow = findIssue(github, issue);
+            row.put("phrase", SecretarySpeech.phraseForActive(issueRow));
+            String publicTitle = publicIssueTitle(issueRow);
+            if (publicTitle != null) {
+                row.put("title", publicTitle);
+            }
+            row.put("issue", issue);
+            row.put("issueUrl", issueUrl(repo, issue));
+            PullRow pull = findPullForIssue(github, issue);
+            if (pull != null) {
+                row.put("pr", pull.number);
+                row.put("prUrl", pullUrl(repo, pull.number));
+            }
+            if (run.round > 0) {
+                row.put("round", run.round);
+            }
+            long minutes = minutesRunning(now, run.startedAt);
+            if (minutes > 0) {
+                row.put("minutes", minutes);
+            }
+            if (run.model != null && !run.model.isEmpty()) {
+                row.put("model", run.model);
+            }
+            row.put("stage", OfficeActiveStage.forRun(run, machineAgentRunning, machineVerdict, machineRole, pull));
+            return row;
+        }
+
+        private static Map<String, Object> activeEntryFromMachine(long now, int issue,
+                                                                  DevMachineStore.Snapshot tiger,
+                                                                  Snapshot github, String repo) {
             Map<String, Object> row = new LinkedHashMap<>();
             IssueRow issueRow = findIssue(github, issue);
             row.put("phrase", SecretarySpeech.phraseForActive(issueRow));
@@ -360,16 +398,19 @@ public final class OfficePublicRoutes {
                 row.put("pr", pull.number);
                 row.put("prUrl", pullUrl(repo, pull.number));
             }
+            int round = tiger.round != null ? tiger.round : 0;
             if (round > 0) {
                 row.put("round", round);
             }
-            long minutes = minutesRunning(now, startedAt);
+            long minutes = minutesRunning(now, tiger.runStartedAt);
             if (minutes > 0) {
                 row.put("minutes", minutes);
             }
-            if (model != null && !model.isEmpty()) {
-                row.put("model", model);
+            if (tiger.model != null && !tiger.model.isEmpty()) {
+                row.put("model", tiger.model);
             }
+            row.put("stage", OfficeActiveStage.forMachineFields(tiger.agentRunning, tiger.verdict,
+                    tiger.role, pull));
             return row;
         }
 

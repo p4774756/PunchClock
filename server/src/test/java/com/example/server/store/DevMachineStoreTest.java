@@ -152,6 +152,32 @@ public class DevMachineStoreTest {
     }
 
     @Test
+    public void runStageFieldParsedWhenValid() {
+        DevMachineStore store = new DevMachineStore();
+        List<Map<String, Object>> runs = List.of(Map.of(
+                "issue", 576,
+                "round", 1,
+                "branch", "ai/issue-576",
+                "startedAt", 1000L,
+                "role", "dev",
+                "stage", "等 CI"
+        ));
+        Map<String, Object> body = payload("tiger", 576, "ai/issue-576", 1000L);
+        body.put("runs", runs);
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", body));
+        assertEquals("等 CI", store.machineSnapshots().get(0).runs.get(0).stage);
+        Map<String, Object> bad = new HashMap<>(body);
+        bad.put("runs", List.of(Map.of(
+                "issue", 576,
+                "round", 1,
+                "branch", "ai/issue-576",
+                "startedAt", 1000L,
+                "stage", "隨便"
+        )));
+        assertEquals(DevMachineStore.ApplyResult.BAD_BODY, store.applyHeartbeat("tiger", bad));
+    }
+
+    @Test
     public void graceKeepsRunsOnEmptyHeartbeat() {
         AtomicLong clock = new AtomicLong(1_000_000L);
         DevMachineStore store = new DevMachineStore(clock::get);
