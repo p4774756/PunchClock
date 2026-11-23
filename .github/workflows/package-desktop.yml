@@ -52,7 +52,11 @@ jobs:
           cache: maven
 
       - name: Build shade jar (bytecode 11)
-        run: mvn -B -q -pl client -am package -DskipTests
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then VERSION="$(mvn -q -pl client -DforceStdout help:evaluate -Dexpression=project.version)"; fi
+          mvn -B -q versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
+          mvn -B -q -pl client -am package -DskipTests -P '!git-commit-time'
 
       - name: Build .icns
         run: |
@@ -116,7 +120,11 @@ jobs:
           cache: maven
 
       - name: Build shade jar (bytecode 11)
-        run: mvn -B -q -pl client -am package -DskipTests
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then VERSION="$(mvn -q -pl client -DforceStdout help:evaluate -Dexpression=project.version)"; fi
+          mvn -B -q versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
+          mvn -B -q -pl client -am package -DskipTests -P '!git-commit-time'
 
       - name: Build .icns
         run: |
@@ -177,7 +185,11 @@ jobs:
 
       - name: Build shade jar (bytecode 11)
         shell: bash
-        run: mvn -B -q -pl client -am package -DskipTests
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then VERSION="$(mvn -q -pl client -DforceStdout help:evaluate -Dexpression=project.version)"; fi
+          mvn -B -q versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
+          mvn -B -q -pl client -am package -DskipTests -P '!git-commit-time'
 
       - name: Build .ico
         shell: bash

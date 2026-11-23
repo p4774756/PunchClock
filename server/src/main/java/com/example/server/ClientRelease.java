@@ -1,104 +1,81 @@
 package com.example.server;
 
 import com.example.BuildInfo;
-import com.example.ClientUpdatePolicy;
-import com.example.ReleaseNotes;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Properties;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
-/**
- * 這次部署附帶的桌面端 jar。Docker image 放在 {@code /app/client/}；
- * 本機可用環境變數 {@code CLIENT_JAR_PATH} 指到 standalone jar。
- */
+/** GitHub 最新 Release 上的 SKLbaby.jar 中繼資料。 */
 public final class ClientRelease {
 
-    public static final ClientRelease NONE = new ClientRelease("", "", "", "", 0L, null, "");
+    public static final String JAR_ASSET = "SKLbaby.jar";
+
+    public static final ClientRelease NONE = new ClientRelease("", "", "", 0L, "", List.of());
 
     private final String version;
-    private final String sourceDigest;
-    /** 這份 jar 的建置（或 commit）時間，ISO-8601 UTC；未知為空字串。 */
+    /** GitHub {@code published_at}，ISO-8601。 */
     private final String releaseTime;
     private final String sha256;
     private final long size;
-    private final Path jar;
-    /** {@code release-notes.txt} 原文；沒有這份檔時為空字串。 */
-    private final String notes;
+    private final String downloadUrl;
+    private final List<String> changeLines;
 
-    private ClientRelease(String version, String sourceDigest, String releaseTime, String sha256, long size, Path jar,
-                          String notes) {
+    public ClientRelease(String version, String releaseTime, String sha256, long size, String downloadUrl,
+                         List<String> changeLines) {
         this.version = version == null ? "" : version;
-        this.sourceDigest = sourceDigest == null ? "" : sourceDigest;
         this.releaseTime = releaseTime == null ? "" : releaseTime;
         this.sha256 = sha256 == null ? "" : sha256;
         this.size = size;
-        this.jar = jar;
-        this.notes = notes == null ? "" : notes;
+        this.downloadUrl = downloadUrl == null ? "" : downloadUrl;
+        this.changeLines = changeLines == null ? List.of() : List.copyOf(changeLines);
     }
 
-    public static ClientRelease discover() {
-        String env = System.getenv("CLIENT_JAR_PATH");
-        if (env != null && !env.isBlank()) {
-            return readOrNone(Path.of(env.trim()));
+    public static ClientRelease fromGithub(JsonObject release) {
+        if (release == null) {
+            return NONE;
         }
-        Path dockerPath = Path.of("/app/client/SKLbaby.jar");
-        if (!Files.isRegularFile(dockerPath)) {
-            dockerPath = Path.of("/app/client/punchclock-client-standalone.jar");
+        String version = versionFromTag(text(release, "tag_name"));
+        if (!version.matches("\\d+\\.\\d+\\.\\d+")) {
+            return NONE;
         }
-        if (Files.isRegularFile(dockerPath)) {
-            return readOrNone(dockerPath);
+        String published = text(release, "published_at");
+        List<String> changes = firstLines(text(release, "body"), 8);
+        if (!release.has("assets") || !release.get("assets").isJsonArray()) {
+            return NONE;
+        }
+        JsonArray assets = release.getAsJsonArray("assets");
+        for (JsonElement el : assets) {
+            if (el == null || !el.isJsonObject()) {
+                continue;
+            }
+            JsonObject asset = el.getAsJsonObject();
+            if (!JAR_ASSET.equals(text(asset, "name"))) {
+                continue;
+            }
+            long size = asset.has("size") && !asset.get("size").isJsonNull() ? asset.get("size").getAsLong() : 0L;
+            String url = text(asset, "browser_download_url");
+            String hash = assetSha256(asset);
+            if (size <= 0 || url.isEmpty() || hash.isEmpty()) {
+                return NONE;
+            }
+            return new ClientRelease(version, published, hash, size, url, changes);
         }
         return NONE;
     }
 
-    public static ClientRelease fromJar(Path path) throws IOException {
-        if (path == null || !Files.isRegularFile(path)) {
-            throw new IOException("client jar 不存在");
-        }
-        Properties props = new Properties();
-        String notes = "";
-        try (JarFile jarFile = new JarFile(path.toFile())) {
-            JarEntry entry = jarFile.getJarEntry("version.properties");
-            if (entry == null) {
-                throw new IOException("jar 沒有 version.properties");
-            }
-            try (InputStream in = jarFile.getInputStream(entry)) {
-                props.load(in);
-            }
-            JarEntry notesEntry = jarFile.getJarEntry(ReleaseNotes.RESOURCE);
-            if (notesEntry != null) {
-                try (InputStream in = jarFile.getInputStream(notesEntry)) {
-                    notes = new String(in.readNBytes(16 * 1024), StandardCharsets.UTF_8);
-                }
-            }
-        }
-        BuildInfo info = BuildInfo.fromProperties(props);
-        String hash = ClientUpdatePolicy.sha256(path);
-        return new ClientRelease(info.version(), info.sourceDigest(), info.releaseTimeIso(), hash,
-                Files.size(path), path, notes);
-    }
-
     public boolean isAvailable() {
-        return jar != null
-                && Files.isRegularFile(jar)
-                && version.matches("\\d+\\.\\d+\\.\\d+")
-                && !sourceDigest.isEmpty()
+        return version.matches("\\d+\\.\\d+\\.\\d+")
                 && !sha256.isEmpty()
-                && size > 0;
+                && size > 0
+                && !downloadUrl.isEmpty();
     }
 
     public String version() {
         return version;
-    }
-
-    public String sourceDigest() {
-        return sourceDigest;
     }
 
     public String releaseTime() {
@@ -113,25 +90,52 @@ public final class ClientRelease {
         return size;
     }
 
-    public Path jar() {
-        return jar;
+    public String downloadUrl() {
+        return downloadUrl;
     }
 
-    public String notes() {
-        return notes;
+    public List<String> changeLines() {
+        return changeLines;
     }
 
-    private static ClientRelease readOrNone(Path path) {
-        try {
-            ClientRelease release = fromJar(path);
-            if (!release.isAvailable()) {
-                System.err.println("client jar 沒有可用的原始碼摘要：" + path);
-                return NONE;
-            }
-            return release;
-        } catch (Exception ex) {
-            System.err.println("無法讀取 client jar：" + path + "（" + ex.getMessage() + "）");
-            return NONE;
+    static String versionFromTag(String tag) {
+        if (tag == null || tag.isBlank()) {
+            return "";
         }
+        String t = tag.trim();
+        return t.startsWith("v") || t.startsWith("V") ? t.substring(1) : t;
+    }
+
+    static List<String> firstLines(String body, int max) {
+        if (body == null || body.isBlank() || max <= 0) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        for (String line : body.split("\\R")) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            out.add(trimmed);
+            if (out.size() >= max) {
+                break;
+            }
+        }
+        return out.isEmpty() ? List.of() : Collections.unmodifiableList(out);
+    }
+
+    private static String assetSha256(JsonObject asset) {
+        String raw = text(asset, "digest");
+        if (raw.startsWith("sha256:")) {
+            raw = raw.substring("sha256:".length());
+        }
+        return BuildInfo.normalizeDigest(raw);
+    }
+
+    private static String text(JsonObject obj, String key) {
+        if (obj == null || !obj.has(key) || obj.get(key).isJsonNull()) {
+            return "";
+        }
+        return obj.get(key).getAsString();
     }
 }

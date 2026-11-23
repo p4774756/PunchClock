@@ -13,35 +13,35 @@ import static org.junit.Assert.assertTrue;
 public class ClientUpdatePolicyTest {
 
     private static final String A = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    private static final String B = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
     @Test
-    public void offersOnlyWhenBothDigestsDiffer() {
-        assertTrue(ClientUpdatePolicy.shouldOffer("1.8.0", A, B));
-        assertFalse(ClientUpdatePolicy.shouldOffer("1.8.0", A, A));
-        assertFalse(ClientUpdatePolicy.shouldOffer("1.8.0", A, ""));
-        assertFalse(ClientUpdatePolicy.shouldOffer("1.8.0", "", B));
-        assertFalse(ClientUpdatePolicy.shouldOffer(BuildInfo.DEV_VERSION, A, B));
-        assertFalse(ClientUpdatePolicy.shouldOffer("", A, B));
+    public void offersOnlyWhenReleaseIsNewer() {
+        assertTrue(ClientUpdatePolicy.shouldOffer("1.8.0", "1.8.1"));
+        assertTrue(ClientUpdatePolicy.shouldOffer("1.8.0", "2.0.0"));
+        assertFalse(ClientUpdatePolicy.shouldOffer("1.8.0", "1.8.0"));
+        assertFalse(ClientUpdatePolicy.shouldOffer("1.8.1", "1.8.0"));
+        assertFalse(ClientUpdatePolicy.shouldOffer(BuildInfo.DEV_VERSION, "1.8.1"));
+        assertFalse(ClientUpdatePolicy.shouldOffer("", "1.8.1"));
     }
 
     @Test
-    public void doesNotOfferOlderReleaseOverNewerClient() {
-        String older = "2026-10-20T07:00:00Z";
-        String newer = "2026-10-20T08:00:00Z";
-        assertTrue(ClientUpdatePolicy.shouldOffer("1.8.0", A, older, B, newer));
-        assertFalse("server 上的比較舊，不降版", ClientUpdatePolicy.shouldOffer("1.8.0", A, newer, B, older));
-        assertTrue("時間相同但摘要不同仍可更新", ClientUpdatePolicy.shouldOffer("1.8.0", A, newer, B, newer));
-        assertFalse("摘要相同永遠不更新", ClientUpdatePolicy.shouldOffer("1.8.0", A, older, A, newer));
+    public void compareSemverOrdersMajorMinorPatch() {
+        assertEquals(-1, ClientUpdatePolicy.compareSemver("1.0.0", "2.0.0"));
+        assertEquals(1, ClientUpdatePolicy.compareSemver("1.2.0", "1.1.9"));
+        assertEquals(0, ClientUpdatePolicy.compareSemver("4.0.2", "4.0.2"));
+        assertEquals(0, ClientUpdatePolicy.compareSemver("bad", "1.0.0"));
     }
 
     @Test
-    public void missingOrBrokenTimeFallsBackToDigestOnly() {
-        String t = "2026-10-20T08:00:00Z";
-        assertTrue(ClientUpdatePolicy.shouldOffer("1.8.0", A, "", B, t));
-        assertTrue(ClientUpdatePolicy.shouldOffer("1.8.0", A, t, B, ""));
-        assertTrue(ClientUpdatePolicy.shouldOffer("1.8.0", A, "garbage", B, t));
-        assertTrue(ClientUpdatePolicy.shouldOffer("1.8.0", A, t, B, null));
+    public void allowedDownloadUrlsAcceptGithubReleaseAndRedirectHosts() {
+        String url = ClientUpdatePolicy.GITHUB_JAR_DOWNLOAD_PREFIX + "v4.0.2/SKLbaby.jar";
+        assertTrue(ClientUpdatePolicy.isAllowedClientUpdateUrl(url));
+        assertTrue(ClientUpdatePolicy.isAllowedClientUpdateUrl(
+                "https://objects.githubusercontent.com/github-production-release-asset-2e65be/123/456"));
+        assertTrue(ClientUpdatePolicy.isAllowedGithubHost("github.com"));
+        assertTrue(ClientUpdatePolicy.isAllowedGithubHost("release-assets.githubusercontent.com"));
+        assertFalse(ClientUpdatePolicy.isAllowedClientUpdateUrl("https://evil.example/SKLbaby.jar"));
+        assertFalse(ClientUpdatePolicy.isAllowedClientUpdateUrl("/api/client-release/jar"));
     }
 
     @Test

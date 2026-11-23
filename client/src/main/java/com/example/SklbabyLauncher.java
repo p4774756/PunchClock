@@ -93,12 +93,8 @@ public final class SklbabyLauncher {
             return userJar;
         }
         String bundledVersion = bundledInfo.version().isEmpty() ? BuildInfo.DEV_VERSION : bundledInfo.version();
-        if (ClientUpdatePolicy.shouldOffer(
-                bundledVersion,
-                bundledInfo.sourceDigest(),
-                bundledInfo.releaseTimeIso(),
-                userInfo.sourceDigest(),
-                userInfo.releaseTimeIso())) {
+        String userVersion = userInfo.version().isEmpty() ? BuildInfo.DEV_VERSION : userInfo.version();
+        if (ClientUpdatePolicy.shouldOffer(bundledVersion, userVersion)) {
             return userJar;
         }
         return bundled;

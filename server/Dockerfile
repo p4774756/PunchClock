@@ -11,19 +11,10 @@ WORKDIR /app
 COPY pom.xml .
 COPY shared/pom.xml shared/pom.xml
 COPY shared/src shared/src
-COPY client/pom.xml client/pom.xml
-COPY client/src client/src
 COPY server/pom.xml server/pom.xml
 COPY server/src server/src
 
-# 同時打包桌面端，image 內帶著這次 commit 的 client jar，心跳才能通知更新。
-# Render 的 Docker context 不含 .git，所以這裡不複製它。
-# 有 git 時用 git log；沒有時打包程式改向公開的 GitHub 提交紀錄讀修改說明。
-RUN mvn -pl client,server -am package -DskipTests -P '!git-commit-time' \
-    && mkdir -p /tmp/client-release \
-    && cd /tmp/client-release \
-    && jar xf /app/client/target/SKLbaby.jar version.properties \
-    && grep -E '^sourceDigest=[0-9a-f]{64}$' version.properties
+RUN mvn -pl server -am package -DskipTests -P '!git-commit-time'
 
 FROM eclipse-temurin:11-jre-jammy
 # 飲品牆把 PowerPoint 轉成 PDF。同時只轉一份。Pages 只取檔內預覽，不經 LibreOffice。
@@ -33,7 +24,6 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY --from=build /app/server/target/punchclock-server.jar app.jar
-COPY --from=build /app/client/target/SKLbaby.jar client/SKLbaby.jar
 COPY --from=atlas /src/tcm-3d/dist /app/atlas/tcm-3d
 
 ENV PORT=3000

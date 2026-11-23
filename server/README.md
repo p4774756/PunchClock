@@ -17,7 +17,6 @@ Worker 走 HTTP 心跳。Dashboard 用 REST 下指令，WebSocket 只推 `STATUS
 | `GET /api/health/history` | 已登入 | 監控取樣（約 3 天） |
 | `WS /ws/dashboard` | 已登入 | 只推 `STATUS_UPDATE` |
 | `POST /api/heartbeat` | Bearer | 上報狀態；回應 `action`／`actions[]`、peers、files、chatRooms、`update` |
-| `GET /api/client-release/jar` | Bearer | 下載伺服器附帶的桌面端 jar |
 | `POST /api/clients/{id}/cancel-schedule` | 已登入 | 取消全部排程 |
 | `POST /api/clients/{id}/cancel-task/{taskId}` | 已登入 | 取消單一任務 |
 | `DELETE /api/clients/{id}` | 已登入 | 刪除裝置紀錄 |
@@ -35,11 +34,9 @@ Worker 走 HTTP 心跳。Dashboard 用 REST 下指令，WebSocket 只推 `STATUS
 
 ## 桌面端 jar
 
-心跳帶 `appVersion`、`appReleaseTime`、`appSourceDigest`。摘要與伺服器上的 jar 不同，且客戶端不是 `dev`、有送摘要時，回應帶 `update`（`version`、`sourceDigest`、`releaseTime`、`sha256`、`size`、`path`）。
+心跳帶 `appVersion`。伺服器快取 GitHub `releases/latest`；Release 版號較新且客戶端不是 `dev` 時，回應帶 `update`（`version`、`releaseTime`、`sha256`、`size`、`path` 為 GitHub asset 網址，可選 `changes`）。讀不到 Release 時啟動 log 顯示 `Client release: none (GitHub)`。桌面端怎麼套用更新見根目錄 README「桌面端自動更新」。
 
-jar 來自 `CLIENT_JAR_PATH`，否則是 Docker image 裡的 `/app/client/SKLbaby.jar`。沒有可發布的 jar 時，啟動 log 顯示 `Client release: none`，心跳不帶 `update`。桌面端怎麼套用更新見根目錄 README「桌面端自動更新」。
-
-公開下載頁 `GET /download` 另可連到 GitHub Release 的 macOS（`SKLbaby-mac-arm.dmg`、`SKLbaby-mac-intel.dmg`）與 Windows（`SKLbaby-win.exe`）安裝檔；可選用環境變數 `DESKTOP_MAC_ARM_DOWNLOAD_URL`／`DESKTOP_MAC_INTEL_DOWNLOAD_URL`／`DESKTOP_WIN_DOWNLOAD_URL` 覆寫按鈕網址（`DESKTOP_MAC_DOWNLOAD_URL` 仍可作為 Apple 晶片版後援）。安裝檔不打進 Docker image。
+`GET /download/app.jar`、`/download/SKLbaby.jar` 302 導向 GitHub 最新 Release 的 `SKLbaby.jar`。公開下載頁 `GET /download` 另可連到 GitHub Release 的 macOS（`SKLbaby-mac-arm.dmg`、`SKLbaby-mac-intel.dmg`）與 Windows（`SKLbaby-win.exe`）安裝檔；可選用環境變數 `DESKTOP_MAC_ARM_DOWNLOAD_URL`／`DESKTOP_MAC_INTEL_DOWNLOAD_URL`／`DESKTOP_WIN_DOWNLOAD_URL` 覆寫按鈕網址（`DESKTOP_MAC_DOWNLOAD_URL` 仍可作為 Apple 晶片版後援）。
 
 ## 測試
 

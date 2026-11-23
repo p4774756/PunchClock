@@ -260,10 +260,51 @@ final class PeerFileClient {
         }
     }
 
+    private HttpResponse<java.io.InputStream> getUpdateWithRedirects(URI start, TransferCancel cancel)
+            throws IOException, InterruptedException {
+        URI uri = start;
+        for (int hop = 0; hop < 6; hop++) {
+            if (cancel != null) {
+                cancel.throwIfCancelled();
+            }
+            java.util.concurrent.CompletableFuture<HttpResponse<java.io.InputStream>> request = endpoint.client()
+                    .sendAsync(buildDownloadRequest(uri), HttpResponse.BodyHandlers.ofInputStream());
+            if (cancel != null) {
+                cancel.cancelOnCancel(request);
+            }
+            HttpResponse<java.io.InputStream> response;
+            try {
+                response = request.get();
+            } catch (java.util.concurrent.CancellationException ex) {
+                throw new TransferIo.CancelledException();
+            } catch (java.util.concurrent.ExecutionException ex) {
+                Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+                throw cause instanceof IOException ? (IOException) cause : new IOException(cause);
+            }
+            int status = response.statusCode();
+            if (status >= 300 && status < 400) {
+                String location = response.headers().firstValue("Location").orElse("");
+                if (location.isEmpty()) {
+                    response.body().close();
+                    throw new IOException("下載轉址缺少 Location");
+                }
+                URI next = uri.resolve(location);
+                if (!ClientUpdatePolicy.isAllowedGithubHost(next.getHost())) {
+                    response.body().close();
+                    throw new IOException("更新轉址不被允許");
+                }
+                response.body().close();
+                uri = next;
+                continue;
+            }
+            return response;
+        }
+        throw new IOException("下載轉址過多");
+    }
+
     private HttpRequest buildDownloadRequest(URI uri) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(uri)
-                .header("Authorization", "Bearer " + endpoint.token())
                 .timeout(HeartbeatService.FILE_TRANSFER_TIMEOUT)
                 .GET();
         // JDK 17+（Mac 常見）不接受非 ASCII header；Worker ID 只放 URL-safe 編碼。
@@ -305,7 +346,7 @@ final class PeerFileClient {
         if (!endpoint.active() || endpoint.url().isBlank()) {
             throw new IOException("雲端未連線");
         }
-        if (!ClientUpdatePolicy.JAR_PATH.equals(path)) {
+        if (!ClientUpdatePolicy.isAllowedClientUpdateUrl(path)) {
             throw new IOException("更新路徑無效");
         }
         Path dir = ClientUpdateInstaller.updateDir();
@@ -313,24 +354,11 @@ final class PeerFileClient {
         Path part = dir.resolve("punchclock-client-next.jar.part");
         Path dest = dir.resolve("punchclock-client-next.jar");
         deleteQuietly(part);
-        URI uri = URI.create(endpoint.url() + path);
+        URI uri = URI.create(path.trim());
         if (cancel != null) {
             cancel.throwIfCancelled();
         }
-        java.util.concurrent.CompletableFuture<HttpResponse<java.io.InputStream>> request = endpoint.client().sendAsync(
-                buildDownloadRequest(uri), HttpResponse.BodyHandlers.ofInputStream());
-        if (cancel != null) {
-            cancel.cancelOnCancel(request);
-        }
-        HttpResponse<java.io.InputStream> response;
-        try {
-            response = request.get();
-        } catch (java.util.concurrent.CancellationException ex) {
-            throw new TransferIo.CancelledException();
-        } catch (java.util.concurrent.ExecutionException ex) {
-            Throwable cause = ex.getCause() == null ? ex : ex.getCause();
-            throw cause instanceof IOException ? (IOException) cause : new IOException(cause);
-        }
+        HttpResponse<java.io.InputStream> response = getUpdateWithRedirects(uri, cancel);
         try (java.io.InputStream in = response.body()) {
             if (response.statusCode() != 200) {
                 throw new IOException("下載失敗，狀態碼：" + response.statusCode());

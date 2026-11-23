@@ -24,13 +24,13 @@ public class SklbabyLauncherTest {
     @Test
     public void pickJarPrefersNewerUserCopy() throws Exception {
         Path bundled = jarWithDigest("4.0.0", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "2026-01-01T00:00:00Z");
-        Path user = jarWithDigest("4.0.0", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "2026-02-01T00:00:00Z");
+        Path user = jarWithDigest("4.0.1", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "2026-02-01T00:00:00Z");
         assertEquals(user, SklbabyLauncher.pickJar(bundled, user));
     }
 
     @Test
     public void pickJarKeepsBundledWhenUserIsOlder() throws Exception {
-        Path bundled = jarWithDigest("4.0.0", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "2026-02-01T00:00:00Z");
+        Path bundled = jarWithDigest("4.0.2", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "2026-02-01T00:00:00Z");
         Path user = jarWithDigest("4.0.0", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "2026-01-01T00:00:00Z");
         assertEquals(bundled, SklbabyLauncher.pickJar(bundled, user));
     }
@@ -72,7 +72,7 @@ public class SklbabyLauncherTest {
         Path user = home.resolve(".sklbaby/app/SKLbaby.jar");
         Files.createDirectories(user.getParent());
         Files.copy(
-                jarWithDigest("4.0.0", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "2026-02-01T00:00:00Z"),
+                jarWithDigest("4.0.1", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "2026-02-01T00:00:00Z"),
                 user,
                 StandardCopyOption.REPLACE_EXISTING);
         String previousHome = System.getProperty("user.home");

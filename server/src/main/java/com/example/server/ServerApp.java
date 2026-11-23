@@ -3,9 +3,9 @@ package com.example.server;
 import com.example.BuildInfo;
 import com.example.ClientUpdatePolicy;
 import com.example.PeerFileRules;
-import com.example.ReleaseNotes;
 import com.example.server.auth.AuthConfig;
 import com.example.server.auth.AuthService;
+import com.example.server.store.ClientReleaseService;
 import com.example.server.store.ClientStore;
 import com.example.server.store.DevStatusService;
 import com.example.server.store.GithubDevStatusClient;
@@ -40,7 +40,6 @@ import io.javalin.http.staticfiles.Location;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -72,30 +71,37 @@ public final class ServerApp {
     private final DevMachineStore devMachineStore;
     private final DevMachineRoutes devMachineRoutes;
     private final AtlasRoutes atlasRoutes;
-    private final ClientRelease clientRelease;
+    private final ClientReleaseService clientReleaseService;
 
     public ServerApp() {
-        this(ClientRelease.discover(), null, null, null);
+        this(ClientReleaseService.live(), null, null, null);
     }
 
     ServerApp(ClientRelease clientRelease) {
-        this(clientRelease, null, null, null);
+        this(ClientReleaseService.fixed(clientRelease), null, null, null);
     }
 
     /** 測試可注入假的 DevStatusService，避免打真實 GitHub。 */
     public ServerApp(ClientRelease clientRelease, DevStatusService devStatusService) {
-        this(clientRelease, devStatusService, null, null);
+        this(ClientReleaseService.fixed(clientRelease), devStatusService, null, null);
     }
 
     /** 測試可注入假的 DevStatusService／RoadmapService，避免打真實 GitHub。 */
     public ServerApp(ClientRelease clientRelease, DevStatusService devStatusService, RoadmapService roadmapService) {
-        this(clientRelease, devStatusService, roadmapService, null);
+        this(ClientReleaseService.fixed(clientRelease), devStatusService, roadmapService, null);
     }
 
     /** 測試可注入 {@link AuthService}（例如隔離的 {@link AuthConfig}）。 */
     ServerApp(ClientRelease clientRelease, DevStatusService devStatusService, RoadmapService roadmapService,
               AuthService authService) {
-        this.clientRelease = clientRelease == null ? ClientRelease.NONE : clientRelease;
+        this(ClientReleaseService.fixed(clientRelease), devStatusService, roadmapService, authService);
+    }
+
+    ServerApp(ClientReleaseService clientReleaseService, DevStatusService devStatusService, RoadmapService roadmapService,
+              AuthService authService) {
+        this.clientReleaseService = clientReleaseService != null
+                ? clientReleaseService
+                : ClientReleaseService.fixed(ClientRelease.NONE);
         this.authService = authService != null ? authService : new AuthService();
         this.clientStore = new ClientStore();
         this.relayStore = new RelayStore();
@@ -169,12 +175,12 @@ public final class ServerApp {
         System.out.println("- Protocol: HTTP heartbeat for workers; Dashboard WS for status push only");
         System.out.println("- Peer relay: /api/peer/relay (both online, in-memory only, no disk, max "
                 + PeerFileRules.MAX_SIZE_LABEL + ")");
+        ClientRelease clientRelease = clientReleaseService.get(Instant.now().toEpochMilli());
         if (clientRelease.isAvailable()) {
             System.out.println("- Client release: v" + clientRelease.version()
-                    + " " + clientRelease.sourceDigest().substring(0, 8)
-                    + " (" + clientRelease.size() + " bytes)");
+                    + " from GitHub (" + clientRelease.size() + " bytes)");
         } else {
-            System.out.println("- Client release: none");
+            System.out.println("- Client release: none (GitHub)");
         }
         System.out.println("- Admin password: " + (System.getenv("ADMIN_PASSWORD") != null ? "from ADMIN_PASSWORD env" : "default (secret)"));
         System.out.println("- JVM heap max: " + (Runtime.getRuntime().maxMemory() / (1024L * 1024L)) + " MB");
@@ -192,12 +198,11 @@ public final class ServerApp {
                 "buildTime", BUILD_INFO.buildTimeIso()
         )));
         app.post("/api/heartbeat", this::heartbeat);
-        app.get("/api/client-release/jar", this::clientReleaseJar);
         relayRoutes.register(app);
         chatRoutes.register(app);
         graffitiRoutes.register(app);
         officePublicRoutes.register(app);
-        new PublicDownloadRoutes(clientRelease).register(app);
+        new PublicDownloadRoutes(clientReleaseService).register(app);
         roadmapRoutes.register(app);
         devStatusRoutes.register(app);
         devMachineRoutes.register(app);
@@ -422,22 +427,17 @@ public final class ServerApp {
         response.put("actions", List.of());
         response.put("peers", clientStore.peerSnapshot(clientId));
         response.put("ackTimestamp", Instant.now().toString());
+        ClientRelease clientRelease = clientReleaseService.get(Instant.now().toEpochMilli());
         if (clientRelease.isAvailable()
-                && ClientUpdatePolicy.shouldOffer(appVersion, appSourceDigest, appReleaseTime,
-                        clientRelease.sourceDigest(), clientRelease.releaseTime())) {
+                && ClientUpdatePolicy.shouldOffer(appVersion, clientRelease.version())) {
             Map<String, Object> update = new LinkedHashMap<>();
             update.put("version", clientRelease.version());
-            update.put("sourceDigest", clientRelease.sourceDigest());
             update.put("releaseTime", clientRelease.releaseTime());
             update.put("sha256", clientRelease.sha256());
             update.put("size", clientRelease.size());
-            update.put("path", ClientUpdatePolicy.JAR_PATH);
-            ReleaseNotes.Selection changes = ReleaseNotes.since(clientRelease.notes(), appReleaseTime);
-            if (!changes.subjects.isEmpty()) {
-                update.put("changes", changes.subjects);
-                if (changes.hidden > 0) {
-                    update.put("changesMore", changes.hidden);
-                }
+            update.put("path", clientRelease.downloadUrl());
+            if (!clientRelease.changeLines().isEmpty()) {
+                update.put("changes", clientRelease.changeLines());
             }
             response.put("update", update);
         }
@@ -452,29 +452,6 @@ public final class ServerApp {
         ctx.json(response);
     }
 
-    private void clientReleaseJar(Context ctx) {
-        if (!authService.isHeartbeatAuthorized(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(RouteSupport.unauthorized());
-            return;
-        }
-        if (!clientRelease.isAvailable()) {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "沒有可下載的桌面端"));
-            return;
-        }
-        InputStream stream;
-        try {
-            stream = Files.newInputStream(clientRelease.jar());
-        } catch (IOException ex) {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "桌面端檔案不存在"));
-            return;
-        }
-        ctx.minSizeForCompression(Integer.MAX_VALUE);
-        ctx.contentType("application/java-archive");
-        ctx.header("Content-Length", String.valueOf(clientRelease.size()));
-        ctx.header("ETag", "\"" + clientRelease.sha256() + "\"");
-        ctx.header("X-Content-Type-Options", "nosniff");
-        ctx.result(stream);
-    }
 
 
 
