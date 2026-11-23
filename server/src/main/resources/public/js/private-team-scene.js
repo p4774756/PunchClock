@@ -5,7 +5,16 @@ export const SECRETARY_SPRITE_URL_TYPING_B = '/assets/private-team/secretary-typ
 export const SECRETARY_SPRITE_URL_WAVE = '/assets/private-team/secretary-wave.webp';
 export const SECRETARY_SPRITE_URL_YEAH = '/assets/private-team/secretary-yeah.webp';
 export const SECRETARY_SPRITE_URL_IDLE = '/assets/private-team/secretary-idle-tea.webp';
+export const SECRETARY_SPRITE_URL_READ = '/assets/private-team/secretary-read.webp';
+export const SECRETARY_SPRITE_URL_PHONE = '/assets/private-team/secretary-phone.webp';
 export const SECRETARY_SPRITE_URL_SLEEP = '/assets/private-team/secretary-sleep.webp';
+
+export const SECRETARY_STANDBY_IDLE_URLS = [
+  SECRETARY_SPRITE_URL_IDLE,
+  SECRETARY_SPRITE_URL_READ,
+  SECRETARY_SPRITE_URL_PHONE
+];
+export const SECRETARY_IDLE_ROTATE_MS = 2 * 60 * 1000;
 
 const SECRETARY_TYPING_FRAME_MS = 500;
 const SECRETARY_WAVE_MS = 3000;
@@ -97,6 +106,29 @@ export function secretaryTypingDisplayUrl(statusBaseUrl, useTypingB, reducedMoti
     return SECRETARY_SPRITE_URL_TYPING_B;
   }
   return base;
+}
+
+export function isSecretaryStandbyIdleUrl(url) {
+  const u = url == null ? '' : String(url).trim();
+  return SECRETARY_STANDBY_IDLE_URLS.includes(u);
+}
+
+/** 心跳輪詢仍傳待命預設喝茶圖時，勿蓋掉輪替中的看書／講電話。 */
+export function shouldIgnoreStandbyIdleSpriteUpdate(currentUrl, incomingUrl) {
+  const cur = currentUrl == null ? '' : String(currentUrl).trim();
+  const inc = incomingUrl == null ? '' : String(incomingUrl).trim();
+  if (inc !== SECRETARY_SPRITE_URL_IDLE || cur === SECRETARY_SPRITE_URL_IDLE) return false;
+  return isSecretaryStandbyIdleUrl(cur);
+}
+
+/** 待命立繪輪替：從三張中選，不連續同一張（randomInt 供單測固定種子）。 */
+export function pickNextStandbyIdleUrl(currentUrl, randomInt) {
+  const cur = currentUrl == null ? '' : String(currentUrl).trim();
+  const pool = SECRETARY_STANDBY_IDLE_URLS.filter((u) => u !== cur);
+  if (pool.length === 0) return SECRETARY_STANDBY_IDLE_URLS[0];
+  const ri = Number(randomInt);
+  const idx = Number.isFinite(ri) ? Math.abs(Math.floor(ri)) % pool.length : 0;
+  return pool[idx];
 }
 
 export const PRIVATE_TEAM_ZOOM_MIN = 0.72;
@@ -1412,6 +1444,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   let dancePlayback = null;
   let tigerStatus = '待命中';
   let standbySinceMs = performance.now();
+  let lastIdleRotateMs = null;
   let lastIdleDanceMs = null;
   let danceDisplayFrame = -1;
   let currentSpriteUrl = '';
@@ -1428,6 +1461,10 @@ export function mountPrivateTeamScene(canvas, opts) {
       if (!url || seen.has(url)) continue;
       seen.add(url);
       loader.load(url, () => {}, undefined, () => {});
+    }
+    for (let i = 0; i < SECRETARY_STANDBY_IDLE_URLS.length; i++) {
+      const url = SECRETARY_STANDBY_IDLE_URLS[i];
+      if (url) loader.load(url, () => {}, undefined, () => {});
     }
   })();
 
@@ -1493,9 +1530,13 @@ export function mountPrivateTeamScene(canvas, opts) {
     const wasStandby = isStandbyTigerStatus(tigerStatus);
     tigerStatus = next;
     if (isStandbyTigerStatus(tigerStatus)) {
-      if (!wasStandby || standbySinceMs == null) standbySinceMs = t;
+      if (!wasStandby || standbySinceMs == null) {
+        standbySinceMs = t;
+        lastIdleRotateMs = t;
+      }
     } else {
       standbySinceMs = null;
+      lastIdleRotateMs = null;
     }
   }
 
@@ -1592,7 +1633,9 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   function setSecretarySprite(url) {
     const next = url == null ? '' : String(url).trim();
-    if (!next || next === statusBaseUrl) return;
+    if (!next) return;
+    if (shouldIgnoreStandbyIdleSpriteUpdate(statusBaseUrl, next)) return;
+    if (next === statusBaseUrl) return;
     statusBaseUrl = next;
     typingShowB = false;
     lastTypingFlipMs = performance.now();
@@ -1887,14 +1930,32 @@ export function mountPrivateTeamScene(canvas, opts) {
         reducedMotion = !!mq.matches;
         typingShowB = false;
         if (reducedMotion && dancePlayback) stopSecretaryDance();
-        else refreshSecretaryDisplay();
+        if (
+          reducedMotion &&
+          isStandbyTigerStatus(tigerStatus) &&
+          isSecretaryStandbyIdleUrl(statusBaseUrl) &&
+          statusBaseUrl !== SECRETARY_SPRITE_URL_IDLE
+        ) {
+          statusBaseUrl = SECRETARY_SPRITE_URL_IDLE;
+          lastIdleRotateMs = null;
+        }
+        refreshSecretaryDisplay();
       });
     } else if (typeof mq.addListener === 'function') {
       mq.addListener(() => {
         reducedMotion = !!mq.matches;
         typingShowB = false;
         if (reducedMotion && dancePlayback) stopSecretaryDance();
-        else refreshSecretaryDisplay();
+        if (
+          reducedMotion &&
+          isStandbyTigerStatus(tigerStatus) &&
+          isSecretaryStandbyIdleUrl(statusBaseUrl) &&
+          statusBaseUrl !== SECRETARY_SPRITE_URL_IDLE
+        ) {
+          statusBaseUrl = SECRETARY_SPRITE_URL_IDLE;
+          lastIdleRotateMs = null;
+        }
+        refreshSecretaryDisplay();
       });
     }
   }
@@ -1957,6 +2018,19 @@ export function mountPrivateTeamScene(canvas, opts) {
     ) {
       lastTypingFlipMs = now;
       typingShowB = !typingShowB;
+      refreshSecretaryDisplay();
+    } else if (
+      !overlayActive &&
+      !dancePlayback &&
+      !reducedMotion &&
+      isStandbyTigerStatus(tigerStatus) &&
+      isSecretaryStandbyIdleUrl(statusBaseUrl) &&
+      lastIdleRotateMs != null &&
+      now - lastIdleRotateMs >= SECRETARY_IDLE_ROTATE_MS
+    ) {
+      lastIdleRotateMs = now;
+      statusBaseUrl = pickNextStandbyIdleUrl(statusBaseUrl, Math.floor(Math.random() * 1e6));
+      refreshPoseAnimMode();
       refreshSecretaryDisplay();
     }
     const elapsed = (now - t0) / 1000;

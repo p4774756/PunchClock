@@ -11,14 +11,21 @@ const {
   SECRETARY_SPRITE_URL_TYPING_B,
   SECRETARY_SPRITE_URL_WAVE,
   SECRETARY_SPRITE_URL_YEAH,
+  SECRETARY_SPRITE_URL_IDLE,
+  SECRETARY_SPRITE_URL_READ,
+  SECRETARY_SPRITE_URL_PHONE,
   SECRETARY_CLAP_SPRITE_A,
   SECRETARY_CLAP_SPRITE_B,
   SECRETARY_CELEBRATE_STEPS,
   SECRETARY_DANCE_DURATION_MS,
+  SECRETARY_STANDBY_IDLE_URLS,
   secretaryCelebrateFrameUrlAt,
   secretaryCelebrateJumpOffsetAt,
   secretaryTypingDisplayUrl,
-  shouldTriggerIdleStandbyDance
+  shouldTriggerIdleStandbyDance,
+  pickNextStandbyIdleUrl,
+  shouldIgnoreStandbyIdleSpriteUpdate,
+  isSecretaryStandbyIdleUrl
 } = await loadPublicModule('private-team-scene.js');
 
 const {
@@ -73,6 +80,46 @@ test('慶祝拍手比讚小跳序列與時長', () => {
   assert.equal(secretaryCelebrateFrameUrlAt(SECRETARY_DANCE_DURATION_MS), '');
   assert.ok(secretaryCelebrateJumpOffsetAt(1925) > 0.05);
   assert.equal(secretaryCelebrateJumpOffsetAt(500), 0);
+});
+
+test('待命立繪輪替選擇', () => {
+  assert.deepEqual(SECRETARY_STANDBY_IDLE_URLS, [
+    SECRETARY_SPRITE_URL_IDLE,
+    SECRETARY_SPRITE_URL_READ,
+    SECRETARY_SPRITE_URL_PHONE
+  ]);
+  for (const cur of SECRETARY_STANDBY_IDLE_URLS) {
+    for (let ri = 0; ri < 20; ri++) {
+      const next = pickNextStandbyIdleUrl(cur, ri);
+      assert.ok(SECRETARY_STANDBY_IDLE_URLS.includes(next));
+      assert.notEqual(next, cur);
+    }
+  }
+  assert.equal(pickNextStandbyIdleUrl(SECRETARY_SPRITE_URL_IDLE, 0), SECRETARY_SPRITE_URL_READ);
+  assert.equal(pickNextStandbyIdleUrl(SECRETARY_SPRITE_URL_IDLE, 1), SECRETARY_SPRITE_URL_PHONE);
+  assert.equal(pickNextStandbyIdleUrl(SECRETARY_SPRITE_URL_READ, 0), SECRETARY_SPRITE_URL_IDLE);
+  assert.equal(pickNextStandbyIdleUrl(SECRETARY_SPRITE_URL_READ, 1), SECRETARY_SPRITE_URL_PHONE);
+  assert.ok(isSecretaryStandbyIdleUrl(SECRETARY_SPRITE_URL_PHONE));
+  assert.equal(isSecretaryStandbyIdleUrl(SECRETARY_SPRITE_URL_TYPING), false);
+});
+
+test('心跳待命預設喝茶不蓋輪替姿勢', () => {
+  assert.equal(
+    shouldIgnoreStandbyIdleSpriteUpdate(SECRETARY_SPRITE_URL_READ, SECRETARY_SPRITE_URL_IDLE),
+    true
+  );
+  assert.equal(
+    shouldIgnoreStandbyIdleSpriteUpdate(SECRETARY_SPRITE_URL_PHONE, SECRETARY_SPRITE_URL_IDLE),
+    true
+  );
+  assert.equal(
+    shouldIgnoreStandbyIdleSpriteUpdate(SECRETARY_SPRITE_URL_IDLE, SECRETARY_SPRITE_URL_IDLE),
+    false
+  );
+  assert.equal(
+    shouldIgnoreStandbyIdleSpriteUpdate(SECRETARY_SPRITE_URL_TYPING, SECRETARY_SPRITE_URL_IDLE),
+    false
+  );
 });
 
 test('待命閒置起舞條件', () => {
