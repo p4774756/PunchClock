@@ -46,6 +46,10 @@ public final class AdminTestServer {
         return baseUrl;
     }
 
+    public String adminPassword() {
+        return adminPassword;
+    }
+
     public AuthService authService() {
         return authService;
     }

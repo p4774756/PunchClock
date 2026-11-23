@@ -18,7 +18,7 @@ test('私人秘書 HUD 標記與身分文案', () => {
   assert.match(js, /taskProgressFromTiger/);
   assert.match(js, /pt-hud-id-plate/);
   assert.match(js, /data-pt-identity-toggle[^>]*aria-label="帳號"/);
-  assert.match(js, /pt-hud-id-plate is-guest[^>]*aria-label="帳號"/);
+  assert.match(js, /pt-hud-id-plate is-guest[^>]*data-pt-open-login[^>]*aria-label="帳號"/);
   assert.match(js, /管理員/);
   assert.match(js, /線上/);
   assert.match(js, /訪客/);

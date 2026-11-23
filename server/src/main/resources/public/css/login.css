@@ -121,6 +121,83 @@ body.login-page .site-footer {
   background: transparent;
 }
 
+/* 首頁浮動登入。窄螢幕的施工進度會把 .roadmap-board 拉成貼頂全寬，這裡改回置中、依內容縮高。 */
+.roadmap-board.pt-login-board {
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.pt-login-board .login-sheet.roadmap-panel.maple-window {
+  align-self: center;
+  box-sizing: border-box;
+  width: min(420px, 100%);
+  height: auto;
+  max-height: min(92vh, 520px);
+  border-radius: 6px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.pt-login-board .login-sheet-body {
+  background: var(--white, #fff);
+}
+
+.pt-login-board .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius, 8px);
+  border: 1px solid var(--line, #b5b5b6);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--white, #fff);
+  color: var(--text-dark, #3f3434);
+}
+
+.pt-login-board .btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.pt-login-board .btn-ghost {
+  background: var(--surface-alt, #f2f2f3);
+}
+
+.pt-login-board .btn-toggle-pwd {
+  flex-shrink: 0;
+  min-width: 3.2rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.pt-login-board .btn-primary {
+  background: var(--blue, #096597);
+  color: #fff;
+  border-color: var(--blue, #096597);
+}
+
+.pt-login-board .btn-primary:hover:not(:disabled) {
+  background: var(--blue-deep, #0e6c9c);
+  border-color: var(--blue-deep, #0e6c9c);
+}
+
+.pt-login-board .btn-submit {
+  display: flex;
+  width: 100%;
+  margin-top: 0.15rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+}
+
+button.pt-hud-task-hint-login {
+  font: inherit;
+}
+
 @media (max-width: 520px) {
   .login-main {
     padding-top: 8px;

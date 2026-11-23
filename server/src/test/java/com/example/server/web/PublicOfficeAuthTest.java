@@ -78,6 +78,8 @@ public class PublicOfficeAuthTest {
         assertTrue(response.body().contains("lab-office-page"));
         assertTrue(response.body().contains("office-page.js"));
         assertTrue(response.body().contains("roadmapBoard"));
+        assertTrue(response.body().contains("loginBoard"));
+        assertTrue(response.body().contains("data-login-form"));
         assertTrue(response.body().contains("roadmap.css"));
         assertTrue(response.body().contains("is-guest"));
         assertTrue(response.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
@@ -289,6 +291,63 @@ public class PublicOfficeAuthTest {
     private void assertNoManagementPayload(String body) {
         assertFalse(body.contains("\"serverVersion\""));
         assertFalse(body.contains("\"photos\""));
+    }
+
+    @Test
+    public void loginPostJsonSuccessSetsCookieWithoutRedirect() throws Exception {
+        String form = "password=" + java.net.URLEncoder.encode(server.adminPassword(), StandardCharsets.UTF_8);
+        HttpRequest request = HttpRequest.newBuilder(URI.create(base + "/login"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Accept", "application/json")
+                .timeout(Duration.ofSeconds(5))
+                .POST(HttpRequest.BodyPublishers.ofString(form))
+                .build();
+        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("\"success\":true"));
+        assertTrue(response.headers().firstValue("Set-Cookie").orElse("").startsWith("auth="));
+        assertFalse(response.headers().firstValue("location").isPresent());
+    }
+
+    @Test
+    public void loginPostJsonWrongPasswordReturnsMessage() throws Exception {
+        HttpResponse<String> response = postLoginJson("not-the-admin-password");
+        assertEquals(401, response.statusCode());
+        assertTrue(response.body().contains("\"success\":false"));
+        assertTrue(response.body().contains("密碼錯誤"));
+        assertTrue(response.body().contains("remainingAttempts"));
+        assertFalse(response.headers().firstValue("location").isPresent());
+    }
+
+    @Test
+    public void loginPostJsonLockedAfterFiveFailures() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            HttpResponse<String> fail = postLoginJson("not-the-admin-password");
+            assertEquals(i < 4 ? 401 : 403, fail.statusCode());
+        }
+        HttpResponse<String> locked = postLoginJson("not-the-admin-password");
+        assertEquals(403, locked.statusCode());
+        assertTrue(locked.body().contains("\"locked\":true"));
+        assertTrue(locked.body().contains("remainingSec"));
+        assertTrue(locked.body().contains("帳號已鎖定"));
+    }
+
+    @Test
+    public void loginPostFormStillRedirectsOnFailure() throws Exception {
+        HttpResponse<String> response = postLogin("not-the-admin-password");
+        assertEquals(302, response.statusCode());
+        assertEquals("/login?error=1", response.headers().firstValue("location").orElse(""));
+    }
+
+    private HttpResponse<String> postLoginJson(String password) throws Exception {
+        String form = "password=" + java.net.URLEncoder.encode(password, StandardCharsets.UTF_8);
+        HttpRequest request = HttpRequest.newBuilder(URI.create(base + "/login"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .header("Accept", "application/json")
+                .timeout(Duration.ofSeconds(5))
+                .POST(HttpRequest.BodyPublishers.ofString(form))
+                .build();
+        return http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
 
     private HttpResponse<String> postLogin(String password) throws Exception {

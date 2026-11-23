@@ -59,6 +59,15 @@
   pointer-events: none;
 }
 
+/* 登入彈窗留著辦公室場景，只停用背後指標。遮罩在 .roadmap-board。 */
+.lab-office-stage.pt-login-open .private-team-hud,
+.lab-office-stage.pt-login-open .private-team-hud > *,
+.lab-office-stage.pt-login-open .private-team-canvas,
+.lab-office-stage.pt-login-open .pt-prog-hit,
+.lab-office-stage.pt-login-open .pt-status-backdrop {
+  pointer-events: none;
+}
+
 .pt-prog-hit {
   position: absolute;
   left: 0;
@@ -400,6 +409,12 @@
   color: var(--maple-blue-lt, #a8d0f2);
   font-variant-numeric: tabular-nums;
   flex: 0 0 auto;
+}
+
+button.pt-hud-id-plate {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 2px solid #c9a64a;
 }
 
 .pt-hud-id-plate {
