@@ -290,6 +290,62 @@ assert_eq "$(read_review_verdict "$mock_home/PunchClock-oki/wt-247")" "PASS" "re
 HOME=$prev_home
 rm -rf "$mock_home"
 
+# --- runs lag: 沿用不得反覆延後 until ---
+lag_tmp=$(mktemp -d)
+LAG_FILE="$lag_tmp/lag.json"
+now_ms=$(date +%s)000
+fixed_until=$((now_ms + 120000))
+lag_runs='[{"issue":608,"branch":"ai/issue-608","startedAt":1000}]'
+write_lag_file "$lag_runs" false "$fixed_until"
+RUNS_JSON="[]"
+RUNS_LIVE=false
+agent=false
+apply_runs_lag
+case "$RUNS_JSON" in
+  *'"issue":608'*) ;;
+  *) fail "apply_runs_lag should carry runs while until valid" ;;
+esac
+if [ "$RUNS_LIVE" = "true" ] && [ -n "$RUNS_JSON" ] && [ "$RUNS_JSON" != "[]" ]; then
+  write_lag_file "$RUNS_JSON" "$agent" "$((now_ms + LAG_MS))"
+fi
+until_after=$(sed -n 's/.*"until":\([0-9][0-9]*\).*/\1/p' "$LAG_FILE" | head -n 1)
+assert_eq "$until_after" "$fixed_until" "carried runs must not extend lag until (beat 1)"
+later_ms=$((now_ms + 60000))
+RUNS_JSON="[]"
+RUNS_LIVE=false
+apply_runs_lag
+if [ "$RUNS_LIVE" = "true" ] && [ -n "$RUNS_JSON" ] && [ "$RUNS_JSON" != "[]" ]; then
+  write_lag_file "$RUNS_JSON" "$agent" "$((later_ms + LAG_MS))"
+fi
+until_after2=$(sed -n 's/.*"until":\([0-9][0-9]*\).*/\1/p' "$LAG_FILE" | head -n 1)
+assert_eq "$until_after2" "$fixed_until" "carried runs must not extend lag until (beat 2)"
+
+expired_until=$((now_ms - 1000))
+write_lag_file "$lag_runs" false "$expired_until"
+RUNS_JSON="[]"
+apply_runs_lag
+assert_eq "$RUNS_JSON" "[]" "runs empty after lag until expired"
+
+MOCK_PS_OUTPUT='  01:00 sh /path/run-wt.sh run610 x ~/PunchClock-oki/wt-610'
+MOCK_GIT_SHORT="abc1234"
+read_wt_runs
+RUNS_LIVE=false
+if [ -n "$RUNS_JSON" ] && [ "$RUNS_JSON" != "[]" ]; then
+  RUNS_LIVE=true
+fi
+agent=false
+apply_runs_lag
+case "$RUNS_JSON" in
+  *'"issue":610'*) ;;
+  *) fail "live ps runs missing issue 610" ;;
+esac
+until_live=$(sed -n 's/.*"until":\([0-9][0-9]*\).*/\1/p' "$LAG_FILE" | head -n 1)
+if [ -z "$until_live" ] || [ "$until_live" -le "$fixed_until" ]; then
+  fail "live runs should refresh lag until beyond stale fixed_until"
+fi
+MOCK_PS_OUTPUT=""
+rm -rf "$lag_tmp"
+
 # --- do_beat must return, not exit (so cmd_loop can continue) ---
 in_do_beat=false
 while IFS= read -r line; do

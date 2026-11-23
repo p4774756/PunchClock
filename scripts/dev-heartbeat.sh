@@ -927,6 +927,10 @@ do_beat() {
   read_wt_runs
   read_chain_runs
   read_review_runs
+  RUNS_LIVE=false
+  if [ -n "$RUNS_JSON" ] && [ "$RUNS_JSON" != "[]" ]; then
+    RUNS_LIVE=true
+  fi
   read_waiter_queued
   if [ -z "$ISSUE" ] && [ "$RUNS_JSON" != "[]" ]; then
   picked=$(pick_longest_run_from_json "$RUNS_JSON")
@@ -940,8 +944,10 @@ do_beat() {
   COMMIT_JSON=""
   read_battery
   git_commit
+  AGENT_LIVE=false
   if agent_running; then
     agent=true
+    AGENT_LIVE=true
   else
     agent=false
   fi
@@ -1006,10 +1012,10 @@ do_beat() {
     "$machine" "$display_json" "$location_json" "$issue_json" "$branch_json" "$started_json" "$agent" \
     "$role_json" "$round_json" "$model_json" "$verdict_json" \
     "$runs_json" "$queued_json" "$COMMIT_JSON" "$BATTERY_JSON")
-  if [ -n "$RUNS_JSON" ] && [ "$RUNS_JSON" != "[]" ]; then
+  if [ "$RUNS_LIVE" = "true" ] && [ -n "$RUNS_JSON" ] && [ "$RUNS_JSON" != "[]" ]; then
     now_ms=$(date +%s)000
     write_lag_file "$RUNS_JSON" "$agent" "$((now_ms + LAG_MS))"
-  elif [ "$agent" = "true" ]; then
+  elif [ "$agent" = "true" ] && { [ "$AGENT_LIVE" = "true" ] || dev_chains_running; }; then
     now_ms=$(date +%s)000
     write_lag_file "$runs_json" "$agent" "$((now_ms + LAG_MS))"
   fi
