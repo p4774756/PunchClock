@@ -13,11 +13,14 @@ import java.util.regex.Pattern;
 public final class DevMachineStore {
 
     public static final long ONLINE_WINDOW_MS = 3L * 60L * 1000L;
+    /** 心跳空窗或剛結束鏈腳本時，辦公室狀態仍視為工作中的寬限。 */
+    public static final long WORKING_GRACE_MS = 12L * 60L * 1000L;
     /** 超過此時間未回報的機器不再出現在清單（長於在線窗）。 */
     public static final long STALE_WINDOW_MS = 72L * 60L * 60L * 1000L;
     public static final long MIN_REPORT_INTERVAL_MS = 10L * 1000L;
     public static final int MAX_BODY_BYTES = 8192;
     public static final int MAX_RUNS = 12;
+    public static final int MAX_QUEUED = 12;
 
     private static final Pattern MACHINE_ASCII = Pattern.compile("^[a-z][a-z0-9-]{0,31}$");
     private static final Pattern MACHINE_UNICODE = Pattern.compile("^[\\p{L}\\p{N}]{1,32}$");
@@ -33,6 +36,16 @@ public final class DevMachineStore {
     @FunctionalInterface
     public interface Clock {
         long now();
+    }
+
+    public static final class QueuedEntry {
+        public final int issue;
+        public final Integer afterIssue;
+
+        QueuedEntry(int issue, Integer afterIssue) {
+            this.issue = issue;
+            this.afterIssue = afterIssue;
+        }
     }
 
     public static final class RunEntry {
@@ -77,10 +90,12 @@ public final class DevMachineStore {
         public final Integer round;
         public final String model;
         public final String verdict;
+        public final List<QueuedEntry> queued;
 
         Snapshot(String machine, String displayName, String location, long lastSeen, Integer issue, String branch,
                  Long runStartedAt, boolean agentRunning, String commit, Integer battery, Boolean charging,
-                 List<RunEntry> runs, String role, Integer round, String model, String verdict) {
+                 List<RunEntry> runs, String role, Integer round, String model, String verdict,
+                 List<QueuedEntry> queued) {
             this.machine = machine;
             this.displayName = displayName;
             this.location = location;
@@ -97,6 +112,25 @@ public final class DevMachineStore {
             this.round = round;
             this.model = model;
             this.verdict = verdict;
+            this.queued = queued == null ? List.of() : List.copyOf(queued);
+        }
+    }
+
+    public static final class GraceHold {
+        public final List<RunEntry> runs;
+        public final List<QueuedEntry> queued;
+        public final boolean agentRunning;
+        public final long graceUntil;
+
+        GraceHold(List<RunEntry> runs, List<QueuedEntry> queued, boolean agentRunning, long graceUntil) {
+            this.runs = runs == null ? List.of() : List.copyOf(runs);
+            this.queued = queued == null ? List.of() : List.copyOf(queued);
+            this.agentRunning = agentRunning;
+            this.graceUntil = graceUntil;
+        }
+
+        private static GraceHold empty() {
+            return new GraceHold(List.of(), List.of(), false, 0);
         }
     }
 
@@ -107,6 +141,7 @@ public final class DevMachineStore {
     }
 
     private final ConcurrentHashMap<String, Snapshot> byMachine = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, GraceHold> graceByMachine = new ConcurrentHashMap<>();
     private final Clock clock;
 
     public DevMachineStore() {
@@ -160,6 +195,7 @@ public final class DevMachineStore {
         if (!parsed.valid) {
             return ApplyResult.BAD_BODY;
         }
+        updateGrace(machine, now, parsed);
         String displayName = parsed.displayName != null ? parsed.displayName
                 : (previous != null ? previous.displayName : null);
         String location = parsed.location != null ? parsed.location
@@ -180,10 +216,39 @@ public final class DevMachineStore {
                 parsed.role,
                 parsed.round,
                 parsed.model,
-                parsed.verdict
+                parsed.verdict,
+                parsed.queued
         );
         byMachine.put(machine, next);
         return ApplyResult.OK;
+    }
+
+    private void updateGrace(String machine, long now, Parsed parsed) {
+        boolean working = parsed.agentRunning
+                || (parsed.runs != null && !parsed.runs.isEmpty())
+                || (parsed.queued != null && !parsed.queued.isEmpty());
+        GraceHold prev = graceByMachine.get(machine);
+        if (working) {
+            graceByMachine.put(machine, new GraceHold(parsed.runs, parsed.queued, parsed.agentRunning,
+                    now + WORKING_GRACE_MS));
+            return;
+        }
+        if (prev != null && now < prev.graceUntil) {
+            return;
+        }
+        graceByMachine.put(machine, GraceHold.empty());
+    }
+
+    /** 寬限內沿用上次的 runs／排隊（心跳空窗或部署後尚未回報）。 */
+    public GraceHold graceFor(String machine, long now) {
+        if (machine == null || machine.isEmpty()) {
+            return null;
+        }
+        GraceHold hold = graceByMachine.get(machine);
+        if (hold == null || now >= hold.graceUntil) {
+            return null;
+        }
+        return hold;
     }
 
     public List<Map<String, Object>> listForApi(long now, IssueTitleResolver titles) {
@@ -350,10 +415,12 @@ public final class DevMachineStore {
         final Integer round;
         final String model;
         final String verdict;
+        final List<QueuedEntry> queued;
 
         private Parsed(boolean valid, String displayName, String location, Integer issue, String branch,
                        Long runStartedAt, boolean agentRunning, String commit, Integer battery, Boolean charging,
-                       List<RunEntry> runs, String role, Integer round, String model, String verdict) {
+                       List<RunEntry> runs, String role, Integer round, String model, String verdict,
+                       List<QueuedEntry> queued) {
             this.valid = valid;
             this.displayName = displayName;
             this.location = location;
@@ -369,6 +436,7 @@ public final class DevMachineStore {
             this.round = round;
             this.model = model;
             this.verdict = verdict;
+            this.queued = queued == null ? List.of() : queued;
         }
 
         static Parsed from(Map<String, Object> fields) {
@@ -504,14 +572,91 @@ public final class DevMachineStore {
                     return invalid();
                 }
             }
+            List<QueuedEntry> queued = List.of();
+            if (fields.containsKey("queued")) {
+                ParseQueued parsedQueued = parseQueued(fields.get("queued"));
+                if (parsedQueued == null) {
+                    return invalid();
+                }
+                queued = parsedQueued.entries;
+            }
             return new Parsed(true, displayName, location, issue, branch, runStartedAt, agentRunning, commit, battery,
-                    charging, runs, role, round, model, verdict);
+                    charging, runs, role, round, model, verdict, queued);
         }
 
         static Parsed invalid() {
             return new Parsed(false, null, null, null, null, null, false, null, null, null, List.of(),
-                    null, null, null, null);
+                    null, null, null, null, List.of());
         }
+    }
+
+    private static final class ParseQueued {
+        final List<QueuedEntry> entries;
+
+        ParseQueued(List<QueuedEntry> entries) {
+            this.entries = entries;
+        }
+    }
+
+    private static ParseQueued parseQueued(Object raw) {
+        if (raw == null) {
+            return new ParseQueued(List.of());
+        }
+        if (!(raw instanceof List)) {
+            return null;
+        }
+        List<?> list = (List<?>) raw;
+        if (list.size() > MAX_QUEUED) {
+            return null;
+        }
+        List<QueuedEntry> out = new ArrayList<>();
+        for (Object item : list) {
+            QueuedEntry entry = parseQueuedEntry(item);
+            if (entry == null) {
+                return null;
+            }
+            out.add(entry);
+        }
+        return new ParseQueued(out);
+    }
+
+    private static QueuedEntry parseQueuedEntry(Object raw) {
+        if (!(raw instanceof Map)) {
+            return null;
+        }
+        Map<?, ?> map = (Map<?, ?>) raw;
+        Object issueRaw = map.get("issue");
+        if (!(issueRaw instanceof Number)) {
+            return null;
+        }
+        Number issueNum = (Number) issueRaw;
+        if (!isWholeNumber(issueNum)) {
+            return null;
+        }
+        int issue = issueNum.intValue();
+        if (issue < 1) {
+            return null;
+        }
+        Integer afterIssue = null;
+        if (map.containsKey("afterIssue")) {
+            Object afterRaw = map.get("afterIssue");
+            if (afterRaw == null) {
+                afterIssue = null;
+            } else if (afterRaw instanceof Number) {
+                Number afterNum = (Number) afterRaw;
+                if (!isWholeNumber(afterNum)) {
+                    return null;
+                }
+                int n = afterNum.intValue();
+                if (n < 1) {
+                    return null;
+                }
+                afterIssue = n;
+            } else {
+                return null;
+            }
+        }
+        return new QueuedEntry(issue, afterIssue);
     }
 
     private static String parseRole(Object raw) {

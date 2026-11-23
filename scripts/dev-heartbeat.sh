@@ -50,6 +50,128 @@ agent_running() {
   return 1
 }
 
+# 開發鏈腳本仍在跑也算工作中（不等於 cursor-agent）。
+dev_chains_running() {
+  if [ -n "$MOCK_DEV_CHAINS" ]; then
+  case "$MOCK_DEV_CHAINS" in
+    1|true|yes) return 0 ;;
+  esac
+    return 1
+  fi
+  ps_out=$(ps -axo command= 2>/dev/null) || return 1
+  case "$ps_out" in
+    *chainrun.sh*|*chainmed.sh*|*chainfast2.sh*|*loopfast.sh*) return 0 ;;
+  esac
+  return 1
+}
+
+LAG_FILE="${DEV_HEARTBEAT_LAG_FILE:-$HOME/.punchclock/dev-heartbeat-lag.json}"
+LAG_MS=300000
+
+read_lag_file() {
+  LAG_RUNS_JSON=""
+  LAG_AGENT=""
+  LAG_UNTIL=0
+  if [ ! -f "$LAG_FILE" ]; then
+    return 0
+  fi
+  LAG_RUNS_JSON=$(sed -n 's/.*"runs":\(\[[^]]*\]\).*/\1/p' "$LAG_FILE" | head -n 1)
+  LAG_AGENT=$(sed -n 's/.*"agent":\(true\|false\).*/\1/p' "$LAG_FILE" | head -n 1)
+  LAG_UNTIL=$(sed -n 's/.*"until":\([0-9][0-9]*\).*/\1/p' "$LAG_FILE" | head -n 1)
+}
+
+write_lag_file() {
+  runs_json=$1
+  agent=$2
+  until_ms=$3
+  if [ -z "$runs_json" ]; then
+    runs_json="[]"
+  fi
+  mkdir -p "$(dirname "$LAG_FILE")" 2>/dev/null || true
+  printf '{"runs":%s,"agent":%s,"until":%s}\n' "$runs_json" "$agent" "$until_ms" >"$LAG_FILE" 2>/dev/null || true
+}
+
+apply_runs_lag() {
+  now_ms=$(date +%s)000
+  read_lag_file
+  if [ -n "$RUNS_JSON" ] && [ "$RUNS_JSON" != "[]" ]; then
+    write_lag_file "$RUNS_JSON" "$agent" "$((now_ms + LAG_MS))"
+    return 0
+  fi
+  if [ -n "$LAG_UNTIL" ] && [ "$LAG_UNTIL" -gt "$now_ms" ] && [ -n "$LAG_RUNS_JSON" ] && [ "$LAG_RUNS_JSON" != "[]" ]; then
+    RUNS_JSON="$LAG_RUNS_JSON"
+  fi
+}
+
+apply_agent_lag() {
+  now_ms=$(date +%s)000
+  if [ "$agent" = "true" ]; then
+    return 0
+  fi
+  read_lag_file
+  if [ "$LAG_AGENT" = "true" ] && [ -n "$LAG_UNTIL" ] && [ "$LAG_UNTIL" -gt "$now_ms" ]; then
+    agent=true
+  fi
+  if dev_chains_running; then
+    agent=true
+  fi
+}
+
+read_waiter_queued() {
+  QUEUED_JSON="[]"
+  if [ -n "$MOCK_PS_WAITERS" ]; then
+    ps_out="$MOCK_PS_WAITERS"
+  else
+    ps_out=$(ps -axo command= 2>/dev/null)
+  fi
+  [ -z "$ps_out" ] && return 0
+  tsv=$(printf '%s\n' "$ps_out" | awk '
+    BEGIN { count = 0 }
+    {
+      line = $0
+      if (line !~ /waiter\.sh/) next
+      issue = 0
+      after = 0
+      if (match(line, /i[0-9]+-waiter/)) {
+        tok = substr(line, RSTART, RLENGTH)
+        sub(/^i/, "", tok)
+        sub(/-waiter.*/, "", tok)
+        issue = tok + 0
+      }
+      if (match(line, /after[0-9]+/)) {
+        tok = substr(line, RSTART, RLENGTH)
+        sub(/^after/, "", tok)
+        after = tok + 0
+      }
+      if (issue < 1) next
+      key = issue SUBSEP after
+      if (!(key in seen)) {
+        seen[key] = 1
+        if (count >= 12) next
+        count++
+        printf "%s\t%s\n", issue, after
+      }
+    }
+  ')
+  [ -z "$tsv" ] && return 0
+  json="["
+  sep=""
+  while IFS='	' read -r issue after; do
+    [ -z "$issue" ] && continue
+    if [ -n "$after" ] && [ "$after" -gt 0 ] 2>/dev/null; then
+      part=$(printf '{"issue":%s,"afterIssue":%s}' "$issue" "$after")
+    else
+      part=$(printf '{"issue":%s}' "$issue")
+    fi
+    json="$json$sep$part"
+    sep=","
+  done <<EOF
+$tsv
+EOF
+  json="$json]"
+  QUEUED_JSON="$json"
+}
+
 # 供 self-test 使用：從 pmset 電量行擷取百分比
 parse_battery_pct() {
   batt=$1
@@ -760,6 +882,7 @@ do_beat() {
   read_wt_runs
   read_chain_runs
   read_review_runs
+  read_waiter_queued
   if [ -z "$ISSUE" ] && [ "$RUNS_JSON" != "[]" ]; then
   picked=$(pick_longest_run_from_json "$RUNS_JSON")
     if [ -n "$picked" ]; then
@@ -777,6 +900,8 @@ do_beat() {
   else
     agent=false
   fi
+  apply_runs_lag
+  apply_agent_lag
   issue_json=$(json_issue_field "$ISSUE")
   branch_json=$(json_branch_field "$BRANCH")
   started_json=$(json_started_field "$STARTED")
@@ -831,10 +956,18 @@ do_beat() {
   location_tag=$(pick_env DEV_STATUS_LOCATION)
   display_json=$(json_display_field "$display_name")
   location_json=$(json_display_field "$location_tag")
-  payload=$(printf '{"machine":"%s","displayName":%s,"location":%s,"issue":%s,"branch":%s,"runStartedAt":%s,"agentRunning":%s,"role":%s,"round":%s,"model":%s,"verdict":%s,"runs":%s%s%s}' \
+  queued_json="${QUEUED_JSON:-[]}"
+  payload=$(printf '{"machine":"%s","displayName":%s,"location":%s,"issue":%s,"branch":%s,"runStartedAt":%s,"agentRunning":%s,"role":%s,"round":%s,"model":%s,"verdict":%s,"runs":%s,"queued":%s%s%s}' \
     "$machine" "$display_json" "$location_json" "$issue_json" "$branch_json" "$started_json" "$agent" \
     "$role_json" "$round_json" "$model_json" "$verdict_json" \
-    "$runs_json" "$COMMIT_JSON" "$BATTERY_JSON")
+    "$runs_json" "$queued_json" "$COMMIT_JSON" "$BATTERY_JSON")
+  if [ -n "$RUNS_JSON" ] && [ "$RUNS_JSON" != "[]" ]; then
+    now_ms=$(date +%s)000
+    write_lag_file "$RUNS_JSON" "$agent" "$((now_ms + LAG_MS))"
+  elif [ "$agent" = "true" ]; then
+    now_ms=$(date +%s)000
+    write_lag_file "$runs_json" "$agent" "$((now_ms + LAG_MS))"
+  fi
   if ! command -v curl >/dev/null 2>&1; then
     return 0
   fi

@@ -7,6 +7,7 @@ import com.example.server.store.DevStatusService;
 import com.example.server.store.SecretarySpeech;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import io.javalin.Javalin;
@@ -22,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -110,6 +112,59 @@ public class OfficePublicRoutesTest {
         assertFalse(body, FORBIDDEN.matcher(body).find());
         assertFalse(body, body.contains("\"branch\""));
         assertFalse(body, body.contains("猛虎"));
+    }
+
+    @Test
+    public void tigerWorkingFromGithubWhenMachineOffline() throws Exception {
+        List<DevStatusModels.IssueRow> issues = new ArrayList<>();
+        issues.add(new DevStatusModels.IssueRow(100, "公開甲", true, 1L, 2L, null, Collections.emptyList(), null));
+        issues.add(new DevStatusModels.IssueRow(101, "公開乙", true, 1L, 2L, null, Collections.emptyList(), null));
+        DevStatusModels.Snapshot snap = new DevStatusModels.Snapshot(issues, Collections.emptyList(),
+                new HashSet<>(List.of(100, 101)));
+        status = new DevStatusService(repo -> snap);
+        startApp();
+
+        JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
+        assertEquals("工作中 ×2", tiger.get("status").getAsString());
+        assertEquals(2, tiger.getAsJsonArray("active").size());
+    }
+
+    @Test
+    public void tigerGraceKeepsWorkingAfterHeartbeatGap() throws Exception {
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 501);
+        run.put("round", 1);
+        run.put("branch", "ai/issue-501");
+        run.put("startedAt", 9_000_000L - 60_000L);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", true);
+        body.put("runs", Collections.singletonList(run));
+        store.applyHeartbeat("tiger", body);
+
+        Map<String, Object> idleBeat = new LinkedHashMap<>();
+        idleBeat.put("machine", "tiger");
+        idleBeat.put("agentRunning", false);
+        idleBeat.put("runs", Collections.emptyList());
+        store.applyHeartbeat("tiger", idleBeat);
+
+        JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
+        assertEquals("工作中", tiger.get("status").getAsString());
+        assertEquals(1, tiger.getAsJsonArray("active").size());
+    }
+
+    @Test
+    public void tigerQueueMergesHeartbeatWaiter() throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", false);
+        body.put("queued", Collections.singletonList(Map.of("issue", 566, "afterIssue", 559)));
+        store.applyHeartbeat("tiger", body);
+
+        JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
+        JsonArray queue = tiger.getAsJsonArray("queue");
+        assertEquals(1, queue.size());
+        assertEquals(566, queue.get(0).getAsJsonObject().get("issue").getAsInt());
     }
 
     @Test
@@ -310,7 +365,7 @@ public class OfficePublicRoutesTest {
             JsonObject row = chars.getAsJsonObject(id);
             for (String key : row.keySet()) {
                 boolean ok = ALLOWED_CHAR_BASE.contains(key)
-                        || ("tiger".equals(id) && ("active".equals(key) || "completedToday".equals(key)));
+                        || ("tiger".equals(id) && ("active".equals(key) || "completedToday".equals(key) || "queue".equals(key)));
                 assertTrue("unexpected char field: " + key, ok);
             }
             String st = row.get("status").getAsString();

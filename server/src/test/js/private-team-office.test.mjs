@@ -23,7 +23,8 @@ const {
   hasNewCompletedToday,
   secretarySpriteUrlForStatus,
   progressBoardViewFromTiger,
-  taskProgressFromTiger
+  taskProgressFromTiger,
+  mergeSecretaryQueues
 } = await loadPublicModule('private-team-office.js');
 
 test('progressBoardViewFromTiger 單號與今日進度', () => {
@@ -158,6 +159,24 @@ test('renderActiveBlock 標題主文與次要單號', () => {
   assert.ok(flat.includes('pt-status-active-title'));
   assert.ok(flat.includes('pt-status-issue-sub'));
   assert.ok(flat.includes('#507'));
+});
+
+test('mergeSecretaryQueues 合併心跳與 GitHub 排隊', () => {
+  const merged = mergeSecretaryQueues([{ title: 'GitHub 排隊', issue: 320 }], [
+    { title: 'waiter 566', issue: 566 },
+    { title: 'GitHub 重複', issue: 320 }
+  ]);
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].issue, 566);
+  assert.equal(merged[1].issue, 320);
+});
+
+test('tigerFromPublic 含 queue', () => {
+  const t = tigerFromPublic({
+    success: true,
+    characters: { tiger: { status: '待命中', active: [], completedToday: [], queue: [{ issue: 1, title: '甲' }] } }
+  });
+  assert.equal(t.queue.length, 1);
 });
 
 test('devQueueFromStatus 解析排隊', () => {

@@ -1,6 +1,7 @@
 package com.example.server.web;
 
 import com.example.server.store.DevMachineStore;
+import com.example.server.store.DevStatusMapper;
 import com.example.server.store.DevStatusModels;
 import com.example.server.store.DevStatusModels.IssueRow;
 import com.example.server.store.DevStatusModels.PullRow;
@@ -16,9 +17,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** 辦公室訪客可見的粗略角色狀態（白名單欄位，無機敏細節）。 */
 public final class OfficePublicRoutes {
@@ -55,18 +58,23 @@ public final class OfficePublicRoutes {
             DevStatusModels.Document doc = view == null ? null : view.document;
             List<DevMachineStore.Snapshot> machines = store.machineSnapshots();
             Snapshot github = devStatusService.githubSnapshot(now);
-            String repo = DevStatusService.DEFAULT_REPO;
+            String repo = devStatusService.repo();
+            if (doc != null) {
+                doc = DevStatusMapper.withHeartbeatQueued(doc, machines, github, repo, now);
+            }
 
             Map<String, Object> characters = new LinkedHashMap<>();
             for (String id : CHARACTER_IDS) {
-                String status = coarseStatus(id, machines, doc, now);
+                String status = coarseStatus(id, machines, doc, now, store);
                 long updatedAtMs = updatedAtMs(id, machines, doc, now);
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("status", status);
                 row.put("updatedAt", Instant.ofEpochMilli(updatedAtMs).toString());
                 if ("tiger".equals(id)) {
                     DevMachineStore.Snapshot tiger = findSecretaryMachine(machines, now);
-                    row.put("active", buildActive(now, tiger, github, repo));
+                    String machineId = secretaryMachineId(tiger);
+                    row.put("active", buildActive(now, store, machineId, tiger, doc, github, repo));
+                    row.put("queue", buildTigerQueue(now, store, machineId, tiger, doc, github, repo));
                     row.put("completedToday", buildCompletedToday(now, github, repo));
                 }
                 characters.put(id, row);
@@ -79,7 +87,7 @@ public final class OfficePublicRoutes {
         }
 
         static String coarseStatus(String charId, List<DevMachineStore.Snapshot> machines,
-                                   DevStatusModels.Document doc, long now) {
+                                   DevStatusModels.Document doc, long now, DevMachineStore store) {
             if ("reviewer".equals(charId)) {
                 int n = countReviewActive(machines, now);
                 if (n > 0) {
@@ -89,14 +97,16 @@ public final class OfficePublicRoutes {
             }
             if ("tiger".equals(charId)) {
                 DevMachineStore.Snapshot tiger = findSecretaryMachine(machines, now);
-                if (tiger == null || !isOnline(tiger, now)) {
-                    return "休息中";
-                }
-                int n = loopsOnMachine(tiger);
+                String machineId = secretaryMachineId(tiger);
+                int n = secretaryWorkCount(now, store, machineId, tiger, doc);
                 if (n > 0) {
                     return n == 1 ? "工作中" : "工作中 ×" + n;
                 }
-                return "待命中";
+                boolean online = tiger != null && isOnline(tiger, now);
+                if (online || hasSecretaryQueue(now, store, machineId, tiger, doc)) {
+                    return "待命中";
+                }
+                return "休息中";
             }
             if ("oki".equals(charId)) {
                 if (hasInProgress(doc)) {
@@ -139,28 +149,199 @@ public final class OfficePublicRoutes {
             return now;
         }
 
-        static List<Map<String, Object>> buildActive(long now, DevMachineStore.Snapshot tiger,
-                                                     Snapshot github, String repo) {
-            if (tiger == null || !isOnline(tiger, now)) {
-                return List.of();
-            }
+        static List<Map<String, Object>> buildActive(long now, DevMachineStore store, String machineId,
+                                                   DevMachineStore.Snapshot tiger, DevStatusModels.Document doc,
+                                                   Snapshot github, String repo) {
             List<Map<String, Object>> out = new ArrayList<>();
-            if (tiger.runs != null && !tiger.runs.isEmpty()) {
-                for (DevMachineStore.RunEntry run : tiger.runs) {
-                    if (run == null || run.issue <= 0 || "review".equals(run.role)) {
-                        continue;
-                    }
-                    out.add(activeEntry(now, run.issue, run.round, run.startedAt, run.model, github, repo));
-                }
-            } else if (tiger.agentRunning || (tiger.issue != null && tiger.issue > 0)) {
+            Set<Integer> seen = new HashSet<>();
+            appendRunsToActive(now, effectiveRuns(now, store, machineId, tiger), out, seen, github, repo);
+            if (out.isEmpty() && tiger != null && isOnline(tiger, now)
+                    && (tiger.agentRunning || (tiger.issue != null && tiger.issue > 0))) {
                 int issue = tiger.issue != null ? tiger.issue : 0;
-                if (issue > 0) {
-                    Long started = tiger.runStartedAt;
-                    out.add(activeEntry(now, issue, tiger.round != null ? tiger.round : 0, started,
+                if (issue > 0 && seen.add(issue)) {
+                    out.add(activeEntry(now, issue, tiger.round != null ? tiger.round : 0, tiger.runStartedAt,
                             tiger.model, github, repo));
                 }
             }
+            if (out.isEmpty() && doc != null && doc.now != null && doc.now.current != null) {
+                for (DevStatusModels.Item item : doc.now.current) {
+                    if (item == null || item.issue <= 0 || !seen.add(item.issue)) {
+                        continue;
+                    }
+                    out.add(activeFromGithubItem(now, item, github, repo));
+                }
+            }
             return Collections.unmodifiableList(out);
+        }
+
+        private static void appendRunsToActive(long now, List<DevMachineStore.RunEntry> runs,
+                                               List<Map<String, Object>> out, Set<Integer> seen,
+                                               Snapshot github, String repo) {
+            if (runs == null || runs.isEmpty()) {
+                return;
+            }
+            for (DevMachineStore.RunEntry run : runs) {
+                if (run == null || run.issue <= 0 || "review".equals(run.role) || !seen.add(run.issue)) {
+                    continue;
+                }
+                out.add(activeEntry(now, run.issue, run.round, run.startedAt, run.model, github, repo));
+            }
+        }
+
+        private static Map<String, Object> activeFromGithubItem(long now, DevStatusModels.Item item,
+                                                                Snapshot github, String repo) {
+            IssueRow issueRow = findIssue(github, item.issue);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("phrase", item.title != null && !item.title.isEmpty()
+                    ? SecretarySpeech.sanitizePhrase(item.title.trim())
+                    : SecretarySpeech.phraseForActive(issueRow));
+            String publicTitle = publicIssueTitle(issueRow);
+            if (publicTitle != null) {
+                row.put("title", publicTitle);
+            }
+            row.put("issue", item.issue);
+            row.put("issueUrl", item.issueUrl != null ? item.issueUrl : issueUrl(repo, item.issue));
+            if (item.pr != null && item.pr > 0) {
+                row.put("pr", item.pr);
+                row.put("prUrl", item.prUrl != null ? item.prUrl : pullUrl(repo, item.pr));
+            }
+            long minutes = minutesRunning(now, item.updatedAt);
+            if (minutes > 0) {
+                row.put("minutes", minutes);
+            }
+            return row;
+        }
+
+        static List<Map<String, Object>> buildTigerQueue(long now, DevMachineStore store, String machineId,
+                                                         DevMachineStore.Snapshot tiger, DevStatusModels.Document doc,
+                                                         Snapshot github, String repo) {
+            List<Map<String, Object>> out = new ArrayList<>();
+            Set<Integer> seen = new HashSet<>();
+            if (doc != null && doc.now != null && doc.now.queue != null) {
+                for (DevStatusModels.QueueEntry entry : doc.now.queue) {
+                    if (entry == null || entry.item == null || entry.item.issue <= 0) {
+                        continue;
+                    }
+                    if (seen.add(entry.item.issue)) {
+                        out.add(queueRowFromItem(entry.item));
+                    }
+                }
+            }
+            for (DevMachineStore.QueuedEntry q : effectiveQueued(now, store, machineId, tiger)) {
+                if (q == null || q.issue <= 0 || !seen.add(q.issue)) {
+                    continue;
+                }
+                IssueRow issueRow = findIssue(github, q.issue);
+                String title = publicIssueTitle(issueRow);
+                if (title == null && issueRow != null && issueRow.title != null) {
+                    title = SecretarySpeech.sanitizePhrase(issueRow.title.trim());
+                }
+                if (title == null || title.isEmpty()) {
+                    title = "等待開工 #" + q.issue;
+                }
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("issue", q.issue);
+                row.put("title", title);
+                row.put("issueUrl", issueUrl(repo, q.issue));
+                PullRow pull = findPullForIssue(github, q.issue);
+                if (pull != null) {
+                    row.put("pr", pull.number);
+                    row.put("prUrl", pullUrl(repo, pull.number));
+                }
+                if (q.afterIssue != null && q.afterIssue > 0) {
+                    row.put("waitingFor", q.afterIssue);
+                }
+                out.add(row);
+            }
+            return Collections.unmodifiableList(out);
+        }
+
+        private static Map<String, Object> queueRowFromItem(DevStatusModels.Item item) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("issue", item.issue);
+            if (item.title != null && !item.title.isEmpty()) {
+                row.put("title", item.title);
+            }
+            if (item.issueUrl != null) {
+                row.put("issueUrl", item.issueUrl);
+            }
+            if (item.pr != null && item.pr > 0) {
+                row.put("pr", item.pr);
+                if (item.prUrl != null) {
+                    row.put("prUrl", item.prUrl);
+                }
+            }
+            return row;
+        }
+
+        private static String secretaryMachineId(DevMachineStore.Snapshot tiger) {
+            if (tiger != null && tiger.machine != null) {
+                return tiger.machine;
+            }
+            return configuredSecretaryMachine();
+        }
+
+        private static int secretaryWorkCount(long now, DevMachineStore store, String machineId,
+                                              DevMachineStore.Snapshot tiger, DevStatusModels.Document doc) {
+            List<DevMachineStore.RunEntry> runs = effectiveRuns(now, store, machineId, tiger);
+            int n = 0;
+            if (runs != null) {
+                for (DevMachineStore.RunEntry run : runs) {
+                    if (run != null && run.issue > 0) {
+                        n++;
+                    }
+                }
+            }
+            if (n > 0) {
+                return n;
+            }
+            if (tiger != null && isOnline(tiger, now)) {
+                int loops = loopsOnMachine(tiger);
+                if (loops > 0) {
+                    return loops;
+                }
+            }
+            DevMachineStore.GraceHold grace = store.graceFor(machineId, now);
+            if (grace != null && grace.agentRunning) {
+                return 1;
+            }
+            if (doc != null && doc.now != null && doc.now.current != null) {
+                return doc.now.current.size();
+            }
+            return 0;
+        }
+
+        private static List<DevMachineStore.RunEntry> effectiveRuns(long now, DevMachineStore store, String machineId,
+                                                                    DevMachineStore.Snapshot tiger) {
+            if (tiger != null && isOnline(tiger, now) && tiger.runs != null && !tiger.runs.isEmpty()) {
+                return tiger.runs;
+            }
+            DevMachineStore.GraceHold grace = store.graceFor(machineId, now);
+            if (grace != null && !grace.runs.isEmpty()) {
+                return grace.runs;
+            }
+            return List.of();
+        }
+
+        private static List<DevMachineStore.QueuedEntry> effectiveQueued(long now, DevMachineStore store,
+                                                                         String machineId,
+                                                                         DevMachineStore.Snapshot tiger) {
+            if (tiger != null && isOnline(tiger, now) && tiger.queued != null && !tiger.queued.isEmpty()) {
+                return tiger.queued;
+            }
+            DevMachineStore.GraceHold grace = store.graceFor(machineId, now);
+            if (grace != null && !grace.queued.isEmpty()) {
+                return grace.queued;
+            }
+            return List.of();
+        }
+
+        private static boolean hasSecretaryQueue(long now, DevMachineStore store, String machineId,
+                                                 DevMachineStore.Snapshot tiger, DevStatusModels.Document doc) {
+            if (!effectiveQueued(now, store, machineId, tiger).isEmpty()) {
+                return true;
+            }
+            return doc != null && doc.now != null && doc.now.queue != null && !doc.now.queue.isEmpty();
         }
 
         private static Map<String, Object> activeEntry(long now, int issue, int round, Long startedAt,

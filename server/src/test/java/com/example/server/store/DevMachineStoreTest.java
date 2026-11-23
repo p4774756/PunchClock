@@ -140,6 +140,33 @@ public class DevMachineStoreTest {
     }
 
     @Test
+    public void heartbeatQueuedField() {
+        DevMachineStore store = new DevMachineStore();
+        Map<String, Object> body = payload("tiger", 1, "a", 1L);
+        body.put("queued", List.of(Map.of("issue", 566, "afterIssue", 559)));
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", body));
+        DevMachineStore.Snapshot snap = store.machineSnapshots().get(0);
+        assertEquals(1, snap.queued.size());
+        assertEquals(566, snap.queued.get(0).issue);
+        assertEquals(Integer.valueOf(559), snap.queued.get(0).afterIssue);
+    }
+
+    @Test
+    public void graceKeepsRunsOnEmptyHeartbeat() {
+        AtomicLong clock = new AtomicLong(1_000_000L);
+        DevMachineStore store = new DevMachineStore(clock::get);
+        Map<String, Object> work = payload("office", 50, "ai/issue-50", 900_000L);
+        work.put("runs", List.of(Map.of("issue", 50, "round", 1, "branch", "ai/issue-50", "startedAt", 900_000L)));
+        store.applyHeartbeat("office", work);
+        Map<String, Object> idle = new HashMap<>();
+        idle.put("agentRunning", false);
+        idle.put("runs", List.of());
+        store.applyHeartbeat("office", idle);
+        DevMachineStore.GraceHold grace = store.graceFor("office", clock.get());
+        assertEquals(1, grace.runs.size());
+    }
+
+    @Test
     public void displayNameAndLocationFromHeartbeat() {
         DevMachineStore store = new DevMachineStore();
         Map<String, Object> body = payload("tiger", 1, "a", 1L);

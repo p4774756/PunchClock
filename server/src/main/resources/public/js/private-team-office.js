@@ -33,8 +33,26 @@ export function tigerFromPublic(body) {
   return {
     status: tiger.status == null ? '' : String(tiger.status).trim(),
     active: Array.isArray(tiger.active) ? tiger.active : [],
-    completedToday: Array.isArray(tiger.completedToday) ? tiger.completedToday : []
+    completedToday: Array.isArray(tiger.completedToday) ? tiger.completedToday : [],
+    queue: Array.isArray(tiger.queue) ? tiger.queue : []
   };
+}
+
+/** 合併 GitHub 與辦公室公開 API 的排隊列（以 issue 去重，心跳 waiter 優先補洞）。 */
+export function mergeSecretaryQueues(githubQueue, tigerQueue) {
+  const out = [];
+  const seen = new Set();
+  const push = (row) => {
+    if (!row || typeof row !== 'object') return;
+    const issue = Number(row.issue);
+    const key = Number.isFinite(issue) && issue > 0 ? 'i:' + issue : 't:' + String(row.title || row.pair || '');
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(row);
+  };
+  (Array.isArray(tigerQueue) ? tigerQueue : []).forEach(push);
+  (Array.isArray(githubQueue) ? githubQueue : []).forEach(push);
+  return out;
 }
 
 export function devQueueFromStatus(body) {
@@ -46,10 +64,17 @@ export function devQueueFromStatus(body) {
 
 export function fetchSecretaryDevQueue(fetchFn) {
   if (!fetchFn) return Promise.resolve([]);
-  return fetchFn('/api/dev-status')
+  const office = fetchFn('/api/office/public')
     .then((r) => (r.ok ? r.json() : null))
-    .catch(() => null)
-    .then((body) => devQueueFromStatus(body || {}));
+    .catch(() => null);
+  const status = fetchFn('/api/dev-status')
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+  return Promise.all([office, status]).then(([officeBody, statusBody]) => {
+    const tiger = tigerFromPublic(officeBody || {});
+    const githubQ = devQueueFromStatus(statusBody || {});
+    return mergeSecretaryQueues(githubQ, tiger ? tiger.queue : []);
+  });
 }
 
 /** 3D 左牆進度面板文案（須先 isSafePublicText 過濾）。 */
