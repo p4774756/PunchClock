@@ -44,6 +44,24 @@ public class Issue556DesktopPetStabilityTest {
         }
     }
 
+    /** 等同 50ms × 6000 tick（5 分鐘）的繪製迴歸；無法取代實機合成，但覆蓋待機影格與姿勢輪替。 */
+    @Test(timeout = 120_000)
+    public void fiveMinuteEquivalentIdlePaintStaysOpaque() {
+        DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
+        assertNotNull(frames);
+        Rectangle shell = DesktopPetWindow.stableShellFor(frames);
+        DesktopPetAnimation animation = new DesktopPetAnimation();
+        for (int t = 0; t < 6000; t++) {
+            animation.tick();
+            if (t % 100 != 0) {
+                continue;
+            }
+            Rectangle view = DesktopPetWindow.viewForPose(frames, shell, animation);
+            BufferedImage shot = DesktopPetWindow.paintMiluViewport(view, frames, animation, false);
+            assertTrue("idle tick " + t, centerCharacterAlpha(shot, view) > 16);
+        }
+    }
+
     @Test
     public void paintedCharacterStaysOpaqueAcrossTicksAndModes() {
         DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();

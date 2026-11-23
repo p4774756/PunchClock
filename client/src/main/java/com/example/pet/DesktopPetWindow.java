@@ -1629,8 +1629,8 @@ public final class DesktopPetWindow extends JFrame {
     }
 
     /**
-     * 把視窗縮到角色加影子。上緣對齊可見頭頂，拖到頂時頭頂就在選單列下緣。
-     * 換成較寬的動作才再長大，平常影格落在外框裡就不改座標。
+     * 把視窗縮到角色外框（{@link #stableShellFor} 全動作 union）。上緣對齊可見頭頂。
+     * 外框已固定時不再 {@code setSize}；僅首次或 union 改變時才調整尺寸與原點。
      */
     private void refreshFit() {
         if (fitting) {
@@ -1684,7 +1684,8 @@ public final class DesktopPetWindow extends JFrame {
     }
 
     /**
-     * 依目前姿勢決定視窗在邏輯畫布上的露出區塊。測試用同一套規則渲染到 {@link BufferedImage}。
+     * 視窗在邏輯畫布上的露出區塊；測試與 {@link #paintMiluViewport} 共用。
+     * {@code fittedShell}、{@code animation} 保留給既有測試呼叫端，實際一律 {@link #stableShellFor}。
      */
     static Rectangle viewForPose(
             DesktopPetSpriteLoader.Frames milu,
