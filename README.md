@@ -69,7 +69,7 @@ java -jar client/target/SKLbaby.jar
 
 ### 5. 中醫人體（經絡穴道）
 
-Dashboard「學習 → 中醫人體」連到 `/atlas/tcm-3d/`，靜態站來自 `atlas-src/tcm-3d/`（不必登入）。本機要先建置一次，否則會看到「還沒建置」：
+Dashboard「學習 → 中醫人體」連到 `/atlas/tcm-3d/`，靜態站來自 `atlas-src/tcm-3d/`（須先登入）。本機要先建置一次，否則會看到「還沒建置」：
 
 ```bash
 ./scripts/build-atlas.sh

@@ -7,9 +7,9 @@ import java.util.regex.Pattern;
 /** 登入後導回：僅允許站內白名單路徑，擋 open redirect（勿再 URL decode，Javalin 已解碼一次）。 */
 public final class LoginNextPath {
 
-    private static final Set<String> ALLOWED_BASE = Set.of("/", "/office", "/console");
+    private static final Set<String> ALLOWED_BASE = Set.of("/", "/office", "/console", "/atlas/tcm-3d", "/atlas/tcm-3d/");
 
-    private static final Pattern SAFE_PATH = Pattern.compile("^(/|/office|/console)([?#].*)?$");
+    private static final Pattern SAFE_PATH = Pattern.compile("^(/|/office|/console|/atlas/tcm-3d/?)([?#].*)?$");
 
     private static final Pattern SAFE_HASH = Pattern.compile("^#(?:devices|panel-devices|system|panel-system)$");
 
@@ -60,6 +60,12 @@ public final class LoginNextPath {
         }
         if (!ALLOWED_BASE.contains(base)) {
             return null;
+        }
+        if (base.startsWith("/atlas/")) {
+            if (!suffix.isEmpty()) {
+                return null;
+            }
+            return path;
         }
         if (suffix.isEmpty()) {
             return path;

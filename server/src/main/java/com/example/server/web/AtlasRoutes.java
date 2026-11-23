@@ -1,7 +1,9 @@
 package com.example.server.web;
 
+import com.example.server.auth.AuthService;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
+import io.javalin.http.HttpStatus;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -16,8 +18,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/** 經穴圖靜態站。不必登入。檔案在磁碟，不打進 jar。 */
+/** 經穴圖靜態站。須登入。檔案在磁碟，不打進 jar。 */
 public final class AtlasRoutes {
+
+    private final AuthService authService;
 
     static final String ROOT_PROPERTY = "punchclock.atlas.root";
     private static final Set<String> APPS = Set.of("tcm-3d");
@@ -27,7 +31,8 @@ public final class AtlasRoutes {
     private static final Pattern CACHE_BUST_QUERY = Pattern.compile("(?:^|&)v=[^&]+");
     private static final DateTimeFormatter HTTP_DATE = DateTimeFormatter.RFC_1123_DATE_TIME;
 
-    public AtlasRoutes() {
+    public AtlasRoutes(AuthService authService) {
+        this.authService = authService;
     }
 
     public void register(Javalin app) {
@@ -42,6 +47,14 @@ public final class AtlasRoutes {
         String appId = ctx.pathParam("app");
         if (!APPS.contains(appId)) {
             ctx.status(404).html(page("沒有這份經穴圖"));
+            return;
+        }
+        if (!authService.isAuth(ctx)) {
+            if (isHtmlNavigation(relativePath)) {
+                ctx.redirect("/login?next=/atlas/" + appId + "/");
+                return;
+            }
+            ctx.status(HttpStatus.UNAUTHORIZED);
             return;
         }
         Path appDir = appDirectory(appId);
@@ -167,25 +180,38 @@ public final class AtlasRoutes {
         }
         Path parent = file.getParent();
         if (parent != null && "assets".equals(parent.getFileName().toString()) && FINGERPRINTED_ASSET.matcher(name).matches()) {
-            return "public, max-age=31536000, immutable";
+            return "private, max-age=31536000, immutable";
         }
         String query = ctx.queryString();
         if (query != null && CACHE_BUST_QUERY.matcher(query).find()) {
-            return "public, max-age=31536000, immutable";
+            return "private, max-age=31536000, immutable";
         }
         if (lower.endsWith(".txt") || lower.endsWith(".md")) {
             return "private, max-age=300";
         }
         if (lower.endsWith(".bin") || lower.endsWith(".wasm")) {
-            return "public, max-age=31536000, immutable";
+            return "private, max-age=31536000, immutable";
         }
         if (lower.endsWith(".js") || lower.endsWith(".mjs") || lower.endsWith(".css")) {
             return "private, max-age=86400";
         }
         if (lower.endsWith(".glb") || lower.endsWith(".glb.gz")) {
-            return "public, max-age=86400";
+            return "private, max-age=86400";
         }
         return "private, max-age=300";
+    }
+
+    static boolean isHtmlNavigation(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            return true;
+        }
+        String lower = relativePath.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".html")) {
+            return true;
+        }
+        int slash = lower.lastIndexOf('/');
+        int dot = lower.lastIndexOf('.');
+        return dot < 0 || dot < slash;
     }
 
     static Path atlasRoot() {

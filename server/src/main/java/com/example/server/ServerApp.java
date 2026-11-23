@@ -121,7 +121,7 @@ public final class ServerApp {
         this.devStatusRoutes = new DevStatusRoutes(status, devMachineStore);
         this.officePublicRoutes = new OfficePublicRoutes(devMachineStore, status);
         this.devMachineRoutes = new DevMachineRoutes(this.authService, devMachineStore, status, gson);
-        this.atlasRoutes = new AtlasRoutes();
+        this.atlasRoutes = new AtlasRoutes(this.authService);
         this.roadmapRoutes = new RoadmapRoutes(roadmapService != null
                 ? roadmapService
                 : new RoadmapService(new GithubMilestoneClient()));

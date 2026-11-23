@@ -500,7 +500,6 @@ function makeNameplateDrawer() {
     ctx.fillText(label, canvas.width / 2, 42);
     tex.needsUpdate = true;
   }
-  draw('經絡研習室');
   return { tex, draw };
 }
 
@@ -1075,6 +1074,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(atlasRoot);
 
   const nameplateDrawer = makeNameplateDrawer();
+  nameplateDrawer.draw(
+    win.PUNCHCLOCK_AUTHENTICATED === true ? '經絡研習室' : '經絡研習室需登入'
+  );
   const nameplateMat = new THREE.MeshBasicMaterial({
     map: nameplateDrawer.tex,
     transparent: true,
