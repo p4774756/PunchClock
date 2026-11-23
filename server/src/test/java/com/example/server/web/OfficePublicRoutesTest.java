@@ -109,6 +109,7 @@ public class OfficePublicRoutesTest {
     private void assertNoForbidden(String body) {
         assertFalse(body, FORBIDDEN.matcher(body).find());
         assertFalse(body, body.contains("\"branch\""));
+        assertFalse(body, body.contains("猛虎"));
     }
 
     @Test
@@ -215,6 +216,39 @@ public class OfficePublicRoutesTest {
                 .getAsJsonArray("completedToday");
         assertEquals(1, done.size());
         assertEquals("今天收工一句", done.get(0).getAsJsonObject().get("phrase").getAsString());
+    }
+
+    @Test
+    public void tigerSelectedByMachineIdRegardlessOfDisplayName() throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("displayName", "私人女秘書");
+        body.put("agentRunning", false);
+        store.applyHeartbeat("tiger", body);
+
+        assertEquals("待命中", fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .get("status").getAsString());
+    }
+
+    @Test
+    public void nonTigerMachineNeverSuppliesTigerCharacter() throws Exception {
+        Map<String, Object> home = new LinkedHashMap<>();
+        home.put("machine", "home");
+        home.put("displayName", "猛虎");
+        home.put("agentRunning", true);
+        home.put("issue", 999);
+        store.applyHeartbeat("home", home);
+
+        Map<String, Object> homeAlias = new LinkedHashMap<>();
+        homeAlias.put("machine", "home");
+        homeAlias.put("displayName", "私人女秘書");
+        homeAlias.put("agentRunning", true);
+        homeAlias.put("issue", 998);
+        store.applyHeartbeat("home", homeAlias);
+
+        JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
+        assertEquals("休息中", tiger.get("status").getAsString());
+        assertEquals(0, tiger.getAsJsonArray("active").size());
     }
 
     @Test

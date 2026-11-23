@@ -52,7 +52,7 @@ const SPRITE_TYPING = '/assets/private-team/secretary-typing-a.webp';
 const SPRITE_IDLE_TEA = '/assets/private-team/secretary-idle-tea.webp';
 const SPRITE_SLEEP = '/assets/private-team/secretary-sleep.webp';
 
-/** 猛虎狀態對應立繪（工作中打字 A、待命中喝茶、休息中趴睡）。 */
+/** 秘書狀態對應立繪（工作中打字 A、待命中喝茶、休息中趴睡）。 */
 export function secretarySpriteUrlForStatus(status) {
   const s = status == null ? '' : String(status).trim();
   if (s.startsWith('工作中')) return SPRITE_TYPING;
@@ -292,7 +292,7 @@ export function fillStatusCard(doc, bodyEl, view, opts) {
 
 function statusIdleLine(status) {
   const s = status == null ? '' : String(status).trim();
-  if (s === '休息中') return '猛虎今天先休息，晚點再來看我。';
+  if (s === '休息中') return '今天先休息，晚點再來看我。';
   if (s.startsWith('工作中')) return '正在忙，點開上方泡泡可隨時看進度。';
   return '待命中，有任務會立刻開工。';
 }

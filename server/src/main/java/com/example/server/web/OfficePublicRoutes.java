@@ -285,10 +285,7 @@ public final class OfficePublicRoutes {
             if (row == null) {
                 return false;
             }
-            if ("tiger".equals(row.machine)) {
-                return true;
-            }
-            return "猛虎".equals(row.displayName);
+            return "tiger".equals(row.machine);
         }
 
         private static boolean isOnline(DevMachineStore.Snapshot row, long now) {

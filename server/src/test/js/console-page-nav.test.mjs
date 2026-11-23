@@ -37,7 +37,7 @@ test('首頁 HUD 楓之谷角色框與身分名牌', () => {
   assert.doesNotMatch(js, /location\.href = '\/console'/);
   assert.match(js, /data-pt-task-btn/);
   assert.match(js, /secretary-avatar\.webp/);
-  assert.match(js, /私人秘書/);
+  assert.match(js, /私人女秘書/);
   assert.match(js, /data-pt-task-bar/);
   assert.match(js, /data-pt-identity-toggle/);
   assert.match(js, /pt-hud-id-plate/);

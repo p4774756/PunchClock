@@ -122,11 +122,11 @@ public class DevMachineStoreTest {
     public void displayNameAndLocationFromHeartbeat() {
         DevMachineStore store = new DevMachineStore();
         Map<String, Object> body = payload("tiger", 1, "a", 1L);
-        body.put("displayName", "猛虎");
+        body.put("displayName", "私人女秘書");
         body.put("location", "家用");
         assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", body));
         Map<String, Object> row = store.listForApi(System.currentTimeMillis(), issue -> "").get(0);
-        assertEquals("猛虎", row.get("label"));
+        assertEquals("私人女秘書", row.get("label"));
         assertEquals("家用", row.get("location"));
     }
 
