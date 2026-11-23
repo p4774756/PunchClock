@@ -82,8 +82,10 @@ const avatarPointTarget = (code, side) => {
 };
 
 const buildPointBindings = (vrm, characterRoot) => {
+  vrm.humanoid.update();
   characterRoot.updateMatrixWorld(true);
-  const invRoot = new T.Matrix4().copy(characterRoot.matrixWorld).invert();
+  vrm.scene.updateMatrixWorld(true);
+  const worldToRoot = new T.Matrix4();
   const table = new Map();
   const seedWorld = new T.Vector3();
   const bonePos = new T.Vector3();
@@ -108,6 +110,7 @@ const buildPointBindings = (vrm, characterRoot) => {
       }
       if (!best) continue;
       const boneNode = vrm.humanoid.getNormalizedBoneNode(best);
+      boneNode.updateMatrixWorld(true);
       _inv.copy(boneNode.matrixWorld).invert();
       const localPos = seedWorld.clone().applyMatrix4(_inv);
       _n.fromArray(seed.normal).transformDirection(characterRoot.matrixWorld).normalize();
@@ -115,21 +118,27 @@ const buildPointBindings = (vrm, characterRoot) => {
       table.set(`${point.code}:${side}`, {bone: best, localPos, localNormal});
     }
   }
+  const syncSkeleton = () => {
+    vrm.humanoid.update();
+    characterRoot.updateMatrixWorld(true);
+    vrm.scene.updateMatrixWorld(true);
+  };
   const resolve = (code, side) => {
     const bind = table.get(`${code}:${side}`);
     if (!bind) return avatarPointTarget(code, side);
     const node = vrm.humanoid.getNormalizedBoneNode(bind.bone);
     if (!node) return avatarPointTarget(code, side);
+    syncSkeleton();
     node.updateMatrixWorld(true);
     const pos = bind.localPos.clone().applyMatrix4(node.matrixWorld);
-    invRoot.copy(characterRoot.matrixWorld).invert();
-    pos.applyMatrix4(invRoot);
+    worldToRoot.copy(characterRoot.matrixWorld).invert();
+    pos.applyMatrix4(worldToRoot);
     return {
       position: pos.toArray(),
-      normal: bind.localNormal.clone().transformDirection(node.matrixWorld).transformDirection(invRoot).normalize().toArray(),
+      normal: bind.localNormal.clone().transformDirection(node.matrixWorld).transformDirection(worldToRoot).normalize().toArray(),
     };
   };
-  return {resolve, refresh: () => { vrm.scene.updateMatrixWorld(true); }};
+  return {resolve, refresh: syncSkeleton};
 };
 
 const loader = new GLTFLoader();
@@ -185,5 +194,37 @@ for (const code of ['LU5', 'LI5']) {
   const hit = ray.intersectObjects(skinMeshes, false)[0];
   assert.ok(hit && hit.point.distanceTo(pos) < 0.04, `${code} must sit near arm skin, not T-pose air`);
 }
+
+applyAdultStandingPose(vrm);
+vrm.update(0);
+const prodBindings = buildPointBindings(vrm, characterRoot);
+prodBindings.refresh();
+const meshBox = new T.Box3().setFromObject(vrm.scene);
+const pointBox = new T.Box3();
+const world = new T.Vector3();
+let boundCount = 0;
+for (const point of adult.points) {
+  for (const side of point.midline ? [1] : [1, -1]) {
+    const target = prodBindings.resolve(point.code, side);
+    if (!target) continue;
+    boundCount++;
+    world.fromArray(target.position);
+    characterRoot.localToWorld(world);
+    pointBox.expandByPoint(world);
+  }
+}
+assert.ok(boundCount >= adult.points.length, `expected bound sides, got ${boundCount}`);
+assert.ok(meshBox.intersectsBox(pointBox), 'resolved acupoints must overlap adult mesh bounds');
+const meshH = meshBox.max.y - meshBox.min.y;
+const pointH = pointBox.max.y - pointBox.min.y;
+assert.ok(pointH > meshH * 0.35, `acupoint span too collapsed: ${pointH.toFixed(3)}`);
+assert.ok(
+  pointBox.min.y > meshBox.min.y - 0.12,
+  `acupoints must not shrink to feet (point min y=${pointBox.min.y.toFixed(3)})`,
+);
+assert.ok(
+  pointBox.max.y <= meshBox.max.y + 0.08 && pointBox.min.y >= meshBox.min.y - 0.08,
+  'acupoint AABB must track standing mesh, not origin',
+);
 
 console.log(`adult-points checks passed (${adult.points.length} codes).`);

@@ -30,7 +30,7 @@ import {
   uploadTexturesIncremental,
 } from './shader-warm';
 import {animeAvatar,avatarPointTarget,avatarPracticePoints,type AvatarId} from './avatars';
-import {applyAdultClothStyle,applyAdultSheerOuter,paintAdultSwimSkin,resetAdultSheerTopsOpaque,snapshotAdultClothMaps} from './adult-outfit-paint';
+import {applyAdultClothStyle,applyAdultSheerOuter,hideAdultSportGarments,paintAdultSwimSkin,resetAdultSheerTopsOpaque,snapshotAdultClothMaps} from './adult-outfit-paint';
 import {animeOutfitForAvatar,outfitNeedsAltBuild,outfitsForAvatar,type OutfitId} from './avatar-outfits';
 import {CLOTH_GARMENT_MATERIAL_TOKENS,isTorsoClothPeekPoint,type AnimeOutfit} from './outfits';
 import {useEffect,useRef} from 'react';
@@ -1315,7 +1315,8 @@ const applyOutfitMaterials=(root:T.Object3D,outfit:AnimeOutfit)=>{
  if(outfit.adultPaint){
   const painted=paintAdultSwimSkin(root,outfit.adultPaint);
   if(painted)root.userData.practiceBodySkinMap=painted;
-  if(outfit.sheerOuter)applyAdultSheerOuter(root);
+  if(outfit.adultPaint==='sport')hideAdultSportGarments(root);
+  else if(outfit.sheerOuter)applyAdultSheerOuter(root);
   bindPracticeBodySkinMaps(root);
   return;
  }
@@ -1661,7 +1662,11 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     }
    }
    characterRoot.updateMatrixWorld(true);
-   if(ready)teaching.applyCachedAnchors();
+   if(ready){
+    if(adultPointBindings){
+     teaching.syncResolvedPoints((code,side)=>adultPointBindings!.resolve(code,side)??avatarPointTarget(avatar,code,side));
+    }else teaching.applyCachedAnchors();
+   }
    lastClothPeekKey='';
    syncClothPeek();
    dirty=true;

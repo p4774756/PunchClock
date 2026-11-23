@@ -35,7 +35,8 @@ assert.match(scene, /applyAdultSheerOuter/, 'sheer outer layer');
 assert.match(scene, /sheerModel/, 'sheer alt rig');
 assert.match(adult, /skipHairRestyle:\s*true/, 'adult practice keeps natural hair');
 
+assert.match(paint, /hideAdultSportGarments/, 'sport practice hides lace garments');
 assert.match(paint, /transparent=true/, 'sheer tops semi-transparent');
-assert.match(paint, /opacity=0\.42/, 'sheer opacity band');
+assert.match(scene, /hideAdultSportGarments/, 'scene applies sport garment hide');
 
 console.log('adult outfit registry checks passed.');

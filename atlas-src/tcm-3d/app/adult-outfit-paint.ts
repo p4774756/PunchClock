@@ -310,6 +310,27 @@ export const paintAdultSwimSkin=(root:T.Object3D,kind:'sport'|'sheer-inner')=>{
  return next;
 };
 
+/** Drop lace garment layers for opaque sport practice (adult only). */
+export const hideAdultSportGarments=(root:T.Object3D)=>{
+ root.traverse(obj=>{
+  if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+  const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+  const label=mats.map(m=>`${m.name||''} ${obj.name||''}`).join(' ');
+  if(/Body_00_SKIN|Face_00/i.test(label))return;
+  if(!/Tops|Bottoms|Shoes|Accessory|Skirt|Dress|OnePiece|Lace/i.test(label))return;
+  obj.visible=false;
+  for(const mat of mats){
+   const m=mat as T.MeshStandardMaterial;
+   m.visible=false;
+   m.transparent=false;
+   m.opacity=1;
+   m.depthWrite=true;
+   m.alphaTest=0;
+   m.needsUpdate=true;
+  }
+ });
+};
+
 export const applyAdultSheerOuter=(root:T.Object3D)=>{
  root.traverse(obj=>{
   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
@@ -320,15 +341,19 @@ export const applyAdultSheerOuter=(root:T.Object3D)=>{
    if(!/Tops/i.test(label)||/Outline/i.test(label))continue;
    m.visible=true;
    m.transparent=true;
-   m.opacity=0.42;
+   m.opacity=0.34;
    m.depthWrite=false;
-   m.alphaTest=0;
+   m.alphaTest=0.08;
    m.side=T.DoubleSide;
    const map=findGarmentMap(m);
    if(map){
     resetMapUv(map);
-    const white=tintCanvas(map,SHEER_INNER,{preserveAlpha:true,keep:.06});
-    if(white)setGarmentMap(m,white);
+    const white=tintCanvas(map,SHEER_INNER,{preserveAlpha:true,keep:.035});
+    if(white){
+     resetMapUv(white);
+     white.repeat.set(2.8,2.8);
+     setGarmentMap(m,white);
+    }
    }
    obj.renderOrder=2;
    m.needsUpdate=true;

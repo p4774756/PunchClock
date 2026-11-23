@@ -117,6 +117,7 @@ export function createTeachingOverlay(
  let lastMeridianKey='';
  const anchor=(characterRoot:T.Object3D)=>{
   if(anchored)return;
+  if(root.parent!==characterRoot)characterRoot.add(root);
   skinMeshes=collectSkins(characterRoot);
   if(!skinMeshes.length)return;
   characterRoot.updateMatrixWorld(true);
@@ -172,6 +173,7 @@ export function createTeachingOverlay(
    if(!target)continue;
    applySeed(dot,target);
   }
+  anchorSnapshot=new Map(surface);
   lastMeridianKey='';
   anchored=true;
  };
