@@ -125,3 +125,30 @@ test('fillStatusCard 產出連結與膠囊', () => {
   assert.ok(flat.includes('composer-2.5'));
   assert.ok(flat.includes('排隊項目'));
 });
+
+test('fillStatusCard 休息中台詞不含猛虎', () => {
+  const doc = {
+    createElement(tag) {
+      const node = { tagName: tag.toUpperCase(), className: '', childNodes: [], textContent: '' };
+      node.appendChild = (c) => { node.textContent += (c.textContent || ''); node.childNodes.push(c); };
+      node.setAttribute = () => {};
+      node.replaceChildren = () => { node.childNodes = []; node.textContent = ''; };
+      if (tag === 'p' || tag === 'h3') {
+        const orig = node.appendChild.bind(node);
+        node.appendChild = (c) => {
+          if (c && c.textContent) node.textContent += c.textContent;
+          return orig(c);
+        };
+      }
+      return node;
+    }
+  };
+  const body = doc.createElement('div');
+  fillStatusCard(doc, body, {
+    tiger: { status: '休息中', active: [], completedToday: [] },
+    queue: []
+  });
+  const flat = JSON.stringify(body) + body.textContent;
+  assert.ok(flat.includes('今天先休息，晚點再來看我。'));
+  assert.doesNotMatch(flat, /猛虎/);
+});

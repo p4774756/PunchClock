@@ -8,12 +8,12 @@ import { loadPublicModule } from './load-public-module.mjs';
 const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
 const { taskProgressFromTiger } = await loadPublicModule('private-team-office.js');
 
-test('私人秘書 HUD 標記與身分文案', () => {
+test('私人女秘書 HUD 標記與身分文案', () => {
   const js = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
   assert.match(js, /class="pt-hud-task"[^>]*data-pt-task-btn/);
   assert.match(js, /<img src="\/assets\/private-team\/secretary-avatar\.webp"/);
   assert.match(js, /alt="" aria-hidden="true"/);
-  assert.match(js, /<span class="pt-a-name">私人秘書<\/span>/);
+  assert.match(js, /<span class="pt-a-name">私人女秘書<\/span>/);
   assert.match(js, /data-pt-task-bar/);
   assert.match(js, /taskProgressFromTiger/);
   assert.match(js, /pt-hud-id-plate/);

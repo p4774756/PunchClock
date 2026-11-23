@@ -80,7 +80,7 @@ function taskHudMarkup() {
     '<span class="pt-a-badge" aria-hidden="true">' + TASK_BADGE_SVG + '<span>任</span></span>' +
     '</span>' +
     '<span class="pt-a-plate">' +
-    '<span class="pt-a-name">私人秘書</span>' +
+    '<span class="pt-a-name">私人女秘書</span>' +
     '<span class="pt-a-bar-row" data-pt-task-bar hidden>' +
     '<span class="pt-a-bar-label">任務</span>' +
     '<span class="pt-a-bar" aria-hidden="true"><i data-pt-task-bar-fill></i></span>' +
@@ -184,7 +184,7 @@ export function mountPrivateTeamPage(opts) {
     cardBackdrop.innerHTML =
       '<div class="pt-status-card maple-window" role="dialog" aria-modal="true" aria-labelledby="pt-status-title" tabindex="-1">' +
       '<button type="button" class="pt-status-close" data-pt-status-close aria-label="關閉工作狀態">×</button>' +
-      '<h2 id="pt-status-title" class="pt-status-title">猛虎・工作狀態</h2>' +
+      '<h2 id="pt-status-title" class="pt-status-title">私人女秘書・工作狀態</h2>' +
       '<div class="pt-status-body" data-pt-status-body></div>' +
       '</div>';
     stage.appendChild(cardBackdrop);
@@ -281,7 +281,7 @@ export function mountPrivateTeamPage(opts) {
     const label = bubbleLabel();
     canvas.setAttribute(
       'aria-label',
-      '私人秘書場景，目前' + label + '。點選秘書或泡泡，或按 Enter 查看工作狀態。'
+      '私人女秘書場景，目前' + label + '。點選秘書或泡泡，或按 Enter 查看工作狀態。'
     );
   }
 
