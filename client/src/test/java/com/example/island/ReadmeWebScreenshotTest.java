@@ -95,7 +95,7 @@ public class ReadmeWebScreenshotTest {
 
     private static void shotAtlas(Browser browser, int w, int h, String base, Path file) {
         Page page = browser.newPage(new Browser.NewPageOptions().setViewportSize(w, h));
-        page.navigate(base + "/atlas/tcm-3d/?set=common-10",
+        page.navigate(base + "/atlas/tcm-3d/?set=head-neck-21",
                 new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
         page.waitForTimeout(w < 500 ? 5000 : 6000);
         page.screenshot(new Page.ScreenshotOptions()
