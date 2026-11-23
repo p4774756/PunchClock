@@ -113,6 +113,16 @@ export function clampPrivateTeamZoom(z) {
   return Math.min(PRIVATE_TEAM_ZOOM_MAX, Math.max(PRIVATE_TEAM_ZOOM_MIN, n));
 }
 
+/** 首次載入預設鏡頭距離：窄螢幕直向拉遠，桌面／橫向維持約 1 */
+export function privateTeamDefaultZoom(width, height) {
+  const w = Number(width);
+  const h = Number(height);
+  if (!(w > 0) || !(h > 0)) return 1;
+  const narrowPortrait = w < 640 && h > w;
+  if (narrowPortrait) return clampPrivateTeamZoom(1.58);
+  return 1;
+}
+
 /** 雙指捏合縮放倍率（距離變大＝拉近，變小＝拉遠） */
 export function privateTeamPinchZoomFactor(pinchStartZoom, pinchStartDist, dist) {
   if (!(pinchStartDist > 0) || !(dist > 0)) return pinchStartZoom;
@@ -697,6 +707,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   const camBase = new THREE.Vector3(3.25, 3.5, 4.15);
   const camYawAxis = new THREE.Vector3(0, 1, 0);
   let zoomFactor = 1;
+  let userAdjustedZoom = false;
+  let defaultZoomApplied = false;
   let yawRadians = 0;
   let yawReturnFrom = 0;
   let yawReturnStartMs = null;
@@ -709,11 +721,12 @@ export function mountPrivateTeamScene(canvas, opts) {
     camera.position.copy(camLook).add(dir.multiplyScalar(zoomFactor));
     camera.lookAt(camLook);
   }
-  function applyZoom(factor) {
+  function applyZoom(factor, fromUser) {
     zoomFactor = clampPrivateTeamZoom(factor);
+    if (fromUser) userAdjustedZoom = true;
     applyCameraView();
   }
-  applyZoom(1);
+  applyCameraView();
 
   const lighting = privateTeamSceneLighting();
   const amb = new THREE.AmbientLight(0xe8eeff, lighting.amb);
@@ -856,8 +869,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   const wallY = 1.22;
   const wallH = 2.44;
 
-  function wallSlab(w, h, x, y, z) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, WALL_THICK), wallMat);
+  function wallSlab(w, h, x, y, z, depthZ) {
+    const dz = depthZ == null ? WALL_THICK : depthZ;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, dz), wallMat);
     m.position.set(x, y, z);
     root.add(m);
   }
@@ -873,7 +887,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   wallSlab(FLOOR_HALF + winLeft, wallH, (winLeft - FLOOR_HALF) / 2, wallY, backZ - WALL_THICK / 2);
   wallSlab(winW, wallH - winTop, 0, winTop + (wallH - winTop) / 2 - 0.02, backZ - WALL_THICK / 2);
   wallSlab(winW, winBottom, 0, winBottom / 2, backZ - WALL_THICK / 2);
-  wallSlab(WALL_THICK, wallH, leftX + WALL_THICK / 2, wallY, 0);
+  wallSlab(WALL_THICK, wallH, leftX + WALL_THICK / 2, wallY, 0, FLOOR_SIZE);
 
   const skyMat = new THREE.MeshBasicMaterial({ color: COL.skyNight });
   const windowSky = new THREE.Mesh(new THREE.PlaneGeometry(winW + 0.2, winH + 0.2), skyMat);
@@ -964,14 +978,14 @@ export function mountPrivateTeamScene(canvas, opts) {
     new THREE.MeshBasicMaterial({ map: progressTexture(0.62) })
   );
   progMesh.name = 'progressBoard';
-  progMesh.position.set(leftX + 0.04, 1.52, 0.1);
+  progMesh.position.set(leftX + WALL_THICK + 0.04, 1.52, 0.1);
   progMesh.rotation.y = Math.PI / 2;
   root.add(progMesh);
 
-  const secretaryLook = new THREE.Vector3(0.02, 1.02, 0.56);
+  const monitorLook = new THREE.Vector3(0.02, 1.02, 0.72);
   const monitors = [
-    addMonitor(root, secretaryLook, -0.34, -0.06, 0.92, TRAY_TOP_Y),
-    addMonitor(root, secretaryLook, 0.34, -0.06, 0.92, TRAY_TOP_Y)
+    addMonitor(root, monitorLook, -0.82, 1.02, 0.92, RIM_TOP_Y),
+    addMonitor(root, monitorLook, -0.68, 1.14, 0.92, RIM_TOP_Y)
   ];
 
   const mug = new THREE.Mesh(
@@ -1498,7 +1512,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     if (pinchActive && activePointers.size >= 2 && pinchStartDist > 0) {
       const dist = pointerDistance();
-      applyZoom(privateTeamPinchZoomFactor(pinchStartZoom, pinchStartDist, dist));
+      applyZoom(privateTeamPinchZoomFactor(pinchStartZoom, pinchStartDist, dist), true);
       ev.preventDefault();
       return;
     }
@@ -1566,7 +1580,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     ev.preventDefault();
     const delta = ev.deltaY;
     const step = delta > 0 ? 0.045 : -0.045;
-    applyZoom(zoomFactor * (1 + step));
+    applyZoom(zoomFactor * (1 + step), true);
   }
 
   canvas.addEventListener('pointerdown', handlePointerDown);
@@ -1606,6 +1620,10 @@ export function mountPrivateTeamScene(canvas, opts) {
     renderer.setSize(w, h, false);
     camera.aspect = w / Math.max(h, 1);
     camera.updateProjectionMatrix();
+    if (!defaultZoomApplied && !userAdjustedZoom) {
+      applyZoom(privateTeamDefaultZoom(w, h));
+      defaultZoomApplied = true;
+    }
   }
 
   function tick(now) {

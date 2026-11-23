@@ -455,6 +455,143 @@ EOF
   RUNS_JSON="$json"
 }
 
+# 解析 ps 中的 chainmed / chainfast2 / loopfast（現行開發鏈）
+read_chain_runs() {
+  if [ -n "$MOCK_PS_CHAIN" ]; then
+    ps_out="$MOCK_PS_CHAIN"
+  elif [ -n "$MOCK_PS_OUTPUT" ]; then
+    ps_out="$MOCK_PS_OUTPUT"
+  else
+    ps_out=$(ps -axo etime=,command= 2>/dev/null)
+  fi
+  [ -z "$ps_out" ] && return 0
+  now_ms=$(date +%s)000
+  tsv=$(printf '%s\n' "$ps_out" | awk -v now_ms="$now_ms" '
+    function etime_ms(e,    n, d, h, m, s) {
+      gsub(/^[ \t]+|[ \t]+$/, "", e)
+      n = split(e, p, /[-:]/)
+      if (e ~ /^[0-9]+-[0-9]+:[0-9]+:[0-9]+$/) {
+        d = p[1] + 0; h = p[2] + 0; m = p[3] + 0; s = p[4] + 0
+        return (d * 86400000 + h * 3600000 + m * 60000 + s * 1000)
+      }
+      if (e ~ /^[0-9]+:[0-9]+:[0-9]+$/) {
+        h = p[1] + 0; m = p[2] + 0; s = p[3] + 0
+        return (h * 3600000 + m * 60000 + s * 1000)
+      }
+      if (e ~ /^[0-9]+:[0-9]+$/) {
+        m = p[1] + 0; s = p[2] + 0
+        return (m * 60000 + s * 1000)
+      }
+      return 0
+    }
+    function add_issue(issue, started,    branch) {
+      if (issue < 1) return
+      branch = "ai/issue-" issue
+      if (!(issue in best_started) || started < best_started[issue]) {
+        best_started[issue] = started
+        best_round[issue] = 0
+        best_branch[issue] = branch
+        best_wt[issue] = ""
+      }
+    }
+    function after_script(rest, script,    pos, tail, tok) {
+      pos = index(rest, script)
+      if (pos < 1) return ""
+      tail = substr(rest, pos + length(script))
+      sub(/^[ \t]+/, "", tail)
+      return tail
+    }
+    function loopfast_issue(rest,    tail, issue) {
+      tail = after_script(rest, "loopfast.sh")
+      if (tail == "") return 0
+      if (match(tail, /^[0-9]+/)) return substr(tail, RSTART, RLENGTH) + 0
+      return 0
+    }
+    function chainmed_issue(rest,    tail, n, i, seen_port) {
+      tail = after_script(rest, "chainmed.sh")
+      if (tail == "") return 0
+      n = split(tail, parts, /[ \t]+/)
+      seen_port = 0
+      for (i = 1; i <= n; i++) {
+        if (parts[i] ~ /^[0-9]+$/) {
+          if (!seen_port) {
+            seen_port = 1
+            continue
+          }
+          return parts[i] + 0
+        }
+      }
+      return 0
+    }
+    function chainfast_issues(line, started,    tail, n, i, tok) {
+      tail = after_script(line, "chainfast2.sh")
+      if (tail == "") return
+      n = split(tail, parts, /[ \t]+/)
+      if (n < 2) return
+      for (i = 2; i <= n; i++) {
+        tok = parts[i]
+        sub(/\+.*/, "", tok)
+        if (tok ~ /^[0-9]+$/) add_issue(tok + 0, started)
+      }
+    }
+    BEGIN { count = 0 }
+    {
+      line = $0
+      et = $1
+      started = now_ms - etime_ms(et)
+      if (line ~ /loopfast\.sh/) {
+        issue = loopfast_issue(line)
+        add_issue(issue, started)
+        next
+      }
+      if (line ~ /chainmed\.sh/) {
+        issue = chainmed_issue(line)
+        add_issue(issue, started)
+        next
+      }
+      if (line ~ /chainfast2\.sh/) {
+        chainfast_issues(line, started)
+      }
+    }
+    END {
+      for (i in best_started) {
+        if (count >= 12) continue
+        printf "%s\t%s\t%s\t%s\t%s\n", i, best_round[i], best_branch[i], best_started[i], best_wt[i]
+        count++
+      }
+    }
+  ')
+  [ -z "$tsv" ] && return 0
+  while IFS='	' read -r issue round branch started wt; do
+    [ -z "$issue" ] && continue
+    case "$RUNS_JSON" in
+      *"\"issue\":$issue"*) continue ;;
+    esac
+    wt="$HOME/PunchClock-oki/wt-${issue}"
+    commit_json=""
+    if [ -n "$wt" ]; then
+      sha=$(worktree_head_short "$wt") || sha=""
+      if [ -n "$sha" ]; then
+        commit_json=$(printf ',"commit":"%s"' "$sha")
+      fi
+    fi
+    wt_json=""
+    if [ -n "$wt" ]; then
+      wt_json=$(printf ',"worktree":"%s"' "$wt")
+    fi
+    part=$(printf '{"issue":%s,"round":%s,"branch":"%s","startedAt":%s,"role":"dev"%s%s}' \
+      "$issue" "$round" "$branch" "$started" "$wt_json" "$commit_json")
+    if [ "$RUNS_JSON" = "[]" ] || [ -z "$RUNS_JSON" ]; then
+      RUNS_JSON="[$part]"
+    else
+      merged=$(printf '%s' "$RUNS_JSON" | sed 's/]$//')
+      RUNS_JSON="${merged},${part}]"
+    fi
+  done <<EOF
+$tsv
+EOF
+}
+
 # 解析 ps 中的 run-review.sh <name> <prompt> <worktree> [model]
 read_review_runs() {
   extra_json=""
@@ -621,6 +758,7 @@ do_beat() {
   fi
   read_run
   read_wt_runs
+  read_chain_runs
   read_review_runs
   if [ -z "$ISSUE" ] && [ "$RUNS_JSON" != "[]" ]; then
   picked=$(pick_longest_run_from_json "$RUNS_JSON")
@@ -700,12 +838,17 @@ do_beat() {
   if ! command -v curl >/dev/null 2>&1; then
     exit 0
   fi
-  printf 'header = "Authorization: Bearer %s"\n' "$token" | curl -sS -K - \
+  http_code=$(printf 'header = "Authorization: Bearer %s"\n' "$token" | curl -sS -K - \
     -o /dev/null \
+    -w '%{http_code}' \
     --max-time 10 \
     -H "Content-Type: application/json" \
     -d "$payload" \
-    "$url" >/dev/null 2>&1
+    "$url" 2>/dev/null) || http_code="000"
+  case "$http_code" in
+    200|201|204) ;;
+    *) echo "dev-heartbeat: POST $url failed http=${http_code:-unknown}" >&2 ;;
+  esac
   exit 0
 }
 

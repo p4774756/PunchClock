@@ -38,8 +38,9 @@ test('下沉浴缸、托盤與雙螢幕支架', () => {
   assert.match(src, /bathtubFront/);
   assert.match(src, /bathtubInnerFront/);
   assert.match(src, /keyboardTray/);
-  assert.match(src, /addMonitor\(root, secretaryLook, -0\.34/);
-  assert.match(src, /addMonitor\(root, secretaryLook, 0\.34/);
+  assert.match(src, /addMonitor\(root, monitorLook, -0\.82/);
+  assert.match(src, /addMonitor\(root, monitorLook, -0\.68/);
+  assert.match(src, /RIM_TOP_Y\)/);
   assert.match(src, /basePlate/);
   assert.match(src, /bathPillow/);
   assert.match(src, /applyUnderwaterTint/);
