@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/css/login.css">
   <link rel="stylesheet" href="/css/dashboard.css">
   <link rel="stylesheet" href="/css/download.css">
+  <link rel="stylesheet" href="/css/news.css">
   <script type="importmap">
   {
     "imports": {
@@ -113,6 +114,16 @@
           </div>
         </div>
       </div>
+    </div>
+  </section>
+  <section id="newsBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="即時新聞">
+    <div class="roadmap-panel maple-window news-panel">
+      <header class="maple-win-title roadmap-win-head">
+        <h2>即時新聞</h2>
+        <button type="button" class="roadmap-close-x" data-news-close aria-label="關閉">×</button>
+      </header>
+      <ul class="news-list" data-news-list></ul>
+      <p class="news-note" data-news-note></p>
     </div>
   </section>
   <section id="downloadBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="下載桌面端">

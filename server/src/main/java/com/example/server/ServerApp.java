@@ -13,6 +13,8 @@ import com.example.server.store.GithubDevStatusClient;
 import com.example.server.store.GithubMilestoneClient;
 import com.example.server.store.DevStatusService;
 import com.example.server.store.GraffitiStore;
+import com.example.server.store.GoogleNewsRssClient;
+import com.example.server.store.NewsService;
 import com.example.server.store.RoadmapService;
 import com.example.server.store.RelayStore;
 import com.example.server.util.IpResolver;
@@ -27,6 +29,7 @@ import com.example.server.web.RelayRoutes;
 import com.example.server.web.DevMachineRoutes;
 import com.example.server.web.DevStatusRoutes;
 import com.example.server.store.DevMachineStore;
+import com.example.server.web.NewsRoutes;
 import com.example.server.web.RoadmapRoutes;
 import com.example.server.web.RouteSupport;
 import com.example.server.web.LoginNextPath;
@@ -67,6 +70,7 @@ public final class ServerApp {
     private final GraffitiStore graffitiStore;
     private final GraffitiRoutes graffitiRoutes;
     private final RoadmapRoutes roadmapRoutes;
+    private final NewsRoutes newsRoutes;
     private final DevStatusService devStatusService;
     private final DevStatusRoutes devStatusRoutes;
     private final OfficePublicRoutes officePublicRoutes;
@@ -127,6 +131,7 @@ public final class ServerApp {
         this.roadmapRoutes = new RoadmapRoutes(roadmapService != null
                 ? roadmapService
                 : new RoadmapService(new GithubMilestoneClient()));
+        this.newsRoutes = new NewsRoutes(new NewsService(new GoogleNewsRssClient()));
     }
 
     public static void main(String[] args) {
@@ -213,6 +218,7 @@ public final class ServerApp {
         officePublicRoutes.register(app);
         new PublicDownloadRoutes(clientReleaseService).register(app);
         roadmapRoutes.register(app);
+        newsRoutes.register(app);
         devStatusRoutes.register(app);
         devMachineRoutes.register(app);
         atlasRoutes.register(app);

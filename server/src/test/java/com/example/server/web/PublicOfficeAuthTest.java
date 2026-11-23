@@ -130,6 +130,11 @@ public class PublicOfficeAuthTest {
         assertEquals(200, roadmap.statusCode());
         assertTrue(roadmap.body().contains("\"success\""));
         assertFalse(roadmap.body().contains("未登入或權限不足"));
+
+        HttpResponse<String> news = send("GET", "/api/news", null);
+        assertEquals(200, news.statusCode());
+        assertTrue(news.body().contains("\"success\""));
+        assertFalse(news.body().contains("未登入或權限不足"));
     }
 
     @Test

@@ -1,6 +1,7 @@
 // 首頁「私人秘書」3D 一角。
 
 import { createRoadmapController } from './roadmap-panel.js';
+import { createNewsController } from './news-panel.js';
 import { createHomeTasksController } from './home-tasks-panel.js';
 import { createHomeDownloadController } from './home-download-panel.js';
 import { createOfficeModalManager } from './office-modal.js';
@@ -27,6 +28,7 @@ const modalMgr = createOfficeModalManager({
     else if (token === 'tasks') {
       if (window.PUNCHCLOCK_AUTHENTICATED) openTasksFromHud();
     } else if (token === 'download') download.open();
+    else if (token === 'news') news.open();
     else if (token === 'atlas-login') {
       applyAtlasLoginOpenParam(window, {
         isAuthed: () => !!window.PUNCHCLOCK_AUTHENTICATED,
@@ -49,6 +51,17 @@ const roadmap = createRoadmapController({
         privateTeam.setRoadmapOpen(true);
       } else if (!state.open && privateTeam) {
         privateTeam.setRoadmapOpen(false);
+      }
+    }
+  }
+});
+
+const news = createNewsController({
+  officeModal: modalMgr,
+  hooks: {
+    onChange: (state) => {
+      if (privateTeam && typeof privateTeam.setNewsOpen === 'function') {
+        privateTeam.setNewsOpen(state.open);
       }
     }
   }
@@ -79,8 +92,13 @@ let tasks = createHomeTasksController({
 });
 
 modalMgr.register('roadmap', roadmap);
+modalMgr.register('news', news);
 modalMgr.register('tasks', tasks);
 modalMgr.register('download', download);
+
+function openNewsFromHud() {
+  openExclusive('news', () => news.open());
+}
 
 function openRoadmapFromHud() {
   openExclusive('roadmap', () => roadmap.open());
@@ -100,6 +118,7 @@ privateTeam = mountPrivateTeamPage({
   officeModal: modalMgr,
   hooks: {
     openRoadmap: () => openRoadmapFromHud(),
+    openNews: () => openNewsFromHud(),
     openTasks: () => openTasksFromHud(),
     closeTasks: () => tasks.close({ fromManager: true }),
     closeDownload: () => download.close({ fromManager: true, silent: true }),
@@ -122,3 +141,4 @@ applyAtlasLoginOpenParam(window, {
   openLoginForAtlas: () => privateTeam.openLoginForAtlas()
 });
 roadmap.refresh();
+news.refresh();
