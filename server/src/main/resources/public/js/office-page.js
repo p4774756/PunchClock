@@ -101,7 +101,7 @@ privateTeam = mountPrivateTeamPage({
   hooks: {
     openRoadmap: () => openRoadmapFromHud(),
     openTasks: () => openTasksFromHud(),
-    closeTasks: () => tasks.close({ fromManager: true, silent: true }),
+    closeTasks: () => tasks.close({ fromManager: true }),
     closeDownload: () => download.close({ fromManager: true, silent: true }),
     openDownload: (trigger) => openDownloadFromHud(trigger)
   }

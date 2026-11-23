@@ -661,11 +661,15 @@
         .replace(/"/g, '&quot;');
     }
 
+    function formatActualTriggerTime(t) {
+      if (!t || !t.actualTime) return '—';
+      return t.actualTime + (t.useRandomOffset ? ' ±' : '');
+    }
+
     function buildTaskCardHtml(c, t, isConnected) {
       const statusBadge = buildTaskStatusBadgeHtml(t.status, c.clientId, t.id);
       const cancelBtn = buildCancelButtonHtml(c.clientId, t.id, isConnected, t.status);
-      const offsetLabel = t.useRandomOffset ? ' ±' : '';
-      const actualTimeStr = (t.actualTime || t.targetTime || '-') + offsetLabel;
+      const actualTimeStr = formatActualTriggerTime(t);
       const countdown = countdownLabel(t.status, t.actualTime || t.targetTime);
       const countdownAttr = escapeHtml(t.actualTime || t.targetTime || '');
 
@@ -705,8 +709,7 @@
         clearTaskCancelPending(c.clientId, t.id);
       }
 
-      const offsetLabel = t.useRandomOffset ? ' ±' : '';
-      const actualTimeStr = (t.actualTime || t.targetTime || '-') + offsetLabel;
+      const actualTimeStr = formatActualTriggerTime(t);
       const countdown = countdownLabel(t.status, t.actualTime || t.targetTime);
       const countdownAttr = t.actualTime || t.targetTime || '';
 

@@ -73,6 +73,19 @@
   flex-direction: column;
   max-height: min(92vh, 720px);
   width: min(96vw, 54rem);
+  overflow: hidden;
+}
+
+.home-tasks-panel .roadmap-win-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  flex-shrink: 0;
+}
+
+.home-tasks-panel .roadmap-close-x {
+  position: relative;
+  z-index: 4;
 }
 
 .home-tasks-body {
