@@ -70,7 +70,8 @@ export default function Home(){
  });
  const [progress,setProgress]=useState(6),[loadStep,setLoadStep]=useState(LOAD_STEP_LABELS.program),[error,setError]=useState('');
  const [region,setRegion]=useState<RegionId|'all'>('all'),[query,setQuery]=useState('');
- const [mobilePanel,setMobilePanel]=useState<'library'|'selection'|null>(null);
+ const [mobilePanel,setMobilePanel]=useState<'library'|null>(null);
+ const [dialogExpanded,setDialogExpanded]=useState(false);
  const [about,setAbout]=useState(false);
  const [outfitId,setOutfitId]=useState<OutfitId>(DEFAULT_OUTFIT_ID);
  const [practicePreparing,setPracticePreparing]=useState(false);
@@ -118,7 +119,7 @@ export default function Home(){
  const pause=useCallback((message='演示已暫停，當前畫面保持。')=>{setSimulation(s=>({...s,dragging:false,running:false}));setFeedback(message);},[]);
  useEffect(()=>{const blur=()=>pause('窗口已離開，演示自動暫停。');const visibility=()=>{if(document.hidden)blur();};window.addEventListener('blur',blur);document.addEventListener('visibilitychange',visibility);return()=>{window.removeEventListener('blur',blur);document.removeEventListener('visibilitychange',visibility);};},[pause]);
  useEffect(()=>{if(about){dialog.current?.showModal();pause('已打開來源與許可，演示暫停。');}else dialog.current?.close();},[about,pause]);
- useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){setAbout(false);setMobilePanel(null);pause();}if(event.key==='/'&&!(event.target instanceof HTMLInputElement)&&!(event.target instanceof HTMLTextAreaElement)){event.preventDefault();setMobilePanel('library');searchInput.current?.focus();}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[pause]);
+ useEffect(()=>{const key=(event:KeyboardEvent)=>{if(event.key==='Escape'){setAbout(false);setMobilePanel(null);setDialogExpanded(false);pause();}if(event.key==='/'&&!(event.target instanceof HTMLInputElement)&&!(event.target instanceof HTMLTextAreaElement)){event.preventDefault();setMobilePanel('library');searchInput.current?.focus();}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[pause]);
 
  const prepareFocus=()=>setState(s=>({...s,explode:0,rotate:false,isolate:false,selected:[]}));
  const switchOutfit=(id:OutfitId)=>{
@@ -142,7 +143,7 @@ export default function Home(){
   const next=POINTS.find(p=>p.code===code);if(!next)return;
   if(isPracticeDeferred(code)||!avatarSupportsPoint(currentAvatar,code)){
    setFeedback(avatarLessonNote(currentAvatar,code));
-   setMobilePanel('selection');
+   setDialogExpanded(true);
    return;
   }
   prepareFocus();
@@ -193,6 +194,13 @@ export default function Home(){
  const selectedTitle=point?.name??(simulation.customTarget?'自選體表位置':'點選穴位標記');
  const animationStatus=simulation.dragging?'操作中':simulation.running?'演示中':simulation.elapsed>0?'已暫停':'待演示';
  const outfitPending=practicePreparing&&outfitId==='study-body';
+ const dialogBlurb=useMemo(()=>{
+  if(point&&location?.text){
+   const lead=location.text.trim().split(/[。；!\n]/)[0]?.trim()||location.text.trim();
+   return lead.length>76?`${lead.slice(0,76)}…`:lead;
+  }
+  return feedback;
+ },[point,location,feedback]);
  return <main className="studio rpg-studio is-anime" style={{'--tool-color':tool.color} as CSSProperties}>
   <header className="studio-header rpg-header">
    <div className="brand-block">
@@ -238,7 +246,7 @@ export default function Home(){
      <label className="search-box"><Search size={15}/><input ref={searchInput} value={query} onChange={e=>setQuery(e.target.value)} placeholder="穴名、注音或編號" aria-label="搜索教學穴位"/>{query?<button aria-label="清空搜索" onClick={()=>setQuery('')}><X size={13}/></button>:<kbd>/</kbd>}</label>
      <div className="curriculum-controls" role="group" aria-label="課堂基準穴">{CURRICULUM_SETS.filter(set=>set.id===ANIME_DEFAULT_SET||set.codes.some(c=>avatarCodes.has(c))).map(set=>{const open=practiceOpenCodes(set.codes.filter(c=>avatarCodes.has(c)));return <button key={set.id} className={simulation.curriculumSet===set.id?'selected':''} aria-pressed={simulation.curriculumSet===set.id} onClick={()=>{const on=simulation.curriculumSet!==set.id;if(on&&!open.length){setFeedback(`${set.shortName} 尚未烘到角色身上。`);return;}setRegion('all');setQuery('');prepareFocus();setSimulation(s=>({...s,curriculumSet:on?set.id:ANIME_DEFAULT_SET,meridianFilter:'all',pointCode:on?(open[0]??s.pointCode):s.pointCode,side:1,customTarget:null,dragging:false,running:false,elapsed:0,focus:on?s.focus+1:s.focus,pickMode:'point'}));setFeedback(on?`課堂：${set.name}。依教材順序校正與演示。`:'已回到頭頸基準穴。');}}>{set.shortName}<small>{open.length}</small></button>;})}</div>
      {activeLesson&&<p className="curriculum-note">{searching?'搜尋完整目錄，含尚未烘上角色的穴位。':`${activeLesson.lesson}${activeLesson.status==='reviewed'?' · 已課堂核對':' · 座標待核對'} · 僅顯示已烘上穴位`}</p>}
-     {lessonProgress&&<div className="lesson-progress-card" aria-live="polite"><strong>{lessonProgress.name} · 第 {lessonProgress.index}／{lessonProgress.total} 穴</strong><div className="lesson-progress-actions"><button type="button" onClick={()=>stepLesson(-1)}>上一穴</button><button type="button" onClick={()=>stepLesson(1)}>下一穴</button></div></div>}
+     {lessonProgress&&<div className="lesson-progress-card" aria-live="polite"><strong>{lessonProgress.name} · 第 {lessonProgress.index}／{lessonProgress.total} 穴</strong></div>}
      <details className="region-disclosure"><summary>按身體區域篩選</summary><div className="section-label">選擇身體區域<button className={region==='all'?'current':''} onClick={()=>{setRegion('all');setFeedback('正在顯示全部已烘穴位。');}}>全部</button></div>
      <div className="region-grid">{REGIONS.map(r=><button className={region===r.id?'selected':''} key={r.id} aria-pressed={region===r.id} onClick={()=>{setRegion(r.id);setQuery('');if(avatarCodes.has(r.example))choosePoint(r.example);}}>{r.name}</button>)}</div>
      </details>
@@ -250,19 +258,36 @@ export default function Home(){
    </div>
   </aside>
 
-  <aside className={`selection-panel surface ${mobilePanel==='selection'?'mobile-expanded':''}`} aria-label="當前教學選擇">
-   <button className="mobile-panel-heading" aria-expanded={mobilePanel==='selection'} onClick={()=>setMobilePanel(p=>p==='selection'?null:'selection')}><span><MapPin size={16}/>{selectedTitle}<small>{point?.code}</small></span><ChevronDown size={17}/></button>
-   <div className="panel-content">
-    <div className="selection-eyebrow"><span>當前選擇</span><span className="selection-number">{point?.code??(simulation.customTarget?'體表位置':'選穴')}</span></div>
-    <div className="selection-title"><h1>{selectedTitle}</h1>{point&&<p>{point.zhuyin}<span>·</span>{point.meridian}</p>}</div>
+  <section className={`acupoint-rpg-dialog surface${dialogExpanded?' is-expanded':''}`} aria-label="當前教學選擇">
+   <div className="rpg-dialog-bar">
+    <div className="rpg-dialog-primary">
+     {point?<>
+      <div className="rpg-dialog-headline">
+       <span className="rpg-dialog-title">{selectedTitle}</span>
+       <span className="rpg-dialog-meta"><span className="rpg-dialog-code">{point.code}</span><span className="rpg-dialog-zhuyin">{point.zhuyin}</span><span className="rpg-dialog-meridian">{point.meridian}</span></span>
+      </div>
+      <p className="rpg-dialog-blurb" role="status" aria-live="polite">{dialogBlurb}</p>
+     </>:simulation.customTarget?<>
+      <div className="rpg-dialog-headline"><span className="rpg-dialog-title">自選體表位置</span><span className="rpg-dialog-meta"><span className="rpg-dialog-code">體表</span></span></div>
+      <p className="rpg-dialog-blurb" role="status" aria-live="polite">{dialogBlurb}</p>
+     </>:<>
+      <div className="rpg-dialog-headline"><span className="rpg-dialog-title">點選金色穴位開始</span></div>
+      <p className="rpg-dialog-blurb" role="status" aria-live="polite">{dialogBlurb}</p>
+     </>}
+    </div>
+    <div className="rpg-dialog-controls">
+     <button type="button" className={`rpg-dialog-lib-btn${mobilePanel==='library'?' is-active':''}`} aria-label="穴位庫" aria-expanded={mobilePanel==='library'} onClick={toggleLibrary}>穴位庫</button>
+     <button type="button" className="rpg-nav-btn" disabled={!point} onClick={()=>stepLesson(-1)}>上一穴</button>
+     <button type="button" className="rpg-nav-btn" disabled={!point} onClick={()=>stepLesson(1)}>下一穴</button>
+     <button type="button" className="rpg-dialog-expand" aria-expanded={dialogExpanded} aria-label={dialogExpanded?'收合穴位詳情':'展開穴位詳情'} onClick={()=>setDialogExpanded(v=>!v)}><ChevronDown size={17} aria-hidden="true"/></button>
+    </div>
+   </div>
+   {dialogExpanded&&<div className="rpg-dialog-body">
     <div className="selection-scroll">
      {point?<>
       <div className="side-control"><span>患者側別</span><div><button disabled={point.midline} className={simulation.side===1&&!point.midline?'selected':''} onClick={()=>chooseSide(1)} aria-pressed={simulation.side===1&&!point.midline}>左</button><button disabled={point.midline} className={simulation.side===-1&&!point.midline?'selected':''} onClick={()=>chooseSide(-1)} aria-pressed={simulation.side===-1&&!point.midline}>右</button></div>{point.midline&&<small>正中線</small>}</div>
       <div className="location-card"><h2><span className="section-dash"/>標準定位</h2>{location?<><p>{location.text}</p>{location.curriculum?<p className="curriculum-source">{location.curriculum}</p>:null}{location.classic?<p className="classic-source">{location.classic}</p>:null}{muscleNear?<p className="acupoint-muscle-near"><Info size={13} aria-hidden="true"/>鄰近肌肉：{muscleNear}</p>:null}{location.section?<a href={STANDARD} target="_blank" rel="noreferrer">國標條款 {location.section}<ArrowUpRight size={12}/></a>:null}<small>“寸”為身體分段比例，不是固定釐米。</small></>:<><p>本穴已收錄至教學目錄。標準定位摘要待逐條核錄，請對照原文學習。</p><a href={point.source||STANDARD} target="_blank" rel="noreferrer">查閱定位來源<ArrowUpRight size={12}/></a></>}</div>
-      <div className="meridian-navigation lesson-nav-block">
-       {lessonProgress&&<span className="lesson-progress-inline">{lessonProgress.name} · 第 {lessonProgress.index}／{lessonProgress.total} 穴</span>}
-       <div className="meridian-navigation-buttons"><button onClick={()=>stepLesson(-1)}>上一穴</button><button onClick={()=>stepLesson(1)}>下一穴</button></div>
-      </div>
+      {lessonProgress&&<p className="lesson-progress-inline">{lessonProgress.name} · 第 {lessonProgress.index}／{lessonProgress.total} 穴</p>}
       <div className={`review-note ${animePointReady?'is-reviewed':''}`}><span className="review-dot"/><span>{animePointReady?`${currentAvatar.shortName}已對應並完成檢查`:'尚未烘到角色'}<small>動漫視圖標記為教學示意。</small></span></div>
      </>:simulation.customTarget?<div className="pain-card"><div className="pain-target"><MapPin size={23}/><Check size={12}/></div><h2>當前工具接觸位置</h2><p>拖動器具或「移動工具」手柄，在皮膚上自由操作。</p><small>自主教學選擇，不自動推薦療法。</small></div>:<div className="pain-card"><div className="pain-target"><MapPin size={23}/></div><h2>點選金色穴位開始</h2><p>選中穴位後可拖動針具或移動手柄練習。</p></div>}
      <div className="tool-summary"><span className="tool-summary-icon"><ToolGlyph tool={tool.id}/></span><div><small>當前工具</small><h2>{tool.name}<span>{tool.effect}</span></h2></div></div><p className="tool-note">{tool.note}</p>
@@ -270,10 +295,8 @@ export default function Home(){
      <label className="effect-toggle"><span>顯示局部視覺反饋</span><input type="checkbox" checked={simulation.effects} onChange={()=>{setSimulation(s=>({...s,effects:!s.effects}));setFeedback(simulation.effects?'已隱藏局部視覺反饋，仍可觀察工具。':'已開啟局部視覺反饋。');}}/><span className="switch-track" aria-hidden="true"/></label>
     </div>
     <div className="selection-bottom"><span className={`play-state ${simulation.running?'running':''}`}><span/>{animationStatus}</span><span>皮膚反應模擬 · 參數未作人體校準</span></div>
-   </div>
-  </aside>
-
-  <footer className="studio-footer"><span className="status-message" role="status" aria-live="polite">{feedback}</span><span className="footer-scope">經絡研習室<span>·</span>動漫對應示意</span></footer>
+   </div>}
+  </section>
   <dialog ref={dialog} className="source-dialog" onCancel={()=>setAbout(false)} onClose={()=>setAbout(false)} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)setAbout(false);}}} aria-labelledby="source-title">
    <div className="dialog-heading"><span className="eyebrow">資料、許可與當前邊界</span><button className="icon-button" onClick={()=>setAbout(false)} aria-label="關閉來源與許可" autoFocus><X size={19}/></button></div>
    <h2 id="source-title">讓每一層，有據可查。</h2><p className="dialog-intro">這是供課堂討論與交互驗證的工程預覽。標準文字、角色模型與操作動畫分別保留來源和狀態。</p>
