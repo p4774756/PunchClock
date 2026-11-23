@@ -309,6 +309,119 @@ function makeWaterRippleTexture() {
   return tex;
 }
 
+function privateTeamSeededRand(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (Math.imul(s, 16807) + 1) >>> 0;
+    return (s & 0x7fffffff) / 0x7fffffff;
+  };
+}
+
+/** 落地窗外天際線平面層深度（愈大愈靠後），供單測鎖定多層景深。 */
+export const PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z = [0.04, 0.09, 0.14];
+
+export function makeNightWindowSkyTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 640;
+  canvas.height = 400;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  grad.addColorStop(0, '#080e1c');
+  grad.addColorStop(0.5, '#101a30');
+  grad.addColorStop(0.82, '#1a2c48');
+  grad.addColorStop(1, '#253a5c');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const horizonGlow = ctx.createLinearGradient(0, canvas.height * 0.62, 0, canvas.height);
+  horizonGlow.addColorStop(0, 'rgba(0,0,0,0)');
+  horizonGlow.addColorStop(0.45, 'rgba(70,90,130,0.12)');
+  horizonGlow.addColorStop(0.85, 'rgba(110,85,55,0.18)');
+  horizonGlow.addColorStop(1, 'rgba(80,60,40,0.14)');
+  ctx.fillStyle = horizonGlow;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const moonX = canvas.width * 0.76;
+  const moonY = canvas.height * 0.2;
+  const moonG = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 34);
+  moonG.addColorStop(0, 'rgba(228,232,242,0.32)');
+  moonG.addColorStop(0.55, 'rgba(190,200,220,0.07)');
+  moonG.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = moonG;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const rand = privateTeamSeededRand(503);
+  for (let i = 0; i < 48; i++) {
+    const sx = rand() * canvas.width;
+    const sy = rand() * canvas.height * 0.58;
+    const br = rand() * 1.1 + 0.35;
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.12 + rand() * 0.45) + ')';
+    ctx.fillRect(sx, sy, br, br);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeNightSkylineLayerTexture(layer) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 640;
+  canvas.height = 320;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const rand = privateTeamSeededRand(layer === 'far' ? 11 : layer === 'mid' ? 23 : 37);
+  const baseY = canvas.height * (layer === 'far' ? 0.78 : layer === 'mid' ? 0.62 : 0.5);
+  const maxH = canvas.height * (layer === 'far' ? 0.2 : layer === 'mid' ? 0.36 : 0.46);
+  const fog = layer === 'far' ? 0.52 : layer === 'mid' ? 0.82 : 1;
+  let x = -12;
+  while (x < canvas.width + 8) {
+    const bw = (layer === 'near' ? 34 : 26) + rand() * (layer === 'near' ? 48 : 32);
+    const bh = maxH * (0.32 + rand() * 0.68);
+    const tone = 22 + rand() * (layer === 'far' ? 18 : 30);
+    ctx.fillStyle =
+      'rgba(' +
+      (tone + 14) +
+      ',' +
+      (tone + 22) +
+      ',' +
+      (tone + 38) +
+      ',' +
+      fog +
+      ')';
+    ctx.fillRect(x, baseY - bh, bw, bh);
+    const cols = Math.max(1, Math.floor(bw / 13));
+    const rows = Math.max(1, Math.floor(bh / 15));
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows; r++) {
+        if (rand() < (layer === 'far' ? 0.72 : 0.38)) continue;
+        const warm = rand() > 0.4;
+        const wx = x + 5 + c * 12 + rand() * 2;
+        const wy = baseY - bh + 5 + r * 14 + rand();
+        const ww = 3.5 + rand() * 3;
+        const wh = 4 + rand() * 4;
+        ctx.fillStyle = warm
+          ? 'rgba(245,205,100,' + (0.35 + rand() * 0.55) + ')'
+          : 'rgba(175,205,228,' + (0.28 + rand() * 0.42) + ')';
+        ctx.fillRect(wx, wy, ww, wh);
+      }
+    }
+    if (layer === 'near' && rand() > 0.55) {
+      ctx.fillStyle = 'rgba(40,48,62,0.9)';
+      const rw = bw * (0.5 + rand() * 0.35);
+      ctx.fillRect(x + (bw - rw) / 2, baseY - bh - 4 - rand() * 6, rw, 4 + rand() * 5);
+    }
+    x += bw - rand() * 10;
+  }
+  if (layer === 'far') {
+    const mist = ctx.createLinearGradient(0, canvas.height * 0.45, 0, canvas.height);
+    mist.addColorStop(0, 'rgba(0,0,0,0)');
+    mist.addColorStop(0.6, 'rgba(18,28,48,0.18)');
+    mist.addColorStop(1, 'rgba(12,20,36,0.42)');
+    ctx.fillStyle = mist;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function applyUnderwaterTint(mat, waterYUniform) {
   mat.alphaTest = 0.02;
   mat.onBeforeCompile = (shader) => {
@@ -1036,52 +1149,47 @@ export function mountPrivateTeamScene(canvas, opts) {
   wallSlab(winW, winBottom, 0, winBottom / 2, backZ - WALL_THICK / 2);
   wallSlab(WALL_THICK, wallH, leftX + WALL_THICK / 2, wallY, 0, FLOOR_SIZE);
 
-  const skyMat = new THREE.MeshBasicMaterial({ color: COL.skyNight });
-  const windowSky = new THREE.Mesh(new THREE.PlaneGeometry(winW + 0.2, winH + 0.2), skyMat);
+  const skyTex = makeNightWindowSkyTexture();
+  const windowSky = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW + 0.2, winH + 0.2),
+    new THREE.MeshBasicMaterial({ map: skyTex })
+  );
   windowSky.position.set(0, winBottom + winH / 2, backZ - WALL_THICK - 0.02);
   windowSky.name = 'windowSky';
   root.add(windowSky);
 
   const skyline = new THREE.Group();
   skyline.name = 'skyline';
-  const buildingSpecs = [
-    { x: -1.0, w: 0.28, h: 0.38 },
-    { x: -0.58, w: 0.34, h: 0.74 },
-    { x: -0.2, w: 0.22, h: 0.48 },
-    { x: 0.18, w: 0.38, h: 0.88 },
-    { x: 0.58, w: 0.26, h: 0.54 },
-    { x: 0.92, w: 0.2, h: 0.34 }
+  const skylineCenterY = winBottom + winH / 2;
+  const skylineLayers = [
+    { name: 'skylineFar', layer: 'far', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[0], hScale: 0.82, yBias: -0.06 },
+    { name: 'skylineMid', layer: 'mid', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[1], hScale: 0.92, yBias: -0.02 },
+    { name: 'skylineNear', layer: 'near', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[2], hScale: 1, yBias: 0.04 }
   ];
-  const buildingShades = [0x516484, 0x3e516e, 0x5a6d90, 0x445878, 0x4c6286, 0x3a4c68];
-  const skylineY = winBottom + winH / 2;
-  buildingSpecs.forEach((spec, i) => {
-    const b = box(spec.w, spec.h, 0.14, buildingShades[i]);
-    b.position.set(spec.x, skylineY - winH / 2 + 0.12 + spec.h / 2, backZ - WALL_THICK - 0.06);
-    b.name = 'building';
-    skyline.add(b);
-    const cols = spec.w > 0.28 ? 2 : 1;
-    const rows = spec.h > 0.6 ? 3 : 2;
-    for (let c = 0; c < cols; c++) {
-      for (let r = 0; r < rows; r++) {
-        const lit = box(0.05, 0.05, 0.02, COL.buildingLit, true);
-        const ox = (c - (cols - 1) / 2) * 0.1;
-        const oy = (r - (rows - 1) / 2) * 0.14;
-        lit.position.set(
-          spec.x + ox,
-          skylineY - winH / 2 + 0.12 + spec.h / 2 + oy,
-          backZ - WALL_THICK + 0.02
-        );
-        lit.name = 'bwin';
-        skyline.add(lit);
-      }
-    }
+  skylineLayers.forEach((cfg) => {
+    const layerTex = makeNightSkylineLayerTexture(cfg.layer);
+    const layerMat = new THREE.MeshBasicMaterial({
+      map: layerTex,
+      transparent: true,
+      depthWrite: false,
+      opacity: cfg.layer === 'far' ? 0.88 : 1
+    });
+    const layerMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(winW + 0.12, winH * cfg.hScale),
+      layerMat
+    );
+    layerMesh.position.set(0, skylineCenterY + cfg.yBias, backZ - WALL_THICK - cfg.z);
+    layerMesh.name = cfg.name;
+    skyline.add(layerMesh);
   });
   root.add(skyline);
 
   const glassMat = new THREE.MeshLambertMaterial({
-    color: COL.skyNight,
+    color: 0x8aa0c0,
+    emissive: 0x1a2838,
+    emissiveIntensity: 0.22,
     transparent: true,
-    opacity: 0.2,
+    opacity: 0.11,
     depthWrite: false
   });
   const paneW = (winW - 0.12) / 3;
@@ -1109,9 +1217,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   const windowWash = new THREE.Mesh(
     new THREE.PlaneGeometry(2.8, 1.35),
     new THREE.MeshBasicMaterial({
-      color: 0x6a8ec8,
+      color: 0x5a78b0,
       transparent: true,
-      opacity: 0.13,
+      opacity: 0.12,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     })
