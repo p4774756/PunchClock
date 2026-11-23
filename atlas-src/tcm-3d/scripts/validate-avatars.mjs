@@ -35,6 +35,6 @@ assert.match(avatarsSrc, /id:'adult'/, 'adult avatar entry required');
 assert.match(avatarsSrc, /id:'adult'[\s\S]*hasOutfits:\s*true/, 'adult must offer outfits');
 
 assert.match(avatarsSrc, /DEFAULT_AVATAR_ID:AvatarId='assistant'/, 'default must be assistant');
-assert.match(avatarsSrc, /points:\s*\[\]/, 'adult points start empty');
+assert.match(avatarsSrc, /points:ADULT_POINTS/, 'adult avatar uses baked ADULT_POINTS');
 
 console.log('avatar registry checks passed.');

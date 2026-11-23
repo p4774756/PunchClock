@@ -1,5 +1,5 @@
 import {ANIME_ADULT_MODEL_DIGEST} from './anime-adult-model-digest';
-import {ANIME_MODEL_URL,ANIME_POINTS,type AnimePoint} from './character-mode';
+import {ADULT_POINTS,ANIME_MODEL_URL,ANIME_POINTS,type AnimePoint} from './character-mode';
 import type {SurfaceTarget} from './teaching';
 import {POINT_BY_CODE,isPracticeDeferred} from './teaching';
 
@@ -41,7 +41,7 @@ export const ANIME_AVATARS:AnimeAvatar[]=[
   modelUrl:ANIME_ADULT_MODEL_URL,
   modelStatus:'ready',
   expectedModelPath:'atlas-src/tcm-3d/public/models/anime-adult.glb',
-  points:[],
+  points:ADULT_POINTS,
   hasOutfits:true,
   blurb:'VRoid 官方樣本（黑髮側分瀏海）；套裝／休閒／練習裝／薄紗可切換。',
  },
