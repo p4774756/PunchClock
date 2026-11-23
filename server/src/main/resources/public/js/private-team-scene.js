@@ -4,35 +4,50 @@ export const SECRETARY_SPRITE_URL_TYPING = '/assets/private-team/secretary-typin
 export const SECRETARY_SPRITE_URL_IDLE = '/assets/private-team/secretary-idle-tea.webp';
 export const SECRETARY_SPRITE_URL_SLEEP = '/assets/private-team/secretary-sleep.webp';
 
+export const PRIVATE_TEAM_ZOOM_MIN = 0.72;
+export const PRIVATE_TEAM_ZOOM_MAX = 2.05;
+
 /** 立繪在場景中的高度（公尺比例）；寬度依紋理長寬比計算 */
 const SECRETARY_SPRITE_HEIGHT = 1.42;
+
+const FLOOR_SIZE = 3.6;
+const FLOOR_HALF = FLOOR_SIZE / 2;
+const WALL_THICK = 0.14;
+const TEX_BASE = '/assets/private-team/textures/';
 
 const COL = {
   wood: 0xc9a66b,
   woodDk: 0xa07840,
-  wall: 0xd8e4f4,
+  wall: 0x243248,
+  wallDk: 0x1a2438,
   rug: 0x6a8fd4,
   rugEdge: 0xa8d0f2,
   desk: 0x8b6914,
   screen: 0x1a2438,
   progress: 0x2e9a4a,
   plant: 0x3d8b4a,
-  pot: 0x8b5a3c,
+  pot: 0xc4a882,
   mug: 0xf8fbff,
   skyNight: 0x1a2848,
   building: 0x4a5c7a,
   buildingLit: 0xf8dc6e,
-  frame: 0x243044,
+  frame: 0x141c28,
   lampBase: 0x4a3c30,
   lampMetal: 0x6a5a48,
   lampShade: 0xe2cfb0
 };
 
+export function clampPrivateTeamZoom(z) {
+  const n = Number(z);
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(PRIVATE_TEAM_ZOOM_MAX, Math.max(PRIVATE_TEAM_ZOOM_MIN, n));
+}
+
 /** 夜間全域與檯燈強度（供單測） */
 export function privateTeamSceneLighting() {
   return {
-    amb: 0.28,
-    dir: 0.35,
+    amb: 0.26,
+    dir: 0.32,
     point: 1.35,
     spot: 8,
     bulbOpacity: 0.9,
@@ -53,6 +68,46 @@ function cyl(rt, rb, h, seg, color) {
   const g = new THREE.CylinderGeometry(rt, rb, h, seg);
   const m = new THREE.MeshLambertMaterial({ color });
   return new THREE.Mesh(g, m);
+}
+
+function roundedRectShape(hw, hh, r) {
+  const shape = new THREE.Shape();
+  const x = -hw;
+  const y = -hh;
+  const w = hw * 2;
+  const h = hh * 2;
+  shape.moveTo(x + r, y);
+  shape.lineTo(x + w - r, y);
+  shape.quadraticCurveTo(x + w, y, x + w, y + r);
+  shape.lineTo(x + w, y + h - r);
+  shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  shape.lineTo(x + r, y + h);
+  shape.quadraticCurveTo(x, y + h, x, y + h - r);
+  shape.lineTo(x, y + r);
+  shape.quadraticCurveTo(x, y, x + r, y);
+  return shape;
+}
+
+function extrudedRoundedPlate(hw, hh, depth, radius, mat) {
+  const shape = roundedRectShape(hw, hh, radius);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: depth,
+    bevelEnabled: true,
+    bevelThickness: 0.012,
+    bevelSize: 0.012,
+    bevelSegments: 2,
+    curveSegments: 6
+  });
+  geo.rotateX(-Math.PI / 2);
+  return new THREE.Mesh(geo, mat);
+}
+
+function loadRepeatTex(loader, file, rx, ry) {
+  const tex = loader.load(TEX_BASE + file);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.repeat.set(rx, ry);
+  return tex;
 }
 
 function makeScreenPainter() {
@@ -187,19 +242,38 @@ function spriteAspectFromTexture(tex) {
   return 526 / 768;
 }
 
-function addMonitor(root, camera, x, z, scale) {
+function addMonitor(root, lookTarget, x, z, scale) {
   const group = new THREE.Group();
   const s = scale == null ? 1 : scale;
   group.position.set(x, 0.86, z);
   group.scale.set(s, s, s);
-  const bezel = box(0.64, 0.46, 0.05, 0x1a2438);
+  const bezel = box(0.64, 0.46, 0.05, COL.screen);
   const painter = makeScreenPainter();
   const stand = box(0.1, 0.28, 0.08, 0x2a3648);
   stand.position.y = -0.34;
   group.add(bezel, painter.mesh, stand);
-  group.lookAt(camera.position.x, 1.15, camera.position.z);
+  group.lookAt(lookTarget.x, lookTarget.y, lookTarget.z);
   root.add(group);
-  return painter;
+
+  const screenGlow = new THREE.PointLight(0x8ab8e8, 0.28, 2.4, 2);
+  screenGlow.position.set(0, 0.05, 0.12);
+  group.add(screenGlow);
+
+  return { painter, screenGlow };
+}
+
+function addLowPolyPlant(root, x, z) {
+  const pot = cyl(0.09, 0.075, 0.11, 10, COL.pot);
+  pot.position.set(x, 0.055, z);
+  root.add(pot);
+  const leafMat = new THREE.MeshLambertMaterial({ color: COL.plant });
+  for (let i = 0; i < 6; i++) {
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 5), leafMat);
+    const a = (i / 6) * Math.PI * 2;
+    leaf.position.set(x + Math.cos(a) * 0.06, 0.15 + (i % 3) * 0.04, z + Math.sin(a) * 0.06);
+    leaf.scale.set(1.05, 0.5, 0.9);
+    root.add(leaf);
+  }
 }
 
 export function mountPrivateTeamScene(canvas, opts) {
@@ -207,79 +281,110 @@ export function mountPrivateTeamScene(canvas, opts) {
   const doc = (opts && opts.doc) || globalThis.document;
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(win.devicePixelRatio || 1, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.02;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  function scenePixelRatio() {
+    const coarse =
+      typeof win.matchMedia === 'function' && win.matchMedia('(pointer: coarse)').matches;
+    const narrow = (win.innerWidth || 1024) < 640;
+    const cap = coarse || narrow ? 1.5 : 2;
+    return Math.min(win.devicePixelRatio || 1, cap);
+  }
+  renderer.setPixelRatio(scenePixelRatio());
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x050a14);
 
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
-  camera.position.set(4.8, 4.8, 6.2);
-  camera.lookAt(0.15, 0.85, 0.05);
+  const camLook = new THREE.Vector3(0, 0.92, -0.08);
+  const camBase = new THREE.Vector3(3.25, 3.5, 4.15);
+  let zoomFactor = 1;
 
-  const amb = new THREE.AmbientLight(0xffffff, 0.28);
-  const dir = new THREE.DirectionalLight(0xc8d8ff, 0.35);
-  dir.position.set(4, 8, 5);
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
+  function applyZoom(factor) {
+    zoomFactor = clampPrivateTeamZoom(factor);
+    const dir = camBase.clone().sub(camLook);
+    camera.position.copy(camLook).add(dir.multiplyScalar(zoomFactor));
+    camera.lookAt(camLook);
+  }
+  applyZoom(1);
+
+  const lighting = privateTeamSceneLighting();
+  const amb = new THREE.AmbientLight(0xe8eeff, lighting.amb);
+  const dir = new THREE.DirectionalLight(0xb0c0f0, lighting.dir);
+  dir.position.set(3.5, 7, 4);
   scene.add(amb, dir);
+
+  const texLoader = new THREE.TextureLoader();
+  const wallTex = loadRepeatTex(texLoader, 'wall.webp', 2.2, 1.4);
+  const floorTex = loadRepeatTex(texLoader, 'floor-wood.webp', 2.4, 2.4);
+  const deskTex = loadRepeatTex(texLoader, 'desk-wood.webp', 2.2, 1.2);
+  const rugTex = loadRepeatTex(texLoader, 'rug-weave.webp', 2.2, 1.4);
 
   const root = new THREE.Group();
   scene.add(root);
 
-  const floor = new THREE.Group();
-  for (let i = 0; i < 8; i++) {
-    for (let j = 0; j < 6; j++) {
-      const plank = box(0.48, 0.04, 0.18, (i + j) % 2 === 0 ? COL.wood : COL.woodDk);
-      plank.position.set(-1.7 + i * 0.5, 0, -0.45 + j * 0.2);
-      floor.add(plank);
-    }
-  }
+  const floorMat = new THREE.MeshLambertMaterial({ map: floorTex, color: 0xffffff });
+  const floor = extrudedRoundedPlate(FLOOR_HALF, FLOOR_HALF, 0.035, 0.08, floorMat);
+  floor.position.y = 0;
   root.add(floor);
 
-  const rug = box(2.4, 0.03, 1.6, COL.rug);
-  rug.position.set(0.1, 0.04, 0.1);
+  const rugMat = new THREE.MeshLambertMaterial({ map: rugTex, color: COL.rug });
+  const rug = extrudedRoundedPlate(1.2, 0.8, 0.028, 0.06, rugMat);
+  rug.position.set(0, 0.038, 0.06);
   root.add(rug);
-  const edgeMat = new THREE.MeshBasicMaterial({ color: COL.rugEdge });
-  [
-    [2.4, 0.045, 0.07, 0.1, 0.075, 0.9],
-    [2.4, 0.045, 0.07, 0.1, 0.075, -0.7],
-    [0.07, 0.045, 1.6, -1.1, 0.075, 0.1],
-    [0.07, 0.045, 1.6, 1.3, 0.075, 0.1]
-  ].forEach((e) => {
-    const edge = new THREE.Mesh(new THREE.BoxGeometry(e[0], e[1], e[2]), edgeMat);
-    edge.position.set(e[3], e[4], e[5]);
-    root.add(edge);
-  });
+  const edgeMat = new THREE.MeshLambertMaterial({ color: COL.rugEdge });
+  const rugEdge = extrudedRoundedPlate(1.22, 0.82, 0.01, 0.06, edgeMat);
+  rugEdge.position.set(0, 0.048, 0.06);
+  root.add(rugEdge);
 
-  function wallPiece(w, h, x, y) {
-    const m = box(w, h, 0.12, COL.wall);
-    m.position.set(x, y, -1.15);
+  const wallMat = new THREE.MeshLambertMaterial({ map: wallTex, color: 0xd8e4f4 });
+  const backZ = -FLOOR_HALF;
+  const leftX = -FLOOR_HALF;
+  const wallY = 1.22;
+  const wallH = 2.44;
+
+  function wallSlab(w, h, x, y, z) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, WALL_THICK), wallMat);
+    m.position.set(x, y, z);
     root.add(m);
   }
-  wallPiece(2.45, 2.4, -1.375, 1.2);
-  wallPiece(0.75, 2.4, 2.225, 1.2);
-  wallPiece(2.0, 0.95, 0.85, 0.475);
-  wallPiece(2.0, 0.35, 0.85, 2.225);
+
+  const winW = 2.55;
+  const winH = 1.72;
+  const winBottom = 0.38;
+  const winTop = winBottom + winH;
+  const winLeft = -winW / 2;
+  const winRight = winW / 2;
+
+  wallSlab(FLOOR_HALF - winRight, wallH, (winRight + FLOOR_HALF) / 2, wallY, backZ - WALL_THICK / 2);
+  wallSlab(FLOOR_HALF + winLeft, wallH, (winLeft - FLOOR_HALF) / 2, wallY, backZ - WALL_THICK / 2);
+  wallSlab(winW, wallH - winTop, 0, winTop + (wallH - winTop) / 2 - 0.02, backZ - WALL_THICK / 2);
+  wallSlab(winW, winBottom, 0, winBottom / 2, backZ - WALL_THICK / 2);
+  wallSlab(WALL_THICK, wallH, leftX + WALL_THICK / 2, wallY, 0);
 
   const skyMat = new THREE.MeshBasicMaterial({ color: COL.skyNight });
-  const windowSky = new THREE.Mesh(new THREE.PlaneGeometry(2.15, 1.25), skyMat);
-  windowSky.position.set(0.85, 1.5, -1.52);
+  const windowSky = new THREE.Mesh(new THREE.PlaneGeometry(winW + 0.2, winH + 0.2), skyMat);
+  windowSky.position.set(0, winBottom + winH / 2, backZ - WALL_THICK - 0.02);
   windowSky.name = 'windowSky';
   root.add(windowSky);
 
   const skyline = new THREE.Group();
   skyline.name = 'skyline';
   const buildingSpecs = [
-    { x: 0.08, w: 0.26, h: 0.36 },
-    { x: 0.40, w: 0.32, h: 0.7 },
-    { x: 0.74, w: 0.2, h: 0.46 },
-    { x: 1.08, w: 0.36, h: 0.86 },
-    { x: 1.46, w: 0.24, h: 0.52 },
-    { x: 1.74, w: 0.18, h: 0.32 }
+    { x: -1.0, w: 0.28, h: 0.38 },
+    { x: -0.58, w: 0.34, h: 0.74 },
+    { x: -0.2, w: 0.22, h: 0.48 },
+    { x: 0.18, w: 0.38, h: 0.88 },
+    { x: 0.58, w: 0.26, h: 0.54 },
+    { x: 0.92, w: 0.2, h: 0.34 }
   ];
   const buildingShades = [0x516484, 0x3e516e, 0x5a6d90, 0x445878, 0x4c6286, 0x3a4c68];
+  const skylineY = winBottom + winH / 2;
   buildingSpecs.forEach((spec, i) => {
     const b = box(spec.w, spec.h, 0.14, buildingShades[i]);
-    b.position.set(spec.x, 1.02 + spec.h / 2, -1.36);
+    b.position.set(spec.x, skylineY - winH / 2 + 0.12 + spec.h / 2, backZ - WALL_THICK - 0.06);
     b.name = 'building';
     skyline.add(b);
     const cols = spec.w > 0.28 ? 2 : 1;
@@ -289,7 +394,11 @@ export function mountPrivateTeamScene(canvas, opts) {
         const lit = box(0.05, 0.05, 0.02, COL.buildingLit, true);
         const ox = (c - (cols - 1) / 2) * 0.1;
         const oy = (r - (rows - 1) / 2) * 0.14;
-        lit.position.set(spec.x + ox, 1.02 + spec.h / 2 + oy, -1.28);
+        lit.position.set(
+          spec.x + ox,
+          skylineY - winH / 2 + 0.12 + spec.h / 2 + oy,
+          backZ - WALL_THICK + 0.02
+        );
         lit.name = 'bwin';
         skyline.add(lit);
       }
@@ -300,58 +409,78 @@ export function mountPrivateTeamScene(canvas, opts) {
   const glassMat = new THREE.MeshLambertMaterial({
     color: COL.skyNight,
     transparent: true,
-    opacity: 0.22,
+    opacity: 0.2,
     depthWrite: false
   });
-  const glass = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.02, 0.02), glassMat);
-  glass.position.set(0.85, 1.5, -1.08);
-  glass.name = 'windowGlass';
-  root.add(glass);
+  const paneW = (winW - 0.12) / 3;
+  const glassY = winBottom + winH / 2;
+  const glassZ = backZ + 0.02;
+  [-paneW - 0.04, 0, paneW + 0.04].forEach((px) => {
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(paneW, winH - 0.08, 0.02), glassMat);
+    glass.position.set(px, glassY, glassZ);
+    glass.name = 'windowGlass';
+    root.add(glass);
+  });
 
   function frameBar(w, h, x, y) {
-    const m = box(w, h, 0.08, COL.frame);
-    m.position.set(x, y, -1.02);
+    const m = box(w, h, 0.06, COL.frame);
+    m.position.set(x, y, backZ + 0.05);
     root.add(m);
   }
-  frameBar(0.1, 1.18, -0.15, 1.5);
-  frameBar(0.1, 1.18, 1.85, 1.5);
-  frameBar(2.1, 0.1, 0.85, 2.05);
-  frameBar(2.1, 0.1, 0.85, 0.95);
-  frameBar(0.06, 1.0, 0.85, 1.5);
-  frameBar(1.9, 0.06, 0.85, 1.5);
+  frameBar(0.08, winH, winLeft - 0.04, glassY);
+  frameBar(0.08, winH, winRight + 0.04, glassY);
+  frameBar(winW + 0.12, 0.08, 0, winBottom - 0.02);
+  frameBar(winW + 0.12, 0.08, 0, winTop + 0.02);
+  frameBar(0.06, winH, -paneW / 2 - 0.02, glassY);
+  frameBar(0.06, winH, paneW / 2 + 0.02, glassY);
+
+  const windowWash = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.8, 1.35),
+    new THREE.MeshBasicMaterial({
+      color: 0x6a8ec8,
+      transparent: true,
+      opacity: 0.13,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  windowWash.rotation.x = -Math.PI / 2;
+  windowWash.position.set(0, 0.022, -1.05);
+  root.add(windowWash);
 
   const progMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(1.0, 0.6),
     new THREE.MeshBasicMaterial({ map: progressTexture(0.62) })
   );
   progMesh.name = 'progressBoard';
-  progMesh.position.set(-1.55, 1.55, -1.04);
+  progMesh.position.set(leftX + 0.04, 1.52, 0.1);
+  progMesh.rotation.y = Math.PI / 2;
   root.add(progMesh);
 
-  const desk = box(2.5, 0.08, 0.9, COL.desk);
-  desk.position.set(0.1, 0.46, 0.18);
+  const deskMat = new THREE.MeshLambertMaterial({ map: deskTex, color: COL.desk });
+  const desk = extrudedRoundedPlate(1.08, 0.43, 0.075, 0.05, deskMat);
+  desk.position.set(0, 0.468, 0.04);
   root.add(desk);
 
-  const monitorL = addMonitor(root, camera, -0.92, 0.2, 0.92);
-  const monitorR = addMonitor(root, camera, 0.72, 0.22, 0.88);
+  const secretaryLook = new THREE.Vector3(0.02, 1.02, 0.78);
+  const monitor = addMonitor(root, secretaryLook, 0.02, -0.1, 1);
 
   const mug = new THREE.Mesh(
     new THREE.CylinderGeometry(0.09, 0.075, 0.18, 12),
     new THREE.MeshBasicMaterial({ color: COL.mug })
   );
-  mug.position.set(-0.42, 0.64, 0.46);
+  mug.position.set(-0.38, 0.58, 0.38);
   const mugHandle = new THREE.Mesh(
     new THREE.TorusGeometry(0.05, 0.015, 6, 10),
     new THREE.MeshBasicMaterial({ color: COL.mug })
   );
-  mugHandle.position.set(-0.5, 0.64, 0.46);
+  mugHandle.position.set(-0.46, 0.58, 0.38);
   mugHandle.rotation.y = Math.PI / 2;
   root.add(mug, mugHandle);
 
-  // 桌面前右側：座在右、臂伸向桌心、燈罩離立繪與左右螢幕。
   const lampGroup = new THREE.Group();
-  lampGroup.position.set(1.2, 0.504, 0.5);
-  lampGroup.rotation.y = 1.4;
+  lampGroup.position.set(0.92, 0.512, 0.42);
+  lampGroup.rotation.y = 1.35;
   const lampBase = cyl(0.07, 0.095, 0.045, 12, COL.lampBase);
   lampBase.position.y = 0.022;
   lampGroup.add(lampBase);
@@ -365,7 +494,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const lampShadeMat = new THREE.MeshLambertMaterial({
     color: COL.lampShade,
     emissive: 0xffb060,
-    emissiveIntensity: 0.72
+    emissiveIntensity: lighting.shadeEmissive
   });
   const lampShade = new THREE.Mesh(
     new THREE.CylinderGeometry(0.05, 0.085, 0.075, 12),
@@ -376,7 +505,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const lampBulbMat = new THREE.MeshBasicMaterial({
     color: 0xfff2d8,
     transparent: true,
-    opacity: 0.9,
+    opacity: lighting.bulbOpacity,
     depthWrite: false
   });
   const lampBulb = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 10), lampBulbMat);
@@ -385,7 +514,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const lampHaloMat = new THREE.MeshBasicMaterial({
     map: lampGlowTexture(),
     transparent: true,
-    opacity: 0.62,
+    opacity: lighting.haloOpacity,
     depthWrite: false,
     blending: THREE.AdditiveBlending
   });
@@ -395,33 +524,26 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(lampGroup);
 
   const lampLightLocal = new THREE.Vector3(0.16, 0.17, 0);
-  const lampPoint = new THREE.PointLight(0xffc888, 1.35, 5.2, 1.6);
+  const lampPoint = new THREE.PointLight(0xffc888, lighting.point, 5.2, 1.6);
   lampPoint.position.copy(lampLightLocal);
   lampGroup.add(lampPoint);
-  const lampSpot = new THREE.SpotLight(0xffc888, 8, 9, Math.PI / 2.8, 0.5, 1);
+  const lampSpot = new THREE.SpotLight(0xffc888, lighting.spot, 9, Math.PI / 2.8, 0.5, 1);
   lampSpot.position.copy(lampLightLocal);
   const lampTarget = new THREE.Object3D();
   lampGroup.add(lampTarget);
   lampGroup.updateMatrixWorld(true);
-  lampTarget.position.copy(lampGroup.worldToLocal(new THREE.Vector3(0.28, 0.5, 0.38)));
+  lampTarget.position.copy(lampGroup.worldToLocal(new THREE.Vector3(0.2, 0.52, 0.35)));
   lampSpot.target = lampTarget;
   lampGroup.add(lampSpot);
 
-  let lampPointBase = 1.35;
-  let lampSpotBase = 8;
-  let lampHaloBase = 0.62;
+  let lampPointBase = lighting.point;
+  let lampSpotBase = lighting.spot;
+  let lampHaloBase = lighting.haloOpacity;
 
-  const pot = cyl(0.1, 0.08, 0.12, 10, COL.pot);
-  pot.position.set(-1.35, 0.12, 0.55);
-  const plant = new THREE.Mesh(
-    new THREE.ConeGeometry(0.18, 0.28, 6),
-    new THREE.MeshLambertMaterial({ color: COL.plant })
-  );
-  plant.position.set(-1.35, 0.34, 0.55);
-  root.add(pot, plant);
+  addLowPolyPlant(root, -1.15, 0.82);
 
   const secretaryRoot = new THREE.Group();
-  secretaryRoot.position.set(0.04, 0, 0.62);
+  secretaryRoot.position.set(0.02, 0, 0.78);
   root.add(secretaryRoot);
 
   const shadowMat = new THREE.MeshBasicMaterial({
@@ -431,8 +553,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   });
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.16, 0.6), shadowMat);
   shadow.rotation.x = -Math.PI / 2;
-  // 地毯盒中心 y=0.04、厚 0.03，頂面在 y=0.055。陰影要高於頂面，並落在椅輪與腳前的地毯上。
-  shadow.position.set(0.08, 0.072, 0.22);
+  shadow.position.set(0.06, 0.072, -0.42);
   shadow.renderOrder = 1;
   secretaryRoot.add(shadow);
 
@@ -440,7 +561,6 @@ export function mountPrivateTeamScene(canvas, opts) {
   const spriteBaseY = SECRETARY_SPRITE_HEIGHT / 2 + 0.02;
   let spriteAnimMode = 'idle';
   let currentSpriteUrl = '';
-  // 請求一發出就記下目標。較慢的舊圖回呼不得蓋掉這次要的姿勢。
   let desiredSpriteUrl = '';
   let spriteLoadSeq = 0;
   const loader = new THREE.TextureLoader();
@@ -514,7 +634,6 @@ export function mountPrivateTeamScene(canvas, opts) {
       },
       undefined,
       () => {
-        /* 紋理失敗時略過人物，其餘場景照常，並允許同一個 URL 再試 */
         if (seq === spriteLoadSeq) desiredSpriteUrl = currentSpriteUrl;
       }
     );
@@ -522,7 +641,7 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   setSecretarySprite(SECRETARY_SPRITE_URL_IDLE);
 
-  const secretaryBubbleX = 0.58;
+  const secretaryBubbleX = 0.56;
   const bubbleDrawer = makeBubbleDrawer();
   const bubbleMat = new THREE.MeshBasicMaterial({
     map: bubbleDrawer.tex,
@@ -533,7 +652,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const bubbleFloatMin = 1.68;
   const bubbleFloatSpan = 0.07;
   const bubbleRestY = bubbleFloatMin + bubbleFloatSpan / 2;
-  bubble.position.set(secretaryBubbleX, bubbleRestY, 0.7);
+  bubble.position.set(secretaryBubbleX, bubbleRestY, 0.72);
   bubble.renderOrder = 3;
   bubble.name = 'secretaryBubble';
   root.add(bubble);
@@ -546,6 +665,19 @@ export function mountPrivateTeamScene(canvas, opts) {
   const onOpenProgress = typeof (opts && opts.onOpenProgress) === 'function' ? opts.onOpenProgress : null;
   const onProgressBoardRect = typeof (opts && opts.onProgressBoardRect) === 'function' ? opts.onProgressBoardRect : null;
   let sceneInputEnabled = true;
+
+  const activePointers = new Map();
+  let pinchActive = false;
+  let pinchStartDist = 0;
+  let pinchStartZoom = 1;
+
+  function pointerDistance() {
+    const pts = [...activePointers.values()];
+    if (pts.length < 2) return 0;
+    const dx = pts[0].x - pts[1].x;
+    const dy = pts[0].y - pts[1].y;
+    return Math.hypot(dx, dy);
+  }
 
   function progressBoardScreenRect() {
     const stage = canvas.parentElement || canvas;
@@ -592,6 +724,15 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   function handlePointerDown(ev) {
     if (!sceneInputEnabled) return;
+    activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (activePointers.size >= 2) {
+      pinchActive = true;
+      pinchStartDist = pointerDistance();
+      pinchStartZoom = zoomFactor;
+      ev.preventDefault();
+      return;
+    }
+    if (pinchActive) return;
     const target = pickTarget(ev.clientX, ev.clientY);
     if (!target) return;
     ev.preventDefault();
@@ -602,7 +743,41 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (onActivate) onActivate();
   }
 
+  function handlePointerMove(ev) {
+    if (!activePointers.has(ev.pointerId)) return;
+    activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pinchActive && activePointers.size >= 2 && pinchStartDist > 0) {
+      const dist = pointerDistance();
+      applyZoom(pinchStartZoom * (dist / pinchStartDist));
+      ev.preventDefault();
+    }
+  }
+
+  function clearPointer(ev) {
+    activePointers.delete(ev.pointerId);
+    if (activePointers.size < 2) {
+      pinchActive = false;
+      pinchStartDist = 0;
+    }
+  }
+
+  function handlePointerUp(ev) {
+    clearPointer(ev);
+  }
+
+  function onWheel(ev) {
+    if (!sceneInputEnabled) return;
+    ev.preventDefault();
+    const delta = ev.deltaY;
+    const step = delta > 0 ? 0.045 : -0.045;
+    applyZoom(zoomFactor * (1 + step));
+  }
+
   canvas.addEventListener('pointerdown', handlePointerDown);
+  canvas.addEventListener('pointermove', handlePointerMove);
+  canvas.addEventListener('pointerup', handlePointerUp);
+  canvas.addEventListener('pointercancel', handlePointerUp);
+  canvas.addEventListener('wheel', onWheel, { passive: false });
 
   let running = true;
   let reducedMotion = false;
@@ -626,6 +801,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     const parent = canvas.parentElement;
     const w = parent ? parent.clientWidth : 1;
     const h = parent ? parent.clientHeight : 1;
+    renderer.setPixelRatio(scenePixelRatio());
     renderer.setSize(w, h, false);
     camera.aspect = w / Math.max(h, 1);
     camera.updateProjectionMatrix();
@@ -665,17 +841,17 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
 
     const pulse = (Math.sin(elapsed * 3) + 1) / 2;
-    monitorL.draw(pulse);
-    monitorR.draw(pulse * 0.75 + 0.1);
+    monitor.painter.draw(pulse);
+    monitor.screenGlow.intensity = 0.22 + pulse * 0.12;
 
     if (lampPointBase > 0) {
       const lampPulse = reducedMotion ? 1 : 0.93 + ((Math.sin(elapsed * 3.6) + 1) / 2) * 0.07;
       lampPoint.intensity = lampPointBase * lampPulse;
       lampSpot.intensity = lampSpotBase * lampPulse;
-      lampHaloMat.opacity = lampHaloBase * (reducedMotion ? 1 : 0.88 + ((Math.sin(elapsed * 3.6 + 0.8) + 1) / 2) * 0.12);
+      lampHaloMat.opacity =
+        lampHaloBase * (reducedMotion ? 1 : 0.88 + ((Math.sin(elapsed * 3.6 + 0.8) + 1) / 2) * 0.12);
     }
 
-    root.rotation.y = Math.sin(elapsed * 0.12) * 0.04;
     if (onProgressBoardRect) {
       const boardRect = progressBoardScreenRect();
       if (boardRect) onProgressBoardRect(boardRect);
@@ -696,6 +872,13 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   return {
     resize,
+    setZoom(factor) {
+      applyZoom(factor);
+      return zoomFactor;
+    },
+    getZoom() {
+      return zoomFactor;
+    },
     setBubbleText(text) {
       bubbleDrawer.draw(text);
     },
@@ -711,6 +894,10 @@ export function mountPrivateTeamScene(canvas, opts) {
       win.cancelAnimationFrame(raf);
       win.removeEventListener('resize', resize);
       canvas.removeEventListener('pointerdown', handlePointerDown);
+      canvas.removeEventListener('pointermove', handlePointerMove);
+      canvas.removeEventListener('pointerup', handlePointerUp);
+      canvas.removeEventListener('pointercancel', handlePointerUp);
+      canvas.removeEventListener('wheel', onWheel);
       renderer.dispose();
     }
   };
