@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
   <defs>
     <linearGradient id="n-fill" x1="0.25" y1="0" x2="0.8" y2="1"><stop offset="0%" stop-color="#7EEFBF"/><stop offset="100%" stop-color="#2FCB92"/></linearGradient><linearGradient id="n-acc" x1="0.25" y1="0" x2="0.8" y2="1"><stop offset="0%" stop-color="#E8FFF4"/><stop offset="100%" stop-color="#7EEFBF"/></linearGradient>
-<clipPath id="n-clip"><path d="M12 2.7 L19.85 11.7 C20.4 12.35 19.95 13.25 19.1 13.25 H15.7 V20.35 C15.7 21.35 14.9 22.15 13.9 22.15 H10.1 C9.1 22.15 8.3 21.35 8.3 20.35 V13.25 H4.9 C4.05 13.25 3.6 12.35 4.15 11.7 Z"/></clipPath>
+<clipPath id="n-clip"><path d="M 5.403 18.5 A 4.7 4.7 0 0 1 6.923 9.515 A 5.1 5.1 0 0 1 17.077 9.515 A 4.7 4.7 0 0 1 18.597 18.5 C 14.199 18.967 9.801 18.967 5.403 18.5 Z"/></clipPath>
   </defs>
-  <path d="M12 2.7 L19.85 11.7 C20.4 12.35 19.95 13.25 19.1 13.25 H15.7 V20.35 C15.7 21.35 14.9 22.15 13.9 22.15 H10.1 C9.1 22.15 8.3 21.35 8.3 20.35 V13.25 H4.9 C4.05 13.25 3.6 12.35 4.15 11.7 Z" fill="url(#n-fill)"/>
-<g clip-path="url(#n-clip)"><ellipse cx="10" cy="8.5" rx="9.2" ry="5.6" fill="#ffffff" fill-opacity="0.38"/><ellipse cx="8.8" cy="7.5" rx="4.6" ry="2.1" fill="#ffffff" fill-opacity="0.5"/></g>
+  <path d="M 5.403 18.5 A 4.7 4.7 0 0 1 6.923 9.515 A 5.1 5.1 0 0 1 17.077 9.515 A 4.7 4.7 0 0 1 18.597 18.5 C 14.199 18.967 9.801 18.967 5.403 18.5 Z" fill="url(#n-fill)"/>
+<g clip-path="url(#n-clip)"><ellipse cx="9.2" cy="9.6" rx="9.2" ry="5.6" fill="#ffffff" fill-opacity="0.38"/><ellipse cx="8" cy="8.6" rx="4.6" ry="2.1" fill="#ffffff" fill-opacity="0.5"/></g>
 </svg>
