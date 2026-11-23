@@ -121,10 +121,20 @@ body.login-page .site-footer {
   background: transparent;
 }
 
-/* 首頁浮動登入（不重載 dashboard.css） */
-.pt-login-board .login-sheet {
-  width: min(420px, calc(100% - 0.5rem));
+/* 首頁浮動登入。窄螢幕的施工進度會把 .roadmap-board 拉成貼頂全寬，這裡改回置中、依內容縮高。 */
+.roadmap-board.pt-login-board {
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.pt-login-board .login-sheet.roadmap-panel.maple-window {
+  align-self: center;
+  box-sizing: border-box;
+  width: min(420px, 100%);
+  height: auto;
   max-height: min(92vh, 520px);
+  border-radius: 6px;
   overflow: auto;
   overscroll-behavior: contain;
 }

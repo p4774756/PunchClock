@@ -6,9 +6,7 @@ function lockTimeDisplay(remainingSec) {
   return mins > 0 ? mins + ' 分 ' + secs + ' 秒' : secs + ' 秒';
 }
 
-function lockMessage(remainingSec) {
-  return '[警告] 嘗試錯誤過多！帳號已鎖定，請等待 ' + lockTimeDisplay(remainingSec) + '。';
-}
+const LOGIN_RESULT_UNKNOWN = '[警告] 登入失敗，請稍後再試';
 
 export function wireHomeLoginModal(opts) {
   const doc = (opts && opts.doc) || globalThis.document;
@@ -28,7 +26,6 @@ export function wireHomeLoginModal(opts) {
   const toggleBtn = board.querySelector('[data-login-toggle-pwd]');
   const submitBtn = board.querySelector('[data-login-submit]');
   const closeBtn = board.querySelector('[data-login-close]');
-  const countdownEl = board.querySelector('[data-login-countdown]');
 
   let open = false;
   let lastFocus = null;
@@ -43,13 +40,16 @@ export function wireHomeLoginModal(opts) {
   }
 
   function clearAlert() {
-    if (alertBox) alertBox.innerHTML = '';
-    if (countdownEl) countdownEl.textContent = '';
+    if (alertBox) alertBox.textContent = '';
   }
 
-  function showAlert(html) {
+  function showError(message) {
     if (!alertBox) return;
-    alertBox.innerHTML = html;
+    alertBox.textContent = '';
+    const box = doc.createElement('div');
+    box.className = 'error-alert';
+    box.textContent = message == null ? '' : String(message);
+    alertBox.appendChild(box);
   }
 
   function stopLockTimer() {
@@ -77,15 +77,22 @@ export function wireHomeLoginModal(opts) {
       return;
     }
     setFormLocked(true);
-    showAlert(
-      '<div class="error-alert" data-login-lock-alert>[警告] 嘗試錯誤過多！帳號已鎖定，請等待 ' +
-        '<span data-login-countdown>' + lockTimeDisplay(lockRemainingSec) + '</span>。</div>'
-    );
-    const liveCountdown = board.querySelector('[data-login-countdown]');
+    if (!alertBox) return;
+    alertBox.textContent = '';
+    const box = doc.createElement('div');
+    box.className = 'error-alert';
+    box.setAttribute('data-login-lock-alert', '');
+    const countdown = doc.createElement('span');
+    countdown.setAttribute('data-login-countdown', '');
+    countdown.textContent = lockTimeDisplay(lockRemainingSec);
+    box.appendChild(doc.createTextNode('[警告] 嘗試錯誤過多！帳號已鎖定，請等待 '));
+    box.appendChild(countdown);
+    box.appendChild(doc.createTextNode('。'));
+    alertBox.appendChild(box);
     lockTimer = win.setInterval(() => {
       lockRemainingSec -= 1;
       if (lockRemainingSec > 0) {
-        if (liveCountdown) liveCountdown.textContent = lockTimeDisplay(lockRemainingSec);
+        countdown.textContent = lockTimeDisplay(lockRemainingSec);
         return;
       }
       stopLockTimer();
@@ -96,20 +103,19 @@ export function wireHomeLoginModal(opts) {
 
   function applyFailurePayload(body) {
     if (!body || typeof body !== 'object') {
-      showAlert(
-        '<div class="error-alert">[警告] 密碼錯誤！剩餘嘗試次數：4 次 (滿5次鎖定15分鐘)</div>'
-      );
+      showError(LOGIN_RESULT_UNKNOWN);
+      setFormLocked(false);
       return;
     }
-    if (body.locked && body.remainingSec > 0) {
+    if (body.locked && Number(body.remainingSec) > 0) {
       startLockCountdown(body.remainingSec);
       return;
     }
     const msg =
       typeof body.message === 'string' && body.message
         ? body.message
-        : '[警告] 密碼錯誤！剩餘嘗試次數：4 次 (滿5次鎖定15分鐘)';
-    showAlert('<div class="error-alert">' + msg + '</div>');
+        : LOGIN_RESULT_UNKNOWN;
+    showError(msg);
     setFormLocked(false);
   }
 
@@ -228,7 +234,6 @@ export function wireHomeLoginModal(opts) {
       doc.removeEventListener('keydown', onDocKey);
       stopLockTimer();
       close();
-    },
-    lockMessage
+    }
   };
 }

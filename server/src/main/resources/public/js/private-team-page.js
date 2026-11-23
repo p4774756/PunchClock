@@ -207,10 +207,12 @@ export function mountPrivateTeamPage(opts) {
   let lastFocus = null;
 
   function bindOpenLoginHandlers(root) {
-    if (!root) return;
+    if (!root || typeof root.querySelectorAll !== 'function') return;
     const nodes = root.querySelectorAll('[data-pt-open-login]');
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
+      if (node.getAttribute('data-pt-login-bound') === '1') continue;
+      node.setAttribute('data-pt-login-bound', '1');
       node.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
@@ -231,7 +233,7 @@ export function mountPrivateTeamPage(opts) {
         toggleIdentityMenu();
       });
     }
-    bindOpenLoginHandlers(identityTr || hud);
+    bindOpenLoginHandlers(hud);
   }
 
   function applySessionAuthed() {

@@ -54,12 +54,17 @@
 .lab-office-stage.pt-roadmap-open .private-team-hud,
 .lab-office-stage.pt-roadmap-open .private-team-canvas,
 .lab-office-stage.pt-roadmap-open .pt-prog-hit,
-.lab-office-stage.pt-roadmap-open .pt-status-backdrop,
+.lab-office-stage.pt-roadmap-open .pt-status-backdrop {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* 登入彈窗留著辦公室場景，只停用背後指標。遮罩在 .roadmap-board。 */
 .lab-office-stage.pt-login-open .private-team-hud,
+.lab-office-stage.pt-login-open .private-team-hud > *,
 .lab-office-stage.pt-login-open .private-team-canvas,
 .lab-office-stage.pt-login-open .pt-prog-hit,
 .lab-office-stage.pt-login-open .pt-status-backdrop {
-  visibility: hidden;
   pointer-events: none;
 }
 
