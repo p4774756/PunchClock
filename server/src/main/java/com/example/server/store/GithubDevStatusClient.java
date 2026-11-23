@@ -45,6 +45,42 @@ public final class GithubDevStatusClient implements DevStatusService.Fetcher {
     });
 
     @Override
+    public IssueRow fetchIssue(String repo, int number) throws IOException {
+        if (repo == null || !repo.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+") || number <= 0) {
+            throw new IOException("dev-status issue");
+        }
+        String path = "/repos/" + repo + "/issues/" + number;
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("https://api.github.com" + path))
+                .timeout(Duration.ofSeconds(8))
+                .header("Accept", "application/vnd.github+json")
+                .header("User-Agent", "PunchClock")
+                .GET();
+        GithubTokenHeaders.apply(builder);
+        HttpResponse<String> response;
+        try {
+            response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("dev-status interrupted", ex);
+        }
+        if (response.statusCode() == 404) {
+            return null;
+        }
+        if (response.statusCode() != 200) {
+            throw new IOException("dev-status http " + response.statusCode());
+        }
+        JsonElement parsed = JsonParser.parseString(response.body());
+        if (!parsed.isJsonObject()) {
+            throw new IOException("dev-status issue json");
+        }
+        JsonObject obj = parsed.getAsJsonObject();
+        if (obj.has("pull_request")) {
+            return null;
+        }
+        return parseIssueObject(obj);
+    }
+
+    @Override
     public Snapshot fetch(String repo) throws IOException {
         if (repo == null || !repo.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")) {
             throw new IOException("dev-status repo");
@@ -94,30 +130,34 @@ public final class GithubDevStatusClient implements DevStatusService.Fetcher {
             if (obj.has("pull_request")) {
                 continue;
             }
-            int number = obj.get("number").getAsInt();
-            String title = text(obj, "title");
-            boolean open = "open".equalsIgnoreCase(text(obj, "state"));
-            long created = parseTime(obj, "created_at");
-            long updated = parseTime(obj, "updated_at");
-            Long closed = parseTimeOrNull(obj, "closed_at");
-            List<String> labels = new ArrayList<>();
-            if (obj.has("labels") && obj.get("labels").isJsonArray()) {
-                for (JsonElement labelEl : obj.getAsJsonArray("labels")) {
-                    if (!labelEl.isJsonObject()) {
-                        continue;
-                    }
-                    String name = text(labelEl.getAsJsonObject(), "name");
-                    if (!name.isEmpty()) {
-                        labels.add(name);
-                    }
+            out.add(parseIssueObject(obj));
+        }
+    }
+
+    private IssueRow parseIssueObject(JsonObject obj) throws IOException {
+        int number = obj.get("number").getAsInt();
+        String title = text(obj, "title");
+        boolean open = "open".equalsIgnoreCase(text(obj, "state"));
+        long created = parseTime(obj, "created_at");
+        long updated = parseTime(obj, "updated_at");
+        Long closed = parseTimeOrNull(obj, "closed_at");
+        List<String> labels = new ArrayList<>();
+        if (obj.has("labels") && obj.get("labels").isJsonArray()) {
+            for (JsonElement labelEl : obj.getAsJsonArray("labels")) {
+                if (!labelEl.isJsonObject()) {
+                    continue;
+                }
+                String name = text(labelEl.getAsJsonObject(), "name");
+                if (!name.isEmpty()) {
+                    labels.add(name);
                 }
             }
-            String body = obj.has("body") && !obj.get("body").isJsonNull()
-                    ? obj.get("body").getAsString()
-                    : "";
-            String secretaryLine = SecretarySpeech.extractFromIssueBody(body);
-            out.add(new IssueRow(number, title, open, created, updated, closed, labels, secretaryLine));
         }
+        String body = obj.has("body") && !obj.get("body").isJsonNull()
+                ? obj.get("body").getAsString()
+                : "";
+        String secretaryLine = SecretarySpeech.extractFromIssueBody(body);
+        return new IssueRow(number, title, open, created, updated, closed, labels, secretaryLine);
     }
 
     private List<PullRow> parsePulls(JsonArray page1, JsonArray page2) throws IOException {

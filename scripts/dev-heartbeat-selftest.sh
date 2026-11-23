@@ -207,6 +207,7 @@ case "$RUNS_JSON" in
 esac
 
 # --- waiter queue ps parsing ---
+RUNS_JSON="[]"
 MOCK_PS_WAITERS='  12:00 sh /path/chain-9477-after559-i566-waiter.sh
   01:00 sh chain-8000-after100-i200-waiter.sh'
 read_waiter_queued
@@ -217,6 +218,35 @@ esac
 case "$QUEUED_JSON" in
   *'"afterIssue":559'*) ;;
   *) fail "waiter queue json missing afterIssue 559" ;;
+esac
+
+MOCK_PS_WAITERS='  01:00 sh /path/chain-9476-after581-i571-573-572-waiter.sh'
+RUNS_JSON='[{"issue":571,"startedAt":1000}]'
+QUEUED_JSON="[]"
+read_waiter_queued
+case "$QUEUED_JSON" in
+  *'"issue":573'*) ;;
+  *) fail "chain waiter queue json missing issue 573" ;;
+esac
+case "$QUEUED_JSON" in
+  *'"issue":572'*) ;;
+  *) fail "chain waiter queue json missing issue 572" ;;
+esac
+case "$QUEUED_JSON" in
+  *'"issue":571'*) fail "chain waiter queue must drop active run issue 571" ;;
+esac
+
+MOCK_PS_WAITERS='  02:00 sh /path/i573-then-572-waiter.sh'
+RUNS_JSON="[]"
+QUEUED_JSON="[]"
+read_waiter_queued
+case "$QUEUED_JSON" in
+  *'"issue":573'*) ;;
+  *) fail "then-style waiter missing issue 573" ;;
+esac
+case "$QUEUED_JSON" in
+  *'"issue":572'*) ;;
+  *) fail "then-style waiter missing issue 572" ;;
 esac
 
 MOCK_DEV_CHAINS=1

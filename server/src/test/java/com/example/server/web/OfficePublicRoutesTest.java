@@ -3,6 +3,7 @@ package com.example.server.web;
 import com.example.server.auth.DevStatusTokenAuth;
 import com.example.server.store.DevMachineStore;
 import com.example.server.store.DevStatusModels;
+import com.example.server.store.DevStatusModels.IssueRow;
 import com.example.server.store.DevStatusService;
 import com.example.server.store.SecretarySpeech;
 import com.google.gson.Gson;
@@ -154,6 +155,45 @@ public class OfficePublicRoutesTest {
     }
 
     @Test
+    public void activeRunShowsTitleWhenSnapshotMissingIssue() throws Exception {
+        status = new DevStatusService(new DevStatusService.Fetcher() {
+            @Override
+            public DevStatusModels.Snapshot fetch(String repo) {
+                return emptyGithub();
+            }
+
+            @Override
+            public IssueRow fetchIssue(String repo, int number) {
+                if (number == 571) {
+                    return new IssueRow(571, "經絡研習室：載入 AvatarSample_A 成年角色並加上角色切換",
+                            true, 0, 0, null, Collections.emptyList(), null);
+                }
+                return null;
+            }
+        });
+        startApp();
+
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 571);
+        run.put("round", 1);
+        run.put("branch", "ai/issue-571");
+        run.put("startedAt", 9_000_000L - 120_000L);
+        run.put("role", "dev");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", true);
+        body.put("runs", Collections.singletonList(run));
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", body));
+
+        JsonObject active = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("active").get(0).getAsJsonObject();
+        assertTrue(active.has("title"));
+        assertEquals("經絡研習室：載入 AvatarSample_A 成年角色並加上角色切換",
+                active.get("title").getAsString());
+        assertFalse(active.get("phrase").getAsString().contains(SecretarySpeech.ACTIVE_FALLBACK));
+    }
+
+    @Test
     public void tigerQueueMergesHeartbeatWaiter() throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("machine", "tiger");
@@ -165,6 +205,29 @@ public class OfficePublicRoutesTest {
         JsonArray queue = tiger.getAsJsonArray("queue");
         assertEquals(1, queue.size());
         assertEquals(566, queue.get(0).getAsJsonObject().get("issue").getAsInt());
+    }
+
+    @Test
+    public void tigerQueueSkipsActiveRunIssue() throws Exception {
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 571);
+        run.put("round", 1);
+        run.put("branch", "ai/issue-571");
+        run.put("startedAt", 9_000_000L - 60_000L);
+        List<Map<String, Object>> queued = List.of(
+                Map.of("issue", 571, "afterIssue", 580),
+                Map.of("issue", 573, "afterIssue", 571));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", true);
+        body.put("runs", Collections.singletonList(run));
+        body.put("queued", queued);
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", body));
+
+        JsonArray queue = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("queue");
+        assertEquals(1, queue.size());
+        assertEquals(573, queue.get(0).getAsJsonObject().get("issue").getAsInt());
     }
 
     @Test
