@@ -8,17 +8,14 @@ export function resolveCheckInHeadStatus(tasks) {
 
 export function buildDeviceHeadBadgeText(isConnected, transportLabel, tasks) {
   if (!isConnected) return '離線';
-  const transport = transportLabel || '-';
   const status = resolveCheckInHeadStatus(tasks);
-  if (status === 'checking') return '辦公室上班中 · ' + transport + ' · 打卡中';
-  if (status === 'scheduled') return '辦公室上班中 · ' + transport + ' · 打卡已排程';
-  return '辦公室上班中 · ' + transport + ' · 打卡未啟動';
+  if (status === 'checking') return '辦公室上班中 · 打卡中';
+  if (status === 'scheduled') return '辦公室上班中 · 打卡已排程';
+  return '辦公室上班中 · 未排打卡';
 }
 
 export function buildDeviceHeadChipClass(isConnected, tasks) {
   if (!isConnected) return 'chip-offline';
-  const status = resolveCheckInHeadStatus(tasks);
-  if (status === 'idle') return 'chip-idle';
   return 'chip-online';
 }
 

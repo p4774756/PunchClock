@@ -10,18 +10,17 @@ test('離線仍顯示離線', () => {
 });
 
 test('連線時依打卡狀態顯示單一狀態詞', () => {
-  const http = 'HTTP';
   const scheduled = [{ name: '每日排程', status: 'SCHEDULED' }];
   assert.equal(
-    M.buildDeviceHeadBadgeText(true, http, scheduled),
-    '辦公室上班中 · HTTP · 打卡已排程'
+    M.buildDeviceHeadBadgeText(true, 'HTTP', scheduled),
+    '辦公室上班中 · 打卡已排程'
   );
   assert.equal(M.buildDeviceHeadChipClass(true, scheduled), 'chip-online');
 
   const checking = [{ status: 'CHECKING_IN' }];
   assert.equal(
-    M.buildDeviceHeadBadgeText(true, http, checking),
-    '辦公室上班中 · HTTP · 打卡中'
+    M.buildDeviceHeadBadgeText(true, 'HTTP', checking),
+    '辦公室上班中 · 打卡中'
   );
   assert.equal(M.buildDeviceHeadChipClass(true, checking), 'chip-online');
 
@@ -30,24 +29,23 @@ test('連線時依打卡狀態顯示單一狀態詞', () => {
     { status: 'CHECKING_IN' }
   ];
   assert.equal(
-    M.buildDeviceHeadBadgeText(true, http, both),
-    '辦公室上班中 · HTTP · 打卡中'
+    M.buildDeviceHeadBadgeText(true, 'HTTP', both),
+    '辦公室上班中 · 打卡中'
   );
 });
 
-test('未啟動與其他狀態顯示灰色徽章類別', () => {
-  const http = 'HTTP';
+test('未排打卡在線一律綠色徽章', () => {
   assert.equal(
-    M.buildDeviceHeadBadgeText(true, http, []),
-    '辦公室上班中 · HTTP · 打卡未啟動'
+    M.buildDeviceHeadBadgeText(true, 'HTTP', []),
+    '辦公室上班中 · 未排打卡'
   );
-  assert.equal(M.buildDeviceHeadChipClass(true, []), 'chip-idle');
+  assert.equal(M.buildDeviceHeadChipClass(true, []), 'chip-online');
   assert.equal(
-    M.buildDeviceHeadBadgeText(true, http, [{ status: 'SUCCESS' }]),
-    '辦公室上班中 · HTTP · 打卡未啟動'
+    M.buildDeviceHeadBadgeText(true, 'WebSocket', [{ status: 'SUCCESS' }]),
+    '辦公室上班中 · 未排打卡'
   );
   assert.equal(
-    M.buildDeviceHeadBadgeText(true, http, [{ status: 'PENDING' }]),
-    '辦公室上班中 · HTTP · 打卡未啟動'
+    M.buildDeviceHeadBadgeText(true, null, [{ status: 'PENDING' }]),
+    '辦公室上班中 · 未排打卡'
   );
 });
