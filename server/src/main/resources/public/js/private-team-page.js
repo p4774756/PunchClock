@@ -123,10 +123,15 @@ export function mountPrivateTeamPage(opts) {
 
   let sessionAuthed = !!(win.PUNCHCLOCK_AUTHENTICATED);
   const pageHooks = (opts && opts.hooks) || {};
+  const officeModal = opts && opts.officeModal;
   const openRoadmap =
     typeof pageHooks.openRoadmap === 'function' ? pageHooks.openRoadmap : null;
   const openTasks = typeof pageHooks.openTasks === 'function' ? pageHooks.openTasks : null;
   const closeTasks = typeof pageHooks.closeTasks === 'function' ? pageHooks.closeTasks : null;
+  const openDownload =
+    typeof pageHooks.openDownload === 'function' ? pageHooks.openDownload : null;
+  const closeDownload =
+    typeof pageHooks.closeDownload === 'function' ? pageHooks.closeDownload : null;
 
   let canvas = stage.querySelector('[data-private-team-canvas]');
   if (!canvas) {
@@ -154,8 +159,8 @@ export function mountPrivateTeamPage(opts) {
       '</div></div>' +
       '<div class="pt-hud-tr" data-pt-hud-tr>' + identityHudMarkup(sessionAuthed) + '</div>' +
       '<div class="pt-hud-br">' +
-      '<a class="pt-hud-download" href="/download" aria-label="下載 App">' + DL_SVG +
-      '<span class="pt-hud-dl-label">下載 App</span></a></div>' +
+      '<button type="button" class="pt-hud-download" data-pt-open-download aria-label="下載 App">' + DL_SVG +
+      '<span class="pt-hud-dl-label">下載 App</span></button></div>' +
       '<p class="pt-hud-deploy-ver" data-pt-deploy-ver hidden aria-hidden="true"></p>';
     stage.appendChild(hud);
   }
@@ -229,7 +234,7 @@ export function mountPrivateTeamPage(opts) {
         if (node.closest('[data-pt-task-hint]')) {
           pendingOpenTasksAfterLogin = true;
         }
-        loginModal.open();
+        loginModal.open(node);
       });
     }
   }
@@ -373,9 +378,10 @@ export function mountPrivateTeamPage(opts) {
 
   let roadmapOpen = false;
   let tasksOpen = false;
+  let downloadOpen = false;
 
   function syncSceneOverlay() {
-    const sceneBlocked = roadmapOpen || tasksOpen;
+    const sceneBlocked = roadmapOpen || tasksOpen || downloadOpen;
     stage.classList.toggle('pt-roadmap-open', sceneBlocked);
     scene.setSceneInputEnabled(!sceneBlocked && !loginOpen);
   }
@@ -400,8 +406,9 @@ export function mountPrivateTeamPage(opts) {
       closeStatusCard();
       closeIdentityMenu();
       closeTaskHint();
-      loginModal.close();
+      loginModal.close({ fromManager: true, silent: true });
       if (tasksOpen && closeTasks) closeTasks();
+      if (closeDownload) closeDownload();
     }
   }
 
@@ -412,8 +419,25 @@ export function mountPrivateTeamPage(opts) {
       closeStatusCard();
       closeIdentityMenu();
       closeTaskHint();
-      loginModal.close();
-      if (roadmapOpen && openRoadmap) {
+      loginModal.close({ fromManager: true, silent: true });
+      if (roadmapOpen) {
+        roadmapOpen = false;
+        syncSceneOverlay();
+      }
+      if (closeDownload) closeDownload();
+    }
+  }
+
+  function setDownloadOpen(open) {
+    downloadOpen = !!open;
+    syncSceneOverlay();
+    if (downloadOpen) {
+      closeStatusCard();
+      closeIdentityMenu();
+      closeTaskHint();
+      loginModal.close({ fromManager: true, silent: true });
+      if (tasksOpen && closeTasks) closeTasks();
+      if (roadmapOpen) {
         roadmapOpen = false;
         syncSceneOverlay();
       }
@@ -435,6 +459,7 @@ export function mountPrivateTeamPage(opts) {
     doc,
     win,
     fetch: fetchFn,
+    officeModal,
     onAuthed: applySessionAuthed,
     onOpenChange: (open) => {
       loginOpen = !!open;
@@ -495,6 +520,18 @@ export function mountPrivateTeamPage(opts) {
   }
 
   mountIdentitySection();
+
+  const downloadBtn = hud.querySelector('[data-pt-open-download]');
+  if (downloadBtn && openDownload) {
+    downloadBtn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      closeStatusCard();
+      closeIdentityMenu();
+      closeTaskHint();
+      openDownload(downloadBtn);
+    });
+  }
 
   if (progHit) {
     progHit.addEventListener('click', (ev) => {
@@ -635,7 +672,14 @@ export function mountPrivateTeamPage(opts) {
   return {
     setRoadmapOpen,
     setTasksOpen,
+    setDownloadOpen,
     openLoginForAtlas,
+    getLoginModal() {
+      return loginModal;
+    },
+    setSceneAnimationPaused(paused) {
+      scene.setSceneAnimationPaused(paused);
+    },
     destroy() {
       win.clearInterval(poll);
       doc.removeEventListener('keydown', onKeyDown);

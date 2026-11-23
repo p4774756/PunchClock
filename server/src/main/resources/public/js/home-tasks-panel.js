@@ -7,27 +7,13 @@ export function createHomeTasksController(opts) {
   if (typeof hooks.onChange !== 'function' && opts && typeof opts.onChange === 'function') {
     hooks.onChange = opts.onChange;
   }
+  const officeModal = opts && opts.officeModal;
   const root = doc && doc.getElementById ? doc.getElementById('tasksBoard') : null;
   const closeBtn = root && root.querySelector('[data-tasks-close]');
   const panel = root && root.querySelector('.home-tasks-panel');
   let openState = false;
 
-  function lockBackground(want) {
-    const body = doc && doc.body;
-    if (!body || !body.style) return;
-    if (want) {
-      const y = win && typeof win.scrollY === 'number' ? win.scrollY : 0;
-      if (body.dataset) body.dataset.tasksScrollY = String(y);
-      body.style.top = (-y) + 'px';
-      return;
-    }
-    const y = body.dataset ? Number(body.dataset.tasksScrollY || 0) : 0;
-    body.style.top = '';
-    if (body.dataset) delete body.dataset.tasksScrollY;
-    if (win && typeof win.scrollTo === 'function') win.scrollTo(0, Number.isFinite(y) ? y : 0);
-  }
-
-  function setOpen(next) {
+  function setOpen(next, meta) {
     const want = !!next;
     if (want === openState) return;
     openState = want;
@@ -35,8 +21,10 @@ export function createHomeTasksController(opts) {
       root.hidden = !want;
       root.setAttribute('aria-hidden', want ? 'false' : 'true');
     }
-    if (doc.body) doc.body.classList.toggle('roadmap-open', want);
-    lockBackground(want);
+    if (officeModal) {
+      if (want) officeModal.notifyOpened('tasks', meta && meta.trigger);
+      else if (!meta || !meta.silent) officeModal.notifyClosed('tasks');
+    } else if (doc.body) doc.body.classList.toggle('roadmap-open', want);
     if (typeof hooks.onChange === 'function') hooks.onChange({ open: want });
   }
 
@@ -70,10 +58,22 @@ export function createHomeTasksController(opts) {
   }
 
   return {
-    open() {
-      setOpen(true);
+    root,
+    open(meta) {
+      setOpen(true, meta);
     },
-    close() {
+    close(meta) {
+      if (meta && (meta.fromManager || meta.silent)) {
+        if (!openState) return;
+        openState = false;
+        if (root) {
+          root.hidden = true;
+          root.setAttribute('aria-hidden', 'true');
+        }
+        if (!meta.silent && officeModal) officeModal.notifyClosed('tasks');
+        if (typeof hooks.onChange === 'function') hooks.onChange({ open: false });
+        return;
+      }
       setOpen(false);
     },
     isOpen() {

@@ -1922,6 +1922,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   canvas.addEventListener('wheel', onWheel, { passive: false });
 
   let running = true;
+  let animationPaused = false;
   if (typeof win.matchMedia === 'function') {
     const mq = win.matchMedia('(prefers-reduced-motion: reduce)');
     reducedMotion = !!mq.matches;
@@ -1979,6 +1980,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   function tick(now) {
     if (!running) return;
     raf = win.requestAnimationFrame(tick);
+    if (animationPaused) return;
     if (dancePlayback) {
       const elapsed = now - dancePlayback.startMs;
       if (elapsed >= SECRETARY_DANCE_DURATION_MS) {
@@ -2158,6 +2160,9 @@ export function mountPrivateTeamScene(canvas, opts) {
     },
     setSceneInputEnabled(next) {
       sceneInputEnabled = !!next;
+    },
+    setSceneAnimationPaused(next) {
+      animationPaused = !!next;
     },
     destroy() {
       running = false;

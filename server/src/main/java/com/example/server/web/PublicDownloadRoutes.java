@@ -32,6 +32,39 @@ public final class PublicDownloadRoutes {
         app.get("/download/SKLbaby.jar", this::downloadJar);
     }
 
+    /** 首頁下載浮窗的 jar／安裝檔 placeholder（與 download.html 同一套邏輯）。 */
+    public static String applyHomeDownloadTokens(String html, ClientRelease release) {
+        if (html == null) {
+            return "";
+        }
+        ClientRelease r = release != null ? release : ClientRelease.NONE;
+        String version = r.isAvailable() ? r.version() : "";
+        String jarUrl = r.isAvailable() ? r.downloadUrl() : ClientUpdatePolicy.GITHUB_LATEST_JAR_URL;
+        String macArmUrl = desktopEnv("DESKTOP_MAC_ARM_DOWNLOAD_URL");
+        if (macArmUrl.isEmpty()) {
+            macArmUrl = desktopEnv("DESKTOP_MAC_DOWNLOAD_URL");
+        }
+        String macIntelUrl = desktopEnv("DESKTOP_MAC_INTEL_DOWNLOAD_URL");
+        String winUrl = desktopEnv("DESKTOP_WIN_DOWNLOAD_URL");
+        return html
+                .replace("{{HOME_MAC_ARM_HIDDEN}}", macArmUrl.isEmpty() ? " hidden" : "")
+                .replace("{{HOME_MAC_INTEL_HIDDEN}}", macIntelUrl.isEmpty() ? " hidden" : "")
+                .replace("{{HOME_WIN_HIDDEN}}", winUrl.isEmpty() ? " hidden" : "")
+                .replace("{{HOME_DESKTOP_MISSING_HIDDEN}}",
+                        (!macArmUrl.isEmpty() || !macIntelUrl.isEmpty() || !winUrl.isEmpty()) ? " hidden" : "")
+                .replace("{{HOME_JAR_HIDDEN}}", "")
+                .replace("{{HOME_JAR_MISSING_HIDDEN}}", " hidden")
+                .replace("{{HOME_MAC_ARM_URL}}", escapeHtml(macArmUrl))
+                .replace("{{HOME_MAC_INTEL_URL}}", escapeHtml(macIntelUrl))
+                .replace("{{HOME_WIN_URL}}", escapeHtml(winUrl))
+                .replace("{{HOME_JAR_URL}}", escapeHtml(jarUrl))
+                .replace("{{HOME_CLIENT_VERSION}}", escapeHtml(version))
+                .replace("{{DESKTOP_MAC_ARM_JS}}", jsStringLiteral(macArmUrl))
+                .replace("{{DESKTOP_MAC_INTEL_JS}}", jsStringLiteral(macIntelUrl))
+                .replace("{{DESKTOP_MAC_JS}}", jsStringLiteral(macArmUrl))
+                .replace("{{DESKTOP_WIN_JS}}", jsStringLiteral(winUrl));
+    }
+
     private void downloadPage(Context ctx) {
         ClientRelease release = clientReleaseService.get(Instant.now().toEpochMilli());
         String version = release.isAvailable() ? release.version() : "";

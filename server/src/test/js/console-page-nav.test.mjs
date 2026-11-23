@@ -73,6 +73,8 @@ test('牆上進度看板與施工進度彈窗遮罩', () => {
   assert.match(officeJs, /setRoadmapOpen/);
   assert.match(officeJs, /createHomeTasksController/);
   assert.match(officeJs, /applyTasksOpenParam/);
+  assert.match(officeJs, /applyDownloadOpenParam/);
+  assert.match(officeJs, /createOfficeModalManager/);
 });
 
 test('首頁經絡研習室後備連結可進 Tab 序', () => {
