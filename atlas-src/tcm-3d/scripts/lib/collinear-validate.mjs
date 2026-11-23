@@ -24,7 +24,7 @@ export const COLLINEAR_GROUPS = [
   {name: '瞳孔直線', axis: 'x', codes: ['GB14', 'EX-HN4', 'ST1', 'ST2', 'ST3', 'ST4'], anchor: 'ST1'},
   {name: '睛明／攢竹', axis: 'x', codes: ['BL1', 'BL2'], anchor: 'BL1'},
   {name: '風府平風池', axis: 'y', codes: ['GV16', 'GB20'], anchor: 'GV16'},
-  {name: '啞門平天柱', axis: 'y', codes: ['GV15', 'BL10'], anchor: 'GV15', maxM: 0.0035},
+  {name: '啞門平天柱', axis: 'y', codes: ['GV15', 'BL10'], anchor: 'GV15'},
   {name: '外眼角直線（x）', axis: 'x', codes: ['TE23', 'SI18'], anchor: 'SI18'},
   {name: '耳前線（側面 z）', axis: 'z', codes: ['TE21', 'SI19', 'GB2']},
 ];

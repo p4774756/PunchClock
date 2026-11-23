@@ -175,7 +175,7 @@ const realignGroup=(codes,axis,anchor,fixed)=>{
   if(!midline.has(code)){np[0]=Math.abs(np[0]);nor[0]=Math.abs(nor[0]);}
   else{np[0]=0;}
   if(axis==='x'&&!e.midline)np[0]=refVal;
-  else if(axis==='y'&&(code==='GB20'||code!=='BL10'))np[1]=refVal;
+  else if(axis==='y')np[1]=refVal;
   byCode.set(code,{...e,position:np,normal:nor});
  }
 };
