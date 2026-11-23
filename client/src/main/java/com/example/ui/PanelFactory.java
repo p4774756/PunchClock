@@ -255,18 +255,23 @@ public class PanelFactory {
     }
 
     private static JPanel homeIllustrationRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
-        refs.homeIllustrationCombo = new JComboBox<>(new String[]{
-                HomeIllustration.ROOM_B.label(),
-                HomeIllustration.POOL_C.label()
-        });
+        HomeIllustration[] illustrations = HomeIllustration.values();
+        String[] labels = new String[illustrations.length];
+        for (int i = 0; i < illustrations.length; i++) {
+            labels[i] = illustrations[i].label();
+        }
+        refs.homeIllustrationCombo = new JComboBox<>(labels);
         refs.homeIllustrationCombo.setFont(mainFont);
         refs.homeIllustrationCombo.setSelectedItem(HomeIllustration.ROOM_B.label());
         CandyComboBox.install(refs.homeIllustrationCombo);
-        refs.homeIllustrationCombo.setToolTipText("首頁背景插畫：B 夜晚房間或 C 頂樓泳池");
+        refs.homeIllustrationCombo.setToolTipText(
+                "首頁背景插畫：夜晚房間、頂樓泳池、櫻花公園、台灣夜市、加班夜景（預設夜晚房間）");
         FontMetrics comboMetrics = refs.homeIllustrationCombo.getFontMetrics(mainFont);
-        int comboMinW = Math.max(
-                comboMetrics.stringWidth(HomeIllustration.ROOM_B.label()),
-                comboMetrics.stringWidth(HomeIllustration.POOL_C.label())) + 48;
+        int comboMinW = 0;
+        for (HomeIllustration illustration : illustrations) {
+            comboMinW = Math.max(comboMinW, comboMetrics.stringWidth(illustration.label()));
+        }
+        comboMinW += 48;
         stretchComboWidth(refs.homeIllustrationCombo, comboMinW);
 
         JLabel title = new JLabel("選擇插畫");
@@ -275,7 +280,7 @@ public class PanelFactory {
         title.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel hint = new CompactShellPanels.WrappingLabel(
-                "角色已畫在場景裡；B 為預設夜晚房間，C 為頂樓泳池。");
+                "角色已畫在場景裡；預設為夜晚房間，亦可選頂樓泳池、櫻花公園、台灣夜市或加班夜景。");
         hint.setFont(mainFont);
         hint.setForeground(NightTheme.MUTED);
 

@@ -1,9 +1,12 @@
 package com.example.ui.hud;
 
-/** 首頁全幅插畫（設定裡可選 B 夜晚房間或 C 頂樓泳池）。 */
+/** 首頁全幅插畫（設定裡可選場景）。 */
 public enum HomeIllustration {
     ROOM_B("b", "夜晚房間"),
-    POOL_C("c", "頂樓泳池");
+    POOL_C("c", "頂樓泳池"),
+    CHERRY_PARK_D("d", "櫻花公園"),
+    NIGHT_MARKET_E("e", "台灣夜市"),
+    OVERTIME_F("f", "加班夜景");
 
     private final String id;
     private final String label;
@@ -22,12 +25,12 @@ public enum HomeIllustration {
     }
 
     public String resourcePath() {
-        return this == POOL_C ? "/hud/anime/home-c.jpg" : "/hud/anime/home-b.jpg";
+        return "/hud/anime/home-" + id + ".jpg";
     }
 
-    /** 頂樓泳池 3:4 時，上下裁切時偏上對齊以保住臉部。 */
+    /** 3:4 圖上下裁切時偏上對齊以保住臉部（頂樓泳池與新場景）。 */
     public boolean preferTopWhenVerticalCrop() {
-        return this == POOL_C;
+        return this != ROOM_B;
     }
 
     public static HomeIllustration fromId(String id) {
