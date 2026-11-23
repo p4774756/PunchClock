@@ -7,7 +7,12 @@ import { loadPublicModule } from './load-public-module.mjs';
 
 const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
 const scenePath = join(publicRoot, 'js/private-team-scene.js');
-const { PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z } = await loadPublicModule('private-team-scene.js');
+const {
+  PRIVATE_TEAM_WINDOW_SKY_Z,
+  PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z,
+  skylineLayersInFrontOfWindowSky,
+  privateTeamWindowAmbientMotionEnabled
+} = await loadPublicModule('private-team-scene.js');
 
 test('窗外天空改用 canvas 漸層貼圖，不再單色平板', () => {
   const src = readFileSync(scenePath, 'utf8');
@@ -35,4 +40,21 @@ test('場景仍為固定夜晚、三扇窗框與玻璃結構保留', () => {
   assert.match(src, /frameBar/);
   assert.doesNotMatch(src, /dayMode|isDayTime|日夜切換/);
   assert.match(src, /const lighting = privateTeamSceneLighting\(\)/);
+});
+
+test('天際線各層比天空更靠鏡頭（層次 offset 小於天空）', () => {
+  assert.ok(skylineLayersInFrontOfWindowSky(PRIVATE_TEAM_WINDOW_SKY_Z, PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z));
+  assert.ok(PRIVATE_TEAM_WINDOW_SKY_Z > Math.max(...PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z));
+});
+
+test('窗景含雲層、樓燈閃爍、飛機燈與夜雨，且 reducedMotion 可關閉動態', () => {
+  const src = readFileSync(scenePath, 'utf8');
+  assert.match(src, /windowClouds/);
+  assert.match(src, /windowSkylineFlicker/);
+  assert.match(src, /windowAirplane/);
+  assert.match(src, /windowRainBack/);
+  assert.match(src, /windowGlassStreaks/);
+  assert.match(src, /privateTeamWindowAmbientMotionEnabled\(reducedMotion\)/);
+  assert.equal(privateTeamWindowAmbientMotionEnabled(true), false);
+  assert.equal(privateTeamWindowAmbientMotionEnabled(false), true);
 });

@@ -386,8 +386,22 @@ function privateTeamSeededRand(seed) {
   };
 }
 
-/** 落地窗外天際線平面層深度（愈大愈靠後），供單測鎖定多層景深。 */
-export const PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z = [0.04, 0.09, 0.14];
+/** 落地窗外天空平面深度（愈大愈靠後）。 */
+export const PRIVATE_TEAM_WINDOW_SKY_Z = 0.22;
+
+/** 落地窗外天際線平面層深度（愈大愈靠後；各層須小於 {@link PRIVATE_TEAM_WINDOW_SKY_Z}），供單測鎖定多層景深。 */
+export const PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z = [0.16, 0.11, 0.06];
+
+/** 天際線各層須比天空更靠鏡頭（offset 較小）。 */
+export function skylineLayersInFrontOfWindowSky(skyZ, layerZs) {
+  const sky = Number(skyZ);
+  if (!Number.isFinite(sky) || !layerZs || !layerZs.length) return false;
+  return layerZs.every((z) => Number(z) < sky);
+}
+
+export function privateTeamWindowAmbientMotionEnabled(reducedMotion) {
+  return !reducedMotion;
+}
 
 export function makeNightWindowSkyTexture() {
   const canvas = document.createElement('canvas');
@@ -411,7 +425,8 @@ export function makeNightWindowSkyTexture() {
   const moonX = canvas.width * 0.76;
   const moonY = canvas.height * 0.2;
   const moonG = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 34);
-  moonG.addColorStop(0, 'rgba(228,232,242,0.32)');
+  moonG.addColorStop(0, 'rgba(236,240,248,0.5)');
+  moonG.addColorStop(0.4, 'rgba(210,220,238,0.16)');
   moonG.addColorStop(0.55, 'rgba(190,200,220,0.07)');
   moonG.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = moonG;
@@ -489,6 +504,135 @@ function makeNightSkylineLayerTexture(layer) {
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
+}
+
+function makeNightCloudLayerTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 200;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const rand = privateTeamSeededRand(71);
+  for (let i = 0; i < 5; i++) {
+    const cx = rand() * canvas.width;
+    const cy = 30 + rand() * 90;
+    const rw = 70 + rand() * 110;
+    const rh = 22 + rand() * 28;
+    const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, rw);
+    g.addColorStop(0, 'rgba(120,140,175,0.2)');
+    g.addColorStop(0.55, 'rgba(95,115,155,0.12)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeWindowRainTexture(lineCount) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const rand = privateTeamSeededRand(97);
+  const n = Math.max(16, Math.min(120, lineCount | 0));
+  for (let i = 0; i < n; i++) {
+    const x = rand() * canvas.width;
+    const len = 12 + rand() * 28;
+    const w = 0.6 + rand() * 0.9;
+    ctx.strokeStyle = 'rgba(175,195,230,' + (0.15 + rand() * 0.22) + ')';
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(x, rand() * canvas.height * 0.3);
+    ctx.lineTo(x + 1.5, len);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeWindowGlassStreakTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 400;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const rand = privateTeamSeededRand(113);
+  for (let i = 0; i < 9; i++) {
+    const x = rand() * canvas.width;
+    const y0 = rand() * canvas.height * 0.35;
+    const len = 40 + rand() * 120;
+    ctx.strokeStyle = 'rgba(200,220,245,' + (0.08 + rand() * 0.14) + ')';
+    ctx.lineWidth = 1 + rand() * 2.2;
+    ctx.beginPath();
+    ctx.moveTo(x, y0);
+    ctx.lineTo(x + 4 + rand() * 8, y0 + len);
+    ctx.stroke();
+  }
+  for (let d = 0; d < 6; d++) {
+    const dx = rand() * canvas.width;
+    const dy = rand() * canvas.height;
+    const r = 2 + rand() * 4;
+    const g = ctx.createRadialGradient(dx, dy, 0, dx, dy, r);
+    g.addColorStop(0, 'rgba(210,230,250,0.18)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(dx - r, dy - r, r * 2, r * 2);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeSkylineFlickerLightsTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  const rand = privateTeamSeededRand(89);
+  const lights = [];
+  for (let i = 0; i < 14; i++) {
+    lights.push({
+      x: rand() * canvas.width,
+      y: canvas.height * (0.35 + rand() * 0.55),
+      w: 2 + rand() * 3,
+      h: 2 + rand() * 4,
+      on: rand() > 0.32,
+      warm: rand() > 0.45
+    });
+  }
+  const paint = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let li = 0; li < lights.length; li++) {
+      const L = lights[li];
+      if (!L.on) continue;
+      ctx.fillStyle = L.warm ? 'rgba(255,210,120,0.78)' : 'rgba(180,215,240,0.68)';
+      ctx.fillRect(L.x, L.y, L.w, L.h);
+    }
+  };
+  paint();
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return { tex, lights, paint, rand: privateTeamSeededRand(91) };
+}
+
+function stepSkylineFlickerLights(flicker) {
+  const r = flicker.rand();
+  const n = 2 + Math.floor(r() * 3);
+  for (let i = 0; i < n; i++) {
+    const L = flicker.lights[Math.floor(r() * flicker.lights.length)];
+    if (r() > 0.5) L.on = !L.on;
+  }
+  flicker.paint();
 }
 
 function applyUnderwaterTint(mat, waterYUniform) {
@@ -1226,7 +1370,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     new THREE.PlaneGeometry(winW + 0.2, winH + 0.2),
     new THREE.MeshBasicMaterial({ map: skyTex })
   );
-  windowSky.position.set(0, winBottom + winH / 2, backZ - WALL_THICK - 0.02);
+  windowSky.position.set(0, winBottom + winH / 2, backZ - WALL_THICK - PRIVATE_TEAM_WINDOW_SKY_Z);
   windowSky.name = 'windowSky';
   root.add(windowSky);
 
@@ -1256,17 +1400,99 @@ export function mountPrivateTeamScene(canvas, opts) {
   });
   root.add(skyline);
 
+  const flickerLights = makeSkylineFlickerLightsTexture();
+  const windowSkylineFlicker = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW + 0.1, winH * 0.78),
+    new THREE.MeshBasicMaterial({
+      map: flickerLights.tex,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.82,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  windowSkylineFlicker.position.set(0, skylineCenterY + 0.02, backZ - WALL_THICK - 0.085);
+  windowSkylineFlicker.name = 'windowSkylineFlicker';
+  root.add(windowSkylineFlicker);
+
+  const cloudTex = makeNightCloudLayerTexture();
+  const windowClouds = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW + 0.16, winH * 0.52),
+    new THREE.MeshBasicMaterial({
+      map: cloudTex,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.62
+    })
+  );
+  windowClouds.position.set(0, skylineCenterY + winH * 0.18, backZ - WALL_THICK - 0.052);
+  windowClouds.name = 'windowClouds';
+  root.add(windowClouds);
+
+  const coarsePointer =
+    typeof win.matchMedia === 'function' && win.matchMedia('(pointer: coarse)').matches;
+  const narrowWin = (win.innerWidth || 1024) < 640;
+  const rainLineCount = coarsePointer || narrowWin ? 44 : 86;
+  const rainTex = makeWindowRainTexture(rainLineCount);
+  const rainMat = new THREE.MeshBasicMaterial({
+    map: rainTex,
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false
+  });
+  const windowRainBack = new THREE.Mesh(new THREE.PlaneGeometry(winW + 0.04, winH - 0.06), rainMat);
+  windowRainBack.position.set(0, skylineCenterY, backZ - WALL_THICK - 0.032);
+  windowRainBack.visible = false;
+  windowRainBack.name = 'windowRainBack';
+  root.add(windowRainBack);
+
+  const streakTex = makeWindowGlassStreakTexture();
+  const windowGlassStreaks = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW + 0.02, winH - 0.1),
+    new THREE.MeshBasicMaterial({
+      map: streakTex,
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false
+    })
+  );
+  windowGlassStreaks.visible = false;
+  windowGlassStreaks.name = 'windowGlassStreaks';
+  const glassY = winBottom + winH / 2;
+
   const glassMat = new THREE.MeshLambertMaterial({
     color: 0x8aa0c0,
-    emissive: 0x1a2838,
-    emissiveIntensity: 0.22,
+    emissive: 0x2a1e10,
+    emissiveIntensity: 0.26,
     transparent: true,
     opacity: 0.11,
     depthWrite: false
   });
   const paneW = (winW - 0.12) / 3;
-  const glassY = winBottom + winH / 2;
   const glassZ = backZ + 0.02;
+  windowGlassStreaks.position.set(0, glassY, glassZ + 0.012);
+  root.add(windowGlassStreaks);
+
+  const airplaneGroup = new THREE.Group();
+  airplaneGroup.name = 'windowAirplane';
+  airplaneGroup.visible = false;
+  const planeBody = new THREE.Mesh(
+    new THREE.SphereGeometry(0.01, 4, 4),
+    new THREE.MeshBasicMaterial({ color: 0xfff4e0, transparent: true, opacity: 0.95 })
+  );
+  const planeWing = new THREE.Mesh(
+    new THREE.SphereGeometry(0.007, 4, 4),
+    new THREE.MeshBasicMaterial({ color: 0xffeecc, transparent: true, opacity: 0.75 })
+  );
+  planeWing.position.set(-0.022, 0, 0);
+  const planeTail = new THREE.Mesh(
+    new THREE.SphereGeometry(0.006, 4, 4),
+    new THREE.MeshBasicMaterial({ color: 0xffe8b8, transparent: true, opacity: 0.7 })
+  );
+  planeTail.position.set(0.018, 0.006, 0);
+  airplaneGroup.add(planeBody, planeWing, planeTail);
+  airplaneGroup.position.set(winLeft, winTop - 0.22, backZ - WALL_THICK - 0.19);
+  root.add(airplaneGroup);
   [-paneW - 0.04, 0, paneW + 0.04].forEach((px) => {
     const glass = new THREE.Mesh(new THREE.BoxGeometry(paneW, winH - 0.08, 0.02), glassMat);
     glass.position.set(px, glassY, glassZ);
@@ -1285,6 +1511,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   frameBar(winW + 0.12, 0.08, 0, winTop + 0.02);
   frameBar(0.06, winH, -paneW / 2 - 0.02, glassY);
   frameBar(0.06, winH, paneW / 2 + 0.02, glassY);
+  frameBar(winW + 0.12, 0.035, 0, glassY);
 
   const windowWash = new THREE.Mesh(
     new THREE.PlaneGeometry(2.8, 1.35),
@@ -1965,6 +2192,13 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
   let raf = 0;
   let t0 = performance.now();
+  let windowRainActive = Math.random() > 0.45;
+  let windowRainToggleAt = t0 + 52000 + Math.random() * 80000;
+  let lastSkylineFlickerMs = 0;
+  let airplaneActive = false;
+  let airplaneStartMs = 0;
+  let airplaneNextAt = t0 + 22000 + Math.random() * 36000;
+  const WINDOW_AIRPLANE_MS = 4800;
 
   function resize() {
     const parent = canvas.parentElement;
@@ -2100,6 +2334,51 @@ export function mountPrivateTeamScene(canvas, opts) {
       lampSpot.intensity = lampSpotBase * lampPulse;
       lampHaloMat.opacity =
         lampHaloBase * (reducedMotion ? 1 : 0.88 + ((Math.sin(elapsed * 3.6 + 0.8) + 1) / 2) * 0.12);
+    }
+
+    if (now >= windowRainToggleAt) {
+      windowRainActive = !windowRainActive;
+      windowRainToggleAt = now + 72000 + Math.random() * 96000;
+    }
+    windowRainBack.visible = windowRainActive;
+    windowGlassStreaks.visible = windowRainActive;
+    if (windowRainActive) {
+      if (privateTeamWindowAmbientMotionEnabled(reducedMotion)) {
+        rainTex.offset.y = (elapsed * 0.9) % 1;
+      } else {
+        rainTex.offset.y = 0.28;
+      }
+    }
+
+    if (privateTeamWindowAmbientMotionEnabled(reducedMotion)) {
+      cloudTex.offset.x = (elapsed * 0.014) % 1;
+      if (now - lastSkylineFlickerMs >= 300) {
+        lastSkylineFlickerMs = now;
+        stepSkylineFlickerLights(flickerLights);
+        flickerLights.tex.needsUpdate = true;
+      }
+      windowSkylineFlicker.visible = true;
+      if (!airplaneActive && now >= airplaneNextAt) {
+        airplaneActive = true;
+        airplaneStartMs = now;
+        airplaneGroup.visible = true;
+        airplaneGroup.position.set(winLeft + 0.08, winTop - 0.22, backZ - WALL_THICK - 0.19);
+      }
+      if (airplaneActive) {
+        const ap = (now - airplaneStartMs) / WINDOW_AIRPLANE_MS;
+        if (ap >= 1) {
+          airplaneActive = false;
+          airplaneGroup.visible = false;
+          airplaneNextAt = now + 40000 + Math.random() * 55000;
+        } else {
+          airplaneGroup.position.x = winLeft + 0.08 + ap * (winW + 0.28);
+        }
+      }
+    } else {
+      cloudTex.offset.x = 0;
+      windowSkylineFlicker.visible = false;
+      airplaneGroup.visible = false;
+      airplaneActive = false;
     }
 
     if (yawReturnStartMs != null) {
