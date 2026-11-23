@@ -11,6 +11,8 @@ const {
   fillStatusCard,
   isSafePublicText,
   phraseForDoneDisplay,
+  completedTodayKeys,
+  hasNewCompletedToday,
   secretarySpriteUrlForStatus,
   taskProgressFromTiger
 } = await loadPublicModule('private-team-office.js');
@@ -41,6 +43,12 @@ test('tigerFromPublic 解析公開欄位', () => {
   assert.equal(t.active.length, 1);
   assert.equal(t.completedToday.length, 1);
   assert.equal(tigerFromPublic({ success: false }), null);
+});
+
+test('hasNewCompletedToday 僅在新鍵出現時', () => {
+  assert.equal(hasNewCompletedToday(['issue:1'], [{ issue: 1 }]), false);
+  assert.equal(hasNewCompletedToday(['issue:1'], [{ issue: 2 }]), true);
+  assert.equal(completedTodayKeys([{ at: 't', issue: 5 }])[0], 'issue:5');
 });
 
 test('secretarySpriteUrlForStatus 對應三張立繪', () => {

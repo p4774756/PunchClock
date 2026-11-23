@@ -1,8 +1,23 @@
 import * as THREE from './vendor/three.module.js';
 
 export const SECRETARY_SPRITE_URL_TYPING = '/assets/private-team/secretary-typing-a.webp';
+export const SECRETARY_SPRITE_URL_TYPING_B = '/assets/private-team/secretary-typing-b.webp';
+export const SECRETARY_SPRITE_URL_WAVE = '/assets/private-team/secretary-wave.webp';
+export const SECRETARY_SPRITE_URL_YEAH = '/assets/private-team/secretary-yeah.webp';
 export const SECRETARY_SPRITE_URL_IDLE = '/assets/private-team/secretary-idle-tea.webp';
 export const SECRETARY_SPRITE_URL_SLEEP = '/assets/private-team/secretary-sleep.webp';
+
+const SECRETARY_TYPING_FRAME_MS = 500;
+const SECRETARY_WAVE_MS = 3000;
+const SECRETARY_YEAH_MS = 2500;
+
+export function secretaryTypingDisplayUrl(statusBaseUrl, useTypingB, reducedMotion) {
+  const base = statusBaseUrl == null ? '' : String(statusBaseUrl);
+  if (base === SECRETARY_SPRITE_URL_TYPING && useTypingB && !reducedMotion) {
+    return SECRETARY_SPRITE_URL_TYPING_B;
+  }
+  return base;
+}
 
 export const PRIVATE_TEAM_ZOOM_MIN = 0.72;
 export const PRIVATE_TEAM_ZOOM_MAX = 2.05;
@@ -540,6 +555,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   let lampSpotBase = lighting.spot;
   let lampHaloBase = lighting.haloOpacity;
 
+  let reducedMotion = false;
+
   addLowPolyPlant(root, -1.15, 0.82);
 
   const secretaryRoot = new THREE.Group();
@@ -560,13 +577,92 @@ export function mountPrivateTeamScene(canvas, opts) {
   let secretarySprite = null;
   const spriteBaseY = SECRETARY_SPRITE_HEIGHT / 2 + 0.02;
   let spriteAnimMode = 'idle';
+  let statusBaseUrl = SECRETARY_SPRITE_URL_IDLE;
+  let typingShowB = false;
+  let lastTypingFlipMs = 0;
+  let overlayActive = null;
+  let overlayPending = null;
   let currentSpriteUrl = '';
   let desiredSpriteUrl = '';
   let spriteLoadSeq = 0;
   const loader = new THREE.TextureLoader();
 
+  function refreshPoseAnimMode() {
+    spriteAnimMode = spriteAnimModeForUrl(statusBaseUrl);
+  }
+
+  function resolveRestSpriteUrl() {
+    return secretaryTypingDisplayUrl(statusBaseUrl, typingShowB, reducedMotion);
+  }
+
+  function applySecretarySpriteUrl(url) {
+    const next = url == null ? '' : String(url).trim();
+    if (!next || next === desiredSpriteUrl) return;
+    desiredSpriteUrl = next;
+    const seq = ++spriteLoadSeq;
+    loader.load(
+      next,
+      (tex) => {
+        if (seq !== spriteLoadSeq || desiredSpriteUrl !== next) {
+          disposeUnusedSpriteTexture(tex);
+          return;
+        }
+        if (secretarySprite) retextureSecretarySprite(tex, next);
+        else mountSecretarySprite(tex, next);
+      },
+      undefined,
+      () => {
+        if (seq === spriteLoadSeq) desiredSpriteUrl = currentSpriteUrl;
+      }
+    );
+  }
+
+  function refreshSecretaryDisplay() {
+    if (overlayActive) {
+      applySecretarySpriteUrl(overlayActive.url);
+      return;
+    }
+    applySecretarySpriteUrl(resolveRestSpriteUrl());
+  }
+
+  function endSecretaryOverlay(now) {
+    overlayActive = null;
+    if (overlayPending) {
+      const pending = overlayPending;
+      overlayPending = null;
+      overlayActive = { url: pending.url, until: now + pending.ms };
+      applySecretarySpriteUrl(pending.url);
+      return;
+    }
+    refreshSecretaryDisplay();
+  }
+
+  function enqueueSecretaryOverlay(url, ms, now) {
+    if (overlayActive && overlayActive.url === url) {
+      overlayActive.until = Math.max(overlayActive.until, now + ms);
+      return;
+    }
+    if (overlayActive) {
+      overlayPending = { url, ms };
+      return;
+    }
+    overlayActive = { url, until: now + ms };
+    applySecretarySpriteUrl(url);
+  }
+
+  function playSecretaryWave() {
+    enqueueSecretaryOverlay(SECRETARY_SPRITE_URL_WAVE, SECRETARY_WAVE_MS, performance.now());
+  }
+
+  function playSecretaryYeah() {
+    if (overlayActive && overlayActive.url === SECRETARY_SPRITE_URL_YEAH) {
+      return;
+    }
+    enqueueSecretaryOverlay(SECRETARY_SPRITE_URL_YEAH, SECRETARY_YEAH_MS, performance.now());
+  }
+
   function spriteAnimModeForUrl(url) {
-    if (url === SECRETARY_SPRITE_URL_TYPING) return 'working';
+    if (url === SECRETARY_SPRITE_URL_TYPING || url === SECRETARY_SPRITE_URL_TYPING_B) return 'working';
     if (url === SECRETARY_SPRITE_URL_SLEEP) return 'sleep';
     return 'idle';
   }
@@ -592,7 +688,6 @@ export function mountPrivateTeamScene(canvas, opts) {
       clickables.push(secretarySprite);
     }
     currentSpriteUrl = url;
-    spriteAnimMode = spriteAnimModeForUrl(url);
   }
 
   function retextureSecretarySprite(tex, url) {
@@ -610,7 +705,6 @@ export function mountPrivateTeamScene(canvas, opts) {
     secretarySprite.position.set(0, spriteBaseY, 0);
     secretarySprite.rotation.set(0, 0, 0);
     currentSpriteUrl = url;
-    spriteAnimMode = spriteAnimModeForUrl(url);
   }
 
   function disposeUnusedSpriteTexture(tex) {
@@ -619,27 +713,16 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   function setSecretarySprite(url) {
     const next = url == null ? '' : String(url).trim();
-    if (!next || next === desiredSpriteUrl) return;
-    desiredSpriteUrl = next;
-    const seq = ++spriteLoadSeq;
-    loader.load(
-      next,
-      (tex) => {
-        if (seq !== spriteLoadSeq || desiredSpriteUrl !== next) {
-          disposeUnusedSpriteTexture(tex);
-          return;
-        }
-        if (secretarySprite) retextureSecretarySprite(tex, next);
-        else mountSecretarySprite(tex, next);
-      },
-      undefined,
-      () => {
-        if (seq === spriteLoadSeq) desiredSpriteUrl = currentSpriteUrl;
-      }
-    );
+    if (!next || next === statusBaseUrl) return;
+    statusBaseUrl = next;
+    typingShowB = false;
+    lastTypingFlipMs = performance.now();
+    refreshPoseAnimMode();
+    refreshSecretaryDisplay();
   }
 
-  setSecretarySprite(SECRETARY_SPRITE_URL_IDLE);
+  refreshPoseAnimMode();
+  applySecretarySpriteUrl(resolveRestSpriteUrl());
 
   const secretaryBubbleX = 0.56;
   const bubbleDrawer = makeBubbleDrawer();
@@ -740,6 +823,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       if (onOpenProgress) onOpenProgress();
       return;
     }
+    playSecretaryWave();
     if (onActivate) onActivate();
   }
 
@@ -780,17 +864,20 @@ export function mountPrivateTeamScene(canvas, opts) {
   canvas.addEventListener('wheel', onWheel, { passive: false });
 
   let running = true;
-  let reducedMotion = false;
   if (typeof win.matchMedia === 'function') {
     const mq = win.matchMedia('(prefers-reduced-motion: reduce)');
     reducedMotion = !!mq.matches;
     if (typeof mq.addEventListener === 'function') {
       mq.addEventListener('change', () => {
         reducedMotion = !!mq.matches;
+        typingShowB = false;
+        refreshSecretaryDisplay();
       });
     } else if (typeof mq.addListener === 'function') {
       mq.addListener(() => {
         reducedMotion = !!mq.matches;
+        typingShowB = false;
+        refreshSecretaryDisplay();
       });
     }
   }
@@ -810,6 +897,18 @@ export function mountPrivateTeamScene(canvas, opts) {
   function tick(now) {
     if (!running) return;
     raf = win.requestAnimationFrame(tick);
+    if (overlayActive && now >= overlayActive.until) {
+      endSecretaryOverlay(now);
+    } else if (
+      !overlayActive &&
+      !reducedMotion &&
+      statusBaseUrl === SECRETARY_SPRITE_URL_TYPING &&
+      now - lastTypingFlipMs >= SECRETARY_TYPING_FRAME_MS
+    ) {
+      lastTypingFlipMs = now;
+      typingShowB = !typingShowB;
+      refreshSecretaryDisplay();
+    }
     const elapsed = (now - t0) / 1000;
     const breath = Math.sin(elapsed * 1.65) * 0.014;
     const typeNudge = Math.sin(elapsed * 7.2) * 0.008;
@@ -884,8 +983,12 @@ export function mountPrivateTeamScene(canvas, opts) {
     },
     setReducedMotion(next) {
       reducedMotion = !!next;
+      typingShowB = false;
+      refreshSecretaryDisplay();
     },
     setSecretarySprite,
+    playSecretaryWave,
+    playSecretaryYeah,
     setSceneInputEnabled(next) {
       sceneInputEnabled = !!next;
     },
