@@ -565,9 +565,40 @@ export function mountPrivateTeamPage(opts) {
     });
   }
 
+  const PROG_HIT_FLASH_MS = 600;
+  let progHitFlashTimer = null;
+
+  function clearProgHitFlash() {
+    if (progHitFlashTimer != null) {
+      win.clearTimeout(progHitFlashTimer);
+      progHitFlashTimer = null;
+    }
+    if (progHit) progHit.classList.remove('is-flash');
+  }
+
+  function progHitTouchFlashBeforeOpen(ev) {
+    if (ev.pointerType === 'mouse' || ev.pointerType === 'pen') return false;
+    if (ev.pointerType === 'touch') return true;
+    if (ev.detail === 0) return false;
+    return (
+      typeof win.matchMedia === 'function' &&
+      win.matchMedia('(pointer: coarse)').matches
+    );
+  }
+
   if (progHit) {
     progHit.addEventListener('click', (ev) => {
       ev.stopPropagation();
+      clearProgHitFlash();
+      if (progHitTouchFlashBeforeOpen(ev)) {
+        progHit.classList.add('is-flash');
+        progHitFlashTimer = win.setTimeout(() => {
+          progHitFlashTimer = null;
+          progHit.classList.remove('is-flash');
+          openRoadmapFromBoard();
+        }, PROG_HIT_FLASH_MS);
+        return;
+      }
       openRoadmapFromBoard();
     });
   }
