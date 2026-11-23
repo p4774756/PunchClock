@@ -139,21 +139,21 @@ try {
 
   await test('穴位庫有輸入時搜完整目錄', () => {
     const codes = new Set(animeAvatar(DEFAULT_AVATAR_ID).points.map(p => p.code));
-    const quiet = libraryPointResults('', 'all', 'all', 'head-neck-21', codes);
+    const quiet = libraryPointResults('', 'all', 'head-neck-21', codes);
     assert.equal(quiet.length, 21);
     assert.equal(quiet.every(p => codes.has(p.code)), true);
     assert.equal(quiet.some(p => p.code === 'TE18'), false);
-    const qiyi = libraryPointResults('ㄑㄧˋ', 'all', 'all', 'head-neck-21', codes).map(p => p.code);
+    const qiyi = libraryPointResults('ㄑㄧˋ', 'all', 'head-neck-21', codes).map(p => p.code);
     assert.ok(qiyi.includes('TE18'), 'ㄑㄧˋ 應含瘛脈 TE18');
     assert.ok(qiyi.includes('ST1'), 'ㄑㄧˋ 仍含已烘的承泣');
-    const liou = libraryPointResults('ㄌㄧㄡˋ', 'all', 'all', 'head-neck-21', codes).map(p => p.code).sort();
+    const liou = libraryPointResults('ㄌㄧㄡˋ', 'all', 'head-neck-21', codes).map(p => p.code).sort();
     assert.deepEqual(liou, ['KI7', 'LI7']);
-    const yixi = libraryPointResults('ㄧ ㄒㄧ', 'all', 'all', 'head-neck-21', codes).map(p => p.code);
+    const yixi = libraryPointResults('ㄧ ㄒㄧ', 'all', 'head-neck-21', codes).map(p => p.code);
     assert.ok(yixi.includes('BL45'), 'ㄧ ㄒㄧ 應含譩譆');
     for (const setId of ['trunk-30', 'back-shu-14']) {
-      const again = libraryPointResults('ㄌㄧㄡˋ', 'all', 'all', setId, codes).map(p => p.code);
+      const again = libraryPointResults('ㄌㄧㄡˋ', 'all', setId, codes).map(p => p.code);
       assert.ok(again.includes('LI7') && again.includes('KI7'), setId);
-      assert.ok(libraryPointResults('ㄑㄧˋ', 'all', 'all', setId, codes).some(p => p.code === 'TE18'), setId);
+      assert.ok(libraryPointResults('ㄑㄧˋ', 'all', setId, codes).some(p => p.code === 'TE18'), setId);
     }
   });
 
