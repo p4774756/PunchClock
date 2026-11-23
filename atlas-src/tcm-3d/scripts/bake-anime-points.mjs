@@ -298,6 +298,7 @@ if(!codesFilter) for(const row of [
  const [axis,codes,anchor,fixed]=row;
  realignGroup(codes,axis,anchor,fixed);
 }
+const wristCreased=new Set(['LU9','PC7','HT7','LI5','TE4','SI5']);
 /** 肘／腕橫紋皮膚窄，前向射線會收斂；對齊 X 後依橈→尺補 Z 再吸附。 */
 const nudgeRadialSpread=(anchor,offsets)=>{
  const ref=byCode.get(anchor);
@@ -308,6 +309,7 @@ const nudgeRadialSpread=(anchor,offsets)=>{
   if(code===anchor)continue;
   const e=byCode.get(code);
   if(!e)continue;
+  const spread=Math.abs(dz??0);
   const targetZ=zRef+(dz??0);
   const pos=e.position.slice();
   pos[0]=xRef;
@@ -316,35 +318,53 @@ const nudgeRadialSpread=(anchor,offsets)=>{
   if(!hit)continue;
   let np=hit.position.slice(),nor=hit.normal.slice();
   np[0]=xRef;
-  if(dz!=null&&np[2]-zRef<dz*.55){
-   pos[2]=zRef+dz;
-   const hit2=snap(new T.Vector3(...pos),preferFor(code,pos));
-   if(hit2){np=hit2.position.slice();nor=hit2.normal.slice();np[0]=xRef;}
+  const wristCollapsed=wristCreased.has(code)&&spread>0&&Math.abs(np[2]-zRef)<spread*.35;
+  const elbowMissed=!wristCreased.has(code)&&spread>0&&Math.abs(np[2]-targetZ)>spread*.5;
+  if(wristCollapsed||elbowMissed){
+   const hit2=snap(new T.Vector3(xRef,np[1],targetZ),preferFor(code,[xRef,np[1],targetZ]));
+   const needHit=targetZ*zRef>=0?spread*0.1:spread*0.4;
+   if(hit2&&Math.abs(hit2.position[2]-np[2])>=needHit){np=hit2.position.slice();nor=hit2.normal.slice();}
+   else if(wristCollapsed){
+    const y0=ref.position[1];
+    let pick=null,bestPick=0;
+    for(const dy of [0,.004,-.004,.008,-.008,.012,-.012,.016,-.016]){
+     const h=snap(new T.Vector3(xRef,y0+dy,targetZ),preferFor(code,[xRef,y0+dy,targetZ]));
+     if(!h)continue;
+     const needRad=targetZ*zRef>=0?spread*.15:spread*.3;
+     const radial=Math.abs(h.position[2]-zRef),toward=Math.abs(h.position[2]-targetZ);
+     if(radial<needRad||toward>Math.abs(np[2]-targetZ)+1e-6)continue;
+     if(radial>bestPick){pick=h;bestPick=radial;}
+    }
+    if(pick){np=pick.position.slice();nor=pick.normal.slice();}
+    else if(hit2){np=hit2.position.slice();nor=hit2.normal.slice();}
+   }
+   else if(hit2){np=hit2.position.slice();nor=hit2.normal.slice();}
+   else if(elbowMissed)np[2]+=(targetZ-np[2])*.65;
   }
+  np[0]=xRef;
   nor[0]=Math.abs(nor[0]);
   byCode.set(code,{...e,position:np,normal:nor});
  }
 };
 const armRadialTweak=()=>{
- nudgeRadialSpread('LU5',{PC3:.011,HT3:.024});
- nudgeRadialSpread('LU9',{PC7:.008,HT7:.018});
+ nudgeRadialSpread('LU5',{PC3:.013,HT3:.024});
+ nudgeRadialSpread('LU9',{PC7:.01,HT7:.018});
  nudgeRadialSpread('LI5',{TE4:.006,SI5:.01});
  const lu5=byCode.get('LU5'),pc3=byCode.get('PC3'),ht3=byCode.get('HT3');
  if(lu5&&pc3&&ht3){
-  const zLu=lu5.position[2];
-  const tighten=(code,targetZ,targetY)=>{
+  const zLu=lu5.position[2],yLu=lu5.position[1];
+  const elbowY=(code,yOff)=>{
    const e=byCode.get(code);
    if(!e)return;
-   const pos=[lu5.position[0],targetY??e.position[1],targetZ];
+   const pos=[lu5.position[0],yLu+yOff,e.position[2]];
    const hit=snap(new T.Vector3(...pos),preferFor(code,pos));
    if(!hit)return;
    const np=hit.position.slice();
-   np[0]=lu5.position[0];
+   np[0]=lu5.position[0];np[2]=e.position[2];
    byCode.set(code,{...e,position:np,normal:[Math.abs(hit.normal[0]),hit.normal[1],hit.normal[2]]});
   };
-  const yLu=lu5.position[1];
-  tighten('PC3',zLu+.006,yLu-.006);
-  tighten('HT3',zLu+.016,yLu+.004);
+  elbowY('PC3',-.006);
+  elbowY('HT3',+.004);
  }
 };
 if(!codesFilter){
