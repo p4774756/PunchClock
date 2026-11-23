@@ -65,6 +65,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -104,6 +105,10 @@ public class App extends JFrame {
     /** 同事聊天紀錄（只存記憶體）。 */
     private final PeerChatStore chatStore = new PeerChatStore();
     private final Map<String, PeerChatWindow> chatWindows = new LinkedHashMap<>();
+    /** 有未讀訊息／邀請的同事（辦公室低調：僅標記，不彈窗）。 */
+    private final Set<String> unreadPeerIds = new LinkedHashSet<>();
+    /** 待使用者打開聊天再決定的直傳邀請。 */
+    private final Map<String, PendingRelayOffer> pendingRelayOffers = new LinkedHashMap<>();
     /** 最近一次從該同事收到訊息時附帶的大頭照。 */
     private final Map<String, String> peerAvatars = new HashMap<>();
     private boolean peerInteractionEnabled = true;
@@ -268,7 +273,6 @@ public class App extends JFrame {
 
         windowChrome = WindowChrome.install(
                 this, getTitle(), appIconImage, boldFont, mainFont);
-        bindWindowTransparencySlider();
         JPanel content = WindowChrome.bodyOf(this);
 
         JTabbedPane tabs = new JTabbedPane();
@@ -290,6 +294,7 @@ public class App extends JFrame {
         tasksTab.add(tasksBody, BorderLayout.CENTER);
 
         JTabbedPane settingsTabs = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont, fieldFont);
+        bindWindowTransparencySlider();
         JPanel settingsTab = new JPanel(new BorderLayout());
         settingsTab.setOpaque(false);
         settingsTab.setBorder(new EmptyBorder(4, 4, 4, 4));
@@ -385,6 +390,12 @@ public class App extends JFrame {
             }
         });
         shell.setMiniModeHandler(this::applyMiniModeFrameSize);
+        WindowChrome.setTitleBarMiniToggle(this, () -> {
+            if (shell != null && !shell.isMiniMode()) {
+                shell.setMiniMode(true);
+                applyMiniModeFrameSize();
+            }
+        });
         tabs.addChangeListener(e -> {
             if (shell != null) {
                 shell.followTab();
@@ -412,16 +423,16 @@ public class App extends JFrame {
     }
 
     private void bindWindowTransparencySlider() {
-        if (windowChrome == null || windowChrome.transparencySlider == null) {
+        if (serverRefs.windowTransparencySlider == null) {
             return;
         }
-        windowChrome.transparencySlider.addChangeListener(e -> {
-            int percent = windowChrome.transparencySlider.getValue();
-            if (windowChrome.transparencyValueLabel != null) {
-                windowChrome.transparencyValueLabel.setText(WindowOpacity.formatPercentLabel(percent));
+        serverRefs.windowTransparencySlider.addChangeListener(e -> {
+            int percent = serverRefs.windowTransparencySlider.getValue();
+            if (serverRefs.windowTransparencyValueLabel != null) {
+                serverRefs.windowTransparencyValueLabel.setText(WindowOpacity.formatPercentLabel(percent));
             }
             applyWindowTransparency(percent, false);
-            if (!windowChrome.transparencySlider.getValueIsAdjusting()) {
+            if (!serverRefs.windowTransparencySlider.getValueIsAdjusting()) {
                 saveCloudConfig();
             }
         });
@@ -431,11 +442,14 @@ public class App extends JFrame {
         int percent = config == null
                 ? 0
                 : ConfigPersistenceService.clampWindowTransparencyPercent(config.windowTransparencyPercent);
-        if (windowChrome != null && windowChrome.transparencySlider != null) {
+        if (serverRefs.windowTransparencySlider != null) {
             boolean previous = suppressConfigSave;
             suppressConfigSave = true;
             try {
-                windowChrome.transparencySlider.setValue(percent);
+                serverRefs.windowTransparencySlider.setValue(percent);
+                if (serverRefs.windowTransparencyValueLabel != null) {
+                    serverRefs.windowTransparencyValueLabel.setText(WindowOpacity.formatPercentLabel(percent));
+                }
             } finally {
                 suppressConfigSave = previous;
             }
@@ -493,8 +507,8 @@ public class App extends JFrame {
         Point loc = getLocation();
         config.windowX = loc.x;
         config.windowY = loc.y;
-        if (windowChrome != null && windowChrome.transparencySlider != null) {
-            config.windowTransparencyPercent = windowChrome.transparencySlider.getValue();
+        if (serverRefs.windowTransparencySlider != null) {
+            config.windowTransparencyPercent = serverRefs.windowTransparencySlider.getValue();
         }
         if (mainTabs != null) {
             int tab = mainTabs.getSelectedIndex();
@@ -679,10 +693,21 @@ public class App extends JFrame {
             appendLog("[警告] [聊天] 無法和本機聊天");
             return;
         }
-        ensureChatWindow(peerId).showAndFocus();
+        openChatForUser(peerId);
     }
 
-    /** 收到傳檔時只把聊天視窗帶到前面，不拉主視窗。 */
+    /** 使用者主動開啟聊天：可搶焦點，並處理待決定的直傳。 */
+    private void openChatForUser(String peerId) {
+        if (peerId == null || peerId.isBlank()) {
+            return;
+        }
+        clearPeerUnread(peerId);
+        PeerChatWindow window = ensureChatWindow(peerId);
+        window.showAndFocus();
+        presentPendingRelayOffer(peerId, window);
+    }
+
+    /** 使用者從寵物泡泡點進聊天。 */
     private PeerChatWindow focusChat(String peerId) {
         PeerChatWindow window = ensureChatWindow(peerId);
         WindowShake.bringToFront(window);
@@ -746,17 +771,35 @@ public class App extends JFrame {
         }
     }
 
-    /** 收到同事的訊息：記進紀錄、響一聲，並開出（或帶到前面）對應的聊天視窗。 */
+    /** 收到同事的訊息：只記紀錄與未讀標記，不開窗、不搶焦點、不出聲。 */
     private void receiveChatMessage(String fromId, String text, String imageEncoded, Long sentAtMs, String avatar) {
         rememberPeerAvatar(fromId, avatar);
-        PeerChatStore.Entry entry = chatStore.addMessage(fromId, false, text, imageEncoded, sentAtMs);
-        Toolkit.getDefaultToolkit().beep();
-        PeerChatWindow existing = chatWindows.get(fromId);
-        if (existing == null) {
-            ensureChatWindow(fromId).showAndFocus();
-        } else {
-            existing.append(entry);
-            existing.showAndFocus();
+        InboundPeerDelivery.deliver(chatWindows, chatStore, fromId, text, imageEncoded, sentAtMs);
+        markPeerUnread(fromId);
+    }
+
+    private void markPeerUnread(String peerId) {
+        if (peerId == null || peerId.isBlank() || isSelfClientId(peerId)) {
+            return;
+        }
+        unreadPeerIds.add(peerId);
+        refreshPeerUnreadMarkers();
+    }
+
+    private void clearPeerUnread(String peerId) {
+        if (peerId == null || !unreadPeerIds.remove(peerId)) {
+            return;
+        }
+        refreshPeerUnreadMarkers();
+    }
+
+    private void refreshPeerUnreadMarkers() {
+        if (peerRefs.peerTable != null) {
+            peerRefs.peerTable.putClientProperty(PanelFactory.PEER_UNREAD_CLIENT_KEY, new LinkedHashSet<>(unreadPeerIds));
+            peerRefs.peerTable.repaint();
+        }
+        if (shell != null) {
+            shell.setFriendNavUnread(unreadPeerIds.size());
         }
     }
 
@@ -902,7 +945,7 @@ public class App extends JFrame {
             shell.openTab(2);
             return;
         }
-        ensureChatWindow(recent.clientId).showAndFocus();
+        openChatForUser(recent.clientId);
     }
 
     private void promptSendFile() {
@@ -1420,9 +1463,6 @@ public class App extends JFrame {
         }
         String timeLabel = formatPeerMessageTime(sentAtMs);
         appendLog("[訊息] 【戳】（" + timeLabel + "）來自【" + fromId + "】：" + text);
-        if (shell != null) {
-            shell.play(AnimeCast.REACT);
-        }
         receiveChatMessage(fromId, text, "", sentAtMs, avatar);
         notifyPet(DesktopPetEvent.MESSAGE_RECEIVED, () -> openPetChat(fromId));
     }
@@ -1435,9 +1475,6 @@ public class App extends JFrame {
         appendLog("[訊息] 【戳】（" + timeLabel + "）來自【" + fromId + "】（含"
                 + (count > 1 ? " " + count + " 張圖片" : "圖片") + "）："
                 + (safeText.isEmpty() ? "（僅圖片）" : safeText));
-        if (shell != null) {
-            shell.play(AnimeCast.REACT);
-        }
         receiveChatMessage(fromId, safeText, imageEncoded, sentAtMs, avatar);
         notifyPet(DesktopPetEvent.MESSAGE_RECEIVED, () -> openPetChat(fromId));
     }
@@ -1450,23 +1487,63 @@ public class App extends JFrame {
         String sizeLabel = PeerFileRules.formatSize(Math.max(0, size));
         appendLog("[檔案] （" + timeLabel + "）【" + fromId + "】要直傳「" + safeName + "」（" + sizeLabel + "）");
         chatNote(fromId, "對方要直傳「" + safeName + "」（" + sizeLabel + "）");
-        Toolkit.getDefaultToolkit().beep();
-        PeerChatWindow window = focusChat(fromId);
+        pendingRelayOffers.put(relayId, new PendingRelayOffer(fromId, relayId, safeName, size, folder, sentAtMs));
+        markPeerUnread(fromId);
         notifyPet(DesktopPetEvent.FILE_OFFERED, () -> openPetChat(fromId));
-        UiFonts.showModelessConfirm(
-                window,
-                timeLabel + "\n\n【" + fromId + "】要直接傳" + (folder ? "資料夾（ZIP）" : "檔案") + "給你：\n"
-                        + safeName + "（" + sizeLabel + "）\n\n"
-                        + "雙方需保持在線直到傳完。\n"
-                        + "請在 " + PeerFileRules.RELAY_ACCEPT_TIMEOUT_LABEL + " 內決定，要接收嗎？",
-                "同事直傳檔案 · " + fromId,
-                "接收",
-                "拒收",
-                () -> pickRelaySavePath(fromId, relayId, safeName, window),
-                () -> {
-                    declineRelay(relayId);
-                    appendLog("[檔案] 已拒收「" + safeName + "」");
-                });
+    }
+
+    private void presentPendingRelayOffer(String peerId, PeerChatWindow window) {
+        if (peerId == null || window == null) {
+            return;
+        }
+        java.util.List<PendingRelayOffer> offers = new java.util.ArrayList<>();
+        for (Map.Entry<String, PendingRelayOffer> entry : pendingRelayOffers.entrySet()) {
+            PendingRelayOffer offer = entry.getValue();
+            if (peerId.equals(offer.fromId)) {
+                offers.add(offer);
+            }
+        }
+        if (offers.isEmpty()) {
+            return;
+        }
+        for (PendingRelayOffer offer : offers) {
+            pendingRelayOffers.remove(offer.relayId);
+            String timeLabel = formatPeerMessageTime(offer.sentAtMs);
+            String sizeLabel = PeerFileRules.formatSize(Math.max(0, offer.size));
+            UiFonts.showModelessConfirm(
+                    window,
+                    timeLabel + "\n\n【" + offer.fromId + "】要直接傳"
+                            + (offer.folder ? "資料夾（ZIP）" : "檔案") + "給你：\n"
+                            + offer.safeName + "（" + sizeLabel + "）\n\n"
+                            + "雙方需保持在線直到傳完。\n"
+                            + "請在 " + PeerFileRules.RELAY_ACCEPT_TIMEOUT_LABEL + " 內決定，要接收嗎？",
+                    "同事直傳檔案 · " + offer.fromId,
+                    "接收",
+                    "拒收",
+                    () -> pickRelaySavePath(offer.fromId, offer.relayId, offer.safeName, window),
+                    () -> {
+                        declineRelay(offer.relayId);
+                        appendLog("[檔案] 已拒收「" + offer.safeName + "」");
+                    });
+        }
+    }
+
+    private static final class PendingRelayOffer {
+        final String fromId;
+        final String relayId;
+        final String safeName;
+        final long size;
+        final boolean folder;
+        final Long sentAtMs;
+
+        PendingRelayOffer(String fromId, String relayId, String safeName, long size, boolean folder, Long sentAtMs) {
+            this.fromId = fromId;
+            this.relayId = relayId;
+            this.safeName = safeName;
+            this.size = size;
+            this.folder = folder;
+            this.sentAtMs = sentAtMs;
+        }
     }
 
     private void declineRelay(String relayId) {
@@ -1998,7 +2075,7 @@ public class App extends JFrame {
         if (peerId == null || peerId.isBlank()) {
             return;
         }
-        focusChat(peerId);
+        openChatForUser(peerId);
     }
 
     private void showScheduleFromPet() {

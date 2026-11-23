@@ -169,11 +169,12 @@ public class PanelFactory {
                 settingsSection("雲端連線", boldFont, cloud),
                 settingsSection("程式更新", boldFont, updates)));
         tabs.addTab("外觀", settingsPage(
+                settingsSection("視窗透明度", boldFont, windowTransparencyRow(refs, mainFont, boldFont)),
                 settingsSection("桌面寵物", boldFont, desktopPetRow(refs, mainFont, boldFont))));
+        tabs.setToolTipTextAt(1, "視窗透明度與桌面寵物");
         tabs.addTab("中繼", settingsPage(
                 settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont))));
         tabs.setToolTipTextAt(SETTINGS_CONNECTION_TAB, "雲端連線與程式更新");
-        tabs.setToolTipTextAt(1, "桌面寵物");
         tabs.setToolTipTextAt(2, "讓區網內的同事經由這台電腦連到雲端");
         tabs.setSelectedIndex(SETTINGS_CONNECTION_TAB);
         return tabs;
@@ -336,6 +337,29 @@ public class PanelFactory {
         column.add(Box.createVerticalStrut(2));
         column.add(opacityRow);
         setBackgroundEffectControlsEnabled(refs, false);
+        return column;
+    }
+
+    private static JPanel windowTransparencyRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
+        refs.windowTransparencySlider = WindowChrome.createTransparencySlider(mainFont);
+        refs.windowTransparencySlider.setMajorTickSpacing(20);
+        refs.windowTransparencyValueLabel = WindowChrome.createTransparencyValueLabel(mainFont, 0);
+
+        JLabel hint = new CompactShellPanels.WrappingLabel(
+                "向右越透明，方便同時看到後面的畫面。最透明仍保留部分不透明度，以免點不到。");
+        hint.setFont(mainFont);
+        hint.setForeground(NightTheme.MUTED);
+
+        JPanel column = new JPanel();
+        column.setOpaque(false);
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+        column.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel row = sliderRow(mainFont, "透明度：", refs.windowTransparencySlider, refs.windowTransparencyValueLabel);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        column.add(row);
+        column.add(Box.createVerticalStrut(4));
+        column.add(hint);
         return column;
     }
 
@@ -650,10 +674,8 @@ public class PanelFactory {
         public JSlider backgroundOpacitySlider;
         public JLabel backgroundOpacityValueLabel;
         public JToggleButton desktopPetSwitch;
-        public JToggleButton desktopPetNotifyMessage;
-        public JToggleButton desktopPetNotifyFile;
-        public JToggleButton desktopPetNotifyTask;
-        public JToggleButton desktopPetNotifySound;
+        public JSlider windowTransparencySlider;
+        public JLabel windowTransparencyValueLabel;
         public JToggleButton desktopPetCursorReact;
         public JToggleButton desktopPetCare;
         // 中繼 Proxy
@@ -667,6 +689,9 @@ public class PanelFactory {
 
     /** 好友表在線／離線；key 為裝置 ID（不含「（本機）」），value 為是否在線。 */
     public static final String PEER_ONLINE_CLIENT_KEY = "peer.online";
+
+    /** 有未讀訊息的好友 ID 集合（不含本機）。 */
+    public static final String PEER_UNREAD_CLIENT_KEY = "peer.unread";
 
     /** 好友列表「最愛」欄的 model 索引（最後一欄，不影響第 0 欄的裝置 ID）。 */
     public static final int PEER_FAVORITE_COLUMN = 3;
@@ -950,6 +975,7 @@ public class PanelFactory {
         Object idValue = table.getValueAt(row, 0);
         String id = idValue == null ? "" : String.valueOf(idValue);
         boolean online = peerRowOnline(table, peerIdOf(id));
+        boolean unread = peerRowUnread(table, peerIdOf(id));
         String encoded = "";
         Object stored = table.getClientProperty("peer.avatars");
         if (stored instanceof java.util.Map) {
@@ -958,12 +984,12 @@ public class PanelFactory {
                 encoded = String.valueOf(found);
             }
         }
-        String key = peerIdOf(id) + "|" + online + "|" + encoded.hashCode();
+        String key = peerIdOf(id) + "|" + online + "|" + unread + "|" + encoded.hashCode();
         Icon cached = faces.get(key);
         if (cached != null) {
             return cached;
         }
-        Icon created = friendFaceIcon(id, encoded, online);
+        Icon created = friendFaceIcon(id, encoded, online, unread);
         faces.put(key, created);
         return created;
     }
@@ -984,6 +1010,15 @@ public class PanelFactory {
         }
         Object flag = ((java.util.Map<String, Boolean>) stored).get(peerId);
         return flag instanceof Boolean && (Boolean) flag;
+    }
+
+    @SuppressWarnings("unchecked")
+    static boolean peerRowUnread(JTable table, String peerId) {
+        Object stored = table.getClientProperty(PEER_UNREAD_CLIENT_KEY);
+        if (!(stored instanceof java.util.Set)) {
+            return false;
+        }
+        return ((java.util.Set<String>) stored).contains(peerId);
     }
 
     private static void installPeerTableHeaderRenderers(JTable table, Font boldFont) {
@@ -1113,7 +1148,7 @@ public class PanelFactory {
         }
     }
 
-    private static Icon friendFaceIcon(String id, String encoded, boolean online) {
+    private static Icon friendFaceIcon(String id, String encoded, boolean online, boolean unread) {
         int size = 18;
         BufferedImage face = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = face.createGraphics();
@@ -1138,6 +1173,13 @@ public class PanelFactory {
             g.fillOval(size - dot - 1, size - dot - 1, dot, dot);
             g.setColor(online ? new Color(120, 210, 150) : new Color(120, 108, 148));
             g.fillOval(size - dot + 1, size - dot + 1, dot - 4, dot - 4);
+            if (unread) {
+                int badge = Math.max(7, size / 4);
+                g.setColor(new Color(28, 20, 48));
+                g.fillOval(0, size - badge - 1, badge + 4, badge + 4);
+                g.setColor(new Color(255, 122, 168));
+                g.fillOval(2, size - badge + 1, badge, badge);
+            }
         } finally {
             g.dispose();
         }

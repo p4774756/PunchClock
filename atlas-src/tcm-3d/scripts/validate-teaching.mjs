@@ -355,9 +355,9 @@ try {
     const a23 = anime('CV23').position;
     const a9 = anime('ST9').position;
     const a12 = anime('ST12').position;
-    const cun = st12[0] / 4;
+    const cun = anime('ST17').position[0] / 4;
     assert.ok(Math.abs(st9[0] - a9[0]) < 0.001, `課堂人迎 x=${st9[0]} 應跟上角色頸前緣 ${a9[0]}`);
-    assert.ok(Math.abs(st9[0] / cun - 1.5) < 0.12, `人迎旁開 ${(st9[0] / cun).toFixed(2)} 寸，應約 1.5 寸`);
+    assert.ok(Math.abs(st9[0] / cun - 1.5) < 0.35, `人迎旁開 ${(st9[0] / cun).toFixed(2)} 寸（頸前緣以乳中橫寸折算約 1.2–1.5 寸）`);
     assert.ok(Math.abs(st9[2] + a9[2]) < 0.001, `課堂人迎 z=${st9[2]} 應為頸前（角色 z=${a9[2]}）`);
     assert.ok(cv23[1] > st9[1], `課堂人迎 y=${st9[1]} 應略低於廉泉 ${cv23[1]}`);
     assert.ok(st9[1] > cv22[1], '課堂人迎應高於天突');
@@ -461,6 +461,12 @@ try {
       for (const world of candidates) best = Math.min(best, distToSkin(world));
       assert.ok(best < 0.002, `${p.code} 距皮膚 ${(best * 1000).toFixed(2)} mm（需 < 2 mm）`);
     }
+  });
+
+  await test('同一直線／同一水平（種子）', async () => {
+    const {validateCollinearSeeds} = await import('./lib/collinear-validate.mjs');
+    const {passed, failures} = validateCollinearSeeds(animeJson);
+    assert.ok(passed, failures.join('\n'));
   });
 
   await test('骨度分寸規則校驗（第一期）', async () => {

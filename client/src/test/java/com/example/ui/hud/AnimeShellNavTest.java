@@ -39,7 +39,7 @@ public class AnimeShellNavTest {
         for (int i = 0; i < AnimeShell.navCount(); i++) {
             Rectangle a = AnimeShell.navRowBounds(w, h, i);
             assertTrue(a.width > 20);
-            assertTrue(a.width * (AnimeShell.navCount() + 1) <= w + 4);
+            assertTrue(a.width * AnimeShell.navCount() <= w + 4);
             assertTrue(a.y + a.height <= h);
             for (int j = i + 1; j < AnimeShell.navCount(); j++) {
                 Rectangle b = AnimeShell.navRowBounds(w, h, j);
@@ -89,9 +89,6 @@ public class AnimeShellNavTest {
             assertTrue("icon " + i, icon.ready());
             assertTrue(icon.partCount() > 0);
         }
-        TabNavIcon mini = TabNavIcon.load(TabNavIcon.MINI_ICON_ID);
-        assertNotNull(mini);
-        assertTrue(mini.ready());
     }
 
     @Test
@@ -111,11 +108,10 @@ public class AnimeShellNavTest {
         try {
             g.setFont(com.example.ui.UiFonts.chinesePlain(11));
             FontMetrics fm = g.getFontMetrics();
-            int slotW = Math.max(36, ShellDimensions.MIN_WIDTH / (AnimeShell.navCount() + 1));
+            int slotW = Math.max(36, ShellDimensions.MIN_WIDTH / AnimeShell.navCount());
             for (int i = 0; i < AnimeShell.navCount(); i++) {
                 assertTrue(fm.stringWidth(AnimeShell.navLabel(i)) <= slotW);
             }
-            assertTrue(fm.stringWidth("迷你") <= slotW);
         } finally {
             g.dispose();
         }
