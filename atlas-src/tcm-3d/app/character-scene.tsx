@@ -54,9 +54,12 @@ interface Props{
  onPoint:(code:string,side:1|-1)=>void;
  onToolDrag:(target:SurfaceTarget|null,phase:ToolDragPhase)=>void;
  onProgress:(progress:AtlasLoadProgress)=>void;
+ onFrameReady?:()=>void;
  onError:(s:string)=>void;
  onPracticeOutfitPreparing?:(preparing:boolean)=>void;
 }
+
+const FOCUS_CAMERA_MS=420;
 
 /** Three-step cel shade ramp for MeshToonMaterial.gradientMap (and leftover dispose). */
 const toonGradient=()=>{
@@ -1368,7 +1371,7 @@ const finishCharacterLook=(root:T.Object3D,outfit:AnimeOutfit,gradient:T.DataTex
 
 type OutfitBridge={setOutfit:(id:OutfitId)=>void};
 
-export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onError,onPracticeOutfitPreparing}:Props){
+export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onFrameReady,onError,onPracticeOutfitPreparing}:Props){
  const host=useRef<HTMLDivElement>(null);
  const outfitIdRef=useRef(outfitId);
  outfitIdRef.current=outfitId;
@@ -1383,6 +1386,18 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const practiceOutfit=ANIME_OUTFITS.find(o=>o.id==='study-body')!;
   const points=avatarPracticePoints(avatar);
   const el=host.current!;let disposed=false,frame=0,dirty=true,ready=false,lastView='',lastReset=-1,lastFocus=-1;
+  let focusTween:{start:number;fromTarget:T.Vector3;fromPos:T.Vector3;toTarget:T.Vector3;toPos:T.Vector3}|null=null;
+  const focusEase=(t:number)=>t*(2-t);
+  const startFocusTween=(aim:T.Vector3,camPos:T.Vector3)=>{
+   focusTween={
+    start:performance.now(),
+    fromTarget:controls.target.clone(),
+    fromPos:camera.position.clone(),
+    toTarget:aim.clone(),
+    toPos:camPos.clone(),
+   };
+   dirty=true;
+  };
   let renderer!:T.WebGLRenderer;
   let shaderWarmPrograms:number|null=null;
   let parseCreepTimer=0;
@@ -1862,7 +1877,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const resize=()=>{
    renderer.setPixelRatio(Math.min(devicePixelRatio,el.clientWidth<768||el.clientHeight<600?1.5:2));
    camera.aspect=el.clientWidth/el.clientHeight;camera.updateProjectionMatrix();
-   renderer.setSize(el.clientWidth,el.clientHeight);fit(latest.current.view);
+   renderer.setSize(el.clientWidth,el.clientHeight);dirty=true;
   };
   let observer:ResizeObserver|undefined;
   let glBooted=false;
@@ -2028,25 +2043,37 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(vrm)vrm.update(delta);
    const s=latest.current,simState=sim.current;
    toolInput?.update();
-   if(s.view!==lastView||s.reset!==lastReset){fit(s.view);lastView=s.view;lastReset=s.reset;}
-   controls.autoRotate=s.rotate&&!toolInput?.isDragging();controls.autoRotateSpeed=.55;
-   if(!toolInput?.isDragging())controls.update();
+   if(s.view!==lastView||s.reset!==lastReset){focusTween=null;fit(s.view);lastView=s.view;lastReset=s.reset;}
+   if(focusTween){
+    const blend=Math.min(1,(now-focusTween.start)/FOCUS_CAMERA_MS);
+    const eased=focusEase(blend);
+    controls.target.lerpVectors(focusTween.fromTarget,focusTween.toTarget,eased);
+    camera.position.lerpVectors(focusTween.fromPos,focusTween.toPos,eased);
+    controls.update();dirty=true;
+    if(blend>=1)focusTween=null;
+   }
+   controls.autoRotate=s.rotate&&!toolInput?.isDragging()&&!focusTween;controls.autoRotateSpeed=.55;
+   if(!toolInput?.isDragging()&&!focusTween)controls.update();
    if(controls.autoRotate)dirty=true;
 
    if(ready&&!teaching.isAnchored()&&characterRoot.children.length)teaching.anchor(characterRoot);
-   if(ready&&teaching.focus(simState,camera,controls)){lastFocus=simState.focus;dirty=true;}
-   else if(simState.focus&&lastFocus!==simState.focus&&ready){
-    // Pre-anchor fallback: same framing rules as teaching-overlay (do not ride the surface normal).
-    lastFocus=simState.focus;
-    const target=simState.pointCode?avatarPointTarget(avatar,simState.pointCode,simState.side):null;
-    if(target){
-     const aim=new T.Vector3().fromArray(target.position);
-     const normal=new T.Vector3().fromArray(target.normal).normalize();
-     const {viewDir,distance,aimAdjust}=focusViewFromNormal(simState.pointCode,normal,simState.side);
-     aim.add(aimAdjust);
-     controls.target.copy(aim);
-     camera.position.copy(aim).addScaledVector(viewDir,distance);
-     controls.update();dirty=true;
+   if(ready&&simState.focus&&lastFocus!==simState.focus){
+    const pose=teaching.computeFocusPose(simState,camera);
+    if(pose){
+     lastFocus=simState.focus;
+     camera.clearViewOffset();
+     const camPos=pose.aim.clone().addScaledVector(pose.viewDir,pose.distance);
+     startFocusTween(pose.aim,camPos);
+    }else if(!teaching.isAnchored()){
+     lastFocus=simState.focus;
+     const target=simState.pointCode?avatarPointTarget(avatar,simState.pointCode,simState.side):null;
+     if(target){
+      const aim=new T.Vector3().fromArray(target.position);
+      const normal=new T.Vector3().fromArray(target.normal).normalize();
+      const {viewDir,distance,aimAdjust}=focusViewFromNormal(simState.pointCode,normal,simState.side);
+      aim.add(aimAdjust);
+      startFocusTween(aim,aim.clone().addScaledVector(viewDir,distance));
+     }
     }
    }
 
@@ -2079,6 +2106,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      modelVisibleMarked=true;
      performance.mark('atlas:model-frame');
      try{performance.measure('atlas:model-frame','atlas:boot-start','atlas:model-frame');}catch{/* duplicate */}
+     onFrameReady?.();
     }
    }
   };
@@ -2154,7 +2182,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    teaching.label.remove();
    if(glReady&&renderer){renderer.dispose();renderer.domElement.remove();}
   };
- },[avatarId,onProgress,onError]);
+ },[avatarId,onProgress,onFrameReady,onError]);
 
  useEffect(()=>{
   let cancelled=false;

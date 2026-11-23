@@ -15,8 +15,13 @@ export function createTeachingOverlay(
  const root=new T.Group(),dots=new T.Group(),contact=new T.Group();root.add(dots,contact);scene.add(root);
  const surface=new Map<string,SurfaceTarget>();
  const sphere=new T.SphereGeometry(.0042,14,10);
- const normalMat=new T.MeshStandardMaterial({color:'#4e958b',emissive:'#24463e',emissiveIntensity:.15,roughness:.3});
- const activeMat=new T.MeshStandardMaterial({color:'#e9ae58',emissive:'#b17830',emissiveIntensity:.4,roughness:.3});
+ const normalMat=new T.MeshStandardMaterial({color:'#4e958b',emissive:'#24463e',emissiveIntensity:.22,roughness:.35,metalness:0});
+ const activeMat=new T.MeshStandardMaterial({color:'#f5c84a',emissive:'#d4881a',emissiveIntensity:.85,roughness:.25,metalness:.12});
+ const pickRing=new T.Mesh(
+  new T.RingGeometry(.0055,.0082,28),
+  new T.MeshBasicMaterial({color:'#f8dc6e',transparent:true,opacity:.92,side:T.DoubleSide,depthTest:true,depthWrite:false}),
+ );
+ pickRing.visible=false;pickRing.renderOrder=20;dots.add(pickRing);
  const markers:T.Mesh[]=[];
  for(const point of opts.points)for(const side of point.midline?[1 as const]:[1 as const,-1 as const]){
   const seed=opts.resolvePoint(point.code,side);
@@ -163,13 +168,22 @@ export function createTeachingOverlay(
   activeCurriculum=curriculumSet(s.curriculumSet==='all'?undefined:s.curriculumSet);
   root.visible=show;dots.visible=s.showPoints;
   const target=getTarget(s);contact.visible=!!target;
+  let showPickRing=false;
   for(const dot of markers){
    const selected=dot.userData.point===s.pointCode&&(dot.userData.side===s.side||opts.points.find(p=>p.code===s.pointCode)?.midline);
    const meridianOk=!s.meridianFilter||s.meridianFilter==='all'||POINT_BY_CODE.get(dot.userData.point)?.meridianId===s.meridianFilter;
    dot.visible=meridianOk&&allowedByCurriculum(dot.userData.point);
    dot.material=selected?activeMat:normalMat;
-   dot.scale.setScalar(selected?1.35:1);
+   dot.scale.setScalar(selected?1.55:1);
+   dot.renderOrder=selected?12:0;
+   if(selected&&dot.visible){
+    pickRing.position.copy(dot.position);
+    pickRing.quaternion.copy(camera.quaternion);
+    pickRing.visible=true;
+    showPickRing=true;
+   }
   }
+  if(!showPickRing)pickRing.visible=false;
   label.hidden=!target||!root.visible;
   if(!target)return null;
   contact.position.fromArray(target.position);n.fromArray(target.normal).normalize();contact.quaternion.setFromUnitVectors(axis,n);
@@ -208,11 +222,11 @@ export function createTeachingOverlay(
    settling:releaseAt>=0&&releaseElapsed<=.85,
   };
  };
+ type FocusPose={aim:T.Vector3;viewDir:T.Vector3;distance:number};
  type FocusOptions={force?:boolean};
- const focus=(s:SimulationState,camera:T.PerspectiveCamera,controls:{target:T.Vector3;update:()=>void},options?:FocusOptions)=>{
-  if(!s.focus||!anchored)return false;
-  if(!options?.force&&lastFocus===s.focus)return false;
-  const target=getTarget(s);if(!target)return false;lastFocus=s.focus;camera.clearViewOffset();
+ const computeFocusPose=(s:SimulationState,camera:T.PerspectiveCamera):FocusPose|null=>{
+  if(!s.focus||!anchored)return null;
+  const target=getTarget(s);if(!target)return null;
   const aim=new T.Vector3().fromArray(target.position);
   n.fromArray(target.normal).normalize();
   let distance=.62;
@@ -220,24 +234,30 @@ export function createTeachingOverlay(
    n.copy(camera.position).sub(aim).normalize();
    distance=.7;
   }else{
-   // Single source of truth with character-scene fallback (ST9 close-up, SI11 back view, …).
    const framed=focusViewFromNormal(s.pointCode,n,s.side||1);
    n.copy(framed.viewDir);
    aim.add(framed.aimAdjust);
    distance=framed.distance;
   }
-  controls.target.copy(aim);
-  camera.position.copy(controls.target).addScaledVector(n,distance);
+  return {aim,viewDir:n.clone(),distance};
+ };
+ const focus=(s:SimulationState,camera:T.PerspectiveCamera,controls:{target:T.Vector3;update:()=>void},options?:FocusOptions)=>{
+  if(!options?.force&&lastFocus===s.focus)return false;
+  const pose=computeFocusPose(s,camera);if(!pose)return false;
+  lastFocus=s.focus;camera.clearViewOffset();
+  controls.target.copy(pose.aim);
+  camera.position.copy(pose.aim).addScaledVector(pose.viewDir,pose.distance);
   controls.update();return true;
  };
  const getDraggables=(tool:ToolId)=>{const meshes:T.Object3D[]=[];instruments.get(tool)?.traverseVisible(o=>{if(o instanceof T.Mesh)meshes.push(o);});return meshes;};
  return {
-  root,markers,label,anchor,reanchor,applyCachedAnchors,ensureSkinProxyBake,update,focus,getTarget,getDraggables,snapTarget,
+  root,markers,label,anchor,reanchor,applyCachedAnchors,ensureSkinProxyBake,update,focus,computeFocusPose,getTarget,getDraggables,snapTarget,
   getSkinMeshes:()=>skinMeshes,
   isAnchored:()=>anchored,
   hasSkinProxies:()=>raycastTargets.length>0,
   dispose:()=>{
    normalMat.dispose();activeMat.dispose();sphere.dispose();
+   pickRing.geometry.dispose();(pickRing.material as T.Material).dispose();
    instruments.forEach(g=>g.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose());}}));
   },
  };

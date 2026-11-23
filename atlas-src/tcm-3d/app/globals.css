@@ -157,7 +157,10 @@
   position:absolute;bottom:3px;left:50%;transform:translateX(-50%);
   font-size:8px;font-weight:800;letter-spacing:-.02em;line-height:1;
   pointer-events:none;color:inherit;
-}.studio-tool-btn.is-pending .studio-tool-pending,.studio-tool-pending{
+}
+@media(min-width:768px){.studio-tool-btn:has(.studio-tool-tag){height:50px;min-height:50px;padding-bottom:2px}}
+@media(max-width:767px){.studio-tool-tag-desktop{display:none!important}}
+.studio-tool-btn.is-pending .studio-tool-pending,.studio-tool-pending{
   position:absolute;right:4px;top:4px;width:10px;height:10px;
   border:2px solid currentColor;border-right-color:transparent;border-radius:50%;
   animation:outfit-spin .7s linear infinite;
