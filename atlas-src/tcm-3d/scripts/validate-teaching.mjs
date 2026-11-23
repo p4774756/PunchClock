@@ -34,7 +34,7 @@ try {
   const bundlePath = join(temporaryDir, 'entry.mjs');
   const bundle = await build({
     stdin: {
-      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {POINTS,TOOLS,initialSimulation,CURRICULUM_SETS,curriculumSet,isPracticeDeferred,practiceOpenCodes,DEFERRED_PRACTICE_CODES,teachingPointMatchesQuery,libraryPointResults,ZHUYIN_PATTERN,POINT_BY_CODE} from './app/teaching'; export {ANIME_POINTS,ANIME_SUPPORTED_CODES,animePointTarget} from './app/character-mode'; export {avatarPracticePoints,animeAvatar,DEFAULT_AVATAR_ID} from './app/avatars'; export {ANIME_OUTFITS,isTorsoClothPeekPoint} from './app/outfits'; export {focusViewFromNormal} from './app/focus-view';",
+      contents: "export {createTeachingOverlay} from './app/teaching-overlay'; export {POINTS,TOOLS,initialSimulation,CURRICULUM_SETS,curriculumSet,isPracticeDeferred,practiceOpenCodes,DEFERRED_PRACTICE_CODES,teachingPointMatchesQuery,libraryPointResults,ZHUYIN_PATTERN,POINT_BY_CODE,meridianBakedPathCodes,meridianLinePaths,meridianLinesEnabled} from './app/teaching'; export {ANIME_POINTS,ANIME_SUPPORTED_CODES,animePointTarget} from './app/character-mode'; export {avatarPracticePoints,animeAvatar,DEFAULT_AVATAR_ID} from './app/avatars'; export {ANIME_OUTFITS,isTorsoClothPeekPoint} from './app/outfits'; export {focusViewFromNormal} from './app/focus-view';",
       resolveDir: project, sourcefile: 'validate-teaching-entry.ts', loader: 'ts',
     },
     bundle: true, platform: 'node', format: 'esm', target: 'node22',
@@ -48,7 +48,7 @@ try {
       return {className: '', hidden: false, style: {}, dataset: {}, textContent: '', setAttribute() {}, remove() {}, classList:{toggle(){}}};
     }},
   });
-  const {createTeachingOverlay, POINTS, TOOLS, initialSimulation, CURRICULUM_SETS, curriculumSet, isPracticeDeferred, practiceOpenCodes, DEFERRED_PRACTICE_CODES, teachingPointMatchesQuery, libraryPointResults, ZHUYIN_PATTERN, POINT_BY_CODE, ANIME_POINTS, ANIME_SUPPORTED_CODES, animePointTarget, avatarPracticePoints, animeAvatar, DEFAULT_AVATAR_ID, ANIME_OUTFITS, isTorsoClothPeekPoint, focusViewFromNormal} = await import(pathToFileURL(bundlePath));
+  const {createTeachingOverlay, POINTS, TOOLS, initialSimulation, CURRICULUM_SETS, curriculumSet, isPracticeDeferred, practiceOpenCodes, DEFERRED_PRACTICE_CODES, teachingPointMatchesQuery, libraryPointResults, ZHUYIN_PATTERN, POINT_BY_CODE, meridianBakedPathCodes, meridianLinePaths, meridianLinesEnabled, ANIME_POINTS, ANIME_SUPPORTED_CODES, animePointTarget, avatarPracticePoints, animeAvatar, DEFAULT_AVATAR_ID, ANIME_OUTFITS, isTorsoClothPeekPoint, focusViewFromNormal} = await import(pathToFileURL(bundlePath));
   const camera = new T.PerspectiveCamera(34, 1.6, 0.005, 100);
   camera.position.set(0, 1.4, 2.5);
   camera.lookAt(0, 1.35, 0);
@@ -62,6 +62,34 @@ try {
     resolvePoint: (code, side) => animePointTarget(code, side),
   });
   const update = (overrides = {}) => overlay.update(state(overrides), camera, 1280, 800);
+
+  await test('單一經脈體表連線排序與開關', () => {
+    const baked = ANIME_SUPPORTED_CODES;
+    assert.deepEqual(meridianBakedPathCodes('LU', baked), ['LU5', 'LU9']);
+    assert.deepEqual(meridianBakedPathCodes('LR', baked), []);
+    assert.deepEqual(meridianBakedPathCodes('all', baked), []);
+    assert.deepEqual(meridianBakedPathCodes('LU', new Set(['LU5'])), []);
+    assert.equal(meridianLinesEnabled('all', true), false);
+    assert.equal(meridianLinesEnabled('LU', false), false);
+    assert.equal(meridianLinesEnabled('LU', undefined), true);
+    assert.equal(meridianLinesEnabled('LU', true), true);
+    const luPaths = meridianLinePaths('LU', baked);
+    assert.equal(luPaths.length, 2);
+    assert.deepEqual(luPaths.map(p => p.side), [1, -1]);
+    assert.deepEqual(luPaths[0].codes, ['LU5', 'LU9']);
+    const gvPaths = meridianLinePaths('GV', baked);
+    assert.equal(gvPaths.length, 1);
+    assert.equal(gvPaths[0].side, 'midline');
+    const blCodes = meridianBakedPathCodes('BL', baked);
+    assert.ok(blCodes.length >= 2);
+    const blNums = blCodes.map(c => parseInt(c.slice(2), 10));
+    for (let i = 1; i < blNums.length; i++) {
+      assert.ok(blNums[i] > blNums[i - 1] || blCodes[i].localeCompare(blCodes[i - 1]) > 0,
+        `BL 應依正統順序而非字串序：${blCodes[i - 1]} → ${blCodes[i]}`);
+    }
+    assert.ok(blCodes.indexOf('BL10') < blCodes.indexOf('BL11') && blCodes.indexOf('BL2') < blCodes.indexOf('BL10'),
+      `BL 排序：${blCodes.join(',')}`);
+  });
 
   await test('TOOLS 僅針與指壓', () => {
     assert.deepEqual(TOOLS.map(t => t.id), ['needle', 'finger']);

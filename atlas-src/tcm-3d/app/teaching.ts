@@ -159,7 +159,7 @@ export const LOCATION:Record<string,{text:string;section:string;classic?:string;
 export interface SurfaceTarget {position:Vec3;normal:Vec3;meshId?:string;faceIndex?:number|null;pointCode?:string;pointSide?:1|-1}
 export type ToolDragPhase='start'|'move'|'end'|'cancel';
 export interface SimulationState {showMeridians?:boolean;meridianFilter?:string;curriculumSet?:CurriculumSetId|'all'|null;tool:ToolId;release?:number;dragging?:boolean;running:boolean;elapsed:number;amplitude:number;pointCode:string|null;side:1|-1;customTarget:SurfaceTarget|null;focus:number;showPoints:boolean;pickMode:'point';effects:boolean}
-export const initialSimulation:SimulationState={showMeridians:false,meridianFilter:'all',curriculumSet:'head-neck-21',tool:'needle',running:false,elapsed:0,amplitude:.55,pointCode:'GV24+',side:1,customTarget:null,focus:0,showPoints:true,pickMode:'point',effects:true};
+export const initialSimulation:SimulationState={meridianFilter:'all',curriculumSet:'head-neck-21',tool:'needle',running:false,elapsed:0,amplitude:.55,pointCode:'GV24+',side:1,customTarget:null,focus:0,showPoints:true,pickMode:'point',effects:true};
 export function pointTarget(code:string,side:1|-1):SurfaceTarget{const p=POINT_BY_CODE.get(code)!;return {position:[p.midline?p.position[0]:p.position[0]*side,p.position[1],p.position[2]],normal:[p.normal[0]*side,p.normal[1],p.normal[2]]};}
 export function classifyRegion(p:Vec3):RegionId{return p[1]>1.52?'head':p[1]>1.3?'shoulder':Math.abs(p[0])>.18?'arm':p[1]>.8?(p[2]<-.025?'waist':'abdomen'):'leg';}
 
@@ -177,6 +177,36 @@ export function libraryPointResults(query:string,region:RegionId|'all',meridianF
  const lesson=trimmed||curriculumSetId==='all'?undefined:curriculumSet(curriculumSetId);
  const ordered=trimmed?POINTS:(lesson?lesson.codes.map(code=>POINTS.find(p=>p.code===code)!).filter(Boolean):POINTS.filter(p=>avatarCodes.has(p.code)));
  return ordered.filter(p=>(trimmed||avatarCodes.has(p.code))&&(!meridianFilter||meridianFilter==='all'||p.meridianId===meridianFilter)&&(region==='all'||p.region===region)&&teachingPointMatchesQuery(p,query));
+}
+
+export type MeridianPathSide='midline'|1|-1;
+export interface MeridianPathSpec{meridianId:string;side:MeridianPathSide;codes:readonly string[]}
+
+/** 選單一經脈且未明確關閉時，繪製體表連線。 */
+export function meridianLinesEnabled(meridianFilter:string|null|undefined,showMeridians?:boolean){
+ return !!meridianFilter&&meridianFilter!=='all'&&showMeridians!==false;
+}
+
+/** 同一 meridianId 在 POINTS 中的正統順序，僅保留已烘 code；少於 2 點回傳空陣列。 */
+export function meridianBakedPathCodes(meridianId:string|null|undefined,bakedCodes:ReadonlySet<string>){
+ if(!meridianId||meridianId==='all')return [];
+ const codes=POINTS.filter(p=>p.meridianId===meridianId&&bakedCodes.has(p.code)).map(p=>p.code);
+ return codes.length<2?[]:codes;
+}
+
+/** 依正中／左右側拆成可繪製的線段路徑。 */
+export function meridianLinePaths(meridianId:string|null|undefined,bakedCodes:ReadonlySet<string>):MeridianPathSpec[]{
+ const codes=meridianBakedPathCodes(meridianId,bakedCodes);
+ if(!codes.length||!meridianId||meridianId==='all')return [];
+ if(meridianId==='GV'||meridianId==='CV')return [{meridianId,side:'midline',codes}];
+ return [{meridianId,side:1,codes},{meridianId,side:-1,codes}];
+}
+
+export function meridianControlsHint(meridianFilter:string|null|undefined,bakedCodes:ReadonlySet<string>){
+ if(!meridianFilter||meridianFilter==='all')return '選單一經脈時，身上會依正統順序畫出已烘穴位的體表連線。';
+ const n=meridianBakedPathCodes(meridianFilter,bakedCodes).length;
+ if(n<2)return '此經已烘穴不足，暫無體表連線。';
+ return '已於角色身上畫出此經已烘穴位的體表連線。';
 }
 
 export function teachingPointMatchesQuery(point:Pick<TeachingPoint,'code'|'name'|'zhuyin'>,rawQuery:string){
