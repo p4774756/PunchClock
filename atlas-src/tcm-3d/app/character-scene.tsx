@@ -39,9 +39,14 @@ import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {clone as cloneSkinnedObject} from 'three/examples/jsm/utils/SkeletonUtils.js';
 import {VRMLoaderPlugin,VRMUtils} from '@pixiv/three-vrm';
+import type {VRMCore} from '@pixiv/three-vrm-core';
 import {MToonMaterialOutlineWidthMode} from '@pixiv/three-vrm-materials-mtoon';
 import {PointerTap} from './pointer-tap';
 import {createTeachingOverlay} from './teaching-overlay';
+import {applyAdultStandingPose,primeAdultStandingPose} from './adult-rest-pose';
+import {buildAdultPointBindings,type AdultPointBindings} from './adult-point-bindings';
+import {tuneCharacterTextures} from './character-texture-tune';
+import {clearAvatarSceneCache,stashAvatarRig,takeAvatarRig,type CachedAvatarRig} from './avatar-scene-cache';
 import {installSurfaceToolInput} from './surface-tool-input';
 import {focusViewFromNormal} from './focus-view';
 import {buildStudyDecor, type StudyDecor} from './study-decor';
@@ -1251,7 +1256,16 @@ const applyOutfitMaterialsToObject=(obj:T.Object3D,outfit:AnimeOutfit)=>{
   const hide=outfit.hideMaterials.some(token=>name.includes(token));
   m.visible=!hide;
   if(hide){m.needsUpdate=true;continue;}
-  if(m.map&&!m.isMToonMaterial){m.map.colorSpace=T.SRGBColorSpace;m.map.needsUpdate=true;}
+  if(m.map){
+   m.map.colorSpace=T.SRGBColorSpace;
+   if(m.map.image){
+    m.map.generateMipmaps=true;
+    m.map.minFilter=T.LinearMipmapLinearFilter;
+    m.map.magFilter=T.LinearFilter;
+    m.map.anisotropy=Math.max(m.map.anisotropy??1,4);
+   }
+   m.map.needsUpdate=true;
+  }
   if(outfit.sheerOuter&&/Tops/i.test(name)){
    m.transparent=true;
    m.opacity=0.42;
@@ -1281,8 +1295,17 @@ const applyOutfitMaterialsToObject=(obj:T.Object3D,outfit:AnimeOutfit)=>{
   const hasBodySkin=surfacesNoOutline.some(m=>/Body_00_SKIN/i.test(m.name||''));
   const anyHide=surfacesNoOutline.some(m=>outfit.hideMaterials.some(token=>materialLabel(m,obj).includes(token)));
   if(/Tops|Bottoms|Accessory/i.test(obj.name||''))obj.visible=false;
+  else if(/Skirt|Dress|OnePiece|Lace/i.test(obj.name||''))obj.visible=false;
   else if(anyHide&&!hasBodySkin)obj.visible=false;
   else if(isPracticeUniformMesh(obj,outfit))obj.visible=false;
+  for(const mat of mats){
+   const m=mat as T.MeshStandardMaterial;
+   const label=materialLabel(m,obj);
+   if(outfit.adultPaint&&/Tops|Bottoms|Accessory|Skirt|Dress/i.test(label)&&!/Body_00_SKIN/i.test(label)){
+    m.visible=false;
+    m.needsUpdate=true;
+   }
+  }
  }
 };
 
@@ -1401,7 +1424,10 @@ const finishCharacterLook=(root:T.Object3D,outfit:AnimeOutfit,gradient:T.DataTex
 
 type OutfitBridge={setOutfit:(id:OutfitId)=>void};
 
+let sharedGlRenderer:T.WebGLRenderer|null=null;
+
 export default function CharacterScene({state,simulation,avatarId,outfitId,onPoint,onToolDrag,onProgress,onFrameReady,onError,onPracticeOutfitPreparing}:Props){
+ const sceneUnmountRef=useRef(false);
  const host=useRef<HTMLDivElement>(null);
  const outfitIdRef=useRef(outfitId);
  outfitIdRef.current=outfitId;
@@ -1412,13 +1438,15 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
 
  useEffect(()=>{
   const avatar=animeAvatar(avatarId);
+  const restored=takeAvatarRig(avatarId);
   const avatarOutfits=outfitsForAvatar(avatar.id);
   const schoolOutfit=avatarOutfits[0];
   const assistantPracticeOutfit=avatar.id==='assistant'?avatarOutfits.find(o=>o.id==='study-body')??null:null;
   const adultPracticeOutfit=avatar.id==='adult'?avatarOutfits.find(o=>o.id==='practice')??null:null;
   const adultSheerOutfit=avatar.id==='adult'?avatarOutfits.find(o=>o.id==='sheer')??null:null;
   const points=avatarPracticePoints(avatar);
-  const el=host.current!;let disposed=false,frame=0,dirty=true,ready=false,lastView='',lastReset=-1,lastFocus=-1;
+  const el=host.current!;let disposed=false,frame=0,dirty=true,ready=restored?.ready??false,lastView='',lastReset=-1,lastFocus=-1;
+  if(restored?.ready)sceneReady.current=true;
   let focusTween:{start:number;fromTarget:T.Vector3;fromPos:T.Vector3;toTarget:T.Vector3;toPos:T.Vector3}|null=null;
   const focusEase=(t:number)=>t*(2-t);
   const startFocusTween=(aim:T.Vector3,camPos:T.Vector3)=>{
@@ -1437,6 +1465,12 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   let glReady=false;
   const ensureRenderer=async()=>{
    if(glReady)return renderer;
+   if(sharedGlRenderer){
+    renderer=sharedGlRenderer;
+    glReady=true;
+    if(!el.contains(renderer.domElement))el.appendChild(renderer.domElement);
+    return renderer;
+   }
    await yieldToMain();
    await yieldToMain();
    if(disposed)throw new Error('disposed');
@@ -1446,6 +1480,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    const glMs=Math.round(performance.now()-glT0);
    if(glMs>SLICE_BUDGET_MS)console.debug('atlas:program-slice','WebGLRenderer',glMs);
    if(import.meta.env.PROD)renderer.debug.checkShaderErrors=false;
+   sharedGlRenderer=renderer;
    glReady=true;
    return renderer;
   };
@@ -1479,36 +1514,40 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   const gradient=toonGradient();
   const characterRoot=new T.Group();characterRoot.visible=false;scene.add(characterRoot);
   let teachingOverlayVisible=false;
-  let skinProxyBakeScheduled=false;
-  const teaching=createTeachingOverlay(scene,{
+  let skinProxyBakeScheduled=restored?.skinProxyBakeScheduled??false;
+  let adultPointBindings:AdultPointBindings|null=restored?.adultPointBindings??null;
+  const teaching=restored?.teaching??createTeachingOverlay(scene,{
    points,
-   resolvePoint:(code,side)=>avatarPointTarget(avatar,code,side),
+   resolvePoint:(code,side)=>{
+    if(adultPointBindings)return adultPointBindings.resolve(code,side)??avatarPointTarget(avatar,code,side);
+    return avatarPointTarget(avatar,code,side);
+   },
   });
-  el.appendChild(teaching.label);
+  if(!restored?.teaching)el.appendChild(teaching.label);
 
   // Finger-pressure feedback uses teaching-overlay halo/patch only.
   // Do not patch VRM MToon onBeforeCompile — injecting into Face/Body skin
   // breaks THREE_VRM_THREE_REVISION / WebGLProgram and turns skin black.
   let lastSimulation:SimulationState|null=null;
-  let vrm: {scene:T.Object3D;update:(delta:number)=>void}|null=null;
-  let schoolModel:T.Object3D|null=null;
-  let practiceModel:T.Object3D|null=null;
-  let practiceShell:T.Object3D|null=null;
-  let practiceCleanTemplate:T.Object3D|null=null;
-  let practiceBuilt=false;
-  let sheerModel:T.Object3D|null=null;
-  let sheerShell:T.Object3D|null=null;
-  let sheerBuilt=false;
-  let practiceWarm=false;
-  let cacheAnimeOutfitsFlag=false;
-  let adultClothBaseline:Map<T.Material,T.Texture>|null=null;
+  let vrm:VRMCore|null=(restored?.vrm as VRMCore|null)??null;
+  let schoolModel:T.Object3D|null=restored?.schoolModel??null;
+  let practiceModel:T.Object3D|null=restored?.practiceModel??null;
+  let practiceShell:T.Object3D|null=restored?.practiceShell??null;
+  let practiceCleanTemplate:T.Object3D|null=restored?.practiceCleanTemplate??null;
+  let practiceBuilt=restored?.practiceBuilt??false;
+  let sheerModel:T.Object3D|null=restored?.sheerModel??null;
+  let sheerShell:T.Object3D|null=restored?.sheerShell??null;
+  let sheerBuilt=restored?.sheerBuilt??false;
+  let practiceWarm=restored?.practiceWarm??false;
+  let cacheAnimeOutfitsFlag=restored?.cacheAnimeOutfitsFlag??false;
+  let adultClothBaseline:Map<T.Material,T.Texture>|null=restored?.adultClothBaseline??null;
   let postWarmQueue:{name:string;run:()=>Promise<void>;practiceRelated?:boolean}[]=[];
   let postWarmBoost=false;
   let postWarmSkipFrames=0;
-  let postWarmScheduled=false;
-  let postWarmWarmedKeys=new Set<string>();
-  let uniformAssetSnap:Map<string,MeshAssetSnapshot>|null=null;
-  const clothPeekMaterials=new Set<T.Material>();
+  let postWarmScheduled=restored?.postWarmScheduled??false;
+  let postWarmWarmedKeys=restored?.postWarmWarmedKeys??new Set<string>();
+  let uniformAssetSnap:Map<string,MeshAssetSnapshot>|null=restored?.uniformAssetSnap??null;
+  const clothPeekMaterials=restored?.clothPeekMaterials??new Set<T.Material>();
   const clothPeekCenter=new T.Vector3();
   let lastClothPeekKey='';
   let lastFrame=performance.now();
@@ -2060,6 +2099,17 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      if(vrm){
       await parseSlice('vrm-remove-vertices',()=>VRMUtils.removeUnnecessaryVertices(gltf.scene));
       await parseSlice('vrm-combine-skeletons',()=>VRMUtils.combineSkeletons(gltf.scene));
+      if(isAdultModel){
+       const adultVrm=vrm;
+       await parseSlice('adult-rest-pose',()=>{
+        adultPointBindings=buildAdultPointBindings(adultVrm,avatar,characterRoot);
+        applyAdultStandingPose(adultVrm);
+        tuneCharacterTextures(model,renderer.capabilities.getMaxAnisotropy());
+        adultVrm.update(0);
+       });
+      }else{
+       tuneCharacterTextures(model,renderer.capabilities.getMaxAnisotropy());
+      }
      }
      if(cacheAnimeOutfits){
       await parseSlice('finish-school-look',()=>finishCharacterLook(model,schoolOutfit,gradient,clothPeekMaterials));
@@ -2150,7 +2200,11 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(disposed)return;frame=requestAnimationFrame(animate);
    const now=performance.now();const delta=Math.min(.05,(now-lastFrame)/1000);lastFrame=now;
    studyDecor.update(delta,!!reducedMotionMq?.matches);
-   if(vrm)vrm.update(delta);
+   if(vrm){
+    if(adultPointBindings)primeAdultStandingPose(vrm);
+    vrm.update(delta);
+   }
+   adultPointBindings?.refresh();
    const s=latest.current,simState=sim.current;
    toolInput?.update();
    if(s.view!==lastView||s.reset!==lastReset){focusTween=null;fit(s.view);lastView=s.view;lastReset=s.reset;}
@@ -2263,7 +2317,21 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     invalidate:()=>{dirty=true;},
    });
    animate();
-   runLoader();
+   if(restored?.ready){
+    if(vrm&&adultPointBindings)applyAdultStandingPose(vrm);
+    if(schoolModel&&!schoolModel.parent)characterRoot.add(schoolModel);
+    if(practiceModel&&!practiceModel.parent)characterRoot.add(practiceModel);
+    if(sheerModel&&!sheerModel.parent)characterRoot.add(sheerModel);
+    characterRoot.visible=true;
+    teachingOverlayVisible=true;
+    teaching.root.visible=true;
+    showOutfit(outfitIdRef.current);
+    teaching.applyCachedAnchors();
+    fit(latest.current.view);
+    reportProgress(100,'done');
+    dirty=true;
+    onFrameReady?.();
+   }else runLoader();
   };
   void mountGl();
 
@@ -2272,7 +2340,24 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    window.clearInterval(downloadCreepTimer);
    window.clearInterval(parseCreepTimer);
    observer?.disconnect();
-   toolInput?.dispose();teaching.dispose();controls?.dispose();gradient.dispose();
+   toolInput?.dispose();
+   controls?.dispose();
+   const stashOnly=!sceneUnmountRef.current&&ready;
+   if(stashOnly){
+    const rig:CachedAvatarRig={
+     vrm,schoolModel,practiceModel,practiceShell,practiceCleanTemplate,practiceBuilt,
+     sheerModel,sheerShell,sheerBuilt,practiceWarm,cacheAnimeOutfitsFlag,adultClothBaseline,
+     uniformAssetSnap,postWarmWarmedKeys:new Set(postWarmWarmedKeys),teaching,adultPointBindings,
+     clothPeekMaterials,ready,skinProxyBakeScheduled,postWarmScheduled,postWarmQueueLen:postWarmQueue.length,
+    };
+    stashAvatarRig(avatarId,rig);
+    teaching.root.visible=false;
+    characterRoot.clear();
+    if(glReady&&renderer?.domElement.parentElement)renderer.domElement.remove();
+    return;
+   }
+   teaching.dispose();
+   gradient.dispose();
    studyDecor.dispose();
    scene.fog=null;
    if(woodcut){
@@ -2294,9 +2379,20 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     ms.forEach(m=>m.dispose());
    });
    teaching.label.remove();
-   if(glReady&&renderer){renderer.dispose();renderer.domElement.remove();}
+   clearAvatarSceneCache(disposeCharacterRoot,t=>t.dispose());
+   if(glReady&&renderer){
+    if(sharedGlRenderer===renderer){renderer.dispose();sharedGlRenderer=null;}
+    else renderer.dispose();
+    renderer.domElement.remove();
+   }
   };
  },[avatarId,onProgress,onFrameReady,onError]);
+
+ useEffect(()=>()=>{
+  sceneUnmountRef.current=true;
+  clearAvatarSceneCache(disposeCharacterRoot,t=>t.dispose());
+  if(sharedGlRenderer){sharedGlRenderer.dispose();sharedGlRenderer=null;}
+ },[]);
 
  useEffect(()=>{
   let cancelled=false;

@@ -278,7 +278,7 @@ export default function Home(){
   </header>
 
   <section className="scene-stage" aria-label="3D 人體教學視窗">
-   <Suspense fallback={null}><CharacterScene key={avatarId} state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={avatarId} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onFrameReady={onFrameReady} onError={onError} onPracticeOutfitPreparing={onPracticeOutfitPreparing}/></Suspense>
+   <Suspense fallback={null}><CharacterScene state={{...state,inspectorOpen:false}} simulation={simulation} avatarId={avatarId} outfitId={outfitId} onPoint={choosePoint} onToolDrag={onToolDrag} onProgress={onProgress} onFrameReady={onFrameReady} onError={onError} onPracticeOutfitPreparing={onPracticeOutfitPreparing}/></Suspense>
    <div className="scene-guide"><span className="guide-cross">+</span><span>{currentAvatar.shortName}{showOutfitBar?` · ${currentOutfit.shortName}`:''}</span></div>
    {loadingVisible&&(
     <div className={error?'loading-card woodcut-loading load-error':'loading-card woodcut-loading'} role="status">
