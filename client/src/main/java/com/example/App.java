@@ -39,6 +39,7 @@ import com.example.model.CheckInTask;
 import com.example.ui.hud.AnimeCast;
 import com.example.ui.hud.AnimeShell;
 import com.example.ui.hud.CharacterTheme;
+import com.example.ui.hud.HomeIllustration;
 import com.example.ui.hud.HomeBrief;
 import com.example.ui.hud.HomePortrait;
 import com.example.ui.hud.ShellDimensions;
@@ -295,6 +296,7 @@ public class App extends JFrame {
 
         JTabbedPane settingsTabs = PanelFactory.createServerConfigBody(serverRefs, mainFont, boldFont, fieldFont);
         bindWindowTransparencySlider();
+        bindHomeIllustrationCombo();
         JPanel settingsTab = new JPanel(new BorderLayout());
         settingsTab.setOpaque(false);
         settingsTab.setBorder(new EmptyBorder(4, 4, 4, 4));
@@ -422,6 +424,21 @@ public class App extends JFrame {
         bindCloudEventListeners();
     }
 
+    private void bindHomeIllustrationCombo() {
+        if (serverRefs.homeIllustrationCombo == null) {
+            return;
+        }
+        serverRefs.homeIllustrationCombo.addActionListener(e -> {
+            if (suppressConfigSave) {
+                return;
+            }
+            Object selected = serverRefs.homeIllustrationCombo.getSelectedItem();
+            applyHomeIllustration(
+                    HomeIllustration.fromLabel(selected == null ? null : selected.toString()),
+                    true);
+        });
+    }
+
     private void bindWindowTransparencySlider() {
         if (serverRefs.windowTransparencySlider == null) {
             return;
@@ -509,6 +526,11 @@ public class App extends JFrame {
         config.windowY = loc.y;
         if (serverRefs.windowTransparencySlider != null) {
             config.windowTransparencyPercent = serverRefs.windowTransparencySlider.getValue();
+        }
+        if (serverRefs.homeIllustrationCombo != null) {
+            Object selected = serverRefs.homeIllustrationCombo.getSelectedItem();
+            config.homeIllustration = HomeIllustration.fromLabel(
+                    selected == null ? null : selected.toString()).id();
         }
         if (mainTabs != null) {
             int tab = mainTabs.getSelectedIndex();
@@ -1704,6 +1726,19 @@ public class App extends JFrame {
         }
     }
 
+    private void applyHomeIllustration(HomeIllustration illustration, boolean persist) {
+        HomeIllustration next = illustration == null ? HomeIllustration.ROOM_B : illustration;
+        if (shell != null) {
+            shell.setHomeIllustration(next);
+        }
+        if (slotController != null && slotController.getConfig() != null) {
+            slotController.getConfig().homeIllustration = next.id();
+        }
+        if (persist && !suppressConfigSave) {
+            saveCloudConfig();
+        }
+    }
+
     private void bindBackgroundControls() {
         if (serverRefs.chooseBackgroundButton != null) {
             serverRefs.chooseBackgroundButton.addActionListener(e -> chooseWindowBackground());
@@ -2263,6 +2298,7 @@ public class App extends JFrame {
         }
         applyRelayConfig(config);
         applyCharacterThemeSelection(config);
+        applyHomeIllustrationSelection(config);
         ignoredUpdateDigest = config.ignoredUpdateDigest == null ? "" : config.ignoredUpdateDigest;
         lastUpdateCheckAt = parseUpdateCheckAt(config.lastUpdateCheckAt);
         lastUpdateCheckMinute = lastUpdateCheckAt == null ? "" : lastUpdateCheckAt.format(UPDATE_CHECK_TIME);
@@ -2273,6 +2309,20 @@ public class App extends JFrame {
 
     private void applyCharacterThemeSelection(ConfigPersistenceService.CloudConfig config) {
         applyCharacterTheme(CharacterTheme.fromId(config == null ? null : config.characterTheme), false);
+    }
+
+    private void applyHomeIllustrationSelection(ConfigPersistenceService.CloudConfig config) {
+        HomeIllustration illustration = HomeIllustration.fromId(config == null ? null : config.homeIllustration);
+        if (serverRefs.homeIllustrationCombo != null) {
+            boolean previous = suppressConfigSave;
+            suppressConfigSave = true;
+            try {
+                serverRefs.homeIllustrationCombo.setSelectedItem(illustration.label());
+            } finally {
+                suppressConfigSave = previous;
+            }
+        }
+        applyHomeIllustration(illustration, false);
     }
 
     private void applyRelayConfig(ConfigPersistenceService.CloudConfig config) {

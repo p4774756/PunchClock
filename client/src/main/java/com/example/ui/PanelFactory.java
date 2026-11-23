@@ -1,6 +1,7 @@
 package com.example.ui;
 
 import com.example.model.WorkSlot;
+import com.example.ui.hud.HomeIllustration;
 import com.example.service.CheckInHistoryService;
 import com.example.service.PeerAvatar;
 import com.example.service.WindowBackground;
@@ -149,6 +150,7 @@ public class PanelFactory {
                 settingsSection("程式更新", boldFont, updates)));
         tabs.addTab("外觀", settingsPage(
                 settingsSection("視窗透明度", boldFont, windowTransparencyRow(refs, mainFont, boldFont)),
+                settingsSection("首頁插畫", boldFont, homeIllustrationRow(refs, mainFont, boldFont)),
                 settingsSection("桌面寵物", boldFont, desktopPetRow(refs, mainFont, boldFont))));
         tabs.setToolTipTextAt(1, "視窗透明度與桌面寵物");
         tabs.addTab("中繼", settingsPage(
@@ -316,6 +318,41 @@ public class PanelFactory {
         column.add(Box.createVerticalStrut(2));
         column.add(opacityRow);
         setBackgroundEffectControlsEnabled(refs, false);
+        return column;
+    }
+
+    private static JPanel homeIllustrationRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
+        refs.homeIllustrationCombo = new JComboBox<>(new String[]{
+                HomeIllustration.ROOM_B.label(),
+                HomeIllustration.POOL_C.label()
+        });
+        refs.homeIllustrationCombo.setFont(mainFont);
+        refs.homeIllustrationCombo.setSelectedItem(HomeIllustration.ROOM_B.label());
+        CandyComboBox.dress(refs.homeIllustrationCombo);
+        refs.homeIllustrationCombo.setToolTipText("首頁背景插畫：B 夜晚房間或 C 頂樓泳池");
+
+        JLabel title = new JLabel("選擇插畫");
+        title.setFont(mainFont);
+        title.setLabelFor(refs.homeIllustrationCombo);
+
+        JLabel hint = new CompactShellPanels.WrappingLabel(
+                "角色已畫在場景裡；B 為預設夜晚房間，C 為頂樓泳池。");
+        hint.setFont(mainFont);
+        hint.setForeground(NightTheme.MUTED);
+
+        JPanel column = new JPanel();
+        column.setOpaque(false);
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+        column.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        row.setOpaque(false);
+        row.add(title);
+        row.add(refs.homeIllustrationCombo);
+        pinRow(row);
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        column.add(row);
+        column.add(Box.createVerticalStrut(4));
+        column.add(hint);
         return column;
     }
 
@@ -649,6 +686,7 @@ public class PanelFactory {
         public JLabel backgroundBlurValueLabel;
         public JSlider backgroundOpacitySlider;
         public JLabel backgroundOpacityValueLabel;
+        public JComboBox<String> homeIllustrationCombo;
         public JToggleButton desktopPetSwitch;
         public JSlider windowTransparencySlider;
         public JLabel windowTransparencyValueLabel;

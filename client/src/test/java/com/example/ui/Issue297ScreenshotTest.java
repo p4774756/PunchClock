@@ -1,6 +1,7 @@
 package com.example.ui;
 
 import com.example.ui.hud.AnimeShell;
+import com.example.ui.hud.HomeIllustration;
 import com.example.ui.hud.ShellDimensions;
 import org.junit.Assume;
 import org.junit.Test;
@@ -17,9 +18,6 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Clock;
-import java.time.LocalDate;
-import java.time.ZoneId;
 
 /**
  * Headless 截圖輸出到 worktree 外 shots297-self（不 commit）。
@@ -30,29 +28,29 @@ public class Issue297ScreenshotTest {
             Path.of(System.getProperty("user.home"), "PunchClock-oki", "shots297-self", "dev1");
 
     @Test
-    public void captureHomePoolPhasesAndUi() throws Exception {
+    public void captureHomeIllustrationsAndUi() throws Exception {
         Assume.assumeFalse("true".equals(System.getenv("CI")));
         Files.createDirectories(OUT);
-        ZoneId zone = ZoneId.systemDefault();
-        writePhaseShot("home-day.png", LocalDate.of(2026, 6, 1).atTime(10, 0).atZone(zone), zone);
-        writePhaseShot("home-dusk.png", LocalDate.of(2026, 6, 1).atTime(17, 30).atZone(zone), zone);
-        writePhaseShot("home-night.png", LocalDate.of(2026, 6, 1).atTime(22, 0).atZone(zone), zone);
+        writeIllustrationShot("home-b.png", HomeIllustration.ROOM_B, ShellDimensions.DEFAULT_WIDTH, ShellDimensions.DEFAULT_HEIGHT);
+        writeIllustrationShot("home-c.png", HomeIllustration.POOL_C, ShellDimensions.DEFAULT_WIDTH, ShellDimensions.DEFAULT_HEIGHT);
+        writeIllustrationShot("home-c-min.png", HomeIllustration.POOL_C, ShellDimensions.MIN_WIDTH, ShellDimensions.MIN_HEIGHT);
         writeShellShot("tabs-enlarged.png", false);
         writeHistoryShot("history-expanded.png");
     }
 
-    private static void writePhaseShot(String name, java.time.ZonedDateTime when, ZoneId zone) throws Exception {
+    private static void writeIllustrationShot(
+            String name,
+            HomeIllustration illustration,
+            int width,
+            int height) throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             try {
                 AnimeShell shell = new AnimeShell(null, new JTabbedPane());
-                shell.setClockForTests(Clock.fixed(when.toInstant(), zone));
-                shell.setSize(ShellDimensions.DEFAULT_WIDTH, ShellDimensions.DEFAULT_HEIGHT);
+                shell.setHomeIllustration(illustration);
+                shell.setSize(width, height);
                 shell.doLayout();
                 shell.showHome();
-                BufferedImage image = new BufferedImage(
-                        ShellDimensions.DEFAULT_WIDTH,
-                        ShellDimensions.DEFAULT_HEIGHT,
-                        BufferedImage.TYPE_INT_RGB);
+                BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
                 Graphics2D g = image.createGraphics();
                 shell.paint(g);
                 g.dispose();

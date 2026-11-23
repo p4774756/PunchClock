@@ -3,6 +3,7 @@ package com.example.service;
 import com.example.BuildInfo;
 import com.example.ui.TaskEditDialog;
 import com.example.ui.hud.CharacterTheme;
+import com.example.ui.hud.HomeIllustration;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -112,6 +113,9 @@ public class ConfigPersistenceService {
          * 舊版角色主題 id（已移除選單；讀取時正規化成 {@code sweater}，儲存時不再寫出）。
          */
         public String characterTheme = CharacterTheme.SWEATER.id();
+
+        /** 首頁全幅插畫：{@code b} 夜晚房間、{@code c} 頂樓泳池。 */
+        public String homeIllustration = HomeIllustration.ROOM_B.id();
     }
 
     private static SlotSettings defaultWorkIn() {
@@ -258,6 +262,7 @@ public class ConfigPersistenceService {
         config.relayPort = RelayProxyService.clampPort(config.relayPort);
         config.ignoredUpdateDigest = BuildInfo.normalizeDigest(config.ignoredUpdateDigest);
         config.characterTheme = CharacterTheme.fromId(config.characterTheme).id();
+        config.homeIllustration = HomeIllustration.fromId(config.homeIllustration).id();
         config.lastUpdateCheckAt = normalizeUpdateCheckAt(config.lastUpdateCheckAt);
     }
 

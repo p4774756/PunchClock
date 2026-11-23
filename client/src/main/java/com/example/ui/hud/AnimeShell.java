@@ -32,10 +32,8 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -69,10 +67,9 @@ public final class AnimeShell extends JPanel {
     private final SchedulerService scheduler;
     private final BabyAssets baby = BabyAssets.load();
     private final HomeBoard board = new HomeBoard();
-    private final Map<HomePoolPhase.Phase, BufferedImage> poolBackgrounds = loadPoolBackgrounds();
+    private final Map<HomeIllustration, BufferedImage> homeIllustrations = loadHomeIllustrations();
     private final Timer timer;
-    private Clock clock = Clock.systemDefaultZone();
-    private HomePoolPhase.Phase paintedPhase;
+    private HomeIllustration homeIllustration = HomeIllustration.ROOM_B;
     private final boolean reducedMotion = reducedMotion();
     private final Map<String, TaskStatus> seenTasks = new HashMap<>();
     private HomeActions homeActions;
@@ -188,11 +185,6 @@ public final class AnimeShell extends JPanel {
                         refreshBubble();
                         repaint(contentBounds());
                     }
-                    HomePoolPhase.Phase phase = currentPhase();
-                    if (phase != paintedPhase) {
-                        paintedPhase = phase;
-                        repaint(contentBounds());
-                    }
                 }
                 if (board.animating()) {
                     repaint(board.bubbleArea());
@@ -300,7 +292,7 @@ public final class AnimeShell extends JPanel {
     public void prepareHomeLayout() {
         if (holdingHome) {
             board.layout(contentBounds());
-            layoutFigure();
+            figureBox = new java.awt.Rectangle();
         }
     }
 
@@ -457,15 +449,17 @@ public final class AnimeShell extends JPanel {
         onMiniExpand = handler;
     }
 
-    /** 測試用：注入時鐘以固定泳池時段。 */
-    public void setClockForTests(Clock testClock) {
-        clock = testClock == null ? Clock.systemDefaultZone() : testClock;
-        paintedPhase = null;
-        repaint();
+    public void setHomeIllustration(HomeIllustration illustration) {
+        HomeIllustration next = illustration == null ? HomeIllustration.ROOM_B : illustration;
+        if (next == homeIllustration) {
+            return;
+        }
+        homeIllustration = next;
+        repaint(contentBounds());
     }
 
-    public HomePoolPhase.Phase currentPhase() {
-        return HomePoolPhase.phase(clock);
+    HomeIllustration homeIllustrationForTests() {
+        return homeIllustration;
     }
 
     private void noticeStatus() {
@@ -540,7 +534,7 @@ public final class AnimeShell extends JPanel {
         java.awt.Rectangle content = contentBounds();
         if (holdingHome) {
             board.layout(content);
-            layoutFigure();
+            figureBox = new java.awt.Rectangle();
             paintHome(g, content);
         }
         paintTabBar(g);
@@ -548,36 +542,7 @@ public final class AnimeShell extends JPanel {
     }
 
     private void paintHome(Graphics2D g, java.awt.Rectangle area) {
-        paintFigure(g);
         board.paint(g, hot == HomeBoard.BUBBLE ? HomeBoard.BUBBLE : -1);
-    }
-
-    private void layoutFigure() {
-        figureBox = new java.awt.Rectangle();
-        if (baby == null || baby.seated() == null || board.stage.width < 40) {
-            return;
-        }
-        BufferedImage img = baby.seated();
-        int maxW = board.stage.width - 16;
-        int maxH = (int) (board.stage.height * 0.72f);
-        double scale = Math.min(maxW / (double) img.getWidth(), maxH / (double) img.getHeight());
-        int w = Math.max(1, (int) Math.round(img.getWidth() * scale));
-        int h = Math.max(1, (int) Math.round(img.getHeight() * scale));
-        int x = board.stage.x + (board.stage.width - w) / 2;
-        int y = board.stage.y + board.stage.height - h - 8;
-        figureBox = new java.awt.Rectangle(x, y, w, h);
-    }
-
-    private void paintFigure(Graphics2D g) {
-        if (figureBox.width <= 0 || baby == null || baby.seated() == null) {
-            return;
-        }
-        Object previous = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawImage(baby.seated(), figureBox.x, figureBox.y, figureBox.width, figureBox.height, null);
-        if (previous != null) {
-            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, previous);
-        }
     }
 
     private void paintMini(Graphics2D g) {
@@ -796,9 +761,7 @@ public final class AnimeShell extends JPanel {
         if (!useRoom) {
             return;
         }
-        HomePoolPhase.Phase phase = currentPhase();
-        paintedPhase = phase;
-        BufferedImage background = poolBackgrounds.get(phase);
+        BufferedImage background = homeIllustrations.get(homeIllustration);
         if (background == null) {
             g.setColor(new Color(28, 20, 48));
             g.fillRect(0, 0, getWidth(), getHeight());
@@ -809,16 +772,20 @@ public final class AnimeShell extends JPanel {
                 getHeight() / (double) background.getHeight());
         int dw = (int) Math.ceil(background.getWidth() * scale);
         int dh = (int) Math.ceil(background.getHeight() * scale);
+        int x = (getWidth() - dw) / 2;
+        int y = homeIllustration.preferTopWhenVerticalCrop() && dh > getHeight()
+                ? 0
+                : (getHeight() - dh) / 2;
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawImage(background, (getWidth() - dw) / 2, (getHeight() - dh) / 2, dw, dh, null);
+        g.drawImage(background, x, y, dw, dh, null);
         g.setColor(new Color(16, 10, 32, 48));
         g.fillRect(0, 0, getWidth(), getHeight());
     }
 
-    private static Map<HomePoolPhase.Phase, BufferedImage> loadPoolBackgrounds() {
-        EnumMap<HomePoolPhase.Phase, BufferedImage> images = new EnumMap<>(HomePoolPhase.Phase.class);
-        for (HomePoolPhase.Phase phase : HomePoolPhase.Phase.values()) {
-            images.put(phase, loadImage(HomePoolPhase.resourcePath(phase)));
+    private static Map<HomeIllustration, BufferedImage> loadHomeIllustrations() {
+        Map<HomeIllustration, BufferedImage> images = new HashMap<>();
+        for (HomeIllustration illustration : HomeIllustration.values()) {
+            images.put(illustration, loadImage(illustration.resourcePath()));
         }
         return images;
     }
