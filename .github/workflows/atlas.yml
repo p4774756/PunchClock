@@ -38,3 +38,4 @@ jobs:
       - run: node scripts/validate-download-progress.mjs
       - run: node scripts/validate-anime-model-digest.mjs
       - run: node scripts/validate-acupoint-muscles.mjs
+      - run: node scripts/validate-rpg-dialog-layout.mjs
