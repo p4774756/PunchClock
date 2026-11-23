@@ -11,6 +11,8 @@ const {
   fillStatusCard,
   isSafePublicText,
   phraseForDoneDisplay,
+  phraseForActiveDisplay,
+  renderActiveBlock,
   completedTodayKeys,
   hasNewCompletedToday,
   secretarySpriteUrlForStatus,
@@ -40,6 +42,11 @@ test('progressBoardViewFromTiger 單號與今日進度', () => {
     0
   );
   assert.equal(bad.phraseLine, '進行中');
+  const vague = progressBoardViewFromTiger(
+    { active: [{ issue: 502, phrase: '正在處理一項工作', title: '公開 API 標題' }], completedToday: [] },
+    0
+  );
+  assert.equal(vague.phraseLine, '公開 API 標題');
 });
 
 test('taskProgressFromTiger 以進行中與今日完成計算', () => {
@@ -112,6 +119,38 @@ test('phraseForDoneDisplay 去掉正在與空泛句', () => {
   assert.equal(phraseForDoneDisplay({ phrase: '正在整理', title: '標題' }), '整理');
   assert.equal(phraseForDoneDisplay({ phrase: '完成一項工作', title: 'Issue 標題' }), 'Issue 標題');
   assert.equal(phraseForDoneDisplay({ phrase: '收工一句' }), '收工一句');
+});
+
+test('phraseForActiveDisplay 空泛句改標題', () => {
+  assert.equal(
+    phraseForActiveDisplay({ phrase: '正在處理一項工作', title: 'README 更新' }),
+    'README 更新'
+  );
+  assert.equal(phraseForActiveDisplay({ phrase: '秘書口語', title: '標題' }), '秘書口語');
+  assert.equal(phraseForActiveDisplay({ title: '只有標題' }), '只有標題');
+});
+
+test('renderActiveBlock 標題主文與次要單號', () => {
+  const doc = {
+    createElement(tag) {
+      const node = { tagName: tag.toUpperCase(), className: '', childNodes: [], textContent: '' };
+      node.appendChild = (c) => { node.childNodes.push(c); return c; };
+      node.setAttribute = () => {};
+      return node;
+    }
+  };
+  const block = renderActiveBlock(doc, {
+    phrase: '正在處理一項工作',
+    title: '首頁秘書狀態卡',
+    issue: 507,
+    issueUrl: 'https://github.com/p4774756/PunchClock/issues/507',
+    minutes: 2
+  });
+  const flat = JSON.stringify(block);
+  assert.ok(flat.includes('首頁秘書狀態卡'));
+  assert.ok(flat.includes('pt-status-active-title'));
+  assert.ok(flat.includes('pt-status-issue-sub'));
+  assert.ok(flat.includes('#507'));
 });
 
 test('devQueueFromStatus 解析排隊', () => {

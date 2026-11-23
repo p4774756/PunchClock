@@ -33,9 +33,20 @@ public final class SecretarySpeech {
     }
 
     public static String phraseForActive(IssueRow issue) {
-        String fromIssue = issue == null ? null : sanitizePhrase(issue.secretaryLine);
-        if (fromIssue != null) {
+        if (issue == null) {
+            return ACTIVE_FALLBACK;
+        }
+        String fromIssue = sanitizePhrase(issue.secretaryLine);
+        if (fromIssue != null && !fromIssue.isEmpty()
+                && !ACTIVE_FALLBACK.equals(fromIssue) && !COMPLETED_FALLBACK.equals(fromIssue)) {
             return fromIssue;
+        }
+        String title = issue.title == null ? "" : issue.title.trim();
+        if (!title.isEmpty()) {
+            String clean = sanitizePhrase(title);
+            if (clean != null && !clean.isEmpty()) {
+                return clean;
+            }
         }
         return ACTIVE_FALLBACK;
     }
