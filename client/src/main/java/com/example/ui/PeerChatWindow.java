@@ -65,7 +65,7 @@ import java.util.function.Consumer;
 
 /**
  * 和單一同事的小聊天視窗：對話紀錄（只存記憶體）、輸入框（Enter 送出、Shift+Enter 換行）、
- * 附圖（Ctrl+V／⌘V 可貼多張）、附加檔案（先列出，按傳送才送給這個人）、戳一下。
+ * 附圖（Ctrl+V／⌘V 可貼多張）、附加檔案（先列出，按傳送才送給這個人）。
  */
 public class PeerChatWindow extends JFrame {
 
@@ -75,8 +75,6 @@ public class PeerChatWindow extends JFrame {
         boolean canSend(String peerId);
 
         void sendMessage(String peerId, String text, String imageEncoded, Consumer<Boolean> done);
-
-        void poke(String peerId);
 
         /**
          * 聊天視窗裡已排好的檔案，只送給這一位，不開多人傳送視窗。
@@ -96,7 +94,6 @@ public class PeerChatWindow extends JFrame {
     private final PeerChatTranscript transcript;
     private final JTextArea input;
     private final JButton sendButton;
-    private final JButton pokeButton;
     private final JButton fileButton;
     private final JButton attachButton;
     private final JButton clearImageButton;
@@ -130,7 +127,7 @@ public class PeerChatWindow extends JFrame {
     }
 
     /**
-     * @param textOnly 後台／群組對話只傳文字，不顯示圖片、戳一下、傳檔
+     * @param textOnly 後台／群組對話只傳文字，不顯示圖片、傳檔
      */
     public PeerChatWindow(String peerId, Host host, Image appIcon, List<PeerChatStore.Entry> history,
                           boolean readOnly, boolean textOnly) {
@@ -284,14 +281,6 @@ public class PeerChatWindow extends JFrame {
         attachButton.setFont(plain);
         attachButton.setToolTipText("選一張或多張圖片，和文字一起傳給對方（會自動縮小壓縮）");
         attachButton.addActionListener(e -> chooseImage());
-        pokeButton = new CandyButton("戳一下", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
-        pokeButton.setFont(plain);
-        pokeButton.setToolTipText("對方會響一聲，並彈出聊天視窗晃一下（約 15 秒內隨心跳送達）");
-        pokeButton.addActionListener(e -> {
-            if (canCompose()) {
-                host.poke(peerId);
-            }
-        });
         fileButton = new CandyButton("附加檔案", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         fileButton.setFont(plain);
         fileButton.setToolTipText("選檔案或資料夾（可多選）。先列在這裡，按傳送才送給這個人；多個項目會打包成一個 ZIP");
@@ -301,10 +290,9 @@ public class PeerChatWindow extends JFrame {
         sendButton.addActionListener(e -> send());
 
         // GridLayout：視窗再窄按鈕也只會一起變窄，不會像 FlowLayout 那樣把最後一顆換行後被裁掉
-        JPanel tools = new JPanel(new GridLayout(1, 3, 6, 0));
+        JPanel tools = new JPanel(new GridLayout(1, 2, 6, 0));
         tools.setOpaque(false);
         tools.add(attachButton);
-        tools.add(pokeButton);
         tools.add(fileButton);
         JPanel buttons = new JPanel(new BorderLayout(8, 0));
         buttons.setBorder(new EmptyBorder(6, 12, 10, 12));
@@ -434,7 +422,7 @@ public class PeerChatWindow extends JFrame {
         }
     }
 
-    /** 同事要在線才送得出文字、圖片、戳一下和檔案。後台文字對話不看在線狀態。 */
+    /** 同事要在線才送得出文字、圖片和檔案。後台文字對話不看在線狀態。 */
     private boolean canCompose() {
         return interactionEnabled && !readOnly && (textOnly || peerOnline);
     }
@@ -449,7 +437,6 @@ public class PeerChatWindow extends JFrame {
         attachButton.setEnabled(extras);
         clearImageButton.setEnabled(canClear && !attachedImages.isEmpty());
         clearFilesButton.setEnabled(canClear && !pendingFiles.isEmpty());
-        pokeButton.setEnabled(extras);
         fileButton.setEnabled(extras && !fileBusy);
     }
 

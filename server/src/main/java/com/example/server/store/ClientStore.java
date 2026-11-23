@@ -128,9 +128,6 @@ public final class ClientStore {
             String[] parts = action.split("\\|", 3);
             String fromId = parts.length > 1 ? parts[1] : "未知";
             appendClientEvent(existing, "同事【" + fromId + "】傳來圖片訊息（等待桌面端下次心跳收取）");
-        } else if (action != null && action.startsWith("POKE|")) {
-            String fromId = action.length() > "POKE|".length() ? action.substring("POKE|".length()) : "未知";
-            appendClientEvent(existing, "同事【" + fromId + "】戳了你（等待桌面端下次心跳收取）");
         } else if (action != null && action.startsWith("RELAY|")) {
             String[] parts = action.split("\\|", -1);
             String fromId = parts.length > 1 ? PeerFileRules.decodeName(parts[1]) : "未知";
@@ -184,30 +181,6 @@ public final class ClientStore {
                     + toClientId + "】（等待對方心跳收取）");
         }
         return PeerResult.ok("訊息已排入佇列，對方約 15 秒內收到");
-    }
-
-    public PeerResult queuePeerPoke(String toClientId, String fromClientId) {
-        return queuePeerPoke(toClientId, fromClientId, null);
-    }
-
-    public PeerResult queuePeerPoke(String toClientId, String fromClientId, String avatar) {
-        if (toClientId == null || toClientId.isEmpty() || fromClientId == null || fromClientId.isEmpty()) {
-            return PeerResult.fail("缺少收件人或發送者");
-        }
-        if (toClientId.equals(fromClientId)) {
-            return PeerResult.fail("不能戳自己");
-        }
-        synchronized (metadataLock) {
-            Map<String, Object> sender = getOrCreateClient(fromClientId);
-            String encodedAvatar = firstNonEmptyAvatar(avatar, sender.get("avatar"));
-            if (!encodedAvatar.isEmpty()) {
-                sender.put("avatar", encodedAvatar);
-            }
-            String action = encodePeerPoke(fromClientId, encodedAvatar);
-            queueClientAction(toClientId, action);
-            appendClientEvent(sender, "已戳【" + toClientId + "】（等待對方心跳收取）");
-        }
-        return PeerResult.ok("戳一下已排入佇列，對方約 15 秒內收到");
     }
 
     /** 通知收件人有一筆即時直傳等待接收（檔案本身不經伺服器暫存）。 */
@@ -611,14 +584,6 @@ public final class ClientStore {
             return "";
         }
         return value;
-    }
-
-    private static String encodePeerPoke(String fromClientId, String avatar) {
-        String action = "POKE|" + fromClientId + "|" + System.currentTimeMillis();
-        if (avatar != null && !avatar.isEmpty()) {
-            action += "|" + avatar;
-        }
-        return action;
     }
 
     /** RELAY|base64fromId|relayId|base64name|size|kind|epochMs（fromId 編碼後不會含 |） */

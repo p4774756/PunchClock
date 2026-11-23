@@ -425,10 +425,6 @@ public class HeartbeatService implements HeartbeatEvents {
         peerMessages.sendPeerMessage(toClientId, text, imageEncoded, logger, callback);
     }
 
-    public void sendPeerPoke(String toClientId, Consumer<String> logger, Consumer<Boolean> callback) {
-        peerMessages.sendPeerPoke(toClientId, logger, callback);
-    }
-
     public void sendPeerFileRelay(String toClientId, Path file, Consumer<String> logger,
                                   TransferIo.Progress progress, Consumer<String> statusUpdate,
                                   TransferCancel cancel, Consumer<RelayOutcome> callback) {

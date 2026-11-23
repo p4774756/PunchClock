@@ -98,13 +98,7 @@ final class HeartbeatResponseParser {
                 host.commandListener().accept("MSGI|" + fromId + "|" + sentAtMs + "|" + avatar + "|" + image + "|" + text);
             }
         } else if (action.startsWith("POKE|")) {
-            // POKE|fromId 或 POKE|fromId|epochMs 或 POKE|fromId|epochMs|avatar
-            String[] parts = action.split("\\|", 4);
-            String fromId = parts.length > 1 && !parts[1].isBlank() ? parts[1] : "未知";
-            String sentAtMs = parts.length >= 3 ? parts[2].trim() : "";
-            String avatar = parts.length >= 4 ? parts[3].trim() : "";
-            host.log(logger, "[通知] [戳] 【" + fromId + "】戳了你");
-            host.commandListener().accept("POKE|" + fromId + "|" + sentAtMs + "|" + avatar);
+            // 舊版戳一下；已移除，安靜忽略
         } else if (action.startsWith("RELAY|")) {
             // RELAY|base64fromId|relayId|base64name|size|kind|epochMs
             String[] parts = action.split("\\|", -1);

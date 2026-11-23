@@ -85,7 +85,7 @@ public class ConfigPersistenceService {
         /** 上次選檔的資料夾。下次開啟選檔面板時從這裡開始。 */
         public String lastOpenDirectory = "";
 
-        /** 是否使用 ~/.punchclock/avatar.jpg 作為訊息／戳一下大頭照 */
+        /** 是否使用 ~/.punchclock/avatar.jpg 作為訊息大頭照 */
         public boolean customAvatar = false;
 
         /** 是否使用 ~/.punchclock/background.jpg 作為程式視窗背景 */

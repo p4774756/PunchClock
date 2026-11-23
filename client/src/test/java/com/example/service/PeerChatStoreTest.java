@@ -44,16 +44,12 @@ public class PeerChatStoreTest {
         PeerChatStore store = new PeerChatStore();
         long before = System.currentTimeMillis();
         PeerChatStore.Entry image = store.addMessage("alice", true, "", "abc", null);
-        PeerChatStore.Entry poke = store.addPoke("alice", false, 5_000L);
         PeerChatStore.Entry note = store.addNote("alice", "已直傳「a.txt」", 6_000L);
 
         assertTrue(image.hasImage());
         assertTrue("沒有時間就用現在", image.timeMs >= before);
-        assertEquals(PeerChatStore.Kind.POKE, poke.kind);
-        assertEquals(5_000L, poke.timeMs);
         assertEquals(PeerChatStore.Kind.NOTE, note.kind);
         assertEquals("已直傳「a.txt」", note.text);
-        assertFalse(poke.hasImage());
     }
 
     @Test

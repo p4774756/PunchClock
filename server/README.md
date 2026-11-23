@@ -21,7 +21,7 @@ Worker 走 HTTP 心跳。Dashboard 用 REST 下指令，WebSocket 只推 `STATUS
 | `POST /api/clients/{id}/cancel-schedule` | 已登入 | 取消全部排程 |
 | `POST /api/clients/{id}/cancel-task/{taskId}` | 已登入 | 取消單一任務 |
 | `DELETE /api/clients/{id}` | 已登入 | 刪除裝置紀錄 |
-| `POST /api/peer/message`、`POST /api/peer/poke` | Bearer | 同事訊息、戳一下 |
+| `POST /api/peer/message` | Bearer | 同事訊息 |
 | `POST /api/clients/{id}/message` | 已登入 | 後台傳話給某台桌面端 |
 | `POST /api/peer/file` | Bearer | 整檔上傳（舊路徑；新客戶端改走分段） |
 | `POST /api/peer/upload`、`PUT /api/peer/upload/{id}`、`GET`、`POST .../complete`、`DELETE` | Bearer | 分段上傳 |

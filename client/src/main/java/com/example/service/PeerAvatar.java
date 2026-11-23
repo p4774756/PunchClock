@@ -22,7 +22,7 @@ import java.util.Base64;
 import java.util.Iterator;
 
 /**
- * 同事訊息／戳一下用的大頭照：裁成方形、縮成小圖、編成 Base64 URL。
+ * 同事訊息用的大頭照：裁成方形、縮成小圖、編成 Base64 URL。
  */
 public final class PeerAvatar {
 

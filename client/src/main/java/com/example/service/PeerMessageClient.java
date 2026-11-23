@@ -10,7 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/** 同事訊息與戳一下。 */
+/** 同事訊息。 */
 final class PeerMessageClient {
 
     private final HeartbeatEndpoint endpoint;
@@ -68,31 +68,6 @@ final class PeerMessageClient {
         postPeerApi("/api/peer/message", payload, logger, callback,
                 (imageCount > 1 ? imageCount + " 張圖片給【" : hasImage ? "圖片訊息給【" : "訊息給【")
                         + toClientId.trim() + "】：" + (trimmed.isEmpty() ? "（僅圖片）" : trimmed));
-    }
-
-    /**
-     * 戳一下同事（經伺服器中繼）
-     */
-    void sendPeerPoke(String toClientId, Consumer<String> logger, Consumer<Boolean> callback) {
-        if (!endpoint.active() || endpoint.url().isBlank()) {
-            endpoint.log(logger, "[警告] [戳] 雲端未連線，無法戳同事");
-            if (callback != null) callback.accept(false);
-            return;
-        }
-        if (toClientId == null || toClientId.isBlank()) {
-            endpoint.log(logger, "[警告] [戳] 請選擇同事");
-            if (callback != null) callback.accept(false);
-            return;
-        }
-
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("fromClientId", endpoint.workerId());
-        payload.put("toClientId", toClientId.trim());
-        if (endpoint.avatar() != null && !endpoint.avatar().isBlank()) {
-            payload.put("avatar", endpoint.avatar());
-        }
-        postPeerApi("/api/peer/poke", payload, logger, callback,
-                "戳一下給【" + toClientId.trim() + "】");
     }
 
     private void postPeerApi(String path, Map<String, Object> payload,

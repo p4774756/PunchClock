@@ -39,7 +39,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * 聊天視窗的對話區。自己的訊息在右邊、對方在左邊，戳一下與系統提示置中。
+ * 聊天視窗的對話區。自己的訊息在右邊、對方在左邊，系統提示置中。
  * 長文在氣泡裡換行；程式碼與 stack trace 保留縮排，改在氣泡內左右捲動。
  */
 public class PeerChatTranscript extends JPanel implements Scrollable {
@@ -104,7 +104,7 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
     }
 
     public void append(PeerChatStore.Entry entry) {
-        if (entry == null) {
+        if (entry == null || entry.kind == PeerChatStore.Kind.POKE) {
             return;
         }
         if (!SwingUtilities.isEventDispatchThread()) {

@@ -97,22 +97,6 @@ public class ClientStoreTest {
     }
 
     @Test
-    public void peerPokeActionIncludesSentTimestamp() {
-        long before = System.currentTimeMillis();
-        assertTrue(store.queuePeerPoke("b", "a").ok);
-        Map<String, Object> existing = store.getOrCreateClient("b");
-        List<String> drained = store.drainPendingActions(existing);
-        assertEquals(1, drained.size());
-        String[] parts = drained.get(0).split("\\|", 3);
-        assertEquals(3, parts.length);
-        assertEquals("POKE", parts[0]);
-        assertEquals("a", parts[1]);
-        long sentAt = Long.parseLong(parts[2]);
-        assertTrue(sentAt >= before);
-        assertTrue(sentAt <= System.currentTimeMillis() + 1000);
-    }
-
-    @Test
     public void peerMessageActionIncludesAvatarWhenProvided() {
         assertTrue(store.queuePeerMessage("b", "a", "hello", "abcXYZ012-_").ok);
         List<String> drained = store.drainPendingActions(store.getOrCreateClient("b"));
@@ -173,15 +157,6 @@ public class ClientStoreTest {
         store.queuePeerMessage("b", "a", "hi", null, "imgABC");
         Map<String, Object> clean = store.sanitizeClientForApi(store.getOrCreateClient("b"));
         assertFalse(clean.containsKey("pendingActions"));
-    }
-
-    @Test
-    public void peerPokeActionIncludesAvatarWhenProvided() {
-        assertTrue(store.queuePeerPoke("b", "a", "abcXYZ012").ok);
-        String[] parts = store.drainPendingActions(store.getOrCreateClient("b")).get(0).split("\\|", 4);
-        assertEquals("POKE", parts[0]);
-        assertEquals("a", parts[1]);
-        assertEquals("abcXYZ012", parts[3]);
     }
 
     @Test
