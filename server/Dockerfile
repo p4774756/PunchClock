@@ -18,8 +18,9 @@ COPY server/pom.xml server/pom.xml
 COPY server/src server/src
 
 # -pl shared,server：不要 also-make client（沒有原始碼，且會把 Playwright 打進多餘的 shade jar）。
-# -Dmaven.test.skip：略過測試編譯；只加 -DskipTests 仍會編測試，而 server 測試依賴 client 類別。
-RUN mvn -pl shared,server package -Dmaven.test.skip=true -P '!git-commit-time'
+# -P !client-tests：不要解析 server 對 punchclock-client 的測試依賴（-Dmaven.test.skip 仍會解析）。
+# -Dmaven.test.skip：略過測試編譯。
+RUN mvn -pl shared,server package -Dmaven.test.skip=true -P '!git-commit-time,!client-tests'
 
 FROM eclipse-temurin:11-jre-jammy
 # 飲品牆把 PowerPoint 轉成 PDF。同時只轉一份。Pages 只取檔內預覽，不經 LibreOffice。
