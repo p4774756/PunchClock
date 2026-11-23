@@ -19,6 +19,7 @@ import java.awt.Container;
 import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -359,7 +360,8 @@ public class Issue305Round3LayoutTest {
     private static void assertTextInside(javax.swing.JTextArea area, String label) {
         try {
             int last = Math.max(0, area.getText().length() - 1);
-            Rectangle end = area.modelToView(last);
+            Rectangle2D end2d = area.modelToView2D(last);
+            Rectangle end = end2d != null ? end2d.getBounds() : null;
             assertTrue(label + " end " + end + " area " + area.getWidth() + "x" + area.getHeight(),
                     end != null && end.y >= 0 && end.y + end.height <= area.getHeight() + 2);
         } catch (BadLocationException ex) {

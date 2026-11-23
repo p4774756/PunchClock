@@ -254,74 +254,6 @@ public class PanelFactory {
         return column;
     }
 
-    private static JPanel backgroundRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
-        refs.backgroundPreview = new JLabel();
-        refs.backgroundPreview.setPreferredSize(new Dimension(
-                WindowBackground.PREVIEW_WIDTH, WindowBackground.PREVIEW_HEIGHT));
-        refs.backgroundPreview.setMinimumSize(refs.backgroundPreview.getPreferredSize());
-        refs.backgroundPreview.setToolTipText("程式視窗背景預覽；實際會等比裁切填滿視窗");
-        refs.backgroundPreview.setIcon(WindowBackground.previewIcon(null));
-
-        CandyButton choose = new CandyButton("選擇背景", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
-        choose.setFont(boldFont);
-        choose.setToolTipText("選擇 JPG／PNG／GIF 作為程式背景");
-        refs.chooseBackgroundButton = choose;
-        CandyButton clear = new CandyButton("還原預設", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
-        clear.setFont(mainFont);
-        clear.setToolTipText("清除自訂背景，還原預設底色");
-        clear.setEnabled(false);
-        refs.clearBackgroundButton = clear;
-
-        JPanel previewRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        previewRow.setOpaque(false);
-        previewRow.add(refs.backgroundPreview);
-        JPanel backgroundButtons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        backgroundButtons.setOpaque(false);
-        backgroundButtons.add(refs.chooseBackgroundButton);
-        backgroundButtons.add(refs.clearBackgroundButton);
-        pinRow(previewRow);
-        pinRow(backgroundButtons);
-
-        refs.backgroundBlurSlider = new JSlider(0, WindowBackground.MAX_BLUR_PERCENT, 0);
-        refs.backgroundBlurSlider.setOpaque(false);
-        refs.backgroundBlurSlider.setFocusable(false);
-        refs.backgroundBlurSlider.setPreferredSize(new Dimension(160, 22));
-        refs.backgroundBlurSlider.setToolTipText("背景圖模糊程度；向右越糊，方便閱讀前景文字");
-        refs.backgroundBlurValueLabel = new JLabel("0%");
-        refs.backgroundBlurValueLabel.setFont(mainFont);
-        refs.backgroundBlurValueLabel.setForeground(NightTheme.MUTED);
-        refs.backgroundBlurValueLabel.setPreferredSize(new Dimension(40, 22));
-
-        refs.backgroundOpacitySlider = new JSlider(0, WindowBackground.MAX_OPACITY_PERCENT,
-                WindowBackground.DEFAULT_OPACITY_PERCENT);
-        refs.backgroundOpacitySlider.setOpaque(false);
-        refs.backgroundOpacitySlider.setFocusable(false);
-        refs.backgroundOpacitySlider.setPreferredSize(new Dimension(160, 22));
-        refs.backgroundOpacitySlider.setToolTipText("背景圖不透明度；向右越清楚，向左越淡");
-        refs.backgroundOpacityValueLabel = new JLabel(WindowBackground.DEFAULT_OPACITY_PERCENT + "%");
-        refs.backgroundOpacityValueLabel.setFont(mainFont);
-        refs.backgroundOpacityValueLabel.setForeground(NightTheme.MUTED);
-        refs.backgroundOpacityValueLabel.setPreferredSize(new Dimension(40, 22));
-
-        JPanel blurRow = sliderRow(mainFont, "模糊：", refs.backgroundBlurSlider, refs.backgroundBlurValueLabel);
-        JPanel opacityRow = sliderRow(mainFont, "不透明度：", refs.backgroundOpacitySlider, refs.backgroundOpacityValueLabel);
-
-        JPanel column = new JPanel();
-        column.setOpaque(false);
-        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
-        column.setAlignmentX(Component.LEFT_ALIGNMENT);
-        blurRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        opacityRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        column.add(previewRow);
-        column.add(backgroundButtons);
-        column.add(Box.createVerticalStrut(4));
-        column.add(blurRow);
-        column.add(Box.createVerticalStrut(2));
-        column.add(opacityRow);
-        setBackgroundEffectControlsEnabled(refs, false);
-        return column;
-    }
-
     private static JPanel homeIllustrationRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
         refs.homeIllustrationCombo = new JComboBox<>(new String[]{
                 HomeIllustration.ROOM_B.label(),
@@ -1648,17 +1580,10 @@ public class PanelFactory {
      * 單行橫列。標了 {@code flex} 的那一格吃掉剩下的寬度，其他格維持偏好寬，不會換行。
      */
     private static final class ShrinkRow extends JPanel {
-        private final int gap;
-
         ShrinkRow(int gap) {
-            this.gap = gap;
             setOpaque(false);
             setLayout(new ShrinkLayout(gap));
             setAlignmentX(Component.LEFT_ALIGNMENT);
-        }
-
-        int gap() {
-            return gap;
         }
     }
 
@@ -1830,10 +1755,6 @@ public class PanelFactory {
                 }
             }
         }
-    }
-
-    private static JPanel wrapFlowRow(Component... components) {
-        return wrapFlowRow(8, 4, components);
     }
 
     /**

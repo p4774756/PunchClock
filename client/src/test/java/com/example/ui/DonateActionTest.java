@@ -22,8 +22,7 @@ public class DonateActionTest {
         key -> DonateLink.PLACEHOLDER_URL,
         DonateLink::isConfigured,
         (uri, p) -> browsed.add(uri),
-        () -> messages.add("prep"),
-        (p, url) -> messages.add("url:" + url));
+        () -> messages.add("prep"));
 
     action.run(null);
 
@@ -38,8 +37,7 @@ public class DonateActionTest {
         key -> "https://ko-fi.com/demo",
         DonateLink::isConfigured,
         (uri, p) -> seen.set(uri),
-        () -> {},
-        (p, url) -> {});
+        () -> {});
 
     action.run(null);
 
@@ -53,8 +51,7 @@ public class DonateActionTest {
         key -> "https://ko-fi.com/demo",
         DonateLink::isConfigured,
         (uri, p) -> actionShowUrlInstead(p, uri, messages),
-        () -> {},
-        (p, url) -> messages.add(url));
+        () -> {});
 
     action.run(null);
 

@@ -63,11 +63,11 @@ public class GraffitiRoutesTest {
 
     @Test
     public void guestsCanListAndPostButCannotDelete() throws Exception {
-        HttpResponse<String> list = send("GET", "/api/graffiti", null, null, null);
+        HttpResponse<String> list = send("GET", "/api/graffiti", null, null, (String[]) null);
         assertEquals(200, list.statusCode());
         assertTrue(list.body().contains("\"items\""));
 
-        HttpResponse<String> bad = send("POST", "/api/graffiti", "image/png", "nope".getBytes(StandardCharsets.UTF_8), null);
+        HttpResponse<String> bad = send("POST", "/api/graffiti", "image/png", "nope".getBytes(StandardCharsets.UTF_8), (String[]) null);
         assertEquals(400, bad.statusCode());
         assertTrue(bad.body().contains(GraffitiStore.IMAGE_MESSAGE));
         assertFalse(bad.body().contains("未登入"));
@@ -90,7 +90,7 @@ public class GraffitiRoutesTest {
         assertTrue(file.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
         assertEquals((byte) 0x89, file.body()[0]);
 
-        HttpResponse<String> denied = send("DELETE", "/api/graffiti/" + id, null, null, null);
+        HttpResponse<String> denied = send("DELETE", "/api/graffiti/" + id, null, null, (String[]) null);
         assertEquals(401, denied.statusCode());
         assertTrue(denied.body().contains("未登入或權限不足"));
 
@@ -98,9 +98,9 @@ public class GraffitiRoutesTest {
         assertEquals(200, removed.statusCode());
         assertTrue(removed.body().contains("已從簽到本移除"));
 
-        HttpResponse<String> gone = send("GET", "/api/graffiti/" + id + ".png", null, null, null);
+        HttpResponse<String> gone = send("GET", "/api/graffiti/" + id + ".png", null, null, (String[]) null);
         assertEquals(404, gone.statusCode());
-        HttpResponse<String> after = send("GET", "/api/graffiti", null, null, null);
+        HttpResponse<String> after = send("GET", "/api/graffiti", null, null, (String[]) null);
         assertFalse(after.body().contains(id));
     }
 
@@ -149,7 +149,7 @@ public class GraffitiRoutesTest {
                 "/api/graffiti",
                 "multipart/form-data; boundary=" + boundary,
                 body.toByteArray(),
-                null);
+                (String[]) null);
         assertEquals(201, created.statusCode());
         assertTrue(created.body().contains("阿明"));
     }
