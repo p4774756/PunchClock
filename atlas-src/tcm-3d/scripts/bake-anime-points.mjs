@@ -134,23 +134,23 @@ const seeds={
  // 臀髖 6（2026-11-22）：薦骨四穴在命門／腎俞下方；環跳為站姿臀外下（側臥屈膝腳跟抵臀換算）。
  GV2:[0,0.905,.095],BL34:[.015*L,0.905,.092],BL30:[.03*L,0.905,.095],BL54:[.055*L,0.905,.095],
  GB30:[.105*L,0.915,.045],SP12:[.055*L,0.885,-.11],
- // 肩肘腕 15（2026-11-22）：角色為垂臂略外展站姿，取穴動作只作骨性標誌再換算皮膚位置。
- // 掌側由橈至尺：肺／心包／心；手背：大腸／三焦／小腸。
+ // 肩肘腕 15（2026-11-22）：T 字站姿手臂沿 X（近端肩→遠端指），橈尺為 Z（橈側較 −Z）。
+ // 肘／腕橫紋穴共用關節 X；橈尺分開走 Z。掌側肺／心包／心；手背大腸／三焦／小腸。
  LI15:[(.08)*L,shoulderL.y-.005,shoulderL.z-.04],
  TE14:[(.12)*L,shoulderL.y,shoulderL.z+.06],
  SI10:[(.16)*L,shoulderL.y-.04,shoulderL.z+.07],
- LU5:[elbowX*L,elbowY,lowerArmL.z-.04],
- PC3:[(elbowX-.012)*L,elbowY-.004,lowerArmL.z-.045],
- HT3:[(elbowX+.01)*L,elbowY-.004,lowerArmL.z-.048],
+ LU5:[elbowX*L,elbowY,lowerArmL.z-.048],
+ PC3:[elbowX*L,elbowY-.004,lowerArmL.z-.012],
+ HT3:[elbowX*L,elbowY-.004,lowerArmL.z+.032],
  LI11:[elbowX*L,elbowY,lowerArmL.z+.028],
- TE10:[elbowX*L,elbowY+.015,lowerArmL.z+.017],
- SI8:[(elbowX+.015)*L,elbowY-.002,lowerArmL.z+.038],
- LU9:[(wristX-.022)*L,wristY,handL.z-.038],
- PC7:[wristX*L,wristY,handL.z-.042],
- HT7:[(wristX+.018)*L,wristY,handL.z-.04],
- LI5:[(wristX-.028)*L,wristY,handL.z+.022],
- TE4:[wristX*L,wristY,handL.z+.025],
- SI5:[(wristX+.022)*L,wristY,handL.z+.02],
+ TE10:[(elbowX-.018)*L,elbowY+.015,lowerArmL.z+.017],
+ SI8:[elbowX*L,elbowY-.002,lowerArmL.z+.038],
+ LU9:[wristX*L,wristY,handL.z-.046],
+ PC7:[wristX*L,wristY,handL.z-.038],
+ HT7:[wristX*L,wristY,handL.z-.022],
+ LI5:[wristX*L,wristY,handL.z+.032],
+ TE4:[wristX*L,wristY,handL.z+.018],
+ SI5:[wristX*L,wristY,handL.z+.006],
 };
 const midline=new Set(['GV20','GV23','GV24+','GV26','CV24','CV23','CV22','GV16','GV15','GV14','CV17','CV14','CV8','GV4','GV2']);
 const hipSacralSet=new Set(['GV2','BL34','BL30','BL54','GB30','SP12']);
@@ -190,11 +190,14 @@ const preferFor=(code,arr)=>{
  if(code==='LI15')return new T.Vector3(0,0,-1);
  if(code==='TE14')return new T.Vector3(arr[0],-.15,1).normalize();
  if(code==='SI10')return new T.Vector3(arr[0]*.3,-.1,1).normalize();
- if(['LU5','PC3','HT3'].includes(code))return new T.Vector3(0,0,-1);
+ if(code==='LU5')return new T.Vector3(0,0,-1);
+ if(code==='PC3')return new T.Vector3(0,0,-1);
+ if(code==='HT3')return new T.Vector3(.12,.06,-1).normalize();
  if(code==='LI11')return new T.Vector3(arr[0],0,.2).normalize();
  if(code==='TE10')return new T.Vector3(0,-.05,1).normalize();
  if(code==='SI8')return new T.Vector3(arr[0]*.3,-.05,1).normalize();
- if(['LU9','PC7','HT7'].includes(code))return new T.Vector3(0,0,-1);
+ if(code==='LU9'||code==='PC7')return new T.Vector3(0,0,-1);
+ if(code==='HT7')return new T.Vector3(0,.06,-1).normalize();
  if(['LI5','TE4','SI5'].includes(code))return new T.Vector3(arr[0],0,.15).normalize();
  const catalog=teachingByCode.get(code);
  if(catalog?.normal?.length===3){
@@ -230,6 +233,23 @@ for(const code of targetCodes){
  byCode.set(code,entry);
  updated.push(code);
 }
+
+/** 肘／腕橫紋：只鎖近遠端（X），不重吸附以免橈尺（Z）被收到同一點。 */
+const realignGroupAxisOnly=(codes,axis,anchor)=>{
+ const idx=axis==='x'?0:axis==='y'?1:2;
+ const ref=byCode.get(anchor);
+ if(!ref)return;
+ const refVal=ref.midline&&axis==='x'?0:(axis==='x'?Math.abs(ref.position[idx]):ref.position[idx]);
+ for(const code of codes){
+  if(code===anchor)continue;
+  const e=byCode.get(code);
+  if(!e)continue;
+  const pos=e.position.slice();
+  if(axis==='x')pos[0]=e.midline?0:refVal;
+  else pos[idx]=refVal;
+  byCode.set(code,{...e,position:pos});
+ }
+};
 
 /** 沿皮膚重吸附：直線組只改 x、水平組只改 y（共線校正）。 */
 const realignGroup=(codes,axis,anchor,fixed)=>{
@@ -276,6 +296,60 @@ if(!codesFilter) for(const row of [
  const [axis,codes,anchor,fixed]=row;
  realignGroup(codes,axis,anchor,fixed);
 }
+/** 肘／腕橫紋皮膚窄，前向射線會收斂；對齊 X 後依橈→尺補 Z 再吸附。 */
+const nudgeRadialSpread=(anchor,offsets)=>{
+ const ref=byCode.get(anchor);
+ if(!ref)return;
+ const xRef=ref.position[0];
+ const zRef=ref.position[2];
+ for(const [code,dz] of Object.entries(offsets)){
+  if(code===anchor)continue;
+  const e=byCode.get(code);
+  if(!e)continue;
+  const targetZ=zRef+(dz??0);
+  const pos=e.position.slice();
+  pos[0]=xRef;
+  pos[2]=targetZ;
+  const hit=snap(new T.Vector3(...pos),preferFor(code,pos));
+  if(!hit)continue;
+  let np=hit.position.slice(),nor=hit.normal.slice();
+  np[0]=xRef;
+  if(dz!=null&&np[2]-zRef<dz*.55){
+   pos[2]=zRef+dz;
+   const hit2=snap(new T.Vector3(...pos),preferFor(code,pos));
+   if(hit2){np=hit2.position.slice();nor=hit2.normal.slice();np[0]=xRef;}
+  }
+  nor[0]=Math.abs(nor[0]);
+  byCode.set(code,{...e,position:np,normal:nor});
+ }
+};
+const armRadialTweak=()=>{
+ nudgeRadialSpread('LU5',{PC3:.011,HT3:.024});
+ nudgeRadialSpread('LU9',{PC7:.008,HT7:.018});
+ nudgeRadialSpread('LI5',{TE4:.006,SI5:.01});
+ const lu5=byCode.get('LU5'),pc3=byCode.get('PC3'),ht3=byCode.get('HT3');
+ if(lu5&&pc3&&ht3){
+  const zLu=lu5.position[2];
+  const tighten=(code,targetZ,targetY)=>{
+   const e=byCode.get(code);
+   if(!e)return;
+   const pos=[lu5.position[0],targetY??e.position[1],targetZ];
+   const hit=snap(new T.Vector3(...pos),preferFor(code,pos));
+   if(!hit)return;
+   const np=hit.position.slice();
+   np[0]=lu5.position[0];
+   byCode.set(code,{...e,position:np,normal:[Math.abs(hit.normal[0]),hit.normal[1],hit.normal[2]]});
+  };
+  const yLu=lu5.position[1];
+  tighten('PC3',zLu+.006,yLu-.006);
+  tighten('HT3',zLu+.016,yLu+.004);
+ }
+};
+if(!codesFilter){
+ realignGroupAxisOnly(['LU5','PC3','HT3','LI11','SI8'],'x','LU5');
+ realignGroupAxisOnly(['LU9','PC7','HT7','LI5','TE4','SI5'],'x','PC7');
+ armRadialTweak();
+}
 
 if(!codesFilter){
 const si18=byCode.get('SI18'),gb1=byCode.get('GB1');
@@ -294,9 +368,10 @@ if(si18&&gb1){
 
 if(codesFilter){
  const elbowLine=['LU5','PC3','HT3','LI11','SI8'];
- if(elbowLine.some(c=>codesFilter.includes(c))) realignGroup(elbowLine,'y','LU5');
+ if(elbowLine.some(c=>codesFilter.includes(c))) realignGroupAxisOnly(elbowLine,'x','LU5');
  const wristLine=['LU9','PC7','HT7','LI5','TE4','SI5'];
- if(wristLine.some(c=>codesFilter.includes(c))) realignGroup(wristLine,'y','LU9');
+ if(wristLine.some(c=>codesFilter.includes(c))) realignGroupAxisOnly(wristLine,'x','PC7');
+ if(elbowLine.some(c=>codesFilter.includes(c))||wristLine.some(c=>codesFilter.includes(c))) armRadialTweak();
  const sacralLine=['GV2','BL34','BL30','BL54'];
  if(sacralLine.some(c=>codesFilter.includes(c))){
   realignGroup(sacralLine,'y','GV2');

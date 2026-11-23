@@ -35,7 +35,7 @@ assert.match(avatarsSrc,/points:ADULT_POINTS/, 'adult avatar wires ADULT_POINTS'
 const digest=createHash('sha256').update(readFileSync(adultPath)).digest('hex');
 assert.equal(
   digest,
-  '2d8da5d397ce0e1af62dd7cf0b3b7ff6d336d46e457761066f6201ccc3f69449',
+  '5041b6c674c9983fad9c4945d077386047ad5adaaff2fce373565f39f8e1d8cc',
   'adult-points.json digest mismatch — re-bake or update pin',
 );
 
