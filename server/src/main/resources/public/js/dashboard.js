@@ -124,6 +124,27 @@
       return (g && g.PunchclockDeviceHeadBadge) || {};
     }
 
+    function headBadgeFn(name, fallback) {
+      const fn = deviceHeadBadgeHelpers()[name];
+      return typeof fn === 'function' ? fn : fallback;
+    }
+
+    function buildDeviceHeadConnectionText(isConnected) {
+      return headBadgeFn('buildDeviceHeadConnectionText', (c) => (c ? '辦公室上班中' : '離線'))(isConnected);
+    }
+
+    function buildDeviceHeadConnectionChipClass(isConnected) {
+      return headBadgeFn('buildDeviceHeadConnectionChipClass', (c) => (c ? 'chip-online' : 'chip-idle'))(isConnected);
+    }
+
+    function buildDeviceHeadCheckInText(isConnected, tasks) {
+      return headBadgeFn('buildDeviceHeadCheckInText', () => null)(isConnected, tasks);
+    }
+
+    function buildDeviceHeadCheckInChipClass(isConnected, tasks) {
+      return headBadgeFn('buildDeviceHeadCheckInChipClass', () => null)(isConnected, tasks);
+    }
+
     function buildDeviceHeadBadgeText(isConnected, transportLabel, tasks) {
       const fn = deviceHeadBadgeHelpers().buildDeviceHeadBadgeText;
       return typeof fn === 'function'
@@ -134,7 +155,57 @@
     function buildDeviceHeadChipClass(isConnected, tasks) {
       const fn = deviceHeadBadgeHelpers().buildDeviceHeadChipClass;
       if (typeof fn === 'function') return fn(isConnected, tasks);
-      return isConnected ? 'chip-online' : 'chip-offline';
+      return buildDeviceHeadConnectionChipClass(isConnected);
+    }
+
+    function syncDeviceHeadChips(root, isConnected, tasks) {
+      const liveDot = isConnected ? '<span class="dot dot-live"></span>' : '<span class="dot"></span>';
+      const connText = buildDeviceHeadConnectionText(isConnected);
+      const connClass = buildDeviceHeadConnectionChipClass(isConnected);
+
+      let connChip = root.querySelector('[data-role="head-connection-chip"]');
+      if (!connChip) {
+        const host = root.querySelector('.device-head-chips');
+        if (host) {
+          connChip = document.createElement('span');
+          connChip.setAttribute('data-role', 'head-connection-chip');
+          host.prepend(connChip);
+        }
+      }
+      if (connChip) {
+        connChip.className = 'chip ' + connClass;
+        connChip.innerHTML = liveDot + connText;
+      }
+
+      const checkInText = buildDeviceHeadCheckInText(isConnected, tasks);
+      let checkInChip = root.querySelector('[data-role="head-checkin-chip"]');
+      if (!isConnected || !checkInText) {
+        if (checkInChip) checkInChip.remove();
+        return;
+      }
+      const checkClass = buildDeviceHeadCheckInChipClass(isConnected, tasks) || 'chip-idle';
+      if (!checkInChip) {
+        const host = root.querySelector('.device-head-chips');
+        if (!host) return;
+        checkInChip = document.createElement('span');
+        checkInChip.setAttribute('data-role', 'head-checkin-chip');
+        host.appendChild(checkInChip);
+      }
+      checkInChip.className = 'chip ' + checkClass;
+      checkInChip.textContent = checkInText;
+    }
+
+    function buildDeviceHeadChipsHtml(isConnected, tasks) {
+      const liveDot = isConnected ? '<span class="dot dot-live"></span>' : '<span class="dot"></span>';
+      const connClass = buildDeviceHeadConnectionChipClass(isConnected);
+      const connText = buildDeviceHeadConnectionText(isConnected);
+      let html = '<span class="chip ' + connClass + '" data-role="head-connection-chip">' + liveDot + connText + '</span>';
+      const checkInText = buildDeviceHeadCheckInText(isConnected, tasks);
+      if (checkInText) {
+        const checkClass = buildDeviceHeadCheckInChipClass(isConnected, tasks) || 'chip-idle';
+        html += '<span class="chip ' + checkClass + '" data-role="head-checkin-chip">' + escapeHtml(checkInText) + '</span>';
+      }
+      return '<div class="device-head-chips">' + html + '</div>';
     }
 
     function buildCancelAllButtonHtml(clientId, isConnected, tasks) {
@@ -350,13 +421,7 @@
 
       const isConnected = c.status !== 'OFFLINE';
       const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
-      const badgeText = buildDeviceHeadBadgeText(isConnected, undefined, tasks);
-
-      const headChip = root.querySelector('.device-head-right .chip');
-      if (headChip) {
-        headChip.className = 'chip ' + buildDeviceHeadChipClass(isConnected, tasks);
-        headChip.innerHTML = (isConnected ? '<span class="dot dot-live"></span>' : '<span class="dot"></span>') + badgeText;
-      }
+      syncDeviceHeadChips(root, isConnected, tasks);
 
       syncDeviceFoldChrome(root, c.clientId);
 
@@ -710,9 +775,6 @@
         const isCollapsed = !expandedClients.has(c.clientId);
         const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
 
-        const badgeClass = buildDeviceHeadChipClass(isConnected, tasks);
-        const badgeText = buildDeviceHeadBadgeText(isConnected, undefined, tasks);
-
         const logLines = visibleLogLines(c);
         const logContent = logLines.length > 0
           ? logLines.map(escapeHtml).join('<br>')
@@ -732,20 +794,25 @@
         const collapsedSectionClass = isCollapsed ? ' device-is-collapsed' : '';
         const statusColor = getStatusColor(c.status);
         const safeMsg = escapeHtml(cleanMessage(c.message));
-        const liveDot = isConnected ? '<span class="dot dot-live"></span>' : '<span class="dot"></span>';
         const chevronHtml = deviceChevronHtml(!isCollapsed);
+        const versionHint = buildAppVersionHintHtml(c);
+        const subMeta = (versionHint || foldText)
+          ? '<div class="device-id-sub">' + versionHint
+              + '<span class="fold-hint" data-fold-label>' + foldText + '</span></div>'
+          : '';
 
         html += '<section class="device' + collapsedSectionClass + '" data-client-id="' + escapeHtml(c.clientId) + '">' +
           '<div class="device-head" id="' + headDomId + '" role="button" tabindex="0"' +
             ' aria-expanded="' + ariaExpanded + '" aria-controls="' + bodyDomId + '">' +
             '<div class="device-id">' +
               '<span class="device-chevron-slot" aria-hidden="true">' + chevronHtml + '</span>' +
-              '<strong>' + escapeHtml(c.clientId) + '</strong>' +
-              buildAppVersionHintHtml(c) +
-              '<span class="fold-hint" data-fold-label>' + foldText + '</span>' +
+              '<div class="device-id-text">' +
+                '<strong>' + escapeHtml(c.clientId) + '</strong>' +
+                subMeta +
+              '</div>' +
             '</div>' +
             '<div class="device-head-right">' +
-              '<span class="chip ' + badgeClass + '">' + liveDot + badgeText + '</span>' +
+              buildDeviceHeadChipsHtml(isConnected, tasks) +
               deleteBtnHtml +
             '</div>' +
           '</div>' +
