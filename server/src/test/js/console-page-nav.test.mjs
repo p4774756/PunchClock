@@ -59,6 +59,13 @@ test('首頁 HUD 楓之谷角色框與身分名牌', () => {
   assert.match(css, /\.pt-roadmap-open/);
   assert.match(css, /\.pt-prog-hit/);
   assert.match(css, /\.pt-prog-hit[\s\S]*cursor:\s*pointer/);
+  assert.match(css, /\.pt-prog-hit\s*\{[^}]*border:\s*1px dashed transparent/);
+  assert.match(css, /@media\s*\(hover:\s*hover\)\s*and\s*\(pointer:\s*fine\)[\s\S]*\.pt-prog-hit:hover/);
+  assert.match(css, /\.pt-prog-hit:is\(\.is-flash\)|\.pt-prog-hit\.is-flash/);
+  assert.match(css, /\.pt-prog-hit:focus-visible/);
+  assert.match(js, /is-flash/);
+  assert.match(js, /PROG_HIT_FLASH_MS/);
+  assert.match(js, /pointer:\s*coarse/);
   assert.doesNotMatch(css, /\.pt-prog-hit\s*\{[^}]*top:\s*26%/);
 });
 
