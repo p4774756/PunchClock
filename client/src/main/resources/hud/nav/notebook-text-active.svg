@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <linearGradient id="n-fill" x1="0.25" y1="0" x2="0.75" y2="1"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="100%" stop-color="#FFF3F8"/></linearGradient><linearGradient id="n-acc" x1="0.25" y1="0" x2="0.75" y2="1"><stop offset="0%" stop-color="#F3EBFF"/><stop offset="100%" stop-color="#C9B2FF"/></linearGradient>
+<clipPath id="n-clip"><path d="M5.05 2.2 H19.2 C20.5 2.2 21.55 3.25 21.55 4.55 V19.45 C21.55 20.75 20.5 21.8 19.2 21.8 H5.05 C3.75 21.8 2.7 20.75 2.7 19.45 V4.55 C2.7 3.25 3.75 2.2 5.05 2.2 Z"/></clipPath>
+  </defs>
+  <path d="M5.05 2.2 H19.2 C20.5 2.2 21.55 3.25 21.55 4.55 V19.45 C21.55 20.75 20.5 21.8 19.2 21.8 H5.05 C3.75 21.8 2.7 20.75 2.7 19.45 V4.55 C2.7 3.25 3.75 2.2 5.05 2.2 Z" fill="url(#n-fill)"/>
+<g clip-path="url(#n-clip)"><ellipse cx="11" cy="7" rx="9.2" ry="5.6" fill="#ffffff" fill-opacity="0.38"/><ellipse cx="9.8" cy="6" rx="4.6" ry="2.1" fill="#ffffff" fill-opacity="0.5"/></g>
+<path d="M2.7 4.55 C2.7 3.25 3.75 2.2 5.05 2.2 H7.2 V21.8 H5.05 C3.75 21.8 2.7 20.75 2.7 19.45 Z" fill="url(#n-acc)"/>
+<path d="M1.2 6.05 H4.45 C4.85 6.05 5.15 6.35 5.15 6.75 C5.15 7.15 4.85 7.45 4.45 7.45 H1.2 C0.8 7.45 0.5 7.15 0.5 6.75 C0.5 6.35 0.8 6.05 1.2 6.05 Z" fill="url(#n-acc)"/>
+<path d="M1.2 10.15 H4.45 C4.85 10.15 5.15 10.45 5.15 10.85 C5.15 11.25 4.85 11.55 4.45 11.55 H1.2 C0.8 11.55 0.5 11.25 0.5 10.85 C0.5 10.45 0.8 10.15 1.2 10.15 Z" fill="url(#n-acc)"/>
+<path d="M1.2 14.25 H4.45 C4.85 14.25 5.15 14.55 5.15 14.95 C5.15 15.35 4.85 15.65 4.45 15.65 H1.2 C0.8 15.65 0.5 15.35 0.5 14.95 C0.5 14.55 0.8 14.25 1.2 14.25 Z" fill="url(#n-acc)"/>
+<path d="M1.2 18.35 H4.45 C4.85 18.35 5.15 18.65 5.15 19.05 C5.15 19.45 4.85 19.75 4.45 19.75 H1.2 C0.8 19.75 0.5 19.45 0.5 19.05 C0.5 18.65 0.8 18.35 1.2 18.35 Z" fill="url(#n-acc)"/>
+<path d="M9.25 8.0 H17.4" fill="none" stroke="#6E4CC0" stroke-width="1.7" stroke-linecap="round"/>
+<path d="M9.25 12.05 H17.4" fill="none" stroke="#6E4CC0" stroke-width="1.7" stroke-linecap="round"/>
+<path d="M9.25 16.1 H15.5" fill="none" stroke="#6E4CC0" stroke-width="1.7" stroke-linecap="round"/>
+</svg>

@@ -3,6 +3,7 @@ package com.example.ui.hud;
 import org.junit.Test;
 
 import javax.swing.JTabbedPane;
+import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.event.MouseEvent;
 
@@ -82,12 +83,42 @@ public class AnimeShellNavTest {
     }
 
     @Test
-    public void navLucideIconsLoad() {
+    public void navFillIconsLoad() {
         for (int i = 0; i < AnimeShell.navCount(); i++) {
-            TabNavIcon icon = TabNavIcon.load(TabNavIcon.navIconId(i));
-            assertNotNull(icon);
-            assertTrue("icon " + i, icon.ready());
-            assertTrue(icon.partCount() > 0);
+            String id = TabNavIcon.navIconId(i);
+            TabNavIcon idle = TabNavIcon.load(id);
+            TabNavIcon active = TabNavIcon.loadActive(id);
+            assertNotNull(idle);
+            assertNotNull(active);
+            assertTrue("icon " + id, idle.ready());
+            assertTrue("active " + id, active.ready());
+            assertTrue(idle.partCount() > 0);
+            assertTrue(active.partCount() > 0);
+            assertTrue("active differs from idle for " + id, active.partCount() != idle.partCount()
+                    || !sameResource(id, false, id, true));
+        }
+    }
+
+    @Test
+    public void navInactiveLabelColors() {
+        assertEquals(new Color(0xFF, 0xB3, 0xCC), AnimeShell.navLabelColor("home"));
+        assertEquals(new Color(0xFF, 0xC4, 0xA8), AnimeShell.navLabelColor("calendar-clock"));
+        assertEquals(new Color(0x8F, 0xDF, 0xC0), AnimeShell.navLabelColor("folder-up"));
+        assertEquals(new Color(0xC9, 0xB6, 0xF0), AnimeShell.navLabelColor("notebook-text"));
+        assertEquals(new Color(0xA8, 0xD4, 0xF5), AnimeShell.navLabelColor("settings"));
+    }
+
+    private static boolean sameResource(String idA, boolean activeA, String idB, boolean activeB) {
+        String fileA = activeA ? idA + "-active" : idA;
+        String fileB = activeB ? idB + "-active" : idB;
+        try (var a = TabNavIcon.class.getResourceAsStream("/hud/nav/" + fileA + ".svg");
+             var b = TabNavIcon.class.getResourceAsStream("/hud/nav/" + fileB + ".svg")) {
+            if (a == null || b == null) {
+                return false;
+            }
+            return java.util.Arrays.equals(a.readAllBytes(), b.readAllBytes());
+        } catch (java.io.IOException ex) {
+            return false;
         }
     }
 
