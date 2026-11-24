@@ -38,6 +38,7 @@ assert.match(adult, /skipHairRestyle:\s*true/, 'adult practice keeps natural hai
 assert.match(paint, /hideAdultSportGarments/, 'sport practice hides lace garments');
 assert.match(paint, /hideAdultSheerLaceGarments/, 'sheer must drop lace bottoms');
 assert.match(paint, /makeAdultSheerNetMap/, 'sheer uses fine net map, not sport lace tint');
+assert.match(paint, /transparentWithZWrite/, 'sheer MToon must disable opaque z-write');
 assert.match(paint, /transparent=true/, 'sheer tops semi-transparent');
 assert.match(scene, /hideAdultSportGarments/, 'scene applies sport garment hide');
 assert.match(scene, /adultPaint==='sport'\)hideAdultSportGarments/, 'incremental sport build hides lace');

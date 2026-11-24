@@ -376,26 +376,31 @@ const makeAdultSheerNetMap=(src:T.Texture):T.Texture|null=>{
  return next;
 };
 
+type MToonGarment=T.MeshStandardMaterial & {isMToonMaterial?:boolean;transparentWithZWrite?:boolean;_uploadUniformsWorkaround?:()=>void};
+
 export const applyAdultSheerOuter=(root:T.Object3D)=>{
  hideAdultSheerLaceGarments(root);
  root.traverse(obj=>{
   if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
   const mats=Array.isArray(obj.material)?obj.material:[obj.material];
   for(const mat of mats){
-   const m=mat as T.MeshStandardMaterial;
+   const m=mat as MToonGarment;
    const label=`${m.name||''} ${obj.name||''}`;
    if(!/Tops/i.test(label)||/Outline/i.test(label))continue;
    m.visible=true;
+   obj.visible=true;
    m.transparent=true;
    m.opacity=0.32;
    m.depthWrite=false;
    m.alphaTest=0.06;
    m.side=T.DoubleSide;
+   if(m.isMToonMaterial)m.transparentWithZWrite=false;
    const map=findGarmentMap(m);
    const net=map?makeAdultSheerNetMap(map):null;
    if(net)setGarmentMap(m,net);
    obj.renderOrder=2;
    m.needsUpdate=true;
+   m._uploadUniformsWorkaround?.();
   }
  });
 };

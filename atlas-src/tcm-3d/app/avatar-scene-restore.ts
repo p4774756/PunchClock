@@ -8,6 +8,7 @@ export const stashTeachingOverlay=(teaching:TeachingOverlay)=>{
  teaching.label.remove();
  teaching.root.removeFromParent();
  teaching.root.visible=false;
+ teaching.resetAnchorState?.();
 };
 
 export const restoreTeachingOverlay=(teaching:TeachingOverlay,scene:T.Scene,host:HTMLElement)=>{

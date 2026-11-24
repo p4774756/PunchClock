@@ -50,7 +50,8 @@ export const buildAdultPointBindings=(vrm:VRMCore,avatar:AnimeAvatar,characterRo
   for(const side of point.midline?([1] as const):([1,-1] as const)){
    const seed=avatarPointTarget(avatar,point.code,side);
    if(!seed)continue;
-   _w.fromArray(seed.position).applyMatrix4(characterRoot.matrixWorld);
+   _w.fromArray(seed.position);
+   characterRoot.localToWorld(_w);
    const pick=nearestBone(vrm,_w);
    if(!pick)continue;
    const boneNode=vrm.humanoid.getNormalizedBoneNode(pick.name)!;

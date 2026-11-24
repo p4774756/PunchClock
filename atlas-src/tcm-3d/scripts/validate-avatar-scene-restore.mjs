@@ -56,6 +56,7 @@ const makeTeaching = (scene) => {
     root,
     markers: [dot],
     label: makeLabel(),
+    resetAnchorState: () => {},
   };
 };
 

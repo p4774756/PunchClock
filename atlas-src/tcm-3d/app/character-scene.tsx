@@ -40,6 +40,7 @@ import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {clone as cloneSkinnedObject} from 'three/examples/jsm/utils/SkeletonUtils.js';
 import {VRMLoaderPlugin,VRMUtils} from '@pixiv/three-vrm';
 import type {VRMCore} from '@pixiv/three-vrm-core';
+import {VRMHumanBoneName} from '@pixiv/three-vrm-core';
 import {MToonMaterialOutlineWidthMode} from '@pixiv/three-vrm-materials-mtoon';
 import {PointerTap} from './pointer-tap';
 import {createTeachingOverlay} from './teaching-overlay';
@@ -1519,11 +1520,18 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
   let teachingOverlayVisible=false;
   let skinProxyBakeScheduled=restored?.skinProxyBakeScheduled??false;
   let adultPointBindings:AdultPointBindings|null=restored?.adultPointBindings??null;
+  let adultBindingsWarm=!!restored?.adultPointBindings;
+  const resolveAdultPoint=(code:string,side:1|-1)=>{
+   const baked=avatarPointTarget(avatar,code,side);
+   const bound=adultPointBindings?.resolve(code,side)??null;
+   if(bound&&baked&&bound.position[1]<0.35&&baked.position[1]>0.8)return baked;
+   return bound??baked;
+  };
   const teaching=restored?.teaching??createTeachingOverlay(scene,{
    points,
    skipSkinRaycastRefine:avatar.id==='adult',
    resolvePoint:(code,side)=>{
-    if(adultPointBindings)return adultPointBindings.resolve(code,side)??avatarPointTarget(avatar,code,side);
+    if(adultPointBindings)return resolveAdultPoint(code,side);
     return avatarPointTarget(avatar,code,side);
    },
   });
@@ -1651,6 +1659,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     if(sheerModel){
      if(id==='sheer'&&sheerBuilt&&adultSheerOutfit){
       ensurePracticeOutfitReady(sheerModel,schoolModel,adultSheerOutfit);
+      applyAdultSheerOuter(sheerModel);
       sheerModel.visible=true;
      }else sheerModel.visible=false;
     }
@@ -1666,8 +1675,8 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    characterRoot.updateMatrixWorld(true);
    if(ready){
     if(adultPointBindings){
-     teaching.syncResolvedPoints((code,side)=>adultPointBindings!.resolve(code,side)??avatarPointTarget(avatar,code,side));
-    }else teaching.applyCachedAnchors();
+     teaching.syncResolvedPoints(characterRoot,resolveAdultPoint);
+    }else teaching.applyCachedAnchors(characterRoot);
    }
    lastClothPeekKey='';
    syncClothPeek();
@@ -2124,11 +2133,6 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       schoolModel.visible=outfitIdRef.current==='school';
       characterRoot.clear();
       characterRoot.add(schoolModel);
-      if(isAdultModel&&vrm){
-       applyAdultStandingPose(vrm);
-       vrm.update(0);
-       adultPointBindings=buildAdultPointBindings(vrm,avatar,characterRoot);
-      }
      }else if(cacheAdultOutfits){
       adultClothBaseline=snapshotAdultClothMaps(model);
       const launchOutfit=animeOutfitForAvatar('adult',outfitIdRef.current);
@@ -2139,11 +2143,6 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
       schoolModel.visible=launchOutfit.adultCloth==='suit'||launchOutfit.adultCloth==='casual';
       characterRoot.clear();
       characterRoot.add(schoolModel);
-      if(isAdultModel&&vrm){
-       applyAdultStandingPose(vrm);
-       vrm.update(0);
-       adultPointBindings=buildAdultPointBindings(vrm,avatar,characterRoot);
-      }
      }else{
       await parseSlice('finish-look',()=>finishCharacterLook(model,animeOutfitForAvatar(avatar.id,outfitIdRef.current),gradient,clothPeekMaterials));
       schoolModel=model;
@@ -2157,9 +2156,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
      if(disposed)return;
      const anchorT0=performance.now();
      teaching.anchor(characterRoot);
-     if(adultPointBindings){
-      teaching.syncResolvedPoints((code,side)=>adultPointBindings!.resolve(code,side)??avatarPointTarget(avatar,code,side));
-     }
+     if(adultPointBindings)teaching.syncResolvedPoints(characterRoot,resolveAdultPoint);
      logPhase('anchor',anchorT0);
      performance.mark('atlas:cpu-ready');
      try{performance.measure('atlas:cpu-after-download','atlas:phase-gltf-loaded','atlas:cpu-ready');}catch{/* duplicate */}
@@ -2215,6 +2212,19 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    if(hit)pointSelect.current(hit.object.userData.point,hit.object.userData.side);
   };
   const reducedMotionMq=typeof matchMedia==='function'?matchMedia('(prefers-reduced-motion: reduce)'):null;
+  const tryWarmAdultBindings=()=>{
+   if(adultBindingsWarm||!vrm||avatar.id!=='adult'||!ready)return;
+   applyAdultStandingPose(vrm);
+   vrm.update(0);
+   characterRoot.updateMatrixWorld(true);
+   vrm.scene.updateMatrixWorld(true);
+   const head=vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Head);
+   const headY=head?new T.Vector3().setFromMatrixPosition(head.matrixWorld).y:0;
+   if(headY<1)return;
+   adultPointBindings=buildAdultPointBindings(vrm,avatar,characterRoot);
+   adultBindingsWarm=true;
+   teaching.syncResolvedPoints(characterRoot,resolveAdultPoint);
+  };
   const animate=()=>{
    if(disposed)return;frame=requestAnimationFrame(animate);
    const now=performance.now();const delta=Math.min(.05,(now-lastFrame)/1000);lastFrame=now;
@@ -2223,9 +2233,10 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     if(adultPointBindings)primeAdultStandingPose(vrm);
     vrm.update(delta);
    }
+   tryWarmAdultBindings();
    adultPointBindings?.refresh();
    if(adultPointBindings){
-    teaching.syncResolvedPoints((code,side)=>adultPointBindings!.resolve(code,side)??avatarPointTarget(avatar,code,side));
+    teaching.syncResolvedPoints(characterRoot,resolveAdultPoint);
    }
    const s=latest.current,simState=sim.current;
    toolInput?.update();
@@ -2323,6 +2334,64 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
    renderer.domElement.addEventListener('pointercancel',cancel);
    const contextLost=(e:Event)=>{e.preventDefault();onError('設備暫停了 3D 顯示，請重新載入頁面。');};
    renderer.domElement.addEventListener('webglcontextlost',contextLost);
+   (window as Window & {__atlasTeachingProbe?:()=>Record<string,unknown>}).__atlasTeachingProbe=()=>{
+     const simState=sim.current;
+     const gv='GV24+';
+     const dot=teaching.markers.find(m=>m.userData.point===gv);
+     const marker=new T.Vector3();
+     dot?.getWorldPosition(marker);
+     const markerNdc=marker.clone().project(camera);
+     const boundsRoot=(schoolModel?.visible?schoolModel:null)??(practiceModel?.visible?practiceModel:null)??(sheerModel?.visible?sheerModel:null)??characterRoot;
+     const meshBox=new T.Box3();
+     try{boundsRoot.updateWorldMatrix(true,true);meshBox.setFromObject(boundsRoot);}catch{meshBox.setFromCenterAndSize(new T.Vector3(0,1.35,0),new T.Vector3(0.5,1.7,0.35));}
+     const corners=[
+      new T.Vector3(meshBox.min.x,meshBox.min.y,meshBox.min.z),
+      new T.Vector3(meshBox.min.x,meshBox.min.y,meshBox.max.z),
+      new T.Vector3(meshBox.min.x,meshBox.max.y,meshBox.min.z),
+      new T.Vector3(meshBox.min.x,meshBox.max.y,meshBox.max.z),
+      new T.Vector3(meshBox.max.x,meshBox.min.y,meshBox.min.z),
+      new T.Vector3(meshBox.max.x,meshBox.min.y,meshBox.max.z),
+      new T.Vector3(meshBox.max.x,meshBox.max.y,meshBox.min.z),
+      new T.Vector3(meshBox.max.x,meshBox.max.y,meshBox.max.z),
+     ];
+     const meshNdc={minX:1,minY:1,maxX:-1,maxY:-1};
+     for(const c of corners){
+      c.project(camera);
+      meshNdc.minX=Math.min(meshNdc.minX,c.x);
+      meshNdc.maxX=Math.max(meshNdc.maxX,c.x);
+      meshNdc.minY=Math.min(meshNdc.minY,c.y);
+      meshNdc.maxY=Math.max(meshNdc.maxY,c.y);
+     }
+     const resolved=resolveAdultPoint(gv,1);
+     const sheerTops:Array<{transparent:boolean;opacity:number;hasAlphaMap:boolean}>=[];
+     const scanTargets=characterRoot.children.filter(c=>c.visible).length?characterRoot.children.filter(c=>c.visible):[characterRoot];
+     for(const scan of scanTargets)scan.traverse(obj=>{
+      if(!(obj instanceof T.Mesh)&&!(obj instanceof T.SkinnedMesh))return;
+      if(!obj.visible)return;
+      const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+      for(const mat of mats){
+       const m=mat as T.MeshStandardMaterial;
+       const label=`${m.name||''} ${obj.name||''}`;
+       if(!/Tops/i.test(label)||/Outline/i.test(label))continue;
+       sheerTops.push({transparent:!!m.transparent,opacity:m.opacity??1,hasAlphaMap:!!m.alphaMap});
+      }
+     });
+     return {
+      avatar:avatar.id,
+      skinMeshes:teaching.getSkinMeshes().length,
+      anchored:teaching.isAnchored(),
+      overlayParent:teaching.root.parent?.type??null,
+      toolDisabled:teaching.label.disabled,
+      pointCode:simState.pointCode,
+      gvMarkerY:marker.y,
+      gvResolvedY:resolved?.position[1]??null,
+      markerNdcX:markerNdc.x,
+      markerNdcY:markerNdc.y,
+      meshNdc,
+      controlsTargetY:controls.target.y,
+      sheerTops,
+     };
+   };
    toolInput=installSurfaceToolInput({
     canvas:renderer.domElement,
     handle:teaching.label,
@@ -2343,6 +2412,7 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     if(vrm&&avatar.id==='adult'){
      applyAdultStandingPose(vrm);
      adultPointBindings=buildAdultPointBindings(vrm,avatar,characterRoot);
+     adultBindingsWarm=true;
     }
     reparentCharacterModel(schoolModel,characterRoot);
     reparentCharacterModel(practiceModel,characterRoot);
@@ -2351,10 +2421,11 @@ export default function CharacterScene({state,simulation,avatarId,outfitId,onPoi
     teachingOverlayVisible=true;
     restoreTeachingOverlay(teaching,scene,el);
     showOutfit(outfitIdRef.current);
+    teaching.anchor(characterRoot);
     if(adultPointBindings){
      adultPointBindings.refresh();
-     teaching.syncResolvedPoints((code,side)=>adultPointBindings!.resolve(code,side)??avatarPointTarget(avatar,code,side));
-    }else teaching.applyCachedAnchors();
+     teaching.syncResolvedPoints(characterRoot,resolveAdultPoint);
+    }else teaching.applyCachedAnchors(characterRoot);
     fit(latest.current.view);
     reportProgress(100,'done');
     dirty=true;
