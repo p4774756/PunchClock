@@ -126,12 +126,16 @@ export function createTeachingOverlay(
  };
  let proxyBakePromise:Promise<void>|null=null;
  let lastMeridianKey='';
+ const bindToCharacterRoot=(characterRoot:T.Object3D)=>{
+  if(root.parent!==characterRoot)characterRoot.add(root);
+  const skins=collectSkins(characterRoot);
+  if(skins.length)skinMeshes=skins;
+  characterRoot.updateMatrixWorld(true);
+ };
  const anchor=(characterRoot:T.Object3D)=>{
   if(anchored)return;
-  if(root.parent!==characterRoot)characterRoot.add(root);
-  skinMeshes=collectSkins(characterRoot);
+  bindToCharacterRoot(characterRoot);
   if(!skinMeshes.length)return;
-  characterRoot.updateMatrixWorld(true);
   for(const dot of markers){
    const seed=opts.resolvePoint(dot.userData.point,dot.userData.side)??{position:dot.position.toArray() as [number,number,number],normal:[0,0,-1]};
    applySeed(dot,seed);
@@ -162,7 +166,8 @@ export function createTeachingOverlay(
   return proxyBakePromise;
  };
  /** Outfit switches share body geometry — restore baked targets without another raycast. */
- const applyCachedAnchors=()=>{
+ const applyCachedAnchors=(characterRoot?:T.Object3D)=>{
+  if(characterRoot)bindToCharacterRoot(characterRoot);
   if(!anchorSnapshot?.size)return;
   for(const dot of markers){
    const key=`${dot.userData.point}:${dot.userData.side}`;
@@ -176,7 +181,8 @@ export function createTeachingOverlay(
   anchored=true;
  };
  /** Adult rig: re-resolve dot + surface from bone bindings (standing pose, not T-pose bake). */
- const syncResolvedPoints=(resolve:(code:string,side:1|-1)=>SurfaceTarget|null)=>{
+ const syncResolvedPoints=(characterRoot:T.Object3D,resolve:(code:string,side:1|-1)=>SurfaceTarget|null)=>{
+  bindToCharacterRoot(characterRoot);
   for(const dot of markers){
    const code=dot.userData.point as string;
    const side=dot.userData.side as 1|-1;
@@ -189,10 +195,11 @@ export function createTeachingOverlay(
   anchored=true;
  };
  const reanchor=(characterRoot:T.Object3D)=>{
-  if(anchorSnapshot?.size){applyCachedAnchors();return;}
+  if(anchorSnapshot?.size){applyCachedAnchors(characterRoot);return;}
   anchored=false;
   anchor(characterRoot);
  };
+ const resetAnchorState=()=>{anchored=false;};
  const markerPosition=(code:string,side:MeridianPathSide)=>{
   const want=side==='midline'?1:side;
   const dot=markers.find(m=>m.userData.point===code&&m.userData.side===want);
@@ -334,7 +341,7 @@ export function createTeachingOverlay(
  };
  const getDraggables=(tool:ToolId)=>{const meshes:T.Object3D[]=[];instruments.get(tool)?.traverseVisible(o=>{if(o instanceof T.Mesh)meshes.push(o);});return meshes;};
  return {
-  root,markers,label,anchor,reanchor,applyCachedAnchors,syncResolvedPoints,ensureSkinProxyBake,update,focus,computeFocusPose,getTarget,getDraggables,snapTarget,
+  root,markers,label,anchor,reanchor,applyCachedAnchors,syncResolvedPoints,bindToCharacterRoot,resetAnchorState,ensureSkinProxyBake,update,focus,computeFocusPose,getTarget,getDraggables,snapTarget,
   getSkinMeshes:()=>skinMeshes,
   isAnchored:()=>anchored,
   hasSkinProxies:()=>raycastTargets.length>0,
