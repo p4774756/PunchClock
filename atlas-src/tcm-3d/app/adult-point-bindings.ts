@@ -41,8 +41,10 @@ export type AdultPointBindings={
 };
 
 export const buildAdultPointBindings=(vrm:VRMCore,avatar:AnimeAvatar,characterRoot:T.Object3D):AdultPointBindings=>{
+ vrm.humanoid.update();
  characterRoot.updateMatrixWorld(true);
- const invRoot=new T.Matrix4().copy(characterRoot.matrixWorld).invert();
+ vrm.scene.updateMatrixWorld(true);
+ const worldToRoot=new T.Matrix4();
  const table=new Map<string,Binding>();
  for(const point of avatar.points){
   for(const side of point.midline?([1] as const):([1,-1] as const)){
@@ -52,6 +54,7 @@ export const buildAdultPointBindings=(vrm:VRMCore,avatar:AnimeAvatar,characterRo
    const pick=nearestBone(vrm,_w);
    if(!pick)continue;
    const boneNode=vrm.humanoid.getNormalizedBoneNode(pick.name)!;
+   boneNode.updateMatrixWorld(true);
    _inv.copy(boneNode.matrixWorld).invert();
    const localPos=_w.clone().applyMatrix4(_inv);
    _n.fromArray(seed.normal).transformDirection(characterRoot.matrixWorld).normalize();
@@ -59,6 +62,11 @@ export const buildAdultPointBindings=(vrm:VRMCore,avatar:AnimeAvatar,characterRo
    table.set(`${point.code}:${side}`,{bone:pick.name,localPos,localNormal});
   }
  }
+ const syncSkeleton=()=>{
+  vrm.humanoid.update();
+  characterRoot.updateMatrixWorld(true);
+  vrm.scene.updateMatrixWorld(true);
+ };
  const resolve=(code:string,side:1|-1):SurfaceTarget|null=>{
   const key=`${code}:${side}`;
   const bind=table.get(key);
@@ -67,12 +75,13 @@ export const buildAdultPointBindings=(vrm:VRMCore,avatar:AnimeAvatar,characterRo
   }
   const node=vrm.humanoid.getNormalizedBoneNode(bind.bone);
   if(!node)return avatarPointTarget(avatar,code,side);
+  syncSkeleton();
   node.updateMatrixWorld(true);
   const pos=bind.localPos.clone().applyMatrix4(node.matrixWorld);
-  invRoot.copy(characterRoot.matrixWorld).invert();
-  pos.applyMatrix4(invRoot);
-  const normal=bind.localNormal.clone().transformDirection(node.matrixWorld).transformDirection(invRoot).normalize();
+  worldToRoot.copy(characterRoot.matrixWorld).invert();
+  pos.applyMatrix4(worldToRoot);
+  const normal=bind.localNormal.clone().transformDirection(node.matrixWorld).transformDirection(worldToRoot).normalize();
   return {position:pos.toArray() as [number,number,number],normal:normal.toArray() as [number,number,number]};
  };
- return {resolve,refresh:()=>{vrm.scene.updateMatrixWorld(true);}};
+ return {resolve,refresh:syncSkeleton};
 };

@@ -35,7 +35,16 @@ assert.match(scene, /applyAdultSheerOuter/, 'sheer outer layer');
 assert.match(scene, /sheerModel/, 'sheer alt rig');
 assert.match(adult, /skipHairRestyle:\s*true/, 'adult practice keeps natural hair');
 
+assert.match(paint, /hideAdultSportGarments/, 'sport practice hides lace garments');
+assert.match(paint, /hideAdultSheerLaceGarments/, 'sheer must drop lace bottoms');
+assert.match(paint, /makeAdultSheerNetMap/, 'sheer uses fine net map, not sport lace tint');
 assert.match(paint, /transparent=true/, 'sheer tops semi-transparent');
-assert.match(paint, /opacity=0\.42/, 'sheer opacity band');
+assert.match(scene, /hideAdultSportGarments/, 'scene applies sport garment hide');
+assert.match(scene, /adultPaint==='sport'\)hideAdultSportGarments/, 'incremental sport build hides lace');
+assert.doesNotMatch(
+  paint,
+  /tintCanvas\(map,SHEER_INNER,\{preserveAlpha:true,keep:\.035\}\)/,
+  'sheer must not reuse green lace sport tint',
+);
 
 console.log('adult outfit registry checks passed.');
