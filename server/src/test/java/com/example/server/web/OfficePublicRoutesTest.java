@@ -321,20 +321,50 @@ public class OfficePublicRoutesTest {
     }
 
     @Test
-    public void completedTodayUsesSecretaryLine() throws Exception {
+    public void completedTodayUsesPublicTitleNotSecretaryLine() throws Exception {
         ZoneId taipei = ZoneId.of("Asia/Taipei");
         long now = 9_000_000L;
         long mergedAt = Instant.ofEpochMilli(now).atZone(taipei).toLocalDate()
                 .atStartOfDay(taipei).toInstant().toEpochMilli() + 60_000L;
-        status = new DevStatusService(repo -> githubWithIssue(40, "今天收工一句",
+        status = new DevStatusService(repo -> githubWithIssue(40, "公開 issue 標題",
                 new DevStatusModels.PullRow(41, "pr", false, false, true, 0, 0, mergedAt, null,
                         new HashSet<>(Collections.singletonList(40)))));
         startApp();
 
-        JsonArray done = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
-                .getAsJsonArray("completedToday");
-        assertEquals(1, done.size());
-        assertEquals("今天收工一句", done.get(0).getAsJsonObject().get("phrase").getAsString());
+        JsonObject item = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("completedToday").get(0).getAsJsonObject();
+        assertEquals("秘密標題", item.get("title").getAsString());
+        assertFalse(item.has("phrase"));
+    }
+
+    @Test
+    public void completedTodayDurationFromEarliestDevRun() throws Exception {
+        ZoneId taipei = ZoneId.of("Asia/Taipei");
+        long now = 9_000_000L;
+        long devStart = 1_000_000L;
+        long mergedAt = devStart + 72 * 60_000L;
+        long dayStart = Instant.ofEpochMilli(now).atZone(taipei).toLocalDate()
+                .atStartOfDay(taipei).toInstant().toEpochMilli();
+        assertTrue(mergedAt >= dayStart);
+        status = new DevStatusService(repo -> githubWithIssue(658, "耗時測試標題",
+                new DevStatusModels.PullRow(99, "pr", false, false, true, 0, 0, mergedAt, null,
+                        new HashSet<>(Collections.singletonList(658)))));
+        startApp();
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 658);
+        run.put("round", 1);
+        run.put("branch", "ai/issue-658");
+        run.put("startedAt", devStart);
+        run.put("role", "dev");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", false);
+        body.put("runs", Collections.singletonList(run));
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", body));
+
+        JsonObject item = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("completedToday").get(0).getAsJsonObject();
+        assertEquals(72, item.get("durationMinutes").getAsLong());
     }
 
     @Test

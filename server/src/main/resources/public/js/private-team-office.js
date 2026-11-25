@@ -197,18 +197,26 @@ export function capsulesForActive(row) {
   return out;
 }
 
-/** 今日完成列說明：去掉「正在」、略過空泛 fallback（伺服器應已改標題）。 */
-export function phraseForDoneDisplay(row) {
+/** 今日完成主文：只用公開 issue 標題（單行截短）。 */
+export function titleForDoneDisplay(row) {
   const item = row && typeof row === 'object' ? row : {};
-  let phrase = item.phrase && isSafePublicText(item.phrase) ? String(item.phrase).trim() : '';
-  if (phrase.startsWith('正在')) {
-    phrase = phrase.slice(2).trim();
-  }
-  if (!phrase || VAGUE_PHRASES.has(phrase)) {
-    const title = item.title && isSafePublicText(item.title) ? String(item.title).trim() : '';
-    if (title) return title;
-  }
-  return phrase;
+  const title = item.title && isSafePublicText(item.title) ? String(item.title).trim() : '';
+  return title ? truncateActiveTitle(title) : '';
+}
+
+/** @deprecated 請改 titleForDoneDisplay */
+export function phraseForDoneDisplay(row) {
+  return titleForDoneDisplay(row);
+}
+
+export function formatDoneDuration(minutes) {
+  const m = Number(minutes);
+  if (!Number.isFinite(m) || m <= 0) return '';
+  if (m < 60) return '耗時 ' + m + ' 分';
+  const hours = Math.floor(m / 60);
+  const rem = m % 60;
+  if (rem === 0) return '耗時 ' + hours + ' 時';
+  return '耗時 ' + hours + ' 時 ' + rem + ' 分';
 }
 
 const ACTIVE_DISPLAY_FALLBACK = '正在處理一項工作';
@@ -430,11 +438,15 @@ export function renderCompletedList(doc, items, ui) {
     if (!row || typeof row !== 'object') return;
     const li = el(doc, 'li', 'pt-status-done-item');
     const clock = formatOfficeClock(row.at);
-    if (clock) {
-      li.appendChild(el(doc, 'span', 'pt-status-done-time', clock));
+    const duration = formatDoneDuration(row.durationMinutes);
+    if (clock || duration) {
+      const head = el(doc, 'div', 'pt-status-done-head');
+      if (clock) head.appendChild(el(doc, 'span', 'pt-status-done-time', clock));
+      if (duration) head.appendChild(el(doc, 'span', 'pt-status-done-duration', duration));
+      li.appendChild(head);
     }
-    const phrase = phraseForDoneDisplay(row);
-    if (phrase) li.appendChild(el(doc, 'span', 'pt-status-done-phrase', phrase));
+    const title = titleForDoneDisplay(row);
+    if (title) li.appendChild(el(doc, 'span', 'pt-status-done-phrase', title));
     const prLink = linkPr(doc, row, canLink);
     if (prLink) li.appendChild(prLink);
     ul.appendChild(li);
