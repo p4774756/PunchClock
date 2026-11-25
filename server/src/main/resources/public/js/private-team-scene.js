@@ -982,7 +982,7 @@ function addMonitor(root, lookTarget, x, z, scale, traySurfaceY) {
   screenGlow.position.set(0, 0.05, 0.12);
   group.add(screenGlow);
 
-  return { painter, screenGlow, group };
+  return { painter, screenGlow, group, bezel };
 }
 
 function addLowPolyPlant(root, x, z) {
@@ -1815,6 +1815,27 @@ export function mountPrivateTeamScene(canvas, opts) {
   const pointer = new THREE.Vector2();
   const onActivate = typeof (opts && opts.onActivate) === 'function' ? opts.onActivate : null;
   let sceneInputEnabled = true;
+  let monitorHovered = false;
+  let monitorHighlightUntil = 0;
+
+  function applyMonitorHighlight(hovered, tapMs) {
+    monitorHovered = !!hovered;
+    if (tapMs) monitorHighlightUntil = tapMs;
+  }
+
+  function monitorHighlightActive(now) {
+    return monitorHovered || now < monitorHighlightUntil;
+  }
+
+  function setMonitorBezelHighlight(on) {
+    for (let mi = 0; mi < monitors.length; mi++) {
+      const bezel = monitors[mi].bezel;
+      const mat = bezel && bezel.material;
+      if (!mat || !mat.emissive) continue;
+      mat.emissive.setHex(on ? 0x8ec8ff : 0x000000);
+      mat.emissiveIntensity = on ? 0.65 : 0;
+    }
+  }
 
   function pickRoleFromObject(obj) {
     let cur = obj;
@@ -1867,6 +1888,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   function activatePickRole(target) {
     if (!target) return;
     if (target === 'secretary') playSecretaryWave();
+    if (target === 'monitor') applyMonitorHighlight(true, performance.now() + 240);
     if (onActivate) onActivate(target);
   }
 
@@ -1939,9 +1961,36 @@ export function mountPrivateTeamScene(canvas, opts) {
       }
     }
     if (!pinchActive && sceneInputEnabled && !orbitDragged) {
-      const hover = pickTarget(ev.clientX, ev.clientY);
-      canvas.style.cursor = hover ? 'pointer' : '';
+      updatePointerHover(ev.clientX, ev.clientY);
     }
+  }
+
+  function updatePointerHover(clientX, clientY) {
+    if (!sceneInputEnabled || pinchActive || orbitDragged) {
+      if (!sceneInputEnabled) {
+        canvas.style.cursor = '';
+        applyMonitorHighlight(false);
+        setMonitorBezelHighlight(false);
+      }
+      return;
+    }
+    const hover = pickTarget(clientX, clientY);
+    canvas.style.cursor = hover ? 'pointer' : '';
+    const mon = hover === 'monitor';
+    applyMonitorHighlight(mon);
+    setMonitorBezelHighlight(mon || monitorHighlightActive(performance.now()));
+  }
+
+  function handleHoverMove(ev) {
+    if (orbitDragged || pinchActive) return;
+    updatePointerHover(ev.clientX, ev.clientY);
+  }
+
+  function handlePointerLeave() {
+    if (orbitDragged || pinchActive) return;
+    canvas.style.cursor = '';
+    applyMonitorHighlight(false);
+    setMonitorBezelHighlight(monitorHighlightActive(performance.now()));
   }
 
   function clearPointer(ev) {
@@ -1998,6 +2047,8 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   canvas.addEventListener('pointerdown', handlePointerDown);
   canvas.addEventListener('pointermove', handlePointerMove);
+  canvas.addEventListener('pointermove', handleHoverMove);
+  canvas.addEventListener('pointerleave', handlePointerLeave);
   canvas.addEventListener('pointerup', handlePointerUp);
   canvas.addEventListener('pointercancel', handlePointerUp);
   canvas.addEventListener('wheel', onWheel, { passive: false });
@@ -2163,7 +2214,13 @@ export function mountPrivateTeamScene(canvas, opts) {
     const pulse = (Math.sin(elapsed * 3) + 1) / 2;
     for (let mi = 0; mi < monitors.length; mi++) {
       monitors[mi].painter.draw(pulse);
-      monitors[mi].screenGlow.intensity = 0.22 + pulse * 0.12;
+      const hi = monitorHighlightActive(now);
+      monitors[mi].screenGlow.intensity = (hi ? 0.72 : 0.22) + pulse * (hi ? 0.28 : 0.12);
+      if (!monitorHovered && now >= monitorHighlightUntil) {
+        setMonitorBezelHighlight(false);
+      } else if (hi) {
+        setMonitorBezelHighlight(true);
+      }
     }
 
     if (reducedMotion) {
@@ -2323,6 +2380,8 @@ export function mountPrivateTeamScene(canvas, opts) {
       win.removeEventListener('resize', resize);
       canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointermove', handlePointerMove);
+      canvas.removeEventListener('pointermove', handleHoverMove);
+      canvas.removeEventListener('pointerleave', handlePointerLeave);
       canvas.removeEventListener('pointerup', handlePointerUp);
       canvas.removeEventListener('pointercancel', handlePointerUp);
       canvas.removeEventListener('wheel', onWheel);
