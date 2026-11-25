@@ -152,6 +152,31 @@ public class DevMachineStoreTest {
     }
 
     @Test
+    public void heartbeatQueuedPlannedTitleOnly() {
+        DevMachineStore store = new DevMachineStore();
+        Map<String, Object> body = payload("tiger", 1, "a", 1L);
+        body.put("queued", List.of(Map.of("title", "預訂下一批小單")));
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", body));
+        DevMachineStore.QueuedEntry entry = store.machineSnapshots().get(0).queued.get(0);
+        assertEquals(0, entry.issue);
+        assertEquals("預訂下一批小單", entry.title);
+    }
+
+    @Test
+    public void machineLevelChainStageStartedAtParsed() {
+        DevMachineStore store = new DevMachineStore();
+        Map<String, Object> body = payload("tiger", 640, "ai/issue-640", 1000L);
+        body.put("chain", "青龍");
+        body.put("stage", "審查中");
+        body.put("stageStartedAt", 5_000L);
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", body));
+        DevMachineStore.Snapshot snap = store.machineSnapshots().get(0);
+        assertEquals("青龍", snap.chain);
+        assertEquals("審查中", snap.stage);
+        assertEquals(Long.valueOf(5_000L), snap.stageStartedAt);
+    }
+
+    @Test
     public void runStageFieldParsedWhenValid() {
         DevMachineStore store = new DevMachineStore();
         List<Map<String, Object>> runs = List.of(Map.of(

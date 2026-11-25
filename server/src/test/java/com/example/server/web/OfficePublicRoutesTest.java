@@ -208,6 +208,49 @@ public class OfficePublicRoutesTest {
     }
 
     @Test
+    public void tigerQueueIncludesPlannedTitleWithoutIssue() throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", false);
+        body.put("queued", List.of(
+                Map.of("issue", 573, "afterIssue", 571),
+                Map.of("title", "預訂：收尾 Atlas 驗證")));
+        store.applyHeartbeat("tiger", body);
+
+        JsonArray queue = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("queue");
+        assertEquals(2, queue.size());
+        assertEquals(573, queue.get(0).getAsJsonObject().get("issue").getAsInt());
+        assertEquals("預訂：收尾 Atlas 驗證", queue.get(1).getAsJsonObject().get("title").getAsString());
+        assertFalse(queue.get(1).getAsJsonObject().has("issue"));
+    }
+
+    @Test
+    public void activeEntryFromMachineChainStageAndFailed() throws Exception {
+        status = new DevStatusService(repo -> githubWithIssue(680, null, null));
+        startApp();
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", false);
+        body.put("issue", 680);
+        body.put("branch", "ai/issue-680");
+        body.put("runStartedAt", 9_000_000L - 3_600_000L);
+        body.put("stageStartedAt", 9_000_000L - 120_000L);
+        body.put("chain", "白虎");
+        body.put("stage", "等 CI");
+        body.put("verdict", "FAIL");
+        store.applyHeartbeat("tiger", body);
+
+        JsonObject active = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("active").get(0).getAsJsonObject();
+        assertEquals("白虎", active.get("chain").getAsString());
+        assertEquals("等 CI", active.get("stage").getAsString());
+        assertTrue(active.get("failed").getAsBoolean());
+        assertEquals(2, active.get("minutes").getAsInt());
+    }
+
+    @Test
     public void tigerQueueSkipsActiveRunIssue() throws Exception {
         Map<String, Object> run = new HashMap<>();
         run.put("issue", 571);

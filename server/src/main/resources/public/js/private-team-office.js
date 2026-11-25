@@ -259,9 +259,14 @@ export function activeCiFailed(item) {
   return verdict === 'FAIL';
 }
 
-function reviewWasCompleted(item, stage) {
-  const round = Number(item.round);
-  return Number.isFinite(round) && round >= 2;
+/** 已進入 CI／合併等後段，且本單略過審核（非僅依 round 數字）。 */
+function reviewWasSkipped(item, stage) {
+  const row = item && typeof item === 'object' ? item : {};
+  const current = STAGE_TO_SEGMENT[stage] ?? 0;
+  if (current < 2) return false;
+  if (row.reviewSkipped === true) return true;
+  const round = Number(row.round);
+  return Number.isFinite(round) && round === 0;
 }
 
 /** 四段進度條狀態：done | current | pending | fail | skipped */
@@ -270,10 +275,10 @@ export function progressSegmentsForActive(item) {
   const stage = activeStageForItem(row);
   const current = STAGE_TO_SEGMENT[stage] ?? 0;
   const ciFail = activeCiFailed(row);
-  const reviewDone = reviewWasCompleted(row, stage);
+  const reviewSkipped = reviewWasSkipped(row, stage);
   return STAGE_LABELS.map((label, index) => {
     if (index < current) {
-      if (label === '審核' && !reviewDone) return { label, state: 'skipped' };
+      if (label === '審核' && reviewSkipped) return { label, state: 'skipped' };
       return { label, state: 'done' };
     }
     if (index === current) {
