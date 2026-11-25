@@ -25,7 +25,6 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.border.EmptyBorder;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.DefaultEditorKit;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
@@ -94,7 +93,6 @@ public class PeerChatWindow extends JFrame {
     private final PeerChatTranscript transcript;
     private final JTextArea input;
     private final JButton sendButton;
-    private final JButton fileButton;
     private final JButton attachButton;
     private final JButton clearImageButton;
     private final JButton clearFilesButton;
@@ -259,7 +257,7 @@ public class PeerChatWindow extends JFrame {
         input.setWrapStyleWord(true);
         input.setToolTipText("Enter 送出，Shift+Enter 換行；Ctrl+V 或 ⌘V 可貼多張截圖（最多 "
                 + MAX_TEXT_CHARS + " 字，一則最多 " + ChatProtocol.MAX_PEER_IMAGES
-                + " 張）。拖曳檔案會先列在這裡，按傳送才送出");
+                + " 張）。拖曳檔案規則與「附加」相同");
         bindInputKeys();
         CandyTextField.dressArea(input);
         JScrollPane inputScroll = new JScrollPane(input,
@@ -268,23 +266,17 @@ public class PeerChatWindow extends JFrame {
         inputScroll.putClientProperty(CandyScrollBar.MARK, Boolean.TRUE);
         inputScroll.setBorder(BorderFactory.createLineBorder(CandyTheme.EDGE));
 
-        attachButton = new CandyButton("附加圖片", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+        attachButton = new CandyButton("附加", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         attachButton.setFont(plain);
-        attachButton.setToolTipText("選一張或多張圖片，和文字一起傳給對方（會自動縮小壓縮）");
-        attachButton.addActionListener(e -> chooseImage());
-        fileButton = new CandyButton("附加檔案", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
-        fileButton.setFont(plain);
-        fileButton.setToolTipText("選檔案或資料夾（可多選）。先列在這裡，按傳送才送給這個人；多個項目會打包成一個 ZIP");
-        fileButton.addActionListener(e -> chooseQueuedFiles());
+        attachButton.setToolTipText("選檔案、資料夾或圖片（可多選）。純圖片會跟文字一起送出；其餘先列在這裡，按傳送才送出");
+        attachButton.addActionListener(e -> chooseAttach());
         sendButton = new CandyButton("傳送", CandyButton.Variant.PRIMARY, CandyButton.Size.MEDIUM);
         sendButton.setFont(bold);
         sendButton.addActionListener(e -> send());
 
-        // GridLayout：視窗再窄按鈕也只會一起變窄，不會像 FlowLayout 那樣把最後一顆換行後被裁掉
-        JPanel tools = new JPanel(new GridLayout(1, 2, 6, 0));
+        JPanel tools = new JPanel(new GridLayout(1, 1, 6, 0));
         tools.setOpaque(false);
         tools.add(attachButton);
-        tools.add(fileButton);
         JPanel buttons = new JPanel(new BorderLayout(8, 0));
         buttons.setBorder(new EmptyBorder(6, 12, 10, 12));
         if (!textOnly) {
@@ -425,10 +417,9 @@ public class PeerChatWindow extends JFrame {
         sendButton.setEnabled(canType && !sending);
         boolean extras = canType && !textOnly;
         boolean canClear = interactionEnabled && !readOnly && !textOnly;
-        attachButton.setEnabled(extras);
+        attachButton.setEnabled(extras && !fileBusy);
         clearImageButton.setEnabled(canClear && !attachedImages.isEmpty());
         clearFilesButton.setEnabled(canClear && !pendingFiles.isEmpty());
-        fileButton.setEnabled(extras && !fileBusy);
     }
 
     private void installFileDrop(JComponent target) {
@@ -457,7 +448,7 @@ public class PeerChatWindow extends JFrame {
                     }
                     event.dropComplete(!paths.isEmpty());
                     if (!paths.isEmpty()) {
-                        SwingUtilities.invokeLater(() -> addPendingFiles(paths));
+                        SwingUtilities.invokeLater(() -> routeIncomingPaths(paths));
                     }
                 } catch (Exception ex) {
                     event.dropComplete(false);
@@ -547,11 +538,14 @@ public class PeerChatWindow extends JFrame {
         }));
     }
 
-    // ==================== 附加檔案 ====================
+    // ==================== 附加（與拖曳同一套規則） ====================
 
-    private void chooseQueuedFiles() {
+    private void chooseAttach() {
+        if (!canCompose()) {
+            return;
+        }
         JFileChooser chooser = UiFonts.fileChooser();
-        chooser.setDialogTitle("選擇要傳送的檔案或資料夾（可多選）");
+        chooser.setDialogTitle("選擇要附加的檔案、資料夾或圖片（可多選）");
         chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
         chooser.setMultiSelectionEnabled(true);
         chooser.setAcceptAllFileFilterUsed(true);
@@ -571,7 +565,38 @@ public class PeerChatWindow extends JFrame {
                 files.add(file.toPath());
             }
         }
-        addPendingFiles(files);
+        routeIncomingPaths(files);
+    }
+
+    /**
+     * 附加按鈕與拖曳共用：全部是圖片檔時走訊息附圖，否則全部進待傳清單。
+     */
+    void routeIncomingPaths(List<Path> incoming) {
+        if (!canCompose() || incoming == null || incoming.isEmpty()) {
+            return;
+        }
+        if (allMessageImages(incoming)) {
+            attachImagesFromFiles(incoming);
+        } else {
+            addPendingFiles(incoming);
+        }
+    }
+
+    private static boolean allMessageImages(List<Path> paths) {
+        for (Path raw : paths) {
+            if (raw == null) {
+                return false;
+            }
+            Path path = raw.toAbsolutePath().normalize();
+            try {
+                if (!Files.isRegularFile(path) || !isQueuedImage(path)) {
+                    return false;
+                }
+            } catch (Exception ex) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** 拖曳或多選進來的檔案先排進清單。不合規則的項目會跳過並說明原因。 */
@@ -607,7 +632,7 @@ public class PeerChatWindow extends JFrame {
             SwingUtilities.invokeLater(() -> {
                 if (isDisplayable()) {
                     toFront();
-                    UiFonts.showWarning(this, text, "附加檔案");
+                    UiFonts.showWarning(this, text, "附加");
                 }
             });
         }
@@ -669,9 +694,13 @@ public class PeerChatWindow extends JFrame {
             visible = 34;
         }
         fileScroll.setPreferredSize(new Dimension(280, Math.min(content, visible)));
-        boolean many = pendingFiles.size() > 1;
-        fileSummary.setText(many ? "這 " + pendingFiles.size() + " 個項目會打包成一個 ZIP 後傳送" : "");
-        fileSummary.setVisible(many);
+        boolean zipPack = needsZipPack();
+        fileSummary.setText(zipPack
+                ? (pendingFiles.size() > 1
+                ? "這 " + pendingFiles.size() + " 個項目會打包成一個 ZIP 後傳送"
+                : "此資料夾會打包成一個 ZIP 後傳送")
+                : "");
+        fileSummary.setVisible(zipPack);
         fileRow.setVisible(!pendingFiles.isEmpty());
         sendButton.setText(pendingFiles.isEmpty() ? "傳送" : "傳送 (" + pendingFiles.size() + ")");
         fileRow.revalidate();
@@ -785,6 +814,20 @@ public class PeerChatWindow extends JFrame {
         }.execute();
     }
 
+    private boolean needsZipPack() {
+        if (pendingFiles.size() > 1) {
+            return true;
+        }
+        if (pendingFiles.size() != 1) {
+            return false;
+        }
+        try {
+            return Files.isDirectory(pendingFiles.get(0));
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
     private static boolean isQueuedImage(Path path) {
         String name = itemName(path).toLowerCase(Locale.ROOT);
         return name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg")
@@ -809,32 +852,8 @@ public class PeerChatWindow extends JFrame {
 
     // ==================== 附圖 ====================
 
-    private void chooseImage() {
-        if (!canCompose()) {
-            return;
-        }
-        JFileChooser chooser = UiFonts.fileChooser();
-        chooser.setDialogTitle("選擇要附加的圖片（可多選）");
-        chooser.setMultiSelectionEnabled(true);
-        chooser.setFileFilter(new FileNameExtensionFilter(
-                "圖片檔 (JPG / PNG / GIF)", "jpg", "jpeg", "png", "gif"));
-        if (UiFonts.showOpenDialog(chooser, this) != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-        File[] picked = chooser.getSelectedFiles();
-        if (picked == null || picked.length == 0) {
-            if (chooser.getSelectedFile() == null) {
-                return;
-            }
-            picked = new File[]{chooser.getSelectedFile()};
-        }
-        List<Path> files = new ArrayList<>();
-        for (File file : picked) {
-            if (file != null) {
-                files.add(file.toPath());
-            }
-        }
-        if (files.isEmpty()) {
+    private void attachImagesFromFiles(List<Path> files) {
+        if (files == null || files.isEmpty()) {
             return;
         }
         new SwingWorker<List<EncodedPick>, Void>() {
@@ -867,12 +886,12 @@ public class PeerChatWindow extends JFrame {
                         }
                     }
                     if (problems.length() > 0) {
-                        UiFonts.showWarning(PeerChatWindow.this, problems.toString().trim(), "附加圖片");
+                        UiFonts.showWarning(PeerChatWindow.this, problems.toString().trim(), "附加");
                     }
                 } catch (Exception ex) {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                     UiFonts.showWarning(PeerChatWindow.this,
-                            "無法使用這些圖片：" + cause.getMessage(), "附加圖片");
+                            "無法使用這些圖片：" + cause.getMessage(), "附加");
                 }
             }
         }.execute();
@@ -924,12 +943,12 @@ public class PeerChatWindow extends JFrame {
                 try {
                     String reject = addAttachedImage(get());
                     if (reject != null) {
-                        UiFonts.showWarning(PeerChatWindow.this, label + "：" + reject, "附加圖片");
+                        UiFonts.showWarning(PeerChatWindow.this, label + "：" + reject, "附加");
                     }
                 } catch (Exception ex) {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                     UiFonts.showWarning(PeerChatWindow.this,
-                            "無法使用這張圖片：" + cause.getMessage(), "附加圖片");
+                            "無法使用這張圖片：" + cause.getMessage(), "附加");
                 }
             }
         }.execute();

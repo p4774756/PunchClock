@@ -1,5 +1,6 @@
 package com.example.ui;
 
+import com.example.PeerFileRules;
 import org.junit.Assume;
 import org.junit.Test;
 
@@ -43,6 +44,22 @@ public class FileTransferDialogTest {
         assertEquals("A", FriendListItem.initial("aa123"));
         assertEquals("王", FriendListItem.initial("王小明"));
         assertEquals("找不到檔案", FileTransferDialog.rejection(Path.of("missing-punchclock-file.txt")));
+    }
+
+    @Test
+    public void rejectionBlocksOversizedFolderAtQueueTime() throws Exception {
+        Path root = Files.createTempDirectory("punchclock-big-folder");
+        Path inner = root.resolve("heavy.bin");
+        try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(inner.toFile(), "rw")) {
+            raf.setLength(PeerFileRules.MAX_BYTES + 1L);
+        }
+        try {
+            String reason = FileTransferDialog.rejection(root);
+            assertTrue(reason != null && reason.contains("400 MB"));
+        } finally {
+            Files.deleteIfExists(inner);
+            Files.deleteIfExists(root);
+        }
     }
 
     @Test

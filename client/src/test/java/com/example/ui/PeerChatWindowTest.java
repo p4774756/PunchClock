@@ -12,14 +12,109 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.imageio.ImageIO;
 import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.SwingUtilities;
+
+import java.awt.image.BufferedImage;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class PeerChatWindowTest {
+
+    @Test
+    public void pureImagesRouteToMessageAttachments() throws Exception {
+        Assume.assumeFalse("headless JVM cannot create the chat window", GraphicsEnvironment.isHeadless());
+        Path dir = Files.createTempDirectory("punch-chat-images");
+        Path png = dir.resolve("a.png");
+        Path jpg = dir.resolve("b.jpg");
+        BufferedImage image = new BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB);
+        ImageIO.write(image, "png", png.toFile());
+        ImageIO.write(image, "jpg", jpg.toFile());
+        PeerChatWindow window = new PeerChatWindow("bob", host(new AtomicReference<>(), new boolean[]{true},
+                new boolean[]{false}), null, List.of(), false);
+        try {
+            window.setPeerOnline(true);
+            window.routeIncomingPaths(List.of(png, jpg));
+            waitForAttachedImages(window);
+            assertTrue(window.pendingFiles().isEmpty());
+            assertFalse(window.attachedImage().isEmpty());
+        } finally {
+            window.dispose();
+            Files.deleteIfExists(png);
+            Files.deleteIfExists(jpg);
+            Files.deleteIfExists(dir);
+        }
+    }
+
+    @Test
+    public void mixedImagesAndFilesGoToPendingQueue() throws Exception {
+        Assume.assumeFalse("headless JVM cannot create the chat window", GraphicsEnvironment.isHeadless());
+        Path dir = Files.createTempDirectory("punch-chat-mix");
+        Path png = dir.resolve("shot.png");
+        Path note = dir.resolve("note.txt");
+        BufferedImage image = new BufferedImage(6, 6, BufferedImage.TYPE_INT_RGB);
+        ImageIO.write(image, "png", png.toFile());
+        Files.writeString(note, "mix");
+        PeerChatWindow window = new PeerChatWindow("bob", host(new AtomicReference<>(), new boolean[]{true},
+                new boolean[]{false}), null, List.of(), false);
+        try {
+            window.setPeerOnline(true);
+            window.routeIncomingPaths(List.of(png, note));
+            SwingUtilities.invokeAndWait(() -> {});
+            assertEquals(2, window.pendingFiles().size());
+            assertTrue(window.attachedImage().isEmpty());
+        } finally {
+            window.dispose();
+            Files.deleteIfExists(png);
+            Files.deleteIfExists(note);
+            Files.deleteIfExists(dir);
+        }
+    }
+
+    @Test
+    public void singleFilePendingSummaryDoesNotMentionZip() throws Exception {
+        Assume.assumeFalse("headless JVM cannot create the chat window", GraphicsEnvironment.isHeadless());
+        Path dir = Files.createTempDirectory("punch-chat-single");
+        Path note = dir.resolve("only.txt");
+        Files.writeString(note, "one");
+        PeerChatWindow window = new PeerChatWindow("bob", host(new AtomicReference<>(), new boolean[]{true},
+                new boolean[]{false}), null, List.of(), false);
+        try {
+            window.setPeerOnline(true);
+            window.routeIncomingPaths(List.of(note));
+            assertEquals(1, window.pendingFiles().size());
+            assertFalse(labelText(window).contains("ZIP"));
+        } finally {
+            window.dispose();
+            Files.deleteIfExists(note);
+            Files.deleteIfExists(dir);
+        }
+    }
+
+    @Test
+    public void oversizedFolderRejectedWhenAddedToQueue() throws Exception {
+        Assume.assumeFalse("headless JVM cannot create the chat window", GraphicsEnvironment.isHeadless());
+        Path root = Files.createTempDirectory("punch-chat-fat-dir");
+        Path heavy = root.resolve("heavy.bin");
+        try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(heavy.toFile(), "rw")) {
+            raf.setLength(com.example.PeerFileRules.MAX_BYTES + 1L);
+        }
+        PeerChatWindow window = new PeerChatWindow("bob", host(new AtomicReference<>(), new boolean[]{true},
+                new boolean[]{false}), null, List.of(), false);
+        try {
+            window.setPeerOnline(true);
+            window.routeIncomingPaths(List.of(root));
+            assertTrue(window.pendingFiles().isEmpty());
+        } finally {
+            window.dispose();
+            Files.deleteIfExists(heavy);
+            Files.deleteIfExists(root);
+        }
+    }
 
     @Test
     public void queuedFilesStayUntilSendStarts() throws Exception {
@@ -140,6 +235,14 @@ public class PeerChatWindowTest {
             }
         }
         return text.toString();
+    }
+
+    private static void waitForAttachedImages(PeerChatWindow window) throws Exception {
+        long deadline = System.currentTimeMillis() + 15_000L;
+        while (window.attachedImage().isEmpty() && System.currentTimeMillis() < deadline) {
+            SwingUtilities.invokeAndWait(() -> {});
+            Thread.sleep(25L);
+        }
     }
 
     private static List<Component> flatten(Component root) {
