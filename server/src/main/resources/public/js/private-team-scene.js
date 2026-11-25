@@ -310,8 +310,8 @@ export function privateTeamYawAtReturn(startYaw, progress) {
 /** 夜間全域與檯燈強度（供單測） */
 export function privateTeamSceneLighting() {
   return {
-    amb: 0.24,
-    dir: 0.36,
+    amb: 0.35,
+    dir: 0.42,
     point: 1.05,
     spot: 5.4,
     spotDistance: 7.8,
@@ -768,47 +768,108 @@ function makeWindowMoonlightFloorTexture() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const cols = 3;
   const rows = 2;
-  const padX = 18;
-  const padY = 14;
-  const cellW = (canvas.width - padX * 2) / cols;
-  const cellH = (canvas.height - padY * 2) / rows;
+  const padX = 14;
+  const padY = 10;
+  const muntin = 11;
+  const innerW = canvas.width - padX * 2;
+  const innerH = canvas.height - padY * 2;
+  const paneW = (innerW - muntin * (cols - 1)) / cols;
+  const paneH = (innerH - muntin * (rows - 1)) / rows;
+  const cornerR = 7;
+
+  function strokeRoundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function fillRoundRect(x, y, w, h, r) {
+    strokeRoundRect(x, y, w, h, r);
+    ctx.fill();
+  }
+
+  ctx.save();
+  ctx.transform(1, 0, 0.2, 1, 18, 4);
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      const cx = padX + col * cellW + cellW / 2;
-      const cy = padY + row * cellH + cellH / 2;
-      const rw = cellW * 0.42;
-      const rh = cellH * 0.38;
-      const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, Math.max(rw, rh));
-      g.addColorStop(0, 'rgba(220,230,255,0.92)');
-      g.addColorStop(0.45, 'rgba(150,170,245,0.48)');
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
-      ctx.fill();
+      const x = padX + col * (paneW + muntin);
+      const y = padY + row * (paneH + muntin);
+      const fade = 0.78 + ((cols - 1 - col) / (cols - 1)) * 0.22;
+      const lg = ctx.createLinearGradient(x, y, x + paneW, y + paneH);
+      lg.addColorStop(0, 'rgba(185,202,255,' + (0.42 * fade) + ')');
+      lg.addColorStop(0.4, 'rgba(155,180,252,' + (0.78 * fade) + ')');
+      lg.addColorStop(0.75, 'rgba(130,160,245,' + (0.62 * fade) + ')');
+      lg.addColorStop(1, 'rgba(95,125,225,' + (0.28 * fade) + ')');
+      ctx.fillStyle = lg;
+      fillRoundRect(x, y, paneW, paneH, cornerR);
+      const cx = x + paneW * 0.38;
+      const cy = y + paneH * 0.36;
+      const edge = Math.max(paneW, paneH) * 0.58;
+      const pg = ctx.createRadialGradient(cx, cy, 1, cx, cy, edge);
+      pg.addColorStop(0, 'rgba(225,235,255,' + (0.55 * fade) + ')');
+      pg.addColorStop(0.55, 'rgba(165,188,252,' + (0.32 * fade) + ')');
+      pg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = pg;
+      fillRoundRect(x + 2, y + 2, paneW - 4, paneH - 4, Math.max(2, cornerR - 2));
     }
   }
   ctx.strokeStyle = 'rgba(16,22,52,0.88)';
-  ctx.lineWidth = 10;
+  ctx.lineWidth = muntin;
+  ctx.lineCap = 'square';
   for (let col = 1; col < cols; col++) {
-    const lx = padX + col * cellW;
+    const lx = padX + col * paneW + (col - 0.5) * muntin;
     ctx.beginPath();
-    ctx.moveTo(lx, padY - 4);
-    ctx.lineTo(lx, canvas.height - padY + 4);
+    ctx.moveTo(lx, padY - 3);
+    ctx.lineTo(lx, padY + rows * paneH + (rows - 1) * muntin + 3);
     ctx.stroke();
   }
   for (let row = 1; row < rows; row++) {
-    const ly = padY + row * cellH;
+    const ly = padY + row * paneH + (row - 0.5) * muntin;
     ctx.beginPath();
-    ctx.moveTo(padX - 4, ly);
-    ctx.lineTo(canvas.width - padX + 4, ly);
+    ctx.moveTo(padX - 3, ly);
+    ctx.lineTo(padX + cols * paneW + (cols - 1) * muntin + 3, ly);
     ctx.stroke();
   }
+  ctx.restore();
   ctx.strokeStyle = 'rgba(28,36,68,0.48)';
   ctx.lineWidth = 3;
-  ctx.strokeRect(padX + 1, padY + 1, canvas.width - padX * 2 - 2, canvas.height - padY * 2 - 2);
+  ctx.strokeRect(padX + 1, padY + 1, innerW - 2, innerH - 2);
+  const wash = ctx.createLinearGradient(0, 0, canvas.width, 0);
+  wash.addColorStop(0, 'rgba(140,165,248,0.12)');
+  wash.addColorStop(0.55, 'rgba(0,0,0,0)');
+  wash.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeWindowMoonlightWallTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 192;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const cx = canvas.width * 0.5;
+  const g = ctx.createRadialGradient(cx, 18, 6, cx, 48, 200);
+  g.addColorStop(0, 'rgba(210,224,255,0.92)');
+  g.addColorStop(0.28, 'rgba(160,185,252,0.62)');
+  g.addColorStop(0.62, 'rgba(120,150,240,0.28)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
@@ -1610,7 +1671,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const moonFloorMat = new THREE.MeshBasicMaterial({
     map: moonTex,
     transparent: true,
-    opacity: 0.96,
+    opacity: 0.9,
     depthWrite: false,
     blending: THREE.AdditiveBlending
   });
@@ -1629,19 +1690,41 @@ export function mountPrivateTeamScene(canvas, opts) {
   windowMoonlightTub.position.set(TUB_CX - 0.42, 0.056, TUB_CZ + 0.38);
   windowMoonlightTub.name = 'windowMoonlightTub';
   root.add(windowMoonlightTub);
-  const windowMoonlightWall = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.65, 0.52),
-    new THREE.MeshBasicMaterial({
-      map: moonTex,
-      transparent: true,
-      opacity: 0.14,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending
-    })
-  );
-  windowMoonlightWall.position.set(0.08, winBottom + 0.22, backZ - WALL_THICK / 2 + 0.01);
+  const moonWallTex = makeWindowMoonlightWallTexture();
+  const moonWallMat = new THREE.MeshBasicMaterial({
+    map: moonWallTex,
+    transparent: true,
+    opacity: 0.52,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  // 貼在窗下牆帶，不要蓋到窗洞（舊版中心在 winBottom+0.22，大半落在窗玻璃上所以幾乎看不見）。
+  const windowMoonlightWall = new THREE.Mesh(new THREE.PlaneGeometry(winW + 0.2, winBottom + 0.04), moonWallMat);
+  windowMoonlightWall.position.set(0, winBottom / 2 + 0.01, backZ + 0.012);
   windowMoonlightWall.name = 'windowMoonlightWall';
   root.add(windowMoonlightWall);
+  const flankW = FLOOR_HALF - winRight;
+  const flankXOff = (winRight + FLOOR_HALF) / 2;
+  const flankH = 1.55;
+  const flankY = 0.92;
+  const flankZ = backZ + 0.012;
+  const flankMat = moonWallMat.clone();
+  flankMat.opacity = 0.4;
+  const windowMoonlightWallRight = new THREE.Mesh(new THREE.PlaneGeometry(flankW, flankH), flankMat);
+  windowMoonlightWallRight.position.set(flankXOff, flankY, flankZ);
+  windowMoonlightWallRight.name = 'windowMoonlightWallRight';
+  root.add(windowMoonlightWallRight);
+  const windowMoonlightWallLeftFlank = new THREE.Mesh(new THREE.PlaneGeometry(flankW, flankH), flankMat.clone());
+  windowMoonlightWallLeftFlank.position.set(-flankXOff, flankY, flankZ);
+  windowMoonlightWallLeftFlank.name = 'windowMoonlightWallLeftFlank';
+  root.add(windowMoonlightWallLeftFlank);
+  const leftWallMat = moonWallMat.clone();
+  leftWallMat.opacity = 0.38;
+  const windowMoonlightLeftWall = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.65), leftWallMat);
+  windowMoonlightLeftWall.rotation.y = Math.PI / 2;
+  windowMoonlightLeftWall.position.set(leftX + WALL_THICK + 0.012, 1.02, -0.62);
+  windowMoonlightLeftWall.name = 'windowMoonlightLeftWall';
+  root.add(windowMoonlightLeftWall);
 
   const romanceCandles = [];
   romanceCandles.push(
