@@ -542,6 +542,13 @@
       return typeof fn === 'function' ? fn(expanded) : (expanded ? '收合' : '展開');
     }
 
+    function deviceFoldAriaLabel(expanded, clientId) {
+      const fn = deviceFoldHelpers().deviceFoldAriaLabel;
+      if (typeof fn === 'function') return fn(expanded, clientId);
+      const id = clientId == null ? '' : String(clientId);
+      return deviceFoldText(expanded) + (id ? ' ' + id : '');
+    }
+
     function syncDeviceFoldChrome(root, clientId) {
       if (!root) return;
       const expanded = expandedClients.has(clientId);
@@ -552,9 +559,8 @@
       root.classList.toggle('device-is-collapsed', collapsed);
       if (head) {
         head.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        head.setAttribute('aria-label', deviceFoldAriaLabel(expanded, clientId));
       }
-      const foldHint = root.querySelector('[data-fold-label]');
-      if (foldHint) foldHint.textContent = deviceFoldText(expanded);
       const chevronSlot = root.querySelector('.device-chevron-slot');
       if (chevronSlot) chevronSlot.innerHTML = deviceChevronHtml(expanded);
     }
@@ -789,24 +795,25 @@
           '<button class="btn btn-ghost-danger" onclick="deleteClient(\'' + c.clientId + '\')" title="移除離線設備紀錄">移除</button>'
         );
         const cancelAllBtnHtml = buildCancelAllButtonHtml(c.clientId, isConnected, tasks);
-        const foldText = deviceFoldText(!isCollapsed);
+        const expanded = !isCollapsed;
         const bodyClass = isCollapsed ? 'collapsed' : '';
         const bodyDomId = 'device-body-' + escapeHtml(c.clientId).replace(/[^a-zA-Z0-9_-]/g, '_');
         const headDomId = 'device-head-' + escapeHtml(c.clientId).replace(/[^a-zA-Z0-9_-]/g, '_');
         const ariaExpanded = isCollapsed ? 'false' : 'true';
+        const ariaLabel = escapeHtml(deviceFoldAriaLabel(expanded, c.clientId));
         const collapsedSectionClass = isCollapsed ? ' device-is-collapsed' : '';
         const statusColor = getStatusColor(c.status);
         const safeMsg = escapeHtml(cleanMessage(c.message));
-        const chevronHtml = deviceChevronHtml(!isCollapsed);
+        const chevronHtml = deviceChevronHtml(expanded);
         const versionHint = buildAppVersionHintHtml(c);
-        const subMeta = (versionHint || foldText)
-          ? '<div class="device-id-sub">' + versionHint
-              + '<span class="fold-hint" data-fold-label>' + foldText + '</span></div>'
+        const subMeta = versionHint
+          ? '<div class="device-id-sub">' + versionHint + '</div>'
           : '';
 
         html += '<section class="device' + collapsedSectionClass + '" data-client-id="' + escapeHtml(c.clientId) + '">' +
           '<div class="device-head" id="' + headDomId + '" role="button" tabindex="0"' +
-            ' aria-expanded="' + ariaExpanded + '" aria-controls="' + bodyDomId + '">' +
+            ' aria-expanded="' + ariaExpanded + '" aria-controls="' + bodyDomId + '"' +
+            ' aria-label="' + ariaLabel + '">' +
             '<div class="device-id">' +
               '<span class="device-chevron-slot" aria-hidden="true">' + chevronHtml + '</span>' +
               '<div class="device-id-text">' +

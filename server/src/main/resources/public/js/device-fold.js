@@ -10,6 +10,12 @@ export function deviceFoldLabel(expanded) {
   return expanded ? '收合' : '展開';
 }
 
+/** 供 `.device-head` 的 aria-label；可見 UI 不再顯示展開／收合文字。 */
+export function deviceFoldAriaLabel(expanded, clientId) {
+  const id = clientId == null ? '' : String(clientId);
+  return deviceFoldLabel(expanded) + (id ? ' ' + id : '');
+}
+
 export function shouldToggleDeviceFold(key) {
   return key === 'Enter' || key === ' ';
 }
@@ -18,6 +24,7 @@ const deviceFoldApi = {
   DEVICE_CHEVRON_CLASS,
   deviceChevronMarkup,
   deviceFoldLabel,
+  deviceFoldAriaLabel,
   shouldToggleDeviceFold
 };
 
