@@ -30,7 +30,7 @@ public class PeerChatTranscriptTest {
             t.append(store.addMessage("John Wick", false, "店長說", "", 1_500L, "小王"));
 
             assertEquals("left", t.sideOf("你好"));
-            assertEquals("right", t.sideOf("收到"));
+            assertEquals("left", t.sideOf("收到"));
             assertEquals("left", t.sideOf("店長說"));
             assertEquals("你好\n第二行", t.bodyOf("你好"));
             assertTrue(t.sideOf("小王").equals("left"));
@@ -59,7 +59,7 @@ public class PeerChatTranscriptTest {
 
             assertEquals("", t.sideOf("戳了你一下"));
             assertEquals("", t.sideOf("你戳了對方一下"));
-            assertEquals("right", t.sideOf("已直傳"));
+            assertEquals("left", t.sideOf("已直傳"));
             assertEquals("本機", PeerChatTranscript.sourceLabel(store.addNote("alice", "已直傳「b.txt」", 4_000L), "alice"));
             assertEquals("alice", PeerChatTranscript.sourceLabel(store.addNote("alice", "對方傳來「b.txt」", 5_000L), "alice"));
             assertEquals("", PeerChatTranscript.sourceLabel(store.addNote("alice", "訊息沒有送出", 6_000L), "alice"));

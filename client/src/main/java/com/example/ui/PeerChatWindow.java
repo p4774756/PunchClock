@@ -135,6 +135,10 @@ public class PeerChatWindow extends JFrame {
         this.appIcon = appIcon;
         this.readOnly = readOnly;
         this.textOnly = textOnly;
+        java.awt.Font plain = UiFonts.chinesePlain(13);
+        java.awt.Font bold = UiFonts.chineseBold(13);
+        WindowChrome.install(this, getTitle(), appIcon, bold, plain);
+        JPanel chromeBody = WindowChrome.bodyOf(this);
         if (appIcon != null) {
             java.util.List<Image> icons = AppIconImages.loadAll();
             if (!icons.isEmpty()) {
@@ -144,9 +148,6 @@ public class PeerChatWindow extends JFrame {
             }
         }
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-
-        java.awt.Font plain = UiFonts.chinesePlain(13);
-        java.awt.Font bold = UiFonts.chineseBold(13);
 
         // 上方：頭像＋名稱＋狀態
         avatarLabel = new JLabel(PeerAvatar.previewIcon("", appIcon, 36));
@@ -305,8 +306,9 @@ public class PeerChatWindow extends JFrame {
         root.add(header, BorderLayout.NORTH);
         root.add(transcriptScroll, BorderLayout.CENTER);
         root.add(south, BorderLayout.SOUTH);
-        setContentPane(root);
+        chromeBody.add(root, BorderLayout.CENTER);
         installFileDrop(root);
+        WindowChrome.setStatusText(this, peerId);
 
         setMinimumSize(new Dimension(500, 440));
         setSize(520, 600);
@@ -333,8 +335,9 @@ public class PeerChatWindow extends JFrame {
     /** 視窗標題與上方名稱。後台私訊固定叫「後台」，群組用群組名稱。 */
     public void setHeading(String heading) {
         String label = heading == null || heading.isBlank() ? peerId : heading.trim();
-        setTitle("聊天 · " + label);
+        WindowChrome.setWindowTitle(this, "聊天 · " + label);
         nameLabel.setText(label);
+        WindowChrome.setStatusText(this, label);
     }
 
     /** 新訊息進來或自己送出後追加一筆。 */
@@ -403,6 +406,7 @@ public class PeerChatWindow extends JFrame {
             statusLabel.setText("離線，上線後才能傳");
             statusLabel.setForeground(new Color(255, 150, 150));
         }
+        WindowChrome.setStatusText(this, statusLabel.getText());
     }
 
     /** 同事要在線才送得出文字、圖片和檔案。後台文字對話不看在線狀態。 */

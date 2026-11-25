@@ -39,16 +39,14 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * 聊天視窗的對話區。自己的訊息在右邊、對方在左邊，系統提示置中。
- * 長文在氣泡裡換行；程式碼與 stack trace 保留縮排，改在氣泡內左右捲動。
+ * 聊天視窗的對話區。所有訊息靠左，標題為「名字 (時間):」。
+ * 長文在區塊內換行；程式碼與 stack trace 保留縮排，改在區塊內左右捲動。
  */
 public class PeerChatTranscript extends JPanel implements Scrollable {
 
     static final int THUMB_EDGE = 220;
 
-    private static final Color SELF_FILL = new Color(0x7A, 0x3A, 0x62);
-    private static final Color PEER_FILL = CandyTheme.FIELD;
-    private static final Color NOTE_FILL = CandyTheme.HEADER;
+    private static final Color MSG_FILL = Color.WHITE;
 
     private final String peerId;
     private final Font bodyFont;
@@ -322,13 +320,10 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             this.preserved = entry.kind == PeerChatStore.Kind.MESSAGE
                     && preserveLayout(entry.text);
             FileNotice file = entry.kind == PeerChatStore.Kind.NOTE ? fileNotice(entry.text) : null;
-            if (file != null) {
-                // 傳檔提示：「對方…」靠左，自己這邊（已直傳、已送出）靠右
-                side = file.status.startsWith("對方") ? "left" : "right";
-            } else if (entry.kind == PeerChatStore.Kind.NOTE || entry.kind == PeerChatStore.Kind.POKE) {
-                side = "center";
+            if (entry.kind == PeerChatStore.Kind.POKE) {
+                side = "";
             } else {
-                side = entry.outgoing ? "right" : "left";
+                side = "left";
             }
             body = buildBody();
             bodyScroll = preserved ? scrollAround(body) : null;
@@ -387,22 +382,14 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             line.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
             line.setAlignmentX(Component.LEFT_ALIGNMENT);
             JComponent bubble = bubble();
-            if ("right".equals(side)) {
-                line.add(bubble, BorderLayout.EAST);
-            } else if ("left".equals(side)) {
+            if ("left".equals(side)) {
                 line.add(bubble, BorderLayout.WEST);
-            } else {
-                JPanel center = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 2));
-                center.setOpaque(false);
-                center.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
-                center.add(bubble);
-                line.add(center, BorderLayout.CENTER);
             }
             return line;
         }
 
         private JComponent bubble() {
-            Color fill = "right".equals(side) ? SELF_FILL : "left".equals(side) ? PEER_FILL : NOTE_FILL;
+            Color fill = MSG_FILL;
             Bubble panel = new Bubble(fill);
             panel.add(header(), BorderLayout.NORTH);
             FileNotice file = entry.kind == PeerChatStore.Kind.NOTE ? fileNotice(entry.text) : null;
@@ -428,8 +415,8 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             header.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
             String source = sourceLabel(entry, peerId);
             String when = formatTime(entry.timeMs, ZoneId.systemDefault());
-            String title = source.isEmpty() ? when : source + "  " + when;
-            JLabel label = plainLabel(title, bodyFont.deriveFont((float) Math.max(11, fontSize - 2)), CandyTheme.LAVENDER);
+            String title = source.isEmpty() ? when + ":" : source + " (" + when + "):";
+            JLabel label = plainLabel(title, bodyFont.deriveFont(Font.BOLD), CandyTheme.INK);
             header.add(label, BorderLayout.CENTER);
             FileNotice file = entry.kind == PeerChatStore.Kind.NOTE ? fileNotice(entry.text) : null;
             boolean canCopy = file != null
@@ -608,10 +595,7 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
 
         @Override
         protected void paintComponent(Graphics g) {
-            Graphics2D g2 = CandyDraw.quality((Graphics2D) g);
-            g2.setColor(fill);
-            g2.fillRoundRect(0, 0, Math.max(1, getWidth() - 1), Math.max(1, getHeight() - 1), 14, 14);
-            g2.dispose();
+            ClassicBevel.fillSunken((Graphics2D) g, 0, 0, getWidth(), getHeight(), fill);
             super.paintComponent(g);
         }
     }

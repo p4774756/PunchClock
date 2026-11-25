@@ -437,6 +437,24 @@ public class App extends JFrame {
 
         bindWindowLayoutPersistence();
         bindCloudEventListeners();
+        refreshMainStatusBar();
+    }
+
+    private void refreshMainStatusBar() {
+        String cloud = "雲端未啟用";
+        if (isCloudEnabled() && serverRefs.heartbeatStatusLabel != null) {
+            String raw = serverRefs.heartbeatStatusLabel.getText();
+            cloud = raw == null ? "連線中…" : raw.replace("[", "").replace("]", "").trim();
+        }
+        String peers = "";
+        if (peerRefs.peerStatusLabel != null) {
+            peers = peerRefs.peerStatusLabel.getText();
+            if (peers == null) {
+                peers = "";
+            }
+        }
+        String text = peers.isEmpty() ? cloud : cloud + "  ·  " + peers;
+        WindowChrome.setStatusText(this, text);
     }
 
     private void bindCheckInUiSwitch() {
@@ -1419,6 +1437,7 @@ public class App extends JFrame {
                     : "共 " + friendCount + " 位好友 · " + onlineCount + " 位在線");
             peerRefs.peerStatusLabel.setForeground(NightTheme.MUTED);
         }
+        refreshMainStatusBar();
         setPeerInteractionEnabled(true);
         if (peerRefs.openCloudSettingsButton != null) {
             peerRefs.openCloudSettingsButton.setVisible(false);
@@ -1471,6 +1490,7 @@ public class App extends JFrame {
             peerRefs.peerStatusLabel.setText("雲端未啟用 · 本機獨立運作");
             peerRefs.peerStatusLabel.setForeground(NightTheme.MUTED);
         }
+        refreshMainStatusBar();
         setPeerInteractionEnabled(false);
         if (peerRefs.openCloudSettingsButton != null) {
             peerRefs.openCloudSettingsButton.setVisible(true);
@@ -1486,6 +1506,7 @@ public class App extends JFrame {
             peerRefs.peerStatusLabel.setText("連線中…（等待伺服器回傳好友列表）");
             peerRefs.peerStatusLabel.setForeground(NightTheme.MUTED);
         }
+        refreshMainStatusBar();
     }
 
     private void clearPeerTable() {
@@ -2970,6 +2991,7 @@ public class App extends JFrame {
                         serverRefs.heartbeatStatusLabel.setForeground(new Color(239, 68, 68));
                         appendLog("[提示] 若為 401，請先取消「啟用雲端」→ 修改 Token / 網址 → 再重新勾選");
                     }
+                    refreshMainStatusBar();
                 });
             });
         }

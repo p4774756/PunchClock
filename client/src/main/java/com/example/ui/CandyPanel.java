@@ -37,15 +37,7 @@ public class CandyPanel extends JPanel {
 
     @Override
     protected void paintComponent(Graphics g) {
-        Graphics2D g2 = CandyDraw.quality((Graphics2D) g);
-        int arc = CandyTheme.RADIUS_PANEL;
-        int w = Math.max(1, getWidth() - 1);
-        int h = Math.max(1, getHeight() - 1);
-        g2.setColor(CandyTheme.PANEL);
-        g2.fillRoundRect(0, 0, w, h, arc, arc);
-        g2.setColor(new java.awt.Color(16, 8, 28, 40));
-        g2.drawRoundRect(1, 2, Math.max(1, w - 2), Math.max(1, h - 3), arc, arc);
-        g2.dispose();
+        ClassicBevel.fillRaised((Graphics2D) g, 0, 0, getWidth(), getHeight(), CandyTheme.PANEL);
     }
 
     private static final class Chrome extends AbstractBorder {

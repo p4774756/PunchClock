@@ -56,12 +56,11 @@ import com.example.ui.hud.ShellDimensions;
  */
 public final class WindowChrome {
 
-    private static final Color BAR_BG = new Color(42, 32, 72);
-    private static final Color BAR_BORDER = new Color(98, 78, 140);
-    private static final Color TITLE_FG = new Color(255, 250, 255);
-    private static final Color MUTED_FG = new Color(214, 204, 232);
-    private static final Color CLOSE_HOVER = new Color(239, 68, 68);
-    private static final Color BUTTON_HOVER = new Color(82, 64, 124);
+    private static final Color BAR_BG = ClassicBevel.FACE;
+    private static final Color BAR_BORDER = ClassicBevel.DARK;
+    private static final Color TITLE_FG = Color.WHITE;
+    private static final Color MUTED_FG = CandyTheme.MUTED;
+    private static final String STATUS_MARK = "punchclock.statusLabel";
     private static final int GRIP = 6;
     /** 標題列左側圖示槽高度（與 {@link TitleBarLayout} 共用）。 */
     static final int TITLE_BAR_ICON_HEIGHT = 18;
@@ -119,6 +118,20 @@ public final class WindowChrome {
         body.setBorder(new EmptyBorder(0, 6, 6, 6));
         stage.add(body, BorderLayout.CENTER);
 
+        JLabel statusLabel = new JLabel(" ");
+        statusLabel.putClientProperty(STATUS_MARK, Boolean.TRUE);
+        statusLabel.setFont(controlFont);
+        statusLabel.setForeground(CandyTheme.INK);
+        statusLabel.setOpaque(true);
+        statusLabel.setBackground(ClassicBevel.FACE);
+        statusLabel.setBorder(ClassicBevel.sunkenBorder(2));
+        statusLabel.setPreferredSize(new Dimension(320, 22));
+        JPanel statusStrip = new JPanel(new BorderLayout());
+        statusStrip.setOpaque(false);
+        statusStrip.setBorder(new EmptyBorder(0, 4, 4, 4));
+        statusStrip.add(statusLabel, BorderLayout.CENTER);
+        stage.add(statusStrip, BorderLayout.SOUTH);
+
         FrameCanvas canvas = new FrameCanvas(frame, stage);
         canvas.add(stage);
         resize.attach(canvas);
@@ -155,7 +168,47 @@ public final class WindowChrome {
         root.putClientProperty("punchclock.body", body);
         root.putClientProperty("punchclock.outer", stage);
         root.putClientProperty("punchclock.canvas", canvas);
+        root.putClientProperty(STATUS_MARK, statusLabel);
         return new Controls(null, null);
+    }
+
+    /** 主視窗底部狀態列文字。 */
+    public static void setStatusText(JFrame frame, String text) {
+        if (frame == null || frame.getRootPane() == null) {
+            return;
+        }
+        Object label = frame.getRootPane().getClientProperty(STATUS_MARK);
+        if (label instanceof JLabel) {
+            ((JLabel) label).setText(text == null ? " " : text);
+        }
+    }
+
+    /** 標題列顯示文字（與 {@code frame.setTitle} 同步）。 */
+    public static void setWindowTitle(JFrame frame, String title) {
+        if (frame == null) {
+            return;
+        }
+        frame.setTitle(title == null ? "" : title);
+        if (frame.getRootPane() == null) {
+            return;
+        }
+        TitleName found = findTitleName(frame.getRootPane());
+        if (found != null) {
+            found.reset(title);
+        }
+    }
+
+    private static TitleName findTitleName(Container root) {
+        JComponent bar = findMarked(root, "punchclock.titleBar");
+        if (bar == null) {
+            return null;
+        }
+        for (Component child : bar.getComponents()) {
+            if (child instanceof TitleName) {
+                return (TitleName) child;
+            }
+        }
+        return null;
     }
 
     /** 設定「外觀」分頁用的視窗透明度滑桿（與標題列脫鉤）。 */
@@ -550,11 +603,14 @@ public final class WindowChrome {
             Image icon,
             Font titleFont,
             Font controlFont) {
-        JPanel bar = new JPanel();
-        bar.setBackground(BAR_BG);
-        bar.setBorder(new CompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, BAR_BORDER),
-                new EmptyBorder(4, 8, 4, 4)));
+        JPanel bar = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                ClassicBevel.fillTitleBar((Graphics2D) g, getWidth(), getHeight());
+            }
+        };
+        bar.setOpaque(false);
+        bar.setBorder(new EmptyBorder(2, 4, 2, 2));
         int barHeight = 28;
         bar.setPreferredSize(new Dimension(720, barHeight));
         bar.setToolTipText("點一下縮成迷你橫條");
@@ -579,6 +635,7 @@ public final class WindowChrome {
             iconLabel.setOpaque(false);
         }
         TitleName titleLabel = new TitleName(title, titleFont);
+        titleLabel.setForeground(TITLE_FG);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         buttons.setOpaque(false);
@@ -634,18 +691,21 @@ public final class WindowChrome {
      * 圖示和標題同一列，依字型行高垂直置中，不換行、不被父層裁掉。
      */
     private static final class TitleName extends JComponent {
-        private final String full;
-        private final String main;
+        private String full;
+        private String main;
         private String shown;
 
         TitleName(String fullTitle, Font font) {
+            reset(fullTitle);
+            setFont(font);
+            setOpaque(false);
+            setName("punchclock.titleName");
+        }
+
+        void reset(String fullTitle) {
             full = fullTitle == null ? "" : fullTitle.trim();
             main = mainTitle(full);
             shown = main;
-            setFont(font);
-            setForeground(TITLE_FG);
-            setOpaque(false);
-            setName("punchclock.titleName");
             setToolTipText(full.equals(main) ? null : full);
         }
 
@@ -746,36 +806,36 @@ public final class WindowChrome {
             @Override
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
-                try {
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g2.setColor(getBackground());
-                    g2.fillRect(0, 0, getWidth(), getHeight());
-                    g2.setColor(getForeground());
-                    g2.setStroke(new BasicStroke(1.7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                    int cx = getWidth() / 2;
-                    int cy = getHeight() / 2;
-                    switch (glyph) {
-                        case MINIMIZE:
-                            g2.drawLine(cx - 5, cy, cx + 5, cy);
-                            break;
-                        case MAXIMIZE:
-                            g2.drawRect(cx - 5, cy - 5, 10, 10);
-                            break;
-                        case CLOSE:
-                            g2.drawLine(cx - 4, cy - 4, cx + 4, cy + 4);
-                            g2.drawLine(cx + 4, cy - 4, cx - 4, cy + 4);
-                            break;
-                        default:
-                            break;
-                    }
-                } finally {
-                    g2.dispose();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+                if (Boolean.TRUE.equals(getClientProperty("chrome.armed"))) {
+                    ClassicBevel.fillSunken(g2, 0, 0, getWidth(), getHeight(), ClassicBevel.FACE);
+                } else {
+                    ClassicBevel.fillRaised(g2, 0, 0, getWidth(), getHeight(), ClassicBevel.FACE);
                 }
+                g2.setColor(Color.BLACK);
+                g2.setStroke(new BasicStroke(1f));
+                int cx = getWidth() / 2;
+                int cy = getHeight() / 2;
+                switch (glyph) {
+                    case MINIMIZE:
+                        g2.drawLine(cx - 4, cy + 2, cx + 4, cy + 2);
+                        break;
+                    case MAXIMIZE:
+                        g2.drawRect(cx - 4, cy - 4, 8, 8);
+                        break;
+                    case CLOSE:
+                        g2.drawLine(cx - 3, cy - 3, cx + 3, cy + 3);
+                        g2.drawLine(cx + 3, cy - 3, cx - 3, cy + 3);
+                        break;
+                    default:
+                        break;
+                }
+                g2.dispose();
             }
 
             @Override
             public Dimension getPreferredSize() {
-                return new Dimension(40, 26);
+                return new Dimension(18, 16);
             }
 
             @Override
@@ -794,30 +854,36 @@ public final class WindowChrome {
         button.setFocusable(false);
         button.setBorderPainted(false);
         button.setContentAreaFilled(false);
-        button.setOpaque(true);
-        button.setBackground(BAR_BG);
-        button.setForeground(TITLE_FG);
+        button.setOpaque(false);
+        button.setForeground(Color.BLACK);
         button.setBorder(BorderFactory.createEmptyBorder());
         button.setMargin(new Insets(0, 0, 0, 0));
         button.addMouseListener(new MouseAdapter() {
             @Override
+            public void mousePressed(MouseEvent e) {
+                ((JButton) e.getComponent()).putClientProperty("chrome.armed", Boolean.TRUE);
+                e.getComponent().repaint();
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                ((JButton) e.getComponent()).putClientProperty("chrome.armed", Boolean.FALSE);
+                e.getComponent().repaint();
+            }
+
+            @Override
             public void mouseEntered(MouseEvent e) {
-                if (close) {
-                    button.setBackground(CLOSE_HOVER);
-                    button.setForeground(Color.WHITE);
-                } else {
-                    button.setBackground(BUTTON_HOVER);
-                }
-                button.repaint();
+                e.getComponent().repaint();
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
-                button.setBackground(BAR_BG);
-                button.setForeground(TITLE_FG);
-                button.repaint();
+                ((JButton) e.getComponent()).putClientProperty("chrome.armed", Boolean.FALSE);
+                e.getComponent().repaint();
             }
         });
+        JButton painted = button;
+        painted.addChangeListener(e -> painted.repaint());
         return button;
     }
 
