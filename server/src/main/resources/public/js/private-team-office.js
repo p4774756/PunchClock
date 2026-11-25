@@ -6,7 +6,16 @@ const FORBIDDEN = /(?:ai\/issue-|\/Users\/|worktree|battery|charging|\.log\b)/i;
 
 const DONE_PREVIEW_LIMIT = 3;
 const QUEUE_PREVIEW_LIMIT = 5;
+const ACTIVE_TITLE_MAX = 24;
 const VAGUE_PHRASES = new Set(['完成一項工作', '正在處理一項工作']);
+const STAGE_LABELS = ['開發', '審核', 'CI', '合併'];
+const STAGE_TO_SEGMENT = {
+  '開發中': 0,
+  '審查中': 1,
+  '等 CI': 2,
+  '修正中': 2,
+  '合併中': 3
+};
 
 /** 今日完成列穩定鍵（供輪詢差量比對新完成，不需另打 dev-status）。 */
 export function completedTodayKeys(list) {
@@ -220,6 +229,97 @@ export function phraseForActiveDisplay(row) {
   return phrase || ACTIVE_DISPLAY_FALLBACK;
 }
 
+/** 進行中卡片標題截短（約 24 全形字）。 */
+export function truncateActiveTitle(text, max = ACTIVE_TITLE_MAX) {
+  const s = text == null ? '' : String(text).trim();
+  if (!s) return '';
+  let width = 0;
+  let i = 0;
+  for (; i < s.length; ) {
+    const cp = s.codePointAt(i);
+    const w = cp > 0xff ? 2 : 1;
+    if (width + w > max) {
+      return s.slice(0, i) + '…';
+    }
+    width += w;
+    i += cp > 0xffff ? 2 : 1;
+  }
+  return s;
+}
+
+export function activeStageForItem(item) {
+  const row = item && typeof item === 'object' ? item : {};
+  const stage = row.stage && isSafePublicText(row.stage) ? String(row.stage).trim() : '開發中';
+  return STAGE_TO_SEGMENT[stage] == null ? '開發中' : stage;
+}
+
+export function activeCiFailed(item) {
+  const row = item && typeof item === 'object' ? item : {};
+  if (row.failed === true) return true;
+  const stage = activeStageForItem(row);
+  if (stage !== '等 CI' && stage !== '修正中') return false;
+  const verdict = row.verdict != null ? String(row.verdict).trim() : '';
+  return verdict === 'FAIL';
+}
+
+function reviewWasCompleted(item, stage) {
+  const round = Number(item.round);
+  return Number.isFinite(round) && round >= 2;
+}
+
+/** 四段進度條狀態：done | current | pending | fail */
+export function progressSegmentsForActive(item) {
+  const row = item && typeof item === 'object' ? item : {};
+  const stage = activeStageForItem(row);
+  const current = STAGE_TO_SEGMENT[stage] ?? 0;
+  const ciFail = activeCiFailed(row);
+  const reviewDone = reviewWasCompleted(row, stage);
+  return STAGE_LABELS.map((label, index) => {
+    if (index < current) {
+      if (label === '審核' && !reviewDone) return { label, state: 'pending' };
+      return { label, state: 'done' };
+    }
+    if (index === current) {
+      if (label === 'CI' && ciFail) return { label, state: 'fail' };
+      return { label, state: 'current' };
+    }
+    return { label, state: 'pending' };
+  });
+}
+
+export function statusLineForActive(item) {
+  const row = item && typeof item === 'object' ? item : {};
+  const stage = activeStageForItem(row);
+  if (activeCiFailed(row)) {
+    return 'CI 失敗，等待處理';
+  }
+  const minutes = Number(row.minutes);
+  const minText = Number.isFinite(minutes) && minutes > 0 ? '・' + minutes + ' 分' : '';
+  if (stage === '審查中') return '審核中' + minText;
+  if (stage === '等 CI') return '等 CI' + minText;
+  return stage + minText;
+}
+
+function chainDotClass(chain) {
+  const c = chain == null ? '' : String(chain).trim();
+  if (c === '青龍') return 'is-azure';
+  if (c === '白虎') return 'is-white';
+  if (c === '朱雀') return 'is-vermilion';
+  if (c === '玄武') return 'is-obsidian';
+  return '';
+}
+
+function renderStageProgress(doc, item) {
+  const track = el(doc, 'div', 'pt-status-progress');
+  progressSegmentsForActive(item).forEach((seg) => {
+    const node = el(doc, 'div', 'pt-status-progress-seg ' + seg.state);
+    node.appendChild(el(doc, 'span', 'pt-status-progress-fill'));
+    node.appendChild(el(doc, 'span', 'pt-status-progress-label', seg.label));
+    track.appendChild(node);
+  });
+  return track;
+}
+
 function el(doc, tag, className, text) {
   const node = doc.createElement(tag);
   if (className) node.className = className;
@@ -261,21 +361,35 @@ function linkIssue(doc, item, linkClass) {
 }
 
 export function renderActiveBlock(doc, item) {
-  const wrap = el(doc, 'div', 'pt-status-active-item');
-  const headline = phraseForActiveDisplay(item);
-  wrap.appendChild(el(doc, 'p', 'pt-status-phrase pt-status-active-title', headline));
+  const row = item && typeof item === 'object' ? item : {};
+  const wrap = el(doc, 'div', 'pt-status-active-item pt-status-stage-card');
+  const head = el(doc, 'div', 'pt-status-stage-head');
+  const chain = row.chain && isSafePublicText(row.chain) ? String(row.chain).trim() : '';
+  if (chain) {
+    const dot = el(doc, 'span', 'pt-status-chain-dot ' + chainDotClass(chain));
+    dot.setAttribute('aria-hidden', 'true');
+    head.appendChild(dot);
+  }
+  const issue = Number(row.issue);
+  if (Number.isFinite(issue) && issue > 0) {
+    const issueLink = linkIssue(doc, row, 'pt-status-link pt-status-stage-issue');
+    if (issueLink) {
+      head.appendChild(issueLink);
+    } else {
+      head.appendChild(el(doc, 'span', 'pt-status-stage-issue', '#' + issue));
+    }
+  }
+  const titleText = truncateActiveTitle(phraseForActiveDisplay(row));
+  if (titleText) {
+    head.appendChild(el(doc, 'span', 'pt-status-stage-title', titleText));
+  }
+  wrap.appendChild(head);
+  wrap.appendChild(renderStageProgress(doc, row));
+  wrap.appendChild(el(doc, 'p', 'pt-status-stage-meta', statusLineForActive(row)));
   const links = el(doc, 'div', 'pt-status-links');
-  const issueLink = linkIssue(doc, item || {}, 'pt-status-link pt-status-issue-sub');
-  const prLink = linkPr(doc, item || {}, true);
-  if (issueLink) links.appendChild(issueLink);
+  const prLink = linkPr(doc, row, true);
   if (prLink) links.appendChild(prLink);
   if (links.childNodes.length) wrap.appendChild(links);
-  const caps = capsulesForActive(item);
-  if (caps.length) {
-    const row = el(doc, 'div', 'pt-status-capsules');
-    caps.forEach((label) => row.appendChild(el(doc, 'span', 'pt-status-cap', label)));
-    wrap.appendChild(row);
-  }
   return wrap;
 }
 
@@ -401,6 +515,9 @@ export function fillStatusCard(doc, bodyEl, view, opts) {
   bodyEl.appendChild(queueWrap);
 
   const doneWrap = el(doc, 'section', 'pt-status-section');
+  if (opts && opts.flashCompleted) {
+    doneWrap.className = 'pt-status-section pt-status-done-flash';
+  }
   doneWrap.appendChild(el(doc, 'h3', 'pt-status-heading', '今天完成'));
   doneWrap.appendChild(renderCompletedList(doc, tiger.completedToday, uiOpts));
   bodyEl.appendChild(doneWrap);

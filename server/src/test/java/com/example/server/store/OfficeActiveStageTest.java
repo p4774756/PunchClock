@@ -19,7 +19,7 @@ public class OfficeActiveStageTest {
     private static DevMachineStore.RunEntry run(int issue, int round, String role, String model, String verdict,
                                                 String stage) {
         return new DevMachineStore.RunEntry(issue, round, "ai/issue-" + issue, 1L, null, null,
-                role, model, verdict, stage);
+                role, model, verdict, stage, null, null);
     }
 
     @Test

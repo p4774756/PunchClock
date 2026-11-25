@@ -415,14 +415,26 @@ public final class OfficePublicRoutes {
             if (run.round > 0) {
                 row.put("round", run.round);
             }
-            long minutes = minutesRunning(now, run.startedAt);
+            Long timingBase = run.stageStartedAt != null ? run.stageStartedAt : run.startedAt;
+            long minutes = minutesRunning(now, timingBase);
             if (minutes > 0) {
                 row.put("minutes", minutes);
             }
             if (run.model != null && !run.model.isEmpty()) {
                 row.put("model", run.model);
             }
-            row.put("stage", OfficeActiveStage.forRun(run, machineAgentRunning, machineVerdict, machineRole, pull));
+            String stage = OfficeActiveStage.forRun(run, machineAgentRunning, machineVerdict, machineRole, pull);
+            row.put("stage", stage);
+            if (run.chain != null) {
+                row.put("chain", run.chain);
+            }
+            String verdict = run.verdict != null ? run.verdict : machineVerdict;
+            if (verdict != null) {
+                row.put("verdict", verdict);
+            }
+            if (ciStageFailed(stage, verdict)) {
+                row.put("failed", true);
+            }
             return row;
         }
 
@@ -508,6 +520,13 @@ public final class OfficePublicRoutes {
                 return 0;
             }
             return (now - startedAt) / 60_000L;
+        }
+
+        private static boolean ciStageFailed(String stage, String verdict) {
+            if (!"FAIL".equals(verdict)) {
+                return false;
+            }
+            return OfficeActiveStage.WAIT_CI.equals(stage) || OfficeActiveStage.FIX.equals(stage);
         }
 
         static IssueRow findIssue(Snapshot github, int issue) {

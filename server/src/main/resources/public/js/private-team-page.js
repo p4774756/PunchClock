@@ -181,6 +181,7 @@ export function mountPrivateTeamPage(opts) {
 
   let tigerView = { status: '待命中', active: [], completedToday: [] };
   let seenCompletedKeys = null;
+  let pendingCompletedFlash = false;
   let devQueue = [];
   const statusUi = { doneExpanded: false, queueExpanded: false };
   let cardOpen = false;
@@ -306,7 +307,11 @@ export function mountPrivateTeamPage(opts) {
   }
 
   function paintStatusCard() {
-    fillStatusCard(doc, cardBody, { tiger: tigerView, queue: devQueue }, statusCardUiOpts());
+    const ui = Object.assign({}, statusCardUiOpts(), {
+      flashCompleted: pendingCompletedFlash
+    });
+    pendingCompletedFlash = false;
+    fillStatusCard(doc, cardBody, { tiger: tigerView, queue: devQueue }, ui);
     if (typeof requestAnimationFrame === 'function') {
       requestAnimationFrame(refreshStatusBodyScroll);
     } else {
@@ -506,6 +511,7 @@ export function mountPrivateTeamPage(opts) {
     const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     if (seenCompletedKeys != null && hasNewCompletedToday(seenCompletedKeys, tiger.completedToday)) {
       scene.playSecretaryDance(now);
+      pendingCompletedFlash = true;
     }
     seenCompletedKeys = completedTodayKeys(tiger.completedToday);
     tigerView = tiger;

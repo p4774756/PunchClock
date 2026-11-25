@@ -193,6 +193,35 @@ public class DevMachineStoreTest {
     }
 
     @Test
+    public void runChainAndStageStartedAtParsedWhenValid() {
+        DevMachineStore store = new DevMachineStore();
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 640);
+        run.put("round", 1);
+        run.put("branch", "ai/issue-640");
+        run.put("startedAt", 1000L);
+        run.put("stage", "開發中");
+        run.put("chain", "青龍");
+        run.put("stageStartedAt", 5_000L);
+        Map<String, Object> body = payload("tiger", 640, "ai/issue-640", 1000L);
+        body.put("runs", List.of(run));
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", body));
+        DevMachineStore.RunEntry entry = store.machineSnapshots().get(0).runs.get(0);
+        assertEquals("青龍", entry.chain);
+        assertEquals(Long.valueOf(5_000L), entry.stageStartedAt);
+
+        Map<String, Object> badFields = new HashMap<>(run);
+        badFields.put("chain", "黃龍");
+        badFields.put("stageStartedAt", -1);
+        body.put("runs", List.of(badFields));
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", body));
+        entry = store.machineSnapshots().get(0).runs.get(0);
+        assertNull(entry.chain);
+        assertNull(entry.stageStartedAt);
+        assertEquals("開發中", entry.stage);
+    }
+
+    @Test
     public void displayNameAndLocationFromHeartbeat() {
         DevMachineStore store = new DevMachineStore();
         Map<String, Object> body = payload("tiger", 1, "a", 1L);
