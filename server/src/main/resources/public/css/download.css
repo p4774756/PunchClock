@@ -1,5 +1,7 @@
 .download-page {
   min-height: 100vh;
+  box-sizing: border-box;
+  padding: 0.75rem;
 }
 
 .download-root,
@@ -26,10 +28,45 @@
 }
 
 .download-body {
-  padding: 1rem 1.15rem 1.5rem;
+  padding: 1.1rem 1.25rem 1.5rem;
   color: #142440;
   font-size: 15px;
   line-height: 1.55;
+}
+
+.download-body > p {
+  margin: 0 0 0.65rem;
+}
+
+.download-steps {
+  margin: 0.45rem 0 0;
+  padding: 0;
+  list-style-position: inside;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.download-steps li {
+  padding: 0.55rem 0.7rem;
+  border: 2px solid #d6e8f6;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.download-cmd {
+  display: block;
+  margin-top: 0.4rem;
+  padding: 0.45rem 0.6rem;
+  max-width: 100%;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: nowrap;
+  background: #eef4fb;
+  border: 2px solid #c8dcef;
+  border-radius: 4px;
 }
 
 .download-body h2 {
@@ -89,4 +126,44 @@
 .download-foot a {
   color: #163a70;
   font-weight: 700;
+}
+
+/* 首頁下載浮窗：窄螢幕維持內邊距，不與施工進度全幅貼邊規則一致 */
+#downloadBoard.roadmap-board {
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+#downloadBoard .home-download-panel.roadmap-panel.maple-window {
+  align-self: center;
+  width: min(640px, 100%);
+  height: auto;
+  max-height: min(92vh, 520px);
+}
+
+@media (max-width: 719px) {
+  .download-page {
+    padding: 0.75rem;
+  }
+
+  .download-root {
+    width: 100%;
+  }
+
+  #downloadBoard.roadmap-board {
+    padding: 0.75rem;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #downloadBoard .home-download-panel.roadmap-panel.maple-window {
+    width: min(640px, 100%);
+    max-height: min(92vh, 520px);
+    border-radius: 6px;
+  }
+
+  .download-body {
+    padding: 1rem 1.05rem 1.35rem;
+  }
 }
