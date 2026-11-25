@@ -63,13 +63,15 @@ test('hooks.onChange 仍優先於頂層', () => {
   assert.deepEqual(seen, ['hooks']);
 });
 
-test('開啟時鎖住背景捲動，版本與收合文案分開', () => {
+test('開啟時鎖住背景捲動，版本提示與無可見收合文案', () => {
   const css = readFileSync(join(publicRoot, 'css/roadmap.css'), 'utf8');
   assert.match(css, /body\.roadmap-open\s*\{[^}]*overflow:\s*hidden/);
   assert.match(css, /body\.roadmap-open\s*\{[^}]*overflow:\s*clip/);
   const dash = readFileSync(join(publicRoot, 'js/dashboard.js'), 'utf8');
   assert.match(dash, /class="app-version-hint"/);
-  assert.match(dash, /data-fold-label/);
+  assert.match(dash, /aria-label="/);
+  assert.match(dash, /deviceFoldAriaLabel/);
+  assert.doesNotMatch(dash, /fold-hint/);
   assert.doesNotMatch(dash, /!isCollapsed && !ev\.target\.closest\('\.device-head'\)/);
   assert.doesNotMatch(dash, /replace\(\/\^\\?open=roadmap/);
 });
