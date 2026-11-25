@@ -22,7 +22,7 @@
 }
 
 .home-download-panel .download-body {
-  max-height: min(70vh, 520px);
+  max-height: min(78vh, 640px);
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -139,7 +139,7 @@
   align-self: center;
   width: min(640px, 100%);
   height: auto;
-  max-height: min(92vh, 520px);
+  max-height: min(92vh, 720px);
 }
 
 @media (max-width: 719px) {
@@ -159,7 +159,7 @@
 
   #downloadBoard .home-download-panel.roadmap-panel.maple-window {
     width: min(640px, 100%);
-    max-height: min(92vh, 520px);
+    max-height: min(92vh, 720px);
     border-radius: 6px;
   }
 
