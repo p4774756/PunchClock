@@ -496,9 +496,9 @@ export function makeNightWindowSkyTexture() {
   const ctx = canvas.getContext('2d');
   const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
   grad.addColorStop(0, '#080e1c');
-  grad.addColorStop(0.5, '#101a30');
-  grad.addColorStop(0.82, '#1a2c48');
-  grad.addColorStop(1, '#253a5c');
+  grad.addColorStop(0.45, '#101a30');
+  grad.addColorStop(0.72, '#142438');
+  grad.addColorStop(1, '#182c44');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const horizonGlow = ctx.createLinearGradient(0, canvas.height * 0.62, 0, canvas.height);
@@ -580,18 +580,18 @@ function makeNightSkylineLayerTexture(layer) {
     x += bw - rand() * 10;
   }
   if (layer === 'far') {
-    const mist = ctx.createLinearGradient(0, canvas.height * 0.32, 0, canvas.height);
+    const mist = ctx.createLinearGradient(0, canvas.height * 0.42, 0, canvas.height);
     mist.addColorStop(0, 'rgba(0,0,0,0)');
-    mist.addColorStop(0.45, 'rgba(14,22,40,0.28)');
-    mist.addColorStop(0.75, 'rgba(20,32,54,0.48)');
-    mist.addColorStop(1, 'rgba(16,26,44,0.62)');
+    mist.addColorStop(0.55, 'rgba(14,22,40,0.14)');
+    mist.addColorStop(0.85, 'rgba(18,28,48,0.22)');
+    mist.addColorStop(1, 'rgba(16,26,44,0.28)');
     ctx.fillStyle = mist;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   if (layer === 'mid') {
-    const midMist = ctx.createLinearGradient(0, canvas.height * 0.55, 0, canvas.height);
+    const midMist = ctx.createLinearGradient(0, canvas.height * 0.62, 0, canvas.height);
     midMist.addColorStop(0, 'rgba(0,0,0,0)');
-    midMist.addColorStop(1, 'rgba(18,28,48,0.22)');
+    midMist.addColorStop(1, 'rgba(18,28,48,0.12)');
     ctx.fillStyle = midMist;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
@@ -636,15 +636,18 @@ function makeWindowRainTexture(lineCount) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const rand = privateTeamSeededRand(97);
   const n = Math.max(16, Math.min(120, lineCount | 0));
+  const rainTop = canvas.height * 0.46;
   for (let i = 0; i < n; i++) {
     const x = rand() * canvas.width;
-    const len = 12 + rand() * 28;
-    const w = 0.6 + rand() * 0.9;
-    ctx.strokeStyle = 'rgba(175,195,230,' + (0.22 + rand() * 0.32) + ')';
+    const y0 = rand() * rainTop * 0.85;
+    const len = Math.min(10 + rand() * 18, rainTop - y0 - 2);
+    if (len < 4) continue;
+    const w = 0.5 + rand() * 0.65;
+    ctx.strokeStyle = 'rgba(175,195,230,' + (0.14 + rand() * 0.2) + ')';
     ctx.lineWidth = w;
     ctx.beginPath();
-    ctx.moveTo(x, rand() * canvas.height * 0.3);
-    ctx.lineTo(x + 1.5, len);
+    ctx.moveTo(x, y0);
+    ctx.lineTo(x + 1.2, y0 + len);
     ctx.stroke();
   }
   const tex = new THREE.CanvasTexture(canvas);
@@ -661,17 +664,6 @@ function makeWindowGlassStreakTexture() {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const rand = privateTeamSeededRand(113);
-  for (let i = 0; i < 14; i++) {
-    const x = rand() * canvas.width;
-    const y0 = rand() * canvas.height * 0.35;
-    const len = 40 + rand() * 120;
-    ctx.strokeStyle = 'rgba(200,220,245,' + (0.12 + rand() * 0.22) + ')';
-    ctx.lineWidth = 1 + rand() * 2.4;
-    ctx.beginPath();
-    ctx.moveTo(x, y0);
-    ctx.lineTo(x + 4 + rand() * 8, y0 + len);
-    ctx.stroke();
-  }
   for (let d = 0; d < 14; d++) {
     const dx = rand() * canvas.width;
     const dy = rand() * canvas.height;
@@ -802,7 +794,7 @@ function makeWindowMoonlightFloorTexture() {
     for (let col = 0; col < cols; col++) {
       const x = padX + col * (paneW + muntin);
       const y = padY + row * (paneH + muntin);
-      const fade = 0.78 + ((cols - 1 - col) / (cols - 1)) * 0.22;
+      const fade = 0.35 + ((cols - 1 - col) / (cols - 1)) * 0.65;
       const lg = ctx.createLinearGradient(x, y, x + paneW, y + paneH);
       lg.addColorStop(0, 'rgba(185,202,255,' + (0.42 * fade) + ')');
       lg.addColorStop(0.4, 'rgba(155,180,252,' + (0.78 * fade) + ')');
@@ -821,16 +813,9 @@ function makeWindowMoonlightFloorTexture() {
       fillRoundRect(x + 2, y + 2, paneW - 4, paneH - 4, Math.max(2, cornerR - 2));
     }
   }
-  ctx.strokeStyle = 'rgba(16,22,52,0.88)';
+  ctx.strokeStyle = 'rgba(16,22,52,0.72)';
   ctx.lineWidth = muntin;
   ctx.lineCap = 'square';
-  for (let col = 1; col < cols; col++) {
-    const lx = padX + col * paneW + (col - 0.5) * muntin;
-    ctx.beginPath();
-    ctx.moveTo(lx, padY - 3);
-    ctx.lineTo(lx, padY + rows * paneH + (rows - 1) * muntin + 3);
-    ctx.stroke();
-  }
   for (let row = 1; row < rows; row++) {
     const ly = padY + row * paneH + (row - 0.5) * muntin;
     ctx.beginPath();
@@ -842,12 +827,6 @@ function makeWindowMoonlightFloorTexture() {
   ctx.strokeStyle = 'rgba(28,36,68,0.48)';
   ctx.lineWidth = 3;
   ctx.strokeRect(padX + 1, padY + 1, innerW - 2, innerH - 2);
-  const wash = ctx.createLinearGradient(0, 0, canvas.width, 0);
-  wash.addColorStop(0, 'rgba(140,165,248,0.12)');
-  wash.addColorStop(0.55, 'rgba(0,0,0,0)');
-  wash.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = wash;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -1463,9 +1442,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   skyline.name = 'skyline';
   const skylineCenterY = winBottom + winH / 2;
   const skylineLayers = [
-    { name: 'skylineFar', layer: 'far', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[0], hScale: 0.82, yBias: -0.06 },
-    { name: 'skylineMid', layer: 'mid', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[1], hScale: 0.92, yBias: -0.02 },
-    { name: 'skylineNear', layer: 'near', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[2], hScale: 1, yBias: 0.04 }
+    { name: 'skylineFar', layer: 'far', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[0], hScale: 0.98, yBias: 0 },
+    { name: 'skylineMid', layer: 'mid', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[1], hScale: 1, yBias: 0 },
+    { name: 'skylineNear', layer: 'near', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[2], hScale: 1, yBias: 0 }
   ];
   skylineLayers.forEach((cfg) => {
     const layerTex = makeNightSkylineLayerTexture(cfg.layer);
@@ -1487,7 +1466,7 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   const flickerLights = makeSkylineFlickerLightsTexture();
   const windowSkylineFlicker = new THREE.Mesh(
-    new THREE.PlaneGeometry(winW + 0.1, winH * 0.78),
+    new THREE.PlaneGeometry(winW + 0.1, winH * 0.94),
     new THREE.MeshBasicMaterial({
       map: flickerLights.tex,
       transparent: true,
@@ -1675,10 +1654,10 @@ export function mountPrivateTeamScene(canvas, opts) {
     depthWrite: false,
     blending: THREE.AdditiveBlending
   });
-  const windowMoonlight = new THREE.Mesh(new THREE.PlaneGeometry(2.88, 1.12), moonFloorMat);
+  const windowMoonlight = new THREE.Mesh(new THREE.PlaneGeometry(2.42, 1.05), moonFloorMat);
   windowMoonlight.rotation.x = -Math.PI / 2;
   windowMoonlight.rotation.z = 0.34;
-  windowMoonlight.position.set(0.14, 0.056, -0.92);
+  windowMoonlight.position.set(0.36, 0.056, -0.9);
   windowMoonlight.name = 'windowMoonlight';
   root.add(windowMoonlight);
   const windowMoonlightTub = new THREE.Mesh(
