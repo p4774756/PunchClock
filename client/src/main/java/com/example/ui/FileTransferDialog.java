@@ -67,8 +67,13 @@ import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.EnumSet;
+import java.nio.file.FileVisitOption;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -349,6 +354,14 @@ public final class FileTransferDialog extends JDialog {
         }
         try {
             if (Files.isDirectory(path)) {
+                try {
+                    long total = folderContentBytes(path);
+                    if (total > PeerFileRules.MAX_BYTES) {
+                        return "資料夾內容不可超過 " + PeerFileRules.MAX_SIZE_LABEL;
+                    }
+                } catch (IOException ex) {
+                    return "無法讀取資料夾";
+                }
                 return null;
             }
             if (!Files.isRegularFile(path)) {
@@ -365,6 +378,32 @@ public final class FileTransferDialog extends JDialog {
         } catch (IOException ex) {
             return "無法讀取檔案";
         }
+    }
+
+    /** 資料夾內一般檔案大小加總（不含符號連結）。 */
+    static long folderContentBytes(Path root) throws IOException {
+        if (root == null || !Files.isDirectory(root)) {
+            return 0L;
+        }
+        final long[] total = {0L};
+        Files.walkFileTree(root.toAbsolutePath().normalize(), EnumSet.noneOf(FileVisitOption.class), 32,
+                new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        if (file == null || Files.isSymbolicLink(file)
+                                || attrs == null || !attrs.isRegularFile()) {
+                            return FileVisitResult.CONTINUE;
+                        }
+                        total[0] += attrs.size();
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+        return total[0];
     }
 
     List<String> visibleClientIds() {
