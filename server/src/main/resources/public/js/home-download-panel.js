@@ -1,17 +1,12 @@
 /** 首頁下載浮窗（外觀對齊 #roadmapBoard）。 */
 
-import { wireDesktopDownloadActions } from './download-desktop-assets.js';
-
 export function createHomeDownloadController(opts) {
   const doc = (opts && opts.doc) || globalThis.document;
-  const win = (opts && opts.win) || globalThis;
-  const fetchFn = (opts && opts.fetch) || (win.fetch ? win.fetch.bind(win) : null);
   const officeModal = opts && opts.officeModal;
   const hooks = Object.assign({}, (opts && opts.hooks) || {});
   const root = doc && doc.getElementById ? doc.getElementById('downloadBoard') : null;
   const panel = root && root.querySelector('.home-download-panel');
   const closeBtn = root && root.querySelector('[data-download-close]');
-  const actionsRoot = root && root.querySelector('[data-download-actions]');
   let openState = false;
 
   function setOpen(next, meta) {
@@ -26,7 +21,6 @@ export function createHomeDownloadController(opts) {
       if (officeModal) {
         officeModal.notifyOpened('download', meta && meta.trigger);
       } else if (doc.body) doc.body.classList.add('roadmap-open');
-      wireDesktopDownloadActions(actionsRoot, { win, fetch: fetchFn });
       const focusTarget = closeBtn || panel;
       if (focusTarget && typeof focusTarget.focus === 'function') {
         try {

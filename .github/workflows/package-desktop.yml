@@ -1,8 +1,6 @@
-# 小寶貝桌面安裝檔：push tag v* 會建 Release 並上傳 SKLbaby-mac-arm.dmg、SKLbaby-mac-intel.dmg、
-# SKLbaby-win.exe、SKLbaby.jar。
+# 小寶貝桌面安裝檔：push tag v* 會建 Release 並上傳 SKLbaby.jar。
 # workflow_dispatch 乾跑：Actions →「Package desktop installers」→ Run workflow，只產 workflow artifact、
-# 不建正式 Release。可選 upload_to_release（既有 tag，例如 v4.0.3）僅上傳 SKLbaby-win.exe（--clobber），
-# 不動 tag、不覆蓋該 Release 上已有的 dmg／jar。完成後在該次 run 下載 artifact，核對檔名與大小（腳本限 15–60 MiB）。
+# 不建正式 Release。完成後在該次 run 下載 artifact，核對檔名與大小（腳本限 15–60 MiB）。
 # 不要用 workflow_dispatch 取代正式發版。
 
 name: Package desktop installers
@@ -14,11 +12,6 @@ on:
   release:
     types: [published]
   workflow_dispatch:
-    inputs:
-      upload_to_release:
-        description: "Existing release tag (e.g. v4.0.3) — upload SKLbaby-win.exe only; leave empty for dry-run"
-        required: false
-        type: string
 
 permissions:
   contents: write
@@ -39,7 +32,7 @@ jobs:
           else
             gh release create "${GITHUB_REF_NAME}" \
               --title "小寶貝 ${GITHUB_REF_NAME#v}" \
-              --notes "macOS（Apple 晶片／Intel）／Windows 安裝檔與 SKLbaby.jar（尚未程式碼簽章）。" \
+              --notes "SKLbaby.jar（需先安裝 Java 11 或以上）。" \
               --latest
           fi
 
@@ -96,7 +89,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload "${GITHUB_REF_NAME}" \
-            build/desktop/SKLbaby-mac-arm.dmg \
             client/target/SKLbaby.jar \
             --clobber
 
@@ -107,7 +99,6 @@ jobs:
         run: |
           TAG="${{ github.event.release.tag_name }}"
           gh release upload "$TAG" \
-            build/desktop/SKLbaby-mac-arm.dmg \
             client/target/SKLbaby.jar \
             --clobber
 
@@ -150,25 +141,6 @@ jobs:
           name: SKLbaby-mac-intel-dmg
           path: build/desktop/SKLbaby-mac-intel.dmg
           if-no-files-found: error
-
-      - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release upload "${GITHUB_REF_NAME}" \
-            build/desktop/SKLbaby-mac-intel.dmg \
-            --clobber
-
-      - name: Upload to GitHub Release (published event)
-        if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="${{ github.event.release.tag_name }}"
-          gh release upload "$TAG" \
-            build/desktop/SKLbaby-mac-intel.dmg \
-            --clobber
 
   package-windows:
     needs: create-release
@@ -216,28 +188,3 @@ jobs:
           name: SKLbaby-win-exe
           path: build/desktop/SKLbaby-win.exe
           if-no-files-found: error
-
-      - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release upload "${GITHUB_REF_NAME}" build/desktop/SKLbaby-win.exe --clobber
-
-      - name: Upload to GitHub Release (published event)
-        if: github.event_name == 'release'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="${{ github.event.release.tag_name }}"
-          gh release upload "$TAG" build/desktop/SKLbaby-win.exe --clobber
-
-      - name: Upload to existing Release (workflow_dispatch)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.upload_to_release != ''
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release upload "${{ github.event.inputs.upload_to_release }}" build/desktop/SKLbaby-win.exe --clobber
