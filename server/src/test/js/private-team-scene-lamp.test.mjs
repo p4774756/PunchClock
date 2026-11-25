@@ -13,6 +13,8 @@ test('privateTeamSceneLighting 夜晚暖光檯燈', () => {
   const night = privateTeamSceneLighting();
   assert.ok(night.point > 0);
   assert.ok(night.spot > 0);
+  assert.ok(night.spot < 7);
+  assert.ok(night.spotPenumbra >= 0.65);
   assert.ok(night.haloOpacity > 0);
   assert.ok(night.shadeEmissive > 0);
   assert.ok(night.bulbOpacity > 0);
