@@ -1109,6 +1109,13 @@ button.pt-hud-id-plate {
   line-height: 1.4;
 }
 
+.pt-status-done-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .pt-status-done-time {
   flex: 0 0 auto;
   padding: 0.08rem 0.35rem;
@@ -1120,8 +1127,19 @@ button.pt-hud-id-plate {
   border-radius: 4px;
 }
 
+.pt-status-done-duration {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--maple-navy, #163a70);
+}
+
 .pt-status-done-phrase {
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pt-status-done-empty {

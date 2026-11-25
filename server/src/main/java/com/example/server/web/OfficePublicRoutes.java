@@ -76,7 +76,7 @@ public final class OfficePublicRoutes {
                     String machineId = secretaryMachineId(tiger);
                     row.put("active", buildActive(now, store, machineId, tiger, doc, github, repo, devStatusService));
                     row.put("queue", buildTigerQueue(now, store, machineId, tiger, doc, github, repo, devStatusService));
-                    row.put("completedToday", buildCompletedToday(now, github, repo));
+                    row.put("completedToday", buildCompletedToday(now, machines, github, repo));
                 }
                 characters.put(id, row);
             }
@@ -472,7 +472,8 @@ public final class OfficePublicRoutes {
             return row;
         }
 
-        static List<Map<String, Object>> buildCompletedToday(long now, Snapshot github, String repo) {
+        static List<Map<String, Object>> buildCompletedToday(long now, List<DevMachineStore.Snapshot> machines,
+                                                             Snapshot github, String repo) {
             if (github == null) {
                 return List.of();
             }
@@ -500,10 +501,14 @@ public final class OfficePublicRoutes {
                 IssueRow issueRow = findIssue(github, issue);
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("at", Instant.ofEpochMilli(pull.mergedAt).toString());
-                row.put("phrase", SecretarySpeech.phraseForCompleted(issueRow));
                 String publicTitle = publicIssueTitle(issueRow);
                 if (publicTitle != null) {
                     row.put("title", publicTitle);
+                }
+                Long devStart = earliestDevStartMs(machines, issue);
+                Long durationMinutes = devDurationMinutes(pull.mergedAt, devStart);
+                if (durationMinutes != null) {
+                    row.put("durationMinutes", durationMinutes);
                 }
                 row.put("issue", issue);
                 row.put("issueUrl", issueUrl(repo, issue));
@@ -513,6 +518,47 @@ public final class OfficePublicRoutes {
             }
             rows.sort(Comparator.comparing((Map<String, Object> m) -> (String) m.get("at")).reversed());
             return Collections.unmodifiableList(rows);
+        }
+
+        private static Long earliestDevStartMs(List<DevMachineStore.Snapshot> machines, int issue) {
+            if (machines == null || issue <= 0) {
+                return null;
+            }
+            Long earliestStarted = null;
+            Long earliestDevStage = null;
+            for (DevMachineStore.Snapshot machine : machines) {
+                if (machine == null || machine.runs == null) {
+                    continue;
+                }
+                for (DevMachineStore.RunEntry run : machine.runs) {
+                    if (run == null || run.issue != issue) {
+                        continue;
+                    }
+                    if (run.startedAt != null && run.startedAt > 0) {
+                        earliestStarted = earliestStarted == null
+                                ? run.startedAt
+                                : Math.min(earliestStarted, run.startedAt);
+                    }
+                    boolean devRun = run.role == null || run.role.isEmpty() || "dev".equals(run.role);
+                    if (devRun && run.stageStartedAt != null && run.stageStartedAt > 0) {
+                        earliestDevStage = earliestDevStage == null
+                                ? run.stageStartedAt
+                                : Math.min(earliestDevStage, run.stageStartedAt);
+                    }
+                }
+            }
+            if (earliestStarted != null) {
+                return earliestStarted;
+            }
+            return earliestDevStage;
+        }
+
+        private static Long devDurationMinutes(long mergedAt, Long devStart) {
+            if (devStart == null || devStart <= 0 || mergedAt <= devStart) {
+                return null;
+            }
+            long minutes = (mergedAt - devStart) / 60_000L;
+            return minutes > 0 ? minutes : null;
         }
 
         private static long minutesRunning(long now, Long startedAt) {

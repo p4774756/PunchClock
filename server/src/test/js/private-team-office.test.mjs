@@ -17,6 +17,8 @@ const {
   syncStatusBodyScroll,
   isSafePublicText,
   phraseForDoneDisplay,
+  titleForDoneDisplay,
+  formatDoneDuration,
   phraseForActiveDisplay,
   renderActiveBlock,
   progressSegmentsForActive,
@@ -141,10 +143,17 @@ test('formatOfficeClock 台北時鐘', () => {
   assert.match(clock, /^\d{2}:\d{2}$/);
 });
 
-test('phraseForDoneDisplay 去掉正在與空泛句', () => {
-  assert.equal(phraseForDoneDisplay({ phrase: '正在整理', title: '標題' }), '整理');
-  assert.equal(phraseForDoneDisplay({ phrase: '完成一項工作', title: 'Issue 標題' }), 'Issue 標題');
-  assert.equal(phraseForDoneDisplay({ phrase: '收工一句' }), '收工一句');
+test('titleForDoneDisplay 只用公開標題', () => {
+  assert.equal(titleForDoneDisplay({ phrase: '秘書說長句', title: '公開標題' }), '公開標題');
+  assert.equal(titleForDoneDisplay({ phrase: '只有秘書說' }), '');
+  assert.equal(phraseForDoneDisplay({ title: '相容別名' }), '相容別名');
+});
+
+test('formatDoneDuration 耗時字樣', () => {
+  assert.equal(formatDoneDuration(12), '耗時 12 分');
+  assert.equal(formatDoneDuration(72), '耗時 1 時 12 分');
+  assert.equal(formatDoneDuration(60), '耗時 1 時');
+  assert.equal(formatDoneDuration(0), '');
 });
 
 test('phraseForActiveDisplay 空泛句改標題', () => {
@@ -364,10 +373,10 @@ test('fillStatusCard 多筆進行中仍含今天完成與顯示全部', () => {
     model: 'composer-2.5'
   }));
   const completed = [
-    { phrase: '收工甲', issue: 401 },
-    { phrase: '收工乙', issue: 402 },
-    { phrase: '收工丙', issue: 403 },
-    { phrase: '收工丁', issue: 404 }
+    { title: '收工甲', issue: 401 },
+    { title: '收工乙', issue: 402 },
+    { title: '收工丙', issue: 403 },
+    { title: '收工丁', issue: 404 }
   ];
   const queue = Array.from({ length: 6 }, (_, i) => ({ title: '排隊任務 ' + (i + 1), pr: 600 + i }));
   fillStatusCard(doc, body, {
