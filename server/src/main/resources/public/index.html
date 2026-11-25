@@ -24,6 +24,7 @@
 <body class="lab-office-page {{AUTH_BODY_CLASS}}">
   <script>
     window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};
+    window.PUNCHCLOCK_USERNAME = "{{AUTH_USERNAME}}";
     window.PUNCHCLOCK_SERVER_VERSION = "{{SERVER_VERSION}}";
     window.PUNCHCLOCK_SERVER_BUILD_TIME = "{{SERVER_BUILD_TIME}}";
     window.PUNCHCLOCK_CLIENT_VERSION = {{HOME_CLIENT_VERSION_JS}};
@@ -61,14 +62,14 @@
       </div>
     </div>
   </section>
-  <section id="tasksBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="任務">
+  <section id="tasksBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="裝置">
     <div class="roadmap-panel maple-window home-tasks-panel">
       <header class="maple-win-title roadmap-win-head">
-        <h2>任務</h2>
+        <h2>裝置</h2>
         <button type="button" class="roadmap-close-x" data-tasks-close aria-label="關閉">×</button>
       </header>
       <div class="home-tasks-body">
-        <div class="shell dash-panel" id="panel-devices" data-label="任務" role="tabpanel" hidden>
+        <div class="shell dash-panel" id="panel-devices" data-label="裝置" role="tabpanel" hidden>
           <div class="content-panel content-panel-full">
             <main id="clientContainer">
               <div class="empty-state"><p>還沒有設備連上來</p><p>等桌面端連上並回報狀態後，任務會出現在這裡</p></div>

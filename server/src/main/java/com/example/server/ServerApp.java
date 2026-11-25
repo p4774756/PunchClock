@@ -551,7 +551,8 @@ public final class ServerApp {
     private static String applyAuthPageTokens(String html, boolean authenticated) {
         return html
                 .replace("{{AUTH_BODY_CLASS}}", authenticated ? "is-authenticated" : "is-guest")
-                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false");
+                .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false")
+                .replace("{{AUTH_USERNAME}}", authenticated ? "root" : "");
     }
 
     private static void applyStaticCache(StaticFileConfig sf, String cacheControl) {

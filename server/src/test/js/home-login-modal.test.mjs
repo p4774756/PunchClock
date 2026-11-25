@@ -397,7 +397,7 @@ test('登入彈窗錯誤用 textContent，解析失敗不寫死剩餘 4 次', { 
   modal.destroy();
 });
 
-test('左頭像提示的登入打開彈窗，重畫膠囊不加第二次 listener', { concurrency: false }, async () => {
+test('左上徽章登入與螢幕待開裝置', { concurrency: false }, async () => {
   const raw = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
   const withoutScene = raw.replace(
     /import\s+\{\s*mountPrivateTeamScene\s*\}\s+from\s+['"]\.\/private-team-scene\.js['"];\s*/,
@@ -417,6 +417,7 @@ test('左頭像提示的登入打開彈窗，重畫膠囊不加第二次 listene
   doc.body.innerHTML = LOGIN_BOARD_HTML;
   const loc = { href: '', pathname: '/', search: '', hash: '' };
   loc.assign = (url) => { loc.href = String(url); };
+  let tasksOpened = 0;
   const win = {
     PUNCHCLOCK_AUTHENTICATED: false,
     setInterval(fn, ms) { return setInterval(fn, ms); },
@@ -426,66 +427,60 @@ test('左頭像提示的登入打開彈窗，重畫膠囊不加第二次 listene
   const page = mountPrivateTeamPage({
     doc,
     win,
+    hooks: { openTasks: () => { tasksOpened += 1; } },
     fetch(url) {
-      if (String(url).includes('/login')) {
+      const u = String(url);
+      if (u.includes('/login')) {
         return Promise.resolve({
           ok: true,
           status: 200,
           json: () => Promise.resolve({ success: true })
         });
       }
+      if (u.includes('/api/office/public')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ tiger: { status: '待命中', active: [], completedToday: [] } })
+        });
+      }
+      if (u.includes('/api/dev-machines')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      }
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve(null) });
     }
   });
   await flush();
-  const hint = doc.querySelector('.pt-hud-task-hint-login');
   const task = doc.querySelector('[data-pt-task-btn]');
-  const guest = doc.querySelector('.pt-hud-id-plate');
+  const authLabel = doc.querySelector('[data-pt-auth-label]');
+  const authMenu = doc.querySelector('[data-pt-auth-menu]');
   const board = doc.getElementById('loginBoard');
-  const stage = doc.querySelector('[data-private-team-stage]');
   const activate = globalThis.__ptOnActivate;
   assert.equal(typeof activate, 'function');
-  activate('atlas');
+  assert.equal(authLabel.textContent, '訪客・點此登入');
+  task.click();
   assert.equal(board.hidden, false);
-  assert.equal(loc.href, '');
   board.querySelector('[data-login-close]').click();
-  assert.ok(hint);
-  assert.equal(hint._on.click.length, 1);
-  task.click();
-  assert.equal(doc.querySelector('[data-pt-task-hint]').hidden, false);
-  const hintClose = doc.querySelector('[data-pt-task-hint-close]');
-  assert.ok(hintClose);
-  hintClose.click();
-  assert.equal(doc.querySelector('[data-pt-task-hint]').hidden, true);
-  task.click();
-  assert.equal(doc.querySelector('[data-pt-task-hint]').hidden, false);
-  hint.click();
-  assert.equal(board.hidden, false);
-  assert.equal(doc.querySelector('[data-pt-task-hint]').hidden, true);
-  assert.equal(stage.classList.contains('pt-login-open'), true);
-  assert.equal(loc.href, '');
-  doc.querySelector('[data-login-close]').click();
   assert.equal(board.hidden, true);
-  guest.click();
+  activate('monitor');
   assert.equal(board.hidden, false);
   board.querySelector('[data-login-password]').value = 'secret';
   board.querySelector('[data-login-form]').dispatchEvent({ type: 'submit' });
   await flush();
   assert.equal(board.hidden, true);
-  assert.equal(doc.querySelector('.pt-a-id-role').textContent, '已登入');
-  assert.equal(hint._on.click.length, 1);
-  hint.click();
-  assert.equal(board.hidden, false);
-  assert.equal(hint._on.click.length, 1);
+  assert.equal(authLabel.textContent, 'root');
+  assert.equal(tasksOpened, 1);
+  task.click();
+  assert.equal(authMenu.hidden, false);
+  task.click();
+  assert.equal(authMenu.hidden, true);
   delete globalThis.__ptOnActivate;
-  delete globalThis.__ptAtlasNp;
   page.destroy();
 });
 
-test('登入成功後依 pending 進研習室', () => {
+test('登入成功後依 pending 開裝置面板', () => {
   const js = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
-  assert.match(js, /pendingOpenAtlasAfterLogin/);
-  assert.match(js, /if \(pendingOpenAtlasAfterLogin\)[\s\S]*openAtlasRoom\(\)/);
+  assert.match(js, /pendingOpenTasksAfterLogin/);
+  assert.match(js, /if \(pendingOpenTasksAfterLogin\)[\s\S]*openTasks\(\)/);
 });
 
 test('登入彈窗不藏場景，窄螢幕不跟施工進度貼頂', () => {

@@ -1,4 +1,9 @@
-/** 首頁「任務」浮動視窗（外觀對齊 #roadmapBoard）。 */
+/** 首頁「裝置」浮動視窗（外觀對齊 #roadmapBoard）。 */
+
+function prepareDevicesPanel(win) {
+  const api = win && win.PunchclockHomeDevicesPanel;
+  if (api && typeof api.prepare === 'function') api.prepare();
+}
 
 export function createHomeTasksController(opts) {
   const doc = (opts && opts.doc) || globalThis.document;
@@ -20,6 +25,7 @@ export function createHomeTasksController(opts) {
       root.hidden = !want;
       root.setAttribute('aria-hidden', want ? 'false' : 'true');
     }
+    if (want) prepareDevicesPanel(win);
     if (officeModal) {
       if (want) officeModal.notifyOpened('tasks', meta && meta.trigger);
       else if (!meta || !meta.silent) officeModal.notifyClosed('tasks');

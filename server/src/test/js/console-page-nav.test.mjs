@@ -83,12 +83,16 @@ test('首頁無經絡研習室後備連結', () => {
   assert.match(html, /href="\/logout"[^>]*tabindex="-1"/);
 });
 
-test('首頁任務浮動視窗結構', () => {
+test('首頁裝置浮動視窗結構', () => {
   const html = readFileSync(join(publicRoot, 'index.html'), 'utf8');
   assert.match(html, /id="tasksBoard"/);
+  assert.match(html, /aria-label="裝置"/);
+  assert.match(html, /<h2>裝置<\/h2>/);
   assert.match(html, /roadmap-close-x/);
   assert.match(html, /data-tasks-close/);
   assert.match(html, /id="panel-devices"/);
+  assert.match(html, /data-label="裝置"/);
+  assert.match(html, /PUNCHCLOCK_USERNAME/);
   assert.match(html, /id="clientContainer"/);
   assert.match(html, /dashboard\.css/);
   assert.match(html, /dashboard\.js/);

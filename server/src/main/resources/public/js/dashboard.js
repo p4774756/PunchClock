@@ -137,12 +137,12 @@
       return headBadgeFn('buildDeviceHeadConnectionChipClass', (c) => (c ? 'chip-online' : 'chip-idle'))(isConnected);
     }
 
-    function buildDeviceHeadCheckInText(isConnected, tasks) {
-      return headBadgeFn('buildDeviceHeadCheckInText', () => null)(isConnected, tasks);
+    function buildDeviceHeadScheduleAriaLabel(isConnected, tasks) {
+      return headBadgeFn('buildDeviceHeadScheduleAriaLabel', () => null)(isConnected, tasks);
     }
 
-    function buildDeviceHeadCheckInChipClass(isConnected, tasks) {
-      return headBadgeFn('buildDeviceHeadCheckInChipClass', () => null)(isConnected, tasks);
+    function buildDeviceHeadScheduleDotChipClass(isConnected, tasks) {
+      return headBadgeFn('buildDeviceHeadScheduleDotChipClass', () => 'chip-idle')(isConnected, tasks);
     }
 
     function buildDeviceHeadBadgeText(isConnected, transportLabel, tasks) {
@@ -177,22 +177,25 @@
         connChip.innerHTML = liveDot + connText;
       }
 
-      const checkInText = buildDeviceHeadCheckInText(isConnected, tasks);
-      let checkInChip = root.querySelector('[data-role="head-checkin-chip"]');
-      if (!isConnected || !checkInText) {
-        if (checkInChip) checkInChip.remove();
+      const scheduleLabel = buildDeviceHeadScheduleAriaLabel(isConnected, tasks);
+      let scheduleChip = root.querySelector('[data-role="head-schedule-dot"]');
+      if (!isConnected || !scheduleLabel) {
+        if (scheduleChip) scheduleChip.remove();
         return;
       }
-      const checkClass = buildDeviceHeadCheckInChipClass(isConnected, tasks) || 'chip-idle';
-      if (!checkInChip) {
+      const checkClass = buildDeviceHeadScheduleDotChipClass(isConnected, tasks) || 'chip-idle';
+      const dotClass = checkClass === 'chip-online' ? 'dot dot-live' : 'dot';
+      if (!scheduleChip) {
         const host = root.querySelector('.device-head-chips');
         if (!host) return;
-        checkInChip = document.createElement('span');
-        checkInChip.setAttribute('data-role', 'head-checkin-chip');
-        host.appendChild(checkInChip);
+        scheduleChip = document.createElement('span');
+        scheduleChip.setAttribute('data-role', 'head-schedule-dot');
+        host.appendChild(scheduleChip);
       }
-      checkInChip.className = 'chip ' + checkClass;
-      checkInChip.textContent = checkInText;
+      scheduleChip.className = 'chip chip-schedule-dot ' + checkClass;
+      scheduleChip.setAttribute('aria-label', scheduleLabel);
+      scheduleChip.setAttribute('title', scheduleLabel);
+      scheduleChip.innerHTML = '<span class="' + dotClass + '" aria-hidden="true"></span>';
     }
 
     function buildDeviceHeadChipsHtml(isConnected, tasks) {
@@ -200,10 +203,20 @@
       const connClass = buildDeviceHeadConnectionChipClass(isConnected);
       const connText = buildDeviceHeadConnectionText(isConnected);
       let html = '<span class="chip ' + connClass + '" data-role="head-connection-chip">' + liveDot + connText + '</span>';
-      const checkInText = buildDeviceHeadCheckInText(isConnected, tasks);
-      if (checkInText) {
-        const checkClass = buildDeviceHeadCheckInChipClass(isConnected, tasks) || 'chip-idle';
-        html += '<span class="chip ' + checkClass + '" data-role="head-checkin-chip">' + escapeHtml(checkInText) + '</span>';
+      const scheduleLabel = buildDeviceHeadScheduleAriaLabel(isConnected, tasks);
+      if (scheduleLabel) {
+        const checkClass = buildDeviceHeadScheduleDotChipClass(isConnected, tasks) || 'chip-idle';
+        const dotClass = checkClass === 'chip-online' ? 'dot dot-live' : 'dot';
+        html +=
+          '<span class="chip chip-schedule-dot ' +
+          checkClass +
+          '" data-role="head-schedule-dot" aria-label="' +
+          escapeHtml(scheduleLabel) +
+          '" title="' +
+          escapeHtml(scheduleLabel) +
+          '"><span class="' +
+          dotClass +
+          '" aria-hidden="true"></span></span>';
       }
       return '<div class="device-head-chips">' + html + '</div>';
     }
@@ -1155,12 +1168,16 @@
       });
     }
 
-    bindDashTabs();
-    bindClientContainerFold();
-    bindConsoleHashNav();
-    if (isAuthenticated) {
+    let homeDashboardLive = isAuthenticated;
+
+    function startHomeDashboardLive() {
+      const authed =
+        document.body.classList.contains('is-authenticated') || window.PUNCHCLOCK_AUTHENTICATED === true;
+      if (!authed) return;
       fetchStatus();
-      connectWebSocket();
+      if (!ws || ws.readyState !== WebSocket.OPEN) connectWebSocket();
+      if (homeDashboardLive) return;
+      homeDashboardLive = true;
       setInterval(() => {
         updateHeartbeatMetrics();
         updateCountdowns();
@@ -1176,4 +1193,26 @@
           }
         }
       }, 5000);
+    }
+
+    function prepareHomeDevicesPanel() {
+      const authed =
+        document.body.classList.contains('is-authenticated') || window.PUNCHCLOCK_AUTHENTICATED === true;
+      if (!authed) return;
+      const panel = document.getElementById('panel-devices');
+      if (panel) {
+        panel.classList.add('is-active');
+        panel.removeAttribute('hidden');
+      }
+      startHomeDashboardLive();
+      renderClients();
+    }
+
+    window.PunchclockHomeDevicesPanel = { prepare: prepareHomeDevicesPanel };
+
+    bindDashTabs();
+    bindClientContainerFold();
+    bindConsoleHashNav();
+    if (isAuthenticated) {
+      startHomeDashboardLive();
     }

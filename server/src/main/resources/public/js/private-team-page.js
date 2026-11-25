@@ -71,7 +71,8 @@ function frameCornerSpans() {
 
 function taskHudMarkup() {
   return (
-    '<button type="button" class="pt-hud-task" data-pt-task-btn aria-label="任務">' +
+    '<div class="pt-hud-auth-wrap pt-hud-id-wrap" data-pt-auth-wrap>' +
+    '<button type="button" class="pt-hud-task" data-pt-task-btn aria-haspopup="true" aria-expanded="false" aria-label="訪客・點此登入">' +
     '<span class="pt-a-frame">' +
     '<span class="pt-a-frame-inner">' +
     '<img src="/assets/private-team/secretary-avatar.webp" alt="" aria-hidden="true" width="192" height="192" decoding="async">' +
@@ -79,12 +80,15 @@ function taskHudMarkup() {
     frameCornerSpans() +
     '</span>' +
     '<span class="pt-a-plate">' +
-    '<span class="pt-a-name">私人女秘書</span>' +
+    '<span class="pt-a-name" data-pt-auth-label>訪客・點此登入</span>' +
     '<span class="pt-a-bar-row" data-pt-task-bar hidden>' +
     '<span class="pt-a-bar-label">今日完成</span>' +
     '<span class="pt-a-bar" aria-hidden="true"><i data-pt-task-bar-fill></i></span>' +
     '<span class="pt-a-bar-count" data-pt-task-bar-count></span>' +
-    '</span></span></button>'
+    '</span></span></button>' +
+    '<div class="pt-hud-id-menu" data-pt-auth-menu hidden role="menu" aria-label="帳號選單">' +
+    '<a href="/logout" class="pt-hud-id-logout" role="menuitem">登出</a>' +
+    '</div></div>'
   );
 }
 
@@ -125,13 +129,7 @@ export function mountPrivateTeamPage(opts) {
     hud.innerHTML =
       '<div class="pt-hud-tl">' +
       taskHudMarkup() +
-      '<div class="pt-hud-task-hint" data-pt-task-hint hidden role="dialog" aria-label="登入提示">' +
-      '<div class="pt-hud-task-hint-head">' +
-      '<p class="pt-hud-task-hint-text">先登入才能看任務</p>' +
-      '<button type="button" class="roadmap-close-x pt-hud-task-hint-close" data-pt-task-hint-close aria-label="關閉">×</button>' +
       '</div>' +
-      '<button type="button" class="pt-hud-task-hint-login" data-pt-open-login>登入</button>' +
-      '</div></div>' +
       '<div class="pt-hud-br">' +
       '<button type="button" class="pt-hud-download" data-pt-open-download aria-label="下載 App">' + DL_SVG +
       '<span class="pt-hud-dl-label">下載 App</span></button></div>' +
@@ -174,7 +172,9 @@ export function mountPrivateTeamPage(opts) {
   }
 
   const taskBtn = hud.querySelector('[data-pt-task-btn]');
-  const taskHint = hud.querySelector('[data-pt-task-hint]');
+  const authWrap = hud.querySelector('[data-pt-auth-wrap]');
+  const authLabel = hud.querySelector('[data-pt-auth-label]');
+  const authMenu = hud.querySelector('[data-pt-auth-menu]');
   const taskBarRow = hud.querySelector('[data-pt-task-bar]');
   const taskBarFill = hud.querySelector('[data-pt-task-bar-fill]');
   const taskBarCount = hud.querySelector('[data-pt-task-bar-count]');
@@ -184,10 +184,44 @@ export function mountPrivateTeamPage(opts) {
   let devQueue = [];
   const statusUi = { doneExpanded: false, queueExpanded: false };
   let cardOpen = false;
-  let taskHintOpen = false;
+  let authMenuOpen = false;
   let loginOpen = false;
   let pendingOpenTasksAfterLogin = false;
   let lastFocus = null;
+
+  function authDisplayName() {
+    const raw =
+      typeof win.PUNCHCLOCK_USERNAME === 'string' ? win.PUNCHCLOCK_USERNAME.trim() : '';
+    if (sessionAuthed) return raw || 'root';
+    return '';
+  }
+
+  function paintAuthHud() {
+    if (!authLabel || !taskBtn) return;
+    if (sessionAuthed) {
+      const name = authDisplayName();
+      authLabel.textContent = name;
+      taskBtn.setAttribute('aria-label', name + '，開啟登出選單');
+    } else {
+      authLabel.textContent = '訪客・點此登入';
+      taskBtn.setAttribute('aria-label', '訪客・點此登入');
+    }
+    taskBtn.setAttribute('aria-expanded', authMenuOpen ? 'true' : 'false');
+  }
+
+  function closeAuthMenu() {
+    if (!authMenu || !authMenuOpen) return;
+    authMenuOpen = false;
+    authMenu.hidden = true;
+    paintAuthHud();
+  }
+
+  function toggleAuthMenu() {
+    if (!authMenu || !sessionAuthed) return;
+    authMenuOpen = !authMenuOpen;
+    authMenu.hidden = !authMenuOpen;
+    paintAuthHud();
+  }
 
   function bindOpenLoginHandlers(root) {
     if (!root || typeof root.querySelectorAll !== 'function') return;
@@ -199,11 +233,8 @@ export function mountPrivateTeamPage(opts) {
       node.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
-        closeTaskHint();
+        closeAuthMenu();
         closeStatusCard();
-        if (node.closest('[data-pt-task-hint]')) {
-          pendingOpenTasksAfterLogin = true;
-        }
         loginModal.open(node);
       });
     }
@@ -212,11 +243,13 @@ export function mountPrivateTeamPage(opts) {
   function applySessionAuthed() {
     sessionAuthed = true;
     win.PUNCHCLOCK_AUTHENTICATED = true;
+    if (!win.PUNCHCLOCK_USERNAME) win.PUNCHCLOCK_USERNAME = 'root';
     if (doc.body) {
       doc.body.classList.remove('is-guest');
       doc.body.classList.add('is-authenticated');
     }
-    closeTaskHint();
+    closeAuthMenu();
+    paintAuthHud();
     if (pendingOpenTasksAfterLogin) {
       pendingOpenTasksAfterLogin = false;
       if (openTasks) openTasks();
@@ -290,7 +323,16 @@ export function mountPrivateTeamPage(opts) {
     if (closeBtn) closeBtn.focus({ preventScroll: true });
   }
 
-  function onSceneActivate() {
+  function onSceneActivate(target) {
+    if (target === 'monitor') {
+      if (!sessionAuthed) {
+        pendingOpenTasksAfterLogin = true;
+        loginModal.open(canvas);
+        return;
+      }
+      if (openTasks) openTasks();
+      return;
+    }
     openStatusCard();
   }
 
@@ -308,7 +350,7 @@ export function mountPrivateTeamPage(opts) {
     syncSceneOverlay();
     if (tasksOpen) {
       closeStatusCard();
-      closeTaskHint();
+      closeAuthMenu();
       loginModal.close({ fromManager: true, silent: true });
       if (closeDownload) closeDownload();
     }
@@ -319,7 +361,7 @@ export function mountPrivateTeamPage(opts) {
     syncSceneOverlay();
     if (downloadOpen) {
       closeStatusCard();
-      closeTaskHint();
+      closeAuthMenu();
       loginModal.close({ fromManager: true, silent: true });
       if (tasksOpen && closeTasks) closeTasks();
     }
@@ -346,22 +388,10 @@ export function mountPrivateTeamPage(opts) {
       scene.setSceneInputEnabled(!loginOpen && !tasksOpen && !downloadOpen);
       if (loginOpen) {
         closeStatusCard();
-        closeTaskHint();
+        closeAuthMenu();
       }
     }
   });
-
-  function closeTaskHint() {
-    if (!taskHint || !taskHintOpen) return;
-    taskHintOpen = false;
-    taskHint.hidden = true;
-  }
-
-  function openTaskHint() {
-    if (!taskHint || taskHintOpen) return;
-    taskHintOpen = true;
-    taskHint.hidden = false;
-  }
 
   bindOpenLoginHandlers(hud);
 
@@ -369,24 +399,12 @@ export function mountPrivateTeamPage(opts) {
     taskBtn.addEventListener('click', (ev) => {
       ev.stopPropagation();
       if (sessionAuthed) {
-        closeTaskHint();
-        if (openTasks) openTasks();
+        closeStatusCard();
+        toggleAuthMenu();
         return;
       }
-      if (taskHintOpen) {
-        closeTaskHint();
-      } else {
-        openTaskHint();
-      }
-    });
-  }
-
-  const taskHintClose = hud.querySelector('[data-pt-task-hint-close]');
-  if (taskHintClose) {
-    taskHintClose.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      closeTaskHint();
+      closeAuthMenu();
+      loginModal.open(taskBtn);
     });
   }
 
@@ -396,18 +414,20 @@ export function mountPrivateTeamPage(opts) {
       ev.preventDefault();
       ev.stopPropagation();
       closeStatusCard();
-      closeTaskHint();
+      closeAuthMenu();
       openDownload(downloadBtn);
     });
   }
 
   doc.addEventListener('click', (ev) => {
-    if (taskHint && taskHintOpen) {
-      if (!taskHint.contains(ev.target) && !(taskBtn && taskBtn.contains(ev.target))) {
-        closeTaskHint();
+    if (authMenu && authMenuOpen) {
+      if (!authWrap || (!authWrap.contains(ev.target) && !(taskBtn && taskBtn.contains(ev.target)))) {
+        closeAuthMenu();
       }
     }
   });
+
+  paintAuthHud();
 
   if (closeBtn) {
     closeBtn.addEventListener('click', () => closeStatusCard());
@@ -438,9 +458,9 @@ export function mountPrivateTeamPage(opts) {
         closeStatusCard();
         return;
       }
-      if (taskHintOpen) {
+      if (authMenuOpen) {
         ev.preventDefault();
-        closeTaskHint();
+        closeAuthMenu();
         return;
       }
     }
@@ -536,7 +556,7 @@ export function mountPrivateTeamPage(opts) {
       win.clearInterval(poll);
       doc.removeEventListener('keydown', onKeyDown);
       loginModal.destroy();
-      closeTaskHint();
+      closeAuthMenu();
       closeStatusCard();
       setTasksOpen(false);
       if (closeTasks) closeTasks();

@@ -957,6 +957,7 @@ function spriteAspectFromTexture(tex) {
 
 function addMonitor(root, lookTarget, x, z, scale, traySurfaceY) {
   const group = new THREE.Group();
+  group.userData.pickRole = 'monitor';
   const s = scale == null ? 1 : scale;
   const trayY = traySurfaceY == null ? PRIVATE_TEAM_TRAY_SURFACE_Y : traySurfaceY;
   group.position.set(x, 0.86, z);
@@ -1807,6 +1808,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(bubble);
 
   const clickables = [bubble];
+  for (let mi = 0; mi < monitors.length; mi++) {
+    clickables.push(monitors[mi].group);
+  }
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const onActivate = typeof (opts && opts.onActivate) === 'function' ? opts.onActivate : null;
@@ -1862,7 +1866,7 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   function activatePickRole(target) {
     if (!target) return;
-    playSecretaryWave();
+    if (target === 'secretary') playSecretaryWave();
     if (onActivate) onActivate(target);
   }
 

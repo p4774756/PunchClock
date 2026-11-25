@@ -97,6 +97,7 @@ public class ServerAppBuildInfoTest {
         assertTrue(homeBody.contains("PUNCHCLOCK_SERVER_VERSION = \""));
         assertTrue(homeBody.contains("PUNCHCLOCK_SERVER_BUILD_TIME = \""));
         assertFalse(homeBody.contains("{{AUTH_JS_BOOL}}"));
+        assertFalse(homeBody.contains("{{AUTH_USERNAME}}"));
     }
 
 }
