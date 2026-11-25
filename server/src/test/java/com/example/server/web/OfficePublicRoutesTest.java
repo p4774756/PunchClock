@@ -248,6 +248,7 @@ public class OfficePublicRoutesTest {
         assertEquals("等 CI", active.get("stage").getAsString());
         assertTrue(active.get("failed").getAsBoolean());
         assertEquals(2, active.get("minutes").getAsInt());
+        assertEquals(9_000_000L - 120_000L, active.get("stageStartedAt").getAsLong());
     }
 
     @Test
