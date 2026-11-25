@@ -829,6 +829,21 @@ button.pt-hud-id-plate {
   margin-bottom: 0.45rem;
 }
 
+.pt-status-chain-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  flex-shrink: 0;
+}
+
+.pt-status-chain-name {
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--maple-navy, #163a70);
+  white-space: nowrap;
+}
+
 .pt-status-chain-dot {
   flex-shrink: 0;
   width: 0.65rem;
@@ -893,15 +908,49 @@ button.pt-hud-id-plate {
   background: transparent;
 }
 
+.pt-status-progress-seg.done {
+  border-color: rgba(58, 122, 196, 0.2);
+}
+
 .pt-status-progress-seg.done .pt-status-progress-fill {
-  background: var(--maple-blue, #3a7ac4);
-  opacity: 0.88;
+  background: rgba(58, 122, 196, 0.18);
+  opacity: 1;
+}
+
+.pt-status-progress-seg.done .pt-status-progress-label {
+  color: #4a627e;
+  font-weight: 700;
+}
+
+.pt-status-progress-seg.current {
+  border: 2px solid var(--maple-navy, #163a70);
+  box-shadow: 0 0 0 1px rgba(236, 196, 64, 0.35);
+  z-index: 1;
 }
 
 .pt-status-progress-seg.current .pt-status-progress-fill {
-  background: var(--maple-gold, #ecc440);
-  opacity: 0.75;
+  background: linear-gradient(180deg, rgba(236, 196, 64, 0.92), rgba(220, 175, 45, 0.78));
+  opacity: 1;
   animation: pt-stage-pulse 1.6s ease-in-out infinite;
+}
+
+.pt-status-progress-seg.current .pt-status-progress-label {
+  font-weight: 900;
+  color: var(--maple-navy, #163a70);
+}
+
+.pt-status-progress-seg.skipped {
+  background: rgba(214, 222, 232, 0.5);
+  border: 1px dashed rgba(90, 106, 130, 0.55);
+}
+
+.pt-status-progress-seg.skipped .pt-status-progress-fill {
+  background: transparent;
+}
+
+.pt-status-progress-seg.skipped .pt-status-progress-label {
+  color: #5a6a82;
+  font-weight: 700;
 }
 
 .pt-status-progress-seg.fail .pt-status-progress-fill {
@@ -917,30 +966,41 @@ button.pt-hud-id-plate {
   justify-content: center;
   height: 100%;
   min-height: 1.35rem;
+  padding: 0 0.12rem;
   font-size: 0.62rem;
   font-weight: 800;
   color: var(--maple-navy, #163a70);
+  text-align: center;
+  line-height: 1.15;
 }
 
-.pt-status-progress-seg.done .pt-status-progress-label,
 .pt-status-progress-seg.fail .pt-status-progress-label {
   color: #f8fbff;
+}
+
+.pt-status-progress-seg.pending .pt-status-progress-label {
+  color: #6a7a90;
+  font-weight: 700;
 }
 
 @keyframes pt-stage-pulse {
   0%,
   100% {
-    opacity: 0.55;
+    filter: brightness(0.92);
+    box-shadow: inset 0 0 0 0 rgba(22, 58, 112, 0);
   }
   50% {
-    opacity: 0.95;
+    filter: brightness(1.08);
+    box-shadow: inset 0 0 12px 0 rgba(22, 58, 112, 0.12);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .pt-status-progress-seg.current .pt-status-progress-fill {
     animation: none;
-    opacity: 0.82;
+    filter: none;
+    box-shadow: inset 0 0 0 2px rgba(22, 58, 112, 0.35);
+    background: rgba(236, 196, 64, 0.95);
   }
 }
 
@@ -1074,6 +1134,15 @@ button.pt-hud-id-plate {
   .pt-status-card {
     width: calc(100% - 4px);
     padding: 0.75rem 0.8rem 0.9rem;
+  }
+
+  .pt-status-chain-name {
+    font-size: 0.72rem;
+  }
+
+  .pt-status-progress-label {
+    font-size: 0.58rem;
+    min-height: 1.5rem;
   }
 
   .pt-a-bar-row {
