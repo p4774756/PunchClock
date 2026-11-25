@@ -5,6 +5,8 @@ import com.example.model.TaskStatus;
 import com.example.service.SchedulerService;
 import com.example.ui.AppBranding;
 import com.example.ui.CandyButton;
+import com.example.ui.CandyTheme;
+import com.example.ui.ClassicBevel;
 import com.example.ui.MiniBarDrag;
 import com.example.ui.UiFonts;
 import com.example.ui.WindowChrome;
@@ -55,8 +57,8 @@ public final class AnimeShell extends JPanel {
 
     private static final Color INK = new Color(255, 252, 255);
     private static final Color MUTED = new Color(196, 186, 220);
-    private static final Color TAB_BG = new Color(38, 28, 68, 240);
-    private static final Color TAB_ACTIVE = new Color(255, 122, 168, 220);
+    private static final Color NAV_INK = new Color(32, 32, 32);
+    private static final Color NAV_INK_MUTED = new Color(64, 64, 64);
     private static final String[] NAV = {"首頁", "排程", "好友傳檔", "日誌", "設定"};
     private static final String[] NAV_TIPS = {
             "首頁：小寶貝與狀態泡泡",
@@ -736,10 +738,7 @@ public final class AnimeShell extends JPanel {
 
     private void paintTabBar(Graphics2D g) {
         java.awt.Rectangle bar = tabBarBounds();
-        g.setColor(TAB_BG);
-        g.fillRect(bar.x, bar.y, bar.width, bar.height);
-        g.setColor(new Color(120, 100, 168));
-        g.drawLine(bar.x, bar.y, bar.x + bar.width, bar.y);
+        ClassicBevel.fillSunken(g, bar.x, bar.y, bar.width, bar.height, CandyTheme.PANEL);
         int selected = holdingHome ? 0 : navIndexForTab(tabs.getSelectedIndex());
         for (int slot = 0; slot < navSlotCount(); slot++) {
             int id = navIdForSlot(slot);
@@ -754,7 +753,7 @@ public final class AnimeShell extends JPanel {
         int badge = 8;
         int x = box.x + box.width - badge - 6;
         int y = box.y + 6;
-        g.setColor(new Color(255, 122, 168));
+        g.setColor(new Color(180, 40, 40));
         g.fillOval(x, y, badge, badge);
         if (friendNavUnread > 1) {
             g.setColor(Color.WHITE);
@@ -775,14 +774,17 @@ public final class AnimeShell extends JPanel {
             boolean active,
             boolean hover,
             boolean miniSlot) {
+        int slotX = box.x + 2;
+        int slotY = box.y + 4;
+        int slotW = box.width - 4;
+        int slotH = box.height - 8;
         if (active) {
-            g.setColor(TAB_ACTIVE);
-            g.fillRoundRect(box.x + 2, box.y + 4, box.width - 4, box.height - 8, 10, 10);
+            ClassicBevel.fillRaised(g, slotX, slotY, slotW, slotH, CandyTheme.PANEL);
         } else if (hover) {
-            g.setColor(new Color(255, 255, 255, miniSlot ? 42 : 30));
-            g.fillRoundRect(box.x + 2, box.y + 4, box.width - 4, box.height - 8, 10, 10);
+            g.setColor(new Color(208, 208, 208));
+            g.fillRect(slotX, slotY, slotW, slotH);
         }
-        Color labelInk = active ? Color.WHITE : navLabelColor(iconId);
+        Color labelInk = active ? NAV_INK : navLabelColor(iconId);
         g.setFont(UiFonts.chinesePlain(11));
         java.awt.FontMetrics labelMetrics = g.getFontMetrics();
         int iconSize = TabNavIcon.ICON_SIZE;
@@ -824,22 +826,7 @@ public final class AnimeShell extends JPanel {
     }
 
     static Color navLabelColor(String iconId) {
-        if ("home".equals(iconId)) {
-            return new Color(0xFF, 0xB3, 0xCC);
-        }
-        if ("calendar-clock".equals(iconId)) {
-            return new Color(0xFF, 0xC4, 0xA8);
-        }
-        if ("folder-up".equals(iconId)) {
-            return new Color(0x8F, 0xDF, 0xC0);
-        }
-        if ("notebook-text".equals(iconId)) {
-            return new Color(0xC9, 0xB6, 0xF0);
-        }
-        if ("settings".equals(iconId)) {
-            return new Color(0xA8, 0xD4, 0xF5);
-        }
-        return MUTED;
+        return iconId == null || iconId.isEmpty() ? NAV_INK_MUTED : NAV_INK_MUTED;
     }
 
     static String navTooltip(int index) {

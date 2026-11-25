@@ -10,7 +10,7 @@ import java.awt.Insets;
 import java.awt.RenderingHints;
 
 /** Win95 立體斜角邊框：凸起（按鈕／面板）、凹陷（輸入框／狀態列）。 */
-final class ClassicBevel {
+public final class ClassicBevel {
 
     static final Color HI = Color.WHITE;
     static final Color LO = new Color(128, 128, 128);
@@ -22,7 +22,7 @@ final class ClassicBevel {
     private ClassicBevel() {
     }
 
-    static void fillRaised(Graphics2D g, int x, int y, int w, int h, Color face) {
+    public static void fillRaised(Graphics2D g, int x, int y, int w, int h, Color face) {
         g.setColor(face == null ? FACE : face);
         g.fillRect(x, y, w, h);
         g.setColor(HI);
@@ -36,7 +36,7 @@ final class ClassicBevel {
         g.drawLine(x + w, y, x + w, y + h);
     }
 
-    static void fillSunken(Graphics2D g, int x, int y, int w, int h, Color fill) {
+    public static void fillSunken(Graphics2D g, int x, int y, int w, int h, Color fill) {
         g.setColor(fill == null ? Color.WHITE : fill);
         g.fillRect(x + 2, y + 2, Math.max(1, w - 4), Math.max(1, h - 4));
         paintSunkenEdges(g, x, y, w, h);

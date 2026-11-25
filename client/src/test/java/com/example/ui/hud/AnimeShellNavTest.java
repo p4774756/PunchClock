@@ -103,11 +103,12 @@ public class AnimeShellNavTest {
 
     @Test
     public void navInactiveLabelColors() {
-        assertEquals(new Color(0xFF, 0xB3, 0xCC), AnimeShell.navLabelColor("home"));
-        assertEquals(new Color(0xFF, 0xC4, 0xA8), AnimeShell.navLabelColor("calendar-clock"));
-        assertEquals(new Color(0x8F, 0xDF, 0xC0), AnimeShell.navLabelColor("folder-up"));
-        assertEquals(new Color(0xC9, 0xB6, 0xF0), AnimeShell.navLabelColor("notebook-text"));
-        assertEquals(new Color(0xA8, 0xD4, 0xF5), AnimeShell.navLabelColor("settings"));
+        Color muted = new Color(64, 64, 64);
+        assertEquals(muted, AnimeShell.navLabelColor("home"));
+        assertEquals(muted, AnimeShell.navLabelColor("calendar-clock"));
+        assertEquals(muted, AnimeShell.navLabelColor("folder-up"));
+        assertEquals(muted, AnimeShell.navLabelColor("notebook-text"));
+        assertEquals(muted, AnimeShell.navLabelColor("settings"));
     }
 
     private static boolean sameResource(String idA, boolean activeA, String idB, boolean activeB) {
