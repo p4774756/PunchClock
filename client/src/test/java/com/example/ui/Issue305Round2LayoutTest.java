@@ -88,6 +88,9 @@ public class Issue305Round2LayoutTest {
             minuteGroup.doLayout();
             assertShowsDigits(refs.workIn.hourCombo, "00");
             assertShowsDigits(refs.workIn.minuteCombo, "00");
+            assertTrue("random offset should sit to the right of minute",
+                    refs.workIn.randomOffsetCheckBox.getX() + 1
+                            >= minuteGroup.getX() + minuteGroup.getWidth());
             assertInside(nameRow, "name-273");
             assertTrue("skip parent " + refs.skipDatesButton.getParent(),
                     refs.skipDatesButton.getParent() == nameRow);

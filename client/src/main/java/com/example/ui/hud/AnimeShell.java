@@ -65,7 +65,7 @@ public final class AnimeShell extends JPanel {
             "排程任務與打卡紀錄",
             "好友、聊天與傳檔",
             "系統日誌",
-            "連線、更新與偏好"
+            "連線、外觀與關於"
     };
     /** 分頁：首頁、排程0、好友2、日誌3、設定1 */
     private static final int[] NAV_TO_TAB = {-1, 0, 2, 3, 1};

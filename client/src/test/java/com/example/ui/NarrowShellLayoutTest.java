@@ -66,6 +66,7 @@ public class NarrowShellLayoutTest {
             Fonts fonts = fonts();
             PanelFactory.ServerConfigRefs refs = new PanelFactory.ServerConfigRefs();
             JTabbedPane tabs = PanelFactory.createServerConfigBody(refs, fonts.main, fonts.bold, fonts.field);
+            tabs.setSelectedIndex(PanelFactory.SETTINGS_ABOUT_TAB);
             JPanel page = new JPanel(new BorderLayout());
             page.setOpaque(false);
             page.add(tabs, BorderLayout.CENTER);
@@ -124,7 +125,7 @@ public class NarrowShellLayoutTest {
             Fonts fonts = fonts();
             PanelFactory.ServerConfigRefs refs = new PanelFactory.ServerConfigRefs();
             JTabbedPane tabs = PanelFactory.createServerConfigBody(refs, fonts.main, fonts.bold, fonts.field);
-            tabs.setSelectedIndex(1);
+            tabs.setSelectedIndex(PanelFactory.SETTINGS_APPEARANCE_TAB);
             JPanel page = new JPanel(new BorderLayout());
             page.setOpaque(false);
             page.add(tabs, BorderLayout.CENTER);

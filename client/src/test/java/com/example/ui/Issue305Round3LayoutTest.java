@@ -73,6 +73,8 @@ public class Issue305Round3LayoutTest {
             assertTextInside(settings.relayHelpArea, "def-relay");
             assertFalse(settings.relayHelpArea.getParent() instanceof javax.swing.JScrollPane);
 
+            settingsTabs(settings).setSelectedIndex(PanelFactory.SETTINGS_ABOUT_TAB);
+            layoutDeep(def.shell);
             settings.updateStatusDetail.setText(LONG_NOTES);
             PanelFactory.fitRelayHelp(settings.updateStatusDetail);
             layoutDeep(def.shell);
@@ -90,12 +92,12 @@ public class Issue305Round3LayoutTest {
             select(def.tabs, 2);
             capture(def.shell, "def-peer");
             select(def.tabs, 1);
-            settingsTabs(settings).setSelectedIndex(1);
+            settingsTabs(settings).setSelectedIndex(PanelFactory.SETTINGS_APPEARANCE_TAB);
             layoutDeep(def.shell);
             capture(def.shell, "def-appearance");
-            settingsTabs(settings).setSelectedIndex(2);
+            settingsTabs(settings).setSelectedIndex(PanelFactory.SETTINGS_ABOUT_TAB);
             layoutDeep(def.shell);
-            capture(def.shell, "def-relay");
+            capture(def.shell, "def-about");
             settingsTabs(settings).setSelectedIndex(0);
             layoutDeep(def.shell);
 
@@ -117,6 +119,8 @@ public class Issue305Round3LayoutTest {
             settingsTabs(settings).setSelectedIndex(0);
             layoutDeep(min.shell);
             assertSameBand((JComponent) settings.enableServerCheckBox.getParent(), "min-cloud");
+            settingsTabs(settings).setSelectedIndex(PanelFactory.SETTINGS_ABOUT_TAB);
+            layoutDeep(min.shell);
             settings.updateStatusDetail.setText(LONG_NOTES);
             PanelFactory.fitRelayHelp(settings.updateStatusDetail);
             layoutDeep(min.shell);

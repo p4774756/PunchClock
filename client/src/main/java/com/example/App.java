@@ -348,7 +348,7 @@ public class App extends JFrame {
         tabs.setOpaque(false);
         tabs.setBackground(new Color(0, 0, 0, 0));
         tabs.setToolTipTextAt(0, "設定目標網址、時間，立即測試");
-        tabs.setToolTipTextAt(1, "雲端連線、程式更新、角色、背景、桌面寵物與中繼 Proxy");
+        tabs.setToolTipTextAt(1, "雲端連線與中繼、外觀偏好、版本與程式更新");
         tabs.setToolTipTextAt(2, "查看在線裝置、傳訊息、傳檔案／資料夾與傳檔狀態");
         tabs.setToolTipTextAt(3, "查看與清除系統日誌");
         AnimeShell.hideTabStrip(tabs);

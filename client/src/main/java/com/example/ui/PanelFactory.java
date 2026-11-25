@@ -1,5 +1,6 @@
 package com.example.ui;
 
+import com.example.AppVersion;
 import com.example.model.WorkSlot;
 import com.example.ui.hud.HomeIllustration;
 import com.example.service.CheckInHistoryService;
@@ -27,6 +28,10 @@ public class PanelFactory {
 
     /** 設定分頁的「連線」子分頁；雲端欄位在這一頁。 */
     public static final int SETTINGS_CONNECTION_TAB = 0;
+    /** 設定分頁的「外觀」子分頁。 */
+    public static final int SETTINGS_APPEARANCE_TAB = 1;
+    /** 設定分頁的「關於」子分頁；版本與程式更新。 */
+    public static final int SETTINGS_ABOUT_TAB = 2;
 
     /** 執行紀錄同時看得到的筆數。最近十筆裡先露出這幾列，其餘再捲。 */
     static final int HISTORY_VISIBLE_ROWS = 5;
@@ -34,7 +39,7 @@ public class PanelFactory {
     // ==================== 分組 1: 設定 ====================
 
     /**
-     * 設定頁的子分頁：連線（雲端連線與程式更新）、外觀、中繼。
+     * 設定頁的子分頁：連線（雲端連線與中繼 Proxy）、外觀、關於（版本與程式更新）。
      * 呼叫端需透過 refs 取得元件引用。
      */
     public static JTabbedPane createServerConfigBody(ServerConfigRefs refs, Font mainFont, Font boldFont, Font fieldFont) {
@@ -139,6 +144,24 @@ public class PanelFactory {
         updates.add(Box.createVerticalStrut(12));
         updates.add(updateActions);
 
+        JLabel appVersionLabel = new JLabel(AppVersion.displayLabel());
+        appVersionLabel.setFont(boldFont);
+        appVersionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        appVersionLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE,
+                appVersionLabel.getPreferredSize().height));
+        JPanel versionInfo = fittingColumn();
+        versionInfo.add(appVersionLabel);
+        if (!AppVersion.SOURCE_DIGEST.isEmpty()) {
+            versionInfo.add(Box.createVerticalStrut(4));
+            JLabel buildDigestLabel = new JLabel("原始碼摘要 " + AppVersion.SOURCE_DIGEST);
+            buildDigestLabel.setFont(UiFonts.chinesePlain(12));
+            buildDigestLabel.setForeground(NightTheme.MUTED);
+            buildDigestLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            buildDigestLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE,
+                    buildDigestLabel.getPreferredSize().height));
+            versionInfo.add(buildDigestLabel);
+        }
+
         JTabbedPane tabs = new JTabbedPane();
         tabs.setFont(UiFonts.chineseBold(13));
         tabs.setTabLayoutPolicy(JTabbedPane.WRAP_TAB_LAYOUT);
@@ -147,17 +170,18 @@ public class PanelFactory {
         tabs.setBackground(new Color(0, 0, 0, 0));
         tabs.addTab("連線", settingsPage(
                 settingsSection("雲端連線", boldFont, cloud),
-                settingsSection("程式更新", boldFont, updates)));
+                settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont))));
         tabs.addTab("外觀", settingsPage(
                 settingsSection("視窗透明度", boldFont, windowTransparencyRow(refs, mainFont, boldFont)),
                 settingsSection("首頁插畫", boldFont, homeIllustrationRow(refs, mainFont, boldFont)),
                 settingsSection("打卡介面", boldFont, checkInUiRow(refs, mainFont, boldFont)),
                 settingsSection("桌面寵物", boldFont, desktopPetRow(refs, mainFont, boldFont))));
-        tabs.setToolTipTextAt(1, "視窗透明度與桌面寵物");
-        tabs.addTab("中繼", settingsPage(
-                settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont))));
-        tabs.setToolTipTextAt(SETTINGS_CONNECTION_TAB, "雲端連線與程式更新");
-        tabs.setToolTipTextAt(2, "讓區網內的同事經由這台電腦連到雲端");
+        tabs.addTab("關於", settingsPage(
+                settingsSection("版本", boldFont, versionInfo),
+                settingsSection("程式更新", boldFont, updates)));
+        tabs.setToolTipTextAt(SETTINGS_CONNECTION_TAB, "雲端連線與中繼 Proxy");
+        tabs.setToolTipTextAt(SETTINGS_APPEARANCE_TAB, "視窗透明度與桌面寵物");
+        tabs.setToolTipTextAt(SETTINGS_ABOUT_TAB, "版本資訊與程式更新");
         tabs.setSelectedIndex(SETTINGS_CONNECTION_TAB);
         return tabs;
     }
@@ -1431,9 +1455,9 @@ public class PanelFactory {
         JPanel minuteGroup = inlinePair(refs.minuteCombo, minUnit);
         JPanel scheduleRow = wrapFlowRow(0, 2,
                 refs.enabledCheckBox,
-                refs.randomOffsetCheckBox,
                 hourGroup,
-                minuteGroup);
+                minuteGroup,
+                refs.randomOffsetCheckBox);
         if (skipDatesButton != null) {
             nameRow.add(skipDatesButton);
             installSkipDatesPlacement(scheduleRow, nameRow, skipDatesButton);
