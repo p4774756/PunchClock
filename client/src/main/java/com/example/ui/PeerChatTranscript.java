@@ -85,7 +85,10 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         MessageView view = new MessageView(entry);
         views.add(view);
         add(view.row);
-        refit(Math.max(getWidth(), 360));
+        // 寬度沒變時舊的 refit 會直接 return，後加的訊息就沒做 fit，短寬度會把字切掉。
+        int width = Math.max(getWidth(), 360);
+        laidWidth = -1;
+        refit(width);
         revalidate();
         repaint();
         SwingUtilities.invokeLater(this::scrollToEnd);
@@ -374,7 +377,7 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             line.setAlignmentX(Component.LEFT_ALIGNMENT);
             JComponent block = messageBlock();
             if ("left".equals(side)) {
-                line.add(block, BorderLayout.WEST);
+                line.add(block, BorderLayout.CENTER);
             }
             return line;
         }

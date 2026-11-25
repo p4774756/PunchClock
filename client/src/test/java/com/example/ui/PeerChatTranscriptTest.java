@@ -5,9 +5,11 @@ import com.example.service.PeerImage;
 import org.junit.Test;
 
 import javax.swing.JLabel;
+import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.FontMetrics;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.Constructor;
 import java.time.ZoneId;
@@ -136,9 +138,17 @@ public class PeerChatTranscriptTest {
             PeerChatStore store = new PeerChatStore();
             PeerChatTranscript t = new PeerChatTranscript("alice", "SansSerif", 13);
             t.setSize(480, 320);
-            t.append(store.addMessage("alice", true, "行程", "", System.currentTimeMillis()));
+            t.append(store.addMessage("alice", false, "早安！今天有什麼需要我幫忙的嗎？", "", 1_000L));
+            t.append(store.addMessage("alice", true, "行程", "", 2_000L));
+            t.append(store.addMessage("alice", false, "好的，已幫您確認行程。", "", 3_000L));
+            t.doLayout();
             assertEquals("行程", t.bodyOf("行程"));
             assertFalse(hasCopyButton(t));
+            JTextArea later = findArea(t, "好的，已幫您確認行程。");
+            FontMetrics fm = later.getFontMetrics(later.getFont());
+            int needed = fm.stringWidth("好的，已幫您確認行程。");
+            assertTrue("later message clipped: size=" + later.getSize() + " needW=" + needed,
+                    later.getWidth() >= needed || later.getHeight() >= fm.getHeight() * 2);
         });
     }
 
@@ -170,6 +180,25 @@ public class PeerChatTranscriptTest {
                 String.class, String.class, long.class);
         ctor.setAccessible(true);
         return ctor.newInstance(peerId, outgoing, PeerChatStore.Kind.POKE, "", "", timeMs);
+    }
+
+
+    private static JTextArea findArea(Component component, String text) {
+        if (component instanceof JTextArea) {
+            JTextArea area = (JTextArea) component;
+            if (text.equals(area.getText())) {
+                return area;
+            }
+        }
+        if (component instanceof Container) {
+            for (Component child : ((Container) component).getComponents()) {
+                JTextArea found = findArea(child, text);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 
     private static boolean hasCopyButton(Component component) {
