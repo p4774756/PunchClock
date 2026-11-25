@@ -12,6 +12,31 @@ import {
   tigerFromPublic
 } from './private-team-office.js';
 
+/** 登出選單貼在左上徽章下，並夾在 viewport 內（供單測與執行期） */
+export function layoutAuthMenuInViewport(doc, win, menuEl, taskBtnEl, marginPx) {
+  if (!menuEl || !taskBtnEl) return;
+  const margin = Number.isFinite(marginPx) ? marginPx : 10;
+  menuEl.style.transform = '';
+  menuEl.style.left = '0';
+  menuEl.style.right = 'auto';
+  const badge = taskBtnEl.querySelector('.pt-a-frame');
+  const fh = badge && badge.offsetHeight > 0 ? badge.offsetHeight : 58;
+  menuEl.style.top = fh + 8 + 'px';
+  if (menuEl.hidden) return;
+  const vw = win.innerWidth || (doc.documentElement && doc.documentElement.clientWidth) || 1024;
+  const anchor = badge || taskBtnEl;
+  const ar = anchor.getBoundingClientRect();
+  const mr = menuEl.getBoundingClientRect();
+  let shift = 0;
+  if (ar.left + mr.width > vw - margin) {
+    shift = vw - margin - (ar.left + mr.width);
+  }
+  if (ar.left + shift < margin) {
+    shift = margin - ar.left;
+  }
+  menuEl.style.transform = shift ? 'translateX(' + shift + 'px)' : '';
+}
+
 export function deployVersionLabel(win, opts) {
   const ver = win && typeof win.PUNCHCLOCK_SERVER_VERSION === 'string'
     ? win.PUNCHCLOCK_SERVER_VERSION.trim()
@@ -210,10 +235,15 @@ export function mountPrivateTeamPage(opts) {
     taskBtn.setAttribute('aria-expanded', authMenuOpen ? 'true' : 'false');
   }
 
+  function syncAuthMenuLayout() {
+    layoutAuthMenuInViewport(doc, win, authMenu, taskBtn);
+  }
+
   function closeAuthMenu() {
     if (!authMenu || !authMenuOpen) return;
     authMenuOpen = false;
     authMenu.hidden = true;
+    if (authMenu) authMenu.style.transform = '';
     paintAuthHud();
   }
 
@@ -222,6 +252,15 @@ export function mountPrivateTeamPage(opts) {
     authMenuOpen = !authMenuOpen;
     authMenu.hidden = !authMenuOpen;
     paintAuthHud();
+    if (authMenuOpen) {
+      if (typeof win.requestAnimationFrame === 'function') {
+        win.requestAnimationFrame(() => syncAuthMenuLayout());
+      } else {
+        syncAuthMenuLayout();
+      }
+    } else if (authMenu) {
+      authMenu.style.transform = '';
+    }
   }
 
   function bindOpenLoginHandlers(root) {
