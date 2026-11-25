@@ -38,7 +38,12 @@ final class ClassicBevel {
 
     static void fillSunken(Graphics2D g, int x, int y, int w, int h, Color fill) {
         g.setColor(fill == null ? Color.WHITE : fill);
-        g.fillRect(x + 2, y + 2, Math.max(1, w - 2), Math.max(1, h - 2));
+        g.fillRect(x + 2, y + 2, Math.max(1, w - 4), Math.max(1, h - 4));
+        paintSunkenEdges(g, x, y, w, h);
+    }
+
+    /** 只畫凹陷邊線，不覆蓋元件內容（狀態列等文字在 paintComponent 之後畫邊框）。 */
+    static void paintSunkenEdges(Graphics2D g, int x, int y, int w, int h) {
         g.setColor(DARK);
         g.drawLine(x, y, x + w - 1, y);
         g.drawLine(x, y + 1, x, y + h - 1);
@@ -68,7 +73,7 @@ final class ClassicBevel {
 
             @Override
             public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
-                fillSunken((Graphics2D) g, x, y, width, height, c.getBackground());
+                paintSunkenEdges((Graphics2D) g, x, y, width, height);
             }
         };
     }

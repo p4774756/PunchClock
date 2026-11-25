@@ -206,7 +206,7 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         return entry.text == null ? "" : entry.text;
     }
 
-    /** 氣泡標題上的來源。自己送出的顯示本機，對方顯示名稱，名稱和裝置不同時兩個都留。 */
+    /** 氣泡標題上的來源。自己送出的顯示「我」，對方顯示名稱，名稱和裝置不同時兩個都留。 */
     static String sourceLabel(PeerChatStore.Entry entry, String conversationId) {
         if (entry == null) {
             return "";
@@ -221,7 +221,7 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             outgoing = !file.status.startsWith("對方");
         }
         if (outgoing) {
-            return "本機";
+            return "我";
         }
         String device = conversationId == null ? "" : conversationId;
         String name = entry.speaker == null || entry.speaker.isEmpty() ? device : entry.speaker;

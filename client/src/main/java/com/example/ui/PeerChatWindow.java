@@ -275,13 +275,13 @@ public class PeerChatWindow extends JFrame {
         sendButton.setFont(bold);
         sendButton.addActionListener(e -> send());
 
-        JPanel tools = new JPanel(new GridLayout(1, 1, 6, 0));
+        JPanel tools = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         tools.setOpaque(false);
         tools.add(attachButton);
         JPanel buttons = new JPanel(new BorderLayout(8, 0));
         buttons.setBorder(new EmptyBorder(6, 12, 10, 12));
         if (!textOnly) {
-            buttons.add(tools, BorderLayout.CENTER);
+            buttons.add(tools, BorderLayout.WEST);
         }
         buttons.add(sendButton, BorderLayout.EAST);
 
