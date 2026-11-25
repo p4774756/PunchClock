@@ -267,7 +267,7 @@ function reviewWasCompleted(item, stage) {
   return Number.isFinite(round) && round >= 2;
 }
 
-/** 四段進度條狀態：done | current | pending | fail */
+/** 四段進度條狀態：done | current | pending | fail | skipped */
 export function progressSegmentsForActive(item) {
   const row = item && typeof item === 'object' ? item : {};
   const stage = activeStageForItem(row);
@@ -276,7 +276,7 @@ export function progressSegmentsForActive(item) {
   const reviewDone = reviewWasCompleted(row, stage);
   return STAGE_LABELS.map((label, index) => {
     if (index < current) {
-      if (label === '審核' && !reviewDone) return { label, state: 'pending' };
+      if (label === '審核' && !reviewDone) return { label, state: 'skipped' };
       return { label, state: 'done' };
     }
     if (index === current) {
@@ -285,6 +285,12 @@ export function progressSegmentsForActive(item) {
     }
     return { label, state: 'pending' };
   });
+}
+
+function progressSegmentLabel(seg) {
+  if (seg.state === 'done') return '\u2713 ' + seg.label;
+  if (seg.state === 'skipped') return seg.label === '審核' ? '略過審核' : '略過';
+  return seg.label;
 }
 
 export function statusLineForActive(item) {
@@ -314,7 +320,7 @@ function renderStageProgress(doc, item) {
   progressSegmentsForActive(item).forEach((seg) => {
     const node = el(doc, 'div', 'pt-status-progress-seg ' + seg.state);
     node.appendChild(el(doc, 'span', 'pt-status-progress-fill'));
-    node.appendChild(el(doc, 'span', 'pt-status-progress-label', seg.label));
+    node.appendChild(el(doc, 'span', 'pt-status-progress-label', progressSegmentLabel(seg)));
     track.appendChild(node);
   });
   return track;
@@ -366,9 +372,12 @@ export function renderActiveBlock(doc, item) {
   const head = el(doc, 'div', 'pt-status-stage-head');
   const chain = row.chain && isSafePublicText(row.chain) ? String(row.chain).trim() : '';
   if (chain) {
+    const chainLine = el(doc, 'span', 'pt-status-chain-line');
     const dot = el(doc, 'span', 'pt-status-chain-dot ' + chainDotClass(chain));
     dot.setAttribute('aria-hidden', 'true');
-    head.appendChild(dot);
+    chainLine.appendChild(dot);
+    chainLine.appendChild(el(doc, 'span', 'pt-status-chain-name', chain));
+    head.appendChild(chainLine);
   }
   const issue = Number(row.issue);
   if (Number.isFinite(issue) && issue > 0) {

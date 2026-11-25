@@ -181,6 +181,8 @@ test('renderActiveBlock 階段卡片 DOM', () => {
   const flat = JSON.stringify(block);
   assert.ok(flat.includes('pt-status-stage-card'));
   assert.ok(flat.includes('is-azure'));
+  assert.ok(flat.includes('青龍'));
+  assert.ok(flat.includes('pt-status-chain-name'));
   assert.ok(flat.includes('pt-status-progress'));
   assert.ok(flat.includes('開發中・12 分'));
   assert.ok(flat.includes('#507'));
@@ -192,8 +194,19 @@ test('progressSegmentsForActive 各階段與 CI 失敗', () => {
   const review = progressSegmentsForActive({ stage: '審查中', round: 2 });
   assert.deepEqual(review.map((s) => s.state), ['done', 'current', 'pending', 'pending']);
   const ciSkip = progressSegmentsForActive({ stage: '等 CI', round: 0 });
-  assert.equal(ciSkip[1].state, 'pending');
+  assert.equal(ciSkip[0].state, 'done');
+  assert.equal(ciSkip[1].state, 'skipped');
   assert.equal(ciSkip[2].state, 'current');
+  const skipRendered = renderActiveBlock({
+    createElement(tag) {
+      const node = { tagName: tag.toUpperCase(), className: '', childNodes: [], textContent: '' };
+      node.appendChild = (c) => { node.childNodes.push(c); return c; };
+      node.setAttribute = () => {};
+      return node;
+    }
+  }, { stage: '等 CI', round: 0, issue: 646 });
+  assert.ok(JSON.stringify(skipRendered).includes('略過審核'));
+  assert.ok(JSON.stringify(skipRendered).includes('\u2713 開發'));
   const ciItem = { stage: '等 CI', round: 2, verdict: 'FAIL' };
   const ciFail = progressSegmentsForActive(ciItem);
   assert.equal(ciFail[2].state, 'fail');
