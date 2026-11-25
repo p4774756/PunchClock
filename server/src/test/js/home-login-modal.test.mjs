@@ -404,7 +404,7 @@ test('左頭像提示的登入打開彈窗，重畫膠囊不加第二次 listene
     ''
   );
   assert.equal(withoutScene.includes('private-team-scene'), false);
-  const source = ('function mountPrivateTeamScene(canvas,opts){globalThis.__ptOnActivate=opts&&opts.onActivate;return {setSceneInputEnabled(){},setBubbleText(){},setSecretarySprite(){},setProgressBoard(){},setAtlasNameplateText(t){globalThis.__ptAtlasNp=String(t);},noteTigerStatus(){},destroy(){}};}\n' +
+  const source = ('function mountPrivateTeamScene(canvas,opts){globalThis.__ptOnActivate=opts&&opts.onActivate;return {setSceneInputEnabled(){},setBubbleText(){},setSecretarySprite(){},noteTigerStatus(){},destroy(){}};}\n' +
     withoutScene).replace(/from\s+(['"])\.\/([^'"]+)\1/g, (all, quote, dep) => {
     const bundled = bundleSource(dep);
     const url = 'data:text/javascript;base64,' + Buffer.from(bundled).toString('base64');

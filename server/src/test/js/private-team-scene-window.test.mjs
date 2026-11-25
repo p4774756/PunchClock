@@ -90,13 +90,13 @@ test('reducedMotion 時杯口熱氣靜態、車流 offset 僅在環境動態開�
   );
 });
 
-test('秘書泡泡為深藍膠囊，名牌仍為白底藍邊', () => {
+test('秘書泡泡為深藍膠囊', () => {
   const src = readFileSync(scenePath, 'utf8');
-  const bubbleBlock = src.slice(src.indexOf('function makeBubbleDrawer'), src.indexOf('function makeNameplateDrawer'));
+  const bubbleStart = src.indexOf('function makeBubbleDrawer');
+  assert.ok(bubbleStart >= 0);
+  const bubbleBlock = src.slice(bubbleStart, bubbleStart + 1200);
   assert.doesNotMatch(bubbleBlock, /#f8fbff/);
   assert.doesNotMatch(bubbleBlock, /lineWidth = 10/);
   assert.match(bubbleBlock, /rgba\(18,32,58/);
-  const nameplateBlock = src.slice(src.indexOf('function makeNameplateDrawer'), src.indexOf('export function bronzeBodyMaterialFrom'));
-  assert.match(nameplateBlock, /#f8fbff/);
-  assert.match(nameplateBlock, /#163a70/);
+  assert.doesNotMatch(src, /function makeNameplateDrawer/);
 });
