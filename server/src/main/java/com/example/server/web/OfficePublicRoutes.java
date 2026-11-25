@@ -230,29 +230,55 @@ public final class OfficePublicRoutes {
                                                          DevMachineStore.Snapshot tiger, DevStatusModels.Document doc,
                                                          Snapshot github, String repo, DevStatusService devStatusService) {
             List<Map<String, Object>> out = new ArrayList<>();
-            Set<Integer> seen = new HashSet<>();
+            Set<Integer> seenIssues = new HashSet<>();
+            Set<String> seenTitles = new HashSet<>();
             Set<Integer> activeIssues = activeIssueNumbers(now, store, machineId, tiger);
             if (doc != null && doc.now != null && doc.now.queue != null) {
                 for (DevStatusModels.QueueEntry entry : doc.now.queue) {
-                    if (entry == null || entry.item == null || entry.item.issue <= 0) {
+                    if (entry == null || entry.item == null) {
                         continue;
                     }
-                    if (activeIssues.contains(entry.item.issue)) {
+                    DevStatusModels.Item item = entry.item;
+                    if (item.issue > 0) {
+                        if (activeIssues.contains(item.issue) || !seenIssues.add(item.issue)) {
+                            continue;
+                        }
+                        out.add(queueRowFromItem(item));
                         continue;
                     }
-                    if (seen.add(entry.item.issue)) {
-                        out.add(queueRowFromItem(entry.item));
+                    String title = item.title != null ? SecretarySpeech.sanitizePhrase(item.title.trim()) : null;
+                    if (title == null || title.isEmpty() || !seenTitles.add(title)) {
+                        continue;
                     }
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("title", title);
+                    out.add(row);
                 }
             }
             for (DevMachineStore.QueuedEntry q : effectiveQueued(now, store, machineId, tiger)) {
-                if (q == null || q.issue <= 0 || activeIssues.contains(q.issue) || !seen.add(q.issue)) {
+                if (q == null) {
+                    continue;
+                }
+                if (q.issue <= 0) {
+                    String planned = q.title;
+                    if (planned == null || planned.isEmpty() || !seenTitles.add(planned)) {
+                        continue;
+                    }
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("title", planned);
+                    out.add(row);
+                    continue;
+                }
+                if (activeIssues.contains(q.issue) || !seenIssues.add(q.issue)) {
                     continue;
                 }
                 IssueRow issueRow = resolveIssue(devStatusService, now, github, q.issue);
                 String title = publicIssueTitle(issueRow);
                 if (title == null && issueRow != null && issueRow.title != null) {
                     title = SecretarySpeech.sanitizePhrase(issueRow.title.trim());
+                }
+                if (q.title != null && !q.title.isEmpty()) {
+                    title = q.title;
                 }
                 if (title == null || title.isEmpty()) {
                     title = "等待開工 #" + q.issue;
@@ -460,15 +486,28 @@ public final class OfficePublicRoutes {
             if (round > 0) {
                 row.put("round", round);
             }
-            long minutes = minutesRunning(now, tiger.runStartedAt);
+            Long timingBase = tiger.stageStartedAt != null ? tiger.stageStartedAt : tiger.runStartedAt;
+            long minutes = minutesRunning(now, timingBase);
             if (minutes > 0) {
                 row.put("minutes", minutes);
             }
             if (tiger.model != null && !tiger.model.isEmpty()) {
                 row.put("model", tiger.model);
             }
-            row.put("stage", OfficeActiveStage.forMachineFields(tiger.agentRunning, tiger.verdict,
-                    tiger.role, pull));
+            String stage = tiger.stage != null ? tiger.stage
+                    : OfficeActiveStage.forMachineFields(tiger.agentRunning, tiger.verdict,
+                    tiger.role, pull);
+            row.put("stage", stage);
+            if (tiger.chain != null) {
+                row.put("chain", tiger.chain);
+            }
+            String verdict = tiger.verdict;
+            if (verdict != null) {
+                row.put("verdict", verdict);
+            }
+            if (ciStageFailed(stage, verdict)) {
+                row.put("failed", true);
+            }
             return row;
         }
 

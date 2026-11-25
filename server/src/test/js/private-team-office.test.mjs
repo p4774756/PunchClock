@@ -206,6 +206,8 @@ test('progressSegmentsForActive 各階段與 CI 失敗', () => {
   assert.equal(ciSkip[0].state, 'done');
   assert.equal(ciSkip[1].state, 'skipped');
   assert.equal(ciSkip[2].state, 'current');
+  const ciReviewed = progressSegmentsForActive({ stage: '等 CI', round: 1 });
+  assert.deepEqual(ciReviewed.map((s) => s.state), ['done', 'done', 'current', 'pending']);
   const skipRendered = renderActiveBlock({
     createElement(tag) {
       const node = { tagName: tag.toUpperCase(), className: '', childNodes: [], textContent: '' };

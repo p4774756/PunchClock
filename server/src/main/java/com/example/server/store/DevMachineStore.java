@@ -44,10 +44,16 @@ public final class DevMachineStore {
     public static final class QueuedEntry {
         public final int issue;
         public final Integer afterIssue;
+        public final String title;
 
         QueuedEntry(int issue, Integer afterIssue) {
+            this(issue, afterIssue, null);
+        }
+
+        QueuedEntry(int issue, Integer afterIssue, String title) {
             this.issue = issue;
             this.afterIssue = afterIssue;
+            this.title = title;
         }
     }
 
@@ -100,11 +106,22 @@ public final class DevMachineStore {
         public final String model;
         public final String verdict;
         public final List<QueuedEntry> queued;
+        public final String stage;
+        public final Long stageStartedAt;
+        public final String chain;
 
         Snapshot(String machine, String displayName, String location, long lastSeen, Integer issue, String branch,
                  Long runStartedAt, boolean agentRunning, String commit, Integer battery, Boolean charging,
                  List<RunEntry> runs, String role, Integer round, String model, String verdict,
                  List<QueuedEntry> queued) {
+            this(machine, displayName, location, lastSeen, issue, branch, runStartedAt, agentRunning, commit,
+                    battery, charging, runs, role, round, model, verdict, queued, null, null, null);
+        }
+
+        Snapshot(String machine, String displayName, String location, long lastSeen, Integer issue, String branch,
+                 Long runStartedAt, boolean agentRunning, String commit, Integer battery, Boolean charging,
+                 List<RunEntry> runs, String role, Integer round, String model, String verdict,
+                 List<QueuedEntry> queued, String stage, Long stageStartedAt, String chain) {
             this.machine = machine;
             this.displayName = displayName;
             this.location = location;
@@ -122,6 +139,9 @@ public final class DevMachineStore {
             this.model = model;
             this.verdict = verdict;
             this.queued = queued == null ? List.of() : List.copyOf(queued);
+            this.stage = stage;
+            this.stageStartedAt = stageStartedAt;
+            this.chain = chain;
         }
     }
 
@@ -226,7 +246,10 @@ public final class DevMachineStore {
                 parsed.round,
                 parsed.model,
                 parsed.verdict,
-                parsed.queued
+                parsed.queued,
+                parsed.stage,
+                parsed.stageStartedAt,
+                parsed.chain
         );
         byMachine.put(machine, next);
         return ApplyResult.OK;
@@ -434,11 +457,14 @@ public final class DevMachineStore {
         final String model;
         final String verdict;
         final List<QueuedEntry> queued;
+        final String stage;
+        final Long stageStartedAt;
+        final String chain;
 
         private Parsed(boolean valid, String displayName, String location, Integer issue, String branch,
                        Long runStartedAt, boolean agentRunning, String commit, Integer battery, Boolean charging,
                        List<RunEntry> runs, String role, Integer round, String model, String verdict,
-                       List<QueuedEntry> queued) {
+                       List<QueuedEntry> queued, String stage, Long stageStartedAt, String chain) {
             this.valid = valid;
             this.displayName = displayName;
             this.location = location;
@@ -455,6 +481,9 @@ public final class DevMachineStore {
             this.model = model;
             this.verdict = verdict;
             this.queued = queued == null ? List.of() : queued;
+            this.stage = stage;
+            this.stageStartedAt = stageStartedAt;
+            this.chain = chain;
         }
 
         static Parsed from(Map<String, Object> fields) {
@@ -598,13 +627,26 @@ public final class DevMachineStore {
                 }
                 queued = parsedQueued.entries;
             }
+            String stage = parseStage(fields.get("stage"));
+            if (fields.containsKey("stage") && stage == null && fields.get("stage") != null) {
+                return invalid();
+            }
+            Long stageStartedAt = parseEpochMillisField(fields.get("stageStartedAt"));
+            if (fields.containsKey("stageStartedAt") && stageStartedAt == null
+                    && fields.get("stageStartedAt") != null) {
+                return invalid();
+            }
+            String chain = parseChain(fields.get("chain"));
+            if (fields.containsKey("chain") && chain == null && fields.get("chain") != null) {
+                return invalid();
+            }
             return new Parsed(true, displayName, location, issue, branch, runStartedAt, agentRunning, commit, battery,
-                    charging, runs, role, round, model, verdict, queued);
+                    charging, runs, role, round, model, verdict, queued, stage, stageStartedAt, chain);
         }
 
         static Parsed invalid() {
             return new Parsed(false, null, null, null, null, null, false, null, null, null, List.of(),
-                    null, null, null, null, List.of());
+                    null, null, null, null, List.of(), null, null, null);
         }
     }
 
@@ -638,21 +680,44 @@ public final class DevMachineStore {
         return new ParseQueued(out);
     }
 
+    private static Long parseEpochMillisField(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        if (!(raw instanceof Number)) {
+            return null;
+        }
+        long n = ((Number) raw).longValue();
+        return n >= 0 ? n : null;
+    }
+
     private static QueuedEntry parseQueuedEntry(Object raw) {
         if (!(raw instanceof Map)) {
             return null;
         }
         Map<?, ?> map = (Map<?, ?>) raw;
+        String title = null;
+        if (map.containsKey("title")) {
+            Object titleRaw = map.get("title");
+            if (titleRaw != null) {
+                title = SecretarySpeech.sanitizePhrase(String.valueOf(titleRaw));
+            }
+        }
+        int issue = 0;
         Object issueRaw = map.get("issue");
-        if (!(issueRaw instanceof Number)) {
+        if (issueRaw instanceof Number) {
+            Number issueNum = (Number) issueRaw;
+            if (!isWholeNumber(issueNum)) {
+                return null;
+            }
+            issue = issueNum.intValue();
+            if (issue < 0) {
+                return null;
+            }
+        } else if (issueRaw != null) {
             return null;
         }
-        Number issueNum = (Number) issueRaw;
-        if (!isWholeNumber(issueNum)) {
-            return null;
-        }
-        int issue = issueNum.intValue();
-        if (issue < 1) {
+        if (issue < 1 && (title == null || title.isEmpty())) {
             return null;
         }
         Integer afterIssue = null;
@@ -674,7 +739,10 @@ public final class DevMachineStore {
                 return null;
             }
         }
-        return new QueuedEntry(issue, afterIssue);
+        if (issue < 1) {
+            return new QueuedEntry(0, afterIssue, title);
+        }
+        return new QueuedEntry(issue, afterIssue, title);
     }
 
     private static String parseRole(Object raw) {
