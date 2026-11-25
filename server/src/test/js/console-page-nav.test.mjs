@@ -19,32 +19,28 @@ test('主控台頂欄為任務、施工進度、辦公室', () => {
   assert.match(css, /\.console-auth a\[href="\/logout"\]\s*\{[^}]*display:\s*none\s*!important/);
 });
 
-test('首頁 HUD 楓之谷角色框與身分名牌', () => {
+test('首頁 HUD 楓之谷角色框', () => {
   const js = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
   const css = readFileSync(join(publicRoot, 'css/private-team.css'), 'utf8');
   assert.doesNotMatch(js, /data-pt-menu-toggle/);
   assert.doesNotMatch(js, /data-pt-open-roadmap/);
   assert.doesNotMatch(js, /role="menuitem">施工進度/);
   assert.doesNotMatch(js, />施工進度</);
-  assert.match(js, /進度看板，開啟施工進度/);
-  assert.match(js, /data-pt-prog-hit/);
-  assert.match(js, /onProgressBoardRect/);
-  assert.match(js, /onOpenProgress/);
-  assert.match(js, /setRoadmapOpen/);
+  assert.doesNotMatch(js, /進度看板，開啟施工進度/);
+  assert.doesNotMatch(js, /data-pt-prog-hit/);
+  assert.doesNotMatch(js, /onProgressBoardRect/);
+  assert.doesNotMatch(js, /onOpenProgress/);
+  assert.doesNotMatch(js, /setRoadmapOpen/);
   assert.match(js, /setTasksOpen/);
-  assert.match(js, /openRoadmapFromBoard/);
+  assert.doesNotMatch(js, /openRoadmapFromBoard/);
   assert.match(js, /openTasks/);
   assert.doesNotMatch(js, /location\.href = '\/console'/);
   assert.match(js, /data-pt-task-btn/);
   assert.match(js, /secretary-avatar\.webp/);
   assert.match(js, /私人女秘書/);
   assert.match(js, /data-pt-task-bar/);
-  assert.match(js, /data-pt-identity-toggle/);
-  assert.match(js, /pt-hud-id-plate/);
-  assert.match(js, /已登入/);
-  assert.doesNotMatch(js, /管理員/);
-  assert.match(js, /線上/);
-  assert.match(js, /訪客/);
+  assert.doesNotMatch(js, /pt-hud-id-plate/);
+  assert.doesNotMatch(js, /data-pt-identity-toggle/);
   assert.match(js, /data-pt-open-login/);
   assert.match(js, /wireHomeLoginModal/);
   assert.doesNotMatch(js, /role="menuitem">主控台/);
@@ -55,42 +51,34 @@ test('首頁 HUD 楓之谷角色框與身分名牌', () => {
   assert.doesNotMatch(js, /\/api\/dev-status/);
   assert.match(js, /\/api\/office\/public/);
   assert.match(css, /\.pt-hud-task/);
-  assert.match(css, /\.pt-hud-id-plate/);
   assert.match(css, /\.pt-roadmap-open/);
-  assert.match(css, /\.pt-prog-hit/);
-  assert.match(css, /\.pt-prog-hit[\s\S]*cursor:\s*pointer/);
-  assert.match(css, /\.pt-prog-hit\s*\{[^}]*border:\s*1px dashed transparent/);
-  assert.match(css, /@media\s*\(hover:\s*hover\)\s*and\s*\(pointer:\s*fine\)[\s\S]*\.pt-prog-hit:hover/);
-  assert.match(css, /\.pt-prog-hit:is\(\.is-flash\)|\.pt-prog-hit\.is-flash/);
-  assert.match(css, /\.pt-prog-hit:focus-visible/);
-  assert.match(js, /is-flash/);
-  assert.match(js, /PROG_HIT_FLASH_MS/);
-  assert.match(js, /pointer:\s*coarse/);
-  assert.doesNotMatch(css, /\.pt-prog-hit\s*\{[^}]*top:\s*26%/);
+  assert.doesNotMatch(css, /\.pt-prog-hit/);
 });
 
-test('牆上進度看板與施工進度彈窗遮罩', () => {
+test('首頁不再掛施工進度與新聞彈窗', () => {
   const sceneJs = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
   const officeJs = readFileSync(join(publicRoot, 'js/office-page.js'), 'utf8');
-  assert.match(sceneJs, /progressBoard/);
-  assert.match(sceneJs, /onOpenProgress/);
-  assert.match(sceneJs, /onProgressBoardRect/);
-  assert.match(sceneJs, /progressBoardScreenRect/);
+  const html = readFileSync(join(publicRoot, 'index.html'), 'utf8');
+  assert.doesNotMatch(sceneJs, /progMesh\.name = 'progressBoard'/);
+  assert.doesNotMatch(sceneJs, /onOpenProgress/);
+  assert.doesNotMatch(sceneJs, /progressBoardScreenRect/);
   assert.match(sceneJs, /setSceneInputEnabled/);
   assert.doesNotMatch(sceneJs, /pickSecretary/);
+  assert.doesNotMatch(officeJs, /createRoadmapController/);
+  assert.doesNotMatch(officeJs, /createNewsController/);
+  assert.doesNotMatch(officeJs, /applyRoadmapOpenParam/);
   assert.match(officeJs, /onChange/);
-  assert.match(officeJs, /setRoadmapOpen/);
   assert.match(officeJs, /createHomeTasksController/);
   assert.match(officeJs, /applyTasksOpenParam/);
   assert.match(officeJs, /applyDownloadOpenParam/);
   assert.match(officeJs, /createOfficeModalManager/);
+  assert.doesNotMatch(html, /id="roadmapBoard"/);
+  assert.doesNotMatch(html, /id="newsBoard"/);
 });
 
-test('首頁經絡研習室後備連結可進 Tab 序', () => {
+test('首頁無經絡研習室後備連結', () => {
   const html = readFileSync(join(publicRoot, 'index.html'), 'utf8');
-  assert.match(html, /href="\/atlas\/tcm-3d\/" tabindex="0">/);
-  assert.match(html, /data-guest-only>經絡研習室需登入</);
-  assert.match(html, /data-auth-only>經絡研習室</);
+  assert.doesNotMatch(html, /href="\/atlas\/tcm-3d\/" tabindex="0">/);
   assert.match(html, /href="\/login\?next=\/"[^>]*tabindex="-1"/);
   assert.match(html, /href="\/logout"[^>]*tabindex="-1"/);
 });

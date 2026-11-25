@@ -1989,60 +1989,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   windowMoonlight.name = 'windowMoonlight';
   root.add(windowMoonlight);
 
-  const progressDrawer = makeProgressBoardDrawer();
-  const progMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(PROGRESS_BOARD_PLANE_W, PROGRESS_BOARD_PLANE_H),
-    new THREE.MeshBasicMaterial({ map: progressDrawer.tex })
-  );
-  progMesh.name = 'progressBoard';
-  progMesh.position.set(leftX + WALL_THICK + 0.05, 1.52, 0.1);
-  progMesh.rotation.y = Math.PI / 2;
-  root.add(progMesh);
-  const progressGlow = new THREE.PointLight(0xc8a850, 0.16, 2.4, 2);
-  progressGlow.position.set(leftX + WALL_THICK + 0.12, 1.52, 0.24);
-  root.add(progressGlow);
-
-  const newsDrawer = makeNewsTvDrawer();
-  const newsTvY = 1.52;
-  const newsTvX = leftX + WALL_THICK + 0.05;
-  const newsFrameMat = new THREE.MeshBasicMaterial({ color: 0x2a2420 });
-  const newsTvGroup = new THREE.Group();
-  newsTvGroup.name = 'newsTv';
-  newsTvGroup.position.set(newsTvX, newsTvY, NEWS_TV_CENTER_Z);
-  newsTvGroup.rotation.y = Math.PI / 2;
-  const newsScreen = new THREE.Mesh(
-    new THREE.PlaneGeometry(NEWS_TV_PLANE_W, NEWS_TV_PLANE_H),
-    new THREE.MeshBasicMaterial({ map: newsDrawer.tex })
-  );
-  newsScreen.name = 'newsTvScreen';
-  newsScreen.userData.pickRole = 'news';
-  const framePad = 0.028;
-  const frameBack = new THREE.Mesh(
-    new THREE.PlaneGeometry(NEWS_TV_PLANE_W + framePad * 2, NEWS_TV_PLANE_H + framePad * 2),
-    newsFrameMat
-  );
-  frameBack.position.z = -0.008;
-  newsTvGroup.add(frameBack, newsScreen);
-  root.add(newsTvGroup);
-  const newsGlow = new THREE.PointLight(0x90b8e8, 0.12, 2.2, 2);
-  newsGlow.position.set(newsTvX + 0.06, newsTvY, NEWS_TV_CENTER_Z + 0.12);
-  root.add(newsGlow);
-
   const monitorLook = new THREE.Vector3(0.02, 1.02, 0.72);
   const monitors = [addMonitor(root, monitorLook, -0.96, 0.94, 0.98, 0.02)];
-
-  const mug = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.09, 0.075, 0.18, 12),
-    new THREE.MeshBasicMaterial({ color: COL.mug })
-  );
-  mug.position.set(-0.38, TRAY_TOP_Y + 0.09, 0.32);
-  const mugHandle = new THREE.Mesh(
-    new THREE.TorusGeometry(0.05, 0.015, 6, 10),
-    new THREE.MeshBasicMaterial({ color: COL.mug })
-  );
-  mugHandle.position.set(-0.46, TRAY_TOP_Y + 0.09, 0.32);
-  mugHandle.rotation.y = Math.PI / 2;
-  root.add(mug, mugHandle);
 
   const lampGroup = new THREE.Group();
   lampGroup.position.set(0.78, TRAY_TOP_Y + 0.016, 0.36);
@@ -2107,45 +2055,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   let lampHaloBase = lighting.haloOpacity;
 
   let reducedMotion = false;
-  let newsItems = [];
-  let newsIndex = 0;
-  let newsRotateAt = 0;
-  let newsScrollX = 0;
-  let newsTickerWidth = 0;
-  let newsMeasureCtx = null;
   let lastFrameMs = 0;
 
   addLowPolyPlant(root, -1.15, 0.82);
-
-  const atlasRoot = new THREE.Group();
-  atlasRoot.name = 'atlasBronzeDisplay';
-  atlasRoot.userData.pickRole = 'atlas';
-  atlasRoot.position.set(1.28, 0, -0.58);
-  atlasRoot.rotation.y = 0.4;
-  root.add(atlasRoot);
-
-  const nameplateDrawer = makeNameplateDrawer();
-  nameplateDrawer.draw(
-    win.PUNCHCLOCK_AUTHENTICATED === true ? '經絡研習室' : '經絡研習室需登入'
-  );
-  const nameplateMat = new THREE.MeshBasicMaterial({
-    map: nameplateDrawer.tex,
-    transparent: true,
-    depthWrite: false
-  });
-  const atlasNameplate = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.17), nameplateMat);
-  atlasNameplate.userData.pickRole = 'atlas';
-  atlasNameplate.position.set(
-    0,
-    bronzeAssemblyDisplayHeight() + BRONZE_NAMEPLATE_OFFSET_Y,
-    0.1
-  );
-  atlasNameplate.renderOrder = 2;
-  atlasRoot.add(atlasNameplate);
-
-  let bronzeEnvMap = null;
-  const bronzeEnvBase = new WeakMap();
-  let bronzeHover = false;
 
   const secretaryRoot = new THREE.Group();
   secretaryRoot.position.set(0.02, 0, 0.56);
@@ -2392,16 +2304,10 @@ export function mountPrivateTeamScene(canvas, opts) {
   bubble.userData.pickRole = 'secretary';
   root.add(bubble);
 
-  progMesh.userData.pickRole = 'progress';
-
-  const clickables = [bubble, progMesh, newsScreen, atlasRoot];
+  const clickables = [bubble];
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  const boardCorner = new THREE.Vector3();
   const onActivate = typeof (opts && opts.onActivate) === 'function' ? opts.onActivate : null;
-  const onOpenProgress = typeof (opts && opts.onOpenProgress) === 'function' ? opts.onOpenProgress : null;
-  const onOpenNews = typeof (opts && opts.onOpenNews) === 'function' ? opts.onOpenNews : null;
-  const onProgressBoardRect = typeof (opts && opts.onProgressBoardRect) === 'function' ? opts.onProgressBoardRect : null;
   let sceneInputEnabled = true;
 
   function pickRoleFromObject(obj) {
@@ -2413,58 +2319,6 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
     return null;
   }
-
-  function setBronzeHover(next) {
-    bronzeHover = !!next;
-    if (!atlasRoot) return;
-    atlasRoot.traverse((obj) => {
-      if (!obj.isMesh || !obj.material) return;
-      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-      for (let i = 0; i < mats.length; i++) {
-        const m = mats[i];
-        if (!m || !m.isMeshStandardMaterial) continue;
-        const base = bronzeEnvBase.get(m);
-        if (base == null) continue;
-        m.envMapIntensity = bronzeHover && !reducedMotion ? base + 0.22 : base;
-      }
-    });
-  }
-
-  function beginAtlasBronzeLoad() {
-    void (async () => {
-      try {
-        const mod = await import('./vendor/GLTFLoader.js');
-        const GLTFLoader = mod.GLTFLoader;
-        const loader = new GLTFLoader();
-        const gltf = await new Promise((resolve, reject) => {
-          loader.load(BRONZE_GLB_URL, resolve, undefined, reject);
-        });
-        if (!running) return;
-        const model = gltf.scene;
-        model.traverse((obj) => {
-          if (obj.isMesh) obj.userData.pickRole = 'atlas';
-        });
-        const figureHeight = bronzeFigureNativeHeightFromModel(model);
-        const scale = bronzeScaleForFigureHeight(figureHeight);
-        model.scale.setScalar(scale);
-        const bounds = new THREE.Box3().setFromObject(model);
-        model.position.y = -bounds.min.y;
-        bounds.setFromObject(model);
-        atlasNameplate.position.y = bounds.max.y + BRONZE_NAMEPLATE_OFFSET_Y;
-        if (!bronzeEnvMap) {
-          bronzeEnvMap = makeBronzeEnvMap(renderer);
-          if (bronzeEnvMap) scene.environment = bronzeEnvMap;
-        }
-        coerceBronzeHumanMaterials(model);
-        applyBronzeEnvMap(model, bronzeEnvMap, bronzeEnvBase);
-        atlasRoot.add(model);
-      } catch (err) {
-        console.warn('[PrivateTeam] 銅人載入失敗', err);
-      }
-    })();
-  }
-
-  beginAtlasBronzeLoad();
 
   const activePointers = new Map();
   let pinchActive = false;
@@ -2487,36 +2341,6 @@ export function mountPrivateTeamScene(canvas, opts) {
     return Math.hypot(dx, dy);
   }
 
-  function progressBoardScreenRect() {
-    const stage = canvas.parentElement || canvas;
-    const stageRect = stage.getBoundingClientRect();
-    const canvasRect = canvas.getBoundingClientRect();
-    if (!canvasRect.width || !canvasRect.height) return null;
-    camera.updateWorldMatrix(true, false);
-    const hw = PROGRESS_BOARD_PLANE_W / 2;
-    const hh = PROGRESS_BOARD_PLANE_H / 2;
-    const corners = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (let i = 0; i < corners.length; i++) {
-      boardCorner.set(corners[i][0], corners[i][1], 0);
-      progMesh.localToWorld(boardCorner);
-      boardCorner.project(camera);
-      const x = (boardCorner.x * 0.5 + 0.5) * canvasRect.width + (canvasRect.left - stageRect.left);
-      const y = (-boardCorner.y * 0.5 + 0.5) * canvasRect.height + (canvasRect.top - stageRect.top);
-      if (x < minX) minX = x;
-      if (y < minY) minY = y;
-      if (x > maxX) maxX = x;
-      if (y > maxY) maxY = y;
-    }
-    const width = maxX - minX;
-    const height = maxY - minY;
-    if (!(width > 0) || !(height > 0)) return null;
-    return { left: minX, top: minY, width: width, height: height };
-  }
-
   function pickTarget(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return null;
@@ -2536,20 +2360,8 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   function activatePickRole(target) {
     if (!target) return;
-    if (target === 'progress') {
-      if (onOpenProgress) onOpenProgress();
-      return;
-    }
-    if (target === 'news') {
-      if (onOpenNews) onOpenNews();
-      return;
-    }
-    if (target === 'atlas') {
-      if (onActivate) onActivate('atlas');
-      return;
-    }
     playSecretaryWave();
-    if (onActivate) onActivate('secretary');
+    if (onActivate) onActivate(target);
   }
 
   function handlePointerDown(ev) {
@@ -2617,16 +2429,12 @@ export function mountPrivateTeamScene(canvas, opts) {
         applyCameraView();
         ev.preventDefault();
         canvas.style.cursor = 'grabbing';
-        setBronzeHover(false);
         return;
       }
     }
     if (!pinchActive && sceneInputEnabled && !orbitDragged) {
       const hover = pickTarget(ev.clientX, ev.clientY);
-      const pointerOn =
-        hover === 'atlas' || hover === 'secretary' || hover === 'progress' || hover === 'news';
-      canvas.style.cursor = pointerOn ? 'pointer' : '';
-      setBronzeHover(hover === 'atlas');
+      canvas.style.cursor = hover ? 'pointer' : '';
     }
   }
 
@@ -2960,56 +2768,8 @@ export function mountPrivateTeamScene(canvas, opts) {
       applyCameraView();
     }
 
-    if (newsItems.length) {
-      const scrollOn = newsTickerScrollEnabled(reducedMotion, win);
-      if (!newsRotateAt) newsRotateAt = now;
-      if (now - newsRotateAt >= NEWS_TV_ROTATE_MS) {
-        newsIndex = (newsIndex + 1) % newsItems.length;
-        newsRotateAt = now;
-        newsScrollX = 0;
-        newsTickerWidth = 0;
-      }
-      let tickerLine = '';
-      for (let ni = 0; ni < newsItems.length; ni++) {
-        const nt = newsItems[ni] && newsItems[ni].title ? String(newsItems[ni].title) : '';
-        if (nt) tickerLine += (tickerLine ? '   ·   ' : '') + nt;
-      }
-      if (scrollOn && tickerLine) {
-        if (!newsMeasureCtx) {
-          const measureCanvas = doc.createElement('canvas');
-          newsMeasureCtx = measureCanvas.getContext('2d');
-        }
-        if (!newsTickerWidth && newsMeasureCtx) {
-          newsMeasureCtx.font = 'bold 17px sans-serif';
-          newsTickerWidth = newsMeasureCtx.measureText(tickerLine).width;
-        }
-        const need = Math.max(0, newsTickerWidth - (512 - 24));
-        if (need > 8) {
-          const dt = frameDt > 0 ? Math.min(0.05, frameDt / 1000) : 0.016;
-          newsScrollX += dt * 42;
-          if (newsScrollX > need + 48) newsScrollX = 0;
-        } else {
-          newsScrollX = 0;
-        }
-      } else {
-        newsScrollX = 0;
-      }
-      newsDrawer.draw({
-        items: newsItems,
-        index: newsIndex,
-        tickerScroll: scrollOn,
-        tickerOffset: newsScrollX,
-        nowMs: Date.now()
-      });
-    }
-
-    if (onProgressBoardRect) {
-      const boardRect = progressBoardScreenRect();
-      if (boardRect) onProgressBoardRect(boardRect);
-    }
     bubble.lookAt(camera.position);
     lampHalo.lookAt(camera.position);
-    if (atlasNameplate) atlasNameplate.lookAt(camera.position);
 
     renderer.render(scene, camera);
   }
@@ -3045,28 +2805,6 @@ export function mountPrivateTeamScene(canvas, opts) {
     playSecretaryYeah,
     playSecretaryDance,
     noteTigerStatus,
-    setProgressBoard(view) {
-      progressDrawer.draw(view);
-    },
-    setNewsFeed(items) {
-      newsItems = Array.isArray(items)
-        ? items.filter((row) => row && row.title)
-        : [];
-      newsIndex = 0;
-      newsRotateAt = 0;
-      newsScrollX = 0;
-      newsTickerWidth = 0;
-      newsDrawer.draw({
-        items: newsItems,
-        index: 0,
-        tickerScroll: newsTickerScrollEnabled(reducedMotion, win),
-        tickerOffset: 0,
-        nowMs: Date.now()
-      });
-    },
-    setAtlasNameplateText(text) {
-      if (nameplateDrawer) nameplateDrawer.draw(text == null ? '' : String(text));
-    },
     setSceneInputEnabled(next) {
       sceneInputEnabled = !!next;
     },
@@ -3082,8 +2820,6 @@ export function mountPrivateTeamScene(canvas, opts) {
       canvas.removeEventListener('pointerup', handlePointerUp);
       canvas.removeEventListener('pointercancel', handlePointerUp);
       canvas.removeEventListener('wheel', onWheel);
-      if (bronzeEnvMap) bronzeEnvMap.dispose();
-      scene.environment = null;
       renderer.dispose();
     }
   };

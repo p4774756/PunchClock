@@ -18,17 +18,14 @@ test('私人女秘書 HUD 標記與身分文案', () => {
   assert.match(js, /data-pt-task-bar/);
   assert.match(js, /今日完成/);
   assert.doesNotMatch(js, /pt-a-badge/);
-  assert.match(js, /pt-hud-id-logout/);
+  assert.doesNotMatch(js, /pt-hud-id-plate/);
+  assert.doesNotMatch(js, /data-pt-identity-toggle/);
+  assert.doesNotMatch(js, /pt-hud-tr/);
   assert.match(js, /taskProgressFromTiger/);
-  assert.match(js, /pt-hud-id-plate/);
-  assert.match(js, /data-pt-identity-toggle[^>]*aria-label="帳號"/);
-  assert.match(js, /pt-hud-id-plate is-guest[^>]*data-pt-open-login[^>]*aria-label="帳號"/);
-  assert.match(js, /已登入/);
-  assert.doesNotMatch(js, /管理員/);
   assert.match(js, /data-pt-task-hint-close/);
   assert.match(js, /pt-hud-task-hint-close/);
-  assert.match(js, /線上/);
-  assert.match(js, /訪客/);
+  assert.match(js, /先登入才能看任務/);
+  assert.match(js, /data-pt-open-login/);
   assert.match(js, /登入/);
   assert.doesNotMatch(js, /pt-hud-identity/);
   assert.doesNotMatch(js, /AUTH_ABBREV/);
@@ -44,13 +41,12 @@ test('任務細條僅在有公開計數時顯示', () => {
   assert.deepEqual(onlyActive, { completed: 0, total: 1, fraction: 0 });
 });
 
-test('左下部署版本列標明網站與 App', () => {
+test('左下部署版本列僅標明網站與時間', () => {
   const js = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
   const css = readFileSync(join(publicRoot, 'css/private-team.css'), 'utf8');
   const html = readFileSync(join(publicRoot, 'index.html'), 'utf8');
   assert.match(js, /網站 v/);
-  assert.match(js, /App v/);
-  assert.match(js, /PUNCHCLOCK_CLIENT_VERSION/);
+  assert.doesNotMatch(js, /App v/);
   assert.match(html, /PUNCHCLOCK_CLIENT_VERSION/);
   assert.match(css, /\.pt-hud-deploy-ver[\s\S]*font-size:\s*0\.72rem/);
   assert.match(css, /\.pt-hud-deploy-ver[\s\S]*rgba\(248,\s*251,\s*255,\s*0\.78\)/);
@@ -64,14 +60,8 @@ test('左下部署版本列標明網站與 App', () => {
     PUNCHCLOCK_SERVER_BUILD_TIME: '2026-11-23 20:16',
     PUNCHCLOCK_CLIENT_VERSION: '4.0.2'
   };
-  assert.equal(
-    deployVersionLabel(win),
-    '網站 v4.0.0 · 2026-11-23 20:16 · App v4.0.2'
-  );
-  assert.equal(
-    deployVersionLabel(win, { compact: true }),
-    '網站 v4.0.0 · 11-23 20:16 · App v4.0.2'
-  );
+  assert.equal(deployVersionLabel(win), '網站 v4.0.0 · 2026-11-23 20:16');
+  assert.equal(deployVersionLabel(win, { compact: true }), '網站 v4.0.0 · 11-23 20:16');
   assert.equal(
     deployVersionLabel({ ...win, PUNCHCLOCK_CLIENT_VERSION: '' }),
     '網站 v4.0.0 · 2026-11-23 20:16'

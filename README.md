@@ -68,7 +68,7 @@ java -jar client/target/SKLbaby.jar
 
 ### 5. 公開網站
 
-- **虛擬辦公室**（`GET /`）：2D 場景。書櫃進入經絡研習室；桌面上的入口可開「下載 App」（`/download`）；白板／告示牌可查看施工進度。
+- **虛擬辦公室**（`GET /`）：3D 私人女秘書場景；左上任務／登入、右下可開「下載 App」；施工進度與路線圖請至主控台 `/console`。
 - **經絡研習室**（`/atlas/tcm-3d/`，免登入）：穴位練習用角色模型，搜尋支援穴名、注音或編號。本機須先 `./scripts/build-atlas.sh`（需 Node.js ≥ 22），否則會提示尚未建置。開發檢查與烘焙流程見 `atlas-src/tcm-3d` 目錄內文件。
 - **下載頁**（`/download`）：macOS／Windows 安裝檔（若 Release 或環境變數有提供）與 `SKLbaby.jar`（仍接受舊檔名 `XiaoBaobei.jar`）。安裝檔未簽章：macOS 右鍵→打開；Windows SmartScreen「更多資訊」→「仍要執行」。
 
