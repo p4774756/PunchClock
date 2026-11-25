@@ -1561,7 +1561,12 @@ public class App extends JFrame {
         appendLog("[檔案] （" + timeLabel + "）【" + fromId + "】要直傳「" + safeName + "」（" + sizeLabel + "）");
         chatNote(fromId, "對方要直傳「" + safeName + "」（" + sizeLabel + "）");
         pendingRelayOffers.put(relayId, new PendingRelayOffer(fromId, relayId, safeName, size, folder, sentAtMs));
-        markPeerUnread(fromId);
+        PeerChatWindow openWindow = InboundPeerRelayOffer.openChatWindow(chatWindows, fromId);
+        if (openWindow != null) {
+            presentPendingRelayOffer(fromId, openWindow);
+        } else {
+            markPeerUnread(fromId);
+        }
         notifyPet(DesktopPetEvent.FILE_OFFERED, () -> openPetChat(fromId));
     }
 
