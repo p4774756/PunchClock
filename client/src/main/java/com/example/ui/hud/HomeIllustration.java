@@ -46,6 +46,12 @@ public enum HomeIllustration {
         return ROOM_B;
     }
 
+    /** 依列舉順序輪到下一張；最後一張之後回到第一張。 */
+    public HomeIllustration next() {
+        HomeIllustration[] all = values();
+        return all[(ordinal() + 1) % all.length];
+    }
+
     public static HomeIllustration fromLabel(String label) {
         if (label == null || label.isBlank()) {
             return ROOM_B;

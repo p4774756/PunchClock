@@ -2,6 +2,7 @@ package com.example.ui.hud;
 
 import org.junit.Test;
 
+import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
 import java.awt.Color;
 import java.awt.Rectangle;
@@ -12,6 +13,7 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -162,6 +164,18 @@ public class AnimeShellNavTest {
         } finally {
             g.dispose();
         }
+    }
+
+    @Test
+    public void hideTabStripBlocksKeyboardNavigation() {
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.addTab("a", new JPanel());
+        tabs.addTab("b", new JPanel());
+        AnimeShell.hideTabStrip(tabs);
+        assertFalse(tabs.isFocusable());
+        assertFalse(tabs.isRequestFocusEnabled());
+        tabs.setSelectedIndex(1);
+        assertEquals(1, tabs.getSelectedIndex());
     }
 
 }

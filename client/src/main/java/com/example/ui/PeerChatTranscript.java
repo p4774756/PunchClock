@@ -57,7 +57,6 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
     private final List<MessageView> views = new ArrayList<>();
     private final Font codeFont;
     private Consumer<BufferedImage> imageViewer;
-    private boolean developerMode;
     private int laidWidth = -1;
 
     public PeerChatTranscript(String peerId, String fontFamily, int fontSize) {
@@ -81,26 +80,6 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
     /** 點圖片時要做什麼（通常是開一個可另存的檢視視窗）。 */
     public void setImageViewer(Consumer<BufferedImage> viewer) {
         this.imageViewer = viewer;
-    }
-
-    /**
-     * 開發者模式：每則文字都用等寬字，並保留縮排、Tab 與換行。
-     * 關掉之後，只有程式碼與 stack trace 維持等寬。
-     */
-    public void setDeveloperMode(boolean enabled) {
-        if (!SwingUtilities.isEventDispatchThread()) {
-            SwingUtilities.invokeLater(() -> setDeveloperMode(enabled));
-            return;
-        }
-        if (developerMode == enabled) {
-            return;
-        }
-        developerMode = enabled;
-        rebuild();
-    }
-
-    public boolean isDeveloperMode() {
-        return developerMode;
     }
 
     public void append(PeerChatStore.Entry entry) {
@@ -341,7 +320,7 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         private MessageView(PeerChatStore.Entry entry) {
             this.entry = entry;
             this.preserved = entry.kind == PeerChatStore.Kind.MESSAGE
-                    && (developerMode || preserveLayout(entry.text));
+                    && preserveLayout(entry.text);
             FileNotice file = entry.kind == PeerChatStore.Kind.NOTE ? fileNotice(entry.text) : null;
             if (file != null) {
                 // 傳檔提示：「對方…」靠左，自己這邊（已直傳、已送出）靠右

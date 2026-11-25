@@ -161,14 +161,10 @@ public class PeerChatWindow extends JFrame {
         names.setOpaque(false);
         names.add(nameLabel);
         names.add(statusLabel);
-        CandyCheckBox developerMode = new CandyCheckBox("開發者", false);
-        developerMode.setFont(plain);
-        developerMode.setToolTipText("程式碼與錯誤訊息改用等寬字，並保留縮排、Tab 與換行");
         JPanel header = new JPanel(new BorderLayout(10, 0));
         header.setBorder(new EmptyBorder(8, 12, 8, 12));
         header.add(avatarLabel, BorderLayout.WEST);
         header.add(names, BorderLayout.CENTER);
-        header.add(developerMode, BorderLayout.EAST);
 
         // 中間：對話區
         transcript = new PeerChatTranscript(peerId, plain.getFamily(), 13);
@@ -259,11 +255,6 @@ public class PeerChatWindow extends JFrame {
             }
         };
         input.setFont(plain);
-        developerMode.addItemListener(e -> {
-            boolean on = developerMode.isSelected();
-            transcript.setDeveloperMode(on);
-            input.setFont(on ? new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 13) : plain);
-        });
         input.setLineWrap(true);
         input.setWrapStyleWord(true);
         input.setToolTipText("Enter 送出，Shift+Enter 換行；Ctrl+V 或 ⌘V 可貼多張截圖（最多 "
