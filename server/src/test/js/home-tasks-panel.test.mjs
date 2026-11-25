@@ -100,6 +100,12 @@ test('首頁 closeTasks 不再靜默關閉', () => {
   assert.doesNotMatch(js, /closeTasks:.*silent:\s*true/);
 });
 
+test('開啟裝置窗時會準備裝置面板', () => {
+  const js = readFileSync(join(publicRoot, 'js/home-tasks-panel.js'), 'utf8');
+  assert.match(js, /PunchclockHomeDevicesPanel/);
+  assert.match(js, /prepareDevicesPanel/);
+});
+
 test('任務面板標題列固定，內容區捲動', () => {
   const css = readFileSync(join(publicRoot, 'css/private-team.css'), 'utf8');
   assert.match(css, /\.home-tasks-panel\s*\{[^}]*overflow:\s*hidden/);

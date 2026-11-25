@@ -314,6 +314,12 @@
       animation: blink 1.6s ease-in-out infinite;
     }
 
+    .chip-schedule-dot {
+      padding: 0.2rem 0.45rem;
+      min-width: 1.5rem;
+      justify-content: center;
+    }
+
     @keyframes blink {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.35; }

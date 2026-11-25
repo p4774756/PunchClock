@@ -39,6 +39,10 @@ test('下沉浴缸、托盤與單螢幕支架', () => {
   assert.match(src, /bathtubInnerFront/);
   assert.match(src, /keyboardTray/);
   assert.match(src, /addMonitor\(root, monitorLook, -0\.96, 0\.94, 0\.98, 0\.02\)/);
+  assert.match(src, /pickRole = 'monitor'/);
+  assert.match(src, /clickables\.push\(monitors\[mi\]\.group\)/);
+  assert.match(src, /updatePointerHover/);
+  assert.match(src, /monitorHighlightActive/);
   assert.equal((src.match(/addMonitor\(root, monitorLook/g) || []).length, 1);
   assert.doesNotMatch(src, /addMonitor\(root, monitorLook, -0\.68/);
   assert.match(src, /basePlate/);

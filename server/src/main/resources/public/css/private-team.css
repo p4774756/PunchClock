@@ -924,17 +924,18 @@ button.pt-hud-id-plate {
   }
 
   .pt-a-bar-row {
-    display: none !important;
+    display: flex;
   }
 
   .pt-a-name {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
+    white-space: nowrap;
   }
 
   .pt-a-plate {
-    min-width: 4.5rem;
-    max-width: 7rem;
-    padding: 5px 7px 5px 9px;
+    min-width: 5.25rem;
+    max-width: 9.25rem;
+    padding: 5px 8px 5px 9px;
   }
 
   .pt-hud-id-plate {
