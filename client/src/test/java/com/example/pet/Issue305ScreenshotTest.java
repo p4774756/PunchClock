@@ -38,7 +38,7 @@ public class Issue305ScreenshotTest {
                 settings.setSelectedIndex(1);
                 save(settings, out.resolve("02-settings-appearance-pet.png"));
                 settings.setSelectedIndex(2);
-                save(settings, out.resolve("04-settings-relay-help.png"));
+                save(settings, out.resolve("04-settings-about.png"));
 
                 PanelFactory.PeerInteractionRefs prefs = new PanelFactory.PeerInteractionRefs();
                 var peer = PanelFactory.createPeerInteractionPanel(prefs, main, bold);

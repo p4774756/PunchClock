@@ -5,6 +5,7 @@ import com.example.model.TaskStatus;
 import org.junit.Test;
 
 import javax.swing.JComboBox;
+import javax.swing.JTabbedPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
@@ -288,7 +289,12 @@ public class CandyWidgetsTest {
         SwingUtilities.invokeAndWait(() -> {
             Fonts fonts = fonts();
             PanelFactory.ServerConfigRefs settings = new PanelFactory.ServerConfigRefs();
-            PanelFactory.createServerConfigBody(settings, fonts.main, fonts.bold, fonts.field);
+            JTabbedPane settingsTabs = PanelFactory.createServerConfigBody(
+                    settings, fonts.main, fonts.bold, fonts.field);
+            assertEquals(3, settingsTabs.getTabCount());
+            assertEquals("連線", settingsTabs.getTitleAt(PanelFactory.SETTINGS_CONNECTION_TAB));
+            assertEquals("外觀", settingsTabs.getTitleAt(PanelFactory.SETTINGS_APPEARANCE_TAB));
+            assertEquals("關於", settingsTabs.getTitleAt(PanelFactory.SETTINGS_ABOUT_TAB));
             assertTrue(settings.enableServerCheckBox instanceof CandyCheckBox);
             assertTrue(settings.trustAllSslCheckBox instanceof CandyCheckBox);
             assertTrue(settings.relayEnabledCheckBox instanceof CandyCheckBox);
