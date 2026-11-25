@@ -18,9 +18,9 @@ test('紫藍月光、窗框影子、水光、燭火與暖色洗牆', () => {
   assert.match(src, /windowSillCandle/);
   assert.match(src, /bathtubEdgeCandle/);
   assert.match(src, /tubBackWarmWash/);
-  assert.match(src, /ceilingWarmWash/);
+  assert.doesNotMatch(src, /ceilingWarmWash/);
   assert.match(src, /windowMoonlightWall/);
-  assert.match(src, /rgba\(38,48,88/);
+  assert.match(src, /rgba\(16,22,52/);
   assert.doesNotMatch(src, /shadowMap\.enabled\s*=\s*true/);
 });
 

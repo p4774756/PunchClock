@@ -779,8 +779,8 @@ function makeWindowMoonlightFloorTexture() {
       const rw = cellW * 0.42;
       const rh = cellH * 0.38;
       const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, Math.max(rw, rh));
-      g.addColorStop(0, 'rgba(188,202,255,0.62)');
-      g.addColorStop(0.5, 'rgba(118,138,228,0.32)');
+      g.addColorStop(0, 'rgba(220,230,255,0.92)');
+      g.addColorStop(0.45, 'rgba(150,170,245,0.48)');
       g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
@@ -788,8 +788,8 @@ function makeWindowMoonlightFloorTexture() {
       ctx.fill();
     }
   }
-  ctx.strokeStyle = 'rgba(38,48,88,0.76)';
-  ctx.lineWidth = 7;
+  ctx.strokeStyle = 'rgba(16,22,52,0.88)';
+  ctx.lineWidth = 10;
   for (let col = 1; col < cols; col++) {
     const lx = padX + col * cellW;
     ctx.beginPath();
@@ -1386,20 +1386,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   tubBackWarmWash.position.set(TUB_CX, wallY + wallH / 2 - 0.14, backZTub - WALL_THICK / 2 - 0.01);
   tubBackWarmWash.name = 'tubBackWarmWash';
   root.add(tubBackWarmWash);
-  const ceilingWarmWash = new THREE.Mesh(
-    new THREE.PlaneGeometry(2.15, 0.14),
-    new THREE.MeshBasicMaterial({
-      color: 0xffd8b0,
-      transparent: true,
-      opacity: 0.09,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending
-    })
-  );
-  ceilingWarmWash.rotation.x = -Math.PI / 2;
-  ceilingWarmWash.position.set(0.18, wallY + wallH / 2 - 0.06, backZ + 0.52);
-  ceilingWarmWash.name = 'ceilingWarmWash';
-  root.add(ceilingWarmWash);
+  // 不再放天花板水平亮帶：從常用機位會看成窗戶上方的破圖橫條。暖色洗牆改由 tubBackWarmWash 承擔。
 
   const skyTex = makeNightWindowSkyTexture();
   const windowSky = new THREE.Mesh(
@@ -1629,7 +1616,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const windowMoonlight = new THREE.Mesh(new THREE.PlaneGeometry(2.88, 1.12), moonFloorMat);
   windowMoonlight.rotation.x = -Math.PI / 2;
   windowMoonlight.rotation.z = 0.34;
-  windowMoonlight.position.set(0.14, 0.022, -0.92);
+  windowMoonlight.position.set(0.14, 0.056, -0.92);
   windowMoonlight.name = 'windowMoonlight';
   root.add(windowMoonlight);
   const windowMoonlightTub = new THREE.Mesh(
@@ -1638,7 +1625,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   );
   windowMoonlightTub.rotation.x = -Math.PI / 2;
   windowMoonlightTub.rotation.z = 0.34;
-  windowMoonlightTub.position.set(TUB_CX - 0.42, 0.021, TUB_CZ + 0.38);
+  windowMoonlightTub.position.set(TUB_CX - 0.42, 0.056, TUB_CZ + 0.38);
   windowMoonlightTub.name = 'windowMoonlightTub';
   root.add(windowMoonlightTub);
   const windowMoonlightWall = new THREE.Mesh(
